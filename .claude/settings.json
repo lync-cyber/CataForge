@@ -23,6 +23,7 @@
       "Bash(dotnet format*)",
       "Bash(python .claude/skills/*/scripts/*.py*)",
       "Bash(python .claude/scripts/*.py*)",
+      "Bash(bash .claude/scripts/setup-penpot-mcp.sh --ensure)",
       "Bash(python -m pytest*)",
       "Bash(python -m pip install*)"
     ],

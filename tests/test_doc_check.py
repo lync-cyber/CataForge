@@ -43,7 +43,7 @@ class TestCheckNoTodo:
     def _make_checker(self, tmp_path, content):
         f = tmp_path / "test-doc.md"
         f.write_text(content, encoding="utf-8")
-        return DocChecker("prd", str(f), str(tmp_path))
+        return DocChecker("prd", str(f), str(tmp_path), quiet=True)
 
     def test_clean_doc(self, tmp_path):
         checker = self._make_checker(tmp_path, "## Section\nContent here\n")
@@ -85,12 +85,12 @@ class TestDetectVolumeType:
         content = "<!-- volume: features -->\n## Features\nContent"
         f = tmp_path / "doc.md"
         f.write_text(content, encoding="utf-8")
-        checker = DocChecker("arch", str(f), str(tmp_path))
+        checker = DocChecker("arch", str(f), str(tmp_path), quiet=True)
         assert checker.volume_type == "features"
 
     def test_without_volume_comment(self, tmp_path):
         content = "## Main\nContent"
         f = tmp_path / "doc.md"
         f.write_text(content, encoding="utf-8")
-        checker = DocChecker("prd", str(f), str(tmp_path))
+        checker = DocChecker("prd", str(f), str(tmp_path), quiet=True)
         assert checker.volume_type == "main"

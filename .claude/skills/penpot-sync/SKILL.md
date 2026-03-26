@@ -68,7 +68,7 @@ user-invocable: true
 ```
 
 ## Penpot MCP 工具发现
-具体 MCP 工具名称以 .claude/settings.json 中 `mcpServers.penpot` 配置为准，运行时通过可用工具列表自动发现。典型操作包括: 读取项目信息、读取组件结构/样式、写入设计 Token。若工具列表中无 Penpot 相关工具，返回 blocked。
+具体 MCP 工具名称以 .claude/settings.json 中 `mcpServers.penpot` 配置为准，运行时通过可用工具列表自动发现。典型操作包括: 读取项目信息、读取组件结构/样式、写入设计 Token。若工具列表中无 Penpot 相关工具，先运行 `bash .claude/scripts/setup-penpot-mcp.sh --ensure` 尝试启动服务，仍不可用则返回 blocked。
 
 ## 效率策略
 - 仅同步有差异的Token，不全量覆盖
