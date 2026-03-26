@@ -1,0 +1,48 @@
+{
+  "version": "0.1.0",
+  "description": "CataForge 功能兼容性注册表。每个功能声明最低框架版本和阶段适用性。",
+  "features": {
+    "tdd-engine": {
+      "min_version": "0.1.0",
+      "auto_enable": true,
+      "phase_guard": "development",
+      "description": "TDD三阶段开发引擎 (RED→GREEN→REFACTOR)"
+    },
+    "doc-review": {
+      "min_version": "0.1.0",
+      "auto_enable": true,
+      "phase_guard": null,
+      "description": "文档双层审计 (Layer 1脚本 + Layer 2 AI)"
+    },
+    "code-review": {
+      "min_version": "0.1.0",
+      "auto_enable": true,
+      "phase_guard": "development",
+      "description": "代码双层审计 (Layer 1 lint + Layer 2 AI)"
+    },
+    "penpot-sync": {
+      "min_version": "0.1.0",
+      "auto_enable": false,
+      "phase_guard": "ui_design",
+      "description": "Penpot设计工具集成 (需设置 design-tool: penpot)"
+    },
+    "sprint-review": {
+      "min_version": "0.1.0",
+      "auto_enable": true,
+      "phase_guard": "development",
+      "description": "Sprint完成度审查 — 计划vs实际对比、AC覆盖验证、范围偏移检测"
+    },
+    "change-guard": {
+      "min_version": "0.1.0",
+      "auto_enable": true,
+      "phase_guard": null,
+      "description": "变更守卫 — 分析变更请求与文档一致性，确保文档先行"
+    },
+    "check-upgrade": {
+      "min_version": "0.1.0",
+      "auto_enable": true,
+      "phase_guard": null,
+      "description": "远程升级检测与拉取 — 支持GitHub API + 通用Git"
+    }
+  }
+}
