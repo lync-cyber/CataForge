@@ -229,6 +229,28 @@ is_port_listening() {
     esac
 }
 
+# ── --ensure 快速模式：仅检测/启动，不安装 ────────────────────────────────────
+if [[ "${1:-}" == "--ensure" ]]; then
+    # 已在运行 → 秒级退出
+    if is_port_listening "$MCP_PORT"; then
+        echo "Penpot MCP already running on port $MCP_PORT"
+        exit 0
+    fi
+    # 已安装但未运行 → 启动服务
+    MCP_WORK_DIR="$INSTALL_DIR/$MCP_SUBDIR"
+    [[ ! -d "$MCP_WORK_DIR" ]] && [[ -f "$INSTALL_DIR/package.json" ]] && MCP_WORK_DIR="$INSTALL_DIR"
+    if [[ -d "$MCP_WORK_DIR" ]] && [[ -f "$MCP_WORK_DIR/package.json" ]]; then
+        cd "$MCP_WORK_DIR"
+        npm run start:all > /tmp/penpot-mcp-server.log 2>&1 &
+        for i in $(seq 1 "$HEALTH_TIMEOUT"); do
+            is_port_listening "$MCP_PORT" && { echo "Penpot MCP started on port $MCP_PORT"; exit 0; }
+            sleep 1
+        done
+        echo "Penpot MCP failed to start within ${HEALTH_TIMEOUT}s" >&2; exit 1
+    fi
+    echo "Penpot MCP not installed. Run: bash .claude/scripts/setup-penpot-mcp.sh" >&2; exit 1
+fi
+
 # ── 清理函数 (Ctrl+C 或异常退出时杀掉后台进程) ─────────────────────────────
 BG_PID=""
 cleanup() {

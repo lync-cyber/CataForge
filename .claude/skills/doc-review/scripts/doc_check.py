@@ -97,6 +97,7 @@ class DocChecker:
         doc_file: str,
         docs_dir: str = "docs/",
         volume_type: str | None = None,
+        quiet: bool = False,
     ):
         self.doc_type = doc_type
         self.doc_file = doc_file
@@ -105,6 +106,7 @@ class DocChecker:
         self.lines = self.content.splitlines()
         self.errors: list[str] = []
         self.warnings: list[str] = []
+        self._quiet = quiet
         # volume_type: 外部传入优先，否则自动检测
         self.volume_type = volume_type or self._detect_volume_type()
 
@@ -119,11 +121,13 @@ class DocChecker:
 
     def fail(self, msg: str):
         self.errors.append(msg)
-        print(f"FAIL: {msg}")
+        if not self._quiet:
+            print(f"FAIL: {msg}")
 
     def warn(self, msg: str):
         self.warnings.append(msg)
-        print(f"WARN: {msg}")
+        if not self._quiet:
+            print(f"WARN: {msg}")
 
     # ========================================
     # 通用检查
