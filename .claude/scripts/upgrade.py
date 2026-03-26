@@ -218,7 +218,11 @@ def copy_framework(source_path: str, dry_run: bool = False) -> list:
                     new_source = json.load(f)
                 with open(dst_upgrade_source, "r", encoding="utf-8") as f:
                     cur_source = json.load(f)
+                # last_* 字段为项目本地状态，始终保留当前值
+                local_state_keys = {"last_commit", "last_version", "last_upgrade_date"}
                 for k, v in new_source.items():
+                    if k in local_state_keys:
+                        continue  # 不覆盖本地升级状态
                     if k not in cur_source:
                         cur_source[k] = v
                 if not dry_run:
@@ -545,6 +549,94 @@ def cleanup_askpass(env: dict):
             print(
                 f"警告: 无法清理临时文件 {askpass_script}，请手动删除", file=sys.stderr
             )
+
+
+def get_remote_commit_github(repo: str, branch: str, token: str) -> str:
+    """通过 GitHub API 获取远程分支的最新 commit SHA"""
+    url = f"https://api.github.com/repos/{repo}/commits/{branch}"
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "CataForge-Upgrade-Checker",
+    }
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    try:
+        req = Request(url, headers=headers)
+        opener = _build_url_opener()
+        if opener:
+            resp = opener.open(req, timeout=30)
+        else:
+            resp = urlopen(req, timeout=30)
+        with resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data.get("sha", "")
+    except (HTTPError, URLError, Exception) as e:
+        print(f"警告: 无法获取远程 commit SHA ({e})", file=sys.stderr)
+        return ""
+
+
+def get_remote_commit_git(url: str, branch: str) -> str:
+    """通过 git ls-remote 获取远程分支的最新 commit SHA"""
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", url, f"refs/heads/{branch}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            print(f"警告: git ls-remote 失败: {result.stderr.strip()}", file=sys.stderr)
+            return ""
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 2:
+                return parts[0].strip()
+        return ""
+    except subprocess.TimeoutExpired:
+        print("警告: git ls-remote 超时", file=sys.stderr)
+        return ""
+    except FileNotFoundError:
+        print("错误: git 命令不可用", file=sys.stderr)
+        return ""
+
+
+def get_local_git_head(repo_path: str) -> str:
+    """读取本地 git 仓库的 HEAD commit SHA"""
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_path, "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return ""
+
+
+def save_upgrade_state(commit_sha: str, version: str):
+    """升级成功后将 commit SHA、版本号、日期写入 upgrade-source.json"""
+    config_file = os.path.join(".claude", "upgrade-source.json")
+    config = {}
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    config["last_commit"] = commit_sha
+    config["last_version"] = version
+    config["last_upgrade_date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+    with open(config_file, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+        f.write("\n")
 
 
 def check_version_git_tags(url: str) -> str:
@@ -921,9 +1013,10 @@ def run_local_upgrade(
     print(f"当前版本: {cur_ver}")
     print(f"新版本:   {new_ver}")
 
-    if parse_semver(new_ver) <= parse_semver(cur_ver):
-        print(f"当前已是最新版本 ({cur_ver})，无需升级。")
-        return 2
+    if parse_semver(new_ver) < parse_semver(cur_ver):
+        print(f"警告: 新版本 ({new_ver}) 低于当前版本 ({cur_ver})，将继续执行降级。")
+    elif parse_semver(new_ver) == parse_semver(cur_ver):
+        print(f"提示: 版本号相同 ({cur_ver})，可能存在非版本号变更。")
 
     if dry_run:
         print(f"\n[DRY-RUN] 模拟升级 {cur_ver} → {new_ver}:\n")
@@ -958,6 +1051,11 @@ def run_local_upgrade(
         print("\n[升级后验证]")
         os.environ["CATAFORGE_OLD_VERSION"] = cur_ver
         run_verify()
+
+    # 记录升级状态（local 升级尝试读取源路径的 git HEAD）
+    if not dry_run:
+        source_commit = get_local_git_head(source)
+        save_upgrade_state(source_commit, new_ver)
 
     # 报告
     prefix = "[DRY-RUN] " if dry_run else ""
@@ -999,13 +1097,14 @@ def resolve_remote_source(args) -> tuple:
         sys.exit(1)
 
 
-def detect_remote_version(source_type, repo, url, branch, token_env):
-    """检测远程版本，返回 (remote_ver, clone_url, token)"""
+def detect_remote_state(source_type, repo, url, branch, token_env):
+    """检测远程状态，返回 (remote_ver, remote_commit, clone_url, token)"""
     token = get_github_token(token_env) if token_env else ""
 
     if source_type == "github":
         print(f"远程源: GitHub {repo} (分支: {branch})")
         remote_ver = check_version_github(repo, branch, token)
+        remote_commit = get_remote_commit_github(repo, branch, token)
         clone_url = get_github_clone_url(repo)
     else:
         print(f"远程源: Git {url} (分支: {branch})")
@@ -1013,9 +1112,10 @@ def detect_remote_version(source_type, repo, url, branch, token_env):
         if not remote_ver:
             print("未找到 semver 标签，尝试读取分支上的版本文件...")
             remote_ver = check_version_git_clone(url, branch, token)
+        remote_commit = get_remote_commit_git(url, branch)
         clone_url = url
 
-    return remote_ver, clone_url, token
+    return remote_ver, remote_commit, clone_url, token
 
 
 def cmd_local(args):
@@ -1024,7 +1124,7 @@ def cmd_local(args):
 
 
 def cmd_check(args):
-    """子命令: check — 检测远程是否有新版本"""
+    """子命令: check — 检测远程是否有新版本（优先使用 commit SHA 比较）"""
     source_type, repo, url, branch, token_env = resolve_remote_source(args)
 
     if not validate_branch_name(branch):
@@ -1032,21 +1132,44 @@ def cmd_check(args):
         sys.exit(1)
 
     local_ver = read_version(".")
+    config = load_upgrade_source()
+    last_commit = config.get("last_commit", "")
+
     print(f"当前版本: {local_ver}")
+    if last_commit:
+        print(f"上次升级 commit: {last_commit[:12]}")
 
-    remote_ver, _, _ = detect_remote_version(source_type, repo, url, branch, token_env)
+    remote_ver, remote_commit, _, _ = detect_remote_state(
+        source_type, repo, url, branch, token_env
+    )
 
-    if not remote_ver:
-        print("错误: 无法获取远程版本", file=sys.stderr)
+    if not remote_ver and not remote_commit:
+        print("错误: 无法获取远程版本和 commit 信息", file=sys.stderr)
         sys.exit(1)
 
-    print(f"远程版本: {remote_ver}")
+    if remote_ver:
+        print(f"远程版本: {remote_ver}")
+    if remote_commit:
+        print(f"远程 commit: {remote_commit[:12]}")
 
-    if parse_semver(remote_ver) <= parse_semver(local_ver):
-        print(f"\n当前已是最新版本 ({local_ver})，无需升级。")
-        sys.exit(2)
+    # 优先使用 commit SHA 比较
+    if remote_commit and last_commit:
+        if remote_commit == last_commit:
+            print(f"\n当前已是最新 (commit: {last_commit[:12]})，无需升级。")
+            sys.exit(2)
+        else:
+            print(f"\n发现更新: commit {last_commit[:12]} → {remote_commit[:12]}")
+            if remote_ver:
+                print(f"版本: {local_ver} → {remote_ver}")
+    elif remote_ver:
+        # 回退到版本号比较（首次升级或无法获取 commit 时）
+        if parse_semver(remote_ver) <= parse_semver(local_ver):
+            print(f"\n当前已是最新版本 ({local_ver})，无需升级。")
+            sys.exit(2)
+        print(f"\n发现新版本: {local_ver} → {remote_ver}")
+    else:
+        print(f"\n检测到远程 commit 变更: {remote_commit[:12]}")
 
-    print(f"\n发现新版本: {local_ver} → {remote_ver}")
     print("\n可运行以下命令升级:")
     print("  python .claude/scripts/upgrade.py upgrade --dry-run  # 预览变更")
     print("  python .claude/scripts/upgrade.py upgrade             # 执行升级")
@@ -1054,32 +1177,71 @@ def cmd_check(args):
 
 
 def cmd_upgrade(args):
-    """子命令: upgrade — 检测 + 执行远程升级"""
+    """子命令: upgrade — 检测 + 执行远程升级（优先使用 commit SHA 比较）"""
     source_type, repo, url, branch, token_env = resolve_remote_source(args)
+    force = getattr(args, "force", False)
 
     if not validate_branch_name(branch):
         print(f"错误: 无效的分支名 '{branch}'", file=sys.stderr)
         sys.exit(1)
 
     local_ver = read_version(".")
-    print(f"当前版本: {local_ver}")
+    config = load_upgrade_source()
+    last_commit = config.get("last_commit", "")
 
-    remote_ver, clone_url, token = detect_remote_version(
+    print(f"当前版本: {local_ver}")
+    if last_commit:
+        print(f"上次升级 commit: {last_commit[:12]}")
+
+    remote_ver, remote_commit, clone_url, token = detect_remote_state(
         source_type, repo, url, branch, token_env
     )
 
-    if not remote_ver:
-        print("错误: 无法获取远程版本", file=sys.stderr)
+    if not remote_ver and not remote_commit:
+        print("错误: 无法获取远程版本和 commit 信息", file=sys.stderr)
         sys.exit(1)
 
-    print(f"远程版本: {remote_ver}")
+    if remote_ver:
+        print(f"远程版本: {remote_ver}")
+    if remote_commit:
+        print(f"远程 commit: {remote_commit[:12]}")
 
-    if parse_semver(remote_ver) <= parse_semver(local_ver):
-        print(f"\n当前已是最新版本 ({local_ver})，无需升级。")
-        sys.exit(2)
+    # 判断是否需要升级
+    needs_upgrade = True
+    if remote_commit and last_commit:
+        if remote_commit == last_commit:
+            if force:
+                print("\ncommit 相同，但 --force 强制升级。")
+            else:
+                print(f"\n当前已是最新 (commit: {last_commit[:12]})，无需升级。")
+                sys.exit(2)
+            needs_upgrade = force
+    elif remote_ver:
+        if parse_semver(remote_ver) <= parse_semver(local_ver):
+            if force:
+                print("\n版本相同或更低，但 --force 强制升级。")
+            else:
+                print(f"\n当前已是最新版本 ({local_ver})，无需升级。")
+                sys.exit(2)
+            needs_upgrade = force
 
-    print(f"\n发现新版本: {local_ver} → {remote_ver}")
+    if needs_upgrade:
+        ver_info = f"{local_ver} → {remote_ver}" if remote_ver else ""
+        commit_info = ""
+        if remote_commit:
+            commit_info = f"commit {last_commit[:12] if last_commit else '(首次)'} → {remote_commit[:12]}"
+        summary = " | ".join(filter(None, [ver_info, commit_info]))
+        if summary:
+            print(f"\n升级: {summary}")
+
     exit_code = clone_and_upgrade(clone_url, branch, token=token, dry_run=args.dry_run)
+
+    # 升级成功后记录状态
+    if exit_code == 0 and not args.dry_run:
+        new_ver = read_version(".")
+        save_upgrade_state(remote_commit or "", new_ver)
+        print("\n已记录升级状态到 .claude/upgrade-source.json")
+
     sys.exit(exit_code)
 
 
@@ -1141,6 +1303,9 @@ def main():
     add_remote_args(p_upgrade)
     p_upgrade.add_argument(
         "--dry-run", action="store_true", help="仅预览变更，不实际修改"
+    )
+    p_upgrade.add_argument(
+        "--force", action="store_true", help="忽略 commit SHA 比较，强制执行升级"
     )
     p_upgrade.set_defaults(func=cmd_upgrade)
 
