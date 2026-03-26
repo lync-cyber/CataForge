@@ -417,6 +417,30 @@ def merge_claude_md(source_path: str, dry_run: bool = False) -> list:
 # ============================================================================
 
 
+def _load_dotenv():
+    """从 .env 文件加载配置到 os.environ（.env 优先于系统环境变量）。
+
+    支持的变量: GITHUB_TOKEN, HTTP_PROXY, HTTPS_PROXY, NO_PROXY 及其小写形式。
+    仅在 .env 文件存在时执行，静默跳过解析失败的行。
+    """
+    env_file = ".env"
+    if not os.path.exists(env_file):
+        return
+
+    with open(env_file, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$", line)
+            if not match:
+                continue
+            key = match.group(1)
+            value = match.group(2).strip().strip('"').strip("'")
+            # .env 优先: 覆盖系统环境变量
+            os.environ[key] = value
+
+
 def load_upgrade_source() -> dict:
     """加载 .claude/upgrade-source.json 配置"""
     config_file = os.path.join(".claude", "upgrade-source.json")
@@ -427,14 +451,14 @@ def load_upgrade_source() -> dict:
 
 
 def get_github_token(token_env: str) -> str:
-    """从环境变量获取 GitHub token"""
+    """从环境变量获取 GitHub token（.env 已由 _load_dotenv 预加载）"""
     if not token_env:
         return ""
     return os.environ.get(token_env, "")
 
 
 def _build_url_opener():
-    """构建支持代理的 URL opener（从环境变量读取 HTTP_PROXY/HTTPS_PROXY）"""
+    """构建支持代理的 URL opener（从环境变量读取，.env 已预加载）"""
     proxies = {}
     for var in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
         val = os.environ.get(var)
@@ -1070,6 +1094,9 @@ def cmd_verify(args):
 
 
 def main():
+    # 优先从 .env 文件加载配置（代理、GITHUB_TOKEN 等）
+    _load_dotenv()
+
     parser = argparse.ArgumentParser(
         description="CataForge 统一升级工具",
         epilog=(
