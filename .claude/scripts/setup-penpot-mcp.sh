@@ -13,6 +13,23 @@
 # ============================================================================
 set -euo pipefail
 
+# ── 加载 .env 配置（优先于系统环境变量） ────────────────────────────────────
+ENV_FILE="${CLAUDE_PROJECT_DIR:-.}/.env"
+if [[ -f "$ENV_FILE" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"          # 去除注释
+        line="${line// /}"          # 去除空格（仅简单场景）
+        [[ -z "$line" ]] && continue
+        if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            key="${BASH_REMATCH[1]}"
+            val="${BASH_REMATCH[2]}"
+            val="${val%\"}" ; val="${val#\"}"   # 去除引号
+            val="${val%\'}" ; val="${val#\'}"
+            export "$key=$val"
+        fi
+    done < "$ENV_FILE"
+fi
+
 # ── 颜色与符号 ──────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
