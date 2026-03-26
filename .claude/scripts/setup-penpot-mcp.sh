@@ -9,6 +9,7 @@
 #  环境变量 (可选覆盖):
 #    PENPOT_MCP_DIR               安装目录 (默认: $HOME/penpot-mcp)
 #    PENPOT_MCP_SERVER_PORT       MCP Server 端口 (默认: 4401)
+#    PENPOT_MCP_PLUGIN_PORT       Plugin Server 端口 (默认: 4400)
 #    PENPOT_MCP_WEBSOCKET_PORT    WebSocket 端口 (默认: 4402)
 # ============================================================================
 set -euo pipefail
@@ -18,7 +19,9 @@ ENV_FILE="${CLAUDE_PROJECT_DIR:-.}/.env"
 if [[ -f "$ENV_FILE" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
         line="${line%%#*}"          # 去除注释
-        line="${line// /}"          # 去除空格（仅简单场景）
+        # 仅去除行首尾空白，保留值中的空格
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
         [[ -z "$line" ]] && continue
         if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
             key="${BASH_REMATCH[1]}"
@@ -50,9 +53,9 @@ INFO="${BLUE}ℹ${NC}"
 INSTALL_DIR="${PENPOT_MCP_DIR:-$HOME/penpot-mcp}"
 REPO_URL="https://github.com/penpot/penpot.git"
 BRANCH="develop"
-SPARSE_PATH="mcp"
+MCP_SUBDIR="mcp"
 MCP_PORT="${PENPOT_MCP_SERVER_PORT:-4401}"
-PLUGIN_PORT=4400
+PLUGIN_PORT="${PENPOT_MCP_PLUGIN_PORT:-4400}"
 WS_PORT="${PENPOT_MCP_WEBSOCKET_PORT:-4402}"
 NODE_MIN_VERSION=18
 NODE_REC_VERSION=22
@@ -68,6 +71,13 @@ detect_platform() {
     esac
 }
 detect_platform
+
+# ── 计时 ──────────────────────────────────────────────────────────────────
+SCRIPT_START=$SECONDS
+STEP_START=$SECONDS
+STEP_LOG="/tmp/penpot-mcp-step.log"
+
+elapsed_since() { echo "$(( SECONDS - $1 ))s"; }
 
 # ── 工具函数 ────────────────────────────────────────────────────────────────
 print_banner() {
@@ -88,6 +98,11 @@ step() {
     local step_num=$1
     local total=$2
     local msg=$3
+    # 打印上一步耗时（跳过第一步）
+    if [[ "$step_num" -gt 1 ]]; then
+        echo -e "  ${DIM}  ── 步骤耗时: $(elapsed_since $STEP_START) ──${NC}"
+    fi
+    STEP_START=$SECONDS
     echo ""
     echo -e "  ${BOLD}[${step_num}/${total}]${NC} ${ARROW} ${msg}"
     echo -e "  ${DIM}$(printf '%.0s─' {1..52})${NC}"
@@ -98,9 +113,62 @@ fail() { echo -e "       ${CROSS} $1"; }
 info() { echo -e "       ${INFO} $1"; }
 warn() { echo -e "       ${WARN} $1"; }
 
+# spinner 动画：在后台命令运行期间显示旋转动画 + 已用时间
+# 用法: some_command > "$STEP_LOG" 2>&1 & spin_while $! "提示文字" "完成文字"
+# 失败时自动打印日志尾部帮助排查
+spin_while() {
+    local pid=$1
+    local msg=$2
+    local done_msg="${3:-$msg}"
+    local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local frame_count=${#frames[@]}
+    local i=0
+    local start=$SECONDS
+
+    # 隐藏光标
+    tput civis 2>/dev/null || true
+
+    while kill -0 "$pid" 2>/dev/null; do
+        local elapsed=$(( SECONDS - start ))
+        printf "\r       ${CYAN}%s${NC} %s ${DIM}(%ds)${NC}   " "${frames[$((i % frame_count))]}" "$msg" "$elapsed"
+        i=$((i + 1))
+        sleep 0.1 2>/dev/null || sleep 1
+    done
+
+    # 恢复光标
+    tput cnorm 2>/dev/null || true
+
+    # 获取退出码
+    wait "$pid"
+    local exit_code=$?
+    local elapsed=$(( SECONDS - start ))
+
+    # 清除 spinner 行
+    printf "\r%-70s\r" " "
+
+    if [[ $exit_code -eq 0 ]]; then
+        ok "${done_msg} ${DIM}(${elapsed}s)${NC}"
+    else
+        fail "${msg} — 失败 ${DIM}(${elapsed}s)${NC}"
+        # 打印日志尾部帮助排查
+        if [[ -f "$STEP_LOG" ]] && [[ -s "$STEP_LOG" ]]; then
+            echo -e "       ${DIM}── 最后 10 行日志 ──${NC}"
+            tail -10 "$STEP_LOG" | sed 's/^/         /'
+            echo -e "       ${DIM}── 完整日志: ${STEP_LOG} ──${NC}"
+        fi
+    fi
+    return $exit_code
+}
+
 die() {
     echo ""
     fail "$1"
+    # 打印日志上下文（如有）
+    if [[ -f "$STEP_LOG" ]] && [[ -s "$STEP_LOG" ]]; then
+        echo -e "       ${DIM}── 最后 10 行日志 ──${NC}"
+        tail -10 "$STEP_LOG" | sed 's/^/         /'
+        echo -e "       ${DIM}── 完整日志: ${STEP_LOG} ──${NC}"
+    fi
     echo ""
     echo -e "  ${RED}部署中止。请修复上述问题后重新运行脚本。${NC}"
     echo ""
@@ -164,6 +232,7 @@ is_port_listening() {
 # ── 清理函数 (Ctrl+C 或异常退出时杀掉后台进程) ─────────────────────────────
 BG_PID=""
 cleanup() {
+    tput cnorm 2>/dev/null || true   # 恢复光标
     if [[ -n "$BG_PID" ]] && kill -0 "$BG_PID" 2>/dev/null; then
         kill "$BG_PID" 2>/dev/null || true
         wait "$BG_PID" 2>/dev/null || true
@@ -247,26 +316,23 @@ if [[ -d "$INSTALL_DIR" ]]; then
     if [[ -d "$INSTALL_DIR/.git" ]]; then
         info "目录已存在，拉取最新代码..."
         cd "$INSTALL_DIR"
-        git fetch origin "$BRANCH" --quiet 2>/dev/null || true
-        git pull --ff-only origin "$BRANCH" 2>/dev/null \
+        git fetch origin "$BRANCH" --quiet > "$STEP_LOG" 2>&1 &
+        spin_while $! "拉取最新代码" "代码已更新到最新" || true
+        git pull --ff-only origin "$BRANCH" > "$STEP_LOG" 2>&1 \
             || warn "快进合并失败 (可能有本地修改)，继续使用现有代码"
-        ok "代码已更新到最新"
     else
         info "目录已存在但非 Git 仓库，使用现有文件"
     fi
 else
-    info "使用 sparse checkout 只克隆 mcp/ 目录 (节省时间和空间)..."
-    git clone --filter=blob:none --no-checkout --branch "$BRANCH" \
-        "$REPO_URL" "$INSTALL_DIR" 2>&1 | tail -1 || die "Git clone 失败"
+    git clone --depth 1 --branch "$BRANCH" \
+        "$REPO_URL" "$INSTALL_DIR" > "$STEP_LOG" 2>&1 &
+    spin_while $! "浅克隆 penpot 仓库 (--depth 1)" "源代码已克隆到 ${DIM}${INSTALL_DIR}${NC}" \
+        || die "Git clone 失败"
     cd "$INSTALL_DIR"
-    git sparse-checkout init --cone 2>/dev/null
-    git sparse-checkout set "$SPARSE_PATH" 2>/dev/null
-    git checkout "$BRANCH" 2>/dev/null
-    ok "源代码已克隆到 ${DIM}${INSTALL_DIR}${NC}"
 fi
 
 # 定位 mcp 工作目录
-MCP_WORK_DIR="$INSTALL_DIR/$SPARSE_PATH"
+MCP_WORK_DIR="$INSTALL_DIR/$MCP_SUBDIR"
 if [[ ! -d "$MCP_WORK_DIR" ]]; then
     # 可能仓库结构就是 mcp 本身
     if [[ -f "$INSTALL_DIR/package.json" ]]; then
@@ -295,32 +361,28 @@ if [[ -n "${NO_PROXY:-}" ]]; then
     npm config set noproxy "$NO_PROXY" 2>/dev/null || true
 fi
 
-info "正在运行 npm install (可能需要 1-2 分钟)..."
-if npm install --loglevel=error --verbose 2>&1 | tail -3; then
-    ok "依赖安装完成"
+# 不使用 bootstrap（它会前台启动服务导致阻塞），拆分为 install → build → start
+if npm run 2>/dev/null | grep -q "install:all"; then
+    npm run install:all > "$STEP_LOG" 2>&1 &
+    spin_while $! "安装依赖 (install:all)" "依赖安装完成 (install:all)" \
+        || die "npm install:all 失败"
 else
-    die "npm install 失败。请检查网络连接和 Node.js 版本。"
+    npm install --loglevel=error > "$STEP_LOG" 2>&1 &
+    spin_while $! "安装依赖 (npm install)" "依赖安装完成" \
+        || die "npm install 失败。请检查网络连接和 Node.js 版本。"
 fi
 
 # ── Step 4: 构建项目 ─────────────────────────────────────────────────────
 step 4 $TOTAL_STEPS "构建项目"
 
-info "正在构建所有组件 (common / mcp-server / penpot-plugin)..."
-
-SERVER_STARTED_BY_BOOTSTRAP=false
-
-# 检查可用的构建命令
-if npm run 2>/dev/null | grep -q "bootstrap"; then
-    npm run bootstrap 2>&1 | tail -5
-    ok "构建完成 (bootstrap)"
-    # bootstrap 可能包含 start，服务已启动
-    SERVER_STARTED_BY_BOOTSTRAP=true
-elif npm run 2>/dev/null | grep -q "build:all"; then
-    npm run build:all 2>&1 | tail -5 || die "构建失败"
-    ok "构建完成 (build:all)"
+if npm run 2>/dev/null | grep -q "build:all"; then
+    npm run build:all > "$STEP_LOG" 2>&1 &
+    spin_while $! "构建所有组件 (build:all)" "构建完成 (build:all)" \
+        || die "构建失败 (build:all)"
 elif npm run 2>/dev/null | grep -q "build"; then
-    npm run build 2>&1 | tail -5 || die "构建失败"
-    ok "构建完成"
+    npm run build > "$STEP_LOG" 2>&1 &
+    spin_while $! "构建项目 (build)" "构建完成" \
+        || die "构建失败"
 else
     warn "未找到标准构建命令，跳过构建步骤"
 fi
@@ -330,27 +392,26 @@ step 5 $TOTAL_STEPS "启动 MCP Server & Plugin Server"
 
 LOG_FILE="/tmp/penpot-mcp-server.log"
 
-if [[ "$SERVER_STARTED_BY_BOOTSTRAP" == "true" ]]; then
-    info "服务已由 bootstrap 命令启动"
+# 始终以后台方式启动服务
+if npm run 2>/dev/null | grep -q "start:all"; then
+    info "正在后台启动服务..."
+    npm run start:all > "$LOG_FILE" 2>&1 &
+    BG_PID=$!
+elif npm run 2>/dev/null | grep -q "start"; then
+    info "正在后台启动服务..."
+    npm run start > "$LOG_FILE" 2>&1 &
+    BG_PID=$!
 else
-    # 启动服务到后台
-    if npm run 2>/dev/null | grep -q "start:all"; then
-        info "正在后台启动服务..."
-        npm run start:all > "$LOG_FILE" 2>&1 &
-        BG_PID=$!
-    elif npm run 2>/dev/null | grep -q "start"; then
-        info "正在后台启动服务..."
-        npm run start > "$LOG_FILE" 2>&1 &
-        BG_PID=$!
-    else
-        die "未找到启动命令 (start:all / start)"
-    fi
+    die "未找到启动命令 (start:all / start)"
 fi
 
-# 等待服务就绪
-info "等待服务就绪 (最多 ${HEALTH_TIMEOUT}s)..."
+# 等待服务就绪 — 带进度条和逐服务状态
 MCP_READY=false
 PLUGIN_READY=false
+SPIN_FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+BAR_WIDTH=20
+
+tput civis 2>/dev/null || true  # 隐藏光标
 
 for i in $(seq 1 $HEALTH_TIMEOUT); do
     # 检查 MCP endpoint
@@ -374,10 +435,37 @@ for i in $(seq 1 $HEALTH_TIMEOUT); do
         break
     fi
 
-    printf "\r       ⏳ 等待中... (%ds/${HEALTH_TIMEOUT}s)" "$i"
+    # 绘制进度条
+    filled=$(( i * BAR_WIDTH / HEALTH_TIMEOUT ))
+    empty=$(( BAR_WIDTH - filled ))
+    bar=""
+    for (( b=0; b<filled; b++ )); do bar+="━"; done
+    for (( b=0; b<empty;  b++ )); do bar+="░"; done
+
+    # 逐服务状态
+    spin_char="${SPIN_FRAMES[$((i % ${#SPIN_FRAMES[@]}))]}"
+    if [[ "$MCP_READY" == "true" ]]; then
+        mcp_status="${GREEN}✔${NC}"
+    else
+        mcp_status="${CYAN}${spin_char}${NC}"
+    fi
+    if [[ "$PLUGIN_READY" == "true" ]]; then
+        plugin_status="${GREEN}✔${NC}"
+    else
+        plugin_status="${CYAN}${spin_char}${NC}"
+    fi
+
+    # 双行显示: 进度条 + 服务状态
+    printf "\r\033[K       ⏳ 等待服务就绪 ${CYAN}%s${NC} %ds/%ds" "$bar" "$i" "$HEALTH_TIMEOUT"
+    printf "\n\033[K          MCP: %b   Plugin: %b" "$mcp_status" "$plugin_status"
+    printf "\033[1A"  # 光标回到上一行
+
     sleep 1
 done
-echo "" # 换行
+
+# 清除双行进度显示
+printf "\r\033[K\n\033[K\033[1A\r"
+tput cnorm 2>/dev/null || true  # 恢复光标
 
 if [[ "$MCP_READY" == "true" ]]; then
     ok "MCP Server 就绪 ${DIM}→ http://localhost:${MCP_PORT}/mcp${NC}"
@@ -418,9 +506,11 @@ else
 fi
 
 # ── 完成 ────────────────────────────────────────────────────────────────────
+echo -e "  ${DIM}  ── 步骤耗时: $(elapsed_since $STEP_START) ──${NC}"
+TOTAL_ELAPSED=$(( SECONDS - SCRIPT_START ))
 echo ""
 echo -e "  ${GREEN}${BOLD}══════════════════════════════════════════════════════${NC}"
-echo -e "  ${GREEN}${BOLD}  ✅ 部署完成！${NC}"
+echo -e "  ${GREEN}${BOLD}  ✅ 部署完成！${NC} ${DIM}(总耗时: ${TOTAL_ELAPSED}s)${NC}"
 echo -e "  ${GREEN}${BOLD}══════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BOLD}服务端点:${NC}"
