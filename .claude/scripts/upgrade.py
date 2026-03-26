@@ -433,6 +433,19 @@ def get_github_token(token_env: str) -> str:
     return os.environ.get(token_env, "")
 
 
+def _build_url_opener():
+    """构建支持代理的 URL opener（从环境变量读取 HTTP_PROXY/HTTPS_PROXY）"""
+    proxies = {}
+    for var in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+        val = os.environ.get(var)
+        if val:
+            proxies.setdefault("https", val)
+            proxies.setdefault("http", val)
+    if proxies:
+        return build_opener(ProxyHandler(proxies))
+    return None
+
+
 def check_version_github(repo: str, branch: str, token: str) -> str:
     """通过 GitHub API 读取远程 pyproject.toml 中的版本号（无需 clone）"""
     url = f"https://api.github.com/repos/{repo}/contents/pyproject.toml?ref={branch}"
@@ -445,7 +458,12 @@ def check_version_github(repo: str, branch: str, token: str) -> str:
 
     try:
         req = Request(url, headers=headers)
-        with urlopen(req, timeout=15) as resp:
+        opener = _build_url_opener()
+        if opener:
+            resp = opener.open(req, timeout=30)
+        else:
+            resp = urlopen(req, timeout=30)
+        with resp:
             data = json.loads(resp.read().decode("utf-8"))
             content = base64.b64decode(data["content"]).decode("utf-8").strip()
             match = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)

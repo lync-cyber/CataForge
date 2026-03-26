@@ -1,6 +1,6 @@
 {
   "type": "github",
-  "repo": "owner/CataForge",
+  "repo": "lync-cyber/CataForge",
   "branch": "main",
   "token_env": "GITHUB_TOKEN"
 }
