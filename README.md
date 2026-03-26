@@ -4,7 +4,7 @@
 
 **AI 驱动的全生命周期软件开发工作流框架**
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/lync-cyber/CataForge/releases/tag/v0.1.0)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/lync-cyber/CataForge/releases/tag/v0.2.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-Claude_Code-8A2BE2.svg)](https://docs.anthropic.com/en/docs/claude-code)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#)
@@ -182,6 +182,7 @@ flowchart LR
 CataForge/
 ├── CLAUDE.md                            # 项目状态（orchestrator 独占维护）
 ├── pyproject.toml                       # 项目元数据与框架版本号
+├── .env.example                         # 环境变量配置示例（代理、Token 等）
 ├── .claude/
 │   ├── settings.json                    # 框架配置（权限、Hook、环境变量）
 │   ├── agents/                          # 12 个 Agent 定义
@@ -225,6 +226,12 @@ CataForge/
 │   ├── hooks/                           # Tool Hook（Python，跨平台）
 │   ├── scripts/                         # 框架工具脚本
 │   └── schemas/                         # JSON Schema
+├── tests/                               # 质量门禁测试
+│   ├── test_framework_integrity.py      #   AGENT.md / SKILL.md 结构校验
+│   ├── test_upgrade_*.py                #   升级工具逻辑测试
+│   ├── test_guard_dangerous.py          #   危险命令拦截测试
+│   ├── test_dep_analysis.py             #   图算法测试
+│   └── ...                              #   更多测试
 └── docs/                                # 项目文档（运行时生成）
 ```
 
@@ -240,12 +247,21 @@ CataForge/
 | Python | 3.8+ | Hook 脚本和审查脚本 |
 | Git | 任意 | 版本控制 |
 
+**可选工具**（Hooks 自动检测，缺失时静默跳过）：
+
+| 工具 | 用途 |
+|:-----|:-----|
+| [ruff](https://github.com/astral-sh/ruff) | Python 代码格式化/检查 |
+| Node.js 18+ / npx | JS/TS 格式化（prettier + eslint） |
+| dotnet | C# 代码格式化 |
+
 ### 方式一：作为模板创建新项目
 
 ```bash
 git clone https://github.com/lync-cyber/CataForge.git my-project
 cd my-project
 rm -rf .git && git init
+python .claude/scripts/setup.py        # 环境检测与初始化
 claude
 ```
 
@@ -255,8 +271,25 @@ claude
 cd your-existing-project
 cp -r /path/to/CataForge/.claude .claude/
 cp /path/to/CataForge/CLAUDE.md .
+cp /path/to/CataForge/.env.example .
+python .claude/scripts/setup.py        # 环境检测与初始化
 claude
 ```
+
+### 环境初始化
+
+```bash
+# 基础环境检测（Python、Git、Hooks、项目依赖）
+python .claude/scripts/setup.py
+
+# 含 Penpot MCP 设计工具集成
+python .claude/scripts/setup.py --with-penpot
+
+# 仅检测，不做任何修改
+python .claude/scripts/setup.py --check-only
+```
+
+> 初始化脚本会从 `.env.example` 创建 `.env` 文件，支持配置代理（`HTTP_PROXY`/`HTTPS_PROXY`）和 GitHub Token 等环境变量。
 
 ### 启动工作流
 
@@ -283,15 +316,43 @@ flowchart LR
 
 ```bash
 # 本地路径升级
-python .claude/scripts/upgrade.py /path/to/new-CataForge --dry-run   # 预览变更
-python .claude/scripts/upgrade.py /path/to/new-CataForge             # 执行升级
+python .claude/scripts/upgrade.py local /path/to/new-CataForge --dry-run   # 预览变更
+python .claude/scripts/upgrade.py local /path/to/new-CataForge             # 执行升级
 
 # 远程升级（需配置 .claude/upgrade-source.json）
-python .claude/scripts/check-upgrade.py --check    # 检测新版本
-python .claude/scripts/check-upgrade.py --apply     # 执行升级
+python .claude/scripts/upgrade.py check                  # 检测新版本
+python .claude/scripts/upgrade.py upgrade --dry-run      # 预览变更
+python .claude/scripts/upgrade.py upgrade                # 执行升级
+
+# 独立验证（检查框架文件完整性）
+python .claude/scripts/upgrade.py verify
 ```
 
-> 升级仅更新框架文件（.claude/），保留项目状态（CLAUDE.md、docs/、src/）。
+> 升级仅更新框架文件（.claude/），保留项目状态（CLAUDE.md、docs/、src/）。自动执行升级后验证。
+
+---
+
+## 质量门禁测试
+
+```bash
+python -m pytest tests/ -v -s
+```
+
+测试覆盖：
+
+| 测试文件 | 覆盖范围 |
+|:---------|:---------|
+| `test_framework_integrity.py` | 所有 AGENT.md / SKILL.md 的 frontmatter 格式、字段完整性、交叉引用有效性 |
+| `test_upgrade_utils.py` | 版本解析、JSON 加载、分支名校验 |
+| `test_upgrade_merge.py` | settings.json 合并、CLAUDE.md 章节提取与回填 |
+| `test_upgrade_verify.py` | 升级后功能适用性检查、文件完整性验证 |
+| `test_guard_dangerous.py` | 危险命令拦截（rm -rf、git push --force 等） |
+| `test_validate_agent_result.py` | agent-result XML 标签和状态码校验 |
+| `test_dep_analysis.py` | 环检测、拓扑排序、关键路径、Sprint 分组 |
+| `test_doc_check.py` | 文档 TODO 检查、代码块过滤、元数据校验 |
+| `test_setup.py` | Python 版本检测、项目依赖检测 |
+
+> 框架升级或迭代后运行测试，确保 AGENT/SKILL 引用未断裂、核心脚本逻辑未被破坏。
 
 ---
 

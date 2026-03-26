@@ -265,8 +265,21 @@ ok "工作目录: ${DIM}${MCP_WORK_DIR}${NC}"
 # ── Step 3: 安装依赖 ─────────────────────────────────────────────────────
 step 3 $TOTAL_STEPS "安装依赖"
 
+# 检测并配置 npm 代理（从环境变量读取）
+if [[ -n "${HTTP_PROXY:-}" ]]; then
+    info "检测到 HTTP_PROXY，配置 npm 代理: ${HTTP_PROXY}"
+    npm config set proxy "$HTTP_PROXY" 2>/dev/null || true
+fi
+if [[ -n "${HTTPS_PROXY:-}" ]]; then
+    info "检测到 HTTPS_PROXY，配置 npm 代理: ${HTTPS_PROXY}"
+    npm config set https-proxy "$HTTPS_PROXY" 2>/dev/null || true
+fi
+if [[ -n "${NO_PROXY:-}" ]]; then
+    npm config set noproxy "$NO_PROXY" 2>/dev/null || true
+fi
+
 info "正在运行 npm install (可能需要 1-2 分钟)..."
-if npm install --loglevel=error 2>&1 | tail -3; then
+if npm install --loglevel=error --verbose 2>&1 | tail -3; then
     ok "依赖安装完成"
 else
     die "npm install 失败。请检查网络连接和 Node.js 版本。"

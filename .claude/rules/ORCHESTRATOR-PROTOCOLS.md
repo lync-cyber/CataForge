@@ -113,21 +113,29 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 - .claude/upgrade-source.json — 保留用户已配置的 repo/url，仅补充新字段
 - CLAUDE.md 全局约定 — 保留用户已填写的值，新增框架默认字段
 
+### 初始化安装
+- 运行: `python .claude/scripts/setup.py` 检测环境并安装依赖
+- 可选 Penpot: `python .claude/scripts/setup.py --with-penpot`
+- 仅检测: `python .claude/scripts/setup.py --check-only`
+
 ### 升级步骤（本地路径方式）
-1. 运行: `python .claude/scripts/upgrade.py <新版CataForge路径> --dry-run`
+1. 运行: `python .claude/scripts/upgrade.py local <新版CataForge路径> --dry-run`
 2. 确认变更列表无异常
-3. 运行: `python .claude/scripts/upgrade.py <新版CataForge路径>`
-3.5. upgrade.py 自动运行 `post_upgrade_check.py`，检查新功能状态和文件完整性
+3. 运行: `python .claude/scripts/upgrade.py local <新版CataForge路径>`
+   - 自动执行升级后验证（文件完整性 + 功能适用性检查）
 4. 检查: `git diff .claude/` 确认变更合理
 5. 提交: `git commit -m "chore: upgrade CataForge framework to vX.Y.Z"`
 
 ### 升级步骤（远程拉取方式）
 1. 配置 `.claude/upgrade-source.json`（设置 type/repo/url/branch）
-2. 运行: `python .claude/scripts/check-upgrade.py --check` 检测新版本
-3. 运行: `python .claude/scripts/check-upgrade.py --dry-run` 预览变更
-4. 运行: `python .claude/scripts/check-upgrade.py --apply` 执行升级
+2. 运行: `python .claude/scripts/upgrade.py check` 检测新版本
+3. 运行: `python .claude/scripts/upgrade.py upgrade --dry-run` 预览变更
+4. 运行: `python .claude/scripts/upgrade.py upgrade` 执行升级
 5. 检查: `git diff .claude/` 确认变更合理
 6. 提交: `git commit -m "chore: upgrade CataForge framework to vX.Y.Z"`
+
+### 独立验证
+- 运行: `python .claude/scripts/upgrade.py verify` 可随时检查框架文件完整性
 
 ## Agent Crash Recovery Protocol
 当子代理返回结果不含 `<agent-result>` 标签且 agent-dispatch 的标签缺失兜底也无法推断状态时（即真正的崩溃/截断场景）:
