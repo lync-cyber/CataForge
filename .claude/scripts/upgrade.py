@@ -1161,8 +1161,13 @@ def cmd_check(args):
             print(f"\n发现更新: commit {last_commit[:12]} → {remote_commit[:12]}")
             if remote_ver:
                 print(f"版本: {local_ver} → {remote_ver}")
+    elif not last_commit:
+        # 首次检测（无历史记录），视为有更新
+        print("\n首次检测，无历史升级记录。")
+        if remote_commit:
+            print(f"远程 commit: {remote_commit[:12]}")
     elif remote_ver:
-        # 回退到版本号比较（首次升级或无法获取 commit 时）
+        # 无法获取 remote_commit，回退到版本号比较
         if parse_semver(remote_ver) <= parse_semver(local_ver):
             print(f"\n当前已是最新版本 ({local_ver})，无需升级。")
             sys.exit(2)
@@ -1216,7 +1221,11 @@ def cmd_upgrade(args):
                 print(f"\n当前已是最新 (commit: {last_commit[:12]})，无需升级。")
                 sys.exit(2)
             needs_upgrade = force
+    elif not last_commit:
+        # 首次升级（无历史记录），始终执行
+        print("\n首次升级，无历史升级记录。")
     elif remote_ver:
+        # 无法获取 remote_commit，回退到版本号比较
         if parse_semver(remote_ver) <= parse_semver(local_ver):
             if force:
                 print("\n版本相同或更低，但 --force 强制升级。")
