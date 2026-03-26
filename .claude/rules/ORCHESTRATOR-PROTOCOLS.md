@@ -110,7 +110,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 
 ### 需要合并（混合文件）
 - .claude/settings.json — 保留项目 env、自定义 permissions、用户独有 mcpServers
-- .claude/upgrade-source.json — 保留用户已配置的 repo/url，仅补充新字段
+- .claude/upgrade-source.json — 保留用户已配置的 repo/url，仅补充新字段；`last_commit`/`last_version`/`last_upgrade_date` 为项目本地升级状态，始终保留
 - CLAUDE.md 全局约定 — 保留用户已填写的值，新增框架默认字段
 
 ### 初始化安装
