@@ -28,7 +28,7 @@ import sys
 import tempfile
 from datetime import datetime
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 # ============================================================================
 # 公共工具
