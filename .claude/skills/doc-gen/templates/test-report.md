@@ -1,4 +1,5 @@
 # Test Report: {项目名称}
+<!-- required_sections: ["## 1. 测试策略", "## 2. 测试用例矩阵", "## 3. 覆盖率目标", "## 4. 测试环境", "## 5. 测试执行结果", "## 6. 缺陷清单", "## 7. 结论与建议"] -->
 <!-- id: test-report-{project}-{ver} | author: qa-engineer | status: draft -->
 <!-- deps: dev-plan-{project}-{ver} | consumers: developer, qa-engineer, devops -->
 <!-- volume: main -->

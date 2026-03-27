@@ -25,17 +25,32 @@
 4. 通过 agent-dispatch 重新激活同一Agent (task_type=continuation)
 5. 循环控制: 每Agent每阶段最多2轮interrupt-resume，第3轮请求人工介入
 
-> 子代理侧执行步骤见 COMMON-RULES.md §Continuation Protocol。
+当子代理收到 task_type=continuation 时，执行以下恢复流程:
+1. **加载中间产出** — 从 continuation 参数的 `上次中间产出` 文件路径列表中读取已完成的工作
+2. **应用用户回答** — 将 `用户回答` 中的决策作为后续内容的依据，不再对已回答的问题重复提问
+3. **定位恢复点** — 根据 `恢复指引` 确定应从 Skill Toolkit 的哪个步骤继续执行
+4. **从恢复点继续** — 在已有中间产出基础上继续执行剩余步骤，使用 doc-gen write-section 就地编辑已有文档
+5. **正常返回** — 完成后返回与 new_creation 相同格式的产出路径列表 + 执行摘要
+
+注意: Continuation 是在中间产出基础上的恢复执行，文档已存在(status=draft)，直接编辑即可。
 
 ## Revision Protocol
 当文档状态为 needs_revision 时:
 1. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 2. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
-3. Agent按 COMMON-RULES.md Revision Protocol 执行增量修复
-4. 修复完成后重新激活 reviewer 执行门禁
-5. 更新返工计数: needs_revision(N)
+3. 修复完成后重新激活 reviewer 执行门禁
+4. 更新返工计数: needs_revision(N)
 
-> 子代理侧执行步骤见 COMMON-RULES.md §Revision Protocol。
+当子代理收到 task_type=revision 时，执行以下修订流程:
+1. **加载REVIEW报告** — 从 `docs/reviews/doc/` 找到编号最大的 `REVIEW-{doc_id}-r{N}.md`，或从 `docs/reviews/code/` 找到编号最大的 `CODE-REVIEW-{task_id}-r{N}.md` 加载审查报告
+2. **分析问题列表** — 按严重等级排序 (CRITICAL > HIGH > MEDIUM > LOW)
+3. **增量修复** — 仅修复 CRITICAL 和 HIGH 级别问题:
+   - 使用 doc-gen write-section 修改相关章节
+   - 不重新执行完整 Skill Toolkit 流程，除非 REVIEW 明确要求整章重写
+4. **重新finalize** — 修复完成后调用 doc-gen finalize 更新文档
+5. **返回产出路径** — 与新建任务相同的返回格式
+
+注意: Revision 是在已有文档基础上的增量修订，不是从零开始。
 
 ## Approved-with-Notes Protocol
 当 reviewer 返回 approved_with_notes 时:
@@ -94,7 +109,18 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 4. 变更完成后回到原阶段继续执行
 5. Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程
 
-> 子代理侧执行步骤见 COMMON-RULES.md §Amendment Protocol。
+当子代理收到 task_type=amendment 时，执行以下变更修订流程:
+1. **加载变更分析** — 从 amendment 参数中读取 `<change-analysis>` XML 和用户变更描述
+2. **定位影响章节** — 根据 affected_docs 中的 doc_id#section 引用定位需修订的章节
+3. **增量修订** — 根据变更描述和 change_type 修订受影响的章节:
+   - clarification: 仅澄清措辞，不改变语义
+   - enhancement: 扩展已有定义，新增条目或修改约束
+   - new_requirement: 新增章节或重大改写
+4. **保持一致性** — 修订后检查内部交叉引用仍然有效
+5. **重新finalize** — 修订完成后调用 doc-gen finalize 更新文档
+6. **返回产出路径** — 与 new_creation 相同的返回格式
+
+注意: Amendment 与 Revision 的区别 — Revision 以 REVIEW 报告为输入修复审查问题，Amendment 以变更分析为输入适应用户变更。
 
 ## Framework Upgrade Protocol
 框架升级时保持项目状态不变:
@@ -195,12 +221,12 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 步骤:
 1. 检查 docs/reviews/ 各子目录下 REVIEW 文件总数 ≥ MIN_REVIEW_SOURCES (见 COMMON-RULES §框架配置常量)，否则跳过
 2. 通过 agent-dispatch 激活 reflector (task_type=retrospective)
-3. reflector 产出 docs/reviews/retro/RETRO-{project}-{ver}.md（含 EXP 经验条目和改进建议）
-4. orchestrator 向用户展示 RETRO 报告中的改进建议
-5. 用户审批后，通过 agent-dispatch 激活 reflector (task_type=skill-improvement)，传入审批通过的 EXP 条目
-6. reflector 产出 docs/reviews/retro/SKILL-IMPROVE-{skill_id}.md（含具体 Agent/Skill 文件修改建议）
-7. 用户确认后执行修改，git commit，message 格式: `learn: apply EXP-{NNN} to {target_file}`
-8. 如果 reflector 返回 blocked 或失败，仅记录日志，不影响项目完成状态
+3. reflector 产出:
+   - docs/reviews/retro/RETRO-{project}-{ver}.md（含 EXP 经验条目）
+   - docs/reviews/retro/SKILL-IMPROVE-{skill_id}.md（含每条 EXP 对应的具体 Agent/Skill 文件修改建议）
+4. orchestrator 向用户展示 RETRO 报告中的经验条目和改进建议
+5. 用户审批后执行修改，git commit，message 格式: `learn: apply EXP-{NNN} to {target_file}`
+6. 如果 reflector 返回 blocked 或失败，仅记录日志，不影响项目完成状态
 
 ## CLAUDE.md Update Template
 每次阶段转换时更新:

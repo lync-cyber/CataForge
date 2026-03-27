@@ -3,7 +3,7 @@ name: start-orchestrator
 description: "启动CataForge编排流程 — 从需求到交付的全流程入口。新项目初始化或已有项目恢复推进。"
 argument-hint: "<项目描述 或 'continue' 继续上次>"
 suggested-tools: Read, Glob
-depends: [agent-dispatch]
+depends: []
 disable-model-invocation: false
 user-invocable: true
 ---

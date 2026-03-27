@@ -71,9 +71,11 @@ def main():
                 f"invalid status='{status}', expected: {'|'.join(sorted(VALID_STATUSES))}"
             )
 
-        # 4. needs_input requires <questions>
-        if status == "needs_input" and "<questions>" not in result:
-            warn("status=needs_input but missing <questions>")
+        # 4. needs_input requires <questions>, <completed-steps>, <resume-guidance>
+        if status == "needs_input":
+            for field in ("questions", "completed-steps", "resume-guidance"):
+                if f"<{field}>" not in result:
+                    warn(f"status=needs_input but missing <{field}>")
 
     sys.exit(0)
 

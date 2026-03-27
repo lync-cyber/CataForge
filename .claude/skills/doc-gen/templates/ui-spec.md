@@ -1,4 +1,5 @@
 # UI Specification: {项目名称}
+<!-- required_sections: ["## 1. 设计系统", "## 2. 组件清单", "## 3. 页面布局"] -->
 <!-- id: ui-spec-{project}-{ver} | author: ui-designer | status: draft -->
 <!-- deps: prd-{project}-{ver}, arch-{project}-{ver} | consumers: tech-lead, developer -->
 <!-- volume: main -->

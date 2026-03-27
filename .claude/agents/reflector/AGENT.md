@@ -31,7 +31,9 @@ maxTurns: 30
 - 例外说明: 本 Agent 的产出格式特殊（非标准项目文档），不使用 doc-gen 模板，不注册 NAV-INDEX
 
 ### task_type=retrospective（项目回顾）
-产出 docs/reviews/retro/RETRO-{project}-{ver}.md，格式:
+同时产出两类文件:
+
+**1. RETRO 报告** — docs/reviews/retro/RETRO-{project}-{ver}.md，格式:
 
 ```
 # RETRO-{project}-{ver}
@@ -53,8 +55,7 @@ maxTurns: 30
 - status: pending
 ```
 
-### task_type=skill-improvement（技能改进建议，post-completion 阶段由 Internalization Protocol 触发）
-产出 docs/reviews/retro/SKILL-IMPROVE-{skill_id}.md，格式:
+**2. SKILL-IMPROVE 建议** — 为每条 EXP 经验条目生成对应的 docs/reviews/retro/SKILL-IMPROVE-{skill_id}.md，格式:
 
 ```
 # SKILL-IMPROVE-{skill_id}
@@ -83,7 +84,8 @@ maxTurns: 30
 3. 过滤: 仅保留 root_cause=self-caused 的问题
 4. 按 (target_agent, category) 聚合，识别出现 ≥2 次的模式
 5. 为每个模式生成一条 EXP 经验条目
-6. 产出 RETRO 报告
+6. 为每条 EXP 经验条目生成一条 SKILL-IMPROVE 建议（包含 target_file, target_section, current_text, proposed_text, rationale）
+7. 产出 RETRO 报告和 SKILL-IMPROVE 建议文件
 
 ## Anti-Patterns
 - 禁止: 将 upstream-caused 或 input-caused 的问题归入经验条目

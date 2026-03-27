@@ -1,4 +1,6 @@
 # Architecture 分卷 — 数据模型: {项目名称}
+<!-- required_sections: ["## 4. 数据模型"] -->
+<!-- volume_type: data -->
 <!-- id: arch-{project}-{ver}-data | author: architect | status: draft -->
 <!-- deps: prd-{project}-{ver} | consumers: tech-lead, developer, devops -->
 <!-- volume: data | split-from: arch-{project}-{ver} -->

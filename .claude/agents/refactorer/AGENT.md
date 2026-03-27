@@ -6,6 +6,7 @@ disallowedTools: Agent, WebSearch, WebFetch, AskUserQuestion
 allowed_paths:
   - src/
   - tests/
+skills: []
 model: inherit
 maxTurns: 50
 ---

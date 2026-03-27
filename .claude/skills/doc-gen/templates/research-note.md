@@ -1,4 +1,5 @@
 # Research Note: {主题}
+<!-- required_sections: ["## 问题", "## 调研方法", "## 发现", "## 结论"] -->
 <!-- id: rn-{NNN} | author: {agent-name} | status: draft -->
 <!-- deps: {触发调研的文档ID} | consumers: {请求调研的agent} -->
 <!-- context: {触发调研的阶段和问题} -->
