@@ -21,7 +21,7 @@
 | needs_input | 需要用户输入才能继续 | 所有Agent | 进入Interrupt-Resume Protocol |
 | blocked | 无法继续，需外部干预 | TDD子代理、任何Agent遇到不可恢复错误 | 记录阻塞原因，请求人工介入，不自动重试 |
 | rolled-back | 重构失败已回滚 | REFACTOR子代理 | 使用GREEN阶段产出，标记MEDIUM |
-| approved | 审查通过，无问题 | reviewer | 更新文档状态，进入下一Phase |
+| approved | 审查通过，无问题 | reviewer | 执行Phase Transition Protocol |
 | approved_with_notes | 审查通过但有MEDIUM/LOW建议（无CRITICAL/HIGH时触发） | reviewer | 向用户展示问题列表，用户选择"接受并继续"或"要求修复" |
 | needs_revision | 审查不通过(有CRITICAL/HIGH) | reviewer | 进入Revision Protocol |
 

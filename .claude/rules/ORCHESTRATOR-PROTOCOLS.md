@@ -1,6 +1,6 @@
 # Orchestrator Protocols
 
-> 协议快速定位 — 核心协议: Bootstrap, Interrupt-Resume, Revision, Approved-with-Notes, Rolled-back Recovery, TDD Blocked Recovery, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 学习协议: On-Correction Learning, Adaptive Review, Retrospective & Improvement | 模板: CLAUDE.md Update Template
+> 协议快速定位 — 核心协议: Bootstrap, Interrupt-Resume, Revision, Phase Transition, Approved-with-Notes, Rolled-back Recovery, TDD Blocked Recovery, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 学习协议: On-Correction Learning, Adaptive Review, Retrospective & Improvement | 模板: CLAUDE.md Update Template
 
 ---
 # Part 1: 核心协议 (Core Protocols)
@@ -51,6 +51,15 @@
 5. **返回产出路径** — 与新建任务相同的返回格式
 
 注意: Revision 是在已有文档基础上的增量修订，不是从零开始。
+
+## Phase Transition Protocol
+当 reviewer 返回 approved 或用户在 Approved-with-Notes 中选择"接受并继续"时，执行以下阶段转换步骤:
+1. **更新文档内部状态** — Edit 对应文档头的 `status: draft` → `status: approved`
+2. **更新 CLAUDE.md 文档状态** — Edit CLAUDE.md 项目状态区对应文档行（如 `prd: draft` → `prd: approved`）
+3. **更新 CLAUDE.md 阶段信息** — 按 Update Template 更新: 当前阶段、上次完成、下一步行动、已完成阶段
+4. **进入下一 Phase** — 按 Phase Routing 激活下一阶段的 Agent
+
+注意: 步骤 1-3 必须在步骤 4 之前完成。如果遗漏状态更新，恢复会话时会因 CLAUDE.md 显示 draft 而误判阶段未完成。
 
 ## Approved-with-Notes Protocol
 当 reviewer 返回 approved_with_notes 时:
