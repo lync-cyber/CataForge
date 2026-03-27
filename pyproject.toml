@@ -12,4 +12,8 @@ Repository = "https://github.com/lync-cyber/CataForge"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -s"
+filterwarnings = [
+    "ignore::UserWarning:langsmith",
+    "ignore::DeprecationWarning",
+]
