@@ -24,7 +24,7 @@ user-invocable: true
 - ui-spec#§2 中对应的 C-{NNN} 规范（作为参考）
 
 ## 输出规范
-- 设计一致性审查报告 `docs/reviews/DESIGN-REVIEW-{component_id}.md`
+- 设计一致性审查报告 `docs/reviews/code/DESIGN-REVIEW-{component_id}.md`
 - 差异列表（属性/值/偏差量）
 - 修复建议
 

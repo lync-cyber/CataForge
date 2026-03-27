@@ -10,7 +10,7 @@
 ## Project Bootstrap
 当项目从零开始 (CLAUDE.md 不存在) 时:
 1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略
-2. **创建目录结构**: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews}`
+2. **创建目录结构**: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
 3. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，当前阶段设为 requirements
 4. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 CLAUDE.md `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
 5. **创建 docs/NAV-INDEX.md** — 生成空索引骨架
@@ -25,13 +25,17 @@
 4. 通过 agent-dispatch 重新激活同一Agent (task_type=continuation)
 5. 循环控制: 每Agent每阶段最多2轮interrupt-resume，第3轮请求人工介入
 
+> 子代理侧执行步骤见 COMMON-RULES.md §Continuation Protocol。
+
 ## Revision Protocol
 当文档状态为 needs_revision 时:
-1. 确认 docs/reviews/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
+1. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 2. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
 3. Agent按 COMMON-RULES.md Revision Protocol 执行增量修复
 4. 修复完成后重新激活 reviewer 执行门禁
 5. 更新返工计数: needs_revision(N)
+
+> 子代理侧执行步骤见 COMMON-RULES.md §Revision Protocol。
 
 ## Approved-with-Notes Protocol
 当 reviewer 返回 approved_with_notes 时:
@@ -68,7 +72,7 @@
 
 ## Change Request Protocol
 当orchestrator检测到用户输入为变更请求（而非流程推进指令）时:
-1. 通过 change-guard skill 分析变更（orchestrator直接执行，无需agent-dispatch）
+1. 通过 change-guard skill 分析变更（orchestrator直接执行，无需agent-dispatch）；`<change-analysis>` XML 格式定义见 change-guard SKILL.md §Step 5
 2. 向用户展示 `<change-analysis>` 结果，提供选项:
    - "确认执行": 按action路由执行
    - "调整范围": 用户修改变更描述后重新分析
@@ -89,6 +93,8 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 
 4. 变更完成后回到原阶段继续执行
 5. Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程
+
+> 子代理侧执行步骤见 COMMON-RULES.md §Amendment Protocol。
 
 ## Framework Upgrade Protocol
 框架升级时保持项目状态不变:
@@ -145,7 +151,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
    - "从头重试": 以 new_creation 模式重新调度同一Agent（先 `git checkout -- docs/{相关目录}` 清理部分产出）
    - "跳过此阶段": 仅在非关键路径阶段可用，标记阶段为 blocked 并请求人工后续处理
 3. 每Agent每阶段最多 1 次 Crash Recovery，第 2 次崩溃请求人工介入
-4. 崩溃事件记录到 CORRECTIONS-LOG.md 供 reflector 分析
+4. 崩溃事件记录到 docs/reviews/CORRECTIONS-LOG.md 供 reflector 分析
 
 ## needs_revision 计数规范
 `needs_revision(N)` 中的 N 为本阶段累计返工次数，格式为 `needs_revision(2)` 而非独立字段。
@@ -177,7 +183,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 触发条件: 任一文档达到 needs_revision(N>=2)
 执行者: orchestrator 自身（不启动子代理）
 步骤:
-1. 扫描 docs/reviews/ 下当前阶段的 REVIEW 文件（含 -r{N} 归档版本），提取 root_cause=self-caused 的问题按 category 聚合
+1. 扫描 docs/reviews/doc/ 和 docs/reviews/code/ 下当前阶段的 REVIEW 文件（含 -r{N} 归档版本），提取 root_cause=self-caused 的问题按 category 聚合
 2. 同一 category >=2 次 → 在下次 agent-dispatch 调度同一 Agent 时注入临时提示：
    ```
    === 本项目已识别的反复问题 ===
@@ -187,12 +193,12 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 ## Retrospective & Improvement Protocol
 触发条件: 所有 Phase 完成后执行一次（不阻塞项目交付）
 步骤:
-1. 检查 docs/reviews/ 下 REVIEW 文件数量 ≥ MIN_REVIEW_SOURCES (见 COMMON-RULES §框架配置常量)，否则跳过
+1. 检查 docs/reviews/ 各子目录下 REVIEW 文件总数 ≥ MIN_REVIEW_SOURCES (见 COMMON-RULES §框架配置常量)，否则跳过
 2. 通过 agent-dispatch 激活 reflector (task_type=retrospective)
-3. reflector 产出 docs/reviews/RETRO-{project}-{ver}.md（含 EXP 经验条目和改进建议）
+3. reflector 产出 docs/reviews/retro/RETRO-{project}-{ver}.md（含 EXP 经验条目和改进建议）
 4. orchestrator 向用户展示 RETRO 报告中的改进建议
 5. 用户审批后，通过 agent-dispatch 激活 reflector (task_type=skill-improvement)，传入审批通过的 EXP 条目
-6. reflector 产出 docs/reviews/SKILL-IMPROVE-{skill_id}.md（含具体 Agent/Skill 文件修改建议）
+6. reflector 产出 docs/reviews/retro/SKILL-IMPROVE-{skill_id}.md（含具体 Agent/Skill 文件修改建议）
 7. 用户确认后执行修改，git commit，message 格式: `learn: apply EXP-{NNN} to {target_file}`
 8. 如果 reflector 返回 blocked 或失败，仅记录日志，不影响项目完成状态
 

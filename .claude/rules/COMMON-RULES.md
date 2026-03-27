@@ -30,7 +30,7 @@
 
 当 task_type = revision 时，执行以下修订流程:
 
-1. **加载REVIEW报告** — 从 `docs/reviews/` 下找到编号最大的 `REVIEW-{doc_id}-r{N}.md` 或 `CODE-REVIEW-{task_id}-r{N}.md` 加载审查报告
+1. **加载REVIEW报告** — 从 `docs/reviews/doc/` 找到编号最大的 `REVIEW-{doc_id}-r{N}.md`，或从 `docs/reviews/code/` 找到编号最大的 `CODE-REVIEW-{task_id}-r{N}.md` 加载审查报告
 2. **分析问题列表** — 按严重等级排序 (CRITICAL > HIGH > MEDIUM > LOW)
 3. **增量修复** — 仅修复 CRITICAL 和 HIGH 级别问题:
    - 使用 doc-gen write-section 修改相关章节
@@ -86,7 +86,7 @@
 | 常量名 | 值 | 说明 |
 |--------|-----|------|
 | MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 |
-| MIN_REVIEW_SOURCES | 3 | reflector 执行 retrospective 的最小信号源文件数（REVIEW + CODE-REVIEW + CORRECTIONS-LOG + MICRO-RETRO 合计） |
+| MIN_REVIEW_SOURCES | 3 | reflector 执行 retrospective 的最小信号源文件数（REVIEW + CODE-REVIEW + CORRECTIONS-LOG 合计） |
 
 ## 文档引用格式
 Agent 间传递文档引用时使用以下统一格式:
@@ -147,7 +147,7 @@ Agent 的 maxTurns 基准值:
 
 ### 报告编号规则
 - 首次审查: `REVIEW-{doc_id}-r1.md` 或 `CODE-REVIEW-{task_id}-r1.md`
-- 第 N 次审查: `-r{N}`（N = docs/reviews/ 下同前缀 `-r*` 文件数 + 1）
+- 第 N 次审查: `-r{N}`（N = 对应子目录下同前缀 `-r*` 文件数 + 1）
 - 最新版本 = 编号最大的文件，无需归档重命名
 
 ### 问题格式

@@ -16,7 +16,7 @@ user-invocable: true
 ## 输入规范
 - dev-plan 文档路径 (含Sprint任务表)
 - Sprint编号 (N)
-- 该Sprint所有任务的CODE-REVIEW报告路径 (docs/reviews/CODE-REVIEW-T-*.md)
+- 该Sprint所有任务的CODE-REVIEW报告路径 (docs/reviews/code/CODE-REVIEW-T-*.md)
 - arch文档 (用于验证接口契约一致性)
 
 ## 输出规范
@@ -26,7 +26,7 @@ user-invocable: true
 ## 操作指令: 执行Sprint审查 (review)
 
 ### Step 1: Layer 1 — Python脚本结构检查
-执行: `python .claude/skills/sprint-review/scripts/sprint_check.py {sprint_number} --dev-plan docs/dev-plan/ --src-dir src/ --test-dir tests/`
+执行: `python .claude/skills/sprint-review/scripts/sprint_check.py {sprint_number} --dev-plan docs/dev-plan/ --src-dir src/ --test-dir tests/ --reviews-dir docs/reviews/code/`
 
 处理结果(三种情况):
 - **exit 0** (检查通过) → 进入Step 2 Layer 2
@@ -65,7 +65,7 @@ Sprint审查额外category:
 - 每个任务的deliverables文件路径全部存在于磁盘
 - 每个任务的tdd_acceptance中AC-NNN在tests/目录下有对应引用
 - 检测计划外文件: src/目录中存在但不属于任何任务deliverables的新文件(WARN)
-- 每个任务有对应的CODE-REVIEW报告(docs/reviews/CODE-REVIEW-{task_id}-*.md)
+- 每个任务有对应的CODE-REVIEW报告(docs/reviews/code/CODE-REVIEW-{task_id}-*.md)
 
 ## 效率策略
 - Layer 1先行: 脚本快速检查结构性问题，不通过则跳过AI审查

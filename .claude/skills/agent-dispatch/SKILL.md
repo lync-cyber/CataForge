@@ -23,7 +23,7 @@ user-invocable: false
 - **expected_output**: 期望产出类型
 - 仅revision: REVIEW报告路径
 - 仅continuation: 用户回答、中间产出路径、恢复指引
-- 仅retrospective: input_docs 为 docs/reviews/ 目录路径，expected_output 为 RETRO 报告
+- 仅retrospective: input_docs 为 [docs/reviews/doc/, docs/reviews/code/, docs/reviews/sprint/, docs/reviews/retro/, docs/reviews/CORRECTIONS-LOG.md]，expected_output 为 RETRO 报告
 - 仅skill-improvement: input_docs 为满足内化条件的 EXP 条目列表，expected_output 为 SKILL-IMPROVE 报告
 - 仅apply-learnings: input_docs 为 RETRO 报告路径 + 用户审批的 EXP 编号列表，expected_output 为 learnings 文件路径列表
 - 仅amendment: change-analysis 结果(XML格式)、用户变更描述
