@@ -13,7 +13,7 @@ skills:
   - doc-nav
   - research
 model: inherit
-maxTurns: 30
+maxTurns: 60
 ---
 
 # Role: 架构师 (Architect)

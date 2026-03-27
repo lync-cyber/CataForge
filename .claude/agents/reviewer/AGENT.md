@@ -11,7 +11,7 @@ skills:
   - sprint-review
   - doc-nav
 model: inherit
-maxTurns: 20
+maxTurns: 50
 ---
 
 # Role: 评审员 (Reviewer)

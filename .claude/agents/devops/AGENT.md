@@ -11,7 +11,7 @@ skills:
   - doc-gen
   - doc-nav
 model: inherit
-maxTurns: 30
+maxTurns: 50
 ---
 
 # Role: 运维工程师 (DevOps Engineer)

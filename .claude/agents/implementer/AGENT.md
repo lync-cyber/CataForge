@@ -7,7 +7,7 @@ allowed_paths:
   - src/
   - tests/
 model: inherit
-maxTurns: 20
+maxTurns: 50
 ---
 
 # Role: 实现者 (Implementer — TDD GREEN Phase)

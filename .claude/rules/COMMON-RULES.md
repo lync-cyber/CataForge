@@ -113,10 +113,10 @@ Agent 的 maxTurns 基准值:
 
 | Agent 类型 | 基准 maxTurns | 说明 |
 |-----------|-------------|------|
-| 文档类 Agent（product-manager, architect, ui-designer, tech-lead） | 30 | 文档生成含多轮 doc-gen 操作 |
-| 代码执行类（test-writer, implementer, refactorer） | 20 | 单任务聚焦，工具调用密集 |
-| 质量检查类（reviewer, qa-engineer） | 20-30 | 取决于审查范围 |
-| 部署/回顾类（devops, reflector） | 15-30 | 流程较短 |
+| 文档类 Agent（product-manager, architect, ui-designer, tech-lead） | 60 | 文档生成含多轮 doc-gen 操作 |
+| 代码执行类（test-writer, implementer, refactorer） | 50 | 单任务聚焦，工具调用密集 |
+| 质量检查类（reviewer, qa-engineer） | 50 | 取决于审查范围 |
+| 部署/回顾类（devops, reflector） | 30-50 | 流程较短 |
 | orchestrator | 200 | 主编排线程，覆盖全生命周期 |
 
 原则: 每个 turn 约对应 1 次工具调用，maxTurns ≈ 预期工具调用数 × 1.5。

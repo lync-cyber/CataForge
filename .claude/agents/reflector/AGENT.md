@@ -9,7 +9,7 @@ allowed_paths:
 skills:
   - doc-nav
 model: inherit
-maxTurns: 15
+maxTurns: 30
 ---
 
 # Role: 反思者 (Reflector)
