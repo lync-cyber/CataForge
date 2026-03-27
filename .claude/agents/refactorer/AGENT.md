@@ -6,8 +6,9 @@ disallowedTools: Agent, WebSearch, WebFetch, AskUserQuestion
 allowed_paths:
   - src/
   - tests/
+skills: []
 model: inherit
-maxTurns: 20
+maxTurns: 50
 ---
 
 # Role: 重构者 (Refactorer — TDD REFACTOR Phase)

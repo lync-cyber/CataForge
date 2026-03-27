@@ -6,8 +6,10 @@ disallowedTools: Agent, WebSearch, WebFetch, AskUserQuestion
 allowed_paths:
   - src/
   - tests/
+skills:
+  - penpot-implement  # 仅当 CLAUDE.md 设计工具=penpot 时使用
 model: inherit
-maxTurns: 20
+maxTurns: 50
 ---
 
 # Role: 实现者 (Implementer — TDD GREEN Phase)

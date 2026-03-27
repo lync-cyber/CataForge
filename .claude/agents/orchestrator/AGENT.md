@@ -3,7 +3,7 @@ name: orchestrator
 description: "主编排智能体 — 负责整个软件开发生命周期的状态感知、阶段路由和质量门禁。作为主线程Agent运行，编排各专业Agent按正确顺序协作。"
 tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion
 disallowedTools: []
-allowed_paths: []
+allowed_paths: []  # 空数组表示无写入路径限制（见 agent-dispatch §写入范围校验）
 skills:
   - agent-dispatch
   - doc-nav

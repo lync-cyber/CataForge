@@ -44,7 +44,7 @@ doc_type 与目录映射:
 - deploy-spec → `docs/deploy-spec/`
 - research-note → `docs/research/`
 - changelog → `docs/changelog/`
-- reviews → `docs/reviews/`
+- reviews → `docs/reviews/` (含子目录: doc/, code/, sprint/, retro/)
 
 ## NAV-INDEX格式
 ```

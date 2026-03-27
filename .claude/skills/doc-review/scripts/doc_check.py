@@ -7,6 +7,7 @@ volume-type: main | features | api | data | modules | sprint | components | page
 返回: exit 0=全部通过, exit 1=有失败项
 """
 
+import json
 import sys
 import re
 import io
@@ -32,58 +33,66 @@ VOLUME_TYPES = {
     "pages",
 }
 
-# 分卷必填章节: (doc_type, volume_type) → [(heading, name), ...]
-# 未命中则回退到完整文档检查 (兼容未拆分文档)
-VOLUME_REQUIRED_SECTIONS = {
-    # PRD
-    ("prd", "main"): [
-        ("## 1. 概述", "概述"),
-        ("## 3. 非功能需求", "非功能需求"),
-        ("## 4. 约束与假设", "约束与假设"),
-        ("## 5. 术语表", "术语表"),
-    ],
-    ("prd", "features"): [
-        ("## 2. 功能需求", "功能需求"),
-    ],
-    # ARCH
-    ("arch", "main"): [
-        ("## 1. 架构概览", "架构概览"),
-        ("## 5. 非功能架构", "非功能架构"),
-        ("## 6. 目录结构", "目录结构"),
-        ("## 7. 开发约定", "开发约定"),
-    ],
-    ("arch", "api"): [
-        ("## 3. 接口契约", "接口契约"),
-    ],
-    ("arch", "data"): [
-        ("## 4. 数据模型", "数据模型"),
-    ],
-    ("arch", "modules"): [
-        ("## 2. 模块划分", "模块划分"),
-    ],
-    # DEV-PLAN
-    ("dev-plan", "main"): [
-        ("## 1. 迭代规划", "迭代规划"),
-        ("## 2. 依赖图", "依赖图"),
-        ("## 4. 关键路径", "关键路径"),
-        ("## 5. 风险项", "风险项"),
-    ],
-    ("dev-plan", "sprint"): [
-        ("## 3. 任务卡详细", "任务卡详细"),
-    ],
-    # UI-SPEC
-    ("ui-spec", "main"): [
-        ("## 1. 设计系统", "设计系统"),
-        ("## 4. 导航与路由", "导航与路由"),
-        ("## 5. 响应式策略", "响应式策略"),
-    ],
-    ("ui-spec", "components"): [
-        ("## 2. 组件清单", "组件清单"),
-    ],
-    ("ui-spec", "pages"): [
-        ("## 3. 页面布局", "页面布局"),
-    ],
+# 模板目录路径 (相对于本脚本)
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_TEMPLATES_DIR = _SCRIPT_DIR.parent.parent / "doc-gen" / "templates"
+
+# doc_type → {volume_type → template_filename} 映射
+_TEMPLATE_MAP: dict[str, dict[str, str]] = {
+    "prd": {"main": "prd.md", "features": "prd-volume.md"},
+    "arch": {
+        "main": "arch.md",
+        "modules": "arch-modules.md",
+        "api": "arch-api.md",
+        "data": "arch-data.md",
+    },
+    "dev-plan": {"main": "dev-plan.md", "sprint": "dev-plan-sprint.md"},
+    "ui-spec": {
+        "main": "ui-spec.md",
+        "components": "ui-spec-components.md",
+        "pages": "ui-spec-pages.md",
+    },
+    "test-report": {"main": "test-report.md"},
+    "deploy-spec": {"main": "deploy-spec.md"},
+    "research": {"main": "research-note.md"},
 }
+
+
+def _parse_required_sections(headings: list[str]) -> list[tuple[str, str]]:
+    """将 heading 列表 (如 ["## 1. 概述"]) 转为 (heading, name) 元组列表。"""
+    result = []
+    for h in headings:
+        # 从 "## 1. 概述" 提取 "概述"；从 "## 问题" 提取 "问题"
+        m = re.match(r"##\s+(?:\d+\.\s*)?(.+)", h)
+        name = m.group(1).strip() if m else h.replace("## ", "").strip()
+        result.append((h, name))
+    return result
+
+
+def _load_template_required_sections(
+    doc_type: str, volume_type: str
+) -> list[tuple[str, str]] | None:
+    """从模板文件的 <!-- required_sections: [...] --> 注释中读取必填章节列表。
+    返回 None 表示未找到对应模板或模板中无 required_sections 声明。"""
+    type_map = _TEMPLATE_MAP.get(doc_type)
+    if not type_map:
+        return None
+    filename = type_map.get(volume_type)
+    if not filename:
+        return None
+    template_path = _TEMPLATES_DIR / filename
+    try:
+        content = template_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = re.search(r"<!--\s*required_sections:\s*(\[.*?\])\s*-->", content)
+    if not match:
+        return None
+    try:
+        headings = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return None
+    return _parse_required_sections(headings)
 
 
 def read_file(path: str) -> str:
@@ -239,14 +248,17 @@ class DocChecker:
                 self.fail(f"交叉引用目标 {doc_id} 未找到对应文件")
 
     def check_required_sections(self):
-        """检查必填章节非空 (按文档类型和分卷类型定义)"""
-        # 优先查询分卷必填章节
-        volume_key = (self.doc_type, self.volume_type)
-        sections = VOLUME_REQUIRED_SECTIONS.get(volume_key)
+        """检查必填章节非空 (从模板 frontmatter 的 required_sections 读取)"""
+        sections = _load_template_required_sections(self.doc_type, self.volume_type)
 
         if sections is None:
-            # 回退到完整文档检查 (兼容未拆分文档)
-            sections = self._get_full_doc_required_sections()
+            # 模板不可用时跳过检查并警告
+            if self.doc_type not in ("changelog",):
+                self.warn(
+                    f"无法从模板加载 required_sections "
+                    f"(doc_type={self.doc_type}, volume_type={self.volume_type})"
+                )
+            return
 
         for heading, name in sections:
             pattern = re.escape(heading)
@@ -257,54 +269,6 @@ class DocChecker:
                 self.fail(f"缺少必填章节: {name}")
             elif len(match.group(1).strip()) == 0:
                 self.fail(f"必填章节为空: {name}")
-
-    def _get_full_doc_required_sections(self) -> list[tuple[str, str]]:
-        """获取完整文档(未拆分)的必填章节列表"""
-        required_map = {
-            "prd": [
-                ("## 1. 概述", "概述"),
-                ("## 2. 功能需求", "功能需求"),
-                ("## 3. 非功能需求", "非功能需求"),
-            ],
-            "arch": [
-                ("## 1. 架构概览", "架构概览"),
-                ("## 2. 模块划分", "模块划分"),
-                ("## 3. 接口契约", "接口契约"),
-                ("## 4. 数据模型", "数据模型"),
-            ],
-            "dev-plan": [
-                ("## 1. 迭代规划", "迭代规划"),
-                ("## 2. 依赖图", "依赖图"),
-                ("## 3. 任务卡详细", "任务卡详细"),
-            ],
-            "ui-spec": [
-                ("## 1. 设计系统", "设计系统"),
-                ("## 2. 组件清单", "组件清单"),
-                ("## 3. 页面布局", "页面布局"),
-            ],
-            "test-report": [
-                ("## 1. 测试策略", "测试策略"),
-                ("## 2. 测试用例矩阵", "测试用例矩阵"),
-                ("## 3. 覆盖率目标", "覆盖率目标"),
-                ("## 4. 测试环境", "测试环境"),
-                ("## 5. 测试执行结果", "测试执行结果"),
-                ("## 6. 缺陷清单", "缺陷清单"),
-                ("## 7. 结论与建议", "结论与建议"),
-            ],
-            "deploy-spec": [
-                ("## 1. 构建流程", "构建流程"),
-                ("## 2. 环境配置", "环境配置"),
-                ("## 3. CI/CD流水线", "CI/CD流水线"),
-                ("## 4. 发布检查清单", "发布检查清单"),
-            ],
-            "research": [
-                ("## 问题", "问题"),
-                ("## 调研方法", "调研方法"),
-                ("## 发现", "发现"),
-                ("## 结论", "结论"),
-            ],
-        }
-        return required_map.get(self.doc_type, [])
 
     def check_id_continuity(self):
         """检查ID编号连续无跳号"""

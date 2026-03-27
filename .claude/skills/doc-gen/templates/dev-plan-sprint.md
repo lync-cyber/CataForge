@@ -1,4 +1,6 @@
 # Development Plan 分卷 — Sprint {N}: {项目名称}
+<!-- required_sections: ["## 3. 任务卡详细"] -->
+<!-- volume_type: sprint -->
 <!-- id: dev-plan-{project}-{ver}-s{N} | author: tech-lead | status: draft -->
 <!-- deps: arch-{project}-{ver}, ui-spec-{project}-{ver} | consumers: developer, qa-engineer -->
 <!-- volume: sprint | split-from: dev-plan-{project}-{ver} -->

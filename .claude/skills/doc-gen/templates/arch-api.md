@@ -1,4 +1,6 @@
 # Architecture 分卷 — 接口契约: {项目名称}
+<!-- required_sections: ["## 3. 接口契约"] -->
+<!-- volume_type: api -->
 <!-- id: arch-{project}-{ver}-api | author: architect | status: draft -->
 <!-- deps: prd-{project}-{ver} | consumers: tech-lead, developer, devops -->
 <!-- volume: api | split-from: arch-{project}-{ver} -->

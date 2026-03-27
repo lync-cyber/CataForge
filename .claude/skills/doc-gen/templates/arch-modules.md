@@ -1,4 +1,6 @@
 # Architecture 分卷 — 模块划分: {项目名称}
+<!-- required_sections: ["## 2. 模块划分"] -->
+<!-- volume_type: modules -->
 <!-- id: arch-{project}-{ver}-modules | author: architect | status: draft -->
 <!-- deps: prd-{project}-{ver} | consumers: tech-lead, developer, devops -->
 <!-- volume: modules | split-from: arch-{project}-{ver} -->

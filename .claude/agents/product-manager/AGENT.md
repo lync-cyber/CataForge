@@ -12,7 +12,7 @@ skills:
   - doc-nav
   - research
 model: inherit
-maxTurns: 30
+maxTurns: 60
 ---
 
 # Role: 产品经理 (Product Manager)

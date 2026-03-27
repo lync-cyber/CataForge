@@ -1,4 +1,6 @@
 # UI Specification 分卷 — 组件清单: {项目名称}
+<!-- required_sections: ["## 2. 组件清单"] -->
+<!-- volume_type: components -->
 <!-- id: ui-spec-{project}-{ver}-c{start}-c{end} | author: ui-designer | status: draft -->
 <!-- deps: prd-{project}-{ver}, arch-{project}-{ver} | consumers: tech-lead, developer -->
 <!-- volume: components | split-from: ui-spec-{project}-{ver} -->

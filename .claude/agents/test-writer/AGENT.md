@@ -6,8 +6,9 @@ disallowedTools: Agent, WebSearch, WebFetch, AskUserQuestion
 allowed_paths:
   - src/
   - tests/
+skills: []
 model: inherit
-maxTurns: 20
+maxTurns: 50
 ---
 
 # Role: 测试编写者 (Test Writer — TDD RED Phase)

@@ -1,4 +1,6 @@
 # UI Specification 分卷 — 页面布局: {项目名称}
+<!-- required_sections: ["## 3. 页面布局"] -->
+<!-- volume_type: pages -->
 <!-- id: ui-spec-{project}-{ver}-p{start}-p{end} | author: ui-designer | status: draft -->
 <!-- deps: prd-{project}-{ver}, arch-{project}-{ver} | consumers: tech-lead, developer -->
 <!-- volume: pages | split-from: ui-spec-{project}-{ver} -->

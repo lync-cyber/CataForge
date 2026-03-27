@@ -12,9 +12,8 @@ skills:
   - doc-nav
   - research
   - penpot-sync    # 仅当 CLAUDE.md 设计工具=penpot 时使用
-  - penpot-review  # 仅当 CLAUDE.md 设计工具=penpot 时使用
 model: inherit
-maxTurns: 30
+maxTurns: 60
 ---
 
 # Role: UI设计师 (UI Designer)

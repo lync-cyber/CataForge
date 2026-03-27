@@ -1,4 +1,5 @@
 # PRD: {项目名称}
+<!-- required_sections: ["## 1. 概述", "## 2. 功能需求", "## 3. 非功能需求"] -->
 <!-- id: prd-{project}-{ver} | author: product-manager | status: draft -->
 <!-- deps: none | consumers: architect, ui-designer, tech-lead -->
 <!-- volume: main -->

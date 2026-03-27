@@ -19,7 +19,6 @@ import io
 import os
 import re
 import sys
-from pathlib import Path
 
 # Ensure UTF-8 output on Windows
 if sys.stdout.encoding != "utf-8":
@@ -90,7 +89,7 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
                     "id": task_match.group(1),
                     "status": "",
                     "deliverables": [],
-                    "tdd_acceptance": []
+                    "tdd_acceptance": [],
                 }
                 i += 1
                 continue
@@ -98,12 +97,20 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
             # 在任务卡内提取字段
             if current_task:
                 # 状态字段
-                status_match = re.match(r"^[-*]\s+\*?\*?(?:status|状态)\*?\*?\s*[:：]\s*(.+)", line, re.IGNORECASE)
+                status_match = re.match(
+                    r"^[-*]\s+\*?\*?(?:status|状态)\*?\*?\s*[:：]\s*(.+)",
+                    line,
+                    re.IGNORECASE,
+                )
                 if status_match:
                     current_task["status"] = status_match.group(1).strip().lower()
 
                 # deliverables字段
-                deliv_match = re.match(r"^[-*]\s+\*?\*?(?:deliverables|交付物)\*?\*?\s*[:：]", line, re.IGNORECASE)
+                deliv_match = re.match(
+                    r"^[-*]\s+\*?\*?(?:deliverables|交付物)\*?\*?\s*[:：]",
+                    line,
+                    re.IGNORECASE,
+                )
                 if deliv_match:
                     # 收集后续缩进的列表项
                     i += 1
@@ -117,7 +124,11 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
                     continue
 
                 # tdd_acceptance字段
-                ac_match = re.match(r"^[-*]\s+\*?\*?(?:tdd_acceptance|验收标准)\*?\*?\s*[:：]", line, re.IGNORECASE)
+                ac_match = re.match(
+                    r"^[-*]\s+\*?\*?(?:tdd_acceptance|验收标准)\*?\*?\s*[:：]",
+                    line,
+                    re.IGNORECASE,
+                )
                 if ac_match:
                     # 提取AC-NNN引用
                     rest = line + " "
@@ -132,7 +143,8 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
                 # 表格行中的任务（| T-001 | ... | done | ...）
                 table_match = re.match(
                     r"^\|\s*(T-\d+)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
-                    line, re.IGNORECASE
+                    line,
+                    re.IGNORECASE,
                 )
                 if table_match and not current_task["status"]:
                     if table_match.group(1) == current_task["id"]:
@@ -142,15 +154,18 @@ def extract_sprint_tasks(dev_plan_files: list, sprint_number: int) -> list:
             if not current_task:
                 table_match = re.match(
                     r"^\|\s*(T-\d+)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
-                    line, re.IGNORECASE
+                    line,
+                    re.IGNORECASE,
                 )
                 if table_match and (in_sprint or sprint_volume):
-                    tasks.append({
-                        "id": table_match.group(1),
-                        "status": table_match.group(2).strip().lower(),
-                        "deliverables": [],
-                        "tdd_acceptance": []
-                    })
+                    tasks.append(
+                        {
+                            "id": table_match.group(1),
+                            "status": table_match.group(2).strip().lower(),
+                            "deliverables": [],
+                            "tdd_acceptance": [],
+                        }
+                    )
 
             i += 1
 
@@ -192,7 +207,9 @@ def check_ac_coverage(tasks: list, test_dir: str) -> list:
     for task in tasks:
         for ac_id in task["tdd_acceptance"]:
             if ac_id not in test_content:
-                issues.append(f"[FAIL] 任务 {task['id']} 的 {ac_id} 在 {test_dir} 中无测试引用")
+                issues.append(
+                    f"[FAIL] 任务 {task['id']} 的 {ac_id} 在 {test_dir} 中无测试引用"
+                )
 
     return issues
 
@@ -219,7 +236,9 @@ def check_unplanned_files(tasks: list, src_dir: str) -> list:
                 continue
             if filepath not in planned_paths:
                 # 检查是否为任何deliverables的子路径
-                is_planned = any(filepath.startswith(os.path.normpath(p)) for p in planned_paths)
+                is_planned = any(
+                    filepath.startswith(os.path.normpath(p)) for p in planned_paths
+                )
                 if not is_planned:
                     issues.append(f"[WARN] 计划外文件(可能gold-plating): {filepath}")
 
@@ -246,10 +265,14 @@ def check_code_reviews(tasks: list, reviews_dir: str) -> list:
 def main():
     parser = argparse.ArgumentParser(description="Sprint completion structural check")
     parser.add_argument("sprint_number", type=int, help="Sprint number to check")
-    parser.add_argument("--dev-plan", default="docs/dev-plan/", help="Dev plan directory")
+    parser.add_argument(
+        "--dev-plan", default="docs/dev-plan/", help="Dev plan directory"
+    )
     parser.add_argument("--src-dir", default="src/", help="Source directory")
     parser.add_argument("--test-dir", default="tests/", help="Test directory")
-    parser.add_argument("--reviews-dir", default="docs/reviews/", help="Reviews directory")
+    parser.add_argument(
+        "--reviews-dir", default="docs/reviews/code/", help="Code reviews directory"
+    )
     args = parser.parse_args()
 
     sprint_num = args.sprint_number
@@ -277,7 +300,7 @@ def main():
             issue = f"[FAIL] 任务 {task['id']} 状态为 '{task['status']}'，期望 'done'"
             all_issues.append(issue)
             has_fail = True
-    print(f"\n--- 任务状态检查 ---")
+    print("\n--- 任务状态检查 ---")
     status_issues = [i for i in all_issues if "状态为" in i]
     if status_issues:
         for i in status_issues:
@@ -286,7 +309,7 @@ def main():
         print("  所有任务状态为 done")
 
     # 3. 检查deliverables
-    print(f"\n--- 交付物检查 ---")
+    print("\n--- 交付物检查 ---")
     deliv_issues = check_deliverables(tasks)
     all_issues.extend(deliv_issues)
     if deliv_issues:
@@ -298,7 +321,7 @@ def main():
         print(f"  所有交付物存在 ({total_deliverables} 个文件)")
 
     # 4. 检查AC覆盖
-    print(f"\n--- AC覆盖检查 ---")
+    print("\n--- AC覆盖检查 ---")
     ac_issues = check_ac_coverage(tasks, args.test_dir)
     all_issues.extend(ac_issues)
     fail_ac = [i for i in ac_issues if i.startswith("[FAIL]")]
@@ -311,7 +334,7 @@ def main():
         print(f"  所有AC已覆盖 ({total_ac} 个验收标准)")
 
     # 5. 检查计划外文件
-    print(f"\n--- 计划外文件检测 ---")
+    print("\n--- 计划外文件检测 ---")
     unplanned_issues = check_unplanned_files(tasks, args.src_dir)
     all_issues.extend(unplanned_issues)
     if unplanned_issues:
@@ -321,7 +344,7 @@ def main():
         print("  未发现计划外文件")
 
     # 6. 检查CODE-REVIEW报告
-    print(f"\n--- CODE-REVIEW报告检查 ---")
+    print("\n--- CODE-REVIEW报告检查 ---")
     review_issues = check_code_reviews(tasks, args.reviews_dir)
     all_issues.extend(review_issues)
     fail_review = [i for i in review_issues if i.startswith("[FAIL]")]
@@ -330,7 +353,7 @@ def main():
     for i in review_issues:
         print(f"  {i}")
     if not review_issues:
-        print(f"  所有任务有CODE-REVIEW报告")
+        print("  所有任务有CODE-REVIEW报告")
 
     # 7. 汇总
     fails = [i for i in all_issues if i.startswith("[FAIL]")]

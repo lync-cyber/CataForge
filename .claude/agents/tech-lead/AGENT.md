@@ -12,7 +12,7 @@ skills:
   - doc-gen
   - doc-nav
 model: inherit
-maxTurns: 30
+maxTurns: 60
 ---
 
 # Role: 技术主管 (Tech Lead)

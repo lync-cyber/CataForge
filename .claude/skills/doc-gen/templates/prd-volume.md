@@ -1,4 +1,6 @@
 # PRD 分卷 — 功能需求: {项目名称}
+<!-- required_sections: ["## 2. 功能需求"] -->
+<!-- volume_type: features -->
 <!-- id: prd-{project}-{ver}-f{start}-f{end} | author: product-manager | status: draft -->
 <!-- deps: none | consumers: architect, ui-designer, tech-lead -->
 <!-- volume: features | split-from: prd-{project}-{ver} -->

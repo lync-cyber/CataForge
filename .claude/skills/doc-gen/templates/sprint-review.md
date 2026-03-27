@@ -1,4 +1,5 @@
 # Sprint Review: Sprint {N} — {项目名称}
+<!-- required_sections: ["## 1. 计划 vs 实际", "## 2. 范围分析", "## 3. 质量聚合", "## 4. 结论"] -->
 <!-- id: sprint-review-s{N}-{project}-{ver} | author: reviewer | status: draft -->
 <!-- deps: dev-plan-{project}-{ver}, arch-{project}-{ver} | consumers: orchestrator -->
 

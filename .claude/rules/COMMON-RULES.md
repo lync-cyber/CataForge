@@ -25,51 +25,6 @@
 | approved_with_notes | 审查通过但有MEDIUM/LOW建议（无CRITICAL/HIGH时触发） | reviewer | 向用户展示问题列表，用户选择"接受并继续"或"要求修复" |
 | needs_revision | 审查不通过(有CRITICAL/HIGH) | reviewer | 进入Revision Protocol |
 
-## Revision Protocol（子代理侧）
-> orchestrator 侧的调度逻辑见 ORCHESTRATOR-PROTOCOLS.md §Revision Protocol。本节定义子代理收到 revision 任务后的执行步骤。
-
-当 task_type = revision 时，执行以下修订流程:
-
-1. **加载REVIEW报告** — 从 `docs/reviews/` 下找到编号最大的 `REVIEW-{doc_id}-r{N}.md` 或 `CODE-REVIEW-{task_id}-r{N}.md` 加载审查报告
-2. **分析问题列表** — 按严重等级排序 (CRITICAL > HIGH > MEDIUM > LOW)
-3. **增量修复** — 仅修复 CRITICAL 和 HIGH 级别问题:
-   - 使用 doc-gen write-section 修改相关章节
-   - 不重新执行完整 Skill Toolkit 流程，除非 REVIEW 明确要求整章重写
-4. **重新finalize** — 修复完成后调用 doc-gen finalize 更新文档
-5. **返回产出路径** — 与新建任务相同的返回格式
-
-注意: Revision 是在已有文档基础上的增量修订，不是从零开始。
-
-## Continuation Protocol
-> 本协议定义**子代理侧**的恢复执行步骤。orchestrator 侧的调度逻辑见 ORCHESTRATOR-PROTOCOLS.md §Interrupt-Resume Protocol。agent-dispatch 负责将两者衔接。
-
-当 task_type = continuation 时，执行以下恢复流程:
-
-1. **加载中间产出** — 从 continuation 参数的 `上次中间产出` 文件路径列表中读取已完成的工作
-2. **应用用户回答** — 将 `用户回答` 中的决策作为后续内容的依据，不再对已回答的问题重复提问
-3. **定位恢复点** — 根据 `恢复指引` 确定应从 Skill Toolkit 的哪个步骤继续执行
-4. **从恢复点继续** — 在已有中间产出基础上继续执行剩余步骤，使用 doc-gen write-section 就地编辑已有文档
-5. **正常返回** — 完成后返回与 new_creation 相同格式的产出路径列表 + 执行摘要
-
-注意: Continuation 是在中间产出基础上的恢复执行，文档已存在(status=draft)，直接编辑即可。
-
-## Amendment Protocol（子代理侧）
-> orchestrator 侧的调度逻辑见 ORCHESTRATOR-PROTOCOLS.md §Change Request Protocol。本节定义子代理收到 amendment 任务后的执行步骤。
-
-当 task_type = amendment 时，执行以下变更修订流程:
-
-1. **加载变更分析** — 从 amendment 参数中读取 `<change-analysis>` XML 和用户变更描述
-2. **定位影响章节** — 根据 affected_docs 中的 doc_id#section 引用定位需修订的章节
-3. **增量修订** — 根据变更描述和 change_type 修订受影响的章节:
-   - clarification: 仅澄清措辞，不改变语义
-   - enhancement: 扩展已有定义，新增条目或修改约束
-   - new_requirement: 新增章节或重大改写
-4. **保持一致性** — 修订后检查内部交叉引用仍然有效
-5. **重新finalize** — 修订完成后调用 doc-gen finalize 更新文档
-6. **返回产出路径** — 与 new_creation 相同的返回格式
-
-注意: Amendment 与 Revision 的区别 — Revision 以 REVIEW 报告为输入修复审查问题，Amendment 以变更分析为输入适应用户变更。
-
 ## 通用 Error Handling
 所有Agent遇到以下场景时按统一策略处理:
 
@@ -86,7 +41,7 @@
 | 常量名 | 值 | 说明 |
 |--------|-----|------|
 | MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 |
-| MIN_REVIEW_SOURCES | 3 | reflector 执行 retrospective 的最小信号源文件数（REVIEW + CODE-REVIEW + CORRECTIONS-LOG + MICRO-RETRO 合计） |
+| MIN_REVIEW_SOURCES | 3 | reflector 执行 retrospective 的最小信号源文件数（REVIEW + CODE-REVIEW + CORRECTIONS-LOG 合计） |
 
 ## 文档引用格式
 Agent 间传递文档引用时使用以下统一格式:
@@ -107,20 +62,6 @@ Agent 间传递文档引用时使用以下统一格式:
 - `section_number` 为纯数字（1, 2, 3...）
 - `item_id` 为条目编号（F-xxx, M-xxx, API-xxx, E-xxx, T-xxx, C-xxx, P-xxx）
 - 分卷文件的引用格式不变，doc-nav 负责定位到正确的分卷文件
-
-## maxTurns 指南
-Agent 的 maxTurns 基准值:
-
-| Agent 类型 | 基准 maxTurns | 说明 |
-|-----------|-------------|------|
-| 文档类 Agent（product-manager, architect, ui-designer, tech-lead） | 30 | 文档生成含多轮 doc-gen 操作 |
-| 代码执行类（test-writer, implementer, refactorer） | 20 | 单任务聚焦，工具调用密集 |
-| 质量检查类（reviewer, qa-engineer） | 20-30 | 取决于审查范围 |
-| 部署/回顾类（devops, reflector） | 15-30 | 流程较短 |
-| orchestrator | 200 | 主编排线程，覆盖全生命周期 |
-
-原则: 每个 turn 约对应 1 次工具调用，maxTurns ≈ 预期工具调用数 × 1.5。
-超限应对: 子代理应在剩余 turns 不足时主动 finalize 已完成内容并返回 needs_input，由 orchestrator 以 continuation 模式恢复。
 
 ## 通用 Anti-Patterns
 - 禁止: 猜测项目状态，以 CLAUDE.md 和 docs/ 目录为唯一事实来源
@@ -147,7 +88,7 @@ Agent 的 maxTurns 基准值:
 
 ### 报告编号规则
 - 首次审查: `REVIEW-{doc_id}-r1.md` 或 `CODE-REVIEW-{task_id}-r1.md`
-- 第 N 次审查: `-r{N}`（N = docs/reviews/ 下同前缀 `-r*` 文件数 + 1）
+- 第 N 次审查: `-r{N}`（N = 对应子目录下同前缀 `-r*` 文件数 + 1）
 - 最新版本 = 编号最大的文件，无需归档重命名
 
 ### 问题格式
