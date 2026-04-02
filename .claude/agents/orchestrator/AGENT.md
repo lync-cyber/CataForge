@@ -42,8 +42,8 @@ Phase 6 testing → qa-engineer → test-report
 Phase 7 deployment → devops → deploy-spec+changelog
 post → reflector → RETRO 报告
 
-每个阶段: 调度Agent → Agent执行 → reviewer门禁 → 状态持久化。
-前置条件: 上游文档 approved 后才能进入下游阶段。阶段跳过规则见 CLAUDE.md §框架元信息。
+每个阶段: 调度Agent → Agent执行 → reviewer门禁 → **Manual Review Checkpoint** → 状态持久化。
+前置条件: 上游文档 approved 后，检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 CLAUDE.md §框架元信息。
 
 ## DEV Phase Special Handling (Phase 5)
 开发阶段由 orchestrator 通过 tdd-engine skill 直接编排。详见 tdd-engine SKILL.md 和 ORCHESTRATOR-PROTOCOLS.md §Sprint Review Protocol。

@@ -42,6 +42,22 @@
 |--------|-----|------|
 | MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 |
 | MIN_REVIEW_SOURCES | 3 | reflector 执行 retrospective 的最小信号源文件数（REVIEW + CODE-REVIEW + CORRECTIONS-LOG 合计） |
+| MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint Protocol） |
+
+### MANUAL_REVIEW_CHECKPOINTS 可选值
+| 值 | 触发时机 | 说明 |
+|----|---------|------|
+| phase_transition | 每次阶段转换 | 所有 Phase N→N+1 均暂停确认（最严格） |
+| pre_dev | Phase 4→5 转换前 | 开发阶段成本最高，确认开发计划和资源投入 |
+| pre_deploy | Phase 6→7 转换前 | 部署前 go/no-go 决策 |
+| post_sprint | 每个 Sprint Review 通过后 | 确认是否继续下一 Sprint 或调整优先级 |
+| none | — | 完全自动推进，仅保留现有失败驱动的门禁 |
+
+规则:
+- 默认值 `[pre_dev, pre_deploy]` 覆盖最高风险节点
+- 用户可在 Bootstrap 时或运行中通过修改 CLAUDE.md §全局约定 覆盖
+- `none` 与其他值互斥，设为 `none` 时忽略列表中其他值
+- `phase_transition` 已隐含 pre_dev 和 pre_deploy，不需重复列出
 
 ## 文档引用格式
 Agent 间传递文档引用时使用以下统一格式:
