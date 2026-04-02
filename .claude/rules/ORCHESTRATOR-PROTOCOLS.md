@@ -1,6 +1,6 @@
 # Orchestrator Protocols
 
-> 协议快速定位 — 核心协议: Bootstrap, Interrupt-Resume, Revision, Approved-with-Notes, Rolled-back Recovery, TDD Blocked Recovery, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 学习协议: On-Correction Learning, Adaptive Review, Retrospective & Improvement | 模板: CLAUDE.md Update Template
+> 协议快速定位 — 核心协议: Bootstrap, Interrupt-Resume, Revision, Approved-with-Notes, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 学习协议: On-Correction Learning, Adaptive Review, Retrospective & Improvement | 模板: CLAUDE.md Update Template
 
 ---
 # Part 1: 核心协议 (Core Protocols)
@@ -9,7 +9,7 @@
 
 ## Project Bootstrap
 当项目从零开始 (CLAUDE.md 不存在) 时:
-1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略
+1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认 `[pre_dev, pre_deploy]`）
 2. **创建目录结构**: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
 3. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，当前阶段设为 requirements
 4. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 CLAUDE.md `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
@@ -59,6 +59,36 @@
    - "接受并继续": 将文档状态变更为 approved，进入下一 Phase
    - "要求修复选中的问题": 将用户选中的问题标记为待修复，文档状态变更为 needs_revision，进入 Revision Protocol
 3. 用户选择"接受"时，MEDIUM/LOW 问题记录保留在 REVIEW 报告中供后续参考
+
+## Manual Review Checkpoint Protocol
+阶段转换时，根据 MANUAL_REVIEW_CHECKPOINTS 常量（见 COMMON-RULES §框架配置常量）决定是否暂停等待用户确认。
+
+**触发时机**: 文档状态变为 approved 且 orchestrator 即将进入下一 Phase 时。
+
+**执行步骤**:
+1. 读取 CLAUDE.md §全局约定 中的 `人工审查检查点` 字段（未配置则使用 COMMON-RULES 默认值 `[pre_dev, pre_deploy]`）
+2. 判断当前转换是否命中检查点:
+   - `phase_transition` → 所有 Phase 转换均命中
+   - `pre_dev` → 仅 Phase 4→5（dev_planning → development）命中
+   - `pre_deploy` → 仅 Phase 6→7（testing → deployment）命中
+   - `post_sprint` → Sprint Review approved 后、进入下一 Sprint 或 Phase 6 前命中
+   - `none` → 不命中，直接推进
+3. 命中时，使用 AskUserQuestion 向用户展示阶段摘要并确认:
+   ```
+   === 阶段转换确认 ===
+   已完成: {当前阶段名} — {关键产出摘要}
+   即将进入: {下一阶段名} — {预期工作概述}
+
+   选项:
+   1. 确认继续
+   2. 暂停，我需要先审查产出
+   3. 调整方向（进入 Change Request 流程）
+   ```
+4. 用户选择"确认继续" → 正常推进
+5. 用户选择"暂停" → orchestrator 等待用户后续指令（不自动推进）
+6. 用户选择"调整方向" → 进入 Change Request Protocol
+
+**不命中时**: 直接按现有逻辑自动推进，无额外交互。
 
 ## Rolled-back Recovery Protocol
 当 TDD REFACTOR 子代理返回 `rolled-back` 状态时:
