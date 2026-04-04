@@ -120,12 +120,26 @@ class DocChecker:
         self.volume_type = volume_type or self._detect_volume_type()
 
     def _detect_volume_type(self) -> str:
-        """从 <!-- volume: ... --> 头部自动提取 volume type，默认返回 main"""
+        """从 <!-- volume: ... --> 头部自动提取 volume type，回退到文件名模式匹配，默认返回 main"""
         match = re.search(r"<!--.*?volume:\s*(\w+)", self.content)
         if match:
             vt = match.group(1).strip()
             if vt in VOLUME_TYPES:
                 return vt
+        # 文件名模式回退 (基于 doc-gen §2.1 命名规则)
+        stem = Path(self.doc_file).stem
+        filename_patterns = [
+            (r"-api$", "api"),
+            (r"-data$", "data"),
+            (r"-modules$", "modules"),
+            (r"-s\d+$", "sprint"),
+            (r"-f\d+-f\d+$", "features"),
+            (r"-p\d+-p\d+$", "pages"),
+            (r"-c\d+-c\d+$", "components"),
+        ]
+        for pattern, vol_type in filename_patterns:
+            if re.search(pattern, stem):
+                return vol_type
         return "main"
 
     def fail(self, msg: str):
@@ -352,16 +366,18 @@ class DocChecker:
     # ========================================
 
     def check_prd(self):
-        # 用户故事覆盖
-        f_count = len(re.findall(r"^### F-\d+", self.content, re.MULTILINE))
-        us_count = len(re.findall(r"用户故事|User Story", self.content))
-        if f_count > us_count:
-            self.fail(f"{f_count}个功能仅{us_count}个有用户故事")
+        # 用户故事覆盖 (仅主卷检查，features 分卷不要求完整用户故事)
+        if self.volume_type == "main":
+            f_count = len(re.findall(r"^### F-\d+", self.content, re.MULTILINE))
+            us_count = len(re.findall(r"用户故事|User Story", self.content))
+            if f_count > us_count:
+                self.fail(f"{f_count}个功能仅{us_count}个有用户故事")
 
-        # 验收标准存在
-        ac_count = len(re.findall(r"AC-\d+", self.content))
-        if ac_count == 0:
-            self.fail("无验收标准 (AC-NNN)")
+        # 验收标准存在 (仅主卷检查)
+        if self.volume_type == "main":
+            ac_count = len(re.findall(r"AC-\d+", self.content))
+            if ac_count == 0:
+                self.fail("无验收标准 (AC-NNN)")
 
         # 非功能需求章节充实度 (仅主卷或未拆分文档检查)
         if self.volume_type in ("main",):
@@ -389,46 +405,51 @@ class DocChecker:
     # ========================================
 
     def check_arch(self):
-        # API 定义完整 (有 API 声明就应有 request, event-stream 类型豁免)
-        api_sections = re.findall(
-            r"^### API-\d+.*?(?=^### API-\d+|^## |\Z)",
-            self.content,
-            re.MULTILINE | re.DOTALL,
-        )
-        missing_request = 0
-        for section in api_sections:
-            is_event_stream = re.search(r"type:\s*event-stream", section)
-            has_request = re.search(r"request:", section)
-            if not is_event_stream and not has_request:
-                missing_request += 1
-        if missing_request > 0:
-            self.fail(f"{len(api_sections)}个API中{missing_request}个缺少request定义")
+        # API 定义完整 (仅 main 或 api 分卷检查)
+        if self.volume_type in ("main", "api"):
+            api_sections = re.findall(
+                r"^### API-\d+.*?(?=^### API-\d+|^## |\Z)",
+                self.content,
+                re.MULTILINE | re.DOTALL,
+            )
+            missing_request = 0
+            for section in api_sections:
+                is_event_stream = re.search(r"type:\s*event-stream", section)
+                has_request = re.search(r"request:", section)
+                if not is_event_stream and not has_request:
+                    missing_request += 1
+            if missing_request > 0:
+                self.fail(
+                    f"{len(api_sections)}个API中{missing_request}个缺少request定义"
+                )
 
-        # 功能映射: 模块应引用 PRD 的 F-NNN
-        m_sections = re.findall(
-            r"^### M-\d+.*?(?=^### M-\d+|^## |\Z)",
-            self.content,
-            re.MULTILINE | re.DOTALL,
-        )
-        missing_mapping = 0
-        for section in m_sections:
-            if not re.search(r"F-\d+", section):
-                missing_mapping += 1
-        if missing_mapping > 0:
-            self.fail(f"{missing_mapping}个模块缺少功能映射 (F-NNN引用)")
+        # 功能映射: 模块应引用 PRD 的 F-NNN (仅 main 或 modules 分卷检查)
+        if self.volume_type in ("main", "modules"):
+            m_sections = re.findall(
+                r"^### M-\d+.*?(?=^### M-\d+|^## |\Z)",
+                self.content,
+                re.MULTILINE | re.DOTALL,
+            )
+            missing_mapping = 0
+            for section in m_sections:
+                if not re.search(r"F-\d+", section):
+                    missing_mapping += 1
+            if missing_mapping > 0:
+                self.fail(f"{missing_mapping}个模块缺少功能映射 (F-NNN引用)")
 
-        # 数据模型完整: 实体应有字段表
-        e_sections = re.findall(
-            r"^### E-\d+.*?(?=^### E-\d+|^## |\Z)",
-            self.content,
-            re.MULTILINE | re.DOTALL,
-        )
-        missing_fields = 0
-        for section in e_sections:
-            if "|" not in section:  # 表格标记
-                missing_fields += 1
-        if missing_fields > 0:
-            self.fail(f"{missing_fields}个实体缺少字段定义表")
+        # 数据模型完整: 实体应有字段表 (仅 main 或 data 分卷检查)
+        if self.volume_type in ("main", "data"):
+            e_sections = re.findall(
+                r"^### E-\d+.*?(?=^### E-\d+|^## |\Z)",
+                self.content,
+                re.MULTILINE | re.DOTALL,
+            )
+            missing_fields = 0
+            for section in e_sections:
+                if "|" not in section:  # 表格标记
+                    missing_fields += 1
+            if missing_fields > 0:
+                self.fail(f"{missing_fields}个实体缺少字段定义表")
 
         # 选型理由 (仅主卷检查)
         if self.volume_type == "main":

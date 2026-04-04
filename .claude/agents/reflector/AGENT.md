@@ -6,6 +6,7 @@ disallowedTools: Agent, AskUserQuestion, Bash, WebSearch, WebFetch
 allowed_paths:
   - docs/reviews/retro/
   - docs/reviews/CORRECTIONS-LOG.md
+  - docs/EVENT-LOG.jsonl
   - .claude/learnings/
 skills:
   - doc-nav

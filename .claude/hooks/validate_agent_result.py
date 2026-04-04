@@ -14,6 +14,13 @@ import os
 import re
 import sys
 
+# Event logger integration
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+try:
+    from event_logger import append_event as _log_event
+except ImportError:
+    _log_event = None
+
 VALID_STATUSES = {
     "completed",
     "needs_input",
@@ -76,6 +83,21 @@ def main():
             for field in ("questions", "completed-steps", "resume-guidance"):
                 if f"<{field}>" not in result:
                     warn(f"status=needs_input but missing <{field}>")
+
+        # 5. Log agent_return event
+        if _log_event:
+            outputs_m = re.search(r"<outputs>\s*(.*?)\s*</outputs>", result, re.DOTALL)
+            ref = outputs_m.group(1).strip() if outputs_m else None
+            try:
+                _log_event(
+                    event="agent_return",
+                    phase=os.environ.get("CATAFORGE_CURRENT_PHASE", "unknown"),
+                    detail=f"Agent returned status={status}",
+                    status=status if status in VALID_STATUSES else None,
+                    ref=ref,
+                )
+            except Exception:
+                pass  # Never block on logging failure
 
     sys.exit(0)
 
