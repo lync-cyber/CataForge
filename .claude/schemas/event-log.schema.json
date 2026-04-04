@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CataForge Event Log Schema",
+  "description": "定义 docs/EVENT-LOG.jsonl 中每行 JSON 对象的结构。此文件为事件日志格式的单一事实来源。",
+  "version": "0.1.0",
+  "type": "object",
+  "required": ["ts", "event", "phase", "detail"],
+  "properties": {
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 时间戳，含时区偏移"
+    },
+    "event": {
+      "type": "string",
+      "enum": [
+        "session_start",
+        "phase_start",
+        "phase_end",
+        "agent_dispatch",
+        "agent_return",
+        "review_verdict",
+        "user_decision",
+        "revision_start",
+        "tdd_phase",
+        "incident",
+        "state_change",
+        "correction",
+        "doc_finalize"
+      ],
+      "description": "事件类型枚举"
+    },
+    "phase": {
+      "type": "string",
+      "description": "当前项目阶段 (requirements|architecture|ui_design|dev_planning|development|testing|deployment|completed)"
+    },
+    "agent": {
+      "type": "string",
+      "description": "相关 Agent 目录名 (如 architect, reviewer)，可选"
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "new_creation",
+        "revision",
+        "continuation",
+        "retrospective",
+        "skill-improvement",
+        "apply-learnings",
+        "amendment"
+      ],
+      "description": "agent-dispatch 任务类型，仅 agent_dispatch/agent_return 事件填写"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "needs_input",
+        "blocked",
+        "approved",
+        "approved_with_notes",
+        "needs_revision",
+        "rolled-back"
+      ],
+      "description": "结果状态码，复用 agent-result 的 7 个统一状态码，仅事件完成时填写"
+    },
+    "ref": {
+      "type": "string",
+      "description": "文档引用 (doc_id#section 格式) 或文件路径，可选"
+    },
+    "detail": {
+      "type": "string",
+      "description": "事件简短描述"
+    }
+  },
+  "additionalProperties": false
+}

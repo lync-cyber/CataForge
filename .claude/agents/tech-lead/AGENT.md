@@ -37,6 +37,7 @@ maxTurns: 60
 - 每个任务有TDD验收标准
 - 每个任务有明确交付物清单
 - 每个任务标注上下文加载清单(doc-nav引用)
+- 集成/E2E测试规划覆盖关键用户流程
 
 ## Error Handling
 > 通用错误处理见 COMMON-RULES.md §通用 Error Handling

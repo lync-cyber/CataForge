@@ -10,6 +10,13 @@ import json
 import os
 import sys
 
+# Event logger integration
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+try:
+    from event_logger import append_event as _log_event
+except ImportError:
+    _log_event = None
+
 
 def main():
     # Locate project root (two levels up from hooks/)
@@ -53,6 +60,28 @@ def main():
         context_text = "\n\n".join(context_parts)
         output = json.dumps({"additionalContext": context_text}, ensure_ascii=False)
         print(output)
+
+    # Log session_start event
+    if _log_event:
+        phase = "unknown"
+        claude_md = os.path.join(project_dir, "CLAUDE.md")
+        if os.path.isfile(claude_md):
+            try:
+                with open(claude_md, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip().startswith("- 当前阶段:"):
+                            phase = line.split(":", 1)[1].strip().split("|")[0].strip()
+                            break
+            except OSError:
+                pass
+        try:
+            _log_event(
+                event="session_start",
+                phase=phase,
+                detail="会话启动",
+            )
+        except Exception:
+            pass  # Never block on logging failure
 
     sys.exit(0)
 

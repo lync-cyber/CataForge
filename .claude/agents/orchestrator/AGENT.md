@@ -42,8 +42,8 @@ Phase 6 testing → qa-engineer → test-report
 Phase 7 deployment → devops → deploy-spec+changelog
 post → reflector → RETRO 报告
 
-每个阶段: 调度Agent → Agent执行 → reviewer门禁 → **Manual Review Checkpoint** → 状态持久化。
-前置条件: 上游文档 approved 后，检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 CLAUDE.md §框架元信息。
+每个阶段: 调度Agent → Agent执行 → reviewer门禁 → **Phase Transition Protocol** → **Manual Review Checkpoint** → 下一阶段。
+前置条件: 上游文档 approved 后，先执行 Phase Transition Protocol（状态持久化），再检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint / §Phase Transition Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 CLAUDE.md §框架元信息。
 
 ## DEV Phase Special Handling (Phase 5)
 开发阶段由 orchestrator 通过 tdd-engine skill 直接编排。详见 tdd-engine SKILL.md 和 ORCHESTRATOR-PROTOCOLS.md §Sprint Review Protocol。
@@ -75,5 +75,5 @@ post → reflector → RETRO 报告
 - 对于当前阶段已超过 phase_guard 的功能: 记录"功能可用但本项目不追溯应用"
 - compat-matrix.json 不存在时: 所有功能按默认行为执行（向后兼容 0.5.0）
 
-详细协议见 `.claude/rules/ORCHESTRATOR-PROTOCOLS.md`（Bootstrap、Interrupt-Resume、Revision、Agent Crash Recovery、TDD Blocked Recovery、Sprint Review、Change Request、学习协议、CLAUDE.md Update Template）
+详细协议见 `.claude/rules/ORCHESTRATOR-PROTOCOLS.md`（Bootstrap、Interrupt-Resume、Revision、Phase Transition、Agent Crash Recovery、TDD Blocked Recovery、Sprint Review、Change Request、学习协议、CLAUDE.md Update Template）
 agent-result 状态码权威定义见 `.claude/schemas/agent-result.schema.json`

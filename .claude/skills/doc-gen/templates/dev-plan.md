@@ -1,5 +1,5 @@
 # Development Plan: {项目名称}
-<!-- required_sections: ["## 1. 迭代规划", "## 2. 依赖图", "## 3. 任务卡详细"] -->
+<!-- required_sections: ["## 1. 迭代规划", "## 2. 依赖图", "## 3. 任务卡详细", "## 6. 集成与E2E测试规划"] -->
 <!-- id: dev-plan-{project}-{ver} | author: tech-lead | status: draft -->
 <!-- deps: arch-{project}-{ver}, ui-spec-{project}-{ver} | consumers: developer, qa-engineer -->
 <!-- volume: main -->
@@ -10,6 +10,7 @@
 - §3 任务卡详细 → T-001..T-{NNN} (或见Sprint分卷)
 - §4 关键路径
 - §5 风险项
+- §6 集成与E2E测试规划
 [/NAV]
 
 ## 1. 迭代规划
@@ -55,3 +56,9 @@ graph LR
 ## 5. 风险项
 | 风险 | 影响 | 缓解措施 |
 |------|------|----------|
+
+## 6. 集成与E2E测试规划
+| Sprint | 测试类型 | 覆盖场景 | 依赖任务 | 测试范围描述 |
+|--------|----------|----------|----------|-------------|
+| Sprint {N} | Integration | {模块间交互场景} | T-{NNN} | {描述} |
+| Sprint {N} | E2E | {端到端用户流程} | T-{NNN} | {描述} |
