@@ -86,6 +86,24 @@ Agent 间传递文档引用时使用以下统一格式:
 ## 事件日志规范
 事件日志路径和 Schema 见 §框架配置常量 EVENT_LOG_PATH / EVENT_LOG_SCHEMA。事件类型和写入时机详见 orchestrator 协议文档。
 
+## 输出质量原则
+
+### 对比式约束
+Anti-Patterns应使用"做A而非B"格式并附具体例子，避免抽象禁令:
+- 差: "禁止: 未经调研直接选型"
+- 好: "禁止: 未经调研直接选型 — 如不经对比就选择'React + PostgreSQL因为流行'，应通过tech-eval记录至少2个备选方案的对比矩阵"
+
+### 具名默认倾向
+当Agent可能受LLM默认倾向影响时，应在Anti-Patterns中点名该倾向:
+- 示例(architect): "避免不假思索地套用'微服务 + PostgreSQL + Redis + Docker + Nginx'全家桶 — 小型项目单体架构可能更合适"
+- 示例(product-manager): "避免给所有功能标P0 — P0是'没有则产品不可用'，大多数项目P0功能不超过总数40%"
+
+### 决策记录要求
+关键决策点（技术选型、架构风格、优先级排序）须在文档中留下可追溯的决策记录:
+- 考虑了哪些选项
+- 为什么选择当前方案
+- 什么条件下应重新评估
+
 ## 通用 Anti-Patterns
 - 禁止: 猜测项目状态，以 CLAUDE.md 和 docs/ 目录为唯一事实来源
 - 禁止: 遗留未标注的 TODO/TBD/FIXME (必须标注 [ASSUMPTION])
