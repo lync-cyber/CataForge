@@ -18,6 +18,89 @@ except ImportError:
     _log_event = None
 
 
+def _detect_pkg_env(project_dir: str, which_fn) -> str:
+    """Detect project package manager(s) and return context string.
+
+    Supports: Python (uv/pip), Node.js (npm/yarn/pnpm), Go, .NET.
+    """
+    sections = []
+    _join = os.path.join
+    _exists = os.path.isfile
+
+    # --- Python ---
+    has_pyproject = _exists(_join(project_dir, "pyproject.toml"))
+    has_requirements = _exists(_join(project_dir, "requirements.txt"))
+    if has_pyproject or has_requirements:
+        pkg = "pip"
+        if _exists(_join(project_dir, "uv.lock")):
+            pkg = "uv"
+        elif has_pyproject:
+            try:
+                with open(
+                    _join(project_dir, "pyproject.toml"), "r", encoding="utf-8"
+                ) as f:
+                    if "[tool.uv]" in f.read():
+                        pkg = "uv"
+            except OSError:
+                pass
+        if pkg == "pip" and which_fn("uv") and has_pyproject:
+            pkg = "uv"
+        install = "uv sync" if pkg == "uv" else "pip install -e ."
+        test = "uv run python -m pytest" if pkg == "uv" else "python -m pytest"
+        sections.append(
+            f"Python pkg-manager: {pkg}  |  install: {install}  |  test: {test}"
+        )
+
+    # --- Node.js ---
+    if _exists(_join(project_dir, "package.json")):
+        pkg = "npm"
+        if _exists(_join(project_dir, "pnpm-lock.yaml")):
+            pkg = "pnpm"
+        elif _exists(_join(project_dir, "yarn.lock")):
+            pkg = "yarn"
+        elif _exists(_join(project_dir, "package-lock.json")):
+            pkg = "npm"
+        elif _exists(_join(project_dir, "bun.lockb")) or _exists(
+            _join(project_dir, "bun.lock")
+        ):
+            pkg = "bun"
+        run_prefix = {
+            "npm": "npx",
+            "yarn": "yarn",
+            "pnpm": "pnpm exec",
+            "bun": "bunx",
+        }.get(pkg, "npx")
+        sections.append(
+            f"Node pkg-manager: {pkg}  |  install: {pkg} install  |  run: {run_prefix}"
+        )
+
+    # --- Go ---
+    if _exists(_join(project_dir, "go.mod")):
+        sections.append(
+            "Go modules detected  |  install: go mod download  |  test: go test ./..."
+        )
+
+    # --- .NET ---
+    has_dotnet = False
+    try:
+        has_dotnet = any(
+            f.endswith((".csproj", ".sln")) for f in os.listdir(project_dir)
+        )
+    except OSError:
+        pass
+    if has_dotnet:
+        sections.append(
+            "dotnet detected  |  install: dotnet restore  |  test: dotnet test"
+        )
+
+    if not sections:
+        return ""
+
+    header = "=== Project Environment ==="
+    footer = "IMPORTANT: Use the detected package manager consistently across sessions. Do NOT mix alternatives (e.g. uv/pip, npm/yarn/pnpm)."
+    return f"{header}\n" + "\n".join(sections) + f"\n{footer}"
+
+
 def main():
     # Locate project root (two levels up from hooks/)
     hooks_dir = os.path.dirname(os.path.abspath(__file__))
@@ -55,6 +138,13 @@ def main():
                 )
         except OSError:
             pass
+
+    # Detect package manager for environment consistency across sessions
+    import shutil
+
+    env_lines = _detect_pkg_env(project_dir, shutil.which)
+    if env_lines:
+        context_parts.append(env_lines)
 
     if context_parts:
         context_text = "\n\n".join(context_parts)
