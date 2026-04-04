@@ -25,9 +25,11 @@ user-invocable: true
 ## 操作指令: 执行代码审查 (review)
 
 ### Step 1: Layer 1 — Lint脚本自动检查
-执行: `python .claude/skills/code-review/scripts/code_lint.py {file_or_dir}`
+**前置判断**: 读取 `.claude/settings.json`，检查 PostToolUse hooks 中是否存在 matcher 为 `Edit|Write` 且 command 包含 `lint_format.py` 的条目:
+- **已配置 lint hook** → 编码阶段已通过 hook 以 `--fix` 模式实时修复格式/lint问题，跳过 Layer 1，直接进入 Step 2 Layer 2
+- **未配置 lint hook** → 执行: `python .claude/skills/code-review/scripts/code_lint.py {file_or_dir}`
 
-处理结果(三种情况):
+未配置 hook 时的处理结果(三种情况):
 - **exit 0** (检查通过) → 进入Step 2 Layer 2
 - **exit 1** (有lint错误) → 返回错误列表；可选传入 `--fix` 自动修复后重新检查
 - **脚本执行异常** (Python错误/超时) → 标注"lint检查跳过"，降级进入Layer 2
@@ -53,6 +55,7 @@ user-invocable: true
 见 COMMON-RULES §审查报告规范 > 三态判定逻辑。
 
 ## 效率策略
-- Layer 1先行: lint自动检查快速发现格式/风格问题，节省AI审查资源
+- Hook去重: 已配置 PostToolUse lint hook 时跳过 Layer 1，避免与编码阶段的实时 lint 重复检查
+- Layer 1兜底: 未配置 hook 的项目仍执行 Layer 1 作为质量门禁
 - Layer 2聚焦语义: AI审查专注于lint无法覆盖的逻辑/安全/架构问题
 - 按严重等级排序问题
