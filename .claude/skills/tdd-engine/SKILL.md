@@ -81,14 +81,8 @@ Agent tool:
 
 验证（orchestrator 执行）:
 1. 确认新增测试均为 FAILED。标记为"pre-existing"的 PASSED 测试不视为异常。
-2. **失败原因抽检**: 读取测试运行输出（stderr/stdout），确认失败原因属于以下合理类别:
-   - 模块/类/函数不存在（ImportError, ModuleNotFoundError, ReferenceError 等）
-   - 方法未定义（AttributeError, TypeError 等）
-   - 返回值/状态不符合预期（AssertionError，且断言消息涉及业务语义）
-   如发现以下异常失败模式，要求 test-writer 以 continuation 模式修正后重新提交（最多1次，仍异常则 blocked 请求人工介入）:
-   - 语法错误（SyntaxError）导致的 FAIL
-   - 测试配置错误（fixture 未定义、test runner 配置问题）
-   - 断言中不包含任何变量引用（纯字面量比较）
+2. **失败分类核验**: 检查 test-writer summary 中的"失败分类"字段，确认均为合理类别（未实现/返回值不符）。如 summary 中出现 SyntaxError、配置错误等异常失败，或失败分类字段缺失，要求 test-writer 以 continuation 模式修正（最多1次，仍异常则 blocked 请求人工介入）。
+   > test-writer 在其 Execution Rules 中已执行详细的失败原因验证和断言有效性检查，orchestrator 此处仅做 summary 级别的二次确认，不重复逐条分析测试输出。
 
 ### Step 3: GREEN Phase — 启动implementer子代理
 使用Agent tool启动。角色定义、返回格式和异常处理已在 implementer AGENT.md 中定义，通过 subagent_type 自动加载:

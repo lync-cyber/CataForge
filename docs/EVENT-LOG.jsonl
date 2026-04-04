@@ -1,2 +1,2 @@
-{"ts": "2026-04-04T08:43:07.132127+00:00", "event": "session_start", "phase": "{requirements", "detail": "会话启动"}
-{"ts": "2026-04-04T09:09:25.188416+00:00", "event": "session_start", "phase": "{requirements", "detail": "会话启动"}
+{"ts": "2026-04-04T08:43:07.132127+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-04T09:09:25.188416+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
