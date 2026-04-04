@@ -250,17 +250,33 @@ def detect_python_pkg_manager() -> str:
     return "pip"
 
 
+def detect_node_pkg_manager() -> str:
+    """检测 Node.js 项目的包管理器，返回 'npm' | 'yarn' | 'pnpm' | 'bun'
+
+    优先级: lock 文件 → fallback npm。
+    """
+    if os.path.exists("pnpm-lock.yaml"):
+        return "pnpm"
+    if os.path.exists("yarn.lock"):
+        return "yarn"
+    if os.path.exists("bun.lockb") or os.path.exists("bun.lock"):
+        return "bun"
+    return "npm"
+
+
 def check_project_dependencies() -> list:
     """检测用户项目的依赖是否已安装"""
     suggestions = []
 
     # Node.js 项目
     if os.path.exists("package.json"):
+        node_mgr = detect_node_pkg_manager()
+        ok(f"检测到 Node 包管理器: {node_mgr}")
         if os.path.exists("node_modules"):
             ok("package.json 存在，node_modules/ 已安装")
         else:
             warn("package.json 存在，但 node_modules/ 缺失")
-            suggestions.append("npm install")
+            suggestions.append(f"{node_mgr} install")
 
     # Python 项目: 检测包管理器
     is_python = os.path.exists("requirements.txt") or os.path.exists("pyproject.toml")
