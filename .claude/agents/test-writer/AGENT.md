@@ -30,7 +30,7 @@ maxTurns: 50
 返回 `<agent-result>` 格式（详见 dispatch-prompt.md §COMMON-SECTIONS）:
 - status: `completed` | `blocked`
 - outputs: 测试文件路径列表(逗号+空格分隔)
-- summary: "N FAILED, M PASSED (其中X个为pre-existing)。{执行摘要}"
+- summary: "N FAILED, M PASSED (其中X个为pre-existing)。失败分类: {K个未实现, J个返回值不符}。{执行摘要}"
 
 blocked 时可追加 `<questions>` 字段描述需要澄清的问题。
 

@@ -129,9 +129,10 @@ Agent tool:
 orchestrator完成以下收尾:
 1. 验证最终测试结果(运行测试确认全部PASS)
 2. 核对deliverables清单(所有文件已创建)
-3. 通过doc-gen(write-section)将dev-plan#§1对应任务行状态更新为done
-4. 如 blocked 且含 questions → 按 ORCHESTRATOR-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
-5. 如 blocked 且无 questions → 记录原因并请求人工介入
+3. 触发代码审查时，审查范围包含 impl_files 和 test_files（测试代码质量纳入 code-review Layer 2）
+4. 通过doc-gen(write-section)将dev-plan#§1对应任务行状态更新为done
+5. 如 blocked 且含 questions → 按 ORCHESTRATOR-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
+6. 如 blocked 且无 questions → 记录原因并请求人工介入
 
 > **Sprint级审查**: 当Sprint内所有任务完成Step 5后，orchestrator触发sprint-review skill执行Sprint完成度审查（见 ORCHESTRATOR-PROTOCOLS.md §Sprint Review Protocol）。Sprint审查在所有任务的code-review之后、下一Sprint开始之前执行。
 
