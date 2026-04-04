@@ -48,8 +48,6 @@ blocked 时可追加 `<questions>` 字段描述需要澄清的问题。
 | 测试框架配置错误 | 修复后重试，最多2次，仍失败则 blocked |
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 禁止: 编写或修改实现代码（仅编写测试）
 - 禁止: 跳过运行测试验证FAIL状态
 - 禁止: 修改任何已有实现文件

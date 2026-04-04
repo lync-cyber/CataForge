@@ -37,8 +37,6 @@ maxTurns: 50
 - 发布检查清单齐全
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 禁止: 构建步骤含硬编码路径或密钥
 - 禁止: 跳过安全扫描
 - 禁止: 修改源代码或测试

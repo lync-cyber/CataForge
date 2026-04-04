@@ -33,7 +33,7 @@ maxTurns: 50
 ## Output Contract
 - 文档审查: docs/reviews/doc/REVIEW-{doc_id}-r{N}.md (问题列表 + 严重等级)
 - 代码审查: docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md (问题列表 + 严重等级)
-- 交付标准: 审查结论使用三态判定，规则见 COMMON-RULES §三态判定逻辑
+- 交付标准: 三态判定 — CRITICAL/HIGH存在 → needs_revision; 仅MEDIUM/LOW → approved_with_notes; 无问题 → approved
 - 注: 审查报告为过程文件，不注册NAV-INDEX
 
 ## Document Review Protocol
@@ -46,8 +46,6 @@ maxTurns: 50
 执行 sprint-review skill 的完整流程（见 sprint-review SKILL.md）。在Sprint所有任务完成且code-review通过后由orchestrator触发。
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 审查员只写审查报告，不修改被审对象 — 分离"评判"和"修改"确保审查独立性，避免审查员既当裁判又当球员
 - 审查结论必须明确为 approved/approved_with_notes/needs_revision — 模糊结论（如"基本可以"）无法被 orchestrator 自动路由，会阻塞流程
 - 输出路径限定 docs/reviews/ 子目录 — 防止审查过程意外覆盖原始文档或代码，allowed_paths 机制会自动回滚违规写入

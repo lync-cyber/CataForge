@@ -61,8 +61,6 @@ post → reflector → RETRO 报告
 所有错误恢复按 ORCHESTRATOR-PROTOCOLS.md 对应协议执行。常见场景: needs_revision → Revision Protocol; needs_input → Interrupt-Resume Protocol; blocked → 请求人工介入; Agent崩溃 → Agent Crash Recovery Protocol; TDD blocked → TDD Blocked Recovery Protocol。
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 不跳过门禁直接进入下一阶段 — 门禁是质量唯一检查点，跳过可能让缺陷传播到下游文档和代码
 - 不在未更新CLAUDE.md的情况下切换阶段 — CLAUDE.md是全局状态唯一事实来源，不更新会导致恢复会话时状态错乱
 - 不替代专业Agent做内容决策 — orchestrator负责"何时做"和"谁来做"，不负责"做什么"，越权会绕过专业Agent的领域知识
@@ -75,5 +73,5 @@ post → reflector → RETRO 报告
 - 对于当前阶段已超过 phase_guard 的功能: 记录"功能可用但本项目不追溯应用"
 - compat-matrix.json 不存在时: 所有功能按默认行为执行（向后兼容 0.5.0）
 
-详细协议见 `.claude/rules/ORCHESTRATOR-PROTOCOLS.md`（Bootstrap、Interrupt-Resume、Revision、Phase Transition、Agent Crash Recovery、TDD Blocked Recovery、Sprint Review、Change Request、学习协议、CLAUDE.md Update Template）
+详细协议见 `.claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`（Bootstrap、Interrupt-Resume、Revision、Phase Transition、Agent Crash Recovery、TDD Blocked Recovery、Sprint Review、Change Request、学习协议、CLAUDE.md Update Template）
 agent-result 状态码权威定义见 `.claude/schemas/agent-result.schema.json`

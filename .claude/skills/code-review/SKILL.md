@@ -46,13 +46,13 @@ user-invocable: true
 - 错误处理: 是否符合arch§5.3错误处理策略
 
 ### Step 2.5: 审查报告编号
-见 COMMON-RULES §审查报告规范 > 报告编号规则。代码审查使用 `CODE-REVIEW-{task_id}-r{N}.md`。
+代码审查使用 `CODE-REVIEW-{task_id}-r{N}.md`。N = docs/reviews/code/ 下同前缀 `-r*` 文件数 + 1。
 
 ### Step 3: 产出审查报告
-产出 `CODE-REVIEW-{task_id}-r{N}.md`，问题格式、category 和 root_cause 枚举见 COMMON-RULES §审查报告规范。
+产出 `CODE-REVIEW-{task_id}-r{N}.md`，问题格式、category 和 root_cause 枚举按 COMMON-RULES §审查报告规范。
 
 ### Step 4: 判定结论
-见 COMMON-RULES §审查报告规范 > 三态判定逻辑。
+三态判定: CRITICAL/HIGH 存在 → needs_revision; 仅 MEDIUM/LOW → approved_with_notes; 无问题 → approved。
 
 ## 效率策略
 - Hook去重: 已配置 PostToolUse lint hook 时跳过 Layer 1，避免与编码阶段的实时 lint 重复检查

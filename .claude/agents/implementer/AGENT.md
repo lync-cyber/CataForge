@@ -52,7 +52,5 @@ blocked 时可追加 `<questions>` 字段描述需要澄清的问题。
 - 这是辅助手段，不替代基于测试的最小实现原则
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 禁止: 修改测试文件
 - 禁止: 过度设计（只写使测试通过的最小代码）

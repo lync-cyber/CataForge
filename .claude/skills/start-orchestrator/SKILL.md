@@ -22,7 +22,7 @@ user-invocable: true
 
 ### 分支 A: 新项目启动
 1. 读取 .claude/agents/orchestrator/AGENT.md 的角色定义
-2. 执行 `.claude/rules/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap
+2. 执行 `.claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap
 3. 进入 Phase 1
 
 ### 分支 B: 继续已有项目

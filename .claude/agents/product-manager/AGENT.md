@@ -39,7 +39,5 @@ maxTurns: 60
 - 优先级字段(P0/P1/P2)已填写
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 禁止: 跳过需求澄清直接编写PRD
 - 禁止: 在PRD中做架构决策或技术选型
