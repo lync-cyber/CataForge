@@ -30,7 +30,7 @@ maxTurns: 50
 返回 `<agent-result>` 格式（详见 dispatch-prompt.md §COMMON-SECTIONS）:
 - status: `completed` | `blocked`
 - outputs: 测试文件路径列表(逗号+空格分隔)
-- summary: "N FAILED, M PASSED (其中X个为pre-existing)。{执行摘要}"
+- summary: "N FAILED, M PASSED (其中X个为pre-existing)。失败分类: {K个未实现, J个返回值不符}。{执行摘要}"
 
 blocked 时可追加 `<questions>` 字段描述需要澄清的问题。
 
@@ -38,6 +38,8 @@ blocked 时可追加 `<questions>` 字段描述需要澄清的问题。
 - 每个 AC 对应至少一个测试用例
 - 所有测试必须运行并确认 FAIL 状态
 - 测试文件路径遵循 prompt 中传入的目录结构
+- **测试失败原因验证**: 每个 FAIL 测试必须因为"功能未实现"而失败（如 import 不存在、方法未定义、返回值不符合预期），而非因为测试自身逻辑错误（如 `assert True == False`、语法错误、错误的测试配置）
+- **断言有效性**: 每个测试必须包含至少一个与 AC 语义相关的断言（assert/expect），断言必须调用被测系统（SUT）并检查其返回值/状态/副作用，期望值从 AC 或接口契约推导
 
 ## Exception Handling
 | 场景 | 处理 |

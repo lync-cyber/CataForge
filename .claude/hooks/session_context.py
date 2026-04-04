@@ -70,7 +70,11 @@ def main():
                 with open(claude_md, "r", encoding="utf-8") as f:
                     for line in f:
                         if line.strip().startswith("- 当前阶段:"):
-                            phase = line.split(":", 1)[1].strip().split("|")[0].strip()
+                            raw = line.split(":", 1)[1].strip()
+                            # Skip unresolved template placeholders like {requirements|...}
+                            if raw.startswith("{"):
+                                break
+                            phase = raw.split("|")[0].strip()
                             break
             except OSError:
                 pass

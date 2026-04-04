@@ -79,7 +79,10 @@ Agent tool:
     目录结构: {arch#§6}
 ```
 
-验证: 确认新增测试均为FAILED。标记为"pre-existing"的PASSED测试不视为异常。
+验证（orchestrator 执行）:
+1. 确认新增测试均为 FAILED。标记为"pre-existing"的 PASSED 测试不视为异常。
+2. **失败分类核验**: 检查 test-writer summary 中的"失败分类"字段，确认均为合理类别（未实现/返回值不符）。如 summary 中出现 SyntaxError、配置错误等异常失败，或失败分类字段缺失，要求 test-writer 以 continuation 模式修正（最多1次，仍异常则 blocked 请求人工介入）。
+   > test-writer 在其 Execution Rules 中已执行详细的失败原因验证和断言有效性检查，orchestrator 此处仅做 summary 级别的二次确认，不重复逐条分析测试输出。
 
 ### Step 3: GREEN Phase — 启动implementer子代理
 使用Agent tool启动。角色定义、返回格式和异常处理已在 implementer AGENT.md 中定义，通过 subagent_type 自动加载:
@@ -120,9 +123,10 @@ Agent tool:
 orchestrator完成以下收尾:
 1. 验证最终测试结果(运行测试确认全部PASS)
 2. 核对deliverables清单(所有文件已创建)
-3. 通过doc-gen(write-section)将dev-plan#§1对应任务行状态更新为done
-4. 如 blocked 且含 questions → 按 ORCHESTRATOR-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
-5. 如 blocked 且无 questions → 记录原因并请求人工介入
+3. 触发代码审查时，审查范围包含 impl_files 和 test_files（测试代码质量纳入 code-review Layer 2）
+4. 通过doc-gen(write-section)将dev-plan#§1对应任务行状态更新为done
+5. 如 blocked 且含 questions → 按 ORCHESTRATOR-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
+6. 如 blocked 且无 questions → 记录原因并请求人工介入
 
 > **Sprint级审查**: 当Sprint内所有任务完成Step 5后，orchestrator触发sprint-review skill执行Sprint完成度审查（见 ORCHESTRATOR-PROTOCOLS.md §Sprint Review Protocol）。Sprint审查在所有任务的code-review之后、下一Sprint开始之前执行。
 

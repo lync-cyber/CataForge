@@ -105,6 +105,7 @@ Agent 间传递文档引用时使用以下统一格式:
 | structure | 代码 | 架构/组织/耦合 |
 | error-handling | 代码 | 异常处理、边界条件 |
 | performance | 代码 | 性能/效率 |
+| test-quality | 代码 | 测试断言有效性、测试逻辑正确性、边界覆盖 |
 
 ## 审查报告规范
 所有审查报告（doc-review 和 code-review）共享以下规范。各 Skill 的 Layer 1 检查项和 Layer 2 审查维度分别定义在各自 SKILL.md 中。
