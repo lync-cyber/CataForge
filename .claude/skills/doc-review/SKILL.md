@@ -66,6 +66,13 @@ python .claude/skills/doc-review/scripts/doc_check.py {doc_type} docs/{doc_type}
 - 规范性(convention): 命名/格式/编码规范是否符合约定
 - 清晰度(ambiguity): 描述是否模糊、能否作为下游输入
 
+**ui-spec专项审查维度**（仅当doc_type=ui-spec时追加）:
+- 设计方向一致性(consistency): §0设计方向声明是否贯穿到Token选择和组件风格——如声明"专业克制"但使用了高饱和度彩色和大圆角
+- 色彩体系层次(completeness): 主色/辅色/中性色是否有明确的主次关系，中性色是否有色相倾向而非纯灰
+- 组件视觉可区分性(ambiguity): 各状态变体(hover/active/disabled)是否有足够的视觉差异描述，开发者能否据此实现而无需猜测
+- 页面空间构成(ambiguity): 布局描述是否包含空间节奏(密集/留白)和视觉重心，而非仅列出区域名称
+- 无障碍基线(feasibility): 色彩对比度是否满足WCAG AA标准，交互元素是否有足够的点击目标尺寸
+
 ### Step 2.5: 审查报告编号
 文档审查使用 `REVIEW-{doc_id}-r{N}.md`。N = docs/reviews/doc/ 下同前缀 `-r*` 文件数 + 1。
 
@@ -90,7 +97,7 @@ python .claude/skills/doc-review/scripts/doc_check.py {doc_type} docs/{doc_type}
 - **prd**: 用户故事覆盖、验收标准(AC-NNN)存在、非功能需求充实度、优先级(P0/P1/P2)标注
 - **arch**: 模块→功能映射(F-NNN引用)、API定义含request、实体含字段表、技术栈选型理由
 - **dev-plan**: 依赖无环、tdd_acceptance、deliverables、context_load
-- **ui-spec**: 组件含变体和Props、页面含路由和组件引用、设计系统token
+- **ui-spec**: §0设计方向非空且非占位符、组件含变体和Props和视觉差异描述、页面含路由和组件引用和空间构成、设计系统token(色彩≥5个Token)
 - **test-report**: 测试金字塔(Unit/Integration/E2E)、用例矩阵非空、覆盖率有具体数值、测试执行结果、缺陷清单、结论
 - **deploy-spec**: 构建流程非空、环境含dev/prod、发布检查清单≥2项
 - **research-note**: 调研方法指明模式、结论非空

@@ -530,6 +530,22 @@ class DocChecker:
     # ========================================
 
     def check_ui_spec(self):
+        # 设计方向: §0 应存在且非空 (仅主卷检查)
+        if self.volume_type == "main":
+            if not re.search(r"##\s*0\.\s*设计方向", self.content):
+                self.fail("缺少§0设计方向章节")
+            else:
+                # 检查设计方向章节是否有实际内容(非占位符)
+                dir_match = re.search(
+                    r"##\s*0\.\s*设计方向(.*?)(?=^## |\Z)",
+                    self.content,
+                    re.MULTILINE | re.DOTALL,
+                )
+                if dir_match:
+                    dir_content = dir_match.group(1)
+                    if re.search(r"\{.*调性.*\}|\{.*关键词.*\}", dir_content):
+                        self.fail("§0设计方向仍为占位符，未填写实际内容")
+
         # 组件完整性: 每个 C-NNN 应有变体和 Props
         c_sections = re.findall(
             r"^### C-\d+.*?(?=^### C-\d+|^### P-\d+|^## |\Z)",
@@ -538,16 +554,21 @@ class DocChecker:
         )
         missing_variants = 0
         missing_props = 0
+        missing_visual_diff = 0
         for section in c_sections:
             if not re.search(r"变体|variant", section, re.IGNORECASE):
                 missing_variants += 1
             if not re.search(r"Props|props|属性", section, re.IGNORECASE):
                 missing_props += 1
+            if not re.search(r"视觉差异|视觉变化|visual diff", section, re.IGNORECASE):
+                missing_visual_diff += 1
         c_count = len(c_sections)
         if missing_variants > 0:
             self.fail(f"{c_count}个组件中{missing_variants}个缺少变体定义")
         if missing_props > 0:
             self.fail(f"{c_count}个组件中{missing_props}个缺少Props定义")
+        if missing_visual_diff > 0:
+            self.warn(f"{c_count}个组件中{missing_visual_diff}个缺少状态视觉差异描述")
 
         # 页面完整性: 每个 P-NNN 应有路由和组件引用
         p_sections = re.findall(
@@ -557,16 +578,21 @@ class DocChecker:
         )
         missing_route = 0
         missing_components = 0
+        missing_spatial = 0
         for section in p_sections:
             if not re.search(r"路由|route|/\w+", section, re.IGNORECASE):
                 missing_route += 1
             if not re.search(r"C-\d+|组件", section, re.IGNORECASE):
                 missing_components += 1
+            if not re.search(r"空间构成|视觉重心|留白", section, re.IGNORECASE):
+                missing_spatial += 1
         p_count = len(p_sections)
         if missing_route > 0:
             self.fail(f"{p_count}个页面中{missing_route}个缺少路由定义")
         if missing_components > 0:
             self.fail(f"{p_count}个页面中{missing_components}个缺少组件引用")
+        if missing_spatial > 0:
+            self.warn(f"{p_count}个页面中{missing_spatial}个缺少空间构成说明")
 
         # 设计系统: 色彩/排版 token 应存在 (仅主卷检查)
         if self.volume_type == "main":
@@ -574,6 +600,14 @@ class DocChecker:
                 self.warn("设计系统缺少色彩定义")
             if not re.search(r"排版|[Tt]ypography", self.content):
                 self.warn("设计系统缺少排版定义")
+            # 色彩Token数量检查: 至少应有主色、语义色、中性色
+            color_tokens = re.findall(
+                r"\|\s*\S+.*?\|.*?#[0-9a-fA-F]{3,8}", self.content
+            )
+            if 0 < len(color_tokens) < 5:
+                self.warn(
+                    f"仅定义了{len(color_tokens)}个色彩Token，建议至少包含主色、语义色(success/warning/error)和中性色"
+                )
 
     # ========================================
     # TEST-REPORT 专项检查

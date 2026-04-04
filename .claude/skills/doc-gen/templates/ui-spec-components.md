@@ -13,9 +13,10 @@
 
 ### C-{start}: {组件名}
 - **变体**: default, hover, active, disabled, error
+- **视觉差异**: {各状态的视觉变化描述，如hover时背景色加深10%、disabled时opacity: 0.5}
 - **Props**: { label: string, onClick: fn, disabled?: bool }
 - **映射功能**: F-001 (引用PRD)
-- **交互说明**: {关键交互}
+- **交互说明**: {关键交互行为和反馈方式}
 
 ### C-{start+1}: {组件名}
 ...
