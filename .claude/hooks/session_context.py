@@ -56,6 +56,42 @@ def main():
         except OSError:
             pass
 
+    # Detect Python package manager for environment consistency
+    is_python = os.path.isfile(
+        os.path.join(project_dir, "requirements.txt")
+    ) or os.path.isfile(os.path.join(project_dir, "pyproject.toml"))
+    if is_python:
+        import shutil
+
+        pkg_mgr = "pip"
+        if os.path.isfile(os.path.join(project_dir, "uv.lock")):
+            pkg_mgr = "uv"
+        elif os.path.isfile(os.path.join(project_dir, "pyproject.toml")):
+            try:
+                with open(
+                    os.path.join(project_dir, "pyproject.toml"), "r", encoding="utf-8"
+                ) as f:
+                    if "[tool.uv]" in f.read():
+                        pkg_mgr = "uv"
+            except OSError:
+                pass
+        if (
+            pkg_mgr == "pip"
+            and shutil.which("uv")
+            and os.path.isfile(os.path.join(project_dir, "pyproject.toml"))
+        ):
+            pkg_mgr = "uv"
+
+        install_cmd = "uv sync" if pkg_mgr == "uv" else "pip install -e ."
+        test_cmd = "uv run python -m pytest" if pkg_mgr == "uv" else "python -m pytest"
+        context_parts.append(
+            f"=== Python Environment ===\n"
+            f"Package manager: {pkg_mgr}\n"
+            f"Install: {install_cmd}\n"
+            f"Test: {test_cmd}\n"
+            f"IMPORTANT: Use '{pkg_mgr}' consistently. Do NOT mix uv and pip in the same project."
+        )
+
     if context_parts:
         context_text = "\n\n".join(context_parts)
         output = json.dumps({"additionalContext": context_text}, ensure_ascii=False)

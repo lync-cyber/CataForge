@@ -25,7 +25,10 @@
       "Bash(python .claude/scripts/*.py*)",
       "Bash(bash .claude/scripts/setup-penpot-mcp.sh --ensure)",
       "Bash(python -m pytest*)",
-      "Bash(python -m pip install*)"
+      "Bash(python -m pip install*)",
+      "Bash(uv sync*)",
+      "Bash(uv run *)",
+      "Bash(uv pip install*)"
     ],
     "deny": [
       "Bash(rm -rf *)",

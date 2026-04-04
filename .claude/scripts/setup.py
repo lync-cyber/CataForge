@@ -227,6 +227,29 @@ def check_proxy_status():
         info("未配置网络代理 (受限网络环境可在 .env 中配置)")
 
 
+def detect_python_pkg_manager() -> str:
+    """检测 Python 项目的包管理器，返回 'uv' | 'pip'
+
+    优先级: uv.lock 存在 → uv; 否则检测 uv 命令可用性 + pyproject.toml 中
+    [tool.uv] 配置; 最后 fallback 到 pip。
+    """
+    # uv.lock 文件是 uv 项目的明确标志
+    if os.path.exists("uv.lock"):
+        return "uv"
+    # pyproject.toml 中含 [tool.uv] 配置
+    if os.path.exists("pyproject.toml"):
+        try:
+            with open("pyproject.toml", "r", encoding="utf-8") as f:
+                if "[tool.uv]" in f.read():
+                    return "uv"
+        except OSError:
+            pass
+    # uv 命令可用且有 pyproject.toml (现代 Python 项目)
+    if has_command("uv") and os.path.exists("pyproject.toml"):
+        return "uv"
+    return "pip"
+
+
 def check_project_dependencies() -> list:
     """检测用户项目的依赖是否已安装"""
     suggestions = []
@@ -239,10 +262,23 @@ def check_project_dependencies() -> list:
             warn("package.json 存在，但 node_modules/ 缺失")
             suggestions.append("npm install")
 
+    # Python 项目: 检测包管理器
+    is_python = os.path.exists("requirements.txt") or os.path.exists("pyproject.toml")
+    if is_python:
+        pkg_mgr = detect_python_pkg_manager()
+        if pkg_mgr == "uv":
+            ok("检测到 Python 包管理器: uv")
+        else:
+            ok("检测到 Python 包管理器: pip")
+
     # Python 项目 (requirements.txt)
     if os.path.exists("requirements.txt"):
-        info("requirements.txt 存在 — 建议运行: pip install -r requirements.txt")
-        suggestions.append("pip install -r requirements.txt")
+        if is_python and detect_python_pkg_manager() == "uv":
+            info("requirements.txt 存在 — 建议运行: uv pip install -r requirements.txt")
+            suggestions.append("uv pip install -r requirements.txt")
+        else:
+            info("requirements.txt 存在 — 建议运行: pip install -r requirements.txt")
+            suggestions.append("pip install -r requirements.txt")
 
     # Python 项目 (pyproject.toml with dependencies)
     if os.path.exists("pyproject.toml"):
@@ -253,8 +289,12 @@ def check_project_dependencies() -> list:
             r"^\s*dependencies\s*=\s*\[([^\]]*)\]", content, re.MULTILINE | re.DOTALL
         )
         if dep_match and dep_match.group(1).strip():
-            info("pyproject.toml 声明了依赖 — 建议运行: pip install -e .")
-            suggestions.append("pip install -e .")
+            if detect_python_pkg_manager() == "uv":
+                info("pyproject.toml 声明了依赖 — 建议运行: uv sync")
+                suggestions.append("uv sync")
+            else:
+                info("pyproject.toml 声明了依赖 — 建议运行: pip install -e .")
+                suggestions.append("pip install -e .")
 
     if not suggestions and not os.path.exists("package.json"):
         info("未检测到项目依赖文件 (package.json / requirements.txt)")
