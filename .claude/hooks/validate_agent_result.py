@@ -21,15 +21,28 @@ try:
 except ImportError:
     _log_event = None
 
-VALID_STATUSES = {
-    "completed",
-    "needs_input",
-    "blocked",
-    "approved",
-    "approved_with_notes",
-    "needs_revision",
-    "rolled-back",
-}
+# Load status codes from canonical schema (single source of truth)
+_schema_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..",
+    "schemas",
+    "agent-result.schema.json",
+)
+try:
+    with open(_schema_path, "r", encoding="utf-8") as _f:
+        _schema = json.load(_f)
+    VALID_STATUSES = set(_schema["properties"]["status"]["enum"])
+except (OSError, KeyError, json.JSONDecodeError):
+    # Fallback if schema file unavailable
+    VALID_STATUSES = {
+        "completed",
+        "needs_input",
+        "blocked",
+        "approved",
+        "approved_with_notes",
+        "needs_revision",
+        "rolled-back",
+    }
 
 
 def warn(msg):

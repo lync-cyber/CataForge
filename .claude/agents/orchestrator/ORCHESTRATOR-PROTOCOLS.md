@@ -170,7 +170,8 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 ### 可安全覆盖（框架文件）
 - .claude/agents/ — 所有 AGENT.md
 - .claude/skills/ — 所有 SKILL.md + templates/ + scripts/
-- .claude/rules/ — COMMON-RULES.md, ORCHESTRATOR-PROTOCOLS.md
+- .claude/rules/ — COMMON-RULES.md, SUB-AGENT-PROTOCOLS.md
+- .claude/agents/orchestrator/ — ORCHESTRATOR-PROTOCOLS.md
 - .claude/hooks/ — 所有 Hook 脚本 (.py)
 - .claude/scripts/ — upgrade.py, check-upgrade.py, post_upgrade_check.py, setup-penpot-mcp.sh 等框架工具脚本
 - .claude/compat-matrix.json
@@ -319,3 +320,15 @@ Hook（session_context.py, validate_agent_result.py）自动写入 session_start
   <!-- changelog 由 devops 产出但不纳入门禁追踪 -->
 ```
 <!-- 状态值: 未开始 | draft | review | approved | needs_revision | needs_revision(N) | N/A -->
+
+---
+# Appendix: 框架开发约定
+---
+
+## Skill depends 字段语义
+SKILL.md frontmatter 中的 `depends` 字段含义:
+- 列出本 Skill 执行过程中**会调用**的其他 Skill（调用链依赖）
+- 也包含前置条件型依赖（需先完成的 Skill，如 penpot-implement depends penpot-sync）
+- 不包含运行环境依赖（如 Python、Node.js）
+- 不用于运行时自动校验，仅供开发者参考和 Agent-Skill 匹配审查
+- `suggested-tools` 必须包含本 Skill 所有执行路径中**直接使用**的工具（通过 depends 间接使用的工具不重复列出）

@@ -46,8 +46,6 @@ maxTurns: 60
 4. 设计 Token 通过手动编辑 CSS 变量文件替代 Penpot 同步
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 禁止: 跳过设计系统直接定义页面
 - 禁止: 组件缺少状态变体(default/hover/active/disabled/error)
 - 禁止: 页面缺少状态流(loading/empty/populated/error)

@@ -45,7 +45,5 @@ blocked 时可追加 `<questions>` 字段描述需要澄清的问题。
 | 规范与测试冲突 | 标记为 MEDIUM 留给代码审查 |
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 禁止: 修改测试文件
 - 禁止: 改变外部行为（所有测试必须仍然PASS）

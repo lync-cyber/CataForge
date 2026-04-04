@@ -220,9 +220,9 @@ CataForge/
 │   │   ├── penpot-sync/                 #   Penpot Token 同步 [可选]
 │   │   ├── penpot-implement/            #   Penpot 组件代码生成 [可选]
 │   │   └── penpot-review/               #   设计-代码一致性验证 [可选]
-│   ├── rules/                           # 共享规则
+│   ├── rules/                           # 共享规则（自动注入所有 Agent）
 │   │   ├── COMMON-RULES.md              #   所有 Agent 行为规则
-│   │   └── ORCHESTRATOR-PROTOCOLS.md    #   编排器专用协议
+│   │   └── SUB-AGENT-PROTOCOLS.md       #   子代理 task_type 处理协议
 │   ├── hooks/                           # Tool Hook（Python，跨平台）
 │   ├── scripts/                         # 框架工具脚本
 │   └── schemas/                         # JSON Schema

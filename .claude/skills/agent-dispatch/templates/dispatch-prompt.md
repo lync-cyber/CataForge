@@ -16,7 +16,7 @@ Agent tool:
     - 开始工作前，阅读你的核心 Skill 的 SKILL.md（见 AGENT.md skills 列表）
     - 通用 Skill（doc-gen/doc-nav）仅在需要操作时查阅
     - 所有文档和报告输出使用中文（代码、变量命名、框架参数除外）
-    - 信息不足时标注[ASSUMPTION]并给出合理默认值（见 COMMON-RULES §通用 Error Handling）
+    - 信息不足时标注[ASSUMPTION]并给出合理默认值
 
     === 任务信息 ===
     任务: {task}
@@ -35,9 +35,7 @@ Agent tool:
     }
 
     === 执行约束 ===
-    - 文档操作统一通过 doc-gen 和 doc-nav skill 的步骤执行
     - 新建文档(task_type=new_creation)至少执行一轮用户确认
-    - revision/continuation 流程见 COMMON-RULES 对应章节
 
     === 返回格式(必须严格遵循) ===
     完成后，你的最终回复中**必须**包含以下XML块:
@@ -48,7 +46,7 @@ Agent tool:
     <summary>执行摘要(≤3句)</summary>
     </agent-result>
 
-    status 值含义见 COMMON-RULES §统一状态码。
+    status 值含义见 COMMON-RULES §统一状态码（已自动注入上下文）。
 
     needs_input 时**必须**追加以下字段:
     <questions>[{"id":"Q1","text":"问题","options":["A: 说明","B: 说明"]}]</questions>

@@ -40,16 +40,12 @@ maxTurns: 60
 - 集成/E2E测试规划覆盖关键用户流程
 
 ## Error Handling
-> 通用错误处理见 COMMON-RULES.md §通用 Error Handling
-
 | 场景 | 处理策略 |
 |------|---------|
 | 循环依赖 | 标记并建议拆分任务或引入接口抽象 |
 | 任务粒度争议 | 按"单次Agent调用可完成"为上限 |
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 禁止: 单个任务跨越多个不相关模块，或context_load超过5个章节
 - 禁止: 缺少deliverables或context_load字段
 - 禁止: 依赖图存在循环
