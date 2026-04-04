@@ -43,7 +43,7 @@ user-invocable: true
 - 质量聚合(quality-summary): 聚合该Sprint所有CODE-REVIEW报告中的MEDIUM/HIGH问题模式
 
 ### Step 2.5: 审查报告编号
-Sprint 审查使用 `SPRINT-REVIEW-s{N}-r{M}.md` 格式。编号规则见 COMMON-RULES §报告编号规则。
+Sprint 审查使用 `SPRINT-REVIEW-s{N}-r{M}.md` 格式。M = docs/reviews/sprint/ 下同前缀 `-r*` 文件数 + 1。
 
 ### Step 3: 产出审查报告
 产出 `SPRINT-REVIEW-s{N}-r{M}.md`，问题前缀使用 `[SR-{NNN}]`，category和root_cause枚举见COMMON-RULES §审查报告规范。
@@ -57,7 +57,7 @@ Sprint审查额外category:
 | missing-deliverable | 缺失交付物 |
 
 ### Step 4: 判定结论
-见 COMMON-RULES §三态判定逻辑。Sprint 审查的 needs_revision 标记具体任务 ID 以便重入 TDD。
+三态判定: CRITICAL/HIGH 存在 → needs_revision; 仅 MEDIUM/LOW → approved_with_notes; 无问题 → approved。Sprint 审查的 needs_revision 标记具体任务 ID 以便重入 TDD。
 
 ## Layer 1 检查项 (sprint_check.py)
 

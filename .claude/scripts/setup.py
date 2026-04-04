@@ -320,7 +320,8 @@ def check_framework_integrity() -> bool:
     # 检查关键文件
     required_files = [
         ".claude/rules/COMMON-RULES.md",
-        ".claude/rules/ORCHESTRATOR-PROTOCOLS.md",
+        ".claude/rules/SUB-AGENT-PROTOCOLS.md",
+        ".claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md",
     ]
     for f in required_files:
         if os.path.exists(f):

@@ -13,6 +13,8 @@
 - 枚举值（status codes、category、root_cause、severity 等）始终使用英文，即使在中文文本中也不翻译。示例: "问题严重等级为 CRITICAL" 而非 "问题严重等级为严重"
 
 ## 统一状态码（共7个）
+> 权威枚举定义见 `.claude/schemas/agent-result.schema.json`; 本表为语义说明。
+
 所有Agent和子代理返回的状态码使用以下枚举:
 
 | 状态码 | 含义 | 使用场景 | orchestrator处理 |
@@ -42,8 +44,8 @@
 |--------|-----|------|
 | MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 |
 | MIN_REVIEW_SOURCES | 3 | reflector 执行 retrospective 的最小信号源文件数（REVIEW + CODE-REVIEW + CORRECTIONS-LOG 合计） |
-| MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint Protocol） |
-| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式，见 ORCHESTRATOR-PROTOCOLS §Event Log 规范） |
+| MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 |
+| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式） |
 | EVENT_LOG_SCHEMA | .claude/schemas/event-log.schema.json | 事件日志 Schema 定义 |
 
 ### MANUAL_REVIEW_CHECKPOINTS 可选值
@@ -82,11 +84,7 @@ Agent 间传递文档引用时使用以下统一格式:
 - 分卷文件的引用格式不变，doc-nav 负责定位到正确的分卷文件
 
 ## 事件日志规范
-- 事件日志 `docs/EVENT-LOG.jsonl` 为编排流程时间线和审计追踪的单一事实来源
-- 格式: JSONL（每行一个 JSON 对象），Schema 见 `.claude/schemas/event-log.schema.json`
-- 写入: orchestrator 通过 `python .claude/scripts/event_logger.py` CLI 或 Hook 自动写入
-- 读取: reflector 在 retrospective 时分析事件日志，所有 Agent 可通过 Grep 查询
-- 详细事件类型和记录时机见 ORCHESTRATOR-PROTOCOLS.md §Event Log 规范
+事件日志路径和 Schema 见 §框架配置常量 EVENT_LOG_PATH / EVENT_LOG_SCHEMA。事件类型和写入时机详见 orchestrator 协议文档。
 
 ## 通用 Anti-Patterns
 - 禁止: 猜测项目状态，以 CLAUDE.md 和 docs/ 目录为唯一事实来源
@@ -140,10 +138,3 @@ Agent 间传递文档引用时使用以下统一格式:
 | 无 CRITICAL/HIGH，但有 MEDIUM/LOW 问题 | **approved_with_notes** |
 | 无问题 | **approved** |
 
-## Skill depends 字段语义
-SKILL.md frontmatter 中的 `depends` 字段含义:
-- 列出本 Skill 执行过程中**会调用**的其他 Skill（调用链依赖）
-- 也包含前置条件型依赖（需先完成的 Skill，如 penpot-implement depends penpot-sync）
-- 不包含运行环境依赖（如 Python、Node.js）
-- 不用于运行时自动校验，仅供开发者参考和 Agent-Skill 匹配审查
-- `suggested-tools` 必须包含本 Skill 所有执行路径中**直接使用**的工具（通过 depends 间接使用的工具不重复列出）

@@ -24,8 +24,14 @@ maxTurns: 30
 
 ## Input Contract
 - docs/reviews/doc/ 下的 REVIEW-*.md（含 -r{N}）、docs/reviews/code/ 下的 CODE-REVIEW-*.md、docs/reviews/CORRECTIONS-LOG.md
-- CORRECTIONS-LOG.md 格式参见 ORCHESTRATOR-PROTOCOLS.md §On-Correction Learning Protocol
-- 最小样本: ≥3 个信号源文件（REVIEW + CODE-REVIEW + CORRECTIONS-LOG 合计，见 COMMON-RULES §MIN_REVIEW_SOURCES）
+- CORRECTIONS-LOG.md 格式:
+  ```
+  ### {date} | {agent_id} | {phase}
+  - 原假设: {assumption content}
+  - 用户决策: {user answer}
+  - 偏差类型: {preference|constraint|domain-knowledge}
+  ```
+- 最小样本: ≥3 个信号源文件（REVIEW + CODE-REVIEW + CORRECTIONS-LOG 合计）
 
 ## Output Contract
 - RETRO 报告和 SKILL-IMPROVE 报告为过程文件，直接使用 Write/Edit 写入 docs/reviews/retro/

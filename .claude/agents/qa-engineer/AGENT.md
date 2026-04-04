@@ -37,7 +37,5 @@ maxTurns: 50
 - 缺陷已归档并关联任务ID
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 禁止: 缺陷未关联任务ID
 - 禁止: 修改源代码(仅编写测试)

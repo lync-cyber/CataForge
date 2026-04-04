@@ -40,15 +40,11 @@ maxTurns: 60
 - 数据模型实体字段有类型和约束
 
 ## Error Handling
-> 通用错误处理见 COMMON-RULES.md §通用 Error Handling
-
 | 场景 | 处理策略 |
 |------|---------|
 | 技术选型无明确优势方 | 通过tech-eval记录对比矩阵，标注推荐项+选型理由+调研来源 |
 
 ## Anti-Patterns
-> 通用禁令见 COMMON-RULES §通用 Anti-Patterns
-
 - 禁止: 未经调研直接选型
 - 禁止: 零用户确认完成架构设计
 - 禁止: 遗漏PRD中的功能点

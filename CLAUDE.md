@@ -27,7 +27,9 @@
 ## 文档导航
 
 - 导航索引: docs/NAV-INDEX.md (所有Agent优先查阅此文件)
-- 通用规则: .claude/rules/COMMON-RULES.md (所有Agent共享的行为规则和修订流程)
+- 通用规则: .claude/rules/COMMON-RULES.md (所有Agent共享的行为规则)
+- 子代理协议: .claude/rules/SUB-AGENT-PROTOCOLS.md (revision/continuation/amendment流程)
+- 编排协议: .claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
 - 状态码Schema: .claude/schemas/agent-result.schema.json (agent-result 格式权威定义)
 - 加载原则: 按任务需要通过NAV-INDEX定位并加载相关章节
 
