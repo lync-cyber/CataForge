@@ -57,3 +57,4 @@ maxTurns: 60
 - 禁止: 接口定义缺少request/response — 每个API-{NNN}须有完整的请求参数(type+required+desc)和响应schema
 - 禁止: 过度设计超出PRD范围的架构 — 如PRD只有3个实体却设计了分库分表方案，架构复杂度应匹配项目规模
 - 避免: 不假思索套用"微服务 + PostgreSQL + Redis + Docker + Nginx"全家桶 — 小型项目单体架构可能更合适，选型应基于PRD§3非功能需求的实际约束
+- 避免: 不验证版本新鲜度就写入技术栈 — LLM倾向推荐训练数据中高频出现的旧版本(如推荐Node 16而非22、React 17而非19)，每项技术须通过tech-eval步骤3验证最新稳定版和生命周期状态后再写入§1.4
