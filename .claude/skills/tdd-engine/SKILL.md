@@ -77,6 +77,7 @@ Agent tool:
     接口契约: {arch接口定义}
     测试框架: {按技术栈}
     目录结构: {arch#§6}
+    测试执行: 使用 -q --tb=short 精简输出，仅调试时切换 -v
 ```
 
 验证（orchestrator 执行）:
@@ -99,6 +100,7 @@ Agent tool:
     接口契约: {arch接口定义}
     目录结构: {arch#§6}
     命名规范: {arch#§7}
+    测试执行: 使用 -q --tb=short 精简输出，仅调试时切换 -v
 ```
 
 验证: 确认返回的test-result全部PASSED。
@@ -117,6 +119,7 @@ Agent tool:
     实现文件: {GREEN阶段产出的impl_files}
     测试文件: {RED阶段产出的test_files}
     命名规范: {arch#§7}
+    测试执行: 使用 -q --tb=short 精简输出，仅调试时切换 -v
 ```
 
 ### Step 5: 汇总与状态更新
@@ -135,3 +138,7 @@ orchestrator完成以下收尾:
 - 子代理间仅传递文件路径，非代码全文
 - 按context_load加载最小必要上下文
 - 子代理prompt中内联必要的arch约束，避免子代理再读取文件
+- 子代理执行测试时使用精简输出模式以节省上下文空间:
+  - Python: `python -m pytest --tb=short -q`（-q 仅显示失败详情和摘要行）
+  - JS/TS: 添加 `--silent` 或等效参数减少通过用例的冗余输出
+  - 仅在需要调试具体失败时临时切换到详细模式（-v --tb=long）
