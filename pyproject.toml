@@ -14,10 +14,6 @@ Repository = "https://github.com/lync-cyber/CataForge"
 testpaths = ["tests"]
 addopts = "-v --tb=short"
 filterwarnings = [
-    # pytest-asyncio 0.23.x 在 Python 3.14+ 使用了已废弃的 asyncio API，
-    # 待升级到 >=1.0 后可移除此过滤
-    "ignore:'asyncio.iscoroutinefunction':DeprecationWarning:pytest_asyncio",
-    "ignore:'asyncio.get_event_loop_policy':DeprecationWarning:pytest_asyncio",
     # pydantic v1 兼容层在 Python 3.14+ 触发警告（langsmith 依赖）
     "ignore:Core Pydantic V1 functionality:UserWarning:langsmith",
 ]
