@@ -101,7 +101,22 @@ def _detect_pkg_env(project_dir: str, which_fn) -> str:
     return f"{header}\n" + "\n".join(sections) + f"\n{footer}"
 
 
+def _ensure_utf8_stdio():
+    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
+    import io
+
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+    if sys.stderr.encoding != "utf-8":
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace"
+        )
+
+
 def main():
+    _ensure_utf8_stdio()
     # Locate project root (two levels up from hooks/)
     hooks_dir = os.path.dirname(os.path.abspath(__file__))
     claude_dir = os.path.dirname(hooks_dir)

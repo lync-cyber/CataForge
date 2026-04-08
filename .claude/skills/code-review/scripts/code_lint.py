@@ -9,13 +9,8 @@
 """
 
 import sys
-import io
 import subprocess
 from pathlib import Path
-
-# Ensure UTF-8 output on Windows
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # 排除目录
 EXCLUDE_DIRS = {
@@ -201,7 +196,21 @@ class CodeLinter:
         return 0
 
 
+def _ensure_utf8_stdio():
+    import io
+
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+    if sys.stderr.encoding != "utf-8":
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace"
+        )
+
+
 if __name__ == "__main__":
+    _ensure_utf8_stdio()
     if len(sys.argv) < 2:
         print("用法: python code_lint.py <file_or_dir> [--fix]")
         print("返回: exit 0=全部通过, exit 1=有错误, exit 2=参数错误")
