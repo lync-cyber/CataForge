@@ -74,13 +74,37 @@ def main():
     if ext in (".js", ".ts", ".jsx", ".tsx"):
         if has_command("npx"):
             run_tool(["npx", "prettier", "--write", file_path], "Prettier", file_path)
-            run_tool(["npx", "eslint", "--fix", file_path], "ESLint", file_path)
+            run_tool(
+                [
+                    "npx",
+                    "eslint",
+                    "--fix",
+                    "--rule",
+                    "no-unused-vars: off",
+                    "--rule",
+                    "@typescript-eslint/no-unused-vars: off",
+                    file_path,
+                ],
+                "ESLint",
+                file_path,
+            )
 
     # Python
     elif ext == ".py":
         if has_command("ruff"):
             run_tool(["ruff", "format", file_path], "Ruff Format", file_path)
-            run_tool(["ruff", "check", "--fix", file_path], "Ruff Check", file_path)
+            run_tool(
+                [
+                    "ruff",
+                    "check",
+                    "--fix",
+                    "--extend-unfixable",
+                    "F401,F811",
+                    file_path,
+                ],
+                "Ruff Check",
+                file_path,
+            )
 
     # C#
     elif ext == ".cs":
