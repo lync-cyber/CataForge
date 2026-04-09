@@ -290,17 +290,42 @@ def merge_settings(source_path: str, dry_run: bool = False) -> list:
     elif "permissions" in new_settings:
         merged["permissions"] = new_settings["permissions"]
 
-    # hooks: 从新版替换
-    if "hooks" in new_settings:
-        merged["hooks"] = new_settings["hooks"]
-        if "hooks" in cur_settings and cur_settings["hooks"] != new_settings["hooks"]:
-            changes.append("  更新: hooks 配置")
+    # hooks: 合并（框架钩子更新，用户自定义钩子保留）
+    cur_hooks = cur_settings.get("hooks", {})
+    new_hooks = new_settings.get("hooks", {})
+    if cur_hooks or new_hooks:
+        merged_hooks = {}
+        all_events = set(list(cur_hooks.keys()) + list(new_hooks.keys()))
+        for event in all_events:
+            new_event_list = new_hooks.get(event, [])
+            cur_event_list = cur_hooks.get(event, [])
+            # 如果事件类型的值不是列表（格式异常），直接使用新版
+            if not isinstance(new_event_list, list) or not isinstance(
+                cur_event_list, list
+            ):
+                merged_hooks[event] = (
+                    new_event_list if event in new_hooks else cur_event_list
+                )
+                continue
+            # 以新版框架钩子为基础，追加当前版本中独有的钩子（用户自定义）
+            seen_keys = {json.dumps(h, sort_keys=True) for h in new_event_list}
+            merged_event = list(new_event_list)
+            for h in cur_event_list:
+                hook_key = json.dumps(h, sort_keys=True)
+                if hook_key not in seen_keys:
+                    merged_event.append(h)
+                    seen_keys.add(hook_key)
+            merged_hooks[event] = merged_event
+        merged["hooks"] = merged_hooks
+        if cur_hooks != new_hooks:
+            changes.append("  更新: hooks 配置（已保留用户自定义钩子）")
 
-    # mcpServers: 合并
+    # mcpServers: 合并（用户配置优先，防止覆盖用户对现有 server 的自定义参数）
     cur_servers = cur_settings.get("mcpServers", {})
     new_servers = new_settings.get("mcpServers", {})
     if cur_servers or new_servers:
-        merged_servers = {**cur_servers, **new_servers}
+        # 新版新增的 server 作为默认，用户当前配置覆盖同名 server
+        merged_servers = {**new_servers, **cur_servers}
         merged["mcpServers"] = merged_servers
         added_servers = set(new_servers.keys()) - set(cur_servers.keys())
         kept_servers = set(cur_servers.keys()) - set(new_servers.keys())
