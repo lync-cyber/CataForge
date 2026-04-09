@@ -1,6 +1,6 @@
 [project]
 name = "cataforge"
-version = "0.4.2"
+version = "0.4.3"
 description = "AI 驱动的全生命周期软件开发工作流框架"
 license = {text = "MIT"}
 requires-python = ">=3.8"
