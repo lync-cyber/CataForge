@@ -39,7 +39,8 @@ Agent逐章填充内容时:
    - **检查失败**: 返回缺失项清单给调用 Agent，不执行 Step 2-4。Agent 应补充缺失章节后重新调用 finalize
 2. 拆分判断: 如文档超过500行，按下方"文档拆分策略"执行拆分
 3. 注册索引: 读取 `docs/NAV-INDEX.md`，追加当前文档条目(Doc ID、文件路径(含子目录)、状态=draft、分卷数、章节数)
-4. 返回: 最终文档路径 + NAV-INDEX注册确认
+4. **[EVENT]** `python .claude/scripts/event_logger.py --event doc_finalize --phase {当前阶段} --ref "{doc_id}" --detail "文档finalize: {doc_id}"`
+5. 返回: 最终文档路径 + NAV-INDEX注册确认
 
 注: doc-gen 是 NAV-INDEX 的唯一写入者。
 
