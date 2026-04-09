@@ -95,16 +95,32 @@ class TestMergeSettings:
         assert merged["env"]["MY_VAR"] == "keep"
         assert merged["env"]["NEW_VAR"] == "add"
 
-    def test_replace_hooks(self, tmp_path, monkeypatch):
+    def test_merge_hooks_preserves_user_custom(self, tmp_path, monkeypatch):
+        """用户自定义钩子（不在新版框架中的）应被保留；新版框架钩子应被添加；完全相同的钩子不重复"""
         monkeypatch.chdir(tmp_path)
         os.makedirs(".claude")
 
-        cur = {"hooks": {"old": True}}
+        user_hook = {
+            "matcher": "Bash",
+            "hooks": [{"type": "command", "command": "echo user"}],
+        }
+        shared_hook = {
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": "echo shared"}],
+        }
+        framework_hook_new = {
+            "matcher": "Edit",
+            "hooks": [{"type": "command", "command": "echo new-framework"}],
+        }
+
+        # 当前：有一个用户自定义钩子 + 一个与新版框架完全相同的钩子
+        cur = {"hooks": {"PreToolUse": [user_hook, shared_hook]}}
         self._write_settings(".claude/settings.json", cur)
 
         src = tmp_path / "new"
         os.makedirs(src / ".claude")
-        new = {"hooks": {"new": True}}
+        # 新版：有 shared_hook（与旧版完全一致）+ 一个全新的框架钩子
+        new = {"hooks": {"PreToolUse": [shared_hook, framework_hook_new]}}
         self._write_settings(str(src / ".claude" / "settings.json"), new)
 
         merge_settings(str(src))
@@ -112,8 +128,60 @@ class TestMergeSettings:
         with open(".claude/settings.json", "r") as f:
             merged = json.load(f)
 
-        assert "old" not in merged.get("hooks", {})
-        assert merged["hooks"]["new"] is True
+        hooks = merged["hooks"]["PreToolUse"]
+        commands = [h["hooks"][0]["command"] for h in hooks]
+        # 新版框架钩子（全新）应被添加
+        assert "echo new-framework" in commands
+        # 用户自定义钩子应被保留
+        assert "echo user" in commands
+        # 两版本共有的钩子不应重复（dedup）
+        assert commands.count("echo shared") == 1
+
+    def test_merge_hooks_preserves_user_only_events(self, tmp_path, monkeypatch):
+        """用户新增的 hook 事件类型（不在新版框架中）应被保留"""
+        monkeypatch.chdir(tmp_path)
+        os.makedirs(".claude")
+
+        cur = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [{"type": "command", "command": "echo pre"}],
+                    }
+                ],
+                "Stop": [
+                    {
+                        "matcher": "",
+                        "hooks": [{"type": "command", "command": "echo stop"}],
+                    }
+                ],
+            }
+        }
+        self._write_settings(".claude/settings.json", cur)
+
+        src = tmp_path / "new"
+        os.makedirs(src / ".claude")
+        new = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [{"type": "command", "command": "echo pre"}],
+                    }
+                ]
+            }
+        }
+        self._write_settings(str(src / ".claude" / "settings.json"), new)
+
+        merge_settings(str(src))
+
+        with open(".claude/settings.json", "r") as f:
+            merged = json.load(f)
+
+        # 用户独有的 Stop 事件类型应保留
+        assert "Stop" in merged["hooks"]
+        assert merged["hooks"]["Stop"][0]["hooks"][0]["command"] == "echo stop"
 
     def test_merge_mcp_servers(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -134,3 +202,29 @@ class TestMergeSettings:
 
         assert "user-mcp" in merged["mcpServers"]
         assert "framework-mcp" in merged["mcpServers"]
+
+    def test_mcp_servers_user_config_wins(self, tmp_path, monkeypatch):
+        """同名 MCP server：用户配置应优先于新版框架配置"""
+        monkeypatch.chdir(tmp_path)
+        os.makedirs(".claude")
+
+        cur = {
+            "mcpServers": {
+                "shared-mcp": {"url": "user-url", "env": {"TOKEN": "secret"}}
+            }
+        }
+        self._write_settings(".claude/settings.json", cur)
+
+        src = tmp_path / "new"
+        os.makedirs(src / ".claude")
+        new = {"mcpServers": {"shared-mcp": {"url": "framework-url"}}}
+        self._write_settings(str(src / ".claude" / "settings.json"), new)
+
+        merge_settings(str(src))
+
+        with open(".claude/settings.json", "r") as f:
+            merged = json.load(f)
+
+        # 用户的 url 和 env 应保留，不被框架版本覆盖
+        assert merged["mcpServers"]["shared-mcp"]["url"] == "user-url"
+        assert merged["mcpServers"]["shared-mcp"]["env"]["TOKEN"] == "secret"
