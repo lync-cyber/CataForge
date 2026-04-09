@@ -15,16 +15,9 @@
 """
 
 import argparse
-import io
 import os
 import re
 import sys
-
-# Ensure UTF-8 output on Windows
-if sys.stdout.encoding != "utf-8":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-if sys.stderr.encoding != "utf-8":
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 
 def find_dev_plan_files(dev_plan_dir: str) -> list:
@@ -288,7 +281,22 @@ def check_code_reviews(tasks: list, reviews_dir: str) -> list:
     return issues
 
 
+def _ensure_utf8_stdio():
+    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
+    import io
+
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+    if sys.stderr.encoding != "utf-8":
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace"
+        )
+
+
 def main():
+    _ensure_utf8_stdio()
     parser = argparse.ArgumentParser(description="Sprint completion structural check")
     parser.add_argument("sprint_number", type=int, help="Sprint number to check")
     parser.add_argument(

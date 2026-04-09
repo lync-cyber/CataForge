@@ -170,15 +170,32 @@ def format_mermaid(edges: list[tuple[str, str]], cp: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _ensure_utf8_stdio():
+    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
+    import io
+
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+    if sys.stderr.encoding != "utf-8":
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace"
+        )
+
+
 def main():
+    _ensure_utf8_stdio()
     parser = argparse.ArgumentParser(description="任务依赖分析工具")
     parser.add_argument(
         "--edges", required=True, help='边列表: "T-001→T-002,T-002→T-003"'
     )
     parser.add_argument("--weights", default="", help='权重: "T-001:S,T-002:M,T-003:L"')
     parser.add_argument(
-        "--format", default="json", choices=["json", "mermaid"],
-        help="输出格式: json(默认) 或 mermaid"
+        "--format",
+        default="json",
+        choices=["json", "mermaid"],
+        help="输出格式: json(默认) 或 mermaid",
     )
     args = parser.parse_args()
 
@@ -217,7 +234,9 @@ def main():
                 lines.append(f"    style {cn} fill:#f00,stroke:#333,stroke-width:2px")
             print("\n".join(lines))
         else:
-            cp, _ = critical_path(graph, all_nodes, weights, topological_sort(graph, all_nodes))
+            cp, _ = critical_path(
+                graph, all_nodes, weights, topological_sort(graph, all_nodes)
+            )
             print(format_mermaid(edges, cp))
         sys.exit(1 if cycles else 0)
 

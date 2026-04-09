@@ -83,9 +83,6 @@ Agent 间传递文档引用时使用以下统一格式:
 - `item_id` 为条目编号（F-xxx, M-xxx, API-xxx, E-xxx, T-xxx, C-xxx, P-xxx）
 - 分卷文件的引用格式不变，doc-nav 负责定位到正确的分卷文件
 
-## 事件日志规范
-事件日志路径和 Schema 见 §框架配置常量 EVENT_LOG_PATH / EVENT_LOG_SCHEMA。事件类型和写入时机详见 orchestrator 协议文档。
-
 ## 输出质量原则
 
 ### 对比式约束

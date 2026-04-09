@@ -25,6 +25,12 @@ orchestrator (主线程)
   └─ 汇总产出 → 更新dev-plan任务状态
 ```
 
+## TDD 子代理共享约束
+以下约束适用于所有 TDD 子代理，通过 AGENT.md 的 disallowedTools 和本节定义：
+- AskUserQuestion 不可用。如需用户输入，返回 blocked 并在 `<questions>` 描述问题，orchestrator 以 continuation 重启
+- 返回 `<agent-result>` 格式（详见 dispatch-prompt.md §COMMON-SECTIONS）
+- blocked 时可追加 `<questions>` 字段
+
 ## 输入规范
 - dev-plan#T-xxx任务卡(含tdd_acceptance, deliverables, context_load)
 - 通过doc-nav加载的arch相关章节(接口契约、数据模型、目录结构、命名规范)
@@ -138,7 +144,3 @@ orchestrator完成以下收尾:
 - 子代理间仅传递文件路径，非代码全文
 - 按context_load加载最小必要上下文
 - 子代理prompt中内联必要的arch约束，避免子代理再读取文件
-- 子代理执行测试时使用精简输出模式以节省上下文空间:
-  - Python: `python -m pytest --tb=short -q`（-q 仅显示失败详情和摘要行）
-  - JS/TS: 添加 `--silent` 或等效参数减少通过用例的冗余输出
-  - 仅在需要调试具体失败时临时切换到详细模式（-v --tb=long）

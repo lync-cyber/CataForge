@@ -70,12 +70,7 @@ user-invocable: false
 - 列出需要修订的文档 `doc_id#section` 引用
 - 按上游到下游排序: PRD → ARCH → UI-SPEC → DEV-PLAN
 
-**路由动作** (action):
-| 变更类型 | 路由 |
-|---------|------|
-| clarification | `proceed` — 直接在当前阶段执行 |
-| enhancement (L1-L2) | `amend_then_proceed` — 修订affected_docs后执行 |
-| enhancement (L3) / new_requirement | `cascade_amendment` — 从最上游affected doc开始逐级修订 |
+**路由动作** (action): 见 ORCHESTRATOR-PROTOCOLS §Change Request Protocol。
 
 ### Step 5: 输出分析结果
 返回结构化结果供orchestrator解析:

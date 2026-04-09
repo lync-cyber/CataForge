@@ -13,18 +13,6 @@ user-invocable: true
 - 能做: 文档结构检查(脚本)、语义审查(AI)、产出REVIEW报告、变更文档状态
 - 不做: 修改被审文档(仅报告问题)、内容生成
 
-## doc_type与模板映射
-| doc_type (参数) | template_id | 说明 |
-|----------------|-------------|------|
-| prd | prd | 产品需求文档 |
-| arch | arch | 架构设计文档 |
-| ui-spec | ui-spec | UI规格说明 |
-| dev-plan | dev-plan | 开发计划 |
-| test-report | test-report | 测试报告 |
-| deploy-spec | deploy-spec | 部署规范 |
-| research-note | research-note | 调研记录 |
-| changelog | changelog | 变更日志 |
-
 ## 操作指令: 执行双审门禁 (review)
 
 ### Step 1: Layer 1 — Python脚本自动检查
@@ -73,14 +61,14 @@ python .claude/skills/doc-review/scripts/doc_check.py {doc_type} docs/{doc_type}
 - 页面空间构成(ambiguity): 布局描述是否包含空间节奏(密集/留白)和视觉重心，而非仅列出区域名称
 - 无障碍基线(feasibility): 色彩对比度是否满足WCAG AA标准，交互元素是否有足够的点击目标尺寸
 
-### Step 2.5: 审查报告编号
-文档审查使用 `REVIEW-{doc_id}-r{N}.md`。N = docs/reviews/doc/ 下同前缀 `-r*` 文件数 + 1。
+### Step 3: 审查报告编号
+报告编号按 COMMON-RULES §报告编号规则，前缀 REVIEW-{doc_id}，目录 docs/reviews/doc/。
 
-### Step 3: 产出审查报告
+### Step 4: 产出审查报告
 产出 `REVIEW-{doc_id}-r{N}.md`，问题格式、category 和 root_cause 枚举按 COMMON-RULES §审查报告规范。
 
-### Step 4: 判定结论
-三态判定: CRITICAL/HIGH 存在 → needs_revision; 仅 MEDIUM/LOW → approved_with_notes; 无问题 → approved。判定后变更文档状态。
+### Step 5: 判定结论
+三态判定按 COMMON-RULES §三态判定逻辑。判定后变更文档状态。
 
 ## Layer 1 检查项 (doc_check.py)
 

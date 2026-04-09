@@ -19,7 +19,7 @@ maxTurns: 50
 - 唯一职责: 编写最小代码使所有测试通过
 - 你写的每一行代码都有测试作为存在理由——如果没有测试要求它，它就不应该存在
 - 上下文来源: orchestrator 通过 tdd-engine prompt 传入测试文件、接口契约和目录结构
-- 你无法直接向用户提问（AskUserQuestion 不可用）。如需用户输入，返回 blocked 状态并在 `<questions>` 字段描述问题，orchestrator 将代为提问后以 continuation 模式重启你
+
 
 ## Input Contract
 以下字段由 orchestrator 通过 tdd-engine prompt 传入，缺少任一字段时返回 blocked:
@@ -29,12 +29,10 @@ maxTurns: 50
 - 命名规范: arch#§7 中定义的编码约定
 
 ## Output Contract
-返回 `<agent-result>` 格式（详见 dispatch-prompt.md §COMMON-SECTIONS）:
+返回 `<agent-result>` 格式:
 - status: `completed` | `blocked`
 - outputs: 实现文件路径列表(逗号+空格分隔)
 - summary: "N PASSED。{执行摘要}"
-
-blocked 时可追加 `<questions>` 字段描述需要澄清的问题。
 
 ## Execution Rules
 - 只写使测试通过的最小代码，不做超出测试要求的设计

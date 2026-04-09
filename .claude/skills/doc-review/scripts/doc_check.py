@@ -10,13 +10,8 @@ volume-type: main | features | api | data | modules | sprint | components | page
 import json
 import sys
 import re
-import io
 from pathlib import Path
 from collections import defaultdict
-
-# Ensure UTF-8 output on Windows
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # ========================================
 # 分卷常量
@@ -773,7 +768,22 @@ class DocChecker:
             return 1
 
 
+def _ensure_utf8_stdio():
+    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
+    import io
+
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+    if sys.stderr.encoding != "utf-8":
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace"
+        )
+
+
 if __name__ == "__main__":
+    _ensure_utf8_stdio()
     if len(sys.argv) < 3:
         print(
             "用法: python doc_check.py <doc-type> <doc-file> [--docs-dir docs/] [--volume-type <type>]"

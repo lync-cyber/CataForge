@@ -31,7 +31,8 @@ class TestTaskIdSuffix:
             "### T-007a: 子任务\n"
             "- **status**: done\n"
             "### T-008: 下一任务\n"
-            "- **status**: done\n"
+            "- **status**: done\n",
+            encoding="utf-8",
         )
         tasks = extract_sprint_tasks([str(md)], 1)
         ids = [t["id"] for t in tasks]
@@ -46,7 +47,8 @@ class TestTaskIdSuffix:
             "| 任务ID | 任务名 | 模块 | 依赖 | TDD测试点 | 状态 |\n"
             "|--------|--------|------|------|-----------|------|\n"
             "| T-007a | 子任务 | M-001 | — | AC-010 | done |\n"
-            "| T-008 | 下一任务 | M-001 | — | AC-011 | todo |\n"
+            "| T-008 | 下一任务 | M-001 | — | AC-011 | todo |\n",
+            encoding="utf-8",
         )
         tasks = extract_sprint_tasks([str(md)], 1)
         ids = [t["id"] for t in tasks]
@@ -68,7 +70,8 @@ class TestDeliverablesRegex:
             "- **status**: done\n"
             "- **deliverables** (交付物):\n"
             "  - `src/foo/bar.py`\n"
-            "  - `tests/test_bar.py`\n"
+            "  - `tests/test_bar.py`\n",
+            encoding="utf-8",
         )
         tasks = extract_sprint_tasks([str(md)], 1)
         assert len(tasks) == 1
@@ -78,7 +81,8 @@ class TestDeliverablesRegex:
     def test_deliverables_without_parenthesized_label(self, tmp_path):
         md = tmp_path / "dev-plan.md"
         md.write_text(
-            "### Sprint 1\n### T-001: 任务\n- **deliverables**:\n  - `src/foo.py`\n"
+            "### Sprint 1\n### T-001: 任务\n- **deliverables**:\n  - `src/foo.py`\n",
+            encoding="utf-8",
         )
         tasks = extract_sprint_tasks([str(md)], 1)
         assert "src/foo.py" in tasks[0]["deliverables"]
@@ -97,11 +101,15 @@ class TestStatusBackfill:
             "### Sprint 1\n"
             "| 任务ID | 任务名 | 模块 | 依赖 | TDD测试点 | 状态 |\n"
             "|--------|--------|------|------|-----------|------|\n"
-            "| T-001 | 任务1 | M-001 | — | AC-001 | done |\n"
+            "| T-001 | 任务1 | M-001 | — | AC-001 | done |\n",
+            encoding="utf-8",
         )
         # sprint volume文件只有任务卡无状态
         vol = tmp_path / "dev-plan-s1.md"
-        vol.write_text("### T-001: 任务1\n- **deliverables**:\n  - `src/mod.py`\n")
+        vol.write_text(
+            "### T-001: 任务1\n- **deliverables**:\n  - `src/mod.py`\n",
+            encoding="utf-8",
+        )
         tasks = extract_sprint_tasks([str(main), str(vol)], 1)
         t001 = [t for t in tasks if t["id"] == "T-001"]
         assert len(t001) == 1
@@ -121,7 +129,8 @@ class TestDeliverablePathCleaning:
             "### T-001: 任务\n"
             "- **deliverables**:\n"
             "  - [x] `src/foo.py` — 功能模块\n"
-            "  - [ ] `tests/test_foo.py` -- 单元测试\n"
+            "  - [ ] `tests/test_foo.py` -- 单元测试\n",
+            encoding="utf-8",
         )
         tasks = extract_sprint_tasks([str(md)], 1)
         assert "src/foo.py" in tasks[0]["deliverables"]
@@ -134,7 +143,8 @@ class TestDeliverablePathCleaning:
             "### T-001: 任务\n"
             "- **deliverables**:\n"
             "  - `src/valid.py`\n"
-            "  - 全部子包 __init__.py 文件\n"
+            "  - 全部子包 __init__.py 文件\n",
+            encoding="utf-8",
         )
         tasks = extract_sprint_tasks([str(md)], 1)
         assert "src/valid.py" in tasks[0]["deliverables"]
@@ -147,7 +157,8 @@ class TestDeliverablePathCleaning:
             "### T-001: 任务\n"
             "- **deliverables**:\n"
             "  - `src/real.py`\n"
-            "  - `{initial_migration}`\n"
+            "  - `{initial_migration}`\n",
+            encoding="utf-8",
         )
         tasks = extract_sprint_tasks([str(md)], 1)
         assert "src/real.py" in tasks[0]["deliverables"]

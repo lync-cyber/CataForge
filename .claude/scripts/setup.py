@@ -12,18 +12,11 @@
 """
 
 import argparse
-import io
 import os
 import re
 import shutil
 import subprocess
 import sys
-
-# Ensure UTF-8 output on Windows
-if sys.stdout.encoding != "utf-8":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-if sys.stderr.encoding != "utf-8":
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # ============================================================================
 # 输出工具
@@ -413,7 +406,22 @@ def run_penpot_setup():
 # ============================================================================
 
 
+def _ensure_utf8_stdio():
+    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
+    import io
+
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+    if sys.stderr.encoding != "utf-8":
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace"
+        )
+
+
 def main():
+    _ensure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="CataForge 初始化安装脚本",
         epilog=(

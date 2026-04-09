@@ -21,7 +21,7 @@
 注: 前台子代理(默认)可直接使用AskUserQuestion向用户提问。本协议仅在后台子代理返回 needs_input 时触发。
 当Agent返回 needs_input 状态时:
 1. 从 `<agent-result>` 中提取 questions、intermediate-outputs、resume-guidance
-2. 使用 AskUserQuestion 展示问题(每批最多3个，选择题优先)
+2. 使用 AskUserQuestion 展示问题（见 COMMON-RULES §MAX_QUESTIONS_PER_BATCH，选择题优先）
 3. 收集回答，组织为 `Q1: {问题} → A: {回答}` 格式
 4. 通过 agent-dispatch 重新激活同一Agent (task_type=continuation)
 5. 循环控制: 每Agent每阶段最多2轮interrupt-resume，第3轮请求人工介入
@@ -112,7 +112,7 @@
 ## TDD Blocked Recovery Protocol
 当 TDD 子代理返回 blocked 且含 `<questions>` 字段时:
 1. 提取 questions 列表
-2. 使用 AskUserQuestion 向用户展示（每批最多3个，选择题优先）
+2. 使用 AskUserQuestion 向用户展示（见 COMMON-RULES §MAX_QUESTIONS_PER_BATCH，选择题优先）
 3. 以 continuation 模式重启同一子代理，传入答案
 4. 每阶段最多 1 轮 Blocked Recovery，第 2 次 blocked 请求人工介入
 

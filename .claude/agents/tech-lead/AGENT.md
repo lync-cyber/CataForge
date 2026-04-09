@@ -29,15 +29,6 @@ maxTurns: 60
 ## Output Contract
 - 必须产出: dev-plan-{project}-{ver}.md
 - 使用模板: 通过doc-gen调用 dev-plan 模板
-- 交付标准: 通过doc-review双审门禁
-
-## Quality Gates
-- 任务粒度：单一职责，步骤可在单次Agent调用内枚举完整
-- 依赖关系无环
-- 每个任务有TDD验收标准
-- 每个任务有明确交付物清单
-- 每个任务标注上下文加载清单(doc-nav引用)
-- 集成/E2E测试规划覆盖关键用户流程
 
 ## Error Handling
 | 场景 | 处理策略 |

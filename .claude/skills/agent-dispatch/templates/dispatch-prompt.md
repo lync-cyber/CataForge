@@ -57,13 +57,7 @@ Agent tool:
     <!-- END COMMON-SECTIONS -->
 
     === 返回示例 ===
-
-    completed:
-    <agent-result>
-    <status>completed</status>
-    <outputs>docs/arch/arch-myapp-v1.md, docs/arch/arch-myapp-v1-api.md</outputs>
-    <summary>完成架构设计，含6个模块、12个API接口。已拆分API分卷并注册NAV-INDEX。</summary>
-    </agent-result>
+    <!-- completed: 仅含 status+outputs+summary -->
 
     needs_input:
     <agent-result>

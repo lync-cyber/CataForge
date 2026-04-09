@@ -13,3 +13,7 @@ Repository = "https://github.com/lync-cyber/CataForge"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+filterwarnings = [
+    # pydantic v1 兼容层在 Python 3.14+ 触发警告（langsmith 依赖）
+    "ignore:Core Pydantic V1 functionality:UserWarning:langsmith",
+]

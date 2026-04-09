@@ -49,7 +49,7 @@ user-invocable: true
 - 输入: 任务卡验收标准 + 接口契约
 - 范围: 函数/方法级，隔离外部依赖
 - 工具: 按项目技术栈选择(pytest/jest/xunit等)
-- 定位: 审查和补充 DEV 阶段 tdd-engine 产出的测试覆盖盲区(边界条件、异常路径、未覆盖分支)，而非重写已有测试。tdd-engine 与 testing skill 各自独立，无依赖关系。
+- 定位: 补充 DEV 阶段覆盖盲区（见 §与tdd-engine的关系）
 
 **Integration测试**:
 - 输入: arch接口契约 + 模块间依赖关系

@@ -144,7 +144,22 @@ def append_event(
     return entry
 
 
+def _ensure_utf8_stdio():
+    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
+    import io
+
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+    if sys.stderr.encoding != "utf-8":
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace"
+        )
+
+
 def main():
+    _ensure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="CataForge Event Logger — 追加事件到 docs/EVENT-LOG.jsonl"
     )

@@ -49,14 +49,14 @@ user-invocable: true
   - 测试逻辑: 断言的期望值是否与接口契约一致，测试是否验证了声称的行为
   - 边界覆盖: 是否覆盖关键边界条件（空值、异常输入等）
 
-### Step 2.5: 审查报告编号
-代码审查使用 `CODE-REVIEW-{task_id}-r{N}.md`。N = docs/reviews/code/ 下同前缀 `-r*` 文件数 + 1。
+### Step 3: 审查报告编号
+报告编号按 COMMON-RULES §报告编号规则，前缀 CODE-REVIEW-{task_id}，目录 docs/reviews/code/。
 
-### Step 3: 产出审查报告
+### Step 4: 产出审查报告
 产出 `CODE-REVIEW-{task_id}-r{N}.md`，问题格式、category 和 root_cause 枚举按 COMMON-RULES §审查报告规范。
 
-### Step 4: 判定结论
-三态判定: CRITICAL/HIGH 存在 → needs_revision; 仅 MEDIUM/LOW → approved_with_notes; 无问题 → approved。
+### Step 5: 判定结论
+三态判定按 COMMON-RULES §三态判定逻辑。
 
 ## 效率策略
 - Hook去重: 已配置 PostToolUse lint hook 时跳过 Layer 1，避免与编码阶段的实时 lint 重复检查
