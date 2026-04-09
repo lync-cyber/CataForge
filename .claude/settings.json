@@ -62,6 +62,15 @@
             "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_dangerous.py\""
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/log_agent_dispatch.py\""
+          }
+        ]
       }
     ],
     "PostToolUse": [

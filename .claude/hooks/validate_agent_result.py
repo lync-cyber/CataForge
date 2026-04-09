@@ -14,12 +14,17 @@ import os
 import re
 import sys
 
-# Event logger integration
+# Shared utilities
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 try:
     from event_logger import append_event as _log_event
 except ImportError:
     _log_event = None
+
+try:
+    from phase_reader import read_current_phase as _read_phase
+except ImportError:
+    _read_phase = None
 
 # Load status codes from canonical schema (single source of truth)
 _schema_path = os.path.join(
@@ -104,7 +109,7 @@ def main():
             try:
                 _log_event(
                     event="agent_return",
-                    phase=os.environ.get("CATAFORGE_CURRENT_PHASE", "unknown"),
+                    phase=_read_phase() if _read_phase else "unknown",
                     detail=f"Agent returned status={status}",
                     status=status if status in VALID_STATUSES else None,
                     ref=ref,

@@ -69,6 +69,8 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD:
 **变量绑定**: 以上提取的具体内容在 Step 2-4 的子代理 prompt 中替换对应 `{占位符}`，确保每个子代理收到完整的上下文而无需自行读取文件。
 
 ### Step 2: RED Phase — 启动test-writer子代理
+- **[EVENT]** `python .claude/scripts/event_logger.py --event tdd_phase --phase development --detail "TDD RED: {T-xxx}"`
+
 使用Agent tool启动。角色定义、返回格式和异常处理已在 test-writer AGENT.md 中定义，通过 subagent_type 自动加载，prompt 仅需传入任务信息:
 ```
 Agent tool:
@@ -92,6 +94,8 @@ Agent tool:
    > test-writer 在其 Execution Rules 中已执行详细的失败原因验证和断言有效性检查，orchestrator 此处仅做 summary 级别的二次确认，不重复逐条分析测试输出。
 
 ### Step 3: GREEN Phase — 启动implementer子代理
+- **[EVENT]** `python .claude/scripts/event_logger.py --event tdd_phase --phase development --detail "TDD GREEN: {T-xxx}"`
+
 使用Agent tool启动。角色定义、返回格式和异常处理已在 implementer AGENT.md 中定义，通过 subagent_type 自动加载:
 ```
 Agent tool:
@@ -112,6 +116,8 @@ Agent tool:
 验证: 确认返回的test-result全部PASSED。
 
 ### Step 4: REFACTOR Phase — 启动refactorer子代理
+- **[EVENT]** `python .claude/scripts/event_logger.py --event tdd_phase --phase development --detail "TDD REFACTOR: {T-xxx}"`
+
 使用Agent tool启动。角色定义、返回格式和异常处理已在 refactorer AGENT.md 中定义，通过 subagent_type 自动加载:
 ```
 Agent tool:

@@ -1,10 +1,12 @@
-"""session_context.py 包管理器检测测试"""
+"""session_context.py 包管理器检测 + session_start 去重测试"""
 
+import json
 import os
 import sys
+from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "hooks"))
-from session_context import _detect_pkg_env
+from session_context import _detect_pkg_env, _should_log_session_start
 
 
 class TestDetectPkgEnvPython:
@@ -83,3 +85,34 @@ class TestDetectPkgEnvMultiStack:
         result = _detect_pkg_env(str(tmp_path), lambda cmd: False)
         assert "Python pkg-manager:" in result
         assert "Node pkg-manager:" in result
+
+
+class TestShouldLogSessionStart:
+    def test_returns_true_when_no_log_file(self, tmp_path):
+        assert _should_log_session_start(str(tmp_path)) is True
+
+    def test_returns_true_when_no_session_start(self, tmp_path):
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        log = docs / "EVENT-LOG.jsonl"
+        entry = {"ts": datetime.now(timezone.utc).isoformat(), "event": "phase_start"}
+        log.write_text(json.dumps(entry) + "\n", encoding="utf-8")
+        assert _should_log_session_start(str(tmp_path)) is True
+
+    def test_returns_false_within_60s(self, tmp_path):
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        log = docs / "EVENT-LOG.jsonl"
+        recent_ts = datetime.now(timezone.utc).isoformat()
+        entry = {"ts": recent_ts, "event": "session_start"}
+        log.write_text(json.dumps(entry) + "\n", encoding="utf-8")
+        assert _should_log_session_start(str(tmp_path)) is False
+
+    def test_returns_true_after_60s(self, tmp_path):
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        log = docs / "EVENT-LOG.jsonl"
+        old_ts = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
+        entry = {"ts": old_ts, "event": "session_start"}
+        log.write_text(json.dumps(entry) + "\n", encoding="utf-8")
+        assert _should_log_session_start(str(tmp_path)) is True
