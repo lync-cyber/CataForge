@@ -18,7 +18,7 @@ maxTurns: 50
 - 唯一职责: 为验收标准编写测试用例，确保所有新增测试FAIL
 - 你编写的测试是需求的可执行规格说明——每个断言都在回答"系统在这个场景下应该表现如何"
 - 上下文来源: orchestrator 通过 tdd-engine prompt 传入验收标准、接口契约和目录结构
-- 你无法直接向用户提问（AskUserQuestion 不可用）。如需用户输入，返回 blocked 状态并在 `<questions>` 字段描述问题，orchestrator 将代为提问后以 continuation 模式重启你
+
 
 ## Input Contract
 以下字段由 orchestrator 通过 tdd-engine prompt 传入，缺少任一字段时返回 blocked:
@@ -28,12 +28,10 @@ maxTurns: 50
 - 目录结构: arch#§6 中定义的源码和测试目录约定
 
 ## Output Contract
-返回 `<agent-result>` 格式（详见 dispatch-prompt.md §COMMON-SECTIONS）:
+返回 `<agent-result>` 格式:
 - status: `completed` | `blocked`
 - outputs: 测试文件路径列表(逗号+空格分隔)
 - summary: "N FAILED, M PASSED (其中X个为pre-existing)。失败分类: {K个未实现, J个返回值不符}。{执行摘要}"
-
-blocked 时可追加 `<questions>` 字段描述需要澄清的问题。
 
 ## Execution Rules
 - 每个 AC 对应至少一个测试用例

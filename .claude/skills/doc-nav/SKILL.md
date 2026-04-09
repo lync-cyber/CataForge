@@ -35,16 +35,7 @@ user-invocable: true
 ## 路径格式
 文档按类型存放在子目录中: `docs/{doc_type}/{filename}`
 
-doc_type 与目录映射:
-- prd → `docs/prd/`
-- arch → `docs/arch/`
-- dev-plan → `docs/dev-plan/`
-- ui-spec → `docs/ui-spec/`
-- test-report → `docs/test-report/`
-- deploy-spec → `docs/deploy-spec/`
-- research-note → `docs/research/`
-- changelog → `docs/changelog/`
-- reviews → `docs/reviews/` (含子目录: doc/, code/, sprint/, retro/)
+doc_type 目录映射见 doc-gen §template_id 映射表。reviews 子目录: doc/, code/, sprint/, retro/。
 
 ## NAV-INDEX格式
 ```

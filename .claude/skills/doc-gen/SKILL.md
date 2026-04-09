@@ -77,26 +77,7 @@ Agent逐章填充内容时:
 - 拆分不改变ID编号体系
 
 ## 持有模板
-模板文件位于 `.claude/skills/doc-gen/templates/` 目录:
-
-### 主文档模板
-- `prd.md` — 产品需求文档
-- `arch.md` — 架构设计文档
-- `ui-spec.md` — UI规格说明书
-- `dev-plan.md` — 开发计划
-- `test-report.md` — 测试报告
-- `deploy-spec.md` — 部署规格说明
-- `research-note.md` — 调研记录
-- `changelog.md` — 变更日志
-
-### 分卷模板
-- `prd-volume.md` — PRD功能需求分卷 (§2 子集)
-- `arch-modules.md` — 架构模块划分分卷 (§2)
-- `arch-api.md` — 架构接口契约分卷 (§3)
-- `arch-data.md` — 架构数据模型分卷 (§4)
-- `dev-plan-sprint.md` — 开发计划Sprint分卷 (§3 单Sprint)
-- `ui-spec-components.md` — UI组件清单分卷 (§2 子集)
-- `ui-spec-pages.md` — UI页面布局分卷 (§3 子集)
+模板位于 `.claude/skills/doc-gen/templates/`，完整映射见下方 §template_id 映射表。
 
 ### template_id 映射表
 | template_id | 模板文件 | doc_type | 作者Agent | 上游依赖 |

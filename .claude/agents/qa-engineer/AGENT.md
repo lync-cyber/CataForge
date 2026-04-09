@@ -29,12 +29,6 @@ maxTurns: 50
 ## Output Contract
 - 必须产出: test-report-{project}-{ver}.md
 - 使用模板: 通过doc-gen调用 test-report 模板
-- 交付标准: 通过doc-review双审门禁
-
-## Quality Gates
-- 集成测试覆盖所有模块接口
-- E2E测试覆盖核心用户路径
-- 缺陷已归档并关联任务ID
 
 ## Anti-Patterns
 - 禁止: 缺陷未关联任务ID
