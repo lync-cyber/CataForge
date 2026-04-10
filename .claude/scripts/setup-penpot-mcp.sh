@@ -241,7 +241,12 @@ if [[ "${1:-}" == "--ensure" ]]; then
     [[ ! -d "$MCP_WORK_DIR" ]] && [[ -f "$INSTALL_DIR/package.json" ]] && MCP_WORK_DIR="$INSTALL_DIR"
     if [[ -d "$MCP_WORK_DIR" ]] && [[ -f "$MCP_WORK_DIR/package.json" ]]; then
         cd "$MCP_WORK_DIR"
-        npm run start:all > /tmp/penpot-mcp-server.log 2>&1 &
+        # 使用用户目录的 pnpm shim（由主流程安装）
+        export PATH="$HOME/.local/bin:$PATH"
+        if ! command -v pnpm >/dev/null 2>&1; then
+            corepack enable --install-directory "$HOME/.local/bin" pnpm >/dev/null 2>&1 || true
+        fi
+        pnpm run start > /tmp/penpot-mcp-server.log 2>&1 &
         for i in $(seq 1 "$HEALTH_TIMEOUT"); do
             is_port_listening "$MCP_PORT" && { echo "Penpot MCP started on port $MCP_PORT"; exit 0; }
             sleep 1
@@ -251,16 +256,20 @@ if [[ "${1:-}" == "--ensure" ]]; then
     echo "Penpot MCP not installed. Run: bash .claude/scripts/setup-penpot-mcp.sh" >&2; exit 1
 fi
 
-# ── 清理函数 (Ctrl+C 或异常退出时杀掉后台进程) ─────────────────────────────
+# ── 清理函数 (仅在 Ctrl+C / TERM / 异常失败时触发) ─────────────────────────
+# 注意：成功结束时脚本会 exit 0，但 cleanup_on_signal 只挂在 INT/TERM 上，
+# 因此不会杀掉后台服务。EXIT 只负责恢复光标。
 BG_PID=""
-cleanup() {
-    tput cnorm 2>/dev/null || true   # 恢复光标
+restore_cursor() { tput cnorm 2>/dev/null || true; }
+cleanup_on_signal() {
+    restore_cursor
     if [[ -n "$BG_PID" ]] && kill -0 "$BG_PID" 2>/dev/null; then
         kill "$BG_PID" 2>/dev/null || true
-        wait "$BG_PID" 2>/dev/null || true
     fi
+    exit 130
 }
-trap cleanup EXIT INT TERM
+trap restore_cursor EXIT
+trap cleanup_on_signal INT TERM
 
 # ============================================================================
 #  主流程
@@ -296,12 +305,12 @@ else
     die "未找到 Node.js。请安装 v${NODE_REC_VERSION}: https://nodejs.org"
 fi
 
-# npm
-if command -v npm &>/dev/null; then
-    NPM_VER=$(npm -v)
-    ok "npm ${DIM}(v${NPM_VER})${NC}"
+# Corepack (pnpm 版本由 package.json 的 packageManager 字段固定，由 corepack 拉取)
+if command -v corepack &>/dev/null; then
+    COREPACK_VER=$(corepack --version 2>/dev/null || echo "?")
+    ok "Corepack ${DIM}(v${COREPACK_VER})${NC}"
 else
-    die "未找到 npm。请随 Node.js 一起安装。"
+    die "未找到 corepack。请升级 Node.js 至 v${NODE_REC_VERSION} (corepack 随 Node 自带)。"
 fi
 
 # curl (健康检查需要)
@@ -367,65 +376,64 @@ fi
 cd "$MCP_WORK_DIR"
 ok "工作目录: ${DIM}${MCP_WORK_DIR}${NC}"
 
-# ── Step 3: 安装依赖 ─────────────────────────────────────────────────────
-step 3 $TOTAL_STEPS "安装依赖"
+# ── Step 3: 安装依赖 (Corepack + pnpm) ───────────────────────────────────
+step 3 $TOTAL_STEPS "安装依赖 (Corepack + pnpm)"
 
-# 检测并配置 npm 代理（从环境变量读取）
+# 检测并配置代理（供 corepack / pnpm 使用）
 if [[ -n "${HTTP_PROXY:-}" ]]; then
-    info "检测到 HTTP_PROXY，配置 npm 代理: ${HTTP_PROXY}"
-    npm config set proxy "$HTTP_PROXY" 2>/dev/null || true
+    info "检测到 HTTP_PROXY: ${HTTP_PROXY}"
 fi
 if [[ -n "${HTTPS_PROXY:-}" ]]; then
-    info "检测到 HTTPS_PROXY，配置 npm 代理: ${HTTPS_PROXY}"
-    npm config set https-proxy "$HTTPS_PROXY" 2>/dev/null || true
-fi
-if [[ -n "${NO_PROXY:-}" ]]; then
-    npm config set noproxy "$NO_PROXY" 2>/dev/null || true
+    info "检测到 HTTPS_PROXY: ${HTTPS_PROXY}"
 fi
 
-# 不使用 bootstrap（它会前台启动服务导致阻塞），拆分为 install → build → start
-if npm run 2>/dev/null | grep -q "install:all"; then
-    npm run install:all > "$STEP_LOG" 2>&1 &
-    spin_while $! "安装依赖 (install:all)" "依赖安装完成 (install:all)" \
-        || die "npm install:all 失败"
-else
-    npm install --loglevel=error > "$STEP_LOG" 2>&1 &
-    spin_while $! "安装依赖 (npm install)" "依赖安装完成" \
-        || die "npm install 失败。请检查网络连接和 Node.js 版本。"
+# Windows 下 Node 常装在 C:\Program Files\nodejs（非用户可写），
+# 直接 `corepack enable` 会因 EPERM 失败。改用用户目录放置 pnpm shim。
+COREPACK_SHIM_DIR="$HOME/.local/bin"
+mkdir -p "$COREPACK_SHIM_DIR"
+export PATH="$COREPACK_SHIM_DIR:$PATH"
+info "Corepack shim 目录: ${COREPACK_SHIM_DIR}"
+
+# 手动执行 corepack（绕开 scripts/setup 中无参数的 corepack enable）
+{
+    set -e
+    corepack enable --install-directory "$COREPACK_SHIM_DIR" pnpm
+    corepack install
+    pnpm -r install
+} > "$STEP_LOG" 2>&1 &
+spin_while $! "corepack enable + pnpm -r install" "依赖安装完成" \
+    || die "corepack/pnpm 安装失败。请检查网络/代理与 Node.js 版本。"
+
+# 确保 pnpm 已激活
+if ! command -v pnpm &>/dev/null; then
+    die "pnpm 未能激活。请检查 ${COREPACK_SHIM_DIR} 是否在 PATH 中。"
 fi
+PNPM_VER=$(pnpm -v 2>/dev/null || echo "?")
+ok "pnpm ${DIM}(v${PNPM_VER})${NC}"
 
 # ── Step 4: 构建项目 ─────────────────────────────────────────────────────
-step 4 $TOTAL_STEPS "构建项目"
+step 4 $TOTAL_STEPS "构建项目 (pnpm run build)"
 
-if npm run 2>/dev/null | grep -q "build:all"; then
-    npm run build:all > "$STEP_LOG" 2>&1 &
-    spin_while $! "构建所有组件 (build:all)" "构建完成 (build:all)" \
-        || die "构建失败 (build:all)"
-elif npm run 2>/dev/null | grep -q "build"; then
-    npm run build > "$STEP_LOG" 2>&1 &
-    spin_while $! "构建项目 (build)" "构建完成" \
-        || die "构建失败"
-else
-    warn "未找到标准构建命令，跳过构建步骤"
-fi
+pnpm run build > "$STEP_LOG" 2>&1 &
+spin_while $! "构建所有 workspace 包" "构建完成" \
+    || die "构建失败 (pnpm run build)"
 
 # ── Step 5: 启动服务 ─────────────────────────────────────────────────────
 step 5 $TOTAL_STEPS "启动 MCP Server & Plugin Server"
 
 LOG_FILE="/tmp/penpot-mcp-server.log"
 
-# 始终以后台方式启动服务
-if npm run 2>/dev/null | grep -q "start:all"; then
-    info "正在后台启动服务..."
-    npm run start:all > "$LOG_FILE" 2>&1 &
-    BG_PID=$!
-elif npm run 2>/dev/null | grep -q "start"; then
-    info "正在后台启动服务..."
-    npm run start > "$LOG_FILE" 2>&1 &
-    BG_PID=$!
+# pnpm run start 由 package.json 定义为 `pnpm -r --parallel run start`，
+# 同时启动 HTTP/SSE(4401) + WebSocket(4402) + Plugin Web(4400)
+info "正在后台启动服务 (pnpm run start)..."
+# setsid (若可用) 启动新 session，确保父 bash 退出时子进程不会收到 SIGHUP
+if command -v setsid &>/dev/null; then
+    setsid pnpm run start > "$LOG_FILE" 2>&1 < /dev/null &
 else
-    die "未找到启动命令 (start:all / start)"
+    pnpm run start > "$LOG_FILE" 2>&1 < /dev/null &
 fi
+BG_PID=$!
+disown "$BG_PID" 2>/dev/null || true
 
 # 等待服务就绪 — 带进度条和逐服务状态
 MCP_READY=false
@@ -507,17 +515,22 @@ step 6 $TOTAL_STEPS "注册 MCP 到 Claude Code"
 MCP_URL="http://localhost:${MCP_PORT}/mcp"
 
 if [[ "$HAS_CLAUDE" == "true" ]]; then
-    # 检查是否已在 settings.json 中配置
-    SETTINGS_FILE="${CLAUDE_PROJECT_DIR:-.}/.claude/settings.json"
-    if [[ -f "$SETTINGS_FILE" ]] && grep -q '"penpot"' "$SETTINGS_FILE" 2>/dev/null; then
-        ok "settings.json 中已配置 penpot MCP，跳过重复注册"
+    # claude mcp add 写入的是 ~/.claude.json（项目级 local scope），
+    # 不是项目下的 .claude/settings.json。先用 `claude mcp list` 检测是否已注册。
+    if claude mcp list 2>/dev/null | grep -qE '^penpot[: ]'; then
+        ok "Claude Code 已注册 penpot MCP，跳过"
     else
         info "正在注册 Penpot MCP Server..."
-        if claude mcp add penpot -t http "$MCP_URL" 2>/dev/null; then
+        # 合并 stderr 以便在失败时看到真实错误
+        ADD_OUTPUT=$(claude mcp add penpot -t http "$MCP_URL" 2>&1)
+        ADD_EXIT=$?
+        if [[ $ADD_EXIT -eq 0 ]] \
+           || echo "$ADD_OUTPUT" | grep -qiE "Added|already exists"; then
             ok "已注册到 Claude Code"
         else
-            warn "自动注册失败，请手动执行:"
+            warn "自动注册失败 (exit=$ADD_EXIT)，请手动执行:"
             info "  claude mcp add penpot -t http ${MCP_URL}"
+            [[ -n "$ADD_OUTPUT" ]] && echo "$ADD_OUTPUT" | sed 's/^/         /'
         fi
     fi
 else
@@ -553,7 +566,7 @@ echo -e "    4. 在插件 UI 中点击 ${BOLD}\"Connect to MCP server\"${NC}"
 echo -e "    5. 在 Claude Code 中开始使用！"
 echo ""
 echo -e "  ${BOLD}常用命令:${NC}"
-echo -e "    重启服务:  ${DIM}cd ${MCP_WORK_DIR} && npm run start:all${NC}"
+echo -e "    重启服务:  ${DIM}cd ${MCP_WORK_DIR} && pnpm run start${NC}"
 echo -e "    查看日志:  ${DIM}cat ${LOG_FILE}${NC}"
 echo -e "    停止服务:  ${DIM}kill \$(lsof -ti :${MCP_PORT}) 2>/dev/null${NC}"
 echo ""
