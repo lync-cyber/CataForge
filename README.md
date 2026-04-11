@@ -227,28 +227,6 @@ flowchart TB
     style P3 stroke-dasharray: 5 5
 ```
 
-### 项目状态机
-
-```mermaid
-stateDiagram-v2
-    [*] --> bootstrap
-    bootstrap --> requirements: 初始化完成
-    requirements --> architecture: PRD approved
-    architecture --> ui_design: ARCH approved
-    architecture --> dev_planning: 跳过 UI
-    ui_design --> dev_planning: UI-SPEC approved
-    dev_planning --> development: DEV-PLAN approved<br/>pre_dev 检查点
-    development --> testing: Sprint 全部完成
-    testing --> deployment: TEST-REPORT approved<br/>pre_deploy 检查点
-    deployment --> completed: 部署验收通过
-    completed --> [*]
-
-    requirements --> requirements: needs_revision
-    architecture --> architecture: needs_revision
-    development --> development: Sprint 迭代
-    testing --> development: 回归失败
-```
-
 ### TDD 引擎
 
 ```mermaid
@@ -274,56 +252,6 @@ flowchart LR
     style RF fill:#5B8FF9,stroke:#2C5F8A,color:#fff
     style CR fill:#F08F56,stroke:#B5702D,color:#fff
     style Rollback fill:#F6BD16,stroke:#B8860B,color:#262626
-```
-
-### 文档数据流
-
-文档之间通过标识符交叉引用（F-NNN / M-NNN / API-NNN / T-NNN），形成从需求到测试用例的完整证据链。
-
-```mermaid
-flowchart LR
-    PRD["PRD<br/>F-NNN · AC-NNN"]
-    ARCH["ARCH<br/>M-NNN · API-NNN · E-NNN"]
-    UI["UI-SPEC<br/>P-NNN · C-NNN"]
-    DEV["DEV-PLAN<br/>T-NNN · Sprint"]
-    CODE["代码 + 测试<br/>src/ + tests/"]
-    TEST["TEST-REPORT<br/>缺陷 · 覆盖率"]
-
-    PRD -->|"F-001 derives"| ARCH
-    PRD -->|"F-001 derives"| UI
-    ARCH -->|"M-001 implements"| DEV
-    UI -->|"C-001 implements"| DEV
-    DEV -->|"T-001 produces"| CODE
-    CODE -->|"执行"| TEST
-    TEST -.->|"缺陷反馈"| PRD
-
-    classDef planning fill:#F6BD16,stroke:#B8860B,color:#fff
-    classDef dev fill:#5AD8A6,stroke:#2E8B57,color:#fff
-    classDef quality fill:#F08F56,stroke:#B5702D,color:#fff
-    class PRD,ARCH,UI,DEV planning
-    class CODE dev
-    class TEST quality
-```
-
-### Agent 依赖关系
-
-```mermaid
-flowchart TB
-    ORC((Orchestrator))
-
-    ORC -->|Phase 1-4| PLAN[规划层<br/>PM · Architect<br/>UI Designer · Tech Lead]
-    ORC -->|Phase 5| TDD[执行层<br/>test-writer<br/>implementer<br/>refactorer]
-    ORC -->|Phase 6-7| OPS[运维层<br/>QA · DevOps]
-    ORC -->|按需| META[元协调<br/>Debugger · Reflector]
-
-    PLAN & TDD & OPS -.->|审查| RV((Reviewer))
-
-    style ORC fill:#5B8FF9,stroke:#2C5F8A,color:#fff
-    style PLAN fill:#F6BD16,stroke:#B8860B,color:#fff
-    style TDD fill:#5AD8A6,stroke:#2E8B57,color:#fff
-    style OPS fill:#9270CA,stroke:#5D3E8F,color:#fff
-    style META fill:#BFBFBF,stroke:#595959,color:#262626
-    style RV fill:#F08F56,stroke:#B5702D,color:#fff
 ```
 
 ---
