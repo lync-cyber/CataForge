@@ -31,7 +31,7 @@ maxTurns: 30
   - 用户决策: {user answer}
   - 偏差类型: {preference|constraint|domain-knowledge}
   ```
-- 最小样本: ≥3 个信号源文件（REVIEW + CODE-REVIEW + CORRECTIONS-LOG 合计）
+- 触发门槛: 由 orchestrator 按 `RETRO_TRIGGER_SELF_CAUSED` 常量判定（CORRECTIONS-LOG self-caused 条目数达到阈值，或存在 CRITICAL 问题），不满足时 orchestrator 直接跳过本 Agent
 
 ## Output Contract
 - RETRO 报告和 SKILL-IMPROVE 报告为过程文件，直接使用 Write/Edit 写入 docs/reviews/retro/

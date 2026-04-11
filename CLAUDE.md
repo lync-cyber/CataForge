@@ -70,6 +70,8 @@
 
 - 语言定位: 中文框架（所有提示词、文档模板、用户交互均为中文；代码/变量/CLI参数使用英文）
 - model:inherit 说明: 所有 AGENT.md 中 `model: inherit` 表示继承父会话（即 orchestrator 或用户会话）的模型设置。如需为特定 Agent 指定模型，可在 AGENT.md frontmatter 中设置 `model: <model-id>`
+- 执行模式: standard
+  <!-- 可选值: standard | agile-lite | agile-prototype。默认 standard；agile-* 仅适用于轻量项目/原型/PoC。矩阵见 COMMON-RULES §执行模式矩阵。模式切换由 orchestrator §Mode Routing Protocol 路由 -->
 - 阶段配置: 以下阶段可在 Bootstrap 时标记为 N/A 以跳过:
   - ui_design: 后端/CLI/API-only 项目可跳过（默认行为）
   - testing: 原型/PoC 项目可跳过

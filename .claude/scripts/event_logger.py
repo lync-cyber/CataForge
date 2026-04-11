@@ -11,8 +11,13 @@
     --task-type new_creation \\
     --detail "激活 architect 执行架构设计"
 
+用法 (批量模式，从 stdin 读取 JSONL):
+  echo '{"event":"phase_start","phase":"architecture","detail":"..."}
+  {"event":"agent_dispatch","phase":"architecture","agent":"architect","detail":"..."}' | \\
+    python .claude/scripts/event_logger.py --batch
+
 用法 (Python 导入):
-  from event_logger import append_event
+  from event_logger import append_event, append_events_batch
   append_event(event="agent_dispatch", phase="architecture",
                agent="architect", detail="激活 architect 执行架构设计")
 """
@@ -145,6 +150,69 @@ def append_event(
     return entry
 
 
+def append_events_batch(events, log_path=None):
+    """Append multiple structured events to the JSONL log file in a single open().
+
+    Args:
+        events: Iterable of dicts, each with keys matching append_event kwargs
+            (event, phase, detail required; agent/task_type/status/ref optional).
+        log_path: Override log file path (optional).
+
+    Returns:
+        List of entry dicts that were written.
+
+    Raises:
+        ValueError: If any event fails validation. No events are written on error.
+    """
+    validated = []
+    for idx, item in enumerate(events):
+        if not isinstance(item, dict):
+            raise ValueError(f"Batch entry #{idx} must be a dict, got {type(item).__name__}")
+        event = item.get("event")
+        phase = item.get("phase")
+        detail = item.get("detail")
+        if not event or not phase or detail is None:
+            raise ValueError(
+                f"Batch entry #{idx} missing required field(s): event/phase/detail"
+            )
+        if event not in VALID_EVENTS:
+            raise ValueError(
+                f"Batch entry #{idx}: invalid event '{event}', expected: {sorted(VALID_EVENTS)}"
+            )
+        status = item.get("status")
+        if status and status not in VALID_STATUSES:
+            raise ValueError(
+                f"Batch entry #{idx}: invalid status '{status}', expected: {sorted(VALID_STATUSES)}"
+            )
+        task_type = item.get("task_type")
+        if task_type and task_type not in VALID_TASK_TYPES:
+            raise ValueError(
+                f"Batch entry #{idx}: invalid task_type '{task_type}', expected: {sorted(VALID_TASK_TYPES)}"
+            )
+
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "event": event,
+            "phase": phase,
+            "detail": detail,
+        }
+        for key in ("agent", "task_type", "status", "ref"):
+            if item.get(key):
+                entry[key] = item[key]
+        validated.append(entry)
+
+    target = log_path or _get_log_path()
+    parent_dir = os.path.dirname(target)
+    if parent_dir and not os.path.isdir(parent_dir):
+        os.makedirs(parent_dir, exist_ok=True)
+
+    with open(target, "a", encoding="utf-8") as f:
+        for entry in validated:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    return validated
+
+
 def _ensure_utf8_stdio():
     """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
     import io
@@ -165,13 +233,17 @@ def main():
         description="CataForge Event Logger — 追加事件到 docs/EVENT-LOG.jsonl"
     )
     parser.add_argument(
-        "--event",
-        required=True,
-        choices=sorted(VALID_EVENTS),
-        help="事件类型",
+        "--batch",
+        action="store_true",
+        help="批量模式: 从 stdin 读取 JSONL (每行一个事件)，一次性原子追加",
     )
-    parser.add_argument("--phase", required=True, help="当前项目阶段")
-    parser.add_argument("--detail", required=True, help="事件简短描述")
+    parser.add_argument(
+        "--event",
+        choices=sorted(VALID_EVENTS),
+        help="事件类型 (单事件模式必填)",
+    )
+    parser.add_argument("--phase", help="当前项目阶段 (单事件模式必填)")
+    parser.add_argument("--detail", help="事件简短描述 (单事件模式必填)")
     parser.add_argument("--agent", help="相关 Agent 目录名")
     parser.add_argument(
         "--task-type",
@@ -186,6 +258,27 @@ def main():
     parser.add_argument("--ref", help="文档引用或文件路径")
 
     args = parser.parse_args()
+
+    if args.batch:
+        events = []
+        for lineno, raw in enumerate(sys.stdin, start=1):
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError as e:
+                parser.error(f"stdin line {lineno} 不是合法 JSON: {e}")
+        if not events:
+            parser.error("--batch 模式下 stdin 未提供任何事件")
+        entries = append_events_batch(events)
+        print(json.dumps({"batch_count": len(entries), "entries": entries},
+                         ensure_ascii=False, indent=2))
+        return
+
+    missing = [k for k in ("event", "phase", "detail") if not getattr(args, k)]
+    if missing:
+        parser.error(f"单事件模式下缺少必填参数: {', '.join('--' + m for m in missing)}")
 
     entry = append_event(
         event=args.event,

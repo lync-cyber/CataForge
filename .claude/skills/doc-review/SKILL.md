@@ -45,6 +45,11 @@ python .claude/skills/doc-review/scripts/doc_check.py {doc_type} docs/{doc_type}
 - **exit 1** (脚本执行成功 + 检查不通过) → 返回失败项列表，**不进入Layer 2**，节省资源
 - **脚本执行异常** (文件缺失/Python错误/超时) → 标注"脚本检查跳过(降级)"，**降级进入Layer 2**。降级后 Layer 2 的审查标准和判定规则不变（无CRITICAL/HIGH→approved），仅标记"Layer 1降级"供追溯
 
+**Layer 2 短路条件** (降低轻量文档的审查开销):
+- 若 Layer 1 exit 0、被审文档行数 < `DOC_REVIEW_L2_SKIP_THRESHOLD_LINES`、且 `doc_type ∈ DOC_REVIEW_L2_SKIP_DOC_TYPES`，则**跳过 Layer 2** 直接判定为 `approved`
+- 命中短路时，仍需按 Step 3/4 产出 `REVIEW-{doc_id}-r{N}.md` 报告，并在报告标题下标注 `Layer 2 skipped (short-circuit)` 及触发条件（行数、doc_type）
+- 降级场景（Layer 1 异常）不适用短路，必须完整执行 Layer 2
+
 ### Step 2: Layer 2 — AI语义审查
 通过doc-nav按需加载被审文档和上游依赖，按以下维度审查（括号内为对应的 category 枚举值）:
 - 完整性(completeness): 是否有逻辑遗漏、缺少必要定义

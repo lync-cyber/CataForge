@@ -38,6 +38,14 @@ maxTurns: 50
 - 只写使测试通过的最小代码，不做超出测试要求的设计
 - 实现文件路径遵循 prompt 中传入的目录结构和命名规范
 
+### Light 模式 (tdd_mode=light)
+当 tdd-engine prompt 中标注 `模式: tdd_mode=light` 时（合并 RED+GREEN）:
+1. 先按 prompt 中的"验收标准"为每条 AC 写一份失败测试（等价于 test-writer 行为），运行一次确认测试均 FAIL
+2. 再补最小实现代码使全部测试 PASSED
+3. `<agent-result>.outputs` 同时返回 `test_files` 和 `impl_files` 两个路径列表
+4. summary 必须包含 "light mode — RED+GREEN 合并"，说明合并阶段的最终测试结果
+5. 失败场景: 写测试时即发现 AC 无法测（如 AC 不可验证）→ 返回 blocked 并在 `<questions>` 说明具体 AC 编号
+
 ## Exception Handling
 | 场景 | 处理 |
 |------|------|

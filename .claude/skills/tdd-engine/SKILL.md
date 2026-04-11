@@ -57,7 +57,11 @@ REFACTOR → orchestrator:
 
 ## 执行流程
 
-orchestrator按以下步骤编排每个任务(T-xxx)的TDD:
+orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
+
+**tdd_mode 分支**: 读取任务卡 `tdd_mode` 字段（缺省视为 `standard`）:
+- `standard` → Step 1 → Step 2 (RED) → Step 3 (GREEN) → Step 4 (REFACTOR) → Step 5
+- `light` → Step 1 → **Step 2+3 合并** (见 §Light 模式) → Step 4 可选（`agile-lite` 可选；`agile-prototype` 跳过）→ Step 5
 
 ### Step 1: 准备上下文
 通过doc-nav加载任务卡的context_load章节，提取:
@@ -133,6 +137,44 @@ Agent tool:
     命名规范: {arch#§7}
     测试执行: 使用 -q --tb=short 精简输出，仅调试时切换 -v
 ```
+
+### Light 模式: 合并 RED+GREEN (tdd_mode=light)
+
+适用于任务预估 LOC < `TDD_LIGHT_LOC_THRESHOLD` 或执行模式为 `agile-lite`/`agile-prototype` 的小任务。Step 2 和 Step 3 合并为一次 implementer 子代理调用，子代理内部先写 AC 对应的失败测试再补最小实现。
+
+- **[EVENT]** `python .claude/scripts/event_logger.py --event tdd_phase --phase development --detail "TDD LIGHT: {T-xxx}"`
+
+使用 Agent tool 启动:
+```
+Agent tool:
+  subagent_type: "implementer"
+  description: "TDD LIGHT: T-xxx 合并RED+GREEN"
+  prompt: |
+    当前项目: {项目名}。
+    模式: tdd_mode=light（合并 RED+GREEN）
+
+    === 任务信息 ===
+    任务: 先为以下验收标准编写失败测试，确认 FAIL 后再补最小实现使测试通过。
+    验收标准: {tdd_acceptance列表}
+    接口契约: {arch接口定义}
+    测试框架: {按技术栈}
+    目录结构: {arch#§6}
+    命名规范: {arch#§7}
+    测试执行: 使用 -q --tb=short 精简输出
+
+    === 输出要求 ===
+    在 <agent-result>.outputs 中同时返回:
+      - test_files: [...]
+      - impl_files: [...]
+    summary 中标注: "light mode — RED+GREEN 合并，最终测试全部 PASSED"
+```
+
+验证（orchestrator 执行）:
+1. 确认 outputs 同时含 test_files 和 impl_files
+2. 运行测试确认最终全部 PASSED
+3. REFACTOR 处理:
+   - `agile-prototype` 或未显式要求重构 → 跳过 Step 4，直接进入 Step 5
+   - `agile-lite` 且 code-review 建议重构 → 可选择性执行 Step 4
 
 ### Step 5: 汇总与状态更新
 orchestrator完成以下收尾:

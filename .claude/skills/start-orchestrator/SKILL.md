@@ -23,7 +23,8 @@ user-invocable: true
 ### 分支 A: 新项目启动
 1. 读取 .claude/agents/orchestrator/AGENT.md 的角色定义
 2. 执行 `.claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap
-3. 进入 Phase 1
+   - 其中 Step 2 会通过 AskUserQuestion 询问执行模式（standard / agile-lite / agile-prototype），选项语义见 COMMON-RULES §执行模式矩阵
+3. 进入初始阶段（由执行模式决定，见 Bootstrap Step 8）
 
 ### 分支 B: 继续已有项目
 

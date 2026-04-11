@@ -22,7 +22,7 @@ user-invocable: true
 3. 设置文档头: id(格式 {template_id}-{project}-{ver})、author(当前agent目录名)、status=draft、deps(按模板)、consumers(按模板)
 4. 写入文件（Write 工具会自动创建不存在的父目录）: `Write docs/{doc_type}/{template_id}-{project}-{ver}.md`
    - doc_type 映射见下方 template_id 映射表
-   - 特殊映射: research-note → `docs/research/`, changelog → `docs/changelog/`
+   - 特殊映射: research-note → `docs/research/`, changelog → `docs/changelog/`, brief → `docs/brief/`
 5. 返回给Agent: 目标文件路径 + 必填章节清单(从[NAV]块提取)
 
 ### 指令2: 写入章节内容 (write-section)
@@ -37,7 +37,7 @@ Agent逐章填充内容时:
 1. 结构完整性检查(非内容验证): 确认所有必填章节存在且非空、文档头字段齐全(id/author/status/deps/consumers)。仅检查结构，不评估内容质量；内容验证由 doc-review 负责。
    - **检查通过**: 继续 Step 2
    - **检查失败**: 返回缺失项清单给调用 Agent，不执行 Step 2-4。Agent 应补充缺失章节后重新调用 finalize
-2. 拆分判断: 如文档超过500行，按下方"文档拆分策略"执行拆分
+2. 拆分判断: 如文档行数超过 `DOC_SPLIT_THRESHOLD_LINES`，按下方"文档拆分策略"执行拆分
 3. 注册索引: 读取 `docs/NAV-INDEX.md`，追加当前文档条目(Doc ID、文件路径(含子目录)、状态=draft、分卷数、章节数)
 4. **[EVENT]** `python .claude/scripts/event_logger.py --event doc_finalize --phase {当前阶段} --ref "{doc_id}" --detail "文档finalize: {doc_id}"`
 5. 返回: 最终文档路径 + NAV-INDEX注册确认
@@ -47,7 +47,7 @@ Agent逐章填充内容时:
 注意: finalize是轻量格式预检；深度内容审查由doc-review负责
 
 ## 文档拆分策略
-触发条件: 单文档超过500行
+触发条件: 单文档行数超过 `DOC_SPLIT_THRESHOLD_LINES`
 
 ### 拆分映射表
 | doc_type | volume_type | 保留章节 | 命名规则 | 模板文件 |
@@ -98,6 +98,12 @@ Agent逐章填充内容时:
 | dev-plan-sprint | templates/dev-plan-sprint.md | dev-plan | tech-lead | arch, ui-spec |
 | ui-spec-components | templates/ui-spec-components.md | ui-spec | ui-designer | prd, arch |
 | ui-spec-pages | templates/ui-spec-pages.md | ui-spec | ui-designer | prd, arch |
+| brief | templates/brief.md | brief | product-manager | none |
+| prd-lite | templates/prd-lite.md | prd | product-manager | none |
+| arch-lite | templates/arch-lite.md | arch | architect | prd-lite |
+| dev-plan-lite | templates/dev-plan-lite.md | dev-plan | tech-lead | arch-lite |
+
+> **执行模式说明**: `brief` 仅用于 agile-prototype 模式（合并 PRD+ARCH+DEV-PLAN）；`prd-lite` / `arch-lite` / `dev-plan-lite` 仅用于 agile-lite 模式。模式判定见 COMMON-RULES §执行模式矩阵。lite 文档与 standard 文档共享同一 `docs/{doc_type}/` 目录（如 `docs/prd/prd-lite-{project}-{ver}.md`），同一项目只会选用其中一种。
 
 ## 通用文档头规范
 每份文档必须以标准头开始:

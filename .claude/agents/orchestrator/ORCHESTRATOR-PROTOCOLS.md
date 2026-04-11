@@ -1,6 +1,6 @@
 # Orchestrator Protocols
 
-> 协议快速定位 — 核心协议: Bootstrap, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 基础设施: Event Log | 学习协议: On-Correction Learning, Adaptive Review, Retrospective & Improvement | 模板: CLAUDE.md Update Template
+> 协议快速定位 — 核心协议: Bootstrap, **Mode Routing**, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 基础设施: Event Log | 学习协议: On-Correction Learning, Adaptive Review, Retrospective & Improvement | 模板: CLAUDE.md Update Template
 
 ---
 # Part 1: 核心协议 (Core Protocols)
@@ -10,12 +10,63 @@
 ## Project Bootstrap
 当项目从零开始 (CLAUDE.md 不存在) 时:
 1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认 `[pre_dev, pre_deploy]`）
-2. **创建目录结构**: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
-3. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，当前阶段设为 requirements
-4. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 CLAUDE.md `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
-5. **创建 docs/NAV-INDEX.md** — 生成空索引骨架
-6. **记录初始事件** — `python .claude/scripts/event_logger.py --event session_start --phase requirements --detail "项目初始化完成"`
-7. **进入 Phase 1** — 通过agent-dispatch激活 product-manager
+2. **选择执行模式** — 通过 AskUserQuestion 单独提问，选项:
+    - `standard`（默认/推荐）— 中大型正式交付项目，7 阶段全流程
+    - `agile-lite` — 5-10 feature 的轻量工具或小型 Web 项目（产出 prd-lite / arch-lite / dev-plan-lite 各 ≤50 行）
+    - `agile-prototype` — 原型 / PoC / 单文件脚本（单一 brief.md ≤150 行，合并 Phase 1~4）
+    完整差异矩阵见 COMMON-RULES §执行模式矩阵。选择结果写入 CLAUDE.md §框架元信息.执行模式
+3. **创建目录结构**: 根据执行模式:
+    - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
+    - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
+4. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§框架元信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
+    - `standard` → `requirements`
+    - `agile-lite` → `planning`（Phase 1+2 合并）
+    - `agile-prototype` → `brief`（Phase 1~4 合并）
+5. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 CLAUDE.md `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
+6. **创建 docs/NAV-INDEX.md** — 生成空索引骨架
+7. **记录初始事件** — `python .claude/scripts/event_logger.py --event session_start --phase {初始阶段} --detail "项目初始化完成，执行模式={mode}"`
+8. **进入初始阶段** — 通过 agent-dispatch 激活:
+    - `standard` → product-manager（Phase 1 requirements）
+    - `agile-lite` → product-manager（planning 阶段，按 §Mode Routing Protocol 产出 prd-lite 后链式激活 architect 产出 arch-lite）
+    - `agile-prototype` → product-manager（brief 阶段，产出单一 brief.md）
+
+## Mode Routing Protocol
+orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪份文档"时，先读取 CLAUDE.md §框架元信息.执行模式（字段缺失或占位符未填 → 按 `standard` 处理），然后按下列矩阵路由。模式完整差异见 COMMON-RULES §执行模式矩阵。
+
+### standard 模式
+按 7 阶段顺序推进: requirements → architecture → ui_design → dev_planning → development → testing → deployment。阶段可被 CLAUDE.md §框架元信息.阶段配置 标记为 N/A 跳过（ui_design / testing / deployment）。所有 Agent 产出 standard 文档（prd / arch / ui-spec / dev-plan / test-report / deploy-spec）。
+
+### agile-lite 模式
+合并 Phase 1+2 为 `planning`，跳过 Phase 3，Phase 4 使用 lite 模板。阶段序列: planning → dev_planning → development → (testing) → (deployment)。
+
+1. **planning 阶段**（合并 Phase 1+2）:
+   - 激活 product-manager，传入 `template_id=prd-lite`，产出 `docs/prd/prd-lite-{project}-{ver}.md`（≤50 行）
+   - prd-lite 通过 doc-review（Layer 1 强制；Layer 2 按 `DOC_REVIEW_L2_SKIP_*` 短路）
+   - approved 后**链式**激活 architect（无需额外用户交互窗口），传入 `template_id=arch-lite` + `deps=[prd-lite]`，产出 `docs/arch/arch-lite-{project}-{ver}.md`
+   - arch-lite 通过 doc-review 后 planning 阶段结束
+2. **跳过 Phase 3 ui_design** — CLAUDE.md §阶段配置.ui_design 默认标记 N/A；若项目显式需要 UI 设计（Bootstrap 时由用户标注），则 fallback 到 standard ui-designer + ui-spec 流程
+3. **dev_planning 阶段**: 激活 tech-lead，传入 `template_id=dev-plan-lite`，任务卡默认 `tdd_mode: light`（tech-lead 按 `TDD_LIGHT_LOC_THRESHOLD` 判定）
+4. **development / testing / deployment**: 按 standard 流程推进；Sprint-review 按 `SPRINT_REVIEW_MICRO_TASK_COUNT` 判定；人工检查点仅 `pre_dev`
+
+### agile-prototype 模式
+合并 Phase 1~4 为 `brief`，跳过 Phase 3，直接进入 development。阶段序列: brief → development。
+
+1. **brief 阶段**（合并 Phase 1~4）:
+   - 激活 product-manager，传入 `template_id=brief`，产出 `docs/brief/brief-{project}-{ver}.md`（≤150 行）
+   - brief.md §5 即任务卡清单（T-xxx），任务卡默认 `tdd_mode: light`，REFACTOR 跳过
+   - brief.md 仅跑 doc-review Layer 1（`DOC_REVIEW_L2_SKIP_DOC_TYPES` 含 brief，Layer 2 直接短路）
+2. **跳过 Phase 3 ui_design** — 原型默认无 UI 设计阶段
+3. **development 阶段**: orchestrator 直接从 brief.md §5 读取任务卡，按 tdd-engine light 分支执行；Sprint-review 跳过；Retrospective 跳过；人工检查点 `none`
+4. **testing / deployment**: 默认跳过（CLAUDE.md §阶段配置 标记 N/A）；若用户显式启用，fallback 到 standard 流程
+
+### 路由时机
+Mode Routing Protocol 在以下时刻被调用:
+- Bootstrap 完成后首次进入初始阶段
+- 每次 Phase Transition Protocol Step 6（激活下一阶段 Agent）前，用于确定"下一阶段"的具体含义
+- 会话恢复时（Startup Protocol 读取 CLAUDE.md 后）
+
+### 模式回退
+- `agile-lite` / `agile-prototype` 运行中若 orchestrator 检测到项目规模超过模板容量（如 brief.md 实际产出 >150 行，或 agile-lite 任务数 >15），应通过 AskUserQuestion 提示用户切换到更高档位模式。切换由用户手动编辑 CLAUDE.md §框架元信息.执行模式完成，orchestrator 不自动改写该字段。
 
 ## Interrupt-Resume Protocol
 注: 前台子代理(默认)可直接使用AskUserQuestion向用户提问。本协议仅在后台子代理返回 needs_input 时触发。
@@ -79,26 +130,22 @@
 ## Phase Transition Protocol
 当 reviewer 返回 approved 或 approved_with_notes 且用户选择"接受并继续"时，执行以下状态持久化步骤:
 
-1. **[EVENT]** 记录当前阶段结束和审查结论:
+1. **更新文档头状态** — 将文档内部 `status: draft` / `status: review` 更新为 `status: approved`
+2. **更新 CLAUDE.md 文档状态** — 对应文档状态字段标记为 approved
+3. **更新 CLAUDE.md 阶段信息** — 按 CLAUDE.md Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
+4. **一致性验证** — 确认文档头 status 与 CLAUDE.md 字段一致
+5. **[EVENT BATCH]** 通过 `--batch` 单次 stdin 管道一次性记录 4 条事件（phase_end → review_verdict → state_change → phase_start）:
    ```bash
-   python .claude/scripts/event_logger.py --event phase_end --phase {当前阶段} --status approved --detail "reviewer 通过"
-   python .claude/scripts/event_logger.py --event review_verdict --phase {当前阶段} --agent reviewer --status approved --detail "审查通过"
+   python .claude/scripts/event_logger.py --batch <<'EOF'
+   {"event":"phase_end","phase":"{当前阶段}","status":"approved","detail":"reviewer 通过"}
+   {"event":"review_verdict","phase":"{当前阶段}","agent":"reviewer","status":"approved","detail":"审查通过"}
+   {"event":"state_change","phase":"{新阶段}","detail":"CLAUDE.md 阶段更新: {旧阶段} → {新阶段}"}
+   {"event":"phase_start","phase":"{新阶段}","detail":"进入{新阶段名}阶段"}
+   EOF
    ```
-2. **更新文档头状态** — 将文档内部 `status: draft` / `status: review` 更新为 `status: approved`
-3. **更新 CLAUDE.md 文档状态** — 对应文档状态字段标记为 approved
-4. **更新 CLAUDE.md 阶段信息** — 按 CLAUDE.md Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
-5. **[EVENT]** 记录状态变更:
-   ```bash
-   python .claude/scripts/event_logger.py --event state_change --phase {新阶段} --detail "CLAUDE.md 阶段更新: {旧阶段} → {新阶段}"
-   ```
-6. **一致性验证** — 确认文档头 status 与 CLAUDE.md 字段一致
-7. **[EVENT]** 记录新阶段开始:
-   ```bash
-   python .claude/scripts/event_logger.py --event phase_start --phase {新阶段} --detail "进入{新阶段名}阶段"
-   ```
-8. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
+6. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
 
-> **关键**: 步骤 2-6 必须在步骤 8 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。
+> **关键**: 步骤 1-5 必须在步骤 6 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
 
 ## Manual Review Checkpoint Protocol
 阶段转换时，根据 MANUAL_REVIEW_CHECKPOINTS 常量（见 COMMON-RULES §框架配置常量）决定是否暂停等待用户确认。
@@ -150,6 +197,21 @@
 
 ## Sprint Review Protocol
 当Sprint所有任务完成（dev-plan§1 Sprint表中所有任务状态=done 且 code-review通过）时:
+
+**微型 Sprint 短路判定** (Step 0):
+若同时满足以下条件则**跳过 sprint-review**，直接视为 approved:
+- 本 Sprint 任务数 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT`
+- 所有任务 code-review 结论为 approved（无 MEDIUM/HIGH/CRITICAL 问题）
+
+短路时处理:
+1. 在 CLAUDE.md 当前 Sprint 字段追加注记 `sprint-review skipped (micro sprint)`
+2. **[EVENT]** 记录跳过事件:
+   ```bash
+   python .claude/scripts/event_logger.py --event review_verdict --phase development --agent orchestrator --status approved --detail "sprint-review skipped (micro sprint)"
+   ```
+3. 直接进入下一 Sprint 或 Phase 6
+
+**正常流程** (不满足短路条件时):
 1. 通过 agent-dispatch 激活 reviewer (task_type=new_creation, skill=sprint-review)
 2. 传入: dev-plan路径, Sprint编号, 所有CODE-REVIEW报告路径, arch文档路径
 3. reviewer执行sprint-review skill，产出 `SPRINT-REVIEW-s{N}-r{M}.md`
@@ -330,7 +392,10 @@ python .claude/scripts/event_logger.py --event phase_start --phase architecture 
 ## Retrospective & Improvement Protocol
 触发条件: 所有 Phase 完成后执行一次（不阻塞项目交付）
 步骤:
-1. 检查 docs/reviews/ 各子目录下 REVIEW 文件总数 ≥ MIN_REVIEW_SOURCES (见 COMMON-RULES §框架配置常量)，否则跳过
+1. **触发门槛判定**: 满足以下任一条件才触发 retrospective，否则跳过:
+   - `docs/reviews/CORRECTIONS-LOG.md` 中 `偏差类型` 累计命中 self-caused 的条目数 ≥ `RETRO_TRIGGER_SELF_CAUSED`，或
+   - 本项目任一 REVIEW/CODE-REVIEW 报告包含 CRITICAL 级别问题
+   跳过时在 CLAUDE.md `Learnings Registry` 字段记录 `retro skipped (below threshold)` 并**[EVENT]** 写入 `review_verdict`（agent=reflector, status=approved, detail="retro skipped (below threshold)"）
 2. 通过 agent-dispatch 激活 reflector (task_type=retrospective)
 3. reflector 产出:
    - docs/reviews/retro/RETRO-{project}-{ver}.md（含 EXP 经验条目）
