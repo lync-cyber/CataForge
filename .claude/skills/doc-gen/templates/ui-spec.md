@@ -44,6 +44,8 @@
 - **Props**: { label: string, onClick: fn, disabled?: bool }
 - **映射功能**: F-001 (引用PRD)
 - **交互说明**: {关键交互行为和反馈方式}
+- **context_load**: [prd#§2.F-001, arch#§3.API-001]
+  <!-- 下游Agent(tech-lead/developer)处理本组件时应加载的最小必要章节引用 -->
 
 ## 3. 页面布局
 ### P-001: {页面名}

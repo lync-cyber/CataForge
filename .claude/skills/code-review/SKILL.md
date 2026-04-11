@@ -26,7 +26,7 @@ user-invocable: true
 
 ### Step 1: Layer 1 — Lint脚本自动检查
 **前置判断**: 读取 `.claude/settings.json`，检查 PostToolUse hooks 中是否存在 matcher 为 `Edit|Write` 且 command 包含 `lint_format.py` 的条目:
-- **已配置 lint hook** → 编码阶段已通过 hook 以 `--fix` 模式实时修复格式/lint问题，跳过 Layer 1，直接进入 Step 2 Layer 2
+- **已配置 lint hook** → 编码阶段已通过 hook 以 `--fix` 模式实时修复格式/lint问题，跳过 Layer 1，直接进入 Step 2 Layer 2，并在审查报告标题下标注 `Layer 1 delegated to hook`
 - **未配置 lint hook** → 执行: `python .claude/skills/code-review/scripts/code_lint.py {file_or_dir}`
 
 未配置 hook 时的处理结果(三种情况):

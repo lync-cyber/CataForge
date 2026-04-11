@@ -38,15 +38,20 @@
 | 技术方案存在多个合理选项 | 通过tech-eval或research记录对比，标注推荐项和理由 |
 
 ## 框架配置常量
-以下常量为框架级参数，各文件引用时以本节为准:
+以下常量为框架级参数，各文件引用时以本节为准。**禁止在 SKILL.md / AGENT.md / 模板中硬编码同一数值**，应直接引用常量名（COMMON-RULES 默认加载到 Agent 上下文，无需附加引用路径说明）。
 
-| 常量名 | 值 | 说明 |
-|--------|-----|------|
-| MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 |
-| MIN_REVIEW_SOURCES | 3 | reflector 执行 retrospective 的最小信号源文件数（REVIEW + CODE-REVIEW + CORRECTIONS-LOG 合计） |
-| MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 |
-| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式） |
-| EVENT_LOG_SCHEMA | .claude/schemas/event-log.schema.json | 事件日志 Schema 定义 |
+| 常量名 | 值 | 说明 | 引用方 |
+|--------|-----|------|--------|
+| MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 | product-manager, reviewer, research |
+| MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 | orchestrator |
+| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式） | event_logger.py, ORCHESTRATOR-PROTOCOLS |
+| EVENT_LOG_SCHEMA | .claude/schemas/event-log.schema.json | 事件日志 Schema 定义 | event_logger.py |
+| DOC_SPLIT_THRESHOLD_LINES | 500 | 单文档触发拆分的行数 | doc-gen |
+| DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
+| DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, prd-lite, arch-lite, dev-plan-lite, changelog] | 可短路 Layer 2 的文档类型白名单 | doc-review |
+| TDD_LIGHT_LOC_THRESHOLD | 50 | tech-lead 判定任务标记 `tdd_mode: light` 的预估 LOC 阈值 | tech-lead, tdd-engine |
+| SPRINT_REVIEW_MICRO_TASK_COUNT | 2 | Sprint 任务数 ≤ 此值且全部 approved 时可跳过 sprint-review | orchestrator |
+| RETRO_TRIGGER_SELF_CAUSED | 2 | CORRECTIONS-LOG 中 self-caused 次数达到此值才触发 retrospective | orchestrator, reflector |
 
 ### MANUAL_REVIEW_CHECKPOINTS 可选值
 | 值 | 触发时机 | 说明 |
@@ -62,6 +67,25 @@
 - 用户可在 Bootstrap 时或运行中通过修改 CLAUDE.md §全局约定 覆盖
 - `none` 与其他值互斥，设为 `none` 时忽略列表中其他值
 - `phase_transition` 已隐含 pre_dev 和 pre_deploy，不需重复列出
+
+## 执行模式矩阵
+框架支持三种执行模式，写入 CLAUDE.md §框架元信息.执行模式字段，未填时默认 `standard`。
+
+| 维度 | standard（默认） | agile-lite | agile-prototype |
+|------|-----------------|-----------|-----------------|
+| 适用场景 | 中大型正式交付项目 | 5-10 feature 轻量工具/小型 Web 项目 | 原型 / PoC / 单文件脚本 |
+| 阶段集合 | 7 阶段全跑，ui_design/testing/deployment 可配置 N/A | Phase 1+2 合并为 `planning`，development 保留，testing/deployment 可 N/A | Phase 1~4 合并为 `brief`，仅 `brief` + `development` |
+| 文档产出 | PRD + ARCH + UI-SPEC + DEV-PLAN + TEST-REPORT + DEPLOY-SPEC | prd-lite + arch-lite + dev-plan-lite（各 ≤50 行） | 单一 brief.md（≤150 行） |
+| doc-review | Layer 1 + Layer 2 强制 | Layer 1 强制；Layer 2 按 `DOC_REVIEW_L2_SKIP_*` 常量短路 | Layer 1 only |
+| TDD 流程 | RED → GREEN → REFACTOR | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 可选 | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 跳过 |
+| 人工检查点 | 引用 `MANUAL_REVIEW_CHECKPOINTS` | 仅 pre_dev | none |
+| Sprint-review | 按 `SPRINT_REVIEW_MICRO_TASK_COUNT` 判定 | 同 standard | 跳过 |
+| Retrospective | 按 `RETRO_TRIGGER_SELF_CAUSED` 判定 | 同 standard | 跳过 |
+
+规则:
+- `standard` 行为等价于未引入本矩阵前的 7 阶段流程，旧项目升级后无行为差异
+- `agile-lite` / `agile-prototype` 仅适用于明确轻量的项目，由用户在 Bootstrap 时显式选择
+- 模式切换由 orchestrator §Mode Routing Protocol 路由（见 .claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md）
 
 ## 文档引用格式
 Agent 间传递文档引用时使用以下统一格式:

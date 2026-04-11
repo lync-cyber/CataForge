@@ -958,6 +958,82 @@ def check_file_integrity() -> list:
     return issues
 
 
+def check_framework_constants() -> list:
+    """检查 COMMON-RULES 是否包含新常量且已移除旧常量 MIN_REVIEW_SOURCES。"""
+    issues = []
+    rules_path = os.path.join(".claude", "rules", "COMMON-RULES.md")
+    if not os.path.exists(rules_path):
+        issues.append(f"缺少文件: {rules_path}")
+        return issues
+
+    with open(rules_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    required_constants = [
+        "DOC_SPLIT_THRESHOLD_LINES",
+        "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES",
+        "DOC_REVIEW_L2_SKIP_DOC_TYPES",
+        "TDD_LIGHT_LOC_THRESHOLD",
+        "SPRINT_REVIEW_MICRO_TASK_COUNT",
+        "RETRO_TRIGGER_SELF_CAUSED",
+    ]
+    for const in required_constants:
+        if const not in content:
+            issues.append(
+                f"COMMON-RULES.md §框架配置常量 缺少常量定义: {const}"
+            )
+
+    if "MIN_REVIEW_SOURCES" in content:
+        issues.append(
+            "COMMON-RULES.md 仍包含旧常量 MIN_REVIEW_SOURCES，应由 RETRO_TRIGGER_SELF_CAUSED 替代"
+        )
+
+    return issues
+
+
+def check_lite_templates() -> list:
+    """检查 agile-lite / agile-prototype 所需的 4 个模板文件是否存在。"""
+    issues = []
+    templates_dir = os.path.join(".claude", "skills", "doc-gen", "templates")
+    required_templates = [
+        "brief.md",
+        "prd-lite.md",
+        "arch-lite.md",
+        "dev-plan-lite.md",
+    ]
+    for tmpl in required_templates:
+        tmpl_path = os.path.join(templates_dir, tmpl)
+        if not os.path.exists(tmpl_path):
+            issues.append(f"缺少模板文件: {tmpl_path}")
+    return issues
+
+
+def check_doc_gen_no_hardcoded_500() -> list:
+    """检查 doc-gen SKILL.md 不再硬编码 '500 行'，应引用 DOC_SPLIT_THRESHOLD_LINES。"""
+    issues = []
+    skill_path = os.path.join(".claude", "skills", "doc-gen", "SKILL.md")
+    if not os.path.exists(skill_path):
+        issues.append(f"缺少文件: {skill_path}")
+        return issues
+
+    with open(skill_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 允许 "500 行" 出现在反引号常量说明中（不应出现），但禁止裸文本
+    # 只要出现 "500 行" 字样即视为硬编码未迁移
+    if "500 行" in content or "500行" in content:
+        issues.append(
+            "doc-gen SKILL.md 仍硬编码 '500 行'，应引用常量 DOC_SPLIT_THRESHOLD_LINES"
+        )
+
+    if "DOC_SPLIT_THRESHOLD_LINES" not in content:
+        issues.append(
+            "doc-gen SKILL.md 未引用 DOC_SPLIT_THRESHOLD_LINES 常量"
+        )
+
+    return issues
+
+
 def run_verify() -> int:
     """执行升级后验证"""
     print("=" * 60)
@@ -1002,6 +1078,39 @@ def run_verify() -> int:
             print(f"  [错误] {issue}")
     else:
         print("  所有引用完整，无缺失文件。")
+
+    # 框架配置常量检查
+    print("\n--- 框架配置常量检查 ---")
+    const_issues = check_framework_constants()
+    if const_issues:
+        has_issues = True
+        print(f"  发现 {len(const_issues)} 个问题:")
+        for issue in const_issues:
+            print(f"  [错误] {issue}")
+    else:
+        print("  COMMON-RULES §框架配置常量 完整，旧常量已清理。")
+
+    # 快速模式模板检查
+    print("\n--- 快速模式模板检查 ---")
+    tmpl_issues = check_lite_templates()
+    if tmpl_issues:
+        has_issues = True
+        print(f"  发现 {len(tmpl_issues)} 个问题:")
+        for issue in tmpl_issues:
+            print(f"  [错误] {issue}")
+    else:
+        print("  brief / prd-lite / arch-lite / dev-plan-lite 模板均存在。")
+
+    # doc-gen 硬编码迁移检查
+    print("\n--- doc-gen 常量引用检查 ---")
+    docgen_issues = check_doc_gen_no_hardcoded_500()
+    if docgen_issues:
+        has_issues = True
+        print(f"  发现 {len(docgen_issues)} 个问题:")
+        for issue in docgen_issues:
+            print(f"  [错误] {issue}")
+    else:
+        print("  doc-gen SKILL.md 已引用 DOC_SPLIT_THRESHOLD_LINES，无硬编码。")
 
     print("\n" + "=" * 60)
     if has_issues:

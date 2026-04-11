@@ -23,3 +23,18 @@
 {"ts": "2026-04-09T05:17:25.653814+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
 {"ts": "2026-04-09T09:02:17.002213+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
 {"ts": "2026-04-09T09:25:23.158737+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T11:31:26.721608+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T11:32:11.454011+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 Explore: Explore CataForge token and context patterns", "agent": "Explore"}
+{"ts": "2026-04-11T11:32:11.454119+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 Explore: Explore CataForge orchestration architecture", "agent": "Explore"}
+{"ts": "2026-04-11T11:38:56.718651+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T12:04:06.497777+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T12:13:04.906157+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T12:19:47.779477+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T12:28:04.477887+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T12:34:39.526986+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T12:39:51.920530+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T12:44:05.302569+00:00", "event": "phase_start", "phase": "architecture", "detail": "test1"}
+{"ts": "2026-04-11T12:44:05.302582+00:00", "event": "agent_dispatch", "phase": "architecture", "detail": "test2", "agent": "architect"}
+{"ts": "2026-04-11T12:46:22.968308+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T12:51:35.979602+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-11T13:04:00.027412+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}

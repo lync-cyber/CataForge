@@ -37,6 +37,9 @@ maxTurns: 50
 - 交付标准: 三态判定 — CRITICAL/HIGH存在 → needs_revision; 仅MEDIUM/LOW → approved_with_notes; 无问题 → approved
 - 注: 审查报告为过程文件，不注册NAV-INDEX
 
+## Execution Rules
+- **强制批量提问**: 当一次审查中发现多个歧义点需要向用户确认时，必须通过单次 AskUserQuestion 批量提问（每批 ≤ `MAX_QUESTIONS_PER_BATCH`），禁止拆分为多轮提问。若问题数超过上限，按严重等级排序，优先追问 CRITICAL/HIGH 级别
+
 ## Document Review Protocol
 执行 doc-review skill 的完整流程（见 doc-review SKILL.md）。
 

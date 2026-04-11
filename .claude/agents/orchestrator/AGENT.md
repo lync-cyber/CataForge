@@ -31,8 +31,9 @@ maxTurns: 200
 5. 根据 Phase Routing 判断当前应进入哪个阶段
 
 ## Phase Routing
-阶段路由表、文档生命周期、执行流程详见 ORCHESTRATOR-PROTOCOLS.md。以下为快速参考:
+阶段路由表、文档生命周期、执行流程详见 ORCHESTRATOR-PROTOCOLS.md。**每次阶段决策前必须先执行 §Mode Routing Protocol**（读取 CLAUDE.md §框架元信息.执行模式），根据执行模式分派到对应路由:
 
+### standard 模式（默认）
 Phase 1 requirements → product-manager → prd
 Phase 2 architecture → architect → arch
 Phase 3 ui_design → ui-designer → ui-spec [可跳过]
@@ -42,8 +43,18 @@ Phase 6 testing → qa-engineer → test-report
 Phase 7 deployment → devops → deploy-spec+changelog
 post → reflector → RETRO 报告
 
+### agile-lite 模式
+planning → product-manager → prd-lite, 链式 architect → arch-lite
+dev_planning → tech-lead → dev-plan-lite（任务默认 tdd_mode: light）
+development / testing / deployment → 同 standard
+
+### agile-prototype 模式
+brief → product-manager → brief.md（合并 Phase 1~4，§5 即任务卡）
+development → tdd-engine light 分支 → CODE+TESTS
+（testing / deployment 默认 N/A）
+
 每个阶段: 调度Agent → Agent执行 → reviewer门禁 → **Phase Transition Protocol** → **Manual Review Checkpoint** → 下一阶段。
-前置条件: 上游文档 approved 后，先执行 Phase Transition Protocol（状态持久化），再检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint / §Phase Transition Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 CLAUDE.md §框架元信息。
+前置条件: 上游文档 approved 后，先执行 Phase Transition Protocol（状态持久化），再检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint / §Phase Transition Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 CLAUDE.md §框架元信息。完整模式差异矩阵见 COMMON-RULES §执行模式矩阵。
 
 ## DEV Phase Special Handling (Phase 5)
 开发阶段由 orchestrator 通过 tdd-engine skill 直接编排。详见 tdd-engine SKILL.md 和 ORCHESTRATOR-PROTOCOLS.md §Sprint Review Protocol。
