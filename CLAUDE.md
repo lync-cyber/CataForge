@@ -4,8 +4,15 @@
 
 - 技术栈: {框架/语言/工具}
 - 开发框架: CataForge
-- 运行时环境(runtime): claude-code
+- 运行时: claude-code (其他运行时暂不支持)
 - 框架版本: {从 pyproject.toml [project].version 读取}
+
+## 执行环境 (Bootstrap 时由 setup.py --emit-env-block 填入)
+
+<!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
+     权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
+{执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
+ python .claude/scripts/setup.py --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
@@ -59,12 +66,8 @@
 - Skill调用: Agent按SKILL.md中的步骤式指令执行工作流
 - 状态持久化: 所有状态写入CLAUDE.md和docs/目录
 - 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
-- 运行时适配: agent-dispatch根据runtime字段选择激活方式(claude-code/cursor/codex/generic)
+- 运行时: 仅 claude-code（agent-dispatch 通过 Agent tool + subagent_type 调度子代理）
 - **写权限规则**: CLAUDE.md由orchestrator独占写入；其他Agent只写各自在docs/或src/下的产出文件，任务执行进度通过doc-gen更新dev-plan文档
-
-## Agent-Skill映射
->
-> 权威来源为各 AGENT.md 的 `skills:` 字段。查询: `grep -h 'skills:' -A 20 .claude/agents/*/AGENT.md`
 
 ## 框架元信息
 

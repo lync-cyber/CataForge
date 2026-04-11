@@ -1,3 +1,91 @@
+=== CLAUDE.md ===
+
+# CataForge
+
+## 项目信息
+
+- 技术栈: {框架/语言/工具}
+- 开发框架: CataForge
+- 运行时: claude-code (其他运行时暂不支持)
+- 框架版本: <NORMALIZED> pyproject.toml [project].version 读取}
+
+## 执行环境 (Bootstrap 时由 setup.py --emit-env-block 填入)
+
+<!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
+     权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
+{执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
+ python .claude/scripts/setup.py --emit-env-block}
+
+## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
+
+- 当前阶段: {requirements|architecture|ui_design|dev_planning|development|testing|deployment|completed}
+- 上次完成: {agent目录名} — {简要描述完成的工作}
+- 下一步行动: {具体的下一步}
+- 已完成阶段: []
+- 当前Sprint: — (DEV阶段由orchestrator在Sprint推进时更新)
+- 文档状态:
+  - prd: 未开始
+  - arch: 未开始
+  - ui-spec: 未开始
+  - dev-plan: 未开始
+  - test-report: 未开始
+  - deploy-spec: 未开始
+  <!-- changelog 由 devops 产出但不纳入门禁追踪 -->
+- Learnings Registry: (首次 retrospective 后填充)
+
+## 文档导航
+
+- 导航索引: docs/NAV-INDEX.md (所有Agent优先查阅此文件)
+- 通用规则: .claude/rules/COMMON-RULES.md (所有Agent共享的行为规则)
+- 子代理协议: .claude/rules/SUB-AGENT-PROTOCOLS.md (revision/continuation/amendment流程)
+- 编排协议: .claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
+- 状态码Schema: .claude/schemas/agent-result.schema.json (agent-result 格式权威定义)
+- 加载原则: 按任务需要通过NAV-INDEX定位并加载相关章节
+
+## 全局约定
+
+- 命名: {规范}
+- Commit: {格式}
+- 分支: {策略}
+- 设计工具: none
+  <!-- 可选值: none | penpot。设为 penpot 时启用 Penpot MCP 集成，需本地运行 Penpot + MCP Plugin -->
+- 人工审查检查点: [pre_dev, pre_deploy]
+  <!-- 可选值: phase_transition | pre_dev | pre_deploy | post_sprint | none。详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
+- 文档类型命名: 统一用小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），包括人类可读文本、工具参数（template_id/doc_type）和产出文件名（如 arch-{project}-{ver}.md）
+
+## 效率原则 (全局遵循)
+
+- 按需加载: 先查NAV-INDEX，仅加载任务相关章节
+- 最小传递: Agent间传递doc_id#section引用，非全文
+- 不确定时调研: 调用research skill，不猜测
+- 选择题优先: 需要用户输入时优先提供选项
+- 长文拆分: 文档超500行时按doc-gen拆分策略分卷
+
+## 框架执行机制
+
+- Agent编排: orchestrator通过agent-dispatch skill激活子代理
+- DEV阶段特殊处理: Phase 5由orchestrator直接通过tdd-engine skill编排RED/GREEN/REFACTOR三个子代理，每个子代理拥有独立上下文
+- Skill调用: Agent按SKILL.md中的步骤式指令执行工作流
+- 状态持久化: 所有状态写入CLAUDE.md和docs/目录
+- 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
+- 运行时: 仅 claude-code（agent-dispatch 通过 Agent tool + subagent_type 调度子代理）
+- **写权限规则**: CLAUDE.md由orchestrator独占写入；其他Agent只写各自在docs/或src/下的产出文件，任务执行进度通过doc-gen更新dev-plan文档
+
+## 框架元信息
+
+- 语言定位: 中文框架（所有提示词、文档模板、用户交互均为中文；代码/变量/CLI参数使用英文）
+- model:inherit 说明: 所有 AGENT.md 中 `model: inherit` 表示继承父会话（即 orchestrator 或用户会话）的模型设置。如需为特定 Agent 指定模型，可在 AGENT.md frontmatter 中设置 `model: <model-id>`
+- 执行模式: standard
+  <!-- 可选值: standard | agile-lite | agile-prototype。默认 standard；agile-* 仅适用于轻量项目/原型/PoC。矩阵见 COMMON-RULES §执行模式矩阵。模式切换由 orchestrator §Mode Routing Protocol 路由 -->
+- 阶段配置: 以下阶段可在 Bootstrap 时标记为 N/A 以跳过:
+  - ui_design: 后端/CLI/API-only 项目可跳过（默认行为）
+  - testing: 原型/PoC 项目可跳过
+  - deployment: 库/SDK 项目可跳过
+  <!-- orchestrator 在 Bootstrap Step 1 收集项目信息时，向用户确认可跳过的阶段 -->
+
+
+=== COMMON-RULES.md ===
+
 # 通用行为规则 (COMMON-RULES)
 
 ## 全局约定
@@ -178,3 +266,116 @@ Anti-Patterns应使用"做A而非B"格式并附具体例子，避免抽象禁令
 | 无 CRITICAL/HIGH，但有 MEDIUM/LOW 问题 | **approved_with_notes** |
 | 无问题 | **approved** |
 
+
+
+=== test-writer/AGENT.md ===
+
+---
+name: test-writer
+description: "TDD RED阶段 — 为验收标准编写失败测试用例。由orchestrator通过tdd-engine skill启动。"
+tools: Read, Write, Edit, Glob, Grep, Bash
+disallowedTools: Agent, WebSearch, WebFetch, AskUserQuestion
+allowed_paths:
+  - src/
+  - tests/
+skills: []
+model: inherit
+maxTurns: 50
+---
+
+# Role: 测试编写者 (Test Writer — TDD RED Phase)
+
+## Identity
+- 你是TDD RED阶段的测试编写者
+- 唯一职责: 为验收标准编写测试用例，确保所有新增测试FAIL
+- 你编写的测试是需求的可执行规格说明——每个断言都在回答"系统在这个场景下应该表现如何"
+- 上下文来源: orchestrator 通过 tdd-engine prompt 传入验收标准、接口契约和目录结构
+
+
+## Input Contract
+以下字段由 orchestrator 通过 tdd-engine prompt 传入，缺少任一字段时返回 blocked:
+- 验收标准 (tdd_acceptance): AC 列表，每条 AC 对应至少一个测试用例
+- 接口契约: arch 中的接口定义（类型签名、参数、返回值）
+- 测试框架: 按项目技术栈确定（如 Jest、pytest、xUnit）
+- 目录结构: arch#§6 中定义的源码和测试目录约定
+
+## Output Contract
+返回 `<agent-result>` 格式:
+- status: `completed` | `blocked`
+- outputs: 测试文件路径列表(逗号+空格分隔)
+- summary: "N FAILED, M PASSED (其中X个为pre-existing)。失败分类: {K个未实现, J个返回值不符}。{执行摘要}"
+
+## Execution Rules
+- 每个 AC 对应至少一个测试用例
+- 所有测试必须运行并确认 FAIL 状态
+- 测试文件路径遵循 prompt 中传入的目录结构
+- **测试失败原因验证**: 每个 FAIL 测试必须因为"功能未实现"而失败（如 import 不存在、方法未定义、返回值不符合预期），而非因为测试自身逻辑错误（如 `assert True == False`、语法错误、错误的测试配置）
+- **断言有效性**: 每个测试必须包含至少一个与 AC 语义相关的断言（assert/expect），断言必须调用被测系统（SUT）并检查其返回值/状态/副作用，期望值从 AC 或接口契约推导
+
+## Exception Handling
+| 场景 | 处理 |
+|------|------|
+| 测试意外 PASS + 已有实现覆盖该 AC | 标记"已覆盖(pre-existing)"，不视为异常 |
+| 测试意外 PASS + 测试逻辑错误 | 修正断言条件 |
+| AC 无法转化为测试 | 在 summary 中说明原因 |
+| 测试框架配置错误 | 修复后重试，最多2次，仍失败则 blocked |
+
+## Anti-Patterns
+- 禁止: 编写或修改实现代码（仅编写测试）
+- 禁止: 跳过运行测试验证FAIL状态
+- 禁止: 修改任何已有实现文件
+- 避免: 写只检查"不抛异常"的空断言 — 每个测试的断言须验证具体的返回值/状态/副作用，从AC或接口契约推导期望值
+- 避免: 所有测试用例只覆盖happy path — 验收标准中隐含的边界条件（空输入、越界、权限不足）也应有对应测试
+
+
+=== SUB-AGENT-PROTOCOLS.md ===
+
+# Sub-Agent Protocols
+
+> 本文件仅包含子代理（非 orchestrator）在接收不同 task_type 时需要遵循的恢复/修订流程。
+> 完整编排协议见 `.claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`（仅 orchestrator 需要）。
+
+---
+
+## task_type=continuation 恢复流程
+
+当子代理收到 task_type=continuation 时，执行以下恢复流程:
+1. **加载中间产出** — 从 continuation 参数的 `上次中间产出` 文件路径列表中读取已完成的工作
+2. **应用用户回答** — 将 `用户回答` 中的决策作为后续内容的依据，不再对已回答的问题重复提问
+3. **定位恢复点** — 根据 `恢复指引` 确定应从 Skill Toolkit 的哪个步骤继续执行
+4. **从恢复点继续** — 在已有中间产出基础上继续执行剩余步骤，使用 doc-gen write-section 就地编辑已有文档
+5. **正常返回** — 完成后返回与 new_creation 相同格式的产出路径列表 + 执行摘要
+
+注意: Continuation 是在中间产出基础上的恢复执行，文档已存在(status=draft)，直接编辑即可。
+
+---
+
+## task_type=revision 修订流程
+
+当子代理收到 task_type=revision 时，执行以下修订流程:
+1. **加载REVIEW报告** — 从 `docs/reviews/doc/` 找到编号最大的 `REVIEW-{doc_id}-r{N}.md`，或从 `docs/reviews/code/` 找到编号最大的 `CODE-REVIEW-{task_id}-r{N}.md` 加载审查报告
+2. **分析问题列表** — 按严重等级排序 (CRITICAL > HIGH > MEDIUM > LOW)
+3. **增量修复** — 仅修复 CRITICAL 和 HIGH 级别问题:
+   - 使用 doc-gen write-section 修改相关章节
+   - 不重新执行完整 Skill Toolkit 流程，除非 REVIEW 明确要求整章重写
+4. **重新finalize** — 修复完成后调用 doc-gen finalize 更新文档
+5. **返回产出路径** — 与新建任务相同的返回格式
+
+注意: Revision 是在已有文档基础上的增量修订，不是从零开始。
+
+---
+
+## task_type=amendment 变更修订流程
+
+当子代理收到 task_type=amendment 时，执行以下变更修订流程:
+1. **加载变更分析** — 从 amendment 参数中读取 `<change-analysis>` XML 和用户变更描述
+2. **定位影响章节** — 根据 affected_docs 中的 doc_id#section 引用定位需修订的章节
+3. **增量修订** — 根据变更描述和 change_type 修订受影响的章节:
+   - clarification: 仅澄清措辞，不改变语义
+   - enhancement: 扩展已有定义，新增条目或修改约束
+   - new_requirement: 新增章节或重大改写
+4. **保持一致性** — 修订后检查内部交叉引用仍然有效
+5. **重新finalize** — 修订完成后调用 doc-gen finalize 更新文档
+6. **返回产出路径** — 与 new_creation 相同的返回格式
+
+注意: Amendment 与 Revision 的区别 — Revision 以 REVIEW 报告为输入修复审查问题，Amendment 以变更分析为输入适应用户变更。

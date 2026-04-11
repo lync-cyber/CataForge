@@ -1,6 +1,6 @@
 {
-  "version": "0.1.0",
-  "description": "CataForge 功能兼容性注册表。每个功能声明最低框架版本和阶段适用性。",
+  "version": "0.2.0",
+  "description": "CataForge 功能兼容性注册表 + 迁移检查声明。features 描述稳定功能及其阶段适用性；migration_checks 由每次 release 添加，upgrade.py verify 数据驱动地执行这些约束。",
   "features": {
     "tdd-engine": {
       "min_version": "0.1.0",
@@ -38,11 +38,113 @@
       "phase_guard": null,
       "description": "变更守卫 — 分析变更请求与文档一致性，确保文档先行"
     },
-    "check-upgrade": {
-      "min_version": "0.1.0",
+    "self-upgrade": {
+      "min_version": "0.7.0",
       "auto_enable": true,
       "phase_guard": null,
-      "description": "远程升级检测与拉取 — 支持GitHub API + 通用Git"
+      "description": "upgrade.py 两阶段自升级 — 远程升级时 exec 到新脚本继续执行"
+    },
+    "correction-hook": {
+      "min_version": "0.7.0",
+      "auto_enable": true,
+      "phase_guard": null,
+      "description": "On-Correction Learning 放宽 — hook 自动捕获 AskUserQuestion option-override 信号"
     }
-  }
+  },
+  "migration_checks": [
+    {
+      "id": "mc-0.6.0-constants",
+      "release_version": "0.6.0",
+      "description": "COMMON-RULES.md 必须定义执行模式矩阵引用的配置常量",
+      "type": "file_must_contain",
+      "path": ".claude/rules/COMMON-RULES.md",
+      "patterns": [
+        "DOC_SPLIT_THRESHOLD_LINES",
+        "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES",
+        "DOC_REVIEW_L2_SKIP_DOC_TYPES",
+        "TDD_LIGHT_LOC_THRESHOLD",
+        "SPRINT_REVIEW_MICRO_TASK_COUNT",
+        "RETRO_TRIGGER_SELF_CAUSED"
+      ]
+    },
+    {
+      "id": "mc-0.6.0-no-legacy-constant",
+      "release_version": "0.6.0",
+      "description": "MIN_REVIEW_SOURCES 已被 RETRO_TRIGGER_SELF_CAUSED 取代",
+      "type": "file_must_not_contain",
+      "path": ".claude/rules/COMMON-RULES.md",
+      "patterns": ["MIN_REVIEW_SOURCES"]
+    },
+    {
+      "id": "mc-0.6.0-lite-templates",
+      "release_version": "0.6.0",
+      "description": "agile-lite / agile-prototype 模式所需模板齐全",
+      "type": "dir_must_contain_files",
+      "path": ".claude/skills/doc-gen/templates",
+      "patterns": ["brief.md", "prd-lite.md", "arch-lite.md", "dev-plan-lite.md"]
+    },
+    {
+      "id": "mc-0.6.0-docgen-constant-ref",
+      "release_version": "0.6.0",
+      "description": "doc-gen SKILL.md 必须引用 DOC_SPLIT_THRESHOLD_LINES 而非硬编码 '500 行'",
+      "type": "file_must_contain",
+      "path": ".claude/skills/doc-gen/SKILL.md",
+      "patterns": ["DOC_SPLIT_THRESHOLD_LINES"]
+    },
+    {
+      "id": "mc-0.6.0-docgen-no-hardcoded-500",
+      "release_version": "0.6.0",
+      "description": "doc-gen SKILL.md 不得出现硬编码 '500 行'",
+      "type": "file_must_not_contain",
+      "path": ".claude/skills/doc-gen/SKILL.md",
+      "patterns": ["500 行", "500行"]
+    },
+    {
+      "id": "mc-0.7.0-session-context-simplified",
+      "release_version": "0.7.0",
+      "description": "session_context.py 不应再注入 additionalContext；职责简化为仅写 session_start 事件",
+      "type": "file_must_not_contain",
+      "path": ".claude/hooks/session_context.py",
+      "patterns": ["_detect_pkg_env", "additionalContext"]
+    },
+    {
+      "id": "mc-0.7.0-setup-emit-env",
+      "release_version": "0.7.0",
+      "description": "setup.py 必须提供 --emit-env-block 子命令供 orchestrator Bootstrap 填入 CLAUDE.md §执行环境",
+      "type": "file_must_contain",
+      "path": ".claude/scripts/setup.py",
+      "patterns": ["--emit-env-block", "build_env_block"]
+    },
+    {
+      "id": "mc-0.7.0-upgrade-self-reexec",
+      "release_version": "0.7.0",
+      "description": "upgrade.py 必须提供自升级 re-exec 能力",
+      "type": "file_must_contain",
+      "path": ".claude/scripts/upgrade.py",
+      "patterns": ["maybe_self_reexec", "CATAFORGE_SELF_UPGRADED"]
+    },
+    {
+      "id": "mc-0.7.0-detect-correction-hook",
+      "release_version": "0.7.0",
+      "description": "detect_correction.py hook 必须存在并注册在 PostToolUse:AskUserQuestion",
+      "type": "file_must_exist",
+      "path": ".claude/hooks/detect_correction.py"
+    },
+    {
+      "id": "mc-0.7.0-detect-correction-registered",
+      "release_version": "0.7.0",
+      "description": "settings.json 必须注册 detect_correction.py 到 AskUserQuestion 匹配器",
+      "type": "file_must_contain",
+      "path": ".claude/settings.json",
+      "patterns": ["detect_correction.py", "AskUserQuestion"]
+    },
+    {
+      "id": "mc-0.7.0-retro-threshold-relaxed",
+      "release_version": "0.7.0",
+      "description": "RETRO_TRIGGER_SELF_CAUSED 已从 2 放宽至 5 以补偿高频 option-override",
+      "type": "file_must_contain",
+      "path": ".claude/rules/COMMON-RULES.md",
+      "patterns": ["RETRO_TRIGGER_SELF_CAUSED | 5"]
+    }
+  ]
 }

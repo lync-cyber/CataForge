@@ -18,6 +18,7 @@
 
 import argparse
 import base64
+import hashlib
 import io
 import json
 import os
@@ -42,6 +43,10 @@ if sys.stderr.encoding != "utf-8":
 
 FRAMEWORK_DIRS = ["agents", "skills", "rules", "hooks", "scripts", "schemas"]
 VERSION_FILE = "pyproject.toml"
+
+# 自升级相关环境变量（见 §自升级机制）
+SELF_UPGRADE_MARKER = "CATAFORGE_SELF_UPGRADED"
+SELF_UPGRADE_SRC_ENV = "CATAFORGE_SELF_UPGRADE_SRC"
 PHASE_ORDER = [
     "requirements",
     "architecture",
@@ -748,13 +753,71 @@ def check_version_git_clone(url: str, branch: str, token: str = "") -> str:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def _file_sha256(path: str) -> str:
+    """计算文件 SHA256 哈希，文件不存在返回空字符串"""
+    if not os.path.isfile(path):
+        return ""
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return ""
+
+
+def maybe_self_reexec(tmpdir: str, dry_run: bool) -> None:
+    """自升级机制: 若远程 upgrade.py 与当前运行的脚本内容不同，exec 到新版本继续。
+
+    两阶段升级流程:
+      第一阶段 (旧脚本): 克隆远程 → 检测新版 upgrade.py → os.execve 到新脚本 → 退出
+      第二阶段 (新脚本): 读取 CATAFORGE_SELF_UPGRADE_SRC 获知已克隆目录 → 跳过克隆 → 直接 local 升级
+
+    递归保护: 通过 SELF_UPGRADE_MARKER 环境变量防止无限 re-exec。
+    """
+    if os.environ.get(SELF_UPGRADE_MARKER):
+        return  # 已是第二阶段，继续正常流程
+
+    new_script = os.path.join(tmpdir, ".claude", "scripts", "upgrade.py")
+    cur_script = os.path.abspath(sys.argv[0])
+    if not os.path.isfile(new_script):
+        return  # 新版本不含 upgrade.py（异常情况，跳过自升级）
+
+    new_hash = _file_sha256(new_script)
+    cur_hash = _file_sha256(cur_script)
+    if not new_hash or new_hash == cur_hash:
+        return  # 哈希相同或读取失败，无需自升级
+
+    print("\n[自升级] 检测到 upgrade.py 自身有更新，切换到新版本继续执行...")
+    print(f"  当前: {cur_script[:12]}... (sha256: {cur_hash[:12]})")
+    print(f"  新版: {new_script[:12]}... (sha256: {new_hash[:12]})")
+
+    env = os.environ.copy()
+    env[SELF_UPGRADE_MARKER] = "1"
+    env[SELF_UPGRADE_SRC_ENV] = tmpdir  # 告知第二阶段复用已克隆目录
+
+    # 第二阶段以 local 子命令接管: 源路径=tmpdir
+    new_argv = [sys.executable, new_script, "local", tmpdir]
+    if dry_run:
+        new_argv.append("--dry-run")
+
+    try:
+        os.execve(sys.executable, new_argv, env)
+    except OSError as e:
+        # exec 失败 → 回退到当前脚本继续执行（兜底）
+        print(f"[自升级] os.execve 失败，回退到当前脚本: {e}", file=sys.stderr)
+
+
 def clone_and_upgrade(
     clone_url: str, branch: str, token: str = "", dry_run: bool = False
 ) -> int:
-    """克隆远程仓库到临时目录，执行本地升级流程"""
+    """克隆远程仓库到临时目录，执行本地升级流程。
+
+    自升级支持: 若第一阶段检测到 upgrade.py 有更新，os.execve 到新脚本继续。
+    第二阶段通过 CATAFORGE_SELF_UPGRADE_SRC 环境变量复用已克隆目录。
+    """
     if not validate_branch_name(branch):
         print(f"错误: 无效的分支名: {branch}", file=sys.stderr)
         return 1
+
     tmpdir = tempfile.mkdtemp(prefix="cataforge-upgrade-")
     env = build_clone_env(token)
     print("\n正在克隆远程仓库到临时目录...")
@@ -782,6 +845,10 @@ def clone_and_upgrade(
             return 1
 
         print(f"克隆完成: {tmpdir}")
+
+        # 自升级检测: 若新版 upgrade.py 与当前不同，exec 到新脚本（不返回）
+        maybe_self_reexec(tmpdir, dry_run)
+
         return run_local_upgrade(tmpdir, dry_run)
 
     except subprocess.TimeoutExpired:
@@ -792,6 +859,7 @@ def clone_and_upgrade(
         return 1
     finally:
         cleanup_askpass(env)
+        # 若已 exec 到第二阶段，此 finally 不会触发（os.execve 替换进程镜像）
         print(f"\n清理临时目录: {tmpdir}")
         shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -958,78 +1026,81 @@ def check_file_integrity() -> list:
     return issues
 
 
-def check_framework_constants() -> list:
-    """检查 COMMON-RULES 是否包含新常量且已移除旧常量 MIN_REVIEW_SOURCES。"""
-    issues = []
-    rules_path = os.path.join(".claude", "rules", "COMMON-RULES.md")
-    if not os.path.exists(rules_path):
-        issues.append(f"缺少文件: {rules_path}")
-        return issues
+def check_migration_artifacts() -> list:
+    """数据驱动的迁移检查: 从 compat-matrix.json 的 `migration_checks` 字段
+    读取每次 release 声明的强制约束并执行。
 
-    with open(rules_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    每个 migration check 声明:
+      {
+        "id": "mc-0.6.0-001",
+        "description": "...",
+        "release_version": "0.6.0",
+        "type": "file_must_exist" | "file_must_contain" | "file_must_not_contain",
+        "path": ".claude/rules/COMMON-RULES.md",
+        "patterns": ["DOC_SPLIT_THRESHOLD_LINES", ...]   # type 决定 patterns 语义
+      }
 
-    required_constants = [
-        "DOC_SPLIT_THRESHOLD_LINES",
-        "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES",
-        "DOC_REVIEW_L2_SKIP_DOC_TYPES",
-        "TDD_LIGHT_LOC_THRESHOLD",
-        "SPRINT_REVIEW_MICRO_TASK_COUNT",
-        "RETRO_TRIGGER_SELF_CAUSED",
-    ]
-    for const in required_constants:
-        if const not in content:
-            issues.append(
-                f"COMMON-RULES.md §框架配置常量 缺少常量定义: {const}"
-            )
+    支持的 type:
+    - file_must_exist        : path 文件必须存在 (patterns 可空)
+    - file_must_contain      : path 文件必须包含 patterns 中所有字串
+    - file_must_not_contain  : path 文件不得包含 patterns 中任一字串
+    - dir_must_contain_files : path 目录下必须存在 patterns 中列出的所有文件
 
-    if "MIN_REVIEW_SOURCES" in content:
-        issues.append(
-            "COMMON-RULES.md 仍包含旧常量 MIN_REVIEW_SOURCES，应由 RETRO_TRIGGER_SELF_CAUSED 替代"
-        )
+    未知 type 被跳过并报告为警告。此函数完全取代 v0.6.x 版本的三个硬编码检查函数
+    (check_framework_constants / check_lite_templates / check_doc_gen_no_hardcoded_500)。
+    """
+    issues: list[str] = []
+    matrix = load_compat_matrix()
+    checks = matrix.get("migration_checks", [])
+    if not checks:
+        return issues  # 无迁移检查声明，通过
 
-    return issues
+    for check in checks:
+        check_id = check.get("id", "<unnamed>")
+        description = check.get("description", "")
+        check_type = check.get("type", "")
+        path = check.get("path", "")
+        patterns = check.get("patterns", []) or []
+        label = f"{check_id} ({description})" if description else check_id
 
+        if not path or not check_type:
+            issues.append(f"[{label}] 声明不完整: 缺少 path 或 type")
+            continue
 
-def check_lite_templates() -> list:
-    """检查 agile-lite / agile-prototype 所需的 4 个模板文件是否存在。"""
-    issues = []
-    templates_dir = os.path.join(".claude", "skills", "doc-gen", "templates")
-    required_templates = [
-        "brief.md",
-        "prd-lite.md",
-        "arch-lite.md",
-        "dev-plan-lite.md",
-    ]
-    for tmpl in required_templates:
-        tmpl_path = os.path.join(templates_dir, tmpl)
-        if not os.path.exists(tmpl_path):
-            issues.append(f"缺少模板文件: {tmpl_path}")
-    return issues
+        if check_type == "file_must_exist":
+            if not os.path.exists(path):
+                issues.append(f"[{label}] 缺少文件: {path}")
+            continue
 
+        if check_type == "dir_must_contain_files":
+            if not os.path.isdir(path):
+                issues.append(f"[{label}] 缺少目录: {path}")
+                continue
+            for fname in patterns:
+                fpath = os.path.join(path, fname)
+                if not os.path.exists(fpath):
+                    issues.append(f"[{label}] 缺少文件: {fpath}")
+            continue
 
-def check_doc_gen_no_hardcoded_500() -> list:
-    """检查 doc-gen SKILL.md 不再硬编码 '500 行'，应引用 DOC_SPLIT_THRESHOLD_LINES。"""
-    issues = []
-    skill_path = os.path.join(".claude", "skills", "doc-gen", "SKILL.md")
-    if not os.path.exists(skill_path):
-        issues.append(f"缺少文件: {skill_path}")
-        return issues
+        if check_type in ("file_must_contain", "file_must_not_contain"):
+            if not os.path.exists(path):
+                issues.append(f"[{label}] 文件不存在: {path}")
+                continue
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except OSError as e:
+                issues.append(f"[{label}] 读取失败: {path} ({e})")
+                continue
+            for pat in patterns:
+                present = pat in content
+                if check_type == "file_must_contain" and not present:
+                    issues.append(f"[{label}] {path} 缺少必需字串: {pat!r}")
+                elif check_type == "file_must_not_contain" and present:
+                    issues.append(f"[{label}] {path} 仍包含已废弃字串: {pat!r}")
+            continue
 
-    with open(skill_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # 允许 "500 行" 出现在反引号常量说明中（不应出现），但禁止裸文本
-    # 只要出现 "500 行" 字样即视为硬编码未迁移
-    if "500 行" in content or "500行" in content:
-        issues.append(
-            "doc-gen SKILL.md 仍硬编码 '500 行'，应引用常量 DOC_SPLIT_THRESHOLD_LINES"
-        )
-
-    if "DOC_SPLIT_THRESHOLD_LINES" not in content:
-        issues.append(
-            "doc-gen SKILL.md 未引用 DOC_SPLIT_THRESHOLD_LINES 常量"
-        )
+        issues.append(f"[{label}] 未知 migration check type: {check_type}")
 
     return issues
 
@@ -1079,38 +1150,21 @@ def run_verify() -> int:
     else:
         print("  所有引用完整，无缺失文件。")
 
-    # 框架配置常量检查
-    print("\n--- 框架配置常量检查 ---")
-    const_issues = check_framework_constants()
-    if const_issues:
+    # 迁移检查 (数据驱动: 读取 compat-matrix.json 的 migration_checks 字段)
+    print("\n--- 迁移检查 (compat-matrix.migration_checks) ---")
+    mig_issues = check_migration_artifacts()
+    if mig_issues:
         has_issues = True
-        print(f"  发现 {len(const_issues)} 个问题:")
-        for issue in const_issues:
+        print(f"  发现 {len(mig_issues)} 个问题:")
+        for issue in mig_issues:
             print(f"  [错误] {issue}")
     else:
-        print("  COMMON-RULES §框架配置常量 完整，旧常量已清理。")
-
-    # 快速模式模板检查
-    print("\n--- 快速模式模板检查 ---")
-    tmpl_issues = check_lite_templates()
-    if tmpl_issues:
-        has_issues = True
-        print(f"  发现 {len(tmpl_issues)} 个问题:")
-        for issue in tmpl_issues:
-            print(f"  [错误] {issue}")
-    else:
-        print("  brief / prd-lite / arch-lite / dev-plan-lite 模板均存在。")
-
-    # doc-gen 硬编码迁移检查
-    print("\n--- doc-gen 常量引用检查 ---")
-    docgen_issues = check_doc_gen_no_hardcoded_500()
-    if docgen_issues:
-        has_issues = True
-        print(f"  发现 {len(docgen_issues)} 个问题:")
-        for issue in docgen_issues:
-            print(f"  [错误] {issue}")
-    else:
-        print("  doc-gen SKILL.md 已引用 DOC_SPLIT_THRESHOLD_LINES，无硬编码。")
+        matrix = load_compat_matrix()
+        mc_count = len(matrix.get("migration_checks", []))
+        if mc_count > 0:
+            print(f"  通过 {mc_count} 项迁移检查。")
+        else:
+            print("  compat-matrix.json 未声明 migration_checks，跳过。")
 
     print("\n" + "=" * 60)
     if has_issues:
@@ -1253,8 +1307,27 @@ def detect_remote_state(source_type, repo, url, branch, token_env):
 
 
 def cmd_local(args):
-    """子命令: local — 从本地路径升级"""
-    sys.exit(run_local_upgrade(args.source_path, args.dry_run, args.backup_dir))
+    """子命令: local — 从本地路径升级。
+
+    自升级第二阶段兜底: 若 CATAFORGE_SELF_UPGRADE_SRC 指向当前 source_path，
+    说明该目录是上阶段克隆的临时目录，升级成功后需主动清理（第一阶段 finally
+    因 os.execve 替换进程未触发）。
+    """
+    exit_code = run_local_upgrade(args.source_path, args.dry_run, args.backup_dir)
+
+    self_upgrade_src = os.environ.get(SELF_UPGRADE_SRC_ENV, "")
+    if (
+        self_upgrade_src
+        and os.path.abspath(self_upgrade_src) == os.path.abspath(args.source_path)
+        and os.path.isdir(self_upgrade_src)
+    ):
+        try:
+            shutil.rmtree(self_upgrade_src, ignore_errors=True)
+            print(f"\n[自升级] 清理临时目录: {self_upgrade_src}")
+        except OSError:
+            pass
+
+    sys.exit(exit_code)
 
 
 def cmd_check(args):
@@ -1316,7 +1389,11 @@ def cmd_check(args):
 
 
 def cmd_upgrade(args):
-    """子命令: upgrade — 检测 + 执行远程升级（优先使用 commit SHA 比较）"""
+    """子命令: upgrade — 检测 + 执行远程升级（优先使用 commit SHA 比较）。
+
+    注: 自升级第二阶段由 maybe_self_reexec 以 `local <tmpdir>` 形式重启，
+    落点是 cmd_local 而非 cmd_upgrade。临时目录清理在 cmd_local 完成。
+    """
     source_type, repo, url, branch, token_env = resolve_remote_source(args)
     force = getattr(args, "force", False)
 

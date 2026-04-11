@@ -91,6 +91,15 @@
             "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/validate_agent_result.py\""
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/detect_correction.py\""
+          }
+        ]
       }
     ],
     "Stop": [

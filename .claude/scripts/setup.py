@@ -257,6 +257,217 @@ def detect_node_pkg_manager() -> str:
     return "npm"
 
 
+def build_env_block(project_dir: str = ".") -> str:
+    """根据项目实际技术栈构建 CLAUDE.md §执行环境 节。
+
+    返回 Markdown 片段（不含标题），Bootstrap 阶段由 orchestrator 注入 CLAUDE.md。
+    返回空字符串表示未检测到任何已知技术栈。
+
+    支持: Python (uv/pip), Node.js (npm/yarn/pnpm/bun), Go, .NET.
+    """
+    join = os.path.join
+    exists = os.path.isfile
+    lines: list[str] = []
+
+    # --- Python ---
+    has_pyproject = exists(join(project_dir, "pyproject.toml"))
+    has_requirements = exists(join(project_dir, "requirements.txt"))
+    if has_pyproject or has_requirements:
+        pkg = "pip"
+        if exists(join(project_dir, "uv.lock")):
+            pkg = "uv"
+        elif has_pyproject:
+            try:
+                with open(join(project_dir, "pyproject.toml"), "r", encoding="utf-8") as f:
+                    if "[tool.uv]" in f.read():
+                        pkg = "uv"
+            except OSError:
+                pass
+        if pkg == "pip" and has_command("uv") and has_pyproject:
+            pkg = "uv"
+        install = "uv sync" if pkg == "uv" else "pip install -e ."
+        test = "uv run python -m pytest" if pkg == "uv" else "python -m pytest"
+        lines.append(f"- Python: 包管理器={pkg} | install=`{install}` | test=`{test}`")
+
+    # --- Node.js ---
+    if exists(join(project_dir, "package.json")):
+        pkg = "npm"
+        if exists(join(project_dir, "pnpm-lock.yaml")):
+            pkg = "pnpm"
+        elif exists(join(project_dir, "yarn.lock")):
+            pkg = "yarn"
+        elif exists(join(project_dir, "bun.lockb")) or exists(
+            join(project_dir, "bun.lock")
+        ):
+            pkg = "bun"
+        run_prefix = {"npm": "npx", "yarn": "yarn", "pnpm": "pnpm exec", "bun": "bunx"}[pkg]
+        lines.append(
+            f"- Node: 包管理器={pkg} | install=`{pkg} install` | run=`{run_prefix}`"
+        )
+
+    # --- Go ---
+    if exists(join(project_dir, "go.mod")):
+        lines.append("- Go: install=`go mod download` | test=`go test ./...`")
+
+    # --- .NET ---
+    try:
+        has_dotnet = any(
+            f.endswith((".csproj", ".sln")) for f in os.listdir(project_dir)
+        )
+    except OSError:
+        has_dotnet = False
+    if has_dotnet:
+        lines.append("- .NET: install=`dotnet restore` | test=`dotnet test`")
+
+    if not lines:
+        return ""
+
+    return (
+        "\n".join(lines)
+        + "\n- 约束: 整个项目生命周期内不混用同语言的其他包管理器（如 uv/pip、npm/yarn/pnpm）"
+    )
+
+
+# ============================================================================
+# Permissions 生成器 (P2-1)
+# ============================================================================
+
+# 框架级最小 permissions — 任何 CataForge 项目都需要
+FRAMEWORK_CORE_PERMISSIONS = [
+    "WebSearch",
+    "Bash(git status*)",
+    "Bash(git log*)",
+    "Bash(git diff*)",
+    "Bash(git add*)",
+    "Bash(git commit*)",
+    "Bash(git checkout -- docs/*)",
+    "Bash(ls *)",
+    "Bash(mkdir *)",
+    "Bash(python .claude/skills/*/scripts/*.py*)",
+    "Bash(python .claude/scripts/*.py*)",
+    "Bash(bash .claude/scripts/setup-penpot-mcp.sh --ensure)",
+]
+
+# 按技术栈 → 允许的 Bash 模式列表
+STACK_PERMISSIONS = {
+    "python-uv": [
+        "Bash(uv sync*)",
+        "Bash(uv run *)",
+        "Bash(uv pip install*)",
+        "Bash(python -m pytest*)",
+        "Bash(ruff *)",
+    ],
+    "python-pip": [
+        "Bash(python -m pytest*)",
+        "Bash(python -m pip install*)",
+        "Bash(ruff *)",
+    ],
+    "node-npm": [
+        "Bash(npm install*)",
+        "Bash(npm run *)",
+        "Bash(npm test*)",
+        "Bash(npx prettier*)",
+        "Bash(npx eslint*)",
+    ],
+    "node-yarn": [
+        "Bash(yarn install*)",
+        "Bash(yarn run *)",
+        "Bash(yarn test*)",
+    ],
+    "node-pnpm": [
+        "Bash(pnpm install*)",
+        "Bash(pnpm run *)",
+        "Bash(pnpm test*)",
+        "Bash(pnpm exec *)",
+    ],
+    "node-bun": [
+        "Bash(bun install*)",
+        "Bash(bun run *)",
+        "Bash(bun test*)",
+        "Bash(bunx *)",
+    ],
+    "go": [
+        "Bash(go mod *)",
+        "Bash(go test *)",
+        "Bash(go build *)",
+    ],
+    "dotnet": [
+        "Bash(dotnet restore*)",
+        "Bash(dotnet build*)",
+        "Bash(dotnet test*)",
+        "Bash(dotnet format*)",
+    ],
+}
+
+
+def detect_active_stacks(project_dir: str = ".") -> list[str]:
+    """检测当前项目实际使用的技术栈 key 列表（用于生成 permissions）。"""
+    join = os.path.join
+    exists = os.path.isfile
+    stacks: list[str] = []
+
+    has_pyproject = exists(join(project_dir, "pyproject.toml"))
+    has_requirements = exists(join(project_dir, "requirements.txt"))
+    if has_pyproject or has_requirements:
+        if (
+            exists(join(project_dir, "uv.lock"))
+            or (
+                has_pyproject
+                and "[tool.uv]" in _safe_read(join(project_dir, "pyproject.toml"))
+            )
+            or (has_command("uv") and has_pyproject)
+        ):
+            stacks.append("python-uv")
+        else:
+            stacks.append("python-pip")
+
+    if exists(join(project_dir, "package.json")):
+        if exists(join(project_dir, "pnpm-lock.yaml")):
+            stacks.append("node-pnpm")
+        elif exists(join(project_dir, "yarn.lock")):
+            stacks.append("node-yarn")
+        elif exists(join(project_dir, "bun.lockb")) or exists(
+            join(project_dir, "bun.lock")
+        ):
+            stacks.append("node-bun")
+        else:
+            stacks.append("node-npm")
+
+    if exists(join(project_dir, "go.mod")):
+        stacks.append("go")
+
+    try:
+        if any(f.endswith((".csproj", ".sln")) for f in os.listdir(project_dir)):
+            stacks.append("dotnet")
+    except OSError:
+        pass
+
+    return stacks
+
+
+def _safe_read(path: str) -> str:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def build_minimal_allow_list(project_dir: str = ".") -> list[str]:
+    """根据实际技术栈生成最小 permissions.allow 列表。"""
+    allow = list(FRAMEWORK_CORE_PERMISSIONS)
+    for stack in detect_active_stacks(project_dir):
+        allow.extend(STACK_PERMISSIONS.get(stack, []))
+    # 去重且保持插入顺序
+    seen = set()
+    deduped = []
+    for item in allow:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+    return deduped
+
+
 def check_project_dependencies() -> list:
     """检测用户项目的依赖是否已安装"""
     suggestions = []
@@ -438,7 +649,65 @@ def main():
     parser.add_argument(
         "--check-only", action="store_true", help="仅检测环境，不做任何修改"
     )
+    parser.add_argument(
+        "--emit-env-block",
+        action="store_true",
+        help="仅检测当前目录的技术栈并向 stdout 输出 CLAUDE.md §执行环境 节的 Markdown 片段",
+    )
+    parser.add_argument(
+        "--emit-permissions",
+        action="store_true",
+        help="向 stdout 输出当前项目技术栈对应的最小 permissions.allow JSON 数组",
+    )
+    parser.add_argument(
+        "--apply-permissions",
+        action="store_true",
+        help="根据技术栈重写 .claude/settings.json 的 permissions.allow 为最小集合",
+    )
     args = parser.parse_args()
+
+    # --emit-env-block: 轻量模式，供 orchestrator Bootstrap 调用以获取环境信息
+    if args.emit_env_block:
+        block = build_env_block(".")
+        if block:
+            print(block)
+            sys.exit(0)
+        else:
+            sys.exit(2)  # 2 = 未检测到任何已知技术栈
+
+    # --emit-permissions: 输出最小 allow 列表（供 orchestrator 或用户审查）
+    if args.emit_permissions:
+        import json as _json
+
+        print(_json.dumps(build_minimal_allow_list("."), ensure_ascii=False, indent=2))
+        sys.exit(0)
+
+    # --apply-permissions: 实际写入 settings.json
+    if args.apply_permissions:
+        import json as _json
+
+        settings_path = os.path.join(".claude", "settings.json")
+        if not os.path.exists(settings_path):
+            fail(f"{settings_path} 不存在")
+            sys.exit(1)
+        with open(settings_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        # 容忍尾随逗号
+        content = re.sub(r",\s*([}\]])", r"\1", content)
+        settings = _json.loads(content)
+        settings.setdefault("permissions", {})
+        old_count = len(settings["permissions"].get("allow", []))
+        new_allow = build_minimal_allow_list(".")
+        settings["permissions"]["allow"] = new_allow
+        # 保留原有 deny
+        with open(settings_path, "w", encoding="utf-8") as f:
+            _json.dump(settings, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        ok(
+            f"已写入最小 permissions.allow: {old_count} -> {len(new_allow)} 条 "
+            f"(检测到栈: {', '.join(detect_active_stacks('.')) or '(无)'})"
+        )
+        sys.exit(0)
 
     print("")
     print(f"{CYAN}{BOLD}  CataForge 环境初始化{NC}")

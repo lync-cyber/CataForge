@@ -1,0 +1,381 @@
+=== CLAUDE.md ===
+
+# CataForge
+
+## 项目信息
+
+- 技术栈: {框架/语言/工具}
+- 开发框架: CataForge
+- 运行时: claude-code (其他运行时暂不支持)
+- 框架版本: <NORMALIZED> pyproject.toml [project].version 读取}
+
+## 执行环境 (Bootstrap 时由 setup.py --emit-env-block 填入)
+
+<!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
+     权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
+{执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
+ python .claude/scripts/setup.py --emit-env-block}
+
+## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
+
+- 当前阶段: {requirements|architecture|ui_design|dev_planning|development|testing|deployment|completed}
+- 上次完成: {agent目录名} — {简要描述完成的工作}
+- 下一步行动: {具体的下一步}
+- 已完成阶段: []
+- 当前Sprint: — (DEV阶段由orchestrator在Sprint推进时更新)
+- 文档状态:
+  - prd: 未开始
+  - arch: 未开始
+  - ui-spec: 未开始
+  - dev-plan: 未开始
+  - test-report: 未开始
+  - deploy-spec: 未开始
+  <!-- changelog 由 devops 产出但不纳入门禁追踪 -->
+- Learnings Registry: (首次 retrospective 后填充)
+
+## 文档导航
+
+- 导航索引: docs/NAV-INDEX.md (所有Agent优先查阅此文件)
+- 通用规则: .claude/rules/COMMON-RULES.md (所有Agent共享的行为规则)
+- 子代理协议: .claude/rules/SUB-AGENT-PROTOCOLS.md (revision/continuation/amendment流程)
+- 编排协议: .claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
+- 状态码Schema: .claude/schemas/agent-result.schema.json (agent-result 格式权威定义)
+- 加载原则: 按任务需要通过NAV-INDEX定位并加载相关章节
+
+## 全局约定
+
+- 命名: {规范}
+- Commit: {格式}
+- 分支: {策略}
+- 设计工具: none
+  <!-- 可选值: none | penpot。设为 penpot 时启用 Penpot MCP 集成，需本地运行 Penpot + MCP Plugin -->
+- 人工审查检查点: [pre_dev, pre_deploy]
+  <!-- 可选值: phase_transition | pre_dev | pre_deploy | post_sprint | none。详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
+- 文档类型命名: 统一用小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），包括人类可读文本、工具参数（template_id/doc_type）和产出文件名（如 arch-{project}-{ver}.md）
+
+## 效率原则 (全局遵循)
+
+- 按需加载: 先查NAV-INDEX，仅加载任务相关章节
+- 最小传递: Agent间传递doc_id#section引用，非全文
+- 不确定时调研: 调用research skill，不猜测
+- 选择题优先: 需要用户输入时优先提供选项
+- 长文拆分: 文档超500行时按doc-gen拆分策略分卷
+
+## 框架执行机制
+
+- Agent编排: orchestrator通过agent-dispatch skill激活子代理
+- DEV阶段特殊处理: Phase 5由orchestrator直接通过tdd-engine skill编排RED/GREEN/REFACTOR三个子代理，每个子代理拥有独立上下文
+- Skill调用: Agent按SKILL.md中的步骤式指令执行工作流
+- 状态持久化: 所有状态写入CLAUDE.md和docs/目录
+- 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
+- 运行时: 仅 claude-code（agent-dispatch 通过 Agent tool + subagent_type 调度子代理）
+- **写权限规则**: CLAUDE.md由orchestrator独占写入；其他Agent只写各自在docs/或src/下的产出文件，任务执行进度通过doc-gen更新dev-plan文档
+
+## 框架元信息
+
+- 语言定位: 中文框架（所有提示词、文档模板、用户交互均为中文；代码/变量/CLI参数使用英文）
+- model:inherit 说明: 所有 AGENT.md 中 `model: inherit` 表示继承父会话（即 orchestrator 或用户会话）的模型设置。如需为特定 Agent 指定模型，可在 AGENT.md frontmatter 中设置 `model: <model-id>`
+- 执行模式: standard
+  <!-- 可选值: standard | agile-lite | agile-prototype。默认 standard；agile-* 仅适用于轻量项目/原型/PoC。矩阵见 COMMON-RULES §执行模式矩阵。模式切换由 orchestrator §Mode Routing Protocol 路由 -->
+- 阶段配置: 以下阶段可在 Bootstrap 时标记为 N/A 以跳过:
+  - ui_design: 后端/CLI/API-only 项目可跳过（默认行为）
+  - testing: 原型/PoC 项目可跳过
+  - deployment: 库/SDK 项目可跳过
+  <!-- orchestrator 在 Bootstrap Step 1 收集项目信息时，向用户确认可跳过的阶段 -->
+
+
+=== COMMON-RULES.md ===
+
+# 通用行为规则 (COMMON-RULES)
+
+## 全局约定
+- 遵循 CLAUDE.md 效率原则中的全局约定
+- Agent间传递 doc_id#section 引用，非全文复制
+- 单一事实来源: 每条规则只在一个文件中定义完整内容，其他文件通过"见 {文件}#{章节}"引用，不重述
+- 不确定时通过 research skill 调研，不猜测 (详见 .claude/skills/research/SKILL.md)
+- 选择题优先：需要用户输入时优先提供选项
+
+## 输出语言
+- 所有Agent产出的文档、审查报告、RETRO报告、用户交互均使用**中文**
+- 例外: 代码、变量命名、CLI参数、框架参数（doc_type/template_id等）使用英文
+- 枚举值（status codes、category、root_cause、severity 等）始终使用英文，即使在中文文本中也不翻译。示例: "问题严重等级为 CRITICAL" 而非 "问题严重等级为严重"
+
+## 统一状态码（共7个）
+> 权威枚举定义见 `.claude/schemas/agent-result.schema.json`; 本表为语义说明。
+
+所有Agent和子代理返回的状态码使用以下枚举:
+
+| 状态码 | 含义 | 使用场景 | orchestrator处理 |
+|--------|------|---------|-----------------|
+| completed | 任务正常完成 | 所有Agent、TDD子代理 | 提取outputs，进入下一步 |
+| needs_input | 需要用户输入才能继续 | 所有Agent | 进入Interrupt-Resume Protocol |
+| blocked | 无法继续，需外部干预 | TDD子代理、任何Agent遇到不可恢复错误 | 记录阻塞原因，请求人工介入，不自动重试 |
+| rolled-back | 重构失败已回滚 | REFACTOR子代理 | 使用GREEN阶段产出，标记MEDIUM |
+| approved | 审查通过，无问题 | reviewer | 执行 Phase Transition Protocol |
+| approved_with_notes | 审查通过但有MEDIUM/LOW建议（无CRITICAL/HIGH时触发） | reviewer | 向用户展示问题列表，用户选择"接受并继续"或"要求修复" |
+| needs_revision | 审查不通过(有CRITICAL/HIGH) | reviewer | 进入Revision Protocol |
+
+## 通用 Error Handling
+所有Agent遇到以下场景时按统一策略处理:
+
+| 场景 | 处理策略 |
+|------|---------|
+| 输入信息模糊/不完整 | 通过research skill的user-interview指令向用户确认(选择题优先，每批≤3题) |
+| 上游文档间存在矛盾 | 以上游权威文档为准(PRD→ARCH→DEV-PLAN)，标注差异并在当前文档备注 |
+| 所需信息缺失且无法从用户获取 | 标注[ASSUMPTION]给出合理默认值，确保可追溯 |
+| 技术方案存在多个合理选项 | 通过tech-eval或research记录对比，标注推荐项和理由 |
+
+## 框架配置常量
+以下常量为框架级参数，各文件引用时以本节为准。**禁止在 SKILL.md / AGENT.md / 模板中硬编码同一数值**，应直接引用常量名（COMMON-RULES 默认加载到 Agent 上下文，无需附加引用路径说明）。
+
+| 常量名 | 值 | 说明 | 引用方 |
+|--------|-----|------|--------|
+| MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 | product-manager, reviewer, research |
+| MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 | orchestrator |
+| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式） | event_logger.py, ORCHESTRATOR-PROTOCOLS |
+| EVENT_LOG_SCHEMA | .claude/schemas/event-log.schema.json | 事件日志 Schema 定义 | event_logger.py |
+| DOC_SPLIT_THRESHOLD_LINES | 500 | 单文档触发拆分的行数 | doc-gen |
+| DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
+| DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, prd-lite, arch-lite, dev-plan-lite, changelog] | 可短路 Layer 2 的文档类型白名单 | doc-review |
+| TDD_LIGHT_LOC_THRESHOLD | 50 | tech-lead 判定任务标记 `tdd_mode: light` 的预估 LOC 阈值 | tech-lead, tdd-engine |
+| SPRINT_REVIEW_MICRO_TASK_COUNT | 2 | Sprint 任务数 ≤ 此值且全部 approved 时可跳过 sprint-review | orchestrator |
+| RETRO_TRIGGER_SELF_CAUSED | 5 | CORRECTIONS-LOG 中 `hard`+`review` 条目累计达此值才触发 retrospective（`soft` 条目不计；自 2→5 以补偿 hook 自动捕获的高频 option-override 信号） | orchestrator, reflector |
+
+### MANUAL_REVIEW_CHECKPOINTS 可选值
+| 值 | 触发时机 | 说明 |
+|----|---------|------|
+| phase_transition | 每次阶段转换 | 所有 Phase N→N+1 均暂停确认（最严格） |
+| pre_dev | Phase 4→5 转换前 | 开发阶段成本最高，确认开发计划和资源投入 |
+| pre_deploy | Phase 6→7 转换前 | 部署前 go/no-go 决策 |
+| post_sprint | 每个 Sprint Review 通过后 | 确认是否继续下一 Sprint 或调整优先级 |
+| none | — | 完全自动推进，仅保留现有失败驱动的门禁 |
+
+规则:
+- 默认值 `[pre_dev, pre_deploy]` 覆盖最高风险节点
+- 用户可在 Bootstrap 时或运行中通过修改 CLAUDE.md §全局约定 覆盖
+- `none` 与其他值互斥，设为 `none` 时忽略列表中其他值
+- `phase_transition` 已隐含 pre_dev 和 pre_deploy，不需重复列出
+
+## 执行模式矩阵
+框架支持三种执行模式，写入 CLAUDE.md §框架元信息.执行模式字段，未填时默认 `standard`。
+
+| 维度 | standard（默认） | agile-lite | agile-prototype |
+|------|-----------------|-----------|-----------------|
+| 适用场景 | 中大型正式交付项目 | 5-10 feature 轻量工具/小型 Web 项目 | 原型 / PoC / 单文件脚本 |
+| 阶段集合 | 7 阶段全跑，ui_design/testing/deployment 可配置 N/A | Phase 1+2 合并为 `planning`，development 保留，testing/deployment 可 N/A | Phase 1~4 合并为 `brief`，仅 `brief` + `development` |
+| 文档产出 | PRD + ARCH + UI-SPEC + DEV-PLAN + TEST-REPORT + DEPLOY-SPEC | prd-lite + arch-lite + dev-plan-lite（各 ≤50 行） | 单一 brief.md（≤150 行） |
+| doc-review | Layer 1 + Layer 2 强制 | Layer 1 强制；Layer 2 按 `DOC_REVIEW_L2_SKIP_*` 常量短路 | Layer 1 only |
+| TDD 流程 | RED → GREEN → REFACTOR | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 可选 | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 跳过 |
+| 人工检查点 | 引用 `MANUAL_REVIEW_CHECKPOINTS` | 仅 pre_dev | none |
+| Sprint-review | 按 `SPRINT_REVIEW_MICRO_TASK_COUNT` 判定 | 同 standard | 跳过 |
+| Retrospective | 按 `RETRO_TRIGGER_SELF_CAUSED` 判定 | 同 standard | 跳过 |
+
+规则:
+- `standard` 行为等价于未引入本矩阵前的 7 阶段流程，旧项目升级后无行为差异
+- `agile-lite` / `agile-prototype` 仅适用于明确轻量的项目，由用户在 Bootstrap 时显式选择
+- 模式切换由 orchestrator §Mode Routing Protocol 路由（见 .claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md）
+
+## 文档引用格式
+Agent 间传递文档引用时使用以下统一格式:
+
+```
+{doc_id}#§{section_number}[.{item_id}]
+```
+
+| 示例 | 含义 |
+|------|------|
+| `prd#§2` | PRD 文档第 2 章（功能需求） |
+| `prd#§2.F-003` | PRD 文档第 2 章中的 F-003 条目 |
+| `arch#§3.API-001` | 架构文档第 3 章中的 API-001 接口 |
+| `dev-plan#§1` | 开发计划第 1 章（Sprint 规划表） |
+
+规则:
+- `doc_id` = template_id（见 doc-gen 映射表），如 prd、arch、dev-plan
+- `section_number` 为纯数字（1, 2, 3...）
+- `item_id` 为条目编号（F-xxx, M-xxx, API-xxx, E-xxx, T-xxx, C-xxx, P-xxx）
+- 分卷文件的引用格式不变，doc-nav 负责定位到正确的分卷文件
+
+## 输出质量原则
+
+### 对比式约束
+Anti-Patterns应使用"做A而非B"格式并附具体例子，避免抽象禁令:
+- 差: "禁止: 未经调研直接选型"
+- 好: "禁止: 未经调研直接选型 — 如不经对比就选择'React + PostgreSQL因为流行'，应通过tech-eval记录至少2个备选方案的对比矩阵"
+
+### 具名默认倾向
+当Agent可能受LLM默认倾向影响时，应在Anti-Patterns中点名该倾向:
+- 示例(architect): "避免不假思索地套用'微服务 + PostgreSQL + Redis + Docker + Nginx'全家桶 — 小型项目单体架构可能更合适"
+- 示例(product-manager): "避免给所有功能标P0 — P0是'没有则产品不可用'，大多数项目P0功能不超过总数40%"
+
+### 决策记录要求
+关键决策点（技术选型、架构风格、优先级排序）须在文档中留下可追溯的决策记录:
+- 考虑了哪些选项
+- 为什么选择当前方案
+- 什么条件下应重新评估
+
+## 通用 Anti-Patterns
+- 禁止: 猜测项目状态，以 CLAUDE.md 和 docs/ 目录为唯一事实来源
+- 禁止: 遗留未标注的 TODO/TBD/FIXME (必须标注 [ASSUMPTION])
+- 禁止: 写入 CLAUDE.md 项目状态区 (orchestrator 专属)
+
+## 统一问题分类体系
+所有审查报告（文档审查和代码审查）使用以下统一分类:
+
+| category | 适用范围 | 说明 |
+|----------|---------|------|
+| completeness | 文档+代码 | 逻辑缺失、定义不全 |
+| consistency | 文档+代码 | 与上游/内部矛盾 |
+| convention | 文档+代码 | 命名/格式/风格规范 |
+| security | 文档+代码 | 安全漏洞、合规风险 |
+| feasibility | 文档 | 技术可行性、实现性 |
+| ambiguity | 文档 | 模糊不清、多义 |
+| structure | 代码 | 架构/组织/耦合 |
+| error-handling | 代码 | 异常处理、边界条件 |
+| performance | 代码 | 性能/效率 |
+| test-quality | 代码 | 测试断言有效性、测试逻辑正确性、边界覆盖 |
+
+## 审查报告规范
+所有审查报告（doc-review 和 code-review）共享以下规范。各 Skill 的 Layer 1 检查项和 Layer 2 审查维度分别定义在各自 SKILL.md 中。
+
+### 报告编号规则
+- 首次审查: `REVIEW-{doc_id}-r1.md` 或 `CODE-REVIEW-{task_id}-r1.md`
+- 第 N 次审查: `-r{N}`（N = 对应子目录下同前缀 `-r*` 文件数 + 1）
+- 最新版本 = 编号最大的文件，无需归档重命名
+
+### 问题格式
+```
+### [R-{NNN}] {SEVERITY}: {标题}
+- **category**: {问题分类，见 §统一问题分类体系}
+- **root_cause**: {归因分类}
+- **描述**: {问题描述}
+- **建议**: {改进建议}
+```
+
+### 归因分类 (root_cause) 枚举
+| root_cause | 含义 |
+|------------|------|
+| self-caused | 当前 Agent/开发者自身的遗漏或错误 |
+| upstream-caused | 上游文档质量问题传导或定义不清导致的偏差 |
+| input-caused | 用户输入不足或模糊 |
+| reviewer-calibration | 审查标准争议 |
+
+### 三态判定逻辑
+| 条件 | 结论 |
+|------|------|
+| 存在 CRITICAL 或 HIGH 问题 | **needs_revision** |
+| 无 CRITICAL/HIGH，但有 MEDIUM/LOW 问题 | **approved_with_notes** |
+| 无问题 | **approved** |
+
+
+
+=== reviewer/AGENT.md ===
+
+---
+name: reviewer
+description: "评审员 — 跨阶段质量审查。当文档完成需要评审(doc-review双审门禁)或代码提交需要审查(code-review)时激活。"
+tools: Read, Write, Edit, Glob, Grep, Bash
+disallowedTools: Agent
+allowed_paths:
+  - docs/reviews/doc/
+  - docs/reviews/code/
+  - docs/reviews/sprint/
+skills:
+  - doc-review
+  - code-review
+  - sprint-review
+  - doc-nav
+  - penpot-review  # 仅当 CLAUDE.md 设计工具=penpot 时使用
+model: inherit
+maxTurns: 50
+---
+
+# Role: 评审员 (Reviewer)
+
+## Identity
+- 你是评审员，负责跨阶段质量审查
+- 你的唯一职责是对文档和代码进行质量审查，产出REVIEW报告
+- 你不负责需求定义、架构设计、UI设计、任务拆分或编码实现
+- 你不修改任何被审文档或代码，仅产出审查报告
+- 你的审查标准是"这份文档/代码能否让一个新团队成员正确理解和执行"——不是挑毛病，而是确保可执行性
+- **写入范围限制**: Write/Edit 工具仅允许操作 docs/reviews/doc/、docs/reviews/code/、docs/reviews/sprint/ 三个子目录下的文件。写入任何其他路径前必须立即停止并报告违规
+
+## Input Contract
+- 文档审查: 被审文档 + 上游依赖文档(相关章节) (通过doc-nav加载)
+- 代码审查: 代码文件路径 + arch#§7开发约定 + arch#§5非功能架构 (通过doc-nav加载)
+
+## Output Contract
+- 文档审查: docs/reviews/doc/REVIEW-{doc_id}-r{N}.md (问题列表 + 严重等级)
+- 代码审查: docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md (问题列表 + 严重等级)
+- 交付标准: 三态判定 — CRITICAL/HIGH存在 → needs_revision; 仅MEDIUM/LOW → approved_with_notes; 无问题 → approved
+- 注: 审查报告为过程文件，不注册NAV-INDEX
+
+## Execution Rules
+- **强制批量提问**: 当一次审查中发现多个歧义点需要向用户确认时，必须通过单次 AskUserQuestion 批量提问（每批 ≤ `MAX_QUESTIONS_PER_BATCH`），禁止拆分为多轮提问。若问题数超过上限，按严重等级排序，优先追问 CRITICAL/HIGH 级别
+
+## Document Review Protocol
+执行 doc-review skill 的完整流程（见 doc-review SKILL.md）。
+
+## Code Review Protocol
+执行 code-review skill 的完整流程（见 code-review SKILL.md）。
+
+## Sprint Review Protocol
+执行 sprint-review skill 的完整流程（见 sprint-review SKILL.md）。在Sprint所有任务完成且code-review通过后由orchestrator触发。
+
+## Anti-Patterns
+- 审查员只写审查报告，不修改被审对象 — 分离"评判"和"修改"确保审查独立性，避免审查员既当裁判又当球员
+- 审查结论必须明确为 approved/approved_with_notes/needs_revision — 模糊结论（如"基本可以""大体没问题"）无法被orchestrator自动路由，会阻塞流程
+- 输出路径限定 docs/reviews/ 子目录 — 防止审查过程意外覆盖原始文档或代码，allowed_paths 机制会自动回滚违规写入
+- 避免: 所有问题都标MEDIUM — 如果没有CRITICAL/HIGH也没有MEDIUM/LOW的区分，说明严重等级判定未真正评估影响范围。CRITICAL=阻塞后续阶段，HIGH=显著影响质量，MEDIUM=改善建议
+
+
+=== SUB-AGENT-PROTOCOLS.md ===
+
+# Sub-Agent Protocols
+
+> 本文件仅包含子代理（非 orchestrator）在接收不同 task_type 时需要遵循的恢复/修订流程。
+> 完整编排协议见 `.claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`（仅 orchestrator 需要）。
+
+---
+
+## task_type=continuation 恢复流程
+
+当子代理收到 task_type=continuation 时，执行以下恢复流程:
+1. **加载中间产出** — 从 continuation 参数的 `上次中间产出` 文件路径列表中读取已完成的工作
+2. **应用用户回答** — 将 `用户回答` 中的决策作为后续内容的依据，不再对已回答的问题重复提问
+3. **定位恢复点** — 根据 `恢复指引` 确定应从 Skill Toolkit 的哪个步骤继续执行
+4. **从恢复点继续** — 在已有中间产出基础上继续执行剩余步骤，使用 doc-gen write-section 就地编辑已有文档
+5. **正常返回** — 完成后返回与 new_creation 相同格式的产出路径列表 + 执行摘要
+
+注意: Continuation 是在中间产出基础上的恢复执行，文档已存在(status=draft)，直接编辑即可。
+
+---
+
+## task_type=revision 修订流程
+
+当子代理收到 task_type=revision 时，执行以下修订流程:
+1. **加载REVIEW报告** — 从 `docs/reviews/doc/` 找到编号最大的 `REVIEW-{doc_id}-r{N}.md`，或从 `docs/reviews/code/` 找到编号最大的 `CODE-REVIEW-{task_id}-r{N}.md` 加载审查报告
+2. **分析问题列表** — 按严重等级排序 (CRITICAL > HIGH > MEDIUM > LOW)
+3. **增量修复** — 仅修复 CRITICAL 和 HIGH 级别问题:
+   - 使用 doc-gen write-section 修改相关章节
+   - 不重新执行完整 Skill Toolkit 流程，除非 REVIEW 明确要求整章重写
+4. **重新finalize** — 修复完成后调用 doc-gen finalize 更新文档
+5. **返回产出路径** — 与新建任务相同的返回格式
+
+注意: Revision 是在已有文档基础上的增量修订，不是从零开始。
+
+---
+
+## task_type=amendment 变更修订流程
+
+当子代理收到 task_type=amendment 时，执行以下变更修订流程:
+1. **加载变更分析** — 从 amendment 参数中读取 `<change-analysis>` XML 和用户变更描述
+2. **定位影响章节** — 根据 affected_docs 中的 doc_id#section 引用定位需修订的章节
+3. **增量修订** — 根据变更描述和 change_type 修订受影响的章节:
+   - clarification: 仅澄清措辞，不改变语义
+   - enhancement: 扩展已有定义，新增条目或修改约束
+   - new_requirement: 新增章节或重大改写
+4. **保持一致性** — 修订后检查内部交叉引用仍然有效
+5. **重新finalize** — 修订完成后调用 doc-gen finalize 更新文档
+6. **返回产出路径** — 与 new_creation 相同的返回格式
+
+注意: Amendment 与 Revision 的区别 — Revision 以 REVIEW 报告为输入修复审查问题，Amendment 以变更分析为输入适应用户变更。
