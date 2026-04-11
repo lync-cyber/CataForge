@@ -1,35 +1,10 @@
 <div align="center">
 
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 200" width="820">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1E3A5F"/>
-      <stop offset="100%" stop-color="#2C5F8A"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#5B8FF9"/>
-      <stop offset="50%" stop-color="#61DDAA"/>
-      <stop offset="100%" stop-color="#F6BD16"/>
-    </linearGradient>
-  </defs>
-  <rect width="820" height="200" fill="url(#bg)" rx="14"/>
-  <g transform="translate(100, 78)">
-    <circle cx="0" cy="22" r="14" fill="#5B8FF9"/>
-    <path d="M14 22 L36 22" stroke="#8FB5D8" stroke-width="2" stroke-dasharray="3,3"/>
-    <rect x="36" y="12" width="52" height="20" rx="10" fill="#F6BD16"/>
-    <path d="M88 22 L110 22" stroke="#8FB5D8" stroke-width="2" stroke-dasharray="3,3"/>
-    <rect x="110" y="12" width="52" height="20" rx="10" fill="#5AD8A6"/>
-    <path d="M162 22 L184 22" stroke="#8FB5D8" stroke-width="2" stroke-dasharray="3,3"/>
-    <rect x="184" y="12" width="52" height="20" rx="10" fill="#F08F56"/>
-    <path d="M236 22 L258 22" stroke="#8FB5D8" stroke-width="2" stroke-dasharray="3,3"/>
-    <circle cx="272" cy="22" r="14" fill="#9270CA"/>
-  </g>
-  <text x="410" y="100" font-family="Segoe UI, Arial, sans-serif" font-size="54" font-weight="bold" fill="url(#accent)" text-anchor="middle">CataForge</text>
-  <text x="410" y="138" font-family="Segoe UI, Arial, sans-serif" font-size="17" fill="#D4E6F5" text-anchor="middle">中文原生 · AI 驱动的全生命周期软件开发工作流框架</text>
-  <text x="410" y="168" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#8FB5D8" text-anchor="middle" font-style="italic">给 AI 一套工程方法论，而不是一个万能提示词</text>
-</svg>
+# CataForge
 
-<br/>
+**中文原生 · AI 驱动的全生命周期软件开发工作流框架**
+
+*给 AI 一套工程方法论，而不是一个万能提示词*
 
 [![Version](https://img.shields.io/badge/version-0.7.0-5B8FF9.svg)](https://github.com/lync-cyber/CataForge/releases)
 [![License](https://img.shields.io/badge/license-MIT-5AD8A6.svg)](LICENSE)
