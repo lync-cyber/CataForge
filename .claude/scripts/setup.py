@@ -142,7 +142,10 @@ def load_env_proxy():
     for key, value in env_vars.items():
         if key in proxy_keys and key not in os.environ:
             os.environ[key] = value
-            info(f"从 .env 加载代理: {key}={value}")
+            # 掩码凭据: http://user:pass@host -> http://***@host
+            import re as _re
+            masked = _re.sub(r"://[^@]+@", "://***@", value) if "@" in value else value
+            info(f"从 .env 加载代理: {key}={masked}")
 
 
 def check_proxy_status():
@@ -387,8 +390,8 @@ def check_project_dependencies() -> list:
 
     # Python 项目: 检测包管理器
     is_python = os.path.exists("requirements.txt") or os.path.exists("pyproject.toml")
+    pkg_mgr = detect_python_pkg_manager() if is_python else "pip"
     if is_python:
-        pkg_mgr = detect_python_pkg_manager()
         if pkg_mgr == "uv":
             ok("检测到 Python 包管理器: uv")
         else:
@@ -396,7 +399,7 @@ def check_project_dependencies() -> list:
 
     # Python 项目 (requirements.txt)
     if os.path.exists("requirements.txt"):
-        if is_python and detect_python_pkg_manager() == "uv":
+        if pkg_mgr == "uv":
             info("requirements.txt 存在 — 建议运行: uv pip install -r requirements.txt")
             suggestions.append("uv pip install -r requirements.txt")
         else:
@@ -412,7 +415,7 @@ def check_project_dependencies() -> list:
             r"^\s*dependencies\s*=\s*\[([^\]]*)\]", content, re.MULTILINE | re.DOTALL
         )
         if dep_match and dep_match.group(1).strip():
-            if detect_python_pkg_manager() == "uv":
+            if pkg_mgr == "uv":
                 info("pyproject.toml 声明了依赖 — 建议运行: uv sync")
                 suggestions.append("uv sync")
             else:
@@ -572,9 +575,12 @@ def main():
             sys.exit(1)
         with open(settings_path, "r", encoding="utf-8") as f:
             content = f.read()
-        # 容忍尾随逗号
-        content = re.sub(r",\s*([}\]])", r"\1", content)
-        settings = _json.loads(content)
+        # 容忍尾随逗号: 先尝试原样解析，失败后再清理
+        try:
+            settings = _json.loads(content)
+        except _json.JSONDecodeError:
+            content = re.sub(r",\s*([}\]])", r"\1", content)
+            settings = _json.loads(content)
         settings.setdefault("permissions", {})
         old_count = len(settings["permissions"].get("allow", []))
         new_allow = build_minimal_allow_list(".")

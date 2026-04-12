@@ -63,6 +63,8 @@ def parse_semver(ver_str: str) -> tuple:
     ver_str = ver_str.strip()
     match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)", ver_str)
     if not match:
+        import warnings
+        warnings.warn(f"parse_semver: 无法解析版本号 '{ver_str}'，回退到 (0,0,0)")
         return (0, 0, 0)
     return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
 
@@ -82,8 +84,12 @@ def load_json_lenient(file_path: str) -> dict:
     """加载 JSON 文件，容忍尾随逗号等常见格式问题"""
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
-    content = re.sub(r",\s*([}\]])", r"\1", content)
-    return json.loads(content)
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        # 仅在标准解析失败时才清理尾随逗号
+        content = re.sub(r",\s*([}\]])", r"\1", content)
+        return json.loads(content)
 
 
 def phase_index(phase: str) -> int:
@@ -401,7 +407,9 @@ def merge_claude_md(source_path: str, dry_run: bool = False) -> list:
         current = f.read()
 
     project_state = extract_section(current, "项目状态")
-    filled_values = extract_filled_values(current)
+    # 从非项目状态区提取已填写值，避免跨段回填
+    content_without_state = current.replace(project_state, "") if project_state else current
+    filled_values = extract_filled_values(content_without_state)
 
     if project_state:
         changes.append(f"  保留: 项目状态段 ({len(project_state)} 字符)")
@@ -415,7 +423,7 @@ def merge_claude_md(source_path: str, dry_run: bool = False) -> list:
     if project_state:
         template_state = extract_section(template, "项目状态")
         if template_state:
-            result = result.replace(template_state, project_state)
+            result = result.replace(template_state, project_state, 1)
         changes.append("  回填: 项目状态段")
 
     lines = result.split("\n")
@@ -529,11 +537,17 @@ def build_clone_env(token: str) -> dict:
     """构建 git clone 环境变量，通过 GIT_ASKPASS 安全传递 Token"""
     env = os.environ.copy()
     if token:
+        # 通过环境变量传递 token，避免明文写入磁盘
+        env["_CATAFORGE_GIT_TOKEN"] = token
         askpass_script = os.path.join(
             tempfile.gettempdir(), f"cataforge_askpass_{os.getpid()}.py"
         )
         with open(askpass_script, "w", encoding="utf-8") as f:
-            f.write(f'#!/usr/bin/env python3\nimport sys\nprint("{token}")\n')
+            f.write(
+                '#!/usr/bin/env python3\n'
+                'import os\n'
+                'print(os.environ.get("_CATAFORGE_GIT_TOKEN", ""))\n'
+            )
         try:
             os.chmod(askpass_script, 0o700)
         except OSError:
@@ -773,6 +787,9 @@ def maybe_self_reexec(tmpdir: str, dry_run: bool) -> None:
     new_argv = [sys.executable, new_script, "local", tmpdir]
     if dry_run:
         new_argv.append("--dry-run")
+
+    # os.execve 替换进程镜像后不会返回，需提前清理 askpass 临时文件
+    cleanup_askpass(env)
 
     try:
         os.execve(sys.executable, new_argv, env)
@@ -1124,8 +1141,7 @@ def run_verify() -> int:
         for issue in mig_issues:
             print(f"  [错误] {issue}")
     else:
-        matrix = load_compat_matrix()
-        mc_count = len(matrix.get("migration_checks", []))
+        mc_count = len(matrix.get("migration_checks", [])) if matrix else 0
         if mc_count > 0:
             print(f"  通过 {mc_count} 项迁移检查。")
         else:
@@ -1177,7 +1193,9 @@ def run_local_upgrade(
         print(f"\n开始升级 {cur_ver} → {new_ver}...\n")
 
     # 备份
-    bak_dir = backup_dir or f".claude/backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    bak_dir = backup_dir or os.path.join(
+        tempfile.gettempdir(), f"cataforge-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    )
     if not dry_run:
         os.makedirs(bak_dir, exist_ok=True)
     print(f"[备份] → {bak_dir}")

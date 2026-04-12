@@ -6,11 +6,14 @@ to avoid duplicating the CLAUDE.md parsing logic.
 """
 
 import os
+import re
 import sys
 
 # 共享工具
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import find_project_root
+
+_PHASE_RE = re.compile(r"^\s*-\s*当前阶段:\s*(.+)$")
 
 
 def read_current_phase(project_dir=None):
@@ -32,8 +35,9 @@ def read_current_phase(project_dir=None):
     try:
         with open(claude_md, "r", encoding="utf-8") as f:
             for line in f:
-                if line.strip().startswith("- 当前阶段:"):
-                    raw = line.split(":", 1)[1].strip()
+                m = _PHASE_RE.match(line)
+                if m:
+                    raw = m.group(1).strip()
                     # Skip unresolved template placeholders like {requirements|...}
                     if raw.startswith("{"):
                         return "unknown"

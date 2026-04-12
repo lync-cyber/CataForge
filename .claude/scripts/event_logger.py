@@ -106,11 +106,11 @@ def append_event(
     """
     if event not in VALID_EVENTS:
         raise ValueError(f"Invalid event '{event}', expected: {sorted(VALID_EVENTS)}")
-    if status and status not in VALID_STATUSES:
+    if status is not None and status not in VALID_STATUSES:
         raise ValueError(
             f"Invalid status '{status}', expected: {sorted(VALID_STATUSES)}"
         )
-    if task_type and task_type not in VALID_TASK_TYPES:
+    if task_type is not None and task_type not in VALID_TASK_TYPES:
         raise ValueError(
             f"Invalid task_type '{task_type}', expected: {sorted(VALID_TASK_TYPES)}"
         )
@@ -121,13 +121,13 @@ def append_event(
         "phase": phase,
         "detail": detail,
     }
-    if agent:
+    if agent is not None:
         entry["agent"] = agent
-    if task_type:
+    if task_type is not None:
         entry["task_type"] = task_type
-    if status:
+    if status is not None:
         entry["status"] = status
-    if ref:
+    if ref is not None:
         entry["ref"] = ref
 
     target = log_path or _get_log_path()
@@ -173,12 +173,12 @@ def append_events_batch(events, log_path=None):
                 f"Batch entry #{idx}: invalid event '{event}', expected: {sorted(VALID_EVENTS)}"
             )
         status = item.get("status")
-        if status and status not in VALID_STATUSES:
+        if status is not None and status not in VALID_STATUSES:
             raise ValueError(
                 f"Batch entry #{idx}: invalid status '{status}', expected: {sorted(VALID_STATUSES)}"
             )
         task_type = item.get("task_type")
-        if task_type and task_type not in VALID_TASK_TYPES:
+        if task_type is not None and task_type not in VALID_TASK_TYPES:
             raise ValueError(
                 f"Batch entry #{idx}: invalid task_type '{task_type}', expected: {sorted(VALID_TASK_TYPES)}"
             )
@@ -190,7 +190,7 @@ def append_events_batch(events, log_path=None):
             "detail": detail,
         }
         for key in ("agent", "task_type", "status", "ref"):
-            if item.get(key):
+            if item.get(key) is not None:
                 entry[key] = item[key]
         validated.append(entry)
 

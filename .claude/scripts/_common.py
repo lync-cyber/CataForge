@@ -46,7 +46,14 @@ def find_project_root(start: Optional[str] = None) -> str:
             if parent == d:
                 break
             d = parent
-        return os.path.abspath(start)
+        import warnings
+        fallback = os.path.abspath(start)
+        warnings.warn(
+            f"find_project_root: 未找到包含 .claude/ 的项目根目录，"
+            f"回退到起始路径 {fallback}",
+            stacklevel=2,
+        )
+        return fallback
 
     # 默认: 从本文件位置向上 2 级
     d = os.path.dirname(os.path.abspath(__file__))
@@ -115,9 +122,6 @@ def load_dotenv(env_path: Optional[str] = None, set_env: bool = False) -> Dict[s
                 line = line.strip()
                 if not line or line.startswith("#"):
                     continue
-                # 去除行内注释 (仅当 # 前有空格时)
-                if " #" in line:
-                    line = line[: line.index(" #")].rstrip()
                 match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$", line)
                 if not match:
                     continue
@@ -126,6 +130,10 @@ def load_dotenv(env_path: Optional[str] = None, set_env: bool = False) -> Dict[s
                 # 去除引号
                 if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
                     val = val[1:-1]
+                else:
+                    # 去除行内注释 (仅对未加引号的值，避免破坏含 # 的引号内容)
+                    if " #" in val:
+                        val = val[: val.index(" #")].rstrip()
                 result[key] = val
                 if set_env and key not in os.environ:
                     os.environ[key] = val
