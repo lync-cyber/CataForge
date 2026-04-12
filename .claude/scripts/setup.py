@@ -166,7 +166,8 @@ def _is_uv_project(project_dir: str = ".") -> bool:
     """判断项目是否使用 uv 作为 Python 包管理器。
 
     统一判定逻辑，供 detect_python_pkg_manager / build_env_block / detect_active_stacks 复用。
-    优先级: uv.lock → pyproject.toml 中 [tool.uv] → uv 命令可用 + pyproject.toml。
+    优先级: uv.lock → pyproject.toml 中 [tool.uv]。
+    仅凭 uv 命令在 PATH 中不足以判定为 uv 项目（pip 项目也可能装有 uv）。
     """
     join = os.path.join
     if os.path.isfile(join(project_dir, "uv.lock")):
@@ -174,8 +175,6 @@ def _is_uv_project(project_dir: str = ".") -> bool:
     pyproject = join(project_dir, "pyproject.toml")
     if os.path.isfile(pyproject):
         if "[tool.uv]" in _safe_read(pyproject):
-            return True
-        if has_command("uv"):
             return True
     return False
 
@@ -434,16 +433,10 @@ def check_hooks_executable() -> bool:
 
     for hook_file in hook_files:
         hook_path = os.path.join(hooks_dir, hook_file)
-        # 将路径中的反斜杠转义，避免 Windows 路径破坏 Python 字符串
-        safe_path = hook_path.replace("\\", "/")
         try:
-            # 验证 Python 语法
+            # 验证 Python 语法 — 通过 -m py_compile 避免路径注入
             result = subprocess.run(
-                [
-                    sys.executable,
-                    "-c",
-                    f"import py_compile; py_compile.compile(r'{safe_path}', doraise=True)",
-                ],
+                [sys.executable, "-m", "py_compile", hook_path],
                 capture_output=True,
                 text=True,
                 timeout=10,

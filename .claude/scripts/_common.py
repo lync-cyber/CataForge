@@ -84,7 +84,7 @@ def ensure_utf8_stdio():
 # ============================================================================
 
 
-def load_dotenv(env_path: Optional[str] = None, override: bool = False) -> Dict[str, str]:
+def load_dotenv(env_path: Optional[str] = None, set_env: bool = False, **kwargs) -> Dict[str, str]:
     """解析 .env 文件，返回键值对字典。
 
     支持格式:
@@ -96,11 +96,17 @@ def load_dotenv(env_path: Optional[str] = None, override: bool = False) -> Dict[
 
     Args:
         env_path: .env 文件路径。默认为项目根下的 .env。
-        override: 为 True 时同时写入 os.environ（仅写入尚未设置的变量）。
+        set_env: 为 True 时同时写入 os.environ（仅写入尚未设置的变量，
+                 不会覆盖已有环境变量）。
 
     Returns:
         解析出的键值对字典。
     """
+    # 向后兼容: 支持旧参数名 override
+    if "override" in kwargs:
+        set_env = kwargs.pop("override")
+    if kwargs:
+        raise TypeError(f"load_dotenv() got unexpected keyword arguments: {list(kwargs)}")
     if env_path is None:
         env_path = os.path.join(find_project_root(), ".env")
 
@@ -126,7 +132,7 @@ def load_dotenv(env_path: Optional[str] = None, override: bool = False) -> Dict[
                 if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
                     val = val[1:-1]
                 result[key] = val
-                if override and key not in os.environ:
+                if set_env and key not in os.environ:
                     os.environ[key] = val
     except OSError:
         pass
@@ -263,6 +269,8 @@ def run_cmd(
         cmd,
         capture_output=capture,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
         check=check,
         cwd=cwd,
@@ -275,12 +283,42 @@ def run_cmd(
 
 
 def is_port_listening(port: int) -> bool:
-    """检测本地端口是否有进程监听。跨平台支持。"""
+    """检测本地端口是否有进程监听。跨平台支持。
+
+    Windows 上 settimeout + connect_ex 会返回 WSAEWOULDBLOCK (10035)
+    而非阻塞等待，因此改用 connect() + 异常捕获。
+    """
     import socket
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(1)
-        return s.connect_ex(("127.0.0.1", port)) == 0
+        s.settimeout(0.5)
+        try:
+            s.connect(("127.0.0.1", port))
+            return True
+        except (ConnectionRefusedError, TimeoutError, OSError):
+            return False
+
+
+def find_available_port(preferred: int, name: str = "", max_tries: int = 20) -> int:
+    """返回可用端口。优先使用 preferred，被占用则向上递增查找。
+
+    Args:
+        preferred: 首选端口号。
+        name: 端口用途描述 (用于输出)。
+        max_tries: 最大尝试次数。
+
+    Returns:
+        可用端口号。
+    """
+    for offset in range(max_tries):
+        port = preferred + offset
+        if not is_port_listening(port):
+            if offset > 0:
+                label = f" ({name})" if name else ""
+                warn(f"端口 {preferred}{label} 已被占用，自动切换到 {port}")
+            return port
+    # 所有端口都被占用，返回首选端口 (后续部署会报错)
+    return preferred
 
 
 def check_port_available(port: int, name: str = "") -> bool:

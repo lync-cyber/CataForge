@@ -52,6 +52,7 @@ from _common import (
     detect_platform,
     ensure_utf8_stdio,
     fail,
+    find_available_port,
     find_project_root,
     get_command_version,
     has_command,
@@ -77,11 +78,13 @@ DEFAULT_PLUGIN_PORT = 4400
 
 # 健康检查超时 (秒)
 HEALTH_TIMEOUT = 60
-MCP_HEALTH_TIMEOUT = 30
+MCP_HEALTH_TIMEOUT = 120  # 首次启动需下载 pnpm 依赖，30s 不够
 
-# PID 文件
-MCP_PID_FILE = "/tmp/penpot-mcp-server.pid"
-MCP_LOG_FILE = "/tmp/penpot-mcp-server.log"
+# PID 文件 (跨平台临时目录)
+import tempfile as _tempfile
+_TMPDIR = _tempfile.gettempdir()
+MCP_PID_FILE = os.path.join(_TMPDIR, "penpot-mcp-server.pid")
+MCP_LOG_FILE = os.path.join(_TMPDIR, "penpot-mcp-server.log")
 
 # Docker Compose 模板 (Penpot 官方推荐配置)
 DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
@@ -205,30 +208,197 @@ def _get_config():
 def _docker_compose_cmd() -> list:
     """返回可用的 docker compose 命令前缀。"""
     # 优先 docker compose (V2 plugin)
-    result = subprocess.run(
-        ["docker", "compose", "version"],
-        capture_output=True, text=True, timeout=10,
-    )
-    if result.returncode == 0:
-        return ["docker", "compose"]
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            return ["docker", "compose"]
+    except (FileNotFoundError, OSError):
+        pass
     # 回退到 docker-compose (standalone)
     if has_command("docker-compose"):
         return ["docker-compose"]
     return []
 
 
-def _generate_compose_file(config: dict) -> str:
-    """生成 docker-compose.yml 路径，如文件不存在则创建。"""
+def _find_docker_desktop_exe() -> Optional[str]:
+    """查找 Windows 上 Docker Desktop 的可执行文件路径。"""
+    candidates = [
+        r"C:\Program Files\Docker\Docker\Docker Desktop.exe",
+        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"),
+                     "Docker", "Docker", "Docker Desktop.exe"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""),
+                     "Docker", "Docker Desktop.exe"),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _start_docker_desktop() -> bool:
+    """尝试启动 Docker Desktop (Windows)，最多等待 90s 直到 daemon 就绪。"""
+    exe = _find_docker_desktop_exe()
+    if not exe:
+        return False
+
+    info(f"启动 Docker Desktop: {exe}")
+    subprocess.Popen(
+        [exe],
+        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+        close_fds=True,
+    )
+
+    info("等待 Docker daemon 就绪 (最多 90s)...")
+    for i in range(90):
+        result = subprocess.run(
+            ["docker", "info"], capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            ok(f"Docker daemon 已就绪 (等待了 {i + 1}s)")
+            return True
+        time.sleep(1)
+        if (i + 1) % 15 == 0:
+            info(f"  已等待 {i + 1}s...")
+
+    return False
+
+
+def _install_docker_windows() -> bool:
+    """通过 winget 安装 Docker Desktop (需管理员权限)。"""
+    if not has_command("winget"):
+        fail("winget 未找到，无法自动安装 Docker Desktop")
+        info("请手动下载安装: https://docs.docker.com/desktop/install/windows-install/")
+        return False
+
+    info("通过 winget 安装 Docker Desktop (需要管理员权限)...")
+    result = subprocess.run(
+        ["winget", "install", "--id", "Docker.DockerDesktop",
+         "--accept-package-agreements", "--accept-source-agreements"],
+        timeout=600,
+    )
+    if result.returncode != 0:
+        fail(f"winget 安装失败 (exit={result.returncode})")
+        info("请手动下载安装: https://docs.docker.com/desktop/install/windows-install/")
+        return False
+
+    ok("Docker Desktop 安装完成")
+    return True
+
+
+def _ensure_docker_running() -> bool:
+    """确保 Docker daemon 在运行，必要时自动启动或安装 Docker Desktop。"""
+    # 先检查 daemon 是否已运行
+    result = subprocess.run(
+        ["docker", "info"], capture_output=True, text=True, timeout=15
+    )
+    if result.returncode == 0:
+        ok("Docker daemon 运行中")
+        return True
+
+    if PLATFORM == "windows":
+        # 尝试启动已安装的 Docker Desktop
+        if _find_docker_desktop_exe():
+            warn("Docker daemon 未运行，尝试自动启动 Docker Desktop...")
+            if _start_docker_desktop():
+                return True
+            fail("Docker Desktop 启动超时，请手动启动后重试")
+            return False
+        else:
+            # Docker 未安装，尝试通过 winget 安装
+            warn("Docker Desktop 未安装，尝试通过 winget 自动安装...")
+            if not _install_docker_windows():
+                return False
+            # 安装后启动
+            if _find_docker_desktop_exe() and _start_docker_desktop():
+                return True
+            fail("安装后仍无法启动 Docker daemon，请手动启动 Docker Desktop")
+            return False
+
+    elif PLATFORM == "macos":
+        warn("Docker daemon 未运行，尝试启动 Docker Desktop...")
+        subprocess.Popen(["open", "-a", "Docker"])
+        info("等待 Docker daemon 就绪 (最多 90s)...")
+        for i in range(90):
+            result = subprocess.run(
+                ["docker", "info"], capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                ok(f"Docker daemon 已就绪 (等待了 {i + 1}s)")
+                return True
+            time.sleep(1)
+            if (i + 1) % 15 == 0:
+                info(f"  已等待 {i + 1}s...")
+        fail("Docker Desktop 启动超时，请手动启动后重试")
+        return False
+
+    else:
+        # Linux: 尝试通过 systemctl 或 service 启动
+        warn("Docker daemon 未运行，尝试通过 systemctl 启动...")
+        started = False
+        if has_command("systemctl"):
+            r = subprocess.run(
+                ["sudo", "systemctl", "start", "docker"],
+                capture_output=True, timeout=30,
+            )
+            started = r.returncode == 0
+        if not started and has_command("service"):
+            r = subprocess.run(
+                ["sudo", "service", "docker", "start"],
+                capture_output=True, timeout=30,
+            )
+            started = r.returncode == 0
+        if not started:
+            fail("无法自动启动 Docker daemon。请运行: sudo systemctl start docker")
+            return False
+        # 验证
+        for _ in range(15):
+            result = subprocess.run(
+                ["docker", "info"], capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                ok("Docker daemon 已就绪")
+                return True
+            time.sleep(1)
+        fail("Docker daemon 启动后未就绪，请检查: sudo systemctl status docker")
+        return False
+
+
+def _extract_secret_key(compose_file: str) -> Optional[str]:
+    """从已有 compose 文件中提取 PENPOT_SECRET_KEY。"""
+    try:
+        with open(compose_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if "PENPOT_SECRET_KEY=" in line:
+                    return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return None
+
+
+def _generate_compose_file(config: dict, force: bool = False) -> str:
+    """生成 docker-compose.yml，端口变更时自动重新生成。
+
+    Args:
+        config: 部署配置 (含端口号)。
+        force: 为 True 时强制重新生成 (端口变更场景)。
+    """
     compose_dir = config["penpot_dir"]
     os.makedirs(compose_dir, exist_ok=True)
     compose_file = os.path.join(compose_dir, "docker-compose.yml")
 
-    if os.path.isfile(compose_file):
+    if os.path.isfile(compose_file) and not force:
         info(f"docker-compose.yml 已存在: {compose_file}")
         return compose_file
 
-    # 生成 PENPOT_SECRET_KEY
-    secret_key = secrets.token_hex(32)
+    # 复用已有 secret key，避免重新生成导致 backend 认证失败
+    secret_key = (
+        _extract_secret_key(compose_file)
+        if os.path.isfile(compose_file)
+        else None
+    ) or secrets.token_hex(32)
 
     content = DOCKER_COMPOSE_TEMPLATE.format(
         penpot_port=config["penpot_port"],
@@ -239,54 +409,139 @@ def _generate_compose_file(config: dict) -> str:
     with open(compose_file, "w", encoding="utf-8") as f:
         f.write(content)
 
-    ok(f"已生成 docker-compose.yml: {compose_file}")
-    info(f"PENPOT_SECRET_KEY 已自动生成 (存储于 compose 文件中)")
+    label = "已重新生成" if force else "已生成"
+    ok(f"{label} docker-compose.yml: {compose_file}")
+    if not force:
+        info(f"PENPOT_SECRET_KEY 已自动生成 (存储于 compose 文件中)")
     return compose_file
 
 
+def _is_penpot_container_running() -> bool:
+    """通过 Docker 检查 Penpot 容器是否在运行。"""
+    try:
+        r = subprocess.run(
+            ["docker", "ps", "--filter", "name=penpot", "--format", "{{.Names}}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return bool(r.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False
+
+
 def _is_penpot_running(config: dict) -> bool:
-    """检查 Penpot 前端是否可访问。"""
-    return is_port_listening(config["penpot_port"])
+    """检查 Penpot 是否在运行 (Docker 容器 + 端口双重验证)。"""
+    return _is_penpot_container_running() and is_port_listening(config["penpot_port"])
+
+
+# ============================================================================
+# 统一依赖预检
+# ============================================================================
+
+
+def preflight_check(scope: str = "all") -> bool:
+    """统一检查并安装所有外部依赖。
+
+    Args:
+        scope: "all" = Docker + Node.js 全量检查 (deploy/start)
+               "mcp" = 仅 Node.js 相关 (mcp-only)
+
+    Returns:
+        True 全部依赖就绪，False 存在不可恢复缺失。
+    """
+    section("依赖预检")
+    passed = True
+
+    # --- Docker 系列 (仅 scope=all) ---
+    if scope == "all":
+        if not has_command("docker"):
+            fail("Docker 未安装。请安装: https://docs.docker.com/get-docker/")
+            passed = False
+        else:
+            docker_ver = get_command_version(["docker", "--version"])
+            ok(f"Docker {DIM}({docker_ver}){NC}")
+
+        dc_cmd = _docker_compose_cmd()
+        if not dc_cmd:
+            fail("Docker Compose 未安装。请安装 Docker Desktop 或 docker-compose-plugin。")
+            passed = False
+        else:
+            dc_ver = get_command_version(dc_cmd + ["version"])
+            ok(f"Docker Compose {DIM}({dc_ver}){NC}")
+
+    # --- Node.js 系列 ---
+    if not has_command("node"):
+        fail("Node.js 未安装。请安装: https://nodejs.org (v18+)")
+        passed = False
+    else:
+        node_ver = get_command_version(["node", "--version"])
+        ok(f"Node.js {DIM}({node_ver}){NC}")
+
+    if not has_command("npx"):
+        fail("npx 未找到，请确保 Node.js 安装正确")
+        passed = False
+    else:
+        ok("npx")
+
+    # --- corepack (@penpot/mcp 的 pnpm 通过 corepack 调用) ---
+    if not has_command("corepack"):
+        info("安装 corepack (pnpm 包管理器依赖)...")
+        # Windows 上 npm 是 .cmd 脚本，需通过 shell 执行
+        r = subprocess.run(
+            "npm install -g corepack", shell=True,
+            capture_output=True, text=True, timeout=60,
+        )
+        if r.returncode != 0:
+            fail("corepack 安装失败，请手动执行: npm install -g corepack")
+            passed = False
+        else:
+            ok("corepack 已安装")
+    else:
+        # Windows 上 corepack 是 .cmd 脚本，get_command_version 不走 shell 会失败
+        try:
+            cp_ver = subprocess.run(
+                "corepack --version", shell=True,
+                capture_output=True, text=True, timeout=10,
+            ).stdout.strip()
+        except (subprocess.TimeoutExpired, OSError):
+            cp_ver = ""
+        ok(f"corepack {DIM}({cp_ver}){NC}")
+
+    # 确保 corepack 已启用 (使 pnpm 可通过 corepack 调用)
+    # Windows 上 corepack 是 .cmd 脚本，需通过 shell 执行
+    if has_command("corepack"):
+        subprocess.run(
+            "corepack enable", shell=True,
+            capture_output=True, timeout=30,
+        )
+
+    if not passed:
+        fail("依赖预检未通过，请先安装缺失的依赖")
+    return passed
 
 
 def deploy_penpot(config: dict) -> bool:
-    """通过 Docker Compose 部署 Penpot。"""
+    """通过 Docker Compose 部署 Penpot。依赖已由 preflight_check 确认。"""
     section("部署 Penpot (Docker Compose)")
 
-    # 检查 Docker
-    if not has_command("docker"):
-        fail("Docker 未安装。请安装: https://docs.docker.com/get-docker/")
+    # 确保 Docker daemon 运行（自动启动或安装）
+    if not _ensure_docker_running():
         return False
 
-    docker_ver = get_command_version(["docker", "--version"])
-    ok(f"Docker {DIM}({docker_ver}){NC}")
+    # 检查 Penpot 是否已在运行 (Docker 容器 + 端口双重验证)
+    if _is_penpot_running(config):
+        ok(f"Penpot 已在运行，跳过部署")
+        return True
 
-    # 检查 Docker Compose
+    # 端口可用性检测，冲突时自动切换
+    orig_port = config["penpot_port"]
+    config["penpot_port"] = find_available_port(orig_port, "Penpot Frontend")
+    port_changed = config["penpot_port"] != orig_port
+
+    # 获取 Docker Compose 命令 (已由 preflight_check 确认可用)
     dc_cmd = _docker_compose_cmd()
-    if not dc_cmd:
-        fail("Docker Compose 未安装。请安装 Docker Desktop 或 docker-compose-plugin。")
-        return False
-    dc_ver = get_command_version(dc_cmd + ["version"])
-    ok(f"Docker Compose {DIM}({dc_ver}){NC}")
 
-    # 检查 Docker daemon
-    result = subprocess.run(
-        ["docker", "info"], capture_output=True, text=True, timeout=15
-    )
-    if result.returncode != 0:
-        fail("Docker daemon 未运行。请启动 Docker Desktop 或 dockerd。")
-        return False
-    ok("Docker daemon 运行中")
-
-    # 检查端口
-    if not check_port_available(config["penpot_port"], "Penpot Frontend"):
-        if _is_penpot_running(config):
-            info(f"Penpot 已在端口 {config['penpot_port']} 运行，跳过部署")
-            return True
-        warn(f"端口 {config['penpot_port']} 被其他服务占用，部署可能失败")
-
-    # 生成 compose 文件
-    compose_file = _generate_compose_file(config)
+    # 生成 compose 文件 (端口变更时强制重新生成)
+    compose_file = _generate_compose_file(config, force=port_changed)
     compose_dir = os.path.dirname(compose_file)
 
     # 拉取镜像
@@ -326,7 +581,7 @@ def deploy_penpot(config: dict) -> bool:
 
 
 # ============================================================================
-# MCP Server 管理 (npx @penpot/mcp@stable)
+# MCP Server 管理 (npx @penpot/mcp@latest)
 # ============================================================================
 
 
@@ -356,8 +611,21 @@ def _remove_mcp_pid():
 
 
 def _is_mcp_running(config: dict) -> bool:
-    """检查 MCP Server 是否在运行。"""
-    return is_port_listening(config["mcp_port"])
+    """检查 MCP Server 是否在运行 (HTTP 探测)。"""
+    import urllib.request
+    import urllib.error
+    try:
+        req = urllib.request.Request(
+            f"http://localhost:{config['mcp_port']}/mcp",
+            method="GET",
+        )
+        urllib.request.urlopen(req, timeout=2)
+        return True
+    except urllib.error.HTTPError:
+        # 任何 HTTP 响应 (如 405/406) 说明服务已启动
+        return True
+    except (urllib.error.URLError, OSError, TimeoutError):
+        return False
 
 
 def _is_process_alive(pid: int) -> bool:
@@ -376,29 +644,44 @@ def _is_process_alive(pid: int) -> bool:
         return False
 
 
+def _print_mcp_log_tail(max_lines: int = 10):
+    """读取并打印 MCP 日志末尾，自动检测编码。"""
+    if not os.path.isfile(MCP_LOG_FILE):
+        return
+    try:
+        raw = open(MCP_LOG_FILE, "rb").read()
+        if not raw:
+            return
+        # 尝试 UTF-8，退回系统编码 (Windows 常为 GBK)，最终用 replace
+        import locale
+        for enc in ("utf-8", locale.getpreferredencoding(False), "latin-1"):
+            try:
+                text = raw.decode(enc)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+        else:
+            text = raw.decode("latin-1")
+        lines = text.strip().splitlines()[-max_lines:]
+        info(f"日志末尾 ({MCP_LOG_FILE}):")
+        for line in lines:
+            print(f"    {line}")
+    except OSError:
+        info(f"查看日志: {MCP_LOG_FILE}")
+
+
 def start_mcp(config: dict) -> bool:
-    """启动 MCP Server (via npx @penpot/mcp@stable)。"""
+    """启动 MCP Server (via npx @penpot/mcp@latest)。依赖已由 preflight_check 确认。"""
     section("启动 MCP Server")
 
-    # 检查 Node.js
-    if not has_command("node"):
-        fail("Node.js 未安装。请安装: https://nodejs.org (v18+)")
-        return False
-    node_ver = get_command_version(["node", "--version"])
-    ok(f"Node.js {DIM}({node_ver}){NC}")
-
-    # 检查 npx
-    if not has_command("npx"):
-        fail("npx 未找到，请确保 Node.js 安装正确")
-        return False
-
-    # 检查端口
+    # 检查 MCP 是否已运行
     if _is_mcp_running(config):
         ok(f"MCP Server 已在端口 {config['mcp_port']} 运行")
         return True
 
-    if not check_port_available(config["mcp_port"], "MCP Server"):
-        return False
+    # 端口可用性检测，冲突时自动切换
+    config["mcp_port"] = find_available_port(config["mcp_port"], "MCP Server")
+    config["plugin_port"] = find_available_port(config["plugin_port"], "Plugin Server")
 
     # 构建环境变量
     env = os.environ.copy()
@@ -407,18 +690,21 @@ def start_mcp(config: dict) -> bool:
     env["PENPOT_BASE_URL"] = f"http://localhost:{config['penpot_port']}"
 
     # 通过 npx 启动 (官方推荐的一行式启动)
-    info("通过 npx @penpot/mcp@stable 启动 MCP Server...")
-    cmd = ["npx", "@penpot/mcp@stable"]
+    info("通过 npx @penpot/mcp@latest 启动 MCP Server...")
+    cmd = ["npx", "--yes", "@penpot/mcp@latest"]
 
-    log_fh = open(MCP_LOG_FILE, "w", encoding="utf-8")
+    # 二进制模式写入日志: subprocess 在 Windows 上输出系统编码 (GBK/CP936)，
+    # 用 "wb" 保留原始字节，读取时再自动检测编码，避免乱码
+    log_fh = open(MCP_LOG_FILE, "wb")
 
     if PLATFORM == "windows":
-        # Windows: 使用 CREATE_NEW_PROCESS_GROUP 使子进程独立
+        # Windows: npx 是 .cmd 脚本，必须通过 shell=True 执行
         proc = subprocess.Popen(
             cmd,
             stdout=log_fh,
             stderr=subprocess.STDOUT,
             env=env,
+            shell=True,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
     else:
@@ -434,7 +720,12 @@ def start_mcp(config: dict) -> bool:
     _write_mcp_pid(proc.pid)
     info(f"MCP Server PID: {proc.pid}, 日志: {MCP_LOG_FILE}")
 
-    # 等待就绪
+    # 子进程已接管 log_fh 文件描述符，父进程应关闭自己的句柄
+    # 避免 Windows 上文件锁定导致后续日志读取失败
+    log_fh.close()
+
+    # 等待就绪 (首次启动需下载 pnpm 依赖，可能耗时较长)
+    info(f"等待 MCP Server 就绪 (最多 {MCP_HEALTH_TIMEOUT}s)...")
     for i in range(MCP_HEALTH_TIMEOUT):
         if _is_mcp_running(config):
             ok(f"MCP Server 就绪 {DIM}-> http://localhost:{config['mcp_port']}/mcp{NC}")
@@ -442,14 +733,15 @@ def start_mcp(config: dict) -> bool:
         # 检查进程是否已退出
         if proc.poll() is not None:
             fail(f"MCP Server 进程已退出 (exit={proc.returncode})")
-            info(f"查看日志: {MCP_LOG_FILE}")
+            _print_mcp_log_tail()
             _remove_mcp_pid()
-            log_fh.close()
             return False
         time.sleep(1)
+        if (i + 1) % 15 == 0:
+            info(f"  已等待 {i + 1}s...")
 
     warn(f"MCP Server 在 {MCP_HEALTH_TIMEOUT}s 内未就绪")
-    info(f"查看日志: {MCP_LOG_FILE}")
+    _print_mcp_log_tail()
     return True  # 不阻断，可能启动较慢
 
 
@@ -462,8 +754,9 @@ def stop_mcp(config: dict) -> bool:
         info(f"停止 MCP Server (PID: {pid})...")
         try:
             if PLATFORM == "windows":
+                # /T 终止进程树（含 shell=True 产生的 cmd.exe 子进程）
                 subprocess.run(
-                    ["taskkill", "/F", "/PID", str(pid)],
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
                     capture_output=True, timeout=10,
                 )
             else:
@@ -511,7 +804,7 @@ def register_claude_mcp(config: dict):
 
     # 检查是否已注册
     result = run_cmd(["claude", "mcp", "list"], timeout=10)
-    if result.returncode == 0 and "penpot" in result.stdout.lower():
+    if result.returncode == 0 and result.stdout and "penpot" in result.stdout.lower():
         ok("Claude Code 已注册 penpot MCP")
         return
 
@@ -535,8 +828,12 @@ def cmd_deploy(config: dict):
     print(f"\n{CYAN}{BOLD}  Penpot 完整部署 (Docker + MCP){NC}")
     print(f"  {'=' * 44}")
     print(f"  {DIM}Penpot: Docker Compose -> localhost:{config['penpot_port']}{NC}")
-    print(f"  {DIM}MCP:    npx @penpot/mcp@stable -> localhost:{config['mcp_port']}{NC}")
+    print(f"  {DIM}MCP:    npx @penpot/mcp@latest -> localhost:{config['mcp_port']}{NC}")
     print()
+
+    # Step 0: 统一依赖预检
+    if not preflight_check("all"):
+        return 1
 
     # Step 1: 部署 Penpot
     if not deploy_penpot(config):
@@ -560,6 +857,10 @@ def cmd_mcp_only(config: dict):
     print(f"\n{CYAN}{BOLD}  Penpot MCP Server 部署{NC}")
     print(f"  {'=' * 44}\n")
 
+    # 统一依赖预检 (仅 Node.js 相关)
+    if not preflight_check("mcp"):
+        return 1
+
     # 检查 Penpot 是否在运行
     if not _is_penpot_running(config):
         warn(f"Penpot 未在端口 {config['penpot_port']} 运行")
@@ -578,21 +879,28 @@ def cmd_start(config: dict):
     """启动已部署的服务。"""
     print(f"\n{CYAN}{BOLD}  启动 Penpot 服务{NC}\n")
 
+    # 统一依赖预检
+    if not preflight_check("all"):
+        return 1
+
     # 启动 Docker Compose
     compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
     if os.path.isfile(compose_file):
         dc_cmd = _docker_compose_cmd()
         if dc_cmd:
             section("启动 Penpot (Docker)")
-            result = subprocess.run(
-                dc_cmd + ["-f", compose_file, "up", "-d"],
-                cwd=config["penpot_dir"],
-                timeout=120,
-            )
-            if result.returncode == 0:
-                ok("Penpot Docker 服务已启动")
+            if not _ensure_docker_running():
+                fail("Docker daemon 未就绪，跳过 Penpot 启动")
             else:
-                fail("Penpot Docker 启动失败")
+                result = subprocess.run(
+                    dc_cmd + ["-f", compose_file, "up", "-d"],
+                    cwd=config["penpot_dir"],
+                    timeout=120,
+                )
+                if result.returncode == 0:
+                    ok("Penpot Docker 服务已启动")
+                else:
+                    fail("Penpot Docker 启动失败")
     else:
         info("未找到 Penpot Docker 部署，跳过")
 
@@ -697,6 +1005,10 @@ def cmd_ensure(config: dict):
     # Penpot 和 MCP 都未运行，尝试启动
     compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
     if os.path.isfile(compose_file):
+        # 确保 Docker daemon 在运行
+        if has_command("docker") and not _ensure_docker_running():
+            fail("Docker daemon 无法启动，请手动启动 Docker Desktop")
+            return 1
         dc_cmd = _docker_compose_cmd()
         if dc_cmd and not _is_penpot_running(config):
             subprocess.run(

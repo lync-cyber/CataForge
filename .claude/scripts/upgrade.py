@@ -39,8 +39,6 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import ensure_utf8_stdio, load_dotenv
 
-ensure_utf8_stdio()
-
 FRAMEWORK_DIRS = ["agents", "skills", "rules", "hooks", "scripts", "schemas"]
 VERSION_FILE = "pyproject.toml"
 
@@ -1457,6 +1455,7 @@ def cmd_verify(args):
 
 
 def main():
+    ensure_utf8_stdio()
     # 优先从 .env 文件加载配置（代理、GITHUB_TOKEN 等）
     _load_dotenv()
 
