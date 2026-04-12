@@ -29,6 +29,7 @@ Plan A 架构: Docker Compose 部署 Penpot 本体 + npx 启动 MCP Server。
 
 import argparse
 import json
+import locale
 import os
 import secrets
 import signal
@@ -36,6 +37,8 @@ import subprocess
 import sys
 import textwrap
 import time
+import urllib.error
+import urllib.request
 from typing import Optional
 
 # 确保同目录的 _common 可导入
@@ -740,8 +743,6 @@ def _remove_mcp_pid():
 
 def _is_mcp_running(config: dict) -> bool:
     """检查 MCP Server 是否在运行 (HTTP 探测)。"""
-    import urllib.request
-    import urllib.error
     try:
         req = urllib.request.Request(
             f"http://localhost:{config['mcp_port']}/mcp",
@@ -782,7 +783,6 @@ def _print_mcp_log_tail(max_lines: int = 10):
         if not raw:
             return
         # 尝试 UTF-8，退回系统编码 (Windows 常为 GBK)，最终用 replace
-        import locale
         for enc in ("utf-8", locale.getpreferredencoding(False), "latin-1"):
             try:
                 text = raw.decode(enc)

@@ -27,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import warnings
 from datetime import datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener, urlopen
@@ -63,7 +64,6 @@ def parse_semver(ver_str: str) -> tuple:
     ver_str = ver_str.strip()
     match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)", ver_str)
     if not match:
-        import warnings
         warnings.warn(f"parse_semver: 无法解析版本号 '{ver_str}'，回退到 (0,0,0)")
         return (0, 0, 0)
     return (int(match.group(1)), int(match.group(2)), int(match.group(3)))

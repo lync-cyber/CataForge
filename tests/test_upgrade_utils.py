@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import warnings
 
 import pytest
 
@@ -36,10 +37,12 @@ class TestParseSemver:
         assert parse_semver("99.88.77") == (99, 88, 77)
 
     def test_invalid(self):
-        assert parse_semver("not-a-version") == (0, 0, 0)
+        with pytest.warns(UserWarning, match="无法解析版本号"):
+            assert parse_semver("not-a-version") == (0, 0, 0)
 
     def test_empty(self):
-        assert parse_semver("") == (0, 0, 0)
+        with pytest.warns(UserWarning, match="无法解析版本号"):
+            assert parse_semver("") == (0, 0, 0)
 
     def test_whitespace(self):
         assert parse_semver("  1.2.3  ") == (1, 2, 3)

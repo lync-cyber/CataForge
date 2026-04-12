@@ -12,6 +12,7 @@
 """
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -143,8 +144,7 @@ def load_env_proxy():
         if key in proxy_keys and key not in os.environ:
             os.environ[key] = value
             # 掩码凭据: http://user:pass@host -> http://***@host
-            import re as _re
-            masked = _re.sub(r"://[^@]+@", "://***@", value) if "@" in value else value
+            masked = re.sub(r"://[^@]+@", "://***@", value) if "@" in value else value
             info(f"从 .env 加载代理: {key}={masked}")
 
 
@@ -560,15 +560,11 @@ def main():
 
     # --emit-permissions: 输出最小 allow 列表（供 orchestrator 或用户审查）
     if args.emit_permissions:
-        import json as _json
-
-        print(_json.dumps(build_minimal_allow_list("."), ensure_ascii=False, indent=2))
+        print(json.dumps(build_minimal_allow_list("."), ensure_ascii=False, indent=2))
         sys.exit(0)
 
     # --apply-permissions: 实际写入 settings.json
     if args.apply_permissions:
-        import json as _json
-
         settings_path = os.path.join(".claude", "settings.json")
         if not os.path.exists(settings_path):
             fail(f"{settings_path} 不存在")
@@ -577,17 +573,17 @@ def main():
             content = f.read()
         # 容忍尾随逗号: 先尝试原样解析，失败后再清理
         try:
-            settings = _json.loads(content)
-        except _json.JSONDecodeError:
+            settings = json.loads(content)
+        except json.JSONDecodeError:
             content = re.sub(r",\s*([}\]])", r"\1", content)
-            settings = _json.loads(content)
+            settings = json.loads(content)
         settings.setdefault("permissions", {})
         old_count = len(settings["permissions"].get("allow", []))
         new_allow = build_minimal_allow_list(".")
         settings["permissions"]["allow"] = new_allow
         # 保留原有 deny
         with open(settings_path, "w", encoding="utf-8") as f:
-            _json.dump(settings, f, ensure_ascii=False, indent=2)
+            json.dump(settings, f, ensure_ascii=False, indent=2)
             f.write("\n")
         ok(
             f"已写入最小 permissions.allow: {old_count} -> {len(new_allow)} 条 "

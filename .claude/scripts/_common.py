@@ -14,8 +14,10 @@ import io
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
+import warnings
 from typing import Dict, Optional
 
 
@@ -46,7 +48,6 @@ def find_project_root(start: Optional[str] = None) -> str:
             if parent == d:
                 break
             d = parent
-        import warnings
         fallback = os.path.abspath(start)
         warnings.warn(
             f"find_project_root: 未找到包含 .claude/ 的项目根目录，"
@@ -291,8 +292,6 @@ def is_port_listening(port: int) -> bool:
     Windows 上 settimeout + connect_ex 会返回 WSAEWOULDBLOCK (10035)
     而非阻塞等待，因此改用 connect() + 异常捕获。
     """
-    import socket
-
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.5)
         try:
