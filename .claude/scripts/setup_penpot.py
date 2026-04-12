@@ -1081,7 +1081,7 @@ def main():
     ensure_utf8_stdio()
 
     # 加载 .env
-    load_dotenv(override=True)
+    load_dotenv(set_env=True)
 
     parser = argparse.ArgumentParser(
         description="CataForge Penpot 完整部署工具",

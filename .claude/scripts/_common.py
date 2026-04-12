@@ -84,7 +84,7 @@ def ensure_utf8_stdio():
 # ============================================================================
 
 
-def load_dotenv(env_path: Optional[str] = None, set_env: bool = False, **kwargs) -> Dict[str, str]:
+def load_dotenv(env_path: Optional[str] = None, set_env: bool = False) -> Dict[str, str]:
     """解析 .env 文件，返回键值对字典。
 
     支持格式:
@@ -102,11 +102,6 @@ def load_dotenv(env_path: Optional[str] = None, set_env: bool = False, **kwargs)
     Returns:
         解析出的键值对字典。
     """
-    # 向后兼容: 支持旧参数名 override
-    if "override" in kwargs:
-        set_env = kwargs.pop("override")
-    if kwargs:
-        raise TypeError(f"load_dotenv() got unexpected keyword arguments: {list(kwargs)}")
     if env_path is None:
         env_path = os.path.join(find_project_root(), ".env")
 

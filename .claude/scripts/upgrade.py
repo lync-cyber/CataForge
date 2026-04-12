@@ -38,6 +38,7 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 # 共享工具
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import ensure_utf8_stdio, load_dotenv
+from phase_reader import read_current_phase
 
 FRAMEWORK_DIRS = ["agents", "skills", "rules", "hooks", "scripts", "schemas"]
 VERSION_FILE = "pyproject.toml"
@@ -449,11 +450,6 @@ def merge_claude_md(source_path: str, dry_run: bool = False) -> list:
 # ============================================================================
 
 
-def _load_dotenv():
-    """从 .env 文件加载配置到 os.environ。委托 _common.load_dotenv()。"""
-    load_dotenv()
-
-
 def load_upgrade_source() -> dict:
     """加载 .claude/upgrade-source.json 配置"""
     config_file = os.path.join(".claude", "upgrade-source.json")
@@ -464,7 +460,7 @@ def load_upgrade_source() -> dict:
 
 
 def get_github_token(token_env: str) -> str:
-    """从环境变量获取 GitHub token（.env 已由 _load_dotenv 预加载）"""
+    """从环境变量获取 GitHub token（.env 已由 load_dotenv(set_env=True) 预加载）"""
     if not token_env:
         return ""
     return os.environ.get(token_env, "")
@@ -848,17 +844,6 @@ def clone_and_upgrade(
 # ============================================================================
 
 
-def read_project_phase() -> str:
-    """从 CLAUDE.md 读取当前项目阶段"""
-    claude_md = "CLAUDE.md"
-    if not os.path.exists(claude_md):
-        return ""
-    with open(claude_md, "r", encoding="utf-8") as f:
-        content = f.read()
-    match = re.search(r"当前阶段:\s*(\S+)", content)
-    return match.group(1) if match else ""
-
-
 def load_compat_matrix() -> dict:
     """加载兼容性矩阵"""
     matrix_file = os.path.join(".claude", "compat-matrix.json")
@@ -1091,11 +1076,12 @@ def run_verify() -> int:
     print("=" * 60)
 
     current_version = read_version(".")
-    current_phase = read_project_phase()
+    current_phase = read_current_phase()
     has_issues = False
 
     print(f"\n框架版本: {current_version}")
-    print(f"项目阶段: {current_phase or '(未设置/新项目)'}")
+    display_phase = current_phase if current_phase != "unknown" else "(未设置/新项目)"
+    print(f"项目阶段: {display_phase}")
 
     # 功能适用性检查
     matrix = load_compat_matrix()
@@ -1457,7 +1443,7 @@ def cmd_verify(args):
 def main():
     ensure_utf8_stdio()
     # 优先从 .env 文件加载配置（代理、GITHUB_TOKEN 等）
-    _load_dotenv()
+    load_dotenv(set_env=True)
 
     parser = argparse.ArgumentParser(
         description="CataForge 统一升级工具",

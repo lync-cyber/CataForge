@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import ensure_utf8_stdio, find_project_root
 
 
+# 以下枚举需与 .claude/schemas/event-log.schema.json 保持同步
 VALID_EVENTS = {
     "session_start",
     "phase_start",

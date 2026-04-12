@@ -132,7 +132,11 @@ def check_env_file(check_only: bool = False) -> bool:
 
 
 def load_env_proxy():
-    """从 .env 文件加载代理配置到环境变量（如未设置）"""
+    """从 .env 文件加载代理配置到环境变量（如未设置）。
+
+    有意仅加载代理相关变量，而非全部 .env 变量，
+    避免 setup 阶段意外覆盖用户环境。
+    """
     env_vars = load_dotenv()
     proxy_keys = {"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
     for key, value in env_vars.items():
