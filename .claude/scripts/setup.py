@@ -18,72 +18,27 @@ import shutil
 import subprocess
 import sys
 
-# ============================================================================
-# 输出工具
-# ============================================================================
-
-# 检测终端是否支持 ANSI (Windows Terminal / Git Bash / Unix)
-_SUPPORTS_COLOR = (
-    (hasattr(sys.stdout, "isatty") and sys.stdout.isatty())
-    or os.environ.get("TERM")
-    or os.environ.get("WT_SESSION")
+# 共享工具
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import (
+    BOLD,
+    CYAN,
+    DIM,
+    GREEN,
+    NC,
+    RED,
+    YELLOW,
+    ensure_utf8_stdio,
+    fail,
+    get_command_version,
+    has_command,
+    info,
+    load_dotenv,
+    ok,
+    section,
+    skip,
+    warn,
 )
-
-if _SUPPORTS_COLOR:
-    GREEN = "\033[0;32m"
-    RED = "\033[0;31m"
-    YELLOW = "\033[1;33m"
-    BLUE = "\033[0;34m"
-    CYAN = "\033[0;36m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    NC = "\033[0m"
-else:
-    GREEN = RED = YELLOW = BLUE = CYAN = BOLD = DIM = NC = ""
-
-TICK = f"{GREEN}OK{NC}"
-CROSS = f"{RED}FAIL{NC}"
-WARN = f"{YELLOW}WARN{NC}"
-INFO = f"{BLUE}INFO{NC}"
-SKIP = f"{DIM}SKIP{NC}"
-
-
-def ok(msg: str):
-    print(f"  [{TICK}] {msg}")
-
-
-def fail(msg: str):
-    print(f"  [{CROSS}] {msg}")
-
-
-def warn(msg: str):
-    print(f"  [{WARN}] {msg}")
-
-
-def info(msg: str):
-    print(f"  [{INFO}] {msg}")
-
-
-def skip(msg: str):
-    print(f"  [{SKIP}] {msg}")
-
-
-def section(title: str):
-    print(f"\n{BOLD}--- {title} ---{NC}")
-
-
-def has_command(name: str) -> bool:
-    """检查命令是否在 PATH 中可用"""
-    return shutil.which(name) is not None
-
-
-def get_command_version(cmd: list) -> str:
-    """获取命令版本输出"""
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        return result.stdout.strip() or result.stderr.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return ""
 
 
 # ============================================================================
@@ -178,33 +133,12 @@ def check_env_file(check_only: bool = False) -> bool:
 
 def load_env_proxy():
     """从 .env 文件加载代理配置到环境变量（如未设置）"""
-    env_file = ".env"
-    if not os.path.exists(env_file):
-        return
-
-    with open(env_file, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            match = re.match(r"^([A-Z_]+)\s*=\s*(.+)$", line)
-            if match:
-                key, value = (
-                    match.group(1),
-                    match.group(2).strip().strip('"').strip("'"),
-                )
-                # 仅设置代理相关的环境变量
-                if key in (
-                    "HTTP_PROXY",
-                    "HTTPS_PROXY",
-                    "NO_PROXY",
-                    "http_proxy",
-                    "https_proxy",
-                    "no_proxy",
-                ):
-                    if key not in os.environ:
-                        os.environ[key] = value
-                        info(f"从 .env 加载代理: {key}={value}")
+    env_vars = load_dotenv()
+    proxy_keys = {"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
+    for key, value in env_vars.items():
+        if key in proxy_keys and key not in os.environ:
+            os.environ[key] = value
+            info(f"从 .env 加载代理: {key}={value}")
 
 
 def check_proxy_status():
@@ -220,39 +154,50 @@ def check_proxy_status():
         info("未配置网络代理 (受限网络环境可在 .env 中配置)")
 
 
-def detect_python_pkg_manager() -> str:
-    """检测 Python 项目的包管理器，返回 'uv' | 'pip'
+def _safe_read(path: str) -> str:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
 
-    优先级: uv.lock 存在 → uv; 否则检测 uv 命令可用性 + pyproject.toml 中
-    [tool.uv] 配置; 最后 fallback 到 pip。
+
+def _is_uv_project(project_dir: str = ".") -> bool:
+    """判断项目是否使用 uv 作为 Python 包管理器。
+
+    统一判定逻辑，供 detect_python_pkg_manager / build_env_block / detect_active_stacks 复用。
+    优先级: uv.lock → pyproject.toml 中 [tool.uv] → uv 命令可用 + pyproject.toml。
     """
-    # uv.lock 文件是 uv 项目的明确标志
-    if os.path.exists("uv.lock"):
-        return "uv"
-    # pyproject.toml 中含 [tool.uv] 配置
-    if os.path.exists("pyproject.toml"):
-        try:
-            with open("pyproject.toml", "r", encoding="utf-8") as f:
-                if "[tool.uv]" in f.read():
-                    return "uv"
-        except OSError:
-            pass
-    # uv 命令可用且有 pyproject.toml (现代 Python 项目)
-    if has_command("uv") and os.path.exists("pyproject.toml"):
-        return "uv"
-    return "pip"
+    join = os.path.join
+    if os.path.isfile(join(project_dir, "uv.lock")):
+        return True
+    pyproject = join(project_dir, "pyproject.toml")
+    if os.path.isfile(pyproject):
+        if "[tool.uv]" in _safe_read(pyproject):
+            return True
+        if has_command("uv"):
+            return True
+    return False
 
 
-def detect_node_pkg_manager() -> str:
+def detect_python_pkg_manager(project_dir: str = ".") -> str:
+    """检测 Python 项目的包管理器，返回 'uv' | 'pip'"""
+    return "uv" if _is_uv_project(project_dir) else "pip"
+
+
+def detect_node_pkg_manager(project_dir: str = ".") -> str:
     """检测 Node.js 项目的包管理器，返回 'npm' | 'yarn' | 'pnpm' | 'bun'
 
     优先级: lock 文件 → fallback npm。
     """
-    if os.path.exists("pnpm-lock.yaml"):
+    join = os.path.join
+    if os.path.exists(join(project_dir, "pnpm-lock.yaml")):
         return "pnpm"
-    if os.path.exists("yarn.lock"):
+    if os.path.exists(join(project_dir, "yarn.lock")):
         return "yarn"
-    if os.path.exists("bun.lockb") or os.path.exists("bun.lock"):
+    if os.path.exists(join(project_dir, "bun.lockb")) or os.path.exists(
+        join(project_dir, "bun.lock")
+    ):
         return "bun"
     return "npm"
 
@@ -273,33 +218,14 @@ def build_env_block(project_dir: str = ".") -> str:
     has_pyproject = exists(join(project_dir, "pyproject.toml"))
     has_requirements = exists(join(project_dir, "requirements.txt"))
     if has_pyproject or has_requirements:
-        pkg = "pip"
-        if exists(join(project_dir, "uv.lock")):
-            pkg = "uv"
-        elif has_pyproject:
-            try:
-                with open(join(project_dir, "pyproject.toml"), "r", encoding="utf-8") as f:
-                    if "[tool.uv]" in f.read():
-                        pkg = "uv"
-            except OSError:
-                pass
-        if pkg == "pip" and has_command("uv") and has_pyproject:
-            pkg = "uv"
+        pkg = detect_python_pkg_manager(project_dir)
         install = "uv sync" if pkg == "uv" else "pip install -e ."
         test = "uv run python -m pytest" if pkg == "uv" else "python -m pytest"
         lines.append(f"- Python: 包管理器={pkg} | install=`{install}` | test=`{test}`")
 
     # --- Node.js ---
     if exists(join(project_dir, "package.json")):
-        pkg = "npm"
-        if exists(join(project_dir, "pnpm-lock.yaml")):
-            pkg = "pnpm"
-        elif exists(join(project_dir, "yarn.lock")):
-            pkg = "yarn"
-        elif exists(join(project_dir, "bun.lockb")) or exists(
-            join(project_dir, "bun.lock")
-        ):
-            pkg = "bun"
+        pkg = detect_node_pkg_manager(project_dir)
         run_prefix = {"npm": "npx", "yarn": "yarn", "pnpm": "pnpm exec", "bun": "bunx"}[pkg]
         lines.append(
             f"- Node: 包管理器={pkg} | install=`{pkg} install` | run=`{run_prefix}`"
@@ -345,7 +271,7 @@ FRAMEWORK_CORE_PERMISSIONS = [
     "Bash(mkdir *)",
     "Bash(python .claude/skills/*/scripts/*.py*)",
     "Bash(python .claude/scripts/*.py*)",
-    "Bash(bash .claude/scripts/setup-penpot-mcp.sh --ensure)",
+    "Bash(python .claude/scripts/setup_penpot.py --ensure)",
 ]
 
 # 按技术栈 → 允许的 Bash 模式列表
@@ -409,29 +335,11 @@ def detect_active_stacks(project_dir: str = ".") -> list[str]:
     has_pyproject = exists(join(project_dir, "pyproject.toml"))
     has_requirements = exists(join(project_dir, "requirements.txt"))
     if has_pyproject or has_requirements:
-        if (
-            exists(join(project_dir, "uv.lock"))
-            or (
-                has_pyproject
-                and "[tool.uv]" in _safe_read(join(project_dir, "pyproject.toml"))
-            )
-            or (has_command("uv") and has_pyproject)
-        ):
-            stacks.append("python-uv")
-        else:
-            stacks.append("python-pip")
+        stacks.append("python-uv" if _is_uv_project(project_dir) else "python-pip")
 
     if exists(join(project_dir, "package.json")):
-        if exists(join(project_dir, "pnpm-lock.yaml")):
-            stacks.append("node-pnpm")
-        elif exists(join(project_dir, "yarn.lock")):
-            stacks.append("node-yarn")
-        elif exists(join(project_dir, "bun.lockb")) or exists(
-            join(project_dir, "bun.lock")
-        ):
-            stacks.append("node-bun")
-        else:
-            stacks.append("node-npm")
+        node_mgr = detect_node_pkg_manager(project_dir)
+        stacks.append(f"node-{node_mgr}")
 
     if exists(join(project_dir, "go.mod")):
         stacks.append("go")
@@ -443,14 +351,6 @@ def detect_active_stacks(project_dir: str = ".") -> list[str]:
         pass
 
     return stacks
-
-
-def _safe_read(path: str) -> str:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
-    except OSError:
-        return ""
 
 
 def build_minimal_allow_list(project_dir: str = ".") -> list[str]:
@@ -474,7 +374,7 @@ def check_project_dependencies() -> list:
 
     # Node.js 项目
     if os.path.exists("package.json"):
-        node_mgr = detect_node_pkg_manager()
+        node_mgr = detect_node_pkg_manager(".")
         ok(f"检测到 Node 包管理器: {node_mgr}")
         if os.path.exists("node_modules"):
             ok("package.json 存在，node_modules/ 已安装")
@@ -594,21 +494,18 @@ def check_framework_integrity() -> bool:
 
 
 def run_penpot_setup():
-    """调用 Penpot MCP 安装脚本"""
-    script = os.path.join(".claude", "scripts", "setup-penpot-mcp.sh")
+    """调用 Penpot 完整部署脚本 (setup_penpot.py)"""
+    script = os.path.join(".claude", "scripts", "setup_penpot.py")
     if not os.path.exists(script):
-        fail(f"Penpot 安装脚本不存在: {script}")
+        fail(f"Penpot 部署脚本不存在: {script}")
         return False
 
-    print(f"\n{BOLD}正在启动 Penpot MCP 安装...{NC}\n")
+    print(f"\n{BOLD}正在启动 Penpot 完整部署...{NC}\n")
     try:
-        result = subprocess.run(["bash", script], timeout=600)
+        result = subprocess.run([sys.executable, script, "deploy"], timeout=900)
         return result.returncode == 0
-    except FileNotFoundError:
-        fail("bash 不可用 — Penpot MCP 安装需要 bash 环境 (Git Bash / WSL / Unix)")
-        return False
     except subprocess.TimeoutExpired:
-        fail("Penpot MCP 安装超时 (10 分钟)")
+        fail("Penpot 部署超时 (15 分钟)")
         return False
 
 
@@ -617,22 +514,8 @@ def run_penpot_setup():
 # ============================================================================
 
 
-def _ensure_utf8_stdio():
-    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
-    import io
-
-    if sys.stdout.encoding != "utf-8":
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace"
-        )
-    if sys.stderr.encoding != "utf-8":
-        sys.stderr = io.TextIOWrapper(
-            sys.stderr.buffer, encoding="utf-8", errors="replace"
-        )
-
-
 def main():
-    _ensure_utf8_stdio()
+    ensure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="CataForge 初始化安装脚本",
         epilog=(

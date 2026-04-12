@@ -6,7 +6,7 @@
 
 *给 AI 一套工程方法论，而不是一个万能提示词*
 
-[![Version](https://img.shields.io/badge/version-0.7.0-5B8FF9.svg)](https://github.com/lync-cyber/CataForge/releases)
+[![Version](https://img.shields.io/badge/version-0.7.1-5B8FF9.svg)](https://github.com/lync-cyber/CataForge/releases)
 [![License](https://img.shields.io/badge/license-MIT-5AD8A6.svg)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-Claude_Code-9270CA.svg)](https://docs.anthropic.com/en/docs/claude-code)
 [![Language](https://img.shields.io/badge/原生-中文框架-E8684A.svg)](#中文原生核心差异化)
@@ -273,6 +273,7 @@ python .claude/scripts/upgrade.py verify
 
 ## Roadmap
 
+- [x] v0.7.1 — 脚本共享模块 `_common.py`、Penpot 部署 Python 重写、跨脚本去重
 - [x] v0.7.0 — 框架自升级、correction hook、migration 检查、提示词快照
 - [x] v0.6.x — agile-lite / agile-prototype 执行模式
 - [x] v0.5.x — Penpot MCP 设计工具集成
@@ -325,6 +326,13 @@ CataForge/
 │   ├── rules/                           # 共享规则（自动注入所有 Agent）
 │   ├── hooks/                           # Tool Hook（Python，跨平台）
 │   ├── scripts/                         # 框架工具脚本
+│   │   ├── _common.py                   #   共享工具模块（项目根检测、UTF-8、.env 解析、颜色输出）
+│   │   ├── setup.py                     #   环境检测与初始化
+│   │   ├── setup_penpot.py              #   Penpot 本地部署与 MCP 启动
+│   │   ├── upgrade.py                   #   框架升级（本地 / 远程）
+│   │   ├── event_logger.py              #   统一事件日志
+│   │   ├── load_section.py              #   文档章节按需加载
+│   │   └── phase_reader.py              #   项目阶段读取
 │   └── schemas/                         # JSON Schema
 ├── tests/                               # 质量门禁测试
 └── docs/                                # 项目文档（运行时生成）

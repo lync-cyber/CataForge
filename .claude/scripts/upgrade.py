@@ -35,11 +35,11 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 # 公共工具
 # ============================================================================
 
-# Ensure UTF-8 output on Windows
-if sys.stdout.encoding != "utf-8":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-if sys.stderr.encoding != "utf-8":
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+# 共享工具
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import ensure_utf8_stdio, load_dotenv
+
+ensure_utf8_stdio()
 
 FRAMEWORK_DIRS = ["agents", "skills", "rules", "hooks", "scripts", "schemas"]
 VERSION_FILE = "pyproject.toml"
@@ -452,27 +452,8 @@ def merge_claude_md(source_path: str, dry_run: bool = False) -> list:
 
 
 def _load_dotenv():
-    """从 .env 文件加载配置到 os.environ（.env 优先于系统环境变量）。
-
-    支持的变量: GITHUB_TOKEN, HTTP_PROXY, HTTPS_PROXY, NO_PROXY 及其小写形式。
-    仅在 .env 文件存在时执行，静默跳过解析失败的行。
-    """
-    env_file = ".env"
-    if not os.path.exists(env_file):
-        return
-
-    with open(env_file, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$", line)
-            if not match:
-                continue
-            key = match.group(1)
-            value = match.group(2).strip().strip('"').strip("'")
-            # .env 优先: 覆盖系统环境变量
-            os.environ[key] = value
+    """从 .env 文件加载配置到 os.environ。委托 _common.load_dotenv()。"""
+    load_dotenv()
 
 
 def load_upgrade_source() -> dict:

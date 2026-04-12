@@ -243,7 +243,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 - .claude/rules/ — COMMON-RULES.md, SUB-AGENT-PROTOCOLS.md
 - .claude/agents/orchestrator/ — ORCHESTRATOR-PROTOCOLS.md
 - .claude/hooks/ — 所有 Hook 脚本 (.py)
-- .claude/scripts/ — upgrade.py, setup.py, event_logger.py, load_section.py, phase_reader.py, setup-penpot-mcp.sh 等框架工具脚本
+- .claude/scripts/ — upgrade.py, setup.py, event_logger.py, load_section.py, phase_reader.py, setup_penpot.py, _common.py 等框架工具脚本
 - .claude/compat-matrix.json
 - pyproject.toml
 

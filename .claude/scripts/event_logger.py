@@ -28,6 +28,10 @@ import os
 import sys
 from datetime import datetime, timezone
 
+# 共享工具
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import ensure_utf8_stdio, find_project_root
+
 
 VALID_EVENTS = {
     "session_start",
@@ -66,24 +70,12 @@ VALID_TASK_TYPES = {
 }
 
 
-def _find_project_root():
-    """Locate project root by traversing up from this script's location."""
-    d = os.path.dirname(os.path.abspath(__file__))
-    # scripts/ -> .claude/ -> project root (2 levels up)
-    for _ in range(2):
-        parent = os.path.dirname(d)
-        if parent == d:
-            break
-        d = parent
-    return d
-
-
 def _get_log_path():
     """Return the event log file path, respecting CATAFORGE_EVENT_LOG env var."""
     env_path = os.environ.get("CATAFORGE_EVENT_LOG")
     if env_path:
         return env_path
-    return os.path.join(_find_project_root(), "docs", "EVENT-LOG.jsonl")
+    return os.path.join(find_project_root(), "docs", "EVENT-LOG.jsonl")
 
 
 def append_event(
@@ -213,22 +205,8 @@ def append_events_batch(events, log_path=None):
     return validated
 
 
-def _ensure_utf8_stdio():
-    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
-    import io
-
-    if sys.stdout.encoding != "utf-8":
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace"
-        )
-    if sys.stderr.encoding != "utf-8":
-        sys.stderr = io.TextIOWrapper(
-            sys.stderr.buffer, encoding="utf-8", errors="replace"
-        )
-
-
 def main():
-    _ensure_utf8_stdio()
+    ensure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="CataForge Event Logger — 追加事件到 docs/EVENT-LOG.jsonl"
     )

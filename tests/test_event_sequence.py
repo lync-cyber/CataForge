@@ -39,7 +39,7 @@ def tmp_project(tmp_path, monkeypatch):
             os.path.join(PROJECT_ROOT, ".claude", "hooks", name),
             tmp_path / ".claude" / "hooks" / name,
         )
-    for name in ("event_logger.py", "phase_reader.py"):
+    for name in ("_common.py", "event_logger.py", "phase_reader.py"):
         shutil.copy(
             os.path.join(PROJECT_ROOT, ".claude", "scripts", name),
             tmp_path / ".claude" / "scripts" / name,

@@ -31,7 +31,7 @@ def tmp_project(tmp_path, monkeypatch):
     (tmp_path / ".claude" / "scripts").mkdir(parents=True)
 
     shutil.copy(HOOK_SOURCE, tmp_path / ".claude" / "hooks" / "detect_correction.py")
-    for name in ("event_logger.py", "phase_reader.py"):
+    for name in ("_common.py", "event_logger.py", "phase_reader.py"):
         shutil.copy(
             os.path.join(PROJECT_ROOT, ".claude", "scripts", name),
             tmp_path / ".claude" / "scripts" / name,

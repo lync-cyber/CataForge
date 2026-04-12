@@ -6,17 +6,11 @@ to avoid duplicating the CLAUDE.md parsing logic.
 """
 
 import os
+import sys
 
-
-def _find_project_root():
-    """Locate project root by traversing up from this script's location."""
-    d = os.path.dirname(os.path.abspath(__file__))
-    for _ in range(2):
-        parent = os.path.dirname(d)
-        if parent == d:
-            break
-        d = parent
-    return d
+# 共享工具
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import find_project_root
 
 
 def read_current_phase(project_dir=None):
@@ -29,7 +23,7 @@ def read_current_phase(project_dir=None):
         Phase string (e.g. 'architecture'), or 'unknown' if not found.
     """
     if project_dir is None:
-        project_dir = _find_project_root()
+        project_dir = find_project_root()
 
     claude_md = os.path.join(project_dir, "CLAUDE.md")
     if not os.path.isfile(claude_md):

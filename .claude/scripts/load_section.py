@@ -32,6 +32,10 @@ import re
 import sys
 from typing import List, Optional, Tuple
 
+# 共享工具
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import ensure_utf8_stdio, find_project_root
+
 
 # doc_id → doc_type 目录映射
 # doc_type 与 doc-gen SKILL.md §template_id 映射表保持同步
@@ -298,34 +302,8 @@ def extract_batch(
     return successes, errors
 
 
-def _find_project_root() -> str:
-    """通过向上追溯定位项目根（含 .claude/ 目录的目录）。"""
-    d = os.path.dirname(os.path.abspath(__file__))
-    # scripts/ → .claude/ → project root
-    for _ in range(2):
-        parent = os.path.dirname(d)
-        if parent == d:
-            break
-        d = parent
-    return d
-
-
-def _ensure_utf8_stdio() -> None:
-    """确保 Windows 控制台以 UTF-8 输出。"""
-    import io
-
-    if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace"
-        )
-    if sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8":
-        sys.stderr = io.TextIOWrapper(
-            sys.stderr.buffer, encoding="utf-8", errors="replace"
-        )
-
-
 def main(argv: Optional[List[str]] = None) -> int:
-    _ensure_utf8_stdio()
+    ensure_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="CataForge load_section — 按 doc_id#§... 引用提取 Markdown 章节",
     )
@@ -341,7 +319,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    project_root = args.project_root or _find_project_root()
+    project_root = args.project_root or find_project_root()
 
     successes, errors = extract_batch(args.refs, project_root)
 
