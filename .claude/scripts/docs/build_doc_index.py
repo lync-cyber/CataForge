@@ -2,11 +2,11 @@
 """build_doc_index — 构建文档章节级 JSON 索引。
 
 扫描 docs/ 下所有 .md 文件，解析 YAML Front Matter 和 Markdown 标题结构，
-生成 docs/.doc-index.json 供 load_section.py 实现 O(1) 章节定位。
+生成 docs/.doc-index.json 供 docs/load_section.py 实现 O(1) 章节定位。
 
 用法:
-  python .claude/scripts/build_doc_index.py [--project-root DIR]
-  python .claude/scripts/build_doc_index.py --doc-file docs/arch/arch-myapp-v1.md
+  python .claude/scripts/docs/build_doc_index.py [--project-root DIR]
+  python .claude/scripts/docs/build_doc_index.py --doc-file docs/arch/arch-myapp-v1.md
 
 全量构建: 扫描 docs/**/*.md，重建完整索引。
 增量更新: --doc-file 仅更新指定文件的条目。
@@ -23,7 +23,11 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_DOCS_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPTS_ROOT = os.path.dirname(_DOCS_DIR)
+_LIB = os.path.join(_SCRIPTS_ROOT, "lib")
+if _LIB not in sys.path:
+    sys.path.insert(0, _LIB)
 from _common import ensure_utf8_stdio, find_project_root
 from _patterns import HEADING_RE, ITEM_ID_RE, SECTION_NUM_RE, SUBSECTION_NUM_RE
 from _yaml_parser import parse_yaml_frontmatter

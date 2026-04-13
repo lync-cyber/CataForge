@@ -28,7 +28,8 @@ def tmp_project(tmp_path, monkeypatch):
     """构造最小伪项目: 拷贝 hook + event_logger + phase_reader + 空 CLAUDE.md。"""
     (tmp_path / "docs" / "reviews").mkdir(parents=True)
     (tmp_path / ".claude" / "hooks").mkdir(parents=True)
-    (tmp_path / ".claude" / "scripts").mkdir(parents=True)
+    (tmp_path / ".claude" / "scripts" / "lib").mkdir(parents=True)
+    (tmp_path / ".claude" / "scripts" / "framework").mkdir(parents=True)
 
     shutil.copy(HOOK_SOURCE, tmp_path / ".claude" / "hooks" / "detect_correction.py")
     shutil.copy(
@@ -40,12 +41,16 @@ def tmp_project(tmp_path, monkeypatch):
         "_config.py",
         "_version.py",
         "_yaml_parser.py",
-        "event_logger.py",
-        "phase_reader.py",
+        "_patterns.py",
     ):
         shutil.copy(
-            os.path.join(PROJECT_ROOT, ".claude", "scripts", name),
-            tmp_path / ".claude" / "scripts" / name,
+            os.path.join(PROJECT_ROOT, ".claude", "scripts", "lib", name),
+            tmp_path / ".claude" / "scripts" / "lib" / name,
+        )
+    for name in ("event_logger.py", "phase_reader.py"):
+        shutil.copy(
+            os.path.join(PROJECT_ROOT, ".claude", "scripts", "framework", name),
+            tmp_path / ".claude" / "scripts" / "framework" / name,
         )
 
     (tmp_path / "CLAUDE.md").write_text(

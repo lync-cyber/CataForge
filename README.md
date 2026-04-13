@@ -119,13 +119,13 @@
 # 方式一：作为模板创建新项目
 git clone https://github.com/lync-cyber/CataForge.git my-project
 cd my-project && rm -rf .git && git init
-python .claude/scripts/setup.py
+python .claude/scripts/framework/setup.py
 claude
 
 # 方式二：为已有项目引入
 cp -r /path/to/CataForge/.claude your-existing-project/.claude/
 cp /path/to/CataForge/CLAUDE.md /path/to/CataForge/.env.example your-existing-project/
-cd your-existing-project && python .claude/scripts/setup.py && claude
+cd your-existing-project && python .claude/scripts/framework/setup.py && claude
 ```
 
 ### 一分钟体验
@@ -255,16 +255,16 @@ flowchart LR
 
 ```bash
 # 本地路径升级
-python .claude/scripts/upgrade.py local /path/to/new-CataForge --dry-run
-python .claude/scripts/upgrade.py local /path/to/new-CataForge
+python .claude/scripts/framework/upgrade.py local /path/to/new-CataForge --dry-run
+python .claude/scripts/framework/upgrade.py local /path/to/new-CataForge
 
 # 远程升级（需配置 .claude/framework.json）
-python .claude/scripts/upgrade.py check
-python .claude/scripts/upgrade.py upgrade --dry-run
-python .claude/scripts/upgrade.py upgrade
+python .claude/scripts/framework/upgrade.py check
+python .claude/scripts/framework/upgrade.py upgrade --dry-run
+python .claude/scripts/framework/upgrade.py upgrade
 
 # 独立验证
-python .claude/scripts/upgrade.py verify
+python .claude/scripts/framework/upgrade.py verify
 ```
 
 > 升级仅更新框架文件（`.claude/`），保留项目状态（`CLAUDE.md` / `docs/` / `src/`），升级完成后自动执行后置验证。
@@ -326,13 +326,10 @@ CataForge/
 │   ├── rules/                           # 共享规则（自动注入所有 Agent）
 │   ├── hooks/                           # Tool Hook（Python，跨平台）
 │   ├── scripts/                         # 框架工具脚本
-│   │   ├── _common.py                   #   共享工具模块（项目根检测、UTF-8、.env 解析、颜色输出）
-│   │   ├── setup.py                     #   环境检测与初始化
-│   │   ├── setup_penpot.py              #   Penpot 本地部署与 MCP 启动
-│   │   ├── upgrade.py                   #   框架升级（本地 / 远程）
-│   │   ├── event_logger.py              #   统一事件日志
-│   │   ├── load_section.py              #   文档章节按需加载
-│   │   └── phase_reader.py              #   项目阶段读取
+│   │   ├── lib/                         #   共享模块（_common、_patterns、_config 等）
+│   │   ├── framework/                   #   生命周期：setup、upgrade、event_logger、phase_reader
+│   │   └── docs/                        #   文档工具：load_section、build_doc_index
+│   ├── integrations/penpot/             #   Penpot 本地部署与 MCP（setup_penpot.py）
 │   └── schemas/                         # JSON Schema
 ├── tests/                               # 质量门禁测试
 └── docs/                                # 项目文档（运行时生成）

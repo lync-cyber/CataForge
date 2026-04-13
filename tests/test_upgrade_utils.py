@@ -7,7 +7,8 @@ import warnings
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
+_scripts = os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts")
+sys.path.insert(0, os.path.join(_scripts, "lib"))
 from _common import (
     load_json_lenient,
     parse_semver,

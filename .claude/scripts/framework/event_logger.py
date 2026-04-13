@@ -4,7 +4,7 @@
 将结构化事件追加到 docs/EVENT-LOG.jsonl，作为审计追踪的单一事实来源。
 
 用法 (CLI):
-  python .claude/scripts/event_logger.py \\
+  python .claude/scripts/framework/event_logger.py \\
     --event agent_dispatch \\
     --phase architecture \\
     --agent architect \\
@@ -14,7 +14,7 @@
 用法 (批量模式，从 stdin 读取 JSONL):
   echo '{"event":"phase_start","phase":"architecture","detail":"..."}
   {"event":"agent_dispatch","phase":"architecture","agent":"architect","detail":"..."}' | \\
-    python .claude/scripts/event_logger.py --batch
+    python .claude/scripts/framework/event_logger.py --batch
 
 用法 (Python 导入):
   from event_logger import append_event, append_events_batch
@@ -28,8 +28,12 @@ import os
 import sys
 from datetime import datetime, timezone
 
-# 共享工具
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_FRAMEWORK_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPTS_ROOT = os.path.dirname(_FRAMEWORK_DIR)
+_LIB = os.path.join(_SCRIPTS_ROOT, "lib")
+for _p in (_LIB, _FRAMEWORK_DIR):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 from _common import ensure_utf8_stdio, find_project_root
 
 

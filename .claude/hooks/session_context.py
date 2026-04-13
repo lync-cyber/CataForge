@@ -20,8 +20,14 @@ from datetime import datetime, timezone
 
 from _hook_base import hook_main, read_hook_input
 
-# Shared utilities
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+# Shared utilities (.claude/scripts/framework + lib)
+_scripts = os.path.join(os.path.dirname(__file__), "..", "scripts")
+for _p in (
+    os.path.join(_scripts, "lib"),
+    os.path.join(_scripts, "framework"),
+):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 try:
     from event_logger import append_event as _log_event
 except ImportError:

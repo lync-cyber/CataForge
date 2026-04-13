@@ -8,9 +8,11 @@ import sys
 import pytest
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SETUP_PY = os.path.join(PROJECT_ROOT, ".claude", "scripts", "setup.py")
+SETUP_PY = os.path.join(PROJECT_ROOT, ".claude", "scripts", "framework", "setup.py")
 
-sys.path.insert(0, os.path.join(PROJECT_ROOT, ".claude", "scripts"))
+_scripts = os.path.join(PROJECT_ROOT, ".claude", "scripts")
+sys.path.insert(0, os.path.join(_scripts, "lib"))
+sys.path.insert(0, os.path.join(_scripts, "framework"))
 from setup import (  # noqa: E402
     FRAMEWORK_CORE_PERMISSIONS,
     build_env_block,

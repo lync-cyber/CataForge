@@ -12,12 +12,12 @@ Plan A 架构: Docker Compose 部署 Penpot 本体 + npx 启动 MCP Server。
   --ensure     快速模式: 检测已运行则退出，否则启动
 
 用法:
-  python .claude/scripts/setup_penpot.py deploy      # 完整部署
-  python .claude/scripts/setup_penpot.py mcp-only    # 仅 MCP
-  python .claude/scripts/setup_penpot.py start       # 启动服务
-  python .claude/scripts/setup_penpot.py stop        # 停止服务
-  python .claude/scripts/setup_penpot.py status      # 查看状态
-  python .claude/scripts/setup_penpot.py --ensure    # 快速检查/启动
+  python .claude/integrations/penpot/setup_penpot.py deploy      # 完整部署
+  python .claude/integrations/penpot/setup_penpot.py mcp-only    # 仅 MCP
+  python .claude/integrations/penpot/setup_penpot.py start       # 启动服务
+  python .claude/integrations/penpot/setup_penpot.py stop        # 停止服务
+  python .claude/integrations/penpot/setup_penpot.py status      # 查看状态
+  python .claude/integrations/penpot/setup_penpot.py --ensure    # 快速检查/启动
 
 环境变量 (可选覆盖，可写入 .env):
   PENPOT_INSTALL_DIR          Penpot Docker Compose 目录 (默认: ~/penpot-docker)

@@ -30,7 +30,8 @@ def tmp_project(tmp_path, monkeypatch):
     """构造一个最小伪项目，含 docs/ 目录和空 CLAUDE.md。"""
     (tmp_path / "docs").mkdir()
     (tmp_path / ".claude" / "hooks").mkdir(parents=True)
-    (tmp_path / ".claude" / "scripts").mkdir(parents=True)
+    (tmp_path / ".claude" / "scripts" / "lib").mkdir(parents=True)
+    (tmp_path / ".claude" / "scripts" / "framework").mkdir(parents=True)
     # 拷贝 session_context.py + event_logger.py + phase_reader.py
     import shutil
 
@@ -44,12 +45,16 @@ def tmp_project(tmp_path, monkeypatch):
         "_config.py",
         "_version.py",
         "_yaml_parser.py",
-        "event_logger.py",
-        "phase_reader.py",
+        "_patterns.py",
     ):
         shutil.copy(
-            os.path.join(PROJECT_ROOT, ".claude", "scripts", name),
-            tmp_path / ".claude" / "scripts" / name,
+            os.path.join(PROJECT_ROOT, ".claude", "scripts", "lib", name),
+            tmp_path / ".claude" / "scripts" / "lib" / name,
+        )
+    for name in ("event_logger.py", "phase_reader.py"):
+        shutil.copy(
+            os.path.join(PROJECT_ROOT, ".claude", "scripts", "framework", name),
+            tmp_path / ".claude" / "scripts" / "framework" / name,
         )
     (tmp_path / "CLAUDE.md").write_text(
         "# Test\n## 项目状态\n- 当前阶段: requirements\n", encoding="utf-8"

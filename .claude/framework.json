@@ -137,7 +137,7 @@
       "release_version": "0.7.0",
       "description": "setup.py 必须提供 --emit-env-block 子命令供 orchestrator Bootstrap 填入 CLAUDE.md §执行环境",
       "type": "file_must_contain",
-      "path": ".claude/scripts/setup.py",
+      "path": ".claude/scripts/framework/setup.py",
       "patterns": ["--emit-env-block", "build_env_block"]
     },
     {
@@ -145,7 +145,7 @@
       "release_version": "0.7.0",
       "description": "_upgrade_remote.py 必须提供自升级 re-exec 能力",
       "type": "file_must_contain",
-      "path": ".claude/scripts/_upgrade_remote.py",
+      "path": ".claude/scripts/framework/_upgrade_remote.py",
       "patterns": ["maybe_self_reexec", "CATAFORGE_SELF_UPGRADED"]
     },
     {

@@ -23,7 +23,12 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 # ---------------------------------------------------------------------------
 # Internal framework imports
 # ---------------------------------------------------------------------------
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_FRAMEWORK_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPTS_ROOT = os.path.dirname(_FRAMEWORK_DIR)
+_LIB = os.path.join(_SCRIPTS_ROOT, "lib")
+for _p in (_LIB, _FRAMEWORK_DIR):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from _common import (
     FRAMEWORK_CONFIG_FILE,
@@ -357,9 +362,13 @@ def maybe_self_reexec(tmpdir: str, dry_run: bool) -> None:
     if os.environ.get(SELF_UPGRADE_MARKER):
         return  # 已是第二阶段，继续正常流程
 
-    new_script = os.path.join(tmpdir, ".claude", "scripts", "upgrade.py")
+    candidates = [
+        os.path.join(tmpdir, ".claude", "scripts", "framework", "upgrade.py"),
+        os.path.join(tmpdir, ".claude", "scripts", "upgrade.py"),
+    ]
+    new_script = next((p for p in candidates if os.path.isfile(p)), "")
     cur_script = os.path.abspath(sys.argv[0])
-    if not os.path.isfile(new_script):
+    if not new_script:
         return  # 新版本不含 upgrade.py（异常情况，跳过自升级）
 
     new_hash = _file_sha256(new_script)

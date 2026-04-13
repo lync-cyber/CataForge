@@ -2,8 +2,8 @@
 """CataForge Shared Regex Patterns for document and reference parsing.
 
 Single source of truth for patterns used across:
-- load_section.py (section extraction)
-- build_doc_index.py (index construction)
+- docs/load_section.py (section extraction)
+- docs/build_doc_index.py (index construction)
 
 Avoids defining identical regex in multiple modules.
 """

@@ -4,7 +4,9 @@ import os
 import sys
 
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
+_scripts = os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts")
+sys.path.insert(0, os.path.join(_scripts, "lib"))
+sys.path.insert(0, os.path.join(_scripts, "framework"))
 from setup import (
     check_project_dependencies,
     check_python,

@@ -6,7 +6,9 @@ import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
+_scripts = os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts")
+sys.path.insert(0, os.path.join(_scripts, "lib"))
+sys.path.insert(0, os.path.join(_scripts, "framework"))
 from event_logger import VALID_EVENTS, VALID_STATUSES, VALID_TASK_TYPES, append_event
 
 

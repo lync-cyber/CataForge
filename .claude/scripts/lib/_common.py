@@ -73,8 +73,9 @@ def find_project_root(start: Optional[str] = None) -> str:
     """Locate the project root containing a .claude/ directory.
 
     Args:
-        start: Starting search directory. Default: two levels up from
-               this file (scripts/ -> .claude/ -> project root).
+        start: Starting search directory. Default: walk parents from this file
+               until a directory containing `.claude/` is found (works for
+               scripts/lib/, scripts/framework/, scripts/docs/).
 
     Returns:
         Absolute path to the project root.
@@ -97,14 +98,18 @@ def find_project_root(start: Optional[str] = None) -> str:
         )
         return fallback
 
-    # Default: two levels up from this file
     d = os.path.dirname(os.path.abspath(__file__))
-    for _ in range(2):
+    while True:
         parent = os.path.dirname(d)
         if parent == d:
-            break
+            warnings.warn(
+                "find_project_root: no .claude/ in ancestors from _common.py location",
+                stacklevel=2,
+            )
+            return d
+        if os.path.isdir(os.path.join(d, ".claude")):
+            return d
         d = parent
-    return d
 
 
 # ============================================================================

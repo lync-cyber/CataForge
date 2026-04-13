@@ -18,7 +18,12 @@ import os
 import re
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_FRAMEWORK_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPTS_ROOT = os.path.dirname(_FRAMEWORK_DIR)
+_LIB = os.path.join(_SCRIPTS_ROOT, "lib")
+for _p in (_LIB, _FRAMEWORK_DIR):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 from _config import load_framework_config
 from _version import PHASE_ORDER, parse_semver, phase_index, read_version
 from phase_reader import read_current_phase

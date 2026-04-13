@@ -22,7 +22,7 @@
 <!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
      权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
 {执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
- python .claude/scripts/setup.py --emit-env-block}
+ python .claude/scripts/framework/setup.py --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
@@ -293,10 +293,10 @@ maxTurns: 50
 - 你不负责需求定义、架构设计、UI设计或编码实现
 
 ## Input Contract
-- 必须加载: 通过 `python .claude/scripts/load_section.py` 按 T-xxx 加载 dev-plan 中已完成的任务卡（含 tdd_acceptance 和 deliverables），按任务定位对应的 src/ 和 tests/ 文件
+- 必须加载: 通过 `python .claude/scripts/docs/load_section.py` 按 T-xxx 加载 dev-plan 中已完成的任务卡（含 tdd_acceptance 和 deliverables），按任务定位对应的 src/ 和 tests/ 文件
 - 禁止一次性 Read dev-plan 全文或分卷全文；按 Sprint/任务维度批量调用 load_section.py 按需加载
 - 可选参考: `arch#§3.API-xxx`, `ui-spec#§3.P-xxx`（同样通过 load_section.py 按需加载）
-- 加载示例: `python .claude/scripts/load_section.py dev-plan#§2.T-001 dev-plan#§2.T-002 arch#§3.API-001`
+- 加载示例: `python .claude/scripts/docs/load_section.py dev-plan#§2.T-001 dev-plan#§2.T-002 arch#§3.API-001`
 
 ## Output Contract
 - 必须产出: test-report-{project}-{ver}.md

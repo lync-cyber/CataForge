@@ -5,7 +5,9 @@ import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
+_scripts = os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts")
+sys.path.insert(0, os.path.join(_scripts, "lib"))
+sys.path.insert(0, os.path.join(_scripts, "framework"))
 from phase_reader import read_current_phase
 
 

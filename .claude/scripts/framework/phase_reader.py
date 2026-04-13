@@ -9,8 +9,12 @@ import os
 import re
 import sys
 
-# 共享工具
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_FRAMEWORK_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPTS_ROOT = os.path.dirname(_FRAMEWORK_DIR)
+_LIB = os.path.join(_SCRIPTS_ROOT, "lib")
+for _p in (_LIB, _FRAMEWORK_DIR):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 from _common import find_project_root
 
 _PHASE_RE = re.compile(r"^\s*-\s*当前阶段:\s*(.+)$")

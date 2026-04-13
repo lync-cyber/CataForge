@@ -15,7 +15,7 @@ user-invocable: true
 - 注: doc-nav 是 NAV-INDEX 的只读消费者，不修改 NAV-INDEX。
 
 ## 执行后端
-`load_section.py` (位于 `.claude/scripts/load_section.py`) 是 load-section 指令的权威执行后端。Agent 应通过 Bash 调用它以获得真正的章节级提取（而非 Read 全文后人眼定位）。
+`load_section.py` (位于 `.claude/scripts/docs/load_section.py`) 是 load-section 指令的权威执行后端。Agent 应通过 Bash 调用它以获得真正的章节级提取（而非 Read 全文后人眼定位）。
 
 **Bash 不可用时的降级路径**：若 Agent 未获 Bash 权限（如 architect/ui-designer/product-manager 等），按降级协议操作:
 1. 读取 `docs/.doc-index.json` 获取目标文件路径和精确行号范围（line_start/line_end）
@@ -30,7 +30,7 @@ user-invocable: true
 
 **首选（Bash 可用）**：
 ```bash
-python .claude/scripts/load_section.py <ref> [<ref> ...]
+python .claude/scripts/docs/load_section.py <ref> [<ref> ...]
 ```
 参数为一个或多个 `doc_id#§N[.item]` 引用，如 `prd#§2.F-001` 或 `arch#§3.API-001`。
 - 脚本自动定位 `docs/{doc_type}/` 目录下匹配的文件（包含多卷场景）

@@ -7,7 +7,9 @@ from unittest import mock
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
+_scripts = os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts")
+sys.path.insert(0, os.path.join(_scripts, "lib"))
+sys.path.insert(0, os.path.join(_scripts, "framework"))
 import _upgrade_remote as upgrade  # noqa: E402
 
 
@@ -59,7 +61,7 @@ class TestMaybeSelfReexec:
         monkeypatch.delenv(upgrade.SELF_UPGRADE_MARKER, raising=False)
 
         content = "print('same')\n"
-        new_script = tmp_path / ".claude" / "scripts" / "upgrade.py"
+        new_script = tmp_path / ".claude" / "scripts" / "framework" / "upgrade.py"
         _mkscript(str(new_script), content)
 
         cur_script = tmp_path / "cur_upgrade.py"
@@ -77,7 +79,7 @@ class TestMaybeSelfReexec:
         monkeypatch.delenv(upgrade.SELF_UPGRADE_MARKER, raising=False)
         monkeypatch.delenv(upgrade.SELF_UPGRADE_SRC_ENV, raising=False)
 
-        new_script = tmp_path / ".claude" / "scripts" / "upgrade.py"
+        new_script = tmp_path / ".claude" / "scripts" / "framework" / "upgrade.py"
         _mkscript(str(new_script), "print('new version')\n")
 
         cur_script = tmp_path / "cur_upgrade.py"
@@ -106,7 +108,7 @@ class TestMaybeSelfReexec:
     def test_dry_run_flag_propagated(self, tmp_path, monkeypatch):
         monkeypatch.delenv(upgrade.SELF_UPGRADE_MARKER, raising=False)
 
-        new_script = tmp_path / ".claude" / "scripts" / "upgrade.py"
+        new_script = tmp_path / ".claude" / "scripts" / "framework" / "upgrade.py"
         _mkscript(str(new_script), "print('new')\n")
 
         cur_script = tmp_path / "cur_upgrade.py"
@@ -124,7 +126,7 @@ class TestMaybeSelfReexec:
         """os.execve 抛 OSError 时不应崩溃，而是回退到当前脚本继续。"""
         monkeypatch.delenv(upgrade.SELF_UPGRADE_MARKER, raising=False)
 
-        new_script = tmp_path / ".claude" / "scripts" / "upgrade.py"
+        new_script = tmp_path / ".claude" / "scripts" / "framework" / "upgrade.py"
         _mkscript(str(new_script), "print('new')\n")
         cur_script = tmp_path / "cur.py"
         cur_script.write_text("print('old')\n")

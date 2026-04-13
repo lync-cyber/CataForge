@@ -16,14 +16,15 @@ from _yaml_parser import parse_template_registry
 
 
 def _find_project_root_for_config() -> str:
-    """Locate project root from this file's position (scripts/ -> .claude/ -> root)."""
+    """Locate project root: first ancestor directory that contains a `.claude/` child."""
     d = os.path.dirname(os.path.abspath(__file__))
-    for _ in range(2):
+    while True:
         parent = os.path.dirname(d)
         if parent == d:
-            break
+            return "."
+        if os.path.isdir(os.path.join(d, ".claude")):
+            return d
         d = parent
-    return d
 
 
 # ============================================================================

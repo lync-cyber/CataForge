@@ -6,8 +6,8 @@ doc-nav Skill 的执行后端，替代"Read 全文 + 人眼定位"方案。
 仅输出目标章节内容（含嵌套子节），显著降低上下文占用。
 
 用法 (CLI):
-  python .claude/scripts/load_section.py <ref> [<ref> ...]
-  python .claude/scripts/load_section.py --project-root /path/to/proj <ref>
+  python .claude/scripts/docs/load_section.py <ref> [<ref> ...]
+  python .claude/scripts/docs/load_section.py --project-root /path/to/proj <ref>
 
   支持的引用格式:
     doc_id#§N              # 顶级章节，如 prd#§2
@@ -34,8 +34,11 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-# 共享工具
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_DOCS_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPTS_ROOT = os.path.dirname(_DOCS_DIR)
+_LIB = os.path.join(_SCRIPTS_ROOT, "lib")
+if _LIB not in sys.path:
+    sys.path.insert(0, _LIB)
 from _common import build_doc_type_map, ensure_utf8_stdio, find_project_root
 from _patterns import HEADING_RE, ITEM_ID_RE, REF_RE, SECTION_PATH_RE
 

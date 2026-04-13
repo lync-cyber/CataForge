@@ -8,10 +8,10 @@ Subcommands:
   verify                  Post-upgrade verification (integrity + compatibility)
 
 Usage:
-  python .claude/scripts/upgrade.py local /path/to/new [--dry-run] [--backup-dir <dir>]
-  python .claude/scripts/upgrade.py check [--repo owner/repo] [--url URL] [--branch main]
-  python .claude/scripts/upgrade.py upgrade [--repo owner/repo] [--url URL] [--dry-run]
-  python .claude/scripts/upgrade.py verify
+  python .claude/scripts/framework/upgrade.py local /path/to/new [--dry-run] [--backup-dir <dir>]
+  python .claude/scripts/framework/upgrade.py check [--repo owner/repo] [--url URL] [--branch main]
+  python .claude/scripts/framework/upgrade.py upgrade [--repo owner/repo] [--url URL] [--dry-run]
+  python .claude/scripts/framework/upgrade.py verify
 
 Returns: exit 0=success, exit 1=failure, exit 2=already up-to-date
 
@@ -30,7 +30,12 @@ import sys
 # Shared utilities
 # ============================================================================
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_FRAMEWORK_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPTS_ROOT = os.path.dirname(_FRAMEWORK_DIR)
+_LIB = os.path.join(_SCRIPTS_ROOT, "lib")
+for _p in (_LIB, _FRAMEWORK_DIR):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 from _common import ensure_utf8_stdio, load_dotenv
 from _upgrade_local import run_local_upgrade
 from _upgrade_remote import (
@@ -125,8 +130,8 @@ def cmd_check(args):
         print(f"\n检测到远程 commit 变更: {remote_commit[:12]}")
 
     print("\n可运行以下命令升级:")
-    print("  python .claude/scripts/upgrade.py upgrade --dry-run  # 预览变更")
-    print("  python .claude/scripts/upgrade.py upgrade             # 执行升级")
+    print("  python .claude/scripts/framework/upgrade.py upgrade --dry-run  # 预览变更")
+    print("  python .claude/scripts/framework/upgrade.py upgrade             # 执行升级")
     sys.exit(0)
 
 
@@ -224,10 +229,10 @@ def main():
         description="CataForge 统一升级工具",
         epilog=(
             "示例:\n"
-            "  python .claude/scripts/upgrade.py local /path/to/new --dry-run\n"
-            "  python .claude/scripts/upgrade.py check --repo owner/CataForge\n"
-            "  python .claude/scripts/upgrade.py upgrade --repo owner/CataForge\n"
-            "  python .claude/scripts/upgrade.py verify\n"
+            "  python .claude/scripts/framework/upgrade.py local /path/to/new --dry-run\n"
+            "  python .claude/scripts/framework/upgrade.py check --repo owner/CataForge\n"
+            "  python .claude/scripts/framework/upgrade.py upgrade --repo owner/CataForge\n"
+            "  python .claude/scripts/framework/upgrade.py verify\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

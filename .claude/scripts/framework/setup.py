@@ -4,9 +4,9 @@
 从零开始检测运行环境、安装依赖、配置项目。
 
 用法:
-  python .claude/scripts/setup.py               # 完整安装检测
-  python .claude/scripts/setup.py --with-penpot  # 含 Penpot MCP 安装
-  python .claude/scripts/setup.py --check-only   # 仅检测，不做任何修改
+  python .claude/scripts/framework/setup.py               # 完整安装检测
+  python .claude/scripts/framework/setup.py --with-penpot  # 含 Penpot MCP 安装
+  python .claude/scripts/framework/setup.py --check-only   # 仅检测，不做任何修改
 
 返回: exit 0=成功, exit 1=发现问题
 """
@@ -19,8 +19,13 @@ import shutil
 import subprocess
 import sys
 
-# 共享工具
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 共享工具: ../lib 为模块目录，本目录为 framework CLI 入口
+_FRAMEWORK_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPTS_ROOT = os.path.dirname(_FRAMEWORK_DIR)
+_LIB = os.path.join(_SCRIPTS_ROOT, "lib")
+for _p in (_LIB, _FRAMEWORK_DIR):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 from _common import (
     BOLD,
     CYAN,
@@ -285,7 +290,8 @@ FRAMEWORK_CORE_PERMISSIONS = [
     "Bash(ls *)",
     "Bash(mkdir *)",
     "Bash(python .claude/skills/*/scripts/*.py*)",
-    "Bash(python .claude/scripts/*.py*)",
+    "Bash(python .claude/scripts/framework/*.py*)",
+    "Bash(python .claude/scripts/docs/*.py*)",
     "Bash(python .claude/integrations/penpot/setup_penpot.py --ensure)",
 ]
 
@@ -529,9 +535,9 @@ def main():
         description="CataForge 初始化安装脚本",
         epilog=(
             "示例:\n"
-            "  python .claude/scripts/setup.py               # 完整安装检测\n"
-            "  python .claude/scripts/setup.py --with-penpot  # 含 Penpot MCP\n"
-            "  python .claude/scripts/setup.py --check-only   # 仅检测\n"
+            "  python .claude/scripts/framework/setup.py               # 完整安装检测\n"
+            "  python .claude/scripts/framework/setup.py --with-penpot  # 含 Penpot MCP\n"
+            "  python .claude/scripts/framework/setup.py --check-only   # 仅检测\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -662,7 +668,7 @@ def main():
 
     if not args.with_penpot:
         print(f"\n  {DIM}提示: 如需 Penpot 设计集成，运行:{NC}")
-        print(f"    {DIM}python .claude/scripts/setup.py --with-penpot{NC}")
+        print(f"    {DIM}python .claude/scripts/framework/setup.py --with-penpot{NC}")
 
     print("")
     sys.exit(1 if has_issues else 0)
