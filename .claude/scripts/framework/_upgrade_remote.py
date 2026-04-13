@@ -31,13 +31,12 @@ for _p in (_LIB, _FRAMEWORK_DIR):
         sys.path.insert(0, _p)
 
 from _common import (
-    FRAMEWORK_CONFIG_FILE,
     check_ssh_available,
     ensure_utf8_stdio,
     get_github_token,
     load_dotenv,
 )
-from _config import load_framework_config
+from _config import FRAMEWORK_CONFIG_FILE, load_framework_config
 from _version import VERSION_FILE, parse_semver, read_version, validate_branch_name
 
 # ---------------------------------------------------------------------------

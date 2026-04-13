@@ -15,7 +15,8 @@ from pathlib import Path
 from collections import defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts"))
-from _common import build_template_path_map, ensure_utf8_stdio, get_constant
+from _common import ensure_utf8_stdio
+from _config import build_template_path_map, get_constant
 from _yaml_parser import parse_yaml_frontmatter as _shared_parse_yaml_fm
 
 # ========================================

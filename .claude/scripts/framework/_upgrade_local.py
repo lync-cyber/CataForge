@@ -25,8 +25,7 @@ _LIB = os.path.join(_SCRIPTS_ROOT, "lib")
 for _p in (_LIB, _FRAMEWORK_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
-from _common import FRAMEWORK_CONFIG_FILE, load_json_lenient
-from _config import load_framework_config
+from _config import FRAMEWORK_CONFIG_FILE, load_framework_config, load_json_lenient
 from _version import VERSION_FILE, parse_semver, read_version
 
 FRAMEWORK_DIRS = ["agents", "skills", "rules", "hooks", "scripts", "schemas"]

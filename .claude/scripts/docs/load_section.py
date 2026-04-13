@@ -39,7 +39,8 @@ _SCRIPTS_ROOT = os.path.dirname(_DOCS_DIR)
 _LIB = os.path.join(_SCRIPTS_ROOT, "lib")
 if _LIB not in sys.path:
     sys.path.insert(0, _LIB)
-from _common import build_doc_type_map, ensure_utf8_stdio, find_project_root
+from _common import ensure_utf8_stdio, find_project_root
+from _config import build_doc_type_map
 from _patterns import HEADING_RE, ITEM_ID_RE, REF_RE, SECTION_PATH_RE
 
 

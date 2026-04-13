@@ -57,7 +57,6 @@ from _common import (
     YELLOW,
     check_port_available,
     detect_platform,
-    ensure_docker_proxy,
     ensure_utf8_stdio,
     fail,
     find_available_port,
@@ -71,6 +70,13 @@ from _common import (
     run_cmd,
     section,
     warn,
+)
+from _docker import (
+    ensure_docker_proxy,
+    ensure_docker_running,
+    install_docker_desktop_windows,
+    docker_status,
+    DOCKER_PULL_TIMEOUT,
 )
 
 # ============================================================================
@@ -276,166 +282,9 @@ def _docker_compose_cmd() -> list:
     return []
 
 
-def _find_docker_desktop_exe() -> Optional[str]:
-    """查找 Windows 上 Docker Desktop 的可执行文件路径。"""
-    candidates = [
-        r"C:\Program Files\Docker\Docker\Docker Desktop.exe",
-        os.path.join(
-            os.environ.get("ProgramFiles", r"C:\Program Files"),
-            "Docker",
-            "Docker",
-            "Docker Desktop.exe",
-        ),
-        os.path.join(
-            os.environ.get("LOCALAPPDATA", ""), "Docker", "Docker Desktop.exe"
-        ),
-    ]
-    for path in candidates:
-        if os.path.isfile(path):
-            return path
-    return None
-
-
-def _start_docker_desktop() -> bool:
-    """尝试启动 Docker Desktop (Windows)，最多等待 90s 直到 daemon 就绪。"""
-    exe = _find_docker_desktop_exe()
-    if not exe:
-        return False
-
-    info(f"启动 Docker Desktop: {exe}")
-    subprocess.Popen(
-        [exe],
-        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-        close_fds=True,
-    )
-
-    info("等待 Docker daemon 就绪 (最多 90s)...")
-    for i in range(90):
-        try:
-            result = subprocess.run(
-                ["docker", "info"], capture_output=True, text=True, timeout=10
-            )
-            if result.returncode == 0:
-                ok(f"Docker daemon 已就绪 (等待了 {i + 1}s)")
-                return True
-        except subprocess.TimeoutExpired:
-            pass  # daemon 仍在启动中，继续等待
-        time.sleep(1)
-        if (i + 1) % 15 == 0:
-            info(f"  已等待 {i + 1}s...")
-
-    return False
-
-
-def _install_docker_windows() -> bool:
-    """通过 winget 安装 Docker Desktop (需管理员权限)。"""
-    if not has_command("winget"):
-        fail("winget 未找到，无法自动安装 Docker Desktop")
-        info("请手动下载安装: https://docs.docker.com/desktop/install/windows-install/")
-        return False
-
-    info("通过 winget 安装 Docker Desktop (需要管理员权限)...")
-    result = subprocess.run(
-        [
-            "winget",
-            "install",
-            "--id",
-            "Docker.DockerDesktop",
-            "--accept-package-agreements",
-            "--accept-source-agreements",
-        ],
-        timeout=600,
-    )
-    if result.returncode != 0:
-        fail(f"winget 安装失败 (exit={result.returncode})")
-        info("请手动下载安装: https://docs.docker.com/desktop/install/windows-install/")
-        return False
-
-    ok("Docker Desktop 安装完成")
-    return True
-
-
-def _ensure_docker_running() -> bool:
-    """确保 Docker daemon 在运行，必要时自动启动或安装 Docker Desktop。"""
-    # 先检查 daemon 是否已运行
-    try:
-        result = subprocess.run(
-            ["docker", "info"], capture_output=True, text=True, timeout=15
-        )
-        if result.returncode == 0:
-            ok("Docker daemon 运行中")
-            return True
-    except subprocess.TimeoutExpired:
-        pass  # daemon 未响应，继续尝试启动
-
-    if PLATFORM == "windows":
-        # 尝试启动已安装的 Docker Desktop
-        if _find_docker_desktop_exe():
-            warn("Docker daemon 未运行，尝试自动启动 Docker Desktop...")
-            if _start_docker_desktop():
-                return True
-            fail("Docker Desktop 启动超时，请手动启动后重试")
-            return False
-        else:
-            # Docker 未安装，尝试通过 winget 安装
-            warn("Docker Desktop 未安装，尝试通过 winget 自动安装...")
-            if not _install_docker_windows():
-                return False
-            # 安装后启动
-            if _find_docker_desktop_exe() and _start_docker_desktop():
-                return True
-            fail("安装后仍无法启动 Docker daemon，请手动启动 Docker Desktop")
-            return False
-
-    elif PLATFORM == "macos":
-        warn("Docker daemon 未运行，尝试启动 Docker Desktop...")
-        subprocess.Popen(["open", "-a", "Docker"])
-        info("等待 Docker daemon 就绪 (最多 90s)...")
-        for i in range(90):
-            result = subprocess.run(
-                ["docker", "info"], capture_output=True, text=True, timeout=10
-            )
-            if result.returncode == 0:
-                ok(f"Docker daemon 已就绪 (等待了 {i + 1}s)")
-                return True
-            time.sleep(1)
-            if (i + 1) % 15 == 0:
-                info(f"  已等待 {i + 1}s...")
-        fail("Docker Desktop 启动超时，请手动启动后重试")
-        return False
-
-    else:
-        # Linux: 尝试通过 systemctl 或 service 启动
-        warn("Docker daemon 未运行，尝试通过 systemctl 启动...")
-        started = False
-        if has_command("systemctl"):
-            r = subprocess.run(
-                ["sudo", "systemctl", "start", "docker"],
-                capture_output=True,
-                timeout=30,
-            )
-            started = r.returncode == 0
-        if not started and has_command("service"):
-            r = subprocess.run(
-                ["sudo", "service", "docker", "start"],
-                capture_output=True,
-                timeout=30,
-            )
-            started = r.returncode == 0
-        if not started:
-            fail("无法自动启动 Docker daemon。请运行: sudo systemctl start docker")
-            return False
-        # 验证
-        for _ in range(15):
-            result = subprocess.run(
-                ["docker", "info"], capture_output=True, text=True, timeout=10
-            )
-            if result.returncode == 0:
-                ok("Docker daemon 已就绪")
-                return True
-            time.sleep(1)
-        fail("Docker daemon 启动后未就绪，请检查: sudo systemctl status docker")
-        return False
+# NOTE: Docker detection, lifecycle, and proxy functions are now in _docker.py.
+# This file imports: ensure_docker_running, ensure_docker_proxy,
+# install_docker_desktop_windows, docker_status, DOCKER_PULL_TIMEOUT
 
 
 def _extract_secret_key(compose_file: str) -> Optional[str]:
@@ -626,11 +475,6 @@ def _rewrite_image(image: str, mirror: str) -> str:
     return f"{mirror}/{name}:{tag}"
 
 
-def _ensure_docker_proxy():
-    """检测环境代理并配置到 Docker daemon — 委托给 _common.ensure_docker_proxy。"""
-    ensure_docker_proxy()
-
-
 def _is_mirror_reachable(mirror: str, timeout: float = 3.0) -> bool:
     """Quick TCP connectivity check for a Docker registry mirror.
 
@@ -673,7 +517,7 @@ def _pull_image_with_mirrors(image: str) -> bool:
                     ["docker", "pull", rewritten],
                     capture_output=True,
                     text=True,
-                    timeout=300,
+                    timeout=DOCKER_PULL_TIMEOUT,
                 )
                 if result.returncode == 0:
                     ok(f"  {image} <- {source_label}")
@@ -734,8 +578,8 @@ def deploy_penpot(config: dict) -> bool:
     """通过 Docker Compose 部署 Penpot。依赖已由 preflight_check 确认。"""
     section("部署 Penpot (Docker Compose)")
 
-    # 确保 Docker daemon 运行（自动启动或安装）
-    if not _ensure_docker_running():
+    # 确保 Docker daemon 运行（自动启动，不自动安装）
+    if not ensure_docker_running():
         return False
 
     # 检查 Penpot 是否已在运行 (Docker 容器 + 端口双重验证)
@@ -756,7 +600,13 @@ def deploy_penpot(config: dict) -> bool:
     compose_dir = os.path.dirname(compose_file)
 
     # 配置 Docker daemon 代理 (使 docker pull 能走代理)
-    _ensure_docker_proxy()
+    # ensure_docker_proxy() returns True if Docker Desktop was restarted;
+    # in that case we must wait for the daemon to be ready again before pulling.
+    proxy_restarted = ensure_docker_proxy()
+    if proxy_restarted:
+        info("代理配置已变更，等待 Docker daemon 重新就绪...")
+        if not ensure_docker_running():
+            warn("Docker daemon 代理配置后未能重新就绪")
 
     # 拉取镜像 (多镜像源 + 重试)
     info("拉取 Docker 镜像 (首次可能需要几分钟)...")
@@ -1107,7 +957,7 @@ def cmd_start(config: dict):
         dc_cmd = _docker_compose_cmd()
         if dc_cmd:
             section("启动 Penpot (Docker)")
-            if not _ensure_docker_running():
+            if not ensure_docker_running():
                 fail("Docker daemon 未就绪，跳过 Penpot 启动")
             else:
                 result = subprocess.run(
@@ -1228,7 +1078,7 @@ def cmd_ensure(config: dict):
     compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
     if os.path.isfile(compose_file):
         # 确保 Docker daemon 在运行
-        if has_command("docker") and not _ensure_docker_running():
+        if has_command("docker") and not ensure_docker_running():
             fail("Docker daemon 无法启动，请手动启动 Docker Desktop")
             return 1
         dc_cmd = _docker_compose_cmd()

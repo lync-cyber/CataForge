@@ -508,12 +508,75 @@ def check_framework_integrity() -> bool:
     return all_ok
 
 
+def _penpot_interactive_preflight() -> bool:
+    """Interactive preflight for Penpot deployment.
+
+    Checks Docker status, proxy, and asks user to confirm before proceeding.
+    Returns True if deployment should proceed, False to skip.
+    """
+    from _docker import docker_status, install_docker_desktop_windows
+
+    print(f"\n{BOLD}Penpot 部署预检{NC}\n")
+
+    # 1. Check Docker status
+    status = docker_status()
+    if status == "not_installed":
+        warn("Docker 未安装")
+        if sys.platform == "win32":
+            ans = (
+                input(f"  {YELLOW}是否通过 winget 自动安装 Docker Desktop? [y/N]{NC} ")
+                .strip()
+                .lower()
+            )
+            if ans in ("y", "yes"):
+                if not install_docker_desktop_windows():
+                    fail("Docker Desktop 安装失败，无法继续部署 Penpot")
+                    return False
+                ok("Docker Desktop 已安装")
+            else:
+                info("跳过 Docker 安装。请手动安装后重新运行。")
+                return False
+        else:
+            fail("请先安装 Docker: https://docs.docker.com/get-docker/")
+            return False
+    elif status == "installed_not_running":
+        info("Docker 已安装但 daemon 未运行，部署时将自动启动")
+    else:
+        ok("Docker daemon 运行中")
+
+    # 2. Check proxy environment
+    http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") or ""
+    https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
+    if http_proxy or https_proxy:
+        proxy_display = https_proxy or http_proxy
+        info(f"检测到代理: {proxy_display}")
+        info("部署时将自动配置 Docker daemon 代理")
+    else:
+        info("未检测到代理环境变量 (如需代理请设置 HTTP_PROXY/HTTPS_PROXY)")
+
+    # 3. Confirm deployment
+    print()
+    ans = (
+        input(f"  {BOLD}是否继续部署 Penpot (Docker Compose + MCP Server)? [Y/n]{NC} ")
+        .strip()
+        .lower()
+    )
+    if ans in ("n", "no"):
+        info("已取消 Penpot 部署")
+        return False
+
+    return True
+
+
 def run_penpot_setup():
-    """调用 Penpot 完整部署脚本 (setup_penpot.py)"""
+    """Interactive Penpot deployment: preflight checks, then deploy."""
     script = os.path.join(".claude", "integrations", "penpot", "setup_penpot.py")
     if not os.path.exists(script):
         fail(f"Penpot 部署脚本不存在: {script}")
         return False
+
+    if not _penpot_interactive_preflight():
+        return True  # user chose to skip, not an error
 
     print(f"\n{BOLD}正在启动 Penpot 完整部署...{NC}\n")
     try:

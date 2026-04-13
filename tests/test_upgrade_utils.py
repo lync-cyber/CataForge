@@ -9,13 +9,8 @@ import pytest
 
 _scripts = os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts")
 sys.path.insert(0, os.path.join(_scripts, "lib"))
-from _common import (
-    load_json_lenient,
-    parse_semver,
-    phase_index,
-    read_version,
-    validate_branch_name,
-)
+from _config import load_json_lenient
+from _version import parse_semver, phase_index, read_version, validate_branch_name
 
 
 # ── parse_semver ─────────────────────────────────────────────────────────

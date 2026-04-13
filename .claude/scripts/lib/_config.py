@@ -14,6 +14,8 @@ from typing import Any, Dict, Optional
 
 from _yaml_parser import parse_template_registry
 
+FRAMEWORK_CONFIG_FILE = os.path.join(".claude", "framework.json")
+
 
 def _find_project_root_for_config() -> str:
     """Locate project root: first ancestor directory that contains a `.claude/` child."""
