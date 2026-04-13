@@ -41,8 +41,10 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-# 确保同目录的 _common 可导入
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 确保 .claude/scripts/lib/_common 可导入
+_here = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.abspath(os.path.join(_here, os.pardir, os.pardir, os.pardir))
+sys.path.insert(0, os.path.join(_project_root, ".claude", "scripts", "lib"))
 from _common import (
     BOLD,
     CYAN,
@@ -89,14 +91,15 @@ PULL_MAX_RETRIES = 3
 # Docker 镜像源列表 (按优先级排序，空字符串表示官方 Docker Hub)
 # 参考: https://github.com/dongyubin/DockerHub
 DOCKER_REGISTRY_MIRRORS = [
-    "",                                      # Docker Hub 官方
-    "docker.xuanyuan.me",                    # 轩辕镜像免费版
-    "docker.m.daocloud.io",                  # DaoCloud
-    "mirror.ccs.tencentyun.com",             # 腾讯云 (云服务器内效果最佳)
+    "",  # Docker Hub 官方
+    "docker.xuanyuan.me",  # 轩辕镜像免费版
+    "docker.m.daocloud.io",  # DaoCloud
+    "mirror.ccs.tencentyun.com",  # 腾讯云 (云服务器内效果最佳)
 ]
 
 # PID 文件 (跨平台临时目录)
 import tempfile as _tempfile
+
 _TMPDIR = _tempfile.gettempdir()
 MCP_PID_FILE = os.path.join(_TMPDIR, "penpot-mcp-server.pid")
 MCP_LOG_FILE = os.path.join(_TMPDIR, "penpot-mcp-server.log")
@@ -233,7 +236,9 @@ def _get_config():
         ),
         "penpot_port": int(os.environ.get("PENPOT_PORT", DEFAULT_PENPOT_PORT)),
         "mcp_port": int(os.environ.get("PENPOT_MCP_SERVER_PORT", DEFAULT_MCP_PORT)),
-        "plugin_port": int(os.environ.get("PENPOT_MCP_PLUGIN_PORT", DEFAULT_PLUGIN_PORT)),
+        "plugin_port": int(
+            os.environ.get("PENPOT_MCP_PLUGIN_PORT", DEFAULT_PLUGIN_PORT)
+        ),
         "penpot_flags": os.environ.get(
             "PENPOT_FLAGS",
             "enable-login-with-password disable-email-verification "
@@ -253,7 +258,9 @@ def _docker_compose_cmd() -> list:
     try:
         result = subprocess.run(
             ["docker", "compose", "version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             return ["docker", "compose"]
@@ -269,10 +276,15 @@ def _find_docker_desktop_exe() -> Optional[str]:
     """查找 Windows 上 Docker Desktop 的可执行文件路径。"""
     candidates = [
         r"C:\Program Files\Docker\Docker\Docker Desktop.exe",
-        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"),
-                     "Docker", "Docker", "Docker Desktop.exe"),
-        os.path.join(os.environ.get("LOCALAPPDATA", ""),
-                     "Docker", "Docker Desktop.exe"),
+        os.path.join(
+            os.environ.get("ProgramFiles", r"C:\Program Files"),
+            "Docker",
+            "Docker",
+            "Docker Desktop.exe",
+        ),
+        os.path.join(
+            os.environ.get("LOCALAPPDATA", ""), "Docker", "Docker Desktop.exe"
+        ),
     ]
     for path in candidates:
         if os.path.isfile(path):
@@ -317,8 +329,14 @@ def _install_docker_windows() -> bool:
 
     info("通过 winget 安装 Docker Desktop (需要管理员权限)...")
     result = subprocess.run(
-        ["winget", "install", "--id", "Docker.DockerDesktop",
-         "--accept-package-agreements", "--accept-source-agreements"],
+        [
+            "winget",
+            "install",
+            "--id",
+            "Docker.DockerDesktop",
+            "--accept-package-agreements",
+            "--accept-source-agreements",
+        ],
         timeout=600,
     )
     if result.returncode != 0:
@@ -383,13 +401,15 @@ def _ensure_docker_running() -> bool:
         if has_command("systemctl"):
             r = subprocess.run(
                 ["sudo", "systemctl", "start", "docker"],
-                capture_output=True, timeout=30,
+                capture_output=True,
+                timeout=30,
             )
             started = r.returncode == 0
         if not started and has_command("service"):
             r = subprocess.run(
                 ["sudo", "service", "docker", "start"],
-                capture_output=True, timeout=30,
+                capture_output=True,
+                timeout=30,
             )
             started = r.returncode == 0
         if not started:
@@ -441,9 +461,7 @@ def _generate_compose_file(config: dict, force: bool = False) -> str:
 
     # 复用已有 secret key，避免重新生成导致 backend 认证失败
     secret_key = (
-        _extract_secret_key(compose_file)
-        if os.path.isfile(compose_file)
-        else None
+        _extract_secret_key(compose_file) if os.path.isfile(compose_file) else None
     ) or secrets.token_hex(32)
 
     content = DOCKER_COMPOSE_TEMPLATE.format(
@@ -458,7 +476,7 @@ def _generate_compose_file(config: dict, force: bool = False) -> str:
     label = "已重新生成" if force else "已生成"
     ok(f"{label} docker-compose.yml: {compose_file}")
     if not force:
-        info(f"PENPOT_SECRET_KEY 已自动生成 (存储于 compose 文件中)")
+        info("PENPOT_SECRET_KEY 已自动生成 (存储于 compose 文件中)")
     return compose_file
 
 
@@ -467,7 +485,9 @@ def _is_penpot_container_running() -> bool:
     try:
         r = subprocess.run(
             ["docker", "ps", "--filter", "name=penpot", "--format", "{{.Names}}"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         return bool(r.stdout.strip())
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
@@ -508,7 +528,9 @@ def preflight_check(scope: str = "all") -> bool:
 
         dc_cmd = _docker_compose_cmd()
         if not dc_cmd:
-            fail("Docker Compose 未安装。请安装 Docker Desktop 或 docker-compose-plugin。")
+            fail(
+                "Docker Compose 未安装。请安装 Docker Desktop 或 docker-compose-plugin。"
+            )
             passed = False
         else:
             dc_ver = get_command_version(dc_cmd + ["version"])
@@ -533,8 +555,11 @@ def preflight_check(scope: str = "all") -> bool:
         info("安装 corepack (pnpm 包管理器依赖)...")
         # Windows 上 npm 是 .cmd 脚本，需通过 shell 执行
         r = subprocess.run(
-            "npm install -g corepack", shell=True,
-            capture_output=True, text=True, timeout=60,
+            "npm install -g corepack",
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         if r.returncode != 0:
             fail("corepack 安装失败，请手动执行: npm install -g corepack")
@@ -545,8 +570,11 @@ def preflight_check(scope: str = "all") -> bool:
         # Windows 上 corepack 是 .cmd 脚本，get_command_version 不走 shell 会失败
         try:
             cp_ver = subprocess.run(
-                "corepack --version", shell=True,
-                capture_output=True, text=True, timeout=10,
+                "corepack --version",
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
             ).stdout.strip()
         except (subprocess.TimeoutExpired, OSError):
             cp_ver = ""
@@ -556,8 +584,10 @@ def preflight_check(scope: str = "all") -> bool:
     # Windows 上 corepack 是 .cmd 脚本，需通过 shell 执行
     if has_command("corepack"):
         subprocess.run(
-            "corepack enable", shell=True,
-            capture_output=True, timeout=30,
+            "corepack enable",
+            shell=True,
+            capture_output=True,
+            timeout=30,
         )
 
     if not passed:
@@ -595,11 +625,15 @@ def _pull_image_with_mirrors(image: str) -> bool:
         rewritten = _rewrite_image(image, mirror)
         source_label = mirror if mirror else "Docker Hub"
         for attempt in range(1, PULL_MAX_RETRIES + 1):
-            info(f"  [{source_label}] 拉取 {rewritten} (第 {attempt}/{PULL_MAX_RETRIES} 次)...")
+            info(
+                f"  [{source_label}] 拉取 {rewritten} (第 {attempt}/{PULL_MAX_RETRIES} 次)..."
+            )
             try:
                 result = subprocess.run(
                     ["docker", "pull", rewritten],
-                    capture_output=True, text=True, timeout=300,
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
                 )
                 if result.returncode == 0:
                     ok(f"  {image} <- {source_label}")
@@ -607,7 +641,8 @@ def _pull_image_with_mirrors(image: str) -> bool:
                     if mirror:
                         subprocess.run(
                             ["docker", "tag", rewritten, image],
-                            capture_output=True, timeout=30,
+                            capture_output=True,
+                            timeout=30,
                         )
                     return True
             except subprocess.TimeoutExpired:
@@ -665,7 +700,7 @@ def deploy_penpot(config: dict) -> bool:
 
     # 检查 Penpot 是否已在运行 (Docker 容器 + 端口双重验证)
     if _is_penpot_running(config):
-        ok(f"Penpot 已在运行，跳过部署")
+        ok("Penpot 已在运行，跳过部署")
         return True
 
     # 端口可用性检测，冲突时自动切换
@@ -763,7 +798,9 @@ def _is_process_alive(pid: int) -> bool:
         if PLATFORM == "windows":
             result = subprocess.run(
                 ["tasklist", "/FI", f"PID eq {pid}"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             return str(pid) in result.stdout
         else:
@@ -886,7 +923,8 @@ def stop_mcp(config: dict) -> bool:
                 # /T 终止进程树（含 shell=True 产生的 cmd.exe 子进程）
                 subprocess.run(
                     ["taskkill", "/F", "/T", "/PID", str(pid)],
-                    capture_output=True, timeout=10,
+                    capture_output=True,
+                    timeout=10,
                 )
             else:
                 os.kill(pid, signal.SIGTERM)
@@ -939,8 +977,14 @@ def register_claude_mcp(config: dict):
 
     # 注册
     info("注册 Penpot MCP Server...")
-    result = run_cmd(["claude", "mcp", "add", "penpot", "-t", "http", mcp_url], timeout=10)
-    if result.returncode == 0 or "Added" in (result.stdout or "") or "already" in (result.stdout or ""):
+    result = run_cmd(
+        ["claude", "mcp", "add", "penpot", "-t", "http", mcp_url], timeout=10
+    )
+    if (
+        result.returncode == 0
+        or "Added" in (result.stdout or "")
+        or "already" in (result.stdout or "")
+    ):
         ok("已注册到 Claude Code")
     else:
         warn(f"自动注册失败 (exit={result.returncode})")
@@ -957,7 +1001,9 @@ def cmd_deploy(config: dict):
     print(f"\n{CYAN}{BOLD}  Penpot 完整部署 (Docker + MCP){NC}")
     print(f"  {'=' * 44}")
     print(f"  {DIM}Penpot: Docker Compose -> localhost:{config['penpot_port']}{NC}")
-    print(f"  {DIM}MCP:    npx @penpot/mcp@latest -> localhost:{config['mcp_port']}{NC}")
+    print(
+        f"  {DIM}MCP:    npx @penpot/mcp@latest -> localhost:{config['mcp_port']}{NC}"
+    )
     print()
 
     # Step 0: 统一依赖预检
@@ -1094,7 +1140,11 @@ def cmd_status(config: dict):
                         name = svc.get("Name", svc.get("name", "?"))
                         state = svc.get("State", svc.get("state", "?"))
                         status_str = svc.get("Status", svc.get("status", ""))
-                        marker = f"{GREEN}OK{NC}" if state == "running" else f"{RED}{state}{NC}"
+                        marker = (
+                            f"{GREEN}OK{NC}"
+                            if state == "running"
+                            else f"{RED}{state}{NC}"
+                        )
                         print(f"    [{marker}] {name} {DIM}{status_str}{NC}")
                     except json.JSONDecodeError:
                         pass
@@ -1173,24 +1223,36 @@ def _print_summary(config: dict, penpot_deployed: bool = True):
 
     print(f"  {BOLD}服务端点:{NC}")
     if penpot_deployed:
-        print(f"    Penpot Frontend:    {CYAN}http://localhost:{config['penpot_port']}{NC}")
-    print(f"    MCP Server (HTTP):  {CYAN}http://localhost:{config['mcp_port']}/mcp{NC}")
-    print(f"    MCP Server (SSE):   {CYAN}http://localhost:{config['mcp_port']}/sse{NC}")
+        print(
+            f"    Penpot Frontend:    {CYAN}http://localhost:{config['penpot_port']}{NC}"
+        )
+    print(
+        f"    MCP Server (HTTP):  {CYAN}http://localhost:{config['mcp_port']}/mcp{NC}"
+    )
+    print(
+        f"    MCP Server (SSE):   {CYAN}http://localhost:{config['mcp_port']}/sse{NC}"
+    )
     print(f"    Plugin Server:      {CYAN}http://localhost:{config['plugin_port']}{NC}")
 
     if penpot_deployed:
         print(f"\n  {BOLD}Penpot 初始设置:{NC}")
         print(f"    1. 浏览器打开 {CYAN}http://localhost:{config['penpot_port']}{NC}")
-        print(f"    2. 注册本地账号 (邮件发送到 mailcatcher: {CYAN}http://localhost:1080{NC})")
-        print(f"    3. 创建项目和设计文件")
+        print(
+            f"    2. 注册本地账号 (邮件发送到 mailcatcher: {CYAN}http://localhost:1080{NC})"
+        )
+        print("    3. 创建项目和设计文件")
 
     print(f"\n  {BOLD}MCP Plugin 设置:{NC}")
-    print(f"    1. 在 Penpot 中打开 Plugins 菜单")
-    print(f"    2. 加载插件: {CYAN}http://localhost:{config['plugin_port']}/manifest.json{NC}")
-    print(f"    3. 在插件 UI 中点击 {BOLD}\"Connect to MCP server\"{NC}")
+    print("    1. 在 Penpot 中打开 Plugins 菜单")
+    print(
+        f"    2. 加载插件: {CYAN}http://localhost:{config['plugin_port']}/manifest.json{NC}"
+    )
+    print(f'    3. 在插件 UI 中点击 {BOLD}"Connect to MCP server"{NC}')
 
     print(f"\n  {BOLD}CataForge 集成:{NC}")
-    print(f"    {YELLOW}WARN{NC} 请将 CLAUDE.md 中 {BOLD}设计工具{NC} 改为 {BOLD}penpot{NC}")
+    print(
+        f"    {YELLOW}WARN{NC} 请将 CLAUDE.md 中 {BOLD}设计工具{NC} 改为 {BOLD}penpot{NC}"
+    )
 
     print(f"\n  {BOLD}常用命令:{NC}")
     script = os.path.relpath(__file__, find_project_root())
