@@ -499,16 +499,16 @@ def resolve_remote_source(args) -> tuple:
 def detect_remote_state(source_type, repo, url, branch, token_env):
     """检测远程状态，返回 (remote_ver, remote_commit, clone_url, token)
 
-    对 GitHub 类型的远程源，优先尝试 SSH 协议。SSH 可用时 clone 使用
-    git@github.com:owner/repo.git，版本检测仍走 GitHub API（更轻量）。
-    SSH 不可用时回退到 HTTPS + Token。
+    对 GitHub 类型的远程源，优先尝试 SSH 协议。SSH 可用时直接使用
+    git 命令（ls-remote / 浅克隆）检测版本，跳过 GitHub API 避免
+    rate limit。SSH 不可用时走 GitHub API + HTTPS。
     """
     token = get_github_token(token_env) if token_env else ""
 
     if source_type == "github":
         print(f"远程源: GitHub {repo} (分支: {branch})")
 
-        # clone URL: 优先 SSH，不可用时回退 HTTPS
+        # 传输协议: 优先 SSH，不可用时回退 HTTPS
         ssh_ok = check_ssh_available()
         if ssh_ok:
             clone_url = get_github_clone_url(repo, prefer_ssh=True)
@@ -518,18 +518,20 @@ def detect_remote_state(source_type, repo, url, branch, token_env):
             proto_hint = "HTTPS + Token" if token else "HTTPS (无认证，仅限公开仓库)"
             print(f"传输协议: {proto_hint}")
 
-        # 版本检测: 优先 GitHub API（轻量），失败时回退到 git 命令
-        remote_ver = check_version_github(repo, branch, token)
-        remote_commit = get_remote_commit_github(repo, branch, token)
-
-        # GitHub API 失败 (rate limit / auth) 时，回退到 git 命令
-        if not remote_commit:
-            print("GitHub API 不可用，回退到 git ls-remote...")
+        if ssh_ok:
+            # SSH 可用: 直接用 git 命令，不走 GitHub API（避免 rate limit）
             remote_commit = get_remote_commit_git(clone_url, branch)
-        if not remote_ver:
-            # 跳过 git tags — 标签常滞后于 pyproject.toml，直接浅克隆读取
-            print("尝试通过浅克隆获取版本...")
-            remote_ver = check_version_git_clone(clone_url, branch, token)
+            remote_ver = check_version_git_clone(clone_url, branch)
+        else:
+            # SSH 不可用: 优先 GitHub API，失败时回退到 git 命令 (HTTPS)
+            remote_ver = check_version_github(repo, branch, token)
+            remote_commit = get_remote_commit_github(repo, branch, token)
+            if not remote_commit:
+                print("GitHub API 不可用，回退到 git ls-remote...")
+                remote_commit = get_remote_commit_git(clone_url, branch)
+            if not remote_ver:
+                print("尝试通过浅克隆获取版本...")
+                remote_ver = check_version_git_clone(clone_url, branch, token)
     else:
         print(f"远程源: Git {url} (分支: {branch})")
         remote_ver = check_version_git_tags(url)
