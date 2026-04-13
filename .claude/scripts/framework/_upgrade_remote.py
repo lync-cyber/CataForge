@@ -389,14 +389,20 @@ def maybe_self_reexec(tmpdir: str, dry_run: bool) -> None:
     if dry_run:
         new_argv.append("--dry-run")
 
-    # os.execve 替换进程镜像后不会返回，需提前清理 askpass 临时文件
     cleanup_askpass(env)
 
-    try:
-        os.execve(sys.executable, new_argv, env)
-    except OSError as e:
-        # exec 失败 -> 回退到当前脚本继续执行（兜底）
-        print(f"[自升级] os.execve 失败，回退到当前脚本: {e}", file=sys.stderr)
+    if sys.platform == "win32":
+        # Windows 上 os.execve 无法正确处理路径中的空格，使用 subprocess 替代
+        try:
+            rc = subprocess.call(new_argv, env=env)
+            sys.exit(rc)
+        except OSError as e:
+            print(f"[自升级] subprocess 启动失败，回退到当前脚本: {e}", file=sys.stderr)
+    else:
+        try:
+            os.execve(sys.executable, new_argv, env)
+        except OSError as e:
+            print(f"[自升级] os.execve 失败，回退到当前脚本: {e}", file=sys.stderr)
 
 
 def clone_and_upgrade(
@@ -521,9 +527,7 @@ def detect_remote_state(source_type, repo, url, branch, token_env):
             print("GitHub API 不可用，回退到 git ls-remote...")
             remote_commit = get_remote_commit_git(clone_url, branch)
         if not remote_ver:
-            print("尝试通过 git 标签获取版本...")
-            remote_ver = check_version_git_tags(clone_url)
-        if not remote_ver:
+            # 跳过 git tags — 标签常滞后于 pyproject.toml，直接浅克隆读取
             print("尝试通过浅克隆获取版本...")
             remote_ver = check_version_git_clone(clone_url, branch, token)
     else:
