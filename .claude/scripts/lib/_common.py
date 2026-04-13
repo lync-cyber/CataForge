@@ -709,36 +709,80 @@ def _cleanup_dead_registry_mirrors() -> bool:
         return False
 
 
+def _find_docker_desktop_exe() -> str:
+    """Locate Docker Desktop.exe on Windows. Returns path or empty string."""
+    candidates = [
+        os.path.join(
+            os.environ.get("ProgramFiles", r"C:\Program Files"),
+            "Docker",
+            "Docker",
+            "Docker Desktop.exe",
+        ),
+        os.path.join(
+            os.environ.get("LOCALAPPDATA", ""),
+            "Docker",
+            "Docker Desktop.exe",
+        ),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return ""
+
+
 def _restart_docker_desktop() -> bool:
-    """Restart Docker Desktop to apply daemon config changes.
+    """Restart Docker Desktop to apply daemon/proxy config changes.
+
+    On Windows, Docker Desktop runs as multiple processes:
+      - Docker Desktop.exe (UI, may not be running in headless mode)
+      - com.docker.backend.exe (daemon backend — must be killed for real restart)
+      - com.docker.build.exe, com.docker.proxy.exe (auxiliary)
+    Killing only the UI leaves the daemon running with old settings.
 
     Returns:
         True if Docker became available after restart.
     """
     info("重启 Docker Desktop 以应用代理配置...")
     if sys.platform == "win32":
-        # Gracefully quit Docker Desktop, then relaunch
-        subprocess.run(
-            ["taskkill", "/IM", "Docker Desktop.exe", "/F"],
-            capture_output=True,
-            timeout=15,
-        )
-        time.sleep(3)
-        docker_exe = os.path.join(
-            os.environ.get("ProgramFiles", r"C:\Program Files"),
-            "Docker",
-            "Docker",
+        # Kill all Docker Desktop processes (backend is the critical one)
+        for proc_name in [
             "Docker Desktop.exe",
-        )
-        if not os.path.isfile(docker_exe):
-            # Try alternate path
-            docker_exe = os.path.join(
-                os.environ.get("LOCALAPPDATA", ""),
-                "Docker",
-                "Docker Desktop.exe",
+            "com.docker.backend.exe",
+            "com.docker.build.exe",
+            "com.docker.proxy.exe",
+        ]:
+            subprocess.run(
+                ["taskkill", "/IM", proc_name, "/F"],
+                capture_output=True,
+                timeout=15,
             )
-        if os.path.isfile(docker_exe):
-            subprocess.Popen([docker_exe], creationflags=0x00000008)  # DETACHED_PROCESS
+
+        # Wait for daemon to fully stop (docker info should fail)
+        info("  等待 Docker 停止...")
+        for _ in range(15):
+            try:
+                result = subprocess.run(
+                    ["docker", "info"],
+                    capture_output=True,
+                    timeout=3,
+                )
+                if result.returncode != 0:
+                    break
+            except (subprocess.TimeoutExpired, OSError):
+                break
+            time.sleep(1)
+        else:
+            warn("Docker 进程未完全停止，继续尝试重启...")
+
+        time.sleep(2)
+
+        # Relaunch Docker Desktop
+        docker_exe = _find_docker_desktop_exe()
+        if docker_exe:
+            subprocess.Popen(
+                [docker_exe],
+                creationflags=0x00000008,  # DETACHED_PROCESS
+            )
         else:
             warn("无法定位 Docker Desktop.exe，请手动重启 Docker Desktop")
             return False
@@ -756,8 +800,8 @@ def _restart_docker_desktop() -> bool:
         )
 
     # Wait for Docker daemon to become ready
-    info("  等待 Docker 就绪 (最多 60s)...")
-    for i in range(60):
+    info("  等待 Docker 就绪 (最多 90s)...")
+    for i in range(90):
         try:
             result = subprocess.run(
                 ["docker", "info"],
