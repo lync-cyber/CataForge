@@ -55,6 +55,7 @@ from _common import (
     YELLOW,
     check_port_available,
     detect_platform,
+    ensure_docker_proxy,
     ensure_utf8_stdio,
     fail,
     find_available_port,
@@ -624,59 +625,8 @@ def _rewrite_image(image: str, mirror: str) -> str:
 
 
 def _ensure_docker_proxy():
-    """检测环境代理并配置到 Docker daemon，使 docker pull 能走代理。
-
-    Docker daemon 不继承 shell 的 HTTP_PROXY 环境变量，需要通过
-    systemd drop-in (Linux) 或 Docker Desktop 配置 (Windows/macOS) 配置。
-    此函数优先通过 Docker Desktop 的 ~/.docker/config.json 方式配置，
-    该方式跨平台且不需要重启 daemon。
-    """
-    http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") or ""
-    https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
-    if not http_proxy and not https_proxy:
-        return
-
-    # 检查 Docker daemon 是否已有代理配置
-    docker_config_path = os.path.join(os.path.expanduser("~"), ".docker", "config.json")
-    existing_proxies = {}
-    if os.path.isfile(docker_config_path):
-        try:
-            with open(docker_config_path, "r", encoding="utf-8") as f:
-                docker_config = json.load(f)
-            existing_proxies = docker_config.get("proxies", {}).get("default", {})
-        except (json.JSONDecodeError, OSError):
-            docker_config = {}
-    else:
-        docker_config = {}
-
-    # 如果已配置且匹配，无需修改
-    existing_http = existing_proxies.get("httpProxy", "")
-    existing_https = existing_proxies.get("httpsProxy", "")
-    if existing_http == http_proxy and existing_https == https_proxy:
-        ok(f"Docker 代理已配置: {https_proxy or http_proxy}")
-        return
-
-    # 写入 ~/.docker/config.json 的 proxies 字段
-    proxies_config = {}
-    if http_proxy:
-        proxies_config["httpProxy"] = http_proxy
-    if https_proxy:
-        proxies_config["httpsProxy"] = https_proxy
-    # 本地地址不走代理
-    proxies_config["noProxy"] = "localhost,127.0.0.1"
-
-    docker_config.setdefault("proxies", {})["default"] = proxies_config
-
-    os.makedirs(os.path.dirname(docker_config_path), exist_ok=True)
-    try:
-        with open(docker_config_path, "w", encoding="utf-8") as f:
-            json.dump(docker_config, f, indent=2, ensure_ascii=False)
-            f.write("\n")
-        ok(f"Docker 代理已配置: {https_proxy or http_proxy}")
-        info(f"  写入: {docker_config_path}")
-    except OSError as e:
-        warn(f"无法写入 Docker 代理配置: {e}")
-        info(f"  请手动配置 Docker 代理: {https_proxy or http_proxy}")
+    """检测环境代理并配置到 Docker daemon — 委托给 _common.ensure_docker_proxy。"""
+    ensure_docker_proxy()
 
 
 def _pull_image_with_mirrors(image: str) -> bool:

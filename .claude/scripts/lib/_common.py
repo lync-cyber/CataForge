@@ -20,14 +20,17 @@ For backward compatibility, all public names are re-exported here.
 """
 
 import io
+import json
 import os
 import re
 import shutil
 import socket
 import subprocess
 import sys
+import time
 import warnings
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
+from urllib.parse import urlparse
 
 # ============================================================================
 # Re-exports from extracted modules (backward compatibility)
@@ -371,6 +374,268 @@ def check_port_available(port: int, name: str = "") -> bool:
         warn(f"Port {port}{label} is occupied")
         return False
     return True
+
+
+# ============================================================================
+# Proxy utilities
+# ============================================================================
+
+# Cooldown state for auto-detect
+_proxy_last_check: float = 0.0
+_proxy_last_state: str = ""
+_PROXY_CHECK_INTERVAL = 30  # seconds
+
+
+def resolve_proxy_url() -> str:
+    """Resolve proxy URL from environment variables or .env file.
+
+    Priority:
+      1. os.environ HTTP_PROXY / HTTPS_PROXY (case-insensitive)
+      2. .env file at project root (parsed but NOT injected into os.environ)
+
+    Returns:
+        Proxy URL string, or "" if none found.
+    """
+    for var in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+        val = os.environ.get(var, "")
+        if val:
+            return val
+
+    # Fallback: read from .env
+    dotenv = load_dotenv()
+    for var in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy"):
+        val = dotenv.get(var, "")
+        if val:
+            return val
+
+    return ""
+
+
+def parse_proxy_host_port(proxy_url: str = "") -> Tuple[str, int]:
+    """Extract (host, port) from a proxy URL.
+
+    Args:
+        proxy_url: e.g. "http://proxy-prc.intel.com:912". If empty,
+                   calls resolve_proxy_url().
+
+    Returns:
+        (host, port) tuple. ("", 0) if parsing fails or no proxy configured.
+    """
+    if not proxy_url:
+        proxy_url = resolve_proxy_url()
+    if not proxy_url:
+        return ("", 0)
+
+    parsed = urlparse(proxy_url)
+    host = parsed.hostname or ""
+    port = parsed.port or 0
+    return (host, port)
+
+
+def is_proxy_reachable(host: str = "", port: int = 0, timeout: float = 1.0) -> bool:
+    """Check if the proxy host:port is reachable via TCP connect.
+
+    Args:
+        host: Proxy hostname. If empty, auto-resolved from env/.env.
+        port: Proxy port. If 0, auto-resolved.
+        timeout: Connection timeout in seconds.
+
+    Returns:
+        True if the proxy port accepts connections.
+    """
+    if not host or not port:
+        host, port = parse_proxy_host_port()
+    if not host or not port:
+        return False
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)
+        try:
+            s.connect((host, port))
+            return True
+        except (ConnectionRefusedError, TimeoutError, OSError):
+            return False
+
+
+def proxy_on(proxy_url: str = "", quiet: bool = False):
+    """Enable proxy: set env vars + git global config.
+
+    Args:
+        proxy_url: Proxy URL. If empty, auto-resolved.
+        quiet: Suppress output if True.
+    """
+    if not proxy_url:
+        proxy_url = resolve_proxy_url()
+    if not proxy_url:
+        if not quiet:
+            warn("未找到代理配置 (HTTP_PROXY / .env)")
+        return
+
+    no_proxy = "localhost,127.0.0.1,::1"
+    os.environ["http_proxy"] = proxy_url
+    os.environ["https_proxy"] = proxy_url
+    os.environ["HTTP_PROXY"] = proxy_url
+    os.environ["HTTPS_PROXY"] = proxy_url
+    os.environ["no_proxy"] = no_proxy
+    os.environ["NO_PROXY"] = no_proxy
+
+    # Configure git global proxy
+    if has_command("git"):
+        try:
+            run_cmd(["git", "config", "--global", "http.proxy", proxy_url], timeout=5)
+            run_cmd(["git", "config", "--global", "https.proxy", proxy_url], timeout=5)
+        except Exception:
+            pass
+
+    if not quiet:
+        ok(f"代理已启用: {proxy_url}")
+
+
+def proxy_off(quiet: bool = False):
+    """Disable proxy: unset env vars + git global config.
+
+    Args:
+        quiet: Suppress output if True.
+    """
+    for var in (
+        "http_proxy",
+        "https_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "no_proxy",
+        "NO_PROXY",
+    ):
+        os.environ.pop(var, None)
+
+    if has_command("git"):
+        try:
+            run_cmd(["git", "config", "--global", "--unset", "http.proxy"], timeout=5)
+            run_cmd(["git", "config", "--global", "--unset", "https.proxy"], timeout=5)
+        except Exception:
+            pass
+
+    if not quiet:
+        ok("代理已关闭")
+
+
+def proxy_status() -> str:
+    """Return current proxy status string.
+
+    Returns:
+        "ON → <url>" or "OFF (direct)".
+    """
+    url = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") or ""
+    if url:
+        return f"ON → {url}"
+    return "OFF (direct)"
+
+
+def ensure_proxy(quiet: bool = False) -> bool:
+    """Auto-detect proxy reachability and enable/disable accordingly.
+
+    Uses cooldown to avoid repeated network probes.
+
+    Args:
+        quiet: Suppress output if True.
+
+    Returns:
+        True if proxy is now enabled, False otherwise.
+    """
+    global _proxy_last_check, _proxy_last_state
+
+    now = time.time()
+    if (now - _proxy_last_check) < _PROXY_CHECK_INTERVAL and _proxy_last_state:
+        return _proxy_last_state == "on"
+
+    _proxy_last_check = now
+    host, port = parse_proxy_host_port()
+    if not host:
+        _proxy_last_state = "off"
+        return False
+
+    reachable = is_proxy_reachable(host, port)
+    new_state = "on" if reachable else "off"
+
+    if new_state != _proxy_last_state:
+        _proxy_last_state = new_state
+        if reachable:
+            proxy_on(quiet=quiet)
+            if not quiet:
+                info(f"auto → 代理可达 ({host}:{port})")
+        else:
+            proxy_off(quiet=quiet)
+            if not quiet:
+                info(f"auto → 代理不可达 ({host}:{port})")
+    else:
+        _proxy_last_state = new_state
+
+    return reachable
+
+
+def ensure_docker_proxy(proxy_url: str = ""):
+    """Configure Docker daemon proxy via ~/.docker/config.json.
+
+    Docker daemon does not inherit shell HTTP_PROXY. This writes the
+    proxy settings into Docker's config file (cross-platform).
+
+    Args:
+        proxy_url: Proxy URL. If empty, auto-resolved from env/.env.
+    """
+    http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") or ""
+    https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
+
+    # If a specific URL is given, use it for both
+    if proxy_url:
+        http_proxy = http_proxy or proxy_url
+        https_proxy = https_proxy or proxy_url
+
+    if not http_proxy and not https_proxy:
+        # Try resolving from .env
+        resolved = resolve_proxy_url()
+        if resolved:
+            http_proxy = resolved
+            https_proxy = resolved
+        else:
+            return
+
+    docker_config_path = os.path.join(os.path.expanduser("~"), ".docker", "config.json")
+    docker_config: dict = {}
+    existing_proxies: dict = {}
+
+    if os.path.isfile(docker_config_path):
+        try:
+            with open(docker_config_path, "r", encoding="utf-8") as f:
+                docker_config = json.load(f)
+            existing_proxies = docker_config.get("proxies", {}).get("default", {})
+        except (json.JSONDecodeError, OSError):
+            docker_config = {}
+
+    # Already configured and matching — skip
+    if (
+        existing_proxies.get("httpProxy", "") == http_proxy
+        and existing_proxies.get("httpsProxy", "") == https_proxy
+    ):
+        ok(f"Docker 代理已配置: {https_proxy or http_proxy}")
+        return
+
+    # Build new proxy config
+    proxies_config: dict = {}
+    if http_proxy:
+        proxies_config["httpProxy"] = http_proxy
+    if https_proxy:
+        proxies_config["httpsProxy"] = https_proxy
+    proxies_config["noProxy"] = "localhost,127.0.0.1"
+
+    docker_config.setdefault("proxies", {})["default"] = proxies_config
+
+    os.makedirs(os.path.dirname(docker_config_path), exist_ok=True)
+    try:
+        with open(docker_config_path, "w", encoding="utf-8") as f:
+            json.dump(docker_config, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        ok(f"Docker 代理已配置: {https_proxy or http_proxy}")
+    except OSError as e:
+        warn(f"写入 Docker 配置失败: {e}")
 
 
 # ============================================================================

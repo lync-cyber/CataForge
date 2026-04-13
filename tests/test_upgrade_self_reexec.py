@@ -75,7 +75,7 @@ class TestMaybeSelfReexec:
         execve.assert_not_called()
 
     def test_triggers_execve_when_hashes_differ(self, tmp_path, monkeypatch):
-        """新旧 upgrade.py 内容不同时，应调用 os.execve 切换进程。"""
+        """新旧 upgrade.py 内容不同时，应调用 os.execve (Unix) 或 subprocess.call (Windows)。"""
         monkeypatch.delenv(upgrade.SELF_UPGRADE_MARKER, raising=False)
         monkeypatch.delenv(upgrade.SELF_UPGRADE_SRC_ENV, raising=False)
 
@@ -86,24 +86,39 @@ class TestMaybeSelfReexec:
         cur_script.write_text("print('old version')\n")
         monkeypatch.setattr(sys, "argv", [str(cur_script)])
 
-        execve = mock.MagicMock()
-        monkeypatch.setattr(os, "execve", execve)
-
-        upgrade.maybe_self_reexec(str(tmp_path), dry_run=False)
-        execve.assert_called_once()
-        call = execve.call_args
-        # 参数 1: python interpreter
-        assert call.args[0] == sys.executable
-        # 参数 2: argv 列表
-        argv = call.args[1]
-        assert argv[0] == sys.executable
-        assert argv[1] == str(new_script)
-        assert argv[2] == "local"
-        assert argv[3] == str(tmp_path)
-        # 参数 3: env 必须含 marker 和 src
-        env = call.args[2]
-        assert env[upgrade.SELF_UPGRADE_MARKER] == "1"
-        assert env[upgrade.SELF_UPGRADE_SRC_ENV] == str(tmp_path)
+        if sys.platform == "win32":
+            # Windows 路径: subprocess.call + sys.exit
+            sub_call = mock.MagicMock(return_value=0)
+            monkeypatch.setattr("subprocess.call", sub_call)
+            with pytest.raises(SystemExit) as exc_info:
+                upgrade.maybe_self_reexec(str(tmp_path), dry_run=False)
+            assert exc_info.value.code == 0
+            sub_call.assert_called_once()
+            call = sub_call.call_args
+            argv = call.args[0]
+            assert argv[0] == sys.executable
+            assert argv[1] == str(new_script)
+            assert argv[2] == "local"
+            assert argv[3] == str(tmp_path)
+            env = call.kwargs.get("env") or call.args[1]
+            assert env[upgrade.SELF_UPGRADE_MARKER] == "1"
+            assert env[upgrade.SELF_UPGRADE_SRC_ENV] == str(tmp_path)
+        else:
+            # Unix 路径: os.execve
+            execve = mock.MagicMock()
+            monkeypatch.setattr(os, "execve", execve)
+            upgrade.maybe_self_reexec(str(tmp_path), dry_run=False)
+            execve.assert_called_once()
+            call = execve.call_args
+            assert call.args[0] == sys.executable
+            argv = call.args[1]
+            assert argv[0] == sys.executable
+            assert argv[1] == str(new_script)
+            assert argv[2] == "local"
+            assert argv[3] == str(tmp_path)
+            env = call.args[2]
+            assert env[upgrade.SELF_UPGRADE_MARKER] == "1"
+            assert env[upgrade.SELF_UPGRADE_SRC_ENV] == str(tmp_path)
 
     def test_dry_run_flag_propagated(self, tmp_path, monkeypatch):
         monkeypatch.delenv(upgrade.SELF_UPGRADE_MARKER, raising=False)
@@ -115,15 +130,21 @@ class TestMaybeSelfReexec:
         cur_script.write_text("print('old')\n")
         monkeypatch.setattr(sys, "argv", [str(cur_script)])
 
-        execve = mock.MagicMock()
-        monkeypatch.setattr(os, "execve", execve)
-
-        upgrade.maybe_self_reexec(str(tmp_path), dry_run=True)
-        argv = execve.call_args.args[1]
+        if sys.platform == "win32":
+            sub_call = mock.MagicMock(return_value=0)
+            monkeypatch.setattr("subprocess.call", sub_call)
+            with pytest.raises(SystemExit):
+                upgrade.maybe_self_reexec(str(tmp_path), dry_run=True)
+            argv = sub_call.call_args.args[0]
+        else:
+            execve = mock.MagicMock()
+            monkeypatch.setattr(os, "execve", execve)
+            upgrade.maybe_self_reexec(str(tmp_path), dry_run=True)
+            argv = execve.call_args.args[1]
         assert "--dry-run" in argv
 
     def test_execve_failure_falls_through(self, tmp_path, monkeypatch):
-        """os.execve 抛 OSError 时不应崩溃，而是回退到当前脚本继续。"""
+        """os.execve/subprocess.call 抛 OSError 时不应崩溃，回退到当前脚本继续。"""
         monkeypatch.delenv(upgrade.SELF_UPGRADE_MARKER, raising=False)
 
         new_script = tmp_path / ".claude" / "scripts" / "framework" / "upgrade.py"
@@ -132,9 +153,14 @@ class TestMaybeSelfReexec:
         cur_script.write_text("print('old')\n")
         monkeypatch.setattr(sys, "argv", [str(cur_script)])
 
-        monkeypatch.setattr(
-            os, "execve", mock.MagicMock(side_effect=OSError("mock failure"))
-        )
+        if sys.platform == "win32":
+            monkeypatch.setattr(
+                "subprocess.call", mock.MagicMock(side_effect=OSError("mock failure"))
+            )
+        else:
+            monkeypatch.setattr(
+                os, "execve", mock.MagicMock(side_effect=OSError("mock failure"))
+            )
 
         # 不应抛出
         upgrade.maybe_self_reexec(str(tmp_path), dry_run=False)
