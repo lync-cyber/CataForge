@@ -307,12 +307,15 @@ def _start_docker_desktop() -> bool:
 
     info("等待 Docker daemon 就绪 (最多 90s)...")
     for i in range(90):
-        result = subprocess.run(
-            ["docker", "info"], capture_output=True, text=True, timeout=10
-        )
-        if result.returncode == 0:
-            ok(f"Docker daemon 已就绪 (等待了 {i + 1}s)")
-            return True
+        try:
+            result = subprocess.run(
+                ["docker", "info"], capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                ok(f"Docker daemon 已就绪 (等待了 {i + 1}s)")
+                return True
+        except subprocess.TimeoutExpired:
+            pass  # daemon 仍在启动中，继续等待
         time.sleep(1)
         if (i + 1) % 15 == 0:
             info(f"  已等待 {i + 1}s...")
@@ -351,12 +354,15 @@ def _install_docker_windows() -> bool:
 def _ensure_docker_running() -> bool:
     """确保 Docker daemon 在运行，必要时自动启动或安装 Docker Desktop。"""
     # 先检查 daemon 是否已运行
-    result = subprocess.run(
-        ["docker", "info"], capture_output=True, text=True, timeout=15
-    )
-    if result.returncode == 0:
-        ok("Docker daemon 运行中")
-        return True
+    try:
+        result = subprocess.run(
+            ["docker", "info"], capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0:
+            ok("Docker daemon 运行中")
+            return True
+    except subprocess.TimeoutExpired:
+        pass  # daemon 未响应，继续尝试启动
 
     if PLATFORM == "windows":
         # 尝试启动已安装的 Docker Desktop
