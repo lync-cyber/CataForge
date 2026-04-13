@@ -141,6 +141,7 @@ docker-compose.override.yml
 docs/**/*.html
 docs/**/*.pdf
 docs/**/node_modules/
+docs/.doc-index.json
 
 # ==============================================================================
 # OS Specific

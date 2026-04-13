@@ -1,9 +1,17 @@
+---
+id: "arch-{project}-{ver}-modules"
+doc_type: arch
+author: architect
+status: draft
+deps: ["prd-{project}-{ver}"]
+consumers: [tech-lead, developer, devops]
+volume: modules
+volume_type: modules
+split_from: "arch-{project}-{ver}"
+required_sections:
+  - "## 2. 模块划分"
+---
 # Architecture 分卷 — 模块划分: {项目名称}
-<!-- required_sections: ["## 2. 模块划分"] -->
-<!-- volume_type: modules -->
-<!-- id: arch-{project}-{ver}-modules | author: architect | status: draft -->
-<!-- deps: prd-{project}-{ver} | consumers: tech-lead, developer, devops -->
-<!-- volume: modules | split-from: arch-{project}-{ver} -->
 
 [NAV]
 - §2 模块划分 → M-001..M-{NNN}

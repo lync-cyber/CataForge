@@ -1,9 +1,17 @@
+---
+id: "prd-{project}-{ver}-f{start}-f{end}"
+doc_type: prd
+author: product-manager
+status: draft
+deps: []
+consumers: [architect, ui-designer, tech-lead]
+volume: features
+volume_type: features
+split_from: "prd-{project}-{ver}"
+required_sections:
+  - "## 2. 功能需求"
+---
 # PRD 分卷 — 功能需求: {项目名称}
-<!-- required_sections: ["## 2. 功能需求"] -->
-<!-- volume_type: features -->
-<!-- id: prd-{project}-{ver}-f{start}-f{end} | author: product-manager | status: draft -->
-<!-- deps: none | consumers: architect, ui-designer, tech-lead -->
-<!-- volume: features | split-from: prd-{project}-{ver} -->
 
 [NAV]
 - §2 功能需求 → F-{start}..F-{end}

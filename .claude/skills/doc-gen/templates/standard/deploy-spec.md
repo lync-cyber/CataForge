@@ -1,8 +1,18 @@
+---
+id: "deploy-spec-{project}-{ver}"
+doc_type: deploy-spec
+author: devops
+status: draft
+deps: ["arch-{project}-{ver}"]
+consumers: [devops]
+volume: main
+required_sections:
+  - "## 1. 构建流程"
+  - "## 2. 环境配置"
+  - "## 3. CI/CD流水线"
+  - "## 4. 发布检查清单"
+---
 # Deployment Specification: {项目名称}
-<!-- required_sections: ["## 1. 构建流程", "## 2. 环境配置", "## 3. CI/CD流水线", "## 4. 发布检查清单"] -->
-<!-- id: deploy-spec-{project}-{ver} | author: devops | status: draft -->
-<!-- deps: arch-{project}-{ver} | consumers: devops -->
-<!-- volume: main -->
 
 [NAV]
 - §1 构建流程

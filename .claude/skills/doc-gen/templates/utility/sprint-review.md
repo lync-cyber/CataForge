@@ -1,7 +1,17 @@
+---
+id: "sprint-review-s{N}-{project}-{ver}"
+doc_type: sprint-review
+author: reviewer
+status: draft
+deps: ["dev-plan-{project}-{ver}", "arch-{project}-{ver}"]
+consumers: [orchestrator]
+required_sections:
+  - "## 1. 计划 vs 实际"
+  - "## 2. 范围分析"
+  - "## 3. 质量聚合"
+  - "## 4. 结论"
+---
 # Sprint Review: Sprint {N} — {项目名称}
-<!-- required_sections: ["## 1. 计划 vs 实际", "## 2. 范围分析", "## 3. 质量聚合", "## 4. 结论"] -->
-<!-- id: sprint-review-s{N}-{project}-{ver} | author: reviewer | status: draft -->
-<!-- deps: dev-plan-{project}-{ver}, arch-{project}-{ver} | consumers: orchestrator -->
 
 [NAV]
 - §1 计划 vs 实际 → 任务完成度、交付物、AC覆盖率

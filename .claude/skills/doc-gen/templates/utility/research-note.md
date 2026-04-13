@@ -1,8 +1,18 @@
+---
+id: "rn-{NNN}"
+doc_type: research
+author: "{agent-name}"
+status: draft
+deps: ["{触发调研的文档ID}"]
+consumers: ["{请求调研的agent}"]
+context: "{触发调研的阶段和问题}"
+required_sections:
+  - "## 问题"
+  - "## 调研方法"
+  - "## 发现"
+  - "## 结论"
+---
 # Research Note: {主题}
-<!-- required_sections: ["## 问题", "## 调研方法", "## 发现", "## 结论"] -->
-<!-- id: rn-{NNN} | author: {agent-name} | status: draft -->
-<!-- deps: {触发调研的文档ID} | consumers: {请求调研的agent} -->
-<!-- context: {触发调研的阶段和问题} -->
 
 ## 问题
 {需要调研的具体问题}

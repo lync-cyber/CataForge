@@ -1,8 +1,18 @@
+---
+id: "prd-lite-{project}-{ver}"
+doc_type: prd
+author: product-manager
+status: draft
+deps: []
+consumers: [architect, tech-lead]
+volume: main
+mode: agile-lite
+required_sections:
+  - "## 1. 目标"
+  - "## 2. 功能列表"
+  - "## 3. 非功能关键项"
+---
 # PRD-Lite: {项目名称}
-<!-- required_sections: ["## 1. 目标", "## 2. 功能列表", "## 3. 非功能关键项"] -->
-<!-- id: prd-lite-{project}-{ver} | author: product-manager | status: draft -->
-<!-- deps: none | consumers: architect, tech-lead -->
-<!-- volume: main | mode: agile-lite -->
 
 <!--
   PRD-Lite 适用于 agile-lite 执行模式。

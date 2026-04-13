@@ -454,6 +454,131 @@ def get_constant(name: str, default=None):
 
 
 # ============================================================================
+# 模板注册表 (_registry.yaml)
+# ============================================================================
+
+_REGISTRY_CACHE: Optional[dict] = None
+REGISTRY_FILE = os.path.join(
+    ".claude", "skills", "doc-gen", "templates", "_registry.yaml"
+)
+
+
+def load_template_registry(project_root: Optional[str] = None) -> dict:
+    """加载 .claude/skills/doc-gen/templates/_registry.yaml 模板注册表。
+
+    返回 {template_id: {path, doc_type, mode, role, ...}} 字典。
+    结果在进程内缓存。
+    """
+    global _REGISTRY_CACHE
+    if _REGISTRY_CACHE is not None:
+        return _REGISTRY_CACHE
+
+    if project_root is None:
+        project_root = find_project_root()
+
+    reg_path = os.path.join(project_root, REGISTRY_FILE)
+    if not os.path.isfile(reg_path):
+        return {}
+
+    with open(reg_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 简易 YAML 解析（避免依赖 PyYAML）
+    templates: Dict[str, dict] = {}
+    current_id: Optional[str] = None
+    current_dict: Optional[dict] = None
+    current_list_key: Optional[str] = None
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        # 顶级键跳过
+        if stripped in ("templates:", 'version: "1"', "version: '1'"):
+            continue
+
+        indent = len(line) - len(line.lstrip())
+
+        # template_id 行 (indent=2): "  prd:"
+        if indent == 2 and stripped.endswith(":") and not stripped.startswith("-"):
+            if current_id and current_dict:
+                templates[current_id] = current_dict
+            current_id = stripped[:-1].strip()
+            current_dict = {}
+            current_list_key = None
+            continue
+
+        # 属性行 (indent=4): "    path: standard/prd.md"
+        if indent == 4 and ":" in stripped and current_dict is not None:
+            key, _, val = stripped.partition(":")
+            key = key.strip()
+            val = val.strip()
+            if val.startswith("[") and val.endswith("]"):
+                items = val[1:-1].split(",")
+                current_dict[key] = [
+                    i.strip().strip('"').strip("'") for i in items if i.strip()
+                ]
+                current_list_key = None
+            elif not val:
+                current_dict[key] = []
+                current_list_key = key
+            else:
+                current_dict[key] = val.strip('"').strip("'")
+                current_list_key = None
+            continue
+
+        # 列表续行 (indent=4+): "    - item"
+        if stripped.startswith("- ") and current_list_key and current_dict is not None:
+            current_dict.setdefault(current_list_key, []).append(
+                stripped[2:].strip().strip('"').strip("'")
+            )
+
+    if current_id and current_dict:
+        templates[current_id] = current_dict
+
+    _REGISTRY_CACHE = templates
+    return templates
+
+
+def build_doc_type_map(project_root: Optional[str] = None) -> Dict[str, str]:
+    """从模板注册表构建 doc_id → doc_type 映射（替代硬编码 DOC_TYPE_MAP）。"""
+    registry = load_template_registry(project_root)
+    result: Dict[str, str] = {}
+    for template_id, meta in registry.items():
+        doc_type = meta.get("doc_type", "")
+        if doc_type:
+            result[template_id] = doc_type
+    return result
+
+
+def build_template_path_map(
+    project_root: Optional[str] = None,
+) -> Dict[str, Dict[str, str]]:
+    """从模板注册表构建 doc_type → {volume_type → relative_path} 映射（替代硬编码 _TEMPLATE_MAP）。
+
+    返回的 path 是相对于 templates/ 目录的路径（如 "standard/prd.md"）。
+    """
+    registry = load_template_registry(project_root)
+    result: Dict[str, Dict[str, str]] = {}
+    for template_id, meta in registry.items():
+        doc_type = meta.get("doc_type", "")
+        role = meta.get("role", "main")
+        path = meta.get("path", "")
+        if not doc_type or not path:
+            continue
+        if doc_type not in result:
+            result[doc_type] = {}
+        if role == "volume":
+            vol_type = meta.get("volume_type", "")
+            if vol_type:
+                result[doc_type][vol_type] = path
+        else:
+            result[doc_type]["main"] = path
+    return result
+
+
+# ============================================================================
 # GitHub / SSH 工具
 # ============================================================================
 

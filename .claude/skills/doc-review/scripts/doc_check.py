@@ -15,7 +15,7 @@ from pathlib import Path
 from collections import defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts"))
-from _common import get_constant
+from _common import build_template_path_map, get_constant
 
 # ========================================
 # 分卷常量
@@ -37,24 +37,8 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _TEMPLATES_DIR = _SCRIPT_DIR.parent.parent / "doc-gen" / "templates"
 
 # doc_type → {volume_type → template_filename} 映射
-_TEMPLATE_MAP: dict[str, dict[str, str]] = {
-    "prd": {"main": "prd.md", "features": "prd-volume.md"},
-    "arch": {
-        "main": "arch.md",
-        "modules": "arch-modules.md",
-        "api": "arch-api.md",
-        "data": "arch-data.md",
-    },
-    "dev-plan": {"main": "dev-plan.md", "sprint": "dev-plan-sprint.md"},
-    "ui-spec": {
-        "main": "ui-spec.md",
-        "components": "ui-spec-components.md",
-        "pages": "ui-spec-pages.md",
-    },
-    "test-report": {"main": "test-report.md"},
-    "deploy-spec": {"main": "deploy-spec.md"},
-    "research": {"main": "research-note.md"},
-}
+# 从 _registry.yaml 动态构建
+_TEMPLATE_MAP: dict[str, dict[str, str]] = build_template_path_map()
 
 
 def _parse_required_sections(headings: list[str]) -> list[tuple[str, str]]:
@@ -71,7 +55,7 @@ def _parse_required_sections(headings: list[str]) -> list[tuple[str, str]]:
 def _load_template_required_sections(
     doc_type: str, volume_type: str
 ) -> list[tuple[str, str]] | None:
-    """从模板文件的 <!-- required_sections: [...] --> 注释中读取必填章节列表。
+    """从模板文件的 YAML Front Matter required_sections 字段读取必填章节列表。
     返回 None 表示未找到对应模板或模板中无 required_sections 声明。"""
     type_map = _TEMPLATE_MAP.get(doc_type)
     if not type_map:
@@ -84,12 +68,40 @@ def _load_template_required_sections(
         content = template_path.read_text(encoding="utf-8")
     except OSError:
         return None
-    match = re.search(r"<!--\s*required_sections:\s*(\[.*?\])\s*-->", content)
-    if not match:
+    # Parse YAML Front Matter
+    fm_match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
+    if not fm_match:
         return None
-    try:
-        headings = json.loads(match.group(1))
-    except json.JSONDecodeError:
+    fm_text = fm_match.group(1)
+    # Extract required_sections list from YAML
+    headings: list[str] = []
+    in_required_sections = False
+    for line in fm_text.splitlines():
+        if re.match(r"^required_sections\s*:", line):
+            in_required_sections = True
+            # Check for inline list: required_sections: ["## 1. Foo"]
+            inline = re.search(r":\s*(\[.*\])", line)
+            if inline:
+                try:
+                    headings = json.loads(inline.group(1))
+                except json.JSONDecodeError:
+                    pass
+                break
+            continue
+        if in_required_sections:
+            list_item = re.match(r'^\s+-\s+"(.*)"', line) or re.match(
+                r"^\s+-\s+'(.*)'", line
+            )
+            if list_item:
+                headings.append(list_item.group(1))
+            elif re.match(r"^\s+-\s+", line):
+                # Unquoted list item
+                val = re.match(r"^\s+-\s+(.*)", line)
+                if val:
+                    headings.append(val.group(1).strip())
+            else:
+                break  # End of list
+    if not headings:
         return None
     return _parse_required_sections(headings)
 
@@ -118,14 +130,55 @@ class DocChecker:
         # volume_type: 外部传入优先，否则自动检测
         self.volume_type = volume_type or self._detect_volume_type()
 
+    @staticmethod
+    def _parse_yaml_frontmatter(content: str) -> dict:
+        """从文档内容中解析 YAML Front Matter，返回字典。"""
+        fm_match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
+        if not fm_match:
+            return {}
+        result: dict = {}
+        current_key = None
+        current_list: list | None = None
+        for line in fm_match.group(1).splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("- ") and current_key and current_list is not None:
+                val = stripped[2:].strip().strip('"').strip("'")
+                current_list.append(val)
+                result[current_key] = current_list
+                continue
+            colon_idx = stripped.find(":")
+            if colon_idx > 0:
+                key = stripped[:colon_idx].strip()
+                val_part = stripped[colon_idx + 1 :].strip()
+                if not val_part:
+                    current_key = key
+                    current_list = []
+                    result[key] = current_list
+                    continue
+                current_key = key
+                current_list = None
+                if val_part.startswith("[") and val_part.endswith("]"):
+                    items = val_part[1:-1].split(",")
+                    result[key] = [
+                        i.strip().strip('"').strip("'") for i in items if i.strip()
+                    ]
+                else:
+                    result[key] = val_part.strip('"').strip("'")
+        return result
+
     def _detect_volume_type(self) -> str:
-        """从 <!-- volume: ... --> 头部自动提取 volume type，回退到文件名模式匹配，默认返回 main"""
-        match = re.search(r"<!--.*?volume:\s*(\w+)", self.content)
-        if match:
-            vt = match.group(1).strip()
-            if vt in VOLUME_TYPES:
-                return vt
-        # 文件名模式回退 (基于 doc-gen §2.1 命名规则)
+        """从 YAML Front Matter 的 volume_type 字段提取 volume type，回退到文件名模式匹配，默认返回 main"""
+        fm = self._parse_yaml_frontmatter(self.content)
+        vt = fm.get("volume_type", "")
+        if vt and vt in VOLUME_TYPES:
+            return vt
+        # volume 字段作为次选（main 文档的 volume 值）
+        vol = fm.get("volume", "")
+        if vol and vol in VOLUME_TYPES:
+            return vol
+        # 文件名模式回退
         stem = Path(self.doc_file).stem
         filename_patterns = [
             (r"-api$", "api"),
@@ -156,17 +209,21 @@ class DocChecker:
     # ========================================
 
     def check_meta(self):
-        """检查文档头元数据完整性: id, author, status, deps, consumers"""
-        if not re.search(r"<!--\s*id:", self.content):
-            self.fail("缺少文档ID (<!-- id: ... -->)")
-        if not re.search(r"author:\s*\w+", self.content):
+        """检查文档头 YAML Front Matter 元数据完整性: id, author, status, deps, consumers"""
+        fm = self._parse_yaml_frontmatter(self.content)
+        if not fm:
+            self.fail("缺少 YAML Front Matter (---...---)")
+            return
+        if not fm.get("id"):
+            self.fail("缺少文档ID (YAML id 字段)")
+        if not fm.get("author"):
             self.fail("缺少author字段")
-        if not re.search(r"status:\s*(draft|review|approved)", self.content):
-            self.fail("缺少status字段 (需为 draft|review|approved)")
-        if "deps:" not in self.content:
+        status = fm.get("status", "")
+        if status not in ("draft", "review", "approved"):
+            self.fail(f"status字段无效: {status!r} (需为 draft|review|approved)")
+        if "deps" not in fm:
             self.fail("缺少deps字段")
-        if "consumers:" not in self.content:
-            # RESEARCH-NOTE 和 CHANGELOG 可能没有 consumers
+        if "consumers" not in fm:
             if self.doc_type not in ("research", "changelog"):
                 self.fail("缺少consumers字段")
 
@@ -330,9 +387,9 @@ class DocChecker:
             return
         nav_content = nav_index_path.read_text(encoding="utf-8")
         doc_filename = Path(self.doc_file).name
-        # 检查文件名或文档ID出现在NAV-INDEX中
-        id_match = re.search(r"<!--\s*id:\s*([\w-]+)", self.content)
-        doc_id = id_match.group(1) if id_match else ""
+        # 从 YAML Front Matter 获取文档 ID
+        fm = self._parse_yaml_frontmatter(self.content)
+        doc_id = fm.get("id", "")
         if doc_filename not in nav_content and doc_id not in nav_content:
             self.warn(f"文档未注册到NAV-INDEX (文件={doc_filename}, ID={doc_id})")
 
@@ -341,10 +398,11 @@ class DocChecker:
     # ========================================
 
     def check_split_header(self):
-        """非 main 分卷必须有 split-from 字段"""
+        """非 main 分卷必须有 split_from 字段（YAML Front Matter）"""
         if self.volume_type != "main":
-            if "split-from:" not in self.content:
-                self.fail(f"分卷文档 (volume={self.volume_type}) 缺少 split-from 字段")
+            fm = self._parse_yaml_frontmatter(self.content)
+            if not fm.get("split_from"):
+                self.fail(f"分卷文档 (volume={self.volume_type}) 缺少 split_from 字段")
 
     def check_split_consistency(self):
         """main 卷检查: 同目录下相关分卷文件是否在主卷中被引用"""

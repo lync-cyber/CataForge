@@ -18,9 +18,9 @@ user-invocable: true
 `load_section.py` (位于 `.claude/scripts/load_section.py`) 是 load-section 指令的权威执行后端。Agent 应通过 Bash 调用它以获得真正的章节级提取（而非 Read 全文后人眼定位）。
 
 **Bash 不可用时的降级路径**：若 Agent 未获 Bash 权限（如 architect/ui-designer/product-manager 等），按降级协议操作:
-1. 通过 Read + offset/limit 打开目标文档
-2. 先只读 [NAV] 块（通常在文件前 20 行）
-3. 根据 [NAV] 标注的章节范围估算行号，再用 offset/limit 仅读取目标章节
+1. 读取 `docs/.doc-index.json` 获取目标文件路径和精确行号范围（line_start/line_end）
+2. 使用 Read + offset/limit 精确读取目标章节
+3. 若 `.doc-index.json` 不存在，回退到 NAV-INDEX.md + [NAV] 块估算行号
 4. 严禁一次性 Read 整篇超过 200 行的文档
 
 ## 操作指令

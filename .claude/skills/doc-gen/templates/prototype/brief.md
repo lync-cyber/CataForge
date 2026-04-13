@@ -1,8 +1,21 @@
+---
+id: "brief-{project}-{ver}"
+doc_type: brief
+author: product-manager
+status: draft
+deps: []
+consumers: [implementer]
+volume: main
+mode: agile-prototype
+required_sections:
+  - "## 1. 目标与用户"
+  - "## 2. 核心功能"
+  - "## 3. 技术选型"
+  - "## 4. 接口与数据结构"
+  - "## 5. 开发任务"
+  - "## 6. 风险与假设"
+---
 # Brief: {项目名称}
-<!-- required_sections: ["## 1. 目标与用户", "## 2. 核心功能", "## 3. 技术选型", "## 4. 接口与数据结构", "## 5. 开发任务", "## 6. 风险与假设"] -->
-<!-- id: brief-{project}-{ver} | author: product-manager | status: draft -->
-<!-- deps: none | consumers: implementer -->
-<!-- volume: main | mode: agile-prototype -->
 
 <!--
   Brief 适用于 agile-prototype 执行模式（原型 / PoC / 单文件脚本）。

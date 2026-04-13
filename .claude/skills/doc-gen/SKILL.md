@@ -17,7 +17,8 @@ user-invocable: true
 
 ### 指令1: 创建文档骨架 (create)
 当Agent需要创建新文档时，按以下步骤执行:
-1. 读取模板文件: `Read .claude/skills/doc-gen/templates/{template_id}.md`
+1. 查阅注册表: `Read .claude/skills/doc-gen/templates/_registry.yaml`，找到 `{template_id}` 条目的 `path` 字段
+   读取模板文件: `Read .claude/skills/doc-gen/templates/{path}`（如 `standard/prd.md`）
 2. 替换占位符: `{项目名称}` → 项目名, `{project}` → 项目标识, `{ver}` → 版本号
 3. 设置文档头: id(格式 {template_id}-{project}-{ver})、author(当前agent目录名)、status=draft、deps(按模板)、consumers(按模板)
 4. 写入文件（Write 工具会自动创建不存在的父目录）: `Write docs/{doc_type}/{template_id}-{project}-{ver}.md`
@@ -39,8 +40,9 @@ Agent逐章填充内容时:
    - **检查失败**: 返回缺失项清单给调用 Agent，不执行 Step 2-4。Agent 应补充缺失章节后重新调用 finalize
 2. 拆分判断: 如文档行数超过 `DOC_SPLIT_THRESHOLD_LINES`，按下方"文档拆分策略"执行拆分
 3. 注册索引: 读取 `docs/NAV-INDEX.md`，追加当前文档条目(Doc ID、文件路径(含子目录)、状态=draft、分卷数、章节数)
-4. **[EVENT]** `python .claude/scripts/event_logger.py --event doc_finalize --phase {当前阶段} --ref "{doc_id}" --detail "文档finalize: {doc_id}"`
-5. 返回: 最终文档路径 + NAV-INDEX注册确认
+4. 更新机器索引: `python .claude/scripts/build_doc_index.py --project-root . --doc-file {最终文档路径}`
+5. **[EVENT]** `python .claude/scripts/event_logger.py --event doc_finalize --phase {当前阶段} --ref "{doc_id}" --detail "文档finalize: {doc_id}"`
+6. 返回: 最终文档路径 + NAV-INDEX注册确认 + .doc-index.json更新确认
 
 注: doc-gen 是 NAV-INDEX 的唯一写入者。
 
@@ -73,7 +75,7 @@ Agent逐章填充内容时:
 
 ### 拆分规则
 - 主卷保留全局概览和交叉引用目录
-- 每个分卷头部包含 `<!-- volume: {type} -->` 和 `<!-- split-from: {主卷ID} -->`
+- 每个分卷 YAML Front Matter 包含 `volume_type: {type}` 和 `split_from: "{主卷ID}"`
 - 分卷间通过ID引用
 - 拆分不改变ID编号体系
 
@@ -106,12 +108,23 @@ Agent逐章填充内容时:
 > **执行模式说明**: `brief` 仅用于 agile-prototype 模式（合并 PRD+ARCH+DEV-PLAN）；`prd-lite` / `arch-lite` / `dev-plan-lite` 仅用于 agile-lite 模式。模式判定见 COMMON-RULES §执行模式矩阵。lite 文档与 standard 文档共享同一 `docs/{doc_type}/` 目录（如 `docs/prd/prd-lite-{project}-{ver}.md`），同一项目只会选用其中一种。
 
 ## 通用文档头规范
-每份文档必须以标准头开始:
-```
+每份文档必须以 YAML Front Matter 开始:
+```yaml
+---
+id: "{type}-{project}-{ver}"
+doc_type: {type}
+author: {agent-name}
+status: draft
+deps: [{上游文档ID列表}]
+consumers: [{下游agent列表}]
+volume: main
+# 仅分卷文档需要以下字段:
+# volume_type: {features|modules|api|data|sprint|components|pages}
+# split_from: "{主卷ID}"
+required_sections:
+  - "## 1. {章节名}"
+---
 # {文档类型}: {项目名称}
-<!-- id: {type}-{project}-{ver} | author: {agent-name} | status: draft|review|approved -->
-<!-- deps: {上游文档ID列表} | consumers: {下游agent列表} -->
-<!-- volume: main|{分卷标识} | split-from: {主卷ID,仅分卷填写} -->
 
 [NAV]
 - §1 {章节名} → {子章节列表}

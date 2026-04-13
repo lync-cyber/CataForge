@@ -1,9 +1,17 @@
+---
+id: "ui-spec-{project}-{ver}-p{start}-p{end}"
+doc_type: ui-spec
+author: ui-designer
+status: draft
+deps: ["prd-{project}-{ver}", "arch-{project}-{ver}"]
+consumers: [tech-lead, developer]
+volume: pages
+volume_type: pages
+split_from: "ui-spec-{project}-{ver}"
+required_sections:
+  - "## 3. 页面布局"
+---
 # UI Specification 分卷 — 页面布局: {项目名称}
-<!-- required_sections: ["## 3. 页面布局"] -->
-<!-- volume_type: pages -->
-<!-- id: ui-spec-{project}-{ver}-p{start}-p{end} | author: ui-designer | status: draft -->
-<!-- deps: prd-{project}-{ver}, arch-{project}-{ver} | consumers: tech-lead, developer -->
-<!-- volume: pages | split-from: ui-spec-{project}-{ver} -->
 
 [NAV]
 - §3 页面布局 → P-{start}..P-{end}

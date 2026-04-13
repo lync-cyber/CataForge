@@ -1,8 +1,18 @@
+---
+id: "dev-plan-{project}-{ver}"
+doc_type: dev-plan
+author: tech-lead
+status: draft
+deps: ["arch-{project}-{ver}", "ui-spec-{project}-{ver}"]
+consumers: [developer, qa-engineer]
+volume: main
+required_sections:
+  - "## 1. 迭代规划"
+  - "## 2. 依赖图"
+  - "## 3. 任务卡详细"
+  - "## 6. 集成与E2E测试规划"
+---
 # Development Plan: {项目名称}
-<!-- required_sections: ["## 1. 迭代规划", "## 2. 依赖图", "## 3. 任务卡详细", "## 6. 集成与E2E测试规划"] -->
-<!-- id: dev-plan-{project}-{ver} | author: tech-lead | status: draft -->
-<!-- deps: arch-{project}-{ver}, ui-spec-{project}-{ver} | consumers: developer, qa-engineer -->
-<!-- volume: main -->
 
 [NAV]
 - §1 迭代规划 → Sprint 1..N (总览表)

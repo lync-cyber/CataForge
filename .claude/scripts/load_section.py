@@ -27,40 +27,147 @@ from __future__ import annotations
 
 import argparse
 import glob
+import json
 import os
 import re
 import sys
-from typing import List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 # 共享工具
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import ensure_utf8_stdio, find_project_root
+from _common import build_doc_type_map, ensure_utf8_stdio, find_project_root
+
+
+# ============================================================================
+# 索引缓存 (进程生命周期内单例)
+# ============================================================================
+
+_INDEX_CACHE: Optional[Dict[str, Any]] = None
+_INDEX_FILENAME = ".doc-index.json"
+
+
+def _load_index(project_root: str) -> Optional[Dict[str, Any]]:
+    """加载 docs/.doc-index.json，进程内缓存。"""
+    global _INDEX_CACHE
+    if _INDEX_CACHE is not None:
+        return _INDEX_CACHE
+    index_path = os.path.join(project_root, "docs", _INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return None
+    try:
+        with open(index_path, "r", encoding="utf-8") as f:
+            _INDEX_CACHE = json.load(f)
+        return _INDEX_CACHE
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _is_stale(file_path: str, generated_at: Optional[str]) -> bool:
+    """检查文件是否比索引更新（索引过期）。"""
+    if not generated_at:
+        return True
+    try:
+        file_mtime = os.path.getmtime(file_path)
+        gen_dt = datetime.fromisoformat(generated_at)
+        file_dt = datetime.fromtimestamp(file_mtime, tz=timezone.utc)
+        return file_dt > gen_dt
+    except (ValueError, OSError):
+        return True
+
+
+def _lookup_in_index(
+    index: Dict[str, Any],
+    doc_id: str,
+    section_path: str,
+    item_id: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """在索引中查找章节/条目，返回含 file_path, line_start, line_end 的字典。"""
+    documents = index.get("documents", {})
+
+    # 直接匹配 doc_id
+    doc_entry = documents.get(doc_id)
+
+    # 尝试前缀匹配（如 doc_id="prd" 匹配 "prd-myapp-v1"）
+    if not doc_entry:
+        prefix = doc_id + "-"
+        for did, entry in documents.items():
+            if did == doc_id or did.startswith(prefix):
+                doc_entry = entry
+                break
+
+    if not doc_entry:
+        return None
+
+    sections = doc_entry.get("sections", {})
+
+    # 查找目标 section
+    top_sec = section_path.split(".")[0] if "." in section_path else section_path
+    sec_data = sections.get(top_sec)
+    if not sec_data:
+        return None
+
+    file_path = doc_entry["file_path"]
+
+    if item_id:
+        # 在 section 的 items 中查找
+        item_data = sec_data.get("items", {}).get(item_id)
+        if item_data:
+            return {
+                "file_path": file_path,
+                "line_start": item_data["line_start"],
+                "line_end": item_data["line_end"],
+                "est_tokens": item_data.get("est_tokens", 0),
+            }
+        # item 可能在其他文档（分卷）中
+        xref = index.get("xref", {})
+        if item_id in xref:
+            for ref_entry in xref[item_id]:
+                other_doc = documents.get(ref_entry["doc_id"])
+                if not other_doc:
+                    # 前缀搜索
+                    for did, d in documents.items():
+                        if did.startswith(ref_entry["doc_id"] + "-"):
+                            other_doc = d
+                            break
+                if other_doc:
+                    other_sec = other_doc.get("sections", {}).get(
+                        ref_entry["section"], {}
+                    )
+                    other_item = other_sec.get("items", {}).get(item_id)
+                    if other_item:
+                        return {
+                            "file_path": ref_entry["file_path"],
+                            "line_start": other_item["line_start"],
+                            "line_end": other_item["line_end"],
+                            "est_tokens": other_item.get("est_tokens", 0),
+                        }
+        return None
+
+    # 子章节（如 1.1）
+    if "." in section_path:
+        sub_data = sec_data.get("items", {}).get(section_path)
+        if sub_data:
+            return {
+                "file_path": file_path,
+                "line_start": sub_data["line_start"],
+                "line_end": sub_data["line_end"],
+                "est_tokens": sub_data.get("est_tokens", 0),
+            }
+        return None
+
+    # 顶级章节
+    return {
+        "file_path": file_path,
+        "line_start": sec_data["line_start"],
+        "line_end": sec_data["line_end"],
+        "est_tokens": sec_data.get("est_tokens", 0),
+    }
 
 
 # doc_id → doc_type 目录映射
-# doc_type 与 doc-gen SKILL.md §template_id 映射表保持同步
-DOC_TYPE_MAP = {
-    "prd": "prd",
-    "prd-lite": "prd",
-    "prd-volume": "prd",
-    "arch": "arch",
-    "arch-lite": "arch",
-    "arch-modules": "arch",
-    "arch-api": "arch",
-    "arch-data": "arch",
-    "ui-spec": "ui-spec",
-    "ui-spec-components": "ui-spec",
-    "ui-spec-pages": "ui-spec",
-    "dev-plan": "dev-plan",
-    "dev-plan-lite": "dev-plan",
-    "dev-plan-sprint": "dev-plan",
-    "test-report": "test-report",
-    "deploy-spec": "deploy-spec",
-    "brief": "brief",
-    "research": "research",
-    "research-note": "research",
-    "changelog": "changelog",
-}
+# 从 _registry.yaml 动态构建，启动时加载一次
+DOC_TYPE_MAP = build_doc_type_map()
 
 
 # 条目 ID 模式: 大写字母 + 数字后缀，如 F-001, API-001, M-003, E-012, T-042, C-007, P-001, AC-015
@@ -108,9 +215,7 @@ def parse_ref(ref: str) -> Tuple[str, str, Optional[str]]:
 
     m = REF_RE.match(ref.strip())
     if not m:
-        raise RefParseError(
-            f"引用格式非法: {ref!r}，应为 doc_id#§<section>[.item]"
-        )
+        raise RefParseError(f"引用格式非法: {ref!r}，应为 doc_id#§<section>[.item]")
 
     doc_id = m.group("doc_id")
     section_part = m.group("section")
@@ -145,7 +250,10 @@ def _candidate_filenames(doc_id: str) -> List[str]:
 
 
 def resolve_file(
-    doc_id: str, project_root: str, section_path: str = "", item_id: Optional[str] = None
+    doc_id: str,
+    project_root: str,
+    section_path: str = "",
+    item_id: Optional[str] = None,
 ) -> str:
     """根据 doc_id 定位文件路径，返回绝对路径。
 
@@ -174,9 +282,7 @@ def resolve_file(
                 candidates.append(path)
 
     if not candidates:
-        raise DocResolveError(
-            f"在 {doc_dir} 下未找到匹配 {doc_id}-*.md 的文件"
-        )
+        raise DocResolveError(f"在 {doc_dir} 下未找到匹配 {doc_id}-*.md 的文件")
 
     # 若只有一个候选，直接返回
     if len(candidates) == 1:
@@ -238,9 +344,7 @@ def _find_heading_line(
     return None
 
 
-def _extract_section_from_lines(
-    lines: List[str], start_idx: int, level: int
-) -> str:
+def _extract_section_from_lines(lines: List[str], start_idx: int, level: int) -> str:
     """从 start_idx 开始提取章节内容，直到遇到同级或更高级标题。
 
     包含起始标题行本身。
@@ -261,12 +365,34 @@ def _extract_section_from_lines(
 def extract(ref: str, project_root: str) -> str:
     """按引用提取 Markdown 章节内容（不含文件路径前缀）。
 
+    优先使用 .doc-index.json 索引实现 O(1) 定位，
+    索引不存在或过期时回退到全文扫描。
+
     异常:
       RefParseError:       引用格式非法
       DocResolveError:     doc_id 无法定位文件
       SectionNotFoundError: 章节/条目在文件中不存在
     """
     doc_id, section_path, item_id = parse_ref(ref)
+
+    # 索引优先路径 — O(1) 查找
+    index = _load_index(project_root)
+    if index:
+        entry = _lookup_in_index(index, doc_id, section_path, item_id)
+        if entry:
+            abs_path = os.path.join(project_root, entry["file_path"])
+            if os.path.isfile(abs_path) and not _is_stale(
+                abs_path, index.get("generated_at")
+            ):
+                with open(abs_path, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                start = entry["line_start"] - 1  # 转为 0-based
+                end = entry["line_end"]
+                result = "".join(lines[start:end]).rstrip()
+                if result:
+                    return result
+
+    # 回退: 全文扫描
     file_path = resolve_file(doc_id, project_root, section_path, item_id)
 
     with open(file_path, "r", encoding="utf-8") as f:
@@ -300,6 +426,71 @@ def extract_batch(
         except LoadSectionError as e:
             errors.append((ref, str(e)))
     return successes, errors
+
+
+def plan_load(
+    refs: List[str], project_root: str, token_budget: int
+) -> Tuple[List[str], List[str]]:
+    """根据 Token 预算规划加载顺序。
+
+    按 refs 给定顺序累计 est_tokens，超出预算的引用放入 deferred。
+
+    返回 (loadable_refs, deferred_refs)。
+    """
+    index = _load_index(project_root)
+    loadable: List[str] = []
+    deferred: List[str] = []
+    remaining = token_budget
+    for ref in refs:
+        est = 200  # 默认估算
+        if index:
+            try:
+                doc_id, section_path, item_id = parse_ref(ref)
+                entry = _lookup_in_index(index, doc_id, section_path, item_id)
+                if entry:
+                    est = entry.get("est_tokens", 200)
+            except LoadSectionError:
+                pass
+        if est <= remaining:
+            loadable.append(ref)
+            remaining -= est
+        else:
+            deferred.append(ref)
+    return loadable, deferred
+
+
+def resolve_deps(ref: str, project_root: str, max_depth: int = 2) -> List[str]:
+    """从索引解析章节的传递性依赖，返回有序 ref 列表（不含自身）。
+
+    max_depth 限制递归深度，防止循环引用。
+    """
+    index = _load_index(project_root)
+    if not index:
+        return []
+
+    visited: set[str] = set()
+    result: List[str] = []
+
+    def _resolve(r: str, depth: int) -> None:
+        if depth > max_depth or r in visited:
+            return
+        visited.add(r)
+        try:
+            doc_id, section_path, item_id = parse_ref(r)
+        except LoadSectionError:
+            return
+        entry = _lookup_in_index(index, doc_id, section_path, item_id)
+        if not entry:
+            return
+        deps = entry.get("deps", [])
+        if isinstance(deps, list):
+            for dep_ref in deps:
+                if dep_ref not in visited:
+                    _resolve(dep_ref, depth + 1)
+                    result.append(dep_ref)
+
+    _resolve(ref, 0)
+    return result
 
 
 def main(argv: Optional[List[str]] = None) -> int:

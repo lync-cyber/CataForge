@@ -106,7 +106,7 @@
       "description": "agile-lite / agile-prototype 模式所需模板齐全",
       "type": "dir_must_contain_files",
       "path": ".claude/skills/doc-gen/templates",
-      "patterns": ["brief.md", "prd-lite.md", "arch-lite.md", "dev-plan-lite.md"]
+      "patterns": ["prototype/brief.md", "lite/prd-lite.md", "lite/arch-lite.md", "lite/dev-plan-lite.md"]
     },
     {
       "id": "mc-0.6.0-docgen-constant-ref",

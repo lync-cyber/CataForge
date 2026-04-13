@@ -1,8 +1,18 @@
+---
+id: "arch-{project}-{ver}"
+doc_type: arch
+author: architect
+status: draft
+deps: ["prd-{project}-{ver}"]
+consumers: [tech-lead, developer, devops]
+volume: main
+required_sections:
+  - "## 1. 架构概览"
+  - "## 2. 模块划分"
+  - "## 3. 接口契约"
+  - "## 4. 数据模型"
+---
 # Architecture: {项目名称}
-<!-- required_sections: ["## 1. 架构概览", "## 2. 模块划分", "## 3. 接口契约", "## 4. 数据模型"] -->
-<!-- id: arch-{project}-{ver} | author: architect | status: draft -->
-<!-- deps: prd-{project}-{ver} | consumers: tech-lead, developer, devops -->
-<!-- volume: main -->
 
 [NAV]
 - §1 架构概览 → §1.1 项目类型, §1.2 架构风格, §1.3 系统上下文图, §1.4 技术栈

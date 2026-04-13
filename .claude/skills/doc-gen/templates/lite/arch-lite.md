@@ -1,8 +1,18 @@
+---
+id: "arch-lite-{project}-{ver}"
+doc_type: arch
+author: architect
+status: draft
+deps: ["prd-lite-{project}-{ver}"]
+consumers: [tech-lead, implementer]
+volume: main
+mode: agile-lite
+required_sections:
+  - "## 1. 架构与技术栈"
+  - "## 2. 模块清单"
+  - "## 3. 关键接口"
+---
 # Architecture-Lite: {项目名称}
-<!-- required_sections: ["## 1. 架构与技术栈", "## 2. 模块清单", "## 3. 关键接口"] -->
-<!-- id: arch-lite-{project}-{ver} | author: architect | status: draft -->
-<!-- deps: prd-lite-{project}-{ver} | consumers: tech-lead, implementer -->
-<!-- volume: main | mode: agile-lite -->
 
 <!--
   Arch-Lite 适用于 agile-lite 执行模式。

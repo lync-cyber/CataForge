@@ -1,8 +1,17 @@
+---
+id: "prd-{project}-{ver}"
+doc_type: prd
+author: product-manager
+status: draft
+deps: []
+consumers: [architect, ui-designer, tech-lead]
+volume: main
+required_sections:
+  - "## 1. 概述"
+  - "## 2. 功能需求"
+  - "## 3. 非功能需求"
+---
 # PRD: {项目名称}
-<!-- required_sections: ["## 1. 概述", "## 2. 功能需求", "## 3. 非功能需求"] -->
-<!-- id: prd-{project}-{ver} | author: product-manager | status: draft -->
-<!-- deps: none | consumers: architect, ui-designer, tech-lead -->
-<!-- volume: main -->
 
 [NAV]
 - §1 概述 → §1.1 背景与动机, §1.2 目标用户, §1.3 成功指标

@@ -1,6 +1,12 @@
+---
+id: "changelog-{project}"
+doc_type: changelog
+author: devops
+status: draft
+deps: []
+consumers: [all]
+---
 # Changelog: {项目名称}
-<!-- id: changelog-{project} | author: devops | status: draft -->
-<!-- deps: none | consumers: all -->
 
 ## [{version}] - {date}
 ### Added

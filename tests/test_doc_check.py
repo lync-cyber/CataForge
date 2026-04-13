@@ -81,8 +81,8 @@ class TestCheckNoTodo:
 
 
 class TestDetectVolumeType:
-    def test_with_volume_comment(self, tmp_path):
-        content = "<!-- volume: features -->\n## Features\nContent"
+    def test_with_volume_yaml(self, tmp_path):
+        content = "---\nvolume_type: features\n---\n## Features\nContent"
         f = tmp_path / "doc.md"
         f.write_text(content, encoding="utf-8")
         checker = DocChecker("arch", str(f), str(tmp_path), quiet=True)

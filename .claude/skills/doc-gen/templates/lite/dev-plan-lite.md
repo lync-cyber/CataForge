@@ -1,8 +1,16 @@
+---
+id: "dev-plan-lite-{project}-{ver}"
+doc_type: dev-plan
+author: tech-lead
+status: draft
+deps: ["arch-lite-{project}-{ver}"]
+consumers: [implementer, qa-engineer]
+volume: main
+mode: agile-lite
+required_sections:
+  - "## 1. 任务清单"
+---
 # Dev-Plan-Lite: {项目名称}
-<!-- required_sections: ["## 1. 任务清单"] -->
-<!-- id: dev-plan-lite-{project}-{ver} | author: tech-lead | status: draft -->
-<!-- deps: arch-lite-{project}-{ver} | consumers: implementer, qa-engineer -->
-<!-- volume: main | mode: agile-lite -->
 
 <!--
   Dev-Plan-Lite 适用于 agile-lite 执行模式。
