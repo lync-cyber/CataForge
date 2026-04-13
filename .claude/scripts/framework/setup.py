@@ -508,43 +508,148 @@ def check_framework_integrity() -> bool:
     return all_ok
 
 
-def _penpot_interactive_preflight() -> bool:
-    """Interactive preflight for Penpot deployment.
+def _penpot_show_menu() -> str:
+    """Display Penpot setup menu and return user choice.
 
-    Checks Docker status, proxy, and asks user to confirm before proceeding.
-    Returns True if deployment should proceed, False to skip.
+    Returns:
+        'docker'   — full Docker Compose deployment
+        'mcp-only' — connect MCP to existing Penpot instance
+        'skip'     — skip Penpot setup
     """
-    from _docker import docker_status, install_docker_desktop_windows
+    from _docker import docker_status
 
-    print(f"\n{BOLD}Penpot 部署预检{NC}\n")
+    print(f"\n{CYAN}{BOLD}  Penpot 设计工具集成{NC}")
+    print(f"  {'=' * 44}\n")
 
-    # 1. Check Docker status
+    # Detect Docker status for contextual hints
     status = docker_status()
+    docker_hint = ""
+    if status == "running":
+        docker_hint = f" {GREEN}(Docker 已就绪){NC}"
+    elif status == "installed_not_running":
+        docker_hint = f" {YELLOW}(Docker 已安装，将自动启动){NC}"
+    elif status == "not_installed":
+        if sys.platform == "win32":
+            docker_hint = f" {YELLOW}(需安装 Docker Desktop){NC}"
+        else:
+            docker_hint = f" {YELLOW}(需安装 Docker){NC}"
+
+    print(f"  {BOLD}[1]{NC} Docker 本地部署 (推荐){docker_hint}")
+    print(f"      {DIM}在本机通过 Docker Compose 部署完整 Penpot + MCP Server{NC}")
+    print(f"      {DIM}适合: 本地开发、离线环境、完全可控{NC}")
+    print()
+    print(f"  {BOLD}[2]{NC} 连接已有 Penpot 实例")
+    print(f"      {DIM}仅启动 MCP Server，连接到已运行的 Penpot (本机/局域网/云端){NC}")
+    print(f"      {DIM}适合: 已有 Penpot 部署、使用 Penpot Cloud、团队共享实例{NC}")
+    print()
+    print(f"  {BOLD}[3]{NC} 跳过")
+    print(f"      {DIM}稍后可通过以下命令重新配置:{NC}")
+    print(f"      {DIM}  python .claude/scripts/framework/setup.py --with-penpot{NC}")
+    print()
+
+    while True:
+        ans = input(f"  {BOLD}请选择 [1/2/3]: {NC}").strip()
+        if ans == "1":
+            return "docker"
+        elif ans == "2":
+            return "mcp-only"
+        elif ans == "3":
+            return "skip"
+        else:
+            print(f"  {YELLOW}请输入 1、2 或 3{NC}")
+
+
+def _penpot_docker_preflight() -> bool:
+    """Docker deployment preflight: check/install Docker, report proxy status.
+
+    Returns True if Docker deployment should proceed, False to abort.
+    """
+    from _docker import (
+        docker_status,
+        install_docker_desktop_windows,
+        start_docker_desktop,
+    )
+
+    print(f"\n{BOLD}Docker 部署预检{NC}\n")
+
+    status = docker_status()
+
     if status == "not_installed":
         warn("Docker 未安装")
         if sys.platform == "win32":
-            ans = (
-                input(f"  {YELLOW}是否通过 winget 自动安装 Docker Desktop? [y/N]{NC} ")
-                .strip()
-                .lower()
-            )
-            if ans in ("y", "yes"):
+            print()
+            print(f"  {BOLD}安装选项:{NC}")
+            print(f"    {BOLD}[a]{NC} 通过 winget 自动安装 Docker Desktop")
+            print(f"    {BOLD}[m]{NC} 我稍后手动安装")
+            print(f"    {BOLD}[b]{NC} 返回上级菜单")
+            print()
+            ans = input(f"  {BOLD}请选择 [a/m/b]: {NC}").strip().lower()
+            if ans == "a":
                 if not install_docker_desktop_windows():
-                    fail("Docker Desktop 安装失败，无法继续部署 Penpot")
+                    fail("Docker Desktop 安装失败")
+                    info(
+                        "请手动下载安装: https://docs.docker.com/desktop/install/windows-install/"
+                    )
                     return False
-                ok("Docker Desktop 已安装")
-            else:
-                info("跳过 Docker 安装。请手动安装后重新运行。")
+                ok("Docker Desktop 安装完成")
+                # Try to start Docker Desktop after installation
+                info("正在启动 Docker Desktop (首次启动可能需要 1-2 分钟)...")
+                if start_docker_desktop(timeout=120):
+                    ok("Docker Desktop 已启动并就绪")
+                else:
+                    print()
+                    warn("Docker Desktop 安装后未能自动启动")
+                    print(f"  {BOLD}可能的原因:{NC}")
+                    print("    1. 需要注销并重新登录 Windows")
+                    print("    2. 需要重启计算机以完成 WSL2/Hyper-V 配置")
+                    print("    3. 需要手动启动 Docker Desktop 应用")
+                    print()
+                    ans2 = (
+                        input(
+                            f"  {BOLD}是否在手动启动 Docker Desktop 后重试? [y/N]{NC} "
+                        )
+                        .strip()
+                        .lower()
+                    )
+                    if ans2 in ("y", "yes"):
+                        info(
+                            "请手动启动 Docker Desktop，待其完全启动后按 Enter 继续..."
+                        )
+                        input(f"  {DIM}(按 Enter 继续){NC} ")
+                        from _docker import is_docker_daemon_ready
+
+                        if is_docker_daemon_ready():
+                            ok("Docker daemon 已就绪")
+                        else:
+                            fail("Docker daemon 仍未就绪")
+                            info("请在 Docker Desktop 完全启动后重新运行本脚本")
+                            return False
+                    else:
+                        info("请在 Docker Desktop 就绪后重新运行:")
+                        print(
+                            f"    {DIM}python .claude/scripts/framework/setup.py --with-penpot{NC}"
+                        )
+                        return False
+            elif ans == "m":
+                info("请安装 Docker Desktop 后重新运行本脚本")
+                print(
+                    f"  {DIM}下载: https://docs.docker.com/desktop/install/windows-install/{NC}"
+                )
                 return False
+            else:
+                return False  # back to menu
         else:
-            fail("请先安装 Docker: https://docs.docker.com/get-docker/")
+            fail("Docker 未安装")
+            info("请安装 Docker: https://docs.docker.com/get-docker/")
             return False
+
     elif status == "installed_not_running":
-        info("Docker 已安装但 daemon 未运行，部署时将自动启动")
+        info("Docker 已安装但 daemon 未运行，将自动启动...")
+
     else:
         ok("Docker daemon 运行中")
 
-    # 2. Check proxy environment
+    # Report proxy status
     http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") or ""
     https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
     if http_proxy or https_proxy:
@@ -554,28 +659,93 @@ def _penpot_interactive_preflight() -> bool:
     else:
         info("未检测到代理环境变量 (如需代理请设置 HTTP_PROXY/HTTPS_PROXY)")
 
-    # 3. Confirm deployment
+    # Final confirmation
     print()
-    ans = (
-        input(f"  {BOLD}是否继续部署 Penpot (Docker Compose + MCP Server)? [Y/n]{NC} ")
-        .strip()
-        .lower()
-    )
+    ans = input(f"  {BOLD}确认开始 Docker 部署? [Y/n]{NC} ").strip().lower()
     if ans in ("n", "no"):
-        info("已取消 Penpot 部署")
+        info("已取消 Docker 部署")
         return False
 
     return True
 
 
-def run_penpot_setup():
-    """Interactive Penpot deployment: preflight checks, then deploy."""
+def _penpot_mcp_only_setup() -> bool:
+    """Guide user to connect MCP Server to an existing Penpot instance.
+
+    Asks for Penpot URL, then launches setup_penpot.py mcp-only.
+    Returns True on success, False on error.
+    """
     script = os.path.join(".claude", "integrations", "penpot", "setup_penpot.py")
     if not os.path.exists(script):
         fail(f"Penpot 部署脚本不存在: {script}")
         return False
 
-    if not _penpot_interactive_preflight():
+    print(f"\n{BOLD}连接已有 Penpot 实例{NC}\n")
+    print(f"  {DIM}MCP Server 将作为 Claude Code 与 Penpot 之间的桥梁运行。{NC}")
+    print(f"  {DIM}您需要提供 Penpot 实例的访问地址。{NC}")
+    print()
+    print(f"  {BOLD}常见地址示例:{NC}")
+    print(f"    本机部署:       {CYAN}http://localhost:9001{NC}")
+    print(f"    局域网/远程:    {CYAN}http://192.168.1.100:9001{NC}")
+    print(f"    Penpot Cloud:   {CYAN}https://design.penpot.app{NC}")
+    print()
+
+    while True:
+        url = input(f"  {BOLD}Penpot 地址 (留空跳过): {NC}").strip()
+        if not url:
+            info("已跳过 MCP 配置")
+            return True
+
+        # Basic URL validation
+        if not url.startswith(("http://", "https://")):
+            print(f"  {YELLOW}地址需以 http:// 或 https:// 开头{NC}")
+            continue
+        break
+
+    # Set environment variable for setup_penpot.py
+    env = os.environ.copy()
+    env["PENPOT_BASE_URL"] = url
+
+    print(f"\n{BOLD}正在启动 MCP Server (连接到 {url})...{NC}\n")
+    try:
+        result = subprocess.run(
+            [sys.executable, script, "mcp-only"],
+            timeout=300,
+            env=env,
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        fail("MCP Server 启动超时 (5 分钟)")
+        return False
+
+
+def run_penpot_setup():
+    """Interactive Penpot setup: menu-driven selection of deployment mode."""
+    script = os.path.join(".claude", "integrations", "penpot", "setup_penpot.py")
+    if not os.path.exists(script):
+        fail(f"Penpot 部署脚本不存在: {script}")
+        return False
+
+    choice = _penpot_show_menu()
+
+    if choice == "skip":
+        info("已跳过 Penpot 配置")
+        return True
+
+    if choice == "mcp-only":
+        return _penpot_mcp_only_setup()
+
+    # choice == "docker"
+    if not _penpot_docker_preflight():
+        # Preflight failed or user cancelled — offer fallback
+        print()
+        ans = (
+            input(f"  {BOLD}是否改为连接已有 Penpot 实例 (无需 Docker)? [y/N]{NC} ")
+            .strip()
+            .lower()
+        )
+        if ans in ("y", "yes"):
+            return _penpot_mcp_only_setup()
         return True  # user chose to skip, not an error
 
     print(f"\n{BOLD}正在启动 Penpot 完整部署...{NC}\n")

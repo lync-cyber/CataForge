@@ -746,7 +746,10 @@ def start_mcp(config: dict) -> bool:
     env = os.environ.copy()
     env["PORT"] = str(config["mcp_port"])
     env["PLUGIN_PORT"] = str(config["plugin_port"])
-    env["PENPOT_BASE_URL"] = f"http://localhost:{config['penpot_port']}"
+    # Respect PENPOT_BASE_URL from environment (e.g. remote/cloud instance);
+    # only default to localhost when not explicitly set.
+    if "PENPOT_BASE_URL" not in env:
+        env["PENPOT_BASE_URL"] = f"http://localhost:{config['penpot_port']}"
 
     # 通过 npx 启动 (官方推荐的一行式启动)
     info("通过 npx @penpot/mcp@latest 启动 MCP Server...")
@@ -929,8 +932,14 @@ def cmd_mcp_only(config: dict):
     if not preflight_check("mcp"):
         return 1
 
-    # 检查 Penpot 是否在运行
-    if not _is_penpot_running(config):
+    # 检查 Penpot 是否在运行 (仅对本地实例检测，远程/云端跳过)
+    penpot_base = os.environ.get("PENPOT_BASE_URL", "")
+    is_remote = penpot_base and not any(
+        h in penpot_base for h in ("localhost", "127.0.0.1")
+    )
+    if is_remote:
+        info(f"将连接到远程 Penpot 实例: {penpot_base}")
+    elif not _is_penpot_running(config):
         warn(f"Penpot 未在端口 {config['penpot_port']} 运行")
         info("MCP Server 需要连接到 Penpot 实例才能工作")
         info(f"请先运行: python {__file__} deploy")
