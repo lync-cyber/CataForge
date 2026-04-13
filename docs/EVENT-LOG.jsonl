@@ -85,3 +85,15 @@
 {"ts": "2026-04-13T08:07:43.360410+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 Explore: Explore upgrade mechanism", "agent": "Explore"}
 {"ts": "2026-04-13T08:12:49.593685+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
 {"ts": "2026-04-13T08:22:08.470450+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-13T08:31:27.961642+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-13T08:32:05.080697+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 Explore: Explore CataForge core architecture", "agent": "Explore"}
+{"ts": "2026-04-13T08:32:13.901554+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 Explore: Explore CataForge prompt/context system", "agent": "Explore"}
+{"ts": "2026-04-13T08:32:23.987666+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 Explore: Research AI IDE capabilities", "agent": "Explore"}
+{"ts": "2026-04-13T08:34:19.940416+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-13T08:36:51.198601+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 Plan: Design cross-platform framework plan", "agent": "Plan"}
+{"ts": "2026-04-13T08:48:50.067840+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-13T08:58:39.017958+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 general-purpose: Research Claude Code sub-agents", "agent": "general-purpose"}
+{"ts": "2026-04-13T08:58:42.769408+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 general-purpose: Research Codex CLI sub-agents", "agent": "general-purpose"}
+{"ts": "2026-04-13T08:58:46.959487+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 general-purpose: Research Cursor and OpenCode agents", "agent": "general-purpose"}
+{"ts": "2026-04-13T09:07:19.670984+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-13T09:09:07.117920+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 general-purpose: Research Codex CLI sub-agents", "agent": "general-purpose"}
