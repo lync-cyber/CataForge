@@ -28,7 +28,15 @@ for _p in (_LIB, _FRAMEWORK_DIR):
 from _config import FRAMEWORK_CONFIG_FILE, load_framework_config, load_json_lenient
 from _version import VERSION_FILE, parse_semver, read_version
 
-FRAMEWORK_DIRS = ["agents", "skills", "rules", "hooks", "scripts", "schemas"]
+FRAMEWORK_DIRS = [
+    "agents",
+    "skills",
+    "rules",
+    "hooks",
+    "scripts",
+    "schemas",
+    "integrations",
+]
 
 
 def backup_framework(backup_dir: str, dry_run: bool = False) -> list:
