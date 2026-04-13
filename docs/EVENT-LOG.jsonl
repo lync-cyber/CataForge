@@ -75,3 +75,6 @@
 {"ts": "2026-04-13T04:18:06.721572+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
 {"ts": "2026-04-13T06:28:17.206481+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
 {"ts": "2026-04-13T06:55:13.492340+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-13T07:01:52.769217+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-13T07:06:44.482665+00:00", "event": "session_start", "phase": "unknown", "detail": "会话启动"}
+{"ts": "2026-04-13T07:06:58.332207+00:00", "event": "agent_dispatch", "phase": "unknown", "detail": "调度 Explore: Investigate Docker pull failure", "agent": "Explore"}

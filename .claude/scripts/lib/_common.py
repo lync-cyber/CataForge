@@ -572,11 +572,215 @@ def ensure_proxy(quiet: bool = False) -> bool:
     return reachable
 
 
-def ensure_docker_proxy(proxy_url: str = ""):
-    """Configure Docker daemon proxy via ~/.docker/config.json.
+def _is_docker_desktop() -> bool:
+    """Detect if Docker Desktop is the active Docker engine."""
+    try:
+        result = subprocess.run(
+            ["docker", "info", "--format", "{{.OperatingSystem}}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return "Docker Desktop" in result.stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return False
 
-    Docker daemon does not inherit shell HTTP_PROXY. This writes the
-    proxy settings into Docker's config file (cross-platform).
+
+def _configure_docker_desktop_proxy(http_proxy: str, https_proxy: str) -> bool:
+    """Configure Docker Desktop manual proxy via settings-store.json.
+
+    Docker Desktop uses its own internal proxy forwarder (http.docker.internal:3128).
+    When set to 'automatic' mode, it may fail to detect system proxy.
+    This switches to 'manual' mode with the given proxy URLs.
+
+    Returns:
+        True if settings were changed (Docker Desktop restart needed).
+    """
+    if sys.platform == "win32":
+        settings_path = os.path.join(
+            os.environ.get("APPDATA", ""), "Docker", "settings-store.json"
+        )
+    elif sys.platform == "darwin":
+        settings_path = os.path.join(
+            os.path.expanduser("~"),
+            "Library",
+            "Group Containers",
+            "group.com.docker",
+            "settings-store.json",
+        )
+    else:
+        # Linux Docker Desktop — rare, skip
+        return False
+
+    if not os.path.isfile(settings_path):
+        return False
+
+    try:
+        with open(settings_path, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return False
+
+    # proxyHttpMode: 0=system/auto, 1=manual, 2=none
+    current_mode = settings.get("proxyHttpMode", 0)
+    current_http = settings.get("overrideProxyHttp", "")
+    current_https = settings.get("overrideProxyHttps", "")
+
+    if (
+        current_mode == 1
+        and current_http == http_proxy
+        and current_https == https_proxy
+    ):
+        ok(f"Docker Desktop 代理已配置: {https_proxy or http_proxy}")
+        return False
+
+    settings["proxyHttpMode"] = 1
+    settings["overrideProxyHttp"] = http_proxy
+    settings["overrideProxyHttps"] = https_proxy
+    settings["overrideProxyExclude"] = "localhost,127.0.0.1"
+
+    try:
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        ok(f"Docker Desktop 代理已配置: {https_proxy or http_proxy}")
+        return True  # restart needed
+    except OSError as e:
+        warn(f"写入 Docker Desktop 设置失败: {e}")
+        return False
+
+
+def _cleanup_dead_registry_mirrors() -> bool:
+    """Remove unreachable registry mirrors from daemon.json.
+
+    Many China Docker mirrors have been shut down. Dead mirrors cause
+    Docker to waste time on connection attempts before falling back.
+
+    Returns:
+        True if daemon.json was modified (Docker restart needed).
+    """
+    daemon_json_path = os.path.join(os.path.expanduser("~"), ".docker", "daemon.json")
+    if not os.path.isfile(daemon_json_path):
+        return False
+
+    try:
+        with open(daemon_json_path, "r", encoding="utf-8") as f:
+            daemon_config = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return False
+
+    mirrors = daemon_config.get("registry-mirrors", [])
+    if not mirrors:
+        return False
+
+    alive = []
+    for mirror_url in mirrors:
+        parsed = urlparse(mirror_url)
+        host = parsed.hostname or ""
+        port = parsed.port or 443
+        if not host:
+            continue
+        # Quick TCP check — 2s timeout per mirror
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(2)
+            try:
+                s.connect((host, port))
+                alive.append(mirror_url)
+                info(f"  镜像源可用: {mirror_url}")
+            except (ConnectionRefusedError, TimeoutError, OSError):
+                warn(f"  镜像源不可达，已移除: {mirror_url}")
+
+    if len(alive) == len(mirrors):
+        return False  # all alive, nothing to change
+
+    if alive:
+        daemon_config["registry-mirrors"] = alive
+    else:
+        del daemon_config["registry-mirrors"]
+
+    try:
+        with open(daemon_json_path, "w", encoding="utf-8") as f:
+            json.dump(daemon_config, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        ok("daemon.json 已更新 (移除不可达镜像源)")
+        return True
+    except OSError as e:
+        warn(f"写入 daemon.json 失败: {e}")
+        return False
+
+
+def _restart_docker_desktop() -> bool:
+    """Restart Docker Desktop to apply daemon config changes.
+
+    Returns:
+        True if Docker became available after restart.
+    """
+    info("重启 Docker Desktop 以应用代理配置...")
+    if sys.platform == "win32":
+        # Gracefully quit Docker Desktop, then relaunch
+        subprocess.run(
+            ["taskkill", "/IM", "Docker Desktop.exe", "/F"],
+            capture_output=True,
+            timeout=15,
+        )
+        time.sleep(3)
+        docker_exe = os.path.join(
+            os.environ.get("ProgramFiles", r"C:\Program Files"),
+            "Docker",
+            "Docker",
+            "Docker Desktop.exe",
+        )
+        if not os.path.isfile(docker_exe):
+            # Try alternate path
+            docker_exe = os.path.join(
+                os.environ.get("LOCALAPPDATA", ""),
+                "Docker",
+                "Docker Desktop.exe",
+            )
+        if os.path.isfile(docker_exe):
+            subprocess.Popen([docker_exe], creationflags=0x00000008)  # DETACHED_PROCESS
+        else:
+            warn("无法定位 Docker Desktop.exe，请手动重启 Docker Desktop")
+            return False
+    elif sys.platform == "darwin":
+        subprocess.run(
+            ["osascript", "-e", 'quit app "Docker"'], capture_output=True, timeout=10
+        )
+        time.sleep(3)
+        subprocess.run(["open", "-a", "Docker"], capture_output=True, timeout=10)
+    else:
+        subprocess.run(
+            ["systemctl", "--user", "restart", "docker-desktop"],
+            capture_output=True,
+            timeout=30,
+        )
+
+    # Wait for Docker daemon to become ready
+    info("  等待 Docker 就绪 (最多 60s)...")
+    for i in range(60):
+        try:
+            result = subprocess.run(
+                ["docker", "info"],
+                capture_output=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                ok(f"Docker Desktop 已就绪 ({i + 1}s)")
+                return True
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        time.sleep(1)
+
+    warn("Docker Desktop 重启超时，请手动检查")
+    return False
+
+
+def ensure_docker_proxy(proxy_url: str = ""):
+    """Configure Docker daemon proxy (supports both standalone and Docker Desktop).
+
+    For standalone Docker: writes proxy to ~/.docker/config.json.
+    For Docker Desktop: also configures settings-store.json (manual proxy mode)
+    and cleans up dead registry mirrors from daemon.json.
 
     Args:
         proxy_url: Proxy URL. If empty, auto-resolved from env/.env.
@@ -598,6 +802,9 @@ def ensure_docker_proxy(proxy_url: str = ""):
         else:
             return
 
+    needs_restart = False
+
+    # --- 1. ~/.docker/config.json (CLI client proxy) ---
     docker_config_path = os.path.join(os.path.expanduser("~"), ".docker", "config.json")
     docker_config: dict = {}
     existing_proxies: dict = {}
@@ -616,26 +823,38 @@ def ensure_docker_proxy(proxy_url: str = ""):
         and existing_proxies.get("httpsProxy", "") == https_proxy
     ):
         ok(f"Docker 代理已配置: {https_proxy or http_proxy}")
-        return
+    else:
+        # Build new proxy config
+        proxies_config: dict = {}
+        if http_proxy:
+            proxies_config["httpProxy"] = http_proxy
+        if https_proxy:
+            proxies_config["httpsProxy"] = https_proxy
+        proxies_config["noProxy"] = "localhost,127.0.0.1"
 
-    # Build new proxy config
-    proxies_config: dict = {}
-    if http_proxy:
-        proxies_config["httpProxy"] = http_proxy
-    if https_proxy:
-        proxies_config["httpsProxy"] = https_proxy
-    proxies_config["noProxy"] = "localhost,127.0.0.1"
+        docker_config.setdefault("proxies", {})["default"] = proxies_config
 
-    docker_config.setdefault("proxies", {})["default"] = proxies_config
+        os.makedirs(os.path.dirname(docker_config_path), exist_ok=True)
+        try:
+            with open(docker_config_path, "w", encoding="utf-8") as f:
+                json.dump(docker_config, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+            ok(f"Docker 代理已配置: {https_proxy or http_proxy}")
+        except OSError as e:
+            warn(f"写入 Docker 配置失败: {e}")
 
-    os.makedirs(os.path.dirname(docker_config_path), exist_ok=True)
-    try:
-        with open(docker_config_path, "w", encoding="utf-8") as f:
-            json.dump(docker_config, f, indent=2, ensure_ascii=False)
-            f.write("\n")
-        ok(f"Docker 代理已配置: {https_proxy or http_proxy}")
-    except OSError as e:
-        warn(f"写入 Docker 配置失败: {e}")
+    # --- 2. Docker Desktop: settings-store.json (daemon-level proxy) ---
+    if _is_docker_desktop():
+        if _configure_docker_desktop_proxy(http_proxy, https_proxy):
+            needs_restart = True
+
+        # --- 3. Clean dead registry mirrors from daemon.json ---
+        if _cleanup_dead_registry_mirrors():
+            needs_restart = True
+
+        # --- 4. Restart Docker Desktop if config changed ---
+        if needs_restart:
+            _restart_docker_desktop()
 
 
 # ============================================================================

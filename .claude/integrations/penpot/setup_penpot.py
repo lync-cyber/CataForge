@@ -33,6 +33,7 @@ import locale
 import os
 import secrets
 import signal
+import socket
 import subprocess
 import sys
 import textwrap
@@ -40,6 +41,7 @@ import time
 import urllib.error
 import urllib.request
 from typing import Optional
+from urllib.parse import urlparse
 
 # 确保 .claude/scripts/lib/_common 可导入
 _here = os.path.dirname(os.path.abspath(__file__))
@@ -90,13 +92,13 @@ MCP_HEALTH_TIMEOUT = 120  # 首次启动需下载 pnpm 依赖，30s 不够
 PULL_MAX_RETRIES = 3
 
 # Docker 镜像源列表 (按优先级排序，空字符串表示官方 Docker Hub)
-# 国内镜像优先，Docker Hub 作为最终回退（国内网络直连 Docker Hub 常超时）
+# 代理可用时 Docker Hub 直连最可靠，国内镜像作为回退
 # 参考: https://github.com/dongyubin/DockerHub
 DOCKER_REGISTRY_MIRRORS = [
+    "",  # Docker Hub 官方 (代理可用时优先)
     "docker.xuanyuan.me",  # 轩辕镜像免费版
     "docker.m.daocloud.io",  # DaoCloud
     "mirror.ccs.tencentyun.com",  # 腾讯云 (云服务器内效果最佳)
-    "",  # Docker Hub 官方 (回退)
 ]
 
 # PID 文件 (跨平台临时目录)
@@ -629,14 +631,39 @@ def _ensure_docker_proxy():
     ensure_docker_proxy()
 
 
+def _is_mirror_reachable(mirror: str, timeout: float = 3.0) -> bool:
+    """Quick TCP connectivity check for a Docker registry mirror.
+
+    Avoids wasting minutes on pull retries against unreachable mirrors.
+    """
+    if not mirror:
+        return True  # Docker Hub — reachability depends on daemon proxy, skip check
+    try:
+        parsed = urlparse(f"https://{mirror}")
+        host = parsed.hostname or mirror
+        port = parsed.port or 443
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            s.connect((host, port))
+            return True
+    except (ConnectionRefusedError, TimeoutError, OSError):
+        return False
+
+
 def _pull_image_with_mirrors(image: str) -> bool:
     """尝试从多个镜像源拉取单个镜像，每个源最多重试 PULL_MAX_RETRIES 次。
 
+    对每个 mirror 先做 TCP 连通性预检（3s），不可达则直接跳过，
+    避免在已失效的镜像源上浪费拉取超时。
     成功拉取后，若使用的是 mirror，会 tag 回原始镜像名以保证 compose 可用。
     """
     for mirror in DOCKER_REGISTRY_MIRRORS:
-        rewritten = _rewrite_image(image, mirror)
         source_label = mirror if mirror else "Docker Hub"
+        # Quick reachability check for third-party mirrors
+        if mirror and not _is_mirror_reachable(mirror):
+            info(f"  [{source_label}] 不可达，跳过")
+            continue
+        rewritten = _rewrite_image(image, mirror)
         for attempt in range(1, PULL_MAX_RETRIES + 1):
             info(
                 f"  [{source_label}] 拉取 {rewritten} (第 {attempt}/{PULL_MAX_RETRIES} 次)..."
@@ -646,7 +673,7 @@ def _pull_image_with_mirrors(image: str) -> bool:
                     ["docker", "pull", rewritten],
                     capture_output=True,
                     text=True,
-                    timeout=120,
+                    timeout=300,
                 )
                 if result.returncode == 0:
                     ok(f"  {image} <- {source_label}")
@@ -664,7 +691,7 @@ def _pull_image_with_mirrors(image: str) -> bool:
                 warn(f"  [{source_label}] 拉取异常: {e}")
         # 当前 mirror 全部重试失败，尝试下一个
         if mirror:
-            info(f"  {source_label} 不可用，切换下一个镜像源...")
+            info(f"  {source_label} 拉取失败，切换下一个镜像源...")
     return False
 
 
