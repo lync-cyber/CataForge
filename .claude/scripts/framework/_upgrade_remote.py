@@ -405,24 +405,9 @@ def maybe_self_reexec(tmpdir: str, dry_run: bool) -> None:
             print(f"[自升级] os.execve 失败，回退到当前脚本: {e}", file=sys.stderr)
 
 
-def clone_and_upgrade(
-    clone_url: str, branch: str, token: str = "", dry_run: bool = False
-) -> int:
-    """克隆远程仓库到临时目录，执行本地升级流程。
-
-    自升级支持: 若第一阶段检测到 upgrade.py 有更新，os.execve 到新脚本继续。
-    第二阶段通过 CATAFORGE_SELF_UPGRADE_SRC 环境变量复用已克隆目录。
-    """
-    from _upgrade_local import run_local_upgrade
-
-    if not validate_branch_name(branch):
-        print(f"错误: 无效的分支名: {branch}", file=sys.stderr)
-        return 1
-
-    tmpdir = tempfile.mkdtemp(prefix="cataforge-upgrade-")
+def _do_git_clone(clone_url: str, branch: str, tmpdir: str, token: str = "") -> tuple:
+    """执行 git clone，返回 (success: bool, env: dict)"""
     env = build_clone_env(token, clone_url=clone_url)
-    print("\n正在克隆远程仓库到临时目录...")
-
     try:
         result = subprocess.run(
             [
@@ -442,22 +427,63 @@ def clone_and_upgrade(
             env=env,
         )
         if result.returncode != 0:
-            print(f"错误: git clone 失败: {result.stderr.strip()}", file=sys.stderr)
-            return 1
+            print(f"git clone 失败: {result.stderr.strip()}", file=sys.stderr)
+            cleanup_askpass(env)
+            return (False, env)
+        return (True, env)
+    except subprocess.TimeoutExpired:
+        print("git clone 超时", file=sys.stderr)
+        cleanup_askpass(env)
+        return (False, env)
+    except FileNotFoundError:
+        print("错误: git 命令不可用", file=sys.stderr)
+        cleanup_askpass(env)
+        return (False, env)
 
+
+def clone_and_upgrade(
+    clone_url: str, branch: str, token: str = "", dry_run: bool = False
+) -> int:
+    """克隆远程仓库到临时目录，执行本地升级流程。
+
+    自升级支持: 若第一阶段检测到 upgrade.py 有更新，os.execve 到新脚本继续。
+    第二阶段通过 CATAFORGE_SELF_UPGRADE_SRC 环境变量复用已克隆目录。
+
+    当 SSH clone 失败时，自动回退到 HTTPS 重试。
+    """
+    from _upgrade_local import run_local_upgrade
+
+    if not validate_branch_name(branch):
+        print(f"错误: 无效的分支名: {branch}", file=sys.stderr)
+        return 1
+
+    tmpdir = tempfile.mkdtemp(prefix="cataforge-upgrade-")
+    print("\n正在克隆远程仓库到临时目录...")
+
+    success, env = _do_git_clone(clone_url, branch, tmpdir, token)
+
+    # SSH 克隆失败时，自动回退到 HTTPS
+    if not success and clone_url.startswith("git@github.com:"):
+        repo = clone_url.replace("git@github.com:", "").replace(".git", "")
+        https_url = f"https://github.com/{repo}.git"
+        print(f"\nSSH 克隆失败，回退到 HTTPS: {https_url}", file=sys.stderr)
+        # 清理失败的 tmpdir，重新创建
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        tmpdir = tempfile.mkdtemp(prefix="cataforge-upgrade-")
+        success, env = _do_git_clone(https_url, branch, tmpdir, token)
+
+    if not success:
+        print("错误: git clone 最终失败", file=sys.stderr)
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return 1
+
+    try:
         print(f"克隆完成: {tmpdir}")
 
         # 自升级检测: 若新版 upgrade.py 与当前不同，exec 到新脚本（不返回）
         maybe_self_reexec(tmpdir, dry_run)
 
         return run_local_upgrade(tmpdir, dry_run)
-
-    except subprocess.TimeoutExpired:
-        print("错误: git clone 超时", file=sys.stderr)
-        return 1
-    except FileNotFoundError:
-        print("错误: git 命令不可用", file=sys.stderr)
-        return 1
     finally:
         cleanup_askpass(env)
         # 若已 exec 到第二阶段，此 finally 不会触发（os.execve 替换进程镜像）
@@ -522,6 +548,19 @@ def detect_remote_state(source_type, repo, url, branch, token_env):
             # SSH 可用: 直接用 git 命令，不走 GitHub API（避免 rate limit）
             remote_commit = get_remote_commit_git(clone_url, branch)
             remote_ver = check_version_git_clone(clone_url, branch)
+            # SSH 数据传输可能失败（如代理仅允许 SSH 认证但阻断 relay），
+            # 此时回退到 HTTPS
+            if not remote_commit or not remote_ver:
+                https_url = get_github_clone_url(repo, prefer_ssh=False)
+                print("SSH 数据传输受阻，回退到 HTTPS...")
+                if not remote_commit:
+                    remote_commit = get_remote_commit_git(https_url, branch)
+                if not remote_ver:
+                    remote_ver = check_version_git_clone(https_url, branch, token)
+                # 同时将 clone_url 切换为 HTTPS，确保后续 clone 也走 HTTPS
+                if remote_commit or remote_ver:
+                    clone_url = https_url
+                    print("传输协议: 已切换至 HTTPS")
         else:
             # SSH 不可用: 优先 GitHub API，失败时回退到 git 命令 (HTTPS)
             remote_ver = check_version_github(repo, branch, token)
