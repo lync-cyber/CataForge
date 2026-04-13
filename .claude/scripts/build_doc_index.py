@@ -25,66 +25,15 @@ from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import ensure_utf8_stdio, find_project_root
+from _patterns import HEADING_RE, ITEM_ID_RE, SECTION_NUM_RE, SUBSECTION_NUM_RE
+from _yaml_parser import parse_yaml_frontmatter
 
-# 复用 load_section.py 的核心正则
-HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
-ITEM_ID_RE = re.compile(r"^[A-Z]+-\d+$")
-SECTION_NUM_RE = re.compile(r"^(\d+)(?:\.|\s|$)")
-SUBSECTION_NUM_RE = re.compile(r"^(\d+\.\d+)(?:\.|\s|$)")
-YAML_FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 SECTION_META_RE = re.compile(r"<!--\s*section_meta:\s*\{(.*?)\}\s*-->", re.DOTALL)
 
 INDEX_FILENAME = ".doc-index.json"
 
 
-def _parse_yaml_frontmatter(content: str) -> Dict[str, Any]:
-    """解析 YAML Front Matter，返回字典。不依赖 PyYAML，使用简单键值解析。"""
-    m = YAML_FM_RE.match(content)
-    if not m:
-        return {}
-    fm_text = m.group(1)
-    result: Dict[str, Any] = {}
-    current_key = None
-    current_list: Optional[List[str]] = None
-
-    for line in fm_text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        # 列表续行: "  - item"
-        if stripped.startswith("- ") and current_key and current_list is not None:
-            val = stripped[2:].strip().strip('"').strip("'")
-            current_list.append(val)
-            result[current_key] = current_list
-            continue
-
-        # 键值行: "key: value"
-        colon_idx = stripped.find(":")
-        if colon_idx > 0:
-            key = stripped[:colon_idx].strip()
-            val_part = stripped[colon_idx + 1 :].strip()
-
-            if not val_part:
-                # 可能是列表的开始
-                current_key = key
-                current_list = []
-                result[key] = current_list
-                continue
-
-            current_key = key
-            current_list = None
-
-            # 内联列表: [a, b, c]
-            if val_part.startswith("[") and val_part.endswith("]"):
-                items = val_part[1:-1].split(",")
-                result[key] = [
-                    i.strip().strip('"').strip("'") for i in items if i.strip()
-                ]
-            else:
-                result[key] = val_part.strip('"').strip("'")
-
-    return result
+_parse_yaml_frontmatter = parse_yaml_frontmatter
 
 
 def _parse_section_meta(lines: List[str], start: int, end: int) -> Dict[str, Any]:

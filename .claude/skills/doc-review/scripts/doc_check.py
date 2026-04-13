@@ -15,7 +15,8 @@ from pathlib import Path
 from collections import defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts"))
-from _common import build_template_path_map, get_constant
+from _common import build_template_path_map, ensure_utf8_stdio, get_constant
+from _yaml_parser import parse_yaml_frontmatter as _shared_parse_yaml_fm
 
 # ========================================
 # 分卷常量
@@ -132,41 +133,8 @@ class DocChecker:
 
     @staticmethod
     def _parse_yaml_frontmatter(content: str) -> dict:
-        """从文档内容中解析 YAML Front Matter，返回字典。"""
-        fm_match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
-        if not fm_match:
-            return {}
-        result: dict = {}
-        current_key = None
-        current_list: list | None = None
-        for line in fm_match.group(1).splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            if stripped.startswith("- ") and current_key and current_list is not None:
-                val = stripped[2:].strip().strip('"').strip("'")
-                current_list.append(val)
-                result[current_key] = current_list
-                continue
-            colon_idx = stripped.find(":")
-            if colon_idx > 0:
-                key = stripped[:colon_idx].strip()
-                val_part = stripped[colon_idx + 1 :].strip()
-                if not val_part:
-                    current_key = key
-                    current_list = []
-                    result[key] = current_list
-                    continue
-                current_key = key
-                current_list = None
-                if val_part.startswith("[") and val_part.endswith("]"):
-                    items = val_part[1:-1].split(",")
-                    result[key] = [
-                        i.strip().strip('"').strip("'") for i in items if i.strip()
-                    ]
-                else:
-                    result[key] = val_part.strip('"').strip("'")
-        return result
+        """Parse YAML Front Matter. Delegates to shared _yaml_parser."""
+        return _shared_parse_yaml_fm(content)
 
     def _detect_volume_type(self) -> str:
         """从 YAML Front Matter 的 volume_type 字段提取 volume type，回退到文件名模式匹配，默认返回 main"""
@@ -833,22 +801,8 @@ class DocChecker:
             return 1
 
 
-def _ensure_utf8_stdio():
-    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
-    import io
-
-    if sys.stdout.encoding != "utf-8":
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace"
-        )
-    if sys.stderr.encoding != "utf-8":
-        sys.stderr = io.TextIOWrapper(
-            sys.stderr.buffer, encoding="utf-8", errors="replace"
-        )
-
-
 if __name__ == "__main__":
-    _ensure_utf8_stdio()
+    ensure_utf8_stdio()
     if len(sys.argv) < 3:
         print(
             "用法: python doc_check.py <doc-type> <doc-file> [--docs-dir docs/] [--volume-type <type>]"

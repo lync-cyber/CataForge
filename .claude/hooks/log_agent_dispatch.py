@@ -14,6 +14,8 @@ import os
 import re
 import sys
 
+from _hook_base import hook_main, read_hook_input
+
 # Shared utilities
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 try:
@@ -37,14 +39,12 @@ def _extract_task_type(prompt_text):
     return None
 
 
+@hook_main
 def main():
     if not _log_event:
         sys.exit(0)
 
-    try:
-        data = json.loads(sys.stdin.read())
-    except (json.JSONDecodeError, ValueError):
-        sys.exit(0)
+    data = read_hook_input()
 
     if not data or data.get("tool_name") != "Agent":
         sys.exit(0)
@@ -63,8 +63,8 @@ def main():
     if read_current_phase:
         try:
             phase = read_current_phase()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[HOOK-WARN] {e}", file=sys.stderr)
 
     try:
         _log_event(
@@ -76,8 +76,8 @@ def main():
             if description
             else f"调度 {agent_id}",
         )
-    except Exception:
-        pass  # Never block on logging failure
+    except Exception as e:
+        print(f"[HOOK-WARN] {e}", file=sys.stderr)
 
     sys.exit(0)
 

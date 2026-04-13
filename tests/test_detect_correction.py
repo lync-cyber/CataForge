@@ -31,7 +31,18 @@ def tmp_project(tmp_path, monkeypatch):
     (tmp_path / ".claude" / "scripts").mkdir(parents=True)
 
     shutil.copy(HOOK_SOURCE, tmp_path / ".claude" / "hooks" / "detect_correction.py")
-    for name in ("_common.py", "event_logger.py", "phase_reader.py"):
+    shutil.copy(
+        os.path.join(PROJECT_ROOT, ".claude", "hooks", "_hook_base.py"),
+        tmp_path / ".claude" / "hooks" / "_hook_base.py",
+    )
+    for name in (
+        "_common.py",
+        "_config.py",
+        "_version.py",
+        "_yaml_parser.py",
+        "event_logger.py",
+        "phase_reader.py",
+    ):
         shutil.copy(
             os.path.join(PROJECT_ROOT, ".claude", "scripts", name),
             tmp_path / ".claude" / "scripts" / name,
@@ -65,7 +76,11 @@ def _read_events(tmp_project) -> list[dict]:
     log = tmp_project / "docs" / "EVENT-LOG.jsonl"
     if not log.exists():
         return []
-    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line)
+        for line in log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _corrections_content(tmp_project) -> str:
@@ -210,9 +225,7 @@ class TestNoCorrection:
                 "questions": [
                     {
                         "question": "Q",
-                        "options": [
-                            {"label": "A (Recommended)", "description": "d"}
-                        ],
+                        "options": [{"label": "A (Recommended)", "description": "d"}],
                     }
                 ]
             },
@@ -250,9 +263,7 @@ class TestMultiQuestion:
                     },
                 ]
             },
-            "tool_response": {
-                "answers": {"Q1": "A (Recommended)", "Q2": "Y"}
-            },
+            "tool_response": {"answers": {"Q1": "A (Recommended)", "Q2": "Y"}},
         }
         _run_hook(tmp_project, payload)
         events = _read_events(tmp_project)

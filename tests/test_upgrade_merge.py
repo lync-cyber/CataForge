@@ -6,7 +6,7 @@ import sys
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
-from upgrade import extract_filled_values, extract_section, merge_settings
+from _upgrade_local import extract_filled_values, extract_section, merge_settings
 
 
 # ── extract_section ──────────────────────────────────────────────────────

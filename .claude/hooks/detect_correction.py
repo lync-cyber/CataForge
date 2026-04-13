@@ -25,6 +25,8 @@ import os
 import sys
 from datetime import datetime
 
+from _hook_base import hook_main, read_hook_input
+
 # Shared utilities
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 try:
@@ -113,20 +115,17 @@ def _extract_answers(tool_response) -> dict:
     if isinstance(answers, dict):
         return answers
     # Fallback: direct mapping
-    return tool_response if all(isinstance(v, str) for v in tool_response.values()) else {}
+    return (
+        tool_response if all(isinstance(v, str) for v in tool_response.values()) else {}
+    )
 
 
+@hook_main
 def main():
     if not _log_event:
         sys.exit(0)
 
-    # Read stdin as raw bytes then decode as UTF-8 — Windows' default stdin
-    # encoding (cp936/cp1252) would corrupt non-ASCII JSON payloads.
-    try:
-        raw = sys.stdin.buffer.read()
-        data = json.loads(raw.decode("utf-8", errors="replace"))
-    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
-        sys.exit(0)
+    data = read_hook_input()
 
     if not data or data.get("tool_name") != "AskUserQuestion":
         sys.exit(0)
@@ -148,8 +147,8 @@ def main():
     if _read_phase:
         try:
             phase = _read_phase(project_dir) or "unknown"
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[HOOK-WARN] {e}", file=sys.stderr)
 
     agent_id = _resolve_agent_id(data)
 
@@ -177,8 +176,8 @@ def main():
                     f"推荐={recommended[:30]} 选={str(chosen)[:30]}"
                 ),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[HOOK-WARN] {e}", file=sys.stderr)
 
         try:
             _append_corrections_log(
@@ -189,8 +188,8 @@ def main():
                 recommended,
                 str(chosen),
             )
-        except Exception:
-            pass  # Never block
+        except Exception as e:
+            print(f"[HOOK-WARN] {e}", file=sys.stderr)
 
     sys.exit(0)
 

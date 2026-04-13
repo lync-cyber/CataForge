@@ -8,7 +8,7 @@ from unittest import mock
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
-import upgrade  # noqa: E402
+import _upgrade_remote as upgrade  # noqa: E402
 
 
 def _mkscript(path, content):

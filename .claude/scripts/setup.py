@@ -139,7 +139,14 @@ def load_env_proxy():
     避免 setup 阶段意外覆盖用户环境。
     """
     env_vars = load_dotenv()
-    proxy_keys = {"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
+    proxy_keys = {
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+    }
     for key, value in env_vars.items():
         if key in proxy_keys and key not in os.environ:
             os.environ[key] = value
@@ -232,7 +239,9 @@ def build_env_block(project_dir: str = ".") -> str:
     # --- Node.js ---
     if exists(join(project_dir, "package.json")):
         pkg = detect_node_pkg_manager(project_dir)
-        run_prefix = {"npm": "npx", "yarn": "yarn", "pnpm": "pnpm exec", "bun": "bunx"}[pkg]
+        run_prefix = {"npm": "npx", "yarn": "yarn", "pnpm": "pnpm exec", "bun": "bunx"}[
+            pkg
+        ]
         lines.append(
             f"- Node: 包管理器={pkg} | install=`{pkg} install` | run=`{run_prefix}`"
         )
@@ -277,7 +286,7 @@ FRAMEWORK_CORE_PERMISSIONS = [
     "Bash(mkdir *)",
     "Bash(python .claude/skills/*/scripts/*.py*)",
     "Bash(python .claude/scripts/*.py*)",
-    "Bash(python .claude/scripts/setup_penpot.py --ensure)",
+    "Bash(python .claude/integrations/penpot/setup_penpot.py --ensure)",
 ]
 
 # 按技术栈 → 允许的 Bash 模式列表
@@ -495,7 +504,7 @@ def check_framework_integrity() -> bool:
 
 def run_penpot_setup():
     """调用 Penpot 完整部署脚本 (setup_penpot.py)"""
-    script = os.path.join(".claude", "scripts", "setup_penpot.py")
+    script = os.path.join(".claude", "integrations", "penpot", "setup_penpot.py")
     if not os.path.exists(script):
         fail(f"Penpot 部署脚本不存在: {script}")
         return False

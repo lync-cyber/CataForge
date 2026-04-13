@@ -7,7 +7,7 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
-from upgrade import check_migration_artifacts  # noqa: E402
+from _upgrade_verify import check_migration_artifacts  # noqa: E402
 
 
 def _write_matrix(tmp_path, checks):

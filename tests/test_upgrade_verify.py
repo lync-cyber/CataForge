@@ -5,7 +5,7 @@ import sys
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
-from upgrade import check_feature_applicability, check_file_integrity
+from _upgrade_verify import check_feature_applicability, check_file_integrity
 
 
 # ── check_feature_applicability ──────────────────────────────────────────

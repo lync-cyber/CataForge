@@ -12,14 +12,13 @@ Test:
 import json
 import sys
 
+from _hook_base import hook_main, read_hook_input
 from notify_util import send_notification
 
 
+@hook_main
 def main():
-    try:
-        data = json.loads(sys.stdin.read())
-    except (json.JSONDecodeError, ValueError):
-        data = {}
+    data = read_hook_input()
 
     message = data.get("message", "Action requires approval")
 

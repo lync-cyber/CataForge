@@ -16,6 +16,8 @@ import shutil
 import subprocess
 import sys
 
+from _hook_base import hook_main, read_hook_input
+
 
 def run_tool(cmd, label, filepath):
     """Run a formatting/linting tool, report errors to stderr."""
@@ -50,11 +52,9 @@ def has_command(name):
     return shutil.which(name) is not None
 
 
+@hook_main
 def main():
-    try:
-        data = json.loads(sys.stdin.read())
-    except (json.JSONDecodeError, ValueError):
-        sys.exit(0)
+    data = read_hook_input()
 
     file_path = (data.get("tool_input") or {}).get("file_path")
     if not file_path:

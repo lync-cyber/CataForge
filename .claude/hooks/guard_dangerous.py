@@ -13,6 +13,8 @@ import json
 import re
 import sys
 
+from _hook_base import read_hook_input
+
 DANGEROUS_PATTERNS = [
     (
         r"rm\s+-rf",
@@ -54,10 +56,7 @@ DANGEROUS_PATTERNS = [
 
 
 def main():
-    try:
-        data = json.loads(sys.stdin.read())
-    except (json.JSONDecodeError, ValueError):
-        sys.exit(0)
+    data = read_hook_input()
 
     if data.get("tool_name") != "Bash":
         sys.exit(0)

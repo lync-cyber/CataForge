@@ -34,12 +34,19 @@ def tmp_project(tmp_path, monkeypatch):
     # 拷贝 session_context.py + event_logger.py + phase_reader.py
     import shutil
 
-    for name in ("session_context.py",):
+    for name in ("session_context.py", "_hook_base.py"):
         shutil.copy(
             os.path.join(PROJECT_ROOT, ".claude", "hooks", name),
             tmp_path / ".claude" / "hooks" / name,
         )
-    for name in ("_common.py", "event_logger.py", "phase_reader.py"):
+    for name in (
+        "_common.py",
+        "_config.py",
+        "_version.py",
+        "_yaml_parser.py",
+        "event_logger.py",
+        "phase_reader.py",
+    ):
         shutil.copy(
             os.path.join(PROJECT_ROOT, ".claude", "scripts", name),
             tmp_path / ".claude" / "scripts" / name,
@@ -55,7 +62,11 @@ def _read_events(tmp_project) -> list[dict]:
     log = tmp_project / "docs" / "EVENT-LOG.jsonl"
     if not log.exists():
         return []
-    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line)
+        for line in log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _run_hook(tmp_project) -> subprocess.CompletedProcess:

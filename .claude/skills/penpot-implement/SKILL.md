@@ -61,7 +61,7 @@ user-invocable: true
 - 产出差异列表（如有）
 
 ## Penpot MCP 工具发现
-具体 MCP 工具名称以 .claude/settings.json 中 `mcpServers.penpot` 配置为准，运行时通过可用工具列表自动发现。典型操作包括: 读取组件结构/样式/SVG。若工具列表中无 Penpot 相关工具，先运行 `python .claude/scripts/setup_penpot.py ensure` 尝试启动服务，仍不可用则返回 blocked。
+具体 MCP 工具名称以 .claude/settings.json 中 `mcpServers.penpot` 配置为准，运行时通过可用工具列表自动发现。典型操作包括: 读取组件结构/样式/SVG。若工具列表中无 Penpot 相关工具，先运行 `python .claude/integrations/penpot/setup_penpot.py ensure` 尝试启动服务，仍不可用则返回 blocked。
 
 ## 效率策略
 - 优先使用 tokens.css 变量，确保全局一致性

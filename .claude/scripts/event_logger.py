@@ -71,12 +71,46 @@ VALID_TASK_TYPES = {
 }
 
 
+LOG_ROTATE_MAX_LINES = 2000
+LOG_ROTATE_KEEP_LINES = 500
+
+
 def _get_log_path():
     """Return the event log file path, respecting CATAFORGE_EVENT_LOG env var."""
     env_path = os.environ.get("CATAFORGE_EVENT_LOG")
     if env_path:
         return env_path
     return os.path.join(find_project_root(), "docs", "EVENT-LOG.jsonl")
+
+
+def _maybe_rotate(log_path):
+    """Rotate the event log if it exceeds LOG_ROTATE_MAX_LINES.
+
+    Archives older entries to EVENT-LOG.{date}.jsonl and keeps the most
+    recent LOG_ROTATE_KEEP_LINES entries in the active log file.
+    """
+    try:
+        if not os.path.isfile(log_path):
+            return
+        with open(log_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        if len(lines) <= LOG_ROTATE_MAX_LINES:
+            return
+
+        # Archive older lines
+        archive_name = log_path.replace(
+            ".jsonl",
+            f".{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.jsonl",
+        )
+        archived = lines[:-LOG_ROTATE_KEEP_LINES]
+        kept = lines[-LOG_ROTATE_KEEP_LINES:]
+
+        with open(archive_name, "w", encoding="utf-8") as f:
+            f.writelines(archived)
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.writelines(kept)
+    except OSError:
+        pass  # Rotation is best-effort; don't break logging
 
 
 def append_event(
@@ -140,6 +174,7 @@ def append_event(
     with open(target, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+    _maybe_rotate(target)
     return entry
 
 
@@ -160,7 +195,9 @@ def append_events_batch(events, log_path=None):
     validated = []
     for idx, item in enumerate(events):
         if not isinstance(item, dict):
-            raise ValueError(f"Batch entry #{idx} must be a dict, got {type(item).__name__}")
+            raise ValueError(
+                f"Batch entry #{idx} must be a dict, got {type(item).__name__}"
+            )
         event = item.get("event")
         phase = item.get("phase")
         detail = item.get("detail")
@@ -203,6 +240,7 @@ def append_events_batch(events, log_path=None):
         for entry in validated:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+    _maybe_rotate(target)
     return validated
 
 
@@ -251,13 +289,20 @@ def main():
         if not events:
             parser.error("--batch 模式下 stdin 未提供任何事件")
         entries = append_events_batch(events)
-        print(json.dumps({"batch_count": len(entries), "entries": entries},
-                         ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"batch_count": len(entries), "entries": entries},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return
 
     missing = [k for k in ("event", "phase", "detail") if not getattr(args, k)]
     if missing:
-        parser.error(f"单事件模式下缺少必填参数: {', '.join('--' + m for m in missing)}")
+        parser.error(
+            f"单事件模式下缺少必填参数: {', '.join('--' + m for m in missing)}"
+        )
 
     entry = append_event(
         event=args.event,

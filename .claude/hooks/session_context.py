@@ -18,6 +18,8 @@ import os
 import sys
 from datetime import datetime, timezone
 
+from _hook_base import hook_main, read_hook_input
+
 # Shared utilities
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 try:
@@ -29,20 +31,6 @@ try:
     from phase_reader import read_current_phase as _read_phase
 except ImportError:
     _read_phase = None
-
-
-def _ensure_utf8_stdio():
-    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
-    import io
-
-    if sys.stdout.encoding != "utf-8":
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace"
-        )
-    if sys.stderr.encoding != "utf-8":
-        sys.stderr = io.TextIOWrapper(
-            sys.stderr.buffer, encoding="utf-8", errors="replace"
-        )
 
 
 def _should_log_session_start(project_dir: str) -> bool:
@@ -72,8 +60,8 @@ def _should_log_session_start(project_dir: str) -> bool:
     return True
 
 
+@hook_main
 def main():
-    _ensure_utf8_stdio()
     # Locate project root (two levels up from hooks/)
     hooks_dir = os.path.dirname(os.path.abspath(__file__))
     claude_dir = os.path.dirname(hooks_dir)

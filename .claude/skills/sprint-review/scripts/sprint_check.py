@@ -19,6 +19,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts"))
+from _common import ensure_utf8_stdio
+
 
 def find_dev_plan_files(dev_plan_dir: str) -> list:
     """查找dev-plan目录下的所有markdown文件"""
@@ -281,22 +284,8 @@ def check_code_reviews(tasks: list, reviews_dir: str) -> list:
     return issues
 
 
-def _ensure_utf8_stdio():
-    """Wrap stdout/stderr with UTF-8 encoding on Windows (CLI use only)."""
-    import io
-
-    if sys.stdout.encoding != "utf-8":
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace"
-        )
-    if sys.stderr.encoding != "utf-8":
-        sys.stderr = io.TextIOWrapper(
-            sys.stderr.buffer, encoding="utf-8", errors="replace"
-        )
-
-
 def main():
-    _ensure_utf8_stdio()
+    ensure_utf8_stdio()
     parser = argparse.ArgumentParser(description="Sprint completion structural check")
     parser.add_argument("sprint_number", type=int, help="Sprint number to check")
     parser.add_argument(

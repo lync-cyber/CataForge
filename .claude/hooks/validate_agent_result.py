@@ -14,6 +14,8 @@ import os
 import re
 import sys
 
+from _hook_base import hook_main, read_hook_input
+
 # Shared utilities
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 try:
@@ -54,11 +56,9 @@ def warn(msg):
     print(f"[WARN] agent-result schema: {msg}", file=sys.stderr)
 
 
+@hook_main
 def main():
-    try:
-        data = json.loads(sys.stdin.read())
-    except (json.JSONDecodeError, ValueError):
-        sys.exit(0)
+    data = read_hook_input()
 
     if not data or data.get("tool_name") != "Agent":
         sys.exit(0)
@@ -114,8 +114,8 @@ def main():
                     status=status if status in VALID_STATUSES else None,
                     ref=ref,
                 )
-            except Exception:
-                pass  # Never block on logging failure
+            except Exception as e:
+                print(f"[HOOK-WARN] {e}", file=sys.stderr)
 
     sys.exit(0)
 

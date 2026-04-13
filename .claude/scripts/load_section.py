@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 # 共享工具
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import build_doc_type_map, ensure_utf8_stdio, find_project_root
+from _patterns import HEADING_RE, ITEM_ID_RE, REF_RE, SECTION_PATH_RE
 
 
 # ============================================================================
@@ -165,22 +166,18 @@ def _lookup_in_index(
     }
 
 
-# doc_id → doc_type 目录映射
-# 从 _registry.yaml 动态构建，启动时加载一次
-DOC_TYPE_MAP = build_doc_type_map()
+# doc_id → doc_type 目录映射 (延迟加载，避免 import 时产生 I/O 副作用)
+_DOC_TYPE_MAP_CACHE: Optional[Dict[str, str]] = None
 
 
-# 条目 ID 模式: 大写字母 + 数字后缀，如 F-001, API-001, M-003, E-012, T-042, C-007, P-001, AC-015
-ITEM_ID_RE = re.compile(r"^[A-Z]+-\d+$")
+def _get_doc_type_map() -> Dict[str, str]:
+    global _DOC_TYPE_MAP_CACHE
+    if _DOC_TYPE_MAP_CACHE is None:
+        _DOC_TYPE_MAP_CACHE = build_doc_type_map()
+    return _DOC_TYPE_MAP_CACHE
 
-# 节路径模式: 纯数字或点分数字，如 1, 1.1, 2.3.4
-SECTION_PATH_RE = re.compile(r"^\d+(?:\.\d+)*$")
 
-# 引用拆分: doc_id#§<section>[.<item>]
-REF_RE = re.compile(r"^(?P<doc_id>[a-z][a-z0-9\-]*)#§(?P<section>.+)$")
-
-# Markdown 标题行
-HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
+# Regex patterns imported from _patterns.py (single source of truth)
 
 
 class LoadSectionError(Exception):
@@ -257,19 +254,19 @@ def resolve_file(
 ) -> str:
     """根据 doc_id 定位文件路径，返回绝对路径。
 
-    1. 从 DOC_TYPE_MAP 推断 doc_type 子目录
+    1. 从 _get_doc_type_map() 推断 doc_type 子目录
     2. 在 docs/{doc_type}/ 下查找以 doc_id 开头的 .md 文件
     3. 多文件场景下，基于 section_path/item_id 探测匹配章节所在文件
 
     找不到文件或目录时抛出 DocResolveError。
     """
-    if doc_id not in DOC_TYPE_MAP:
+    if doc_id not in _get_doc_type_map():
         raise DocResolveError(
             f"未知的 doc_id: {doc_id!r}，"
-            f"支持的前缀见 DOC_TYPE_MAP（{sorted(DOC_TYPE_MAP.keys())[:5]}...）"
+            f"支持的前缀见 _get_doc_type_map()（{sorted(_get_doc_type_map().keys())[:5]}...）"
         )
 
-    doc_type = DOC_TYPE_MAP[doc_id]
+    doc_type = _get_doc_type_map()[doc_id]
     doc_dir = os.path.join(project_root, "docs", doc_type)
 
     if not os.path.isdir(doc_dir):

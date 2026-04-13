@@ -143,9 +143,9 @@
     {
       "id": "mc-0.7.0-upgrade-self-reexec",
       "release_version": "0.7.0",
-      "description": "upgrade.py 必须提供自升级 re-exec 能力",
+      "description": "_upgrade_remote.py 必须提供自升级 re-exec 能力",
       "type": "file_must_contain",
-      "path": ".claude/scripts/upgrade.py",
+      "path": ".claude/scripts/_upgrade_remote.py",
       "patterns": ["maybe_self_reexec", "CATAFORGE_SELF_UPGRADED"]
     },
     {
