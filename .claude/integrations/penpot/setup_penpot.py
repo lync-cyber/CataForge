@@ -89,12 +89,13 @@ MCP_HEALTH_TIMEOUT = 120  # 首次启动需下载 pnpm 依赖，30s 不够
 PULL_MAX_RETRIES = 3
 
 # Docker 镜像源列表 (按优先级排序，空字符串表示官方 Docker Hub)
+# 国内镜像优先，Docker Hub 作为最终回退（国内网络直连 Docker Hub 常超时）
 # 参考: https://github.com/dongyubin/DockerHub
 DOCKER_REGISTRY_MIRRORS = [
-    "",  # Docker Hub 官方
     "docker.xuanyuan.me",  # 轩辕镜像免费版
     "docker.m.daocloud.io",  # DaoCloud
     "mirror.ccs.tencentyun.com",  # 腾讯云 (云服务器内效果最佳)
+    "",  # Docker Hub 官方 (回退)
 ]
 
 # PID 文件 (跨平台临时目录)
@@ -639,7 +640,7 @@ def _pull_image_with_mirrors(image: str) -> bool:
                     ["docker", "pull", rewritten],
                     capture_output=True,
                     text=True,
-                    timeout=300,
+                    timeout=120,
                 )
                 if result.returncode == 0:
                     ok(f"  {image} <- {source_label}")
