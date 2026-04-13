@@ -1,6 +1,31 @@
 {
-  "version": "0.2.0",
-  "description": "CataForge 功能兼容性注册表 + 迁移检查声明。features 描述稳定功能及其阶段适用性；migration_checks 由每次 release 添加，upgrade.py verify 数据驱动地执行这些约束。",
+  "version": "0.3.0",
+  "description": "CataForge 统一框架配置。upgrade.source 为远程升级源配置（合并策略: 保留用户已配置值，补充新字段）；upgrade.state 为本地升级状态（始终保留）；features 和 migration_checks 为框架出厂配置（升级时全量覆盖）。",
+  "upgrade": {
+    "source": {
+      "type": "github",
+      "repo": "lync-cyber/CataForge",
+      "branch": "main",
+      "token_env": "GITHUB_TOKEN"
+    },
+    "state": {
+      "last_commit": "",
+      "last_version": "",
+      "last_upgrade_date": ""
+    }
+  },
+  "constants": {
+    "MAX_QUESTIONS_PER_BATCH": 3,
+    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "pre_deploy"],
+    "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl",
+    "EVENT_LOG_SCHEMA": ".claude/schemas/event-log.schema.json",
+    "DOC_SPLIT_THRESHOLD_LINES": 300,
+    "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
+    "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "prd-lite", "arch-lite", "dev-plan-lite", "changelog"],
+    "TDD_LIGHT_LOC_THRESHOLD": 50,
+    "SPRINT_REVIEW_MICRO_TASK_COUNT": 2,
+    "RETRO_TRIGGER_SELF_CAUSED": 5
+  },
   "features": {
     "tdd-engine": {
       "min_version": "0.1.0",

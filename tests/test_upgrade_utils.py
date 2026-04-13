@@ -8,7 +8,7 @@ import warnings
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".claude", "scripts"))
-from upgrade import (
+from _common import (
     load_json_lenient,
     parse_semver,
     phase_index,

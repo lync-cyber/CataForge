@@ -8,9 +8,13 @@
 - 平台检测
 - 终端彩色输出
 - 命令可用性检测
+- 框架配置读取 (framework.json)
+- 版本解析 / 阶段管理
+- SSH 可用性检测
 """
 
 import io
+import json
 import os
 import re
 import shutil
@@ -92,7 +96,9 @@ def ensure_utf8_stdio():
 # ============================================================================
 
 
-def load_dotenv(env_path: Optional[str] = None, set_env: bool = False) -> Dict[str, str]:
+def load_dotenv(
+    env_path: Optional[str] = None, set_env: bool = False
+) -> Dict[str, str]:
     """解析 .env 文件，返回键值对字典。
 
     支持格式:
@@ -338,3 +344,149 @@ def check_port_available(port: int, name: str = "") -> bool:
         warn(f"端口 {port}{label} 已被占用")
         return False
     return True
+
+
+# ============================================================================
+# 版本解析
+# ============================================================================
+
+VERSION_FILE = "pyproject.toml"
+
+
+def parse_semver(ver_str: str) -> tuple:
+    """解析 semver 字符串为 (major, minor, patch) 元组，支持可选 v 前缀"""
+    ver_str = ver_str.strip()
+    match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)", ver_str)
+    if not match:
+        warnings.warn(f"parse_semver: 无法解析版本号 '{ver_str}'，回退到 (0,0,0)")
+        return (0, 0, 0)
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+
+def read_version(base_path: str) -> str:
+    """从目录读取 pyproject.toml 中的 [project].version"""
+    ver_file = os.path.join(base_path, VERSION_FILE)
+    if not os.path.exists(ver_file):
+        return "0.0.0"
+    with open(ver_file, "r", encoding="utf-8") as f:
+        content = f.read()
+    match = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
+    return match.group(1) if match else "0.0.0"
+
+
+# ============================================================================
+# JSON 工具
+# ============================================================================
+
+
+def load_json_lenient(file_path: str) -> dict:
+    """加载 JSON 文件，容忍尾随逗号等常见格式问题"""
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        content = re.sub(r",\s*([}\]])", r"\1", content)
+        return json.loads(content)
+
+
+# ============================================================================
+# 阶段管理
+# ============================================================================
+
+PHASE_ORDER = [
+    "requirements",
+    "architecture",
+    "ui_design",
+    "dev_planning",
+    "development",
+    "testing",
+    "deployment",
+    "completed",
+]
+
+
+def phase_index(phase: str) -> int:
+    """返回阶段在生命周期中的索引，未知阶段返回 -1"""
+    try:
+        return PHASE_ORDER.index(phase)
+    except ValueError:
+        return -1
+
+
+# ============================================================================
+# 输入校验
+# ============================================================================
+
+
+def validate_branch_name(branch: str) -> bool:
+    """校验分支名，防止注入异常字符"""
+    return bool(re.match(r"^[a-zA-Z0-9._/-]+$", branch))
+
+
+# ============================================================================
+# 框架配置 (framework.json)
+# ============================================================================
+
+FRAMEWORK_CONFIG_FILE = os.path.join(".claude", "framework.json")
+
+
+def load_framework_config() -> dict:
+    """读取 .claude/framework.json 统一框架配置"""
+    if not os.path.exists(FRAMEWORK_CONFIG_FILE):
+        return {}
+    with open(FRAMEWORK_CONFIG_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def load_framework_constants() -> dict:
+    """从 framework.json 加载 constants 节，返回 {常量名: 值} 字典。
+
+    未找到配置文件或无 constants 节时返回空字典。
+    """
+    config = load_framework_config()
+    return config.get("constants", {})
+
+
+def get_constant(name: str, default=None):
+    """按名称获取单个框架常量值，缺失时返回 default。"""
+    return load_framework_constants().get(name, default)
+
+
+# ============================================================================
+# GitHub / SSH 工具
+# ============================================================================
+
+
+def get_github_token(token_env: str) -> str:
+    """从环境变量获取 GitHub token（.env 已由 load_dotenv(set_env=True) 预加载）"""
+    if not token_env:
+        return ""
+    return os.environ.get(token_env, "")
+
+
+def check_ssh_available(host: str = "github.com") -> bool:
+    """检测 SSH 是否可连接到目标主机（用于判断是否优先使用 SSH 协议）
+
+    通过 `ssh -T git@host` 测试。GitHub 在认证成功时返回 exit 1（正常行为），
+    stderr 包含 "successfully authenticated" 表示 SSH 可用。
+    """
+    try:
+        result = subprocess.run(
+            [
+                "ssh",
+                "-T",
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                "-o",
+                "ConnectTimeout=5",
+                f"git@{host}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        combined = (result.stdout + result.stderr).lower()
+        return "successfully authenticated" in combined
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False

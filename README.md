@@ -258,7 +258,7 @@ flowchart LR
 python .claude/scripts/upgrade.py local /path/to/new-CataForge --dry-run
 python .claude/scripts/upgrade.py local /path/to/new-CataForge
 
-# 远程升级（需配置 .claude/upgrade-source.json）
+# 远程升级（需配置 .claude/framework.json）
 python .claude/scripts/upgrade.py check
 python .claude/scripts/upgrade.py upgrade --dry-run
 python .claude/scripts/upgrade.py upgrade
@@ -365,7 +365,7 @@ CataForge/
 
 **关键设计模式：**
 
-- **文档生命周期**：`draft` → `review` → `approved`（或 `needs_revision` → 返工循环），doc-gen skill 负责模板实例化、超 500 行自动拆分、NAV-INDEX 注册
+- **文档生命周期**：`draft` → `review` → `approved`（或 `needs_revision` → 返工循环），doc-gen skill 负责模板实例化、超 300 行自动拆分、NAV-INDEX 注册
 - **TDD 引擎**：orchestrator 直接驱动三个子代理，通过文件系统传递状态，确保阶段间上下文隔离
 - **变更请求**：change-guard skill 按偏移等级路由（L1 / L2 / L3）
 - **自学习**：用户纠正 → 记录偏差 → 反复问题注入提示 → 项目回顾 → 经验写入 learnings

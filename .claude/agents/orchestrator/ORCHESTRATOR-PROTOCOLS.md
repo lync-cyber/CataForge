@@ -244,7 +244,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 - .claude/agents/orchestrator/ — ORCHESTRATOR-PROTOCOLS.md
 - .claude/hooks/ — 所有 Hook 脚本 (.py)
 - .claude/scripts/ — upgrade.py, setup.py, event_logger.py, load_section.py, phase_reader.py, setup_penpot.py, _common.py 等框架工具脚本
-- .claude/compat-matrix.json
+- .claude/framework.json
 - pyproject.toml
 
 ### 绝不触碰（项目数据）
@@ -255,7 +255,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 
 ### 需要合并（混合文件）
 - .claude/settings.json — 保留项目 env、自定义 permissions、用户独有 mcpServers
-- .claude/upgrade-source.json — 保留用户已配置的 repo/url，仅补充新字段；`last_commit`/`last_version`/`last_upgrade_date` 为项目本地升级状态，始终保留
+- .claude/framework.json — upgrade.source 保留用户已配置的 repo/url，仅补充新字段；upgrade.state 为项目本地升级状态，始终保留；features 和 migration_checks 为框架出厂配置，全量覆盖
 - CLAUDE.md 全局约定 — 保留用户已填写的值，新增框架默认字段
 
 ### 初始化安装
@@ -272,7 +272,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 5. 提交: `git commit -m "chore: upgrade CataForge framework to vX.Y.Z"`
 
 ### 升级步骤（远程拉取方式）
-1. 配置 `.claude/upgrade-source.json`（设置 type/repo/url/branch）
+1. 配置 `.claude/framework.json`（设置 upgrade.source 的 type/repo/url/branch）
 2. 运行: `python .claude/scripts/upgrade.py check` 检测新版本
 3. 运行: `python .claude/scripts/upgrade.py upgrade --dry-run` 预览变更
 4. 运行: `python .claude/scripts/upgrade.py upgrade` 执行升级

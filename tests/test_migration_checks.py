@@ -14,7 +14,7 @@ def _write_matrix(tmp_path, checks):
     claude_dir = tmp_path / ".claude"
     claude_dir.mkdir(parents=True, exist_ok=True)
     matrix = {"features": {}, "migration_checks": checks}
-    (claude_dir / "compat-matrix.json").write_text(
+    (claude_dir / "framework.json").write_text(
         json.dumps(matrix, ensure_ascii=False), encoding="utf-8"
     )
 
@@ -144,7 +144,7 @@ class TestMigrationArtifacts:
 
 
 class TestCompatMatrixMigrationChecksCurrent:
-    """对当前仓库的 compat-matrix.json 做一次真实执行，确保声明与仓库一致。"""
+    """对当前仓库的 framework.json 做一次真实执行，确保声明与仓库一致。"""
 
     def test_live_matrix_passes(self, project_root):
         cwd_backup = os.getcwd()
@@ -152,6 +152,8 @@ class TestCompatMatrixMigrationChecksCurrent:
             os.chdir(project_root)
             issues = check_migration_artifacts()
             # 每个 migration check 都必须通过，否则暴露了仓库回归
-            assert issues == [], "仓库 compat-matrix 迁移检查未通过:\n" + "\n".join(issues)
+            assert issues == [], "仓库 compat-matrix 迁移检查未通过:\n" + "\n".join(
+                issues
+            )
         finally:
             os.chdir(cwd_backup)

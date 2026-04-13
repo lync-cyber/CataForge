@@ -38,71 +38,28 @@ from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 # 共享工具
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import ensure_utf8_stdio, load_dotenv
+from _common import (
+    FRAMEWORK_CONFIG_FILE,
+    PHASE_ORDER,
+    VERSION_FILE,
+    check_ssh_available,
+    ensure_utf8_stdio,
+    get_github_token,
+    load_dotenv,
+    load_framework_config,
+    load_json_lenient,
+    parse_semver,
+    phase_index,
+    read_version,
+    validate_branch_name,
+)
 from phase_reader import read_current_phase
 
 FRAMEWORK_DIRS = ["agents", "skills", "rules", "hooks", "scripts", "schemas"]
-VERSION_FILE = "pyproject.toml"
 
 # 自升级相关环境变量（见 §自升级机制）
 SELF_UPGRADE_MARKER = "CATAFORGE_SELF_UPGRADED"
 SELF_UPGRADE_SRC_ENV = "CATAFORGE_SELF_UPGRADE_SRC"
-PHASE_ORDER = [
-    "requirements",
-    "architecture",
-    "ui_design",
-    "dev_planning",
-    "development",
-    "testing",
-    "deployment",
-    "completed",
-]
-
-
-def parse_semver(ver_str: str) -> tuple:
-    """解析 semver 字符串为 (major, minor, patch) 元组，支持可选 v 前缀"""
-    ver_str = ver_str.strip()
-    match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)", ver_str)
-    if not match:
-        warnings.warn(f"parse_semver: 无法解析版本号 '{ver_str}'，回退到 (0,0,0)")
-        return (0, 0, 0)
-    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
-
-
-def read_version(base_path: str) -> str:
-    """从目录读取 pyproject.toml 中的 [project].version"""
-    ver_file = os.path.join(base_path, VERSION_FILE)
-    if not os.path.exists(ver_file):
-        return "0.0.0"
-    with open(ver_file, "r", encoding="utf-8") as f:
-        content = f.read()
-    match = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
-    return match.group(1) if match else "0.0.0"
-
-
-def load_json_lenient(file_path: str) -> dict:
-    """加载 JSON 文件，容忍尾随逗号等常见格式问题"""
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        # 仅在标准解析失败时才清理尾随逗号
-        content = re.sub(r",\s*([}\]])", r"\1", content)
-        return json.loads(content)
-
-
-def phase_index(phase: str) -> int:
-    """返回阶段在生命周期中的索引，未知阶段返回 -1"""
-    try:
-        return PHASE_ORDER.index(phase)
-    except ValueError:
-        return -1
-
-
-def validate_branch_name(branch: str) -> bool:
-    """校验分支名，防止注入异常字符"""
-    return bool(re.match(r"^[a-zA-Z0-9._/-]+$", branch))
 
 
 # ============================================================================
@@ -210,42 +167,42 @@ def copy_framework(source_path: str, dry_run: bool = False) -> list:
                 shutil.copy2(src_ver, VERSION_FILE)
             changes.append(f"  新增: {VERSION_FILE}")
 
-    # 复制 compat-matrix.json
-    src_compat = os.path.join(source_path, ".claude", "compat-matrix.json")
-    dst_compat = os.path.join(".claude", "compat-matrix.json")
-    if os.path.exists(src_compat):
-        if not dry_run:
-            shutil.copy2(src_compat, dst_compat)
-        changes.append("  更新: .claude/compat-matrix.json")
-
-    # 合并 upgrade-source.json
-    src_upgrade_source = os.path.join(source_path, ".claude", "upgrade-source.json")
-    dst_upgrade_source = os.path.join(".claude", "upgrade-source.json")
-    if os.path.exists(src_upgrade_source):
-        if os.path.exists(dst_upgrade_source):
+    # 合并 framework.json（features/migration_checks 全量覆盖，upgrade.source 合并，upgrade.state 保留）
+    src_fw = os.path.join(source_path, ".claude", "framework.json")
+    dst_fw = os.path.join(".claude", "framework.json")
+    if os.path.exists(src_fw):
+        if os.path.exists(dst_fw):
             try:
-                with open(src_upgrade_source, "r", encoding="utf-8") as f:
-                    new_source = json.load(f)
-                with open(dst_upgrade_source, "r", encoding="utf-8") as f:
-                    cur_source = json.load(f)
-                # last_* 字段为项目本地状态，始终保留当前值
-                local_state_keys = {"last_commit", "last_version", "last_upgrade_date"}
-                for k, v in new_source.items():
-                    if k in local_state_keys:
-                        continue  # 不覆盖本地升级状态
+                with open(src_fw, "r", encoding="utf-8") as f:
+                    new_fw = json.load(f)
+                with open(dst_fw, "r", encoding="utf-8") as f:
+                    cur_fw = json.load(f)
+                # 框架出厂配置: 全量覆盖
+                cur_fw["version"] = new_fw.get("version", cur_fw.get("version", ""))
+                cur_fw["description"] = new_fw.get(
+                    "description", cur_fw.get("description", "")
+                )
+                cur_fw["features"] = new_fw.get("features", {})
+                cur_fw["migration_checks"] = new_fw.get("migration_checks", [])
+                # upgrade.source: 保留用户已配置值，补充新字段
+                cur_upgrade = cur_fw.setdefault("upgrade", {})
+                new_upgrade = new_fw.get("upgrade", {})
+                cur_source = cur_upgrade.setdefault("source", {})
+                for k, v in new_upgrade.get("source", {}).items():
                     if k not in cur_source:
                         cur_source[k] = v
+                # upgrade.state: 始终保留当前值
                 if not dry_run:
-                    with open(dst_upgrade_source, "w", encoding="utf-8") as f:
-                        json.dump(cur_source, f, ensure_ascii=False, indent=2)
+                    with open(dst_fw, "w", encoding="utf-8") as f:
+                        json.dump(cur_fw, f, ensure_ascii=False, indent=2)
                         f.write("\n")
-                changes.append("  合并: .claude/upgrade-source.json")
+                changes.append("  合并: .claude/framework.json")
             except (json.JSONDecodeError, OSError):
-                changes.append("  跳过: .claude/upgrade-source.json (解析失败)")
+                changes.append("  跳过: .claude/framework.json (解析失败)")
         else:
             if not dry_run:
-                shutil.copy2(src_upgrade_source, dst_upgrade_source)
-            changes.append("  新增: .claude/upgrade-source.json")
+                shutil.copy2(src_fw, dst_fw)
+            changes.append("  新增: .claude/framework.json")
 
     return changes
 
@@ -408,7 +365,9 @@ def merge_claude_md(source_path: str, dry_run: bool = False) -> list:
 
     project_state = extract_section(current, "项目状态")
     # 从非项目状态区提取已填写值，避免跨段回填
-    content_without_state = current.replace(project_state, "") if project_state else current
+    content_without_state = (
+        current.replace(project_state, "") if project_state else current
+    )
     filled_values = extract_filled_values(content_without_state)
 
     if project_state:
@@ -459,19 +418,16 @@ def merge_claude_md(source_path: str, dry_run: bool = False) -> list:
 
 
 def load_upgrade_source() -> dict:
-    """加载 .claude/upgrade-source.json 配置"""
-    config_file = os.path.join(".claude", "upgrade-source.json")
-    if not os.path.exists(config_file):
-        return {}
-    with open(config_file, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """从 framework.json 读取升级源配置（兼容层）
 
-
-def get_github_token(token_env: str) -> str:
-    """从环境变量获取 GitHub token（.env 已由 load_dotenv(set_env=True) 预加载）"""
-    if not token_env:
-        return ""
-    return os.environ.get(token_env, "")
+    返回与旧 upgrade-source.json 相同的扁平结构:
+    {type, repo, url, branch, token_env, last_commit, last_version, last_upgrade_date}
+    """
+    config = load_framework_config()
+    upgrade = config.get("upgrade", {})
+    source = upgrade.get("source", {})
+    state = upgrade.get("state", {})
+    return {**source, **state}
 
 
 def _build_url_opener():
@@ -528,14 +484,23 @@ def check_version_github(repo: str, branch: str, token: str) -> str:
         return ""
 
 
-def get_github_clone_url(repo: str) -> str:
-    """构造 GitHub 仓库的 clone URL"""
+def get_github_clone_url(repo: str, prefer_ssh: bool = True) -> str:
+    """构造 GitHub 仓库的 clone URL，优先使用 SSH 协议"""
+    if prefer_ssh:
+        return f"git@github.com:{repo}.git"
     return f"https://github.com/{repo}.git"
 
 
-def build_clone_env(token: str) -> dict:
-    """构建 git clone 环境变量，通过 GIT_ASKPASS 安全传递 Token"""
+def build_clone_env(token: str, clone_url: str = "") -> dict:
+    """构建 git clone 环境变量，通过 GIT_ASKPASS 安全传递 Token
+
+    若 clone_url 是 SSH 协议，跳过 Token/ASKPASS 设置（SSH 使用密钥认证）。
+    """
     env = os.environ.copy()
+    # SSH URL 无需 Token 认证
+    if clone_url.startswith("git@") or clone_url.startswith("ssh://"):
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return env
     if token:
         # 通过环境变量传递 token，避免明文写入磁盘
         env["_CATAFORGE_GIT_TOKEN"] = token
@@ -544,8 +509,8 @@ def build_clone_env(token: str) -> dict:
         )
         with open(askpass_script, "w", encoding="utf-8") as f:
             f.write(
-                '#!/usr/bin/env python3\n'
-                'import os\n'
+                "#!/usr/bin/env python3\n"
+                "import os\n"
                 'print(os.environ.get("_CATAFORGE_GIT_TOKEN", ""))\n'
             )
         try:
@@ -639,21 +604,16 @@ def get_local_git_head(repo_path: str) -> str:
 
 
 def save_upgrade_state(commit_sha: str, version: str):
-    """升级成功后将 commit SHA、版本号、日期写入 upgrade-source.json"""
-    config_file = os.path.join(".claude", "upgrade-source.json")
-    config = {}
-    if os.path.exists(config_file):
-        try:
-            with open(config_file, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+    """升级成功后将 commit SHA、版本号、日期写入 framework.json 的 upgrade.state"""
+    config = load_framework_config()
 
-    config["last_commit"] = commit_sha
-    config["last_version"] = version
-    config["last_upgrade_date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    upgrade = config.setdefault("upgrade", {})
+    state = upgrade.setdefault("state", {})
+    state["last_commit"] = commit_sha
+    state["last_version"] = version
+    state["last_upgrade_date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
-    with open(config_file, "w", encoding="utf-8") as f:
+    with open(FRAMEWORK_CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
         f.write("\n")
 
@@ -702,7 +662,7 @@ def check_version_git_clone(url: str, branch: str, token: str = "") -> str:
         print(f"错误: 无效的分支名: {branch}", file=sys.stderr)
         return ""
     tmpdir = tempfile.mkdtemp(prefix="cataforge-check-")
-    env = build_clone_env(token)
+    env = build_clone_env(token, clone_url=url)
     try:
         result = subprocess.run(
             [
@@ -811,7 +771,7 @@ def clone_and_upgrade(
         return 1
 
     tmpdir = tempfile.mkdtemp(prefix="cataforge-upgrade-")
-    env = build_clone_env(token)
+    env = build_clone_env(token, clone_url=clone_url)
     print("\n正在克隆远程仓库到临时目录...")
 
     try:
@@ -862,12 +822,15 @@ def clone_and_upgrade(
 
 
 def load_compat_matrix() -> dict:
-    """加载兼容性矩阵"""
-    matrix_file = os.path.join(".claude", "compat-matrix.json")
-    if not os.path.exists(matrix_file):
+    """从 framework.json 加载兼容性矩阵（features + migration_checks）"""
+    config = load_framework_config()
+    if not config:
         return {}
-    with open(matrix_file, "r", encoding="utf-8") as f:
-        return json.load(f)
+    # 构造与旧 compat-matrix.json 兼容的结构
+    return {
+        "features": config.get("features", {}),
+        "migration_checks": config.get("migration_checks", []),
+    }
 
 
 def check_feature_applicability(
@@ -1008,7 +971,7 @@ def check_file_integrity() -> list:
 
 
 def check_migration_artifacts() -> list:
-    """数据驱动的迁移检查: 从 compat-matrix.json 的 `migration_checks` 字段
+    """数据驱动的迁移检查: 从 framework.json 的 `migration_checks` 字段
     读取每次 release 声明的强制约束并执行。
 
     每个 migration check 声明:
@@ -1119,7 +1082,7 @@ def run_verify() -> int:
         else:
             print("\n--- 无新功能 ---")
     else:
-        print("\n--- 未找到 compat-matrix.json，跳过功能适用性检查 ---")
+        print("\n--- 未找到 framework.json，跳过功能适用性检查 ---")
 
     # 文件完整性检查
     print("\n--- 文件完整性检查 ---")
@@ -1132,8 +1095,8 @@ def run_verify() -> int:
     else:
         print("  所有引用完整，无缺失文件。")
 
-    # 迁移检查 (数据驱动: 读取 compat-matrix.json 的 migration_checks 字段)
-    print("\n--- 迁移检查 (compat-matrix.migration_checks) ---")
+    # 迁移检查 (数据驱动: 读取 framework.json 的 migration_checks 字段)
+    print("\n--- 迁移检查 (framework.migration_checks) ---")
     mig_issues = check_migration_artifacts()
     if mig_issues:
         has_issues = True
@@ -1145,7 +1108,7 @@ def run_verify() -> int:
         if mc_count > 0:
             print(f"  通过 {mc_count} 项迁移检查。")
         else:
-            print("  compat-matrix.json 未声明 migration_checks，跳过。")
+            print("  framework.json 未声明 migration_checks，跳过。")
 
     print("\n" + "=" * 60)
     if has_issues:
@@ -1194,7 +1157,8 @@ def run_local_upgrade(
 
     # 备份
     bak_dir = backup_dir or os.path.join(
-        tempfile.gettempdir(), f"cataforge-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        tempfile.gettempdir(),
+        f"cataforge-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
     )
     if not dry_run:
         os.makedirs(bak_dir, exist_ok=True)
@@ -1262,21 +1226,36 @@ def resolve_remote_source(args) -> tuple:
         return "git", None, config["url"], branch, token_env
     else:
         print(
-            "错误: 未配置远程源。请提供 --repo 或 --url 参数，或配置 .claude/upgrade-source.json",
+            "错误: 未配置远程源。请提供 --repo 或 --url 参数，或配置 .claude/framework.json",
             file=sys.stderr,
         )
         sys.exit(1)
 
 
 def detect_remote_state(source_type, repo, url, branch, token_env):
-    """检测远程状态，返回 (remote_ver, remote_commit, clone_url, token)"""
+    """检测远程状态，返回 (remote_ver, remote_commit, clone_url, token)
+
+    对 GitHub 类型的远程源，优先尝试 SSH 协议。SSH 可用时 clone 使用
+    git@github.com:owner/repo.git，版本检测仍走 GitHub API（更轻量）。
+    SSH 不可用时回退到 HTTPS + Token。
+    """
     token = get_github_token(token_env) if token_env else ""
 
     if source_type == "github":
+        # 版本检测始终使用 GitHub API（轻量，不需要 clone）
         print(f"远程源: GitHub {repo} (分支: {branch})")
         remote_ver = check_version_github(repo, branch, token)
         remote_commit = get_remote_commit_github(repo, branch, token)
-        clone_url = get_github_clone_url(repo)
+
+        # clone URL: 优先 SSH，不可用时回退 HTTPS
+        ssh_ok = check_ssh_available()
+        if ssh_ok:
+            clone_url = get_github_clone_url(repo, prefer_ssh=True)
+            print(f"传输协议: SSH (git@github.com:{repo}.git)")
+        else:
+            clone_url = get_github_clone_url(repo, prefer_ssh=False)
+            proto_hint = "HTTPS + Token" if token else "HTTPS (无认证，仅限公开仓库)"
+            print(f"传输协议: {proto_hint}")
     else:
         print(f"远程源: Git {url} (分支: {branch})")
         remote_ver = check_version_git_tags(url)
@@ -1443,7 +1422,7 @@ def cmd_upgrade(args):
     if exit_code == 0 and not args.dry_run:
         new_ver = read_version(".")
         save_upgrade_state(remote_commit or "", new_ver)
-        print("\n已记录升级状态到 .claude/upgrade-source.json")
+        print("\n已记录升级状态到 .claude/framework.json")
 
     sys.exit(exit_code)
 

@@ -1,9 +1,0 @@
-{
-  "type": "github",
-  "repo": "lync-cyber/CataForge",
-  "branch": "main",
-  "token_env": "GITHUB_TOKEN",
-  "last_commit": "",
-  "last_version": "",
-  "last_upgrade_date": ""
-}

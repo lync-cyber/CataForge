@@ -8,10 +8,14 @@ volume-type: main | features | api | data | modules | sprint | components | page
 """
 
 import json
+import os
 import sys
 import re
 from pathlib import Path
 from collections import defaultdict
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts"))
+from _common import get_constant
 
 # ========================================
 # 分卷常量
@@ -219,10 +223,13 @@ class DocChecker:
         return re.sub(r"```.*?```", "", text, flags=re.DOTALL)
 
     def check_line_count(self):
-        """检查文档总行数是否超过500行阈值"""
+        """检查文档总行数是否超过 DOC_SPLIT_THRESHOLD_LINES 阈值"""
+        threshold = get_constant("DOC_SPLIT_THRESHOLD_LINES", 300)
         line_count = len(self.lines)
-        if line_count > 500:
-            self.warn(f"文档行数({line_count})超过500行阈值，建议通过doc-gen拆分为分卷")
+        if line_count > threshold:
+            self.warn(
+                f"文档行数({line_count})超过{threshold}行阈值，建议通过doc-gen拆分为分卷"
+            )
 
     def check_xref(self):
         """检查交叉引用目标文件存在 (仅校验已知文档类型前缀)"""

@@ -79,10 +79,10 @@ development → tdd-engine light 分支 → CODE+TESTS
 - 不在DEV阶段跳过TDD子代理流程 — TDD三阶段确保测试先于实现、重构有安全网，跳过会破坏代码质量保障
 
 ## Feature Compatibility
-启动时检查 `.claude/compat-matrix.json`（如存在）:
+启动时检查 `.claude/framework.json`（如存在）:
 - 对于 auto_enable=true 且当前阶段未超过 phase_guard 的功能: 正常使用
 - 对于当前阶段已超过 phase_guard 的功能: 记录"功能可用但本项目不追溯应用"
-- compat-matrix.json 不存在时: 所有功能按默认行为执行（向后兼容 0.5.0）
+- framework.json 不存在时: 所有功能按默认行为执行（向后兼容 0.5.0）
 
 详细协议见 `.claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`（Bootstrap、Interrupt-Resume、Revision、Phase Transition、Agent Crash Recovery、TDD Blocked Recovery、Sprint Review、Change Request、学习协议、CLAUDE.md Update Template）
 agent-result 状态码权威定义见 `.claude/schemas/agent-result.schema.json`
