@@ -623,6 +623,62 @@ def _rewrite_image(image: str, mirror: str) -> str:
     return f"{mirror}/{name}:{tag}"
 
 
+def _ensure_docker_proxy():
+    """检测环境代理并配置到 Docker daemon，使 docker pull 能走代理。
+
+    Docker daemon 不继承 shell 的 HTTP_PROXY 环境变量，需要通过
+    systemd drop-in (Linux) 或 Docker Desktop 配置 (Windows/macOS) 配置。
+    此函数优先通过 Docker Desktop 的 ~/.docker/config.json 方式配置，
+    该方式跨平台且不需要重启 daemon。
+    """
+    http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") or ""
+    https_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
+    if not http_proxy and not https_proxy:
+        return
+
+    # 检查 Docker daemon 是否已有代理配置
+    docker_config_path = os.path.join(os.path.expanduser("~"), ".docker", "config.json")
+    existing_proxies = {}
+    if os.path.isfile(docker_config_path):
+        try:
+            with open(docker_config_path, "r", encoding="utf-8") as f:
+                docker_config = json.load(f)
+            existing_proxies = docker_config.get("proxies", {}).get("default", {})
+        except (json.JSONDecodeError, OSError):
+            docker_config = {}
+    else:
+        docker_config = {}
+
+    # 如果已配置且匹配，无需修改
+    existing_http = existing_proxies.get("httpProxy", "")
+    existing_https = existing_proxies.get("httpsProxy", "")
+    if existing_http == http_proxy and existing_https == https_proxy:
+        ok(f"Docker 代理已配置: {https_proxy or http_proxy}")
+        return
+
+    # 写入 ~/.docker/config.json 的 proxies 字段
+    proxies_config = {}
+    if http_proxy:
+        proxies_config["httpProxy"] = http_proxy
+    if https_proxy:
+        proxies_config["httpsProxy"] = https_proxy
+    # 本地地址不走代理
+    proxies_config["noProxy"] = "localhost,127.0.0.1"
+
+    docker_config.setdefault("proxies", {})["default"] = proxies_config
+
+    os.makedirs(os.path.dirname(docker_config_path), exist_ok=True)
+    try:
+        with open(docker_config_path, "w", encoding="utf-8") as f:
+            json.dump(docker_config, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        ok(f"Docker 代理已配置: {https_proxy or http_proxy}")
+        info(f"  写入: {docker_config_path}")
+    except OSError as e:
+        warn(f"无法写入 Docker 代理配置: {e}")
+        info(f"  请手动配置 Docker 代理: {https_proxy or http_proxy}")
+
+
 def _pull_image_with_mirrors(image: str) -> bool:
     """尝试从多个镜像源拉取单个镜像，每个源最多重试 PULL_MAX_RETRIES 次。
 
@@ -721,6 +777,9 @@ def deploy_penpot(config: dict) -> bool:
     # 生成 compose 文件 (端口变更时强制重新生成)
     compose_file = _generate_compose_file(config, force=port_changed)
     compose_dir = os.path.dirname(compose_file)
+
+    # 配置 Docker daemon 代理 (使 docker pull 能走代理)
+    _ensure_docker_proxy()
 
     # 拉取镜像 (多镜像源 + 重试)
     info("拉取 Docker 镜像 (首次可能需要几分钟)...")
