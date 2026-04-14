@@ -1,0 +1,111 @@
+platform_id: claude-code
+display_name: Claude Code
+version_tested: "2.1"
+
+tool_map:
+  file_read: Read
+  file_write: Write
+  file_edit: Edit
+  file_glob: Glob
+  file_grep: Grep
+  shell_exec: Bash
+  web_search: WebSearch
+  web_fetch: WebFetch
+  user_question: AskUserQuestion
+  agent_dispatch: Agent
+
+extended_capabilities:
+  notebook_edit: NotebookEdit
+  browser_preview: preview_start   # via MCP: Claude Preview (preview_screenshot, preview_click, etc.)
+  image_input: Read                # Read tool handles images natively
+  code_review: null                # no dedicated review tool; uses skills/agents
+
+agent_definition:
+  format: yaml-frontmatter
+  scan_dirs:
+    - .claude/agents
+  needs_deploy: true
+
+agent_config:
+  supported_fields:
+    - name
+    - description
+    - tools
+    - disallowedTools
+    - model
+    - permissionMode
+    - maxTurns
+    - skills
+    - mcpServers
+    - hooks
+    - memory
+    - background
+    - effort
+    - isolation
+    - color
+    - initialPrompt
+    - prompt
+  memory_scopes: [user, project, local]
+  isolation_modes: [worktree]
+
+instruction_file:
+  reads_claude_md: false
+  targets:
+    - type: project_state_copy
+      path: CLAUDE.md
+  additional_outputs: []
+
+dispatch:
+  tool_name: Agent
+  is_async: false
+  params: [subagent_type, prompt, description]
+
+hooks:
+  config_format: json
+  config_path: .claude/settings.json
+  event_map:
+    PreToolUse: PreToolUse
+    PostToolUse: PostToolUse
+    Stop: Stop
+    SessionStart: SessionStart
+    Notification: Notification
+  matcher_map:
+    Bash: Bash
+    Agent: Agent
+    "Edit|Write": "Edit|Write"
+    AskUserQuestion: AskUserQuestion
+  degradation:
+    guard_dangerous: native
+    log_agent_dispatch: native
+    validate_agent_result: native
+    lint_format: native
+    detect_correction: native
+    notify_done: native
+    notify_permission: native
+    session_context: native
+
+features:
+  cloud_agents: false
+  agent_teams: true              # experimental — CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
+  parallel_agents: true          # up to 10 concurrent subagents
+  scheduled_tasks: true          # CronCreate, ScheduleWakeup, RemoteTrigger
+  background_agents: true
+  plan_mode: true                # EnterPlanMode / ExitPlanMode
+  computer_use: false            # available via MCP only, not native
+  realtime_voice: false
+  multi_model: true              # opus / sonnet / haiku + full model IDs
+  session_resume: false
+  worktree_isolation: true       # isolation: worktree in agent frontmatter
+  autonomy_slider: false
+  ci_cd_integration: false
+  multi_root: false
+  agent_memory: true             # memory: user/project/local in agent frontmatter
+  plugin_marketplace: true       # plugin system with marketplace
+  context_management: true       # chapter marking, auto-compression
+
+permissions:
+  modes: [default, acceptEdits, auto, dontAsk, bypassPermissions, plan]
+
+model_routing:
+  available_models: [opus, sonnet, haiku]
+  per_agent_model: true

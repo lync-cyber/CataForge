@@ -1,0 +1,110 @@
+platform_id: cursor
+display_name: Cursor
+version_tested: "3.1"
+
+tool_map:
+  file_read: Read
+  file_write: Write
+  file_edit: Write           # Cursor hook events use "Write" for both edits and writes
+  file_glob: Glob
+  file_grep: Grep
+  shell_exec: Shell
+  web_search: WebSearch
+  web_fetch: null            # Cursor has no native WebFetch tool
+  user_question: null        # Cursor 3.0 added "Ask Questions" but name/behavior not stable for hooks
+  agent_dispatch: Task
+
+extended_capabilities:
+  notebook_edit: null
+  browser_preview: computer    # Cloud agent computer use capability
+  image_input: null
+  code_review: null            # BugBot is a service-level feature, not a tool
+
+agent_definition:
+  format: yaml-frontmatter
+  scan_dirs:
+    - .cursor/agents
+    - .claude/agents
+  needs_deploy: true
+
+agent_config:
+  supported_fields:
+    - name
+    - description
+    - tools
+    - disallowedTools
+    - model
+    - maxTurns
+    - mcpServers
+    - hooks
+    - background
+  memory_scopes: []
+  isolation_modes: [worktree]
+
+instruction_file:
+  reads_claude_md: false
+  targets:
+    - type: project_state_copy
+      path: AGENTS.md
+  additional_outputs:
+    - target: .cursor/rules/
+      format: mdc
+      source: rules + platform overrides
+
+dispatch:
+  tool_name: Task
+  is_async: false
+  params: [subagent_type, prompt, description, model]
+
+hooks:
+  config_format: json
+  config_path: .cursor/hooks.json
+  event_map:
+    PreToolUse: preToolUse
+    PostToolUse: postToolUse
+    Stop: stop
+    SessionStart: sessionStart
+    Notification: null
+  # Hook matchers may differ from tool_map names on some platforms.
+  # tool_overrides provides hook-specific matcher names when they diverge.
+  tool_overrides: {}
+  matcher_map:
+    Bash: Shell
+    Agent: Task
+    "Edit|Write": Write
+    AskUserQuestion: null
+  degradation:
+    guard_dangerous: native
+    log_agent_dispatch: native
+    validate_agent_result: native
+    lint_format: native
+    detect_correction: degraded
+    notify_done: native
+    notify_permission: degraded
+    session_context: native
+
+features:
+  cloud_agents: true             # Cursor Cloud Agents in isolated VMs
+  agent_teams: false
+  parallel_agents: true          # up to 8 concurrent agents with worktrees
+  scheduled_tasks: true          # Automations (event/schedule triggered)
+  background_agents: true
+  plan_mode: false
+  computer_use: true             # Cloud agent can start apps, click, screenshot, record
+  realtime_voice: false
+  multi_model: true              # OpenAI, Anthropic, Gemini, xAI, Cursor models
+  session_resume: false
+  worktree_isolation: true       # parallel agents use git worktrees
+  autonomy_slider: true          # Tab → edit → full agentic mode
+  ci_cd_integration: false
+  multi_root: false
+  agent_memory: false
+  plugin_marketplace: true       # Team marketplace with access controls
+  context_management: false
+
+permissions:
+  modes: [default, auto]
+
+model_routing:
+  available_models: [opus, sonnet, gpt-5.4, gemini-3-pro, grok-code, composer-2]
+  per_agent_model: true

@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CataForge Agent Result Schema",
+  "description": "定义所有子代理返回的 <agent-result> XML 结构。此文件为状态码和必填字段的单一事实来源。",
+  "version": "0.1.0",
+  "type": "object",
+  "required": ["status", "outputs", "summary"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "needs_input",
+        "blocked",
+        "approved",
+        "approved_with_notes",
+        "needs_revision",
+        "rolled-back"
+      ],
+      "description": "统一状态码，完整语义见 COMMON-RULES.md §统一状态码"
+    },
+    "outputs": {
+      "type": "string",
+      "description": "产出物文件路径，逗号+空格分隔"
+    },
+    "summary": {
+      "type": "string",
+      "description": "执行摘要（不超过3句）"
+    },
+    "questions": {
+      "type": "array",
+      "description": "仅 status=needs_input 时必填，status=blocked 时可选",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^Q\\d+$" },
+          "text": { "type": "string" },
+          "options": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "completed-steps": {
+      "type": "string",
+      "description": "仅 status=needs_input 时必填，已完成的 Skill 步骤编号"
+    },
+    "resume-guidance": {
+      "type": "string",
+      "description": "仅 status=needs_input 时必填，恢复执行的上下文指引"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "needs_input" } } },
+      "then": { "required": ["status", "outputs", "summary", "questions", "completed-steps", "resume-guidance"] }
+    }
+  ]
+}

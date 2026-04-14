@@ -1,0 +1,87 @@
+# profile.yaml 字段定义（文档性 schema）
+# 所有平台 profile 必须符合此结构
+
+required_fields:
+  platform_id: string       # 唯一标识: claude-code | cursor | codex | opencode
+  display_name: string      # 用户可读名
+  version_tested: string    # 最后验证的平台版本号
+
+  tool_map:                  # 能力标识符 → 平台原生工具名（核心 10 项）
+    file_read: string | null
+    file_write: string | null
+    file_edit: string | null
+    file_glob: string | null
+    file_grep: string | null
+    shell_exec: string | null
+    web_search: string | null
+    web_fetch: string | null
+    user_question: string | null
+    agent_dispatch: string | null
+
+  agent_definition:
+    format: enum[yaml-frontmatter, toml]
+    scan_dirs: list[string]       # 平台原生扫描的 Agent 目录
+    needs_deploy: boolean         # 是否需要 deploy 翻译能力标识符
+
+  instruction_file:
+    reads_claude_md: boolean      # 平台是否原生读取 CLAUDE.md
+    targets: list                 # 指令产物目标
+      # - type: enum[project_state_copy]
+      #   path: string            # 例如 CLAUDE.md / AGENTS.md
+    additional_outputs: list      # deploy 额外生成的指令文件
+      # - target: string          # 目标路径
+      #   format: enum[mdc, toml, markdown]
+      #   source: string          # 来源描述
+
+  dispatch:
+    tool_name: string             # 调度工具名
+    is_async: boolean             # 是否两步异步调度
+    params: list[string]          # 工具参数列表
+
+  hooks:
+    config_format: enum[json, yaml, plugin, null]
+    config_path: string | null    # 平台 Hook 配置文件路径
+    event_map: map[string, string | null]    # CataForge事件 → 平台事件
+    matcher_map: map[string, string | null]  # CataForge matcher → 平台 matcher
+    tool_overrides: map[string, string]      # hook matcher 与 tool_map 不同时的覆盖
+    degradation: map[string, enum[native, degraded, unsupported]]
+
+optional_fields:
+  extended_capabilities:       # 扩展能力 → 平台原生工具名/标识（核心 10 项之外）
+    notebook_edit: string | null     # Jupyter notebook 编辑
+    browser_preview: string | null   # 浏览器自动化/预览
+    image_input: string | null       # 图片/截图输入
+    code_review: string | null       # 专用代码审查工具
+    # 可按需追加新 key，无需修改 adapter 代码
+
+  agent_config:                # Agent 定义配置
+    supported_fields: list[string]   # 该平台支持的 agent frontmatter 字段子集
+    memory_scopes: list[string]      # 支持的 agent memory scope (user/project/local)
+    isolation_modes: list[string]    # 支持的隔离模式 (worktree)
+
+  features:                    # 平台级功能特性（boolean flags）
+    cloud_agents: boolean
+    agent_teams: boolean
+    parallel_agents: boolean
+    scheduled_tasks: boolean
+    background_agents: boolean
+    plan_mode: boolean
+    computer_use: boolean
+    realtime_voice: boolean
+    multi_model: boolean
+    session_resume: boolean
+    worktree_isolation: boolean
+    autonomy_slider: boolean
+    ci_cd_integration: boolean
+    multi_root: boolean
+    agent_memory: boolean
+    plugin_marketplace: boolean
+    context_management: boolean
+    # 可按需追加新 key，无需修改 adapter 代码
+
+  permissions:                 # 权限/审批模型
+    modes: list[string]        # 支持的审批模式列表
+
+  model_routing:               # 模型路由
+    available_models: list[string]   # 可用模型列表
+    per_agent_model: boolean         # 是否支持 agent 级别模型选择

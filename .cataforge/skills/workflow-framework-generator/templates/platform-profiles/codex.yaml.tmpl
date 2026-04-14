@@ -1,0 +1,51 @@
+platform_id: codex
+display_name: Codex CLI
+
+tool_map:
+  file_read: shell
+  file_write: apply_patch
+  file_edit: apply_patch
+  file_glob: shell
+  file_grep: shell
+  shell_exec: shell
+  web_search: web_search
+  web_fetch: shell
+  user_question: null
+  agent_dispatch: spawn_agent
+
+agent_definition:
+  format: toml
+  scan_dirs:
+    - .codex/agents
+  needs_deploy: true
+
+dispatch:
+  tool_name: spawn_agent
+  is_async: true
+  params: [agent, fork_context, prompt]
+
+hooks:
+  config_format: json
+  config_path: .codex/hooks.json
+  event_map:
+    PreToolUse: PreToolUse
+    PostToolUse: PostToolUse
+    Stop: Stop
+    SessionStart: SessionStart
+
+features:
+  parallel_agents: true
+  background_agents: true
+  agent_memory: false
+  worktree_isolation: false
+  plan_mode: false
+
+degradation_notes:
+  user_question: "Not available — use inline prompts or comments in output files"
+  file_read: "Uses shell (cat) — no native Read tool"
+  file_glob: "Uses shell (find/ls) — no native Glob tool"
+  file_grep: "Uses shell (grep/rg) — no native Grep tool"
+  agent_dispatch: "Asynchronous — spawned agents run in background, results polled"
+
+permissions:
+  modes: [auto, read_only, full_access]

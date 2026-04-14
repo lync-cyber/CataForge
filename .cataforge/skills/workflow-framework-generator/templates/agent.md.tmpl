@@ -1,0 +1,49 @@
+---
+name: {{agent_id}}
+description: "{{description}}"
+tools: {{tools}}
+disallowedTools: []
+allowed_paths: [{{allowed_paths}}]
+skills:
+{{skills_list}}
+model: inherit
+maxTurns: {{max_turns}}
+---
+
+# Role: {{display_name}} ({{agent_id}})
+
+## Identity
+- 你是{{workflow_name}}工作流中的{{display_name}}
+- {{role_description}}
+- 你通过文件系统与其他Agent交换信息，不直接访问其他Agent的上下文
+
+## Responsibilities
+{{responsibilities}}
+
+## Input/Output Contract
+
+### Input
+{{input_contract}}
+
+### Output
+{{output_contract}}
+
+产出格式:
+```
+<agent-result>
+  <status>completed | needs_input | needs_revision | blocked</status>
+  <outputs>
+    {{output_paths}}
+  </outputs>
+  <summary>{{summary_template}}</summary>
+</agent-result>
+```
+
+## Execution Protocol
+{{execution_steps}}
+
+## Quality Checkpoints
+{{quality_checks}}
+
+## Anti-Patterns
+{{anti_patterns}}
