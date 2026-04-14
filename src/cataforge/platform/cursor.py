@@ -1,0 +1,106 @@
+"""Cursor platform adapter."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from cataforge.platform.base import PlatformAdapter
+from cataforge.platform.helpers import merge_json_key, symlink_or_copy
+
+
+class CursorAdapter(PlatformAdapter):
+    @property
+    def platform_id(self) -> str:
+        return "cursor"
+
+    @property
+    def display_name(self) -> str:
+        return "Cursor"
+
+    def get_tool_map(self) -> dict[str, str | None]:
+        return dict(self._profile.get("tool_map", {}))
+
+    def get_project_root_env_var(self) -> str | None:
+        return "CURSOR_PROJECT_DIR"
+
+    def get_agent_scan_dirs(self) -> list[str]:
+        return list(
+            self._profile.get("agent_definition", {}).get(
+                "scan_dirs", [".claude/agents", ".cursor/agents"]
+            )
+        )
+
+    def get_agent_format(self) -> str:
+        return "yaml-frontmatter"
+
+    def deploy_additional_outputs(
+        self, rules_dir: Path, project_root: Path, *, dry_run: bool = False
+    ) -> list[str]:
+        return self._generate_mdc_rules(rules_dir, project_root, dry_run=dry_run)
+
+    def deploy_rules(
+        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+    ) -> list[str]:
+        """Keep Markdown compatibility rules under ``.claude/rules`` for shared prompts."""
+        return symlink_or_copy(source_dir, project_root / ".claude" / "rules", dry_run=dry_run)
+
+    def _generate_mdc_rules(
+        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+    ) -> list[str]:
+        """Generate .cursor/rules/ MDC files from Markdown sources."""
+        output_dir = project_root / ".cursor" / "rules"
+        if not dry_run:
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+        actions: list[str] = []
+        overrides_dir = (
+            project_root / ".cataforge" / "platforms" / "cursor" / "overrides" / "rules"
+        )
+
+        for md_file in sorted(source_dir.glob("*.md")):
+            mdc_name = md_file.stem + ".mdc"
+            if dry_run:
+                actions.append(f"would deploy rules/{md_file.name} → .cursor/rules/{mdc_name}")
+                continue
+            content = md_file.read_text(encoding="utf-8")
+            mdc_content = _wrap_as_mdc(md_file.stem, content)
+            (output_dir / mdc_name).write_text(mdc_content, encoding="utf-8")
+            actions.append(f"rules/{md_file.name} → .cursor/rules/{mdc_name}")
+
+        if overrides_dir.is_dir():
+            for md_file in sorted(overrides_dir.glob("*.md")):
+                mdc_name = md_file.stem + ".mdc"
+                if dry_run:
+                    actions.append(
+                        f"would deploy overrides/{md_file.name} → .cursor/rules/{mdc_name}"
+                    )
+                    continue
+                content = md_file.read_text(encoding="utf-8")
+                mdc_content = _wrap_as_mdc(md_file.stem, content)
+                (output_dir / mdc_name).write_text(mdc_content, encoding="utf-8")
+                actions.append(f"overrides/{md_file.name} → .cursor/rules/{mdc_name}")
+
+        return actions
+
+    def inject_mcp_config(
+        self,
+        server_id: str,
+        server_config: dict[str, Any],
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+    ) -> list[str]:
+        mcp_path = project_root / ".cursor" / "mcp.json"
+        return merge_json_key(mcp_path, f"mcpServers.{server_id}", server_config, dry_run=dry_run)
+
+
+def _wrap_as_mdc(name: str, content: str) -> str:
+    """Wrap Markdown content with MDC frontmatter for Cursor."""
+    frontmatter = f"""---
+description: "{name} rules"
+globs:
+alwaysApply: true
+---
+"""
+    return frontmatter + content
