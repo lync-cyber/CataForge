@@ -1,0 +1,58 @@
+platform_id: cursor
+display_name: Cursor
+version_tested: "0.48"
+
+tool_map:
+  file_read: Read
+  file_write: Write
+  file_edit: StrReplace
+  file_glob: Glob
+  file_grep: Grep
+  shell_exec: Shell
+  web_search: WebSearch
+  web_fetch: WebFetch
+  user_question: null
+  agent_dispatch: Task
+
+agent_definition:
+  format: yaml-frontmatter
+  scan_dirs:
+    - .claude/agents
+    - .cursor/agents
+  needs_deploy: true
+
+instruction_file:
+  reads_claude_md: true
+  additional_outputs:
+    - target: .cursor/rules/
+      format: mdc
+      source: rules + platform overrides
+
+dispatch:
+  tool_name: Task
+  is_async: false
+  params: [subagent_type, prompt, description, model]
+
+hooks:
+  config_format: json
+  config_path: .cursor/hooks.json
+  event_map:
+    PreToolUse: preToolUse
+    PostToolUse: postToolUse
+    Stop: stop
+    SessionStart: sessionStart
+    Notification: null
+  matcher_map:
+    Bash: Shell
+    Agent: Task
+    "Edit|Write": Write
+    AskUserQuestion: null
+  degradation:
+    guard_dangerous: native
+    log_agent_dispatch: native
+    validate_agent_result: native
+    lint_format: native
+    detect_correction: degraded
+    notify_done: native
+    notify_permission: degraded
+    session_context: native

@@ -1,0 +1,43 @@
+# profile.yaml 字段定义（文档性 schema）
+# 所有平台 profile 必须符合此结构
+
+required_fields:
+  platform_id: string       # 唯一标识: claude-code | cursor | codex | opencode
+  display_name: string      # 用户可读名
+  version_tested: string    # 最后验证的平台版本号
+
+  tool_map:                  # 能力标识符 → 平台原生工具名
+    file_read: string | null
+    file_write: string | null
+    file_edit: string | null
+    file_glob: string | null
+    file_grep: string | null
+    shell_exec: string | null
+    web_search: string | null
+    web_fetch: string | null
+    user_question: string | null
+    agent_dispatch: string | null
+
+  agent_definition:
+    format: enum[yaml-frontmatter, toml]
+    scan_dirs: list[string]       # 平台原生扫描的 Agent 目录
+    needs_deploy: boolean         # 是否需要 deploy 翻译能力标识符
+
+  instruction_file:
+    reads_claude_md: boolean      # 平台是否原生读取 CLAUDE.md
+    additional_outputs: list      # deploy 额外生成的指令文件
+      # - target: string          # 目标路径
+      #   format: enum[mdc, toml, markdown]
+      #   source: string          # 来源描述
+
+  dispatch:
+    tool_name: string             # 调度工具名
+    is_async: boolean             # 是否两步异步调度
+    params: list[string]          # 工具参数列表
+
+  hooks:
+    config_format: enum[json, yaml, null]
+    config_path: string | null    # 平台 Hook 配置文件路径
+    event_map: map[string, string | null]    # CataForge事件 → 平台事件
+    matcher_map: map[string, string | null]  # CataForge matcher → 平台 matcher
+    degradation: map[string, enum[native, degraded, unsupported]]

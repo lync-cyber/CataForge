@@ -21,10 +21,10 @@
       "Bash(npx eslint*)",
       "Bash(ruff *)",
       "Bash(dotnet format*)",
-      "Bash(python .claude/skills/*/scripts/*.py*)",
-      "Bash(python .claude/scripts/framework/*.py*)",
-      "Bash(python .claude/scripts/docs/*.py*)",
-      "Bash(python .claude/integrations/penpot/setup_penpot.py --ensure)",
+      "Bash(python .cataforge/skills/*/scripts/*.py*)",
+      "Bash(python .cataforge/scripts/framework/*.py*)",
+      "Bash(python .cataforge/scripts/docs/*.py*)",
+      "Bash(python .cataforge/integrations/penpot/setup_penpot.py --ensure)",
       "Bash(python -m pytest*)",
       "Bash(python -m pip install*)",
       "Bash(uv sync*)",
@@ -59,8 +59,8 @@
         "matcher": "Bash",
         "hooks": [
           {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_dangerous.py\""
+            "type": "block",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.cataforge/hooks/guard_dangerous.py\""
           }
         ]
       },
@@ -68,28 +68,28 @@
         "matcher": "Agent",
         "hooks": [
           {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/log_agent_dispatch.py\""
+            "type": "observe",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.cataforge/hooks/log_agent_dispatch.py\""
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Agent",
         "hooks": [
           {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint_format.py\""
+            "type": "observe",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.cataforge/hooks/validate_agent_result.py\""
           }
         ]
       },
       {
-        "matcher": "Agent",
+        "matcher": "Edit",
         "hooks": [
           {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/validate_agent_result.py\""
+            "type": "observe",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.cataforge/hooks/lint_format.py\""
           }
         ]
       },
@@ -97,8 +97,8 @@
         "matcher": "AskUserQuestion",
         "hooks": [
           {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/detect_correction.py\""
+            "type": "observe",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.cataforge/hooks/detect_correction.py\""
           }
         ]
       }
@@ -108,8 +108,8 @@
         "matcher": "",
         "hooks": [
           {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/notify_done.py\""
+            "type": "observe",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.cataforge/hooks/notify_done.py\""
           }
         ]
       }
@@ -119,8 +119,8 @@
         "matcher": "",
         "hooks": [
           {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/notify_permission.py\""
+            "type": "observe",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.cataforge/hooks/notify_permission.py\""
           }
         ]
       }
@@ -130,8 +130,8 @@
         "matcher": "",
         "hooks": [
           {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/session_context.py\""
+            "type": "observe",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.cataforge/hooks/session_context.py\""
           }
         ]
       }

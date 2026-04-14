@@ -3,7 +3,7 @@
 ## 项目信息
 
 - 技术栈: {框架/语言/工具}
-- 运行时: claude-code
+- 运行时: cursor
 - 框架版本: pyproject.toml `[project].version`（SemVer: MAJOR=不兼容变更, MINOR=新功能, PATCH=修复）
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
@@ -20,7 +20,7 @@
 <!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
      权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
 {执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
- python .claude/scripts/framework/setup.py --emit-env-block}
+ python .cataforge/scripts/framework/setup.py --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
@@ -42,10 +42,10 @@
 ## 文档导航
 
 - 导航索引: docs/NAV-INDEX.md (所有Agent优先查阅)
-- 通用规则: .claude/rules/COMMON-RULES.md
-- 子代理协议: .claude/rules/SUB-AGENT-PROTOCOLS.md
-- 编排协议: .claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
-- 状态码Schema: .claude/schemas/agent-result.schema.json
+- 通用规则: .cataforge/rules/COMMON-RULES.md
+- 子代理协议: .cataforge/rules/SUB-AGENT-PROTOCOLS.md
+- 编排协议: .cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
+- 状态码Schema: .cataforge/schemas/agent-result.schema.json
 - 加载原则: 按任务需要通过NAV-INDEX定位并加载相关章节，不全量加载
 
 ## 全局约定
@@ -69,11 +69,11 @@
 - Agent编排: orchestrator 通过 agent-dispatch skill 激活子代理
 - DEV阶段: orchestrator 通过 tdd-engine skill 编排 RED/GREEN/REFACTOR 三个子代理（独立上下文）
 - Skill调用: Agent按SKILL.md步骤式指令执行工作流
-- 状态持久化: CLAUDE.md + docs/ 目录
+- 状态持久化: PROJECT-STATE.md + docs/ 目录
 - 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
-- 运行时: claude-code（agent-dispatch 通过 Agent tool + subagent_type 调度）
-- **写权限**: CLAUDE.md 由 orchestrator 独占写入；其他Agent只写 docs/ 或 src/ 下的产出文件
-- 统一配置 `.claude/framework.json`:
+- 运行时: 由 framework.json runtime.platform 决定（deploy 自动适配）
+- **写权限**: PROJECT-STATE.md 由 orchestrator 独占写入；其他Agent只写 docs/ 或 src/ 下的产出文件
+- 统一配置 `.cataforge/framework.json`:
   - `upgrade.source` — 远程升级源配置。升级时保留用户已配置值，仅补充新字段
   - `upgrade.state` — 本地升级状态。升级时始终保留
   - `features` — 功能注册表。升级时全量覆盖

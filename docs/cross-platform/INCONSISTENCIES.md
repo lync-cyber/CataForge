@@ -1,127 +1,129 @@
-# 方案与代码不一致记录
+# 方案演进记录：v1 → v2
 
-> 基于 foamy-tumbling-curry.md（v2 方案）与代码库实态（v0.9.13）的对比分析。
-> 标注 CONFIRMED = 方案与代码一致（已确认）；INCONSISTENT = 存在偏差需修正。
-> 注意: Phase 0 目录重构后，所有框架文件路径从 `.claude/` 迁移至 `.cataforge/`。
-
----
-
-## CONFIRMED 项（方案与代码一致）
-
-### C-1: Agent 和 Skill 数量
-- 方案声称: "13 Agent、22 Skill"
-- 实际代码: 13 个 `AGENT.md` + 22 个 `SKILL.md`
-- **一致**
-
-### C-2: agent-dispatch/SKILL.md:74 引用
-- 方案引用: `agent-dispatch/SKILL.md:74` 明确声明"当前版本仅支持 claude-code runtime"
-- 实际代码 L74-75: `当前版本仅支持 claude-code runtime。其他运行时（Cursor、Codex 等）为规划中功能。`
-- **一致**
-
-### C-3: agent-dispatch/SKILL.md:38-44 引用
-- 方案 §二 H-2: `agent-dispatch/SKILL.md:38-44` 为调度工具 API 差异位置
-- 实际代码 L38-44: `## claude-code 实现 (默认)` 段落
-- **一致**
-
-### C-4: tdd-engine/SKILL.md:22-26 引用
-- 方案引用: 架构图中 `通过Agent tool启动` 部分
-- 实际代码 L20-26: 正是 orchestrator → RED/GREEN/REFACTOR 的架构图
-- **一致**（行号微偏 20 vs 22，因 frontmatter 计数差异）
-
-### C-5: settings.json:56-138 引用
-- 方案 §二 H-4: `.claude/settings.json:56-138` 为 hooks 段落
-- 实际代码: hooks 段落位于 L56-138
-- **一致**
+> v1 = 原始方案（foamy-tumbling-curry.md + 首版 Phase 0-4）
+> v2 = 重构方案（本目录下当前 ROADMAP.md + Phase 0-5）
+> 本文档记录 v1 中发现的问题及 v2 的解决方式。
 
 ---
 
-## INCONSISTENT 项（需修正）
+## v1 问题清单与 v2 处置
 
-### I-1: 方案遗漏 ORCHESTRATOR-PROTOCOLS.md 影响分析
+### P-1: Override 机制缺失（决策 D-2 未实现）
+
+- **严重度**: CRITICAL
+- **v1 问题**: v1 将 `dispatch-prompt.md` 中的 Claude Code 专有文字替换为通用文字（如 `Agent tool:` → `调度请求:`），但未建立 override 文件和合并机制。所有平台收到完全相同的 prompt，无法适配平台差异（如 Codex 的异步两步调度、上下文窗口限制）。
+- **v2 解决**: Phase 1 Step 1.2 建立完整的段落级 Override 机制：
+  - 基础模板含 5 个 `<!-- OVERRIDE:name -->` 标记点
+  - 各平台 override 文件（`platforms/{id}/overrides/dispatch-prompt.md`）仅提供差异段落
+  - `template_renderer.py` 负责合并
+- **状态**: ✅ 已在 v2 Phase 1 中设计
+
+### P-2: PROJECT-STATE.md 缺失（决策 D-4 未实现）
+
+- **严重度**: CRITICAL
+- **v1 问题**: 继续以 `CLAUDE.md` 作为项目状态载体，未引入平台无关的 `PROJECT-STATE.md`。
+- **v2 解决**: Phase 1 Step 1.3 引入 `PROJECT-STATE.md`，Phase 2 Step 2.4 从 `CLAUDE.md` 提取生成。deploy 负责 `PROJECT-STATE.md` → `CLAUDE.md` 同步。
+- **状态**: ✅ 已在 v2 Phase 1-2 中设计
+
+### P-3: Dispatcher 接口空壳（设计实践）
+
 - **严重度**: HIGH
-- **问题**: v2 方案没有提及 `ORCHESTRATOR-PROTOCOLS.md`（411 行）的修改需求
-- **实际影响**:
-  - Bootstrap Step 6 的 `setup.py --apply-permissions` 生成 Claude Code 专用 `Bash(...)` 权限格式
-  - 跨平台后其他平台需要不同的权限格式（Codex: `sandbox_mode`，OpenCode: `permission` 对象）
-  - 协议中需增加平台选择步骤
-- **修正**: Phase 4 Step 4.2 已覆盖此修改
-- **状态**: 已在执行计划中处理
+- **v1 问题**: 4 个 Dispatcher 的 `dispatch()` 方法均 `raise NotImplementedError`，注释承认"不会被 Python 调用"。产生 26 个新文件但可执行价值极低。
+- **v2 解决**: 取消抽象接口。改为声明式 `profile.yaml`（D-7）+ 可执行工具层（`profile_loader`、`template_renderer`、`frontmatter_translator`、`hook_bridge`、`deploy`）。
+- **状态**: ✅ 已在 v2 Phase 1 中重新设计
 
-### I-2: 方案遗漏 setup.py --apply-permissions 跨平台影响
-- **严重度**: MEDIUM
-- **问题**: `setup.py --apply-permissions` 生成 Claude Code 专用的 `Bash(...)` 权限条目
-- **实际影响**: Cursor/Codex/OpenCode 各有不同权限模型
-- **修正**: Phase 4 Step 4.2 中 setup.py 添加 `--platform` 参数；各适配器可提供 `generate_permissions()` 方法
-- **状态**: 已在执行计划中处理
+### P-4: 工具名映射双源（设计实践）
 
-### I-3: Cursor tool_map 映射错误
 - **严重度**: HIGH
-- **问题**: v2 方案 §三.5 的 `tool_map.yaml` Cursor 段落包含多个错误
-- **错误映射**:
+- **v1 问题**: `tool_map.yaml` 和 `_hook_base.py` 内联字典维护各自的映射表，更新时易不一致。
+- **v2 解决**: 统一到 `profile.yaml` 单源。`_hook_base.py` 运行时从 `profile.yaml` 加载（带缓存和 fallback）。
+- **状态**: ✅ 已在 v2 Phase 4 中设计
 
-| 能力 | 方案中 Cursor 映射 | 实际 Cursor API |
-|------|-------------------|----------------|
-| `file_edit` | `Write` | `StrReplace`（独立工具） |
-| `file_glob` | `Read` | `Glob`（独立工具） |
-| `file_grep` | `Read` | `Grep`（独立工具） |
-| `web_search` | `null` | `WebSearch`（存在） |
-| `web_fetch` | `null` | `WebFetch`（存在） |
+### P-5: 能力标识符致命风险
 
-- **修正**: Phase 1 Step 1.1 的 `tool_map.yaml` 已使用纠正后的映射
-- **状态**: 已在执行计划中处理
+- **严重度**: CRITICAL
+- **v1 问题**: 直接替换 AGENT.md 的 `tools: Read, Write` 为 `tools: file_read, file_write`。Claude Code 不识别自定义能力标识符，会导致子代理工具权限异常。v1 仅在风险项中提及缓解方案，未纳入正式设计。
+- **v2 解决**: 源/产物分离。源 AGENT.md（`.cataforge/agents/`）使用能力标识符，deploy 翻译为原生名后写入部署目录（`.claude/agents/`）。Claude Code 永远只看到原生名，零风险。
+- **状态**: ✅ 已在 v2 Phase 2 Step 2.2 中设计
 
-### I-4: 方案遗漏 _hook_base.py 共享模块分析
+### P-6: settings.json 规范源矛盾（决策 D-1 违反）
+
 - **严重度**: MEDIUM
-- **问题**: 所有 8 个 Hook 脚本依赖 `_hook_base.py` 的 `read_hook_input()` 和 `hook_main()`，但方案未分析此文件是否需要跨平台适配
-- **实际影响**: 不同平台的 Hook stdin JSON 格式可能有差异（字段名、数据结构）
-- **当前代码**: `_hook_base.py` L13-27 仅做 UTF-8 stdin 读取，无平台检测
-- **修正**: Phase 3 Step 3.1 已设计统一解析层（含平台检测和能力匹配）
-- **状态**: 已在执行计划中处理
+- **v1 问题**: Phase 3 将 `.claude/settings.json` 作为 Hook 的"规范源"，由 `hook_bridge` 从中翻译。但 D-1 要求源定义在 `.cataforge/`。
+- **v2 解决**: 引入 `.cataforge/hooks/hooks.yaml` 作为 Hook 规范源定义（Phase 1 Step 1.4）。deploy 从 hooks.yaml + profile 生成各平台配置。`.claude/settings.json` 仅为 Claude Code 的平台配置文件。
+- **状态**: ✅ 已在 v2 Phase 1 + Phase 4 中设计
 
-### I-5: AGENT.md tools/disallowedTools 跨平台处理策略不完整
+### P-7: deploy 自动化缺失（决策 D-1 权衡未实施）
+
 - **严重度**: MEDIUM
-- **问题**: 方案 §二 M-1 提到"工具能力映射表"，但未明确 AGENT.md frontmatter 中的 `tools:` 和 `disallowedTools:` 值是保持 Claude Code 工具名还是改为能力标识符
-- **决策**: 已确认使用能力标识符（决策 D-1）
-- **实际影响**: 13 个 AGENT.md 全部需要修改 frontmatter
-- **修正**: Phase 1 Step 1.6 已包含完整的 13 个 AGENT.md 变更清单
-- **状态**: 已在执行计划中处理
+- **v1 问题**: `platform_sync.py` 仅为手动 CLI，无自动化触发。D-1 明确提到"可通过 SessionStart hook 或 git hook 自动化"缓解增加的 deploy 步骤。
+- **v2 解决**: Phase 4 中 `session_context.py` 增强，在 SessionStart 时自动调用 deploy 同步。
+- **状态**: ✅ 已在 v2 Phase 4 Step 4.2 中设计
 
-### I-6: InstructionFileSync 对 Cursor 的评估过于简化
+### P-8: 执行策略风险（先重构后验证）
+
+- **严重度**: HIGH
+- **v1 问题**: Phase 0 前置 87 文件迁移（最大工作量），Phase 1 新建 26 个文件，在任何平台验证之前。如果核心假设（如 Cursor Agent 加载机制）不成立，大量工作需返工。
+- **v2 解决**: Phase 0 改为 Cursor 最小验证（3-5 天，不动文件结构），用验证结论指导后续设计。
+- **状态**: ✅ 已在 v2 Phase 0 中设计
+
+### P-9: Phase 4 测试路径错误（内部不一致）
+
 - **严重度**: LOW
-- **问题**: 方案声称 Cursor 指令文件从 CLAUDE.md "提取静态规则生成"
-- **实际 Cursor rules 系统**: 使用 MDC 格式（YAML frontmatter + Markdown），支持 `globs`、`description`、`alwaysApply` 等字段
-- **影响**: 简单提取不足以覆盖 CataForge 的 always-applied workspace rules 行为
-- **修正**: Phase 2 Step 2.2 的 `cursor_rules_gen.py` 已设计 MDC 格式输出（含 alwaysApply 字段）
-- **状态**: 已在执行计划中处理
+- **v1 问题**: Phase 4 测试代码中 `sys.path.insert(0, ... / ".claude")` 指向旧目录，与 Phase 0 的 `.cataforge/` 迁移矛盾。
+- **v2 解决**: Phase 5 测试统一使用 `.cataforge/` 路径。
+- **状态**: ✅ 已在 v2 Phase 5 中修正
+
+### P-10: 退化策略缺乏具体实现
+
+- **严重度**: MEDIUM
+- **v1 问题**: `hook_bridge.py` 的覆盖矩阵标注了 "degraded"，但具体如何退化（rules 注入？prompt checklist？）没有设计。
+- **v2 解决**: `hooks.yaml` 中定义 `degradation_templates`，`hook_bridge.apply_degradation()` 按策略具体化为文件变更（rules 注入、prompt checklist 等）。
+- **状态**: ✅ 已在 v2 Phase 1 Step 1.4 + Phase 4 Step 4.3 中设计
 
 ---
 
-## 版本号语义澄清
+## v1 CONFIRMED 项（仍然有效）
 
-| 位置 | 字段 | 当前值 | 语义 |
-|------|------|--------|------|
-| `pyproject.toml` | `[project].version` | `0.9.13` | CataForge 发行版本 |
-| `framework.json` | `version` | `0.3.0` | 框架配置 schema 版本 |
-| `framework.json` | `runtime_api_version`（Phase 1 新增） | `1.0` | 运行时接口 API 版本 |
+以下 v1 分析结论在 v2 中保持有效：
 
-三者独立演进，各有其语义。方案中的 `runtime_api_version: 1.0`（Phase 4）应作为**新字段**加入 `framework.json`，与现有 `version` 并存。
+| # | 内容 | 状态 |
+|---|------|------|
+| C-1 | Agent 和 Skill 数量（13 + 22） | 有效 |
+| C-2 | agent-dispatch/SKILL.md:74 硬编码 claude-code | 有效（v2 Phase 2 修改） |
+| C-3 | agent-dispatch/SKILL.md:38-44 调度实现段落 | 有效（v2 Phase 2 修改） |
+| C-4 | tdd-engine/SKILL.md 架构图 | 有效（v2 Phase 2 修改） |
+| C-5 | settings.json hooks 段落位置 | 有效（不再作为规范源） |
+
+## v1 INCONSISTENT 项处置状态
+
+| # | v1 问题 | v2 处置 |
+|---|--------|--------|
+| I-1 | 遗漏 ORCHESTRATOR-PROTOCOLS.md | v2 Phase 5 Step 5.2 覆盖 |
+| I-2 | setup.py --apply-permissions | v2 Phase 5 setup.py --platform |
+| I-3 | Cursor tool_map 映射错误 | v2 Phase 1 profile.yaml 基于实际 API 纠正 |
+| I-4 | _hook_base.py 跨平台适配 | v2 Phase 4 Step 4.1 完整设计 |
+| I-5 | AGENT.md tools 处理策略 | v2 Phase 2 能力标识符 + deploy 翻译 |
+| I-6 | Cursor rules 评估简化 | v2 Phase 3 Step 3.2 MDC 生成 |
+| I-7 | 目录结构解耦 | v2 Phase 2 .cataforge/ 完整迁移 |
 
 ---
 
-### I-7: 方案未考虑目录结构解耦
-- **严重度**: HIGH
-- **问题**: v2 方案将所有新建的 runtime 包放在 `.claude/runtime/`，但 `.claude/` 是 Claude Code 的平台约定目录，不应承载平台无关的框架核心逻辑
-- **影响**: 框架 87 个文件（agents/skills/rules/schemas/scripts/hooks/integrations/framework.json）全部混合在 Claude Code 平台目录中
-- **修正**: Phase 0 目录重构，建立 `.cataforge/` 为框架核心目录，`.claude/` 仅保留 `settings.json` + 同步链接
-- **状态**: 已在 phase-0-directory-restructure.md 中完整规划
+## 版本号语义（不变）
+
+| 位置 | 字段 | 当前值 | v2 目标值 | 语义 |
+|------|------|--------|----------|------|
+| pyproject.toml | `[project].version` | `0.9.13` | `0.10.0` | CataForge 发行版本 |
+| framework.json | `version` | `0.3.0` | `0.3.0` | 框架配置 schema 版本 |
+| framework.json | `runtime_api_version` | (新增) | `1.0` | 运行时接口 API 版本 |
 
 ---
 
 ## 总结
 
 | 分类 | 数量 |
-|------|:----:|
-| CONFIRMED（一致） | 5 |
-| INCONSISTENT（需修正） | 7 |
-| 已在执行计划中处理 | 7/7 |
-| 仍待处理 | 0 |
+|------|------|
+| v1 问题（v2 已解决） | 10/10 |
+| v1 CONFIRMED（仍有效） | 5 |
+| v1 INCONSISTENT（v2 已覆盖） | 7/7 |
+| v2 新增设计决策 | 3 (D-5 能力标识符、D-6 先验证、D-7 工具层定位) |

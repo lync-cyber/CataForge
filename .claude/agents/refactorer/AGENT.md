@@ -1,8 +1,8 @@
 ---
 name: refactorer
 description: "TDD REFACTOR阶段 — 优化代码质量，保持所有测试通过。由orchestrator通过tdd-engine skill启动。"
-tools: Read, Write, Edit, Glob, Grep, Bash
-disallowedTools: Agent, WebSearch, WebFetch, AskUserQuestion
+tools: Read, Write, StrReplace, Glob, Grep, Shell
+disallowedTools: Task, WebSearch, WebFetch
 allowed_paths:
   - src/
   - tests/

@@ -1,0 +1,54 @@
+platform_id: claude-code
+display_name: Claude Code
+version_tested: "1.0"
+
+tool_map:
+  file_read: Read
+  file_write: Write
+  file_edit: Edit
+  file_glob: Glob
+  file_grep: Grep
+  shell_exec: Bash
+  web_search: WebSearch
+  web_fetch: WebFetch
+  user_question: AskUserQuestion
+  agent_dispatch: Agent
+
+agent_definition:
+  format: yaml-frontmatter
+  scan_dirs:
+    - .claude/agents
+  needs_deploy: true
+
+instruction_file:
+  reads_claude_md: true
+  additional_outputs: []
+
+dispatch:
+  tool_name: Agent
+  is_async: false
+  params: [subagent_type, prompt, description]
+
+hooks:
+  config_format: json
+  config_path: .claude/settings.json
+  event_map:
+    PreToolUse: PreToolUse
+    PostToolUse: PostToolUse
+    Stop: Stop
+    SessionStart: SessionStart
+    Notification: Notification
+  matcher_map:
+    Bash: Bash
+    Agent: Agent
+    "Edit|Write": "Edit|Write"
+    AskUserQuestion: AskUserQuestion
+  degradation:
+    guard_dangerous: native
+    log_agent_dispatch: native
+    validate_agent_result: native
+    lint_format: native
+    detect_correction: native
+    notify_done: native
+    notify_permission: native
+    session_context: native
