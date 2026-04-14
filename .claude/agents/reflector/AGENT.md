@@ -1,13 +1,13 @@
 ---
 name: reflector
 description: "反思者 — 从审查历史中提炼跨项目可复用经验。项目完成后由orchestrator激活。"
-tools: Read, Write, Edit, Glob, Grep
-disallowedTools: Agent, AskUserQuestion, Bash, WebSearch, WebFetch
+tools: Read, Write, StrReplace, Glob, Grep
+disallowedTools: Task, Shell, WebSearch, WebFetch
 allowed_paths:
   - docs/reviews/retro/
   - docs/reviews/CORRECTIONS-LOG.md
   - docs/EVENT-LOG.jsonl
-  - .claude/learnings/
+  - .cataforge/learnings/
 skills:
   - doc-nav
 model: inherit
@@ -69,7 +69,7 @@ maxTurns: 30
 <!-- author: reflector | date: {date} -->
 
 ## EXP-{NNN}: {来源经验条目}
-- target_file: .claude/skills/{skill_id}/SKILL.md 或 .claude/agents/{agent_id}/AGENT.md
+- target_file: .cataforge/skills/{skill_id}/SKILL.md 或 .cataforge/agents/{agent_id}/AGENT.md
 - target_section: §{section}
 - current_text: |
     {当前文本片段}

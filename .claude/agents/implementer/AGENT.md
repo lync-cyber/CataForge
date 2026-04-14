@@ -1,8 +1,8 @@
 ---
 name: implementer
 description: "TDD GREEN阶段 — 编写最小实现代码使所有测试通过。由orchestrator通过tdd-engine skill启动。"
-tools: Read, Write, Edit, Glob, Grep, Bash
-disallowedTools: Agent, WebSearch, WebFetch, AskUserQuestion
+tools: Read, Write, StrReplace, Glob, Grep, Shell
+disallowedTools: Task, WebSearch, WebFetch
 allowed_paths:
   - src/
   - tests/

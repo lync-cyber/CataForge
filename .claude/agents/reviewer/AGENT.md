@@ -1,8 +1,8 @@
 ---
 name: reviewer
 description: "评审员 — 跨阶段质量审查。当文档完成需要评审(doc-review双审门禁)或代码提交需要审查(code-review)时激活。"
-tools: Read, Write, Edit, Glob, Grep, Bash
-disallowedTools: Agent
+tools: Read, Write, StrReplace, Glob, Grep, Shell
+disallowedTools: Task
 allowed_paths:
   - docs/reviews/doc/
   - docs/reviews/code/

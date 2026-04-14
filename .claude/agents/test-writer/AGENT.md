@@ -1,8 +1,8 @@
 ---
 name: test-writer
 description: "TDD RED阶段 — 为验收标准编写失败测试用例。由orchestrator通过tdd-engine skill启动。"
-tools: Read, Write, Edit, Glob, Grep, Bash
-disallowedTools: Agent, WebSearch, WebFetch, AskUserQuestion
+tools: Read, Write, StrReplace, Glob, Grep, Shell
+disallowedTools: Task, WebSearch, WebFetch
 allowed_paths:
   - src/
   - tests/

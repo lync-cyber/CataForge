@@ -1,0 +1,86 @@
+# CataForge Hook 规范定义（平台无关）
+# deploy 读取此文件 + 平台 profile 的 event_map/matcher_map 生成平台配置
+
+hooks:
+  PreToolUse:
+    - matcher_capability: shell_exec
+      script: guard_dangerous.py
+      type: block
+      description: "危险命令拦截"
+      safety_critical: true
+    - matcher_capability: agent_dispatch
+      script: log_agent_dispatch.py
+      type: observe
+      description: "子代理调度审计"
+
+  PostToolUse:
+    - matcher_capability: agent_dispatch
+      script: validate_agent_result.py
+      type: observe
+      description: "子代理返回值验证"
+    - matcher_capability: file_edit
+      script: lint_format.py
+      type: observe
+      description: "文件编辑后自动格式化"
+    - matcher_capability: user_question
+      script: detect_correction.py
+      type: observe
+      description: "用户纠正信号捕获"
+
+  Stop:
+    - script: notify_done.py
+      type: observe
+      description: "会话结束通知"
+
+  Notification:
+    - script: notify_permission.py
+      type: observe
+      description: "权限请求通知"
+
+  SessionStart:
+    - script: session_context.py
+      type: observe
+      description: "会话初始化 + deploy 同步"
+
+degradation_templates:
+  guard_dangerous:
+    strategy: rules_injection
+    content: |
+      SAFETY RULES (auto-generated — platform lacks PreToolUse hook):
+      - NEVER run rm -rf, DROP TABLE, or other destructive commands without explicit user confirmation
+      - NEVER modify files outside the project directory
+
+  validate_agent_result:
+    strategy: prompt_checklist
+    content: |
+      === 返回值自检 ===
+      返回前请确认:
+      - [ ] 包含 <agent-result> 标签
+      - [ ] status 为有效枚举值
+      - [ ] outputs 列出所有产出文件路径
+
+  detect_correction:
+    strategy: skip
+    reason: "纠正学习为非关键功能"
+
+  notify_permission:
+    strategy: skip
+    reason: "通知为非关键功能"
+
+  log_agent_dispatch:
+    strategy: prompt_instruction
+    content: |
+      调度完成后，请运行:
+      python .cataforge/scripts/framework/event_logger.py --event agent_dispatch --data '{...}'
+
+  lint_format:
+    strategy: skip
+    reason: "格式化为非关键功能"
+
+  notify_done:
+    strategy: skip
+    reason: "会话结束通知为非关键功能"
+
+  session_context:
+    strategy: skip
+    reason: "会话上下文初始化可降级"

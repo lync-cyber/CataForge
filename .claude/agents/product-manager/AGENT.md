@@ -1,8 +1,8 @@
 ---
 name: product-manager
 description: "产品经理 — 负责需求分析与PRD编写。当需要将用户原始需求转化为结构化的产品需求文档时激活。"
-tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, AskUserQuestion
-disallowedTools: Bash, Agent
+tools: Read, Write, StrReplace, Glob, Grep, WebSearch, WebFetch
+disallowedTools: Shell, Task
 allowed_paths:
   - docs/prd/
   - docs/research/

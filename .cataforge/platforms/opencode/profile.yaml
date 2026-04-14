@@ -1,0 +1,45 @@
+platform_id: opencode
+display_name: OpenCode
+version_tested: "0.1"
+
+tool_map:
+  file_read: read
+  file_write: write
+  file_edit: edit
+  file_glob: glob
+  file_grep: grep
+  shell_exec: bash
+  web_search: websearch
+  web_fetch: webfetch
+  user_question: question
+  agent_dispatch: task
+
+agent_definition:
+  format: yaml-frontmatter
+  scan_dirs:
+    - .claude/agents
+  needs_deploy: false
+
+instruction_file:
+  reads_claude_md: true
+  additional_outputs: []
+
+dispatch:
+  tool_name: task
+  is_async: false
+  params: [subagent_type, description, prompt]
+
+hooks:
+  config_format: null
+  config_path: null
+  event_map: {}
+  matcher_map: {}
+  degradation:
+    guard_dangerous: degraded
+    log_agent_dispatch: degraded
+    validate_agent_result: degraded
+    lint_format: degraded
+    detect_correction: degraded
+    notify_done: degraded
+    notify_permission: degraded
+    session_context: degraded
