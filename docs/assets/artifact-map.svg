@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 420" role="img" aria-label="CataForge 四平台部署产物对照图">
+  <title>CataForge 四平台部署产物对照图</title>
+  <desc>每列一个 IDE 平台，列出 deploy 后生成的指令文件 / Agents / Hooks / MCP 四类产物与原生支持程度。</desc>
+
+  <defs>
+    <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="0" cy="0" r="0.6" fill="#a8a29e" opacity="0.35"/>
+    </pattern>
+    <style>
+      .card       { fill: #fdfcf7; stroke: #a8a29e; stroke-width: 1; }
+      .card-head  { fill: #fdf3d7; stroke: #b45309; stroke-width: 1; }
+      .rule       { stroke: #a8a29e; stroke-width: 1; fill: none; }
+      .rule-dash  { stroke: #a8a29e; stroke-width: 1; stroke-dasharray: 2 3; fill: none; }
+      .dot-full   { fill: #b45309; }
+      .dot-half   { fill: #fdf3d7; stroke: #b45309; stroke-width: 1.2; }
+      .dot-empty  { fill: #fdfcf7; stroke: #a8a29e; stroke-width: 1.2; }
+      .pf-name    { fill: #7c2d12; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 13px; font-weight: 700; letter-spacing: 0.6px; }
+      .cap        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.4px; }
+      .label      { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+      .path       { fill: #1c1917; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 11px; }
+      .path-muted { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 11px; font-style: italic; }
+      .title      { fill: #1c1917; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 12px; font-weight: 700; letter-spacing: 1.5px; }
+    </style>
+  </defs>
+
+  <!-- Grid background -->
+  <rect x="0" y="0" width="980" height="420" fill="url(#grid)"/>
+
+  <!-- Header band -->
+  <text class="title" x="20"  y="24">PLATFORM  ARTIFACT  MAP</text>
+  <text class="cap"   x="20"  y="40">deploy 后生成的文件与原生支持程度</text>
+  <text class="cap"   x="720" y="24">LEGEND</text>
+  <circle class="dot-full"  cx="770" cy="20" r="4"/><text class="cap" x="778" y="24">NATIVE</text>
+  <circle class="dot-half"  cx="840" cy="20" r="4"/><text class="cap" x="848" y="24">PARTIAL</text>
+  <circle class="dot-empty" cx="912" cy="20" r="4"/><text class="cap" x="920" y="24">DEGRADE</text>
+  <line class="rule" x1="20" y1="56" x2="960" y2="56"/>
+
+  <!-- ============ Column 1: Claude Code ============ -->
+  <g transform="translate(20,70)">
+    <rect class="card"      x="0" y="0" width="220" height="320" rx="2"/>
+    <rect class="card-head" x="0" y="0" width="220" height="40"  rx="2"/>
+    <text class="pf-name" x="12" y="25">CLAUDE-CODE</text>
+    <circle class="dot-full" cx="175" cy="21" r="4"/>
+    <circle class="dot-full" cx="190" cy="21" r="4"/>
+    <circle class="dot-full" cx="205" cy="21" r="4"/>
+
+    <text class="label"      x="12" y="64">INSTRUCTION</text>
+    <text class="path"       x="12" y="82">CLAUDE.md</text>
+    <line class="rule-dash" x1="12" y1="96" x2="208" y2="96"/>
+
+    <text class="label"      x="12" y="118">AGENTS</text>
+    <text class="path"       x="12" y="136">.claude/agents/</text>
+    <line class="rule-dash" x1="12" y1="150" x2="208" y2="150"/>
+
+    <text class="label"      x="12" y="172">HOOKS</text>
+    <text class="path"       x="12" y="190">native events</text>
+    <text class="path-muted" x="12" y="205">PreToolUse · PostToolUse</text>
+    <line class="rule-dash" x1="12" y1="220" x2="208" y2="220"/>
+
+    <text class="label"      x="12" y="242">MCP</text>
+    <text class="path"       x="12" y="260">.mcp.json</text>
+  </g>
+
+  <!-- ============ Column 2: Cursor ============ -->
+  <g transform="translate(260,70)">
+    <rect class="card"      x="0" y="0" width="220" height="320" rx="2"/>
+    <rect class="card-head" x="0" y="0" width="220" height="40"  rx="2"/>
+    <text class="pf-name" x="12" y="25">CURSOR</text>
+    <circle class="dot-full" cx="175" cy="21" r="4"/>
+    <circle class="dot-half" cx="190" cy="21" r="4"/>
+    <circle class="dot-full" cx="205" cy="21" r="4"/>
+
+    <text class="label"      x="12" y="64">INSTRUCTION</text>
+    <text class="path"       x="12" y="82">AGENTS.md</text>
+    <text class="path-muted" x="12" y="97">+ .cursor/rules/*.mdc</text>
+    <line class="rule-dash" x1="12" y1="110" x2="208" y2="110"/>
+
+    <text class="label"      x="12" y="132">AGENTS</text>
+    <text class="path"       x="12" y="150">.cursor/agents/</text>
+    <line class="rule-dash" x1="12" y1="164" x2="208" y2="164"/>
+
+    <text class="label"      x="12" y="186">HOOKS</text>
+    <text class="path"       x="12" y="204">.cursor/hooks.json</text>
+    <text class="path-muted" x="12" y="219">partial · no Notification</text>
+    <line class="rule-dash" x1="12" y1="234" x2="208" y2="234"/>
+
+    <text class="label"      x="12" y="256">MCP</text>
+    <text class="path"       x="12" y="274">.cursor/mcp.json</text>
+  </g>
+
+  <!-- ============ Column 3: CodeX ============ -->
+  <g transform="translate(500,70)">
+    <rect class="card"      x="0" y="0" width="220" height="320" rx="2"/>
+    <rect class="card-head" x="0" y="0" width="220" height="40"  rx="2"/>
+    <text class="pf-name" x="12" y="25">CODEX</text>
+    <circle class="dot-full"  cx="175" cy="21" r="4"/>
+    <circle class="dot-half"  cx="190" cy="21" r="4"/>
+    <circle class="dot-full"  cx="205" cy="21" r="4"/>
+
+    <text class="label"      x="12" y="64">INSTRUCTION</text>
+    <text class="path"       x="12" y="82">AGENTS.md</text>
+    <line class="rule-dash" x1="12" y1="96" x2="208" y2="96"/>
+
+    <text class="label"      x="12" y="118">AGENTS</text>
+    <text class="path"       x="12" y="136">.codex/agents/*.toml</text>
+    <line class="rule-dash" x1="12" y1="150" x2="208" y2="150"/>
+
+    <text class="label"      x="12" y="172">HOOKS</text>
+    <text class="path"       x="12" y="190">.codex/hooks.json</text>
+    <text class="path-muted" x="12" y="205">partial · Bash matcher only</text>
+    <line class="rule-dash" x1="12" y1="220" x2="208" y2="220"/>
+
+    <text class="label"      x="12" y="242">MCP</text>
+    <text class="path"       x="12" y="260">.codex/config.toml</text>
+    <text class="path-muted" x="12" y="275">[mcp_servers.&lt;id&gt;]</text>
+  </g>
+
+  <!-- ============ Column 4: OpenCode ============ -->
+  <g transform="translate(740,70)">
+    <rect class="card"      x="0" y="0" width="220" height="320" rx="2"/>
+    <rect class="card-head" x="0" y="0" width="220" height="40"  rx="2"/>
+    <text class="pf-name" x="12" y="25">OPENCODE</text>
+    <circle class="dot-full"  cx="175" cy="21" r="4"/>
+    <circle class="dot-empty" cx="190" cy="21" r="4"/>
+    <circle class="dot-full"  cx="205" cy="21" r="4"/>
+
+    <text class="label"      x="12" y="64">INSTRUCTION</text>
+    <text class="path"       x="12" y="82">AGENTS.md</text>
+    <text class="path-muted" x="12" y="97">.claude/ fallback</text>
+    <line class="rule-dash" x1="12" y1="110" x2="208" y2="110"/>
+
+    <text class="label"      x="12" y="132">AGENTS</text>
+    <text class="path"       x="12" y="150">.opencode/agents/*.md</text>
+    <line class="rule-dash" x1="12" y1="164" x2="208" y2="164"/>
+
+    <text class="label"      x="12" y="186">HOOKS</text>
+    <text class="path"       x="12" y="204">.opencode/plugins/</text>
+    <text class="path-muted" x="12" y="219">JS/TS plugin · all degrade</text>
+    <line class="rule-dash" x1="12" y1="234" x2="208" y2="234"/>
+
+    <text class="label"      x="12" y="256">MCP</text>
+    <text class="path"       x="12" y="274">opencode.json</text>
+    <text class="path-muted" x="12" y="289">mcp.&lt;id&gt;</text>
+  </g>
+
+  <!-- Footer ruler -->
+  <line class="rule" x1="20" y1="400" x2="960" y2="400"/>
+  <text class="cap"  x="20"  y="414">CATAFORGE · DEPLOY OUTPUT MATRIX</text>
+  <text class="cap"  x="865" y="414">FIG. 02</text>
+</svg>

@@ -120,6 +120,8 @@ cataforge deploy --check --platform cursor
 - `setup` 输出 `Setup complete.`
 - `deploy --check` 输出 `Deploy complete.`
 
+> 想从 **0 开始** 在四个 IDE 里都跑通一遍？见 [手动验证指南](./docs/manual-verification-guide.md) — 含 IDE 客户端安装、真部署、在 IDE 内真实观测 Agent / Hook / MCP 的完整流程。
+
 ## 文档（Documentation）
 
 - 文档导航：[`docs/README.md`](./docs/README.md)
@@ -128,6 +130,10 @@ cataforge deploy --check --platform cursor
 - 手动验证指南：[`docs/manual-verification-guide.md`](./docs/manual-verification-guide.md)
 
 ## 在不同 AI IDE 中使用
+
+<p align="center">
+  <img src="./docs/assets/artifact-map.svg" alt="CataForge 四平台部署产物对照图" width="100%">
+</p>
 
 以下为当前实现状态（来自平台 profile 与适配器逻辑）：
 
