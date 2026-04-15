@@ -51,14 +51,17 @@ def setup_command(
     cfg = ConfigManager()
     bus = EventBus()
 
-    click.echo(f"CataForge v{cfg.version} — setup")
     click.echo(f"Project root: {cfg.paths.root}")
 
     scaffold_dir = cfg.paths.cataforge_dir
     if not scaffold_dir.is_dir() or force_scaffold:
         _scaffold(scaffold_dir, force=force_scaffold)
-        # Re-read framework.json now that it exists on disk.
+        # Re-read framework.json now that it exists on disk — without this
+        # reload, the version banner below would show the pre-scaffold default
+        # ("0.0.0") instead of the real bundled version.
         cfg.reload()
+
+    click.echo(f"CataForge v{cfg.version} — setup")
 
     if check_only:
         _run_checks(cfg)
