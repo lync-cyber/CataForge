@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 200" role="img" aria-label="CataForge 手动验证五步流水线">
+  <title>CataForge 手动验证流水线</title>
+  <desc>Install → Setup → Dry-run → Deploy → Verify；技术蓝图风格，琥珀强调色。</desc>
+
+  <!-- Design tokens: see docs/assets/design-tokens.md -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a8a29e"/>
+    </marker>
+    <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="0" cy="0" r="0.6" fill="#a8a29e" opacity="0.35"/>
+    </pattern>
+    <style>
+      .card       { fill: #fdfcf7; stroke: #a8a29e; stroke-width: 1; }
+      .card-emph  { fill: #fdf3d7; stroke: #b45309; stroke-width: 1.6; }
+      .node       { fill: #fdfcf7; stroke: #b45309; stroke-width: 1.4; }
+      .node-idx   { fill: #b45309; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; text-anchor: middle; }
+      .stage      { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
+      .title      { fill: #1c1917; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 14px; font-weight: 700; }
+      .title-emph { fill: #7c2d12; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 14px; font-weight: 700; }
+      .sub        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 11px; }
+      .cap        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.4px; }
+      .rule       { stroke: #a8a29e; stroke-width: 1; fill: none; }
+    </style>
+  </defs>
+
+  <!-- Grid background -->
+  <rect x="0" y="0" width="980" height="200" fill="url(#grid)"/>
+
+  <!-- Phase band labels -->
+  <line class="rule" x1="20"  y1="28"  x2="560" y2="28"/>
+  <text class="cap" x="20"  y="22">CLI · LOCAL</text>
+  <line class="rule" x1="580" y1="28"  x2="740" y2="28"/>
+  <text class="cap" x="580" y="22">WRITE · FILESYSTEM</text>
+  <line class="rule" x1="760" y1="28"  x2="960" y2="28"/>
+  <text class="cap" x="760" y="22">IDE · RUNTIME</text>
+
+  <!-- Stage 1: Install -->
+  <g transform="translate(20,50)">
+    <rect class="card" x="0" y="0" width="160" height="100" rx="2"/>
+    <circle class="node" cx="20" cy="22" r="9"/>
+    <text class="node-idx" x="20" y="25.5">1</text>
+    <text class="stage"    x="38" y="26">INSTALL</text>
+    <text class="title"    x="12" y="54">环境安装</text>
+    <text class="sub"      x="12" y="74">pip install -e</text>
+    <text class="sub"      x="12" y="89">IDE CLI / 客户端</text>
+  </g>
+
+  <!-- Stage 2: Setup -->
+  <g transform="translate(200,50)">
+    <rect class="card" x="0" y="0" width="160" height="100" rx="2"/>
+    <circle class="node" cx="20" cy="22" r="9"/>
+    <text class="node-idx" x="20" y="25.5">2</text>
+    <text class="stage"    x="38" y="26">SETUP</text>
+    <text class="title"    x="12" y="54">平台切换</text>
+    <text class="sub"      x="12" y="74">cataforge setup</text>
+    <text class="sub"      x="12" y="89">--platform &lt;ide&gt;</text>
+  </g>
+
+  <!-- Stage 3: Dry-run -->
+  <g transform="translate(380,50)">
+    <rect class="card" x="0" y="0" width="160" height="100" rx="2"/>
+    <circle class="node" cx="20" cy="22" r="9"/>
+    <text class="node-idx" x="20" y="25.5">3</text>
+    <text class="stage"    x="38" y="26">DRY-RUN</text>
+    <text class="title"    x="12" y="54">干运行校验</text>
+    <text class="sub"      x="12" y="74">deploy --check</text>
+    <text class="sub"      x="12" y="89">核对 would write</text>
+  </g>
+
+  <!-- Stage 4: Deploy (emphasized) -->
+  <g transform="translate(580,50)">
+    <rect class="card-emph" x="0" y="0" width="160" height="100" rx="2"/>
+    <circle class="node" cx="20" cy="22" r="9"/>
+    <text class="node-idx"  x="20" y="25.5">4</text>
+    <text class="stage"     x="38" y="26">DEPLOY</text>
+    <text class="title-emph" x="12" y="54">实际投放</text>
+    <text class="sub"       x="12" y="74">cataforge deploy</text>
+    <text class="sub"       x="12" y="89">生成平台产物</text>
+  </g>
+
+  <!-- Stage 5: Verify -->
+  <g transform="translate(780,50)">
+    <rect class="card" x="0" y="0" width="180" height="100" rx="2"/>
+    <circle class="node" cx="20" cy="22" r="9"/>
+    <text class="node-idx" x="20" y="25.5">5</text>
+    <text class="stage"    x="38" y="26">VERIFY</text>
+    <text class="title"    x="12" y="54">IDE 内观测</text>
+    <text class="sub"      x="12" y="74">agent / hook / mcp</text>
+    <text class="sub"      x="12" y="89">真实触发与回显</text>
+  </g>
+
+  <!-- Right-angle connectors between stages -->
+  <path class="rule" d="M180,100 L200,100" marker-end="url(#arrow)"/>
+  <path class="rule" d="M360,100 L380,100" marker-end="url(#arrow)"/>
+  <path class="rule" d="M540,100 L580,100" marker-end="url(#arrow)"/>
+  <path class="rule" d="M740,100 L780,100" marker-end="url(#arrow)"/>
+
+  <!-- Footer ruler -->
+  <line class="rule" x1="20" y1="178" x2="960" y2="178"/>
+  <text class="cap" x="20"  y="192">CATAFORGE · MANUAL VERIFICATION PIPELINE</text>
+  <text class="cap" x="860" y="192">FIG. 01</text>
+</svg>

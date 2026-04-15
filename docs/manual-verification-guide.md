@@ -1,362 +1,402 @@
 # Manual Verification Guide
 
-本指南用于手动验证 `CataForge` 的核心能力是否按预期工作，面向开发者、测试人员与开源贡献者。
+本指南带你从 **0** 出发，在 Claude Code / Cursor / CodeX / OpenCode 四个 IDE 下完整安装、部署并**在 IDE 内真实跑通** CataForge，验证其核心能力是否按预期工作。
 
-## 1) 验证目标定义
+<p align="center">
+  <img src="./assets/verification-flow.svg" alt="CataForge 手动验证五步流水线" width="100%">
+</p>
 
-本项目建议优先验证以下核心能力：
+## 目录
 
-1. **平台适配**：同一套框架配置可切换 `claude-code/cursor/codex/opencode`。
-2. **部署编排**：`deploy` 能按平台生成/合并 agents、rules、hooks、降级策略。
-3. **技能与代理发现**：`skill list`、`agent list`、`agent validate` 可稳定运行。
-4. **Hook 桥接**：`hooks.yaml` 能转换为平台 hook 配置，降级策略可见。
-5. **MCP 生命周期**：MCP 声明可被发现，且可 start/stop。
-6. **工程可回归**：`pytest` 全量通过。
+- [0. 本指南的使用方法](#0-本指南的使用方法)
+- [1. 前置准备](#1-前置准备)
+  - [1.1 系统要求](#11-系统要求)
+  - [1.2 安装 CataForge](#12-安装-cataforge)
+  - [1.3 安装目标 IDE 客户端](#13-安装目标-ide-客户端)
+  - [1.4 健康检查](#14-健康检查)
+- [2. 分 IDE 端到端验证](#2-分-ide-端到端验证)
+  - [2.1 Claude Code](#21-claude-code)
+  - [2.2 Cursor](#22-cursor)
+  - [2.3 CodeX](#23-codex)
+  - [2.4 OpenCode](#24-opencode)
+- [3. 专题验证](#3-专题验证)
+- [4. 标准测试用例](#4-标准测试用例)
+- [5. 故障排查](#5-故障排查)
+- [6. 验证结果反馈模板](#6-验证结果反馈模板)
 
 ---
 
-## 2) 环境准备（Environment Setup）
+## 0. 本指南的使用方法
 
-### Step 1: 创建并激活 Python 虚拟环境
+### 验证目标
 
-- 操作说明：在项目根目录创建 venv，激活后安装依赖。
-- 输入：
+| # | 目标 | 判定依据 |
+|---|------|---------|
+| 1 | **平台适配** | 同一套 `.cataforge/` 可切到 4 个 IDE |
+| 2 | **部署编排** | `deploy` 生成对应 IDE 的产物并可合并已有配置 |
+| 3 | **能力发现** | `agent list` / `skill list` / `hook list` 稳定运行 |
+| 4 | **Hook 桥接** | `hooks.yaml` → 平台 hook 配置，降级可见 |
+| 5 | **MCP 生命周期** | 声明可发现，start/stop 可控 |
+| 6 | **IDE 内生效** | 在 IDE 真实会话中能看到 Agent / Rules / Hook / MCP 被加载 |
+| 7 | **回归通过** | `pytest -q` 全量通过 |
+
+### 适用读者
+
+- **评估者 / 贡献者**：想先从零跑通一遍再决定是否深入。
+- **迁移团队**：需要在多 IDE 间切换同一套工作流。
+- **验收方**：复现环境、出具 Verification Report。
+
+### 五步验证法
+
+按 **FIG. 01** 顺序执行；任何一步不通过都应回到上一步而非跳过：
+
+1. **INSTALL** — 装好 Python、CataForge、IDE 客户端。
+2. **SETUP** — `cataforge setup --platform <ide>` 切到目标平台。
+3. **DRY-RUN** — `deploy --check` 预览产物，核对无误。
+4. **DEPLOY** — `cataforge deploy` 实际写入 IDE 产物。
+5. **VERIFY** — 启动 IDE，在真实会话中观测 Agent / Hook / MCP 被使用。
+
+> 原指南只覆盖 1–3 步。本版本补齐 4–5 步，使"验证"不再只是 CLI 自测。
+
+---
+
+## 1. 前置准备
+
+### 1.1 系统要求
+
+| 条件 | 版本 / 说明 |
+|------|-------------|
+| OS | Windows 10+ / macOS 12+ / Linux（主流发行版） |
+| Python | **`>=3.10`**（必需） |
+| pip 或 uv | `pip>=23`；或 `uv>=0.4`（推荐） |
+| Git | 近期版本（CataForge 依赖 git 元信息） |
+| 可选工具 | `ruff`、`docker`、`npx` — `doctor` 会检测但不强制 |
+
+> CLI 启动时已自动切换 stdout/stderr 到 UTF-8（`cataforge.utils.common.ensure_utf8_stdio`）。**无需** 手动设置 `PYTHONUTF8=1` 或 `chcp 65001`。
+
+### 1.2 安装 CataForge
+
+推荐 **A**（uv 全局工具）用于终端用户，**B**（项目开发）用于贡献者。
+
+**A. uv tool（全局 CLI，推荐）**
+
+```bash
+uv tool install .
+cataforge --version
+```
+
+**B. 项目本地开发**
+
+```bash
+uv venv
+uv pip install -e ".[dev]"
+.venv\Scripts\activate          # Windows PowerShell / cmd
+# source .venv/bin/activate     # macOS / Linux
+# source .venv/Scripts/activate # Windows Git Bash
+```
+
+**C. 纯 pip（无 uv）**
 
 ```bash
 python -m venv .venv
-source .venv/Scripts/activate
+.venv\Scripts\activate
+python -m pip install -U pip
 pip install -e ".[dev]"
 ```
 
-- 预期输出（Expected Result）：
-  - `pip install` 成功，`cataforge` 可被 `python -m cataforge --help` 调用。
-- 失败时可能原因（Failure Hint）：
-  - Python 版本过低（需 `>=3.10`）。
-  - 网络或镜像源不可用导致依赖安装失败。
+> **Windows shell 提示**：PowerShell 首次激活 venv 若报执行策略错误，用 `Set-ExecutionPolicy -Scope Process RemoteSigned` 一次性放行；或改用 `cmd.exe`。
 
-> CLI 入口已在启动时自动将 stdout/stderr 切换为 UTF-8（见 `cataforge.utils.common.ensure_utf8_stdio`），无需手动 `export PYTHONUTF8=1` 或 `chcp 65001`。若你是从源码直接运行而未安装包，使用 `python -m cataforge ...` 时同样无需设置。
+### 1.3 安装目标 IDE 客户端
 
-### Step 2: 基础健康检查
+先看清 **FIG. 02**：`deploy` 会为每个 IDE 写入的文件与原生支持程度一目了然。
 
-- 操作说明：验证框架目录、依赖、外部工具可见性。
-- 输入：
+<p align="center">
+  <img src="./assets/artifact-map.svg" alt="CataForge 四平台部署产物对照图" width="100%">
+</p>
+
+下表为四个 IDE 的常见安装渠道与最小可用校验。**具体命令以各 IDE 官方文档为准**，CataForge 不随版本绑定客户端。
+
+| IDE | 常见安装渠道 | 最小可用校验 |
+|-----|-------------|-------------|
+| **Claude Code** | `npm i -g @anthropic-ai/claude-code`（官方 npm 包） | 终端跑 `claude --version` 能输出版本号；首次需登录 Anthropic 账号 |
+| **Cursor** | 从 [cursor.com](https://cursor.com) 下载桌面客户端（Windows/macOS/Linux） | 能打开客户端、完成登录；命令面板可见 "Cursor: ..." 命令 |
+| **CodeX** | 通过 OpenAI Codex CLI 官方渠道安装（典型为 `npm i -g @openai/codex`） | 终端跑 `codex --version`；首次需 OpenAI 鉴权 |
+| **OpenCode** | 从 [opencode.ai](https://opencode.ai) 获取安装命令（npm / curl 脚本）| 终端跑 `opencode --version`；按其指引配置模型 provider |
+
+> **Claude Code / CodeX / OpenCode** 均为 CLI，启动方式是 `cd` 到项目根目录后执行客户端命令。**Cursor** 是 GUI，"打开文件夹"指向项目根目录即可。
+
+#### 1.3.1 登录态与鉴权
+
+| IDE | 鉴权需求 | 怎样确认已登录 |
+|-----|---------|---------------|
+| Claude Code | Anthropic 账号（`/login` 或首次启动引导） | 启动后不再弹登录提示 |
+| Cursor | Cursor 账号（GUI 引导） | 左下角可见账号头像 |
+| CodeX | OpenAI API Key 或官方登录 | `codex` 启动后不再提示鉴权 |
+| OpenCode | 依据所选 provider（OpenAI / Anthropic / 其它） | `opencode auth list`（或类似）能列出凭证 |
+
+> 鉴权失败不是 CataForge 的问题；先在 IDE 里独立跑通一次"Hello"对话再回来做部署验证。
+
+### 1.4 健康检查
 
 ```bash
-python -m cataforge doctor
+cataforge doctor
 ```
 
-- 预期输出（Expected Result）：
-  - 包含 `Diagnostics complete.`
-  - `framework.json`、`hooks.yaml`、平台 profiles 显示 `OK`
-- 失败时可能原因（Failure Hint）：
-  - 当前目录不是包含 `.cataforge/` 的项目根目录。
-  - 缺失 `PyYAML`/`click` 依赖。
+**预期（Expected）**
+
+- 末行：`Diagnostics complete.`
+- `framework.json` / `hooks.yaml` 标记 `OK`
+- `claude-code / cursor / codex / opencode` 四个 profile 均 `OK`
+
+**失败提示（Troubleshoot）**
+
+- 当前目录非含 `.cataforge/` 的项目根 → `cd` 到项目根重跑。
+- 缺 `PyYAML`/`click` → 确认用的是第 1.2 步装好的环境。
+- Windows 下命令找不到 → `which cataforge`（Git Bash）/ `where cataforge`（cmd）检查 PATH。
 
 ---
 
-## 3) 分 IDE 验证流程（重点）
+## 2. 分 IDE 端到端验证
 
-> 每个平台均采用同一结构：初始化 -> 加载项目 -> 执行任务 -> 观察输出 -> 判定成功。
+> 每个平台共 **6 步**：`初始化 → 干运行 → 真部署 → IDE 内观测 → 清理/回滚 → 判定`。
+> 真部署会写入工作区，记得先用 `git status` 留一个干净起点，事后可用 `git clean` 回滚。
 
-## 3.1 Claude Code
+### 2.1 Claude Code
 
-### Step 1: 初始化
-- 操作说明：切换运行平台到 `claude-code`。
-- 输入：
+#### Step 1 — 初始化
+
 ```bash
-python -m cataforge setup --platform claude-code
+cataforge setup --platform claude-code
 ```
-- 预期输出（Expected Result）：
-  - 输出 `Platform set to: claude-code` 和 `Setup complete.`
-- 失败时可能原因（Failure Hint）：
-  - `.cataforge/` 缺失，setup 会直接报错退出。
 
-### Step 2: 加载项目
-- 操作说明：检查代理与技能是否可被发现。
-- 输入：
+**预期**：`Platform set to: claude-code` + `Setup complete.`
+
+#### Step 2 — 干运行
+
 ```bash
-python -m cataforge agent list
-python -m cataforge skill list
+cataforge deploy --check --platform claude-code
 ```
-- 预期输出（Expected Result）：
-  - `agent list` 至少包含 `orchestrator`、`implementer`
-  - `skill list` 至少包含 `code-review`、`sprint-review`
-- 失败时可能原因（Failure Hint）：
-  - `.cataforge/agents` 或 `.cataforge/skills` 目录结构不完整。
 
-### Step 3: 执行测试任务
-- 操作说明：干运行部署到 Claude Code 目标路径。
-- 输入：
+**预期**（节选）：
+
+```text
+would write CLAUDE.md ← PROJECT-STATE.md
+would write .claude/agents/orchestrator.md
+would merge mcpServers.<id> → ...\.mcp.json      # 若声明了 MCP
+Deploy complete.
+```
+
+#### Step 3 — 真部署
+
 ```bash
-python -m cataforge deploy --check --platform claude-code
+cataforge deploy --platform claude-code
+git status                # 观察新增/修改的文件
 ```
-- 预期输出（Expected Result）：
-  - 出现 `would write CLAUDE.md ← PROJECT-STATE.md`
-  - 出现 `.mcp.json` 相关 MCP 合并动作（若有声明式 MCP）
-  - 最后出现 `Deploy complete.`
-- 失败时可能原因（Failure Hint）：
-  - profile 文件损坏或 YAML 不合法。
 
-### Step 4: 观察输出
-- 操作说明：重点检查 Hook 事件数量与规则部署动作。
-- 输入：
+**预期落盘**：`CLAUDE.md`、`.claude/agents/*.md`、`.claude/settings.json`（hook）、`.mcp.json`（若有 MCP）。
+
+#### Step 4 — IDE 内观测
+
 ```bash
-python -m cataforge hook list
+cd <project-root>
+claude                    # 启动 Claude Code
 ```
-- 预期输出（Expected Result）：
-  - 可见 `PreToolUse`、`PostToolUse`、`Stop`、`Notification`、`SessionStart`
-- 失败时可能原因（Failure Hint）：
-  - `hooks.yaml` 解析失败，或字段命名被误改。
 
-### Step 5: 判断是否成功
-- 操作说明：确认 Claude 平台关键能力全部通过。
-- 输入：无（人工判定）
-- 预期输出（Expected Result）：
-  - 初始化成功 + 干运行输出完整 + hook 列表完整。
-- 失败时可能原因（Failure Hint）：
-  - 若仅部分 hook 缺失，先检查平台 profile 的 `degradation` 是否被意外修改。
+在 Claude Code 会话中依次确认：
 
-## 3.2 Cursor
+| 观测项 | 操作 | 应看到 |
+|-------|------|-------|
+| 指令文件加载 | `/memory` 或首响回显 | `CLAUDE.md` 被读入 |
+| Sub-agent 发现 | `/agents` | 至少 `orchestrator`、`implementer` 等 |
+| Hook 触发 | 执行一次 Bash（例如让它跑 `ls`） | `.claude/settings.json` 中配置的 `PreToolUse` / `PostToolUse` 日志 |
+| MCP 注册 | `/mcp` | 声明的 MCP server 出现在列表 |
 
-### Step 1: 初始化
-- 操作说明：切换到 Cursor 平台。
-- 输入：
+#### Step 5 — 清理 / 回滚
+
 ```bash
-python -m cataforge setup --platform cursor
+git restore --source=HEAD --staged --worktree CLAUDE.md .claude .mcp.json
+git clean -fd .claude
 ```
-- 预期输出（Expected Result）：
-  - 输出 `Platform set to: cursor` 和 `Setup complete.`
-- 失败时可能原因（Failure Hint）：
-  - 与 Claude 相同，通常是 `.cataforge/` 不存在。
 
-### Step 2: 加载项目
-- 操作说明：确认环境与 profiles 正常。
-- 输入：
-```bash
-python -m cataforge doctor
-```
-- 预期输出（Expected Result）：
-  - `cursor: OK`
-- 失败时可能原因（Failure Hint）：
-  - `.cataforge/platforms/cursor/profile.yaml` 缺失。
+#### Step 6 — 判定
 
-### Step 3: 执行测试任务
-- 操作说明：执行 Cursor 干运行部署。
-- 输入：
-```bash
-python -m cataforge deploy --check --platform cursor
-```
-- 预期输出（Expected Result）：
-  - 包含 `.cursor/hooks.json`
-  - 包含 `.cursor/rules/*.mdc` 生成动作
-  - 含降级提示：`SKIP: detect_correction`
-- 失败时可能原因（Failure Hint）：
-  - 终端编码不是 UTF-8。
-  - `.cataforge/rules` 为空导致规则转换项缺失。
-
-### Step 4: 观察输出
-- 操作说明：检查降级行为是否符合 Cursor profile。
-- 输入：
-```bash
-python -m cataforge hook list
-```
-- 预期输出（Expected Result）：
-  - canonical hooks 列表完整；Cursor 的降级由 deploy 输出体现。
-- 失败时可能原因（Failure Hint）：
-  - hook 列表为空通常表示 `hooks.yaml` 未加载。
-
-### Step 5: 判断是否成功
-- 操作说明：判定 Cursor 路径与 MDC 适配是否符合预期。
-- 输入：无（人工判定）
-- 预期输出（Expected Result）：
-  - 出现 `.cursor/hooks.json` + `.cursor/rules/*.mdc` + `Deploy complete.`
-- 失败时可能原因（Failure Hint）：
-  - 若没有 `.mdc` 相关动作，检查 `additional_outputs` 配置。
-
-## 3.3 CodeX
-
-### Step 1: 初始化
-- 操作说明：切换到 CodeX 平台。
-- 输入：
-```bash
-python -m cataforge setup --platform codex
-```
-- 预期输出（Expected Result）：
-  - 输出 `Platform set to: codex`
-- 失败时可能原因（Failure Hint）：
-  - 配置文件不可写，导致 runtime 平台未持久化。
-
-### Step 2: 加载项目
-- 操作说明：校验 profile 可读。
-- 输入：
-```bash
-python -m cataforge doctor
-```
-- 预期输出（Expected Result）：
-  - `codex: OK`
-- 失败时可能原因（Failure Hint）：
-  - `profile.yaml` 语法错误。
-
-### Step 3: 执行测试任务
-- 操作说明：验证 Codex 原生指令与配置路径。
-- 输入：
-```bash
-python -m cataforge deploy --check --platform codex
-```
-- 预期输出（Expected Result）：
-  - 出现 `would write AGENTS.md ← PROJECT-STATE.md`
-  - 出现 `.codex/config.toml` 的 MCP 合并动作（若有声明式 MCP）
-- 失败时可能原因（Failure Hint）：
-  - `.cataforge/platforms/codex/profile.yaml` 配置损坏。
-
-### Step 4: 观察输出
-- 操作说明：核对 MCP 原生支持状态。
-- 输入：
-```bash
-python -m cataforge mcp list
-```
-- 预期输出（Expected Result）：
-  - 若无声明式 MCP，会输出 `No MCP servers registered.`
-- 失败时可能原因（Failure Hint）：
-  - 若你已经新增了 MCP YAML，却仍为空，检查路径是否为 `.cataforge/mcp/*.yaml`。
-
-### Step 5: 判断是否成功
-- 操作说明：判定 CodeX 的关键适配（AGENTS + config.toml）是否生效。
-- 输入：无（人工判定）
-- 预期输出（Expected Result）：
-  - 看到 `AGENTS.md` 与 `.codex/config.toml` 相关动作即可判定核心路径有效。
-- 失败时可能原因（Failure Hint）：
-  - profile 的 `instruction_file.targets` 或 MCP 适配配置被误改。
-
-## 3.4 OpenCode
-
-### Step 1: 初始化
-- 操作说明：切换到 OpenCode 平台。
-- 输入：
-```bash
-python -m cataforge setup --platform opencode
-```
-- 预期输出（Expected Result）：
-  - 输出 `Platform set to: opencode`
-- 失败时可能原因（Failure Hint）：
-  - 同上，通常是项目结构异常。
-
-### Step 2: 加载项目
-- 操作说明：确认 OpenCode profile 可见。
-- 输入：
-```bash
-python -m cataforge doctor
-```
-- 预期输出（Expected Result）：
-  - `opencode: OK`
-- 失败时可能原因（Failure Hint）：
-  - `opencode/profile.yaml` 缺失或损坏。
-
-### Step 3: 执行测试任务
-- 操作说明：执行 OpenCode 干运行部署，检查原生目录与降级策略。
-- 输入：
-```bash
-python -m cataforge deploy --check --platform opencode
-```
-- 预期输出（Expected Result）：
-  - 出现 `.opencode/agents/*.md` 投放动作
-  - 出现 `opencode.json` 指令与 MCP 合并动作（若有声明式 MCP）
-  - 出现多个 `SKIP`（例如 `lint_format`, `notify_done`）
-  - 出现 `would write rules_injection` 动作
-- 失败时可能原因（Failure Hint）：
-  - 如果没有 `rules_injection`，检查 `hooks.yaml` 的降级模板是否存在。
-
-### Step 4: 观察输出
-- 操作说明：确认 OpenCode 以 `.opencode` 原生目录为主。
-- 输入：
-```bash
-python -m cataforge deploy --check --platform opencode
-```
-- 预期输出（Expected Result）：
-  - 看到 `.opencode/agents` 与 `opencode.json` 相关动作。
-- 失败时可能原因（Failure Hint）：
-  - 项目路径权限不足，无法准备目标目录。
-
-### Step 5: 判断是否成功
-- 操作说明：判定“无原生 hook 平台”下的可运行性。
-- 输入：无（人工判定）
-- 预期输出（Expected Result）：
-  - 降级信息完整且包含安全规则注入动作。
-- 失败时可能原因（Failure Hint）：
-  - 降级行为缺失通常由 `degradation` 配置变更引起。
+初始化 / 干运行 / 真部署 / IDE 内四项观测均通过即视为合格。任一失败对照 §5 定位。
 
 ---
 
-## 4) 标准测试用例（Test Cases）
+### 2.2 Cursor
 
-以下测试用例可按优先级执行（建议至少覆盖前 6 项）：
+#### Step 1 — 初始化
 
-### Case 1：基础环境健康检查
-- 输入：
 ```bash
-python -m cataforge doctor
+cataforge setup --platform cursor
 ```
-- 预期行为：关键目录与平台 profile 全部 `OK`。
-- 判定标准：输出包含 `Diagnostics complete.` 且无 `MISSING`。
 
-### Case 2：Agent 发现能力
-- 输入：
+#### Step 2 — 干运行
+
 ```bash
-python -m cataforge agent list
+cataforge deploy --check --platform cursor
 ```
-- 预期行为：返回多个核心 agent（如 `orchestrator`）。
-- 判定标准：返回条目数 > 0。
 
-### Case 3：Skill 发现能力
-- 输入：
+**预期**（节选）：`.cursor/hooks.json`、`.cursor/rules/*.mdc`、`SKIP: detect_correction`（降级提示）。
+
+#### Step 3 — 真部署
+
 ```bash
-python -m cataforge skill list
+cataforge deploy --platform cursor
 ```
-- 预期行为：返回 `code-review`、`sprint-review` 等技能。
-- 判定标准：返回条目数 > 0 且包含关键技能 ID。
 
-### Case 4：Hook 规范加载
-- 输入：
+**预期落盘**：`AGENTS.md`、`.cursor/agents/*.md`、`.cursor/hooks.json`、`.cursor/rules/*.mdc`、`.cursor/mcp.json`（若有 MCP）。
+
+#### Step 4 — IDE 内观测
+
+打开 Cursor → `File / Open Folder` → 选中项目根目录。
+
+| 观测项 | 操作 | 应看到 |
+|-------|------|-------|
+| Rules 加载 | 设置 → **Rules for AI**（或 `.cursorrules` 标签） | `.cursor/rules/*.mdc` 被列出并处于启用态 |
+| Agents 发现 | 聊天面板的 agent 选择器 | `.cursor/agents/` 下的 agent 可选 |
+| Hook 生效 | 触发一次文件编辑 | Cursor 控制台 / 状态栏有 PreToolUse / PostToolUse 痕迹 |
+| MCP 注册 | 设置 → **MCP Servers** | `.cursor/mcp.json` 中声明的 server 已列出 |
+
+> `AskUserQuestion` 与 `Notification` 在 Cursor 上降级（profile 标 `degraded`），这是预期，不是缺陷。
+
+#### Step 5 — 清理
+
 ```bash
-python -m cataforge hook list
+git restore --source=HEAD --staged --worktree AGENTS.md
+git clean -fd .cursor
 ```
-- 预期行为：按事件分组输出 hook 列表。
-- 判定标准：至少包含 `PreToolUse` 和 `PostToolUse` 两组。
 
-### Case 5：Cursor 平台适配与 MDC 生成（干运行）
-- 输入：
+#### Step 6 — 判定
+
+出现 `.cursor/hooks.json` + `.cursor/rules/*.mdc` + Cursor 设置里能看到 rules/mcp 即合格。
+
+---
+
+### 2.3 CodeX
+
+#### Step 1 — 初始化
+
 ```bash
-python -m cataforge deploy --check --platform cursor
+cataforge setup --platform codex
 ```
-- 预期行为：出现 `.cursor/hooks.json` 与 `.cursor/rules/*.mdc` 动作。
-- 判定标准：输出同时命中 `hooks.json` 与 `.mdc` 关键字。
 
-### Case 6：CodeX 原生指令/配置（干运行）
-- 输入：
+#### Step 2 — 干运行
+
 ```bash
-python -m cataforge deploy --check --platform codex
+cataforge deploy --check --platform codex
 ```
-- 预期行为：出现 `AGENTS.md` 与 `.codex/config.toml` 动作。
-- 判定标准：输出同时包含 `AGENTS.md` 与 `config.toml` 关键字。
 
-### Case 7：OpenCode 降级注入（干运行）
-- 输入：
+**预期**（节选）：`AGENTS.md`、`.codex/agents/*.toml`、`.codex/hooks.json`、`.codex/config.toml` 的 `mcp_servers.<id>` 合并。
+
+#### Step 3 — 真部署
+
 ```bash
-python -m cataforge deploy --check --platform opencode
+cataforge deploy --platform codex
 ```
-- 预期行为：出现 `SKIP` 与 `rules_injection`。
-- 判定标准：输出包含 `SKIP:` 与 `would write rules_injection`。
 
-### Case 8：自动化回归
-- 输入：
+#### Step 4 — IDE 内观测
+
 ```bash
-pytest -q
+cd <project-root>
+codex
 ```
-- 预期行为：测试全部通过。
-- 判定标准：退出码为 0（当前基线：`105 passed`）。
 
-### Case 9：MCP 注册与生命周期
-- 输入：
+| 观测项 | 操作 | 应看到 |
+|-------|------|-------|
+| AGENTS.md 读入 | 开启会话 | Codex 首响提及或遵循 `AGENTS.md` 内容 |
+| Agents 发现 | `/agent` 或 `spawn_agent` | `.codex/agents/*.toml` 声明的 agent 可调度 |
+| Hook 生效 | 让它跑一条 Bash（`echo ok`） | `.codex/hooks.json` PreToolUse 回显触发 |
+| MCP 注册 | `/mcp` 或 status 面板 | `.codex/config.toml` 下 `[mcp_servers.<id>]` 生效 |
+
+> CodeX 的 hooks 仅支持 `Bash` matcher（其它事件降级），这是 profile 的 `partial`；非 Bash 动作看不到 hook 回显属于预期。
+
+#### Step 5 — 清理
+
+```bash
+git restore --source=HEAD --staged --worktree AGENTS.md
+git clean -fd .codex
+```
+
+#### Step 6 — 判定
+
+`AGENTS.md` + `.codex/config.toml` 的 `[mcp_servers.*]` + Codex 会话行为一致 → 合格。
+
+---
+
+### 2.4 OpenCode
+
+#### Step 1 — 初始化
+
+```bash
+cataforge setup --platform opencode
+```
+
+#### Step 2 — 干运行
+
+```bash
+cataforge deploy --check --platform opencode
+```
+
+**预期**（节选）：`.opencode/agents/*.md`、`opencode.json` 的 `mcp.<id>` 合并、若干 `SKIP:` 降级提示、`would write rules_injection`。
+
+#### Step 3 — 真部署
+
+```bash
+cataforge deploy --platform opencode
+```
+
+#### Step 4 — IDE 内观测
+
+```bash
+cd <project-root>
+opencode
+```
+
+| 观测项 | 操作 | 应看到 |
+|-------|------|-------|
+| AGENTS.md 读入 | 开启会话 | 首响遵循 `AGENTS.md` 指令 |
+| Agents 发现 | 调度 sub-agent | `.opencode/agents/*.md` 可被 `task` 工具使用 |
+| 规则注入 | 首响或 system context | 降级注入的规则（CataForge rules_injection）生效 |
+| MCP 注册 | 在线状态 / 会话内 `mcp` 列表 | `opencode.json` 下 `mcp.<id>` 生效 |
+
+> **OpenCode hooks 需要写成 JS/TS 插件**（`.opencode/plugins/`），所有事件标 `degraded`。若未自行包装插件，hook 不会在 IDE 中触发 — 这是预期。
+
+#### Step 5 — 清理
+
+```bash
+git restore --source=HEAD --staged --worktree AGENTS.md opencode.json
+git clean -fd .opencode
+```
+
+#### Step 6 — 判定
+
+`.opencode/agents/*.md` + `opencode.json` 含 `mcp.<id>` + 会话能识别 AGENTS.md → 合格。
+
+---
+
+## 3. 专题验证
+
+### 3.1 Hook 生效观察
+
+```bash
+cataforge hook list
+```
+
+**预期**：按事件分组列出 `PreToolUse / PostToolUse / Stop / Notification / SessionStart` 条目。
+
+真部署后在 IDE 中触发对应动作（编辑 / Bash / 会话开始）即可观测：
+
+- **Claude Code**：`.claude/settings.json` 中 `hooks.*` 配置的脚本被调用。
+- **Cursor**：`.cursor/hooks.json` 由客户端读取。
+- **CodeX**：`.codex/hooks.json`，仅 `Bash` matcher。
+- **OpenCode**：需将脚本包装为 `.opencode/plugins/<id>.ts`（未包装则仅 `rules_injection` 降级生效）。
+
+### 3.2 MCP 生命周期与 IDE 接线
+
+**注册声明**：
+
 ```bash
 mkdir -p .cataforge/mcp
 cat > .cataforge/mcp/echo.yaml <<'EOF'
@@ -369,64 +409,122 @@ args:
   - -c
   - "import time; time.sleep(60)"
 EOF
-
-python -m cataforge mcp list
-python -m cataforge mcp start echo-mcp
-python -m cataforge mcp stop echo-mcp
 ```
-- 预期行为：
-  - `mcp list` 输出 `echo-mcp`
-  - `mcp start` 输出 `Started: echo-mcp (pid=...)`
-  - `mcp stop` 输出 `Stopped: echo-mcp`
-- 判定标准：start/stop 均返回成功状态且无异常堆栈。
+
+**CLI 生命周期**：
+
+```bash
+cataforge mcp list            # echo-mcp 出现
+cataforge mcp start echo-mcp  # Started: echo-mcp (pid=...)
+cataforge mcp stop echo-mcp   # Stopped: echo-mcp
+```
+
+**IDE 接线**（真部署后自动合并到对应配置文件）：
+
+| 平台 | 目标文件 | 键路径 |
+|------|---------|-------|
+| Claude Code | `.mcp.json` | `mcpServers.<id>` |
+| Cursor | `.cursor/mcp.json` | `mcpServers.<id>` |
+| CodeX | `.codex/config.toml` | `[mcp_servers.<id>]` |
+| OpenCode | `opencode.json` | `mcp.<id>` |
+
+进入对应 IDE 后，用其原生 `/mcp` 或设置面板应看到该 server。
+
+### 3.3 Agent / Skill 发现
+
+```bash
+cataforge agent list
+cataforge agent validate
+cataforge skill list
+```
+
+**预期**：
+
+- `agent list` 至少包含 `orchestrator`、`implementer`
+- `agent validate` 无 fail 项
+- `skill list` 至少包含 `code-review`、`sprint-review`
+
+### 3.4 自动化回归
+
+```bash
+pytest -q
+```
+
+**基线**：`105 passed`。
 
 ---
 
-## 5) 故障排查（Troubleshooting）
+## 4. 标准测试用例
 
-### 安装失败
-- 原因分析：Python 版本不满足或依赖下载失败。
-- 解决方案：
-  - 确认 `python --version >= 3.10`
-  - 先升级 pip：`python -m pip install -U pip`
-  - 使用稳定镜像源后重试安装。
+按优先级执行；前 6 项为必过。✅ 表示建议保留勾选用于 Verification Report。
 
-### 工具未识别（例如 ruff/npx/docker）
-- 原因分析：可执行文件不在 `PATH`。
-- 解决方案：
-  - 通过 `doctor` 查看工具检测结果。
-  - 安装工具后重开终端，确保 PATH 生效。
-
-### deploy/命令输出乱码或 UnicodeEncodeError
-- 原因分析：CLI 启动时会自动调用 `ensure_utf8_stdio()` 将 stdout/stderr 切换为 UTF-8。若仍出现乱码，通常是终端本身（而非 Python）的渲染编码问题。
-- 解决方案：
-  - 将终端（Windows Terminal / PowerShell / cmd）的代码页切换到 UTF-8（`chcp 65001`）。
-  - 检查终端字体是否支持所需 Unicode 字符集。
-  - 作为兜底，可显式设置 `PYTHONUTF8=1` 以强制 Python 使用 UTF-8 模式。
-
-### agent 无响应 / 列表为空
-- 原因分析：`.cataforge/agents` 目录不完整或不在项目根目录执行。
-- 解决方案：
-  - 在项目根运行命令。
-  - 检查 `agents/*/AGENT.md` 是否存在。
-
-### skill 调用失败
-- 原因分析：技能未发现、技能 ID 错误、脚本依赖缺失。
-- 解决方案：
-  - 先执行 `skill list`，确认可用 ID。
-  - 若是脚本型技能，补齐依赖后重试。
-
-### MCP 调用失败
-- 原因分析：未声明 MCP YAML、命令不可执行、环境变量缺失。
-- 解决方案：
-  - 在 `.cataforge/mcp/` 放置合法 `*.yaml`。
-  - 用 `mcp list` 验证是否可见，再 `mcp start/stop`。
+| # | Case | 命令 | 判定 |
+|---|------|------|-----|
+| 1 | 环境健康 | `cataforge doctor` | `Diagnostics complete.` 且无 `MISSING` |
+| 2 | Agent 发现 | `cataforge agent list` | 条目 > 0 |
+| 3 | Skill 发现 | `cataforge skill list` | 条目 > 0 且含 `code-review` |
+| 4 | Hook 加载 | `cataforge hook list` | 至少含 `PreToolUse`+`PostToolUse` |
+| 5 | Cursor 干运行 | `cataforge deploy --check --platform cursor` | 命中 `hooks.json` + `.mdc` |
+| 6 | CodeX 干运行 | `cataforge deploy --check --platform codex` | 命中 `AGENTS.md` + `config.toml` |
+| 7 | OpenCode 降级 | `cataforge deploy --check --platform opencode` | 含 `SKIP:` + `rules_injection` |
+| 8 | 自动化回归 | `pytest -q` | 退出码 0（`105 passed`） |
+| 9 | MCP 生命周期 | 见 §3.2 | `list` / `start` / `stop` 均成功 |
+| 10 | IDE 内生效 | §2 各平台 Step 4 | 至少一个 IDE 观测到 Agent+Rules+MCP |
 
 ---
 
-## 6) 验证结果反馈模板
+## 5. 故障排查
 
-建议复制以下模板提交验证结果：
+### 安装 / 环境
+
+- **`python` 找不到**：Windows 上优先用 `py -3.12 -m venv .venv`，避免 Store 别名。
+- **venv 激活失败（PowerShell）**：`Set-ExecutionPolicy -Scope Process RemoteSigned` 一次性放行。
+- **pip 超时**：换镜像（如清华 / 阿里）后重试。
+
+### CLI 乱码
+
+CLI 入口已切 UTF-8；若仍乱码是**终端渲染**问题：
+
+- Windows Terminal / PowerShell：`chcp 65001` 或在设置里把字体切到带全部 Unicode 覆盖的字体。
+- 兜底：`set PYTHONUTF8=1` 后重开终端。
+
+### deploy 找不到 `.cataforge/`
+
+- 必须在项目根执行。用 `cataforge doctor` 查看 `project_root` 是否正确。
+
+### Agent / Skill 列表为空
+
+- 不在项目根运行，或 `.cataforge/agents/*/AGENT.md` 缺失。
+- 运行 `cataforge agent validate` 看具体报错。
+
+### IDE 启动后看不到 Agent / Rules
+
+- 确认执行了 **真部署** 而不仅 `--check`。
+- Claude Code：`git status` 应看到 `.claude/agents/*.md` 新增。
+- Cursor：`File → Reload Window` 强制重载规则。
+- CodeX / OpenCode：重启 CLI 进程。
+
+### MCP 启动失败
+
+- `cataforge mcp list` 无此 id：路径必须是 `.cataforge/mcp/*.yaml`。
+- `start` 报错：`command` 不在 `PATH`，或环境变量缺失。
+- IDE 内看不到：真部署是否把 MCP 合并进了对应文件（见 §3.2 表）。
+
+### Hook 看不到回显
+
+- 对照 profile 的 `degradation`：某项为 `degraded` 本就不会有原生事件。
+- OpenCode：需包装为 `.opencode/plugins/*.ts`，否则仅 `rules_injection` 生效。
+- Claude Code：检查 `.claude/settings.json` 中 `hooks` 字段是否被部署写入。
+
+### 登录态异常
+
+- **先在 IDE 内独立跑通一次对话** 再回到 CataForge 验证，避免把鉴权问题误判为部署问题。
+
+---
+
+## 6. 验证结果反馈模板
+
+> 复制下方模板填写，作为 Verification Report 附在 issue / PR 中。
 
 ```md
 ## CataForge Manual Verification Report
@@ -435,32 +533,32 @@ python -m cataforge mcp stop echo-mcp
 - 验证人：
 - 操作系统：
 - Python 版本：
-- 验证分支/提交：
+- 验证分支 / commit：
 
 ### 环境准备
 - [ ] venv 创建成功
-- [ ] 依赖安装成功
+- [ ] CataForge 安装成功（`cataforge --version` 可用)
 - [ ] doctor 通过
 
-### 平台验证结果
-- [ ] Claude Code
-- [ ] Cursor
-- [ ] CodeX
-- [ ] OpenCode
+### IDE 客户端
+- [ ] Claude Code 已登录
+- [ ] Cursor 已登录
+- [ ] CodeX 已鉴权
+- [ ] OpenCode 已配置 provider
 
-### 测试用例结果
-- Case 1:
-- Case 2:
-- Case 3:
-- Case 4:
-- Case 5:
-- Case 6:
-- Case 7:
-- Case 8:
-- Case 9:
+### 分 IDE 端到端（§2）
+|            | Setup | Dry-run | Deploy | In-IDE Verify |
+|------------|:-----:|:-------:|:------:|:-------------:|
+| Claude Code|       |         |        |               |
+| Cursor     |       |         |        |               |
+| CodeX      |       |         |        |               |
+| OpenCode   |       |         |        |               |
+
+### 标准测试用例（§4）
+- Case 1–10：
 
 ### 失败项与日志
-- 失败步骤：
+- 步骤：
 - 实际输出：
 - 预期输出：
 - 初步定位：
