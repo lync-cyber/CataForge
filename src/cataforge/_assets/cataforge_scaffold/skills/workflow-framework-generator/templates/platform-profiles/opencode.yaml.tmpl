@@ -1,0 +1,49 @@
+platform_id: opencode
+display_name: OpenCode
+
+tool_map:
+  file_read: read
+  file_write: write
+  file_edit: edit
+  file_glob: glob
+  file_grep: grep
+  shell_exec: bash
+  web_search: websearch
+  web_fetch: webfetch
+  user_question: question
+  agent_dispatch: task
+
+agent_definition:
+  format: yaml-frontmatter
+  scan_dirs:
+    - .opencode/agents
+  needs_deploy: true
+
+dispatch:
+  tool_name: task
+  is_async: false
+  params: [subagent_type, description, prompt]
+
+hooks:
+  config_format: plugin
+  config_path: .opencode/plugins/
+  event_map:
+    PreToolUse: tool.execute.before
+    PostToolUse: tool.execute.after
+    Stop: session.idle
+    SessionStart: session.created
+
+features:
+  parallel_agents: false
+  background_agents: false
+  agent_memory: false
+  worktree_isolation: false
+  plan_mode: true
+
+degradation_notes:
+  parallel_agents: "Not supported — all agents run sequentially"
+  background_agents: "Not supported — agents block until complete"
+  hooks: "Requires JS/TS plugin wrapper instead of JSON config"
+
+permissions:
+  modes: [default]

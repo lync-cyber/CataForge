@@ -1,0 +1,103 @@
+platform_id: codex
+display_name: Codex CLI
+version_tested: "2026.04"
+
+tool_map:
+  file_read: shell
+  file_write: apply_patch
+  file_edit: apply_patch
+  file_glob: shell
+  file_grep: shell
+  shell_exec: shell
+  web_search: web_search
+  web_fetch: shell
+  user_question: null
+  agent_dispatch: spawn_agent
+
+extended_capabilities:
+  notebook_edit: null
+  browser_preview: null
+  image_input: image             # -i flag / paste screenshots
+  code_review: review            # /review command, dedicated reviewer
+
+agent_definition:
+  format: toml
+  scan_dirs:
+    - .codex/agents
+  needs_deploy: true
+
+agent_config:
+  supported_fields:
+    - name
+    - description
+    - model
+    - model_reasoning_effort
+    - sandbox_mode
+    - nickname_candidates
+  memory_scopes: []
+  isolation_modes: []
+
+instruction_file:
+  reads_claude_md: false
+  targets:
+    - type: project_state_copy
+      path: AGENTS.md
+  additional_outputs: []
+
+dispatch:
+  tool_name: spawn_agent
+  is_async: true
+  params: [agent, fork_context, prompt]
+
+hooks:
+  config_format: json
+  config_path: .codex/hooks.json
+  event_map:
+    PreToolUse: PreToolUse
+    PostToolUse: PostToolUse
+    Stop: Stop
+    SessionStart: SessionStart
+    Notification: null
+  # Codex hook PreToolUse/PostToolUse matchers currently only support "Bash"
+  tool_overrides:
+    shell_exec: Bash           # Hook event uses "Bash" not "shell"
+  matcher_map:
+    Bash: Bash
+    Agent: null
+    "Edit|Write": null
+    AskUserQuestion: null
+  degradation:
+    guard_dangerous: native        # PreToolUse + Bash matcher supported
+    log_agent_dispatch: degraded   # PreToolUse but no agent matcher
+    validate_agent_result: degraded # PostToolUse but no agent matcher
+    lint_format: degraded          # PostToolUse but no edit matcher
+    detect_correction: degraded    # no user_question
+    notify_done: native            # Stop event, no matcher needed
+    notify_permission: degraded    # no Notification event
+    session_context: native        # SessionStart event, no matcher needed
+
+features:
+  cloud_agents: true             # codex cloud — background parallel tasks
+  agent_teams: false
+  parallel_agents: true          # cloud parallel with --attempts best-of-N
+  scheduled_tasks: false
+  background_agents: true
+  plan_mode: false
+  computer_use: true             # native computer use capability
+  realtime_voice: true           # WebRTC v2 voice sessions
+  multi_model: true              # /model command, mid-session switch
+  session_resume: true           # /resume, codex resume
+  worktree_isolation: false
+  autonomy_slider: false
+  ci_cd_integration: false
+  multi_root: true               # --add-dir multi-project workspace
+  agent_memory: false            # only via MCP (e.g. Basic Memory)
+  plugin_marketplace: true       # installable plugin bundles
+  context_management: false
+
+permissions:
+  modes: [auto, read_only, full_access]
+
+model_routing:
+  available_models: [gpt-5.4, gpt-5.3-codex-spark]
+  per_agent_model: false

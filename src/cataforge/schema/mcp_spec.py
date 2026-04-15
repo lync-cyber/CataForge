@@ -54,7 +54,9 @@ class MCPServerSpec(BaseModel):
     @model_validator(mode="after")
     def _default_name(self) -> Self:
         if not (self.name or "").strip():
-            return self.model_copy(update={"name": self.id})
+            # mutate-in-place: pydantic v2 requires `self` be returned from
+            # after-validators, not a fresh copy (UserWarning otherwise).
+            object.__setattr__(self, "name", self.id)
         return self
 
 

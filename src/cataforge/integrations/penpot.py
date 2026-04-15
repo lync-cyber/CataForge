@@ -8,6 +8,7 @@ from __future__ import annotations
 import contextlib
 import os
 import secrets
+import shutil
 import signal
 import subprocess
 import sys
@@ -371,12 +372,18 @@ def start_mcp(config: dict) -> bool:
     if "PENPOT_BASE_URL" not in env:
         env["PENPOT_BASE_URL"] = f"http://localhost:{config['penpot_port']}"
     info("通过 npx @penpot/mcp@latest 启动 MCP Server...")
-    cmd = ["npx", "--yes", "@penpot/mcp@latest"]
+    # Resolve npx to full path so we can avoid shell=True on Windows
+    # (npx is typically `npx.cmd`, which Popen otherwise can't locate without the shell).
+    npx_path = shutil.which("npx") or shutil.which("npx.cmd")
+    if not npx_path:
+        fail("未找到 npx 命令，请先安装 Node.js")
+        return False
+    cmd = [npx_path, "--yes", "@penpot/mcp@latest"]
     with open(MCP_LOG_FILE, "wb") as log_fh:
         if PLATFORM == "windows":
             proc = subprocess.Popen(
                 cmd, stdout=log_fh, stderr=subprocess.STDOUT,
-                env=env, shell=True,
+                env=env,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
             )
         else:

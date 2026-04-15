@@ -19,6 +19,12 @@ from __future__ import annotations
 import click
 
 from cataforge import __version__
+from cataforge.utils.common import ensure_utf8_stdio
+
+# Reconfigure stdout/stderr to UTF-8 before any command runs, so users never need
+# to prefix invocations with `PYTHONUTF8=1` (matters on Windows cp936 terminals
+# where output like `✔ ✖ →` would otherwise raise UnicodeEncodeError).
+ensure_utf8_stdio()
 
 
 @click.group()

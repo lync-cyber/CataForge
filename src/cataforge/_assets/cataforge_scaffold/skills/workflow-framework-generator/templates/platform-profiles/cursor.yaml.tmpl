@@ -1,0 +1,48 @@
+platform_id: cursor
+display_name: Cursor
+
+tool_map:
+  file_read: Read
+  file_write: Write
+  file_edit: Write
+  file_glob: Glob
+  file_grep: Grep
+  shell_exec: Shell
+  web_search: WebSearch
+  web_fetch: null
+  user_question: null
+  agent_dispatch: Task
+
+agent_definition:
+  format: yaml-frontmatter
+  scan_dirs:
+    - .cursor/agents
+  needs_deploy: true
+
+dispatch:
+  tool_name: Task
+  is_async: false
+  params: [subagent_type, prompt, description, model]
+
+hooks:
+  config_format: json
+  config_path: .cursor/hooks.json
+  event_map:
+    PreToolUse: preToolUse
+    PostToolUse: postToolUse
+    Stop: stop
+    SessionStart: sessionStart
+
+features:
+  parallel_agents: true
+  background_agents: true
+  agent_memory: false
+  worktree_isolation: true
+  plan_mode: false
+
+degradation_notes:
+  web_fetch: "Use shell_exec with curl as fallback"
+  user_question: "Embed clarification prompts in agent instructions"
+
+permissions:
+  modes: [default, auto]

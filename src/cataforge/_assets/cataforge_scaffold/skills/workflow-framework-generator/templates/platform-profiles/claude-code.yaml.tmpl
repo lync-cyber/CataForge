@@ -1,0 +1,44 @@
+platform_id: claude-code
+display_name: Claude Code
+
+tool_map:
+  file_read: Read
+  file_write: Write
+  file_edit: Edit
+  file_glob: Glob
+  file_grep: Grep
+  shell_exec: Bash
+  web_search: WebSearch
+  web_fetch: WebFetch
+  user_question: AskUserQuestion
+  agent_dispatch: Agent
+
+agent_definition:
+  format: yaml-frontmatter
+  scan_dirs:
+    - .claude/agents
+  needs_deploy: true
+
+dispatch:
+  tool_name: Agent
+  is_async: false
+  params: [subagent_type, prompt, description]
+
+hooks:
+  config_format: json
+  config_path: .claude/settings.json
+  event_map:
+    PreToolUse: PreToolUse
+    PostToolUse: PostToolUse
+    Stop: Stop
+    SessionStart: SessionStart
+
+features:
+  parallel_agents: true
+  background_agents: true
+  agent_memory: true
+  worktree_isolation: true
+  plan_mode: true
+
+permissions:
+  modes: [default, acceptEdits, auto, dontAsk, bypassPermissions, plan]
