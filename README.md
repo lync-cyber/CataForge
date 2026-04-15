@@ -266,10 +266,35 @@ CataForgeNext/
 
 ## Roadmap / TODO
 
-- 完善 `upgrade check/apply/verify` 的远程升级实现。
-- 完成 `hook test`、`plugin install/remove` 的落地能力。
-- 增强 MCP 持久化注册体验（CLI `register` 与声明式目录联动）。
-- 提供更多官方平台 profile 与社区插件模板。
+### 已落地
+
+- `upgrade check / apply / verify` — 走**包管理器 + scaffold 刷新**模型（而非远程自升级脚本）。
+- `doctor` — migration_check FAIL 时 exit 1，可作 CI gate。
+- `setup --force-scaffold` — 保留 `runtime.platform` / `upgrade.state` / `PROJECT-STATE.md` 等用户字段。
+- `deploy` — 自动清理 commands / agents 孤儿产物，重部署幂等。
+
+### 下一步
+
+**P1 — 打磨**
+
+- `pyproject.toml` 的 `requires-python` 核对与 `uv tool` 行为对齐（避免绕过）。
+- `setup` 未指定 `--platform` 且 framework.json 未设置时，回显默认平台提示。
+
+**P2 — 跨平台完整性**
+
+- Cursor / Codex / OpenCode 的 skills 与 commands 适配（当前仅 Claude Code 原生支持；Cursor 的 `.cursor/rules` 与 slash command 格式待实测）。
+- Cursor 的 `--apply-permissions` 落地（当前为 stub）。
+- OpenCode hooks 包装为 `.opencode/plugins/*.ts` 的 adapter。
+- `scripts/framework/setup.py` 栈检测扩展（deno / bun / ruby / php / java / dotnet / monorepo）。
+
+**P3 — 质量与 DX**
+
+- migration_check 分级（error / warning / info），让 lint 级规则不阻塞 CI。
+- `doctor --json` 机器可读输出。
+- `setup.py --write-env-block`：直接对 `CLAUDE.md` §执行环境 区块做幂等替换。
+- 扩充 `.cataforge/commands/`（当前仅 `/bootstrap`），补 `/doctor-fix` / `/deploy` 等。
+- MCP 持久化注册体验（CLI `register` 与声明式目录联动）。
+- 社区插件模板与更多官方平台 profile。
 
 ## 开发与测试
 
@@ -277,7 +302,7 @@ CataForgeNext/
 pytest -q
 ```
 
-当前仓库基线：`105 passed`。
+当前仓库基线：`116 passed`。
 
 ## License
 

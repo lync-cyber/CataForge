@@ -20,6 +20,12 @@
   - [2.3 CodeX](#23-codex)
   - [2.4 OpenCode](#24-opencode)
 - [3. 专题验证](#3-专题验证)
+  - [3.1 Hook 生效观察](#31-hook-生效观察)
+  - [3.2 MCP 生命周期与 IDE 接线](#32-mcp-生命周期与-ide-接线)
+  - [3.3 Agent / Skill 发现](#33-agent--skill-发现)
+  - [3.4 自动化回归](#34-自动化回归)
+  - [3.5 升级与 scaffold 刷新](#35-升级与-scaffold-刷新)
+  - [3.6 Deploy 幂等与孤儿清理](#36-deploy-幂等与孤儿清理)
 - [4. 标准测试用例](#4-标准测试用例)
 - [5. 故障排查](#5-故障排查)
 - [6. 验证结果反馈模板](#6-验证结果反馈模板)
@@ -147,6 +153,7 @@ cataforge doctor
 - 末行：`Diagnostics complete.`
 - `framework.json` / `hooks.yaml` 标记 `OK`
 - `claude-code / cursor / codex / opencode` 四个 profile 均 `OK`
+- `Framework migration checks` 段显示 `N/N passed`，**退出码 0**；任一 FAIL 时退出码为 1（可用于 CI gate）
 
 **失败提示（Troubleshoot）**
 
@@ -450,7 +457,46 @@ cataforge skill list
 pytest -q
 ```
 
-**基线**：`105 passed`。
+**基线**：`116 passed`。
+
+### 3.5 升级与 scaffold 刷新
+
+CataForge 采用**包管理器驱动**的升级模型 —— 包本身走 `pip` / `uv tool`，项目内 `.cataforge/` 脚手架由 `cataforge setup --force-scaffold` 刷新。不存在"远程自升级"。
+
+```bash
+# 1) 对比"已安装包版本" vs "项目 scaffold 版本"
+cataforge upgrade check
+
+# 2) 升级包本身
+pip install --upgrade cataforge    # 或: uv tool upgrade cataforge
+
+# 3) 刷新项目 scaffold（保留用户可编辑字段）
+cataforge upgrade apply            # 等价于 setup --force-scaffold --no-deploy
+#   --dry-run 可预览会刷新哪些文件
+
+# 4) 验证迁移检查
+cataforge upgrade verify           # 别名: cataforge doctor
+```
+
+**`--force-scaffold` 保留的用户字段**（不会被覆盖）：
+
+| 文件 | 保留项 |
+|------|-------|
+| `framework.json` | `runtime.platform`（用户选的 IDE）、`upgrade.state`（升级状态） |
+| `PROJECT-STATE.md` | 整个文件（项目运行手册，用户自行维护） |
+
+其余字段（`constants` / `features` / `migration_checks` / `upgrade.source` / `version`）每次都会用最新 scaffold 覆盖。
+
+### 3.6 Deploy 幂等与孤儿清理
+
+多次 `cataforge deploy` 是幂等的，且会自动清理上次部署留下的孤儿：
+
+- `.claude/commands/*.md`（或其它平台对应目录）：源目录里删除 / 重命名的命令会被 prune
+- `.claude/agents/<name>/`：
+  - 源 `agents/` 删除的子目录被 prune（仅删含 `AGENT.md` 的目录，不伤 IDE 原生 / 用户自建 agent）
+  - 子目录内非 `AGENT.md` 的历史文件（如早期的 `ORCHESTRATOR-PROTOCOLS.md`）被 prune
+
+无需手动 `git clean -fd .claude/` 再重部署。
 
 ---
 
@@ -467,7 +513,7 @@ pytest -q
 | 5 | Cursor 干运行 | `cataforge deploy --check --platform cursor` | 命中 `hooks.json` + `.mdc` |
 | 6 | CodeX 干运行 | `cataforge deploy --check --platform codex` | 命中 `AGENTS.md` + `config.toml` |
 | 7 | OpenCode 降级 | `cataforge deploy --check --platform opencode` | 含 `SKIP:` + `rules_injection` |
-| 8 | 自动化回归 | `pytest -q` | 退出码 0（`105 passed`） |
+| 8 | 自动化回归 | `pytest -q` | 退出码 0（`116 passed`） |
 | 9 | MCP 生命周期 | 见 §3.2 | `list` / `start` / `stop` 均成功 |
 | 10 | IDE 内生效 | §2 各平台 Step 4 | 至少一个 IDE 观测到 Agent+Rules+MCP |
 

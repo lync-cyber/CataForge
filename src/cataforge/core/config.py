@@ -67,18 +67,19 @@ class ConfigManager:
 
     @property
     def runtime_platform(self) -> str:
-        return str(self.load().get("runtime", {}).get("platform", "claude-code"))
+        runtime = self.load().get("runtime") or {}
+        return str(runtime.get("platform", "claude-code"))
 
     @property
     def constants(self) -> dict[str, Any]:
-        return dict(self.load().get("constants", {}))
+        return dict(self.load().get("constants") or {})
 
     def get_constant(self, name: str, default: Any = None) -> Any:
         return self.constants.get(name, default)
 
     @property
     def features(self) -> dict[str, Any]:
-        return dict(self.load().get("features", {}))
+        return dict(self.load().get("features") or {})
 
     def is_feature_enabled(self, feature_id: str) -> bool:
         feat = self.features.get(feature_id)
@@ -88,7 +89,8 @@ class ConfigManager:
 
     @property
     def upgrade_source(self) -> dict[str, Any]:
-        return dict(self.load().get("upgrade", {}).get("source", {}))
+        upgrade = self.load().get("upgrade") or {}
+        return dict(upgrade.get("source") or {})
 
     # ---- save helpers ----
 

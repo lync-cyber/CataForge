@@ -23,8 +23,19 @@ def translate_agent_md(content: str, adapter: PlatformAdapter) -> str:
 
     def translate_field(match: re.Match[str]) -> str:
         field_name = match.group(1)
-        caps_str = match.group(2)
+        caps_str = match.group(2).strip()
+
+        # Normalize YAML flow-style list syntax: `[]` or `[a, b]` → `a, b`.
+        # Without this, a literal `disallowedTools: []` would parse as the
+        # single "capability" `[]`, get looked up in tool_map, and spam a
+        # bogus "no platform mapping" warning.
+        if caps_str.startswith("[") and caps_str.endswith("]"):
+            caps_str = caps_str[1:-1]
+
         caps = [c.strip() for c in caps_str.split(",") if c.strip()]
+
+        if not caps:
+            return f"{field_name}: []"
 
         dropped = [c for c in caps if tool_map.get(c) is None]
         if dropped:

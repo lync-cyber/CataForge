@@ -65,6 +65,14 @@ class Deployer:
         if rules_dir.is_dir():
             actions.extend(adapter.deploy_rules(rules_dir, root, dry_run=dry_run))
 
+        skills_dir = self._cfg.paths.skills_dir
+        if adapter.needs_skill_deploy and skills_dir.is_dir():
+            actions.extend(adapter.deploy_skills(skills_dir, root, dry_run=dry_run))
+
+        commands_dir = self._cfg.paths.commands_dir
+        if adapter.needs_command_deploy and commands_dir.is_dir():
+            actions.extend(adapter.deploy_commands(commands_dir, root, dry_run=dry_run))
+
         actions.extend(self._apply_degradation(root, adapter, dry_run=dry_run))
         actions.extend(self._deploy_mcp(root, platform_id, adapter, dry_run=dry_run))
 

@@ -26,6 +26,18 @@ agent_definition:
     - .claude/agents
   needs_deploy: true
 
+skill_definition:
+  # Claude Code discovers project skills under .claude/skills/.  We expose the
+  # canonical sources in .cataforge/skills/ via junction (Windows) / symlink
+  # (Unix) so edits round-trip without a re-deploy.
+  target_dir: .claude/skills
+  needs_deploy: true
+
+command_definition:
+  # Slash commands: each .md file in .claude/commands/ becomes /<name>.
+  target_dir: .claude/commands
+  needs_deploy: true
+
 agent_config:
   supported_fields:
     - name

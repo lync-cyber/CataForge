@@ -74,18 +74,23 @@ class TestListCommands:
 class TestStubCommands:
     """Commands on the roadmap should fail fast with a clear message."""
 
-    def test_upgrade_check_is_stub(self, fresh_project: Path) -> None:
+    def test_upgrade_check_reports_versions(self, fresh_project: Path) -> None:
+        """check is no longer a stub — it compares installed vs scaffold."""
         result = _invoke("upgrade", "check")
-        assert result.exit_code == STUB_EXIT_CODE
-        assert "尚未实现" in result.output or "尚未实现" in (result.stderr or "")
+        assert result.exit_code == 0, result.output
+        assert "Scaffold version" in result.output
+        assert "Installed package" in result.output
 
-    def test_upgrade_apply_is_stub(self, fresh_project: Path) -> None:
-        result = _invoke("upgrade", "apply")
-        assert result.exit_code == STUB_EXIT_CODE
+    def test_upgrade_apply_dry_run(self, fresh_project: Path) -> None:
+        result = _invoke("upgrade", "apply", "--dry-run")
+        assert result.exit_code == 0, result.output
+        assert "Would refresh" in result.output
 
-    def test_upgrade_verify_is_stub(self, fresh_project: Path) -> None:
+    def test_upgrade_verify_delegates_to_doctor(self, fresh_project: Path) -> None:
         result = _invoke("upgrade", "verify")
-        assert result.exit_code == STUB_EXIT_CODE
+        # verify is an alias for doctor — exit code depends on checks, but the
+        # banner confirms delegation happened.
+        assert "CataForge Doctor" in result.output
 
     def test_hook_test_is_stub(self, fresh_project: Path) -> None:
         result = _invoke("hook", "test", "pre-commit")

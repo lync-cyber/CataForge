@@ -107,24 +107,58 @@ class PlatformAdapter(ABC):
         if not source_dir.is_dir():
             return actions
 
-        for agent_name in sorted(d.name for d in source_dir.iterdir() if d.is_dir()):
-            agent_src = source_dir / agent_name
+        source_agents = {
+            d.name
+            for d in source_dir.iterdir()
+            if d.is_dir() and (d / "AGENT.md").is_file()
+        }
+
+        # Only AGENT.md is an IDE-visible agent definition. Sibling files
+        # (e.g. ORCHESTRATOR-PROTOCOLS.md) are reference material for the
+        # agent itself — they live in .cataforge/ and are read by the agent
+        # at runtime, not registered as additional agents.
+        for agent_name in sorted(source_agents):
+            agent_md = source_dir / agent_name / "AGENT.md"
             agent_dst = target_dir / agent_name
             if dry_run:
-                for md_file in sorted(agent_src.glob("*.md")):
-                    actions.append(
-                        f"would deploy agents/{agent_name}/{md_file.name} → "
-                        f"{scan_dirs[0]}/{md_file.name}"
-                    )
+                actions.append(
+                    f"would deploy agents/{agent_name}/AGENT.md → "
+                    f"{scan_dirs[0]}/{agent_name}/AGENT.md"
+                )
                 continue
 
             agent_dst.mkdir(exist_ok=True)
+            content = agent_md.read_text(encoding="utf-8")
+            translated = translate_agent_md(content, self)
+            (agent_dst / "AGENT.md").write_text(translated, encoding="utf-8")
+            actions.append(f"agents/{agent_name}/AGENT.md → {scan_dirs[0]}")
 
-            for md_file in sorted(agent_src.glob("*.md")):
-                content = md_file.read_text(encoding="utf-8")
-                translated = translate_agent_md(content, self)
-                (agent_dst / md_file.name).write_text(translated, encoding="utf-8")
-                actions.append(f"agents/{agent_name}/{md_file.name} → {scan_dirs[0]}")
+            # Prune stale sibling files inside this agent subdir — they were
+            # historically deployed (e.g. ORCHESTRATOR-PROTOCOLS.md) but are
+            # no longer part of the IDE-visible surface.
+            for stale in agent_dst.iterdir():
+                if stale.is_file() and stale.name != "AGENT.md":
+                    stale.unlink()
+                    actions.append(f"pruned stale {scan_dirs[0]}/{agent_name}/{stale.name}")
+
+        # Prune orphan agent subdirs that no longer exist in source. We only
+        # remove dirs that look like ours (have AGENT.md) so we never touch
+        # IDE-native or user-authored agents living alongside.
+        if target_dir.is_dir():
+            for existing in target_dir.iterdir():
+                if (
+                    not existing.is_dir()
+                    or existing.name in source_agents
+                    or not (existing / "AGENT.md").is_file()
+                ):
+                    continue
+                if dry_run:
+                    actions.append(f"would prune orphan {scan_dirs[0]}/{existing.name}/")
+                else:
+                    import shutil as _shutil
+
+                    _shutil.rmtree(existing)
+                    actions.append(f"pruned orphan {scan_dirs[0]}/{existing.name}/")
 
         return actions
 
@@ -223,6 +257,85 @@ class PlatformAdapter(ABC):
         When present, these override tool_map for hook matcher resolution only.
         """
         return dict(self._profile.get("hooks", {}).get("tool_overrides", {}))
+
+    # ---- skills deployment ----
+
+    @property
+    def needs_skill_deploy(self) -> bool:
+        """Whether this platform wants skill definitions deployed to an IDE-visible path."""
+        return bool(self._profile.get("skill_definition", {}).get("needs_deploy", False))
+
+    def get_skill_target_dir(self) -> str | None:
+        """Target directory (relative to project root) for IDE-visible skills."""
+        target = self._profile.get("skill_definition", {}).get("target_dir")
+        return str(target) if target else None
+
+    def deploy_skills(
+        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+    ) -> list[str]:
+        """Expose skills to the IDE via symlink/junction/copy, like rules.
+
+        Default: link ``<target_dir>`` → ``.cataforge/skills``.  Subclasses can
+        override to transform content per platform.
+        """
+        from cataforge.platform.helpers import symlink_or_copy
+
+        target_rel = self.get_skill_target_dir()
+        if not target_rel or not source_dir.is_dir():
+            return []
+        target = project_root / target_rel
+        return symlink_or_copy(source_dir, target, dry_run=dry_run)
+
+    # ---- slash commands deployment ----
+
+    @property
+    def needs_command_deploy(self) -> bool:
+        """Whether this platform has a slash-command surface to deploy to."""
+        return bool(self._profile.get("command_definition", {}).get("needs_deploy", False))
+
+    def get_command_target_dir(self) -> str | None:
+        """Target directory (relative to project root) for IDE-visible slash commands."""
+        target = self._profile.get("command_definition", {}).get("target_dir")
+        return str(target) if target else None
+
+    def deploy_commands(
+        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+    ) -> list[str]:
+        """Copy ``.cataforge/commands/*.md`` into the platform's slash-command dir.
+
+        Default: flat copy of every ``*.md`` file.  Subclasses may override for
+        platforms with different slash-command formats.
+        """
+        target_rel = self.get_command_target_dir()
+        if not target_rel or not source_dir.is_dir():
+            return []
+        target_dir = project_root / target_rel
+        if not dry_run:
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+        source_names = {md.name for md in source_dir.glob("*.md")}
+        actions: list[str] = []
+
+        # Prune stale commands that were deployed previously but removed / renamed
+        # upstream. Only touch *.md files — never delete IDE-native artifacts.
+        if target_dir.is_dir():
+            for existing in target_dir.glob("*.md"):
+                if existing.name in source_names:
+                    continue
+                if dry_run:
+                    actions.append(f"would prune orphan {target_rel}/{existing.name}")
+                else:
+                    existing.unlink()
+                    actions.append(f"pruned orphan {target_rel}/{existing.name}")
+
+        for md_file in sorted(source_dir.glob("*.md")):
+            dst = target_dir / md_file.name
+            if dry_run:
+                actions.append(f"would deploy commands/{md_file.name} → {target_rel}/{md_file.name}")
+                continue
+            dst.write_text(md_file.read_text(encoding="utf-8"), encoding="utf-8")
+            actions.append(f"commands/{md_file.name} → {target_rel}")
+        return actions
 
     # ---- rules deployment ----
 

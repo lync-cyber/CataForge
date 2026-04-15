@@ -70,6 +70,14 @@ class ProjectPaths:
         return self.cataforge_dir / "hooks"
 
     @property
+    def commands_dir(self) -> Path:
+        return self.cataforge_dir / "commands"
+
+    @property
+    def scripts_dir(self) -> Path:
+        return self.cataforge_dir / "scripts"
+
+    @property
     def hooks_spec(self) -> Path:
         return self.hooks_dir / "hooks.yaml"
 
