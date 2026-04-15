@@ -5,7 +5,7 @@
 ## 可用文档
 
 - [架构与工作流说明](./workflow.md) — 整体架构、运行时工作流、编排协议、平台适配机制
-- [Agent 与 Skill 清单](./agents-and-skills.md) — 13 个 Agent 和 23 个 Skill 的完整说明
+- [Agent 与 Skill 清单](./agents-and-skills.md) — 13 个 Agent 和 24 个 Skill 的完整说明
 - [手动验证指南](./manual-verification-guide.md) — 分 IDE 验证流程与标准测试用例
 
 ## 维护约定

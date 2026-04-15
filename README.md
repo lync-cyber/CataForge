@@ -2,7 +2,7 @@
 
 一个面向 AI 编程工作流的统一框架：用一套 `.cataforge/` 规范，同时驱动 Agent、Skill、Hook、MCP 与多 IDE 适配。
 
-> **当前版本：0.1.0（初始版本）**
+> **当前版本：0.1.1**
 
 ## 项目概述
 
@@ -24,7 +24,7 @@
 - **多平台适配层**：统一能力 ID，按平台映射原生工具名与事件模型（Claude Code / Cursor / CodeX / OpenCode）。
 - **模块化部署**：`deploy` 一次执行 agent/rule/hook/降级策略的完整投放。
 - **13 个专业 Agent**：覆盖产品经理、架构师、UI 设计师、技术主管、TDD 三阶段执行者、评审员、QA、DevOps 等角色。
-- **23 个可复用 Skill**：涵盖文档生成、代码审查、TDD 引擎、Sprint 回顾、变更守卫、设计工具集成等领域。
+- **24 个可复用 Skill**：涵盖文档生成、代码审查、TDD 引擎、Sprint 回顾、变更守卫、设计工具集成等领域。
 - **TDD 驱动开发**：内置 RED→GREEN→REFACTOR 三阶段开发引擎，支持 standard/light 两种模式。
 - **多层质量门禁**：文档双层审计（脚本 + AI）、代码双层审查（lint + AI）、Sprint 完成度检查。
 - **Skill 体系**：支持项目本地技能与内置技能共存，支持脚本型与说明型技能。
@@ -32,7 +32,7 @@
 - **Hook 桥接**：平台支持原生 hook 时直接接入，不支持时自动降级为规则注入/提示检查。
 - **三种执行模式**：standard（完整 7 阶段）、agile-lite（轻量敏捷）、agile-prototype（快速原型）。
 - **学习系统**：On-Correction Learning 钩子 + 反思者 Agent 提取跨项目经验。
-- **可测试**：核心模块含测试覆盖（当前仓库 `pytest` 通过 67 项用例）。
+- **可测试**：核心模块含测试覆盖（当前仓库 `pytest` 通过 105 项用例）。
 
 ## 架构设计（Architecture Overview）
 
@@ -199,7 +199,7 @@ cataforge deploy --check --platform cursor
 输入：
 
 ```bash
-PYTHONUTF8=1 PYTHONPATH=src python -m cataforge skill list
+cataforge skill list
 ```
 
 输出示例（节选）：
@@ -215,7 +215,7 @@ sprint-review (instructional): sprint-review
 输入：
 
 ```bash
-PYTHONUTF8=1 PYTHONPATH=src python -m cataforge deploy --check --platform codex
+cataforge deploy --check --platform codex
 ```
 
 输出示例（节选）：
@@ -231,8 +231,8 @@ Deploy complete.
 ```text
 CataForgeNext/
   pyproject.toml               # 包定义、依赖、脚本入口
-  src/cataforge/               # 框架源码（87 个 Python 模块，11 个子包）
-  tests/                       # 自动化测试（67 项用例）
+  src/cataforge/               # 框架源码（88 个 Python 模块，13 个子包）
+  tests/                       # 自动化测试（105 项用例）
   docs/                        # 项目文档
   .cataforge/
     framework.json             # 统一框架配置（单一来源）
@@ -254,10 +254,10 @@ CataForgeNext/
 ## 开发与测试
 
 ```bash
-PYTHONUTF8=1 PYTHONPATH=src pytest -q
+pytest -q
 ```
 
-当前仓库基线：`67 passed`。
+当前仓库基线：`105 passed`。
 
 ## License
 
