@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" role="img" aria-label="CataForge TDD 引擎流程">
+  <title>CataForge TDD 引擎流程</title>
+  <desc>微任务 → LOC 判定 → standard (RED/GREEN/REFACTOR) 或 light → Sprint Review 汇合。</desc>
+
+  <defs>
+    <marker id="arrow4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a8a29e"/>
+    </marker>
+    <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="0" cy="0" r="0.6" fill="#a8a29e" opacity="0.35"/>
+    </pattern>
+    <style>
+      .card       { fill: #fdfcf7; stroke: #a8a29e; stroke-width: 1; }
+      .card-emph  { fill: #fdf3d7; stroke: #b45309; stroke-width: 1.4; }
+      .rule       { stroke: #a8a29e; stroke-width: 1; fill: none; }
+      .dash       { stroke: #a8a29e; stroke-width: 1; stroke-dasharray: 3 3; fill: none; }
+      .tag        { fill: #b45309; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
+      .title      { fill: #1c1917; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 13px; font-weight: 700; }
+      .title-emph { fill: #7c2d12; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 13px; font-weight: 700; }
+      .sub        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10.5px; }
+      .hint       { fill: #78716c; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; font-style: italic; }
+      .cap        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.4px; }
+      .label      { fill: #7c2d12; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.0px; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="900" height="520" fill="url(#grid)"/>
+
+  <text class="cap" x="20" y="22">CATAFORGE · TDD ENGINE</text>
+  <line class="rule" x1="20" y1="30" x2="880" y2="30"/>
+
+  <!-- Entry: task decision -->
+  <g transform="translate(310,48)">
+    <rect class="card-emph" width="280" height="70" rx="2"/>
+    <text class="tag"        x="14" y="20">ENTRY · DECIDE</text>
+    <text class="title-emph" x="14" y="42">TDD 模式判定（每个微任务）</text>
+    <text class="sub"        x="14" y="60">LOC ≤ 50 → light       LOC &gt; 50 → standard</text>
+  </g>
+
+  <!-- Split arrows -->
+  <path class="rule" d="M380,118 L380,150 L180,150 L180,170" marker-end="url(#arrow4)"/>
+  <path class="rule" d="M520,118 L520,150 L720,150 L720,170" marker-end="url(#arrow4)"/>
+  <text class="label" x="240" y="145">LOC &gt; 50</text>
+  <text class="label" x="610" y="145">LOC ≤ 50</text>
+
+  <!-- ============ Left column: STANDARD ============ -->
+  <g transform="translate(60,174)">
+    <rect class="card" width="240" height="280" rx="2"/>
+    <text class="tag" x="14" y="20">STANDARD · 3 STAGES</text>
+    <line class="rule" x1="14" y1="30" x2="226" y2="30"/>
+
+    <!-- RED -->
+    <g transform="translate(14,44)">
+      <rect class="card" width="212" height="64" rx="2"/>
+      <text class="label" x="10" y="16">RED · test-writer</text>
+      <text class="sub"   x="10" y="36">编写失败测试</text>
+      <text class="hint"  x="10" y="52">验证全部 FAIL</text>
+    </g>
+    <path class="rule" d="M120,112 L120,128" marker-end="url(#arrow4)"/>
+
+    <!-- GREEN -->
+    <g transform="translate(14,132)">
+      <rect class="card" width="212" height="64" rx="2"/>
+      <text class="label" x="10" y="16">GREEN · implementer</text>
+      <text class="sub"   x="10" y="36">最小实现使测试通过</text>
+      <text class="hint"  x="10" y="52">验证全部 PASS</text>
+    </g>
+    <path class="rule" d="M120,200 L120,216" marker-end="url(#arrow4)"/>
+
+    <!-- REFACTOR -->
+    <g transform="translate(14,220)">
+      <rect class="card" width="212" height="52" rx="2"/>
+      <text class="label" x="10" y="16">REFACTOR · refactorer</text>
+      <text class="sub"   x="10" y="36">代码优化</text>
+    </g>
+  </g>
+  <text class="hint" x="80" y="470">FAIL → rolled-back</text>
+
+  <!-- ============ Right column: LIGHT ============ -->
+  <g transform="translate(600,174)">
+    <rect class="card" width="240" height="280" rx="2"/>
+    <text class="tag" x="14" y="20">LIGHT · 1 STAGE</text>
+    <line class="rule" x1="14" y1="30" x2="226" y2="30"/>
+
+    <!-- MERGED -->
+    <g transform="translate(14,44)">
+      <rect class="card" width="212" height="80" rx="2"/>
+      <text class="label" x="10" y="16">RED+GREEN · implementer</text>
+      <text class="sub"   x="10" y="36">编写测试 + 实现</text>
+      <text class="sub"   x="10" y="54">合并单阶段产出</text>
+      <text class="hint"  x="10" y="70">验证全部 PASS</text>
+    </g>
+    <path class="rule" d="M120,128 L120,144" marker-end="url(#arrow4)"/>
+
+    <!-- Optional REFACTOR -->
+    <g transform="translate(14,148)">
+      <rect class="card" width="212" height="52" rx="2" stroke-dasharray="4 3"/>
+      <text class="label" x="10" y="16">REFACTOR · optional</text>
+      <text class="sub"   x="10" y="36">按需进行</text>
+    </g>
+
+    <text class="hint" x="14" y="236">阈值：TDD_LIGHT_LOC_THRESHOLD</text>
+    <text class="hint" x="14" y="252">默认 50 LOC，可由常量覆盖</text>
+  </g>
+
+  <!-- Merge arrows to Sprint Review -->
+  <path class="rule" d="M180,454 L180,488 L380,488" marker-end="url(#arrow4)"/>
+  <path class="rule" d="M720,454 L720,488 L520,488" marker-end="url(#arrow4)"/>
+
+  <!-- Sprint Review trigger -->
+  <g transform="translate(340,466)">
+    <rect class="card-emph" width="220" height="36" rx="2"/>
+    <text class="tag"        x="12" y="14">TRIGGER</text>
+    <text class="title-emph" x="12" y="30">Sprint Review</text>
+  </g>
+
+  <!-- Footer ruler -->
+  <line class="rule" x1="20" y1="504" x2="880" y2="504"/>
+  <text class="cap"  x="20"  y="515">TDD ENGINE</text>
+  <text class="cap"  x="810" y="515">FIG. 06</text>
+</svg>

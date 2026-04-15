@@ -2,7 +2,19 @@
 
 本文档描述 CataForge 框架的整体架构、运行时工作流、核心编排协议与平台适配机制。
 
-> **版本**：0.1.0
+> **版本**：0.1.1
+
+## 目录
+
+1. [整体架构](#1-整体架构) — 五层架构栈（FIG. 03）
+2. [运行时工作流](#2-运行时工作流) — 执行模式（FIG. 04）· 阶段执行（FIG. 05）· TDD 引擎（FIG. 06）
+3. [平台适配机制](#3-平台适配机制) — 适配器翻译（FIG. 07）
+4. [质量保障机制](#4-质量保障机制)
+5. [学习系统](#5-学习系统)
+6. [统一状态码](#6-统一状态码)
+7. [文档引用格式](#7-文档引用格式)
+8. [事件日志](#8-事件日志)
+9. [CLI 命令参考](#9-cli-命令参考)
 
 ---
 
@@ -10,26 +22,11 @@
 
 ### 1.1 架构层次
 
-CataForge 采用分层架构，从上到下依次为：
+CataForge 采用分层架构，从上到下依次为：依赖方向向下，`PlatformAdapter` 层是屏蔽 IDE 差异的核心抽象。
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│                    CLI 命令层                             │
-│  setup | deploy | doctor | skill | agent | hook | mcp   │
-├─────────────────────────────────────────────────────────┤
-│                  编排与调度层                              │
-│  Orchestrator → Agent Dispatch → Sub-Agent 执行          │
-├──────────────┬──────────────┬───────────────────────────┤
-│  能力域层     │              │                           │
-│  Agent 管理   │  Skill 执行  │  Hook 桥接  │  MCP 管理   │
-├──────────────┴──────────────┴───────────────────────────┤
-│                  平台适配层                               │
-│  PlatformAdapter (Claude Code | Cursor | CodeX | OpenCode)│
-├─────────────────────────────────────────────────────────┤
-│                  核心基础层                               │
-│  ConfigManager | ProjectPaths | EventBus | Types         │
-└─────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="./assets/architecture-stack.svg" alt="CataForge 五层架构栈" width="100%">
+</p>
 
 ### 1.2 核心模块职责
 
@@ -97,125 +94,34 @@ Step 9: 进入初始阶段
 
 ### 2.2 三种执行模式
 
-CataForge 支持三种执行模式，适应不同规模的项目需求：
+CataForge 支持三种执行模式，适应不同规模的项目需求。三条流水线用同一 pill 宽度绘制，便于目测仪式量差异：
 
-#### standard 模式（默认）
+<p align="center">
+  <img src="./assets/execution-modes.svg" alt="CataForge 三种执行模式对比" width="100%">
+</p>
 
-完整的 7 阶段 SDLC 流程：
-
-```text
-Phase 1: requirements    → product-manager → PRD
-Phase 2: architecture    → architect       → Architecture Doc
-Phase 3: ui_design       → ui-designer     → UI Spec
-Phase 4: dev_planning    → tech-lead       → Dev Plan
-Phase 5: development     → TDD Engine (test-writer → implementer → refactorer)
-Phase 6: testing         → qa-engineer     → Test Report
-Phase 7: deployment      → devops          → Deploy Spec
-```
-
-每个阶段产出的文档类型：PRD、Architecture Doc、UI Spec、Dev Plan、Test Report、Deploy Spec。
-
-#### agile-lite 模式
-
-合并需求与架构阶段，使用轻量文档模板：
-
-```text
-Phase 1: planning     → product-manager + architect（合并）→ prd-lite + arch-lite
-Phase 2: dev_planning → tech-lead → dev-plan-lite
-Phase 3: development  → TDD Engine
-Phase 4: testing      → qa-engineer
-Phase 5: deployment   → devops
-```
-
-文档限制：prd-lite、arch-lite、dev-plan-lite 各不超过 50 行。
-
-#### agile-prototype 模式
-
-最小流程，适合快速验证：
-
-```text
-Phase 1: brief       → product-manager（简报合并 Phase 1~4）→ brief（≤150 行）
-Phase 2: development → TDD Engine（直接进入开发）
-```
+- **standard** — 7 阶段完整 SDLC，产出：PRD、Architecture Doc、UI Spec、Dev Plan、Test Report、Deploy Spec。
+- **agile-lite** — 5 阶段，合并需求与架构，使用轻量模板（prd-lite / arch-lite / dev-plan-lite 各 ≤ 50 行）。
+- **agile-prototype** — 2 阶段，最小流程；brief ≤ 150 行直接进入开发，适合快速验证。
 
 ### 2.3 阶段执行流程
 
-每个阶段遵循统一的执行流程：
+每个阶段遵循统一的五段执行流程，分支出口标注在右侧：
 
-```text
-┌──────────────────────────┐
-│    编排器选择阶段 Agent    │
-└──────────┬───────────────┘
-           ▼
-┌──────────────────────────┐
-│   Agent 执行任务          │
-│   ├── new_creation       │
-│   ├── continuation       │  ← 中断恢复
-│   ├── revision           │  ← 修订
-│   └── amendment          │  ← 变更
-└──────────┬───────────────┘
-           ▼
-┌──────────────────────────┐
-│   Agent 返回结果          │
-│   ├── completed          │ → 进入审查
-│   ├── needs_input        │ → 中断，等待用户输入
-│   └── blocked            │ → 需要外部干预
-└──────────┬───────────────┘
-           ▼ (completed)
-┌──────────────────────────┐
-│   Reviewer 审查           │
-│   ├── approved           │ → 阶段转换
-│   ├── approved_with_notes│ → 用户决策
-│   └── needs_revision     │ → 修订循环
-└──────────┬───────────────┘
-           ▼ (approved)
-┌──────────────────────────┐
-│   阶段转换协议            │
-│   1. 更新文档状态         │
-│   2. 更新 CLAUDE.md      │
-│   3. 更新阶段信息         │
-│   4. 一致性检查           │
-│   5. 批量事件日志         │
-│   6. 激活下一阶段 Agent   │
-└──────────────────────────┘
-```
+<p align="center">
+  <img src="./assets/phase-execution.svg" alt="CataForge 阶段执行流程" width="80%">
+</p>
 
 ### 2.4 TDD 开发流程（Development 阶段）
 
-Development 阶段使用 TDD Engine 编排，按微任务逐个推进：
+Development 阶段使用 TDD Engine 编排，按微任务逐个推进。每个微任务先由 LOC 判定走 standard 还是 light，完成若干微任务后触发 Sprint Review：
 
-```text
-对每个微任务 (task):
-    ┌─────────────────────┐
-    │  判定 TDD 模式       │
-    │  LOC ≤ 50 → light   │
-    │  LOC > 50 → standard│
-    └──────────┬──────────┘
-               ▼
-    ┌──── standard 模式 ────┐     ┌──── light 模式 ────┐
-    │                       │     │                     │
-    │  RED: test-writer     │     │  implementer        │
-    │  ├── 编写失败测试      │     │  ├── 编写测试+实现   │
-    │  └── 验证全部 FAIL    │     │  └── 验证全部 PASS   │
-    │         ▼             │     │         ▼           │
-    │  GREEN: implementer   │     │  REFACTOR (可选)     │
-    │  ├── 最小实现          │     │                     │
-    │  └── 验证全部 PASS    │     └─────────────────────┘
-    │         ▼             │
-    │  REFACTOR: refactorer │
-    │  ├── 代码优化          │
-    │  ├── 验证仍然 PASS    │
-    │  └── FAIL → rolled-back│
-    └───────────────────────┘
-               ▼
-    ┌─────────────────────┐
-    │  Sprint Review       │
-    │  每完成 N 个微任务    │
-    │  触发完成度审查       │
-    │  (N = SPRINT_REVIEW_ │
-    │   MICRO_TASK_COUNT)  │
-    └─────────────────────┘
-```
+<p align="center">
+  <img src="./assets/tdd-engine.svg" alt="CataForge TDD 引擎流程" width="95%">
+</p>
+
+> Sprint Review 触发条件：完成 `SPRINT_REVIEW_MICRO_TASK_COUNT` 个微任务。
+> `REFACTOR` 阶段若测试失败，状态回滚为 `rolled-back`，保留 GREEN 阶段产出。
 
 ### 2.5 中断恢复协议
 
@@ -261,19 +167,11 @@ Development 阶段使用 TDD Engine 编排，按微任务逐个推进：
 
 ### 3.1 适配原理
 
-CataForge 通过 `PlatformAdapter` 抽象层屏蔽 IDE 差异：
+CataForge 通过 `PlatformAdapter` 抽象层屏蔽 IDE 差异。同一份规范资产（`.cataforge/`）经 Adapter 翻译为各平台原生文件：
 
-```text
-.cataforge/ 规范资产                    平台原生资产
-(统一格式)                              (IDE 特定格式)
-                    ┌──────────┐
-AGENT.md ──────────→│ Platform │──────→ .claude/agents/*.md
-hooks.yaml ────────→│ Adapter  │──────→ .cursor/hooks.json
-COMMON-RULES.md ───→│          │──────→ .cursor/rules/*.mdc
-mcp/*.yaml ────────→│          │──────→ .mcp.json / config.toml
-PROJECT-STATE.md ──→│          │──────→ CLAUDE.md / AGENTS.md
-                    └──────────┘
-```
+<p align="center">
+  <img src="./assets/adapter-translation.svg" alt="CataForge 平台适配器翻译关系" width="100%">
+</p>
 
 ### 3.2 平台能力对比
 

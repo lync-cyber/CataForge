@@ -1,5 +1,11 @@
 # CataForge
 
+[![Python](https://img.shields.io/badge/python-%3E%3D3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![PyPI](https://img.shields.io/pypi/v/cataforge?color=b45309)](https://pypi.org/project/cataforge/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-1c1917.svg)](./LICENSE)
+[![Tests](https://img.shields.io/badge/tests-105%20passed-success)](./tests)
+[![Platforms](https://img.shields.io/badge/platforms-Claude%20Code%20%7C%20Cursor%20%7C%20CodeX%20%7C%20OpenCode-b45309)](./docs/manual-verification-guide.md)
+
 一个面向 AI 编程工作流的统一框架：用一套 `.cataforge/` 规范，同时驱动 Agent、Skill、Hook、MCP 与多 IDE 适配。
 
 > **当前版本：0.1.1**
@@ -51,7 +57,8 @@
 - `utils`: 通用工具（frontmatter 解析、Markdown 处理、YAML、Docker 等）。
 - `cli`: 统一命令入口。
 
-源码结构：
+<details>
+<summary>源码结构（13 子包 · 点击展开）</summary>
 
 ```text
 src/cataforge/
@@ -69,6 +76,8 @@ src/cataforge/
   schema/         # 数据模型校验
   utils/          # frontmatter/markdown/yaml/docker 等通用工具
 ```
+
+</details>
 
 详细架构与工作流说明：[`docs/workflow.md`](./docs/workflow.md)
 
@@ -234,6 +243,9 @@ Deploy complete.
 
 ## 目录结构（Project Structure）
 
+<details>
+<summary>完整项目目录（点击展开）</summary>
+
 ```text
 CataForgeNext/
   pyproject.toml               # 包定义、依赖、脚本入口
@@ -249,6 +261,8 @@ CataForgeNext/
     rules/                     # 通用规则与子代理协议
     platforms/*/profile.yaml   # 各平台能力映射与降级策略
 ```
+
+</details>
 
 ## Roadmap / TODO
 

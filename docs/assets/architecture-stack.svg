@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" role="img" aria-label="CataForge 五层架构栈">
+  <title>CataForge 五层架构栈</title>
+  <desc>从上到下：CLI 命令层 / 编排与调度层 / 能力域层 / 平台适配层 / 核心基础层。</desc>
+
+  <defs>
+    <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="0" cy="0" r="0.6" fill="#a8a29e" opacity="0.35"/>
+    </pattern>
+    <style>
+      .card       { fill: #fdfcf7; stroke: #a8a29e; stroke-width: 1; }
+      .card-emph  { fill: #fdf3d7; stroke: #b45309; stroke-width: 1.6; }
+      .rule       { stroke: #a8a29e; stroke-width: 1; fill: none; }
+      .layer-tag  { fill: #b45309; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
+      .title      { fill: #1c1917; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 14px; font-weight: 700; }
+      .title-emph { fill: #7c2d12; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 14px; font-weight: 700; }
+      .sub        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 11px; }
+      .cap        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.4px; }
+      .side       { fill: #78716c; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 1.5px; }
+    </style>
+  </defs>
+
+  <!-- Grid background -->
+  <rect x="0" y="0" width="720" height="360" fill="url(#grid)"/>
+
+  <!-- Title band -->
+  <text class="cap" x="20"  y="22">CATAFORGE · LAYERED ARCHITECTURE</text>
+  <line class="rule" x1="20" y1="30" x2="700" y2="30"/>
+
+  <!-- Side axis label -->
+  <text class="side" x="14" y="180" transform="rotate(-90 14,180)">DEPENDENCY · DOWNWARD</text>
+
+  <!-- Layer 1: CLI -->
+  <g transform="translate(40,44)">
+    <rect class="card" x="0" y="0" width="660" height="52" rx="2"/>
+    <text class="layer-tag" x="14" y="18">L1 · CLI</text>
+    <text class="title"     x="14" y="38">CLI 命令层</text>
+    <text class="sub"       x="200" y="38">setup · deploy · doctor · skill · agent · hook · mcp · plugin · upgrade</text>
+  </g>
+
+  <!-- Layer 2: Orchestration -->
+  <g transform="translate(40,104)">
+    <rect class="card" x="0" y="0" width="660" height="52" rx="2"/>
+    <text class="layer-tag" x="14" y="18">L2 · ORCHESTRATION</text>
+    <text class="title"     x="14" y="38">编排与调度层</text>
+    <text class="sub"       x="200" y="38">Orchestrator → Agent Dispatch → Sub-Agent 执行</text>
+  </g>
+
+  <!-- Layer 3: Capability domains (split into 4 cells) -->
+  <g transform="translate(40,164)">
+    <rect class="card" x="0" y="0" width="660" height="52" rx="2"/>
+    <text class="layer-tag" x="14" y="18">L3 · CAPABILITY DOMAINS</text>
+    <!-- vertical dividers -->
+    <line class="rule" x1="180" y1="24" x2="180" y2="48"/>
+    <line class="rule" x1="340" y1="24" x2="340" y2="48"/>
+    <line class="rule" x1="500" y1="24" x2="500" y2="48"/>
+    <text class="title" x="14"  y="42">Agent 管理</text>
+    <text class="title" x="194" y="42">Skill 执行</text>
+    <text class="title" x="354" y="42">Hook 桥接</text>
+    <text class="title" x="514" y="42">MCP 管理</text>
+  </g>
+
+  <!-- Layer 4: Platform adapters (emphasized) -->
+  <g transform="translate(40,224)">
+    <rect class="card-emph" x="0" y="0" width="660" height="52" rx="2"/>
+    <text class="layer-tag"  x="14" y="18">L4 · PLATFORM ADAPTERS</text>
+    <text class="title-emph" x="14" y="38">PlatformAdapter</text>
+    <text class="sub"        x="200" y="38">Claude Code · Cursor · CodeX · OpenCode</text>
+  </g>
+
+  <!-- Layer 5: Core foundation -->
+  <g transform="translate(40,284)">
+    <rect class="card" x="0" y="0" width="660" height="52" rx="2"/>
+    <text class="layer-tag" x="14" y="18">L5 · CORE FOUNDATION</text>
+    <text class="title"     x="14" y="38">核心基础层</text>
+    <text class="sub"       x="200" y="38">ConfigManager · ProjectPaths · EventBus · Types</text>
+  </g>
+
+  <!-- Footer ruler -->
+  <line class="rule" x1="20" y1="344" x2="700" y2="344"/>
+  <text class="cap"  x="20"  y="355">ARCHITECTURE STACK</text>
+  <text class="cap"  x="625" y="355">FIG. 03</text>
+</svg>
