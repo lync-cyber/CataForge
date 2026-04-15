@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-04-15
+
+Documentation-only release. Corrects counts and removes stale environment-variable
+gymnastics in examples so the published PyPI page reflects the actual CLI UX.
+
+### Changed
+
+- **README** — update module/subpackage count (88 / 13), test count (105),
+  skill count (24); drop obsolete `PYTHONUTF8=1 PYTHONPATH=src` prefix from
+  usage and testing examples (CLI auto-configures UTF-8 via
+  `ensure_utf8_stdio()`, and installed console script doesn't need
+  `PYTHONPATH=src`).
+- **docs/manual-verification-guide.md** — remove redundant "set UTF-8 env"
+  step; rewrite Unicode-troubleshooting section to point at terminal code
+  page rather than `PYTHONUTF8=1`; update test baseline to `105 passed`.
+- **docs/README.md** — update skill count to 24.
+
 ## [0.1.0] — 2026-04-15
 
 First public release on PyPI. The `cataforge` CLI can bootstrap a project
@@ -50,5 +67,6 @@ hint; full implementation is tracked for later milestones:
 - `cataforge hook test <name>` — planned v0.2.
 - `cataforge plugin {install,remove}` — planned v0.3.
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.1
 [0.1.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.0

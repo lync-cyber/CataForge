@@ -34,22 +34,9 @@ pip install -e ".[dev]"
   - Python 版本过低（需 `>=3.10`）。
   - 网络或镜像源不可用导致依赖安装失败。
 
-### Step 2: 设定 UTF-8 运行环境（Windows 强烈建议）
+> CLI 入口已在启动时自动将 stdout/stderr 切换为 UTF-8（见 `cataforge.utils.common.ensure_utf8_stdio`），无需手动 `export PYTHONUTF8=1` 或 `chcp 65001`。若你是从源码直接运行而未安装包，使用 `python -m cataforge ...` 时同样无需设置。
 
-- 操作说明：避免 Windows 默认编码导致 Unicode 字符输出失败。
-- 输入：
-
-```bash
-export PYTHONUTF8=1
-export PYTHONPATH=src
-```
-
-- 预期输出（Expected Result）：
-  - 后续执行 `deploy --check` 不再出现 `UnicodeEncodeError`。
-- 失败时可能原因（Failure Hint）：
-  - 未在当前 shell 会话中生效；请在同一终端再次执行。
-
-### Step 3: 基础健康检查
+### Step 2: 基础健康检查
 
 - 操作说明：验证框架目录、依赖、外部工具可见性。
 - 输入：
@@ -108,7 +95,6 @@ python -m cataforge deploy --check --platform claude-code
   - 出现 `.mcp.json` 相关 MCP 合并动作（若有声明式 MCP）
   - 最后出现 `Deploy complete.`
 - 失败时可能原因（Failure Hint）：
-  - 终端编码错误（先设置 `PYTHONUTF8=1`）。
   - profile 文件损坏或 YAML 不合法。
 
 ### Step 4: 观察输出
@@ -367,7 +353,7 @@ python -m cataforge deploy --check --platform opencode
 pytest -q
 ```
 - 预期行为：测试全部通过。
-- 判定标准：退出码为 0（当前基线：`67 passed`）。
+- 判定标准：退出码为 0（当前基线：`105 passed`）。
 
 ### Case 9：MCP 注册与生命周期
 - 输入：
@@ -412,10 +398,11 @@ python -m cataforge mcp stop echo-mcp
   - 安装工具后重开终端，确保 PATH 生效。
 
 ### deploy/命令输出乱码或 UnicodeEncodeError
-- 原因分析：Windows 终端默认编码非 UTF-8。
+- 原因分析：CLI 启动时会自动调用 `ensure_utf8_stdio()` 将 stdout/stderr 切换为 UTF-8。若仍出现乱码，通常是终端本身（而非 Python）的渲染编码问题。
 - 解决方案：
-  - 在当前会话设置 `PYTHONUTF8=1`
-  - 如有需要，切换终端编码到 UTF-8。
+  - 将终端（Windows Terminal / PowerShell / cmd）的代码页切换到 UTF-8（`chcp 65001`）。
+  - 检查终端字体是否支持所需 Unicode 字符集。
+  - 作为兜底，可显式设置 `PYTHONUTF8=1` 以强制 Python 使用 UTF-8 模式。
 
 ### agent 无响应 / 列表为空
 - 原因分析：`.cataforge/agents` 目录不完整或不在项目根目录执行。
