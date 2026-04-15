@@ -1,16 +1,52 @@
 [project]
 name = "cataforge"
-version = "0.1.0"
-description = "AI Programming: Agent + Skill Workflow Framework"
+dynamic = ["version"]
+description = "AI Programming: Agent + Skill Workflow Framework — one .cataforge/ spec, many IDEs (Claude Code, Cursor, Codex, OpenCode)."
 readme = "README.md"
-license = { text = "MIT" }
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "huancheng.lin", email = "huancheng.lin@foxmail.com" },
+]
+maintainers = [
+    { name = "huancheng.lin", email = "huancheng.lin@foxmail.com" },
+]
+keywords = [
+    "ai",
+    "agent",
+    "skill",
+    "workflow",
+    "claude-code",
+    "cursor",
+    "codex",
+    "opencode",
+    "mcp",
+    "tdd",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Environment :: Console",
+    "Natural Language :: Chinese (Simplified)",
+    "Natural Language :: English",
+]
 dependencies = [
     "pyyaml>=6.0",
     "click>=8.0",
     "pydantic>=2.0",
     "markdown-it-py>=3.0",
-    "docker>=7.0",
 ]
 
 [project.optional-dependencies]
@@ -19,8 +55,20 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
     "mypy>=1.10",
+    "build>=1.2",
+    "twine>=5.0",
 ]
 mcp = ["mcp>=1.0"]
+docker = ["docker>=7.0"]
+penpot = ["docker>=7.0"]
+all = ["docker>=7.0", "mcp>=1.0"]
+
+[project.urls]
+Homepage = "https://github.com/lync-cyber/CataForge"
+Repository = "https://github.com/lync-cyber/CataForge"
+Issues = "https://github.com/lync-cyber/CataForge/issues"
+Documentation = "https://github.com/lync-cyber/CataForge/tree/main/docs"
+Changelog = "https://github.com/lync-cyber/CataForge/releases"
 
 [project.scripts]
 cataforge = "cataforge.cli.main:cli"
@@ -31,14 +79,28 @@ cursor = "cataforge.platform.cursor:CursorAdapter"
 codex = "cataforge.platform.codex:CodexAdapter"
 opencode = "cataforge.platform.opencode:OpenCodeAdapter"
 
-[project.entry-points."cataforge.plugins"]
-
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "src/cataforge/__init__.py"
+
 [tool.hatch.build.targets.wheel]
+# Ships everything under src/cataforge, including the bundled `.cataforge/`
+# scaffold at src/cataforge/_assets/cataforge_scaffold/ (agents / skills /
+# rules / hooks / platform profiles / schemas / templates).
 packages = ["src/cataforge"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/docs",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
 
 [tool.ruff]
 target-version = "py310"

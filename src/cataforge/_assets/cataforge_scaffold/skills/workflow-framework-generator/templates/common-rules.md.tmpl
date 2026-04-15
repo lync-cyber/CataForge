@@ -1,0 +1,58 @@
+# {{workflow_name}} — 通用规则
+
+## 文件命名规范
+
+- Agent 定义: `.cataforge/agents/<agent-id>/AGENT.md` (kebab-case)
+- Skill 定义: `.cataforge/skills/<skill-id>/SKILL.md` (kebab-case)
+- 工作产出: `docs/<phase>/<document-name>.md`
+- 配置文件: `.cataforge/` 下对应目录
+
+## Agent 间通信协议
+
+1. **状态传递**: Agent 间通过文件系统传递状态，不使用共享内存
+2. **输入契约**: 每个 Agent 在 AGENT.md 中声明期望的输入文件路径和格式
+3. **输出契约**: 每个 Agent 必须使用 `<agent-result>` XML 标签返回结构化结果
+4. **状态码**: completed | needs_input | needs_revision | blocked
+
+## 返回值格式
+
+所有 Agent 执行完成后必须返回:
+
+```xml
+<agent-result>
+  <status>completed</status>
+  <outputs>
+    <file>docs/path/to/output.md</file>
+  </outputs>
+  <summary>一句话总结完成的工作</summary>
+</agent-result>
+```
+
+## 质量标准
+
+- 每个阶段产出必须通过对应的质量门禁才能进入下一阶段
+- 修订循环最多 {{max_revision_cycles}} 次，超过则标记 blocked 请求人工介入
+- 产出物必须完整（无 TODO/FIXME/stub 占位符）
+
+## 产出物格式
+
+- 文档类产出: Markdown 格式，包含清晰的标题层级
+- 数据类产出: JSON/YAML 格式，符合对应 schema
+- 代码类产出: 遵循项目既有代码风格
+
+## 能力标识符
+
+本框架使用 CataForge 能力标识符，不使用平台原生工具名称:
+
+| 能力标识符 | 说明 |
+|-----------|------|
+| file_read | 读取文件 |
+| file_write | 创建/覆盖文件 |
+| file_edit | 编辑文件 |
+| file_glob | 文件模式匹配 |
+| file_grep | 文件内容搜索 |
+| shell_exec | 执行 shell 命令 |
+| web_search | 网络搜索 |
+| web_fetch | 抓取网页内容 |
+| user_question | 向用户提问 |
+| agent_dispatch | 调度子代理 |

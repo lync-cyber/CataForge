@@ -38,4 +38,11 @@ def hook_list() -> None:
 @click.argument("hook_name")
 def hook_test(hook_name: str) -> None:
     """Test a hook with sample input."""
-    exit_not_implemented("Hook 测试", f"(hook={hook_name!r})")
+    exit_not_implemented(
+        "Hook 测试",
+        f"(hook={hook_name!r})",
+        milestone="v0.2",
+        workaround=(
+            "直接执行脚本并喂 JSON：echo '{...}' | python .cataforge/hooks/<script>.py"
+        ),
+    )

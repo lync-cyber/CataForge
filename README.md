@@ -77,30 +77,43 @@ src/cataforge/
 ### 环境要求
 
 - Python `>=3.10`
-- 建议：`pip`, `venv`
+- 建议：`pip` / `uv`，以及 `venv`（或 `uv venv`）
 - 可选外部工具：`ruff`, `npx`, `docker`, `git`
 
-> Windows 终端建议启用 UTF-8，避免 `deploy --check` 输出中的箭头字符触发编码错误。
+> CLI 入口已在启动时自动将 stdout/stderr 切换为 UTF-8，无需再手动设置 `PYTHONUTF8=1` 或 `chcp 65001`。
 
-### 安装步骤（源码模式）
+### 安装步骤
+
+推荐使用 `uv`（更快、无需手动激活 venv）：
+
+```bash
+# 方式 A：uv tool（装成全局 CLI，推荐终端用户）
+uv tool install .
+
+# 方式 B：项目本地开发
+uv venv && uv pip install -e ".[dev]"
+```
+
+或使用 `pip`：
 
 ```bash
 python -m venv .venv
-# Windows (bash)
-source .venv/Scripts/activate
-# macOS/Linux
-# source .venv/bin/activate
-
+source .venv/Scripts/activate       # Windows (bash)
+# source .venv/bin/activate         # macOS/Linux
 pip install -e ".[dev]"
 ```
 
 ### 最小可运行示例
 
+安装后直接使用 `cataforge` 命令：
+
 ```bash
-PYTHONUTF8=1 PYTHONPATH=src python -m cataforge doctor
-PYTHONUTF8=1 PYTHONPATH=src python -m cataforge setup --platform cursor
-PYTHONUTF8=1 PYTHONPATH=src python -m cataforge deploy --check --platform cursor
+cataforge doctor
+cataforge setup --platform cursor
+cataforge deploy --check --platform cursor
 ```
+
+> 若未安装、仅想从源码直跑，可用 `python -m cataforge ...`（仍无需 `PYTHONUTF8=1`）。
 
 成功标志：
 - `doctor` 输出 `Diagnostics complete.`

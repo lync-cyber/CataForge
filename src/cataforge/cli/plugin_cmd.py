@@ -33,7 +33,12 @@ def plugin_install(name: str) -> None:
     """Install a plugin."""
     exit_not_implemented(
         "插件安装",
-        f"请用 pip 安装带 cataforge.plugins 入口的包，或使用 .cataforge/plugins/。 (name={name!r})",
+        f"(name={name!r})",
+        milestone="v0.3",
+        workaround=(
+            f"pip install {name}  # 包需声明 cataforge.plugins entry_point；"
+            "或将插件目录放入 .cataforge/plugins/<id>/ 并附带 cataforge-plugin.yaml"
+        ),
     )
 
 
@@ -41,4 +46,11 @@ def plugin_install(name: str) -> None:
 @click.argument("name")
 def plugin_remove(name: str) -> None:
     """Remove a plugin."""
-    exit_not_implemented("插件卸载", f"(name={name!r})")
+    exit_not_implemented(
+        "插件卸载",
+        f"(name={name!r})",
+        milestone="v0.3",
+        workaround=(
+            f"pip uninstall {name}  # 或删除 .cataforge/plugins/{name}/ 目录"
+        ),
+    )
