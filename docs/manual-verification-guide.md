@@ -526,6 +526,9 @@ CLI 入口已切 UTF-8；若仍乱码是**终端渲染**问题：
 
 > 复制下方模板填写，作为 Verification Report 附在 issue / PR 中。
 
+<details>
+<summary>点击展开完整模板</summary>
+
 ```md
 ## CataForge Manual Verification Report
 
@@ -566,3 +569,5 @@ CLI 入口已切 UTF-8；若仍乱码是**终端渲染**问题：
 ### 改进建议
 - 
 ```
+
+</details>

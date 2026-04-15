@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 620" role="img" aria-label="CataForge 阶段执行流程">
+  <title>CataForge 阶段执行流程</title>
+  <desc>编排器 → Agent 执行 → 返回结果 → Reviewer 审查 → 阶段转换协议；分支与出口标注在右侧。</desc>
+
+  <defs>
+    <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a8a29e"/>
+    </marker>
+    <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="0" cy="0" r="0.6" fill="#a8a29e" opacity="0.35"/>
+    </pattern>
+    <style>
+      .card       { fill: #fdfcf7; stroke: #a8a29e; stroke-width: 1; }
+      .card-emph  { fill: #fdf3d7; stroke: #b45309; stroke-width: 1.4; }
+      .rule       { stroke: #a8a29e; stroke-width: 1; fill: none; }
+      .dash       { stroke: #a8a29e; stroke-width: 1; stroke-dasharray: 3 3; fill: none; }
+      .tag        { fill: #b45309; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
+      .title      { fill: #1c1917; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 13px; font-weight: 700; }
+      .title-emph { fill: #7c2d12; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 13px; font-weight: 700; }
+      .sub        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10.5px; }
+      .branch     { fill: #78716c; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; }
+      .cap        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.4px; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="760" height="620" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text class="cap" x="20" y="22">CATAFORGE · PHASE EXECUTION FLOW</text>
+  <line class="rule" x1="20" y1="30" x2="740" y2="30"/>
+
+  <!-- Stage 1: Orchestrator picks Agent -->
+  <g transform="translate(180,48)">
+    <rect class="card" width="340" height="60" rx="2"/>
+    <text class="tag"   x="14" y="20">STAGE 01 · DISPATCH</text>
+    <text class="title" x="14" y="44">编排器选择阶段 Agent</text>
+  </g>
+  <path class="rule" d="M350,108 L350,130" marker-end="url(#arrow3)"/>
+
+  <!-- Stage 2: Agent executes -->
+  <g transform="translate(180,134)">
+    <rect class="card" width="340" height="100" rx="2"/>
+    <text class="tag"   x="14" y="20">STAGE 02 · EXECUTE</text>
+    <text class="title" x="14" y="40">Agent 执行任务</text>
+    <text class="sub"   x="14" y="60">task_type: new_creation</text>
+    <text class="sub"   x="14" y="76">            continuation · revision · amendment</text>
+  </g>
+  <!-- Right annotation: 4 task types -->
+  <g transform="translate(540,140)">
+    <text class="branch" x="0" y="12">4 TASK TYPES</text>
+    <line class="dash" x1="0" y1="20" x2="180" y2="20"/>
+    <text class="branch" x="0" y="38">· new_creation</text>
+    <text class="branch" x="0" y="54">· continuation  ← 中断恢复</text>
+    <text class="branch" x="0" y="70">· revision      ← 修订</text>
+    <text class="branch" x="0" y="86">· amendment     ← 变更</text>
+  </g>
+  <path class="rule" d="M350,234 L350,256" marker-end="url(#arrow3)"/>
+
+  <!-- Stage 3: Agent returns -->
+  <g transform="translate(180,260)">
+    <rect class="card" width="340" height="100" rx="2"/>
+    <text class="tag"   x="14" y="20">STAGE 03 · RETURN</text>
+    <text class="title" x="14" y="40">Agent 返回结果</text>
+    <text class="sub"   x="14" y="60">status: completed</text>
+    <text class="sub"   x="14" y="76">        needs_input · blocked</text>
+  </g>
+  <!-- Right branch exits from stage 3 -->
+  <g transform="translate(540,268)">
+    <text class="branch" x="0" y="12">3 STATUS OUTCOMES</text>
+    <line class="dash" x1="0" y1="20" x2="180" y2="20"/>
+    <text class="branch" x="0" y="38">· completed     → 进入审查</text>
+    <text class="branch" x="0" y="54">· needs_input   → 中断等待</text>
+    <text class="branch" x="0" y="70">· blocked       → 外部干预</text>
+  </g>
+  <path class="rule" d="M350,360 L350,382" marker-end="url(#arrow3)"/>
+  <text class="branch" x="358" y="376">completed</text>
+
+  <!-- Stage 4: Reviewer -->
+  <g transform="translate(180,386)">
+    <rect class="card" width="340" height="100" rx="2"/>
+    <text class="tag"   x="14" y="20">STAGE 04 · REVIEW</text>
+    <text class="title" x="14" y="40">Reviewer 审查</text>
+    <text class="sub"   x="14" y="60">verdict: approved</text>
+    <text class="sub"   x="14" y="76">         approved_with_notes · needs_revision</text>
+  </g>
+  <g transform="translate(540,394)">
+    <text class="branch" x="0" y="12">3 VERDICTS</text>
+    <line class="dash" x1="0" y1="20" x2="180" y2="20"/>
+    <text class="branch" x="0" y="38">· approved          → 转换</text>
+    <text class="branch" x="0" y="54">· approved_w_notes  → 用户</text>
+    <text class="branch" x="0" y="70">· needs_revision    → 修订循环</text>
+  </g>
+  <path class="rule" d="M350,486 L350,508" marker-end="url(#arrow3)"/>
+  <text class="branch" x="358" y="502">approved</text>
+
+  <!-- Stage 5: Phase transition -->
+  <g transform="translate(180,512)">
+    <rect class="card-emph" width="340" height="80" rx="2"/>
+    <text class="tag"        x="14" y="20">STAGE 05 · TRANSITION</text>
+    <text class="title-emph" x="14" y="40">阶段转换协议</text>
+    <text class="sub"        x="14" y="58">1. 更新文档状态  2. 更新 CLAUDE.md  3. 阶段信息</text>
+    <text class="sub"        x="14" y="74">4. 一致性检查    5. 批量事件日志    6. 激活下一 Agent</text>
+  </g>
+
+  <!-- Footer ruler -->
+  <line class="rule" x1="20" y1="604" x2="740" y2="604"/>
+  <text class="cap"  x="20"  y="615">PHASE EXECUTION FLOW</text>
+  <text class="cap"  x="670" y="615">FIG. 05</text>
+</svg>

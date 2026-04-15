@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" role="img" aria-label="CataForge 平台适配器翻译关系">
+  <title>CataForge 平台适配器翻译关系</title>
+  <desc>左侧五类规范资产 → PlatformAdapter → 右侧四平台原生产物。</desc>
+
+  <defs>
+    <marker id="arrow5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a8a29e"/>
+    </marker>
+    <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="0" cy="0" r="0.6" fill="#a8a29e" opacity="0.35"/>
+    </pattern>
+    <style>
+      .card       { fill: #fdfcf7; stroke: #a8a29e; stroke-width: 1; }
+      .card-emph  { fill: #fdf3d7; stroke: #b45309; stroke-width: 1.6; }
+      .rule       { stroke: #a8a29e; stroke-width: 1; fill: none; }
+      .tag        { fill: #b45309; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
+      .title      { fill: #1c1917; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 12px; font-weight: 700; }
+      .title-big  { fill: #7c2d12; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
+      .sub        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10.5px; }
+      .path       { fill: #1c1917; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10.5px; }
+      .cap        { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.4px; }
+      .hint       { fill: #78716c; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 9.5px; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="420" fill="url(#grid)"/>
+
+  <text class="cap" x="20" y="22">CATAFORGE · PLATFORM ADAPTER</text>
+  <line class="rule" x1="20" y1="30" x2="940" y2="30"/>
+
+  <!-- Column labels -->
+  <text class="tag" x="20"  y="52">INPUT · .cataforge/</text>
+  <text class="tag" x="400" y="52">ADAPTER</text>
+  <text class="tag" x="580" y="52">OUTPUT · PLATFORM-NATIVE</text>
+
+  <!-- ============ Left: 5 input assets ============ -->
+  <g transform="translate(20,66)">
+    <g transform="translate(0,0)">
+      <rect class="card" width="240" height="44" rx="2"/>
+      <text class="title" x="12" y="18">AGENT.md</text>
+      <text class="sub"   x="12" y="34">YAML frontmatter · agent definition</text>
+    </g>
+    <g transform="translate(0,54)">
+      <rect class="card" width="240" height="44" rx="2"/>
+      <text class="title" x="12" y="18">hooks.yaml</text>
+      <text class="sub"   x="12" y="34">platform-neutral hook spec</text>
+    </g>
+    <g transform="translate(0,108)">
+      <rect class="card" width="240" height="44" rx="2"/>
+      <text class="title" x="12" y="18">COMMON-RULES.md</text>
+      <text class="sub"   x="12" y="34">general behavioral rules</text>
+    </g>
+    <g transform="translate(0,162)">
+      <rect class="card" width="240" height="44" rx="2"/>
+      <text class="title" x="12" y="18">mcp/*.yaml</text>
+      <text class="sub"   x="12" y="34">MCP server declarations</text>
+    </g>
+    <g transform="translate(0,216)">
+      <rect class="card" width="240" height="44" rx="2"/>
+      <text class="title" x="12" y="18">PROJECT-STATE.md</text>
+      <text class="sub"   x="12" y="34">project state template</text>
+    </g>
+  </g>
+
+  <!-- Connectors left → adapter -->
+  <path class="rule" d="M260,88  L400,88"  marker-end="url(#arrow5)"/>
+  <path class="rule" d="M260,142 L400,142" marker-end="url(#arrow5)"/>
+  <path class="rule" d="M260,196 L400,196" marker-end="url(#arrow5)"/>
+  <path class="rule" d="M260,250 L400,250" marker-end="url(#arrow5)"/>
+  <path class="rule" d="M260,304 L400,304" marker-end="url(#arrow5)"/>
+
+  <!-- ============ Middle: Adapter block ============ -->
+  <g transform="translate(400,66)">
+    <rect class="card-emph" width="160" height="258" rx="2"/>
+    <text class="title-big" x="28"  y="28">Platform</text>
+    <text class="title-big" x="28"  y="50">Adapter</text>
+    <line class="rule" x1="20" y1="64" x2="140" y2="64"/>
+    <text class="sub"  x="16"  y="86">· tool_map</text>
+    <text class="sub"  x="16"  y="106">· event_map</text>
+    <text class="sub"  x="16"  y="126">· matcher_map</text>
+    <text class="sub"  x="16"  y="146">· degradation</text>
+    <text class="sub"  x="16"  y="166">· dispatch</text>
+    <line class="rule" x1="20" y1="184" x2="140" y2="184"/>
+    <text class="hint" x="16"  y="204">per-platform</text>
+    <text class="hint" x="16"  y="220">profile.yaml</text>
+    <text class="hint" x="16"  y="236">drives translation</text>
+  </g>
+
+  <!-- Connectors adapter → right -->
+  <path class="rule" d="M560,110 L580,110" marker-end="url(#arrow5)"/>
+  <path class="rule" d="M560,170 L580,170" marker-end="url(#arrow5)"/>
+  <path class="rule" d="M560,230 L580,230" marker-end="url(#arrow5)"/>
+  <path class="rule" d="M560,290 L580,290" marker-end="url(#arrow5)"/>
+
+  <!-- ============ Right: 4 platform output clusters ============ -->
+  <g transform="translate(580,66)">
+    <!-- Claude Code -->
+    <g transform="translate(0,0)">
+      <rect class="card" width="360" height="80" rx="2"/>
+      <text class="tag"  x="12" y="18">CLAUDE-CODE</text>
+      <text class="path" x="12" y="38">CLAUDE.md · .claude/agents/*.md</text>
+      <text class="path" x="12" y="54">.claude/settings.json · .mcp.json</text>
+      <text class="hint" x="12" y="70">all native</text>
+    </g>
+    <!-- Cursor -->
+    <g transform="translate(0,88)">
+      <rect class="card" width="360" height="74" rx="2"/>
+      <text class="tag"  x="12" y="18">CURSOR</text>
+      <text class="path" x="12" y="38">AGENTS.md · .cursor/rules/*.mdc</text>
+      <text class="path" x="12" y="54">.cursor/hooks.json · .cursor/mcp.json</text>
+    </g>
+    <!-- CodeX -->
+    <g transform="translate(0,170)">
+      <rect class="card" width="360" height="74" rx="2"/>
+      <text class="tag"  x="12" y="18">CODEX</text>
+      <text class="path" x="12" y="38">AGENTS.md · .codex/agents/*.toml</text>
+      <text class="path" x="12" y="54">.codex/hooks.json · .codex/config.toml</text>
+    </g>
+    <!-- OpenCode -->
+    <g transform="translate(0,252)">
+      <rect class="card" width="360" height="72" rx="2"/>
+      <text class="tag"  x="12" y="18">OPENCODE</text>
+      <text class="path" x="12" y="38">AGENTS.md · .opencode/agents/*.md</text>
+      <text class="path" x="12" y="54">.opencode/plugins/ · opencode.json</text>
+    </g>
+  </g>
+
+  <!-- Footer hint -->
+  <text class="hint" x="20"  y="360">One spec · four native shapes. Hook matcher / MCP key naming / instruction path all diverge per platform —</text>
+  <text class="hint" x="20"  y="376">the adapter hides that divergence behind a single profile.yaml per platform.</text>
+
+  <!-- Footer ruler -->
+  <line class="rule" x1="20" y1="400" x2="940" y2="400"/>
+  <text class="cap"  x="20"  y="412">ADAPTER TRANSLATION</text>
+  <text class="cap"  x="870" y="412">FIG. 07</text>
+</svg>

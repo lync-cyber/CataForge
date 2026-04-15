@@ -14,11 +14,21 @@
 
 所有文档图表以 SVG 形式放在 [`assets/`](./assets/) 下，遵循统一 [design tokens](./assets/design-tokens.md)（暖纸色 + 琥珀点缀 + 等宽字体的"技术蓝图"风格，与主流 AI 产品视觉刻意区隔）。
 
+<details>
+<summary>图表资产索引（8 项 · 点击展开）</summary>
+
 | 资产 | 用途 |
 |------|-----|
+| [`assets/design-tokens.md`](./assets/design-tokens.md) | 图表 design tokens 单一事实源 |
 | [`assets/verification-flow.svg`](./assets/verification-flow.svg) | 手动验证五步流水线（FIG. 01） |
 | [`assets/artifact-map.svg`](./assets/artifact-map.svg) | 四平台部署产物对照（FIG. 02） |
-| [`assets/design-tokens.md`](./assets/design-tokens.md) | 图表 design tokens 单一事实源 |
+| [`assets/architecture-stack.svg`](./assets/architecture-stack.svg) | 五层架构栈（FIG. 03） |
+| [`assets/execution-modes.svg`](./assets/execution-modes.svg) | 三种执行模式对比（FIG. 04） |
+| [`assets/phase-execution.svg`](./assets/phase-execution.svg) | 阶段执行流程（FIG. 05） |
+| [`assets/tdd-engine.svg`](./assets/tdd-engine.svg) | TDD 引擎流程（FIG. 06） |
+| [`assets/adapter-translation.svg`](./assets/adapter-translation.svg) | 平台适配器翻译关系（FIG. 07） |
+
+</details>
 
 新增图表前请先阅读 `design-tokens.md`，严格使用其中声明的色板、尺寸、字体与组件约定。
 

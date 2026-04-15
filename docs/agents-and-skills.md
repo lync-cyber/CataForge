@@ -4,6 +4,12 @@
 
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
 
+## 目录
+
+- [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
+- [Skill 清单（24 个）](#skill-清单24-个) — 总览表 + 按类别折叠
+- [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
+
 ---
 
 ## Agent 清单（13 个）
@@ -28,7 +34,10 @@
 
 ### 详细说明
 
-#### 1. orchestrator（主编排智能体）
+> 点击展开查看各 Agent 的职责、可用工具、写入路径等详细定义。
+
+<details>
+<summary><b>1. orchestrator</b> — 主编排智能体（协调整个 SDLC）</summary>
 
 - **职责**：协调整个软件开发生命周期，负责项目引导（Bootstrap）、阶段路由、手动审查检查点、中断恢复协议、TDD 编排。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, agent_dispatch, user_question
@@ -36,7 +45,10 @@
 - **关联 Skill**：agent-dispatch, doc-nav, tdd-engine, change-guard
 - **特殊协议**：拥有专属编排协议（ORCHESTRATOR-PROTOCOLS.md），管理阶段转换、修订流程、Sprint 回顾触发等。
 
-#### 2. product-manager（产品经理）
+</details>
+
+<details>
+<summary><b>2. product-manager</b> — 产品经理（需求分析 / PRD）</summary>
 
 - **职责**：需求分析、用户故事编写、PRD 文档生成。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, web_search, web_fetch, user_question
@@ -44,7 +56,10 @@
 - **写入路径**：docs/prd/, docs/research/
 - **关联 Skill**：req-analysis, doc-gen, doc-nav, research
 
-#### 3. architect（架构师）
+</details>
+
+<details>
+<summary><b>3. architect</b> — 架构师（架构设计 / 技术选型）</summary>
 
 - **职责**：架构设计、技术选型、模块划分、接口定义。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
@@ -52,7 +67,10 @@
 - **写入路径**：docs/arch/, docs/research/
 - **关联 Skill**：arc-design, tech-eval, doc-gen, doc-nav, research
 
-#### 4. ui-designer（UI 设计师）
+</details>
+
+<details>
+<summary><b>4. ui-designer</b> — UI 设计师（界面 / 交互规范）</summary>
 
 - **职责**：界面设计、交互规范、组件规格定义。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
@@ -60,7 +78,10 @@
 - **写入路径**：docs/ui-spec/, docs/research/
 - **关联 Skill**：ui-design, doc-gen, doc-nav, research, penpot-sync（条件启用）
 
-#### 5. tech-lead（技术主管）
+</details>
+
+<details>
+<summary><b>5. tech-lead</b> — 技术主管（任务分解 / 开发计划）</summary>
 
 - **职责**：功能到任务的分解、开发计划编排、TDD 模式判定（light vs standard）。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
@@ -68,7 +89,10 @@
 - **写入路径**：docs/dev-plan/, docs/research/
 - **关联 Skill**：task-decomp, dep-analysis, doc-gen, doc-nav
 
-#### 6. test-writer（TDD RED 阶段）
+</details>
+
+<details>
+<summary><b>6. test-writer</b> — TDD RED 阶段（编写失败测试）</summary>
 
 - **职责**：根据验收标准编写失败测试用例，所有测试必须 FAIL。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
@@ -76,7 +100,10 @@
 - **写入路径**：src/, tests/
 - **关联 Skill**：无
 
-#### 7. implementer（TDD GREEN 阶段）
+</details>
+
+<details>
+<summary><b>7. implementer</b> — TDD GREEN 阶段（最小实现）</summary>
 
 - **职责**：编写最小实现代码使测试通过，支持 light 模式（合并 RED+GREEN）。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
@@ -84,7 +111,10 @@
 - **写入路径**：src/, tests/
 - **关联 Skill**：penpot-implement（条件启用）
 
-#### 8. refactorer（TDD REFACTOR 阶段）
+</details>
+
+<details>
+<summary><b>8. refactorer</b> — TDD REFACTOR 阶段（优化代码质量）</summary>
 
 - **职责**：在测试全部通过的前提下优化代码质量；若重构后测试失败，状态回滚为 rolled-back。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
@@ -92,7 +122,10 @@
 - **写入路径**：src/, tests/
 - **关联 Skill**：无
 
-#### 9. reviewer（评审员）
+</details>
+
+<details>
+<summary><b>9. reviewer</b> — 评审员（文档 + 代码跨阶段审查）</summary>
 
 - **职责**：跨阶段质量审查，覆盖文档审查与代码审查。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
@@ -100,7 +133,10 @@
 - **写入路径**：docs/reviews/doc/, docs/reviews/code/, docs/reviews/sprint/（严格限制）
 - **关联 Skill**：doc-review, code-review, sprint-review, doc-nav, penpot-review（条件启用）
 
-#### 10. qa-engineer（测试工程师）
+</details>
+
+<details>
+<summary><b>10. qa-engineer</b> — 测试工程师（测试策略 / 集成 / E2E）</summary>
 
 - **职责**：测试策略制定、集成测试与端到端测试编写、覆盖率分析、缺陷记录。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
@@ -108,7 +144,10 @@
 - **写入路径**：docs/test-report/, src/, tests/
 - **关联 Skill**：testing, doc-gen, doc-nav
 
-#### 11. devops（运维工程师）
+</details>
+
+<details>
+<summary><b>11. devops</b> — 运维工程师（CI/CD / 容器化 / 发布）</summary>
 
 - **职责**：CI/CD 流水线、容器化配置、基础设施即代码、发布规范。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
@@ -116,7 +155,10 @@
 - **写入路径**：docs/deploy-spec/, docs/changelog/
 - **关联 Skill**：deploy-config, doc-gen, doc-nav
 
-#### 12. debugger（调试工程师）
+</details>
+
+<details>
+<summary><b>12. debugger</b> — 调试工程师（运行时诊断 / 最小修复）</summary>
 
 - **职责**：运行时错误诊断、根因分析、最小修复。按需或由编排器触发。
 - **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
@@ -124,13 +166,18 @@
 - **写入路径**：src/, tests/, .cataforge/scripts/, .cataforge/hooks/, .cataforge/skills/
 - **关联 Skill**：debug, doc-nav
 
-#### 13. reflector（反思者）
+</details>
+
+<details>
+<summary><b>13. reflector</b> — 反思者（跨项目经验提取）</summary>
 
 - **职责**：从评审历史中提取跨项目经验教训，生成 EXP 条目和 SKILL-IMPROVE 建议。
 - **可用工具**：file_read, file_edit, file_glob, file_grep（以只读为主）
 - **禁用工具**：agent_dispatch, user_question, shell_exec, web_search, web_fetch
 - **写入路径**：docs/reviews/retro/, docs/reviews/CORRECTIONS-LOG.md, docs/EVENT-LOG.jsonl, .cataforge/learnings/
 - **关联 Skill**：doc-nav
+
+</details>
 
 ---
 
@@ -167,7 +214,10 @@
 
 ### 详细说明
 
-#### 核心框架 Skill
+> 按类别分组，点击展开查看详细说明。
+
+<details>
+<summary><b>核心框架 Skill</b>（agent-dispatch · doc-gen · doc-nav · doc-review · code-review · tdd-engine · change-guard）</summary>
 
 **agent-dispatch** — 子代理调度与运行时翻译
 - 负责将编排器的 agent 调度请求翻译为目标平台的原生调度格式
@@ -201,7 +251,10 @@
 - 分析变更请求与现有文档的一致性
 - 路由变更到适当的处理路径（文档修订 / 代码修改 / 新功能）
 
-#### 领域 Skill
+</details>
+
+<details>
+<summary><b>领域 Skill</b>（arc-design · ui-design · task-decomp · dep-analysis · tech-eval · req-analysis · research）</summary>
 
 **arc-design** — 架构设计技能，涵盖模块划分、接口定义、数据建模。
 
@@ -217,19 +270,28 @@
 
 **research** — 调研技能，通过 Web 搜索和用户访谈收集决策所需信息。
 
-#### 测试与质量 Skill
+</details>
+
+<details>
+<summary><b>测试与质量 Skill</b>（testing · sprint-review）</summary>
 
 **testing** — 测试技能，制定测试策略、编写测试用例、分析覆盖率、记录缺陷。
 
 **sprint-review** — Sprint 回顾技能，审查 Sprint 完成度、AC 覆盖率、范围偏移检测。
 
-#### 部署与运维 Skill
+</details>
+
+<details>
+<summary><b>部署与运维 Skill</b>（deploy-config · debug）</summary>
 
 **deploy-config** — 部署配置技能，生成 CI/CD 流水线、容器化配置、基础设施即代码模板。
 
 **debug** — 调试技能，提供结构化错误定位、根因分析和最小修复方案。
 
-#### 设计工具集成 Skill（条件启用，需设置 `design-tool: penpot`）
+</details>
+
+<details>
+<summary><b>设计工具集成 Skill</b>（penpot-sync · penpot-implement · penpot-review，条件启用，需设置 <code>design-tool: penpot</code>）</summary>
 
 **penpot-sync** — Design Token 双向同步，在 Penpot 设计工具和代码间同步设计令牌。
 
@@ -237,7 +299,10 @@
 
 **penpot-review** — 验证代码实现与 Penpot 设计稿的一致性。
 
-#### 管理 Skill
+</details>
+
+<details>
+<summary><b>管理 Skill</b>（platform-audit · start-orchestrator · workflow-framework-generator）</summary>
 
 **platform-audit** — 平台能力审计，检查各平台的 profile.yaml 与实际能力匹配度。
 
@@ -245,27 +310,38 @@
 
 **workflow-framework-generator** — 工作流框架生成器，根据用户指定的工作流类型（软件开发、内容创作、电商运营、研究分析等）与目标 AI IDE 平台（Claude Code / Cursor / CodeX / OpenCode），自动生成一套完整的 CataForge 兼容框架。包含 Agent 定义、Skill 模块、Workflow 编排、平台适配配置等。内置 6 大领域模式库、四平台能力矩阵、框架校验脚本。
 
+</details>
+
 ---
 
 ## Agent-Skill 关联矩阵
 
-```text
-                  agent  doc   doc   doc   code  tdd   arc   ui    task  dep   tech  req   re-   change testing sprint deploy debug penpot penpot penpot platform start  wf-fw
-                  disp   gen   nav   rev   rev   eng   des   des   dec   ana   eval  ana   search guard                config       sync   impl   rev    audit    orch   gen
-orchestrator       *            *                 *                                        *
-product-manager          *     *                              *                 *     *
-architect                *     *                        *                 *           *
-ui-designer              *     *                              *                      *                                        ?
-tech-lead                *     *                                    *     *
-test-writer
-implementer                                                                                                                         ?
-refactorer
-reviewer                       *     *     *                                               *      *                                        ?
-qa-engineer              *     *                                                                  *
-devops                   *     *                                                                         *
-debugger                       *                                                                                *
-reflector                      *
-（独立）                                                                                                                                                          *      *
-```
+每个 Agent 的默认装配与条件启用技能如下：
 
-图例：`*` = 默认启用，`?` = 条件启用（依赖 design-tool 配置），`（独立）` = 用户直接调用的独立 Skill，不绑定特定 Agent
+| Agent | 默认启用 Skill | 条件启用 |
+|-------|---------------|---------|
+| **orchestrator** | `agent-dispatch` · `doc-nav` · `tdd-engine` · `change-guard` | — |
+| **product-manager** | `doc-gen` · `doc-nav` · `req-analysis` · `research` | — |
+| **architect** | `doc-gen` · `doc-nav` · `arc-design` · `tech-eval` · `research` | — |
+| **ui-designer** | `doc-gen` · `doc-nav` · `ui-design` · `research` | `penpot-sync` |
+| **tech-lead** | `doc-gen` · `doc-nav` · `task-decomp` · `dep-analysis` | — |
+| **test-writer** | — | — |
+| **implementer** | — | `penpot-implement` |
+| **refactorer** | — | — |
+| **reviewer** | `doc-nav` · `doc-review` · `code-review` · `sprint-review` | `penpot-review` |
+| **qa-engineer** | `doc-gen` · `doc-nav` · `testing` | — |
+| **devops** | `doc-gen` · `doc-nav` · `deploy-config` | — |
+| **debugger** | `doc-nav` · `debug` | — |
+| **reflector** | `doc-nav` | — |
+
+> **条件启用**由 `design-tool` 配置触发（如 `design-tool: penpot` 时启用 `penpot-*` 系列）。
+
+### 独立 Skill（不绑定 Agent）
+
+这三个 Skill 由用户直接调用，不归属某个 Agent：
+
+| Skill | 类型 | 典型触发 |
+|-------|------|---------|
+| `platform-audit` | 管理 | 审计 `profile.yaml` 与平台实际能力匹配度 |
+| `start-orchestrator` | 管理 | 初始化 / 恢复 CataForge 工作流 |
+| `workflow-framework-generator` | 管理 | 按工作流类型 + 目标平台生成完整框架 |

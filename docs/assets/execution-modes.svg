@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 360" role="img" aria-label="CataForge 三种执行模式对比">
+  <title>CataForge 三种执行模式对比</title>
+  <desc>standard 7 阶段 / agile-lite 5 阶段 / agile-prototype 2 阶段，同一 pill 宽度便于目测。</desc>
+
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a8a29e"/>
+    </marker>
+    <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="0" cy="0" r="0.6" fill="#a8a29e" opacity="0.35"/>
+    </pattern>
+    <style>
+      .card        { fill: #fdfcf7; stroke: #a8a29e; stroke-width: 1; }
+      .card-emph   { fill: #fdf3d7; stroke: #b45309; stroke-width: 1.4; }
+      .rule        { stroke: #a8a29e; stroke-width: 1; fill: none; }
+      .mode-label  { fill: #7c2d12; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+      .mode-sub    { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; }
+      .idx         { fill: #b45309; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.8px; }
+      .role        { fill: #1c1917; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; }
+      .phase       { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 9px; }
+      .out         { fill: #78716c; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 9px; font-style: italic; }
+      .cap         { fill: #57534e; font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.4px; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="980" height="360" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text class="cap" x="20" y="22">CATAFORGE · EXECUTION MODES</text>
+  <line class="rule" x1="20" y1="30" x2="960" y2="30"/>
+
+  <!-- ============ Row A: standard (7 phases) ============ -->
+  <g transform="translate(20,50)">
+    <text class="mode-label" x="0" y="14">STANDARD</text>
+    <text class="mode-sub"   x="0" y="30">7 phases · full SDLC</text>
+  </g>
+  <g transform="translate(140,44)">
+    <!-- phase 1 -->
+    <g transform="translate(0,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">01</text>
+      <text class="phase" x="30" y="14">requirements</text>
+      <text class="role"  x="8" y="34">product-mgr</text>
+      <text class="out"   x="8" y="52">→ PRD</text>
+    </g>
+    <path class="rule" d="M100,32 L110,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(110,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">02</text>
+      <text class="phase" x="30" y="14">architecture</text>
+      <text class="role"  x="8" y="34">architect</text>
+      <text class="out"   x="8" y="52">→ Arch Doc</text>
+    </g>
+    <path class="rule" d="M210,32 L220,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(220,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">03</text>
+      <text class="phase" x="30" y="14">ui_design</text>
+      <text class="role"  x="8" y="34">ui-designer</text>
+      <text class="out"   x="8" y="52">→ UI Spec</text>
+    </g>
+    <path class="rule" d="M320,32 L330,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(330,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">04</text>
+      <text class="phase" x="30" y="14">dev_plan</text>
+      <text class="role"  x="8" y="34">tech-lead</text>
+      <text class="out"   x="8" y="52">→ Dev Plan</text>
+    </g>
+    <path class="rule" d="M430,32 L440,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(440,0)">
+      <rect class="card-emph" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">05</text>
+      <text class="phase" x="30" y="14">development</text>
+      <text class="role"  x="8" y="34">TDD engine</text>
+      <text class="out"   x="8" y="52">→ src+tests</text>
+    </g>
+    <path class="rule" d="M540,32 L550,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(550,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">06</text>
+      <text class="phase" x="30" y="14">testing</text>
+      <text class="role"  x="8" y="34">qa-engineer</text>
+      <text class="out"   x="8" y="52">→ Test Rpt</text>
+    </g>
+    <path class="rule" d="M650,32 L660,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(660,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">07</text>
+      <text class="phase" x="30" y="14">deployment</text>
+      <text class="role"  x="8" y="34">devops</text>
+      <text class="out"   x="8" y="52">→ Deploy</text>
+    </g>
+  </g>
+
+  <!-- ============ Row B: agile-lite (5 phases) ============ -->
+  <g transform="translate(20,142)">
+    <text class="mode-label" x="0" y="14">AGILE-LITE</text>
+    <text class="mode-sub"   x="0" y="30">5 phases · merged planning</text>
+  </g>
+  <g transform="translate(140,136)">
+    <g transform="translate(0,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">01</text>
+      <text class="phase" x="30" y="14">planning</text>
+      <text class="role"  x="8" y="34">pm+arch</text>
+      <text class="out"   x="8" y="52">→ prd+arch lite</text>
+    </g>
+    <path class="rule" d="M100,32 L110,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(110,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">02</text>
+      <text class="phase" x="30" y="14">dev_plan</text>
+      <text class="role"  x="8" y="34">tech-lead</text>
+      <text class="out"   x="8" y="52">→ plan-lite</text>
+    </g>
+    <path class="rule" d="M210,32 L220,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(220,0)">
+      <rect class="card-emph" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">03</text>
+      <text class="phase" x="30" y="14">development</text>
+      <text class="role"  x="8" y="34">TDD engine</text>
+      <text class="out"   x="8" y="52">→ src+tests</text>
+    </g>
+    <path class="rule" d="M320,32 L330,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(330,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">04</text>
+      <text class="phase" x="30" y="14">testing</text>
+      <text class="role"  x="8" y="34">qa-engineer</text>
+      <text class="out"   x="8" y="52">→ Test Rpt</text>
+    </g>
+    <path class="rule" d="M430,32 L440,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(440,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">05</text>
+      <text class="phase" x="30" y="14">deployment</text>
+      <text class="role"  x="8" y="34">devops</text>
+      <text class="out"   x="8" y="52">→ Deploy</text>
+    </g>
+  </g>
+
+  <!-- ============ Row C: agile-prototype (2 phases) ============ -->
+  <g transform="translate(20,234)">
+    <text class="mode-label" x="0" y="14">AGILE-PROTOTYPE</text>
+    <text class="mode-sub"   x="0" y="30">2 phases · fast validation</text>
+  </g>
+  <g transform="translate(140,228)">
+    <g transform="translate(0,0)">
+      <rect class="card" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">01</text>
+      <text class="phase" x="30" y="14">brief</text>
+      <text class="role"  x="8" y="34">product-mgr</text>
+      <text class="out"   x="8" y="52">→ brief ≤150L</text>
+    </g>
+    <path class="rule" d="M100,32 L110,32" marker-end="url(#arrow2)"/>
+    <g transform="translate(110,0)">
+      <rect class="card-emph" width="100" height="64" rx="2"/>
+      <text class="idx"   x="8" y="14">02</text>
+      <text class="phase" x="30" y="14">development</text>
+      <text class="role"  x="8" y="34">TDD engine</text>
+      <text class="out"   x="8" y="52">→ src+tests</text>
+    </g>
+  </g>
+
+  <!-- Length guide -->
+  <line class="rule" x1="140" y1="310" x2="900" y2="310" stroke-dasharray="2 4"/>
+  <text class="cap" x="140" y="325">← less phases  ·  more ceremony →</text>
+
+  <!-- Footer ruler -->
+  <line class="rule" x1="20" y1="344" x2="960" y2="344"/>
+  <text class="cap"  x="20"  y="355">EXECUTION MODES</text>
+  <text class="cap"  x="890" y="355">FIG. 04</text>
+</svg>
