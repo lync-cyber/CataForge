@@ -54,6 +54,7 @@ def project_dir(tmp_path: Path) -> Path:
             "hooks": {
                 "config_format": "json",
                 "config_path": ".claude/settings.json",
+                "entry_type": "command",
                 "event_map": {"PreToolUse": "PreToolUse", "PostToolUse": "PostToolUse"},
                 "degradation": {"guard_dangerous": "native", "lint_format": "native"},
             },
@@ -64,6 +65,7 @@ def project_dir(tmp_path: Path) -> Path:
             "hooks": {
                 "config_format": "json",
                 "config_path": ".cursor/hooks.json",
+                "entry_type": "command",
                 "event_map": {"PreToolUse": "preToolUse", "PostToolUse": "postToolUse"},
                 "tool_overrides": {},
                 "degradation": {"guard_dangerous": "native", "lint_format": "native"},
@@ -75,6 +77,7 @@ def project_dir(tmp_path: Path) -> Path:
             "hooks": {
                 "config_format": "json",
                 "config_path": ".codex/hooks.json",
+                "entry_type": "command",
                 "event_map": {"PreToolUse": "PreToolUse", "PostToolUse": "PostToolUse"},
                 "tool_overrides": {"shell_exec": "Bash"},
                 "degradation": {"guard_dangerous": "native", "lint_format": "degraded"},
@@ -137,3 +140,37 @@ class TestHookBridge:
         # shell_exec tool_map="shell" but tool_overrides="Bash"
         pre = hooks["PreToolUse"]
         assert pre[0]["matcher"] == "Bash"  # from tool_overrides, not "shell"
+
+    def test_claude_code_hook_entry_type_is_command(self, project_dir: Path) -> None:
+        """Claude Code's hook schema only accepts type: command.
+
+        Regression guard: internal CataForge semantics (block / observe) must
+        not leak into .claude/settings.json — if they did, Claude Code would
+        silently ignore the hook and none of CataForge's guard/observer
+        scripts would fire.
+        """
+        platforms_dir = project_dir / ".cataforge" / "platforms"
+        adapter = get_adapter("claude-code", platforms_dir)
+
+        hooks = generate_platform_hooks(adapter)
+
+        for event in ("PreToolUse", "PostToolUse"):
+            for group in hooks.get(event, []):
+                for entry in group["hooks"]:
+                    assert entry["type"] == "command", (
+                        f"{event} hook emitted invalid type {entry['type']!r}; "
+                        "Claude Code only recognises 'command'."
+                    )
+
+    def test_cursor_and_codex_hook_entry_type_is_command(self, project_dir: Path) -> None:
+        """Cursor / Codex JSON hook schemas also require type: command."""
+        platforms_dir = project_dir / ".cataforge" / "platforms"
+        for platform_id in ("cursor", "codex"):
+            adapter = get_adapter(platform_id, platforms_dir)
+            hooks = generate_platform_hooks(adapter)
+            for event_groups in hooks.values():
+                for group in event_groups:
+                    for entry in group["hooks"]:
+                        assert entry["type"] == "command", (
+                            f"{platform_id} emitted invalid type {entry['type']!r}"
+                        )

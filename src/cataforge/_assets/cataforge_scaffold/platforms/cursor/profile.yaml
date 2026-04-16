@@ -69,6 +69,8 @@ dispatch:
 hooks:
   config_format: json
   config_path: .cursor/hooks.json
+  # Cursor hooks.json schema uses "type: command" for each hook entry.
+  entry_type: command
   event_map:
     PreToolUse: preToolUse
     PostToolUse: postToolUse

@@ -76,23 +76,42 @@ def doctor_command(ctx: click.Context) -> None:
 
 
 def _run_migration_checks(cfg) -> int:
-    """Run migration checks; return the number of failures."""
+    """Run migration checks; return the number of failures.
+
+    Checks marked ``requires_deploy: true`` are SKIPPED (not failed) when the
+    project has not yet been deployed — they target deploy-produced artifacts
+    like ``.claude/settings.json`` that cannot exist until the first
+    ``cataforge deploy`` run.  This lets ``doctor`` stay green for a
+    fresh-install flow that hasn't deployed yet, while still catching drift
+    once deploy has happened at least once.
+    """
     checks = cfg.load().get("migration_checks") or []
     if not checks:
         click.echo("  (none defined)")
         return 0
 
+    deployed = (cfg.paths.cataforge_dir / ".deploy-state").is_file()
+
     passed = 0
+    skipped: list[tuple[str, str]] = []
     failed: list[tuple[str, str]] = []
     for check in checks:
         cid = str(check.get("id", "?"))
+        if bool(check.get("requires_deploy", False)) and not deployed:
+            skipped.append((cid, "requires deploy (run `cataforge deploy` first)"))
+            continue
         ok, reason = _evaluate_check(check, cfg.paths.root)
         if ok:
             passed += 1
         else:
             failed.append((cid, reason))
 
-    click.echo(f"  {passed}/{len(checks)} passed")
+    parts = [f"{passed}/{len(checks)} passed"]
+    if skipped:
+        parts.append(f"{len(skipped)} skipped")
+    click.echo("  " + ", ".join(parts))
+    for cid, reason in skipped:
+        click.echo(f"  SKIP {cid}: {reason}")
     for cid, reason in failed:
         click.echo(f"  FAIL {cid}: {reason}")
     return len(failed)

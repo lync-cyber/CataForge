@@ -58,3 +58,56 @@ def test_doctor_passes_when_checks_satisfied(tmp_path: Path, monkeypatch) -> Non
     monkeypatch.chdir(root)
     result = CliRunner().invoke(doctor_command, [])
     assert result.exit_code == 0
+
+
+def test_doctor_skips_requires_deploy_check_before_first_deploy(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Checks marked ``requires_deploy`` must SKIP (not FAIL) pre-deploy.
+
+    Regression guard: before this fix, a fresh-install flow (install package,
+    then ``cataforge doctor``) exited 1 because ``.claude/settings.json``
+    does not exist until the first ``cataforge deploy``.
+    """
+    root = _minimal_project(
+        tmp_path,
+        [
+            {
+                "id": "mc-test-requires-deploy",
+                "type": "file_must_contain",
+                "path": ".claude/settings.json",
+                "patterns": ["anything"],
+                "requires_deploy": True,
+            }
+        ],
+    )
+    monkeypatch.chdir(root)
+
+    # No .deploy-state yet → SKIP, exit 0.
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code == 0, result.output
+    assert "SKIP mc-test-requires-deploy" in result.output
+    assert "FAIL" not in result.output
+
+
+def test_doctor_runs_requires_deploy_check_after_deploy(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Once .deploy-state exists, requires_deploy checks are enforced."""
+    root = _minimal_project(
+        tmp_path,
+        [
+            {
+                "id": "mc-test-requires-deploy",
+                "type": "file_must_exist",
+                "path": ".claude/settings.json",
+                "requires_deploy": True,
+            }
+        ],
+    )
+    (root / ".cataforge" / ".deploy-state").write_text("{}", encoding="utf-8")
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code == 1, result.output
+    assert "FAIL mc-test-requires-deploy" in result.output
