@@ -23,9 +23,18 @@ extended_capabilities:
 agent_definition:
   format: yaml-frontmatter
   scan_dirs:
+    # Only the first entry is ever written to during deploy; additional
+    # entries are purely for read-time discovery. Keeping this Cursor-only
+    # so a fresh Cursor deploy never produces .claude/* artifacts.
     - .cursor/agents
-    - .claude/agents
   needs_deploy: true
+
+rules:
+  # Optional Markdown mirror at .claude/rules — useful when the same repo is
+  # also used with Claude Code and you want both IDEs to read the same
+  # source-of-truth prompt files. Off by default so a pure Cursor project
+  # keeps its tree clean of any .claude/ artifacts.
+  cross_platform_mirror: false
 
 skill_definition:
   # Cursor 3.x reads .claude/skills for skill discovery (shared convention).

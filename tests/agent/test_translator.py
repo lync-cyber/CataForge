@@ -82,3 +82,99 @@ class TestTranslation:
         result = translate_agent_md(SAMPLE_AGENT_MD, adapter)
         assert "# Test Agent" in result
         assert "Does testing things." in result
+
+
+class TestBracketStripRobustness:
+    """Quirky YAML flow-style list values must not spawn '[]' warnings."""
+
+    @pytest.mark.parametrize(
+        "frontmatter_line",
+        [
+            "tools: []",
+            "tools: [ ]",
+            "tools: '[]'",
+            'tools: "[]"',
+            "tools: []  # explicitly none",
+            "tools: [ ]   # still none",
+        ],
+    )
+    def test_empty_flow_lists_produce_no_warning(
+        self,
+        project_dir: Path,
+        frontmatter_line: str,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        platforms_dir = project_dir / ".cataforge" / "platforms"
+        adapter = get_adapter("claude-code", platforms_dir)
+        md = f"---\nname: test\n{frontmatter_line}\n---\nbody\n"
+
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            translate_agent_md(md, adapter)
+
+        for record in caplog.records:
+            assert "[]" not in record.getMessage(), record.getMessage()
+            assert "no platform mapping" not in record.getMessage(), record.getMessage()
+
+    def test_dropped_collector_aggregates(self, project_dir: Path) -> None:
+        platforms_dir = project_dir / ".cataforge" / "platforms"
+        adapter = get_adapter("claude-code", platforms_dir)
+
+        md = (
+            "---\n"
+            "name: test\n"
+            "tools: file_read, web_fetch, user_question\n"
+            "disallowedTools: user_question\n"
+            "---\nbody\n"
+        )
+        collector: dict[str, set[str]] = {}
+        translate_agent_md(md, adapter, dropped_collector=collector)
+
+        assert "tools" in collector
+        assert "web_fetch" in collector["tools"]
+        assert "user_question" in collector["tools"]
+        assert "disallowedTools" in collector
+        assert collector["disallowedTools"] == {"user_question"}
+
+    def test_collector_suppresses_per_call_warning(
+        self, project_dir: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """When a collector is provided, the function must not log warnings."""
+        platforms_dir = project_dir / ".cataforge" / "platforms"
+        adapter = get_adapter("claude-code", platforms_dir)
+        md = "---\nname: test\ntools: unknown_cap\n---\nbody\n"
+
+        caplog.clear()
+        collector: dict[str, set[str]] = {}
+        with caplog.at_level("WARNING"):
+            translate_agent_md(md, adapter, dropped_collector=collector)
+
+        # Collector should have captured the miss, but logger should be silent.
+        assert collector == {"tools": {"unknown_cap"}}
+        warning_records = [
+            r for r in caplog.records if "no platform mapping" in r.getMessage()
+        ]
+        assert warning_records == []
+
+    def test_fallback_logger_dedups_within_call(
+        self, project_dir: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Legacy path (no collector): identical caps in tools+disallowed log once per field."""
+        platforms_dir = project_dir / ".cataforge" / "platforms"
+        adapter = get_adapter("claude-code", platforms_dir)
+        md = (
+            "---\nname: test\n"
+            "tools: unknown, unknown, unknown\n"
+            "disallowedTools: unknown\n"
+            "---\nbody\n"
+        )
+
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            translate_agent_md(md, adapter)
+
+        # One WARN per field — two total, not four.
+        warning_records = [
+            r for r in caplog.records if "no platform mapping" in r.getMessage()
+        ]
+        assert len(warning_records) == 2, [r.getMessage() for r in warning_records]

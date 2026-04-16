@@ -36,6 +36,16 @@ from cataforge.platform.conformance import ALL_PLATFORMS
     hidden=True,
     help="Deprecated: --no-deploy is now the default. Retained for compatibility.",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Report what setup would change without writing any files.",
+)
+@click.option(
+    "--show-diff",
+    is_flag=True,
+    help="Print the framework.json fields that will change before writing.",
+)
 def setup_command(
     platform: str | None,
     with_penpot: bool,
@@ -43,6 +53,8 @@ def setup_command(
     force_scaffold: bool,
     deploy_after: bool,
     no_deploy: bool,
+    dry_run: bool,
+    show_diff: bool,
 ) -> None:
     """Initialize CataForge in the current project.
 
@@ -68,7 +80,46 @@ def setup_command(
     click.echo(f"Project root: {cfg.paths.root}")
 
     scaffold_dir = cfg.paths.cataforge_dir
-    if not scaffold_dir.is_dir() or force_scaffold:
+    scaffold_missing = not scaffold_dir.is_dir()
+
+    if dry_run:
+        click.echo("(dry-run — no files will be written)")
+        if scaffold_missing:
+            click.echo(f"  would scaffold .cataforge/ at {scaffold_dir}")
+        elif force_scaffold:
+            click.echo(f"  would refresh .cataforge/ at {scaffold_dir}")
+        else:
+            click.echo("  .cataforge/ already present (no scaffold changes)")
+
+        if platform:
+            diff = cfg.describe_platform_change(platform) if not scaffold_missing else None
+            if scaffold_missing:
+                click.echo(
+                    f"  would set framework.json: runtime.platform = {platform} "
+                    "(file created by scaffold)"
+                )
+            elif diff is None:
+                click.echo(
+                    f"  framework.json: runtime.platform already = {platform} (no change)"
+                )
+            else:
+                click.echo(
+                    f"  would patch framework.json: {diff['field']}: "
+                    f"{diff['before']!r} → {diff['after']!r}"
+                )
+                click.echo("  (no other framework.json fields will be touched)")
+        else:
+            click.echo("  no --platform specified; framework.json would be untouched")
+
+        if deploy_after:
+            click.echo(
+                "  would chain `cataforge deploy` "
+                "(run `cataforge deploy --check` to preview)"
+            )
+        click.echo("Dry-run complete. No changes made.")
+        return
+
+    if scaffold_missing or force_scaffold:
         _scaffold(scaffold_dir, force=force_scaffold)
         # Re-read framework.json now that it exists on disk — without this
         # reload, the version banner below would show the pre-scaffold default
@@ -82,8 +133,21 @@ def setup_command(
         return
 
     if platform:
-        cfg.set_runtime_platform(platform)
+        diff = cfg.describe_platform_change(platform)
+        if show_diff:
+            if diff is None:
+                click.echo(
+                    f"  framework.json: runtime.platform already = {platform} (no change)"
+                )
+            else:
+                click.echo(
+                    f"  framework.json diff: {diff['field']}: "
+                    f"{diff['before']!r} → {diff['after']!r}"
+                )
+        if diff is not None:
+            cfg.set_runtime_platform(platform)
         click.echo(f"Platform set to: {platform}")
+        click.echo("  (framework.json modified only at runtime.platform)")
 
     # --no-deploy and "neither --deploy nor --no-deploy" both mean: skip deploy.
     if not deploy_after or no_deploy:

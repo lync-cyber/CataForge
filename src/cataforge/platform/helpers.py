@@ -14,11 +14,17 @@ from typing import Any
 
 
 def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> list[str]:
-    """Create symlink (Unix), junction (Windows), or copy as fallback."""
+    """Create symlink (Unix), junction (Windows), or copy as fallback.
+
+    The dry-run message is deliberately label-free ("would link"): this
+    helper is used for rules, skills, and generic cross-directory mirrors.
+    Callers that want a more specific label should emit their own action
+    line instead of / in addition to calling this helper.
+    """
     import platform as platform_mod
 
     if dry_run:
-        return [f"would deploy rules: {target} ← {source} (symlink|junction|copy)"]
+        return [f"would link {target} ← {source} (symlink|junction|copy)"]
 
     if target.is_symlink():
         target.unlink()
