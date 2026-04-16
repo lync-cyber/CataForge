@@ -96,17 +96,23 @@ class Deployer:
         from cataforge.hook.bridge import generate_platform_hooks
 
         try:
-            hooks_config = generate_platform_hooks(adapter)
+            hooks_config, warnings = generate_platform_hooks(adapter)
         except Exception as e:
             return [f"hooks: generation failed — {e}"]
 
         config_path_str = adapter.hook_config_path
+        actions: list[str] = [f"WARN: {w}" for w in warnings]
+
         if not config_path_str:
-            return []
+            return actions
 
         config_path = root / config_path_str
         if dry_run:
-            return [f"would merge hooks into {config_path_str} ({len(hooks_config)} event(s))"]
+            actions.append(
+                f"would merge hooks into {config_path_str} "
+                f"({len(hooks_config)} event(s))"
+            )
+            return actions
 
         config_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -124,7 +130,8 @@ class Deployer:
             json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
-        return [f"hooks → {config_path_str}"]
+        actions.append(f"hooks → {config_path_str}")
+        return actions
 
     def _apply_degradation(
         self, root: Path, adapter: PlatformAdapter, *, dry_run: bool = False

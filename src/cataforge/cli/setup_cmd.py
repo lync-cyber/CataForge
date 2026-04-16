@@ -25,23 +25,37 @@ from cataforge.platform.conformance import ALL_PLATFORMS
     help="Re-copy the bundled .cataforge/ scaffold, overwriting existing files.",
 )
 @click.option(
+    "--deploy",
+    "deploy_after",
+    is_flag=True,
+    help="After scaffolding, also run `cataforge deploy` for the selected platform.",
+)
+@click.option(
     "--no-deploy",
     is_flag=True,
-    help="Only scaffold/refresh .cataforge/, do not run platform deploy.",
+    hidden=True,
+    help="Deprecated: --no-deploy is now the default. Retained for compatibility.",
 )
 def setup_command(
     platform: str | None,
     with_penpot: bool,
     check_only: bool,
     force_scaffold: bool,
+    deploy_after: bool,
     no_deploy: bool,
 ) -> None:
     """Initialize CataForge in the current project.
 
-    When run in a directory with no ``.cataforge/`` (the common case right
-    after ``uv tool install cataforge``), the bundled scaffold is copied
-    into the current working directory automatically. Use
-    ``--force-scaffold`` to re-copy over an existing scaffold.
+    Semantics (as of v0.1.2):
+
+    * ``setup`` materialises ``.cataforge/`` and records the target platform,
+      but does **not** write IDE-visible artifacts (``CLAUDE.md``,
+      ``.claude/agents/``, ``.mcp.json``, …).  This matches the five-step
+      pipeline in ``docs/manual-verification-guide.md``.
+    * Run ``cataforge deploy`` as a separate step, or pass ``--deploy`` to
+      chain the two for backwards compatibility.
+    * ``--no-deploy`` is retained as a no-op flag so existing scripts (and
+      ``cataforge upgrade apply``, which used it explicitly) still work.
     """
     from cataforge.core.config import ConfigManager
     from cataforge.core.events import FRAMEWORK_SETUP, EventBus
@@ -71,10 +85,15 @@ def setup_command(
         cfg.set_runtime_platform(platform)
         click.echo(f"Platform set to: {platform}")
 
-    if no_deploy:
-        click.echo("Skipping platform deploy (--no-deploy).")
-        bus.emit(FRAMEWORK_SETUP, {"platform": None, "with_penpot": with_penpot, "scaffold_only": True})
-        click.echo("Setup complete.")
+    # --no-deploy and "neither --deploy nor --no-deploy" both mean: skip deploy.
+    if not deploy_after or no_deploy:
+        bus.emit(
+            FRAMEWORK_SETUP,
+            {"platform": platform, "with_penpot": with_penpot, "scaffold_only": True},
+        )
+        click.echo(
+            "Setup complete. Run `cataforge deploy` to write IDE artifacts."
+        )
         return
 
     target = platform or cfg.runtime_platform

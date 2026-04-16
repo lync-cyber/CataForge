@@ -7,7 +7,12 @@ Never blocks (exit 0) — logging is best-effort.
 import re
 import sys
 
-from cataforge.hook.base import hook_main, matches_capability, read_hook_input
+from cataforge.hook.base import (
+    hook_main,
+    matches_capability,
+    matches_script_filters,
+    read_hook_input,
+)
 
 
 def _extract_task_type(prompt_text: str | None) -> str | None:
@@ -22,6 +27,10 @@ def main() -> None:
     data = read_hook_input()
 
     if not data or not matches_capability(data, "agent_dispatch"):
+        sys.exit(0)
+
+    # v2 schema: honour matcher_agent_id allowlist when declared in hooks.yaml
+    if not matches_script_filters(data, "log_agent_dispatch"):
         sys.exit(0)
 
     tool_input = data.get("tool_input") or {}

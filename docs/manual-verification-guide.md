@@ -91,6 +91,8 @@ uv tool install .
 cataforge --version
 ```
 
+> A 方案只安装运行时依赖。**若要跑 §3.4 的 `pytest -q`，还需另建项目 venv（B/C 方案），或在 A 方案之外追加 `uv pip install pytest pydantic pyyaml click` 到同一环境**。
+
 **B. 项目本地开发**
 
 ```bash
@@ -153,7 +155,9 @@ cataforge doctor
 - 末行：`Diagnostics complete.`
 - `framework.json` / `hooks.yaml` 标记 `OK`
 - `claude-code / cursor / codex / opencode` 四个 profile 均 `OK`
-- `Framework migration checks` 段显示 `N/N passed`，**退出码 0**；任一 FAIL 时退出码为 1（可用于 CI gate）
+- `Framework migration checks` 段显示 `N/N passed`（可能伴随 `M skipped`）；**退出码 0**
+- 任一 FAIL 时退出码 1（可用于 CI gate）
+- 未 deploy 前，依赖 IDE 产物的检查（如 `mc-0.7.0-detect-correction-registered`）会 **SKIP**，不会 FAIL，保证 fresh install 流程 `doctor` 不卡壳
 
 **失败提示（Troubleshoot）**
 
@@ -176,7 +180,9 @@ cataforge doctor
 cataforge setup --platform claude-code
 ```
 
-**预期**：`Platform set to: claude-code` + `Setup complete.`
+**预期**：`Platform set to: claude-code` + `Setup complete. Run cataforge deploy ...`
+
+> 自 v0.1.2 起，`setup` 只初始化 `.cataforge/` 脚手架、记录目标平台，**不再**自动写入 IDE 产物。若需旧版一步到位的行为，加 `--deploy`；`--no-deploy` 已是默认值（保留为兼容别名）。
 
 #### Step 2 — 干运行
 
@@ -197,10 +203,13 @@ Deploy complete.
 
 ```bash
 cataforge deploy --platform claude-code
-git status                # 观察新增/修改的文件
+# Deploy 产物默认被 .gitignore 排除（有意为之）。用 -u/--ignored 审阅完整清单：
+git status -u
+# 或直接列文件：
+ls -la CLAUDE.md .mcp.json .claude/
 ```
 
-**预期落盘**：`CLAUDE.md`、`.claude/agents/*.md`、`.claude/settings.json`（hook）、`.mcp.json`（若有 MCP）。
+**预期落盘**：`CLAUDE.md`、`.claude/agents/*/AGENT.md`、`.claude/settings.json`（hook）、`.mcp.json`（若有 MCP）。
 
 #### Step 4 — IDE 内观测
 
@@ -220,10 +229,15 @@ claude                    # 启动 Claude Code
 
 #### Step 5 — 清理 / 回滚
 
+Deploy 产物（`CLAUDE.md` / `.mcp.json` / `.claude/agents/` / `.claude/rules/`）默认在 `.gitignore` 内，因此 `git restore` 找不到它们，`git clean -fd` 也不会动被忽略目录。按下列命令彻底清理：
+
 ```bash
-git restore --source=HEAD --staged --worktree CLAUDE.md .claude .mcp.json
-git clean -fd .claude
+rm -f CLAUDE.md .mcp.json .cataforge/.deploy-state
+rm -rf .claude/agents .claude/rules .claude/skills \
+       .claude/commands .claude/settings.json
 ```
+
+> 若想回到 **scaffold-only** 状态（保留 `.cataforge/` 但清光 IDE 产物），上述命令之后再跑一次 `cataforge setup --platform claude-code`（不带 `--deploy`）即可。
 
 #### Step 6 — 判定
 
@@ -453,15 +467,24 @@ cataforge skill list
 
 ### 3.4 自动化回归
 
+> **重要**：pytest 必须在 1.2 B/C 方案创建的项目 venv 内执行。若按 A 方案（`uv tool install .`）安装，`cataforge` CLI 可用但 `pytest` 拿不到 `pydantic` / `pyyaml`，13 个测试模块会 `ImportError`。最简单的一次性补救：
+>
+> ```bash
+> uv venv && uv pip install -e ".[dev]"
+> source .venv/bin/activate          # Windows: .venv\Scripts\activate
+> ```
+
 ```bash
 pytest -q
 ```
 
-**基线**：`116 passed`。
+**基线**：`154 passed`（v0.1.2 起，新增 hook/scaffold/doctor/smoke 回归保护用例；v0.1.3 起，新增 hook bridge 警告/错误日志/脚本契约/v2 筛选器/OpenCode 插件/custom hook/`hook test` 命令用例）。
 
 ### 3.5 升级与 scaffold 刷新
 
 CataForge 采用**包管理器驱动**的升级模型 —— 包本身走 `pip` / `uv tool`，项目内 `.cataforge/` 脚手架由 `cataforge setup --force-scaffold` 刷新。不存在"远程自升级"。
+
+`framework.json` 的 `version` 字段在每次 scaffold 写入时由当前安装包的 `cataforge.__version__` **实时戳入**（v0.1.2 起），因此 `upgrade apply` 执行后 `upgrade check` 会立刻报告 "up to date" — 完成真正的闭环。
 
 ```bash
 # 1) 对比"已安装包版本" vs "项目 scaffold 版本"
@@ -471,10 +494,13 @@ cataforge upgrade check
 pip install --upgrade cataforge    # 或: uv tool upgrade cataforge
 
 # 3) 刷新项目 scaffold（保留用户可编辑字段）
-cataforge upgrade apply            # 等价于 setup --force-scaffold --no-deploy
+cataforge upgrade apply            # 等价于 setup --force-scaffold（默认不 deploy）
 #   --dry-run 可预览会刷新哪些文件
 
-# 4) 验证迁移检查
+# 4) 再次校验：现在应打印 "Scaffold is up to date with the installed package."
+cataforge upgrade check
+
+# 5) 验证迁移检查
 cataforge upgrade verify           # 别名: cataforge doctor
 ```
 

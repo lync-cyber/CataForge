@@ -144,7 +144,8 @@
       "description": "settings.json 必须注册 detect_correction 模块到 AskUserQuestion 匹配器",
       "type": "file_must_contain",
       "path": ".claude/settings.json",
-      "patterns": ["detect_correction", "AskUserQuestion"]
+      "patterns": ["detect_correction", "AskUserQuestion"],
+      "requires_deploy": true
     },
     {
       "id": "mc-0.7.0-retro-threshold-relaxed",

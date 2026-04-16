@@ -258,6 +258,19 @@ class PlatformAdapter(ABC):
         """
         return dict(self._profile.get("hooks", {}).get("tool_overrides", {}))
 
+    @property
+    def hook_entry_type(self) -> str | None:
+        """Platform-native value for a hook entry's ``type`` field.
+
+        Declared in ``profile.yaml`` under ``hooks.entry_type`` (e.g. Claude
+        Code, Cursor and Codex all use ``"command"``).  When ``None`` the
+        bridge falls back to the internal ``type`` from ``hooks.yaml`` — used
+        only by platforms that do not emit JSON hook configs (e.g. OpenCode
+        which uses plugins).
+        """
+        value = self._profile.get("hooks", {}).get("entry_type")
+        return str(value) if value else None
+
     # ---- skills deployment ----
 
     @property

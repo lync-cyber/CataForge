@@ -44,6 +44,34 @@ class TestSetupCommand:
         assert (tmp_path / ".cataforge" / "hooks" / "hooks.yaml").is_file()
         assert "Setup complete" in result.output
 
+    def test_setup_platform_does_not_deploy_by_default(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: `setup --platform X` must be scaffold-only by default.
+
+        Before the fix, `setup --platform claude-code` silently triggered a
+        full deploy, muddling the five-step pipeline in the manual
+        verification guide.  Now deploy requires explicit opt-in.
+        """
+        monkeypatch.chdir(tmp_path)
+        result = _invoke("setup", "--platform", "claude-code")
+        assert result.exit_code == 0, result.output
+        assert not (tmp_path / "CLAUDE.md").exists()
+        assert not (tmp_path / ".claude" / "agents").exists()
+        assert not (tmp_path / ".claude" / "settings.json").exists()
+        assert "Platform set to: claude-code" in result.output
+        assert "cataforge deploy" in result.output  # guidance banner
+
+    def test_setup_platform_with_deploy_flag_writes_artifacts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Opt-in --deploy still chains scaffold + deploy in a single call."""
+        monkeypatch.chdir(tmp_path)
+        result = _invoke("setup", "--platform", "claude-code", "--deploy")
+        assert result.exit_code == 0, result.output
+        assert (tmp_path / "CLAUDE.md").is_file()
+        assert (tmp_path / ".claude" / "settings.json").is_file()
+
     def test_setup_check_only(self, fresh_project: Path) -> None:
         result = _invoke("setup", "--check-only")
         assert result.exit_code == 0, result.output
@@ -92,9 +120,15 @@ class TestStubCommands:
         # banner confirms delegation happened.
         assert "CataForge Doctor" in result.output
 
-    def test_hook_test_is_stub(self, fresh_project: Path) -> None:
+    def test_hook_test_rejects_unknown_hook(self, fresh_project: Path) -> None:
+        """`hook test` is no longer a stub — it runs the named script.
+
+        See tests/cli/test_hook_cmd.py for the happy-path coverage; this
+        smoke-test locks in the error path for unknown hook names.
+        """
         result = _invoke("hook", "test", "pre-commit")
-        assert result.exit_code == STUB_EXIT_CODE
+        assert result.exit_code == 1
+        assert "not declared" in result.output.lower() or "no hook" in result.output.lower()
 
     def test_plugin_install_is_stub(self, fresh_project: Path) -> None:
         result = _invoke("plugin", "install", "example")
