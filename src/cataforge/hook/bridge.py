@@ -83,12 +83,20 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> dict[str, Any]:
             module_name = _script_to_hook_name(hook_entry.get("script", ""))
             command = command_template.format(module=module_name)
 
+            # Emit the platform-native hook entry type (typically "command" for
+            # JSON-config platforms like Claude Code / Cursor / Codex). The
+            # internal "block" / "observe" in hooks.yaml is a CataForge-side
+            # semantic tag used for CLI display and future policy — it must
+            # not leak into platform configs, where it would be rejected or
+            # silently ignored by the host IDE.
+            platform_entry_type = adapter.hook_entry_type or hook_entry.get("type", "command")
+
             translated.append(
                 {
                     "matcher": platform_matcher,
                     "hooks": [
                         {
-                            "type": hook_entry.get("type", "observe"),
+                            "type": platform_entry_type,
                             "command": command,
                         }
                     ],

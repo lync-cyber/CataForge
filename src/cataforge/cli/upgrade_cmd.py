@@ -87,6 +87,7 @@ def upgrade_apply(ctx: click.Context, dry_run: bool) -> None:
         with_penpot=False,
         check_only=False,
         force_scaffold=True,
+        deploy_after=False,
         no_deploy=True,
     )
 

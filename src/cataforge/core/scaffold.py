@@ -18,8 +18,30 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from cataforge import __version__ as _RUNTIME_VERSION
+
 _PKG = "cataforge._assets"
 _SCAFFOLD_SUBDIR = "cataforge_scaffold"
+
+
+def _stamp_framework_version(raw_bytes: bytes) -> bytes:
+    """Overwrite the bundled ``framework.json`` ``version`` with the runtime.
+
+    The bundled scaffold ships with a placeholder ``version`` value that can
+    drift from the installed package (e.g. scaffold says ``0.1.0`` while the
+    wheel is at ``0.1.1``).  That drift causes ``cataforge upgrade check`` to
+    report "differs" forever, even directly after ``upgrade apply``.
+    Stamping the runtime package version onto every write makes the package
+    the single source of truth for the scaffold ``version`` field.
+    """
+    try:
+        data = json.loads(raw_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return raw_bytes
+    if not isinstance(data, dict):
+        return raw_bytes
+    data["version"] = _RUNTIME_VERSION
+    return (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 
 def _scaffold_root() -> Traversable:
@@ -58,6 +80,10 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
         return new_bytes
 
     merged: dict[str, Any] = json.loads(new_bytes.decode("utf-8"))
+
+    # Runtime package version is injected by _stamp_framework_version already;
+    # keep it so the refreshed scaffold matches the installed package.
+    merged["version"] = _RUNTIME_VERSION
 
     # runtime.platform is chosen by the user at setup time.
     existing_runtime = existing.get("runtime") or {}
@@ -109,6 +135,12 @@ def copy_scaffold_to(
 
         with as_file(src) as src_path:
             new_bytes = Path(src_path).read_bytes()
+
+        # Stamp the runtime package version onto framework.json for every
+        # write (fresh copy or force-refresh) — keeps the scaffold version
+        # aligned with the installed package without a template engine.
+        if rel == "framework.json":
+            new_bytes = _stamp_framework_version(new_bytes)
 
         if exists and force:
             handler = _MERGE_HANDLERS.get(rel)

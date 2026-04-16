@@ -383,3 +383,49 @@ class TestHookCommandTemplate:
             adapter = get_adapter(pid, platforms_dir)
             expected = "python -m cataforge.hook.scripts.{module}"
             assert adapter.get_hook_command_template() == expected
+
+
+class TestClaudeCodeAgentLayout:
+    """Regression guard: Claude Code expects a flat ``<name>.md`` layout."""
+
+    def _make_source(self, root: Path) -> Path:
+        src = root / ".cataforge" / "agents"
+        src.mkdir(parents=True)
+        (src / "orchestrator").mkdir()
+        (src / "orchestrator" / "AGENT.md").write_text(
+            "---\nname: orchestrator\ndescription: Test\n---\n# body\n",
+            encoding="utf-8",
+        )
+        return src
+
+    def test_claude_code_emits_flat_and_directory_layout(
+        self, project_dir: Path
+    ) -> None:
+        adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
+        src = self._make_source(project_dir)
+        actions = adapter.deploy_agents(src, project_dir, dry_run=False)
+
+        flat = project_dir / ".claude" / "agents" / "orchestrator.md"
+        nested = project_dir / ".claude" / "agents" / "orchestrator" / "AGENT.md"
+        assert flat.is_file(), "flat <name>.md required for native discovery"
+        assert nested.is_file(), "legacy <name>/AGENT.md kept for back-compat"
+        assert "name: orchestrator" in flat.read_text(encoding="utf-8")
+        assert any("orchestrator" in a for a in actions)
+
+    def test_claude_code_prunes_both_layouts_on_removal(
+        self, project_dir: Path
+    ) -> None:
+        adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
+        src = self._make_source(project_dir)
+        adapter.deploy_agents(src, project_dir, dry_run=False)
+
+        # Drop the agent from source and redeploy — both forms must disappear.
+        import shutil
+
+        shutil.rmtree(src / "orchestrator")
+        adapter.deploy_agents(src, project_dir, dry_run=False)
+
+        assert not (project_dir / ".claude" / "agents" / "orchestrator.md").exists()
+        assert not (
+            project_dir / ".claude" / "agents" / "orchestrator" / "AGENT.md"
+        ).exists()
