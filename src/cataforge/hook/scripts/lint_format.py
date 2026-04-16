@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 
-from cataforge.hook.base import hook_main, read_hook_input
+from cataforge.hook.base import hook_main, matches_script_filters, read_hook_input
 
 
 def run_tool(cmd: list[str], label: str, filepath: str) -> None:
@@ -39,6 +39,12 @@ def _has_command(name: str) -> bool:
 @hook_main
 def main() -> None:
     data = read_hook_input()
+
+    # v2 schema opt-in: honour matcher_file_pattern etc. from hooks.yaml
+    # before doing any work.  Scripts keep backwards compatibility — if the
+    # user hasn't added filters, this always returns True.
+    if not matches_script_filters(data, "lint_format"):
+        sys.exit(0)
 
     file_path = (data.get("tool_input") or {}).get("file_path")
     if not file_path:

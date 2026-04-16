@@ -9,7 +9,7 @@ Test:
 import re
 import sys
 
-from cataforge.hook.base import matches_capability, read_hook_input
+from cataforge.hook.base import matches_capability, matches_script_filters, read_hook_input
 
 DANGEROUS_PATTERNS = [
     (
@@ -55,6 +55,12 @@ def main() -> None:
     data = read_hook_input()
 
     if not matches_capability(data, "shell_exec"):
+        sys.exit(0)
+
+    # v2 schema opt-in filters (matcher_command_pattern etc.).  The built-in
+    # DANGEROUS_PATTERNS list still runs; v2 filters additionally narrow the
+    # guard (e.g. project-local allow-lists) when declared.
+    if not matches_script_filters(data, "guard_dangerous"):
         sys.exit(0)
 
     command = (data.get("tool_input") or {}).get("command", "")

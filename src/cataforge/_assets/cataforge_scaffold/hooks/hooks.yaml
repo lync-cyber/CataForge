@@ -1,5 +1,12 @@
 # CataForge Hook 规范定义（平台无关）
 # deploy 读取此文件 + 平台 profile 的 event_map/matcher_map 生成平台配置
+#
+# schema_version: 规范结构版本号（向前不兼容时递增）
+#   v1 — 初始：hooks / degradation_templates
+#   v2 — 新增：matcher_file_pattern / matcher_command_pattern / matcher_agent_id
+#        （可选；旧 hooks.yaml 省略时行为等同 v1）
+
+schema_version: 2
 
 hooks:
   PreToolUse:
