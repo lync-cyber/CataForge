@@ -120,9 +120,15 @@ class TestStubCommands:
         # banner confirms delegation happened.
         assert "CataForge Doctor" in result.output
 
-    def test_hook_test_is_stub(self, fresh_project: Path) -> None:
+    def test_hook_test_rejects_unknown_hook(self, fresh_project: Path) -> None:
+        """`hook test` is no longer a stub — it runs the named script.
+
+        See tests/cli/test_hook_cmd.py for the happy-path coverage; this
+        smoke-test locks in the error path for unknown hook names.
+        """
         result = _invoke("hook", "test", "pre-commit")
-        assert result.exit_code == STUB_EXIT_CODE
+        assert result.exit_code == 1
+        assert "not declared" in result.output.lower() or "no hook" in result.output.lower()
 
     def test_plugin_install_is_stub(self, fresh_project: Path) -> None:
         result = _invoke("plugin", "install", "example")

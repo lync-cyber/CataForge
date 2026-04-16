@@ -9,7 +9,12 @@ import re
 import sys
 
 from cataforge.core.paths import ProjectPaths
-from cataforge.hook.base import hook_main, matches_capability, read_hook_input
+from cataforge.hook.base import (
+    hook_main,
+    matches_capability,
+    matches_script_filters,
+    read_hook_input,
+)
 
 _schemas_dir = ProjectPaths().schemas_dir
 _schema_path = _schemas_dir / "agent-result.schema.json"
@@ -37,6 +42,9 @@ def main() -> None:
     data = read_hook_input()
 
     if not data or not matches_capability(data, "agent_dispatch"):
+        sys.exit(0)
+
+    if not matches_script_filters(data, "validate_agent_result"):
         sys.exit(0)
 
     result = data.get("tool_result") or data.get("result") or data.get("tool_output")

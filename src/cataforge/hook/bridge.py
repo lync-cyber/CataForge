@@ -1,14 +1,18 @@
 """Hook bridge — generate platform hook configs from hooks.yaml + adapter.
 
-Fixes C-2: hook command template now comes from the platform adapter,
-eliminating the hardcoded $CLAUDE_PROJECT_DIR.
+Bridges CataForge's canonical hook spec (``hooks.yaml``) to each platform's
+native hook config, collecting *warnings* for any hook entry that could not
+be materialised natively (missing event mapping, missing matcher mapping,
+unimplemented degradation strategy).  Callers (``deploy`` / ``doctor``) are
+expected to surface those warnings to the user so silent functional loss
+becomes observable.
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 
@@ -18,21 +22,72 @@ from cataforge.platform.base import PlatformAdapter
 logger = logging.getLogger(__name__)
 
 
+# Highest schema version this release understands.  Older hooks.yaml files
+# are treated as v1 (missing/optional fields default to "no filter").
+SUPPORTED_SCHEMA_VERSION = 2
+
+
+class HookGenerationResult(NamedTuple):
+    """Return value of :func:`generate_platform_hooks`.
+
+    Using a NamedTuple keeps old positional-unpacking call sites working while
+    attaching a second, named field for warnings.
+    """
+
+    hooks: dict[str, Any]
+    warnings: list[str]
+
+
 def load_hooks_spec(hooks_yaml: Path | None = None) -> dict[str, Any]:
     """Load the canonical hook specification from hooks.yaml."""
     if hooks_yaml is None:
         hooks_yaml = find_project_root() / ".cataforge" / "hooks" / "hooks.yaml"
 
     with open(hooks_yaml, encoding="utf-8") as f:
-        return dict(yaml.safe_load(f))
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"hooks.yaml must be a mapping, got {type(data).__name__}")
+    return data
 
 
-def generate_platform_hooks(adapter: PlatformAdapter) -> dict[str, Any]:
+def check_schema_version(spec: dict[str, Any]) -> str | None:
+    """Validate ``schema_version`` against this release.
+
+    Returns ``None`` when the version is supported (including the implicit
+    v1 for files authored before the field existed), otherwise a warning
+    string ready to show the user.
+    """
+    raw = spec.get("schema_version", 1)
+    try:
+        version = int(raw)
+    except (TypeError, ValueError):
+        return (
+            f"hooks.yaml: schema_version must be an integer, got {raw!r}. "
+            "Treating as v1."
+        )
+    if version > SUPPORTED_SCHEMA_VERSION:
+        return (
+            f"hooks.yaml: schema_version={version} is newer than this "
+            f"cataforge release understands (max v{SUPPORTED_SCHEMA_VERSION}). "
+            "Consider upgrading the package."
+        )
+    return None
+
+
+def generate_platform_hooks(adapter: PlatformAdapter) -> HookGenerationResult:
     """Generate platform-native hook configuration.
 
-    Returns a dict suitable for writing into the platform's hook config file.
+    Returns ``(hooks, warnings)``.  ``hooks`` is suitable for writing into
+    the platform's hook config file; ``warnings`` enumerates every canonical
+    hook that could not be emitted natively so the caller can surface it.
     """
     spec = load_hooks_spec()
+    warnings: list[str] = []
+
+    version_warning = check_schema_version(spec)
+    if version_warning:
+        warnings.append(version_warning)
+
     event_map = adapter.hook_event_map
     degradation = adapter.hook_degradation
     tool_map = adapter.get_tool_map()
@@ -44,11 +99,12 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> dict[str, Any]:
     for event_name, hook_list in spec.get("hooks", {}).items():
         platform_event = event_map.get(event_name)
         if platform_event is None:
-            logger.debug(
-                "hook skip: canonical event %r has no platform mapping (platform=%s)",
-                event_name,
-                adapter.platform_id,
-            )
+            for hook_entry in hook_list:
+                script_name = _script_to_hook_name(hook_entry.get("script", "?"))
+                warnings.append(
+                    f"{adapter.platform_id}: event {event_name!r} has no platform "
+                    f"mapping — hook {script_name!r} will not fire."
+                )
             continue
 
         translated: list[dict[str, Any]] = []
@@ -56,24 +112,27 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> dict[str, Any]:
             capability = hook_entry.get("matcher_capability", "")
             hook_name = _script_to_hook_name(hook_entry.get("script", ""))
 
-            if degradation.get(hook_name) != "native":
-                logger.debug(
-                    "hook skip: %s / %s — degradation[%r]=%r (need 'native')",
-                    event_name,
-                    hook_name,
-                    hook_name,
-                    degradation.get(hook_name),
+            status = degradation.get(hook_name, "native")
+            if status != "native":
+                # Degraded/skipped hooks are handled by apply_degradation; we
+                # still surface the loss of the native code path here so the
+                # user understands that runtime blocking/observing is gone.
+                warnings.append(
+                    f"{adapter.platform_id}: hook {hook_name!r} is {status!r} "
+                    f"(not native) — runtime behaviour replaced by a degradation "
+                    "strategy (see `hook list`)."
                 )
                 continue
 
             if capability:
-                native_tool = hook_tool_overrides.get(capability) or tool_map.get(capability)
+                native_tool = hook_tool_overrides.get(capability) or tool_map.get(
+                    capability
+                )
                 if native_tool is None:
-                    logger.debug(
-                        "hook skip: %s / %s — matcher_capability %r has no tool mapping",
-                        event_name,
-                        hook_name,
-                        capability,
+                    warnings.append(
+                        f"{adapter.platform_id}: matcher_capability "
+                        f"{capability!r} has no tool mapping — hook "
+                        f"{hook_name!r} on event {event_name} skipped."
                     )
                     continue
                 platform_matcher = native_tool
@@ -81,7 +140,7 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> dict[str, Any]:
                 platform_matcher = ""
 
             module_name = _script_to_hook_name(hook_entry.get("script", ""))
-            command = command_template.format(module=module_name)
+            command = _resolve_command(command_template, module_name)
 
             # Emit the platform-native hook entry type (typically "command" for
             # JSON-config platforms like Claude Code / Cursor / Codex). The
@@ -89,7 +148,9 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> dict[str, Any]:
             # semantic tag used for CLI display and future policy — it must
             # not leak into platform configs, where it would be rejected or
             # silently ignored by the host IDE.
-            platform_entry_type = adapter.hook_entry_type or hook_entry.get("type", "command")
+            platform_entry_type = adapter.hook_entry_type or hook_entry.get(
+                "type", "command"
+            )
 
             translated.append(
                 {
@@ -106,7 +167,24 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> dict[str, Any]:
         if translated:
             platform_hooks[platform_event] = translated
 
-    return platform_hooks
+    return HookGenerationResult(platform_hooks, warnings)
+
+
+def _resolve_command(template: str, script_name: str) -> str:
+    """Resolve a hook command line.
+
+    Built-in scripts live in ``cataforge.hook.scripts.<name>`` and use the
+    adapter's ``{module}`` template.  User-authored scripts are referenced
+    with a ``custom:`` prefix (``script: custom:my_hook``) and are invoked
+    directly from ``.cataforge/hooks/custom/<name>.py`` — this lets a project
+    ship its own hooks without needing a plugin mechanism.
+    """
+    if script_name.startswith("custom:"):
+        custom_name = script_name.removeprefix("custom:")
+        # Path is relative to the project root, which every supported IDE
+        # uses as the hook process's cwd.
+        return f"python .cataforge/hooks/custom/{custom_name}.py"
+    return template.format(module=script_name)
 
 
 def get_degraded_hooks(adapter: PlatformAdapter) -> list[dict[str, Any]]:
@@ -137,6 +215,14 @@ def apply_degradation(
     degraded = get_degraded_hooks(adapter)
     actions: list[str] = []
     rules_content_parts: list[str] = []
+
+    # Platforms with a plugin-based hook surface (OpenCode) materialise
+    # their hooks through a generated plugin file in addition to whatever
+    # per-hook degradation strategies still apply for events the plugin
+    # host cannot represent (e.g. Notification on OpenCode).
+    plugin_actions = _emit_plugin_hooks(adapter, project_root, dry_run=dry_run)
+    if plugin_actions is not None:
+        actions.extend(plugin_actions)
 
     for entry in degraded:
         strategy = entry["strategy"]
@@ -172,6 +258,22 @@ def apply_degradation(
             actions.append(f"rules_injection → {auto_rules_path}")
 
     return actions
+
+
+def _emit_plugin_hooks(
+    adapter: PlatformAdapter, project_root: Path, *, dry_run: bool = False
+) -> list[str] | None:
+    """Call the adapter's ``emit_plugin_hooks`` hook if defined.
+
+    Platforms that use plugin files instead of JSON hook configs (OpenCode)
+    implement this method to generate the plugin wrapper in one go.  Returns
+    ``None`` when the adapter has no plugin surface — in that case the
+    caller falls back to per-hook rules injection / skip.
+    """
+    fn = getattr(adapter, "emit_plugin_hooks", None)
+    if fn is None:
+        return None
+    return list(fn(project_root, dry_run=dry_run))
 
 
 def _script_to_hook_name(script: str) -> str:

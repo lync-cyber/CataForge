@@ -1,8 +1,11 @@
-"""Hook bridge skip diagnostics (M5)."""
+"""Hook bridge skip diagnostics.
+
+As of the C1 improvements, the bridge surfaces ``skip`` events as warnings
+in its return value (instead of only writing them to a debug log).  These
+tests lock that behaviour in.
+"""
 
 from __future__ import annotations
-
-import logging
 
 import pytest
 
@@ -13,6 +16,7 @@ class _StubAdapter:
     """Minimal surface used by ``generate_platform_hooks``."""
 
     platform_id = "test"
+    hook_entry_type = "command"
 
     def __init__(
         self,
@@ -40,9 +44,7 @@ class _StubAdapter:
         return "python -m cataforge.hook.scripts.{module}"
 
 
-def test_skip_logs_unmapped_event(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_warns_on_unmapped_event(monkeypatch: pytest.MonkeyPatch) -> None:
     import cataforge.hook.bridge as bridge
 
     spec = {
@@ -58,20 +60,16 @@ def test_skip_logs_unmapped_event(
     }
     monkeypatch.setattr(bridge, "load_hooks_spec", lambda _p=None: spec)
 
-    with caplog.at_level(logging.DEBUG, logger="cataforge.hook.bridge"):
-        generate_platform_hooks(
-            _StubAdapter(
-                tool_map={"file_read": "Read"},
-                event_map={"PreToolUse": "pre"},
-            )
+    _hooks, warnings = generate_platform_hooks(
+        _StubAdapter(
+            tool_map={"file_read": "Read"},
+            event_map={"PreToolUse": "pre"},
         )
+    )
+    assert any("no platform mapping" in w for w in warnings), warnings
 
-    assert any("no platform mapping" in r.message for r in caplog.records)
 
-
-def test_skip_logs_missing_tool_mapping(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_warns_on_missing_tool_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
     import cataforge.hook.bridge as bridge
 
     spec = {
@@ -87,20 +85,16 @@ def test_skip_logs_missing_tool_mapping(
     }
     monkeypatch.setattr(bridge, "load_hooks_spec", lambda _p=None: spec)
 
-    with caplog.at_level(logging.DEBUG, logger="cataforge.hook.bridge"):
-        generate_platform_hooks(
-            _StubAdapter(
-                tool_map={},
-                event_map={"PreToolUse": "pre"},
-            )
+    _hooks, warnings = generate_platform_hooks(
+        _StubAdapter(
+            tool_map={},
+            event_map={"PreToolUse": "pre"},
         )
+    )
+    assert any("no tool mapping" in w for w in warnings), warnings
 
-    assert any("no tool mapping" in r.message for r in caplog.records)
 
-
-def test_skip_logs_non_native_degradation(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_warns_on_non_native_degradation(monkeypatch: pytest.MonkeyPatch) -> None:
     import cataforge.hook.bridge as bridge
 
     spec = {
@@ -116,13 +110,11 @@ def test_skip_logs_non_native_degradation(
     }
     monkeypatch.setattr(bridge, "load_hooks_spec", lambda _p=None: spec)
 
-    with caplog.at_level(logging.DEBUG, logger="cataforge.hook.bridge"):
-        generate_platform_hooks(
-            _StubAdapter(
-                tool_map={"file_read": "Read"},
-                event_map={"PreToolUse": "pre"},
-                degradation={"guard_dangerous": "degraded"},
-            )
+    _hooks, warnings = generate_platform_hooks(
+        _StubAdapter(
+            tool_map={"file_read": "Read"},
+            event_map={"PreToolUse": "pre"},
+            degradation={"guard_dangerous": "degraded"},
         )
-
-    assert any("need 'native'" in r.message for r in caplog.records)
+    )
+    assert any("degraded" in w and "guard_dangerous" in w for w in warnings), warnings

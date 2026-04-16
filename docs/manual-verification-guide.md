@@ -478,7 +478,7 @@ cataforge skill list
 pytest -q
 ```
 
-**基线**：`125 passed`（v0.1.2 起，新增 hook/scaffold/doctor/smoke 回归保护用例）。
+**基线**：`154 passed`（v0.1.2 起，新增 hook/scaffold/doctor/smoke 回归保护用例；v0.1.3 起，新增 hook bridge 警告/错误日志/脚本契约/v2 筛选器/OpenCode 插件/custom hook/`hook test` 命令用例）。
 
 ### 3.5 升级与 scaffold 刷新
 

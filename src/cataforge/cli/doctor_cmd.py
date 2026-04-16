@@ -69,10 +69,70 @@ def doctor_command(ctx: click.Context) -> None:
     click.echo("\nFramework migration checks:")
     failed_count = _run_migration_checks(cfg)
 
+    # Recent hook execution failures — logged by hook_main() so silent
+    # observer-hook crashes don't stay invisible.
+    click.echo("\nHook execution log:")
+    _report_hook_errors(cfg)
+
     click.echo("\nDiagnostics complete.")
 
     if failed_count:
         ctx.exit(1)
+
+
+def _report_hook_errors(cfg) -> None:
+    """Surface recent entries from ``.cataforge/.hook-errors.jsonl``.
+
+    We don't fail the doctor run on these — a crashed observer hook is
+    degraded functionality, not a broken project — but we do point the user
+    at the log so they know it exists.
+    """
+    import json as _json
+    from datetime import datetime, timedelta, timezone
+
+    from cataforge.hook.base import HOOK_ERROR_LOG_REL
+
+    log_path = cfg.paths.root / HOOK_ERROR_LOG_REL
+    if not log_path.is_file():
+        click.echo("  (no hook errors recorded)")
+        return
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    recent: list[dict] = []
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            for raw in f:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    entry = _json.loads(raw)
+                except _json.JSONDecodeError:
+                    continue
+                ts_raw = entry.get("ts")
+                try:
+                    ts = datetime.fromisoformat(ts_raw)
+                except (TypeError, ValueError):
+                    continue
+                if ts >= cutoff:
+                    recent.append(entry)
+    except OSError as e:
+        click.echo(f"  (could not read {log_path}: {e})")
+        return
+
+    if not recent:
+        click.echo("  (no hook errors in the last 24h)")
+        return
+
+    tail = recent[-5:]
+    click.echo(f"  {len(recent)} error(s) in the last 24h (showing last {len(tail)}):")
+    for entry in tail:
+        mod = entry.get("module", "?")
+        fn = entry.get("func", "?")
+        err_type = entry.get("error_type", "Error")
+        err = entry.get("error", "")
+        click.echo(f"  - [{entry.get('ts', '?')}] {mod}.{fn}: {err_type}: {err}")
+    click.echo(f"  Full log: {log_path}  (set CATAFORGE_HOOK_DEBUG=1 for tracebacks)")
 
 
 def _run_migration_checks(cfg) -> int:
