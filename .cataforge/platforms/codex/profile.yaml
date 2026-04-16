@@ -26,6 +26,14 @@ agent_definition:
     - .codex/agents
   needs_deploy: true
 
+skill_definition:
+  # Codex has no native skills surface — leave disabled.
+  needs_deploy: false
+
+command_definition:
+  # Codex slash commands: TODO when Codex exposes a stable command directory.
+  needs_deploy: false
+
 agent_config:
   supported_fields:
     - name
