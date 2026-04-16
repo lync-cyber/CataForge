@@ -73,12 +73,12 @@
 | 条件 | 版本 / 说明 |
 |------|-------------|
 | OS | Windows 10+ / macOS 12+ / Linux（主流发行版） |
-| Python | **`>=3.10`**（必需） |
+| Python | **`>=3.10`**（必需）；已验证 3.10 / 3.11 / 3.12 / 3.13 / 3.14；3.14 free-threaded（PEP 703）未系统验证 |
 | pip 或 uv | `pip>=23`；或 `uv>=0.4`（推荐） |
 | Git | 近期版本（CataForge 依赖 git 元信息） |
 | 可选工具 | `ruff`、`docker`、`npx` — `doctor` 会检测但不强制 |
 
-> CLI 启动时已自动切换 stdout/stderr 到 UTF-8（`cataforge.utils.common.ensure_utf8_stdio`）。**无需** 手动设置 `PYTHONUTF8=1` 或 `chcp 65001`。
+> CLI 启动时已自动切换 stdout/stderr 到 UTF-8（`cataforge.utils.common.ensure_utf8_stdio`）。**多数情形下无需** 手动设置 `PYTHONUTF8=1` 或 `chcp 65001`；若仍在 legacy 代码页（cp936/cp1252）下出现 `UnicodeEncodeError`，参照 §1.2a Windows 最小可跑清单的兜底步骤。
 
 ### 1.2 安装 CataForge
 
@@ -113,6 +113,27 @@ pip install -e ".[dev]"
 ```
 
 > **Windows shell 提示**：PowerShell 首次激活 venv 若报执行策略错误，用 `Set-ExecutionPolicy -Scope Process RemoteSigned` 一次性放行；或改用 `cmd.exe`。
+
+### 1.2a Windows 最小可跑清单
+
+针对 Windows 用户的一次性跑通步骤。三种 shell 命令并排，按你习惯选一列执行。
+
+| 步骤 | PowerShell | cmd.exe | Git Bash |
+|------|-----------|---------|----------|
+| 1. 选 Python | `py -3.12 --version` | `py -3.12 --version` | `py -3.12 --version`（或 `python --version`） |
+| 2. 建 venv | `py -3.12 -m venv .venv` | `py -3.12 -m venv .venv` | `python -m venv .venv` |
+| 3. 激活 venv | `.\.venv\Scripts\Activate.ps1` | `.venv\Scripts\activate.bat` | `source .venv/Scripts/activate` |
+| 4. 装依赖 | `pip install -e ".[dev]"` | `pip install -e ".[dev]"` | `pip install -e ".[dev]"` |
+| 5. 健康检查 | `cataforge doctor` | `cataforge doctor` | `cataforge doctor` |
+| 6. 乱码兜底（需要时） | `$env:PYTHONUTF8 = "1"` | `set PYTHONUTF8=1` | `export PYTHONUTF8=1` |
+| 7. PATH 未找到 | `Get-Command cataforge` | `where cataforge` | `which cataforge` |
+
+**常见坑位**：
+
+- `py -3.12 -m venv` 优于 `python -m venv`：绕过 Windows Store 的 `python.exe` 别名，后者在 venv 创建时经常产生空 `Scripts/` 导致激活脚本缺失。
+- PowerShell 激活脚本被策略拦：`Set-ExecutionPolicy -Scope Process RemoteSigned` 一次性放行当前 shell；要永久放行改 `-Scope CurrentUser`，生产机不建议。
+- `mklink /J` 需要管理员或开启"开发者模式"：CataForge 部署到 Windows 时会优先 junction，失败自动回退为目录 copy，功能不受影响但磁盘占用略增。
+- Python 3.14：运行无已知问题；若看到 `DeprecationWarning` 与 CataForge 无关，多半是依赖库在 3.14 下的轻量 warning。
 
 ### 1.3 安装目标 IDE 客户端
 
@@ -253,13 +274,15 @@ rm -rf .claude/agents .claude/rules .claude/skills \
 cataforge setup --platform cursor
 ```
 
+> **自 M5 起**：默认 Cursor 部署**不再触及 `.claude/` 目录**。`.cursor/rules/*.mdc` 是 Cursor 原生消费的规则文件；历史版本额外镜像一份 Markdown 到 `.claude/rules` 以兼容 Claude Code 双栖使用，现改为可选。若你的仓库确实同时用 Cursor + Claude Code 共享同一套 prompt，去 `.cataforge/platforms/cursor/profile.yaml` 把 `rules.cross_platform_mirror` 改为 `true`。
+
 #### Step 2 — 干运行
 
 ```bash
 cataforge deploy --check --platform cursor
 ```
 
-**预期**（节选）：`.cursor/hooks.json`、`.cursor/rules/*.mdc`、`SKIP: detect_correction`（降级提示）。
+**预期**（节选）：`.cursor/hooks.json`、`.cursor/rules/*.mdc`、`SKIP: detect_correction`（降级提示）、`SKIP: .claude/rules Markdown mirror (enable via profile rules.cross_platform_mirror: true)`（镜像已默认关闭的提示）。
 
 #### Step 3 — 真部署
 
@@ -267,7 +290,7 @@ cataforge deploy --check --platform cursor
 cataforge deploy --platform cursor
 ```
 
-**预期落盘**：`AGENTS.md`、`.cursor/agents/*.md`、`.cursor/hooks.json`、`.cursor/rules/*.mdc`、`.cursor/mcp.json`（若有 MCP）。
+**预期落盘**（默认配置）：`AGENTS.md`、`.cursor/agents/*/AGENT.md`、`.cursor/hooks.json`、`.cursor/rules/*.mdc`、`.cursor/mcp.json`（若有 MCP）。**不会出现 `.claude/` 下任何文件。** 若打开了 `rules.cross_platform_mirror`，额外出现 `.claude/rules`（软链 / junction / 拷贝，视 OS 而定）。
 
 #### Step 4 — IDE 内观测
 
@@ -287,11 +310,13 @@ cataforge deploy --platform cursor
 ```bash
 git restore --source=HEAD --staged --worktree AGENTS.md
 git clean -fd .cursor
+# 仅在你打开了 rules.cross_platform_mirror 时需要下面这行：
+# rm -rf .claude/rules
 ```
 
 #### Step 6 — 判定
 
-出现 `.cursor/hooks.json` + `.cursor/rules/*.mdc` + Cursor 设置里能看到 rules/mcp 即合格。
+出现 `.cursor/hooks.json` + `.cursor/rules/*.mdc` + Cursor 设置里能看到 rules/mcp 即合格。同时确认项目根下 **没有** `.claude/` 目录（若打开镜像则允许出现 `.claude/rules`）。
 
 ---
 

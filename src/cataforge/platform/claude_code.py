@@ -57,6 +57,7 @@ class ClaudeCodeAdapter(PlatformAdapter):
             return []
 
         target_dir = project_root / scan_dirs[0]
+        target_rel = scan_dirs[0]
         if not dry_run:
             target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -70,31 +71,36 @@ class ClaudeCodeAdapter(PlatformAdapter):
             if d.is_dir() and (d / "AGENT.md").is_file()
         }
 
+        dropped_collector: dict[str, set[str]] = {}
+
         for agent_name in sorted(source_agents):
             agent_md = source_dir / agent_name / "AGENT.md"
             content = agent_md.read_text(encoding="utf-8")
-            translated = translate_agent_md(content, self)
 
             flat_dst = target_dir / f"{agent_name}.md"
             dir_dst = target_dir / agent_name
 
             if dry_run:
                 actions.append(
-                    f"would deploy agents/{agent_name}/AGENT.md → "
-                    f"{scan_dirs[0]}/{agent_name}.md (+ {agent_name}/AGENT.md)"
+                    f"would deploy agent {agent_name:<24} "
+                    f"→ {target_rel}/{agent_name}.md "
+                    f"(also mirrored at {target_rel}/{agent_name}/AGENT.md)"
                 )
                 continue
 
+            translated = translate_agent_md(
+                content, self, dropped_collector=dropped_collector
+            )
             flat_dst.write_text(translated, encoding="utf-8")
             dir_dst.mkdir(exist_ok=True)
             (dir_dst / "AGENT.md").write_text(translated, encoding="utf-8")
-            actions.append(f"agents/{agent_name}/AGENT.md → {scan_dirs[0]}")
+            actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
 
             # Prune stale sibling files inside the agent subdir.
             for stale in dir_dst.iterdir():
                 if stale.is_file() and stale.name != "AGENT.md":
                     stale.unlink()
-                    actions.append(f"pruned stale {scan_dirs[0]}/{agent_name}/{stale.name}")
+                    actions.append(f"pruned stale {target_rel}/{agent_name}/{stale.name}")
 
         # Prune orphans in both layouts. Only touch files/dirs that look like
         # ours (flat .md files whose basename matches a removed agent, or
@@ -109,13 +115,13 @@ class ClaudeCodeAdapter(PlatformAdapter):
                     ):
                         if dry_run:
                             actions.append(
-                                f"would prune orphan {scan_dirs[0]}/{existing.name}/"
+                                f"would prune orphan {target_rel}/{existing.name}/"
                             )
                         else:
                             import shutil as _shutil
 
                             _shutil.rmtree(existing)
-                            actions.append(f"pruned orphan {scan_dirs[0]}/{existing.name}/")
+                            actions.append(f"pruned orphan {target_rel}/{existing.name}/")
                     continue
 
                 if (
@@ -140,13 +146,23 @@ class ClaudeCodeAdapter(PlatformAdapter):
                         if f"name: {existing.stem}" in head:
                             if dry_run:
                                 actions.append(
-                                    f"would prune orphan {scan_dirs[0]}/{existing.name}"
+                                    f"would prune orphan {target_rel}/{existing.name}"
                                 )
                             else:
                                 existing.unlink()
                                 actions.append(
-                                    f"pruned orphan {scan_dirs[0]}/{existing.name}"
+                                    f"pruned orphan {target_rel}/{existing.name}"
                                 )
+
+        # Single aggregated WARN for unmapped capabilities — see translator.py
+        # and the matching block in PlatformAdapter.deploy_agents for rationale.
+        for field_name in sorted(dropped_collector):
+            caps = sorted(dropped_collector[field_name])
+            actions.append(
+                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
+                f"{field_name!r} have no platform mapping: {caps} — "
+                "these will be skipped during translation."
+            )
 
         return actions
 
