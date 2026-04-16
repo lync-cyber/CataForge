@@ -3,7 +3,7 @@
 本指南带你从 **0** 出发，在 Claude Code / Cursor / CodeX / OpenCode 四个 IDE 下完整安装、部署并**在 IDE 内真实跑通** CataForge，验证其核心能力是否按预期工作。
 
 <p align="center">
-  <img src="./assets/verification-flow.svg" alt="CataForge 手动验证五步流水线" width="100%">
+  <img src="../assets/verification-flow.svg" alt="CataForge 手动验证五步流水线" width="100%">
 </p>
 
 ## 目录
@@ -140,7 +140,7 @@ pip install -e ".[dev]"
 先看清 **FIG. 02**：`deploy` 会为每个 IDE 写入的文件与原生支持程度一目了然。
 
 <p align="center">
-  <img src="./assets/artifact-map.svg" alt="CataForge 四平台部署产物对照图" width="100%">
+  <img src="../assets/artifact-map.svg" alt="CataForge 四平台部署产物对照图" width="100%">
 </p>
 
 下表为四个 IDE 的常见安装渠道与最小可用校验。**具体命令以各 IDE 官方文档为准**，CataForge 不随版本绑定客户端。

@@ -63,7 +63,7 @@ def setup_command(
     * ``setup`` materialises ``.cataforge/`` and records the target platform,
       but does **not** write IDE-visible artifacts (``CLAUDE.md``,
       ``.claude/agents/``, ``.mcp.json``, …).  This matches the five-step
-      pipeline in ``docs/manual-verification-guide.md``.
+      pipeline in ``docs/guide/manual-verification.md``.
     * Run ``cataforge deploy`` as a separate step, or pass ``--deploy`` to
       chain the two for backwards compatibility.
     * ``--no-deploy`` is retained as a no-op flag so existing scripts (and
