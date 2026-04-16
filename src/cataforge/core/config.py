@@ -54,6 +54,18 @@ class ConfigManager:
             self._cache = raw
         return self._cache
 
+    def load_raw(self) -> dict[str, Any]:
+        """Read framework.json verbatim (no Pydantic round-trip, no caching).
+
+        Used by write paths that must preserve exact on-disk structure and
+        field order — Pydantic dumps reorder fields to schema declaration
+        order and (with older schemas) dropped unknown nested keys.
+        """
+        path = self._paths.framework_json
+        if not path.is_file():
+            return {}
+        return json.loads(path.read_text(encoding="utf-8"))
+
     def reload(self) -> dict[str, Any]:
         """Force re-read from disk."""
         self._cache = None
@@ -95,14 +107,42 @@ class ConfigManager:
     # ---- save helpers ----
 
     def set_runtime_platform(self, platform_id: str) -> None:
-        """Update runtime.platform in framework.json."""
-        data = self.load()
-        data.setdefault("runtime", {})["platform"] = platform_id
-        self._write(data)
+        """Update ``runtime.platform`` in framework.json, preserving all other fields.
 
-    def _write(self, data: dict[str, Any]) -> None:
+        Reads from disk verbatim (no Pydantic round-trip), patches only the
+        single nested key, and writes back. Field order of every other key —
+        including ``upgrade.source`` / ``upgrade.state`` subtrees and any
+        user-added top-level keys — is preserved byte-for-byte except where
+        the patch actually lands.
+        """
+        raw = self.load_raw()
+        raw.setdefault("runtime", {})["platform"] = platform_id
+        self._write_raw(raw)
+        # Invalidate the Pydantic-view cache so the next `load()` re-reads.
+        self._cache = None
+
+    def describe_platform_change(self, platform_id: str) -> dict[str, Any] | None:
+        """Return a description of what ``set_runtime_platform`` would change.
+
+        Returns ``None`` when the file would remain unchanged (platform already
+        matches). Otherwise returns ``{"field": "runtime.platform",
+        "before": <old>, "after": <new>}`` — suitable for ``--dry-run`` /
+        ``--show-diff`` display.
+        """
+        raw = self.load_raw()
+        current = (raw.get("runtime") or {}).get("platform")
+        if current == platform_id:
+            return None
+        return {"field": "runtime.platform", "before": current, "after": platform_id}
+
+    def _write_raw(self, data: dict[str, Any]) -> None:
+        """Write *data* to framework.json as-is (preserves key order)."""
         self._paths.framework_json.write_text(
             json.dumps(data, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
+
+    def _write(self, data: dict[str, Any]) -> None:
+        """Deprecated: kept for backward compatibility. Prefer ``_write_raw``."""
+        self._write_raw(data)
         self._cache = data

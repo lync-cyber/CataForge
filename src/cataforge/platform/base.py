@@ -100,6 +100,7 @@ class PlatformAdapter(ABC):
             return []
 
         target_dir = project_root / scan_dirs[0]
+        target_rel = scan_dirs[0]
         if not dry_run:
             target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -113,6 +114,10 @@ class PlatformAdapter(ABC):
             if d.is_dir() and (d / "AGENT.md").is_file()
         }
 
+        # Collect dropped capabilities across all agents so we emit ONE line
+        # per platform instead of spamming one warning per agent per field.
+        dropped_collector: dict[str, set[str]] = {}
+
         # Only AGENT.md is an IDE-visible agent definition. Sibling files
         # (e.g. ORCHESTRATOR-PROTOCOLS.md) are reference material for the
         # agent itself — they live in .cataforge/ and are read by the agent
@@ -121,17 +126,22 @@ class PlatformAdapter(ABC):
             agent_md = source_dir / agent_name / "AGENT.md"
             agent_dst = target_dir / agent_name
             if dry_run:
+                # Show both the logical source and the physical target so users
+                # can't confuse "same filename in every line" for "all agents
+                # being written to the same file".
                 actions.append(
-                    f"would deploy agents/{agent_name}/AGENT.md → "
-                    f"{scan_dirs[0]}/{agent_name}/AGENT.md"
+                    f"would deploy agent {agent_name:<24} "
+                    f"→ {target_rel}/{agent_name}/AGENT.md"
                 )
                 continue
 
             agent_dst.mkdir(exist_ok=True)
             content = agent_md.read_text(encoding="utf-8")
-            translated = translate_agent_md(content, self)
+            translated = translate_agent_md(
+                content, self, dropped_collector=dropped_collector
+            )
             (agent_dst / "AGENT.md").write_text(translated, encoding="utf-8")
-            actions.append(f"agents/{agent_name}/AGENT.md → {scan_dirs[0]}")
+            actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
 
             # Prune stale sibling files inside this agent subdir — they were
             # historically deployed (e.g. ORCHESTRATOR-PROTOCOLS.md) but are
@@ -139,7 +149,16 @@ class PlatformAdapter(ABC):
             for stale in agent_dst.iterdir():
                 if stale.is_file() and stale.name != "AGENT.md":
                     stale.unlink()
-                    actions.append(f"pruned stale {scan_dirs[0]}/{agent_name}/{stale.name}")
+                    actions.append(f"pruned stale {target_rel}/{agent_name}/{stale.name}")
+
+        # Emit a single aggregated WARN per field, listing every dropped cap.
+        for field_name in sorted(dropped_collector):
+            caps = sorted(dropped_collector[field_name])
+            actions.append(
+                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
+                f"{field_name!r} have no platform mapping: {caps} — "
+                "these will be skipped during translation."
+            )
 
         # Prune orphan agent subdirs that no longer exist in source. We only
         # remove dirs that look like ours (have AGENT.md) so we never touch

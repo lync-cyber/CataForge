@@ -1,4 +1,11 @@
-"""Validated shape for ``.cataforge/framework.json``."""
+"""Validated shape for ``.cataforge/framework.json``.
+
+All nested models use ``extra='allow'`` so user-authored fields (e.g.
+``upgrade.source.branch`` / ``upgrade.source.token_env`` / ``upgrade.state.*``)
+survive a Pydantic validate → dump round-trip intact. Historically these
+models used ``extra='ignore'`` which silently dropped any field not declared
+below, turning a ``set_runtime_platform`` call into a lossy rewrite.
+"""
 
 from __future__ import annotations
 
@@ -8,19 +15,19 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class FrameworkRuntime(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="allow")
 
     platform: str = "claude-code"
 
 
 class FrameworkUpgradeSource(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="allow")
 
     repo: str | None = None
 
 
 class FrameworkUpgrade(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="allow")
 
     source: FrameworkUpgradeSource = Field(default_factory=FrameworkUpgradeSource)
 
