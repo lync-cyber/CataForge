@@ -141,8 +141,3 @@ class ConfigManager:
             json.dumps(data, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
-
-    def _write(self, data: dict[str, Any]) -> None:
-        """Deprecated: kept for backward compatibility. Prefer ``_write_raw``."""
-        self._write_raw(data)
-        self._cache = data
