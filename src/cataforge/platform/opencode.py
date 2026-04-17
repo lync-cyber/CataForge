@@ -77,11 +77,18 @@ class OpenCodeAdapter(PlatformAdapter):
         actions = super().deploy_instruction_files(
             project_state_path, project_root, platform_id=platform_id, dry_run=dry_run
         )
+        # The instructions list is declared in profile.context_injection so it
+        # stays auditable alongside the rest of the platform surface.  Fall
+        # back to the legacy literal if the profile omits the section so older
+        # scaffolds keep working without touching this code.
+        ci = self.context_injection
+        rd = ci.get("rules_distribution", {}) or {}
+        instructions = list(rd.get("files") or ["AGENTS.md", ".cataforge/rules/*.md"])
         actions.extend(
             merge_json_key(
                 project_root / "opencode.json",
                 "instructions",
-                ["AGENTS.md", ".cataforge/rules/*.md"],
+                instructions,
                 dry_run=dry_run,
             )
         )

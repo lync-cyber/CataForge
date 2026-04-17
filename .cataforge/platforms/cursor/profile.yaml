@@ -127,3 +127,19 @@ permissions:
 model_routing:
   available_models: [opus, sonnet, gpt-5.4, gemini-3-pro, grok-code, composer-2]
   per_agent_model: true
+
+context_injection:
+  # Cursor 通过 .cursor/rules/*.mdc 实现规则注入；已使用 alwaysApply:true（见
+  # CursorAdapter._wrap_as_mdc）。@-mention 在编辑器侧可用，但部署产物不依赖。
+  auto_injection:
+    mechanism: cursor_rules
+    eager: true
+    size_limit_bytes: null
+    preamble_files: []
+  inline_file_syntax:
+    kind: at_mention
+    template: "@{path}"
+  rules_distribution:
+    target: .cursor/rules
+    format: mdc
+    activation: always

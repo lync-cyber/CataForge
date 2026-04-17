@@ -85,3 +85,20 @@ optional_fields:
   model_routing:               # 模型路由
     available_models: list[string]   # 可用模型列表
     per_agent_model: boolean         # 是否支持 agent 级别模型选择
+
+  context_injection:           # 平台上下文注入/规则分发能力声明
+    # 纯声明字段，deploy 期读取以烘焙平台特定产物。运行时 LLM 仅看到烘焙后的
+    # markdown，不需要运行时判断平台。
+    auto_injection:
+      mechanism: enum[claude_md, agents_md, cursor_rules, opencode_instructions, none]
+      eager: boolean                        # 启动时是否全量进入上下文
+      size_limit_bytes: int | null          # 平台硬上限（Codex AGENTS.md = 32768）
+      preamble_files: list[string]          # 应在指令文件顶部内联引用的文件路径
+    inline_file_syntax:                     # 提示词内引用其它文件的首选语法
+      kind: enum[at_mention, read_tool, xml_preload]
+      template: string                      # 例如 "@{path}" / "请先 Read {path}"
+    rules_distribution:                     # .cataforge/rules/ 的分发策略
+      target: string                        # 平台内部规则目录 或 "opencode.json"
+      format: enum[markdown, mdc, remote_url_list]
+      activation: enum[always, glob, description, manual_read, opencode_instructions]
+      files: list[string]                   # opencode_instructions 模式下注册的路径模式
