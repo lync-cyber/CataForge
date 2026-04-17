@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-04-17
+
+Housekeeping release: scaffold-sync automation, platform-adapter
+deduplication, and correction of the OpenCode hook-degradation matrix so
+it reflects the TS-plugin bridge already emitted by the adapter.
+
+### Changed
+
+- **OpenCode hooks** — `platforms/opencode/profile.yaml` now marks
+  `guard_dangerous`, `log_agent_dispatch`, `validate_agent_result`,
+  `lint_format`, `detect_correction`, `notify_done`, and `session_context`
+  as `native` (they flow through the generated
+  `.opencode/plugins/cataforge-hooks.ts` bridge).  Only
+  `notify_permission` remains `degraded` because OpenCode has no
+  `Notification` event.  Previously the whole table read `degraded`,
+  which triggered unnecessary warnings and degradation artefacts on every
+  deploy.
+- **Claude Code agent layout** — `deploy_agents` now emits only the flat
+  `.claude/agents/<name>.md` form (the layout Claude Code's native
+  `/agents` discovery actually scans).  The legacy
+  `<name>/AGENT.md` subdir mirror is no longer written; on first deploy
+  after upgrade, any pre-existing legacy subdir is pruned automatically
+  so users land in a clean state without manual cleanup.
+- **Platform adapters** — `get_tool_map` and the standard
+  `inject_mcp_config` now have base-class defaults driven by the
+  platform profile; Claude Code / Cursor only override a single
+  `_mcp_json_path` template method.  Codex / OpenCode keep their
+  custom `inject_mcp_config` for non-JSON layouts.
+- **ConfigManager** — removed the dead `_write()` backward-compat
+  shim; all write paths already use `_write_raw` + explicit cache
+  invalidation.
+
+### Added
+
+- **Scaffold mirror automation** — `scripts/sync_scaffold.py` is now the
+  source of truth for keeping `src/cataforge/_assets/cataforge_scaffold/`
+  in lockstep with the repo-root `.cataforge/`.  A Hatch build hook
+  (`scripts/hatch_build.py`) refreshes the mirror before every
+  sdist/wheel build; a CI workflow (`.github/workflows/scaffold-sync.yml`)
+  rejects drift on PR/push; `.gitattributes` marks the mirror
+  `linguist-generated=true` so GitHub folds the diff in reviews.
+- **Migration guard** — a new regression test ensures legacy Claude Code
+  `<name>/AGENT.md` subdirs are pruned on upgrade.
+
 ## [0.1.1] — 2026-04-15
 
 Documentation-only release. Corrects counts and removes stale environment-variable
@@ -67,6 +111,7 @@ hint; full implementation is tracked for later milestones:
 - `cataforge hook test <name>` — planned v0.2.
 - `cataforge plugin {install,remove}` — planned v0.3.
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.1
 [0.1.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.0

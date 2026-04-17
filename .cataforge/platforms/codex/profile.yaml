@@ -71,6 +71,8 @@ dispatch:
 hooks:
   config_format: json
   config_path: .codex/hooks.json
+  # Codex hooks.json schema uses "type: command" for each hook entry.
+  entry_type: command
   event_map:
     PreToolUse: PreToolUse
     PostToolUse: PostToolUse
