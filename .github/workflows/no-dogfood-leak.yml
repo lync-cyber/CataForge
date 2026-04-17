@@ -1,0 +1,71 @@
+name: No dogfood leak
+
+# CataForge 自举开发护栏 — 拒绝把 orchestrator 过程产物 PR 到 main。
+# 正常工作流应在 dev 分支运行 .cataforge/scripts/dogfood/prepare-pr.sh 生成
+# 干净的 PR 分支。本 workflow 是兜底防线，防止脚本被跳过或白名单遗漏。
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check:
+    name: Reject process artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan changed files
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin "$BASE_REF" --depth=1 --quiet
+
+          CHANGED="$(git diff --name-only "origin/$BASE_REF"...HEAD)"
+          if [[ -z "$CHANGED" ]]; then
+              echo "INFO: 无文件变更"
+              exit 0
+          fi
+
+          echo "变更文件 ($(echo "$CHANGED" | wc -l) 个):"
+          echo "$CHANGED" | sed 's/^/  /'
+          echo ""
+
+          # --- 过程产物路径 ---
+          # 精确匹配，避免误伤 docs/architecture/、docs/assets/ 等对外文档
+          BAD_PATTERN='^(\.dogfood/|docs/(EVENT-LOG\.jsonl|CORRECTIONS-LOG\.md|NAV-INDEX\.md|brief\.md|(prd|arch|dev-plan)-lite\.md|(prd|arch|ui-spec|dev-plan|test-report|deploy-spec|reviews|retrospectives)/))'
+
+          BAD="$(echo "$CHANGED" | grep -E "$BAD_PATTERN" || true)"
+          if [[ -n "$BAD" ]]; then
+              echo "ERROR: 发现 dogfood 过程产物泄漏"
+              echo ""
+              echo "$BAD" | sed 's/^/  /'
+              echo ""
+              echo "请在 dev 分支运行:"
+              echo "  .cataforge/scripts/dogfood/prepare-pr.sh"
+              echo "然后用生成的 pr/* 分支重开 PR。"
+              exit 1
+          fi
+
+          # --- PROJECT-STATE 不应随 PR 改动 ---
+          # 它是模板，dogfood 期间被 orchestrator 写成当前状态，必须还原
+          if echo "$CHANGED" | grep -qE '^\.cataforge/PROJECT-STATE\.md$'; then
+              echo "ERROR: .cataforge/PROJECT-STATE.md 被修改"
+              echo ""
+              echo "这个文件是框架的模板，dogfood 期间会被写成当前项目状态。"
+              echo "PR 到 main 之前必须还原:"
+              echo "  git checkout origin/main -- .cataforge/PROJECT-STATE.md"
+              echo "  git commit --amend --no-edit"
+              echo ""
+              echo "如果确实要修改模板本身，请在 commit message 写清楚并"
+              echo "临时绕过此检查（联系维护者）。"
+              exit 1
+          fi
+
+          echo "OK: 无污染，$(echo "$CHANGED" | wc -l) 个文件通过检查"

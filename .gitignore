@@ -193,3 +193,36 @@ docs/.doc-index.json
 # ==============================================================================
 .vscode-test/
 *.code-workspace
+
+# ==============================================================================
+# CataForge Dogfood — 自举开发过程产物（形态 C）
+# ==============================================================================
+# dev 分支跑 orchestrator 时产出的文件，不随产品 PR 到 main。
+# 扩展白名单: .cataforge/scripts/dogfood/product-paths.txt
+# 工作流说明:  .cataforge/scripts/dogfood/README.md
+
+.dogfood/
+
+# 运行时日志
+docs/EVENT-LOG.jsonl
+docs/CORRECTIONS-LOG.md
+
+# orchestrator 生成的导航/简报（per-project，非框架产物）
+docs/NAV-INDEX.md
+docs/brief.md
+
+# agile-lite 模式产出
+docs/prd-lite.md
+docs/arch-lite.md
+docs/dev-plan-lite.md
+
+# standard 模式产出目录
+# 注意: 和对外文档目录 docs/architecture/ 区分开（精确匹配 docs/arch/）
+docs/prd/
+docs/arch/
+docs/ui-spec/
+docs/dev-plan/
+docs/test-report/
+docs/deploy-spec/
+docs/reviews/
+docs/retrospectives/
