@@ -113,6 +113,7 @@ opencode.json
 # CataForge internal state
 .cataforge/.deploy-state
 .cataforge/.mcp-state/
+.cataforge/.instruction-hashes.json
 .cataforge/**/__pycache__/
 .ruff_cache/
 

@@ -60,8 +60,14 @@ def merge_sections(
         for title, fields in (policy.get("always_overwrite_fields") or {}).items()
     }
 
-    # Preamble: template wins — preambles carry platform-specific at-mentions.
-    result_preamble = tpl_preamble
+    # Preamble handling: if the current preamble is semantically identical to
+    # the template (ignoring whitespace differences) we treat it as "not
+    # customized" and let the template win so framework upgrades propagate.
+    # Otherwise the user has added banners / custom H1 / explanatory prose —
+    # preserve it wholesale. This does mean a user who customizes preamble
+    # won't receive future preamble-level framework updates automatically;
+    # they must re-run deploy on a fresh preamble or reconcile by hand.
+    result_preamble = _merge_preamble(cur_preamble, tpl_preamble)
     result: OrderedDict[str, str] = OrderedDict()
 
     # 1) Walk the template in its declared order so the framework can reorder.
@@ -114,6 +120,31 @@ def _split(text: str) -> tuple[str, OrderedDict[str, str]]:
             body = body[1:]
         sections[title] = body
     return preamble, sections
+
+
+def _merge_preamble(cur: str, tpl: str) -> str:
+    """Decide whether to keep user's preamble or use the template's.
+
+    Preamble = everything before the first ``## `` heading. It typically holds
+    an at-mention line (``@.cataforge/rules/COMMON-RULES.md``), the H1 title,
+    and optionally user-added banner comments / explanatory prose.
+
+    Policy:
+    - If current is empty or whitespace-only → use template (first deploy).
+    - If current and template are equal after whitespace normalization → use
+      template so any framework-level preamble updates propagate.
+    - Otherwise user has customized — preserve user's preamble entirely.
+    """
+    if not cur.strip():
+        return tpl
+    if _normalize_whitespace(cur) == _normalize_whitespace(tpl):
+        return tpl
+    return cur
+
+
+def _normalize_whitespace(text: str) -> str:
+    """Collapse consecutive whitespace to detect semantic equivalence."""
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _serialize(preamble: str, sections: OrderedDict[str, str]) -> str:
@@ -180,7 +211,7 @@ def _merge_fields(
         cur_block = cur_parsed.get(key)
         if cur_block is None:
             out_blocks.append(tpl_block.text)
-        elif _is_placeholder(cur_block.value):
+        elif _block_is_placeholder(cur_block):
             # User hasn't filled it in yet — absorb template's new default.
             out_blocks.append(tpl_block.text)
         else:
@@ -273,6 +304,30 @@ def _extract_tail(
     if header.strip():
         return header + tail
     return tail
+
+
+def _block_is_placeholder(block: _BulletBlock) -> bool:
+    """Decide if a parsed bullet block is still at its template-placeholder state.
+
+    A block has *content* if:
+    - its inline value is non-empty and not a ``{placeholder}`` / em-dash, OR
+    - it carries indented continuation lines with non-whitespace text
+      (multi-line nested values like ``- 阶段配置:\\n  - ui_design: N/A``).
+
+    If either condition holds, the user has filled it in and their version
+    should be preserved over the template default.
+    """
+    # Inline value check
+    if not _is_placeholder(block.value):
+        return False
+    # Continuation check: block.text is the full multi-line span; strip its
+    # first line (where the "- key: value" lives) and see if any remaining
+    # line has non-whitespace content.
+    lines = block.text.split("\n", 1)
+    if len(lines) < 2:
+        return True
+    continuation = lines[1]
+    return not continuation.strip()
 
 
 def _is_placeholder(value: str) -> bool:
