@@ -24,6 +24,7 @@ main (干净)
 |---|---|
 | [product-paths.txt](product-paths.txt) | 产品文件白名单 — 只有这些路径允许 PR 到 main |
 | [prepare-pr.sh](prepare-pr.sh) | 从当前分支生成干净的 PR 分支 |
+| [deploy-dev.sh](deploy-dev.sh) | 在 dev worktree 跑 `cataforge deploy` 并保留 dogfood CLAUDE.md |
 
 ## 日常工作流
 
@@ -109,3 +110,24 @@ gh pr create --base main
 **PR 里意外出现某个文件** — 该文件不在白名单里，应该在 `product-paths.txt` 里加上路径（如果是产品），或确认是否应该 ignore（如果是过程产物）。
 
 **CI 报 PROJECT-STATE 被修改** — `git checkout origin/main -- .cataforge/PROJECT-STATE.md` 还原后 amend。
+
+**CLAUDE.md 被 deploy 覆盖** — 使用 `.cataforge/scripts/dogfood/deploy-dev.sh` 代替 `uv run cataforge deploy`。脚本会把 dogfood 定制内容保存到 `.dogfood/CLAUDE.md`（已 gitignore）并在 deploy 后自动恢复。首次需手工创建 `.dogfood/CLAUDE.md` 或直接运行脚本（若根 `CLAUDE.md` 已存在，脚本会自动作为基线同步）。
+
+## 首次设置 dev worktree
+
+```bash
+# 1. 从 main 创建 dev worktree
+cd <主仓库>
+git worktree add ../<仓库名>-dev dev
+
+# 2. 进入 dev worktree
+cd ../<仓库名>-dev
+
+# 3. 手工编辑 CLAUDE.md 为 dogfood 定制版（agile-lite、分支约定等）
+#    编辑完后脚本会自动将其同步到 .dogfood/CLAUDE.md
+
+# 4. 部署 claude-code 适配（首次运行自动保存基线）
+.cataforge/scripts/dogfood/deploy-dev.sh
+
+# 之后每次升级 cataforge 后再次运行同一个命令即可
+```
