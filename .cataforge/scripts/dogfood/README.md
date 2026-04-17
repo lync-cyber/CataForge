@@ -25,6 +25,11 @@ main (干净)
 | [product-paths.txt](product-paths.txt) | 产品文件白名单 — 只有这些路径允许 PR 到 main |
 | [prepare-pr.sh](prepare-pr.sh) | 从当前分支生成干净的 PR 分支 |
 
+> **历史**: 本目录曾有 `deploy-dev.sh`，用于在每次 `cataforge deploy` 后恢复
+> dogfood 定制的 CLAUDE.md。自框架引入 `instruction_file.targets[].update_strategy:
+> section-merge` 后，deploy 会直接按章节保留用户定制，包装器不再必要，已下线。
+> 详见框架 profile.yaml 的 `section_policy` 字段。
+
 ## 日常工作流
 
 ### 1. 在 dev 分支工作
@@ -109,3 +114,26 @@ gh pr create --base main
 **PR 里意外出现某个文件** — 该文件不在白名单里，应该在 `product-paths.txt` 里加上路径（如果是产品），或确认是否应该 ignore（如果是过程产物）。
 
 **CI 报 PROJECT-STATE 被修改** — `git checkout origin/main -- .cataforge/PROJECT-STATE.md` 还原后 amend。
+
+**CLAUDE.md 被 deploy 覆盖** — 框架的 `update_strategy: section-merge`（见各
+platform profile.yaml 的 `section_policy`）会按章节保留用户定制内容。若仍出现覆盖，
+检查 profile 是否声明了该策略，且目标章节是否列在 `schema` 或未列出（走 `user_extensible`）。
+
+## 首次设置 dev worktree
+
+```bash
+# 1. 从 main 创建 dev worktree
+cd <主仓库>
+git worktree add ../<仓库名>-dev dev
+
+# 2. 进入 dev worktree
+cd ../<仓库名>-dev
+
+# 3. 编辑 CLAUDE.md 为 dogfood 定制版（agile-lite、分支约定、自定义章节等）
+
+# 4. 部署 claude-code 适配
+uv run cataforge deploy --platform claude-code
+
+# 之后每次框架升级后再次运行同一个命令即可 —
+# section-merge 会保留你在 schema 类章节的字段值和自定义章节。
+```
