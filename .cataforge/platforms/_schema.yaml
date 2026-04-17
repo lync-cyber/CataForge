@@ -28,6 +28,21 @@ required_fields:
     targets: list                 # 指令产物目标
       # - type: enum[project_state_copy]
       #   path: string            # 例如 CLAUDE.md / AGENTS.md
+      #   on_conflict: enum[overwrite, preserve, preserve_if_edited]  # 默认 overwrite
+      #     # overwrite           — 每次 deploy 都写
+      #     # preserve            — 目标已存在则跳过
+      #     # preserve_if_edited  — 与 .cataforge/.instruction-hashes.json
+      #     #                       记录的上次部署哈希对比, 用户改过则跳过
+      #   update_strategy: enum[overwrite, section-merge]             # 默认 overwrite
+      #     # section-merge 依 section_policy 按 ## 章节合并,
+      #     # 保留用户自定义章节与 schema 章节的用户填值。
+      #   section_policy:         # 仅 section-merge 时生效
+      #     framework: list[string]  # 框架拥有, 每次覆盖
+      #     schema:    list[string]  # 框架定义结构, 用户填值, 字段级合并
+      #     runtime:   list[string]  # 运行时填充, deploy 不触碰
+      #     user_extensible: bool    # 保留模板没有的用户章节 (默认 true)
+      #     always_overwrite_fields:  # 即使在 schema 类, 这些字段也强制用模板值
+      #       "<section_title>": list[string]
     additional_outputs: list      # deploy 额外生成的指令文件
       # - target: string          # 目标路径
       #   format: enum[mdc, toml, markdown]

@@ -50,6 +50,14 @@ instruction_file:
   targets:
     - type: project_state_copy
       path: AGENTS.md
+      update_strategy: section-merge
+      section_policy:
+        framework: [文档导航, 框架机制]
+        schema:    [项目信息, 全局约定]
+        runtime:   [项目状态, 执行环境]
+        user_extensible: true
+        always_overwrite_fields:
+          项目信息: [运行时]
   additional_outputs: []
 
 dispatch:
