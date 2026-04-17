@@ -65,6 +65,16 @@ instruction_file:
   targets:
     - type: project_state_copy
       path: CLAUDE.md
+      # section-merge 策略按 § 章节保留用户改动;
+      # on_conflict=overwrite 仍是默认, 若想额外启用"用户手工编辑则跳过"可改为 preserve_if_edited。
+      update_strategy: section-merge
+      section_policy:
+        framework: [文档导航, 框架机制]
+        schema:    [项目信息, 全局约定]
+        runtime:   [项目状态, 执行环境]
+        user_extensible: true
+        always_overwrite_fields:
+          项目信息: [运行时]
   additional_outputs: []
 
 dispatch:
