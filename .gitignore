@@ -74,19 +74,47 @@ Thumbs.db
 # ==============================================================================
 # CataForge - Deploy generated & local state
 # ==============================================================================
+# Everything below is written by `cataforge deploy` from sources in .cataforge/.
+# Regenerate anytime with: cataforge deploy --platform <id>
+# If you need to check one in (e.g. custom .claude/settings.json extras), use
+# `git add -f <path>` and document why in the commit.
+
+# Top-level instruction & MCP files (all four platforms)
+CLAUDE.md
+AGENTS.md
+.mcp.json
+
+# Claude Code
 .claude/agents/
 .claude/rules/
+.claude/skills/
+.claude/commands/
+.claude/settings.json
+
+# Cursor
 .cursor/agents/
 .cursor/rules/
+.cursor/commands/
 .cursor/hooks.json
+.cursor/mcp.json
+
+# Codex
+.codex/agents/
+.codex/rules/
+.codex/hooks.json
 .codex/config.toml
+
+# OpenCode
 .opencode/agents/
+.opencode/rules/
+.opencode/plugins/
+opencode.json
+
+# CataForge internal state
 .cataforge/.deploy-state
 .cataforge/.mcp-state/
 .cataforge/**/__pycache__/
 .ruff_cache/
-CLAUDE.md
-AGENTS.md
 
 # ==============================================================================
 # Build & Output
