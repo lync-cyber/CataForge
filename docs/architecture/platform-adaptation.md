@@ -26,9 +26,33 @@
 | Agent 调度 | Agent（同步） | Task（同步） | `spawn_agent`（异步） | task（同步） |
 | Hook 配置 | `settings.json` | `hooks.json` | `hooks.json`（仅 Bash） | 不支持（降级） |
 | MCP 配置 | `.mcp.json` | `.cursor/mcp.json` | `.codex/config.toml` | `opencode.json` |
+| 上下文自动注入 | `CLAUDE.md` + `@path` eager 预载 | `.cursor/rules/*.mdc` `alwaysApply:true` | `AGENTS.md` 层级合并（32 KiB 上限） | `opencode.json.instructions` |
 | 并行 Agent | 支持 | 支持（8 并发） | 支持（best-of-N） | 有限 |
 | Worktree 隔离 | 支持 | 支持 | 不支持 | 不支持 |
 | 多模型路由 | opus / sonnet / haiku | opus / sonnet / gpt / gemini | gpt-5.4 / spark | 有限 |
+
+---
+
+## 2a. 上下文注入（`context_injection`）
+
+每个 `profile.yaml` 声明平台如何把规则 / 指令加载进 LLM 上下文。Deploy 期读取这些字段，把差异**烘焙**到静态产物里——运行时 LLM 只看到当前平台已定制好的 markdown，无需再做平台判断。
+
+| 字段 | 作用 |
+|------|------|
+| `auto_injection.mechanism` | 平台原生自动注入机制：`claude_md` / `agents_md` / `cursor_rules` / `opencode_instructions` / `none` |
+| `auto_injection.eager` | 是否在会话启动时就常驻上下文（影响 token 预算决策） |
+| `auto_injection.size_limit_bytes` | 平台硬上限（Codex AGENTS.md = 32 768 B） |
+| `auto_injection.preamble_files` | 需在指令文件顶部内联引用的文件路径（`@{path}` 前缀） |
+| `inline_file_syntax.kind` / `.template` | 引用其它文件的首选语法：`at_mention` / `read_tool` / `xml_preload` |
+| `rules_distribution.target` | 规则分发目标（平台规则目录或 `opencode.json`） |
+| `rules_distribution.format` / `.activation` | MDC / Markdown / 远程 URL 列表；`always` / `glob` / `manual_read` / `opencode_instructions` |
+| `rules_distribution.files` | `opencode_instructions` 模式下注册到 `opencode.json.instructions` 的路径模式 |
+
+**Deploy 期如何消费**：
+
+- `PlatformAdapter.deploy_instruction_files` 读取 `auto_injection.preamble_files`，用 `inline_file_syntax.template` 渲染为 `@.cataforge/rules/COMMON-RULES.md` 之类的前缀，直接写到 `CLAUDE.md` / `AGENTS.md` 顶部。
+- `OpenCodeAdapter.deploy_instruction_files` 读取 `rules_distribution.files`，写入 `opencode.json.instructions`——LLM 启动时自动加载，不再让子代理手动 `Read`。
+- 未声明 `context_injection` 的旧 profile 继续走默认路径（完全向后兼容）。
 
 ---
 
