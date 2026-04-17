@@ -6,9 +6,17 @@ The core runtime NEVER imports platform-specific modules directly.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
+
+from cataforge.platform.section_merge import merge_sections
+
+_INSTRUCTION_HASHES_REL = ".cataforge/.instruction-hashes.json"
+_VALID_ON_CONFLICT = {"overwrite", "preserve", "preserve_if_edited"}
+_VALID_UPDATE_STRATEGY = {"overwrite", "section-merge"}
 
 
 class PlatformAdapter(ABC):
@@ -214,7 +222,16 @@ class PlatformAdapter(ABC):
         platform_id: str,
         dry_run: bool = False,
     ) -> list[str]:
-        """Deploy platform instruction artifacts derived from PROJECT-STATE.md."""
+        """Deploy platform instruction artifacts derived from PROJECT-STATE.md.
+
+        Each target entry may declare:
+        - ``on_conflict``: ``overwrite`` (default) | ``preserve`` |
+          ``preserve_if_edited``.  ``preserve_if_edited`` skips write when the
+          target's sha256 differs from the hash recorded at last deploy.
+        - ``update_strategy``: ``overwrite`` (default) | ``section-merge``.
+          ``section-merge`` preserves user-added sections and field values per
+          the ``section_policy`` declared on the target.
+        """
         if not project_state_path.is_file():
             return ["SKIP: PROJECT-STATE.md not found"]
 
@@ -230,6 +247,8 @@ class PlatformAdapter(ABC):
             content = preamble + content
 
         actions: list[str] = []
+        hashes = _load_instruction_hashes(project_root)
+        hashes_dirty = False
 
         for target in self.instruction_targets:
             target_type = str(target.get("type", ""))
@@ -240,15 +259,75 @@ class PlatformAdapter(ABC):
                 actions.append(f"SKIP: unsupported instruction target type {target_type}")
                 continue
 
-            dst = project_root / target_rel
-            if dry_run:
+            on_conflict = str(target.get("on_conflict", "overwrite"))
+            if on_conflict not in _VALID_ON_CONFLICT:
                 actions.append(
-                    f"would write {target_rel} ← PROJECT-STATE.md (platform={platform_id})"
+                    f"SKIP {target_rel}: invalid on_conflict={on_conflict!r} "
+                    f"(must be one of {sorted(_VALID_ON_CONFLICT)})"
                 )
                 continue
+
+            update_strategy = str(target.get("update_strategy", "overwrite"))
+            if update_strategy not in _VALID_UPDATE_STRATEGY:
+                actions.append(
+                    f"SKIP {target_rel}: invalid update_strategy={update_strategy!r} "
+                    f"(must be one of {sorted(_VALID_UPDATE_STRATEGY)})"
+                )
+                continue
+
+            dst = project_root / target_rel
+
+            # ---- on_conflict gate ----
+            if dst.exists() and on_conflict != "overwrite":
+                if on_conflict == "preserve":
+                    actions.append(
+                        f"SKIP {target_rel} ← on_conflict=preserve (target exists)"
+                    )
+                    continue
+                # preserve_if_edited: compare sha256 with last-deployed hash
+                cur_hash = hashlib.sha256(dst.read_bytes()).hexdigest()
+                last_hash = hashes.get(target_rel)
+                if last_hash is not None and cur_hash != last_hash:
+                    actions.append(
+                        f"SKIP {target_rel} ← on_conflict=preserve_if_edited "
+                        f"(user-edited since last deploy)"
+                    )
+                    continue
+
+            # ---- compute new content ----
+            new_content = content
+            if update_strategy == "section-merge" and dst.exists():
+                section_policy = target.get("section_policy", {}) or {}
+                current_text = dst.read_text(encoding="utf-8")
+                new_content = merge_sections(
+                    current_text,
+                    content,
+                    policy=section_policy,
+                    platform_id=platform_id,
+                )
+
+            if dry_run:
+                actions.append(
+                    f"would write {target_rel} ← PROJECT-STATE.md "
+                    f"(platform={platform_id}, strategy={update_strategy}, "
+                    f"on_conflict={on_conflict})"
+                )
+                continue
+
             dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_text(content, encoding="utf-8")
-            actions.append(f"{target_rel} ← PROJECT-STATE.md (platform={platform_id})")
+            dst.write_text(new_content, encoding="utf-8")
+            # Hash what's actually on disk — avoids Windows CRLF translation
+            # making cur_hash on subsequent deploys diverge from the stored
+            # hash even when the user has not edited the file.
+            hashes[target_rel] = hashlib.sha256(dst.read_bytes()).hexdigest()
+            hashes_dirty = True
+            actions.append(
+                f"{target_rel} ← PROJECT-STATE.md (platform={platform_id}, "
+                f"strategy={update_strategy})"
+            )
+
+        if hashes_dirty and not dry_run:
+            _save_instruction_hashes(project_root, hashes)
 
         return actions
 
@@ -519,3 +598,25 @@ class PlatformAdapter(ABC):
     ) -> list[str]:
         """Write MCP server config into the platform's configuration file."""
         ...
+
+
+def _load_instruction_hashes(project_root: Path) -> dict[str, str]:
+    path = project_root / _INSTRUCTION_HASHES_REL
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): str(v) for k, v in data.items() if isinstance(v, str)}
+
+
+def _save_instruction_hashes(project_root: Path, hashes: dict[str, str]) -> None:
+    path = project_root / _INSTRUCTION_HASHES_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(hashes, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
