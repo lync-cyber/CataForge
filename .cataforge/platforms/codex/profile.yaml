@@ -50,9 +50,6 @@ instruction_file:
   targets:
     - type: project_state_copy
       path: AGENTS.md
-      # 三平台 (cursor/codex/opencode) 共享 AGENTS.md — section-merge +
-      # always_overwrite_fields.运行时 确保当前平台 deploy 时'运行时:' 字段
-      # 反映当前平台, 不被前一次其他平台的 deploy 抢占。
       update_strategy: section-merge
       section_policy:
         framework: [文档导航, 框架机制]
@@ -71,6 +68,8 @@ dispatch:
 hooks:
   config_format: json
   config_path: .codex/hooks.json
+  # Codex hooks.json schema uses "type: command" for each hook entry.
+  entry_type: command
   event_map:
     PreToolUse: PreToolUse
     PostToolUse: PostToolUse

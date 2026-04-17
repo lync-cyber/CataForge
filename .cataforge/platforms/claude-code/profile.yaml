@@ -65,8 +65,6 @@ instruction_file:
   targets:
     - type: project_state_copy
       path: CLAUDE.md
-      # section-merge 策略按 § 章节保留用户改动;
-      # on_conflict=overwrite 仍是默认, 若想额外启用"用户手工编辑则跳过"可改为 preserve_if_edited。
       update_strategy: section-merge
       section_policy:
         framework: [文档导航, 框架机制]
@@ -85,6 +83,10 @@ dispatch:
 hooks:
   config_format: json
   config_path: .claude/settings.json
+  # Claude Code's hook schema only recognises "type: command" for each hook
+  # entry (see https://docs.claude.com/en/docs/claude-code/hooks).  Internal
+  # CataForge type tags (block / observe) are dropped at the bridge boundary.
+  entry_type: command
   event_map:
     PreToolUse: PreToolUse
     PostToolUse: PostToolUse
