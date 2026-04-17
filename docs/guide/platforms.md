@@ -25,6 +25,7 @@
 
 - **原生支持**：Agent、Hook、MCP 均可原生映射。
 - **关键路径**：`.claude/agents/`、`CLAUDE.md`、`.claude/settings.json`、`.mcp.json`。
+- **上下文注入**：`CLAUDE.md` 顶部自动烘焙 `@.cataforge/rules/COMMON-RULES.md` 前缀 —— Claude Code 的 `@path` 会在会话启动时把该文件内容直接纳入上下文，子代理无需再 Read。因为 `@` 是 eager，只对必读且短的规则用这种方式；其它规则保持按需 Read。
 - **最小配置**（`.cataforge/framework.json` 片段）：
 
 ```json
@@ -39,6 +40,7 @@
 
 - **原生支持**：大部分原生支持（`AskUserQuestion` 与 `Notification` 会降级）。
 - **关键路径**：`.cursor/agents/`、`.cursor/hooks.json`、`.cursor/rules/*.mdc`、`.cursor/mcp.json`、`AGENTS.md`。
+- **上下文注入**：`.cursor/rules/*.mdc` 使用 `alwaysApply: true` —— Cursor 会在每次对话前把规则前置到上下文。
 - **适配点**：
   - 规则额外生成 Cursor 原生消费的 MDC 格式文件。
   - **默认不触及 `.claude/` 目录**。仅当 `.cataforge/platforms/cursor/profile.yaml` 设置 `rules.cross_platform_mirror: true` 时，才会在 `.claude/rules` 创建 Markdown 镜像，供 "Cursor + Claude Code 双栖" 场景共享 prompt。
@@ -56,6 +58,7 @@
 
 - **原生支持**：中等，以 `AGENTS.md` + `.codex/config.toml` 为主。
 - **关键路径**：`AGENTS.md`、`.codex/agents/*.toml`、`.codex/hooks.json`、`.codex/config.toml`。
+- **上下文注入**：`AGENTS.md` 按根→当前目录分层合并，单路径 32 KiB 上限；Codex 无 `@` 语法，子代理（`fork_context=false`）不继承主上下文，因此 `dispatch-prompt.md` override 显式指示"先 Read .cataforge/rules/COMMON-RULES.md"。
 - **适配点**：
   - 指令文件按 Codex 原生体系输出为 `AGENTS.md`。
   - MCP 写入 `.codex/config.toml` 的 `[mcp_servers.<id>]`。
@@ -74,6 +77,7 @@
 
 - **原生支持**：中等，以 `.opencode` 目录 + `opencode.json` 为主。
 - **关键路径**：`.opencode/agents/*.md`、`opencode.json`、`AGENTS.md`。
+- **上下文注入**：`opencode.json.instructions` 字段由 profile 驱动写入（默认 `["AGENTS.md", ".cataforge/rules/*.md"]`）—— OpenCode 启动时自动加载这些文件，无需让 LLM 自己 Read。
 - **适配点**：
   - Hook 原生不可用，自动注入为 `rules_injection`（规则提示中嵌入检查指令）。
   - 若需原生 hook，需自行包装为 `.opencode/plugins/*.ts`。

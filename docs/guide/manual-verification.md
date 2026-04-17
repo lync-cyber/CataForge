@@ -244,9 +244,35 @@ claude                    # 启动 Claude Code
 | 观测项 | 操作 | 应看到 |
 |-------|------|-------|
 | 指令文件加载 | `/memory` 或首响回显 | `CLAUDE.md` 被读入 |
+| **上下文注入** | 查看 `CLAUDE.md` 第一行 | **`@.cataforge/rules/COMMON-RULES.md`**（Claude Code 会在会话启动时自动展开该文件，无需子代理 Read） |
+| **规则展开验证** | 问 Claude："COMMON-RULES 第几节定义 MAX_QUESTIONS_PER_BATCH？" | 能直接回答"§框架配置常量"且值为 3，证明 `@path` 已 eager 加载 |
 | Sub-agent 发现 | `/agents` | 至少 `orchestrator`、`implementer` 等 |
 | Hook 触发 | 执行一次 Bash（例如让它跑 `ls`） | `.claude/settings.json` 中配置的 `PreToolUse` / `PostToolUse` 日志 |
 | MCP 注册 | `/mcp` | 声明的 MCP server 出现在列表 |
+
+#### Step 4a — 上下文个性化部署验证
+
+Deploy 期会按 `profile.yaml.context_injection` 的声明为当前平台烘焙上下文加载方式。Claude Code 预期产物：
+
+```bash
+head -1 CLAUDE.md
+# 预期输出（首行）：@.cataforge/rules/COMMON-RULES.md
+```
+
+```bash
+head -3 CLAUDE.md
+# 预期：
+# @.cataforge/rules/COMMON-RULES.md
+#
+# # 项目状态
+```
+
+若首行不是 `@` 引用，检查：
+- `.cataforge/platforms/claude-code/profile.yaml` 是否含 `context_injection.auto_injection.preamble_files`
+- 该列表是否包含 `.cataforge/rules/COMMON-RULES.md`
+- `inline_file_syntax.kind` 是否为 `at_mention`（若改成 `read_tool` 则 preamble 会被跳过——这是预期行为）
+
+> 与 Codex / OpenCode 对比：Codex 的 `AGENTS.md` 首行不含 `@`（无 `@` 语法），规则加载走 `dispatch-prompt.md` 里的 "请先 Read" 指令；OpenCode 首行也不含 `@`，但 `opencode.json.instructions` 会注册 `AGENTS.md` + `.cataforge/rules/*.md` 供平台自动加载。
 
 #### Step 5 — 清理 / 回滚
 

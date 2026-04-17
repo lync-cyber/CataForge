@@ -90,9 +90,49 @@ rules:
 degradation:
   ask_user_question: prompt_check
   notification: skip
+context_injection:               # 见 §context_injection 字段
+  auto_injection:
+    mechanism: cursor_rules
+    eager: true
+    preamble_files: []
+  inline_file_syntax:
+    kind: at_mention
+    template: "@{path}"
+  rules_distribution:
+    target: .cursor/rules
+    format: mdc
+    activation: always
 ```
 
 完整矩阵：[`../architecture/platform-adaptation.md`](../architecture/platform-adaptation.md) §平台能力矩阵。
+
+### context_injection 字段
+
+声明平台如何把规则 / 指令加载进 LLM 上下文。`cataforge deploy` 期读取这些字段，把差异烘焙到各平台产物里，运行时 LLM 拿到的是已为当前平台定制过的 markdown。
+
+| 字段 | 类型 | 示例 |
+|------|------|------|
+| `auto_injection.mechanism` | enum | `claude_md` / `agents_md` / `cursor_rules` / `opencode_instructions` / `none` |
+| `auto_injection.eager` | bool | 启动即入上下文 |
+| `auto_injection.size_limit_bytes` | int | Codex AGENTS.md 合并上限 `32768` |
+| `auto_injection.preamble_files` | list[str] | 需在指令文件顶部内联引用的文件路径（仅 `at_mention` 平台有效） |
+| `inline_file_syntax.kind` | enum | `at_mention` / `read_tool` / `xml_preload` |
+| `inline_file_syntax.template` | str | 如 `"@{path}"` / `"请先 Read {path}"` |
+| `rules_distribution.target` | str | 规则分发目标路径或 `opencode.json` |
+| `rules_distribution.format` | enum | `markdown` / `mdc` / `remote_url_list` |
+| `rules_distribution.activation` | enum | `always` / `glob` / `description` / `manual_read` / `opencode_instructions` |
+| `rules_distribution.files` | list[str] | `opencode_instructions` 激活时写入 `opencode.json.instructions` 的路径模式 |
+
+**四平台实际声明**：
+
+| 平台 | mechanism | inline | rules target | activation |
+|------|-----------|--------|---------------|-----------|
+| claude-code | `claude_md` | `@{path}` | `.claude/rules` | `manual_read`（preamble 仅放 COMMON-RULES） |
+| codex | `agents_md`（≤32 KiB） | `请先 Read {path}` | `.codex/rules` | `manual_read` |
+| cursor | `cursor_rules` | `@{path}` | `.cursor/rules`（MDC） | `always` |
+| opencode | `opencode_instructions` | `请先 read {path}` | `opencode.json` | `opencode_instructions` |
+
+> 向后兼容：未声明 `context_injection` 的 profile 继续走默认路径。OpenCodeAdapter 在缺字段时回退到字面 `["AGENTS.md", ".cataforge/rules/*.md"]`。
 
 ---
 
