@@ -1,0 +1,5 @@
+# The bundled scaffold mirror is generated from .cataforge/ by
+# scripts/sync_scaffold.py (also wired into the Hatch build hook).  Mark it
+# as linguist-generated so GitHub folds the diff in PR reviews and excludes
+# it from language stats.
+src/cataforge/_assets/cataforge_scaffold/** linguist-generated=true
