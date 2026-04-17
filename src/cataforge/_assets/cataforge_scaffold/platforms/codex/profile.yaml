@@ -111,3 +111,19 @@ permissions:
 model_routing:
   available_models: [gpt-5.4, gpt-5.3-codex-spark]
   per_agent_model: false
+
+context_injection:
+  # Codex 合并 AGENTS.md（32KiB 上限），无 @ 语法；子代理 fork_context=false 时
+  # 不继承主上下文，因此 AGENT.md / dispatch-prompt 必须显式指示 Read。
+  auto_injection:
+    mechanism: agents_md
+    eager: true
+    size_limit_bytes: 32768
+    preamble_files: []
+  inline_file_syntax:
+    kind: read_tool
+    template: "请先 Read {path}"
+  rules_distribution:
+    target: .codex/rules
+    format: markdown
+    activation: manual_read

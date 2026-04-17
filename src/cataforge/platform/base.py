@@ -220,6 +220,15 @@ class PlatformAdapter(ABC):
 
         content = project_state_path.read_text(encoding="utf-8")
         content = content.replace("运行时: {platform}", f"运行时: {platform_id}")
+
+        # Prepend an at-mention preamble when the platform declares one via
+        # context_injection.  Today only Claude Code uses this — CLAUDE.md gets
+        # `@.cataforge/rules/COMMON-RULES.md` at the top so the shared rule
+        # file rides into every session without a runtime Read call.
+        preamble = self.get_instruction_preamble()
+        if preamble:
+            content = preamble + content
+
         actions: list[str] = []
 
         for target in self.instruction_targets:
@@ -459,6 +468,43 @@ class PlatformAdapter(ABC):
     def supports_per_agent_model(self) -> bool:
         """Whether the platform supports per-agent model selection."""
         return bool(self._profile.get("model_routing", {}).get("per_agent_model", False))
+
+    # ---- context injection ----
+
+    @property
+    def context_injection(self) -> dict[str, Any]:
+        """Platform context-loading / rules-distribution declaration.
+
+        Declared in ``profile.yaml`` under ``context_injection``.  Consumed at
+        deploy time to bake platform-specific artifacts (e.g. an ``@path``
+        preamble in Claude Code's ``CLAUDE.md``, an ``instructions`` list in
+        ``opencode.json``).  Adapters read from this property rather than
+        hard-coding platform-specific paths.
+
+        Returns an empty dict when the profile omits the section so adapters
+        can gracefully fall back to legacy defaults.
+        """
+        return dict(self._profile.get("context_injection", {}) or {})
+
+    def get_instruction_preamble(self) -> str:
+        """Render the preamble block prepended to the instruction file body.
+
+        Currently only used when ``context_injection.inline_file_syntax.kind``
+        is ``at_mention`` (i.e. Claude Code / Cursor).  Returns an empty
+        string for platforms that cannot cheaply reference files from inside
+        their instruction file — those platforms rely on
+        ``rules_distribution`` or explicit Read instructions instead.
+        """
+        ci = self.context_injection
+        syntax = ci.get("inline_file_syntax", {}) or {}
+        if syntax.get("kind") != "at_mention":
+            return ""
+        template = str(syntax.get("template") or "@{path}")
+        files = (ci.get("auto_injection", {}) or {}).get("preamble_files") or []
+        if not files:
+            return ""
+        lines = [template.format(path=p) for p in files]
+        return "\n".join(lines) + "\n\n"
 
     # ---- MCP ----
 

@@ -125,3 +125,20 @@ permissions:
 model_routing:
   available_models: [opus, sonnet, haiku]
   per_agent_model: true
+
+context_injection:
+  # Claude Code 自动注入 CLAUDE.md 到每次会话；@-mention 也是 eager（启动即入上下
+  # 文），因此 preamble 仅放必读且短的 COMMON-RULES，避免常驻 token 膨胀。
+  auto_injection:
+    mechanism: claude_md
+    eager: true
+    size_limit_bytes: null
+    preamble_files:
+      - .cataforge/rules/COMMON-RULES.md
+  inline_file_syntax:
+    kind: at_mention
+    template: "@{path}"
+  rules_distribution:
+    target: .claude/rules
+    format: markdown
+    activation: manual_read

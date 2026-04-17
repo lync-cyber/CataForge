@@ -110,3 +110,23 @@ permissions:
 model_routing:
   available_models: []           # provider-agnostic — 75+ models via Models.dev
   per_agent_model: true
+
+context_injection:
+  # OpenCode 原生支持 opencode.json.instructions 字段声明额外指令文件列表（含
+  # glob 与远程 URL），比让 LLM 自己 Read 更省 token。OpenCodeAdapter 在
+  # deploy_instruction_files 中写入这里声明的 files。
+  auto_injection:
+    mechanism: opencode_instructions
+    eager: true
+    size_limit_bytes: null
+    preamble_files: []
+  inline_file_syntax:
+    kind: read_tool
+    template: "请先 read {path}"
+  rules_distribution:
+    target: opencode.json
+    format: markdown
+    activation: opencode_instructions
+    files:
+      - AGENTS.md
+      - .cataforge/rules/*.md
