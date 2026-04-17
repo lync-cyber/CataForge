@@ -93,7 +93,7 @@ class TestCursorDryRunPaths:
 
 
 class TestClaudeCodeDryRunPaths:
-    def test_claude_dry_run_shows_dual_layout(self, tmp_path: Path) -> None:
+    def test_claude_dry_run_shows_flat_layout(self, tmp_path: Path) -> None:
         root = _init_project(tmp_path, agents=["orchestrator"])
         _write_profile(
             root,
@@ -122,9 +122,10 @@ class TestClaudeCodeDryRunPaths:
         cfg = ConfigManager(root)
         actions = Deployer(cfg).deploy("claude-code", dry_run=True)
 
-        # Claude Code emits both the flat file AND the subdirectory mirror.
+        # Claude Code emits only the flat ``<name>.md`` file — the legacy
+        # ``<name>/AGENT.md`` subdir mirror was removed.
         matches = [a for a in actions if "orchestrator" in a and "would deploy agent" in a]
         assert matches, actions
         joined = " ".join(matches)
         assert ".claude/agents/orchestrator.md" in joined
-        assert ".claude/agents/orchestrator/AGENT.md" in joined
+        assert ".claude/agents/orchestrator/AGENT.md" not in joined

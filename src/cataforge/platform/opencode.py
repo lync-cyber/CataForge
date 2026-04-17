@@ -19,9 +19,6 @@ class OpenCodeAdapter(PlatformAdapter):
     def display_name(self) -> str:
         return "OpenCode"
 
-    def get_tool_map(self) -> dict[str, str | None]:
-        return dict(self._profile.get("tool_map", {}))
-
     def get_project_root_env_var(self) -> str | None:
         return None
 

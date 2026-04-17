@@ -70,10 +70,12 @@ dispatch:
 
 hooks:
   # OpenCode uses a JS/TS plugin system for hooks, not JSON config files.
-  # Hook scripts must be wrapped as OpenCode plugins in .opencode/plugins/.
-  # Events: tool.execute.before/after, session.created, session.idle, etc.
+  # CataForge materialises a single .opencode/plugins/cataforge-hooks.ts
+  # wrapper that spawns the same Python scripts used by every other platform.
+  # See OpenCodeAdapter.emit_plugin_hooks for the generator.
   config_format: plugin
-  config_path: .opencode/plugins/
+  # config_path is unset — the adapter writes the plugin itself rather than
+  # going through the JSON hook merger used by other platforms.
   event_map:
     PreToolUse: tool.execute.before
     PostToolUse: tool.execute.after
@@ -83,14 +85,16 @@ hooks:
   tool_overrides: {}
   matcher_map: {}
   degradation:
-    guard_dangerous: degraded      # Needs JS/TS plugin adapter wrapper
-    log_agent_dispatch: degraded
-    validate_agent_result: degraded
-    lint_format: degraded
-    detect_correction: degraded
-    notify_done: degraded
-    notify_permission: degraded
-    session_context: degraded
+    # All hooks are plugin-backed: the emitted TS wrapper invokes the Python
+    # script so block/observe semantics flow through as on JSON platforms.
+    guard_dangerous: native
+    log_agent_dispatch: native
+    validate_agent_result: native
+    lint_format: native
+    detect_correction: native
+    notify_done: native
+    notify_permission: degraded     # OpenCode has no Notification event
+    session_context: native
 
 features:
   cloud_agents: false
