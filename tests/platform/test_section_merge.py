@@ -152,11 +152,99 @@ class TestSectionAnnotationStripping:
 
 
 class TestPreamble:
-    def test_preamble_from_template_is_used(self) -> None:
-        cur = "old preamble\n## X\nbody\n"
-        tpl = "@.cataforge/rules/COMMON-RULES.md\n\n## X\nbody\n"
+    """Preamble = everything before first ## heading (at-mentions, H1, banners).
+
+    Regression tests for a dogfood-discovered bug: deploying CataForge on its
+    own dev worktree erased the '<!-- DOGFOOD WORKTREE -->' banner and
+    reverted '# CataForge (dev)' back to '# CataForge' — because the merger
+    unconditionally let template preamble win.
+    """
+
+    def test_template_wins_when_current_preamble_is_empty(self) -> None:
+        """First deploy: no prior preamble → use template."""
+        cur = "## X\nbody\n"
+        tpl = "@.cataforge/rules/COMMON-RULES.md\n\n# Title\n\n## X\nbody\n"
         out = merge_sections(cur, tpl, policy={"framework": ["X"]})
         assert out.startswith("@.cataforge/rules/COMMON-RULES.md")
+        assert "# Title" in out
+
+    def test_template_wins_when_semantically_equivalent(self) -> None:
+        """Whitespace-only difference is not a user customization — template
+        wins so framework preamble updates propagate on upgrade."""
+        cur = "@.cataforge/rules/COMMON-RULES.md\n\n# CataForge\n\n## X\nbody\n"
+        # Template is same content, different whitespace
+        tpl = "@.cataforge/rules/COMMON-RULES.md\n# CataForge\n## X\nbody\n"
+        out = merge_sections(cur, tpl, policy={"framework": ["X"]})
+        # Template's compact form used — verify cur's double blanks not present
+        assert "COMMON-RULES.md\n\n\n" not in out
+
+    def test_user_customized_preamble_is_preserved(self) -> None:
+        """User-added banner / custom H1 must survive deploy."""
+        cur = (
+            "@.cataforge/rules/COMMON-RULES.md\n\n"
+            "<!-- DOGFOOD WORKTREE (dev 分支 · 形态 C) -->\n\n"
+            "# CataForge (dev)\n\n"
+            "## X\nbody\n"
+        )
+        tpl = (
+            "@.cataforge/rules/COMMON-RULES.md\n\n"
+            "# CataForge\n\n"
+            "## X\nbody\n"
+        )
+        out = merge_sections(cur, tpl, policy={"framework": ["X"]})
+        assert "DOGFOOD WORKTREE" in out
+        assert "# CataForge (dev)" in out
+
+
+class TestNestedFieldPreservation:
+    """Regression tests for multi-line schema fields.
+
+    Before the fix: ``- 阶段配置:`` with indented continuation lines had an
+    inline value of ``""`` which ``_is_placeholder`` reported as True → the
+    field was treated as unfilled and template default won, erasing the
+    user's nested content. Discovered via dogfood deploy validation.
+    """
+
+    def test_nested_value_preserved_over_template(self) -> None:
+        cur = (
+            "## Info\n"
+            "- 阶段配置:\n"
+            "  - ui_design: N/A\n"
+            "  - testing: 保留\n"
+        )
+        tpl = (
+            "## Info\n"
+            "- 阶段配置: 以下阶段可在 Bootstrap 时标记为 N/A 以跳过:\n"
+            "  - ui_design: 后端/CLI/API-only 项目可跳过\n"
+            "  - testing: 原型/PoC 项目可跳过\n"
+        )
+        out = merge_sections(cur, tpl, policy={"schema": ["Info"]})
+        assert "ui_design: N/A" in out
+        assert "testing: 保留" in out
+        # Template's nested defaults must not leak through
+        assert "后端/CLI/API-only 项目可跳过" not in out
+        assert "原型/PoC 项目可跳过" not in out
+
+    def test_empty_value_without_continuation_is_still_placeholder(self) -> None:
+        """Edge: ``- key:`` with no body at all → accept template default."""
+        cur = "## Info\n- 命名:\n"
+        tpl = "## Info\n- 命名: kebab-case\n"
+        out = merge_sections(cur, tpl, policy={"schema": ["Info"]})
+        assert "kebab-case" in out
+
+    def test_nested_list_under_bullet_preserved(self) -> None:
+        """Nested markdown list under a bullet counts as content."""
+        cur = (
+            "## Info\n"
+            "- 分支:\n"
+            "  - main — 发布主线\n"
+            "  - dev — dogfood\n"
+        )
+        tpl = "## Info\n- 分支: {策略}\n"
+        out = merge_sections(cur, tpl, policy={"schema": ["Info"]})
+        assert "main — 发布主线" in out
+        assert "dev — dogfood" in out
+        assert "{策略}" not in out
 
 
 class TestAGENTSMultiPlatform:
