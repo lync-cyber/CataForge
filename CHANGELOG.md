@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] — 2026-04-23
+
+### Fixed
+
+- **agile-lite / agile-prototype 行数限制** — lite 模板（prd-lite / arch-lite / dev-plan-lite）的行数目标从 ≤50 行放宽至目标 ≤100 行，超 150 行才触发模式升级提示；brief 模板从 ≤150 行放宽至目标 ≤200 行，超 300 行才触发。任务数升级触发从 >15 调整为 >25。旧限制在扣除模板结构开销后实际可用行数不足，导致 5 功能的 agile-lite 项目即会触发不必要的模式升级。
+- **orchestrator 误作 subagent 启动** — `start-orchestrator` SKILL.md 缺少明确的角色假设声明，导致 LLM 默认通过 `agent-dispatch` 激活 orchestrator 子代理而非让主线程直接担任该角色。新增 `§角色假设` 和 `Anti-Patterns` 段修正此行为；同时移除 `orchestrator/AGENT.md` 中对主线程无意义的 `maxTurns: 200` 字段。
+
+## [0.1.5] — 2026-04-23
+
+### Fixed
+
+- **sdist 构建** — `.cataforge/` scaffold 目录及注册的构建产物现已正确包含在源码分发包中。
+
 ## [0.1.3] — 2026-04-23
 
 ### Changed
@@ -121,7 +134,11 @@ hint; full implementation is tracked for later milestones:
 - `cataforge hook test <name>` — planned v0.2.
 - `cataforge plugin {install,remove}` — planned v0.3.
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.6
+[0.1.5]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.5
+[0.1.4]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.4
+[0.1.3]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.3
 [0.1.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.1
 [0.1.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.0
