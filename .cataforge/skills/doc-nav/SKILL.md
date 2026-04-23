@@ -30,7 +30,7 @@ user-invocable: true
 
 **首选（Bash 可用）**：
 ```bash
-python .cataforge/scripts/docs/load_section.py <ref> [<ref> ...]
+cataforge docs load <ref> [<ref> ...]
 ```
 参数为一个或多个 `doc_id#§N[.item]` 引用，如 `prd#§2.F-001` 或 `arch#§3.API-001`。
 - 脚本自动定位 `docs/{doc_type}/` 目录下匹配的文件（包含多卷场景）

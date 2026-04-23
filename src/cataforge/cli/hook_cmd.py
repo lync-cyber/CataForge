@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -153,6 +154,15 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
         argv = [sys.executable, *shlex.split(command[len("python "):])]
         proc_kwargs: dict[str, object] = {"args": argv, "shell": False}
         display = " ".join(shlex.quote(a) for a in argv)
+        # When the child is ``python -m cataforge...``, it needs the same
+        # cataforge package our process found. pip/uv-tool installs put it
+        # in site-packages where the child looks by default, but editable
+        # installs, pytest's ``pythonpath`` setting, PEP 660 edge cases,
+        # and ``uv run --with`` all put it on our ``sys.path`` without
+        # exposing it via the subprocess's default search path. Propagate
+        # the package's parent dir through ``PYTHONPATH`` so those setups
+        # don't silently give ``No module named 'cataforge'``.
+        proc_kwargs["env"] = _child_env_with_cataforge_importable()
     else:
         proc_kwargs = {"args": command, "shell": True}
         display = command
@@ -190,6 +200,35 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
     err = CataforgeError(f"hook {hook_name!r} exited with code {proc.returncode} ({verdict}).")
     err.exit_code = proc.returncode
     raise err
+
+
+def _child_env_with_cataforge_importable() -> dict[str, str]:
+    """Copy ``os.environ`` with ``PYTHONPATH`` prepended so the child can
+    ``import cataforge`` from the same location as this interpreter.
+
+    ``site-packages`` setups aren't affected: the child's default search
+    already covers them and ``PYTHONPATH`` only gets checked before
+    ``site-packages`` — no duplication, no surprise shadowing of a
+    user-installed ``cataforge``.
+    """
+    env = os.environ.copy()
+    try:
+        import cataforge  # noqa: PLC0415 — lazy so import errors are caught
+
+        pkg_file = Path(cataforge.__file__ or "").resolve()
+    except Exception:
+        return env
+    if not pkg_file.is_file():
+        return env
+    pkg_parent = str(pkg_file.parent.parent)
+    existing = env.get("PYTHONPATH", "")
+    parts = existing.split(os.pathsep) if existing else []
+    if pkg_parent in parts:
+        return env
+    env["PYTHONPATH"] = (
+        os.pathsep.join([pkg_parent, *parts]) if parts else pkg_parent
+    )
+    return env
 
 
 def _resolve_hook_command(root: Path, hook_name: str) -> str | None:
