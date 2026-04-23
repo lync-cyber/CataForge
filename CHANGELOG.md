@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-04-23
+
+### Changed
+
+- **README** — Overhauled project homepage: removed emoji, introduced
+  `hero-banner.svg` and `key-features.svg` SVG assets for richer visual
+  presentation, rewrote narrative with benefit-first structure and lower
+  onboarding friction, added `uvx` zero-install quick-start path, converted
+  all relative links to absolute GitHub URLs for correct rendering on PyPI.
+
 ## [0.1.2] — 2026-04-17
 
 Housekeeping release: scaffold-sync automation, platform-adapter
