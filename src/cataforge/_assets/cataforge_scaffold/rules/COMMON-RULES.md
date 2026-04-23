@@ -75,7 +75,7 @@
 |------|-----------------|-----------|-----------------|
 | 适用场景 | 中大型正式交付项目 | 5-10 feature 轻量工具/小型 Web 项目 | 原型 / PoC / 单文件脚本 |
 | 阶段集合 | 7 阶段全跑，ui_design/testing/deployment 可配置 N/A | Phase 1+2 合并为 `planning`，development 保留，testing/deployment 可 N/A | Phase 1~4 合并为 `brief`，仅 `brief` + `development` |
-| 文档产出 | PRD + ARCH + UI-SPEC + DEV-PLAN + TEST-REPORT + DEPLOY-SPEC | prd-lite + arch-lite + dev-plan-lite（各目标 ≤100 行） | 单一 brief.md（目标 ≤200 行） |
+| 文档产出 | PRD + ARCH + UI-SPEC + DEV-PLAN + TEST-REPORT + DEPLOY-SPEC | prd-lite + arch-lite + dev-plan-lite（各目标 ≤100 行）；涉及 UI 的项目可选 ui-spec-lite | 单一 brief.md（目标 ≤200 行） |
 | doc-review | Layer 1 + Layer 2 强制 | Layer 1 强制；Layer 2 按 `DOC_REVIEW_L2_SKIP_*` 常量短路 | Layer 1 only |
 | TDD 流程 | RED → GREEN → REFACTOR | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 可选 | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 跳过 |
 | 人工检查点 | 引用 `MANUAL_REVIEW_CHECKPOINTS` | 仅 pre_dev | none |

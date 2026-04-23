@@ -103,9 +103,10 @@ Agent逐章填充内容时:
 | brief | templates/brief.md | brief | product-manager | none |
 | prd-lite | templates/prd-lite.md | prd | product-manager | none |
 | arch-lite | templates/arch-lite.md | arch | architect | prd-lite |
+| ui-spec-lite | templates/ui-spec-lite.md | ui-spec | ui-designer | prd-lite |
 | dev-plan-lite | templates/dev-plan-lite.md | dev-plan | tech-lead | arch-lite |
 
-> **执行模式说明**: `brief` 仅用于 agile-prototype 模式（合并 PRD+ARCH+DEV-PLAN）；`prd-lite` / `arch-lite` / `dev-plan-lite` 仅用于 agile-lite 模式。模式判定见 COMMON-RULES §执行模式矩阵。lite 文档与 standard 文档共享同一 `docs/{doc_type}/` 目录（如 `docs/prd/prd-lite-{project}-{ver}.md`），同一项目只会选用其中一种。
+> **执行模式说明**: `brief` 仅用于 agile-prototype 模式（合并 PRD+ARCH+DEV-PLAN）；`prd-lite` / `arch-lite` / `dev-plan-lite` 仅用于 agile-lite 模式；`ui-spec-lite` 为 agile-lite 模式的可选项，仅当项目涉及 UI 时生成。模式判定见 COMMON-RULES §执行模式矩阵。lite 文档与 standard 文档共享同一 `docs/{doc_type}/` 目录（如 `docs/prd/prd-lite-{project}-{ver}.md`），同一项目只会选用其中一种。
 
 ## 通用文档头规范
 每份文档必须以 YAML Front Matter 开始:

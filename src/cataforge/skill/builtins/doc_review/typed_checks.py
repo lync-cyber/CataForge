@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
+from cataforge.utils.yaml_parser import parse_yaml_frontmatter
+
 
 class TypedDocChecksMixin:
     """Mixin providing ``check_<doc_type>`` methods used by ``DocChecker``."""
@@ -148,7 +150,12 @@ class TypedDocChecksMixin:
     # ---- UI-SPEC ----
 
     def check_ui_spec(self) -> None:
-        if self.volume_type == "main":
+        fm = parse_yaml_frontmatter(self.content)
+        mode = fm.get("mode", "standard")
+        is_lite = mode == "agile-lite"
+        min_color_tokens = 3 if is_lite else 5
+
+        if self.volume_type == "main" and not is_lite:
             if not re.search(r"##\s*0\.\s*设计方向", self.content):
                 self.fail("缺少§0设计方向章节")
             else:
@@ -181,26 +188,29 @@ class TypedDocChecksMixin:
             self.fail(f"{c_count}个组件中{mp}个缺少Props定义")
         if mvd > 0:
             self.warn(f"{c_count}个组件中{mvd}个缺少状态视觉差异描述")
-        p_sections = re.findall(
-            r"^### P-\d+.*?(?=^### P-\d+|^## |\Z)",
-            self.content,
-            re.MULTILINE | re.DOTALL,
-        )
-        p_count = len(p_sections)
-        mr = sum(
-            1 for s in p_sections if not re.search(r"路由|route|/\w+", s, re.IGNORECASE)
-        )
-        mc = sum(
-            1 for s in p_sections if not re.search(r"C-\d+|组件", s, re.IGNORECASE)
-        )
-        sp_pat = r"空间构成|视觉重心|留白"
-        ms = sum(1 for s in p_sections if not re.search(sp_pat, s, re.IGNORECASE))
-        if mr > 0:
-            self.fail(f"{p_count}个页面中{mr}个缺少路由定义")
-        if mc > 0:
-            self.fail(f"{p_count}个页面中{mc}个缺少组件引用")
-        if ms > 0:
-            self.warn(f"{p_count}个页面中{ms}个缺少空间构成说明")
+        if not is_lite:
+            p_sections = re.findall(
+                r"^### P-\d+.*?(?=^### P-\d+|^## |\Z)",
+                self.content,
+                re.MULTILINE | re.DOTALL,
+            )
+            p_count = len(p_sections)
+            mr = sum(
+                1
+                for s in p_sections
+                if not re.search(r"路由|route|/\w+", s, re.IGNORECASE)
+            )
+            mc = sum(
+                1 for s in p_sections if not re.search(r"C-\d+|组件", s, re.IGNORECASE)
+            )
+            sp_pat = r"空间构成|视觉重心|留白"
+            ms = sum(1 for s in p_sections if not re.search(sp_pat, s, re.IGNORECASE))
+            if mr > 0:
+                self.fail(f"{p_count}个页面中{mr}个缺少路由定义")
+            if mc > 0:
+                self.fail(f"{p_count}个页面中{mc}个缺少组件引用")
+            if ms > 0:
+                self.warn(f"{p_count}个页面中{ms}个缺少空间构成说明")
         if self.volume_type == "main":
             if not re.search(r"色彩|[Cc]olor", self.content):
                 self.warn("设计系统缺少色彩定义")
@@ -209,10 +219,18 @@ class TypedDocChecksMixin:
             color_tokens = re.findall(
                 r"\|\s*\S+.*?\|.*?#[0-9a-fA-F]{3,8}", self.content
             )
-            if 0 < len(color_tokens) < 5:
-                self.warn(
-                    f"仅定义了{len(color_tokens)}个色彩Token，建议至少包含主色、语义色和中性色"
-                )
+            if len(color_tokens) < min_color_tokens:
+                mode_label = "agile-lite" if is_lite else "standard"
+                if len(color_tokens) == 0:
+                    self.fail(
+                        f"设计系统缺少色彩Token定义表（{mode_label}模式至少需要"
+                        f"{min_color_tokens}个Token：主色、语义色、中性色）"
+                    )
+                else:
+                    self.fail(
+                        f"仅定义了{len(color_tokens)}个色彩Token，{mode_label}模式"
+                        f"至少需要{min_color_tokens}个（主色、语义色、中性色）"
+                    )
 
     # ---- TEST-REPORT ----
 
