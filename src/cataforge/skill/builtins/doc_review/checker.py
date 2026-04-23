@@ -152,7 +152,11 @@ class DocChecker(TypedDocChecksMixin):
                 self.fail(f"交叉引用目标 {doc_id} 未找到对应文件")
 
     def check_required_sections(self) -> None:
-        sections = load_template_required_sections(self.doc_type, self.volume_type)
+        fm = parse_yaml_frontmatter(self.content)
+        mode = fm.get("mode", "standard") if fm else "standard"
+        sections = load_template_required_sections(
+            self.doc_type, self.volume_type, mode
+        )
         if sections is None:
             if self.doc_type not in ("changelog",):
                 self.warn(
