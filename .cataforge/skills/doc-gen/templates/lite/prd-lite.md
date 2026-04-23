@@ -16,8 +16,8 @@ required_sections:
 
 <!--
   PRD-Lite 适用于 agile-lite 执行模式。
-  全文目标 ≤50 行；禁止展开到 standard PRD 的深度。
-  若发现需求复杂到无法容纳在本模板，提示用户切换回 standard 模式。
+  全文目标 ≤100 行；保持比 standard PRD 轻量，不展开 ADR、详细用户研究、量化指标。
+  若内容在 150 行内仍无法表达清楚核心需求，提示用户切换到 standard 模式。
 -->
 
 [NAV]
