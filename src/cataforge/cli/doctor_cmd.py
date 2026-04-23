@@ -19,12 +19,12 @@ def doctor_command(ctx: click.Context) -> None:
     Exits with a non-zero status when any migration_check fails, so CI can
     treat doctor as a gate.
     """
-    from cataforge.core.config import ConfigManager
+    from cataforge.cli.helpers import get_config_manager
 
     click.echo("CataForge Doctor")
     click.echo("=" * 40)
 
-    cfg = ConfigManager()
+    cfg = get_config_manager()
 
     # Python
     click.echo(f"\nPython: {sys.version}")
