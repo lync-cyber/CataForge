@@ -90,7 +90,7 @@ python .cataforge/skills/doc-review/scripts/doc_check.py {doc_type} docs/{doc_ty
 - **prd**: 用户故事覆盖、验收标准(AC-NNN)存在、非功能需求充实度、优先级(P0/P1/P2)标注
 - **arch**: 模块→功能映射(F-NNN引用)、API定义含request、实体含字段表、技术栈选型理由
 - **dev-plan**: 依赖无环、tdd_acceptance、deliverables、context_load
-- **ui-spec**: §0设计方向非空且非占位符、组件含变体和Props和视觉差异描述、页面含路由和组件引用和空间构成、设计系统token(色彩≥5个Token)
+- **ui-spec**: §0设计方向非空且非占位符（仅 standard 模式）、组件含变体和Props和视觉差异描述、页面含路由和组件引用和空间构成（仅 standard 模式）、设计系统色彩Token≥5个（standard）/≥3个（agile-lite），不足即 FAIL
 - **test-report**: 测试金字塔(Unit/Integration/E2E)、用例矩阵非空、覆盖率有具体数值、测试执行结果、缺陷清单、结论
 - **deploy-spec**: 构建流程非空、环境含dev/prod、发布检查清单≥2项
 - **research-note**: 调研方法指明模式、结论非空

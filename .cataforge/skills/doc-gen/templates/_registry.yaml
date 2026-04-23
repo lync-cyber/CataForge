@@ -145,6 +145,14 @@ templates:
     author_agent: architect
     upstream_deps: [prd-lite]
 
+  ui-spec-lite:
+    path: lite/ui-spec-lite.md
+    doc_type: ui-spec
+    mode: agile-lite
+    role: main
+    author_agent: ui-designer
+    upstream_deps: [prd-lite]
+
   dev-plan-lite:
     path: lite/dev-plan-lite.md
     doc_type: dev-plan
