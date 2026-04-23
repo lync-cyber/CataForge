@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`self-update` 用户技能** — 新增 `/self-update [check|apply|verify]` 用户可调用技能，在 AI IDE 会话内标准化 CataForge 升级流程：`check` 对比已安装包版本与项目 scaffold 版本；`apply` 自动识别 pip/uv、升级包、刷新 `.cataforge/` scaffold 并写入 `upgrade.state`；`verify` 通过 `cataforge doctor` 执行迁移检查。无参调用时依次执行 check → confirm → apply → verify 完整流程。
+
 ## [0.1.7] — 2026-04-23
 
 ### Added
@@ -151,7 +155,8 @@ hint; full implementation is tracked for later milestones:
 - `cataforge hook test <name>` — planned v0.2.
 - `cataforge plugin {install,remove}` — planned v0.3.
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.7
 [0.1.6]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.6
 [0.1.5]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.5
 [0.1.4]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.4
