@@ -35,3 +35,14 @@ class SyncScaffoldBuildHook(BuildHookInterface):
             raise RuntimeError(
                 f"sync_scaffold failed (exit {result.returncode}) — aborting build"
             )
+
+        # Register scaffold files explicitly so hatchling picks them up even
+        # when they are not yet recorded in the VCS index (e.g. wheel built
+        # from sdist where git metadata is absent).
+        scaffold = Path(self.root) / "src" / "cataforge" / "_assets" / "cataforge_scaffold"
+        if scaffold.is_dir():
+            for path in sorted(scaffold.rglob("*")):
+                if path.is_file():
+                    build_data["artifacts"].append(
+                        str(path.relative_to(self.root))
+                    )
