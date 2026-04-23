@@ -50,6 +50,24 @@ pip install -e ".[dev]"
 
 ---
 
+## 升级
+
+先确认当前版本，再按安装方式选对应命令：
+
+```bash
+cataforge --version
+```
+
+| 安装方式 | 升级命令 |
+|---------|---------|
+| `uv tool install`（方式 A） | `uv tool upgrade cataforge` |
+| `uv pip install`（方式 B） | `uv pip install --upgrade cataforge` |
+| `pip install`（方式 C） | `pip install --upgrade cataforge` |
+
+升级后运行 `cataforge doctor` 验证新版本环境正常。版本变更详见 [CHANGELOG](https://github.com/lync-cyber/CataForge/blob/main/CHANGELOG.md)。
+
+---
+
 ## 可选依赖组
 
 `pyproject.toml` 声明了多个可选依赖组，按需安装：
