@@ -44,8 +44,8 @@
 |--------|-----|------|--------|
 | MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 | product-manager, reviewer, research |
 | MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 | orchestrator |
-| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式） | event_logger.py, ORCHESTRATOR-PROTOCOLS |
-| EVENT_LOG_SCHEMA | .cataforge/schemas/event-log.schema.json | 事件日志 Schema 定义 | event_logger.py |
+| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式） | `cataforge event log` (via event_logger.py shim), ORCHESTRATOR-PROTOCOLS |
+| EVENT_LOG_SCHEMA | .cataforge/schemas/event-log.schema.json | 事件日志 Schema 定义 | `cataforge event log`（核心校验在 cataforge.core.event_log） |
 | DOC_SPLIT_THRESHOLD_LINES | 300 | 单文档触发拆分的行数 | doc-gen |
 | DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
 | DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, prd-lite, arch-lite, dev-plan-lite, changelog] | 可短路 Layer 2 的文档类型白名单 | doc-review |

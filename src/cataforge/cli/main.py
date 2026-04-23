@@ -11,6 +11,7 @@ Usage:
     cataforge mcp [list|register|start|stop]
     cataforge plugin [list|install|remove]
     cataforge docs [load|index]
+    cataforge event log ...
     cataforge penpot [deploy|mcp-only|start|stop|status]
 
 Exit codes (see docs/reference/cli.md §退出码):
@@ -108,6 +109,7 @@ def _register_commands() -> None:
         deploy_cmd,
         docs_cmd,
         doctor_cmd,
+        event_cmd,
         hook_cmd,
         mcp_cmd,
         penpot_cmd,
