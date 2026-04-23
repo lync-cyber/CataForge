@@ -37,7 +37,7 @@ user-invocable: true
 
 #### B.1: 框架版本检查
 1. 读取 pyproject.toml 的 `[project].version` 获取当前框架版本
-2. 如果 pyproject.toml 不存在 → 提示用户: "未检测到版本元数据文件(pyproject.toml)，当前框架可能需要升级。可运行 `python .cataforge/scripts/framework/upgrade.py local <新版CataForge路径>` 升级。"
+2. 如果 pyproject.toml 不存在 → 提示用户: "未检测到版本元数据文件(pyproject.toml)，当前框架可能需要升级。可运行 `pip install --upgrade cataforge && cataforge upgrade apply` 升级。"
 3. 版本检查仅提示，不阻断流程，继续 B.2
 
 #### B.2: 恢复推进
