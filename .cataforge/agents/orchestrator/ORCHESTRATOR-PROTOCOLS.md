@@ -249,7 +249,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 - .cataforge/rules/ — COMMON-RULES.md, SUB-AGENT-PROTOCOLS.md
 - .cataforge/agents/orchestrator/ — ORCHESTRATOR-PROTOCOLS.md
 - .cataforge/hooks/ — 所有 Hook 脚本 (.py)
-- .cataforge/scripts/ — `lib/`（`_common` 等共享模块）、`framework/`（setup、upgrade、event_logger、phase_reader）、`docs/`（load_section、build_doc_index）；Penpot 脚本在 `.cataforge/integrations/penpot/setup_penpot.py`
+- .cataforge/scripts/framework/ — `setup.py`（环境探测/平台配置）、`event_logger.py`（`cataforge event log` 的路径稳定 shim，供 markdown 协议调用）；其他框架能力（upgrade、docs load/index 等）已上收为 `cataforge` CLI 子命令；Penpot 脚本在 `.cataforge/integrations/penpot/setup_penpot.py`
 - .cataforge/framework.json
 - pyproject.toml
 
@@ -270,23 +270,25 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 - 仅检测: `python .cataforge/scripts/framework/setup.py --check-only`
 
 ### 升级步骤（本地路径方式）
-1. 运行: `python .cataforge/scripts/framework/upgrade.py local <新版CataForge路径> --dry-run`
-2. 确认变更列表无异常
-3. 运行: `python .cataforge/scripts/framework/upgrade.py local <新版CataForge路径>`
-   - 自动执行升级后验证（文件完整性 + 功能适用性检查）
-4. 检查: `git diff .cataforge/` 确认变更合理
-5. 提交: `git commit -m "chore: upgrade CataForge framework to vX.Y.Z"`
+适用场景：想用一个本地 CataForge 仓库的 checkout 升级，而不是从 PyPI/远程安装。
+1. 安装目标版本到当前环境: `pip install <新版CataForge路径>`（或 `uv tool install <路径>`）
+2. 运行: `cataforge upgrade apply --dry-run` 预览变更
+3. 确认变更列表无异常
+4. 运行: `cataforge upgrade apply` 执行升级（scaffold 刷新；用户状态保留）
+5. 运行: `cataforge upgrade verify` 执行升级后验证（= `cataforge doctor`）
+6. 检查: `git diff .cataforge/` 确认变更合理
+7. 提交: `git commit -m "chore: upgrade CataForge framework to vX.Y.Z"`
 
-### 升级步骤（远程拉取方式）
-1. 配置 `.cataforge/framework.json`（设置 upgrade.source 的 type/repo/url/branch）
-2. 运行: `python .cataforge/scripts/framework/upgrade.py check` 检测新版本
-3. 运行: `python .cataforge/scripts/framework/upgrade.py upgrade --dry-run` 预览变更
-4. 运行: `python .cataforge/scripts/framework/upgrade.py upgrade` 执行升级
+### 升级步骤（PyPI/远程方式）
+1. 升级包: `pip install --upgrade cataforge`（或 `uv tool upgrade cataforge`）
+2. 运行: `cataforge upgrade check` 对比已安装包版本与 scaffold 版本
+3. 运行: `cataforge upgrade apply --dry-run` 预览变更
+4. 运行: `cataforge upgrade apply` 执行 scaffold 刷新
 5. 检查: `git diff .cataforge/` 确认变更合理
 6. 提交: `git commit -m "chore: upgrade CataForge framework to vX.Y.Z"`
 
 ### 独立验证
-- 运行: `python .cataforge/scripts/framework/upgrade.py verify` 可随时检查框架文件完整性
+- 运行: `cataforge upgrade verify` 可随时检查框架文件完整性
 
 ## Agent Crash Recovery Protocol
 当子代理返回结果不含 `<agent-result>` 标签且 agent-dispatch 的标签缺失兜底也无法推断状态时（即真正的崩溃/截断场景）:

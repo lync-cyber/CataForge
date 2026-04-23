@@ -40,7 +40,7 @@ Agent逐章填充内容时:
    - **检查失败**: 返回缺失项清单给调用 Agent，不执行 Step 2-4。Agent 应补充缺失章节后重新调用 finalize
 2. 拆分判断: 如文档行数超过 `DOC_SPLIT_THRESHOLD_LINES`，按下方"文档拆分策略"执行拆分
 3. 注册索引: 读取 `docs/NAV-INDEX.md`，追加当前文档条目(Doc ID、文件路径(含子目录)、状态=draft、分卷数、章节数)
-4. 更新机器索引: `python .cataforge/scripts/docs/build_doc_index.py --project-root . --doc-file {最终文档路径}`
+4. 更新机器索引: `cataforge docs index --doc-file {最终文档路径}`
 5. **[EVENT]** `python .cataforge/scripts/framework/event_logger.py --event doc_finalize --phase {当前阶段} --ref "{doc_id}" --detail "文档finalize: {doc_id}"`
 6. 返回: 最终文档路径 + NAV-INDEX注册确认 + .doc-index.json更新确认
 

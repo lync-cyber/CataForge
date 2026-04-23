@@ -69,6 +69,15 @@ def doctor_command(ctx: click.Context) -> None:
     click.echo("\nFramework migration checks:")
     failed_count = _run_migration_checks(cfg)
 
+    # Protocol script references — markdown/YAML files inside .cataforge/
+    # routinely invoke ``python .cataforge/scripts/...`` commands. If one of
+    # those scripts is missing, every call site silently fails at runtime
+    # (each orchestrator [EVENT] line, every TDD phase transition, the
+    # agent_dispatch hook, ...), with no signal until someone reads the
+    # hook error log. Scanning statically catches the rot at diagnostic time.
+    click.echo("\nProtocol script references:")
+    failed_count += _check_protocol_script_references(cfg)
+
     # Deployment provenance — shows which platform-specific directories would
     # have been written by the last successful deploy. Lets users see at a
     # glance which ``.claude/`` / ``.cursor/`` / etc. are CataForge-managed
@@ -312,6 +321,85 @@ def _evaluate_check(check: dict, root: Path) -> tuple[bool, str]:
         return True, ""
 
     return False, f"unknown check type: {ctype}"
+
+
+def _check_protocol_script_references(cfg) -> int:
+    """Scan ``.cataforge/`` protocol docs + hooks spec for ``python .cataforge/scripts/...``
+    invocations and report any that point at a file that does not exist.
+
+    Returns the number of distinct missing scripts (counts toward the
+    ``cataforge doctor`` exit code gate).
+    """
+    import re
+
+    # Match ``python <path>`` where <path> starts with ``.cataforge/scripts/``
+    # and ends at the first whitespace or quote. Greedy enough to cover both
+    # ``python .cataforge/scripts/framework/event_logger.py --event X``
+    # (space-terminated) and ``python .cataforge/scripts/framework/setup.py``
+    # at end of line. We deliberately do not resolve shell quoting — if a
+    # protocol ever wraps the path in quotes we can revisit.
+    pattern = re.compile(
+        r"python\s+(\.cataforge/scripts/[^\s`\"'<>|&;]+\.py)"
+    )
+
+    root = cfg.paths.root
+    scan_roots = (
+        cfg.paths.agents_dir,
+        cfg.paths.skills_dir,
+        cfg.paths.rules_dir,
+        cfg.paths.hooks_dir,
+        cfg.paths.commands_dir,
+    )
+
+    suffixes = {".md", ".yaml", ".yml"}
+    # script relpath → sorted list of "file:line" callers (for the error message)
+    refs: dict[str, list[str]] = {}
+    for base in scan_roots:
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in suffixes:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                for match in pattern.finditer(line):
+                    rel = match.group(1)
+                    try:
+                        display = path.relative_to(root).as_posix()
+                    except ValueError:
+                        display = str(path)
+                    refs.setdefault(rel, []).append(f"{display}:{lineno}")
+
+    if not refs:
+        click.echo("  (no protocol script references found)")
+        return 0
+
+    missing: list[tuple[str, list[str]]] = []
+    for rel in sorted(refs):
+        if not (root / rel).is_file():
+            missing.append((rel, sorted(set(refs[rel]))))
+
+    present_count = len(refs) - len(missing)
+    parts = [f"{present_count}/{len(refs)} scripts present"]
+    if missing:
+        parts.append(f"{len(missing)} missing")
+    click.echo("  " + ", ".join(parts))
+
+    for rel, callers in missing:
+        click.echo(f"  FAIL {rel} (referenced by):")
+        # Cap the shown callers so a widely-used missing script doesn't
+        # drown the output; the count conveys the scope.
+        shown = callers[:5]
+        for caller in shown:
+            click.echo(f"    - {caller}")
+        extra = len(callers) - len(shown)
+        if extra > 0:
+            click.echo(f"    - ... and {extra} more call site(s)")
+
+    return len(missing)
 
 
 def _check_file(label: str, path: Path) -> None:
