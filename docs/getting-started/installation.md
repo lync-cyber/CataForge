@@ -50,6 +50,24 @@ pip install -e ".[dev]"
 
 ---
 
+## 升级
+
+先确认当前版本，再按安装方式选对应命令：
+
+```bash
+cataforge --version
+```
+
+| 安装方式 | 升级命令 |
+|---------|---------|
+| `uv tool install`（方式 A） | `uv tool upgrade cataforge` |
+| `uv pip install`（方式 B） | `uv pip install --upgrade cataforge` |
+| `pip install`（方式 C） | `pip install --upgrade cataforge` |
+
+升级后运行 `cataforge doctor` 验证新版本环境正常。版本变更详见 [CHANGELOG](https://github.com/lync-cyber/CataForge/blob/main/CHANGELOG.md)。
+
+---
+
 ## 可选依赖组
 
 `pyproject.toml` 声明了多个可选依赖组，按需安装：
@@ -85,6 +103,7 @@ pip install -e ".[dev,mcp]"
 - `py -3.12 -m venv` 优于 `python -m venv`：绕过 Windows Store 的 `python.exe` 别名。
 - PowerShell 激活被策略拦：`Set-ExecutionPolicy -Scope Process RemoteSigned` 一次性放行当前 shell。
 - `mklink /J` 需要管理员或 "开发者模式"：Windows 部署优先使用 junction，失败自动回退为目录拷贝。
+- **uv tool 安装后提示 PATH 警告**：`uv tool install / upgrade` 完成后出现 `` warning: `C:\Users\<you>\.local\bin` is not on your PATH ``，执行一次 `uv tool update-shell` 并重启终端即可永久消除，无需手动编辑环境变量。
 
 ---
 
