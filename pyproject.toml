@@ -108,6 +108,7 @@ include = [
     "/tests",
     "/docs",
     "/scripts",
+    "/.cataforge",
     "/README.md",
     "/LICENSE",
     "/pyproject.toml",
