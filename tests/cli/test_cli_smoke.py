@@ -198,6 +198,171 @@ class TestStubCommands:
         assert result.exit_code == STUB_EXIT_CODE
 
 
+class TestDeployErrors:
+    """Deploy must fail gracefully when scaffold is missing."""
+
+    def test_deploy_without_scaffold_is_friendly(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No .cataforge/ anywhere — deploy should hint at setup, not crash.
+
+        Before the fix, users hit a raw FileNotFoundError traceback deep
+        inside registry.load_profile. Now the CLI points to `cataforge setup`.
+        """
+        monkeypatch.chdir(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["deploy", "--platform", "claude-code"])
+        assert result.exit_code != 0
+        assert "Traceback" not in result.output
+        assert "cataforge setup" in result.output
+        assert ".cataforge" in result.output
+
+    def test_deploy_with_missing_profile_is_friendly(
+        self, fresh_project: Path
+    ) -> None:
+        """Scaffold exists but a platform profile is missing — friendly hint."""
+        profile = fresh_project / ".cataforge" / "platforms" / "claude-code" / "profile.yaml"
+        profile.unlink()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["deploy", "--platform", "claude-code"])
+        assert result.exit_code != 0
+        assert "Traceback" not in result.output
+        assert "profile" in result.output.lower()
+        assert "--force-scaffold" in result.output
+
+
+class TestGlobalFlags:
+    """Group-level flags added in the P0-P3 UX pass."""
+
+    def test_verbose_and_quiet_conflict(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = _invoke("-v", "-q", "doctor")
+        assert result.exit_code != 0
+        assert "mutually exclusive" in result.output
+
+    def test_project_dir_override(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--project-dir must make subcommands operate on the given root
+        regardless of cwd. The previous version of this test used a
+        ``fresh_project == tmp_path`` fixture and then chdir'd to a subdir
+        of it, which falsely passed because ``find_project_root`` walked
+        up and happened to find ``.cataforge/`` again. Here we put cwd in
+        a sibling directory so the fallback cannot mask a missing override.
+        """
+        from cataforge.core.scaffold import copy_scaffold_to
+
+        sibling_a = tmp_path / "project-a"
+        sibling_b = tmp_path / "project-b"
+        sibling_a.mkdir()
+        sibling_b.mkdir()
+        copy_scaffold_to(sibling_a / ".cataforge", force=False)
+        # Note: no scaffold in sibling_b — walk-up from there would never
+        # find one, so any success proves the --project-dir flag took
+        # effect rather than fallback discovery.
+        monkeypatch.chdir(sibling_b)
+
+        result = _invoke("--project-dir", str(sibling_a), "doctor")
+        assert result.exit_code == 0, result.output
+        # Project root line must point at sibling_a (the override target),
+        # never at sibling_b (cwd) or tmp_path (common ancestor).
+        root_lines = [l for l in result.output.splitlines() if "Project root:" in l]
+        assert root_lines, f"no 'Project root:' line in output:\n{result.output}"
+        assert str(sibling_a) in root_lines[0]
+        assert str(sibling_b) not in root_lines[0]
+
+    def test_project_dir_override_reaches_agent_list(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression for R-001: agent/skill/mcp/plugin/hook must honour
+        --project-dir too, not just deploy/setup/doctor."""
+        from cataforge.core.scaffold import copy_scaffold_to
+
+        sibling_a = tmp_path / "with-scaffold"
+        sibling_b = tmp_path / "no-scaffold"
+        sibling_a.mkdir()
+        sibling_b.mkdir()
+        copy_scaffold_to(sibling_a / ".cataforge", force=False)
+        monkeypatch.chdir(sibling_b)
+
+        # Without --project-dir: the guard would raise NotInitializedError
+        # because sibling_b has no .cataforge/.
+        result_bare = _invoke("agent", "list")
+        assert result_bare.exit_code != 0
+        assert "setup" in result_bare.output.lower()
+
+        # With --project-dir: the same command must succeed, proving the
+        # override reaches both the @require_initialized guard AND the
+        # AgentManager constructor.
+        result_overridden = _invoke("--project-dir", str(sibling_a), "agent", "list")
+        assert result_overridden.exit_code == 0, result_overridden.output
+
+    def test_top_level_help_has_getting_started(self) -> None:
+        result = _invoke("--help")
+        assert result.exit_code == 0
+        assert "Getting started" in result.output
+        assert "cataforge setup" in result.output
+
+
+class TestDeprecationWarnings:
+    def test_deploy_check_alias_warns(self, fresh_project: Path) -> None:
+        """Legacy --check keeps working but prints a deprecation line."""
+        result = _invoke("deploy", "--check")
+        assert result.exit_code == 0, result.output
+        assert "[deprecated]" in result.output
+        assert "--dry-run" in result.output
+
+    def test_setup_no_deploy_warns(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = _invoke("setup", "--no-deploy")
+        assert result.exit_code == 0, result.output
+        assert "[deprecated]" in result.output
+        assert "--no-deploy" in result.output
+
+
+class TestStubExitCode:
+    def test_stub_exit_is_not_2(self) -> None:
+        """POSIX exit 2 belongs to Click for usage errors. Stubs must not
+        collide with that (would hide real argv mistakes in CI)."""
+        from cataforge.cli.stubs import STUB_EXIT_CODE
+
+        assert STUB_EXIT_CODE != 2
+        assert STUB_EXIT_CODE == 70  # EX_SOFTWARE
+
+
+class TestWindowsEncoding:
+    """CLI output uses ``—``/``→``/Chinese in several paths. On Windows,
+    ``ensure_utf8_stdio()`` (invoked at import time) guarantees UTF-8 on
+    stdout/stderr with ``errors='replace'``. These tests pin that down.
+
+    A crash here would typically be ``UnicodeEncodeError: 'charmap'`` and
+    would appear as a Python traceback in ``result.output``.
+    """
+
+    def test_help_with_em_dash_renders(self) -> None:
+        result = _invoke("--help")
+        assert result.exit_code == 0
+        assert "Traceback" not in result.output
+
+    def test_stub_chinese_renders(self, fresh_project: Path) -> None:
+        result = _invoke("plugin", "install", "foo")
+        assert "Traceback" not in result.output
+        # The stub message contains both Chinese characters and the
+        # replacement-free output should include the literal prefix.
+        assert "尚未实现" in result.output
+
+    def test_deploy_dry_run_arrow_renders(self, fresh_project: Path) -> None:
+        """The deploy command banner uses the em-dash separator; setup's
+        dry-run uses the U+2192 arrow for diff output. Both must render."""
+        result = _invoke("setup", "--dry-run", "--platform", "cursor")
+        assert result.exit_code == 0, result.output
+        assert "Traceback" not in result.output
+
+
 class TestVersion:
     def test_version_flag(self) -> None:
         result = _invoke("--version")

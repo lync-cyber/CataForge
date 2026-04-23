@@ -2,89 +2,134 @@
 
 [![Python](https://img.shields.io/badge/python-%3E%3D3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/cataforge?color=b45309)](https://pypi.org/project/cataforge/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-1c1917.svg)](./LICENSE)
-[![Platforms](https://img.shields.io/badge/platforms-Claude%20Code%20%7C%20Cursor%20%7C%20CodeX%20%7C%20OpenCode-b45309)](./docs/guide/platforms.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-1c1917.svg)](https://github.com/lync-cyber/CataForge/blob/main/LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Claude%20Code%20%7C%20Cursor%20%7C%20CodeX%20%7C%20OpenCode-b45309)](https://github.com/lync-cyber/CataForge/blob/main/docs/guide/platforms.md)
 
-> 一套 `.cataforge/` 规范，同时驱动 **Claude Code / Cursor / CodeX / OpenCode** 的 Agent、Skill、Hook、MCP 与多 IDE 适配。
-
-CataForge 解决的是 "同一套 AI 工程流程在不同 IDE/Agent 运行时重复建设、配置分裂、行为不一致" 的问题。**写一次，跑在四个 IDE 上**。
+<p align="center">
+  <img src="https://raw.githubusercontent.com/lync-cyber/CataForge/main/docs/assets/hero-banner.svg" alt="CataForge — AI Engineering Workflow Framework" width="100%">
+</p>
 
 ---
 
-## ✨ 核心特性
+## 为什么选择 CataForge？
 
-- **🎯 多平台统一** — 同一份 `.cataforge/` 规范投放到 Claude Code / Cursor / CodeX / OpenCode，能力差异由 `PlatformAdapter` 屏蔽，不支持时自动降级。
-- **📦 声明即部署** — `cataforge deploy` 一键翻译并注入 agents / rules / hooks / MCP；幂等、自动清理孤儿产物。
-- **🤖 13 Agent + 24 Skill** — 覆盖产品经理、架构师、TDD 三阶段、评审员、QA、DevOps 等角色，开箱即用。
-- **🧪 TDD 内建** — 内置 RED→GREEN→REFACTOR 引擎，按微任务 LOC 自动切换 standard / light 模式。
-- **🚦 多层质量闸** — 文档双层审查（脚本 + AI）、代码双层审查（lint + AI）、Sprint 完成度检查。
-- **🧠 跨项目学习** — On-Correction Learning 钩子自动捕获用户纠正，Reflector Agent 提取经验跨项目复用。
-- **🪆 套娃式框架生成** — 内置 `workflow-framework-generator` 这个 "用框架生成框架" 的元 Skill：给定工作流类型（软件开发 / 内容创作 / 电商运营 / 研究分析 / 教育培训 / 项目管理 ...）与目标 IDE，自动产出一套完整的 CataForge 兼容框架（agents / skills / workflows / platform profile）。
+你在 Claude Code 里精心调校的 Agent 定义和 Hook 规则，换到 Cursor 就失效了。每当团队引入一个新的 AI IDE，就要重新维护一套配置——结果是配置漂移、行为不一致、上下文无法复用。
 
-## 🚀 快速开始
+**CataForge 用一套声明式规范 `.cataforge/` 解决这个问题。** 你写一次 Agent、Skill、Hook 和 MCP 定义，`cataforge deploy` 自动将其翻译成各 IDE 的原生格式并注入。不支持的能力由 `PlatformAdapter` 优雅降级，始终保持唯一事实来源。
 
-**安装**（推荐 `uv`）：
+<p align="center">
+  <img src="https://raw.githubusercontent.com/lync-cyber/CataForge/main/docs/assets/artifact-map.svg" alt="四平台部署产物对照图 — Claude Code、Cursor、CodeX、OpenCode" width="100%">
+</p>
+
+---
+
+## 核心特性
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/lync-cyber/CataForge/main/docs/assets/key-features.svg" alt="CataForge 核心特性：多平台统一、声明即部署、13 Agent + 24 Skill、TDD 内建、多层质量门禁、跨项目学习" width="100%">
+</p>
+
+除上述核心特性外，CataForge 还内置了**元框架生成器** `workflow-framework-generator` Skill：给定工作流类型（软件开发 / 内容创作 / 研究分析 / 项目管理…）与目标 IDE，自动产出一套完整的 CataForge 兼容框架（agents / skills / workflows / platform profile）——框架生成框架，从源头消除重复建设。
+
+---
+
+## 快速开始
+
+### 安装
 
 ```bash
+# 推荐：uv（全局可用，无需单独建环境）
 uv tool install cataforge
+
+# 或 pip
+pip install cataforge
+
+# 验证安装
 cataforge --version
 ```
 
-**3 条命令跑通干运行**：
+> **零安装体验** — 使用 `uvx` 临时运行，无需全局安装：
+> ```bash
+> uvx cataforge doctor
+> ```
+
+### 4 步部署到目标 IDE
+
+**步骤 1** — 检测运行时环境与已安装的 IDE
 
 ```bash
-cataforge doctor                                # 健康诊断
-cataforge setup --platform cursor               # 选目标平台
-cataforge deploy --check --platform cursor      # 干运行查看产物
+cataforge doctor
 ```
 
-**真部署**（写入 IDE 产物）：
+**步骤 2** — 初始化目标平台（以 Cursor 为例）
+
+```bash
+cataforge setup --platform cursor
+```
+
+**步骤 3** — 预览部署产物，确认无误（不写入文件）
+
+```bash
+cataforge deploy --check --platform cursor
+```
+
+**步骤 4** — 执行真实部署
 
 ```bash
 cataforge deploy --platform cursor
 ```
 
-👉 更多安装选项：[`docs/getting-started/installation.md`](./docs/getting-started/installation.md)
-👉 端到端真实跑通 4 个 IDE：[`docs/guide/manual-verification.md`](./docs/guide/manual-verification.md)
+支持的平台：`claude-code` · `cursor` · `codex` · `opencode`
 
-## 🧩 适用场景
+更多安装选项 → [docs/getting-started/installation.md](https://github.com/lync-cyber/CataForge/blob/main/docs/getting-started/installation.md)  
+端到端验证全部 4 个 IDE → [docs/guide/manual-verification.md](https://github.com/lync-cyber/CataForge/blob/main/docs/guide/manual-verification.md)
 
-- ✅ 需要在 **Claude Code / Cursor / CodeX / OpenCode** 间迁移或共用工作流的团队
-- ✅ 有 "子 Agent 调度 + 可复用 Skill + 安全钩子 + MCP 服务" 落地需求的项目
-- ✅ 希望把 AI 协作流程**产品化、可审计、可验证**的开源项目
-- ✅ 中文工程团队（规则与流程文档对中文提示词场景友好）
+---
 
-## 📚 文档
+## 适用场景
 
-| 文档 | 内容 |
+- 需要在 Claude Code、Cursor、CodeX、OpenCode 之间迁移或共享工作流的个人与团队
+- 有子 Agent 调度、可复用 Skill、安全 Hook 及 MCP 服务落地需求的项目
+- 希望将 AI 协作流程**产品化、可版本化、可审计**的开源项目
+- 中文工程团队（规则与流程文档对中文提示词场景原生支持）
+
+---
+
+## 文档
+
+| 分类 | 内容 |
 |------|------|
-| 📂 [**文档总览**](./docs/README.md) | 完整文档地图 |
-| 🚀 [安装](./docs/getting-started/installation.md) · [快速开始](./docs/getting-started/quick-start.md) | 零基础上手 |
-| 📘 [平台适配](./docs/guide/platforms.md) · [执行模式](./docs/guide/execution-modes.md) · [TDD 工作流](./docs/guide/tdd-workflow.md) | 使用指南 |
-| 🏗️ [架构概览](./docs/architecture/overview.md) · [运行时流程](./docs/architecture/runtime-workflow.md) · [平台适配机制](./docs/architecture/platform-adaptation.md) | 原理深入 |
-| 📖 [CLI 参考](./docs/reference/cli.md) · [配置参考](./docs/reference/configuration.md) · [Agent & Skill 清单](./docs/reference/agents-and-skills.md) | 查阅字典 |
-| ❓ [FAQ](./docs/faq.md) · [贡献指南](./docs/contributing.md) | 其它 |
+| [文档总览](https://github.com/lync-cyber/CataForge/blob/main/docs/README.md) | 完整文档地图与导航 |
+| [安装](https://github.com/lync-cyber/CataForge/blob/main/docs/getting-started/installation.md) · [快速开始](https://github.com/lync-cyber/CataForge/blob/main/docs/getting-started/quick-start.md) | 零基础上手（5 分钟） |
+| [平台适配](https://github.com/lync-cyber/CataForge/blob/main/docs/guide/platforms.md) · [执行模式](https://github.com/lync-cyber/CataForge/blob/main/docs/guide/execution-modes.md) · [TDD 工作流](https://github.com/lync-cyber/CataForge/blob/main/docs/guide/tdd-workflow.md) | 使用指南 |
+| [架构概览](https://github.com/lync-cyber/CataForge/blob/main/docs/architecture/overview.md) · [运行时流程](https://github.com/lync-cyber/CataForge/blob/main/docs/architecture/runtime-workflow.md) · [平台适配机制](https://github.com/lync-cyber/CataForge/blob/main/docs/architecture/platform-adaptation.md) | 深入原理 |
+| [CLI 参考](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/cli.md) · [配置参考](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/configuration.md) · [Agent & Skill 清单](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/agents-and-skills.md) | 参考手册 |
+| [FAQ](https://github.com/lync-cyber/CataForge/blob/main/docs/faq.md) · [贡献指南](https://github.com/lync-cyber/CataForge/blob/main/docs/contributing.md) | 其他 |
 
-## 🏗️ 架构一瞥
+---
+
+## 架构
 
 <p align="center">
-  <img src="./docs/assets/artifact-map.svg" alt="CataForge 四平台部署产物对照图" width="100%">
+  <img src="https://raw.githubusercontent.com/lync-cyber/CataForge/main/docs/assets/architecture-stack.svg" alt="CataForge 五层架构栈" width="80%">
 </p>
 
-高层组件：
+| 层级 | 模块 | 说明 |
+|------|------|------|
+| L1 命令层 | `cli` | 统一入口：`setup` `deploy` `doctor` `skill` `agent` 等 |
+| L2 编排层 | Orchestrator + Agent Dispatch | 多阶段任务调度与子 Agent 生命周期管理 |
+| L3 能力域 | `agent` / `skill` / `hook` / `mcp` | 规范资产的发现、翻译与执行 |
+| L4 平台层 | `PlatformAdapter` | 屏蔽四个 IDE 差异的核心抽象，不支持时自动降级 |
+| L5 核心层 | `core` | 配置管理、路径解析、事件总线、类型系统 |
 
-- **`core`** — 配置、路径、事件总线
-- **`platform`** — `PlatformAdapter`（屏蔽 IDE 差异的核心抽象）
-- **`deploy`** — 统一部署编排
-- **`agent` / `skill` / `hook` / `mcp`** — 规范资产的发现、翻译、执行
-- **`cli`** — 统一命令入口
+深入了解架构 → [docs/architecture/overview.md](https://github.com/lync-cyber/CataForge/blob/main/docs/architecture/overview.md)
 
-深入了解：[`docs/architecture/overview.md`](./docs/architecture/overview.md)
+---
 
-## 🤝 贡献
+## 贡献
 
-欢迎 Issue 与 PR。开发环境、代码规范、测试要求、文档维护约定见 [`docs/contributing.md`](./docs/contributing.md)。
+欢迎提交 Issue 和 PR。开发环境配置、代码规范、测试要求与文档维护约定见 [docs/contributing.md](https://github.com/lync-cyber/CataForge/blob/main/docs/contributing.md)。
 
-## 📄 License
+## License
 
-MIT — 详见 [LICENSE](./LICENSE)。
+MIT — 详见 [LICENSE](https://github.com/lync-cyber/CataForge/blob/main/LICENSE)。

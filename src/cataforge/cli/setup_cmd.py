@@ -18,7 +18,11 @@ from cataforge.platform.conformance import ALL_PLATFORMS
     help="Target AI IDE platform.",
 )
 @click.option("--with-penpot", is_flag=True, help="Include Penpot design integration.")
-@click.option("--check-only", is_flag=True, help="Only check prerequisites, do not install.")
+@click.option(
+    "--check", "--check-only", "check_only",
+    is_flag=True,
+    help="Only check prerequisites, do not install. (Alias: --check-only.)",
+)
 @click.option(
     "--force-scaffold",
     is_flag=True,
@@ -69,12 +73,20 @@ def setup_command(
     * ``--no-deploy`` is retained as a no-op flag so existing scripts (and
       ``cataforge upgrade apply``, which used it explicitly) still work.
     """
-    from cataforge.core.config import ConfigManager
+    from cataforge.cli.helpers import get_config_manager
     from cataforge.core.events import FRAMEWORK_SETUP, EventBus
+
+    if no_deploy:
+        click.secho(
+            "[deprecated] --no-deploy is the default behaviour and the flag "
+            "will be removed in v0.3. You can drop it from existing scripts.",
+            fg="yellow",
+            err=True,
+        )
 
     # find_project_root walks up for an existing .cataforge/; when nothing is
     # found it falls back to cwd — exactly what we want for a fresh install.
-    cfg = ConfigManager()
+    cfg = get_config_manager()
     bus = EventBus()
 
     click.echo(f"Project root: {cfg.paths.root}")
@@ -114,7 +126,7 @@ def setup_command(
         if deploy_after:
             click.echo(
                 "  would chain `cataforge deploy` "
-                "(run `cataforge deploy --check` to preview)"
+                "(run `cataforge deploy --dry-run` to preview)"
             )
         click.echo("Dry-run complete. No changes made.")
         return

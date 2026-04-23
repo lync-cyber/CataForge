@@ -22,15 +22,19 @@ from cataforge.cli.main import cli
 
 @cli.group("upgrade")
 def upgrade_group() -> None:
-    """Manage framework upgrades."""
+    """Manage framework upgrades.
+
+    The Python package is upgraded via pip/uv; ``apply`` then refreshes
+    the in-project scaffold. ``verify`` is an alias for ``doctor``.
+    """
 
 
 @upgrade_group.command("check")
 def upgrade_check() -> None:
     """Compare the in-project scaffold version against the installed package."""
-    from cataforge.core.config import ConfigManager
+    from cataforge.cli.helpers import get_config_manager
 
-    cfg = ConfigManager()
+    cfg = get_config_manager()
     scaffold_version = cfg.version
     try:
         installed = _pkg_version("cataforge")
@@ -61,16 +65,16 @@ def upgrade_check() -> None:
 
 @upgrade_group.command("apply")
 @click.option("--dry-run", is_flag=True, help="Show what would change without applying.")
-@click.pass_context
-def upgrade_apply(ctx: click.Context, dry_run: bool) -> None:
+def upgrade_apply(dry_run: bool) -> None:
     """Refresh the in-project scaffold against the installed package.
 
-    Equivalent to ``cataforge setup --force-scaffold --no-deploy`` — the
-    package itself must be upgraded separately via pip/uv.
+    Equivalent to ``cataforge setup --force-scaffold`` — the package
+    itself must be upgraded separately via pip/uv.
     """
-    if dry_run:
-        from cataforge.core.scaffold import iter_scaffold_files
+    from cataforge.cli.helpers import get_config_manager
+    from cataforge.core.scaffold import copy_scaffold_to, iter_scaffold_files
 
+    if dry_run:
         paths = sorted(rel for rel, _ in iter_scaffold_files())
         click.echo(f"Would refresh {len(paths)} scaffold file(s).")
         click.echo(
@@ -79,23 +83,27 @@ def upgrade_apply(ctx: click.Context, dry_run: bool) -> None:
         )
         return
 
-    from cataforge.cli.setup_cmd import setup_command
-
-    ctx.invoke(
-        setup_command,
-        platform=None,
-        with_penpot=False,
-        check_only=False,
-        force_scaffold=True,
-        deploy_after=False,
-        no_deploy=True,
+    # Direct scaffold refresh — avoids the fragile ctx.invoke(setup_command, ...)
+    # pattern which was silently sensitive to changes in setup's parameter list.
+    cfg = get_config_manager()
+    dest = cfg.paths.cataforge_dir
+    click.echo(f"Refreshing .cataforge/ at {dest}")
+    written, skipped = copy_scaffold_to(dest, force=True)
+    click.echo(
+        f"  wrote {len(written)} file(s)"
+        + (f", kept {len(skipped)} existing" if skipped else "")
     )
+    cfg.reload()
+    click.echo(f"CataForge v{cfg.version} — scaffold up to date.")
 
 
 @upgrade_group.command("verify")
 @click.pass_context
 def upgrade_verify(ctx: click.Context) -> None:
     """Run migration checks (alias for ``cataforge doctor``)."""
+    # Importing the command here keeps module import time low and makes
+    # the aliasing explicit. ctx.invoke preserves any parent flags the
+    # user passed (e.g. --verbose/--quiet/--project-dir).
     from cataforge.cli.doctor_cmd import doctor_command
 
     ctx.invoke(doctor_command)

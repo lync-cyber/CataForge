@@ -49,8 +49,11 @@ cataforge setup --platform <id> [--force-scaffold] [--deploy]
 |------|------|
 | `--platform <id>` | 目标平台：`claude-code` / `cursor` / `codex` / `opencode` |
 | `--force-scaffold` | 强制刷新 scaffold（保留用户字段），等价于 `upgrade apply` |
-| `--deploy` | 初始化后立即部署（默认 `--no-deploy`） |
-| `--no-deploy` | 仅初始化不部署（默认值，兼容别名） |
+| `--deploy` | 初始化后立即部署（默认不部署） |
+| `--dry-run` | 预演将要做的变更，不写盘 |
+| `--check` / `--check-only` | 仅检查前置条件，不安装（互为别名） |
+| `--show-diff` | 打印 framework.json 将变更的字段 |
+| `--no-deploy` | ⚠️ **已弃用**（v0.3 移除）：不部署已是默认行为，无需显式传入 |
 
 > 自 v0.1.2 起，`setup` 默认**只** 初始化 `.cataforge/` 脚手架与记录目标平台，**不再**自动写入 IDE 产物。
 
@@ -59,15 +62,17 @@ cataforge setup --platform <id> [--force-scaffold] [--deploy]
 ## deploy
 
 ```bash
-cataforge deploy [--check] [--platform <id>]
+cataforge deploy [--dry-run] [--platform <id>]
 ```
 
 投放资产到目标平台（Agent / 规则 / Hook / MCP）。
 
 | 参数 | 作用 |
 |------|------|
-| `--check` | 干运行，输出预期动作但不实际写盘 |
-| `--platform <id>` | 临时覆盖 `framework.json` 中的平台设置 |
+| `--dry-run` | 预演，输出预期动作但不实际写盘 |
+| `--platform <id>` | 临时覆盖 `framework.json` 中的平台设置（可选 `all` 部署到所有平台） |
+| `--conformance` | 仅执行平台 conformance 检查 |
+| `--check` | ⚠️ **已弃用**（v0.3 移除）：`--dry-run` 的别名，运行时会提示 |
 
 多次 `deploy` 幂等；会自动清理孤儿产物。
 
@@ -151,20 +156,30 @@ cataforge docs load <ref>   # 按 {doc_id}#§{section} 精准加载段落
 
 ## 全局参数
 
+以下参数可置于任何子命令之前，例如 `cataforge -v deploy --platform claude-code`。
+
 | 参数 | 作用 |
 |------|------|
 | `--version` | 打印包版本 |
-| `--help`, `-h` | 打印帮助 |
+| `--help`, `-h` | 打印帮助（支持短选项） |
+| `-v`, `--verbose` | 启用 `cataforge.*` logger 的 DEBUG 级别日志 |
+| `-q`, `--quiet` | 仅保留错误输出（logger 级别设为 WARNING，与 `--verbose` 互斥） |
+| `--project-dir <dir>` | 覆盖项目根目录探测（默认向上查找 `.cataforge/`）。影响所有子命令，包括 `agent` / `skill` / `mcp` / `plugin` / `hook` / `doctor` / `deploy` / `setup` / `upgrade`。
 
 ---
 
 ## 退出码
 
-| 退出码 | 含义 |
-|-------|------|
-| `0` | 成功 |
-| `1` | 业务失败（如 `doctor` 发现 FAIL） |
-| `2` | Stub 子命令（v0.1.0 路线图占位，v0.2+ 已实现） |
+| 退出码 | 含义 | 典型场景 |
+|-------|------|----------|
+| `0`  | 成功 | 正常完成 |
+| `1`  | 通用失败 | `doctor` 发现 FAIL；验证不通过；缺少前置条件（如 `.cataforge/` 未初始化）；配置错误 |
+| `2`  | Click 用法错误 | 未知选项、缺少必需参数、参数类型不符（由 Click 自动使用） |
+| `70` | 功能未实现（stub） | `plugin install` / `plugin remove` 等路线图占位命令；由 `CataforgeError` 子类 `NotImplementedFeature` 抛出 |
+
+> 历史版本（v0.1.x）使用退出码 `2` 表示 stub，与 Click 的用法错误冲突。v0.2 起改为 BSD sysexits 约定 `70` (`EX_SOFTWARE`)，CI 脚本可据此区分"未实现"与"用错命令"。
+
+所有非零退出均以统一的 stderr 前缀 `Error: …` 输出（`click.ClickException` 渲染），便于 CI/脚本捕获。
 
 ---
 
