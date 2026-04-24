@@ -16,9 +16,13 @@ import hashlib
 import json
 from collections.abc import Callable, Iterator
 from importlib.resources import as_file, files
-from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
+
+try:
+    from importlib.resources.abc import Traversable
+except ImportError:  # Python 3.10 — `importlib.resources.abc` landed in 3.11.
+    from importlib.abc import Traversable
 
 # ``_RUNTIME_VERSION`` is deliberately named — it reads as "the runtime
 # package version" at every call site, not as a constant.
