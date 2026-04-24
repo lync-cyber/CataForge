@@ -117,16 +117,13 @@ echo ">> 还原: ${#RESET_FILES[@]} 个非白名单文件"
 # -------- 执行 reset --------
 if [[ ${#RESET_FILES[@]} -eq 0 ]]; then
     echo ">> 无需还原"
-    echo ""
-    echo "OK — PR 分支已准备: $PR_BRANCH"
-    echo ""
-    echo "下一步:"
-    echo "  git push -u origin $PR_BRANCH"
-    echo "  gh pr create --base main --head $PR_BRANCH"
-    exit 0
+    SKIP_RESET_COMMIT=1
+else
+    SKIP_RESET_COMMIT=0
 fi
 
-for f in "${RESET_FILES[@]}"; do
+for f in "${RESET_FILES[@]:-}"; do
+    [[ -z "$f" ]] && continue
     echo "   RESET $f"
     if git cat-file -e "$BASE:$f" 2>/dev/null; then
         # 文件在 base 中存在，还原为 base 版本
@@ -138,7 +135,7 @@ for f in "${RESET_FILES[@]}"; do
 done
 
 # -------- 提交 reset --------
-if ! git diff --cached --quiet; then
+if [[ "$SKIP_RESET_COMMIT" -eq 0 ]] && ! git diff --cached --quiet; then
     git commit -m "chore: reset dogfood artifacts before PR
 
 白名单来源: $WHITELIST_FILE
@@ -151,9 +148,51 @@ fi
 echo ""
 echo "OK — PR 分支已准备: $PR_BRANCH"
 echo ""
-echo "下一步:"
+
+# -------- 交互式开 PR（防垃圾标题） --------
+# 历史教训: 直接 `gh pr create` 会默认用分支名作标题，
+# 产生 "Pr/dev 20260424 105745 (#50)" 这种无语义 commit 固化到 main。
+# 此段强制用 conventional-commits 标题开 PR。
+TITLE_REGEX='^(feat|fix|docs|chore|refactor|test|build|ci|perf|release)(\([a-z0-9._/-]+\))?!?: [a-z].+'
+
+prompt_title() {
+    local title=""
+    while true; do
+        read -r -p "PR 标题 (conventional-commits, 例: fix(scope): lower-case subject): " title
+        if [[ "$title" =~ $TITLE_REGEX ]]; then
+            printf '%s' "$title"
+            return 0
+        fi
+        echo "  x 不符合 ^type(scope): subject 格式，或 subject 以大写开头。请重试。" >&2
+    done
+}
+
+if command -v gh >/dev/null 2>&1 && [[ -t 0 ]]; then
+    echo "下一步（推荐，自动开 PR）:"
+    read -r -p "现在推送并开 PR？[y/N] " ans
+    if [[ "$ans" =~ ^[Yy]$ ]]; then
+        PR_TITLE="$(prompt_title)"
+        git push -u origin "$PR_BRANCH"
+        gh pr create --base main --head "$PR_BRANCH" --title "$PR_TITLE" --body "$(cat <<EOF
+## Source branch
+\`$SRC_BRANCH\` → reset via \`prepare-pr.sh\`
+
+## Whitelist
+\`$WHITELIST_FILE\` (${#WHITELIST[@]} entries) · reset ${#RESET_FILES[@]} / kept $KEEP_COUNT
+EOF
+)"
+        echo ""
+        echo "完成后可删除 PR 分支:"
+        echo "  git checkout $SRC_BRANCH && git branch -D $PR_BRANCH"
+        exit 0
+    fi
+fi
+
+echo "下一步（手动）:"
 echo "  git push -u origin $PR_BRANCH"
-echo "  gh pr create --base main --head $PR_BRANCH"
+echo "  gh pr create --base main --head $PR_BRANCH --title '<type>(<scope>): <subject>'"
+echo ""
+echo "  ⚠ 不要省略 --title，否则 gh 会用分支名作标题（小写 type/scope 规范见 CLAUDE.md）"
 echo ""
 echo "完成后可删除 PR 分支:"
 echo "  git checkout $SRC_BRANCH && git branch -D $PR_BRANCH"
