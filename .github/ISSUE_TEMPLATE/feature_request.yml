@@ -1,0 +1,48 @@
+name: Feature request
+description: Propose a new capability or enhancement
+title: "feat: <short description>"
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the pain point or missing capability from a user perspective.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should CataForge handle this? CLI command, config field, skill, or something else?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds did you try? Why are they insufficient?
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - CLI
+        - Scaffold
+        - Platform adapter (claude-code / cursor / codex / opencode)
+        - Agent / Skill
+        - Hook / MCP
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: How would you verify it works?
+      description: Observable criteria — command output, new file, test case, etc.

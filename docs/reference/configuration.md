@@ -2,6 +2,17 @@
 
 > `.cataforge/` 目录下的配置文件清单与字段说明。所有文件以 **单一来源** 原则组织：平台相关的内容封装在 `platforms/<id>/profile.yaml`，其余文件平台无关。
 
+## 目录
+
+- [文件总览](#文件总览)
+- [framework.json](#frameworkjson)
+- [platforms/\<id\>/profile.yaml](#platformsidprofileyaml)
+  - [context_injection 字段](#context_injection-字段)
+- [hooks.yaml](#hooksyaml)
+- [Agent 定义（AGENT.md）](#agent-定义agentmd)
+- [Skill 定义（SKILL.md）](#skill-定义skillmd)
+- [MCP 声明](#mcp-声明)
+
 ## 文件总览
 
 | 文件 | 位置 | 作用 |
@@ -25,7 +36,7 @@
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.8",
   "runtime": {
     "platform": "cursor",
     "mode": "standard",
@@ -130,7 +141,7 @@ context_injection:               # 见 §context_injection 字段
 | claude-code | `claude_md` | `@{path}` | `.claude/rules` | `manual_read`（preamble 仅放 COMMON-RULES） |
 | codex | `agents_md`（≤32 KiB） | `请先 Read {path}` | `.codex/rules` | `manual_read` |
 | cursor | `cursor_rules` | `@{path}` | `.cursor/rules`（MDC） | `always` |
-| opencode | `opencode_instructions` | `请先 read {path}` | `opencode.json` | `opencode_instructions` |
+| opencode | `opencode_instructions` | `请先 Read {path}` | `opencode.json` | `opencode_instructions` |
 
 > 向后兼容：未声明 `context_injection` 的 profile 继续走默认路径。OpenCodeAdapter 在缺字段时回退到字面 `["AGENTS.md", ".cataforge/rules/*.md"]`。
 

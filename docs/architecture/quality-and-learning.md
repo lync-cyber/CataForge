@@ -17,8 +17,8 @@ Layer 2 — AI 审查（可按文档类型跳过）：
   ├── 完整性（需求是否遗漏）
   └── 可行性评估
 
-跳过条件：
-  - 文档行数 < DOC_REVIEW_L2_SKIP_THRESHOLD_LINES（200）
+跳过条件（阈值位于 `.cataforge/framework.json → constants`）：
+  - 文档行数 < DOC_REVIEW_L2_SKIP_THRESHOLD_LINES（默认 200）
   - 文档类型 ∈ DOC_REVIEW_L2_SKIP_DOC_TYPES
 ```
 
@@ -38,27 +38,9 @@ Layer 2 — AI 审查：
 
 ## 3. 问题分类体系
 
-审查发现的问题按 9 类分类：
+审查发现的问题按 9 类（`completeness` / `consistency` / `convention` / `security` / `feasibility` / `ambiguity` / `structure` / `error-handling` / `performance`）× 4 严重等级（`CRITICAL` > `HIGH` > `MEDIUM` > `LOW`）组织。修订流程仅处理 `CRITICAL` 与 `HIGH`。
 
-| 类别 | 说明 |
-|------|------|
-| `completeness` | 内容完整性 |
-| `consistency` | 与上下游文档 / 代码的一致性 |
-| `convention` | 命名 / 格式 / 编码规范 |
-| `security` | 安全性问题 |
-| `feasibility` | 技术可行性 |
-| `ambiguity` | 表述模糊 |
-| `structure` | 文档 / 代码结构 |
-| `error-handling` | 错误处理 |
-| `performance` | 性能相关 |
-
-严重等级：**CRITICAL > HIGH > MEDIUM > LOW**
-
-审查结果状态：
-
-- `approved`：审查通过
-- `approved_with_notes`：通过但有 MEDIUM/LOW 建议
-- `needs_revision`：存在 CRITICAL/HIGH 问题，需要修订（见 [`runtime-workflow.md`](./runtime-workflow.md) §4）
+完整表格与每类举例见 [`../reference/status-codes.md`](../reference/status-codes.md) §2、§3；修订协议见 [`runtime-workflow.md`](./runtime-workflow.md) §4。
 
 ---
 
@@ -66,7 +48,7 @@ Layer 2 — AI 审查：
 
 每完成 `SPRINT_REVIEW_MICRO_TASK_COUNT` 个微任务（默认 3），由 `reviewer` Agent 调用 `sprint-review` skill 审查：
 
-- AC（验收标准）覆盖率
+- AC（acceptance criteria，验收标准）覆盖率
 - 范围偏移检测（是否引入了超出计划的改动）
 - 完成度一致性
 - 输出 `docs/reviews/sprint/SPRINT-<n>.md`
@@ -81,7 +63,7 @@ Layer 2 — AI 审查：
 1. Agent 通过 AskUserQuestion 提供选项
 2. 用户选择了 Agent 未推荐的选项（option-override 信号）
 3. Hook 捕获此信号并记录到 CORRECTIONS-LOG.md
-4. 当 self-caused 问题累计达到 RETRO_TRIGGER_SELF_CAUSED（5）次时
+4. 当 self-caused 问题（指 Agent 输出本身造成的错误，区别于用户输入引起的错误）累计达到 RETRO_TRIGGER_SELF_CAUSED（默认 5）次时
 5. 触发 reflector Agent 进行回顾分析
 ```
 

@@ -46,7 +46,7 @@ CLI 启动时已自动切 UTF-8。若仍乱码通常是**终端渲染**问题：
 
 ### Q：多次 `deploy` 会不会污染 IDE 目录？
 
-不会。`deploy` 幂等，且自动清理上次留下的孤儿（详见 [`architecture/platform-adaptation.md`](./architecture/platform-adaptation.md) §6）。
+不会。`deploy` 幂等，且自动清理上次留下的孤儿产物（指上次部署产生、本次不再需要的 IDE 产物，详见 [`architecture/platform-adaptation.md`](./architecture/platform-adaptation.md) §6）。
 
 ---
 
@@ -78,7 +78,7 @@ OpenCode 原生不支持 hook，框架默认降级为 `rules_injection`。若需
 
 ### Q：`upgrade apply` 会覆盖我的 `PROJECT-STATE.md` 吗？
 
-**不会**。保留字段列表详见 [`guide/upgrade.md`](./guide/upgrade.md) §字段保留规则。
+**不会**。保留字段列表详见 [`guide/upgrade.md`](./guide/upgrade.md) §文件保留规则。
 
 ---
 
@@ -109,7 +109,7 @@ OpenCode 原生不支持 hook，框架默认降级为 `rules_injection`。若需
 
 ### Q：IDE 内看不到 MCP server？
 
-确认**真部署**（不是 `--check`）已把 MCP 合并到平台配置文件：
+确认**真部署**（不是 `--dry-run`）已把 MCP 合并到平台配置文件：
 
 - Claude Code: `.mcp.json`
 - Cursor: `.cursor/mcp.json`
@@ -130,4 +130,4 @@ OpenCode 原生不支持 hook，框架默认降级为 `rules_injection`。若需
 
 ### Q：这个项目和其它 Agent 框架有什么不同？
 
-核心差异：**同一套 `.cataforge/` 规范驱动 4 个 IDE**，而非锁定单一平台。详见 [`README.md`](../README.md) §项目定位。
+核心差异：**同一套 `.cataforge/` 规范驱动 4 个 IDE**，而非锁定单一平台。详见 [`README.md`](../README.md) §功能亮点。

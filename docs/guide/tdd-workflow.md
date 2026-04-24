@@ -1,6 +1,8 @@
 # TDD 工作流
 
 > CataForge 在 **Development 阶段** 使用 TDD 引擎编排 RED→GREEN→REFACTOR 三阶段循环，按微任务逐个推进。
+>
+> 阈值由 `.cataforge/framework.json` 的 `constants.TDD_LIGHT_LOC_THRESHOLD`（默认 `50`，以 lines of code 计）和 `constants.SPRINT_REVIEW_MICRO_TASK_COUNT`（默认 `3`）控制。
 
 <p align="center">
   <img src="../assets/tdd-engine.svg" alt="CataForge TDD 引擎流程" width="95%">
@@ -25,18 +27,13 @@
 | **standard** | RED → GREEN → REFACTOR 三步 | 微任务 LOC ≥ `TDD_LIGHT_LOC_THRESHOLD`（默认 50） |
 | **light** | RED+GREEN 合并 → REFACTOR | 微任务 LOC < 阈值 |
 
-`tech-lead` 在任务分解阶段为每个微任务预判 LOC，落入 `dev-plan` 中；TDD 引擎按预判选择模式。
+`tech-lead` 在任务分解阶段为每个微任务预判 LOC（lines of code，代码行数），落入 `dev-plan` 中；TDD 引擎按预判选择模式。
 
 ---
 
 ## Sprint Review 触发
 
-每完成 `SPRINT_REVIEW_MICRO_TASK_COUNT` 个微任务（默认配置见 framework.json `constants`），自动触发：
-
-1. `reviewer` 调用 `sprint-review` skill
-2. 审查 AC 覆盖率、范围偏移、完成质量
-3. 输出审查报告到 `docs/reviews/sprint/`
-4. 报告通过后进入下一组微任务；不通过按修订协议处理
+每完成 `SPRINT_REVIEW_MICRO_TASK_COUNT` 个微任务（默认 3，见 `framework.json.constants`），`reviewer` 调用 `sprint-review` skill 审查 AC 覆盖率与范围偏移。详见 [`../architecture/quality-and-learning.md`](../architecture/quality-and-learning.md) §4。
 
 ---
 
@@ -82,16 +79,7 @@ for each task in dev-plan:
 
 ## 状态码
 
-TDD 三阶段 Agent 返回的典型状态：
-
-| 状态码 | 含义 |
-|-------|------|
-| `completed` | 当前阶段正常完成，进入下一阶段 |
-| `needs_revision` | 审查发现 CRITICAL/HIGH 问题，回到上一阶段修订 |
-| `rolled-back` | REFACTOR 失败，回滚到 GREEN 输出 |
-| `needs_input` | 需要用户决策（中断恢复协议） |
-
-完整状态码列表：[`../reference/status-codes.md`](../reference/status-codes.md)。
+TDD 三阶段 Agent 返回的状态遵循统一规范 — 完整定义见 [`../reference/status-codes.md`](../reference/status-codes.md) §1。最常见的四个：`completed` / `needs_revision` / `rolled-back` / `needs_input`。
 
 ---
 

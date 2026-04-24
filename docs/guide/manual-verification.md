@@ -78,62 +78,13 @@
 | Git | 近期版本（CataForge 依赖 git 元信息） |
 | 可选工具 | `ruff`、`docker`、`npx` — `doctor` 会检测但不强制 |
 
-> CLI 启动时已自动切换 stdout/stderr 到 UTF-8（`cataforge.utils.common.ensure_utf8_stdio`）。**多数情形下无需** 手动设置 `PYTHONUTF8=1` 或 `chcp 65001`；若仍在 legacy 代码页（cp936/cp1252）下出现 `UnicodeEncodeError`，参照 §1.2a Windows 最小可跑清单的兜底步骤。
+> CLI 启动时已自动切换 stdout/stderr 到 UTF-8（`cataforge.utils.common.ensure_utf8_stdio`）。**多数情形下无需** 手动设置 `PYTHONUTF8=1` 或 `chcp 65001`；若仍在 legacy 代码页（cp936/cp1252）下出现 `UnicodeEncodeError`，参照 [`../getting-started/troubleshooting.md`](../getting-started/troubleshooting.md) §CLI 乱码。
 
 ### 1.2 安装 CataForge
 
-推荐 **A**（uv 全局工具）用于终端用户，**B**（项目开发）用于贡献者。
+完整安装方式（uv tool / 项目 venv / 纯 pip / Windows 最小清单）见 [`../getting-started/installation.md`](../getting-started/installation.md)。本指南后续步骤假设你已跑通 `cataforge --version`。
 
-**A. uv tool（全局 CLI，推荐）**
-
-```bash
-uv tool install .
-cataforge --version
-```
-
-> A 方案只安装运行时依赖。**若要跑 §3.4 的 `pytest -q`，还需另建项目 venv（B/C 方案），或在 A 方案之外追加 `uv pip install pytest pydantic pyyaml click` 到同一环境**。
-
-**B. 项目本地开发**
-
-```bash
-uv venv
-uv pip install -e ".[dev]"
-.venv\Scripts\activate          # Windows PowerShell / cmd
-# source .venv/bin/activate     # macOS / Linux
-# source .venv/Scripts/activate # Windows Git Bash
-```
-
-**C. 纯 pip（无 uv）**
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install -U pip
-pip install -e ".[dev]"
-```
-
-> **Windows shell 提示**：PowerShell 首次激活 venv 若报执行策略错误，用 `Set-ExecutionPolicy -Scope Process RemoteSigned` 一次性放行；或改用 `cmd.exe`。
-
-### 1.2a Windows 最小可跑清单
-
-针对 Windows 用户的一次性跑通步骤。三种 shell 命令并排，按你习惯选一列执行。
-
-| 步骤 | PowerShell | cmd.exe | Git Bash |
-|------|-----------|---------|----------|
-| 1. 选 Python | `py -3.12 --version` | `py -3.12 --version` | `py -3.12 --version`（或 `python --version`） |
-| 2. 建 venv | `py -3.12 -m venv .venv` | `py -3.12 -m venv .venv` | `python -m venv .venv` |
-| 3. 激活 venv | `.\.venv\Scripts\Activate.ps1` | `.venv\Scripts\activate.bat` | `source .venv/Scripts/activate` |
-| 4. 装依赖 | `pip install -e ".[dev]"` | `pip install -e ".[dev]"` | `pip install -e ".[dev]"` |
-| 5. 健康检查 | `cataforge doctor` | `cataforge doctor` | `cataforge doctor` |
-| 6. 乱码兜底（需要时） | `$env:PYTHONUTF8 = "1"` | `set PYTHONUTF8=1` | `export PYTHONUTF8=1` |
-| 7. PATH 未找到 | `Get-Command cataforge` | `where cataforge` | `which cataforge` |
-
-**常见坑位**：
-
-- `py -3.12 -m venv` 优于 `python -m venv`：绕过 Windows Store 的 `python.exe` 别名，后者在 venv 创建时经常产生空 `Scripts/` 导致激活脚本缺失。
-- PowerShell 激活脚本被策略拦：`Set-ExecutionPolicy -Scope Process RemoteSigned` 一次性放行当前 shell；要永久放行改 `-Scope CurrentUser`，生产机不建议。
-- `mklink /J` 需要管理员或开启"开发者模式"：CataForge 部署到 Windows 时会优先 junction，失败自动回退为目录 copy，功能不受影响但磁盘占用略增。
-- Python 3.14：运行无已知问题；若看到 `DeprecationWarning` 与 CataForge 无关，多半是依赖库在 3.14 下的轻量 warning。
+> **若要跑 §3.4 的 `pytest -q`** — 必须使用"项目 venv + `uv pip install -e '.[dev]'`"方式安装，`uv tool install` 的全局 CLI 环境里没有 `pytest` 等测试依赖。
 
 ### 1.3 安装目标 IDE 客户端
 
@@ -203,7 +154,7 @@ cataforge setup --platform claude-code
 
 **预期**：`Platform set to: claude-code` + `Setup complete. Run cataforge deploy ...`
 
-> 自 v0.1.2 起，`setup` 只初始化 `.cataforge/` 脚手架、记录目标平台，**不再**自动写入 IDE 产物。若需旧版一步到位的行为，加 `--deploy`；`--no-deploy` 已是默认值（保留为兼容别名）。
+> 自 v0.1.2 起，`setup` 只初始化 `.cataforge/` 脚手架、记录目标平台，**不再**自动写入 IDE 产物。若需旧版一步到位的行为，加 `--deploy`。`--no-deploy` 已弃用（v0.3 移除），不需要显式传入。
 
 #### Step 2 — 干运行
 
@@ -230,7 +181,7 @@ git status -u
 ls -la CLAUDE.md .mcp.json .claude/
 ```
 
-**预期落盘**：`CLAUDE.md`、`.claude/agents/*/AGENT.md`、`.claude/settings.json`（hook）、`.mcp.json`（若有 MCP）。
+**预期落盘**：`CLAUDE.md`、`.claude/agents/*.md`（扁平布局，v0.1.2 起）、`.claude/settings.json`（hook）、`.mcp.json`（若有 MCP）。
 
 #### Step 4 — IDE 内观测
 
@@ -300,7 +251,7 @@ rm -rf .claude/agents .claude/rules .claude/skills \
 cataforge setup --platform cursor
 ```
 
-> **自 M5 起**：默认 Cursor 部署**不再触及 `.claude/` 目录**。`.cursor/rules/*.mdc` 是 Cursor 原生消费的规则文件；历史版本额外镜像一份 Markdown 到 `.claude/rules` 以兼容 Claude Code 双栖使用，现改为可选。若你的仓库确实同时用 Cursor + Claude Code 共享同一套 prompt，去 `.cataforge/platforms/cursor/profile.yaml` 把 `rules.cross_platform_mirror` 改为 `true`。
+> **自 v0.1.2 起**：默认 Cursor 部署**不再触及 `.claude/` 目录**。`.cursor/rules/*.mdc` 是 Cursor 原生消费的规则文件；历史版本额外镜像一份 Markdown 到 `.claude/rules` 以兼容 Claude Code 双栖使用，现改为可选。若你的仓库确实同时用 Cursor + Claude Code 共享同一套 prompt，去 `.cataforge/platforms/cursor/profile.yaml` 把 `rules.cross_platform_mirror` 改为 `true`。
 
 #### Step 2 — 干运行
 
@@ -529,7 +480,7 @@ cataforge skill list
 pytest -q
 ```
 
-**基线**：`154 passed`（v0.1.2 起，新增 hook/scaffold/doctor/smoke 回归保护用例；v0.1.3 起，新增 hook bridge 警告/错误日志/脚本契约/v2 筛选器/OpenCode 插件/custom hook/`hook test` 命令用例）。
+**基线**：全部用例通过、退出码 `0`。具体数量会随 PR 变化，以 `main` 分支最新 CI 的数字为准。
 
 ### 3.5 升级与 scaffold 刷新
 
@@ -568,10 +519,9 @@ cataforge upgrade verify           # 别名: cataforge doctor
 
 多次 `cataforge deploy` 是幂等的，且会自动清理上次部署留下的孤儿：
 
-- `.claude/commands/*.md`（或其它平台对应目录）：源目录里删除 / 重命名的命令会被 prune
-- `.claude/agents/<name>/`：
-  - 源 `agents/` 删除的子目录被 prune（仅删含 `AGENT.md` 的目录，不伤 IDE 原生 / 用户自建 agent）
-  - 子目录内非 `AGENT.md` 的历史文件（如早期的 `ORCHESTRATOR-PROTOCOLS.md`）被 prune
+- `commands/*.md`：源目录里删除 / 重命名的命令会被 prune
+- **Claude Code**（扁平布局）：`.claude/agents/*.md` 中源 `agents/` 已移除的 agent 文件会被 prune
+- **Cursor / OpenCode**（嵌套布局）：`.cursor/agents/<name>/` 或 `.opencode/agents/<name>/` 中源 `agents/` 删除的子目录会被 prune（仅删含 `AGENT.md` 的目录，不伤 IDE 原生或用户自建 agent）；子目录内非 `AGENT.md` 的历史文件也会被 prune
 
 无需手动 `git clean -fd .claude/` 再重部署。
 
@@ -590,7 +540,7 @@ cataforge upgrade verify           # 别名: cataforge doctor
 | 5 | Cursor 干运行 | `cataforge deploy --dry-run --platform cursor` | 命中 `hooks.json` + `.mdc` |
 | 6 | CodeX 干运行 | `cataforge deploy --dry-run --platform codex` | 命中 `AGENTS.md` + `config.toml` |
 | 7 | OpenCode 降级 | `cataforge deploy --dry-run --platform opencode` | 含 `SKIP:` + `rules_injection` |
-| 8 | 自动化回归 | `pytest -q` | 退出码 0（`116 passed`） |
+| 8 | 自动化回归 | `pytest -q` | 退出码 0，全部用例通过 |
 | 9 | MCP 生命周期 | 见 §3.2 | `list` / `start` / `stop` 均成功 |
 | 10 | IDE 内生效 | §2 各平台 Step 4 | 至少一个 IDE 观测到 Agent+Rules+MCP |
 
@@ -598,50 +548,7 @@ cataforge upgrade verify           # 别名: cataforge doctor
 
 ## 5. 故障排查
 
-### 安装 / 环境
-
-- **`python` 找不到**：Windows 上优先用 `py -3.12 -m venv .venv`，避免 Store 别名。
-- **venv 激活失败（PowerShell）**：`Set-ExecutionPolicy -Scope Process RemoteSigned` 一次性放行。
-- **pip 超时**：换镜像（如清华 / 阿里）后重试。
-
-### CLI 乱码
-
-CLI 入口已切 UTF-8；若仍乱码是**终端渲染**问题：
-
-- Windows Terminal / PowerShell：`chcp 65001` 或在设置里把字体切到带全部 Unicode 覆盖的字体。
-- 兜底：`set PYTHONUTF8=1` 后重开终端。
-
-### deploy 找不到 `.cataforge/`
-
-- 必须在项目根执行。用 `cataforge doctor` 查看 `project_root` 是否正确。
-
-### Agent / Skill 列表为空
-
-- 不在项目根运行，或 `.cataforge/agents/*/AGENT.md` 缺失。
-- 运行 `cataforge agent validate` 看具体报错。
-
-### IDE 启动后看不到 Agent / Rules
-
-- 确认执行了 **真部署** 而不仅 `--check`。
-- Claude Code：`git status` 应看到 `.claude/agents/*.md` 新增。
-- Cursor：`File → Reload Window` 强制重载规则。
-- CodeX / OpenCode：重启 CLI 进程。
-
-### MCP 启动失败
-
-- `cataforge mcp list` 无此 id：路径必须是 `.cataforge/mcp/*.yaml`。
-- `start` 报错：`command` 不在 `PATH`，或环境变量缺失。
-- IDE 内看不到：真部署是否把 MCP 合并进了对应文件（见 §3.2 表）。
-
-### Hook 看不到回显
-
-- 对照 profile 的 `degradation`：某项为 `degraded` 本就不会有原生事件。
-- OpenCode：需包装为 `.opencode/plugins/*.ts`，否则仅 `rules_injection` 生效。
-- Claude Code：检查 `.claude/settings.json` 中 `hooks` 字段是否被部署写入。
-
-### 登录态异常
-
-- **先在 IDE 内独立跑通一次对话** 再回到 CataForge 验证，避免把鉴权问题误判为部署问题。
+按症状索引的故障排查清单已迁至 [`../getting-started/troubleshooting.md`](../getting-started/troubleshooting.md)。包含安装/环境、CLI 乱码、找不到命令入口、Agent/Skill 为空、IDE 看不到部署产物、MCP、Hook、升级、登录态等场景。
 
 ---
 

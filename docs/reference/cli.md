@@ -16,10 +16,13 @@
 | [`cataforge plugin`](#plugin) | 插件发现 |
 | [`cataforge upgrade`](#upgrade) | 脚手架升级与校验 |
 | [`cataforge docs`](#docs) | 文档索引与段落加载 |
+| [`cataforge event`](#event) | 写事件日志 |
 
 ---
 
 ## doctor
+
+**何时用它**：新机器配置后 / 每次升级后 / 出错时作为排查起点；可作 CI gate。
 
 ```bash
 cataforge doctor
@@ -38,6 +41,8 @@ cataforge doctor
 ---
 
 ## setup
+
+**何时用它**：新项目首次初始化 `.cataforge/`；或切换目标 IDE 平台。
 
 ```bash
 cataforge setup --platform <id> [--force-scaffold] [--deploy]
@@ -60,6 +65,8 @@ cataforge setup --platform <id> [--force-scaffold] [--deploy]
 ---
 
 ## deploy
+
+**何时用它**：`setup` 后写入 IDE 产物；或 `.cataforge/` 内容改动后重新投放。
 
 ```bash
 cataforge deploy [--dry-run] [--platform <id>]
@@ -123,21 +130,55 @@ cataforge mcp stop <id>     # 停止 MCP 服务
 
 ```bash
 cataforge plugin list       # 列出已发现的插件
-# cataforge plugin install   # 规划中 (v0.3)
-# cataforge plugin remove    # 规划中 (v0.3)
 ```
 
 发现来源：Python entry points (`cataforge.plugins`) + 本地目录 `.cataforge/plugins/*/cataforge-plugin.yaml`。
+
+`cataforge plugin install <source>` 与 `cataforge plugin remove <id>` 规划在 v0.3 版本加入，届时将支持从 Git / 本地目录安装插件并写入 `pyproject.toml` 的 entry points。当前版本需手动克隆到 `.cataforge/plugins/` 下或通过 `pip install` 注册 entry point。
 
 ---
 
 ## upgrade
 
 ```bash
-cataforge upgrade check     # 对比已装包版本与项目 scaffold 版本
-cataforge upgrade apply     # 刷新 scaffold（保留用户字段）
-cataforge upgrade verify    # 别名：cataforge doctor
+cataforge upgrade check      # 对比已装包版本与项目 scaffold 版本
+cataforge upgrade apply      # 刷新 scaffold（保留用户字段）
+cataforge upgrade verify     # 别名：cataforge doctor
+cataforge upgrade rollback   # 回滚到上一次 apply 前的快照
 ```
+
+### upgrade check
+
+对比安装的 `cataforge` 包版本与项目 `.cataforge/framework.json` 的 `version`，不一致时提示刷新命令；若 `CHANGELOG.md` 中落在升级区间内的版本含 `### BREAKING` 段，会以黄字警告版本号与第一条要点。
+
+### upgrade apply
+
+刷新 `.cataforge/` 脚手架。**执行前**自动把当前 `.cataforge/`（不含 `.backups/` 自身）快照到 `.cataforge/.backups/<YYYYMMDD-HHMMSS>/`。
+
+| 参数 | 作用 |
+|------|------|
+| `--dry-run` | 逐文件列出 `[new]` / `[unchanged]` / `[update]` / `[user-modified]` / `[preserved]` 分类，不写盘 |
+
+> 保留字段：`framework.json` 的 `runtime.platform` / `upgrade.state`、整个 `PROJECT-STATE.md`。其它文件整体覆盖 — 详见 [`../guide/upgrade.md`](../guide/upgrade.md)。
+
+### upgrade rollback
+
+从 `.backups/` 下的快照恢复 `.cataforge/`。回滚前会把当前状态再次快照到 `.backups/pre-rollback-<ts>/`，所以 rollback 本身也可再 rollback。
+
+| 参数 | 作用 |
+|------|------|
+| `--list` | 列出所有快照，最新在前，然后退出 |
+| `--from <TS_OR_PATH>` | 指定快照：时间戳目录名（如 `20260424-150030`）或绝对路径；默认恢复最新 |
+| `--yes` / `-y` | 跳过交互式确认 |
+
+```bash
+cataforge upgrade rollback --list
+cataforge upgrade rollback --from 20260424-150030 --yes
+```
+
+### upgrade verify
+
+`cataforge doctor` 的别名，执行 `migration_checks` 段落声明的全部检查项。任一 FAIL 返回码 1，可作 CI gate。
 
 详见 [`../guide/upgrade.md`](../guide/upgrade.md)。
 
@@ -151,6 +192,35 @@ cataforge docs load <ref>   # 按 {doc_id}#§{section} 精准加载段落
 ```
 
 文档引用格式详见 [`status-codes.md`](./status-codes.md) §文档引用格式。
+
+---
+
+## event
+
+**何时用它**：编排器或自定义脚本需要向 `docs/EVENT-LOG.jsonl` 追加一条审计事件。协议里长期引用的 `event_logger.py` 在 v0.1.7 起改由本命令实现（shim 保留兼容）。
+
+```bash
+# 单条写入
+cataforge event log --event phase_start --phase development --agent implementer \
+  --status started --ref "dev-plan#§1.T-005"
+
+# 从 stdin 批量原子写入 JSONL
+cat events.jsonl | cataforge event log --batch
+```
+
+| 参数 | 作用 |
+|------|------|
+| `--event <type>` | 事件类型（`phase_start` / `phase_end` / `agent_dispatch` / `review_verdict` / `state_change` / `correction` …） |
+| `--phase <name>` | 阶段名 |
+| `--agent <id>` | Agent ID |
+| `--status <code>` | 状态码（参考 [`status-codes.md`](./status-codes.md) §1） |
+| `--task-type <type>` | 任务类型（`continuation` / `revision` / 其它） |
+| `--ref <doc-ref>` | 关联文档段落引用 |
+| `--detail <text>` | 自由文本细节 |
+| `--data <json>` | 结构化 payload（JSON 字符串） |
+| `--batch` | 从 stdin 读 JSONL，原子批量追加 |
+
+事件类型与示例 payload 见 [`status-codes.md`](./status-codes.md) §5。
 
 ---
 
