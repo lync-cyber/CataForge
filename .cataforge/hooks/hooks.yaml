@@ -32,7 +32,12 @@ hooks:
     - matcher_capability: user_question
       script: detect_correction
       type: observe
-      description: "用户纠正信号捕获"
+      description: "用户纠正信号捕获 (option-override)"
+    - matcher_capability: agent_dispatch
+      script: detect_review_flag
+      type: observe
+      description: "审查纠正信号捕获 (review-flag: reviewer 将 [ASSUMPTION] 判为 CRITICAL/HIGH)"
+      matcher_agent_id: [reviewer]
 
   Stop:
     - script: notify_done
@@ -69,6 +74,10 @@ degradation_templates:
   detect_correction:
     strategy: skip
     reason: "纠正学习为非关键功能"
+
+  detect_review_flag:
+    strategy: skip
+    reason: "纠正学习为非关键功能 (review-flag 信号)"
 
   notify_permission:
     strategy: skip

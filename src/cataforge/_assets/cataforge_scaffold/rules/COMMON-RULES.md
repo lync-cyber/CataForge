@@ -125,6 +125,15 @@ Anti-Patterns应使用"做A而非B"格式并附具体例子，避免抽象禁令
 - 为什么选择当前方案
 - 什么条件下应重新评估
 
+### 代码注释/文档：禁止设计阶段残留
+适用：源码、docstring、测试 docstring、长期协议文档（CHANGELOG / commit / PR 描述例外）。
+
+- 禁止回溯叙事与动机自述："之前 / 原本 / used to / previously / 修复了 X / 解决了 ……失败模式 / 此测试为防 issue#NNN 再发"。这些属于 PR/commit message。
+- 函数 docstring 只描述**当前职责**；测试名+断言已表达意图，docstring 通常一句即可。
+- 仅在保留**非显然 WHY**（隐式约束、易踩边界、非直观不变量）时写注释，单行优先、≤2 行。
+- 默认不写注释；命名 + 小函数 > 注释。
+- 自检：写下"之前/previously/used to/修复了/替代了"立即删除或改成客观描述。
+
 ## 通用 Anti-Patterns
 - 禁止: 猜测项目状态，以 CLAUDE.md 和 docs/ 目录为唯一事实来源
 - 禁止: 遗留未标注的 TODO/TBD/FIXME (必须标注 [ASSUMPTION])

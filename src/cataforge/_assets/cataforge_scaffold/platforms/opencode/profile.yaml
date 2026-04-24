@@ -92,6 +92,7 @@ hooks:
     validate_agent_result: native
     lint_format: native
     detect_correction: native
+    detect_review_flag: native
     notify_done: native
     notify_permission: degraded     # OpenCode has no Notification event
     session_context: native
