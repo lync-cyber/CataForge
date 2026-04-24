@@ -220,7 +220,9 @@ def _scaffold(dest: Path, *, force: bool) -> None:
 
     action = "Refreshing" if dest.is_dir() else "Scaffolding"
     click.echo(f"{action} .cataforge/ at {dest}")
-    written, skipped = copy_scaffold_to(dest, force=force)
+    written, skipped, backup = copy_scaffold_to(dest, force=force)
+    if backup is not None:
+        click.echo(f"  backup: {backup.relative_to(dest.parent)}")
     click.echo(
         f"  wrote {len(written)} file(s)"
         + (f", kept {len(skipped)} existing" if skipped else "")
