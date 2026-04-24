@@ -81,17 +81,7 @@ src/cataforge/
 
 ## 关键配置文件
 
-| 文件 | 位置 | 作用 |
-|------|------|------|
-| `framework.json` | `.cataforge/framework.json` | 框架单一配置源 |
-| `PROJECT-STATE.md` | `.cataforge/PROJECT-STATE.md` | 项目状态模板（编排器专属写入区） |
-| `COMMON-RULES.md` | `.cataforge/rules/COMMON-RULES.md` | 框架通用行为规则 |
-| `SUB-AGENT-PROTOCOLS.md` | `.cataforge/rules/SUB-AGENT-PROTOCOLS.md` | 子代理执行协议 |
-| `ORCHESTRATOR-PROTOCOLS.md` | `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md` | 编排器核心协议 |
-| `hooks.yaml` | `.cataforge/hooks/hooks.yaml` | 平台无关 hook 规范 |
-| `profile.yaml` | `.cataforge/platforms/<id>/profile.yaml` | 各平台能力映射 |
-
-详见 [`../reference/configuration.md`](../reference/configuration.md)。
+`framework.json` 是单一配置源；各平台的能力映射、降级策略封装在 `platforms/<id>/profile.yaml`。完整文件清单（含 `PROJECT-STATE.md` / `COMMON-RULES.md` / `SUB-AGENT-PROTOCOLS.md` / `ORCHESTRATOR-PROTOCOLS.md` / `hooks.yaml` 等）与字段说明见 [`../reference/configuration.md`](../reference/configuration.md) §文件总览。
 
 ---
 

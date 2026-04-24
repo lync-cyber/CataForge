@@ -111,4 +111,4 @@ pip install -e ".[dev,mcp]"
 
 - 跑通最短示例：[`quick-start.md`](./quick-start.md)
 - 四平台端到端验证：[`../guide/manual-verification.md`](../guide/manual-verification.md)
-- 故障排查：[`../faq.md`](../faq.md)
+- 故障排查：[`./troubleshooting.md`](./troubleshooting.md)（按症状索引）· [`../faq.md`](../faq.md)（按主题索引）

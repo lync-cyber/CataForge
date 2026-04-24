@@ -29,30 +29,21 @@
 | 上下文自动注入 | `CLAUDE.md` + `@path` eager 预载 | `.cursor/rules/*.mdc` `alwaysApply:true` | `AGENTS.md` 层级合并（32 KiB 上限） | `opencode.json.instructions` |
 | 并行 Agent | 支持 | 支持（8 并发） | 支持（best-of-N） | 有限 |
 | Worktree 隔离 | 支持 | 支持 | 不支持 | 不支持 |
-| 多模型路由 | opus / sonnet / haiku | opus / sonnet / gpt / gemini | gpt-5.4 / spark | 有限 |
+| 多模型路由 | opus / sonnet / haiku | opus / sonnet / gpt / gemini | OpenAI 系（gpt / o 系列） | 有限 |
 
 ---
 
 ## 2a. 上下文注入（`context_injection`）
 
-每个 `profile.yaml` 声明平台如何把规则 / 指令加载进 LLM 上下文。Deploy 期读取这些字段，把差异**烘焙**到静态产物里——运行时 LLM 只看到当前平台已定制好的 markdown，无需再做平台判断。
-
-| 字段 | 作用 |
-|------|------|
-| `auto_injection.mechanism` | 平台原生自动注入机制：`claude_md` / `agents_md` / `cursor_rules` / `opencode_instructions` / `none` |
-| `auto_injection.eager` | 是否在会话启动时就常驻上下文（影响 token 预算决策） |
-| `auto_injection.size_limit_bytes` | 平台硬上限（Codex AGENTS.md = 32 768 B） |
-| `auto_injection.preamble_files` | 需在指令文件顶部内联引用的文件路径（`@{path}` 前缀） |
-| `inline_file_syntax.kind` / `.template` | 引用其它文件的首选语法：`at_mention` / `read_tool` / `xml_preload` |
-| `rules_distribution.target` | 规则分发目标（平台规则目录或 `opencode.json`） |
-| `rules_distribution.format` / `.activation` | MDC / Markdown / 远程 URL 列表；`always` / `glob` / `manual_read` / `opencode_instructions` |
-| `rules_distribution.files` | `opencode_instructions` 模式下注册到 `opencode.json.instructions` 的路径模式 |
+每个 `profile.yaml` 声明平台如何把规则 / 指令加载进 LLM 上下文。`cataforge deploy` 读取这些字段，把差异烘焙（指部署时把平台差异固化进产物，运行时不再按平台分支）到静态产物里——运行时 LLM 看到的是已为当前平台定制好的 markdown，无需再做平台判断。
 
 **Deploy 期如何消费**：
 
-- `PlatformAdapter.deploy_instruction_files` 读取 `auto_injection.preamble_files`，用 `inline_file_syntax.template` 渲染为 `@.cataforge/rules/COMMON-RULES.md` 之类的前缀，直接写到 `CLAUDE.md` / `AGENTS.md` 顶部。
-- `OpenCodeAdapter.deploy_instruction_files` 读取 `rules_distribution.files`，写入 `opencode.json.instructions`——LLM 启动时自动加载，不再让子代理手动 `Read`。
-- 未声明 `context_injection` 的旧 profile 继续走默认路径（完全向后兼容）。
+- `PlatformAdapter.deploy_instruction_files` 读取 `auto_injection.preamble_files`，按 `inline_file_syntax.template` 渲染为 `@.cataforge/rules/COMMON-RULES.md` 之类前缀，写入 `CLAUDE.md` / `AGENTS.md` 顶部。
+- `OpenCodeAdapter.deploy_instruction_files` 读取 `rules_distribution.files`，写入 `opencode.json.instructions`，LLM 启动时自动加载。
+- 未声明 `context_injection` 的旧 profile 走默认路径（完全向后兼容）。
+
+完整字段表与四平台实际声明对照见 [`../reference/configuration.md`](../reference/configuration.md) §context_injection 字段。
 
 ---
 
@@ -96,20 +87,13 @@
 10. 清理孤儿产物（上次部署残留的、本次不再生成的文件）
 ```
 
-支持 `--check` 干运行模式，仅输出预期动作不实际执行。
+支持 `--dry-run` 干运行模式，仅输出预期动作不实际执行。
 
 ---
 
 ## 6. 部署幂等与孤儿清理
 
-多次 `cataforge deploy` 幂等，自动清理上次部署留下的孤儿：
-
-- `.claude/commands/*.md`（或其它平台对应目录）：源目录删除 / 重命名的命令被 prune
-- `.claude/agents/<name>/`：
-  - 源 `agents/` 删除的子目录被 prune（仅删含 `AGENT.md` 的目录，不伤 IDE 原生 / 用户自建 agent）
-  - 子目录内非 `AGENT.md` 的历史文件被 prune
-
-无需手动 `git clean -fd .claude/` 再重部署。
+多次 `cataforge deploy` 幂等，自动清理上次部署留下的孤儿产物（被删除 / 重命名的命令、agent 子目录、非 `AGENT.md` 历史文件）。无需 `git clean -fd .claude/` 再重部署——这是 [`overview.md`](./overview.md) §4 "幂等部署" 原则的具体实现。
 
 ---
 

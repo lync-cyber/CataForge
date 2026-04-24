@@ -1,14 +1,35 @@
 # Agent 与 Skill 清单
 
-本文档列出 CataForge 框架内置的所有 Agent 和 Skill，包括角色说明、可用工具、关联技能等信息。
+本文档列出 CataForge 框架内置的所有 Agent 和 Skill，包括角色说明、工具权限、关联技能等信息。
 
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
 
 ## 目录
 
+- [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
 - [Skill 清单（24 个）](#skill-清单24-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
+
+---
+
+## 工具权限语法
+
+每个 `AGENT.md` frontmatter 用 `tools:` 声明工具权限：
+
+```yaml
+tools:
+  allow: [file_read, file_write, file_edit, file_glob, file_grep, user_question]
+  deny:  [agent_dispatch, shell_exec]
+```
+
+优先级规则：
+
+- `allow:` 列表 — 仅允许这些工具。若留空或省略 `allow` 键，默认允许全部工具。
+- `deny:` 列表 — 在 allow 之外再减去这些工具。**deny 优先级高于 allow**（同名时 deny 生效）。
+- 两者都省略 — 允许全部工具（不推荐，仅 `orchestrator` 这样需要无限权限的 Agent 适用）。
+
+下面每个 Agent 的"允许工具"/"禁用工具"两行即对应 `allow:` / `deny:` 字段。
 
 ---
 
@@ -34,13 +55,13 @@
 
 ### 详细说明
 
-> 点击展开查看各 Agent 的职责、可用工具、写入路径等详细定义。
+> 点击展开查看各 Agent 的职责、工具权限、写入路径等详细定义。
 
 <details>
 <summary><b>1. orchestrator</b> — 主编排智能体（协调整个 SDLC）</summary>
 
 - **职责**：协调整个软件开发生命周期，负责项目引导（Bootstrap）、阶段路由、手动审查检查点、中断恢复协议、TDD 编排。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, agent_dispatch, user_question
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, agent_dispatch, user_question
 - **写入路径**：无限制
 - **关联 Skill**：agent-dispatch, doc-nav, tdd-engine, change-guard
 - **特殊协议**：拥有专属编排协议（ORCHESTRATOR-PROTOCOLS.md），管理阶段转换、修订流程、Sprint 回顾触发等。
@@ -51,8 +72,8 @@
 <summary><b>2. product-manager</b> — 产品经理（需求分析 / PRD）</summary>
 
 - **职责**：需求分析、用户故事编写、PRD 文档生成。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, web_search, web_fetch, user_question
-- **禁用工具**：shell_exec, agent_dispatch
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, web_search, web_fetch, user_question
+- **禁用工具（deny）**：shell_exec, agent_dispatch
 - **写入路径**：docs/prd/, docs/research/
 - **关联 Skill**：req-analysis, doc-gen, doc-nav, research
 
@@ -62,8 +83,8 @@
 <summary><b>3. architect</b> — 架构师（架构设计 / 技术选型）</summary>
 
 - **职责**：架构设计、技术选型、模块划分、接口定义。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
-- **禁用工具**：agent_dispatch
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
+- **禁用工具（deny）**：agent_dispatch
 - **写入路径**：docs/arch/, docs/research/
 - **关联 Skill**：arc-design, tech-eval, doc-gen, doc-nav, research
 
@@ -73,8 +94,8 @@
 <summary><b>4. ui-designer</b> — UI 设计师（界面 / 交互规范）</summary>
 
 - **职责**：界面设计、交互规范、组件规格定义。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
-- **禁用工具**：agent_dispatch
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
+- **禁用工具（deny）**：agent_dispatch
 - **写入路径**：docs/ui-spec/, docs/research/
 - **关联 Skill**：ui-design, doc-gen, doc-nav, research, penpot-sync（条件启用）
 
@@ -84,8 +105,8 @@
 <summary><b>5. tech-lead</b> — 技术主管（任务分解 / 开发计划）</summary>
 
 - **职责**：功能到任务的分解、开发计划编排、TDD 模式判定（light vs standard）。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
-- **禁用工具**：agent_dispatch, web_search, web_fetch
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
+- **禁用工具（deny）**：agent_dispatch, web_search, web_fetch
 - **写入路径**：docs/dev-plan/, docs/research/
 - **关联 Skill**：task-decomp, dep-analysis, doc-gen, doc-nav
 
@@ -95,8 +116,8 @@
 <summary><b>6. test-writer</b> — TDD RED 阶段（编写失败测试）</summary>
 
 - **职责**：根据验收标准编写失败测试用例，所有测试必须 FAIL。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
-- **禁用工具**：agent_dispatch, web_search, web_fetch, user_question
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
+- **禁用工具（deny）**：agent_dispatch, web_search, web_fetch, user_question
 - **写入路径**：src/, tests/
 - **关联 Skill**：无
 
@@ -106,8 +127,8 @@
 <summary><b>7. implementer</b> — TDD GREEN 阶段（最小实现）</summary>
 
 - **职责**：编写最小实现代码使测试通过，支持 light 模式（合并 RED+GREEN）。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
-- **禁用工具**：agent_dispatch, web_search, web_fetch, user_question
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
+- **禁用工具（deny）**：agent_dispatch, web_search, web_fetch, user_question
 - **写入路径**：src/, tests/
 - **关联 Skill**：penpot-implement（条件启用）
 
@@ -117,8 +138,8 @@
 <summary><b>8. refactorer</b> — TDD REFACTOR 阶段（优化代码质量）</summary>
 
 - **职责**：在测试全部通过的前提下优化代码质量；若重构后测试失败，状态回滚为 rolled-back。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
-- **禁用工具**：agent_dispatch, web_search, web_fetch, user_question
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
+- **禁用工具（deny）**：agent_dispatch, web_search, web_fetch, user_question
 - **写入路径**：src/, tests/
 - **关联 Skill**：无
 
@@ -128,8 +149,8 @@
 <summary><b>9. reviewer</b> — 评审员（文档 + 代码跨阶段审查）</summary>
 
 - **职责**：跨阶段质量审查，覆盖文档审查与代码审查。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
-- **禁用工具**：agent_dispatch
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
+- **禁用工具（deny）**：agent_dispatch
 - **写入路径**：docs/reviews/doc/, docs/reviews/code/, docs/reviews/sprint/（严格限制）
 - **关联 Skill**：doc-review, code-review, sprint-review, doc-nav, penpot-review（条件启用）
 
@@ -139,8 +160,8 @@
 <summary><b>10. qa-engineer</b> — 测试工程师（测试策略 / 集成 / E2E）</summary>
 
 - **职责**：测试策略制定、集成测试与端到端测试编写、覆盖率分析、缺陷记录。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
-- **禁用工具**：agent_dispatch, web_search, web_fetch
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
+- **禁用工具（deny）**：agent_dispatch, web_search, web_fetch
 - **写入路径**：docs/test-report/, src/, tests/
 - **关联 Skill**：testing, doc-gen, doc-nav
 
@@ -150,8 +171,8 @@
 <summary><b>11. devops</b> — 运维工程师（CI/CD / 容器化 / 发布）</summary>
 
 - **职责**：CI/CD 流水线、容器化配置、基础设施即代码、发布规范。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
-- **禁用工具**：agent_dispatch, user_question, web_search, web_fetch
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
+- **禁用工具（deny）**：agent_dispatch, user_question, web_search, web_fetch
 - **写入路径**：docs/deploy-spec/, docs/changelog/
 - **关联 Skill**：deploy-config, doc-gen, doc-nav
 
@@ -161,8 +182,8 @@
 <summary><b>12. debugger</b> — 调试工程师（运行时诊断 / 最小修复）</summary>
 
 - **职责**：运行时错误诊断、根因分析、最小修复。按需或由编排器触发。
-- **可用工具**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
-- **禁用工具**：agent_dispatch, web_search, web_fetch
+- **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
+- **禁用工具（deny）**：agent_dispatch, web_search, web_fetch
 - **写入路径**：src/, tests/, .cataforge/scripts/, .cataforge/hooks/, .cataforge/skills/
 - **关联 Skill**：debug, doc-nav
 
@@ -172,8 +193,8 @@
 <summary><b>13. reflector</b> — 反思者（跨项目经验提取）</summary>
 
 - **职责**：从评审历史中提取跨项目经验教训，生成 EXP 条目和 SKILL-IMPROVE 建议。
-- **可用工具**：file_read, file_edit, file_glob, file_grep（以只读为主）
-- **禁用工具**：agent_dispatch, user_question, shell_exec, web_search, web_fetch
+- **允许工具（allow）**：file_read, file_edit, file_glob, file_grep
+- **禁用工具（deny）**：agent_dispatch, user_question, shell_exec, web_search, web_fetch
 - **写入路径**：docs/reviews/retro/, docs/reviews/CORRECTIONS-LOG.md, docs/EVENT-LOG.jsonl, .cataforge/learnings/
 - **关联 Skill**：doc-nav
 
