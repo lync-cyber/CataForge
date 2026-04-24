@@ -10,10 +10,10 @@
 
 ```mermaid
 flowchart LR
-    A[cataforge bootstrap<br/>--platform X] --> B{{setup<br/>(fresh scaffold)}}
-    A --> C{{upgrade<br/>(if drift)}}
-    A --> D{{deploy<br/>(IDE artefacts)}}
-    A --> E{{doctor<br/>(verify)}}
+    A[cataforge bootstrap<br/>--platform X] --> B[setup<br/>fresh scaffold]
+    A --> C[upgrade<br/>if drift]
+    A --> D[deploy<br/>IDE artefacts]
+    A --> E[doctor<br/>verify]
     B --> F[(IDE 可用：<br/>CLAUDE.md / .claude/<br/>.cursor/ / AGENTS.md)]
     C --> F
     D --> F

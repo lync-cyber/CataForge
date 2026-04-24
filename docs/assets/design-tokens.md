@@ -56,4 +56,4 @@
 - 所有文字 `fill` 必须是 `--ink` / `--ink-muted` / `--accent-ink`，不依赖 `currentColor`（外链 SVG 不生效）。
 - 卡片 `fill` 必须显式给出不透明浅色，保证在 GitHub 暗色主题下卡片自带前景。
 - `viewBox` 必须声明，不写 `width/height` 硬值，确保 README 中按容器缩放。
-- 仅使用 `<rect> <circle> <line> <path> <text> <marker>`；不使用 `<filter>` 阴影、不使用位图。
+- 仅使用 `<rect>` `<circle>` `<line>` `<path>` `<text>` `<marker>`；不使用 `<filter>` 阴影、不使用位图。
