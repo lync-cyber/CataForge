@@ -146,6 +146,16 @@ def upgrade_apply(dry_run: bool) -> None:
     cfg.reload()
     click.echo(f"CataForge v{cfg.version} — scaffold up to date.")
 
+    # Platform-rendered artifacts (.claude/settings.json, .cursor/hooks.json,
+    # ...) are produced by `cataforge deploy`, not by scaffold refresh. If a
+    # deploy has already happened at least once, remind the user to re-run it
+    # so the refreshed scaffold actually lands in the IDE-facing directory.
+    if cfg.paths.deploy_state.is_file():
+        click.echo(
+            "\nTip: scaffold refreshed — run `cataforge deploy` to propagate "
+            "changes to platform deliverables (e.g. .claude/settings.json)."
+        )
+
 
 @upgrade_group.command("verify")
 @click.pass_context

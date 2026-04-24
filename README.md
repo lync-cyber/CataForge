@@ -34,22 +34,15 @@
 # 1. 安装（推荐 uv）
 uv tool install cataforge
 
-# 2. 环境诊断
-cataforge doctor
-
-# 3. 初始化并选平台
-cataforge setup --platform cursor       # 或 claude-code / codex / opencode
-
-# 4. 预览将写入的产物
-cataforge deploy --dry-run --platform cursor
-
-# 5. 真部署
-cataforge deploy --platform cursor
+# 2. 一键跑通：setup → upgrade → deploy → doctor（每步按产物状态智能跳过）
+cataforge bootstrap --platform cursor       # 或 claude-code / codex / opencode
 ```
 
-看到 `Deploy complete.` 即成功。在对应 IDE 中打开项目即可使用。
+看到 `Diagnostics complete.` 即成功。在对应 IDE 中打开项目即可使用。`cataforge bootstrap --dry-run` 可在写入前预览每步的 skip/run 决策。
 
-> 零安装体验：`uvx cataforge doctor` 直接临时运行，不全局装包。
+> 零安装体验：`uvx cataforge bootstrap --platform cursor --dry-run` 直接临时运行，不全局装包。
+>
+> 想单步执行（setup / deploy / upgrade 各自独立可用），见 [CLI 参考](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/cli.md)。
 
 其它安装方式（pip / 项目 venv / Windows 最小清单）见 [docs/getting-started/installation.md](https://github.com/lync-cyber/CataForge/blob/main/docs/getting-started/installation.md)。
 

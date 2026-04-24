@@ -1,6 +1,6 @@
 # 快速开始
 
-> 目标：**3 条命令**跑通一个 Cursor 工作流部署的干运行。
+> 目标：**1 条命令**跑通一个 Cursor 工作流的完整部署 + 验证。
 
 ## 前置
 
@@ -10,53 +10,61 @@
 
 ```mermaid
 flowchart LR
-    A[cataforge doctor<br/>检查环境] --> B[cataforge setup<br/>--platform X<br/>写入 .cataforge/]
-    B --> C[cataforge deploy<br/>--dry-run<br/>预览 IDE 产物]
-    C --> D[cataforge deploy<br/>真部署]
-    D --> E[(IDE 可用：<br/>CLAUDE.md / .claude/<br/>.cursor/ / AGENTS.md)]
+    A[cataforge bootstrap<br/>--platform X] --> B{{setup<br/>(fresh scaffold)}}
+    A --> C{{upgrade<br/>(if drift)}}
+    A --> D{{deploy<br/>(IDE artefacts)}}
+    A --> E{{doctor<br/>(verify)}}
+    B --> F[(IDE 可用：<br/>CLAUDE.md / .claude/<br/>.cursor/ / AGENTS.md)]
+    C --> F
+    D --> F
+    E --> F
 
     classDef step fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
-    classDef dry fill:#fff8e1,stroke:#f9a825,color:#6d4c00
+    classDef cond fill:#fff8e1,stroke:#f9a825,color:#6d4c00
     classDef final fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
-    class A,B step
-    class C dry
-    class D,E final
+    class A step
+    class B,C,D,E cond
+    class F final
 ```
 
-- **setup** 只写 `.cataforge/`（规范源 + `framework.json`），不碰 IDE 目录。
-- **deploy** 把 `.cataforge/` 翻译成当前 IDE 认识的产物。`--dry-run` 仅列清单。
-- 随时可切平台——改 `--platform` 重跑 deploy 即可。
+- **bootstrap** 按 `.cataforge/framework.json` / `.scaffold-manifest.json` / `.deploy-state` 三份产物文件判断每步是否需要运行，已经 current 的步骤自动 skip。
+- 再次运行 bootstrap 完全幂等——全通过的项目只会再跑一次 doctor。
+- 底层四个子命令（`setup` / `upgrade apply` / `deploy` / `doctor`）仍独立可用，见 [CLI 参考](../reference/cli.md)。
 
-## 最短路径（3 条命令）
+## 最短路径（1 条命令）
 
 ```bash
-# 1. 健康诊断（检查框架目录、依赖、平台 profile）
-cataforge doctor
+cataforge bootstrap --platform cursor       # 可选 claude-code / cursor / codex / opencode
+```
 
-# 2. 初始化：设定目标平台为 Cursor（可选 claude-code / cursor / codex / opencode）
-cataforge setup --platform cursor
+初次运行会依次：初始化 `.cataforge/` → 渲染 `.cursor/` 等 IDE 产物 → 跑 doctor 验证。
 
-# 3. 干运行部署：查看会写入哪些产物，不实际写盘
-cataforge deploy --dry-run --platform cursor
+想先预览、不落盘：
+
+```bash
+cataforge bootstrap --platform cursor --dry-run
+```
+
+`--dry-run` 会打印每步的 skip / run 决策与原因，比如：
+
+```text
+Plan (dry-run):
+  • setup    run   — no .cataforge/ at <path> — fresh scaffold
+  ○ upgrade  skip  — fresh scaffold already current
+  • deploy   run   — fresh install — initial deploy required
+  • doctor   run   — verification gate
 ```
 
 ## 成功标志
 
 | 命令 | 末行关键字 |
 |------|-----------|
-| `cataforge doctor` | `Diagnostics complete.` |
-| `cataforge setup --platform cursor` | `Setup complete. Run cataforge deploy ...` |
-| `cataforge deploy --dry-run --platform cursor` | `Deploy complete.` |
+| `cataforge bootstrap --platform cursor --dry-run` | `target platform: cursor` |
+| `cataforge bootstrap --platform cursor` | `Diagnostics complete.` |
 
-## 真正写入 IDE 产物
+## 查看产物
 
-干运行确认无误后，去掉 `--dry-run` 即可真部署：
-
-```bash
-cataforge deploy --platform cursor
-```
-
-产物落盘位置（Cursor 示例）：
+Cursor 落盘位置：
 
 ```text
 AGENTS.md
@@ -70,19 +78,18 @@ AGENTS.md
 
 ## 切换平台
 
-`.cataforge/` 规范同一份，切换目标平台只需重设：
+`.cataforge/` 规范同一份。bootstrap **拒绝隐式改写** `runtime.platform`（避免误操作锁定错误平台），切换要显式走 `setup`：
 
 ```bash
-cataforge setup --platform claude-code   # 或 codex / opencode
-cataforge deploy --platform claude-code
+cataforge setup --platform claude-code --show-diff   # 先改 runtime.platform
+cataforge bootstrap                                   # 检测到平台漂移，自动重新 deploy
 ```
 
 ## 从源码直跑（不安装）
 
 ```bash
-python -m cataforge doctor
-python -m cataforge setup --platform cursor
-python -m cataforge deploy --dry-run --platform cursor
+python -m cataforge bootstrap --platform cursor --dry-run
+python -m cataforge bootstrap --platform cursor
 ```
 
 ## 下一步

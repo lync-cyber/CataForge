@@ -210,8 +210,15 @@ def _check_event_log_schema(
     cfg: ConfigManager, *, sample_size: int = 200
 ) -> int:
     """Validate the last ``sample_size`` EVENT-LOG.jsonl records via
-    :func:`validate_record`. Returns the count of invalid records."""
+    :func:`validate_record`. Returns the count of invalid records.
+
+    Honors the ``upgrade.state.event_log_validate_since`` ISO-8601 watermark
+    (set by ``cataforge event accept-legacy``): records whose ``ts`` predates
+    the watermark are skipped — pre-v0.1.7 bypass-write residue must not
+    hold doctor hostage forever.
+    """
     import json
+    from datetime import datetime
 
     from cataforge.core.event_log import event_log_path, validate_record
 
@@ -227,11 +234,26 @@ def _check_event_log_schema(
         click.echo(f"  (cannot read {log_path}: {e})")
         return 0
 
+    cutoff_raw = (
+        (cfg.load().get("upgrade") or {})
+        .get("state", {})
+        .get("event_log_validate_since")
+    )
+    cutoff: datetime | None = None
+    if isinstance(cutoff_raw, str) and cutoff_raw.strip():
+        try:
+            cutoff = datetime.fromisoformat(cutoff_raw.replace("Z", "+00:00"))
+        except ValueError:
+            click.echo(
+                f"  (ignoring malformed event_log_validate_since={cutoff_raw!r})"
+            )
+
     total_lines = len(lines)
     start_idx = max(0, total_lines - sample_size)
     sampled = lines[start_idx:]
 
     bad: list[tuple[int, str, list[str]]] = []
+    skipped_pre_cutoff = 0
     for offset, raw in enumerate(sampled):
         line_no = start_idx + offset + 1
         text = raw.strip()
@@ -240,10 +262,19 @@ def _check_event_log_schema(
         try:
             obj = json.loads(text)
         except json.JSONDecodeError as e:
+            if cutoff is not None:
+                # Unparseable lines can't be timestamp-compared; treat as
+                # pre-cutoff iff the cutoff is set, to match the intent of
+                # "ignore historical rot".
+                skipped_pre_cutoff += 1
+                continue
             bad.append((line_no, text[:80], [f"invalid JSON: {e}"]))
             continue
         if not isinstance(obj, dict):
             bad.append((line_no, text[:80], ["not a JSON object"]))
+            continue
+        if cutoff is not None and _ts_before(obj.get("ts"), cutoff):
+            skipped_pre_cutoff += 1
             continue
         errors = validate_record(obj)
         if errors:
@@ -251,17 +282,52 @@ def _check_event_log_schema(
             bad.append((line_no, str(preview)[:80], errors))
 
     sampled_count = sum(1 for ln in sampled if ln.strip())
-    click.echo(
-        f"  {sampled_count - len(bad)}/{sampled_count} sampled records valid "
-        f"(window: last {sampled_count} of {total_lines} total)"
+    validated = sampled_count - skipped_pre_cutoff
+    summary = (
+        f"  {validated - len(bad)}/{validated} sampled records valid "
+        f"(window: last {sampled_count} of {total_lines} total"
     )
+    if skipped_pre_cutoff:
+        summary += f"; {skipped_pre_cutoff} pre-cutoff skipped"
+    summary += ")"
+    click.echo(summary)
 
     shown = bad[:5]
     for line_no, preview, errors in shown:
         click.echo(f"  FAIL line {line_no} ({preview}): {'; '.join(errors)}")
     if len(bad) > len(shown):
         click.echo(f"    ... and {len(bad) - len(shown)} more invalid record(s)")
+
+    if bad and cutoff is None:
+        click.echo(
+            "  Hint: if these are legacy bypass writes from before v0.1.7, "
+            "run `cataforge event accept-legacy` to set a cutoff and stop "
+            "failing doctor on historical records."
+        )
     return len(bad)
+
+
+def _ts_before(ts_value, cutoff) -> bool:  # cutoff: datetime
+    """True iff ``ts_value`` parses and is strictly before *cutoff*.
+
+    Unparseable or missing ``ts`` returns False — we only skip records we
+    can *prove* predate the cutoff. That keeps malformed records (which the
+    watermark shouldn't hide) failing instead of silently passing.
+    """
+    from datetime import datetime, timezone
+
+    if not isinstance(ts_value, str) or not ts_value:
+        return False
+    try:
+        ts = datetime.fromisoformat(ts_value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    # Make both sides timezone-aware to avoid naive-vs-aware comparison errors.
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=timezone.utc)
+    return ts < cutoff
 
 
 def _match_inside_inline_code(line: str, pos: int) -> bool:

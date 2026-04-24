@@ -52,6 +52,33 @@ def test_upgrade_apply_creates_backup_and_reports_it(
     assert any(p.is_dir() for p in backups_root.iterdir())
 
 
+def test_upgrade_apply_hints_deploy_when_deploy_state_exists(
+    runner: CliRunner, project: Path
+) -> None:
+    """Once a project has deployed, re-running `upgrade apply` must remind
+    the user to re-deploy — scaffold refresh doesn't touch `.claude/`
+    artifacts, and stale settings.json silently drops hook wiring."""
+    (project / ".cataforge" / ".deploy-state").write_text(
+        '{"platform": "claude-code"}\n', encoding="utf-8"
+    )
+
+    result = runner.invoke(cli, ["upgrade", "apply"])
+    assert result.exit_code == 0, result.output
+    assert "`cataforge deploy`" in result.output
+    assert "platform deliverables" in result.output
+
+
+def test_upgrade_apply_no_deploy_hint_when_never_deployed(
+    runner: CliRunner, project: Path
+) -> None:
+    """Fresh projects (pre-deploy) must not see the re-deploy nag."""
+    assert not (project / ".cataforge" / ".deploy-state").exists()
+
+    result = runner.invoke(cli, ["upgrade", "apply"])
+    assert result.exit_code == 0, result.output
+    assert "`cataforge deploy`" not in result.output
+
+
 def test_rollback_list_with_no_backups_exits_nonzero(
     runner: CliRunner, project: Path
 ) -> None:
