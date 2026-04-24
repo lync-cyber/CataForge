@@ -191,8 +191,10 @@ cataforge doctor
 |------|--------|--------|
 | `framework.json` | `runtime.platform`、`upgrade.state` | `version`、`constants`、`features`、`migration_checks`、`upgrade.source` |
 | `PROJECT-STATE.md` | 整个文件 | — |
+| 其它 `.cataforge/` 文件 | — | **整个文件**；`apply` 前自动快照到 `.cataforge/.backups/<ts>/`，可用 `cataforge upgrade rollback` 恢复 |
 
 > `upgrade.state` 由本 skill 在 Step 5 手动写入，不被 `upgrade apply` 覆盖，因此升级日期和版本记录会持久保留。
+> 若用户在 apply 后发现自定义改动丢失，告知他们运行 `cataforge upgrade rollback --list` 查看快照并 `rollback --from <ts>` 回滚。
 
 ## 效率策略
 - 先检测包管理器，避免升级命令错误

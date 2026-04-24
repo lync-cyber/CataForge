@@ -14,7 +14,9 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import shutil
 from collections.abc import Callable, Iterator
+from datetime import datetime, timezone
 from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
@@ -33,6 +35,13 @@ _SCAFFOLD_SUBDIR = "cataforge_scaffold"
 
 MANIFEST_REL = ".scaffold-manifest.json"
 MANIFEST_VERSION = 1
+
+# Backups of the scaffold directory live under ``<cataforge_dir>/.backups/<ts>/``.
+# Using a nested dir (rather than a sibling like ``.cataforge.bak-<ts>``) keeps
+# the project root clean and means ``.gitignore`` only needs one pattern to cover
+# both state dirs and rollback snapshots.
+BACKUPS_DIRNAME = ".backups"
+_BACKUP_TS_FMT = "%Y%m%d-%H%M%S"
 
 
 def _stamp_framework_version(raw_bytes: bytes) -> bytes:
@@ -125,19 +134,29 @@ def copy_scaffold_to(
     dest: Path,
     *,
     force: bool = False,
-) -> tuple[list[Path], list[Path]]:
+    backup: bool = True,
+) -> tuple[list[Path], list[Path], Path | None]:
     """Copy the bundled scaffold into *dest* (typically ``<project>/.cataforge``).
 
-    Returns ``(written, skipped)`` — lists of destination paths that were
-    newly written vs. preserved because they already existed. When *force*
-    is ``True`` existing files are overwritten, except for files registered
-    in :data:`_MERGE_HANDLERS` which receive a field-level merge that
-    preserves user-owned state (e.g. ``framework.json.runtime.platform``).
+    Returns ``(written, skipped, backup_path)``. ``backup_path`` is the
+    snapshot created before a forced refresh (or ``None`` when there was
+    nothing to snapshot, or when *backup* was suppressed).
+
+    When *force* is ``True`` existing files are overwritten, except for
+    files registered in :data:`_MERGE_HANDLERS` which receive a field-level
+    merge that preserves user-owned state (e.g.
+    ``framework.json.runtime.platform``). Set *backup* to ``False`` to skip
+    the automatic snapshot — callers doing a fresh install or their own
+    backup should pass ``backup=False``.
 
     On every invocation, also writes ``<dest>/.scaffold-manifest.json``
     recording the bytes-hash of each written file and the package version
     that produced it, so later upgrades can classify per-file drift.
     """
+    backup_path: Path | None = None
+    if force and backup and dest.is_dir():
+        backup_path = create_backup(dest)
+
     written: list[Path] = []
     skipped: list[Path] = []
     manifest_files: dict[str, str] = {}
@@ -172,7 +191,7 @@ def copy_scaffold_to(
         written.append(target)
 
     _write_manifest(dest, manifest_files)
-    return written, skipped
+    return written, skipped, backup_path
 
 
 def _sha256(data: bytes) -> str:
@@ -267,3 +286,94 @@ def classify_scaffold_files(
         else:
             results.append((rel, "user-modified"))
     return results
+
+
+# ---- scaffold backup / rollback ---------------------------------------------
+#
+# A backup is a snapshot of the ``.cataforge/`` directory (minus ``.backups/``
+# itself) taken just before a destructive refresh. Users can ``upgrade
+# rollback`` to restore a snapshot without depending on git.
+
+
+def _now_ts() -> str:
+    return datetime.now(timezone.utc).strftime(_BACKUP_TS_FMT)
+
+
+def _backups_root(cataforge_dir: Path) -> Path:
+    return cataforge_dir / BACKUPS_DIRNAME
+
+
+def _iter_payload(cataforge_dir: Path) -> Iterator[Path]:
+    """Yield every direct child of ``.cataforge/`` except the backups dir."""
+    if not cataforge_dir.is_dir():
+        return
+    for item in cataforge_dir.iterdir():
+        if item.name == BACKUPS_DIRNAME:
+            continue
+        yield item
+
+
+def create_backup(cataforge_dir: Path, *, ts: str | None = None) -> Path | None:
+    """Snapshot ``cataforge_dir`` into ``<cataforge_dir>/.backups/<ts>/``.
+
+    Returns the backup path, or ``None`` when *cataforge_dir* is empty
+    (nothing to preserve, so a backup would be pointless).
+    """
+    items = list(_iter_payload(cataforge_dir))
+    if not items:
+        return None
+
+    backup_dir = _backups_root(cataforge_dir) / (ts or _now_ts())
+    backup_dir.mkdir(parents=True, exist_ok=False)
+    for item in items:
+        dest_item = backup_dir / item.name
+        if item.is_dir():
+            shutil.copytree(item, dest_item)
+        else:
+            shutil.copy2(item, dest_item)
+    return backup_dir
+
+
+def list_backups(cataforge_dir: Path) -> list[Path]:
+    """List available backup snapshot paths, newest first.
+
+    The ordering is lexicographic on the timestamp directory name, which
+    matches creation order because the format is ``YYYYMMDD-HHMMSS``.
+    """
+    root = _backups_root(cataforge_dir)
+    if not root.is_dir():
+        return []
+    return sorted(
+        (p for p in root.iterdir() if p.is_dir()),
+        key=lambda p: p.name,
+        reverse=True,
+    )
+
+
+def restore_backup(cataforge_dir: Path, backup_dir: Path) -> Path:
+    """Replace ``cataforge_dir`` contents with *backup_dir*.
+
+    Current state (minus ``.backups/``) is first stashed into a fresh
+    ``.backups/pre-rollback-<ts>/`` snapshot so the rollback is itself
+    reversible. Returns the stash path so the caller can echo it.
+    """
+    if not backup_dir.is_dir():
+        raise FileNotFoundError(f"backup not found: {backup_dir}")
+
+    stash_ts = f"pre-rollback-{_now_ts()}"
+    stash = create_backup(cataforge_dir, ts=stash_ts)
+
+    for item in list(_iter_payload(cataforge_dir)):
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+
+    for item in backup_dir.iterdir():
+        dest_item = cataforge_dir / item.name
+        if item.is_dir():
+            shutil.copytree(item, dest_item)
+        else:
+            shutil.copy2(item, dest_item)
+
+    return stash if stash is not None else cataforge_dir

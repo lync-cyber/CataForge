@@ -114,6 +114,7 @@ opencode.json
 .cataforge/.deploy-state
 .cataforge/.mcp-state/
 .cataforge/.instruction-hashes.json
+.cataforge/.backups/
 .cataforge/**/__pycache__/
 .ruff_cache/
 
