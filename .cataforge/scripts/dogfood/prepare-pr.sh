@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# prepare-pr.sh — 从 dogfood 分支生成可 PR 到 main 的干净分支
+# prepare-pr.sh — 从 dogfood 工作分支生成可 PR 到 main 的干净分支
 #
 # 工作流（形态 C）:
-#   1. 在 dev 分支（或其他 dogfood 工作分支）跑 orchestrator、改代码
+#   1. 在 feature 分支跑 orchestrator、改代码（产物会污染 dev-only 文件）
 #   2. 要 PR 时运行本脚本: .cataforge/scripts/dogfood/prepare-pr.sh
 #   3. 脚本创建 pr/<源分支>-<时间戳> 分支
 #   4. 对比 origin/main，将不在 product-paths.txt 白名单内的改动还原
 #   5. 提交一条 "chore: reset dogfood artifacts" commit
-#   6. 提示你 push + 开 PR
+#   6. 交互式提示 conventional-commits 标题并自动开 PR
 #
 # 退出码:
 #   0 — 成功（或无需 reset）
