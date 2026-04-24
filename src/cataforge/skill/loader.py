@@ -46,6 +46,7 @@ class SkillLoader:
         """Scan skills directory and builtins, return metadata for all found skills."""
         seen_ids: set[str] = set()
         result: list[SkillMeta] = []
+        builtins_by_id = {m.id: m for m in self._scan_builtins()}
 
         # Project-level skills take precedence
         skills_dir = self._paths.skills_dir
@@ -58,11 +59,12 @@ class SkillLoader:
                     continue
                 meta = self._parse_skill(skill_dir.name, skill_md)
                 if meta:
+                    meta = self._merge_builtin_fallback(meta, builtins_by_id)
                     seen_ids.add(meta.id)
                     result.append(meta)
 
         # Built-in skills (only if not overridden at project level)
-        for meta in self._scan_builtins():
+        for meta in builtins_by_id.values():
             if meta.id not in seen_ids:
                 seen_ids.add(meta.id)
                 result.append(meta)
@@ -70,15 +72,52 @@ class SkillLoader:
         return result
 
     def get_skill(self, skill_id: str) -> SkillMeta | None:
-        """Load a single skill by ID (project-level first, then builtins)."""
+        """Load a single skill by ID (project-level first, then builtins).
+
+        When a project-level SKILL.md exists but declares no executable
+        scripts (i.e. it is a pure playbook overriding a builtin's prose),
+        the matching builtin's scripts are merged in so that
+        ``cataforge skill run`` remains functional. Without this merge,
+        a project-level SKILL.md silently shadows the builtin and the
+        runner reports ``no executable scripts``.
+        """
         skill_md = self._paths.skill_dir(skill_id) / "SKILL.md"
         if skill_md.is_file():
-            return self._parse_skill(skill_id, skill_md)
+            meta = self._parse_skill(skill_id, skill_md)
+            if meta is not None:
+                builtins_by_id = {m.id: m for m in self._scan_builtins()}
+                meta = self._merge_builtin_fallback(meta, builtins_by_id)
+            return meta
         # Try builtin
         for meta in self._scan_builtins():
             if meta.id == skill_id:
                 return meta
         return None
+
+    @staticmethod
+    def _merge_builtin_fallback(
+        meta: SkillMeta,
+        builtins_by_id: dict[str, SkillMeta],
+    ) -> SkillMeta:
+        """If *meta* has no scripts but a matching builtin does, borrow them.
+
+        The project-level SKILL.md still provides frontmatter (description,
+        depends, suggested-tools, user-invocable). Only ``scripts`` and
+        ``builtin`` are taken from the builtin — the runner keys off
+        ``builtin`` to pick ``python -m`` over a file-path invocation.
+        """
+        if meta.scripts:
+            return meta
+        fallback = builtins_by_id.get(meta.id)
+        if fallback is None or not fallback.scripts:
+            return meta
+        meta.scripts = list(fallback.scripts)
+        meta.builtin = True
+        # Promote skill_type so list output distinguishes it from
+        # pure-playbook skills.
+        if meta.skill_type == SkillType.INSTRUCTIONAL:
+            meta.skill_type = SkillType.HYBRID
+        return meta
 
     def _scan_builtins(self) -> list[SkillMeta]:
         """Discover built-in skills shipped with the cataforge package."""
@@ -97,10 +136,16 @@ class SkillLoader:
                 continue
             skill_id = _BUILTIN_ID_MAP.get(child.name, child.name)
             py_files = sorted(child.glob("*.py"))
+            # Only files with an ``if __name__ == "__main__":`` guard are
+            # CLI entry points — the rest are helper modules (``checker.py``,
+            # ``constants.py``, ``typed_checks.py``, ...). Enumerating every
+            # ``.py`` file would make ``cataforge skill run doc-review``
+            # default to the alphabetically-first file (a helper), which
+            # does nothing when spawned as ``python -m``.
             scripts = [
                 {"name": f.stem, "entry": f.name, "module": f"{child.name}.{f.stem}"}
                 for f in py_files
-                if f.name != "__init__.py"
+                if f.name != "__init__.py" and _has_main_guard(f)
             ]
             if not scripts:
                 continue
@@ -162,6 +207,19 @@ class SkillLoader:
         if has_scripts:
             return SkillType.HYBRID
         return SkillType.INSTRUCTIONAL
+
+
+def _has_main_guard(py_file: Path) -> bool:
+    """True iff *py_file* contains an ``if __name__ == "__main__":`` guard.
+
+    Read-only textual check so the loader stays import-free — we never
+    execute builtin scripts as a side effect of discovery.
+    """
+    try:
+        text = py_file.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return "__main__" in text and "__name__" in text
 
 
 def _to_list(val: str | list[str]) -> list[str]:

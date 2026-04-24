@@ -155,6 +155,11 @@ Anti-Patterns应使用"做A而非B"格式并附具体例子，避免抽象禁令
 | performance | 代码 | 性能/效率 |
 | test-quality | 代码 | 测试断言有效性、测试逻辑正确性、边界覆盖 |
 
+## Layer 1 调用协议（single entry）
+三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过 `cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner` 路由到内置实现（`python -m cataforge.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md、Agent、Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。完整规约见 [`docs/architecture/quality-and-learning.md §2.1`](../../docs/architecture/quality-and-learning.md)。
+
+Layer 1 返回四态处理：`0`→进入 Layer 2；`1`→报问题不进 Layer 2；`2`/`127`/`CataforgeError("no executable scripts")`→**FAIL**（先 `cataforge doctor`）；运行时异常/超时→降级进入 Layer 2。
+
 ## 审查报告规范
 所有审查报告（doc-review 和 code-review）共享以下规范。各 Skill 的 Layer 1 检查项和 Layer 2 审查维度分别定义在各自 SKILL.md 中。
 

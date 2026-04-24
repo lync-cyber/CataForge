@@ -27,12 +27,15 @@ user-invocable: true
 ### Step 1: Layer 1 — Lint脚本自动检查
 **前置判断**: 读取当前平台 Hook 配置（Claude: `.claude/settings.json`；Cursor: `.cursor/hooks.json`），检查是否存在 matcher 为 `Edit|Write`（Cursor 可为 `Write`/`StrReplace`）且 command 包含 `lint_format.py` 的条目:
 - **已配置 lint hook** → 编码阶段已通过 hook 以 `--fix` 模式实时修复格式/lint问题，跳过 Layer 1，直接进入 Step 2 Layer 2，并在审查报告标题下标注 `Layer 1 delegated to hook`
-- **未配置 lint hook** → 执行: `python .cataforge/skills/code-review/scripts/code_lint.py {file_or_dir}`
+- **未配置 lint hook** → 执行: `cataforge skill run code-review -- {file_or_dir}`
 
-未配置 hook 时的处理结果(三种情况):
+**调用约定（单一入口）**: Layer 1 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。
+
+处理结果(四种情况):
 - **exit 0** (检查通过) → 进入Step 2 Layer 2
-- **exit 1** (有lint错误) → 返回错误列表；可选传入 `--fix` 自动修复后重新检查
-- **脚本执行异常** (Python错误/超时) → 标注"lint检查跳过"，降级进入Layer 2
+- **exit 1** (有lint错误) → 返回错误列表；可选追加 `--fix` 自动修复后重新检查
+- **exit 2 / 127 / CataforgeError("no executable scripts")** (脚本不可达) → **FAIL**，不降级；先运行 `cataforge doctor` 定位问题，修复后重审
+- **运行时异常** (Python错误/超时) → 标注"lint检查跳过(降级)"，降级进入Layer 2
 
 支持语言: JavaScript/TypeScript(ESLint+Prettier), Python(Ruff), C#(dotnet format), Go(golangci-lint), Rust(clippy)
 工具不存在时自动跳过并WARN，不阻断检查流程。
