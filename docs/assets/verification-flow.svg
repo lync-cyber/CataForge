@@ -64,7 +64,7 @@
     <text class="node-idx" x="20" y="25.5">3</text>
     <text class="stage"    x="38" y="26">DRY-RUN</text>
     <text class="title"    x="12" y="54">干运行校验</text>
-    <text class="sub"      x="12" y="74">deploy --check</text>
+    <text class="sub"      x="12" y="74">deploy --dry-run</text>
     <text class="sub"      x="12" y="89">核对 would write</text>
   </g>
 

@@ -10,6 +10,7 @@
 |------|---------|------|
 | [安装](./getting-started/installation.md) | 初次接触 | 装上 `cataforge` CLI 并跑通 `doctor` |
 | [快速开始](./getting-started/quick-start.md) | 初次接触 | 3 条命令跑通干运行部署 |
+| [故障排查](./getting-started/troubleshooting.md) | 遇错时 | 按症状索引的常见问题 |
 
 ### 📘 Guide · 使用指南（任务导向）
 
@@ -34,6 +35,7 @@
 
 | 文档 | 适用读者 | 内容 |
 |------|---------|------|
+| [速查卡](./reference/quick-reference.md) | 所有人 | 一页纸：平台矩阵 + CLI 速查 + 产物路径 |
 | [CLI 参考](./reference/cli.md) | 用户 | `cataforge` 全部子命令与参数 |
 | [配置参考](./reference/configuration.md) | 用户 / 开发者 | framework.json / profile.yaml / hooks.yaml 字段 |
 | [Agent & Skill 清单](./reference/agents-and-skills.md) | 用户 | 13 个 Agent + 24 个 Skill 详细说明 |
@@ -53,11 +55,13 @@
 所有文档图表以 SVG 形式放在 [`assets/`](./assets/) 下，统一遵循 [design tokens](./assets/design-tokens.md)（暖纸色 + 琥珀点缀 + 等宽字体的 "技术蓝图" 风格）。
 
 <details>
-<summary>图表资产索引（8 项 · 点击展开）</summary>
+<summary>图表资产索引（10 项 · 点击展开）</summary>
 
 | 资产 | 用途 |
 |------|-----|
 | [`assets/design-tokens.md`](./assets/design-tokens.md) | 图表 design tokens 单一事实源 |
+| [`assets/hero-banner.svg`](./assets/hero-banner.svg) | README 顶部主视觉 |
+| [`assets/key-features.svg`](./assets/key-features.svg) | 核心特性拼图（供营销/介绍页复用） |
 | [`assets/verification-flow.svg`](./assets/verification-flow.svg) | 手动验证五步流水线（FIG. 01） |
 | [`assets/artifact-map.svg`](./assets/artifact-map.svg) | 四平台部署产物对照（FIG. 02） |
 | [`assets/architecture-stack.svg`](./assets/architecture-stack.svg) | 五层架构栈（FIG. 03） |
@@ -69,20 +73,6 @@
 </details>
 
 新增图表前请先阅读 `design-tokens.md`，严格使用其中声明的色板、尺寸、字体与组件约定。
-
----
-
-## 按场景索引
-
-**我想……**
-
-- **快速试用** → [`getting-started/quick-start.md`](./getting-started/quick-start.md)
-- **在我的 IDE 中跑通** → [`guide/platforms.md`](./guide/platforms.md) + [`guide/manual-verification.md`](./guide/manual-verification.md)
-- **了解内部如何工作** → [`architecture/overview.md`](./architecture/overview.md)
-- **查某个 CLI 命令** → [`reference/cli.md`](./reference/cli.md)
-- **改配置** → [`reference/configuration.md`](./reference/configuration.md)
-- **解决报错** → [`faq.md`](./faq.md)
-- **贡献代码或文档** → [`contributing.md`](./contributing.md)
 
 ---
 

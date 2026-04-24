@@ -25,7 +25,7 @@
 
 - **原生支持**：Agent、Hook、MCP 均可原生映射。
 - **关键路径**：`.claude/agents/`、`CLAUDE.md`、`.claude/settings.json`、`.mcp.json`。
-- **上下文注入**：`CLAUDE.md` 顶部自动烘焙 `@.cataforge/rules/COMMON-RULES.md` 前缀 —— Claude Code 的 `@path` 会在会话启动时把该文件内容直接纳入上下文，子代理无需再 Read。因为 `@` 是 eager，只对必读且短的规则用这种方式；其它规则保持按需 Read。
+- **上下文注入**：`CLAUDE.md` 顶部自动写入 `@.cataforge/rules/COMMON-RULES.md` 前缀 —— Claude Code 的 `@path` 是**eager 引用**（会话启动就立即拉入上下文），子代理无需再用 `Read` 工具打开。由于 eager 会占用 token 预算，仅对"必读且短"的规则用这种方式；其它规则保持按需 `Read`。
 - **最小配置**（`.cataforge/framework.json` 片段）：
 
 ```json
@@ -96,10 +96,7 @@
 
 ## 跨平台目录隔离
 
-每个平台部署只生成**自己命名空间**下的产物（`.claude/` / `.cursor/` / `.codex/` / `.opencode/`），互不干扰。
-
-- Cursor 部署**默认不会**触及 `.claude/`。
-- 干运行（`deploy --dry-run`）会明示 `SKIP: .claude/rules Markdown mirror`，避免用户误以为 Cursor 部署 "莫名碰了 Claude 目录"。
+每个平台部署只生成自己命名空间下的产物（`.claude/` / `.cursor/` / `.codex/` / `.opencode/`），互不干扰。`deploy --dry-run` 明示 `SKIP: .claude/rules Markdown mirror` 等跳过项。机制细节见 [`../architecture/platform-adaptation.md`](../architecture/platform-adaptation.md) §4。
 
 ---
 
@@ -107,7 +104,7 @@
 
 ```bash
 cataforge setup --platform <id>     # 切换运行时平台
-cataforge deploy --platform <id>    # 投放到新平台（--check 可干运行）
+cataforge deploy --platform <id>    # 投放到新平台（加 --dry-run 可干运行）
 ```
 
 `.cataforge/` 规范不变，仅重写目标平台的产物。

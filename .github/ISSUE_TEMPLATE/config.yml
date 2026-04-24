@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage question
+    url: https://github.com/lync-cyber/CataForge/discussions
+    about: For questions about how to use CataForge, please start a discussion instead of filing an issue.
+  - name: Manual verification report
+    url: https://github.com/lync-cyber/CataForge/blob/main/docs/guide/manual-verification.md
+    about: Running the 5-step verification? Use the report template at the bottom of the guide.

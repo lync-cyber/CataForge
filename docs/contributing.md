@@ -95,13 +95,7 @@ test(mcp): add lifecycle regression for stopped state
 
 ### 文档分层原则
 
-| 层 | 职责 | 写什么 |
-|---|------|-------|
-| `README.md` | 吸引与引导 | 价值主张、特性、快速开始、导航 |
-| `getting-started/` | 能快速跑通 | 安装、最短示例 |
-| `guide/` | 任务导向 | 针对具体使用场景的指南 |
-| `architecture/` | 原理导向 | 为什么这么设计、如何工作 |
-| `reference/` | 查阅导向 | API / CLI / 配置等字典型内容 |
+四层结构（`getting-started/` → `guide/` → `architecture/` → `reference/`）与每层职责见 [`README.md`](./README.md) §文档分层原则。新写文档前先对号入座，避免写错层（例如把"原理"塞进 `guide/`）。
 
 ---
 
@@ -139,7 +133,7 @@ test(mcp): add lifecycle regression for stopped state
 
 1. 更新 `CHANGELOG.md`（遵循 Keep a Changelog 格式）
 2. 升级 `src/cataforge/__init__.py` 中的 `__version__`
-3. 打 tag：`git tag -a v0.1.2 -m "Release v0.1.2"`
+3. 打 tag：`git tag -a vX.Y.Z -m "Release vX.Y.Z"`（`X.Y.Z` 替换为实际版本）
 4. 构建并发布：`python -m build && twine upload dist/*`
 5. 创建 GitHub Release，附带变更要点
 

@@ -2,9 +2,28 @@
 
 > 本文描述 CataForge 在一次完整 SDLC 生命周期内的运行时行为：Bootstrap、阶段执行、TDD 编排、中断恢复、修订协议。
 
+## 目录
+
+- [关键术语](#关键术语)
+- [1. 项目初始化（Bootstrap）](#1-项目初始化bootstrap)
+- [2. 阶段执行流程](#2-阶段执行流程)
+- [3. 中断恢复协议](#3-中断恢复协议)
+- [4. 修订协议](#4-修订协议)
+- [5. TDD 编排（Development 阶段）](#5-tdd-编排development-阶段)
+- [6. 手动审查检查点](#6-手动审查检查点)
+- [7. 事件日志](#7-事件日志)
+
+## 关键术语
+
+- **Fork context**：子代理是否继承主会话上下文。`true` 时子代理可直接读主会话已加载的文件；`false` 时需要显式 `Read` 目标文件（如 CodeX）。
+- **Dispatch prompt**：编排器把任务调度给子代理时传入的消息模板，定义角色、范围、必读文件。模板位于 `.cataforge/skills/agent-dispatch/templates/` 与平台 override。
+- **`start-orchestrator` skill**：用户启动/恢复 CataForge 工作流的入口技能（见 [`../reference/agents-and-skills.md`](../reference/agents-and-skills.md) 独立 Skill 小节）。
+
+---
+
 ## 1. 项目初始化（Bootstrap）
 
-当用户通过 `start-orchestrator` 技能启动项目，编排器执行：
+当用户调用 `start-orchestrator` skill 启动项目，编排器执行：
 
 ```text
 Step 1: 收集项目信息
@@ -120,17 +139,7 @@ Development 阶段使用 TDD Engine 编排，按微任务逐个推进：
 
 ## 7. 事件日志
 
-所有关键事件记录到 `docs/EVENT-LOG.jsonl`（JSON Lines）：
-
-| 事件类型 | 含义 |
-|---------|------|
-| `phase_start` / `phase_end` | 阶段开始 / 结束 |
-| `review_verdict` | 审查结论 |
-| `state_change` | 状态变更 |
-| `agent_dispatch` | Agent 调度 |
-| `correction` | 用户纠正（触发 On-Correction Learning） |
-
-事件日志是 **不可变的**，用于审计、回放、后续由 `reflector` Agent 生成跨项目经验。
+所有关键事件以 JSON Lines 格式写入 `docs/EVENT-LOG.jsonl`，不可变，用于审计、回放与 `reflector` 跨项目经验提取。事件类型与示例 payload 见 [`../reference/status-codes.md`](../reference/status-codes.md) §5。
 
 ---
 
