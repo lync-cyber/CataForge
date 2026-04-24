@@ -64,7 +64,35 @@ def deploy_command(
     check_legacy: bool,
     conformance: bool,
 ) -> None:
-    """Deploy CataForge agents, hooks, and rules to the target platform."""
+    """Deploy CataForge agents, hooks, and rules to the target platform.
+
+    Reads the target platform from ``.cataforge/framework.json`` (written by
+    ``cataforge setup``) and translates the bundled scaffold into the files
+    that IDE actually looks at — e.g. ``CLAUDE.md``, ``.claude/agents/`` for
+    Claude Code; ``.cursor/rules/`` for Cursor; ``AGENTS.md`` for Codex.
+
+    \b
+    EXAMPLES:
+      cataforge deploy
+          Deploy to the platform recorded in framework.json.
+
+    \b
+      cataforge deploy --platform cursor
+          Override the target (useful when one repo is edited from
+          multiple IDEs).
+
+    \b
+      cataforge deploy --dry-run
+          Preview the actions without writing any files.
+
+    \b
+      cataforge deploy --platform all
+          Emit artefacts for every supported IDE at once.
+
+    \b
+      cataforge deploy --conformance
+          Validate every platform profile against its schema and exit.
+    """
     from cataforge.cli.helpers import get_config_manager
     from cataforge.core.events import EventBus
 
