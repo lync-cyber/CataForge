@@ -58,7 +58,7 @@
 
 1. **INSTALL** — 装好 Python、CataForge、IDE 客户端。
 2. **SETUP** — `cataforge setup --platform <ide>` 切到目标平台。
-3. **DRY-RUN** — `deploy --check` 预览产物，核对无误。
+3. **DRY-RUN** — `deploy --dry-run` 预览产物，核对无误。
 4. **DEPLOY** — `cataforge deploy` 实际写入 IDE 产物。
 5. **VERIFY** — 启动 IDE，在真实会话中观测 Agent / Hook / MCP 被使用。
 
@@ -208,7 +208,7 @@ cataforge setup --platform claude-code
 #### Step 2 — 干运行
 
 ```bash
-cataforge deploy --check --platform claude-code
+cataforge deploy --dry-run --platform claude-code
 ```
 
 **预期**（节选）：
@@ -305,7 +305,7 @@ cataforge setup --platform cursor
 #### Step 2 — 干运行
 
 ```bash
-cataforge deploy --check --platform cursor
+cataforge deploy --dry-run --platform cursor
 ```
 
 **预期**（节选）：`.cursor/hooks.json`、`.cursor/rules/*.mdc`、`SKIP: detect_correction`（降级提示）、`SKIP: .claude/rules Markdown mirror (enable via profile rules.cross_platform_mirror: true)`（镜像已默认关闭的提示）。
@@ -357,7 +357,7 @@ cataforge setup --platform codex
 #### Step 2 — 干运行
 
 ```bash
-cataforge deploy --check --platform codex
+cataforge deploy --dry-run --platform codex
 ```
 
 **预期**（节选）：`AGENTS.md`、`.codex/agents/*.toml`、`.codex/hooks.json`、`.codex/config.toml` 的 `mcp_servers.<id>` 合并。
@@ -408,7 +408,7 @@ cataforge setup --platform opencode
 #### Step 2 — 干运行
 
 ```bash
-cataforge deploy --check --platform opencode
+cataforge deploy --dry-run --platform opencode
 ```
 
 **预期**（节选）：`.opencode/agents/*.md`、`opencode.json` 的 `mcp.<id>` 合并、若干 `SKIP:` 降级提示、`would write rules_injection`。
@@ -587,9 +587,9 @@ cataforge upgrade verify           # 别名: cataforge doctor
 | 2 | Agent 发现 | `cataforge agent list` | 条目 > 0 |
 | 3 | Skill 发现 | `cataforge skill list` | 条目 > 0 且含 `code-review` |
 | 4 | Hook 加载 | `cataforge hook list` | 至少含 `PreToolUse`+`PostToolUse` |
-| 5 | Cursor 干运行 | `cataforge deploy --check --platform cursor` | 命中 `hooks.json` + `.mdc` |
-| 6 | CodeX 干运行 | `cataforge deploy --check --platform codex` | 命中 `AGENTS.md` + `config.toml` |
-| 7 | OpenCode 降级 | `cataforge deploy --check --platform opencode` | 含 `SKIP:` + `rules_injection` |
+| 5 | Cursor 干运行 | `cataforge deploy --dry-run --platform cursor` | 命中 `hooks.json` + `.mdc` |
+| 6 | CodeX 干运行 | `cataforge deploy --dry-run --platform codex` | 命中 `AGENTS.md` + `config.toml` |
+| 7 | OpenCode 降级 | `cataforge deploy --dry-run --platform opencode` | 含 `SKIP:` + `rules_injection` |
 | 8 | 自动化回归 | `pytest -q` | 退出码 0（`116 passed`） |
 | 9 | MCP 生命周期 | 见 §3.2 | `list` / `start` / `stop` 均成功 |
 | 10 | IDE 内生效 | §2 各平台 Step 4 | 至少一个 IDE 观测到 Agent+Rules+MCP |

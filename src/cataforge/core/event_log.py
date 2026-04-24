@@ -18,6 +18,7 @@ Python call site needs to contribute to the durable log it should call
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -230,10 +231,8 @@ def append_batch(
             f.write(new_lines)
         os.replace(tmp_name, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
     return path, len(records)

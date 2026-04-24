@@ -9,8 +9,6 @@ once at startup.
 
 from __future__ import annotations
 
-import click
-
 from cataforge.cli.errors import CataforgeError
 from cataforge.cli.main import cli
 

@@ -69,7 +69,7 @@ class ExternalToolError(CataforgeError):
     missing, returns a non-zero exit, or emits unparseable output."""
 
 
-class NotImplementedFeature(CataforgeError):
+class NotImplementedFeature(CataforgeError):  # noqa: N818 — public API since 0.1.0
     """Raised by stub subcommands that are on the roadmap but not yet
     functional. Exit code 70 (EX_SOFTWARE) distinguishes these from
     generic failures and from Click's own usage errors (exit 2)."""

@@ -1,0 +1,80 @@
+name: Tests
+
+# Runs pytest on every PR and push to main.  Split into two jobs:
+#
+#   - `unit`  fast, cross-platform, cross-Python matrix (no slow marker).
+#             Any regression here should block the PR.
+#   - `e2e`   single ubuntu + py3.12 job that actually builds a wheel,
+#             spawns venvs and exercises `cataforge setup` / `upgrade`
+#             via subprocess. Runs only on Linux because venv creation
+#             plus subprocess encoding on Windows add flakiness without
+#             testing anything the unit suite doesn't already cover.
+#
+# Historical context: until this workflow landed, the 298-test suite only
+# ran on contributors' laptops — CI had scaffold-sync, pr-title lint, and
+# PyPI publish, but no gate for broken tests on merge. See review PR #57.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  unit:
+    name: Unit (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dev deps (editable)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Ruff
+        run: python -m ruff check src tests
+
+      - name: Pytest (fast — exclude slow marker)
+        run: python -m pytest tests/ -q -m "not slow"
+
+  e2e:
+    name: E2E install + upgrade (ubuntu, py3.12)
+    runs-on: ubuntu-latest
+    # Don't block the PR on network flakiness from the cross-version test —
+    # the install-and-upgrade test (which uses only the locally-built wheel)
+    # is the real regression gate. Mark this job continue-on-error so the
+    # required-check is the `unit` matrix above.
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build + dev deps
+        run: |
+          python -m pip install --upgrade pip build
+          python -m pip install -e ".[dev]"
+
+      - name: Pytest (e2e — slow marker only, network gated)
+        env:
+          # Enable the PyPI-fetching cross-version test. If PyPI is
+          # transiently unavailable the job red-lights — acceptable
+          # because a release-chain problem *should* surface loudly.
+          CATAFORGE_E2E_NETWORK: "1"
+        run: python -m pytest tests/e2e/ -q -m slow
