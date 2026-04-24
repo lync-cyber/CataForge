@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-import cataforge.hook.base as hook_base
 from cataforge.hook.base import matches_script_filters
 
 

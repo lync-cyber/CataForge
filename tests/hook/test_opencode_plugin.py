@@ -111,7 +111,11 @@ def test_emit_plugin_hooks_dry_run_does_not_write(
         lambda _p=None: {
             "hooks": {
                 "PreToolUse": [
-                    {"script": "guard_dangerous", "matcher_capability": "shell_exec", "type": "block"}
+                    {
+                        "script": "guard_dangerous",
+                        "matcher_capability": "shell_exec",
+                        "type": "block",
+                    }
                 ]
             }
         },
@@ -136,7 +140,11 @@ def test_apply_degradation_emits_plugin_on_opencode(
         lambda _p=None: {
             "hooks": {
                 "PreToolUse": [
-                    {"script": "guard_dangerous", "matcher_capability": "shell_exec", "type": "block"}
+                    {
+                        "script": "guard_dangerous",
+                        "matcher_capability": "shell_exec",
+                        "type": "block",
+                    }
                 ]
             },
             "degradation_templates": {},

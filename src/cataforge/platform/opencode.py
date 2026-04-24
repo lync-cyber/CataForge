@@ -51,7 +51,8 @@ class OpenCodeAdapter(PlatformAdapter):
             target_file = target_dir / f"{agent_dir.name}.md"
             if dry_run:
                 actions.append(
-                    f"would deploy agents/{agent_dir.name}/AGENT.md → .opencode/agents/{agent_dir.name}.md"
+                    f"would deploy agents/{agent_dir.name}/AGENT.md → "
+                    f".opencode/agents/{agent_dir.name}.md"
                 )
                 continue
             content = agent_md.read_text(encoding="utf-8")

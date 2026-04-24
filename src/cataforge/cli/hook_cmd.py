@@ -70,7 +70,11 @@ def _platform_status_map(platform_id: str) -> dict[str, str]:
         cfg = get_config_manager()
         adapter = get_adapter(platform_id, cfg.paths.platforms_dir)
     except Exception as e:
-        click.secho(f"Warning: could not load adapter for {platform_id}: {e}", fg="yellow", err=True)
+        click.secho(
+            f"Warning: could not load adapter for {platform_id}: {e}",
+            fg="yellow",
+            err=True,
+        )
         return {}
 
     return {name: status for name, status in adapter.hook_degradation.items()}

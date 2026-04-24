@@ -14,13 +14,15 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import shutil
+from collections.abc import Callable, Iterator
 from importlib.resources import as_file, files
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any
 
-from cataforge import __version__ as _RUNTIME_VERSION
+# ``_RUNTIME_VERSION`` is deliberately named — it reads as "the runtime
+# package version" at every call site, not as a constant.
+from cataforge import __version__ as _RUNTIME_VERSION  # noqa: N812
 
 _PKG = "cataforge._assets"
 _SCAFFOLD_SUBDIR = "cataforge_scaffold"

@@ -8,7 +8,6 @@ project, subcommands (`skill list`, `mcp list`, `plugin list`, `hook list`,
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -28,7 +27,7 @@ def fresh_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def _invoke(*args: str) -> "object":
+def _invoke(*args: str) -> object:
     runner = CliRunner()
     return runner.invoke(cli, list(args), catch_exceptions=False)
 
@@ -274,7 +273,9 @@ class TestGlobalFlags:
         assert result.exit_code == 0, result.output
         # Project root line must point at sibling_a (the override target),
         # never at sibling_b (cwd) or tmp_path (common ancestor).
-        root_lines = [l for l in result.output.splitlines() if "Project root:" in l]
+        root_lines = [
+            line for line in result.output.splitlines() if "Project root:" in line
+        ]
         assert root_lines, f"no 'Project root:' line in output:\n{result.output}"
         assert str(sibling_a) in root_lines[0]
         assert str(sibling_b) not in root_lines[0]

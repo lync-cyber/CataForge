@@ -118,6 +118,12 @@ include = [
 target-version = "py310"
 line-length = 100
 src = ["src", "tests"]
+# The bundled scaffold at src/cataforge/_assets/cataforge_scaffold/ is a
+# mirror of the repo-root .cataforge/ directory, regenerated on every build
+# by scripts/sync_scaffold.py.  It is not hand-maintained and lives outside
+# our lint coverage — scaffold-sync.yml already gates drift against the
+# canonical source.
+extend-exclude = ["src/cataforge/_assets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]

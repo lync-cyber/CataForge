@@ -22,7 +22,6 @@ from cataforge.core.config import ConfigManager
 from cataforge.deploy.deployer import Deployer
 from cataforge.platform.registry import clear_cache
 
-
 _CURSOR_PROFILE_BASE: dict = {
     "platform_id": "cursor",
     "display_name": "Cursor",
