@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/cataforge?color=b45309)](https://pypi.org/project/cataforge/)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-1c1917.svg)](https://github.com/lync-cyber/CataForge/blob/main/LICENSE)
-[![CI](https://github.com/lync-cyber/CataForge/actions/workflows/ci.yml/badge.svg)](https://github.com/lync-cyber/CataForge/actions/workflows/ci.yml)
+[![Tests](https://github.com/lync-cyber/CataForge/actions/workflows/test.yml/badge.svg)](https://github.com/lync-cyber/CataForge/actions/workflows/test.yml)
 [![Platforms](https://img.shields.io/badge/platforms-Claude%20Code%20%7C%20Cursor%20%7C%20CodeX%20%7C%20OpenCode-b45309)](https://github.com/lync-cyber/CataForge/blob/main/docs/guide/platforms.md)
 
 **一份 `.cataforge/` 规范，跨四个 AI IDE 一键落地。**
