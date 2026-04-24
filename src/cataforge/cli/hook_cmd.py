@@ -3,18 +3,28 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
 
 import click
 
+from cataforge.cli.errors import CataforgeError, ConfigError
+from cataforge.cli.guards import require_initialized
+from cataforge.cli.helpers import get_config_manager, resolve_root
 from cataforge.cli.main import cli
 
 
 @cli.group("hook")
 def hook_group() -> None:
-    """Manage CataForge hooks."""
+    """Manage CataForge hooks.
+
+    Hooks declared in ``.cataforge/hooks/hooks.yaml`` wire the framework
+    into IDE events (PreToolUse, PostToolUse, …). Use ``list`` to see
+    what's registered, ``test`` to fire a hook with a sample payload.
+    """
 
 
 @hook_group.command("list")
@@ -23,6 +33,7 @@ def hook_group() -> None:
     default=None,
     help="Show native/degraded status against this platform profile.",
 )
+@require_initialized
 def hook_list(platform: str | None) -> None:
     """List all registered hooks.
 
@@ -34,8 +45,7 @@ def hook_list(platform: str | None) -> None:
     try:
         spec = load_hooks_spec()
     except (OSError, ValueError) as e:
-        click.secho(f"Failed to load hooks spec: {e}", fg="red", err=True)
-        raise SystemExit(1) from None
+        raise ConfigError(f"Failed to load hooks spec: {e}") from None
 
     annotations: dict[str, str] = {}
     if platform:
@@ -55,10 +65,9 @@ def hook_list(platform: str | None) -> None:
 def _platform_status_map(platform_id: str) -> dict[str, str]:
     """Return ``{script_name: status}`` for each canonical hook on *platform_id*."""
     try:
-        from cataforge.core.config import ConfigManager
         from cataforge.platform.registry import get_adapter
 
-        cfg = ConfigManager()
+        cfg = get_config_manager()
         adapter = get_adapter(platform_id, cfg.paths.platforms_dir)
     except Exception as e:
         click.secho(f"Warning: could not load adapter for {platform_id}: {e}", fg="yellow", err=True)
@@ -80,6 +89,7 @@ def _platform_status_map(platform_id: str) -> dict[str, str]:
     default=None,
     help="Inline JSON payload (alternative to --fixture).",
 )
+@require_initialized
 def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) -> None:
     """Run a hook script with a sample payload.
 
@@ -93,20 +103,15 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
     Prints exit code + stderr so users can verify block/observe behaviour
     locally without going through a full deploy → IDE cycle.
     """
-    from cataforge.core.paths import find_project_root
-
-    root = find_project_root()
+    root = resolve_root()
 
     # Resolve the invocation command for hook_name.
     command = _resolve_hook_command(root, hook_name)
     if command is None:
-        click.secho(
+        raise ConfigError(
             f"No hook named {hook_name!r} declared in hooks.yaml.\n"
-            "Run `cataforge hook list` to see registered hooks.",
-            fg="red",
-            err=True,
+            "Run `cataforge hook list` to see registered hooks."
         )
-        raise SystemExit(1)
 
     # Pick the stdin payload.
     payload: str
@@ -132,30 +137,47 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
     try:
         json.loads(payload)
     except json.JSONDecodeError as e:
-        click.secho(f"Payload is not valid JSON: {e}", fg="red", err=True)
-        raise SystemExit(1) from None
+        raise ConfigError(f"Payload is not valid JSON: {e}") from None
 
     # Use the current interpreter — it already has cataforge importable,
     # which the system ``python`` on $PATH may not when cataforge is
     # installed via uv tool.  Built-in hook commands start with "python"
     # exactly; rewrite that token.
+    #
+    # Windows quirk: ``sys.executable`` often contains spaces
+    # (``C:\Program Files\Python314\python.exe``). We therefore run the
+    # ``python -m ...`` form as an argv *list* with ``shell=False`` so
+    # the space-in-path is not re-parsed by cmd.exe. Custom commands
+    # keep the legacy ``shell=True`` branch so users can still use pipes
+    # and redirects in their hook scripts.
     if command.startswith("python "):
-        exec_command = f"{sys.executable} {command[len('python '):]}"
+        argv = [sys.executable, *shlex.split(command[len("python "):])]
+        proc_kwargs: dict[str, object] = {"args": argv, "shell": False}
+        display = " ".join(shlex.quote(a) for a in argv)
+        # When the child is ``python -m cataforge...``, it needs the same
+        # cataforge package our process found. pip/uv-tool installs put it
+        # in site-packages where the child looks by default, but editable
+        # installs, pytest's ``pythonpath`` setting, PEP 660 edge cases,
+        # and ``uv run --with`` all put it on our ``sys.path`` without
+        # exposing it via the subprocess's default search path. Propagate
+        # the package's parent dir through ``PYTHONPATH`` so those setups
+        # don't silently give ``No module named 'cataforge'``.
+        proc_kwargs["env"] = _child_env_with_cataforge_importable()
     else:
-        exec_command = command
+        proc_kwargs = {"args": command, "shell": True}
+        display = command
 
     click.echo(f"Hook    : {hook_name}")
-    click.echo(f"Command : {exec_command}")
+    click.echo(f"Command : {display}")
     click.echo(f"Payload : {source_label}")
     click.echo("-" * 40)
 
     proc = subprocess.run(
-        exec_command,
         input=payload,
         capture_output=True,
         text=True,
-        shell=True,
         cwd=root,
+        **proc_kwargs,
     )
 
     if proc.stdout:
@@ -171,7 +193,42 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
     click.echo(f"Verdict  : {verdict}")
 
     # Mirror the hook's exit code so `hook test` can gate shell pipelines.
-    sys.exit(proc.returncode)
+    # A zero child exit is a normal return; any non-zero is surfaced
+    # through CataforgeError so the unified ``Error: …`` banner is kept.
+    if proc.returncode == 0:
+        return
+    err = CataforgeError(f"hook {hook_name!r} exited with code {proc.returncode} ({verdict}).")
+    err.exit_code = proc.returncode
+    raise err
+
+
+def _child_env_with_cataforge_importable() -> dict[str, str]:
+    """Copy ``os.environ`` with ``PYTHONPATH`` prepended so the child can
+    ``import cataforge`` from the same location as this interpreter.
+
+    ``site-packages`` setups aren't affected: the child's default search
+    already covers them and ``PYTHONPATH`` only gets checked before
+    ``site-packages`` — no duplication, no surprise shadowing of a
+    user-installed ``cataforge``.
+    """
+    env = os.environ.copy()
+    try:
+        import cataforge  # noqa: PLC0415 — lazy so import errors are caught
+
+        pkg_file = Path(cataforge.__file__ or "").resolve()
+    except Exception:
+        return env
+    if not pkg_file.is_file():
+        return env
+    pkg_parent = str(pkg_file.parent.parent)
+    existing = env.get("PYTHONPATH", "")
+    parts = existing.split(os.pathsep) if existing else []
+    if pkg_parent in parts:
+        return env
+    env["PYTHONPATH"] = (
+        os.pathsep.join([pkg_parent, *parts]) if parts else pkg_parent
+    )
+    return env
 
 
 def _resolve_hook_command(root: Path, hook_name: str) -> str | None:

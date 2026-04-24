@@ -14,8 +14,9 @@ required_sections:
 
 <!--
   Dev-Plan-Lite 适用于 agile-lite 执行模式。
-  全文目标 ≤50 行；不产出 Sprint 分卷、依赖图、风险项表。
+  全文目标 ≤100 行；不产出 Sprint 分卷、依赖图、风险项表。
   任务粒度沿用 standard dev-plan 的"单次 Agent 调用可完成"原则。
+  任务数建议 ≤25；若超出或依赖关系复杂，提示用户切换到 standard 模式。
 -->
 
 [NAV]

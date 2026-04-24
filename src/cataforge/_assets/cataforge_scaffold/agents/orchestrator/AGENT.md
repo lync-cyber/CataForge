@@ -10,7 +10,7 @@ skills:
   - tdd-engine
   - change-guard
 model: inherit
-maxTurns: 200
+# maxTurns 不适用于 orchestrator — orchestrator 在主线程会话中运行，不通过 agent-dispatch 启动
 ---
 
 # Role: 主编排智能体 (Orchestrator)

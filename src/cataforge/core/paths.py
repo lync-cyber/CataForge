@@ -102,6 +102,11 @@ class ProjectPaths:
         return self.cataforge_dir / ".deploy-state"
 
     @property
+    def event_log(self) -> Path:
+        from cataforge.core.event_log import EVENT_LOG_REL
+        return self.root / EVENT_LOG_REL
+
+    @property
     def mcp_state_dir(self) -> Path:
         return self.cataforge_dir / ".mcp-state"
 

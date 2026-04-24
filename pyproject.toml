@@ -86,10 +86,20 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "src/cataforge/__init__.py"
 
+# Refresh the bundled scaffold (``src/cataforge/_assets/cataforge_scaffold/``)
+# from the canonical ``.cataforge/`` source tree before every sdist/wheel
+# build.  See scripts/sync_scaffold.py and scripts/hatch_build.py.
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "scripts/hatch_build.py"
+
+[tool.hatch.build.targets.sdist.hooks.custom]
+path = "scripts/hatch_build.py"
+
 [tool.hatch.build.targets.wheel]
 # Ships everything under src/cataforge, including the bundled `.cataforge/`
 # scaffold at src/cataforge/_assets/cataforge_scaffold/ (agents / skills /
-# rules / hooks / platform profiles / schemas / templates).
+# rules / hooks / platform profiles / schemas / templates) — kept in lockstep
+# with the repo-root `.cataforge/` by the sync-scaffold build hook.
 packages = ["src/cataforge"]
 
 [tool.hatch.build.targets.sdist]
@@ -97,6 +107,8 @@ include = [
     "/src",
     "/tests",
     "/docs",
+    "/scripts",
+    "/.cataforge",
     "/README.md",
     "/LICENSE",
     "/pyproject.toml",

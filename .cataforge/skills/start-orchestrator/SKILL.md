@@ -14,6 +14,13 @@ user-invocable: true
 - 能做: orchestrator 编排流程的用户入口
 - 不做: 替代 orchestrator 的编排逻辑
 
+## 角色假设（关键）
+**你（当前主线程会话）即是 orchestrator。** 读取 AGENT.md 是为了加载角色定义，**不要通过 agent-dispatch 启动 orchestrator 子代理**。orchestrator 在主线程运行、跨会话持续感知状态，由主线程直接扮演该角色是框架设计的核心约束。
+
+## Anti-Patterns
+- 不通过 agent-dispatch 调度 orchestrator — 主线程直接扮演 orchestrator 角色，调度它会造成不必要的上下文嵌套和交互链路断裂
+- 不跳过 §角色假设 直接进入步骤 — 角色声明是防止误用 agent-dispatch 的唯一显式约束
+
 ## 执行步骤
 
 ### Step 1: 判断启动模式
@@ -30,7 +37,7 @@ user-invocable: true
 
 #### B.1: 框架版本检查
 1. 读取 pyproject.toml 的 `[project].version` 获取当前框架版本
-2. 如果 pyproject.toml 不存在 → 提示用户: "未检测到版本元数据文件(pyproject.toml)，当前框架可能需要升级。可运行 `python .cataforge/scripts/framework/upgrade.py local <新版CataForge路径>` 升级。"
+2. 如果 pyproject.toml 不存在 → 提示用户: "未检测到版本元数据文件(pyproject.toml)，当前框架可能需要升级。可运行 `pip install --upgrade cataforge && cataforge upgrade apply` 升级。"
 3. 版本检查仅提示，不阻断流程，继续 B.2
 
 #### B.2: 恢复推进

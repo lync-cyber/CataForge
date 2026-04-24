@@ -20,21 +20,12 @@
   },
   "constants": {
     "MAX_QUESTIONS_PER_BATCH": 3,
-    "MANUAL_REVIEW_CHECKPOINTS": [
-      "pre_dev",
-      "pre_deploy"
-    ],
+    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "pre_deploy"],
     "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl",
     "EVENT_LOG_SCHEMA": ".cataforge/schemas/event-log.schema.json",
     "DOC_SPLIT_THRESHOLD_LINES": 300,
     "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
-    "DOC_REVIEW_L2_SKIP_DOC_TYPES": [
-      "brief",
-      "prd-lite",
-      "arch-lite",
-      "dev-plan-lite",
-      "changelog"
-    ],
+    "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "prd-lite", "arch-lite", "dev-plan-lite", "changelog"],
     "TDD_LIGHT_LOC_THRESHOLD": 50,
     "SPRINT_REVIEW_MICRO_TASK_COUNT": 2,
     "RETRO_TRIGGER_SELF_CAUSED": 5
@@ -105,9 +96,7 @@
       "description": "MIN_REVIEW_SOURCES 已被 RETRO_TRIGGER_SELF_CAUSED 取代",
       "type": "file_must_not_contain",
       "path": ".cataforge/rules/COMMON-RULES.md",
-      "patterns": [
-        "MIN_REVIEW_SOURCES"
-      ]
+      "patterns": ["MIN_REVIEW_SOURCES"]
     },
     {
       "id": "mc-0.6.0-lite-templates",
@@ -115,12 +104,7 @@
       "description": "agile-lite / agile-prototype 模式所需模板齐全",
       "type": "dir_must_contain_files",
       "path": ".cataforge/skills/doc-gen/templates",
-      "patterns": [
-        "prototype/brief.md",
-        "lite/prd-lite.md",
-        "lite/arch-lite.md",
-        "lite/dev-plan-lite.md"
-      ]
+      "patterns": ["prototype/brief.md", "lite/prd-lite.md", "lite/arch-lite.md", "lite/dev-plan-lite.md"]
     },
     {
       "id": "mc-0.6.0-docgen-constant-ref",
@@ -128,9 +112,7 @@
       "description": "doc-gen SKILL.md 必须引用 DOC_SPLIT_THRESHOLD_LINES 而非硬编码 '500 行'",
       "type": "file_must_contain",
       "path": ".cataforge/skills/doc-gen/SKILL.md",
-      "patterns": [
-        "DOC_SPLIT_THRESHOLD_LINES"
-      ]
+      "patterns": ["DOC_SPLIT_THRESHOLD_LINES"]
     },
     {
       "id": "mc-0.6.0-docgen-no-hardcoded-500",
@@ -138,10 +120,7 @@
       "description": "doc-gen SKILL.md 不得出现硬编码 '500 行'",
       "type": "file_must_not_contain",
       "path": ".cataforge/skills/doc-gen/SKILL.md",
-      "patterns": [
-        "500 行",
-        "500行"
-      ]
+      "patterns": ["500 行", "500行"]
     },
     {
       "id": "mc-0.7.0-session-context-simplified",
@@ -149,10 +128,7 @@
       "description": "session_context.py 不应再注入 additionalContext；职责简化为仅写 session_start 事件",
       "type": "file_must_not_contain",
       "path": ".cataforge/hooks/session_context.py",
-      "patterns": [
-        "_detect_pkg_env",
-        "additionalContext"
-      ]
+      "patterns": ["_detect_pkg_env", "additionalContext"]
     },
     {
       "id": "mc-0.7.0-setup-emit-env",
@@ -160,10 +136,7 @@
       "description": "setup.py 必须提供 --emit-env-block 子命令供 orchestrator Bootstrap 填入 CLAUDE.md §执行环境",
       "type": "file_must_contain",
       "path": ".cataforge/scripts/framework/setup.py",
-      "patterns": [
-        "--emit-env-block",
-        "build_env_block"
-      ]
+      "patterns": ["--emit-env-block", "build_env_block"]
     },
     {
       "id": "mc-0.7.0-detect-correction-registered",
@@ -171,10 +144,8 @@
       "description": "settings.json 必须注册 detect_correction 模块到 AskUserQuestion 匹配器",
       "type": "file_must_contain",
       "path": ".claude/settings.json",
-      "patterns": [
-        "detect_correction",
-        "AskUserQuestion"
-      ]
+      "patterns": ["detect_correction", "AskUserQuestion"],
+      "requires_deploy": true
     },
     {
       "id": "mc-0.7.0-retro-threshold-relaxed",
@@ -182,9 +153,7 @@
       "description": "RETRO_TRIGGER_SELF_CAUSED 已从 2 放宽至 5 以补偿高频 option-override",
       "type": "file_must_contain",
       "path": ".cataforge/rules/COMMON-RULES.md",
-      "patterns": [
-        "RETRO_TRIGGER_SELF_CAUSED | 5"
-      ]
+      "patterns": ["RETRO_TRIGGER_SELF_CAUSED | 5"]
     },
     {
       "id": "mc-0.10.0-cataforge-dir",
@@ -205,10 +174,7 @@
       "description": "dispatch-prompt.md 必须包含 OVERRIDE 标记",
       "type": "file_must_contain",
       "path": ".cataforge/skills/agent-dispatch/templates/dispatch-prompt.md",
-      "patterns": [
-        "OVERRIDE:dispatch_syntax",
-        "OVERRIDE:return_format"
-      ]
+      "patterns": ["OVERRIDE:dispatch_syntax", "OVERRIDE:return_format"]
     },
     {
       "id": "mc-0.10.0-capability-ids",
@@ -216,9 +182,7 @@
       "description": "源 AGENT.md 必须使用能力标识符",
       "type": "file_must_not_contain",
       "path": ".cataforge/agents/orchestrator/AGENT.md",
-      "patterns": [
-        "tools: Read"
-      ]
+      "patterns": ["tools: Read"]
     }
   ]
 }

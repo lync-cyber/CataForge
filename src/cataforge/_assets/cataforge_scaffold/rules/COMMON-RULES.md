@@ -44,8 +44,8 @@
 |--------|-----|------|--------|
 | MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 | product-manager, reviewer, research |
 | MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 | orchestrator |
-| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式） | event_logger.py, ORCHESTRATOR-PROTOCOLS |
-| EVENT_LOG_SCHEMA | .cataforge/schemas/event-log.schema.json | 事件日志 Schema 定义 | event_logger.py |
+| EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式） | `cataforge event log` (via event_logger.py shim), ORCHESTRATOR-PROTOCOLS |
+| EVENT_LOG_SCHEMA | .cataforge/schemas/event-log.schema.json | 事件日志 Schema 定义 | `cataforge event log`（核心校验在 cataforge.core.event_log） |
 | DOC_SPLIT_THRESHOLD_LINES | 300 | 单文档触发拆分的行数 | doc-gen |
 | DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
 | DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, prd-lite, arch-lite, dev-plan-lite, changelog] | 可短路 Layer 2 的文档类型白名单 | doc-review |
@@ -75,7 +75,7 @@
 |------|-----------------|-----------|-----------------|
 | 适用场景 | 中大型正式交付项目 | 5-10 feature 轻量工具/小型 Web 项目 | 原型 / PoC / 单文件脚本 |
 | 阶段集合 | 7 阶段全跑，ui_design/testing/deployment 可配置 N/A | Phase 1+2 合并为 `planning`，development 保留，testing/deployment 可 N/A | Phase 1~4 合并为 `brief`，仅 `brief` + `development` |
-| 文档产出 | PRD + ARCH + UI-SPEC + DEV-PLAN + TEST-REPORT + DEPLOY-SPEC | prd-lite + arch-lite + dev-plan-lite（各 ≤50 行） | 单一 brief.md（≤150 行） |
+| 文档产出 | PRD + ARCH + UI-SPEC + DEV-PLAN + TEST-REPORT + DEPLOY-SPEC | prd-lite + arch-lite + dev-plan-lite（各目标 ≤100 行）；涉及 UI 的项目可选 ui-spec-lite | 单一 brief.md（目标 ≤200 行） |
 | doc-review | Layer 1 + Layer 2 强制 | Layer 1 强制；Layer 2 按 `DOC_REVIEW_L2_SKIP_*` 常量短路 | Layer 1 only |
 | TDD 流程 | RED → GREEN → REFACTOR | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 可选 | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 跳过 |
 | 人工检查点 | 引用 `MANUAL_REVIEW_CHECKPOINTS` | 仅 pre_dev | none |

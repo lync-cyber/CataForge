@@ -11,10 +11,20 @@ Usage:
     cataforge mcp [list|register|start|stop]
     cataforge plugin [list|install|remove]
     cataforge docs [load|index]
+    cataforge event log ...
     cataforge penpot [deploy|mcp-only|start|stop|status]
+
+Exit codes (see docs/reference/cli.md §退出码):
+    0   success
+    1   generic failure (validation, missing prereq, business logic)
+    2   Click usage error (unknown option, missing required arg, …)
+    70  feature not yet implemented (stub subcommands)
 """
 
 from __future__ import annotations
+
+import logging
+from pathlib import Path
 
 import click
 
@@ -27,10 +37,69 @@ from cataforge.utils.common import ensure_utf8_stdio
 ensure_utf8_stdio()
 
 
-@click.group()
+# Keys used on ``ctx.obj`` (a plain dict) so subcommands can read the
+# globally-scoped flags without re-parsing argv.
+CTX_VERBOSE = "verbose"
+CTX_QUIET = "quiet"
+CTX_PROJECT_DIR = "project_dir"
+
+
+@click.group(
+    help=(
+        "CataForge — AI Programming: Agent + Skill Workflow Framework.\n\n"
+        "Getting started:\n"
+        "  cataforge setup --platform claude-code    # scaffold a new project\n"
+        "  cataforge deploy                           # write IDE artifacts\n"
+        "  cataforge doctor                           # diagnose environment\n\n"
+        "Run `cataforge COMMAND --help` for command-specific options."
+    ),
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 @click.version_option(__version__, prog_name="cataforge")
-def cli() -> None:
+@click.option(
+    "-v", "--verbose",
+    is_flag=True,
+    help="Enable debug-level logging for cataforge.* loggers.",
+)
+@click.option(
+    "-q", "--quiet",
+    is_flag=True,
+    help="Suppress non-error output (logging level = WARNING).",
+)
+@click.option(
+    "--project-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=None,
+    help="Override project root discovery (default: walk up for .cataforge/).",
+)
+@click.pass_context
+def cli(
+    ctx: click.Context,
+    verbose: bool,
+    quiet: bool,
+    project_dir: Path | None,
+) -> None:
     """CataForge — AI Programming: Agent + Skill Workflow Framework."""
+    if verbose and quiet:
+        raise click.UsageError("--verbose and --quiet are mutually exclusive.")
+
+    # Tune only the ``cataforge.*`` logger level; rely on Python's
+    # ``logging.lastResort`` (stderr, WARNING+) to actually emit — we
+    # deliberately do NOT install an explicit StreamHandler so that
+    # repeated invocations under CliRunner (which swaps sys.stderr between
+    # calls) can't be left holding a stale, closed stream reference.
+    root_logger = logging.getLogger("cataforge")
+    if verbose:
+        root_logger.setLevel(logging.DEBUG)
+    elif quiet:
+        root_logger.setLevel(logging.WARNING)
+    # default: leave level untouched so host apps' logging.basicConfig wins
+
+    # Expose to subcommands via ctx.obj (plain dict — no custom class needed).
+    ctx.ensure_object(dict)
+    ctx.obj[CTX_VERBOSE] = verbose
+    ctx.obj[CTX_QUIET] = quiet
+    ctx.obj[CTX_PROJECT_DIR] = project_dir.resolve() if project_dir else None
 
 
 def _register_commands() -> None:
@@ -40,6 +109,7 @@ def _register_commands() -> None:
         deploy_cmd,
         docs_cmd,
         doctor_cmd,
+        event_cmd,
         hook_cmd,
         mcp_cmd,
         penpot_cmd,

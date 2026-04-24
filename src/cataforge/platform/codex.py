@@ -18,9 +18,6 @@ class CodexAdapter(PlatformAdapter):
     def display_name(self) -> str:
         return "Codex CLI"
 
-    def get_tool_map(self) -> dict[str, str | None]:
-        return dict(self._profile.get("tool_map", {}))
-
     def get_project_root_env_var(self) -> str | None:
         return "CODEX_HOME"
 

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 280" role="img" aria-label="CataForge 核心特性：多平台统一、声明即部署、13 Agent + 24 Skill、TDD 内建、多层质量门禁、跨项目学习">
+  <title>CataForge 核心特性</title>
+  <desc>六大核心特性分布在 3×2 卡片网格中：多平台统一、声明即部署、13 Agent + 24 Skill、TDD 内建、多层质量门禁、跨项目学习。</desc>
+
+  <defs>
+    <pattern id="kf-dots" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="10" cy="10" r="0.6" fill="#a8a29e" opacity="0.35"/>
+    </pattern>
+    <style>
+      .kf { font-family: ui-monospace,'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="280" fill="#fdfcf7"/>
+  <rect width="960" height="280" fill="url(#kf-dots)"/>
+
+  <!-- Header -->
+  <text class="kf" x="28" y="24" font-size="9" font-weight="700" fill="#57534e" letter-spacing="2">CORE FEATURES</text>
+  <line x1="28" y1="32" x2="932" y2="32" stroke="#a8a29e" stroke-width="1"/>
+
+  <!-- ── ROW 1 (y=44–144) ────────────────────────────── -->
+
+  <!-- Card 01: 多平台统一 -->
+  <rect x="28"  y="44" width="290" height="100" rx="2" fill="#fdfcf7" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="42"  y="74"  font-size="22" font-weight="700" fill="#b45309">01</text>
+  <text class="kf" x="42"  y="96"  font-size="13" font-weight="700" fill="#1c1917">多平台统一</text>
+  <line x1="42" y1="106" x2="306" y2="106" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="42"  y="120" font-size="10" fill="#57534e">同一份规范投放四个 AI IDE，</text>
+  <text class="kf" x="42"  y="133" font-size="10" fill="#57534e">PlatformAdapter 屏蔽能力差异。</text>
+
+  <!-- Card 02: 声明即部署 -->
+  <rect x="334" y="44" width="290" height="100" rx="2" fill="#fdfcf7" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="348" y="74"  font-size="22" font-weight="700" fill="#b45309">02</text>
+  <text class="kf" x="348" y="96"  font-size="13" font-weight="700" fill="#1c1917">声明即部署</text>
+  <line x1="348" y1="106" x2="612" y2="106" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="348" y="120" font-size="10" fill="#57534e">cataforge deploy 一键翻译注入，</text>
+  <text class="kf" x="348" y="133" font-size="10" fill="#57534e">幂等执行，自动清理孤儿产物。</text>
+
+  <!-- Card 03: 13 Agent + 24 Skill (emphasized) -->
+  <rect x="640" y="44" width="292" height="100" rx="2" fill="#fdf3d7" stroke="#b45309" stroke-width="1.6"/>
+  <text class="kf" x="654" y="74"  font-size="22" font-weight="700" fill="#b45309">03</text>
+  <text class="kf" x="654" y="96"  font-size="13" font-weight="700" fill="#7c2d12">13 Agent + 24 Skill</text>
+  <line x1="654" y1="106" x2="920" y2="106" stroke="#b45309" stroke-width="1"/>
+  <text class="kf" x="654" y="120" font-size="10" fill="#57534e">覆盖全 SDLC 角色：PM、架构师、</text>
+  <text class="kf" x="654" y="133" font-size="10" fill="#57534e">TDD、评审员、QA、DevOps。</text>
+
+  <!-- ── ROW 2 (y=160–260) ───────────────────────────── -->
+
+  <!-- Card 04: TDD 内建 -->
+  <rect x="28"  y="160" width="290" height="100" rx="2" fill="#fdfcf7" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="42"  y="190" font-size="22" font-weight="700" fill="#b45309">04</text>
+  <text class="kf" x="42"  y="212" font-size="13" font-weight="700" fill="#1c1917">TDD 内建</text>
+  <line x1="42"  y1="222" x2="306" y2="222" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="42"  y="236" font-size="10" fill="#57534e">RED→GREEN→REFACTOR 引擎，</text>
+  <text class="kf" x="42"  y="249" font-size="10" fill="#57534e">按 LOC 自动切换 standard/light。</text>
+
+  <!-- Card 05: 多层质量门禁 -->
+  <rect x="334" y="160" width="290" height="100" rx="2" fill="#fdfcf7" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="348" y="190" font-size="22" font-weight="700" fill="#b45309">05</text>
+  <text class="kf" x="348" y="212" font-size="13" font-weight="700" fill="#1c1917">多层质量门禁</text>
+  <line x1="348" y1="222" x2="612" y2="222" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="348" y="236" font-size="10" fill="#57534e">文档双审（脚本+AI）、代码双审、</text>
+  <text class="kf" x="348" y="249" font-size="10" fill="#57534e">Sprint 完成度，全程可审计。</text>
+
+  <!-- Card 06: 跨项目学习 -->
+  <rect x="640" y="160" width="292" height="100" rx="2" fill="#fdfcf7" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="654" y="190" font-size="22" font-weight="700" fill="#b45309">06</text>
+  <text class="kf" x="654" y="212" font-size="13" font-weight="700" fill="#1c1917">跨项目学习</text>
+  <line x1="654" y1="222" x2="920" y2="222" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="654" y="236" font-size="10" fill="#57534e">On-Correction 钩子捕获纠正，</text>
+  <text class="kf" x="654" y="249" font-size="10" fill="#57534e">Reflector 跨项目提炼可复用经验。</text>
+
+  <!-- Footer -->
+  <line x1="28" y1="268" x2="932" y2="268" stroke="#a8a29e" stroke-width="1"/>
+  <text class="kf" x="28"  y="277" font-size="9" fill="#57534e" letter-spacing="0.4">CATAFORGE  ·  CORE FEATURES OVERVIEW</text>
+  <text class="kf" x="872" y="277" font-size="9" fill="#57534e" letter-spacing="0.4">FIG. 08</text>
+</svg>

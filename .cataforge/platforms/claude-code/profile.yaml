@@ -85,6 +85,10 @@ dispatch:
 hooks:
   config_format: json
   config_path: .claude/settings.json
+  # Claude Code's hook schema only recognises "type: command" for each hook
+  # entry (see https://docs.claude.com/en/docs/claude-code/hooks).  Internal
+  # CataForge type tags (block / observe) are dropped at the bridge boundary.
+  entry_type: command
   event_map:
     PreToolUse: PreToolUse
     PostToolUse: PostToolUse

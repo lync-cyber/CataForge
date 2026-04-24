@@ -386,7 +386,7 @@ class TestHookCommandTemplate:
 
 
 class TestClaudeCodeAgentLayout:
-    """Regression guard: Claude Code expects a flat ``<name>.md`` layout."""
+    """Regression guard: Claude Code uses a flat ``<name>.md`` layout only."""
 
     def _make_source(self, root: Path) -> Path:
         src = root / ".cataforge" / "agents"
@@ -398,9 +398,7 @@ class TestClaudeCodeAgentLayout:
         )
         return src
 
-    def test_claude_code_emits_flat_and_directory_layout(
-        self, project_dir: Path
-    ) -> None:
+    def test_claude_code_emits_flat_layout_only(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
         src = self._make_source(project_dir)
         actions = adapter.deploy_agents(src, project_dir, dry_run=False)
@@ -408,24 +406,38 @@ class TestClaudeCodeAgentLayout:
         flat = project_dir / ".claude" / "agents" / "orchestrator.md"
         nested = project_dir / ".claude" / "agents" / "orchestrator" / "AGENT.md"
         assert flat.is_file(), "flat <name>.md required for native discovery"
-        assert nested.is_file(), "legacy <name>/AGENT.md kept for back-compat"
+        assert not nested.exists(), "legacy <name>/AGENT.md must no longer be written"
         assert "name: orchestrator" in flat.read_text(encoding="utf-8")
         assert any("orchestrator" in a for a in actions)
 
-    def test_claude_code_prunes_both_layouts_on_removal(
-        self, project_dir: Path
-    ) -> None:
+    def test_claude_code_prunes_flat_on_removal(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
         src = self._make_source(project_dir)
         adapter.deploy_agents(src, project_dir, dry_run=False)
 
-        # Drop the agent from source and redeploy — both forms must disappear.
         import shutil
 
         shutil.rmtree(src / "orchestrator")
         adapter.deploy_agents(src, project_dir, dry_run=False)
 
         assert not (project_dir / ".claude" / "agents" / "orchestrator.md").exists()
-        assert not (
-            project_dir / ".claude" / "agents" / "orchestrator" / "AGENT.md"
-        ).exists()
+
+    def test_claude_code_prunes_legacy_subdir_on_deploy(
+        self, project_dir: Path
+    ) -> None:
+        """Upgrading users: a pre-existing ``<name>/AGENT.md`` subdir left from
+        the old dual layout must be cleaned up on the next deploy, even when
+        the agent still exists in source."""
+        adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
+        src = self._make_source(project_dir)
+
+        legacy_dir = project_dir / ".claude" / "agents" / "orchestrator"
+        legacy_dir.mkdir(parents=True)
+        (legacy_dir / "AGENT.md").write_text(
+            "---\nname: orchestrator\n---\nstale\n", encoding="utf-8"
+        )
+
+        adapter.deploy_agents(src, project_dir, dry_run=False)
+
+        assert not legacy_dir.exists()
+        assert (project_dir / ".claude" / "agents" / "orchestrator.md").is_file()

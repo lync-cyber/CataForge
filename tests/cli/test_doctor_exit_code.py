@@ -87,6 +87,47 @@ def test_doctor_skips_requires_deploy_check_before_first_deploy(
     result = CliRunner().invoke(doctor_command, [])
     assert result.exit_code == 0, result.output
     assert "SKIP mc-test-requires-deploy" in result.output
+
+
+def test_doctor_fails_on_missing_protocol_script(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Regression: ``doctor`` must flag markdown that invokes a ``python
+    .cataforge/scripts/...`` path that does not exist on disk. This is the
+    class of bug that let ``event_logger.py`` go missing unnoticed for months.
+    """
+    root = _minimal_project(tmp_path, [])
+    agents_dir = root / ".cataforge" / "agents" / "phantom"
+    agents_dir.mkdir(parents=True)
+    (agents_dir / "AGENT.md").write_text(
+        "See `python .cataforge/scripts/framework/does_not_exist.py --flag`.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code == 1, result.output
+    assert ".cataforge/scripts/framework/does_not_exist.py" in result.output
+    assert ".cataforge/agents/phantom/AGENT.md:1" in result.output
+
+
+def test_doctor_passes_when_referenced_script_exists(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A reference that resolves should not count toward doctor's exit code."""
+    root = _minimal_project(tmp_path, [])
+    scripts_dir = root / ".cataforge" / "scripts" / "framework"
+    scripts_dir.mkdir(parents=True)
+    (scripts_dir / "real_script.py").write_text("# real\n", encoding="utf-8")
+    agents_dir = root / ".cataforge" / "agents" / "phantom"
+    agents_dir.mkdir(parents=True)
+    (agents_dir / "AGENT.md").write_text(
+        "Run `python .cataforge/scripts/framework/real_script.py`.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code == 0, result.output
+    assert "1/1 scripts present" in result.output
     assert "FAIL" not in result.output
 
 
