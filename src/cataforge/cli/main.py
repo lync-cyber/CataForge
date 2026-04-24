@@ -50,12 +50,12 @@ CTX_PROJECT_DIR = "project_dir"
         "\n"
         "\b\n"
         "GETTING STARTED (0→1):\n"
-        "  cataforge doctor                          # 1. diagnose env\n"
-        "  cataforge setup --platform claude-code    # 2. scaffold .cataforge/\n"
-        "  cataforge deploy                          # 3. write IDE artifacts\n"
+        "  cataforge bootstrap --platform claude-code   # one-shot: setup+deploy+doctor\n"
+        "  cataforge bootstrap --dry-run                # preview what bootstrap would do\n"
         "\n"
         "\b\n"
         "EVERYDAY COMMANDS:\n"
+        "  bootstrap    One-shot setup → upgrade → deploy → doctor (idempotent).\n"
         "  setup        Initialise .cataforge/; pick target platform.\n"
         "  deploy       Emit IDE-visible artefacts (CLAUDE.md, .claude/…).\n"
         "  upgrade      Refresh scaffold after `pip install -U cataforge`.\n"
@@ -131,6 +131,7 @@ def _register_commands() -> None:
     """Import all command modules so they register with the CLI group."""
     from cataforge.cli import (  # noqa: F401
         agent_cmd,
+        bootstrap_cmd,
         correction_cmd,
         deploy_cmd,
         docs_cmd,

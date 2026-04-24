@@ -1,7 +1,7 @@
 ---
 name: self-update
 description: "CataForge 自更新 — 检测已安装包与项目 scaffold 的版本差异，升级包并刷新 scaffold，运行迁移检查验证一致性。支持 pip 和 uv 两种包管理器，保留 runtime.platform、upgrade.state 和 PROJECT-STATE.md 等用户可编辑状态。当用户提到 CataForge 升级、scaffold 过期、framework 版本不一致、更新框架配置时，使用此 skill。"
-argument-hint: "[check | apply [--dry-run] | verify]"
+argument-hint: "[check | apply [--dry-run] | verify]  # apply 自 v0.1.10 起调用 cataforge bootstrap"
 suggested-tools: Bash, Read
 depends: []
 disable-model-invocation: false
@@ -61,7 +61,7 @@ Scaffold : <scaffold_version>
 
 ### 指令2: 升级并刷新 (apply)
 
-> 此指令执行完整四步升级流程，自动检测包管理器。
+> 此指令负责包升级（pip/uv）+ 调用 `cataforge bootstrap` 幂等编排 scaffold 刷新、部署、验证。自 v0.1.10 起将原来的 `apply → verify` 手动链替换为 `bootstrap`。
 
 **Step 1: 版本前置检查**
 
@@ -69,7 +69,7 @@ Scaffold : <scaffold_version>
 cataforge upgrade check
 ```
 
-若已是 up-to-date，告知用户并询问是否仍要强制刷新 scaffold。用户确认后继续，否则跳过 Step 2-3。
+若已是 up-to-date，告知用户并询问是否仍要强制刷新 scaffold。用户确认后继续（`cataforge bootstrap` 会自动跳过已 current 的步骤，仅跑 doctor），否则直接结束。
 
 **Step 2: 检测包管理器**
 
@@ -84,7 +84,7 @@ pip show cataforge 2>/dev/null | grep -q Name && echo "pip"
 
 - 若检测到 `uv` → 升级命令为 `uv tool upgrade cataforge`
 - 若检测到 `pip` → 升级命令为 `pip install --upgrade cataforge`
-- 若均未检测到 → 提示用户手动升级包后重试，并继续执行 Step 3（仅刷新 scaffold）
+- 若均未检测到 → 提示用户手动升级包后重试，并继续执行 Step 4（仅刷新 scaffold）
 
 **Step 3: 升级包**
 
@@ -100,17 +100,23 @@ pip install --upgrade cataforge
 
 若 `--dry-run`:
 ```bash
-cataforge upgrade apply --dry-run
+cataforge bootstrap --dry-run
 ```
-输出预览后停止，不执行任何写入。
+输出 plan 预览后停止，不执行任何写入。
 
-**Step 4: 刷新 scaffold**
+**Step 4: 一键编排刷新 / 部署 / 验证**
 
 ```bash
-cataforge upgrade apply
+cataforge bootstrap --yes
 ```
 
-记录输出中的 `wrote N file(s)` 和 `kept N existing` 数值。
+`bootstrap` 按产物状态智能决定每步是否需要跑：
+- scaffold 已 current → skip setup
+- installed 包版本 > scaffold 版本 或有 manifest drift → 跑 upgrade apply
+- scaffold 变化了 或 `.deploy-state` 平台漂移 或从未部署 → 跑 deploy
+- 永远跑 doctor 作为验证门（除非传 `--skip-doctor`，不推荐）
+
+记录输出中的每步状态。若 doctor FAIL，按 指令3 的解读路径处理。
 
 **Step 5: 更新 upgrade.state**
 
@@ -130,13 +136,7 @@ cataforge upgrade apply
 
 使用 Read + Edit 工具原地更新，保留文件其他字段不变。
 
-**Step 6: 验证**
-
-```bash
-cataforge upgrade check
-```
-
-确认输出包含 `Scaffold is up to date with the installed package.`
+> ⚠️ 若用户在 `bootstrap` 中同时遇到 EVENT-LOG schema FAIL（来自 v0.1.7 之前旁路写入的历史记录），按 hint 提示跑 `cataforge event accept-legacy` 设置水位线即可，不影响本次升级。
 
 ---
 
@@ -170,16 +170,17 @@ cataforge doctor
 
 ---
 
-## 完整四步升级流程（无参数默认行为）
+## 完整升级流程（无参数默认行为）
 
 当用户未传参数直接调用 `/self-update` 时，按顺序执行:
 
 1. **check** — 检测版本差异
 2. **询问确认** — 若已是最新版本，告知用户无需升级；若有差异，说明将执行的变更并请求确认
-3. **apply** — 执行升级（用户确认后）
-4. **verify** — 运行迁移检查
+3. **apply** — 包升级 + `cataforge bootstrap` 编排刷新 / 部署 / 验证（用户确认后）。bootstrap 内部已含 doctor，无需额外 verify 步骤。
 
 每步之间汇报进度，任一步骤失败时停止并说明原因。
+
+> 指令 3 `verify` 保留为独立入口，供"不想升级、只想跑一下诊断"的场景用。
 
 ---
 

@@ -118,3 +118,69 @@ class TestEventLogBatch:
         result = _invoke("event", "log", "--batch", input="")
         assert result.exit_code != 0
         assert "empty" in result.output.lower()
+
+
+class TestEventAcceptLegacy:
+    @pytest.fixture
+    def project(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        """Project with a real framework.json for round-trip writes."""
+        cf = tmp_path / ".cataforge"
+        cf.mkdir()
+        (cf / "framework.json").write_text(
+            json.dumps({"version": "0.1.9", "runtime": {"platform": "claude-code"}}),
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        return tmp_path
+
+    def test_sets_cutoff_with_default_now(self, project: Path) -> None:
+        result = _invoke("event", "accept-legacy")
+        assert result.exit_code == 0, result.output
+
+        fw = json.loads(
+            (project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
+        )
+        cutoff = fw["upgrade"]["state"]["event_log_validate_since"]
+        assert cutoff  # non-empty ISO timestamp
+        # Must be parseable ISO-8601.
+        from datetime import datetime
+        datetime.fromisoformat(cutoff.replace("Z", "+00:00"))
+
+    def test_accepts_explicit_before(self, project: Path) -> None:
+        result = _invoke(
+            "event", "accept-legacy", "--before", "2026-04-01T00:00:00+00:00"
+        )
+        assert result.exit_code == 0, result.output
+        fw = json.loads(
+            (project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
+        )
+        assert (
+            fw["upgrade"]["state"]["event_log_validate_since"]
+            == "2026-04-01T00:00:00+00:00"
+        )
+
+    def test_rejects_bad_timestamp(self, project: Path) -> None:
+        result = _invoke("event", "accept-legacy", "--before", "not-a-date")
+        assert result.exit_code != 0
+        assert "valid ISO-8601" in result.output
+
+    def test_preserves_other_framework_fields(self, project: Path) -> None:
+        """Setting the cutoff must not clobber version/runtime — we rely on
+        these across the CLI and silent rewrites are how C-1 happened."""
+        result = _invoke("event", "accept-legacy")
+        assert result.exit_code == 0, result.output
+        fw = json.loads(
+            (project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
+        )
+        assert fw["version"] == "0.1.9"
+        assert fw["runtime"]["platform"] == "claude-code"
+
+    def test_reports_update_over_previous_cutoff(self, project: Path) -> None:
+        _invoke("event", "accept-legacy", "--before", "2026-01-01T00:00:00+00:00")
+        result = _invoke(
+            "event", "accept-legacy", "--before", "2026-04-01T00:00:00+00:00"
+        )
+        assert result.exit_code == 0, result.output
+        assert "→" in result.output
+        assert "2026-01-01" in result.output
+        assert "2026-04-01" in result.output

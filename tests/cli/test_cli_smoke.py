@@ -310,8 +310,11 @@ class TestGlobalFlags:
         result = _invoke("--help")
         assert result.exit_code == 0
         assert "GETTING STARTED" in result.output
-        assert "cataforge setup" in result.output
+        # bootstrap is the advertised 0→1 path; setup is still listed under
+        # EVERYDAY COMMANDS for users who want the underlying step.
+        assert "cataforge bootstrap" in result.output
         assert "EVERYDAY COMMANDS" in result.output
+        assert "setup" in result.output
         assert "FRAMEWORK OBJECTS" in result.output
 
 
