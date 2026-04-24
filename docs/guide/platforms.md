@@ -99,7 +99,7 @@
 每个平台部署只生成**自己命名空间**下的产物（`.claude/` / `.cursor/` / `.codex/` / `.opencode/`），互不干扰。
 
 - Cursor 部署**默认不会**触及 `.claude/`。
-- 干运行（`deploy --check`）会明示 `SKIP: .claude/rules Markdown mirror`，避免用户误以为 Cursor 部署 "莫名碰了 Claude 目录"。
+- 干运行（`deploy --dry-run`）会明示 `SKIP: .claude/rules Markdown mirror`，避免用户误以为 Cursor 部署 "莫名碰了 Claude 目录"。
 
 ---
 

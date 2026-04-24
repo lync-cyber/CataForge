@@ -16,7 +16,7 @@ cataforge doctor
 cataforge setup --platform cursor
 
 # 3. 干运行部署：查看会写入哪些产物，不实际写盘
-cataforge deploy --check --platform cursor
+cataforge deploy --dry-run --platform cursor
 ```
 
 ## 成功标志
@@ -25,11 +25,11 @@ cataforge deploy --check --platform cursor
 |------|-----------|
 | `cataforge doctor` | `Diagnostics complete.` |
 | `cataforge setup --platform cursor` | `Setup complete. Run cataforge deploy ...` |
-| `cataforge deploy --check --platform cursor` | `Deploy complete.` |
+| `cataforge deploy --dry-run --platform cursor` | `Deploy complete.` |
 
 ## 真正写入 IDE 产物
 
-干运行确认无误后，去掉 `--check` 即可真部署：
+干运行确认无误后，去掉 `--dry-run` 即可真部署：
 
 ```bash
 cataforge deploy --platform cursor
@@ -61,7 +61,7 @@ cataforge deploy --platform claude-code
 ```bash
 python -m cataforge doctor
 python -m cataforge setup --platform cursor
-python -m cataforge deploy --check --platform cursor
+python -m cataforge deploy --dry-run --platform cursor
 ```
 
 ## 下一步

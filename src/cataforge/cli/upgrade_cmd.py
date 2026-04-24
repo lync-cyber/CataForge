@@ -72,13 +72,37 @@ def upgrade_apply(dry_run: bool) -> None:
     itself must be upgraded separately via pip/uv.
     """
     from cataforge.cli.helpers import get_config_manager
-    from cataforge.core.scaffold import copy_scaffold_to, iter_scaffold_files
+    from cataforge.core.scaffold import classify_scaffold_files, copy_scaffold_to
 
     if dry_run:
-        paths = sorted(rel for rel, _ in iter_scaffold_files())
-        click.echo(f"Would refresh {len(paths)} scaffold file(s).")
+        cfg = get_config_manager()
+        dest = cfg.paths.cataforge_dir
+        classified = classify_scaffold_files(dest)
+        tallies: dict[str, int] = {}
+        for _, status in classified:
+            tallies[status] = tallies.get(status, 0) + 1
+
+        click.echo(f"Would refresh scaffold at {dest}")
+        click.echo(f"  Total files: {len(classified)}")
+        parts = [f"{count} {status}" for status, count in sorted(tallies.items())]
+        if parts:
+            click.echo("  Summary: " + ", ".join(parts))
+        click.echo("")
+        for rel, status in sorted(classified):
+            tag = _status_tag(status)
+            click.echo(f"  {tag} {rel}")
+        user_modified = tallies.get("user-modified", 0) + tallies.get("drift", 0)
+        if user_modified:
+            click.echo("")
+            click.secho(
+                f"  WARNING: {user_modified} file(s) marked user-modified/drift "
+                "will be overwritten by `upgrade apply`. "
+                "Back up or commit them before proceeding.",
+                fg="yellow",
+                err=True,
+            )
         click.echo(
-            "User-owned state preserved: framework.json(runtime.platform, "
+            "\nUser-owned state preserved: framework.json(runtime.platform, "
             "upgrade.state), PROJECT-STATE.md"
         )
         return
@@ -107,3 +131,17 @@ def upgrade_verify(ctx: click.Context) -> None:
     from cataforge.cli.doctor_cmd import doctor_command
 
     ctx.invoke(doctor_command)
+
+
+_STATUS_TAGS = {
+    "new": "[new]          ",
+    "unchanged": "[unchanged]    ",
+    "update": "[update]       ",
+    "preserved": "[preserved]    ",
+    "user-modified": "[user-modified]",
+    "drift": "[drift]        ",
+}
+
+
+def _status_tag(status: str) -> str:
+    return _STATUS_TAGS.get(status, f"[{status}]")

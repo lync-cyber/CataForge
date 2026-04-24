@@ -1,6 +1,6 @@
 """Dry-run output format regression tests.
 
-These lock in the shape of ``deploy --check`` action strings so accidental
+These lock in the shape of ``deploy --dry-run`` action strings so accidental
 refactors can't collapse them back into the ambiguous
 ``... → .cursor/agents/AGENT.md`` pattern that testers repeatedly misread
 as "all agents overwrite the same file".

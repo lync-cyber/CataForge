@@ -11,6 +11,8 @@ package is installed from a wheel, editable install, or running from source.
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import shutil
 from importlib.resources import as_file, files
@@ -22,6 +24,9 @@ from cataforge import __version__ as _RUNTIME_VERSION
 
 _PKG = "cataforge._assets"
 _SCAFFOLD_SUBDIR = "cataforge_scaffold"
+
+MANIFEST_REL = ".scaffold-manifest.json"
+MANIFEST_VERSION = 1
 
 
 def _stamp_framework_version(raw_bytes: bytes) -> bytes:
@@ -122,15 +127,23 @@ def copy_scaffold_to(
     is ``True`` existing files are overwritten, except for files registered
     in :data:`_MERGE_HANDLERS` which receive a field-level merge that
     preserves user-owned state (e.g. ``framework.json.runtime.platform``).
+
+    On every invocation, also writes ``<dest>/.scaffold-manifest.json``
+    recording the bytes-hash of each written file and the package version
+    that produced it, so later upgrades can classify per-file drift.
     """
     written: list[Path] = []
     skipped: list[Path] = []
+    manifest_files: dict[str, str] = {}
     for rel, src in iter_scaffold_files():
         target = dest / rel
         exists = target.exists()
 
         if exists and not force:
             skipped.append(target)
+            if target.is_file():
+                with contextlib.suppress(OSError):
+                    manifest_files[rel] = _sha256(target.read_bytes())
             continue
 
         with as_file(src) as src_path:
@@ -149,5 +162,102 @@ def copy_scaffold_to(
 
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(new_bytes)
+        manifest_files[rel] = _sha256(new_bytes)
         written.append(target)
+
+    _write_manifest(dest, manifest_files)
     return written, skipped
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _write_manifest(dest: Path, files_map: dict[str, str]) -> None:
+    """Write ``.scaffold-manifest.json`` under *dest*."""
+    manifest = {
+        "manifest_version": MANIFEST_VERSION,
+        "package_version": _RUNTIME_VERSION,
+        "files": dict(sorted(files_map.items())),
+    }
+    path = dest / MANIFEST_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+    path.write_text(payload, encoding="utf-8")
+
+
+def read_manifest(dest: Path) -> dict[str, str]:
+    """Read ``<dest>/.scaffold-manifest.json`` and return ``{rel: sha256}``.
+
+    Returns an empty dict if the manifest is missing or malformed — the
+    caller must treat absence as "no prior record" rather than an error,
+    because projects scaffolded before the manifest landed will not have
+    one until their next ``setup``/``upgrade apply`` run.
+    """
+    path = dest / MANIFEST_REL
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    files_map = data.get("files") if isinstance(data, dict) else None
+    if not isinstance(files_map, dict):
+        return {}
+    return {str(k): str(v) for k, v in files_map.items() if isinstance(v, str)}
+
+
+def classify_scaffold_files(
+    dest: Path,
+) -> list[tuple[str, str]]:
+    """Classify every bundled scaffold file against its *dest* counterpart.
+
+    Returns ``(rel, status)`` tuples where ``status`` is one of:
+
+    * ``new``                  — target does not exist on disk.
+    * ``unchanged``            — target bytes already match the bundled scaffold.
+    * ``update``               — target bytes match the recorded manifest hash
+      (clean prior install) and differ from the bundled scaffold.
+    * ``user-modified``        — target bytes differ from both manifest and
+      bundled scaffold; ``--force-scaffold`` will overwrite the user edits.
+    * ``preserved``            — file is in :data:`_MERGE_HANDLERS`; refresh
+      performs a field-level merge instead of a blind overwrite.
+    * ``drift``                — no manifest entry and target differs from
+      bundled scaffold (legacy projects scaffolded pre-manifest).
+    """
+    manifest = read_manifest(dest)
+    results: list[tuple[str, str]] = []
+    for rel, src in iter_scaffold_files():
+        target = dest / rel
+        with as_file(src) as src_path:
+            new_bytes = Path(src_path).read_bytes()
+        if rel == "framework.json":
+            new_bytes = _stamp_framework_version(new_bytes)
+        new_hash = _sha256(new_bytes)
+
+        if not target.exists():
+            results.append((rel, "new"))
+            continue
+
+        if rel in _MERGE_HANDLERS:
+            results.append((rel, "preserved"))
+            continue
+
+        try:
+            disk_hash = _sha256(target.read_bytes())
+        except OSError:
+            results.append((rel, "user-modified"))
+            continue
+
+        if disk_hash == new_hash:
+            results.append((rel, "unchanged"))
+            continue
+
+        manifest_hash = manifest.get(rel)
+        if manifest_hash is None:
+            results.append((rel, "drift"))
+        elif disk_hash == manifest_hash:
+            results.append((rel, "update"))
+        else:
+            results.append((rel, "user-modified"))
+    return results
