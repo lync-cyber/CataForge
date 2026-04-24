@@ -125,6 +125,10 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "slow: end-to-end tests that build a wheel, spawn a venv, or hit PyPI — opt out with `pytest -m 'not slow'`",
+    "network: tests that reach external services (e.g. PyPI); gated by CATAFORGE_E2E_NETWORK=1",
+]
 
 [tool.mypy]
 python_version = "3.10"
