@@ -19,9 +19,13 @@ from cataforge.platform.conformance import ALL_PLATFORMS
 )
 @click.option("--with-penpot", is_flag=True, help="Include Penpot design integration.")
 @click.option(
-    "--check", "--check-only", "check_only",
+    "--check-prereqs", "--check", "--check-only", "check_only",
     is_flag=True,
-    help="Only check prerequisites, do not install. (Alias: --check-only.)",
+    help=(
+        "Only check prerequisites, do not install. "
+        "(Aliases: --check, --check-only; --check will be removed in v0.3 — "
+        "in `deploy` it means --dry-run, so the alias is ambiguous.)"
+    ),
 )
 @click.option(
     "--force-scaffold",
@@ -60,18 +64,42 @@ def setup_command(
     dry_run: bool,
     show_diff: bool,
 ) -> None:
-    """Initialize CataForge in the current project.
+    """Initialise .cataforge/ and record the target platform.
 
-    Semantics (as of v0.1.2):
+    Writes the scaffold but *not* IDE-visible artefacts — run
+    ``cataforge deploy`` next, or pass ``--deploy`` here to chain both.
 
-    * ``setup`` materialises ``.cataforge/`` and records the target platform,
-      but does **not** write IDE-visible artifacts (``CLAUDE.md``,
-      ``.claude/agents/``, ``.mcp.json``, …).  This matches the five-step
-      pipeline in ``docs/guide/manual-verification.md``.
-    * Run ``cataforge deploy`` as a separate step, or pass ``--deploy`` to
-      chain the two for backwards compatibility.
-    * ``--no-deploy`` is retained as a no-op flag so existing scripts (and
-      ``cataforge upgrade apply``, which used it explicitly) still work.
+    \b
+    TWO-STEP PIPELINE:
+      cataforge setup  →  .cataforge/ + framework.json (scaffold)
+      cataforge deploy →  CLAUDE.md / .claude/ / .cursor/ / … (IDE layer)
+
+    \b
+    COMMON FLOWS:
+      cataforge setup --platform claude-code
+          Fresh install — pick platform, scaffold, then run `deploy`.
+
+    \b
+      cataforge setup --platform claude-code --deploy
+          Fresh install in one step (handy for CI / quick-start).
+
+    \b
+      cataforge setup --force-scaffold
+          Re-copy the bundled scaffold over an existing project. User
+          edits to framework.json runtime.platform and PROJECT-STATE.md
+          are preserved; other files under .cataforge/ are overwritten.
+          For per-file preview use `cataforge upgrade apply --dry-run`.
+
+    \b
+      cataforge setup --check-prereqs
+          Validate environment only — no writes. (`--check` is a
+          deprecated alias, removed in v0.3.)
+
+    \b
+    NOTES:
+      * ``--no-deploy`` is a deprecated no-op retained so older scripts
+        (and ``cataforge upgrade apply``, which passed it explicitly)
+        keep working. It will be removed in v0.3.
     """
     from cataforge.cli.helpers import get_config_manager
     from cataforge.core.events import FRAMEWORK_SETUP, EventBus

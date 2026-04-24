@@ -309,8 +309,10 @@ class TestGlobalFlags:
     def test_top_level_help_has_getting_started(self) -> None:
         result = _invoke("--help")
         assert result.exit_code == 0
-        assert "Getting started" in result.output
+        assert "GETTING STARTED" in result.output
         assert "cataforge setup" in result.output
+        assert "EVERYDAY COMMANDS" in result.output
+        assert "FRAMEWORK OBJECTS" in result.output
 
 
 class TestDeprecationWarnings:
