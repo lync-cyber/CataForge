@@ -4,17 +4,17 @@ Matcher: AskUserQuestion
 Never blocks (exit 0).
 """
 
-import os
-import sys
-from datetime import datetime
+from __future__ import annotations
 
+import sys
+from typing import Any
+
+from cataforge.core.corrections import record_correction
 from cataforge.core.paths import find_project_root
 from cataforge.hook.base import hook_main, matches_capability, read_hook_input
 
-CORRECTIONS_LOG = os.path.join("docs", "reviews", "CORRECTIONS-LOG.md")
 
-
-def _recommended_label(options: list) -> str | None:
+def _recommended_label(options: list[Any]) -> str | None:
     if not isinstance(options, list):
         return None
     for opt in options:
@@ -26,48 +26,11 @@ def _recommended_label(options: list) -> str | None:
     return None
 
 
-def _append_corrections_log(
-    project_dir: str,
-    phase: str,
-    agent_id: str,
-    question: str,
-    recommended: str,
-    chosen: str,
-) -> None:
-    log_path = os.path.join(project_dir, CORRECTIONS_LOG)
-    parent = os.path.dirname(log_path)
-    if parent and not os.path.isdir(parent):
-        os.makedirs(parent, exist_ok=True)
-
-    date = datetime.now().strftime("%Y-%m-%d")
-    entry = (
-        f"\n### {date} | {agent_id} | {phase}\n"
-        f"- 触发信号: option-override\n"
-        f"- 问题: {question}\n"
-        f"- 推荐选项: {recommended}\n"
-        f"- 用户选择: {chosen}\n"
-        f"- 偏差类型: preference\n"
-    )
-
-    if not os.path.exists(log_path):
-        header = (
-            "# Corrections Log\n\n"
-            "> 本文件由 detect_correction hook 追加写入。\n"
-            "> 触发条件见 ORCHESTRATOR-PROTOCOLS.md §On-Correction Learning Protocol。\n"
-        )
-        with open(log_path, "w", encoding="utf-8") as f:
-            f.write(header)
-            f.write(entry)
-    else:
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(entry)
-
-
-def _resolve_agent_id(data: dict) -> str:
+def _resolve_agent_id(data: dict[str, Any]) -> str:
     return data.get("agent_id") or "orchestrator"
 
 
-def _extract_answers(tool_response: object) -> dict:
+def _extract_answers(tool_response: object) -> dict[str, Any]:
     if not isinstance(tool_response, dict):
         return {}
     answers = tool_response.get("answers")
@@ -95,8 +58,9 @@ def main() -> None:
     if not answers:
         sys.exit(0)
 
-    project_dir = str(find_project_root())
+    project_root = find_project_root()
     agent_id = _resolve_agent_id(data)
+    phase = str(data.get("phase") or tool_input.get("phase") or "unknown")
 
     for q in questions:
         if not isinstance(q, dict):
@@ -117,10 +81,17 @@ def main() -> None:
         )
 
         try:
-            _append_corrections_log(
-                project_dir, "unknown", agent_id, question_text, recommended, str(chosen)
+            record_correction(
+                project_root,
+                trigger="option-override",
+                agent=agent_id,
+                phase=phase,
+                question=question_text,
+                baseline=recommended,
+                actual=str(chosen),
+                deviation="preference",
             )
-        except Exception as e:
+        except (ValueError, OSError) as e:
             print(f"[HOOK-WARN] {e}", file=sys.stderr)
 
     sys.exit(0)

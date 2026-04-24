@@ -5,10 +5,14 @@ from __future__ import annotations
 import shutil
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from cataforge.cli.main import cli
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 
 @cli.command("doctor")
@@ -78,6 +82,15 @@ def doctor_command(ctx: click.Context) -> None:
     click.echo("\nProtocol script references:")
     failed_count += _check_protocol_script_references(cfg)
 
+    click.echo("\nHook script importability:")
+    failed_count += _check_hook_script_importability(cfg)
+
+    click.echo("\nEVENT-LOG schema sample:")
+    failed_count += _check_event_log_schema(cfg)
+
+    click.echo("\nEVENT-LOG bypass guard:")
+    failed_count += _check_event_log_bypass_writes(cfg)
+
     # Deployment provenance — shows which platform-specific directories would
     # have been written by the last successful deploy. Lets users see at a
     # glance which ``.claude/`` / ``.cursor/`` / etc. are CataForge-managed
@@ -94,6 +107,213 @@ def doctor_command(ctx: click.Context) -> None:
 
     if failed_count:
         ctx.exit(1)
+
+
+def _check_hook_script_importability(cfg: ConfigManager) -> int:
+    """Verify each hooks.yaml script resolves to an importable module.
+
+    Uses ``find_spec`` (no execution). ``custom:`` scripts are excluded —
+    those are covered by the protocol-script-reference scan.
+    """
+    import importlib.util
+
+    try:
+        from cataforge.hook.bridge import load_hooks_spec
+    except ImportError as e:
+        click.echo(f"  FAIL cannot import cataforge.hook.bridge: {e}")
+        return 1
+
+    spec_path = cfg.paths.hooks_spec
+    if not spec_path.is_file():
+        click.echo(f"  (no hooks.yaml at {spec_path} — skipping)")
+        return 0
+
+    try:
+        spec = load_hooks_spec(spec_path)
+    except Exception as e:
+        click.echo(f"  FAIL cannot parse {spec_path}: {e}")
+        return 1
+
+    declared: list[str] = []
+    for event_hooks in (spec.get("hooks") or {}).values():
+        for entry in event_hooks or []:
+            script = str(entry.get("script", "")).replace(".py", "")
+            if not script or script.startswith("custom:"):
+                continue
+            declared.append(script)
+
+    if not declared:
+        click.echo("  (no built-in hook scripts declared)")
+        return 0
+
+    missing: list[str] = []
+    for name in declared:
+        module = f"cataforge.hook.scripts.{name}"
+        try:
+            found = importlib.util.find_spec(module) is not None
+        except (ImportError, ValueError):
+            found = False
+        if not found:
+            missing.append(name)
+
+    present = len(declared) - len(missing)
+    click.echo(f"  {present}/{len(declared)} declared scripts importable")
+    for name in missing:
+        click.echo(
+            f"  FAIL cataforge.hook.scripts.{name} — IDE invocations will "
+            "ImportError before @hook_main can log them. "
+            "Reinstall with `pip install -e .` (or the wheel) to resolve."
+        )
+
+    _report_runtime_degradation(cfg, declared)
+    return len(missing)
+
+
+def _report_runtime_degradation(cfg: ConfigManager, declared: list[str]) -> None:
+    """List each declared script's degradation status on the current platform."""
+    try:
+        from cataforge.platform.registry import get_adapter
+
+        adapter = get_adapter(cfg.runtime_platform)
+    except Exception as e:
+        click.echo(f"  (cannot load adapter for {cfg.runtime_platform!r}: {e})")
+        return
+
+    degradation = getattr(adapter, "hook_degradation", {}) or {}
+
+    statuses: dict[str, str] = {}
+    for name in declared:
+        statuses[name] = str(degradation.get(name, "native"))
+
+    skipped = sorted(n for n, s in statuses.items() if s == "skip")
+    other_degraded = sorted(
+        n for n, s in statuses.items() if s not in ("native", "skip")
+    )
+    native_count = sum(1 for s in statuses.values() if s == "native")
+
+    summary = f"  Runtime degradation on {cfg.runtime_platform}: {native_count} native"
+    if skipped:
+        summary += f", {len(skipped)} skipped"
+    if other_degraded:
+        summary += f", {len(other_degraded)} degraded"
+    click.echo(summary)
+    for name in skipped:
+        click.echo(
+            f"    SKIP {name} — will not fire at runtime "
+            "(platform lacks native hook event)"
+        )
+    for name in other_degraded:
+        click.echo(f"    {statuses[name].upper()} {name}")
+
+
+def _check_event_log_schema(
+    cfg: ConfigManager, *, sample_size: int = 200
+) -> int:
+    """Validate the last ``sample_size`` EVENT-LOG.jsonl records via
+    :func:`validate_record`. Returns the count of invalid records."""
+    import json
+
+    from cataforge.core.event_log import event_log_path, validate_record
+
+    log_path = event_log_path(cfg.paths.root)
+    if not log_path.is_file():
+        click.echo("  (no EVENT-LOG.jsonl yet — nothing to validate)")
+        return 0
+
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError as e:
+        click.echo(f"  (cannot read {log_path}: {e})")
+        return 0
+
+    total_lines = len(lines)
+    start_idx = max(0, total_lines - sample_size)
+    sampled = lines[start_idx:]
+
+    bad: list[tuple[int, str, list[str]]] = []
+    for offset, raw in enumerate(sampled):
+        line_no = start_idx + offset + 1
+        text = raw.strip()
+        if not text:
+            continue
+        try:
+            obj = json.loads(text)
+        except json.JSONDecodeError as e:
+            bad.append((line_no, text[:80], [f"invalid JSON: {e}"]))
+            continue
+        if not isinstance(obj, dict):
+            bad.append((line_no, text[:80], ["not a JSON object"]))
+            continue
+        errors = validate_record(obj)
+        if errors:
+            preview = obj.get("event") or obj.get("timestamp") or "?"
+            bad.append((line_no, str(preview)[:80], errors))
+
+    sampled_count = sum(1 for ln in sampled if ln.strip())
+    click.echo(
+        f"  {sampled_count - len(bad)}/{sampled_count} sampled records valid "
+        f"(window: last {sampled_count} of {total_lines} total)"
+    )
+
+    shown = bad[:5]
+    for line_no, preview, errors in shown:
+        click.echo(f"  FAIL line {line_no} ({preview}): {'; '.join(errors)}")
+    if len(bad) > len(shown):
+        click.echo(f"    ... and {len(bad) - len(shown)} more invalid record(s)")
+    return len(bad)
+
+
+def _match_inside_inline_code(line: str, pos: int) -> bool:
+    return line.count("`", 0, pos) % 2 == 1
+
+
+def _check_event_log_bypass_writes(cfg: ConfigManager) -> int:
+    """Flag any ``.cataforge/`` markdown/YAML that appends to EVENT-LOG.jsonl
+    via shell redirection (must use ``cataforge event log`` instead)."""
+    import re
+
+    pattern = re.compile(r">>\s*[^\s`\"']*EVENT-LOG\.jsonl")
+
+    scan_roots = (
+        cfg.paths.agents_dir,
+        cfg.paths.skills_dir,
+        cfg.paths.rules_dir,
+        cfg.paths.hooks_dir,
+        cfg.paths.commands_dir,
+    )
+    suffixes = {".md", ".yaml", ".yml"}
+    hits: list[tuple[str, int, str]] = []
+    for base in scan_roots:
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in suffixes:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                m = pattern.search(line)
+                if not m or _match_inside_inline_code(line, m.start()):
+                    continue
+                try:
+                    rel = path.relative_to(cfg.paths.root).as_posix()
+                except ValueError:
+                    rel = str(path)
+                hits.append((rel, lineno, line.strip()[:120]))
+
+    if not hits:
+        click.echo("  (no heredoc/redirect writes to EVENT-LOG.jsonl found)")
+        return 0
+
+    click.echo(f"  FAIL {len(hits)} bypass write(s) — must use `cataforge event log`:")
+    for rel, lineno, snippet in hits[:5]:
+        click.echo(f"    - {rel}:{lineno}  {snippet}")
+    if len(hits) > 5:
+        click.echo(f"    - ... and {len(hits) - 5} more")
+    return len(hits)
 
 
 def _report_hook_errors(cfg) -> None:
