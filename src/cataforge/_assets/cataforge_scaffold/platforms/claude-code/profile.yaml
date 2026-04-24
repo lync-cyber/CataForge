@@ -106,6 +106,7 @@ hooks:
     validate_agent_result: native
     lint_format: native
     detect_correction: native
+    detect_review_flag: native
     notify_done: native
     notify_permission: native
     session_context: native

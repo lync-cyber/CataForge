@@ -148,6 +148,15 @@
       "requires_deploy": true
     },
     {
+      "id": "mc-0.1.9-detect-review-flag-registered",
+      "release_version": "0.1.9",
+      "description": "settings.json 必须注册 detect_review_flag 模块（review-flag 通路自动化）",
+      "type": "file_must_contain",
+      "path": ".claude/settings.json",
+      "patterns": ["detect_review_flag"],
+      "requires_deploy": true
+    },
+    {
       "id": "mc-0.7.0-retro-threshold-relaxed",
       "release_version": "0.7.0",
       "description": "RETRO_TRIGGER_SELF_CAUSED 已从 2 放宽至 5 以补偿高频 option-override",

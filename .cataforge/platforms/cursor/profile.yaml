@@ -111,6 +111,7 @@ hooks:
     validate_agent_result: native
     lint_format: native
     detect_correction: degraded
+    detect_review_flag: native
     notify_done: native
     notify_permission: degraded
     session_context: native

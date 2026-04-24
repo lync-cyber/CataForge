@@ -106,6 +106,7 @@ def _register_commands() -> None:
     """Import all command modules so they register with the CLI group."""
     from cataforge.cli import (  # noqa: F401
         agent_cmd,
+        correction_cmd,
         deploy_cmd,
         docs_cmd,
         doctor_cmd,

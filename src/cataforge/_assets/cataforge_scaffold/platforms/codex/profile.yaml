@@ -93,6 +93,7 @@ hooks:
     validate_agent_result: degraded # PostToolUse but no agent matcher
     lint_format: degraded          # PostToolUse but no edit matcher
     detect_correction: degraded    # no user_question
+    detect_review_flag: degraded   # PostToolUse but no agent matcher (mirrors validate_agent_result)
     notify_done: native            # Stop event, no matcher needed
     notify_permission: degraded    # no Notification event
     session_context: native        # SessionStart event, no matcher needed
