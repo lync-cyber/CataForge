@@ -2,9 +2,9 @@
 
 > CataForge 支持三种执行模式，适应不同规模项目。**用户在 Bootstrap 阶段选一种，后续阶段按该模式编排**。
 
-<p align="center">
+<div align="center">
   <img src="../assets/execution-modes.svg" alt="CataForge 三种执行模式对比" width="100%">
-</p>
+</div>
 
 ## 模式总览
 
@@ -78,9 +78,9 @@ Requirements → Architecture → Design → Planning
 
 无论哪种模式，每个阶段都遵循统一的五段执行：
 
-<p align="center">
+<div align="center">
   <img src="../assets/phase-execution.svg" alt="CataForge 阶段执行流程" width="80%">
-</p>
+</div>
 
 详见 [`../architecture/runtime-workflow.md`](../architecture/runtime-workflow.md)。
 

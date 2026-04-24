@@ -2,9 +2,9 @@
 
 > CataForge 采用分层架构，依赖方向向下；`PlatformAdapter` 层是屏蔽 IDE 差异的核心抽象。
 
-<p align="center">
+<div align="center">
   <img src="../assets/architecture-stack.svg" alt="CataForge 五层架构栈" width="100%">
-</p>
+</div>
 
 ## 五层架构
 
