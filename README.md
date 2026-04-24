@@ -70,7 +70,7 @@ cataforge setup --platform cursor
 **步骤 3** — 预览部署产物，确认无误（不写入文件）
 
 ```bash
-cataforge deploy --check --platform cursor
+cataforge deploy --dry-run --platform cursor
 ```
 
 **步骤 4** — 执行真实部署

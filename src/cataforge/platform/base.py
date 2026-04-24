@@ -454,7 +454,10 @@ class PlatformAdapter(ABC):
         for md_file in sorted(source_dir.glob("*.md")):
             dst = target_dir / md_file.name
             if dry_run:
-                actions.append(f"would deploy commands/{md_file.name} → {target_rel}/{md_file.name}")
+                actions.append(
+                    f"would deploy commands/{md_file.name} → "
+                    f"{target_rel}/{md_file.name}"
+                )
                 continue
             dst.write_text(md_file.read_text(encoding="utf-8"), encoding="utf-8")
             actions.append(f"commands/{md_file.name} → {target_rel}")

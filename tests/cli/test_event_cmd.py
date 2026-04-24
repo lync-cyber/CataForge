@@ -20,7 +20,7 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def _invoke(*args: str, input: str | None = None) -> "object":
+def _invoke(*args: str, input: str | None = None) -> object:
     runner = CliRunner()
     return runner.invoke(cli, list(args), input=input, catch_exceptions=False)
 
