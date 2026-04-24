@@ -4,9 +4,9 @@
 >
 > 阈值由 `.cataforge/framework.json` 的 `constants.TDD_LIGHT_LOC_THRESHOLD`（默认 `50`，以 lines of code 计）和 `constants.SPRINT_REVIEW_MICRO_TASK_COUNT`（默认 `3`）控制。
 
-<p align="center">
+<div align="center">
   <img src="../assets/tdd-engine.svg" alt="CataForge TDD 引擎流程" width="95%">
-</p>
+</div>
 
 ## 三阶段循环
 

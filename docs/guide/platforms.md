@@ -4,9 +4,9 @@
 >
 > 原理层面（`PlatformAdapter` 抽象、翻译关系、降级策略）请看 [`../architecture/platform-adaptation.md`](../architecture/platform-adaptation.md)。
 
-<p align="center">
+<div align="center">
   <img src="../assets/artifact-map.svg" alt="CataForge 四平台部署产物对照图" width="100%">
-</p>
+</div>
 
 ## 概览
 

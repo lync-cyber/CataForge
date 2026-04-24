@@ -2,9 +2,9 @@
 
 > CataForge 通过 `PlatformAdapter` 抽象层屏蔽 IDE 差异。同一份 `.cataforge/` 规范资产经 Adapter 翻译为各平台原生文件。
 
-<p align="center">
+<div align="center">
   <img src="../assets/adapter-translation.svg" alt="CataForge 平台适配器翻译关系" width="100%">
-</p>
+</div>
 
 ## 1. 适配原理
 
