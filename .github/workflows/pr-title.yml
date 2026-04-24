@@ -1,0 +1,44 @@
+name: PR title lint
+
+# 强制 PR 标题符合 conventional-commits，从源头避免 "Dev"、"Pr/dev-20260424-105745"
+# 这类无语义标题固化到 main 的线性历史。
+# 配合仓库"只允许 Squash merge + Default to PR title"设置，
+# merge commit 标题 = PR 标题，此 lint 通过即可保证历史整洁。
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint:
+    name: Validate conventional-commits title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            chore
+            refactor
+            test
+            build
+            ci
+            perf
+            release
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            PR 标题主体（冒号之后）不得以大写字母开头。
+            反例: "Fix/doc review UI spec lite" "Feat/correction log resilience"
+            正例: "fix(doc-review): ui-spec empty-token FAIL"
+                  "feat(correction-log): resilience on partial writes"
