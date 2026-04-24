@@ -36,6 +36,29 @@ Layer 2 — AI 审查：
   └── 测试覆盖充分性
 ```
 
+## 2.1 Layer 1 调用协议（single entry）
+
+三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本**唯一合法入口**为：
+
+```
+cataforge skill run <skill-id> -- <args...>
+```
+
+由 `SkillRunner` 解析 SKILL.md 元数据后派发——对内置脚本走 `python -m cataforge.skill.builtins.<pkg>.<script>`，对项目覆写脚本走 `python <project-script-path>`。**不得**直接 `python .cataforge/skills/<id>/scripts/*.py`：该路径为框架内部实现细节，在仅发放 SKILL.md（无 `scripts/` 目录）的默认 scaffold 中不存在。
+
+当项目仅覆写了 SKILL.md 文本（`scripts=[]`）而未提供自己的脚本时，`SkillLoader` 自动回落到内置脚本（参见 `SkillLoader._merge_builtin_fallback`），无需手动桥接。
+
+失败分类（SKILL.md 必须按以下四态处理 Layer 1 返回）：
+
+| 退出码 / 异常 | 语义 | 动作 |
+|---|---|---|
+| `0` | 通过 | 进入 Layer 2 |
+| `1` | 发现问题 | 报告问题，不进 Layer 2 |
+| `2` / `127` / `CataforgeError("no executable scripts")` | 脚本不可达 | **FAIL**（先 `cataforge doctor`） |
+| Python 运行异常 / 超时 | 降级 | 标注"Layer 1 降级"并进入 Layer 2 |
+
+`cataforge doctor` 在 `Review skill Layer 1 reachability` 段对三个 Skill 做一次性可达性检查，防止脚本路径错配再次潜伏。
+
 ## 3. 问题分类体系
 
 审查发现的问题按 9 类（`completeness` / `consistency` / `convention` / `security` / `feasibility` / `ambiguity` / `structure` / `error-handling` / `performance`）× 4 严重等级（`CRITICAL` > `HIGH` > `MEDIUM` > `LOW`）组织。修订流程仅处理 `CRITICAL` 与 `HIGH`。
