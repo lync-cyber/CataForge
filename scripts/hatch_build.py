@@ -27,10 +27,13 @@ class SyncScaffoldBuildHook(BuildHookInterface):
             [sys.executable, str(script)],
             cwd=self.root,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
-        sys.stdout.write(result.stdout)
-        sys.stderr.write(result.stderr)
+        if result.stdout:
+            sys.stdout.write(result.stdout)
+        if result.stderr:
+            sys.stderr.write(result.stderr)
         if result.returncode != 0:
             raise RuntimeError(
                 f"sync_scaffold failed (exit {result.returncode}) — aborting build"
