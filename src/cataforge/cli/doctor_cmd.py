@@ -85,6 +85,9 @@ def doctor_command(ctx: click.Context) -> None:
     click.echo("\nHook script importability:")
     failed_count += _check_hook_script_importability(cfg)
 
+    click.echo("\nReview skill Layer 1 reachability:")
+    failed_count += _check_review_skill_layer1(cfg)
+
     click.echo("\nEVENT-LOG schema sample:")
     failed_count += _check_event_log_schema(cfg)
 
@@ -166,6 +169,49 @@ def _check_hook_script_importability(cfg: ConfigManager) -> int:
         )
 
     _report_runtime_degradation(cfg, declared)
+    return len(missing)
+
+
+def _check_review_skill_layer1(cfg: ConfigManager) -> int:
+    """Verify each review skill's Layer 1 script is reachable via ``cataforge skill run``.
+
+    The three review skills (``code-review`` / ``sprint-review`` /
+    ``doc-review``) ship built-in Layer 1 scripts under
+    ``cataforge.skill.builtins.*``. Projects may override a skill by
+    placing their own SKILL.md under ``.cataforge/skills/<id>/``; when
+    the override carries no ``scripts/`` directory the loader is expected
+    to borrow the builtin scripts (see ``SkillLoader._merge_builtin_fallback``).
+    This check confirms the fallback is intact — without it, Layer 1
+    silently degrades on every review and no report is produced.
+    """
+    from cataforge.skill.loader import SkillLoader
+
+    loader = SkillLoader(project_root=cfg.paths.root)
+    targets = ("code-review", "sprint-review", "doc-review")
+
+    missing: list[tuple[str, str]] = []
+    for skill_id in targets:
+        meta = loader.get_skill(skill_id)
+        if meta is None:
+            missing.append((skill_id, "skill not discovered (no SKILL.md and no builtin)"))
+            continue
+        if not meta.scripts:
+            missing.append((
+                skill_id,
+                "SKILL.md found but no executable scripts — project override "
+                "shadowing the builtin. Delete .cataforge/skills/"
+                f"{skill_id}/SKILL.md or add scripts/ alongside it.",
+            ))
+
+    present = len(targets) - len(missing)
+    click.echo(f"  {present}/{len(targets)} review skills have an executable Layer 1")
+    for skill_id, reason in missing:
+        click.echo(f"  FAIL {skill_id}: {reason}")
+    if missing:
+        click.echo(
+            "  Layer 1 scripts are invoked via `cataforge skill run <id> -- <args>`; "
+            "see docs/architecture/quality-and-learning.md §2.1."
+        )
     return len(missing)
 
 

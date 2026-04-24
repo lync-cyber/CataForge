@@ -17,16 +17,18 @@ user-invocable: true
 
 ### Step 1: Layer 1 — Python脚本自动检查
 
-**分卷检测**: 调用前先 glob `docs/{doc_type}/` 目录检测是否存在分卷文件，对每个文件分别执行 doc_check.py。
+**分卷检测**: 调用前先 glob `docs/{doc_type}/` 目录检测是否存在分卷文件，对每个文件分别执行脚本检查。
+
+**调用约定（单一入口）**: Layer 1 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。
 
 **主卷调用**:
 ```
-python .cataforge/skills/doc-review/scripts/doc_check.py {doc_type} docs/{doc_type}/{doc_file} --docs-dir docs/{doc_type}/
+cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{doc_file} --docs-dir docs/{doc_type}/
 ```
 
 **分卷调用**:
 ```
-python .cataforge/skills/doc-review/scripts/doc_check.py {doc_type} docs/{doc_type}/{vol_file} --volume-type {type} --docs-dir docs/{doc_type}/
+cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{vol_file} --volume-type {type} --docs-dir docs/{doc_type}/
 ```
 
 **volume_type 推断规则** (也可从文件头 `<!-- volume: ... -->` 自动检测):
@@ -40,10 +42,11 @@ python .cataforge/skills/doc-review/scripts/doc_check.py {doc_type} docs/{doc_ty
 
 **规则**: 所有分卷必须全部通过 Layer 1 才进入 Layer 2。
 
-处理结果(三种情况):
+处理结果(四种情况):
 - **exit 0** (脚本执行成功 + 检查通过) → 进入Step 2 Layer 2
 - **exit 1** (脚本执行成功 + 检查不通过) → 返回失败项列表，**不进入Layer 2**，节省资源
-- **脚本执行异常** (文件缺失/Python错误/超时) → 标注"脚本检查跳过(降级)"，**降级进入Layer 2**。降级后 Layer 2 的审查标准和判定规则不变（无CRITICAL/HIGH→approved），仅标记"Layer 1降级"供追溯
+- **exit 2 / 127 / CataforgeError("no executable scripts")** (脚本不可达) → **FAIL**，不降级；先运行 `cataforge doctor` 定位问题，修复后重审
+- **运行时异常** (文件缺失/Python错误/超时) → 标注"脚本检查跳过(降级)"，**降级进入Layer 2**。降级后 Layer 2 的审查标准和判定规则不变（无CRITICAL/HIGH→approved），仅标记"Layer 1降级"供追溯
 
 **Layer 2 短路条件** (降低轻量文档的审查开销):
 - 若 Layer 1 exit 0、被审文档行数 < `DOC_REVIEW_L2_SKIP_THRESHOLD_LINES`、且 `doc_type ∈ DOC_REVIEW_L2_SKIP_DOC_TYPES`，则**跳过 Layer 2** 直接判定为 `approved`

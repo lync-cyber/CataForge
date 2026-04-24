@@ -63,6 +63,44 @@ class TestSkillDiscovery:
         loader = SkillLoader(project)
         assert loader.get_skill("nonexistent-skill-xyz") is None
 
+    def test_project_skill_without_scripts_borrows_builtin(
+        self, project: Path
+    ) -> None:
+        """When a project SKILL.md exists but has no scripts/, the builtin
+        scripts are merged in so `cataforge skill run` stays functional.
+
+        Regression: a bare project-level override silently shadowed the
+        builtin, leaving Layer 1 review scripts unreachable. See
+        docs/architecture/quality-and-learning.md §2.1.
+        """
+        skill_dir = project / ".cataforge" / "skills" / "code-review"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: code-review\ndescription: override\n---\n"
+            "Project-level prose override with no scripts.\n",
+            encoding="utf-8",
+        )
+        loader = SkillLoader(project)
+        meta = loader.get_skill("code-review")
+        assert meta is not None
+        # Builtin scripts were merged in so runner can dispatch.
+        assert meta.scripts, "builtin scripts should be merged"
+        assert meta.builtin is True
+        assert any(s["name"] == "code_lint" for s in meta.scripts)
+
+    def test_project_skill_with_scripts_keeps_its_own(
+        self, project: Path
+    ) -> None:
+        """A project-level SKILL.md that ships its own scripts/ directory
+        must not be quietly replaced by the builtin."""
+        _write_skill(project, "code-review", script_body="print('local')\n")
+        loader = SkillLoader(project)
+        meta = loader.get_skill("code-review")
+        assert meta is not None
+        # Project override — not promoted to builtin.
+        assert meta.builtin is False
+        assert meta.scripts == [{"name": "main", "entry": "scripts/main.py"}]
+
 
 class TestSkillRunner:
     def test_run_project_skill_succeeds(self, project: Path) -> None:
@@ -112,3 +150,64 @@ class TestSkillRunner:
         runner = SkillRunner(project)
         result = runner.run("failing")
         assert result.returncode == 7
+
+
+class TestSkillRunnerEventLog:
+    """Layer 1 runs emit state_change records so retrospectives can
+    measure the "quality-gate to-work ratio"."""
+
+    def test_review_skill_run_appends_event(self, project: Path) -> None:
+        # Override code-review at project level so we can point at a cheap
+        # script without shelling out to ruff / eslint. The loader's
+        # project-level precedence + runner dispatch makes the effect the
+        # same as a builtin call from the event-logging perspective.
+        _write_skill(
+            project,
+            "code-review",
+            script_body="import sys; sys.exit(0)\n",
+        )
+        runner = SkillRunner(project)
+        result = runner.run("code-review")
+        assert result.returncode == 0
+
+        log = project / "docs" / "EVENT-LOG.jsonl"
+        assert log.is_file(), "review skill runs must emit an event"
+        import json
+        lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+        assert any(
+            r.get("event") == "state_change"
+            and r.get("agent") == "reviewer"
+            and r.get("status") == "completed"
+            and "code-review" in r.get("detail", "")
+            for r in lines
+        )
+
+    def test_review_skill_exit1_recorded_as_needs_revision(
+        self, project: Path
+    ) -> None:
+        _write_skill(
+            project,
+            "sprint-review",
+            script_body="import sys; sys.exit(1)\n",
+        )
+        runner = SkillRunner(project)
+        runner.run("sprint-review")
+
+        log = project / "docs" / "EVENT-LOG.jsonl"
+        import json
+        records = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+        statuses = [r.get("status") for r in records]
+        assert "needs_revision" in statuses
+
+    def test_non_review_skill_run_does_not_emit(self, project: Path) -> None:
+        """The event log is narrow by design (see
+        docs/architecture/quality-and-learning.md). Non-review skills
+        must not widen the stream implicitly."""
+        _write_skill(
+            project,
+            "echo-skill",
+            script_body="print('ok')\n",
+        )
+        runner = SkillRunner(project)
+        runner.run("echo-skill")
+        assert not (project / "docs" / "EVENT-LOG.jsonl").exists()
