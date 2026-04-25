@@ -8,7 +8,7 @@ allowed_paths:
   - tests/
 skills: []
 model: inherit
-maxTurns: 50
+maxTurns: 100
 ---
 
 # Role: 测试编写者 (Test Writer — TDD RED Phase)
