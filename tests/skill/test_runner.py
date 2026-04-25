@@ -245,3 +245,73 @@ class TestSkillRunnerEventLog:
         runner = SkillRunner(project)
         runner.run("echo-skill")
         assert not (project / "docs" / "EVENT-LOG.jsonl").exists()
+
+
+class TestSkillRunnerAgentAttribution:
+    """Agent attribution: caller may pass agent= explicitly, or set
+    CATAFORGE_INVOKING_AGENT in the env, or accept the legacy
+    'reviewer' fallback. Regression for hardcoded ``agent="reviewer"``
+    that misattributed every review-class run to reviewer regardless
+    of who actually invoked it."""
+
+    def _last_record(self, project: Path) -> dict:
+        import json
+        log = project / "docs" / "EVENT-LOG.jsonl"
+        lines = [
+            json.loads(ln)
+            for ln in log.read_text().splitlines()
+            if ln.strip()
+        ]
+        return lines[-1]
+
+    def test_explicit_agent_param_wins(self, project: Path) -> None:
+        _write_skill(
+            project,
+            "code-review",
+            script_body="import sys; sys.exit(0)\n",
+        )
+        runner = SkillRunner(project)
+        runner.run("code-review", agent="orchestrator")
+        assert self._last_record(project)["agent"] == "orchestrator"
+
+    def test_env_var_used_when_no_param(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CATAFORGE_INVOKING_AGENT", "tech-lead")
+        _write_skill(
+            project,
+            "code-review",
+            script_body="import sys; sys.exit(0)\n",
+        )
+        runner = SkillRunner(project)
+        runner.run("code-review")
+        assert self._last_record(project)["agent"] == "tech-lead"
+
+    def test_explicit_param_overrides_env(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CATAFORGE_INVOKING_AGENT", "tech-lead")
+        _write_skill(
+            project,
+            "code-review",
+            script_body="import sys; sys.exit(0)\n",
+        )
+        runner = SkillRunner(project)
+        runner.run("code-review", agent="reflector")
+        assert self._last_record(project)["agent"] == "reflector"
+
+    def test_legacy_reviewer_fallback(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No param, no env — keep the historical 'reviewer'
+        attribution so existing review-class skill flows don't change
+        meaning."""
+        monkeypatch.delenv("CATAFORGE_INVOKING_AGENT", raising=False)
+        _write_skill(
+            project,
+            "code-review",
+            script_body="import sys; sys.exit(0)\n",
+        )
+        runner = SkillRunner(project)
+        runner.run("code-review")
+        assert self._last_record(project)["agent"] == "reviewer"

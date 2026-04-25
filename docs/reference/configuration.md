@@ -98,7 +98,7 @@
 }
 ```
 
-> 用户安装时 `cataforge setup` / `cataforge upgrade apply` 写盘的 `version` 字段由 [`scaffold._stamp_framework_version`](../../src/cataforge/core/scaffold.py) 戳入实际包版本（`cataforge.__version__`）；用户侧不存在示例中的 `0.0.0-template` 占位。源仓库 `.cataforge/framework.json:version` 当前留 `0.1.0` 历史值（dogfood 开发者运行 `cataforge bootstrap` 后会被 stamp 为最新包版本，但提交策略为不回写）。
+> 用户安装时 `cataforge setup` / `cataforge upgrade apply` 写盘的 `version` 字段由 [`scaffold._stamp_framework_version`](../../src/cataforge/core/scaffold.py) 戳入实际包版本（`cataforge.__version__`）；用户侧不会看到 `0.0.0-template` 字面值。源仓库 `.cataforge/framework.json:version` 留 `0.0.0-template` 占位，[`Config.version`](../../src/cataforge/core/config.py) 在读取时检测此前缀并解析为运行包版本（这样 dogfood 开发者在 `cataforge bootstrap` / `cataforge doctor` 看到的是真实版本号），同时 [`bootstrap_cmd._semver_newer`](../../src/cataforge/cli/bootstrap_cmd.py) 也对 `0.0.0-` 前缀短路返回 False，避免触发"installed > scaffold"伪升级。
 
 ### 字段说明
 

@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.0.0-template",
   "runtime_api_version": "1.0",
   "runtime": {
     "platform": "claude-code"

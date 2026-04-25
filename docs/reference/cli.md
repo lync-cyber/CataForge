@@ -97,9 +97,11 @@ cataforge agent validate    # 校验 Agent 定义合法性
 ## skill
 
 ```bash
-cataforge skill list        # 列出已发现的 Skill
-cataforge skill run <id>    # 执行指定 Skill
+cataforge skill list                          # 列出已发现的 Skill
+cataforge skill run <id> [--agent <name>] -- ...  # 执行指定 Skill 并转发参数
 ```
+
+`--agent` 标识本次调用方，会作为 `agent` 字段写入 EVENT-LOG（仅当 skill 为 review-class、即 `record_to_event_log: true` 时；目前是 `code-review` / `doc-review` / `sprint-review` 三个内置 + 任何 `record-to-event-log: true` 的项目自定义 skill）。也可以一次性 `export CATAFORGE_INVOKING_AGENT=<name>` 让多次调用统一归因。两者都缺省时回退为 `reviewer`（保持历史行为）。
 
 ---
 
