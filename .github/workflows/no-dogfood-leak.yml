@@ -1,8 +1,8 @@
 name: No dogfood leak
 
 # CataForge 自举开发护栏 — 拒绝把 orchestrator 过程产物 PR 到 main。
-# 正常工作流应在 dev 分支运行 .cataforge/scripts/dogfood/prepare-pr.sh 生成
-# 干净的 PR 分支。本 workflow 是兜底防线，防止脚本被跳过或白名单遗漏。
+# 正常工作流应在 feature 分支运行 .cataforge/scripts/dogfood/prepare-pr.sh
+# 生成干净的 PR 分支。本 workflow 是兜底防线，防止脚本被跳过或白名单遗漏。
 
 on:
   pull_request:
@@ -47,9 +47,9 @@ jobs:
               echo ""
               echo "$BAD" | sed 's/^/  /'
               echo ""
-              echo "请在 dev 分支运行:"
+              echo "请在 feature 分支运行:"
               echo "  .cataforge/scripts/dogfood/prepare-pr.sh"
-              echo "然后用生成的 pr/* 分支重开 PR。"
+              echo "脚本会创建 pr/<feature>-<时间戳> 干净分支并交互式开 PR。"
               exit 1
           fi
 
