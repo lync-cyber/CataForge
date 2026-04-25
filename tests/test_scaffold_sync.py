@@ -21,7 +21,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DIR = REPO_ROOT / ".cataforge"
 SHIPPED_DIR = REPO_ROOT / "src" / "cataforge" / "_assets" / "cataforge_scaffold"
