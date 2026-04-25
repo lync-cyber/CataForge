@@ -28,12 +28,12 @@
     - `cursor` — Cursor IDE
     - `codex` — OpenAI Codex CLI
     - `opencode` — OpenCode CLI
-    确认后执行: `python .cataforge/scripts/framework/setup.py --platform {选定值}`，该命令将写入 `framework.json` 的 `runtime.platform` 字段并自动执行 deploy，生成对应平台的部署产物。若用户跳过选择则默认 `claude-code`。
+    确认后执行: `cataforge setup --platform {选定值}`，该命令将写入 `framework.json` 的 `runtime.platform` 字段并自动执行 deploy，生成对应平台的部署产物。若用户跳过选择则默认 `claude-code`。
 7. **填入 §执行环境 + 最小 permissions** — 按顺序运行两条命令:
-   - `python .cataforge/scripts/framework/setup.py --emit-env-block`：将输出注入 CLAUDE.md §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
-   - `python .cataforge/scripts/framework/setup.py --apply-permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
+   - `cataforge setup --emit-env-block`：将输出注入 CLAUDE.md §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
+   - `cataforge setup --apply-permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
    本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 CLAUDE.md，并收紧运行时权限以符合最小权限原则。
-8. **创建 docs/NAV-INDEX.md** — 生成空索引骨架
+8. **初始化文档索引** — 运行 `cataforge docs index`，生成空的 `docs/.doc-index.json`（首个文档落盘后会被 doc-gen 增量刷新）
 9. **进入初始阶段** — 通过 agent-dispatch 激活:
     - `standard` → product-manager（Phase 1 requirements）
     - `agile-lite` → product-manager（planning 阶段，按 §Mode Routing Protocol 产出 prd-lite 后链式激活 architect 产出 arch-lite）
@@ -265,9 +265,9 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 - CLAUDE.md 全局约定 — 保留用户已填写的值，新增框架默认字段
 
 ### 初始化安装
-- 运行: `python .cataforge/scripts/framework/setup.py` 检测环境并安装依赖
-- 可选 Penpot: `python .cataforge/scripts/framework/setup.py --with-penpot`
-- 仅检测: `python .cataforge/scripts/framework/setup.py --check-only`
+- 运行: `cataforge setup` 检测环境并安装依赖
+- 可选 Penpot: `cataforge setup --with-penpot`
+- 仅检测: `cataforge setup --check-prereqs`
 
 ### 升级步骤（本地路径方式）
 适用场景：想用一个本地 CataForge 仓库的 checkout 升级，而不是从 PyPI/远程安装。

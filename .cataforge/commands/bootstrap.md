@@ -8,11 +8,10 @@ protocol defined in `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`.
 The orchestrator must:
 
 1. Detect the project's execution environment (package manager, install /
-   test / lint commands) by running
-   `python .cataforge/scripts/framework/setup.py --emit-env-block` and
-   injecting the result into `CLAUDE.md` §执行环境.
+   test / lint commands) by running `cataforge setup --emit-env-block`
+   and injecting the result into `CLAUDE.md` §执行环境.
 2. Apply minimal permissions to `.claude/settings.json` by running
-   `python .cataforge/scripts/framework/setup.py --apply-permissions`.
+   `cataforge setup --apply-permissions`.
 3. Report back the detected stack, the commands wired in, and any manual
    follow-ups the user still needs to perform.
 

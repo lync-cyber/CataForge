@@ -103,28 +103,10 @@ def create_framework_json(output_dir: Path, manifest: dict):
     framework_json.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def create_nav_index(output_dir: Path, manifest: dict):
-    """Create docs/NAV-INDEX.md."""
-    workflow_name = manifest.get("workflow_name", "Workflow")
-    phases = manifest.get("workflow", {}).get("phases", [])
-
-    lines = [f"# {workflow_name} - Document Navigation Index\n"]
-    lines.append("## Workflow Outputs\n")
-
-    for phase in phases:
-        phase_name = phase.get("name", phase.get("id", "unknown"))
-        outputs = phase.get("outputs", [])
-        lines.append(f"### {phase_name}")
-        if outputs:
-            for out in outputs:
-                path = out.get("path", "")
-                lines.append(f"- [{path}]({path})")
-        else:
-            lines.append("- (pending)")
-        lines.append("")
-
-    nav_index = output_dir / "docs" / "NAV-INDEX.md"
-    nav_index.write_text("\n".join(lines), encoding="utf-8")
+# NAV-INDEX.md generation removed — the chapter index is now machine-only at
+# docs/.doc-index.json, produced by `cataforge docs index` once the first
+# document lands. Scaffolding an empty markdown file confused agents into
+# treating it as the source of truth.
 
 
 def scaffold(output_dir: str, manifest: dict) -> int:
@@ -147,9 +129,8 @@ def scaffold(output_dir: str, manifest: dict) -> int:
     create_framework_json(root, manifest)
     print("  Created framework.json")
 
-    # 3. Create NAV-INDEX.md
-    create_nav_index(root, manifest)
-    print("  Created docs/NAV-INDEX.md")
+    # 3. (NAV-INDEX.md no longer generated — `cataforge docs index` now owns
+    #    the chapter index at docs/.doc-index.json once docs land.)
 
     # 4. Create empty hooks.yaml
     hooks_file = root / ".cataforge" / "hooks" / "hooks.yaml"

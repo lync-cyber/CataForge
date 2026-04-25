@@ -26,7 +26,7 @@ maxTurns: 60
 
 ## Input Contract
 - 必须加载: 通过 `cataforge docs load` 按 F-xxx 加载 prd#§2 对应的功能需求条目；按 API-xxx / M-xxx 加载 arch#§2 和 arch#§3 中需要生成界面的模块/接口
-- 禁止一次性 Read PRD 或 ARCH 全文；按组件/页面的实际数据绑定关系通过 load_section.py 批量加载相关条目
+- 禁止一次性 Read PRD 或 ARCH 全文；按组件/页面的实际数据绑定关系通过 `cataforge docs load` 批量加载相关条目
 - 可选参考: 设计系统参考、竞品UI
 - 加载示例: `cataforge docs load prd#§2.F-001 arch#§2.M-001 arch#§3.API-001`
 
