@@ -175,6 +175,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **sdist 构建** — `.cataforge/` scaffold 目录及注册的构建产物现已正确包含在源码分发包中。
 
+## [0.1.4] — 2026-04-23
+
+历史回填（首次发版时仅打 tag 未补章节，本条由后续审计补齐；改动通过 git log 范围核对）。
+
+### Fixed
+
+- **`fix(build): include .cataforge in sdist + force-register scaffold artifacts`** (#40) — sdist 现在带上 `.cataforge/` 目录，避免下游从 sdist 安装时缺 scaffold 模板；hatch 构建 hook 强制注册 scaffold artifact。
+
+### Docs
+
+- **`docs(installation): add upgrade section`** (#39) — 安装文档补 upgrade 段。
+
 ## [0.1.3] — 2026-04-23
 
 ### Changed

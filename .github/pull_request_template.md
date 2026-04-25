@@ -29,6 +29,14 @@
 - [ ]
 - [ ]
 
+## Doc impact
+
+参考 [`docs/contributing.md`](../docs/contributing.md) §改代码 = 改文档 对应表。勾选适用项：
+
+- [ ] 本 PR 不触及上表任何条目（跳过本节）
+- [ ] 已同步对应文档（在 Summary 列出文件路径）
+- [ ] 不需要同步（说明原因，例如"内部重构无可见行为变化"）
+
 ## Related
 
 <!-- 关联的 issue / PR / 设计文档 -->

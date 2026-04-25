@@ -583,7 +583,16 @@ def _run_migration_checks(cfg) -> int:
     ``cataforge deploy`` run.  This lets ``doctor`` stay green for a
     fresh-install flow that hasn't deployed yet, while still catching drift
     once deploy has happened at least once.
+
+    Checks with ``deprecate_after: <semver>`` are SKIPPED once the running
+    package version has caught up to that semver — closes the otherwise-
+    unbounded growth of migration_checks (every release adds one, none
+    are ever removed). Set deprecate_after to the version at which the
+    underlying refactor is no longer reversible (i.e. nobody on a recent
+    install can have the legacy state any more).
     """
+    from cataforge import __version__ as pkg_version
+
     checks = cfg.load().get("migration_checks") or []
     if not checks:
         click.echo("  (none defined)")
@@ -596,6 +605,12 @@ def _run_migration_checks(cfg) -> int:
     failed: list[tuple[str, str]] = []
     for check in checks:
         cid = str(check.get("id", "?"))
+        deprecate_after = check.get("deprecate_after")
+        if isinstance(deprecate_after, str) and _semver_ge(pkg_version, deprecate_after):
+            skipped.append(
+                (cid, f"deprecated since {deprecate_after} (current {pkg_version})")
+            )
+            continue
         if bool(check.get("requires_deploy", False)) and not deployed:
             skipped.append((cid, "requires deploy (run `cataforge deploy` first)"))
             continue
@@ -614,6 +629,23 @@ def _run_migration_checks(cfg) -> int:
     for cid, reason in failed:
         click.echo(f"  FAIL {cid}: {reason}")
     return len(failed)
+
+
+def _semver_ge(a: str, b: str) -> bool:
+    """True iff *a* >= *b* on the leading dotted-numeric prefix.
+
+    Both args are best-effort parsed; non-numeric inputs (e.g. "0.0.0-template",
+    "0.2.0rc1") fall through with the trailing suffix ignored. We err on the
+    side of False to avoid silently skipping a check that should still run.
+    """
+    import re
+
+    tup_re = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
+    ma = tup_re.match(a)
+    mb = tup_re.match(b)
+    if ma is None or mb is None:
+        return False
+    return tuple(int(x) for x in ma.groups()) >= tuple(int(x) for x in mb.groups())
 
 
 def _evaluate_check(check: dict, root: Path) -> tuple[bool, str]:

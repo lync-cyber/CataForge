@@ -127,9 +127,10 @@
 | `features.<id>.auto_enable` | ❌ | overwrite | 是否在符合 `phase_guard` 时自动启用 |
 | `features.<id>.phase_guard` | ❌ | overwrite | 限定阶段（`null` 表示全局可用） |
 | `features.<id>.description` | ❌ | overwrite | feature 简述 |
-| `migration_checks[].id` | ❌ | overwrite | 检查唯一标识（命名约定 `mc-<release_version>-<slug>`） |
-| `migration_checks[].release_version` | ❌ | overwrite | 检查引入的版本号；用于排序与未来的弃用判定 |
-| `migration_checks[].type` | ❌ | overwrite | 检查类型：`file_must_contain` / `file_must_not_contain` / `dir_must_contain_files` |
+| `migration_checks[].id` | ❌ | overwrite | 检查唯一标识（命名约定 `mc-<release_version>-<slug>`，与项目主线版本号一致；`mc-0.6.0-*` 等历史前缀已在 v0.1.13 统一为 `mc-0.1.x-*`） |
+| `migration_checks[].release_version` | ❌ | overwrite | 检查引入的版本号；用于排序与弃用判定 |
+| `migration_checks[].deprecate_after` | ❌ | overwrite | （可选）一旦运行包版本 ≥ 此 semver，doctor 自动 SKIP 该检查并打印来源版本。用法：当某条检查覆盖的旧状态已不可能在任何"近期安装"中存在时，标注此字段以避免 migration_checks 列表无限膨胀 |
+| `migration_checks[].type` | ❌ | overwrite | 检查类型：`file_must_contain` / `file_must_not_contain` / `dir_must_contain_files` / `file_must_exist` |
 | `migration_checks[].path` | ❌ | overwrite | 被检查文件 / 目录的相对路径 |
 | `migration_checks[].patterns` | ❌ | overwrite | 待匹配子串 / 文件名列表 |
 | `migration_checks[].requires_deploy` | ❌ | overwrite | true 时该检查作用于 `cataforge deploy` 写出的产物（如 `.claude/settings.json`），doctor 在未 deploy 的 workspace 上跳过 |

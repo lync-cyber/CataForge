@@ -49,6 +49,17 @@ jobs:
       - name: Pytest (fast — exclude slow marker)
         run: python -m pytest tests/ -q -m "not slow"
 
+      - name: Anti-rot guards (skill count, dev branch, changelog links, doc versions)
+        # Run on Linux only — these scripts read the same files everywhere
+        # and the matrix duplication adds noise without coverage.
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          python scripts/checks/check_skill_count.py
+          python scripts/checks/check_no_dev_branch_refs.py
+          python scripts/checks/check_changelog_link_table.py
+          python scripts/checks/check_doc_versions.py
+
   e2e:
     name: E2E install + upgrade (ubuntu, py3.12)
     runs-on: ubuntu-latest
