@@ -362,7 +362,7 @@ python -m ruff check src/ tests/
 passed: N / total: N
 
 ## 已知局限
-- <平台X 的某能力文档不完整，已标记为 TODO>
+- <在审计后填写：每条说明哪个平台的哪个能力文档不完整及其影响>
 ```
 
 ---

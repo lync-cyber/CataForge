@@ -31,7 +31,9 @@ skill_definition:
   needs_deploy: false
 
 command_definition:
-  # Codex slash commands: TODO when Codex exposes a stable command directory.
+  # Codex slash commands: deferred until Codex exposes a stable command
+  # directory contract. Track: docs/architecture/platform-adaptation.md
+  # §Codex limitations.
   needs_deploy: false
 
 agent_config:

@@ -97,6 +97,21 @@ test(mcp): add lifecycle regression for stopped state
 
 四层结构（`getting-started/` → `guide/` → `architecture/` → `reference/`）与每层职责见 [`README.md`](./README.md) §文档分层原则。新写文档前先对号入座，避免写错层（例如把"原理"塞进 `guide/`）。
 
+### 改代码 = 改文档
+
+凡是触动以下"代码—文档"对应关系之一的 PR，必须在同一 PR 内同步对应文档；PR 模板的 "Doc impact" 区段强制确认。`scripts/checks/` 下的 anti-rot 守卫会在 CI 校验大部分对应关系。
+
+| 代码改动 | 必须同步的文档 |
+|----------|---------------|
+| 新增 / 重命名 / 删除 Skill (`.cataforge/skills/<id>/`) | [`reference/agents-and-skills.md`](./reference/agents-and-skills.md) 总览表 + 折叠详细 + Skill 数 + Agent-Skill 矩阵；README/docs README 中的 "X 个 Skill" 计数（`scripts/checks/check_skill_count.py` 守护） |
+| 新增 / 重命名 Agent | 同上，含 §Agent-Skill 关联矩阵 |
+| 新增 CLI 子命令 (`cli/*_cmd.py`) | [`reference/cli.md`](./reference/cli.md) §命令总览 + 章节；[`reference/quick-reference.md`](./reference/quick-reference.md) 速查表 |
+| 修改 `framework.json` schema 字段 | [`reference/configuration.md`](./reference/configuration.md) §framework.json 表（含 schema 示例 + preserve/overwrite 标注） |
+| 增删 `platforms/<id>/` | [`guide/platforms.md`](./guide/platforms.md) + [`architecture/platform-adaptation.md`](./architecture/platform-adaptation.md) 能力矩阵 |
+| 任何 BREAKING 行为变更 | `CHANGELOG.md` 当前 `[Unreleased]` 段 `### BREAKING` 子段；`upgrade check` 会自动在升级前提醒用户 |
+| 新增 / 弃用 `migration_check` | [`reference/configuration.md`](./reference/configuration.md) §migration_checks 表；新增需带 `release_version`，弃用补 `deprecate_after` |
+| 发版（tag） | `CHANGELOG.md` 同时补 `## [X.Y.Z]` 章节 + 底部 `[X.Y.Z]:` reference link，并把 `[Unreleased]` 比较基线改为新 tag（`scripts/checks/check_changelog_link_table.py` 守护） |
+
 ---
 
 ## 新增平台适配
