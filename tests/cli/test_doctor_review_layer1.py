@@ -28,27 +28,41 @@ def _project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def test_doctor_passes_for_default_review_skills(tmp_path: Path, monkeypatch) -> None:
-    """With no project override, the three builtins must be reachable."""
+def test_doctor_passes_for_default_builtin_skills(tmp_path: Path, monkeypatch) -> None:
+    """With no project override, every builtin must be reachable."""
+    from cataforge.skill.loader import SkillLoader
+
     root = _project(tmp_path)
     monkeypatch.chdir(root)
+    builtin_count = len(SkillLoader(project_root=root)._scan_builtins())
     result = CliRunner().invoke(doctor_command, [])
-    assert "Review skill Layer 1 reachability" in result.output
-    assert "3/3 review skills have an executable Layer 1" in result.output
+    assert "Built-in skill reachability" in result.output
+    assert (
+        f"{builtin_count}/{builtin_count} built-in skills have an executable entry point"
+        in result.output
+    )
 
 
 def test_doctor_passes_when_project_override_merges_builtin(
     tmp_path: Path, monkeypatch
 ) -> None:
     """A project-level SKILL.md with no scripts/ must still resolve via
-    the loader's builtin-fallback merge."""
+    the loader's builtin-fallback merge — covers code-review (review skill)
+    and dep-analysis (the post-fix regression target)."""
+    from cataforge.skill.loader import SkillLoader
+
     root = _project(tmp_path)
-    skill_dir = root / ".cataforge" / "skills" / "code-review"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: code-review\ndescription: override\n---\nbody\n",
-        encoding="utf-8",
-    )
+    for skill_id in ("code-review", "dep-analysis"):
+        skill_dir = root / ".cataforge" / "skills" / skill_id
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            f"---\nname: {skill_id}\ndescription: override\n---\nbody\n",
+            encoding="utf-8",
+        )
     monkeypatch.chdir(root)
+    builtin_count = len(SkillLoader(project_root=root)._scan_builtins())
     result = CliRunner().invoke(doctor_command, [])
-    assert "3/3 review skills have an executable Layer 1" in result.output
+    assert (
+        f"{builtin_count}/{builtin_count} built-in skills have an executable entry point"
+        in result.output
+    )

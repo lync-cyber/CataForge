@@ -14,17 +14,6 @@ from pathlib import Path
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.skill.loader import SkillLoader, SkillMeta
 
-# Review skills whose runs should be recorded in docs/EVENT-LOG.jsonl so
-# ``cataforge doctor`` / retrospectives can compute the "quality-gate
-# to-work ratio" (how often Layer 1 actually ran vs degraded). Other
-# skills stay out of the log to avoid schema drift — the log is
-# intentionally narrow (see docs/architecture/quality-and-learning.md).
-_EVENT_LOGGED_SKILLS: frozenset[str] = frozenset({
-    "code-review",
-    "sprint-review",
-    "doc-review",
-})
-
 
 class SkillRunner:
     """Execute skill scripts with proper environment setup."""
@@ -82,30 +71,34 @@ class SkillRunner:
             text=True,
         )
 
-        self._emit_run_event(skill_id, script_entry, result.returncode)
+        self._emit_run_event(meta, script_entry, result.returncode)
         return result
 
     def _emit_run_event(
         self,
-        skill_id: str,
+        meta: SkillMeta,
         script_entry: dict[str, str],
         returncode: int,
     ) -> None:
         """Best-effort: append a ``state_change`` record to EVENT-LOG.jsonl.
 
-        Only runs for the three review skills (Layer 1 quality gates) — the
-        event log is a narrow, schema-validated stream and we don't want to
-        widen it with every skill invocation. Event emission is best-effort:
-        any failure here (log unwritable, schema drift, etc.) is swallowed
-        so the caller still sees the subprocess result.
+        Gated on ``meta.record_to_event_log`` (driven from SKILL.md
+        frontmatter / builtin defaults — see SkillLoader). Keeping the
+        decision in metadata means a new review-class skill only needs to
+        flip one flag, instead of editing a hardcoded set in two places.
+
+        Event emission is best-effort: any failure here (log unwritable,
+        schema drift, etc.) is swallowed so the caller still sees the
+        subprocess result.
 
         The phase is taken from ``CATAFORGE_EVENT_PHASE`` when set (so
         orchestrator-driven runs can attribute to the right lifecycle
         phase); otherwise defaults to ``development``, which is where
         Layer 1 scripts are actually executed.
         """
-        if skill_id not in _EVENT_LOGGED_SKILLS:
+        if not meta.record_to_event_log:
             return
+        skill_id = meta.id
         try:
             from cataforge.core.event_log import append_event, build_record
         except Exception:

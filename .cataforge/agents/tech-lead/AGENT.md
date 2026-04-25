@@ -46,4 +46,4 @@ maxTurns: 60
 - 禁止: 缺少deliverables或context_load字段
 - 禁止: 依赖图存在循环
 - 禁止: 修改ARCH中的技术决策
-- 禁止: Bash 仅用于运行 `python .cataforge/skills/dep-analysis/scripts/dep_analysis.py` 或 `cataforge docs load`，禁止执行其他命令
+- 禁止: Bash 仅用于运行 `cataforge skill run dep-analysis -- ...` 或 `cataforge docs load`，禁止执行其他命令

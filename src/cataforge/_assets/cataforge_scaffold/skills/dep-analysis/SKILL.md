@@ -33,9 +33,11 @@ user-invocable: true
 - 合并去重，形成边列表
 
 ### Step 2: 运行依赖分析脚本
+**调用约定（单一入口）**: 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。
+
 使用Bash执行:
 ```bash
-python .cataforge/skills/dep-analysis/scripts/dep_analysis.py \
+cataforge skill run dep-analysis -- \
   --edges "T-001→T-002,T-002→T-003,..." \
   [--weights "T-001:S,T-002:M,T-003:L,..."] \
   [--format json|mermaid]

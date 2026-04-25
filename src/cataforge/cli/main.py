@@ -12,7 +12,7 @@ Usage:
     cataforge plugin [list|install|remove]
     cataforge docs [load|index]
     cataforge event log ...
-    cataforge penpot [deploy|mcp-only|start|stop|status]
+    cataforge penpot [deploy|mcp-only|start|stop|status|ensure]
 
 Exit codes (see docs/reference/cli.md §退出码):
     0   success

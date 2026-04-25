@@ -67,3 +67,15 @@ def penpot_stop() -> None:
 def penpot_status() -> None:
     """Show the status of Penpot services and the MCP server."""
     _run_penpot("cmd_status", "status")
+
+
+@penpot_group.command("ensure")
+def penpot_ensure() -> None:
+    """Idempotent: bring the Penpot MCP server up if it isn't already.
+
+    Used by the Penpot skills (penpot-sync / penpot-implement /
+    penpot-review) when they detect no Penpot MCP tools in the runtime
+    tool list — they call ``cataforge penpot ensure`` to attempt a
+    start-up before falling back to ``blocked``.
+    """
+    _run_penpot("cmd_ensure", "ensure")

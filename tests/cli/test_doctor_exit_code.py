@@ -110,6 +110,46 @@ def test_doctor_fails_on_missing_protocol_script(
     assert ".cataforge/agents/phantom/AGENT.md:1" in result.output
 
 
+def test_doctor_flags_missing_skill_subdir_script(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Regression for the dep-analysis class of bug: SKILL.md docs that
+    instruct ``python .cataforge/skills/<id>/scripts/<x>.py`` must be flagged
+    when ``scripts/`` doesn't exist on disk. The original regex only
+    matched ``.cataforge/scripts/...`` and let this slip through."""
+    root = _minimal_project(tmp_path, [])
+    skill_dir = root / ".cataforge" / "skills" / "phantom"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "Run `python .cataforge/skills/phantom/scripts/runner.py --flag`.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code == 1, result.output
+    assert ".cataforge/skills/phantom/scripts/runner.py" in result.output
+
+
+def test_doctor_flags_missing_integrations_script(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Regression for the Penpot class of bug: docs that instruct
+    ``python .cataforge/integrations/<x>/<y>.py`` must be flagged when the
+    on-disk path is missing — those scripts now live inside the cataforge
+    package and are reachable only via the CLI."""
+    root = _minimal_project(tmp_path, [])
+    skill_dir = root / ".cataforge" / "skills" / "phantom"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "Run `python .cataforge/integrations/foo/setup.py ensure`.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code == 1, result.output
+    assert ".cataforge/integrations/foo/setup.py" in result.output
+
+
 def test_doctor_passes_when_referenced_script_exists(
     tmp_path: Path, monkeypatch
 ) -> None:

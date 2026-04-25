@@ -85,8 +85,8 @@ def doctor_command(ctx: click.Context) -> None:
     click.echo("\nHook script importability:")
     failed_count += _check_hook_script_importability(cfg)
 
-    click.echo("\nReview skill Layer 1 reachability:")
-    failed_count += _check_review_skill_layer1(cfg)
+    click.echo("\nBuilt-in skill reachability:")
+    failed_count += _check_builtin_skill_reachability(cfg)
 
     click.echo("\nEVENT-LOG schema sample:")
     failed_count += _check_event_log_schema(cfg)
@@ -172,22 +172,26 @@ def _check_hook_script_importability(cfg: ConfigManager) -> int:
     return len(missing)
 
 
-def _check_review_skill_layer1(cfg: ConfigManager) -> int:
-    """Verify each review skill's Layer 1 script is reachable via ``cataforge skill run``.
+def _check_builtin_skill_reachability(cfg: ConfigManager) -> int:
+    """Verify every built-in skill is reachable via ``cataforge skill run``.
 
-    The three review skills (``code-review`` / ``sprint-review`` /
-    ``doc-review``) ship built-in Layer 1 scripts under
-    ``cataforge.skill.builtins.*``. Projects may override a skill by
-    placing their own SKILL.md under ``.cataforge/skills/<id>/``; when
-    the override carries no ``scripts/`` directory the loader is expected
-    to borrow the builtin scripts (see ``SkillLoader._merge_builtin_fallback``).
-    This check confirms the fallback is intact — without it, Layer 1
-    silently degrades on every review and no report is produced.
+    Built-in skills ship Python entry points under
+    ``cataforge.skill.builtins.<pkg>``. Projects may override a skill by
+    placing their own SKILL.md under ``.cataforge/skills/<id>/``; when the
+    override carries no ``scripts/`` directory the loader borrows the
+    builtin scripts (see ``SkillLoader._merge_builtin_fallback``). This
+    check enumerates **all** discovered builtins (not a hardcoded subset)
+    so a future builtin can't slip through the way ``dep-analysis`` did
+    after the original review-skill fix.
     """
     from cataforge.skill.loader import SkillLoader
 
     loader = SkillLoader(project_root=cfg.paths.root)
-    targets = ("code-review", "sprint-review", "doc-review")
+    targets = sorted(m.id for m in loader._scan_builtins())
+
+    if not targets:
+        click.echo("  (no built-in skills discovered)")
+        return 0
 
     missing: list[tuple[str, str]] = []
     for skill_id in targets:
@@ -204,12 +208,12 @@ def _check_review_skill_layer1(cfg: ConfigManager) -> int:
             ))
 
     present = len(targets) - len(missing)
-    click.echo(f"  {present}/{len(targets)} review skills have an executable Layer 1")
+    click.echo(f"  {present}/{len(targets)} built-in skills have an executable entry point")
     for skill_id, reason in missing:
         click.echo(f"  FAIL {skill_id}: {reason}")
     if missing:
         click.echo(
-            "  Layer 1 scripts are invoked via `cataforge skill run <id> -- <args>`; "
+            "  Built-in skills are invoked via `cataforge skill run <id> -- <args>`; "
             "see docs/architecture/quality-and-learning.md §2.1."
         )
     return len(missing)
@@ -656,22 +660,27 @@ def _evaluate_check(check: dict, root: Path) -> tuple[bool, str]:
 
 
 def _check_protocol_script_references(cfg) -> int:
-    """Scan ``.cataforge/`` protocol docs + hooks spec for ``python .cataforge/scripts/...``
+    """Scan ``.cataforge/`` protocol docs + hooks spec for ``python .cataforge/...``
     invocations and report any that point at a file that does not exist.
 
     Returns the number of distinct missing scripts (counts toward the
     ``cataforge doctor`` exit code gate).
+
+    The scan covers any path under ``.cataforge/`` (not just
+    ``.cataforge/scripts/``). The original narrower regex missed
+    ``python .cataforge/skills/<id>/scripts/*.py`` and
+    ``python .cataforge/integrations/...`` — exactly the patterns that
+    silently broke ``dep-analysis`` and the three Penpot skills after
+    their implementations moved into the cataforge package.
     """
     import re
 
-    # Match ``python <path>`` where <path> starts with ``.cataforge/scripts/``
-    # and ends at the first whitespace or quote. Greedy enough to cover both
-    # ``python .cataforge/scripts/framework/event_logger.py --event X``
-    # (space-terminated) and ``python .cataforge/scripts/framework/setup.py``
-    # at end of line. We deliberately do not resolve shell quoting — if a
-    # protocol ever wraps the path in quotes we can revisit.
+    # Match ``python <path>`` where <path> is anywhere under ``.cataforge/``
+    # and ends at the first shell-special character. We deliberately do not
+    # resolve shell quoting — if a protocol ever wraps the path in quotes
+    # we can revisit.
     pattern = re.compile(
-        r"python\s+(\.cataforge/scripts/[^\s`\"'<>|&;]+\.py)"
+        r"python\s+(\.cataforge/[^\s`\"'<>|&;]+\.py)"
     )
 
     root = cfg.paths.root
@@ -683,6 +692,15 @@ def _check_protocol_script_references(cfg) -> int:
         cfg.paths.commands_dir,
     )
 
+    # Subtrees that legitimately reference example/placeholder paths in
+    # tutorial prose (e.g. ``.cataforge/hooks/custom/`` is user-extension
+    # territory; its README walks readers through naming a hook script
+    # that doesn't exist yet). Scoped narrowly so framework-shipped
+    # protocols stay covered.
+    skip_subtrees = (
+        cfg.paths.hooks_dir / "custom",
+    )
+
     suffixes = {".md", ".yaml", ".yml"}
     # script relpath → sorted list of "file:line" callers (for the error message)
     refs: dict[str, list[str]] = {}
@@ -692,6 +710,8 @@ def _check_protocol_script_references(cfg) -> int:
         for path in base.rglob("*"):
             if not path.is_file() or path.suffix.lower() not in suffixes:
                 continue
+            if any(_is_relative_to(path, sub) for sub in skip_subtrees):
+                continue
             try:
                 text = path.read_text(encoding="utf-8")
             except OSError:
@@ -699,6 +719,12 @@ def _check_protocol_script_references(cfg) -> int:
             for lineno, line in enumerate(text.splitlines(), start=1):
                 for match in pattern.finditer(line):
                     rel = match.group(1)
+                    # Documentation placeholders, not real invocations:
+                    # ``*`` is a glob wildcard, ``...`` is an ellipsis
+                    # (``.cataforge/skills/.../scripts/*.py`` is the
+                    # spelling we use to *prohibit* a path, not call it).
+                    if "*" in rel or "..." in rel:
+                        continue
                     try:
                         display = path.relative_to(root).as_posix()
                     except ValueError:
@@ -732,6 +758,14 @@ def _check_protocol_script_references(cfg) -> int:
             click.echo(f"    - ... and {extra} more call site(s)")
 
     return len(missing)
+
+
+def _is_relative_to(path: Path, base: Path) -> bool:
+    try:
+        path.relative_to(base)
+    except ValueError:
+        return False
+    return True
 
 
 def _check_file(label: str, path: Path) -> None:
