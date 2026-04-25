@@ -82,6 +82,9 @@ def doctor_command(ctx: click.Context) -> None:
     click.echo("\nProtocol script references:")
     failed_count += _check_protocol_script_references(cfg)
 
+    click.echo("\nDeprecated protocol references:")
+    failed_count += _check_deprecated_references(cfg)
+
     click.echo("\nHook script importability:")
     failed_count += _check_hook_script_importability(cfg)
 
@@ -758,6 +761,134 @@ def _check_protocol_script_references(cfg) -> int:
             click.echo(f"    - ... and {extra} more call site(s)")
 
     return len(missing)
+
+
+# ---------------------------------------------------------------------------
+# Deprecated reference linter
+#
+# Catches the failure mode that ``_check_protocol_script_references`` misses:
+# bare script names mentioned in prose (``load_section.py``), CLI subcommands
+# that no longer exist, and references to artifacts that have been retired
+# (``docs/NAV-INDEX.md``, ``docs/.nav/``).
+#
+# ANTI-ROT POLICY:
+#   When deprecating any user-facing path, script, or CLI flag, add an entry
+#   to ``_DEPRECATED_REFS`` below with a `replacement` field. CI then fails
+#   any new agent/skill/protocol prose that uses the old name, without
+#   requiring a sweep of every markdown file at deprecation time.
+# ---------------------------------------------------------------------------
+
+
+_DEPRECATED_REFS: tuple[dict[str, str], ...] = (
+    {
+        "name": "load_section.py",
+        # Word-boundary match catches `load_section.py`, `load_section.py:`, etc.
+        # but does not match `cataforge_load_section_py` (unlikely but cheap).
+        "pattern": r"\bload_section\.py\b",
+        "replacement": "`cataforge docs load`",
+        "since": "v0.1.10",
+    },
+    {
+        "name": "build_doc_index.py",
+        "pattern": r"\bbuild_doc_index\.py\b",
+        "replacement": "`cataforge docs index`",
+        "since": "v0.1.10",
+    },
+    {
+        "name": "docs/NAV-INDEX.md",
+        # Tolerate occurrences in archive paths (``.cataforge/.archive/...``).
+        "pattern": r"(?<![\w./-])docs/NAV-INDEX\.md\b",
+        "replacement": "`docs/.doc-index.json` (run `cataforge docs migrate-nav`)",
+        "since": "v0.1.13",
+    },
+    {
+        "name": "docs/.nav/",
+        "pattern": r"\bdocs/\.nav/",
+        "replacement": "`docs/.doc-index.json`",
+        "since": "v0.1.13",
+    },
+)
+
+
+def _check_deprecated_references(cfg) -> int:
+    """Scan agent/skill/rules/hook prose for deprecated script names + artifacts.
+
+    Returns the number of distinct deprecated references found (counts toward
+    the ``cataforge doctor`` exit code gate). Self (this file) and the
+    `_DEPRECATED_REFS` table itself are exempt — those are the registry, not a
+    consumer.
+    """
+    import re
+
+    root = cfg.paths.root
+    scan_roots = (
+        cfg.paths.agents_dir,
+        cfg.paths.skills_dir,
+        cfg.paths.rules_dir,
+        cfg.paths.hooks_dir,
+        cfg.paths.commands_dir,
+    )
+
+    skip_subtrees = (
+        cfg.paths.hooks_dir / "custom",
+        # Archive directory legitimately retains historical NAV-INDEX copies.
+        root / ".cataforge" / ".archive",
+    )
+
+    patterns = [
+        (entry, re.compile(entry["pattern"]))
+        for entry in _DEPRECATED_REFS
+    ]
+
+    suffixes = {".md", ".yaml", ".yml"}
+    findings: dict[str, list[str]] = {}
+
+    for base in scan_roots:
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in suffixes:
+                continue
+            if any(_is_relative_to(path, sub) for sub in skip_subtrees):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                for entry, pattern in patterns:
+                    if pattern.search(line):
+                        try:
+                            display = path.relative_to(root).as_posix()
+                        except ValueError:
+                            display = str(path)
+                        findings.setdefault(entry["name"], []).append(
+                            f"{display}:{lineno}"
+                        )
+
+    if not findings:
+        click.echo(f"  0 deprecated references found ({len(_DEPRECATED_REFS)} patterns scanned)")
+        return 0
+
+    click.echo(
+        f"  {len(findings)} deprecated reference(s) found "
+        f"({len(_DEPRECATED_REFS)} patterns scanned)"
+    )
+    by_name = {entry["name"]: entry for entry in _DEPRECATED_REFS}
+    for name in sorted(findings):
+        entry = by_name[name]
+        callers = sorted(set(findings[name]))
+        click.echo(
+            f"  FAIL {name} → use {entry['replacement']} (deprecated {entry['since']})"
+        )
+        shown = callers[:5]
+        for caller in shown:
+            click.echo(f"    - {caller}")
+        extra = len(callers) - len(shown)
+        if extra > 0:
+            click.echo(f"    - ... and {extra} more call site(s)")
+
+    return len(findings)
 
 
 def _is_relative_to(path: Path, base: Path) -> bool:

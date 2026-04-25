@@ -24,8 +24,8 @@ maxTurns: 60
 
 ## Input Contract
 - 必须加载: 通过 `cataforge docs load` 按 M-xxx / API-xxx 加载 `arch#§2.M-xxx` + `arch#§3.API-xxx` + `arch#§6` + `arch#§7`；按 C-xxx / P-xxx 加载 `ui-spec#§2.C-xxx` 和 `ui-spec#§3.P-xxx`
-- 禁止一次性 Read arch 或 ui-spec 全文；任务拆分时按模块/页面维度通过 load_section.py 批量加载相应条目，产出对应的 T-xxx 任务卡后再加载下一批
-- 可选参考: prd (通过 load_section.py 按需加载相关章节)
+- 禁止一次性 Read arch 或 ui-spec 全文；任务拆分时按模块/页面维度通过 `cataforge docs load` 批量加载相应条目，产出对应的 T-xxx 任务卡后再加载下一批
+- 可选参考: prd (通过 `cataforge docs load` 按需加载相关章节)
 - 加载示例: `cataforge docs load arch#§2.M-001 arch#§3.API-001 ui-spec#§2.C-001 ui-spec#§3.P-001`
 
 ## Output Contract

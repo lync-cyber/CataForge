@@ -29,19 +29,60 @@ from cataforge.utils.md_parse import iter_markdown_headings
 from cataforge.utils.patterns import HEADING_RE, REF_RE, SECTION_PATH_RE
 
 # ---------------------------------------------------------------------------
-# doc_id → doc_type mapping (inlined from the former _config.build_doc_type_map)
+# doc_id → doc_type mapping
+#
+# Built-in defaults cover the standard CataForge document set. Downstream
+# projects extend or override via ``.cataforge/framework.json``:
+#
+#     { "docs": { "doc_types": { "<doc_id>": "<sub-directory under docs/>" } } }
+#
+# Custom entries are merged on top of the defaults; pass an empty mapping to
+# replace all defaults.
 # ---------------------------------------------------------------------------
 
-_DOC_TYPE_MAP: dict[str, str] = {
+_DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
     "prd": "prd", "arch": "arch", "ui-spec": "ui-spec",
     "dev-plan": "dev-plan", "test-report": "test-report",
     "deploy-spec": "deploy-spec", "research": "research",
     "changelog": "changelog", "brief": "brief",
 }
 
+_DOC_TYPE_MAP_CACHE: dict[str, dict[str, str]] = {}
 
-def _get_doc_type_map() -> dict[str, str]:
-    return _DOC_TYPE_MAP
+
+def _load_doc_type_map(project_root: str) -> dict[str, str]:
+    """Resolve the doc_id → doc_type map for ``project_root``.
+
+    Lookup order:
+        1. ``.cataforge/framework.json`` ``docs.doc_types`` (merged on top of defaults)
+        2. Built-in defaults (when framework.json is missing or has no override)
+    """
+    cached = _DOC_TYPE_MAP_CACHE.get(project_root)
+    if cached is not None:
+        return cached
+
+    merged = dict(_DEFAULT_DOC_TYPE_MAP)
+    framework_json = os.path.join(project_root, ".cataforge", "framework.json")
+    if os.path.isfile(framework_json):
+        try:
+            with open(framework_json, encoding="utf-8") as f:
+                data = json.load(f)
+            override = (data.get("docs") or {}).get("doc_types")
+            if isinstance(override, dict):
+                for k, v in override.items():
+                    if isinstance(k, str) and isinstance(v, str):
+                        merged[k] = v
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    _DOC_TYPE_MAP_CACHE[project_root] = merged
+    return merged
+
+
+def _get_doc_type_map(project_root: str | None = None) -> dict[str, str]:
+    if project_root is None:
+        return dict(_DEFAULT_DOC_TYPE_MAP)
+    return _load_doc_type_map(project_root)
 
 
 # ---------------------------------------------------------------------------
@@ -49,19 +90,25 @@ def _get_doc_type_map() -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 _INDEX_CACHE: dict[str, Any] | None = None
+_INDEX_CACHE_ROOT: str | None = None
 _INDEX_FILENAME = ".doc-index.json"
+_STALE_DAYS_WARN = 7
 
 
 def _load_index(project_root: str) -> dict[str, Any] | None:
-    global _INDEX_CACHE
-    if _INDEX_CACHE is not None:
+    """Load the chapter index, per-root cached to avoid leakage between roots."""
+    global _INDEX_CACHE, _INDEX_CACHE_ROOT
+    if _INDEX_CACHE is not None and project_root == _INDEX_CACHE_ROOT:
         return _INDEX_CACHE
     index_path = os.path.join(project_root, "docs", _INDEX_FILENAME)
     if not os.path.isfile(index_path):
+        _INDEX_CACHE = None
+        _INDEX_CACHE_ROOT = project_root
         return None
     try:
         with open(index_path, encoding="utf-8") as f:
             _INDEX_CACHE = json.load(f)
+        _INDEX_CACHE_ROOT = project_root
         return _INDEX_CACHE
     except (json.JSONDecodeError, OSError):
         return None
@@ -77,6 +124,16 @@ def _is_stale(file_path: str, generated_at: str | None) -> bool:
         return file_dt > gen_dt
     except (ValueError, OSError):
         return True
+
+
+def _index_age_days(generated_at: str | None) -> float | None:
+    if not generated_at:
+        return None
+    try:
+        gen_dt = datetime.fromisoformat(generated_at)
+        return (datetime.now(timezone.utc) - gen_dt).total_seconds() / 86400.0
+    except ValueError:
+        return None
 
 
 def _lookup_in_index(
@@ -105,7 +162,8 @@ def _lookup_in_index(
         item_data = sec_data.get("items", {}).get(item_id)
         if item_data:
             return {"file_path": file_path, "line_start": item_data["line_start"],
-                    "line_end": item_data["line_end"], "est_tokens": item_data.get("est_tokens", 0)}
+                    "line_end": item_data["line_end"], "est_tokens": item_data.get("est_tokens", 0),
+                    "deps": item_data.get("deps", [])}
         xref = index.get("xref", {})
         if item_id in xref:
             for ref_entry in xref[item_id]:
@@ -122,18 +180,21 @@ def _lookup_in_index(
                         return {"file_path": ref_entry["file_path"],
                                 "line_start": other_item["line_start"],
                                 "line_end": other_item["line_end"],
-                                "est_tokens": other_item.get("est_tokens", 0)}
+                                "est_tokens": other_item.get("est_tokens", 0),
+                                "deps": other_item.get("deps", [])}
         return None
 
     if "." in section_path:
         sub_data = sec_data.get("items", {}).get(section_path)
         if sub_data:
             return {"file_path": file_path, "line_start": sub_data["line_start"],
-                    "line_end": sub_data["line_end"], "est_tokens": sub_data.get("est_tokens", 0)}
+                    "line_end": sub_data["line_end"], "est_tokens": sub_data.get("est_tokens", 0),
+                    "deps": sub_data.get("deps", [])}
         return None
 
     return {"file_path": file_path, "line_start": sec_data["line_start"],
-            "line_end": sec_data["line_end"], "est_tokens": sec_data.get("est_tokens", 0)}
+            "line_end": sec_data["line_end"], "est_tokens": sec_data.get("est_tokens", 0),
+            "deps": sec_data.get("deps", [])}
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +250,7 @@ def parse_ref(ref: str) -> tuple[str, str, str | None]:
 def resolve_file(
     doc_id: str, project_root: str, section_path: str = "", item_id: str | None = None
 ) -> str:
-    doc_type_map = _get_doc_type_map()
+    doc_type_map = _get_doc_type_map(project_root)
     if doc_id not in doc_type_map:
         raise DocResolveError(f"未知的 doc_id: {doc_id!r}")
     doc_type = doc_type_map[doc_id]
@@ -262,7 +323,17 @@ def _extract_section_from_lines(lines: list[str], start_idx: int, level: int) ->
 # ---------------------------------------------------------------------------
 
 
-def extract(ref: str, project_root: str) -> str:
+def extract(
+    ref: str,
+    project_root: str,
+    file_cache: dict[str, list[str]] | None = None,
+) -> str:
+    """Return the content of ``ref`` from the project at ``project_root``.
+
+    ``file_cache`` is an optional ``{absolute_file_path: lines}`` map shared
+    across one batch — eliminates duplicate file reads when many refs target
+    the same source document on the slow heading-scan path.
+    """
     doc_id, section_path, item_id = parse_ref(ref)
 
     index = _load_index(project_root)
@@ -271,8 +342,7 @@ def extract(ref: str, project_root: str) -> str:
         if entry:
             abs_path = os.path.join(project_root, entry["file_path"])
             if os.path.isfile(abs_path) and not _is_stale(abs_path, index.get("generated_at")):
-                with open(abs_path, encoding="utf-8") as f:
-                    lines = f.readlines()
+                lines = _read_lines_cached(abs_path, file_cache)
                 start = entry["line_start"] - 1
                 end = entry["line_end"]
                 result = "".join(lines[start:end]).rstrip()
@@ -280,16 +350,50 @@ def extract(ref: str, project_root: str) -> str:
                     return result
 
     file_path = resolve_file(doc_id, project_root, section_path, item_id)
-    with open(file_path, encoding="utf-8") as f:
-        content = f.read()
-
-    lines = content.splitlines()
-    found = _find_heading_line(content, section_path, item_id)
+    splitlines = _read_splitlines_cached(file_path, file_cache)
+    found = _find_heading_line_in_lines(splitlines, section_path, item_id)
     if found is None:
         target = f"§{section_path}" + (f".{item_id}" if item_id else "")
         raise SectionNotFoundError(f"在 {file_path} 中未找到 {target}")
     start_idx, level = found
-    return _extract_section_from_lines(lines, start_idx, level)
+    return _extract_section_from_lines(splitlines, start_idx, level)
+
+
+def _read_lines_cached(
+    abs_path: str, file_cache: dict[str, list[str]] | None
+) -> list[str]:
+    if file_cache is not None and abs_path in file_cache:
+        return file_cache[abs_path]
+    with open(abs_path, encoding="utf-8") as f:
+        lines = f.readlines()
+    if file_cache is not None:
+        file_cache[abs_path] = lines
+    return lines
+
+
+def _read_splitlines_cached(
+    file_path: str, file_cache: dict[str, list[str]] | None
+) -> list[str]:
+    """Like ``_read_lines_cached`` but returns ``str.splitlines()`` form (no trailing newlines).
+
+    Stored under a separate key suffix so the two read modes do not collide.
+    """
+    cache_key = file_path + "::splitlines"
+    if file_cache is not None and cache_key in file_cache:
+        return file_cache[cache_key]
+    with open(file_path, encoding="utf-8") as f:
+        content = f.read()
+    splitlines = content.splitlines()
+    if file_cache is not None:
+        file_cache[cache_key] = splitlines
+    return splitlines
+
+
+def _find_heading_line_in_lines(
+    lines: list[str], section_path: str, item_id: str | None
+) -> tuple[int, int] | None:
+    """Variant of ``_find_heading_line`` that takes pre-split lines (cached)."""
+    return _find_heading_line("\n".join(lines), section_path, item_id)
 
 
 def extract_batch(
@@ -297,9 +401,10 @@ def extract_batch(
 ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     successes: list[tuple[str, str]] = []
     errors: list[tuple[str, str]] = []
+    file_cache: dict[str, list[str]] = {}
     for ref in refs:
         try:
-            content = extract(ref, project_root)
+            content = extract(ref, project_root, file_cache=file_cache)
             successes.append((ref, content))
         except LoadSectionError as e:
             errors.append((ref, str(e)))
@@ -361,6 +466,35 @@ def resolve_deps(ref: str, project_root: str, max_depth: int = 2) -> list[str]:
     return result
 
 
+def _index_lookup_or_none(
+    index: dict[str, Any] | None,
+    ref: str,
+) -> dict[str, Any] | None:
+    if not index:
+        return None
+    try:
+        doc_id, section_path, item_id = parse_ref(ref)
+    except LoadSectionError:
+        return None
+    return _lookup_in_index(index, doc_id, section_path, item_id)
+
+
+def _emit_stale_warning(project_root: str) -> None:
+    """If the index exists but is older than ``_STALE_DAYS_WARN``, warn on stderr."""
+    index_path = os.path.join(project_root, "docs", _INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return
+    index = _load_index(project_root)
+    if not index:
+        return
+    age = _index_age_days(index.get("generated_at"))
+    if age is not None and age >= _STALE_DAYS_WARN:
+        print(
+            f"[WARN] docs/.doc-index.json 已 {age:.0f} 天未更新，建议运行 `cataforge docs index`",
+            file=sys.stderr,
+        )
+
+
 # ---------------------------------------------------------------------------
 # CLI entry
 # ---------------------------------------------------------------------------
@@ -373,21 +507,90 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("refs", nargs="+", help="doc_id#§N references")
     parser.add_argument("--project-root", default=None)
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Emit a JSON array instead of '=== <ref> ===' separators",
+    )
+    parser.add_argument(
+        "--with-deps",
+        action="store_true",
+        help="Also load dependency refs declared in .doc-index.json (depth ≤ 2)",
+    )
+    parser.add_argument(
+        "--budget",
+        type=int,
+        default=None,
+        metavar="TOKENS",
+        help="Token budget; refs exceeding budget are listed under [DEFERRED] on stderr",
+    )
     args = parser.parse_args(argv)
 
     project_root = args.project_root or str(find_project_root())
 
-    successes, errors = extract_batch(args.refs, project_root)
-    for ref, content in successes:
-        print(f"=== {ref} ===")
-        print(content)
-        print()
+    _emit_stale_warning(project_root)
 
-    if errors:
+    refs: list[str] = list(args.refs)
+
+    if args.with_deps:
+        seen = set(refs)
+        expanded: list[str] = list(refs)
+        for ref in refs:
+            for dep in resolve_deps(ref, project_root):
+                if dep not in seen:
+                    seen.add(dep)
+                    expanded.append(dep)
+        if expanded != refs:
+            extras = expanded[len(refs):]
+            print(
+                f"[DEPS] resolved {len(extras)} dependency ref(s): {' '.join(extras)}",
+                file=sys.stderr,
+            )
+        refs = expanded
+
+    deferred: list[str] = []
+    if args.budget is not None:
+        loadable, deferred = plan_load(refs, project_root, args.budget)
+        refs = loadable
+        if deferred:
+            print(
+                f"[DEFERRED] {len(deferred)} ref(s) exceed budget {args.budget}: "
+                f"{' '.join(deferred)}",
+                file=sys.stderr,
+            )
+
+    successes, errors = extract_batch(refs, project_root)
+
+    if args.json_output:
+        index = _load_index(project_root)
+        out: list[dict[str, Any]] = []
+        for ref, content in successes:
+            entry = _index_lookup_or_none(index, ref)
+            out.append({
+                "ref": ref,
+                "status": "ok",
+                "content": content,
+                "file_path": (entry or {}).get("file_path"),
+                "line_start": (entry or {}).get("line_start"),
+                "line_end": (entry or {}).get("line_end"),
+            })
         for ref, msg in errors:
-            print(f"[ERROR] {ref}: {msg}", file=sys.stderr)
-        return 2
-    return 0
+            out.append({"ref": ref, "status": "error", "error": msg})
+        for ref in deferred:
+            out.append({"ref": ref, "status": "deferred"})
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+    else:
+        for ref, content in successes:
+            print(f"=== {ref} ===")
+            print(content)
+            print()
+
+        if errors:
+            for ref, msg in errors:
+                print(f"[ERROR] {ref}: {msg}", file=sys.stderr)
+
+    return 2 if errors else 0
 
 
 if __name__ == "__main__":

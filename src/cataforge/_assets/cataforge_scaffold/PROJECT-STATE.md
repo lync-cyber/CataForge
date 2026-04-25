@@ -15,12 +15,12 @@
   <!-- orchestrator 在 Bootstrap Step 1 收集项目信息时，向用户确认可跳过的阶段 -->
 - model 继承: AGENT.md 中 `model: inherit` 继承父会话模型；可用 `model: <model-id>` 覆盖
 
-## 执行环境 (Bootstrap 时由 setup.py --emit-env-block 填入)
+## 执行环境 (Bootstrap 时由 `cataforge setup --emit-env-block` 填入)
 
 <!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
      权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
 {执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
- python .cataforge/scripts/framework/setup.py --emit-env-block}
+ cataforge setup --emit-env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
@@ -41,12 +41,12 @@
 
 ## 文档导航
 
-- 导航索引: docs/NAV-INDEX.md (所有Agent优先查阅)
+- 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）
 - 通用规则: .cataforge/rules/COMMON-RULES.md
 - 子代理协议: .cataforge/rules/SUB-AGENT-PROTOCOLS.md
 - 编排协议: .cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
 - 状态码Schema: .cataforge/schemas/agent-result.schema.json
-- 加载原则: 按任务需要通过NAV-INDEX定位并加载相关章节，不全量加载
+- 加载原则: 按任务需要通过 `cataforge docs load` 加载相关章节，不全量加载
 
 ## 全局约定
 

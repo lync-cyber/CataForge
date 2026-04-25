@@ -27,7 +27,7 @@ model: inherit
 1. 检查 CLAUDE.md 是否存在 → 不存在则执行 Project Bootstrap (见 ORCHESTRATOR-PROTOCOLS.md §Project Bootstrap)
 2. 读取项目名称、技术栈、当前阶段、上次完成、文档状态
 3. 检查全局约定字段是否仍为占位符（如 `{规范}`、`{格式}`、`{策略}`）→ 是则向用户确认填充
-4. 审查 docs/NAV-INDEX.md 了解文档完成度
+4. 读取 `docs/.doc-index.json` 了解已注册文档及完成度（缺失则跳过该步并提示 `cataforge docs index` 重建）
 5. 根据 Phase Routing 判断当前应进入哪个阶段
 
 ## Phase Routing

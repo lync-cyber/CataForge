@@ -209,9 +209,11 @@ docs/.doc-index.json
 docs/EVENT-LOG.jsonl
 docs/CORRECTIONS-LOG.md
 
-# orchestrator 生成的导航/简报（per-project，非框架产物）
-docs/NAV-INDEX.md
+# orchestrator 生成的简报（per-project，非框架产物）
 docs/brief.md
+
+# 文档章节索引（cataforge docs index 产出，per-project）
+docs/.doc-index.json
 
 # agile-lite 模式产出
 docs/prd-lite.md

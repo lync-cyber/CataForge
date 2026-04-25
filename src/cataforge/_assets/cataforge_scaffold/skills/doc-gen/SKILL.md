@@ -10,8 +10,8 @@ user-invocable: true
 
 # 统一文档生成 (doc-gen)
 ## 能力边界
-- 能做: 模板实例化、章节内容填充、超长文档拆分、NAV-INDEX注册、交叉引用生成
-- 不做: 内容决策(由调用Agent负责)、文档评审(由doc-review负责)
+- 能做: 模板实例化、章节内容填充、超长文档拆分、机器索引注册、交叉引用生成
+- 不做: 内容决策(由调用Agent负责)、文档评审(由doc-review负责)、机器索引重建（由 `cataforge docs index` 负责，doc-gen 仅触发增量更新）
 
 ## 操作指令
 
@@ -28,7 +28,7 @@ user-invocable: true
 
 ### 指令2: 写入章节内容 (write-section)
 Agent逐章填充内容时:
-1. 读取目标文档: 通过 NAV-INDEX 定位准确路径，`Read docs/{doc_type}/{doc_file}`
+1. 读取目标文档: 通过 `docs/.doc-index.json` 定位准确路径（或直接拼接 `docs/{doc_type}/{filename}` 后 Read）
 2. 定位章节标题(如 `## 2. 功能需求`)
 3. 使用 `Edit` 工具写入章节内容
 4. 如果内容引用了其他文档(如 F-001 → arch#M-001)，检查引用目标是否存在
@@ -39,14 +39,13 @@ Agent逐章填充内容时:
    - **检查通过**: 继续 Step 2
    - **检查失败**: 返回缺失项清单给调用 Agent，不执行 Step 2-4。Agent 应补充缺失章节后重新调用 finalize
 2. 拆分判断: 如文档行数超过 `DOC_SPLIT_THRESHOLD_LINES`，按下方"文档拆分策略"执行拆分
-3. 注册索引: 读取 `docs/NAV-INDEX.md`，追加当前文档条目(Doc ID、文件路径(含子目录)、状态=draft、分卷数、章节数)
-4. 更新机器索引: `cataforge docs index --doc-file {最终文档路径}`
-5. **[EVENT]** `python .cataforge/scripts/framework/event_logger.py --event doc_finalize --phase {当前阶段} --ref "{doc_id}" --detail "文档finalize: {doc_id}"`
-6. 返回: 最终文档路径 + NAV-INDEX注册确认 + .doc-index.json更新确认
+3. 更新机器索引: `cataforge docs index --doc-file {最终文档路径}` —— 增量刷新 `docs/.doc-index.json`，doc-nav 后续按 doc_id 即可定位
+4. **[EVENT]** `cataforge event log --event doc_finalize --phase {当前阶段} --ref "{doc_id}" --detail "文档finalize: {doc_id}"`
+5. 返回: 最终文档路径 + .doc-index.json 更新确认
 
-注: doc-gen 是 NAV-INDEX 的唯一写入者。
+注: doc-gen 不再写入 markdown 形式的 NAV-INDEX；唯一持久化的索引是机器可读的 `docs/.doc-index.json`，由 `cataforge docs index` 维护。
 
-注意: finalize是轻量格式预检；深度内容审查由doc-review负责
+注意: finalize 是轻量格式预检；深度内容审查由 doc-review 负责
 
 ## 文档拆分策略
 触发条件: 单文档行数超过 `DOC_SPLIT_THRESHOLD_LINES`
@@ -70,7 +69,7 @@ Agent逐章填充内容时:
 1. **确定拆分方案** — 根据上表确定 doc_type 对应的 volume_type 组合
 2. **创建分卷骨架** — 使用分卷模板 (`templates/{模板文件}`) 创建各分卷文件
 3. **移动内容** — 将主卷中对应章节内容移入分卷，主卷保留交叉引用目录
-4. **注册 NAV-INDEX** — 每个分卷独立注册，标注 `split-from: {主卷ID}`
+4. **更新机器索引** — 拆分完成后对每个分卷分别运行 `cataforge docs index --doc-file <分卷路径>`；`split_from` 字段写入分卷的 YAML Front Matter，indexer 会自动读取
 5. **分卷存放路径** — 与主卷同目录: `docs/{doc_type}/`
 
 ### 拆分规则
@@ -135,5 +134,5 @@ required_sections:
 
 ## 效率策略
 - 按模板生成骨架，减少Agent的格式化工作
-- finalize时自动注册NAV-INDEX，避免手动维护
+- finalize 时自动调用 `cataforge docs index` 增量更新 `.doc-index.json`，避免手动维护
 - 拆分后每个分卷可独立加载，支持按需消费
