@@ -107,7 +107,7 @@ cataforge skill run <id>    # 执行指定 Skill
 
 ```bash
 cataforge hook list         # 列出 hooks.yaml 中定义的 hook
-cataforge hook test <name>  # 测试指定 hook（v0.2+）
+cataforge hook test <name>  # 测试指定 hook（接受 --fixture 文件或 --inline JSON）
 ```
 
 Hook 按事件分组：`PreToolUse` / `PostToolUse` / `Stop` / `Notification` / `SessionStart`。
@@ -134,7 +134,7 @@ cataforge plugin list       # 列出已发现的插件
 
 发现来源：Python entry points (`cataforge.plugins`) + 本地目录 `.cataforge/plugins/*/cataforge-plugin.yaml`。
 
-`cataforge plugin install <source>` 与 `cataforge plugin remove <id>` 规划在 v0.3 版本加入，届时将支持从 Git / 本地目录安装插件并写入 `pyproject.toml` 的 entry points。当前版本需手动克隆到 `.cataforge/plugins/` 下或通过 `pip install` 注册 entry point。
+`cataforge plugin install <source>` 与 `cataforge plugin remove <id>` 仍为 stub（规划中，进度跟踪：[lync-cyber/CataForge issues](https://github.com/lync-cyber/CataForge/issues?q=is%3Aopen+plugin+install)）。届时将支持从 Git / 本地目录安装插件并写入 `pyproject.toml` 的 entry points；当前版本需手动克隆到 `.cataforge/plugins/` 下或通过 `pip install` 注册 entry point。
 
 ---
 

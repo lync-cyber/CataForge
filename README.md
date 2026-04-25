@@ -18,7 +18,7 @@
 
 - **写一次，处处运行** — Agent / Skill / Hook / MCP 的声明式规范，`cataforge deploy` 翻译为 Claude Code、Cursor、CodeX、OpenCode 各自的原生产物
 - **不支持即降级** — `PlatformAdapter` 维护能力矩阵，能力缺失时优雅回退（`rules_injection` / `prompt_check` / `skip`），规范永远是唯一事实源
-- **开箱即用的 SDLC** — 内置 13 个 Agent、24 个 Skill，覆盖需求 → 架构 → 设计 → TDD → 评审全流程
+- **开箱即用的 SDLC** — 内置 13 个 Agent、25 个 Skill，覆盖需求 → 架构 → 设计 → TDD → 评审全流程
 - **升级可回滚** — `cataforge upgrade apply` 自动快照，`upgrade rollback` 一键回退；用户编辑的 `runtime.platform`、`PROJECT-STATE.md` 始终保留
 - **元框架生成器** — `workflow-framework-generator` Skill 按工作流类型（软件开发 / 内容创作 / 研究分析…）与目标 IDE 生成一套新的 CataForge 兼容框架
 

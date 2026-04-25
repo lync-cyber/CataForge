@@ -68,7 +68,7 @@ docs(guide): restructure platforms.md
 test(mcp): add lifecycle regression for stopped state
 ```
 
-常用 type：`feat` / `fix` / `docs` / `test` / `refactor` / `chore` / `perf`。
+允许的 type（与 [`.github/workflows/pr-title.yml`](../.github/workflows/pr-title.yml) 校验列表对齐）：`feat` / `fix` / `docs` / `test` / `refactor` / `chore` / `perf` / `build` / `ci` / `release`。
 
 ---
 
@@ -90,7 +90,7 @@ test(mcp): add lifecycle regression for stopped state
 - 新增文档优先放入 `docs/` 下合适的子目录（`getting-started/` / `guide/` / `architecture/` / `reference/`）
 - 根目录仅保留 `README.md` 与 `CHANGELOG.md`
 - 新增 SVG 放 `docs/assets/`，必须遵循 [`assets/design-tokens.md`](./assets/design-tokens.md) 的色板、尺寸、字体与组件约定
-- 所有文档内部链接使用**相对路径**，便于镜像与 fork
+- 所有文档内部链接使用**相对路径**，便于镜像与 fork（**例外**：根 `README.md` 在 PyPI 渲染时相对路径会 404，必须使用 `https://github.com/lync-cyber/CataForge/blob/main/...` 或 `https://raw.githubusercontent.com/...` 绝对 URL）
 - 避免重复内容：同一主题应只存在于一处，其它位置通过链接引用
 
 ### 文档分层原则
@@ -131,11 +131,14 @@ test(mcp): add lifecycle regression for stopped state
 
 ## 发布流程（维护者）
 
-1. 更新 `CHANGELOG.md`（遵循 Keep a Changelog 格式）
-2. 升级 `src/cataforge/__init__.py` 中的 `__version__`
-3. 打 tag：`git tag -a vX.Y.Z -m "Release vX.Y.Z"`（`X.Y.Z` 替换为实际版本）
-4. 构建并发布：`python -m build && twine upload dist/*`
-5. 创建 GitHub Release，附带变更要点
+发布由 GitHub Actions 通过 OIDC trusted publishing 自动完成（[`.github/workflows/publish.yml`](../.github/workflows/publish.yml)）；维护者只需在 main 上完成版本元数据并推 tag。
+
+1. 在 feature 分支更新 `CHANGELOG.md`（Keep a Changelog 格式）：补 `## [X.Y.Z] — YYYY-MM-DD` 段、`### Added/Changed/Fixed/BREAKING` 子段，并在底部 reference link 表追加 `[X.Y.Z]:` 与更新 `[Unreleased]: ...compare/vX.Y.Z...HEAD`。
+2. 升级 `src/cataforge/__init__.py` 中的 `__version__`（必须与 tag 数字位完全一致；publish.yml 在 tag push 时会校验三方一致：tag / `__version__` / CHANGELOG 章节均存在且唯一）。
+3. 走正常 PR → squash merge 到 main。
+4. 在 main 上打 tag 并推送：`git tag vX.Y.Z && git push origin vX.Y.Z`。
+5. tag push 触发 `publish.yml`：自动 `python -m build` → `twine check dist/*` → 通过 OIDC（无需 API token）发布到 PyPI。前置条件：PyPI 已为本仓库配置 Trusted Publisher（`Owner: lync-cyber, Repo: CataForge, Workflow: publish.yml, Environment: pypi`，一次性配置完成）。
+6. 在 GitHub 创建 Release，将本版 CHANGELOG 段作为 release notes。
 
 ---
 

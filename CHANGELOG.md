@@ -96,6 +96,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`docs/assets/verification-flow.svg`** — stage 3 标签 `deploy --check` 改为 `deploy --dry-run`。
 - **`runtime-workflow.md` TOC 漏掉新加的 `关键术语`** — 修正。
 
+## [0.1.9] — 2026-04-24
+
+历史回填（首次发版时仅打 tag 未补章节，本条由后续审计补齐；改动通过链接的 commit 范围核对）。
+
+### Added
+
+- **`cataforge upgrade rollback` 子命令** — `upgrade apply` 自动写入 `.cataforge/.upgrade-backups/` 快照，`rollback` 一键回滚到上一个快照；保留 `runtime.platform`、`upgrade.state`、`PROJECT-STATE.md` 等用户态。
+- **Upgrade BREAKING hints** — `upgrade check` / `upgrade apply` 解析 CHANGELOG 的 `### BREAKING` 条目，在升级前显式列出可能影响的行为，避免静默回归。
+- **PR 标题强制 conventional-commits** — `.github/workflows/pr-title.yml` 拒绝 `Dev` / `Pr/dev-…` / 大写开头等 noise 标题，从源头保证 squash merge 后的 main 历史整洁。
+- **e2e 安装 / 升级测试** — 真实 wheel + venv 矩阵跑 install / upgrade，作为 CI gate。
+
+### Changed
+
+- **文档大重构** — 拆 `getting-started/` `guide/` `architecture/` `reference/` 四层；删除重复内容，新增 `quick-reference.md` 速查卡。
+- **`cataforge setup --check` 更名为 `--check-prereqs`** — 与 `deploy --check`（dry-run 别名）解耦，旧名计划 v0.3 移除。
+- **CLI help / quick-start 图** — 扩充每个子命令的 `--help` 文案，`docs/getting-started/` 新增引导图。
+
+### Fixed
+
+- **`correction-log` 韧性** — 半写入下不再损坏 markdown / jsonl，schema 校验后再 append。
+
+### Retired
+
+- **dev 分支语义（部分）** — `CLAUDE.md` / `pr-title.yml` / `prepare-pr.sh` 头注释删除"长期 dev 分支"假设。后续 v0.1.13 在 #PR-3 完成 `scaffold-sync.yml` / dogfood README / PR 模板 / `no-dogfood-leak.yml` / `product-paths.txt` 五处补丁，使整套退役一致。
+
 ## [0.1.8] — 2026-04-24
 
 ### Added
@@ -264,12 +289,18 @@ hint; full implementation is tracked for later milestones:
 - `cataforge hook test <name>` — planned v0.2.
 - `cataforge plugin {install,remove}` — planned v0.3.
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.9...HEAD
+> **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
+
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.12...HEAD
+[0.1.12]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.12
+[0.1.11]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.11
+[0.1.10]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.10
 [0.1.9]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.9
 [0.1.8]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.8
 [0.1.7]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.7
 [0.1.6]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.6
 [0.1.5]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.5
+[0.1.4]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.4
 [0.1.3]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.3
 [0.1.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.1
