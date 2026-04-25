@@ -7,15 +7,15 @@
 
 ## 来源分支
 
-- [ ] 从 `dev` 分支经 `prepare-pr.sh` 生成（形态 C dogfood 工作流）
-- [ ] 基于 main 的常规 feature/fix 分支
+- [ ] 从 feature 分支经 `.cataforge/scripts/dogfood/prepare-pr.sh` 生成（dogfood 工作流；产物在 feature 分支跑过 orchestrator 后用脚本剥离）
+- [ ] 基于 main 的常规 feature/fix 分支（无 orchestrator 产物污染）
 - [ ] 其他（请说明）
 
 ## Dogfood 自检
 
-如果 PR 来自 dev 分支，必须全部勾选:
+如果 PR 来自 dogfood 工作流（已勾选上方第一项），必须全部勾选:
 
-- [ ] 已运行 `.cataforge/scripts/dogfood/prepare-pr.sh` 生成本分支
+- [ ] 已运行 `.cataforge/scripts/dogfood/prepare-pr.sh` 生成本 PR 分支（脚本头注释为权威说明，参考 dogfood/README.md）
 - [ ] `.cataforge/PROJECT-STATE.md` 未被修改
 - [ ] 未包含 `docs/EVENT-LOG.jsonl` / `docs/CORRECTIONS-LOG.md` / `docs/NAV-INDEX.md`
 - [ ] 未包含 `docs/prd/` / `docs/arch/` / `docs/dev-plan/` / `docs/reviews/` 等过程目录
@@ -28,6 +28,14 @@
 
 - [ ]
 - [ ]
+
+## Doc impact
+
+参考 [`docs/contributing.md`](../docs/contributing.md) §改代码 = 改文档 对应表。勾选适用项：
+
+- [ ] 本 PR 不触及上表任何条目（跳过本节）
+- [ ] 已同步对应文档（在 Summary 列出文件路径）
+- [ ] 不需要同步（说明原因，例如"内部重构无可见行为变化"）
 
 ## Related
 

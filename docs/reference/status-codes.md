@@ -101,7 +101,7 @@ Agent 间通过标准化引用格式传递信息，避免全文复制：
 | `2`  | Click 用法错误（未知选项、缺必需参数等） |
 | `70` | 功能未实现（路线图 stub）— BSD sysexits `EX_SOFTWARE` |
 
-> 历史版本（v0.1.x）使用退出码 `2` 表示 stub，与 Click 自动使用的用法错误码冲突。v0.2 起改用 `70`，便于 CI 脚本区分"未实现"与"命令用错"。完整定义以 [`cli.md`](./cli.md) §退出码 为准。
+> `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`。完整定义以 [`cli.md`](./cli.md) §退出码 为准；常量在 [`cataforge.cli.errors`](../../src/cataforge/cli/errors.py)。
 
 ---
 

@@ -1,0 +1,86 @@
+name: Anti-rot weekly sweep
+
+# Catches "decay you didn't notice" — the four anti-rot guards are also
+# wired into the per-PR test workflow (test.yml), but a weekly cron run
+# on `main` opens an issue if anything regresses without a PR (e.g. a
+# direct push, a tag-only release that left CHANGELOG inconsistent, a
+# new skill folder added without docs).
+#
+# Issue body lists which guards failed; closing the issue requires a
+# follow-up PR that fixes the underlying inconsistency.
+
+on:
+  schedule:
+    # Mondays 04:00 UTC — early enough that a Monday morning maintainer
+    # sees the issue at the top of their feed.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sweep:
+    name: Sweep main for documentation rot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package (for check_doc_versions)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Run anti-rot guards
+        id: guards
+        run: |
+          set +e
+          fails=()
+          for s in check_skill_count check_no_dev_branch_refs check_changelog_link_table check_doc_versions check_profile_yaml_keys check_hooks_yaml_schema; do
+              echo "::group::$s"
+              python "scripts/checks/$s.py"
+              rc=$?
+              echo "::endgroup::"
+              if [ $rc -ne 0 ]; then
+                  fails+=("$s")
+              fi
+          done
+          if [ ${#fails[@]} -gt 0 ]; then
+              echo "failed_guards=${fails[*]}" >> "$GITHUB_OUTPUT"
+              echo "FAILED: ${fails[*]}"
+              exit 1
+          fi
+
+      - name: Open issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILED: ${{ steps.guards.outputs.failed_guards }}
+        run: |
+          gh issue create \
+              --title "[anti-rot] weekly sweep failed: ${FAILED:-unknown}" \
+              --label rot \
+              --body "$(cat <<EOF
+          The Monday anti-rot sweep on \`main\` flagged inconsistencies.
+
+          **Failed guards:** ${FAILED:-unknown}
+
+          See the [run log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+          Each guard prints its own fix hint; common fixes:
+          - \`check_skill_count\`: update README / docs/README / agents-and-skills.md to match disk
+          - \`check_no_dev_branch_refs\`: remove resurrected dev-branch wording (use feature branches)
+          - \`check_changelog_link_table\`: backfill the missing \`## [X.Y.Z]\` section or remove the orphan link
+          - \`check_doc_versions\`: bump the example version in the named doc to the current package version
+          - \`check_profile_yaml_keys\`: edit configuration.md §profile.yaml example to match real .cataforge/platforms/<id>/profile.yaml schema
+          - \`check_hooks_yaml_schema\`: edit configuration.md §hooks.yaml example to match real .cataforge/hooks/hooks.yaml (schema_version, top-level keys, entry shape)
+          EOF
+          )"

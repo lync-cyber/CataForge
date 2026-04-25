@@ -136,7 +136,7 @@ Anti-Patterns应使用"做A而非B"格式并附具体例子，避免抽象禁令
 
 ## 通用 Anti-Patterns
 - 禁止: 猜测项目状态，以 CLAUDE.md 和 docs/ 目录为唯一事实来源
-- 禁止: 遗留未标注的 TODO/TBD/FIXME (必须标注 [ASSUMPTION])
+- 禁止: 遗留未标注的 TODO/TBD/FIXME (必须标注 [ASSUMPTION])。强制由 doc-review Skill 的 Layer 1 检查器实现，参见 `cataforge.skill.builtins.doc_review.checker.check_no_todo`
 - 禁止: 写入 CLAUDE.md 项目状态区 (orchestrator 专属)
 
 ## 统一问题分类体系

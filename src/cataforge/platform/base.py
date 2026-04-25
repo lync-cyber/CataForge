@@ -238,8 +238,10 @@ class PlatformAdapter(ABC):
         if not project_state_path.is_file():
             return ["SKIP: PROJECT-STATE.md not found"]
 
+        from cataforge.core.template import render_project_state
+
         content = project_state_path.read_text(encoding="utf-8")
-        content = content.replace("运行时: {platform}", f"运行时: {platform_id}")
+        content = render_project_state(content, platform_id)
 
         # Prepend an at-mention preamble when the platform declares one via
         # context_injection.  Today only Claude Code uses this — CLAUDE.md gets

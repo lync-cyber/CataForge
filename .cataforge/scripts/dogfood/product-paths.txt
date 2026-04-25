@@ -1,8 +1,8 @@
 # CataForge Dogfood — 产品文件白名单
 #
-# 列出哪些路径被视为"产品文件"，允许从 dev 分支 PR 到 main。
-# 其他任何差异（orchestrator 过程产出、PROJECT-STATE 状态变更、
-# dogfood 提交、本地 CLAUDE.md 等）在 prepare-pr.sh 运行时都会被
+# 列出哪些路径被视为"产品文件"，允许从 feature 分支（经 prepare-pr.sh）
+# PR 到 main。其他任何差异（orchestrator 过程产出、PROJECT-STATE 状态
+# 变更、dogfood 提交、本地 CLAUDE.md 等）在 prepare-pr.sh 运行时都会被
 # 还原到 origin/main 的状态。
 #
 # 格式:
@@ -11,7 +11,8 @@
 #   - 以 `#` 开头        → 注释（整行忽略）
 #   - 空行              → 忽略
 #
-# 新增产品路径时，先在 main 分支更新此文件，再同步到 dev。
+# 新增产品路径时，在 main 分支走正常 feature/fix PR 更新此文件即可
+# （不再有"长期 dev 分支"语义，无需同步）。
 
 # ---- 框架源码 ----
 .cataforge/agents/

@@ -41,8 +41,18 @@ def skill_list() -> None:
 @skill_group.command("run")
 @click.argument("skill_id")
 @click.argument("args", nargs=-1)
+@click.option(
+    "--agent",
+    "agent",
+    default=None,
+    help=(
+        "Agent that initiated this run. Recorded in EVENT-LOG when the skill "
+        "is review-class. Falls back to env CATAFORGE_INVOKING_AGENT, then "
+        "to 'reviewer'."
+    ),
+)
 @require_initialized
-def skill_run(skill_id: str, args: tuple[str, ...]) -> None:
+def skill_run(skill_id: str, args: tuple[str, ...], agent: str | None) -> None:
     """Run an executable skill, forwarding ARGS to the skill's entry point.
 
     Exits with the skill's own return code so shell pipelines can gate on
@@ -52,7 +62,7 @@ def skill_run(skill_id: str, args: tuple[str, ...]) -> None:
 
     try:
         runner = SkillRunner(project_root=resolve_root())
-        result = runner.run(skill_id, list(args))
+        result = runner.run(skill_id, list(args), agent=agent)
     except (ValueError, FileNotFoundError) as e:
         raise ConfigError(str(e)) from None
 

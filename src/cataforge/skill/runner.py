@@ -27,6 +27,8 @@ class SkillRunner:
         skill_id: str,
         args: list[str] | None = None,
         script_name: str | None = None,
+        *,
+        agent: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """Run a skill's script.
 
@@ -34,6 +36,11 @@ class SkillRunner:
             skill_id: Skill identifier (e.g. "code-review").
             args: Arguments to pass to the script.
             script_name: Specific script name (if skill has multiple). Defaults to first.
+            agent: Agent that initiated this run (used as ``agent`` field
+                in the EVENT-LOG state_change record). When ``None``, falls
+                back to ``CATAFORGE_INVOKING_AGENT`` env var, then to
+                ``"reviewer"`` (preserves prior behaviour for callers that
+                don't yet pass attribution).
 
         Returns:
             CompletedProcess result.
@@ -71,7 +78,7 @@ class SkillRunner:
             text=True,
         )
 
-        self._emit_run_event(meta, script_entry, result.returncode)
+        self._emit_run_event(meta, script_entry, result.returncode, agent=agent)
         return result
 
     def _emit_run_event(
@@ -79,6 +86,8 @@ class SkillRunner:
         meta: SkillMeta,
         script_entry: dict[str, str],
         returncode: int,
+        *,
+        agent: str | None = None,
     ) -> None:
         """Best-effort: append a ``state_change`` record to EVENT-LOG.jsonl.
 
@@ -95,6 +104,12 @@ class SkillRunner:
         orchestrator-driven runs can attribute to the right lifecycle
         phase); otherwise defaults to ``development``, which is where
         Layer 1 scripts are actually executed.
+
+        Agent attribution: if the caller didn't pass ``agent=``, we read
+        ``CATAFORGE_INVOKING_AGENT`` from the env so an upstream
+        orchestrator/dispatcher can `export` it once and have downstream
+        ``cataforge skill run`` invocations attribute back. Final fallback
+        is ``"reviewer"`` for backward compat with existing review skills.
         """
         if not meta.record_to_event_log:
             return
@@ -105,6 +120,11 @@ class SkillRunner:
             return
 
         phase = os.environ.get("CATAFORGE_EVENT_PHASE") or "development"
+        attributed_agent = (
+            agent
+            or os.environ.get("CATAFORGE_INVOKING_AGENT")
+            or "reviewer"
+        )
         if returncode == 0:
             detail = f"skill-run: {skill_id} Layer 1 passed"
             status = "completed"
@@ -123,7 +143,7 @@ class SkillRunner:
                 event="state_change",
                 phase=phase,
                 detail=detail,
-                agent="reviewer",
+                agent=attributed_agent,
                 status=status,
                 ref=f"skill:{skill_id}/{script_entry['name']}",
             )

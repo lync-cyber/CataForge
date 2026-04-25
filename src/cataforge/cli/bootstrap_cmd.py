@@ -280,8 +280,19 @@ def _semver_newer(a: str, b: str) -> bool:
     Non-numeric versions fall back to plain string inequality — we'd rather
     be conservative (trigger upgrade) than silently skip a real release
     just because someone typed "0.2.0rc1".
+
+    Special case: when *b* is a placeholder like ``0.0.0-template`` (used
+    in source-repo framework.json that hasn't been stamped with a real
+    package version yet), do NOT treat any installed version as "newer".
+    Otherwise dogfood developers always see a phantom upgrade plan because
+    their installed package (e.g. 0.1.12) compares > 0.0.0. The placeholder
+    semantically means "this scaffold has not been materialised by setup
+    yet; defer the comparison until it has".
     """
     import re
+
+    if b.startswith("0.0.0-"):
+        return False
 
     tup_re = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
     ma = tup_re.match(a)
@@ -331,7 +342,14 @@ def _execute_plan(
     *,
     skip_doctor: bool,
 ) -> None:
-    """Run each planned step in order. Halt on first failure."""
+    """Run each planned step in order. Halt on first failure.
+
+    Setup and upgrade are not reimplemented here — they delegate to
+    ``setup_command`` (fresh scaffold + platform write) and
+    ``copy_scaffold_to(force=True)`` (in-place refresh) respectively.
+    Bootstrap's job is orchestration: deciding which steps run and
+    halting on failure, not duplicating the side effects.
+    """
     from cataforge.core.events import FRAMEWORK_SETUP, EventBus
     from cataforge.core.scaffold import copy_scaffold_to
 
@@ -343,20 +361,36 @@ def _execute_plan(
 
     setup_step = step_by_name.get("setup")
     if setup_step is not None and setup_step.action == "run":
-        click.echo(f"[setup] scaffolding .cataforge/ at {cfg.paths.cataforge_dir}")
-        written, skipped, _ = copy_scaffold_to(
-            cfg.paths.cataforge_dir, force=False,
+        click.echo(f"[setup] delegating to `cataforge setup --platform {plan.target_platform}`")
+        # Delegate to setup_command so any new side effect added there
+        # (e.g. --emit-env-block, additional checks) is automatically
+        # picked up by bootstrap. We pass --no-deploy explicitly: bootstrap
+        # owns the deploy step and we don't want setup to chain it.
+        from cataforge.cli.setup_cmd import setup_command
+
+        ctx.invoke(
+            setup_command,
+            platform=plan.target_platform,
+            with_penpot=False,
+            check_only=False,
+            force_scaffold=False,
+            # deploy_after=False so setup doesn't chain a deploy — bootstrap
+            # owns the deploy step. no_deploy=False to avoid setup's
+            # deprecation warning (the flag is a deprecated no-op).
+            deploy_after=False,
+            no_deploy=False,
+            dry_run=False,
+            show_diff=False,
         )
         cfg.reload()
-        click.echo(f"  wrote {len(written)} file(s), kept {len(skipped)} existing")
-        if plan.target_platform is not None:
-            cfg.set_runtime_platform(plan.target_platform)
-            click.echo(
-                f"  framework.json: runtime.platform = {plan.target_platform}"
-            )
 
     upgrade_step = step_by_name.get("upgrade")
     if upgrade_step is not None and upgrade_step.action == "run":
+        # Upgrade is a refresh-in-place — copy_scaffold_to(force=True) is
+        # the only direct call here because there is no `cataforge upgrade
+        # apply` no-prompt subcommand to invoke (apply has its own
+        # interactive flow with backups + diff). When such a non-interactive
+        # path is added, this branch can collapse to ctx.invoke.
         click.echo(f"[upgrade] refreshing .cataforge/ at {cfg.paths.cataforge_dir}")
         written, _, backup = copy_scaffold_to(
             cfg.paths.cataforge_dir, force=True,

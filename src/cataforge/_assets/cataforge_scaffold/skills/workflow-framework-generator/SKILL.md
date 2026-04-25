@@ -132,7 +132,7 @@ input: <输入描述>
 output: <输出描述>
 used_by: [<agent_id>]
 depends: [<skill_id>]
-suggested_tools: [<capability_id>]
+suggested-tools: [<capability_id>]   # 注意短横线，非下划线 — SkillLoader (loader.py:231) 仅识别带短横线的键名
 ```
 
 **提取规则**：

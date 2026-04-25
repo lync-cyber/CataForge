@@ -22,7 +22,11 @@ def _minimal_project(tmp_path: Path, *, migration_checks: list[dict] | None = No
     cf.mkdir()
     (cf / "framework.json").write_text(
         json.dumps(
-            {"version": "0.1.0", "migration_checks": migration_checks or []}
+            {
+                "version": "0.1.0",
+                "runtime_api_version": "1.0",
+                "migration_checks": migration_checks or [],
+            }
         ),
         encoding="utf-8",
     )

@@ -97,9 +97,11 @@ cataforge agent validate    # 校验 Agent 定义合法性
 ## skill
 
 ```bash
-cataforge skill list        # 列出已发现的 Skill
-cataforge skill run <id>    # 执行指定 Skill
+cataforge skill list                          # 列出已发现的 Skill
+cataforge skill run <id> [--agent <name>] -- ...  # 执行指定 Skill 并转发参数
 ```
+
+`--agent` 标识本次调用方，会作为 `agent` 字段写入 EVENT-LOG（仅当 skill 为 review-class、即 `record_to_event_log: true` 时；目前是 `code-review` / `doc-review` / `sprint-review` 三个内置 + 任何 `record-to-event-log: true` 的项目自定义 skill）。也可以一次性 `export CATAFORGE_INVOKING_AGENT=<name>` 让多次调用统一归因。两者都缺省时回退为 `reviewer`（保持历史行为）。
 
 ---
 
@@ -107,7 +109,7 @@ cataforge skill run <id>    # 执行指定 Skill
 
 ```bash
 cataforge hook list         # 列出 hooks.yaml 中定义的 hook
-cataforge hook test <name>  # 测试指定 hook（v0.2+）
+cataforge hook test <name>  # 测试指定 hook（接受 --fixture 文件或 --inline JSON）
 ```
 
 Hook 按事件分组：`PreToolUse` / `PostToolUse` / `Stop` / `Notification` / `SessionStart`。
@@ -134,7 +136,7 @@ cataforge plugin list       # 列出已发现的插件
 
 发现来源：Python entry points (`cataforge.plugins`) + 本地目录 `.cataforge/plugins/*/cataforge-plugin.yaml`。
 
-`cataforge plugin install <source>` 与 `cataforge plugin remove <id>` 规划在 v0.3 版本加入，届时将支持从 Git / 本地目录安装插件并写入 `pyproject.toml` 的 entry points。当前版本需手动克隆到 `.cataforge/plugins/` 下或通过 `pip install` 注册 entry point。
+`cataforge plugin install <source>` 与 `cataforge plugin remove <id>` 仍为 stub（规划中，进度跟踪：[lync-cyber/CataForge issues](https://github.com/lync-cyber/CataForge/issues?q=is%3Aopen+plugin+install)）。届时将支持从 Git / 本地目录安装插件并写入 `pyproject.toml` 的 entry points；当前版本需手动克隆到 `.cataforge/plugins/` 下或通过 `pip install` 注册 entry point。
 
 ---
 
@@ -247,7 +249,7 @@ cat events.jsonl | cataforge event log --batch
 | `2`  | Click 用法错误 | 未知选项、缺少必需参数、参数类型不符（由 Click 自动使用） |
 | `70` | 功能未实现（stub） | `plugin install` / `plugin remove` 等路线图占位命令；由 `CataforgeError` 子类 `NotImplementedFeature` 抛出 |
 
-> 历史版本（v0.1.x）使用退出码 `2` 表示 stub，与 Click 的用法错误冲突。v0.2 起改为 BSD sysexits 约定 `70` (`EX_SOFTWARE`)，CI 脚本可据此区分"未实现"与"用错命令"。
+> `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`，让 CI 脚本能区分"未实现"与"命令用错"。常量定义在 [`cataforge.cli.errors.EXIT_NOT_IMPLEMENTED`](../../src/cataforge/cli/errors.py)，自 v0.1.0 起就是此值。
 
 所有非零退出均以统一的 stderr 前缀 `Error: …` 输出（`click.ClickException` 渲染），便于 CI/脚本捕获。
 

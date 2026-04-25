@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13] — 2026-04-25
+
+二轮腐化审计闭环（PR-1 → PR-8 一线串过 26+8 = **34 条腐化**修复 + 6 个 anti-rot CI 守卫 + 1 个 weekly sweep workflow + migration_check 生命周期机制）。
+
+### Added
+
+- **`cataforge core/template.py`** — `render_project_state()` 抽象，把"运行时: {platform}" 的字面量模板替换从 `PlatformAdapter` 抽象基类剥离。
+- **`SkillRunner.run(..., agent=)`** + `cataforge skill run --agent <name>`：EVENT-LOG `state_change` 事件按真实调用方归因，环境变量 `CATAFORGE_INVOKING_AGENT` 兜底（旧"硬编码 reviewer"行为作为最终 fallback 保留）。
+- **`framework.json` 占位 `version: "0.0.0-template"`** + `Config.version` 在读时解析为运行包版本 + `bootstrap_cmd._semver_newer` 对 `0.0.0-` 前缀短路；源仓库 commit 不再随每次发版漂移版本号。
+- **`migration_checks[].deprecate_after`** 字段 + doctor 在 `__version__ ≥ deprecate_after` 时 SKIP；12 条历史 check（mc-0.1.0-* / mc-0.1.5-* / mc-0.1.7-*）已标 `deprecate_after: "0.2.0"`，2 条结构性 check（mc-0.1.9-* / mc-0.1.10-event-logger-shim）保持永久启用。
+- **`migration_checks[].allow_missing`**（仅 `file_must_not_contain` 类型）：路径不存在时默认 FAIL（防止 vacuous PASS），allow_missing 提供"路径在某些安装下合法缺失"的逃生口。
+- **`runtime_api_version` 契约校验**：`SUPPORTED_RUNTIME_API_VERSION = "1.0"` 常量 + doctor `runtime_api_version contract` 段，从源头让该字段不再是装饰性。
+- **6 个 anti-rot 守卫脚本**（`scripts/checks/`）：`check_skill_count` / `check_no_dev_branch_refs` / `check_changelog_link_table` / `check_doc_versions` / `check_profile_yaml_keys` / `check_hooks_yaml_schema`。前 4 个守覆盖一轮审计落地的事实型腐化；后 2 个守 schema 漂移（二轮审计发现的 §profile.yaml / §hooks.yaml 整段错位类）。
+- **`.github/workflows/anti-rot.yml`** weekly cron：每周一 04:00 UTC 在 `main` 跑 6 守卫，失败时自动开 `rot` label issue。
+- **CHANGELOG `## [0.1.4]` / `## [0.1.9]` 章节回填**：tag 已存在但章节缺失的两条历史 release 补回。
+
+### Changed
+
+- **`bootstrap_cmd._execute_plan` 真正变 thin**：fresh-install 的 setup 步骤改用 `ctx.invoke(setup_command, ...)` 而非内联 `copy_scaffold_to + cfg.set_runtime_platform`，setup 后续新增的副作用（如 `--emit-env-block`）会自动覆盖 bootstrap 路径。
+- **`migration_checks` 命名统一**：`mc-0.6.0-*` / `mc-0.7.0-*` / `mc-0.10.0-*` 三类预改名前的混杂前缀全部统一为 `mc-0.1.x-*`，与 0.1.x 主线版本号对齐。
+- **`features.correction-hook.min_version`**：`"0.7.0"` → `"0.1.0"`（之前是预改名前遗留）。
+- **`docs/reference/configuration.md` §framework.json / §profile.yaml / §hooks.yaml** 三段全部按真实代码 schema 重写（旧文档描述的字段在代码中根本不存在；`runtime.mode`、`runtime.checkpoints`、扁平 `features`、`migration_checks[].severity`、字符串 `upgrade.source`、`hooks.yaml: version: 1` 扁平列表、`profile.yaml: paths: / capabilities: / degradation:` 等）。
+- **CHANGELOG 链接表**：`[Unreleased]` 比较基线从 v0.1.9 → v0.1.13；`[0.1.10/11/12/13]` reference link 全部补全。
+- **dogfood "长期 dev 分支" 模型退役**：`scaffold-sync.yml` / dogfood README / PR 模板 / `no-dogfood-leak.yml` / `product-paths.txt` 五处仍按 dev-branch 写的指令统一改为 feature-branch + prepare-pr.sh 模型。
+- **`docs/contributing.md`**：补 `build` / `ci` / `release` conventional-commits type；发布流程从手动 `twine upload` 改为 OIDC trusted publishing 流程描述；新增 §改代码 = 改文档 强约定表（PR 模板 Doc impact 段引用此表）。
+- **README / docs/README / agents-and-skills.md**：Skill 计数 24 → 25（v0.1.7 引入的 self-update 之前一直未计入文档）。
+
+### Fixed
+
+- **`docs/reference/cli.md` / `status-codes.md`** 假历史："v0.1.x 用退出码 2 表示 stub，v0.2 起改 70" — 实际 `errors.py` 自 v0.1.0 起就是 70；删除编造的"版本演进"叙事。
+- **`docs/reference/cli.md`**：`hook test` 的 `(v0.2+)` 标注（功能已发版）；`plugin install/remove` 的硬编码 v0.3 计划改为 GitHub issue 链接。
+- **`docs/reference/configuration.md` schema 漂移整组**：`runtime.mode` / `runtime.checkpoints` / 扁平 `features` 等大量"文档里有、代码里没"的字段已删除；正确的 preserve / overwrite 字段表对应 `_merge_framework_json`。
+- **`workflow-framework-generator/SKILL.md:135`** 字段名拼写错：`suggested_tools:` → `suggested-tools:`（SkillLoader 仅识别短横线形式；旧拼写会让生成的 skill 静默丢失 suggested-tools 字段）。
+- **`mc-0.1.5-session-context-simplified` 路径**：原 `.cataforge/hooks/session_context.py` 实物不存在 → vacuous PASS（`file_must_not_contain` 在文件缺失时默认按通过处理）；现改为 `src/cataforge/hook/scripts/session_context.py` + `allow_missing: true` + `deprecate_after: "0.2.0"`。
+- **doctor `file_must_not_contain` 默认严格**：路径缺失时 FAIL 并提示三种解决方案（修路径 / 加 `allow_missing` / 加 `deprecate_after`），堵住同类 vacuous-PASS 失败模式。
+- **CHANGELOG `[0.1.0]` Roadmap 段**：补 STATUS UPDATE 注脚说明 `upgrade {check,apply,verify}` 与 `hook test` 自 v0.1.5 起已发版，仅 `plugin install/remove` 仍为 stub。
+- **`framework.json.description`**：之前写"upgrade.source 升级时保留用户配置"与代码（每次 overwrite）矛盾；改为以代码为准。
+- **`COMMON-RULES.md:139`** TODO/TBD/FIXME 规则改为引用 doc-review 实现，单一来源。
+- **`platform-audit/SKILL.md:365`** 占位符更显眼。
+- **codex `profile.yaml` `command_definition` 长期 TODO** 转架构文档跟踪点。
+- **根 `CONTRIBUTING.md`** 补"完整指南见 docs/contributing.md"redirect 说明。
+
+### Retired
+
+- **dev 分支语义（剩余 5 处）**：v0.1.9 时 `chore(docs): retire dev branch` PR (#56) 漏掉的 5 个文件本次补齐；自此 origin 上 dev 分支不存在 + 全套文档/CI 一致按 feature 分支 + prepare-pr.sh 描述。
+
 ## [0.1.12] — 2026-04-25
 
 ### Fixed
@@ -96,6 +142,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`docs/assets/verification-flow.svg`** — stage 3 标签 `deploy --check` 改为 `deploy --dry-run`。
 - **`runtime-workflow.md` TOC 漏掉新加的 `关键术语`** — 修正。
 
+## [0.1.9] — 2026-04-24
+
+历史回填（首次发版时仅打 tag 未补章节，本条由后续审计补齐；改动通过链接的 commit 范围核对）。
+
+### Added
+
+- **`cataforge upgrade rollback` 子命令** — `upgrade apply` 自动写入 `.cataforge/.upgrade-backups/` 快照，`rollback` 一键回滚到上一个快照；保留 `runtime.platform`、`upgrade.state`、`PROJECT-STATE.md` 等用户态。
+- **Upgrade BREAKING hints** — `upgrade check` / `upgrade apply` 解析 CHANGELOG 的 `### BREAKING` 条目，在升级前显式列出可能影响的行为，避免静默回归。
+- **PR 标题强制 conventional-commits** — `.github/workflows/pr-title.yml` 拒绝 `Dev` / `Pr/dev-…` / 大写开头等 noise 标题，从源头保证 squash merge 后的 main 历史整洁。
+- **e2e 安装 / 升级测试** — 真实 wheel + venv 矩阵跑 install / upgrade，作为 CI gate。
+
+### Changed
+
+- **文档大重构** — 拆 `getting-started/` `guide/` `architecture/` `reference/` 四层；删除重复内容，新增 `quick-reference.md` 速查卡。
+- **`cataforge setup --check` 更名为 `--check-prereqs`** — 与 `deploy --check`（dry-run 别名）解耦，旧名计划 v0.3 移除。
+- **CLI help / quick-start 图** — 扩充每个子命令的 `--help` 文案，`docs/getting-started/` 新增引导图。
+
+### Fixed
+
+- **`correction-log` 韧性** — 半写入下不再损坏 markdown / jsonl，schema 校验后再 append。
+
+### Retired
+
+- **dev 分支语义（部分）** — `CLAUDE.md` / `pr-title.yml` / `prepare-pr.sh` 头注释删除"长期 dev 分支"假设。后续 v0.1.13 在 #PR-3 完成 `scaffold-sync.yml` / dogfood README / PR 模板 / `no-dogfood-leak.yml` / `product-paths.txt` 五处补丁，使整套退役一致。
+
 ## [0.1.8] — 2026-04-24
 
 ### Added
@@ -149,6 +220,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **sdist 构建** — `.cataforge/` scaffold 目录及注册的构建产物现已正确包含在源码分发包中。
+
+## [0.1.4] — 2026-04-23
+
+历史回填（首次发版时仅打 tag 未补章节，本条由后续审计补齐；改动通过 git log 范围核对）。
+
+### Fixed
+
+- **`fix(build): include .cataforge in sdist + force-register scaffold artifacts`** (#40) — sdist 现在带上 `.cataforge/` 目录，避免下游从 sdist 安装时缺 scaffold 模板；hatch 构建 hook 强制注册 scaffold artifact。
+
+### Docs
+
+- **`docs(installation): add upgrade section`** (#39) — 安装文档补 upgrade 段。
 
 ## [0.1.3] — 2026-04-23
 
@@ -264,12 +347,19 @@ hint; full implementation is tracked for later milestones:
 - `cataforge hook test <name>` — planned v0.2.
 - `cataforge plugin {install,remove}` — planned v0.3.
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.9...HEAD
+> **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
+
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.13...HEAD
+[0.1.13]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.13
+[0.1.12]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.12
+[0.1.11]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.11
+[0.1.10]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.10
 [0.1.9]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.9
 [0.1.8]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.8
 [0.1.7]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.7
 [0.1.6]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.6
 [0.1.5]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.5
+[0.1.4]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.4
 [0.1.3]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.3
 [0.1.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.1

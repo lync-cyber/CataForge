@@ -75,7 +75,23 @@ class ConfigManager:
 
     @property
     def version(self) -> str:
-        return str(self.load().get("version", "0.0.0"))
+        """Effective scaffold version.
+
+        The on-disk ``version`` is normally an installed package number
+        stamped by ``scaffold._stamp_framework_version``. The source repo
+        ships ``0.0.0-template`` as a placeholder so the committed file
+        doesn't drift with each release; resolve that placeholder to the
+        running package version on read so dogfood developers see a real
+        number in `cataforge bootstrap` / `cataforge doctor` output.
+        """
+        raw = str(self.load().get("version", "0.0.0"))
+        if raw.startswith("0.0.0-"):
+            try:
+                from cataforge import __version__ as pkg_version
+                return pkg_version
+            except Exception:
+                return raw
+        return raw
 
     @property
     def runtime_platform(self) -> str:

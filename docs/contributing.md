@@ -68,7 +68,7 @@ docs(guide): restructure platforms.md
 test(mcp): add lifecycle regression for stopped state
 ```
 
-常用 type：`feat` / `fix` / `docs` / `test` / `refactor` / `chore` / `perf`。
+允许的 type（与 [`.github/workflows/pr-title.yml`](../.github/workflows/pr-title.yml) 校验列表对齐）：`feat` / `fix` / `docs` / `test` / `refactor` / `chore` / `perf` / `build` / `ci` / `release`。
 
 ---
 
@@ -90,12 +90,27 @@ test(mcp): add lifecycle regression for stopped state
 - 新增文档优先放入 `docs/` 下合适的子目录（`getting-started/` / `guide/` / `architecture/` / `reference/`）
 - 根目录仅保留 `README.md` 与 `CHANGELOG.md`
 - 新增 SVG 放 `docs/assets/`，必须遵循 [`assets/design-tokens.md`](./assets/design-tokens.md) 的色板、尺寸、字体与组件约定
-- 所有文档内部链接使用**相对路径**，便于镜像与 fork
+- 所有文档内部链接使用**相对路径**，便于镜像与 fork（**例外**：根 `README.md` 在 PyPI 渲染时相对路径会 404，必须使用 `https://github.com/lync-cyber/CataForge/blob/main/...` 或 `https://raw.githubusercontent.com/...` 绝对 URL）
 - 避免重复内容：同一主题应只存在于一处，其它位置通过链接引用
 
 ### 文档分层原则
 
 四层结构（`getting-started/` → `guide/` → `architecture/` → `reference/`）与每层职责见 [`README.md`](./README.md) §文档分层原则。新写文档前先对号入座，避免写错层（例如把"原理"塞进 `guide/`）。
+
+### 改代码 = 改文档
+
+凡是触动以下"代码—文档"对应关系之一的 PR，必须在同一 PR 内同步对应文档；PR 模板的 "Doc impact" 区段强制确认。`scripts/checks/` 下的 anti-rot 守卫会在 CI 校验大部分对应关系。
+
+| 代码改动 | 必须同步的文档 |
+|----------|---------------|
+| 新增 / 重命名 / 删除 Skill (`.cataforge/skills/<id>/`) | [`reference/agents-and-skills.md`](./reference/agents-and-skills.md) 总览表 + 折叠详细 + Skill 数 + Agent-Skill 矩阵；README/docs README 中的 "X 个 Skill" 计数（`scripts/checks/check_skill_count.py` 守护） |
+| 新增 / 重命名 Agent | 同上，含 §Agent-Skill 关联矩阵 |
+| 新增 CLI 子命令 (`cli/*_cmd.py`) | [`reference/cli.md`](./reference/cli.md) §命令总览 + 章节；[`reference/quick-reference.md`](./reference/quick-reference.md) 速查表 |
+| 修改 `framework.json` schema 字段 | [`reference/configuration.md`](./reference/configuration.md) §framework.json 表（含 schema 示例 + preserve/overwrite 标注） |
+| 增删 `platforms/<id>/` | [`guide/platforms.md`](./guide/platforms.md) + [`architecture/platform-adaptation.md`](./architecture/platform-adaptation.md) 能力矩阵 |
+| 任何 BREAKING 行为变更 | `CHANGELOG.md` 当前 `[Unreleased]` 段 `### BREAKING` 子段；`upgrade check` 会自动在升级前提醒用户 |
+| 新增 / 弃用 `migration_check` | [`reference/configuration.md`](./reference/configuration.md) §migration_checks 表；新增需带 `release_version`，弃用补 `deprecate_after` |
+| 发版（tag） | `CHANGELOG.md` 同时补 `## [X.Y.Z]` 章节 + 底部 `[X.Y.Z]:` reference link，并把 `[Unreleased]` 比较基线改为新 tag（`scripts/checks/check_changelog_link_table.py` 守护） |
 
 ---
 
@@ -131,11 +146,14 @@ test(mcp): add lifecycle regression for stopped state
 
 ## 发布流程（维护者）
 
-1. 更新 `CHANGELOG.md`（遵循 Keep a Changelog 格式）
-2. 升级 `src/cataforge/__init__.py` 中的 `__version__`
-3. 打 tag：`git tag -a vX.Y.Z -m "Release vX.Y.Z"`（`X.Y.Z` 替换为实际版本）
-4. 构建并发布：`python -m build && twine upload dist/*`
-5. 创建 GitHub Release，附带变更要点
+发布由 GitHub Actions 通过 OIDC trusted publishing 自动完成（[`.github/workflows/publish.yml`](../.github/workflows/publish.yml)）；维护者只需在 main 上完成版本元数据并推 tag。
+
+1. 在 feature 分支更新 `CHANGELOG.md`（Keep a Changelog 格式）：补 `## [X.Y.Z] — YYYY-MM-DD` 段、`### Added/Changed/Fixed/BREAKING` 子段，并在底部 reference link 表追加 `[X.Y.Z]:` 与更新 `[Unreleased]: ...compare/vX.Y.Z...HEAD`。
+2. 升级 `src/cataforge/__init__.py` 中的 `__version__`（必须与 tag 数字位完全一致；publish.yml 在 tag push 时会校验三方一致：tag / `__version__` / CHANGELOG 章节均存在且唯一）。
+3. 走正常 PR → squash merge 到 main。
+4. 在 main 上打 tag 并推送：`git tag vX.Y.Z && git push origin vX.Y.Z`。
+5. tag push 触发 `publish.yml`：自动 `python -m build` → `twine check dist/*` → 通过 OIDC（无需 API token）发布到 PyPI。前置条件：PyPI 已为本仓库配置 Trusted Publisher（`Owner: lync-cyber, Repo: CataForge, Workflow: publish.yml, Environment: pypi`，一次性配置完成）。
+6. 在 GitHub 创建 Release，将本版 CHANGELOG 段作为 release notes。
 
 ---
 
