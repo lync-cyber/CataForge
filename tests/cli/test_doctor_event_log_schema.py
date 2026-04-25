@@ -15,7 +15,11 @@ def _project(tmp_path: Path) -> Path:
     cf = tmp_path / ".cataforge"
     (cf / "hooks").mkdir(parents=True)
     (cf / "framework.json").write_text(
-        json.dumps({"version": "0.1.0", "runtime": {"platform": "claude-code"}}),
+        json.dumps({
+            "version": "0.1.0",
+            "runtime_api_version": "1.0",
+            "runtime": {"platform": "claude-code"},
+        }),
         encoding="utf-8",
     )
     # minimal hooks.yaml so the importability check doesn't choke

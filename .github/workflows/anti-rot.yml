@@ -44,7 +44,7 @@ jobs:
         run: |
           set +e
           fails=()
-          for s in check_skill_count check_no_dev_branch_refs check_changelog_link_table check_doc_versions; do
+          for s in check_skill_count check_no_dev_branch_refs check_changelog_link_table check_doc_versions check_profile_yaml_keys check_hooks_yaml_schema; do
               echo "::group::$s"
               python "scripts/checks/$s.py"
               rc=$?
@@ -80,5 +80,7 @@ jobs:
           - \`check_no_dev_branch_refs\`: remove resurrected dev-branch wording (use feature branches)
           - \`check_changelog_link_table\`: backfill the missing \`## [X.Y.Z]\` section or remove the orphan link
           - \`check_doc_versions\`: bump the example version in the named doc to the current package version
+          - \`check_profile_yaml_keys\`: edit configuration.md §profile.yaml example to match real .cataforge/platforms/<id>/profile.yaml schema
+          - \`check_hooks_yaml_schema\`: edit configuration.md §hooks.yaml example to match real .cataforge/hooks/hooks.yaml (schema_version, top-level keys, entry shape)
           EOF
           )"

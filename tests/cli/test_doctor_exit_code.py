@@ -14,7 +14,11 @@ def _minimal_project(tmp_path: Path, checks: list[dict]) -> Path:
     cf = tmp_path / ".cataforge"
     cf.mkdir()
     (cf / "framework.json").write_text(
-        json.dumps({"version": "0.1.0", "migration_checks": checks}),
+        json.dumps({
+            "version": "0.1.0",
+            "runtime_api_version": "1.0",
+            "migration_checks": checks,
+        }),
         encoding="utf-8",
     )
     return tmp_path

@@ -68,10 +68,17 @@ def doctor_command(ctx: click.Context) -> None:
         status = "OK" if path.is_file() else "MISSING"
         click.echo(f"  {pid}: {status}")
 
+    # runtime_api_version contract — framework.json declares it, but until
+    # this check landed nothing read it back. Drift between scaffold-shipped
+    # value and on-disk value means the user's framework.json was authored
+    # against a different runtime API revision than the package can serve.
+    click.echo("\nruntime_api_version contract:")
+    failed_count = _check_runtime_api_version(cfg)
+
     # Framework migration checks — defined in framework.json, verified here so
     # scaffold/repo drift surfaces automatically instead of only at upgrade time.
     click.echo("\nFramework migration checks:")
-    failed_count = _run_migration_checks(cfg)
+    failed_count += _run_migration_checks(cfg)
 
     # Protocol script references — markdown/YAML files inside .cataforge/
     # routinely invoke ``python .cataforge/scripts/...`` commands. If one of
@@ -572,6 +579,48 @@ def _read_cursor_mirror_flag(profile_path: Path) -> bool:
     if not isinstance(rules, dict):
         return False
     return bool(rules.get("cross_platform_mirror", False))
+
+
+SUPPORTED_RUNTIME_API_VERSION = "1.0"
+"""scaffold ↔ runtime contract version.
+
+Bumped on backwards-incompatible scaffold/runtime interface changes
+(field rename, removed key, type change). Fresh installs and
+``cataforge upgrade apply`` always restamp framework.json with this
+value via ``_merge_framework_json``; mismatch on a Config.load() means
+either:
+  - user hand-edited framework.json to an unsupported version, or
+  - they're running a wheel from before the contract bump against a
+    framework.json from after.
+"""
+
+
+def _check_runtime_api_version(cfg) -> int:
+    declared = cfg.load().get("runtime_api_version")
+    if declared is None:
+        # Field is unconditionally stamped by ``scaffold._stamp_framework_version``
+        # on every ``cataforge setup`` / ``cataforge upgrade apply`` write,
+        # so a real on-disk framework.json that goes through the normal
+        # install path will never be missing it. Hard-fail here so the
+        # contract is meaningful — users who hand-edit framework.json and
+        # delete the field will be told to restamp.
+        click.echo(
+            f"  FAIL: runtime_api_version field missing from framework.json "
+            f"(expected {SUPPORTED_RUNTIME_API_VERSION!r}); "
+            "run `cataforge upgrade apply` to restamp."
+        )
+        return 1
+    if str(declared) != SUPPORTED_RUNTIME_API_VERSION:
+        click.echo(
+            f"  FAIL: runtime_api_version = {declared!r}, "
+            f"package supports {SUPPORTED_RUNTIME_API_VERSION!r}. "
+            "Either upgrade the cataforge package (when on-disk is newer) "
+            "or run `cataforge upgrade apply` (when on-disk is older) to "
+            "restamp framework.json."
+        )
+        return 1
+    click.echo(f"  OK: runtime_api_version = {declared}")
+    return 0
 
 
 def _run_migration_checks(cfg) -> int:
