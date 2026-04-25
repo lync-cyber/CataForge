@@ -192,6 +192,14 @@
       "type": "file_must_not_contain",
       "path": ".cataforge/agents/orchestrator/AGENT.md",
       "patterns": ["tools: Read"]
+    },
+    {
+      "id": "mc-0.1.10-event-logger-shim",
+      "release_version": "0.1.10",
+      "description": "event_logger.py 是 markdown 协议（orchestrator/tdd-engine/doc-gen 等十几处）依赖的路径稳定 shim。删除会让所有 [EVENT] 调用静默 ImportError；shim 自身必须保持 forwarder 形态（导入 cataforge.cli.main:cli），不允许重新内联实现。",
+      "type": "file_must_contain",
+      "path": ".cataforge/scripts/framework/event_logger.py",
+      "patterns": ["from cataforge.cli.main import cli", "event", "log"]
     }
   ]
 }

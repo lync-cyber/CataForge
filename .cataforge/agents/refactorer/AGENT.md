@@ -8,7 +8,7 @@ allowed_paths:
   - tests/
 skills: []
 model: inherit
-maxTurns: 50
+maxTurns: 100
 ---
 
 # Role: 重构者 (Refactorer — TDD REFACTOR Phase)

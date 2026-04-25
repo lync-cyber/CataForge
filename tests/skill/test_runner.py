@@ -199,6 +199,40 @@ class TestSkillRunnerEventLog:
         statuses = [r.get("status") for r in records]
         assert "needs_revision" in statuses
 
+    def test_event_log_flag_propagated_to_override(self, project: Path) -> None:
+        """A project-level override that ships its own scripts must still
+        inherit the event-log flag from the builtin — the "review-ness"
+        of code-review/sprint-review/doc-review is intrinsic to the id,
+        not the script provider. Regression for the
+        frontmatter-driven flag refactor."""
+        _write_skill(
+            project,
+            "doc-review",
+            script_body="import sys; sys.exit(0)\n",
+        )
+        loader = SkillLoader(project)
+        meta = loader.get_skill("doc-review")
+        assert meta is not None
+        assert meta.record_to_event_log, (
+            "doc-review override should still record to EVENT-LOG"
+        )
+
+    def test_opt_in_via_frontmatter(self, project: Path) -> None:
+        """A non-review skill can opt into EVENT-LOG via frontmatter."""
+        _write_skill(
+            project,
+            "custom-gate",
+            frontmatter=(
+                "---\nname: custom-gate\ndescription: x\n"
+                "record-to-event-log: true\n---\n"
+            ),
+            script_body="import sys; sys.exit(0)\n",
+        )
+        runner = SkillRunner(project)
+        runner.run("custom-gate")
+        log = project / "docs" / "EVENT-LOG.jsonl"
+        assert log.is_file(), "opt-in skill should emit"
+
     def test_non_review_skill_run_does_not_emit(self, project: Path) -> None:
         """The event log is narrow by design (see
         docs/architecture/quality-and-learning.md). Non-review skills

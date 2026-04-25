@@ -9,7 +9,7 @@ allowed_paths:
 skills:
   - penpot-implement  # 仅当 CLAUDE.md 设计工具=penpot 时使用
 model: inherit
-maxTurns: 50
+maxTurns: 100
 ---
 
 # Role: 实现者 (Implementer — TDD GREEN Phase)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.resources
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +18,16 @@ _BUILTIN_ID_MAP = {
     "doc_review": "doc-review",
     "sprint_review": "sprint-review",
 }
+
+# Built-in skills whose runs are recorded in docs/EVENT-LOG.jsonl. Driven
+# from a flat set here (instead of being hardcoded in the runner) so the
+# loader is the single source of truth and project overrides can opt in
+# via the ``record-to-event-log`` SKILL.md frontmatter key.
+_BUILTIN_EVENT_LOGGED: frozenset[str] = frozenset({
+    "code-review",
+    "sprint-review",
+    "doc-review",
+})
 
 
 @dataclass
@@ -34,6 +45,7 @@ class SkillMeta:
     user_invocable: bool = True
     path: Path | None = None
     builtin: bool = False
+    record_to_event_log: bool = False
 
 
 class SkillLoader:
@@ -99,17 +111,36 @@ class SkillLoader:
         meta: SkillMeta,
         builtins_by_id: dict[str, SkillMeta],
     ) -> SkillMeta:
-        """If *meta* has no scripts but a matching builtin does, borrow them.
+        """Reconcile a project-level SKILL.md against a same-id builtin.
 
-        The project-level SKILL.md still provides frontmatter (description,
-        depends, suggested-tools, user-invocable). Only ``scripts`` and
-        ``builtin`` are taken from the builtin — the runner keys off
-        ``builtin`` to pick ``python -m`` over a file-path invocation.
+        Two independent merges happen here:
+
+        1. **Scripts**: when the project override carries no ``scripts/``
+           directory, borrow the builtin's. Without this, a bare prose
+           override silently shadows the builtin and the runner reports
+           ``no executable scripts`` (the original PR #67 root cause).
+        2. **``record_to_event_log``**: inherited from the builtin
+           regardless of whether scripts were borrowed. This keeps
+           review-class skills (code-review / sprint-review / doc-review)
+           emitting EVENT-LOG records even when a project ships its own
+           Layer 1 implementation — the "review-ness" is an intrinsic
+           property of the skill id, not the script provider.
         """
+        fallback = builtins_by_id.get(meta.id)
+        if fallback is None:
+            return meta
+
+        # (2) Event-log flag: inherit unless the project override flipped
+        # it on explicitly. The builtin can opt skills into the narrow
+        # EVENT-LOG stream; project overrides shouldn't silently opt them
+        # back out.
+        if fallback.record_to_event_log and not meta.record_to_event_log:
+            meta.record_to_event_log = True
+
+        # (1) Script borrowing — only when override has none of its own.
         if meta.scripts:
             return meta
-        fallback = builtins_by_id.get(meta.id)
-        if fallback is None or not fallback.scripts:
+        if not fallback.scripts:
             return meta
         meta.scripts = list(fallback.scripts)
         meta.builtin = True
@@ -157,6 +188,7 @@ class SkillLoader:
                 scripts=scripts,
                 builtin=True,
                 path=child,
+                record_to_event_log=skill_id in _BUILTIN_EVENT_LOGGED,
             ))
         return result
 
@@ -199,6 +231,7 @@ class SkillLoader:
             suggested_tools=_to_list(fm.get("suggested-tools", [])),
             user_invocable=fm.get("user-invocable", True),
             path=skill_md,
+            record_to_event_log=bool(fm.get("record-to-event-log", False)),
         )
 
     def _infer_type(self, skill_dir: Path) -> SkillType:
@@ -212,14 +245,42 @@ class SkillLoader:
 def _has_main_guard(py_file: Path) -> bool:
     """True iff *py_file* contains an ``if __name__ == "__main__":`` guard.
 
-    Read-only textual check so the loader stays import-free — we never
-    execute builtin scripts as a side effect of discovery.
+    AST-based — earlier text-search version (``"__main__" in text and
+    "__name__" in text``) misclassified helper modules whose docstrings
+    happened to mention both tokens, making them appear in
+    ``meta.scripts`` and mis-routing ``cataforge skill run`` defaults.
+    Parses without executing, so the loader stays import-free.
     """
     try:
         text = py_file.read_text(encoding="utf-8")
     except OSError:
         return False
-    return "__main__" in text and "__name__" in text
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If):
+            continue
+        test = node.test
+        if not isinstance(test, ast.Compare):
+            continue
+        if len(test.ops) != 1 or not isinstance(test.ops[0], ast.Eq):
+            continue
+        left, right = test.left, test.comparators[0]
+        if _is_name_dunder(left) and _is_main_constant(right):
+            return True
+        if _is_name_dunder(right) and _is_main_constant(left):
+            return True
+    return False
+
+
+def _is_name_dunder(node: ast.expr) -> bool:
+    return isinstance(node, ast.Name) and node.id == "__name__"
+
+
+def _is_main_constant(node: ast.expr) -> bool:
+    return isinstance(node, ast.Constant) and node.value == "__main__"
 
 
 def _to_list(val: str | list[str]) -> list[str]:
