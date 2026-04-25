@@ -32,51 +32,118 @@
 
 ## framework.json
 
-框架单一配置源。结构示例：
+框架单一配置源。Schema 由 [`cataforge.schema.framework.FrameworkFile`](../../src/cataforge/schema/framework.py) 校验；upgrade 时的 preserve / overwrite 策略由 [`cataforge.core.scaffold._merge_framework_json`](../../src/cataforge/core/scaffold.py) 实现 —— 修改本节字段说明前请先核对那两处代码。
+
+### 结构示例（与 `.cataforge/framework.json` 实际形态一致）
 
 ```json
 {
-  "version": "0.1.8",
+  "version": "0.0.0-template",
+  "runtime_api_version": "1.0",
   "runtime": {
-    "platform": "cursor",
-    "mode": "standard",
-    "checkpoints": ["pre_dev", "pre_deploy"]
+    "platform": "claude-code"
+  },
+  "description": "CataForge 统一框架配置。upgrade.state 为本地升级状态（始终保留）；version、runtime_api_version、constants、features、migration_checks、upgrade.source 与 description 等其余字段均由 scaffold 管理，每次 upgrade apply 会被覆盖。runtime.platform 由用户在 setup 时选择，upgrade 期间保留。",
+  "upgrade": {
+    "source": {
+      "type": "github",
+      "repo": "lync-cyber/CataForge",
+      "branch": "main",
+      "token_env": "GITHUB_TOKEN"
+    },
+    "state": {
+      "last_commit": "",
+      "last_version": "",
+      "last_upgrade_date": ""
+    }
   },
   "constants": {
-    "TDD_LIGHT_LOC_THRESHOLD": 50,
-    "SPRINT_REVIEW_MICRO_TASK_COUNT": 3,
+    "MAX_QUESTIONS_PER_BATCH": 3,
+    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "pre_deploy"],
+    "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl",
+    "EVENT_LOG_SCHEMA": ".cataforge/schemas/event-log.schema.json",
+    "DOC_SPLIT_THRESHOLD_LINES": 300,
     "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
-    "RETRO_TRIGGER_SELF_CAUSED": 5,
-    "MAX_QUESTIONS_PER_BATCH": 3
+    "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "prd-lite", "arch-lite", "dev-plan-lite", "changelog"],
+    "TDD_LIGHT_LOC_THRESHOLD": 50,
+    "SPRINT_REVIEW_MICRO_TASK_COUNT": 2,
+    "RETRO_TRIGGER_SELF_CAUSED": 5
   },
   "features": {
-    "design_tool": "penpot"
+    "tdd-engine": {
+      "min_version": "0.1.0",
+      "auto_enable": true,
+      "phase_guard": "development",
+      "description": "TDD三阶段开发引擎 (RED→GREEN→REFACTOR)"
+    },
+    "doc-review": {
+      "min_version": "0.1.0",
+      "auto_enable": true,
+      "phase_guard": null,
+      "description": "文档双层审计 (Layer 1脚本 + Layer 2 AI)"
+    }
+    // ...其余 feature 同形结构，省略
   },
   "migration_checks": [
-    { "id": "mc-0.7.0-detect-correction-registered", "severity": "error" }
-  ],
-  "upgrade": {
-    "source": "pip",
-    "state": "up-to-date"
-  }
+    {
+      "id": "mc-0.1.0-constants",
+      "release_version": "0.1.0",
+      "description": "COMMON-RULES.md 必须定义执行模式矩阵引用的配置常量",
+      "type": "file_must_contain",
+      "path": ".cataforge/rules/COMMON-RULES.md",
+      "patterns": ["DOC_SPLIT_THRESHOLD_LINES", "RETRO_TRIGGER_SELF_CAUSED"]
+    }
+    // ...其余 check 同形结构
+  ]
 }
 ```
 
+> 用户安装时 `cataforge setup` / `cataforge upgrade apply` 写盘的 `version` 字段由 [`scaffold._stamp_framework_version`](../../src/cataforge/core/scaffold.py) 戳入实际包版本（`cataforge.__version__`）；用户侧不存在示例中的 `0.0.0-template` 占位。源仓库 `.cataforge/framework.json:version` 当前留 `0.1.0` 历史值（dogfood 开发者运行 `cataforge bootstrap` 后会被 stamp 为最新包版本，但提交策略为不回写）。
+
 ### 字段说明
 
-| 字段 | 用户可编辑 | 作用 |
-|------|:---------:|------|
-| `version` | ❌ | 由 `cataforge.__version__` 实时戳入 |
-| `runtime.platform` | ✅ | 目标 IDE：`claude-code` / `cursor` / `codex` / `opencode` |
-| `runtime.mode` | ✅ | 执行模式：`standard` / `agile-lite` / `agile-prototype` |
-| `runtime.checkpoints` | ✅ | 手动审查检查点 |
-| `constants.*` | ❌ | 框架常量（由 scaffold 管理） |
-| `features.*` | ❌ | 功能开关（由 scaffold 管理） |
-| `migration_checks` | ❌ | 迁移检查项（由 scaffold 管理） |
-| `upgrade.state` | ✅ | 用户可标记升级状态 |
-| `upgrade.source` | ❌ | 升级来源（`pip` / `uv-tool`） |
+`upgrade apply` 行为分两类（与 `_merge_framework_json` 保持一致）：
 
-> ❌ 字段每次 `upgrade apply` 都会被最新 scaffold 覆盖。
+- **preserve**：用户已写入的值在升级时保留
+- **overwrite**：每次升级被最新 scaffold 全量覆盖（设计如此 —— 框架元数据不应允许用户偏移）
+
+| 字段 | 用户可编辑 | upgrade 行为 | 作用 |
+|------|:---------:|:------------:|------|
+| `version` | ❌ | overwrite（戳入 `cataforge.__version__`） | 实际包版本，用于 doctor / migration_check 比对 |
+| `runtime_api_version` | ❌ | overwrite | scaffold ↔ runtime 接口版本号，BREAKING 时递增 |
+| `runtime.platform` | ✅ | **preserve** | 目标 IDE：`claude-code` / `cursor` / `codex` / `opencode`；由 `cataforge setup --platform` 写入，`set_runtime_platform()` 也会更新此字段 |
+| `runtime.*`（其它） | ✅ | overwrite | `extra='allow'`，但目前无其它 scaffold 已知字段 |
+| `description` | ❌ | overwrite | 框架自述文案 |
+| `constants.MANUAL_REVIEW_CHECKPOINTS` | ❌ | overwrite | 手动审查检查点列表（如 `["pre_dev", "pre_deploy"]`） |
+| `constants.MAX_QUESTIONS_PER_BATCH` | ❌ | overwrite | `AskUserQuestion` 单批最大问题数 |
+| `constants.EVENT_LOG_PATH` / `EVENT_LOG_SCHEMA` | ❌ | overwrite | 事件日志路径与 JSON Schema 位置 |
+| `constants.DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | `doc-gen` 自动分卷阈值 |
+| `constants.DOC_REVIEW_L2_SKIP_THRESHOLD_LINES` | ❌ | overwrite | `doc-review` Layer 2 跳过阈值 |
+| `constants.DOC_REVIEW_L2_SKIP_DOC_TYPES` | ❌ | overwrite | Layer 2 跳过的文档类型 |
+| `constants.TDD_LIGHT_LOC_THRESHOLD` | ❌ | overwrite | TDD 轻量模式 LOC 阈值 |
+| `constants.SPRINT_REVIEW_MICRO_TASK_COUNT` | ❌ | overwrite | sprint-review 跳过的 micro sprint 任务数阈值 |
+| `constants.RETRO_TRIGGER_SELF_CAUSED` | ❌ | overwrite | reflector 触发的累积自致问题数 |
+| `features.<id>.min_version` | ❌ | overwrite | feature 引入的版本号（语义版本） |
+| `features.<id>.auto_enable` | ❌ | overwrite | 是否在符合 `phase_guard` 时自动启用 |
+| `features.<id>.phase_guard` | ❌ | overwrite | 限定阶段（`null` 表示全局可用） |
+| `features.<id>.description` | ❌ | overwrite | feature 简述 |
+| `migration_checks[].id` | ❌ | overwrite | 检查唯一标识（命名约定 `mc-<release_version>-<slug>`） |
+| `migration_checks[].release_version` | ❌ | overwrite | 检查引入的版本号；用于排序与未来的弃用判定 |
+| `migration_checks[].type` | ❌ | overwrite | 检查类型：`file_must_contain` / `file_must_not_contain` / `dir_must_contain_files` |
+| `migration_checks[].path` | ❌ | overwrite | 被检查文件 / 目录的相对路径 |
+| `migration_checks[].patterns` | ❌ | overwrite | 待匹配子串 / 文件名列表 |
+| `migration_checks[].requires_deploy` | ❌ | overwrite | true 时该检查作用于 `cataforge deploy` 写出的产物（如 `.claude/settings.json`），doctor 在未 deploy 的 workspace 上跳过 |
+| `upgrade.source.type` | ❌ | overwrite | 当前固定 `"github"`；这是**框架资产**的远程拉取协议（区别于 `cataforge` Python 包的安装机制——后者由 pip / uv 处理，由 `self-update` skill 编排） |
+| `upgrade.source.repo` | ❌ | overwrite | scaffold 远程仓库（`<owner>/<repo>` 形态） |
+| `upgrade.source.branch` | ❌ | overwrite | scaffold 拉取分支（默认 `main`） |
+| `upgrade.source.token_env` | ❌ | overwrite | 私有仓库使用的环境变量名（默认 `GITHUB_TOKEN`） |
+| `upgrade.state.last_commit` | ✅ | **preserve** | 上次 apply 拉取的 commit SHA |
+| `upgrade.state.last_version` | ✅ | **preserve** | 上次 apply 时的包版本 |
+| `upgrade.state.last_upgrade_date` | ✅ | **preserve** | 上次 apply 时间戳（ISO 8601） |
+
+> **常见误解**：示例中的 `upgrade.source` 子树**不是 preserve 字段**。如果你 fork 了 CataForge 并希望从私有镜像拉 scaffold，目前只能在每次 `upgrade apply` 后重新写入这些字段；持久化用户自定义 source 的能力跟踪在 `upgrade.source preserve mode` issue。
+
+> 历史记录：framework.json `description` 字段一度写"upgrade.source 升级时保留用户已配置值，补充新字段"，与代码（overwrite）矛盾；该描述已在 v0.1.13 修正以代码为准。
 
 ---
 

@@ -4,7 +4,7 @@
   "runtime": {
     "platform": "claude-code"
   },
-  "description": "CataForge 统一框架配置。upgrade.source 为远程升级源配置（合并策略: 保留用户已配置值，补充新字段）；upgrade.state 为本地升级状态（始终保留）；features 和 migration_checks 为框架出厂配置（升级时全量覆盖）。",
+  "description": "CataForge 统一框架配置。version 字段在 cataforge setup / upgrade apply 写盘时由 scaffold._stamp_framework_version 戳入实际包版本（cataforge.__version__）。upgrade apply 的 preserve 字段：runtime.platform、upgrade.state；其余字段（version、constants、features、migration_checks、upgrade.source 与 description 自身）均被最新 scaffold 全量覆盖。详见 docs/reference/configuration.md §framework.json。",
   "upgrade": {
     "source": {
       "type": "github",
@@ -68,7 +68,7 @@
       "description": "变更守卫 — 分析变更请求与文档一致性，确保文档先行"
     },
     "correction-hook": {
-      "min_version": "0.7.0",
+      "min_version": "0.1.0",
       "auto_enable": true,
       "phase_guard": null,
       "description": "On-Correction Learning 放宽 — hook 自动捕获 AskUserQuestion option-override 信号"
