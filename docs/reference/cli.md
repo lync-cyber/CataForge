@@ -249,7 +249,7 @@ cat events.jsonl | cataforge event log --batch
 | `2`  | Click 用法错误 | 未知选项、缺少必需参数、参数类型不符（由 Click 自动使用） |
 | `70` | 功能未实现（stub） | `plugin install` / `plugin remove` 等路线图占位命令；由 `CataforgeError` 子类 `NotImplementedFeature` 抛出 |
 
-> 历史版本（v0.1.x）使用退出码 `2` 表示 stub，与 Click 的用法错误冲突。v0.2 起改为 BSD sysexits 约定 `70` (`EX_SOFTWARE`)，CI 脚本可据此区分"未实现"与"用错命令"。
+> `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`，让 CI 脚本能区分"未实现"与"命令用错"。常量定义在 [`cataforge.cli.errors.EXIT_NOT_IMPLEMENTED`](../../src/cataforge/cli/errors.py)，自 v0.1.0 起就是此值。
 
 所有非零退出均以统一的 stderr 前缀 `Error: …` 输出（`click.ClickException` 渲染），便于 CI/脚本捕获。
 

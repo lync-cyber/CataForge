@@ -125,10 +125,12 @@
     {
       "id": "mc-0.1.5-session-context-simplified",
       "release_version": "0.1.5",
-      "description": "session_context.py 不应再注入 additionalContext；职责简化为仅写 session_start 事件",
+      "description": "session_context.py 不应再注入 additionalContext；职责简化为仅写 session_start 事件。此检查针对框架源码（dogfood / editable install），用户 site-packages 安装下文件不在 path 中，allow_missing 让该场景通过而非误报",
       "type": "file_must_not_contain",
-      "path": ".cataforge/hooks/session_context.py",
-      "patterns": ["_detect_pkg_env", "additionalContext"]
+      "path": "src/cataforge/hook/scripts/session_context.py",
+      "patterns": ["_detect_pkg_env", "additionalContext"],
+      "allow_missing": true,
+      "deprecate_after": "0.2.0"
     },
     {
       "id": "mc-0.1.5-setup-emit-env",

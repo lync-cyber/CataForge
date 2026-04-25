@@ -672,8 +672,18 @@ def _evaluate_check(check: dict, root: Path) -> tuple[bool, str]:
 
     if ctype == "file_must_not_contain":
         if not target.is_file():
-            # A non-existent file trivially satisfies "must not contain".
-            return True, ""
+            # A non-existent file trivially satisfies "must not contain". An
+            # ``allow_missing`` opt-out is required so guards against
+            # framework-source-only paths (e.g. dogfood-only checks against
+            # `src/cataforge/...`) don't quietly turn into vacuous PASS for
+            # end users where the path doesn't exist.
+            if check.get("allow_missing", False):
+                return True, ""
+            return False, (
+                f"{rel} does not exist — `file_must_not_contain` cannot be "
+                "vacuously asserted; either fix the path, mark the check "
+                "`allow_missing: true`, or set `deprecate_after` for it"
+            )
         try:
             text = target.read_text(encoding="utf-8")
         except OSError as e:

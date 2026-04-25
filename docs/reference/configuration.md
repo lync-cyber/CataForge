@@ -134,6 +134,7 @@
 | `migration_checks[].path` | ❌ | overwrite | 被检查文件 / 目录的相对路径 |
 | `migration_checks[].patterns` | ❌ | overwrite | 待匹配子串 / 文件名列表 |
 | `migration_checks[].requires_deploy` | ❌ | overwrite | true 时该检查作用于 `cataforge deploy` 写出的产物（如 `.claude/settings.json`），doctor 在未 deploy 的 workspace 上跳过 |
+| `migration_checks[].allow_missing` | ❌ | overwrite | （仅 `file_must_not_contain` 类型）默认 false 时，路径不存在 → FAIL（防止 vacuous PASS）。设 true 表示"路径在某些安装下不存在是合法情况"（典型场景：检查源码而非用户项目文件，end-user 安装走 site-packages 时 path 缺失） |
 | `upgrade.source.type` | ❌ | overwrite | 当前固定 `"github"`；这是**框架资产**的远程拉取协议（区别于 `cataforge` Python 包的安装机制——后者由 pip / uv 处理，由 `self-update` skill 编排） |
 | `upgrade.source.repo` | ❌ | overwrite | scaffold 远程仓库（`<owner>/<repo>` 形态） |
 | `upgrade.source.branch` | ❌ | overwrite | scaffold 拉取分支（默认 `main`） |
@@ -150,26 +151,110 @@
 
 ## platforms/\<id\>/profile.yaml
 
-各平台能力映射、工具翻译、降级策略。骨架：
+各平台能力声明、工具翻译、Hook/MCP 配置、降级策略。**权威 schema 是 [`.cataforge/platforms/_schema.yaml`](../../.cataforge/platforms/_schema.yaml)**；本文以 [`.cataforge/platforms/cursor/profile.yaml`](../../.cataforge/platforms/cursor/profile.yaml) 为骨架示例。完整能力矩阵见 [`../architecture/platform-adaptation.md`](../architecture/platform-adaptation.md) §平台能力矩阵。
+
+### 结构示例
 
 ```yaml
-platform: cursor
-capabilities:
-  agent: native
-  hook: native
-  mcp: native
-  ask_user_question: degraded
-paths:
-  agents: .cursor/agents
-  hooks: .cursor/hooks.json
-  rules: .cursor/rules
-  mcp: .cursor/mcp.json
-rules:
-  cross_platform_mirror: false   # 若为 true 会镜像到 .claude/rules
-degradation:
-  ask_user_question: prompt_check
-  notification: skip
-context_injection:               # 见 §context_injection 字段
+platform_id: cursor                  # 唯一标识：claude-code | cursor | codex | opencode
+display_name: Cursor
+version_tested: "3.1"
+
+# 核心 10 能力的工具名翻译；adapter 通过此 map 把 capability id 翻译为平台原生工具
+tool_map:
+  file_read: Read
+  file_write: Write
+  file_edit: Write                   # null 表示该平台无原生支持，走 degradation
+  file_glob: Glob
+  file_grep: Grep
+  shell_exec: Shell
+  web_search: WebSearch
+  web_fetch: null
+  user_question: null
+  agent_dispatch: Task
+
+extended_capabilities:               # 可选 — 核心 10 项之外的扩展能力
+  notebook_edit: null
+  browser_preview: computer
+  image_input: null
+  code_review: null
+
+agent_definition:
+  format: yaml-frontmatter           # yaml-frontmatter | toml
+  scan_dirs: [.cursor/agents]        # 平台原生扫描的 Agent 目录
+  needs_deploy: true                 # false 时 deploy 不写 agent 产物
+
+skill_definition:
+  target_dir: .claude/skills         # 平台读取 skill 的目录
+  needs_deploy: true
+
+command_definition:
+  target_dir: .cursor/commands       # 平台 slash command 目录（缺省时该平台无原生 slash 支持）
+  needs_deploy: true
+
+agent_config:                        # Agent frontmatter 字段约束
+  supported_fields: [name, description, tools, ...]
+  memory_scopes: []                  # 支持的 memory scope（user/project/local）
+  isolation_modes: [worktree]        # 支持的隔离模式
+
+instruction_file:                    # PROJECT-STATE.md → 平台指令文件的部署规则
+  reads_claude_md: false             # 平台是否原生读 CLAUDE.md
+  targets:
+    - type: project_state_copy
+      path: AGENTS.md
+      update_strategy: section-merge # overwrite | section-merge
+      section_policy:                # 仅 section-merge 时生效（详见 §instruction_file 段）
+        framework: [文档导航, 框架机制]   # 框架拥有，每次覆盖
+        schema:    [项目信息, 全局约定]   # 框架定义结构，用户填值，字段级合并
+        runtime:   [项目状态, 执行环境]   # 运行时填充，deploy 不触碰
+        user_extensible: true             # 保留模板没有的用户章节
+        always_overwrite_fields:
+          项目信息: [运行时]            # 即便在 schema 类，这些字段也强制用模板值
+  additional_outputs:                # deploy 额外生成的指令文件
+    - target: .cursor/rules/
+      format: mdc
+      source: rules + platform overrides
+
+dispatch:
+  tool_name: Task                    # 调度工具名
+  is_async: false                    # true = 两步异步调度（如 OpenCode）
+  params: [subagent_type, prompt, description, model]
+
+hooks:
+  config_format: json                # json | yaml | plugin | null
+  config_path: .cursor/hooks.json
+  entry_type: command                # 平台 hook 条目的 type 字段值
+  event_map:                         # CataForge 事件 → 平台事件
+    PreToolUse: preToolUse
+    PostToolUse: postToolUse
+    Stop: stop
+    SessionStart: sessionStart
+    Notification: null               # null = 该平台无对应事件
+  matcher_map:                       # CataForge matcher → 平台 matcher
+    Bash: Shell
+    Agent: Task
+    "Edit|Write": Write
+  tool_overrides: {}                 # 当 hook 矩阵与 tool_map 不同时的覆盖
+  degradation:                       # 各 hook script 在该平台的支持级别
+    guard_dangerous: native          # native | degraded | unsupported
+    detect_correction: degraded
+    notify_done: native
+
+features:                            # 平台级 boolean flags（用于能力矩阵）
+  cloud_agents: true
+  parallel_agents: true
+  plan_mode: false
+  computer_use: true
+  # ... 完整列表见 _schema.yaml §features
+
+permissions:
+  modes: [default, auto]             # 平台支持的审批模式
+
+model_routing:
+  available_models: [opus, sonnet, gpt-5.4, ...]
+  per_agent_model: true              # 是否支持 per-agent 模型选择
+
+context_injection:                   # 规则 / 指令注入策略（详见下方 §context_injection 字段）
   auto_injection:
     mechanism: cursor_rules
     eager: true
@@ -181,9 +266,32 @@ context_injection:               # 见 §context_injection 字段
     target: .cursor/rules
     format: mdc
     activation: always
+
+rules:                               # 可选：跨平台镜像
+  cross_platform_mirror: false       # true 时把 .cataforge/rules 同步到 .claude/rules
 ```
 
-完整矩阵：[`../architecture/platform-adaptation.md`](../architecture/platform-adaptation.md) §平台能力矩阵。
+### 顶层字段速查
+
+| 字段 | 必需 | 作用 |
+|------|:----:|------|
+| `platform_id` | ✅ | 唯一 id，必须等于目录名 |
+| `display_name` | ✅ | 用户可读名（doctor / 错误消息使用） |
+| `version_tested` | ✅ | 最后一次回归验证的平台版本号 |
+| `tool_map` | ✅ | 核心 10 capability 的工具翻译；缺失值 `null` 触发降级 |
+| `extended_capabilities` | ❌ | 核心 10 项之外的扩展能力（如 notebook_edit） |
+| `agent_definition` | ✅ | Agent 部署目标与格式 |
+| `skill_definition` | ❌ | Skill 部署目标 |
+| `command_definition` | ❌ | Slash command 部署目标 |
+| `agent_config` | ❌ | Agent frontmatter 字段子集与隔离模式 |
+| `instruction_file` | ✅ | PROJECT-STATE.md → 平台指令文件的写入规则 |
+| `dispatch` | ✅ | 子代理调度工具的描述 |
+| `hooks` | ✅ | hooks.yaml 翻译为平台原生 hook 配置的规则 |
+| `features` | ❌ | 平台级 boolean 特性矩阵 |
+| `permissions` | ❌ | 审批模式列表 |
+| `model_routing` | ❌ | 模型路由能力 |
+| `context_injection` | ❌ | 规则 / 指令注入策略（缺失时走默认路径） |
+| `rules` | ❌ | 跨平台镜像开关 |
 
 ### context_injection 字段
 
@@ -217,24 +325,94 @@ context_injection:               # 见 §context_injection 字段
 
 ## hooks.yaml
 
-平台无关 hook 规范。示例：
+平台无关 hook 规范，由 `cataforge.hook.bridge` 解析后联同各 platform profile 的 `hooks.event_map` / `matcher_map` / `degradation` 生成平台原生 hook 配置（`.claude/settings.json`、`.cursor/hooks.json` 等）。
+
+`schema_version: 2` 是当前形态；schema 演化策略见 hooks.yaml 顶部注释。
+
+### 结构示例（与 `.cataforge/hooks/hooks.yaml` 实际形态一致）
 
 ```yaml
-version: 1
+schema_version: 2
+
 hooks:
-  - id: enforce-format
-    event: PreToolUse
-    matcher: Edit
-    script: .cataforge/hooks/scripts/enforce-format.sh
-  - id: detect-correction
-    event: PostToolUse
-    matcher: AskUserQuestion
-    script: .cataforge/hooks/scripts/detect-correction.py
+  PreToolUse:
+    - matcher_capability: shell_exec       # CataForge capability id（不是平台原生工具名）
+      script: guard_dangerous              # 短名 — 解析为 cataforge.hook.scripts.guard_dangerous
+      type: block                          # block | observe
+      description: "危险命令拦截"
+      safety_critical: true                # 该 hook 失败应阻断流程，degraded 时也必须有降级方案
+
+  PostToolUse:
+    - matcher_capability: agent_dispatch
+      script: detect_review_flag
+      type: observe
+      description: "审查纠正信号捕获"
+      matcher_agent_id: [reviewer]         # v2 新增：仅特定 agent 触发
+
+  Stop:
+    - script: notify_done                  # 无 matcher_capability → 全事件触发
+      type: observe
+      description: "会话结束通知"
+
+  # 同样支持 Notification / SessionStart 事件分组
+
+degradation_templates:                     # 平台不支持某 hook 时的降级方案
+  guard_dangerous:
+    strategy: rules_injection              # rules_injection | prompt_checklist | prompt_instruction | skip
+    content: |
+      SAFETY RULES (auto-generated — platform lacks PreToolUse hook):
+      - NEVER run rm -rf without explicit user confirmation
+  detect_correction:
+    strategy: skip
+    reason: "纠正学习为非关键功能"        # skip 必须提供 reason；其它 strategy 用 content
 ```
 
-- `event`：`PreToolUse` / `PostToolUse` / `Stop` / `Notification` / `SessionStart`
-- `matcher`：平台原生工具名（按 profile 自动翻译）
-- 平台无降级路径时自动 `skip`，保留日志
+### 字段说明
+
+**顶层**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `schema_version` | int | 当前 `2`。`bridge.py` 校验此值；不匹配会拒绝加载 |
+| `hooks` | map[event, list[hook]] | 按事件名（`PreToolUse` / `PostToolUse` / `Stop` / `Notification` / `SessionStart`）分组的 hook 条目 |
+| `degradation_templates` | map[script_name, template] | 各 hook script 的降级模板。当目标 platform 在 `profile.yaml.hooks.degradation.<script>` 标 `degraded` / `unsupported` 时，deploy 注入此处的内容 |
+
+**`hooks.<event>[]` 条目字段**：
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `script` | str | ✅ | hook 实现的模块短名；解析为 `cataforge.hook.scripts.<name>` |
+| `type` | enum[block, observe] | ✅ | `block` 失败时阻断当前工具调用；`observe` 仅观测，失败不阻断 |
+| `description` | str | ⚠️ 推荐 | 一句说明，写入 deploy 产物注释 |
+| `matcher_capability` | str | 可选 | CataForge capability id（如 `shell_exec` / `agent_dispatch` / `file_edit` / `user_question`），由 platform 的 `tool_map` / `matcher_map` 翻译为原生工具名。缺省 = 全事件触发（适合 `Stop` / `Notification` / `SessionStart`） |
+| `safety_critical` | bool | 可选 | 默认 `false`。`true` 表示该 hook 即便 degraded 也必须给 `degradation_templates` 提供有效降级；CI 可据此校验 |
+| `matcher_agent_id` | list[str] | 可选 (v2+) | 仅当 dispatch 到列出的 agent id 时触发，例如 `[reviewer]` |
+| `matcher_file_pattern` | str | 可选 (v2+) | 文件路径 glob 过滤（仅 `file_*` capability） |
+| `matcher_command_pattern` | str | 可选 (v2+) | shell 命令正则过滤（仅 `shell_exec`） |
+
+**`degradation_templates.<script>` 字段**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `strategy` | enum | `rules_injection`（注入 .cataforge/rules）/ `prompt_checklist`（注入 prompt 段）/ `prompt_instruction`（注入指令片段）/ `skip`（仅记录） |
+| `content` | str | strategy ∈ {rules_injection, prompt_checklist, prompt_instruction} 时必填 — 注入的实际文本 |
+| `reason` | str | strategy = `skip` 时必填 — 跳过原因（写入降级日志） |
+
+### 实物 hook 列表（dogfood 项目）
+
+`cataforge doctor` 在 `Hook script importability` 段会校验全部声明 hook 的 `cataforge.hook.scripts.<name>` 都可 `importlib.find_spec`：
+
+| event | matcher_capability | script |
+|-------|-------------------|--------|
+| PreToolUse | shell_exec | guard_dangerous |
+| PreToolUse | agent_dispatch | log_agent_dispatch |
+| PostToolUse | agent_dispatch | validate_agent_result |
+| PostToolUse | file_edit | lint_format |
+| PostToolUse | user_question | detect_correction |
+| PostToolUse | agent_dispatch (matcher_agent_id=[reviewer]) | detect_review_flag |
+| Stop | — | notify_done |
+| Notification | — | notify_permission |
+| SessionStart | — | session_context |
 
 ---
 
