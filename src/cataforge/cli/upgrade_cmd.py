@@ -146,6 +146,27 @@ def upgrade_apply(dry_run: bool) -> None:
     cfg.reload()
     click.echo(f"CataForge v{cfg.version} — scaffold up to date.")
 
+    # Refresh docs/.doc-index.json when the project has opted into it.
+    # Without this an upgraded scaffold would still load an index built
+    # against the previous version's docs, and orphans introduced
+    # between releases would only surface at next manual `docs index`
+    # invocation.
+    from cataforge.docs.indexer import INDEX_FILENAME
+
+    docs_dir = cfg.paths.root / "docs"
+    if (docs_dir / INDEX_FILENAME).is_file():
+        click.echo(f"\n[docs-index] refreshing docs/{INDEX_FILENAME}")
+        from cataforge.docs.indexer import main as indexer_main
+
+        rc = indexer_main(["--project-root", str(cfg.paths.root)])
+        if rc != 0:
+            click.secho(
+                f"  WARN docs index returned {rc} — fix front matter and "
+                "rerun `cataforge docs index`.",
+                fg="yellow",
+                err=True,
+            )
+
     # Platform-rendered artifacts (.claude/settings.json, .cursor/hooks.json,
     # ...) are produced by `cataforge deploy`, not by scaffold refresh. If a
     # deploy has already happened at least once, remind the user to re-run it

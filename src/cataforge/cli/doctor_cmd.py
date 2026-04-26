@@ -1010,47 +1010,88 @@ def _check_orphan_docs(cfg) -> int:
     they were partially masked by hand-maintained NAV-INDEX entries; once
     the machine index became authoritative, the gap turned silent.
 
-    Gated on ``docs/.doc-index.json`` existing — that file is only created
-    by ``cataforge docs index``, so its presence is the explicit signal
-    that the project opted into CataForge-managed docs. Repos whose
-    ``docs/`` is plain README-style content (architecture explainers, faq,
-    etc.) never built an index, so they are exempt from this check.
+    When ``docs/.doc-index.json`` is missing but ``docs/`` contains
+    markdown files, surface a non-blocking WARN pointing at
+    ``cataforge docs index`` — until v0.1.14 this case silently returned
+    0, which meant first-time bootstraps and projects that hadn't yet
+    indexed never got a hint that they could opt in. Empty / absent
+    ``docs/`` directories are still skipped silently (genuinely
+    not-applicable, not an oversight).
 
     Returns the number of orphans found (counts toward the doctor exit
-    gate).
+    gate). The WARN paths return 0 — they are advisory, not failures.
     """
-    from cataforge.docs.indexer import INDEX_FILENAME, find_orphan_docs
+    import glob
+    import os
+
+    from cataforge.docs.indexer import (
+        INDEX_FILENAME,
+        find_orphan_docs,
+        find_stale_index_entries,
+    )
 
     root = cfg.paths.root
     if not (root / "docs").is_dir():
         click.echo("  (no docs/ directory — skipping)")
         return 0
+
     if not (root / "docs" / INDEX_FILENAME).is_file():
+        md_files = glob.glob(os.path.join(str(root), "docs", "**", "*.md"), recursive=True)
+        if not md_files:
+            click.echo(
+                f"  (no docs/{INDEX_FILENAME} and docs/ has no markdown — skipping)"
+            )
+            return 0
+        click.secho(
+            f"  WARN no docs/{INDEX_FILENAME} but docs/ contains "
+            f"{len(md_files)} markdown file(s)",
+            fg="yellow",
+        )
         click.echo(
-            f"  (no docs/{INDEX_FILENAME} — project has not opted into "
-            "CataForge-managed docs; skipping)"
+            "  → run `cataforge docs index` to enable section-level loading "
+            "via `cataforge docs load <doc_id>#§N`."
         )
         return 0
 
     orphans = find_orphan_docs(str(root))
-    if not orphans:
-        click.echo("  0 orphan documents (every docs/**/*.md is indexable)")
+    stale = find_stale_index_entries(str(root))
+
+    if not orphans and not stale:
+        click.echo(
+            "  0 orphan documents · 0 stale index entries (everything in sync)"
+        )
         return 0
 
-    click.echo(
-        f"  {len(orphans)} orphan document(s) — missing YAML front matter "
-        f"(id field):"
-    )
-    shown = orphans[:5]
-    for rel in shown:
-        click.echo(f"    FAIL {rel}")
-    extra = len(orphans) - len(shown)
-    if extra > 0:
-        click.echo(f"    - ... and {extra} more")
-    click.echo(
-        "  → add `id`/`doc_type` front matter and rerun `cataforge docs index`."
-    )
-    return len(orphans)
+    if orphans:
+        click.echo(
+            f"  {len(orphans)} orphan document(s) — missing YAML front matter "
+            f"(id field):"
+        )
+        shown = orphans[:5]
+        for rel in shown:
+            click.echo(f"    FAIL {rel}")
+        extra = len(orphans) - len(shown)
+        if extra > 0:
+            click.echo(f"    - ... and {extra} more")
+        click.echo(
+            "  → add `id`/`doc_type` front matter and rerun `cataforge docs index`."
+        )
+
+    if stale:
+        click.echo(
+            f"  {len(stale)} stale index entry(ies) — file_path missing on disk:"
+        )
+        shown_stale = stale[:5]
+        for doc_id, rel in shown_stale:
+            click.echo(f"    FAIL {doc_id} → {rel}")
+        extra = len(stale) - len(shown_stale)
+        if extra > 0:
+            click.echo(f"    - ... and {extra} more")
+        click.echo(
+            "  → run `cataforge docs index` (full rebuild) to drop stale entries."
+        )
+
+    return len(orphans) + len(stale)
 
 
 def _check_file(label: str, path: Path) -> None:

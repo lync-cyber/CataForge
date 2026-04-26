@@ -412,6 +412,32 @@ def _execute_plan(
             click.echo(f"  {action}")
         bus.emit(FRAMEWORK_SETUP, {"platform": target, "bootstrap": True})
 
+    # First-time bootstrap previously left docs/.doc-index.json absent
+    # forever, so doctor's orphan check silently skipped and `cataforge
+    # docs load` was invisible to the user. Auto-generate the first
+    # index when docs/ exists with markdown content; non-blocking on
+    # failure so a malformed doc doesn't strand bootstrap mid-flow.
+    docs_dir = cfg.paths.root / "docs"
+    if docs_dir.is_dir() and any(docs_dir.rglob("*.md")):
+        click.echo("\n[docs-index] generating docs/.doc-index.json")
+        from cataforge.docs.indexer import main as indexer_main
+
+        try:
+            rc = indexer_main(["--project-root", str(cfg.paths.root)])
+            if rc != 0:
+                click.secho(
+                    f"  WARN docs index returned {rc} — see warnings above; "
+                    "fix front matter then rerun `cataforge docs index`.",
+                    fg="yellow",
+                    err=True,
+                )
+        except Exception as e:  # noqa: BLE001
+            click.secho(
+                f"  WARN docs index crashed: {e} — bootstrap continuing.",
+                fg="yellow",
+                err=True,
+            )
+
     doctor_step = step_by_name.get("doctor")
     if skip_doctor:
         click.echo("\n[doctor] skipped (--skip-doctor)")

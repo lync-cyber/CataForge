@@ -224,6 +224,34 @@ def find_orphan_docs(project_root: str) -> list[str]:
     return orphans
 
 
+def find_stale_index_entries(project_root: str) -> list[tuple[str, str]]:
+    """Return ``(doc_id, file_path)`` pairs whose ``file_path`` is gone from disk.
+
+    Symmetric to :func:`find_orphan_docs`: that function catches files
+    on disk the indexer can't read; this one catches index entries that
+    survived a manual ``rm`` / rename. Both are silent failure modes
+    pre-v0.1.14 — the loader returned "ref not found" instead of
+    pointing at the stale entry.
+    """
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    stale: list[tuple[str, str]] = []
+    for doc_id, entry in (index.get("documents") or {}).items():
+        rel = entry.get("file_path", "")
+        if not rel:
+            continue
+        abs_path = os.path.join(project_root, rel)
+        if not os.path.isfile(abs_path):
+            stale.append((doc_id, rel))
+    return stale
+
+
 def update_single_doc(
     project_root: str, doc_file: str, existing_index: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -317,6 +345,28 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.strict:
             return 3
+
+    # Reverse-orphan scan: index entries pointing at deleted/renamed
+    # files. The fresh index we just wrote is consistent by construction,
+    # so this only matters if `--doc-file` was used (incremental: other
+    # entries weren't refreshed).
+    if args.doc_file:
+        stale = find_stale_index_entries(project_root)
+        if stale:
+            print(
+                f"[WARN] {len(stale)} 个 .doc-index.json 条目指向磁盘"
+                f"已不存在的文件：",
+                file=sys.stderr,
+            )
+            for doc_id, rel in stale:
+                print(f"  - {doc_id} → {rel}", file=sys.stderr)
+            print(
+                "  → 跑 `cataforge docs index`（不带 --doc-file）做全量"
+                "重建以清掉这些条目。",
+                file=sys.stderr,
+            )
+            if args.strict:
+                return 3
 
     return 0
 
