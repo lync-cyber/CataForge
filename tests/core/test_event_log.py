@@ -77,6 +77,22 @@ class TestValidateRecord:
         })
         assert any("'phase' must be a string" in e for e in errors)
 
+    def test_rejects_surrogate_code_points(self) -> None:
+        # `\udcb9` is what Python's surrogateescape error handler produces
+        # when raw byte 0xB9 is read through a locale decoder that can't
+        # represent it — e.g. a UTF-8 stream mistakenly decoded as cp936.
+        # If such a string makes it into a record, json.dumps + .encode("utf-8")
+        # explodes mid-write, leaving a half-written batch tempfile around.
+        # Validation must catch this up-front so the batch is rejected
+        # cleanly before any I/O.
+        errors = validate_record({
+            "ts": "2026-04-23T12:00:00+00:00",
+            "event": "phase_start",
+            "phase": "x",
+            "detail": "tainted \udcb9 byte",
+        })
+        assert any("surrogate" in e for e in errors)
+
 
 class TestBuildRecord:
     def test_auto_timestamp(self) -> None:

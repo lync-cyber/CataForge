@@ -8,7 +8,6 @@ just the Click surface + a small amount of argv juggling for the legacy
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import click
@@ -22,6 +21,7 @@ from cataforge.core.event_log import (
     build_record,
     parse_batch_stream,
 )
+from cataforge.core.io import read_stdin_utf8
 from cataforge.core.paths import find_project_root
 
 
@@ -107,7 +107,12 @@ def event_log_cmd(
                 "--batch is mutually exclusive with "
                 "--event/--phase/--detail/--data."
             )
-        text = sys.stdin.read()
+        try:
+            text = read_stdin_utf8()
+        except UnicodeDecodeError as e:
+            raise CataforgeError(
+                f"--batch stdin is not valid UTF-8: {e}"
+            ) from e
         if not text.strip():
             raise CataforgeError("--batch requested but stdin is empty.")
         try:

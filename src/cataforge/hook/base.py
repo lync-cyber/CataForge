@@ -32,10 +32,10 @@ HOOK_ERROR_LOG_MAX_BYTES = 256 * 1024
 
 def read_hook_input() -> dict[str, Any]:
     """Read and parse stdin JSON with robust encoding handling."""
+    from cataforge.core.io import read_stdin_utf8
+
     try:
-        raw = sys.stdin.buffer.read()
-        text = raw.decode("utf-8", errors="replace")
-        return dict(json.loads(text))
+        return dict(json.loads(read_stdin_utf8(errors="replace")))
     except (json.JSONDecodeError, ValueError, UnicodeDecodeError, AttributeError) as e:
         logger.debug("Failed to parse hook stdin: %s", e)
         return {}
