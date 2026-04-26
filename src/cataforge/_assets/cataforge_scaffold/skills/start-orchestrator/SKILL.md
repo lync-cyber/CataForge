@@ -36,8 +36,8 @@ user-invocable: true
 ### 分支 B: 继续已有项目
 
 #### B.1: 框架版本检查
-1. 读取 pyproject.toml 的 `[project].version` 获取当前框架版本
-2. 如果 pyproject.toml 不存在 → 提示用户: "未检测到版本元数据文件(pyproject.toml)，当前框架可能需要升级。可运行 `pip install --upgrade cataforge && cataforge upgrade apply` 升级。"
+1. 读取 `.cataforge/framework.json` 的 `version` 字段获取当前框架版本
+2. 如果 `.cataforge/framework.json` 不存在或 `version` 为占位符（`0.0.0-template`）→ 提示用户: "未检测到框架版本信息，当前框架可能需要重新初始化。可运行 `cataforge setup` 或 `pip install --upgrade cataforge && cataforge upgrade apply` 修复。"
 3. 版本检查仅提示，不阻断流程，继续 B.2
 
 #### B.2: 恢复推进
