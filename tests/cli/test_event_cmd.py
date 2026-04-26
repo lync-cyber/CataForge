@@ -132,7 +132,7 @@ class TestEventLogBatch:
             '"status":"approved","detail":"T-203 r2 通过 · 9 项 r1 闭合"}\n'
             '{"event":"state_change","phase":"development",'
             '"detail":"S2 进度 5/20 → 6/20"}\n'
-        ).encode("utf-8")
+        ).encode()
 
         # charset='cp936' forces the TextIOWrapper Click installs over
         # sys.stdin to decode incoming UTF-8 bytes through cp936 — the

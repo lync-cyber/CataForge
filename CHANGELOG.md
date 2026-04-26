@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`.github/workflows/test.yml`** — `cataforge doctor` promoted to required CI gate (Linux job). Until this step landed every doctor check (`_DEPRECATED_REFS`, `runtime_api_version` drift, protocol-script orphans, EVENT-LOG schema, the docs-index orphan check from #73) only fired when a contributor remembered to run it locally.
+
+### Fixed
+
+- **`cataforge.docs.indexer.main` `--strict` 增量分支 no-op** — 原来 `--doc-file` 增量更新时整段跳过 `find_orphan_docs` 全树扫描，意味着 `--strict` 在 PostToolUse 钩子等增量场景下永远不会失败，前条目缺失 front matter 也能溜过 gate。现在每次调用都跑全树 orphan 扫描，与 `--strict` 语义一致。
+- **3 处 pre-existing ruff 错误**（`UP012` × 2 in `tests/cli/test_event_cmd.py` / `tests/core/test_io.py`，`I001` in `src/cataforge/core/template.py`）—— 自 #72 起 `Tests` workflow 已连红 3 个 PR，本次顺手 auto-fix 解封 CI。
+
 ## [0.1.13] — 2026-04-25
 
 二轮腐化审计闭环（PR-1 → PR-8 一线串过 26+8 = **34 条腐化**修复 + 6 个 anti-rot CI 守卫 + 1 个 weekly sweep workflow + migration_check 生命周期机制）。
