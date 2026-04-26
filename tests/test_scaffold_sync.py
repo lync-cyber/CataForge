@@ -32,9 +32,13 @@ EXPECTED_ONLY_IN_SOURCE: frozenset[str] = frozenset({
     "scripts/dogfood",
 })
 
-# Paths that may exist in the scaffold but not in dogfood. Currently empty —
-# the scaffold should be a strict subset of the dogfood tree.
-EXPECTED_ONLY_IN_SHIPPED: frozenset[str] = frozenset()
+# Paths that may exist in the scaffold but not in dogfood. ``GENERATED.md``
+# is a marker for the mirror itself (warns contributors not to hand-edit
+# files under ``_assets/``); it intentionally lives only in the shipped
+# tree and is preserved across syncs by ``scripts/sync_scaffold.py``.
+EXPECTED_ONLY_IN_SHIPPED: frozenset[str] = frozenset({
+    "GENERATED.md",
+})
 
 
 def _is_under(rel: str, prefixes: frozenset[str]) -> bool:

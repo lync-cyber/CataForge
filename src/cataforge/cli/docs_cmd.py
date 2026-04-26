@@ -113,6 +113,73 @@ def docs_index(project_root: str | None, doc_file: str | None, strict: bool) -> 
     _raise_on_nonzero(indexer_main(argv), "docs index")
 
 
+@docs_group.command("validate")
+@click.option("--project-root", default=None, help="Project root directory.")
+def docs_validate(project_root: str | None) -> None:
+    """Validate ``docs/.doc-index.json`` integrity without writing to disk.
+
+    Equivalent to ``docs index --strict`` but read-only — useful as a
+    pre-commit / CI gate that fails fast on:
+
+    \b
+    - orphan docs (markdown files missing YAML front matter)
+    - stale index entries (file_path no longer on disk)
+
+    Exits 0 when clean, 3 when any orphan or stale entry is found.
+    """
+    import os
+
+    from cataforge.core.paths import find_project_root
+    from cataforge.docs.indexer import (
+        INDEX_FILENAME,
+        find_orphan_docs,
+        find_stale_index_entries,
+    )
+
+    root = project_root or str(find_project_root())
+    index_path = os.path.join(root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        click.echo(
+            f"docs/{INDEX_FILENAME} not found — nothing to validate. "
+            "Run `cataforge docs index` first if you intend to opt into "
+            "CataForge-managed docs.",
+            err=True,
+        )
+        err = CataforgeError(
+            f"docs/{INDEX_FILENAME} not found at {root}",
+        )
+        err.exit_code = 2
+        raise err
+
+    orphans = find_orphan_docs(root)
+    stale = find_stale_index_entries(root)
+
+    if not orphans and not stale:
+        click.echo("OK · 0 orphans · 0 stale entries")
+        return
+
+    if orphans:
+        click.echo(
+            f"FAIL · {len(orphans)} orphan(s) — missing YAML front matter:",
+            err=True,
+        )
+        for rel in orphans:
+            click.echo(f"  - {rel}", err=True)
+
+    if stale:
+        click.echo(
+            f"FAIL · {len(stale)} stale index entry(ies):", err=True,
+        )
+        for doc_id, rel in stale:
+            click.echo(f"  - {doc_id} → {rel}", err=True)
+
+    err = CataforgeError(
+        f"docs validate failed ({len(orphans)} orphan, {len(stale)} stale)",
+    )
+    err.exit_code = 3
+    raise err
+
+
 @docs_group.command("migrate-nav")
 @click.option("--project-root", default=None, help="Project root directory.")
 @click.option(

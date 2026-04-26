@@ -1,0 +1,37 @@
+## CataForge pre-commit hooks
+##
+## Install once per clone:    pip install pre-commit && pre-commit install
+## Run on demand:              pre-commit run --all-files
+##
+## Local-only (no network on commit). The same checks run in CI as a
+## belt-and-braces guard — these hooks just shorten the feedback loop.
+
+repos:
+  - repo: local
+    hooks:
+      - id: scaffold-sync
+        name: scaffold mirror in sync (.cataforge/ → _assets/)
+        description: |
+          Catches the dogfood ↔ mirror drift class of failure locally
+          before CI's scaffold-sync.yml does. Runs scripts/sync_scaffold.py
+          --check; on drift, fix with `python scripts/sync_scaffold.py`.
+        entry: python scripts/sync_scaffold.py --check
+        language: system
+        pass_filenames: false
+        files: ^(\.cataforge/|src/cataforge/_assets/cataforge_scaffold/|scripts/sync_scaffold\.py)
+      - id: ruff
+        name: ruff (lint)
+        entry: python -m ruff check src tests
+        language: system
+        pass_filenames: false
+        types_or: [python]
+      - id: workflow-yaml-parse
+        name: github workflows parse cleanly
+        description: |
+          Catches step-name colons / indentation issues that make GitHub
+          Actions reject the workflow file (manifests as "This run likely
+          failed because of a workflow file issue" with no logs). Was a
+          silent CI red streak on main; see PR #75.
+        entry: python -c "import sys, yaml; [yaml.safe_load(open(f, encoding='utf-8').read()) for f in sys.argv[1:]]"
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$

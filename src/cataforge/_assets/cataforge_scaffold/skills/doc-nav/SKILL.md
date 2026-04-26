@@ -58,6 +58,13 @@ cataforge docs load <ref> --with-deps
 ```
 依赖关系来自 `.doc-index.json` 的 `deps` 字段（由 doc-gen 在生成时声明）。
 
+### 指令4: 校验索引完整性 (validate)
+当 Agent 怀疑索引漂移（doc 加载失败、ref 解析不到）时：
+```bash
+cataforge docs validate
+```
+只读校验：失败时 stderr 列出 orphan（缺 front matter 的 md）和 stale entry（索引指向已删文件）；exit 0=干净，3=需要 `cataforge docs index` 全量重建。
+
 ## 路径格式
 文档按类型存放在子目录中: `docs/{doc_type}/{filename}`
 

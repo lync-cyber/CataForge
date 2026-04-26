@@ -1,4 +1,5 @@
-"""In-process tests for cataforge.docs.indexer.main exit semantics."""
+"""In-process tests for cataforge.docs.indexer.main exit semantics
+plus the reverse-orphan / stale-entry detection added in PR #75."""
 
 from __future__ import annotations
 
@@ -93,3 +94,56 @@ def test_strict_full_rebuild_clean_tree_exits_zero(tmp_path: Path) -> None:
     rc = indexer.main(["--project-root", str(tmp_path), "--strict"])
 
     assert rc == 0
+
+
+def test_find_stale_index_entries_detects_disk_deletion(tmp_path: Path) -> None:
+    _make_project(tmp_path)
+    good = _write_doc(
+        tmp_path, "docs/prd/good.md",
+        "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n",
+    )
+    indexer.main(["--project-root", str(tmp_path)])
+
+    good.unlink()
+
+    stale = indexer.find_stale_index_entries(str(tmp_path))
+    assert len(stale) == 1
+    doc_id, rel = stale[0]
+    assert doc_id == "prd-good"
+    assert rel.endswith("good.md")
+
+
+def test_find_stale_index_entries_clean_when_index_absent(tmp_path: Path) -> None:
+    _make_project(tmp_path)
+    assert indexer.find_stale_index_entries(str(tmp_path)) == []
+
+
+def test_find_stale_index_entries_clean_when_files_present(tmp_path: Path) -> None:
+    _make_project(tmp_path)
+    _write_doc(tmp_path, "docs/prd/good.md", "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n")
+    indexer.main(["--project-root", str(tmp_path)])
+
+    assert indexer.find_stale_index_entries(str(tmp_path)) == []
+
+
+def test_strict_incremental_warns_on_stale_entry(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Incremental --strict run must escalate when an index entry's
+    file_path is missing on disk (the symmetric case to orphan docs)."""
+    _make_project(tmp_path)
+    a = _write_doc(tmp_path, "docs/prd/a.md", "---\nid: prd-a\ndoc_type: prd\n---\n# A\n")
+    b = _write_doc(tmp_path, "docs/prd/b.md", "---\nid: prd-b\ndoc_type: prd\n---\n# B\n")
+    indexer.main(["--project-root", str(tmp_path)])
+
+    b.unlink()
+
+    rc = indexer.main([
+        "--project-root", str(tmp_path),
+        "--doc-file", str(a),
+        "--strict",
+    ])
+
+    assert rc == 3, "stale index entry must trip --strict on incremental run"
+    err = capsys.readouterr().err
+    assert "prd-b" in err

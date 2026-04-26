@@ -21,6 +21,17 @@ pytest -q
 
 当前基线：`pytest -q` 应全量通过（具体数量见 `CHANGELOG.md`）。
 
+### 可选：装本地 pre-commit 钩子
+
+`.pre-commit-config.yaml` 内置三个本地钩子（scaffold mirror 检查、ruff、workflow YAML 解析）。装一次即可：
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+CI 会跑同一组检查兜底，但本地装上能把"扫盘忘 sync mirror / 误改坏 workflow YAML"这类返工压到提交期发现。
+
 ---
 
 ## 代码规范

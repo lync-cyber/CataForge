@@ -168,11 +168,13 @@ def test_doctor_orphan_check_skips_archive(
     assert "0 orphan documents" in section, section
 
 
-def test_doctor_orphan_check_skips_when_no_doc_index(
+def test_doctor_warns_when_docs_present_but_no_index(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """Projects whose docs/ holds plain README-style content (no .doc-index.json)
-    must not be lectured about missing front matter — they never opted in."""
+    """Projects whose docs/ holds markdown but never built an index get a
+    non-blocking WARN pointing at `cataforge docs index`. Pre-PR-#75 this
+    was a silent skip, so first-time bootstraps had no signal that opting
+    into section-level loading was even an option."""
     root = _scaffold(tmp_path)
     (root / "docs" / "architecture").mkdir(parents=True)
     (root / "docs" / "architecture" / "overview.md").write_text(
@@ -182,8 +184,28 @@ def test_doctor_orphan_check_skips_when_no_doc_index(
     monkeypatch.chdir(root)
 
     result = CliRunner().invoke(doctor_command, [])
-    section = result.output.split("Docs index completeness:", 1)[1].splitlines()[1]
-    assert "has not opted into" in section, section
+    section_block = result.output.split("Docs index completeness:", 1)[1].split("\n\n", 1)[0]
+    assert "WARN" in section_block, section_block
+    assert "cataforge docs index" in section_block, section_block
+    # The orphan check itself must not contribute to the failed_count
+    # gate — assert the WARN body returned 0 rather than the doctor
+    # process exit code (other migration checks in this fixture may
+    # legitimately fail on their own).
+    assert "FAIL" not in section_block, section_block
+
+
+def test_doctor_silent_when_docs_dir_has_no_markdown(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An empty docs/ (or docs/ with non-markdown content only) must not
+    emit the WARN — there is nothing to index."""
+    root = _scaffold(tmp_path)
+    (root / "docs").mkdir(exist_ok=True)
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    section_block = result.output.split("Docs index completeness:", 1)[1]
+    assert "WARN" not in section_block, section_block
 
 
 def test_doctor_anti_rot_table_contains_expected_entries() -> None:

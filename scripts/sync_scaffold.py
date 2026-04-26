@@ -34,6 +34,13 @@ EXCLUDE_PREFIXES: tuple[str, ...] = (
     "scripts/dogfood",
 )
 
+# Files that exist only in the TARGET mirror (never in SOURCE) and must
+# survive the sync — they're markers for the mirror itself, not part of
+# the scaffold delivered to user projects.
+TARGET_ONLY_FILES: frozenset[str] = frozenset({
+    "GENERATED.md",
+})
+
 
 def _is_excluded(rel_posix: str) -> bool:
     return any(
@@ -41,8 +48,13 @@ def _is_excluded(rel_posix: str) -> bool:
     )
 
 
-def _walk_files(root: Path) -> list[str]:
-    """Return sorted list of relative posix paths for every file under *root*."""
+def _walk_files(root: Path, *, is_target: bool = False) -> list[str]:
+    """Return sorted list of relative posix paths for every file under *root*.
+
+    When walking the TARGET mirror, files in :data:`TARGET_ONLY_FILES`
+    are filtered out so they neither show up as "extra" in `_classify`
+    nor get pruned by `sync()`.
+    """
     if not root.is_dir():
         return []
     out: list[str] = []
@@ -52,6 +64,8 @@ def _walk_files(root: Path) -> list[str]:
         rel = path.relative_to(root).as_posix()
         if _is_excluded(rel):
             continue
+        if is_target and rel in TARGET_ONLY_FILES:
+            continue
         out.append(rel)
     out.sort()
     return out
@@ -60,7 +74,7 @@ def _walk_files(root: Path) -> list[str]:
 def _classify(source: Path, target: Path) -> tuple[list[str], list[str], list[str]]:
     """Return ``(missing, differs, extra)`` relative to *source* → *target*."""
     src_files = set(_walk_files(source))
-    dst_files = set(_walk_files(target))
+    dst_files = set(_walk_files(target, is_target=True))
 
     missing = sorted(src_files - dst_files)
     extra = sorted(dst_files - src_files)
