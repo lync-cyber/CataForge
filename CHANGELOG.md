@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.14] — 2026-04-27
 
-doc-index 审计闭环（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 **audit 表 A1-A6 + B1-B2 + 新-1 + 新-4**）。一句话：本轮把 v0.1.13 引入的 doc-index 子系统从"manual-only 工具"升级为"CI/upgrade/bootstrap 全链路自我治理"。**Audit 表中 A7（5 AGENT.md 重复指令收敛）和 新-3（schemas/ 运行时校验）确认延后**——前者跨 5 个 agent 行为面，需要单独评估；后者范围超过本批次（schema 通用校验器 + 验证点编排）。
+doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 audit 表**全部 12 项**：A1-A7 + B1-B2 + 新-1 + 新-3 + 新-4）。一句话：本轮把 v0.1.13 引入的 doc-index 子系统从"manual-only 工具"升级为"CI/upgrade/bootstrap/pre-commit 全链路自我治理"，并把"5 AGENT.md 重复指令"和"schemas/ 与 Python 镜像漂移"这两个跨切面腐化点同步收敛。
 
 ### Added
 
@@ -20,12 +20,15 @@ doc-index 审计闭环（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 **audit 表
 - **`upgrade apply` 末尾自动 rebuild `.doc-index.json`**（仅当文件已存在）—— 让 upgrade 的副作用包括索引刷新，避免用户手动跑 `docs index`。orphan 失败时 WARN，不回滚 upgrade。Audit A3。
 - **`.pre-commit-config.yaml`** —— 三个本地钩子：(1) `scripts/sync_scaffold.py --check`（防 dogfood ↔ mirror drift）；(2) `ruff check`（防误提带 lint 错的 commit）；(3) `.github/workflows/*.yml` PyYAML safe_load 解析（防 step name 未引号冒号这类静默 workflow rejection）。`docs/contributing.md` 加 `pre-commit install` 指引段。Audit B1 + 本轮 PR-1 暴露的 workflow YAML 失败模式的防再发。
 - **`src/cataforge/_assets/cataforge_scaffold/GENERATED.md`** —— 在生成镜像目录根放 banner，明确"DO NOT EDIT" + 指向 `scripts/sync_scaffold.py`。`scripts/sync_scaffold.py` 的 `TARGET_ONLY_FILES = frozenset({"GENERATED.md"})` 集合保护该文件不被双向同步覆盖；`tests/test_scaffold_sync.py::EXPECTED_ONLY_IN_SHIPPED` 同步 carve-out。Audit B2。
-- **`tests/cli/test_docs_indexer.py` + `tests/cli/test_docs_validate.py`** —— 15 个新测试覆盖：`--strict` 全量 / 增量 / 干净树矩阵、reverse-orphan 检测、`docs validate` 三种 exit 码、doctor 新 WARN/FAIL 路径。
+- **`COMMON-RULES.md` 新增 §文档加载纪律**（在 §文档引用格式 与 §通用 Anti-Patterns 之间）—— 把 5 个 AGENT.md 中重复出现的"禁止 Read 全文 + 必走 `cataforge docs load`"通用规则单点收敛。COMMON-RULES 由 platform adapter 在 deploy 时通过 `@.cataforge/rules/COMMON-RULES.md` at-mention 自动 prepend 到 CLAUDE.md，所有 sub-agent 加载即得，AGENT.md 不需要回引。Audit A7。
+- **`scripts/checks/check_schema_python_parity.py` + `tests/schema/test_schema_python_parity.py`** —— 新 anti-rot 守卫（CI + pre-commit + unit），锁定 `.cataforge/schemas/{event-log,agent-result}.schema.json` 与各自 Python 镜像的 enum / required / allowed-fields 一致性。两个 schema 文件历来是文档-only（无 jsonschema-validate 调用），运行时校验由 `cataforge.core.event_log.validate_record` 和 `cataforge.hook.scripts.validate_agent_result` 中的硬编码常量承担——任一边漂移会让 validation 静默分叉。本守卫闭合该漂移面。Audit 新-3（采用 parity-guard 路线，避免引入 jsonschema 新依赖）。
+- **`tests/cli/test_docs_indexer.py` + `tests/cli/test_docs_validate.py` + `tests/schema/test_schema_python_parity.py`** —— 17 个新测试覆盖：`--strict` 全量 / 增量 / 干净树矩阵、reverse-orphan 检测、`docs validate` 三种 exit 码、doctor 新 WARN/FAIL 路径、schema-Python parity 双面。
 
 ### Changed
 
 - **`cataforge doctor` 的 docs-index 完整性检查不再静默跳过** —— `docs/.doc-index.json` 缺失但 `docs/` 含 markdown 时，emit 黄色 WARN 提示 `cataforge docs index`（非阻塞，不计入 `failed_count`）；`docs/` 真正不存在或不含 markdown 时仍静默跳过（genuinely not-applicable）。Audit A2。
 - **`.cataforge/skills/doc-nav/SKILL.md`** 加"指令 4: 校验索引完整性 (validate)"段，引用 `cataforge docs validate`，与 doctor 的新 WARN 行为对齐——doctor 和 doc-nav 现在都给同一条修复指引（运行 `cataforge docs index` 重建），解决了 audit 新-4 提到的两条不一致降级路径。
+- **5 个 AGENT.md（architect / tech-lead / qa-engineer / devops / ui-designer）瘦身** —— 每个文件删除 Input Contract 与 Anti-Patterns 段中"禁止一次性 Read … 全文" / "Bash 仅用于 cataforge docs load" 的通用表述（这些已迁移到 COMMON-RULES §文档加载纪律）；保留各自的**doc_id 白名单**（如 architect 的 `prd#§2.F-xxx`、devops 的 `arch#§3.API-xxx`）——这部分是真正的角色特定信息。Audit A7。
 - **`tests/cli/test_doctor_anti_rot.py::test_doctor_orphan_check_skips_when_no_doc_index` 重命名为 `test_doctor_warns_when_docs_present_but_no_index`** —— 旧测试断言"silent skip"，与本轮 audit A2 的新行为冲突。新测试断言 WARN 路径 + 新增 `test_doctor_silent_when_docs_dir_has_no_markdown` 守住"genuinely empty docs/"应静默的契约。
 
 ### Fixed
@@ -33,11 +36,6 @@ doc-index 审计闭环（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 **audit 表
 - **`cataforge.docs.indexer.main` `--strict` 增量分支 no-op (audit 新-1)** —— `--doc-file` 增量更新时整段跳过 `find_orphan_docs` 全树扫描，意味着 `--strict` 在 PostToolUse 钩子 / agent 单文件回写等增量场景下永远不会失败，前条目缺失 front matter 也能溜过 gate。现在每次调用都跑全树 orphan + 反向 stale-entry 扫描；增量场景的 `--strict` 与全量行为对称。
 - **`.github/workflows/test.yml` 因 step `name` 含未引号冒号导致 YAML 解析失败** —— `Anti-rot guards (6: skill count, ...)` 这一行的 `6:` 让 GitHub Actions 报 "workflow file issue" 直接拒跑（"This run likely failed because of a workflow file issue"，无任何 job log），main 已连红 3 个 PR 都是这个原因（不是 ruff、不是 pytest，是 workflow 根本没启动）。给该 name 加引号，本轮新加的 doctor step name 同时引号化；pre-commit hook 加 workflow YAML 解析检查防再发。
 - **3 处 pre-existing ruff 错误**（`UP012` × 2 in `tests/cli/test_event_cmd.py` / `tests/core/test_io.py`，`I001` in `src/cataforge/core/template.py`）—— 与 workflow YAML 一起 unblock CI。这 3 处源自 #72，但因 workflow 根本未启动而被 CI 漏掉。
-
-### Deferred (audit 闭环外)
-
-- **A7 — 5 个 AGENT.md（architect / tech-lead / qa-engineer / devops / ui-designer）"禁止 Read 全文 + 必须 cataforge docs load" 重复指令收敛到 COMMON-RULES**：跨 5 个 agent 行为面、影响 prompt 触发率，需要先用 doc-nav skill 验证用户视角行为不退化，单独立项。
-- **新-3 — `schemas/` 目录的 schema 文件运行时校验**：当前仅 framework.json 被 doctor 隐式校验（runtime_api_version contract），其余 schemas（hooks.yaml schema、profile schema 等）只有 anti-rot 静态守卫，无运行时 jsonschema-validate 调用。需要先决定校验编排在哪（doctor / 各 loader / hook bridge）。
 
 ## [0.1.13] — 2026-04-25
 

@@ -25,6 +25,17 @@ repos:
         language: system
         pass_filenames: false
         types_or: [python]
+      - id: schema-python-parity
+        name: schemas/*.schema.json vs Python mirror parity
+        description: |
+          The two formal JSON Schema files have hand-rolled Python mirrors
+          (cataforge.core.event_log + validate_agent_result hook). When one
+          edge of the pair drifts, validation diverges silently. This check
+          locks them.
+        entry: python scripts/checks/check_schema_python_parity.py
+        language: system
+        pass_filenames: false
+        files: ^(\.cataforge/schemas/.*\.schema\.json|src/cataforge/core/event_log\.py|src/cataforge/hook/scripts/validate_agent_result\.py)$
       - id: workflow-yaml-parse
         name: github workflows parse cleanly
         description: |

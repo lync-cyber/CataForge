@@ -134,6 +134,14 @@ Anti-Patterns应使用"做A而非B"格式并附具体例子，避免抽象禁令
 - 默认不写注释；命名 + 小函数 > 注释。
 - 自检：写下"之前/previously/used to/修复了/替代了"立即删除或改成客观描述。
 
+## 文档加载纪律
+适用：所有 sub-agent 在加载 `docs/` 下指定 doc_id 章节时（architect/tech-lead/qa-engineer/devops/ui-designer 等读 PRD/ARCH/UI-SPEC/DEV-PLAN 的角色，以及任何用 doc_id#§N 做输入契约的下游）。
+
+- 禁止: 用 Read 工具一次性读取 `docs/{doc_type}/*.md` 整篇文件 — 整篇 PRD/ARCH 几千行，全文读会瞬间稀释上下文焦点且浪费 token。
+- 强制: 通过 `cataforge docs load <doc_id>#§N[.item]` 按章节/条目维度按需分批加载。批量调用优于循环单次调用（loader 内部对同文件多 ref 共享 per-file 缓存）。
+- 各 agent 自己的 Input Contract 段落保留**该角色实际需要的 doc_id 白名单**（如 architect 的 `prd#§2.F-xxx`、devops 的 `arch#§3.API-xxx + §6 + §7`），但不再重复"禁止 Read 全文"这条通用规则。
+- 触发 `cataforge docs load` 失败时（exit 2 = 至少一个 ref 失败）按 stderr 提示修正引用；索引漂移时跑 `cataforge docs validate` 校验、`cataforge docs index` 重建。
+
 ## 通用 Anti-Patterns
 - 禁止: 猜测项目状态，以 CLAUDE.md 和 docs/ 目录为唯一事实来源
 - 禁止: 遗留未标注的 TODO/TBD/FIXME (必须标注 [ASSUMPTION])。强制由 doc-review Skill 的 Layer 1 检查器实现，参见 `cataforge.skill.builtins.doc_review.checker.check_no_todo`
