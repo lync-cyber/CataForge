@@ -43,7 +43,7 @@ Step 6: 选择目标平台（claude-code / cursor / codex / opencode）
 
 Step 7: 填充执行环境，应用最小权限
 
-Step 8: 创建 docs/NAV-INDEX.md
+Step 8: 初始化 docs/.doc-index.json（运行 `cataforge docs index`）
 
 Step 9: 进入初始阶段
 ```

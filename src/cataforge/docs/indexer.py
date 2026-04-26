@@ -196,6 +196,34 @@ def build_full_index(project_root: str) -> dict[str, Any]:
     return _make_index(documents)
 
 
+def find_orphan_docs(project_root: str) -> list[str]:
+    """Return rel-paths of ``docs/**/*.md`` that the indexer cannot ingest.
+
+    A file is "orphan" when it is missing YAML front matter, or its ``id``
+    field is empty/contains a ``{...}`` template placeholder. Such files are
+    silently skipped by :func:`build_full_index` and never appear in
+    ``.doc-index.json``, which means downstream consumers (``cataforge docs
+    load``, ``--with-deps``, agent prose) cannot resolve them. Surfacing them
+    is the only way to catch this whole class of rot.
+
+    Files under ``.archive/`` are excluded — those are intentional snapshots
+    of historical NAV-INDEX content kept by ``cataforge docs migrate-nav``.
+    """
+    docs_dir = os.path.join(project_root, "docs")
+    if not os.path.isdir(docs_dir):
+        return []
+    orphans: list[str] = []
+    for md_path in sorted(glob.glob(os.path.join(docs_dir, "**", "*.md"), recursive=True)):
+        rel_path = os.path.relpath(md_path, project_root)
+        rel_posix = rel_path.replace("\\", "/")
+        if "/.archive/" in rel_posix or rel_posix.startswith("docs/.archive/"):
+            continue
+        doc_id, entry = build_document_entry(md_path, rel_path)
+        if not (doc_id and entry):
+            orphans.append(rel_posix)
+    return orphans
+
+
 def update_single_doc(
     project_root: str, doc_file: str, existing_index: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -247,6 +275,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--project-root", default=None)
     parser.add_argument("--doc-file", default=None, help="Incremental update for a single file")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero if any docs/**/*.md is missing YAML front matter "
+             "and gets skipped (useful as a CI gate).",
+    )
     args = parser.parse_args(argv)
 
     project_root = args.project_root or str(find_project_root())
@@ -261,6 +295,25 @@ def main(argv: list[str] | None = None) -> int:
     xref_count = len(index.get("xref", {}))
     print(f"索引已写入: {out_path}")
     print(f"文档数: {doc_count}, 交叉引用条目: {xref_count}")
+
+    if not args.doc_file:
+        orphans = find_orphan_docs(project_root)
+        if orphans:
+            print(
+                f"[WARN] {len(orphans)} 个 docs/**/*.md 文件缺少 YAML "
+                f"front matter (id 字段) — 已被 indexer 跳过：",
+                file=sys.stderr,
+            )
+            for rel in orphans:
+                print(f"  - {rel}", file=sys.stderr)
+            print(
+                "  → 补 front matter (id/doc_type/...) 后重跑，或确认这些"
+                "文件不应出现在 docs/ 下。",
+                file=sys.stderr,
+            )
+            if args.strict:
+                return 3
+
     return 0
 
 

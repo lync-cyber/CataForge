@@ -1,7 +1,8 @@
 """Shared regex patterns for Markdown document parsing.
 
-Used by doc tools (load_section, build_doc_index, doc_check) and skill scripts.
-Single source of truth — avoids pattern duplication across modules.
+Used by doc tools (``cataforge docs load`` / ``cataforge docs index`` /
+doc-review checker) and skill scripts. Single source of truth — avoids
+pattern duplication across modules.
 """
 
 from __future__ import annotations

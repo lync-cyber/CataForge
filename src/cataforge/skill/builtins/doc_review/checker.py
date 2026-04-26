@@ -195,25 +195,6 @@ class DocChecker(TypedDocChecksMixin):
                 )
                 self.warn(f"ID编号不连续, 缺少: {missing_str}")
 
-    def check_nav_index_registered(self) -> None:
-        docs_path = Path(self.docs_dir)
-        nav_index_path = docs_path / "NAV-INDEX.md"
-        if not nav_index_path.exists():
-            parent = docs_path.parent
-            nav_index_path = parent / "NAV-INDEX.md"
-            if not nav_index_path.exists():
-                grandparent = parent.parent
-                nav_index_path = grandparent / "NAV-INDEX.md"
-        if not nav_index_path.exists():
-            self.warn("NAV-INDEX.md不存在，无法验证注册状态")
-            return
-        nav_content = nav_index_path.read_text(encoding="utf-8")
-        doc_filename = Path(self.doc_file).name
-        fm = parse_yaml_frontmatter(self.content)
-        doc_id = fm.get("id", "")
-        if doc_filename not in nav_content and doc_id not in nav_content:
-            self.warn(f"文档未注册到NAV-INDEX (文件={doc_filename}, ID={doc_id})")
-
     def check_split_header(self) -> None:
         if self.volume_type != "main":
             fm = parse_yaml_frontmatter(self.content)
@@ -244,7 +225,6 @@ class DocChecker(TypedDocChecksMixin):
         self.check_line_count()
         self.check_required_sections()
         self.check_id_continuity()
-        self.check_nav_index_registered()
         self.check_split_header()
         self.check_split_consistency()
 

@@ -35,7 +35,7 @@ maxTurns: 30
 
 ## Output Contract
 - RETRO 报告和 SKILL-IMPROVE 报告为过程文件，直接使用 Write/Edit 写入 docs/reviews/retro/
-- 例外说明: 本 Agent 的产出格式特殊（非标准项目文档），不使用 doc-gen 模板，不注册 NAV-INDEX
+- 例外说明: 本 Agent 的产出格式特殊（非标准项目文档），不使用 doc-gen 模板，不进入 `docs/.doc-index.json`（无 YAML front matter，indexer 自动跳过）
 
 ### task_type=retrospective（项目回顾）
 同时产出两类文件:

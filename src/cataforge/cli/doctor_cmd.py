@@ -92,6 +92,9 @@ def doctor_command(ctx: click.Context) -> None:
     click.echo("\nDeprecated protocol references:")
     failed_count += _check_deprecated_references(cfg)
 
+    click.echo("\nDocs index completeness:")
+    failed_count += _check_orphan_docs(cfg)
+
     click.echo("\nHook script importability:")
     failed_count += _check_hook_script_importability(cfg)
 
@@ -898,6 +901,14 @@ _DEPRECATED_REFS: tuple[dict[str, str], ...] = (
         "replacement": "`docs/.doc-index.json`",
         "since": "v0.1.13",
     },
+    {
+        "name": "python .cataforge/scripts/framework/event_logger.py",
+        # Catches the relative-path script invocation that breaks when an
+        # agent runs from a monorepo subdirectory (cwd != project root).
+        "pattern": r"python\s+\.cataforge/scripts/framework/event_logger\.py",
+        "replacement": "`cataforge event log` (CLI walks up to find .cataforge/)",
+        "since": "v0.1.14",
+    },
 )
 
 
@@ -988,6 +999,58 @@ def _is_relative_to(path: Path, base: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _check_orphan_docs(cfg) -> int:
+    """Surface ``docs/**/*.md`` files the indexer cannot ingest.
+
+    A doc is "orphan" when its YAML front matter is missing, empty, or has
+    an unfilled ``id`` placeholder. Such files are silently dropped by the
+    indexer and never resolvable via ``cataforge docs load``. Pre-v0.1.13
+    they were partially masked by hand-maintained NAV-INDEX entries; once
+    the machine index became authoritative, the gap turned silent.
+
+    Gated on ``docs/.doc-index.json`` existing — that file is only created
+    by ``cataforge docs index``, so its presence is the explicit signal
+    that the project opted into CataForge-managed docs. Repos whose
+    ``docs/`` is plain README-style content (architecture explainers, faq,
+    etc.) never built an index, so they are exempt from this check.
+
+    Returns the number of orphans found (counts toward the doctor exit
+    gate).
+    """
+    from cataforge.docs.indexer import INDEX_FILENAME, find_orphan_docs
+
+    root = cfg.paths.root
+    if not (root / "docs").is_dir():
+        click.echo("  (no docs/ directory — skipping)")
+        return 0
+    if not (root / "docs" / INDEX_FILENAME).is_file():
+        click.echo(
+            f"  (no docs/{INDEX_FILENAME} — project has not opted into "
+            "CataForge-managed docs; skipping)"
+        )
+        return 0
+
+    orphans = find_orphan_docs(str(root))
+    if not orphans:
+        click.echo("  0 orphan documents (every docs/**/*.md is indexable)")
+        return 0
+
+    click.echo(
+        f"  {len(orphans)} orphan document(s) — missing YAML front matter "
+        f"(id field):"
+    )
+    shown = orphans[:5]
+    for rel in shown:
+        click.echo(f"    FAIL {rel}")
+    extra = len(orphans) - len(shown)
+    if extra > 0:
+        click.echo(f"    - ... and {extra} more")
+    click.echo(
+        "  → add `id`/`doc_type` front matter and rerun `cataforge docs index`."
+    )
+    return len(orphans)
 
 
 def _check_file(label: str, path: Path) -> None:

@@ -94,6 +94,98 @@ def test_doctor_skips_archive_subtree(tmp_path: Path, monkeypatch) -> None:
     )
 
 
+def _empty_doc_index(root: Path) -> None:
+    """Mark the project as having opted into CataForge-managed docs.
+
+    The orphan check only fires when ``docs/.doc-index.json`` exists; tests
+    that want the check to run must declare that signal explicitly. Content
+    is intentionally empty — the check rebuilds the orphan list from disk,
+    not from the index payload.
+    """
+    (root / "docs").mkdir(exist_ok=True)
+    (root / "docs" / ".doc-index.json").write_text(
+        '{"version": "1", "documents": {}, "xref": {}}', encoding="utf-8"
+    )
+
+
+def test_doctor_flags_orphan_doc_missing_front_matter(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A docs/*.md without YAML front matter must trip the index-completeness gate."""
+    root = _scaffold(tmp_path)
+    _empty_doc_index(root)
+    (root / "docs" / "research").mkdir(parents=True)
+    # No front matter at all — Bootstrap-style raw user input.
+    (root / "docs" / "research" / "raw-requirements-v1.md").write_text(
+        "# 原始需求清单\n\n第一段需求 ...\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code != 0, (
+        "doctor must fail when docs/*.md cannot be ingested by the indexer"
+    )
+    assert "Docs index completeness:" in result.output
+    assert "1 orphan document" in result.output
+    assert "docs/research/raw-requirements-v1.md" in result.output
+
+
+def test_doctor_passes_when_every_doc_has_front_matter(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = _scaffold(tmp_path)
+    _empty_doc_index(root)
+    (root / "docs" / "prd").mkdir(parents=True)
+    (root / "docs" / "prd" / "prd-foo-v1.md").write_text(
+        '---\nid: "prd-foo-v1"\ndoc_type: prd\n---\n\n# PRD: Foo\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    section = result.output.split("Docs index completeness:", 1)[1].splitlines()[1]
+    assert "0 orphan documents" in section, section
+
+
+def test_doctor_orphan_check_skips_archive(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Archived NAV-INDEX copies live in docs/.archive or .cataforge/.archive and
+    must not be flagged — they are intentional snapshots without front matter."""
+    root = _scaffold(tmp_path)
+    _empty_doc_index(root)
+    archive = root / "docs" / ".archive"
+    archive.mkdir(parents=True)
+    (archive / "old-nav-snapshot.md").write_text(
+        "legacy snapshot, no front matter\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    section = result.output.split("Docs index completeness:", 1)[1].splitlines()[1]
+    assert "0 orphan documents" in section, section
+
+
+def test_doctor_orphan_check_skips_when_no_doc_index(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Projects whose docs/ holds plain README-style content (no .doc-index.json)
+    must not be lectured about missing front matter — they never opted in."""
+    root = _scaffold(tmp_path)
+    (root / "docs" / "architecture").mkdir(parents=True)
+    (root / "docs" / "architecture" / "overview.md").write_text(
+        "# Architecture overview\n\nPlain prose.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    section = result.output.split("Docs index completeness:", 1)[1].splitlines()[1]
+    assert "has not opted into" in section, section
+
+
 def test_doctor_anti_rot_table_contains_expected_entries() -> None:
     """The deprecation registry must keep the four canonical entries we ship.
 
@@ -108,7 +200,31 @@ def test_doctor_anti_rot_table_contains_expected_entries() -> None:
         "build_doc_index.py",
         "docs/NAV-INDEX.md",
         "docs/.nav/",
+        "python .cataforge/scripts/framework/event_logger.py",
     }
     for entry in _DEPRECATED_REFS:
         assert entry["replacement"], entry
         assert entry["since"], entry
+
+
+def test_doctor_flags_relative_event_logger_script_call(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The old `python .cataforge/scripts/framework/event_logger.py` invocation
+    breaks under monorepo subdirectory cwds. doctor must catch any prose that
+    reintroduces it so we don't regress the v0.1.14 sweep."""
+    root = _scaffold(tmp_path)
+    skill_dir = root / ".cataforge" / "skills" / "demo"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "# Demo\n\n"
+        "记录事件: `python .cataforge/scripts/framework/event_logger.py "
+        "--event phase_start --phase x --detail y`\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code != 0
+    assert "event_logger.py" in result.output
+    assert "cataforge event log" in result.output
