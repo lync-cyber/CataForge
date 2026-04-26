@@ -119,6 +119,38 @@ class TestEventLogBatch:
         assert result.exit_code != 0
         assert "empty" in result.output.lower()
 
+    def test_batch_reads_utf8_regardless_of_locale(self, project: Path) -> None:
+        """Stdin must be decoded as UTF-8 even when the platform / Click
+        runner exposes it through a non-UTF-8 TextIOWrapper (e.g. Windows
+        cp936). Reading via ``sys.stdin.read()`` would mangle multi-byte
+        characters into surrogate-escape code points and crash the JSONL
+        writer at encode time — the writer must read raw bytes from
+        ``sys.stdin.buffer`` and decode them as UTF-8 itself.
+        """
+        payload_bytes = (
+            '{"event":"review_verdict","phase":"development","agent":"reviewer",'
+            '"status":"approved","detail":"T-203 r2 通过 · 9 项 r1 闭合"}\n'
+            '{"event":"state_change","phase":"development",'
+            '"detail":"S2 进度 5/20 → 6/20"}\n'
+        ).encode("utf-8")
+
+        # charset='cp936' forces the TextIOWrapper Click installs over
+        # sys.stdin to decode incoming UTF-8 bytes through cp936 — the
+        # exact mojibake path the original Windows bug took.
+        runner = CliRunner(charset="cp936")
+        result = runner.invoke(
+            cli,
+            ["event", "log", "--batch"],
+            input=payload_bytes,
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, result.output
+
+        lines = (project / EVENT_LOG_REL).read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 2
+        assert "9 项 r1 闭合" in lines[0]
+        assert "5/20 → 6/20" in lines[1]
+
 
 class TestEventAcceptLegacy:
     @pytest.fixture

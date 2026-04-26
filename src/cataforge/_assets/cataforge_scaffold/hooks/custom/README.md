@@ -30,9 +30,11 @@ standard hook JSON payload on stdin.
 
 ```python
 # .cataforge/hooks/custom/my_scan.py
-import json, sys
+import sys
 
-payload = json.loads(sys.stdin.read() or "{}")
+from cataforge.hook.base import read_hook_input
+
+payload = read_hook_input()
 cmd = (payload.get("tool_input") or {}).get("command", "")
 
 if "aws ec2 terminate-instances" in cmd:
@@ -41,6 +43,11 @@ if "aws ec2 terminate-instances" in cmd:
 
 sys.exit(0)
 ```
+
+> Always use `read_hook_input()` (or `cataforge.core.io.read_stdin_utf8()`)
+> instead of `sys.stdin.read()` — Python's text-mode stdin decodes through
+> the platform locale (cp936 on Chinese Windows, cp1252 on Western Windows),
+> which corrupts UTF-8 payloads.
 
 ## Re-use the shared helpers
 

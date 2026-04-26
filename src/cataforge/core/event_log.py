@@ -119,8 +119,18 @@ def validate_record(record: Mapping[str, Any]) -> list[str]:
     for field in ("ts", "event", "phase", "detail", "agent", "status",
                   "ref", "task_type"):
         val = record.get(field)
-        if val is not None and not isinstance(val, str):
+        if val is None:
+            continue
+        if not isinstance(val, str):
             errors.append(f"field {field!r} must be a string, got {type(val).__name__}")
+            continue
+        try:
+            val.encode("utf-8")
+        except UnicodeEncodeError:
+            errors.append(
+                f"field {field!r} contains invalid surrogate code points "
+                f"(likely mis-decoded input — ensure source is UTF-8)"
+            )
 
     return errors
 
