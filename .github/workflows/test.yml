@@ -62,6 +62,17 @@ jobs:
           python scripts/checks/check_profile_yaml_keys.py
           python scripts/checks/check_hooks_yaml_schema.py
 
+      - name: cataforge doctor (gates _DEPRECATED_REFS, runtime_api_version, orphan docs, …)
+        # Promote `cataforge doctor` from a manually-invoked diagnostic to a
+        # required CI gate. Until this step landed every doctor check
+        # (deprecated-protocol-script-references, runtime_api_version drift,
+        # protocol-script orphans, EVENT-LOG schema, and the new docs-index
+        # orphan check from PR #73) only fired when a contributor remembered
+        # to run it locally. Linux-only — same rationale as the anti-rot
+        # block above; doctor reads the repo, not OS-specific state.
+        if: runner.os == 'Linux'
+        run: cataforge doctor
+
   e2e:
     name: E2E install + upgrade (ubuntu, py3.12)
     runs-on: ubuntu-latest

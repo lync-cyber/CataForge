@@ -24,7 +24,7 @@ class _FakeStdin:
 
 
 def test_decodes_utf8(monkeypatch: pytest.MonkeyPatch) -> None:
-    payload = "进度 5/20 → 6/20".encode("utf-8")
+    payload = "进度 5/20 → 6/20".encode()
     monkeypatch.setattr(sys, "stdin", _FakeStdin(payload))
     assert read_stdin_utf8() == "进度 5/20 → 6/20"
 

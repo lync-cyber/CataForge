@@ -16,7 +16,6 @@ documents they describe.
 
 from __future__ import annotations
 
-
 _PROJECT_STATE_PLATFORM_PLACEHOLDER = "运行时: {platform}"
 
 

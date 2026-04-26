@@ -296,23 +296,27 @@ def main(argv: list[str] | None = None) -> int:
     print(f"索引已写入: {out_path}")
     print(f"文档数: {doc_count}, 交叉引用条目: {xref_count}")
 
-    if not args.doc_file:
-        orphans = find_orphan_docs(project_root)
-        if orphans:
-            print(
-                f"[WARN] {len(orphans)} 个 docs/**/*.md 文件缺少 YAML "
-                f"front matter (id 字段) — 已被 indexer 跳过：",
-                file=sys.stderr,
-            )
-            for rel in orphans:
-                print(f"  - {rel}", file=sys.stderr)
-            print(
-                "  → 补 front matter (id/doc_type/...) 后重跑，或确认这些"
-                "文件不应出现在 docs/ 下。",
-                file=sys.stderr,
-            )
-            if args.strict:
-                return 3
+    # Orphan scan is a tree-wide property — run it on every invocation,
+    # incremental or not. Previously the scan was skipped when --doc-file
+    # was set, which made --strict a silent no-op for incremental updates
+    # (e.g. PostToolUse hook scenarios) and let bad front matter slip past
+    # the gate as long as the offending file wasn't the one being updated.
+    orphans = find_orphan_docs(project_root)
+    if orphans:
+        print(
+            f"[WARN] {len(orphans)} 个 docs/**/*.md 文件缺少 YAML "
+            f"front matter (id 字段) — 已被 indexer 跳过：",
+            file=sys.stderr,
+        )
+        for rel in orphans:
+            print(f"  - {rel}", file=sys.stderr)
+        print(
+            "  → 补 front matter (id/doc_type/...) 后重跑，或确认这些"
+            "文件不应出现在 docs/ 下。",
+            file=sys.stderr,
+        )
+        if args.strict:
+            return 3
 
     return 0
 
