@@ -30,7 +30,7 @@
 | **hook** | `src/cataforge/hook/` | hooks.yaml 规范解析 → 平台 hook 配置桥接，含 9 个内置 hook 脚本 |
 | **mcp** | `src/cataforge/mcp/` | MCP 服务器 YAML 声明注册、start/stop 生命周期管理 |
 | **plugin** | `src/cataforge/plugin/` | 插件发现（Python entry points + 本地目录扫描）、manifest 校验 |
-| **docs** | `src/cataforge/docs/` | 文档索引（NAV-INDEX）、doc-nav 段落精准加载 |
+| **docs** | `src/cataforge/docs/` | 文档索引（`.doc-index.json`）、doc-nav 段落精准加载、legacy NAV-INDEX 迁移 |
 | **integrations** | `src/cataforge/integrations/` | 外部工具集成（Penpot 设计工具 API 对接） |
 | **schema** | `src/cataforge/schema/` | 数据模型校验（插件 manifest 等） |
 | **utils** | `src/cataforge/utils/` | YAML frontmatter 解析、Markdown 处理、Docker 工具、通用模式匹配 |

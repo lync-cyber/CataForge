@@ -88,7 +88,7 @@ degradation_templates:
     content: |
       调度完成后，请运行（审计日志为 observe 类最佳努力行为，失败不应阻断流程；
       任何非 0 退出仅作 stderr 警告，无需重试）:
-      python .cataforge/scripts/framework/event_logger.py --event agent_dispatch --phase {当前阶段} --agent {被调度Agent} --detail "调度 {被调度Agent}" || true
+      cataforge event log --event agent_dispatch --phase {当前阶段} --agent {被调度Agent} --detail "调度 {被调度Agent}" || true
 
   lint_format:
     strategy: skip

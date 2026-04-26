@@ -98,7 +98,7 @@ gh pr create --base main --title "chore(dogfood): whitelist docs/examples/"
 [`.github/workflows/no-dogfood-leak.yml`](../../../.github/workflows/no-dogfood-leak.yml) 在每个 PR 上运行，拒绝:
 
 - `.dogfood/` 下的任何文件
-- `docs/EVENT-LOG.jsonl`、`docs/CORRECTIONS-LOG.md`、`docs/NAV-INDEX.md`
+- `docs/EVENT-LOG.jsonl`、`docs/CORRECTIONS-LOG.md`
 - `docs/prd/`、`docs/arch/`、`docs/dev-plan/` 等过程目录
 - `docs/brief.md`、`docs/*-lite.md`
 - `.cataforge/PROJECT-STATE.md` 的任何未配套 scaffold 镜像同步的修改

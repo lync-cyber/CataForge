@@ -92,7 +92,14 @@ def docs_load(
     default=None,
     help="Incremental update for a single file (otherwise rebuild the full index).",
 )
-def docs_index(project_root: str | None, doc_file: str | None) -> None:
+@click.option(
+    "--strict",
+    is_flag=True,
+    default=False,
+    help="Exit non-zero (3) if any docs/**/*.md is skipped for missing YAML "
+         "front matter — useful as a CI gate.",
+)
+def docs_index(project_root: str | None, doc_file: str | None, strict: bool) -> None:
     """Build or update the chapter-level JSON index ``docs/.doc-index.json``."""
     from cataforge.docs.indexer import main as indexer_main
 
@@ -101,6 +108,8 @@ def docs_index(project_root: str | None, doc_file: str | None) -> None:
         argv.extend(["--project-root", project_root])
     if doc_file:
         argv.extend(["--doc-file", doc_file])
+    if strict:
+        argv.append("--strict")
     _raise_on_nonzero(indexer_main(argv), "docs index")
 
 

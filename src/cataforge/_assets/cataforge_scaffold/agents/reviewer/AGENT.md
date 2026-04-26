@@ -35,7 +35,7 @@ maxTurns: 50
 - 文档审查: docs/reviews/doc/REVIEW-{doc_id}-r{N}.md (问题列表 + 严重等级)
 - 代码审查: docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md (问题列表 + 严重等级)
 - 交付标准: 三态判定 — CRITICAL/HIGH存在 → needs_revision; 仅MEDIUM/LOW → approved_with_notes; 无问题 → approved
-- 注: 审查报告为过程文件，不注册NAV-INDEX
+- 注: 审查报告为过程文件，不进入 `docs/.doc-index.json`（无 YAML front matter，indexer 自动跳过）
 
 ## Execution Rules
 - **强制批量提问**: 当一次审查中发现多个歧义点需要向用户确认时，必须通过单次 AskUserQuestion 批量提问（每批 ≤ `MAX_QUESTIONS_PER_BATCH`），禁止拆分为多轮提问。若问题数超过上限，按严重等级排序，优先追问 CRITICAL/HIGH 级别

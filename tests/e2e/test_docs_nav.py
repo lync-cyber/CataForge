@@ -159,6 +159,43 @@ def test_docs_migrate_nav_dry_run_preserves_files(
     assert "DRY-RUN" in rc.stdout
 
 
+def test_docs_index_warns_about_orphan_md_without_front_matter(
+    cataforge_venv: Path, project_with_doc: Path
+) -> None:
+    """A docs/*.md missing YAML front matter must emit a [WARN] orphan report
+    on stderr (so silent skips like the wechat-typeset-X raw-requirements case
+    surface immediately instead of only showing up at first failed load)."""
+    (project_with_doc / "docs" / "research").mkdir(parents=True)
+    (project_with_doc / "docs" / "research" / "raw-requirements-v1.md").write_text(
+        "# Raw requirements\n\nNo front matter on purpose.\n",
+        encoding="utf-8",
+    )
+
+    rc = run_cataforge(cataforge_venv, "docs", "index", cwd=project_with_doc)
+    # Default (non-strict) build still succeeds — we want a warn, not a wall.
+    assert rc.returncode == 0, rc.stderr
+    assert "[WARN]" in rc.stderr
+    assert "docs/research/raw-requirements-v1.md" in rc.stderr
+
+
+def test_docs_index_strict_exits_nonzero_on_orphan(
+    cataforge_venv: Path, project_with_doc: Path
+) -> None:
+    (project_with_doc / "docs" / "research").mkdir(parents=True)
+    (project_with_doc / "docs" / "research" / "raw-requirements-v1.md").write_text(
+        "# Raw requirements\n",
+        encoding="utf-8",
+    )
+
+    rc = run_cataforge(
+        cataforge_venv, "docs", "index", "--strict",
+        cwd=project_with_doc, check=False,
+    )
+    assert rc.returncode != 0, "--strict must escalate orphan warnings to a non-zero exit"
+    assert "[WARN]" in rc.stderr
+    assert "docs/research/raw-requirements-v1.md" in rc.stderr
+
+
 def test_docs_load_uses_external_doc_type_map(
     cataforge_venv: Path, tmp_path: Path
 ) -> None:

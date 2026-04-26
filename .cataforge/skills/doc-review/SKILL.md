@@ -87,7 +87,6 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{vol_file} --volume
 - ID编号连续无跳号 (WARN)
 - 交叉引用目标文件存在 (FAIL)
 - 无未处理TODO/TBD/FIXME (或已标注[ASSUMPTION])
-- 文档已注册到NAV-INDEX (WARN)
 
 专项检查:
 - **prd**: 用户故事覆盖、验收标准(AC-NNN)存在、非功能需求充实度、优先级(P0/P1/P2)标注

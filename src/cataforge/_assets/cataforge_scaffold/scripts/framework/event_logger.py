@@ -1,17 +1,18 @@
-"""event_logger.py — thin shim over ``cataforge event log`` for markdown callers.
+"""event_logger.py — back-compat shim forwarding to ``cataforge event log``.
 
-Orchestrator/TDD/doc-gen protocols write commands like::
+The canonical invocation in CataForge protocols is::
 
-    python .cataforge/scripts/framework/event_logger.py \\
-        --event phase_start --phase architecture --detail "..."
+    cataforge event log --event phase_start --phase architecture --detail "..."
 
-Historically this file was expected to be a full CLI; it is now a forwarder
-so the single source of truth is :mod:`cataforge.cli.event_cmd`. Its argv
-passes straight through to ``cataforge event log``.
+which works from any subdirectory inside a CataForge project (the CLI walks
+up to find ``.cataforge/``). Earlier scaffold revisions invoked this file
+directly as ``python .cataforge/scripts/framework/event_logger.py …``; that
+form breaks under monorepo subdirectory cwds (the relative path can't be
+resolved). Protocols were migrated to the CLI form in v0.1.14.
 
-Kept as a path-stable entry point so the markdown protocols don't have to
-know whether ``cataforge`` is on ``$PATH``. If the ``cataforge`` package
-isn't importable, a clear error points the user at ``setup.py``.
+This file is kept as a stable entry point so any external integrations or
+hand-written scripts that still call the legacy path continue to work — its
+argv passes straight through to ``cataforge event log``.
 """
 
 from __future__ import annotations

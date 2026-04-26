@@ -183,7 +183,7 @@ test-results/
 docker-compose.override.yml
 
 # ==============================================================================
-# Generated Documentation (except NAV-INDEX)
+# Generated Documentation
 # ==============================================================================
 docs/**/*.html
 docs/**/*.pdf

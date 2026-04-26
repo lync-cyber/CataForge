@@ -83,7 +83,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 ### Step 2: RED Phase — 启动test-writer子代理
 
-- **[EVENT]** `python .cataforge/scripts/framework/event_logger.py --event tdd_phase --phase development --detail "TDD RED: {T-xxx}"`
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD RED: {T-xxx}"`
 
 通过调度接口启动。角色定义、返回格式和异常处理已在 test-writer AGENT.md 中定义，通过 subagent_type 自动加载，prompt 仅需传入任务信息:
 
@@ -111,7 +111,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 ### Step 3: GREEN Phase — 启动implementer子代理
 
-- **[EVENT]** `python .cataforge/scripts/framework/event_logger.py --event tdd_phase --phase development --detail "TDD GREEN: {T-xxx}"`
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD GREEN: {T-xxx}"`
 
 通过调度接口启动。角色定义、返回格式和异常处理已在 implementer AGENT.md 中定义，通过 subagent_type 自动加载:
 
@@ -135,7 +135,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 ### Step 4: REFACTOR Phase — 启动refactorer子代理
 
-- **[EVENT]** `python .cataforge/scripts/framework/event_logger.py --event tdd_phase --phase development --detail "TDD REFACTOR: {T-xxx}"`
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD REFACTOR: {T-xxx}"`
 
 通过调度接口启动。角色定义、返回格式和异常处理已在 refactorer AGENT.md 中定义，通过 subagent_type 自动加载:
 
@@ -158,7 +158,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 适用于任务预估 LOC < `TDD_LIGHT_LOC_THRESHOLD` 或执行模式为 `agile-lite`/`agile-prototype` 的小任务。Step 2 和 Step 3 合并为一次 implementer 子代理调用，子代理内部先写 AC 对应的失败测试再补最小实现。
 
-- **[EVENT]** `python .cataforge/scripts/framework/event_logger.py --event tdd_phase --phase development --detail "TDD LIGHT: {T-xxx}"`
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD LIGHT: {T-xxx}"`
 
 通过调度接口启动:
 
