@@ -22,7 +22,7 @@ maxTurns: 80
 
 
 ## Input Contract
-orchestrator 通过 tdd-engine prompt 传入**任务上下文 bundle 路径**（`.cataforge/.cache/tdd/T-{xxx}-context.md`），含 §interface_contract / §directory_layout / §naming_convention / §test_command 等章节。**首步必须 Read bundle**。
+orchestrator 通过 tdd-engine prompt 传入**任务上下文 bundle 路径**（`.cataforge/.cache/tdd/T-{xxx}-context.md`），含 §meta / §interface_contract / §directory_layout / §naming_convention / §test_command 等章节。**首步必须 Read bundle**，从 §meta 读取 `tdd_mode`（区分 light vs standard 行为）、`task_kind`（chore 类直接产出实现，不预先写测试）、`security_sensitive`（true 时实现需补输入校验与边界保护）。
 
 GREEN 模式额外传入：`RED 阶段产出 test_files` 路径列表
 Light 模式额外传入：`模式: tdd_mode=light（合并 RED+GREEN）`，bundle 中 §tdd_acceptance 用作 RED 阶段输入

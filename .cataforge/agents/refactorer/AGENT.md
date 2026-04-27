@@ -21,7 +21,7 @@ maxTurns: 30
 
 ## Input Contract
 orchestrator 通过 tdd-engine prompt 传入：
-- **任务上下文 bundle 路径**：`.cataforge/.cache/tdd/T-{xxx}-context.md`（含 §naming_convention / §test_command）。首步必须 Read bundle
+- **任务上下文 bundle 路径**：`.cataforge/.cache/tdd/T-{xxx}-context.md`（含 §meta / §naming_convention / §test_command）。首步必须 Read bundle，从 §meta 读取 `tdd_refactor` 校验触发合理性、`security_sensitive` 影响重构边界
 - **实现文件**：GREEN 阶段产出的 impl_files 路径列表
 - **测试文件**：RED 阶段产出的 test_files 路径列表
 - **触发原因**：code-review Layer 1 命中的 category 列表（complexity / duplication / coupling），重构应聚焦该维度
@@ -35,7 +35,12 @@ orchestrator 通过 tdd-engine prompt 传入：
 - summary: "N PASSED。重构变更: {摘要}"
 
 ## Execution Rules
-- 重构后必须运行测试验证所有 PASS
+- 重构后必须运行 §test_command 验证所有 PASS
+- **按触发原因聚焦重构维度**（仅处理触发原因列出的 category，避免越界引入未授权变更）：
+  - `complexity`：拆分圈复杂度过高的函数（每函数分支路径 ≤ 10），抽取嵌套条件为命名清晰的早返回（early-return）或独立小函数
+  - `duplication`：以 code-review Layer 1 报告的重复块为索引，提取共用逻辑为公共函数 / 类 / 模块；不要为"看起来相似但语义不同"的代码强行去重
+  - `coupling`：用接口、依赖注入、参数传递解耦跨模块直接引用；外部 API 签名（公开函数 / 类 / 类型）不可变更
+- 触发原因之外的代码气味即使察觉也不修，留给后续 code-review 显式触发
 
 
 ## Exception Handling
