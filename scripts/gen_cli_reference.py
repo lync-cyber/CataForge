@@ -104,7 +104,10 @@ def main() -> int:
             print("OK: cli.md matches generated output")
             return 0
         sys.stdout.writelines(diff)
-        print(f"\n{len(diff)} diff lines — review and update cli.md if behavior changed.", file=sys.stderr)
+        print(
+            f"\n{len(diff)} diff lines — review and update cli.md if behavior changed.",
+            file=sys.stderr,
+        )
         return 2
 
     if args.out:

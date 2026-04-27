@@ -62,9 +62,7 @@ PURE_COMMENT = re.compile(r"^\s*<!--.*-->\s*$")
 def is_whitelisted(line: str) -> bool:
     if ALLOW_MARKER.search(line):
         return True
-    if PURE_COMMENT.match(line):
-        return True
-    return False
+    return bool(PURE_COMMENT.match(line))
 
 
 def iter_files() -> list[Path]:
