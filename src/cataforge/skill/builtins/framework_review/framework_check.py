@@ -1,6 +1,6 @@
 """framework_check.py — Framework meta-asset structural audit (Layer 1).
 
-Six independent sub-checks driven by ``--scope`` and ``--focus``:
+Independent sub-checks driven by ``--scope`` and ``--focus``:
 
 * B1-α: required SKILL.md / AGENT.md sections
 * B1-β: file size threshold (META_DOC_SPLIT_THRESHOLD_LINES)
@@ -11,11 +11,22 @@ Six independent sub-checks driven by ``--scope`` and ``--focus``:
   reference COMMON-RULES constants)
 * B5-α: workflow coverage matrix (ORCHESTRATOR-PROTOCOLS dispatch
   table × framework.json.features × agents)
+* B6-α: hook script reachability — every script referenced in
+  hooks.yaml resolves to a real .py file (builtin
+  ``cataforge.hook.scripts.<name>`` or
+  ``.cataforge/hooks/custom/<name>.py``)
+* B6-β: hook script syntax — each resolved script is ast-parseable
+* B6-γ: matcher_capability values are members of
+  ``CAPABILITY_IDS`` ∪ ``EXTENDED_CAPABILITY_IDS``
+* B6-δ: per-platform ``hooks.degradation`` parity — every hook script
+  in hooks.yaml has a degradation flag in each ``profile.yaml``, and
+  no orphan flags (degradation entries for scripts no longer in
+  hooks.yaml)
 
 Usage:
   python -m cataforge.skill.builtins.framework_review.framework_check \\
         <scope: agents|skills|hooks|rules|workflow|all> \\
-        [--focus B1,B2,B3,B4,B5] \\
+        [--focus B1,B2,B3,B4,B5,B6] \\
         [--root <project_root>] \\
         [--meta-size-threshold N]
 
@@ -26,12 +37,16 @@ problems), 2=usage error.
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib
+import importlib.resources
 import json
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import yaml
 
 from cataforge.utils.common import ensure_utf8_stdio
 from cataforge.utils.frontmatter import split_yaml_frontmatter
@@ -549,6 +564,201 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
             )
 
 
+def check_b6_hook_consistency(root: Path, report: Report) -> None:
+    """B6: hook 元资产审查.
+
+    Four sub-checks operating on ``.cataforge/hooks/hooks.yaml`` and the
+    per-platform ``profile.yaml`` files:
+
+    * α — script reachability: every ``script`` referenced in hooks.yaml
+      resolves to a real .py file.  Builtins live in
+      ``cataforge.hook.scripts.<name>`` (resolved via ``importlib.resources``
+      so editable / wheel installs both work); customs are referenced as
+      ``custom:<name>`` and live at ``.cataforge/hooks/custom/<name>.py``.
+    * β — script syntax: each resolved script is ``ast.parse``-able.
+      Catches half-edited scripts before deploy generates broken hook
+      configs.
+    * γ — matcher_capability validity: each ``matcher_capability`` value
+      is a member of ``CAPABILITY_IDS`` ∪ ``EXTENDED_CAPABILITY_IDS``.
+      A typo here silently produces a hook that never fires (the bridge
+      can't map an unknown capability to a platform tool).
+    * δ — degradation parity: for every platform ``profile.yaml`` under
+      ``.cataforge/platforms/``, the keys of ``hooks.degradation`` must
+      exactly match the set of script names referenced in hooks.yaml.
+      Missing flag → WARN (script will deploy with implicit ``native``);
+      orphan flag → WARN (degradation entry for a script that no longer
+      exists in hooks.yaml — silent dead config).
+    """
+    hooks_yaml = root / ".cataforge" / "hooks" / "hooks.yaml"
+    if not hooks_yaml.is_file():
+        return
+    try:
+        hooks_data = yaml.safe_load(hooks_yaml.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as e:
+        report.add(
+            "B6_hook_consistency",
+            "FAIL",
+            "hooks/hooks.yaml",
+            f"failed to parse hooks.yaml: {e}",
+        )
+        return
+    if not isinstance(hooks_data, dict):
+        return
+
+    referenced_scripts: set[str] = set()
+    referenced_caps: set[str] = set()
+    for _event, entries in (hooks_data.get("hooks") or {}).items():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            script = entry.get("script")
+            cap = entry.get("matcher_capability")
+            if script:
+                referenced_scripts.add(script)
+            if cap:
+                referenced_caps.add(cap)
+
+    # α + β: script reachability and syntax.
+    builtin_dir = _resolve_builtin_hook_dir()
+    custom_dir = root / ".cataforge" / "hooks" / "custom"
+    for script in sorted(referenced_scripts):
+        py_path = _resolve_hook_script(script, builtin_dir, custom_dir)
+        if py_path is None:
+            report.add(
+                "B6_hook_script_reachability",
+                "FAIL",
+                f"hooks/{script}",
+                "script referenced in hooks.yaml but no .py file found "
+                "(checked builtin cataforge.hook.scripts and "
+                ".cataforge/hooks/custom/)",
+            )
+            continue
+        try:
+            ast.parse(py_path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError) as e:
+            report.add(
+                "B6_hook_script_syntax",
+                "FAIL",
+                f"hooks/{script}",
+                f"script {py_path.name} not ast-parseable: {e}",
+            )
+
+    # γ: matcher_capability validity.
+    valid_caps = _load_capability_ids()
+    if valid_caps:
+        for cap in sorted(referenced_caps):
+            if cap not in valid_caps:
+                report.add(
+                    "B6_hook_matcher_capability",
+                    "FAIL",
+                    f"hooks/{cap}",
+                    f"matcher_capability {cap!r} not in CAPABILITY_IDS / "
+                    "EXTENDED_CAPABILITY_IDS — hook will silently never "
+                    "fire (bridge can't map unknown capability to a "
+                    "platform tool)",
+                )
+
+    # δ: per-platform degradation parity.
+    platforms_dir = root / ".cataforge" / "platforms"
+    if not platforms_dir.is_dir():
+        return
+    for plat_dir in sorted(platforms_dir.iterdir()):
+        if not plat_dir.is_dir():
+            continue
+        profile_path = plat_dir / "profile.yaml"
+        if not profile_path.is_file():
+            continue
+        try:
+            profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            continue
+        if not isinstance(profile, dict):
+            continue
+        degradation = ((profile.get("hooks") or {}).get("degradation")) or {}
+        if not isinstance(degradation, dict):
+            continue
+        declared = set(degradation.keys())
+        # custom: scripts ship per-project; degradation key drops the prefix.
+        normalized_refs = {
+            s.removeprefix("custom:") for s in referenced_scripts
+        }
+        missing = sorted(normalized_refs - declared)
+        orphan = sorted(declared - normalized_refs)
+        for script in missing:
+            report.add(
+                "B6_hook_degradation_coverage",
+                "WARN",
+                f"platforms/{plat_dir.name}",
+                f"script {script!r} referenced in hooks.yaml but has no "
+                "degradation flag in this profile.yaml — deploy will "
+                "default to implicit 'native' which may silently mask a "
+                "real degradation requirement",
+            )
+        for script in orphan:
+            report.add(
+                "B6_hook_degradation_coverage",
+                "WARN",
+                f"platforms/{plat_dir.name}",
+                f"degradation entry {script!r} has no matching hooks.yaml "
+                "script — dead config (silently outdated since the script "
+                "was removed)",
+            )
+
+
+def _resolve_builtin_hook_dir() -> Path | None:
+    """Locate the cataforge.hook.scripts package directory.
+
+    ``importlib.resources.files`` returns a Traversable that's a real
+    Path on filesystem-backed installs (editable + wheel). If the
+    package is missing or zip-imported we fall back to None — the
+    caller treats that as "no builtins available" and any script not
+    in custom/ then fails reachability.
+    """
+    try:
+        pkg = importlib.resources.files("cataforge.hook.scripts")
+    except (ModuleNotFoundError, TypeError):
+        return None
+    p = Path(str(pkg))
+    return p if p.is_dir() else None
+
+
+def _resolve_hook_script(
+    script: str,
+    builtin_dir: Path | None,
+    custom_dir: Path,
+) -> Path | None:
+    """Return the .py path for *script*, or None if not found.
+
+    Mirrors the resolution logic in cataforge.hook.bridge so audit and
+    deploy stay in lockstep — if this returns None, the deploy will
+    also fail to wire the hook.
+    """
+    if script.startswith("custom:"):
+        name = script.removeprefix("custom:")
+        candidate = custom_dir / f"{name}.py"
+        return candidate if candidate.is_file() else None
+    if builtin_dir is None:
+        return None
+    candidate = builtin_dir / f"{script}.py"
+    return candidate if candidate.is_file() else None
+
+
+def _load_capability_ids() -> set[str]:
+    """Return CAPABILITY_IDS ∪ EXTENDED_CAPABILITY_IDS, or empty on failure.
+
+    Imports lazily so framework-review still runs on a project where
+    cataforge.core.types isn't importable (e.g. older wheel) — the
+    matcher_capability check just becomes a no-op.
+    """
+    try:
+        from cataforge.core.types import CAPABILITY_IDS, EXTENDED_CAPABILITY_IDS
+    except ImportError:
+        return set()
+    return set(CAPABILITY_IDS) | set(EXTENDED_CAPABILITY_IDS)
+
+
 def run(
     scope: str,
     focus: list[str] | None,
@@ -557,7 +767,7 @@ def run(
 ) -> int:
     report = Report()
 
-    enabled = set(focus) if focus else {"B1", "B2", "B3", "B4", "B5"}
+    enabled = set(focus) if focus else {"B1", "B2", "B3", "B4", "B5", "B6"}
 
     if "B1" in enabled and scope in ("agents", "skills", "rules", "all"):
         check_b1_required_sections(root, scope, report)
@@ -570,6 +780,8 @@ def run(
         check_b4_hardcoded_constants(root, report)
     if "B5" in enabled and scope in ("workflow", "all"):
         check_b5_workflow_coverage(root, report)
+    if "B6" in enabled and scope in ("hooks", "all"):
+        check_b6_hook_consistency(root, report)
 
     print(f"framework-review scope={scope} focus={sorted(enabled)} root={root}")
     print("=" * 60)
@@ -605,7 +817,7 @@ def main() -> None:
     parser.add_argument(
         "--focus",
         default=None,
-        help="Comma-separated subset of B1,B2,B3,B4,B5",
+        help="Comma-separated subset of B1,B2,B3,B4,B5,B6",
     )
     parser.add_argument(
         "--root",
@@ -633,9 +845,9 @@ def main() -> None:
     focus: list[str] | None = None
     if args.focus:
         focus = [c.strip() for c in args.focus.split(",") if c.strip()]
-        invalid = [c for c in focus if c not in {"B1", "B2", "B3", "B4", "B5"}]
+        invalid = [c for c in focus if c not in {"B1", "B2", "B3", "B4", "B5", "B6"}]
         if invalid:
-            print(f"ERROR: invalid --focus values: {invalid}; expected B1..B5")
+            print(f"ERROR: invalid --focus values: {invalid}; expected B1..B6")
             sys.exit(2)
 
     # The `meta_size_threshold` could be loaded from framework.json

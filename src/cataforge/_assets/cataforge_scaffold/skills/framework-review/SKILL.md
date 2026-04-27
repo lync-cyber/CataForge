@@ -16,9 +16,11 @@ user-invocable: true
 
 ## 输入规范
 - scope: agents | skills | hooks | rules | workflow | all
-- 可选 --focus: 限定子检查（B1-α/β、B2-α、B3-α、B4-α、B5-α）
+- 可选 --focus: 限定子检查（B1-α/β、B2-α、B3-α、B4-α、B5-α、B6-α/β/γ/δ）
 - 项目根下的 `.cataforge/` 目录（必读）
 - `cataforge.skill.builtins.*.CHECKS_MANIFEST`（B3 对账数据源，从已安装的 cataforge 包导入）
+- `cataforge.hook.scripts.*` (B6-α/β script 可达性 + ast.parse 数据源)
+- `cataforge.core.types.CAPABILITY_IDS` / `EXTENDED_CAPABILITY_IDS` (B6-γ matcher 校验集)
 
 ## 输出规范
 - 框架审查报告: `docs/reviews/framework/FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}-r{N}.md`
@@ -27,7 +29,7 @@ user-invocable: true
 ## 操作指令: 框架审查 (review)
 
 ### Step 1: Layer 1 — 静态结构检查
-执行: `cataforge skill run framework-review -- {scope} [--focus B1,B2,B3,B4,B5]`
+执行: `cataforge skill run framework-review -- {scope} [--focus B1,B2,B3,B4,B5,B6]`
 
 返回码语义按 §Layer 1 调用协议。Layer 1 的子检查映射:
 
@@ -39,6 +41,10 @@ user-invocable: true
 | B3-α | SKILL.md "## Layer 1 检查项" 段与 builtin CHECKS_MANIFEST 对账 | skills | FAIL |
 | B4-α | SKILL.md / AGENT.md / 协议文档不得出现常量名对应的裸数值 | agents, skills, rules | WARN |
 | B5-α | Workflow 覆盖矩阵 (phase × agent × skill, dispatch 表 vs framework.json) | workflow, all | WARN (空位) / WARN (孤立 agent) |
+| B6-α | hooks.yaml 引用的 script 必须解析到真实 .py 文件 (builtin / custom) | hooks, all | FAIL |
+| B6-β | 每个 hook script .py 必须 ast.parse 成功 | hooks, all | FAIL |
+| B6-γ | matcher_capability 必须是 CAPABILITY_IDS / EXTENDED_CAPABILITY_IDS 成员 | hooks, all | FAIL |
+| B6-δ | 每 platform profile.yaml 的 hooks.degradation 与 hooks.yaml 脚本集对账 | hooks, all | WARN (缺) / WARN (孤儿) |
 
 `--focus` 缺省时执行 scope 对应的全部子检查。
 
@@ -83,6 +89,10 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 - B3-α: skill SKILL.md 的 "## Layer 1 检查项" 段与对应 builtin 的 `CHECKS_MANIFEST` 对账（条目数 + 关键词重叠度）；缺该段且对应 builtin 存在 manifest → FAIL
 - B4-α: 在 .cataforge/{agents,skills,rules}/**/*.md 中 grep 框架常量对应的裸数值（如 `≤3 问` / `300 行` / `>200 行`），未引用常量名 → WARN（豁免：代码块、版本号、ID 编号）
 - B5-α: 解析 ORCHESTRATOR-PROTOCOLS.md 的 dispatch 表 + framework.json features → 输出 phase × agent × skill 覆盖矩阵；空位标 WARN（某 phase 无 agent 覆盖，或某 agent 定义但未被任何 phase 引用）
+- B6-α: 解析 .cataforge/hooks/hooks.yaml，每个 `script` 字段须解析到真实 .py（builtin: `cataforge.hook.scripts.<name>` 通过 `importlib.resources` 定位；custom: `.cataforge/hooks/custom/<name>.py`）→ FAIL on missing
+- B6-β: 每个解析到的 hook script .py 必须 `ast.parse` 通过（不依赖 import 副作用）→ FAIL on SyntaxError
+- B6-γ: 每个 `matcher_capability` 值必须是 `CAPABILITY_IDS` ∪ `EXTENDED_CAPABILITY_IDS` 成员（typo 会让 hook 静默永不触发）→ FAIL on unknown capability
+- B6-δ: 遍历 `.cataforge/platforms/<id>/profile.yaml`，`hooks.degradation` 的 keys 必须严格等于 hooks.yaml 引用的 script name 集合（`custom:` 前缀脱皮后比较）→ 缺失 WARN（deploy 默认 native 可能掩盖真实降级需求）/ 孤儿 WARN（dead config）
 
 ## Anti-Patterns
 - 禁止: framework-review 报告写入 `docs/reviews/doc/` 或 `docs/reviews/code/` — 必须写 `docs/reviews/framework/`，否则会与业务审查报告混淆并污染 reflector 聚合
