@@ -31,6 +31,12 @@ jobs:
         python-version: ["3.10", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history needed so check_changelog_fragments.py can diff
+          # HEAD against origin/main — the default shallow clone hides
+          # HEAD's parent so `git diff origin/main...HEAD` cannot find a
+          # merge base.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -54,15 +60,12 @@ jobs:
         # and the matrix duplication adds noise without coverage.
         if: runner.os == 'Linux'
         env:
-          # check_changelog_fragments.py needs the base ref to diff
-          # against. PR runs supply head SHA in GITHUB_BASE_REF; push
-          # runs default to origin/main (no fragments check needed but
-          # the script no-ops when no files changed).
+          # check_changelog_fragments.py diffs HEAD against this base.
+          # PR runs use the actual base branch; push-to-main runs default
+          # to origin/main (script no-ops when no files differ).
           BASE_REF: origin/${{ github.base_ref || 'main' }}
         run: |
           set -euo pipefail
-          # Fetch the base branch so check_changelog_fragments.py can diff against it.
-          git fetch origin "${{ github.base_ref || 'main' }}" --depth=50 --quiet
           python scripts/checks/check_skill_count.py
           python scripts/checks/check_no_dev_branch_refs.py
           python scripts/checks/check_changelog_link_table.py
