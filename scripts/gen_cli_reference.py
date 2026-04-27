@@ -25,7 +25,15 @@ import difflib
 import sys
 from pathlib import Path
 
-import click
+# Reconfigure stdio to UTF-8 so the dumped CLI help (which contains arrows /
+# Chinese / em-dashes) doesn't crash on Windows cp1252 terminals. Inline so
+# the script works without importing cataforge first.
+for _stream_name in ("stdout", "stderr"):
+    _stream = getattr(sys, _stream_name)
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
+import click  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOC_PATH = REPO_ROOT / "docs" / "reference" / "cli.md"
