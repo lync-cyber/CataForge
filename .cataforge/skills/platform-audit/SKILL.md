@@ -45,9 +45,16 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
 ## 操作指令
 
-### 指令1: 完整审计 (full)
+| 模式 | 适用场景 | 详见 |
+|------|---------|------|
+| **full** | 定期对齐（建议每月一次）或已知某平台有重大版本更新 | 指令 1 |
+| **quick-check** | 只想知道当前配置是否过期，不执行修改 | 指令 2 |
+| **deep `<platform_id>`** | 某平台刚发布重大更新，需深度审计 | 指令 3 |
+| **evaluate `<platform_name>`** | 评估新 AI IDE 是否可接入 | `references/evaluate-new-platform.md` |
 
-适用于: 定期对齐（建议每月一次）或已知某平台有重大版本更新。
+---
+
+### 指令1: 完整审计 (full)
 
 #### Phase 1: 文档检索与情报收集
 
@@ -55,22 +62,15 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
 **Step 1: 读取当前配置基线**
 
-并行读取所有目标平台的 `profile.yaml`:
-```
-.cataforge/platforms/<platform_id>/profile.yaml
-```
-提取并记录每个平台当前的:
+并行读取所有目标平台的 `profile.yaml` (`.cataforge/platforms/<platform_id>/profile.yaml`)，提取并记录每个平台当前的:
+
 - `version_tested` — 上次审计的版本号
-- `tool_map` — 10 个核心 capability 的映射状态（含 null 表示不支持）
-- `extended_capabilities` — 4 个扩展能力的映射状态
-- `agent_config.supported_fields` — 支持的 agent frontmatter 字段
-- `agent_config.memory_scopes` / `isolation_modes` — agent 高级配置
+- `tool_map` / `extended_capabilities` — 工具映射
+- `agent_config.supported_fields` / `memory_scopes` / `isolation_modes` — agent 配置
 - `features` — 17 个平台特性 flag
 - `permissions.modes` — 支持的审批模式
 - `model_routing` — 模型路由配置
-- `hooks.event_map` — 支持的 hook 事件及平台事件名
-- `hooks.tool_overrides` — hook matcher 与 tool_map 的差异
-- `hooks.degradation` — 每个 hook 脚本的降级状态（native / degraded）
+- `hooks.event_map` / `tool_overrides` / `degradation` — hook 配置
 - `agent_definition` — agent 格式和扫描目录
 - `dispatch` — 调度方式和参数
 
@@ -84,92 +84,15 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
    npx ctx7@latest docs "<libraryId>" "tool names hook events agent format"
    ```
 
-2. 若 ctx7 不可用或结果不足，使用 WebSearch:
-   - 搜索词模板见 `references/platform-sources.md`
-   - 每个平台至少覆盖: 官方文档站、GitHub repo（README / CHANGELOG）、SDK reference
+2. 若 ctx7 不可用或结果不足，使用 WebSearch — 搜索词模板见 `references/platform-sources.md`，每个平台至少覆盖: 官方文档站、GitHub repo（README / CHANGELOG）、SDK reference
 
-3. WebFetch 关键文档页面，提取:
-   - 工具/tool 列表（原生名称）
-   - Hook / lifecycle 事件名称和格式
-   - Agent 定义格式（frontmatter 字段 / TOML / JSON）
-   - Agent 高级特性（memory, isolation, model, effort, skills, mcpServers 等）
-   - 平台特性（cloud agents, agent teams, parallel agents, scheduled tasks 等）
-   - 权限/审批模式
-   - 可用模型列表和路由方式
-   - CLI 命令和选项变化
-   - 沙箱/sandbox 模式
-   - 插件/extension 机制
-   - MCP 支持状态和配置格式
-   - 上下文窗口大小和模型版本
+3. WebFetch 关键文档页面，提取: 工具/tool 列表、hook/lifecycle 事件、agent 定义格式、agent 高级特性（memory, isolation, model, effort, skills, mcpServers）、平台特性、权限/审批模式、可用模型、CLI 命令变化、沙箱模式、插件/extension 机制、MCP 配置格式、上下文窗口和模型版本
 
 > 检索要点: 关注**工具名称的精确拼写**（大小写敏感）、**新增/移除/重命名的事件**、**配置文件路径变化**、**新增的 agent frontmatter 字段**、**新增的平台特性**。
 
 **Step 3: 整理平台能力快照**
 
-为每个平台生成结构化快照（不写文件，保持在上下文中）:
-
-```
-Platform: <id>
-Version: <latest version>
-=== Core Tool Names (10) ===
-file_read:       <native name or null>
-file_write:      <native name>
-file_edit:       <native name>
-file_glob:       <native name or null>
-file_grep:       <native name or null>
-shell_exec:      <native name>
-web_search:      <native name or null>
-web_fetch:       <native name or null>
-user_question:   <native name or null>
-agent_dispatch:  <native name>
-=== Extended Capabilities (4) ===
-notebook_edit:   <native name or null>
-browser_preview: <native name or null>
-image_input:     <native name or null>
-code_review:     <native name or null>
-=== Hook Events ===
-PreToolUse:      <platform event name or null>
-PostToolUse:     <platform event name>
-Stop:            <platform event name or null>
-SessionStart:    <platform event name or null>
-Notification:    <platform event name or null>
-=== Hook Matcher Overrides ===
-<capability>: <override name if different from tool_map>
-=== Agent Config ===
-Format: yaml-frontmatter | toml | json
-Scan dirs: <paths>
-Supported fields: <list>
-Memory scopes: <list or none>
-Isolation modes: <list or none>
-=== Features (17) ===
-cloud_agents: true/false
-agent_teams: true/false
-parallel_agents: true/false
-scheduled_tasks: true/false
-background_agents: true/false
-plan_mode: true/false
-computer_use: true/false
-realtime_voice: true/false
-multi_model: true/false
-session_resume: true/false
-worktree_isolation: true/false
-autonomy_slider: true/false
-ci_cd_integration: true/false
-multi_root: true/false
-agent_memory: true/false
-plugin_marketplace: true/false
-context_management: true/false
-=== Permissions ===
-Modes: <list>
-=== Model Routing ===
-Available models: <list>
-Per-agent model: true/false
-=== Other ===
-Context window: <size>
-Default model: <model>
-Sandbox: <mode>
-MCP: <support level>
-```
+为每个平台填写 `references/snapshot-template.md` 的快照模板（**不写文件，保持在上下文中**），作为 Phase 2 差异对比的输入。
 
 #### Phase 2: 差异分析
 
@@ -205,42 +128,11 @@ MCP: <support level>
 - `src/cataforge/platform/conformance.py` — 合规检查逻辑
 - `.cataforge/platforms/<id>/overrides/dispatch-prompt.md` — 调度提示模板
 - `.cataforge/platforms/_schema.yaml` — profile 字段定义
-- `tests/test_platform.py` — adapter 测试
-- `tests/test_hook_bridge.py` — hook 桥接测试
-- `tests/test_translator.py` — 翻译器测试
-- `tests/test_conformance.py` — 合规测试
-- `tests/test_deployer_refactor.py` — 部署回归测试
+- `tests/test_platform.py` / `test_hook_bridge.py` / `test_translator.py` / `test_conformance.py` / `test_deployer_refactor.py`
 
 **Step 6: 输出差异报告**
 
-输出结构化差异报告（直接展示给用户，不写文件）:
-
-```
-# 平台审计差异报告
-生成时间: <date>
-审计范围: <platforms>
-
-## 变更摘要
-| 平台 | CRITICAL | MAJOR | MINOR | INFO |
-|------|----------|-------|-------|------|
-
-## 详细差异
-
-### <platform_id> (v<old> → v<new>)
-
-#### CRITICAL
-- [tool_map] file_edit: StrReplace → Write (Cursor v3.x 合并了编辑工具)
-  影响: profile.yaml, test_platform.py, test_translator.py, test_hook_bridge.py
-
-#### MAJOR
-- [features] agent_teams: false → true (Claude Code 新增 Agent Teams)
-  影响: profile.yaml
-- [agent_config] 新增字段: effort, color, isolation
-  影响: profile.yaml
-- [hooks.degradation] guard_dangerous: degraded → native (Codex 已支持 hooks.json)
-  影响: profile.yaml, hook bridge 生成
-...
-```
+按 `references/report-templates.md` 中的模板输出（直接展示给用户，不写文件）。
 
 #### Phase 3: 执行更新
 
@@ -248,18 +140,7 @@ MCP: <support level>
 
 **Step 7: 更新 profile.yaml**
 
-对每个需要更新的平台:
-1. 更新 `version_tested` 为最新版本号
-2. 更新 `tool_map` 中变更的工具名称（保留 null 表示不支持）
-3. 更新 `extended_capabilities` 中变更/新增的扩展能力
-4. 更新 `agent_config.supported_fields` — 添加平台新支持的字段
-5. 更新 `agent_config.memory_scopes` / `isolation_modes`
-6. 更新 `features` 中变更的特性 flag
-7. 更新 `permissions.modes` 和 `model_routing`
-8. 更新 `hooks.event_map` 中变更/新增的事件
-9. 更新 `hooks.tool_overrides`（hook matcher 与 tool_map 不同时才需要）
-10. 更新 `hooks.degradation`（degraded→native 升级）
-11. 更新 `agent_definition` 和 `dispatch`（如有变化）
+对每个需要更新的平台，按 Phase 2 的差异项更新对应字段（version_tested / tool_map / extended_capabilities / agent_config / features / permissions / model_routing / hooks / agent_definition / dispatch）。
 
 **Step 8: 更新 types.py**
 
@@ -294,7 +175,7 @@ MCP: <support level>
 **Step 11: 更新测试**
 
 对每个受影响的测试文件:
-1. 更新 fixture 中的 profile 数据（tool_map / extended_capabilities / hooks / dispatch / features / permissions / model_routing）
+1. 更新 fixture 中的 profile 数据
 2. 更新断言中的预期值（工具名称 / 事件名称 / 特性 flag）
 3. 如有新增能力或降级状态变化，添加对应的测试用例
 4. 保持现有测试的覆盖范围不缩减
@@ -303,17 +184,13 @@ MCP: <support level>
 
 **Step 12: 运行 conformance 检查**
 
-核心合规:
+核心 + 扩展合规:
 ```bash
 python -c "from cataforge.platform.conformance import check_all_conformance; print('\n'.join(check_all_conformance()))"
-```
-
-扩展合规:
-```bash
 python -c "from cataforge.platform.conformance import check_all_extended_conformance; print('\n'.join(check_all_extended_conformance()))"
 ```
 
-确认所有平台通过核心合规检查（FAIL=0，WARN 仅针对已知缺失的可选能力）。扩展合规的 INFO 表示该平台不支持的扩展能力/特性，属于预期行为。
+确认所有平台通过核心合规（FAIL=0，WARN 仅针对已知缺失的可选能力）。扩展合规的 INFO 表示该平台不支持的扩展能力/特性，属于预期行为。
 
 **Step 13: 运行完整测试套件**
 
@@ -321,10 +198,7 @@ python -c "from cataforge.platform.conformance import check_all_extended_conform
 python -m pytest tests/ -v
 ```
 
-所有测试必须通过。如有失败:
-1. 分析失败原因（通常是 fixture 数据未同步更新）
-2. 修复并重新运行
-3. 特别注意 `test_deployer_refactor.py` — 它使用内联 profile，不受 profile.yaml 变更影响，但 deployer 代码变更可能影响它
+所有测试必须通过。如有失败: 分析（通常是 fixture 数据未同步更新）→ 修复 → 重跑。特别注意 `test_deployer_refactor.py` — 它使用内联 profile，不受 profile.yaml 变更影响，但 deployer 代码变更可能影响它。
 
 **Step 14: 运行 linter**
 
@@ -336,34 +210,7 @@ python -m ruff check src/ tests/
 
 **Step 15: 输出审计总结**
 
-```
-# 审计完成总结
-日期: <date>
-平台: <list>
-
-## 更新统计
-| 类型 | 文件数 | 变更项 |
-|------|--------|--------|
-| profile.yaml | N | ... |
-| types.py | N | ... |
-| 源码 | N | ... |
-| 测试 | N | ... |
-| 模板 | N | ... |
-
-## 核心合规状态
-| 平台 | FAIL | WARN | INFO |
-|------|------|------|------|
-
-## 扩展合规状态
-| 平台 | 扩展能力覆盖 | Agent字段覆盖 | 特性覆盖 | 权限覆盖 | 模型覆盖 |
-|------|-------------|-------------|---------|---------|---------|
-
-## 测试结果
-passed: N / total: N
-
-## 已知局限
-- <在审计后填写：每条说明哪个平台的哪个能力文档不完整及其影响>
-```
+按 `references/report-templates.md` 中的"审计完成总结"模板输出。
 
 ---
 
@@ -371,16 +218,16 @@ passed: N / total: N
 
 适用于: 只想知道当前配置是否过期，不执行修改。
 
-**Step 1**: 读取所有目标平台的 `profile.yaml`，记录 `version_tested`
-**Step 2**: WebSearch 每个平台的最新版本号
-**Step 3**: 对比版本号，标记过期平台
-**Step 4**: 对过期平台执行 Phase 2 的差异分析（Step 4-6）
-**Step 5**: 运行核心 + 扩展合规检查
-**Step 6**: 输出差异报告 + 合规状态，不执行修改
+1. 读取所有目标平台的 `profile.yaml`，记录 `version_tested`
+2. WebSearch 每个平台的最新版本号
+3. 对比版本号，标记过期平台
+4. 对过期平台执行 Phase 2 的差异分析（Step 4-6）
+5. 运行核心 + 扩展合规检查
+6. 输出差异报告 + 合规状态，**不执行修改**
 
 ---
 
-### 指令3: 单平台深度审计 (deep <platform_id>)
+### 指令3: 单平台深度审计 (deep `<platform_id>`)
 
 适用于: 某个平台刚发布重大更新，需要深度审计该平台。
 
@@ -398,65 +245,9 @@ passed: N / total: N
 
 ---
 
-### 指令4: 新平台接入评估 (evaluate <platform_name>)
+### 指令4: 新平台接入评估 (evaluate `<platform_name>`)
 
-适用于: 评估一个新的 AI IDE 是否可以接入 CataForge。
-
-**Step 1: 能力调研**
-使用 WebSearch 调研目标平台:
-- 是否提供 tool/function calling 机制
-- 是否支持 hook/lifecycle 事件
-- agent/task 系统如何工作
-- 配置文件格式和路径
-- CLI 工具和 SDK
-
-**Step 2: 核心 Capability 映射评估**
-逐一评估 10 个核心 Capability ID 的可映射性:
-
-| Capability | 可映射 | 平台工具名 | 备注 |
-|-----------|--------|-----------|------|
-| file_read | Y/N/部分 | ... | ... |
-| ... | | | |
-
-**Step 3: 扩展能力评估**
-逐一评估 4 个扩展 Capability ID:
-
-| Capability | 可映射 | 平台工具名 | 备注 |
-|-----------|--------|-----------|------|
-| notebook_edit | Y/N | ... | ... |
-| ... | | | |
-
-**Step 4: Agent 配置评估**
-评估 agent 定义支持的 frontmatter 字段:
-
-| 字段 | 支持 | 平台名称 | 备注 |
-|------|------|---------|------|
-| name | Y/N | ... | ... |
-| ... | | | |
-
-**Step 5: 平台特性评估**
-逐一评估 17 个 platform features:
-
-| 特性 | 支持 | 备注 |
-|------|------|------|
-| cloud_agents | Y/N | ... |
-| ... | | |
-
-**Step 6: Hook 支持评估**
-评估 5 个 hook 事件的支持度:
-- 原生支持 → native
-- 可通过插件/脚本实现 → degraded (注明降级方式)
-- 不可实现 → null
-
-**Step 7: 接入可行性报告**
-输出:
-- 可行性判定: 推荐接入 / 有条件接入 / 不建议接入
-- 核心能力覆盖率: N/10 capabilities, M/5 hook events
-- 扩展能力覆盖率: N/4 extended capabilities
-- Agent 配置覆盖率: N/17 frontmatter fields
-- 平台特性覆盖率: N/17 features
-- 接入所需工作量估算
-- 需要新建的文件清单（adapter 类、profile.yaml、overrides 模板）
+完整流程见 `references/evaluate-new-platform.md`。**不修改仓库内任何文件**，输出可行性报告供决策。
 
 ---
 

@@ -38,7 +38,7 @@
 | [速查卡](./reference/quick-reference.md) | 所有人 | 一页纸：平台矩阵 + CLI 速查 + 产物路径 |
 | [CLI 参考](./reference/cli.md) | 用户 | `cataforge` 全部子命令与参数 |
 | [配置参考](./reference/configuration.md) | 用户 / 开发者 | framework.json / profile.yaml / hooks.yaml 字段 |
-| [Agent & Skill 清单](./reference/agents-and-skills.md) | 用户 | 13 个 Agent + 25 个 Skill 详细说明 |
+| [Agent & Skill 清单](./reference/agents-and-skills.md) | 用户 | 13 个 Agent + 26 个 Skill 详细说明 |
 | [状态码与引用格式](./reference/status-codes.md) | 开发者 | 统一状态码、文档引用、事件日志 |
 
 ### ❓ 其它
