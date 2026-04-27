@@ -124,17 +124,14 @@ def docs_validate(project_root: str | None) -> None:
     \b
     - orphan docs (markdown files missing YAML front matter)
     - stale index entries (file_path no longer on disk)
+    - cross-reference errors (frontmatter ``deps`` that don't resolve)
 
-    Exits 0 when clean, 3 when any orphan or stale entry is found.
+    Exits 0 when clean, 3 when any failure is found.
     """
     import os
 
     from cataforge.core.paths import find_project_root
-    from cataforge.docs.indexer import (
-        INDEX_FILENAME,
-        find_orphan_docs,
-        find_stale_index_entries,
-    )
+    from cataforge.docs.indexer import INDEX_FILENAME, validate_docs
 
     root = project_root or str(find_project_root())
     index_path = os.path.join(root, "docs", INDEX_FILENAME)
@@ -151,11 +148,16 @@ def docs_validate(project_root: str | None) -> None:
         err.exit_code = 2
         raise err
 
-    orphans = find_orphan_docs(root)
-    stale = find_stale_index_entries(root)
+    result = validate_docs(root)
+    orphans = result["orphans"]
+    stale = result["stale"]
+    xref_errors = result["xref_errors"]
+    alias_conflicts = result["alias_conflicts"]
 
-    if not orphans and not stale:
-        click.echo("OK · 0 orphans · 0 stale entries")
+    if not orphans and not stale and not xref_errors and not alias_conflicts:
+        click.echo(
+            "OK · 0 orphans · 0 stale entries · 0 xref errors · 0 alias conflicts"
+        )
         return
 
     if orphans:
@@ -173,8 +175,29 @@ def docs_validate(project_root: str | None) -> None:
         for doc_id, rel in stale:
             click.echo(f"  - {doc_id} → {rel}", err=True)
 
+    if xref_errors:
+        click.echo(
+            f"FAIL · {len(xref_errors)} cross-reference error(s):", err=True,
+        )
+        for e in xref_errors:
+            click.echo(
+                f"  - {e['doc_id']} ({e['file_path']}) → {e['ref']}: {e['reason']}",
+                err=True,
+            )
+
+    if alias_conflicts:
+        click.echo(
+            f"FAIL · {len(alias_conflicts)} alias conflict(s):", err=True,
+        )
+        for c in alias_conflicts:
+            click.echo(
+                f"  - {c['alias']} (claimed by {c['claimed_by']}): {c['reason']}",
+                err=True,
+            )
+
     err = CataforgeError(
-        f"docs validate failed ({len(orphans)} orphan, {len(stale)} stale)",
+        f"docs validate failed ({len(orphans)} orphan, {len(stale)} stale, "
+        f"{len(xref_errors)} xref, {len(alias_conflicts)} alias)",
     )
     err.exit_code = 3
     raise err

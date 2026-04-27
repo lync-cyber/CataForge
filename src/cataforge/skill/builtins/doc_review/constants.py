@@ -13,6 +13,7 @@ VOLUME_TYPES = {
     "sprint",
     "components",
     "pages",
+    "theme",
 }
 
 KNOWN_DOC_PREFIXES = {

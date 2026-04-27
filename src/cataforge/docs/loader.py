@@ -136,17 +136,47 @@ def _index_age_days(generated_at: str | None) -> float | None:
         return None
 
 
+def _resolve_doc_entry(
+    index: dict[str, Any], doc_id: str
+) -> dict[str, Any] | None:
+    """Resolve ``doc_id`` to a document entry via the staged lookup chain.
+
+    Order: exact match → aliases map → prefix fallback (``{doc_id}-*``).
+    The prefix stage collects all candidates and raises
+    :class:`AmbiguousRefError` when more than one matches — silently picking
+    the first dict-iteration hit was the pre-fix behavior and produced
+    nondeterministic resolution when projects had ``prd-v1`` and ``prd-v2``
+    side by side.
+    """
+    documents = index.get("documents", {})
+    direct = documents.get(doc_id)
+    if direct:
+        return direct
+
+    aliases = index.get("aliases") or {}
+    target = aliases.get(doc_id)
+    if isinstance(target, str):
+        aliased = documents.get(target)
+        if aliased:
+            return aliased
+
+    prefix = doc_id + "-"
+    candidates = [(did, d) for did, d in documents.items() if did.startswith(prefix)]
+    if len(candidates) == 1:
+        return candidates[0][1]
+    if len(candidates) > 1:
+        names = ", ".join(sorted(did for did, _ in candidates))
+        raise AmbiguousRefError(
+            f"短引用 {doc_id!r} 匹配到多个文档: {names}。请使用完整 doc_id "
+            f"或在源文档 frontmatter 中声明 `aliases:`。"
+        )
+    return None
+
+
 def _lookup_in_index(
     index: dict[str, Any], doc_id: str, section_path: str, item_id: str | None
 ) -> dict[str, Any] | None:
-    documents = index.get("documents", {})
-    doc_entry = documents.get(doc_id)
-    if not doc_entry:
-        prefix = doc_id + "-"
-        for did, entry in documents.items():
-            if did == doc_id or did.startswith(prefix):
-                doc_entry = entry
-                break
+    doc_entry = _resolve_doc_entry(index, doc_id)
     if not doc_entry:
         return None
 
@@ -167,12 +197,10 @@ def _lookup_in_index(
         xref = index.get("xref", {})
         if item_id in xref:
             for ref_entry in xref[item_id]:
-                other_doc = documents.get(ref_entry["doc_id"])
-                if not other_doc:
-                    for did, d in documents.items():
-                        if did.startswith(ref_entry["doc_id"] + "-"):
-                            other_doc = d
-                            break
+                try:
+                    other_doc = _resolve_doc_entry(index, ref_entry["doc_id"])
+                except AmbiguousRefError:
+                    other_doc = None
                 if other_doc:
                     other_sec = other_doc.get("sections", {}).get(ref_entry["section"], {})
                     other_item = other_sec.get("items", {}).get(item_id)
@@ -215,6 +243,10 @@ class DocResolveError(LoadSectionError):
 
 
 class SectionNotFoundError(LoadSectionError):
+    pass
+
+
+class AmbiguousRefError(LoadSectionError):
     pass
 
 

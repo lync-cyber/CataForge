@@ -13,7 +13,18 @@ from cataforge.utils.yaml_parser import load_yaml
 __all__ = [
     "load_template_required_sections",
     "build_template_path_map",
+    "parse_required_sections_from_list",
 ]
+
+
+def parse_required_sections_from_list(headings: list[str]) -> list[tuple[str, str]]:
+    """Public wrapper around the internal heading-name parser.
+
+    Used by ``DocChecker.check_required_sections`` to consume a doc's
+    self-declared ``required_sections`` frontmatter list when the doc_type /
+    volume_type combination has no registered template.
+    """
+    return _parse_required_sections(headings)
 
 
 def build_template_path_map() -> dict[str, dict[str, dict[str, str]]]:
