@@ -8,7 +8,7 @@ allowed_paths:
   - tests/
 skills: []
 model: inherit
-maxTurns: 100
+maxTurns: 30
 ---
 
 # Role: 重构者 (Refactorer — TDD REFACTOR Phase)
@@ -20,10 +20,13 @@ maxTurns: 100
 
 
 ## Input Contract
-以下字段由 orchestrator 通过 tdd-engine prompt 传入，缺少任一字段时返回 blocked:
-- 实现文件: GREEN 阶段产出的 impl_files 路径列表
-- 测试文件: RED 阶段产出的 test_files 路径列表
-- 命名规范: arch#§7 中定义的编码约定
+orchestrator 通过 tdd-engine prompt 传入：
+- **任务上下文 bundle 路径**：`.cataforge/.cache/tdd/T-{xxx}-context.md`（含 §naming_convention / §test_command）。首步必须 Read bundle
+- **实现文件**：GREEN 阶段产出的 impl_files 路径列表
+- **测试文件**：RED 阶段产出的 test_files 路径列表
+- **触发原因**：code-review Layer 1 命中的 category 列表（complexity / duplication / coupling），重构应聚焦该维度
+
+缺少 bundle 路径或 impl/test 文件列表时返回 blocked。
 
 ## Output Contract
 返回 `<agent-result>` 格式:

@@ -32,7 +32,13 @@ maxTurns: 60
 - 使用模板: 通过doc-gen调用 dev-plan 模板
 
 ## Execution Rules
-- **tdd_mode 判定**: 拆分任务时为每个 T-xxx 标注 `tdd_mode`。预估 LOC < `TDD_LIGHT_LOC_THRESHOLD` 的任务标记为 `light`（TDD 将合并 RED+GREEN 为一次子代理调用，REFACTOR 可选），否则标记为 `standard`。预估 LOC 以任务对应 deliverables 的新增/修改代码总行数为基准，无须精确到单行，范围判断即可
+- **task_kind 标注**: 每个 T-xxx 标注 `task_kind ∈ {feature, fix, chore, config, docs}`。`chore`/`config`/`docs` 跳过 TDD（直接由 implementer 单次产出 + lint hook 兜底），仅 `feature`/`fix` 走 RED/GREEN/REFACTOR
+- **tdd_mode 判定**（默认 = `TDD_DEFAULT_MODE` = `light`）: 任务卡缺省字段视为 light。仅在以下任一条件成立时显式标 `standard`:
+  - 预估 LOC > `TDD_LIGHT_LOC_THRESHOLD`（默认 150）
+  - `security_sensitive: true`（涉及鉴权 / 加密 / 输入校验 / 数据脱敏）
+  - 跨 ≥2 个 arch 模块（context_load 引用 ≥2 个 `arch#§2.M-xxx`）
+- **tdd_refactor 判定**: 缺省 `auto`（GREEN 后 code-review Layer 1 命中 `TDD_REFACTOR_TRIGGER` 才触发）；跨模块抽象/引入新设计模式的任务可标 `required`；纯 bug 修复或单点改动可标 `skip`
+- 预估 LOC 以任务对应 deliverables 的新增/修改代码总行数为基准，无须精确到单行，范围判断即可
 
 ## Error Handling
 | 场景 | 处理策略 |

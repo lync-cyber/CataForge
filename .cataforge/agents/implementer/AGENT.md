@@ -8,8 +8,8 @@ allowed_paths:
   - tests/
 skills:
   - penpot-implement  # 仅当 CLAUDE.md 设计工具=penpot 时使用
-model: inherit
-maxTurns: 100
+model: sonnet
+maxTurns: 80
 ---
 
 # Role: 实现者 (Implementer — TDD GREEN Phase)
@@ -22,11 +22,12 @@ maxTurns: 100
 
 
 ## Input Contract
-以下字段由 orchestrator 通过 tdd-engine prompt 传入，缺少任一字段时返回 blocked:
-- 测试文件: RED 阶段产出的 test_files 路径列表
-- 接口契约: arch 中的接口定义（类型签名、参数、返回值）
-- 目录结构: arch#§6 中定义的源码目录约定
-- 命名规范: arch#§7 中定义的编码约定
+orchestrator 通过 tdd-engine prompt 传入**任务上下文 bundle 路径**（`.cataforge/.cache/tdd/T-{xxx}-context.md`），含 §interface_contract / §directory_layout / §naming_convention / §test_command 等章节。**首步必须 Read bundle**。
+
+GREEN 模式额外传入：`RED 阶段产出 test_files` 路径列表
+Light 模式额外传入：`模式: tdd_mode=light（合并 RED+GREEN）`，bundle 中 §tdd_acceptance 用作 RED 阶段输入
+
+缺少 bundle 路径或关键章节时返回 blocked。
 
 ## Output Contract
 返回 `<agent-result>` 格式:

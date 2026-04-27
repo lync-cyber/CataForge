@@ -118,9 +118,9 @@ CONSTANT_LITERALS: tuple[tuple[str, str, str], ...] = (
     ("MAX_QUESTIONS_PER_BATCH", r"≤\s*3\s*(问|题|个问题)", "≤3 问"),
     ("DOC_SPLIT_THRESHOLD_LINES", r"(>|超过|≥)\s*300\s*行", ">300 行"),
     ("DOC_REVIEW_L2_SKIP_THRESHOLD_LINES", r"<\s*200\s*行", "<200 行"),
-    ("TDD_LIGHT_LOC_THRESHOLD", r"(≤|<)\s*50\s*(LOC|loc|行代码)", "≤50 LOC"),
+    ("TDD_LIGHT_LOC_THRESHOLD", r"(≤|<|>)\s*150\s*(LOC|loc|行代码)", "150 LOC 阈值"),
     ("RETRO_TRIGGER_SELF_CAUSED", r"(累计|≥)\s*5\s*条", "≥5 条"),
-    ("SPRINT_REVIEW_MICRO_TASK_COUNT", r"(≤|<=)\s*2\s*个任务", "≤2 个任务"),
+    ("SPRINT_REVIEW_MICRO_TASK_COUNT", r"(≤|<=)\s*3\s*个任务", "≤3 个任务"),
 )
 
 

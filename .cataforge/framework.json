@@ -27,8 +27,13 @@
     "META_DOC_SPLIT_THRESHOLD_LINES": 500,
     "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
     "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "prd-lite", "arch-lite", "dev-plan-lite", "changelog"],
-    "TDD_LIGHT_LOC_THRESHOLD": 50,
-    "SPRINT_REVIEW_MICRO_TASK_COUNT": 2,
+    "TDD_LIGHT_LOC_THRESHOLD": 150,
+    "TDD_DEFAULT_MODE": "light",
+    "TDD_REFACTOR_TRIGGER": ["complexity", "duplication", "coupling"],
+    "SPRINT_REVIEW_MICRO_TASK_COUNT": 3,
+    "CODE_REVIEW_L2_SKIP_TASK_KINDS": ["chore", "config", "docs"],
+    "CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC": 2,
+    "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
     "RETRO_TRIGGER_SELF_CAUSED": 5
   },
   "features": {
@@ -88,8 +93,24 @@
         "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES",
         "DOC_REVIEW_L2_SKIP_DOC_TYPES",
         "TDD_LIGHT_LOC_THRESHOLD",
+        "TDD_DEFAULT_MODE",
+        "TDD_REFACTOR_TRIGGER",
         "SPRINT_REVIEW_MICRO_TASK_COUNT",
+        "CODE_REVIEW_L2_SKIP_TASK_KINDS",
+        "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS",
         "RETRO_TRIGGER_SELF_CAUSED"
+      ]
+    },
+    {
+      "id": "mc-0.2.0-tdd-light-default",
+      "release_version": "0.2.0",
+      "description": "TDD_LIGHT_LOC_THRESHOLD 提升至 150 且默认模式翻转为 light，配套 TDD_DEFAULT_MODE / TDD_REFACTOR_TRIGGER 等新常量；旧值 50/standard-default 已废弃",
+      "type": "file_must_contain",
+      "path": ".cataforge/rules/COMMON-RULES.md",
+      "patterns": [
+        "TDD_LIGHT_LOC_THRESHOLD | 150",
+        "TDD_DEFAULT_MODE | light",
+        "SPRINT_REVIEW_MICRO_TASK_COUNT | 3"
       ]
     },
     {

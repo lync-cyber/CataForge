@@ -36,6 +36,21 @@ user-invocable: true
 工具不存在时自动跳过并WARN，不阻断检查流程。
 
 ### Step 2: Layer 2 — AI语义审查
+
+**Layer 2 短路条件**（降低轻量任务的审查开销，类比 doc-review §Layer 2 短路）:
+
+满足以下任一条件且 Layer 1 exit 0 时**跳过 Layer 2** 直接判定为 `approved`:
+
+1. 任务卡 `task_kind ∈ CODE_REVIEW_L2_SKIP_TASK_KINDS`（默认 `[chore, config, docs]`）
+2. 任务卡 `tdd_mode: light` + AC 数 ≤ `CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC`（默认 2） + Layer 1 输出无 security/error-handling 类 finding
+3. 调用方传入 `--layer1-only` 标志（由 ORCHESTRATOR-PROTOCOLS §Adaptive Review 反向降级触发）
+
+**短路豁免**（即使命中上述条件也强制跑 Layer 2）:
+- 任务卡 `security_sensitive: true`
+- Layer 1 输出含任一 finding 涉及 security / error-handling / 注入 / 鉴权 / 加密 / 输入校验
+
+命中短路时仍需按 Step 3/4 产出 `CODE-REVIEW-{task_id}-r{N}.md` 报告，front matter `status: approved`，并在报告标题下标注 `Layer 2 skipped (short-circuit: <触发条件>)`。降级场景（Layer 1 异常 / FAIL）不适用短路。
+
 通过doc-nav加载 arch#§7开发约定 和 arch#§5非功能架构，按以下维度审查（括号内为对应的 category 枚举值）:
 - 命名规范(convention): 文件/变量/接口命名是否符合arch约定
 - 代码结构(structure): 模块组织、职责划分是否合理
@@ -134,5 +149,6 @@ scan 模式额外的腐化 probe（按 --focus 选择性执行）:
 - Hook去重: 已配置 PostToolUse lint hook 时跳过 Layer 1，避免与编码阶段的实时 lint 重复检查
 - Layer 1兜底: 未配置 hook 的项目仍执行 Layer 1 作为质量门禁
 - Layer 2聚焦语义: AI审查专注于lint无法覆盖的逻辑/安全/架构问题
+- **Layer 2 短路**: light 模式小任务 / chore / Adaptive Review 反向降级时跳过 Layer 2，由 sprint-review 兜底（见 §Step 2 短路条件）
 - scan 模式按需触发: 不在 TDD 主循环内自动执行，避免每次任务评审都跑 jscpd/vulture
 - 按严重等级排序问题

@@ -28,8 +28,11 @@ required_sections:
 ### T-001: {任务名}
 - **目标**: {一句话}
 - **模块**: M-001
+- **task_kind**: feature  <!-- feature | fix | chore | config | docs；非 feature/fix 跳过 TDD -->
 - **tdd_mode**: light
-  <!-- agile-lite 默认 light；若任务预估 LOC ≥ TDD_LIGHT_LOC_THRESHOLD 可标 standard -->
+  <!-- agile-lite 默认 light；任务预估 LOC > TDD_LIGHT_LOC_THRESHOLD 或 security_sensitive 时升 standard -->
+- **tdd_refactor**: auto  <!-- auto | required | skip；auto 按 TDD_REFACTOR_TRIGGER 条件触发 -->
+- **security_sensitive**: false
 - **tdd_acceptance**:
   - [ ] AC-001: {测试描述} → 预期: {结果}
   - [ ] AC-002: {测试描述} → 预期: {结果}
@@ -44,7 +47,10 @@ required_sections:
 ### T-002: {任务名}
 - **目标**: ...
 - **模块**: M-002
+- **task_kind**: feature
 - **tdd_mode**: light
+- **tdd_refactor**: auto
+- **security_sensitive**: false
 - **tdd_acceptance**:
   - [ ] AC-003: ...
 - **deliverables**:

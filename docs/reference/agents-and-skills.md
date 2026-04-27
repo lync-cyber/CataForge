@@ -268,9 +268,10 @@ tools:
 - 输出标准化评审报告
 
 **tdd-engine** — TDD 三阶段引擎
-- 编排 RED（test-writer）→ GREEN（implementer）→ REFACTOR（refactorer）
-- 支持 standard 和 light 两种模式（light 模式合并 RED+GREEN）
-- light 模式阈值：TDD_LIGHT_LOC_THRESHOLD（默认 50 LOC）
+- 编排 RED（test-writer）→ GREEN（implementer）→ REFACTOR（refactorer，条件触发）
+- 默认 light 模式（RED+GREEN 合并）；LOC > `TDD_LIGHT_LOC_THRESHOLD`（默认 150）/ `security_sensitive` / 跨模块时升 standard
+- agile-prototype 走 implementer 主线程内联，无子代理调度
+- `task_kind ∈ {chore, config, docs}` 跳过 TDD，仅 implementer 单次实现 + lint hook
 
 **change-guard** — 变更守卫
 - 分析变更请求与现有文档的一致性
