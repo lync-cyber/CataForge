@@ -67,8 +67,13 @@
     "DOC_SPLIT_THRESHOLD_LINES": 300,
     "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
     "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "prd-lite", "arch-lite", "dev-plan-lite", "changelog"],
-    "TDD_LIGHT_LOC_THRESHOLD": 50,
-    "SPRINT_REVIEW_MICRO_TASK_COUNT": 2,
+    "TDD_LIGHT_LOC_THRESHOLD": 150,
+    "TDD_DEFAULT_MODE": "light",
+    "TDD_REFACTOR_TRIGGER": ["complexity", "duplication", "coupling"],
+    "SPRINT_REVIEW_MICRO_TASK_COUNT": 3,
+    "CODE_REVIEW_L2_SKIP_TASK_KINDS": ["chore", "config", "docs"],
+    "CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC": 2,
+    "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
     "RETRO_TRIGGER_SELF_CAUSED": 5
   },
   "features": {
@@ -122,8 +127,13 @@
 | `constants.DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | `doc-gen` 自动分卷阈值 |
 | `constants.DOC_REVIEW_L2_SKIP_THRESHOLD_LINES` | ❌ | overwrite | `doc-review` Layer 2 跳过阈值 |
 | `constants.DOC_REVIEW_L2_SKIP_DOC_TYPES` | ❌ | overwrite | Layer 2 跳过的文档类型 |
-| `constants.TDD_LIGHT_LOC_THRESHOLD` | ❌ | overwrite | TDD 轻量模式 LOC 阈值 |
-| `constants.SPRINT_REVIEW_MICRO_TASK_COUNT` | ❌ | overwrite | sprint-review 跳过的 micro sprint 任务数阈值 |
+| `constants.TDD_LIGHT_LOC_THRESHOLD` | ❌ | overwrite | tdd_mode 升 standard 的 LOC 上限阈值（默认 150；≤ 阈值 → light） |
+| `constants.TDD_DEFAULT_MODE` | ❌ | overwrite | 任务卡 `tdd_mode` 缺省值（默认 light） |
+| `constants.TDD_REFACTOR_TRIGGER` | ❌ | overwrite | REFACTOR 阶段条件触发的 category 清单（默认 `[complexity, duplication, coupling]`） |
+| `constants.SPRINT_REVIEW_MICRO_TASK_COUNT` | ❌ | overwrite | sprint-review 跳过的 micro sprint 任务数阈值（默认 3） |
+| `constants.CODE_REVIEW_L2_SKIP_TASK_KINDS` | ❌ | overwrite | 短路 code-review Layer 2 的 task_kind 清单（默认 `[chore, config, docs]`） |
+| `constants.CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC` | ❌ | overwrite | light 模式短路 Layer 2 的 AC 数上限（默认 2） |
+| `constants.ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS` | ❌ | overwrite | Adaptive Review 反向降级所需的连续 clean 任务数（默认 10） |
 | `constants.RETRO_TRIGGER_SELF_CAUSED` | ❌ | overwrite | reflector 触发的累积自致问题数 |
 | `features.<id>.min_version` | ❌ | overwrite | feature 引入的版本号（语义版本） |
 | `features.<id>.auto_enable` | ❌ | overwrite | 是否在符合 `phase_guard` 时自动启用 |

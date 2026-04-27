@@ -46,8 +46,14 @@ graph LR
 - **目标**: {一句话描述任务目标}
 - **模块**: M-001
 - **接口**: API-001
-- **tdd_mode**: standard
-  <!-- 可选值: standard | light。缺省视为 standard。预估 LOC < `TDD_LIGHT_LOC_THRESHOLD` 时 tech-lead 应标记 light -->
+- **task_kind**: feature
+  <!-- 可选值: feature | fix | chore | config | docs。chore/config/docs 跳过 TDD 仅走 implementer 单次实现 + lint hook -->
+- **tdd_mode**: light
+  <!-- 可选值: light | standard。缺省 = `TDD_DEFAULT_MODE`（light）。预估 LOC > `TDD_LIGHT_LOC_THRESHOLD` 或 `security_sensitive: true` / 跨模块时 tech-lead 应标记 standard -->
+- **tdd_refactor**: auto
+  <!-- 可选值: auto | required | skip。auto = 按 `TDD_REFACTOR_TRIGGER` 条件触发；required = 强制；skip = 强制跳过 -->
+- **security_sensitive**: false
+  <!-- true 时强制升 standard 模式 + code-review 不短路 Layer 2 -->
 - **tdd_acceptance**:
   - [ ] AC-001: {测试描述} → 预期: {结果}
   - [ ] AC-002: {测试描述} → 预期: {结果}

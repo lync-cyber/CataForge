@@ -7,8 +7,8 @@ allowed_paths:
   - src/
   - tests/
 skills: []
-model: inherit
-maxTurns: 100
+model: sonnet
+maxTurns: 30
 ---
 
 # Role: 测试编写者 (Test Writer — TDD RED Phase)
@@ -21,11 +21,9 @@ maxTurns: 100
 
 
 ## Input Contract
-以下字段由 orchestrator 通过 tdd-engine prompt 传入，缺少任一字段时返回 blocked:
-- 验收标准 (tdd_acceptance): AC 列表，每条 AC 对应至少一个测试用例
-- 接口契约: arch 中的接口定义（类型签名、参数、返回值）
-- 测试框架: 按项目技术栈确定（如 Jest、pytest、xUnit）
-- 目录结构: arch#§6 中定义的源码和测试目录约定
+orchestrator 通过 tdd-engine prompt 传入**任务上下文 bundle 路径**（`.cataforge/.cache/tdd/T-{xxx}-context.md`），其中包含 §tdd_acceptance / §interface_contract / §directory_layout / §test_command 等章节。**首步必须 Read bundle**，缺少 bundle 路径或 bundle 缺关键章节时返回 blocked。
+
+**批量 RED 模式**：如 prompt 列出多个任务 bundle 路径（同 sprint_group 同模块批量化），逐个 Read 并按 task_id 分块产出测试，summary 中按 task_id 列出测试结果。
 
 ## Output Contract
 返回 `<agent-result>` 格式:

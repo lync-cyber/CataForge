@@ -99,10 +99,13 @@ OpenCode 原生不支持 hook，框架默认降级为 `rules_injection`。若需
 
 ### Q：TDD 引擎的 `light` 模式和 `standard` 什么时候自动切换？
 
-按微任务 LOC 预判：
+默认 light（`TDD_DEFAULT_MODE=light`），仅在以下任一条件成立时 tech-lead 显式标 `standard`：
 
-- `< TDD_LIGHT_LOC_THRESHOLD`（默认 50）→ light（RED+GREEN 合并）
-- `≥` 阈值 → standard（三步独立）
+- 预估 LOC > `TDD_LIGHT_LOC_THRESHOLD`（默认 150）
+- 任务卡 `security_sensitive: true`
+- 跨 ≥2 个 arch 模块（context_load 引用 ≥2 个 `arch#§2.M-xxx`）
+
+REFACTOR 阶段不再无条件运行，按 `TDD_REFACTOR_TRIGGER`（默认 `[complexity, duplication, coupling]`）条件触发。
 
 ### Q：REFACTOR 失败会丢代码吗？
 

@@ -23,8 +23,13 @@
 | META_DOC_SPLIT_THRESHOLD_LINES | 500 | SKILL.md / AGENT.md / 协议文档拆分提示行数（协议天然偏长） | framework-review |
 | DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
 | DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, prd-lite, arch-lite, dev-plan-lite, changelog] | 可短路 Layer 2 的文档类型白名单 | doc-review |
-| TDD_LIGHT_LOC_THRESHOLD | 50 | tech-lead 判定 `tdd_mode: light` 的预估 LOC 阈值 | tech-lead, tdd-engine |
-| SPRINT_REVIEW_MICRO_TASK_COUNT | 2 | Sprint 任务数 ≤ 此值且全部 approved 时跳过 sprint-review | orchestrator |
+| TDD_LIGHT_LOC_THRESHOLD | 150 | tech-lead 判定 `tdd_mode: standard` 的预估 LOC 上限阈值（LOC ≤ 阈值 → light；> 阈值 → standard） | tech-lead, tdd-engine |
+| TDD_DEFAULT_MODE | light | 任务卡 `tdd_mode` 缺省值。LOC > 阈值或带 `security_sensitive: true` / 跨模块时 tech-lead 显式标 standard | tech-lead, tdd-engine |
+| TDD_REFACTOR_TRIGGER | [complexity, duplication, coupling] | standard 模式下 REFACTOR 阶段的条件触发清单（GREEN 后 code-review Layer 1 命中任一 category 才调度 refactorer；任务卡显式 `tdd_refactor: required` 也强制触发） | tdd-engine |
+| SPRINT_REVIEW_MICRO_TASK_COUNT | 3 | Sprint 任务数 ≤ 此值且全部 approved 时跳过 sprint-review | orchestrator |
+| CODE_REVIEW_L2_SKIP_TASK_KINDS | [chore, config, docs] | 任务卡 `task_kind` 命中且 Layer 1 通过时短路 code-review Layer 2 | code-review |
+| CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC | 2 | light 模式下 AC 数 ≤ 此值且 Layer 1 通过时短路 code-review Layer 2（security/error-handling 关键字命中时不短路） | code-review |
+| ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS | 10 | 连续 N 个任务零 self-caused 问题时 Adaptive Review 反向降级（仅跑 Layer 1） | orchestrator |
 | RETRO_TRIGGER_SELF_CAUSED | 5 | CORRECTIONS-LOG 中 `hard`+`review` 条目累计达此值触发 retrospective（`soft` 不计） | orchestrator, reflector |
 
 ### MANUAL_REVIEW_CHECKPOINTS 可选值
@@ -47,7 +52,7 @@
 | 阶段集合 | 7 阶段全跑，ui_design / testing / deployment 可 N/A | Phase 1+2 合并为 `planning`；testing / deployment 可 N/A | Phase 1~4 合并为 `brief`，仅 `brief` + `development` |
 | 文档产出 | PRD + ARCH + UI-SPEC + DEV-PLAN + TEST-REPORT + DEPLOY-SPEC | prd-lite + arch-lite + dev-plan-lite（各 ≤100 行）；UI 项目可选 ui-spec-lite | 单一 brief.md（≤200 行） |
 | doc-review | Layer 1 + Layer 2 强制 | Layer 1 强制；Layer 2 按 `DOC_REVIEW_L2_SKIP_*` 短路 | Layer 1 only |
-| TDD | RED → GREEN → REFACTOR | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 可选 | RED+GREEN 合并，REFACTOR 跳过 |
+| TDD | 默认 light（RED+GREEN 合并）；LOC > `TDD_LIGHT_LOC_THRESHOLD` 或 `security_sensitive: true` / 跨模块时升 standard，REFACTOR 按 `TDD_REFACTOR_TRIGGER` 条件触发 | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 仅在 code-review 命中 `TDD_REFACTOR_TRIGGER` 时触发 | implementer 主线程一次性写测试+实现，跳过 RED/GREEN/REFACTOR 子代理调度 |
 | 人工检查点 | 引用 `MANUAL_REVIEW_CHECKPOINTS` | 仅 pre_dev | none |
 | Sprint-review | 按 `SPRINT_REVIEW_MICRO_TASK_COUNT` 判定 | 同 standard | 跳过 |
 | Retrospective | 按 `RETRO_TRIGGER_SELF_CAUSED` 判定 | 同 standard | 跳过 |

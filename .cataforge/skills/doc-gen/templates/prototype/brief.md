@@ -76,8 +76,10 @@ required_sections:
 
 ### T-001: {任务名}
 - **目标**: {一句话}
+- **task_kind**: feature  <!-- feature | fix | chore | config | docs -->
 - **tdd_mode**: light
-  <!-- agile-prototype 默认 light -->
+  <!-- agile-prototype 默认 light，且执行模式触发 §Prototype Inline 主线程内联（不 dispatch 子代理） -->
+- **tdd_refactor**: skip  <!-- prototype 默认跳过 REFACTOR -->
 - **tdd_acceptance**:
   - [ ] AC-001: {测试描述} → 预期: {结果}
 - **deliverables**:
@@ -87,7 +89,9 @@ required_sections:
 
 ### T-002: {任务名}
 - **目标**: ...
+- **task_kind**: feature
 - **tdd_mode**: light
+- **tdd_refactor**: skip
 - **tdd_acceptance**:
   - [ ] AC-002: ...
 - **deliverables**:
