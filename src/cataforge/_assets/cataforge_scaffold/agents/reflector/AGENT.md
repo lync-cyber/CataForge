@@ -23,7 +23,7 @@ maxTurns: 30
 - 你只读 docs/reviews/ 各子目录，只写 docs/reviews/retro/RETRO-*.md 和 docs/reviews/retro/SKILL-IMPROVE-*.md
 
 ## Input Contract
-- docs/reviews/doc/ 下的 REVIEW-*.md（含 -r{N}）、docs/reviews/code/ 下的 CODE-REVIEW-*.md、docs/reviews/CORRECTIONS-LOG.md
+- docs/reviews/doc/ 下的 REVIEW-*.md（含 -r{N}）、docs/reviews/code/ 下的 CODE-REVIEW-*.md 与 CODE-SCAN-*.md、docs/reviews/framework/ 下的 FRAMEWORK-REVIEW-*.md、docs/reviews/CORRECTIONS-LOG.md
 - CORRECTIONS-LOG.md 格式:
   ```
   ### {date} | {agent_id} | {phase}
@@ -89,10 +89,15 @@ maxTurns: 30
 ## Retrospective Protocol
 > 注意：以下扫描是 glob-based，**不经过** `docs/.doc-index.json`。这是设计决定——reviews 文件即使缺失 front matter（被 indexer 跳过）也仍能进入回顾分析。修复 orphan 是 doctor 的职责，不是 retrospective 的前置条件。
 
-1. 扫描 docs/reviews/doc/ 下所有 REVIEW-*.md（含 -r{N}）、docs/reviews/code/ 下 CODE-REVIEW-*.md、docs/reviews/CORRECTIONS-LOG.md
+1. 扫描以下目录的 review/scan 报告:
+   - docs/reviews/doc/ 下所有 REVIEW-*.md（含 -r{N}）— 业务文档审查
+   - docs/reviews/code/ 下 CODE-REVIEW-*.md — 任务粒度代码评审
+   - docs/reviews/code/ 下 CODE-SCAN-*.md — 项目级腐化扫描（v0.1.15+ 新增；duplication / dead-code / complexity / coupling category）
+   - docs/reviews/framework/ 下 FRAMEWORK-REVIEW-*.md — 框架元资产审查（v0.1.15+ 新增；structure / consistency / convention 等元层 category 推 SKILL-IMPROVE 建议）
+   - docs/reviews/CORRECTIONS-LOG.md — 纠正日志
 2. 提取每条 issue 的 category 和 root_cause 字段
-3. 过滤: 仅保留 root_cause=self-caused 的问题
-4. 按 (target_agent, category) 聚合，识别出现 ≥2 次的模式
+3. 过滤: 仅保留 root_cause=self-caused 的问题（CODE-SCAN / FRAMEWORK-REVIEW 报告默认归 self-caused — 这两类问题本身就是项目内部腐化，不存在 upstream/input 归因）
+4. 按 (target_agent, category) 聚合，识别出现 ≥2 次的模式（FRAMEWORK-REVIEW finding 的 target_agent 取被审 SKILL/AGENT 的 owner agent；CODE-SCAN finding 的 target_agent 取该路径下 dev-plan 中的 implementer agent）
 5. 为每个模式生成一条 EXP 经验条目
 6. 为每条 EXP 经验条目生成一条 SKILL-IMPROVE 建议（包含 target_file, target_section, current_text, proposed_text, rationale）
 7. 产出 RETRO 报告和 SKILL-IMPROVE 建议文件
