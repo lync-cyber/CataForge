@@ -86,7 +86,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 - B1-α: AGENT.md / SKILL.md 必填段（能力边界 / 输入规范 / 输出规范 / Anti-Patterns / 操作指令 任选其一作为入口段）
 - B1-β: 单文件行数 ≤ META_DOC_SPLIT_THRESHOLD_LINES (WARN 提示拆分)
 - B2-α: 解析所有 AGENT.md `skills:` + SKILL.md `depends:` + framework.json `features` → 引用不存在的 skill/agent FAIL；无任何 AGENT.md 引用的 skill WARN（白名单豁免：基础设施类 skill 如 agent-dispatch / tdd-engine / change-guard / start-orchestrator / doc-nav / doc-gen / research / debug / self-update / workflow-framework-generator / platform-audit / framework-review）
-- B3-α: skill SKILL.md 的 "## Layer 1 检查项" 段与对应 builtin 的 `CHECKS_MANIFEST` 对账（条目数 + 关键词重叠度）；缺该段且对应 builtin 存在 manifest → FAIL
+- B3-α: skill SKILL.md 的 "## Layer 1 检查项" 段与对应 builtin 的 `CHECKS_MANIFEST` 对账。三种识别策略，按优先级：(1) **anchor 模式** — 段内若出现 `<!-- check_id: <id> -->` HTML 注释锚点，按 ID 双向校验（孤儿锚点 / 缺失锚点 → FAIL）；(2) **delegation 模式** — 段内出现 `权威清单见 ...CHECKS_MANIFEST` 短语，跳过逐条对照（manifest 存在性即契约）；(3) **token 启发式（向后兼容）** — 既无锚点也无 delegation 时，按 manifest 标题 token 在段内出现率判定。缺该段且对应 builtin 存在 manifest → FAIL（与策略无关）
 - B4-α: 在 .cataforge/{agents,skills,rules}/**/*.md 中 grep 框架常量对应的裸数值（如 `≤3 问` / `300 行` / `>200 行`），未引用常量名 → WARN（豁免：代码块、版本号、ID 编号）
 - B5-α: 解析 ORCHESTRATOR-PROTOCOLS.md 的 dispatch 表 + framework.json features → 输出 phase × agent × skill 覆盖矩阵；空位标 WARN（某 phase 无 agent 覆盖，或某 agent 定义但未被任何 phase 引用）
 - B6-α: 解析 .cataforge/hooks/hooks.yaml，每个 `script` 字段须解析到真实 .py（builtin: `cataforge.hook.scripts.<name>` 通过 `importlib.resources` 定位；custom: `.cataforge/hooks/custom/<name>.py`）→ FAIL on missing

@@ -338,8 +338,34 @@ def check_b2_cross_references(root: Path, report: Report) -> None:
             )
 
 
+_CHECK_ID_ANCHOR_RE = re.compile(r"<!--\s*check_id:\s*([\w.-]+)\s*-->")
+_DELEGATION_RE = re.compile(r"权威清单见.*?CHECKS_MANIFEST", re.DOTALL)
+
+
 def check_b3_manifest_drift(root: Path, report: Report) -> None:
-    """B3-α: SKILL.md '## Layer 1 检查项' ↔ CHECKS_MANIFEST."""
+    """B3-α: SKILL.md '## Layer 1 检查项' ↔ CHECKS_MANIFEST.
+
+    Three reconciliation strategies, in order of preference:
+
+    1. **Anchor mode** — if the section contains one or more
+       ``<!-- check_id: xxx -->`` HTML comments, do a precise bidirectional
+       ID check: every anchor must point at a real manifest entry, and
+       every non-delegated manifest entry must have an anchor. False
+       negatives from token rewording disappear; false positives from
+       loose phrasing also disappear. Preferred for new skills with
+       per-entry prose.
+
+    2. **Delegation mode** — if the section contains the canonical phrase
+       ``权威清单见 ...CHECKS_MANIFEST``, the SKILL.md is explicitly
+       deferring per-entry documentation to the manifest. We still verify
+       the manifest exists, but skip entry-by-entry comparison.
+
+    3. **Token heuristic (legacy fallback)** — if neither anchors nor
+       delegation are present, fall back to the original "every manifest
+       entry's title has at least one significant token in the prose"
+       check. Soft, but catches obvious staleness in skills that pre-date
+       the anchor and delegation conventions.
+    """
     # Map skill id → builtin module name. Only review-class skills
     # (whose builtin runs Layer 1 checks) are tracked here.
     # task-dep-analysis is a deterministic graph algorithm — its
@@ -383,17 +409,6 @@ def check_b3_manifest_drift(root: Path, report: Report) -> None:
 
         section_text = section_match.group(1)
 
-        # Delegation pattern: SKILL.md may explicitly delegate authority
-        # to the manifest (e.g. "权威清单见 cataforge.skill.builtins.X.CHECKS_MANIFEST"),
-        # in which case prose duplication is intentionally minimal and
-        # token-by-token matching would produce noisy false positives.
-        # We still verify the manifest exists below — that is the
-        # actual contract.
-        delegation_re = re.compile(
-            r"权威清单见.*?CHECKS_MANIFEST", re.DOTALL
-        )
-        delegated = bool(delegation_re.search(section_text))
-
         try:
             module = importlib.import_module(module_name)
         except ImportError as exc:
@@ -415,34 +430,103 @@ def check_b3_manifest_drift(root: Path, report: Report) -> None:
             )
             continue
 
-        # When SKILL.md delegated to manifest, manifest existence is
-        # the only contract — skip per-entry token matching.
-        if delegated:
-            continue
+        anchored_ids = set(_CHECK_ID_ANCHOR_RE.findall(section_text))
+        delegated = bool(_DELEGATION_RE.search(section_text))
 
-        # Soft drift detection: every manifest entry's title must have at
-        # least one significant token appearing in the prose section.
-        # We're not parsing markdown — humans may rephrase, but the
-        # critical keyword should survive. A missing title hits FAIL.
-        for entry in manifest:
-            title = str(entry.get("title", "")).strip()
-            if not title:
-                continue
-            tokens = [
-                t for t in re.split(r"[\s/(),:：]+", title)
-                if t and len(t) >= 3 and not t.isascii() or t.lower() in {"check", "ac", "id"}
-            ]
-            # Require at least one non-trivial token to appear.
-            sig_tokens = [t for t in tokens if len(t) >= 3]
-            if not sig_tokens:
-                continue
-            if not any(t in section_text for t in sig_tokens[:3]):
-                report.add(
-                    "B3_manifest_drift",
-                    "FAIL",
-                    f"skills/{skill_id}",
-                    f"manifest entry not surfaced in SKILL.md: {title!r}",
-                )
+        if anchored_ids:
+            # Strategy 1: anchor mode. Bidirectional ID check.
+            _check_b3_anchors(skill_id, anchored_ids, manifest, delegated, report)
+            continue
+        if delegated:
+            # Strategy 2: delegation mode. Manifest existence is the
+            # only contract.
+            continue
+        # Strategy 3: token heuristic fallback.
+        _check_b3_tokens(skill_id, section_text, manifest, report)
+
+
+def _check_b3_anchors(
+    skill_id: str,
+    anchored_ids: set[str],
+    manifest: tuple[dict[str, str], ...],
+    delegated: bool,
+    report: Report,
+) -> None:
+    """Bidirectional check_id anchor reconciliation.
+
+    Two failure modes:
+
+    * **Orphan anchor** — ``<!-- check_id: xxx -->`` references an ID that
+      no manifest entry declares. Indicates a SKILL.md edit that wasn't
+      mirrored in the builtin (e.g. a check was renamed in the manifest
+      but the prose anchor stayed on the old ID).
+    * **Missing anchor** — a manifest entry has no anchor in the prose.
+      Skipped when the section also has the delegation marker (allowing
+      mixed delegation + selectively-anchored entries: the manifest is
+      authoritative but the most-important entries can still surface in
+      prose without forcing all of them to).
+    """
+    manifest_ids = {str(entry.get("id", "")).strip() for entry in manifest}
+    manifest_ids.discard("")
+
+    for anchor_id in sorted(anchored_ids - manifest_ids):
+        report.add(
+            "B3_manifest_drift",
+            "FAIL",
+            f"skills/{skill_id}",
+            f"check_id anchor {anchor_id!r} has no matching manifest "
+            "entry — was the check renamed in the builtin without "
+            "updating the SKILL.md anchor?",
+        )
+
+    if delegated:
+        # When mixed with delegation, anchored entries are documentation
+        # bonuses; non-anchored manifest entries don't need surfacing.
+        return
+
+    for missing_id in sorted(manifest_ids - anchored_ids):
+        report.add(
+            "B3_manifest_drift",
+            "FAIL",
+            f"skills/{skill_id}",
+            f"manifest entry {missing_id!r} has no <!-- check_id: ... --> "
+            "anchor in the SKILL.md prose — anchor mode requires every "
+            "manifest entry to be surfaced (or add the delegation marker "
+            "to opt out for less-important entries)",
+        )
+
+
+def _check_b3_tokens(
+    skill_id: str,
+    section_text: str,
+    manifest: tuple[dict[str, str], ...],
+    report: Report,
+) -> None:
+    """Legacy token-overlap heuristic.
+
+    Soft drift detection: every manifest entry's title must have at
+    least one significant token appearing in the prose section. We're
+    not parsing markdown — humans may rephrase, but the critical
+    keyword should survive. A missing title hits FAIL.
+    """
+    for entry in manifest:
+        title = str(entry.get("title", "")).strip()
+        if not title:
+            continue
+        tokens = [
+            t for t in re.split(r"[\s/(),:：]+", title)
+            if t and len(t) >= 3 and not t.isascii() or t.lower() in {"check", "ac", "id"}
+        ]
+        sig_tokens = [t for t in tokens if len(t) >= 3]
+        if not sig_tokens:
+            continue
+        if not any(t in section_text for t in sig_tokens[:3]):
+            report.add(
+                "B3_manifest_drift",
+                "FAIL",
+                f"skills/{skill_id}",
+                f"manifest entry not surfaced in SKILL.md: {title!r}",
+            )
 
 
 def check_b4_hardcoded_constants(root: Path, report: Report) -> None:
