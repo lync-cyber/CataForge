@@ -390,7 +390,7 @@ cataforge event log --event phase_start --phase architecture --detail "进入架
 步骤:
 1. **触发门槛判定**: 满足以下任一条件才触发 retrospective，否则跳过:
    - `docs/reviews/CORRECTIONS-LOG.md` 中 `偏差类型` 累计命中 self-caused 的条目数 ≥ `RETRO_TRIGGER_SELF_CAUSED`，或
-   - 本项目任一 REVIEW/CODE-REVIEW 报告包含 CRITICAL 级别问题
+   - 本项目任一 REVIEW / CODE-REVIEW / CODE-SCAN / FRAMEWORK-REVIEW 报告包含 CRITICAL 级别问题（CODE-SCAN/FRAMEWORK-REVIEW 自 v0.1.15 起纳入触发集，使项目级腐化与元资产质量问题同样能驱动 EXP 经验提炼）
    跳过时在 CLAUDE.md `Learnings Registry` 字段记录 `retro skipped (below threshold)` 并**[EVENT]** 写入 `review_verdict`（agent=reflector, status=approved, detail="retro skipped (below threshold)"）
 2. 通过 agent-dispatch 激活 reflector (task_type=retrospective)
 3. reflector 产出:
