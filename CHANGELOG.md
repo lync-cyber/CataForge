@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`cataforge docs migrate-reviews` 子命令** —— 一次性把缺 front matter 的 legacy review 报告（`docs/reviews/{doc,code}/REVIEW-*.md`、`docs/reviews/CORRECTIONS-LOG.md`、`docs/research/*.md`）补齐 YAML 头，使其能被 `cataforge docs index` 收录、不再被 `cataforge doctor` 计为 orphan。幂等（已带 front matter 的文件 untouched），支持 `--dry-run`。Schema 与 COMMON-RULES §报告 Front Matter 约定 一致。
+- **COMMON-RULES §报告 Front Matter 约定** —— 把"系统生成报告（review/code-review/sprint-review/correction-log）必须带 front matter"作为单点规范集中定义；doc-review/code-review SKILL.md Step 4 引用本规范，不再各自描述。明确 `status` 取值仅限 `draft`/`review`/`approved`（避免误用 `closed`）。
+
+### Changed
+
+- **`docs/reviews/CORRECTIONS-LOG.md` 首次创建时自动写入 front matter**（`core/corrections.py::_HEADER`）—— 闭合"reflector / orchestrator 自动 append 出来的运维日志一直被 indexer 当作 orphan"的设计漏洞；append 路径不变，已存在的日志不重写头部。
+- **`doc-review` / `code-review` SKILL.md Step 4** —— 产出报告时强制写入最小 front matter 块（`id`/`doc_type`/`author`/`status`/`deps`），verdict 落定后把 `status` 由 `draft` 改为 `approved`。
+- **`cataforge.docs.indexer.main` 的 orphan WARN 文案** —— 显式提示同样的 orphan 也会让 `cataforge doctor` 退出非零，避免用户误以为 `--strict` 才是唯一硬门禁。
+- **`reflector/AGENT.md` Retrospective Protocol** —— 加一行说明该扫描是 glob-based、不依赖 `docs/.doc-index.json`，防止后续维护者错把 reviewer/correction-log 状态耦合到索引器。
+
 ## [0.1.14] — 2026-04-27
 
 doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 audit 表**全部 12 项**：A1-A7 + B1-B2 + 新-1 + 新-3 + 新-4）。一句话：本轮把 v0.1.13 引入的 doc-index 子系统从"manual-only 工具"升级为"CI/upgrade/bootstrap/pre-commit 全链路自我治理"，并把"5 AGENT.md 重复指令"和"schemas/ 与 Python 镜像漂移"这两个跨切面腐化点同步收敛。

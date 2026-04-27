@@ -343,6 +343,17 @@ def main(argv: list[str] | None = None) -> int:
             "文件不应出现在 docs/ 下。",
             file=sys.stderr,
         )
+        # Same orphan list also FAILS `cataforge doctor` (orphan count
+        # feeds doctor's exit gate, see cli/doctor_cmd.py:_check_orphan_docs),
+        # so a missing front matter is already a hard CI gate even without
+        # --strict — surface that explicitly so users don't think this is
+        # advisory-only.
+        print(
+            "  注意：同样的 orphan 也会让 `cataforge doctor` 退出非零，"
+            "进而 FAIL 任何把 doctor 接入 CI 的工作流（见 "
+            ".github/workflows/test.yml）。--strict 只控制本命令是否 FAIL。",
+            file=sys.stderr,
+        )
         if args.strict:
             return 3
 

@@ -56,10 +56,22 @@ user-invocable: true
 报告编号按 COMMON-RULES §报告编号规则，前缀 CODE-REVIEW-{task_id}，目录 docs/reviews/code/。
 
 ### Step 4: 产出审查报告
-产出 `CODE-REVIEW-{task_id}-r{N}.md`，问题格式、category 和 root_cause 枚举按 COMMON-RULES §审查报告规范。
+产出 `CODE-REVIEW-{task_id}-r{N}.md`，**首行必须为 YAML front matter**（按 COMMON-RULES §报告 Front Matter 约定），缺失会导致 `cataforge docs index` 跳过该文件并被 `cataforge doctor` 计为 orphan。最小模板：
+
+```yaml
+---
+id: "code-review-{task_id}-r{N}"
+doc_type: code-review
+author: reviewer
+status: draft               # 出 verdict 后改 approved
+deps: ["{task_id}"]
+---
+```
+
+front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类 / §统一问题分类体系 提供 root_cause / category 枚举。
 
 ### Step 5: 判定结论
-三态判定按 COMMON-RULES §三态判定逻辑。
+三态判定按 COMMON-RULES §三态判定逻辑。判定后把本审查报告 front matter 的 `status` 由 `draft` 改为 `approved`（无论 verdict 类型）。
 
 ## 效率策略
 - Hook去重: 已配置 PostToolUse lint hook 时跳过 Layer 1，避免与编码阶段的实时 lint 重复检查

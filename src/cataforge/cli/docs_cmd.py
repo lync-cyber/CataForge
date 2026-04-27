@@ -203,3 +203,33 @@ def docs_migrate_nav(project_root: str | None, dry_run: bool) -> None:
     if dry_run:
         argv.append("--dry-run")
     _raise_on_nonzero(migrate_main(argv), "docs migrate-nav")
+
+
+@docs_group.command("migrate-reviews")
+@click.option("--project-root", default=None, help="Project root directory.")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would change without writing.",
+)
+def docs_migrate_reviews(project_root: str | None, dry_run: bool) -> None:
+    """Backfill YAML front matter on legacy review reports + research notes.
+
+    Pre-this-version review reports (``docs/reviews/{doc,code}/REVIEW-*.md``,
+    ``docs/reviews/CORRECTIONS-LOG.md``) and ad-hoc research notes
+    (``docs/research/*.md``) were written without YAML front matter, so
+    ``cataforge docs index`` skipped them as orphans and ``cataforge doctor``
+    counted them toward its FAIL gate. This migration prepends a minimal
+    front matter block conformant with COMMON-RULES §报告 Front Matter 约定.
+
+    Idempotent — files that already start with ``---`` are left untouched.
+    """
+    from cataforge.docs.migrate_review_frontmatter import main as migrate_main
+
+    argv: list[str] = []
+    if project_root:
+        argv.extend(["--project-root", project_root])
+    if dry_run:
+        argv.append("--dry-run")
+    _raise_on_nonzero(migrate_main(argv), "docs migrate-reviews")
