@@ -315,6 +315,11 @@ def _make_dev_plan(repo: Path, sprint: int, deliverables: list[str]) -> None:
 
 class TestCLIIntegration:
     def _run(self, repo: Path, *extra: str) -> subprocess.CompletedProcess:
+        # PYTHONUTF8 forces the *child*'s stdio to UTF-8; passing
+        # ``encoding="utf-8"`` decodes the captured bytes as UTF-8
+        # regardless of the parent's locale (Windows CI defaults to
+        # cp1252, which crashes the reader thread on Chinese / em-dash
+        # output and leaves r.stdout = None).
         env = {**os.environ, "PYTHONUTF8": "1"}
         return subprocess.run(
             [
@@ -327,7 +332,8 @@ class TestCLIIntegration:
                 "--reviews-dir", "docs/reviews/code/",
                 *extra,
             ],
-            cwd=repo, capture_output=True, text=True, env=env, timeout=60,
+            cwd=repo, capture_output=True, encoding="utf-8",
+            errors="replace", env=env, timeout=60,
         )
 
     def test_json_format_emits_structured_payload(self, git_repo: Path) -> None:
@@ -384,7 +390,8 @@ class TestCLIIntegration:
                 "--reviews-dir", "docs/reviews/code/",
                 "--format", "json",
             ],
-            cwd=git_repo, capture_output=True, text=True,
+            cwd=git_repo, capture_output=True, encoding="utf-8",
+            errors="replace",
             env={**os.environ, "PYTHONUTF8": "1"}, timeout=60,
         )
         assert r.returncode == 0, r.stdout + r.stderr
