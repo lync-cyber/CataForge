@@ -1,6 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" role="img" aria-label="CataForge 平台适配器翻译关系">
   <title>CataForge 平台适配器翻译关系</title>
   <desc>左侧五类规范资产 → PlatformAdapter → 右侧四平台原生产物。</desc>
+  <!--
+    prompt-version: 1.0
+    last-regenerated: 2026-04-27
+    prompt: |
+      生成 CataForge "平台适配器翻译关系" 示意图，遵循 docs/assets/design-tokens.md
+      的色板（暖纸色背景 #fdfcf7、琥珀强调 #b45309、文字 #1c1917）与等宽字体。
+      尺寸：viewBox 960×420。
+      内容：
+        - 左侧 5 个规范资产卡片（Agents / Skills / Rules / Hooks / MCP）
+        - 中间 PlatformAdapter 中转节点（圆角矩形）
+        - 右侧 4 个 IDE 列（Claude Code / Cursor / CodeX / OpenCode），列下列 deploy 后落盘文件
+        - 箭头从左 → PlatformAdapter → 各 IDE，标注代表翻译动作（如 frontmatter→TOML / hooks.yaml→hooks.json）
+      布局：左中右三段；右侧 4 列等宽。
+      禁止：渐变、阴影、emoji、装饰性填充。
+  -->
+
 
   <defs>
     <marker id="arrow5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">

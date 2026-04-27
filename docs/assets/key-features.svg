@@ -1,6 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 280" role="img" aria-label="CataForge 核心特性：多平台统一、声明即部署、13 Agent + 24 Skill、TDD 内建、多层质量门禁、跨项目学习">
   <title>CataForge 核心特性</title>
   <desc>六大核心特性分布在 3×2 卡片网格中：多平台统一、声明即部署、13 Agent + 24 Skill、TDD 内建、多层质量门禁、跨项目学习。</desc>
+  <!--
+    prompt-version: 1.0
+    last-regenerated: 2026-04-27
+    note: |
+      desc 中 "24 Skill" 与当前 README "26 Skill" 数字不一致。下次重新生成时
+      按 .cataforge/skills/ 实际计数同步。
+    prompt: |
+      生成 CataForge "核心特性" 拼图，遵循 docs/assets/design-tokens.md。
+      尺寸：viewBox 960×280。
+      内容：3×2 卡片网格，每卡含图标 + 标题 + 一句话描述：
+        1) 多平台统一    — 4 IDE 共享一份 .cataforge/
+        2) 声明即部署    — 写规范，不写适配代码
+        3) 13 Agent + N Skill（N = 当前数）— 覆盖完整 SDLC
+        4) TDD 内建      — RED/GREEN/REFACTOR 三阶段引擎
+        5) 多层质量门禁  — Layer 1 lint + Layer 2 AI review
+        6) 跨项目学习    — Reflector 提取经验复用
+      图标：线性 mono-stroke 风格，不用 emoji。
+      禁止：渐变、阴影、emoji、卡通元素。
+  -->
+
 
   <defs>
     <pattern id="kf-dots" width="20" height="20" patternUnits="userSpaceOnUse">

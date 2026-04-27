@@ -1,6 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" role="img" aria-label="CataForge 五层架构栈">
   <title>CataForge 五层架构栈</title>
   <desc>从上到下：CLI 命令层 / 编排与调度层 / 能力域层 / 平台适配层 / 核心基础层。</desc>
+  <!--
+    prompt-version: 1.0
+    last-regenerated: 2026-04-27
+    prompt: |
+      生成 CataForge "五层架构栈" 示意图，遵循 docs/assets/design-tokens.md。
+      尺寸：viewBox 720×360。
+      内容：5 个堆叠水平层，从上到下：
+        1) CLI                — cli/ 子命令路由
+        2) Runtime            — deploy/ · agent/ · skill/ · hook/ · mcp/
+        3) Platform Adapter   — platform/ 屏蔽 IDE 差异（核心抽象，琥珀边框强调）
+        4) Core               — core/ 配置 / 路径 / 事件总线 / 类型
+        5) Plugin/Docs/Utils  — 扩展点与通用能力
+      每层左侧标层名，右侧标关键模块；箭头从上到下表示依赖方向。
+      禁止：渐变、阴影、emoji、装饰性填充。
+  -->
+
 
   <defs>
     <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">

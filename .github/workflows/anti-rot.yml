@@ -44,7 +44,7 @@ jobs:
         run: |
           set +e
           fails=()
-          for s in check_skill_count check_no_dev_branch_refs check_changelog_link_table check_doc_versions check_profile_yaml_keys check_hooks_yaml_schema; do
+          for s in check_skill_count check_no_dev_branch_refs check_changelog_link_table check_doc_versions check_profile_yaml_keys check_hooks_yaml_schema check_no_marketing_words check_no_design_residue; do
               echo "::group::$s"
               python "scripts/checks/$s.py"
               rc=$?
@@ -82,5 +82,7 @@ jobs:
           - \`check_doc_versions\`: bump the example version in the named doc to the current package version
           - \`check_profile_yaml_keys\`: edit configuration.md §profile.yaml example to match real .cataforge/platforms/<id>/profile.yaml schema
           - \`check_hooks_yaml_schema\`: edit configuration.md §hooks.yaml example to match real .cataforge/hooks/hooks.yaml (schema_version, top-level keys, entry shape)
+          - \`check_no_marketing_words\`: rewrite the offending line without 一键 / 智能 / 只需 / 最简单 / 轻松 / simply / just / obviously / easily; or append \`<!-- allow-marketing-words: <reason> -->\` if a quotation
+          - \`check_no_design_residue\`: remove design-phase comments (\`<!-- 变更原因 -->\` etc.) from .cataforge/agents and .cataforge/skills — they bloat LLM context at runtime
           EOF
           )"

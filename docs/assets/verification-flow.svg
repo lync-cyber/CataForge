@@ -3,6 +3,23 @@
   <desc>Install → Setup → Dry-run → Deploy → Verify；技术蓝图风格，琥珀强调色。</desc>
 
   <!-- Design tokens: see docs/assets/design-tokens.md -->
+  <!--
+    prompt-version: 1.0
+    last-regenerated: 2026-04-27
+    prompt: |
+      生成 CataForge "手动验证五步流水线" 横向 banner，遵循 docs/assets/design-tokens.md。
+      尺寸：viewBox 980×200。
+      内容：5 个等宽 pill 节点，由箭头串联：
+        1) INSTALL — 装 Python / CataForge / IDE
+        2) SETUP   — cataforge setup --platform <ide>
+        3) DRY-RUN — cataforge deploy --dry-run
+        4) DEPLOY  — cataforge deploy
+        5) VERIFY  — IDE 内观测 Agent / Hook / MCP 生效
+      每 pill 上方写阶段名，下方写命令或观察点。
+      最后一个 pill 用琥珀色背景强调（终点）。
+      禁止：渐变、阴影、emoji。
+  -->
+
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#a8a29e"/>

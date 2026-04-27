@@ -155,7 +155,7 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
 仅当差异影响到源码逻辑时才修改。常见场景:
 
-- **新增 hook_tool_overrides**: 在 `base.py` 已有通用 property，只需在 profile.yaml 配置
+- **新增 hook_tool_overrides**: 在 `base.py` 已有通用 property，仅在 profile.yaml 配置即可
 - **_md_to_toml() 变更**: 当 Codex agent 格式变化时修改 `codex.py`
 - **新增 Capability ID**: 同时更新 `types.py` 和所有 `profile.yaml`
 - **conformance 逻辑**: 当检查逻辑需要适配新维度时更新 `conformance.py`
@@ -262,7 +262,7 @@ python -m ruff check src/ tests/
 - **hook matcher vs tool_map**: 有些平台的 hook 事件使用不同于 tool_map 的工具名称（如 Codex tool_map 用 `shell` 但 hook 用 `Bash`），此时需配置 `hooks.tool_overrides`
 
 ### extended_capabilities 扩展原则
-- 新增扩展能力 key 时只需: (1) 在 `types.py` 的 `EXTENDED_CAPABILITY_IDS` 添加 (2) 在各 `profile.yaml` 的 `extended_capabilities` 添加
+- 新增扩展能力 key 的两步: (1) 在 `types.py` 的 `EXTENDED_CAPABILITY_IDS` 添加 (2) 在各 `profile.yaml` 的 `extended_capabilities` 添加
 - 无需修改 adapter 代码 — `get_extended_tool_map()` 自动读取 profile
 - 当某个扩展能力被 3+ 平台支持时，考虑提升为核心能力
 

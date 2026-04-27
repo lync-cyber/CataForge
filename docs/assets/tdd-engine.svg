@@ -1,6 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" role="img" aria-label="CataForge TDD 引擎流程">
   <title>CataForge TDD 引擎流程</title>
   <desc>微任务 → LOC 判定 → standard (RED/GREEN/REFACTOR) 或 light → Sprint Review 汇合。</desc>
+  <!--
+    prompt-version: 1.0
+    last-regenerated: 2026-04-27
+    prompt: |
+      生成 CataForge "TDD 引擎流程" 图，遵循 docs/assets/design-tokens.md。
+      尺寸：viewBox 900×520。
+      内容：
+        1. 入口节点 "微任务"
+        2. 判定菱形 "loc_estimate ≥ TDD_LIGHT_LOC_THRESHOLD?"
+        3. 是 → standard：RED (test-writer) → GREEN (implementer) → REFACTOR (refactorer)
+        4. 否 → light：RED+GREEN 合并 (implementer) → REFACTOR (refactorer)
+        5. 两条路径汇合，进入 "完成 N 个微任务?" 判定（N = SPRINT_REVIEW_MICRO_TASK_COUNT）
+        6. 是 → Sprint Review；否 → 取下一微任务
+      RED / GREEN / REFACTOR 块用对应语义色（红 / 绿 / 灰 + 琥珀边框）。
+      失败回退路径（REFACTOR fail → rolled-back）用虚线箭头标注。
+      禁止：渐变、阴影、emoji。
+  -->
+
 
   <defs>
     <marker id="arrow4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
