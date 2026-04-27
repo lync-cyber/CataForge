@@ -34,6 +34,7 @@ from cataforge.skill.builtins.sprint_review.sprint_check import (
     _aggregate_unplanned,
     check_unplanned_files,
 )
+from tests.conftest import run_utf8
 
 # ---------------------------------------------------------------------------
 # IgnoreSpec — pattern matcher
@@ -315,13 +316,7 @@ def _make_dev_plan(repo: Path, sprint: int, deliverables: list[str]) -> None:
 
 class TestCLIIntegration:
     def _run(self, repo: Path, *extra: str) -> subprocess.CompletedProcess:
-        # PYTHONUTF8 forces the *child*'s stdio to UTF-8; passing
-        # ``encoding="utf-8"`` decodes the captured bytes as UTF-8
-        # regardless of the parent's locale (Windows CI defaults to
-        # cp1252, which crashes the reader thread on Chinese / em-dash
-        # output and leaves r.stdout = None).
-        env = {**os.environ, "PYTHONUTF8": "1"}
-        return subprocess.run(
+        return run_utf8(
             [
                 sys.executable, "-m",
                 "cataforge.skill.builtins.sprint_review.sprint_check",
@@ -332,8 +327,7 @@ class TestCLIIntegration:
                 "--reviews-dir", "docs/reviews/code/",
                 *extra,
             ],
-            cwd=repo, capture_output=True, encoding="utf-8",
-            errors="replace", env=env, timeout=60,
+            cwd=repo,
         )
 
     def test_json_format_emits_structured_payload(self, git_repo: Path) -> None:
@@ -378,7 +372,7 @@ class TestCLIIntegration:
             "packages/skill/src/index.ts",
             "packages/shared-types/src/index.ts",
         ])
-        r = subprocess.run(
+        r = run_utf8(
             [
                 sys.executable, "-m",
                 "cataforge.skill.builtins.sprint_review.sprint_check",
@@ -390,9 +384,7 @@ class TestCLIIntegration:
                 "--reviews-dir", "docs/reviews/code/",
                 "--format", "json",
             ],
-            cwd=git_repo, capture_output=True, encoding="utf-8",
-            errors="replace",
-            env={**os.environ, "PYTHONUTF8": "1"}, timeout=60,
+            cwd=git_repo,
         )
         assert r.returncode == 0, r.stdout + r.stderr
         payload = json.loads(r.stdout)

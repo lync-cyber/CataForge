@@ -5,12 +5,22 @@ a friendly install hint instead of letting an e2e test deep in the suite
 fail with an opaque ``ModuleNotFoundError`` 60 seconds in. This is the
 fix for the "I cloned the repo and ran pytest but `build` was missing"
 class of issue.
+
+Also exposes :func:`run_utf8` — the canonical wrapper for invoking child
+processes from tests with UTF-8 stdio. Use it instead of raw
+``subprocess.run`` whenever the child may emit non-ASCII output (Chinese
+prose, em-dashes, box-drawing). See its docstring for the cp1252 trap
+this helper closes.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
 import sys
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -59,3 +69,59 @@ def pytest_configure(config: pytest.Config) -> None:  # noqa: ARG001
     ])
     print("\n".join(msg_lines), file=sys.stderr)
     pytest.exit("missing dev dependencies (see message above)", returncode=2)
+
+
+# ---------------------------------------------------------------------------
+# UTF-8 subprocess helper
+# ---------------------------------------------------------------------------
+
+
+def run_utf8(
+    cmd: list[str],
+    *,
+    cwd: str | Path | None = None,
+    check: bool = False,
+    timeout: float = 60,
+    extra_env: dict[str, str] | None = None,
+    **kwargs: Any,
+) -> subprocess.CompletedProcess[str]:
+    """``subprocess.run`` wrapper that always decodes child stdio as UTF-8.
+
+    Why this exists: ``subprocess.run(text=True)`` decodes captured
+    bytes with the *parent*'s ``locale.getpreferredencoding`` — on
+    Windows CI that's cp1252. cataforge's CLI scripts force UTF-8
+    output via ``ensure_utf8_stdio()`` + ``PYTHONUTF8=1``, so the
+    captured bytes are UTF-8. Decoding UTF-8 as cp1252 raises
+    ``UnicodeDecodeError`` inside the reader thread, which then
+    silently leaves ``CompletedProcess.stdout`` as ``None``. Tests
+    that call ``json.loads(r.stdout)`` blow up with a confusing
+    ``TypeError: ... not NoneType`` — the underlying decode error is
+    only visible as a ``PytestUnhandledThreadExceptionWarning`` in the
+    log tail.
+
+    Use this helper for *any* test that captures stdio from a child
+    cataforge process or other UTF-8-emitting tool. It pins
+    ``encoding="utf-8"``, ``errors="replace"`` (so a stray byte never
+    crashes the test), and ``PYTHONUTF8=1`` in the child env.
+    """
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(
+        cmd,
+        cwd=str(cwd) if cwd is not None else None,
+        check=check,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        env=env,
+        **kwargs,
+    )
+
+
+@pytest.fixture
+def run_utf8_subprocess():
+    """Pytest-fixture form of :func:`run_utf8` for tests that prefer DI."""
+    return run_utf8

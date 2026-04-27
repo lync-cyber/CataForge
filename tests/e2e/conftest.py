@@ -29,6 +29,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import run_utf8
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -44,12 +46,11 @@ def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> Path:
     sync step needed since PR #84).
     """
     dist = tmp_path_factory.mktemp("dist")
-    subprocess.run(
+    run_utf8(
         [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],
         cwd=REPO_ROOT,
         check=True,
-        capture_output=True,
-        text=True,
+        timeout=300,
     )
     wheels = sorted(dist.glob("cataforge-*.whl"))
     assert len(wheels) == 1, f"expected exactly one wheel in {dist}, got {wheels}"
@@ -87,15 +88,14 @@ def pip_install(py_exe: Path, *args: str) -> None:
     seconds per install without affecting test correctness — Python will
     compile modules lazily on first import anyway).
     """
-    subprocess.run(
+    run_utf8(
         [
             str(py_exe), "-m", "pip", "install",
             "--quiet", "--disable-pip-version-check", "--no-compile",
             *args,
         ],
         check=True,
-        capture_output=True,
-        text=True,
+        timeout=300,
     )
 
 
@@ -112,14 +112,8 @@ def run_cataforge(
     being on PATH — matters on Windows where activating a venv inside
     subprocess is awkward.
     """
-    env = os.environ.copy()
-    env["PYTHONUTF8"] = "1"
-    return subprocess.run(
+    return run_utf8(
         [str(py_exe), "-m", "cataforge", *args],
         cwd=cwd,
         check=check,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        env=env,
     )
