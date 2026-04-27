@@ -57,6 +57,7 @@ dev = [
     "mypy>=1.10",
     "build>=1.2",
     "twine>=5.0",
+    "scriv[toml]>=1.5",
 ]
 mcp = ["mcp>=1.0"]
 docker = ["docker>=7.0"]
@@ -138,3 +139,24 @@ python_version = "3.10"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+
+[tool.scriv]
+# Markdown-native changelog fragments — see changelog.d/README.md for
+# the per-PR workflow. Aggregated into CHANGELOG.md at release time via
+# `scriv collect --version=X.Y.Z`.
+format = "md"
+fragment_directory = "changelog.d"
+new_fragment_template = "file:changelog.d/.template.md.j2"
+md_header_level = "2"
+categories = [
+    "Added",
+    "Changed",
+    "Fixed",
+    "Removed",
+    "Deprecated",
+    "Security",
+]
+entry_title_template = "[{{ version }}] — {{ date.strftime('%Y-%m-%d') }}"
+# scriv inserts new entries at the `<!-- scriv-insert-here -->` marker
+# in CHANGELOG.md (placed right after the file's intro block).
+insert_marker = "<!-- scriv-insert-here -->"

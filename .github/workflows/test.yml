@@ -49,15 +49,24 @@ jobs:
       - name: Pytest (fast — exclude slow marker)
         run: python -m pytest tests/ -q -m "not slow"
 
-      - name: "Anti-rot guards (7: skill count, dev branch, changelog links, doc versions, profile schema, hooks schema, schema-Python parity)"
+      - name: "Anti-rot guards (8: skill count, dev branch, changelog links, changelog fragments, doc versions, profile schema, hooks schema, schema-Python parity)"
         # Run on Linux only — these scripts read the same files everywhere
         # and the matrix duplication adds noise without coverage.
         if: runner.os == 'Linux'
+        env:
+          # check_changelog_fragments.py needs the base ref to diff
+          # against. PR runs supply head SHA in GITHUB_BASE_REF; push
+          # runs default to origin/main (no fragments check needed but
+          # the script no-ops when no files changed).
+          BASE_REF: origin/${{ github.base_ref || 'main' }}
         run: |
           set -euo pipefail
+          # Fetch the base branch so check_changelog_fragments.py can diff against it.
+          git fetch origin "${{ github.base_ref || 'main' }}" --depth=50 --quiet
           python scripts/checks/check_skill_count.py
           python scripts/checks/check_no_dev_branch_refs.py
           python scripts/checks/check_changelog_link_table.py
+          python scripts/checks/check_changelog_fragments.py
           python scripts/checks/check_doc_versions.py
           python scripts/checks/check_profile_yaml_keys.py
           python scripts/checks/check_hooks_yaml_schema.py

@@ -121,9 +121,10 @@ test(mcp): add lifecycle regression for stopped state
 | 新增 CLI 子命令 (`cli/*_cmd.py`) | [`reference/cli.md`](./reference/cli.md) §命令总览 + 章节；[`reference/quick-reference.md`](./reference/quick-reference.md) 速查表 |
 | 修改 `framework.json` schema 字段 | [`reference/configuration.md`](./reference/configuration.md) §framework.json 表（含 schema 示例 + preserve/overwrite 标注） |
 | 增删 `platforms/<id>/` | [`guide/platforms.md`](./guide/platforms.md) + [`architecture/platform-adaptation.md`](./architecture/platform-adaptation.md) 能力矩阵 |
-| 任何 BREAKING 行为变更 | `CHANGELOG.md` 当前 `[Unreleased]` 段 `### BREAKING` 子段；`upgrade check` 会自动在升级前提醒用户 |
+| 任何 BREAKING 行为变更 | `changelog.d/{PR#}.md` 加 `### Changed` 小节并在 bullet 显式标 BREAKING；`upgrade check` 会自动在升级前提醒用户 |
 | 新增 / 弃用 `migration_check` | [`reference/configuration.md`](./reference/configuration.md) §migration_checks 表；新增需带 `release_version`，弃用补 `deprecate_after` |
-| 发版（tag） | `CHANGELOG.md` 同时补 `## [X.Y.Z]` 章节 + 底部 `[X.Y.Z]:` reference link，并把 `[Unreleased]` 比较基线改为新 tag（`scripts/checks/check_changelog_link_table.py` 守护） |
+| 任何用户可见变更 | `changelog.d/{PR#}.md` 片段（含 `### Added` / `### Changed` / `### Fixed` 等小节，`scripts/checks/check_changelog_fragments.py` 守护；纯文档/CI/重构 PR 可加 `[skip-changelog]` commit token 放行）。详见 [`changelog.d/README.md`](../changelog.d/README.md) |
+| 发版（tag） | `scriv collect --version=X.Y.Z` 把 `changelog.d/*.md` 聚合到 `CHANGELOG.md` 顶部 `<!-- scriv-insert-here -->` 锚点；同时更新底部 `[X.Y.Z]:` reference link 表与 `[Unreleased]` 比较基线（`scripts/checks/check_changelog_link_table.py` 守护）。Windows 用 `PYTHONUTF8=1 scriv collect ...` |
 
 ---
 
@@ -161,7 +162,7 @@ test(mcp): add lifecycle regression for stopped state
 
 发布由 GitHub Actions 通过 OIDC trusted publishing 自动完成（[`.github/workflows/publish.yml`](../.github/workflows/publish.yml)）；维护者只需在 main 上完成版本元数据并推 tag。
 
-1. 在 feature 分支更新 `CHANGELOG.md`（Keep a Changelog 格式）：补 `## [X.Y.Z] — YYYY-MM-DD` 段、`### Added/Changed/Fixed/BREAKING` 子段，并在底部 reference link 表追加 `[X.Y.Z]:` 与更新 `[Unreleased]: ...compare/vX.Y.Z...HEAD`。
+1. 在 feature 分支聚合 changelog 片段：`scriv collect --version=X.Y.Z` —— 读 `changelog.d/*.md` 全部片段，按 category 排序合并，在 `CHANGELOG.md` 的 `<!-- scriv-insert-here -->` 锚点上方插入 `## [X.Y.Z] — YYYY-MM-DD` 章节，删除已聚合的片段。再手动在 `CHANGELOG.md` 底部追加 `[X.Y.Z]:` reference link 与更新 `[Unreleased]: ...compare/vX.Y.Z...HEAD`（`scripts/checks/check_changelog_link_table.py` 守护）。
 2. 升级 `src/cataforge/__init__.py` 中的 `__version__`（必须与 tag 数字位完全一致；publish.yml 在 tag push 时会校验三方一致：tag / `__version__` / CHANGELOG 章节均存在且唯一）。
 3. 走正常 PR → squash merge 到 main。
 4. 在 main 上打 tag 并推送：`git tag vX.Y.Z && git push origin vX.Y.Z`。
