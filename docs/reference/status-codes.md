@@ -1,6 +1,8 @@
 # 状态码与引用格式
 
 > CataForge 运行时的统一状态码、文档引用格式、事件日志规范。
+>
+> **适用版本**：v0.1.15。常量定义以 [`cataforge.cli.errors`](../../src/cataforge/cli/errors.py) 为权威。
 
 ## 1. Agent 状态码
 

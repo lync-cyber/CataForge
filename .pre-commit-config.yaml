@@ -47,3 +47,24 @@ repos:
         entry: python -c "import sys, yaml; [yaml.safe_load(open(f, encoding='utf-8').read()) for f in sys.argv[1:]]"
         language: system
         files: ^\.github/workflows/.*\.ya?ml$
+      - id: no-marketing-words
+        name: no marketing adverbs in user-facing docs
+        description: |
+          User docs ban vague adverbs (一键 / 智能 / 只需 / 最简单 / 轻松,
+          simply / just / obviously / easily) — they convey no information
+          to a stuck reader and add a sales-deck tone. Mirrors the CI guard.
+        entry: python scripts/checks/check_no_marketing_words.py
+        language: system
+        pass_filenames: false
+        files: ^(README\.md|docs/.*\.md|\.cataforge/(skills|agents)/.*\.md)$
+      - id: no-design-residue
+        name: no design-phase residue in runtime agent/skill assets
+        description: |
+          .cataforge/agents/**/AGENT.md and .cataforge/skills/**/SKILL.md
+          are loaded into the LLM context at runtime. Block design-phase
+          comments (<!-- 变更原因 -->, <!-- diagnostic # -->, etc.) from
+          shipping into the runtime workflow.
+        entry: python scripts/checks/check_no_design_residue.py
+        language: system
+        pass_filenames: false
+        files: ^\.cataforge/(agents|skills|rules)/.*\.md$

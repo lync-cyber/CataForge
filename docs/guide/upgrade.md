@@ -33,6 +33,19 @@ cataforge upgrade verify                 # = cataforge doctor，跑 migration_ch
 
 ---
 
+## 不要这样做
+
+```bash
+# 反例：在 main 分支直接 upgrade apply 然后推
+git checkout main
+cataforge upgrade apply
+git add . && git commit -m "upgrade scaffold" && git push
+```
+
+为什么：`upgrade apply` 会重写 `.cataforge/` 下大量文件。`main` 受保护，且团队仓库里其他分支可能基于旧 scaffold 在做事，直接合入会产生跨分支大面积冲突。
+
+正确做法：在 feature 分支跑 `upgrade apply`，跑 `cataforge doctor` 通过后 PR 合入，让 squash merge 把变更聚合成一条提交。
+
 ## 文件保留规则
 
 `upgrade apply`（等价于 `setup --force-scaffold`）只保留下表中的字段/文件；`.cataforge/` 下其它文件在刷新时整体覆盖。手改过的 agent prompt、hook 脚本、skill 定义会丢失——自定义内容请放到 `.cataforge/plugins/` 或项目外。
@@ -109,6 +122,15 @@ cataforge upgrade check     # 报告 scaffold outdated
 # 跳过 upgrade apply → 保持旧 scaffold 行为
 ```
 
+期望输出：
+
+```text
+Installed: 0.1.15
+Scaffold:  0.1.13
+⚠ Scaffold is behind installed package.
+  Run: cataforge upgrade apply
+```
+
 适合"新版本 CLI 对旧 scaffold 仍兼容"的保守场景。
 
 ### 场景 2：纯预览，不改动任何文件
@@ -117,7 +139,16 @@ cataforge upgrade check     # 报告 scaffold outdated
 cataforge upgrade apply --dry-run
 ```
 
-输出逐文件清单，不写盘。
+期望输出（节选）：
+
+```text
+[preserved]      .cataforge/framework.json (runtime.platform, upgrade.state)
+[preserved]      .cataforge/PROJECT-STATE.md
+[update]         .cataforge/agents/orchestrator/AGENT.md
+[user-modified]  .cataforge/agents/architect/AGENT.md  → backed up to .backups/<ts>/
+[new]            .cataforge/skills/framework-review/SKILL.md
+Total: 12 files (3 unchanged, 5 update, 1 user-modified, 3 new)
+```
 
 ### 场景 3：回滚
 
@@ -126,21 +157,22 @@ cataforge upgrade rollback          # 脚手架层面
 pip install cataforge==<old-version>  # 包层面（<old-version> 换成想回退到的版本号）
 ```
 
+期望输出（脚手架层面）：
+
+```text
+Latest snapshot: .cataforge/.backups/20260424-150030/
+Rollback to this snapshot? [y/N] y
+✓ Pre-rollback snapshot saved to .cataforge/.backups/pre-rollback-20260427-091522/
+✓ Restored 12 files from 20260424-150030.
+Run cataforge doctor to verify.
+```
+
 ---
 
-## FAQ
+<!-- 变更原因：FAQ 内容迁移到 docs/faq.md §升级，消除双源（diagnostic #6） -->
+## 常见问题
 
-**Q：我改了 `.cataforge/agents/xxx/AGENT.md`，升级后不见了，怎么办？**
-
-`upgrade apply` 把 `.cataforge/agents/` 视作"其它文件"整体覆盖。好在 apply 前已自动快照到 `.cataforge/.backups/<ts>/`：跑 `cataforge upgrade rollback --list` 找到对应时间戳后 `rollback --from <ts>` 取回。长期方案：把自定义 agent 放到 `.cataforge/plugins/`（不会被覆盖），或提交到项目另一个目录。
-
-**Q：`upgrade apply` 每次都生成快照，不会把 `.cataforge/` 撑爆吗？**
-
-快照在 `.cataforge/.backups/` 下，`.gitignore` 默认排除。目前需手动清理，见上方"快照生命周期"。
-
-**Q：`upgrade check` 说有 BREAKING，应该先做什么？**
-
-打开 CHANGELOG.md 对应版本的 `### BREAKING` 段，确认是否需要手动迁移步骤（例如字段重命名、目录搬家）。无误后再 `upgrade apply`。
+升级相关 Q&A 集中在 [`../faq.md`](../faq.md) §升级。
 
 ---
 

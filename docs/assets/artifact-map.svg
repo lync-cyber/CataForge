@@ -1,6 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 420" role="img" aria-label="CataForge 四平台部署产物对照图">
   <title>CataForge 四平台部署产物对照图</title>
   <desc>每列一个 IDE 平台，列出 deploy 后生成的指令文件 / Agents / Hooks / MCP 四类产物与原生支持程度。</desc>
+  <!--
+    prompt-version: 1.0
+    last-regenerated: 2026-04-27
+    prompt: |
+      生成 CataForge "四平台部署产物对照图"，遵循 docs/assets/design-tokens.md。
+      尺寸：viewBox 980×420。
+      内容：4 列 × 4 行表格状布局
+        - 列：Claude Code | Cursor | CodeX | OpenCode
+        - 行：指令文件 / Agents / Hooks / MCP
+        - 单元格内填具体路径（CLAUDE.md, .cursor/agents/*/AGENT.md, .codex/agents/*.toml ...）
+        - 单元格右下角小标签：原生 / 中等 / 降级，原生用琥珀色描边
+      顶部一条橙色色带标 ".cataforge/ 规范" 作为统一来源。
+      禁止：渐变、阴影、emoji。
+  -->
+
 
   <defs>
     <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">

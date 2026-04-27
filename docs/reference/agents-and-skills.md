@@ -3,6 +3,8 @@
 本文档列出 CataForge 框架内置的所有 Agent 和 Skill，包括角色说明、工具权限、关联技能等信息。
 
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
+>
+> **适用版本**：v0.1.15。计数 13 Agent + 26 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护。
 
 ## 目录
 

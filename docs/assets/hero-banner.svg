@@ -1,6 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 200" role="img" aria-label="CataForge — AI Engineering Workflow Framework">
   <title>CataForge — AI Engineering Workflow Framework</title>
   <desc>CataForge banner: 一套 .cataforge/ 规范同时驱动 Claude Code、Cursor、CodeX、OpenCode 四个 AI IDE。</desc>
+  <!--
+    prompt-version: 1.0
+    last-regenerated: 2026-04-27
+    prompt: |
+      生成 CataForge README 顶部 hero banner，遵循 docs/assets/design-tokens.md。
+      尺寸：viewBox 960×200。
+      内容：
+        - 左侧：CataForge 文字 logo（等宽字体，琥珀色 #b45309 强调首字 C）+ 副标题
+          "AI Engineering Workflow Framework"
+        - 右侧：4 个等宽小卡片（Claude Code / Cursor / CodeX / OpenCode），
+          上方一条线引向中间一颗 ".cataforge/" 节点
+        - 背景：暖纸色 #fdfcf7 + 极淡的点阵纹理
+      整体气质：技术蓝图，无装饰性图形。
+      禁止：渐变、阴影、emoji、人物 / 卡通插画。
+  -->
+
 
   <defs>
     <pattern id="hb-dots" width="20" height="20" patternUnits="userSpaceOnUse">

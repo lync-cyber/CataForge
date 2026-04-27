@@ -38,6 +38,8 @@ Layer 2 — AI 审查：
 
 ## 2.1 Layer 1 调用协议（single entry）
 
+> **本节为接口契约（Reference 性质），混在 Architecture 文档中是出于 Layer 1 与 Layer 2 衔接说明的需要。** 完整 CLI 参数定义见 [`../reference/cli.md`](../reference/cli.md) §skill；状态码定义见 [`../reference/status-codes.md`](../reference/status-codes.md) §1。
+
 三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本**唯一合法入口**为：
 
 ```

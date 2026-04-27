@@ -104,13 +104,13 @@ cataforge bootstrap --dry-run
 ```
 输出 plan 预览后停止，不执行任何写入。
 
-**Step 4: 一键编排刷新 / 部署 / 验证**
+**Step 4: 编排刷新 / 部署 / 验证**
 
 ```bash
 cataforge bootstrap --yes
 ```
 
-`bootstrap` 按产物状态智能决定每步是否需要跑：
+`bootstrap` 按产物状态决定每步是否需要跑：
 - scaffold 已 current → skip setup
 - installed 包版本 > scaffold 版本 或有 manifest drift → 跑 upgrade apply
 - scaffold 变化了 或 `.deploy-state` 平台漂移 或从未部署 → 跑 deploy

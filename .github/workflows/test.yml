@@ -55,7 +55,7 @@ jobs:
       - name: Pytest (fast — exclude slow marker)
         run: python -m pytest tests/ -q -m "not slow"
 
-      - name: "Anti-rot guards (8: skill count, dev branch, changelog links, changelog fragments, doc versions, profile schema, hooks schema, schema-Python parity)"
+      - name: "Anti-rot guards (10: skill count, dev branch, changelog links, changelog fragments, doc versions, profile schema, hooks schema, schema-Python parity, marketing words, design residue)"
         # Run on Linux only — these scripts read the same files everywhere
         # and the matrix duplication adds noise without coverage.
         if: runner.os == 'Linux'
@@ -74,6 +74,8 @@ jobs:
           python scripts/checks/check_profile_yaml_keys.py
           python scripts/checks/check_hooks_yaml_schema.py
           python scripts/checks/check_schema_python_parity.py
+          python scripts/checks/check_no_marketing_words.py
+          python scripts/checks/check_no_design_residue.py
 
       - name: "uv lockfile freshness (uv.lock ↔ pyproject.toml in sync)"
         # Verifies uv.lock matches the resolved deps from pyproject.toml.

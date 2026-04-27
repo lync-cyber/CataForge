@@ -102,13 +102,36 @@ test(mcp): add lifecycle regression for stopped state
 
 - 新增文档优先放入 `docs/` 下合适的子目录（`getting-started/` / `guide/` / `architecture/` / `reference/`）
 - 根目录仅保留 `README.md` 与 `CHANGELOG.md`
-- 新增 SVG 放 `docs/assets/`，必须遵循 [`assets/design-tokens.md`](./assets/design-tokens.md) 的色板、尺寸、字体与组件约定
+- 新增 SVG 放 `docs/assets/`，必须遵循 [`assets/design-tokens.md`](./assets/design-tokens.md) 的色板、尺寸、字体与组件约定，并按下文 §SVG 资产规范保留生成 prompt
 - 所有文档内部链接使用**相对路径**，便于镜像与 fork（**例外**：根 `README.md` 在 PyPI 渲染时相对路径会 404，必须使用 `https://github.com/lync-cyber/CataForge/blob/main/...` 或 `https://raw.githubusercontent.com/...` 绝对 URL）
 - 避免重复内容：同一主题应只存在于一处，其它位置通过链接引用
 
 ### 文档分层原则
 
 四层结构（`getting-started/` → `guide/` → `architecture/` → `reference/`）与每层职责见 [`README.md`](./README.md) §文档分层原则。新写文档前先对号入座，避免写错层（例如把"原理"塞进 `guide/`）。
+
+<!-- 变更原因：补 §SVG 资产规范，标准七要求 LLM 生成 SVG 必须把 prompt 作为源文件存档 -->
+### CLI 参考与代码同步
+
+修改 CLI 子命令或参数后，跑：
+
+```bash
+python scripts/gen_cli_reference.py --diff
+```
+
+输出 unified diff 后比对 [`reference/cli.md`](./reference/cli.md)，把行为变化部分手工同步。生成器目前作为校验工具，不替代手写——手写参考可保留示例段、弃用标记、跨链接，这些 click `--help` 不会自动产生。
+
+### SVG 资产规范
+
+新增图必须在 `<svg>` 起始标签后追加 `<!-- prompt: ... -->` 注释，把生成该图所用的 prompt 保存为源文件。修改图时：取出 prompt → 改描述 → 重新生成 → 替换。
+
+完整起手式 prompt + 工作流见 [`assets/svg-prompt-template.md`](./assets/svg-prompt-template.md)。该文件是所有 SVG 共享的"图风格规范模板"——保证全文档视觉一致性，遵循标准七要求。
+
+不允许的做法：
+
+- 手编辑 SVG XML 但不更新 prompt 注释——下次按旧 prompt 重新生成会丢失改动
+- 在 prompt 里写"参考其它图风格"——必须显式引用本仓库的 [`design-tokens.md`](./assets/design-tokens.md)，避免 LLM 幻觉出新颜色
+- 跳过 `<title>` / `<desc>`——无障碍工具与文档索引都需要
 
 ### 改代码 = 改文档
 
@@ -160,7 +183,8 @@ test(mcp): add lifecycle regression for stopped state
 
 ## 发布流程（维护者）
 
-发布由 GitHub Actions 通过 OIDC trusted publishing 自动完成（[`.github/workflows/publish.yml`](../.github/workflows/publish.yml)）；维护者只需在 main 上完成版本元数据并推 tag。
+<!-- 变更原因：删除"只需"等价于英文 just / simply 的禁用词 -->
+发布由 GitHub Actions 通过 OIDC trusted publishing 自动完成（[`.github/workflows/publish.yml`](../.github/workflows/publish.yml)）；维护者在 main 上完成版本元数据并推 tag。
 
 1. 在 feature 分支聚合 changelog 片段：`scriv collect --version=X.Y.Z` —— 读 `changelog.d/*.md` 全部片段，按 category 排序合并，在 `CHANGELOG.md` 的 `<!-- scriv-insert-here -->` 锚点上方插入 `## [X.Y.Z] — YYYY-MM-DD` 章节，删除已聚合的片段。再手动在 `CHANGELOG.md` 底部追加 `[X.Y.Z]:` reference link 与更新 `[Unreleased]: ...compare/vX.Y.Z...HEAD`（`scripts/checks/check_changelog_link_table.py` 守护）。
 2. 升级 `src/cataforge/__init__.py` 中的 `__version__`（必须与 tag 数字位完全一致；publish.yml 在 tag push 时会校验三方一致：tag / `__version__` / CHANGELOG 章节均存在且唯一）。

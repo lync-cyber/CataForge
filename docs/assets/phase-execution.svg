@@ -1,6 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 620" role="img" aria-label="CataForge 阶段执行流程">
   <title>CataForge 阶段执行流程</title>
   <desc>编排器 → Agent 执行 → 返回结果 → Reviewer 审查 → 阶段转换协议；分支与出口标注在右侧。</desc>
+  <!--
+    prompt-version: 1.0
+    last-regenerated: 2026-04-27
+    prompt: |
+      生成 CataForge "阶段执行流程" 流程图，遵循 docs/assets/design-tokens.md。
+      尺寸：viewBox 760×620。
+      内容：垂直流程图
+        1. 编排器接收阶段任务
+        2. 调度专责 Agent
+        3. Agent 返回 status（completed / needs_input / blocked / rolled-back）
+        4. Reviewer 审查（doc-review / code-review）
+        5. 出口分支：
+           - approved → 进入下一阶段
+           - approved_with_notes → 用户决定
+           - needs_revision → 修订协议（回到 3）
+           - needs_input → 中断恢复协议
+      右侧浅灰底色标每个分支对应的协议名。
+      禁止：渐变、阴影、emoji。
+  -->
+
 
   <defs>
     <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">

@@ -6,6 +6,8 @@
   <img src="../assets/architecture-stack.svg" alt="CataForge 五层架构栈" width="100%">
 </div>
 
+> 本图为下表的可视化总览，下表为权威来源；图与表内容应保持一致。
+
 ## 五层架构
 
 | 层 | 职责 | 关键模块 |

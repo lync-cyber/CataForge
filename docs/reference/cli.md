@@ -1,6 +1,8 @@
 # CLI 参考
 
 > `cataforge` 命令的全部子命令与关键参数。完整帮助请用 `cataforge <cmd> --help`。
+>
+> **适用版本**：v0.1.15（与 [`pyproject.toml`](../../pyproject.toml) 同步；行为以 `cataforge --version` 输出为准）。
 
 ## 命令总览
 
@@ -58,7 +60,7 @@ cataforge setup --platform <id> [--force-scaffold] [--deploy]
 | `--dry-run` | 预演将要做的变更，不写盘 |
 | `--check` / `--check-only` | 仅检查前置条件，不安装（互为别名） |
 | `--show-diff` | 打印 framework.json 将变更的字段 |
-| `--no-deploy` | ⚠️ **已弃用**（v0.3 移除）：不部署已是默认行为，无需显式传入 |
+| `--no-deploy` | `[已废弃 · v0.3 移除]` 不部署已是默认行为，无需显式传入 |
 
 > 自 v0.1.2 起，`setup` 默认**只** 初始化 `.cataforge/` 脚手架与记录目标平台，**不再**自动写入 IDE 产物。
 
@@ -79,7 +81,7 @@ cataforge deploy [--dry-run] [--platform <id>]
 | `--dry-run` | 预演，输出预期动作但不实际写盘 |
 | `--platform <id>` | 临时覆盖 `framework.json` 中的平台设置（可选 `all` 部署到所有平台） |
 | `--conformance` | 仅执行平台 conformance 检查 |
-| `--check` | ⚠️ **已弃用**（v0.3 移除）：`--dry-run` 的别名，运行时会提示 |
+| `--check` | `[已废弃 · v0.3 移除]` `--dry-run` 的别名，运行时会提示 |
 
 多次 `deploy` 幂等；会自动清理孤儿产物。
 
@@ -134,6 +136,17 @@ cataforge hook test <name>  # 测试指定 hook（接受 --fixture 文件或 --i
 
 Hook 按事件分组：`PreToolUse` / `PostToolUse` / `Stop` / `Notification` / `SessionStart`。
 
+<!-- 变更原因：补具体命令示例，diagnostic #14 -->
+例：
+
+```bash
+# 用 inline JSON 喂一个 PostToolUse 事件
+cataforge hook test PostToolUse --inline '{"tool_name":"Edit","file_path":"src/cataforge/cli/__init__.py"}'
+
+# 或用 fixture 文件
+cataforge hook test PreToolUse --fixture tests/fixtures/pretool-edit.json
+```
+
 ---
 
 ## mcp
@@ -145,6 +158,21 @@ cataforge mcp stop <id>     # 停止 MCP 服务
 ```
 
 声明位置：`.cataforge/mcp/*.yaml`；状态持久化到 `.cataforge/.mcp-state/`。
+
+<!-- 变更原因：补具体命令示例，diagnostic #14 -->
+例：
+
+```bash
+cataforge mcp list
+# echo-mcp     stopped
+# cataforge-files  stopped
+
+cataforge mcp start echo-mcp
+# Started: echo-mcp (pid=12345)
+
+cataforge mcp stop echo-mcp
+# Stopped: echo-mcp
+```
 
 ---
 
@@ -214,6 +242,15 @@ cataforge docs load <ref>   # 按 {doc_id}#§{section} 精准加载段落
 ```
 
 文档引用格式详见 [`status-codes.md`](./status-codes.md) §文档引用格式。
+
+<!-- 变更原因：补具体命令示例，diagnostic #14 -->
+例：
+
+```bash
+cataforge docs load 'arch#§3.M-auth'        # 加载架构文档第 3 节 Module auth
+cataforge docs load 'prd#§2.F-003'          # 加载 PRD 第 2 节 Feature F-003
+cataforge docs load 'dev-plan#§1.T-005'     # 加载开发计划第 1 节 Task T-005
+```
 
 ---
 

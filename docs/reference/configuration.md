@@ -1,6 +1,8 @@
 # 配置参考
 
 > `.cataforge/` 目录下的配置文件清单与字段说明。所有文件以 **单一来源** 原则组织：平台相关的内容封装在 `platforms/<id>/profile.yaml`，其余文件平台无关。
+>
+> **适用版本**：v0.1.15。Schema 字段以 [`src/cataforge/core/`](../../src/cataforge/core/) 实际实现为权威。
 
 ## 目录
 

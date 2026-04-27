@@ -111,11 +111,27 @@ Development 阶段使用 TDD Engine 编排，按微任务逐个推进：
   <img src="../assets/tdd-engine.svg" alt="CataForge TDD 引擎流程" width="95%">
 </div>
 
+<!-- 变更原因：删除模糊量词"若干"，替换为带常量名的精确数字 -->
 - 每个微任务先由 LOC 判定走 `standard` 还是 `light`
-- 完成若干微任务后触发 `Sprint Review`
+- 每完成 `SPRINT_REVIEW_MICRO_TASK_COUNT` 个微任务（默认 3）触发 `Sprint Review`
 - `REFACTOR` 阶段若测试失败，状态回滚为 `rolled-back`，保留 GREEN 阶段产出
 
-详见 [`../guide/tdd-workflow.md`](../guide/tdd-workflow.md)。
+调度链路示例（一个 LOC ≥ 50 的微任务）：
+
+```text
+phase=development
+  └─ orchestrator dispatch task=T-005 to test-writer (RED)
+      └─ test-writer writes 3 failing tests, returns completed
+  └─ orchestrator dispatch task=T-005 to implementer (GREEN)
+      └─ implementer makes tests pass, returns completed
+  └─ orchestrator dispatch task=T-005 to refactorer (REFACTOR)
+      └─ refactorer extracts helper, all green, returns completed
+
+EVENT-LOG.jsonl events appended at each transition:
+  agent_dispatch / phase_start / phase_end / state_change
+```
+
+完整端到端示例与边界情况见 [`../guide/tdd-workflow.md`](../guide/tdd-workflow.md) §端到端示例。
 
 ---
 

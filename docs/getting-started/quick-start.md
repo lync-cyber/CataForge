@@ -1,51 +1,40 @@
+<!-- 变更原因：增加成功 / 失败两条路径的具体输出对照；删除"一键"营销词；保留 mermaid 图改为更精炼的状态表（图与文字重复时二选一） -->
 # 快速开始
 
-> 目标：**1 条命令**跑通一个 Cursor 工作流的完整部署 + 验证。
+> 目标：5 分钟内在你的本机和你选定的 IDE 里跑出第一个 CataForge 部署。
 
-## 前置
+## 你需要先有
 
-已完成 [`installation.md`](./installation.md) 中的任一安装方式，`cataforge --version` 可用。
+- 已完成 [安装](./installation.md)，`cataforge --version` 可执行
+- 你想用的 IDE 之一：Claude Code、Cursor、CodeX、OpenCode
 
-## 整体流程
-
-```mermaid
-flowchart LR
-    A[cataforge bootstrap<br/>--platform X] --> B[setup<br/>fresh scaffold]
-    A --> C[upgrade<br/>if drift]
-    A --> D[deploy<br/>IDE artefacts]
-    A --> E[doctor<br/>verify]
-    B --> F[(IDE 可用：<br/>CLAUDE.md / .claude/<br/>.cursor/ / AGENTS.md)]
-    C --> F
-    D --> F
-    E --> F
-
-    classDef step fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
-    classDef cond fill:#fff8e1,stroke:#f9a825,color:#6d4c00
-    classDef final fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
-    class A step
-    class B,C,D,E cond
-    class F final
-```
-
-- **bootstrap** 按 `.cataforge/framework.json` / `.scaffold-manifest.json` / `.deploy-state` 三份产物文件判断每步是否需要运行，已经 current 的步骤自动 skip。
-- 再次运行 bootstrap 完全幂等——全通过的项目只会再跑一次 doctor。
-- 底层四个子命令（`setup` / `upgrade apply` / `deploy` / `doctor`）仍独立可用，见 [CLI 参考](../reference/cli.md)。
-
-## 最短路径（1 条命令）
+## 一条命令跑通
 
 ```bash
-cataforge bootstrap --platform cursor       # 可选 claude-code / cursor / codex / opencode
+cd <你的项目根目录>
+cataforge bootstrap --platform cursor    # 替换为 claude-code / codex / opencode
 ```
 
-初次运行会依次：初始化 `.cataforge/` → 渲染 `.cursor/` 等 IDE 产物 → 跑 doctor 验证。
+`bootstrap` 会按现状决定每步是否要跑：
 
-想先预览、不落盘：
+| 步骤 | 判断依据 | 跳过条件 |
+|------|---------|---------|
+| `setup` | `.cataforge/` 是否存在 | 已存在则跳过 |
+| `upgrade apply` | 包版本 vs scaffold 版本 | 一致则跳过 |
+| `deploy` | `.deploy-state` 平台戳记 | 与当前平台一致则跳过 |
+| `doctor` | 始终跑 | 不跳过 |
 
-```bash
-cataforge bootstrap --platform cursor --dry-run
+再次运行时多数步骤会跳过，整个命令幂等。
+
+## 期望输出
+
+成功（终端最后一行）：
+
+```text
+Diagnostics complete.
 ```
 
-`--dry-run` 会打印每步的 skip / run 决策与原因，比如：
+干运行预览（命令加 `--dry-run`）：
 
 ```text
 Plan (dry-run):
@@ -55,51 +44,59 @@ Plan (dry-run):
   • doctor   run   — verification gate
 ```
 
-## 成功标志
+<!-- 变更原因：补失败路径示例，原文档只写 happy path -->
 
-| 命令 | 末行关键字 |
-|------|-----------|
-| `cataforge bootstrap --platform cursor --dry-run` | `target platform: cursor` |
-| `cataforge bootstrap --platform cursor` | `Diagnostics complete.` |
+失败（典型）：
 
-## 查看产物
+```text
+Error: project root not found.
+Hint: cd into a directory that has a .cataforge/ folder, or run with --project-dir.
+```
 
-Cursor 落盘位置：
+按 stderr 提示的 `Hint:` 操作即可。仍卡住时跳到 [故障排查](./troubleshooting.md)。
+
+## 看部署落了哪些产物
+
+以 Cursor 为例：
+
+```bash
+git status -u    # .gitignore 默认忽略产物，需要 -u 才能看到
+```
+
+应当出现：
 
 ```text
 AGENTS.md
 .cursor/agents/*/AGENT.md
 .cursor/hooks.json
 .cursor/rules/*.mdc
-.cursor/mcp.json              # 若声明了 MCP
+.cursor/mcp.json              # 当 .cataforge/mcp/ 非空时
 ```
 
-> 所有部署产物默认被 `.gitignore` 排除（有意为之）。用 `git status -u` 审阅完整清单。
+四个平台的完整产物路径见 [速查卡](../reference/quick-reference.md) §产物落盘路径。
 
-## 切换平台
+## 切换到另一个平台
 
-`.cataforge/` 规范同一份。bootstrap **拒绝隐式改写** `runtime.platform`（避免误操作锁定错误平台），切换要显式走 `setup`：
+`bootstrap` 不会隐式改写 `runtime.platform`，避免误锁错平台。要切换时显式走 `setup`：
 
 ```bash
-cataforge setup --platform claude-code --show-diff   # 先改 runtime.platform
-cataforge bootstrap                                   # 检测到平台漂移，自动重新 deploy
+cataforge setup --platform claude-code --show-diff   # 先看会改 framework.json 的哪个字段
+cataforge bootstrap                                   # 检测到平台漂移会重新 deploy
 ```
 
-## 从源码直跑（不安装）
+## 不安装，从源码直跑
 
 ```bash
+git clone https://github.com/lync-cyber/CataForge.git && cd CataForge
 python -m cataforge bootstrap --platform cursor --dry-run
-python -m cataforge bootstrap --platform cursor
 ```
 
 ## 下一步
 
-根据你的意图选路径：
-
-| 你想 … | 去 |
+| 你想 …… | 去 |
 |---------|----|
-| **在 Claude Code / Cursor 真实跑一遍** | [`../guide/platforms.md`](../guide/platforms.md) — 各 IDE 的原生支持与降级策略 |
-| **跑 4 平台端到端验证** | [`../guide/manual-verification.md`](../guide/manual-verification.md) — 5 步交叉验证 |
-| **把 CataForge 升到新版本** | [`../guide/upgrade.md`](../guide/upgrade.md) — 升级流程与文件保留规则 |
-| **定制 Agent / Skill** | [`../reference/agents-and-skills.md`](../reference/agents-and-skills.md) — 用户可以做什么 vs. 不能动什么 |
-| **看 CataForge 怎么工作的** | [`../architecture/overview.md`](../architecture/overview.md) — 架构分层、翻译层设计 |
+| 在 IDE 内跑第一个 Agent 对话 | [`../guide/manual-verification.md`](../guide/manual-verification.md) |
+| 理解 4 个 IDE 之间的能力差异 | [`../guide/platforms.md`](../guide/platforms.md) |
+| 升级到下一版本或回滚 | [`../guide/upgrade.md`](../guide/upgrade.md) |
+| 自定义 Agent / Skill | [`../reference/agents-and-skills.md`](../reference/agents-and-skills.md) |
+| 看内部如何工作 | [`../architecture/overview.md`](../architecture/overview.md) |

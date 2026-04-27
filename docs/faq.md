@@ -80,6 +80,19 @@ OpenCode 原生不支持 hook，框架默认降级为 `rules_injection`。若需
 
 **不会**。保留字段列表详见 [`guide/upgrade.md`](./guide/upgrade.md) §文件保留规则。
 
+<!-- 变更原因：从 docs/guide/upgrade.md §FAQ 迁过来，消除双源，diagnostic #6 -->
+### Q：我改了 `.cataforge/agents/xxx/AGENT.md`，升级后不见了，怎么办？
+
+`upgrade apply` 把 `.cataforge/agents/` 视作"其它文件"整体覆盖。但 apply 前已自动快照到 `.cataforge/.backups/<ts>/`：跑 `cataforge upgrade rollback --list` 找到对应时间戳后 `rollback --from <ts>` 取回。长期方案：把自定义 agent 放到 `.cataforge/plugins/`（不会被覆盖），或提交到项目另一个目录。
+
+### Q：`upgrade apply` 每次都生成快照，不会把 `.cataforge/` 撑爆吗？
+
+快照在 `.cataforge/.backups/` 下，`.gitignore` 默认排除。目前需手动清理，见 [`guide/upgrade.md`](./guide/upgrade.md) §快照生命周期。
+
+### Q：`upgrade check` 说有 BREAKING，应该先做什么？
+
+打开 `CHANGELOG.md` 对应版本的 `### BREAKING` 段，确认是否需要手动迁移步骤（例如字段重命名、目录搬家）。无误后再 `upgrade apply`。
+
 ---
 
 ## TDD 与工作流
