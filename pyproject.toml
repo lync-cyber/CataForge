@@ -86,21 +86,24 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "src/cataforge/__init__.py"
 
-# Refresh the bundled scaffold (``src/cataforge/_assets/cataforge_scaffold/``)
-# from the canonical ``.cataforge/`` source tree before every sdist/wheel
-# build.  See scripts/sync_scaffold.py and scripts/hatch_build.py.
-[tool.hatch.build.targets.wheel.hooks.custom]
-path = "scripts/hatch_build.py"
-
-[tool.hatch.build.targets.sdist.hooks.custom]
-path = "scripts/hatch_build.py"
-
 [tool.hatch.build.targets.wheel]
-# Ships everything under src/cataforge, including the bundled `.cataforge/`
-# scaffold at src/cataforge/_assets/cataforge_scaffold/ (agents / skills /
-# rules / hooks / platform profiles / schemas / templates) — kept in lockstep
-# with the repo-root `.cataforge/` by the sync-scaffold build hook.
+# Ships everything under src/cataforge plus the canonical `.cataforge/`
+# scaffold (agents / skills / rules / hooks / platform profiles / schemas
+# / templates) packaged via force-include below — single source of truth,
+# no maintained mirror.
 packages = ["src/cataforge"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# Pack repo-root `.cataforge/` into the wheel as cataforge/_dot_cataforge/
+# so the runtime can resolve it via `importlib.resources.files("cataforge")`
+# .joinpath("_dot_cataforge"). Replaces the previous "sync to
+# src/cataforge/_assets/cataforge_scaffold/" mirror approach (PR #84).
+".cataforge" = "cataforge/_dot_cataforge"
+
+[tool.hatch.build.targets.editable.force-include]
+# Editable installs (`pip install -e .`) need the same mapping so
+# `cataforge setup` etc. can resolve the scaffold without a wheel build.
+".cataforge" = "cataforge/_dot_cataforge"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -118,12 +121,6 @@ include = [
 target-version = "py310"
 line-length = 100
 src = ["src", "tests"]
-# The bundled scaffold at src/cataforge/_assets/cataforge_scaffold/ is a
-# mirror of the repo-root .cataforge/ directory, regenerated on every build
-# by scripts/sync_scaffold.py.  It is not hand-maintained and lives outside
-# our lint coverage — scaffold-sync.yml already gates drift against the
-# canonical source.
-extend-exclude = ["src/cataforge/_assets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]

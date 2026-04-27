@@ -66,6 +66,18 @@ hooks:
 """
 
 
+def _without_manifest_drift(report: Report) -> list:
+    """Filter out B6_hook_manifest_drift findings.
+
+    B6-ε (manifest drift) is exercised by test_framework_review_b6_manifest.py
+    against synthetic manifests. Tests in this file use a minimal hooks.yaml
+    fixture that intentionally wires only guard_dangerous — so the real
+    HOOKS_MANIFEST (9 entries) will fire 8 unwired-WARN ε findings, which
+    is correct behavior but unrelated to what α/β/γ/δ tests assert.
+    """
+    return [f for f in report.findings if f.check_id != "B6_hook_manifest_drift"]
+
+
 def test_b6_happy_path_no_findings(tmp_path: Path) -> None:
     root = _make_project(
         tmp_path,
@@ -74,9 +86,10 @@ def test_b6_happy_path_no_findings(tmp_path: Path) -> None:
     )
     report = Report()
     check_b6_hook_consistency(root, report)
-    assert report.findings == [], (
-        f"happy path should produce no B6 findings, got: "
-        f"{[f.render() for f in report.findings]}"
+    relevant = _without_manifest_drift(report)
+    assert relevant == [], (
+        f"happy path should produce no α/β/γ/δ findings, got: "
+        f"{[f.render() for f in relevant]}"
     )
 
 

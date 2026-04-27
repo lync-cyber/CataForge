@@ -15,19 +15,19 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class FrameworkRuntime(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
 
     platform: str = "claude-code"
 
 
 class FrameworkUpgradeSource(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
 
     repo: str | None = None
 
 
 class FrameworkUpgrade(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
 
     source: FrameworkUpgradeSource = Field(default_factory=FrameworkUpgradeSource)
 
@@ -35,7 +35,7 @@ class FrameworkUpgrade(BaseModel):
 class FrameworkFile(BaseModel):
     """Top-level framework.json — unknown keys preserved via ``extra='allow'``."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
 
     version: str = "0.0.0"
     runtime: FrameworkRuntime | None = None

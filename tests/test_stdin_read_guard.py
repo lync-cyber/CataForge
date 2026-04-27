@@ -88,8 +88,8 @@ def test_no_text_mode_stdin_read_outside_core_io() -> None:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except SyntaxError:
             # Scaffold templates can intentionally contain placeholders that
-            # don't parse — those live under _assets/ and ship as files, not
-            # imported modules. Skip them; the guard targets real code only.
+            # don't parse — those live under .cataforge/ and ship as files,
+            # not imported modules. Skip them; the guard targets real code only.
             continue
 
         finder = _StdinReadFinder()

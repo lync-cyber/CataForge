@@ -580,45 +580,125 @@ def check_b4_hardcoded_constants(root: Path, report: Report) -> None:
                         )
 
 
-def check_b5_workflow_coverage(root: Path, report: Report) -> None:
-    """B5-α: phase × agent × skill coverage matrix.
+def _parse_phase_routing(root: Path) -> dict[str, str]:
+    """Return ``{phase_name: agent_id}`` parsed from orchestrator AGENT.md.
 
-    Builds a coverage matrix from:
-    * ORCHESTRATOR-PROTOCOLS.md `Mode Routing Protocol` + orchestrator
-      AGENT.md `Phase Routing` (which agent serves which phase)
-    * framework.json `features` (which features are auto-enabled per phase)
-    * AGENT.md `skills:` (which skills each agent loads)
-
-    Then flags:
-    * Phases with no agent assignment (WARN)
-    * Agents defined but never referenced by any phase routing (WARN)
+    Empty dict on missing file or unparseable content (callers treat as
+    "no routing data — skip checks" rather than FAIL).
     """
     orch_path = root / ".cataforge" / "agents" / "orchestrator" / "AGENT.md"
     if not orch_path.is_file():
-        return
-
+        return {}
     try:
         orch_text = orch_path.read_text(encoding="utf-8")
     except OSError:
-        return
+        return {}
 
-    # Extract "Phase N {name} → {agent} → {output}" patterns from
-    # the Phase Routing block. The orchestrator AGENT.md format is
-    # stable enough that a coarse regex suffices.
+    # Extract "Phase N {name} → {agent} → {output}" patterns from the
+    # Phase Routing block. The orchestrator AGENT.md format is stable
+    # enough that a coarse regex suffices.
     phase_re = re.compile(
         r"Phase\s+\d+\s+(\w[\w_-]*)\s*[→\-]+\s*([\w-]+)",
         re.MULTILINE,
     )
-    phase_to_agent: dict[str, str] = {}
-    for match in phase_re.finditer(orch_text):
-        phase_to_agent[match.group(1)] = match.group(2)
+    return {m.group(1): m.group(2) for m in phase_re.finditer(orch_text)}
 
+
+def _read_event_log_returns(root: Path) -> tuple[dict[str, int], dict[str, int]]:
+    """Return ``({agent: return_count}, {agent: returns_with_ref})``.
+
+    Reads ``docs/EVENT-LOG.jsonl`` line-by-line. Tolerates malformed lines
+    (skipped silently) since the log is append-only and may have partial
+    writes from crashed processes. Returns empty dicts if the file is
+    missing — caller treats that as "no event data, skip cross-check"
+    rather than treating absence as evidence of dead routing.
+    """
+    log_path = root / "docs" / "EVENT-LOG.jsonl"
+    if not log_path.is_file():
+        return {}, {}
+
+    returns: dict[str, int] = {}
+    returns_with_ref: dict[str, int] = {}
+    try:
+        with log_path.open(encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                if record.get("event") != "agent_return":
+                    continue
+                agent = record.get("agent")
+                if not isinstance(agent, str) or not agent:
+                    continue
+                returns[agent] = returns.get(agent, 0) + 1
+                ref = record.get("ref")
+                if isinstance(ref, str) and ref:
+                    returns_with_ref[agent] = returns_with_ref.get(agent, 0) + 1
+    except OSError:
+        pass
+    return returns, returns_with_ref
+
+
+def _read_framework_features(root: Path) -> dict[str, dict[str, object]]:
+    """Return ``framework.json#/features`` mapping, or empty on failure."""
+    fw_json = root / ".cataforge" / "framework.json"
+    if not fw_json.is_file():
+        return {}
+    try:
+        data = json.loads(fw_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    features = data.get("features")
+    if not isinstance(features, dict):
+        return {}
+    return {
+        str(k): v for k, v in features.items() if isinstance(v, dict)
+    }
+
+
+# Sub-agents not directly phase-routed but invoked by orchestrator or
+# tdd-engine — counted as "referenced" so B5 doesn't warn on them.
+_B5_SUBAGENTS = frozenset({"test-writer", "implementer", "refactorer"})
+_B5_CROSS_CUTTING = frozenset({
+    "reviewer", "debugger", "orchestrator", "reflector",
+})
+
+
+def check_b5_workflow_coverage(root: Path, report: Report) -> None:
+    """B5: workflow coverage triple-hop matrix + EVENT-LOG cross-check.
+
+    Sub-checks (each emits findings under its own check_id so the
+    CHECKS_MANIFEST stays granular like B6):
+
+    * ``B5_workflow_coverage_matrix`` — phase → agent single-hop
+      (existing): phases routing to undefined agents WARN; agents
+      defined but never referenced WARN.
+    * ``B5_phase_skill_coverage`` — phase → agent → skill triple-hop:
+      every phase-routed agent must declare ≥1 skill in its AGENT.md
+      ``skills:`` field, and every declared skill must resolve to an
+      existing ``.cataforge/skills/`` directory or builtin.
+    * ``B5_eventlog_agent_return_drift`` — phase-routed agent has zero
+      ``agent_return`` events in ``docs/EVENT-LOG.jsonl`` while the log
+      itself has ≥10 events overall (potential dead routing). Agents
+      with returns but missing ``ref`` field on every return → WARN
+      (output_path schema gap).
+    * ``B5_feature_phase_alignment`` — every framework.json
+      ``features[*].phase_guard`` value (when non-null) must reference a
+      phase that has at least one routed agent.
+    """
+    phase_to_agent = _parse_phase_routing(root)
     if not phase_to_agent:
         return
 
     agents = discover_agents(root)
 
-    # Phases with no agent assignment.
+    # ---- B5_workflow_coverage_matrix (existing single-hop) ----
     for phase, agent in phase_to_agent.items():
         if agent not in agents and not agent.endswith("-engine"):
             # tdd-engine is a skill, not an agent — accepted.
@@ -630,12 +710,9 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                 f"defined agent under .cataforge/agents/",
             )
 
-    # Agents never referenced by any phase routing.
     referenced_agents = set(phase_to_agent.values())
-    # Sub-agents called by tdd-engine and not phase-routed directly.
-    referenced_agents.update({"test-writer", "implementer", "refactorer"})
-    # Cross-cutting agents.
-    referenced_agents.update({"reviewer", "debugger", "orchestrator", "reflector"})
+    referenced_agents.update(_B5_SUBAGENTS)
+    referenced_agents.update(_B5_CROSS_CUTTING)
 
     for agent in sorted(agents):
         if agent not in referenced_agents:
@@ -647,11 +724,116 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                 "or sub-agent dispatcher",
             )
 
+    # ---- B5_phase_skill_coverage (triple-hop: phase → agent → skill) ----
+    skills = discover_skills(root)
+    builtin_skill_ids: set[str] = set()
+    try:
+        from cataforge.skill.loader import SkillLoader
+
+        loader = SkillLoader(project_root=root)
+        for meta in loader.discover():
+            builtin_skill_ids.add(meta.id)
+    except Exception:
+        pass
+    valid_skills = set(skills) | builtin_skill_ids
+
+    for phase, agent in sorted(phase_to_agent.items()):
+        if agent not in agents:
+            continue  # already flagged by single-hop check
+        try:
+            agent_text = agents[agent].read_text(encoding="utf-8")
+        except OSError:
+            continue
+        agent_skills = parse_skills_field(agent_text)
+        if not agent_skills:
+            report.add(
+                "B5_phase_skill_coverage",
+                "WARN",
+                f"phase/{phase}",
+                f"agent {agent!r} declares no skills: in AGENT.md "
+                f"frontmatter; phase has no concrete capability",
+            )
+            continue
+        for skill_id in agent_skills:
+            if skill_id not in valid_skills:
+                report.add(
+                    "B5_phase_skill_coverage",
+                    "WARN",
+                    f"agents/{agent}",
+                    f"skill {skill_id!r} listed under {agent!r} skills: "
+                    f"but not found in .cataforge/skills/ or builtins",
+                )
+
+    # ---- B5_eventlog_agent_return_drift (EVENT-LOG cross-check) ----
+    returns, returns_with_ref = _read_event_log_returns(root)
+    total_returns = sum(returns.values())
+    # Heuristic threshold: only flag drift when the log has accumulated
+    # enough events to be representative. A fresh project with 0-9 events
+    # legitimately has phase-routed agents that haven't run yet.
+    if total_returns >= 10:
+        for phase, agent in sorted(phase_to_agent.items()):
+            if agent.endswith("-engine"):
+                continue  # tdd-engine emits returns under sub-agent ids
+            if agent not in agents:
+                continue
+            if returns.get(agent, 0) == 0:
+                report.add(
+                    "B5_eventlog_agent_return_drift",
+                    "WARN",
+                    f"phase/{phase}",
+                    f"phase routes to {agent!r} but EVENT-LOG.jsonl has "
+                    f"0 agent_return events for it across "
+                    f"{total_returns} total returns (potential dead routing)",
+                )
+        # Per-agent: returns exist but none carry a ref (output_path) field.
+        for agent, count in sorted(returns.items()):
+            if returns_with_ref.get(agent, 0) == 0 and count > 0:
+                report.add(
+                    "B5_eventlog_agent_return_drift",
+                    "WARN",
+                    f"agents/{agent}",
+                    f"all {count} agent_return events for {agent!r} lack "
+                    f"a 'ref' field (output_path); EVENT-LOG schema "
+                    f"allows it but downstream sprint-review / retrospective "
+                    f"can't trace deliverables",
+                )
+
+    # ---- B5_feature_phase_alignment (framework.json features) ----
+    features = _read_framework_features(root)
+    valid_phases = set(phase_to_agent.keys())
+    for feat_id, feat_meta in sorted(features.items()):
+        guard = feat_meta.get("phase_guard")
+        if guard is None or not isinstance(guard, str):
+            continue  # null guard = applies to all phases, skip
+        if guard not in valid_phases:
+            report.add(
+                "B5_feature_phase_alignment",
+                "WARN",
+                f"framework.json/features/{feat_id}",
+                f"phase_guard={guard!r} does not appear in "
+                f"orchestrator AGENT.md Phase Routing "
+                f"(known phases: {sorted(valid_phases)})",
+            )
+
+
+def _load_hooks_manifest_names() -> set[str]:
+    """Return ``{name}`` for HOOKS_MANIFEST entries, or empty on import failure.
+
+    Lazy import keeps framework-review usable on older wheels that ship
+    cataforge without the manifest module — B6-ε just becomes a no-op
+    rather than an exception.
+    """
+    try:
+        from cataforge.hook.manifest import manifest_names
+    except ImportError:
+        return set()
+    return set(manifest_names())
+
 
 def check_b6_hook_consistency(root: Path, report: Report) -> None:
     """B6: hook 元资产审查.
 
-    Four sub-checks operating on ``.cataforge/hooks/hooks.yaml`` and the
+    Five sub-checks operating on ``.cataforge/hooks/hooks.yaml`` and the
     per-platform ``profile.yaml`` files:
 
     * α — script reachability: every ``script`` referenced in hooks.yaml
@@ -672,6 +854,11 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
       Missing flag → WARN (script will deploy with implicit ``native``);
       orphan flag → WARN (degradation entry for a script that no longer
       exists in hooks.yaml — silent dead config).
+    * ε — manifest drift: every non-``custom:`` script in hooks.yaml
+      must appear in ``cataforge.hook.manifest.HOOKS_MANIFEST``. Catches
+      "wired a helper module as a hook" bugs that B6-α (file existence)
+      lets slip — e.g. ``script: notify_util`` would pass α (file exists)
+      but is not actually a hook target.
     """
     hooks_yaml = root / ".cataforge" / "hooks" / "hooks.yaml"
     if not hooks_yaml.is_file():
@@ -743,6 +930,38 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
                     "fire (bridge can't map unknown capability to a "
                     "platform tool)",
                 )
+
+    # ε: hooks.yaml builtin scripts must appear in HOOKS_MANIFEST.
+    manifest_names_set = _load_hooks_manifest_names()
+    if manifest_names_set:
+        for script in sorted(referenced_scripts):
+            if script.startswith("custom:"):
+                continue  # custom scripts not subject to manifest
+            if script not in manifest_names_set:
+                report.add(
+                    "B6_hook_manifest_drift",
+                    "FAIL",
+                    f"hooks/{script}",
+                    f"hooks.yaml references {script!r} but it is not in "
+                    f"cataforge.hook.manifest.HOOKS_MANIFEST; either "
+                    f"register it there (preferred — declares it as a "
+                    f"hook target) or use 'custom:' prefix to opt out",
+                )
+        # Reverse: every manifest entry that's never wired in hooks.yaml
+        # is dead inventory (WARN — the script ships in the wheel but
+        # nothing exercises it).
+        wired_builtins = {
+            s for s in referenced_scripts if not s.startswith("custom:")
+        }
+        for unwired in sorted(manifest_names_set - wired_builtins):
+            report.add(
+                "B6_hook_manifest_drift",
+                "WARN",
+                f"hooks/{unwired}",
+                f"HOOKS_MANIFEST entry {unwired!r} not referenced by "
+                f"hooks.yaml; either wire it in or remove the manifest "
+                f"entry to avoid shipping dead inventory",
+            )
 
     # δ: per-platform degradation parity.
     platforms_dir = root / ".cataforge" / "platforms"

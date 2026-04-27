@@ -20,10 +20,7 @@ import yaml
 
 HOOKS_YAML = (
     Path(__file__).resolve().parents[2]
-    / "src"
-    / "cataforge"
-    / "_assets"
-    / "cataforge_scaffold"
+    / ".cataforge"
     / "hooks"
     / "hooks.yaml"
 )

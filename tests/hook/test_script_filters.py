@@ -118,13 +118,10 @@ class TestNoFiltersDeclared:
 
 
 def test_builtin_hooks_yaml_loads_and_is_schema_v2() -> None:
-    """The shipped scaffold hooks.yaml must parse cleanly + declare v2."""
+    """The canonical hooks.yaml must parse cleanly + declare v2."""
     path = (
         Path(__file__).resolve().parents[2]
-        / "src"
-        / "cataforge"
-        / "_assets"
-        / "cataforge_scaffold"
+        / ".cataforge"
         / "hooks"
         / "hooks.yaml"
     )

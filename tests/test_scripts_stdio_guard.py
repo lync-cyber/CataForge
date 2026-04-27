@@ -3,8 +3,9 @@
 Standalone build/check scripts run outside the ``cataforge`` CLI machinery
 (which already calls ``ensure_utf8_stdio()`` in ``cli/main.py``). On
 Windows cp1252 terminals these scripts crash with ``UnicodeEncodeError``
-when they print arrows / ✓ / Chinese — exactly how the v0.1.15 audit hit
-``sync_scaffold.py``. This test forces every script to either:
+when they print arrows / ✓ / Chinese — the v0.1.15 audit caught this in
+``sync_scaffold.py`` (since removed by PR #84 along with the scaffold
+mirror). This test forces every remaining script to either:
 
 1. Import ``cataforge.utils.common.ensure_utf8_stdio`` and call it, or
 2. Inline ``sys.stdout.reconfigure(encoding="utf-8")`` and the same for

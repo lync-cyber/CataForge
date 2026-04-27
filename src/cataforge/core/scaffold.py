@@ -1,9 +1,10 @@
 """Copy the bundled ``.cataforge/`` scaffold into a user project.
 
-The scaffold lives under :mod:`cataforge._assets.cataforge_scaffold` and is
-shipped inside the wheel so ``pip install cataforge`` / ``uv tool install
-cataforge`` give users a one-shot ``cataforge setup`` that can bootstrap a
-fresh project from scratch — no git clone required.
+The scaffold lives under :mod:`cataforge._dot_cataforge` — the canonical
+repo-root ``.cataforge/`` directory packaged into the wheel via the
+``[tool.hatch.build.targets.wheel.force-include]`` mapping in
+``pyproject.toml``. There is no maintained mirror; ``.cataforge/`` is the
+single source of truth.
 
 Access goes through :func:`importlib.resources.files` so it works whether the
 package is installed from a wheel, editable install, or running from source.
@@ -30,8 +31,8 @@ except ImportError:  # Python 3.10 — `importlib.resources.abc` landed in 3.11.
 # package version" at every call site, not as a constant.
 from cataforge import __version__ as _RUNTIME_VERSION  # noqa: N812
 
-_PKG = "cataforge._assets"
-_SCAFFOLD_SUBDIR = "cataforge_scaffold"
+_PKG = "cataforge"
+_SCAFFOLD_SUBDIR = "_dot_cataforge"
 
 MANIFEST_REL = ".scaffold-manifest.json"
 MANIFEST_VERSION = 1
@@ -65,7 +66,33 @@ def _stamp_framework_version(raw_bytes: bytes) -> bytes:
 
 
 def _scaffold_root() -> Traversable:
-    return files(_PKG).joinpath(_SCAFFOLD_SUBDIR)
+    """Resolve the bundled scaffold root.
+
+    Wheel install: ``cataforge/_dot_cataforge/`` is materialized via the
+    ``[tool.hatch.build.targets.wheel.force-include]`` mapping in
+    pyproject.toml.
+
+    Editable install (``pip install -e .``): force-include doesn't apply,
+    so the in-tree package directory has no ``_dot_cataforge/`` child.
+    Fall back to the repo-root ``.cataforge/`` four levels up
+    (``src/cataforge/core/scaffold.py`` → ``src/cataforge/core/`` →
+    ``src/cataforge/`` → ``src/`` → repo root). When that exists we
+    return its ``Traversable`` view via ``files(...)`` over a fresh
+    package handle; when it doesn't either path branch exists, we raise
+    the same FileNotFoundError downstream code already handles.
+    """
+    packaged = files(_PKG).joinpath(_SCAFFOLD_SUBDIR)
+    # ``Traversable`` doesn't expose ``exists()`` portably across 3.10/3.11+,
+    # but ``is_dir()`` is on the protocol and answers the same question.
+    if packaged.is_dir():
+        return packaged
+    # Editable / source-checkout fallback. Path(__file__) is the only
+    # reliable anchor since the editable install's pth file may put us
+    # anywhere on the user's disk.
+    repo_dot_cataforge = Path(__file__).resolve().parents[3] / ".cataforge"
+    if repo_dot_cataforge.is_dir():
+        return repo_dot_cataforge  # Path implements Traversable in 3.11+
+    return packaged  # let downstream FileNotFoundError surface naturally
 
 
 def iter_scaffold_files() -> Iterator[tuple[str, Traversable]]:

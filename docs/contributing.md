@@ -21,6 +21,8 @@ pytest -q
 
 当前基线：`pytest -q` 应全量通过（具体数量见 `CHANGELOG.md`）。
 
+> 依赖锁定：`uv.lock` 是仓库内的可复现性锁文件。修改 `pyproject.toml` 的依赖（包括 `[project.dependencies]` / `[project.optional-dependencies]`）后请运行 `uv lock` 刷新。CI 跑 `uv lock --check` 兜底，未刷新即 fail。
+
 ### 可选：装本地 pre-commit 钩子
 
 `.pre-commit-config.yaml` 内置三个本地钩子（scaffold mirror 检查、ruff、workflow YAML 解析）。装一次即可：
