@@ -26,9 +26,25 @@ user-invocable: true
 ## 操作指令: 执行Sprint审查 (review)
 
 ### Step 1: Layer 1 — Python脚本结构检查
-执行: `cataforge skill run sprint-review -- {sprint_number} --dev-plan docs/dev-plan/ --src-dir src/ --test-dir tests/ --reviews-dir docs/reviews/code/`
 
-**调用约定（单一入口）**: Layer 1 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。返回码语义按 §Layer 1 调用协议处理。
+```
+cataforge skill run sprint-review -- {N} \
+  --dev-plan docs/dev-plan/ --src-dir src/ \
+  --test-dir tests/ --reviews-dir docs/reviews/code/
+```
+
+入口必须走 `cataforge skill run`（不得直接 `python .../scripts/*.py`，路径不稳定）；返回码语义见 §Layer 1 调用协议。`--src-dir` 可重复用于 monorepo 缩范围。
+
+可选参数（gold-plating 噪声治理）：
+
+| 参数 | 默认 | 作用 |
+|---|---|---|
+| `--ignore PAT` / `--ignore-file PATH` | — | 追加 gitignore 风格规则（可重复） |
+| `--no-respect-gitignore` | off | 关闭 `git ls-files --exclude-standard` 集成，回落 `os.walk` |
+| `--no-default-ignores` | off | 关闭内建忽略（`node_modules/` `dist/` `build/` `.next/` `*.tsbuildinfo` `*.map` `__pycache__/` `.venv/` 等） |
+| `--warn-cap N` | 50 | unplanned WARN 超出折叠为 top-dir 摘要；`0` 不折叠 |
+| `--unplanned-log PATH` | — | 完整 unplanned 列表落盘（配合 `--warn-cap` 审计） |
+| `--format {text,json}` | text | `json`：结构化 issues，供 framework-review / CI 机读 |
 
 ### Step 2: Layer 2 — AI语义审查
 通过doc-nav加载dev-plan Sprint任务详情、arch接口契约、CODE-REVIEW报告，审查:
@@ -58,13 +74,13 @@ Sprint审查额外category:
 
 ## Layer 1 检查项 (sprint_check.py)
 
-> 权威清单见 `cataforge.skill.builtins.sprint_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
+> 权威清单见 `cataforge.skill.builtins.sprint_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。anchor 模式：每条 manifest 项必须在本段以 HTML check_id 注释形式出现（见下方各条），反之亦然。
 
-- Sprint任务表中所有任务状态=done
-- 每个任务的deliverables文件路径全部存在于磁盘
-- 每个任务的tdd_acceptance中AC-NNN在tests/目录下有对应引用
-- 检测计划外文件: src/目录中存在但不属于任何任务deliverables的新文件(WARN)
-- 每个任务有对应的CODE-REVIEW报告(docs/reviews/code/CODE-REVIEW-{task_id}-*.md)
+- <!-- check_id: task_status_done --> Sprint任务表中所有任务状态=done
+- <!-- check_id: deliverables_exist --> 每个任务的deliverables文件路径全部存在于磁盘
+- <!-- check_id: ac_coverage --> 每个任务的tdd_acceptance中AC-NNN在tests/目录下有对应引用
+- <!-- check_id: unplanned_files --> 检测计划外文件 (WARN)：src 范围内、未被 `.gitignore` 与默认 ignore 列表 (`node_modules/`, `dist/`, `*.tsbuildinfo` 等) 过滤、且不在任何任务 deliverables 中的文件视为 gold-plating 信号；候选集合默认通过 `git ls-files -co --exclude-standard` 取得，monorepo 友好
+- <!-- check_id: code_review_present --> 每个任务有对应的CODE-REVIEW报告(docs/reviews/code/CODE-REVIEW-{task_id}-*.md)
 
 ## 效率策略
 - Layer 1先行: 脚本快速检查结构性问题，不通过则跳过AI审查

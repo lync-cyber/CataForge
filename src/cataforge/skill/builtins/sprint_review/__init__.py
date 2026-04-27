@@ -26,7 +26,11 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
     },
     {
         "id": "unplanned_files",
-        "title": "src/ 中存在但不属于任何任务 deliverables 的新文件 (gold-plating 信号)",
+        "title": (
+            "src/ 中存在但不属于任何任务 deliverables 的新文件 "
+            "(gold-plating 信号; 候选集尊重 .gitignore + 默认忽略列表 "
+            "node_modules/, dist/, *.tsbuildinfo, ...)"
+        ),
         "severity": "warn",
     },
     {
