@@ -126,6 +126,15 @@ templates:
     split_from: ui-spec
     author_agent: ui-designer
 
+  ui-spec-theme:
+    path: volumes/ui-spec-theme.md
+    doc_type: ui-spec
+    mode: standard
+    role: volume
+    volume_type: theme
+    split_from: ui-spec
+    author_agent: ui-designer
+
   # ============================================================
   # agile-lite 模式
   # ============================================================

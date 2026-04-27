@@ -92,8 +92,8 @@ def doctor_command(ctx: click.Context) -> None:
     click.echo("\nDeprecated protocol references:")
     failed_count += _check_deprecated_references(cfg)
 
-    click.echo("\nDocs index completeness:")
-    failed_count += _check_orphan_docs(cfg)
+    click.echo("\nDocs validation:")
+    failed_count += _check_docs_validate(cfg)
 
     click.echo("\nHook script importability:")
     failed_count += _check_hook_script_importability(cfg)
@@ -1001,34 +1001,21 @@ def _is_relative_to(path: Path, base: Path) -> bool:
     return True
 
 
-def _check_orphan_docs(cfg) -> int:
-    """Surface ``docs/**/*.md`` files the indexer cannot ingest.
+def _check_docs_validate(cfg) -> int:
+    """Run the same validation suite as ``cataforge docs validate``.
 
-    A doc is "orphan" when its YAML front matter is missing, empty, or has
-    an unfilled ``id`` placeholder. Such files are silently dropped by the
-    indexer and never resolvable via ``cataforge docs load``. Pre-v0.1.13
-    they were partially masked by hand-maintained NAV-INDEX entries; once
-    the machine index became authoritative, the gap turned silent.
+    Shares :func:`cataforge.docs.indexer.validate_docs` with the CLI so any
+    new validator (orphans, stale entries, broken cross-refs, ...) flows
+    into both gates without duplication.
 
-    When ``docs/.doc-index.json`` is missing but ``docs/`` contains
-    markdown files, surface a non-blocking WARN pointing at
-    ``cataforge docs index`` — until v0.1.14 this case silently returned
-    0, which meant first-time bootstraps and projects that hadn't yet
-    indexed never got a hint that they could opt in. Empty / absent
-    ``docs/`` directories are still skipped silently (genuinely
-    not-applicable, not an oversight).
-
-    Returns the number of orphans found (counts toward the doctor exit
-    gate). The WARN paths return 0 — they are advisory, not failures.
+    When ``docs/.doc-index.json`` is missing but ``docs/`` contains markdown
+    files, emits a non-blocking WARN pointing at ``cataforge docs index``;
+    empty / absent ``docs/`` directories are skipped silently.
     """
     import glob
     import os
 
-    from cataforge.docs.indexer import (
-        INDEX_FILENAME,
-        find_orphan_docs,
-        find_stale_index_entries,
-    )
+    from cataforge.docs.indexer import INDEX_FILENAME, validate_docs
 
     root = cfg.paths.root
     if not (root / "docs").is_dir():
@@ -1053,12 +1040,16 @@ def _check_orphan_docs(cfg) -> int:
         )
         return 0
 
-    orphans = find_orphan_docs(str(root))
-    stale = find_stale_index_entries(str(root))
+    result = validate_docs(str(root))
+    orphans = result["orphans"]
+    stale = result["stale"]
+    xref_errors = result["xref_errors"]
+    alias_conflicts = result["alias_conflicts"]
 
-    if not orphans and not stale:
+    if not orphans and not stale and not xref_errors and not alias_conflicts:
         click.echo(
-            "  0 orphan documents · 0 stale index entries (everything in sync)"
+            "  0 orphan documents · 0 stale entries · 0 xref errors · "
+            "0 alias conflicts (everything in sync)"
         )
         return 0
 
@@ -1091,7 +1082,41 @@ def _check_orphan_docs(cfg) -> int:
             "  → run `cataforge docs index` (full rebuild) to drop stale entries."
         )
 
-    return len(orphans) + len(stale)
+    if xref_errors:
+        click.echo(
+            f"  {len(xref_errors)} cross-reference error(s) — frontmatter "
+            f"deps that don't resolve:"
+        )
+        shown_xref = xref_errors[:5]
+        for e in shown_xref:
+            click.echo(
+                f"    FAIL {e['doc_id']} ({e['file_path']}) → "
+                f"{e['ref']}: {e['reason']}"
+            )
+        extra = len(xref_errors) - len(shown_xref)
+        if extra > 0:
+            click.echo(f"    - ... and {extra} more")
+        click.echo(
+            "  → use the registered full doc_id, or declare an `aliases:` "
+            "list in the source doc's frontmatter."
+        )
+
+    if alias_conflicts:
+        click.echo(
+            f"  {len(alias_conflicts)} alias conflict(s) — second claim "
+            f"silently ignored at index time:"
+        )
+        shown_alias = alias_conflicts[:5]
+        for c in shown_alias:
+            click.echo(
+                f"    FAIL {c['alias']} (claimed by {c['claimed_by']}): "
+                f"{c['reason']}"
+            )
+        extra = len(alias_conflicts) - len(shown_alias)
+        if extra > 0:
+            click.echo(f"    - ... and {extra} more")
+
+    return len(orphans) + len(stale) + len(xref_errors) + len(alias_conflicts)
 
 
 def _check_file(label: str, path: Path) -> None:

@@ -95,6 +95,13 @@ def build_document_entry(
     if isinstance(deps_raw, str):
         deps_raw = [d.strip() for d in deps_raw.split(",") if d.strip()]
 
+    aliases_raw = fm.get("aliases", [])
+    if isinstance(aliases_raw, str):
+        aliases_raw = [a.strip() for a in aliases_raw.split(",") if a.strip()]
+    if not isinstance(aliases_raw, list):
+        aliases_raw = []
+    aliases_clean = [str(a).strip() for a in aliases_raw if str(a).strip()]
+
     sections: dict[str, Any] = {}
     headings: list[tuple[int, int, str]] = []
     for i, level, title in iter_markdown_headings(content):
@@ -153,6 +160,8 @@ def build_document_entry(
         entry["split_from"] = split_from
     if deps_raw:
         entry["deps"] = deps_raw
+    if aliases_clean:
+        entry["aliases"] = aliases_clean
     return doc_id, entry
 
 
@@ -224,6 +233,94 @@ def find_orphan_docs(project_root: str) -> list[str]:
     return orphans
 
 
+def validate_docs(project_root: str) -> dict[str, list]:
+    """Run all docs validations and return a unified result.
+
+    Single source of truth for both ``cataforge docs validate`` and
+    ``cataforge doctor`` — enhancements (e.g. cross-ref resolution) added here
+    flow into both call sites without duplication.
+    """
+    return {
+        "orphans": find_orphan_docs(project_root),
+        "stale": find_stale_index_entries(project_root),
+        "xref_errors": find_xref_errors(project_root),
+        "alias_conflicts": find_alias_conflicts(project_root),
+    }
+
+
+def find_alias_conflicts(project_root: str) -> list[dict[str, Any]]:
+    """Return frontmatter alias conflicts recorded in the index.
+
+    Two docs claiming the same alias, or an alias that shadows an existing
+    doc_id, are first-claim-wins at index time and recorded here so the
+    second claim's silent no-op surfaces at validate time.
+    """
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    conflicts = index.get("alias_conflicts") or []
+    return list(conflicts) if isinstance(conflicts, list) else []
+
+
+def find_xref_errors(project_root: str) -> list[dict[str, str]]:
+    """Return cross-reference resolution errors for all docs in the index.
+
+    Each entry's frontmatter ``deps:`` is parsed; every ``doc_id#§N[.item]``
+    is resolved against the index (with prefix fallback + aliases). Refs that
+    cannot resolve, or that resolve ambiguously to multiple docs, are reported
+    here so the failure surfaces at validation time instead of at
+    ``cataforge docs load`` time.
+    """
+    from cataforge.docs.loader import (
+        AmbiguousRefError,
+        LoadSectionError,
+        _lookup_in_index,
+        parse_ref,
+    )
+
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    errors: list[dict[str, str]] = []
+    documents = index.get("documents") or {}
+    for doc_id, entry in documents.items():
+        rel_path = entry.get("file_path", "")
+        deps = entry.get("deps") or []
+        if not isinstance(deps, list):
+            continue
+        for dep in deps:
+            if not isinstance(dep, str) or "#§" not in dep:
+                continue
+            try:
+                ref_doc, section_path, item_id = parse_ref(dep)
+            except LoadSectionError as e:
+                errors.append({"doc_id": doc_id, "file_path": rel_path,
+                               "ref": dep, "reason": f"parse error: {e}"})
+                continue
+            try:
+                hit = _lookup_in_index(index, ref_doc, section_path, item_id)
+            except AmbiguousRefError as e:
+                errors.append({"doc_id": doc_id, "file_path": rel_path,
+                               "ref": dep, "reason": str(e)})
+                continue
+            if hit is None:
+                errors.append({"doc_id": doc_id, "file_path": rel_path,
+                               "ref": dep,
+                               "reason": f"未找到引用目标 {ref_doc!r}（短别名？参考 frontmatter aliases:）"})
+    return errors
+
+
 def find_stale_index_entries(project_root: str) -> list[tuple[str, str]]:
     """Return ``(doc_id, file_path)`` pairs whose ``file_path`` is gone from disk.
 
@@ -279,12 +376,53 @@ def update_single_doc(
 
 
 def _make_index(documents: dict[str, Any]) -> dict[str, Any]:
-    return {
+    aliases, alias_conflicts = build_aliases(documents)
+    index: dict[str, Any] = {
         "version": "1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "documents": documents,
         "xref": build_xref(documents),
+        "aliases": aliases,
     }
+    if alias_conflicts:
+        index["alias_conflicts"] = alias_conflicts
+    return index
+
+
+def build_aliases(
+    documents: dict[str, Any],
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    """Build the top-level ``alias → doc_id`` map.
+
+    Each doc's frontmatter ``aliases:`` list contributes alias names that
+    point at its own ``id``. The resolver consults this map after exact and
+    prefix lookups (see :func:`cataforge.docs.loader._resolve_doc_entry`).
+
+    First-claim wins on conflicts; collisions are recorded in the returned
+    ``alias_conflicts`` list and surface in ``cataforge docs validate``.
+    Aliases that collide with an actual doc_id are also rejected — a real
+    doc_id always shadows an alias, so registering the alias would be a
+    silent no-op.
+    """
+    aliases: dict[str, str] = {}
+    conflicts: list[dict[str, Any]] = []
+    for doc_id, entry in documents.items():
+        for alias in entry.get("aliases") or []:
+            if alias in documents:
+                conflicts.append({
+                    "alias": alias, "claimed_by": doc_id,
+                    "reason": f"shadowed by an existing doc_id {alias!r}",
+                })
+                continue
+            existing = aliases.get(alias)
+            if existing is not None and existing != doc_id:
+                conflicts.append({
+                    "alias": alias, "claimed_by": doc_id,
+                    "reason": f"already claimed by {existing!r}",
+                })
+                continue
+            aliases[alias] = doc_id
+    return aliases, conflicts
 
 
 def write_index(index: dict[str, Any], project_root: str) -> str:

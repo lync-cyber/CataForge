@@ -7,10 +7,14 @@ import sys
 from pathlib import Path
 
 from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
 from .constants import DOC_SPLIT_THRESHOLD_LINES, KNOWN_DOC_PREFIXES, VOLUME_TYPES
-from .template_registry import load_template_required_sections
+from .template_registry import (
+    load_template_required_sections,
+    parse_required_sections_from_list,
+)
 from .typed_checks import TypedDocChecksMixin
 
 
@@ -54,6 +58,7 @@ class DocChecker(TypedDocChecksMixin):
             (r"-f\d+-f\d+$", "features"),
             (r"-p\d+-p\d+$", "pages"),
             (r"-c\d+-c\d+$", "components"),
+            (r"-theme-\d+(?:-[\w-]+)?$", "theme"),
         ]
         for pattern, vol_type in filename_patterns:
             if re.search(pattern, stem):
@@ -158,16 +163,29 @@ class DocChecker(TypedDocChecksMixin):
             self.doc_type, self.volume_type, mode
         )
         if sections is None:
-            if self.doc_type not in ("changelog",):
-                self.warn(
-                    f"无法从模板加载 required_sections "
-                    f"(doc_type={self.doc_type}, volume_type={self.volume_type})"
+            self_declared = (fm or {}).get("required_sections")
+            if isinstance(self_declared, list) and self_declared:
+                sections = parse_required_sections_from_list(
+                    [str(h) for h in self_declared if h]
                 )
-            return
+                self.warn(
+                    f"模板未注册 (doc_type={self.doc_type}, "
+                    f"volume_type={self.volume_type})，回退使用文档自声明的 "
+                    f"required_sections ({len(sections)} 项)"
+                )
+            else:
+                if self.doc_type not in ("changelog",):
+                    self.warn(
+                        f"无法从模板加载 required_sections "
+                        f"(doc_type={self.doc_type}, volume_type={self.volume_type})"
+                    )
+                return
+        _, body = split_yaml_frontmatter(self.content)
+        body = body if body is not None else self.content
         for heading, name in sections:
             pattern = re.escape(heading)
             match = re.search(
-                pattern + r"(.*?)(?=^## |\Z)", self.content, re.DOTALL | re.MULTILINE
+                pattern + r"(.*?)(?=^## |\Z)", body, re.DOTALL | re.MULTILINE
             )
             if not match:
                 self.fail(f"缺少必填章节: {name}")

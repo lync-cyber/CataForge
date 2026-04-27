@@ -126,7 +126,7 @@ def test_doctor_flags_orphan_doc_missing_front_matter(
     assert result.exit_code != 0, (
         "doctor must fail when docs/*.md cannot be ingested by the indexer"
     )
-    assert "Docs index completeness:" in result.output
+    assert "Docs validation:" in result.output
     assert "1 orphan document" in result.output
     assert "docs/research/raw-requirements-v1.md" in result.output
 
@@ -144,7 +144,7 @@ def test_doctor_passes_when_every_doc_has_front_matter(
     monkeypatch.chdir(root)
 
     result = CliRunner().invoke(doctor_command, [])
-    section = result.output.split("Docs index completeness:", 1)[1].splitlines()[1]
+    section = result.output.split("Docs validation:", 1)[1].splitlines()[1]
     assert "0 orphan documents" in section, section
 
 
@@ -164,7 +164,7 @@ def test_doctor_orphan_check_skips_archive(
     monkeypatch.chdir(root)
 
     result = CliRunner().invoke(doctor_command, [])
-    section = result.output.split("Docs index completeness:", 1)[1].splitlines()[1]
+    section = result.output.split("Docs validation:", 1)[1].splitlines()[1]
     assert "0 orphan documents" in section, section
 
 
@@ -184,7 +184,7 @@ def test_doctor_warns_when_docs_present_but_no_index(
     monkeypatch.chdir(root)
 
     result = CliRunner().invoke(doctor_command, [])
-    section_block = result.output.split("Docs index completeness:", 1)[1].split("\n\n", 1)[0]
+    section_block = result.output.split("Docs validation:", 1)[1].split("\n\n", 1)[0]
     assert "WARN" in section_block, section_block
     assert "cataforge docs index" in section_block, section_block
     # The orphan check itself must not contribute to the failed_count
@@ -204,7 +204,7 @@ def test_doctor_silent_when_docs_dir_has_no_markdown(
     monkeypatch.chdir(root)
 
     result = CliRunner().invoke(doctor_command, [])
-    section_block = result.output.split("Docs index completeness:", 1)[1]
+    section_block = result.output.split("Docs validation:", 1)[1]
     assert "WARN" not in section_block, section_block
 
 
