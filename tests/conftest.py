@@ -24,6 +24,8 @@ from typing import Any
 
 import pytest
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
 # Modules that must be importable for the test suite to function.
 # Each entry is (module_name, install_hint).
 REQUIRED_DEV_MODULES: tuple[tuple[str, str], ...] = (
@@ -69,6 +71,75 @@ def pytest_configure(config: pytest.Config) -> None:  # noqa: ARG001
     ])
     print("\n".join(msg_lines), file=sys.stderr)
     pytest.exit("missing dev dependencies (see message above)", returncode=2)
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
+    """Auto-install pre-commit hooks on first session if missing.
+
+    `.pre-commit-config.yaml` runs the same ruff / utf-8-stdio / schema-
+    parity checks CI does. A fresh clone without `pre-commit install`
+    lets those failures escape locally and only surface 60s later in
+    GitHub Actions. `pre-commit` is already a [dev] dep, and
+    `pre-commit install` is idempotent + does no network I/O — safe to
+    invoke automatically.
+
+    Behaviour:
+
+    * No .git directory  → no-op (e.g. installed wheel sources).
+    * Hook already there → no-op.
+    * `CATAFORGE_SKIP_HOOK_AUTOINSTALL=1` set → no-op (CI / power users).
+    * Otherwise           → run ``pre-commit install`` and log result.
+
+    Any error during install fails soft — the test session must not be
+    blocked by a setup convenience.
+    """
+    if os.environ.get("CATAFORGE_SKIP_HOOK_AUTOINSTALL"):
+        return
+    try:
+        git_dir = _REPO_ROOT / ".git"
+        if not git_dir.is_dir():
+            return
+        hook = git_dir / "hooks" / "pre-commit"
+        if hook.is_file():
+            return
+    except OSError:
+        return
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pre_commit", "install"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
+        print(
+            f"\n⚠  pre-commit not auto-installed ({exc}); run "
+            "`pre-commit install` manually.\n",
+            file=sys.stderr,
+        )
+        return
+
+    if result.returncode == 0:
+        print(
+            "\n".join([
+                "",
+                "─" * 70,
+                "✓ pre-commit hooks auto-installed (.git/hooks/pre-commit).",
+                "  ruff / utf-8-stdio / schema-parity checks now run on commit.",
+                "  Opt out: export CATAFORGE_SKIP_HOOK_AUTOINSTALL=1",
+                "─" * 70,
+                "",
+            ]),
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f"\n⚠  pre-commit install failed (rc={result.returncode}): "
+            f"{result.stderr.strip()[:200]}\n",
+            file=sys.stderr,
+        )
 
 
 # ---------------------------------------------------------------------------

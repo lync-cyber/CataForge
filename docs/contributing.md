@@ -10,6 +10,7 @@ cd CataForge
 uv venv && uv pip install -e ".[dev]"
 # source .venv/bin/activate       # macOS / Linux
 # .venv\Scripts\activate          # Windows
+pre-commit install                # ← 必装；详情见下
 ```
 
 健康检查：
@@ -23,16 +24,15 @@ pytest -q
 
 > 依赖锁定：`uv.lock` 是仓库内的可复现性锁文件。修改 `pyproject.toml` 的依赖（包括 `[project.dependencies]` / `[project.optional-dependencies]`）后请运行 `uv lock` 刷新。CI 跑 `uv lock --check` 兜底，未刷新即 fail。
 
-### 可选：装本地 pre-commit 钩子
+### pre-commit 钩子（强烈推荐装）
 
-`.pre-commit-config.yaml` 内置三个本地钩子（scaffold mirror 检查、ruff、workflow YAML 解析）。装一次即可：
+`.pre-commit-config.yaml` 内置 ruff、`ensure_utf8_stdio()` guard、JSON Schema↔Python 镜像对账、workflow YAML 解析、营销词 / 设计残留扫描等 6 个本地钩子。装一次：
 
 ```bash
-pip install pre-commit
-pre-commit install
+pre-commit install        # pre-commit 已在 [dev] 依赖里，无需单独 pip install
 ```
 
-CI 会跑同一组检查兜底，但本地装上能把"扫盘忘 sync mirror / 误改坏 workflow YAML"这类返工压到提交期发现。
+CI 会跑同一组检查兜底，但本地装上能把 ruff I001 / `tests/test_run_utf8.py` 这类典型问题压到 commit 期发现 —— 不装则只能等 60 秒后 GitHub Actions 翻红。`pytest` 启动时会探测 `.git/hooks/pre-commit` 缺失并打印一次提示（不阻断，仅提醒）。
 
 ---
 

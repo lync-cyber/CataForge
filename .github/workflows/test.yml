@@ -52,6 +52,19 @@ jobs:
       - name: Ruff
         run: python -m ruff check src tests scripts
 
+      - name: "pre-commit parity (catches local hooks ↔ CI drift)"
+        # Runs the full .pre-commit-config.yaml hook set so a contributor
+        # without `pre-commit install` can't ship a change that local
+        # hooks would have caught. Linux-only — the hooks read repo
+        # files only, OS-specific runs add no coverage. If this step
+        # red-lights but the dedicated check above is green, somebody
+        # has changed .pre-commit-config.yaml in a way CI doesn't yet
+        # mirror — fix the divergence rather than relaxing the hook.
+        if: runner.os == 'Linux'
+        run: |
+          python -m pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure
+
       - name: Pytest (fast — exclude slow marker)
         run: python -m pytest tests/ -q -m "not slow"
 
