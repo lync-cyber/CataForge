@@ -125,8 +125,8 @@ review 模式（按文件类型自动选择工具）:
 - 工具未安装时跳过并 WARN，不阻断检查流程
 
 scan 模式额外的腐化 probe（按 --focus 选择性执行）:
-- duplication: jscpd（多语言）
-- dead-code: vulture (.py) / ts-prune (.ts/.tsx)
+- duplication: jscpd（多语言：JS/TS/Py/Go/C#/Rust/Java/Kotlin/Swift）/ pmd-cpd (.java)
+- dead-code: vulture (.py) / ts-prune (.ts/.tsx) / cargo-machete (.rs, 检测未使用 Cargo 依赖)
 - complexity: radon cc (.py) / gocyclo (.go)
 - probe 工具未安装 → WARN 跳过；scan 不会因 probe 缺失而 FAIL
 
