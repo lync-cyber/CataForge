@@ -315,9 +315,13 @@ def find_xref_errors(project_root: str) -> list[dict[str, str]]:
                                "ref": dep, "reason": str(e)})
                 continue
             if hit is None:
-                errors.append({"doc_id": doc_id, "file_path": rel_path,
-                               "ref": dep,
-                               "reason": f"未找到引用目标 {ref_doc!r}（短别名？参考 frontmatter aliases:）"})
+                errors.append({
+                    "doc_id": doc_id, "file_path": rel_path, "ref": dep,
+                    "reason": (
+                        f"未找到引用目标 {ref_doc!r}"
+                        "（短别名？参考 frontmatter aliases:）"
+                    ),
+                })
     return errors
 
 

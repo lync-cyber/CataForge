@@ -176,7 +176,6 @@ def _resolve_doc_entry(
 def _lookup_in_index(
     index: dict[str, Any], doc_id: str, section_path: str, item_id: str | None
 ) -> dict[str, Any] | None:
-    documents = index.get("documents", {})
     doc_entry = _resolve_doc_entry(index, doc_id)
     if not doc_entry:
         return None
