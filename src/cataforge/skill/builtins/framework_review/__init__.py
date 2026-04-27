@@ -43,4 +43,27 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "title": "ORCHESTRATOR dispatch 表 × framework.json features × agents 覆盖矩阵",
         "severity": "warn",
     },
+    {
+        "id": "B6_hook_script_reachability",
+        "title": "hooks.yaml 引用的 script 必须解析到真实 .py 文件 (builtin / custom)",
+        "severity": "fail",
+    },
+    {
+        "id": "B6_hook_script_syntax",
+        "title": "每个 hook script .py 必须 ast.parse 成功",
+        "severity": "fail",
+    },
+    {
+        "id": "B6_hook_matcher_capability",
+        "title": "matcher_capability 必须是 CAPABILITY_IDS / EXTENDED_CAPABILITY_IDS 成员",
+        "severity": "fail",
+    },
+    {
+        "id": "B6_hook_degradation_coverage",
+        "title": (
+            "每个 platform profile.yaml 的 hooks.degradation 必须覆盖且仅覆盖 "
+            "hooks.yaml 引用的 script"
+        ),
+        "severity": "warn",
+    },
 )
