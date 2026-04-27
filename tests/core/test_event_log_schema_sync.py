@@ -1,5 +1,6 @@
 """``cataforge.core.event_log`` frozensets must match
-``.cataforge/schemas/event-log.schema.json`` and its scaffold mirror."""
+``.cataforge/schemas/event-log.schema.json`` (single source of truth —
+post PR #84 there is no longer a scaffold mirror)."""
 
 from __future__ import annotations
 
@@ -18,13 +19,6 @@ from cataforge.core.event_log import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATHS = [
     REPO_ROOT / ".cataforge" / "schemas" / "event-log.schema.json",
-    REPO_ROOT
-    / "src"
-    / "cataforge"
-    / "_assets"
-    / "cataforge_scaffold"
-    / "schemas"
-    / "event-log.schema.json",
 ]
 
 
@@ -76,10 +70,6 @@ def test_required_fields_match_python(schema_path: Path) -> None:
     )
 
 
-def test_two_schema_copies_are_identical() -> None:
-    """Scaffold mirror must equal the repo-root copy."""
-    a, b = SCHEMA_PATHS
-    assert _load_schema(a) == _load_schema(b), (
-        f"{a.relative_to(REPO_ROOT)} and "
-        f"{b.relative_to(REPO_ROOT)} have diverged — sync them."
-    )
+# test_two_schema_copies_are_identical removed in PR #84: there is no
+# longer a scaffold mirror, so the copies-are-identical invariant is moot.
+# The remaining parametrized tests cover the single source of truth.

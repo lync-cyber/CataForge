@@ -63,6 +63,17 @@ jobs:
           python scripts/checks/check_hooks_yaml_schema.py
           python scripts/checks/check_schema_python_parity.py
 
+      - name: "uv lockfile freshness (uv.lock ↔ pyproject.toml in sync)"
+        # Verifies uv.lock matches the resolved deps from pyproject.toml.
+        # Catches "edited deps but forgot to refresh uv.lock" before it
+        # silently rots downstream uv-based installs. Linux-only because
+        # the lockfile is platform-independent.
+        if: runner.os == 'Linux'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          uv lock --check
+
       - name: "cataforge doctor (gates _DEPRECATED_REFS, runtime_api_version, orphan docs, …)"
         # Promote `cataforge doctor` from a manually-invoked diagnostic to a
         # required CI gate. Until this step landed every doctor check

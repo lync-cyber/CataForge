@@ -9,21 +9,6 @@
 repos:
   - repo: local
     hooks:
-      - id: scaffold-sync
-        name: scaffold mirror in sync (.cataforge/ → _assets/)
-        description: |
-          Auto-syncs .cataforge/ → src/cataforge/_assets/cataforge_scaffold/
-          on every commit that touches the source tree. Pre-commit
-          re-detects modified files after the sync runs and fails the
-          commit if the mirror was out of date — forcing the contributor
-          to `git add` the refreshed mirror and commit again. This is
-          the prettier/black model: human edits canonical source, hook
-          updates derivatives. CI's scaffold-sync.yml stays as a
-          belt-and-braces guard for contributors who skip pre-commit.
-        entry: python scripts/sync_scaffold.py
-        language: system
-        pass_filenames: false
-        files: ^(\.cataforge/|src/cataforge/_assets/cataforge_scaffold/|scripts/sync_scaffold\.py)
       - id: ruff
         name: ruff (lint)
         entry: python -m ruff check src tests scripts

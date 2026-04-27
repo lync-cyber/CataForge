@@ -40,7 +40,31 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
     },
     {
         "id": "B5_workflow_coverage_matrix",
-        "title": "ORCHESTRATOR dispatch 表 × framework.json features × agents 覆盖矩阵",
+        "title": "ORCHESTRATOR dispatch 表 × agents 覆盖矩阵 (phase→agent 单跳)",
+        "severity": "warn",
+    },
+    {
+        "id": "B5_phase_skill_coverage",
+        "title": (
+            "phase → agent → skill 三跳: 每个 phase-routed agent 必须声明 "
+            "≥1 skill 且引用的 skill 必须存在"
+        ),
+        "severity": "warn",
+    },
+    {
+        "id": "B5_eventlog_agent_return_drift",
+        "title": (
+            "EVENT-LOG.jsonl agent_return 事件与 phase routing 对账 "
+            "(总事件 ≥10 时启用)"
+        ),
+        "severity": "warn",
+    },
+    {
+        "id": "B5_feature_phase_alignment",
+        "title": (
+            "framework.json features[*].phase_guard 必须命中 ORCHESTRATOR "
+            "Phase Routing 中的已知 phase"
+        ),
         "severity": "warn",
     },
     {
@@ -65,5 +89,13 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
             "hooks.yaml 引用的 script"
         ),
         "severity": "warn",
+    },
+    {
+        "id": "B6_hook_manifest_drift",
+        "title": (
+            "hooks.yaml 非 custom: 脚本必须 ∈ cataforge.hook.manifest."
+            "HOOKS_MANIFEST (orphan WARN, missing FAIL)"
+        ),
+        "severity": "fail|warn",
     },
 )

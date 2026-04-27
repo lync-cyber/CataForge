@@ -39,9 +39,9 @@ def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> Path:
     Uses ``python -m build --wheel`` in isolated build mode — more
     portable across host Python distributions (e.g. Windows Store
     Python, where ``--no-isolation`` fails to resolve ``hatchling``
-    because the host env doesn't carry it). The scaffold-sync hatch
-    hook runs as part of the build, so the wheel's
-    ``src/cataforge/_assets/`` mirror is guaranteed current.
+    because the host env doesn't carry it). The wheel packages
+    ``.cataforge/`` directly via hatch ``force-include`` (no mirror
+    sync step needed since PR #84).
     """
     dist = tmp_path_factory.mktemp("dist")
     subprocess.run(

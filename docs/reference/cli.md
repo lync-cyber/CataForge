@@ -109,7 +109,7 @@ cataforge agent run <id> [--task-type <t>] [task...]    # On-demand 调起：渲
 
 ```bash
 cataforge agent run reflector --task-type retrospective "本周 framework-review 报告积累后的二次提炼"
-cataforge agent run debugger "scaffold-sync.yml 总在 windows-latest red，本地复现不出"
+cataforge agent run debugger "no-dogfood-leak.yml 总在 windows-latest red，本地复现不出"
 ```
 
 ---

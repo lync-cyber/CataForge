@@ -53,29 +53,7 @@ jobs:
               exit 1
           fi
 
-          # --- PROJECT-STATE 不应随 PR 改动（除非是模板更新）---
-          # 它是模板，dogfood 期间会被 orchestrator 写成当前状态。
-          # 合法情形：模板本身被更新，此时 .cataforge/ 与 scaffold/ 副本必须
-          # 同步且 byte-identical（scaffold-sync 测试也会校验）。
-          # 非法情形：只改 .cataforge/，scaffold/ 没改 → dogfood 残留泄漏。
-          DOG_PS=".cataforge/PROJECT-STATE.md"
-          SCA_PS="src/cataforge/_assets/cataforge_scaffold/PROJECT-STATE.md"
-          if echo "$CHANGED" | grep -qE "^${DOG_PS}$"; then
-              if echo "$CHANGED" | grep -qE "^${SCA_PS}$" && cmp -s "$DOG_PS" "$SCA_PS"; then
-                  echo "INFO: PROJECT-STATE.md 模板更新（双副本同步、byte-identical）— 通过"
-              else
-                  echo "ERROR: .cataforge/PROJECT-STATE.md 被修改但未同步到 scaffold"
-                  echo ""
-                  echo "这个文件是框架的模板，dogfood 期间会被写成当前项目状态。"
-                  echo "若是 dogfood 残留，PR 到 main 之前必须还原:"
-                  echo "  git checkout origin/main -- .cataforge/PROJECT-STATE.md"
-                  echo "  git commit --amend --no-edit"
-                  echo ""
-                  echo "若是模板更新，请同时修改 scaffold 副本，让两者保持 byte-identical:"
-                  echo "  cp .cataforge/PROJECT-STATE.md $SCA_PS"
-                  echo "  git add $SCA_PS && git commit --amend --no-edit"
-                  exit 1
-              fi
-          fi
+          # PROJECT-STATE.md 双副本同步检查已废除（PR #84 — scaffold 镜像消除，
+          # .cataforge/ 直接通过 hatch force-include 打进 wheel）。
 
           echo "OK: 无污染，$(echo "$CHANGED" | wc -l) 个文件通过检查"

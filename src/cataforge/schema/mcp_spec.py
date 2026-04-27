@@ -1,4 +1,15 @@
-"""MCP server declarations (YAML / entry_points)."""
+"""MCP server declarations (YAML / entry_points).
+
+Strict-mode policy: ``MCPServerState`` opts into ``strict=True`` because
+its inputs come exclusively from cataforge-controlled state files (JSON
+round-tripped via ``model_dump`` → ``model_validate``); every value
+preserves type fidelity. ``MCPServerSpec`` and ``HealthCheckSpec`` stay
+non-strict because their inputs come from third-party YAML manifests
+where type-loose authoring (``port: "8080"``) is common; coercing rather
+than rejecting keeps integration smooth. ``validate_assignment=True``
+applies to all models so post-construction mutation cannot bypass
+validation.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +20,7 @@ from typing_extensions import Self
 
 
 class HealthCheckSpec(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", validate_assignment=True)
 
     type: Literal["http", "tcp", "command"] = "http"
     target: str = ""
@@ -19,7 +30,11 @@ class HealthCheckSpec(BaseModel):
 
 
 class MCPServerSpec(BaseModel):
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config = ConfigDict(
+        extra="ignore",
+        populate_by_name=True,
+        validate_assignment=True,
+    )
 
     id: str
     name: str = ""
@@ -61,7 +76,20 @@ class MCPServerSpec(BaseModel):
 
 
 class MCPServerState(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    """Internal MCP lifecycle state — strict-mode safe.
+
+    All call sites construct this with precise Python types
+    (``proc.pid`` is int, ``str(e)`` is str, ISO timestamps are str)
+    and the persisted form is JSON which round-trips faithfully. Strict
+    mode catches "wrong type slipped through" bugs early without
+    introducing false positives from user-authored YAML coercion.
+    """
+
+    model_config = ConfigDict(
+        extra="ignore",
+        strict=True,
+        validate_assignment=True,
+    )
 
     spec_id: str
     status: str = "registered"
