@@ -24,6 +24,7 @@
     "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl",
     "EVENT_LOG_SCHEMA": ".cataforge/schemas/event-log.schema.json",
     "DOC_SPLIT_THRESHOLD_LINES": 300,
+    "META_DOC_SPLIT_THRESHOLD_LINES": 500,
     "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
     "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "prd-lite", "arch-lite", "dev-plan-lite", "changelog"],
     "TDD_LIGHT_LOC_THRESHOLD": 50,

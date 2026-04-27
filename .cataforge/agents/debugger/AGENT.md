@@ -40,7 +40,7 @@ maxTurns: 40
 ## Exception Handling
 | 场景 | 处理 |
 |------|------|
-| 错误信息不足以定位 | 通过 AskUserQuestion 请求复现步骤或完整日志（≤3 问） |
+| 错误信息不足以定位 | 通过 AskUserQuestion 请求复现步骤或完整日志（每批问题数不超过 MAX_QUESTIONS_PER_BATCH） |
 | 问题涉及外部依赖 | 标注依赖版本和环境信息，提供 workaround 并记录根因 |
 | 修复影响公共接口 | 返回 needs_input，说明影响范围并请求确认 |
 | 3 次尝试仍无法修复 | 返回 blocked，附带已排除的假设和当前最佳线索 |

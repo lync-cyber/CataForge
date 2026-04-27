@@ -14,9 +14,10 @@ from cataforge.utils.frontmatter import split_yaml_frontmatter
 # Mapping from builtin directory name → skill ID (directory names use underscores)
 _BUILTIN_ID_MAP = {
     "code_review": "code-review",
-    "dep_analysis": "dep-analysis",
     "doc_review": "doc-review",
+    "framework_review": "framework-review",
     "sprint_review": "sprint-review",
+    "task_dep_analysis": "task-dep-analysis",
 }
 
 # Built-in skills whose runs are recorded in docs/EVENT-LOG.jsonl. Driven

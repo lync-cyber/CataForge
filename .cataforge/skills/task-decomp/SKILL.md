@@ -3,7 +3,7 @@ name: task-decomp
 description: "任务拆分 — 功能到任务的分解，确保粒度单一可控。"
 argument-hint: "<ARCH文档路径或模块列表>"
 suggested-tools: Read, Write, Edit, Grep
-depends: [doc-gen, doc-nav, dep-analysis]
+depends: [doc-gen, doc-nav, task-dep-analysis]
 disable-model-invocation: false
 user-invocable: true
 ---

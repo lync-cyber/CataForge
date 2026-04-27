@@ -32,6 +32,7 @@ maxTurns: 30
   - 偏差类型: {preference|constraint|domain-knowledge}
   ```
 - 触发门槛: 由 orchestrator 按 `RETRO_TRIGGER_SELF_CAUSED` 常量判定（CORRECTIONS-LOG self-caused 条目数达到阈值，或存在 CRITICAL 问题），不满足时 orchestrator 直接跳过本 Agent
+- **手动触发（on-demand）**: 用户可绕过 orchestrator 自动判定，直接通过 `cataforge agent run reflector --task-type retrospective <ad-hoc 描述>` 渲染 AGENT.md + 任务框架（已自动复制到剪贴板），粘贴到 IDE 会话即可激活；适用场景：阶段性 retro、framework-review 报告积累后的二次提炼、跨项目经验汇总
 
 ## Output Contract
 - RETRO 报告和 SKILL-IMPROVE 报告为过程文件，直接使用 Write/Edit 写入 docs/reviews/retro/

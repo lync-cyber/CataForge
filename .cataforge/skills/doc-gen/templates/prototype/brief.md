@@ -21,7 +21,7 @@ required_sections:
   Brief 适用于 agile-prototype 执行模式（原型 / PoC / 单文件脚本）。
   全文目标 ≤200 行。合并了 standard 模式下的 PRD + ARCH + DEV-PLAN。
   §5 任务卡即作为 implementer 子代理的输入契约，tdd_mode 默认 light。
-  若内容在 300 行内仍无法表达清楚，提示用户切换到 agile-lite 或 standard。
+  若内容仍超过 DOC_SPLIT_THRESHOLD_LINES 仍无法表达清楚，提示用户切换到 agile-lite 或 standard。
 -->
 
 [NAV]

@@ -1,7 +1,24 @@
 """code_lint.py — Code static analysis (Code Review Layer 1).
 
-Usage: python -m cataforge.skill.builtins.code_review.code_lint <file_or_dir> [--fix]
-Returns: exit 0=all pass, exit 1=errors found
+Two operation modes:
+
+* default (no flag): per-file lint + format using mainstream tools
+  (ESLint/Prettier/Ruff/dotnet-format/golangci-lint/clippy). Used by
+  the per-task TDD code-review path.
+
+* ``scan``: project-level health scan layered on top of the lint pass.
+  Adds duplication / dead-code / complexity probes (vulture, ts-prune,
+  jscpd, radon, gocyclo when present). Tools that aren't installed
+  emit WARN and are skipped — the scan never becomes a hard gate on
+  toolchain availability.
+
+Exit codes follow the §Layer 1 调用协议: 0=PASS, 1=fail-with-issues,
+2=usage error / target missing.
+
+Usage:
+  python -m cataforge.skill.builtins.code_review.code_lint <file_or_dir> [--fix]
+  python -m cataforge.skill.builtins.code_review.code_lint scan <path> \
+        [--focus <category[,category...]>]
 """
 
 from __future__ import annotations
@@ -65,6 +82,57 @@ LINTERS = [
 ALL_EXTENSIONS: set[str] = set()
 for _group in LINTERS:
     ALL_EXTENSIONS.update(_group["extensions"])
+
+
+# Project-level rot probes for the ``scan`` operation. Each entry maps a
+# COMMON-RULES §统一问题分类体系 category to a list of probe commands.
+# Probes that fail to launch (tool missing) emit WARN; non-zero exits
+# without crash count as findings.
+SCAN_PROBES: dict[str, list[dict]] = {
+    "duplication": [
+        {
+            "name": "jscpd",
+            "extensions": {".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".cs", ".rs"},
+            "detect": ["npx", "jscpd", "--version"],
+            "build_cmd": lambda target: ["npx", "jscpd", "--silent", str(target)],
+            "fail_on_nonzero": False,
+        },
+    ],
+    "dead-code": [
+        {
+            "name": "vulture",
+            "extensions": {".py"},
+            "detect": ["vulture", "--version"],
+            "build_cmd": lambda target: ["vulture", str(target), "--min-confidence", "70"],
+            "fail_on_nonzero": True,
+        },
+        {
+            "name": "ts-prune",
+            "extensions": {".ts", ".tsx"},
+            "detect": ["npx", "ts-prune", "--version"],
+            "build_cmd": lambda target: ["npx", "ts-prune", "--project", str(target)],
+            "fail_on_nonzero": False,
+        },
+    ],
+    "complexity": [
+        {
+            "name": "radon (cc)",
+            "extensions": {".py"},
+            "detect": ["radon", "--version"],
+            "build_cmd": lambda target: ["radon", "cc", "-n", "C", "-a", str(target)],
+            "fail_on_nonzero": False,
+        },
+        {
+            "name": "gocyclo",
+            "extensions": {".go"},
+            "detect": ["gocyclo", "-?"],
+            "build_cmd": lambda target: ["gocyclo", "-over", "15", str(target)],
+            "fail_on_nonzero": False,
+        },
+    ],
+}
+
+VALID_FOCUS = set(SCAN_PROBES.keys())
 
 
 class CodeLinter:
@@ -155,12 +223,137 @@ class CodeLinter:
         return 0
 
 
+class CodeScanner:
+    """Project-level health scan: lint + duplication + dead-code + complexity.
+
+    Each focus category gates which probes run. Probes that aren't
+    installed emit WARN and the scan continues — the goal is "give the
+    user whatever signal is locally available", not "fail because
+    radon isn't installed".
+    """
+
+    def __init__(self, target: str, focus: list[str] | None = None) -> None:
+        self.target = Path(target)
+        self.focus = focus or sorted(VALID_FOCUS)
+        self.findings = 0
+        self.skipped = 0
+
+    def collect_extensions(self) -> set[str]:
+        if self.target.is_file():
+            return {self.target.suffix.lower()}
+        seen: set[str] = set()
+        for p in self.target.rglob("*"):
+            if any(part in EXCLUDE_DIRS for part in p.parts):
+                continue
+            if p.is_file():
+                seen.add(p.suffix.lower())
+        return seen
+
+    def run_probe(self, probe: dict, present_exts: set[str]) -> None:
+        name = probe["name"]
+        if not (probe["extensions"] & present_exts):
+            return
+        try:
+            subprocess.run(probe["detect"], capture_output=True, timeout=15)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            print(f"WARN: probe '{name}' 未安装，跳过")
+            self.skipped += 1
+            return
+        cmd = probe["build_cmd"](self.target)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        except subprocess.TimeoutExpired:
+            print(f"WARN: probe '{name}' 超时")
+            self.skipped += 1
+            return
+        output = (result.stdout + "\n" + result.stderr).strip()
+        non_empty = bool(output)
+        signal = (
+            (probe["fail_on_nonzero"] and result.returncode != 0)
+            or (not probe["fail_on_nonzero"] and non_empty)
+        )
+        if signal:
+            self.findings += 1
+            print(f"FINDING: [{name}]")
+            for line in output.splitlines()[:30]:
+                print(f"  {line}")
+        else:
+            print(f"PASS: [{name}] no findings")
+
+    def run(self) -> int:
+        if not self.target.exists():
+            print(f"ERROR: 目标路径不存在: {self.target}")
+            return 2
+
+        invalid = [c for c in self.focus if c not in VALID_FOCUS]
+        if invalid:
+            print(
+                f"ERROR: 无效的 --focus 值: {invalid}; "
+                f"可选: {sorted(VALID_FOCUS)}"
+            )
+            return 2
+
+        print(f"Scanning {self.target} (focus: {','.join(self.focus)})")
+        print("=" * 50)
+
+        # Layer 1 lint pass first — catches surface defects before
+        # paying for the slower duplication / complexity probes.
+        lint_rc = CodeLinter(str(self.target), fix=False).run()
+        print()
+
+        present_exts = self.collect_extensions()
+        for category in self.focus:
+            print(f"\n--- {category} ---")
+            for probe in SCAN_PROBES[category]:
+                self.run_probe(probe, present_exts)
+
+        print()
+        print("=" * 50)
+        print("Scan Summary")
+        print(f"  Findings: {self.findings}")
+        print(f"  Probes skipped (tool missing/timeout): {self.skipped}")
+        print(f"  Lint exit: {lint_rc}")
+        print("=" * 50)
+
+        # The scan only fails on lint errors — rot findings are
+        # informational signals, not gates. Otherwise every project
+        # without a clean dead-code report would be 'failing'.
+        if lint_rc != 0:
+            print("RESULT: FAIL (lint errors)")
+            return 1
+        print("RESULT: PASS")
+        return 0
+
+
 def main() -> None:
     ensure_utf8_stdio()
     if len(sys.argv) < 2:
-        print("用法: python -m cataforge.skill.builtins.code_review.code_lint"
-              " <file_or_dir> [--fix]")
+        print(
+            "用法:\n"
+            "  python -m cataforge.skill.builtins.code_review.code_lint"
+            " <file_or_dir> [--fix]\n"
+            "  python -m cataforge.skill.builtins.code_review.code_lint"
+            " scan <path> [--focus <category[,category...]>]"
+        )
         sys.exit(2)
+
+    if sys.argv[1] == "scan":
+        if len(sys.argv) < 3:
+            print(
+                "用法: python -m cataforge.skill.builtins.code_review.code_lint"
+                " scan <path> [--focus <category[,category...]>]"
+            )
+            sys.exit(2)
+        target = sys.argv[2]
+        focus: list[str] | None = None
+        if "--focus" in sys.argv:
+            idx = sys.argv.index("--focus")
+            if idx + 1 >= len(sys.argv):
+                print("ERROR: --focus 缺少参数值")
+                sys.exit(2)
+            focus = [c.strip() for c in sys.argv[idx + 1].split(",") if c.strip()]
+        scanner = CodeScanner(target, focus)
+        sys.exit(scanner.run())
 
     target_path = sys.argv[1]
     fix_mode = "--fix" in sys.argv

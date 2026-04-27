@@ -7,17 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.15]
+
+框架自我审计闭环：把"项目代码腐化扫描"与"框架元资产质量审计"两个长期靠人工维持的盲区收编为可在 CI 强制执行的 skill；附带把 dep-analysis 重命名为 task-dep-analysis 以与未来的代码 coupling 分析消歧。
+
 ### Added
 
-- **`cataforge docs migrate-reviews` 子命令** —— 一次性把缺 front matter 的 legacy review 报告（`docs/reviews/{doc,code}/REVIEW-*.md`、`docs/reviews/CORRECTIONS-LOG.md`、`docs/research/*.md`）补齐 YAML 头，使其能被 `cataforge docs index` 收录、不再被 `cataforge doctor` 计为 orphan。幂等（已带 front matter 的文件 untouched），支持 `--dry-run`。Schema 与 COMMON-RULES §报告 Front Matter 约定 一致。
-- **COMMON-RULES §报告 Front Matter 约定** —— 把"系统生成报告（review/code-review/sprint-review/correction-log）必须带 front matter"作为单点规范集中定义；doc-review/code-review SKILL.md Step 4 引用本规范，不再各自描述。明确 `status` 取值仅限 `draft`/`review`/`approved`（避免误用 `closed`）。
+- **`code-review scan` 操作** —— 项目级健康度扫描，在原 lint pass 之上叠加 jscpd / vulture / ts-prune / radon / gocyclo 等腐化指标 probe；工具缺失自动 WARN 跳过，不阻断；报告 `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md`。签名 `cataforge skill run code-review -- scan <path> [--focus duplication,dead-code,complexity]`。
+- **`framework-review` 内置 skill** —— 框架元资产质量审计（scope = agents | skills | hooks | rules | workflow | all），6 个子检查：B1-α 必填段、B1-β 行数（新常量 META_DOC_SPLIT_THRESHOLD_LINES = 500）、B2-α 交叉引用图（FAIL 引用不存在 / WARN 孤立 skill，附白名单豁免基础设施类）、B3-α SKILL.md ↔ CHECKS_MANIFEST 漂移（支持 "权威清单见 manifest" 委派模式跳过 token 比对）、B4-α 裸数值漂移、B5-α phase × agent × skill 覆盖矩阵。报告 `docs/reviews/framework/FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}-r{N}.md`。与 platform-audit 形成"内审 / 外审"对偶。
+- **4 个 review-class builtin 暴露 `CHECKS_MANIFEST`** —— `code_review` / `doc_review` / `sprint_review` / `framework_review` / `task_dep_analysis` 各自在 `__init__.py` 声明检查项清单，作为 framework-review B3 漂移检测的权威数据源。
+- **`cataforge agent run` 子命令** —— 渲染 AGENT.md + task framing，剪贴板自动复制（Windows clip / macOS pbcopy / Linux xclip / xsel），让 reflector 等只在 orchestrator 自动判定下激活的 agent 可手动 on-demand 触发。
+- **COMMON-RULES §统一问题分类体系新增 4 个代码 category** —— `duplication` / `dead-code` / `complexity` / `coupling`，按"腐化机理"补足正交轴（与现有按"问题表现"分的 structure / error-handling / performance / test-quality 共存）。
+- **COMMON-RULES §报告 Front Matter 约定 增 framework-review / code-scan 两类报告** —— 同步登记 `doc_type` 与路径模板，使新报告类型可被 `cataforge docs index` 收录、不被 doctor 计为 orphan。
+- **`META_DOC_SPLIT_THRESHOLD_LINES = 500` 常量** —— framework.json + COMMON-RULES §框架配置常量，作为 SKILL.md / AGENT.md / 协议文档的拆分提示阈值（协议文档天然偏长，相对 DOC_SPLIT_THRESHOLD_LINES = 300 放宽）。
+- **`tests/conftest.py`（顶级）** —— `pytest_configure` 钩子，启动前 `importlib.util.find_spec` 探测 `build` / `pytest` / `yaml` 三个 dev 依赖，缺失即 `pytest.exit("missing dev dependencies")` 并打印 `pip install -e '.[dev]'` 安装命令；闭合"e2e 跑到深处才报 ModuleNotFoundError"的旧失败模式。
+- **`tests/test_scripts_stdio_guard.py`** —— 强制 `scripts/*.py` 入口都 reconfigure stdio 为 UTF-8（或显式调 `ensure_utf8_stdio()`），防 standalone 脚本在 Windows cp1252 终端因 unicode 字符崩溃；ASCII-only 脚本可显式白名单豁免。
+- **`.github/workflows/test.yml` 加 `cataforge skill run framework-review -- all` step**（Linux job）—— 把 framework-review 从 ad-hoc 审计提升为 required CI gate，与 doctor / anti-rot 守卫并列。
 
 ### Changed
 
-- **`docs/reviews/CORRECTIONS-LOG.md` 首次创建时自动写入 front matter**（`core/corrections.py::_HEADER`）—— 闭合"reflector / orchestrator 自动 append 出来的运维日志一直被 indexer 当作 orphan"的设计漏洞；append 路径不变，已存在的日志不重写头部。
-- **`doc-review` / `code-review` SKILL.md Step 4** —— 产出报告时强制写入最小 front matter 块（`id`/`doc_type`/`author`/`status`/`deps`），verdict 落定后把 `status` 由 `draft` 改为 `approved`。
-- **`cataforge.docs.indexer.main` 的 orphan WARN 文案** —— 显式提示同样的 orphan 也会让 `cataforge doctor` 退出非零，避免用户误以为 `--strict` 才是唯一硬门禁。
-- **`reflector/AGENT.md` Retrospective Protocol** —— 加一行说明该扫描是 glob-based、不依赖 `docs/.doc-index.json`，防止后续维护者错把 reviewer/correction-log 状态耦合到索引器。
+- **`dep-analysis` → `task-dep-analysis` 重命名** —— 命名反映实际职责（dev-plan §1 任务 DAG 分析），与未来 code-review scan 的 coupling 维度（pydeps / madge / go mod graph 形式的代码依赖图）解耦消歧。loader builtin map、`tech-lead/AGENT.md.skills:`、`task-decomp/SKILL.md.depends:`、code-review / req-analysis 散文引用、docs/reference/agents-and-skills.md、test fixture 全量更新；scaffold 镜像同步。
+- **三个 review skill 删除四态返回表复述** —— `doc-review` / `code-review` / `sprint-review` SKILL.md 不再各自展开 exit 0/1/2/runtime-error 处理表，改为单行"返回码语义按 §Layer 1 调用协议处理"；COMMON-RULES auto-loaded，无需反向引用，避免单文件膨胀。
+- **`doc-review` / `code-review` SKILL.md Layer 2 加 `--focus <category[,...]>`** —— 维度可收敛，避免一次跑全维度产出过长报告。
+- **`doc-review/SKILL.md` §Layer 1 检查项** 补齐 `check_split_header` / `check_split_consistency` / `check_line_count` 三项实际由 checker 执行但文档遗漏的检查；同时补全 §输入规范 / §输出规范 段（B1 必填段合规）。
+- **4 处裸数值替换为常量名引用** —— `debug/SKILL.md` `≤3 问` → `MAX_QUESTIONS_PER_BATCH`；`debugger/AGENT.md` 同；`ORCHESTRATOR-PROTOCOLS.md` `>300 行` → `DOC_SPLIT_THRESHOLD_LINES`；`brief.md` 模板同。
+- **`.pre-commit-config.yaml` scaffold-sync hook** —— 由 `--check`（仅校验）改为实际 sync（自动写入），pre-commit 检测到镜像被 hook 修改即 fail commit 并提示 `git add` + 重提；prettier / black 模式，免去人工 `python scripts/sync_scaffold.py` 步骤。
+- **`scripts/sync_scaffold.py` 顶部 reconfigure stdio 为 UTF-8** —— 修同步成功摘要里的 `→` 字符在 Windows cp1252 终端 print 崩溃 bug。
+- **`reflector/AGENT.md`** —— 文档化 on-demand 用法（`cataforge agent run reflector --task-type retrospective ...`），用户可绕过 orchestrator 阈值手动触发回顾。
+
+### Fixed
+
+- **`SkillRunner.run` Windows cp1252 解码崩溃** —— `subprocess.run` 显式 `encoding="utf-8", errors="replace"`，pairs with 子进程 `ensure_utf8_stdio()`；framework-review / 任何输出非 ASCII 字符的 skill 在 Windows 不再因 UnicodeDecodeError 退出。
+
+### Previously Unreleased (rolled into 0.1.15)
+
+- `cataforge docs migrate-reviews` 子命令（legacy review 报告补齐 YAML front matter）
+- COMMON-RULES §报告 Front Matter 约定（系统生成报告 front matter 单点规范）
+- `docs/reviews/CORRECTIONS-LOG.md` 自动 front matter
+- `doc-review` / `code-review` SKILL.md Step 4 强制 front matter
+- `cataforge.docs.indexer.main` orphan WARN 文案改进
+- `reflector/AGENT.md` Retrospective Protocol glob-based 说明
 
 ## [0.1.14] — 2026-04-27
 

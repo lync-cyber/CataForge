@@ -1,6 +1,11 @@
-"""dep_analysis.py — Task dependency analysis tool.
+"""task_dep_analysis.py — Task dependency analysis tool.
 
-Usage: python -m cataforge.skill.builtins.dep_analysis.dep_analysis \
+Renamed from ``dep_analysis`` in v0.1.15 to disambiguate from code
+module dependency analysis (handled by ``code-review scan --focus
+coupling``). The ``-task`` prefix makes the input domain (dev-plan
+task graph) explicit.
+
+Usage: python -m cataforge.skill.builtins.task_dep_analysis.task_dep_analysis \
          --edges "T-001→T-002,T-002→T-003" [--weights "T-001:S,T-002:M"]
 Returns: exit 0=no cycles, exit 1=cycles detected
 """

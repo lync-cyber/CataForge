@@ -34,7 +34,7 @@ user-invocable: true
 **Step 1: 复现与信息收集**
 1. 解析错误信息，提取关键信号: 文件路径、行号、异常类型、错误消息
 2. 如有复现命令，执行以确认问题可复现
-3. 如错误信息不完整（缺少 stacktrace 或文件路径），通过 AskUserQuestion 请求补充（≤3 问）
+3. 如错误信息不完整（缺少 stacktrace 或文件路径），通过 AskUserQuestion 请求补充（每批问题数不超过 MAX_QUESTIONS_PER_BATCH）
 
 **Step 2: 定位根因**
 1. 从 stacktrace 最内层帧开始，Read 相关文件和行号

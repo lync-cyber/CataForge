@@ -8,7 +8,7 @@ allowed_paths:
   - docs/research/
 skills:
   - task-decomp
-  - dep-analysis
+  - task-dep-analysis
   - doc-gen
   - doc-nav
 model: inherit

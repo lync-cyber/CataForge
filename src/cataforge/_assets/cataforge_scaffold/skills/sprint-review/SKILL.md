@@ -28,13 +28,7 @@ user-invocable: true
 ### Step 1: Layer 1 — Python脚本结构检查
 执行: `cataforge skill run sprint-review -- {sprint_number} --dev-plan docs/dev-plan/ --src-dir src/ --test-dir tests/ --reviews-dir docs/reviews/code/`
 
-**调用约定（单一入口）**: Layer 1 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。
-
-处理结果(四种情况):
-- **exit 0** (检查通过) → 进入Step 2 Layer 2
-- **exit 1** (检查不通过) → 返回失败项列表，**不进入Layer 2**
-- **exit 2 / 127 / CataforgeError("no executable scripts")** (脚本不可达) → **FAIL**，不降级；先运行 `cataforge doctor` 定位问题，修复后重审
-- **运行时异常** (Python错误/超时) → 标注"脚本检查跳过(降级)"，**降级进入Layer 2**
+**调用约定（单一入口）**: Layer 1 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。返回码语义按 §Layer 1 调用协议处理。
 
 ### Step 2: Layer 2 — AI语义审查
 通过doc-nav加载dev-plan Sprint任务详情、arch接口契约、CODE-REVIEW报告，审查:
@@ -63,6 +57,8 @@ Sprint审查额外category:
 三态判定按 COMMON-RULES §三态判定逻辑。Sprint needs_revision 标记具体任务 ID 以便重入 TDD。
 
 ## Layer 1 检查项 (sprint_check.py)
+
+> 权威清单见 `cataforge.skill.builtins.sprint_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
 
 - Sprint任务表中所有任务状态=done
 - 每个任务的deliverables文件路径全部存在于磁盘
