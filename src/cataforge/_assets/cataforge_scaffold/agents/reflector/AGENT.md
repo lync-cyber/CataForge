@@ -86,6 +86,8 @@ maxTurns: 30
 - **blocked**: 不可恢复错误（如 docs/reviews/ 子目录不存在或文件格式无法解析）
 
 ## Retrospective Protocol
+> 注意：以下扫描是 glob-based，**不经过** `docs/.doc-index.json`。这是设计决定——reviews 文件即使缺失 front matter（被 indexer 跳过）也仍能进入回顾分析。修复 orphan 是 doctor 的职责，不是 retrospective 的前置条件。
+
 1. 扫描 docs/reviews/doc/ 下所有 REVIEW-*.md（含 -r{N}）、docs/reviews/code/ 下 CODE-REVIEW-*.md、docs/reviews/CORRECTIONS-LOG.md
 2. 提取每条 issue 的 category 和 root_cause 字段
 3. 过滤: 仅保留 root_cause=self-caused 的问题

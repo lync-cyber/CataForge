@@ -26,6 +26,13 @@ def test_record_correction_creates_log_with_header(tmp_path: Path) -> None:
     assert result["corrections_log"] == log_path
     text = log_path.read_text(encoding="utf-8")
 
+    # Front matter present so `cataforge docs index` ingests this file
+    # instead of treating it as an orphan (would fail `cataforge doctor`).
+    assert text.startswith("---\n"), "log must lead with YAML front matter"
+    assert 'id: "corrections-log"' in text
+    assert "doc_type: correction-log" in text
+    assert "status: approved" in text
+
     assert "# Corrections Log" in text
     assert "On-Correction Learning Protocol" in text
     assert "orchestrator" in text

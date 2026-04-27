@@ -30,6 +30,13 @@ VALID_DEVIATIONS: frozenset[str] = frozenset(
 )
 
 _HEADER = (
+    "---\n"
+    'id: "corrections-log"\n'
+    "doc_type: correction-log\n"
+    "author: cataforge\n"
+    "status: approved\n"
+    "deps: []\n"
+    "---\n"
     "# Corrections Log\n\n"
     "> 由 CataForge 自动追加。On-Correction Learning Protocol 触发条件见\n"
     "> `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`。\n"

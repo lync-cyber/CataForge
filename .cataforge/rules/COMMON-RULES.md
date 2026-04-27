@@ -176,6 +176,30 @@ Layer 1 返回四态处理：`0`→进入 Layer 2；`1`→报问题不进 Layer 
 - 第 N 次审查: `-r{N}`（N = 对应子目录下同前缀 `-r*` 文件数 + 1）
 - 最新版本 = 编号最大的文件，无需归档重命名
 
+### 报告 Front Matter 约定（必填）
+所有系统生成的报告（含审查报告与运维日志）必须以 YAML front matter 起始，否则会被 `cataforge docs index` 跳过、被 `cataforge doctor` 计为 orphan 并 FAIL。约定如下：
+
+| 报告类别 | 路径 | `id` 格式 | `doc_type` | 允许的 `status` |
+|---------|------|----------|-----------|----------------|
+| 文档审查报告 | `docs/reviews/doc/REVIEW-{doc_id}-r{N}.md` | `review-{doc_id}-r{N}` | `review` | `draft` / `approved` |
+| 代码审查报告 | `docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md` | `code-review-{task_id}-r{N}` | `code-review` | `draft` / `approved` |
+| Sprint 审查报告 | `docs/reviews/sprint/SPRINT-REVIEW-*.md` | 见 [`utility/sprint-review.md`](../skills/doc-gen/templates/utility/sprint-review.md) | `sprint-review` | `draft` / `approved` |
+| 运维订正日志 | `docs/reviews/CORRECTIONS-LOG.md` | `corrections-log` | `correction-log` | `approved` |
+
+最小字段集（doc-review checker 强制要求 id/author/status/deps）：
+
+```yaml
+---
+id: "review-{doc_id}-r{N}"        # 或 code-review-{task_id}-r{N} / corrections-log
+doc_type: review                  # 或 code-review / sprint-review / correction-log
+author: reviewer                  # 审查报告：reviewer；CORRECTIONS-LOG：cataforge
+status: draft                     # 出 verdict 后改 approved；CORRECTIONS-LOG 恒为 approved
+deps: ["{被审 doc_id 或 task_id}"] # CORRECTIONS-LOG 用 []
+---
+```
+
+注意：`status` 取值只能是 `draft` / `review` / `approved`（见 doc-review checker），不可写 `closed`。
+
 ### 问题格式
 ```
 ### [R-{NNN}] {SEVERITY}: {标题}
