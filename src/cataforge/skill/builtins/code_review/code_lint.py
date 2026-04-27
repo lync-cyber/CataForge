@@ -92,9 +92,27 @@ SCAN_PROBES: dict[str, list[dict]] = {
     "duplication": [
         {
             "name": "jscpd",
-            "extensions": {".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".cs", ".rs"},
+            "extensions": {
+                ".js", ".ts", ".jsx", ".tsx", ".py", ".go",
+                ".cs", ".rs", ".java", ".kt", ".swift",
+            },
             "detect": ["npx", "jscpd", "--version"],
             "build_cmd": lambda target: ["npx", "jscpd", "--silent", str(target)],
+            "fail_on_nonzero": False,
+        },
+        {
+            # PMD CPD is the canonical Java duplication detector — better
+            # tokenization than jscpd for Java's verbose syntax. Also
+            # supports JSP / Apex / PLSQL / Modelica out of the box, so
+            # we register it whenever the project has .java files even
+            # if jscpd is also installed (the two report side-by-side).
+            "name": "pmd-cpd",
+            "extensions": {".java"},
+            "detect": ["pmd", "cpd", "--help"],
+            "build_cmd": lambda target: [
+                "pmd", "cpd", "--minimum-tokens", "100",
+                "--language", "java", "--dir", str(target),
+            ],
             "fail_on_nonzero": False,
         },
     ],
@@ -112,6 +130,17 @@ SCAN_PROBES: dict[str, list[dict]] = {
             "detect": ["npx", "ts-prune", "--version"],
             "build_cmd": lambda target: ["npx", "ts-prune", "--project", str(target)],
             "fail_on_nonzero": False,
+        },
+        {
+            # cargo-machete detects unused dependencies declared in
+            # Cargo.toml — the closest "dead-code" signal that Rust's
+            # type-and-borrow checker doesn't already catch. Triggered
+            # by the presence of any .rs file in the target.
+            "name": "cargo-machete",
+            "extensions": {".rs"},
+            "detect": ["cargo", "machete", "--help"],
+            "build_cmd": lambda target: ["cargo", "machete", str(target)],
+            "fail_on_nonzero": True,
         },
     ],
     "complexity": [
