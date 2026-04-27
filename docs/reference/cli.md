@@ -9,7 +9,7 @@
 | [`cataforge doctor`](#doctor) | 健康诊断，可作 CI gate |
 | [`cataforge setup`](#setup) | 初始化项目、设定运行时平台 |
 | [`cataforge deploy`](#deploy) | 投放资产到目标平台 |
-| [`cataforge agent`](#agent) | Agent 发现与校验 |
+| [`cataforge agent`](#agent) | Agent 发现、校验、on-demand 调起 |
 | [`cataforge skill`](#skill) | Skill 发现与执行 |
 | [`cataforge hook`](#hook) | Hook 列表与测试 |
 | [`cataforge mcp`](#mcp) | MCP 服务注册与生命周期 |
@@ -88,8 +88,28 @@ cataforge deploy [--dry-run] [--platform <id>]
 ## agent
 
 ```bash
-cataforge agent list        # 列出已发现的 Agent
-cataforge agent validate    # 校验 Agent 定义合法性
+cataforge agent list                                    # 列出已发现的 Agent
+cataforge agent validate                                # 校验 Agent 定义合法性
+cataforge agent run <id> [--task-type <t>] [task...]    # On-demand 调起：渲染 AGENT.md + 任务框架并自动复制到剪贴板
+```
+
+### `agent run` — on-demand 调起
+
+**何时用它**：用户想绕过 orchestrator 自动判定，手动激活通常只走调度路由的 agent（如 `reflector` 跑阶段性 retro、`debugger` 调框架脚本）。
+
+**做什么**：渲染标准 prompt payload（AGENT.md 正文 + `task_type` 框架 + 用户任务），打到 stdout 并自动复制到剪贴板（Windows `clip` / macOS `pbcopy` / Linux `xclip`/`xsel`）；粘贴到 IDE 聊天即可激活该 agent。
+
+**不做什么**：**不发起远程调度** — sub-agent 派发是 IDE runtime 的职责（Claude Code 的 Task 工具、Cursor 的 agent mode 等）。本命令只生成 prompt，不替代 IDE 的派发链路。
+
+**`--task-type`**：默认 `new_creation`；可选 `revision` / `continuation` / `retrospective` / `skill-improvement` / `apply-learnings` / `amendment` / `on_demand`。
+
+**`--print-only`**：跳过剪贴板复制（CI 或缺剪贴板后端时用）。非 TTY 自动启用。
+
+例：
+
+```bash
+cataforge agent run reflector --task-type retrospective "本周 framework-review 报告积累后的二次提炼"
+cataforge agent run debugger "scaffold-sync.yml 总在 windows-latest red，本地复现不出"
 ```
 
 ---

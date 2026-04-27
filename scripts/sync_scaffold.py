@@ -19,6 +19,7 @@ Cross-platform (no rsync dependency); uses pure stdlib walks.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import filecmp
 import shutil
 import sys
@@ -137,10 +138,8 @@ def sync() -> int:
             key=lambda p: len(p.parts),
             reverse=True,
         ):
-            try:
+            with contextlib.suppress(OSError):
                 path.rmdir()
-            except OSError:
-                pass
 
     if missing or differs or extra:
         print(

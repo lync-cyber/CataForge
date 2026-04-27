@@ -57,7 +57,8 @@ def main() -> int:
             tup = tuple(int(x) for x in v.split("."))
             if tup < pkg:
                 rel = path.relative_to(REPO_ROOT)
-                fails.append(f"{rel}: example uses v{v}, package is v{'.'.join(str(x) for x in pkg)}")
+                pkg_v = ".".join(str(x) for x in pkg)
+                fails.append(f"{rel}: example uses v{v}, package is v{pkg_v}")
 
     if fails:
         print("Anti-rot: documented example version is stale", file=sys.stderr)

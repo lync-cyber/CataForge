@@ -26,10 +26,21 @@ repos:
         files: ^(\.cataforge/|src/cataforge/_assets/cataforge_scaffold/|scripts/sync_scaffold\.py)
       - id: ruff
         name: ruff (lint)
-        entry: python -m ruff check src tests
+        entry: python -m ruff check src tests scripts
         language: system
         pass_filenames: false
         types_or: [python]
+      - id: stdio-utf8-guard
+        name: scripts/*.py call ensure_utf8_stdio() (Windows cp1252 guard)
+        description: |
+          Mirrors tests/test_scripts_stdio_guard.py at commit time. Any
+          new script that prints non-ASCII (→/中文/emoji) to stdout will
+          crash on Windows cp1252 unless it reconfigures stdio to UTF-8;
+          catch the omission locally instead of waiting for CI.
+        entry: python -m pytest tests/test_scripts_stdio_guard.py -q
+        language: system
+        pass_filenames: false
+        files: ^scripts/.*\.py$
       - id: schema-python-parity
         name: schemas/*.schema.json vs Python mirror parity
         description: |
