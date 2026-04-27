@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.15]
+## [0.1.15] — 2026-04-27
 
 框架自我审计闭环：把"项目代码腐化扫描"与"框架元资产质量审计"两个长期靠人工维持的盲区收编为可在 CI 强制执行的 skill；附带把 dep-analysis 重命名为 task-dep-analysis 以与未来的代码 coupling 分析消歧。
 
@@ -420,7 +420,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.14...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.15...HEAD
+[0.1.15]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.15
 [0.1.14]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.14
 [0.1.13]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.13
 [0.1.12]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.12
