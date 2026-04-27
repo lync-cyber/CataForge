@@ -75,7 +75,7 @@ Mode Routing Protocol 在以下时刻被调用:
 - 会话恢复时（Startup Protocol 读取 CLAUDE.md 后）
 
 ### 模式回退
-- `agile-lite` / `agile-prototype` 运行中若 orchestrator 检测到以下信号，应通过 AskUserQuestion 提示用户切换到更高档位模式: brief.md 实际产出 >300 行；agile-lite 任务数 >25；或任何 lite 文档超过 150 行且仍无法表达核心决策。切换由用户手动编辑 CLAUDE.md §框架元信息.执行模式完成，orchestrator 不自动改写该字段。
+- `agile-lite` / `agile-prototype` 运行中若 orchestrator 检测到以下信号，应通过 AskUserQuestion 提示用户切换到更高档位模式: brief.md 实际产出超过 DOC_SPLIT_THRESHOLD_LINES；agile-lite 任务数 >25；或任何 lite 文档超过 150 行且仍无法表达核心决策。切换由用户手动编辑 CLAUDE.md §框架元信息.执行模式完成，orchestrator 不自动改写该字段。
 
 ## Interrupt-Resume Protocol
 注: 前台子代理(默认)可直接使用AskUserQuestion向用户提问。本协议仅在后台子代理返回 needs_input 时触发。

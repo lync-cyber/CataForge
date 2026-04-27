@@ -74,6 +74,16 @@ jobs:
         if: runner.os == 'Linux'
         run: cataforge doctor
 
+      - name: "framework-review (B1/B2/B3/B4/B5 meta-asset audit)"
+        # Promote framework-review from a manually-invoked audit to a
+        # required CI gate. Catches the rot classes that doctor can't see:
+        # AGENT.md / SKILL.md missing required sections, broken cross-refs
+        # in skills:/depends:, SKILL.md ↔ CHECKS_MANIFEST drift, hard-coded
+        # constant literals, and phase × agent × skill coverage gaps.
+        # Linux-only — same rationale as doctor.
+        if: runner.os == 'Linux'
+        run: cataforge skill run framework-review -- all
+
   e2e:
     name: E2E install + upgrade (ubuntu, py3.12)
     runs-on: ubuntu-latest

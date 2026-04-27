@@ -13,6 +13,15 @@ user-invocable: true
 - 能做: 文档结构检查(脚本)、语义审查(AI)、产出REVIEW报告、变更文档状态
 - 不做: 修改被审文档(仅报告问题)、内容生成
 
+## 输入规范
+- doc_type: prd | arch | dev-plan | ui-spec | test-report | deploy-spec | research-note | changelog（含 lite 变体）
+- doc_file: 待审文档绝对/相对路径
+- 上游依赖文档（按 doc_type 推断，通过 doc-nav 按需加载）
+
+## 输出规范
+- `docs/reviews/doc/REVIEW-{doc_id}-r{N}.md`（首行 YAML front matter + 问题列表 + 严重等级 CRITICAL/HIGH/MEDIUM/LOW）
+- 审查结论: approved / approved_with_notes / needs_revision
+
 ## 操作指令: 执行双审门禁 (review)
 
 ### Step 1: Layer 1 — Python脚本自动检查
@@ -40,13 +49,7 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{vol_file} --volume
 - `*-p*-p*.md` → pages
 - `*-c*-c*.md` → components
 
-**规则**: 所有分卷必须全部通过 Layer 1 才进入 Layer 2。
-
-处理结果(四种情况):
-- **exit 0** (脚本执行成功 + 检查通过) → 进入Step 2 Layer 2
-- **exit 1** (脚本执行成功 + 检查不通过) → 返回失败项列表，**不进入Layer 2**，节省资源
-- **exit 2 / 127 / CataforgeError("no executable scripts")** (脚本不可达) → **FAIL**，不降级；先运行 `cataforge doctor` 定位问题，修复后重审
-- **运行时异常** (文件缺失/Python错误/超时) → 标注"脚本检查跳过(降级)"，**降级进入Layer 2**。降级后 Layer 2 的审查标准和判定规则不变（无CRITICAL/HIGH→approved），仅标记"Layer 1降级"供追溯
+**规则**: 所有分卷必须全部通过 Layer 1 才进入 Layer 2。Layer 1 返回码语义按 §Layer 1 调用协议处理。
 
 **Layer 2 短路条件** (降低轻量文档的审查开销):
 - 若 Layer 1 exit 0、被审文档行数 < `DOC_REVIEW_L2_SKIP_THRESHOLD_LINES`、且 `doc_type ∈ DOC_REVIEW_L2_SKIP_DOC_TYPES`，则**跳过 Layer 2** 直接判定为 `approved`
@@ -61,6 +64,8 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{vol_file} --volume
 - 安全性(security): 是否存在安全漏洞或合规风险
 - 规范性(convention): 命名/格式/编码规范是否符合约定
 - 清晰度(ambiguity): 描述是否模糊、能否作为下游输入
+
+**维度收敛**: 调用方可传 `--focus <category[,...]>`（值取自 COMMON-RULES §统一问题分类体系），仅审查指定维度。不传时跑全维度。例如：`cataforge skill run doc-review -- prd docs/prd/prd-x.md --focus consistency,ambiguity`。
 
 **ui-spec专项审查维度**（仅当doc_type=ui-spec时追加）:
 - 设计方向一致性(consistency): §0设计方向声明是否贯穿到Token选择和组件风格——如声明"专业克制"但使用了高饱和度彩色和大圆角
@@ -92,13 +97,18 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 
 ## Layer 1 检查项 (doc_check.py)
 
+> 权威清单见 `cataforge.skill.builtins.doc_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
+
 通用 (所有文档类型):
 - 文档头元数据完整(id, author, status, deps, consumers)
-- [NAV]块存在且与实际章节一致 (changelog除外)
-- 所有必填章节非空 (按doc_type定义)
+- [NAV]块存在且与实际章节一致 (changelog/research 除外)
+- 所有必填章节非空 (按doc_type/volume_type/mode定义)
 - ID编号连续无跳号 (WARN)
 - 交叉引用目标文件存在 (FAIL)
 - 无未处理TODO/TBD/FIXME (或已标注[ASSUMPTION])
+- 文档行数 ≤ DOC_SPLIT_THRESHOLD_LINES，超过即 WARN 建议拆分
+- 分卷文件必填 split_from 字段
+- 主卷必须引用同前缀的所有分卷文件 (WARN)
 
 专项检查:
 - **prd**: 用户故事覆盖、验收标准(AC-NNN)存在、非功能需求充实度、优先级(P0/P1/P2)标注

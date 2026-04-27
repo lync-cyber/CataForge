@@ -70,12 +70,18 @@ class SkillRunner:
                 raise FileNotFoundError(f"Script file not found: {script_path}")
             cmd = [sys.executable, str(script_path)] + (args or [])
 
+        # Force UTF-8 on subprocess pipes — Windows cp1252 default would
+        # raise UnicodeDecodeError when a skill prints arrows / Chinese
+        # findings (e.g. framework_check.py). Pairs with ensure_utf8_stdio()
+        # in the script's main(): both ends agree on UTF-8.
         result = subprocess.run(
             cmd,
             cwd=str(self._paths.root),
             env=env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
 
         self._emit_run_event(meta, script_entry, result.returncode, agent=agent)

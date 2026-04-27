@@ -24,6 +24,16 @@ import shutil
 import sys
 from pathlib import Path
 
+# Reconfigure stdio to UTF-8 before any print() runs so the unicode
+# arrow ('→') in the sync summary doesn't crash the script on Windows
+# cp1252 terminals. The cataforge package isn't necessarily importable
+# from this build script (chicken-and-egg in fresh checkouts), so we
+# inline the same logic as cataforge.utils.common.ensure_utf8_stdio.
+for _stream_name in ("stdout", "stderr"):
+    _stream = getattr(sys, _stream_name)
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCE = REPO_ROOT / ".cataforge"
 TARGET = REPO_ROOT / "src" / "cataforge" / "_assets" / "cataforge_scaffold"

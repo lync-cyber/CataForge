@@ -1,6 +1,6 @@
 ---
-name: dep-analysis
-description: "依赖分析 — 任务依赖关系建模、关键路径计算、环检测。"
+name: task-dep-analysis
+description: "任务依赖分析 — dev-plan 任务表的依赖关系建模、关键路径计算、环检测、Sprint 分组。**仅处理任务依赖**；代码模块依赖图由 code-review scan 的 coupling 维度负责，请勿混淆。"
 argument-hint: "<DEV-PLAN文档路径>"
 suggested-tools: Read, Grep, Bash
 depends: []
@@ -8,10 +8,13 @@ disable-model-invocation: false
 user-invocable: true
 ---
 
-# 依赖分析 (dep-analysis)
+# 任务依赖分析 (task-dep-analysis)
+
+> **命名说明**: v0.1.15 起由原 `dep-analysis` 重命名为 `task-dep-analysis`，明确范围限定为"任务依赖"，与 code-review scan 的代码 coupling 维度区分。
+
 ## 能力边界
 - 能做: 任务间依赖关系建模、拓扑排序、关键路径计算、循环依赖检测、Sprint分组建议
-- 不做: 任务内容定义、代码实现
+- 不做: 任务内容定义、代码实现、代码模块依赖图（→ code-review scan --focus coupling）
 
 ## 输入规范
 - dev-plan#§1 Sprint任务表(任务ID + 依赖列)
@@ -37,7 +40,7 @@ user-invocable: true
 
 使用Bash执行:
 ```bash
-cataforge skill run dep-analysis -- \
+cataforge skill run task-dep-analysis -- \
   --edges "T-001→T-002,T-002→T-003,..." \
   [--weights "T-001:S,T-002:M,T-003:L,..."] \
   [--format json|mermaid]

@@ -47,6 +47,7 @@
 | EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL 格式） | `cataforge event log` (via event_logger.py shim), ORCHESTRATOR-PROTOCOLS |
 | EVENT_LOG_SCHEMA | .cataforge/schemas/event-log.schema.json | 事件日志 Schema 定义 | `cataforge event log`（核心校验在 cataforge.core.event_log） |
 | DOC_SPLIT_THRESHOLD_LINES | 300 | 单文档触发拆分的行数 | doc-gen |
+| META_DOC_SPLIT_THRESHOLD_LINES | 500 | 单个 SKILL.md / AGENT.md / 协议文档触发拆分提示的行数（协议文档天然偏长，阈值放宽） | framework-review |
 | DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
 | DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, prd-lite, arch-lite, dev-plan-lite, changelog] | 可短路 Layer 2 的文档类型白名单 | doc-review |
 | TDD_LIGHT_LOC_THRESHOLD | 50 | tech-lead 判定任务标记 `tdd_mode: light` 的预估 LOC 阈值 | tech-lead, tdd-engine |
@@ -158,10 +159,14 @@ Anti-Patterns应使用"做A而非B"格式并附具体例子，避免抽象禁令
 | security | 文档+代码 | 安全漏洞、合规风险 |
 | feasibility | 文档 | 技术可行性、实现性 |
 | ambiguity | 文档 | 模糊不清、多义 |
-| structure | 代码 | 架构/组织/耦合 |
+| structure | 代码 | 架构/组织/职责划分 |
 | error-handling | 代码 | 异常处理、边界条件 |
 | performance | 代码 | 性能/效率 |
 | test-quality | 代码 | 测试断言有效性、测试逻辑正确性、边界覆盖 |
+| duplication | 代码 | 跨文件/跨函数的重复实现（Type-1/2 克隆，含 copy-paste 与近似克隆） |
+| dead-code | 代码 | 不可达分支、未引用的导出、永远为假的条件 |
+| complexity | 代码 | 圈复杂度/认知复杂度过高、嵌套深度超阈值 |
+| coupling | 代码 | 模块间引用过密、依赖图存在循环或扇出过大 |
 
 ## Layer 1 调用协议（single entry）
 三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过 `cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner` 路由到内置实现（`python -m cataforge.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md、Agent、Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。完整规约见 [`docs/architecture/quality-and-learning.md §2.1`](../../docs/architecture/quality-and-learning.md)。
@@ -184,6 +189,8 @@ Layer 1 返回四态处理：`0`→进入 Layer 2；`1`→报问题不进 Layer 
 | 文档审查报告 | `docs/reviews/doc/REVIEW-{doc_id}-r{N}.md` | `review-{doc_id}-r{N}` | `review` | `draft` / `approved` |
 | 代码审查报告 | `docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md` | `code-review-{task_id}-r{N}` | `code-review` | `draft` / `approved` |
 | Sprint 审查报告 | `docs/reviews/sprint/SPRINT-REVIEW-*.md` | 见 [`utility/sprint-review.md`](../skills/doc-gen/templates/utility/sprint-review.md) | `sprint-review` | `draft` / `approved` |
+| 框架元资产审查报告 | `docs/reviews/framework/FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}-r{N}.md` | `framework-review-{scope}-{YYYYMMDD}-r{N}` | `framework-review` | `draft` / `approved` |
+| 项目级代码扫描报告 | `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md` | `code-scan-{YYYYMMDD}-r{N}` | `code-review` | `draft` / `approved` |
 | 运维订正日志 | `docs/reviews/CORRECTIONS-LOG.md` | `corrections-log` | `correction-log` | `approved` |
 
 最小字段集（doc-review checker 强制要求 id/author/status/deps）：

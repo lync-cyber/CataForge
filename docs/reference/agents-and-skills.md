@@ -108,7 +108,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
 - **禁用工具（deny）**：agent_dispatch, web_search, web_fetch
 - **写入路径**：docs/dev-plan/, docs/research/
-- **关联 Skill**：task-decomp, dep-analysis, doc-gen, doc-nav
+- **关联 Skill**：task-decomp, task-dep-analysis, doc-gen, doc-nav
 
 </details>
 
@@ -217,7 +217,7 @@ tools:
 | 7 | arc-design | 领域技能 | 架构 | 模块划分、接口定义、数据建模 |
 | 8 | ui-design | 领域技能 | 设计 | 页面布局、组件规格、交互流程 |
 | 9 | task-decomp | 领域技能 | 计划 | 功能到任务的分解 |
-| 10 | dep-analysis | 领域技能 | 计划 | 依赖建模、关键路径、循环检测 |
+| 10 | task-dep-analysis | 领域技能 | 计划 | 依赖建模、关键路径、循环检测 |
 | 11 | tech-eval | 领域技能 | 架构 | 技术方案对比与选型决策 |
 | 12 | req-analysis | 领域技能 | 需求 | 需求分解、用户故事、验收标准定义 |
 | 13 | research | 领域技能 | 信息 | Web 搜索、用户访谈、信息收集 |
@@ -276,7 +276,7 @@ tools:
 </details>
 
 <details>
-<summary><b>领域 Skill</b>（arc-design · ui-design · task-decomp · dep-analysis · tech-eval · req-analysis · research）</summary>
+<summary><b>领域 Skill</b>（arc-design · ui-design · task-decomp · task-dep-analysis · tech-eval · req-analysis · research）</summary>
 
 **arc-design** — 架构设计技能，涵盖模块划分、接口定义、数据建模。
 
@@ -284,7 +284,7 @@ tools:
 
 **task-decomp** — 任务分解技能，将功能需求拆解为可执行的开发任务。
 
-**dep-analysis** — 依赖分析技能，建模任务间依赖关系，识别关键路径，检测循环依赖。
+**task-dep-analysis** — 依赖分析技能，建模任务间依赖关系，识别关键路径，检测循环依赖。
 
 **tech-eval** — 技术评估技能，对备选技术方案进行对比分析并给出选型建议。
 
@@ -348,7 +348,7 @@ tools:
 | **product-manager** | `doc-gen` · `doc-nav` · `req-analysis` · `research` | — |
 | **architect** | `doc-gen` · `doc-nav` · `arc-design` · `tech-eval` · `research` | — |
 | **ui-designer** | `doc-gen` · `doc-nav` · `ui-design` · `research` | `penpot-sync` |
-| **tech-lead** | `doc-gen` · `doc-nav` · `task-decomp` · `dep-analysis` | — |
+| **tech-lead** | `doc-gen` · `doc-nav` · `task-decomp` · `task-dep-analysis` | — |
 | **test-writer** | — | — |
 | **implementer** | — | `penpot-implement` |
 | **refactorer** | — | — |
