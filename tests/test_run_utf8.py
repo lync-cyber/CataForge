@@ -17,7 +17,6 @@ import pytest
 
 from tests.conftest import run_utf8
 
-
 # A short Python program that writes Chinese + em-dash bytes to stdout.
 # Crashes the parent's reader thread under cp1252 if encoding isn't
 # explicit — symptom is r.stdout == None.
