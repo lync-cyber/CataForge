@@ -21,9 +21,9 @@ maxTurns: 30
 
 
 ## Input Contract
-orchestrator 通过 tdd-engine prompt 传入**任务上下文 bundle 路径**（`.cataforge/.cache/tdd/T-{xxx}-context.md`），其中包含 §meta / §tdd_acceptance / §interface_contract / §directory_layout / §test_command 等章节。**首步必须 Read bundle**，从 §meta 读取 `task_kind` / `tdd_mode`（确认非 chore 跳 TDD）/ `security_sensitive`（true 时需补边界与安全用例）；缺少 bundle 路径或 bundle 缺关键章节时返回 blocked。
+orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acceptance / §interface_contract / §directory_layout / §test_command 等章节内容。从 §meta 读取 `task_kind` / `tdd_mode`（确认非 chore 跳 TDD）/ `security_sensitive`（true 时需补边界与安全用例）；缺少必要章节时返回 blocked。
 
-**批量 RED 模式**：如 prompt 列出多个任务 bundle 路径（同 sprint_group 同模块批量化），逐个 Read 并按 task_id 分块产出测试，summary 中按 task_id 列出测试结果。
+**批量 RED 模式**：如 prompt 按 task_id 分块内联多个任务的 §tdd_acceptance（同 sprint_group 同模块批量化），逐块产出测试，summary 中按 task_id 列出测试结果。
 
 ## Output Contract
 返回 `<agent-result>` 格式:

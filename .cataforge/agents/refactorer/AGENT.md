@@ -20,13 +20,13 @@ maxTurns: 30
 
 
 ## Input Contract
-orchestrator 通过 tdd-engine prompt 传入：
-- **任务上下文 bundle 路径**：`.cataforge/.cache/tdd/T-{xxx}-context.md`（含 §meta / §naming_convention / §test_command）。首步必须 Read bundle，从 §meta 读取 `tdd_refactor` 校验触发合理性、`security_sensitive` 影响重构边界
+orchestrator 通过 tdd-engine prompt **直接内联**传入：
+- **任务上下文**：§meta / §naming_convention / §test_command 章节内容（从 §meta 读取 `tdd_refactor` 校验触发合理性、`security_sensitive` 影响重构边界）
 - **实现文件**：GREEN 阶段产出的 impl_files 路径列表
 - **测试文件**：RED 阶段产出的 test_files 路径列表
 - **触发原因**：code-review Layer 1 命中的 category 列表（complexity / duplication / coupling），重构应聚焦该维度
 
-缺少 bundle 路径或 impl/test 文件列表时返回 blocked。
+缺少必要章节或 impl/test 文件列表时返回 blocked。
 
 ## Output Contract
 返回 `<agent-result>` 格式:

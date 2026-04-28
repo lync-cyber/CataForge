@@ -193,7 +193,7 @@ Mode Routing Protocol 在以下时刻被调用:
 
 **适用前提**:
 - task-dep-analysis 已生成 `sprint_groups`（同组无依赖；上游 sprint_group 全部完成后才进入下一组）
-- 同一 sprint_group 内的任务都已通过 Step 1（任务 bundle 已写入）
+- 同一 sprint_group 内的任务都已通过 Step 1（任务上下文已提取）
 
 **并行规则**:
 1. **同 sprint_group 任务并行 RED/GREEN/LIGHT**：在**单条主线程消息内**通过 agent_dispatch 工具发出多个调度调用，并发上限 = `min(sprint_group 任务数, 3)`。批次完成后才进入下一阶段，避免阶段交叉
@@ -214,20 +214,20 @@ Mode Routing Protocol 在以下时刻被调用:
 sprint_group_1 = ["T-001", "T-004"]   # 共享 M-002，可批量化
 sprint_group_2 = ["T-002", "T-003"]   # 互独立，可并行
 
-# group 1：单次 test-writer 批量 RED + 各自 GREEN 并行
+# group 1：单次 test-writer 批量 RED（内联各任务 AC + 共享接口契约）+ 各自 GREEN 并行
 batch_dispatch([
-  Agent(test-writer, prompt=bundles[T-001, T-004]),
+  Agent(test-writer, prompt=inline_context[T-001, T-004]),
 ])
 # RED 完成后
 batch_dispatch([
-  Agent(implementer, T-001, prompt=bundle+test_files),
-  Agent(implementer, T-004, prompt=bundle+test_files),
+  Agent(implementer, T-001, prompt=inline_context+test_files),
+  Agent(implementer, T-004, prompt=inline_context+test_files),
 ])
 
-# group 2：直接并行 LIGHT
+# group 2：直接并行 LIGHT（各自内联上下文）
 batch_dispatch([
-  Agent(implementer, T-002, prompt=bundle+light_mode),
-  Agent(implementer, T-003, prompt=bundle+light_mode),
+  Agent(implementer, T-002, prompt=inline_context+light_mode),
+  Agent(implementer, T-003, prompt=inline_context+light_mode),
 ])
 ```
 

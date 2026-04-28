@@ -1,6 +1,6 @@
 ---
 name: penpot-implement
-description: "Penpot组件代码生成 — 从Penpot设计组件生成代码骨架。"
+description: "Penpot 组件代码生成 — 从 Penpot 设计组件读取结构/样式/属性，生成前端组件代码骨架。当 ui-spec 已定义 C-{NNN} 组件且需要从设计稿落地代码骨架时使用此 skill。本 skill 专注 generation；设计 ↔ 代码一致性验证由 penpot-review 负责，Token 双向同步由 penpot-sync 负责。"
 argument-hint: "<component-id: C-NNN 或 Penpot组件名>"
 suggested-tools: Read, Write, Edit, Glob, Grep
 depends: [doc-nav, penpot-sync]
@@ -10,8 +10,8 @@ user-invocable: true
 
 # Penpot组件代码生成 (penpot-implement)
 ## 能力边界
-- 能做: 从Penpot组件读取结构/样式/属性、生成组件代码骨架、比对设计与代码一致性
-- 不做: 完整业务逻辑实现、状态管理、API对接
+- 能做: 从Penpot组件读取结构/样式/属性、生成组件代码骨架
+- 不做: 完整业务逻辑实现、状态管理、API对接、设计-代码一致性验证（由 penpot-review 负责）、Token 同步（由 penpot-sync 负责）
 
 ## 前置条件
 - CLAUDE.md `设计工具` 字段为 `penpot`
@@ -26,7 +26,8 @@ user-invocable: true
 ## 输出规范
 - 组件代码骨架文件（按 arch 技术栈格式）
 - 组件样式文件（引用 tokens.css 变量）
-- 一致性检查报告
+
+> 一致性比对不在本 skill 输出之内：生成骨架后若需验证还原度，由 orchestrator 调度 penpot-review 接管。
 
 ## 执行流程
 
@@ -52,13 +53,6 @@ user-invocable: true
 - 变体支持（default/hover/active/disabled/error）
 - 样式（引用 tokens.css 变量）
 - 预留交互钩子（onClick等，基于 ui-spec 交互描述）
-
-### Step 4: 一致性验证
-- 比对生成的代码样式与Penpot设计:
-  - 颜色值是否匹配
-  - 字体/字号是否一致
-  - 间距/尺寸是否吻合
-- 产出差异列表（如有）
 
 ## Penpot MCP 工具发现
 具体 MCP 工具名称以平台 MCP 配置为准（Claude: `.mcp.json` 或 `.claude/settings.json`；Cursor: `.cursor/mcp.json`；OpenCode: `opencode.json`），运行时通过可用工具列表自动发现。典型操作包括: 读取组件结构/样式/SVG。若工具列表中无 Penpot 相关工具，先运行 `cataforge penpot ensure` 尝试启动服务（若 Penpot 尚未部署则改运行 `cataforge penpot deploy`），仍不可用则返回 blocked。
