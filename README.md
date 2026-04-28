@@ -1,4 +1,3 @@
-<!-- 变更原因：第一句改为动词主动句说清"做什么 / 解决什么问题"；删除"一键 / 智能 / 开箱即用"等禁用词；徽章只保留实质性的 4 个 -->
 # CataForge
 
 [![PyPI](https://img.shields.io/pypi/v/cataforge?color=b45309)](https://pypi.org/project/cataforge/)
@@ -31,8 +30,6 @@ cataforge bootstrap --platform cursor    # 或 claude-code / codex / opencode
 其它安装方式（pip / 项目 venv / Windows 最小清单）见 [安装指南](https://github.com/lync-cyber/CataForge/blob/main/docs/getting-started/installation.md)。
 
 ## 它为你解决什么
-
-<!-- 变更原因：从"功能亮点"改为问题驱动；用具体行为替换营销词 -->
 
 | 问题 | CataForge 的做法 |
 |------|------------------|
