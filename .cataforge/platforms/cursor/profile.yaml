@@ -141,6 +141,14 @@ permissions:
 model_routing:
   available_models: [opus, sonnet, gpt-5.4, gemini-3-pro, grok-code, composer-2]
   per_agent_model: true
+  user_resolved: false
+  # Cursor's per-agent `model:` accepts the same Anthropic literals as
+  # Claude Code; tier_map mirrors that. Users wanting GPT/Gemini per-agent
+  # override at .cursor/agents/<name>.md after deploy.
+  tier_map:
+    light: sonnet
+    standard: sonnet
+    heavy: opus
 
 context_injection:
   # Cursor 通过 .cursor/rules/*.mdc 实现规则注入；已使用 alwaysApply:true（见

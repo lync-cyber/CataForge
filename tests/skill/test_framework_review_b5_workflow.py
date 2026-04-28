@@ -69,11 +69,24 @@ def _write_event_log(tmp_path: Path, events: list[dict]) -> None:
     )
 
 
-def _write_framework_json(tmp_path: Path, features: dict) -> None:
+def _write_framework_json(
+    tmp_path: Path,
+    features: dict | None = None,
+    *,
+    dispatcher_skills: list[str] | None = None,
+    constants: dict | None = None,
+) -> None:
     fw_dir = tmp_path / ".cataforge"
     fw_dir.mkdir(parents=True, exist_ok=True)
+    payload: dict = {"version": "test"}
+    if features is not None:
+        payload["features"] = features
+    if dispatcher_skills is not None:
+        payload["dispatcher_skills"] = dispatcher_skills
+    if constants is not None:
+        payload["constants"] = constants
     (fw_dir / "framework.json").write_text(
-        json.dumps({"version": "test", "features": features}),
+        json.dumps(payload),
         encoding="utf-8",
     )
 
@@ -145,7 +158,7 @@ def test_b5_eventlog_skipped_when_log_absent(tmp_path: Path) -> None:
 
 
 def test_b5_eventlog_skipped_below_threshold(tmp_path: Path) -> None:
-    """EVENT-LOG with <10 returns → no eventlog findings (immature data)."""
+    """EVENT-LOG with <threshold returns → single INFO finding, no WARN."""
     _write_orchestrator(tmp_path, "Phase 1 requirements → product-manager → prd")
     _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
     _write_skill(tmp_path, "doc-nav")
@@ -161,7 +174,44 @@ def test_b5_eventlog_skipped_below_threshold(tmp_path: Path) -> None:
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)
     findings = [f for f in report.findings if f.check_id == "B5_eventlog_agent_return_drift"]
-    assert findings == []
+    assert len(findings) == 1
+    assert findings[0].severity == "INFO"
+    assert "skipped" in findings[0].message
+
+
+def test_b5_eventlog_threshold_overridable(tmp_path: Path) -> None:
+    """constants.EVENT_LOG_DRIFT_MIN_EVENTS lowers/raises the activation bar."""
+    _write_orchestrator(
+        tmp_path,
+        "Phase 1 requirements → product-manager → prd\n"
+        "Phase 2 architecture → architect → arch",
+    )
+    _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
+    _write_agent(tmp_path, "architect", skills=["doc-nav"])
+    _write_skill(tmp_path, "doc-nav")
+    _write_framework_json(
+        tmp_path, constants={"EVENT_LOG_DRIFT_MIN_EVENTS": 3}
+    )
+    # 3 returns all to architect → above threshold; product-manager has 0.
+    _write_event_log(
+        tmp_path,
+        [
+            {"ts": "2026-01-01T00:00:00Z", "event": "agent_return",
+             "phase": "architecture", "agent": "architect",
+             "ref": "docs/arch.md", "detail": "x"},
+        ] * 3,
+    )
+
+    report = Report()
+    check_b5_workflow_coverage(tmp_path, report)
+    dead = [
+        f for f in report.findings
+        if f.check_id == "B5_eventlog_agent_return_drift"
+        and "product-manager" in f.message
+        and "0 agent_return" in f.message
+    ]
+    assert len(dead) == 1
+    assert dead[0].severity == "WARN"
 
 
 def test_b5_eventlog_dead_routing_warns(tmp_path: Path) -> None:
@@ -268,10 +318,14 @@ def test_b5_feature_phase_alignment_happy(tmp_path: Path) -> None:
     )
     _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
     _write_skill(tmp_path, "doc-nav")
-    _write_framework_json(tmp_path, {
-        "code-review": {"phase_guard": "development"},
-        "doc-review": {"phase_guard": None},
-    })
+    _write_framework_json(
+        tmp_path,
+        {
+            "code-review": {"phase_guard": "development"},
+            "doc-review": {"phase_guard": None},
+        },
+        dispatcher_skills=["tdd-engine"],
+    )
 
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)
@@ -288,9 +342,11 @@ def test_b5_feature_phase_alignment_unknown_phase_warns(tmp_path: Path) -> None:
     )
     _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
     _write_skill(tmp_path, "doc-nav")
-    _write_framework_json(tmp_path, {
-        "ghost-feature": {"phase_guard": "phase_that_does_not_exist"},
-    })
+    _write_framework_json(
+        tmp_path,
+        {"ghost-feature": {"phase_guard": "phase_that_does_not_exist"}},
+        dispatcher_skills=["tdd-engine"],
+    )
 
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)

@@ -13,7 +13,7 @@ skills:
   - sprint-review
   - doc-nav
   - penpot-review  # 仅当 CLAUDE.md 设计工具=penpot 时使用
-model: inherit
+model_tier: standard
 maxTurns: 50
 ---
 

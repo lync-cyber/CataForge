@@ -122,6 +122,11 @@ permissions:
 model_routing:
   available_models: []           # provider-agnostic — 75+ models via Models.dev
   per_agent_model: true
+  # OpenCode users pick the model at runtime via Models.dev; pinning a
+  # provider/model name in the deployed agent file would override that
+  # choice. user_resolved=true tells the deploy adapter to omit `model:`.
+  user_resolved: true
+  tier_map: {}
 
 context_injection:
   # OpenCode 原生支持 opencode.json.instructions 字段声明额外指令文件列表（含

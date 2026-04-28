@@ -11,7 +11,7 @@ skills:
   - testing
   - doc-gen
   - doc-nav
-model: inherit
+model_tier: standard
 maxTurns: 50
 ---
 

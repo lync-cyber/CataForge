@@ -10,7 +10,7 @@ allowed_paths:
   - .cataforge/learnings/
 skills:
   - doc-nav
-model: inherit
+model_tier: light
 maxTurns: 30
 ---
 

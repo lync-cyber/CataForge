@@ -7,7 +7,7 @@ allowed_paths:
   - src/
   - tests/
 skills: []
-model: inherit
+model_tier: standard
 maxTurns: 30
 ---
 

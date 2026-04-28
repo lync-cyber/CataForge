@@ -34,8 +34,25 @@
     "CODE_REVIEW_L2_SKIP_TASK_KINDS": ["chore", "config", "docs"],
     "CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC": 2,
     "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
-    "RETRO_TRIGGER_SELF_CAUSED": 5
+    "RETRO_TRIGGER_SELF_CAUSED": 5,
+    "EVENT_LOG_DRIFT_MIN_EVENTS": 10,
+    "AGENT_MODEL_DEFAULTS": {
+      "product-manager": "standard",
+      "architect": "heavy",
+      "ui-designer": "standard",
+      "tech-lead": "standard",
+      "implementer": "standard",
+      "test-writer": "standard",
+      "refactorer": "standard",
+      "qa-engineer": "standard",
+      "devops": "standard",
+      "debugger": "heavy",
+      "reviewer": "standard",
+      "reflector": "light"
+    },
+    "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"]
   },
+  "dispatcher_skills": ["tdd-engine", "agent-dispatch", "start-orchestrator"],
   "features": {
     "tdd-engine": {
       "min_version": "0.1.0",
@@ -111,6 +128,28 @@
         "TDD_LIGHT_LOC_THRESHOLD | 150",
         "TDD_DEFAULT_MODE | light",
         "SPRINT_REVIEW_MICRO_TASK_COUNT | 3"
+      ]
+    },
+    {
+      "id": "mc-0.2.0-model-tier-migration",
+      "release_version": "0.2.0",
+      "description": "AGENT.md 必须使用 model_tier (light/standard/heavy/inherit/none) 取代 legacy model 字面量。translator 在 deploy 时丢弃 legacy `model:` 行（无过渡期）；framework-review B7-β FAIL 阻拦升级残留",
+      "type": "file_must_contain",
+      "path": ".cataforge/framework.json",
+      "patterns": [
+        "AGENT_MODEL_DEFAULTS",
+        "AGENT_MODEL_TIER_HEAVY_WHITELIST",
+        "EVENT_LOG_DRIFT_MIN_EVENTS"
+      ]
+    },
+    {
+      "id": "mc-0.2.0-dispatcher-skills",
+      "release_version": "0.2.0",
+      "description": "framework.json 顶层必须声明 dispatcher_skills，B5-α 据此区分 skill-as-router 与未定义 agent；endswith('-engine') 命名硬编码已删除",
+      "type": "file_must_contain",
+      "path": ".cataforge/framework.json",
+      "patterns": [
+        "dispatcher_skills"
       ]
     },
     {
