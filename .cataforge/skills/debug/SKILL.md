@@ -1,6 +1,6 @@
 ---
 name: debug
-description: "调试诊断 — 结构化错误定位、根因分析、最小化修复与回归验证。"
+description: "调试诊断 — 结构化错误定位、根因分析、最小化修复与回归验证。当用户报告运行时错误 / stacktrace / 测试失败 / 脚本异常 / testing 阶段缺陷清单待修复时使用此 skill。本 skill 处理已知症状的根因定位与最小修补；新功能开发循环由 tdd-engine 负责，新测试编写由 testing 负责（testing 不改源码）。"
 argument-hint: "<错误信息或stacktrace>"
 suggested-tools: Read, Edit, Glob, Grep, Bash
 depends: [doc-nav]

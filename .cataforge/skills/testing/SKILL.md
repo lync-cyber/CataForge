@@ -20,6 +20,11 @@ user-invocable: true
 - 两者独立运行，无依赖关系
 - testing不重写tdd-engine已有测试，仅补充覆盖盲区(边界条件、异常路径、未覆盖分支)
 
+## 与debug的关系
+- testing 输出"缺陷清单"后，由 orchestrator 调度 debug skill 接管根因定位与最小修复（testing 本身不改源码）
+- debug 修复完成后由 testing 重跑相关用例验证；debug 内部已含回归验证步骤，testing 在缺陷清单上标 closed
+- testing 仅记录现象 / 复现步骤 / 关联任务 ID，不替代 debug 的根因分析
+
 ## 输入规范
 - dev-plan 任务列表和验收标准
 - arch 接口契约

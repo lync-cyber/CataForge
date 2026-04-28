@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: "代码评审 — 任务粒度评审 (review) 与项目级健康度扫描 (scan) 双入口；代码质量检查、规范合规验证、安全漏洞检测、腐化指标扫描。"
+description: "代码评审 — 任务粒度评审 (review) 与项目级健康度扫描 (scan) 双入口；代码质量检查、规范合规验证、安全漏洞检测、腐化指标扫描。当任务卡 GREEN 完成 / Sprint 发布前 / 用户要求扫描代码腐化时使用此 skill。审查范围限 src/ 业务代码：文档审查由 doc-review 负责；框架元资产 (.cataforge/) 审查由 framework-review 负责；Sprint 完成度由 sprint-review 负责。"
 argument-hint: "<代码文件路径或目录> | scan <path> [--focus <category[,...]>]"
 suggested-tools: Read, Glob, Grep, Bash
 depends: [doc-nav]

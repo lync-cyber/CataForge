@@ -1,6 +1,6 @@
 ---
 name: doc-review
-description: "统一文档评审 — Python脚本自动检查 + AI语义审查双审机制。"
+description: "统一文档评审 — Layer 1 Python 脚本自动检查 + Layer 2 AI 语义审查双审机制。当 PRD / ARCH / UI-SPEC / DEV-PLAN / TEST-REPORT / DEPLOY-SPEC 等业务文档完成需要门禁评审时使用此 skill。审查范围限 docs/ 业务文档：代码审查由 code-review 负责；框架元资产 (.cataforge/) 审查由 framework-review 负责。"
 argument-hint: "<doc_type: prd|arch|dev-plan|ui-spec|test-report|deploy-spec|research-note|changelog> <doc_file>"
 suggested-tools: Read, Glob, Grep, Bash
 depends: [doc-nav]

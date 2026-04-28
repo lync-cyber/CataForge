@@ -1,6 +1,6 @@
 ---
 name: sprint-review
-description: "Sprint完成度审查 — 计划vs实际对比、AC覆盖验证、范围偏移检测。"
+description: "Sprint 完成度审查 — 计划 vs 实际对比、AC 覆盖验证、范围偏移检测 (gold-plating / drift / 缺失)。当一个 Sprint 全部任务卡完成、需要进入下一 Sprint 或发布前的完成度评估时使用此 skill。本 skill 做 Sprint 级聚合：单任务 code-review 由 code-review review 负责，项目级腐化扫描由 code-review scan 负责，文档评审由 doc-review 负责。"
 argument-hint: "<sprint_number: 1|2|3...>"
 suggested-tools: Read, Glob, Grep, Bash
 depends: [doc-nav]
