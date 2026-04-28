@@ -34,8 +34,25 @@
     "CODE_REVIEW_L2_SKIP_TASK_KINDS": ["chore", "config", "docs"],
     "CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC": 2,
     "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
-    "RETRO_TRIGGER_SELF_CAUSED": 5
+    "RETRO_TRIGGER_SELF_CAUSED": 5,
+    "EVENT_LOG_DRIFT_MIN_EVENTS": 10,
+    "AGENT_MODEL_DEFAULTS": {
+      "product-manager": "standard",
+      "architect": "heavy",
+      "ui-designer": "standard",
+      "tech-lead": "standard",
+      "implementer": "standard",
+      "test-writer": "standard",
+      "refactorer": "standard",
+      "qa-engineer": "standard",
+      "devops": "standard",
+      "debugger": "heavy",
+      "reviewer": "standard",
+      "reflector": "light"
+    },
+    "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"]
   },
+  "dispatcher_skills": ["tdd-engine", "agent-dispatch", "start-orchestrator"],
   "features": {
     "tdd-engine": {
       "min_version": "0.1.0",

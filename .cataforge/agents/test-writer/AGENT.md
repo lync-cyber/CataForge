@@ -7,7 +7,7 @@ allowed_paths:
   - src/
   - tests/
 skills: []
-model: sonnet
+model_tier: standard
 maxTurns: 30
 ---
 

@@ -11,7 +11,7 @@ skills:
   - task-dep-analysis
   - doc-gen
   - doc-nav
-model: inherit
+model_tier: standard
 maxTurns: 60
 ---
 

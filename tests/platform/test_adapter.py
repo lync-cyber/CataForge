@@ -441,3 +441,131 @@ class TestClaudeCodeAgentLayout:
 
         assert not legacy_dir.exists()
         assert (project_dir / ".claude" / "agents" / "orchestrator.md").is_file()
+
+
+@pytest.fixture()
+def project_dir_with_tier_map(project_dir: Path) -> Path:
+    """Augment project_dir profiles with model_routing.tier_map for tier tests."""
+    platforms_dir = project_dir / ".cataforge" / "platforms"
+    tiers = {
+        "claude-code": {
+            "tier_map": {"light": "haiku", "standard": "sonnet", "heavy": "opus"},
+            "user_resolved": False,
+        },
+        "cursor": {
+            "tier_map": {"light": "sonnet", "standard": "sonnet", "heavy": "opus"},
+            "user_resolved": False,
+        },
+        "codex": {
+            "tier_map": {"light": "gpt-5.3-codex-spark", "standard": "gpt-5.4", "heavy": "gpt-5.4"},
+            "user_resolved": False,
+        },
+        "opencode": {
+            "tier_map": {},
+            "user_resolved": True,
+        },
+    }
+    for pid, extra in tiers.items():
+        profile_path = platforms_dir / pid / "profile.yaml"
+        with open(profile_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        routing = data.setdefault("model_routing", {})
+        routing.update(extra)
+        with open(profile_path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f)
+    return project_dir
+
+
+class TestModelTierResolution:
+    """resolve_agent_model() drops the field correctly per platform."""
+
+    def test_claude_code_resolves_to_native(
+        self, project_dir_with_tier_map: Path
+    ) -> None:
+        adapter = get_adapter(
+            "claude-code", project_dir_with_tier_map / ".cataforge" / "platforms"
+        )
+        assert adapter.resolve_agent_model("light") == "haiku"
+        assert adapter.resolve_agent_model("standard") == "sonnet"
+        assert adapter.resolve_agent_model("heavy") == "opus"
+
+    def test_inherit_returns_none(
+        self, project_dir_with_tier_map: Path
+    ) -> None:
+        adapter = get_adapter(
+            "claude-code", project_dir_with_tier_map / ".cataforge" / "platforms"
+        )
+        assert adapter.resolve_agent_model("inherit") is None
+        assert adapter.resolve_agent_model("none") is None
+        assert adapter.resolve_agent_model(None) is None
+
+    def test_codex_per_agent_false_returns_none(
+        self, project_dir_with_tier_map: Path
+    ) -> None:
+        adapter = get_adapter(
+            "codex", project_dir_with_tier_map / ".cataforge" / "platforms"
+        )
+        assert adapter.resolve_agent_model("standard") is None
+        assert adapter.resolve_agent_model("heavy") is None
+
+    def test_opencode_user_resolved_returns_none(
+        self, project_dir_with_tier_map: Path
+    ) -> None:
+        adapter = get_adapter(
+            "opencode", project_dir_with_tier_map / ".cataforge" / "platforms"
+        )
+        assert adapter.resolve_agent_model("standard") is None
+
+
+class TestCodexDeployIntegration:
+    """Codex deploy uses the canonical translator → consistent filtering."""
+
+    def _make_source(self, root: Path) -> Path:
+        src = root / ".cataforge" / "agents"
+        src.mkdir(parents=True, exist_ok=True)
+        (src / "implementer").mkdir()
+        (src / "implementer" / "AGENT.md").write_text(
+            "---\nname: implementer\n"
+            "description: TDD GREEN\n"
+            "tools: file_read, shell_exec\n"
+            "disallowedTools: agent_dispatch\n"
+            "allowed_paths:\n  - src/\n  - tests/\n"
+            "skills:\n  - foo\n"
+            "model_tier: standard\n"
+            "maxTurns: 60\n"
+            "---\n# body\n",
+            encoding="utf-8",
+        )
+        return src
+
+    def test_codex_drops_per_agent_fields(
+        self, project_dir_with_tier_map: Path
+    ) -> None:
+        """Codex supported_fields = [name, description, model, ...] →
+        tools/disallowedTools/skills/maxTurns/allowed_paths/model_tier all dropped.
+        per_agent_model=false → no `model =` line either."""
+        adapter = get_adapter(
+            "codex", project_dir_with_tier_map / ".cataforge" / "platforms"
+        )
+        src = self._make_source(project_dir_with_tier_map)
+
+        adapter.deploy_agents(src, project_dir_with_tier_map, dry_run=False)
+
+        toml_path = (
+            project_dir_with_tier_map / ".codex" / "agents" / "implementer.toml"
+        )
+        assert toml_path.is_file()
+        content = toml_path.read_text(encoding="utf-8")
+
+        # Universal fields kept.
+        assert 'name = "implementer"' in content
+        assert "description" in content
+        # Frontmatter-internal & unsupported-by-codex fields dropped.
+        assert "tools = " not in content
+        assert "disallowedTools" not in content
+        assert "skills" not in content
+        assert "maxTurns" not in content
+        assert "allowed_paths" not in content
+        assert "model_tier" not in content
+        # per_agent_model=false → no model line.
+        assert "model = " not in content

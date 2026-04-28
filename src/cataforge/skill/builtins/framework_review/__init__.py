@@ -98,4 +98,29 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         ),
         "severity": "fail|warn",
     },
+    {
+        "id": "B7_model_tier_value",
+        "title": (
+            "AGENT.md model_tier ∈ {light, standard, heavy, inherit, none} "
+            "且与 constants.AGENT_MODEL_DEFAULTS 一致；heavy 需进 "
+            "AGENT_MODEL_TIER_HEAVY_WHITELIST"
+        ),
+        "severity": "fail|warn",
+    },
+    {
+        "id": "B7_legacy_model_field",
+        "title": (
+            "AGENT.md 仍使用 legacy 'model: <id>' 而非 model_tier "
+            "(直接迁移, 无过渡期, deploy 会丢弃 legacy model)"
+        ),
+        "severity": "fail",
+    },
+    {
+        "id": "B7_platform_tier_map",
+        "title": (
+            "platform profile.yaml model_routing.tier_map 必须覆盖 "
+            "light/standard/heavy (per_agent_model=true 且 user_resolved=false 时)"
+        ),
+        "severity": "warn",
+    },
 )

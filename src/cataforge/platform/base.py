@@ -556,6 +556,55 @@ class PlatformAdapter(ABC):
         """Whether the platform supports per-agent model selection."""
         return bool(self._profile.get("model_routing", {}).get("per_agent_model", False))
 
+    @property
+    def user_resolved_model(self) -> bool:
+        """Whether model selection is resolved at the user/runtime level.
+
+        OpenCode (and any future provider-agnostic platform) lets the user
+        choose models at runtime via Models.dev / config — agent files should
+        not pin a specific model id. The deploy adapter omits ``model:`` for
+        these platforms regardless of tier resolution.
+        """
+        return bool(self._profile.get("model_routing", {}).get("user_resolved", False))
+
+    def get_model_tier_map(self) -> dict[str, str | None]:
+        """Tier → native model id map (e.g. ``{"light": "haiku", ...}``).
+
+        Tiers are platform-agnostic capability levels (``light``, ``standard``,
+        ``heavy``).  ``inherit`` and ``none`` are sentinel values handled by
+        :meth:`resolve_agent_model` and never appear as keys here.
+
+        Returns an empty dict when the platform omits the section — callers
+        treat that as "no model can be resolved → omit ``model:``".
+        """
+        raw = self._profile.get("model_routing", {}).get("tier_map", {}) or {}
+        if not isinstance(raw, dict):
+            return {}
+        return {str(k): (str(v) if v is not None else None) for k, v in raw.items()}
+
+    def resolve_agent_model(self, tier: str | None) -> str | None:
+        """Translate a ``model_tier:`` value into a platform-native model id.
+
+        Returns ``None`` when the tier should not be written to the deployed
+        agent file — covers four cases:
+
+        * platform does not support per-agent models (e.g. Codex)
+        * platform resolves models at the user/runtime level (e.g. OpenCode)
+        * tier is ``none`` (agent opted out, e.g. orchestrator main-thread)
+        * tier is ``inherit`` (agent defers to main-thread model)
+
+        For ``light``/``standard``/``heavy`` we look up
+        ``model_routing.tier_map`` from the profile.  Unknown tiers fall back
+        to ``None`` (audit B7-α catches these in the source AGENT.md).
+        """
+        if not self.supports_per_agent_model:
+            return None
+        if self.user_resolved_model:
+            return None
+        if not tier or tier in {"none", "inherit"}:
+            return None
+        return self.get_model_tier_map().get(tier)
+
     # ---- context injection ----
 
     @property

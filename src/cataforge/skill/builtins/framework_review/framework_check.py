@@ -22,11 +22,14 @@ Independent sub-checks driven by ``--scope`` and ``--focus``:
   in hooks.yaml has a degradation flag in each ``profile.yaml``, and
   no orphan flags (degradation entries for scripts no longer in
   hooks.yaml)
+* B7-α: AGENT.md ``model_tier`` ∈ enum + matches ``AGENT_MODEL_DEFAULTS``
+* B7-β: legacy ``model:`` in source AGENT.md (deprecated, use model_tier)
+* B7-γ: per-platform ``model_routing.tier_map`` covers light/standard/heavy
 
 Usage:
   python -m cataforge.skill.builtins.framework_review.framework_check \\
         <scope: agents|skills|hooks|rules|workflow|all> \\
-        [--focus B1,B2,B3,B4,B5,B6] \\
+        [--focus B1,B2,B3,B4,B5,B6,B7] \\
         [--root <project_root>] \\
         [--meta-size-threshold N]
 
@@ -52,6 +55,14 @@ from cataforge.utils.common import ensure_utf8_stdio
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 DEFAULT_META_SIZE = 500
+
+# B5/B7 thresholds — overridable via framework.json constants below.  A
+# fresh project legitimately has <DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS
+# ``agent_return`` events, so the EVENT-LOG drift check stays silent
+# (or emits a single INFO) until enough data has accumulated.
+DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS = 10
+
+VALID_MODEL_TIERS = frozenset({"light", "standard", "heavy", "inherit", "none"})
 
 REQUIRED_SECTIONS_SKILL = {
     # Capability boundary is the only hard requirement — every skill
@@ -127,7 +138,7 @@ CONSTANT_LITERALS: tuple[tuple[str, str, str], ...] = (
 @dataclass
 class Finding:
     check_id: str
-    severity: str  # FAIL / WARN
+    severity: str  # FAIL / WARN / INFO
     location: str
     message: str
 
@@ -146,6 +157,10 @@ class Report:
     @property
     def warn_count(self) -> int:
         return sum(1 for f in self.findings if f.severity == "WARN")
+
+    @property
+    def info_count(self) -> int:
+        return sum(1 for f in self.findings if f.severity == "INFO")
 
     def add(
         self, check_id: str, severity: str, location: str, message: str
@@ -345,26 +360,20 @@ _DELEGATION_RE = re.compile(r"权威清单见.*?CHECKS_MANIFEST", re.DOTALL)
 def check_b3_manifest_drift(root: Path, report: Report) -> None:
     """B3-α: SKILL.md '## Layer 1 检查项' ↔ CHECKS_MANIFEST.
 
-    Three reconciliation strategies, in order of preference:
+    Two reconciliation strategies — every SKILL.md must use one or the
+    other (no soft fallback):
 
-    1. **Anchor mode** — if the section contains one or more
-       ``<!-- check_id: xxx -->`` HTML comments, do a precise bidirectional
-       ID check: every anchor must point at a real manifest entry, and
-       every non-delegated manifest entry must have an anchor. False
-       negatives from token rewording disappear; false positives from
-       loose phrasing also disappear. Preferred for new skills with
-       per-entry prose.
+    1. **Anchor mode** — section contains one or more
+       ``<!-- check_id: xxx -->`` HTML comments. Every anchor must point at
+       a real manifest entry, and every non-delegated manifest entry must
+       have an anchor.
+    2. **Delegation mode** — section contains the canonical phrase
+       ``权威清单见 ...CHECKS_MANIFEST``. We verify the manifest exists but
+       skip entry-by-entry comparison (the manifest itself is authoritative).
 
-    2. **Delegation mode** — if the section contains the canonical phrase
-       ``权威清单见 ...CHECKS_MANIFEST``, the SKILL.md is explicitly
-       deferring per-entry documentation to the manifest. We still verify
-       the manifest exists, but skip entry-by-entry comparison.
-
-    3. **Token heuristic (legacy fallback)** — if neither anchors nor
-       delegation are present, fall back to the original "every manifest
-       entry's title has at least one significant token in the prose"
-       check. Soft, but catches obvious staleness in skills that pre-date
-       the anchor and delegation conventions.
+    A SKILL.md with a "## Layer 1 检查项" section but neither anchors nor
+    delegation marker → FAIL (token-overlap heuristic was removed in the
+    model_tier migration; new SKILLs must use anchor or delegation).
     """
     # Map skill id → builtin module name. Only review-class skills
     # (whose builtin runs Layer 1 checks) are tracked here.
@@ -434,15 +443,20 @@ def check_b3_manifest_drift(root: Path, report: Report) -> None:
         delegated = bool(_DELEGATION_RE.search(section_text))
 
         if anchored_ids:
-            # Strategy 1: anchor mode. Bidirectional ID check.
+            # Anchor mode: bidirectional ID check.
             _check_b3_anchors(skill_id, anchored_ids, manifest, delegated, report)
             continue
         if delegated:
-            # Strategy 2: delegation mode. Manifest existence is the
-            # only contract.
+            # Delegation mode: manifest existence is the only contract.
             continue
-        # Strategy 3: token heuristic fallback.
-        _check_b3_tokens(skill_id, section_text, manifest, report)
+        # Neither strategy used — required for every Layer 1 SKILL.md.
+        report.add(
+            "B3_manifest_drift",
+            "FAIL",
+            f"skills/{skill_id}",
+            "'## Layer 1 检查项' 段缺 <!-- check_id: ... --> 锚点和"
+            " '权威清单见 ...CHECKS_MANIFEST' 委托句；二者必居其一",
+        )
 
 
 def _check_b3_anchors(
@@ -494,39 +508,6 @@ def _check_b3_anchors(
             "manifest entry to be surfaced (or add the delegation marker "
             "to opt out for less-important entries)",
         )
-
-
-def _check_b3_tokens(
-    skill_id: str,
-    section_text: str,
-    manifest: tuple[dict[str, str], ...],
-    report: Report,
-) -> None:
-    """Legacy token-overlap heuristic.
-
-    Soft drift detection: every manifest entry's title must have at
-    least one significant token appearing in the prose section. We're
-    not parsing markdown — humans may rephrase, but the critical
-    keyword should survive. A missing title hits FAIL.
-    """
-    for entry in manifest:
-        title = str(entry.get("title", "")).strip()
-        if not title:
-            continue
-        tokens = [
-            t for t in re.split(r"[\s/(),:：]+", title)
-            if t and len(t) >= 3 and not t.isascii() or t.lower() in {"check", "ac", "id"}
-        ]
-        sig_tokens = [t for t in tokens if len(t) >= 3]
-        if not sig_tokens:
-            continue
-        if not any(t in section_text for t in sig_tokens[:3]):
-            report.add(
-                "B3_manifest_drift",
-                "FAIL",
-                f"skills/{skill_id}",
-                f"manifest entry not surfaced in SKILL.md: {title!r}",
-            )
 
 
 def check_b4_hardcoded_constants(root: Path, report: Report) -> None:
@@ -662,6 +643,47 @@ def _read_framework_features(root: Path) -> dict[str, dict[str, object]]:
     }
 
 
+def _read_framework_data(root: Path) -> dict:
+    """Return parsed ``framework.json`` content, or empty dict on failure."""
+    fw_json = root / ".cataforge" / "framework.json"
+    if not fw_json.is_file():
+        return {}
+    try:
+        data = json.loads(fw_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _read_dispatcher_skills(root: Path) -> set[str]:
+    """Return the set of skill ids that act as agent dispatchers.
+
+    Declared at the top level of ``framework.json`` under
+    ``dispatcher_skills``.  These skills appear in orchestrator's Phase
+    Routing table as the agent name (e.g. ``Phase 5 development → tdd-engine``)
+    even though they're skills, not agents — without this declaration B5 has
+    no way to distinguish "phase routes to skill" from "phase routes to
+    nonexistent agent".
+    """
+    data = _read_framework_data(root)
+    raw = data.get("dispatcher_skills") or []
+    if not isinstance(raw, list):
+        return set()
+    return {str(x) for x in raw if isinstance(x, str)}
+
+
+def _read_event_log_threshold(root: Path) -> int:
+    """Return ``constants.EVENT_LOG_DRIFT_MIN_EVENTS`` from framework.json,
+    falling back to :data:`DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS`."""
+    data = _read_framework_data(root)
+    consts = data.get("constants") or {}
+    if isinstance(consts, dict):
+        v = consts.get("EVENT_LOG_DRIFT_MIN_EVENTS")
+        if isinstance(v, int) and v >= 0:
+            return v
+    return DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS
+
+
 # Sub-agents not directly phase-routed but invoked by orchestrator or
 # tdd-engine — counted as "referenced" so B5 doesn't warn on them.
 _B5_SUBAGENTS = frozenset({"test-writer", "implementer", "refactorer"})
@@ -678,16 +700,20 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
 
     * ``B5_workflow_coverage_matrix`` — phase → agent single-hop
       (existing): phases routing to undefined agents WARN; agents
-      defined but never referenced WARN.
+      defined but never referenced WARN.  Phase targets that match a
+      ``framework.json#/dispatcher_skills`` entry (e.g. ``tdd-engine``)
+      are accepted as legitimate skill-as-router patterns.
     * ``B5_phase_skill_coverage`` — phase → agent → skill triple-hop:
       every phase-routed agent must declare ≥1 skill in its AGENT.md
       ``skills:`` field, and every declared skill must resolve to an
       existing ``.cataforge/skills/`` directory or builtin.
     * ``B5_eventlog_agent_return_drift`` — phase-routed agent has zero
       ``agent_return`` events in ``docs/EVENT-LOG.jsonl`` while the log
-      itself has ≥10 events overall (potential dead routing). Agents
-      with returns but missing ``ref`` field on every return → WARN
-      (output_path schema gap).
+      itself has ≥ ``EVENT_LOG_DRIFT_MIN_EVENTS`` events overall
+      (potential dead routing). Agents with returns but missing ``ref``
+      field on every return → WARN (output_path schema gap).  Below the
+      threshold, emit a single INFO finding so users know the check
+      ran but had insufficient data, instead of silently passing.
     * ``B5_feature_phase_alignment`` — every framework.json
       ``features[*].phase_guard`` value (when non-null) must reference a
       phase that has at least one routed agent.
@@ -697,18 +723,22 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
         return
 
     agents = discover_agents(root)
+    dispatcher_skills = _read_dispatcher_skills(root)
 
     # ---- B5_workflow_coverage_matrix (existing single-hop) ----
     for phase, agent in phase_to_agent.items():
-        if agent not in agents and not agent.endswith("-engine"):
-            # tdd-engine is a skill, not an agent — accepted.
-            report.add(
-                "B5_workflow_coverage_matrix",
-                "WARN",
-                "workflow",
-                f"phase {phase!r} routes to {agent!r} which is not a "
-                f"defined agent under .cataforge/agents/",
-            )
+        if agent in agents:
+            continue
+        if agent in dispatcher_skills:
+            continue  # skill-as-dispatcher (declared in framework.json)
+        report.add(
+            "B5_workflow_coverage_matrix",
+            "WARN",
+            "workflow",
+            f"phase {phase!r} routes to {agent!r} which is neither a "
+            f"defined agent under .cataforge/agents/ nor declared in "
+            f"framework.json#/dispatcher_skills",
+        )
 
     referenced_agents = set(phase_to_agent.values())
     referenced_agents.update(_B5_SUBAGENTS)
@@ -765,15 +795,30 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                 )
 
     # ---- B5_eventlog_agent_return_drift (EVENT-LOG cross-check) ----
+    log_path = root / "docs" / "EVENT-LOG.jsonl"
+    log_exists = log_path.is_file()
     returns, returns_with_ref = _read_event_log_returns(root)
     total_returns = sum(returns.values())
-    # Heuristic threshold: only flag drift when the log has accumulated
-    # enough events to be representative. A fresh project with 0-9 events
-    # legitimately has phase-routed agents that haven't run yet.
-    if total_returns >= 10:
+    threshold = _read_event_log_threshold(root)
+    if not log_exists:
+        # No EVENT-LOG yet → the project hasn't deployed event-emitting
+        # workflows. Silent skip — emitting INFO here would be noise.
+        pass
+    elif total_returns < threshold:
+        # Log exists but data is too sparse to tell signal from absence.
+        # Emit a single INFO so users know the check is wired.
+        report.add(
+            "B5_eventlog_agent_return_drift",
+            "INFO",
+            "workflow",
+            f"EVENT-LOG.jsonl has {total_returns} agent_return event(s); "
+            f"drift check skipped until ≥ {threshold} events accumulate "
+            "(override via constants.EVENT_LOG_DRIFT_MIN_EVENTS)",
+        )
+    else:
         for phase, agent in sorted(phase_to_agent.items()):
-            if agent.endswith("-engine"):
-                continue  # tdd-engine emits returns under sub-agent ids
+            if agent in dispatcher_skills:
+                continue  # skill-as-dispatcher emits returns under sub-agent ids
             if agent not in agents:
                 continue
             if returns.get(agent, 0) == 0:
@@ -1010,6 +1055,147 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
             )
 
 
+def _agent_model_defaults(root: Path) -> dict[str, str]:
+    """Return ``constants.AGENT_MODEL_DEFAULTS`` from framework.json."""
+    data = _read_framework_data(root)
+    consts = data.get("constants") or {}
+    if not isinstance(consts, dict):
+        return {}
+    raw = consts.get("AGENT_MODEL_DEFAULTS") or {}
+    if not isinstance(raw, dict):
+        return {}
+    return {str(k): str(v) for k, v in raw.items() if isinstance(v, str)}
+
+
+def _heavy_whitelist(root: Path) -> set[str]:
+    """Return ``constants.AGENT_MODEL_TIER_HEAVY_WHITELIST`` from framework.json."""
+    data = _read_framework_data(root)
+    consts = data.get("constants") or {}
+    if not isinstance(consts, dict):
+        return set()
+    raw = consts.get("AGENT_MODEL_TIER_HEAVY_WHITELIST") or []
+    if not isinstance(raw, list):
+        return set()
+    return {str(x) for x in raw if isinstance(x, str)}
+
+
+def check_b7_model_tier(root: Path, report: Report) -> None:
+    """B7: model_tier audit across AGENT.md and platform tier_map.
+
+    Three sub-checks:
+
+    * ``B7_model_tier_value`` (FAIL on bad enum, WARN on default mismatch) —
+      every AGENT.md ``model_tier:`` value must be in
+      :data:`VALID_MODEL_TIERS`; if the agent has an entry in
+      ``constants.AGENT_MODEL_DEFAULTS`` and the declared tier diverges, WARN.
+      Agents with no ``model_tier:`` line at all are accepted (the translator
+      drops the field downstream — matches orchestrator's main-thread case).
+      ``heavy`` requires being listed in
+      ``constants.AGENT_MODEL_TIER_HEAVY_WHITELIST`` (FAIL otherwise: heavy is
+      explicitly opt-in to keep the cost surface small).
+    * ``B7_legacy_model_field`` (FAIL) — source AGENT.md still uses
+      ``model: <id>`` instead of ``model_tier:``. Direct migration: deploy
+      drops legacy ``model:`` lines (no transition), so leaving one in source
+      makes the model selection silently disappear at deploy time.
+    * ``B7_platform_tier_map`` (WARN) — every platform profile.yaml that
+      declares ``per_agent_model: true`` and ``user_resolved: false`` must
+      declare ``tier_map`` covering ``light``, ``standard``, and ``heavy``.
+      Provider-agnostic (``user_resolved: true``) and shared-model platforms
+      (``per_agent_model: false``) are skipped.
+    """
+    agents = discover_agents(root)
+    defaults = _agent_model_defaults(root)
+    heavy_ok = _heavy_whitelist(root)
+
+    for aid, path in sorted(agents.items()):
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        fm, _body = split_yaml_frontmatter(content)
+        if not fm:
+            continue
+
+        tier = fm.get("model_tier")
+        legacy_model = fm.get("model")
+
+        if tier is not None:
+            tier_str = str(tier).strip()
+            if tier_str not in VALID_MODEL_TIERS:
+                report.add(
+                    "B7_model_tier_value",
+                    "FAIL",
+                    f"agents/{aid}",
+                    f"model_tier={tier_str!r} not in {sorted(VALID_MODEL_TIERS)}",
+                )
+            elif tier_str == "heavy" and aid not in heavy_ok:
+                report.add(
+                    "B7_model_tier_value",
+                    "FAIL",
+                    f"agents/{aid}",
+                    f"model_tier=heavy requires {aid!r} ∈ "
+                    "constants.AGENT_MODEL_TIER_HEAVY_WHITELIST "
+                    "(heavy tier is explicitly opt-in to control cost)",
+                )
+            elif aid in defaults and defaults[aid] != tier_str:
+                report.add(
+                    "B7_model_tier_value",
+                    "WARN",
+                    f"agents/{aid}",
+                    f"model_tier={tier_str!r} diverges from "
+                    f"AGENT_MODEL_DEFAULTS[{aid!r}]={defaults[aid]!r}; "
+                    "either update the constant or restore the default",
+                )
+
+        if legacy_model is not None and tier is None:
+            report.add(
+                "B7_legacy_model_field",
+                "FAIL",
+                f"agents/{aid}",
+                f"AGENT.md uses legacy 'model: {legacy_model}' but no "
+                "'model_tier:' — deploy drops legacy model lines "
+                "(direct migration, no transition), so the model selection "
+                "would silently disappear. Replace with "
+                "'model_tier: light|standard|heavy'",
+            )
+
+    # ---- B7_platform_tier_map ----
+    platforms_dir = root / ".cataforge" / "platforms"
+    if not platforms_dir.is_dir():
+        return
+    for plat_dir in sorted(platforms_dir.iterdir()):
+        if not plat_dir.is_dir():
+            continue
+        profile_path = plat_dir / "profile.yaml"
+        if not profile_path.is_file():
+            continue
+        try:
+            profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            continue
+        if not isinstance(profile, dict):
+            continue
+        routing = profile.get("model_routing") or {}
+        if not isinstance(routing, dict):
+            continue
+        if not routing.get("per_agent_model"):
+            continue
+        if routing.get("user_resolved"):
+            continue
+        tier_map = routing.get("tier_map") or {}
+        if not isinstance(tier_map, dict):
+            tier_map = {}
+        missing = [t for t in ("light", "standard", "heavy") if t not in tier_map]
+        if missing:
+            report.add(
+                "B7_platform_tier_map",
+                "WARN",
+                f"platforms/{plat_dir.name}",
+                f"model_routing.tier_map missing tier(s) {missing}; deploy "
+                "will silently omit `model:` for agents requesting these tiers",
+            )
+
+
 def _resolve_builtin_hook_dir() -> Path | None:
     """Locate the cataforge.hook.scripts package directory.
 
@@ -1070,7 +1256,7 @@ def run(
 ) -> int:
     report = Report()
 
-    enabled = set(focus) if focus else {"B1", "B2", "B3", "B4", "B5", "B6"}
+    enabled = set(focus) if focus else {"B1", "B2", "B3", "B4", "B5", "B6", "B7"}
 
     if "B1" in enabled and scope in ("agents", "skills", "rules", "all"):
         check_b1_required_sections(root, scope, report)
@@ -1085,6 +1271,8 @@ def run(
         check_b5_workflow_coverage(root, report)
     if "B6" in enabled and scope in ("hooks", "all"):
         check_b6_hook_consistency(root, report)
+    if "B7" in enabled and scope in ("agents", "all"):
+        check_b7_model_tier(root, report)
 
     print(f"framework-review scope={scope} focus={sorted(enabled)} root={root}")
     print("=" * 60)
@@ -1098,11 +1286,14 @@ def run(
 
     print()
     print("=" * 60)
-    print(f"Summary: {report.fail_count} FAIL, {report.warn_count} WARN")
+    print(
+        f"Summary: {report.fail_count} FAIL, "
+        f"{report.warn_count} WARN, {report.info_count} INFO"
+    )
     if report.fail_count > 0:
         print("RESULT: FAIL")
         return 1
-    print("RESULT: PASS (warnings only)")
+    print("RESULT: PASS (warnings/info only)")
     return 0
 
 
@@ -1120,7 +1311,7 @@ def main() -> None:
     parser.add_argument(
         "--focus",
         default=None,
-        help="Comma-separated subset of B1,B2,B3,B4,B5,B6",
+        help="Comma-separated subset of B1,B2,B3,B4,B5,B6,B7",
     )
     parser.add_argument(
         "--root",
@@ -1148,9 +1339,9 @@ def main() -> None:
     focus: list[str] | None = None
     if args.focus:
         focus = [c.strip() for c in args.focus.split(",") if c.strip()]
-        invalid = [c for c in focus if c not in {"B1", "B2", "B3", "B4", "B5", "B6"}]
+        invalid = [c for c in focus if c not in {"B1", "B2", "B3", "B4", "B5", "B6", "B7"}]
         if invalid:
-            print(f"ERROR: invalid --focus values: {invalid}; expected B1..B6")
+            print(f"ERROR: invalid --focus values: {invalid}; expected B1..B7")
             sys.exit(2)
 
     # The `meta_size_threshold` could be loaded from framework.json

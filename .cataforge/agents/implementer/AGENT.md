@@ -8,7 +8,7 @@ allowed_paths:
   - tests/
 skills:
   - penpot-implement  # 仅当 CLAUDE.md 设计工具=penpot 时使用
-model: sonnet
+model_tier: standard
 maxTurns: 80
 ---
 
@@ -32,8 +32,23 @@ Light 模式额外传入：`模式: tdd_mode=light（合并 RED+GREEN）`，prom
 ## Output Contract
 返回 `<agent-result>` 格式:
 - status: `completed` | `blocked`
-- outputs: 实现文件路径列表(逗号+空格分隔)
+- outputs: 实现文件路径列表(逗号+空格分隔)；Light 模式同时返回 `test_files` + `impl_files` 两个清单
 - summary: "N PASSED。{执行摘要}"
+- `refactor_needed`: `true` | `false` —— 自检 impl_files 是否命中 `TDD_REFACTOR_TRIGGER` 任一类别（complexity / duplication / coupling）。判断标准见 §Self-Refactor Reporting
+- `refactor_reasons`: `[category, ...]` —— 仅在 `refactor_needed=true` 时给出，列出命中的类别 + 一句话证据（如 `complexity: foo() 圈复杂度 ≥ 12`）
+
+## Self-Refactor Reporting
+GREEN/Light 完成后，对刚写的 impl_files 做一次轻量自检：
+
+| 类别 | 触发判据（任一命中即可） |
+|------|----------------------|
+| complexity | 单函数 ≥ 50 LOC、嵌套 ≥ 4 层、参数 ≥ 6 个、多分支 if/elif 链 ≥ 5 |
+| duplication | 同文件或与既有 src 文件存在 ≥ 6 行近似重复块 |
+| coupling | 新建文件直接 import ≥ 3 个跨模块（跨 arch#§2.M-xxx）符号 |
+
+不命中 → `refactor_needed: false`。命中 → `refactor_needed: true`，每条命中类别写一句具体证据到 `refactor_reasons`，由 orchestrator 决定是否调度 refactorer（详见 tdd-engine §Step 4）。
+
+> 这是自检自报，不是替代 sprint-review 的批量 code-review L1 兜底。漏判会在 sprint-review 时被批量复核捕获。
 
 ## Execution Rules
 - 只写使测试通过的最小代码，不做超出测试要求的设计

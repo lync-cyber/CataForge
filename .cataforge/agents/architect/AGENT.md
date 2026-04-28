@@ -12,7 +12,7 @@ skills:
   - doc-gen
   - doc-nav
   - research
-model: inherit
+model_tier: heavy
 maxTurns: 60
 ---
 

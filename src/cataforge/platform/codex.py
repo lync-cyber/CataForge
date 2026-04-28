@@ -32,7 +32,16 @@ class CodexAdapter(PlatformAdapter):
     def deploy_agents(
         self, source_dir: Path, project_root: Path, *, dry_run: bool = False
     ) -> list[str]:
-        """Convert AGENT.md (YAML frontmatter) to TOML for Codex."""
+        """Convert AGENT.md (YAML frontmatter) to TOML for Codex.
+
+        The frontmatter is first run through the canonical
+        :func:`translate_agent_md` pipeline so capability translation, model
+        tier resolution, and ``supported_fields`` filtering happen exactly the
+        same way as on every other platform — Codex just emits TOML instead
+        of YAML at the end.
+        """
+        from cataforge.agent.translator import translate_agent_md
+
         scan_dirs = self.get_agent_scan_dirs()
         if not scan_dirs:
             return []
@@ -44,6 +53,8 @@ class CodexAdapter(PlatformAdapter):
         actions: list[str] = []
         if not source_dir.is_dir():
             return actions
+
+        dropped_collector: dict[str, set[str]] = {}
 
         for agent_dir in sorted(source_dir.iterdir()):
             if not agent_dir.is_dir():
@@ -58,9 +69,20 @@ class CodexAdapter(PlatformAdapter):
                 continue
 
             content = agent_md.read_text(encoding="utf-8")
-            toml_content = _md_to_toml(agent_dir.name, content)
+            translated = translate_agent_md(
+                content, self, dropped_collector=dropped_collector
+            )
+            toml_content = _md_to_toml(agent_dir.name, translated)
             toml_path.write_text(toml_content, encoding="utf-8")
             actions.append(f"agents/{agent_dir.name}/AGENT.md → {toml_path}")
+
+        for field_name in sorted(dropped_collector):
+            caps = sorted(dropped_collector[field_name])
+            actions.append(
+                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
+                f"{field_name!r} have no platform mapping: {caps} — "
+                "these will be skipped during translation."
+            )
 
         return actions
 

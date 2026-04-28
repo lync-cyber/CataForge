@@ -12,7 +12,7 @@ allowed_paths:
 skills:
   - debug
   - doc-nav
-model: inherit
+model_tier: heavy
 maxTurns: 40
 ---
 

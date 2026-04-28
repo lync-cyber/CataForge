@@ -219,31 +219,25 @@ def test_b3_delegation_alone_unchanged(tmp_path: Path, monkeypatch) -> None:
     assert report.findings == []
 
 
-def test_b3_legacy_token_path_still_works(tmp_path: Path, monkeypatch) -> None:
-    """No anchors + no delegation → fall back to token heuristic.
-
-    Manifest title's significant tokens must appear in the section. We
-    verify a happy case (token survives) and a fail case (token absent).
-    """
+def test_b3_section_without_anchor_or_delegation_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """No anchors + no delegation → FAIL (token heuristic removed in
+    direct migration; every Layer 1 SKILL.md must use anchor or delegation)."""
     body = "- 文档结构检查与字段校验\n- 引用图完整性\n"
     _make_skill_md(tmp_path, _TEST_SKILL_ID, body)
     _stub_manifest_module(
         monkeypatch,
         _TEST_MODULE,
         (
-            # Happy: "字段校验" is in body → token "字段校验" matches.
             {"id": "ID_A", "title": "字段校验", "severity": "fail"},
-            # Fail: no signal of "完全不相关的检查" tokens in body.
-            {"id": "ID_B", "title": "完全不相关的检查", "severity": "warn"},
         ),
     )
 
     report = Report()
     check_b3_manifest_drift(tmp_path, report)
 
-    # The happy entry passes. The fail entry triggers a finding.
-    fail_findings = [
-        f for f in report.findings if "完全不相关的检查" in f.message
-    ]
-    assert len(fail_findings) == 1
-    assert fail_findings[0].severity == "FAIL"
+    findings = [f for f in report.findings if f.check_id == "B3_manifest_drift"]
+    assert len(findings) == 1
+    assert findings[0].severity == "FAIL"
+    assert "锚点" in findings[0].message or "委托" in findings[0].message

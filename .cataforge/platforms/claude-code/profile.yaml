@@ -136,6 +136,13 @@ permissions:
 model_routing:
   available_models: [opus, sonnet, haiku]
   per_agent_model: true
+  user_resolved: false
+  # Tier → native model id map. Source AGENT.md uses platform-agnostic
+  # `model_tier: light | standard | heavy`; deploy resolves to these names.
+  tier_map:
+    light: haiku
+    standard: sonnet
+    heavy: opus
 
 context_injection:
   # Claude Code 自动注入 CLAUDE.md 到每次会话；@-mention 也是 eager（启动即入上下

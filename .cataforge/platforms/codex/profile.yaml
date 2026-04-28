@@ -125,6 +125,14 @@ permissions:
 model_routing:
   available_models: [gpt-5.4, gpt-5.3-codex-spark]
   per_agent_model: false
+  user_resolved: false
+  # Codex selects model session-globally; deploy never writes a per-agent
+  # `model:`. tier_map kept for documentation parity with other platforms
+  # and for future use should Codex add per-agent routing.
+  tier_map:
+    light: gpt-5.3-codex-spark
+    standard: gpt-5.4
+    heavy: gpt-5.4
 
 context_injection:
   # Codex 合并 AGENTS.md（32KiB 上限），无 @ 语法；子代理 fork_context=false 时
