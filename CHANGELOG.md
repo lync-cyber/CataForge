@@ -20,6 +20,108 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.2.0'></a>
+## [0.2.0] — 2026-04-28
+
+### Highlight
+
+收编三块长期靠"约定"维系的盲区到可执行规范：(1) `model_tier` 抽象把模型选择从"Claude Code 词汇"提升为平台无关四档（light/standard/heavy/inherit/none），Codex / OpenCode 部署不再被 `model: inherit` 错误透传污染；(2) framework-review 扩到 B7 含三项审计，dispatch_skills 显式声明替换 `endswith("-engine")` 命名硬编码，CHECKS_MANIFEST 锚点强制（删除 token 启发式 fallback）；(3) TDD 默认翻转 light + REFACTOR self-report + light-inline 主线程内联，典型小任务从 3 次子代理调度收敛到 0 次。
+
+### BREAKING
+
+迁移路径表（"如果你曾依赖 X，改为 Y"）：
+
+| 你曾依赖 | 改为 | 自检 |
+|---|---|---|
+| AGENT.md `model: inherit\|sonnet\|opus\|haiku` | `model_tier: inherit\|light\|standard\|heavy\|none` | `framework-review --focus B7` (B7-β FAIL) |
+| 自定义 SKILL.md "## Layer 1 检查项" 段 token 复述 | 加 `<!-- check_id: <id> -->` 锚点 或 `权威清单见 ...CHECKS_MANIFEST` 委托句 | `framework-review --focus B3` |
+| `framework.json` 隐式 `endswith("-engine")` skill router 识别 | 顶层显式声明 `dispatcher_skills: [tdd-engine, ...]` | `cataforge doctor` (mc-0.2.0-dispatcher-skills) |
+| `tdd_mode` 缺省 = `standard` | 缺省 = `light`（`TDD_LIGHT_LOC_THRESHOLD` 提升至 150） | `cataforge doctor` (mc-0.2.0-tdd-light-default) |
+| `maxTurns: 100` (test-writer / implementer / refactorer) | test-writer=30 / implementer=80 / refactorer=30 | 部署后产物对账 |
+| `.cataforge/.cache/tdd/T-{xxx}-context.md` bundle 文件 | prompt 内联（orchestrator Step 1 提取后主线程保留按阶段内联） | 子代理不再 Read bundle |
+| `agent_config.supported_fields` 仅作 INFO | deploy 时强制过滤；`allowed_paths` 等 CataForge 内部字段自动剥离 | 看部署产物是否还含未声明字段 |
+
+### Added
+
+- **B5 子检查从 1 个扩到 4 个** —— `B5_workflow_coverage_matrix` 维持 phase→agent 单跳；新增 `B5_phase_skill_coverage` 三跳验证（每个 phase-routed agent 必须 ≥1 skill 且引用的 skill 必须存在），`B5_eventlog_agent_return_drift` 读 `docs/EVENT-LOG.jsonl` 比对（≥10 events 启用，0 returns 的 phase-routed agent 标 dead routing；returns 全缺 ref 字段标 output_path 追溯断链），`B5_feature_phase_alignment` 校验 framework.json `features[*].phase_guard` 命中 Phase Routing 已知 phase。新增 11 个测试。
+- **HOOKS_MANIFEST 注册机制** —— 新模块 `cataforge.hook.manifest` 声明 builtin hook 脚本目录（含 events / default_capability / default_type / safety_critical 元数据），catch "把 helper 当 hook 挂" bug；framework-review 增 B6-ε 子检查双向校验：hooks.yaml 非 `custom:` 引用必须 ∈ HOOKS_MANIFEST（FAIL），HOOKS_MANIFEST 条目必须被 hooks.yaml 引用（WARN dead inventory）。新增 6 个测试覆盖正常 / 孤儿引用 / 未挂 / custom 跳过 / manifest 不可导入降级 / 真实 manifest 与 .py 文件 1:1 对账。
+- **Pydantic V2 strict mode（保守应用）** —— `MCPServerState` 加 `strict=True`（输入仅来自 cataforge 自写状态文件，类型保真）；所有 schema 模型统一加 `validate_assignment=True`（catch "构造后赋错类型" bug）；`extra="allow"` / `extra="ignore"` 维持原状以容忍用户 YAML/JSON 类型宽松。文档化策略边界（user-input 模型暂不开 strict）。
+- **CI gate `uv lock --check`** —— `.github/workflows/test.yml` Linux job 加 uv 安装 + 锁文件新鲜度检查，pyproject.toml 改依赖未刷 uv.lock 即 fail。`docs/contributing.md` 加锁文件刷新指引。
+
+- **sprint-review CLI 增加 ignore / 输出形态控制参数** —— `--src-dir` 改为可重复 (monorepo 多包按需缩范围)；新增 `--ignore PATTERN` (可重复) / `--ignore-file PATH` (可重复) 追加 gitignore 风格规则；`--no-respect-gitignore` 关闭 git 集成、`--no-default-ignores` 关闭内建默认 ignore；`--warn-cap N` (默认 50) 折叠 unplanned WARN 到 top-level 目录摘要 (`node_modules/* (12340)`)，`--unplanned-log PATH` 把完整列表落盘以便审计；`--format json` 输出结构化 issue 列表 (`{summary: {fail, warn, total}, issues: [{severity, category, message, task?, path?}, ...]}`) 供 framework-review / CI 机读。
+- **CHECKS_MANIFEST anchor 模式** —— `.cataforge/skills/sprint-review/SKILL.md` §Layer 1 检查项 升级到 `<!-- check_id: ... -->` anchor 模式 (B3 双向校验)，对每条 manifest 项强制 prose 锚点；`unplanned_files` 条目标题同步覆盖默认 ignore + .gitignore 集成语义。
+- **`tests.conftest.run_utf8` 共享 subprocess 帮助函数** —— `subprocess.run(text=True)` 用 parent 的 cp1252 (Windows CI 默认) 解码 UTF-8 输出会让 reader 线程崩溃、`stdout` 静默变 `None`，下游 `json.loads` 报"not NoneType"难以诊断。提取 `run_utf8(cmd, *, cwd, check, timeout, extra_env, **kw)` 到根 `tests/conftest.py`，统一 `encoding="utf-8"` / `errors="replace"` / `PYTHONUTF8=1`；`tests/e2e/conftest.py` 的 `built_wheel` / `pip_install` / `run_cataforge` 与 sprint-review CLI 测试切换调用；新增 `tests/test_run_utf8.py` 5 个回归测试 (中文+em-dash 解码 / `PYTHONUTF8` 注入 / `extra_env` 合并 / `check=True` 抛错 / 默认放行非零码)，防止有人"简化"掉 `encoding`。
+- **pre-commit 装机率 guard 三件套** —— 解决"`.pre-commit-config.yaml` 已配 ruff 但本地从未跑 `pre-commit install`，CI 60 秒后才翻红"的问题。(1) `tests/conftest.py` `pytest_sessionstart` 探测 `.git/hooks/pre-commit` 缺失时**自动**调用 `python -m pre_commit install` 安装钩子（`pre-commit` 已在 [dev] 依赖、且 `pre-commit install` 幂等无副作用），失败 fail-soft；power user 可设 `CATAFORGE_SKIP_HOOK_AUTOINSTALL=1` 关闭；(2) `.github/workflows/test.yml` Linux job 加 `pre-commit run --all-files --show-diff-on-failure` 作为 belt-and-braces step，杜绝 `.pre-commit-config.yaml` 与 CI 单点 ruff 命令偷偷漂移；(3) `docs/contributing.md` 把 `pre-commit install` 从"可选"提为开发环境 setup 必跑步骤，改写说明强调本地↔CI 检查 1:1 对账。
+
+- **frontmatter `aliases:` 字段 + 三段式 doc_id 解析** —— 旧 cross-ref resolver 短引用（如 `arch-data#§4.E-002`）只在严格 doc_id 匹配 / `{doc_id}-*` prefix-fallback 两层尝试，命中不到 `arch-wechat-typeset-X-0.1.0-data` 这类后缀别名时直接 FAIL，下游 doc-review 在每份 theme 分卷上系统性触发"交叉引用目标未找到"。新增 `aliases:` frontmatter 字段：indexer 抽取后写入顶层 `aliases: {alias → doc_id}` 映射，`cataforge.docs.loader._resolve_doc_entry` 改三段式（exact → aliases → prefix-fallback），prefix 多匹配从"取 dict 迭代第一个"升级为抛 `AmbiguousRefError` 并列出全部候选。重复声明 / 与真 doc_id 撞名的 alias 由 `build_aliases()` 第一占位胜出并记入 `alias_conflicts`，validate 时上报。
+- **`cataforge docs validate` 跨引用 + alias 冲突校验** —— 旧实现仅查 orphan / stale，无法在 commit / CI 时拦下"DEPS 行写错 doc_id"或"两份文档抢同一 alias"；前者要等到下游 `cataforge docs load` 才暴露、后者完全静默。新增 `validate_docs(project_root)` 统一入口（`cataforge.docs.indexer.validate_docs`），同时跑 orphans / stale / `find_xref_errors` / `find_alias_conflicts`；`cataforge doctor` 的 `_check_orphan_docs` 重命名为 `_check_docs_validate` 并切到同一 helper，命名段从 "Docs index completeness" 改为 "Docs validation"。
+- **doc-review `required_sections` 模板未覆盖时回退读 frontmatter** —— `_registry.yaml` 未注册的 `(doc_type, volume_type)` 组合（如 `ui-spec/theme`）在 layer-1 checker 里只发一行 WARN 然后 `return`，等于该分卷整段 required_sections 校验被静默跳过。`DocChecker.check_required_sections` 现在在 `load_template_required_sections` miss 后回退读文档自声明 `required_sections:`（通过新公开的 `parse_required_sections_from_list`），仍发降级 WARN 提示模板缺失但不再短路。同时新注册 `ui-spec/theme` 模板 + `volumes/ui-spec-theme.md` 起手骨架，`-theme-NN-slug` 文件名加入 `_detect_volume_type` filename 探测。
+- **COMMON-RULES §禁止估算任务用时** —— 适用所有 Agent 的 backlog / 改进建议 / PR 描述 / todo / 口头汇报；明确 LLM 任务用时与人类工时不可比，必须用"成本 / 复杂度"维度（"单点改动" / "涉及多文件" / "需新写测试"）替代"X 分钟 / 小时 / 天"等口语估算。
+
+- **任务上下文 bundle 缓存** —— Step 1 新增写 `.cataforge/.cache/tdd/T-{xxx}-context.md`（meta / tdd_acceptance / interface_contract / directory_layout / naming_convention / deliverables / test_command 章节固定）。RED/GREEN/REFACTOR 子代理 prompt 仅传 bundle 路径，子代理首步 Read 即可获得全部上下文，节省每次调度 prompt 内联 arch 摘要的 token。
+- **agile-prototype Inline 模式** —— prototype 项目 implementer 在主线程内联运行（不通过 agent_dispatch 启动子代理），节省每任务一次子代理 boot（AGENT.md + COMMON-RULES + dispatch-prompt 模板加载约 3-5K token）。tdd-engine SKILL.md 新增 §Prototype Inline 模式章节。
+- **同模块 RED 批量化** —— 当 sprint_group 内 ≥2 个任务共享同一 `arch#§2.M-xxx` 时，可合并为一次 test-writer 调用（任务数 ≤4 时启用），summary 按 task_id 分块返回。test-writer AGENT.md Input Contract 新增"批量 RED 模式"小节。
+- **task_kind 字段 + chore 跳过 TDD** —— dev-plan 任务卡新增 `task_kind ∈ {feature, fix, chore, config, docs}`。`chore`/`config`/`docs` 跳过 TDD 三阶段，仅由 implementer 单次产出 + lint hook 兜底。tech-lead Execution Rules 增加判定规则。
+- **code-review Layer 2 短路条件** —— 类比 doc-review 短路。新增常量 `CODE_REVIEW_L2_SKIP_TASK_KINDS=[chore, config, docs]` + `CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC=2`。light 模式 AC ≤2 / chore 类 / Adaptive Review 反向降级时跳过 Layer 2 直接 approved，由 sprint-review 兜底。`security_sensitive: true` 任务永不短路。
+- **Adaptive Review 反向降级分支** —— 新增常量 `ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS=10`。连续 10 个任务零 self-caused 问题且 code-review approved 时，后续 code-review 调用仅跑 Layer 1（`--layer1-only`），sprint-review 兜底；任一后续任务出 MEDIUM+ 立即取消降级。ORCHESTRATOR-PROTOCOLS §Adaptive Review Protocol 新增"反向降级分支"小节。
+- **migration_check `mc-0.2.0-tdd-light-default`** —— 守住 COMMON-RULES.md 含新常量的最新值（150 / light / 3）。
+
+- **`model_tier` 抽象** —— AGENT.md 用平台无关的 `model_tier: light|standard|heavy|inherit|none` 取代具体模型字面量；platform `profile.yaml.model_routing.tier_map` 把 tier 翻译为各平台原生 model id。Codex (`per_agent_model: false`) 与 OpenCode (`user_resolved: true`) 的部署适配器自动省略 `model:` 字段，避免历史上 `model: inherit` / `model: sonnet` 被原样塞进 codex TOML 的 bug。README "特性亮点" 新增专门小节介绍。
+- **0.2.0 迁移检查** —— `mc-0.2.0-model-tier-migration` + `mc-0.2.0-dispatcher-skills` 两条 migration_check 在 doctor 阶段守住升级路径：用户从 0.1.x 升级时，若 `framework.json` 缺 `AGENT_MODEL_DEFAULTS` / `dispatcher_skills` 会被立即标红。
+- **B7 框架审计** —— `framework-review` 新增三项检查：B7-α (`model_tier` 合规 + 与 `AGENT_MODEL_DEFAULTS` 一致 + heavy 需进白名单)；B7-β (legacy `model:` 字段 FAIL，强制迁移)；B7-γ (platform `tier_map` 必须覆盖 light/standard/heavy)。
+- **`dispatcher_skills` 顶层声明** —— `framework.json#/dispatcher_skills` 显式标记 skill-as-router (如 `tdd-engine`)，B5-α 不再依赖 `endswith("-engine")` 的命名硬编码，未来命名约定不同的派发型 skill 也能被正确识别。
+- **可配置 EVENT-LOG 阈值** —— `constants.EVENT_LOG_DRIFT_MIN_EVENTS` 取代硬编码的 `≥ 10`；事件不足时输出一条 INFO 提示（而非沉默），新项目知道检查存在但数据未达阈值。
+- **`framework-review --target <asset_id>`** —— Layer 2 仅审单个 agent / skill，节省 token；scope=all 时 Layer 2 自动按资产类型分批 (SKILL → AGENT → hooks)，避免一次性塞入稀释关注度。
+- **Layer 2 按资产类型分层维度矩阵** —— framework-review SKILL/AGENT/hooks 各自独立维度（如 AGENT 维度含 model_tier 选择合理性、Identity↔Phase 一致、tools↔allowed_paths 自洽）。
+- **implementer self-report `refactor_needed`** —— GREEN/Light 完成后自检 complexity / duplication / coupling 并在 `<agent-result>` 报告，orchestrator 据此触发 refactorer，免除每任务一次 code-review L1 的固定开销；sprint-review 阶段批量复核兜底。
+- **TDD light-inline 模式** —— `tdd_mode=light` 且 LOC ≤ `TDD_LIGHT_LOC_THRESHOLD` 且非 security_sensitive 且执行模式 ∈ {agile-lite, agile-prototype} 时，orchestrator 在主线程内联实现，零 implementer dispatch；agile-standard 的 light 任务保持 dispatch 形态保留审计粒度。
+- **TDD continuation 错误分级** —— 机械错（SyntaxError / 配置错 / 路径错）允许 ≤3 次 continuation；语义错 ≤1 次后 blocked。
+
+### Changed
+
+- **scaffold 镜像彻底消除** —— `src/cataforge/_assets/cataforge_scaffold/`（109 文件双写镜像）整树删除，`.cataforge/` 通过 `[tool.hatch.build.targets.wheel.force-include]` + `[tool.hatch.build.targets.editable.force-include]` 直接打进 wheel 为 `cataforge/_dot_cataforge/`；`scripts/sync_scaffold.py` / `scripts/hatch_build.py` / `.github/workflows/scaffold-sync.yml` / `.gitattributes`（仅为镜像而存在）/ `tests/test_scaffold_sync.py` 全部删除；`tests/hook/test_script_contract.py` / `tests/hook/test_script_filters.py` / `tests/core/test_event_log_schema_sync.py` 路径改指向 canonical `.cataforge/`。`.pre-commit-config.yaml` 删 scaffold-sync hook；`.github/workflows/no-dogfood-leak.yml` 删 PROJECT-STATE.md 双副本对账段。`src/cataforge/core/scaffold.py` `_scaffold_root()` 加 editable install 回退（`Path(__file__).parents[3] / ".cataforge"`），保证 `pip install -e .` 路径在 hatch force-include 不生效时仍能解析。
+
+- **CHANGELOG 工作流改为 fragment-based（scriv）** —— 新建 `changelog.d/` 目录，每个 PR 加 `{PR#}.md` 含 `### Added` / `### Changed` / `### Fixed` 等小节的片段；发版时维护者跑 `scriv collect --version=X.Y.Z` 聚合到 `CHANGELOG.md` 顶部 scriv-insert-here 锚点（HTML comment 形式，文档里描述时避免直接写出，会被 scriv 误吞）并删除片段。`pyproject.toml` 加 `scriv[toml]>=1.5` dev dep + `[tool.scriv]` 配置；`docs/contributing.md` 加 fragment 工作流指引；CI gate `scripts/checks/check_changelog_fragments.py` 强制 user-visible PR 必须含片段或在 commit message 加 `[skip-changelog]` token。Windows 用户跑 `scriv collect` 需 `PYTHONUTF8=1`（scriv 默认按 cp1252 读 markdown）。历史 v0.1.x 条目原样保留不回填，从 PR #84 开始迁移到片段。
+
+- **COMMON-RULES 整体重组压缩** —— 235 行 → 221 行；合并 §输出语言 入 §全局约定，删 §框架配置常量 与 §执行模式矩阵 的历史回溯文本（"自 2→5 以补偿…" 等设计阶段残留按 §禁止设计阶段残留 自检规则裁掉），保留所有外部引用的 anchor 名（§执行模式矩阵 / §统一状态码 / §归因分类 / §三态判定逻辑 / §对比式约束 / §报告 Front Matter 约定 等）。
+
+- **TDD 默认翻转为 light + 阈值 50→150** —— `tdd_mode` 缺省值从 `standard` 改为 `light`（新增 `TDD_DEFAULT_MODE=light` 常量），`TDD_LIGHT_LOC_THRESHOLD` 从 50 提升至 150。tech-lead 仅在 LOC > 150 / `security_sensitive: true` / 跨 ≥2 个 arch 模块时才显式标 standard。覆盖 framework.json / COMMON-RULES §框架配置常量 + §执行模式矩阵 / dev-plan 模板（standard + lite + prototype）/ tech-lead AGENT.md / docs/guide/tdd-workflow.md / docs/faq.md / docs/reference/configuration.md / docs/reference/agents-and-skills.md / framework_check.py CONSTANT_LITERALS。原默认 50/standard 已废弃（`mc-0.2.0-tdd-light-default` 守门）。
+- **REFACTOR 阶段改为条件触发** —— 新增 `TDD_REFACTOR_TRIGGER=[complexity, duplication, coupling]` 常量。GREEN 完成后 orchestrator 跑一次 `code-review --focus complexity,duplication,coupling`（Layer 1 only），命中任一 finding 才调度 refactorer；任务卡 `tdd_refactor: required` 强制触发，`skip` 强制跳过。多数小任务从"3 次子代理调度"收敛到"1 次 light + 0 次 refactor"。tdd-engine SKILL.md §Step 4 重写。
+- **test-writer / implementer 降级到 Sonnet** —— `model: inherit` → `model: sonnet`；refactorer 保留 inherit（语义重构需 Opus）。配套 maxTurns 从 100 收紧到 test-writer=30 / implementer=80 / refactorer=30。RED/GREEN 是"AC→assert / test→最小代码"翻译类任务，Sonnet 完全够用，token 单价降至约 1/5。
+- **同 sprint_group 任务并行调度** —— 新增 ORCHESTRATOR-PROTOCOLS §Parallel Task Dispatch Protocol。task-dep-analysis 输出的 `sprint_groups` 现被消费：同组无依赖任务在单条主线程消息内并发派发（上限 3）；REFACTOR 仍强制串行避免源码冲突；deliverables 路径冲突立即降级串行。墙钟时间在 5+ 任务的 Sprint 上从串行 N×T 收敛到约 ⌈N/3⌉×T。
+- **SPRINT_REVIEW_MICRO_TASK_COUNT 2 → 3** —— 配合 light 默认化后小任务密度上升，sprint-review 短路阈值同步上调，多数小项目整 sprint 直接走快路径。
+- **删除 orchestrator-side 失败分类二次核验** —— tdd-engine §Step 2 原本 SKILL.md 自己注释"orchestrator 仅二次确认，不重复分析"，现彻底删除。失败原因验证完全交给 test-writer 内部 Execution Rules，避免主线程上下文重复消费 test-writer 的详细输出。
+
+- **TDD 子代理上下文从 bundle 文件改为 prompt 内联** —— orchestrator 在 Step 1 提取任务上下文（meta / tdd_acceptance / interface_contract / directory_layout / naming_convention / test_command）后**主线程保留**，按阶段内联进 test-writer / implementer / refactorer 的 dispatch prompt；子代理 Input Contract 从 "首步 Read bundle" 改为 "读取 prompt 内联章节"。同模块 RED 批量化的 prompt 按 task_id 分块内联各 §tdd_acceptance + 共享接口契约。覆盖 tdd-engine SKILL.md / 三个 TDD AGENT.md / ORCHESTRATOR-PROTOCOLS §Parallel Task Dispatch 示例。原 PR #89 引入的 bundle 缓存机制因此回滚。
+- **penpot-implement 能力边界收窄到 generation** —— "能做" 移除 "比对设计与代码一致性"；"不做" 显式点名 "由 penpot-review 负责"；输出规范删除 "一致性检查报告"；执行流程删除 Step 4 一致性验证。一致性验证由 penpot-review 单独负责，避免与 implement 职责重叠导致 LLM 选错 skill。
+- **用户/LLM 直触发 skill description 加触发短语 + 负向边界** —— code-review / doc-review / sprint-review / debug / research / penpot 三件套的 frontmatter description 新增 "当 X 时使用此 skill" + "由 Y 负责，本 skill 不处理" 子句，互划范围（src/ vs docs/ vs .cataforge/ vs Sprint 级；implement vs review vs sync）。pipeline 类 skill（arc-design / req-analysis / task-decomp / ui-design 等阶段路由触发）保持原短描述不动。
+- **testing 新增 §与 debug 的关系 段** —— 显式描述 testing 缺陷清单 → orchestrator 调度 debug → testing 重跑验证的 handoff，对齐既有 §与 tdd-engine 的关系 写法。
+
+- **`agent_config.supported_fields` 现在在 deploy 时强制过滤** —— 此前是纯 INFO 信息；现在 translator 会按 `supported_fields ∩ 内部黑名单` 决定哪些 frontmatter 字段写入目标平台。Codex 部署改走与其他平台一致的 `translate_agent_md` 管线，再做 TOML 序列化，不再绕过翻译层。
+- **B3-α 严格化** —— 移除 token 启发式 fallback；每个 builtin SKILL.md 的 "## Layer 1 检查项" 段必须用 `<!-- check_id: ... -->` 锚点或 `权威清单见 ...CHECKS_MANIFEST` 委托句，二者必居其一，否则 FAIL。
+- **REFACTOR 触发去掉每任务 code-review L1 调用** —— 改由 implementer self-report 触发；sprint-review 阶段做批量 `--focus complexity,duplication,coupling` 的 L1 兜底。
+- **架构选型 tier 调整** —— architect / debugger 升 heavy（架构与跨栈调试需要深推理）；test-writer / implementer 落 standard（避免 light 漏判细节 bug）。其余按 `AGENT_MODEL_DEFAULTS` 默认值。
+
+### Fixed
+
+- **sprint-review unplanned-file 检测在 monorepo 下噪声爆炸** —— 旧实现 `os.walk(--src-dir)` 无 ignore 列表，packages 根目录里的 `node_modules/zod/...`、`dist/`、`*.tsbuildinfo` 等会被全部当成 gold-plating，单次运行 13k+ WARN 把 6 条真实 FAIL (缺 CODE-REVIEW 报告) 完全淹没。重写 `cataforge.skill.builtins.sprint_review.sprint_check.check_unplanned_files`：候选集合默认通过 `git ls-files -co --exclude-standard` 取得（同时尊重 `.gitignore` / 子模块 / global excludes），不在 git 仓内时回落到 `os.walk` 并预剪 `node_modules` / `__pycache__` / `.git`；新增 `cataforge.skill.builtins.sprint_review.ignore` 模块，`DEFAULT_IGNORE_PATTERNS` 兜底覆盖 Node / TS / Python / coverage / lock 文件常见产物。
+
+- **`check_required_sections` 在 frontmatter 内自命中** —— 旧实现 `re.search(re.escape(heading), self.content, re.MULTILINE)` 直接在全文跑，`required_sections:` YAML 数组里写的字面量（`- "## 4. 主题方案"`）会先于真正的 `## 4. 主题方案` 标题被匹中并截走 group(1) 直到下一个 `^## `，导致缺章节场景永远不 FAIL。改为先 `split_yaml_frontmatter` 剥离 frontmatter 再做 regex；新增的 `test_check_required_sections_fallback_flags_missing_section` 守住该回归。
+
+- **codex deploy `model: inherit` / `model: sonnet` 错误透传** —— 此前 `translate_agent_md` 仅翻译 tools/disallowedTools，`model:` 原样塞进 `.codex/agents/*.toml`；codex `available_models = [gpt-5.4, gpt-5.3-codex-spark]` 不识别 `inherit`/`sonnet`，会静默回落默认。现已通过 `model_tier` 抽象彻底修复。
+- **codex deploy 完全绕过 translator** —— `_md_to_toml` 此前只白名单 `(model, model_reasoning_effort, sandbox_mode, nickname_candidates)`，导致 `tools` / `disallowedTools` 不经任何处理即被丢弃且无审计；现在与其他平台共享 `translate_agent_md` 管线，能力丢失通过 `dropped_collector` 统一报告。
+- **`allowed_paths` 等内部字段污染部署产物** —— `allowed_paths` 是 CataForge agent-dispatch 内部字段，从未在任何平台 supported_fields 里声明，但仍被原样写入 `.claude/agents/*.md` 等；现在被明确划入 `_INTERNAL_FIELDS` 黑名单，所有平台一律剥离。
+
+### Removed
+
+- **`maxTurns: 100`（test-writer / implementer / refactorer）** —— 实测远超实际所需。test-writer 30 / implementer 80 / refactorer 30 即足够，超出兜底为 blocked → 人工介入。
+
+- **`.cataforge/.cache/tdd/T-{xxx}-context.md` bundle 文件机制** —— PR #89 引入的磁盘 bundle 缓存（含固定 7 章节）整体废弃。子代理不再 Read bundle 文件，prompt 自包含；消除磁盘往返与子代理首步 Read 开销。
+
+- **B3-α token 启发式 fallback** —— 与 "向后兼容期" 整体一并删除；新 SKILL 强制 anchor 或 delegation。
+- **AGENT.md `model:` 字段** —— 13 个内置 agent 全部迁移到 `model_tier:`；orchestrator 直接省略（主线程不需要）。translator 在部署时主动剥离 legacy `model:` 行（无过渡期）。
+- **B5 `endswith("-engine")` 硬编码** —— 由 `framework.json#/dispatcher_skills` 显式声明替代。
+
 <!-- 变更原因：按新 Changelog 写作约定重写 v0.1.15 章节作为后续版本范式；拆分长 bullet 为短句、单独列出 BREAKING 段并附迁移表；Previously Unreleased 散条归入对应子节 -->
 ## [0.1.15] — 2026-04-27
 
@@ -443,7 +545,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.1.15...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.2.0
 [0.1.15]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.15
 [0.1.14]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.14
 [0.1.13]: https://github.com/lync-cyber/CataForge/releases/tag/v0.1.13
