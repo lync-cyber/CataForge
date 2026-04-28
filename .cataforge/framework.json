@@ -131,6 +131,28 @@
       ]
     },
     {
+      "id": "mc-0.2.0-model-tier-migration",
+      "release_version": "0.2.0",
+      "description": "AGENT.md 必须使用 model_tier (light/standard/heavy/inherit/none) 取代 legacy model 字面量。translator 在 deploy 时丢弃 legacy `model:` 行（无过渡期）；framework-review B7-β FAIL 阻拦升级残留",
+      "type": "file_must_contain",
+      "path": ".cataforge/framework.json",
+      "patterns": [
+        "AGENT_MODEL_DEFAULTS",
+        "AGENT_MODEL_TIER_HEAVY_WHITELIST",
+        "EVENT_LOG_DRIFT_MIN_EVENTS"
+      ]
+    },
+    {
+      "id": "mc-0.2.0-dispatcher-skills",
+      "release_version": "0.2.0",
+      "description": "framework.json 顶层必须声明 dispatcher_skills，B5-α 据此区分 skill-as-router 与未定义 agent；endswith('-engine') 命名硬编码已删除",
+      "type": "file_must_contain",
+      "path": ".cataforge/framework.json",
+      "patterns": [
+        "dispatcher_skills"
+      ]
+    },
+    {
       "id": "mc-0.1.0-no-legacy-constant",
       "release_version": "0.1.0",
       "deprecate_after": "0.2.0",
