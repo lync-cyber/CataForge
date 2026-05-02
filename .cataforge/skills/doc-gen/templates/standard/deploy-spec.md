@@ -1,9 +1,10 @@
 ---
-id: "deploy-spec-{project}-{ver}"
+id: "deploy-spec-{project}"
+version: "{ver}"
 doc_type: deploy-spec
 author: devops
 status: draft
-deps: ["arch-{project}-{ver}"]
+deps: ["arch-{project}"]
 consumers: [devops]
 volume: main
 required_sections:

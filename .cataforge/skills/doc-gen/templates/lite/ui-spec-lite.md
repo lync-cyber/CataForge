@@ -1,9 +1,10 @@
 ---
-id: "ui-spec-lite-{project}-{ver}"
+id: "ui-spec-lite-{project}"
+version: "{ver}"
 doc_type: ui-spec
 author: ui-designer
 status: draft
-deps: ["prd-lite-{project}-{ver}"]
+deps: ["prd-lite-{project}"]
 consumers: [tech-lead, implementer]
 volume: main
 mode: agile-lite

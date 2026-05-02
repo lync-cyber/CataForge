@@ -1,5 +1,6 @@
 ---
-id: "prd-lite-{project}-{ver}"
+id: "prd-lite-{project}"
+version: "{ver}"
 doc_type: prd
 author: product-manager
 status: draft

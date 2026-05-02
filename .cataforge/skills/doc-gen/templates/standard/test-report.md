@@ -1,9 +1,10 @@
 ---
-id: "test-report-{project}-{ver}"
+id: "test-report-{project}"
+version: "{ver}"
 doc_type: test-report
 author: qa-engineer
 status: draft
-deps: ["dev-plan-{project}-{ver}"]
+deps: ["dev-plan-{project}"]
 consumers: [developer, qa-engineer, devops]
 volume: main
 required_sections:

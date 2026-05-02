@@ -1,13 +1,14 @@
 ---
-id: "ui-spec-{project}-{ver}-c{start}-c{end}"
+id: "ui-spec-{project}-c{start}-c{end}"
+version: "{ver}"
 doc_type: ui-spec
 author: ui-designer
 status: draft
-deps: ["prd-{project}-{ver}", "arch-{project}-{ver}"]
+deps: ["prd-{project}", "arch-{project}"]
 consumers: [tech-lead, developer]
 volume: components
 volume_type: components
-split_from: "ui-spec-{project}-{ver}"
+split_from: "ui-spec-{project}"
 required_sections:
   - "## 2. 组件清单"
 ---

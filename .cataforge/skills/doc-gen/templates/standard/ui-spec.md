@@ -1,9 +1,10 @@
 ---
-id: "ui-spec-{project}-{ver}"
+id: "ui-spec-{project}"
+version: "{ver}"
 doc_type: ui-spec
 author: ui-designer
 status: draft
-deps: ["prd-{project}-{ver}", "arch-{project}-{ver}"]
+deps: ["prd-{project}", "arch-{project}"]
 consumers: [tech-lead, developer]
 volume: main
 required_sections:

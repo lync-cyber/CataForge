@@ -28,7 +28,7 @@ maxTurns: 60
 - 可选参考: 已有项目文档 (通过doc-nav按需加载)
 
 ## Output Contract
-- 必须产出: prd-{project}-{ver}.md
+- 必须产出: prd-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
 - 使用模板: 通过doc-gen调用 prd 模板
 
 ## Anti-Patterns

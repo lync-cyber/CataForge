@@ -28,7 +28,7 @@ maxTurns: 50
 - 加载示例: `cataforge docs load arch#§1.4 arch#§6 arch#§7`
 
 ## Output Contract
-- 必须产出: deploy-spec-{project}-{ver}.md + changelog-{project}-{ver}.md
+- 必须产出: deploy-spec-{project}.md + changelog-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
 - 使用模板: 通过doc-gen调用 deploy-spec 模板 + changelog 模板
 
 ## Anti-Patterns

@@ -1,5 +1,6 @@
 ---
-id: "prd-{project}-{ver}-f{start}-f{end}"
+id: "prd-{project}-f{start}-f{end}"
+version: "{ver}"
 doc_type: prd
 author: product-manager
 status: draft
@@ -7,7 +8,7 @@ deps: []
 consumers: [architect, ui-designer, tech-lead]
 volume: features
 volume_type: features
-split_from: "prd-{project}-{ver}"
+split_from: "prd-{project}"
 required_sections:
   - "## 2. 功能需求"
 ---

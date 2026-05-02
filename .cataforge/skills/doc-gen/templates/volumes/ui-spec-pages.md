@@ -1,13 +1,14 @@
 ---
-id: "ui-spec-{project}-{ver}-p{start}-p{end}"
+id: "ui-spec-{project}-p{start}-p{end}"
+version: "{ver}"
 doc_type: ui-spec
 author: ui-designer
 status: draft
-deps: ["prd-{project}-{ver}", "arch-{project}-{ver}"]
+deps: ["prd-{project}", "arch-{project}"]
 consumers: [tech-lead, developer]
 volume: pages
 volume_type: pages
-split_from: "ui-spec-{project}-{ver}"
+split_from: "ui-spec-{project}"
 required_sections:
   - "## 3. 页面布局"
 ---

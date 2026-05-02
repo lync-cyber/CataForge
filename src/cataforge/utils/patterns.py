@@ -15,6 +15,12 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)", re.MULTILINE)
 # Matches structured item IDs like F-001, API-002, M-003, T-010, AC-005
 ITEM_ID_RE = re.compile(r"^[A-Z]+-\d+$")
 
+# Matches a valid doc_id / alias: word characters and hyphens only.
+# Single source of truth for identifier validation in the indexer and the
+# REF_RE doc_id capture group below — keep them aligned. Dots are rejected
+# because they would collide with the section path separator in REF_RE.
+DOC_ID_RE = re.compile(r"^[\w-]+$")
+
 # Matches a doc reference: doc_id#§section[.item]
 #   e.g. prd#§2, arch#§3.API-001, prd#§1.1
 REF_RE = re.compile(r"^(?P<doc_id>[\w-]+)#§(?P<section>[\w.-]+)$")

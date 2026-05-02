@@ -30,7 +30,7 @@ maxTurns: 60
 - 加载示例: `cataforge docs load prd#§2.F-001 arch#§2.M-001 arch#§3.API-001`
 
 ## Output Contract
-- 必须产出: ui-spec-{project}-{ver}.md
+- 必须产出: ui-spec-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
 - 使用模板: 通过doc-gen调用 ui-spec 模板
 
 ### Penpot 降级策略

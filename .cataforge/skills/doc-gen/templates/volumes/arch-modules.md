@@ -1,13 +1,14 @@
 ---
-id: "arch-{project}-{ver}-modules"
+id: "arch-{project}-modules"
+version: "{ver}"
 doc_type: arch
 author: architect
 status: draft
-deps: ["prd-{project}-{ver}"]
+deps: ["prd-{project}"]
 consumers: [tech-lead, developer, devops]
 volume: modules
 volume_type: modules
-split_from: "arch-{project}-{ver}"
+split_from: "arch-{project}"
 required_sections:
   - "## 2. 模块划分"
 ---

@@ -1,13 +1,14 @@
 ---
-id: "dev-plan-{project}-{ver}-s{N}"
+id: "dev-plan-{project}-s{N}"
+version: "{ver}"
 doc_type: dev-plan
 author: tech-lead
 status: draft
-deps: ["arch-{project}-{ver}", "ui-spec-{project}-{ver}"]
+deps: ["arch-{project}", "ui-spec-{project}"]
 consumers: [developer, qa-engineer]
 volume: sprint
 volume_type: sprint
-split_from: "dev-plan-{project}-{ver}"
+split_from: "dev-plan-{project}"
 required_sections:
   - "## 3. 任务卡详细"
 ---

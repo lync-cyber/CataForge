@@ -181,3 +181,69 @@ def test_validate_docs_alias_resolves_dep(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(root)
     result = CliRunner().invoke(docs_validate, [])
     assert result.exit_code == 0, result.output
+
+
+# --- invalid-id validation -------------------------------------------------
+
+
+def test_validate_docs_rejects_doc_id_with_dot(tmp_path: Path, monkeypatch) -> None:
+    """A doc_id containing '.' breaks REF_RE and must FAIL docs validate.
+
+    Pre-fix, doc-gen put version strings like '0.1.0' into ids
+    (`prd-myapp-0.1.0`); REF_RE silently rejected any reference targeting
+    them and the only symptom was a confusing 'parse error' at load time.
+    """
+    root = _make_project(tmp_path)
+    _write_doc(
+        root, "docs/prd/prd-myapp-0.1.0.md",
+        '---\nid: "prd-myapp-0.1.0"\ndoc_type: prd\n---\n# x\n\n## 1. X\n内容\n',
+    )
+    indexer.main(["--project-root", str(root)])
+
+    monkeypatch.chdir(root)
+    result = CliRunner().invoke(docs_validate, [])
+    assert result.exit_code == 3
+    combined = result.output + (result.stderr_bytes or b"").decode("utf-8", errors="replace")
+    assert "invalid id" in combined or "非法 doc_id" in combined
+    assert "prd-myapp-0.1.0" in combined
+
+
+def test_validate_docs_rejects_alias_with_dot(tmp_path: Path, monkeypatch) -> None:
+    """An alias slug must obey the same rules as doc_id."""
+    root = _make_project(tmp_path)
+    _write_doc(
+        root, "docs/arch/arch-foo.md",
+        '---\nid: arch-foo\ndoc_type: arch\naliases: ["arch.data"]\n---\n# x\n',
+    )
+    indexer.main(["--project-root", str(root)])
+
+    monkeypatch.chdir(root)
+    result = CliRunner().invoke(docs_validate, [])
+    assert result.exit_code == 3
+    combined = result.output + (result.stderr_bytes or b"").decode("utf-8", errors="replace")
+    assert "invalid id" in combined or "非法 alias" in combined
+    assert "arch.data" in combined
+
+
+def test_find_invalid_doc_ids_returns_empty_for_clean_index(tmp_path: Path) -> None:
+    root = _make_project(tmp_path)
+    _write_doc(
+        root, "docs/prd/prd-myapp.md",
+        '---\nid: prd-myapp\nversion: "0.1.0"\ndoc_type: prd\n---\n# x\n\n## 1. X\nA\n',
+    )
+    indexer.main(["--project-root", str(root)])
+    assert indexer.find_invalid_doc_ids(str(root)) == []
+
+
+def test_doc_gen_version_in_frontmatter_resolves_via_xref(tmp_path: Path) -> None:
+    """The post-fix doc-gen schema (version: in frontmatter, slug-only id)
+    must round-trip through the loader without tripping the REF_RE bug."""
+    root = _make_project(tmp_path)
+    _write_doc(
+        root, "docs/prd/prd-myapp.md",
+        '---\nid: prd-myapp\nversion: "0.1.0"\ndoc_type: prd\n---\n'
+        "# x\n\n## 2. 功能\n\n### F-001 登录\n登录流程\n",
+    )
+    indexer.main(["--project-root", str(root)])
+    content = loader.extract("prd-myapp#§2.F-001", str(root))
+    assert "登录流程" in content

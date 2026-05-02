@@ -41,10 +41,10 @@ maxTurns: 30
 ### task_type=retrospective（项目回顾）
 同时产出两类文件:
 
-**1. RETRO 报告** — docs/reviews/retro/RETRO-{project}-{ver}.md，格式:
+**1. RETRO 报告** — docs/reviews/retro/RETRO-{project}-{cycle}.md（`{cycle}` = sprint 编号或迭代标签，仅允许 `[a-z0-9-]`；版本号写入 frontmatter `version:`），格式:
 
 ```
-# RETRO-{project}-{ver}
+# RETRO-{project}-{cycle}
 <!-- author: reflector | type: retrospective | date: {date} -->
 
 ## 统计摘要
