@@ -1,13 +1,14 @@
 ---
-id: "arch-{project}-{ver}-api"
+id: "arch-{project}-api"
+version: "{ver}"
 doc_type: arch
 author: architect
 status: draft
-deps: ["prd-{project}-{ver}"]
+deps: ["prd-{project}"]
 consumers: [tech-lead, developer, devops]
 volume: api
 volume_type: api
-split_from: "arch-{project}-{ver}"
+split_from: "arch-{project}"
 required_sections:
   - "## 3. 接口契约"
 ---

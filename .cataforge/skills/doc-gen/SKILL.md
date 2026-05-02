@@ -19,12 +19,17 @@ user-invocable: true
 当Agent需要创建新文档时，按以下步骤执行:
 1. 查阅注册表: `Read .cataforge/skills/doc-gen/templates/_registry.yaml`，找到 `{template_id}` 条目的 `path` 字段
    读取模板文件: `Read .cataforge/skills/doc-gen/templates/{path}`（如 `standard/prd.md`）
-2. 替换占位符: `{项目名称}` → 项目名, `{project}` → 项目标识, `{ver}` → 版本号
-3. 设置文档头: id(格式 {template_id}-{project}-{ver})、author(当前agent目录名)、status=draft、deps(按模板)、consumers(按模板)
-4. 写入文件（Write 工具会自动创建不存在的父目录）: `Write docs/{doc_type}/{template_id}-{project}-{ver}.md`
+2. 替换占位符: `{项目名称}` → 项目名, `{project}` → 项目标识(slug, 仅限 `[a-z0-9-]`), `{ver}` → 版本号(写入 frontmatter `version:` 字段)
+3. 设置文档头:
+   - `id` 格式 `{template_id}-{project}` —— **不带版本号**。id 是稳定身份，跨版本不变；版本归 `version:` 字段
+   - `version: "{ver}"`（独立字段；可含 `.`，但不进入 id/文件名）
+   - author(当前agent目录名)、status=draft、deps(按模板)、consumers(按模板)
+4. 写入文件（Write 工具会自动创建不存在的父目录）: `Write docs/{doc_type}/{template_id}-{project}.md`
    - doc_type 映射见下方 template_id 映射表
    - 特殊映射: research-note → `docs/research/`, changelog → `docs/changelog/`, brief → `docs/brief/`
 5. 返回给Agent: 目标文件路径 + 必填章节清单(从[NAV]块提取)
+
+> **命名规则（强制）**: `id` 与文件名只允许 `[a-z0-9-]`（slug）。**禁止**把版本号、点号、空格塞进 id —— `cataforge docs validate` 会 FAIL，并阻塞 doctor / CI。版本演进时 id/文件名保持稳定，仅更新 `version:` 字段；同一项目不同版本会**覆盖**同一份 doc（要保留历史走 git 或归档目录）。
 
 ### 指令2: 写入章节内容 (write-section)
 Agent逐章填充内容时:
@@ -51,19 +56,21 @@ Agent逐章填充内容时:
 触发条件: 单文档行数超过 `DOC_SPLIT_THRESHOLD_LINES`
 
 ### 拆分映射表
+> 命名规则只用 slug（`[a-z0-9-]`），版本号一律下沉到 frontmatter `version:` 字段。
+
 | doc_type | volume_type | 保留章节 | 命名规则 | 模板文件 |
 |----------|-------------|----------|----------|----------|
-| prd | main | §1概述, §3非功能需求, §4约束, §5术语 | `prd-{project}-{ver}.md` | `templates/prd.md` |
-| prd | features | §2功能需求 (F-{start}..F-{end}) | `prd-{project}-{ver}-f{start}-f{end}.md` | `templates/prd-volume.md` |
-| arch | main | §1架构概览, §5非功能架构, §6目录, §7约定 | `arch-{project}-{ver}.md` | `templates/arch.md` |
-| arch | modules | §2模块划分 (M-001..M-NNN) | `arch-{project}-{ver}-modules.md` | `templates/arch-modules.md` |
-| arch | api | §3接口契约 (API-001..API-NNN) | `arch-{project}-{ver}-api.md` | `templates/arch-api.md` |
-| arch | data | §4数据模型 (E-001..E-NNN) | `arch-{project}-{ver}-data.md` | `templates/arch-data.md` |
-| dev-plan | main | §1迭代规划, §2依赖图, §4关键路径, §5风险 | `dev-plan-{project}-{ver}.md` | `templates/dev-plan.md` |
-| dev-plan | sprint | §3任务卡详细 — 单Sprint | `dev-plan-{project}-{ver}-s{N}.md` | `templates/dev-plan-sprint.md` |
-| ui-spec | main | §1设计系统, §4导航路由, §5响应式 | `ui-spec-{project}-{ver}.md` | `templates/ui-spec.md` |
-| ui-spec | components | §2组件清单 (C-{start}..C-{end}) | `ui-spec-{project}-{ver}-c{start}-c{end}.md` | `templates/ui-spec-components.md` |
-| ui-spec | pages | §3页面布局 (P-{start}..P-{end}) | `ui-spec-{project}-{ver}-p{start}-p{end}.md` | `templates/ui-spec-pages.md` |
+| prd | main | §1概述, §3非功能需求, §4约束, §5术语 | `prd-{project}.md` | `templates/prd.md` |
+| prd | features | §2功能需求 (F-{start}..F-{end}) | `prd-{project}-f{start}-f{end}.md` | `templates/prd-volume.md` |
+| arch | main | §1架构概览, §5非功能架构, §6目录, §7约定 | `arch-{project}.md` | `templates/arch.md` |
+| arch | modules | §2模块划分 (M-001..M-NNN) | `arch-{project}-modules.md` | `templates/arch-modules.md` |
+| arch | api | §3接口契约 (API-001..API-NNN) | `arch-{project}-api.md` | `templates/arch-api.md` |
+| arch | data | §4数据模型 (E-001..E-NNN) | `arch-{project}-data.md` | `templates/arch-data.md` |
+| dev-plan | main | §1迭代规划, §2依赖图, §4关键路径, §5风险 | `dev-plan-{project}.md` | `templates/dev-plan.md` |
+| dev-plan | sprint | §3任务卡详细 — 单Sprint | `dev-plan-{project}-s{N}.md` | `templates/dev-plan-sprint.md` |
+| ui-spec | main | §1设计系统, §4导航路由, §5响应式 | `ui-spec-{project}.md` | `templates/ui-spec.md` |
+| ui-spec | components | §2组件清单 (C-{start}..C-{end}) | `ui-spec-{project}-c{start}-c{end}.md` | `templates/ui-spec-components.md` |
+| ui-spec | pages | §3页面布局 (P-{start}..P-{end}) | `ui-spec-{project}-p{start}-p{end}.md` | `templates/ui-spec-pages.md` |
 
 ### 拆分执行步骤
 1. **确定拆分方案** — 根据上表确定 doc_type 对应的 volume_type 组合
@@ -105,22 +112,23 @@ Agent逐章填充内容时:
 | ui-spec-lite | templates/ui-spec-lite.md | ui-spec | ui-designer | prd-lite |
 | dev-plan-lite | templates/dev-plan-lite.md | dev-plan | tech-lead | arch-lite |
 
-> **执行模式说明**: `brief` 仅用于 agile-prototype 模式（合并 PRD+ARCH+DEV-PLAN）；`prd-lite` / `arch-lite` / `dev-plan-lite` 仅用于 agile-lite 模式；`ui-spec-lite` 为 agile-lite 模式的可选项，仅当项目涉及 UI 时生成。模式判定见 COMMON-RULES §执行模式矩阵。lite 文档与 standard 文档共享同一 `docs/{doc_type}/` 目录（如 `docs/prd/prd-lite-{project}-{ver}.md`），同一项目只会选用其中一种。
+> **执行模式说明**: `brief` 仅用于 agile-prototype 模式（合并 PRD+ARCH+DEV-PLAN）；`prd-lite` / `arch-lite` / `dev-plan-lite` 仅用于 agile-lite 模式；`ui-spec-lite` 为 agile-lite 模式的可选项，仅当项目涉及 UI 时生成。模式判定见 COMMON-RULES §执行模式矩阵。lite 文档与 standard 文档共享同一 `docs/{doc_type}/` 目录（如 `docs/prd/prd-lite-{project}.md`），同一项目只会选用其中一种。
 
 ## 通用文档头规范
 每份文档必须以 YAML Front Matter 开始:
 ```yaml
 ---
-id: "{type}-{project}-{ver}"
+id: "{type}-{project}"          # slug only: [a-z0-9-]; 不含版本号
+version: "{ver}"                 # 版本号在这里，可含 '.'，但绝不进入 id/文件名
 doc_type: {type}
 author: {agent-name}
 status: draft
-deps: [{上游文档ID列表}]
+deps: [{上游文档ID列表}]         # 同样使用稳定 id，跨版本不变
 consumers: [{下游agent列表}]
 volume: main
 # 仅分卷文档需要以下字段:
 # volume_type: {features|modules|api|data|sprint|components|pages}
-# split_from: "{主卷ID}"
+# split_from: "{主卷ID}"          # 不含 {ver}
 required_sections:
   - "## 1. {章节名}"
 ---

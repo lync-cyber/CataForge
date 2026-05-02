@@ -1,13 +1,14 @@
 ---
-id: "ui-spec-{project}-{ver}-theme-{NN}-{slug}"
+id: "ui-spec-{project}-theme-{NN}-{slug}"
+version: "{ver}"
 doc_type: ui-spec
 author: ui-designer
 status: draft
-deps: ["arch-{project}-{ver}-data"]
+deps: ["arch-{project}-data"]
 consumers: [tech-lead, developer]
 volume: theme
 volume_type: theme
-split_from: "ui-spec-{project}-{ver}"
+split_from: "ui-spec-{project}"
 required_sections:
   - "## 4. 主题方案"
 ---
@@ -25,7 +26,7 @@ required_sections:
 - **间距与节奏**: {栅格、行高、留白比例}
 
 ### 4.2 适配组件
-- 引用 [`ui-spec-{project}-{ver}-c{start}-c{end}`] 中的 C-XXX，列出主题覆写规则。
+- 引用 [`ui-spec-{project}-c{start}-c{end}`] 中的 C-XXX，列出主题覆写规则。
 
 ### 4.3 关键页面应用
-- 引用 [`ui-spec-{project}-{ver}-p{start}-p{end}`] 中的 P-XXX，标注主题在该页的视觉表现。
+- 引用 [`ui-spec-{project}-p{start}-p{end}`] 中的 P-XXX，标注主题在该页的视觉表现。

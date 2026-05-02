@@ -1,9 +1,10 @@
 ---
-id: "dev-plan-{project}-{ver}"
+id: "dev-plan-{project}"
+version: "{ver}"
 doc_type: dev-plan
 author: tech-lead
 status: draft
-deps: ["arch-{project}-{ver}", "ui-spec-{project}-{ver}"]
+deps: ["arch-{project}", "ui-spec-{project}"]
 consumers: [developer, qa-engineer]
 volume: main
 required_sections:

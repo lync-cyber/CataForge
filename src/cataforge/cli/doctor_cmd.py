@@ -1045,11 +1045,15 @@ def _check_docs_validate(cfg) -> int:
     stale = result["stale"]
     xref_errors = result["xref_errors"]
     alias_conflicts = result["alias_conflicts"]
+    invalid_ids = result.get("invalid_ids", [])
 
-    if not orphans and not stale and not xref_errors and not alias_conflicts:
+    if (
+        not orphans and not stale and not xref_errors
+        and not alias_conflicts and not invalid_ids
+    ):
         click.echo(
             "  0 orphan documents · 0 stale entries · 0 xref errors · "
-            "0 alias conflicts (everything in sync)"
+            "0 alias conflicts · 0 invalid ids (everything in sync)"
         )
         return 0
 
@@ -1116,7 +1120,29 @@ def _check_docs_validate(cfg) -> int:
         if extra > 0:
             click.echo(f"    - ... and {extra} more")
 
-    return len(orphans) + len(stale) + len(xref_errors) + len(alias_conflicts)
+    if invalid_ids:
+        click.echo(
+            f"  {len(invalid_ids)} invalid id(s) — slug must match "
+            f"[A-Za-z0-9_-]+ (no dots / version strings):"
+        )
+        shown_invalid = invalid_ids[:5]
+        for e in shown_invalid:
+            click.echo(
+                f"    FAIL [{e['kind']}] {e['value']!r} ({e['file_path']}): "
+                f"{e['reason']}"
+            )
+        extra = len(invalid_ids) - len(shown_invalid)
+        if extra > 0:
+            click.echo(f"    - ... and {extra} more")
+        click.echo(
+            "  → 别在 doc id/alias 里塞版本号或带 '.' 的串；版本归 frontmatter "
+            "`version:` 字段。doc-gen 已遵循该规则。"
+        )
+
+    return (
+        len(orphans) + len(stale) + len(xref_errors)
+        + len(alias_conflicts) + len(invalid_ids)
+    )
 
 
 def _check_file(label: str, path: Path) -> None:

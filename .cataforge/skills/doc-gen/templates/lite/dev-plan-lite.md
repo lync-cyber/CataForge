@@ -1,9 +1,10 @@
 ---
-id: "dev-plan-lite-{project}-{ver}"
+id: "dev-plan-lite-{project}"
+version: "{ver}"
 doc_type: dev-plan
 author: tech-lead
 status: draft
-deps: ["arch-lite-{project}-{ver}"]
+deps: ["arch-lite-{project}"]
 consumers: [implementer, qa-engineer]
 volume: main
 mode: agile-lite

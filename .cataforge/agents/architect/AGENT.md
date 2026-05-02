@@ -30,7 +30,7 @@ maxTurns: 60
 - 加载示例: `cataforge docs load prd#§1 prd#§3 prd#§2.F-001 prd#§2.F-002`
 
 ## Output Contract
-- 必须产出: arch-{project}-{ver}.md (含分卷: API, DATA, 模块)
+- 必须产出: arch-{project}.md (含分卷: API, DATA, 模块)；版本号写入 frontmatter `version:` 字段，不进入 id/文件名
 - 使用模板: 通过doc-gen调用 arch 模板
 
 ## Error Handling

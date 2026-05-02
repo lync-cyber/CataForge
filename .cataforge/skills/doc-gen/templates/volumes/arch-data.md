@@ -1,13 +1,14 @@
 ---
-id: "arch-{project}-{ver}-data"
+id: "arch-{project}-data"
+version: "{ver}"
 doc_type: arch
 author: architect
 status: draft
-deps: ["prd-{project}-{ver}"]
+deps: ["prd-{project}"]
 consumers: [tech-lead, developer, devops]
 volume: data
 volume_type: data
-split_from: "arch-{project}-{ver}"
+split_from: "arch-{project}"
 required_sections:
   - "## 4. 数据模型"
 ---

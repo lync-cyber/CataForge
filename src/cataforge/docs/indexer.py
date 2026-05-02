@@ -20,7 +20,12 @@ from typing import Any
 from cataforge.core.paths import find_project_root
 from cataforge.utils.common import ensure_utf8_stdio
 from cataforge.utils.md_parse import iter_markdown_headings
-from cataforge.utils.patterns import ITEM_ID_RE, SECTION_NUM_RE, SUBSECTION_NUM_RE
+from cataforge.utils.patterns import (
+    DOC_ID_RE,
+    ITEM_ID_RE,
+    SECTION_NUM_RE,
+    SUBSECTION_NUM_RE,
+)
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
 SECTION_META_RE = re.compile(r"<!--\s*section_meta:\s*\{(.*?)\}\s*-->", re.DOTALL)
@@ -245,7 +250,50 @@ def validate_docs(project_root: str) -> dict[str, list]:
         "stale": find_stale_index_entries(project_root),
         "xref_errors": find_xref_errors(project_root),
         "alias_conflicts": find_alias_conflicts(project_root),
+        "invalid_ids": find_invalid_doc_ids(project_root),
     }
+
+
+def find_invalid_doc_ids(project_root: str) -> list[dict[str, str]]:
+    """Return doc_ids / aliases whose slug violates ``DOC_ID_RE``.
+
+    The loader's ``REF_RE`` only accepts ``[\\w-]+`` in the doc_id position,
+    so any id or alias containing ``.`` (e.g. version strings like
+    ``0.1.0``) silently breaks every cross-reference targeting it.
+    Reporting them here turns the silent failure into a hard validate
+    error so doc-gen template misuse surfaces immediately.
+    """
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    errors: list[dict[str, str]] = []
+    documents = index.get("documents") or {}
+    for doc_id, entry in documents.items():
+        rel_path = entry.get("file_path", "")
+        if not DOC_ID_RE.match(doc_id):
+            errors.append({
+                "kind": "doc_id", "value": doc_id, "file_path": rel_path,
+                "reason": (
+                    f"非法 doc_id {doc_id!r}: 仅允许 [A-Za-z0-9_-]，"
+                    f"含 '.' 等字符会让 REF_RE 拒绝任何指向本文档的引用"
+                ),
+            })
+        for alias in entry.get("aliases") or []:
+            if not isinstance(alias, str) or not DOC_ID_RE.match(alias):
+                errors.append({
+                    "kind": "alias", "value": str(alias), "file_path": rel_path,
+                    "reason": (
+                        f"非法 alias {alias!r} (claimed by {doc_id!r}): "
+                        f"仅允许 [A-Za-z0-9_-]"
+                    ),
+                })
+    return errors
 
 
 def find_alias_conflicts(project_root: str) -> list[dict[str, Any]]:

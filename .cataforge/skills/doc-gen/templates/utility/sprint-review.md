@@ -1,9 +1,10 @@
 ---
-id: "sprint-review-s{N}-{project}-{ver}"
+id: "sprint-review-{project}-s{N}"
+version: "{ver}"
 doc_type: sprint-review
 author: reviewer
 status: draft
-deps: ["dev-plan-{project}-{ver}", "arch-{project}-{ver}"]
+deps: ["dev-plan-{project}", "arch-{project}"]
 consumers: [orchestrator]
 required_sections:
   - "## 1. 计划 vs 实际"

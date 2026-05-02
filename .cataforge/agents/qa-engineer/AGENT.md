@@ -28,7 +28,7 @@ maxTurns: 50
 - 加载示例: `cataforge docs load dev-plan#§2.T-001 dev-plan#§2.T-002 arch#§3.API-001`
 
 ## Output Contract
-- 必须产出: test-report-{project}-{ver}.md
+- 必须产出: test-report-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
 - 使用模板: 通过doc-gen调用 test-report 模板
 
 ## Anti-Patterns

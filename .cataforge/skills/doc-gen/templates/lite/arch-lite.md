@@ -1,9 +1,10 @@
 ---
-id: "arch-lite-{project}-{ver}"
+id: "arch-lite-{project}"
+version: "{ver}"
 doc_type: arch
 author: architect
 status: draft
-deps: ["prd-lite-{project}-{ver}"]
+deps: ["prd-lite-{project}"]
 consumers: [tech-lead, implementer]
 volume: main
 mode: agile-lite

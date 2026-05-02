@@ -125,6 +125,8 @@ def docs_validate(project_root: str | None) -> None:
     - orphan docs (markdown files missing YAML front matter)
     - stale index entries (file_path no longer on disk)
     - cross-reference errors (frontmatter ``deps`` that don't resolve)
+    - alias conflicts (duplicate / shadowed alias claims)
+    - invalid ids (doc_id / alias containing '.' or other non-slug chars)
 
     Exits 0 when clean, 3 when any failure is found.
     """
@@ -153,10 +155,15 @@ def docs_validate(project_root: str | None) -> None:
     stale = result["stale"]
     xref_errors = result["xref_errors"]
     alias_conflicts = result["alias_conflicts"]
+    invalid_ids = result.get("invalid_ids", [])
 
-    if not orphans and not stale and not xref_errors and not alias_conflicts:
+    if (
+        not orphans and not stale and not xref_errors
+        and not alias_conflicts and not invalid_ids
+    ):
         click.echo(
-            "OK · 0 orphans · 0 stale entries · 0 xref errors · 0 alias conflicts"
+            "OK · 0 orphans · 0 stale entries · 0 xref errors · "
+            "0 alias conflicts · 0 invalid ids"
         )
         return
 
@@ -195,9 +202,22 @@ def docs_validate(project_root: str | None) -> None:
                 err=True,
             )
 
+    if invalid_ids:
+        click.echo(
+            f"FAIL · {len(invalid_ids)} invalid id(s) — slug must match "
+            f"[A-Za-z0-9_-]+:",
+            err=True,
+        )
+        for e in invalid_ids:
+            click.echo(
+                f"  - [{e['kind']}] {e['value']!r} ({e['file_path']}): {e['reason']}",
+                err=True,
+            )
+
     err = CataforgeError(
         f"docs validate failed ({len(orphans)} orphan, {len(stale)} stale, "
-        f"{len(xref_errors)} xref, {len(alias_conflicts)} alias)",
+        f"{len(xref_errors)} xref, {len(alias_conflicts)} alias, "
+        f"{len(invalid_ids)} invalid-id)",
     )
     err.exit_code = 3
     raise err

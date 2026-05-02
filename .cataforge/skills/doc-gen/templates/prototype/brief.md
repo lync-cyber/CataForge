@@ -1,5 +1,6 @@
 ---
-id: "brief-{project}-{ver}"
+id: "brief-{project}"
+version: "{ver}"
 doc_type: brief
 author: product-manager
 status: draft
