@@ -182,7 +182,12 @@ if command -v gh >/dev/null 2>&1 && [[ -t 0 ]]; then
 EOF
 )"
         echo ""
-        echo "完成后可删除 PR 分支:"
+        echo "PR 合并后（squash）—— 同步本地 main + 清理已合并的 feature 分支:"
+        echo "  cataforge sync-main --prune-merged"
+        echo "    （或手动: git switch main && git pull --ff-only origin main && \\"
+        echo "             git branch -d $SRC_BRANCH $PR_BRANCH）"
+        echo ""
+        echo "如未合并，先删 PR 分支:"
         echo "  git checkout $SRC_BRANCH && git branch -D $PR_BRANCH"
         exit 0
     fi
@@ -194,5 +199,8 @@ echo "  gh pr create --base main --head $PR_BRANCH --title '<type>(<scope>): <su
 echo ""
 echo "  ⚠ 不要省略 --title，否则 gh 会用分支名作标题（小写 type/scope 规范见 CLAUDE.md）"
 echo ""
-echo "完成后可删除 PR 分支:"
+echo "PR 合并后（squash）—— 同步本地 main + 清理已合并的 feature 分支:"
+echo "  cataforge sync-main --prune-merged"
+echo ""
+echo "如未合并，先删 PR 分支:"
 echo "  git checkout $SRC_BRANCH && git branch -D $PR_BRANCH"

@@ -76,7 +76,13 @@ CTX_PROJECT_DIR = "project_dir"
         "  event        Append records to docs/EVENT-LOG.jsonl.\n"
         "  correction   Query the on-correction learning log.\n"
         "  feedback     Bundle local signals into upstream-ready feedback.\n"
+        "  issue        Triage upstream GitHub issues into SKILL-IMPROVE drafts.\n"
         "  penpot       Penpot design-tool Docker + MCP integration.\n"
+        "\n"
+        "\b\n"
+        "MAINTENANCE:\n"
+        "  sync-main    Fast-forward local default branch from origin (post-PR).\n"
+        "  claude-md    CLAUDE.md hygiene (size check, Learnings Registry compact).\n"
         "\n"
         "Run `cataforge COMMAND --help` for command-specific options."
     ),
@@ -134,6 +140,7 @@ def _register_commands() -> None:
     from cataforge.cli import (  # noqa: F401
         agent_cmd,
         bootstrap_cmd,
+        claude_md_cmd,
         correction_cmd,
         deploy_cmd,
         docs_cmd,
@@ -141,11 +148,13 @@ def _register_commands() -> None:
         event_cmd,
         feedback_cmd,
         hook_cmd,
+        issue_cmd,
         mcp_cmd,
         penpot_cmd,
         plugin_cmd,
         setup_cmd,
         skill_cmd,
+        sync_cmd,
         upgrade_cmd,
     )
 

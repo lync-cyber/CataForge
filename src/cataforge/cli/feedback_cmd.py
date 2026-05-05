@@ -36,7 +36,7 @@ from typing import Any, TypeVar
 import click
 
 from cataforge.cli.errors import CataforgeError, ExternalToolError
-from cataforge.cli.helpers import resolve_root
+from cataforge.cli.helpers import get_config_manager, resolve_root
 from cataforge.cli.main import cli
 from cataforge.core.feedback import (
     RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT,
@@ -133,9 +133,15 @@ def _emit(
     to_gh: bool,
     title: str,
     quiet: bool,
-    gh_label: str | None = None,
+    gh_kind: str | None = None,
 ) -> None:
-    """Resolve sinks. Mutually exclusive; default = --print."""
+    """Resolve sinks. Mutually exclusive; default = --print.
+
+    ``gh_kind`` (one of "bug" / "suggest" / "correction-export") drives label
+    resolution via ``ConfigManager.feedback_gh_labels``; the prior
+    ``gh_label`` arg has been retired in favour of config-driven labels so
+    the upstream repo's labelset is no longer hardcoded.
+    """
     chosen = sum(bool(x) for x in (print_to_stdout, out_path, to_clipboard, to_gh))
     if chosen > 1:
         raise click.UsageError(
@@ -160,7 +166,15 @@ def _emit(
             click.secho("Copied feedback body to clipboard.", fg="green", err=True)
         return
     if to_gh:
-        url = _to_gh(body, title=title, label=gh_label)
+        cfg = get_config_manager()
+        labels = cfg.feedback_gh_labels(gh_kind) if gh_kind else []
+        fallback = cfg.feedback_fallback_on_missing_label()
+        url = _to_gh(
+            body,
+            title=title,
+            labels=labels,
+            fallback_on_missing_label=fallback,
+        )
         # Always print the URL to stdout so CI / pipelines can capture it
         # even with --quiet.
         click.echo(url)
@@ -182,23 +196,64 @@ def _to_clipboard(body: str) -> None:
     )
 
 
-def _to_gh(body: str, *, title: str, label: str | None = None) -> str:
+_LABEL_NOT_FOUND_PATTERNS = (
+    "could not add label",
+    "not found",
+    "label does not exist",
+    "label not found",
+)
+
+
+def _looks_like_missing_label_error(stderr: str) -> bool:
+    """Detect ``gh issue create --label X`` failure caused by label X not existing.
+
+    GitHub's API rejects the call with a 422 "Validation Failed" + message
+    "Could not add label: ..." when the label hasn't been created on the repo.
+    ``gh`` surfaces this via stderr; we match a few substrings rather than
+    parsing JSON since the exact wording has shifted across ``gh`` releases.
+    """
+    if not stderr:
+        return False
+    lower = stderr.lower()
+    return any(pat in lower for pat in _LABEL_NOT_FOUND_PATTERNS)
+
+
+def _to_gh(
+    body: str,
+    *,
+    title: str,
+    labels: list[str] | None = None,
+    fallback_on_missing_label: bool = True,
+    label: str | None = None,  # deprecated, comma-separated form
+) -> str:
     """Spawn `gh issue create --body-file - < body` and return the issue URL.
 
     The body is fed via stdin so we never write it to a temp file (avoids
     leaking ``--include-paths`` content to disk in CI runners). Caller is
     responsible for handling the resulting URL.
+
+    When ``labels`` is non-empty and the upstream repo lacks one or more of
+    those labels (gh exits 1 with a "Could not add label" message), we
+    transparently retry without ``--label`` and warn on stderr so the issue
+    still lands. Set ``fallback_on_missing_label=False`` to disable.
     """
     if not shutil.which("gh"):
         raise ExternalToolError(
             "GitHub CLI `gh` not found on PATH. Install from https://cli.github.com/ "
             "or use --print / --clip and paste manually."
         )
-    cmd = ["gh", "issue", "create", "--title", title, "--body-file", "-"]
-    if label:
-        cmd.extend(["--label", label])
-    try:
-        result = subprocess.run(
+
+    # Back-compat: callers used to pass ``label="feedback,bug"`` (comma form).
+    label_list: list[str] = []
+    if labels:
+        label_list = list(labels)
+    elif label:
+        label_list = [item.strip() for item in label.split(",") if item.strip()]
+
+    base_cmd = ["gh", "issue", "create", "--title", title, "--body-file", "-"]
+
+    def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
             cmd,
             input=body,
             text=True,
@@ -206,11 +261,134 @@ def _to_gh(body: str, *, title: str, label: str | None = None) -> str:
             check=True,
             encoding="utf-8",
         )
+
+    cmd = list(base_cmd)
+    for lbl in label_list:
+        cmd.extend(["--label", lbl])
+    try:
+        result = _run(cmd)
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr or e.stdout or ""
+        if (
+            label_list
+            and fallback_on_missing_label
+            and _looks_like_missing_label_error(stderr)
+        ):
+            click.secho(
+                f"WARN: upstream repo rejected label(s) {label_list!r}; "
+                "retrying without --label. Run `cataforge feedback ensure-labels` "
+                "to create them on the upstream repo if you have push access.",
+                fg="yellow",
+                err=True,
+            )
+            try:
+                result = _run(base_cmd)
+            except subprocess.CalledProcessError as e2:
+                raise ExternalToolError(
+                    f"gh issue create failed even after dropping --label "
+                    f"(exit {e2.returncode}):\n{e2.stderr or e2.stdout}"
+                ) from None
+        else:
+            raise ExternalToolError(
+                f"gh issue create failed (exit {e.returncode}):\n{stderr}"
+            ) from None
+    return (result.stdout or "").strip()
+
+
+# ─── feedback ensure-labels ───────────────────────────────────────────────────
+
+
+@feedback_group.command("ensure-labels")
+@click.option(
+    "--repo", "repo", default=None,
+    help="Target repo (owner/name). Defaults to the upstream from "
+         "`framework.json#upgrade.source.repo`.",
+)
+@click.option(
+    "--dry-run", "dry_run", is_flag=True, default=False,
+    help="Print what would be created without calling `gh label create`.",
+)
+def ensure_labels_command(repo: str | None, dry_run: bool) -> None:
+    """Create the GitHub labels declared in `framework.json#feedback.gh.labels`
+    on the upstream repo, idempotently.
+
+    Use this once when bootstrapping a fork or when adding a new feedback
+    label to `framework.json` — it skips labels that already exist.
+    Requires `gh` on PATH and push access to the target repo.
+    """
+    if not shutil.which("gh"):
+        raise ExternalToolError(
+            "GitHub CLI `gh` not found on PATH. Install from https://cli.github.com/"
+        )
+    cfg = get_config_manager()
+    if repo is None:
+        upstream = cfg.upgrade_source
+        owner_repo = upstream.get("repo")
+        if not owner_repo:
+            raise CataforgeError(
+                "framework.json#upgrade.source.repo is not configured; "
+                "pass --repo owner/name explicitly."
+            )
+        repo = str(owner_repo)
+
+    # Collect every distinct label declared across feedback kinds.
+    labels: set[str] = set()
+    for kind in ("bug", "suggest", "correction-export"):
+        for lbl in cfg.feedback_gh_labels(kind):
+            labels.add(lbl)
+    if not labels:
+        click.echo("No labels declared in framework.json#feedback.gh.labels.")
+        return
+
+    # gh label list returns existing labels — used to skip duplicates so the
+    # call is idempotent (gh label create exits 1 on duplicate).
+    existing: set[str] = set()
+    try:
+        listing = subprocess.run(
+            ["gh", "label", "list", "-R", repo, "--limit", "100", "--json", "name"],
+            text=True,
+            capture_output=True,
+            check=True,
+            encoding="utf-8",
+        )
+        import json as _json
+        for entry in _json.loads(listing.stdout or "[]"):
+            existing.add(entry.get("name", ""))
     except subprocess.CalledProcessError as e:
         raise ExternalToolError(
-            f"gh issue create failed (exit {e.returncode}):\n{e.stderr or e.stdout}"
+            f"gh label list failed (exit {e.returncode}):\n{e.stderr or e.stdout}"
         ) from None
-    return (result.stdout or "").strip()
+
+    to_create = sorted(labels - existing)
+    already_there = sorted(labels & existing)
+
+    if already_there:
+        click.echo(f"Already present on {repo}: {', '.join(already_there)}")
+    if not to_create:
+        click.echo("Nothing to do — all configured labels exist.")
+        return
+
+    click.echo(f"Will create on {repo}: {', '.join(to_create)}")
+    if dry_run:
+        click.echo("(dry-run; pass without --dry-run to apply)")
+        return
+
+    for lbl in to_create:
+        try:
+            subprocess.run(
+                ["gh", "label", "create", lbl, "-R", repo],
+                text=True,
+                capture_output=True,
+                check=True,
+                encoding="utf-8",
+            )
+            click.secho(f"  + {lbl}", fg="green")
+        except subprocess.CalledProcessError as e:
+            click.secho(
+                f"  ! {lbl} — gh label create failed: {e.stderr or e.stdout}",
+                fg="red",
+                err=True,
+            )
 
 
 # ─── feedback bug ─────────────────────────────────────────────────────────────
@@ -271,7 +449,7 @@ def bug_command(
         to_gh=to_gh,
         title=final_title,
         quiet=quiet,
-        gh_label="feedback,bug",
+        gh_kind="bug",
     )
 
 
@@ -314,7 +492,7 @@ def suggest_command(
         to_gh=to_gh,
         title=final_title,
         quiet=quiet,
-        gh_label="feedback,enhancement",
+        gh_kind="suggest",
     )
 
 
@@ -395,5 +573,5 @@ def correction_export_command(
         to_gh=to_gh,
         title=final_title,
         quiet=quiet,
-        gh_label="feedback,upstream-gap",
+        gh_kind="correction-export",
     )

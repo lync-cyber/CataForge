@@ -69,6 +69,10 @@ cataforge feedback bug --clip      # 拷剪贴板，手动粘贴到 GitHub
 cataforge feedback bug --out feedback.md  # 落盘
 ```
 
+#### `--gh` label 解析
+
+label 由 `framework.json#feedback.gh.labels` 配置（`bug` / `suggest` / `correction-export` 三键各映射到一组 label），不在代码里硬编码。`fallback_on_missing_label: true`（默认）让上游 label 缺失时自动丢掉 `--label` 重试并 stderr WARN；要给上游加自定义 label 先跑 `cataforge feedback ensure-labels`（需 push 权限）；空列表等价于不传 `--label`，由 issue 模板的 `labels:` 字段兜底。
+
 ### Step 4: 隐私
 - 默认会把 `<project>` 与 `~` 路径替换占位符
 - 仅在内部反馈 / 自托管 GitHub 时考虑加 `--include-paths`
@@ -91,3 +95,4 @@ cataforge feedback bug --out feedback.md  # 落盘
 - 在没有 `gh` CLI 时强行 `--gh` —— 会直接 ExternalToolError，应回退 `--clip` 或 `--print`
 - 用 `--include-paths` 输出后直接贴公开 issue —— 会泄漏本机目录结构
 - 没有 `upstream-gap` 纠偏时跑 `correction-export` —— 该子命令会拒绝（exit 1）以防止空 bundle
+- 在 `framework.json#feedback.gh.labels` 里写上游不存在的 label 而不先 `cataforge feedback ensure-labels` —— fallback 兜得住但 issue 缺分类标签，影响上游分诊

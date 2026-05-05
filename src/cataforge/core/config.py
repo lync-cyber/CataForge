@@ -120,6 +120,53 @@ class ConfigManager:
         upgrade = self.load().get("upgrade") or {}
         return dict(upgrade.get("source") or {})
 
+    # ---- feedback / hygiene config ----
+
+    @property
+    def feedback_config(self) -> dict[str, Any]:
+        return dict(self.load().get("feedback") or {})
+
+    def feedback_gh_labels(self, kind: str) -> list[str]:
+        """Return the configured ``gh issue create --label`` list for a feedback kind.
+
+        ``kind`` ∈ {"bug", "suggest", "correction-export"}. Empty list means
+        "do not pass --label" — useful when the upstream repo has no
+        feedback-specific labels yet.
+        """
+        cfg = self.feedback_config.get("gh") or {}
+        labels = (cfg.get("labels") or {}).get(kind)
+        if labels is None:
+            return []
+        if isinstance(labels, str):
+            return [labels] if labels else []
+        return [str(item) for item in labels if str(item).strip()]
+
+    def feedback_fallback_on_missing_label(self) -> bool:
+        """Whether ``cataforge feedback --gh`` should retry without --label
+        when ``gh issue create`` rejects an unknown label.
+
+        Default true — keeps the user's first ``--gh`` shot from failing
+        outright when the upstream repo hasn't created the labels yet.
+        """
+        cfg = self.feedback_config.get("gh") or {}
+        return bool(cfg.get("fallback_on_missing_label", True))
+
+    @property
+    def claude_md_limits(self) -> dict[str, int]:
+        """Return the CLAUDE.md hygiene thresholds.
+
+        Defaults match framework.json defaults (30 KB / 80 state lines /
+        10 learnings entries) so projects pinned to old framework.json
+        without this block still get sensible doctor warnings.
+        """
+        defaults = {
+            "max_bytes": 30000,
+            "max_state_section_lines": 80,
+            "learnings_registry_max_entries": 10,
+        }
+        cfg = self.load().get("claude_md_limits") or {}
+        return {**defaults, **{k: int(v) for k, v in cfg.items() if isinstance(v, int | str)}}
+
     # ---- save helpers ----
 
     def set_runtime_platform(self, platform_id: str) -> None:
