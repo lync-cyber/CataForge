@@ -10,7 +10,7 @@
 
 - [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
-- [Skill 清单（26 个）](#skill-清单26-个) — 总览表 + 按类别折叠
+- [Skill 清单（27 个）](#skill-清单26-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
 
 ---
@@ -204,7 +204,7 @@ tools:
 
 ---
 
-## Skill 清单（26 个）
+## Skill 清单（27 个）
 
 ### 总览
 
@@ -236,6 +236,7 @@ tools:
 | 24 | workflow-framework-generator | 管理技能 | 生成 | 根据工作流类型与目标平台生成完整框架 |
 | 25 | self-update | 管理技能 | 升级 | 检测包/scaffold 版本差异并执行 pip/uv 升级 + scaffold 刷新 + 迁移验证 |
 | 26 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
+| 27 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
 
 ### 详细说明
 

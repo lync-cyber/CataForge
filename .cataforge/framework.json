@@ -95,6 +95,12 @@
       "auto_enable": true,
       "phase_guard": null,
       "description": "On-Correction Learning 放宽 — hook 自动捕获 AskUserQuestion option-override 信号"
+    },
+    "framework-feedback": {
+      "min_version": "0.3.0",
+      "auto_enable": true,
+      "phase_guard": null,
+      "description": "下游对 CataForge 框架本体的反馈打包 — 聚合 doctor + EVENT-LOG + upstream-gap corrections，通过 cataforge feedback CLI 或 framework-feedback skill 发出"
     }
   },
   "migration_checks": [

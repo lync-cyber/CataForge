@@ -12,6 +12,7 @@ Usage:
     cataforge plugin [list|install|remove]
     cataforge docs [load|index]
     cataforge event log ...
+    cataforge feedback [bug|suggest|correction-export]
     cataforge penpot [deploy|mcp-only|start|stop|status|ensure]
 
 Exit codes (see docs/reference/cli.md §退出码):
@@ -74,6 +75,7 @@ CTX_PROJECT_DIR = "project_dir"
         "  docs         Document section loader + chapter indexer.\n"
         "  event        Append records to docs/EVENT-LOG.jsonl.\n"
         "  correction   Query the on-correction learning log.\n"
+        "  feedback     Bundle local signals into upstream-ready feedback.\n"
         "  penpot       Penpot design-tool Docker + MCP integration.\n"
         "\n"
         "Run `cataforge COMMAND --help` for command-specific options."
@@ -137,6 +139,7 @@ def _register_commands() -> None:
         docs_cmd,
         doctor_cmd,
         event_cmd,
+        feedback_cmd,
         hook_cmd,
         mcp_cmd,
         penpot_cmd,
