@@ -10,7 +10,7 @@ allowed_paths:
   - .cataforge/learnings/
 skills:
   - doc-nav
-model_tier: inherit
+model_tier: light
 inline_dispatch: true
 maxTurns: 30
 ---
@@ -33,7 +33,7 @@ maxTurns: 30
   - 偏差类型: {preference|constraint|domain-knowledge}
   ```
 - 触发门槛: 由 orchestrator 按 `RETRO_TRIGGER_SELF_CAUSED` 常量判定（CORRECTIONS-LOG self-caused 条目数达到阈值，或存在 CRITICAL 问题），不满足时 orchestrator 直接跳过本 Agent
-- **执行模式: inline**：orchestrator 直接执行本协议，与 change-guard / Adaptive Review 一致；frontmatter `inline_dispatch: true` 即 deploy 时给 orchestrator 的 hint。`model_tier: inherit` 保证主会话模型一致性。
+- **执行模式: inline**：orchestrator 直接执行本协议（共享主会话模型），与 change-guard / Adaptive Review 一致；frontmatter `inline_dispatch: true` 即 deploy 时给 orchestrator 的 hint。`model_tier: light` 仅在 on-demand fallback 把 reflector 当 subagent 跑时生效。
 - **手动触发（on-demand）**: `cataforge agent run reflector --task-type retrospective <ad-hoc 描述>` 渲染 AGENT.md + 任务框架（已自动复制到剪贴板），粘贴到 IDE 会话即可激活；适用场景：阶段性 retro、framework-review 报告积累后的二次提炼、跨项目经验汇总
 
 ## Output Contract

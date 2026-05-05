@@ -16,10 +16,17 @@ record-to-event-log: true
 - **能做**: `gh issue list` 拉 open issue → 解析 issue body 的 `cataforge --version` / `framework-review FAIL` / `upstream-gap` 字段 → 版本比对 + 本地 skill/agent id 核对 → 写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿（`status: triage-draft`）
 - **不做**: `gh issue close` / `comment`（外发动作 maintainer 手动）；Layer 2 语义分析（仅做基于正则的字段抽取）；修 issue 本身；下游产品 issue
 
-## 输入 / 输出
+## 输入规范
 
-- 输入：`framework.json#upgrade.source.repo` 拉取目标 + `feedback.gh.labels` 过滤；本地 `.cataforge/skills/*` 和 `.cataforge/agents/*` 用于 id 核对；`cataforge.__version__` 用于版本比对
-- 输出：`docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿（frontmatter 含 `source_issue` / `reported_version` / `installed_version` / `verdict` / `rationale`）；终端按 verdict 着色一行一条
+- `framework.json#upgrade.source.repo` 拉取目标
+- `framework.json#feedback.gh.labels` 过滤（默认拉取所有声明的 label）
+- 本地 `.cataforge/skills/*` 和 `.cataforge/agents/*`（用于核对 issue 引用的 id 是否仍存在）
+- `cataforge.__version__`（用于 reported_version vs installed_version 比对）
+
+## 输出规范
+
+- `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿；frontmatter 含 `source_issue` / `reported_version` / `installed_version` / `verdict` / `target_id` / `target_kind` / `rationale`
+- 终端按 verdict 着色一行一条 `#<N>  <verdict>  <targets>  <title>`
 
 ## verdict
 
