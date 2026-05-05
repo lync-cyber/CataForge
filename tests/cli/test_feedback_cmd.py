@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -341,26 +340,40 @@ class TestSinks:
         assert "clipboard" in result.output
 
 
-# ─── live: actually run --gh path against /usr/bin/false-style stub ──────────
+# ─── error propagation from the gh subprocess ────────────────────────────────
 
 
-@pytest.mark.skipif(
-    not shutil.which("sh"), reason="POSIX shell required for sink integration"
-)
 def test_gh_sink_propagates_error_text(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Real subprocess: stub `gh` with a script that exits non-zero and
-    writes to stderr. The CLI must surface that text in the error."""
+    """Stub ``shutil.which`` + ``subprocess.run`` so the CLI thinks ``gh``
+    exists but the call fails — the stderr text must surface in the error.
+
+    Originally this test wired up a real shell script via PATH manipulation,
+    but ``tmp_path`` on some CI runners lives on a noexec mount (chmod 0o755
+    has no effect), causing ``shutil.which`` to silently miss the stub and
+    the CLI to fall through to the "gh not found" branch instead of the
+    error-propagation branch. Mocking is portable across runners and exercises
+    the same code path (``ExternalToolError`` raised from the
+    ``CalledProcessError`` handler).
+    """
     project = _bootstrap(tmp_path)
-    fake_gh = tmp_path / "fake-bin" / "gh"
-    fake_gh.parent.mkdir()
-    fake_gh.write_text(
-        "#!/bin/sh\necho 'GH_AUTH_REQUIRED' >&2\nexit 4\n", encoding="utf-8"
-    )
-    fake_gh.chmod(0o755)
-    monkeypatch.setenv("PATH", str(fake_gh.parent) + ":" + Path("/usr/bin").as_posix())
     monkeypatch.chdir(project)
+
+    monkeypatch.setattr(
+        "cataforge.cli.feedback_cmd.shutil.which",
+        lambda name: "/usr/bin/gh" if name == "gh" else None,
+    )
+
+    def fake_run(cmd, input=None, **kw):  # type: ignore[no-untyped-def]
+        raise subprocess.CalledProcessError(
+            returncode=4,
+            cmd=cmd,
+            output="",
+            stderr="GH_AUTH_REQUIRED",
+        )
+
+    monkeypatch.setattr("cataforge.cli.feedback_cmd.subprocess.run", fake_run)
 
     result = CliRunner().invoke(
         bug_command,
@@ -368,3 +381,4 @@ def test_gh_sink_propagates_error_text(
     )
     assert result.exit_code != 0
     assert "GH_AUTH_REQUIRED" in result.output
+    assert "exit 4" in result.output
