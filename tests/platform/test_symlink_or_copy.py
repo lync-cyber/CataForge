@@ -85,6 +85,13 @@ def test_replaces_existing_real_directory(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(platform_mod.system() == "Windows", reason="Unix symlink path")
 def test_replaces_existing_symlink_unix(tmp_path: Path) -> None:
+    """Unix branch: pre-existing target as a directory symlink is replaced.
+
+    Windows ``symlink_or_copy`` deliberately falls back to junction or copy
+    rather than symlink, so the post-condition ``target.is_symlink()`` is
+    Unix-specific. The Windows cleanup branch is exercised by
+    ``test_replaces_existing_junction_windows``.
+    """
     src = _make_source(tmp_path)
     other = tmp_path / "other"
     other.mkdir()

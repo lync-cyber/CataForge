@@ -449,18 +449,22 @@ cataforge event log --event phase_start --phase architecture --detail "进入架
 
 ## Retrospective & Improvement Protocol
 触发条件: 所有 Phase 完成后执行一次（不阻塞项目交付）
+
+**执行模式: inline** —— 与 change-guard / Adaptive Review 一致，orchestrator 直接执行 reflector AGENT.md §Retrospective Protocol；reflector 的 `inline_dispatch: true` frontmatter 即此 hint。
+
 步骤:
 1. **触发门槛判定**: 满足以下任一条件才触发 retrospective，否则跳过:
    - `docs/reviews/CORRECTIONS-LOG.md` 中 `偏差类型` 累计命中 self-caused 的条目数 ≥ `RETRO_TRIGGER_SELF_CAUSED`，或
-   - 本项目任一 REVIEW / CODE-REVIEW / CODE-SCAN / FRAMEWORK-REVIEW 报告包含 CRITICAL 级别问题（CODE-SCAN/FRAMEWORK-REVIEW 自 v0.1.15 起纳入触发集，使项目级腐化与元资产质量问题同样能驱动 EXP 经验提炼）
+   - 本项目任一 REVIEW / CODE-REVIEW / CODE-SCAN / FRAMEWORK-REVIEW 报告包含 CRITICAL 级别问题
    跳过时在 CLAUDE.md `Learnings Registry` 字段记录 `retro skipped (below threshold)` 并**[EVENT]** 写入 `review_verdict`（agent=reflector, status=approved, detail="retro skipped (below threshold)"）
-2. 通过 agent-dispatch 激活 reflector (task_type=retrospective)
-3. reflector 产出:
+2. **执行 reflector §Retrospective Protocol**: orchestrator 自行加载 `.cataforge/agents/reflector/AGENT.md` §Retrospective Protocol（含 EVENT-LOG.jsonl 扫描），按其步骤 1-7 完成产出
+3. 产出文件:
    - docs/reviews/retro/RETRO-{project}-{cycle}.md（`{cycle}` = sprint 编号或迭代标签，仅 slug；版本号写入 frontmatter `version:`，含 EXP 经验条目）
    - docs/reviews/retro/SKILL-IMPROVE-{skill_id}.md（含每条 EXP 对应的具体 Agent/Skill 文件修改建议）
 4. orchestrator 向用户展示 RETRO 报告中的经验条目和改进建议
 5. 用户审批后执行修改，git commit，message 格式: `learn: apply EXP-{NNN} to {target_file}`
-6. 如果 reflector 返回 blocked 或失败，仅记录日志，不影响项目完成状态
+6. reflector 协议遇到不可恢复错误（docs/reviews/ 子目录不存在或全空、EVENT-LOG.jsonl 解析失败）时仅记录 `incident` 事件，不影响项目完成状态
+7. **fallback to subagent**: 主对话上下文饱和或用户显式偏好独立 retro 报告时，降级使用 `cataforge agent run reflector --task-type retrospective`；这是逃生通道，不是默认路径
 
 ## CLAUDE.md Update Template
 每次阶段转换时更新:

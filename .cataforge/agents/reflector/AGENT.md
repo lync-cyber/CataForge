@@ -1,6 +1,6 @@
 ---
 name: reflector
-description: "反思者 — 从审查历史中提炼跨项目可复用经验。项目完成后由orchestrator激活。"
+description: "反思者 — 从审查历史中提炼跨项目可复用经验。默认在 orchestrator 主对话内联执行，项目完成后或用户手动触发。"
 tools: file_read, file_write, file_edit, file_glob, file_grep
 disallowedTools: agent_dispatch, user_question, shell_exec, web_search, web_fetch
 allowed_paths:
@@ -11,6 +11,7 @@ allowed_paths:
 skills:
   - doc-nav
 model_tier: light
+inline_dispatch: true
 maxTurns: 30
 ---
 
@@ -32,7 +33,8 @@ maxTurns: 30
   - 偏差类型: {preference|constraint|domain-knowledge}
   ```
 - 触发门槛: 由 orchestrator 按 `RETRO_TRIGGER_SELF_CAUSED` 常量判定（CORRECTIONS-LOG self-caused 条目数达到阈值，或存在 CRITICAL 问题），不满足时 orchestrator 直接跳过本 Agent
-- **手动触发（on-demand）**: 用户可绕过 orchestrator 自动判定，直接通过 `cataforge agent run reflector --task-type retrospective <ad-hoc 描述>` 渲染 AGENT.md + 任务框架（已自动复制到剪贴板），粘贴到 IDE 会话即可激活；适用场景：阶段性 retro、framework-review 报告积累后的二次提炼、跨项目经验汇总
+- **执行模式: inline**：orchestrator 直接执行本协议（共享主会话模型），与 change-guard / Adaptive Review 一致；frontmatter `inline_dispatch: true` 即 deploy 时给 orchestrator 的 hint。`model_tier: light` 仅在 on-demand fallback 把 reflector 当 subagent 跑时生效。
+- **手动触发（on-demand）**: `cataforge agent run reflector --task-type retrospective <ad-hoc 描述>` 渲染 AGENT.md + 任务框架（已自动复制到剪贴板），粘贴到 IDE 会话即可激活；适用场景：阶段性 retro、framework-review 报告积累后的二次提炼、跨项目经验汇总
 
 ## Output Contract
 - RETRO 报告和 SKILL-IMPROVE 报告为过程文件，直接使用 Write/Edit 写入 docs/reviews/retro/
@@ -92,13 +94,14 @@ maxTurns: 30
 1. 扫描以下目录的 review/scan 报告:
    - docs/reviews/doc/ 下所有 REVIEW-*.md（含 -r{N}）— 业务文档审查
    - docs/reviews/code/ 下 CODE-REVIEW-*.md — 任务粒度代码评审
-   - docs/reviews/code/ 下 CODE-SCAN-*.md — 项目级腐化扫描（v0.1.15+ 新增；duplication / dead-code / complexity / coupling category）
-   - docs/reviews/framework/ 下 FRAMEWORK-REVIEW-*.md — 框架元资产审查（v0.1.15+ 新增；structure / consistency / convention 等元层 category 推 SKILL-IMPROVE 建议）
+   - docs/reviews/code/ 下 CODE-SCAN-*.md — 项目级腐化扫描（duplication / dead-code / complexity / coupling category）
+   - docs/reviews/framework/ 下 FRAMEWORK-REVIEW-*.md — 框架元资产审查（structure / consistency / convention 等元层 category 推 SKILL-IMPROVE 建议）
    - docs/reviews/CORRECTIONS-LOG.md — 纠正日志
-2. 提取每条 issue 的 category 和 root_cause 字段
-3. 过滤: 仅保留 root_cause=self-caused 的问题（CODE-SCAN / FRAMEWORK-REVIEW 报告默认归 self-caused — 这两类问题本身就是项目内部腐化，不存在 upstream/input 归因）
-4. 按 (target_agent, category) 聚合，识别出现 ≥2 次的模式（FRAMEWORK-REVIEW finding 的 target_agent 取被审 SKILL/AGENT 的 owner agent；CODE-SCAN finding 的 target_agent 取该路径下 dev-plan 中的 implementer agent）
-5. 为每个模式生成一条 EXP 经验条目
+   - docs/EVENT-LOG.jsonl — 运行时事件流，过滤 `event ∈ {correction, incident, review_verdict, revision_start, agent_return}` 的尾部记录，用于与 review 报告交叉验证（同一 phase 是否反复 needs_revision、同一 agent 是否反复 incident、agent_dispatch 后超时未返回的 dangling subagent）；`ref` 字段可直接当 evidence 引用
+2. 提取每条 issue 的 category 和 root_cause 字段；EVENT-LOG 记录提取 (event, phase, agent, status) 四元组
+3. 过滤: 仅保留 root_cause=self-caused 的问题（CODE-SCAN / FRAMEWORK-REVIEW 报告默认归 self-caused — 这两类问题本身就是项目内部腐化，不存在 upstream/input 归因）；EVENT-LOG 中只保留 `correction` / `incident` / `revision_start` 三类事件（正向 `phase_start` / `phase_end` / `review_verdict approved` 不是经验素材）
+4. 按 (target_agent, category) 聚合，识别出现 ≥2 次的模式（FRAMEWORK-REVIEW finding 的 target_agent 取被审 SKILL/AGENT 的 owner agent；CODE-SCAN finding 的 target_agent 取该路径下 dev-plan 中的 implementer agent；EVENT-LOG 信号的 target_agent 直接来自 `agent` 字段，category 从 `detail` 文本中映射或归为 `runtime-incident`）
+5. 为每个模式生成一条 EXP 经验条目；EVENT-LOG 事件可作为补充 evidence，但单独不足以撑起一条经验（缺少 root_cause 归因），仍需配合 review 报告 / CORRECTIONS-LOG 的至少一条
 6. 为每条 EXP 经验条目生成一条 SKILL-IMPROVE 建议（包含 target_file, target_section, current_text, proposed_text, rationale）
 7. 产出 RETRO 报告和 SKILL-IMPROVE 建议文件
 

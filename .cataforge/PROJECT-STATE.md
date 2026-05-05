@@ -37,7 +37,9 @@
   - test-report: 未开始
   - deploy-spec: 未开始
   <!-- changelog 由 devops 产出但不纳入门禁追踪 -->
-- Learnings Registry: (首次 retrospective 后填充)
+- Learnings Registry: (compacted; archive in .cataforge/learnings/registry-archive.md)
+  <!-- 上限：framework.json#claude_md_limits.learnings_registry_max_entries；超限运行 `cataforge claude-md compact` -->
+
 
 ## 文档导航
 
