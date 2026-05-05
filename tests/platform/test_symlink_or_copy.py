@@ -21,6 +21,7 @@ without touching the source.
 from __future__ import annotations
 
 import os
+import platform as platform_mod
 import shutil
 import subprocess
 from pathlib import Path
@@ -82,24 +83,20 @@ def test_replaces_existing_real_directory(tmp_path: Path) -> None:
     assert (target / "a.md").exists()
 
 
-def test_replaces_existing_symlink(tmp_path: Path) -> None:
-    """Pre-existing target as a directory symlink must be cleanly replaced.
+@pytest.mark.skipif(platform_mod.system() == "Windows", reason="Unix symlink path")
+def test_replaces_existing_symlink_unix(tmp_path: Path) -> None:
+    """Unix branch: pre-existing target as a directory symlink is replaced.
 
-    Symlink creation requires elevated privileges on Windows (admin or
-    Developer Mode). When that's unavailable, ``Path.symlink_to`` raises
-    ``OSError`` — we treat that as a runtime skip rather than a failure
-    so CI on a non-admin Windows runner doesn't false-fail. The Windows
-    junction case has its own dedicated test which exercises the
-    Windows-specific cleanup branch.
+    Windows ``symlink_or_copy`` deliberately falls back to junction or copy
+    rather than symlink, so the post-condition ``target.is_symlink()`` is
+    Unix-specific. The Windows cleanup branch is exercised by
+    ``test_replaces_existing_junction_windows``.
     """
     src = _make_source(tmp_path)
     other = tmp_path / "other"
     other.mkdir()
     target = tmp_path / "out"
-    try:
-        target.symlink_to(other, target_is_directory=True)
-    except (OSError, NotImplementedError) as e:
-        pytest.skip(f"symlink unavailable in this environment: {e}")
+    target.symlink_to(other)
 
     symlink_or_copy(src, target)
 
