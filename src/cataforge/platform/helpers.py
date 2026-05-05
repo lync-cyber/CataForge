@@ -13,6 +13,54 @@ from pathlib import Path
 from typing import Any
 
 
+def _remove_target(target: Path) -> None:
+    """Idempotently remove ``target`` whether file, dir, symlink, or junction.
+
+    Why this is non-trivial on Windows + Python 3.11:
+
+    - ``Path.is_junction()`` was only added in 3.12, so on 3.11 a junction
+      is invisible to that check.
+    - ``Path.is_symlink()`` returns ``False`` for junctions on 3.11 (and
+      below), so the symlink branch never fires either.
+    - ``shutil.rmtree`` on a junction in that combo is *unsafe*: its
+      symlink check goes through ``os.path.islink()`` which also returns
+      ``False`` for junctions on 3.11, so it can recurse INTO the
+      junction and start deleting the *source* tree.
+
+    We side-step all of this by trying ``os.rmdir(target)`` first on
+    Windows when ``target`` looks like a directory. ``rmdir`` removes the
+    junction handle without touching the source, and fails loudly on a
+    non-empty real directory — at which point we fall through to
+    ``shutil.rmtree``.
+
+    Uses ``os.path.lexists`` so dangling symlinks / junctions (whose
+    source has moved or been deleted) are still cleaned up.
+    """
+    if not os.path.lexists(str(target)):
+        return
+
+    if target.is_symlink():
+        target.unlink()
+        return
+
+    if hasattr(target, "is_junction") and target.is_junction():
+        os.rmdir(str(target))
+        return
+
+    if os.name == "nt" and target.is_dir():
+        try:
+            os.rmdir(str(target))
+            return
+        except OSError:
+            pass
+
+    if target.is_dir():
+        shutil.rmtree(target)
+        return
+
+    target.unlink()
+
+
 def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> list[str]:
     """Create symlink (Unix), junction (Windows), or copy as fallback.
 
@@ -26,13 +74,7 @@ def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> lis
     if dry_run:
         return [f"would link {target} ← {source} (symlink|junction|copy)"]
 
-    if target.is_symlink():
-        target.unlink()
-    elif hasattr(target, "is_junction") and target.is_junction():
-        os.rmdir(str(target))
-    elif target.exists() and target.is_dir():
-        shutil.rmtree(target)
-
+    _remove_target(target)
     target.parent.mkdir(parents=True, exist_ok=True)
 
     if platform_mod.system() != "Windows":
@@ -50,6 +92,8 @@ def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> lis
         )
         return [f"{target} → {source} (junction)"]
     except (subprocess.CalledProcessError, FileNotFoundError):
+        if os.path.lexists(str(target)):
+            _remove_target(target)
         shutil.copytree(source, target)
         return [f"{target} ← {source} (copy)"]
 
