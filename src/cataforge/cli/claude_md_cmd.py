@@ -17,7 +17,7 @@ from __future__ import annotations
 import click
 
 from cataforge.cli.errors import NotInitializedError
-from cataforge.cli.helpers import get_config_manager, resolve_root
+from cataforge.cli.helpers import get_config_manager
 from cataforge.cli.main import cli
 from cataforge.core.claude_md_hygiene import (
     compact_learnings_registry,

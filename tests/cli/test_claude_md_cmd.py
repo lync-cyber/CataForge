@@ -107,7 +107,8 @@ class TestCompactCommand:
         claude_text = (project / "CLAUDE.md").read_text(encoding="utf-8")
         for i in range(11, 15):
             assert f"item-{i}\n" in claude_text
-        # Trimmed entries gone (match exact bullet form to avoid item-1 vs item-11 substring overlap).
+        # Trimmed entries gone (match exact bullet form to avoid
+        # item-1 vs item-11 substring overlap).
         for i in range(11):
             assert f"- item-{i}\n" not in claude_text
 

@@ -241,7 +241,10 @@ def _render_registry_field(entries: list[str]) -> str:
     humans to scan.
     """
     if not entries:
-        return "- Learnings Registry: (compacted; archive in .cataforge/learnings/registry-archive.md)"
+        return (
+            "- Learnings Registry: (compacted; archive in "
+            ".cataforge/learnings/registry-archive.md)"
+        )
     lines = ["- Learnings Registry:"]
     for e in entries:
         lines.append(f"  - {e}")
