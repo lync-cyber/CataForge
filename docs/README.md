@@ -42,7 +42,7 @@
 | [架构概览](./architecture/overview.md) | 五层架构、模块职责、关键设计原则 |
 | [运行时工作流](./architecture/runtime-workflow.md) | Bootstrap、阶段执行、中断恢复、修订协议 |
 | [平台适配机制](./architecture/platform-adaptation.md) | Adapter 抽象、能力矩阵、降级策略 |
-| [质量闸与学习系统](./architecture/quality-and-learning.md) | doc-review / code-review / Reflector / On-Correction Learning |
+| [质量闸与学习系统](./architecture/quality-and-learning.md) | doc-review / code-review / Reflector / On-Correction Learning / 上游反馈通道（`cataforge feedback`） |
 
 ## Reference · 查阅
 

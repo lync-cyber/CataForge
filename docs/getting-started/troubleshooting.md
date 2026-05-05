@@ -1,6 +1,6 @@
 # 故障排查
 
-> 按症状索引的常见问题。跑不通时先在这里查；仍无法解决的请带着 `cataforge doctor` 完整输出到 [GitHub Issues](https://github.com/lync-cyber/CataForge/issues)。
+> 按症状索引的常见问题。跑不通时先在这里查；仍无法解决的请用 `cataforge feedback bug --gh`（v0.3.0 起，自动聚合 `cataforge --version` + `doctor` + 最近 `EVENT-LOG` + `upstream-gap` corrections + `framework-review` FAIL 摘要）开 [GitHub Issues](https://github.com/lync-cyber/CataForge/issues)。需要手工填模板时，至少带上 `cataforge doctor` 完整输出。
 
 ## 目录
 

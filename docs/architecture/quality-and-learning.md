@@ -92,6 +92,20 @@ cataforge skill run <skill-id> -- <args...>
 5. 触发 reflector Agent 进行回顾分析
 ```
 
+### 5.1 Deviation 类型
+
+`cataforge correction record --deviation <type>` 把每一条偏离归入五个互斥类别，决定后续路径：
+
+| 值 | 含义 | 触发后续 |
+|----|------|----------|
+| `preference` | 纯偏好，不算缺陷 | 仅留存档 |
+| `self-caused` | 下游自身造成的偏离 | 累计 ≥ `RETRO_TRIGGER_SELF_CAUSED`（默认 5）→ §6 Reflector 回顾 |
+| `external` | 外部约束（依赖、政策） | 仅留存档 |
+| `framework-bug` | CataForge 框架本体缺陷（崩溃、行为错误） | 由 `cataforge feedback bug` 上报 |
+| `upstream-gap` | 上游 baseline 本身对此项目场景不准/不全（行为没崩，但建议不到位） | 累计 ≥ `RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT`（默认 3）→ §8 上游反馈通道 |
+
+`framework-bug` 与 `upstream-gap` 正交：前者是"框架坏了，需要修"，后者是"框架建议在此场景下不合适，需要更新指引或补充选项"。两者都不会通过 reflector 回顾积累内部经验，而是通过 §8 直接回流到 CataForge 上游仓库。
+
 ---
 
 ## 6. Reflector 回顾
@@ -124,6 +138,51 @@ Reflector 聚合（阈值触发）
     ↓
 下次 Agent 通过 doc-nav 加载相关经验，避免重蹈覆辙
 ```
+
+---
+
+## 8. 上游反馈通道（Downstream → CataForge upstream）
+
+§5–§7 关注的是"项目内"的学习闭环。CataForge 框架本体的演进还需要另一条独立通道：把下游使用中发现的框架问题 / 改进建议 / 累积的 `upstream-gap` 纠偏回流到上游仓库。
+
+### 8.1 触发面
+
+| 来源 | 类型 | 推荐入口 |
+|------|------|----------|
+| 用户人工发现框架 bug | `bug` | `cataforge feedback bug --gh` |
+| 用户人工提建议 | `suggest` | `cataforge feedback suggest --clip` |
+| 累计 `upstream-gap` 纠偏 ≥ 阈值 | `correction-export` | orchestrator 自动调起 `framework-feedback` skill 落盘到 `docs/feedback/` 后由用户决定是否上报 |
+
+### 8.2 数据流
+
+```text
+本地诊断信号                     → cataforge.core.feedback assembler
+  ├── cataforge --version              ─┐
+  ├── cataforge doctor (FAIL/WARN 抽取) │
+  ├── 最近 N 条 EVENT-LOG.jsonl        │  → 单个 markdown body
+  ├── CORRECTIONS-LOG (deviation=       │     (默认脱敏 ~ / <project>)
+  │     upstream-gap 过滤)              │
+  └── framework-review Layer 1 FAIL    ─┘
+                                         ↓
+四选一互斥 sink (--print / --out / --clip / --gh)
+                                         ↓
+                  上游 .github/ISSUE_TEMPLATE/feedback-from-cli.yml
+                  (字段与 body 1:1 对齐)
+```
+
+### 8.3 等价入口
+
+* **CLI**：`cataforge feedback <bug|suggest|correction-export>`，给人 / pipeline 用
+* **Skill**：`cataforge skill run framework-feedback -- <kind>`，给 orchestrator / agent 用；`record-to-event-log: true`，每次运行写一条 `state_change` 到 `EVENT-LOG`，便于跟踪下游反馈频次
+
+两者共用 `cataforge.core.feedback` 同一份 assembler，差别仅在 skill 路径会触发 EVENT-LOG instrumentation。
+
+### 8.4 命名边界
+
+* `framework-feedback` 与 `framework-review` 平行：都针对 `.cataforge/` 框架本体，与下游产品自身的用户反馈渠道无关
+* `framework-bug` deviation 表"框架坏了"；`upstream-gap` deviation 表"框架建议不到位"。前者通常一次就上报，后者按阈值聚合上报
+
+详细参数见 [`../reference/cli.md` §feedback](../reference/cli.md#feedback) 与 [`../reference/agents-and-skills.md`](../reference/agents-and-skills.md) §管理 Skill。
 
 ---
 
