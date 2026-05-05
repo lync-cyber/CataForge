@@ -144,6 +144,22 @@ REFACTOR 阶段不再无条件运行，按 `TDD_REFACTOR_TRIGGER`（默认 `[com
 
 [GitHub Issues](https://github.com/lync-cyber/CataForge/issues)。优先使用 issue 模板，附带 `cataforge doctor` 完整输出。
 
+**v0.3.0 起推荐用 `cataforge feedback` 单命令打包**：
+
+```bash
+cataforge feedback bug --gh        # 直接通过 gh 开 issue（需先装并登录 gh）
+cataforge feedback bug --clip      # 拷剪贴板，手动粘到 GitHub
+cataforge feedback bug --print     # 输出到 stdout
+```
+
+CLI 会自动聚合 `cataforge --version` + 最近 `EVENT-LOG` + `CORRECTIONS-LOG` 中 `deviation=upstream-gap` 的纠偏 + `framework-review` FAIL 行，并默认对 `<project>` / `~` 路径脱敏。三个子命令：
+
+* `feedback bug` — 可复现 bug / 异常退出
+* `feedback suggest` — 行为正常但流程笨重 / 缺特性
+* `feedback correction-export` — 累计的 `upstream-gap` 纠偏批量回报（≥ `--threshold` 才放行，默认 3）
+
+详见 [`reference/cli.md` §feedback](./reference/cli.md#feedback)。
+
 ### Q：这个项目和其它 Agent 框架有什么不同？
 
 核心差异：**同一套 `.cataforge/` 规范驱动 4 个 IDE**，而非锁定单一平台。详见 [`README.md`](../README.md) §功能亮点。

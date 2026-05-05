@@ -42,7 +42,7 @@
 | [架构概览](./architecture/overview.md) | 五层架构、模块职责、关键设计原则 |
 | [运行时工作流](./architecture/runtime-workflow.md) | Bootstrap、阶段执行、中断恢复、修订协议 |
 | [平台适配机制](./architecture/platform-adaptation.md) | Adapter 抽象、能力矩阵、降级策略 |
-| [质量闸与学习系统](./architecture/quality-and-learning.md) | doc-review / code-review / Reflector / On-Correction Learning |
+| [质量闸与学习系统](./architecture/quality-and-learning.md) | doc-review / code-review / Reflector / On-Correction Learning / 上游反馈通道（`cataforge feedback`） |
 
 ## Reference · 查阅
 
@@ -51,7 +51,7 @@
 | [速查卡](./reference/quick-reference.md) | 一页纸：平台矩阵 + CLI + 产物路径 |
 | [CLI 参考](./reference/cli.md) | `cataforge` 全部子命令与参数 |
 | [配置参考](./reference/configuration.md) | framework.json / profile.yaml / hooks.yaml 字段 |
-| [Agent & Skill 清单](./reference/agents-and-skills.md) | 13 个 Agent + 26 个 Skill 详细说明 |
+| [Agent & Skill 清单](./reference/agents-and-skills.md) | 13 个 Agent + 27 个 Skill 详细说明 |
 | [状态码与引用格式](./reference/status-codes.md) | 状态码、文档引用、事件日志 |
 
 ## 其它

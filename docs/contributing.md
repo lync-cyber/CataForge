@@ -1,6 +1,8 @@
 # 贡献指南
 
 > 欢迎提交 Issue 与 PR。本文说明开发环境、代码规范、测试要求与文档维护约定。
+>
+> **报问题优先用 CLI**：v0.3.0 起 `cataforge feedback bug --gh`（或 `--clip` / `--print`）会自动聚合 `doctor` + 最近 `EVENT-LOG` + `CORRECTIONS-LOG` 中 `deviation=upstream-gap` 的纠偏 + `framework-review` FAIL 摘要为 markdown，省掉手工填模板。详见 [`reference/cli.md` §feedback](./reference/cli.md#feedback)；上游接口字段见 [`feedback-from-cli.yml`](../.github/ISSUE_TEMPLATE/feedback-from-cli.yml)。
 
 ## 开发环境
 

@@ -16,6 +16,7 @@ _BUILTIN_ID_MAP = {
     "code_review": "code-review",
     "doc_review": "doc-review",
     "framework_review": "framework-review",
+    "framework_feedback": "framework-feedback",
     "sprint_review": "sprint-review",
     "task_dep_analysis": "task-dep-analysis",
 }
@@ -24,10 +25,15 @@ _BUILTIN_ID_MAP = {
 # from a flat set here (instead of being hardcoded in the runner) so the
 # loader is the single source of truth and project overrides can opt in
 # via the ``record-to-event-log`` SKILL.md frontmatter key.
+#
+# ``framework-feedback`` is in the set so each upstream-bound bundle
+# leaves a durable EVENT-LOG state_change entry — gives the project a
+# timeline of "we drafted feedback X times" without a bespoke event type.
 _BUILTIN_EVENT_LOGGED: frozenset[str] = frozenset({
     "code-review",
     "sprint-review",
     "doc-review",
+    "framework-feedback",
 })
 
 

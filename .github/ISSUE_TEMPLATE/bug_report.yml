@@ -8,6 +8,12 @@ body:
       value: |
         Thanks for taking the time to file a bug report. Please fill out the fields below so maintainers can reproduce the issue quickly.
 
+        **Tip:** if you are running CataForge ≥ 0.3.0, prefer
+        `cataforge feedback bug --gh` (or `--clip`) — it pre-fills
+        version / doctor / EVENT-LOG / `upstream-gap` corrections and
+        opens an issue using the dedicated `feedback-from-cli`
+        template. Saves manual copy-pasting and avoids stale doctor output.
+
   - type: input
     id: version
     attributes:

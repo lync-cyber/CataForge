@@ -20,13 +20,20 @@ logger = logging.getLogger("cataforge.corrections")
 CORRECTIONS_LOG_REL = Path("docs") / "reviews" / "CORRECTIONS-LOG.md"
 
 TriggerSignal = Literal["option-override", "interrupt-override", "review-flag"]
-DeviationType = Literal["preference", "self-caused", "external", "framework-bug"]
+# ``upstream-gap`` (added v0.2.x): the upstream CataForge baseline itself was
+# wrong / missing for this project's context. Distinct from ``framework-bug``
+# (CataForge framework defect) and ``self-caused`` (downstream drift). The
+# ``framework-feedback`` skill aggregates these into an upstream-bound
+# issue draft via ``cataforge feedback correction-export``.
+DeviationType = Literal[
+    "preference", "self-caused", "external", "framework-bug", "upstream-gap"
+]
 
 VALID_TRIGGERS: frozenset[str] = frozenset(
     {"option-override", "interrupt-override", "review-flag"}
 )
 VALID_DEVIATIONS: frozenset[str] = frozenset(
-    {"preference", "self-caused", "external", "framework-bug"}
+    {"preference", "self-caused", "external", "framework-bug", "upstream-gap"}
 )
 
 _HEADER = (

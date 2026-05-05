@@ -45,6 +45,8 @@
 | `cataforge upgrade verify` | `doctor` 别名 | [cli#upgrade](./cli.md#upgrade) |
 | `cataforge docs list / load <ref>` | 文档索引与段落加载 | [cli#docs](./cli.md#docs) |
 | `cataforge event log` | 写事件日志 | [cli.md](./cli.md) |
+| `cataforge correction record --deviation <type>` | 写 On-Correction Learning 偏离日志 | [cli#correction](./cli.md#correction) |
+| `cataforge feedback bug \| suggest \| correction-export` | 把下游信号打包为上游可消费的 markdown 反馈（`--print` / `--out` / `--clip` / `--gh`） | [cli#feedback](./cli.md#feedback) |
 
 ## 配置速查
 

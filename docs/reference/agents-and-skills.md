@@ -10,7 +10,7 @@
 
 - [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
-- [Skill 清单（26 个）](#skill-清单26-个) — 总览表 + 按类别折叠
+- [Skill 清单（27 个）](#skill-清单26-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
 
 ---
@@ -204,7 +204,7 @@ tools:
 
 ---
 
-## Skill 清单（26 个）
+## Skill 清单（27 个）
 
 ### 总览
 
@@ -236,6 +236,7 @@ tools:
 | 24 | workflow-framework-generator | 管理技能 | 生成 | 根据工作流类型与目标平台生成完整框架 |
 | 25 | self-update | 管理技能 | 升级 | 检测包/scaffold 版本差异并执行 pip/uv 升级 + scaffold 刷新 + 迁移验证 |
 | 26 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
+| 27 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
 
 ### 详细说明
 
@@ -330,7 +331,7 @@ tools:
 </details>
 
 <details>
-<summary><b>管理 Skill</b>（platform-audit · start-orchestrator · workflow-framework-generator · self-update）</summary>
+<summary><b>管理 Skill</b>（platform-audit · start-orchestrator · workflow-framework-generator · self-update · framework-feedback）</summary>
 
 **platform-audit** — 平台能力审计，检查各平台的 profile.yaml 与实际能力匹配度。
 
@@ -339,6 +340,8 @@ tools:
 **workflow-framework-generator** — 工作流框架生成器，根据用户指定的工作流类型（软件开发、内容创作、电商运营、研究分析等）与目标 AI IDE 平台（Claude Code / Cursor / CodeX / OpenCode），自动生成一套完整的 CataForge 兼容框架。包含 Agent 定义、Skill 模块、Workflow 编排、平台适配配置等。内置 6 大领域模式库、四平台能力矩阵、框架校验脚本。
 
 **self-update** — CataForge 自更新。三个指令：`check`（检测已安装包与项目 scaffold 的版本差异）、`apply`（升级包并刷新 scaffold，自 v0.1.10 起调用 `cataforge bootstrap`）、`verify`（运行迁移检查验证一致性）。支持 pip 与 uv 两种包管理器；保留 `runtime.platform`、`upgrade.state`、`PROJECT-STATE.md` 等用户可编辑状态。
+
+**framework-feedback** — 下游 → 上游反馈打包（v0.3.0 引入）。聚合 `cataforge doctor` + 最近 `EVENT-LOG` + `CORRECTIONS-LOG` 中 `deviation=upstream-gap` 的纠偏 + `framework-review` Layer 1 FAIL 摘要为单个 markdown body，通过等价 CLI `cataforge feedback bug|suggest|correction-export` 经四选一互斥 sink 发出（`--print` / `--out PATH` / `--clip` / `--gh`）。命名上与 `framework-review` 平行（都针对 `.cataforge/` 框架本体），与下游产品自身的用户反馈渠道无关。`record-to-event-log: true`，每次运行写一条 `state_change` 事件（`ref=skill:framework-feedback/...`）。挂在 `orchestrator.skills`（持有 `shell_exec`）；reflector 因为是只读 Agent，不直接持有此 skill。详细参数见 [`cli.md` §feedback](./cli.md#feedback)。
 
 </details>
 
@@ -350,7 +353,7 @@ tools:
 
 | Agent | 默认启用 Skill | 条件启用 |
 |-------|---------------|---------|
-| **orchestrator** | `agent-dispatch` · `doc-nav` · `tdd-engine` · `change-guard` | — |
+| **orchestrator** | `agent-dispatch` · `doc-nav` · `tdd-engine` · `change-guard` · `framework-feedback` | — |
 | **product-manager** | `doc-gen` · `doc-nav` · `req-analysis` · `research` | — |
 | **architect** | `doc-gen` · `doc-nav` · `arc-design` · `tech-eval` · `research` | — |
 | **ui-designer** | `doc-gen` · `doc-nav` · `ui-design` · `research` | `penpot-sync` |

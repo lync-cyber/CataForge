@@ -2,7 +2,7 @@
 
 > `cataforge` 命令的全部子命令与关键参数。完整帮助请用 `cataforge <cmd> --help`。
 >
-> **适用版本**：v0.1.15（与 [`pyproject.toml`](../../pyproject.toml) 同步；行为以 `cataforge --version` 输出为准）。
+> **适用版本**：v0.3.0（与 [`pyproject.toml`](../../pyproject.toml) 同步；行为以 `cataforge --version` 输出为准）。
 
 ## 命令总览
 
@@ -19,6 +19,8 @@
 | [`cataforge upgrade`](#upgrade) | 脚手架升级与校验 |
 | [`cataforge docs`](#docs) | 文档索引与段落加载 |
 | [`cataforge event`](#event) | 写事件日志 |
+| [`cataforge correction`](#correction) | 写 On-Correction Learning 日志 |
+| [`cataforge feedback`](#feedback) | 把下游信号打包为上游可消费的 markdown 反馈 |
 
 ---
 
@@ -280,6 +282,85 @@ cat events.jsonl | cataforge event log --batch
 | `--batch` | 从 stdin 读 JSONL，原子批量追加 |
 
 事件类型与示例 payload 见 [`status-codes.md`](./status-codes.md) §5。
+
+---
+
+## correction
+
+**何时用它**：用户/Agent 修正了上游建议、推荐选项或框架默认行为时，把这一条偏离记入 `docs/reviews/CORRECTIONS-LOG.md` 与 `docs/EVENT-LOG.jsonl` 双写。`option-override` / `review-flag` 由 hook 自动捕获，CLI 主要服务于 `interrupt-override`（手动打断）以及任何需要程序化记录的场景。
+
+```bash
+cataforge correction record \
+  --trigger interrupt-override \
+  --agent orchestrator \
+  --phase architecture \
+  --question "选 Node 版本" \
+  --baseline "B: 18 LTS" \
+  --actual "C: 22 LTS" \
+  --deviation self-caused
+```
+
+| 参数 | 作用 |
+|------|------|
+| `--trigger` | 触发信号 (`option-override` / `interrupt-override` / `review-flag`) |
+| `--agent` | 发起 Agent ID |
+| `--phase` | 协议阶段（`architecture` / `implementation` / `review` …） |
+| `--question` | 被纠偏的问题 / 假设 |
+| `--baseline` | 上游推荐值 / baseline |
+| `--actual` | 用户/实际选择 |
+| `--deviation` | 偏差类型（`preference` / `self-caused` / `external` / `framework-bug` / `upstream-gap`） |
+| `--no-event-log` | 仅写 CORRECTIONS-LOG，不双写 EVENT-LOG |
+
+`deviation` 五个值的语义边界：
+
+| 值 | 含义 | 触发后续 |
+|----|------|----------|
+| `preference` | 纯偏好，不算缺陷 | 仅留存档 |
+| `self-caused` | 下游自身造成的偏离 | 累计 ≥ `RETRO_TRIGGER_SELF_CAUSED` (默认 5) → reflector 回顾 |
+| `external` | 外部约束（依赖、政策） | 仅留存档 |
+| `framework-bug` | CataForge 框架本体缺陷 | 由 `cataforge feedback bug` 上报 |
+| `upstream-gap` | 上游 baseline 本身对此项目场景不准/不全 | 累计 ≥ `RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT` (默认 3) → `cataforge feedback correction-export` 聚合上报 |
+
+---
+
+## feedback
+
+**何时用它**：在下游项目使用 CataForge 时发现框架问题 / 改进点 / 累积的 `upstream-gap` 纠偏，把本地诊断聚合为 markdown 直接发给 CataForge 上游。三个子命令共享同一份输出 sink。
+
+```bash
+# 1. bug：聚合 doctor + EVENT-LOG + upstream-gap + framework-review FAIL
+cataforge feedback bug --summary "deploy 后 hook 不触发" --gh
+
+# 2. suggest：建议类反馈（不带 doctor 噪声）
+cataforge feedback suggest --summary "希望 bootstrap 支持 --dry-run" --clip
+
+# 3. correction-export：累计的 upstream-gap 批量回报
+cataforge feedback correction-export --threshold 3 --out docs/feedback/$(date +%Y%m%d).md
+```
+
+| 参数 | 作用 |
+|------|------|
+| `--summary <text>` | 一句话摘要（省略时从 stdin 读，主用于 pipeline） |
+| `--title <text>` | issue 标题（省略时由 kind + summary 合成） |
+| `--notes <text>` | 自由文本，附在 `## Additional notes` 段 |
+| `--print` | 把渲染好的 markdown 写到 stdout（默认 sink） |
+| `--out <path>` | 写到文件（相对路径解析在项目根下） |
+| `--clip` | 推到剪贴板（`pbcopy` / `wl-copy` / `xclip` / `xsel` / `clip`，按 PATH 顺序选第一个可用） |
+| `--gh` | 直接 `gh issue create --body-file -`（需要本机已装并登录 `gh`） |
+| `--include-paths` | 关闭路径脱敏（默认会把 `<project>` 与 `~` 替换为占位符） |
+| `--since <YYYY-MM-DD>` | 只聚合该日期及之后的 EVENT-LOG / corrections（`bug` / `correction-export`） |
+| `--event-limit <N>` | EVENT-LOG 截取条数，默认 20，0 = 不限（`bug`） |
+| `--threshold <N>` | `correction-export` 的最小 `upstream-gap` 计数，默认 3，0 = 永远导出 |
+| `--skip-framework-review` | `bug` 跳过 `framework-review` 预检（脚手架已损坏时可加快产出） |
+| `--quiet` | 抑制 sink 完成后的提示（`Wrote ...` / `Copied ...`），`--gh` 仍会打印 issue URL |
+
+四个 sink 互斥；都不指定时默认 `--print`。
+
+**等价 skill 入口**：`cataforge skill run framework-feedback -- <kind> [--summary ...] [--out ...]`。CLI 与 skill 共用 `cataforge.core.feedback` 同一份 assembler，区别仅在 skill 调用会向 EVENT-LOG 写一条 `state_change`（`ref=skill:framework-feedback/...`），便于 orchestrator 跟踪反馈频次。
+
+**隐私与脱敏**：默认对 `<project>` / `~` 做替换，`--include-paths` 仅在内部反馈或自托管 GitHub 时启用。`--gh` 通过 stdin 把 body 喂给 `gh`，不落临时文件。
+
+**配套 issue 模板**：上游仓库 `.github/ISSUE_TEMPLATE/feedback-from-cli.yml` 字段与 CLI 输出 1:1 对齐。
 
 ---
 

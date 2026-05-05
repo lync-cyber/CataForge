@@ -133,3 +133,31 @@ def test_record_correction_rejects_bad_deviation(tmp_path: Path) -> None:
             actual="a",
             deviation="bogus",
         )
+
+
+def test_record_correction_accepts_upstream_gap_deviation(tmp_path: Path) -> None:
+    """``upstream-gap`` is the deviation type that powers the framework-feedback
+    aggregator. Round-trip it through the writer + markdown re-read to make
+    sure the new enum value flows end-to-end."""
+    result = record_correction(
+        tmp_path,
+        trigger="review-flag",
+        agent="reviewer",
+        phase="review",
+        question="upstream baseline missed the GitOps case",
+        baseline="A: monorepo",
+        actual="B: gitops",
+        deviation="upstream-gap",
+    )
+    text = (tmp_path / result["corrections_log"].relative_to(tmp_path)).read_text(
+        encoding="utf-8"
+    )
+    assert "偏差类型: upstream-gap" in text
+    # And it should be visible to the downstream aggregator.
+    from cataforge.core.feedback import collect_corrections
+
+    entries = collect_corrections(tmp_path, deviation="upstream-gap")
+    assert len(entries) == 1
+    assert entries[0].deviation == "upstream-gap"
+    assert entries[0].baseline == "A: monorepo"
+    assert entries[0].actual == "B: gitops"
