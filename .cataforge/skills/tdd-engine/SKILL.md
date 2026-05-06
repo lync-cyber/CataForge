@@ -38,26 +38,15 @@ orchestrator (主线程)
 
 ## Mid-Progress Drop Contract
 
-为避免子代理在末尾 finalize 阶段集中产出导致 task-notification truncation（典型征兆：100+ tools / 100K+ tokens / 5min+ 后被打断；`<agent-result>` JSON 不返回但 artifact 已部分落地），**LOC > 200** 或 **AC > 6** 的任务在 implementer dispatch prompt 中强制注入以下契约：
+避免子代理在末尾 finalize 集中产出导致 task-notification truncation（征兆：100+ tools / 100K+ tokens / 5min+ 被打断；`<agent-result>` 不返回但 artifact 已部分落地）。**触发**（任一命中）：`loc_estimate > 200`（缺字段取 `len(AC) × 30`）或 `len(tdd_acceptance) > 6`。命中时 implementer dispatch prompt 强制注入：
 
 > **Mid-progress 落盘**：
-> 1. 先 `Write` 全部目标文件的**空骨架**（含必要的 import + export stub + `describe(...)` / 函数签名占位）；
-> 2. 逐 AC 迭代填充实现 + 测试；
-> 3. 每个 AC 完成后立刻运行 `{test_command}`（按需附 file 过滤）验证当条 AC 通过；
-> 4. **不要**把所有 AC 的实现 + 全套断言堆到最后一次 `Edit`。
+> 1. 先 `Write` 全部目标文件的**空骨架**（import + export stub + `describe(...)` / 函数签名占位）
+> 2. 逐 AC 迭代填充实现 + 测试
+> 3. 每完成一条 AC 立刻运行 `{test_command}`（按需附 file 过滤）验证
+> 4. **禁止**末尾一次 `Edit` 堆所有 AC 实现 + 全套断言
 
-触发条件（任一命中即注入）：
-
-- `loc_estimate > 200`（任务卡缺该字段时取 `len(AC) × 30` 粗估）
-- `len(tdd_acceptance) > 6`
-
-适用范围：
-
-- ✅ **standard 模式** Step 3 GREEN（implementer dispatch）
-- ✅ **light-dispatch 模式**（implementer 一次合并 RED+GREEN）
-- ❌ **light-inline / prototype-inline**：orchestrator 主线程产出，token 额度由主线程上下文窗口管理，不需此契约
-
-恢复路径：契约失效（仍发生 truncation）时按 ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery Protocol 主线程接管收尾。
+适用：standard Step 3 GREEN ✅；light-dispatch ✅；light-inline / prototype-inline ❌（主线程产出，token 由主线程窗口管理，不需此契约）。契约失效（仍 truncation）→ ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery Protocol 主线程接管。
 
 ## TDD 子代理共享约束
 
