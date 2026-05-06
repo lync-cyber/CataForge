@@ -31,6 +31,7 @@ from typing import Any
 # CLI can validate without a hard dependency on the jsonschema package.
 VALID_EVENTS: frozenset[str] = frozenset({
     "session_start",
+    "session_end",
     "phase_start",
     "phase_end",
     "agent_dispatch",
