@@ -15,6 +15,7 @@
       "type": "string",
       "enum": [
         "session_start",
+        "session_end",
         "phase_start",
         "phase_end",
         "agent_dispatch",
