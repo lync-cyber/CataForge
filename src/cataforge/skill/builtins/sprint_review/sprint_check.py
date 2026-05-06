@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import fnmatch
 import json
 import os
 import re
@@ -23,6 +24,7 @@ from cataforge.skill.builtins.sprint_review.ignore import (
     list_candidate_files,
 )
 from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 
 def find_dev_plan_files(dev_plan_dir: str) -> list[str]:
@@ -33,6 +35,37 @@ def find_dev_plan_files(dev_plan_dir: str) -> list[str]:
         if f.endswith(".md"):
             files.append(os.path.join(dev_plan_dir, f))
     return files
+
+
+def load_project_features(dev_plan_files: list[str]) -> dict:
+    """Load ``project_features`` block from the dev-plan main volume frontmatter.
+
+    Sprint volumes (``-s{N}.md``) inherit from the main volume; the first
+    file containing a ``project_features:`` key wins. Returns ``{}`` when no
+    file declares the block — preserving existing checker behavior.
+
+    Recognised keys (all optional, all default off):
+
+    * ``merged_review`` (bool) — short-circuit ``code_review_present`` (the
+      sprint-review report itself carries per-task L2 instead of separate
+      CODE-REVIEW files).
+    * ``deliverables_accept_alternation`` (bool) — let ``deliverables`` lines
+      use ``A | B`` syntax (passes if **either** path exists).
+    * ``unplanned_glob_patterns`` (list[str]) — fnmatch patterns; matching
+      files are filtered out of the unplanned-files WARN set.
+    """
+    for f in dev_plan_files:
+        if re.search(r"-s\d+\.md$", f):
+            continue
+        try:
+            with open(f, encoding="utf-8") as fh:
+                raw = fh.read()
+        except OSError:
+            continue
+        meta, _ = split_yaml_frontmatter(raw)
+        if meta and isinstance(meta.get("project_features"), dict):
+            return meta["project_features"]
+    return {}
 
 
 def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[dict]:
@@ -200,10 +233,29 @@ def check_task_status(tasks: list[dict]) -> list[dict]:
     return issues
 
 
-def check_deliverables(tasks: list[dict]) -> list[dict]:
+def check_deliverables(
+    tasks: list[dict],
+    *,
+    accept_alternation: bool = False,
+) -> list[dict]:
+    """Check each deliverable exists.
+
+    When *accept_alternation* is true, a ``A | B`` entry passes if any
+    candidate exists. Without the flag, the literal ``"A | B"`` string is
+    treated as a single (non-existent) path — preserving prior behavior.
+    """
     issues: list[dict] = []
     for task in tasks:
         for path in task["deliverables"]:
+            if accept_alternation and "|" in path:
+                candidates = [p.strip() for p in path.split("|") if p.strip()]
+                if not any(os.path.exists(c) for c in candidates):
+                    issues.append(_issue(
+                        "fail", "deliverables_exist",
+                        f"任务 {task['id']} 交付物所有候选均缺失: {path}",
+                        task=task["id"], path=path,
+                    ))
+                continue
             if not os.path.exists(path):
                 issues.append(_issue(
                     "fail", "deliverables_exist",
@@ -246,6 +298,7 @@ def check_unplanned_files(
     *,
     respect_gitignore: bool,
     ignore_spec: IgnoreSpec,
+    glob_whitelist: list[str] | None = None,
 ) -> list[dict]:
     """Detect gold-plating: files under ``src_dirs`` not in any deliverable.
 
@@ -253,6 +306,12 @@ def check_unplanned_files(
     ``respect_gitignore`` is true) plus ``ignore_spec``. Files matching
     the deliverables list — or sitting under a deliverable directory —
     are filtered out.
+
+    *glob_whitelist* (from ``project_features.unplanned_glob_patterns``)
+    further filters out files whose normalised path matches any fnmatch
+    pattern. Use for project-wide test/helper conventions like
+    ``**/*.test.ts`` or ``**/helpers/*.py`` that the team accepts as
+    permanent unplanned territory.
     """
     if not src_dirs:
         return []
@@ -260,24 +319,30 @@ def check_unplanned_files(
     planned_dirs: list[str] = []
     for task in tasks:
         for path in task["deliverables"]:
-            norm = os.path.normpath(path).replace("\\", "/")
-            planned_norm.add(norm)
-            # treat deliverable that look like dirs (no extension or trailing /)
-            # as covering their whole subtree
-            if path.endswith("/") or not os.path.splitext(path)[1]:
-                planned_dirs.append(norm.rstrip("/") + "/")
+            # Alternation in deliverables — both candidates count as planned.
+            for candidate in (
+                [p.strip() for p in path.split("|") if p.strip()]
+                if "|" in path else [path]
+            ):
+                norm = os.path.normpath(candidate).replace("\\", "/")
+                planned_norm.add(norm)
+                if candidate.endswith("/") or not os.path.splitext(candidate)[1]:
+                    planned_dirs.append(norm.rstrip("/") + "/")
 
     candidates = list_candidate_files(
         src_dirs,
         respect_gitignore=respect_gitignore,
         ignore_spec=ignore_spec,
     )
+    whitelist = list(glob_whitelist or [])
     issues: list[dict] = []
     for fp in candidates:
         norm = os.path.normpath(fp).replace("\\", "/")
         if norm in planned_norm:
             continue
         if any(norm.startswith(d) for d in planned_dirs):
+            continue
+        if any(fnmatch.fnmatch(norm, g) for g in whitelist):
             continue
         issues.append(_issue(
             "warn", "unplanned_files",
@@ -287,7 +352,21 @@ def check_unplanned_files(
     return issues
 
 
-def check_code_reviews(tasks: list[dict], reviews_dir: str) -> list[dict]:
+def check_code_reviews(
+    tasks: list[dict],
+    reviews_dir: str,
+    *,
+    merged_review: bool = False,
+) -> list[dict]:
+    """Verify each task has a per-task CODE-REVIEW report.
+
+    Short-circuits when *merged_review* is true (the sprint-review report
+    carries per-task Layer 2 instead of separate CODE-REVIEW files —
+    declared via ``project_features.merged_review`` in dev-plan
+    frontmatter).
+    """
+    if merged_review:
+        return []
     issues: list[dict] = []
     if not os.path.isdir(reviews_dir):
         issues.append(_issue(
@@ -527,9 +606,16 @@ def main() -> None:
             print(f"[FAIL] Sprint {sprint_num} 中未找到任务")
         sys.exit(1)
 
+    features = load_project_features(dev_plan_files)
+    accept_alternation = bool(features.get("deliverables_accept_alternation"))
+    merged_review = bool(features.get("merged_review"))
+    glob_whitelist_raw = features.get("unplanned_glob_patterns") or []
+    glob_whitelist = [g for g in glob_whitelist_raw if isinstance(g, str)]
+
     sections: list[tuple[str, list[dict], str]] = [
         ("任务状态检查", check_task_status(tasks), "所有任务状态为 done"),
-        ("交付物检查", check_deliverables(tasks),
+        ("交付物检查",
+         check_deliverables(tasks, accept_alternation=accept_alternation),
          f"所有交付物存在 ({sum(len(t['deliverables']) for t in tasks)} 个文件)"),
         ("AC覆盖检查", check_ac_coverage(tasks, args.test_dir),
          f"所有AC已覆盖 ({sum(len(t['tdd_acceptance']) for t in tasks)} 个验收标准)"),
@@ -537,9 +623,12 @@ def main() -> None:
             tasks, src_dirs,
             respect_gitignore=not args.no_respect_gitignore,
             ignore_spec=ignore_spec,
+            glob_whitelist=glob_whitelist,
         ), "未发现计划外文件"),
-        ("CODE-REVIEW报告检查", check_code_reviews(tasks, args.reviews_dir),
-         "所有任务有CODE-REVIEW报告"),
+        ("CODE-REVIEW报告检查",
+         check_code_reviews(tasks, args.reviews_dir, merged_review=merged_review),
+         "所有任务有CODE-REVIEW报告"
+         + (" (跳过: project_features.merged_review)" if merged_review else "")),
     ]
 
     if args.format == "json":

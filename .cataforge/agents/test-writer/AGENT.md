@@ -46,9 +46,70 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 | AC 无法转化为测试 | 在 summary 中说明原因 |
 | 测试框架配置错误 | 修复后重试，最多2次，仍失败则 blocked |
 
+## 测试质量自检 checklist
+
+每个 `test()` / `it()` 块编写完成后按以下三维度自检（顺序无关，三条都必须过）：
+
+### 1. lint 白名单合规
+
+测试文件 lint 例外**必须 inline 注释 root_cause**（如 `// biome-ignore lint/...: <为什么这里非用不可>`）；不允许全文件 disable。常见项目禁用规则与替代 pattern：
+
+| 反模式 | 替代 |
+|-------|------|
+| `value!` (non-null assertion) | `value ?? (() => { throw new Error("expected ...") })()` 或 `if (!value) throw ...; value` |
+| `.not.toBeNull()` 配 `.find()` | `.toBeTruthy()` 或 `.toMatchObject({ ... })` |
+| `isNaN(x)` | `Number.isNaN(x)` |
+| `delete obj.key` | `obj.key = undefined` 或 `const { key, ...rest } = obj` |
+
+### 2. 测试名 ↔ 断言意图一致性
+
+读测试名推断"期望行为"，再逐行扫断言反推"实际验证"；语义逆向时改名或改断言。4 类典型 anti-pattern：
+
+| anti-pattern | 例 |
+|-------------|-----|
+| 反义 API 调用 | test "should reject" + `expect(...).not.rejects` |
+| AC 语义 ↔ 断言 token 不符 | AC "return error object" + `expect(...).toContain('stub:')` |
+| 测试数据 ↔ 名称反向 | test "with invalid input" + `send({ valid: true })` |
+| Mock 缺失而测试名完整 | test "calls MCP server" + 没有 `vi.mock()` / `MagicMock` |
+
+### 3. 跨平台 syscall 测试模式
+
+被测分支触发平台特异性 syscall（fs.symlink / process.kill / chmod / SIGTERM 等）时按决策树选择：
+
+```
+syscall X 在某平台无法运行？
+  └─ 是 → 失败/成功语义可被 mock 完整模拟？
+       ├─ 是 → 首选: vi.hoisted + vi.mock('node:fs/promises') override
+       │         （Python: monkeypatch / unittest.mock.patch）
+       └─ 否 → 跨平台断言（如 expect([null, 0]).toContain(exitCode)）
+                兜底: it.skipIf(platform === 'win32') / @pytest.mark.skipif
+  └─ 否 → 直接断言
+```
+
+**vitest hoisted-mock 模板**：
+
+```ts
+const fsMock = vi.hoisted(() => ({ realpath: vi.fn() }));
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual, realpath: fsMock.realpath };
+});
+beforeEach(() => fsMock.realpath.mockImplementation(async (p: string) => p));
+// 用例内: fsMock.realpath.mockResolvedValueOnce('/etc/passwd');
+```
+
+| 场景 | 平台差异 | 首选 |
+|-----|---------|-----|
+| `fs.symlink` 创建失败（Win 非 admin EPERM） | 测试 fail | mock `node:fs/promises.realpath` |
+| `child.kill('SIGTERM')` 信号语义 | Win TerminateProcess vs POSIX → exitCode null vs 0 | 跨平台断言 `expect([null, 0]).toContain(...)` |
+| `chmod` / mode bits | Win ACL ≠ POSIX mode | mock `node:fs/promises.stat` |
+
+兜底统一为 platform-skip（`it.skipIf` / `@pytest.mark.skipif`）。
+
 ## Anti-Patterns
 - 禁止: 编写或修改实现代码（仅编写测试）
 - 禁止: 跳过运行测试验证FAIL状态
 - 禁止: 修改任何已有实现文件
 - 避免: 写只检查"不抛异常"的空断言 — 每个测试的断言须验证具体的返回值/状态/副作用，从AC或接口契约推导期望值
 - 避免: 所有测试用例只覆盖happy path — 验收标准中隐含的边界条件（空输入、越界、权限不足）也应有对应测试
+- 避免: 跨平台 syscall 走 platform-skip 跳过 — 优先 mock 模式（语义验证更强；详见 §测试质量自检 checklist 第 3 条决策树）
