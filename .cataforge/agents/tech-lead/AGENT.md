@@ -38,17 +38,17 @@ maxTurns: 60
   - `security_sensitive: true`（涉及鉴权 / 加密 / 输入校验 / 数据脱敏）
   - 跨 ≥2 个 arch 模块（context_load 引用 ≥2 个 `arch#§2.M-xxx`）
 - **tdd_refactor 判定**: 缺省 `auto`（GREEN 后 code-review Layer 1 命中 `TDD_REFACTOR_TRIGGER` 才触发）；跨模块抽象/引入新设计模式的任务可标 `required`；纯 bug 修复或单点改动可标 `skip`
-- **expected_tool_budget 软门禁**（仅 standard 模式，可选）: 任务卡可选标 `expected_tool_budget: ~N`（典型值 80-120），表示该任务子代理调度预估 tool 调用次数。决策矩阵（用于反向校验 tdd_mode）：
+- **expected_tool_budget 软门禁**（仅 standard 模式，可选）: 任务卡可选标 `expected_tool_budget: ~N`（典型 80-120），表子代理调度预估 tool 数。决策矩阵反向校验 tdd_mode：
 
-  | LOC | AC | Modules | tdd_mode 推荐 | 理由 |
-  |-----|----|---------|--------------|------|
-  | ≤150 | ≤4 | 1 | light | 主线程内联或 light-dispatch 一次完成 |
-  | ≤150 | 5-6 | 1 | light | 边界，推荐 light 试水 |
-  | 150-250 | ≤6 | 1-2 | light 拆分 | tech-lead 拆为 RED + GREEN-A/B + REFACTOR 三次 dispatch（每次 ≤80 tools） |
-  | >250 | any | any | standard + mid-progress | 强制 §Mid-Progress Drop Contract（tdd-engine SKILL.md） |
+  | LOC | AC | Modules | tdd_mode 推荐 |
+  |-----|----|---------|--------------|
+  | ≤150 | ≤4 | 1 | light（主线程内联或 light-dispatch 一次完成） |
+  | ≤150 | 5-6 | 1 | light（边界，试水） |
+  | 150-250 | ≤6 | 1-2 | light 拆分（RED + GREEN-A/B + REFACTOR 三次 dispatch，每次 ≤80 tools） |
+  | >250 | any | any | standard + 强制 §Mid-Progress Drop Contract（tdd-engine SKILL.md） |
 
-  当 `expected_tool_budget > 100` 且 `tdd_mode: standard`：tech-lead 应评审是否拆分为 light 序列；若维持 standard，必须命中 mid-progress 触发条件。orchestrator 在 dispatch 时按本字段做 sanity check（>150 警告，>200 阻断改建议拆分）。
-- 预估 LOC 以任务对应 deliverables 的新增/修改代码总行数为基准，无须精确到单行，范围判断即可
+  `expected_tool_budget > 100` 且 `tdd_mode: standard` → tech-lead 评审是否拆 light 序列；维持 standard 必须命中 mid-progress 触发条件。orchestrator dispatch 时按本字段 sanity check：>150 警告，>200 阻断改建议拆分。
+- 预估 LOC = 任务 deliverables 的新增/修改代码总行数，范围判断即可
 
 ## Error Handling
 | 场景 | 处理策略 |

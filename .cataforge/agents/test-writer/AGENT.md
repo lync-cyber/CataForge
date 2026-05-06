@@ -74,19 +74,19 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 
 ### 3. 跨平台 syscall 测试模式
 
-被测分支需触发平台特异性 syscall（fs.symlink / process.kill / chmod / SIGTERM 等）时按决策树选择：
+被测分支触发平台特异性 syscall（fs.symlink / process.kill / chmod / SIGTERM 等）时按决策树选择：
 
 ```
 syscall X 在某平台无法运行？
-  └─ 是 → X 失败/成功语义可被 mock 完整模拟？
+  └─ 是 → 失败/成功语义可被 mock 完整模拟？
        ├─ 是 → 首选: vi.hoisted + vi.mock('node:fs/promises') override
        │         （Python: monkeypatch / unittest.mock.patch）
        └─ 否 → 跨平台断言（如 expect([null, 0]).toContain(exitCode)）
                 兜底: it.skipIf(platform === 'win32') / @pytest.mark.skipif
-  └─ 否 → 直接断言，无需特殊处理
+  └─ 否 → 直接断言
 ```
 
-**模板代码（Node + vitest）**：
+**vitest hoisted-mock 模板**：
 
 ```ts
 const fsMock = vi.hoisted(() => ({ realpath: vi.fn() }));
@@ -95,18 +95,16 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return { ...actual, realpath: fsMock.realpath };
 });
 beforeEach(() => fsMock.realpath.mockImplementation(async (p: string) => p));
-
-it('refuses path whose realpath escapes workspace root', async () => {
-  fsMock.realpath.mockResolvedValueOnce('/etc/passwd');
-  await expect(isInsideRoot('/workspace/link-to-etc')).resolves.toBe(false);
-});
+// 用例内: fsMock.realpath.mockResolvedValueOnce('/etc/passwd');
 ```
 
-| 场景 | 失败模式 | 首选 | 兜底 |
-|-----|---------|-----|------|
-| `fs.symlink` 创建失败（Windows 非 admin EPERM） | 测试 fail | mock `node:fs/promises.realpath` | platform-skip |
-| `child.kill('SIGTERM')` 信号语义 | Windows TerminateProcess vs POSIX → exitCode null vs 0 | 跨平台断言 `expect([null, 0]).toContain(...)` | platform-skip |
-| `chmod` / mode bits | Windows ACL ≠ POSIX mode | mock `node:fs/promises.stat` | platform-skip |
+| 场景 | 平台差异 | 首选 |
+|-----|---------|-----|
+| `fs.symlink` 创建失败（Win 非 admin EPERM） | 测试 fail | mock `node:fs/promises.realpath` |
+| `child.kill('SIGTERM')` 信号语义 | Win TerminateProcess vs POSIX → exitCode null vs 0 | 跨平台断言 `expect([null, 0]).toContain(...)` |
+| `chmod` / mode bits | Win ACL ≠ POSIX mode | mock `node:fs/promises.stat` |
+
+兜底统一为 platform-skip（`it.skipIf` / `@pytest.mark.skipif`）。
 
 ## Anti-Patterns
 - 禁止: 编写或修改实现代码（仅编写测试）

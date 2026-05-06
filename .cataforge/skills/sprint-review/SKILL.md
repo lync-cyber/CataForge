@@ -23,12 +23,7 @@ user-invocable: true
 
 ### merged-review 模式行为
 
-启用 `merged_review: true` 后：
-
-- Layer 1 `code_review_present` checker 自动短路（不会因为缺 CODE-REVIEW 文件而 FAIL）
-- sprint-review 报告**必须**包含 §per-task L2 维度表（structure / error-handling / test-quality / duplication / dead-code / complexity / coupling / security 八列），每个任务一行，作为 per-task Layer 2 的等价交付
-- 单任务 CODE-REVIEW 文件可省略，但仍可按需补充（混合模式）
-- 跨任务模式（重复 helper / 同型 bug）天然进入 sprint-review 的横截面视角，比 N 份独立 CODE-REVIEW 更易识别
+启用 `merged_review: true` 后：Layer 1 `code_review_present` 自动短路（缺 CODE-REVIEW 不 FAIL）；单任务 CODE-REVIEW 可省略，亦可按需混合补充。sprint-review 报告**必须**包含 §per-task L2 维度表（structure / error-handling / test-quality / duplication / dead-code / complexity / coupling / security 八列，每任务一行），作为 per-task Layer 2 的等价交付。跨任务模式（重复 helper / 同型 bug）天然进入横截面视角，比 N 份独立 CODE-REVIEW 更易识别。
 
 ## 输入规范
 - dev-plan 文档路径 (含Sprint任务表)
@@ -129,7 +124,6 @@ project_features:
 读取由 `cataforge.skill.builtins.sprint_review.sprint_check.load_project_features()` 完成；优先读非 sprint 分卷（不带 `-sN.md` 后缀）的第一个含 `project_features:` 的文件。
 
 ## 效率策略
-- Layer 1先行: 脚本快速检查结构性问题，不通过则跳过AI审查
-- Layer 2聚焦语义: AI审查专注于脚本无法覆盖的行为偏移和质量模式
-- 通过doc-nav按需加载，不全量读取dev-plan
-- **merged-review 模式**：任务同质 sprint 用单份 sprint-review 报告替代 N 份 CODE-REVIEW，减少冗余产出，跨任务模式更易识别
+- Layer 1 先行（脚本结构检查不通过即跳过 AI 审查）；Layer 2 聚焦脚本不可覆盖的行为偏移和质量模式
+- 通过 doc-nav 按需加载，不全量读 dev-plan
+- **merged-review**：任务同质 sprint 单份 sprint-review 替代 N 份 CODE-REVIEW，跨任务模式更易识别

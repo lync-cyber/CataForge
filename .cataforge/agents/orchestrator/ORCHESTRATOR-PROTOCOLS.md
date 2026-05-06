@@ -18,7 +18,7 @@
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
-3a. **写入跨平台 `.gitattributes`** — 项目根目录无 `.gitattributes` 时写入下列最小集（已有则跳过，不覆盖用户自定义）。治理 Windows `core.autocrlf=true` 与 fixture/snapshot 字节哈希漂移导致的多平台测试 fail：
+3a. **写入跨平台 `.gitattributes`** — 治理 Windows `core.autocrlf=true` + fixture/snapshot 字节哈希漂移。项目根无 `.gitattributes` 时写入下列最小集；已存在则**只读**判断（含 `eol=` 视为已归一化），不覆盖用户自定义：
 
     ```
     # cataforge default — 跨平台行尾归一化
@@ -46,7 +46,7 @@
     *.tar.gz binary
     ```
 
-    > 适用：Node / Python / 含 fixture 的多平台项目。纯 Linux/macOS 服务端项目可裁剪至首行 `* text=auto eol=lf`。已存在 `.gitattributes` 时**只读**判断（含 `eol=` 即视为已归一化），不动用户既有内容。
+    > 适用：Node / Python / 含 fixture 的多平台项目。纯 Linux/macOS 服务端项目可裁剪至首行 `* text=auto eol=lf`。
 4. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§框架元信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
     - `standard` → `requirements`
     - `agile-lite` → `planning`（Phase 1+2 合并）
@@ -141,26 +141,19 @@ Mode Routing Protocol 在以下时刻被调用:
    ```
 2. 从 REVIEW 报告中提取 MEDIUM/LOW 问题列表
 3. 使用 AskUserQuestion 向用户展示问题摘要，提供选项:
-   - **(1) 接受并继续**: 将文档状态变更为 approved，进入下一 Phase
-   - **(2) 要求修复选中的问题**: 将用户选中的问题标记为待修复，文档状态变更为 needs_revision，进入 Revision Protocol
-   - **(3) 暂停等待人工**: 不动文档状态，标记 §当前阶段 为 hold，等下次会话用户决定
-   - **(4) 全量 inline-fix 后继续**（适用条件见下）: orchestrator/reviewer 主线程逐条扫 LOW，用 Edit / doc-gen write-section 直接修改文档（同会话内），完成后 verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
+   - **(1) 接受并继续**: 文档状态 → approved，进入下一 Phase
+   - **(2) 要求修复选中的问题**: 选中问题 → needs_revision，进入 Revision Protocol
+   - **(3) 暂停等待人工**: 不动文档状态，§当前阶段 标 hold
+   - **(4) 全量 inline-fix 后继续**（仅在下列条件**全部**成立时展示）: orchestrator/reviewer 主线程逐条扫 LOW 并 Edit / doc-gen write-section 直接修复（同会话），verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
+     - MEDIUM+LOW 问题数 ≥ 8（少量手修更直接）
+     - 全部为表述漂移 / 格式 / 引用对齐 / 完整性补充（非设计缺陷）
+     - 单次修改 ≤ 50 行（超过走 (2)）
+     - 不适用 PRD / ARCH 等需求冻结类文档（仍走 (2)，防止冻结后静默改动）
 4. **[EVENT]** 记录用户决策:
    ```bash
    cataforge event log --event user_decision --phase {当前阶段} --detail "用户选择: {接受并继续|要求修复|暂停|全量 inline-fix}"
    ```
-5. 用户选择"接受"时，MEDIUM/LOW 问题记录保留在 REVIEW 报告中供后续参考；选择"全量 inline-fix"时，REVIEW 报告末尾追加 §Inline-Fix 闭环记录 表（每条 LOW 一行：编号 / 原问题 / 修复 commit/diff hash / closed-by-orchestrator）
-
-### 选项 (4) 适用条件
-
-仅在以下条件**全部**成立时把选项 (4) 加入 AskUserQuestion 选项集（否则按 1/2/3 三选）：
-
-- MEDIUM + LOW 问题数 ≥ 8（少量问题手动修更直接，不必走 inline-fix 路径）
-- 问题全部为表述漂移 / 格式 / 引用对齐 / 完整性补充（非设计缺陷或逻辑错误）
-- 修改内容简单（无需重写章节，单次修改 ≤ 50 行；超过则建议走选项 (2) revision）
-- **不适用**于 PRD / ARCH 等需求冻结类文档（防止文档冻结后被静默改动；仍走选项 (2) revision）
-
-不命中条件时不在选项里展示 (4)，避免 UI 噪声。
+5. 选"接受"→ MEDIUM/LOW 保留在 REVIEW 供后续参考；选"全量 inline-fix"→ REVIEW 末尾追加 §Inline-Fix 闭环记录 表（每条 LOW 一行：编号 / 原问题 / 修复 commit-or-diff hash / closed-by-orchestrator）
 
 ## Phase Transition Protocol
 当 reviewer 返回 approved 或 approved_with_notes 且用户选择"接受并继续"时，执行以下状态持久化步骤:
@@ -389,19 +382,17 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 
 ## Sub-Agent Truncation Recovery Protocol
 
-当子代理调度被 task-notification truncation 打断（典型征兆：100+ tools / 100K+ tokens / 5min+ 执行时长 / `<agent-result>` JSON 缺失，但 `git status` 显示已有未提交 artifact），主线程**接管收尾**而非视为 blocked：
+当子代理被 task-notification truncation 打断（征兆：100+ tools / 100K+ tokens / 5min+ / `<agent-result>` 缺失，但 `git status` 显示已有未提交 artifact），主线程**接管收尾**而非 blocked：
 
-1. **评估完成度**（按当前任务类型选 1-2 项）：
-   - 代码任务：`{test_command}` 跑测试看 PASS 率；`biome lint` / `ruff check` / `tsc --noEmit` 看类型/lint 错数
-   - 文档任务：核对 deliverables 清单中要求的文件是否齐全 + frontmatter 是否完整
-2. **决策路径**：
-   - **完成度 ≥ 70% AC PASS（或 deliverables 齐全）** → 主线程接管收尾：inline-fix 残留 lint/typecheck 错、补落盘缺漏文件、按需补 `<agent-result>` 等价信息到 EVENT-LOG（`event=state_change`，`detail` 写明"truncation recovery: main-thread takeover"）
-   - **完成度 < 70%** → 视为 blocked，请求人工介入；不允许主线程从零接管（成本不可控）
+1. **评估完成度**（按任务类型选 1-2 项）：代码任务跑 `{test_command}` 看 PASS 率 + `biome lint` / `ruff check` / `tsc --noEmit` 看类型/lint 错数；文档任务核对 deliverables 齐全 + frontmatter 完整
+2. **决策**：
+   - **≥ 70% AC PASS（或 deliverables 齐全）** → 主线程接管：inline-fix 残留 lint/typecheck 错 + 补落盘缺漏 + 补 `<agent-result>` 等价信息到 EVENT-LOG（`event=state_change`，`detail="truncation recovery: main-thread takeover"`）
+   - **< 70%** → blocked，请求人工介入（不允许从零接管，成本不可控）
    - **无任何 artifact** → 走 §Agent Crash Recovery（process 死，本协议不适用）
-3. **每任务最多 1 次** truncation recovery；第 2 次截断同任务说明 prompt 设计有问题，不再接管，blocked + 标 backlog 由下次 retrospective 改进
-4. 截断事件记录到 EVENT-LOG `event=state_change` + `agent={truncated_agent_id}` + `detail="truncation recovery: <70%|≥70%>"`，供 reflector 检测频次（≥5 次/月触发 SKILL-IMPROVE）
+3. **每任务最多 1 次**；第 2 次截断说明 prompt 设计有问题，blocked + 标 backlog 给下次 retrospective
+4. 事件记录：`event=state_change` + `agent={truncated_agent_id}` + `detail="truncation recovery: <70%|≥70%>"`，供 reflector 检测频次（≥5 次/月触发 SKILL-IMPROVE）
 
-**与 tdd-engine §Mid-Progress Drop Contract 的关系**：mid-progress 落盘契约是**预防**（让子代理边推进边落盘，降低末尾批量 finalize 的截断概率）；本协议是**事后兜底**（契约失效时主线程不放弃整个任务）。两者协同：契约把 truncation 后的"已完成度"从 0% 抬到 70%+，让本协议的 70% 阈值可达。
+**与 tdd-engine §Mid-Progress Drop Contract 的关系**：mid-progress 是**预防**（边推进边落盘，降低末尾批量 finalize 的截断概率）；本协议是**事后兜底**。两者协同：契约把 truncation 后的完成度从 0% 抬到 70%+，让本协议阈值可达。
 
 ## needs_revision 计数规范
 `needs_revision(N)` 中的 N 为本阶段累计返工次数，格式为 `needs_revision(2)` 而非独立字段。
