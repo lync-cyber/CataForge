@@ -141,13 +141,26 @@ Mode Routing Protocol 在以下时刻被调用:
    ```
 2. 从 REVIEW 报告中提取 MEDIUM/LOW 问题列表
 3. 使用 AskUserQuestion 向用户展示问题摘要，提供选项:
-   - "接受并继续": 将文档状态变更为 approved，进入下一 Phase
-   - "要求修复选中的问题": 将用户选中的问题标记为待修复，文档状态变更为 needs_revision，进入 Revision Protocol
+   - **(1) 接受并继续**: 将文档状态变更为 approved，进入下一 Phase
+   - **(2) 要求修复选中的问题**: 将用户选中的问题标记为待修复，文档状态变更为 needs_revision，进入 Revision Protocol
+   - **(3) 暂停等待人工**: 不动文档状态，标记 §当前阶段 为 hold，等下次会话用户决定
+   - **(4) 全量 inline-fix 后继续**（适用条件见下）: orchestrator/reviewer 主线程逐条扫 LOW，用 Edit / doc-gen write-section 直接修改文档（同会话内），完成后 verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
 4. **[EVENT]** 记录用户决策:
    ```bash
-   cataforge event log --event user_decision --phase {当前阶段} --detail "用户选择: {接受并继续|要求修复}"
+   cataforge event log --event user_decision --phase {当前阶段} --detail "用户选择: {接受并继续|要求修复|暂停|全量 inline-fix}"
    ```
-5. 用户选择"接受"时，MEDIUM/LOW 问题记录保留在 REVIEW 报告中供后续参考
+5. 用户选择"接受"时，MEDIUM/LOW 问题记录保留在 REVIEW 报告中供后续参考；选择"全量 inline-fix"时，REVIEW 报告末尾追加 §Inline-Fix 闭环记录 表（每条 LOW 一行：编号 / 原问题 / 修复 commit/diff hash / closed-by-orchestrator）
+
+### 选项 (4) 适用条件
+
+仅在以下条件**全部**成立时把选项 (4) 加入 AskUserQuestion 选项集（否则按 1/2/3 三选）：
+
+- MEDIUM + LOW 问题数 ≥ 8（少量问题手动修更直接，不必走 inline-fix 路径）
+- 问题全部为表述漂移 / 格式 / 引用对齐 / 完整性补充（非设计缺陷或逻辑错误）
+- 修改内容简单（无需重写章节，单次修改 ≤ 50 行；超过则建议走选项 (2) revision）
+- **不适用**于 PRD / ARCH 等需求冻结类文档（防止文档冻结后被静默改动；仍走选项 (2) revision）
+
+不命中条件时不在选项里展示 (4)，避免 UI 噪声。
 
 ## Phase Transition Protocol
 当 reviewer 返回 approved 或 approved_with_notes 且用户选择"接受并继续"时，执行以下状态持久化步骤:
