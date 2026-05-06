@@ -27,7 +27,6 @@ from cataforge.skill.builtins.sprint_review.sprint_check import (
     load_project_features,
 )
 
-
 # ---------------------------------------------------------------------------
 # load_project_features
 # ---------------------------------------------------------------------------
