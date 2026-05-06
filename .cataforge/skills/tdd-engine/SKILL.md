@@ -36,6 +36,18 @@ orchestrator (主线程)
 | **light-inline** | `tdd_mode=light` 且 LOC≤`TDD_LIGHT_LOC_THRESHOLD` 且 `security_sensitive=false` 且执行模式 ∈ {agile-lite, agile-prototype} | orchestrator 主线程内联 implementer 行为，零子代理 boot |
 | **prototype-inline** | 执行模式 = `agile-prototype` | 同 light-inline，强制跳过 REFACTOR |
 
+## Mid-Progress Drop Contract
+
+避免子代理在末尾 finalize 集中产出导致 task-notification truncation（征兆：100+ tools / 100K+ tokens / 5min+ 被打断；`<agent-result>` 不返回但 artifact 已部分落地）。**触发**（任一命中）：`loc_estimate > 200`（缺字段取 `len(AC) × 30`）或 `len(tdd_acceptance) > 6`。命中时 implementer dispatch prompt 强制注入：
+
+> **Mid-progress 落盘**：
+> 1. 先 `Write` 全部目标文件的**空骨架**（import + export stub + `describe(...)` / 函数签名占位）
+> 2. 逐 AC 迭代填充实现 + 测试
+> 3. 每完成一条 AC 立刻运行 `{test_command}`（按需附 file 过滤）验证
+> 4. **禁止**末尾一次 `Edit` 堆所有 AC 实现 + 全套断言
+
+适用：standard Step 3 GREEN ✅；light-dispatch ✅；light-inline / prototype-inline ❌（主线程产出，token 由主线程窗口管理，不需此契约）。契约失效（仍 truncation）→ ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery Protocol 主线程接管。
+
 ## TDD 子代理共享约束
 
 以下约束适用于所有 TDD 子代理，通过 AGENT.md 的 disallowedTools 和本节定义：
@@ -182,6 +194,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     RED 阶段产出 test_files: {RED 阶段返回的路径列表}
 
     任务: 编写最小代码使所有测试通过。在 <agent-result> 中报告 refactor_needed (true/false) 与 refactor_reasons（命中 complexity/duplication/coupling 的具体说明）。
+
+    {{ 当 loc_estimate > 200 或 len(tdd_acceptance) > 6 时附加 }}
+    见 §Mid-Progress Drop Contract，必须按 4 步契约推进（先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit）。
 ```
 
 验证: 确认返回的 test-result 全部 PASSED；解析 `refactor_needed` / `refactor_reasons` 字段。continuation 同 §Step 2 错误分级。
@@ -273,6 +288,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
       - impl_files: [...]
     summary 中标注: "light mode — RED+GREEN 合并，最终测试全部 PASSED"
     必须报告 refactor_needed / refactor_reasons。
+
+    {{ 当 loc_estimate > 200 或 len(tdd_acceptance) > 6 时附加 }}
+    见 §Mid-Progress Drop Contract，必须按 4 步契约推进（先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit）。
 ```
 
 验证（orchestrator 执行）:
