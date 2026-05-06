@@ -2,7 +2,7 @@
 
 - **`cataforge sync-main`** —— 单命令把本地默认分支从 `origin` 快进到最新；`--prune-merged` 删除已合并的 feature 分支。拒绝在工作区脏 / 分叉 / detached HEAD 时执行任何写动作。`prepare-pr.sh` 的 cheat sheet 也一并指向这条命令。
 - **`cataforge claude-md`** —— `check` 子命令对照 `framework.json#claude_md_limits` 校验 CLAUDE.md 大小、§项目状态 行数、Learnings Registry 条目数；`compact` 子命令把超限的 Learnings Registry 旧条目归档到 `.cataforge/learnings/registry-archive.md`。同一组阈值由 `cataforge doctor` 复用。
-- **`cataforge issue triage`** + 配套 **framework-issue-triage skill** —— 上游 maintainer 侧从 `gh issue list` 拉 open issue，Layer 1 解析 `cataforge --version` / `framework-review FAIL` / `upstream-gap` 字段，分类 `confirmed` / `already-fixed` / `needs-repro` / `unrelated`，把 `confirmed` 写成 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿。闭环 framework-feedback → upstream issue → SKILL-IMPROVE 改造路径。
+- **`cataforge issue triage` / `cataforge issue close`** + 配套 **framework-issue-resolve skill** —— 上游 maintainer 侧 GitHub issue 全闭环。`triage` 拉 open issue，Layer 1 解析 `cataforge --version` / `framework-review FAIL` / `upstream-gap` 字段，分类 `confirmed` / `already-fixed` / `needs-repro` / `unrelated`，把 `confirmed` 写成 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿（5 类 verdict 还含 maintainer 手编 `wontfix-by-design`）。`close <N> --verdict {fixed|wontfix|already-fixed} [--pr ...] [--reason ...]` 模板化包 `gh issue close --comment`，统一文案。闭环 framework-feedback → upstream issue → SKILL-IMPROVE → 修复 PR → close。
 - **`cataforge feedback ensure-labels`** —— 一次性在上游仓库创建 `framework.json#feedback.gh.labels` 声明的所有 label（幂等，跳过已存在的）。
 - **COMMON-RULES §禁止设计阶段与变更说明残留** —— 长期文档 / 源码默认不写版本里程碑、阶段标签、对比叙事；变更说明只属于 CHANGELOG / commit / PR 描述。
 

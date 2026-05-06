@@ -117,11 +117,11 @@
       "phase_guard": null,
       "description": "下游对 CataForge 框架本体的反馈打包 — 聚合 doctor + EVENT-LOG + upstream-gap corrections，通过 cataforge feedback CLI 或 framework-feedback skill 发出"
     },
-    "framework-issue-triage": {
+    "framework-issue-resolve": {
       "min_version": "0.4.0",
       "auto_enable": false,
       "phase_guard": null,
-      "description": "上游 CataForge 维护者侧 — 拉取 GitHub issue（默认按 label 过滤）做事实核查 + 合理性分析，输出 SKILL-IMPROVE 草稿，闭环 feedback → upstream → SKILL-IMPROVE。手动触发：cataforge issue triage"
+      "description": "上游 CataForge 维护者侧 — 全闭环消化 GitHub issue：拉取 → 审查分析 → 给修复意见 → 实施 → 关闭。覆盖 cataforge issue triage（草稿）+ cataforge issue close（模板化关闭）两步 CLI，3↔4 步是人工 go/no-go。"
     },
     "claude-md-hygiene": {
       "min_version": "0.4.0",
