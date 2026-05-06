@@ -18,6 +18,35 @@
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
+3a. **写入跨平台 `.gitattributes`** — 项目根目录无 `.gitattributes` 时写入下列最小集（已有则跳过，不覆盖用户自定义）。治理 Windows `core.autocrlf=true` 与 fixture/snapshot 字节哈希漂移导致的多平台测试 fail：
+
+    ```
+    # cataforge default — 跨平台行尾归一化
+    * text=auto eol=lf
+    *.md text eol=lf
+    *.json text eol=lf
+    *.yaml text eol=lf
+    *.yml text eol=lf
+    *.ts text eol=lf
+    *.tsx text eol=lf
+    *.js text eol=lf
+    *.mjs text eol=lf
+    *.py text eol=lf
+    *.sh text eol=lf
+    *.snap text eol=lf
+    *.bat text eol=crlf
+    *.cmd text eol=crlf
+    *.png binary
+    *.jpg binary
+    *.jpeg binary
+    *.gif binary
+    *.ico binary
+    *.pdf binary
+    *.zip binary
+    *.tar.gz binary
+    ```
+
+    > 适用：Node / Python / 含 fixture 的多平台项目。纯 Linux/macOS 服务端项目可裁剪至首行 `* text=auto eol=lf`。已存在 `.gitattributes` 时**只读**判断（含 `eol=` 即视为已归一化），不动用户既有内容。
 4. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§框架元信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
     - `standard` → `requirements`
     - `agile-lite` → `planning`（Phase 1+2 合并）
