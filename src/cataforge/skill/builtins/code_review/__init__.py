@@ -44,4 +44,12 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "title": "工具未安装时跳过并 WARN，不阻断检查流程",
         "severity": "warn",
     },
+    {
+        "id": "code_lint.wiring_empty_handler",
+        "title": (
+            "wiring 空 handler 正则扫描 (.js/.ts/.jsx/.tsx) — 空函数 prop "
+            "命中即 WARN（豁免：任务卡 wiring_placeholder: true）"
+        ),
+        "severity": "warn",
+    },
 )

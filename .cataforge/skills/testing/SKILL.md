@@ -79,6 +79,31 @@ user-invocable: true
 4. 结论与建议(是否达到发布标准)
 5. 通过doc-gen填充test-report模板
 
+## Layer 1 检查项 (e2e_backdoor_scan)
+
+> 权威清单见 `cataforge.skill.builtins.testing.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
+
+- e2e 后门正则扫描 (tests/e2e/**) — 默认覆盖 .js/.ts/.jsx/.tsx + .py；命中 `window\.__\w+__\s*=` / `\?e2e=1` / `setStore\(.*JSON\.parse` 等模式即 WARN
+- 真实输入路径声明 — e2e 套件至少含一处 `keyboard.type` / `page.fill` / `send_keys` 等真实交互调用，无任何 → WARN（提示套件可能纯 fixture 注入）
+
+调用：`cataforge skill run testing -- scan-e2e tests/e2e/`，返回码语义按 §Layer 1 调用协议。
+
+### Plugin-style rules (per-language extension)
+
+后门 + 真实输入正则按语言拆到 YAML（plugin 架构，issue #113）：
+
+- 默认（cataforge package）：`cataforge.skill.builtins.testing.rules.e2e-{lang}.yaml`
+- 项目 override（opt-in）：`<project>/.cataforge/skills/testing/rules/e2e-{lang}.yaml`
+
+加新语言：在项目 `rules/` 放 `e2e-csharp.yaml` 等；schema 必填 `schema_version: 1` / `rule_type: e2e` / `language` / `extensions` + `backdoor_patterns`（每条需 `label`）/ `real_input_patterns`。framework-review B3-β 自动校验。
+
+## Anti-Patterns
+
+- 禁止：e2e 通过 `window.__*__` / `?e2e=1` / `?test=1` 后门或守门绕过真实用户输入路径；e2e 必须 ≥1 次真实浏览器交互（`keyboard.type` / `page.click` 等）作为 verdict=approved 前置条件
+- 禁止：直接调用 store action / `setState` / `setAst(JSON.parse(...))` 等注入预构造数据替代真实输入路径 — 编辑器/表单/路由的 wiring 链路必须由测试照过
+- 禁止：把"沙盒不可达 → CI 兜底"作为 verdict=conditional_release 的放行理由 —— `conditional_release` 必须显式声明 `blocking_conditions: []`，未消除前 Phase Transition 不能推进（详见 §Verdict 三态语义对应 qa-engineer/AGENT.md）
+- 避免：单元测试用 `vi.mock` / `jest.mock` 全 stub 替换被测包的顶层导出，导致接口契约未真实验证（sprint-review `ac-coverage` 维度会复核）
+
 ## 效率策略
 - 优先覆盖核心路径和模块接口
 - 测试用例与AC一一映射，避免遗漏

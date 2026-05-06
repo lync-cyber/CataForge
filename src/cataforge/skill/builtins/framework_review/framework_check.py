@@ -121,6 +121,10 @@ ORPHAN_SKILL_WHITELIST = frozenset({
     "workflow-framework-generator",
     "platform-audit",
     "framework-review",
+    # Direct user-invoked maintenance skills (not declared in any AGENT.md
+    # skills: list because they ride on the main thread, not sub-agents).
+    "framework-issue-resolve",
+    "framework-feedback",
 })
 
 # Constants whose names must be referenced instead of bare numerics.
@@ -684,6 +688,50 @@ def _read_event_log_threshold(root: Path) -> int:
     return DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS
 
 
+def _read_anti_pattern_floor(root: Path, kind: str) -> int:
+    """Return ``constants.ANTI_PATTERN_MIN_COUNT_<KIND>`` from framework.json.
+
+    kind ∈ {"SKILL", "AGENT"}.  Defaults: 3 for SKILL, 4 for AGENT.
+    """
+    data = _read_framework_data(root)
+    consts = data.get("constants") or {}
+    key = f"ANTI_PATTERN_MIN_COUNT_{kind}"
+    fallback = 3 if kind == "SKILL" else 4
+    if isinstance(consts, dict):
+        v = consts.get(key)
+        if isinstance(v, int) and v >= 0:
+            return v
+    return fallback
+
+
+_ANTI_PATTERN_HEADING_RE = re.compile(r"^##\s+Anti-?Patterns\s*$", re.MULTILINE)
+
+
+def _extract_anti_patterns(text: str) -> tuple[bool, list[str]] | None:
+    """Locate the ``## Anti-Patterns`` section and return its bullet list.
+
+    Returns ``None`` if no section header is found.  The first tuple element
+    indicates whether the section exists; the second is the list of
+    bullet-line bodies (excluding the leading ``- ``).  Bullets are kept
+    verbatim (with surrounding whitespace stripped) so the substantive
+    check can spot empty / placeholder entries.
+    """
+    m = _ANTI_PATTERN_HEADING_RE.search(text)
+    if m is None:
+        return None
+    start = m.end()
+    rest = text[start:]
+    # Stop at next H2 heading.
+    end_match = re.search(r"^##\s+", rest, re.MULTILINE)
+    body = rest if end_match is None else rest[: end_match.start()]
+    bullets: list[str] = []
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("- ", "* ", "+ ")):
+            bullets.append(stripped[2:].strip())
+    return True, bullets
+
+
 # Sub-agents not directly phase-routed but invoked by orchestrator or
 # tdd-engine — counted as "referenced" so B5 doesn't warn on them.
 _B5_SUBAGENTS = frozenset({"test-writer", "implementer", "refactorer"})
@@ -717,6 +765,10 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
     * ``B5_feature_phase_alignment`` — every framework.json
       ``features[*].phase_guard`` value (when non-null) must reference a
       phase that has at least one routed agent.
+    * ``B5_hook_installed`` — ``validate_agent_result`` PostToolUse hook
+      must be wired in ``hooks.yaml`` under ``agent_dispatch``; without
+      it, ``agent_return`` events never reach the EVENT-LOG and the
+      drift check above silently passes (issue #113 F-010).
     """
     phase_to_agent = _parse_phase_routing(root)
     if not phase_to_agent:
@@ -822,13 +874,25 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
             if agent not in agents:
                 continue
             if returns.get(agent, 0) == 0:
+                # B5-γ: conditional FAIL — total_returns past the
+                # threshold AND a phase-routed agent contributed nothing
+                # is strong dead-routing signal (issue #113 F-010).
+                # Threshold gate already filters out sparse-data noise
+                # (the outer ``elif total_returns < threshold`` branch
+                # emits INFO and skips this loop), so a 0-return phase
+                # agent here is NOT a "we just haven't seen it yet"
+                # case — it's a structural mis-wire.
                 report.add(
                     "B5_eventlog_agent_return_drift",
-                    "WARN",
+                    "FAIL",
                     f"phase/{phase}",
                     f"phase routes to {agent!r} but EVENT-LOG.jsonl has "
                     f"0 agent_return events for it across "
-                    f"{total_returns} total returns (potential dead routing)",
+                    f"{total_returns} total returns "
+                    f"(threshold {threshold}); strong dead-routing "
+                    f"signal — verify validate_agent_result hook is "
+                    f"installed and dispatch path actually reaches "
+                    f"this agent",
                 )
         # Per-agent: returns exist but none carry a ref (output_path) field.
         for agent, count in sorted(returns.items()):
@@ -859,6 +923,55 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                 f"orchestrator AGENT.md Phase Routing "
                 f"(known phases: {sorted(valid_phases)})",
             )
+
+    # ---- B5_hook_installed (validate_agent_result wired) ----
+    _check_b5_hook_installed(root, report)
+
+
+def _check_b5_hook_installed(root: Path, report: Report) -> None:
+    """Verify validate_agent_result is wired as a PostToolUse hook.
+
+    Without it, ``agent_return`` events never reach EVENT-LOG.jsonl,
+    making B5_eventlog_agent_return_drift silently degenerate (it
+    sees 0 returns for every agent and either no-ops on sparse data
+    or — post F-010 — FAILs spuriously on real activity that just
+    isn't being captured). This check fails FAST so the user fixes
+    the hook before chasing phantom drift signals.
+    """
+    hooks_yaml = root / ".cataforge" / "hooks" / "hooks.yaml"
+    if not hooks_yaml.is_file():
+        return  # B6 will FAIL on this independently
+    try:
+        hooks_data = yaml.safe_load(hooks_yaml.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return  # B6 already reports parse errors
+    if not isinstance(hooks_data, dict):
+        return
+
+    post_entries = (hooks_data.get("hooks") or {}).get("PostToolUse") or []
+    if not isinstance(post_entries, list):
+        return
+
+    found = False
+    for entry in post_entries:
+        if not isinstance(entry, dict):
+            continue
+        script = entry.get("script")
+        cap = entry.get("matcher_capability")
+        if script == "validate_agent_result" and cap == "agent_dispatch":
+            found = True
+            break
+
+    if not found:
+        report.add(
+            "B5_hook_installed",
+            "FAIL",
+            "hooks/hooks.yaml",
+            "validate_agent_result is not wired as a PostToolUse hook "
+            "with matcher_capability=agent_dispatch; agent_return "
+            "events will never be logged, leaving B5 drift detection "
+            "blind",
+        )
 
 
 def _load_hooks_manifest_names() -> set[str]:
@@ -1248,6 +1361,137 @@ def _load_capability_ids() -> set[str]:
     return set(CAPABILITY_IDS) | set(EXTENDED_CAPABILITY_IDS)
 
 
+def check_b3_rules_schema(root: Path, report: Report) -> None:
+    """B3-β: project-local skill rules YAMLs validate against the schema.
+
+    Project rules live at ``.cataforge/skills/{skill_id}/rules/*.yaml``.
+    Each file is parsed via :func:`cataforge.skill.rules.loader.validate_yaml_text`
+    so the same code that gates runtime loading also gates the audit.
+    Malformed files surface as B3 FAIL findings before a downstream
+    skill silently falls back to package defaults.
+    """
+    try:
+        from cataforge.skill.rules.loader import RuleLoadError, validate_yaml_text
+    except ImportError:
+        return  # older wheel without plugin loader — nothing to check
+
+    skills_dir = root / ".cataforge" / "skills"
+    if not skills_dir.is_dir():
+        return
+    for skill_dir in sorted(skills_dir.iterdir()):
+        if not skill_dir.is_dir():
+            continue
+        rules_dir = skill_dir / "rules"
+        if not rules_dir.is_dir():
+            continue
+        for path in sorted(rules_dir.iterdir()):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in (".yaml", ".yml"):
+                continue
+            try:
+                rel = path.relative_to(root).as_posix()
+            except ValueError:
+                rel = str(path)
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError as exc:
+                report.add(
+                    "B3_rules_schema_compliance",
+                    "FAIL",
+                    rel,
+                    f"cannot read rules YAML: {exc}",
+                )
+                continue
+            try:
+                validate_yaml_text(text, rel)
+            except RuleLoadError as exc:
+                report.add(
+                    "B3_rules_schema_compliance",
+                    "FAIL",
+                    rel,
+                    f"rules YAML validation failed: {exc}",
+                )
+
+
+def check_b8_anti_pattern_floor(root: Path, scope: str, report: Report) -> None:
+    """B8: Anti-Patterns section presence + minimum-count floor + substantive bullets.
+
+    Three sub-checks (issue #113 B8 series + L-2):
+
+    * ``B8_anti_pattern_section_present`` (α) — every non-exempt skill /
+      agent should have a ``## Anti-Patterns`` section. WARN on missing
+      (legacy backfill — won't block review pipelines mid-rollout).
+    * ``B8_anti_pattern_floor`` (β) — bullet count must meet
+      ``constants.ANTI_PATTERN_MIN_COUNT_SKILL`` (default 3) for skills
+      and ``ANTI_PATTERN_MIN_COUNT_AGENT`` (default 4) for agents.
+      Insufficient counts FAIL.
+    * ``B8_anti_pattern_substantive`` (γ) — each bullet must be ≥ 12
+      visible characters of body text (filters out placeholder
+      stubs like ``- 禁止: x``). Sub-threshold bullets WARN per file.
+
+    Skills / agents in the same exemption sets used by B1 are skipped:
+    runtime adapters and macro skills legitimately don't have a
+    standalone Anti-Patterns section.
+    """
+    skill_floor = _read_anti_pattern_floor(root, "SKILL")
+    agent_floor = _read_anti_pattern_floor(root, "AGENT")
+
+    targets: list[tuple[str, Path, str, int]] = []
+    if scope in ("skills", "all"):
+        for sid, path in discover_skills(root).items():
+            if sid in B1_REQUIRED_SECTIONS_EXEMPT_SKILLS:
+                continue
+            targets.append((f"skills/{sid}", path, "skill", skill_floor))
+    if scope in ("agents", "all"):
+        for aid, path in discover_agents(root).items():
+            if aid in B1_REQUIRED_SECTIONS_EXEMPT_AGENTS:
+                continue
+            targets.append((f"agents/{aid}", path, "agent", agent_floor))
+
+    for label, path, kind, floor in targets:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        result = _extract_anti_patterns(text)
+        if result is None:
+            # WARN (not FAIL) on missing section: legacy skills predating
+            # B8 still need backfill but shouldn't block review pipelines
+            # mid-rollout. B8-β (count floor) keeps teeth — once a
+            # section exists, it must meet the threshold.
+            report.add(
+                "B8_anti_pattern_section_present",
+                "WARN",
+                label,
+                f"{kind} missing '## Anti-Patterns' section "
+                f"(B1 entry-section synonym does not substitute)",
+            )
+            continue
+        _, bullets = result
+        if len(bullets) < floor:
+            report.add(
+                "B8_anti_pattern_floor",
+                "FAIL",
+                label,
+                f"{kind} '## Anti-Patterns' has {len(bullets)} bullet(s); "
+                f"minimum is {floor} "
+                f"(constants.ANTI_PATTERN_MIN_COUNT_{kind.upper()})",
+            )
+        # γ: substantive content check — body text must carry meaning,
+        # not just a placeholder verb. 12 chars = "禁止: 修改测试文件" length.
+        thin = [b for b in bullets if len(b) < 12]
+        if thin:
+            report.add(
+                "B8_anti_pattern_substantive",
+                "WARN",
+                label,
+                f"{kind} has {len(thin)} placeholder-thin Anti-Pattern "
+                f"bullet(s) (< 12 chars body); first: "
+                f"{thin[0]!r}",
+            )
+
+
 def run(
     scope: str,
     focus: list[str] | None,
@@ -1256,7 +1500,9 @@ def run(
 ) -> int:
     report = Report()
 
-    enabled = set(focus) if focus else {"B1", "B2", "B3", "B4", "B5", "B6", "B7"}
+    enabled = set(focus) if focus else {
+        "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"
+    }
 
     if "B1" in enabled and scope in ("agents", "skills", "rules", "all"):
         check_b1_required_sections(root, scope, report)
@@ -1265,6 +1511,7 @@ def run(
         check_b2_cross_references(root, report)
     if "B3" in enabled and scope in ("skills", "all"):
         check_b3_manifest_drift(root, report)
+        check_b3_rules_schema(root, report)
     if "B4" in enabled and scope in ("agents", "skills", "rules", "all"):
         check_b4_hardcoded_constants(root, report)
     if "B5" in enabled and scope in ("workflow", "all"):
@@ -1273,6 +1520,8 @@ def run(
         check_b6_hook_consistency(root, report)
     if "B7" in enabled and scope in ("agents", "all"):
         check_b7_model_tier(root, report)
+    if "B8" in enabled and scope in ("agents", "skills", "all"):
+        check_b8_anti_pattern_floor(root, scope, report)
 
     print(f"framework-review scope={scope} focus={sorted(enabled)} root={root}")
     print("=" * 60)
@@ -1311,7 +1560,7 @@ def main() -> None:
     parser.add_argument(
         "--focus",
         default=None,
-        help="Comma-separated subset of B1,B2,B3,B4,B5,B6,B7",
+        help="Comma-separated subset of B1,B2,B3,B4,B5,B6,B7,B8",
     )
     parser.add_argument(
         "--root",
@@ -1339,9 +1588,9 @@ def main() -> None:
     focus: list[str] | None = None
     if args.focus:
         focus = [c.strip() for c in args.focus.split(",") if c.strip()]
-        invalid = [c for c in focus if c not in {"B1", "B2", "B3", "B4", "B5", "B6", "B7"}]
+        invalid = [c for c in focus if c not in {"B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"}]
         if invalid:
-            print(f"ERROR: invalid --focus values: {invalid}; expected B1..B7")
+            print(f"ERROR: invalid --focus values: {invalid}; expected B1..B8")
             sys.exit(2)
 
     # The `meta_size_threshold` could be loaded from framework.json

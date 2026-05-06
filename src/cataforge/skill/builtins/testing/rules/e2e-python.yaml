@@ -1,0 +1,22 @@
+schema_version: 1
+rule_type: e2e
+language: python
+extensions: [".py"]
+
+# Python e2e (playwright-python / selenium / pytest-bdd).
+backdoor_patterns:
+  - label: "window.__*__ via evaluate"
+    regex: "evaluate\\s*\\(\\s*['\\\"]window\\.__\\w+__"
+  - label: "?e2e=1 / ?test=1 in goto/get"
+    regex: '\?(?:e2e|test)=1\b'
+  - label: "__E2E__ global"
+    regex: '\b__E2E__\b\s*='
+
+real_input_patterns:
+  - regex: '\bkeyboard\.type\('
+  - regex: '\bpage\.fill\('
+  - regex: '\bpage\.click\('
+  - regex: '\bpage\.press\('
+  - regex: '\bpage\.type\('
+  - regex: '\bsend_keys\('
+  - regex: '\.click\(\)'

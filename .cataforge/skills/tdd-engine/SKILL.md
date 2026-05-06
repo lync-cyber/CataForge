@@ -199,7 +199,15 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     见 §Mid-Progress Drop Contract，必须按 4 步契约推进（先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit）。
 ```
 
-验证: 确认返回的 test-result 全部 PASSED；解析 `refactor_needed` / `refactor_reasons` 字段。continuation 同 §Step 2 错误分级。
+验证（orchestrator 执行）:
+
+1. 确认返回的 test-result 全部 PASSED
+2. 解析 `refactor_needed` / `refactor_reasons` 字段（→ §Step 4）
+3. 解析 `wiring_complete` / `wiring_evidence`（缺省视为 `n/a`，向后兼容）：
+   - `wiring_complete=false` + 任务卡 `user_facing_critical_path: true` → orchestrator 标 HIGH，要求 implementer continuation 修复 wiring 终点（每任务最多 1 次 continuation，再失败 blocked）
+   - `wiring_complete=false` + 普通任务 → orchestrator 不阻塞 GREEN，仅在 sprint-review §wiring-completeness 时记入 MEDIUM
+   - `wiring_complete=true` + 缺 `wiring_evidence` → 记 INFO 提示后续补 evidence；不阻塞
+4. continuation 同 §Step 2 错误分级。
 
 ### Step 4: REFACTOR Phase — 条件触发 (可选)
 

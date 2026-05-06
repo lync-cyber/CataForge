@@ -136,6 +136,16 @@ cataforge bootstrap --yes
 
 使用 Read + Edit 工具原地更新，保留文件其他字段不变。
 
+**Step 6: 同步 CLAUDE.md 框架版本字段 + hygiene 检查**
+
+升级后 CLAUDE.md `§框架元信息.框架版本` 容易与已安装包版本漂移（observed in feedback bundle issue #113）。Step 6 收尾：
+
+1. 读取 `python -c "import cataforge; print(cataforge.__version__)"` 取实际版本
+2. 用 Edit 更新 CLAUDE.md 该字段（仅当当前值与新版本不一致时写入；保留缺省占位符如"未追踪"不动）
+3. 调用 `cataforge claude-md check`（如可用）surface hygiene 问题；FAIL 时建议用户运行 `cataforge claude-md compact`
+
+> Step 6 不阻塞升级流程；hygiene FAIL 仅作为提示（让 Phase Transition Protocol 在下次推进时强制处理，见 ORCHESTRATOR-PROTOCOLS.md §Phase Transition Protocol hygiene gate）。
+
 > ⚠️ 若用户在 `bootstrap` 中同时遇到 EVENT-LOG schema FAIL（来自 v0.1.7 之前旁路写入的历史记录），按 hint 提示跑 `cataforge event accept-legacy` 设置水位线即可，不影响本次升级。
 
 ---
@@ -196,6 +206,13 @@ cataforge doctor
 
 > `upgrade.state` 由本 skill 在 Step 5 手动写入，不被 `upgrade apply` 覆盖，因此升级日期和版本记录会持久保留。
 > 若用户在 apply 后发现自定义改动丢失，告知他们运行 `cataforge upgrade rollback --list` 查看快照并 `rollback --from <ts>` 回滚。
+
+## Anti-Patterns
+
+- 禁止: 跳过 Step 6 的 CLAUDE.md `框架版本` 同步与 `cataforge claude-md check` —— 升级后版本字段漂移和 Learnings Registry 膨胀已在 issue #113 F-009 反馈中确认是真实事故源
+- 禁止: 在 `apply` 步骤里直接 `git checkout` / `git restore` 用户文件清场 —— 用户改动应通过 `cataforge upgrade rollback --list` + `--from <ts>` 走快照回滚通道
+- 禁止: 升级中在 `framework.json` 写入 `runtime.platform` 或 `upgrade.state` 之外的用户态字段 —— 这两个字段是契约保留项，其它字段全量覆盖
+- 避免: 包管理器探测失败时直接 abort 整个 upgrade —— 应继续走 Step 4 仅刷 scaffold 路径，把"升级包"和"刷 scaffold"解耦
 
 ## 效率策略
 - 先检测包管理器，避免升级命令错误

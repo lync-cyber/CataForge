@@ -128,13 +128,15 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 
 - B1-α: AGENT.md / SKILL.md 必填段（能力边界 / 输入规范 / 输出规范 / Anti-Patterns / 操作指令 任选其一作为入口段）<!-- check_id: B1_required_sections -->
 - B1-β: 单文件行数 ≤ META_DOC_SPLIT_THRESHOLD_LINES (WARN 提示拆分)<!-- check_id: B1_size_threshold -->
-- B2-α: 解析所有 AGENT.md `skills:` + SKILL.md `depends:` + framework.json `features` → 引用不存在的 skill/agent FAIL；无任何 AGENT.md 引用的 skill WARN（白名单豁免：基础设施类 skill 如 agent-dispatch / tdd-engine / change-guard / start-orchestrator / doc-nav / doc-gen / research / debug / self-update / workflow-framework-generator / platform-audit / framework-review）<!-- check_id: B2_cross_reference_graph -->
+- B2-α: 解析所有 AGENT.md `skills:` + SKILL.md `depends:` + framework.json `features` → 引用不存在的 skill/agent FAIL；无任何 AGENT.md 引用的 skill WARN（白名单豁免：基础设施类 skill 如 agent-dispatch / tdd-engine / change-guard / start-orchestrator / doc-nav / doc-gen / research / debug / self-update / workflow-framework-generator / platform-audit / framework-review / framework-issue-resolve / framework-feedback）<!-- check_id: B2_cross_reference_graph -->
 - B3-α: skill SKILL.md 的 "## Layer 1 检查项" 段与对应 builtin 的 `CHECKS_MANIFEST` 对账。两种识别策略二者必居其一：(1) **anchor 模式** — 段内若出现 `<!-- check_id: <id> -->` HTML 注释锚点，按 ID 双向校验（孤儿锚点 / 缺失锚点 → FAIL）；(2) **delegation 模式** — 段内出现 `权威清单见 ...CHECKS_MANIFEST` 短语，跳过逐条对照（manifest 存在性即契约）。缺该段、或既无锚点又无 delegation 句 → FAIL<!-- check_id: B3_manifest_drift -->
+- B3-β: 项目级 `.cataforge/skills/<skill>/rules/*.yaml` plugin 覆写文件按 `cataforge.skill.rules.loader.validate_yaml_text` schema 校验（`schema_version` / `rule_type` / `language` / `extensions` / 正则可编译 / `flags` 已知 / e2e backdoor entry 必填 `label`）→ 不合规 FAIL<!-- check_id: B3_rules_schema_compliance -->
 - B4-α: 在 .cataforge/{agents,skills,rules}/**/*.md 中 grep 框架常量对应的裸数值（如 `≤3 问` / `300 行` / `>200 行`），未引用常量名 → WARN（豁免：代码块、版本号、ID 编号）<!-- check_id: B4_hardcoded_constants -->
 - B5-α: 解析 orchestrator AGENT.md Phase Routing → 输出 phase × agent 覆盖矩阵；空位标 WARN（phase 路由到既不在 .cataforge/agents/ 又不在 framework.json#/dispatcher_skills 的目标 / agent 定义但未被任何 phase 引用）<!-- check_id: B5_workflow_coverage_matrix -->
 - B5-β: 对每个 phase-routed agent 解析 AGENT.md `skills:` 字段 → 三跳验证（agent 必须 ≥1 skill；引用的 skill 必须存在于 `.cataforge/skills/` 或 builtin）<!-- check_id: B5_phase_skill_coverage -->
-- B5-γ: 读 `docs/EVENT-LOG.jsonl`，按 `event=agent_return` 聚合 → phase-routed agent 0 returns + 总 returns ≥ `EVENT_LOG_DRIFT_MIN_EVENTS` 时 WARN（潜在 dead routing）；未达阈值时输出一条 INFO（"drift check skipped"）；agent 有 returns 但全部缺 `ref` 字段 → WARN（output_path 追溯断链）<!-- check_id: B5_eventlog_agent_return_drift -->
+- B5-γ: 读 `docs/EVENT-LOG.jsonl`，按 `event=agent_return` 聚合 → 总 returns ≥ `EVENT_LOG_DRIFT_MIN_EVENTS` 且 phase-routed agent 0 returns 时 **FAIL**（强 dead-routing 信号；阈值已替你过滤稀疏数据噪声）；未达阈值时输出一条 INFO（"drift check skipped"）；agent 有 returns 但全部缺 `ref` 字段 → WARN（output_path 追溯断链）<!-- check_id: B5_eventlog_agent_return_drift -->
 - B5-δ: 解析 framework.json `features` → 每个非 null `phase_guard` 必须命中 Phase Routing 已知 phase<!-- check_id: B5_feature_phase_alignment -->
+- B5-ε: 解析 `.cataforge/hooks/hooks.yaml` PostToolUse 段，必须有一条 `script: validate_agent_result` + `matcher_capability: agent_dispatch` 条目；缺失则 `agent_return` 事件永远不会写入 EVENT-LOG，B5-γ 会在 0 数据下静默放行 → FAIL<!-- check_id: B5_hook_installed -->
 - B6-α: 解析 .cataforge/hooks/hooks.yaml，每个 `script` 字段须解析到真实 .py（builtin: `cataforge.hook.scripts.<name>` 通过 `importlib.resources` 定位；custom: `.cataforge/hooks/custom/<name>.py`）→ FAIL on missing<!-- check_id: B6_hook_script_reachability -->
 - B6-β: 每个解析到的 hook script .py 必须 `ast.parse` 通过（不依赖 import 副作用）→ FAIL on SyntaxError<!-- check_id: B6_hook_script_syntax -->
 - B6-γ: 每个 `matcher_capability` 值必须是 `CAPABILITY_IDS` ∪ `EXTENDED_CAPABILITY_IDS` 成员（typo 会让 hook 静默永不触发）→ FAIL on unknown capability<!-- check_id: B6_hook_matcher_capability -->
@@ -143,6 +145,9 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 - B7-α: AGENT.md `model_tier ∈ {light, standard, heavy, inherit, none}`；与 `constants.AGENT_MODEL_DEFAULTS` 一致（不一致 → WARN）；`heavy` 需进 `constants.AGENT_MODEL_TIER_HEAVY_WHITELIST`（不在白名单 → FAIL，控制成本面）<!-- check_id: B7_model_tier_value -->
 - B7-β: AGENT.md 仍含 legacy `model: <id>` 字段（无 `model_tier:`）→ FAIL，必须迁移；deploy 直接丢弃 legacy `model:` 行（无过渡期）<!-- check_id: B7_legacy_model_field -->
 - B7-γ: platform `profile.yaml#/model_routing` 在 `per_agent_model: true` 且 `user_resolved: false` 时，`tier_map` 必须同时声明 `light` / `standard` / `heavy` 三档；缺哪档则该档 deploy 时静默不写 `model:` → WARN<!-- check_id: B7_platform_tier_map -->
+- B8-α: 每个非豁免 skill / agent 应有 `## Anti-Patterns` 段；缺失 WARN（留作 backlog 渐进补齐，不阻塞流程）<!-- check_id: B8_anti_pattern_section_present -->
+- B8-β: skill bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_SKILL`（默认 3），agent bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_AGENT`（默认 4）；不足 FAIL<!-- check_id: B8_anti_pattern_floor -->
+- B8-γ: 每条 bullet 正文 ≥ 12 字符（过滤 placeholder 占位条目，如 `- 禁止: x`）；命中 WARN<!-- check_id: B8_anti_pattern_substantive -->
 
 ## Anti-Patterns
 - 禁止: framework-review 报告写入 `docs/reviews/doc/` 或 `docs/reviews/code/` — 必须写 `docs/reviews/framework/`，否则会与业务审查报告混淆并污染 reflector 聚合

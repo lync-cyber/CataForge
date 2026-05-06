@@ -27,6 +27,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from cataforge.skill.builtins.code_review.wiring_patterns import (
+    all_scanned_extensions,
+    rule_for_extension,
+)
 from cataforge.utils.common import ensure_utf8_stdio
 
 EXCLUDE_DIRS = {
@@ -82,6 +86,13 @@ LINTERS = [
 ALL_EXTENSIONS: set[str] = set()
 for _group in LINTERS:
     ALL_EXTENSIONS.update(_group["extensions"])
+
+
+# Per-language wiring scan rules live in :mod:`wiring_patterns` so adding
+# coverage for a new language is a single-file diff. Layer 2 AI semantic
+# review (`integration-wiring` dimension in code-review SKILL.md) covers
+# any language whose Layer 1 ruleset is empty.
+WIRING_SCAN_EXTENSIONS = all_scanned_extensions()
 
 
 # Project-level rot probes for the ``scan`` operation. Each entry maps a
@@ -215,6 +226,32 @@ class CodeLinter:
             self.warnings += 1
             print(f"WARN: [{filepath}] {tool['name']} 超时")
 
+    def scan_wiring(self, filepath: Path) -> None:
+        """Flag empty-handler prop wiring as WARN (does not affect exit code).
+
+        Skipped when the file declares the placeholder pragma anywhere
+        (whole-file opt-out for tasks legitimately stubbing handlers).
+        Patterns dispatched by extension via :mod:`wiring_patterns`.
+        """
+        rule = rule_for_extension(filepath.suffix)
+        if rule is None or not rule.empty_handler_patterns:
+            return
+        try:
+            text = filepath.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return
+        if rule.placeholder_pragma.search(text):
+            return
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            for pattern in rule.empty_handler_patterns:
+                if pattern.search(line):
+                    self.warnings += 1
+                    print(
+                        f"WARN: [{filepath}:{lineno}] wiring_empty_handler: "
+                        f"{line.strip()[:80]}"
+                    )
+                    break
+
     def run(self) -> int:
         if not self.target.exists():
             print(f"ERROR: 目标路径不存在: {self.target}")
@@ -235,6 +272,8 @@ class CodeLinter:
                         checked_files.add(f)
                     for tool in linter_group["tools"]:
                         self.run_tool(tool, f)
+            if ext in WIRING_SCAN_EXTENSIONS and not self.fix:
+                self.scan_wiring(f)
 
         print()
         print("=========================================")

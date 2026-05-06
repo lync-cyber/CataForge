@@ -51,6 +51,10 @@
     "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
     "RETRO_TRIGGER_SELF_CAUSED": 5,
     "EVENT_LOG_DRIFT_MIN_EVENTS": 10,
+    "PRE_DEPLOY_DEMO_REQUIRED": null,
+    "PRE_DEPLOY_DEMO_MIN_ACS": 1,
+    "ANTI_PATTERN_MIN_COUNT_SKILL": 3,
+    "ANTI_PATTERN_MIN_COUNT_AGENT": 4,
     "AGENT_MODEL_DEFAULTS": {
       "product-manager": "standard",
       "architect": "heavy",
