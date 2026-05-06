@@ -20,6 +20,48 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.4.0'></a>
+## [0.4.0] — 2026-05-06
+
+### Added
+
+- **Project Bootstrap 写入跨平台 `.gitattributes`** —— ORCHESTRATOR-PROTOCOLS §Project Bootstrap 新增 Step 3a：项目根目录无 `.gitattributes` 时写入最小集（`* text=auto eol=lf` + 常见文本/二进制扩展名），治理 Windows `core.autocrlf=true` 与 fixture/snapshot 字节哈希漂移导致的多平台测试 fail（reporter 在 wechat-typeset-X 0.1.1 实测 22 vitest snapshot fail 落地后清零）。已存在 `.gitattributes` 时只读判断（含 `eol=` 即视为已归一化），不动用户既有内容。闭环 [#103](https://github.com/lync-cyber/CataForge/issues/103) EXP-010。
+
+- **Approved-with-Notes Protocol 选项 (4) 全量 inline-fix** —— ORCHESTRATOR-PROTOCOLS §Approved-with-Notes 新增第 4 个用户决策路径：MEDIUM/LOW 问题数 ≥ 8 且全部为表述漂移 / 格式 / 引用对齐 / 完整性补充（非设计缺陷）时，orchestrator/reviewer 主线程逐条 inline-fix（同会话），完成后 verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved；REVIEW 报告末尾追加 §Inline-Fix 闭环记录 表。不适用 PRD / ARCH 等需求冻结类文档（防止文档冻结后被静默改动）。闭环 [#106](https://github.com/lync-cyber/CataForge/issues/106) EXP-009。
+
+- **`cataforge sync-main`** —— 单命令把本地默认分支从 `origin` 快进到最新；`--prune-merged` 删除已合并的 feature 分支。拒绝在工作区脏 / 分叉 / detached HEAD 时执行任何写动作。`prepare-pr.sh` 的 cheat sheet 也一并指向这条命令。
+- **`cataforge claude-md`** —— `check` 子命令对照 `framework.json#claude_md_limits` 校验 CLAUDE.md 大小、§项目状态 行数、Learnings Registry 条目数；`compact` 子命令把超限的 Learnings Registry 旧条目归档到 `.cataforge/learnings/registry-archive.md`。同一组阈值由 `cataforge doctor` 复用。
+- **`cataforge issue triage` / `cataforge issue close`** + 配套 **framework-issue-resolve skill** —— 上游 maintainer 侧 GitHub issue 全闭环。`triage` 拉 open issue，Layer 1 解析 `cataforge --version` / `framework-review FAIL` / `upstream-gap` 字段，分类 `confirmed` / `already-fixed` / `needs-repro` / `unrelated`，把 `confirmed` 写成 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿（5 类 verdict 还含 maintainer 手编 `wontfix-by-design`）。`close <N> --verdict {fixed|wontfix|already-fixed} [--pr ...] [--reason ...]` 模板化包 `gh issue close --comment`，统一文案。闭环 framework-feedback → upstream issue → SKILL-IMPROVE → 修复 PR → close。
+- **`cataforge feedback ensure-labels`** —— 一次性在上游仓库创建 `framework.json#feedback.gh.labels` 声明的所有 label（幂等，跳过已存在的）。
+- **COMMON-RULES §禁止设计阶段与变更说明残留** —— 长期文档 / 源码默认不写版本里程碑、阶段标签、对比叙事；变更说明只属于 CHANGELOG / commit / PR 描述。
+
+- **ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery Protocol** —— 与既有 §Agent Crash Recovery 协议区分：crash 是 process 死（无任何输出），truncation 是 token budget 耗尽（artifact 已部分落地，仅 `<agent-result>` JSON 缺失）。截断时主线程不再 blocked，而是按完成度路由：≥70% AC PASS（或 deliverables 齐全）→ 主线程接管收尾（inline-fix lint/typecheck + 补落盘 + 写 EVENT-LOG `state_change` 事件）；<70% → blocked 请求人工。每任务最多 1 次 truncation recovery，第 2 次同任务截断说明 prompt 设计问题，进 retrospective backlog。与 tdd-engine §Mid-Progress Drop Contract 协同：契约预防截断，本协议事后兜底。
+
+- **sprint-review 三档模式 + `project_features` schema** —— sprint-review SKILL.md §审查档位 正式声明 standard / lite / **merged-review** 三档（merged-review 之前隐式存在，5 次实战稳定但框架文档未承认）。dev-plan 主卷 frontmatter 新增可选 `project_features` 块（`merged_review` / `deliverables_accept_alternation` / `unplanned_glob_patterns` 三键），由 `cataforge.skill.builtins.sprint_review.sprint_check.load_project_features()` 加载。
+
+- **tdd-engine §Mid-Progress Drop Contract** —— LOC > 200 或 AC > 6 的任务在 implementer dispatch prompt（standard Step 3 + light-dispatch）强制注入 4 步落盘契约：先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit。治理子代理在 finalize 阶段集中产出导致的 task-notification truncation（100+ tools / 100K+ tokens / 5min+ 后被打断）。light-inline / prototype-inline 不适用（主线程产出，不受子代理 token 额度限制）。失效时由 ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery 接管。
+
+- **tech-lead 任务卡 `expected_tool_budget` 软门禁** —— dev-plan 任务卡可选标 `expected_tool_budget: ~N`（典型值 80-120，仅 standard 模式有意义）。tech-lead AGENT.md 新增决策矩阵（LOC × AC × Modules → light 内联 / light 拆分 / standard + mid-progress 三档），用于反向校验 `tdd_mode` 选择是否合理。orchestrator 在 dispatch 时按本字段做 sanity check（>150 警告，>200 阻断并建议拆分为 light 序列）。配合 tdd-engine §Mid-Progress Drop Contract（standard + LOC > 250 时强制注入 4 步落盘契约）。
+
+- **test-writer §测试质量自检 checklist** —— 每个 `test()` / `it()` 块编写完成后强制三维度自检：(1) lint 白名单合规（4 类常见禁用规则替代 pattern：non-null assertion / `.not.toBeNull()` on `.find()` / `isNaN` / `delete obj.key`），(2) 测试名 ↔ 断言意图一致性（4 类反向 anti-pattern：反义 API 调用 / AC 语义 ↔ 断言 token 不符 / 测试数据 ↔ 名称反向 / Mock 缺失），(3) 跨平台 syscall 测试模式（决策树 + vi.hoisted + vi.mock(node:fs/promises) 模板代码 + fs.symlink/child.kill/chmod 三类典型场景）。配套 §Anti-Patterns 加一条"跨平台 syscall 优先 mock 而非 platform-skip"。
+
+- **`event-log` schema 接收 `session_end` 事件** —— `event` enum 与 `cataforge.core.event_log.VALID_EVENTS` 同步追加 `session_end`，与既有 `session_start` 对称。下游 Stop hook / orchestrator 协议手写的 session 收尾事件不再被 `cataforge doctor` 标为 schema FAIL。
+
+### Changed
+
+- **`cataforge feedback --gh` label 来自配置** —— `framework.json#feedback.gh.labels` 三键 `bug` / `suggest` / `correction-export` 各自映射到一组 label；不再在 CLI 代码里硬编码 `feedback,bug` 等上游不存在的 label。`fallback_on_missing_label: true`（默认）让 `gh issue create` 在 label 不存在时自动重试不带 `--label`，并 stderr WARN 提示用户跑 `cataforge feedback ensure-labels`。
+- **reflector 默认 inline 执行** —— Retrospective Protocol 由 orchestrator 在主对话直接执行，与 change-guard / Adaptive Review 一致；reflector AGENT.md frontmatter 增 `inline_dispatch: true` hint，`model_tier` 由 light 改为 inherit。手动入口 `cataforge agent run reflector` 仍保留作 fallback。
+- **reflector Retrospective Protocol 扫描 `docs/EVENT-LOG.jsonl`** —— `correction` / `incident` / `revision_start` 事件作为补充 evidence 与 review 报告交叉验证；EVENT-LOG 单独不能撑起一条 EXP（仍需 review/CORRECTIONS-LOG 各一条）。
+- **PROJECT-STATE.md `Learnings Registry` 字段** —— 模板默认值改为 bounded（容量来自 `framework.json#claude_md_limits.learnings_registry_max_entries`），首次 retrospective 后由 orchestrator append。
+
+- **`sprint_check.py` Layer 1 三处升级** —— (A) `check_code_reviews` 在 `merged_review: true` 时短路 per-task CODE-REVIEW 检查（消除 9+8+1=18 次跨 sprint 误报）；(B) `check_deliverables` 支持 `accept_alternation` 模式，把 `A | B` 行视为或关系（任一存在即过），同时 `check_unplanned_files` 把两候选都标为 planned；(C) `check_unplanned_files` 新增 `glob_whitelist` 参数（来自 `unplanned_glob_patterns`），fnmatch 模式列表过滤 gold-plating WARN（典型用途：`**/*.test.ts` / `**/helpers/*` 等项目级命名约定）。所有键默认关闭，旧项目零迁移；新增 15 个 unit test 覆盖三处行为 + frontmatter 加载 + 主卷/分卷边界。闭环 [#106](https://github.com/lync-cyber/users/CataForge/issues/106) EXP-003 + EXP-005 + EXP-008。
+
+- **reflector RETRO / SKILL-IMPROVE 输出强制带 YAML front matter** —— §Output Contract 把 "无 front matter，indexer 自动跳过" 的例外说明撤掉，改为最小 frontmatter 强制（id / doc_type / status / date / author，SKILL-IMPROVE 额外 target_id / target_kind / source_exp）。下游 `cataforge docs validate` / `doctor` 不再把 retro 文件标为 orphan FAIL。§Retrospective Protocol 第 1 条注释更新为"存量旧版无 frontmatter 文件仍可入回顾分析，新产出按契约带 frontmatter"，与 §Anti-Patterns 新增的"禁止产出无 frontmatter"一致。闭环 issue [#105](https://github.com/lync-cyber/CataForge/issues/105)。
+
+### Fixed
+
+- **`cataforge feedback bug --gh` 在干净 fork 上 422 失败** —— 上游若没创建 `feedback` / `triage` / `upstream-gap` 等自定义 label，老版本的硬编码 `--label feedback,bug` 会让 `gh issue create` 直接 422；新版默认与上游 `bug` / `enhancement` 对齐 + 自动 fallback 不再 fail。
+
 <a id='changelog-0.3.1'></a>
 ## [0.3.1] — 2026-05-05
 
@@ -573,7 +615,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.4.0
 [0.3.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.3.1
 [0.3.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.3.0
 [0.2.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.2.0
