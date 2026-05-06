@@ -38,7 +38,7 @@ maxTurns: 30
 
 ## Output Contract
 - RETRO 报告和 SKILL-IMPROVE 报告为过程文件，直接使用 Write/Edit 写入 docs/reviews/retro/
-- 例外说明: 本 Agent 的产出格式特殊（非标准项目文档），不使用 doc-gen 模板，不进入 `docs/.doc-index.json`（无 YAML front matter，indexer 自动跳过）
+- **必须**带最小 YAML front matter（id / doc_type / status / date / author），与全仓文档一致；这样 `cataforge docs validate` / `doctor` 不会把 retro 文件标为 orphan FAIL，下游用户也不需要手动跳过
 
 ### task_type=retrospective（项目回顾）
 同时产出两类文件:
@@ -46,8 +46,16 @@ maxTurns: 30
 **1. RETRO 报告** — docs/reviews/retro/RETRO-{project}-{cycle}.md（`{cycle}` = sprint 编号或迭代标签，仅允许 `[a-z0-9-]`；版本号写入 frontmatter `version:`），格式:
 
 ```
+---
+id: RETRO-{project}-{cycle}
+doc_type: retrospective
+status: draft           # 完成审阅后改 approved
+date: {YYYY-MM-DD}
+author: reflector
+version: "{x.y.z}"      # 可选，仅在与具体版本绑定时填
+---
+
 # RETRO-{project}-{cycle}
-<!-- author: reflector | type: retrospective | date: {date} -->
 
 ## 统计摘要
 - review 文件总数: N
@@ -68,8 +76,18 @@ maxTurns: 30
 **2. SKILL-IMPROVE 建议** — 为每条 EXP 经验条目生成对应的 docs/reviews/retro/SKILL-IMPROVE-{skill_id}.md，格式:
 
 ```
+---
+id: SKILL-IMPROVE-{skill_id}
+doc_type: skill-improve
+status: draft           # 完成审阅后改 approved
+date: {YYYY-MM-DD}
+author: reflector
+target_id: {skill_id or agent_id}
+target_kind: skill | agent
+source_exp: EXP-{NNN}
+---
+
 # SKILL-IMPROVE-{skill_id}
-<!-- author: reflector | date: {date} -->
 
 ## EXP-{NNN}: {来源经验条目}
 - target_file: .cataforge/skills/{skill_id}/SKILL.md 或 .cataforge/agents/{agent_id}/AGENT.md
@@ -89,7 +107,7 @@ maxTurns: 30
 - **blocked**: 不可恢复错误（如 docs/reviews/ 子目录不存在或文件格式无法解析）
 
 ## Retrospective Protocol
-> 注意：以下扫描是 glob-based，**不经过** `docs/.doc-index.json`。这是设计决定——reviews 文件即使缺失 front matter（被 indexer 跳过）也仍能进入回顾分析。修复 orphan 是 doctor 的职责，不是 retrospective 的前置条件。
+> 注意：以下扫描是 glob-based，**不经过** `docs/.doc-index.json`。即使存量 reviews 文件缺 front matter（旧版 reflector 产出），也仍能进入回顾分析；新产出按 §Output Contract 必须带 front matter，避免 doctor orphan 噪声。
 
 1. 扫描以下目录的 review/scan 报告:
    - docs/reviews/doc/ 下所有 REVIEW-*.md（含 -r{N}）— 业务文档审查
@@ -110,3 +128,4 @@ maxTurns: 30
 - 禁止: 生成模糊的经验（如"注意代码质量"），必须具体可操作
 - 禁止: 修改任何被分析的 review 报告
 - 禁止: 单条 evidence 就生成经验（最低 2 条）
+- 禁止: 产出 RETRO / SKILL-IMPROVE 不带 YAML front matter（违反 §Output Contract，触发下游 doctor orphan FAIL）
