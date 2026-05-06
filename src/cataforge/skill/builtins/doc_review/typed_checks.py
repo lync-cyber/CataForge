@@ -7,6 +7,24 @@ from collections import defaultdict
 
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
+# AC observability heuristic — every tdd_acceptance entry should describe
+# an externally-observable outcome (DOM update, return value, side
+# effect). Verbs in this set indicate observability; their absence in an
+# AC line is a WARN signal (not FAIL — some legitimately-internal ACs
+# describe state machines whose only consumer is another internal
+# component, and that's fine when the consumer test is itself observable).
+_AC_OBSERVABLE_VERBS = (
+    "渲染", "返回", "显示", "抛出", "存储", "发送", "触发", "写入",
+    "导航", "挂载", "刷新", "更新", "记录", "落盘", "回调", "广播",
+    "render", "return", "display", "throw", "store", "send", "emit",
+    "write", "navigate", "mount", "refresh", "update", "log", "publish",
+    "callback", "broadcast", "raise", "show", "hide",
+)
+_AC_OBSERVABLE_RE = re.compile(
+    "(" + "|".join(re.escape(v) for v in _AC_OBSERVABLE_VERBS) + ")",
+    re.IGNORECASE,
+)
+
 
 class TypedDocChecksMixin:
     """Mixin providing ``check_<doc_type>`` methods used by ``DocChecker``."""
@@ -119,6 +137,7 @@ class TypedDocChecksMixin:
             self.fail(f"{t_count}个任务中{missing_tdd}个缺少tdd_acceptance定义")
         if missing_context > 0:
             self.warn(f"{t_count}个任务中{missing_context}个缺少context_load定义")
+        self._check_ac_observability(t_sections)
         deps: dict[str, list[str]] = defaultdict(list)
         for line in self.lines:
             dep_match = re.match(r"\s*(T-\d+)\s*[─→>\-]+\s*(T-\d+)", line)
@@ -146,6 +165,44 @@ class TypedDocChecksMixin:
                 all_nodes.update(vs)
             if any(has_cycle(n) for n in all_nodes):
                 self.fail("依赖图存在循环")
+
+    def _check_ac_observability(self, t_sections: list[str]) -> None:
+        """Flag AC entries that describe no externally-observable outcome.
+
+        Heuristic: each ``AC-NNN: …`` line should mention an action verb
+        from :data:`_AC_OBSERVABLE_VERBS`. Lines lacking any such verb
+        are WARN — they often mean "should work correctly" / "正确处理"
+        which is not a testable specification. Layer 2 reviewers use the
+        WARN list to push back on ambiguous ACs without forcing an
+        immediate FAIL on every soft phrasing.
+        """
+        unobservable: list[str] = []
+        for sec in t_sections:
+            ac_block = re.search(
+                r"(tdd_acceptance|验收标准)(.*?)(?=^[-*]\s+\*?\*?(?:deliverables|"
+                r"交付物|context_load)|^### |\Z)",
+                sec, re.IGNORECASE | re.DOTALL | re.MULTILINE,
+            )
+            if not ac_block:
+                continue
+            for line in ac_block.group(2).splitlines():
+                ac_match = re.search(
+                    r"AC-\d+\s*[:：]\s*(.+)", line,
+                )
+                if not ac_match:
+                    continue
+                ac_text = ac_match.group(1).strip()
+                if not ac_text:
+                    continue
+                if not _AC_OBSERVABLE_RE.search(ac_text):
+                    snippet = ac_text[:80]
+                    unobservable.append(snippet)
+        if unobservable:
+            self.warn(
+                f"{len(unobservable)}条AC描述无可观测动词（如 渲染/返回/抛出/写入），"
+                f"建议补充DOM/返回值/副作用等可测终点；首条示例: "
+                f"{unobservable[0]!r}"
+            )
 
     # ---- UI-SPEC ----
 

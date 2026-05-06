@@ -85,6 +85,13 @@ graph LR
   3. 使用 `--format json` 获取关键路径和Sprint分组数据
   4. 将关键路径信息写入 dev-plan#§4
 
+## Anti-Patterns
+
+- 禁止: 引入"先做A再做B更顺手"这种人为依赖 —— 依赖只能基于数据流 / 接口契约 / consumer-producer 关系，否则 sprint_groups 会过窄、并行度白丢
+- 禁止: 检测到环依赖时静默改图绕过 —— 必须 FAIL 并要求 tech-lead 重新拆 task 或引入抽象层（task-decomp 步骤 6）
+- 禁止: 把 dep-analysis 报告写入 dev-plan#§2 之外的位置 —— 该 section 是 orchestrator §Parallel Task Dispatch 读 sprint_groups 的唯一入口
+- 避免: 未跑 `--format json` 就让 LLM 估算关键路径 —— 关键路径是确定性图算法的输出，LLM 估算既不必要也不可靠
+
 ## 效率策略
 - 依赖仅基于数据/接口，不引入人为依赖
 - 使用确定性Python脚本执行图算法，不依赖LLM推理

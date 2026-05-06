@@ -171,9 +171,21 @@ Mode Routing Protocol 在以下时刻被调用:
    {"event":"phase_start","phase":"{新阶段}","detail":"进入{新阶段名}阶段"}
    EOF
    ```
-6. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
+6. **CLAUDE.md hygiene 强制门** — 在派发下一阶段 Agent 之前执行：
+   ```bash
+   cataforge claude-md check
+   ```
+   - exit 0 → 通过，继续 Step 7
+   - exit 1（任一 `claude_md_limits` 阈值越界）→ **阻塞 Phase Transition**，向用户展示 stdout 的问题摘要并提供选项：
+     1. 自动 compact：执行 `cataforge claude-md compact`，重新跑 `check`，PASS 后继续 Step 7
+     2. 手动处理：暂停 Phase Transition，等待用户编辑 CLAUDE.md 后再次推进（再次推进时重新跑 Step 6）
+   - 执行 compact 后追加 **[EVENT]** 记录：`cataforge event log --event state_change --phase {新阶段} --detail "claude-md compact applied at phase transition"`
+   - 命令不存在（pre-v0.4.0 项目）时 WARN 跳过，不阻塞
 
-> **关键**: 步骤 1-5 必须在步骤 6 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
+   > **设计意图**：若不在阶段转换处兜底，Learnings Registry / 文档状态字段会跨阶段单调膨胀，最终把 orchestrator startup context 撑爆（issue #113 F-009 反馈现象）。本步骤不是定期清理，而是把 hygiene 强制提前到状态切换的安全窗口。
+7. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
+
+> **关键**: 步骤 1-6 必须在步骤 7 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
 
 ## Manual Review Checkpoint Protocol
 阶段转换时，根据 MANUAL_REVIEW_CHECKPOINTS 常量（见 COMMON-RULES §框架配置常量）决定是否暂停等待用户确认。
@@ -188,7 +200,9 @@ Mode Routing Protocol 在以下时刻被调用:
    - `pre_deploy` → 仅 Phase 6→7（testing → deployment）命中
    - `post_sprint` → Sprint Review approved 后、进入下一 Sprint 或 Phase 6 前命中
    - `none` → 不命中，直接推进
-3. 命中时，使用 AskUserQuestion 向用户展示阶段摘要并确认:
+3. 命中时，使用 AskUserQuestion 向用户展示阶段摘要并确认。**当 checkpoint = `pre_deploy` 且 framework.json `pre_deploy_demo_required: true`**（UI/web 类项目默认 true，纯后端服务默认 false）时，选项追加 demo 验证项；其它 checkpoint 用基础选项即可：
+
+   基础选项（所有 checkpoint）:
    ```
    === 阶段转换确认 ===
    已完成: {当前阶段名} — {关键产出摘要}
@@ -199,9 +213,17 @@ Mode Routing Protocol 在以下时刻被调用:
    2. 暂停，我需要先审查产出
    3. 调整方向（进入 Change Request 流程）
    ```
-4. 用户选择"确认继续" → 正常推进
+
+   pre_deploy + demo_required=true 追加选项 4：
+   ```
+   4. 已亲自浏览器验证 ≥ {min_acs} 个核心 AC（必填项；未选不可推进）
+   ```
+   `min_acs` 取自 framework.json `pre_deploy_demo_min_acs`（默认 1）；用户必须选 4 才能进入 Phase 7，否则视为暂停。
+4. 用户选择"确认继续"（或 pre_deploy demo_required=true 时选项 4）→ 正常推进
 5. 用户选择"暂停" → orchestrator 等待用户后续指令（不自动推进）
 6. 用户选择"调整方向" → 进入 Change Request Protocol
+
+> **设计意图**：纯"摘要确认"选项 1 在 user-facing critical path 项目里等同放行。pre_deploy demo gate 把"是否真的跑过"显式问出来；自动启动 dev server / 跑 e2e UI 套件作为后续单独 enhancement，不在本协议范围。
 
 **不命中时**: 直接按现有逻辑自动推进，无额外交互。
 

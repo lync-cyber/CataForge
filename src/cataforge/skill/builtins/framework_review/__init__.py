@@ -34,6 +34,14 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "severity": "fail",
     },
     {
+        "id": "B3_rules_schema_compliance",
+        "title": (
+            "项目级 .cataforge/skills/<skill>/rules/*.yaml plugin "
+            "覆写文件 schema 校验 (cataforge.skill.rules.loader)"
+        ),
+        "severity": "fail",
+    },
+    {
         "id": "B4_hardcoded_constants",
         "title": "SKILL.md / AGENT.md / 协议文档不得出现常量名对应的裸数值",
         "severity": "warn",
@@ -55,9 +63,10 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "id": "B5_eventlog_agent_return_drift",
         "title": (
             "EVENT-LOG.jsonl agent_return 事件与 phase routing 对账 "
-            "(总事件 ≥10 时启用)"
+            "(总事件 ≥ 阈值时 phase-routed agent 0 returns → FAIL，"
+            "ref 字段缺失 → WARN)"
         ),
-        "severity": "warn",
+        "severity": "fail|warn",
     },
     {
         "id": "B5_feature_phase_alignment",
@@ -66,6 +75,14 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
             "Phase Routing 中的已知 phase"
         ),
         "severity": "warn",
+    },
+    {
+        "id": "B5_hook_installed",
+        "title": (
+            "validate_agent_result PostToolUse hook 必须在 hooks.yaml "
+            "中以 matcher_capability=agent_dispatch 注册"
+        ),
+        "severity": "fail",
     },
     {
         "id": "B6_hook_script_reachability",
@@ -120,6 +137,30 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "title": (
             "platform profile.yaml model_routing.tier_map 必须覆盖 "
             "light/standard/heavy (per_agent_model=true 且 user_resolved=false 时)"
+        ),
+        "severity": "warn",
+    },
+    {
+        "id": "B8_anti_pattern_section_present",
+        "title": (
+            "每个非豁免 skill / agent 的 SKILL.md / AGENT.md 应有 "
+            "'## Anti-Patterns' 段（缺失 WARN，留作 backlog 渐进补齐）"
+        ),
+        "severity": "warn",
+    },
+    {
+        "id": "B8_anti_pattern_floor",
+        "title": (
+            "Anti-Patterns bullet 数量 ≥ ANTI_PATTERN_MIN_COUNT_SKILL "
+            "(skill, 默认 3) / ANTI_PATTERN_MIN_COUNT_AGENT (agent, 默认 4)"
+        ),
+        "severity": "fail",
+    },
+    {
+        "id": "B8_anti_pattern_substantive",
+        "title": (
+            "Anti-Patterns 每条 bullet 正文 ≥ 12 字符 "
+            "(过滤 placeholder 占位条目)"
         ),
         "severity": "warn",
     },

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "CataForge Agent Result Schema",
   "description": "定义所有子代理返回的 <agent-result> XML 结构。此文件为状态码和必填字段的单一事实来源。",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "object",
   "required": ["status", "outputs", "summary"],
   "properties": {
@@ -50,6 +50,24 @@
     "resume-guidance": {
       "type": "string",
       "description": "仅 status=needs_input 时必填，恢复执行的上下文指引"
+    },
+    "wiring_complete": {
+      "type": ["boolean", "string"],
+      "enum": [true, false, "n/a"],
+      "description": "implementer 自报告：所有 user-facing critical-path AC 关联组件是否已挂载到路由/容器组件并完成 prop/event 链路。`n/a` 表 task_kind 不涉及前端 wiring（chore/config/docs/纯逻辑模块）。缺省视为 `n/a`。详见 implementer/AGENT.md §Wiring Completeness Reporting"
+    },
+    "wiring_evidence": {
+      "type": "array",
+      "description": "wiring_complete=true 时建议提供，列出消费点证据",
+      "items": {
+        "type": "object",
+        "required": ["consumer_file", "deliverable_symbol"],
+        "properties": {
+          "consumer_file": { "type": "string", "description": "消费组件/路由/容器文件路径" },
+          "consumer_line": { "type": ["integer", "string"], "description": "可选：行号或引用上下文" },
+          "deliverable_symbol": { "type": "string", "description": "本任务交付的符号名（组件/函数/handler）" }
+        }
+      }
     }
   },
   "allOf": [

@@ -1,0 +1,21 @@
+schema_version: 1
+rule_type: wiring
+language: js-ts
+extensions: [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"]
+
+# Empty-handler prop wiring — JSX/TSX prop assignment whose body is the
+# empty function ({}, null, undefined). Each line match is WARN.
+empty_handler_patterns:
+  - label: "empty arrow body"
+    regex: 'on[A-Z]\w+=\{\s*(?:async\s+)?\(\s*[^)]*\)\s*=>\s*\{\s*\}\s*\}'
+  - label: "arrow returns null"
+    regex: 'on[A-Z]\w+=\{\s*(?:async\s+)?\(\s*[^)]*\)\s*=>\s*null\s*\}'
+  - label: "arrow returns undefined"
+    regex: 'on[A-Z]\w+=\{\s*(?:async\s+)?\(\s*[^)]*\)\s*=>\s*undefined\s*\}'
+
+# File-level opt-out comment: when present anywhere in the file, the
+# wiring scan skips the file entirely. Pair with task-card
+# `wiring_placeholder: true` so reviewer knows the gap is tracked.
+placeholder_pragma:
+  regex: '(?://|#|--|/\*)\s*cataforge:\s*wiring-placeholder'
+  flags: ["IGNORECASE"]

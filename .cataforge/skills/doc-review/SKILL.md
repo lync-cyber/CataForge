@@ -64,6 +64,7 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{vol_file} --volume
 - 安全性(security): 是否存在安全漏洞或合规风险
 - 规范性(convention): 命名/格式/编码规范是否符合约定
 - 清晰度(ambiguity): 描述是否模糊、能否作为下游输入
+- AC 可观测性(ac-observability, 仅 dev-plan): 审查"应正确渲染"等模糊措辞 → MEDIUM；要求每条 AC 至少含一个可观测终点（DOM 内容 / 返回值 / 副作用 / 文件落盘 / clipboard / 路由跳转）
 
 **维度收敛**: 调用方可传 `--focus <category[,...]>`（值取自 COMMON-RULES §统一问题分类体系），仅审查指定维度。不传时跑全维度。例如：`cataforge skill run doc-review -- prd docs/prd/prd-x.md --focus consistency,ambiguity`。
 
@@ -113,12 +114,19 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 专项检查:
 - **prd**: 用户故事覆盖、验收标准(AC-NNN)存在、非功能需求充实度、优先级(P0/P1/P2)标注
 - **arch**: 模块→功能映射(F-NNN引用)、API定义含request、实体含字段表、技术栈选型理由
-- **dev-plan**: 依赖无环、tdd_acceptance、deliverables、context_load
+- **dev-plan**: 依赖无环、tdd_acceptance、deliverables、context_load、ac_observability（每条 AC 含可观测动词，缺则 WARN）
 - **ui-spec**: §0设计方向非空且非占位符（仅 standard 模式）、组件含变体和Props和视觉差异描述、页面含路由和组件引用和空间构成（仅 standard 模式）、设计系统色彩Token≥5个（standard）/≥3个（agile-lite），不足即 FAIL
 - **test-report**: 测试金字塔(Unit/Integration/E2E)、用例矩阵非空、覆盖率有具体数值、测试执行结果、缺陷清单、结论
 - **deploy-spec**: 构建流程非空、环境含dev/prod、发布检查清单≥2项
 - **research-note**: 调研方法指明模式、结论非空
 - **changelog**: 版本条目存在、每版含Added/Changed/Fixed分类
+
+## Anti-Patterns
+
+- 禁止: dev-plan AC 用主观语义动词（"很好地处理…"/"友好地…"）—— ac-observability 维度会判 needs_revision；AC 必须可观察可测试（POST 200 / 屏幕显示 X / 日志含 Y）
+- 禁止: 把所有文档塞到 Layer 2 全量审查 —— `DOC_REVIEW_L2_SKIP_*` 短路按文档类型 / 行数判定，brief / 微小 lite 文档直接 Layer 1 即可
+- 禁止: doc-review 报告写入 `docs/reviews/code/` 或 `docs/reviews/framework/` —— 必须写 `docs/reviews/doc/`（COMMON-RULES §报告编号规则）
+- 避免: 让 reviewer 以"修订建议"形式直接改文档 —— Approved-with-Notes / needs_revision 才会启动修订流程，由原作者 Agent 在独立调度中改
 
 ## 效率策略
 - Layer 1先行，失败则不进入Layer 2，节省AI资源

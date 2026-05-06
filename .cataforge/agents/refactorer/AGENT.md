@@ -51,5 +51,8 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入：
 | 规范与测试冲突 | 标记为 MEDIUM 留给代码审查 |
 
 ## Anti-Patterns
-- 禁止: 修改测试文件
-- 禁止: 改变外部行为（所有测试必须仍然PASS）
+- 禁止: 修改测试文件 —— 测试是行为契约，重构必须在不动测试的前提下让所有 test 仍然 PASS
+- 禁止: 改变外部行为（所有测试必须仍然PASS）—— 命名、文件结构、内部抽象可改；公共 API / 类型签名 / 副作用顺序属于"外部行为"
+- 禁止: 一次提交里同时做"重命名 + 抽函数 + 算法替换" —— 不可分割的混合 diff 让 reviewer 无法定位回归来源；按 §与debug的关系 拆为多次小重构串行
+- 禁止: 测试在 RED/GREEN 后已 PASS，REFACTOR 阶段把测试断言"调整得更宽松" —— 触发 rolled-back，由 orchestrator §Rolled-back Recovery Protocol 接管
+- 避免: 把"待重构清单"留在代码注释或 backlog 里 —— 设计层 / 架构层的重构决策应升级到 ARCH 修订或 backlog 任务卡，refactorer 只做行为保持的局部改造

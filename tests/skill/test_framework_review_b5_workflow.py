@@ -211,11 +211,11 @@ def test_b5_eventlog_threshold_overridable(tmp_path: Path) -> None:
         and "0 agent_return" in f.message
     ]
     assert len(dead) == 1
-    assert dead[0].severity == "WARN"
+    assert dead[0].severity == "FAIL"
 
 
 def test_b5_eventlog_dead_routing_warns(tmp_path: Path) -> None:
-    """Phase-routed agent has 0 returns while log has ≥10 → WARN."""
+    """Phase-routed agent has 0 returns while log has ≥10 → FAIL (post-F-010)."""
     _write_orchestrator(
         tmp_path,
         "Phase 1 requirements → product-manager → prd\n"
@@ -243,7 +243,7 @@ def test_b5_eventlog_dead_routing_warns(tmp_path: Path) -> None:
         and "0 agent_return" in f.message
     ]
     assert len(dead_findings) == 1
-    assert dead_findings[0].severity == "WARN"
+    assert dead_findings[0].severity == "FAIL"
 
 
 def test_b5_eventlog_missing_ref_warns(tmp_path: Path) -> None:
@@ -374,3 +374,86 @@ def test_b5_feature_phase_alignment_null_guard_skipped(tmp_path: Path) -> None:
     check_b5_workflow_coverage(tmp_path, report)
     findings = [f for f in report.findings if f.check_id == "B5_feature_phase_alignment"]
     assert findings == []
+
+
+# ---------------------------------------------------------------------------
+# B5_hook_installed (validate_agent_result PostToolUse hook wired)
+# ---------------------------------------------------------------------------
+
+
+def _write_hooks_yaml(tmp_path: Path, body: str) -> None:
+    hooks_dir = tmp_path / ".cataforge" / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    (hooks_dir / "hooks.yaml").write_text(body, encoding="utf-8")
+
+
+def test_b5_hook_installed_skipped_when_hooks_yaml_absent(tmp_path: Path) -> None:
+    _write_orchestrator(tmp_path, "Phase 1 requirements → product-manager → prd")
+    _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
+    _write_skill(tmp_path, "doc-nav")
+
+    report = Report()
+    check_b5_workflow_coverage(tmp_path, report)
+    assert [f for f in report.findings if f.check_id == "B5_hook_installed"] == []
+
+
+def test_b5_hook_installed_pass_when_wired(tmp_path: Path) -> None:
+    _write_orchestrator(tmp_path, "Phase 1 requirements → product-manager → prd")
+    _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
+    _write_skill(tmp_path, "doc-nav")
+    _write_hooks_yaml(
+        tmp_path,
+        "schema_version: 2\n"
+        "hooks:\n"
+        "  PostToolUse:\n"
+        "    - matcher_capability: agent_dispatch\n"
+        "      script: validate_agent_result\n"
+        "      type: observe\n",
+    )
+
+    report = Report()
+    check_b5_workflow_coverage(tmp_path, report)
+    assert [f for f in report.findings if f.check_id == "B5_hook_installed"] == []
+
+
+def test_b5_hook_installed_fail_when_missing(tmp_path: Path) -> None:
+    _write_orchestrator(tmp_path, "Phase 1 requirements → product-manager → prd")
+    _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
+    _write_skill(tmp_path, "doc-nav")
+    _write_hooks_yaml(
+        tmp_path,
+        "schema_version: 2\n"
+        "hooks:\n"
+        "  PostToolUse:\n"
+        "    - matcher_capability: file_edit\n"
+        "      script: lint_format\n"
+        "      type: observe\n",
+    )
+
+    report = Report()
+    check_b5_workflow_coverage(tmp_path, report)
+    findings = [f for f in report.findings if f.check_id == "B5_hook_installed"]
+    assert len(findings) == 1
+    assert findings[0].severity == "FAIL"
+    assert "validate_agent_result" in findings[0].message
+
+
+def test_b5_hook_installed_fail_on_wrong_capability(tmp_path: Path) -> None:
+    _write_orchestrator(tmp_path, "Phase 1 requirements → product-manager → prd")
+    _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
+    _write_skill(tmp_path, "doc-nav")
+    _write_hooks_yaml(
+        tmp_path,
+        "schema_version: 2\n"
+        "hooks:\n"
+        "  PostToolUse:\n"
+        "    - matcher_capability: file_edit\n"
+        "      script: validate_agent_result\n"
+        "      type: observe\n",
+    )
+
+    report = Report()
+    check_b5_workflow_coverage(tmp_path, report)
+    findings = [f for f in report.findings if f.check_id == "B5_hook_installed"]
+    assert len(findings) == 1
+    assert findings[0].severity == "FAIL"

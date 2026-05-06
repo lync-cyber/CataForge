@@ -232,3 +232,20 @@ deps: ["{被审 doc_id 或 task_id}"] # CORRECTIONS-LOG 用 []
 | 无 CRITICAL/HIGH，但有 MEDIUM/LOW | **approved_with_notes** |
 | 无问题 | **approved** |
 
+### verdict_blocking_semantics
+
+四个 verdict 在 Phase Transition / Sprint Review 流转上的阻塞语义对账（issue #113 L-2 / B8-γ）：
+
+| verdict | 推进 Phase Transition | 进入 Revision Protocol | 必带字段 | 来源 |
+|---------|---------------------|----------------------|---------|------|
+| `approved` | 是 | 否 | — | reviewer / qa-engineer |
+| `approved_with_notes` | 是（用户确认"接受并继续"后）| 否（除非用户在 §Approved-with-Notes Protocol 选项 2 选中部分 LOW/MEDIUM 修复）| `notes_summary` | reviewer |
+| `conditional_release` | **否** —— 必须 `blocking_conditions: []` 后才能推进；空列表前 Phase Transition 阻塞 | 否（条件清单消除是非 revision 流程，由原 Agent 闭环）| `blocking_conditions: list<{condition, owner, eta?}>` | qa-engineer 专用 |
+| `needs_revision` | 否 | 是 | 关联的 REVIEW 报告路径 | reviewer |
+
+**关键约束**：
+
+- 严禁用 `[ENV-LIMITATION]` / `[ASSUMPTION]` 让缺陷豁免 needs_revision —— 环境受限场景必须显式 `conditional_release` + 非空 `blocking_conditions`，由后续条件消除驱动闭环
+- `conditional_release.blocking_conditions == []` 前 Phase Transition Protocol 必须暂停；orchestrator 不应基于"沙盒不可达 → CI 兜底"自动放行
+- `approved_with_notes` 含 ≥1 CRITICAL/HIGH 自动降级为 `needs_revision`（reviewer 内部一致性检查）
+

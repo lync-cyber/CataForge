@@ -34,8 +34,8 @@ user-invocable: true
 3. 定义tdd_acceptance(映射AC)
 4. 定义deliverables(明确交付文件)
 5. 定义context_load(doc-nav引用)
-6. 建立依赖图: 调用 dep-analysis skill，脚本自动生成 Mermaid 依赖图并写入 dev-plan#§2
-7. 按依赖关系划分Sprint(参考 dep-analysis 输出的 sprint_groups)
+6. 建立依赖图: 调用 task-dep-analysis skill，脚本自动生成 Mermaid 依赖图并写入 dev-plan#§2
+7. 按依赖关系划分Sprint(参考 task-dep-analysis 输出的 sprint_groups)
 
 ## 效率策略
 - 先拆后排: 先拆任务再排依赖
