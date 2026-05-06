@@ -13,11 +13,29 @@ user-invocable: true
 - 能做: Sprint交付完成度审查、AC覆盖验证、范围偏移检测(gold-plating/drift/缺失)、质量聚合
 - 不做: 修改代码或文档(仅报告问题)、单个任务的code-review(由code-review skill负责)
 
+## 审查档位（standard / lite / merged-review）
+
+| 档位 | 触发 | per-task code-review | 适用 |
+|------|------|---------------------|------|
+| **standard** | 默认 | 每任务一份 `docs/reviews/code/CODE-REVIEW-T-NNN-*.md` | 大多数 sprint，任务异质（feature / fix / docs / config 混合） |
+| **lite** | `SPRINT_REVIEW_MICRO_TASK_COUNT` 触发（详见 COMMON-RULES） | 每任务一份，但 sprint-review 只跑 Layer 1 | 任务数 ≤ 阈值的小型 sprint |
+| **merged-review** | dev-plan frontmatter `project_features.merged_review: true` | **跳过** per-task CODE-REVIEW；sprint-review 报告承担 per-task Layer 2 职责 | 任务同质（如同模块批量路由 / 同 adapter 系列），N 个任务的 N 份 CODE-REVIEW 冗余 |
+
+### merged-review 模式行为
+
+启用 `merged_review: true` 后：
+
+- Layer 1 `code_review_present` checker 自动短路（不会因为缺 CODE-REVIEW 文件而 FAIL）
+- sprint-review 报告**必须**包含 §per-task L2 维度表（structure / error-handling / test-quality / duplication / dead-code / complexity / coupling / security 八列），每个任务一行，作为 per-task Layer 2 的等价交付
+- 单任务 CODE-REVIEW 文件可省略，但仍可按需补充（混合模式）
+- 跨任务模式（重复 helper / 同型 bug）天然进入 sprint-review 的横截面视角，比 N 份独立 CODE-REVIEW 更易识别
+
 ## 输入规范
 - dev-plan 文档路径 (含Sprint任务表)
 - Sprint编号 (N)
 - 该Sprint所有任务的CODE-REVIEW报告路径 (docs/reviews/code/CODE-REVIEW-T-*.md)
 - arch文档 (用于验证接口契约一致性)
+- dev-plan 主卷 frontmatter 可选 `project_features` 块（详见 §project_features schema），影响 Layer 1 行为
 
 ## 输出规范
 - Sprint审查报告 `SPRINT-REVIEW-s{N}-r{M}.md` (问题列表 + 严重等级: CRITICAL/HIGH/MEDIUM/LOW)
@@ -82,7 +100,36 @@ Sprint审查额外category:
 - <!-- check_id: unplanned_files --> 检测计划外文件 (WARN)：src 范围内、未被 `.gitignore` 与默认 ignore 列表 (`node_modules/`, `dist/`, `*.tsbuildinfo` 等) 过滤、且不在任何任务 deliverables 中的文件视为 gold-plating 信号；候选集合默认通过 `git ls-files -co --exclude-standard` 取得，monorepo 友好
 - <!-- check_id: code_review_present --> 每个任务有对应的CODE-REVIEW报告(docs/reviews/code/CODE-REVIEW-{task_id}-*.md)
 
+## project_features schema
+
+dev-plan 主卷（非 sprint 分卷）frontmatter 可选 `project_features` 块，按项目特征声明 Layer 1 行为开关。所有键默认关闭（向后兼容；旧项目零迁移）：
+
+```yaml
+---
+id: dev-plan-{project}
+project_features:
+  merged_review: true                    # 短路 code_review_present；启用 §合并审查模式
+  deliverables_accept_alternation: true  # deliverables 行支持 "A | B" 语法（任一存在即过）
+  unplanned_glob_patterns:               # fnmatch 模式列表，匹配的文件不算 gold-plating
+    - "**/*.test.ts"
+    - "**/*.spec.ts"
+    - "**/helpers/*.ts"
+    - "**/fixtures/**"
+---
+```
+
+### 字段说明
+
+| 字段 | 类型 | 默认 | 行为 |
+|------|------|------|------|
+| `merged_review` | bool | false | true 时 `check_code_reviews` 直接 return；详见 §合并审查模式 |
+| `deliverables_accept_alternation` | bool | false | true 时 `check_deliverables` 把 `A \| B` 视为或关系（任一存在即过），同时 `check_unplanned_files` 把两候选都标为 planned（避免 gold-plating 误报） |
+| `unplanned_glob_patterns` | list[str] | `[]` | 每条 fnmatch 模式应用于 `check_unplanned_files` 输出；匹配的文件被滤掉。典型用途：项目级测试/fixture/helper 命名约定 |
+
+读取由 `cataforge.skill.builtins.sprint_review.sprint_check.load_project_features()` 完成；优先读非 sprint 分卷（不带 `-sN.md` 后缀）的第一个含 `project_features:` 的文件。
+
 ## 效率策略
 - Layer 1先行: 脚本快速检查结构性问题，不通过则跳过AI审查
 - Layer 2聚焦语义: AI审查专注于脚本无法覆盖的行为偏移和质量模式
 - 通过doc-nav按需加载，不全量读取dev-plan
+- **merged-review 模式**：任务同质 sprint 用单份 sprint-review 报告替代 N 份 CODE-REVIEW，减少冗余产出，跨任务模式更易识别
