@@ -1,38 +1,35 @@
-"""``cataforge issue`` — upstream issue triage.
+"""``cataforge issue`` — upstream issue full-loop resolve.
 
-Closes the loop between **downstream feedback** (`cataforge feedback bug --gh`
-puts a bundle into a GitHub issue) and **upstream improvement** (a SKILL-IMPROVE
-draft we can review and apply via the standard reflector → orchestrator path).
+Backs the ``framework-issue-resolve`` skill: closes the loop between
+**downstream feedback** (`cataforge feedback bug --gh` puts a bundle into
+a GitHub issue) and **upstream improvement** (SKILL-IMPROVE draft → fix
+PR → templated close comment).
 
-Pipeline (Layer 1 only — no AI calls):
+Two subcommands cover the automated bookends; the implementation step in
+the middle is a normal dev workflow (branch + edit + PR), not CLI'd:
 
-1. Fetch open issues from the upstream repo via ``gh issue list --json``
-   (default filter: any label declared in ``feedback.gh.labels``).
-2. For each issue body, do a best-effort parse of the well-known sections
-   the feedback assembler emits:
+* ``triage`` — fetch, fact-check, render SKILL-IMPROVE drafts. Layer 1
+  only (no AI calls). Verdicts: ``confirmed`` / ``already-fixed`` /
+  ``needs-repro`` / ``unrelated`` (auto), plus ``wontfix-by-design``
+  which the maintainer hand-edits onto a draft after deciding the report
+  misreads an intentional design.
+* ``close`` — templated wrapper around ``gh issue close --comment`` so
+  every closure carries a uniform fixed/wontfix/already-fixed message.
 
-   * ``cataforge --version`` line  → ``reported_version``
-   * ``framework-review`` FAIL bullets → candidate skill IDs
-   * ``upstream-gap`` correction blocks → candidate agent / skill IDs
-   * EVENT-LOG tail → no fact-check value yet, ignored
+Triage parser fields (best-effort regex, no AI):
 
-3. Compute a per-issue verdict:
+* ``cataforge --version`` line → ``reported_version``
+* ``framework-review`` FAIL bullets → candidate skill IDs
+* ``upstream-gap`` correction blocks → candidate agent / skill IDs
+* EVENT-LOG tail → no fact-check value yet, ignored
 
-   * ``already-fixed``    — reported_version < installed cataforge version
-                            *and* no matching pattern fails locally
-   * ``confirmed``        — at least one referenced skill / agent exists in
-                            ``.cataforge/`` and there's no version-skew evidence
-   * ``needs-repro``      — no parseable env block; can't fact-check
-   * ``unrelated``        — body doesn't look like a feedback bundle
+Drafts land under ``docs/reviews/triage/SKILL-IMPROVE-{target}-issue-{N}.md``
+with ``status: triage-draft`` frontmatter so reflector / maintainer knows
+to take a second look before promoting them.
 
-4. For ``confirmed`` issues, write a SKILL-IMPROVE draft under
-   ``docs/reviews/triage/SKILL-IMPROVE-{skill_id}-issue-{N}.md``. Drafts
-   carry a ``status: triage-draft`` frontmatter so reflector / maintainer
-   knows to take a second look before promoting them.
-
-We deliberately **never** call ``gh issue close`` / ``gh issue comment``
-from this command; outputs are pure markdown drafts. Maintainer eyeballs
-each one before any externally visible action.
+``close`` actually calls ``gh issue close`` — the only externally visible
+action in this module. Maintainer must invoke it explicitly per issue
+(no batch loop). Use ``--dry-run`` to preview the comment.
 """
 
 from __future__ import annotations
@@ -58,11 +55,17 @@ INSTALLED_VERSION = __version__
 
 @cli.group("issue")
 def issue_group() -> None:
-    """Triage upstream GitHub issues into SKILL-IMPROVE drafts.
+    """Resolve upstream GitHub issues end-to-end.
 
     Designed for CataForge maintainers / forked-repo owners to consume the
-    output of `cataforge feedback bug --gh` from downstream users. Produces
-    markdown drafts only — never modifies the issue itself.
+    output of `cataforge feedback bug --gh` from downstream users. Two
+    subcommands cover the loop bookends:
+
+    \b
+    * `triage` — fetch + fact-check + render SKILL-IMPROVE drafts (no
+      external action).
+    * `close`  — templated `gh issue close --comment` after a fix PR
+      lands or a wontfix decision is made.
     """
 
 
@@ -175,12 +178,129 @@ def triage_command(
         click.echo("(dry-run; pass without --dry-run to write drafts)")
 
 
+@issue_group.command("close")
+@click.argument("number", type=int)
+@click.option(
+    "--verdict", "verdict",
+    type=click.Choice(["fixed", "wontfix", "already-fixed"]),
+    required=True,
+    help="Closure reason. fixed/already-fixed need --pr; wontfix needs --reason.",
+)
+@click.option(
+    "--pr", "pr_number", type=int, default=None,
+    help="PR number that fixed (or previously fixed) the issue.",
+)
+@click.option(
+    "--reason", "reason", default=None,
+    help="One-line wontfix justification (required when --verdict wontfix).",
+)
+@click.option(
+    "--repo", "repo", default=None,
+    help="Source repo (owner/name). Defaults to framework.json#upgrade.source.repo.",
+)
+@click.option(
+    "--message", "extra_message", default=None,
+    help="Extra trailing line appended to the templated comment (optional).",
+)
+@click.option(
+    "--dry-run", "dry_run", is_flag=True, default=False,
+    help="Print the comment that would be posted; do not call gh.",
+)
+def close_command(
+    number: int,
+    verdict: str,
+    pr_number: int | None,
+    reason: str | None,
+    repo: str | None,
+    extra_message: str | None,
+    dry_run: bool,
+) -> None:
+    """Close an issue with a templated comment.
+
+    Wraps ``gh issue close N --comment <templated>`` so every closure carries
+    a uniform fixed/wontfix/already-fixed message tied to the installed
+    cataforge version. Maintainer must invoke per issue (no batch).
+    """
+    if verdict in {"fixed", "already-fixed"} and pr_number is None:
+        raise CataforgeError(f"--verdict {verdict} requires --pr <PR_NUMBER>.")
+    if verdict == "wontfix" and not reason:
+        raise CataforgeError("--verdict wontfix requires --reason <TEXT>.")
+
+    if not dry_run and not shutil.which("gh"):
+        raise ExternalToolError(
+            "GitHub CLI `gh` not found on PATH. Install from https://cli.github.com/ "
+            "and authenticate before running `cataforge issue close`."
+        )
+
+    if repo is None:
+        cfg = get_config_manager()
+        upstream = cfg.upgrade_source
+        owner_repo = upstream.get("repo")
+        if not owner_repo:
+            raise CataforgeError(
+                "framework.json#upgrade.source.repo is not configured; "
+                "pass --repo owner/name explicitly."
+            )
+        repo = str(owner_repo)
+
+    comment = _render_close_comment(
+        verdict=verdict,
+        pr_number=pr_number,
+        reason=reason,
+        extra_message=extra_message,
+    )
+
+    click.echo(f"Repo:    {repo}")
+    click.echo(f"Issue:   #{number}")
+    click.echo(f"Verdict: {verdict}")
+    click.echo("Comment:")
+    click.echo(comment)
+
+    if dry_run:
+        click.echo("")
+        click.echo("(dry-run; pass without --dry-run to call gh issue close)")
+        return
+
+    cmd = ["gh", "issue", "close", str(number), "-R", repo, "--comment", comment]
+    try:
+        subprocess.run(cmd, check=True, text=True, encoding="utf-8")
+    except subprocess.CalledProcessError as e:
+        raise ExternalToolError(
+            f"gh issue close failed (exit {e.returncode}):\n{e.stderr or e.stdout}"
+        ) from None
+    click.secho(f"\nClosed #{number}.", fg="green")
+
+
+def _render_close_comment(
+    *,
+    verdict: str,
+    pr_number: int | None,
+    reason: str | None,
+    extra_message: str | None,
+) -> str:
+    if verdict == "fixed":
+        body = f"Fixed in v{INSTALLED_VERSION} (PR #{pr_number})."
+    elif verdict == "already-fixed":
+        body = f"Already fixed in v{INSTALLED_VERSION} (PR #{pr_number})."
+    elif verdict == "wontfix":
+        body = f"Wontfix — by design: {reason}"
+    else:
+        raise CataforgeError(f"unknown verdict: {verdict!r}")
+    if extra_message:
+        body = f"{body}\n\n{extra_message}"
+    return body
+
+
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
 
 @dataclass
 class _ParsedIssue:
-    verdict: str  # "confirmed" | "already-fixed" | "needs-repro" | "unrelated"
+    # Auto verdicts: "confirmed" | "already-fixed" | "needs-repro" |
+    # "unrelated". A 5th value "wontfix-by-design" is valid in draft
+    # frontmatter but only set by maintainer hand-edit on a confirmed
+    # draft when the report turns out to misread an intentional design.
+    verdict: str
     reported_version: str | None = None
     target_skills: list[str] = field(default_factory=list)
     target_agents: list[str] = field(default_factory=list)
@@ -352,7 +472,7 @@ def _write_skill_improve_draft(
     issue_url = issue.get("url") or f"https://github.com/{repo}/issues/{number}"
     body = (
         f"---\n"
-        f"author: framework-issue-triage\n"
+        f"author: framework-issue-resolve\n"
         f"date: {today}\n"
         f"status: triage-draft\n"
         f"source_issue: {issue_url}\n"

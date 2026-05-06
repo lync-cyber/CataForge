@@ -1,8 +1,8 @@
-"""Tests for ``cataforge issue triage`` Layer 1 verdict logic.
+"""Tests for ``cataforge issue triage`` + ``cataforge issue close``.
 
-We mock ``gh`` calls so the test runs offline. The interesting behaviour
-is the body parser + verdict classifier, exercised via the CLI surface
-to keep the contract-shape under test.
+We mock ``gh`` so the suite runs offline. ``triage`` exercises the body
+parser + verdict classifier; ``close`` exercises the comment templates +
+gh invocation contract.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import pytest
 from click.testing import CliRunner
 
 from cataforge.cli import issue_cmd
-from cataforge.cli.issue_cmd import triage_command
+from cataforge.cli.issue_cmd import close_command, triage_command
 
 
 def _bootstrap(tmp_path: Path) -> Path:
@@ -160,3 +160,113 @@ class TestTriage:
         result = CliRunner().invoke(triage_command, [])
         assert result.exit_code == 0
         assert "needs-repro" in result.output
+
+
+class TestClose:
+    def test_fixed_dry_run_renders_template(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        result = CliRunner().invoke(
+            close_command,
+            ["104", "--verdict", "fixed", "--pr", "108", "--dry-run"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Fixed in v" in result.output
+        assert "(PR #108)" in result.output
+        assert "dry-run" in result.output
+
+    def test_wontfix_dry_run_renders_reason(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        result = CliRunner().invoke(
+            close_command,
+            ["102", "--verdict", "wontfix",
+             "--reason", "doc_id slug-only is intentional design",
+             "--dry-run"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Wontfix" in result.output
+        assert "doc_id slug-only is intentional design" in result.output
+
+    def test_already_fixed_dry_run_renders_template(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        result = CliRunner().invoke(
+            close_command,
+            ["77", "--verdict", "already-fixed", "--pr", "65", "--dry-run"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Already fixed in v" in result.output
+        assert "(PR #65)" in result.output
+
+    def test_fixed_requires_pr(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        result = CliRunner().invoke(
+            close_command, ["104", "--verdict", "fixed", "--dry-run"]
+        )
+        assert result.exit_code != 0
+        assert "--pr" in result.output
+
+    def test_wontfix_requires_reason(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        result = CliRunner().invoke(
+            close_command, ["102", "--verdict", "wontfix", "--dry-run"]
+        )
+        assert result.exit_code != 0
+        assert "--reason" in result.output
+
+    def test_invokes_gh_with_close_and_comment(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        captured: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):  # noqa: ANN001
+            captured.append(list(cmd))
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout="", stderr=""
+            )
+
+        monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+        monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
+
+        result = CliRunner().invoke(
+            close_command,
+            ["104", "--verdict", "fixed", "--pr", "108", "--repo", "fake/repo"],
+        )
+        assert result.exit_code == 0, result.output
+        assert len(captured) == 1
+        cmd = captured[0]
+        assert cmd[:5] == ["gh", "issue", "close", "104", "-R"]
+        assert "fake/repo" in cmd
+        assert "--comment" in cmd
+        comment = cmd[cmd.index("--comment") + 1]
+        assert "Fixed in v" in comment
+        assert "(PR #108)" in comment
+
+    def test_extra_message_appended(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        result = CliRunner().invoke(
+            close_command,
+            ["104", "--verdict", "fixed", "--pr", "108",
+             "--message", "Triage: docs/reviews/triage/foo.md", "--dry-run"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Fixed in v" in result.output
+        assert "Triage: docs/reviews/triage/foo.md" in result.output

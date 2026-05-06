@@ -237,7 +237,7 @@ tools:
 | 25 | self-update | 管理技能 | 升级 | 检测包/scaffold 版本差异并执行 pip/uv 升级 + scaffold 刷新 + 迁移验证 |
 | 26 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
 | 27 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
-| 28 | framework-issue-triage | 管理技能 | 反馈 | 上游 maintainer 侧从 `gh issue list` 拉 open issue → 解析 `cataforge --version` / `framework-review FAIL` / `upstream-gap` 字段 → 分类 `confirmed` / `already-fixed` / `needs-repro` / `unrelated` → 写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿；闭环 framework-feedback → upstream issue → SKILL-IMPROVE |
+| 28 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
 
 ### 详细说明
 
