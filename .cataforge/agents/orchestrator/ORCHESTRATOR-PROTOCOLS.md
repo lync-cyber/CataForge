@@ -1,6 +1,6 @@
 # Orchestrator Protocols
 
-> 协议快速定位 — 核心协议: Bootstrap, **Mode Routing**, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, **Parallel Task Dispatch**, Sprint Review, Change Request, Agent Crash Recovery, needs_revision 计数 | 基础设施: Event Log | 学习协议: On-Correction Learning, **Adaptive Review (含反向降级)**, Retrospective & Improvement | 模板: CLAUDE.md Update Template
+> 协议快速定位 — 核心协议: Bootstrap, **Mode Routing**, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, **Parallel Task Dispatch**, Sprint Review, Change Request, Agent Crash Recovery, **Sub-Agent Truncation Recovery**, needs_revision 计数 | 基础设施: Event Log | 学习协议: On-Correction Learning, **Adaptive Review (含反向降级)**, Retrospective & Improvement | 模板: CLAUDE.md Update Template
 
 ---
 # Part 1: 核心协议 (Core Protocols)
@@ -342,6 +342,24 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
    - "跳过此阶段": 仅在非关键路径阶段可用，标记阶段为 blocked 并请求人工后续处理
 3. 每Agent每阶段最多 1 次 Crash Recovery，第 2 次崩溃请求人工介入
 4. 崩溃事件记录到 docs/reviews/CORRECTIONS-LOG.md 供 reflector 分析
+
+> **与 §Sub-Agent Truncation Recovery 的区分**：本协议针对 process 死（无任何输出 / agent-dispatch 端兜底无法推断状态）。task-notification truncation 是另一回事 —— 子代理走完全程但 token budget 耗尽，artifact 已部分落地，仅 `<agent-result>` JSON 没回。后者由下一节专门处理。
+
+## Sub-Agent Truncation Recovery Protocol
+
+当子代理调度被 task-notification truncation 打断（典型征兆：100+ tools / 100K+ tokens / 5min+ 执行时长 / `<agent-result>` JSON 缺失，但 `git status` 显示已有未提交 artifact），主线程**接管收尾**而非视为 blocked：
+
+1. **评估完成度**（按当前任务类型选 1-2 项）：
+   - 代码任务：`{test_command}` 跑测试看 PASS 率；`biome lint` / `ruff check` / `tsc --noEmit` 看类型/lint 错数
+   - 文档任务：核对 deliverables 清单中要求的文件是否齐全 + frontmatter 是否完整
+2. **决策路径**：
+   - **完成度 ≥ 70% AC PASS（或 deliverables 齐全）** → 主线程接管收尾：inline-fix 残留 lint/typecheck 错、补落盘缺漏文件、按需补 `<agent-result>` 等价信息到 EVENT-LOG（`event=state_change`，`detail` 写明"truncation recovery: main-thread takeover"）
+   - **完成度 < 70%** → 视为 blocked，请求人工介入；不允许主线程从零接管（成本不可控）
+   - **无任何 artifact** → 走 §Agent Crash Recovery（process 死，本协议不适用）
+3. **每任务最多 1 次** truncation recovery；第 2 次截断同任务说明 prompt 设计有问题，不再接管，blocked + 标 backlog 由下次 retrospective 改进
+4. 截断事件记录到 EVENT-LOG `event=state_change` + `agent={truncated_agent_id}` + `detail="truncation recovery: <70%|≥70%>"`，供 reflector 检测频次（≥5 次/月触发 SKILL-IMPROVE）
+
+**与 tdd-engine §Mid-Progress Drop Contract 的关系**：mid-progress 落盘契约是**预防**（让子代理边推进边落盘，降低末尾批量 finalize 的截断概率）；本协议是**事后兜底**（契约失效时主线程不放弃整个任务）。两者协同：契约把 truncation 后的"已完成度"从 0% 抬到 70%+，让本协议的 70% 阈值可达。
 
 ## needs_revision 计数规范
 `needs_revision(N)` 中的 N 为本阶段累计返工次数，格式为 `needs_revision(2)` 而非独立字段。
