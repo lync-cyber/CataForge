@@ -36,6 +36,29 @@ orchestrator (主线程)
 | **light-inline** | `tdd_mode=light` 且 LOC≤`TDD_LIGHT_LOC_THRESHOLD` 且 `security_sensitive=false` 且执行模式 ∈ {agile-lite, agile-prototype} | orchestrator 主线程内联 implementer 行为，零子代理 boot |
 | **prototype-inline** | 执行模式 = `agile-prototype` | 同 light-inline，强制跳过 REFACTOR |
 
+## Mid-Progress Drop Contract
+
+为避免子代理在末尾 finalize 阶段集中产出导致 task-notification truncation（典型征兆：100+ tools / 100K+ tokens / 5min+ 后被打断；`<agent-result>` JSON 不返回但 artifact 已部分落地），**LOC > 200** 或 **AC > 6** 的任务在 implementer dispatch prompt 中强制注入以下契约：
+
+> **Mid-progress 落盘**：
+> 1. 先 `Write` 全部目标文件的**空骨架**（含必要的 import + export stub + `describe(...)` / 函数签名占位）；
+> 2. 逐 AC 迭代填充实现 + 测试；
+> 3. 每个 AC 完成后立刻运行 `{test_command}`（按需附 file 过滤）验证当条 AC 通过；
+> 4. **不要**把所有 AC 的实现 + 全套断言堆到最后一次 `Edit`。
+
+触发条件（任一命中即注入）：
+
+- `loc_estimate > 200`（任务卡缺该字段时取 `len(AC) × 30` 粗估）
+- `len(tdd_acceptance) > 6`
+
+适用范围：
+
+- ✅ **standard 模式** Step 3 GREEN（implementer dispatch）
+- ✅ **light-dispatch 模式**（implementer 一次合并 RED+GREEN）
+- ❌ **light-inline / prototype-inline**：orchestrator 主线程产出，token 额度由主线程上下文窗口管理，不需此契约
+
+恢复路径：契约失效（仍发生 truncation）时按 ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery Protocol 主线程接管收尾。
+
 ## TDD 子代理共享约束
 
 以下约束适用于所有 TDD 子代理，通过 AGENT.md 的 disallowedTools 和本节定义：
@@ -182,6 +205,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     RED 阶段产出 test_files: {RED 阶段返回的路径列表}
 
     任务: 编写最小代码使所有测试通过。在 <agent-result> 中报告 refactor_needed (true/false) 与 refactor_reasons（命中 complexity/duplication/coupling 的具体说明）。
+
+    {{ 当 loc_estimate > 200 或 len(tdd_acceptance) > 6 时附加 }}
+    见 §Mid-Progress Drop Contract，必须按 4 步契约推进（先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit）。
 ```
 
 验证: 确认返回的 test-result 全部 PASSED；解析 `refactor_needed` / `refactor_reasons` 字段。continuation 同 §Step 2 错误分级。
@@ -273,6 +299,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
       - impl_files: [...]
     summary 中标注: "light mode — RED+GREEN 合并，最终测试全部 PASSED"
     必须报告 refactor_needed / refactor_reasons。
+
+    {{ 当 loc_estimate > 200 或 len(tdd_acceptance) > 6 时附加 }}
+    见 §Mid-Progress Drop Contract，必须按 4 步契约推进（先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit）。
 ```
 
 验证（orchestrator 执行）:
