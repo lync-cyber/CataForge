@@ -58,7 +58,7 @@ user-invocable: true
 - 代码结构(structure): 模块组织、职责划分是否合理
 - 安全漏洞(security): OWASP Top 10 检查(注入/XSS/认证/敏感数据暴露等)
 - 接口一致性(consistency): 实现是否与arch接口契约匹配
-- 集成连线(integration-wiring): prop 链路终点 / 事件 handler / store action 调用是否实际落地，非 `() => {}` 空函数 / `return null` 占位 / 仅满足 prop 类型契约的 stub。下游若声明 `wiring_placeholder: true` + 关联 backlog ID 则豁免；CHECKS_MANIFEST `wiring_empty_handler` 提供正则候选清单。Python 后端额外校验生产路径绑定：DI 容器注册的类在 src/ 内有调用点、signal handler 有 `connect()` / `@receiver`、FastAPI/Starlette lifespan / startup / shutdown hook 挂到 `lifespan_context` 或 `add_event_handler`；仅 tests/ 内构造调用不算落地
+- 集成连线(integration-wiring): 接线对象在生产路径有真实调用点、不是空 stub / 占位返回 / 仅满足类型契约的形式。仅 tests/ 内构造调用不算落地。各语言反例与正则候选见 [`docs/reference/wiring-checks.md`](../../../docs/reference/wiring-checks.md)；CHECKS_MANIFEST `wiring_empty_handler` 与 plugin-style YAML (`wiring-{lang}.yaml`) 承载具体识别规则。下游声明 `wiring_placeholder: true` + 关联 backlog ID 则豁免
 - 错误处理(error-handling): 是否符合arch§5.3错误处理策略
 - 测试质量(test-quality, 仅当审查范围包含 tests/ 目录时; AC 覆盖完整度由 sprint-review 负责，此处不重复):
   - 断言有效性: 每个测试是否包含对被测系统返回值/状态/副作用的有效断言

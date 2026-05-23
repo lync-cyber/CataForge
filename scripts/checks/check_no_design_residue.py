@@ -42,16 +42,36 @@ SCAN_GLOBS: list[tuple[Path, str]] = [
 # Markers that almost always indicate design-phase residue carried over
 # into runtime assets. Tight by design — if you need to add another
 # pattern, write a test case first.
+#
+# Two groups:
+#   - HTML-comment markers (the original tight scope)
+#   - Inline narrative markers mirroring COMMON-RULES.md self-check regex
+#     (溯源引用 / 版本里程碑 / 过程标签)
 FORBIDDEN: list[tuple[str, re.Pattern[str]]] = [
+    # HTML-comment residue
     ("变更原因", re.compile(r"<!--\s*变更原因[：:]")),
     ("diagnostic-id", re.compile(r"<!--\s*diagnostic\s*#\d+", re.IGNORECASE)),
     ("TODO-marker", re.compile(r"<!--\s*TODO\s*[:：]")),
     ("FIXME-marker", re.compile(r"<!--\s*FIXME\s*[:：]")),
     ("prompt-version", re.compile(r"<!--\s*prompt-version", re.IGNORECASE)),
     ("last-regenerated", re.compile(r"<!--\s*last-regenerated", re.IGNORECASE)),
+    # Inline narrative residue — mirrors COMMON-RULES.md §禁止设计阶段与变更说明残留
+    # self-check regex. Anchored on hard tokens (`#NNN`, `vX.Y.Z 起`, …)
+    # so they don't catch state-machine narration like "由 draft 改为
+    # approved" or anti-pattern examples that quote forbidden words.
+    ("issue-citation", re.compile(r"\bissue\s*#\s*\d+", re.IGNORECASE)),
+    ("PR-citation", re.compile(r"(?:^|[\s（(])PR\s*#\s*\d+")),
+    ("closes-fixes", re.compile(r"\b(?:closes|fixes|closeout)\s*#?\s*\d+", re.IGNORECASE)),
+    ("landed-in", re.compile(r"\blanded\s+in\b", re.IGNORECASE)),
+    ("version-milestone", re.compile(r"v\d+\.\d+\.\d+\s*(?:起|新增|前后)")),
+    ("pre-version", re.compile(r"\bpre-v\d+\.\d+\.\d+")),
 ]
 
 ALLOW_MARKER = re.compile(r"<!--\s*allow-design-residue")
+# Fenced code blocks (```...```) hold literal examples — regex strings in
+# rule docs, sample JSON / YAML / shell. Treat them as exempt so the
+# checker isn't its own false-positive generator.
+CODE_FENCE = re.compile(r"^\s*```")
 
 
 def is_whitelisted(line: str) -> bool:
@@ -80,7 +100,13 @@ def main() -> int:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
+        in_code_fence = False
         for lineno, line in enumerate(text.splitlines(), 1):
+            if CODE_FENCE.match(line):
+                in_code_fence = not in_code_fence
+                continue
+            if in_code_fence:
+                continue
             if is_whitelisted(line):
                 continue
             for label, pattern in FORBIDDEN:
