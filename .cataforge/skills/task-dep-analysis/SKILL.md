@@ -10,8 +10,6 @@ user-invocable: true
 
 # 任务依赖分析 (task-dep-analysis)
 
-> **命名说明**: v0.1.15 起由原 `dep-analysis` 重命名为 `task-dep-analysis`，明确范围限定为"任务依赖"，与 code-review scan 的代码 coupling 维度区分。
-
 ## 能力边界
 - 能做: 任务间依赖关系建模、拓扑排序、关键路径计算、循环依赖检测、Sprint分组建议
 - 不做: 任务内容定义、代码实现、代码模块依赖图（→ code-review scan --focus coupling）

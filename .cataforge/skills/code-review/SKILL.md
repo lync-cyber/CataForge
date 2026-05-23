@@ -58,7 +58,7 @@ user-invocable: true
 - 代码结构(structure): 模块组织、职责划分是否合理
 - 安全漏洞(security): OWASP Top 10 检查(注入/XSS/认证/敏感数据暴露等)
 - 接口一致性(consistency): 实现是否与arch接口契约匹配
-- 集成连线(integration-wiring): prop 链路终点 / 事件 handler / store action 调用是否实际落地，非 `() => {}` 空函数 / `return null` 占位 / 仅满足 prop 类型契约的 stub。下游若声明 `wiring_placeholder: true` + 关联 backlog ID 则豁免；CHECKS_MANIFEST `wiring_empty_handler` 提供正则候选清单
+- 集成连线(integration-wiring): 接线对象在生产路径有真实调用点、不是空 stub / 占位返回 / 仅满足类型契约的形式。仅 tests/ 内构造调用不算落地。各语言反例与正则候选见 [`docs/reference/wiring-checks.md`](../../../docs/reference/wiring-checks.md)；CHECKS_MANIFEST `wiring_empty_handler` 与 plugin-style YAML (`wiring-{lang}.yaml`) 承载具体识别规则。下游声明 `wiring_placeholder: true` + 关联 backlog ID 则豁免
 - 错误处理(error-handling): 是否符合arch§5.3错误处理策略
 - 测试质量(test-quality, 仅当审查范围包含 tests/ 目录时; AC 覆盖完整度由 sprint-review 负责，此处不重复):
   - 断言有效性: 每个测试是否包含对被测系统返回值/状态/副作用的有效断言
@@ -145,7 +145,7 @@ review 模式（按文件类型自动选择工具）:
 
 ### Plugin-style rules (per-language extension)
 
-正则规则按语言拆到 YAML（plugin 架构，issue #113）：
+正则规则按语言拆到 YAML：
 
 - 默认（cataforge package）：`cataforge.skill.builtins.code_review.rules.wiring-{lang}.yaml`
 - 项目 override（opt-in）：`<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`
@@ -160,7 +160,7 @@ scan 模式额外的腐化 probe（按 --focus 选择性执行）:
 
 ## Anti-Patterns
 
-- 禁止: 把 user-facing critical path 任务（页面/路由/UI 可达性、`consumer_components` 非空）走 Layer 2 短路 —— 形式契约对但 wiring 留白只能由 §integration-wiring 维度抓出，短路会让 issue #113 类 false-positive 反复
+- 禁止: 把 user-facing critical path 任务（页面/路由/UI 可达性、`consumer_components` 非空）走 Layer 2 短路 —— 形式契约对但 wiring 留白只能由 §integration-wiring 维度抓出，短路会放走 false-positive
 - 禁止: 让 reviewer 直接下场写补丁 —— code-review 仅产出审查报告（problem list + 严重等级），任何修改必须由 implementer / debug skill 在独立调度中完成
 - 禁止: scan 模式因为腐化 finding 直接判 needs_revision —— scan 默认不阻塞流程；rot 信号转化为重构决策的输入，是 informational 而非 gating
 - 避免: 报告写入 `docs/reviews/doc/` 或其它非 `docs/reviews/code/` 目录 —— 与 doc-review / framework-review 报告混淆会污染 sprint-review 聚合

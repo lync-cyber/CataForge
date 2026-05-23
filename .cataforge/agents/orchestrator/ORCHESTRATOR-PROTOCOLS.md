@@ -180,9 +180,9 @@ Mode Routing Protocol 在以下时刻被调用:
      1. 自动 compact：执行 `cataforge claude-md compact`，重新跑 `check`，PASS 后继续 Step 7
      2. 手动处理：暂停 Phase Transition，等待用户编辑 CLAUDE.md 后再次推进（再次推进时重新跑 Step 6）
    - 执行 compact 后追加 **[EVENT]** 记录：`cataforge event log --event state_change --phase {新阶段} --detail "claude-md compact applied at phase transition"`
-   - 命令不存在（pre-v0.4.0 项目）时 WARN 跳过，不阻塞
+   - 命令不存在时 WARN 跳过，不阻塞
 
-   > **设计意图**：若不在阶段转换处兜底，Learnings Registry / 文档状态字段会跨阶段单调膨胀，最终把 orchestrator startup context 撑爆（issue #113 F-009 反馈现象）。本步骤不是定期清理，而是把 hygiene 强制提前到状态切换的安全窗口。
+   > **设计意图**：若不在阶段转换处兜底，Learnings Registry / 文档状态字段会跨阶段单调膨胀，最终把 orchestrator startup context 撑爆。本步骤不是定期清理，而是把 hygiene 强制提前到状态切换的安全窗口。
 7. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
 
 > **关键**: 步骤 1-6 必须在步骤 7 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。

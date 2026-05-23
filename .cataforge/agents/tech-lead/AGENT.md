@@ -49,6 +49,7 @@ maxTurns: 60
 
   `expected_tool_budget > 100` 且 `tdd_mode: standard` → tech-lead 评审是否拆 light 序列；维持 standard 必须命中 mid-progress 触发条件。orchestrator dispatch 时按本字段 sanity check：>150 警告，>200 阻断改建议拆分。
 - 预估 LOC = 任务 deliverables 的新增/修改代码总行数，范围判断即可
+- **production-path AC**: deliverables 含运行时接线（容器注册 / 事件 handler / 生命周期 hook / 子命令挂载等）时，AC 必须明示生产路径的字面调用点（含文件路径 + 调用语句），仅 tests/ 内构造调用不满足。各语言识别模式见 [`docs/reference/wiring-checks.md`](../../../docs/reference/wiring-checks.md)
 
 ## Error Handling
 | 场景 | 处理策略 |

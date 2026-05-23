@@ -18,6 +18,7 @@ from cataforge.core.feedback import (
     collect_corrections,
     collect_environment,
     collect_recent_events,
+    derive_doc_id,
     redact,
     upstream_gap_count,
 )
@@ -304,3 +305,107 @@ class TestRedactCrossPlatform:
         text = str(tmp_path).replace("/", "\\") + "\\foo"
         redacted = redact(text, tmp_path)
         assert "<project>" in redacted
+
+
+# ─── YAML front matter (issue #115 P5) ────────────────────────────────────────
+
+
+class TestRenderFrontMatter:
+    """All three assemblers must prepend a doc-indexer-compatible YAML block.
+
+    Regression for issue #115 P5: before the fix, `cataforge feedback ... --out`
+    wrote a body whose first non-blank line was `<!-- generated ... -->`. The
+    project-level `docs validate` then flagged the file as orphan because it
+    lacked `doc_type` / `status` / `id`, breaking the `--out` sink for any
+    project that runs validation.
+    """
+
+    @staticmethod
+    def _assert_valid_frontmatter(body: str, *, expected_id_contains: str) -> None:
+        lines = body.splitlines()
+        assert lines[0] == "---", f"first line was {lines[0]!r}, expected '---'"
+        # Front matter must close with a `---` line before any markdown.
+        try:
+            end = lines.index("---", 1)
+        except ValueError:
+            raise AssertionError("front matter has no closing '---'") from None
+        block = "\n".join(lines[1:end])
+        assert "doc_type: framework-feedback" in block
+        assert "status: approved" in block
+        assert "deps: []" in block
+        assert "id: " in block
+        assert expected_id_contains in block
+
+    def test_bug_bundle_has_frontmatter(self, tmp_path: Path) -> None:
+        project = _bootstrap(tmp_path)
+        _payload, body = assemble_bug(
+            project,
+            title="bug: hook fires twice on resume",
+            summary="seen on 0.4.0",
+            skip_framework_review=True,
+        )
+        self._assert_valid_frontmatter(body, expected_id_contains="hook-fires-twice")
+
+    def test_suggest_bundle_has_frontmatter(self, tmp_path: Path) -> None:
+        project = _bootstrap(tmp_path)
+        _payload, body = assemble_suggestion(
+            project,
+            title="feedback: add --dry-run to triage",
+            summary="self-explanatory",
+        )
+        self._assert_valid_frontmatter(body, expected_id_contains="add-dry-run")
+
+    def test_correction_export_bundle_has_frontmatter(self, tmp_path: Path) -> None:
+        project = _bootstrap(tmp_path)
+        record_correction(
+            project,
+            trigger="review-flag",
+            agent="reviewer",
+            phase="dev",
+            question="q",
+            baseline="b",
+            actual="a",
+            deviation=UPSTREAM_GAP,
+        )
+        _payload, body = assemble_correction_export(
+            project,
+            title="feedback: 3 upstream-gap signals",
+            summary="aggregated",
+        )
+        self._assert_valid_frontmatter(body, expected_id_contains="upstream-gap-signals")
+
+
+class TestDeriveDocId:
+    """``derive_doc_id`` slug rules (must satisfy ``DOC_ID_RE`` ^[\\w-]+$)."""
+
+    def test_lowercases_and_replaces_punct(self) -> None:
+        slug = derive_doc_id("feedback: TDD light-mode threshold off!", kind="suggest")
+        # Should be lowercase, no `:`, no `!`, hyphens collapsed.
+        assert slug == "feedback-suggest-tdd-light-mode-threshold-off"
+
+    def test_strips_leading_trailing_hyphens(self) -> None:
+        slug = derive_doc_id("!!!hello world!!!", kind="bug")
+        assert slug == "feedback-bug-hello-world"
+        assert not slug.endswith("-")
+        assert not slug.startswith("-")
+
+    def test_falls_back_to_date_when_title_empty(self) -> None:
+        slug = derive_doc_id("###", kind="bug")
+        # 8-digit YYYYMMDD stamp suffix
+        assert slug.startswith("feedback-bug-")
+        assert len(slug.split("-")[-1]) == 8
+
+    def test_does_not_double_prefix(self) -> None:
+        slug = derive_doc_id("feedback-bug-already-prefixed", kind="bug")
+        assert slug == "feedback-bug-already-prefixed"
+
+    def test_id_matches_doc_id_re(self) -> None:
+        from cataforge.utils.patterns import DOC_ID_RE
+
+        for title in [
+            "feedback: TDD light-mode threshold off",
+            "Bug — hook fires twice (0.4.0)",
+            "建议：加 dry-run 模式",  # non-ASCII characters are allowed by \w
+        ]:
+            slug = derive_doc_id(title, kind="suggest")
+            assert DOC_ID_RE.match(slug), f"{slug!r} from {title!r} fails DOC_ID_RE"

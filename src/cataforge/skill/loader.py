@@ -53,6 +53,13 @@ class SkillMeta:
     path: Path | None = None
     builtin: bool = False
     record_to_event_log: bool = False
+    # When true, deploy skips this skill for downstream projects — it ships
+    # only when the CataForge maintainer opts in with
+    # ``cataforge deploy --include-maintainer-only``. Use for skills that
+    # operate on upstream-only artefacts (GitHub issue triage on the
+    # CataForge repo, dogfood scripts, …) where shipping to downstream
+    # users would just add prompt-context bloat for no reason.
+    maintainer_only: bool = False
 
 
 class SkillLoader:
@@ -239,6 +246,7 @@ class SkillLoader:
             user_invocable=fm.get("user-invocable", True),
             path=skill_md,
             record_to_event_log=bool(fm.get("record-to-event-log", False)),
+            maintainer_only=bool(fm.get("maintainer-only", False)),
         )
 
     def _infer_type(self, skill_dir: Path) -> SkillType:

@@ -89,6 +89,7 @@ jobs:
           python scripts/checks/check_schema_python_parity.py
           python scripts/checks/check_no_marketing_words.py
           python scripts/checks/check_no_design_residue.py
+          python scripts/checks/check_no_language_coupling.py
 
       - name: "uv lockfile freshness (uv.lock ↔ pyproject.toml in sync)"
         # Verifies uv.lock matches the resolved deps from pyproject.toml.

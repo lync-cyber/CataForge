@@ -73,7 +73,7 @@ cataforge setup --platform <id> [--force-scaffold] [--deploy]
 **何时用它**：`setup` 后写入 IDE 产物；或 `.cataforge/` 内容改动后重新投放。
 
 ```bash
-cataforge deploy [--dry-run] [--platform <id>]
+cataforge deploy [--dry-run] [--platform <id>] [--include-maintainer-only]
 ```
 
 投放资产到目标平台（Agent / 规则 / Hook / MCP）。
@@ -83,9 +83,12 @@ cataforge deploy [--dry-run] [--platform <id>]
 | `--dry-run` | 预演，输出预期动作但不实际写盘 |
 | `--platform <id>` | 临时覆盖 `framework.json` 中的平台设置（可选 `all` 部署到所有平台） |
 | `--conformance` | 仅执行平台 conformance 检查 |
+| `--include-maintainer-only` | 一并部署 SKILL.md 标注 `maintainer-only: true` 的 skill（默认跳过；上游 CataForge 仓库 dogfood 才打开） |
 | `--check` | `[已废弃 · v0.3 移除]` `--dry-run` 的别名，运行时会提示 |
 
 多次 `deploy` 幂等；会自动清理孤儿产物。
+
+**maintainer-only skill**：少量 skill（如 `framework-issue-resolve`）只在 CataForge 仓库自身开发时用，下游业务项目不需要。这类 skill 在 SKILL.md frontmatter 声明 `maintainer-only: true`，默认 `deploy` 会跳过、不下发到 `.claude/skills/`，避免无谓占用 prompt 上下文。在 CataForge 仓库自身工作的开发者跑 `cataforge deploy --include-maintainer-only` 把它们也链入本地 `.claude/skills/`，从而能在 Claude Code 用 `/framework-issue-resolve` 等 slash command 调用。
 
 ---
 

@@ -6,6 +6,7 @@ suggested-tools: Read, Bash
 depends: [framework-feedback]
 disable-model-invocation: false
 user-invocable: true
+maintainer-only: true
 record-to-event-log: true
 ---
 

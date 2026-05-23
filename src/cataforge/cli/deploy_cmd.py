@@ -58,11 +58,25 @@ def _require_scaffold(root: Path, targets: list[str], platforms_dir: Path) -> No
     help="Deprecated alias for --dry-run. Will be removed in v0.3.",
 )
 @click.option("--conformance", is_flag=True, help="Run platform conformance checks only.")
+@click.option(
+    "--include-maintainer-only",
+    "include_maintainer_only",
+    is_flag=True,
+    default=False,
+    help=(
+        "Also deploy skills marked `maintainer-only: true` in their SKILL.md "
+        "frontmatter. Off by default — those skills operate on upstream "
+        "(.cataforge maintainer) workflows like GitHub-issue triage and "
+        "would just bloat prompt context for downstream users. Turn on "
+        "when working inside the CataForge repo itself."
+    ),
+)
 def deploy_command(
     platform: str | None,
     dry_run: bool,
     check_legacy: bool,
     conformance: bool,
+    include_maintainer_only: bool,
 ) -> None:
     """Deploy CataForge agents, hooks, and rules to the target platform.
 
@@ -139,12 +153,18 @@ def deploy_command(
 
         if dry_run:
             click.echo("(dry-run — no files will be written)")
-            actions = deployer.deploy(target, dry_run=True)
+            actions = deployer.deploy(
+                target,
+                dry_run=True,
+                include_maintainer_only=include_maintainer_only,
+            )
             for action in actions:
                 click.echo(f"  {action}")
             continue
 
-        actions = deployer.deploy(target)
+        actions = deployer.deploy(
+            target, include_maintainer_only=include_maintainer_only
+        )
         for action in actions:
             click.echo(f"  {action}")
 

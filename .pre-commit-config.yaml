@@ -62,9 +62,24 @@ repos:
         description: |
           .cataforge/agents/**/AGENT.md and .cataforge/skills/**/SKILL.md
           are loaded into the LLM context at runtime. Block design-phase
-          comments (<!-- 变更原因 -->, <!-- diagnostic # -->, etc.) from
-          shipping into the runtime workflow.
+          comments (<!-- 变更原因 -->, <!-- diagnostic # -->) plus inline
+          narrative residue (issue #N citations, PR #N citations, version
+          milestones like `v0.1.10 起`, `pre-v0.4.0`, `landed in …`).
         entry: python scripts/checks/check_no_design_residue.py
         language: system
         pass_filenames: false
         files: ^\.cataforge/(agents|skills|rules)/.*\.md$
+      - id: no-language-coupling
+        name: agent / skill body language-agnostic
+        description: |
+          .cataforge/agents/**/AGENT.md and .cataforge/skills/**/SKILL.md
+          subjects are responsibilities, not languages. Block leaks of
+          language-specific business keywords (FastAPI lifespan,
+          Spring @Autowired, Redux dispatch, …) into the prompt body —
+          they belong in docs/reference/ where they don't bloat every
+          dispatch. Tool-adapter clauses (ESLint / Ruff / golangci-lint)
+          are deliberately not flagged. See CLAUDE.md §Agent / Skill 撰写约定.
+        entry: python scripts/checks/check_no_language_coupling.py
+        language: system
+        pass_filenames: false
+        files: ^\.cataforge/(agents|skills)/.*\.md$
