@@ -18,7 +18,6 @@ import click
 
 from ._helpers import is_relative_to
 
-
 _DEPRECATED_REFS: tuple[dict[str, str], ...] = (
     {
         "name": "load_section.py",
