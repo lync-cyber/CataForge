@@ -89,6 +89,12 @@ user-invocable: true
 | JSON 编码 | `ensure_ascii=False` + 非 UTF-8 终端 | 输出前包装 stdout 编码 |
 | 导入路径 | `ModuleNotFoundError` | 检查 `sys.path` 和相对/绝对导入 |
 
+## Anti-Patterns
+- 禁止: 修复表面 symptom 而不查 root cause —— 让最近一次报错消失不等于修了 bug，root_cause 可能在两层调用栈以上
+- 禁止: 改测试让它通过而非改实现 —— 测试是契约，把红灯绿掉是把契约改成了已坏状态的快照
+- 禁止: 静默 `catch + pass` 吞异常 —— 信号被埋掉后续 debug 复杂度指数上升
+- 避免: 一次改多个变量再跑验证 —— 失败时无法定位是哪个改动生效，回到二分查找
+
 ## 效率策略
 - stacktrace 最内层帧优先 — 80% 的问题在最内层 1-2 帧
 - 修复前先 Grep 同类 — 避免修一个漏一个，减少反复调试

@@ -284,6 +284,12 @@ python -m ruff check src/ tests/
 - `version_tested` 记录的是 **审计时的平台版本**，不是 CataForge 版本
 - 格式跟随各平台自己的版本号格式（如 Cursor 用语义化版本 "3.1"，Codex 用日期版本 "2026.04"）
 
+## Anti-Patterns
+- 禁止: 修改 adapter 代码而不先更新 profile.yaml —— profile 是 single source of truth；倒序修改让代码与配置漂移
+- 禁止: 审计单一平台 —— 平台对比矩阵价值在横向；至少 claude-code / codex / cursor 同审才能暴露能力差异
+- 禁止: 把 audit 报告写入 docs/reviews/code/ 或 doc/ —— 与业务审查混淆会污染 sprint-review 聚合
+- 避免: 在 capability 表里用主观语义（"良好支持" / "基本可用"）—— 必须用 yes / no / partial 三态枚举，否则 deploy-time 选不出能力差异
+
 ## 效率策略
 - **并行检索**: 对多个平台的文档检索应尽量并行（使用 Agent 工具分派子任务）
 - **增量更新**: 如果 `version_tested` 与最新版本相同，跳过该平台（除非用户强制审计）

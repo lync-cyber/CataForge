@@ -70,6 +70,12 @@ user-invocable: true
 ## Penpot MCP 工具发现
 具体 MCP 工具名称以平台 MCP 配置为准（Claude: `.mcp.json` 或 `.claude/settings.json`；Cursor: `.cursor/mcp.json`；OpenCode: `opencode.json`），运行时通过可用工具列表自动发现。典型操作包括: 读取项目信息、读取组件结构/样式、写入设计 Token。若工具列表中无 Penpot 相关工具，先运行 `cataforge penpot ensure` 尝试启动服务（若 Penpot 尚未部署则改运行 `cataforge penpot deploy`），仍不可用则返回 blocked。
 
+## Anti-Patterns
+- 禁止: 全量覆盖远端 Token —— 必须局部增量同步，保留 Penpot 端的手动微调；全量覆盖会丢失设计师未提交回 ui-spec 的中间状态
+- 禁止: 同步时跳过 ui-spec 比对 —— ui-spec.md 中的 Token 命名是契约源；不比对会让 Penpot 命名漂移持久化
+- 禁止: 在 Penpot 未启动时静默返回 success —— `cataforge penpot ensure` 失败时必须返回 blocked，否则下游 implementer 在空 Token 上施工
+- 避免: 双向自动同步 —— 单向（ui-spec → Penpot 或反向）每次明确方向；双向自动会产生覆盖循环
+
 ## 效率策略
 - 仅同步有差异的Token，不全量覆盖
 - Token命名遵循 ui-spec 中的命名规范

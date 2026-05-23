@@ -43,7 +43,7 @@ user-invocable: true
 
 1. 任务卡 `task_kind ∈ CODE_REVIEW_L2_SKIP_TASK_KINDS`（默认 `[chore, config, docs]`）
 2. 任务卡 `tdd_mode: light` + AC 数 ≤ `CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC`（默认 2） + Layer 1 输出无 security/error-handling 类 finding
-3. 调用方传入 `--layer1-only` 标志（由 ORCHESTRATOR-PROTOCOLS §Adaptive Review 反向降级触发）
+3. 调用方传入 `--layer1-only` 标志（由 ORCHESTRATOR-META-PROTOCOLS §Adaptive Review 反向降级触发）
 
 **短路豁免**（即使命中上述条件也强制跑 Layer 2）:
 - 任务卡 `security_sensitive: true`

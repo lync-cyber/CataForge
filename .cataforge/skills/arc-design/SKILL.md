@@ -87,6 +87,12 @@ user-invocable: true
 - §7.3 Git约定: 分支策略/Commit格式
 - 通过doc-gen finalize交付ARCH
 
+## Anti-Patterns
+- 禁止: 在 ARCH 主卷塞入实现细节代码 —— ARCH 写接口契约 / 数据流 / 模块边界；实现归 implementer 的 src/，越界让两层职责粘连
+- 禁止: 跳过 §6 部署运行时章节 —— 没有部署拓扑的 ARCH 让 devops 无法产出 deploy-spec，下游断链
+- 禁止: 模块划分循环依赖 —— ARCH 阶段的依赖图必须是 DAG；循环会让 tech-lead 任务拆解无起点
+- 避免: 把多个候选方案并列写在 ARCH 正文 —— 终态决策入 ARCH，候选讨论进 research-note 或 decision-log
+
 ## 效率策略
 - 功能→模块映射确保无遗漏
 - 接口先于实现，契约驱动

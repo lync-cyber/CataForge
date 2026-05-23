@@ -37,6 +37,12 @@ user-invocable: true
 6. 建立依赖图: 调用 task-dep-analysis skill，脚本自动生成 Mermaid 依赖图并写入 dev-plan#§2
 7. 按依赖关系划分Sprint(参考 task-dep-analysis 输出的 sprint_groups)
 
+## Anti-Patterns
+- 禁止: 单任务预估 LOC > 250 或 AC > 6 条而不拆 —— 超此尺寸 implementer / test-writer 大概率触发 mid-progress drop，应在 task-decomp 阶段先拆
+- 禁止: 把"重构 X"作为独立任务 —— 重构是 TDD REFACTOR 阶段的自然产物，独立 T-xxx 会让重构脱离测试安全网
+- 禁止: deliverables 仅写 "实现 X 功能" 而不具体到文件路径 —— sprint-review 无法验证 AC 是否落到声明文件，验收形同虚设
+- 避免: 任务横跨 ≥3 个 `arch#§2.M-xxx` —— 跨模块任务在 task-dep-analysis 输出中容易触发环依赖
+
 ## 效率策略
 - 先拆后排: 先拆任务再排依赖
 - context_load精确到章节，避免全文加载

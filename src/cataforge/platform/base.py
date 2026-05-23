@@ -7,15 +7,17 @@ The core runtime NEVER imports platform-specific modules directly.
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+from cataforge.platform.instruction_cache import (
+    load_instruction_hashes,
+    save_instruction_hashes,
+)
 from cataforge.platform.section_merge import merge_sections
 
-_INSTRUCTION_HASHES_REL = ".cataforge/.instruction-hashes.json"
 _VALID_ON_CONFLICT = {"overwrite", "preserve", "preserve_if_edited"}
 _VALID_UPDATE_STRATEGY = {"overwrite", "section-merge"}
 
@@ -275,7 +277,7 @@ class PlatformAdapter(ABC):
             content = preamble + content
 
         actions: list[str] = []
-        hashes = _load_instruction_hashes(project_root)
+        hashes = load_instruction_hashes(project_root)
         hashes_dirty = False
 
         for target in self.instruction_targets:
@@ -355,7 +357,7 @@ class PlatformAdapter(ABC):
             )
 
         if hashes_dirty and not dry_run:
-            _save_instruction_hashes(project_root, hashes)
+            save_instruction_hashes(project_root, hashes)
 
         return actions
 
@@ -754,25 +756,3 @@ class PlatformAdapter(ABC):
             f"{type(self).__name__} must override either "
             "inject_mcp_config() or _mcp_json_path()"
         )
-
-
-def _load_instruction_hashes(project_root: Path) -> dict[str, str]:
-    path = project_root / _INSTRUCTION_HASHES_REL
-    if not path.is_file():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    return {str(k): str(v) for k, v in data.items() if isinstance(v, str)}
-
-
-def _save_instruction_hashes(project_root: Path, hashes: dict[str, str]) -> None:
-    path = project_root / _INSTRUCTION_HASHES_REL
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(hashes, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )

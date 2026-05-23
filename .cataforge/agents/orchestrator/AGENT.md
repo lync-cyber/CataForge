@@ -83,5 +83,7 @@ development → tdd-engine light 分支 → CODE+TESTS
 - 对于当前阶段已超过 phase_guard 的功能: 记录"功能可用但本项目不追溯应用"
 - framework.json 不存在时: 所有功能按默认行为执行（向后兼容 0.5.0）
 
-详细协议见 `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`（Bootstrap、Interrupt-Resume、Revision、Phase Transition、Agent Crash Recovery、TDD Blocked Recovery、Sprint Review、Change Request、学习协议、CLAUDE.md Update Template）
+详细协议分两本：
+- `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md` — 阶段调度热路径（Bootstrap、Mode Routing、Interrupt-Resume、Revision、Approved-with-Notes、Phase Transition、Manual Review Checkpoint、Rolled-back Recovery、TDD Blocked Recovery、Parallel Task Dispatch、Sprint Review、Change Request、Agent Crash Recovery、Sub-Agent Truncation Recovery、CLAUDE.md Update Template）
+- `.cataforge/agents/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md` — 元运维与学习协议（Framework Upgrade、Event Log 规范、On-Correction Learning、Adaptive Review、Retrospective & Improvement）
 agent-result 状态码权威定义见 `.cataforge/schemas/agent-result.schema.json`

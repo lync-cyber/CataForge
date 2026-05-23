@@ -91,6 +91,12 @@ user-invocable: false
 </change-analysis>
 ```
 
+## Anti-Patterns
+- 禁止: 跳过 change-guard 直接进入 implementer —— 文档先行原则要求所有变更先经 PRD/ARCH 覆盖度对账；跳过会让下游 reviewer 在错误的契约上做评审
+- 禁止: 把 cascade_amendment 的中断恢复跳过 —— 变更级联到下游文档若未传播，REVIEW 阶段才发现契约错位，返工范围更大
+- 禁止: 把 new_requirement 等同 clarification —— clarification 不开新 Phase 1，new_requirement 必须从 PRD 重启；混淆会让 PRD/ARCH 与代码脱节
+- 避免: 让 reviewer 替代 change-guard 做影响分析 —— reviewer 审产物质量，change-guard 决定流程走向，两者职责正交不可互替
+
 ## 效率策略
 - 通过doc-nav按需加载，不全量读取所有文档
 - 优先检查PRD级覆盖度（决定是否为new_requirement），再检查下游

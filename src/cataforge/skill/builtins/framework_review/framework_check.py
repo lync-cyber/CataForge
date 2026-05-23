@@ -194,6 +194,27 @@ def discover_skills(root: Path) -> dict[str, Path]:
     }
 
 
+def discover_agent_protocol_docs(root: Path) -> list[tuple[str, Path]]:
+    """Companion ``*PROTOCOL*.md`` docs under ``.cataforge/agents/<id>/``.
+
+    CLAUDE.md §硬约束 1 lists these alongside AGENT.md / SKILL.md as
+    prompt-context loaded on every dispatch — they must be subject to
+    the same size threshold (B1-β) and content checks even though they
+    aren't the agent's entry doc.
+    """
+    base = root / ".cataforge" / "agents"
+    if not base.is_dir():
+        return []
+    found: list[tuple[str, Path]] = []
+    for agent_dir in sorted(base.iterdir()):
+        if not agent_dir.is_dir():
+            continue
+        for path in sorted(agent_dir.glob("*PROTOCOL*.md")):
+            label = f"agents/{agent_dir.name}/{path.name}"
+            found.append((label, path))
+    return found
+
+
 def parse_skills_field(content: str) -> list[str]:
     """Extract the ``skills:`` list from a YAML frontmatter block."""
     fm, _ = split_yaml_frontmatter(content)
@@ -261,11 +282,17 @@ def check_b1_required_sections(
 def check_b1_size(
     root: Path, scope: str, threshold: int, report: Report
 ) -> None:
-    """B1-β: META_DOC_SPLIT_THRESHOLD_LINES soft cap."""
+    """B1-β: META_DOC_SPLIT_THRESHOLD_LINES soft cap.
+
+    Covers every prompt-context file enumerated in CLAUDE.md §硬约束 1:
+    AGENT.md, SKILL.md, agents/<id>/*PROTOCOL*.md companion docs, and
+    rules/*.md.
+    """
     targets: list[tuple[str, Path]] = []
     if scope in ("agents", "all"):
         for aid, path in discover_agents(root).items():
             targets.append((f"agents/{aid}", path))
+        targets.extend(discover_agent_protocol_docs(root))
     if scope in ("skills", "all"):
         for sid, path in discover_skills(root).items():
             targets.append((f"skills/{sid}", path))
@@ -445,10 +472,13 @@ def check_b3_manifest_drift(root: Path, report: Report) -> None:
 
         anchored_ids = set(_CHECK_ID_ANCHOR_RE.findall(section_text))
         delegated = bool(_DELEGATION_RE.search(section_text))
+        release_lag = _detect_release_lag(section_text)
 
         if anchored_ids:
             # Anchor mode: bidirectional ID check.
-            _check_b3_anchors(skill_id, anchored_ids, manifest, delegated, report)
+            _check_b3_anchors(
+                skill_id, anchored_ids, manifest, delegated, release_lag, report
+            )
             continue
         if delegated:
             # Delegation mode: manifest existence is the only contract.
@@ -463,11 +493,48 @@ def check_b3_manifest_drift(root: Path, report: Report) -> None:
         )
 
 
+_REQUIRES_RE = re.compile(
+    r"<!--\s*requires:\s*cataforge\s*>=\s*([0-9]+(?:\.[0-9]+){0,2})\s*-->"
+)
+
+
+def _parse_semver(value: str) -> tuple[int, ...]:
+    """Parse 'X.Y.Z' (or 'X.Y' / 'X') to a comparable tuple, pad with 0."""
+    parts = value.split(".")
+    out: list[int] = []
+    for p in parts[:3]:
+        try:
+            out.append(int(p))
+        except ValueError:
+            out.append(0)
+    while len(out) < 3:
+        out.append(0)
+    return tuple(out)
+
+
+def _detect_release_lag(section_text: str) -> str | None:
+    """If section declares ``<!-- requires: cataforge>=X.Y.Z -->`` and the
+    running cataforge package is older, return the required version string
+    so the caller can downgrade orphan-anchor FAILs to INFO."""
+    match = _REQUIRES_RE.search(section_text)
+    if not match:
+        return None
+    required = match.group(1)
+    try:
+        from cataforge import __version__ as runtime_version
+    except ImportError:
+        return None
+    if _parse_semver(runtime_version) < _parse_semver(required):
+        return required
+    return None
+
+
 def _check_b3_anchors(
     skill_id: str,
     anchored_ids: set[str],
     manifest: tuple[dict[str, str], ...],
     delegated: bool,
+    release_lag: str | None,
     report: Report,
 ) -> None:
     """Bidirectional check_id anchor reconciliation.
@@ -487,14 +554,23 @@ def _check_b3_anchors(
     manifest_ids = {str(entry.get("id", "")).strip() for entry in manifest}
     manifest_ids.discard("")
 
+    orphan_severity = "INFO" if release_lag else "FAIL"
     for anchor_id in sorted(anchored_ids - manifest_ids):
+        if release_lag:
+            message = (
+                f"check_id anchor {anchor_id!r} not in current manifest; "
+                f"SKILL.md declares 'requires: cataforge>={release_lag}' but "
+                "runtime is older — upgrade cataforge or pin SKILL.md to the "
+                "release branch (release lag, not a real drift)"
+            )
+        else:
+            message = (
+                f"check_id anchor {anchor_id!r} has no matching manifest "
+                "entry — was the check renamed in the builtin without "
+                "updating the SKILL.md anchor?"
+            )
         report.add(
-            "B3_manifest_drift",
-            "FAIL",
-            f"skills/{skill_id}",
-            f"check_id anchor {anchor_id!r} has no matching manifest "
-            "entry — was the check renamed in the builtin without "
-            "updating the SKILL.md anchor?",
+            "B3_manifest_drift", orphan_severity, f"skills/{skill_id}", message
         )
 
     if delegated:
