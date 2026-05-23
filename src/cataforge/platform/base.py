@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,28 @@ from cataforge.platform.section_merge import merge_sections
 _INSTRUCTION_HASHES_REL = ".cataforge/.instruction-hashes.json"
 _VALID_ON_CONFLICT = {"overwrite", "preserve", "preserve_if_edited"}
 _VALID_UPDATE_STRATEGY = {"overwrite", "section-merge"}
+
+# Cheap frontmatter scan for ``maintainer-only: true``. Avoids importing
+# SkillLoader from the platform layer (the loader pulls in builtins and
+# project config, neither of which the deployer needs at this point).
+_MAINTAINER_ONLY_RE = re.compile(
+    r"^maintainer-only\s*:\s*true\s*$", re.IGNORECASE | re.MULTILINE
+)
+
+
+def _peek_maintainer_only(skill_md: Path) -> bool:
+    try:
+        text = skill_md.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    # Frontmatter ends at the second `---` line. Anything past that is body
+    # — a casual mention of the phrase in the body should not be treated as
+    # the directive.
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return False
+    fm = parts[1]
+    return bool(_MAINTAINER_ONLY_RE.search(fm))
 
 
 class PlatformAdapter(ABC):
@@ -396,20 +419,73 @@ class PlatformAdapter(ABC):
         return str(target) if target else None
 
     def deploy_skills(
-        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        include_maintainer_only: bool = False,
     ) -> list[str]:
-        """Expose skills to the IDE via symlink/junction/copy, like rules.
+        """Expose each skill subdir to the IDE via symlink/junction/copy.
 
-        Default: link ``<target_dir>`` → ``.cataforge/skills``.  Subclasses can
-        override to transform content per platform.
+        Per-skill (not whole-dir) so the deployer can drop skills that
+        declare ``maintainer-only: true`` in their SKILL.md frontmatter —
+        those ship only when the caller passes ``include_maintainer_only=True``
+        (``cataforge deploy --include-maintainer-only``).
+
+        Subclasses can override to transform content per platform.
         """
-        from cataforge.platform.helpers import symlink_or_copy
+        from cataforge.platform.helpers import _remove_target, symlink_or_copy
 
         target_rel = self.get_skill_target_dir()
         if not target_rel or not source_dir.is_dir():
             return []
-        target = project_root / target_rel
-        return symlink_or_copy(source_dir, target, dry_run=dry_run)
+        target_dir = project_root / target_rel
+
+        if not dry_run:
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+        source_names = {p.name for p in source_dir.iterdir() if p.is_dir()}
+        actions: list[str] = []
+
+        # Migrate from a pre-existing whole-dir symlink/junction: if the
+        # target itself is the link (not a real dir containing per-skill
+        # entries), tear it down once so we can rebuild per-skill links.
+        if target_dir.is_symlink() or (
+            hasattr(target_dir, "is_junction") and target_dir.is_junction()
+        ):
+            if dry_run:
+                actions.append(f"would unwrap whole-dir link {target_rel}/")
+            else:
+                _remove_target(target_dir)
+                target_dir.mkdir(parents=True, exist_ok=True)
+                actions.append(f"unwrapped whole-dir link {target_rel}/")
+
+        # Prune stale per-skill entries whose source disappeared.
+        if target_dir.is_dir():
+            for existing in target_dir.iterdir():
+                if existing.name in source_names:
+                    continue
+                if dry_run:
+                    actions.append(f"would prune orphan {target_rel}/{existing.name}")
+                else:
+                    _remove_target(existing)
+                    actions.append(f"pruned orphan {target_rel}/{existing.name}")
+
+        for skill_dir in sorted(source_dir.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_md.is_file():
+                continue
+            if _peek_maintainer_only(skill_md) and not include_maintainer_only:
+                actions.append(
+                    f"SKIP: {target_rel}/{skill_dir.name} (maintainer-only)"
+                )
+                continue
+            target = target_dir / skill_dir.name
+            actions.extend(symlink_or_copy(skill_dir, target, dry_run=dry_run))
+        return actions
 
     # ---- slash commands deployment ----
 

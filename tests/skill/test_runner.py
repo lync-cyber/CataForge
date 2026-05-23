@@ -217,6 +217,34 @@ class TestSkillRunnerEventLog:
             "doc-review override should still record to EVENT-LOG"
         )
 
+    def test_maintainer_only_flag_parsed_from_frontmatter(
+        self, project: Path
+    ) -> None:
+        """`maintainer-only: true` in SKILL.md frontmatter flips the
+        `SkillMeta.maintainer_only` field. `cataforge deploy` uses this to
+        decide whether the skill ships to downstream projects.
+        """
+        _write_skill(
+            project,
+            "upstream-only",
+            frontmatter=(
+                "---\nname: upstream-only\ndescription: x\n"
+                "maintainer-only: true\n---\n"
+            ),
+            script_body="import sys; sys.exit(0)\n",
+        )
+        loader = SkillLoader(project)
+        meta = loader.get_skill("upstream-only")
+        assert meta is not None
+        assert meta.maintainer_only is True
+
+    def test_maintainer_only_defaults_to_false(self, project: Path) -> None:
+        _write_skill(project, "regular")
+        loader = SkillLoader(project)
+        meta = loader.get_skill("regular")
+        assert meta is not None
+        assert meta.maintainer_only is False
+
     def test_opt_in_via_frontmatter(self, project: Path) -> None:
         """A non-review skill can opt into EVENT-LOG via frontmatter."""
         _write_skill(

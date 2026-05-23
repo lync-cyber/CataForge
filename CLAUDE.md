@@ -35,6 +35,20 @@ git reset --hard origin/main
 git push -u origin <new-branch>
 ```
 
+## Dogfood：本仓的 `.claude/` 部署
+
+CataForge 仓库自身也是 CataForge 项目。Clone 后跑一次：
+
+```bash
+cataforge deploy --include-maintainer-only
+```
+
+`.claude/skills/` 通过 junction (Windows) / symlink (Unix) 暴露 `.cataforge/skills/` 每个 skill 子目录（per-skill 链接，不是整 dir）。`--include-maintainer-only` 让 SKILL.md 标 `maintainer-only: true` 的 skill（仅 `framework-issue-resolve` —— 上游 GitHub issue 闭环消化）也链进来，从而在 Claude Code 里可以用 `/framework-issue-resolve` 直接 slash command 调用。
+
+下游业务项目部署 CataForge 时不应传这个 flag —— 那些 skill 操作 CataForge 自身的 `.cataforge/` 元资产，对下游无用，只会占用 prompt 上下文。
+
+`.claude/skills/` / `.claude/agents/` / `.claude/commands/` 都已在 [.gitignore](.gitignore)，本地 deploy 产物不进仓库。
+
 ## Agent / Skill 撰写约定
 
 仓库根 `.cataforge/skills/**/SKILL.md` / `.cataforge/agents/**/AGENT.md` / `.cataforge/agents/**/*PROTOCOLS*.md` 是 LLM **每次调度都重新加载**的 prompt 上下文 —— 每一行都在每次调用时消耗 token；残留越积越多，**长期一定会腐化到不可用**。下面两条硬约束都不是可选偏好，是 LLM 写这类文件时的入门门槛。

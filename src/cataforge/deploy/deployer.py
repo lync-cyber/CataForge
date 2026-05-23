@@ -25,11 +25,21 @@ class Deployer:
         self._cfg = config
         self._bus = event_bus or EventBus()
 
-    def deploy(self, platform_id: str, *, dry_run: bool = False) -> list[str]:
+    def deploy(
+        self,
+        platform_id: str,
+        *,
+        dry_run: bool = False,
+        include_maintainer_only: bool = False,
+    ) -> list[str]:
         """Execute a full deployment for *platform_id*. Returns action log.
 
         When *dry_run* is True, no files are written and actions describe what
-        would be performed.
+        would be performed. When *include_maintainer_only* is True, skills
+        whose SKILL.md frontmatter declares ``maintainer-only: true`` are
+        also linked into the IDE (off by default — those skills operate on
+        upstream maintenance workflows and would only bloat prompt context
+        for downstream users).
         """
         root = self._cfg.paths.root
         adapter = get_adapter(platform_id, self._cfg.paths.platforms_dir)
@@ -67,7 +77,14 @@ class Deployer:
 
         skills_dir = self._cfg.paths.skills_dir
         if adapter.needs_skill_deploy and skills_dir.is_dir():
-            actions.extend(adapter.deploy_skills(skills_dir, root, dry_run=dry_run))
+            actions.extend(
+                adapter.deploy_skills(
+                    skills_dir,
+                    root,
+                    dry_run=dry_run,
+                    include_maintainer_only=include_maintainer_only,
+                )
+            )
 
         commands_dir = self._cfg.paths.commands_dir
         if adapter.needs_command_deploy and commands_dir.is_dir():
