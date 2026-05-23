@@ -61,6 +61,12 @@ user-invocable: true
 - §5 术语表: 领域特定术语(术语 | 定义)表
 - 通过doc-gen finalize交付PRD
 
+## Anti-Patterns
+- 禁止: 把 P0/P1/P2 优先级直接抄用户原话 —— 必须基于 MoSCoW 框架重新评估；否则出现"用户说全部 P0"的瀑布化退化
+- 禁止: 漏写非功能性需求章节 —— 仅功能列表的 PRD 在 ARCH 阶段无法做技术选型，architect 阻塞
+- 禁止: 在 PRD 写实现细节（"使用 React"）—— PRD 是 What/Why，实现细节属 ARCH 范畴；越界会让 architect 失去决策面
+- 避免: 一次访谈穷举所有问题 —— 累计 ≤ MAX_QUESTIONS_PER_BATCH，让用户保持回答质量
+
 ## 效率策略
 - 先识别核心功能(P0)，再扩展次要功能
 - 模糊需求及时澄清，不累积假设

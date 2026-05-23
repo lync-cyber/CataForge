@@ -65,6 +65,6 @@ maxTurns: 60
 ## Anti-Patterns
 - 禁止: 单个任务跨越多个不相关模块，或context_load超过5个章节
 - 禁止: 缺少deliverables或context_load字段
-- 禁止: 依赖图存在循环
+- 禁止: dev-plan 任务依赖图存在循环（task-dep-analysis 检测到环必须先打散）—— 循环依赖让 TDD 无法选起点，implementer 进入阻塞链
 - 禁止: 修改ARCH中的技术决策
 - 禁止: Bash 仅用于运行 `cataforge skill run task-dep-analysis -- ...` 或 `cataforge docs load`，禁止执行其他命令

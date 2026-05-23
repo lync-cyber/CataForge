@@ -57,6 +57,12 @@ user-invocable: true
 ## Penpot MCP 工具发现
 具体 MCP 工具名称以平台 MCP 配置为准（Claude: `.mcp.json` 或 `.claude/settings.json`；Cursor: `.cursor/mcp.json`；OpenCode: `opencode.json`），运行时通过可用工具列表自动发现。典型操作包括: 读取组件结构/样式/SVG。若工具列表中无 Penpot 相关工具，先运行 `cataforge penpot ensure` 尝试启动服务（若 Penpot 尚未部署则改运行 `cataforge penpot deploy`），仍不可用则返回 blocked。
 
+## Anti-Patterns
+- 禁止: 把 Penpot 设计文件视为实现的 source of truth —— ui-spec.md 才是契约；二者冲突时以 ui-spec 为准，否则视觉调整漂移会绕过 reviewer
+- 禁止: 在本 skill 内生成业务逻辑代码 —— 只产骨架 / 样式 / 静态资源；业务逻辑由 TDD GREEN 阶段补充，越界会让 RED 测试无法约束实现
+- 禁止: 跳过 `cataforge penpot ensure` 直接调 MCP 工具 —— Penpot 未启动时 MCP 静默 fallback 让 implement 看似成功实则空写
+- 避免: 把组件样式硬编码而不引 tokens.css 变量 —— 全局风格调整时需要全文件搜索替换
+
 ## 效率策略
 - 优先使用 tokens.css 变量，确保全局一致性
 - 仅生成骨架和样式，业务逻辑由 TDD GREEN 阶段补充

@@ -241,3 +241,59 @@ def test_b3_section_without_anchor_or_delegation_fails(
     assert len(findings) == 1
     assert findings[0].severity == "FAIL"
     assert "锚点" in findings[0].message or "委托" in findings[0].message
+
+
+def test_b3_release_lag_downgrades_orphan_anchor_to_info(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """SKILL.md declares ``<!-- requires: cataforge>=X.Y.Z -->`` higher than
+    the running cataforge version → orphan-anchor FAIL downgraded to INFO
+    with a 'release lag' explanation."""
+    body = (
+        "<!-- requires: cataforge>=999.0.0 -->\n\n"
+        "- 已有的检查\n"
+        "  <!-- check_id: ID_A -->\n"
+        "- 未来版本才有的检查\n"
+        "  <!-- check_id: ID_FUTURE -->\n"
+    )
+    _make_skill_md(tmp_path, _TEST_SKILL_ID, body)
+    _stub_manifest_module(
+        monkeypatch,
+        _TEST_MODULE,
+        ({"id": "ID_A", "title": "alpha", "severity": "fail"},),
+    )
+
+    report = Report()
+    check_b3_manifest_drift(tmp_path, report)
+
+    orphan_findings = [f for f in report.findings if "ID_FUTURE" in f.message]
+    assert len(orphan_findings) == 1
+    assert orphan_findings[0].severity == "INFO"
+    assert "release lag" in orphan_findings[0].message
+    assert "999.0.0" in orphan_findings[0].message
+
+
+def test_b3_release_lag_not_triggered_when_runtime_satisfies(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Running cataforge ≥ requires → strict FAIL preserved (no downgrade)."""
+    body = (
+        "<!-- requires: cataforge>=0.0.1 -->\n\n"
+        "- 已有的检查\n"
+        "  <!-- check_id: ID_A -->\n"
+        "- 误锚点\n"
+        "  <!-- check_id: ID_GHOST -->\n"
+    )
+    _make_skill_md(tmp_path, _TEST_SKILL_ID, body)
+    _stub_manifest_module(
+        monkeypatch,
+        _TEST_MODULE,
+        ({"id": "ID_A", "title": "alpha", "severity": "fail"},),
+    )
+
+    report = Report()
+    check_b3_manifest_drift(tmp_path, report)
+
+    orphan_findings = [f for f in report.findings if "ID_GHOST" in f.message]
+    assert len(orphan_findings) == 1
+    assert orphan_findings[0].severity == "FAIL"

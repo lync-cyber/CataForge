@@ -33,6 +33,6 @@ maxTurns: 50
 
 ## Anti-Patterns
 - 禁止: 构建步骤含硬编码路径或密钥
-- 禁止: 跳过安全扫描
+- 禁止: 跳过 SBOM / 容器镜像漏洞扫描或在 CI 中临时屏蔽红灯 —— 上线前任何 HIGH/CRITICAL CVE 未确认即合并都属 release blocker
 - 禁止: 修改源代码或测试
 - 禁止: Bash 执行除 `cataforge docs load` 以及实际部署/构建命令之外的无关命令

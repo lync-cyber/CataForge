@@ -73,6 +73,12 @@ user-invocable: true
 ## Penpot MCP 工具发现
 具体 MCP 工具名称以平台 MCP 配置为准（Claude: `.mcp.json` 或 `.claude/settings.json`；Cursor: `.cursor/mcp.json`；OpenCode: `opencode.json`），运行时通过可用工具列表自动发现。典型操作包括: 读取组件设计属性（颜色/排版/间距/尺寸/布局）。若工具列表中无 Penpot 相关工具，先运行 `cataforge penpot ensure` 尝试启动服务（若 Penpot 尚未部署则改运行 `cataforge penpot deploy`），仍不可用则返回 blocked。
 
+## Anti-Patterns
+- 禁止: 因 ≤1px 偏差直接判 DIFF —— 视觉对齐有亚像素噪声；<1px 标 WARN 而非 DIFF，否则审查噪音淹没真正偏差
+- 禁止: 比对动画 / 交互 / 过渡属性 —— ui-spec 不承载交互契约；penpot-review 只对静态视觉，越界会引入大量假阳
+- 禁止: 把 review 报告写到 docs/reviews/code/ —— 设计审查报告路径与代码审查不同，混写让 sprint-review 聚合失真
+- 避免: 把 Penpot 设计差异自动回写到 ui-spec —— 设计漂移修正必须经 ui-designer 显式判断，自动同步会让契约失去 reviewer 把关
+
 ## 效率策略
 - 仅比对视觉相关属性，忽略交互/动画属性
 - Token间接匹配视为通过，鼓励使用设计变量
