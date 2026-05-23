@@ -56,6 +56,35 @@ def _patch_gh(
     monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
 
 
+def _patch_gh_per_label(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    issues_by_label: dict[str | None, list[dict]],
+) -> list[list[str]]:
+    """gh stub that returns a different payload depending on ``--label X``.
+
+    Pass ``None`` as the key for the labelless fallback call. Returns a
+    list of captured commands so assertions can inspect how many calls were
+    issued and with which label each.
+    """
+    captured: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # noqa: ANN001
+        captured.append(list(cmd))
+        assert cmd[0] == "gh"
+        label = None
+        if "--label" in cmd:
+            label = cmd[cmd.index("--label") + 1]
+        payload = issues_by_label.get(label, [])
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout=json.dumps(payload), stderr=""
+        )
+
+    monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+    monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
+    return captured
+
+
 class TestTriage:
     def test_already_fixed_when_reported_version_older(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -160,6 +189,206 @@ class TestTriage:
         result = CliRunner().invoke(triage_command, [])
         assert result.exit_code == 0
         assert "needs-repro" in result.output
+
+    # ─── issue #115 P6: label union (OR) ──────────────────────────────────
+
+    def test_labels_use_or_semantics_across_separate_gh_calls(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`gh issue list --label X --label Y` is AND — we need one call per label.
+
+        Issue #115 P6: a 'feedback: …' issue carrying only `enhancement`
+        was being dropped from triage because the default label union
+        ``{bug, enhancement}`` was passed as two `--label` flags. After
+        the fix we issue one `gh` call per label and merge by issue number.
+        """
+        project = _bootstrap(tmp_path)
+        # Configure two labels so the per-call loop has more than one pass.
+        (project / ".cataforge" / "framework.json").write_text(
+            json.dumps(
+                {
+                    "version": "0.0.0-test",
+                    "runtime": {"platform": "claude-code"},
+                    "upgrade": {"source": {"repo": "fake/repo"}},
+                    "feedback": {
+                        "gh": {
+                            "labels": {
+                                "bug": ["bug"],
+                                "suggest": ["enhancement"],
+                            }
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(project)
+        captured = _patch_gh_per_label(
+            monkeypatch,
+            issues_by_label={
+                "bug": [
+                    {
+                        "number": 100,
+                        "title": "bug only",
+                        "body": "Package: 0.0.0-test\n\nbroken",
+                        "createdAt": "2026-04-01T00:00:00Z",
+                        "url": "https://example/100",
+                        "labels": [{"name": "bug"}],
+                    }
+                ],
+                "enhancement": [
+                    {
+                        "number": 115,
+                        "title": "enhancement only",
+                        "body": "Package: 0.0.0-test\n\nsuggestion",
+                        "createdAt": "2026-04-02T00:00:00Z",
+                        "url": "https://example/115",
+                        "labels": [{"name": "enhancement"}],
+                    }
+                ],
+            },
+        )
+
+        result = CliRunner().invoke(triage_command, ["--dry-run"])
+        assert result.exit_code == 0, result.output
+
+        # Both issues should appear in the verdict table.
+        assert "#100" in result.output, result.output
+        assert "#115" in result.output, result.output
+
+        # Two gh calls — one per label, each with exactly one --label flag.
+        list_calls = [c for c in captured if "list" in c]
+        assert len(list_calls) == 2, list_calls
+        label_args = []
+        for c in list_calls:
+            assert c.count("--label") == 1, c
+            label_args.append(c[c.index("--label") + 1])
+        assert sorted(label_args) == ["bug", "enhancement"]
+
+    def test_labels_deduplicated_across_label_passes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An issue carrying both labels appears once, not twice.
+
+        After the OR-by-label change in #115 P6, the merge step must
+        deduplicate by issue number so the verdict table doesn't double-count.
+        """
+        project = _bootstrap(tmp_path)
+        (project / ".cataforge" / "framework.json").write_text(
+            json.dumps(
+                {
+                    "version": "0.0.0-test",
+                    "runtime": {"platform": "claude-code"},
+                    "upgrade": {"source": {"repo": "fake/repo"}},
+                    "feedback": {
+                        "gh": {
+                            "labels": {
+                                "bug": ["bug"],
+                                "suggest": ["enhancement"],
+                            }
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(project)
+        dual = {
+            "number": 200,
+            "title": "carries both labels",
+            "body": "Package: 0.0.0-test\n\ndual",
+            "createdAt": "2026-04-03T00:00:00Z",
+            "url": "https://example/200",
+            "labels": [{"name": "bug"}, {"name": "enhancement"}],
+        }
+        _patch_gh_per_label(
+            monkeypatch,
+            issues_by_label={"bug": [dual], "enhancement": [dual]},
+        )
+
+        result = CliRunner().invoke(triage_command, ["--dry-run"])
+        assert result.exit_code == 0, result.output
+        # The header line says "N issue(s) fetched"; verify it says 1, not 2.
+        assert "1 issue(s) fetched" in result.output
+        # Issue number appears exactly once in the verdict table.
+        assert result.output.count("#200") == 1
+
+    # ─── issue #115 P7: version regex covers issue-template forms ────────
+
+    def test_version_regex_matches_issue_template_h3_form(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`### CataForge version\\n\\n0.4.0` parses as reported_version=0.4.0.
+
+        This is the form produced by ``cataforge feedback suggest --gh``
+        in the GitHub issue template body. Pre-fix it was unrecognised
+        and the issue fell through to verdict=unrelated.
+        """
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        from cataforge import __version__
+
+        body = (
+            "### Bundle kind\n\nsuggest\n\n"
+            "### CataForge version\n\n"
+            f"{__version__}\n\n"
+            "### Generated body\n\n"
+            "framework-review FAIL skill: tdd-engine — light-mode threshold off\n"
+        )
+        _patch_gh(
+            monkeypatch,
+            issues=[
+                {
+                    "number": 115,
+                    "title": "feedback: TDD light-mode threshold off",
+                    "body": body,
+                    "createdAt": "2026-05-22T00:00:00Z",
+                    "url": "https://example/115",
+                    "labels": [{"name": "enhancement"}],
+                }
+            ],
+        )
+        result = CliRunner().invoke(triage_command, [])
+        assert result.exit_code == 0, result.output
+        # H3 form must be recognised → matches installed version → confirmed.
+        assert "confirmed" in result.output, result.output
+        assert "unrelated" not in result.output
+
+    def test_version_regex_matches_bold_env_form(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`- **CataForge package**: \\`0.4.0\\`` parses as reported_version=0.4.0.
+
+        This is the form produced by ``_render_environment`` in
+        ``cataforge.core.feedback`` — markdown bold wrapping defeats the
+        legacy header regex (issue #115 P7).
+        """
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        from cataforge import __version__
+
+        body = (
+            "## Environment\n\n"
+            f"- **CataForge package**: `{__version__}`\n"
+            f"- **Scaffold version**: `{__version__}`\n\n"
+            "framework-review FAIL skill: tdd-engine — light-mode threshold off\n"
+        )
+        _patch_gh(
+            monkeypatch,
+            issues=[
+                {
+                    "number": 116,
+                    "title": "feedback: TDD light-mode threshold off",
+                    "body": body,
+                    "createdAt": "2026-05-22T00:00:00Z",
+                    "url": "https://example/116",
+                    "labels": [{"name": "enhancement"}],
+                }
+            ],
+        )
+        result = CliRunner().invoke(triage_command, [])
+        assert result.exit_code == 0, result.output
+        assert "confirmed" in result.output, result.output
 
 
 class TestClose:

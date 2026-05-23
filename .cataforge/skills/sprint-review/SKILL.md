@@ -127,7 +127,7 @@ project_features:
 
 ## Anti-Patterns
 
-- 禁止: 跳过 ac-coverage / wiring-completeness 维度只算"测试通过率" —— 测试 PASS 不等于 AC 真实落地，issue #113 反馈现象就是测试绿但 wiring 链断
+- 禁止: 跳过 ac-coverage / wiring-completeness 维度只算"测试通过率" —— 测试 PASS 不等于 AC 真实落地，可能出现测试绿但 wiring 链断
 - 禁止: 把整个 sprint 全部 task 都跑 merged-review —— merged 仅适用于同质任务（相同 task_kind / 共享 arch#§2.M-xxx），异质任务并表会丢失模式
 - 禁止: needs_revision 后整个 sprint 重跑 —— 仅 SPRINT-REVIEW 报告标记的 CRITICAL/HIGH 任务进入 TDD 重做，已通过任务保持 done 状态
 - 避免: sprint-review 报告写入 `docs/reviews/code/` —— 必须写 `docs/reviews/sprint/`（COMMON-RULES §报告编号规则）

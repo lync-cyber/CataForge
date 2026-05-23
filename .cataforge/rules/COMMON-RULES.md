@@ -129,19 +129,30 @@ Anti-Patterns 应使用"做 A 而非 B"格式并附具体例子，避免抽象�
 ### 禁止设计阶段与变更说明残留
 适用：源码、docstring、测试 docstring、SKILL.md / AGENT.md / 协议文档、配置 —— **新增和修改都生效**。CHANGELOG / commit message / PR 描述是变更说明的唯一合法去处，不能溢出到长期文档。
 
+SKILL.md / AGENT.md 是 LLM 每次调度都加载的 prompt 上下文，每一行都在重复消耗 token；残留越积越多直至腐化不可用。**最小可行修改**：新增一条规则只写规则本身，不写来源 issue / PR、不写"为防 X 类问题再发"、不写"对照 PR #N 增量"、不写"在……基础上扩展"。
+
 **新增时**：
-- 禁止回溯叙事与动机自述："之前 / 原本 / used to / previously / 修复了 X / 解决了 ……失败模式 / 此测试为防 issue#NNN 再发"。
+- 禁止回溯叙事与动机自述："之前 / 原本 / used to / previously / 修复了 X / 解决了 …… 失败模式 / 此测试为防 issue#NNN 再发"。
+- 禁止溯源引用：`(issue #NNN)`、`PR #NNN`、`(参 #NNN)`、`closeout` / `closes #N` / `fixes #N`、`回归自 vX.Y.Z` 等指向追踪票或里程碑的注脚；规则的存在理由由提交历史承担。
 - 函数 docstring 只描述**当前职责**；测试名 + 断言已表达意图，docstring 通常一句即可。
 - 默认不写注释；命名 + 小函数 > 注释。仅在保留**非显然 WHY**（隐式约束、易踩边界、非直观不变量）时写注释，单行优先、≤2 行。
 
 **修改时**（默认不写变更说明）：
 - 禁止版本里程碑（"v0.4.0+ 新增"、"自 vX.Y.Z 起"、"MVP 阶段"）、阶段标签（"先 MVP 后升级"、"以后再做"）、对比叙事（"原方案 X、改为 Y"、"不再使用 X"）。
+- 禁止过程标签："本次新增 / 本轮加入 / 现已支持 / 接入 PR #N 后"。
 - 直接覆盖陈述当前状态，不保留"现在改为……"句式。
 - 移除字段 / 重命名 / 替换默认值时不留 deprecated 标记，让 commit diff 自身承载证据。
 - 表格 / 配置项里只写当前生效值，不写"曾经是 X"。
 - 保留语义价值的版本号写入 frontmatter `version:` / `min_version:` 字段，不放正文。
 
-**自检**：写完段落后搜索 `之前|previously|used to|修复了|替代了|v[0-9]+\.[0-9]+\.[0-9]+ 新增|起|MVP|原|改为|之前是|现已废弃`，命中即删。
+**自检**：写完段落后用以下 regex 搜索，命中即删。
+
+```
+之前|previously|used to|修复了|替代了|MVP|原方案|改为|之前是|现已废弃
+v[0-9]+\.[0-9]+\.[0-9]+\s*(?:起|新增|前后)
+issue\s*#?\d+|\bPR\s*#?\d+|\(参\s*#\d+|pull\s+request\s*#?\d+
+closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已支持
+``` 
 
 ## 通用 Anti-Patterns
 - 禁止：猜测项目状态——以 CLAUDE.md 和 `docs/` 目录为唯一事实来源。
@@ -234,7 +245,7 @@ deps: ["{被审 doc_id 或 task_id}"] # CORRECTIONS-LOG 用 []
 
 ### verdict_blocking_semantics
 
-四个 verdict 在 Phase Transition / Sprint Review 流转上的阻塞语义对账（issue #113 L-2 / B8-γ）：
+四个 verdict 在 Phase Transition / Sprint Review 流转上的阻塞语义对账：
 
 | verdict | 推进 Phase Transition | 进入 Revision Protocol | 必带字段 | 来源 |
 |---------|---------------------|----------------------|---------|------|

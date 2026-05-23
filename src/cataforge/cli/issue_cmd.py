@@ -317,6 +317,20 @@ _VERSION_HEADER_RE = re.compile(
     r"^\s*[*\-]?\s*(?:package|cataforge)\s*[:=]\s*v?(\d+\.\d+\.\d+(?:[A-Za-z0-9.\-+]*)?)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
+# `cataforge feedback ... --gh` renders Environment lines as
+# `- **CataForge package**: \`0.4.0\`` (markdown bold + inline code) — the
+# header regex above can't see past the `**` wrapping. Issue #115 P7.
+_VERSION_BOLD_RE = re.compile(
+    r"\*\*(?:CataForge\s+)?(?:package|scaffold)(?:\s+version)?\*\*"
+    r"\s*[:=]\s*[`'\"]?v?(\d+\.\d+\.\d+(?:[A-Za-z0-9.\-+]*)?)",
+    re.IGNORECASE,
+)
+# Native GitHub issue template form (`cataforge feedback ... --gh` uses an
+# H3 + blank line + bare version on the next line). Issue #115 P7.
+_VERSION_TEMPLATE_RE = re.compile(
+    r"###\s+CataForge\s+version\s*\n+\s*v?(\d+\.\d+\.\d+(?:[A-Za-z0-9.\-+]*)?)",
+    re.IGNORECASE,
+)
 _FRAMEWORK_REVIEW_FAIL_RE = re.compile(
     r"FAIL\s+(?:in\s+)?(?:skill|agent)?[:\s]+(?P<id>[a-z0-9][a-z0-9\-]+)",
     re.IGNORECASE,
@@ -334,15 +348,21 @@ def _parse_issue_body(
 ) -> _ParsedIssue:
     body = issue.get("body") or ""
 
-    # Reported version.
+    # Reported version. Order matters: try the most specific issue-template
+    # forms first (template H3, then markdown-bold env block) so the looser
+    # legacy regexes don't snag a false positive on e.g. a `cataforge 0.3.x`
+    # mention deeper in the body. Issue #115 P7.
     reported = None
-    m = _VERSION_HEADER_RE.search(body)
-    if m:
-        reported = m.group(1)
-    else:
-        m = _VERSION_LINE_RE.search(body)
+    for pattern in (
+        _VERSION_TEMPLATE_RE,
+        _VERSION_BOLD_RE,
+        _VERSION_HEADER_RE,
+        _VERSION_LINE_RE,
+    ):
+        m = pattern.search(body)
         if m:
             reported = m.group(1)
+            break
 
     # Skill / agent IDs cited in framework-review FAIL lines.
     cited_skills: list[str] = []
@@ -535,27 +555,47 @@ def _fetch_issues(
     since: str | None,
     limit: int,
 ) -> list[dict[str, Any]]:
-    cmd = [
+    """Issue list with **OR** semantics across ``labels``.
+
+    ``gh issue list`` treats repeated ``--label`` flags as AND — a label
+    union (which is what ``framework.json#feedback.gh.labels`` actually
+    declares: ``{bug, enhancement}``) needs one ``gh`` call per label and a
+    merge by issue number (issue #115 P6). When ``labels`` is empty the
+    caller wants every issue in scope, so we issue a single labelless call.
+    """
+    base_cmd = [
         "gh", "issue", "list", "-R", repo,
         "--state", state,
         "--limit", str(limit),
         "--json", "number,title,body,createdAt,url,labels",
     ]
-    for lbl in labels:
-        cmd.extend(["--label", lbl])
-    try:
-        result = subprocess.run(
-            cmd,
-            text=True,
-            capture_output=True,
-            check=True,
-            encoding="utf-8",
-        )
-    except subprocess.CalledProcessError as e:
-        raise ExternalToolError(
-            f"gh issue list failed (exit {e.returncode}):\n{e.stderr or e.stdout}"
-        ) from None
-    issues: list[dict[str, Any]] = json.loads(result.stdout or "[]")
+
+    label_groups = [[lbl] for lbl in labels] if labels else [[]]
+    merged: dict[int, dict[str, Any]] = {}
+    for group in label_groups:
+        cmd = list(base_cmd)
+        for lbl in group:
+            cmd.extend(["--label", lbl])
+        try:
+            result = subprocess.run(
+                cmd,
+                text=True,
+                capture_output=True,
+                check=True,
+                encoding="utf-8",
+            )
+        except subprocess.CalledProcessError as e:
+            raise ExternalToolError(
+                f"gh issue list failed (exit {e.returncode}):\n{e.stderr or e.stdout}"
+            ) from None
+        for entry in json.loads(result.stdout or "[]"):
+            number = entry.get("number")
+            if not isinstance(number, int):
+                continue
+            # First-write-wins; later passes are duplicates of the same issue.
+            merged.setdefault(number, entry)
+
+    issues = sorted(merged.values(), key=lambda e: e.get("createdAt") or "")
 
     if since:
         try:

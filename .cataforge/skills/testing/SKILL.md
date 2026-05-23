@@ -90,7 +90,7 @@ user-invocable: true
 
 ### Plugin-style rules (per-language extension)
 
-后门 + 真实输入正则按语言拆到 YAML（plugin 架构，issue #113）：
+后门 + 真实输入正则按语言拆到 YAML：
 
 - 默认（cataforge package）：`cataforge.skill.builtins.testing.rules.e2e-{lang}.yaml`
 - 项目 override（opt-in）：`<project>/.cataforge/skills/testing/rules/e2e-{lang}.yaml`
