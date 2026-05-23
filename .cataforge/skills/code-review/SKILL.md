@@ -62,6 +62,7 @@ user-invocable: true
 - 错误处理(error-handling): 是否符合arch§5.3错误处理策略
 - 测试质量(test-quality, 仅当审查范围包含 tests/ 目录时; AC 覆盖完整度由 sprint-review 负责，此处不重复):
   - 断言有效性: 每个测试是否包含对被测系统返回值/状态/副作用的有效断言
+  - 断言强度: 断言必须绑定真实可观测属性（契约定义的返回值字段 / 状态变化 / 外部副作用）。仅校验 mock/spy 调用计数 / 对象存在性 / 常量真值的"弱断言"视为测试 bug；若 mock 中诡异条件让弱断言 PASS（永远返回常量 / 永远 raise / 强行短路真实路径），视为 implementation bug 假阳性而非测试问题。与 implementer §Assertion Strength Guard 同源
   - 测试逻辑: 断言的期望值是否与接口契约一致，测试是否验证了声称的行为
   - 边界覆盖: 是否覆盖关键边界条件（空值、异常输入等）
 

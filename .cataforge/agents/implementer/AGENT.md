@@ -53,6 +53,18 @@ GREEN/Light 完成后，对涉及 user-facing critical path（页面 / 路由 / 
 
 > 这是自检自报，不是替代 code-review §integration-wiring 维度的 Layer 2 兜底。漏判会在 sprint-review `wiring-completeness` 时被批量复核捕获。
 
+## Assertion Strength Guard
+
+GREEN/Light 完成前对让测试 PASS 的断言做一次强度自检：
+
+| 弱断言形态 | 处置 |
+|-----------|------|
+| 仅校验 mock / spy / stub 的调用计数或对象存在性，不绑定真实可观测属性（返回值 / 状态变化 / 外部副作用） | RED 产出 → 返回 blocked，`<questions>` 列出薄弱测试位置，要求重新生成；light 模式自己写时 → 直接重写到可观测属性 |
+| mock 中出现"诡异条件"（永远返回常量 / 永远 raise / 强行短路真实路径）让测试 PASS | 视为 implementation bug 假阳性 → 返回 blocked，不接受 GREEN |
+| 断言对象为常量真值（`assert True` / `assert 1`），或仅声明非空（`is not None` 单立成断言） | 同上：要求绑定到契约定义的可观测属性后再 PASS |
+
+可观测属性指：接口契约定义的返回值字段、被测对象的状态变化、对外可见的副作用（日志 / 持久化 / 事件发布 / IO）。本规则与 §Wiring Completeness Reporting 同属"形式契约对但语义留白"的家族。
+
 ## Self-Refactor Reporting
 GREEN/Light 完成后，对刚写的 impl_files 做一次轻量自检：
 
@@ -65,6 +77,19 @@ GREEN/Light 完成后，对刚写的 impl_files 做一次轻量自检：
 不命中 → `refactor_needed: false`。命中 → `refactor_needed: true`，每条命中类别写一句具体证据到 `refactor_reasons`，由 orchestrator 决定是否调度 refactorer（详见 tdd-engine §Step 4）。
 
 > 这是自检自报，不是替代 sprint-review 的批量 code-review L1 兜底。漏判会在 sprint-review 时被批量复核捕获。
+
+## Post-GREEN Validation
+
+GREEN/Light 完成后按 tdd-engine 四档执行收尾验证：
+
+| 执行模式 | 修改文件 lint | 全量回归 | git diff 报告 |
+|---------|--------------|---------|--------------|
+| standard | 必须 PASS | 必须（完整 §test_command） | `git diff --name-only` 入 summary |
+| light-dispatch | 必须 PASS | 必须 | `git diff --name-only` 入 summary |
+| light-inline | 必须 PASS | 豁免（仅跑覆盖到的 test_files） | 建议入 summary |
+| prototype-inline | 豁免（lint hook 兜底） | 豁免 | 不要求 |
+
+lint 失败 → 自修复后重试；3 次未通过返回 blocked。lint 工具选取与 code-review Layer 1 工具集合对齐（ESLint / Ruff / golangci-lint / dotnet format / clippy 等）。
 
 ## Execution Rules
 - 只写使测试通过的最小代码，不做超出测试要求的设计
