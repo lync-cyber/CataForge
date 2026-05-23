@@ -249,6 +249,15 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     任务: 优化代码质量，保持所有测试通过。
 ```
 
+**完成后验证**（orchestrator 在 refactorer 返回 completed 后执行）：
+
+1. 跑 §test_command 确认全部 PASS
+2. 跑 `git status --short` 与 HEAD 比对调度前 baseline；任一命中视为 refactorer 越权碰 git（refactorer 仅应产出文件，不应 add / commit / push / branch / reset / checkout / stash —— 见 refactorer AGENT.md §Anti-Patterns），标 BLOCKED 并请求人工介入：
+   - staged / unstaged 变化中含非本任务 deliverables 外文件
+   - HEAD 位移（分支切换或新增 commit）
+   - working tree 出现 stash 或 cherry-pick 中间态
+3. 校验通过 → 进入 Step 5
+
 跳过 REFACTOR 时不记录 tdd_phase REFACTOR 事件，仅在 Step 5 汇总中标注 "REFACTOR skipped (no trigger)"。
 
 > **并行约束**：REFACTOR 阶段在同 sprint_group 批次内必须**串行**（按 task_id 字典序），不可与其他任务的 REFACTOR 并行执行。约束来源 ORCHESTRATOR-PROTOCOLS §Parallel Task Dispatch（避免源文件并发改写冲突）。RED / GREEN 仍可并行（上限 3）。

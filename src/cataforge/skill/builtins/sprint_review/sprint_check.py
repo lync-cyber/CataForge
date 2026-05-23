@@ -641,5 +641,32 @@ def main() -> None:
     sys.exit(1 if has_fail else 0)
 
 
+def _emit_runtime_error(exc: Exception, fmt: str) -> None:
+    """Emit diagnostic on uncaught runtime failure. Exit 2 distinguishes
+    runtime errors from normal FAIL (exit 1) so callers can branch."""
+    import traceback
+
+    summary = f"{type(exc).__name__}: {exc}"
+    tb = traceback.format_exc(limit=5)
+    if fmt == "json":
+        print(json.dumps({
+            "summary": {"fail": 1, "warn": 0, "total": 1},
+            "issues": [{
+                "severity": "fail",
+                "category": "runtime_error",
+                "message": f"sprint_check runtime error: {summary}",
+                "traceback": tb.strip().splitlines()[-3:],
+            }],
+        }, ensure_ascii=False))
+    else:
+        print(f"[FAIL] sprint_check runtime error: {summary}", file=sys.stderr)
+        print(tb, file=sys.stderr)
+
+
 if __name__ == "__main__":
-    main()
+    _fmt = "json" if "--format" in sys.argv and "json" in sys.argv else "text"
+    try:
+        main()
+    except Exception as _exc:
+        _emit_runtime_error(_exc, _fmt)
+        sys.exit(2)
