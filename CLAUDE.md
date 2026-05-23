@@ -35,19 +35,21 @@ git reset --hard origin/main
 git push -u origin <new-branch>
 ```
 
-## Dogfood：本仓的 `.claude/` 部署
+## Dogfood：本仓的 Claude Code 调用面
 
-CataForge 仓库自身也是 CataForge 项目。Clone 后跑一次：
+CataForge 仓库自身也是 CataForge 项目。两条调用面，**clone 后无需 deploy 即可用第一条**：
+
+**1. Slash command `/framework-issue-resolve`** —— wrapper [.claude/commands/framework-issue-resolve.md](.claude/commands/framework-issue-resolve.md) 已 git-tracked（[.gitignore](.gitignore) 加了 `!` 例外让单文件例外通过），clone 即可用。wrapper body 让 Claude Code 按 `.cataforge/skills/framework-issue-resolve/SKILL.md` 五步闭环调度。
+
+**2. SKILL discovery via deploy**（可选，让 Claude Code 通过 SKILL.md description 自然语言发现所有 skill 包括 maintainer-only）：
 
 ```bash
 cataforge deploy --include-maintainer-only
 ```
 
-`.claude/skills/` 通过 junction (Windows) / symlink (Unix) 暴露 `.cataforge/skills/` 每个 skill 子目录（per-skill 链接，不是整 dir）。`--include-maintainer-only` 让 SKILL.md 标 `maintainer-only: true` 的 skill（仅 `framework-issue-resolve` —— 上游 GitHub issue 闭环消化）也链进来，从而在 Claude Code 里可以用 `/framework-issue-resolve` 直接 slash command 调用。
+per-skill junction (Windows) / symlink (Unix) 把 `.cataforge/skills/` 每个子目录暴露到 `.claude/skills/`。`--include-maintainer-only` 让 SKILL.md 标 `maintainer-only: true` 的 skill（目前仅 `framework-issue-resolve`）也链进来。下游业务项目部署不应传这个 flag —— 那些 skill 操作 CataForge 自身的 `.cataforge/` 元资产，对下游只会占用 prompt 上下文。
 
-下游业务项目部署 CataForge 时不应传这个 flag —— 那些 skill 操作 CataForge 自身的 `.cataforge/` 元资产，对下游无用，只会占用 prompt 上下文。
-
-`.claude/skills/` / `.claude/agents/` / `.claude/commands/` 都已在 [.gitignore](.gitignore)，本地 deploy 产物不进仓库。
+`.claude/skills/` / `.claude/agents/` 与 `.claude/commands/` 下其他文件都在 [.gitignore](.gitignore)；只有 wrapper 单文件例外。
 
 ## Agent / Skill 撰写约定
 

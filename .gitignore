@@ -88,7 +88,8 @@ AGENTS.md
 .claude/agents/
 .claude/rules/
 .claude/skills/
-.claude/commands/
+.claude/commands/*
+!.claude/commands/framework-issue-resolve.md
 .claude/settings.json
 
 # Cursor
