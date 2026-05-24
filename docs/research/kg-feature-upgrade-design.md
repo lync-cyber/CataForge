@@ -26,7 +26,7 @@ KG 成为文档系统的 source of truth；markdown 由 KG 渲染生成；agents
 | 默认 store | rdflib + sorted N-Quads | 超阈值自动切 oxigraph，阈值由 benchmark 校准 |
 | 渲染产物 git-tracked | 是 | 文件头 `generated_by: cataforge-kg-render`；pre-commit `kg render --check` |
 | SHACL 严格度 | migrate 时 warn，v0.5 正式 error | migrate report 给 actionable 修复清单 |
-| Issue #126 处理 | amendment + close as superseded + 新 epic | 主追踪 issue link 回 #126 |
+| Issue #126 处理 | amendment + close as superseded | 设计稿即权威，无 follow-up tracking issue |
 | conflicts 阻塞 | doctor fail + PR CI fail | 兜底「KG 是 SoT」心智 |
 | provenance | RDF-star，fallback named graph | 不破坏 N-Quads 序列化稳定性 |
 
@@ -1021,7 +1021,6 @@ E1-E5 内部并行。
 - F4 PR CI gate：同上 + benchmark threshold
 - F5 删除 `src/cataforge/docs/indexer.py` 与 `src/cataforge/docs/loader.py`；`migrate_nav.py` / `migrate_review_frontmatter.py` 迁移到 `src/cataforge/core/migrate/`
 - F6 release notes + `cataforge upgrade` 自动跑 `kg migrate`（带显式确认 prompt）
-- F7 Issue #126 加 amendment 关闭 as superseded；新主追踪 issue link 回
 
 ---
 
@@ -1063,7 +1062,7 @@ benchmark 用 dogfood 仓 + 合成 fixture（5k/10k/50k triples）；超阈触�
 
 | # | 风险 | 影响 | 缓解 |
 |---|---|---|---|
-| R-01 | Issue #126 scope 已被超越，公开 roadmap 与新方案不符 | 社区/用户预期错位；现有 PR 失效 | 在 Issue #126 顶部加 amendment 关闭 as superseded；新建主追踪 issue link 回 #126 |
+| R-01 | Issue #126 scope 已被超越，公开 roadmap 与新方案不符 | 社区/用户预期错位；现有 PR 失效 | 在 Issue #126 顶部加 amendment 关闭 as superseded |
 | R-02 | rdflib 性能在 >10k 三元组场景下 SPARQL 查询 >1s | 用户体验崩塌、CI 超时 | 阈值（5k triples）自动 swap oxigraph；benchmark gate 兜底 |
 | R-03 | three-way merge 冲突频发导致用户被迫每次都解冲突 | adoption 障碍 | render 必须 idempotent；ingest 容忍 whitespace/段落顺序差异（canonical.py） |
 | R-04 | renaming `cfk:hasId` 是 destructive update，可能让外部引用整体失效 | 外部链接、wiki、grep 全部断 | 强制 `--dry-run` 默认 + 生成 redirect map（`cfk:replacedBy` triples） |
