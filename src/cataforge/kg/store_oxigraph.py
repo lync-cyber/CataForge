@@ -221,9 +221,10 @@ class OxigraphStore(GraphStore):
         return sum(1 for _ in self._oxi)
 
     def __iter__(self) -> Iterator[tuple[str, str, str, str | None]]:
+        import pyoxigraph as _pyoxi
         for quad in self._oxi:
             obj = quad.object
-            obj_str = str(obj.value) if hasattr(obj, "value") else str(obj)
+            obj_str = obj.value if isinstance(obj, _pyoxi.Literal) else str(obj.value)
             g = quad.graph_name
             graph_str = (
                 str(g.value)

@@ -118,6 +118,15 @@ def test_missing_template_param_raises_render_error(
         r.render_string("{{ kg.query('ASK { $missing ?p ?o }') }}")
 
 
+def test_literal_dollar_in_sparql_does_not_raise(
+    store_with_features: RDFLibStore,
+) -> None:
+    r = _renderer(store_with_features)
+    sparql_with_dollar = 'ASK { ?x rdfs:label "$100" }'
+    out = r.render_string(f"{{{{ kg.query('{sparql_with_dollar}')[0]['_ask'] }}}}")
+    assert out in ("true", "false")
+
+
 def test_template_file_round_trip(
     store_with_features: RDFLibStore, tmp_path: Path,
 ) -> None:

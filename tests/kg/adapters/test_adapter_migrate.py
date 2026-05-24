@@ -23,6 +23,7 @@ from cataforge.cli.main import cli
 from cataforge.kg.adapter_migrate import (
     AdapterMigrationError,
     TargetAssignment,
+    _split_frontmatter,
     default_plan,
     migrate_adapters,
 )
@@ -184,6 +185,22 @@ def test_missing_targets_reported_not_fatal(tmp_path: Path) -> None:
     report = migrate_adapters(tmp_path)
     assert report.frontmatter_written == []
     assert len(report.targets_missing) == len(default_plan())
+
+
+# ---------- CRLF frontmatter ----------
+
+def test_split_frontmatter_crlf_body_intact() -> None:
+    crlf_doc = "---\r\ntitle: test\r\n---\r\nbody content here"
+    _, _, body = _split_frontmatter(crlf_doc)
+    assert body == "body content here", (
+        "body must not include a leading \\r from the CRLF closing delimiter"
+    )
+
+
+def test_split_frontmatter_lf_body_intact() -> None:
+    lf_doc = "---\ntitle: test\n---\nbody content here"
+    _, _, body = _split_frontmatter(lf_doc)
+    assert body == "body content here"
 
 
 # ---------- bad input ----------

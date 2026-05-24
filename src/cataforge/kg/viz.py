@@ -96,7 +96,7 @@ def _rows_from_root(
     rows: list[dict[str, str]] = []
     frontier = {full}
     seen: set[str] = set()
-    for _ in range(max(depth, 0) + 1):
+    for _ in range(max(depth, 0)):
         next_frontier: set[str] = set()
         for node in frontier - seen:
             seen.add(node)

@@ -66,3 +66,25 @@ def test_persist_writes_snapshot(tmp_path: Path) -> None:
     snapshot = project / "docs" / ".doc-graph" / "oxigraph"
     assert snapshot.is_dir()
     assert any(snapshot.iterdir())
+
+
+def test_iter_classifies_named_node_and_literal(tmp_path: Path) -> None:
+    store = OxigraphStore()
+    store.load(_project(tmp_path))
+    store.add([
+        Triple("cfa:m/M1", "rdf:type", "cfa:Module"),
+        Triple("cfa:m/M1", "cfk:hasId", "M-001"),
+    ])
+    triples = list(store)
+    obj_values = {o for _, _, o, _ in triples}
+    # NamedNode object (cfa:Module IRI) must appear as bare IRI, not '<...>'
+    assert any(v.startswith("https://") for v in obj_values), (
+        "NamedNode object must serialize to a bare IRI string"
+    )
+    # Literal object must appear as its lexical value, not as '"M-001"'
+    assert "M-001" in obj_values, (
+        "Literal object must serialize to its lexical value"
+    )
+    assert '"M-001"' not in obj_values, (
+        "Literal object must not include rdflib-style quotes"
+    )

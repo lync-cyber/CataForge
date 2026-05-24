@@ -72,13 +72,29 @@ def builtin_ttl_path(stem: str) -> Path:
 
     Uses ``importlib.resources.as_file`` so the call works whether the
     package is installed as a regular wheel or in editable mode pointing
-    at ``src/cataforge/kg/data/``."""
+    at ``src/cataforge/kg/data/``.
+
+    Callers must use the returned path before any wheel-extraction temp
+    directories are cleaned up. For long-lived use, prefer
+    :func:`_read_builtin_ttl_bytes`."""
     res = files("cataforge.kg").joinpath("data").joinpath(f"{stem}.ttl")
     with as_file(res) as fp:
         path = Path(fp)
     if not path.is_file():
         raise OntologyError(f"Bundled ontology file not found: {res}")
     return path
+
+
+def _read_builtin_ttl(stem: str) -> bytes:
+    """Return the raw bytes of a bundled ``data/<stem>.ttl`` resource.
+
+    Safe to call in both editable and wheel installs — no filesystem path
+    escapes the call."""
+    res = files("cataforge.kg").joinpath("data").joinpath(f"{stem}.ttl")
+    try:
+        return res.read_bytes()
+    except (FileNotFoundError, TypeError) as exc:
+        raise OntologyError(f"Bundled ontology file not found: {res}") from exc
 
 
 def load_framework_kg_config(project_root: str | Path) -> dict[str, object]:
@@ -213,10 +229,13 @@ def load_shapes(
 
 def _parse_builtin(graph: Graph, stems: Iterable[str], *, strict: bool) -> None:
     for stem in stems:
+        res = files("cataforge.kg").joinpath("data").joinpath(f"{stem}.ttl")
         try:
-            path = builtin_ttl_path(stem)
+            with as_file(res) as fp:
+                if not Path(fp).is_file():
+                    raise OntologyError(f"Bundled ontology file not found: {res}")
+                graph.parse(source=str(fp), format="turtle")
         except OntologyError:
             if strict:
                 raise
             continue
-        graph.parse(source=str(path), format="turtle")
