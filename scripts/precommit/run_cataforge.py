@@ -8,7 +8,7 @@ package installed, but no single mechanism works for every contributor:
 * pip-venv users want their currently-activated venv's interpreter (passed
   through ``$VIRTUAL_ENV``).
 * CI runners typically ``pip install -e .`` into the system Python and just
-  expect ``python -m cataforge.cli.main`` to work.
+  expect ``python -m cataforge`` to work.
 * Contributors who have neither uv nor an active venv usually still have a
   ``.venv/`` at the repo root.
 
@@ -50,8 +50,8 @@ def _resolve_interpreter() -> tuple[str, list[str]]:
     """Return ``(executable, prefix_argv)`` of an interpreter that has cataforge.
 
     ``prefix_argv`` is inserted between the executable and the ``-m
-    cataforge.cli.main ...`` portion; it is empty for direct interpreter
-    calls and ``["run", "--extra", "dev", "python"]`` for the ``uv``
+    cataforge ...`` portion; it is empty for direct interpreter calls
+    and ``["run", "--extra", "dev", "python"]`` for the ``uv``
     fallthrough.
     """
     # 1. Active venv — pre-commit inherits VIRTUAL_ENV from the caller's
@@ -81,7 +81,7 @@ def _resolve_interpreter() -> tuple[str, list[str]]:
 
 def main() -> int:
     interp, prefix = _resolve_interpreter()
-    cmd = [interp, *prefix, "-m", "cataforge.cli.main", *sys.argv[1:]]
+    cmd = [interp, *prefix, "-m", "cataforge", *sys.argv[1:]]
     try:
         return subprocess.call(cmd)
     except FileNotFoundError as exc:
