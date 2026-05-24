@@ -5,8 +5,33 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.core.types import CAPABILITY_IDS
+
+_FRONTMATTER_RE = re.compile(r"^---\n(.*?\n)---\n", re.DOTALL)
+
+
+def _parse_tools_from_frontmatter(content: str) -> list[str] | None:
+    """Extract the ``tools`` list from YAML frontmatter, supporting both
+    block-style and flow-style (``tools: [a, b]``).
+
+    Returns ``None`` when no ``tools`` key is present.
+    """
+    m = _FRONTMATTER_RE.match(content)
+    if not m:
+        return None
+    try:
+        fm = yaml.safe_load(m.group(1)) or {}
+    except yaml.YAMLError:
+        return None
+    raw = fm.get("tools")
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        return [str(t).strip() for t in raw if str(t).strip()]
+    return [t.strip() for t in str(raw).split(",") if t.strip()]
 
 
 class AgentManager:
@@ -48,10 +73,8 @@ class AgentManager:
             return issues
 
         # Check tools use capability IDs (not platform-native names)
-        tools_match = re.search(r"^tools:\s*(.+)$", content, re.MULTILINE)
-        if tools_match:
-            tools_str = tools_match.group(1)
-            tool_names = [t.strip() for t in tools_str.split(",")]
+        tool_names = _parse_tools_from_frontmatter(content)
+        if tool_names is not None:
             for tn in tool_names:
                 if tn and tn not in CAPABILITY_IDS:
                     issues.append(

@@ -185,11 +185,16 @@ class MCPLifecycleManager:
             cmd = [spec.command] + spec.args
             env = self._build_env(spec)
 
+            if os.environ.get("CATAFORGE_MCP_DEBUG") == "1":
+                stderr_target: int | None = None
+            else:
+                stderr_target = subprocess.DEVNULL
+
             proc = subprocess.Popen(
                 cmd,
                 env=env,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=stderr_target,
                 cwd=str(self._paths.root),
             )
 
