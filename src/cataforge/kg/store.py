@@ -36,6 +36,7 @@ SCHEMA_VERSION = "1"
 GRAPH_DIRNAME = ".doc-graph"
 INSTANCES_FILENAME = "instances.nq"
 META_FILENAME = "_meta.json"
+INFERRED_GRAPH_IRI = "urn:cataforge:inferred"
 
 
 class Triple(NamedTuple):
@@ -144,6 +145,11 @@ class GraphStore(ABC):
         self,
         shape_graph: str | Path | None = None,
     ) -> ValidationReport: ...
+
+    @abstractmethod
+    def apply_inference(self, triples: Iterable[tuple]) -> int:
+        """Persist derived triples into ``INFERRED_GRAPH_IRI``; return new-triple count."""
+        ...
 
     @abstractmethod
     def __len__(self) -> int: ...
@@ -274,6 +280,14 @@ class RDFLibStore(GraphStore):
 
     def update(self, sparql_update: str) -> None:
         self._dataset.default_graph.update(sparql_update)
+
+    def apply_inference(self, triples: Iterable[tuple]) -> int:
+        """Persist derived triples into ``INFERRED_GRAPH_IRI``; return new-triple count."""
+        graph = self._dataset.graph(URIRef(INFERRED_GRAPH_IRI))
+        before = len(graph)
+        for stmt in triples:
+            graph.add(stmt)
+        return len(graph) - before
 
     def validate(
         self,

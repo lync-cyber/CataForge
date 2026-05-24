@@ -22,6 +22,7 @@ from typing import Any
 
 from cataforge.kg.ontology import NAMESPACES
 from cataforge.kg.store import (
+    INFERRED_GRAPH_IRI,
     GraphStore,
     StoreError,
     Triple,
@@ -152,6 +153,26 @@ class OxigraphStore(GraphStore):
             f"PREFIX {pfx}: <{iri}>" for pfx, iri in NAMESPACES.items()
         )
         self._oxi.update(prefix_header + "\n" + sparql_update)
+
+    def apply_inference(self, triples: Iterable[tuple]) -> int:
+        """Persist derived triples into ``INFERRED_GRAPH_IRI``; return new-triple count."""
+        import pyoxigraph as _pyoxi
+        from rdflib import Literal as _RdflibLiteral
+
+        graph_node = _pyoxi.NamedNode(INFERRED_GRAPH_IRI)
+        count = 0
+        for s, p, o in triples:
+            oxi_s = _pyoxi.NamedNode(str(s))
+            oxi_p = _pyoxi.NamedNode(str(p))
+            if isinstance(o, _RdflibLiteral):
+                oxi_o = _pyoxi.Literal(str(o))
+            else:
+                oxi_o = _pyoxi.NamedNode(str(o))
+            quad = _pyoxi.Quad(oxi_s, oxi_p, oxi_o, graph_node)
+            if quad not in self._oxi:
+                self._oxi.add(quad)
+                count += 1
+        return count
 
     def validate(
         self, shape_graph: str | Path | None = None,
