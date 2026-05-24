@@ -382,3 +382,34 @@ def test_gh_sink_propagates_error_text(
     assert result.exit_code != 0
     assert "GH_AUTH_REQUIRED" in result.output
     assert "exit 4" in result.output
+
+
+def test_gh_sink_propagates_rate_limit_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """gh returncode=1 with API rate limit message surfaces in CLI output."""
+    project = _bootstrap(tmp_path)
+    monkeypatch.chdir(project)
+
+    monkeypatch.setattr(
+        "cataforge.cli.feedback_cmd.shutil.which",
+        lambda name: "/usr/bin/gh" if name == "gh" else None,
+    )
+
+    def fake_run(cmd, input=None, **kw):  # type: ignore[no-untyped-def]
+        raise subprocess.CalledProcessError(
+            returncode=1,
+            cmd=cmd,
+            output="",
+            stderr="error: API rate limit exceeded",
+        )
+
+    monkeypatch.setattr("cataforge.cli.feedback_cmd.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(
+        bug_command,
+        ["--gh", "--summary", "x", "--skip-framework-review"],
+    )
+    assert result.exit_code != 0
+    assert "rate limit" in result.output
+    assert "exit 1" in result.output

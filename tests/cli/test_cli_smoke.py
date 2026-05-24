@@ -138,7 +138,7 @@ class TestListCommands:
         result = _invoke("skill", "list")
         assert result.exit_code == 0, result.output
         # At least one built-in skill should render.
-        assert "code-review" in result.output or "code_review" in result.output
+        assert "code-review" in result.output
 
     def test_mcp_list_runs(self, fresh_project: Path) -> None:
         result = _invoke("mcp", "list")
