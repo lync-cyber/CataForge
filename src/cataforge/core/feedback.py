@@ -23,6 +23,7 @@ returns a plain dict / list so it can be JSON-serialised by the CLI for
 from __future__ import annotations
 
 import json
+import logging
 import os
 import platform
 import re
@@ -35,7 +36,9 @@ from typing import Any
 
 from cataforge import __version__ as _package_version
 from cataforge.core.corrections import CORRECTIONS_LOG_REL
-from cataforge.core.event_log import EVENT_LOG_REL
+from cataforge.core.event_log import EVENT_LOG_REL, MAX_EVENTLOG_BYTES
+
+logger = logging.getLogger("cataforge.feedback")
 
 PACKAGE_VERSION = _package_version
 
@@ -163,6 +166,13 @@ def collect_recent_events(
     """
     log = project_root / EVENT_LOG_REL
     if not log.is_file():
+        return []
+    if log.stat().st_size > MAX_EVENTLOG_BYTES:
+        logger.warning(
+            "event log exceeds %d bytes; skipping collect_recent_events: %s",
+            MAX_EVENTLOG_BYTES,
+            log,
+        )
         return []
     cutoff = _parse_since(since)
     rows: list[dict[str, Any]] = []

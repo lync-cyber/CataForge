@@ -179,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    project_root = Path(args.project_root) if args.project_root else find_project_root()
+    project_root = Path(args.project_root).resolve() if args.project_root else find_project_root()
     return migrate(project_root, dry_run=args.dry_run)
 
 

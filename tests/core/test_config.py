@@ -84,6 +84,32 @@ class TestConfigManager:
         assert cfg.load() == {}
         assert cfg.version == "0.0.0"
 
+    def test_claude_md_limits_defaults(self, project_dir: Path) -> None:
+        cfg = ConfigManager(project_dir)
+        limits = cfg.claude_md_limits
+        assert limits["max_bytes"] == 30000
+        assert limits["max_state_section_lines"] == 80
+        assert limits["learnings_registry_max_entries"] == 10
+
+    def test_claude_md_limits_overrides(self, project_dir: Path) -> None:
+        fw_path = project_dir / ".cataforge" / "framework.json"
+        data = json.loads(fw_path.read_text(encoding="utf-8"))
+        data["claude_md_limits"] = {"max_bytes": 50000}
+        fw_path.write_text(json.dumps(data), encoding="utf-8")
+        cfg = ConfigManager(project_dir)
+        limits = cfg.claude_md_limits
+        assert limits["max_bytes"] == 50000
+        assert limits["max_state_section_lines"] == 80
+
+    def test_claude_md_limits_invalid_string_raises(self, project_dir: Path) -> None:
+        fw_path = project_dir / ".cataforge" / "framework.json"
+        data = json.loads(fw_path.read_text(encoding="utf-8"))
+        data["claude_md_limits"] = {"max_bytes": "unlimited"}
+        fw_path.write_text(json.dumps(data), encoding="utf-8")
+        cfg = ConfigManager(project_dir)
+        with pytest.raises(ValueError, match="claude_md_limits.max_bytes"):
+            _ = cfg.claude_md_limits
+
 
 class TestProjectPaths:
     def test_paths_from_root(self, project_dir: Path) -> None:

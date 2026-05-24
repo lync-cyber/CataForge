@@ -20,12 +20,19 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import tempfile
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("cataforge.event_log")
+
+# Maximum byte size of an existing event log that is read into memory for
+# atomic append. Logs exceeding this limit fall back to a non-atomic append.
+MAX_EVENTLOG_BYTES: int = 100 * 1024 * 1024  # 100 MB
 
 # Mirrors `.cataforge/schemas/event-log.schema.json` — kept in Python so the
 # CLI can validate without a hard dependency on the jsonschema package.
@@ -221,11 +228,23 @@ def append_batch(
     path = event_log_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    existing = path.read_bytes() if path.is_file() else b""
     new_lines = "".join(
         json.dumps(rec, ensure_ascii=False, sort_keys=False) + "\n"
         for rec in records
     ).encode("utf-8")
+
+    oversized = path.is_file() and path.stat().st_size > MAX_EVENTLOG_BYTES
+    if oversized:
+        logger.warning(
+            "event log exceeds %d bytes; falling back to non-atomic append: %s",
+            MAX_EVENTLOG_BYTES,
+            path,
+        )
+        with path.open("ab") as f:
+            f.write(new_lines)
+        return path, len(records)
+
+    existing = path.read_bytes() if path.is_file() else b""
 
     # Same directory so os.replace is atomic on every supported OS.
     fd, tmp_name = tempfile.mkstemp(
@@ -234,8 +253,6 @@ def append_batch(
     try:
         with os.fdopen(fd, "wb") as f:
             if existing and not existing.endswith(b"\n"):
-                # Heal a previously truncated line so the replace leaves a
-                # clean JSONL stream.
                 f.write(existing + b"\n")
             else:
                 f.write(existing)

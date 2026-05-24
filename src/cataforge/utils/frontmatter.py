@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import yaml
+
+# Matches a closing front matter fence: a line that is exactly ``---``
+# (optional trailing whitespace), anchored at line start.
+_FENCE_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
 
 def split_yaml_frontmatter(raw: str) -> tuple[dict[str, Any] | None, str]:
@@ -17,12 +22,15 @@ def split_yaml_frontmatter(raw: str) -> tuple[dict[str, Any] | None, str]:
     if not raw.startswith("---"):
         return None, raw
 
-    end = raw.find("---", 3)
-    if end == -1:
+    # Search for a closing fence that sits at the start of a line, beginning
+    # after the opening fence (offset 3).
+    m = _FENCE_RE.search(raw, 3)
+    if m is None:
         return None, raw
 
+    end = m.start()
     fm_text = raw[3:end].strip()
-    body = raw[end + 3 :]
+    body = raw[m.end() :]
     if body.startswith("\n"):
         body = body[1:]
 

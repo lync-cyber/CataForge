@@ -165,7 +165,16 @@ class ConfigManager:
             "learnings_registry_max_entries": 10,
         }
         cfg = self.load().get("claude_md_limits") or {}
-        return {**defaults, **{k: int(v) for k, v in cfg.items() if isinstance(v, int | str)}}
+        result: dict[str, int] = {}
+        for k, v in cfg.items():
+            if isinstance(v, int | str):
+                try:
+                    result[k] = int(v)
+                except ValueError as e:
+                    raise ValueError(
+                        f"claude_md_limits.{k}: expected int, got {v!r}"
+                    ) from e
+        return {**defaults, **result}
 
     # ---- save helpers ----
 
