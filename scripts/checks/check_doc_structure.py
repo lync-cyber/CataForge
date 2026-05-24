@@ -93,7 +93,6 @@ def check_step_gaps(
     """Detect gaps and duplicates in numbered step sequences."""
     issues: list[tuple[int, str, str]] = []
     in_code_fence = False
-    current_section: str = ""
     seen_in_section: dict[int, int] = {}
     prev_num = 0
 
@@ -112,7 +111,6 @@ def check_step_gaps(
         # Section header resets sequence tracking
         if re.match(r"^#{1,4}\s", line):
             _flush()
-            current_section = line.strip()
             continue
 
         if is_whitelisted(line):
