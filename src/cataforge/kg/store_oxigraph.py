@@ -78,7 +78,11 @@ class OxigraphStore(GraphStore):
             self._oxi.dump(fh, _pyoxi.RdfFormat.N_QUADS)
 
     def _snapshot_file(self) -> Path:
-        assert self._project_root is not None
+        if self._project_root is None:
+            raise StoreError(
+                "OxigraphStore._snapshot_file() requires project_root; "
+                "call load() first."
+            )
         return (
             self._project_root / "docs" / ".doc-graph" / "oxigraph" / "snapshot.nq"
         )

@@ -273,13 +273,6 @@ class RDFLibStore(GraphStore):
         return rows
 
     def update(self, sparql_update: str) -> None:
-        # rdflib 7.x Dataset.update mis-handles INSERT DATA blocks that
-        # omit an explicit GRAPH clause: the parser emits 3-tuples while
-        # Dataset.addN demands 4-tuples, surfacing as "expected 4, got 3".
-        # Delegating to the default-graph Graph object bypasses the quad
-        # adapter; named-graph mutations should be expressed via the
-        # add() / remove() API or by passing an explicit GRAPH clause and
-        # calling the dataset directly through namespace_manager().
         self._dataset.default_graph.update(sparql_update)
 
     def validate(
