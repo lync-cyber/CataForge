@@ -89,3 +89,13 @@ agent / skill 的主题是**职责**（评审、TDD、文档生成、装配 hook
 - 通用 UI / 编程概念词（prop / handler / store action / channel / hook 等抽象词）
 
 守卫：[`scripts/checks/check_no_language_coupling.py`](scripts/checks/check_no_language_coupling.py)（pre-commit + per-PR test.yml + anti-rot weekly sweep）。需要例外时同行附 `<!-- allow-language-coupling: <reason> -->`。
+
+### 硬约束 3 · 文档结构规范
+
+agent / skill / rules 的 markdown 文件中，编号列表必须使用连续整数（1. 2. 3.），禁止：
+
+- **非标准子步骤编号**：`3a.` / `4b.` / `2a)` — 子步骤合并到父步骤行内或用嵌套 bullet
+- **编号跳跃**：`1. 2. 4.`（缺 3）
+- **同一段落内编号重复**：两个 `4.`
+
+守卫：[`scripts/checks/check_doc_structure.py`](scripts/checks/check_doc_structure.py)（pre-commit + per-PR test.yml）。需要例外时同行附 `<!-- allow-doc-structure: <reason> -->`。

@@ -45,8 +45,8 @@ required_sections:
 ### F-001: {功能名}
 - **描述**: {一句话}
 - **验收标准**:
-  - [ ] AC-001: {可验证条件}
-  - [ ] AC-002: {可验证条件}
+  - [ ] AC-001: Given {前置条件}, When {触发动作}, Then {可观测结果}
+  - [ ] AC-002: Given {前置条件}, When {触发动作}, Then {可观测结果}
 
 ### F-002: {功能名}
 - **描述**: ...
@@ -82,7 +82,7 @@ required_sections:
   <!-- agile-prototype 默认 light，且执行模式触发 §Prototype Inline 主线程内联（不 dispatch 子代理） -->
 - **tdd_refactor**: skip  <!-- prototype 默认跳过 REFACTOR -->
 - **tdd_acceptance**:
-  - [ ] AC-001: {测试描述} → 预期: {结果}
+  - [ ] AC-001: Given {前置条件}, When {触发动作}, Then {可观测结果}
 - **deliverables**:
   - [ ] `src/{file}.py`
   - [ ] `tests/{file}_test.py`

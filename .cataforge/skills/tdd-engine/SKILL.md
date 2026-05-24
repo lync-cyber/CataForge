@@ -102,7 +102,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 1. `tdd_mode = light`
 2. `loc_estimate ≤ TDD_LIGHT_LOC_THRESHOLD`（任务卡缺该字段时取 LOC=AC 数 × 30 的粗估）
 3. `security_sensitive ≠ true`
-4. 执行模式 ∈ `{agile-lite, agile-prototype}`（agile-standard 模式即使 light 任务也走 dispatch，保持子代理隔离的审计粒度）
+4. 执行模式 ∈ `{agile-lite, agile-prototype, agile-standard}`（审计粒度通过 EVENT-LOG 事件保持，不依赖子代理隔离）
 
 **REFACTOR 条件触发**: 任务卡显式 `tdd_refactor: required` 强制触发；否则 implementer 在 GREEN/Light 完成后通过 `<agent-result>.refactor_needed` 自报告（true 时 orchestrator 调度 refactorer），不再为每个任务跑一次 code-review Layer 1。可在 sprint-review 阶段对累积 impl_files 跑批量 code-review L1 复核（见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）。
 
@@ -116,6 +116,8 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 - deliverables清单
 - 任务卡字段：`task_kind`、`tdd_mode`、`tdd_refactor`、`security_sensitive`、`loc_estimate`
 - 测试命令(`test_command`，按技术栈，如 `pytest -q --tb=short tests/`)
+- 用户故事(prd#§2.F-xxx — 任务卡关联的功能需求描述，含用户角色和使用动机)
+- 业务规则(prd#§3 — 与本任务相关的业务约束，如有)
 
 ### Step 2: RED Phase — 启动test-writer子代理
 
@@ -135,8 +137,14 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     - tdd_mode: standard
     - security_sensitive: {true|false}
 
+    ## user_story
+    {prd#§2.F-xxx 的功能描述，含用户角色/使用动机/业务价值}
+
+    ## business_rules
+    {prd#§3 相关业务规则摘要，无则标注 "无显式业务规则约束"}
+
     ## tdd_acceptance
-    {AC列表}
+    {AC列表，每条 Given-When-Then 格式}
 
     ## interface_contract
     {arch 接口定义片段}
@@ -147,7 +155,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     ## test_command
     {如 `pytest -q --tb=short tests/`}
 
-    任务: 为以上 §tdd_acceptance 的所有 AC 编写测试用例，确保所有新增测试 FAIL。
+    任务: 基于 §user_story 的业务场景，为 §tdd_acceptance 的所有 AC 编写验证行为的测试用例（禁止存在性断言），确保所有新增测试 FAIL。
 ```
 
 > **同模块 RED 批量化** (§C2): 当 orchestrator 一次性派发同 sprint_group 内同模块（context_load 共享 ≥1 个 arch#§2.M-xxx）的 N 个任务时，可合并为**一次 test-writer 调用**，prompt 内联各任务的 §tdd_acceptance（按 task_id 分块）和共享的接口契约，summary 中按 task_id 分块返回。仅适用于任务数 ≤ 4 且共享同一模块；否则回退到逐任务调度。
@@ -282,8 +290,11 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     - task_kind: {task_kind}
     - security_sensitive: {true|false}
 
+    ## user_story
+    {prd#§2.F-xxx 的功能描述，含用户角色/使用动机/业务价值}
+
     ## tdd_acceptance
-    {AC列表}
+    {AC列表，每条 Given-When-Then 格式}
 
     ## interface_contract
     {arch 接口定义片段}
@@ -297,7 +308,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     ## test_command
     {如 `pytest -q --tb=short tests/`}
 
-    任务: 先为以上 §tdd_acceptance 的每条 AC 写一份失败测试，确认 FAIL 后再补最小实现使测试通过。
+    任务: 基于 §user_story 的业务场景，先为 §tdd_acceptance 的每条 AC 写一份验证行为的失败测试（禁止存在性断言），确认 FAIL 后再补最小实现使测试通过。
 
     === 输出要求 ===
     在 <agent-result>.outputs 中同时返回:
@@ -320,6 +331,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 orchestrator 自身在主线程使用 Step 1 已提取的上下文，按 light 模式的"先测试后实现"步骤直接产出 test_files + impl_files，**不调用 agent_dispatch capability**：
 
+- 主线程内联时同样参考 Step 1 已提取的 user_story 上下文编写测试（禁止存在性断言）
 - 步骤等同 light-dispatch 的 implementer 内部行为
 - self-report `refactor_needed` / `refactor_reasons` 作为 orchestrator 自身的判断（写入 EVENT-LOG 而非通过 agent_return）
 - REFACTOR 处理：同 light-dispatch
@@ -342,12 +354,15 @@ orchestrator完成以下收尾:
 
 1. 验证最终测试结果(运行测试确认全部PASS)
 2. 核对deliverables清单(所有文件已创建)
-3. 触发代码审查时，审查范围包含 impl_files 和 test_files（测试代码质量纳入 code-review Layer 2）；按 code-review §Layer 2 短路条件判断是否仅跑 Layer 1
+3. 代码审查分级触发:
+   - **即时 per-task code-review**（reviewer dispatch）: 仅对满足以下任一条件的任务触发：`security_sensitive: true`、`user_facing_critical_path: true`、`consumer_components` 非空。审查范围包含 impl_files 和 test_files
+   - **延迟到 sprint-review 批量审查**: 其余任务不触发 per-task code-review，由 sprint-review 的 §Batch Code-Review 覆盖（见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）
+   - **prototype-inline**: 跳过 per-task code-review（不变）
 4. 通过doc-gen(write-section)将dev-plan#§1对应任务行状态更新为done
 5. 如 blocked 且含 questions → 按 ORCHESTRATOR-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
 6. 如 blocked 且无 questions → 记录原因并请求人工介入
 
-> **Sprint级审查**: 当Sprint内所有任务完成Step 5后，orchestrator触发sprint-review skill执行Sprint完成度审查（见 ORCHESTRATOR-PROTOCOLS.md §Sprint Review Protocol）。Sprint审查在所有任务的code-review之后、下一Sprint开始之前执行；包含批量 `code-review --focus complexity,duplication,coupling` 兜底覆盖 implementer self-report 的漏判。
+> **Sprint级审查**: 当Sprint内所有任务完成Step 5后，orchestrator触发sprint-review skill。Sprint审查承担双重职责：(1) 对未经 per-task code-review 的延迟任务执行批量 code-review（Layer 1 + Layer 2），(2) 对所有任务执行完成度 / AC覆盖 / 范围偏移审查。sprint-review 在下一Sprint开始之前执行。
 
 ## 效率策略
 
@@ -355,6 +370,7 @@ orchestrator完成以下收尾:
 - 子代理间仅传递文件路径，非代码全文
 - 按context_load加载最小必要上下文
 - **light-inline 默认（agile-lite/prototype）**：典型小任务从 3 次子代理调度收敛到 0 次，主线程直接产出
-- **light-dispatch（agile-standard 的 light 任务）**：保持子代理隔离审计，1 次 dispatch 合并 RED+GREEN
+- **light-dispatch（inline 条件不满足时的 fallback）**：当 light 任务的 LOC 超过 `TDD_LIGHT_LOC_THRESHOLD` 或 `security_sensitive=true` 时 fallback 到 dispatch，保持子代理隔离
 - **REFACTOR 由 implementer self-report 触发**：消除每任务一次 code-review L1 的固定开销；sprint-review 阶段批量复核兜底
 - **同模块 RED 批量化**：sprint_group 内任务共享模块时，test-writer 一次写完多任务测试，减少子代理 boot 次数
+- **code-review 分级触发**：仅 `security_sensitive` / `user_facing_critical_path` / `consumer_components` 非空的高风险任务走即时 per-task code-review；其余延迟到 sprint-review 批量覆盖，单任务省去一次 reviewer dispatch

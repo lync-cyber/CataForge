@@ -35,7 +35,10 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
     },
     {
         "id": "code_review_present",
-        "title": "每个任务有对应的 docs/reviews/code/CODE-REVIEW-{task_id}-*.md",
-        "severity": "fail",
+        "title": (
+            "每个任务有对应的 docs/reviews/code/"
+            "CODE-REVIEW-{task_id}-*.md（低风险任务可由sprint-review批量审查覆盖）"
+        ),
+        "severity": "warn",
     },
 )

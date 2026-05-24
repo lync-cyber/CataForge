@@ -71,9 +71,9 @@ T-005:
    → 改 src/cataforge/core/config.py，3 个测试转 PASS
    → 状态：completed，移交 REFACTOR 判定
 
-2. orchestrator → code-review --focus complexity,duplication,coupling (Layer 1 only)
-   → Layer 1 无 finding → 跳过 REFACTOR
-   → 状态：completed
+2. orchestrator → 非 security_sensitive / 非 critical_path → 跳过 per-task code-review
+   → REFACTOR 判定: implementer self-report refactor_needed=false → 跳过
+   → 状态：completed（code-review 延迟到 sprint-review 批量覆盖）
 ```
 
 每个阶段都会向 `docs/EVENT-LOG.jsonl` 追加 `agent_dispatch` 与 `tdd_phase` 事件。

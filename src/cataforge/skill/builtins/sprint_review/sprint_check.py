@@ -364,6 +364,10 @@ def check_code_reviews(
     carries per-task Layer 2 instead of separate CODE-REVIEW files —
     declared via ``project_features.merged_review`` in dev-plan
     frontmatter).
+
+    Tasks without a CODE-REVIEW file are reported as WARN (not FAIL) to
+    accommodate deferred batch code-review: low-risk tasks may skip
+    per-task code-review and be covered by sprint-review batch instead.
     """
     if merged_review:
         return []
@@ -379,8 +383,8 @@ def check_code_reviews(
         pattern = f"CODE-REVIEW-{task['id']}"
         if not any(f.startswith(pattern) for f in review_files):
             issues.append(_issue(
-                "fail", "code_review_present",
-                f"任务 {task['id']} 缺少CODE-REVIEW报告",
+                "warn", "code_review_present",
+                f"任务 {task['id']} 缺少CODE-REVIEW报告（将由sprint-review批量审查覆盖）",
                 task=task["id"],
             ))
     return issues

@@ -56,8 +56,8 @@ graph LR
 - **security_sensitive**: false
   <!-- true 时强制升 standard 模式 + code-review 不短路 Layer 2 -->
 - **tdd_acceptance**:
-  - [ ] AC-001: {测试描述} → 预期: {结果}
-  - [ ] AC-002: {测试描述} → 预期: {结果}
+  - [ ] AC-001: Given {前置条件}, When {触发动作}, Then {可观测结果（具体返回值/状态变化/错误类型）}
+  - [ ] AC-002: Given {前置条件}, When {触发动作}, Then {可观测结果}
 - **deliverables** (交付物):
   - [ ] `src/module-a/feature_x.py` — {功能模块实现}
   - [ ] `tests/module-a/test_feature_x.py` — {单元测试}
