@@ -415,9 +415,10 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
   - dev-plan: {状态}
   - test-report: {状态}
   - deploy-spec: {状态}
-  <!-- changelog 由 devops 产出但不纳入门禁追踪 -->
+  <!-- changelog 由 devops 产出但不纳入门禁追踪 --> <!-- allow-design-residue: downstream-claude-template -->
 ```
-<!-- 状态值: 未开始 | draft | review | approved | needs_revision | needs_revision(N) | N/A -->
+
+> 状态值合法集: 未开始 | draft | review | approved | needs_revision | needs_revision(N) | N/A
 
 ---
 # Appendix: 框架开发约定

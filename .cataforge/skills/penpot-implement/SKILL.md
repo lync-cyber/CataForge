@@ -33,7 +33,7 @@ user-invocable: true
 
 ### Step 1: 加载上下文
 - 通过 doc-nav 加载 ui-spec 中目标 C-{NNN} 的完整规范
-- 通过 doc-nav 加载 arch#§1.4 确定技术栈（React/Vue/HTML等）
+- 通过 doc-nav 加载 arch#§1.4 确定技术栈
 - 通过 Penpot MCP 读取对应组件的设计数据（结构/CSS/SVG）
 
 ### Step 2: 解析 Penpot 组件
@@ -42,10 +42,7 @@ user-invocable: true
 - 映射到 tokens.css 中的设计变量（优先使用变量而非硬编码值）
 
 ### Step 3: 生成代码骨架
-根据技术栈生成:
-- **React**: JSX组件 + CSS Module/Styled Components
-- **Vue**: SFC (.vue) 文件
-- **HTML**: 语义化HTML + CSS类
+按 arch#§1.4 声明的技术栈生成对应的组件文件与样式载体。
 
 生成内容包含:
 - 组件结构（基于Penpot层级）
