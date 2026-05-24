@@ -152,6 +152,8 @@ cataforge hook test PostToolUse --inline '{"tool_name":"Edit","file_path":"src/c
 cataforge hook test PreToolUse --fixture tests/fixtures/pretool-edit.json
 ```
 
+**自定义 hook 命令的 `shell=True` 边界**：内置 `python -m ...` hook 命令走 argv 列表（`shell=False`），不受 shell 元字符影响。但 `hooks.yaml` 里**自定义命令字符串**（不以 `python ` 开头的那种）会走 `shell=True`，以保留管道 / 重定向 / 环境变量展开等常见用法。威胁模型：hook 命令字符串由仓库维护者直接写入 `hooks.yaml`，**不接收任何来自工具调用结果的外部输入**——payload 通过 stdin 传给子进程，而非拼到命令行——所以 `shell=True` 在这条调用面上不构成命令注入风险。如果你的自定义命令需要消费 payload，请让子进程从 stdin 读取，**不要**把 payload 字段拼进 `hooks.yaml` 的命令字符串。
+
 ---
 
 ## mcp
