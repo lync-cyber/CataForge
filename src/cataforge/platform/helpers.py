@@ -15,6 +15,46 @@ from typing import Any
 from cataforge.cli.errors import CataforgeError
 
 
+def _prune_orphan_flat_files(
+    directory: Path,
+    known_names: set[str],
+    suffix: str,
+    head_signature: str,
+    target_rel: str,
+    *,
+    head_read_size: int = 512,
+    dry_run: bool = False,
+) -> list[str]:
+    """Prune flat files in *directory* that are orphans of a deploy pass.
+
+    Only removes files whose stem is absent from *known_names* **and** whose
+    first *head_read_size* bytes contain *head_signature* (with ``{stem}``
+    replaced by the file's stem).  Files that fail this ownership check are
+    left untouched regardless of their extension.
+
+    Returns action strings suitable for appending to a caller's actions list.
+    """
+    actions: list[str] = []
+    if not directory.is_dir():
+        return actions
+    for existing in directory.iterdir():
+        if (
+            not existing.is_file()
+            or existing.suffix != suffix
+            or existing.stem in known_names
+        ):
+            continue
+        head = existing.read_text(encoding="utf-8", errors="ignore")[:head_read_size]
+        if head_signature.format(stem=existing.stem) not in head:
+            continue
+        if dry_run:
+            actions.append(f"would prune orphan {target_rel}/{existing.name}")
+        else:
+            existing.unlink()
+            actions.append(f"pruned orphan {target_rel}/{existing.name}")
+    return actions
+
+
 def _remove_target(target: Path) -> None:
     """Idempotently remove ``target`` whether file, dir, symlink, or junction.
 

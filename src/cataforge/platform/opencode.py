@@ -7,7 +7,11 @@ from typing import Any
 
 from cataforge.agent.translator import translate_agent_md
 from cataforge.platform.base import PlatformAdapter
-from cataforge.platform.helpers import merge_json_key, merge_opencode_project_mcp
+from cataforge.platform.helpers import (
+    _prune_orphan_flat_files,
+    merge_json_key,
+    merge_opencode_project_mcp,
+)
 
 
 class OpenCodeAdapter(PlatformAdapter):
@@ -82,26 +86,16 @@ class OpenCodeAdapter(PlatformAdapter):
                 "these will be skipped during translation."
             )
 
-        # Prune orphans — only flat .md files whose frontmatter ``name:``
-        # still matches the stem (same heuristic claude_code.py uses).
-        if target_dir.is_dir():
-            for existing in target_dir.iterdir():
-                if (
-                    not existing.is_file()
-                    or existing.suffix != ".md"
-                    or existing.stem in source_agents
-                ):
-                    continue
-                head = existing.read_text(encoding="utf-8", errors="ignore")[:512]
-                if f"name: {existing.stem}" not in head:
-                    continue
-                if dry_run:
-                    actions.append(
-                        f"would prune orphan {target_rel}/{existing.name}"
-                    )
-                else:
-                    existing.unlink()
-                    actions.append(f"pruned orphan {target_rel}/{existing.name}")
+        actions.extend(
+            _prune_orphan_flat_files(
+                target_dir,
+                source_agents,
+                ".md",
+                "name: {stem}",
+                target_rel,
+                dry_run=dry_run,
+            )
+        )
 
         return actions
 
