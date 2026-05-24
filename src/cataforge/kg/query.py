@@ -26,6 +26,20 @@ from cataforge.kg.ontology import NAMESPACES
 from cataforge.kg.store import GraphStore
 
 
+class QueryError(ValueError):
+    """Raised when a DSL field fails SPARQL-safety validation."""
+
+
+# Matches a prefixed name: <alpha-or-_><word-chars>:<alpha-or-_><word-or-hyphen-chars>
+_SAFE_CURIE_RE = re.compile(r"^[A-Za-z_]\w*:[A-Za-z_][\w-]*$")
+
+
+def _validate_curie(value: str, field: str) -> None:
+    """Raise QueryError if *value* is not a safe prefixed name (CURIE)."""
+    if not _SAFE_CURIE_RE.fullmatch(value):
+        raise QueryError(f"invalid CURIE in dsl.{field}: {value!r}")
+
+
 def _prefix_header(extra: Iterable[str] = ()) -> str:
     """Render the bundled CURIE prefixes as a SPARQL PREFIX header.
 
@@ -138,6 +152,11 @@ def _dsl_to_sparql(dsl: dict[str, Any]) -> str:
 
     if not rel:
         raise ValueError("DSL requires 'rel' (the predicate curie)")
+    _validate_curie(rel, "rel")
+    if src_type is not None:
+        _validate_curie(src_type, "src_type")
+    if dst_type is not None:
+        _validate_curie(dst_type, "dst_type")
 
     parts = [_prefix_header(), "SELECT DISTINCT ?src ?dst WHERE {"]
     if src_type:
@@ -335,6 +354,10 @@ def coverage(
         cols_class = cfg["cols"]
         via = cfg["via"]
         direction = cfg["direction"]
+
+    _validate_curie(rows_class, "rows_class")
+    _validate_curie(cols_class, "cols_class")
+    _validate_curie(via, "via")
 
     rows_iris = [
         r["x"] for r in store.query(
