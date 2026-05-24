@@ -15,7 +15,7 @@
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
-3a. **写入跨平台 `.gitattributes`** — 治理 Windows `core.autocrlf=true` + fixture/snapshot 字节哈希漂移。项目根无 `.gitattributes` 时写入下列最小集；已存在则**只读**判断（含 `eol=` 视为已归一化），不覆盖用户自定义：
+4. **写入跨平台 `.gitattributes`** — 治理 Windows `core.autocrlf=true` + fixture/snapshot 字节哈希漂移。项目根无 `.gitattributes` 时写入下列最小集；已存在则**只读**判断（含 `eol=` 视为已归一化），不覆盖用户自定义：
 
     ```
     # cataforge default — 跨平台行尾归一化
@@ -44,23 +44,23 @@
     ```
 
     > 适用：Node / Python / 含 fixture 的多平台项目。纯 Linux/macOS 服务端项目可裁剪至首行 `* text=auto eol=lf`。
-4. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§框架元信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
+5. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§框架元信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
     - `standard` → `requirements`
     - `agile-lite` → `planning`（Phase 1+2 合并）
     - `agile-prototype` → `brief`（Phase 1~4 合并）
-5. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 CLAUDE.md `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
-6. **选择目标平台** — 通过 AskUserQuestion 单独提问，选项:
+6. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 CLAUDE.md `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
+7. **选择目标平台** — 通过 AskUserQuestion 单独提问，选项:
     - `claude-code`（默认）— Anthropic Claude Code CLI / Desktop / Web
     - `cursor` — Cursor IDE
     - `codex` — OpenAI Codex CLI
     - `opencode` — OpenCode CLI
     确认后执行: `cataforge setup --platform {选定值}`，该命令将写入 `framework.json` 的 `runtime.platform` 字段并自动执行 deploy，生成对应平台的部署产物。若用户跳过选择则默认 `claude-code`。
-7. **填入 §执行环境 + 最小 permissions** — 按顺序运行两条命令:
+8. **填入 §执行环境 + 最小 permissions** — 按顺序运行两条命令:
    - `cataforge setup --emit-env-block`：将输出注入 CLAUDE.md §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
    - `cataforge setup --apply-permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
    本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 CLAUDE.md，并收紧运行时权限以符合最小权限原则。
-8. **初始化文档索引** — 运行 `cataforge docs index`，生成空的 `docs/.doc-index.json`（首个文档落盘后会被 doc-gen 增量刷新）
-9. **进入初始阶段** — 通过 agent-dispatch 激活:
+9. **初始化文档索引** — 运行 `cataforge docs index`，生成空的 `docs/.doc-index.json`（首个文档落盘后会被 doc-gen 增量刷新）
+10. **进入初始阶段** — 通过 agent-dispatch 激活:
     - `standard` → product-manager（Phase 1 requirements）
     - `agile-lite` → product-manager（planning 阶段，按 §Mode Routing Protocol 产出 prd-lite 后链式激活 architect 产出 arch-lite）
     - `agile-prototype` → product-manager（brief 阶段，产出单一 brief.md）
@@ -125,8 +125,7 @@ Mode Routing Protocol 在以下时刻被调用:
    ```
 2. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 3. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
-4. 修复完成后重新激活 reviewer 执行门禁
-4a. **增量审查模式**: revision re-review 时，reviewer 仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较）。上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查；仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
+4. 修复完成后重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
 5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入（收紧自 N≥3，避免低效 revision 循环）
 
 > 子代理收到 `task_type=revision` 后的修订步骤见 `.cataforge/rules/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
@@ -304,8 +303,7 @@ batch_dispatch([
 
 **正常流程** (不满足短路条件时):
 1. 通过 agent-dispatch 激活 reviewer (task_type=new_creation, skill=sprint-review)
-2. 传入: dev-plan路径, Sprint编号, 已有CODE-REVIEW报告路径（仅即时审查的任务）, arch文档路径
-2a. **Batch Code-Review（延迟任务）**: 本 Sprint 中未经 per-task code-review 的任务（即非 `security_sensitive` / `user_facing_critical_path` / `consumer_components` 非空的任务），由 sprint-review 承担等价审查。reviewer 在 sprint-review 报告的 §per-task L2 维度表中逐任务覆盖 structure / error-handling / test-quality / security 维度（复用 sprint-review §merged-review 的维度表格式）。这些任务不需要独立 CODE-REVIEW-T-NNN 文件
+2. 传入: dev-plan路径, Sprint编号, 已有CODE-REVIEW报告路径（仅即时审查的任务）, arch文档路径。本 Sprint 中未经 per-task code-review 的延迟任务由 sprint-review 承担等价审查（Batch Code-Review）：reviewer 在报告的 §per-task L2 维度表中逐任务覆盖 structure / error-handling / test-quality / security 维度（复用 §merged-review 的维度表格式），这些任务不需要独立 CODE-REVIEW-T-NNN 文件
 3. reviewer执行sprint-review skill，产出 `SPRINT-REVIEW-s{N}-r{M}.md`
 4. 结果处理:
    - **approved** → 更新CLAUDE.md Sprint字段，进入下一Sprint（或全部Sprint完成后进入Phase 6）
@@ -334,8 +332,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
    - "回滚所有修订": `git checkout -- docs/{affected_dirs}` 恢复所有本轮修订的文档
 4. 回滚后变更请求状态重置，用户可调整范围后重新提交
 
-4. 变更完成后回到原阶段继续执行
-5. Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程
+变更完成后回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
 
 > 子代理收到 `task_type=amendment` 后的修订步骤见 `.cataforge/rules/SUB-AGENT-PROTOCOLS.md §task_type=amendment 变更修订流程`。
 

@@ -83,3 +83,16 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.cataforge/(agents|skills)/.*\.md$
+      - id: doc-structure
+        name: document structure hygiene (step numbering)
+        description: |
+          .cataforge/{agents,skills,rules}/**/*.md are loaded into the LLM
+          context at runtime. Non-standard step numbering (3a., 4b.),
+          gaps in numbered sequences, and duplicate step numbers cause
+          silent ambiguity in agent execution and rot over time. Use
+          sequential integers only; merge sub-steps inline or as nested
+          bullets.
+        entry: python scripts/checks/check_doc_structure.py
+        language: system
+        pass_filenames: false
+        files: ^\.cataforge/(agents|skills|rules)/.*\.md$
