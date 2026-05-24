@@ -15,7 +15,7 @@ from typing import Any
 import yaml
 
 from cataforge.core.paths import ProjectPaths, find_project_root
-from cataforge.schema.mcp_spec import MCPServerSpec, MCPServerState
+from cataforge.schema.mcp_spec import TRUSTED_COMMAND_PREFIXES, MCPServerSpec, MCPServerState
 
 logger = logging.getLogger("cataforge.mcp")
 
@@ -56,6 +56,15 @@ class MCPRegistry:
                     if callable(factory):
                         spec = factory()
                         if isinstance(spec, MCPServerSpec):
+                            if not self._is_trusted_command(spec):
+                                logger.warning(
+                                    "Skipping MCP entry_point %s: untrusted command %r"
+                                    " — first element must be in %s or a relative path",
+                                    ep.name,
+                                    spec.command,
+                                    sorted(TRUSTED_COMMAND_PREFIXES),
+                                )
+                                continue
                             self._servers.setdefault(spec.id, spec)
                             self._states.setdefault(
                                 spec.id, MCPServerState(spec_id=spec.id)
@@ -64,6 +73,26 @@ class MCPRegistry:
                     logger.warning("Skipping MCP entry_point %s: %s", ep.name, e)
         except Exception as e:
             logger.debug("entry_points scan unavailable: %s", e)
+
+    @staticmethod
+    def _is_trusted_command(spec: MCPServerSpec) -> bool:
+        """Return True if spec.command is safe to execute.
+
+        Bare executable names must appear in TRUSTED_COMMAND_PREFIXES.
+        Relative paths (containing a path separator, e.g. ``./scripts/run``)
+        are accepted as project-local binaries. Absolute paths are rejected.
+        """
+        cmd = spec.command.strip()
+        if not cmd:
+            return True  # empty command will fail at start() — not a trust concern
+        executable = cmd.split()[0] if " " in cmd else cmd
+        if executable in TRUSTED_COMMAND_PREFIXES:
+            return True
+        from pathlib import PurePosixPath, PureWindowsPath
+        if PurePosixPath(executable).is_absolute() or PureWindowsPath(executable).is_absolute():
+            return False
+        # Allow relative paths that contain a separator (e.g. ./bin/tool).
+        return "/" in executable or "\\" in executable
 
     def _parse_spec_file(self, path: Path) -> MCPServerSpec:
         """Parse a YAML spec file into MCPServerSpec."""

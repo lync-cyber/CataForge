@@ -359,7 +359,7 @@ class TestHealth:
             args=["registered"],
             health_check={
                 "type": "command",
-                "target": f"{sys.executable} -c \"import sys; sys.exit(0)\"",
+                "target": [sys.executable, "-c", "import sys; sys.exit(0)"],
                 "timeout_seconds": 5,
             },
         )
@@ -370,7 +370,7 @@ class TestHealth:
             args=["registered"],
             health_check={
                 "type": "command",
-                "target": f"{sys.executable} -c \"import sys; sys.exit(7)\"",
+                "target": [sys.executable, "-c", "import sys; sys.exit(7)"],
                 "timeout_seconds": 5,
             },
         )

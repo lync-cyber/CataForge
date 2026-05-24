@@ -275,8 +275,8 @@ class MCPLifecycleManager:
           timeout. Healthy iff the HTTP status is 2xx.
         * ``tcp`` — open a socket to ``"host:port"`` parsed from
           ``health_check.target``. Healthy iff the connect succeeds.
-        * ``command`` — run ``health_check.target`` via the shell with the
-          configured timeout. Healthy iff exit code is 0.
+        * ``command`` — run ``health_check.target`` (must be a ``list[str]``)
+          without a shell with the configured timeout. Healthy iff exit code is 0.
 
         When no ``health_check`` is declared, falls back to a pid-alive
         probe so callers always get an answer.
@@ -400,10 +400,19 @@ class MCPLifecycleManager:
             return HealthResult(
                 status="unknown", detail="command: target is empty", ts=ts
             )
+        if isinstance(target, str):
+            return HealthResult(
+                status="unknown",
+                detail=(
+                    f"command: health_check.target must be a list of args;"
+                    f" got string {target!r}"
+                ),
+                ts=ts,
+            )
         try:
-            proc = subprocess.run(  # noqa: S602 — operator-configured command
+            proc = subprocess.run(  # noqa: S603
                 target,
-                shell=True,
+                shell=False,
                 timeout=check.timeout_seconds,
                 capture_output=True,
                 text=True,
