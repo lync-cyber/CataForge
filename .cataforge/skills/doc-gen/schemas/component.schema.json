@@ -1,0 +1,21 @@
+{
+  "$comment": "ui_renders write-back",
+  "items": [
+    {
+      "from": "components",
+      "iri": "cfa:${doc_id}/${id}",
+      "type": "cfa:Component",
+      "literals": {
+        "cfk:hasId": "id",
+        "rdfs:label": "label"
+      },
+      "iri_refs": {
+        "cfk:definedIn": "cfk:doc/${doc_id}",
+        "cfa:renders": {
+          "field": "renders",
+          "as_iri": true
+        }
+      }
+    }
+  ]
+}

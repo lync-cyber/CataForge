@@ -6,6 +6,13 @@ suggested-tools: Read, Write, Edit, Glob
 depends: []
 disable-model-invocation: false
 user-invocable: true
+kg_adapter:
+  name: feature_authoring
+  config:
+    doc_id_param: doc_id
+    pre_dispatch_queries:
+      existing_features: "SELECT ?id ?label WHERE {\n  ?f a cfa:Feature ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+    write_back_schema: .cataforge/skills/doc-gen/schemas/feature.schema.json
 ---
 
 # 统一文档生成 (doc-gen)

@@ -14,6 +14,12 @@ skills:
   - doc-nav
 model_tier: heavy
 maxTurns: 40
+kg_adapter:
+  name: doc_read
+  config:
+    doc_id_param: doc_id
+    pre_dispatch_queries:
+      doc_summary: "SELECT ?label WHERE {\n  $doc_iri rdfs:label ?label .\n} LIMIT 1"
 ---
 
 # Role: 调试工程师 (Debugger)

@@ -6,6 +6,15 @@ suggested-tools: Read, Write, Edit, Glob, Grep
 depends: [doc-gen, doc-nav, tech-eval, research]
 disable-model-invocation: false
 user-invocable: true
+kg_adapter:
+  name: module_implements
+  config:
+    doc_id_param: doc_id
+    upstream_doc_param: prd_doc_iri
+    pre_dispatch_queries:
+      upstream_features: "SELECT ?id ?label WHERE {\n  ?f a cfa:Feature ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+      existing_modules: "SELECT ?id ?label WHERE {\n  ?m a cfa:Module ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+    write_back_schema: .cataforge/skills/doc-gen/schemas/module.schema.json
 ---
 
 # 架构设计 (arc-design)

@@ -6,6 +6,12 @@ suggested-tools: Read, Glob, Grep, Bash
 depends: [doc-nav]
 disable-model-invocation: false
 user-invocable: true
+kg_adapter:
+  name: doc_read
+  config:
+    doc_id_param: doc_id
+    pre_dispatch_queries:
+      doc_summary: "SELECT ?label WHERE {\n  $doc_iri rdfs:label ?label .\n} LIMIT 1"
 ---
 
 # 框架元资产审查 (framework-review)

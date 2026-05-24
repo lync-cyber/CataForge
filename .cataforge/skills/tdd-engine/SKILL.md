@@ -6,6 +6,12 @@ suggested-tools: file_read, file_write, file_edit, shell_exec, file_glob, file_g
 depends: [doc-nav]
 disable-model-invocation: false
 user-invocable: true
+kg_adapter:
+  name: doc_read
+  config:
+    doc_id_param: doc_id
+    pre_dispatch_queries:
+      doc_summary: "SELECT ?label WHERE {\n  $doc_iri rdfs:label ?label .\n} LIMIT 1"
 ---
 
 # TDD引擎 (tdd-engine)

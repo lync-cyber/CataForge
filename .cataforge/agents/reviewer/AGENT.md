@@ -15,6 +15,12 @@ skills:
   - penpot-review  # 仅当 CLAUDE.md 设计工具=penpot 时使用
 model_tier: standard
 maxTurns: 50
+kg_adapter:
+  name: doc_read
+  config:
+    doc_id_param: doc_id
+    pre_dispatch_queries:
+      doc_summary: "SELECT ?label WHERE {\n  $doc_iri rdfs:label ?label .\n} LIMIT 1"
 ---
 
 # Role: 评审员 (Reviewer)

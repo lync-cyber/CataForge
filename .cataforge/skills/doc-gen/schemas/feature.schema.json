@@ -1,0 +1,21 @@
+{
+  "$comment": "feature_authoring write-back schema — agent emits {doc_id, doc_iri, features: [{id, label, status?}]}",
+  "items": [
+    {
+      "from": "features",
+      "iri": "cfa:${doc_id}/${id}",
+      "type": "cfa:Feature",
+      "literals": {
+        "cfk:hasId": "id",
+        "rdfs:label": "label",
+        "cfa:status": {
+          "field": "status",
+          "optional": true
+        }
+      },
+      "iri_refs": {
+        "cfk:definedIn": "cfk:doc/${doc_id}"
+      }
+    }
+  ]
+}

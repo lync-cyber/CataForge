@@ -14,6 +14,15 @@ skills:
   - penpot-sync    # 仅当 CLAUDE.md 设计工具=penpot 时使用
 model_tier: standard
 maxTurns: 60
+kg_adapter:
+  name: ui_renders
+  config:
+    doc_id_param: doc_id
+    upstream_doc_param: prd_doc_iri
+    pre_dispatch_queries:
+      features_to_render: "SELECT ?id ?label WHERE {\n  ?f a cfa:Feature ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+      existing_components: "SELECT ?id ?label WHERE {\n  ?c a cfa:Component ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+    write_back_schema: .cataforge/skills/doc-gen/schemas/component.schema.json
 ---
 
 # Role: UI设计师 (UI Designer)

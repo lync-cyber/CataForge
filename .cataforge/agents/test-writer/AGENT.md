@@ -9,6 +9,15 @@ allowed_paths:
 skills: []  # 由 tdd-engine 在 RED 阶段 inline 调度，本 agent 不通过 sub-agent skill 加载；上下文从 dispatch prompt 传入
 model_tier: standard
 maxTurns: 30
+kg_adapter:
+  name: test_validates
+  config:
+    doc_id_param: doc_id
+    upstream_doc_param: prd_doc_iri
+    pre_dispatch_queries:
+      features_to_cover: "SELECT ?id ?label WHERE {\n  ?f a cfa:Feature ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+      existing_tests: "SELECT ?id WHERE {\n  ?t a cfa:TestCase ; cfk:hasId ?id ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+    write_back_schema: .cataforge/skills/doc-gen/schemas/test.schema.json
 ---
 
 # Role: 测试编写者 (Test Writer — TDD RED Phase)
