@@ -156,15 +156,31 @@ def docs_validate(project_root: str | None) -> None:
     xref_errors = result["xref_errors"]
     alias_conflicts = result["alias_conflicts"]
     invalid_ids = result.get("invalid_ids", [])
+    stale_deps = result.get("stale_deps", [])
 
     if (
         not orphans and not stale and not xref_errors
         and not alias_conflicts and not invalid_ids
     ):
-        click.echo(
+        summary = (
             "OK · 0 orphans · 0 stale entries · 0 xref errors · "
             "0 alias conflicts · 0 invalid ids"
         )
+        if stale_deps:
+            summary += f" · {len(stale_deps)} stale dep(s)"
+        click.echo(summary)
+        if stale_deps:
+            click.echo(
+                f"WARN · {len(stale_deps)} stale dependency(ies) — "
+                "upstream content changed since downstream was written:",
+                err=True,
+            )
+            for sd in stale_deps:
+                click.echo(
+                    f"  - {sd['doc_id']} depends on {sd['upstream_id']} "
+                    f"(pinned={sd['pinned_hash']}, current={sd['current_hash']})",
+                    err=True,
+                )
         return
 
     if orphans:
@@ -211,6 +227,19 @@ def docs_validate(project_root: str | None) -> None:
         for e in invalid_ids:
             click.echo(
                 f"  - [{e['kind']}] {e['value']!r} ({e['file_path']}): {e['reason']}",
+                err=True,
+            )
+
+    if stale_deps:
+        click.echo(
+            f"WARN · {len(stale_deps)} stale dependency(ies) — "
+            "upstream content changed since downstream was written:",
+            err=True,
+        )
+        for sd in stale_deps:
+            click.echo(
+                f"  - {sd['doc_id']} depends on {sd['upstream_id']} "
+                f"(pinned={sd['pinned_hash']}, current={sd['current_hash']})",
                 err=True,
             )
 

@@ -67,6 +67,7 @@ cataforge skill run sprint-review -- {N} \
 - 范围偏移(scope-drift): 实现是否偏离arch接口契约、数据模型、模块边界
 - Gold-plating(gold-plating): 是否存在计划外的额外功能、接口、文件
 - 缺失交付物(missing-deliverable): 任务卡中声明的deliverables是否全部产出
+- 偏移率(drift-rate): 对比本 Sprint 实际交付的 AC 与 dev-plan 中规划的 AC：延期的 AC（计划内但未交付）+ 计划外的 AC（交付但未在计划中声明）。偏移率 = (延期 AC + 计划外 AC) / 规划 AC 总数。偏移率 > 20% 时标记 HIGH 并建议用户重新评估剩余 Sprint 规划
 - 质量聚合(quality-summary): 聚合该Sprint所有CODE-REVIEW报告中的MEDIUM/HIGH问题模式
 
 ### Step 3: 审查报告编号
@@ -83,6 +84,7 @@ Sprint审查额外category:
 | scope-drift | 实现偏离设计 |
 | gold-plating | 计划外额外功能 |
 | missing-deliverable | 缺失交付物 |
+| drift-rate | AC 偏移率超过阈值（延期 + 计划外 / 总计划），建议重新评估 |
 
 ### Step 5: 判定结论
 三态判定按 COMMON-RULES §三态判定逻辑。Sprint needs_revision 标记具体任务 ID 以便重入 TDD。
