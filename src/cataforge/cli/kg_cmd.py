@@ -59,3 +59,45 @@ def kg_benchmark(budget_path: Path | None, project_root: Path | None) -> None:
 
     results = run_benchmarks(root, budget=budget)
     click.echo(format_report(results, budget=budget))
+
+
+@kg_group.command("migrate")
+@click.option(
+    "--project-root",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=None,
+    help="Project root (defaults to walk-up search for .cataforge/).",
+)
+@click.option(
+    "--rollback",
+    is_flag=True,
+    default=False,
+    help="Restore the most recent .doc-graph.bak.<stamp>/ backup.",
+)
+@click.option(
+    "--no-validate",
+    "validate",
+    flag_value=False,
+    default=True,
+    help="Skip the post-migration SHACL validation (validation is warn-only).",
+)
+def kg_migrate(
+    project_root: Path | None,
+    rollback: bool,
+    validate: bool,
+) -> None:
+    """Big-bang migrate docs/.doc-index.json into the KG store.
+
+    Existing ``.doc-graph/`` is rotated to a timestamped backup before
+    the new graph is written. ``--rollback`` restores the most recent
+    backup. SHACL validation is reported but never blocks — fix any
+    flagged shapes incrementally after the migration lands.
+    """
+    from cataforge.kg.migrate import MigrationError, migrate
+
+    root = project_root or find_project_root()
+    try:
+        report = migrate(root, rollback=rollback, validate=validate)
+    except MigrationError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(report.format())
