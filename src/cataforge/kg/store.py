@@ -28,6 +28,8 @@ from rdflib.namespace import NamespaceManager
 from rdflib.query import ResultRow
 from rdflib.term import Node
 
+from cataforge.kg.iri import IRIExpansionError
+from cataforge.kg.iri import expand_curie as _shared_expand_curie
 from cataforge.kg.ontology import NAMESPACES as _BUILTIN_PREFIXES
 
 SCHEMA_VERSION = "1"
@@ -64,24 +66,16 @@ class StoreError(RuntimeError):
 
 
 def _expand_curie(token: str) -> str:
-    """Expand ``prefix:local`` to full IRI; pass through if already absolute.
+    """Store-flavoured wrapper over :func:`cataforge.kg.iri.expand_curie`.
 
-    Tokens starting with a known scheme (``http://`` / ``https://`` / ``urn:``)
-    are returned untouched; a leading ``_:`` denotes an rdflib blank node and
-    is also passed through. Unknown prefixes raise StoreError to fail fast
-    rather than silently coining an opaque IRI."""
-    if token.startswith(("http://", "https://", "urn:", "_:")):
-        return token
-    if ":" not in token:
-        raise StoreError(f"Bare token without prefix or scheme: {token!r}")
-    prefix, _, local = token.partition(":")
-    base = _BUILTIN_PREFIXES.get(prefix)
-    if base is None:
-        raise StoreError(
-            f"Unknown prefix {prefix!r} in {token!r}; register it in "
-            "cataforge.kg.ontology before use."
-        )
-    return base + local
+    Translates :class:`~cataforge.kg.iri.IRIExpansionError` into the
+    module-local :class:`StoreError` so callers that already catch the
+    store-side exception type keep working.
+    """
+    try:
+        return _shared_expand_curie(token)
+    except IRIExpansionError as exc:
+        raise StoreError(str(exc)) from exc
 
 
 def _term_to_node(token: str) -> URIRef | BNode:
