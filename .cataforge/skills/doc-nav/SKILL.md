@@ -76,6 +76,12 @@ cataforge docs validate
 
 doc_type 映射来自 `.cataforge/framework.json` 的 `docs.doc_types` 字段（缺省时使用内置默认 9 项: prd / arch / ui-spec / dev-plan / test-report / deploy-spec / research / changelog / brief）。下游项目可在 framework.json 自定义扩展。
 
+## Anti-Patterns
+- 禁止: 一次性 Read 超过 200 行的整篇文档 — 章节级加载是 doc-nav 的核心价值，全文 Read 会让单次调用吃掉数千 token 还引入无关章节噪声
+- 禁止: 跳过 `docs/.doc-index.json` 直接 Glob 文档目录 — 索引含 line_start/line_end 精确定位，绕过它意味着回到全文扫描 + 人眼定位的旧模式
+- 禁止: 用 Bash cat / sed 拼读文档绕过 Read 工具 — 任何文件 IO 必须走标准工具链，让 hook / 校验链可观测
+- 避免: 同一会话内重复 load 同一章节 — 内容已在主线程上下文，重复加载浪费 turn 和 token
+
 ## 效率策略
 - 索引常驻 `.doc-index.json` 即可全局检索，无需常驻上下文
 - 按章节加载 vs 全文加载 → 大幅减少上下文占用

@@ -18,6 +18,19 @@ user-invocable: true
 - **能做**: 根据工作流类型+目标平台，生成完整的CataForge兼容框架（agents/skills/workflows/configs）
 - **不做**: 执行生成的工作流、替代领域专家做业务决策、硬编码特定工作流逻辑
 
+## 输入规范
+
+- 必填: `workflow_type` 工作流类型（自由文本，如"公众号写作"）+ `target_ide` 目标平台（枚举: claude-code | cursor | codex | opencode）
+- 可选: `multi_agent` / `tool_calls` / `structured_output` / `output_format` / `project_name` / `output_dir` 约束字段（详见 Phase 1.1）
+- 上游知识源: `references/domain-patterns.md`（领域模式库）+ `references/platform-capabilities.md`（平台能力矩阵）
+
+## 输出规范
+
+- 输出目录: `<output_dir>/`（默认 `./generated-frameworks/<project_name>/`）
+- 完整产出: `.cataforge/{framework.json, PROJECT-STATE.md, agents/, skills/, workflows/, hooks/hooks.yaml, rules/, platforms/, schemas/}` + 根目录 `README.md` + `docs/` 空目录
+- 设计决策记录: 控制台输出 §设计决策输出 段定义的四节内容
+- 不写入: 用户项目源码、CI 配置、运行时数据
+
 ## 执行流程
 
 本 Skill 按三个阶段执行：**解析 → 规划 → 生成**。每个阶段有明确的输入输出契约。
@@ -405,6 +418,15 @@ phases:
 5. **自定义 Hook**: 在 `hooks/hooks.yaml` 中添加新规则
 
 每种扩展均不需要修改已有文件（开闭原则）。
+
+---
+
+## Anti-Patterns
+
+- 禁止: 生成的 SKILL.md / AGENT.md 含硬约束违规（版本里程碑 / PR 编号 / 特定语言关键字）— 下游项目会继承腐化，应在 Phase 3 模板填充后跑 check_no_design_residue / check_no_language_coupling 守卫
+- 禁止: 生成的 Anti-Patterns 段少于 ANTI_PATTERN_MIN_COUNT_SKILL（默认 3）/ AGENT 默认 4 — B8-β 检查会 FAIL，下游 framework-review 阻塞
+- 禁止: 生成的 agent `allowed_paths` 与 Anti-Patterns 行为约束矛盾 — 机制层放行 vs 行为层禁止的矛盾会让 reviewer 兜底失效（同 qa-engineer 历史问题模式）
+- 避免: 生成框架时跳过 Phase 4 验证 — 结构完整性 + 平台兼容性 + 架构质量三层检查是防止半成品产出的关键
 
 ---
 
