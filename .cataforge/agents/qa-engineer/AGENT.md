@@ -5,7 +5,6 @@ tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_
 disallowedTools: agent_dispatch, web_search, web_fetch
 allowed_paths:
   - docs/test-report/
-  - src/
   - tests/
 skills:
   - testing

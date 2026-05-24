@@ -24,7 +24,7 @@ user-invocable: true
 - ui-spec#§2 中对应的 C-{NNN} 规范（作为参考）
 
 ## 输出规范
-- 设计一致性审查报告 `docs/reviews/code/DESIGN-REVIEW-{component_id}.md`
+- 设计一致性审查报告 `docs/reviews/design/DESIGN-REVIEW-{component_id}.md`
 - 差异列表（属性/值/偏差量）
 - 修复建议
 
@@ -76,7 +76,7 @@ user-invocable: true
 ## Anti-Patterns
 - 禁止: 因 ≤1px 偏差直接判 DIFF —— 视觉对齐有亚像素噪声；<1px 标 WARN 而非 DIFF，否则审查噪音淹没真正偏差
 - 禁止: 比对动画 / 交互 / 过渡属性 —— ui-spec 不承载交互契约；penpot-review 只对静态视觉，越界会引入大量假阳
-- 禁止: 把 review 报告写到 docs/reviews/code/ —— 设计审查报告路径与代码审查不同，混写让 sprint-review 聚合失真
+- 禁止: 把 review 报告写到 docs/reviews/code/ 或 docs/reviews/doc/ —— 设计审查报告应入 docs/reviews/design/，混写让 sprint-review 聚合失真
 - 避免: 把 Penpot 设计差异自动回写到 ui-spec —— 设计漂移修正必须经 ui-designer 显式判断，自动同步会让契约失去 reviewer 把关
 
 ## 效率策略
