@@ -97,19 +97,19 @@ gh pr create --title "<type>(<scope>): <subject>" --body "..."
 
 ```bash
 # 修复后
-cataforge issue close 104 --verdict fixed --pr 108
-# → comment: "Fixed in v0.4.0 (PR #108). Triage: docs/reviews/triage/SKILL-IMPROVE-event-log-schema-issue-104.md"
+cataforge issue close <issue-id> --verdict fixed --pr <pr-number>
+# → comment: "Fixed in <release-tag> (PR #<pr-number>). Triage: docs/reviews/triage/SKILL-IMPROVE-<target-id>-issue-<issue-id>.md"
 
 # wontfix
-cataforge issue close 102 --verdict wontfix --reason "doc_id 强制 slug 是主动设计；版本号入 frontmatter version 字段"
-# → comment: "Wontfix — by design: doc_id 强制 slug 是主动设计；版本号入 frontmatter version 字段."
+cataforge issue close <issue-id> --verdict wontfix --reason "<design intent statement>"
+# → comment: "Wontfix — by design: <design intent statement>."
 
 # 历史已修
-cataforge issue close 99 --verdict already-fixed --pr 87
-# → comment: "Already fixed in v0.3.0 (PR #87)."
+cataforge issue close <issue-id> --verdict already-fixed --pr <pr-number>
+# → comment: "Already fixed in <release-tag> (PR #<pr-number>)."
 
 # 干跑：只打印 comment 不真关
-cataforge issue close 104 --verdict fixed --pr 108 --dry-run
+cataforge issue close <issue-id> --verdict fixed --pr <pr-number> --dry-run
 ```
 
 ## Layer 1 检查项
