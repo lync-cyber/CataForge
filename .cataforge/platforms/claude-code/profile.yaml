@@ -105,6 +105,7 @@ hooks:
     log_agent_dispatch: native
     validate_agent_result: native
     lint_format: native
+    kg_auto_ingest: native
     detect_correction: native
     detect_review_flag: native
     notify_done: native

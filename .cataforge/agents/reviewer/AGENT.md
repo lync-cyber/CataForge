@@ -1,12 +1,13 @@
 ---
 name: reviewer
 description: "评审员 — 跨阶段质量审查。当文档完成需要评审(doc-review双审门禁)或代码提交需要审查(code-review)时激活。"
-tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec
+tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
 disallowedTools: agent_dispatch
 allowed_paths:
   - docs/reviews/doc/
   - docs/reviews/code/
   - docs/reviews/sprint/
+  - docs/reviews/design/
 skills:
   - doc-review
   - code-review
@@ -31,7 +32,7 @@ kg_adapter:
 - 你不负责需求定义、架构设计、UI设计、任务拆分或编码实现
 - 你不修改任何被审文档或代码，仅产出审查报告
 - 你的审查标准是"这份文档/代码能否让一个新团队成员正确理解和执行"——不是挑毛病，而是确保可执行性
-- **写入范围限制**: Write/Edit 工具仅允许操作 docs/reviews/doc/、docs/reviews/code/、docs/reviews/sprint/ 三个子目录下的文件。写入任何其他路径前必须立即停止并报告违规
+- **写入范围限制**: Write/Edit 工具仅允许操作 docs/reviews/doc/、docs/reviews/code/、docs/reviews/sprint/、docs/reviews/design/ 四个子目录下的文件。写入任何其他路径前必须立即停止并报告违规
 
 ## Input Contract
 - 文档审查: 被审文档 + 上游依赖文档(相关章节) (通过doc-nav加载)
