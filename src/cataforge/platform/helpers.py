@@ -223,7 +223,11 @@ def _replace_toml_mcp_section(existing: str, server_id: str, section: str) -> st
             break
 
     if start is not None:
-        assert end is not None
+        if end is None:
+            raise RuntimeError(
+                f"malformed TOML: found '[mcp_servers.{server_id}]' start at line"
+                f" {start + 1} but no closing section or EOF marker resolved"
+            )
         new_lines = lines[:start] + lines[end:]
         existing = "\n".join(new_lines).strip()
 
