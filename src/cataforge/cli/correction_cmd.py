@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import click
 
+from cataforge.cli.helpers import resolve_root
 from cataforge.cli.main import cli
 from cataforge.core.corrections import (
     VALID_DEVIATIONS,
     VALID_TRIGGERS,
     record_correction,
 )
-from cataforge.core.paths import find_project_root
 
 
 @cli.group("correction")
@@ -71,7 +71,7 @@ def record_command(
     no_event_log: bool,
 ) -> None:
     """Append a correction record to CORRECTIONS-LOG.md and EVENT-LOG.jsonl."""
-    project_root = find_project_root()
+    project_root = resolve_root()
     result = record_correction(
         project_root,
         trigger=trigger,
