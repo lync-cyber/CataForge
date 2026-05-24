@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ from cataforge.platform.base import PlatformAdapter
 logger = logging.getLogger("cataforge.platform")
 
 _adapter_cache: dict[tuple[str, str | None], PlatformAdapter] = {}
+_cache_lock = threading.Lock()
 
 
 def detect_platform(framework_json_path: Path | None = None) -> str:
@@ -59,7 +61,7 @@ def load_profile(platform_id: str, platforms_dir: Path | None = None) -> dict[st
         import yaml
 
         with open(profile_path, encoding="utf-8") as f:
-            return dict(yaml.safe_load(f))
+            return dict(yaml.safe_load(f) or {})
     except ImportError:
         json_path = profile_path.with_suffix(".json")
         if json_path.is_file():
@@ -72,17 +74,18 @@ def load_profile(platform_id: str, platforms_dir: Path | None = None) -> dict[st
 def get_adapter(platform_id: str, platforms_dir: Path | None = None) -> PlatformAdapter:
     """Get (or create) the adapter for the given platform."""
     cache_key = (platform_id, str(platforms_dir) if platforms_dir else None)
-    if cache_key in _adapter_cache:
-        return _adapter_cache[cache_key]
-
-    profile = load_profile(platform_id, platforms_dir)
-    adapter = _create_adapter(platform_id, profile)
-    _adapter_cache[cache_key] = adapter
-    return adapter
+    with _cache_lock:
+        if cache_key in _adapter_cache:
+            return _adapter_cache[cache_key]
+        profile = load_profile(platform_id, platforms_dir)
+        adapter = _create_adapter(platform_id, profile)
+        _adapter_cache[cache_key] = adapter
+        return adapter
 
 
 def clear_cache() -> None:
-    _adapter_cache.clear()
+    with _cache_lock:
+        _adapter_cache.clear()
 
 
 def _create_adapter(platform_id: str, profile: dict[str, Any]) -> PlatformAdapter:

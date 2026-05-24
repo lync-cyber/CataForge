@@ -123,7 +123,6 @@ def _wrap_as_mdc(name: str, content: str) -> str:
     """Wrap Markdown content with MDC frontmatter for Cursor."""
     frontmatter = f"""---
 description: "{name} rules"
-globs:
 alwaysApply: true
 ---
 """
