@@ -167,16 +167,20 @@ class TypedDocChecksMixin:
                 self.fail("依赖图存在循环")
 
     def _check_ac_observability(self, t_sections: list[str]) -> None:
-        """Flag AC entries that describe no externally-observable outcome.
+        """Flag AC entries that lack observable outcomes or GWT structure.
 
-        Heuristic: each ``AC-NNN: …`` line should mention an action verb
-        from :data:`_AC_OBSERVABLE_VERBS`. Lines lacking any such verb
-        are WARN — they often mean "should work correctly" / "正确处理"
-        which is not a testable specification. Layer 2 reviewers use the
-        WARN list to push back on ambiguous ACs without forcing an
-        immediate FAIL on every soft phrasing.
+        Two checks per AC line:
+        1. Observable verb heuristic — WARN when no verb from
+           :data:`_AC_OBSERVABLE_VERBS` appears.
+        2. Given-When-Then format — WARN when the AC line contains none
+           of the GWT keywords, suggesting it may be a vague "implement X"
+           style entry that cannot produce testable assertions.
         """
         unobservable: list[str] = []
+        non_gwt: list[str] = []
+        gwt_re = re.compile(
+            r"\b(Given|When|Then|given|when|then|假设|当|则)\b",
+        )
         for sec in t_sections:
             ac_block = re.search(
                 r"(tdd_acceptance|验收标准)(.*?)(?=^[-*]\s+\*?\*?(?:deliverables|"
@@ -195,13 +199,20 @@ class TypedDocChecksMixin:
                 if not ac_text:
                     continue
                 if not _AC_OBSERVABLE_RE.search(ac_text):
-                    snippet = ac_text[:80]
-                    unobservable.append(snippet)
+                    unobservable.append(ac_text[:80])
+                if not gwt_re.search(ac_text):
+                    non_gwt.append(ac_text[:80])
         if unobservable:
             self.warn(
                 f"{len(unobservable)}条AC描述无可观测动词（如 渲染/返回/抛出/写入），"
                 f"建议补充DOM/返回值/副作用等可测终点；首条示例: "
                 f"{unobservable[0]!r}"
+            )
+        if non_gwt:
+            self.warn(
+                f"{len(non_gwt)}条AC未采用Given-When-Then格式，"
+                f"建议重写为 'Given {{前置条件}}, When {{动作}}, Then {{可观测结果}}'；"
+                f"首条示例: {non_gwt[0]!r}"
             )
 
     # ---- UI-SPEC ----

@@ -35,8 +35,8 @@ required_sections:
 - **tdd_refactor**: auto  <!-- auto | required | skip；auto 按 TDD_REFACTOR_TRIGGER 条件触发 -->
 - **security_sensitive**: false
 - **tdd_acceptance**:
-  - [ ] AC-001: {测试描述} → 预期: {结果}
-  - [ ] AC-002: {测试描述} → 预期: {结果}
+  - [ ] AC-001: Given {前置条件}, When {触发动作}, Then {可观测结果（具体返回值/状态变化/错误类型）}
+  - [ ] AC-002: Given {前置条件}, When {触发动作}, Then {可观测结果}
 - **deliverables**:
   - [ ] `src/{path}.py` — {功能实现}
   - [ ] `tests/{path}_test.py` — {测试}
