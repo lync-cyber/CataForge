@@ -137,6 +137,17 @@ markers = [
     "slow: end-to-end tests that build a wheel, spawn a venv, or hit PyPI — opt out with `pytest -m 'not slow'`",
     "network: tests that reach external services (e.g. PyPI); gated by CATAFORGE_E2E_NETWORK=1",
 ]
+# rdflib 7.x is mid-rename (Dataset.default_context → default_graph,
+# Dataset.contexts → graphs, Dataset.identifier deprecated). The
+# 45k-warning storm comes from rdflib's own internals + pyshacl's
+# clone helpers — not our call sites. We use the post-rename names
+# everywhere in src/cataforge/kg/, but routine operations still
+# trigger the upstream warnings. Silence them here; revisit when
+# rdflib 8.x lands and the API stabilises.
+filterwarnings = [
+    "ignore::DeprecationWarning:rdflib.*",
+    "ignore::DeprecationWarning:pyshacl.*",
+]
 
 [tool.mypy]
 python_version = "3.10"

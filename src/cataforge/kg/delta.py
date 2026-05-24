@@ -1,6 +1,6 @@
 """3-way merge between the KG, the source Markdown, and the last render.
 
-Used by the PostToolUse auto-ingest path (design §3.x) and by the
+Used by the PostToolUse auto-ingest path (design §4.4) and by the
 ``cataforge kg ingest`` CLI to fold file-side edits back into the graph
 without overwriting independent graph mutations.
 
@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from cataforge.kg.store import GraphStore, Triple
 
@@ -190,6 +191,65 @@ def compute_delta(
         removals=removals,
         conflicts=conflicts,
     )
+
+
+def write_conflict_files(
+    report: DeltaReport,
+    *,
+    project_root: str | Path,
+    doc_id: str | None = None,
+) -> list[Path]:
+    """Persist each conflict as a JSON file under ``docs/.doc-graph/conflicts/``.
+
+    Filename: ``<timestamp>_<doc-id-or-hash>_<index>.json``. The on-disk
+    format matches design §4.5 (subject / predicate / kg_value / file_value
+    / resolution_options) so a human can read it without re-loading the
+    delta object. Returns the list of written paths."""
+    import hashlib
+    import json
+    from datetime import datetime, timezone
+
+    if not report.conflicts:
+        return []
+
+    root = Path(project_root)
+    conflicts_dir = root / "docs" / ".doc-graph" / "conflicts"
+    conflicts_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+    slug = doc_id or "anon"
+
+    out: list[Path] = []
+    for i, c in enumerate(report.conflicts):
+        conflict_id = "c_" + hashlib.sha1(
+            f"{c.subject}{c.predicate}{c.kg_value}{c.file_value}".encode(),
+            usedforsecurity=False,
+        ).hexdigest()[:8]
+        payload = {
+            "conflict_id": conflict_id,
+            "doc": slug,
+            "subject": c.subject,
+            "predicate": c.predicate,
+            "kg_value":   {"value": c.kg_value},
+            "file_value": {"value": c.file_value},
+            "render_value": (
+                {"value": c.render_value} if c.render_value is not None else None
+            ),
+            "resolution_options": [
+                {"pick": "kg",   "command":
+                    f"cataforge kg resolve {conflict_id} --pick kg"},
+                {"pick": "file", "command":
+                    f"cataforge kg resolve {conflict_id} --pick file"},
+                {"pick": "merge","command":
+                    f"cataforge kg resolve {conflict_id} --pick merge --value '...'"},
+            ],
+        }
+        path = conflicts_dir / f"{stamp}_{slug}_{i}_{conflict_id}.json"
+        path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        out.append(path)
+    return out
 
 
 def apply(

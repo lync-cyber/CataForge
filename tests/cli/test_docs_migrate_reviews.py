@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.docs.migrate_review_frontmatter import (
+from cataforge.core.migrate.migrate_review_frontmatter import (
     apply_plan,
     collect_plans,
     main,

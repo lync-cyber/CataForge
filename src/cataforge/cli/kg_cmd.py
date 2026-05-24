@@ -456,16 +456,43 @@ def kg_remove_relation(
     default=False,
     help="Ingest every docs/**/*.md file (equivalent to `kg migrate`).",
 )
+@click.option(
+    "--auto",
+    "auto",
+    is_flag=True,
+    default=False,
+    help=(
+        "Quiet-fail mode for the PostToolUse hook (design §4.4 / R-16). "
+        "Always exits 0; silently swallows errors so an LLM Edit is "
+        "never blocked. Use with --file."
+    ),
+)
 def kg_ingest(
     project_root: Path | None,
     file_path: Path | None,
     all_flag: bool,
+    auto: bool,
 ) -> None:
     """Re-ingest a Markdown file (or all of them) into the graph.
 
     With ``--file`` the file is parsed and any new/changed triples are
     folded in via the delta engine (kg-wins for conflicts). With ``--all``
-    the call delegates to ``kg migrate`` for the big-bang re-ingest."""
+    the call delegates to ``kg migrate`` for the big-bang re-ingest.
+    ``--auto`` is the PostToolUse entry point — same parsing path, but
+    every error is swallowed and exit code is forced to 0."""
+    try:
+        _do_ingest(project_root, file_path, all_flag)
+    except Exception as exc:
+        if not auto:
+            raise
+        click.echo(f"kg ingest --auto: silently skipped ({exc})", err=True)
+
+
+def _do_ingest(
+    project_root: Path | None,
+    file_path: Path | None,
+    all_flag: bool,
+) -> None:
     from cataforge.kg.delta import apply as delta_apply
     from cataforge.kg.delta import compute_delta
     from cataforge.kg.ingest.markdown import ingest_markdown
@@ -495,8 +522,127 @@ def kg_ingest(
     )
     added = delta_apply(delta, store, strategy="kg-wins")
     store.persist()
+    if delta.conflicts:
+        from cataforge.kg.delta import write_conflict_files
+
+        written = write_conflict_files(
+            delta,
+            project_root=root,
+            doc_id=(
+                result.document.iri.split("/", 1)[-1] if result.document else None
+            ),
+        )
+        click.echo(
+            f"wrote {len(written)} conflict file(s) under docs/.doc-graph/conflicts/",
+            err=True,
+        )
     click.echo(delta.format())
     click.echo(f"\napplied {added} additions; {len(delta.conflicts)} conflicts kept")
+
+
+# ===========================================================================
+# Conflicts — list / resolve
+# ===========================================================================
+
+
+@kg_group.command("conflicts")
+@_project_root_option
+def kg_conflicts(project_root: Path | None) -> None:
+    """List pending KG conflicts (under docs/.doc-graph/conflicts/)."""
+    from cataforge.kg.store import graph_dir_for
+
+    root = project_root or find_project_root()
+    cdir = graph_dir_for(root) / "conflicts"
+    if not cdir.is_dir():
+        click.echo("no conflicts (no conflicts/ directory)")
+        return
+    pending = sorted(cdir.glob("*.json"))
+    if not pending:
+        click.echo("no pending conflicts")
+        return
+    click.echo(f"{len(pending)} pending conflict(s):")
+    for p in pending:
+        try:
+            payload = json.loads(p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            click.echo(f"  {p.name}: (invalid JSON)")
+            continue
+        click.echo(
+            f"  {payload['conflict_id']} "
+            f"[{payload['doc']}] {payload['subject']} {payload['predicate']}",
+        )
+        click.echo(f"      kg=  {payload['kg_value']['value']!r}")
+        click.echo(f"      file={payload['file_value']['value']!r}")
+
+
+@kg_group.command("resolve")
+@_project_root_option
+@click.argument("conflict_id")
+@click.option(
+    "--pick",
+    "pick",
+    type=click.Choice(["kg", "file", "merge"]),
+    required=True,
+)
+@click.option(
+    "--value",
+    "merge_value",
+    default=None,
+    help="Required when --pick merge — the manually-chosen replacement value.",
+)
+def kg_resolve(
+    project_root: Path | None,
+    conflict_id: str,
+    pick: str,
+    merge_value: str | None,
+) -> None:
+    """Resolve one queued conflict (writes the choice to the store)."""
+    from cataforge.kg.store import Triple, graph_dir_for
+
+    root = project_root or find_project_root()
+    cdir = graph_dir_for(root) / "conflicts"
+    if not cdir.is_dir():
+        raise click.ClickException("no conflicts/ directory")
+    candidates = [
+        p for p in cdir.glob("*.json")
+        if conflict_id in p.name
+    ]
+    if not candidates:
+        raise click.ClickException(f"no conflict found matching {conflict_id!r}")
+    if len(candidates) > 1:
+        raise click.ClickException(
+            f"ambiguous conflict id {conflict_id!r}: matches "
+            f"{[c.name for c in candidates]}",
+        )
+    target_path = candidates[0]
+    payload = json.loads(target_path.read_text(encoding="utf-8"))
+
+    store, _ = _load_store(root)
+    subj = payload["subject"]
+    pred = payload["predicate"]
+    kg_value = payload["kg_value"]["value"]
+    file_value = payload["file_value"]["value"]
+
+    if pick == "kg":
+        chosen = kg_value
+    elif pick == "file":
+        chosen = file_value
+    else:
+        if merge_value is None:
+            raise click.ClickException("--pick merge requires --value")
+        chosen = merge_value
+
+    # Remove any existing value (functional predicate — single-valued by
+    # ontology contract) then add the chosen one.
+    if kg_value is not None:
+        store.remove(Triple(s=subj, p=pred, o=kg_value))
+    if file_value is not None and file_value != kg_value:
+        store.remove(Triple(s=subj, p=pred, o=file_value))
+    if chosen is not None:
+        store.add([Triple(s=subj, p=pred, o=chosen)])
+    store.persist()
+    target_path.unlink()
+    click.echo(f"resolved {conflict_id}: {subj} {pred} → {chosen!r}")
 
 
 # ===========================================================================
