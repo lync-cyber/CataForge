@@ -140,6 +140,9 @@ def test_module_implements_creates_edges(
     assert Triple(
         "cfa:arch-acme/M-001", "cfa:implements", "cfa:prd-acme/F-001",
     ) in triples
+    quads = [(s, p, o, g) for s, p, o, g in store if s.endswith("arch-acme/M-001")]
+    assert quads, "M-001 triples must be persisted in the store"
+    assert any("invocation/inv-2" in g for _, _, _, g in quads if g is not None)
 
 
 # ---------- task_decompose ----------
@@ -173,6 +176,9 @@ def test_task_decompose_basic(store: RDFLibStore, tmp_path: Path) -> None:
     assert Triple(
         "cfa:dev-plan-acme/T-001", "cfa:decomposes", "cfa:arch-acme/M-001",
     ) in triples
+    quads = [(s, p, o, g) for s, p, o, g in store if s.endswith("dev-plan-acme/T-001")]
+    assert quads, "T-001 triples must be persisted in the store"
+    assert any("invocation/inv-3" in g for _, _, _, g in quads if g is not None)
 
 
 # ---------- test_validates ----------
@@ -206,6 +212,9 @@ def test_test_validates_basic(store: RDFLibStore, tmp_path: Path) -> None:
     assert Triple(
         "cfa:test-plan/TC-001", "cfa:validates", "cfa:prd-acme/F-001",
     ) in triples
+    quads = [(s, p, o, g) for s, p, o, g in store if s.endswith("test-plan/TC-001")]
+    assert quads, "TC-001 triples must be persisted in the store"
+    assert any("invocation/inv-4" in g for _, _, _, g in quads if g is not None)
 
 
 # ---------- doc_read ----------
@@ -268,6 +277,9 @@ def test_ui_renders_basic(store: RDFLibStore, tmp_path: Path) -> None:
     assert Triple(
         "cfa:ui-spec-acme/C-001", "cfa:renders", "cfa:prd-acme/F-001",
     ) in triples
+    quads = [(s, p, o, g) for s, p, o, g in store if s.endswith("ui-spec-acme/C-001")]
+    assert quads, "C-001 triples must be persisted in the store"
+    assert any("invocation/inv-6" in g for _, _, _, g in quads if g is not None)
 
 
 # ---------- generic invariants ----------

@@ -34,6 +34,7 @@ def test_add_then_roundtrip(empty_store: RDFLibStore, tmp_project: Path) -> None
 
 
 def test_persist_writes_sorted_nquads(empty_store: RDFLibStore, tmp_project: Path) -> None:
+    # Triples added in non-alphabetical subject order; persist must reorder globally.
     empty_store.add([
         Triple("cfa:F-002", "rdf:type", "cfa:Feature"),
         Triple("cfa:F-001", "rdf:type", "cfa:Feature"),
@@ -45,6 +46,27 @@ def test_persist_writes_sorted_nquads(empty_store: RDFLibStore, tmp_project: Pat
     )
     lines = [ln for ln in nq.splitlines() if ln]
     assert lines == sorted(lines), "instances.nq must be lexicographically sorted"
+
+
+def test_persist_sorted_nquads_global_order(tmp_path: Path) -> None:
+    # Subjects with late-alphabet prefix (Z-*) added before early-alphabet (A-*).
+    # Global lexicographic order must be preserved across the entire file.
+    store = RDFLibStore()
+    store.load(tmp_path)
+    store.add([
+        Triple("cfa:Z-doc", "rdf:type", "cfa:Feature"),
+        Triple("cfa:A-doc", "rdf:type", "cfa:Feature"),
+    ])
+    store.persist()
+    nq = (graph_dir_for(tmp_path) / INSTANCES_FILENAME).read_text(encoding="utf-8")
+    lines = [ln for ln in nq.splitlines() if ln]
+    assert lines == sorted(lines), (
+        "instances.nq sort must be globally lexicographic, not insertion-order"
+    )
+    # A-doc line must come before Z-doc line
+    a_idx = next(i for i, ln in enumerate(lines) if "A-doc" in ln)
+    z_idx = next(i for i, ln in enumerate(lines) if "Z-doc" in ln)
+    assert a_idx < z_idx, "A-doc must sort before Z-doc"
 
 
 def test_persist_writes_meta_json(empty_store: RDFLibStore, tmp_project: Path) -> None:

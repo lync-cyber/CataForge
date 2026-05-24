@@ -139,7 +139,8 @@ def test_l3_ontology_file_loaded(tmp_project: Path) -> None:
         "PREFIX owl: <http://www.w3.org/2002/07/owl#>\n"
         "SELECT ?c WHERE { ?c a owl:Class . FILTER (?c = myproj:Persona) }",
     ))
-    assert rows
+    assert len(rows) == 1, "Persona class must appear exactly once in the merged graph"
+    assert "myproj#Persona" in str(rows[0][0]), f"unexpected IRI: {rows[0][0]}"
 
 
 def test_load_shapes_combines_three_files(builtin_shapes: Graph) -> None:
