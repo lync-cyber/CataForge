@@ -186,7 +186,7 @@ class TestStubCommands:
         See tests/cli/test_hook_cmd.py for the happy-path coverage; this
         smoke-test locks in the error path for unknown hook names.
         """
-        result = _invoke("hook", "test", "pre-commit")
+        result = _invoke("hook", "test", "nonexistent_hook_xyz")
         assert result.exit_code == 1
         assert "not declared" in result.output.lower() or "no hook" in result.output.lower()
 
