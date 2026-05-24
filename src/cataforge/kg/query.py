@@ -21,6 +21,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from cataforge.kg.iri import expand_curie as _shared_expand_curie
 from cataforge.kg.ontology import NAMESPACES
 from cataforge.kg.store import GraphStore
 
@@ -35,20 +36,11 @@ def _prefix_header(extra: Iterable[str] = ()) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _expand_curie(token: str) -> str:
-    """Expand ``prefix:local`` to full IRI; pass through if already absolute."""
-    if token.startswith(("http://", "https://", "urn:")):
-        return token
-    if ":" not in token:
-        raise ValueError(f"bare token without prefix or scheme: {token!r}")
-    prefix, _, local = token.partition(":")
-    base = NAMESPACES.get(prefix)
-    if base is None:
-        raise ValueError(
-            f"unknown prefix {prefix!r} in {token!r}; register it in "
-            "cataforge.kg.ontology before use.",
-        )
-    return base + local
+# Re-export the shared expander so existing callers (render, viz, adapters)
+# keep importing ``_expand_curie`` from this module without churn. The
+# IRIExpansionError raised by the shared helper is a ValueError subclass,
+# so callers that previously caught ValueError continue to work.
+_expand_curie = _shared_expand_curie
 
 
 # ---------- public dataclasses ----------

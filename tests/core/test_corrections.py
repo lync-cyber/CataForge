@@ -135,6 +135,30 @@ def test_record_correction_rejects_bad_deviation(tmp_path: Path) -> None:
         )
 
 
+def test_record_correction_date_uses_utc(tmp_path: Path) -> None:
+    """Markdown date must match EVENT-LOG (which writes UTC). Naive
+    local-time was producing a one-day skew for evening corrections in
+    CST etc — the markdown row and the paired EVENT-LOG entry then
+    grep-by-date to different files."""
+    from datetime import datetime, timezone
+
+    expected = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    record_correction(
+        tmp_path,
+        trigger="option-override",
+        agent="orchestrator",
+        phase="x",
+        question="q",
+        baseline="b",
+        actual="a",
+    )
+    text = (tmp_path / CORRECTIONS_LOG_REL).read_text(encoding="utf-8")
+    assert f"### {expected} " in text, (
+        f"correction header must start with the UTC date {expected!r}; "
+        f"found {text!r}"
+    )
+
+
 def test_record_correction_accepts_upstream_gap_deviation(tmp_path: Path) -> None:
     """``upstream-gap`` is the deviation type that powers the framework-feedback
     aggregator. Round-trip it through the writer + markdown re-read to make

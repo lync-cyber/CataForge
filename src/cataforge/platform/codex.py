@@ -38,7 +38,10 @@ class CodexAdapter(PlatformAdapter):
         :func:`translate_agent_md` pipeline so capability translation, model
         tier resolution, and ``supported_fields`` filtering happen exactly the
         same way as on every other platform — Codex just emits TOML instead
-        of YAML at the end.
+        of YAML at the end. After deploy, orphan ``<name>.toml`` files whose
+        source AGENT.md no longer exists are pruned — matches the prune
+        contract of every other platform adapter so a renamed/deleted agent
+        doesn't leave behind a stale Codex profile.
         """
         from cataforge.agent.translator import translate_agent_md
 
@@ -47,6 +50,7 @@ class CodexAdapter(PlatformAdapter):
             return []
 
         target_dir = project_root / scan_dirs[0]
+        target_rel = scan_dirs[0]
         if not dry_run:
             target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -55,26 +59,50 @@ class CodexAdapter(PlatformAdapter):
             return actions
 
         dropped_collector: dict[str, set[str]] = {}
+        source_agents = {
+            d.name
+            for d in source_dir.iterdir()
+            if d.is_dir() and (d / "AGENT.md").is_file()
+        }
 
-        for agent_dir in sorted(source_dir.iterdir()):
-            if not agent_dir.is_dir():
-                continue
-            agent_md = agent_dir / "AGENT.md"
-            if not agent_md.is_file():
-                continue
-
-            toml_path = target_dir / f"{agent_dir.name}.toml"
+        for agent_name in sorted(source_agents):
+            agent_md = source_dir / agent_name / "AGENT.md"
+            toml_path = target_dir / f"{agent_name}.toml"
             if dry_run:
-                actions.append(f"would deploy agents/{agent_dir.name}/AGENT.md → {toml_path}")
+                actions.append(
+                    f"would deploy agents/{agent_name}/AGENT.md → {toml_path}"
+                )
                 continue
 
             content = agent_md.read_text(encoding="utf-8")
             translated = translate_agent_md(
                 content, self, dropped_collector=dropped_collector
             )
-            toml_content = _md_to_toml(agent_dir.name, translated)
+            toml_content = _md_to_toml(agent_name, translated)
             toml_path.write_text(toml_content, encoding="utf-8")
-            actions.append(f"agents/{agent_dir.name}/AGENT.md → {toml_path}")
+            actions.append(f"agents/{agent_name}/AGENT.md → {toml_path}")
+
+        # Prune orphans — only ``<name>.toml`` files whose first line matches
+        # the auto-generated header we emit. User-authored .toml profiles stay
+        # untouched even if their stem happens to collide with a removed agent.
+        if target_dir.is_dir():
+            for existing in target_dir.iterdir():
+                if (
+                    not existing.is_file()
+                    or existing.suffix != ".toml"
+                    or existing.stem in source_agents
+                ):
+                    continue
+                head = existing.read_text(encoding="utf-8", errors="ignore")[:256]
+                if f"# Auto-generated from {existing.stem}/AGENT.md" not in head:
+                    continue
+                if dry_run:
+                    actions.append(
+                        f"would prune orphan {target_rel}/{existing.name}"
+                    )
+                else:
+                    existing.unlink()
+                    actions.append(f"pruned orphan {target_rel}/{existing.name}")
 
         for field_name in sorted(dropped_collector):
             caps = sorted(dropped_collector[field_name])

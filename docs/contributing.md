@@ -42,7 +42,7 @@ CI 会跑同一组检查兜底，但本地装上能把 ruff I001 / `tests/test_r
 
 - **格式化**：`ruff format`
 - **静态检查**：`ruff check`（规则集：`E, F, I, N, W, UP, B, SIM`）
-- **类型检查**：`mypy --strict`
+- **类型检查**：`mypy`（策略见下文 §类型检查）
 - **行宽**：100 列
 - **目标 Python**：`py310`
 
@@ -51,9 +51,35 @@ CI 会跑同一组检查兜底，但本地装上能把 ruff I001 / `tests/test_r
 ```bash
 ruff format --check .
 ruff check .
-mypy src
+mypy src           # 全仓扫描，info-only
+mypy --strict src/cataforge/services  # opt-in strict 包：必须 0 errors
 pytest -q
 ```
+
+### 类型检查
+
+历史上 `pyproject.toml` 设了 `[tool.mypy] strict = true`，但仓库长期带 ~200 个 baseline error，谁也没法把它做成真正的 CI 阻塞 —— 等于「假门禁」。现在策略是：
+
+| 层级 | 配置 | CI 行为 |
+|---|---|---|
+| 全仓 | 默认 mypy（非 strict） | **info-only**：CI 打印错误数，不阻塞 PR |
+| Opt-in 包 | `[[tool.mypy.overrides]] strict = true` | **阻塞**：任何新错误必须修掉 |
+
+当前 opt-in strict 的包：`cataforge.services.*`。
+
+**新增包加入 strict 的流程**：
+
+1. 选一个想干净的包，`uv run --extra dev mypy --strict src/cataforge/<pkg>`
+2. 修到 0 errors（必要时加 `# type: ignore[<具体code>]`，避免裸 ignore）
+3. 把 `cataforge.<pkg>.*` 加到 `pyproject.toml` 的 `[[tool.mypy.overrides]]` strict 列表
+4. CI 下次跑 `mypy --strict src/cataforge/<pkg>` 时会守住回归
+
+**新增模块的约定**：
+
+- 写在已 opt-in strict 的包下 → 必须 strict-clean
+- 写在还没 opt-in 的旧包下 → 不强制，但建议带完整类型注解，方便那个包将来 opt-in 时不增量
+
+不要为了「快速通过 CI」把已 opt-in 的包从 strict 列表里拿掉 —— 那是 P1-D 修复要避免的退化路径。
 
 ---
 

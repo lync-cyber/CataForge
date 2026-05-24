@@ -83,6 +83,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.cataforge/(agents|skills)/.*\.md$
+      # kg-* hooks invoke the cataforge CLI itself, so they MUST run under
+      # an interpreter that has cataforge importable — not necessarily the
+      # system `python` (most contributor machines don't have cataforge
+      # there). The wrapper probes for one in priority order: active
+      # $VIRTUAL_ENV → repo .venv → uv → sys.executable. Works whether the
+      # contributor uses uv, plain pip-venv, or a CI editable install.
       - id: kg-template-lint
         name: kg render templates (Jinja2 + SPARQL static checks)
         description: |
@@ -90,7 +96,7 @@ repos:
           must parse cleanly, contain ORDER BY in every embedded SPARQL
           query, and avoid deprecated v0.4 placeholders ({project} / {ver}).
           Drift surfaces as silent render churn (R-03 / R-07).
-        entry: python -m cataforge.cli.main kg template-lint --project-root .
+        entry: python scripts/precommit/run_cataforge.py kg template-lint --project-root .
         language: system
         pass_filenames: false
         files: ^\.cataforge/skills/.*templates/.*\.md\.j2$
@@ -101,7 +107,7 @@ repos:
           current docs/ output. PostToolUse auto-ingest depends on this:
           without it, every edit produces phantom triples and the merge
           accumulates conflicts (design §4.3 / R-03).
-        entry: python -m cataforge.cli.main kg render --project-root . --check
+        entry: python scripts/precommit/run_cataforge.py kg render --project-root . --check
         language: system
         pass_filenames: false
         files: ^(\.cataforge/skills/.*templates/.*\.md\.j2|docs/.*\.md|docs/\.doc-graph/.*\.nq)$
@@ -111,7 +117,7 @@ repos:
           Project ontology + L0/L1/L2 + L3 SHACL shapes must validate.
           Conformance is a release gate; tighten incrementally by adding
           shapes rather than disabling this hook.
-        entry: python -m cataforge.cli.main kg validate --project-root .
+        entry: python scripts/precommit/run_cataforge.py kg validate --project-root .
         language: system
         pass_filenames: false
         files: ^docs/\.doc-graph/.*\.nq$

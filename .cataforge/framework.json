@@ -56,6 +56,7 @@
     "ANTI_PATTERN_MIN_COUNT_SKILL": 3,
     "ANTI_PATTERN_MIN_COUNT_AGENT": 4,
     "AGENT_MODEL_DEFAULTS": {
+      "orchestrator": "inherit",
       "product-manager": "standard",
       "architect": "heavy",
       "ui-designer": "standard",
