@@ -149,3 +149,24 @@ def test_kg_resolve_unknown_id_fails(
     ])
     assert result.exit_code != 0
     assert "no conflict found" in result.output
+
+
+def test_kg_resolve_corrupt_json_fails_cleanly(
+    runner: CliRunner, project_with_conflict: Path,
+) -> None:
+    """A corrupt conflict file must surface as a ClickException, not a
+    bare JSONDecodeError traceback. Regression for kg_cmd.py kg_resolve
+    where json.loads was uncaught."""
+    cdir = graph_dir_for(project_with_conflict) / "conflicts"
+    conflict_path = next(iter(cdir.glob("*.json")))
+    conflict_id = conflict_path.name.split("_")[-1].replace(".json", "")
+    conflict_path.write_text("{this is not json", encoding="utf-8")
+
+    result = runner.invoke(cli, [
+        "kg", "resolve", "--project-root", str(project_with_conflict),
+        conflict_id, "--pick", "kg",
+    ])
+    assert result.exit_code != 0
+    assert "not valid JSON" in result.output
+    # No raw traceback in output.
+    assert "Traceback" not in result.output
