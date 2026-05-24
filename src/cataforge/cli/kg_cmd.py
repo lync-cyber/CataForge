@@ -130,6 +130,28 @@ def _load_store(project_root: Path | None) -> tuple[Any, Path]:
     return store, root
 
 
+def _store_to_graph(store: Any) -> Any:
+    """Materialise a GraphStore's quads into a plain rdflib Graph.
+
+    Reasoning ignores named-graph context (the inference closure is
+    over the asserted set, not per-graph). The result is feedable to
+    :func:`cataforge.kg.reasoning.infer` directly."""
+    from rdflib import Graph
+
+    from cataforge.kg.ontology import bind_namespaces
+    from cataforge.kg.store import _object_to_node, _term_to_node
+
+    g = Graph()
+    bind_namespaces(g)
+    for s, p, o, _ in store:
+        g.add((
+            _term_to_node(s),
+            _term_to_node(p),
+            _object_to_node(o),
+        ))
+    return g
+
+
 @kg_group.command("init")
 @_project_root_option
 def kg_init(project_root: Path | None) -> None:
@@ -748,6 +770,183 @@ def kg_template_lint(project_root: Path | None, all_flag: bool) -> None:
     for f in findings:
         click.echo(f"{f.path}:{f.line}: {f.rule_id}: {f.message}")
     raise click.exceptions.Exit(1)
+
+
+# ===========================================================================
+# Reasoning: infer / impact / explain
+# ===========================================================================
+
+
+@kg_group.command("infer")
+@_project_root_option
+@click.option(
+    "--persist/--no-persist",
+    "persist",
+    default=True,
+    help="Write derived triples to .doc-graph/inferred.nq (default: yes).",
+)
+def kg_infer(project_root: Path | None, persist: bool) -> None:
+    """Materialise the limited-profile OWL-RL inference closure.
+
+    Default profile: ``rdfs:subClassOf`` transitivity + instance
+    propagation, ``owl:inverseOf`` symmetric materialisation, and
+    ``owl:TransitiveProperty`` closure. The full design rationale —
+    why these three and not more — is in design §1.6 + R-06."""
+    from rdflib import Dataset
+
+    from cataforge.kg.ontology import load_ontology
+    from cataforge.kg.reasoning import infer
+    from cataforge.kg.store import graph_dir_for
+
+    store, root = _load_store(project_root)
+    ontology = load_ontology(root, include_l3=True, strict=True)
+    base_graph = _store_to_graph(store)
+    derived = infer(base_graph, ontology)
+    click.echo(f"derived triples: {len(derived)}")
+
+    if persist:
+        gdir = graph_dir_for(root)
+        gdir.mkdir(parents=True, exist_ok=True)
+        out_path = gdir / "inferred.nq"
+        ds = Dataset()
+        for s, p, o in derived:
+            ds.default_graph.add((s, p, o))
+        ds.serialize(destination=str(out_path), format="nquads")
+        click.echo(f"wrote {out_path}")
+
+
+@kg_group.command("impact")
+@_project_root_option
+@click.argument("node")
+@click.option(
+    "--depth",
+    "depth",
+    type=int,
+    default=5,
+    help="Advisory traversal depth (rdflib's + operator already terminates).",
+)
+def kg_impact(project_root: Path | None, node: str, depth: int) -> None:
+    """List CURIE-shortened IRIs that transitively depend on NODE."""
+    from cataforge.kg.query import impact
+
+    store, _ = _load_store(project_root)
+    deps = impact(store, node, max_depth=depth)
+    if not deps:
+        click.echo(f"no nodes depend on {node}")
+        return
+    for d in deps:
+        click.echo(d)
+
+
+@kg_group.command("explain")
+@_project_root_option
+@click.argument("subject")
+@click.argument("predicate")
+@click.argument("obj")
+def kg_explain(
+    project_root: Path | None,
+    subject: str,
+    predicate: str,
+    obj: str,
+) -> None:
+    """Explain why (or whether) a triple holds in the (reasoned) store."""
+    from cataforge.kg.query import explain
+
+    store, _ = _load_store(project_root)
+    result = explain(store, subject, predicate, obj)
+    click.echo(f"derivation: {result.derivation}")
+    if result.path:
+        click.echo(f"path: {' → '.join(result.path)}")
+
+
+# ===========================================================================
+# Visualisation: cataforge kg viz
+# ===========================================================================
+
+
+@kg_group.command("viz")
+@_project_root_option
+@click.option(
+    "--scope",
+    "scope_class",
+    default=None,
+    help="Filter to instances of a class, e.g. cfa:Feature.",
+)
+@click.option(
+    "--node",
+    "root_node",
+    default=None,
+    help="Anchor the graph at a node (uses subgraph traversal).",
+)
+@click.option(
+    "--depth",
+    "depth",
+    type=int,
+    default=2,
+    help="Traversal depth when --node is set.",
+)
+@click.option(
+    "--format",
+    "out_format",
+    type=click.Choice(["mermaid", "dot", "svg"]),
+    default="mermaid",
+)
+@click.option(
+    "--out",
+    "out_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Write to file (default: stdout).",
+)
+def kg_viz(
+    project_root: Path | None,
+    scope_class: str | None,
+    root_node: str | None,
+    depth: int,
+    out_format: str,
+    out_path: Path | None,
+) -> None:
+    """Render the KG (or a subgraph) as mermaid / DOT / SVG.
+
+    SVG requires the ``dot`` binary on PATH; if unavailable the
+    DOT text is written instead and a stderr WARN is emitted.
+    """
+    from cataforge.kg.viz import (
+        ViewSpec,
+        render_dot,
+        render_mermaid,
+        render_svg,
+    )
+
+    store, _ = _load_store(project_root)
+    spec = ViewSpec(
+        scope_class=scope_class, root_node=root_node, depth=depth,
+    )
+    payload: bytes | str
+    if out_format == "mermaid":
+        payload = render_mermaid(store, spec)
+    elif out_format == "dot":
+        payload = render_dot(store, spec)
+    else:
+        try:
+            payload = render_svg(store, spec)
+        except FileNotFoundError:
+            click.echo(
+                "WARN: `dot` binary not found; falling back to DOT text",
+                err=True,
+            )
+            payload = render_dot(store, spec)
+
+    if out_path:
+        out_path.write_bytes(
+            payload if isinstance(payload, bytes) else payload.encode("utf-8"),
+        )
+        click.echo(f"wrote {out_path}", err=True)
+    elif isinstance(payload, bytes):
+        sys_stdout = click.get_text_stream("stdout").buffer
+        sys_stdout.write(payload)
+    else:
+        click.echo(payload, nl=False)
 
 
 # ===========================================================================
