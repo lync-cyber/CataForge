@@ -177,6 +177,34 @@ def upgrade_apply(dry_run: bool) -> None:
             "changes to platform deliverables (e.g. .claude/settings.json)."
         )
 
+    # KG cutover prompt — when the project still uses the legacy
+    # .doc-index.json and the user has imported a version that ships the
+    # KG layer, offer to run `cataforge kg migrate` interactively.
+    # Quiet-fail and gated by a confirm prompt so silent surprise
+    # migrations don't happen (R-17: must be reversible via --rollback).
+    graph_dir = cfg.paths.root / "docs" / ".doc-graph"
+    legacy_index = docs_dir / INDEX_FILENAME
+    if legacy_index.is_file() and not graph_dir.is_dir():
+        click.echo("")
+        click.echo(
+            "Detected legacy docs/.doc-index.json without docs/.doc-graph/.",
+        )
+        click.echo(
+            "The KG-first system can be migrated in-place; rollback is "
+            "available via `cataforge kg migrate --rollback`.",
+        )
+        if click.confirm(
+            "Run `cataforge kg migrate` now?", default=False,
+        ):
+            from cataforge.kg.migrate import migrate as kg_migrate
+
+            report = kg_migrate(cfg.paths.root, validate=False)
+            click.echo(report.format())
+            click.echo(
+                "\nTip: run `cataforge kg validate` for the SHACL report "
+                "and `cataforge kg render --check` to verify markdown ↔ KG.",
+            )
+
 
 @upgrade_group.command("verify")
 @click.pass_context

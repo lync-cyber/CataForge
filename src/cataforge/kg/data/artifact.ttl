@@ -1,0 +1,160 @@
+@prefix cfk:  <https://cataforge.dev/ontology/kernel#> .
+@prefix cfp:  <https://cataforge.dev/ontology/process#> .
+@prefix cfa:  <https://cataforge.dev/ontology/artifact#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+
+<https://cataforge.dev/ontology/artifact> a owl:Ontology ;
+    dct:title "CataForge Artifact Ontology (L2)" ;
+    owl:versionInfo "0.5.0" ;
+    owl:imports <https://cataforge.dev/ontology/kernel> ,
+                <https://cataforge.dev/ontology/process> ;
+    rdfs:comment "Family taxonomy: 4 V-model families (Need / Design / Implementation / Verification) + 2 cross-cut families (Governance / Operation), with concrete classes attached underneath." .
+
+# === Family classes (V-model) ===
+cfa:Need            a owl:Class ;
+                    rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "What the system must do — requirements, stories, NFRs." .
+
+cfa:Design          a owl:Class ;
+                    rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "How the system is structured — modules, components, interfaces, workflows." .
+
+cfa:Implementation  a owl:Class ;
+                    rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "Concrete code artifacts realizing Design." .
+
+cfa:Verification    a owl:Class ;
+                    rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "Tests and acceptance criteria validating Need / Design / Implementation." .
+
+# === Family classes (cross-cut; not in V-model disjoint) ===
+cfa:Governance      a owl:Class ;
+                    rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "Process steering — tasks, decisions, risks, milestones." .
+
+cfa:Operation       a owl:Class ;
+                    rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "Runtime and release artifacts — releases, incidents, deployments." .
+
+# === Concrete classes · Need ===
+cfa:Feature   a owl:Class ; rdfs:subClassOf cfa:Need .
+cfa:UserStory a owl:Class ; rdfs:subClassOf cfa:Need .
+cfa:NFR       a owl:Class ;
+              rdfs:subClassOf cfa:Need ;
+              rdfs:comment "Non-functional requirement (performance / security / usability / etc.)." .
+
+# === Concrete classes · Design ===
+cfa:Module    a owl:Class ; rdfs:subClassOf cfa:Design .
+cfa:Component a owl:Class ; rdfs:subClassOf cfa:Design .
+cfa:Interface a owl:Class ;
+              rdfs:subClassOf cfa:Design ;
+              rdfs:comment "API contract — function signature, REST endpoint, message schema." .
+cfa:Workflow  a owl:Class ;
+              rdfs:subClassOf cfa:Design ;
+              rdfs:comment "User flow, business process, or state machine." .
+
+# === Concrete classes · Implementation ===
+cfa:CodeUnit  a owl:Class ;
+              rdfs:subClassOf cfa:Implementation ;
+              rdfs:comment "Granularity-agnostic code container (file / function / class / package); use cfa:codeUnitKind to discriminate." .
+
+# === Concrete classes · Verification ===
+cfa:TestCase            a owl:Class ; rdfs:subClassOf cfa:Verification .
+cfa:TestSuite           a owl:Class ; rdfs:subClassOf cfa:Verification .
+cfa:AcceptanceCriterion a owl:Class ; rdfs:subClassOf cfa:Verification .
+
+# === Concrete classes · Governance ===
+cfa:Task     a owl:Class ; rdfs:subClassOf cfa:Governance .
+cfa:Decision a owl:Class ;
+             rdfs:subClassOf cfa:Governance ;
+             rdfs:comment "Architecture or design decision record (ADR)." .
+cfa:Risk     a owl:Class ; rdfs:subClassOf cfa:Governance .
+
+# === Concrete classes · Operation ===
+cfa:Release  a owl:Class ; rdfs:subClassOf cfa:Operation .
+cfa:Incident a owl:Class ; rdfs:subClassOf cfa:Operation .
+
+# === V-model traceability relations ===
+cfa:realizes    a owl:ObjectProperty ;
+                rdfs:domain cfa:Design ;
+                rdfs:range  cfa:Need .
+
+cfa:implements  a owl:ObjectProperty ;
+                rdfs:domain cfa:Implementation ;
+                rdfs:range  cfa:Design .
+
+cfa:decomposes  a owl:ObjectProperty ;
+                rdfs:domain cfa:Task ;
+                rdfs:range  cfa:Design .
+
+cfa:validates   a owl:ObjectProperty ;
+                rdfs:domain cfa:Verification ;
+                rdfs:range  cfk:Resource ;
+                rdfs:comment "Verification may target any Resource — Need (acceptance), Design (integration), Implementation (unit)." .
+
+cfa:renders     a owl:ObjectProperty ;
+                rdfs:domain cfa:Component ;
+                rdfs:range  cfa:Feature .
+
+cfa:conformsTo  a owl:ObjectProperty ;
+                rdfs:domain cfa:Implementation ;
+                rdfs:range  cfa:Interface .
+
+# === Cross-cutting relations ===
+cfa:traces      a owl:ObjectProperty , owl:TransitiveProperty ;
+                rdfs:comment "Generic traceability spanning V-model layers; weaker than directional realizes/implements/validates." .
+
+cfa:partOf      a owl:ObjectProperty , owl:TransitiveProperty ;
+                rdfs:comment "Aggregation (whole-part); distinct from cfa:dependsOn (usage dependency)." .
+
+cfa:dependsOn   a owl:ObjectProperty , owl:TransitiveProperty .
+
+cfa:references  a owl:ObjectProperty .
+
+cfa:mitigates   a owl:ObjectProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  cfa:Risk .
+
+cfa:assignedTo  a owl:ObjectProperty ;
+                rdfs:domain cfa:Governance ;
+                rdfs:range  cfp:Agent .
+
+cfa:supersedes  a owl:ObjectProperty ;
+                rdfs:comment "Cross-version succession; distinct from cfk:replacedBy in that supersedes targets V-model artifact succession (e.g. Release supersedes Release)." .
+
+# === Inverse properties ===
+cfa:realizedBy    a owl:ObjectProperty ; owl:inverseOf cfa:realizes .
+cfa:implementedBy a owl:ObjectProperty ; owl:inverseOf cfa:implements .
+cfa:decomposedBy  a owl:ObjectProperty ; owl:inverseOf cfa:decomposes .
+cfa:validatedBy   a owl:ObjectProperty ; owl:inverseOf cfa:validates .
+cfa:renderedBy    a owl:ObjectProperty ; owl:inverseOf cfa:renders .
+
+# === Common lifecycle attributes (domain = cfk:Resource so all artifacts qualify) ===
+cfa:status   a owl:DatatypeProperty , owl:FunctionalProperty ;
+             rdfs:domain cfk:Resource ;
+             rdfs:range  xsd:string ;
+             rdfs:comment "Lifecycle: proposed | approved | active | deprecated | superseded. SHACL enforces the enum." .
+
+cfa:priority a owl:DatatypeProperty , owl:FunctionalProperty ;
+             rdfs:domain cfk:Resource ;
+             rdfs:range  xsd:integer ;
+             rdfs:comment "Integer priority; lower = higher priority." .
+
+cfa:owner    a owl:ObjectProperty ;
+             rdfs:domain cfk:Resource ;
+             rdfs:range  cfp:Agent .
+
+# === CodeUnit kind discriminator ===
+cfa:codeUnitKind a owl:DatatypeProperty , owl:FunctionalProperty ;
+                 rdfs:domain cfa:CodeUnit ;
+                 rdfs:range  xsd:string ;
+                 rdfs:comment "Kind: file | function | class | package | module." .
+
+# === V-model family disjointness (cross-cut families don't participate) ===
+cfa:Need           owl:disjointWith cfa:Design , cfa:Implementation , cfa:Verification .
+cfa:Design         owl:disjointWith cfa:Implementation , cfa:Verification .
+cfa:Implementation owl:disjointWith cfa:Verification .

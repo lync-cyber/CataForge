@@ -19,6 +19,7 @@ from .doctor._helpers import check_dir, check_file, check_import
 from .doctor.event_log import check_event_log_bypass_writes, check_event_log_schema
 from .doctor.hook_health import check_hook_script_importability, report_hook_errors
 from .doctor.hygiene import check_claude_md_hygiene
+from .doctor.kg_health import check_kg_health
 from .doctor.migration import check_runtime_api_version, run_migration_checks
 from .doctor.protocol_refs import (
     _DEPRECATED_REFS,
@@ -123,6 +124,9 @@ def doctor_command(ctx: click.Context) -> None:
 
     click.echo("\nCLAUDE.md hygiene:")
     failed_count += check_claude_md_hygiene(cfg)
+
+    click.echo("\nKG health (conflicts / SHACL / render):")
+    failed_count += check_kg_health(cfg)
 
     # Deployment provenance — shows which platform-specific directories would
     # have been written by the last successful deploy. Lets users see at a

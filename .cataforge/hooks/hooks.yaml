@@ -29,6 +29,11 @@ hooks:
       script: lint_format
       type: observe
       description: "文件编辑后自动格式化"
+    - matcher_capability: file_edit
+      script: kg_auto_ingest
+      type: observe
+      description: "docs/**/*.md 编辑后自动回流 KG（quiet-fail）"
+      matcher_file_pattern: "docs/**/*.md"
     - matcher_capability: user_question
       script: detect_correction
       type: observe
@@ -93,6 +98,13 @@ degradation_templates:
   lint_format:
     strategy: skip
     reason: "格式化为非关键功能"
+
+  kg_auto_ingest:
+    strategy: prompt_instruction
+    content: |
+      docs/**/*.md 编辑后，请手动运行以下命令以维持 KG 与文档一致；
+      累积冲突由 `cataforge doctor` 反映、由 `cataforge kg conflicts` 列出：
+        cataforge kg ingest --auto --file <被编辑的 .md 路径>
 
   notify_done:
     strategy: skip

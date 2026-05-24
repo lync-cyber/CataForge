@@ -6,6 +6,14 @@ suggested-tools: Read, Glob, Grep, Bash
 depends: [doc-nav]
 disable-model-invocation: false
 user-invocable: true
+kg_adapter:
+  name: doc_read
+  config:
+    doc_id_param: doc_id
+    pre_dispatch_queries:
+      doc_summary: "SELECT ?label WHERE {\n  $doc_iri rdfs:label ?label .\n} LIMIT 1"
+      doc_features: "SELECT ?id ?label WHERE {\n  ?f a cfa:Feature ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+      doc_modules: "SELECT ?id ?label WHERE {\n  ?m a cfa:Module ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
 ---
 
 # 统一文档评审 (doc-review)

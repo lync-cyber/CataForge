@@ -13,6 +13,15 @@ skills:
   - doc-nav
 model_tier: standard
 maxTurns: 60
+kg_adapter:
+  name: task_decompose
+  config:
+    doc_id_param: doc_id
+    upstream_doc_param: arch_doc_iri
+    pre_dispatch_queries:
+      upstream_modules: "SELECT ?id ?label WHERE {\n  ?m a cfa:Module ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+      existing_tasks: "SELECT ?id ?label WHERE {\n  ?t a cfa:Task ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+    write_back_schema: .cataforge/skills/doc-gen/schemas/task.schema.json
 ---
 
 # Role: 技术主管 (Tech Lead)

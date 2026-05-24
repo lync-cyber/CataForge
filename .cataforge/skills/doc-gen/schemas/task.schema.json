@@ -1,0 +1,21 @@
+{
+  "$comment": "task_decompose write-back",
+  "items": [
+    {
+      "from": "tasks",
+      "iri": "cfa:${doc_id}/${id}",
+      "type": "cfa:Task",
+      "literals": {
+        "cfk:hasId": "id",
+        "rdfs:label": "label"
+      },
+      "iri_refs": {
+        "cfk:definedIn": "cfk:doc/${doc_id}",
+        "cfa:decomposes": {
+          "field": "decomposes",
+          "as_iri": true
+        }
+      }
+    }
+  ]
+}

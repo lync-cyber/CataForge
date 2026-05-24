@@ -1,0 +1,79 @@
+@prefix cfk:  <https://cataforge.dev/ontology/kernel#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+
+<https://cataforge.dev/ontology/kernel> a owl:Ontology ;
+    dct:title "CataForge Kernel Ontology (L0)" ;
+    owl:versionInfo "0.5.0" ;
+    rdfs:comment "Resource / Document / Section / Identifier / Standard plus provenance, time, and source attributes." .
+
+# === Classes ===
+cfk:Resource    a owl:Class .
+
+cfk:Document    a owl:Class ;
+                rdfs:subClassOf cfk:Resource .
+
+cfk:Section     a owl:Class ;
+                rdfs:subClassOf cfk:Resource .
+
+cfk:Identifier  a owl:Class ;
+                rdfs:subClassOf cfk:Resource .
+
+cfk:Standard    a owl:Class ;
+                rdfs:subClassOf cfk:Resource ;
+                rdfs:comment "External specification or norm referenced from project artifacts (RFC / ISO / IETF / internal style guide)." .
+
+# === Datatype properties ===
+cfk:hasId       a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  xsd:string ;
+                rdfs:comment "Display ID — string used in prose to reference this Resource (e.g. F-001, M-002). Functional: at most one hasId per node." .
+
+cfk:contentHash a owl:DatatypeProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  xsd:string .
+
+cfk:source      a owl:DatatypeProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  xsd:anyURI ;
+                rdfs:comment "Physical origin — file path or URL; complements cfk:definedIn (logical document binding)." .
+
+cfk:language    a owl:DatatypeProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  xsd:language ;
+                rdfs:comment "BCP47 language tag (zh-CN, en-US, ...)." .
+
+cfk:createdAt   a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  xsd:dateTime .
+
+cfk:modifiedAt  a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  xsd:dateTime .
+
+cfk:confidence  a owl:DatatypeProperty ;
+                rdfs:range xsd:decimal ;
+                rdfs:comment "Confidence in (0,1]; used by ingest to flag uncertain inferences." .
+
+# === Object properties ===
+cfk:definedIn   a owl:ObjectProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  cfk:Document ;
+                rdfs:comment "Logical binding — the Document where this Resource is declared." .
+
+cfk:replacedBy  a owl:ObjectProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  cfk:Resource ;
+                rdfs:comment "Rename forwarding — old IRI points to new IRI; ingest transparently follows." .
+
+cfk:cites       a owl:ObjectProperty ;
+                rdfs:domain cfk:Resource ;
+                rdfs:range  cfk:Resource ;
+                rdfs:comment "Cross-domain citation, typically targeting a cfk:Standard; distinct from cfa:references (intra-project link)." .
+
+# === Annotation properties ===
+cfk:provenance  a owl:AnnotationProperty ;
+                rdfs:comment "Generic provenance pointer; RDF-star reification used for full triple-level provenance per design §0.2." .

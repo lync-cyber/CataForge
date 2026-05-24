@@ -13,6 +13,13 @@ skills:
   - research
 model_tier: standard
 maxTurns: 60
+kg_adapter:
+  name: feature_authoring
+  config:
+    doc_id_param: doc_id
+    pre_dispatch_queries:
+      existing_features: "SELECT ?id ?label WHERE {\n  ?f a cfa:Feature ; cfk:hasId ?id ; rdfs:label ?label ;\n     cfk:definedIn $doc_iri .\n} ORDER BY ?id"
+    write_back_schema: .cataforge/skills/doc-gen/schemas/feature.schema.json
 ---
 
 # Role: 产品经理 (Product Manager)

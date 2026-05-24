@@ -114,6 +114,34 @@ jobs:
         if: runner.os == 'Linux'
         run: cataforge doctor
 
+      - name: "kg template-lint (Jinja2 + SPARQL static checks)"
+        # Render templates under .cataforge/skills/doc-gen/templates/ must
+        # parse cleanly, have ORDER BY in every SPARQL query, and avoid
+        # deprecated placeholders. Drift → silent render churn (R-03/R-07).
+        if: runner.os == 'Linux'
+        run: cataforge kg template-lint --project-root .
+
+      - name: "kg validate + render --check (when .doc-graph populated)"
+        # Conditional: only fires when the project has actually been
+        # migrated to the KG layer. Lets dogfood repos run this workflow
+        # before they cut over without false-failing.
+        if: runner.os == 'Linux'
+        run: |
+          if [ -d "docs/.doc-graph" ] && \
+             find docs/.doc-graph -name "instances.nq" | grep -q .; then
+            cataforge kg validate --project-root .
+            cataforge kg render --check --project-root .
+          else
+            echo "skipping kg validate / render --check (docs/.doc-graph empty)"
+          fi
+
+      - name: "kg benchmark (perf-budget gate, warn-only)"
+        # benchmark.py treats budget breaches as WARN (not FAIL) per
+        # design §8 — cross-machine variance otherwise flaps CI. Run it
+        # so a regression at least surfaces in the workflow log.
+        if: runner.os == 'Linux'
+        run: cataforge kg benchmark --project-root . || true
+
       - name: "framework-review (B1/B2/B3/B4/B5 meta-asset audit)"
         # Promote framework-review from a manually-invoked audit to a
         # required CI gate. Catches the rot classes that doctor can't see:

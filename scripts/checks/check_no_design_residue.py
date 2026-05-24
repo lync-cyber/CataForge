@@ -13,6 +13,11 @@ known design-phase comment markers and fails CI if any are found.
 Whitelist: append `<!-- allow-design-residue: <reason> -->` to the
 offending line if you have a deliberate reason (e.g. a template placeholder
 that gets replaced at deploy time).
+
+Narrow escape hatch: `<!-- allow-kg-migration: <reason> -->` is reserved
+for the KG cutover PR. It works the same as `allow-design-residue` but
+is greppable separately so the post-cutover sweep can purge every
+migration-justification line in one pass.
 """
 
 from __future__ import annotations
@@ -68,6 +73,12 @@ FORBIDDEN: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 ALLOW_MARKER = re.compile(r"<!--\s*allow-design-residue")
+# Narrowly-scoped escape hatch for the KG cutover PR — lets agent/skill
+# files that legitimately reference issue / PR numbers as part of the
+# migration justification land without per-line `allow-design-residue`
+# pollution. `grep -nR allow-kg-migration .cataforge` lists every site
+# so the post-cutover sweep can purge them in one pass.
+ALLOW_KG_MIGRATION_MARKER = re.compile(r"<!--\s*allow-kg-migration")
 # Fenced code blocks (```...```) hold literal examples — regex strings in
 # rule docs, sample JSON / YAML / shell. Treat them as exempt so the
 # checker isn't its own false-positive generator.
@@ -75,7 +86,9 @@ CODE_FENCE = re.compile(r"^\s*```")
 
 
 def is_whitelisted(line: str) -> bool:
-    return bool(ALLOW_MARKER.search(line))
+    return bool(ALLOW_MARKER.search(line)) or bool(
+        ALLOW_KG_MIGRATION_MARKER.search(line),
+    )
 
 
 def iter_files() -> list[Path]:

@@ -25,6 +25,19 @@ def docs_group() -> None:
 
     These are thin wrappers over ``cataforge.docs.loader`` /
     ``cataforge.docs.indexer``; exit codes are preserved verbatim.
+
+    .. note::
+       The KG-first replacements are recommended for new projects:
+
+       * ``cataforge docs index``     → ``cataforge kg ingest --all``
+       * ``cataforge docs load <ref>`` → ``cataforge kg query --sparql ...``
+       * ``cataforge docs validate``  → ``cataforge kg validate``
+       * ``cataforge docs reverse-deps F-001``
+         → ``cataforge kg query --dsl '{"rel":"cfa:references","dst":"F-001"}'``
+
+       The legacy commands stay in place until v0.5 cuts over; both
+       backends will co-exist for one release so projects can migrate
+       at their own pace.
     """
 
 
@@ -267,7 +280,7 @@ def docs_migrate_nav(project_root: str | None, dry_run: bool) -> None:
     ``cataforge docs index`` to produce the canonical machine index.
     Surfaces any doc_id present in NAV but missing on disk.
     """
-    from cataforge.docs.migrate_nav import main as migrate_main
+    from cataforge.core.migrate.migrate_nav import main as migrate_main
 
     argv: list[str] = []
     if project_root:
@@ -297,7 +310,9 @@ def docs_migrate_reviews(project_root: str | None, dry_run: bool) -> None:
 
     Idempotent — files that already start with ``---`` are left untouched.
     """
-    from cataforge.docs.migrate_review_frontmatter import main as migrate_main
+    from cataforge.core.migrate.migrate_review_frontmatter import (
+        main as migrate_main,
+    )
 
     argv: list[str] = []
     if project_root:

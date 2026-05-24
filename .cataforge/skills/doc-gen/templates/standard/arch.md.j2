@@ -1,0 +1,45 @@
+{# KG-rendered architecture document. Caller supplies `doc` and `project`. #}
+---
+id: arch-{{ project }}
+doc_type: arch
+status: {{ kg.get_attr(doc, 'cfa:status', default='draft') }}
+generated_by: {{ generated_by }}
+---
+<!--
+  This file is rendered from the knowledge graph. Direct edits will be
+  overwritten on the next `cataforge kg render`. To change content, use
+  `cataforge kg update-entity` or edit the markdown and let
+  `cataforge kg ingest --file <self>` fold the change back.
+-->
+
+# 架构文档: {{ kg.get_attr(doc, 'rdfs:label', default=project) }}
+
+## 1. 模块清单
+
+{{ kg.query(
+"SELECT ?id ?label WHERE { ?m a cfa:Module ; cfk:hasId ?id ; rdfs:label ?label ; cfk:definedIn $doc . } ORDER BY ?id",
+doc=doc
+) | bullet_list(fmt="{id}: {label}") }}
+
+## 2. 接口清单
+
+{{ kg.query(
+"SELECT ?id ?label WHERE { ?i a cfa:Interface ; cfk:hasId ?id ; rdfs:label ?label ; cfk:definedIn $doc . } ORDER BY ?id",
+doc=doc
+) | bullet_list(fmt="{id}: {label}") }}
+
+## 3. 模块 → 功能 traceability
+
+{{ kg.query(
+"SELECT ?mid ?fid WHERE { ?m a cfa:Module ; cfk:hasId ?mid ; cfa:realizes ?f ; cfk:definedIn $doc . ?f cfk:hasId ?fid . } ORDER BY ?mid ?fid",
+doc=doc
+) | table(columns=["mid", "fid"]) }}
+
+## 4. 模块依赖图
+
+```mermaid
+{{ kg.query(
+"SELECT ?src ?dst WHERE { ?s a cfa:Module ; cfk:hasId ?src ; cfa:dependsOn ?t ; cfk:definedIn $doc . ?t cfk:hasId ?dst . } ORDER BY ?src ?dst",
+doc=doc
+) | mermaid_diagram }}
+```

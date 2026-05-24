@@ -1,0 +1,43 @@
+{# KG-rendered dev plan. Caller supplies `doc` and `project`. #}
+---
+id: dev-plan-{{ project }}
+doc_type: dev-plan
+status: {{ kg.get_attr(doc, 'cfa:status', default='draft') }}
+generated_by: {{ generated_by }}
+---
+<!--
+  This file is rendered from the knowledge graph. Direct edits will be
+  overwritten on the next `cataforge kg render`. To change content, use
+  `cataforge kg update-entity` or edit the markdown and let
+  `cataforge kg ingest --file <self>` fold the change back.
+-->
+
+# 开发计划: {{ kg.get_attr(doc, 'rdfs:label', default=project) }}
+
+## 1. 任务清单
+
+{{ kg.query(
+"SELECT ?id ?label ?status WHERE { ?t a cfa:Task ; cfk:hasId ?id ; rdfs:label ?label ; cfk:definedIn $doc . OPTIONAL { ?t cfa:status ?status } } ORDER BY ?id",
+doc=doc
+) | table(columns=["id", "label", "status"]) }}
+
+## 2. 任务 → 模块映射
+
+{{ kg.query(
+"SELECT ?tid ?mid WHERE { ?t a cfa:Task ; cfk:hasId ?tid ; cfa:decomposes ?m ; cfk:definedIn $doc . ?m cfk:hasId ?mid . } ORDER BY ?tid ?mid",
+doc=doc
+) | table(columns=["tid", "mid"]) }}
+
+## 3. 决策记录 (ADR)
+
+{{ kg.query(
+"SELECT ?id ?label WHERE { ?d a cfa:Decision ; cfk:hasId ?id ; rdfs:label ?label ; cfk:definedIn $doc . } ORDER BY ?id",
+doc=doc
+) | bullet_list(fmt="{id}: {label}") }}
+
+## 4. 风险登记
+
+{{ kg.query(
+"SELECT ?id ?label WHERE { ?r a cfa:Risk ; cfk:hasId ?id ; rdfs:label ?label ; cfk:definedIn $doc . } ORDER BY ?id",
+doc=doc
+) | bullet_list(fmt="{id}: {label}") }}

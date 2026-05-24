@@ -64,6 +64,14 @@ HOOKS_MANIFEST: tuple[dict[str, object], ...] = (
         "safety_critical": False,
     },
     {
+        "name": "kg_auto_ingest",
+        "events": ("PostToolUse",),
+        "default_capability": "file_edit",
+        "default_type": "observe",
+        "description": "docs/**/*.md 编辑后自动回流 KG（quiet-fail）",
+        "safety_critical": False,
+    },
+    {
         "name": "detect_correction",
         "events": ("PostToolUse",),
         "default_capability": "user_question",

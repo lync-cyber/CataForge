@@ -1,0 +1,21 @@
+{
+  "$comment": "module_implements write-back — agent emits {doc_id, doc_iri, modules: [{id, label, implements: [iri,...]}]}",
+  "items": [
+    {
+      "from": "modules",
+      "iri": "cfa:${doc_id}/${id}",
+      "type": "cfa:Module",
+      "literals": {
+        "cfk:hasId": "id",
+        "rdfs:label": "label"
+      },
+      "iri_refs": {
+        "cfk:definedIn": "cfk:doc/${doc_id}",
+        "cfa:implements": {
+          "field": "implements",
+          "as_iri": true
+        }
+      }
+    }
+  ]
+}

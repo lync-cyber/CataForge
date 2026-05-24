@@ -47,6 +47,9 @@ dependencies = [
     "click>=8.0",
     "pydantic>=2.0",
     "markdown-it-py>=3.0",
+    "rdflib>=7.0",
+    "pyshacl>=0.25",
+    "owlrl>=6.0.2",
 ]
 
 [project.optional-dependencies]
@@ -62,7 +65,8 @@ dev = [
 mcp = ["mcp>=1.0"]
 docker = ["docker>=7.0"]
 penpot = ["docker>=7.0"]
-all = ["docker>=7.0", "mcp>=1.0"]
+kg-oxigraph = ["pyoxigraph>=0.4"]
+all = ["docker>=7.0", "mcp>=1.0", "pyoxigraph>=0.4"]
 
 [project.urls]
 Homepage = "https://github.com/lync-cyber/CataForge"
@@ -132,6 +136,17 @@ pythonpath = ["src"]
 markers = [
     "slow: end-to-end tests that build a wheel, spawn a venv, or hit PyPI — opt out with `pytest -m 'not slow'`",
     "network: tests that reach external services (e.g. PyPI); gated by CATAFORGE_E2E_NETWORK=1",
+]
+# rdflib 7.x is mid-rename (Dataset.default_context → default_graph,
+# Dataset.contexts → graphs, Dataset.identifier deprecated). The
+# 45k-warning storm comes from rdflib's own internals + pyshacl's
+# clone helpers — not our call sites. We use the post-rename names
+# everywhere in src/cataforge/kg/, but routine operations still
+# trigger the upstream warnings. Silence them here; revisit when
+# rdflib 8.x lands and the API stabilises.
+filterwarnings = [
+    "ignore::DeprecationWarning:rdflib.*",
+    "ignore::DeprecationWarning:pyshacl.*",
 ]
 
 [tool.mypy]

@@ -1,0 +1,20 @@
+{
+  "$comment": "test_validates write-back",
+  "items": [
+    {
+      "from": "test_cases",
+      "iri": "cfa:${doc_id}/${id}",
+      "type": "cfa:TestCase",
+      "literals": {
+        "cfk:hasId": "id"
+      },
+      "iri_refs": {
+        "cfk:definedIn": "cfk:doc/${doc_id}",
+        "cfa:validates": {
+          "field": "validates",
+          "as_iri": true
+        }
+      }
+    }
+  ]
+}

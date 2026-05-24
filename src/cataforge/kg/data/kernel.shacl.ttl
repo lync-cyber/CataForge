@@ -1,0 +1,39 @@
+@prefix cfk:  <https://cataforge.dev/ontology/kernel#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# Every Resource may carry at most one cfk:hasId and it must be a string.
+# Per-class shapes (artifact.shacl.ttl) carry the specific regex patterns
+# that vary across class — Release uses semver, others use prefix-dash-digit.
+cfk:HasIdUniquenessShape a sh:NodeShape ;
+    sh:targetClass cfk:Resource ;
+    sh:property [
+        sh:path     cfk:hasId ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "cfk:hasId must be a single string per Resource node."
+    ] .
+
+# Document must have a label; otherwise downstream rendering cannot build
+# navigable headings.
+cfk:DocumentShape a sh:NodeShape ;
+    sh:targetClass cfk:Document ;
+    sh:property [
+        sh:path     rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "cfk:Document must have rdfs:label."
+    ] .
+
+# Standard nodes carry a citation URI in cfk:source so consumers can
+# resolve the external spec.
+cfk:StandardShape a sh:NodeShape ;
+    sh:targetClass cfk:Standard ;
+    sh:property [
+        sh:path     cfk:source ;
+        sh:minCount 1 ;
+        sh:datatype xsd:anyURI ;
+        sh:message  "cfk:Standard must declare cfk:source (URI of the external spec)."
+    ] .

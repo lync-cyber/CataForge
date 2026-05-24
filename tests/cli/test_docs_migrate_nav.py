@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.docs import loader, migrate_nav
+from cataforge.core.migrate import migrate_nav
+from cataforge.docs import loader
 
 
 @pytest.fixture(autouse=True)

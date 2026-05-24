@@ -83,6 +83,38 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.cataforge/(agents|skills)/.*\.md$
+      - id: kg-template-lint
+        name: kg render templates (Jinja2 + SPARQL static checks)
+        description: |
+          Render templates under .cataforge/skills/doc-gen/templates/**.md.j2
+          must parse cleanly, contain ORDER BY in every embedded SPARQL
+          query, and avoid deprecated v0.4 placeholders ({project} / {ver}).
+          Drift surfaces as silent render churn (R-03 / R-07).
+        entry: python -m cataforge.cli.main kg template-lint --project-root .
+        language: system
+        pass_filenames: false
+        files: ^\.cataforge/skills/.*templates/.*\.md\.j2$
+      - id: kg-render-check
+        name: kg render --check (idempotency of rendered markdown)
+        description: |
+          Every .md.j2 template must render byte-identically to its
+          current docs/ output. PostToolUse auto-ingest depends on this:
+          without it, every edit produces phantom triples and the merge
+          accumulates conflicts (design §4.3 / R-03).
+        entry: python -m cataforge.cli.main kg render --project-root . --check
+        language: system
+        pass_filenames: false
+        files: ^(\.cataforge/skills/.*templates/.*\.md\.j2|docs/.*\.md|docs/\.doc-graph/.*\.nq)$
+      - id: kg-validate
+        name: kg validate (SHACL conformance gate)
+        description: |
+          Project ontology + L0/L1/L2 + L3 SHACL shapes must validate.
+          Conformance is a release gate; tighten incrementally by adding
+          shapes rather than disabling this hook.
+        entry: python -m cataforge.cli.main kg validate --project-root .
+        language: system
+        pass_filenames: false
+        files: ^docs/\.doc-graph/.*\.nq$
       - id: doc-structure
         name: document structure hygiene (step numbering)
         description: |
