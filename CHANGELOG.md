@@ -20,6 +20,97 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.4.1'></a>
+## [0.4.1] — 2026-05-24
+
+### Added
+
+- **code-review `integration-wiring` 维度** —— Layer 2 新增 `integration-wiring (consistency)` 检查，识别 prop 链路 / 事件 handler / store action 是否真实落地（非 `() => {}` / `return null` 占位）；Layer 1 配套新增 wiring 空 handler 正则扫描（`code_lint.wiring_empty_handler`）。短路豁免：`user_facing_critical_path: true` / `consumer_components` 非空时即使 light/chore 模式也强制跑 Layer 2。
+- **testing e2e 后门扫描** —— 新增 `e2e_backdoor_scan` + `e2e_real_input_presence` Layer 1 检查，命中 `window.__*__=` / `?e2e=1` / `setStore(JSON.parse(...))` 等模式即 WARN；e2e 套件至少含一处 `keyboard.type` / `page.fill` / `send_keys` 真实交互调用，否则 WARN。
+- **agent-result schema v0.2.0 wiring 字段** —— 新增 `wiring_complete: true|false|"n/a"` + `wiring_evidence: array<{consumer_file, consumer_line?, deliverable_symbol}>`；implementer 必须填写，tdd-engine Step 3 解析后将 `wiring_complete=false` + `user_facing_critical_path=true` 升级为 HIGH continuation。
+- **orchestrator Phase Transition hygiene gate** —— Phase Transition Protocol 新增 Step 6：派发下一阶段 Agent 前强制运行 `cataforge claude-md check`，FAIL 时阻塞推进并提供 inline `cataforge claude-md compact` 恢复选项。
+- **framework-review B5_hook_installed 检查** —— 新增 FAIL 级检查：`hooks.yaml` PostToolUse 段必须含 `script: validate_agent_result` + `matcher_capability: agent_dispatch` 条目，否则 `agent_return` 事件永远不会写入 EVENT-LOG，B5-γ 漂移检测会在 0 数据下静默放行。
+- **framework-review B8 Anti-Patterns 系列** —— 新增 B8-α/β/γ：每个非豁免 skill / agent 应有 `## Anti-Patterns` 段（缺失 WARN）；skill bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_SKILL`（默认 3）/ agent ≥ `ANTI_PATTERN_MIN_COUNT_AGENT`（默认 4），不足 FAIL；每条 bullet 正文 ≥ 12 字符（过滤 placeholder），不足 WARN。
+- **plugin-style 跨语言规则架构** —— 新增 `cataforge.skill.rules.loader` 模块（`validate_yaml_text` / `discover_rules` / `RuleSpec`），按 `(rule_type, language)` 索引；wiring + e2e 正则迁移到 YAML（`cataforge.skill.builtins.{code_review,testing}.rules.*.yaml`），项目可在 `.cataforge/skills/<skill>/rules/` 放同名文件覆盖默认值，加新语言只需放 YAML 不改 Python；framework-review 新增 B3-β `rules_schema_compliance` 自动校验项目 YAML。
+- **doc-review `ac-observability` 检查** —— dev-plan AC 用主观语义动词（"很好地处理…"/"友好地…"）会被 needs_revision；AC 必须可观察可测试。
+- **sprint-review `wiring-completeness` 维度** —— Layer 2 新增维度，并细化 `ac-coverage` 要求 non-mock 测试。
+- **COMMON-RULES §verdict_blocking_semantics** —— 明确 `approved` / `approved_with_notes` / `conditional_release` / `needs_revision` 在 Phase Transition / Sprint Review 流转上的阻塞语义，禁止用 `[ENV-LIMITATION]` 让缺陷豁免 needs_revision。
+
+- **SKILL.md `maintainer-only: true` frontmatter 标志** —— SkillMeta 新增 `maintainer_only: bool` 字段；`cataforge deploy` 默认跳过 maintainer-only skill，避免无用 prompt 上下文下发给下游业务项目。`cataforge deploy --include-maintainer-only` 让上游 CataForge 仓库 dogfood 时一并部署。framework-issue-resolve 是当前唯一 maintainer-only skill；标记后下游不再拿到。
+- **`.claude/commands/framework-issue-resolve.md` slash command wrapper** —— 上游 CataForge 仓库 maintainer clone 后无需 deploy 即可在 Claude Code 用 `/framework-issue-resolve` 触发五步闭环。wrapper 通过 `.gitignore` 例外（`!.claude/commands/framework-issue-resolve.md`）单文件 git-tracked，其他 `.claude/commands/` 内容仍 ignore。
+- **deploy_skills per-skill 链接** —— 原先整个 `.cataforge/skills/` 目录被作为单一 junction/symlink 暴露到 `.claude/skills/`；改为枚举每个 skill 子目录单独链接，并在 deploy 时检测 maintainer-only frontmatter 决定是否暴露。旧的整目录 link 在升级 deploy 时被自动 unwrap。
+- **`docs/reference/wiring-checks.md`** —— 新建 reference 文档，承载具体语言的 wiring 识别模式（JS/TS / Python / Go / Rust / Java 分节）。code-review §integration-wiring 与 tech-lead §production-path AC 主体退回语言无关、以 markdown 链接引用本 reference。
+- **anti-rot 守卫 `scripts/checks/check_no_language_coupling.py`** —— 扫 `.cataforge/skills/**/SKILL.md` / `.cataforge/agents/**/AGENT.md` 主体中的特定语言业务关键字（`FastAPI` / `Spring @Autowired` / `Redux` / `useEffect` / `SQLAlchemy` / `goroutine` / `tokio::spawn` 等），命中 FAIL 并打印应迁入的 reference 路径；豁免：fenced code block / `[…](docs/reference/…)` markdown link / 同行 `<!-- allow-language-coupling: <reason> -->` escape hatch。接入 pre-commit + per-PR test.yml + weekly anti-rot.yml。
+- **`derive_doc_id(title, kind)`** —— `cataforge.core.feedback` 新增 slug 派生工具，CLI / API 不传 `doc_id` 时自动从 title 派生符合 `DOC_ID_RE`（`^[\w-]+$`）的 id，前缀 `feedback-{kind}-`，title 已含 `feedback-` 或 `{kind}-` 前缀时自动去重。
+
+- **implementer/AGENT.md §Assertion Strength Guard** —— GREEN/Light 完成前对让测试 PASS 的断言做强度自检：仅校验 mock/spy 调用计数 / 对象存在性 / 常量真值的"弱断言"返回 blocked；mock 中诡异条件让弱断言 PASS（永远返回常量 / 永远 raise / 强行短路）视为 implementation bug 假阳性而非测试问题。code-review §Layer 2 test-quality 新增 "断言强度" 子项作为审查侧兜底。
+- **implementer/AGENT.md §Post-GREEN Validation 四档表** —— GREEN/Light 完成后按 tdd-engine 四档执行不同强度收尾：standard / light-dispatch 强制修改文件 lint + 全量回归 + `git diff --name-only` 报告；light-inline 豁免全量回归保 lint；prototype-inline 全豁免（lint hook 兜底）。lint 失败 3 次未通过返回 blocked。
+- **tech-lead/AGENT.md §Execution Rules AC literal-reference 规则** —— AC 引用架构接口字段名 / 返回值结构 / 枚举值时必须逐字复用 arch 文档定义并附 `[ARCH#§M.API-NNN]` 锚点；不得用同义词 / 翻译 / 简写替代，附 3 反例（`内容数` → `content_count` 等）。
+- **`docs/reference/corrections.md`** —— 新建 reference 文档承载 5 deviation 类型语义（preference / self-caused / external / framework-bug / upstream-gap）+ 各 1-3 个具体示例 + "不在枚举内的常见误标"重映射表（`protocol-gap` → self-caused/upstream-gap；`technical-constraint` → external；`framework-debt` → framework-bug/upstream-gap）。下游 RETRO 用错枚举导致 `cataforge feedback correction-export` 永远空 bundle 的问题从源头杜绝。
+
+- **SKILL.md `<!-- requires: cataforge>=X.Y.Z -->` 注解 + B3 release-lag INFO 降级** —— B3 anchor 漂移 (`check_id` 引用了 manifest 未声明的 id) 在 release 发布到 PyPI 与下游 `cataforge upgrade` 之间窗口内可能误判：上游 SKILL.md 已声明新 check_id，下游 cataforge 包仍是旧版未注册。SKILL.md 顶部可加 `<!-- requires: cataforge>=0.4.1 -->` 注解，runtime 版本低于声明时把 orphan anchor 从 FAIL 降为 INFO；runtime 满足时维持严格 FAIL 守护。
+- **B1-β PROTOCOL companion 扫描** —— `framework-review` B1-β size threshold 之前仅扫 AGENT.md / SKILL.md 主体，遗漏 `agents/<id>/*PROTOCOL*.md`（如 ORCHESTRATOR-PROTOCOLS.md）等 companion 文档；这些 companion 与主体一样每次 LLM 调度都被加载，必须共同受 META_DOC_SPLIT_THRESHOLD_LINES (500) 约束。新增 5 个测试覆盖发现 / 单数 PROTOCOL / 复数 PROTOCOLS / 超阈值 FAIL / scope=skills 不扫 agent。
+- **12 个 skill `## Anti-Patterns` 段** —— arc-design / change-guard / debug / deploy-config / penpot-{implement,review,sync} / platform-audit / req-analysis / task-decomp / tech-eval / ui-design 在 B8-α/β/γ 守门下补齐 Anti-Patterns 段（每段 ≥3 条具体反例 + 后果描述）。devops / tech-lead placeholder-thin 条目重写为含具体后果陈述。
+- **`docs/reference/builtin-skill-layout.md`** —— builtin skill Python 包命名约定（`cataforge.skill.builtins.<skill_name>`，下划线分词），同时列出存量不符约定的 skill 待后续 narrow-PR 迁移。
+- **`cataforge.platform.instruction_cache`** —— `platform/base.py` 的 instruction-hash 持久化逻辑抽取为独立模块；platform deploy 现复用统一缓存接口。
+
+- **doc `content_hash` + `dep_hashes` 快照** —— `.doc-index.json` 每个文档新增 `content_hash`（frontmatter 剔除后 body 的 sha256 前 8 位），含 `deps:` 字段的文档同时写入 `dep_hashes: {upstream_id → upstream_content_hash}` 快照其依赖时的上游版本。
+- **`cataforge docs validate` 检 `stale_deps`** —— 比对 downstream 文档的 `dep_hashes` snapshot 与上游 doc 当前 `content_hash`，不一致即列为 stale dependency WARN（不阻断 validate，仅提示 downstream 可能需要跟随更新）。`validate_docs()` 返回值新增 `stale_deps` key。
+- **doc-review §双向覆盖检查 (`check_bidirectional_coverage`)** —— `arch` / `dev-plan` / `ui-spec` 主卷 review 时反向扫描上游文档（prd / arch）的所有 `^### F-NNN` / `^### M-NNN` 锚点，downstream 主卷必须引用全部上游 item，未覆盖项 FAIL 并列出（>5 项时截断显示）。从源头堵住"PRD 加了新 feature 但 ARCH/PLAN 没跟进"的悄然漂移。
+- **`docs/research/feedback-analysis-doc-drift-and-iteration.md` + `revision-plan-drift-prevention-and-iteration.md`** —— CataForge v0.4.0 结构性缺陷三维分析（PRD/ARCH/PLAN 漂移 / 跨引用腐化 / 用户 checkpoint 稀疏），含 14 条按优先级排序的改进提案与实现草图。后续 issue/PR 会按提案分批落地。
+
+- **test-writer/AGENT.md §Behavioral Assertion Mandate** —— 禁止存在性断言（hasattr/isDefined/isNotNone/callable/len>0）6 种模式表 + 假实现检测 + 期望值溯源到 AC Then 子句；测试质量自检从三维度扩展为四维度（+行为验证充分性）。
+- **tdd-engine/SKILL.md dispatch prompt 注入 PRD 上下文** —— Step 1 新增 user_story + business_rules 加载；RED/Light Dispatch/Light Inline 三处 prompt 均注入 `## user_story` 段。
+- **task-decomp/SKILL.md AC Given-When-Then 格式约束** —— 每条 AC 必须包含 Given（前置条件）、When（触发动作）、Then（可观测结果），禁止"实现 X"等无行为描述的模糊 AC。
+- **code-review/SKILL.md §增量审查模式** —— `task_type=revision` 时审查范围收窄到 `git diff` 涉及的文件和函数。
+- **typed_checks.py GWT 格式检测** —— doc-review Layer 1 新增 Given/When/Then 关键词检测，AC 缺 GWT 结构发出 WARN。
+- **`scripts/checks/check_doc_structure.py`** —— pre-commit + CI 守卫，扫描 `.cataforge/` 下 markdown 文件的非标准步骤编号（3a./4b.）、编号跳跃、编号重复。
+- **CLAUDE.md §硬约束 3 · 文档结构规范** —— 编号列表必须使用连续整数，禁止非标准子步骤编号/编号跳跃/编号重复。
+
+### Changed
+
+- **B5-γ phase-routed agent 0 returns 升级为 FAIL** —— `B5_eventlog_agent_return_drift` 在 `total_returns ≥ EVENT_LOG_DRIFT_MIN_EVENTS` 且某 phase-routed agent 0 returns 时，从 WARN 升级为 FAIL（强 dead-routing 信号；阈值已过滤稀疏数据）。
+- **self-update Step 6 增加 hygiene 同步** —— 升级后强制同步 CLAUDE.md `框架版本` 字段并跑 `cataforge claude-md check`，FAIL 仅作为提示（让 Phase Transition 在下次推进时强制处理）。
+- **ORPHAN_SKILL_WHITELIST 扩充** —— `framework-issue-resolve` / `framework-feedback` 加入白名单（用户直接调用，不在任何 AGENT.md `skills:` 中声明）。
+- **framework.json 新增常量** —— `PRE_DEPLOY_DEMO_REQUIRED` / `PRE_DEPLOY_DEMO_MIN_ACS` / `ANTI_PATTERN_MIN_COUNT_SKILL` / `ANTI_PATTERN_MIN_COUNT_AGENT`。
+
+- **`cataforge feedback bug|suggest|correction-export` 输出 prepend YAML front matter** —— `_render_header` 之前注入 `id` / `doc_type: framework-feedback` / `status: approved` / `deps: []`，让 `--out PATH` 落盘的 bundle 直接通过 `cataforge docs validate`，不再 orphan FAIL。
+- **`cataforge issue triage` 多 label 改 OR 语义** —— `gh issue list --label X --label Y` 是 AND 语义，会漏只挂一种 label 的 suggest / bug issue；改为按每个 label 各调用一次 `gh`、按 issue number 合并去重，让 `framework.json#feedback.gh.labels` 配置的 label 并集真正生效。
+- **`cataforge issue triage` reported_version 解析覆盖 issue 模板格式** —— 新增 `_VERSION_TEMPLATE_RE` / `_VERSION_BOLD_RE` 识别 `### CataForge version\n\n0.4.0`（H3 模板）与 `**CataForge package**: \`0.4.0\``（markdown bold env 块），不再让 `cataforge feedback ... --gh` 生成的 GitHub issue 落入 `unrelated`。
+- **code-review §integration-wiring 与 tech-lead §production-path AC 语言解耦** —— 主体退回 generic 接线判据（接线对象在生产路径有真实调用点、仅 tests/ 内调用不算落地），具体语言模式抽到 [`docs/reference/wiring-checks.md`](../docs/reference/wiring-checks.md)。
+- **`scripts/checks/check_no_design_residue.py` 守卫范围扩展** —— 在原 HTML 注释残留（`<!-- 变更原因 -->` / `<!-- diagnostic #N -->`）之外，新增 inline 叙事残留识别：`issue #N` / `PR #N` / `closes|fixes|closeout #N` / `landed in` / `vX.Y.Z 起` / `pre-vX.Y.Z`；fenced code block 内自动豁免（规则文件 regex 字面量合法）；保留同行 `<!-- allow-design-residue -->` escape hatch。
+- **`CLAUDE.md` 新增 §Agent / Skill 撰写约定** —— 明确两条硬约束：(1) 最小可行修改（删到不能再删；禁止溯源引用 / 版本里程碑 / 过程标签 / 对比叙事 / HTML 注释残留）；(2) 与编程语言解耦（主题是职责不是语言，具体语言关键字进 `docs/reference/`）。两条都列示守卫脚本、合法例外、escape hatch 机制。
+
+- **refactorer/AGENT.md §Anti-Patterns 硬禁所有 git 操作** —— refactorer 仅产出文件路径，git 由 orchestrator 独占；add / commit / push / branch / reset / restore / checkout / stash 全部明文禁止。配套 tdd-engine §Step 4 协议层防御。
+- **tdd-engine/SKILL.md §Step 4 REFACTOR 完成后验证** —— orchestrator 在 refactorer 返回 completed 后跑 `git status --short` 比对调度前 baseline；staged/unstaged 变化中含 deliverables 外文件、HEAD 位移（分支切换 / 新增 commit）、working tree 出现 stash 或 cherry-pick 中间态 → BLOCKED 并请求人工介入。
+
+- **`framework_check.py` 1613 → 203 LOC** —— B1..B8 检查拆分到 `cataforge.skill.builtins.framework_review.checks.b{1..8}`，配合 `_types/_discover/_constants/_framework_data/_hook_resolution` 内部模块；公开 API 通过 `__all__` re-export 保持稳定，下游调用方零修改。
+- **`doctor_cmd.py` 1218 → 142 LOC** —— `cataforge.cli.doctor` 拆分为 `_helpers/migration/protocol_refs/hook_health/skill_health/event_log/hygiene/provenance` 子模块；`cataforge doctor` 命令行接口不变。
+- **B5-γ phase-routed agent 0 returns 升级条件** —— `total_returns ≥ EVENT_LOG_DRIFT_MIN_EVENTS` 且某 phase-routed agent 0 returns 时 FAIL（强 dead-routing 信号；阈值过滤稀疏数据），低于阈值时仍为 INFO。
+- **`test-writer` / `refactorer` `skills: []` 标注** —— 两个 AGENT 留空 skills 不是疏漏而是 tdd-engine inline-dispatch 设计：tdd-engine 直接组装 prompt 调度二者，不经 skill 路由。在 frontmatter 注释明确，避免 framework-review B5 误报 orphan。
+
+- **`doc-gen/templates/standard/dev-plan.md`** —— task 模板 frontmatter / AC 段约束跟进 #125 GWT 格式与 task-decomp #123 literal-reference 规则，模板示例统一改为 `Given X / When Y / Then Z [ARCH#§M.API-NNN]` 形态。
+- **`task-decomp/SKILL.md` AC literal-reference 强化** —— 在 #123 写入的 "AC 引用 arch 字段必须逐字复用" 基础上，明示当 PRD F-NNN 被 dev-plan 间接覆盖时仍需把 PRD 锚点写进任务 context_load，避免 LLM 在 AC 推断时遗忘业务规则源头。
+- **`sprint-review/SKILL.md`** —— Layer 1 §coverage-check 段补一条：每 Sprint 结束前跑 `cataforge docs validate`，`stale_deps` 非空时在 sprint review 报告里列出，maintainer 决定下 Sprint 是否安排同步任务（不强制阻断）。
+
+- **tdd-engine/SKILL.md 流程轻量化** —— per-task code-review 改为分级触发：仅 `security_sensitive` / `user_facing_critical_path` / `consumer_components` 非空的高风险任务走即时审查，其余延迟到 sprint-review 批量覆盖；agile-standard 模式的 light 任务放宽为可走 light-inline（审计粒度通过 EVENT-LOG 保持）。
+- **ORCHESTRATOR-PROTOCOLS.md Revision Protocol 增量审查** —— revision re-review 仅审查 `git diff` 变更部分，上轮无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查；needs_revision 循环上限从 N≥3 收紧到 N≥2。
+- **ORCHESTRATOR-PROTOCOLS.md Sprint Review Protocol** —— 新增 Batch Code-Review 机制，对未经 per-task code-review 的延迟任务在 sprint-review 报告中逐任务覆盖 L2 维度。
+- **doc-gen 模板 tdd_acceptance 格式** —— standard/lite/sprint-volume/brief 四套模板的 AC 占位符从 `{测试描述} → 预期: {结果}` 改为 Given-When-Then 格式。
+- **sprint_review `code_review_present` 严重等级** —— 从 FAIL 降为 WARN，适配延迟批量审查模式。
+
+### Fixed
+
+- **tech-lead/AGENT.md 残留 `dep-analysis` 引用** —— 重命名为 `task-dep-analysis`（v0.1.15 后的正确名称），消除 `cataforge doctor` B2-α orphan WARN 的真实源头；task-decomp/SKILL.md 同步更新两处引用。
+- **6 个 skill / 1 个 agent Anti-Patterns 缺失或不足** —— code-review / sprint-review / doc-review / self-update / task-dep-analysis 补写 `## Anti-Patterns` 段（每段 ≥3 条）；refactorer/AGENT.md Anti-Patterns 从 2 条扩到 5 条达到 agent ≥4 floor；qa-engineer/AGENT.md Anti-Patterns 扩到 6 条覆盖 verdict 三态语义。
+
+- **8 个 skill / agent / rules 文档 12 处存量设计残留清理** —— `COMMON-RULES.md` / `code-review/SKILL.md` ×2 / `orchestrator/ORCHESTRATOR-PROTOCOLS.md` ×2 / `sprint-review/SKILL.md` / `self-update/SKILL.md` ×4 / `testing/SKILL.md` / `task-dep-analysis/SKILL.md` 中 `issue #113 反馈现象` / `v0.1.10 起` / `v0.1.15 起由原 ... 重命名为 ...` / `pre-v0.4.0 项目` 等溯源叙事与版本里程碑全部移除。
+- **`COMMON-RULES.md §禁止设计阶段与变更说明残留` 自检 regex 扩展** —— 原 regex 仅覆盖 `之前 / previously / used to / 修复了 / 替代了 / MVP / 改为` 等关键词；新增 `issue\s*#?\d+` / `PR\s*#?\d+` / `closes|fixes\s*#\d+` / `closeout` / `landed in` / `本次新增` / `本轮加入` / `现已支持` / `v[0-9]+\.[0-9]+\.[0-9]+\s*起` 等溯源关键词。
+
+- **`sprint_check.py` exit=2 stderr 诊断** —— 顶层 try/except 兜底，未捕异常时打印 `[FAIL] sprint_check runtime error: <type>: <msg>` + 5 行 traceback 摘要（text/json mode-aware），exit 2 区分 runtime error 与 normal FAIL（exit 1）。先前 sprint-review Layer 1 在某些 runtime error 路径只给状态码不输出诊断，orchestrator / maintainer 无法定位失败 check。
+
+- **ORCHESTRATOR-PROTOCOLS.md 非标准步骤编号** —— Bootstrap `3a.` 重编号为连续整数（步骤 3~10）；Revision Protocol `4a.` 合并到步骤 4 行内；Sprint Review `2a.` 合并到步骤 2 行内；Change Request Protocol 重复 `4.` 收拢为散文段落。
+
 <a id='changelog-0.4.0'></a>
 ## [0.4.0] — 2026-05-06
 
@@ -615,7 +706,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.4.1
 [0.4.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.4.0
 [0.3.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.3.1
 [0.3.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.3.0
