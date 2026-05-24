@@ -120,3 +120,166 @@ class TestLifecycle:
         state = mgr.start("broken")
         assert state.status == "error"
         assert state.error_message
+
+    def test_start_idempotent_when_already_running(self, project: Path) -> None:
+        """A fresh CLI process sees the persisted 'running' state and
+        returns it instead of spawning a second child."""
+        _write_spec(
+            project,
+            "twice",
+            command=sys.executable,
+            args=["-c", "import sys; sys.stdin.read()"],
+        )
+        mgr1 = MCPLifecycleManager(project)
+        first = mgr1.start("twice")
+        try:
+            assert first.status == "running" and first.pid is not None
+
+            # Simulate a new CLI invocation: fresh registry + lifecycle
+            # objects, but the on-disk state and the live child remain.
+            mgr2 = MCPLifecycleManager(project)
+            second = mgr2.start("twice")
+            assert second.status == "running"
+            assert second.pid == first.pid, (
+                "start() must return the existing pid, not spawn a duplicate"
+            )
+        finally:
+            mgr1.stop("twice")
+
+    def test_start_cleans_stale_running_state(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If a persisted 'running' state references a dead pid, start()
+        clears it and spawns a fresh process instead of refusing."""
+        from cataforge.mcp import lifecycle as lc
+
+        _write_spec(
+            project,
+            "ghost",
+            command=sys.executable,
+            args=["-c", "import sys; sys.stdin.read()"],
+        )
+        state_dir = project / ".cataforge" / ".mcp-state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (state_dir / "ghost.json").write_text(
+            '{"spec_id": "ghost", "status": "running", "pid": 999999}\n',
+            encoding="utf-8",
+        )
+
+        # Force the alive-check to report False for the fake pid.
+        monkeypatch.setattr(lc, "_pid_alive", lambda pid: pid != 999999)
+
+        mgr = MCPLifecycleManager(project)
+        state = mgr.start("ghost")
+        try:
+            assert state.status == "running"
+            assert state.pid is not None and state.pid != 999999
+        finally:
+            mgr.stop("ghost")
+
+    def test_stop_waits_for_pid_to_die(self, project: Path) -> None:
+        """stop() must not return until the pid is actually gone."""
+        from cataforge.mcp import lifecycle as lc
+
+        _write_spec(
+            project,
+            "waitable",
+            command=sys.executable,
+            args=["-c", "import sys; sys.stdin.read()"],
+        )
+        mgr = MCPLifecycleManager(project)
+        state = mgr.start("waitable")
+        pid = state.pid
+        assert pid is not None and lc._pid_alive(pid)
+
+        result = mgr.stop("waitable")
+        assert result.status == "stopped"
+        assert not lc._pid_alive(pid), (
+            "stop() returned 'stopped' but the pid is still alive"
+        )
+
+
+class TestRegistryPersistence:
+    def test_register_from_file_copies_to_canonical_path(
+        self, project: Path, tmp_path: Path
+    ) -> None:
+        """A spec registered from outside .cataforge/mcp/ must be copied
+        in so a fresh process can discover it."""
+        external = tmp_path / "external"
+        external.mkdir()
+        spec_path = external / "external.yaml"
+        spec_path.write_text(
+            yaml.safe_dump(
+                {
+                    "id": "external",
+                    "name": "external",
+                    "transport": "stdio",
+                    "command": "echo",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        reg1 = MCPRegistry(project)
+        reg1.register_from_file(spec_path)
+
+        canonical = project / ".cataforge" / "mcp" / "external.yaml"
+        assert canonical.is_file(), "spec must be persisted to .cataforge/mcp/"
+
+        # Fresh registry (simulates new process) discovers it.
+        reg2 = MCPRegistry(project)
+        assert reg2.get_server("external") is not None
+
+    def test_register_from_file_refuses_overwrite_by_default(
+        self, project: Path, tmp_path: Path
+    ) -> None:
+        _write_spec(project, "existing")
+        replacement = tmp_path / "replacement.yaml"
+        replacement.write_text(
+            yaml.safe_dump(
+                {
+                    "id": "existing",
+                    "name": "different",
+                    "transport": "stdio",
+                    "command": "echo",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        reg = MCPRegistry(project)
+        with pytest.raises(FileExistsError, match="already registered"):
+            reg.register_from_file(replacement)
+
+    def test_register_from_file_force_overwrites(
+        self, project: Path, tmp_path: Path
+    ) -> None:
+        _write_spec(project, "existing", name="original")
+        replacement = tmp_path / "replacement.yaml"
+        replacement.write_text(
+            yaml.safe_dump(
+                {
+                    "id": "existing",
+                    "name": "replaced",
+                    "transport": "stdio",
+                    "command": "echo",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        reg = MCPRegistry(project)
+        spec = reg.register_from_file(replacement, overwrite=True)
+        assert spec.name == "replaced"
+
+        reg2 = MCPRegistry(project)
+        loaded = reg2.get_server("existing")
+        assert loaded is not None and loaded.name == "replaced"
+
+    def test_register_from_canonical_path_is_noop_copy(self, project: Path) -> None:
+        """Registering the spec already at .cataforge/mcp/<id>.yaml must not
+        raise FileExistsError — it is the source and target both."""
+        spec_path = _write_spec(project, "inplace")
+        reg = MCPRegistry(project)
+        reg.register_from_file(spec_path)
+        assert reg.get_server("inplace") is not None

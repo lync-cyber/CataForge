@@ -41,14 +41,26 @@ def mcp_list() -> None:
 
 @mcp_group.command("register")
 @click.argument("spec_path", type=click.Path(exists=True))
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Overwrite an existing spec at .cataforge/mcp/<id>.yaml.",
+)
 @require_initialized
-def mcp_register(spec_path: str) -> None:
-    """Register an MCP server from a YAML spec file."""
+def mcp_register(spec_path: str, force: bool) -> None:
+    """Register an MCP server from a YAML spec file.
+
+    The spec is copied to ``.cataforge/mcp/<id>.yaml`` so subsequent CLI
+    runs (a separate process from this one) can find it.
+    """
     from cataforge.mcp.registry import MCPRegistry
 
     try:
         registry = MCPRegistry(project_root=resolve_root())
-        server = registry.register_from_file(spec_path)
+        server = registry.register_from_file(spec_path, overwrite=force)
+    except FileExistsError as e:
+        raise ConfigError(str(e)) from None
     except Exception as e:
         raise ConfigError(f"Registration failed: {e}") from None
     click.echo(f"Registered: {server.id} ({server.name})")
