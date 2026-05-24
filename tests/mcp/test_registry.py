@@ -85,12 +85,16 @@ class TestLifecycle:
             mgr.start("no-such")
 
     def test_start_stop_persists_state(self, project: Path) -> None:
-        # Long-running child: block on stdin so stop() actually has to kill it.
+        # Long-running child: ``time.sleep(60)`` keeps the process alive
+        # independent of stdin state (CI runners close stdin, which would
+        # let a ``sys.stdin.read()``-blocker exit immediately and confuse
+        # the stop() flow with a zombie). SIGTERM still interrupts sleep,
+        # so stop() exercises the SIGTERM → wait path as designed.
         _write_spec(
             project,
             "sleeper",
             command=sys.executable,
-            args=["-c", "import sys; sys.stdin.read()"],
+            args=["-c", "import time; time.sleep(60)"],
         )
         mgr = MCPLifecycleManager(project)
         state = mgr.start("sleeper")
@@ -128,7 +132,7 @@ class TestLifecycle:
             project,
             "twice",
             command=sys.executable,
-            args=["-c", "import sys; sys.stdin.read()"],
+            args=["-c", "import time; time.sleep(60)"],
         )
         mgr1 = MCPLifecycleManager(project)
         first = mgr1.start("twice")
@@ -157,7 +161,7 @@ class TestLifecycle:
             project,
             "ghost",
             command=sys.executable,
-            args=["-c", "import sys; sys.stdin.read()"],
+            args=["-c", "import time; time.sleep(60)"],
         )
         state_dir = project / ".cataforge" / ".mcp-state"
         state_dir.mkdir(parents=True, exist_ok=True)
@@ -185,7 +189,7 @@ class TestLifecycle:
             project,
             "waitable",
             command=sys.executable,
-            args=["-c", "import sys; sys.stdin.read()"],
+            args=["-c", "import time; time.sleep(60)"],
         )
         mgr = MCPLifecycleManager(project)
         state = mgr.start("waitable")
@@ -297,7 +301,7 @@ class TestHealth:
             project,
             "no-check",
             command=sys.executable,
-            args=["-c", "import sys; sys.stdin.read()"],
+            args=["-c", "import time; time.sleep(60)"],
         )
         mgr = MCPLifecycleManager(project)
         mgr.start("no-check")

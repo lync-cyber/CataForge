@@ -75,11 +75,31 @@ def _pid_alive(pid: int | None) -> bool:
     ctypes — sending signal 0 with ``os.kill`` on Windows actually calls
     ``TerminateProcess`` (Python docs), which would kill the very process
     we're inspecting.
+
+    POSIX zombie handling: a child of *this* process that has exited but
+    not been ``wait()``-ed for is a zombie. Its PID stays valid to
+    ``kill(pid, 0)``, so a naïve probe would report "alive" indefinitely
+    and ``stop()`` would loop forever after SIGTERM took effect. Probe with
+    non-blocking ``waitpid`` first to reap the zombie if it's ours, so the
+    return value reflects whether the process is meaningfully running, not
+    just whether the PID-table entry survives. ``ChildProcessError`` (pid
+    is not our child / already reaped) falls through to the kill probe.
     """
     if pid is None or pid <= 0:
         return False
     if sys.platform == "win32":
         return _pid_alive_windows(pid)
+    try:
+        reaped_pid, _status = os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        # Not our child (orphan re-parented to init, or already reaped).
+        pass
+    except OSError:
+        return False
+    else:
+        # waitpid returned: 0 → child still running; pid → just-reaped zombie.
+        if reaped_pid == pid:
+            return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
