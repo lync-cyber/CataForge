@@ -106,6 +106,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 - 所有必填章节非空 (按doc_type/volume_type/mode定义)
 - ID编号连续无跳号 (WARN)
 - 交叉引用目标文件存在 (FAIL)
+- 双向覆盖: 下游文档覆盖上游所有 item（arch 覆盖 prd F-NNN / dev-plan 覆盖 arch M-NNN / ui-spec 覆盖 prd F-NNN），仅主卷检查 (FAIL)
 - 无未处理TODO/TBD/FIXME (或已标注[ASSUMPTION])
 - 文档行数 ≤ DOC_SPLIT_THRESHOLD_LINES，超过即 WARN 建议拆分
 - 分卷文件必填 split_from 字段

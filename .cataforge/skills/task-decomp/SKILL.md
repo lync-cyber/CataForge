@@ -39,7 +39,12 @@ user-invocable: true
 4. 定义deliverables(明确交付文件)
 5. 定义context_load(doc-nav引用)
 6. 建立依赖图: 调用 task-dep-analysis skill，脚本自动生成 Mermaid 依赖图并写入 dev-plan#§2
-7. 按依赖关系划分Sprint(参考 task-dep-analysis 输出的 sprint_groups)
+7. 按依赖关系划分Sprint(参考 task-dep-analysis 输出的 sprint_groups)，遵循 MVP 切分原则:
+   - 每个 Sprint 的产出应包含至少一个用户可感知的完整功能
+   - 优先安排用户核心路径（`user_facing_critical_path: true`）的任务到前几个 Sprint
+   - Sprint 1 例外: 基础设施任务允许集中在首个 Sprint，不要求用户可感知功能
+   - 纯后端服务项目无此约束
+8. 插入验证任务: 每个包含 `user_facing_critical_path: true` 任务的 Sprint 末尾，追加一个 `task_kind: validation` 的验证任务。验证任务不产出代码，orchestrator 遇到时暂停并向用户展示验证清单
 
 ## Anti-Patterns
 - 禁止: 单任务预估 LOC > 250 或 AC > 6 条而不拆 —— 超此尺寸 implementer / test-writer 大概率触发 mid-progress drop，应在 task-decomp 阶段先拆
@@ -47,6 +52,7 @@ user-invocable: true
 - 禁止: deliverables 仅写 "实现 X 功能" 而不具体到文件路径 —— sprint-review 无法验证 AC 是否落到声明文件，验收形同虚设
 - 避免: 任务横跨 ≥3 个 `arch#§2.M-xxx` —— 跨模块任务在 task-dep-analysis 输出中容易触发环依赖
 - 禁止: AC 仅描述"实现 X 功能"/"支持 Y 格式"而无 Given-When-Then 行为描述 —— 模糊 AC 导致 test-writer 退化为存在性检查，无法推导断言期望值
+- 禁止: Sprint 内全部为后端任务而无任何用户可感知的功能交付（Sprint 1 例外），除非项目为纯后端服务
 
 ## 效率策略
 - 先拆后排: 先拆任务再排依赖

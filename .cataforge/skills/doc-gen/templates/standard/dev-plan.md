@@ -21,6 +21,7 @@ required_sections:
 - §3 任务卡详细 → T-001..T-{NNN} (或见Sprint分卷)
 - §4 关键路径
 - §5 风险项
+- §5.5 里程碑计划 (可选)
 - §6 集成与E2E测试规划
 [/NAV]
 
@@ -48,7 +49,7 @@ graph LR
 - **模块**: M-001
 - **接口**: API-001
 - **task_kind**: feature
-  <!-- 可选值: feature | fix | chore | config | docs。chore/config/docs 跳过 TDD 仅走 implementer 单次实现 + lint hook -->
+  <!-- 可选值: feature | fix | chore | config | docs | validation。chore/config/docs 跳过 TDD；validation 由用户手动验证，不进入 TDD -->
 - **tdd_mode**: light
   <!-- 可选值: light | standard。缺省 = `TDD_DEFAULT_MODE`（light）。预估 LOC > `TDD_LIGHT_LOC_THRESHOLD` 或 `security_sensitive: true` / 跨模块时 tech-lead 应标记 standard -->
 - **tdd_refactor**: auto
@@ -69,12 +70,30 @@ graph LR
   - ui-spec#C-003
 - **实现提示**: {关键技术点, 仅在必要时}
 
+### T-{NNN}: [VALIDATION] {功能流程名称}
+- **目标**: 用户手动验证{功能}的完整流程
+- **task_kind**: validation
+- **模块**: {相关模块 M-NNN}
+- **验证清单**:
+  - [ ] {操作步骤 1}，确认{预期结果 1}
+  - [ ] {操作步骤 2}，确认{预期结果 2}
+  - [ ] {边界情况}，确认{错误处理正确}
+- **前置任务**: [T-{前置任务 ID 列表}]
+- **context_load**: [{关联文档引用}]
+
 ## 4. 关键路径
 {标注影响总工期的任务链}
 
 ## 5. 风险项
 | 风险 | 影响 | 缓解措施 |
 |------|------|----------|
+
+## 5.5. 里程碑计划
+
+### Milestone 1: {里程碑名称} (Sprint 1-{N})
+- **交付功能**: {用户可感知的完整功能列表}
+- **验收标准**: {里程碑级别的验收条件}
+- **验证方式**: {用户手动验证 / 自动化回归 / 截图确认}
 
 ## 6. 集成与E2E测试规划
 | Sprint | 测试类型 | 覆盖场景 | 依赖任务 | 测试范围描述 |

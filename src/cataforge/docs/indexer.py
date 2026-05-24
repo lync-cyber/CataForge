@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import os
 import re
@@ -60,6 +61,15 @@ def _estimate_tokens(text: str) -> int:
     if not text:
         return 0
     return max(1, len(text) // 3)
+
+
+def _content_hash(content: str) -> str:
+    """Compute short hash of document body (post-frontmatter)."""
+    from cataforge.utils.frontmatter import split_yaml_frontmatter
+
+    _, body = split_yaml_frontmatter(content)
+    text = body if body is not None else content
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
 
 
 def _extract_item_id(title: str) -> str | None:
@@ -159,6 +169,7 @@ def build_document_entry(
         "file_path": rel_path.replace("\\", "/"),
         "doc_type": doc_type, "volume": volume, "status": status,
         "total_lines": total_lines, "est_tokens": _estimate_tokens(content),
+        "content_hash": _content_hash(content),
         "sections": sections,
     }
     if split_from:
@@ -197,6 +208,40 @@ def build_xref(documents: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
     return xref
 
 
+def _fill_dep_hashes(documents: dict[str, Any]) -> None:
+    """Snapshot each upstream doc's ``content_hash`` into ``dep_hashes``."""
+    for _doc_id, entry in documents.items():
+        deps = entry.get("deps") or []
+        if not isinstance(deps, list) or not deps:
+            continue
+        dep_hashes: dict[str, str] = {}
+        for dep in deps:
+            bare_id = dep.split("#")[0] if "#" in dep else dep
+            upstream = documents.get(bare_id)
+            if upstream and upstream.get("content_hash"):
+                dep_hashes[bare_id] = upstream["content_hash"]
+        if dep_hashes:
+            entry["dep_hashes"] = dep_hashes
+
+
+def _fill_dep_hashes_single(documents: dict[str, Any], target_id: str) -> None:
+    """Refresh ``dep_hashes`` for *only* the given document."""
+    entry = documents.get(target_id)
+    if not entry:
+        return
+    deps = entry.get("deps") or []
+    if not isinstance(deps, list) or not deps:
+        return
+    dep_hashes: dict[str, str] = {}
+    for dep in deps:
+        bare_id = dep.split("#")[0] if "#" in dep else dep
+        upstream = documents.get(bare_id)
+        if upstream and upstream.get("content_hash"):
+            dep_hashes[bare_id] = upstream["content_hash"]
+    if dep_hashes:
+        entry["dep_hashes"] = dep_hashes
+
+
 def build_full_index(project_root: str) -> dict[str, Any]:
     docs_dir = os.path.join(project_root, "docs")
     documents: dict[str, Any] = {}
@@ -207,6 +252,7 @@ def build_full_index(project_root: str) -> dict[str, Any]:
         doc_id, entry = build_document_entry(md_path, rel_path)
         if doc_id and entry:
             documents[doc_id] = entry
+    _fill_dep_hashes(documents)
     return _make_index(documents)
 
 
@@ -251,7 +297,48 @@ def validate_docs(project_root: str) -> dict[str, list]:
         "xref_errors": find_xref_errors(project_root),
         "alias_conflicts": find_alias_conflicts(project_root),
         "invalid_ids": find_invalid_doc_ids(project_root),
+        "stale_deps": find_stale_deps(project_root),
     }
+
+
+def find_stale_deps(project_root: str) -> list[dict[str, str]]:
+    """Return deps whose upstream ``content_hash`` changed since last index build.
+
+    Each document with a ``dep_hashes`` snapshot is compared against its
+    upstream documents' current ``content_hash``. A mismatch signals that
+    the upstream was revised after the downstream was written against it —
+    the downstream may need updating to reflect the upstream changes.
+    """
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    stale: list[dict[str, str]] = []
+    documents = index.get("documents") or {}
+
+    for doc_id, entry in documents.items():
+        dep_hashes = entry.get("dep_hashes") or {}
+        if not dep_hashes:
+            continue
+        for upstream_id, pinned_hash in dep_hashes.items():
+            upstream = documents.get(upstream_id)
+            if not upstream:
+                continue
+            current_hash = upstream.get("content_hash", "")
+            if pinned_hash and current_hash and pinned_hash != current_hash:
+                stale.append({
+                    "doc_id": doc_id,
+                    "file_path": entry.get("file_path", ""),
+                    "upstream_id": upstream_id,
+                    "pinned_hash": pinned_hash,
+                    "current_hash": current_hash,
+                })
+    return stale
 
 
 def find_invalid_doc_ids(project_root: str) -> list[dict[str, str]]:
@@ -424,6 +511,7 @@ def update_single_doc(
     doc_id, entry = build_document_entry(abs_path, rel_path)
     if doc_id and entry:
         documents[doc_id] = entry
+        _fill_dep_hashes_single(documents, doc_id)
     return _make_index(documents)
 
 

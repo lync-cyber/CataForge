@@ -219,6 +219,56 @@ class DocChecker(TypedDocChecksMixin):
             if not fm.get("split_from"):
                 self.fail(f"分卷文档 (volume={self.volume_type}) 缺少 split_from 字段")
 
+    def check_bidirectional_coverage(self) -> None:
+        """Verify downstream doc covers all items from its upstream doc."""
+        coverage_rules: dict[str, dict[str, str]] = {
+            "arch": {"upstream_type": "prd", "upstream_prefix": "F"},
+            "dev-plan": {"upstream_type": "arch", "upstream_prefix": "M"},
+            "ui-spec": {"upstream_type": "prd", "upstream_prefix": "F"},
+        }
+        rule = coverage_rules.get(self.doc_type)
+        if not rule or self.volume_type != "main":
+            return
+
+        upstream_prefix = rule["upstream_prefix"]
+        upstream_type = rule["upstream_type"]
+
+        docs_path = Path(self.docs_dir)
+        if not docs_path.exists():
+            docs_path = docs_path.parent
+            if not docs_path.exists():
+                return
+
+        upstream_items: set[str] = set()
+        for up_file in docs_path.glob(f"**/{upstream_type}*.md"):
+            try:
+                up_content = up_file.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for m in re.finditer(
+                rf"^### ({upstream_prefix}-\d+)", up_content, re.MULTILINE
+            ):
+                upstream_items.add(m.group(1))
+
+        if not upstream_items:
+            return
+
+        content_no_code = self._strip_code_blocks(self.content)
+        covered = {
+            item for item in upstream_items
+            if re.search(re.escape(item), content_no_code)
+        }
+        uncovered = upstream_items - covered
+
+        if uncovered:
+            sorted_uncovered = sorted(uncovered)
+            display = ", ".join(sorted_uncovered[:5])
+            suffix = f" (共 {len(sorted_uncovered)} 项)" if len(sorted_uncovered) > 5 else ""
+            self.fail(
+                f"上游 {upstream_type} 中 {len(uncovered)} 项未被覆盖: "
+                f"{display}{suffix}"
+            )
+
     def check_split_consistency(self) -> None:
         if self.volume_type != "main":
             return
@@ -245,6 +295,7 @@ class DocChecker(TypedDocChecksMixin):
         self.check_id_continuity()
         self.check_split_header()
         self.check_split_consistency()
+        self.check_bidirectional_coverage()
 
         checks = {
             "prd": self.check_prd,
