@@ -62,6 +62,9 @@ dev = [
     "build>=1.2",
     "twine>=5.0",
     "scriv[toml]>=1.5",
+    # Optional KG backend — included in [dev] so test_store_oxigraph runs
+    # by default. Production users still install it via [kg-oxigraph].
+    "pyoxigraph>=0.4",
 ]
 mcp = ["mcp>=1.0"]
 docker = ["docker>=7.0"]

@@ -56,24 +56,32 @@ class OxigraphStore(GraphStore):
         self._project_root = Path(project_root).resolve()
         # OxigraphStore persists via its own snapshot mechanism; this
         # backend treats ``persist()`` as authoritative and loads the
-        # snapshot only if it exists.
+        # snapshot file only if it exists. The on-disk N-Quads form is
+        # readable by the rdflib backend too so a snapshot is portable.
         import pyoxigraph as _pyoxi
 
-        Store = _pyoxi.Store  # noqa: N806 — third-party class re-bound locally
-        snapshot_dir = self._project_root / "docs" / ".doc-graph" / "oxigraph"
-        if snapshot_dir.is_dir() and any(snapshot_dir.iterdir()):
-            self._oxi = Store(path=str(snapshot_dir))
+        snapshot_file = self._snapshot_file()
+        if snapshot_file.is_file():
+            self._oxi.load(path=str(snapshot_file), format=_pyoxi.RdfFormat.N_QUADS)
 
     def persist(self) -> None:
         if self._project_root is None:
             raise StoreError("persist() called before load()")
-        snapshot_dir = self._project_root / "docs" / ".doc-graph" / "oxigraph"
-        snapshot_dir.mkdir(parents=True, exist_ok=True)
-        # pyoxigraph snapshots are atomic via ``backup`` on the in-memory
-        # store; the dump format is RocksDB-internal — N-Quads stays the
-        # rdflib backend's responsibility (it's git-trackable, oxigraph
-        # snapshots are not).
-        self._oxi.backup(str(snapshot_dir))
+        import pyoxigraph as _pyoxi
+
+        snapshot_file = self._snapshot_file()
+        snapshot_file.parent.mkdir(parents=True, exist_ok=True)
+        # In-memory pyoxigraph stores cannot ``backup`` (that's RocksDB-only).
+        # Dump to N-Quads instead — atomic single-file write, portable across
+        # backends, and git-trackable just like the rdflib snapshot.
+        with snapshot_file.open("wb") as fh:
+            self._oxi.dump(fh, _pyoxi.RdfFormat.N_QUADS)
+
+    def _snapshot_file(self) -> Path:
+        assert self._project_root is not None
+        return (
+            self._project_root / "docs" / ".doc-graph" / "oxigraph" / "snapshot.nq"
+        )
 
     def add(
         self,
@@ -110,21 +118,29 @@ class OxigraphStore(GraphStore):
         return before - len(self)
 
     def query(self, sparql: str) -> list[dict[str, str]]:
+        import pyoxigraph as _pyoxi
+
         prefix_header = "\n".join(
             f"PREFIX {pfx}: <{iri}>" for pfx, iri in NAMESPACES.items()
         )
         result = self._oxi.query(prefix_header + "\n" + sparql)
-        # pyoxigraph returns either a bool (ASK), an iterable of solutions
-        # (SELECT), or a graph (CONSTRUCT). We map the first two; CONSTRUCT
-        # is intentionally not supported here (see RDFLibStore.query docstring).
-        if isinstance(result, bool):
-            return [{"_ask": "true" if result else "false"}]
+        # pyoxigraph returns ``QueryBoolean`` (ASK), ``QuerySolutions``
+        # (SELECT), or ``QueryTriples`` (CONSTRUCT). We map the first two;
+        # CONSTRUCT is intentionally not supported here (mirrors RDFLibStore).
+        if isinstance(result, _pyoxi.QueryBoolean):
+            return [{"_ask": "true" if bool(result) else "false"}]
+        # ``variables`` lives on the parent ``QuerySolutions`` since 0.4;
+        # capture once before iterating individual solutions. The key is the
+        # bare variable name (``id``), not the SPARQL form (``?id``), so
+        # rows[i]["id"] matches the rdflib backend's contract.
+        variables = list(result.variables)
         rows: list[dict[str, str]] = []
         for solution in result:
-            rows.append({
-                str(var): str(solution[var]) if solution[var] is not None else ""
-                for var in solution.variables
-            })
+            row: dict[str, str] = {}
+            for var in variables:
+                value = solution[var]
+                row[var.value] = _term_to_str(value) if value is not None else ""
+            rows.append(row)
         return rows
 
     def update(self, sparql_update: str) -> None:
@@ -141,10 +157,11 @@ class OxigraphStore(GraphStore):
         # backend. This keeps validation parity across backends.
         from io import BytesIO
 
+        import pyoxigraph as _pyoxi
         from rdflib import Graph
 
         buf = BytesIO()
-        self._oxi.dump(buf, "application/n-quads")
+        self._oxi.dump(buf, _pyoxi.RdfFormat.N_QUADS)
         data_graph = Graph()
         data_graph.parse(data=buf.getvalue(), format="nquads")
 
@@ -194,6 +211,19 @@ class OxigraphStore(GraphStore):
                 obj_str,
                 graph_str,
             )
+
+
+def _term_to_str(term: Any) -> str:
+    """Unwrap a pyoxigraph term to its bare string form.
+
+    ``NamedNode``, ``Literal``, ``BlankNode``, and ``Variable`` all expose
+    ``.value`` as the bare lexical (``"M-001"`` rather than the SPARQL
+    serialisation ``'"M-001"'``); rdflib's backend returns the same shape,
+    so this keeps cross-backend row schemas identical.
+    """
+    if hasattr(term, "value"):
+        return str(term.value)
+    return str(term)
 
 
 def _to_named_node(token: str) -> Any:

@@ -86,6 +86,7 @@ all = [
 dev = [
     { name = "build" },
     { name = "mypy" },
+    { name = "pyoxigraph" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -120,6 +121,7 @@ requires-dist = [
     { name = "owlrl", specifier = ">=6.0.2" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyoxigraph", marker = "extra == 'all'", specifier = ">=0.4" },
+    { name = "pyoxigraph", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "pyoxigraph", marker = "extra == 'kg-oxigraph'", specifier = ">=0.4" },
     { name = "pyshacl", specifier = ">=0.25" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
