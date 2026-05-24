@@ -126,7 +126,8 @@ Mode Routing Protocol 在以下时刻被调用:
 2. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 3. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
 4. 修复完成后重新激活 reviewer 执行门禁
-5. 更新返工计数: needs_revision(N)
+4a. **增量审查模式**: revision re-review 时，reviewer 仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较）。上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查；仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
+5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入（收紧自 N≥3，避免低效 revision 循环）
 
 > 子代理收到 `task_type=revision` 后的修订步骤见 `.cataforge/rules/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
 
@@ -286,12 +287,12 @@ batch_dispatch([
 ```
 
 ## Sprint Review Protocol
-当Sprint所有任务完成（dev-plan§1 Sprint表中所有任务状态=done 且 code-review通过）时:
+当Sprint所有任务完成（dev-plan§1 Sprint表中所有任务状态=done）时:
 
 **微型 Sprint 短路判定** (Step 0):
 若同时满足以下条件则**跳过 sprint-review**，直接视为 approved:
 - 本 Sprint 任务数 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT`
-- 所有任务 code-review 结论为 approved（无 MEDIUM/HIGH/CRITICAL 问题）
+- 所有需即时 code-review 的任务（`security_sensitive` / `user_facing_critical_path` / `consumer_components` 非空）结论为 approved，且延迟任务的 implementer self-report 无 `refactor_needed=true`
 
 短路时处理:
 1. 在 CLAUDE.md 当前 Sprint 字段追加注记 `sprint-review skipped (micro sprint)`
@@ -303,7 +304,8 @@ batch_dispatch([
 
 **正常流程** (不满足短路条件时):
 1. 通过 agent-dispatch 激活 reviewer (task_type=new_creation, skill=sprint-review)
-2. 传入: dev-plan路径, Sprint编号, 所有CODE-REVIEW报告路径, arch文档路径
+2. 传入: dev-plan路径, Sprint编号, 已有CODE-REVIEW报告路径（仅即时审查的任务）, arch文档路径
+2a. **Batch Code-Review（延迟任务）**: 本 Sprint 中未经 per-task code-review 的任务（即非 `security_sensitive` / `user_facing_critical_path` / `consumer_components` 非空的任务），由 sprint-review 承担等价审查。reviewer 在 sprint-review 报告的 §per-task L2 维度表中逐任务覆盖 structure / error-handling / test-quality / security 维度（复用 sprint-review §merged-review 的维度表格式）。这些任务不需要独立 CODE-REVIEW-T-NNN 文件
 3. reviewer执行sprint-review skill，产出 `SPRINT-REVIEW-s{N}-r{M}.md`
 4. 结果处理:
    - **approved** → 更新CLAUDE.md Sprint字段，进入下一Sprint（或全部Sprint完成后进入Phase 6）
@@ -365,9 +367,8 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 
 ## needs_revision 计数规范
 `needs_revision(N)` 中的 N 为本阶段累计返工次数，格式为 `needs_revision(2)` 而非独立字段。
-- N=1: 正常修订流程
-- N>=2: 触发 [`ORCHESTRATOR-META-PROTOCOLS.md §Adaptive Review Protocol`](ORCHESTRATOR-META-PROTOCOLS.md#adaptive-review-protocol)
-- N>=3: 暂停自动推进，请求人工介入
+- N=1: 正常修订流程（增量审查模式）
+- N>=2: 暂停自动推进，请求人工介入（同时触发 [`ORCHESTRATOR-META-PROTOCOLS.md §Adaptive Review Protocol`](ORCHESTRATOR-META-PROTOCOLS.md#adaptive-review-protocol)）
 
 ## CLAUDE.md Update Template
 每次阶段转换时更新:

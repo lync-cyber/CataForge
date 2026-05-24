@@ -68,6 +68,14 @@ user-invocable: true
 
 **维度收敛**: 调用方可传 `--focus <category[,...]>`（值取自 COMMON-RULES §统一问题分类体系），仅审查指定维度。不传时跑全维度。例如：`cataforge skill run code-review -- {path} --focus security,error-handling`。
 
+**增量审查模式（revision re-review）**:
+
+当 `task_type=revision` 且存在上一轮 CODE-REVIEW 报告时，审查范围收窄为：
+- 仅审查 `git diff` 涉及的文件和函数（与上次审查的 commit baseline 比较）
+- 上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]`，不重复审查
+- 上轮报告中 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度 → 正常审查
+- report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
+
 ### Step 3: 审查报告编号
 报告编号按 COMMON-RULES §报告编号规则，前缀 CODE-REVIEW-{task_id}，目录 docs/reviews/code/。
 

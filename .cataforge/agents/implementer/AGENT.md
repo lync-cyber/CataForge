@@ -97,7 +97,7 @@ lint 失败 → 自修复后重试；3 次未通过返回 blocked。lint 工具�
 
 ### Light 模式 (tdd_mode=light)
 当 tdd-engine prompt 中标注 `模式: tdd_mode=light` 时（合并 RED+GREEN）:
-1. 先按 prompt 中的"验收标准"为每条 AC 写一份失败测试（等价于 test-writer 行为），运行一次确认测试均 FAIL
+1. 先按 prompt 中的"验收标准"为每条 AC 写一份失败测试（等价于 test-writer 行为，遵循 test-writer §Behavioral Assertion Mandate — 禁止存在性断言，期望值从 AC 的 Then 子句推导），运行一次确认测试均 FAIL
 2. 再补最小实现代码使全部测试 PASSED
 3. `<agent-result>.outputs` 同时返回 `test_files` 和 `impl_files` 两个路径列表
 4. summary 必须包含 "light mode — RED+GREEN 合并"，说明合并阶段的最终测试结果
