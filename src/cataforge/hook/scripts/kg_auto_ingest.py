@@ -76,7 +76,7 @@ def main() -> None:
     ):
         subprocess.run(
             [
-                sys.executable, "-m", "cataforge.cli.main",
+                sys.executable, "-m", "cataforge",
                 "kg", "ingest", "--auto", "--file", file_path,
             ],
             capture_output=True,

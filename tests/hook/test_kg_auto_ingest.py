@@ -123,6 +123,9 @@ def test_ingests_valid_docs_file(doc_project: Path) -> None:
     )
     # Quiet-fail: always exit 0 even if ingest had subtle issues.
     assert result.returncode == 0
+    nq = doc_project / "docs" / ".doc-graph" / "instances.nq"
+    assert nq.exists(), "hook subprocess must produce instances.nq for valid docs file"
+    assert "prd-acme" in nq.read_text(encoding="utf-8")
 
 
 def test_ingest_writes_instances_nq(doc_project: Path) -> None:
