@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+from cataforge.cli.errors import CataforgeError
 from cataforge.platform.instruction_cache import (
     load_instruction_hashes,
     save_instruction_hashes,
@@ -306,6 +307,12 @@ class PlatformAdapter(ABC):
                 continue
 
             dst = project_root / target_rel
+            try:
+                dst.resolve().relative_to(project_root.resolve())
+            except ValueError as exc:
+                raise CataforgeError(
+                    f"target_rel escapes project root: {target_rel!r}"
+                ) from exc
 
             # ---- on_conflict gate ----
             if dst.exists() and on_conflict != "overwrite":
