@@ -17,6 +17,10 @@ def plugin_group() -> None:
     Plugins extend the framework with custom skills, agents, or platform
     adapters. They are discovered via the ``cataforge.plugins`` entry
     point group or from ``.cataforge/plugins/<id>/``.
+
+    Available now: ``list``. The ``install`` / ``remove`` subcommands are
+    not implemented yet (roadmap v0.3) — use ``pip install <pkg>`` or drop
+    a folder under ``.cataforge/plugins/<id>/`` directly in the meantime.
     """
 
 
@@ -43,7 +47,12 @@ def plugin_list() -> None:
 @plugin_group.command("install")
 @click.argument("name")
 def plugin_install(name: str) -> None:
-    """Install a plugin (roadmap: v0.3)."""
+    """[未实现 · roadmap v0.3] Install a plugin.
+
+    This command always exits 70 (NotImplementedFeature). Use ``pip install
+    <pkg>`` for entry-point plugins, or drop the plugin folder into
+    ``.cataforge/plugins/<id>/`` for local plugins.
+    """
     exit_not_implemented(
         "插件安装",
         f"(name={name!r})",
@@ -58,7 +67,12 @@ def plugin_install(name: str) -> None:
 @plugin_group.command("remove")
 @click.argument("name")
 def plugin_remove(name: str) -> None:
-    """Remove a plugin (roadmap: v0.3)."""
+    """[未实现 · roadmap v0.3] Remove a plugin.
+
+    This command always exits 70 (NotImplementedFeature). Use ``pip
+    uninstall <pkg>`` for entry-point plugins, or delete the plugin folder
+    at ``.cataforge/plugins/<id>/`` for local plugins.
+    """
     exit_not_implemented(
         "插件卸载",
         f"(name={name!r})",
