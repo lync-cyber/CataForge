@@ -59,7 +59,8 @@ class TestDiscovery:
 
     def test_checks_manifest_is_non_empty(self) -> None:
         # framework-review B3 will fail if the manifest goes empty.
-        assert CHECKS_MANIFEST
+        manifest_ids = {c["id"] for c in CHECKS_MANIFEST}
+        assert "feedback_env" in manifest_ids
         assert all("id" in c for c in CHECKS_MANIFEST)
 
 

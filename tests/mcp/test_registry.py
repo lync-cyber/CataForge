@@ -54,7 +54,7 @@ class TestRegistryDiscovery:
     def test_programmatic_registration(self, project: Path) -> None:
         reg = MCPRegistry(project)
         reg.register(MCPServerSpec(id="prog", command="echo"))
-        assert reg.get_server("prog") is not None
+        assert reg.get_server("prog").id == "prog"
 
     def test_get_missing_server_returns_none(self, project: Path) -> None:
         reg = MCPRegistry(project)
@@ -232,7 +232,7 @@ class TestRegistryPersistence:
 
         # Fresh registry (simulates new process) discovers it.
         reg2 = MCPRegistry(project)
-        assert reg2.get_server("external") is not None
+        assert reg2.get_server("external").id == "external"
 
     def test_register_from_file_refuses_overwrite_by_default(
         self, project: Path, tmp_path: Path
@@ -278,7 +278,7 @@ class TestRegistryPersistence:
 
         reg2 = MCPRegistry(project)
         loaded = reg2.get_server("existing")
-        assert loaded is not None and loaded.name == "replaced"
+        assert loaded.name == "replaced"
 
     def test_register_from_canonical_path_is_noop_copy(self, project: Path) -> None:
         """Registering the spec already at .cataforge/mcp/<id>.yaml must not
@@ -286,7 +286,7 @@ class TestRegistryPersistence:
         spec_path = _write_spec(project, "inplace")
         reg = MCPRegistry(project)
         reg.register_from_file(spec_path)
-        assert reg.get_server("inplace") is not None
+        assert reg.get_server("inplace").id == "inplace"
 
 
 class TestHealth:
@@ -307,9 +307,7 @@ class TestHealth:
         mgr.start("no-check")
         try:
             state = mgr.health("no-check")
-            assert state is not None
             assert state.status == "running"
-            assert state.last_health_check is not None
             assert "healthy" in state.last_health_check
             assert "pid_alive=True" in state.last_health_check
         finally:
@@ -340,7 +338,6 @@ class TestHealth:
             )
             mgr = MCPLifecycleManager(project)
             healthy = mgr.health("tcp-srv")
-            assert healthy is not None
             assert "healthy" in (healthy.last_health_check or "")
             assert "connected" in (healthy.last_health_check or "")
         finally:
@@ -348,7 +345,6 @@ class TestHealth:
 
         # Same spec, now nothing listening on that port.
         unhealthy = mgr.health("tcp-srv")
-        assert unhealthy is not None
         assert "unhealthy" in (unhealthy.last_health_check or "")
 
     def test_health_command_probe_uses_exit_code(self, project: Path) -> None:
@@ -377,11 +373,9 @@ class TestHealth:
         mgr = MCPLifecycleManager(project)
 
         ok = mgr.health("cmd-ok")
-        assert ok is not None
         assert "healthy" in (ok.last_health_check or "")
         assert "exit 0" in (ok.last_health_check or "")
 
         bad = mgr.health("cmd-bad")
-        assert bad is not None
         assert "unhealthy" in (bad.last_health_check or "")
         assert "exit 7" in (bad.last_health_check or "")

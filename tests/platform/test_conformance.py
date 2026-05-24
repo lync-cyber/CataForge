@@ -182,6 +182,6 @@ class TestExtendedConformance:
         platforms_dir = project_dir / ".cataforge" / "platforms"
         issues = check_extended_conformance("claude-code", platforms_dir)
         feature_issues = [i for i in issues if "unsupported features" in i]
-        # cloud_agents is False in the fixture
-        if feature_issues:
-            assert any("cloud_agents" in i for i in feature_issues)
+        # cloud_agents is False in the fixture — must always produce a report
+        assert feature_issues, "expected unsupported-features INFO line but got none"
+        assert any("cloud_agents" in i for i in feature_issues)

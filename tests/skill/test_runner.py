@@ -55,7 +55,6 @@ class TestSkillDiscovery:
         _write_skill(project, "code-review")
         loader = SkillLoader(project)
         meta = loader.get_skill("code-review")
-        assert meta is not None
         # Project override — not the builtin.
         assert meta.builtin is False
 
@@ -82,7 +81,6 @@ class TestSkillDiscovery:
         )
         loader = SkillLoader(project)
         meta = loader.get_skill("code-review")
-        assert meta is not None
         # Builtin scripts were merged in so runner can dispatch.
         assert meta.scripts, "builtin scripts should be merged"
         assert meta.builtin is True
@@ -96,7 +94,6 @@ class TestSkillDiscovery:
         _write_skill(project, "code-review", script_body="print('local')\n")
         loader = SkillLoader(project)
         meta = loader.get_skill("code-review")
-        assert meta is not None
         # Project override — not promoted to builtin.
         assert meta.builtin is False
         assert meta.scripts == [{"name": "main", "entry": "scripts/main.py"}]
@@ -212,7 +209,6 @@ class TestSkillRunnerEventLog:
         )
         loader = SkillLoader(project)
         meta = loader.get_skill("doc-review")
-        assert meta is not None
         assert meta.record_to_event_log, (
             "doc-review override should still record to EVENT-LOG"
         )
@@ -235,14 +231,12 @@ class TestSkillRunnerEventLog:
         )
         loader = SkillLoader(project)
         meta = loader.get_skill("upstream-only")
-        assert meta is not None
         assert meta.maintainer_only is True
 
     def test_maintainer_only_defaults_to_false(self, project: Path) -> None:
         _write_skill(project, "regular")
         loader = SkillLoader(project)
         meta = loader.get_skill("regular")
-        assert meta is not None
         assert meta.maintainer_only is False
 
     def test_opt_in_via_frontmatter(self, project: Path) -> None:
