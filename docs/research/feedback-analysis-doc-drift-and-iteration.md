@@ -301,7 +301,7 @@ Item ID（F-001, M-001, T-001）是 markdown heading 中的文本标记：
 ### F-001: 用户登录 <!-- item-uuid: feat-auth-login -->
 ```
 
-跨文档引用使用 UUID 而非编号：`prd#feat-auth-login`。编号仅用于人类阅读，UUID 用于机器引用。编号变动时只需更新 heading 文本，无需更新任何引用。
+跨文档引用使用 UUID 而非编号：`prd#feat-auth-login`。编号仅用于人类阅读，UUID 用于机器引用。编号变动时改写 heading 文本即可，引用层（其他文档中的 `prd#feat-auth-login`）不动。
 
 #### 建议 2.2：doc-gen 修订模式增加引用完整性保障（高优先级）
 
