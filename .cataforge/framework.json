@@ -35,7 +35,7 @@
   },
   "constants": {
     "MAX_QUESTIONS_PER_BATCH": 3,
-    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "pre_deploy"],
+    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "post_sprint", "pre_deploy"],
     "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl",
     "EVENT_LOG_SCHEMA": ".cataforge/schemas/event-log.schema.json",
     "DOC_SPLIT_THRESHOLD_LINES": 300,

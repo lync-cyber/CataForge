@@ -16,7 +16,7 @@
 | 常量名 | 值 | 说明 | 引用方 |
 |--------|-----|------|--------|
 | MAX_QUESTIONS_PER_BATCH | 3 | 每批向用户提问的最大问题数 | product-manager, reviewer, research |
-| MANUAL_REVIEW_CHECKPOINTS | [pre_dev, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 | orchestrator |
+| MANUAL_REVIEW_CHECKPOINTS | [pre_dev, post_sprint, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 | orchestrator |
 | EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL） | `cataforge event log`、ORCHESTRATOR-PROTOCOLS |
 | EVENT_LOG_SCHEMA | .cataforge/schemas/event-log.schema.json | 事件日志 Schema | `cataforge event log`（核心校验在 `cataforge.core.event_log`） |
 | DOC_SPLIT_THRESHOLD_LINES | 300 | 单文档触发拆分的行数 | doc-gen |
@@ -41,7 +41,7 @@
 | post_sprint | Sprint Review 通过后 | 是否继续下一 Sprint |
 | none | — | 完全自动推进，仅保留失败驱动门禁 |
 
-规则：默认 `[pre_dev, pre_deploy]` 覆盖最高风险节点；用户在 Bootstrap 时或运行中通过 CLAUDE.md §全局约定 覆盖；`none` 与其他值互斥。
+规则：默认 `[pre_dev, post_sprint, pre_deploy]` 覆盖最高风险节点；用户在 Bootstrap 时或运行中通过 CLAUDE.md §全局约定 覆盖；`none` 与其他值互斥。
 
 ## 执行模式矩阵
 框架支持三种执行模式，写入 CLAUDE.md §框架元信息.执行模式，未填默认 `standard`。
@@ -53,7 +53,7 @@
 | 文档产出 | PRD + ARCH + UI-SPEC + DEV-PLAN + TEST-REPORT + DEPLOY-SPEC | prd-lite + arch-lite + dev-plan-lite（各 ≤100 行）；UI 项目可选 ui-spec-lite | 单一 brief.md（≤200 行） |
 | doc-review | Layer 1 + Layer 2 强制 | Layer 1 强制；Layer 2 按 `DOC_REVIEW_L2_SKIP_*` 短路 | Layer 1 only |
 | TDD | 默认 light（RED+GREEN 合并）；LOC > `TDD_LIGHT_LOC_THRESHOLD` 或 `security_sensitive: true` / 跨模块时升 standard，REFACTOR 按 `TDD_REFACTOR_TRIGGER` 条件触发 | RED+GREEN 合并（`tdd_mode: light`），REFACTOR 仅在 code-review 命中 `TDD_REFACTOR_TRIGGER` 时触发 | implementer 主线程一次性写测试+实现，跳过 RED/GREEN/REFACTOR 子代理调度 |
-| 人工检查点 | 引用 `MANUAL_REVIEW_CHECKPOINTS` | 仅 pre_dev | none |
+| 人工检查点 | 引用 `MANUAL_REVIEW_CHECKPOINTS`（含 post_sprint） | 仅 pre_dev | none |
 | Sprint-review | 按 `SPRINT_REVIEW_MICRO_TASK_COUNT` 判定 | 同 standard | 跳过 |
 | Retrospective | 按 `RETRO_TRIGGER_SELF_CAUSED` 判定 | 同 standard | 跳过 |
 

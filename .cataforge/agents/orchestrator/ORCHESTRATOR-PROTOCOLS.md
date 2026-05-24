@@ -159,7 +159,14 @@ Mode Routing Protocol 在以下时刻被调用:
 2. **更新 CLAUDE.md 文档状态** — 对应文档状态字段标记为 approved
 3. **更新 CLAUDE.md 阶段信息** — 按 CLAUDE.md Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
 4. **一致性验证** — 确认文档头 status 与 CLAUDE.md 字段一致
-5. **[EVENT BATCH]** 通过 `--batch` 单次 stdin 管道一次性记录 4 条事件（phase_end → review_verdict → state_change → phase_start）:
+5. **依赖新鲜度检查** — 运行 `cataforge docs validate`，检查 `stale_deps` 输出：
+   - 无 stale deps → 通过，继续 Step 6
+   - 存在 stale deps → 向用户展示过期依赖清单并提供选项：
+     1. 进入 cascade_amendment 更新受影响文档
+     2. 确认变更不影响下游、继续推进（stale deps 降级为 WARN 记录到 EVENT-LOG）
+     3. 暂停，手动审查
+   - 用户选"确认不影响"时记录 **[EVENT]**: `cataforge event log --event state_change --phase {当前阶段} --detail "stale deps acknowledged: {upstream_ids}"`
+6. **[EVENT BATCH]** 通过 `--batch` 单次 stdin 管道一次性记录 4 条事件（phase_end → review_verdict → state_change → phase_start）:
    ```bash
    cataforge event log --batch <<'EOF'
    {"event":"phase_end","phase":"{当前阶段}","status":"approved","detail":"reviewer 通过"}
@@ -168,21 +175,19 @@ Mode Routing Protocol 在以下时刻被调用:
    {"event":"phase_start","phase":"{新阶段}","detail":"进入{新阶段名}阶段"}
    EOF
    ```
-6. **CLAUDE.md hygiene 强制门** — 在派发下一阶段 Agent 之前执行：
+7. **CLAUDE.md hygiene 强制门** — 在派发下一阶段 Agent 之前执行：
    ```bash
    cataforge claude-md check
    ```
-   - exit 0 → 通过，继续 Step 7
+   - exit 0 → 通过，继续 Step 8
    - exit 1（任一 `claude_md_limits` 阈值越界）→ **阻塞 Phase Transition**，向用户展示 stdout 的问题摘要并提供选项：
-     1. 自动 compact：执行 `cataforge claude-md compact`，重新跑 `check`，PASS 后继续 Step 7
-     2. 手动处理：暂停 Phase Transition，等待用户编辑 CLAUDE.md 后再次推进（再次推进时重新跑 Step 6）
+     1. 自动 compact：执行 `cataforge claude-md compact`，重新跑 `check`，PASS 后继续 Step 8
+     2. 手动处理：暂停 Phase Transition，等待用户编辑 CLAUDE.md 后再次推进（再次推进时重新跑 Step 7）
    - 执行 compact 后追加 **[EVENT]** 记录：`cataforge event log --event state_change --phase {新阶段} --detail "claude-md compact applied at phase transition"`
    - 命令不存在时 WARN 跳过，不阻塞
+8. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
 
-   > **设计意图**：若不在阶段转换处兜底，Learnings Registry / 文档状态字段会跨阶段单调膨胀，最终把 orchestrator startup context 撑爆。本步骤不是定期清理，而是把 hygiene 强制提前到状态切换的安全窗口。
-7. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
-
-> **关键**: 步骤 1-6 必须在步骤 7 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
+> **关键**: 步骤 1-7 必须在步骤 8 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
 
 ## Manual Review Checkpoint Protocol
 阶段转换时，根据 MANUAL_REVIEW_CHECKPOINTS 常量（见 COMMON-RULES §框架配置常量）决定是否暂停等待用户确认。
@@ -190,7 +195,7 @@ Mode Routing Protocol 在以下时刻被调用:
 **触发时机**: 文档状态变为 approved 且 orchestrator 即将进入下一 Phase 时。
 
 **执行步骤**:
-1. 读取 CLAUDE.md §全局约定 中的 `人工审查检查点` 字段（未配置则使用 COMMON-RULES 默认值 `[pre_dev, pre_deploy]`）
+1. 读取 CLAUDE.md §全局约定 中的 `人工审查检查点` 字段（未配置则使用 COMMON-RULES 默认值 `[pre_dev, post_sprint, pre_deploy]`）
 2. 判断当前转换是否命中检查点:
    - `phase_transition` → 所有 Phase 转换均命中
    - `pre_dev` → 仅 Phase 4→5（dev_planning → development）命中
@@ -216,6 +221,23 @@ Mode Routing Protocol 在以下时刻被调用:
    4. 已亲自浏览器验证 ≥ {min_acs} 个核心 AC（必填项；未选不可推进）
    ```
    `min_acs` 取自 framework.json `pre_deploy_demo_min_acs`（默认 1）；用户必须选 4 才能进入 Phase 7，否则视为暂停。
+
+   post_sprint 专用模板（当 checkpoint = `post_sprint` 时替换基础模板）:
+   ```
+   === Sprint {N} 完成确认 ===
+   已完成任务: {Sprint 任务 ID 和名称列表}
+   通过率: {passed}/{total}
+   新增/变更功能: {本 Sprint 用户可感知的功能摘要}
+
+   选项:
+   1. 确认继续下一 Sprint
+   2. 暂停，我需要手动验证功能
+   3. 发现偏移，需要调整需求（进入 Change Request）
+   ```
+   当本 Sprint 包含 `user_facing_critical_path: true` 的任务时，追加选项 4：
+   ```
+   4. 已手动验证核心功能正常工作
+   ```
 4. 用户选择"确认继续"（或 pre_deploy demo_required=true 时选项 4）→ 正常推进
 5. 用户选择"暂停" → orchestrator 等待用户后续指令（不自动推进）
 6. 用户选择"调整方向" → 进入 Change Request Protocol
@@ -248,6 +270,16 @@ Mode Routing Protocol 在以下时刻被调用:
 **适用前提**:
 - task-dep-analysis 已生成 `sprint_groups`（同组无依赖；上游 sprint_group 全部完成后才进入下一组）
 - 同一 sprint_group 内的任务都已通过 Step 1（任务上下文已提取）
+
+**validation 任务调度**:
+当 Sprint 中包含 `task_kind: validation` 的任务时:
+1. validation 任务**不进入 TDD 流程**，不调度 test-writer / implementer
+2. orchestrator 在该任务的所有前置任务完成后，通过 AskUserQuestion 向用户展示验证清单
+3. 用户选项:
+   - "全部通过": 任务状态 → done
+   - "发现问题": 用户描述问题 → 进入 Change Request Protocol
+   - "暂时跳过": 任务状态 → deferred，不阻塞后续 Sprint
+4. validation 任务不计入 `SPRINT_REVIEW_MICRO_TASK_COUNT` 阈值（它本身已包含用户确认）
 
 **并行规则**:
 1. **同 sprint_group 任务并行 RED/GREEN/LIGHT**：在**单条主线程消息内**通过 agent_dispatch 工具发出多个调度调用，并发上限 = `min(sprint_group 任务数, 3)`。批次完成后才进入下一阶段，避免阶段交叉
