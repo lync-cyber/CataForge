@@ -45,6 +45,11 @@ def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> Path:
     ``.cataforge/`` directly via hatch ``force-include`` (no mirror
     sync step needed since PR #84).
     """
+    pytest.importorskip(
+        "build",
+        reason="e2e wheel-build tests need ``build`` (pip install build, or "
+        "pip install -e '.[dev]'); not needed for the default unit-test run",
+    )
     dist = tmp_path_factory.mktemp("dist")
     run_utf8(
         [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],
