@@ -95,3 +95,28 @@ def mcp_stop(server_id: str) -> None:
     mgr = MCPLifecycleManager(project_root=resolve_root())
     state = mgr.stop(server_id)
     click.echo(f"Stopped: {server_id} (status={state.status})")
+
+
+@mcp_group.command("health")
+@click.argument("server_id")
+@require_initialized
+def mcp_health(server_id: str) -> None:
+    """Probe a registered MCP server and report health.
+
+    Dispatch follows the spec's ``health_check.type`` (``http`` / ``tcp`` /
+    ``command``). When no ``health_check`` is declared, falls back to a
+    pid-alive check using the persisted state. The probe outcome is also
+    written to ``last_health_check`` for the next ``cataforge mcp list``.
+    """
+    from cataforge.mcp.lifecycle import MCPLifecycleManager
+
+    mgr = MCPLifecycleManager(project_root=resolve_root())
+    state = mgr.health(server_id)
+    if state is None:
+        raise ConfigError(f"Unknown MCP server: {server_id}")
+    click.echo(f"Server : {server_id}")
+    click.echo(f"Status : {state.status}")
+    click.echo(f"Health : {state.last_health_check or '(no probe yet)'}")
+    if state.status == "unhealthy":
+        ctx = click.get_current_context()
+        ctx.exit(1)

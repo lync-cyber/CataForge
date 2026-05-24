@@ -283,3 +283,101 @@ class TestRegistryPersistence:
         reg = MCPRegistry(project)
         reg.register_from_file(spec_path)
         assert reg.get_server("inplace") is not None
+
+
+class TestHealth:
+    def test_health_unknown_server_returns_none(self, project: Path) -> None:
+        mgr = MCPLifecycleManager(project)
+        assert mgr.health("ghost") is None
+
+    def test_health_without_spec_falls_back_to_pid_alive(self, project: Path) -> None:
+        """A spec without ``health_check`` makes ``health()`` probe pid alive
+        and write the result to ``last_health_check``."""
+        _write_spec(
+            project,
+            "no-check",
+            command=sys.executable,
+            args=["-c", "import sys; sys.stdin.read()"],
+        )
+        mgr = MCPLifecycleManager(project)
+        mgr.start("no-check")
+        try:
+            state = mgr.health("no-check")
+            assert state is not None
+            assert state.status == "running"
+            assert state.last_health_check is not None
+            assert "healthy" in state.last_health_check
+            assert "pid_alive=True" in state.last_health_check
+        finally:
+            mgr.stop("no-check")
+
+    def test_health_tcp_probe_against_listening_socket(
+        self, project: Path
+    ) -> None:
+        """An open TCP port reports healthy; closed reports unhealthy."""
+        import socket as _socket
+
+        listener = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        port = listener.getsockname()[1]
+
+        try:
+            _write_spec(
+                project,
+                "tcp-srv",
+                command="echo",
+                args=["registered-but-not-run"],
+                health_check={
+                    "type": "tcp",
+                    "target": f"127.0.0.1:{port}",
+                    "timeout_seconds": 2,
+                },
+            )
+            mgr = MCPLifecycleManager(project)
+            healthy = mgr.health("tcp-srv")
+            assert healthy is not None
+            assert "healthy" in (healthy.last_health_check or "")
+            assert "connected" in (healthy.last_health_check or "")
+        finally:
+            listener.close()
+
+        # Same spec, now nothing listening on that port.
+        unhealthy = mgr.health("tcp-srv")
+        assert unhealthy is not None
+        assert "unhealthy" in (unhealthy.last_health_check or "")
+
+    def test_health_command_probe_uses_exit_code(self, project: Path) -> None:
+        _write_spec(
+            project,
+            "cmd-ok",
+            command="echo",
+            args=["registered"],
+            health_check={
+                "type": "command",
+                "target": f"{sys.executable} -c \"import sys; sys.exit(0)\"",
+                "timeout_seconds": 5,
+            },
+        )
+        _write_spec(
+            project,
+            "cmd-bad",
+            command="echo",
+            args=["registered"],
+            health_check={
+                "type": "command",
+                "target": f"{sys.executable} -c \"import sys; sys.exit(7)\"",
+                "timeout_seconds": 5,
+            },
+        )
+        mgr = MCPLifecycleManager(project)
+
+        ok = mgr.health("cmd-ok")
+        assert ok is not None
+        assert "healthy" in (ok.last_health_check or "")
+        assert "exit 0" in (ok.last_health_check or "")
+
+        bad = mgr.health("cmd-bad")
+        assert bad is not None
+        assert "unhealthy" in (bad.last_health_check or "")
+        assert "exit 7" in (bad.last_health_check or "")
