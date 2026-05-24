@@ -45,8 +45,11 @@ class EventBus:
         logger.debug("EVENT %s | %s", event_name, json.dumps(ev.data, ensure_ascii=False))
 
         if self._log_path:
-            with open(self._log_path, "a", encoding="utf-8") as f:
-                f.write(ev.to_json() + "\n")
+            try:
+                with open(self._log_path, "a", encoding="utf-8") as f:
+                    f.write(ev.to_json() + "\n")
+            except OSError as e:
+                logger.warning("Event log write failed (%s): %s", self._log_path, e)
 
         for handler in self._global_handlers:
             _safe_call(handler, ev)
