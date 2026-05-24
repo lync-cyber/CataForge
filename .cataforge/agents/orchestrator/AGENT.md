@@ -4,6 +4,7 @@ description: "主编排智能体 — 负责整个软件开发生命周期的状�
 tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec, agent_dispatch, user_question
 disallowedTools: []
 allowed_paths: []  # 空数组表示无写入路径限制（见 agent-dispatch §写入范围校验）
+model_tier: inherit  # 主线程运行，不通过 model_routing 重派
 skills:
   - agent-dispatch
   - doc-nav
