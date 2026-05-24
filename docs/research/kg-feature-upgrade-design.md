@@ -39,8 +39,8 @@ KG 成为文档系统的 source of truth；markdown 由 KG 渲染生成；agents
 - Agent/Skill 改动：13 agents + 28 skills 共 24 文件 frontmatter 改动 + 11 个 JSON Schema 文件
 - 模板改动：约 40 个 markdown 模板转 Jinja2 + SPARQL DSL
 - Migration tool：`cataforge kg migrate` 一次性把现有 `.doc-index.json` + `docs/**/*.md` 摄入到 KG，提供 `--rollback`
-- 新增依赖：`rdflib >= 7.0`（pure Python，BSD），可选 `pyoxigraph`（Rust，MIT/Apache）
-- 测试套件：约 30 个新测试 + 现有依赖 markdown 的测试需要 golden roundtrip 改造
+- 新增依赖：`rdflib >= 7.0`（pure Python，BSD）、`pyshacl >= 0.25`（SHACL，Apache-2.0）、`owlrl >= 6.0`（OWL-RL，LGPL-3.0），可选 `pyoxigraph`（Rust，MIT/Apache）
+- 测试套件：约 45 个新测试（覆盖 6 主家族 + 12 具体类 + 20+ SHACL shape + 推理 / 渲染 / 摄入端到端）+ 现有依赖 markdown 的测试需要 golden roundtrip 改造
 
 ### 0.4 与现有约束的协调
 
@@ -62,19 +62,20 @@ KG 成为文档系统的 source of truth；markdown 由 KG 渲染生成；agents
 ### 1.1 本体分层
 
 ```
-+---------------------------------------------------------+
-| Layer 3: project-domain（下游自定义，可选）              |
-|   e.g. <proj>:Persona, <proj>:KPI                       |
-+---------------------------------------------------------+
-| Layer 2: cfa (artifact ontology)                        |
-|   Feature / Module / Task / AC / Component / TestCase   |
-+---------------------------------------------------------+
-| Layer 1: cfp (process ontology)                         |
-|   Agent / Skill / Phase / Invocation / Event            |
-+---------------------------------------------------------+
-| Layer 0: cfk (kernel)                                   |
-|   Document / Section / Identifier / Hash / Provenance   |
-+---------------------------------------------------------+
++---------------------------------------------------------------+
+| Layer 3: project-domain（下游自定义，可选）                    |
+|   e.g. <proj>:Persona, <proj>:KPI, <proj>:Glossary            |
++---------------------------------------------------------------+
+| Layer 2: cfa (artifact ontology)                              |
+|   Families: Need · Design · Implementation · Verification     |
+|   Cross-cut: Governance · Operation                           |
++---------------------------------------------------------------+
+| Layer 1: cfp (process ontology)                               |
+|   Agent / Skill / Phase / Invocation / Event / Hook           |
++---------------------------------------------------------------+
+| Layer 0: cfk (kernel)                                         |
+|   Document / Section / Identifier / Standard / Provenance     |
++---------------------------------------------------------------+
 ```
 
 依赖方向严格向下（L2 可引 L1，L1 不可引 L2）。L3 完全可选；框架核心不消费 L3，仅 SHACL 提供加载机制。
@@ -111,6 +112,8 @@ cfk:Resource    a owl:Class .
 cfk:Document    a owl:Class ; rdfs:subClassOf cfk:Resource .
 cfk:Section     a owl:Class ; rdfs:subClassOf cfk:Resource .
 cfk:Identifier  a owl:Class ; rdfs:subClassOf cfk:Resource .
+cfk:Standard    a owl:Class ; rdfs:subClassOf cfk:Resource ;
+                rdfs:comment "External specification or norm referenced from project artifacts (RFC / ISO / IETF / internal style guide)." .
 
 cfk:hasId       a owl:DatatypeProperty , owl:FunctionalProperty ;
                 rdfs:domain cfk:Resource ; rdfs:range xsd:string ;
@@ -120,11 +123,30 @@ cfk:contentHash a owl:DatatypeProperty ;
                 rdfs:domain cfk:Resource ; rdfs:range xsd:string .
 
 cfk:definedIn   a owl:ObjectProperty ;
-                rdfs:domain cfk:Resource ; rdfs:range cfk:Document .
+                rdfs:domain cfk:Resource ; rdfs:range cfk:Document ;
+                rdfs:comment "逻辑归属——指向声明本 Resource 的 Document 节点。" .
+
+cfk:source      a owl:DatatypeProperty ;
+                rdfs:domain cfk:Resource ; rdfs:range xsd:anyURI ;
+                rdfs:comment "物理来源——文件路径或 URL；与 definedIn 互补。" .
+
+cfk:language    a owl:DatatypeProperty ;
+                rdfs:domain cfk:Resource ; rdfs:range xsd:language ;
+                rdfs:comment "BCP47 语言标签（zh-CN / en-US 等），多语言项目使用。" .
+
+cfk:createdAt   a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfk:Resource ; rdfs:range xsd:dateTime .
+
+cfk:modifiedAt  a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfk:Resource ; rdfs:range xsd:dateTime .
 
 cfk:replacedBy  a owl:ObjectProperty ;
                 rdfs:domain cfk:Resource ; rdfs:range cfk:Resource ;
                 rdfs:comment "Rename 后旧 IRI 指向新 IRI；ingest 解析正文 ID 时透传。" .
+
+cfk:cites       a owl:ObjectProperty ;
+                rdfs:domain cfk:Resource ; rdfs:range cfk:Resource ;
+                rdfs:comment "跨知识域引用，典型指向 cfk:Standard；区别于 cfa:references（项目内链接）。" .
 
 cfk:provenance  a owl:AnnotationProperty .
 cfk:confidence  a owl:DatatypeProperty ; rdfs:range xsd:decimal .
@@ -135,8 +157,12 @@ cfk:confidence  a owl:DatatypeProperty ; rdfs:range xsd:decimal .
 ```turtle
 cfp:Agent       a owl:Class .
 cfp:Skill       a owl:Class .
+cfp:Phase       a owl:Class ;
+                rdfs:comment "Lifecycle phase containing one or more Invocations（requirements / design / implementation / review / release）。" .
 cfp:Invocation  a owl:Class .
 cfp:Event       a owl:Class .
+cfp:Hook        a owl:Class ; rdfs:subClassOf cfp:Event ;
+                rdfs:comment "Cataforge hook event：PreToolUse / PostToolUse / SessionStart / SessionEnd 等。" .
 
 cfp:invokes     a owl:ObjectProperty ;
                 rdfs:domain cfp:Agent ; rdfs:range cfp:Skill .
@@ -145,35 +171,129 @@ cfp:produces    a owl:ObjectProperty ;
 cfp:consumes    a owl:ObjectProperty ;
                 rdfs:domain cfp:Invocation ; rdfs:range cfk:Resource .
 cfp:succeededBy a owl:ObjectProperty , owl:TransitiveProperty .
+
+cfp:state       a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfp:Invocation ; rdfs:range xsd:string ;
+                rdfs:comment "Lifecycle state：pending | running | succeeded | failed | cancelled。" .
+
+cfp:startedAt   a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfp:Invocation ; rdfs:range xsd:dateTime .
+
+cfp:completedAt a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfp:Invocation ; rdfs:range xsd:dateTime .
 ```
 
 ### 1.5 L2 Artifact 本体
 
+L2 采"家族分类法"组织：4 个 V 字模型主家族（Need / Design / Implementation / Verification）+ 2 个横切家族（Governance / Operation）。具体类挂家族下，SHACL 与 SPARQL 可对家族做泛查询（`?x a/rdfs:subClassOf* cfa:Verification`）。
+
 ```turtle
-cfa:Feature             a owl:Class ; rdfs:subClassOf cfk:Resource .
-cfa:Module              a owl:Class ; rdfs:subClassOf cfk:Resource .
-cfa:Task                a owl:Class ; rdfs:subClassOf cfk:Resource .
-cfa:AcceptanceCriterion a owl:Class ; rdfs:subClassOf cfk:Resource .
-cfa:Component           a owl:Class ; rdfs:subClassOf cfk:Resource .
-cfa:TestCase            a owl:Class ; rdfs:subClassOf cfk:Resource .
+# === 4 主家族 · V 字模型 ===
+cfa:Need            a owl:Class ; rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "系统应当做什么——需求、用户故事、NFR。" .
+cfa:Design          a owl:Class ; rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "系统如何组织——模块、组件、接口、工作流。" .
+cfa:Implementation  a owl:Class ; rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "Design 的代码层实现物。" .
+cfa:Verification    a owl:Class ; rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "校验 Need / Design / Implementation 的测试与验收。" .
 
-cfa:implements   a owl:ObjectProperty ;
-                 rdfs:domain cfa:Module ; rdfs:range cfa:Feature .
-cfa:decomposes   a owl:ObjectProperty ;
-                 rdfs:domain cfa:Task   ; rdfs:range cfa:Module .
-cfa:validates    a owl:ObjectProperty ;
-                 rdfs:domain cfa:AcceptanceCriterion ; rdfs:range cfa:Feature .
-cfa:renders      a owl:ObjectProperty ;
-                 rdfs:domain cfa:Component ; rdfs:range cfa:Feature .
-cfa:dependsOn    a owl:ObjectProperty , owl:TransitiveProperty .
-cfa:references   a owl:ObjectProperty .
+# === 2 横切家族（不参与 V 字 disjoint）===
+cfa:Governance      a owl:Class ; rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "过程治理——任务、决策、风险、里程碑。" .
+cfa:Operation       a owl:Class ; rdfs:subClassOf cfk:Resource ;
+                    rdfs:comment "运行时与发布——release、incident、deployment。" .
 
+# === 具体类 · Need ===
+cfa:Feature   a owl:Class ; rdfs:subClassOf cfa:Need .
+cfa:UserStory a owl:Class ; rdfs:subClassOf cfa:Need .
+cfa:NFR       a owl:Class ; rdfs:subClassOf cfa:Need ;
+              rdfs:comment "Non-functional requirement（性能、安全、可用性等）。" .
+
+# === 具体类 · Design ===
+cfa:Module    a owl:Class ; rdfs:subClassOf cfa:Design .
+cfa:Component a owl:Class ; rdfs:subClassOf cfa:Design .
+cfa:Interface a owl:Class ; rdfs:subClassOf cfa:Design ;
+              rdfs:comment "API contract——函数签名、REST endpoint、消息 schema。" .
+cfa:Workflow  a owl:Class ; rdfs:subClassOf cfa:Design ;
+              rdfs:comment "用户流 / 业务流程 / 状态机。" .
+
+# === 具体类 · Implementation ===
+cfa:CodeUnit  a owl:Class ; rdfs:subClassOf cfa:Implementation ;
+              rdfs:comment "粒度无关的代码容器——file / function / class / package；用 cfa:codeUnitKind 区分。" .
+
+# === 具体类 · Verification ===
+cfa:TestCase            a owl:Class ; rdfs:subClassOf cfa:Verification .
+cfa:TestSuite           a owl:Class ; rdfs:subClassOf cfa:Verification .
+cfa:AcceptanceCriterion a owl:Class ; rdfs:subClassOf cfa:Verification .
+
+# === 具体类 · Governance ===
+cfa:Task     a owl:Class ; rdfs:subClassOf cfa:Governance .
+cfa:Decision a owl:Class ; rdfs:subClassOf cfa:Governance ;
+             rdfs:comment "架构 / 设计决策记录（ADR）。" .
+cfa:Risk     a owl:Class ; rdfs:subClassOf cfa:Governance .
+
+# === 具体类 · Operation ===
+cfa:Release  a owl:Class ; rdfs:subClassOf cfa:Operation .
+cfa:Incident a owl:Class ; rdfs:subClassOf cfa:Operation .
+
+# === V 字模型 traceability 关系（domain/range 严格分层）===
+cfa:realizes    a owl:ObjectProperty ;
+                rdfs:domain cfa:Design ; rdfs:range cfa:Need ;
+                rdfs:comment "Design realizes Need。" .
+cfa:implements  a owl:ObjectProperty ;
+                rdfs:domain cfa:Implementation ; rdfs:range cfa:Design ;
+                rdfs:comment "Implementation implements Design。" .
+cfa:decomposes  a owl:ObjectProperty ;
+                rdfs:domain cfa:Task ; rdfs:range cfa:Design .
+cfa:validates   a owl:ObjectProperty ;
+                rdfs:domain cfa:Verification ; rdfs:range cfk:Resource ;
+                rdfs:comment "Verification 可校验任意 Resource——Need（验收）/ Design（集成）/ Implementation（单元）。" .
+cfa:renders     a owl:ObjectProperty ;
+                rdfs:domain cfa:Component ; rdfs:range cfa:Feature .
+cfa:conformsTo  a owl:ObjectProperty ;
+                rdfs:domain cfa:Implementation ; rdfs:range cfa:Interface .
+
+# === 跨家族通用关系 ===
+cfa:traces      a owl:ObjectProperty , owl:TransitiveProperty ;
+                rdfs:comment "通用跨层 traceability，弱于带方向的 realizes/implements/validates。" .
+cfa:partOf      a owl:ObjectProperty , owl:TransitiveProperty ;
+                rdfs:comment "聚合（整体—部分），区别于表达使用依赖的 cfa:dependsOn。" .
+cfa:dependsOn   a owl:ObjectProperty , owl:TransitiveProperty .
+cfa:references  a owl:ObjectProperty .
+cfa:mitigates   a owl:ObjectProperty ;
+                rdfs:domain cfk:Resource ; rdfs:range cfa:Risk .
+cfa:assignedTo  a owl:ObjectProperty ;
+                rdfs:domain cfa:Governance ; rdfs:range cfp:Agent .
+cfa:supersedes  a owl:ObjectProperty ;
+                rdfs:comment "跨版本演进；与 cfk:replacedBy 区别在于专指 V 字模型 artifact 间的版本承接（如 Release supersedes Release）。" .
+
+# === Inverse properties ===
+cfa:realizedBy    a owl:ObjectProperty ; owl:inverseOf cfa:realizes .
 cfa:implementedBy a owl:ObjectProperty ; owl:inverseOf cfa:implements .
 cfa:decomposedBy  a owl:ObjectProperty ; owl:inverseOf cfa:decomposes .
 cfa:validatedBy   a owl:ObjectProperty ; owl:inverseOf cfa:validates .
 cfa:renderedBy    a owl:ObjectProperty ; owl:inverseOf cfa:renders .
 
-cfa:Feature owl:disjointWith cfa:Module , cfa:Task , cfa:AcceptanceCriterion .
+# === 通用 lifecycle 属性（域为 cfk:Resource，全 artifact 通用）===
+cfa:status   a owl:DatatypeProperty , owl:FunctionalProperty ;
+             rdfs:domain cfk:Resource ; rdfs:range xsd:string ;
+             rdfs:comment "Lifecycle：proposed | approved | active | deprecated | superseded。SHACL 强制枚举。" .
+cfa:priority a owl:DatatypeProperty , owl:FunctionalProperty ;
+             rdfs:domain cfk:Resource ; rdfs:range xsd:integer ;
+             rdfs:comment "整数优先级（小值=高优先级）。" .
+cfa:owner    a owl:ObjectProperty ;
+             rdfs:domain cfk:Resource ; rdfs:range cfp:Agent .
+
+# === CodeUnit kind discriminator ===
+cfa:codeUnitKind a owl:DatatypeProperty , owl:FunctionalProperty ;
+                 rdfs:domain cfa:CodeUnit ; rdfs:range xsd:string ;
+                 rdfs:comment "Kind：file | function | class | package | module。" .
+
+# === V 字四主家族 disjoint（横切两家族不参与）===
+cfa:Need           owl:disjointWith cfa:Design , cfa:Implementation , cfa:Verification .
+cfa:Design         owl:disjointWith cfa:Implementation , cfa:Verification .
+cfa:Implementation owl:disjointWith cfa:Verification .
 ```
 
 ### 1.6 SHACL 约束
@@ -209,6 +329,82 @@ cfa:FeatureShape a sh:NodeShape ;
         sh:path cfk:definedIn ;
         sh:minCount 1 ; sh:class cfk:Document
     ] .
+
+cfa:UserStoryShape a sh:NodeShape ;
+    sh:targetClass cfa:UserStory ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^US-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
+
+cfa:NFRShape a sh:NodeShape ;
+    sh:targetClass cfa:NFR ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^NFR-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:ModuleShape a sh:NodeShape ;
+    sh:targetClass cfa:Module ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^M-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
+
+cfa:InterfaceShape a sh:NodeShape ;
+    sh:targetClass cfa:Interface ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^I-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
+
+cfa:TaskShape a sh:NodeShape ;
+    sh:targetClass cfa:Task ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^T-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:DecisionShape a sh:NodeShape ;
+    sh:targetClass cfa:Decision ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^D-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
+
+cfa:RiskShape a sh:NodeShape ;
+    sh:targetClass cfa:Risk ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^R-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:ReleaseShape a sh:NodeShape ;
+    sh:targetClass cfa:Release ;
+    sh:property [
+        sh:path cfk:hasId ; sh:pattern "^v\\d+\\.\\d+\\.\\d+$" ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message "Release id 须遵 semver v<major>.<minor>.<patch>"
+    ] .
+
+# 通用 lifecycle 枚举
+cfa:StatusEnumShape a sh:NodeShape ;
+    sh:targetSubjectsOf cfa:status ;
+    sh:property [
+        sh:path cfa:status ;
+        sh:in ( "proposed" "approved" "active" "deprecated" "superseded" ) ;
+        sh:maxCount 1 ;
+        sh:message "cfa:status 必须为枚举值之一"
+    ] .
+
+cfp:StateEnumShape a sh:NodeShape ;
+    sh:targetSubjectsOf cfp:state ;
+    sh:property [
+        sh:path cfp:state ;
+        sh:in ( "pending" "running" "succeeded" "failed" "cancelled" ) ;
+        sh:maxCount 1 ;
+        sh:message "cfp:state 必须为枚举值之一"
+    ] .
+
+# V 字四主家族 disjoint 校验（OWL disjointWith 在 open-world 下不强制，SHACL 补强）
+cfa:VModelDisjointShape a sh:NodeShape ;
+    sh:targetClass cfa:Need ;
+    sh:not [ sh:class cfa:Design ] ;
+    sh:not [ sh:class cfa:Implementation ] ;
+    sh:not [ sh:class cfa:Verification ] ;
+    sh:message "Resource 不能同时归属多个 V 字主家族。" .
+
+# CodeUnit kind 枚举
+cfa:CodeUnitKindShape a sh:NodeShape ;
+    sh:targetClass cfa:CodeUnit ;
+    sh:property [
+        sh:path cfa:codeUnitKind ;
+        sh:in ( "file" "function" "class" "package" "module" ) ;
+        sh:minCount 1 ; sh:maxCount 1
+    ] .
 ```
 
 ### 1.7 JSON-LD 实例样本
@@ -217,14 +413,25 @@ cfa:FeatureShape a sh:NodeShape ;
 {
   "@context": {
     "cfk": "https://cataforge.dev/ontology/kernel#",
+    "cfp": "https://cataforge.dev/ontology/process#",
     "cfa": "https://cataforge.dev/ontology/artifact#",
     "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
     "label":      { "@id": "rdfs:label" },
     "id":         { "@id": "cfk:hasId" },
     "hash":       { "@id": "cfk:contentHash" },
     "definedIn":  { "@id": "cfk:definedIn", "@type": "@id" },
+    "createdAt":  { "@id": "cfk:createdAt", "@type": "xsd:dateTime" },
+    "status":     { "@id": "cfa:status" },
+    "priority":   { "@id": "cfa:priority" },
+    "owner":      { "@id": "cfa:owner", "@type": "@id" },
+    "realizes":   { "@id": "cfa:realizes", "@type": "@id" },
     "implements": { "@id": "cfa:implements", "@type": "@id" },
-    "decomposes": { "@id": "cfa:decomposes", "@type": "@id" }
+    "decomposes": { "@id": "cfa:decomposes", "@type": "@id" },
+    "validates":  { "@id": "cfa:validates", "@type": "@id" },
+    "conformsTo": { "@id": "cfa:conformsTo", "@type": "@id" },
+    "mitigates":  { "@id": "cfa:mitigates", "@type": "@id" },
+    "traces":     { "@id": "cfa:traces", "@type": "@id" },
+    "partOf":     { "@id": "cfa:partOf", "@type": "@id" }
   },
   "@graph": [
     {
@@ -233,20 +440,81 @@ cfa:FeatureShape a sh:NodeShape ;
       "id": "F-001",
       "label": "用户登录",
       "hash": "a3f8c2",
-      "definedIn": "cfk:doc/prd-myproject"
+      "status": "active",
+      "priority": 1,
+      "definedIn": "cfk:doc/prd-myproject",
+      "createdAt": "2026-05-01T09:00:00Z"
+    },
+    {
+      "@id": "cfa:prd-myproject/US-001",
+      "@type": "cfa:UserStory",
+      "id": "US-001",
+      "label": "作为访客我希望用邮箱密码登录",
+      "partOf": "cfa:prd-myproject/F-001"
+    },
+    {
+      "@id": "cfa:prd-myproject/NFR-001",
+      "@type": "cfa:NFR",
+      "id": "NFR-001",
+      "label": "登录响应 < 200ms（P95）",
+      "traces": "cfa:prd-myproject/F-001"
     },
     {
       "@id": "cfa:arch-myproject/M-001",
       "@type": "cfa:Module",
       "id": "M-001",
       "label": "认证模块",
-      "implements": "cfa:prd-myproject/F-001"
+      "realizes": "cfa:prd-myproject/F-001",
+      "owner": "cfp:agent/architect"
+    },
+    {
+      "@id": "cfa:arch-myproject/I-001",
+      "@type": "cfa:Interface",
+      "id": "I-001",
+      "label": "POST /auth/login",
+      "partOf": "cfa:arch-myproject/M-001"
     },
     {
       "@id": "cfa:dev-plan-myproject/T-001",
       "@type": "cfa:Task",
       "id": "T-001",
-      "decomposes": "cfa:arch-myproject/M-001"
+      "decomposes": "cfa:arch-myproject/M-001",
+      "status": "active"
+    },
+    {
+      "@id": "cfa:adr-myproject/D-001",
+      "@type": "cfa:Decision",
+      "id": "D-001",
+      "label": "采用 JWT 而非 session cookie",
+      "traces": "cfa:arch-myproject/M-001"
+    },
+    {
+      "@id": "cfa:risk-myproject/R-007",
+      "@type": "cfa:Risk",
+      "id": "R-007",
+      "label": "JWT 密钥泄露"
+    },
+    {
+      "@id": "cfa:src/auth/login_handler.py",
+      "@type": "cfa:CodeUnit",
+      "id": "CU-042",
+      "label": "login_handler",
+      "cfa:codeUnitKind": "file",
+      "implements": "cfa:arch-myproject/M-001",
+      "conformsTo": "cfa:arch-myproject/I-001",
+      "mitigates": "cfa:risk-myproject/R-007"
+    },
+    {
+      "@id": "cfa:test/test_login.py/TC-001",
+      "@type": "cfa:TestCase",
+      "id": "TC-001",
+      "validates": "cfa:prd-myproject/F-001"
+    },
+    {
+      "@id": "cfa:release/v0.5.0",
+      "@type": "cfa:Release",
+      "id": "v0.5.0",
+      "label": "KG 大爆炸切换"
     }
   ]
 }
@@ -258,26 +526,173 @@ cfa:FeatureShape a sh:NodeShape ;
 
 1. `cfk:hasId` 是唯一显示 ID 来源，唯一性由 SHACL 保障
 2. IRI 形式：`cfa:<doc-slug>/<display-id>`，e.g. `cfa:prd-myproject/F-001`
-3. 正文扫描器（`ingest/prose_refs.py`）匹配 `\b[A-Z]+-\d+\b` 后查询 `cfk:hasId` 索引解析 IRI；解析失败的引用以 `cfa:references` + `cfk:confidence` < 1.0 摄入并产出 warn
+3. 正文扫描器（`ingest/prose_refs.py`）匹配显示 ID 后查询 `cfk:hasId` 索引解析 IRI；解析失败的引用以 `cfa:references` + `cfk:confidence` < 1.0 摄入并产出 warn
 4. Rename 操作：更新 `cfk:hasId` + 保留旧 IRI 节点并插 `cfk:replacedBy` 指向新 IRI；后续查询自动透传旧 ID
 5. 仅在 markdown 文本节点扫描，code block / inline code 内 ID 不解析（防止误匹配）
 
+**显示 ID 正则前缀表**（与 §1.6 SHACL pattern 对齐）：
+
+| 类型 | 前缀 | 正则 | 示例 |
+|---|---|---|---|
+| Feature | F | `^F-\d+$` | F-001 |
+| UserStory | US | `^US-\d+$` | US-014 |
+| NFR | NFR | `^NFR-\d+$` | NFR-003 |
+| Module | M | `^M-\d+$` | M-001 |
+| Interface | I | `^I-\d+$` | I-007 |
+| Task | T | `^T-\d+$` | T-042 |
+| Decision (ADR) | D | `^D-\d+$` | D-001 |
+| Risk | R | `^R-\d+$` | R-007 |
+| TestCase | TC | `^TC-\d+$` | TC-101 |
+| CodeUnit | CU | `^CU-\d+$` | CU-042 |
+| Release | (semver) | `^v\d+\.\d+\.\d+$` | v0.5.0 |
+| Incident | INC | `^INC-\d+$` | INC-2026-0001 |
+
+L3 自定义类型在 `.cataforge/ontology/<proj>.ttl` 声明自己的 pattern（不得复用上述前缀，避免冲突）。
+
+**通用枚举值表**：
+
+| 属性 | 允许值 | 默认 |
+|---|---|---|
+| `cfa:status` | proposed / approved / active / deprecated / superseded | (无，需显式) |
+| `cfp:state` | pending / running / succeeded / failed / cancelled | pending |
+| `cfa:codeUnitKind` | file / function / class / package / module | (无，需显式) |
+
 ### 1.9 L3 项目自定义扩展（可选）
 
+L3 由下游项目编写，置于 `.cataforge/ontology/<proj>.ttl`，通过 `framework.json` 注册。框架核心不消费 L3，仅 SHACL 校验加载机制；L3 不存在则跳过，存在则加载。本 release 不强制编写。
+
+#### 1.9.1 L3 ↔ L2 互操作规则
+
+| 操作 | 允许 | 理由 |
+|---|---|---|
+| L3 类 `subClassOf` L2 类 | ✓ | 自动继承 L2 关系语义；推荐做法 |
+| L3 类 `subClassOf` L2 家族（Need/Design/...） | ✓ | 加入家族即可参与泛查询 |
+| L3 加 SHACL shape 到 L2 类（强化约束） | ✓ | open-world，加约束安全 |
+| L3 加新 `owl:ObjectProperty`，domain/range 引 L2 类 | ✓ | 不污染 L2 |
+| L3 重定义 L2 property 的 domain/range | ✗ | 破坏 L2 语义稳定性，OWL-RL 推理会冲突 |
+| L3 直接修改 L2 .ttl 文件 | ✗ | 框架升级时被覆盖；用 SHACL shape override 替代 |
+| L3 namespace 复用 cfk/cfp/cfa 前缀 | ✗ | 必须用项目专属前缀 |
+| L3 显示 ID 前缀复用 §1.8 表中已用前缀 | ✗ | 触 SHACL pattern 冲突 |
+
+#### 1.9.2 Cookbook · 业务域模型
+
+下游 SaaS 产品引入业务实体，挂 cfa:Need 家族让需求查询自动覆盖：
+
 ```turtle
-# .cataforge/ontology/myproj.ttl
-@prefix myproj: <https://example.com/ontology/myproj#> .
+# .cataforge/ontology/saas-domain.ttl
+@prefix saas: <https://example.com/ontology/saas#> .
 
-myproj:Persona  a owl:Class ; rdfs:subClassOf cfk:Resource .
-myproj:targets  a owl:ObjectProperty ;
-                rdfs:domain myproj:Persona ; rdfs:range cfa:Feature .
+saas:UseCase    a owl:Class ; rdfs:subClassOf cfa:Need ;
+                rdfs:comment "业务用例——比 UserStory 更高粒度，跨多个 Feature。" .
+saas:Persona    a owl:Class ; rdfs:subClassOf cfk:Resource .
+saas:Tenant     a owl:Class ; rdfs:subClassOf cfk:Resource .
 
-myproj:PersonaShape a sh:NodeShape ;
-    sh:targetClass myproj:Persona ;
-    sh:property [ sh:path cfk:hasId ; sh:pattern "^P-\\d+$" ] .
+saas:targets    a owl:ObjectProperty ;
+                rdfs:domain saas:Persona ; rdfs:range saas:UseCase .
+saas:scopedTo   a owl:ObjectProperty ;
+                rdfs:domain cfk:Resource ; rdfs:range saas:Tenant .
+
+saas:UseCaseShape a sh:NodeShape ;
+    sh:targetClass saas:UseCase ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^UC-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
 ```
 
-本 release 不强制 L3 编写；下游不存在则跳过，存在则加载。L3 编写器作为 follow-up 独立 issue。
+#### 1.9.3 Cookbook · 合规与审计
+
+合规项目把规章作为 cfk:Standard 节点，通过 cfk:cites 链接：
+
+```turtle
+# .cataforge/ontology/compliance.ttl
+@prefix comp: <https://example.com/ontology/compliance#> .
+
+comp:Control       a owl:Class ; rdfs:subClassOf cfk:Resource ;
+                   rdfs:comment "合规控制项（SOC2 CC6.1、GDPR Art.32 等）。" .
+comp:Audit         a owl:Class ; rdfs:subClassOf cfa:Verification ;
+                   rdfs:comment "审计活动；归入 Verification 家族让 validates 关系可用。" .
+comp:Finding       a owl:Class ; rdfs:subClassOf cfa:Risk ;
+                   rdfs:comment "审计发现归入 Risk，可被 mitigates 关系消费。" .
+
+comp:enforcedBy    a owl:ObjectProperty ;
+                   rdfs:domain comp:Control ; rdfs:range cfa:Implementation .
+comp:auditedBy     a owl:ObjectProperty ;
+                   rdfs:domain comp:Control ; rdfs:range comp:Audit .
+
+comp:ControlShape a sh:NodeShape ;
+    sh:targetClass comp:Control ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^CTRL-[A-Z0-9.]+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path cfk:cites ; sh:minCount 1 ; sh:class cfk:Standard ;
+                  sh:message "Control 须 cites 至少一个 Standard。" ] .
+```
+
+#### 1.9.4 Cookbook · 度量与 SLO
+
+把 SLI/SLO/KPI 接入 NFR 体系：
+
+```turtle
+# .cataforge/ontology/metrics.ttl
+@prefix met: <https://example.com/ontology/metrics#> .
+
+met:Metric  a owl:Class ; rdfs:subClassOf cfk:Resource .
+met:SLI     a owl:Class ; rdfs:subClassOf met:Metric .
+met:SLO     a owl:Class ; rdfs:subClassOf cfa:NFR ;
+            rdfs:comment "SLO 是可量化 NFR，归入 Need 家族。" .
+met:KPI     a owl:Class ; rdfs:subClassOf met:Metric .
+
+met:measures      a owl:ObjectProperty ;
+                  rdfs:domain met:SLI ; rdfs:range cfk:Resource .
+met:targetValue   a owl:DatatypeProperty , owl:FunctionalProperty ;
+                  rdfs:domain met:SLO ; rdfs:range xsd:decimal .
+met:trackedBy     a owl:ObjectProperty ;
+                  rdfs:domain met:SLO ; rdfs:range met:SLI .
+
+met:SLOShape a sh:NodeShape ;
+    sh:targetClass met:SLO ;
+    sh:property [ sh:path met:targetValue ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path met:trackedBy ; sh:minCount 1 ; sh:class met:SLI ] .
+```
+
+#### 1.9.5 Cookbook · 术语表（Glossary）
+
+防止跨文档术语漂移：
+
+```turtle
+# .cataforge/ontology/glossary.ttl
+@prefix gloss: <https://example.com/ontology/glossary#> .
+
+gloss:Term       a owl:Class ; rdfs:subClassOf cfk:Resource .
+gloss:definition a owl:DatatypeProperty , owl:FunctionalProperty ;
+                 rdfs:domain gloss:Term ; rdfs:range xsd:string .
+gloss:synonym    a owl:DatatypeProperty ;
+                 rdfs:domain gloss:Term ; rdfs:range xsd:string .
+gloss:contradicts a owl:ObjectProperty ;
+                  rdfs:domain gloss:Term ; rdfs:range gloss:Term .
+
+gloss:TermShape a sh:NodeShape ;
+    sh:targetClass gloss:Term ;
+    sh:property [ sh:path gloss:definition ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ;
+                  sh:message "Glossary 术语必须有 label（即术语本身）。" ] .
+```
+
+#### 1.9.6 SHACL Profile 复用机制
+
+L3 想给 L2 类**加约束**而非替换约束：用独立 NodeShape 同 targetClass 即可，pyshacl 会合并所有 shape 的约束（AND 语义）：
+
+```turtle
+# .cataforge/ontology/strict-feature.ttl
+@prefix strict: <https://example.com/ontology/strict#> .
+
+# 在 cfa:FeatureShape 之外，额外要求 Feature 必须有 owner 与 priority
+strict:FeatureExtraShape a sh:NodeShape ;
+    sh:targetClass cfa:Feature ;
+    sh:property [ sh:path cfa:owner    ; sh:minCount 1 ;
+                  sh:message "本项目要求 Feature 必须有 owner。" ] ;
+    sh:property [ sh:path cfa:priority ; sh:minCount 1 ;
+                  sh:message "本项目要求 Feature 必须有 priority。" ] .
+```
+
+`cataforge kg validate` 会同时跑框架与 L3 shape，违反任一即 FAIL。L3 shape 不能**放宽** L2 约束（SHACL AND 语义决定）；如确需放宽，须 PR 到上游 L2。
 
 ---
 
