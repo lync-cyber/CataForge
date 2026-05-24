@@ -17,9 +17,19 @@ user-invocable: true
 ## 角色假设（关键）
 **你（当前主线程会话）即是 orchestrator。** 读取 AGENT.md 是为了加载角色定义，**不要通过 agent-dispatch 启动 orchestrator 子代理**。orchestrator 在主线程运行、跨会话持续感知状态，由主线程直接扮演该角色是框架设计的核心约束。
 
+## 输入规范
+- 必填: 项目描述自然语言字符串，或 `continue` 关键字（触发分支 B 恢复模式）
+- 可选: CLAUDE.md（存在即触发分支 B）+ `.cataforge/framework.json`（版本检查依据）
+
+## 输出规范
+- 新项目: 触发 ORCHESTRATOR-PROTOCOLS §Project Bootstrap，产出 CLAUDE.md 初版并进入初始阶段
+- 恢复推进: 不产出新文档，仅更新 CLAUDE.md §项目状态 块并继续推进当前阶段
+- 本 skill 自身不写入 docs/ 任何子目录（实际文档产出由后续阶段 agent 完成）
+
 ## Anti-Patterns
 - 不通过 agent-dispatch 调度 orchestrator — 主线程直接扮演 orchestrator 角色，调度它会造成不必要的上下文嵌套和交互链路断裂
 - 不跳过 §角色假设 直接进入步骤 — 角色声明是防止误用 agent-dispatch 的唯一显式约束
+- 不在分支 B 跳过框架版本检查 — 版本占位符 `0.0.0-template` 表示 scaffold 未初始化，直接恢复会让后续 agent 读到不一致状态
 
 ## 执行步骤
 
