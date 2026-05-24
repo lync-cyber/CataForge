@@ -47,6 +47,9 @@ dependencies = [
     "click>=8.0",
     "pydantic>=2.0",
     "markdown-it-py>=3.0",
+    "rdflib>=7.0",
+    "pyshacl>=0.25",
+    "owlrl>=6.0.2",
 ]
 
 [project.optional-dependencies]
@@ -62,7 +65,8 @@ dev = [
 mcp = ["mcp>=1.0"]
 docker = ["docker>=7.0"]
 penpot = ["docker>=7.0"]
-all = ["docker>=7.0", "mcp>=1.0"]
+kg-oxigraph = ["pyoxigraph>=0.4"]
+all = ["docker>=7.0", "mcp>=1.0", "pyoxigraph>=0.4"]
 
 [project.urls]
 Homepage = "https://github.com/lync-cyber/CataForge"

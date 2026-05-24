@@ -1,0 +1,21 @@
+{
+  "full_rebuild": {
+    "max_ms": 2000,
+    "docs": 100
+  },
+  "incremental_update": {
+    "max_ms": 200
+  },
+  "shacl_validate": {
+    "max_ms": 1000,
+    "triples": 5000
+  },
+  "owl_rl_infer": {
+    "max_ms": 1500,
+    "triples": 5000
+  },
+  "single_sparql_query": {
+    "max_ms": 50
+  },
+  "oxigraph_autoswap_threshold_triples": 5000
+}

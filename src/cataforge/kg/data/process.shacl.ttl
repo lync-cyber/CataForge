@@ -1,0 +1,32 @@
+@prefix cfp:  <https://cataforge.dev/ontology/process#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# Invocation lifecycle state is an enum; cfp:state is FunctionalProperty so
+# maxCount 1 is technically implied, but spelling it here gives the SHACL
+# violation a clear path attribution.
+cfp:StateEnumShape a sh:NodeShape ;
+    sh:targetSubjectsOf cfp:state ;
+    sh:property [
+        sh:path     cfp:state ;
+        sh:in       ( "pending" "running" "succeeded" "failed" "cancelled" ) ;
+        sh:maxCount 1 ;
+        sh:message  "cfp:state must be one of pending|running|succeeded|failed|cancelled."
+    ] .
+
+# When both timestamps are present, startedAt must come no later than
+# completedAt (cfp:state alone cannot detect inverted clock entries).
+cfp:InvocationTimeShape a sh:NodeShape ;
+    sh:targetClass cfp:Invocation ;
+    sh:property [
+        sh:path             cfp:startedAt ;
+        sh:datatype         xsd:dateTime ;
+        sh:maxCount         1 ;
+        sh:lessThanOrEquals cfp:completedAt ;
+        sh:message          "cfp:startedAt must be ≤ cfp:completedAt."
+    ] ;
+    sh:property [
+        sh:path     cfp:completedAt ;
+        sh:datatype xsd:dateTime ;
+        sh:maxCount 1
+    ] .

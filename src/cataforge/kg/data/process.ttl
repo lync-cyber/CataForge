@@ -1,0 +1,59 @@
+@prefix cfk:  <https://cataforge.dev/ontology/kernel#> .
+@prefix cfp:  <https://cataforge.dev/ontology/process#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+
+<https://cataforge.dev/ontology/process> a owl:Ontology ;
+    dct:title "CataForge Process Ontology (L1)" ;
+    owl:versionInfo "0.5.0" ;
+    owl:imports <https://cataforge.dev/ontology/kernel> ;
+    rdfs:comment "Agent / Skill / Phase / Invocation / Event / Hook plus lifecycle state and time properties." .
+
+# === Classes ===
+cfp:Agent       a owl:Class .
+
+cfp:Skill       a owl:Class .
+
+cfp:Phase       a owl:Class ;
+                rdfs:comment "Lifecycle phase containing one or more Invocations (requirements / design / implementation / review / release)." .
+
+cfp:Invocation  a owl:Class .
+
+cfp:Event       a owl:Class .
+
+cfp:Hook        a owl:Class ;
+                rdfs:subClassOf cfp:Event ;
+                rdfs:comment "Cataforge hook event — PreToolUse, PostToolUse, SessionStart, SessionEnd." .
+
+# === Object properties ===
+cfp:invokes     a owl:ObjectProperty ;
+                rdfs:domain cfp:Agent ;
+                rdfs:range  cfp:Skill .
+
+cfp:produces    a owl:ObjectProperty ;
+                rdfs:domain cfp:Invocation ;
+                rdfs:range  cfk:Resource .
+
+cfp:consumes    a owl:ObjectProperty ;
+                rdfs:domain cfp:Invocation ;
+                rdfs:range  cfk:Resource .
+
+cfp:succeededBy a owl:ObjectProperty , owl:TransitiveProperty ;
+                rdfs:comment "Temporal succession between Invocations." .
+
+# === Datatype properties ===
+cfp:state       a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfp:Invocation ;
+                rdfs:range  xsd:string ;
+                rdfs:comment "Lifecycle state: pending | running | succeeded | failed | cancelled." .
+
+cfp:startedAt   a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfp:Invocation ;
+                rdfs:range  xsd:dateTime .
+
+cfp:completedAt a owl:DatatypeProperty , owl:FunctionalProperty ;
+                rdfs:domain cfp:Invocation ;
+                rdfs:range  xsd:dateTime .

@@ -1,0 +1,136 @@
+@prefix cfk:  <https://cataforge.dev/ontology/kernel#> .
+@prefix cfa:  <https://cataforge.dev/ontology/artifact#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# === Per-concrete-class ID pattern shapes ===
+cfa:FeatureShape a sh:NodeShape ;
+    sh:targetClass cfa:Feature ;
+    sh:property [
+        sh:path     cfk:hasId ;
+        sh:pattern  "^F-\\d+$" ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message  "Feature id must match F-NNN."
+    ] ;
+    sh:property [
+        sh:path     rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "Feature must have rdfs:label."
+    ] ;
+    sh:property [
+        sh:path     cfk:definedIn ;
+        sh:minCount 1 ;
+        sh:class    cfk:Document
+    ] .
+
+cfa:UserStoryShape a sh:NodeShape ;
+    sh:targetClass cfa:UserStory ;
+    sh:property [ sh:path cfk:hasId  ; sh:pattern "^US-\\d+$"  ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
+
+cfa:NFRShape a sh:NodeShape ;
+    sh:targetClass cfa:NFR ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^NFR-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:ModuleShape a sh:NodeShape ;
+    sh:targetClass cfa:Module ;
+    sh:property [ sh:path cfk:hasId  ; sh:pattern "^M-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
+
+cfa:ComponentShape a sh:NodeShape ;
+    sh:targetClass cfa:Component ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^C-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:InterfaceShape a sh:NodeShape ;
+    sh:targetClass cfa:Interface ;
+    sh:property [ sh:path cfk:hasId  ; sh:pattern "^I-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
+
+cfa:WorkflowShape a sh:NodeShape ;
+    sh:targetClass cfa:Workflow ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^WF-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:CodeUnitShape a sh:NodeShape ;
+    sh:targetClass cfa:CodeUnit ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^CU-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [
+        sh:path     cfa:codeUnitKind ;
+        sh:in       ( "file" "function" "class" "package" "module" ) ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message  "cfa:codeUnitKind must be one of file|function|class|package|module."
+    ] .
+
+cfa:TestCaseShape a sh:NodeShape ;
+    sh:targetClass cfa:TestCase ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^TC-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:TestSuiteShape a sh:NodeShape ;
+    sh:targetClass cfa:TestSuite ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^TS-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:AcceptanceCriterionShape a sh:NodeShape ;
+    sh:targetClass cfa:AcceptanceCriterion ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^AC-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:TaskShape a sh:NodeShape ;
+    sh:targetClass cfa:Task ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^T-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:DecisionShape a sh:NodeShape ;
+    sh:targetClass cfa:Decision ;
+    sh:property [ sh:path cfk:hasId  ; sh:pattern "^D-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
+
+cfa:RiskShape a sh:NodeShape ;
+    sh:targetClass cfa:Risk ;
+    sh:property [ sh:path cfk:hasId ; sh:pattern "^R-\\d+$" ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+cfa:ReleaseShape a sh:NodeShape ;
+    sh:targetClass cfa:Release ;
+    sh:property [
+        sh:path     cfk:hasId ;
+        sh:pattern  "^v\\d+\\.\\d+\\.\\d+$" ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:message  "Release id must follow semver v<major>.<minor>.<patch>."
+    ] .
+
+cfa:IncidentShape a sh:NodeShape ;
+    sh:targetClass cfa:Incident ;
+    sh:property [
+        sh:path     cfk:hasId ;
+        sh:pattern  "^INC-[0-9A-Z\\-]+$" ;
+        sh:minCount 1 ; sh:maxCount 1
+    ] .
+
+# === Generic lifecycle: cfa:status enum (cross-class, targets subjects-of) ===
+cfa:StatusEnumShape a sh:NodeShape ;
+    sh:targetSubjectsOf cfa:status ;
+    sh:property [
+        sh:path     cfa:status ;
+        sh:in       ( "proposed" "approved" "active" "deprecated" "superseded" ) ;
+        sh:maxCount 1 ;
+        sh:message  "cfa:status must be one of proposed|approved|active|deprecated|superseded."
+    ] .
+
+# === V-model family disjoint enforcement (OWL disjointWith is open-world
+# and pyshacl by default does not derive disjoint violations; SHACL gives
+# explicit closed-world enforcement). ===
+cfa:NeedDisjointShape a sh:NodeShape ;
+    sh:targetClass cfa:Need ;
+    sh:not [ sh:class cfa:Design ] ;
+    sh:not [ sh:class cfa:Implementation ] ;
+    sh:not [ sh:class cfa:Verification ] ;
+    sh:message "A Need node cannot also belong to Design / Implementation / Verification." .
+
+cfa:DesignDisjointShape a sh:NodeShape ;
+    sh:targetClass cfa:Design ;
+    sh:not [ sh:class cfa:Implementation ] ;
+    sh:not [ sh:class cfa:Verification ] ;
+    sh:message "A Design node cannot also belong to Implementation / Verification." .
+
+cfa:ImplementationDisjointShape a sh:NodeShape ;
+    sh:targetClass cfa:Implementation ;
+    sh:not [ sh:class cfa:Verification ] ;
+    sh:message "An Implementation node cannot also belong to Verification." .
