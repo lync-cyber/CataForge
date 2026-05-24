@@ -1,0 +1,36 @@
+{# KG-rendered PRD. Caller supplies `doc` (CURIE for cfk:Document) and `project`. #}
+---
+id: prd-{{ project }}
+doc_type: prd
+status: {{ kg.get_attr(doc, 'cfa:status', default='draft') }}
+generated_by: {{ generated_by }}
+---
+<!--
+  This file is rendered from the knowledge graph. Direct edits will be
+  overwritten on the next `cataforge kg render`. To change content, use
+  `cataforge kg update-entity` or edit the markdown and let
+  `cataforge kg ingest --file <self>` fold the change back.
+-->
+
+# PRD: {{ kg.get_attr(doc, 'rdfs:label', default=project) }}
+
+## 1. 功能需求
+
+{{ kg.query(
+"SELECT ?id ?label WHERE { ?f a cfa:Feature ; cfk:hasId ?id ; rdfs:label ?label ; cfk:definedIn $doc . } ORDER BY ?id",
+doc=doc
+) | bullet_list(fmt="{id}: {label}") }}
+
+## 2. 非功能需求
+
+{{ kg.query(
+"SELECT ?id ?label WHERE { ?n a cfa:NFR ; cfk:hasId ?id ; rdfs:label ?label ; cfk:definedIn $doc . } ORDER BY ?id",
+doc=doc
+) | bullet_list(fmt="{id}: {label}") }}
+
+## 3. 用户故事
+
+{{ kg.query(
+"SELECT ?id ?label WHERE { ?u a cfa:UserStory ; cfk:hasId ?id ; rdfs:label ?label ; cfk:definedIn $doc . } ORDER BY ?id",
+doc=doc
+) | bullet_list(fmt="{id}: {label}") }}
