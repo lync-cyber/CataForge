@@ -70,7 +70,8 @@
       "reviewer": "standard",
       "reflector": "light"
     },
-    "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"]
+    "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"],
+    "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 300
   },
   "dispatcher_skills": ["tdd-engine", "agent-dispatch", "start-orchestrator"],
   "features": {
