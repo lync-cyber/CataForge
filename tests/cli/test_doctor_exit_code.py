@@ -67,12 +67,7 @@ def test_doctor_passes_when_checks_satisfied(tmp_path: Path, monkeypatch) -> Non
 def test_doctor_skips_requires_deploy_check_before_first_deploy(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """Checks marked ``requires_deploy`` must SKIP (not FAIL) pre-deploy.
-
-    Regression guard: before this fix, a fresh-install flow (install package,
-    then ``cataforge doctor``) exited 1 because ``.claude/settings.json``
-    does not exist until the first ``cataforge deploy``.
-    """
+    """Checks marked ``requires_deploy`` must SKIP (not FAIL) pre-deploy."""
     root = _minimal_project(
         tmp_path,
         [

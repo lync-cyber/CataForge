@@ -1,10 +1,9 @@
 """Backfill YAML front matter on system-generated review reports + research notes.
 
-Pre-this-version projects have ``docs/reviews/{doc,code}/REVIEW-*.md`` and
-``docs/reviews/CORRECTIONS-LOG.md`` files written without YAML front matter,
-because doc-review / code-review SKILL.md and ``core/corrections.py`` did not
-emit a header before this version. The result: ``cataforge docs index`` skips
-them as orphans and ``cataforge doctor`` FAILs with the orphan count.
+Projects may have ``docs/reviews/{doc,code}/REVIEW-*.md`` and
+``docs/reviews/CORRECTIONS-LOG.md`` files without YAML front matter.
+Without front matter, ``cataforge docs index`` skips them as orphans
+and ``cataforge doctor`` FAILs with the orphan count.
 
 This migration scans the canonical paths, infers ``id`` / ``doc_type`` /
 ``deps`` from filenames, and prepends a minimal front matter block. Idempotent

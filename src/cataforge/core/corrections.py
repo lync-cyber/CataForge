@@ -20,7 +20,7 @@ logger = logging.getLogger("cataforge.corrections")
 CORRECTIONS_LOG_REL = Path("docs") / "reviews" / "CORRECTIONS-LOG.md"
 
 TriggerSignal = Literal["option-override", "interrupt-override", "review-flag"]
-# ``upstream-gap`` (added v0.2.x): the upstream CataForge baseline itself was
+# ``upstream-gap``: the upstream CataForge baseline itself was
 # wrong / missing for this project's context. Distinct from ``framework-bug``
 # (CataForge framework defect) and ``self-caused`` (downstream drift). The
 # ``framework-feedback`` skill aggregates these into an upstream-bound

@@ -197,13 +197,7 @@ class TestPreamble:
 
 
 class TestNestedFieldPreservation:
-    """Regression tests for multi-line schema fields.
-
-    Before the fix: ``- 阶段配置:`` with indented continuation lines had an
-    inline value of ``""`` which ``_is_placeholder`` reported as True → the
-    field was treated as unfilled and template default won, erasing the
-    user's nested content. Discovered via dogfood deploy validation.
-    """
+    """Regression tests for multi-line schema fields."""
 
     def test_nested_value_preserved_over_template(self) -> None:
         cur = (

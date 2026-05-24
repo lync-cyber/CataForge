@@ -351,11 +351,9 @@ class TestRedactCrossPlatform:
 class TestRenderFrontMatter:
     """All three assemblers must prepend a doc-indexer-compatible YAML block.
 
-    Regression for issue #115 P5: before the fix, `cataforge feedback ... --out`
-    wrote a body whose first non-blank line was `<!-- generated ... -->`. The
-    project-level `docs validate` then flagged the file as orphan because it
-    lacked `doc_type` / `status` / `id`, breaking the `--out` sink for any
-    project that runs validation.
+    The --out flag must write a body whose first non-blank line is valid YAML
+    front matter containing ``doc_type`` / ``status`` / ``id``; otherwise
+    ``docs validate`` flags the output as an orphan.
     """
 
     @staticmethod

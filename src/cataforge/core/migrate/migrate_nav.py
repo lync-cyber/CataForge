@@ -1,8 +1,8 @@
 """Migrate legacy ``docs/NAV-INDEX.md`` to ``docs/.doc-index.json``.
 
-Pre-v0.1.13 projects shipped a hand-maintained markdown table at
-``docs/NAV-INDEX.md`` as the canonical document map. From v0.1.13 onwards
-the chapter index is machine-only at ``docs/.doc-index.json`` and rebuilt by
+Projects that shipped a hand-maintained markdown table at
+``docs/NAV-INDEX.md`` can use this migration to convert to the
+machine-only chapter index at ``docs/.doc-index.json``, rebuilt by
 ``cataforge docs index``.
 
 This migration:

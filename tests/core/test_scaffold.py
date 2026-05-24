@@ -59,13 +59,7 @@ def test_copy_scaffold_preserves_project_state_md_on_force(tmp_path: Path) -> No
 
 
 def test_scaffold_stamps_runtime_package_version(tmp_path: Path) -> None:
-    """framework.json version must match the installed cataforge package.
-
-    Regression guard for upgrade convergence: before this fix the scaffold
-    template shipped a hard-coded "0.1.0" that would never match a newer
-    installed wheel, so ``cataforge upgrade check`` reported "differs" even
-    immediately after ``upgrade apply``.
-    """
+    """framework.json version must match the installed cataforge package."""
     from cataforge import __version__
 
     dest = tmp_path / ".cataforge"

@@ -108,7 +108,7 @@ def test_replaces_existing_symlink_unix(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows junction path")
 def test_replaces_existing_junction_windows(tmp_path: Path) -> None:
-    """The v0.3.0 regression scenario: target is already a junction."""
+    """Target is already a junction — must be replaced cleanly."""
     src = _make_source(tmp_path)
     prior_target = tmp_path / "prior"
     prior_target.mkdir()

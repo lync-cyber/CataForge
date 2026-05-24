@@ -48,9 +48,7 @@ class TestSetupCommand:
     ) -> None:
         """Regression: `setup --platform X` must be scaffold-only by default.
 
-        Before the fix, `setup --platform claude-code` silently triggered a
-        full deploy, muddling the five-step pipeline in the manual
-        verification guide.  Now deploy requires explicit opt-in.
+        Deploy requires explicit opt-in; implicit deploy must not happen.
         """
         monkeypatch.chdir(tmp_path)
         result = _invoke("setup", "--platform", "claude-code")
@@ -209,11 +207,7 @@ class TestDeployErrors:
     def test_deploy_without_scaffold_is_friendly(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """No .cataforge/ anywhere — deploy should hint at setup, not crash.
-
-        Before the fix, users hit a raw FileNotFoundError traceback deep
-        inside registry.load_profile. Now the CLI points to `cataforge setup`.
-        """
+        """No .cataforge/ anywhere — deploy should hint at setup, not crash."""
         monkeypatch.chdir(tmp_path)
         runner = CliRunner()
         result = runner.invoke(cli, ["deploy", "--platform", "claude-code"])
