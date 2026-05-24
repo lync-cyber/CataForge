@@ -73,6 +73,8 @@ dependencies = [
     { name = "owlrl" },
     { name = "pydantic" },
     { name = "pyshacl" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
     { name = "pyyaml" },
     { name = "rdflib" },
 ]
@@ -124,7 +126,9 @@ requires-dist = [
     { name = "pyoxigraph", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "pyoxigraph", marker = "extra == 'kg-oxigraph'", specifier = ">=0.4" },
     { name = "pyshacl", specifier = ">=0.25" },
+    { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rdflib", specifier = ">=7.0" },

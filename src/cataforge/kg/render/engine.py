@@ -65,12 +65,18 @@ class _KGGlobal:
         """
         if params or "$" in sparql:
             safe_params = {k: _safe_format_value(v) for k, v in params.items()}
-            try:
-                sparql = Template(sparql).substitute(**safe_params)
-            except KeyError as exc:
+            tpl = Template(sparql)
+            missing = {
+                m.group("named") or m.group("braced")
+                for m in tpl.pattern.finditer(sparql)
+                if (m.group("named") or m.group("braced")) and
+                   (m.group("named") or m.group("braced")) not in safe_params
+            }
+            if missing:
                 raise RenderError(
-                    f"missing template parameter {exc.args[0]!r} for kg.query",
-                ) from exc
+                    f"missing template parameter(s) {sorted(missing)!r} for kg.query",
+                )
+            sparql = tpl.safe_substitute(**safe_params)
         prefix_header = "\n".join(f"PREFIX {p}: <{iri}>" for p, iri in NAMESPACES.items())
         return self._store.query(prefix_header + "\n" + sparql)
 

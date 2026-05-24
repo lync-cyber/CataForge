@@ -13,6 +13,7 @@ from cataforge.kg.ontology import (
     BUILTIN_SHAPE_FILES,
     NAMESPACES,
     OntologyError,
+    _read_builtin_ttl,
     bind_namespaces,
     builtin_ttl_path,
     load_framework_kg_config,
@@ -43,6 +44,18 @@ def test_builtin_ttl_paths_exist() -> None:
     for stem in BUILTIN_ONTOLOGY_FILES + BUILTIN_SHAPE_FILES:
         path = builtin_ttl_path(stem)
         assert path.is_file()
+
+
+def test_read_builtin_ttl_returns_turtle_bytes() -> None:
+    data = _read_builtin_ttl("kernel")
+    assert isinstance(data, bytes)
+    assert len(data) > 0
+    assert b"@prefix" in data or b"@base" in data or b"owl:" in data
+
+
+def test_read_builtin_ttl_missing_stem_raises() -> None:
+    with pytest.raises(OntologyError):
+        _read_builtin_ttl("does-not-exist")
 
 
 def test_load_framework_kg_config_missing(tmp_project: Path) -> None:
@@ -139,7 +152,8 @@ def test_l3_ontology_file_loaded(tmp_project: Path) -> None:
         "PREFIX owl: <http://www.w3.org/2002/07/owl#>\n"
         "SELECT ?c WHERE { ?c a owl:Class . FILTER (?c = myproj:Persona) }",
     ))
-    assert rows
+    assert len(rows) == 1, "Persona class must appear exactly once in the merged graph"
+    assert "myproj#Persona" in str(rows[0][0]), f"unexpected IRI: {rows[0][0]}"
 
 
 def test_load_shapes_combines_three_files(builtin_shapes: Graph) -> None:

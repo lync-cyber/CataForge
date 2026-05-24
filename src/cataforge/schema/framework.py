@@ -2,9 +2,7 @@
 
 All nested models use ``extra='allow'`` so user-authored fields (e.g.
 ``upgrade.source.branch`` / ``upgrade.source.token_env`` / ``upgrade.state.*``)
-survive a Pydantic validate → dump round-trip intact. Historically these
-models used ``extra='ignore'`` which silently dropped any field not declared
-below, turning a ``set_runtime_platform`` call into a lossy rewrite.
+survive a Pydantic validate → dump round-trip intact.
 """
 
 from __future__ import annotations

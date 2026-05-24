@@ -22,6 +22,7 @@ from cataforge.kg.migrate import migrate
 from cataforge.kg.ontology import load_shapes
 from cataforge.kg.reasoning import validate as reasoning_validate
 from cataforge.kg.store import (
+    INFERRED_GRAPH_IRI,
     INSTANCES_FILENAME,
     RDFLibStore,
     Triple,
@@ -160,7 +161,11 @@ def test_idempotent_repeat_ingest_produces_empty_delta(
     migrate(three_doc_project, validate=False)
     store = RDFLibStore()
     store.load(three_doc_project)
-    kg_triples = [_curie_triple(s, p, o) for s, p, o, _ in store]
+    kg_triples = [
+        _curie_triple(s, p, o)
+        for s, p, o, g in store
+        if g != INFERRED_GRAPH_IRI
+    ]
 
     result = ingest_markdown(
         three_doc_project / "docs" / "prd.md",
@@ -179,9 +184,10 @@ def test_full_rebuild_within_budget(three_doc_project: Path) -> None:
     results = run_benchmarks(three_doc_project, budget=DEFAULT_BUDGET)
     full = next((r for r in results if r.name == "full_rebuild"), None)
     assert full is not None
-    # We don't gate on a hard ms number — host variance makes that flap.
-    # WARN is allowed; FAIL never; smoke-test the status surface only.
+    # WARN is allowed; smoke-test the status surface only.
     assert full.status in {"OK", "WARN"}
+    # Hard upper bound: catastrophic hangs must never pass silently.
+    assert full.elapsed_ms < 60_000, f"full_rebuild took {full.elapsed_ms:.0f}ms — runaway"
 
 
 def test_rollback_restores_pre_migration_state(

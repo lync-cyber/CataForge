@@ -18,7 +18,7 @@ def resolve_project_dir() -> Path | None:
     ``None``)."""
     try:
         ctx = click.get_current_context(silent=True)
-    except Exception:
+    except RuntimeError:
         return None
     if ctx is None or not isinstance(getattr(ctx, "obj", None), dict):
         return None

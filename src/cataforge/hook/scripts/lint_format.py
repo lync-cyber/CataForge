@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from cataforge.hook.base import hook_main, matches_script_filters, read_hook_input
 
@@ -28,7 +29,7 @@ def run_tool(cmd: list[str], label: str, filepath: str) -> None:
                 print(f"[{label}] Issues in: {filepath}", file=sys.stderr)
                 for line in lines[:10]:
                     print(f"  {line}", file=sys.stderr)
-    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+    except Exception:
         pass
 
 
@@ -89,7 +90,7 @@ def main() -> None:
             )
 
     elif ext == ".md":
-        if "/.cataforge/" in file_path or "\\.cataforge\\" in file_path:
+        if ".cataforge" in Path(file_path).parts:
             pass
         elif _has_command("npx"):
             run_tool(

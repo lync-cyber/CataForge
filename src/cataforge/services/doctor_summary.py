@@ -49,8 +49,9 @@ def collect_doctor_summary(project_root: Path) -> dict[str, Any]:
     text = result.output or ""
     out["exit_code"] = result.exit_code
     out["full"] = text
-    out["fails"] = _DOCTOR_FAIL_RE.findall(text) and [
-        line for line in text.splitlines() if _DOCTOR_FAIL_RE.match(line)
-    ] or []
+    if _DOCTOR_FAIL_RE.search(text):
+        out["fails"] = [line for line in text.splitlines() if _DOCTOR_FAIL_RE.match(line)]
+    else:
+        out["fails"] = []
     out["warns"] = [line for line in text.splitlines() if _DOCTOR_WARN_RE.match(line)]
     return out

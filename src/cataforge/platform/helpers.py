@@ -12,6 +12,48 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from cataforge.cli.errors import CataforgeError
+
+
+def _prune_orphan_flat_files(
+    directory: Path,
+    known_names: set[str],
+    suffix: str,
+    head_signature: str,
+    target_rel: str,
+    *,
+    head_read_size: int = 512,
+    dry_run: bool = False,
+) -> list[str]:
+    """Prune flat files in *directory* that are orphans of a deploy pass.
+
+    Only removes files whose stem is absent from *known_names* **and** whose
+    first *head_read_size* bytes contain *head_signature* (with ``{stem}``
+    replaced by the file's stem).  Files that fail this ownership check are
+    left untouched regardless of their extension.
+
+    Returns action strings suitable for appending to a caller's actions list.
+    """
+    actions: list[str] = []
+    if not directory.is_dir():
+        return actions
+    for existing in directory.iterdir():
+        if (
+            not existing.is_file()
+            or existing.suffix != suffix
+            or existing.stem in known_names
+        ):
+            continue
+        head = existing.read_text(encoding="utf-8", errors="ignore")[:head_read_size]
+        if head_signature.format(stem=existing.stem) not in head:
+            continue
+        if dry_run:
+            actions.append(f"would prune orphan {target_rel}/{existing.name}")
+        else:
+            existing.unlink()
+            actions.append(f"pruned orphan {target_rel}/{existing.name}")
+    return actions
+
 
 def _remove_target(target: Path) -> None:
     """Idempotently remove ``target`` whether file, dir, symlink, or junction.
@@ -110,8 +152,15 @@ def merge_json_key(
     if path.is_file():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            data = {}
+        except json.JSONDecodeError as exc:
+            raise CataforgeError(
+                f"existing config corrupted (cannot merge): {path} ({exc}). "
+                f"Fix or remove the file and retry."
+            ) from exc
+        except OSError as exc:
+            raise CataforgeError(
+                f"cannot read existing config: {path} ({exc})."
+            ) from exc
     else:
         data = {}
 
@@ -173,8 +222,15 @@ def merge_opencode_project_mcp(
             raw = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(raw, dict):
                 data = raw
-        except (json.JSONDecodeError, OSError):
-            data = {}
+        except json.JSONDecodeError as exc:
+            raise CataforgeError(
+                f"existing config corrupted (cannot merge): {path} ({exc}). "
+                f"Fix or remove the file and retry."
+            ) from exc
+        except OSError as exc:
+            raise CataforgeError(
+                f"cannot read existing config: {path} ({exc})."
+            ) from exc
 
     mcp = data.setdefault("mcp", {})
     mcp[server_id] = mcp_entry
@@ -194,7 +250,12 @@ def merge_codex_mcp_server(
     if dry_run:
         return [f"would merge mcp_servers.{server_id} → {path}"]
 
-    existing = path.read_text(encoding="utf-8") if path.is_file() else ""
+    try:
+        existing = path.read_text(encoding="utf-8") if path.is_file() else ""
+    except OSError as exc:
+        raise CataforgeError(
+            f"cannot read existing config: {path} ({exc})."
+        ) from exc
     section = _render_codex_mcp_section(server_id, server_config)
     merged = _replace_toml_mcp_section(existing, server_id, section)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -223,7 +284,11 @@ def _replace_toml_mcp_section(existing: str, server_id: str, section: str) -> st
             break
 
     if start is not None:
-        assert end is not None
+        if end is None:
+            raise RuntimeError(
+                f"malformed TOML: found '[mcp_servers.{server_id}]' start at line"
+                f" {start + 1} but no closing section or EOF marker resolved"
+            )
         new_lines = lines[:start] + lines[end:]
         existing = "\n".join(new_lines).strip()
 

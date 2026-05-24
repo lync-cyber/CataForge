@@ -26,23 +26,24 @@ import contextlib
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from cataforge.hook.base import hook_main, matches_script_filters, read_hook_input
 
 
 def _is_markdown_under_docs(file_path: str) -> bool:
     """True for project ``docs/**/*.md`` files; False for everything else."""
-    norm = file_path.replace("\\", "/")
-    if not norm.endswith(".md"):
+    parts = Path(file_path).parts
+    if not file_path.endswith(".md"):
         return False
     # ``.doc-graph`` lives under docs/ but is the KG store itself; ingesting
     # the store back into itself would deadlock the merge.
-    if "/.doc-graph/" in norm:
+    if ".doc-graph" in parts:
         return False
     # Templates and skill assets are not consumer-edited docs.
-    if "/.cataforge/" in norm:
+    if ".cataforge" in parts:
         return False
-    return "/docs/" in norm or norm.startswith("docs/")
+    return "docs" in parts
 
 
 @hook_main
@@ -71,12 +72,10 @@ def main() -> None:
     # runtime down. 30-second timeout matches lint_format — same risk
     # class. Quiet-fail per R-16: the user discovers issues via
     # `cataforge doctor` or `cataforge kg conflicts`.
-    with contextlib.suppress(
-        FileNotFoundError, subprocess.TimeoutExpired, Exception,
-    ):
+    with contextlib.suppress(Exception):
         subprocess.run(
             [
-                sys.executable, "-m", "cataforge.cli.main",
+                sys.executable, "-m", "cataforge",
                 "kg", "ingest", "--auto", "--file", file_path,
             ],
             capture_output=True,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -15,6 +16,8 @@ from cataforge.cli.errors import CataforgeError, ConfigError
 from cataforge.cli.guards import require_initialized
 from cataforge.cli.helpers import get_config_manager, resolve_root
 from cataforge.cli.main import cli
+
+_SHELL_META_RE = re.compile(r"[;&|`$<>(){}\\\n]")
 
 
 @cli.group("hook")
@@ -152,8 +155,9 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
     # (``C:\Program Files\Python314\python.exe``). We therefore run the
     # ``python -m ...`` form as an argv *list* with ``shell=False`` so
     # the space-in-path is not re-parsed by cmd.exe. Custom commands
-    # keep the legacy ``shell=True`` branch so users can still use pipes
-    # and redirects in their hook scripts.
+    # use ``shell=False`` + shlex.split by default; set ``unsafe_shell: true``
+    # in the hook entry to opt in to shell=True (user accepts responsibility).
+    unsafe_shell = _hook_has_unsafe_shell(root, hook_name)
     if command.startswith("python "):
         argv = [sys.executable, *shlex.split(command[len("python "):])]
         proc_kwargs: dict[str, object] = {"args": argv, "shell": False}
@@ -167,8 +171,16 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
         # the package's parent dir through ``PYTHONPATH`` so those setups
         # don't silently give ``No module named 'cataforge'``.
         proc_kwargs["env"] = _child_env_with_cataforge_importable()
-    else:
+    elif unsafe_shell:
         proc_kwargs = {"args": command, "shell": True}
+        display = command
+    else:
+        if _SHELL_META_RE.search(command):
+            raise CataforgeError(
+                f"hook command contains shell metacharacters: {command!r}\n"
+                "Set unsafe_shell: true in the hook entry to allow shell interpretation."
+            )
+        proc_kwargs = {"args": shlex.split(command), "shell": False}
         display = command
 
     click.echo(f"Hook    : {hook_name}")
@@ -237,6 +249,11 @@ def _child_env_with_cataforge_importable() -> dict[str, str]:
 
 def _resolve_hook_command(root: Path, hook_name: str) -> str | None:
     """Return the shell command that invokes *hook_name*, or None."""
+    if not re.fullmatch(r"[a-zA-Z0-9_]+", hook_name):
+        raise CataforgeError(
+            f"invalid hook name: {hook_name!r} (must match [a-zA-Z0-9_]+)"
+        )
+
     from cataforge.hook.bridge import _resolve_command, load_hooks_spec
 
     try:
@@ -269,6 +286,24 @@ def _resolve_hook_command(root: Path, hook_name: str) -> str | None:
         return f"python -m cataforge.hook.scripts.{hook_name}"
 
     return None
+
+
+def _hook_has_unsafe_shell(root: Path, hook_name: str) -> bool:
+    """Return True if the hook entry in hooks.yaml has ``unsafe_shell: true``."""
+    from cataforge.hook.bridge import load_hooks_spec
+
+    try:
+        spec = load_hooks_spec()
+    except (OSError, ValueError):
+        return False
+
+    for event_hooks in (spec.get("hooks") or {}).values():
+        for entry in event_hooks or []:
+            declared = str(entry.get("script", ""))
+            normalised = declared.replace(".py", "")
+            if normalised == hook_name or normalised == f"custom:{hook_name}":
+                return bool(entry.get("unsafe_shell", False))
+    return False
 
 
 def _interpret_exit(code: int) -> str:

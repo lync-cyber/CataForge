@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import fnmatch
+import functools
 import json
 import logging
 import os
@@ -279,6 +280,7 @@ def _rotate_if_too_large(log_path: Path) -> None:
 # ---- schema v2 filter evaluation ---------------------------------------
 
 
+@functools.cache
 def _spec_entry_for_script(script_name: str) -> dict[str, Any] | None:
     """Locate the hooks.yaml entry for ``script_name``.
 
@@ -287,6 +289,9 @@ def _spec_entry_for_script(script_name: str) -> dict[str, Any] | None:
     runtime because no IDE hook config supports them natively.  This helper
     reads the canonical spec and returns the raw entry (or ``None`` when
     the script is not declared, in which case all filters are "off").
+
+    Results are cached per-process so repeated filter evaluations within a
+    single hook invocation do not re-read and re-parse hooks.yaml.
     """
     try:
         from cataforge.hook.bridge import load_hooks_spec

@@ -160,7 +160,22 @@ def find_available_port(start_port: int, label: str = "") -> int:
 
 def load_dotenv(path: str | Path | None = None, *, set_env: bool = False) -> dict[str, str]:
     """Load a .env file into a dict. Optionally set into os.environ."""
-    path = Path.cwd() / ".env" if path is None else Path(path)
+    cwd = Path.cwd()
+    path = cwd / ".env" if path is None else Path(path).resolve()
+
+    try:
+        if not path.is_relative_to(cwd):
+            raise ValueError(
+                f"load_dotenv: path is outside the working directory: {path}"
+            )
+    except AttributeError:
+        # Python < 3.9 fallback
+        try:
+            path.relative_to(cwd)
+        except ValueError:
+            raise ValueError(
+                f"load_dotenv: path is outside the working directory: {path}"
+            ) from None
 
     result: dict[str, str] = {}
     if not path.is_file():

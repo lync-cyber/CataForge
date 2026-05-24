@@ -439,7 +439,7 @@ def bug_command(
             skip_framework_review=skip_framework_review,
         )
     except Exception as e:
-        raise CataforgeError(f"failed to assemble bug bundle: {e}") from None
+        raise CataforgeError(f"failed to assemble bug bundle: {e}") from e
     _emit(
         body,
         project_root=project_root,
@@ -482,7 +482,7 @@ def suggest_command(
             include_paths=include_paths,
         )
     except Exception as e:
-        raise CataforgeError(f"failed to assemble suggestion bundle: {e}") from None
+        raise CataforgeError(f"failed to assemble suggestion bundle: {e}") from e
     _emit(
         body,
         project_root=project_root,
@@ -563,7 +563,7 @@ def correction_export_command(
     except Exception as e:
         raise CataforgeError(
             f"failed to assemble correction-export bundle: {e}"
-        ) from None
+        ) from e
     _emit(
         body,
         project_root=project_root,

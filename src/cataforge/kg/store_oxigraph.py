@@ -22,6 +22,7 @@ from typing import Any
 
 from cataforge.kg.ontology import NAMESPACES
 from cataforge.kg.store import (
+    INFERRED_GRAPH_IRI,
     GraphStore,
     StoreError,
     Triple,
@@ -78,7 +79,11 @@ class OxigraphStore(GraphStore):
             self._oxi.dump(fh, _pyoxi.RdfFormat.N_QUADS)
 
     def _snapshot_file(self) -> Path:
-        assert self._project_root is not None
+        if self._project_root is None:
+            raise StoreError(
+                "OxigraphStore._snapshot_file() requires project_root; "
+                "call load() first."
+            )
         return (
             self._project_root / "docs" / ".doc-graph" / "oxigraph" / "snapshot.nq"
         )
@@ -149,6 +154,26 @@ class OxigraphStore(GraphStore):
         )
         self._oxi.update(prefix_header + "\n" + sparql_update)
 
+    def apply_inference(self, triples: Iterable[tuple]) -> int:
+        """Persist derived triples into ``INFERRED_GRAPH_IRI``; return new-triple count."""
+        import pyoxigraph as _pyoxi
+        from rdflib import Literal as _RdflibLiteral
+
+        graph_node = _pyoxi.NamedNode(INFERRED_GRAPH_IRI)
+        count = 0
+        for s, p, o in triples:
+            oxi_s = _pyoxi.NamedNode(str(s))
+            oxi_p = _pyoxi.NamedNode(str(p))
+            if isinstance(o, _RdflibLiteral):
+                oxi_o = _pyoxi.Literal(str(o))
+            else:
+                oxi_o = _pyoxi.NamedNode(str(o))
+            quad = _pyoxi.Quad(oxi_s, oxi_p, oxi_o, graph_node)
+            if quad not in self._oxi:
+                self._oxi.add(quad)
+                count += 1
+        return count
+
     def validate(
         self, shape_graph: str | Path | None = None,
     ) -> ValidationReport:
@@ -196,9 +221,10 @@ class OxigraphStore(GraphStore):
         return sum(1 for _ in self._oxi)
 
     def __iter__(self) -> Iterator[tuple[str, str, str, str | None]]:
+        import pyoxigraph as _pyoxi
         for quad in self._oxi:
             obj = quad.object
-            obj_str = str(obj.value) if hasattr(obj, "value") else str(obj)
+            obj_str = obj.value if isinstance(obj, _pyoxi.Literal) else str(obj.value)
             g = quad.graph_name
             graph_str = (
                 str(g.value)

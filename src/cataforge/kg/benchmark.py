@@ -16,8 +16,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from rdflib import Literal, URIRef
-
 from cataforge.kg.ontology import load_ontology, load_shapes
 from cataforge.kg.reasoning import infer
 from cataforge.kg.store import RDFLibStore, Triple
@@ -147,13 +145,7 @@ def benchmark_owl_rl_infer(project_root: Path, triples: int) -> BenchmarkResult:
     store = RDFLibStore()
     store.load(project_root)
     _populate(store, triples)
-    # Pull into a plain Graph for infer() — synth triples land in the
-    # default graph, so iterating the store gives us those plus the
-    # ontology axioms (which we exclude by re-passing them separately).
-    from rdflib import Graph
-    data = Graph()
-    for s, p, o, _g in store:
-        data.add((URIRef(s), URIRef(p), Literal(o) if not o.startswith("http") else URIRef(o)))
+    data = store._dataset.default_graph
     t0 = time.perf_counter()
     derived = infer(data, onto)
     elapsed_ms = (time.perf_counter() - t0) * 1000

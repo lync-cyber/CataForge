@@ -36,6 +36,7 @@ SCHEMA_VERSION = "1"
 GRAPH_DIRNAME = ".doc-graph"
 INSTANCES_FILENAME = "instances.nq"
 META_FILENAME = "_meta.json"
+INFERRED_GRAPH_IRI = "urn:cataforge:inferred"
 
 
 class Triple(NamedTuple):
@@ -144,6 +145,11 @@ class GraphStore(ABC):
         self,
         shape_graph: str | Path | None = None,
     ) -> ValidationReport: ...
+
+    @abstractmethod
+    def apply_inference(self, triples: Iterable[tuple]) -> int:
+        """Persist derived triples into ``INFERRED_GRAPH_IRI``; return new-triple count."""
+        ...
 
     @abstractmethod
     def __len__(self) -> int: ...
@@ -273,14 +279,15 @@ class RDFLibStore(GraphStore):
         return rows
 
     def update(self, sparql_update: str) -> None:
-        # rdflib 7.x Dataset.update mis-handles INSERT DATA blocks that
-        # omit an explicit GRAPH clause: the parser emits 3-tuples while
-        # Dataset.addN demands 4-tuples, surfacing as "expected 4, got 3".
-        # Delegating to the default-graph Graph object bypasses the quad
-        # adapter; named-graph mutations should be expressed via the
-        # add() / remove() API or by passing an explicit GRAPH clause and
-        # calling the dataset directly through namespace_manager().
         self._dataset.default_graph.update(sparql_update)
+
+    def apply_inference(self, triples: Iterable[tuple]) -> int:
+        """Persist derived triples into ``INFERRED_GRAPH_IRI``; return new-triple count."""
+        graph = self._dataset.graph(URIRef(INFERRED_GRAPH_IRI))
+        before = len(graph)
+        for stmt in triples:
+            graph.add(stmt)
+        return len(graph) - before
 
     def validate(
         self,

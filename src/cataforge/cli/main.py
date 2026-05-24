@@ -161,3 +161,11 @@ def _register_commands() -> None:
 
 
 _register_commands()
+
+# No `if __name__ == "__main__": cli()` here — running this module as a
+# script (``python -m cataforge.cli.main``) loads it as ``__main__`` while
+# subcommand modules import ``cli`` via ``from cataforge.cli.main import
+# cli``, which re-imports the module under its canonical name and creates
+# a second ``cli`` instance. Subcommands register on that second instance
+# but ``__main__.cli()`` runs on the first, silently dropping them. Use
+# ``python -m cataforge`` (via ``src/cataforge/__main__.py``) instead.

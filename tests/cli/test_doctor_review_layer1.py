@@ -48,8 +48,7 @@ def test_doctor_passes_when_project_override_merges_builtin(
 ) -> None:
     """A project-level SKILL.md with no scripts/ must still resolve via
     the loader's builtin-fallback merge — covers code-review (review skill)
-    and task-dep-analysis (formerly dep-analysis, the post-fix regression
-    target — renamed in v0.1.15)."""
+    and task-dep-analysis."""
     from cataforge.skill.loader import SkillLoader
 
     root = _project(tmp_path)

@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from cataforge.core.event_log import (
     EVENT_LOG_REL,
+    MAX_EVENTLOG_BYTES,
     EventLogError,
     append_batch,
     append_event,
@@ -187,6 +189,28 @@ class TestAppendBatch:
     def test_empty_batch_rejected(self, tmp_path: Path) -> None:
         with pytest.raises(EventLogError, match="empty"):
             append_batch(tmp_path, [])
+
+    def test_oversized_log_uses_fallback_append(self, tmp_path: Path) -> None:
+        log = tmp_path / EVENT_LOG_REL
+        log.parent.mkdir(parents=True)
+        log.write_bytes(b"x" * (MAX_EVENTLOG_BYTES + 1))
+        record = build_record(event="phase_start", phase="x", detail="new")
+        with patch("cataforge.core.event_log.logger") as mock_log:
+            append_batch(tmp_path, [record])
+            assert mock_log.warning.called
+        content = log.read_bytes()
+        assert b'"new"' in content
+
+    def test_at_limit_log_uses_atomic_path(self, tmp_path: Path) -> None:
+        log = tmp_path / EVENT_LOG_REL
+        log.parent.mkdir(parents=True)
+        log.write_bytes(b"x" * MAX_EVENTLOG_BYTES)
+        record = build_record(event="phase_start", phase="x", detail="atomic")
+        with patch("cataforge.core.event_log.logger") as mock_log:
+            append_batch(tmp_path, [record])
+            assert not mock_log.warning.called
+        content = log.read_bytes()
+        assert b'"atomic"' in content
 
 
 class TestParseBatchStream:

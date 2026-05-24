@@ -499,3 +499,78 @@ class TestClose:
         assert result.exit_code == 0, result.output
         assert "Fixed in v" in result.output
         assert "Triage: docs/reviews/triage/foo.md" in result.output
+
+
+class TestGhFailurePaths:
+    def test_triage_surfaces_gh_rate_limit_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
+
+        def fake_run(cmd, **kwargs):  # noqa: ANN001
+            raise subprocess.CalledProcessError(
+                returncode=1,
+                cmd=cmd,
+                output="",
+                stderr="error: API rate limit exceeded",
+            )
+
+        monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+        result = CliRunner().invoke(triage_command, ["--repo", "fake/repo"])
+        assert result.exit_code != 0
+        assert "rate limit" in result.output
+
+    def test_close_surfaces_gh_auth_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
+
+        def fake_run(cmd, **kwargs):  # noqa: ANN001
+            raise subprocess.CalledProcessError(
+                returncode=1,
+                cmd=cmd,
+                output="",
+                stderr="error: authentication required",
+            )
+
+        monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+        result = CliRunner().invoke(
+            close_command,
+            ["104", "--verdict", "fixed", "--pr", "108", "--repo", "fake/repo"],
+        )
+        assert result.exit_code != 0
+        assert "authentication" in result.output
+
+
+class TestTriageGhParams:
+    def test_gh_cmd_carries_repo_json_state_flags(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        captured: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):  # noqa: ANN001
+            captured.append(list(cmd))
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout="[]", stderr=""
+            )
+
+        monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+        monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
+        result = CliRunner().invoke(
+            triage_command, ["--repo", "fake/repo", "--dry-run"]
+        )
+        assert result.exit_code == 0, result.output
+        assert len(captured) >= 1
+        cmd = captured[0]
+        assert cmd[0] == "gh"
+        assert "-R" in cmd
+        repo_idx = cmd.index("-R")
+        assert cmd[repo_idx + 1] == "fake/repo"
+        assert "--json" in cmd
+        assert "--state" in cmd

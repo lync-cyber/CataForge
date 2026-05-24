@@ -5,11 +5,17 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from cataforge.core.corrections import record_correction
-from cataforge.core.event_log import EVENT_LOG_REL, append_event, build_record
+from cataforge.core.event_log import (
+    EVENT_LOG_REL,
+    MAX_EVENTLOG_BYTES,
+    append_event,
+    build_record,
+)
 from cataforge.core.feedback import (
     UPSTREAM_GAP,
     assemble_bug,
@@ -152,6 +158,16 @@ class TestRecentEvents:
         events = collect_recent_events(project)
         assert len(events) == 1
         assert events[0]["detail"] == "good"
+
+    def test_oversized_log_returns_empty_and_warns(self, tmp_path: Path) -> None:
+        project = _bootstrap(tmp_path)
+        log = project / EVENT_LOG_REL
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_bytes(b"x" * (MAX_EVENTLOG_BYTES + 1))
+        with patch("cataforge.core.feedback.logger") as mock_log:
+            events = collect_recent_events(project)
+            assert mock_log.warning.called
+        assert events == []
 
 
 # ─── corrections aggregator ───────────────────────────────────────────────────
@@ -351,11 +367,9 @@ class TestRedactCrossPlatform:
 class TestRenderFrontMatter:
     """All three assemblers must prepend a doc-indexer-compatible YAML block.
 
-    Regression for issue #115 P5: before the fix, `cataforge feedback ... --out`
-    wrote a body whose first non-blank line was `<!-- generated ... -->`. The
-    project-level `docs validate` then flagged the file as orphan because it
-    lacked `doc_type` / `status` / `id`, breaking the `--out` sink for any
-    project that runs validation.
+    The --out flag must write a body whose first non-blank line is valid YAML
+    front matter containing ``doc_type`` / ``status`` / ``id``; otherwise
+    ``docs validate`` flags the output as an orphan.
     """
 
     @staticmethod

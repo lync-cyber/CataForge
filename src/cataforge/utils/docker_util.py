@@ -20,7 +20,16 @@ from cataforge.utils.common import detect_platform, fail, has_command, info, ok
 DOCKER_PULL_TIMEOUT = 300
 PULL_MAX_RETRIES = 3
 
-PLATFORM = detect_platform()
+
+def _platform() -> str:
+    """Return the current platform string, evaluated on first call."""
+    return detect_platform()
+
+
+def __getattr__(name: str) -> object:
+    if name == "PLATFORM":
+        return detect_platform()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def ensure_docker_running() -> bool:
@@ -42,7 +51,7 @@ def ensure_docker_running() -> bool:
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
 
-    if PLATFORM == "windows":
+    if _platform() == "windows":
         docker_paths = [
             os.path.join(
                 os.environ.get("PROGRAMFILES", ""),
@@ -59,7 +68,7 @@ def ensure_docker_running() -> bool:
                     flags = subprocess.CREATE_NEW_PROCESS_GROUP
                 subprocess.Popen([p], creationflags=flags)
                 break
-    elif PLATFORM == "darwin":
+    elif _platform() == "darwin":
         subprocess.run(["open", "-a", "Docker"], capture_output=True, timeout=10)
     else:
         subprocess.run(

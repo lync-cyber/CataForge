@@ -397,13 +397,22 @@ def _split_frontmatter(text: str) -> tuple[dict[str, Any], str, str]:
     / ordering. The parsed dict drives the kg_adapter merge decision."""
     if not text.startswith(_FRONTMATTER_DELIM):
         raise AdapterMigrationError("file does not start with YAML frontmatter")
-    end = text.find(f"\n{_FRONTMATTER_DELIM}\n", len(_FRONTMATTER_DELIM))
-    if end == -1:
+    _close_lf = f"\n{_FRONTMATTER_DELIM}\n"
+    _close_crlf = f"\n{_FRONTMATTER_DELIM}\r\n"
+    end_lf = text.find(_close_lf, len(_FRONTMATTER_DELIM))
+    end_crlf = text.find(_close_crlf, len(_FRONTMATTER_DELIM))
+    if end_lf == -1 and end_crlf == -1:
         raise AdapterMigrationError(
             "frontmatter delimiter `---` not closed"
         )
+    if end_lf != -1 and (end_crlf == -1 or end_lf <= end_crlf):
+        end = end_lf
+        body_start = end + len(_close_lf)
+    else:
+        end = end_crlf
+        body_start = end + len(_close_crlf)
     raw = text[len(_FRONTMATTER_DELIM):end]
-    body = text[end + len(_FRONTMATTER_DELIM) + 2:]
+    body = text[body_start:]
     try:
         data = yaml.safe_load(raw) or {}
     except yaml.YAMLError as exc:

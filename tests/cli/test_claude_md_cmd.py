@@ -63,6 +63,20 @@ class TestCheckCommand:
         assert result.exit_code == 1
         assert "registry exceeds max" in result.output
 
+    def test_overflow_renders_via_cataforge_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(
+            tmp_path,
+            learnings=[f"e{i}" for i in range(10)],
+            limits={"learnings_registry_max_entries": 2},
+        )
+        monkeypatch.chdir(project)
+        result = CliRunner().invoke(check_command, [])
+        assert result.exit_code == 1
+        assert "Error:" in result.output
+        assert "limits exceeded" in result.output
+
     def test_missing_claude_md_is_informational(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

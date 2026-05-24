@@ -20,7 +20,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from cataforge.kg.ingest.markdown import IngestResult, ingest_markdown
-from cataforge.kg.ontology import load_shapes
+from cataforge.kg.ontology import load_ontology, load_shapes
+from cataforge.kg.reasoning import infer
 from cataforge.kg.reasoning import validate as reasoning_validate
 from cataforge.kg.store import RDFLibStore, graph_dir_for
 
@@ -39,6 +40,7 @@ class MigrationReport:
     files_processed: int = 0
     files_skipped: int = 0
     triples_written: int = 0
+    inferred_triples: int = 0
     per_file: dict[str, int] = field(default_factory=dict)
     skipped_files: list[str] = field(default_factory=list)
     shacl_conforms: bool = True
@@ -53,6 +55,7 @@ class MigrationReport:
             f"files processed : {self.files_processed}",
             f"files skipped   : {self.files_skipped}",
             f"triples written : {self.triples_written}",
+            f"inferred triples: {self.inferred_triples}",
         ]
         if self.backup_path:
             lines.append(f"backup          : {self.backup_path}")
@@ -196,10 +199,17 @@ def migrate(
             triple_count += len(r.triples)
     store.persist()
 
+    onto = load_ontology(root, include_l3=True, strict=False)
+    derived = infer(store._dataset.default_graph, onto)
+    inferred_count = store.apply_inference(derived)
+    if inferred_count:
+        store.persist()
+
     report = MigrationReport(
         files_processed=len(results),
         files_skipped=len(skipped),
         triples_written=triple_count,
+        inferred_triples=inferred_count,
         per_file=per_file,
         skipped_files=[
             str(p.resolve().relative_to(root)).replace("\\", "/")

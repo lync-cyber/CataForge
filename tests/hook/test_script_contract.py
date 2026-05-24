@@ -16,6 +16,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
 import yaml
 
 HOOKS_YAML = (
@@ -76,7 +77,7 @@ def test_block_scripts_do_not_use_hook_main() -> None:
             continue
         path = SCRIPTS_DIR / f"{script}.py"
         if not path.is_file():
-            continue
+            pytest.fail(f"declared block script {path} not found on disk")
         if _uses_hook_main(path):
             offenders.append(script)
     assert not offenders, (
@@ -95,7 +96,7 @@ def test_observe_scripts_use_hook_main() -> None:
             continue
         path = SCRIPTS_DIR / f"{script}.py"
         if not path.is_file():
-            continue
+            pytest.fail(f"declared observe script {path} not found on disk")
         if not _uses_hook_main(path):
             offenders.append(script)
     assert not offenders, (

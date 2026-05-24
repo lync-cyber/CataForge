@@ -32,6 +32,7 @@ def _run_script(payload: dict[str, object]) -> subprocess.CompletedProcess:
 def doc_project(tmp_path: Path) -> Path:
     """A scaffold with a single ingestable markdown under docs/."""
     (tmp_path / "docs").mkdir()
+    (tmp_path / ".cataforge").mkdir()
     md = tmp_path / "docs" / "prd-acme.md"
     md.write_text(textwrap.dedent("""\
         ---
@@ -122,3 +123,29 @@ def test_ingests_valid_docs_file(doc_project: Path) -> None:
     )
     # Quiet-fail: always exit 0 even if ingest had subtle issues.
     assert result.returncode == 0
+    nq = doc_project / "docs" / ".doc-graph" / "instances.nq"
+    assert nq.exists(), "hook subprocess must produce instances.nq for valid docs file"
+    assert "prd-acme" in nq.read_text(encoding="utf-8")
+
+
+def test_ingest_writes_instances_nq(doc_project: Path) -> None:
+    """Verify that a docs/*.md file with frontmatter id is written to instances.nq."""
+    from cataforge.kg.delta import apply as delta_apply
+    from cataforge.kg.delta import compute_delta
+    from cataforge.kg.ingest.markdown import ingest_markdown
+    from cataforge.kg.store import RDFLibStore
+
+    md = doc_project / "docs" / "prd-acme.md"
+    store = RDFLibStore()
+    store.load(doc_project)
+    result = ingest_markdown(md, project_root=doc_project)
+    assert result.document is not None, "prd-acme.md must parse a document node"
+    scope = {result.document.iri} | {it.iri for it in result.items}
+    delta = compute_delta([], result.triples, subject_scope=scope)
+    delta_apply(delta, store, strategy="kg-wins")
+    store.persist()
+
+    nq = doc_project / "docs" / ".doc-graph" / "instances.nq"
+    assert nq.exists(), "instances.nq must be written after ingest"
+    content = nq.read_text(encoding="utf-8")
+    assert "prd-acme" in content, "instances.nq must contain the ingested document IRI"
