@@ -6,6 +6,28 @@ from pathlib import Path
 
 import click
 
+# Single source of truth for "what does CataForge own under each platform?"
+# Shared with :mod:`deploy_integrity` so the informational report and the
+# hard gate cannot drift apart.
+_OWNED_DIRS_BY_PLATFORM: dict[str, list[str]] = {
+    "claude-code": [
+        ".claude/agents",
+        ".claude/rules",
+        ".claude/skills",
+        ".claude/commands",
+        ".claude/settings.json",
+    ],
+    "cursor": [
+        ".cursor/agents",
+        ".cursor/rules",
+        ".cursor/hooks.json",
+        ".cursor/mcp.json",
+        ".cursor/commands",
+    ],
+    "codex": [".codex/agents", ".codex/hooks.json", ".codex/config.toml"],
+    "opencode": [".opencode/agents", ".opencode/plugins", "opencode.json"],
+}
+
 
 def report_deployment_provenance(cfg) -> None:
     """Show which platform directories were created by the last deploy.
@@ -36,19 +58,9 @@ def report_deployment_provenance(cfg) -> None:
     click.echo(f"  Last deploy target: {platform_id}")
 
     # Map platform → directories CataForge *may* own under that platform.
-    # The list is a stable, well-known subset rather than an introspected
-    # adapter result (which would require instantiation).
-    owned: dict[str, list[str]] = {
-        "claude-code": [".claude/agents", ".claude/rules", ".claude/skills",
-                        ".claude/commands", ".claude/settings.json"],
-        "cursor": [".cursor/agents", ".cursor/rules", ".cursor/hooks.json",
-                   ".cursor/mcp.json", ".cursor/commands"],
-        "codex": [".codex/agents", ".codex/hooks.json", ".codex/config.toml"],
-        "opencode": [".opencode/agents", ".opencode/plugins", "opencode.json"],
-    }
-
+    # See :data:`_OWNED_DIRS_BY_PLATFORM` for the shared definition.
     root = cfg.paths.root
-    entries = owned.get(platform_id, [])
+    entries = _OWNED_DIRS_BY_PLATFORM.get(platform_id, [])
     if not entries:
         click.echo(f"  (no provenance map declared for platform {platform_id!r})")
         return

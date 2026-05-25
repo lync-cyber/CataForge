@@ -103,15 +103,40 @@ def _remove_target(target: Path) -> None:
     target.unlink()
 
 
-def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> list[str]:
-    """Create symlink (Unix), junction (Windows), or copy as fallback.
+# Set by ``symlink_or_copy`` the first time a junction fallback fires
+# in this process, so the deploy log can emit a single user-facing
+# WARN instead of one per linked skill. Reset between test functions via
+# ``reset_junction_warning_state`` so order-of-execution does not affect
+# assertions about whether the warning fires.
+_JUNCTION_WARNING_EMITTED = False
 
-    The dry-run message is deliberately label-free ("would link"): this
-    helper is used for rules, skills, and generic cross-directory mirrors.
-    Callers that want a more specific label should emit their own action
+
+def reset_junction_warning_state() -> None:
+    """Test hook — clear the once-per-process WARN flag."""
+    global _JUNCTION_WARNING_EMITTED
+    _JUNCTION_WARNING_EMITTED = False
+
+
+def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> list[str]:
+    """Create a relative symlink, junction, or copy — in that order.
+
+    Why the priority order matters: NTFS junctions store an *absolute*
+    path in the reparse point, so they break the moment the project
+    directory moves or is renamed (and they leak the developer's local
+    absolute path into anything that resolves them). A relative symlink
+    survives both. On Windows, ``os.symlink`` only succeeds when the
+    process has ``SeCreateSymbolicLinkPrivilege`` — held by elevated
+    processes and by any user with Developer Mode enabled (Windows 10
+    1703+). Junction is the fallback for legacy non-Dev-Mode users; a
+    single WARN is emitted on first fall-back so users can opt into Dev
+    Mode rather than discover the limitation by their links breaking
+    after a project rename.
+
+    The dry-run message is deliberately label-free ("would link"):
+    callers that need a specific label should emit their own action
     line instead of / in addition to calling this helper.
     """
-    import platform as platform_mod
+    global _JUNCTION_WARNING_EMITTED
 
     if dry_run:
         return [f"would link {target} ← {source} (symlink|junction|copy)"]
@@ -119,25 +144,43 @@ def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> lis
     _remove_target(target)
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    if platform_mod.system() != "Windows":
-        rel = os.path.relpath(source, target.parent)
-        target.symlink_to(rel)
-        return [f"{target} → {source} (symlink)"]
-
+    rel = os.path.relpath(source, target.parent)
     try:
-        import subprocess
-
-        subprocess.run(
-            ["cmd", "/c", "mklink", "/J", str(target), str(source)],
-            check=True,
-            capture_output=True,
-        )
-        return [f"{target} → {source} (junction)"]
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        os.symlink(rel, str(target), target_is_directory=True)
+        return [f"{target} → {source} (symlink)"]
+    except (OSError, NotImplementedError):
+        # Windows non-Dev-Mode, or filesystems that don't support symlinks.
+        # Fall through to junction (Windows) or copy (Unix).
         if os.path.lexists(str(target)):
             _remove_target(target)
-        shutil.copytree(source, target)
-        return [f"{target} ← {source} (copy)"]
+
+    if os.name == "nt":
+        try:
+            import subprocess
+
+            subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(target), str(source)],
+                check=True,
+                capture_output=True,
+            )
+            actions = [f"{target} → {source} (junction)"]
+            if not _JUNCTION_WARNING_EMITTED:
+                _JUNCTION_WARNING_EMITTED = True
+                actions.insert(
+                    0,
+                    "WARN: falling back to NTFS junction(s) — stores absolute "
+                    "paths; project rename or directory move will break the "
+                    "link. Enable Windows Developer Mode (Settings → For "
+                    "developers → Developer Mode) to get portable relative "
+                    "symlinks instead.",
+                )
+            return actions
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            if os.path.lexists(str(target)):
+                _remove_target(target)
+
+    shutil.copytree(source, target)
+    return [f"{target} ← {source} (copy)"]
 
 
 def merge_json_key(
