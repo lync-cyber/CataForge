@@ -18,6 +18,8 @@ from cataforge.cli.doctor_cmd import doctor_command
 
 
 def _minimal_project(tmp_path: Path, *, migration_checks: list[dict] | None = None) -> Path:
+    from tests.cli.conftest import populate_required_source_assets
+
     cf = tmp_path / ".cataforge"
     cf.mkdir()
     (cf / "framework.json").write_text(
@@ -30,6 +32,7 @@ def _minimal_project(tmp_path: Path, *, migration_checks: list[dict] | None = No
         ),
         encoding="utf-8",
     )
+    populate_required_source_assets(cf)
     return tmp_path
 
 
@@ -37,6 +40,26 @@ def _write_deploy_state(root: Path, platform: str) -> None:
     (root / ".cataforge" / ".deploy-state").write_text(
         json.dumps({"platform": platform}), encoding="utf-8"
     )
+
+
+def _materialize_owned_dirs(root: Path, platform: str) -> None:
+    """Create every directory ``deploy_integrity`` expects for *platform*.
+
+    Tests that focus on the provenance section's *output* (NOTE lines,
+    deploy-target label, …) rather than the integrity gate use this to
+    short-circuit the new gate so the assertion under test remains the
+    only thing that can flip exit code.
+    """
+    from cataforge.cli.doctor.provenance import _OWNED_DIRS_BY_PLATFORM
+
+    for rel in _OWNED_DIRS_BY_PLATFORM.get(platform, []):
+        p = root / rel
+        if rel.endswith(".json") or rel.endswith(".toml"):
+            p.parent.mkdir(parents=True, exist_ok=True)
+            if not p.is_file():
+                p.write_text("{}\n" if rel.endswith(".json") else "", encoding="utf-8")
+        else:
+            p.mkdir(parents=True, exist_ok=True)
 
 
 def _write_cursor_profile(root: Path, *, mirror: bool) -> None:
@@ -62,7 +85,15 @@ class TestDoctorProvenance:
     def test_claude_code_deploy_lists_owned_dirs(
         self, tmp_path: Path, monkeypatch
     ) -> None:
-        """After a claude-code deploy, doctor lists the owned namespace."""
+        """After a claude-code deploy, doctor lists the owned namespace.
+
+        The setup intentionally creates only one owned dir so we can
+        verify the provenance section distinguishes ``[present]`` from
+        ``[absent]``. The deploy-integrity gate added in PR-? then
+        legitimately FAILs the run for the missing artefacts — that is
+        the desired behaviour, so this test asserts a non-zero exit
+        code and the presence of FAIL lines from the integrity check.
+        """
         root = _minimal_project(tmp_path)
         _write_deploy_state(root, "claude-code")
         # Create one of the owned dirs so we can verify present vs absent.
@@ -70,10 +101,13 @@ class TestDoctorProvenance:
         monkeypatch.chdir(root)
 
         result = CliRunner().invoke(doctor_command, [])
-        assert result.exit_code == 0, result.output
+        assert result.exit_code != 0, result.output
         assert "Last deploy target: claude-code" in result.output
         assert "[present] .claude/agents" in result.output
         assert "[absent] .claude/settings.json" in result.output
+        # The new integrity gate must also have flagged the missing artefacts.
+        assert ".claude/settings.json" in result.output
+        assert "re-run `cataforge deploy`" in result.output
 
     def test_cursor_deploy_flags_stale_claude_rules_when_mirror_off(
         self, tmp_path: Path, monkeypatch
@@ -81,6 +115,7 @@ class TestDoctorProvenance:
         """Cursor deploy + mirror=false + `.claude/rules` present → NOTE printed."""
         root = _minimal_project(tmp_path)
         _write_deploy_state(root, "cursor")
+        _materialize_owned_dirs(root, "cursor")
         _write_cursor_profile(root, mirror=False)
         # Simulate a stale artifact from a pre-M5 deploy.
         stale = root / ".claude" / "rules"
@@ -100,6 +135,7 @@ class TestDoctorProvenance:
         """Mirror opt-in: `.claude/rules` is expected, so no stale-note fires."""
         root = _minimal_project(tmp_path)
         _write_deploy_state(root, "cursor")
+        _materialize_owned_dirs(root, "cursor")
         _write_cursor_profile(root, mirror=True)
         stale = root / ".claude" / "rules"
         stale.mkdir(parents=True)
@@ -115,6 +151,7 @@ class TestDoctorProvenance:
         """No stale `.claude/rules` on disk → no stale-note."""
         root = _minimal_project(tmp_path)
         _write_deploy_state(root, "cursor")
+        _materialize_owned_dirs(root, "cursor")
         _write_cursor_profile(root, mirror=False)
         monkeypatch.chdir(root)
 

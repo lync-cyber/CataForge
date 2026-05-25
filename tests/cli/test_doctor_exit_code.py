@@ -11,6 +11,8 @@ from cataforge.cli.doctor_cmd import doctor_command
 
 
 def _minimal_project(tmp_path: Path, checks: list[dict]) -> Path:
+    from tests.cli.conftest import populate_required_source_assets
+
     cf = tmp_path / ".cataforge"
     cf.mkdir()
     (cf / "framework.json").write_text(
@@ -21,6 +23,7 @@ def _minimal_project(tmp_path: Path, checks: list[dict]) -> Path:
         }),
         encoding="utf-8",
     )
+    populate_required_source_assets(cf)
     return tmp_path
 
 
