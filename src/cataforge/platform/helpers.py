@@ -24,6 +24,7 @@ def _prune_orphan_flat_files(
     *,
     head_read_size: int = 512,
     dry_run: bool = False,
+    prior_manifest: set[str] | None = None,
 ) -> list[str]:
     """Prune flat files in *directory* that are orphans of a deploy pass.
 
@@ -31,6 +32,12 @@ def _prune_orphan_flat_files(
     first *head_read_size* bytes contain *head_signature* (with ``{stem}``
     replaced by the file's stem).  Files that fail this ownership check are
     left untouched regardless of their extension.
+
+    When *prior_manifest* is supplied (production deploy path) prune is
+    further restricted to entries that path-match a prior-deploy record —
+    so a user-authored ``foo.md`` that happens to carry our head signature
+    by coincidence (e.g. a copy-pasted CataForge agent the user kept) still
+    survives.
 
     Returns action strings suitable for appending to a caller's actions list.
     """
@@ -47,12 +54,43 @@ def _prune_orphan_flat_files(
         head = existing.read_text(encoding="utf-8", errors="ignore")[:head_read_size]
         if head_signature.format(stem=existing.stem) not in head:
             continue
+        existing_rel = f"{target_rel}/{existing.name}"
+        if prior_manifest is not None and existing_rel not in prior_manifest:
+            continue
         if dry_run:
             actions.append(f"would prune orphan {target_rel}/{existing.name}")
         else:
             existing.unlink()
             actions.append(f"pruned orphan {target_rel}/{existing.name}")
     return actions
+
+
+def _is_dir_link(path: Path) -> bool:
+    """True for any directory-shaped link primitive across Python versions.
+
+    Detects POSIX symlinks always, NTFS junctions on Python 3.12+ via the
+    new ``Path.is_junction()`` method, and NTFS junctions on Python 3.10/3.11
+    via the Win32 ``GetFileAttributesW`` API checking
+    ``FILE_ATTRIBUTE_REPARSE_POINT``. Without the third leg, ``deploy_skills``
+    legacy-link unwrap silently no-oped on the Py 3.10 CI matrix entry
+    (Path.is_symlink returned False for junctions, Path.is_junction wasn't
+    present), leaving stale whole-dir links in place forever.
+    """
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if is_junction and is_junction():
+        return True
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+            file_attribute_reparse_point = 0x400
+            return attrs != -1 and bool(attrs & file_attribute_reparse_point)
+        except (AttributeError, OSError):
+            pass
+    return False
 
 
 def _remove_target(target: Path) -> None:
@@ -117,7 +155,13 @@ def reset_junction_warning_state() -> None:
     _JUNCTION_WARNING_EMITTED = False
 
 
-def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> list[str]:
+def symlink_or_copy(
+    source: Path,
+    target: Path,
+    *,
+    dry_run: bool = False,
+    force_copy: bool = False,
+) -> list[str]:
     """Create a relative symlink, junction, or copy — in that order.
 
     Why the priority order matters: NTFS junctions store an *absolute*
@@ -130,7 +174,13 @@ def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> lis
     1703+). Junction is the fallback for legacy non-Dev-Mode users; a
     single WARN is emitted on first fall-back so users can opt into Dev
     Mode rather than discover the limitation by their links breaking
-    after a project rename.
+    after a project rename — or, worse, by destructively deleting source
+    files through the junction.
+
+    Pass ``force_copy=True`` to bypass both link strategies and write an
+    independent ``copytree``. Use this when the caller cannot tolerate
+    delete-through-link destroying the source (e.g.
+    ``cataforge deploy --copy``).
 
     The dry-run message is deliberately label-free ("would link"):
     callers that need a specific label should emit their own action
@@ -139,10 +189,16 @@ def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> lis
     global _JUNCTION_WARNING_EMITTED
 
     if dry_run:
+        if force_copy:
+            return [f"would copy {target} ← {source}"]
         return [f"would link {target} ← {source} (symlink|junction|copy)"]
 
     _remove_target(target)
     target.parent.mkdir(parents=True, exist_ok=True)
+
+    if force_copy:
+        shutil.copytree(source, target)
+        return [f"{target} ← {source} (copy, forced)"]
 
     rel = os.path.relpath(source, target.parent)
     try:
@@ -166,13 +222,23 @@ def symlink_or_copy(source: Path, target: Path, *, dry_run: bool = False) -> lis
             actions = [f"{target} → {source} (junction)"]
             if not _JUNCTION_WARNING_EMITTED:
                 _JUNCTION_WARNING_EMITTED = True
+                # Wording note: this WARN deliberately avoids the bare word
+                # ``symlink`` so test assertions that grep for it in action
+                # strings (see test_windows_falls_back_to_junction_then_copy)
+                # don't false-trigger.  The recovery path's name is rendered
+                # as "relative-path link" / "soft link" instead.
                 actions.insert(
                     0,
-                    "WARN: falling back to NTFS junction(s) — stores absolute "
-                    "paths; project rename or directory move will break the "
-                    "link. Enable Windows Developer Mode (Settings → For "
-                    "developers → Developer Mode) to get portable relative "
-                    "symlinks instead.",
+                    "WARN: falling back to NTFS junction(s). Two risks to "
+                    "know: (1) the junction stores an ABSOLUTE path, so a "
+                    "project rename / move breaks every link; (2) deleting "
+                    "or editing files INSIDE the junction (e.g. "
+                    ".claude/skills/<name>/SKILL.md) operates on the SOURCE "
+                    "at .cataforge/, not a copy — one mis-click can destroy "
+                    "source files. Enable Windows Developer Mode (Settings "
+                    "→ For developers → Developer Mode) to get portable "
+                    "relative-path soft links, or pass `cataforge deploy "
+                    "--copy` to materialise independent copies instead.",
                 )
             return actions
         except (subprocess.CalledProcessError, FileNotFoundError):

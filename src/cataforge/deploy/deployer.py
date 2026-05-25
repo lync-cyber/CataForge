@@ -12,6 +12,11 @@ from pathlib import Path
 
 from cataforge.core.config import ConfigManager
 from cataforge.core.events import FRAMEWORK_DEPLOY, EventBus
+from cataforge.deploy.manifest import (
+    DeployManifest,
+    load_prior_manifest,
+    save_manifest,
+)
 from cataforge.platform.base import PlatformAdapter
 from cataforge.platform.registry import get_adapter
 
@@ -31,6 +36,8 @@ class Deployer:
         *,
         dry_run: bool = False,
         include_maintainer_only: bool = False,
+        force_copy: bool = False,
+        rebuild: bool = False,
     ) -> list[str]:
         """Execute a full deployment for *platform_id*. Returns action log.
 
@@ -40,15 +47,53 @@ class Deployer:
         also linked into the IDE (off by default — those skills operate on
         upstream maintenance workflows and would only bloat prompt context
         for downstream users).
+
+        ``force_copy`` makes the symlink/junction step fall straight through
+        to copy, so destructive deletes inside ``.claude/skills/<name>/``
+        only affect the IDE-side copy and never propagate back to source.
+
+        ``rebuild`` first removes every path the previous deploy claimed
+        ownership of (per the manifest), then performs a regular deploy.
+        Used to recover from a corrupt or partial prior deploy.
+
+        Idempotency contract — two invariants this method enforces:
+
+        1. **Self-heal** — at entry we call
+           ``copy_scaffold_to(force=False)`` so any ``.cataforge/`` file the
+           user deleted (directly or through a junction) gets restored from
+           the bundled wheel before we try to translate it.  Existing files
+           are never overwritten by self-heal.
+        2. **Ownership-scoped prune** — every adapter receives a
+           ``DeployManifest`` and a prior-manifest snapshot. Prune steps may
+           only delete entries that were in the prior manifest, so
+           user-authored files (e.g. a hand-written
+           ``.claude/commands/foo.md``) survive every redeploy.
         """
         root = self._cfg.paths.root
         adapter = get_adapter(platform_id, self._cfg.paths.platforms_dir)
         actions: list[str] = []
+        prior_owned = load_prior_manifest(root)
+        manifest = DeployManifest(platform_id)
+
+        if rebuild:
+            actions.extend(self._rebuild_purge(root, prior_owned, dry_run=dry_run))
+            # After a purge the prior manifest no longer reflects reality;
+            # treat downstream prune passes as a fresh start so nothing
+            # else gets second-guessed.
+            prior_owned = set()
+
+        # P1 plan A — refill any source files the user deleted before we
+        # try to render IDE artefacts from them.
+        actions.extend(self._self_heal_scaffold(dry_run=dry_run))
 
         if adapter.needs_agent_deploy:
             actions.extend(
                 adapter.deploy_agents(
-                    self._cfg.paths.agents_dir, root, dry_run=dry_run
+                    self._cfg.paths.agents_dir,
+                    root,
+                    dry_run=dry_run,
+                    manifest=manifest,
+                    prior_manifest=prior_owned,
                 )
             )
 
@@ -58,22 +103,39 @@ class Deployer:
                 root,
                 platform_id=platform_id,
                 dry_run=dry_run,
+                manifest=manifest,
+                prior_manifest=prior_owned,
             )
         )
 
         if adapter.hook_config_format:
-            actions.extend(self._deploy_hooks(root, adapter, dry_run=dry_run))
+            actions.extend(
+                self._deploy_hooks(root, adapter, manifest=manifest, dry_run=dry_run)
+            )
 
         if adapter.additional_outputs:
             actions.extend(
                 adapter.deploy_additional_outputs(
-                    self._cfg.paths.rules_dir, root, dry_run=dry_run
+                    self._cfg.paths.rules_dir,
+                    root,
+                    dry_run=dry_run,
+                    manifest=manifest,
+                    prior_manifest=prior_owned,
                 )
             )
 
         rules_dir = self._cfg.paths.rules_dir
         if rules_dir.is_dir():
-            actions.extend(adapter.deploy_rules(rules_dir, root, dry_run=dry_run))
+            actions.extend(
+                adapter.deploy_rules(
+                    rules_dir,
+                    root,
+                    dry_run=dry_run,
+                    manifest=manifest,
+                    prior_manifest=prior_owned,
+                    force_copy=force_copy,
+                )
+            )
 
         skills_dir = self._cfg.paths.skills_dir
         if adapter.needs_skill_deploy and skills_dir.is_dir():
@@ -83,22 +145,42 @@ class Deployer:
                     root,
                     dry_run=dry_run,
                     include_maintainer_only=include_maintainer_only,
+                    manifest=manifest,
+                    prior_manifest=prior_owned,
+                    force_copy=force_copy,
                 )
             )
 
         commands_dir = self._cfg.paths.commands_dir
         if adapter.needs_command_deploy and commands_dir.is_dir():
-            actions.extend(adapter.deploy_commands(commands_dir, root, dry_run=dry_run))
+            actions.extend(
+                adapter.deploy_commands(
+                    commands_dir,
+                    root,
+                    dry_run=dry_run,
+                    manifest=manifest,
+                    prior_manifest=prior_owned,
+                )
+            )
 
         actions.extend(self._apply_degradation(root, adapter, dry_run=dry_run))
-        actions.extend(self._deploy_mcp(root, platform_id, adapter, dry_run=dry_run))
+        actions.extend(
+            self._deploy_mcp(
+                root, platform_id, adapter, manifest=manifest, dry_run=dry_run
+            )
+        )
 
         if not dry_run:
             self._write_deploy_state(root, platform_id)
+            save_manifest(root, manifest)
         else:
             actions.append(
                 f"would write deploy state → {self._cfg.paths.deploy_state} "
                 f"(platform={platform_id})"
+            )
+            actions.append(
+                f"would write deploy manifest "
+                f"({len(manifest.owned)} owned path(s))"
             )
 
         self._bus.emit(
@@ -107,8 +189,93 @@ class Deployer:
         )
         return actions
 
+    # ---- P1 plan A: self-heal .cataforge/ from bundled scaffold ----
+
+    def _self_heal_scaffold(self, *, dry_run: bool = False) -> list[str]:
+        """Refill any missing ``.cataforge/`` files from the bundled wheel.
+
+        ``copy_scaffold_to(force=False, backup=False)`` writes only when the
+        target file is *absent*, so user-edited source files are never
+        touched. The reason this exists at deploy entry rather than only in
+        ``cataforge setup``: a single mis-click inside a junction-mounted
+        ``.claude/skills/<name>/`` will delete the source file, and the
+        only thing left for the user to do is ``cataforge deploy`` again —
+        so deploy has to be the recovery path.
+        """
+        from cataforge.core.scaffold import copy_scaffold_to
+
+        cataforge_dir = self._cfg.paths.cataforge_dir
+        if not cataforge_dir.is_dir():
+            # Fresh project — ``cataforge setup`` is the right entry point;
+            # ``deploy`` should not silently scaffold from nothing.
+            return []
+
+        if dry_run:
+            # We don't probe the wheel during dry-run — it's expensive and
+            # the user has already been told it's a dry-run.
+            return ["would self-heal missing .cataforge/ files (force=False)"]
+
+        try:
+            written, _, _ = copy_scaffold_to(
+                cataforge_dir, force=False, backup=False
+            )
+        except FileNotFoundError as exc:
+            # Editable install with no bundled scaffold visible — log and
+            # carry on. ``setup`` will have already populated the dir.
+            logger.debug("self-heal skipped: %s", exc)
+            return []
+        if not written:
+            return []
+        # Reset the config cache so the rest of deploy sees the restored
+        # framework.json (if that was one of the files we just refilled).
+        self._cfg.reload()
+        return [
+            f"self-heal: restored {len(written)} missing scaffold file(s) "
+            f"from bundled wheel"
+        ]
+
+    # ---- P3: --rebuild prunes prior-owned paths before deploy ----
+
+    def _rebuild_purge(
+        self,
+        root: Path,
+        prior_owned: set[str],
+        *,
+        dry_run: bool = False,
+    ) -> list[str]:
+        """Remove every path the prior manifest claimed.
+
+        Symmetric to a normal prune pass but applied wholesale: we use
+        ``_remove_target`` so symlinks, junctions, files and real dirs all
+        wash out the same way. User-authored paths that were never in the
+        manifest are not touched.
+        """
+        from cataforge.platform.helpers import _remove_target
+
+        if not prior_owned:
+            return ["rebuild: no prior manifest — nothing to purge"]
+        actions: list[str] = []
+        for rel in sorted(prior_owned):
+            target = root / rel
+            if not target.exists() and not target.is_symlink():
+                continue
+            if dry_run:
+                actions.append(f"would rebuild-purge {rel}")
+            else:
+                try:
+                    _remove_target(target)
+                    actions.append(f"rebuild-purged {rel}")
+                except OSError as exc:
+                    actions.append(f"WARN: rebuild-purge {rel} failed — {exc}")
+        return actions
+
     def _deploy_hooks(
-        self, root: Path, adapter: PlatformAdapter, *, dry_run: bool = False
+        self,
+        root: Path,
+        adapter: PlatformAdapter,
+        *,
+        manifest: DeployManifest | None = None,
+        dry_run: bool = False,
     ) -> list[str]:
         from cataforge.hook.bridge import generate_platform_hooks
 
@@ -147,6 +314,8 @@ class Deployer:
             json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
+        if manifest is not None:
+            manifest.record(config_path_str)
         actions.append(f"hooks → {config_path_str}")
         return actions
 
@@ -166,6 +335,7 @@ class Deployer:
         platform_id: str,
         adapter: PlatformAdapter,
         *,
+        manifest: DeployManifest | None = None,
         dry_run: bool = False,
     ) -> list[str]:
         from cataforge.mcp.registry import MCPRegistry
