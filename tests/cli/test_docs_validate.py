@@ -13,12 +13,15 @@ from cataforge.docs import indexer
 
 
 def _minimal_project(tmp_path: Path) -> Path:
+    from tests.cli.conftest import populate_required_source_assets
+
     cf = tmp_path / ".cataforge"
     cf.mkdir()
     (cf / "framework.json").write_text(
         json.dumps({"version": "0.1.0", "runtime_api_version": "1.0"}),
         encoding="utf-8",
     )
+    populate_required_source_assets(cf)
     return tmp_path
 
 

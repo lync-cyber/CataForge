@@ -12,6 +12,8 @@ from cataforge.cli.doctor_cmd import doctor_command
 
 
 def _project(tmp_path: Path) -> Path:
+    from tests.cli.conftest import populate_required_source_assets
+
     cf = tmp_path / ".cataforge"
     (cf / "hooks").mkdir(parents=True)
     (cf / "framework.json").write_text(
@@ -26,6 +28,7 @@ def _project(tmp_path: Path) -> Path:
     (cf / "hooks" / "hooks.yaml").write_text(
         "schema_version: 2\nhooks: {}\n", encoding="utf-8"
     )
+    populate_required_source_assets(cf)
     return tmp_path
 
 
