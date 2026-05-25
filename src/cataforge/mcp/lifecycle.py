@@ -566,24 +566,43 @@ class MCPLifecycleManager:
         return env
 
     def _save_state(self, state: MCPServerState) -> None:
+        """Write state atomically: dump to a sibling tmpfile, then rename.
+
+        Why atomic: a peer thread releasing the spawn-lock right after this
+        write would otherwise occasionally read a half-formed JSON file and
+        treat the server as "no state" → spawn a second process. The rename
+        is atomic on POSIX and on NTFS (replacement semantics), so any reader
+        sees either the previous content or the fully-written new content,
+        never a partial buffer.
+
+        Pin: the CI ``uv run --extra dev pytest`` step on Linux Py 3.13
+        was reliably triggering this race in
+        ``test_concurrent_start_produces_single_pid`` even after the
+        spawn-lock fix landed — same process, two threads, fast enough that
+        the writer's ``write_text`` flushed the open-and-write but not yet
+        the body when the peer reached ``json.loads`` inside ``_load_state``.
+        """
         path = self._state_dir / f"{state.spec_id}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(
-                {
-                    "spec_id": state.spec_id,
-                    "status": state.status,
-                    "pid": state.pid,
-                    "port": state.port,
-                    "started_at": state.started_at,
-                    "last_health_check": state.last_health_check,
-                    "error_message": state.error_message,
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
+        payload = json.dumps(
+            {
+                "spec_id": state.spec_id,
+                "status": state.status,
+                "pid": state.pid,
+                "port": state.port,
+                "started_at": state.started_at,
+                "last_health_check": state.last_health_check,
+                "error_message": state.error_message,
+            },
+            indent=2,
+        ) + "\n"
+        # Sibling tmpfile keyed by pid + thread id so concurrent writers from
+        # the same process never collide on the rename source.
+        tmp = path.with_suffix(
+            path.suffix + f".tmp.{os.getpid()}.{threading.get_ident()}"
         )
+        tmp.write_text(payload, encoding="utf-8")
+        os.replace(str(tmp), str(path))
 
     def _delete_state(self, server_id: str) -> None:
         path = self._state_dir / f"{server_id}.json"
