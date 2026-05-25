@@ -48,8 +48,22 @@ _PID_POLL_INTERVAL_SECONDS = 0.1
 # Windows has no SIGKILL — SIGTERM there is already TerminateProcess.
 _SIGKILL = getattr(signal, "SIGKILL", signal.SIGTERM)
 
-_SPAWN_LOCK_TIMEOUT_SECONDS = 10.0
+_SPAWN_LOCK_TIMEOUT_SECONDS_DEFAULT = 10.0
 _SPAWN_LOCK_POLL_INTERVAL_SECONDS = 0.05
+
+
+def _spawn_lock_timeout() -> float:
+    """Per-call timeout in seconds. ``CATAFORGE_MCP_SPAWN_LOCK_TIMEOUT``
+    overrides the 10s default — set to ``30`` on slow Windows CI where
+    Python interpreter spawn alone burns 1-2s per process and two
+    contending threads can otherwise exhaust the budget."""
+    raw = os.environ.get("CATAFORGE_MCP_SPAWN_LOCK_TIMEOUT", "")
+    if raw:
+        try:
+            return max(1.0, float(raw))
+        except ValueError:
+            pass
+    return _SPAWN_LOCK_TIMEOUT_SECONDS_DEFAULT
 
 
 @contextlib.contextmanager
@@ -61,7 +75,8 @@ def _spawn_lock(lock_path: Path):
     ``msvcrt.locking``. Stale locks (holder PID dead) are recovered;
     no SIGKILL-mid-spawn footgun.
     """
-    deadline = time.monotonic() + _SPAWN_LOCK_TIMEOUT_SECONDS
+    timeout = _spawn_lock_timeout()
+    deadline = time.monotonic() + timeout
     acquired = False
     while time.monotonic() < deadline:
         try:
@@ -87,7 +102,7 @@ def _spawn_lock(lock_path: Path):
     if not acquired:
         raise TimeoutError(
             f"could not acquire MCP spawn lock {lock_path} within "
-            f"{_SPAWN_LOCK_TIMEOUT_SECONDS}s"
+            f"{timeout}s"
         )
     try:
         yield
@@ -210,7 +225,17 @@ class MCPLifecycleManager:
         self._stop_timeout = stop_timeout_seconds
 
     def start(self, server_id: str) -> MCPServerState:
-        """Start an MCP server, honouring persisted state across CLI runs."""
+        """Start an MCP server, honouring persisted state across CLI runs.
+
+        The spawn lock only guards the *spawn-or-attach* decision plus
+        the state write that publishes the new PID. Once that state is on
+        disk a concurrent caller can re-read it, see ``status=running``
+        with a live PID, and return without re-entering the spawn path —
+        so we don't need the lock to cover the readiness probe.  Holding
+        the lock through ``self.health()`` would otherwise extend the
+        critical section by seconds on Windows CI (Python startup +
+        socket / HTTP probes) and starve peer threads to timeout.
+        """
         spec = self._registry.get_server(server_id)
         if spec is None:
             raise ValueError(f"Unknown MCP server: {server_id}")
@@ -218,6 +243,7 @@ class MCPLifecycleManager:
         self._state_dir.mkdir(parents=True, exist_ok=True)
         lock_path = self._state_dir / f"{server_id}.spawn.lock"
 
+        new_state: MCPServerState | None = None
         with _spawn_lock(lock_path):
             # Re-check after acquiring the lock — a peer caller may have
             # spawned while we were waiting, and the persisted state
@@ -257,16 +283,6 @@ class MCPLifecycleManager:
                     started_at=datetime.now(timezone.utc).isoformat(),
                 )
                 self._save_state(new_state)
-
-                # Readiness probe — runs whatever health check the spec declared
-                # (or pid-alive if it didn't). last_health_check on the returned
-                # state lets callers tell "spawned but not ready" from "ready".
-                with contextlib.suppress(Exception):
-                    refreshed = self.health(server_id)
-                    if refreshed is not None:
-                        return refreshed
-                return new_state
-
             except Exception as e:
                 error_state = MCPServerState(
                     spec_id=server_id,
@@ -275,6 +291,19 @@ class MCPLifecycleManager:
                 )
                 self._save_state(error_state)
                 return error_state
+
+        # Lock released. Readiness probe outside so peer callers waiting
+        # for the lock can proceed (and will short-circuit on the live
+        # persisted state we just wrote).
+        if new_state is None:  # defensive — should never happen
+            return MCPServerState(spec_id=server_id, status="error",
+                                  error_message="spawn produced no state")
+
+        with contextlib.suppress(Exception):
+            refreshed = self.health(server_id)
+            if refreshed is not None:
+                return refreshed
+        return new_state
 
     def stop(self, server_id: str) -> MCPServerState:
         """Stop an MCP server, waiting for the PID to actually exit.

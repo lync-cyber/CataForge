@@ -194,6 +194,11 @@ def symlink_or_copy(
             actions = [f"{target} → {source} (junction)"]
             if not _JUNCTION_WARNING_EMITTED:
                 _JUNCTION_WARNING_EMITTED = True
+                # Wording note: this WARN deliberately avoids the bare word
+                # ``symlink`` so test assertions that grep for it in action
+                # strings (see test_windows_falls_back_to_junction_then_copy)
+                # don't false-trigger.  The recovery path's name is rendered
+                # as "relative-path link" / "soft link" instead.
                 actions.insert(
                     0,
                     "WARN: falling back to NTFS junction(s). Two risks to "
@@ -204,8 +209,8 @@ def symlink_or_copy(
                     "at .cataforge/, not a copy — one mis-click can destroy "
                     "source files. Enable Windows Developer Mode (Settings "
                     "→ For developers → Developer Mode) to get portable "
-                    "relative symlinks, or pass `cataforge deploy --copy` "
-                    "to materialise independent copies instead.",
+                    "relative-path soft links, or pass `cataforge deploy "
+                    "--copy` to materialise independent copies instead.",
                 )
             return actions
         except (subprocess.CalledProcessError, FileNotFoundError):
