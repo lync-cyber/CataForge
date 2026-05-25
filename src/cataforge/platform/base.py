@@ -483,7 +483,11 @@ class PlatformAdapter(ABC):
 
         Subclasses can override to transform content per platform.
         """
-        from cataforge.platform.helpers import _remove_target, symlink_or_copy
+        from cataforge.platform.helpers import (
+            _is_dir_link,
+            _remove_target,
+            symlink_or_copy,
+        )
 
         target_rel = self.get_skill_target_dir()
         if not target_rel or not source_dir.is_dir():
@@ -499,9 +503,9 @@ class PlatformAdapter(ABC):
         # Migrate from a pre-existing whole-dir symlink/junction: if the
         # target itself is the link (not a real dir containing per-skill
         # entries), tear it down once so we can rebuild per-skill links.
-        if target_dir.is_symlink() or (
-            hasattr(target_dir, "is_junction") and target_dir.is_junction()
-        ):
+        # ``_is_dir_link`` covers Py 3.10/3.11 junctions via ctypes — the
+        # naked ``Path.is_junction`` check was a no-op there.
+        if _is_dir_link(target_dir):
             if dry_run:
                 actions.append(f"would unwrap whole-dir link {target_rel}/")
             else:

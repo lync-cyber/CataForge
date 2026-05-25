@@ -29,6 +29,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -50,6 +51,30 @@ _SIGKILL = getattr(signal, "SIGKILL", signal.SIGTERM)
 
 _SPAWN_LOCK_TIMEOUT_SECONDS_DEFAULT = 10.0
 _SPAWN_LOCK_POLL_INTERVAL_SECONDS = 0.05
+
+# In-process serialization for the spawn-lock — a layer above the file-based
+# lock that protects against same-process thread contention.  Why both: the
+# file lock alone hits a Windows + Py 3.10 race where ``os.open(O_EXCL)``
+# from a second thread keeps reporting ``FileExistsError`` long after the
+# holder thread's ``unlink`` returned success (and after the dirent is gone
+# to ``os.path.exists``). Symptom: ``test_concurrent_start_produces_single_pid``
+# starves and trips the 10s timeout even though the holder finished in 15ms.
+# A ``threading.Lock`` keyed by lock path keeps two threads from ever needing
+# the file lock to mediate between themselves; the file lock retains its role
+# for cross-process contention.
+_INPROC_LOCKS: dict[str, threading.Lock] = {}
+_INPROC_LOCKS_GUARD = threading.Lock()
+
+
+def _inproc_lock(lock_path: Path) -> threading.Lock:
+    """Per-lock-path threading.Lock, lazily instantiated."""
+    key = str(lock_path)
+    with _INPROC_LOCKS_GUARD:
+        lock = _INPROC_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _INPROC_LOCKS[key] = lock
+        return lock
 
 
 def _spawn_lock_timeout() -> float:
@@ -77,38 +102,45 @@ def _spawn_lock(lock_path: Path):
     """
     timeout = _spawn_lock_timeout()
     deadline = time.monotonic() + timeout
-    acquired = False
-    while time.monotonic() < deadline:
-        try:
-            fd = os.open(
-                str(lock_path),
-                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
-            )
-            try:
-                os.write(fd, str(os.getpid()).encode("ascii"))
-            finally:
-                os.close(fd)
-            acquired = True
-            break
-        except FileExistsError:
-            lock_pid: int | None = None
-            with contextlib.suppress(OSError, ValueError):
-                lock_pid = int(lock_path.read_text(encoding="ascii").strip())
-            if lock_pid is not None and not _pid_alive(lock_pid):
-                with contextlib.suppress(OSError):
-                    lock_path.unlink()
-                continue
-            time.sleep(_SPAWN_LOCK_POLL_INTERVAL_SECONDS)
-    if not acquired:
-        raise TimeoutError(
-            f"could not acquire MCP spawn lock {lock_path} within "
-            f"{timeout}s"
-        )
+    # Same-process serialization first. Two peer threads inside one Python
+    # process never race for the file lock — only cross-process callers do.
+    inproc = _inproc_lock(lock_path)
+    inproc.acquire()
     try:
-        yield
+        acquired = False
+        while time.monotonic() < deadline:
+            try:
+                fd = os.open(
+                    str(lock_path),
+                    os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                )
+                try:
+                    os.write(fd, str(os.getpid()).encode("ascii"))
+                finally:
+                    os.close(fd)
+                acquired = True
+                break
+            except FileExistsError:
+                lock_pid: int | None = None
+                with contextlib.suppress(OSError, ValueError):
+                    lock_pid = int(lock_path.read_text(encoding="ascii").strip())
+                if lock_pid is not None and not _pid_alive(lock_pid):
+                    with contextlib.suppress(OSError):
+                        os.unlink(str(lock_path))
+                    continue
+                time.sleep(_SPAWN_LOCK_POLL_INTERVAL_SECONDS)
+        if not acquired:
+            raise TimeoutError(
+                f"could not acquire MCP spawn lock {lock_path} within "
+                f"{timeout}s"
+            )
+        try:
+            yield
+        finally:
+            with contextlib.suppress(OSError):
+                os.unlink(str(lock_path))
     finally:
-        with contextlib.suppress(OSError):
-            lock_path.unlink()
+        inproc.release()
 
 HealthStatus = Literal["healthy", "unhealthy", "unknown"]
 

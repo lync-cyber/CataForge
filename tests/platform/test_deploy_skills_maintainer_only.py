@@ -35,39 +35,13 @@ def _make_dir_link(target: Path, source: Path) -> bool:
 
 
 def _is_dir_link(path: Path) -> bool:
-    """True for symlink (POSIX) or junction (Windows), across Python versions.
+    """Test-side alias for the production helper. Kept thin so the test
+    intent reads as ``"the post-deploy state is still a link"`` and the
+    cross-version detail lives behind ``helpers._is_dir_link`` (see its
+    docstring for the Py 3.10/3.11 ctypes fallback rationale)."""
+    from cataforge.platform.helpers import _is_dir_link as _impl
 
-    Three detection layers needed because each Python release surface a
-    different subset:
-
-    * ``Path.is_symlink()`` covers POSIX symlinks always.  It returns
-      False for NTFS junctions, even on Python 3.13+.
-    * ``Path.is_junction()`` is the proper junction check on Python 3.12+
-      but does not exist on 3.10 / 3.11 — those Pythons see ``hasattr``
-      return False.
-    * On Python < 3.12 Windows runners we fall back to the Win32
-      ``GetFileAttributesW`` API and check the FILE_ATTRIBUTE_REPARSE_POINT
-      bit, which is what both symlinks and junctions share. Without this
-      fallback every ``mklink /J`` target reads as "not a link" on the
-      Python 3.10 CI matrix entry.
-    """
-    if path.is_symlink():
-        return True
-    is_junction = getattr(path, "is_junction", None)
-    if is_junction and is_junction():
-        return True
-    if os.name == "nt":
-        try:
-            import ctypes
-
-            attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
-            # Win32 FILE_ATTRIBUTE_REPARSE_POINT constant — set on both
-            # NTFS junctions and Windows symlinks.
-            file_attribute_reparse_point = 0x400
-            return attrs != -1 and bool(attrs & file_attribute_reparse_point)
-        except (AttributeError, OSError):
-            pass
-    return False
+    return _impl(path)
 
 
 class _MinimalAdapter(PlatformAdapter):

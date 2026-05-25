@@ -65,6 +65,34 @@ def _prune_orphan_flat_files(
     return actions
 
 
+def _is_dir_link(path: Path) -> bool:
+    """True for any directory-shaped link primitive across Python versions.
+
+    Detects POSIX symlinks always, NTFS junctions on Python 3.12+ via the
+    new ``Path.is_junction()`` method, and NTFS junctions on Python 3.10/3.11
+    via the Win32 ``GetFileAttributesW`` API checking
+    ``FILE_ATTRIBUTE_REPARSE_POINT``. Without the third leg, ``deploy_skills``
+    legacy-link unwrap silently no-oped on the Py 3.10 CI matrix entry
+    (Path.is_symlink returned False for junctions, Path.is_junction wasn't
+    present), leaving stale whole-dir links in place forever.
+    """
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if is_junction and is_junction():
+        return True
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+            file_attribute_reparse_point = 0x400
+            return attrs != -1 and bool(attrs & file_attribute_reparse_point)
+        except (AttributeError, OSError):
+            pass
+    return False
+
+
 def _remove_target(target: Path) -> None:
     """Idempotently remove ``target`` whether file, dir, symlink, or junction.
 
