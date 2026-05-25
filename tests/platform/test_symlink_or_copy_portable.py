@@ -23,7 +23,24 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.platform.helpers import symlink_or_copy
+from cataforge.platform.helpers import reset_junction_warning_state, symlink_or_copy
+
+
+@pytest.fixture(autouse=True)
+def _reset_junction_warn_flag():
+    """Make the one-shot junction WARN deterministic across test order.
+
+    ``_JUNCTION_WARNING_EMITTED`` is a process-global so the deploy CLI
+    only prints one WARN even when 30 skills get linked. That global
+    persists across tests in the same process — meaning the
+    ``test_windows_falls_back_to_junction_then_copy`` assertion (which
+    inspects the WARN string) goes silent when an earlier test in the
+    file already burned the flag. Reset before AND after each test so
+    neither this test nor any other becomes the victim of side-effect.
+    """
+    reset_junction_warning_state()
+    yield
+    reset_junction_warning_state()
 
 
 def _make_source(tmp_path: Path) -> Path:

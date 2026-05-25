@@ -35,12 +35,13 @@ def _make_dir_link(target: Path, source: Path) -> bool:
 
 
 def _is_dir_link(path: Path) -> bool:
-    """True for symlink (POSIX) or junction (Windows). ``is_junction`` exists
-    only on Python 3.12+, so probe via ``hasattr``."""
-    if path.is_symlink():
-        return True
-    is_junction = getattr(path, "is_junction", None)
-    return bool(is_junction and is_junction())
+    """Test-side alias for the production helper. Kept thin so the test
+    intent reads as ``"the post-deploy state is still a link"`` and the
+    cross-version detail lives behind ``helpers._is_dir_link`` (see its
+    docstring for the Py 3.10/3.11 ctypes fallback rationale)."""
+    from cataforge.platform.helpers import _is_dir_link as _impl
+
+    return _impl(path)
 
 
 class _MinimalAdapter(PlatformAdapter):

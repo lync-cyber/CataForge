@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cataforge.platform.base import PlatformAdapter
 from cataforge.platform.helpers import _prune_orphan_flat_files
+
+if TYPE_CHECKING:
+    from cataforge.deploy.manifest import DeployManifest as DeployManifest
 
 
 class ClaudeCodeAdapter(PlatformAdapter):
@@ -27,7 +31,13 @@ class ClaudeCodeAdapter(PlatformAdapter):
         return "yaml-frontmatter"
 
     def deploy_agents(
-        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
     ) -> list[str]:
         """Deploy agents using Claude Code's native ``<name>.md`` layout.
 
@@ -38,7 +48,10 @@ class ClaudeCodeAdapter(PlatformAdapter):
         only the flat form.
 
         Orphan pruning covers flat ``.md`` files we likely wrote and any
-        leftover ``<name>/AGENT.md`` subdirs from prior deploys.
+        leftover ``<name>/AGENT.md`` subdirs from prior deploys. The manifest
+        scope adds a hard guard: even if a user-authored file matches our
+        ``name: <stem>`` head signature by accident, prune still won't touch
+        it unless we recorded the path in the previous deploy.
         """
         from cataforge.agent.translator import translate_agent_md
 
@@ -68,6 +81,7 @@ class ClaudeCodeAdapter(PlatformAdapter):
             content = agent_md.read_text(encoding="utf-8")
 
             flat_dst = target_dir / f"{agent_name}.md"
+            flat_rel = f"{target_rel}/{agent_name}.md"
 
             if dry_run:
                 actions.append(
@@ -80,6 +94,8 @@ class ClaudeCodeAdapter(PlatformAdapter):
                 content, self, dropped_collector=dropped_collector
             )
             flat_dst.write_text(translated, encoding="utf-8")
+            if manifest is not None:
+                manifest.record(flat_rel)
             actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
 
         # Prune orphans. Touch only files/dirs that look like ours — flat
@@ -91,6 +107,12 @@ class ClaudeCodeAdapter(PlatformAdapter):
             for existing in target_dir.iterdir():
                 if existing.is_dir():
                     if (existing / "AGENT.md").is_file():
+                        existing_rel = f"{target_rel}/{existing.name}/AGENT.md"
+                        if (
+                            prior_manifest is not None
+                            and existing_rel not in prior_manifest
+                        ):
+                            continue
                         if dry_run:
                             actions.append(
                                 f"would prune legacy {target_rel}/{existing.name}/"
@@ -110,6 +132,7 @@ class ClaudeCodeAdapter(PlatformAdapter):
                 "name: {stem}",
                 target_rel,
                 dry_run=dry_run,
+                prior_manifest=prior_manifest,
             )
         )
 
