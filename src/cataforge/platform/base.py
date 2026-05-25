@@ -10,7 +10,7 @@ import hashlib
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cataforge.cli.errors import CataforgeError
 from cataforge.platform.instruction_cache import (
@@ -18,6 +18,12 @@ from cataforge.platform.instruction_cache import (
     save_instruction_hashes,
 )
 from cataforge.platform.section_merge import merge_sections
+
+if TYPE_CHECKING:
+    # Imported only for type hints; ``cataforge.deploy.manifest`` is the
+    # canonical location. Plain string annotations sidestep the
+    # platform → deploy → platform import cycle at runtime.
+    from cataforge.deploy.manifest import DeployManifest as DeployManifest
 
 _VALID_ON_CONFLICT = {"overwrite", "preserve", "preserve_if_edited"}
 _VALID_UPDATE_STRATEGY = {"overwrite", "section-merge"}
@@ -123,7 +129,13 @@ class PlatformAdapter(ABC):
         return bool(self._profile.get("agent_definition", {}).get("needs_deploy", True))
 
     def deploy_agents(
-        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
     ) -> list[str]:
         """Deploy agent definitions to platform target directories.
 
@@ -162,6 +174,7 @@ class PlatformAdapter(ABC):
         for agent_name in sorted(source_agents):
             agent_md = source_dir / agent_name / "AGENT.md"
             agent_dst = target_dir / agent_name
+            agent_rel = f"{target_rel}/{agent_name}/AGENT.md"
             if dry_run:
                 # Show both the logical source and the physical target so users
                 # can't confuse "same filename in every line" for "all agents
@@ -178,6 +191,8 @@ class PlatformAdapter(ABC):
                 content, self, dropped_collector=dropped_collector
             )
             (agent_dst / "AGENT.md").write_text(translated, encoding="utf-8")
+            if manifest is not None:
+                manifest.record(agent_rel)
             actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
 
             # Prune stale sibling files inside this agent subdir — they were
@@ -197,9 +212,12 @@ class PlatformAdapter(ABC):
                 "these will be skipped during translation."
             )
 
-        # Prune orphan agent subdirs that no longer exist in source. We only
-        # remove dirs that look like ours (have AGENT.md) so we never touch
-        # IDE-native or user-authored agents living alongside.
+        # Prune orphan agent subdirs that no longer exist in source. The
+        # subdir-with-AGENT.md ownership check stays as a defence-in-depth
+        # layer (we never touch dirs that don't look like ours), and on top
+        # of that the manifest scoping ensures we only delete agents we
+        # actually wrote in a prior deploy — user-authored agents that
+        # happen to follow our naming pattern survive.
         if target_dir.is_dir():
             for existing in target_dir.iterdir():
                 if (
@@ -207,6 +225,10 @@ class PlatformAdapter(ABC):
                     or existing.name in source_agents
                     or not (existing / "AGENT.md").is_file()
                 ):
+                    continue
+                existing_rel = f"{target_rel}/{existing.name}/AGENT.md"
+                if prior_manifest is not None and existing_rel not in prior_manifest:
+                    # Not from a prior deploy — leave it alone.
                     continue
                 if dry_run:
                     actions.append(f"would prune orphan {scan_dirs[0]}/{existing.name}/")
@@ -250,6 +272,8 @@ class PlatformAdapter(ABC):
         *,
         platform_id: str,
         dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
     ) -> list[str]:
         """Deploy platform instruction artifacts derived from PROJECT-STATE.md.
 
@@ -358,6 +382,8 @@ class PlatformAdapter(ABC):
             # hash even when the user has not edited the file.
             hashes[target_rel] = hashlib.sha256(dst.read_bytes()).hexdigest()
             hashes_dirty = True
+            if manifest is not None:
+                manifest.record(target_rel)
             actions.append(
                 f"{target_rel} ← PROJECT-STATE.md (platform={platform_id}, "
                 f"strategy={update_strategy})"
@@ -434,6 +460,9 @@ class PlatformAdapter(ABC):
         *,
         dry_run: bool = False,
         include_maintainer_only: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
+        force_copy: bool = False,
     ) -> list[str]:
         """Expose each skill subdir to the IDE via symlink/junction/copy.
 
@@ -441,6 +470,16 @@ class PlatformAdapter(ABC):
         declare ``maintainer-only: true`` in their SKILL.md frontmatter —
         those ship only when the caller passes ``include_maintainer_only=True``
         (``cataforge deploy --include-maintainer-only``).
+
+        ``force_copy=True`` skips the symlink/junction attempts and goes
+        straight to ``copytree`` so destructive deletes inside
+        ``.claude/skills/<name>/`` never propagate back to the source under
+        ``.cataforge/skills/<name>/``.
+
+        ``prior_manifest`` is the ownership set from the previous deploy.
+        Prune only removes target entries that *both* lack a source
+        counterpart **and** appear in ``prior_manifest`` — so a user who
+        hand-creates ``.claude/skills/my-skill/`` keeps it across deploys.
 
         Subclasses can override to transform content per platform.
         """
@@ -470,10 +509,20 @@ class PlatformAdapter(ABC):
                 target_dir.mkdir(parents=True, exist_ok=True)
                 actions.append(f"unwrapped whole-dir link {target_rel}/")
 
-        # Prune stale per-skill entries whose source disappeared.
+        # Prune entries we previously owned but that no longer have a source.
+        # ``prior_manifest is None`` → legacy caller (no manifest threaded
+        # in): fall back to the old behaviour of pruning anything missing
+        # from source. Tests that exercise adapters directly hit this path.
         if target_dir.is_dir():
             for existing in target_dir.iterdir():
                 if existing.name in source_names:
+                    continue
+                existing_rel = f"{target_rel}/{existing.name}"
+                if (
+                    prior_manifest is not None
+                    and existing_rel not in prior_manifest
+                ):
+                    # User-authored or pre-manifest legacy — leave alone.
                     continue
                 if dry_run:
                     actions.append(f"would prune orphan {target_rel}/{existing.name}")
@@ -493,7 +542,14 @@ class PlatformAdapter(ABC):
                 )
                 continue
             target = target_dir / skill_dir.name
-            actions.extend(symlink_or_copy(skill_dir, target, dry_run=dry_run))
+            target_rel_path = f"{target_rel}/{skill_dir.name}"
+            actions.extend(
+                symlink_or_copy(
+                    skill_dir, target, dry_run=dry_run, force_copy=force_copy
+                )
+            )
+            if manifest is not None and not dry_run:
+                manifest.record(target_rel_path)
         return actions
 
     # ---- slash commands deployment ----
@@ -509,12 +565,23 @@ class PlatformAdapter(ABC):
         return str(target) if target else None
 
     def deploy_commands(
-        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
     ) -> list[str]:
         """Copy ``.cataforge/commands/*.md`` into the platform's slash-command dir.
 
         Default: flat copy of every ``*.md`` file.  Subclasses may override for
         platforms with different slash-command formats.
+
+        Prune scope is bounded by ``prior_manifest``: we only delete
+        ``*.md`` entries that the previous deploy claimed ownership of, so
+        hand-authored slash commands (e.g. the git-tracked dogfood wrapper
+        ``framework-issue-resolve.md``) survive every redeploy.
         """
         target_rel = self.get_command_target_dir()
         if not target_rel or not source_dir.is_dir():
@@ -526,11 +593,20 @@ class PlatformAdapter(ABC):
         source_names = {md.name for md in source_dir.glob("*.md")}
         actions: list[str] = []
 
-        # Prune stale commands that were deployed previously but removed / renamed
-        # upstream. Only touch *.md files — never delete IDE-native artifacts.
+        # Prune stale commands the previous deploy wrote but that are no
+        # longer in source. Without ``prior_manifest`` we fall back to the
+        # legacy "anything orphaned in target" rule for direct callers that
+        # pre-date the manifest plumbing — production deploy always threads
+        # the manifest in, so user-authored files are protected end-to-end.
         if target_dir.is_dir():
             for existing in target_dir.glob("*.md"):
                 if existing.name in source_names:
+                    continue
+                existing_rel = f"{target_rel}/{existing.name}"
+                if (
+                    prior_manifest is not None
+                    and existing_rel not in prior_manifest
+                ):
                     continue
                 if dry_run:
                     actions.append(f"would prune orphan {target_rel}/{existing.name}")
@@ -540,6 +616,7 @@ class PlatformAdapter(ABC):
 
         for md_file in sorted(source_dir.glob("*.md")):
             dst = target_dir / md_file.name
+            cmd_rel = f"{target_rel}/{md_file.name}"
             if dry_run:
                 actions.append(
                     f"would deploy commands/{md_file.name} → "
@@ -547,13 +624,22 @@ class PlatformAdapter(ABC):
                 )
                 continue
             dst.write_text(md_file.read_text(encoding="utf-8"), encoding="utf-8")
+            if manifest is not None:
+                manifest.record(cmd_rel)
             actions.append(f"commands/{md_file.name} → {target_rel}")
         return actions
 
     # ---- rules deployment ----
 
     def deploy_rules(
-        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
+        force_copy: bool = False,
     ) -> list[str]:
         """Deploy rule files to the platform's rule directory.
 
@@ -567,12 +653,23 @@ class PlatformAdapter(ABC):
             return []
         platform_root = Path(scan_dirs[0]).parent
         target = project_root / platform_root / "rules"
-        return symlink_or_copy(source_dir, target, dry_run=dry_run)
+        actions = symlink_or_copy(
+            source_dir, target, dry_run=dry_run, force_copy=force_copy
+        )
+        if manifest is not None and not dry_run:
+            manifest.record(f"{platform_root.as_posix()}/rules")
+        return actions
 
     # ---- additional outputs ----
 
     def deploy_additional_outputs(
-        self, rules_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        rules_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
     ) -> list[str]:
         """Deploy platform-specific additional outputs.
 

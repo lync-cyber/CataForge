@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cataforge.platform.base import PlatformAdapter
 from cataforge.platform.helpers import symlink_or_copy
+
+if TYPE_CHECKING:
+    from cataforge.deploy.manifest import DeployManifest as DeployManifest
 
 
 class CursorAdapter(PlatformAdapter):
@@ -37,12 +41,27 @@ class CursorAdapter(PlatformAdapter):
         return "yaml-frontmatter"
 
     def deploy_additional_outputs(
-        self, rules_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        rules_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
     ) -> list[str]:
-        return self._generate_mdc_rules(rules_dir, project_root, dry_run=dry_run)
+        return self._generate_mdc_rules(
+            rules_dir, project_root, dry_run=dry_run, manifest=manifest
+        )
 
     def deploy_rules(
-        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
+        force_copy: bool = False,
     ) -> list[str]:
         """Rule deployment for Cursor.
 
@@ -67,8 +86,13 @@ class CursorAdapter(PlatformAdapter):
                 ]
             return []
         actions = symlink_or_copy(
-            source_dir, project_root / ".claude" / "rules", dry_run=dry_run
+            source_dir,
+            project_root / ".claude" / "rules",
+            dry_run=dry_run,
+            force_copy=force_copy,
         )
+        if manifest is not None and not dry_run:
+            manifest.record(".claude/rules")
         note = (
             "note: Cursor deploy linked .claude/rules for cross-platform prompt "
             "sharing (profile rules.cross_platform_mirror=true)"
@@ -78,7 +102,12 @@ class CursorAdapter(PlatformAdapter):
         return actions + [note]
 
     def _generate_mdc_rules(
-        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
     ) -> list[str]:
         """Generate .cursor/rules/ MDC files from Markdown sources."""
         output_dir = project_root / ".cursor" / "rules"
@@ -92,17 +121,21 @@ class CursorAdapter(PlatformAdapter):
 
         for md_file in sorted(source_dir.glob("*.md")):
             mdc_name = md_file.stem + ".mdc"
+            mdc_rel = f".cursor/rules/{mdc_name}"
             if dry_run:
                 actions.append(f"would deploy rules/{md_file.name} → .cursor/rules/{mdc_name}")
                 continue
             content = md_file.read_text(encoding="utf-8")
             mdc_content = _wrap_as_mdc(md_file.stem, content)
             (output_dir / mdc_name).write_text(mdc_content, encoding="utf-8")
+            if manifest is not None:
+                manifest.record(mdc_rel)
             actions.append(f"rules/{md_file.name} → .cursor/rules/{mdc_name}")
 
         if overrides_dir.is_dir():
             for md_file in sorted(overrides_dir.glob("*.md")):
                 mdc_name = md_file.stem + ".mdc"
+                mdc_rel = f".cursor/rules/{mdc_name}"
                 if dry_run:
                     actions.append(
                         f"would deploy overrides/{md_file.name} → .cursor/rules/{mdc_name}"
@@ -111,6 +144,8 @@ class CursorAdapter(PlatformAdapter):
                 content = md_file.read_text(encoding="utf-8")
                 mdc_content = _wrap_as_mdc(md_file.stem, content)
                 (output_dir / mdc_name).write_text(mdc_content, encoding="utf-8")
+                if manifest is not None:
+                    manifest.record(mdc_rel)
                 actions.append(f"overrides/{md_file.name} → .cursor/rules/{mdc_name}")
 
         return actions

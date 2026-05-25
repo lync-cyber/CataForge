@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cataforge.agent.translator import translate_agent_md
 from cataforge.platform.base import PlatformAdapter
@@ -12,6 +12,9 @@ from cataforge.platform.helpers import (
     merge_json_key,
     merge_opencode_project_mcp,
 )
+
+if TYPE_CHECKING:
+    from cataforge.deploy.manifest import DeployManifest as DeployManifest
 
 
 class OpenCodeAdapter(PlatformAdapter):
@@ -35,7 +38,13 @@ class OpenCodeAdapter(PlatformAdapter):
         return "yaml-frontmatter"
 
     def deploy_agents(
-        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
     ) -> list[str]:
         """Deploy AGENT.md files to OpenCode native ``.opencode/agents/*.md``.
 
@@ -65,6 +74,7 @@ class OpenCodeAdapter(PlatformAdapter):
         for agent_name in sorted(source_agents):
             agent_md = source_dir / agent_name / "AGENT.md"
             target_file = target_dir / f"{agent_name}.md"
+            target_rel_full = f"{target_rel}/{agent_name}.md"
             if dry_run:
                 actions.append(
                     f"would deploy agents/{agent_name}/AGENT.md → "
@@ -74,6 +84,8 @@ class OpenCodeAdapter(PlatformAdapter):
             content = agent_md.read_text(encoding="utf-8")
             translated = translate_agent_md(content, self, dropped_collector=dropped_collector)
             target_file.write_text(translated, encoding="utf-8")
+            if manifest is not None:
+                manifest.record(target_rel_full)
             actions.append(
                 f"agents/{agent_name}/AGENT.md → {target_rel}/{agent_name}.md"
             )
@@ -94,6 +106,7 @@ class OpenCodeAdapter(PlatformAdapter):
                 "name: {stem}",
                 target_rel,
                 dry_run=dry_run,
+                prior_manifest=prior_manifest,
             )
         )
 
@@ -106,9 +119,16 @@ class OpenCodeAdapter(PlatformAdapter):
         *,
         platform_id: str,
         dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
     ) -> list[str]:
         actions = super().deploy_instruction_files(
-            project_state_path, project_root, platform_id=platform_id, dry_run=dry_run
+            project_state_path,
+            project_root,
+            platform_id=platform_id,
+            dry_run=dry_run,
+            manifest=manifest,
+            prior_manifest=prior_manifest,
         )
         # The instructions list is declared in profile.context_injection so it
         # stays auditable alongside the rest of the platform surface.  Fall
@@ -125,6 +145,8 @@ class OpenCodeAdapter(PlatformAdapter):
                 dry_run=dry_run,
             )
         )
+        if manifest is not None and not dry_run:
+            manifest.record("opencode.json")
         return actions
 
     def inject_mcp_config(

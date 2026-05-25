@@ -71,12 +71,40 @@ def _require_scaffold(root: Path, targets: list[str], platforms_dir: Path) -> No
         "when working inside the CataForge repo itself."
     ),
 )
+@click.option(
+    "--copy",
+    "force_copy",
+    is_flag=True,
+    default=False,
+    help=(
+        "Materialise skills/rules as independent COPIES instead of "
+        "symlinks/junctions. Slightly more disk, but the IDE-visible "
+        "tree is fully isolated from `.cataforge/` — so deleting or "
+        "editing files inside `.claude/skills/<name>/` can never destroy "
+        "the source. Recommended on Windows without Developer Mode "
+        "(junction fallback) if you value safety over instant updates."
+    ),
+)
+@click.option(
+    "--rebuild",
+    "rebuild",
+    is_flag=True,
+    default=False,
+    help=(
+        "Before deploying, remove every path the previous deploy claimed "
+        "ownership of (per `.cataforge/.deploy-manifest.json`). Use this "
+        "to reset a corrupt or partially-deployed state. User-authored "
+        "files outside the manifest are never touched."
+    ),
+)
 def deploy_command(
     platform: str | None,
     dry_run: bool,
     check_legacy: bool,
     conformance: bool,
     include_maintainer_only: bool,
+    force_copy: bool,
+    rebuild: bool,
 ) -> None:
     """Deploy CataForge agents, hooks, and rules to the target platform.
 
@@ -157,13 +185,18 @@ def deploy_command(
                 target,
                 dry_run=True,
                 include_maintainer_only=include_maintainer_only,
+                force_copy=force_copy,
+                rebuild=rebuild,
             )
             for action in actions:
                 click.echo(f"  {action}")
             continue
 
         actions = deployer.deploy(
-            target, include_maintainer_only=include_maintainer_only
+            target,
+            include_maintainer_only=include_maintainer_only,
+            force_copy=force_copy,
+            rebuild=rebuild,
         )
         for action in actions:
             click.echo(f"  {action}")

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cataforge.platform.base import PlatformAdapter
 from cataforge.platform.helpers import _prune_orphan_flat_files, merge_codex_mcp_server
+
+if TYPE_CHECKING:
+    from cataforge.deploy.manifest import DeployManifest as DeployManifest
 
 
 class CodexAdapter(PlatformAdapter):
@@ -30,7 +33,13 @@ class CodexAdapter(PlatformAdapter):
         return "toml"
 
     def deploy_agents(
-        self, source_dir: Path, project_root: Path, *, dry_run: bool = False
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
     ) -> list[str]:
         """Convert AGENT.md (YAML frontmatter) to TOML for Codex.
 
@@ -68,6 +77,7 @@ class CodexAdapter(PlatformAdapter):
         for agent_name in sorted(source_agents):
             agent_md = source_dir / agent_name / "AGENT.md"
             toml_path = target_dir / f"{agent_name}.toml"
+            toml_rel = f"{target_rel}/{agent_name}.toml"
             if dry_run:
                 actions.append(
                     f"would deploy agents/{agent_name}/AGENT.md → {toml_path}"
@@ -80,6 +90,8 @@ class CodexAdapter(PlatformAdapter):
             )
             toml_content = _md_to_toml(agent_name, translated)
             toml_path.write_text(toml_content, encoding="utf-8")
+            if manifest is not None:
+                manifest.record(toml_rel)
             actions.append(f"agents/{agent_name}/AGENT.md → {toml_path}")
 
         actions.extend(
@@ -91,6 +103,7 @@ class CodexAdapter(PlatformAdapter):
                 target_rel,
                 head_read_size=256,
                 dry_run=dry_run,
+                prior_manifest=prior_manifest,
             )
         )
 

@@ -170,14 +170,35 @@ def test_write_failure_propagates(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# (e) Missing PROJECT-STATE.md → SKIP action, no crash
+# (e) Missing PROJECT-STATE.md → P1 self-heal restores or SKIP otherwise
 # ---------------------------------------------------------------------------
 
 
-def test_missing_project_state_md_yields_skip(tmp_path: Path) -> None:
+def test_missing_project_state_md_yields_skip_when_self_heal_absent(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Deploy must not crash when PROJECT-STATE.md is missing AND the
+    bundled scaffold cannot supply a replacement.
+
+    Two behaviours are valid:
+    * **Self-heal succeeds** (production: wheel ships PROJECT-STATE.md) →
+      deploy writes CLAUDE.md normally, no SKIP. Verified in
+      ``test_idempotency.py``.
+    * **Self-heal can't help** (this test: scaffold faked empty) →
+      deploy emits a SKIP action for the missing instruction source
+      instead of falling over.
+    """
     root = _init_project(tmp_path)
     # Remove the PROJECT-STATE.md that _init_project created
     (root / ".cataforge" / "PROJECT-STATE.md").unlink()
+
+    # Point ``_scaffold_root`` at an empty dir so the P1 self-heal has
+    # nothing to restore from — that puts deploy on the SKIP branch.
+    fake_scaffold = tmp_path / "_empty_scaffold"
+    fake_scaffold.mkdir()
+    import cataforge.core.scaffold as scaffold_mod
+
+    monkeypatch.setattr(scaffold_mod, "_scaffold_root", lambda: fake_scaffold)
 
     profile = _minimal_profile("claude-code")
     _write_profile(root, "claude-code", profile)
