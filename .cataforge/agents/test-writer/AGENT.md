@@ -87,37 +87,13 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 
 ### 3. 跨平台 syscall 测试模式
 
-被测分支触发平台特异性 syscall（fs.symlink / process.kill / chmod / SIGTERM 等）时按决策树选择：
+被测分支触发平台特异性 syscall（文件系统、进程信号、权限位等）时按决策树选择：
 
-```
-syscall X 在某平台无法运行？
-  └─ 是 → 失败/成功语义可被 mock 完整模拟？
-       ├─ 是 → 首选: vi.hoisted + vi.mock('node:fs/promises') override
-       │         （Python: monkeypatch / unittest.mock.patch）
-       └─ 否 → 跨平台断言（如 expect([null, 0]).toContain(exitCode)）
-                兜底: it.skipIf(platform === 'win32') / @pytest.mark.skipif
-  └─ 否 → 直接断言
-```
+1. 失败/成功语义可被宿主测试框架 mock 完整模拟 → 首选 mock override 该 syscall 的返回值，保持测试在所有平台执行同一断言
+2. 不能完整 mock 但语义在平台间等价 → 用跨平台断言（允许枚举多种合法返回值，如 exitCode 在某些平台为 null、其他平台为 0）
+3. 既不能 mock 也无法跨平台语义对齐 → 兜底用 platform-skip，并在 skip 原因中标注被覆盖的平台范围
 
-**vitest hoisted-mock 模板**：
-
-```ts
-const fsMock = vi.hoisted(() => ({ realpath: vi.fn() }));
-vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>();
-  return { ...actual, realpath: fsMock.realpath };
-});
-beforeEach(() => fsMock.realpath.mockImplementation(async (p: string) => p));
-// 用例内: fsMock.realpath.mockResolvedValueOnce('/etc/passwd');
-```
-
-| 场景 | 平台差异 | 首选 |
-|-----|---------|-----|
-| `fs.symlink` 创建失败（Win 非 admin EPERM） | 测试 fail | mock `node:fs/promises.realpath` |
-| `child.kill('SIGTERM')` 信号语义 | Win TerminateProcess vs POSIX → exitCode null vs 0 | 跨平台断言 `expect([null, 0]).toContain(...)` |
-| `chmod` / mode bits | Win ACL ≠ POSIX mode | mock `node:fs/promises.stat` |
-
-兜底统一为 platform-skip（`it.skipIf` / `@pytest.mark.skipif`）。
+选择优先级：mock > 跨平台断言 > skip。skip 是最弱兜底，仅用于无法跨平台覆盖的场景，避免成为掩盖真实问题的逃生口。
 
 ### 4. 行为验证充分性
 
