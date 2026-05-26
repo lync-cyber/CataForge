@@ -174,6 +174,8 @@ Plus three custom SHACL invariants we will hand-write in `schemas/shapes/extra.s
 - Every `cf:Task` MUST realize at least one Module/Component/Page (`sh:minCount 1` on `cf:realizes`).
 - Every concrete subclass MUST carry `cf:sort_key` matching `^[A-Z]{1,3}:[0-9]{6,}$`.
 
+**Closed-shape strategy.** `core.yaml` deliberately omits per-class `closed: true` and `tree_root:` flags. All 41 classes inherit LinkML's default `ConfiguredBaseModel` with `extra='forbid'`, which is the intended uniform lockdown — extra fields are rejected on every concrete subclass. The SHACL output therefore carries `sh:closed true` on every shape regardless of source-side declaration; no per-class override is needed. Adding `closed:` or `tree_root:` to `core.yaml` is a no-op against the generated code and will be rejected at review.
+
 ### §3.2.5 Version semantics
 
 Two complementary predicates (see §3.9 #6 for the explicit decision rationale):
@@ -638,24 +640,30 @@ from rdflib import Graph, Namespace, Literal, URIRef, RDF
 
 CF    = Namespace("https://cataforge.dev/ontology/")
 CFPRJ = Namespace("https://cataforge.dev/instance/")
+PROJ  = CFPRJ["proj-demo"]                     # required belongs_to_project target
 
 g = Graph(store="Oxigraph")           # oxrdflib drop-in store
 g.bind("cf", CF); g.bind("cfprj", CFPRJ)
 
 def add(node, typ, **props):
+    # SoftwareArtifact subclasses require id (URI), entity_id, sort_key,
+    # title, belongs_to_project. The helper fills the last from PROJ.
     g.add((CFPRJ[node], RDF.type, CF[typ]))
+    if typ != "Project":
+        props.setdefault("belongs_to_project", PROJ)
     for p, v in props.items():
         g.add((CFPRJ[node], CF[p],
                v if isinstance(v, URIRef) else Literal(v)))
 
+add("proj-demo", "Project", title="Demo project")
 add("F-001", "Feature",  entity_id="F-001", sort_key="F:000001",
     title="Login flow", verified_by=CFPRJ["TC-007"])
 add("M-014", "Module",   entity_id="M-014", sort_key="M:000014",
-    satisfies=CFPRJ["F-001"], realized_as=CFPRJ["T-021"])
+    title="Auth module", satisfies=CFPRJ["F-001"], realized_as=CFPRJ["T-021"])
 add("T-021", "Task",     entity_id="T-021", sort_key="T:000021",
-    realizes=CFPRJ["M-014"])
+    title="Wire OAuth", realizes=CFPRJ["M-014"])
 add("TC-007", "TestCase", entity_id="TC-007", sort_key="TC:000007",
-    verifies=CFPRJ["F-001"])
+    title="OAuth happy path", verifies=CFPRJ["F-001"])
 
 q = """
 PREFIX cf: <https://cataforge.dev/ontology/>

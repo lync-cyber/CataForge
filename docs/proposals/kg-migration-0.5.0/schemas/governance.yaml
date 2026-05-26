@@ -69,14 +69,16 @@ slots:
     range: string
 
   generates:
-    range: cf:SoftwareArtifact
+    range: SoftwareArtifact
     multivalued: true
     description: >-
       Governance asset produced the business artifact (e.g. architect Agent
-      generated this Module). Cross-namespace reference allowed.
+      generated this Module). Cross-namespace reference resolves via the
+      `core` import; LinkML's `gen-pydantic` requires the bare class name
+      in `range:` even when the class lives in an imported schema.
 
   consumed_by:
-    range: cf:SoftwareArtifact
+    range: SoftwareArtifact
     multivalued: true
     description: Inverse pointer — business artifact consumed by this asset.
 
