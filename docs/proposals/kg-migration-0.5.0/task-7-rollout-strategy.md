@@ -8,84 +8,64 @@
 
 ### Overview
 
-The migration proceeds in three phases. Each phase gate is a **verifiable condition set**, not a calendar date.
+The migration proceeds in **two phases**: Alpha (build + cutover) and GA (stabilize + release). The earlier draft of this section had three phases including a Beta dual-track period; that has been collapsed because the project chose a full-cutover model (no Markdown loader fallback) at proposal-review time. Within Alpha, a **strict linear sub-PR sequence** drives implementation. Each phase gate is a **verifiable condition set**, not a calendar date.
+
+The feature flag that governs cutover is `KGConfig.kg_active_doc_types: set[str]` — a set of doc_type strings for which the KG path is authoritative. Empty set = legacy loader for all reads (the pre-Alpha state). The Alpha cutover progresses by populating this set, doc_type by doc_type. Once the set covers all in-scope doc_types and the doctor gate is ERROR for at least one full reconcile cycle, Alpha exits to GA.
 
 ---
 
-### Phase 1 · Alpha (Internal)
+### Phase 1 · Alpha (Build + Cutover)
 
-**Scope:** Business KG basic features + Markdown export verification. All testing is internal; no downstream projects migrate yet.
+**Scope:** end-to-end vertical slice covering three doc_types (prd, arch, test) and the entity chain Requirement → Component → TestCase, with both waterfall (Phase) and agile (Sprint) process-model paths exercised. Delivered as a strict linear sub-PR sequence; each sub-PR must merge to main before the next opens. No dual-track running; cutover is per-doc_type via `kg_active_doc_types`.
 
-**Entry Condition:**
-- Task 3 (schema design) LinkML YAML files are merged and passing `linkml lint`.
-- Task 4 (agent/skill integration) has a passing stub-level test suite with `KGConfig.store_backend = "memory"`.
-- Task 5 (migration script) reports `entity_count > 0` and `relation_count > 0` on the CataForge self-test fixture.
+**Entry Condition (Alpha kickoff PR):**
+- Issue [CataForge#142](https://github.com/lync-cyber/CataForge/issues/142) (spike findings) has actionable items 1.1 / 1.2 / 1.3 resolved into concrete schema/doc edits queued for sub-PR 1.
+- `linkml-runtime>=1.11.1` and `pyoxigraph>=0.5.8` are pinned in `pyproject.toml`.
+- `PYTHONIOENCODING=utf-8` is wired into the codegen invocation (Windows GBK console gotcha from spike-1 1.4).
 
-**Exit Condition:**
-- All unit tests green (`pytest` exit code 0, no skips on KG-related test files).
-- `cataforge doctor kg_ingestion_completeness` gate passes on the self-test fixture (entity count matches expected, no missing required fields).
-- KG → Markdown export round-trip: exported Markdown files parse without error by the existing `loader.extract()` against every `doc_type` in `framework.json`.
-- SHACL validation (`pyshacl`, optional) reports zero critical violations on the ingested self-test graph.
-- Zero regressions on legacy `cataforge docs load` and `cataforge docs validate` CLI paths.
+**Sub-PR sequence (strict linear, each merged before the next opens):**
+
+1. **Sub-PR 1 · `schema + codegen`** — merge corrected `core.yaml` / `governance.yaml` (with spike-1 fixes applied); add `scripts/codegen_kg_schema.py` that runs `gen-pydantic` / `gen-shacl` and writes generated artefacts to `src/cataforge/kg/_generated/`; bootstrap `rdfs:subClassOf` triples generated from `core.yaml` `is_a` chain (per spike-2 2.1). No runtime code paths touched.
+2. **Sub-PR 2 · `store + init`** — `src/cataforge/kg/store.py` (Oxigraph + memory backends), `cataforge kg init` CLI, `KGConfig` dataclass with `kg_active_doc_types: set[str] = field(default_factory=set)` defaulting to empty. Verified by an integration test that opens an empty store, loads the bootstrap schema triples, and runs a no-op SPARQL ASK. No business data ingested.
+3. **Sub-PR 3 · `import codemod`** — `scripts/migrate_docs_to_kg.py` per §7.2; ingests prd / arch / test doc_types only; produces `cataforge kg validate` reports with zero `missing` entries on a hand-crafted fixture project covering both waterfall and agile process models. Adds `kg_active_doc_types` config field but does **not** yet flip it; reads still go through legacy loader.
+4. **Sub-PR 4 · `export round-trip`** — Task 4 export pipeline (`cataforge kg export`); proves byte-identical idempotency across two consecutive exports; KG-to-Markdown output diff-clean against original source for the fixture project. Still no read-side change.
+5. **Sub-PR 5 · `cutover + doctor gate ERROR`** — Task 6 §6.2 call-site migration for the 15 Group A call points; shim layer dispatches on `doc_type in KGConfig.kg_active_doc_types` (per Task 5 §5.5 and Task 6 §6.5); `cataforge doctor kg_ingestion_completeness` gate added at **ERROR severity** in this same PR (per the explicit decision recorded in [README §User decisions](README.md)). Default config in this PR sets `kg_active_doc_types = {"prd", "arch", "test"}` for projects opting in; projects can roll back by removing entries.
+
+**Exit Condition (Alpha → GA):**
+- All five sub-PRs merged to main and tagged.
+- `cataforge doctor kg_ingestion_completeness` gate has been ERROR-enforced (not WARN) for at least one full `cataforge kg reconcile` cycle on the fixture project with zero failures.
+- KG → Markdown export round-trip: byte-identical on two consecutive runs for every doc_type in `kg_active_doc_types`.
+- SHACL validation (`pyshacl`, optional) reports zero critical violations on the ingested fixture graph.
+- All 15 Group A call points return identical results via KG path as legacy path on the fixture project (one-shot regression test recorded as a golden file).
+- Both waterfall (`process_model = waterfall`) and agile (`process_model = agile`) test projects pass end-to-end (per the explicit dual-coverage decision in [README §User decisions](README.md)).
 
 **Rollback Trigger:**
-- Any previously passing `cataforge docs load` call begins returning empty results or errors on the self-test project.
-- `kg_ingestion_completeness` gate reports completeness < 95% after two consecutive repair attempts.
-- A security or correctness defect is found in the RocksDB write path that cannot be patched within the phase.
+- `kg_ingestion_completeness` gate reports completeness below the configured threshold (default 95%) after two consecutive `cataforge kg repair` attempts on any opted-in project.
+- Any agent produces a semantically incorrect output traced to a KG query vs. legacy Markdown difference on a previously-passing fixture reference.
+- A pyoxigraph or oxrdflib version upgrade causes a deserialization error when opening an existing RocksDB store.
+- Rollback action: remove the affected `doc_type` from `KGConfig.kg_active_doc_types` (per-doc_type flag granularity, per [README §User decisions](README.md)); this reverts reads for that doc_type to the legacy loader without affecting other doc_types. If the regression is systemic, remove all entries from the set and restore the KG snapshot per §7.3.
 
-**Phase Deliverables:**
-- `kg/schema/*.yaml` — LinkML schema for all 9 entity types.
-- `src/cataforge/kg/` — `store.py`, `ingest.py`, `query.py`, `export.py`.
+**Phase Deliverables (cumulative across sub-PRs 1–5):**
+- `src/cataforge/kg/_generated/*` — codegen output (gitignored; regenerated from `core.yaml`).
+- `src/cataforge/kg/` — `store.py`, `config.py`, `query.py`, `trace.py`, `transaction.py`.
+- `src/cataforge/kg/export/` — Task 4 pipeline.
+- `scripts/codegen_kg_schema.py` — wraps `gen-pydantic` / `gen-shacl` with `PYTHONIOENCODING=utf-8`.
 - `scripts/migrate_docs_to_kg.py` — data migration script (see §7.2).
-- `cataforge doctor` integration: `kg_ingestion_completeness` gate.
-- `cataforge kg export` CLI subcommand (KG → Markdown).
-- Unit test suite (`tests/kg/`) with `memory` backend.
+- `cataforge doctor` integration: `kg_ingestion_completeness` gate at ERROR severity (sub-PR 5).
+- `cataforge kg init` / `import` / `export` / `validate` / `repair` / `reconcile` / `snapshot` / `rollback` / `diff` CLI subcommands (Task 5 §5.1 subset).
+- Shim layer in `src/cataforge/kg/_shim.py` dispatching on `kg_active_doc_types`.
+- Fixture project under `tests/fixtures/kg-vertical-slice/` covering prd / arch / test in both waterfall and agile variants.
 
 ---
 
-### Phase 2 · Beta (Gradual)
+### Phase 2 · GA (Stabilize + Release)
 
-**Scope:** Agent/skill call-layer migration + dual-track running (KG-leading, Markdown as derived snapshot). A subset of downstream projects opts in.
+**Scope:** Production stabilization, deprecation enforcement, and `v0.5.0` release tag. Legacy Markdown loader paths remain in tree as fallback emergency exit but are not the default for any in-scope doc_type.
 
 **Entry Condition:**
 - Phase 1 exit conditions all satisfied.
-- At least one external project (not CataForge self) has successfully run `scripts/migrate_docs_to_kg.py` and passed `kg_ingestion_completeness`.
-- `cataforge kg reconcile` command is implemented and produces a stable diff report (no panic on edge cases).
-- `coverage_mode` configuration is implemented; `strict` is the enforced default.
-- The `mention → strict` upgrade codemod (`scripts/upgrade_coverage_strict.py`) is implemented and has been run on at least the CataForge self-test fixture without errors.
-
-**Exit Condition:**
-- Double-write is active on at least two distinct projects for a sustained period (measured by `cataforge kg reconcile` runs, not calendar).
-- `cataforge kg reconcile` reports zero entity-level divergence on all opted-in projects.
-- All 16 call sites catalogued in Task 1 §1.3 have been migrated or explicitly annotated as "legacy-compat" with a tracked issue.
-- `doc-review` Layer 1 uses SPARQL-based xref checks; false-positive and false-negative rates are measured and documented (any remaining known false cases are tracked).
-- `cataforge kg compare-read` sampling alarm has been triggered zero times in the last N reconcile cycles (N = 10), confirming KG and Markdown read results are consistent.
-
-**Rollback Trigger (during Beta):**
-- `cataforge kg reconcile` reports entity-level divergence that cannot be resolved within one reconcile cycle.
-- Any opted-in project's agent produces a semantically incorrect output traced to a KG query vs. legacy Markdown difference.
-- `cataforge kg compare-read` alarm fires more than twice in 10 consecutive sampling cycles.
-
-**Phase Deliverables:**
-- Migrated agent `Input Contract` sections for all 6 SDLC roles (SPARQL-based loads).
-- `cataforge kg reconcile` periodic task (see §7.5).
-- `cataforge kg compare-read` sampling comparator.
-- `mention → strict` codemod script.
-- Updated `doc-review` Layer 1 (`checker.py`) using SPARQL xref and coverage checks.
-- Updated `task-dep-analysis` skill using SPARQL graph traversal.
-- Dual-track running documentation for opted-in projects.
-
----
-
-### Phase 3 · GA (Formal Release)
-
-**Scope:** Full switchover + removal of legacy Markdown-only tools. CataForge 0.5.0 release.
-
-**Entry Condition:**
-- Phase 2 exit conditions all satisfied.
-- 100% of organisations piloting Beta are on `coverage_mode = strict`.
+- 100% of organisations piloting Alpha are on `coverage_mode = strict`.
 - `cataforge kg reconcile` has been run at least 20 times across all opted-in projects with zero unresolved divergences.
-- All SPARQL-based replacements for previously Markdown-regex-based checks have documented equivalent or better precision (false-pos / false-neg rates measured in Beta).
 - Deprecation notice for `docs/.doc-index.json` as sole source of truth has been in `CHANGELOG` for at least one prior release.
 
 **Exit Condition:**
@@ -309,113 +289,120 @@ After completing rollback steps, verify:
 
 ## §7.4 Technical Risk Register
 
+Probability / impact reflect the full-cutover model chosen for Alpha (no Markdown-loader fallback during normal operation; flag rollback per doc_type is the only escape hatch).
+
 | # | Risk | Probability | Impact | Mitigation | Detection Signal |
 |---|------|-------------|--------|------------|-----------------|
 | R-01 | **Data migration incompleteness**: entity extraction misses entities in non-standard section layouts (e.g., items nested inside HTML comment blocks, or in code fences within a section) | M | H | Use a two-pass extraction: first pass regex on stripped-code-block text, second pass over raw text with a stricter context filter; report unmatched known entity IDs (from `.doc-index.json` `items` field) as warnings | `kg_ingestion_completeness` gate below threshold; entity count in KG < entity count in `.doc-index.json` |
 | R-02 | **KG library selection change / deprecation**: pyoxigraph primary author (@Tpt) abandons or significantly changes the API between 0.5.x and a future version, breaking the RocksDB store format | L | H | Pin `pyoxigraph>=0.5.8,<0.6` in `pyproject.toml`; maintain a `memory`-backend fallback for all queries; abstract the store behind `GraphRepository` so a backend swap is a single-file change | pyoxigraph GitHub repository shows archival or breaking-change release notes; wheel build failures on CI |
-| R-03 | **Performance regression on large projects**: SPARQL queries over a large graph (thousands of entities) take longer than the legacy O(1) index lookup, degrading agent startup latency | M | M | Benchmark on a synthetic graph of 5,000+ triples before Beta exit; add SPARQL LIMIT clauses to all agent startup queries; maintain `.doc-index.json` as a derived cache for the most frequent O(1) lookups | Agent startup latency measurement in CI exceeds 2× baseline; `cataforge kg benchmark` report |
-| R-04 | **Agent/skill call-layer semantic divergence**: migrated SPARQL queries return subtly different content than `loader.extract()` for edge cases (e.g., multi-volume documents, split sections) | M | H | Implement `cataforge kg compare-read` sampling (§7.5); run comparison on every doc type and split-volume variant before Beta exit; maintain legacy fallback path until comparison passes | `compare-read` alarm fires; doc-review AI layer detects inconsistencies between KG-loaded context and expected content |
+| R-03 | **Performance regression on large projects**: SPARQL queries over a large graph (thousands of entities) take longer than the legacy O(1) index lookup, degrading agent startup latency | M | M | Benchmark on a synthetic graph of 5,000+ triples before Alpha exit; add SPARQL LIMIT clauses to all agent startup queries; maintain `.doc-index.json` as a derived cache for the most frequent O(1) lookups | Agent startup latency measurement in CI exceeds 2× baseline; `cataforge kg benchmark` report |
+| R-04 | **Agent/skill call-layer semantic divergence**: migrated SPARQL queries return subtly different content than `loader.extract()` for edge cases (e.g., multi-volume documents, split sections). **Elevated impact under full-cutover model** — no markdown fallback during normal operation means divergence hits production reads directly | H | H | Sub-PR 5 golden-file regression test compares every Group A call point's KG-path output vs. legacy-path output before flipping any doc_type into `kg_active_doc_types`; per-doc_type flag granularity allows rollback of one affected doc_type without disrupting others; `cataforge kg compare-read` sampling is retained as a periodic post-cutover audit (not a gating mechanism) | Golden-file test fails in sub-PR 5; `compare-read` post-cutover audit reports divergence; doc-review AI layer detects inconsistencies between KG-loaded context and expected content |
 | R-05 | **Third-party extension compatibility**: downstream projects using custom `cataforge` plugins or directly importing `docs/.doc-index.json` as a data source break after it becomes a derived cache | M | M | Document `.doc-index.json` as derived-only with one release's advance warning; provide `cataforge kg export-index` as a backward-compatible regeneration command; survey known external integrations before GA | External projects report import errors or missing fields in `.doc-index.json` |
-| R-06 | **Dual-track consistency drift**: during Beta, KG and Markdown diverge because an agent writes to Markdown (via `doc-gen` skill) but the KG is not updated in the same transaction | H | M | Enforce KG-leading write: `doc-gen finalize` must call `cataforge kg ingest --doc-file` after every `cataforge docs index --doc-file`; make the two calls atomic via a single CLI wrapper; `cataforge kg reconcile` catches any drift that slips through | `cataforge kg reconcile` reports non-zero divergence; `compare-read` alarm |
+| R-06 | **Feature flag misconfiguration**: `KGConfig.kg_active_doc_types` is partially populated (e.g., `{"prd"}` but `arch` left out), causing cross-doc_type references to resolve inconsistently — a prd Feature reads from KG while the arch Component it implements reads from legacy loader | M | H | `cataforge kg validate` checks for cross-doc_type traceability fan-out: if any entity in an active doc_type has `cf:implements` / `cf:verifies` targeting a doc_type not in the active set, emit a configuration warning. doctor `kg_ingestion_completeness` gate runs separately per doc_type so a partial config still flags incomplete reads | `cataforge kg validate` configuration warning; `kg_ingestion_completeness` per-doc_type report; agent output references stale legacy-loader data for a related entity |
 | R-07 | **Team / user learning cost for SPARQL**: agent authors and framework contributors unfamiliar with SPARQL may write incorrect or inefficient queries, introducing bugs in the migrated call layer | H | M | Provide a `GraphRepository` Python abstraction hiding SPARQL for the most common access patterns (`find_by_id`, `find_outbound`, `trace_to_root`); document SPARQL patterns in `docs/reference/kg-query-patterns.md`; code-review checklist item for any new SPARQL query | Code review flags invalid SPARQL; `cataforge kg validate-queries` reports parse errors; agent integration tests fail |
-| R-08 | **Traceability extraction false-positive / false-negative**: `XREF_RE` in the migration script matches references that are in code fences, comments, or deprecated sections, generating incorrect KG edges; or misses references in non-standard formats | M | H | Apply the same `_strip_code_blocks` logic used in `checker.py`, but extend it to handle fenced blocks with language tags and inline code; add a second filter for `<!-- deprecated -->` sections; measure precision/recall against a hand-labeled reference set before Beta exit | Traceability completeness metric shows unexpected edges; doc-review Layer 1 SPARQL checks report fewer or more covered entities than expected; human review of a sample KG export |
+| R-08 | **Traceability extraction false-positive / false-negative**: `XREF_RE` in the migration script matches references that are in code fences, comments, or deprecated sections, generating incorrect KG edges; or misses references in non-standard formats | M | H | Apply the same `_strip_code_blocks` logic used in `checker.py`, but extend it to handle fenced blocks with language tags and inline code; add a second filter for `<!-- deprecated -->` sections; measure precision/recall against a hand-labeled reference set before Alpha exit | Traceability completeness metric shows unexpected edges; doc-review Layer 1 SPARQL checks report fewer or more covered entities than expected; human review of a sample KG export |
+| R-09 | **`bool(QueryBoolean)` idiom mishandled**: pyoxigraph 0.5.x `Store.query()` returns a `QueryBoolean` object for ASK queries; comparing it to Python `True` with `==` silently always evaluates false. Surfaced by spike-2 finding 2.2. Affects every traceability-completeness gate (Task 5 §5.4 `KGTraceabilityBreakError`, Task 6 §6.4 A13 `check_bidirectional_coverage`, doctor `kg_ingestion_completeness`) | M | H | Wrap all ASK consumption through a single `ask(store, sparql) -> bool` utility in `src/cataforge/kg/_ask.py` introduced in sub-PR 2; lint rule (or grep gate in pre-commit) rejects `query(... ASK ...) == True` patterns; document the idiom in `docs/reference/kg-query-patterns.md` | Pre-commit grep gate fires on disallowed pattern; integration test where doctor gate silently returns "pass" on a known-broken fixture |
+| R-10 | **`rdfs:subClassOf` triples not materialized**: pyoxigraph has no OWL/RDFS entailment; `a/rdfs:subClassOf*` enumeration silently misses subclass instances if the class hierarchy is not loaded as Turtle triples at store init. Surfaced by spike-2 finding 2.1 | M | H | `cataforge kg init` (sub-PR 2) explicitly generates `rdfs:subClassOf` Turtle from `core.yaml` `is_a` chain and loads it into the store as part of bootstrap; integration test in sub-PR 2 asserts that querying for `Screen` instances returns at least one `Page` (a subclass) | Integration test fails in sub-PR 2; entity-enumeration SPARQL returns fewer rows than expected on a fixture with subclass instances |
 
 ---
 
-## §7.5 Dual-Track Running Plan (Beta Phase)
+## §7.5 Per-doc_type Rolling Cutover (Alpha Phase)
 
-### Double-Write Strategy
+Replaces the earlier dual-track running plan. Under the full-cutover model chosen at proposal-review time, KG is the sole read path for any doc_type listed in `KGConfig.kg_active_doc_types`; legacy `loader.extract()` is the sole read path for any doc_type not in the set. There is no dual-write and no dual-read on the same doc_type. Cutover progresses by adding doc_types to the set, one or a few at a time.
 
-During Beta, KG is the **source of truth**. Markdown files are derived snapshots. The write path is:
+### Write path
+
+KG is always the source of truth for doc_types in `kg_active_doc_types`. Writes flow:
 
 ```
 doc-gen finalize
-  └─ Step 1: cataforge docs index --doc-file <path>   [legacy index update, retained for backward compat]
-  └─ Step 2: cataforge kg ingest --doc-file <path>     [KG write — authoritative]
-  └─ Step 3: cataforge kg export --doc-file <path>     [KG → Markdown re-export, overwrites file with canonical form]
+  └─ Step 1: cataforge kg ingest --doc-file <path>     [KG write — authoritative]
+  └─ Step 2: cataforge kg export --doc-file <path>     [KG → Markdown re-export, overwrites file with canonical form]
 ```
 
-Steps 1–3 are wrapped in a single `cataforge kg commit --doc-file <path>` command that executes them atomically (all succeed or all are rolled back). If Step 2 fails, Step 3 does not execute and Step 1 is reverted.
+Steps 1–2 are wrapped in a single `cataforge kg commit --doc-file <path>` command, atomically (both succeed or both are rolled back via the KG snapshot taken at Step 1 start). For doc_types **not** in `kg_active_doc_types`, the legacy `cataforge docs index --doc-file <path>` write path continues unchanged (sub-PR 5 does not remove it).
 
-### Double-Read Comparison
+### Consistency check: `cataforge kg reconcile`
 
-`cataforge kg compare-read` is a sampling command that:
+`cataforge kg reconcile` is a periodic task designed to detect drift between KG and Markdown filesystem state. It runs **per-doc_type**, only against doc_types in `kg_active_doc_types`. Four steps:
 
-1. Takes a random sample of N references from `.doc-index.json` (default N = 20 per reconcile run, configurable).
-2. For each reference, executes both:
-   - Legacy: `loader.extract(ref, project_root)` → text string.
-   - KG: SPARQL query for the entity section content → text string.
-3. Computes Jaccard similarity on token sets of both results.
-4. Reports any pair where similarity < threshold (default 0.95) as a divergence alarm.
-5. Exits non-zero if any alarm fires; exits 0 if all samples are within threshold.
-
-The comparison is run as part of `cataforge kg reconcile` and separately available as a standalone command for debugging.
-
-### Consistency Check: `cataforge kg reconcile`
-
-`cataforge kg reconcile` is a periodic task designed to detect and surface drift between KG and Markdown filesystem state. It runs in four steps:
-
-1. **Scan**: enumerate all business docs in `docs/{doc_type}/`, extract all entity IDs and cross-references from Markdown source.
-2. **Compare**: issue SPARQL queries to retrieve all entities and relations stored in KG.
-3. **Diff**: compute the symmetric difference between Markdown-extracted entities/relations and KG-stored entities/relations. Any entity present in Markdown but absent in KG is a `missing` entry; any KG entity without a matching Markdown source is a `ghost` entry.
-4. **Report**: write a structured diff report to `docs/.kg-reconcile-report.json`. Exit non-zero if any `missing` or `ghost` entries exist.
+1. **Scan**: enumerate business docs under `docs/{doc_type}/` for each `doc_type ∈ kg_active_doc_types`; extract entity IDs and cross-references from Markdown source.
+2. **Compare**: issue SPARQL queries to retrieve all entities and relations stored in KG for that doc_type.
+3. **Diff**: compute the symmetric difference. Any entity present in Markdown but absent in KG is a `missing` entry; any KG entity without a matching Markdown source is a `ghost` entry.
+4. **Report**: write a structured diff report to `docs/.kg-reconcile-report.json` (per-doc_type sections). Exit non-zero if any `missing` or `ghost` entries exist.
 
 ```pseudocode
-function kg_reconcile(project_root, kg_store):
-    md_entities = extract_all_entities_from_markdown(project_root)
-    md_relations = extract_all_relations_from_markdown(project_root)
+function kg_reconcile(project_root, kg_store, config):
+    report = {timestamp: utc_now(), per_doc_type: {}}
+    overall_divergence = 0
 
-    kg_entities = sparql_select_all_entities(kg_store)
-    kg_relations = sparql_select_all_relations(kg_store)
+    for doc_type in config.kg_active_doc_types:
+        md_entities = extract_all_entities_from_markdown(project_root, doc_type)
+        md_relations = extract_all_relations_from_markdown(project_root, doc_type)
 
-    missing_entities = md_entities - kg_entities
-    ghost_entities   = kg_entities - md_entities
-    missing_relations = md_relations - kg_relations
-    ghost_relations   = kg_relations - md_relations
+        kg_entities = sparql_select_all_entities(kg_store, doc_type)
+        kg_relations = sparql_select_all_relations(kg_store, doc_type)
 
-    report = {
-        timestamp: utc_now(),
-        missing_entities: list(missing_entities),
-        ghost_entities:   list(ghost_entities),
-        missing_relations: list(missing_relations),
-        ghost_relations:   list(ghost_relations),
-        divergence_count: len(missing_entities) + len(ghost_entities)
-                        + len(missing_relations) + len(ghost_relations),
-    }
+        missing_entities = md_entities - kg_entities
+        ghost_entities   = kg_entities - md_entities
+        missing_relations = md_relations - kg_relations
+        ghost_relations   = kg_relations - md_relations
+
+        divergence = len(missing_entities) + len(ghost_entities) \
+                   + len(missing_relations) + len(ghost_relations)
+        overall_divergence += divergence
+
+        report.per_doc_type[doc_type] = {
+            missing_entities: list(missing_entities),
+            ghost_entities:   list(ghost_entities),
+            missing_relations: list(missing_relations),
+            ghost_relations:   list(ghost_relations),
+            divergence_count: divergence,
+        }
+
+    report.overall_divergence_count = overall_divergence
     write_json(project_root / "docs/.kg-reconcile-report.json", report)
 
-    if report.divergence_count > 0:
+    if overall_divergence > 0:
         exit(1)
     exit(0)
 ```
 
 `kg reconcile` is intended to run:
-- After every `cataforge kg commit --doc-file` (lightweight: only the updated doc's entities are compared).
+- After every `cataforge kg commit --doc-file <path>` (lightweight: only the updated doc's entities are compared).
 - As a full-project sweep triggered by `cataforge doctor` or CI.
 
-### Cutover Decision Points
+### Post-cutover audit: `cataforge kg compare-read`
 
-**Stop double-write (KG-leading becomes sole write path; legacy `docs index` step removed):**
+Retained as a periodic **audit** (not a gating mechanism). For each active doc_type, takes a random sample of N references, executes both the KG SPARQL query and a one-off legacy `loader.extract()` call against the same Markdown source, and reports any pair where token Jaccard similarity < threshold (default 0.95). Audit fires diagnostic alarms but does not block writes; if alarms persist, the affected doc_type is removed from `kg_active_doc_types` (rollback step) and the divergence investigated.
 
-- `cataforge kg reconcile` reports zero divergence on all opted-in projects across 20 consecutive full-project sweeps.
-- `cataforge kg compare-read` alarm has not fired in the last 10 sampling runs.
-- No outstanding issues tagged `dual-track-regression` in the project tracker.
+### Decision points for doc_type promotion
 
-**Stop double-read (legacy `loader.extract()` path removed from all agent Input Contracts):**
+A doc_type is added to `kg_active_doc_types` when:
 
-- All 16 call sites in Task 1 §1.3 have been migrated to SPARQL-based access or are annotated `legacy-compat-permanent` with a documented rationale.
-- `cataforge kg compare-read` has been decommissioned from `cataforge kg reconcile` (replaced by SHACL validation on every KG write).
-- Phase 3 GA exit conditions are satisfied.
+- `cataforge kg validate` reports zero `missing` / `ghost` entries for that doc_type across at least one full reconcile cycle on a fixture project.
+- Sub-PR 5's golden-file regression test for every Group A call point touching that doc_type passes.
+- `cataforge kg compare-read --doc-type <doc_type>` audit run on the project's actual content reports zero alarms.
+
+A doc_type is removed from `kg_active_doc_types` (rolled back to legacy loader) when:
+
+- `cataforge kg reconcile` reports `missing` or `ghost` entries that two consecutive `cataforge kg repair` runs cannot resolve.
+- `cataforge kg compare-read` audit reports persistent divergence alarms (≥2 alarms in 10 consecutive sample runs).
+- An agent produces semantically incorrect output traced to that doc_type's KG path.
+
+The set never reaches "all doc_types" by default in 0.5.0 — only `{"prd", "arch", "test"}` are in scope for Alpha. Other doc_types remain on the legacy loader through Alpha and GA and become candidates for 0.6.0 expansion.
 
 ---
 
 ## [依赖传递摘要]
 
 **关键决策:**
-- 三阶段发布（Alpha/Beta/GA）均以可验证条件为门禁，Alpha 以 `kg_ingestion_completeness` gate 和 Markdown 导出往返无误为退出条件，Beta 以双读比对告警归零和所有 16 个调用点迁移完成为退出条件，GA 以 100% 项目切换 `coverage_mode=strict` 和遗留正则代码删除为退出条件。
+- 两阶段发布（Alpha build+cutover / GA stabilize+release）均以可验证条件为门禁。Beta 双轨期已撤销 —— 项目在 proposal-review 时选择 full-cutover 模型，没有 markdown loader fallback。
+- Alpha 内部走严格线性 sub-PR 序列（schema+codegen → store+init → import codemod → export round-trip → cutover+doctor gate ERROR），cutover 通过 `KGConfig.kg_active_doc_types: set[str]` 逐 doc_type 推进；Alpha 范围只覆盖 prd / arch / test 三个 doc_type，瀑布 + 敏捷双 process_model 同时验证。
+- doctor `kg_ingestion_completeness` 硬门在 sub-PR 5 直接以 ERROR 级别合入（不走 WARN 过渡）。
 - 数据迁移脚本采用六阶段管道（scan→parse→entity extraction→relation extraction→write→verify），幂等设计（IRI 由 entity ID 确定性派生，mtime 守卫跳过未变更实体），`coverage_mode=strict` 下只识别 `doc_id#§N.ITEM` 格式的跨文档引用。
-- 双轨运行期 KG 主写（`kg commit` 原子三步），`kg reconcile` 检测漂移；两个切换决策点均以可验证条件（连续 N 次 reconcile 零漂移、compare-read 零告警）而非时间表为准。
-- 风险寄存器 8 条，覆盖迁移完整性、库弃用、性能回退、语义漂移、第三方兼容、双轨一致性、学习成本、追溯提取假阳/假阴。
+- 回滚粒度 = 单 doc_type：从 `kg_active_doc_types` 中移除一个 doc_type 即可让该 doc_type 的读路径退回 legacy loader，其他 doc_type 不受影响。系统性问题才走完整 KG snapshot 恢复。
+- 风险寄存器 10 条（原 R-06 双轨漂移撤销，新增 R-04 影响升级到 H/H、R-06 flag 配置不一致、R-09 `bool(QueryBoolean)` 习语、R-10 `rdfs:subClassOf` 显式物化）—— R-09 / R-10 来源于 [CataForge#142](https://github.com/lync-cyber/CataForge/issues/142) spike 发现。
 
 **输出物路径/位置:** `docs/proposals/kg-migration-0.5.0/task-7-rollout-strategy.md`
 
