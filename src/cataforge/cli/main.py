@@ -149,6 +149,7 @@ def _register_commands() -> None:
         feedback_cmd,
         hook_cmd,
         issue_cmd,
+        kg_cmd,
         mcp_cmd,
         penpot_cmd,
         plugin_cmd,
