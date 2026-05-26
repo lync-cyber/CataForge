@@ -1,0 +1,20 @@
+---
+entity_id: {{ entity.entity_id }}
+title: {{ entity.title }}
+sort_key: {{ entity.sort_key }}
+{% if entity.source_doc %}source_doc: {{ entity.source_doc }}
+{% endif %}{% if entity.source_section %}source_section: {{ entity.source_section }}
+{% endif %}{% if entity.content_hash %}content_hash: {{ entity.content_hash }}
+{% endif %}{% if entity.status %}status: {{ entity.status }}
+{% endif %}{% if entity.priority %}priority: {{ entity.priority }}
+{% endif %}---
+
+# {{ entity.entity_id }} — {{ entity.title }}
+{% if entity.description %}
+
+## Description
+
+{{ entity.description }}
+{% endif %}
+{% block body %}{% endblock %}
+{% block relations %}{% endblock %}

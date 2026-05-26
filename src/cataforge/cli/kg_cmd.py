@@ -3,8 +3,9 @@
 Subcommand build-out tracks the alpha sub-PR sequence in task-7 §7.1:
 
 * sub-PR 2 — `init`
-* sub-PR 3 — `import`, `validate` (this file)
-* sub-PR 4+ — `export`, `repair`, `reconcile`, `snapshot`, `rollback`, `diff`
+* sub-PR 3 — `import`, `validate`
+* sub-PR 4 — `export` (this file)
+* sub-PR 5+ — `repair`, `reconcile`, `snapshot`, `rollback`, `diff`
 """
 from __future__ import annotations
 
@@ -291,5 +292,72 @@ def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
 
     if not report.ok:
         err = CataforgeError("validation reported violations.")
+        err.exit_code = 3
+        raise err
+
+
+@kg_group.command("export")
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path("docs"),
+    show_default=True,
+    help="Root directory for the exported Markdown tree.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit a JSON result blob (per-file sha256 included) instead of the table.",
+)
+def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
+    """Export the KG to per-entity Markdown files (task-4 pipeline)."""
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg.export import compile_to_markdown
+
+    config = KGConfig(store_backend="oxigraph", db_path=db_path)
+    try:
+        with KnowledgeGraphStore.connect(config) as handle:
+            result = compile_to_markdown(handle.raw, output_dir)
+    except KGStoreNotInitializedError as exc:
+        err = CataforgeError(str(exc))
+        err.exit_code = 1
+        raise err from exc
+
+    if json_output:
+        click.echo(
+            json.dumps(
+                {
+                    "entity_count": result.entity_count,
+                    "rendered": len(result.file_records),
+                    "errors": [
+                        {"entity_id": e, "message": m} for e, m in result.errors
+                    ],
+                    "files": result.file_hashes,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    else:
+        click.echo(
+            f"OK: rendered {len(result.file_records)}/{result.entity_count} entities "
+            f"→ {result.output_dir}"
+        )
+        if result.errors:
+            click.echo(f"  errors: {len(result.errors)}")
+            for eid, msg in result.errors:
+                click.echo(f"   - {eid}: {msg}")
+
+    if result.errors:
+        err = CataforgeError(f"{len(result.errors)} export errors")
         err.exit_code = 3
         raise err

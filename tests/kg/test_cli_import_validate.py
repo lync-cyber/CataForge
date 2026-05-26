@@ -1,4 +1,4 @@
-"""`cataforge kg import` + `cataforge kg validate` CLI smoke."""
+"""`cataforge kg import` + `validate` + `export` CLI smoke."""
 from __future__ import annotations
 
 import importlib.util
@@ -104,3 +104,52 @@ def test_kg_import_then_validate_oxigraph_backend(tmp_path: Path) -> None:
     report = json.loads(val.output)
     assert report["ok"] is True
     assert report["violations"] == []
+
+
+def test_kg_export_end_to_end_oxigraph(tmp_path: Path) -> None:
+    db = tmp_path / "store"
+    out = tmp_path / "exported"
+    runner = CliRunner()
+
+    init = runner.invoke(
+        _cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"]
+    )
+    assert init.exit_code == 0, init.output
+
+    imp = runner.invoke(
+        _cli(),
+        [
+            "kg",
+            "import",
+            "--project-root",
+            str(FIXTURE_ROOT / "waterfall"),
+            "--db-path",
+            str(db),
+            "--backend",
+            "oxigraph",
+        ],
+    )
+    assert imp.exit_code == 0, imp.output
+
+    exp = runner.invoke(
+        _cli(),
+        [
+            "kg",
+            "export",
+            "--db-path",
+            str(db),
+            "--output-dir",
+            str(out),
+            "--json",
+        ],
+    )
+    assert exp.exit_code == 0, exp.output
+    payload = json.loads(exp.output)
+    assert payload["rendered"] == 8
+    assert payload["errors"] == []
+    assert set(payload["files"].keys()) == {
+        "prd/F-001.md", "prd/F-002.md",
+        "prd/AC-001.md", "prd/AC-002.md",
+        "arch/M-001.md", "arch/M-002.md",
+        "test-report/TC-001.md", "test-report/TC-002.md",
+    }
