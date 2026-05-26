@@ -15,8 +15,7 @@ from __future__ import annotations
 import shutil
 from collections.abc import Iterator
 from contextlib import contextmanager
-
-import pyoxigraph as ox
+from typing import TYPE_CHECKING
 
 from cataforge.kg._ask import ask
 from cataforge.kg._config import KGConfig
@@ -31,9 +30,19 @@ from cataforge.kg._schema_axioms import (
     prefix_map,
 )
 
+if TYPE_CHECKING:
+    import pyoxigraph as ox
+
 
 def _open_pyoxigraph(config: KGConfig, *, create: bool = False) -> ox.Store:
-    """Open the underlying pyoxigraph store per `config.store_backend`."""
+    """Open the underlying pyoxigraph store per `config.store_backend`.
+
+    `pyoxigraph` is imported lazily so callers who only need :class:`KGConfig`
+    (the dataclass shipped in the base wheel) can use this package without
+    the `kg` extra installed.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
     if config.store_backend == "memory":
         return ox.Store()
 
@@ -59,6 +68,8 @@ def bootstrap_subclass_axioms(
     existing triple is a no-op at the RDF semantics layer (pyoxigraph
     deduplicates by quad identity).
     """
+    import pyoxigraph as ox  # noqa: PLC0415
+
     prefixes = prefix_map(include_governance=include_governance)
     subclassof = ox.NamedNode(RDFS_SUBCLASSOF_IRI)
 
