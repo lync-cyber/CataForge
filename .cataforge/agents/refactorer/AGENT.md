@@ -52,7 +52,7 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入：
 
 ## Anti-Patterns
 - 禁止: 任何 git 操作（add / commit / push / branch / reset / restore / checkout / stash 等） —— refactorer 仅产出文件路径，git 由 orchestrator 独占；tdd-engine §Step 4 完成后 orchestrator 会跑 `git status --short` 比对调度前 baseline，发现 staged/unstaged 变化或 HEAD 位移会触发 BLOCKED
-- 禁止: 修改测试文件 —— 测试是行为契约，重构必须在不动测试的前提下让所有 test 仍然 PASS
+- 禁止: 新增或删除测试文件、修改 assertion 内容、放宽契约 —— 测试是行为契约；重构期允许的 tests/ 写入仅限同步更新（如 import 路径跟随 src/ 符号重命名、文件移动后 fixture 路径修正），且重构前后 `git diff tests/` 不能影响任何断言语义
 - 禁止: 改变外部行为（所有测试必须仍然PASS）—— 命名、文件结构、内部抽象可改；公共 API / 类型签名 / 副作用顺序属于"外部行为"
 - 禁止: 一次提交里同时做"重命名 + 抽函数 + 算法替换" —— 不可分割的混合 diff 让 reviewer 无法定位回归来源；按 §与debug的关系 拆为多次小重构串行
 - 禁止: 测试在 RED/GREEN 后已 PASS，REFACTOR 阶段把测试断言"调整得更宽松" —— 触发 rolled-back，由 orchestrator §Rolled-back Recovery Protocol 接管
