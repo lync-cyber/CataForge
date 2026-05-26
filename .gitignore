@@ -120,6 +120,10 @@ opencode.json
 .cataforge/**/__pycache__/
 .ruff_cache/
 
+# KG codegen output — regenerated from src/cataforge/kg/schemas/ via
+# `python scripts/codegen_kg_schema.py`. See task-7 §7.1 sub-PR 1.
+src/cataforge/kg/_generated/
+
 # ==============================================================================
 # Build & Output
 # ==============================================================================
