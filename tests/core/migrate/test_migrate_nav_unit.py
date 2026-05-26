@@ -1,11 +1,11 @@
-"""Unit tests for cataforge.core.migrate.migrate_nav."""
+"""Unit tests for cataforge.docs.migrate_nav."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import patch
 
-from cataforge.core.migrate.migrate_nav import (
+from cataforge.docs.migrate_nav import (
     _parse_nav_table,
     migrate,
 )
@@ -97,7 +97,7 @@ def test_migrate_success_with_valid_nav(tmp_path: Path):
         idx.write_text('{"documents": {"prd": {}, "arch": {}}}', encoding="utf-8")
         return 0
 
-    with patch("cataforge.core.migrate.migrate_nav._rebuild_index", side_effect=fake_rebuild):
+    with patch("cataforge.docs.migrate_nav._rebuild_index", side_effect=fake_rebuild):
         rc = migrate(tmp_path)
 
     assert rc == 0

@@ -1,10 +1,10 @@
-"""Unit tests for cataforge.core.migrate.migrate_review_frontmatter."""
+"""Unit tests for cataforge.docs.migrate_review_frontmatter."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.core.migrate.migrate_review_frontmatter import (
+from cataforge.docs.migrate_review_frontmatter import (
     Plan,
     _format_front_matter,
     _has_front_matter,
