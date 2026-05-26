@@ -71,7 +71,7 @@ The feature flag that governs cutover is `KGConfig.kg_active_doc_types: set[str]
 **Exit Condition:**
 - `cataforge docs index` (legacy) is removed from the default flow; `cataforge kg ingest` is the canonical indexing path.
 - `docs/.doc-index.json` is retained as a derived cache only; `cataforge kg export-index` regenerates it from KG.
-- All tests pass with `store_backend = "oxigraph"` in CI (RocksDB path validated in CI, not just `memory`).
+- All tests pass with `store_backend = "oxigraph"` in CI (RocksDB path covered alongside the `memory` backend used elsewhere).
 - `cataforge doctor` reports no legacy-compat annotated call sites remaining.
 - Release tag `v0.5.0` is created; CHANGELOG entry is complete.
 

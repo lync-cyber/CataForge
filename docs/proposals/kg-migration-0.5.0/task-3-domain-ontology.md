@@ -741,7 +741,7 @@ The remaining 9-prefix set (F / AC / M / API / C / P / T / TC / SR) is honored v
 
 **Why:**
 - Downstream user projects (the dominant case) never care about Skill/Agent identity — including them would inflate triple counts and SPARQL query surface for zero business value.
-- Strict directional import (`governance imports core; core never imports governance`) means business-only mode is achieved by simply not loading `governance.yaml`.
+- Strict directional import (`governance imports core; core never imports governance`) means business-only mode is achieved by not loading `governance.yaml`.
 - CataForge itself (the dogfood project, Task-1 §1.1 “框架自身也是 CataForge 项目”) and any framework-review-style downstream tooling can flip the toggle.
 
 **Rejected:**
@@ -773,7 +773,7 @@ The remaining 9-prefix set (F / AC / M / API / C / P / T / TC / SR) is honored v
 - LinkML 单源 schema 位于 `docs/proposals/kg-migration-0.5.0/schemas/core.yaml`，34 个业务类共享抽象基类 `cf:SoftwareArtifact` —— Task 4 的 agent 集成（typed Pydantic API）和 Task 5 的 SHACL / 迁移脚本都必须以此为唯一真源。
 - 9 个已有前缀 (F/AC/M/API/E/C/P/T-NNN + SR-NNN) 全部保留；唯一非平凡重映射是 `E-NNN → DataModel` 类（避免 RDF 通用语义“entity”冲突），`Epic` 改用 `EP-NNN` 避撞。Task 4 写 Markdown→KG 摄取器、Task 6 写 KG→Markdown 导出器必须沿用此映射。
 - 跨层可追溯性采用直接命名谓词 (`cf:verifies` / `cf:implements` / `cf:satisfies` / `cf:delivers` / `cf:affects`) + SPARQL property path `+` 闭包；不引入 reification —— Task 4/5 的查询模板与 SHACL 规则需基于这套谓词。
-- 双轨流程支持单 schema（`Project.process_model` enum + `assigned_to_sprint` / `belongs_to_phase` 双槽 + `belongs_to_work_unit` 统一访问器）—— Task 4 的导出排序、Task 6 的视图渲染只需走 `belongs_to_work_unit`。
+- 双轨流程支持单 schema（`Project.process_model` enum + `assigned_to_sprint` / `belongs_to_phase` 双槽 + `belongs_to_work_unit` 统一访问器）—— Task 4 的导出排序、Task 6 的视图渲染都通过 `belongs_to_work_unit` 一处访问，不再按 process_model 分支。
 - 治理 sub-ontology (`cfgov:`) 严格单向：`governance.yaml` 可引用 `core`，反向禁止；`KGConfig.governance=false` 默认关闭，业务-only 模式开箱即用 —— Task 4 默认不加载 governance，仅 framework-review 等内部 skill 翻开关。
 - 所有 `cf:SoftwareArtifact` 子类必须携带 `sort_key`（格式 `<code>:<padded>`），是 Task 4 KG→Markdown 幂等导出的确定性遍历键，下游不可省略。
 
