@@ -1,0 +1,28 @@
+{% extends "_base/artifact_base.md.j2" %}
+
+{% block relations %}
+{% if entity.acceptance_criteria %}
+
+## Acceptance Criteria
+
+{% for ac in entity.acceptance_criteria %}
+- [{{ ac.entity_id }}](./{{ ac.entity_id }}.md) — {{ ac.ac_title }}
+{% endfor %}
+{% endif %}
+{% if entity.implementations %}
+
+## Implementation
+
+{% for impl in entity.implementations %}
+- [{{ impl.entity_id }}](../arch/{{ impl.entity_id }}.md) — {{ impl.impl_title }}
+{% endfor %}
+{% endif %}
+{% if entity.verifications %}
+
+## Verification
+
+{% for tc in entity.verifications %}
+- [{{ tc.entity_id }}](../test-report/{{ tc.entity_id }}.md) — {{ tc.tc_title }}
+{% endfor %}
+{% endif %}
+{% endblock %}

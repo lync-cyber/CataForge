@@ -1,0 +1,20 @@
+{% extends "_base/artifact_base.md.j2" %}
+
+{% block relations %}
+{% if entity.implements %}
+
+## Implements
+
+{% for req in entity.implements %}
+- [{{ req.entity_id }}](../prd/{{ req.entity_id }}.md) — {{ req.req_title }}
+{% endfor %}
+{% endif %}
+{% if entity.tasks %}
+
+## Realized By
+
+{% for task in entity.tasks %}
+- [{{ task.entity_id }}](../dev-plan/{{ task.entity_id }}.md) — {{ task.task_title }}
+{% endfor %}
+{% endif %}
+{% endblock %}

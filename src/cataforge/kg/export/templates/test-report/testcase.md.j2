@@ -1,0 +1,27 @@
+{% extends "_base/artifact_base.md.j2" %}
+
+{% block body %}
+{% if entity.expected_result %}
+
+## Expected Result
+
+{{ entity.expected_result }}
+{% endif %}
+{% if entity.test_result %}
+
+## Test Result
+
+{{ entity.test_result }}
+{% endif %}
+{% endblock %}
+
+{% block relations %}
+{% if entity.verifies %}
+
+## Verifies
+
+{% for target in entity.verifies %}
+- [{{ target.entity_id }}](../prd/{{ target.entity_id }}.md) — {{ target.target_title }}
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "_base/artifact_base.md.j2" %}
+
+{% block relations %}
+{% if entity.features %}
+
+## Satisfies
+
+{% for feature in entity.features %}
+- [{{ feature.entity_id }}](./{{ feature.entity_id }}.md) — {{ feature.feature_title }}
+{% endfor %}
+{% endif %}
+{% if entity.verifications %}
+
+## Verified By
+
+{% for tc in entity.verifications %}
+- [{{ tc.entity_id }}](../test-report/{{ tc.entity_id }}.md) — {{ tc.tc_title }}
+{% endfor %}
+{% endif %}
+{% endblock %}

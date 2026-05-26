@@ -1,0 +1,31 @@
+PREFIX cf: <https://cataforge.dev/ontology/>
+
+SELECT
+  ?entity_id ?sort_key ?title ?description ?status
+  ?content_hash ?source_doc ?source_section ?authored_by
+  ?expected_result ?test_result
+  ?target_id ?target_sort_key ?target_title
+WHERE {
+  ?tc a cf:TestCase ;
+      cf:entity_id %(entity_id)s ;
+      cf:entity_id ?entity_id ;
+      cf:sort_key  ?sort_key ;
+      cf:title     ?title .
+
+  OPTIONAL { ?tc cf:description     ?description }
+  OPTIONAL { ?tc cf:status          ?status }
+  OPTIONAL { ?tc cf:content_hash    ?content_hash }
+  OPTIONAL { ?tc cf:source_doc      ?source_doc }
+  OPTIONAL { ?tc cf:source_section  ?source_section }
+  OPTIONAL { ?tc cf:authored_by     ?authored_by }
+  OPTIONAL { ?tc cf:expected_result ?expected_result }
+  OPTIONAL { ?tc cf:test_result     ?test_result }
+
+  OPTIONAL {
+    ?tc cf:verifies ?target .
+    ?target cf:entity_id ?target_id ;
+            cf:sort_key  ?target_sort_key ;
+            cf:title     ?target_title .
+  }
+}
+ORDER BY ?sort_key ?target_sort_key
