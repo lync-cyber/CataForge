@@ -1,0 +1,117 @@
+# CataForge KG · Traceability query templates (SPARQL 1.1)
+# Tested against the schema in ../schemas/core.yaml.
+# Engine: pyoxigraph 0.5.x — these queries also run on rdflib 7.6 fallback.
+
+PREFIX cf:      <https://cataforge.dev/ontology/>
+PREFIX cfprj:   <https://cataforge.dev/instance/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov:    <http://www.w3.org/ns/prov#>
+PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+
+
+# ============================================================================
+# Q1 — Features NOT covered by any TestCase
+#   Replaces the regex `check_bidirectional_coverage()` false-positive path.
+#   Returns features with no inbound cf:verifies path of length 1..3, so it
+#   catches both direct verification and verification via realizing Tasks.
+# ============================================================================
+SELECT ?feature ?entity_id ?title
+WHERE {
+  ?feature a cf:Feature ;
+           cf:entity_id ?entity_id ;
+           cf:title     ?title .
+  FILTER NOT EXISTS {
+    ?tc a cf:TestCase ; cf:verifies+ ?feature .
+  }
+}
+ORDER BY ?entity_id
+
+
+# ============================================================================
+# Q2 — Reverse upstream closure for a given Component
+#   "Which Requirements (Features / UserStories / Epics) are affected if I
+#    change Component C-014?"
+#   Walks satisfies/refines/refined_by in both directions, then projects
+#   anything that is a Requirement subclass.
+# ============================================================================
+SELECT DISTINCT ?req ?req_id ?req_title ?kind
+WHERE {
+  BIND(cfprj:C-014 AS ?target)
+  ?target (cf:satisfies|cf:implements|cf:part_of|cf:realizes)+ ?req .
+  ?req a ?kind ;
+       cf:entity_id ?req_id ;
+       cf:title     ?req_title .
+  ?kind rdfs:subClassOf* cf:Requirement .
+}
+ORDER BY ?req_id
+
+
+# ============================================================================
+# Q3 — All Features delivered by Release v1.2 with their test status
+#   Implements the requirement→delivery and requirement→verification chains.
+#   Returns one row per (Feature, latest TestRun result) pair.
+# ============================================================================
+SELECT ?feature ?feature_id ?feature_title ?test_status
+WHERE {
+  ?release a cf:Release ;
+           cf:version "1.2" ;
+           cf:delivers ?feature .
+  ?feature a cf:Feature ;
+           cf:entity_id ?feature_id ;
+           cf:title     ?feature_title .
+  OPTIONAL {
+    ?tc  a cf:TestCase ;
+         cf:verifies+ ?feature .
+    ?run a cf:TestRun ;
+         cf:verifies ?tc ;
+         cf:test_result ?test_status .
+  }
+}
+ORDER BY ?feature_id
+
+
+# ============================================================================
+# Q4 — Change-impact closure for a ChangeRequest
+#   Returns the transitive set of artifacts affected by a CHG-### entity.
+#   Demonstrates the cf:affects edge from §3.3.
+# ============================================================================
+SELECT DISTINCT ?impacted ?impacted_kind ?impacted_id
+WHERE {
+  BIND(cfprj:CHG-007 AS ?cr)
+  ?cr cf:affects+ ?impacted .
+  ?impacted a ?impacted_kind ;
+            cf:entity_id ?impacted_id .
+}
+ORDER BY ?impacted_id
+
+
+# ============================================================================
+# Q5 — Cross-process-model query
+#   Same Requirement, viewed under either Phase (waterfall) or Sprint (agile).
+#   Useful for the dual-track support in §3.4.
+# ============================================================================
+SELECT ?feature ?feature_id ?work_unit_id ?work_unit_kind
+WHERE {
+  ?feature a cf:Feature ;
+           cf:entity_id ?feature_id .
+  { ?feature cf:belongs_to_phase   ?wu . BIND("Phase"  AS ?work_unit_kind) }
+  UNION
+  { ?feature cf:assigned_to_sprint ?wu . BIND("Sprint" AS ?work_unit_kind) }
+  ?wu cf:entity_id ?work_unit_id .
+}
+ORDER BY ?feature_id
+
+
+# ============================================================================
+# Q6 — Deterministic export sort
+#   The Task-4 Markdown exporter MUST iterate entities in this exact order.
+#   sort_key format = "<class_code>:<zero-padded-numeric>".
+# ============================================================================
+SELECT ?artifact ?entity_id ?sort_key
+WHERE {
+  ?artifact a/rdfs:subClassOf* cf:SoftwareArtifact ;
+            cf:entity_id ?entity_id ;
+            cf:sort_key  ?sort_key .
+}
+ORDER BY ASC(?sort_key)

@@ -1,0 +1,153 @@
+id: https://cataforge.dev/governance/governance
+name: cataforge-governance
+title: CataForge Framework Governance Sub-Ontology (Skeleton)
+description: >-
+  Optional sub-ontology covering CataForge's *framework-internal* assets
+  (skills, agent instances, rules, script tools, document templates, event-log
+  entries). Strict directionality: governance MAY reference business
+  (`generates` / `consumed_by`), but the business ontology (core.yaml) MUST
+  NOT import governance. Disabled when `KGConfig.governance = false` — the
+  business-only mode every downstream user project ships with.
+license: Apache-2.0
+
+prefixes:
+  linkml:  https://w3id.org/linkml/
+  cf:      https://cataforge.dev/ontology/
+  cfgov:   https://cataforge.dev/governance/
+  prov:    http://www.w3.org/ns/prov#
+  xsd:     http://www.w3.org/2001/XMLSchema#
+default_prefix: cfgov
+default_range: string
+
+imports:
+  - linkml:types
+  - core    # cfgov classes may reference cf:SoftwareArtifact; never the reverse.
+
+enums:
+
+  GovernanceAssetKindEnum:
+    permissible_values:
+      skill:           {}
+      agent:           {}
+      rule:            {}
+      script_tool:     {}
+      document_template: {}
+      skill_loader:    {}
+      event_log_entry: {}
+
+  EventKindEnum:
+    permissible_values:
+      agent_dispatch:   {}
+      doc_finalize:     {}
+      skill_invocation: {}
+      validation_run:   {}
+      kg_write:         {}
+
+slots:
+
+  asset_id:
+    identifier: true
+    range: uriorcurie
+    required: true
+
+  asset_name:
+    range: string
+    required: true
+
+  asset_kind:
+    range: GovernanceAssetKindEnum
+    required: true
+
+  description:
+    range: string
+
+  file_path:
+    range: string
+    description: Path under .cataforge/ — for traceability, not a KG identity.
+
+  version:
+    range: string
+
+  generates:
+    range: cf:SoftwareArtifact
+    multivalued: true
+    description: >-
+      Governance asset produced the business artifact (e.g. architect Agent
+      generated this Module). Cross-namespace reference allowed.
+
+  consumed_by:
+    range: cf:SoftwareArtifact
+    multivalued: true
+    description: Inverse pointer — business artifact consumed by this asset.
+
+  invokes_skill:
+    range: Skill
+    multivalued: true
+
+  uses_rule:
+    range: Rule
+    multivalued: true
+
+  event_kind:
+    range: EventKindEnum
+  event_timestamp:
+    range: datetime
+  event_payload:
+    range: string
+
+classes:
+
+  GovernanceAsset:
+    abstract: true
+    description: Common ancestor of every framework-internal asset.
+    class_uri: cfgov:GovernanceAsset
+    slots:
+      - asset_id
+      - asset_name
+      - asset_kind
+      - description
+      - file_path
+      - version
+      - generates
+
+  Skill:
+    is_a: GovernanceAsset
+    class_uri: cfgov:Skill
+    description: A .cataforge/skills/<name>/SKILL.md unit.
+
+  Agent:
+    is_a: GovernanceAsset
+    class_uri: cfgov:Agent
+    description: An SDLC role agent definition (one of the 6 cores or an extension).
+    slots:
+      - invokes_skill
+      - uses_rule
+
+  Rule:
+    is_a: GovernanceAsset
+    class_uri: cfgov:Rule
+    description: A .cataforge/rules/*.md prompt-time rule.
+
+  ScriptTool:
+    is_a: GovernanceAsset
+    class_uri: cfgov:ScriptTool
+    description: A Python script under scripts/ exposed via skill.
+
+  DocumentTemplate:
+    is_a: GovernanceAsset
+    class_uri: cfgov:DocumentTemplate
+    description: A doc-gen template (.cataforge/templates/...).
+
+  SkillLoader:
+    is_a: GovernanceAsset
+    class_uri: cfgov:SkillLoader
+    description: The runtime registry that dispatches skills.
+
+  EventLogEntry:
+    is_a: GovernanceAsset
+    class_uri: cfgov:EventLogEntry
+    description: One row from docs/EVENT-LOG.jsonl, lifted into the graph.
+    slots:
+      - event_kind
+      - event_timestamp
+      - event_payload
