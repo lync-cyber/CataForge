@@ -29,13 +29,25 @@ def test_defaults_match_spec() -> None:
     assert cfg.plugins_dir is None
 
 
-def test_kg_active_doc_types_defaults_to_empty_set() -> None:
-    """Round-2 decision: legacy loader is the read path until cutover populates this."""
+def test_kg_active_doc_types_default_alpha_cutover_scope() -> None:
+    """Sub-PR 5 default: `{prd, arch, test}` per Task 7 §7.1 + README Round 2.
+
+    Projects that have not yet ingested into KG remain on the legacy
+    path because `_dispatch.is_active_for()` additionally gates on
+    `.cataforge/kg/store/` existing. Tests that need pre-Alpha
+    semantics pass an explicit empty set.
+    """
     cfg = KGConfig()
-    assert cfg.kg_active_doc_types == set()
+    assert cfg.kg_active_doc_types == {"prd", "arch", "test"}
     # Per-instance set, not shared mutable default.
-    cfg.kg_active_doc_types.add("prd")
-    assert KGConfig().kg_active_doc_types == set()
+    cfg.kg_active_doc_types.add("ui-spec")
+    assert KGConfig().kg_active_doc_types == {"prd", "arch", "test"}
+
+
+def test_kg_active_doc_types_can_be_explicitly_empty() -> None:
+    """Callers that want legacy-only behaviour pass an explicit empty set."""
+    cfg = KGConfig(kg_active_doc_types=set())
+    assert cfg.kg_active_doc_types == set()
 
 
 def test_str_db_path_is_coerced_to_path() -> None:
@@ -61,7 +73,7 @@ def test_base_import_does_not_require_pyoxigraph() -> None:
         from cataforge.kg import KGConfig
         cfg = KGConfig()
         assert cfg.store_backend == "oxigraph"
-        assert cfg.kg_active_doc_types == set()
+        assert cfg.kg_active_doc_types == {"prd", "arch", "test"}
         """
     )
     result = subprocess.run(

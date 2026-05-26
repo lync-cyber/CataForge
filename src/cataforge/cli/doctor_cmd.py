@@ -20,6 +20,7 @@ from .doctor.deploy_integrity import check_deploy_integrity
 from .doctor.event_log import check_event_log_bypass_writes, check_event_log_schema
 from .doctor.hook_health import check_hook_script_importability, report_hook_errors
 from .doctor.hygiene import check_claude_md_hygiene
+from .doctor.kg_ingestion import check_kg_ingestion_completeness
 from .doctor.migration import check_runtime_api_version, run_migration_checks
 from .doctor.protocol_refs import (
     _DEPRECATED_REFS,
@@ -127,6 +128,13 @@ def doctor_command(ctx: click.Context) -> None:
 
     click.echo("\nDocs validation:")
     failed_count += check_docs_validate(cfg)
+
+    # KG ingestion completeness — hard ERROR gate ensuring the KG is the
+    # single source of truth for active doc_types. Skipped when no store
+    # has been initialized; ERROR when any FS-discovered entity_id is
+    # missing from the graph. Per Task 7 §7.1 sub-PR 5.
+    click.echo("\nKG ingestion completeness:")
+    failed_count += check_kg_ingestion_completeness(cfg)
 
     click.echo("\nHook script importability:")
     failed_count += check_hook_script_importability(cfg)

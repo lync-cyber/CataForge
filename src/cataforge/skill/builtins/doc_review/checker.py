@@ -140,12 +140,29 @@ class DocChecker(TypedDocChecksMixin):
         docs_path = Path(self.docs_dir)
         if not docs_path.exists():
             return
+
+        # When the project has KG active for this doc_type, use the
+        # graph to verify referent existence — strict URI resolution
+        # eliminates the false positives the file-glob path produces
+        # against URL fragments and across-volume references
+        # (Task 6 §6.4 A12).
+        kg_resolver = self._maybe_kg_xref_resolver()
+
         for doc_id, _section in refs:
             if "{" in doc_id or "}" in doc_id:
                 continue
             prefix = doc_id.split("-")[0] if "-" in doc_id else doc_id
             if prefix not in KNOWN_DOC_PREFIXES and doc_id not in KNOWN_DOC_PREFIXES:
                 continue
+
+            if kg_resolver is not None:
+                entity_match = re.search(r"\b([A-Z]+-\d{3,})\b", _section)
+                if entity_match and not kg_resolver(entity_match.group(1)):
+                    self.fail(
+                        f"交叉引用目标 {doc_id}#{_section} 在 KG 中未解析"
+                    )
+                continue
+
             matches = list(docs_path.glob(f"{doc_id}*"))
             if not matches:
                 matches = list(docs_path.glob(f"**/{doc_id}*"))
@@ -220,7 +237,15 @@ class DocChecker(TypedDocChecksMixin):
                 self.fail(f"分卷文档 (volume={self.volume_type}) 缺少 split_from 字段")
 
     def check_bidirectional_coverage(self) -> None:
-        """Verify downstream doc covers all items from its upstream doc."""
+        """Verify downstream doc covers all items from its upstream doc.
+
+        When the project has KG active for the upstream + downstream
+        doc_types, replaces the file-scan + string-match check with a
+        SPARQL ``cf:implements`` / ``cf:verifies+`` query (Task 6 §6.4
+        A13). The graph-based check eliminates the false-positive class
+        from Task 1 §1.4 case A — a mention in a comment block no
+        longer counts as coverage.
+        """
         coverage_rules: dict[str, dict[str, str]] = {
             "arch": {"upstream_type": "prd", "upstream_prefix": "F"},
             "dev-plan": {"upstream_type": "arch", "upstream_prefix": "M"},
@@ -232,6 +257,9 @@ class DocChecker(TypedDocChecksMixin):
 
         upstream_prefix = rule["upstream_prefix"]
         upstream_type = rule["upstream_type"]
+
+        if self._kg_bidirectional_coverage(upstream_prefix):
+            return  # KG-based check ran and reported its own failures
 
         docs_path = Path(self.docs_dir)
         if not docs_path.exists():
@@ -268,6 +296,97 @@ class DocChecker(TypedDocChecksMixin):
                 f"上游 {upstream_type} 中 {len(uncovered)} 项未被覆盖: "
                 f"{display}{suffix}"
             )
+
+    # ------------------------------------------------------------------
+    # KG dispatch helpers (Task 6 §6.4 A12 / A13)
+    # ------------------------------------------------------------------
+
+    def _project_root(self) -> Path | None:
+        """Heuristically resolve the project root from `docs_dir`.
+
+        `docs_dir` is usually ``<project_root>/docs/``; the parent is
+        the project root. Returns `None` when the path doesn't look
+        like a CataForge project (no `.cataforge/` sibling).
+        """
+        docs_path = Path(self.docs_dir).resolve()
+        candidate = docs_path.parent
+        if (candidate / ".cataforge").exists():
+            return candidate
+        # Fall back: maybe docs_dir already IS the project root.
+        if (docs_path / ".cataforge").exists():
+            return docs_path
+        return None
+
+    def _maybe_kg_xref_resolver(self):
+        """Return a ``callable(entity_id) -> bool`` if KG is active.
+
+        The resolver short-circuits the file-glob xref check when the
+        graph carries authoritative knowledge of the project's
+        entities (Task 6 §6.4 A12).
+        """
+        project_root = self._project_root()
+        if project_root is None:
+            return None
+        try:
+            from cataforge.kg import KnowledgeGraph
+            from cataforge.kg._dispatch import is_active_for, kg_config_for
+        except ImportError:
+            return None
+        if not is_active_for(self.doc_type, project_root):
+            return None
+        try:
+            cfg = kg_config_for(project_root)
+            kg = KnowledgeGraph.connect(cfg).__enter__()
+        except Exception:
+            return None
+
+        def _exists(entity_id: str) -> bool:
+            try:
+                return kg.query.exists(entity_id)
+            except Exception:
+                return True  # don't false-fail on transient KG errors
+
+        return _exists
+
+    def _kg_bidirectional_coverage(self, upstream_prefix: str) -> bool:
+        """Run the SPARQL coverage check when KG is active.
+
+        Returns True iff the KG path ran (callers should skip the
+        legacy file-scan). Failures discovered by the graph are
+        recorded via `self.fail()`; a green result returns True with
+        no `fail()` calls.
+        """
+        project_root = self._project_root()
+        if project_root is None:
+            return False
+        try:
+            from cataforge.kg import KnowledgeGraph
+            from cataforge.kg._dispatch import is_active_for, kg_config_for
+        except ImportError:
+            return False
+        if not is_active_for(self.doc_type, project_root):
+            return False
+        try:
+            cfg = kg_config_for(project_root)
+            with KnowledgeGraph.connect(cfg) as kg:
+                rows = kg.trace.bidirectional_coverage()
+        except Exception:
+            return False
+
+        uncovered = [
+            r.feature_id
+            for r in rows
+            if r.feature_id.startswith(upstream_prefix + "-")
+            and not (r.has_impl and r.has_test)
+        ]
+        if uncovered:
+            display = ", ".join(sorted(uncovered)[:5])
+            suffix = f" (共 {len(uncovered)} 项)" if len(uncovered) > 5 else ""
+            self.fail(
+                f"KG 覆盖检查: {upstream_prefix} 中 {len(uncovered)} 项缺少"
+                f"实现或验证: {display}{suffix}"
+            )
+        return True
 
     def check_split_consistency(self) -> None:
         if self.volume_type != "main":

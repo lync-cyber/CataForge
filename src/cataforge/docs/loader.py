@@ -362,11 +362,21 @@ def extract(
 ) -> str:
     """Return the content of ``ref`` from the project at ``project_root``.
 
-    ``file_cache`` is an optional ``{absolute_file_path: lines}`` map shared
-    across one batch — eliminates duplicate file reads when many refs target
-    the same source document on the slow heading-scan path.
+    When the ref's doc_type is in ``KGConfig.kg_active_doc_types`` and a
+    KG store exists for the project, the reference is resolved through
+    the graph (entity slots + canonical rendering); otherwise the
+    legacy file-based slice runs. ``file_cache`` is an optional
+    ``{absolute_file_path: lines}`` map used by the legacy path to
+    avoid duplicate reads when many refs target the same source.
     """
     doc_id, section_path, item_id = parse_ref(ref)
+
+    # KG dispatch: only attempt the graph when the project has opted in
+    # and the ref carries an entity_id. Whole-section refs (no item_id)
+    # have no rendering template and always fall back to file slicing.
+    kg_body = _try_kg_extract(doc_id, section_path, item_id, project_root)
+    if kg_body is not None:
+        return kg_body
 
     index = _load_index(project_root)
     if index:
@@ -389,6 +399,45 @@ def extract(
         raise SectionNotFoundError(f"在 {file_path} 中未找到 {target}")
     start_idx, level = found
     return _extract_section_from_lines(splitlines, start_idx, level)
+
+
+def _try_kg_extract(
+    doc_id: str,
+    section_path: str,
+    item_id: str | None,
+    project_root: str,
+) -> str | None:
+    """Resolve a ref through the KG when active.
+
+    Returns the rendered Markdown body when the graph holds the entity,
+    or `None` to signal "fall through to the legacy file path". Never
+    raises — KG failures during a Group A read always degrade to legacy
+    behavior so the cutover gate stays a soft fence at the read layer
+    (the doctor `kg_ingestion_completeness` gate enforces hard
+    completeness at deploy time).
+    """
+    if item_id is None:
+        return None  # whole-section refs have no entity to render
+    try:
+        from cataforge.kg._dispatch import is_active_for, kg_config_for
+    except ImportError:
+        return None
+    if not is_active_for(doc_id, project_root):
+        return None
+    try:
+        from cataforge.kg import KnowledgeGraph
+        from cataforge.kg.export import render_entity
+    except ImportError:
+        return None
+    cfg = kg_config_for(project_root)
+    try:
+        with KnowledgeGraph.connect(cfg) as kg:
+            if not kg.query.exists(item_id):
+                return None
+            rendered = render_entity(kg.store, item_id)
+    except Exception:
+        return None
+    return rendered if rendered else None
 
 
 def _read_lines_cached(

@@ -70,6 +70,7 @@ Thumbs.db
 .claude/.temp/
 .claude/logs/
 .claude/backup-*/
+.claude/scheduled_tasks.lock
 
 # ==============================================================================
 # CataForge - Deploy generated & local state
