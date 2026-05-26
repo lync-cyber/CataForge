@@ -10,8 +10,8 @@ user-invocable: true
 
 # 任务拆分 (task-decomp)
 ## 能力边界
-- 能做: 功能→任务分解、复杂度评级、Sprint划分、TDD验收标准定义
-- 不做: 架构决策、代码实现、测试执行
+- 能做: 功能→任务分解、复杂度评级、Sprint 初步划分、TDD 验收标准定义
+- 不做: 架构决策、代码实现、测试执行、最终 Sprint 分组判定（依赖关系由 task-dep-analysis 计算并给出权威建议）
 
 ## 输入规范
 - ARCH模块划分(M-{NNN}) + 接口契约(API-{NNN})

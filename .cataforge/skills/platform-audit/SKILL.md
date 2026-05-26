@@ -12,7 +12,7 @@ user-invocable: true
 
 ## 能力边界
 - 能做: 检索各 AI IDE 最新能力文档、与现有 profile.yaml 差异分析、更新配置/源码/测试、运行合规检查
-- 不做: 新增全新平台 adapter（需先在 `src/cataforge/platform/` 创建 adapter 类）、修改核心调度逻辑
+- 不做: 新增全新平台 adapter（需先在 `src/cataforge/platform/` 创建 adapter 类）、修改核心调度逻辑、审查 `.cataforge/` 下框架内部 agents/skills/hooks（由 framework-review 负责）
 
 ## 设计原理
 

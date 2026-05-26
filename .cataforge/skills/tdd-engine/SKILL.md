@@ -364,6 +364,14 @@ orchestrator完成以下收尾:
 
 > **Sprint级审查**: 当Sprint内所有任务完成Step 5后，orchestrator触发sprint-review skill。Sprint审查承担双重职责：(1) 对未经 per-task code-review 的延迟任务执行批量 code-review（Layer 1 + Layer 2），(2) 对所有任务执行完成度 / AC覆盖 / 范围偏移审查。sprint-review 在下一Sprint开始之前执行。
 
+## Anti-Patterns
+
+- 禁止: 在 agile-prototype 模式跑 standard TDD — prototype 设计是快速试错，跑完整三阶段会让重构延迟到正式化时丢失上下文
+- 禁止: 绕过 Mid-Progress Drop Contract 让 implementer 末尾批量 Edit — 触发条件命中（loc_estimate > 200 或 AC > 6）时必须按 4 步契约执行，否则大概率触发子代理 truncation
+- 禁止: 在 light-inline / prototype-inline 档调用 agent_dispatch — 内联档核心收益是省 boot token，调度子代理会让 inline 失效且违反 §Inline 触发条件
+- 禁止: REFACTOR 阶段修改测试 assertion 让 GREEN 通过 — refactorer 必须在不动行为契约前提下保持测试 PASS，触发后 orchestrator §Rolled-back Recovery Protocol 接管
+- 避免: REFACTOR 跨 sprint_group 并行 — 同 sprint_group 内 REFACTOR 必须串行（按 task_id 字典序），避免源文件并发改写冲突
+
 ## 效率策略
 
 - 每个子代理拥有独立上下文，避免阶段间污染

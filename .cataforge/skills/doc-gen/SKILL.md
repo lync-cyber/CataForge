@@ -140,6 +140,12 @@ required_sections:
 [/NAV]
 ```
 
+## Anti-Patterns
+- 禁止: `id` 字段含版本号 / 点号 / 空格 / 大写字母 — `cataforge docs validate` 强制 slug 规范，违反会阻塞 doctor / CI；版本统一走 frontmatter `version:` 字段
+- 禁止: 跳过 finalize 直接退出 — finalize 负责增量索引更新与 doc_finalize 事件写入，跳过会让 doc-nav 找不到新文档且 reflector 漏事件
+- 禁止: 用模板默认值 Write 覆盖已存在文档而不先 Read 检查 — Write 工具静默覆盖，会丢失上下游 agent 已填充的内容
+- 避免: 在 doc-gen 主体扩展业务模板映射 — 模板演化经 `_registry.yaml` 注册流程；直接在 SKILL.md 加映射条目会绕过 schema 校验
+
 ## 效率策略
 - 按模板生成骨架，减少Agent的格式化工作
 - finalize 时自动调用 `cataforge docs index` 增量更新 `.doc-index.json`，避免手动维护

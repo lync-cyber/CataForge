@@ -11,7 +11,7 @@ user-invocable: true
 # 调查研究 (research)
 ## 能力边界
 - 能做: 网络检索(web-search)、用户访谈(user-interview)、资料查阅(doc-lookup)
-- 不做: 替Agent做决策、生成文档内容
+- 不做: 替Agent做决策、生成文档内容、技术选型最终判定与推荐排序（由 tech-eval 负责）
 
 ## 调研决策树
 Agent遇到不确定性时:
@@ -56,6 +56,12 @@ Agent遇到不确定性时:
 1. 通过doc-nav的load-section指令加载相关章节
 2. 提取并汇总相关信息
 3. 将摘要返回给调用Agent
+
+## Anti-Patterns
+- 禁止: 用 web-search 替代已有 docs/research/ 已记录结论 — research-note 是去重的单一事实源，跳过会产生重复调研并污染上下文
+- 禁止: 不写 research-note 就把调研结论作为下游决策依据 — evidence 链断裂后 reflector / sprint-review 无法追溯结论合理性
+- 禁止: 把推测当 evidence 引用 — 未标 [ASSUMPTION] 的假设进入正式文档会让 reviewer 无法识别"已确认事实"和"待验证猜测"
+- 避免: 一次 user-interview 提问超过 MAX_QUESTIONS_PER_BATCH — 用户决策成本陡升、回答完整度下降，应按 batch 拆分
 
 ## 效率策略
 - 选择题优先，降低用户回答成本
