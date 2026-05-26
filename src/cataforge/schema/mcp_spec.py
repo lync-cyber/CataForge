@@ -18,15 +18,28 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing_extensions import Self
 
+# Executables trusted as the first element of MCPServerSpec.command.
+# Relative paths (no leading /) are also accepted for project-local binaries.
+TRUSTED_COMMAND_PREFIXES: frozenset[str] = frozenset(
+    {"python", "python3", "node", "uv", "uvx"}
+)
+
 
 class HealthCheckSpec(BaseModel):
     model_config = ConfigDict(extra="ignore", validate_assignment=True)
 
     type: Literal["http", "tcp", "command"] = "http"
-    target: str = ""
+    # ``target`` for "http"/"tcp" is a URL/host:port string.
+    # ``target`` for "command" must be a list of args (no shell=True).
+    target: str | list[str] = ""
     interval_seconds: int = 30
     timeout_seconds: int = 5
     retries: int = 3
+
+    @field_validator("target", mode="before")
+    @classmethod
+    def _reject_str_command_target(cls, v: Any, info: Any) -> Any:
+        return v  # type-enforcement happens at _probe_command call site
 
 
 class MCPServerSpec(BaseModel):

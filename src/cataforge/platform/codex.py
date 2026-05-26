@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.platform.base import PlatformAdapter
-from cataforge.platform.helpers import merge_codex_mcp_server
+from cataforge.platform.helpers import _prune_orphan_flat_files, merge_codex_mcp_server
 
 
 class CodexAdapter(PlatformAdapter):
@@ -82,27 +82,17 @@ class CodexAdapter(PlatformAdapter):
             toml_path.write_text(toml_content, encoding="utf-8")
             actions.append(f"agents/{agent_name}/AGENT.md → {toml_path}")
 
-        # Prune orphans — only ``<name>.toml`` files whose first line matches
-        # the auto-generated header we emit. User-authored .toml profiles stay
-        # untouched even if their stem happens to collide with a removed agent.
-        if target_dir.is_dir():
-            for existing in target_dir.iterdir():
-                if (
-                    not existing.is_file()
-                    or existing.suffix != ".toml"
-                    or existing.stem in source_agents
-                ):
-                    continue
-                head = existing.read_text(encoding="utf-8", errors="ignore")[:256]
-                if f"# Auto-generated from {existing.stem}/AGENT.md" not in head:
-                    continue
-                if dry_run:
-                    actions.append(
-                        f"would prune orphan {target_rel}/{existing.name}"
-                    )
-                else:
-                    existing.unlink()
-                    actions.append(f"pruned orphan {target_rel}/{existing.name}")
+        actions.extend(
+            _prune_orphan_flat_files(
+                target_dir,
+                source_agents,
+                ".toml",
+                "# Auto-generated from {stem}/AGENT.md",
+                target_rel,
+                head_read_size=256,
+                dry_run=dry_run,
+            )
+        )
 
         for field_name in sorted(dropped_collector):
             caps = sorted(dropped_collector[field_name])

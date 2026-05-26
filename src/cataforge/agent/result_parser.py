@@ -9,11 +9,13 @@ Parse priority:
 
 from __future__ import annotations
 
-import contextlib
 import json
+import logging
 import re
 
 from cataforge.core.types import AgentResult, AgentStatus
+
+logger = logging.getLogger(__name__)
 
 
 def parse_agent_result(text: str) -> AgentResult | None:
@@ -54,16 +56,18 @@ def _try_xml_parse(text: str) -> AgentResult | None:
 
     result = AgentResult(status=agent_status, outputs=output_list, summary=summary or "")
 
-    questions_str = _extract_tag(text, "questions")
+    questions_str = _extract_tag(block, "questions")
     if questions_str:
-        with contextlib.suppress(json.JSONDecodeError, ValueError):
+        try:
             result.questions = json.loads(questions_str)
+        except (json.JSONDecodeError, ValueError) as err:
+            logger.debug("questions field unparseable: %r (parse error: %s)", questions_str, err)
 
-    completed = _extract_tag(text, "completed-steps")
+    completed = _extract_tag(block, "completed-steps")
     if completed:
         result.completed_steps = completed
 
-    guidance = _extract_tag(text, "resume-guidance")
+    guidance = _extract_tag(block, "resume-guidance")
     if guidance:
         result.resume_guidance = guidance
 
@@ -71,9 +75,14 @@ def _try_xml_parse(text: str) -> AgentResult | None:
 
 
 def _try_partial_parse(text: str) -> AgentResult | None:
-    status = _extract_tag(text, "status")
-    outputs = _extract_tag(text, "outputs")
-    summary = _extract_tag(text, "summary")
+    m = re.search(r"<agent-result>(.*?)(?:</agent-result>|$)", text, re.DOTALL)
+    if not m:
+        return None
+
+    block = m.group(1)
+    status = _extract_tag(block, "status")
+    outputs = _extract_tag(block, "outputs")
+    summary = _extract_tag(block, "summary")
 
     if not any([status, outputs, summary]):
         return None

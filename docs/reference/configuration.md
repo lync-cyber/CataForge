@@ -135,6 +135,7 @@
 | `constants.CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC` | ❌ | overwrite | light 模式短路 Layer 2 的 AC 数上限（默认 2） |
 | `constants.ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS` | ❌ | overwrite | Adaptive Review 反向降级所需的连续 clean 任务数（默认 10） |
 | `constants.RETRO_TRIGGER_SELF_CAUSED` | ❌ | overwrite | reflector 触发的累积自致问题数 |
+| `constants.SKILL_RUNNER_TIMEOUT_DEFAULT_SECS` | ❌ | overwrite | `SkillRunner` 默认 subprocess 超时秒数（默认 300） |
 | `features.<id>.min_version` | ❌ | overwrite | feature 引入的版本号（语义版本） |
 | `features.<id>.auto_enable` | ❌ | overwrite | 是否在符合 `phase_guard` 时自动启用 |
 | `features.<id>.phase_guard` | ❌ | overwrite | 限定阶段（`null` 表示全局可用） |

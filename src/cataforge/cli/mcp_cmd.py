@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import click
+import yaml
+from pydantic import ValidationError
 
 from cataforge.cli.errors import CataforgeError, ConfigError
 from cataforge.cli.guards import require_initialized
@@ -61,8 +63,8 @@ def mcp_register(spec_path: str, force: bool) -> None:
         server = registry.register_from_file(spec_path, overwrite=force)
     except FileExistsError as e:
         raise ConfigError(str(e)) from None
-    except Exception as e:
-        raise ConfigError(f"Registration failed: {e}") from None
+    except (OSError, ValueError, yaml.YAMLError, ValidationError) as e:
+        raise ConfigError(f"Registration failed: {e}") from e
     click.echo(f"Registered: {server.id} ({server.name})")
 
 

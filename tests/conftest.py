@@ -28,8 +28,14 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Modules that must be importable for the test suite to function.
 # Each entry is (module_name, install_hint).
+#
+# ``build`` was here historically but only ``tests/e2e/`` needs it (wheel
+# build path). The default ``pytest -m "not slow"`` run never imports
+# it, and CI's ``uv pip install -e . pytest`` smoke step deliberately
+# omits [dev] extras to surface runtime-dep leaks — gating the whole
+# suite on a build-time tool broke that smoke. Moved the check into
+# ``tests/e2e/conftest.py`` where the wheel-build fixture lives.
 REQUIRED_DEV_MODULES: tuple[tuple[str, str], ...] = (
-    ("build", "pip install build  (or pip install -e '.[dev]')"),
     ("pytest", "pip install pytest"),
     ("yaml", "pip install pyyaml"),
 )

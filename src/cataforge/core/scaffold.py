@@ -15,6 +15,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import logging
 import shutil
 from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
@@ -30,6 +31,8 @@ except ImportError:  # Python 3.10 — `importlib.resources.abc` landed in 3.11.
 # ``_RUNTIME_VERSION`` is deliberately named — it reads as "the runtime
 # package version" at every call site, not as a constant.
 from cataforge import __version__ as _RUNTIME_VERSION  # noqa: N812
+
+logger = logging.getLogger("cataforge.scaffold")
 
 _PKG = "cataforge"
 _SCAFFOLD_SUBDIR = "_dot_cataforge"
@@ -147,7 +150,11 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
 
 def _preserve_if_exists(new_bytes: bytes, target: Path) -> bytes:
     """Keep user edits untouched — return the current content."""
-    return target.read_bytes()
+    try:
+        return target.read_bytes()
+    except OSError as e:
+        logger.warning("could not read %s (%s); using new content", target, e)
+        return new_bytes
 
 
 _MERGE_HANDLERS: dict[str, MergeFn] = {

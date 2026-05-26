@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cataforge.platform.base import PlatformAdapter
+from cataforge.platform.helpers import _prune_orphan_flat_files
 
 
 class ClaudeCodeAdapter(PlatformAdapter):
@@ -82,9 +83,10 @@ class ClaudeCodeAdapter(PlatformAdapter):
             actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
 
         # Prune orphans. Touch only files/dirs that look like ours — flat
-        # ``<name>.md`` files whose frontmatter names match our translator
-        # output, and subdirs containing ``AGENT.md`` (leftover from the
-        # pre-M? dual layout). IDE-native and user-authored files stay put.
+        # ``<name>.md`` files whose frontmatter ``name:`` matches our
+        # translator output, and subdirs containing ``AGENT.md`` (leftover
+        # from the pre-M? dual layout). IDE-native and user-authored files
+        # stay put.
         if target_dir.is_dir():
             for existing in target_dir.iterdir():
                 if existing.is_dir():
@@ -100,24 +102,16 @@ class ClaudeCodeAdapter(PlatformAdapter):
                             actions.append(f"pruned legacy {target_rel}/{existing.name}/")
                     continue
 
-                if (
-                    existing.is_file()
-                    and existing.suffix == ".md"
-                    and existing.stem not in source_agents
-                ):
-                    # Defensive: only drop flat files whose frontmatter
-                    # ``name:`` matches — avoids touching user-authored .md.
-                    head = existing.read_text(encoding="utf-8", errors="ignore")[:512]
-                    if f"name: {existing.stem}" in head:
-                        if dry_run:
-                            actions.append(
-                                f"would prune orphan {target_rel}/{existing.name}"
-                            )
-                        else:
-                            existing.unlink()
-                            actions.append(
-                                f"pruned orphan {target_rel}/{existing.name}"
-                            )
+        actions.extend(
+            _prune_orphan_flat_files(
+                target_dir,
+                source_agents,
+                ".md",
+                "name: {stem}",
+                target_rel,
+                dry_run=dry_run,
+            )
+        )
 
         # Single aggregated WARN for unmapped capabilities — see translator.py
         # and the matching block in PlatformAdapter.deploy_agents for rationale.

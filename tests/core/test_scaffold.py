@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from cataforge.core.scaffold import (
     BACKUPS_DIRNAME,
+    _preserve_if_exists,
     copy_scaffold_to,
     create_backup,
     list_backups,
@@ -59,13 +61,7 @@ def test_copy_scaffold_preserves_project_state_md_on_force(tmp_path: Path) -> No
 
 
 def test_scaffold_stamps_runtime_package_version(tmp_path: Path) -> None:
-    """framework.json version must match the installed cataforge package.
-
-    Regression guard for upgrade convergence: before this fix the scaffold
-    template shipped a hard-coded "0.1.0" that would never match a newer
-    installed wheel, so ``cataforge upgrade check`` reported "differs" even
-    immediately after ``upgrade apply``.
-    """
+    """framework.json version must match the installed cataforge package."""
     from cataforge import __version__
 
     dest = tmp_path / ".cataforge"
@@ -145,3 +141,18 @@ def test_backups_dir_excluded_from_snapshot(tmp_path: Path) -> None:
     second = create_backup(dest, ts="second")
     assert second is not None
     assert not (second / BACKUPS_DIRNAME).exists()
+
+
+def test_preserve_if_exists_returns_existing_content(tmp_path: Path) -> None:
+    target = tmp_path / "file.txt"
+    target.write_bytes(b"existing content")
+    result = _preserve_if_exists(b"new content", target)
+    assert result == b"existing content"
+
+
+def test_preserve_if_exists_toctou_fallback_on_os_error(tmp_path: Path) -> None:
+    target = tmp_path / "missing.txt"
+    with patch("cataforge.core.scaffold.logger") as mock_log:
+        result = _preserve_if_exists(b"fallback bytes", target)
+        assert mock_log.warning.called
+    assert result == b"fallback bytes"

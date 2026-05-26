@@ -178,7 +178,7 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
 """)
 
 
-def _get_config() -> dict[str, Any]:
+def get_config() -> dict[str, Any]:
     return {
         "penpot_dir": os.environ.get(
             "PENPOT_INSTALL_DIR",
@@ -587,7 +587,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--ensure", action="store_true")
     args = parser.parse_args(argv)
-    config = _get_config()
+    config = get_config()
 
     if args.ensure:
         return cmd_ensure(config)

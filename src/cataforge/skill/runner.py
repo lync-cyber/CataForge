@@ -9,10 +9,24 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.skill.loader import SkillLoader, SkillMeta
+
+_DEFAULT_TIMEOUT_SECS = 300
+
+
+class SkillTimeoutError(RuntimeError):
+    """Raised when a skill script exceeds its allowed execution time."""
+
+    def __init__(self, skill_id: str, timeout_secs: int | float) -> None:
+        self.skill_id = skill_id
+        self.timeout_secs = timeout_secs
+        super().__init__(
+            f"Skill {skill_id!r} exceeded timeout of {timeout_secs}s"
+        )
 
 
 class SkillRunner:
@@ -29,6 +43,7 @@ class SkillRunner:
         script_name: str | None = None,
         *,
         agent: str | None = None,
+        timeout: int | float | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """Run a skill's script.
 
@@ -41,6 +56,12 @@ class SkillRunner:
                 back to ``CATAFORGE_INVOKING_AGENT`` env var, then to
                 ``"reviewer"`` (preserves prior behaviour for callers that
                 don't yet pass attribution).
+            timeout: Maximum seconds to allow the script to run. Defaults to
+                ``SKILL_RUNNER_TIMEOUT_DEFAULT_SECS`` from framework constants
+                (300 s). Pass ``0`` or a negative value to disable the limit.
+
+        Raises:
+            SkillTimeoutError: If the script exceeds *timeout* seconds.
 
         Returns:
             CompletedProcess result.
@@ -70,19 +91,36 @@ class SkillRunner:
                 raise FileNotFoundError(f"Script file not found: {script_path}")
             cmd = [sys.executable, str(script_path)] + (args or [])
 
+        effective_timeout: float | None
+        if timeout is None:
+            effective_timeout = _DEFAULT_TIMEOUT_SECS
+        elif timeout <= 0:
+            effective_timeout = None
+        else:
+            effective_timeout = float(timeout)
+
         # Force UTF-8 on subprocess pipes — Windows cp1252 default would
         # raise UnicodeDecodeError when a skill prints arrows / Chinese
         # findings (e.g. framework_check.py). Pairs with ensure_utf8_stdio()
         # in the script's main(): both ends agree on UTF-8.
-        result = subprocess.run(
-            cmd,
-            cwd=str(self._paths.root),
-            env=env,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        t_start = time.monotonic()
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(self._paths.root),
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=effective_timeout,
+            )
+        except subprocess.TimeoutExpired:
+            duration = time.monotonic() - t_start
+            self._emit_timeout_event(
+                meta, script_entry, effective_timeout, duration, agent=agent
+            )
+            raise SkillTimeoutError(skill_id, effective_timeout) from None
 
         self._emit_run_event(meta, script_entry, result.returncode, agent=agent)
         return result
@@ -158,6 +196,44 @@ class SkillRunner:
             # EVENT-LOG append is observability, not control flow. A
             # malformed phase or an unwritable docs/ directory must not
             # take down a passing lint run.
+            return
+
+    def _emit_timeout_event(
+        self,
+        meta: SkillMeta,
+        script_entry: dict[str, str],
+        timeout_secs: float,
+        duration: float,
+        *,
+        agent: str | None = None,
+    ) -> None:
+        """Best-effort: append a ``state_change`` record for a timed-out skill run."""
+        skill_id = meta.id
+        try:
+            from cataforge.core.event_log import append_event, build_record
+        except Exception:
+            return
+
+        phase = os.environ.get("CATAFORGE_EVENT_PHASE") or "development"
+        attributed_agent = (
+            agent
+            or os.environ.get("CATAFORGE_INVOKING_AGENT")
+            or "reviewer"
+        )
+        try:
+            record = build_record(
+                event="state_change",
+                phase=phase,
+                detail=(
+                    f"skill_timeout: {skill_id} exceeded {timeout_secs}s "
+                    f"(elapsed={duration:.1f}s)"
+                ),
+                agent=attributed_agent,
+                status="blocked",
+                ref=f"skill:{skill_id}/{script_entry['name']}",
+            )
+            append_event(self._paths.root, record)
+        except Exception:
             return
 
     def _find_script(self, meta: SkillMeta, script_name: str | None) -> dict[str, str] | None:

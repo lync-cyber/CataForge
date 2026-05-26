@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import click
 
-from cataforge.cli.errors import NotInitializedError
+from cataforge.cli.errors import CataforgeError, NotInitializedError
 from cataforge.cli.helpers import get_config_manager
 from cataforge.cli.main import cli
 from cataforge.core.claude_md_hygiene import (
@@ -88,7 +88,9 @@ def check_command() -> None:
         failed += 1
 
     if failed:
-        raise SystemExit(1)
+        raise CataforgeError(
+            f"CLAUDE.md limits exceeded ({failed} check(s) failed — see output above)."
+        )
     click.secho("  OK: within limits.", fg="green")
 
 

@@ -64,8 +64,9 @@ def _notify_windows(title: str, message: str) -> bool:
 
 
 def _notify_macos(title: str, message: str) -> bool:
+    safe_title = title.replace('"', '\\"')
     safe_msg = message.replace('"', '\\"')
-    script = f'display notification "{safe_msg}" with title "{title}"'
+    script = f'display notification "{safe_msg}" with title "{safe_title}"'
     subprocess.run(["osascript", "-e", script], capture_output=True, timeout=10)
     return True
 

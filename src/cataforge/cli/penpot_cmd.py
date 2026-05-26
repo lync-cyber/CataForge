@@ -18,7 +18,7 @@ def _run_penpot(handler_name: str, command_label: str) -> None:
     from cataforge.integrations import penpot
 
     load_dotenv = penpot.load_dotenv
-    get_config = penpot._get_config
+    get_config = penpot.get_config
     handler = getattr(penpot, handler_name)
 
     load_dotenv(set_env=True)

@@ -48,9 +48,7 @@ class TestSetupCommand:
     ) -> None:
         """Regression: `setup --platform X` must be scaffold-only by default.
 
-        Before the fix, `setup --platform claude-code` silently triggered a
-        full deploy, muddling the five-step pipeline in the manual
-        verification guide.  Now deploy requires explicit opt-in.
+        Deploy requires explicit opt-in; implicit deploy must not happen.
         """
         monkeypatch.chdir(tmp_path)
         result = _invoke("setup", "--platform", "claude-code")
@@ -140,7 +138,7 @@ class TestListCommands:
         result = _invoke("skill", "list")
         assert result.exit_code == 0, result.output
         # At least one built-in skill should render.
-        assert "code-review" in result.output or "code_review" in result.output
+        assert "code-review" in result.output
 
     def test_mcp_list_runs(self, fresh_project: Path) -> None:
         result = _invoke("mcp", "list")
@@ -188,7 +186,7 @@ class TestStubCommands:
         See tests/cli/test_hook_cmd.py for the happy-path coverage; this
         smoke-test locks in the error path for unknown hook names.
         """
-        result = _invoke("hook", "test", "pre-commit")
+        result = _invoke("hook", "test", "nonexistent_hook_xyz")
         assert result.exit_code == 1
         assert "not declared" in result.output.lower() or "no hook" in result.output.lower()
 
@@ -209,11 +207,7 @@ class TestDeployErrors:
     def test_deploy_without_scaffold_is_friendly(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """No .cataforge/ anywhere — deploy should hint at setup, not crash.
-
-        Before the fix, users hit a raw FileNotFoundError traceback deep
-        inside registry.load_profile. Now the CLI points to `cataforge setup`.
-        """
+        """No .cataforge/ anywhere — deploy should hint at setup, not crash."""
         monkeypatch.chdir(tmp_path)
         runner = CliRunner()
         result = runner.invoke(cli, ["deploy", "--platform", "claude-code"])

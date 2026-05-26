@@ -7,7 +7,11 @@ from typing import Any
 
 from cataforge.agent.translator import translate_agent_md
 from cataforge.platform.base import PlatformAdapter
-from cataforge.platform.helpers import merge_json_key, merge_opencode_project_mcp
+from cataforge.platform.helpers import (
+    _prune_orphan_flat_files,
+    merge_json_key,
+    merge_opencode_project_mcp,
+)
 
 
 class OpenCodeAdapter(PlatformAdapter):
@@ -56,6 +60,8 @@ class OpenCodeAdapter(PlatformAdapter):
             if d.is_dir() and (d / "AGENT.md").is_file()
         }
 
+        dropped_collector: dict[str, set[str]] = {}
+
         for agent_name in sorted(source_agents):
             agent_md = source_dir / agent_name / "AGENT.md"
             target_file = target_dir / f"{agent_name}.md"
@@ -66,32 +72,30 @@ class OpenCodeAdapter(PlatformAdapter):
                 )
                 continue
             content = agent_md.read_text(encoding="utf-8")
-            translated = translate_agent_md(content, self)
+            translated = translate_agent_md(content, self, dropped_collector=dropped_collector)
             target_file.write_text(translated, encoding="utf-8")
             actions.append(
                 f"agents/{agent_name}/AGENT.md → {target_rel}/{agent_name}.md"
             )
 
-        # Prune orphans — only flat .md files whose frontmatter ``name:``
-        # still matches the stem (same heuristic claude_code.py uses).
-        if target_dir.is_dir():
-            for existing in target_dir.iterdir():
-                if (
-                    not existing.is_file()
-                    or existing.suffix != ".md"
-                    or existing.stem in source_agents
-                ):
-                    continue
-                head = existing.read_text(encoding="utf-8", errors="ignore")[:512]
-                if f"name: {existing.stem}" not in head:
-                    continue
-                if dry_run:
-                    actions.append(
-                        f"would prune orphan {target_rel}/{existing.name}"
-                    )
-                else:
-                    existing.unlink()
-                    actions.append(f"pruned orphan {target_rel}/{existing.name}")
+        for field_name in sorted(dropped_collector):
+            caps = sorted(dropped_collector[field_name])
+            actions.append(
+                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
+                f"{field_name!r} have no platform mapping: {caps} — "
+                "these will be skipped during translation."
+            )
+
+        actions.extend(
+            _prune_orphan_flat_files(
+                target_dir,
+                source_agents,
+                ".md",
+                "name: {stem}",
+                target_rel,
+                dry_run=dry_run,
+            )
+        )
 
         return actions
 
@@ -249,7 +253,7 @@ def _render_opencode_plugin(active_events: dict[str, list[dict[str, Any]]]) -> s
         "\n"
         "export const plugin: Plugin = async ({ app, client, $, event }) => {\n"
         "  for (const evt of Object.keys(HOOKS) as (keyof typeof HOOKS)[]) {\n"
-        "    event.on(evt as never, (ctx: HookPayload) => dispatch(evt, ctx));\n"
+        "    event.on(evt as never, async (ctx: HookPayload) => { await dispatch(evt, ctx); });\n"
         "  }\n"
         "};\n"
     )
