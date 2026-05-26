@@ -1,11 +1,14 @@
-"""cataforge kg — knowledge graph store lifecycle (sub-PR 2 scope).
+"""cataforge kg — knowledge graph store lifecycle.
 
-Sub-PR 2 ships only `kg init`. The remaining `kg ingest / export / validate /
-repair / reconcile / snapshot / rollback / diff` subcommands (task-5 §5.1)
-land in sub-PRs 3..5 next to the runtime logic they wrap.
+Subcommand build-out tracks the alpha sub-PR sequence in task-7 §7.1:
+
+* sub-PR 2 — `init`
+* sub-PR 3 — `import`, `validate` (this file)
+* sub-PR 4+ — `export`, `repair`, `reconcile`, `snapshot`, `rollback`, `diff`
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import click
@@ -93,3 +96,200 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
             f"OK: initialized KG store at {db_path} with {triple_count} "
             f"rdfs:subClassOf triples."
         )
+
+
+@kg_group.command("import")
+@click.option(
+    "--project-root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+    show_default=True,
+    help="Project root containing docs/ and .cataforge/.",
+)
+@click.option(
+    "--db-path",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path for the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--backend",
+    type=click.Choice(["oxigraph", "memory"]),
+    default="oxigraph",
+    show_default=True,
+    help="Store backend. `memory` is for tests and dry-runs only.",
+)
+@click.option(
+    "--doc-type",
+    "doc_types",
+    multiple=True,
+    help=(
+        "Restrict to specific doc_types. Repeatable. Default = Alpha scope "
+        "(prd, arch, test-report) per task-7 §7.1."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Run phases 1–4 + 6 against the existing graph; skip phase 5 write.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit a JSON stats blob instead of the human-readable table.",
+)
+def kg_import(
+    project_root: Path,
+    db_path: Path,
+    backend: str,
+    doc_types: tuple[str, ...],
+    dry_run: bool,
+    json_output: bool,
+) -> None:
+    """Ingest business documents into the KG (task-7 §7.2 six-phase pipeline)."""
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg.ingest import DEFAULT_DOC_TYPES, run_migration
+
+    config = KGConfig(
+        store_backend=backend,  # type: ignore[arg-type]
+        db_path=db_path,
+    )
+
+    types = doc_types if doc_types else DEFAULT_DOC_TYPES
+
+    if backend == "memory":
+        from cataforge.kg.store import init_store
+
+        handle = init_store(config, force=True)
+    else:
+        try:
+            handle = KnowledgeGraphStore.connect(config).__enter__()
+        except KGStoreNotInitializedError as exc:
+            err = CataforgeError(
+                f"{exc}\nHint: run `cataforge kg init` before `kg import`."
+            )
+            err.exit_code = 1
+            raise err from exc
+
+    try:
+        stats, _entities, _relations = run_migration(
+            handle.raw,
+            project_root,
+            config,
+            doc_types=tuple(types),
+            dry_run=dry_run,
+        )
+    finally:
+        handle.close()
+
+    if json_output:
+        click.echo(json.dumps(stats.to_dict(), indent=2, sort_keys=True))
+    else:
+        prefix = "[DRY-RUN] " if dry_run else ""
+        click.echo(
+            f"{prefix}docs={stats.parsed_docs} "
+            f"entities={stats.extracted_entities} "
+            f"relations={stats.extracted_relations}"
+        )
+        click.echo(
+            f"  written={stats.write_stats.entities_written}"
+            f"+{stats.write_stats.relations_written} "
+            f"skipped={stats.write_stats.entities_skipped}"
+            f"+{stats.write_stats.relations_skipped}"
+        )
+        if stats.verify_result is not None:
+            click.echo(
+                f"  verify: ok={stats.verify_result.ok} "
+                f"missing={len(stats.verify_result.missing_entities)} "
+                f"hash_mismatch={len(stats.verify_result.content_hash_mismatches)}"
+            )
+
+    if stats.verify_result is not None and not stats.verify_result.ok and not dry_run:
+        err = CataforgeError("KG import verification failed.")
+        err.exit_code = 3
+        raise err
+
+
+@kg_group.command("validate")
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--shacl/--no-shacl",
+    default=False,
+    help=(
+        "Run SHACL shapes from `_generated/core_shapes.ttl` against the live "
+        "graph. Requires pyshacl + rdflib (extra); silently skipped if absent."
+    ),
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit a JSON report instead of the table.",
+)
+def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
+    """Check the live KG for orphan nodes and broken traceability edges."""
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg.validate import validate
+
+    config = KGConfig(store_backend="oxigraph", db_path=db_path)
+    try:
+        with KnowledgeGraphStore.connect(config) as handle:
+            report = validate(handle.raw, config, run_shacl=shacl)
+    except KGStoreNotInitializedError as exc:
+        err = CataforgeError(str(exc))
+        err.exit_code = 1
+        raise err from exc
+
+    if json_output:
+        click.echo(
+            json.dumps(
+                {
+                    "ok": report.ok,
+                    "shacl_skipped": report.shacl_skipped,
+                    "violations": [
+                        {
+                            "severity": v.severity,
+                            "entity_id": v.entity_id,
+                            "shape": v.shape,
+                            "message": v.message,
+                        }
+                        for v in report.violations
+                    ],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    else:
+        if not report.violations:
+            click.echo("OK: no violations")
+        else:
+            click.echo(
+                f"{'Severity':<12} {'Entity':<20} {'Shape':<28} Message"
+            )
+            click.echo("-" * 80)
+            for v in report.violations:
+                click.echo(
+                    f"{v.severity:<12} {v.entity_id:<20} {v.shape:<28} {v.message}"
+                )
+        if report.shacl_skipped and shacl:
+            click.echo(
+                "Note: SHACL pass skipped (pyshacl/rdflib not installed "
+                "or shapes file missing)."
+            )
+
+    if not report.ok:
+        err = CataforgeError("validation reported violations.")
+        err.exit_code = 3
+        raise err
