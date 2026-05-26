@@ -1,0 +1,14 @@
+{
+  "docs": {
+    "doc_types": {
+      "prd": "prd",
+      "arch": "arch",
+      "test-report": "test-report"
+    }
+  },
+  "kg": {
+    "project_id": "proj-waterfall-slice",
+    "title": "Vertical slice fixture (waterfall)",
+    "process_model": "waterfall"
+  }
+}
