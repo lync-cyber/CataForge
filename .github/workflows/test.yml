@@ -103,6 +103,60 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           uv lock --check
 
+      - name: "uv smoke — default-extras pytest collection (catches runtime-dep gaps)"
+        # `pip install -e ".[dev]"` above hides runtime/dev dep mix-ups:
+        # if a runtime module imports a [dev]-only transitive (e.g. the
+        # historical jinja2 ← scriv leak), the dev-extras install masks
+        # the bug and downstream users hit ImportError on first run.
+        # This step builds the package via uv with default extras only
+        # and runs `pytest --collect-only` to surface the gap in CI.
+        if: runner.os == 'Linux'
+        run: |
+          uv venv .venv-smoke
+          uv pip install --python .venv-smoke -e . pytest
+          uv run --python .venv-smoke pytest --collect-only -q
+
+      - name: "uv run --extra dev pytest smoke (covers the uv code path)"
+        # CI's primary `pytest` step uses pip-editable; this one runs the
+        # same suite via uv so a uv-only regression (resolver edge case,
+        # lockfile-induced version pin, .venv layout drift) surfaces here.
+        if: runner.os == 'Linux'
+        run: uv run --extra dev pytest tests/ -q -m "not slow"
+
+      - name: "mypy (informational — strict-clean packages gate; rest reports count)"
+        # Strategy (docs/contributing.md § 类型检查):
+        #  - Full repo: `mypy src` is informational. CI prints the count
+        #    so type debt is visible, but does not fail the build.
+        #  - Strict-clean packages (currently cataforge.services.*) MUST
+        #    have zero errors. New strict-opt-in packages add rows here.
+        if: runner.os == 'Linux'
+        run: |
+          set -eu
+          echo "::group::Full-repo mypy (informational)"
+          python -m mypy src/cataforge --no-incremental || true
+          echo "::endgroup::"
+          echo "::group::Strict packages (must be clean)"
+          python -m mypy --strict --no-incremental src/cataforge/services
+          echo "::endgroup::"
+
+      - name: "platform dry-run snapshots (cursor / codex / opencode)"
+        # README.md L90 admits Cursor/CodeX/OpenCode are not validated end-
+        # to-end. This step at least exercises each adapter's `deploy
+        # --dry-run` code path so a refactor that breaks one of them
+        # surfaces in CI without needing the real IDE installed.
+        # `--project-dir` is a global flag (lives before the subcommand).
+        if: runner.os == 'Linux'
+        run: |
+          set -eu
+          tmpdir=$(mktemp -d)
+          cataforge --project-dir "$tmpdir" setup --platform claude-code
+          for plat in cursor codex opencode; do
+            echo "::group::deploy --dry-run --platform $plat"
+            cataforge --project-dir "$tmpdir" deploy \
+              --platform "$plat" --dry-run
+            echo "::endgroup::"
+          done
+
       - name: "cataforge doctor (gates _DEPRECATED_REFS, runtime_api_version, orphan docs, …)"
         # Promote `cataforge doctor` from a manually-invoked diagnostic to a
         # required CI gate. Until this step landed every doctor check

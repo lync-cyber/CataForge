@@ -152,19 +152,29 @@ cataforge hook test PostToolUse --inline '{"tool_name":"Edit","file_path":"src/c
 cataforge hook test PreToolUse --fixture tests/fixtures/pretool-edit.json
 ```
 
+**自定义 hook 命令的 `shell=True` 边界**：内置 `python -m ...` hook 命令走 argv 列表（`shell=False`），不受 shell 元字符影响。但 `hooks.yaml` 里**自定义命令字符串**（不以 `python ` 开头的那种）会走 `shell=True`，以保留管道 / 重定向 / 环境变量展开等常见用法。威胁模型：hook 命令字符串由仓库维护者直接写入 `hooks.yaml`，**不接收任何来自工具调用结果的外部输入**——payload 通过 stdin 传给子进程，而非拼到命令行——所以 `shell=True` 在这条调用面上不构成命令注入风险。如果你的自定义命令需要消费 payload，请让子进程从 stdin 读取，**不要**把 payload 字段拼进 `hooks.yaml` 的命令字符串。
+
 ---
 
 ## mcp
 
 ```bash
-cataforge mcp list          # 列出已注册的 MCP 服务
-cataforge mcp start <id>    # 启动 MCP 服务
-cataforge mcp stop <id>     # 停止 MCP 服务
+cataforge mcp list                       # 列出已注册的 MCP 服务
+cataforge mcp register <spec.yaml>       # 注册（拷贝到 .cataforge/mcp/<id>.yaml；--force 覆盖）
+cataforge mcp start <id>                 # 启动 MCP 服务（含 readiness 探测）
+cataforge mcp stop <id>                  # 停止 MCP 服务（SIGTERM → wait → SIGKILL）
+cataforge mcp health <id>                # 主动探测健康，写回 last_health_check
 ```
 
 声明位置：`.cataforge/mcp/*.yaml`；状态持久化到 `.cataforge/.mcp-state/`。
 
-<!-- 变更原因：补具体命令示例，diagnostic #14 -->
+**生命周期保证**：
+
+- `register` 把 spec 标准化复制到 `.cataforge/mcp/<id>.yaml`，新进程通过目录扫描自动可见
+- `start` 先读持久化 state + 校验 pid 存活（POSIX `kill 0` / Windows `OpenProcess`）：活的复用、死的清理重启；spawn 后跑一次 readiness 探测把结果写回 `last_health_check`
+- `stop` SIGTERM 后等 pid 真消失才标 stopped，超时升级 SIGKILL（POSIX），仍存活写 `error`
+- `health` 按 `spec.health_check.type` 分派：`http` → `GET` 目标 URL（2xx 即健康）；`tcp` → `socket.connect("host:port")`；`command` → shell 执行（exit 0 即健康）；缺省 → pid alive 兜底。Unhealthy 时 CLI exit 1
+
 例：
 
 ```bash
@@ -174,6 +184,11 @@ cataforge mcp list
 
 cataforge mcp start echo-mcp
 # Started: echo-mcp (pid=12345)
+
+cataforge mcp health echo-mcp
+# Server : echo-mcp
+# Status : running
+# Health : 2026-05-24T03:21:00+00:00|healthy|pid_alive=True (pid=12345)
 
 cataforge mcp stop echo-mcp
 # Stopped: echo-mcp

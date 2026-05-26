@@ -24,6 +24,44 @@ from cataforge.core.feedback import (
 )
 
 
+class TestLayering:
+    """``core/feedback`` must not statically import from ``cataforge.cli``.
+
+    Regression guard: an earlier version of ``core/feedback`` imported
+    ``cataforge.cli.main.cli`` at module top level so ``CliRunner`` could
+    invoke ``doctor``. That inverted the package dependency direction
+    (``core/`` should be importable without booting the CLI surface). The
+    fix delegates to ``cataforge.services.doctor_summary`` and lazy-imports
+    it inside the function body. This test makes the rule machine-checked.
+    """
+
+    def test_no_static_cli_import(self) -> None:
+        from cataforge.core import feedback
+
+        source = Path(feedback.__file__).read_text(encoding="utf-8")
+        # Only the lazy delegation inside the function body should mention
+        # cli-flavoured names; module-level imports from ``cataforge.cli``
+        # are forbidden.
+        for line in source.splitlines():
+            stripped = line.lstrip()
+            if not (stripped.startswith("import ") or stripped.startswith("from ")):
+                continue
+            # The lazy-import lines live inside function bodies and are
+            # therefore indented — filter those out by indent check.
+            if line.startswith((" ", "\t")):
+                continue
+            assert "cataforge.cli" not in line, (
+                f"core/feedback.py must not statically import from "
+                f"cataforge.cli; offending line: {line!r}"
+            )
+
+    def test_doctor_summary_lives_in_services(self) -> None:
+        """The CliRunner-based implementation must live in services/, not core/."""
+        from cataforge.services import doctor_summary
+
+        assert hasattr(doctor_summary, "collect_doctor_summary")
+
+
 def _bootstrap(tmp_path: Path) -> Path:
     """Lay down a minimal `.cataforge/` with framework.json + EVENT-LOG."""
     (tmp_path / ".cataforge").mkdir()

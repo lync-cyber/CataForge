@@ -127,50 +127,23 @@ def collect_environment(project_root: Path) -> dict[str, str]:
     }
 
 
-# ─── doctor summary ───────────────────────────────────────────────────────────
-
-_DOCTOR_FAIL_RE = re.compile(r"^\s*(?:FAIL|✖|ERROR|missing|MISSING)\b", re.MULTILINE)
-_DOCTOR_WARN_RE = re.compile(r"^\s*(?:WARN|⚠)\b", re.MULTILINE)
+# ─── doctor summary (service-layer delegation) ────────────────────────────────
 
 
 def collect_doctor_summary(project_root: Path) -> dict[str, Any]:
-    """Run ``cataforge doctor`` in-process and extract failure/warning lines.
+    """Lazy shim over :func:`cataforge.services.doctor_summary.collect_doctor_summary`.
 
-    Uses Click's ``CliRunner`` rather than spawning a subprocess so the call
-    stays fast (no fork) and so unit tests can stub the project root without
-    PATH gymnastics. Failures inside doctor are captured but never raised —
-    the assembler should always be able to produce a partial bundle.
+    The actual implementation depends on ``cataforge.cli.main`` (via Click's
+    ``CliRunner``) and therefore cannot live in ``core/`` — that would form
+    a ``core/`` → ``cli/`` import edge, inverting the package dependency
+    direction. The import is performed at call time so static analysis and
+    fresh imports of ``core/`` stay free of the cycle.
     """
-    out = {"exit_code": -1, "fails": [], "warns": [], "full": ""}
-    try:
-        from click.testing import CliRunner
-
-        from cataforge.cli.main import cli
-    except Exception as e:
-        out["fails"] = [f"(could not import doctor: {e})"]
-        return out
-
-    # ``mix_stderr`` was the default on Click ≤ 8.1 and was removed as a
-    # constructor kwarg in 8.2 (now controlled via ``invoke(..., catch_exceptions)``).
-    # We fall back to the keyword-less constructor so we work across both;
-    # output capture mixes stderr+stdout either way under our pinned floor.
-    try:
-        runner = CliRunner(mix_stderr=True)  # type: ignore[call-arg]
-    except TypeError:
-        runner = CliRunner()
-    result = runner.invoke(
-        cli,
-        ["--project-dir", str(project_root), "doctor"],
-        catch_exceptions=True,
+    from cataforge.services.doctor_summary import (
+        collect_doctor_summary as _service_collect,
     )
-    text = result.output or ""
-    out["exit_code"] = result.exit_code
-    out["full"] = text
-    out["fails"] = _DOCTOR_FAIL_RE.findall(text) and [
-        line for line in text.splitlines() if _DOCTOR_FAIL_RE.match(line)
-    ] or []
-    out["warns"] = [line for line in text.splitlines() if _DOCTOR_WARN_RE.match(line)]
-    return out
+
+    return _service_collect(project_root)
 
 
 # ─── event log tail ───────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ name = "cataforge"
 dynamic = ["version"]
 description = "AI Programming: Agent + Skill Workflow Framework — one .cataforge/ spec, many IDEs (Claude Code, Cursor, Codex, OpenCode)."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.15"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -135,10 +135,28 @@ markers = [
 ]
 
 [tool.mypy]
+# Policy: opt-in strict per-package, not blanket strict. The historic
+# `strict = true` setting produced a ~200-error baseline that no CI gate
+# could enforce without first burning that backlog. Now the global stays
+# minimal (just type checking + cache hygiene); modules opt into strict
+# via [[tool.mypy.overrides]] as they get cleaned up. See
+# `docs/contributing.md` § Type checking for the convergence workflow.
 python_version = "3.10"
-strict = true
-warn_return_any = true
 warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+# Per-package strict overrides — add modules here as they reach zero
+# errors under strict. New code should be authored strict-ready when the
+# surrounding package is already opted in. Workflow: pick a module, run
+# `uv run --extra dev mypy --strict src/cataforge/<pkg>`, fix what you
+# can, add a type: ignore (with a specific code) only as last resort,
+# then add the dotted-name pattern here.
+[[tool.mypy.overrides]]
+module = [
+    "cataforge.services.*",
+]
+strict = true
 
 [tool.scriv]
 # Markdown-native changelog fragments — see changelog.d/README.md for

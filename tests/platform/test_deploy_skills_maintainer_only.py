@@ -2,12 +2,45 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from cataforge.platform.base import PlatformAdapter
+
+
+def _make_dir_link(target: Path, source: Path) -> bool:
+    """Create a whole-directory link, picking the primitive each OS allows
+    without elevation: ``mklink /J`` on Windows (always available), real
+    symlink on POSIX. Returns False only in the rare case both fail.
+
+    Matches what `cataforge deploy` actually leaves behind on each OS: the
+    production ``symlink_or_copy`` falls back to junction on Windows so the
+    pre-existing target the test mimics is a junction there, not a symlink.
+    """
+    if os.name == "nt":
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(target), str(source)],
+            capture_output=True,
+        )
+        return result.returncode == 0
+    try:
+        target.symlink_to(source, target_is_directory=True)
+        return True
+    except (OSError, NotImplementedError):
+        return False
+
+
+def _is_dir_link(path: Path) -> bool:
+    """True for symlink (POSIX) or junction (Windows). ``is_junction`` exists
+    only on Python 3.12+, so probe via ``hasattr``."""
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction and is_junction())
 
 
 class _MinimalAdapter(PlatformAdapter):
@@ -155,19 +188,18 @@ def test_unwraps_legacy_whole_dir_link(
     target_parent.mkdir(parents=True)
     target = target_parent / "skills"
 
-    # Create a whole-dir symlink, mimicking the legacy deploy result.
-    # Skip on Windows when symlinks are unavailable to the test process.
-    try:
-        target.symlink_to(source, target_is_directory=True)
-    except (OSError, NotImplementedError):
-        pytest.skip("symlink not supported in this environment")
+    # Mimic the legacy deploy result with whichever whole-dir link primitive
+    # this OS allows without elevation (symlink on POSIX, junction on Win).
+    # Only skip if neither works — effectively never on a normal dev machine.
+    if not _make_dir_link(target, source):
+        pytest.skip("neither symlink nor mklink /J available")
 
-    assert target.is_symlink()
+    assert _is_dir_link(target)
 
     actions = adapter.deploy_skills(source, tmp_path)
 
-    # Symlink must be gone; in its place a real dir with a per-skill symlink.
-    assert not target.is_symlink()
+    # Link must be gone; in its place a real dir with a per-skill link.
+    assert not _is_dir_link(target)
     assert target.is_dir()
     assert (target / "alpha" / "SKILL.md").is_file()
     assert any("unwrapped whole-dir link" in a for a in actions)

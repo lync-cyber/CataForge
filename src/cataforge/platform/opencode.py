@@ -33,8 +33,16 @@ class OpenCodeAdapter(PlatformAdapter):
     def deploy_agents(
         self, source_dir: Path, project_root: Path, *, dry_run: bool = False
     ) -> list[str]:
-        """Deploy AGENT.md files to OpenCode native ``.opencode/agents/*.md``."""
-        target_dir = project_root / ".opencode" / "agents"
+        """Deploy AGENT.md files to OpenCode native ``.opencode/agents/*.md``.
+
+        After deploy, ``<name>.md`` files whose source AGENT.md no longer
+        exists are pruned — matches the prune contract of every other
+        platform adapter so a renamed/deleted agent doesn't leave behind a
+        stale OpenCode profile. Only files whose frontmatter ``name:``
+        matches the stem are touched; user-authored .md files stay put.
+        """
+        target_rel = ".opencode/agents"
+        target_dir = project_root / target_rel
         if not dry_run:
             target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -42,25 +50,48 @@ class OpenCodeAdapter(PlatformAdapter):
         if not source_dir.is_dir():
             return actions
 
-        for agent_dir in sorted(source_dir.iterdir()):
-            if not agent_dir.is_dir():
-                continue
-            agent_md = agent_dir / "AGENT.md"
-            if not agent_md.is_file():
-                continue
-            target_file = target_dir / f"{agent_dir.name}.md"
+        source_agents = {
+            d.name
+            for d in source_dir.iterdir()
+            if d.is_dir() and (d / "AGENT.md").is_file()
+        }
+
+        for agent_name in sorted(source_agents):
+            agent_md = source_dir / agent_name / "AGENT.md"
+            target_file = target_dir / f"{agent_name}.md"
             if dry_run:
                 actions.append(
-                    f"would deploy agents/{agent_dir.name}/AGENT.md → "
-                    f".opencode/agents/{agent_dir.name}.md"
+                    f"would deploy agents/{agent_name}/AGENT.md → "
+                    f"{target_rel}/{agent_name}.md"
                 )
                 continue
             content = agent_md.read_text(encoding="utf-8")
             translated = translate_agent_md(content, self)
             target_file.write_text(translated, encoding="utf-8")
             actions.append(
-                f"agents/{agent_dir.name}/AGENT.md → .opencode/agents/{agent_dir.name}.md"
+                f"agents/{agent_name}/AGENT.md → {target_rel}/{agent_name}.md"
             )
+
+        # Prune orphans — only flat .md files whose frontmatter ``name:``
+        # still matches the stem (same heuristic claude_code.py uses).
+        if target_dir.is_dir():
+            for existing in target_dir.iterdir():
+                if (
+                    not existing.is_file()
+                    or existing.suffix != ".md"
+                    or existing.stem in source_agents
+                ):
+                    continue
+                head = existing.read_text(encoding="utf-8", errors="ignore")[:512]
+                if f"name: {existing.stem}" not in head:
+                    continue
+                if dry_run:
+                    actions.append(
+                        f"would prune orphan {target_rel}/{existing.name}"
+                    )
+                else:
+                    existing.unlink()
+                    actions.append(f"pruned orphan {target_rel}/{existing.name}")
 
         return actions
 

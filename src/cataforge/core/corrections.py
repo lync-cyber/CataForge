@@ -9,7 +9,7 @@ goes through :func:`record_correction`, which dual-writes to
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -118,7 +118,10 @@ def _append_markdown(
     log_path = project_root / CORRECTIONS_LOG_REL
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    date = datetime.now().strftime("%Y-%m-%d")
+    # UTC to match EVENT-LOG entries — naive local time would let a
+    # CST-evening correction land on a different markdown date than the
+    # paired EVENT-LOG row, breaking grep-by-date forensics.
+    date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     entry = (
         f"\n### {date} | {agent} | {phase}\n"
         f"- 触发信号: {trigger}\n"

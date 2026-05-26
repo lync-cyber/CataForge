@@ -41,14 +41,26 @@ def mcp_list() -> None:
 
 @mcp_group.command("register")
 @click.argument("spec_path", type=click.Path(exists=True))
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Overwrite an existing spec at .cataforge/mcp/<id>.yaml.",
+)
 @require_initialized
-def mcp_register(spec_path: str) -> None:
-    """Register an MCP server from a YAML spec file."""
+def mcp_register(spec_path: str, force: bool) -> None:
+    """Register an MCP server from a YAML spec file.
+
+    The spec is copied to ``.cataforge/mcp/<id>.yaml`` so subsequent CLI
+    runs (a separate process from this one) can find it.
+    """
     from cataforge.mcp.registry import MCPRegistry
 
     try:
         registry = MCPRegistry(project_root=resolve_root())
-        server = registry.register_from_file(spec_path)
+        server = registry.register_from_file(spec_path, overwrite=force)
+    except FileExistsError as e:
+        raise ConfigError(str(e)) from None
     except Exception as e:
         raise ConfigError(f"Registration failed: {e}") from None
     click.echo(f"Registered: {server.id} ({server.name})")
@@ -83,3 +95,28 @@ def mcp_stop(server_id: str) -> None:
     mgr = MCPLifecycleManager(project_root=resolve_root())
     state = mgr.stop(server_id)
     click.echo(f"Stopped: {server_id} (status={state.status})")
+
+
+@mcp_group.command("health")
+@click.argument("server_id")
+@require_initialized
+def mcp_health(server_id: str) -> None:
+    """Probe a registered MCP server and report health.
+
+    Dispatch follows the spec's ``health_check.type`` (``http`` / ``tcp`` /
+    ``command``). When no ``health_check`` is declared, falls back to a
+    pid-alive check using the persisted state. The probe outcome is also
+    written to ``last_health_check`` for the next ``cataforge mcp list``.
+    """
+    from cataforge.mcp.lifecycle import MCPLifecycleManager
+
+    mgr = MCPLifecycleManager(project_root=resolve_root())
+    state = mgr.health(server_id)
+    if state is None:
+        raise ConfigError(f"Unknown MCP server: {server_id}")
+    click.echo(f"Server : {server_id}")
+    click.echo(f"Status : {state.status}")
+    click.echo(f"Health : {state.last_health_check or '(no probe yet)'}")
+    if state.status == "unhealthy":
+        ctx = click.get_current_context()
+        ctx.exit(1)

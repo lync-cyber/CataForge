@@ -76,14 +76,41 @@ class MCPRegistry:
         return MCPServerSpec.model_validate(data)
 
     def register(self, spec: MCPServerSpec) -> None:
-        """Programmatically register an MCP server."""
+        """Programmatically register an MCP server (in-memory only)."""
         self._servers[spec.id] = spec
         if spec.id not in self._states:
             self._states[spec.id] = MCPServerState(spec_id=spec.id)
 
-    def register_from_file(self, path: str | Path) -> MCPServerSpec:
-        """Register from a YAML spec file path."""
-        spec = self._parse_spec_file(Path(path))
+    def register_from_file(
+        self, path: str | Path, *, overwrite: bool = False
+    ) -> MCPServerSpec:
+        """Register a server from a YAML spec, persisting it to ``.cataforge/mcp/``.
+
+        Without persistence the registration would only live in the current
+        Python process; the next ``cataforge mcp start`` invocation (a
+        separate process) would not see it. We therefore copy / normalize
+        the spec into ``.cataforge/mcp/<id>.yaml`` so subsequent CLI runs
+        discover it via :meth:`_scan_declarative`.
+
+        If the source file is already at the canonical location, no copy
+        happens. If a different file already lives at the target and
+        ``overwrite=False``, raises ``FileExistsError``.
+        """
+        source = Path(path).resolve()
+        spec = self._parse_spec_file(source)
+
+        target_dir = self._paths.mcp_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = (target_dir / f"{spec.id}.yaml").resolve()
+
+        if source != target:
+            if target.exists() and not overwrite:
+                raise FileExistsError(
+                    f"MCP spec already registered at {target}; "
+                    "pass overwrite=True (CLI: --force) to replace it."
+                )
+            target.write_bytes(source.read_bytes())
+
         self.register(spec)
         return spec
 
