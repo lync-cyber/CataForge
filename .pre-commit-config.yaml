@@ -96,3 +96,15 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.cataforge/(agents|skills|rules)/.*\.md$
+      - id: no-query-boolean-eq-true
+        name: no QueryBoolean == True antipattern under cataforge.kg
+        description: |
+          pyoxigraph 0.5.x returns QueryBoolean from Store.query() for ASK;
+          `QueryBoolean == True` silently always evaluates False. Every
+          ASK consumer in the KG layer must route through
+          cataforge.kg._ask.ask(store, sparql) -> bool. Spike-2 §2.2,
+          issue #142. Mirrors the CI guard in test.yml.
+        entry: python scripts/checks/check_no_query_boolean_eq_true.py
+        language: system
+        pass_filenames: false
+        files: ^src/cataforge/kg/.*\.py$
