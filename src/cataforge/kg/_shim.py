@@ -33,7 +33,6 @@ from typing import Any
 from cataforge.kg._config import KGConfig
 from cataforge.kg.facade import KnowledgeGraph
 
-
 # ---------------------------------------------------------------------------
 # Config / dispatch helpers
 # ---------------------------------------------------------------------------
@@ -185,7 +184,8 @@ def _legacy_extract(
     doc_type: str, section_id: str, project_root: str | Path
 ) -> dict[str, Any] | None:
     """Read the section text via the legacy file-based loader."""
-    from cataforge.docs.loader import LoadSectionError, extract as _file_extract
+    from cataforge.docs.loader import LoadSectionError
+    from cataforge.docs.loader import extract as _file_extract
 
     ref = f"{doc_type}#{section_id}"
     try:

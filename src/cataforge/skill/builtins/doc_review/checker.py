@@ -328,8 +328,8 @@ class DocChecker(TypedDocChecksMixin):
         if project_root is None:
             return None
         try:
-            from cataforge.kg._dispatch import is_active_for, kg_config_for
             from cataforge.kg import KnowledgeGraph
+            from cataforge.kg._dispatch import is_active_for, kg_config_for
         except ImportError:
             return None
         if not is_active_for(self.doc_type, project_root):
@@ -360,8 +360,8 @@ class DocChecker(TypedDocChecksMixin):
         if project_root is None:
             return False
         try:
-            from cataforge.kg._dispatch import is_active_for, kg_config_for
             from cataforge.kg import KnowledgeGraph
+            from cataforge.kg._dispatch import is_active_for, kg_config_for
         except ImportError:
             return False
         if not is_active_for(self.doc_type, project_root):

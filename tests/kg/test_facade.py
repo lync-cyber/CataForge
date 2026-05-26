@@ -135,8 +135,7 @@ def test_transaction_commit_and_rollback() -> None:
         ox.NamedNode("https://cataforge.dev/ontology/title"),
         ox.Literal("rollback"),
     )
-    with pytest.raises(RuntimeError, match="boom"):
-        with kg.transaction() as txn:
-            txn.add(quad2)
-            raise RuntimeError("boom")
+    with pytest.raises(RuntimeError, match="boom"), kg.transaction() as txn:
+        txn.add(quad2)
+        raise RuntimeError("boom")
     assert not list(kg.store.quads_for_pattern(quad2.subject, None, None, None))

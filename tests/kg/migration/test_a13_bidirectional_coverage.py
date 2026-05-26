@@ -9,7 +9,6 @@ mention; the KG SPARQL pass requires an actual edge.
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 
 import pytest
 
@@ -36,10 +35,11 @@ def _add_quad(store, *, subject: str, predicate: str, obj):
 
     s = ox.NamedNode(subject)
     p = ox.NamedNode(predicate)
-    if isinstance(obj, str) and obj.startswith("http"):
-        o = ox.NamedNode(obj)
-    else:
-        o = ox.Literal(obj)
+    o = (
+        ox.NamedNode(obj)
+        if isinstance(obj, str) and obj.startswith("http")
+        else ox.Literal(obj)
+    )
     store.add(ox.Quad(s, p, o))
 
 
@@ -60,9 +60,10 @@ def _add_feature(store, entity_id: str, title: str, sort_key: str | None = None)
 
 def _add_module(store, entity_id: str, title: str, implements_iri: str | None = None) -> str:
     iri = f"{_INST}{entity_id}"
+    sk = f"M:{int(entity_id.split('-')[1]):06d}"
     _add_quad(store, subject=iri, predicate=_RDF_TYPE, obj=f"{_CF}Module")
     _add_quad(store, subject=iri, predicate=f"{_CF}entity_id", obj=entity_id)
-    _add_quad(store, subject=iri, predicate=f"{_CF}sort_key", obj=f"M:{int(entity_id.split('-')[1]):06d}")
+    _add_quad(store, subject=iri, predicate=f"{_CF}sort_key", obj=sk)
     _add_quad(store, subject=iri, predicate=f"{_CF}title", obj=title)
     if implements_iri:
         _add_quad(store, subject=iri, predicate=f"{_CF}implements", obj=implements_iri)

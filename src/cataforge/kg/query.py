@@ -19,10 +19,8 @@ from typing import TYPE_CHECKING, Any
 from cataforge.kg._ask import ask
 from cataforge.kg._config import KGConfig
 from cataforge.kg.ingest.iri import (
-    ENTITY_PREFIX_TO_CLASS,
     class_iri,
     entity_iri,
-    id_prefix_to_type,
 )
 
 if TYPE_CHECKING:

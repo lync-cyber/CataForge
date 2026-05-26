@@ -25,7 +25,6 @@ from pathlib import Path
 
 from cataforge.kg._config import KGConfig
 
-
 _ACTIVE_CACHE: dict[str, set[str]] = {}
 _CONFIG_CACHE: dict[str, KGConfig] = {}
 

@@ -11,7 +11,7 @@ import directly: `from cataforge.kg.export import render_entity`.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from cataforge.kg.export.hydrator import hydrate_rows
 from cataforge.kg.export.pipeline import (

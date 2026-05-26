@@ -11,8 +11,9 @@ adapts this sync context with `asyncio.Lock` + `asyncio.to_thread`.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING
 
 from cataforge.kg._config import KGConfig
 

@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-
 # The Alpha cutover scope per Task 7 §7.1 + README Round 2. The doctor
 # `kg_ingestion_completeness` gate enforces reconciliation for every
 # doc_type in this set; per-doc_type rollback (Task 7 §7.5) removes
