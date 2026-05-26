@@ -1,5 +1,7 @@
 # CataForge 0.5.0 — Knowledge Graph Migration Design
 
+> **Schema source of truth has moved.** As of sub-PR 1 (schema + codegen), the canonical LinkML schemas live at [src/cataforge/kg/schemas/core.yaml](../../../src/cataforge/kg/schemas/core.yaml) and [src/cataforge/kg/schemas/governance.yaml](../../../src/cataforge/kg/schemas/governance.yaml). The copies under [schemas/](schemas/) in this proposal directory are a frozen design-time snapshot at the round-2 / spike-1 checkpoint and **will not be updated** as implementation evolves. Read the package copies for current behavior; read the proposal copies for design intent.
+
 Multi-agent orchestrated design proposal for replacing CataForge 0.4.1 Markdown-only tooling with a knowledge-graph layer modeling business-document domain entities and first-class cross-SDLC traceability.
 
 ## Executive summary

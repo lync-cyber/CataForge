@@ -1,0 +1,818 @@
+id: https://cataforge.dev/ontology/core
+name: cataforge-core
+title: CataForge Core Business-Document Ontology
+description: >-
+  LinkML schema for the business-document domain entities produced by the 6
+  SDLC role agents (product-manager, architect, ui-designer, tech-lead,
+  qa-engineer, devops). Models intra-layer composition and the cross-SDLC
+  traceability matrix that is the central value of the 0.5.0 KG migration.
+  Single source of truth — generates Pydantic v2 models + OWL/SHACL.
+license: Apache-2.0
+
+prefixes:
+  linkml:   https://w3id.org/linkml/
+  cf:       https://cataforge.dev/ontology/
+  cfgov:    https://cataforge.dev/governance/
+  cfprj:    https://cataforge.dev/instance/
+  rdf:      http://www.w3.org/1999/02/22-rdf-syntax-ns#
+  rdfs:     http://www.w3.org/2000/01/rdf-schema#
+  owl:      http://www.w3.org/2002/07/owl#
+  xsd:      http://www.w3.org/2001/XMLSchema#
+  dcterms:  http://purl.org/dc/terms/
+  prov:     http://www.w3.org/ns/prov#
+  sh:       http://www.w3.org/ns/shacl#
+default_prefix: cf
+default_range: string
+
+imports:
+  - linkml:types
+
+# ---------------------------------------------------------------------------
+# Enumerations
+# ---------------------------------------------------------------------------
+enums:
+
+  ProcessModelEnum:
+    description: SDLC process model selected at project scope.
+    permissible_values:
+      waterfall: { description: Phase-gated sequential. }
+      agile:     { description: Sprint/Iteration based. }
+      hybrid:    { description: Mixed waterfall phases with internal sprints. }
+
+  ArtifactStatusEnum:
+    description: Lifecycle state of any SoftwareArtifact.
+    permissible_values:
+      draft:      {}
+      proposed:   {}
+      approved:   {}
+      implemented: {}
+      verified:   {}
+      released:   {}
+      deprecated: {}
+      superseded: {}
+
+  PriorityEnum:
+    permissible_values:
+      critical: {}
+      high:     {}
+      medium:   {}
+      low:      {}
+
+  RiskLevelEnum:
+    permissible_values:
+      high:   {}
+      medium: {}
+      low:    {}
+
+  TaskStatusEnum:
+    permissible_values:
+      todo:        {}
+      in_progress: {}
+      blocked:     {}
+      review:      {}
+      done:        {}
+      cancelled:   {}
+
+  TestResultEnum:
+    permissible_values:
+      pass:    {}
+      fail:    {}
+      blocked: {}
+      skipped: {}
+      pending: {}
+
+  EnvironmentEnum:
+    permissible_values:
+      dev:        {}
+      staging:    {}
+      production: {}
+      preview:    {}
+
+  ChangeStatusEnum:
+    permissible_values:
+      open:       {}
+      under_review: {}
+      approved:   {}
+      rejected:   {}
+      applied:    {}
+
+# ---------------------------------------------------------------------------
+# Reusable type aliases
+# ---------------------------------------------------------------------------
+types:
+  EntityID:
+    uri: xsd:string
+    base: str
+    description: >-
+      Frontmatter-level identifier, e.g. F-001, M-014, T-007. Pattern enforced
+      per concrete class.
+
+  ContentHash:
+    uri: xsd:string
+    base: str
+    description: SHA-256 hex of the source Markdown section, for stale-link detection.
+
+  SortKey:
+    uri: xsd:string
+    base: str
+    description: >-
+      Deterministic natural-sort key used by KG → Markdown idempotent export.
+      Format: `<class_code>:<zero-padded-numeric>` e.g. `F:000001`. Required on
+      every concrete subclass of SoftwareArtifact.
+
+# ---------------------------------------------------------------------------
+# Slot library — shared scalar + relation slots
+# ---------------------------------------------------------------------------
+slots:
+
+  # ---- identity / lineage --------------------------------------------------
+  id:
+    identifier: true
+    range: uriorcurie
+    required: true
+    description: URI; instances live under cfprj namespace.
+
+  entity_id:
+    range: EntityID
+    required: true
+    description: Frontmatter ID such as F-001, M-014, T-007.
+
+  sort_key:
+    range: SortKey
+    required: true
+    description: Deterministic export sort key.
+
+  title:
+    range: string
+    required: true
+
+  description:
+    range: string
+
+  status:
+    range: ArtifactStatusEnum
+
+  priority:
+    range: PriorityEnum
+
+  created_at:
+    range: datetime
+
+  updated_at:
+    range: datetime
+
+  content_hash:
+    range: ContentHash
+    description: SHA-256 of the source Markdown section, mirrors .doc-index.json content_hash.
+
+  source_doc:
+    range: string
+    description: Relative path of the Markdown file the entity was exported from.
+
+  source_section:
+    range: string
+    description: Section anchor inside the source doc, e.g. §2.F-001.
+
+  version:
+    range: string
+    description: Semantic version label for releasable artifacts.
+
+  tags:
+    range: string
+    multivalued: true
+
+  authored_by:
+    range: string
+    description: Free-form attribution (role name or username); not coupled to governance namespace.
+
+  # ---- intra-layer / structural relations ---------------------------------
+  part_of:
+    range: SoftwareArtifact
+    inverse: has_part
+
+  has_part:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: part_of
+
+  depends_on:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: dependency_of
+
+  dependency_of:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: depends_on
+
+  replaces:
+    slot_uri: dcterms:replaces
+    range: SoftwareArtifact
+    inverse: replaced_by
+
+  replaced_by:
+    slot_uri: dcterms:isReplacedBy
+    range: SoftwareArtifact
+    inverse: replaces
+
+  was_revision_of:
+    slot_uri: prov:wasRevisionOf
+    range: SoftwareArtifact
+    description: PROV revision link between two snapshots of the same logical entity.
+
+  # ---- cross-layer traceability (the core value) --------------------------
+  satisfies:
+    range: Requirement
+    multivalued: true
+    inverse: satisfied_by
+    description: This Feature/Component/Task addresses these Requirements.
+
+  satisfied_by:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: satisfies
+
+  refines:
+    range: SoftwareArtifact
+    inverse: refined_by
+    description: This artifact elaborates a more abstract upstream artifact.
+
+  refined_by:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: refines
+
+  implemented_by:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: implements
+
+  implements:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: implemented_by
+
+  realized_as:
+    range: Task
+    multivalued: true
+    inverse: realizes
+    description: Component/Module → Task work-breakdown link.
+
+  realizes:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: realized_as
+
+  verifies:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: verified_by
+
+  verified_by:
+    range: TestCase
+    multivalued: true
+    inverse: verifies
+
+  delivers:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: delivered_by
+
+  delivered_by:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: delivers
+
+  affects:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: affected_by
+    description: ChangeRequest / ArchitectureDecision impact edge.
+
+  affected_by:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: affects
+
+  targets_artifact:
+    range: SoftwareArtifact
+    description: ReviewReport → the artifact under review.
+    inverse: reviewed_by
+
+  reviewed_by:
+    range: ReviewReport
+    multivalued: true
+    inverse: targets_artifact
+
+  # ---- per-class typed slots (assignment / containment) -------------------
+  belongs_to_project:
+    range: Project
+    required: true
+
+  belongs_to_phase:
+    range: Phase
+    description: Waterfall placement.
+
+  assigned_to_sprint:
+    range: Sprint
+    description: Agile placement.
+
+  belongs_to_work_unit:
+    range: WorkUnit
+    description: Unified accessor (Phase or Sprint or Iteration).
+
+  process_model:
+    range: ProcessModelEnum
+    required: true
+
+  # ---- value slots used by specific classes -------------------------------
+  rationale:        { range: string }
+  decision_outcome: { range: string }
+  alternatives:     { range: string, multivalued: true }
+  acceptance_text:  { range: string, required: true }
+  test_steps:       { range: string, multivalued: true }
+  expected_result:  { range: string }
+  test_result:      { range: TestResultEnum }
+  endpoint_path:    { range: string }
+  http_method:      { range: string }
+  request_schema:   { range: string }
+  response_schema:  { range: string }
+  field_definitions: { range: string, multivalued: true }
+  ui_route:         { range: string }
+  layout_spec:      { range: string }
+  risk_level:       { range: RiskLevelEnum }
+  mitigation:       { range: string }
+  environment:      { range: EnvironmentEnum }
+  pipeline_steps:   { range: string, multivalued: true }
+  release_notes:    { range: string }
+  task_status:      { range: TaskStatusEnum }
+  change_status:    { range: ChangeStatusEnum }
+  start_date:       { range: date }
+  end_date:         { range: date }
+  glossary_term:    { range: string }
+  glossary_definition: { range: string }
+  narrative_body:   { range: string }
+  stack_layers:     { range: string, multivalued: true }
+
+# ---------------------------------------------------------------------------
+# Class hierarchy
+# ---------------------------------------------------------------------------
+classes:
+
+  # ===== top abstract base =================================================
+  SoftwareArtifact:
+    abstract: true
+    description: >-
+      Common ancestor of every business-domain entity. All concrete subclasses
+      carry a deterministic sort_key, a content_hash, and source_doc/section
+      back-pointers for KG ⇄ Markdown idempotent round-trip.
+    class_uri: cf:SoftwareArtifact
+    slots:
+      - id
+      - entity_id
+      - sort_key
+      - title
+      - description
+      - status
+      - priority
+      - created_at
+      - updated_at
+      - content_hash
+      - source_doc
+      - source_section
+      - tags
+      - authored_by
+      - belongs_to_project
+      - depends_on
+      - dependency_of
+      - part_of
+      - has_part
+      - replaces
+      - replaced_by
+      - was_revision_of
+      - reviewed_by
+
+  # ===== process model =====================================================
+  Project:
+    description: Root container for a single user-software project.
+    class_uri: cf:Project
+    slots:
+      - id
+      - title
+      - description
+      - process_model
+      - created_at
+      - updated_at
+    slot_usage:
+      id:        { required: true }
+      title:     { required: true }
+
+  WorkUnit:
+    abstract: true
+    description: Abstract unit of time/scope to which work is assigned.
+    class_uri: cf:WorkUnit
+    is_a: SoftwareArtifact
+    slots:
+      - start_date
+      - end_date
+
+  Phase:
+    description: Waterfall phase. Honors the existing P-NNN frontmatter prefix.
+    class_uri: cf:Phase
+    is_a: WorkUnit
+    slot_usage:
+      entity_id:
+        pattern: "^P-[0-9]{3,}$"
+
+  Sprint:
+    description: Agile sprint (fixed timebox).
+    class_uri: cf:Sprint
+    is_a: WorkUnit
+    slot_usage:
+      entity_id:
+        pattern: "^S-[0-9]{3,}$"
+
+  Iteration:
+    description: Lightweight agile iteration (variable timebox).
+    class_uri: cf:Iteration
+    is_a: WorkUnit
+    slot_usage:
+      entity_id:
+        pattern: "^I-[0-9]{3,}$"
+
+  Milestone:
+    description: A point-in-time marker, not a timebox.
+    class_uri: cf:Milestone
+    is_a: SoftwareArtifact
+    slot_usage:
+      entity_id:
+        pattern: "^MS-[0-9]{3,}$"
+
+  # ===== requirement layer (product-manager) ===============================
+  Requirement:
+    abstract: true
+    description: Common ancestor of all requirement-layer artifacts.
+    class_uri: cf:Requirement
+    is_a: SoftwareArtifact
+    slots:
+      - refines
+      - refined_by
+      - implemented_by
+
+  Feature:
+    description: "Concrete product capability. Source: prd §2 F-NNN."
+    class_uri: cf:Feature
+    is_a: Requirement
+    slots:
+      - assigned_to_sprint
+      - belongs_to_phase
+      - belongs_to_work_unit
+    slot_usage:
+      entity_id:
+        pattern: "^F-[0-9]{3,}$"
+        required: true
+
+  UserStory:
+    description: Agile narrative. May refine a Feature.
+    class_uri: cf:UserStory
+    is_a: Requirement
+    slot_usage:
+      entity_id:
+        pattern: "^US-[0-9]{3,}$"
+
+  Epic:
+    description: Large requirement aggregating multiple Features. Maps E-NNN (see §3.9 decision).
+    class_uri: cf:Epic
+    is_a: Requirement
+    slot_usage:
+      entity_id:
+        pattern: "^EP-[0-9]{3,}$"
+
+  AcceptanceCriteria:
+    description: "Verifiable condition attached to a Requirement or Task. Source: prd §2.F.AC-NNN / dev-plan T-NNN.tdd_acceptance."
+    class_uri: cf:AcceptanceCriteria
+    is_a: SoftwareArtifact
+    slots:
+      - acceptance_text
+      - satisfies
+    slot_usage:
+      entity_id:
+        pattern: "^AC-[0-9]{3,}$"
+        required: true
+      acceptance_text:
+        required: true
+
+  # ===== architecture layer (architect) ====================================
+  Module:
+    description: "Architectural module. Source: arch §2 M-NNN."
+    class_uri: cf:Module
+    is_a: SoftwareArtifact
+    slots:
+      - satisfies
+      - realized_as
+      - implements
+    slot_usage:
+      entity_id:
+        pattern: "^M-[0-9]{3,}$"
+        required: true
+
+  Component:
+    description: >-
+      Architectural sub-component. Binds C-NNN entities sourced from arch docs.
+      ui-spec C-NNN must be remapped to UIComponent UC-NNN via the migration
+      codemod (see task-6 §6.5 #6, task-7 §7.2). UI-route / layout slots remain
+      here as legacy disambiguation but are deprecated for new Component
+      instances; UI fields belong on UIComponent.
+    class_uri: cf:Component
+    is_a: SoftwareArtifact
+    slots:
+      - satisfies
+      - realized_as
+      - implements
+      - part_of
+      - ui_route
+      - layout_spec
+    slot_usage:
+      entity_id:
+        pattern: "^C-[0-9]{3,}$"
+        required: true
+
+  Interface:
+    description: Abstract interface contract between modules; non-HTTP siblings of API.
+    class_uri: cf:Interface
+    is_a: SoftwareArtifact
+    slot_usage:
+      entity_id:
+        pattern: "^IF-[0-9]{3,}$"
+
+  API:
+    description: HTTP / RPC contract. Source arch §3 API-NNN.
+    class_uri: cf:API
+    is_a: Interface
+    slots:
+      - endpoint_path
+      - http_method
+      - request_schema
+      - response_schema
+      - satisfies
+    slot_usage:
+      entity_id:
+        pattern: "^API-[0-9]{3,}$"
+        required: true
+
+  DataModel:
+    description: Persistent data entity. Source arch §4 E-NNN.
+    class_uri: cf:DataModel
+    is_a: SoftwareArtifact
+    slots:
+      - field_definitions
+    slot_usage:
+      entity_id:
+        pattern: "^E-[0-9]{3,}$"
+        required: true
+
+  ArchitectureDecision:
+    description: ADR-style decision record. Frontmatter prefix ADR-NNN.
+    class_uri: cf:ArchitectureDecision
+    is_a: SoftwareArtifact
+    slots:
+      - rationale
+      - decision_outcome
+      - alternatives
+      - affects
+    slot_usage:
+      entity_id:
+        pattern: "^ADR-[0-9]{3,}$"
+
+  TechStack:
+    description: >-
+      Technology-stack declaration anchored to a free-prose section
+      (e.g., arch §1.4). Honors the section heading slug as entity_id when no
+      ID prefix is present; otherwise TS-NNN. Carries narrative content plus
+      structured stack_layers for queryable retrieval. Replaces the
+      source_section() escape hatch for tech-stack content in 0.5.0.
+    class_uri: cf:TechStack
+    is_a: SoftwareArtifact
+    slots:
+      - narrative_body
+      - stack_layers
+      - affects
+    slot_usage:
+      entity_id:
+        pattern: "^(TS-[0-9]{3,}|tech-stack(-[a-z0-9]+)?)$"
+
+  # ===== UI layer (ui-designer) ============================================
+  Screen:
+    description: Concrete rendered screen, alias of Page.
+    class_uri: cf:Screen
+    is_a: SoftwareArtifact
+
+  Page:
+    description: UI page; honors P-NNN where the source doc is ui-spec.
+    class_uri: cf:Page
+    is_a: Screen
+    slots:
+      - satisfies
+      - ui_route
+      - layout_spec
+    slot_usage:
+      entity_id:
+        pattern: "^P-[0-9]{3,}$"
+        required: true
+
+  Wireframe:
+    description: Sketch / mock-up; refines a Page.
+    class_uri: cf:Wireframe
+    is_a: SoftwareArtifact
+    slot_usage:
+      entity_id:
+        pattern: "^WF-[0-9]{3,}$"
+
+  UIComponent:
+    description: Reusable UI widget. Distinct from the architecture Component class.
+    class_uri: cf:UIComponent
+    is_a: SoftwareArtifact
+    slot_usage:
+      entity_id:
+        pattern: "^UC-[0-9]{3,}$"
+
+  UserFlow:
+    description: Sequence of Pages forming a user journey.
+    class_uri: cf:UserFlow
+    is_a: SoftwareArtifact
+    slot_usage:
+      entity_id:
+        pattern: "^UF-[0-9]{3,}$"
+
+  # ===== task / planning layer (tech-lead) =================================
+  Task:
+    description: Engineering task card. Source dev-plan §3 T-NNN.
+    class_uri: cf:Task
+    is_a: SoftwareArtifact
+    slots:
+      - task_status
+      - realizes
+      - assigned_to_sprint
+      - belongs_to_phase
+      - belongs_to_work_unit
+    slot_usage:
+      entity_id:
+        pattern: "^T-[0-9]{3,}$"
+        required: true
+
+  Subtask:
+    description: Decomposed child of a Task.
+    class_uri: cf:Subtask
+    is_a: Task
+    slot_usage:
+      entity_id:
+        pattern: "^ST-[0-9]{3,}$"
+
+  # ===== test layer (qa-engineer) ==========================================
+  TestCase:
+    description: Single verifiable test scenario. Source test-report §2 TC-NNN.
+    class_uri: cf:TestCase
+    is_a: SoftwareArtifact
+    slots:
+      - verifies
+      - test_steps
+      - expected_result
+      - test_result
+    slot_usage:
+      entity_id:
+        pattern: "^TC-[0-9]{3,}$"
+        required: true
+
+  TestSuite:
+    description: Grouping of TestCases.
+    class_uri: cf:TestSuite
+    is_a: SoftwareArtifact
+    slots:
+      - has_part
+    slot_usage:
+      entity_id:
+        pattern: "^TS-[0-9]{3,}$"
+
+  TestPlan:
+    description: Overall test strategy document.
+    class_uri: cf:TestPlan
+    is_a: SoftwareArtifact
+    slot_usage:
+      entity_id:
+        pattern: "^TP-[0-9]{3,}$"
+
+  CoverageRule:
+    description: Declarative coverage requirement (e.g. every Feature must have ≥1 TestCase).
+    class_uri: cf:CoverageRule
+    is_a: SoftwareArtifact
+    slot_usage:
+      entity_id:
+        pattern: "^CR-[0-9]{3,}$"
+
+  TestRun:
+    description: A single execution of a TestSuite/TestCase, producing TestResult facts.
+    class_uri: cf:TestRun
+    is_a: SoftwareArtifact
+    slots:
+      - test_result
+      - verifies
+    slot_usage:
+      entity_id:
+        pattern: "^TR-[0-9]{3,}$"
+
+  # ===== deploy / release layer (devops) ===================================
+  Deployment:
+    description: An act of deploying a Release into an Environment.
+    class_uri: cf:Deployment
+    is_a: SoftwareArtifact
+    slots:
+      - environment
+      - delivers
+    slot_usage:
+      entity_id:
+        pattern: "^DP-[0-9]{3,}$"
+
+  Pipeline:
+    description: CI/CD pipeline definition.
+    class_uri: cf:Pipeline
+    is_a: SoftwareArtifact
+    slots:
+      - pipeline_steps
+    slot_usage:
+      entity_id:
+        pattern: "^PL-[0-9]{3,}$"
+
+  Release:
+    description: Versioned bundle of delivered Features.
+    class_uri: cf:Release
+    is_a: SoftwareArtifact
+    slots:
+      - version
+      - release_notes
+      - delivers
+    slot_usage:
+      entity_id:
+        pattern: "^REL-[0-9]{3,}$"
+
+  Environment:
+    description: Deployment target environment (dev/staging/production).
+    class_uri: cf:Environment
+    is_a: SoftwareArtifact
+    slot_usage:
+      entity_id:
+        pattern: "^ENV-[0-9]{3,}$"
+
+  # ===== supporting layer ==================================================
+  Glossary:
+    description: Domain term definition.
+    class_uri: cf:Glossary
+    is_a: SoftwareArtifact
+    slots:
+      - glossary_term
+      - glossary_definition
+    slot_usage:
+      entity_id:
+        pattern: "^GL-[0-9]{3,}$"
+
+  Risk:
+    description: Identified risk plus its mitigation.
+    class_uri: cf:Risk
+    is_a: SoftwareArtifact
+    slots:
+      - risk_level
+      - mitigation
+      - affects
+    slot_usage:
+      entity_id:
+        pattern: "^RK-[0-9]{3,}$"
+
+  ChangeRequest:
+    description: Proposed change with impact set.
+    class_uri: cf:ChangeRequest
+    is_a: SoftwareArtifact
+    slots:
+      - change_status
+      - rationale
+      - affects
+    slot_usage:
+      entity_id:
+        pattern: "^CHG-[0-9]{3,}$"
+
+  ReviewReport:
+    description: Output of a review skill (doc-review / sprint-review / code-review).
+    class_uri: cf:ReviewReport
+    is_a: SoftwareArtifact
+    slots:
+      - targets_artifact
+      - rationale
+    slot_usage:
+      entity_id:
+        pattern: "^REV-[0-9]{3,}$"
+
+  SprintReviewIssue:
+    description: Issue raised during sprint review. Honors existing SR-NNN prefix.
+    class_uri: cf:SprintReviewIssue
+    is_a: ReviewReport
+    slot_usage:
+      entity_id:
+        pattern: "^SR-[0-9]{3,}$"
