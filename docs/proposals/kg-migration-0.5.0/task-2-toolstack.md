@@ -286,7 +286,7 @@ Regex matching resolves references by text similarity. RDF named graphs with exp
 
 2. **LinkML schema migration tooling is immature.** LinkML has no built-in migration runner for evolving schemas in production graphs (e.g., renaming a slot). Schema version changes require manual SPARQL UPDATE migrations. Mitigation: pin the LinkML schema version in pyproject.toml; maintain a `kg/migrations/` directory with numbered SPARQL UPDATE scripts per schema version bump.
 
-3. **SPARQL learning curve for agent authors.** Agents that previously relied on Markdown text search must be rewritten to issue SPARQL queries. This is a capability requirement change, not just a library swap. Mitigation: the LinkML-generated Pydantic models expose a typed Python API; a thin `GraphRepository` abstraction can hide SPARQL from most agents, exposing only `find_by()` / `relate()` / `trace()` methods.
+3. **SPARQL learning curve for agent authors.** Agents that previously relied on Markdown text search must be rewritten to issue SPARQL queries. This is a capability requirement change, broader than a library swap. Mitigation: the LinkML-generated Pydantic models expose a typed Python API; a thin `GraphRepository` abstraction can hide SPARQL from most agents, exposing only `find_by()` / `relate()` / `trace()` methods.
 
 4. **RocksDB disk writes in restricted environments.** Some CI environments (containers with read-only filesystems, certain cloud sandbox runtimes) cannot write to disk. Mitigation: `KGConfig.store_backend = "memory"` covers all test scenarios; RocksDB is only activated in local and production deploys.
 

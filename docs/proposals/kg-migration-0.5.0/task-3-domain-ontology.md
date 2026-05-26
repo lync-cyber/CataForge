@@ -174,6 +174,8 @@ Plus three custom SHACL invariants we will hand-write in `schemas/shapes/extra.s
 - Every `cf:Task` MUST realize at least one Module/Component/Page (`sh:minCount 1` on `cf:realizes`).
 - Every concrete subclass MUST carry `cf:sort_key` matching `^[A-Z]{1,3}:[0-9]{6,}$`.
 
+**Closed-shape strategy.** `core.yaml` deliberately omits per-class `closed: true` and `tree_root:` flags. All 41 classes inherit LinkML's default `ConfiguredBaseModel` with `extra='forbid'`, which is the intended uniform lockdown — extra fields are rejected on every concrete subclass. The SHACL output therefore carries `sh:closed true` on every shape regardless of source-side declaration; no per-class override is needed. Adding `closed:` or `tree_root:` to `core.yaml` is a no-op against the generated code and will be rejected at review.
+
 ### §3.2.5 Version semantics
 
 Two complementary predicates (see §3.9 #6 for the explicit decision rationale):
@@ -638,24 +640,30 @@ from rdflib import Graph, Namespace, Literal, URIRef, RDF
 
 CF    = Namespace("https://cataforge.dev/ontology/")
 CFPRJ = Namespace("https://cataforge.dev/instance/")
+PROJ  = CFPRJ["proj-demo"]                     # required belongs_to_project target
 
 g = Graph(store="Oxigraph")           # oxrdflib drop-in store
 g.bind("cf", CF); g.bind("cfprj", CFPRJ)
 
 def add(node, typ, **props):
+    # SoftwareArtifact subclasses require id (URI), entity_id, sort_key,
+    # title, belongs_to_project. The helper fills the last from PROJ.
     g.add((CFPRJ[node], RDF.type, CF[typ]))
+    if typ != "Project":
+        props.setdefault("belongs_to_project", PROJ)
     for p, v in props.items():
         g.add((CFPRJ[node], CF[p],
                v if isinstance(v, URIRef) else Literal(v)))
 
+add("proj-demo", "Project", title="Demo project")
 add("F-001", "Feature",  entity_id="F-001", sort_key="F:000001",
     title="Login flow", verified_by=CFPRJ["TC-007"])
 add("M-014", "Module",   entity_id="M-014", sort_key="M:000014",
-    satisfies=CFPRJ["F-001"], realized_as=CFPRJ["T-021"])
+    title="Auth module", satisfies=CFPRJ["F-001"], realized_as=CFPRJ["T-021"])
 add("T-021", "Task",     entity_id="T-021", sort_key="T:000021",
-    realizes=CFPRJ["M-014"])
+    title="Wire OAuth", realizes=CFPRJ["M-014"])
 add("TC-007", "TestCase", entity_id="TC-007", sort_key="TC:000007",
-    verifies=CFPRJ["F-001"])
+    title="OAuth happy path", verifies=CFPRJ["F-001"])
 
 q = """
 PREFIX cf: <https://cataforge.dev/ontology/>
@@ -733,7 +741,7 @@ The remaining 9-prefix set (F / AC / M / API / C / P / T / TC / SR) is honored v
 
 **Why:**
 - Downstream user projects (the dominant case) never care about Skill/Agent identity — including them would inflate triple counts and SPARQL query surface for zero business value.
-- Strict directional import (`governance imports core; core never imports governance`) means business-only mode is achieved by simply not loading `governance.yaml`.
+- Strict directional import (`governance imports core; core never imports governance`) means business-only mode is achieved by not loading `governance.yaml`.
 - CataForge itself (the dogfood project, Task-1 §1.1 “框架自身也是 CataForge 项目”) and any framework-review-style downstream tooling can flip the toggle.
 
 **Rejected:**
@@ -765,7 +773,7 @@ The remaining 9-prefix set (F / AC / M / API / C / P / T / TC / SR) is honored v
 - LinkML 单源 schema 位于 `docs/proposals/kg-migration-0.5.0/schemas/core.yaml`，34 个业务类共享抽象基类 `cf:SoftwareArtifact` —— Task 4 的 agent 集成（typed Pydantic API）和 Task 5 的 SHACL / 迁移脚本都必须以此为唯一真源。
 - 9 个已有前缀 (F/AC/M/API/E/C/P/T-NNN + SR-NNN) 全部保留；唯一非平凡重映射是 `E-NNN → DataModel` 类（避免 RDF 通用语义“entity”冲突），`Epic` 改用 `EP-NNN` 避撞。Task 4 写 Markdown→KG 摄取器、Task 6 写 KG→Markdown 导出器必须沿用此映射。
 - 跨层可追溯性采用直接命名谓词 (`cf:verifies` / `cf:implements` / `cf:satisfies` / `cf:delivers` / `cf:affects`) + SPARQL property path `+` 闭包；不引入 reification —— Task 4/5 的查询模板与 SHACL 规则需基于这套谓词。
-- 双轨流程支持单 schema（`Project.process_model` enum + `assigned_to_sprint` / `belongs_to_phase` 双槽 + `belongs_to_work_unit` 统一访问器）—— Task 4 的导出排序、Task 6 的视图渲染只需走 `belongs_to_work_unit`。
+- 双轨流程支持单 schema（`Project.process_model` enum + `assigned_to_sprint` / `belongs_to_phase` 双槽 + `belongs_to_work_unit` 统一访问器）—— Task 4 的导出排序、Task 6 的视图渲染都通过 `belongs_to_work_unit` 一处访问，不再按 process_model 分支。
 - 治理 sub-ontology (`cfgov:`) 严格单向：`governance.yaml` 可引用 `core`，反向禁止；`KGConfig.governance=false` 默认关闭，业务-only 模式开箱即用 —— Task 4 默认不加载 governance，仅 framework-review 等内部 skill 翻开关。
 - 所有 `cf:SoftwareArtifact` 子类必须携带 `sort_key`（格式 `<code>:<padded>`），是 Task 4 KG→Markdown 幂等导出的确定性遍历键，下游不可省略。
 
