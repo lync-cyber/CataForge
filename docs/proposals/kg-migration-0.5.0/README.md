@@ -74,7 +74,9 @@ Three-way alignment was verified across [Task 3](task-3-domain-ontology.md) (ont
 
 ## User decisions (O3)
 
-Captured via interactive prompt:
+Captured via interactive prompt. Round 1 was during the initial proposal integration; Round 2 was during the Alpha scope clarification that followed the spike validation. All decisions are reflected in the documents listed.
+
+### Round 1 — proposal integration
 
 | Decision | User answer | Affected files |
 |----------|-------------|----------------|
@@ -82,31 +84,43 @@ Captured via interactive prompt:
 | arch §1.4 tech-stack content modeling | **Add a `cf:TechStack` class** (recommended) over the `source_section()` escape hatch | [schemas/core.yaml](schemas/core.yaml) (TechStack added), [task-6-migration-mapping.md](task-6-migration-mapping.md) §6.5 #5 demoted to deprecated, [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.2 codemod scope extended |
 | ui-spec `C-NNN` binding in 0.5.0 | **Remap ui-spec C-NNN → UIComponent UC-NNN** via migration codemod (recommended) | [schemas/core.yaml](schemas/core.yaml) Component description, [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.2 codemod gains a UI rewrite pass |
 
+### Round 2 — Alpha scope clarification
+
+| Decision | User answer | Affected files |
+|----------|-------------|----------------|
+| Alpha first-slice doc_type breadth | **PRD + Arch + Test three layers** — Requirement → Component → TestCase full chain; multi-hop traceability validated at Alpha rather than deferred | [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.1 Alpha scope, sub-PR 3 import scope |
+| Coexistence with 0.4.x Markdown loader | **Full cutover; Beta dual-track removed** — no markdown-loader fallback during normal operation, per-doc_type flag rollback is the only escape hatch | [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.1 (collapsed to 2 phases), §7.4 R-04 escalated to H/H, §7.5 rewritten as rolling cutover |
+| Waterfall + agile process-model coverage | **Both at Alpha** — `Project.process_model=waterfall` and `=agile` both walk through `belongs_to_work_unit`; Alpha fixture covers both | [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.1 exit condition, sub-PR 3 fixture |
+| Feature flag granularity | **Per-doc_type — `KGConfig.kg_active_doc_types: set[str]`** — neither global single-switch nor per-call-site; allows incremental cutover doc_type by doc_type | [task-5-cli-api.md](task-5-cli-api.md) `KGConfig`, [task-6-migration-mapping.md](task-6-migration-mapping.md) §6.5 flag-aware dispatch, [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.5 |
+| Doctor `kg_ingestion_completeness` gate enforcement | **ERROR severity in Alpha kickoff PR** (sub-PR 5) — no WARN-to-ERROR promotion period; gate is hard-enforced from the moment cutover lands | [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.1 sub-PR 5 deliverable |
+| Sub-PR sequencing | **Strict linear** — each sub-PR must merge to main before the next opens; no parallelism between sub-PR streams | [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.1 sub-PR sequence |
+
 ## Roadmap
 
-The phased rollout is fully specified in [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.1. Three phases, each gated by **verifiable conditions** rather than time-boxes.
+The rollout is fully specified in [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.1. **Two phases** (Alpha build+cutover → GA stabilize+release; the earlier Beta dual-track phase was collapsed at proposal-review time). Within Alpha, a **strict linear sub-PR sequence** drives implementation. Cutover progresses per-doc_type via `KGConfig.kg_active_doc_types`. Each gate is a **verifiable condition set**, not a calendar date.
 
 ```mermaid
 graph LR
-    A[Alpha · internal] -->|kg_ingestion_completeness gate passes<br/>+ Markdown round-trip byte-identical<br/>+ governance default-off confirmed<br/>+ TechStack codemod produces non-empty instances<br/>+ ui-spec C-NNN→UC-NNN codemod has zero un-rewritten<br/>+ all unit tests green| B[Beta · dual-track]
-    B -->|compare-read alarm zero N consecutive cycles<br/>+ all 15 Group A call points migrated<br/>+ reconcile zero drift N cycles<br/>+ kg commit atomicity proven in chaos test| C[GA · cutover]
-    C -->|100% projects on coverage_mode=strict<br/>+ legacy regex code removed<br/>+ shim layer deprecation warning ack quota met<br/>+ 0.4.x docs archived| D[0.6.0+ planning]
+    A[Alpha · sub-PR 1<br/>schema + codegen] --> B[sub-PR 2<br/>store + init]
+    B --> C[sub-PR 3<br/>import codemod]
+    C --> D[sub-PR 4<br/>export round-trip]
+    D --> E[sub-PR 5<br/>cutover + doctor gate ERROR]
+    E -->|kg_ingestion_completeness ERROR-enforced for one full reconcile cycle<br/>+ KG→Markdown byte-identical on every active doc_type<br/>+ Group A golden-file regression passes<br/>+ both waterfall and agile paths green| F[GA · stabilize + release]
+    F -->|100% projects on coverage_mode=strict<br/>+ legacy regex code removed<br/>+ shim layer deprecation warning ack quota met<br/>+ 0.4.x docs archived| G[0.6.0+ planning]
 ```
 
-**Rollback triggers** ([Task 7](task-7-rollout-strategy.md) §7.3): data-integrity failure (entity count mismatch / hash drift), semantic-divergence alarm (compare-read sustained ≥3 cycles), or library-deserialization failure (pyoxigraph deserialization broken). Each trigger has a numbered procedural rollback path documented at task-7 §7.3.
+**Rollback triggers** ([Task 7](task-7-rollout-strategy.md) §7.1): `kg_ingestion_completeness` below threshold after two `cataforge kg repair` runs; agent semantic divergence on a previously-passing fixture; pyoxigraph deserialization failure on an existing store. Primary rollback action is **per-doc_type flag rollback** — remove the affected doc_type from `kg_active_doc_types` to revert that doc_type's reads to legacy loader without disrupting others. Systemic rollback (full KG snapshot restore) is the secondary path documented at task-7 §7.3.
 
-**Top risks** ([Task 7](task-7-rollout-strategy.md) §7.4, 8 rows): the highest-impact unknowns are (a) **traceability-extraction false-pos/false-neg** during codemod (mitigation: dry-run codemod produces a structured changeset for human review before write); (b) **agent/skill semantic divergence** during dual-track (mitigation: every Group A call point has a golden-file regression test); (c) **pyoxigraph deprecation** (mitigation: storage interface is abstracted behind `KGConfig.store_backend`; `memory` backend provides escape route for emergency).
+**Top risks** ([Task 7](task-7-rollout-strategy.md) §7.4, 10 rows after the full-cutover risk re-scoring): the highest-impact unknowns are (a) **agent/skill semantic divergence** (R-04, elevated to H/H because no markdown-loader fallback during normal operation; mitigated by golden-file regression in sub-PR 5 and per-doc_type rollback granularity); (b) **traceability-extraction false-pos/false-neg** during codemod (R-08, dry-run produces structured changeset for human review); (c) **feature flag misconfiguration** (R-06, new — partial `kg_active_doc_types` can cause cross-doc_type inconsistency; `cataforge kg validate` checks traceability fan-out); (d) **`bool(QueryBoolean)` idiom** (R-09, new from [CataForge#142](https://github.com/lync-cyber/CataForge/issues/142) spike — wrapped through a single `ask()` utility); (e) **`rdfs:subClassOf` non-materialization** (R-10, new from same spike — `kg init` bootstraps subclass triples).
 
 ## How to read this proposal
 
 If you have to pick **one document**, read [task-3-domain-ontology.md](task-3-domain-ontology.md) — every downstream task derives from it.
 
 If you're implementing 0.5.0:
-1. Start at [schemas/core.yaml](schemas/core.yaml) and [schemas/governance.yaml](schemas/governance.yaml) (the source of truth).
-2. Run LinkML codegen per [Task 3](task-3-domain-ontology.md) §3.8 to produce pydantic dataclasses.
-3. Implement the surfaces declared in [Task 5](task-5-cli-api.md) (CLI + API) and [Task 4](task-4-export-pipeline.md) (export pipeline).
-4. Apply [Task 6](task-6-migration-mapping.md) §6.2 mapping per call-point during Beta.
-5. Gate progression on [Task 7](task-7-rollout-strategy.md) §7.1 verifiable conditions; never on dates.
+1. Read [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.1 first — it defines the strict linear sub-PR sequence (sub-PR 1 schema+codegen → 5 cutover+doctor gate ERROR).
+2. For each sub-PR, the relevant detail-spec lives in: sub-PR 1 → [schemas/core.yaml](schemas/core.yaml) + spike-1 fixes from [CataForge#142](https://github.com/lync-cyber/CataForge/issues/142). Sub-PR 2 → [Task 5](task-5-cli-api.md) §5.2 `KGConfig` (note `kg_active_doc_types`). Sub-PR 3 → [Task 7](task-7-rollout-strategy.md) §7.2 migration script. Sub-PR 4 → [Task 4](task-4-export-pipeline.md) §4.1–§4.6. Sub-PR 5 → [Task 6](task-6-migration-mapping.md) §6.2 call-point mapping + §6.5 flag-aware dispatch.
+3. Gate progression on [Task 7](task-7-rollout-strategy.md) §7.1 verifiable conditions; never on dates.
 
 If you're reviewing for risk:
 1. Read [task-7-rollout-strategy.md](task-7-rollout-strategy.md) §7.4 (risk register) first.

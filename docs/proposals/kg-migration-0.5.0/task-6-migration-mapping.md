@@ -303,6 +303,22 @@ Hook into `cataforge doctor` registry (in `src/cataforge/doctor/_registry.py`) a
 
 Five calls cannot 1:1 map. For each, breaking reason + refactor plan + complete shim (extends Task 5 §5.5 where applicable).
 
+### Flag-aware dispatch (applies to every shim below)
+
+Under the full-cutover rollout model (Task 7 §7.1 sub-PR 5), every shim and Group A call site dispatches on `doc_type in config.kg_active_doc_types`:
+
+```python
+def _dispatch_read(doc_type: str, section_id: str, *, config: KGConfig):
+    if doc_type in config.kg_active_doc_types:
+        # KG path is authoritative for this doc_type
+        return _kg_read(doc_type, section_id, config)
+    else:
+        # Doc_type not yet flipped — use legacy loader
+        return _legacy_read(doc_type, section_id)
+```
+
+This dispatch lives in `src/cataforge/kg/_shim.py` and wraps every public 0.4.x-compat entry point (`extract`, `extract_batch`, `extract_with_body`, `plan_load`, `build_full_index`, `resolve_deps`, `source_section`). Per the flag-granularity decision recorded in [README §User decisions](README.md), the dispatch is per-doc_type, not per-call-site — a single config check per call. The shim implementations below show only the KG-path branch; the dispatch wrapper is implicit.
+
 ### Breaking-change #1 — `extract()` body text loss
 
 **Reason:** 0.4.x `extract(ref)` returns markdown body; 0.5.0 `kg.query.entity(uri)` returns Pydantic model with no body.

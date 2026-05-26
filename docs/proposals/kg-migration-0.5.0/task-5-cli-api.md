@@ -497,6 +497,14 @@ class KGConfig:
     plugins_dir:
         Directory containing plugin YAML schemas.
         ``None`` disables plugin loading.
+    kg_active_doc_types:
+        Per-doc_type cutover flag.  A doc_type listed here uses the KG path
+        for both reads and writes; a doc_type **not** listed continues to use
+        the legacy ``loader.extract()`` path.  Default is an empty set
+        (legacy mode for all doc_types — the pre-Alpha state).  Alpha
+        rollout populates this set one or a few doc_types at a time per
+        Task 7 §7.5.  Rollback for a specific doc_type is achieved by
+        removing it from the set; other doc_types are unaffected.
     """
 
     store_backend: Literal["oxigraph", "memory"] = "oxigraph"
@@ -508,6 +516,7 @@ class KGConfig:
     base_namespace: str = "https://cataforge.dev/instance/"
     ontology_namespace: str = "https://cataforge.dev/ontology/"
     plugins_dir: Path | None = None
+    kg_active_doc_types: set[str] = field(default_factory=set)
 ```
 
 ---
