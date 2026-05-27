@@ -43,6 +43,10 @@ from cataforge.utils.patterns import HEADING_RE, REF_RE, SECTION_PATH_RE
 _DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
     "prd": "prd", "arch": "arch", "ui-spec": "ui-spec",
     "dev-plan": "dev-plan", "test-report": "test-report",
+    # `test` is the canonical KG-cutover alias for the test-report subdir
+    # (matches `KGConfig.kg_active_doc_types` default `{prd, arch, test}`
+    # and `cataforge.cli.doctor.kg_ingestion._doc_type_to_subdir`).
+    "test": "test-report",
     "deploy-spec": "deploy-spec", "research": "research",
     "changelog": "changelog", "brief": "brief",
 }

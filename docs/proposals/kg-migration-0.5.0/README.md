@@ -131,13 +131,22 @@ If you're reviewing for risk:
 
 ## Open follow-ups
 
-None block 0.5.0 design; these are flagged for the implementation phase.
+None block 0.5.0 design; dispositions are tracked in
+[docs/reference/kg-verified-behaviors.md](../../reference/kg-verified-behaviors.md).
 
-- **Task 5 errata C1**: `QueryAPI.api()` + `QueryAPI.page()` typed accessors must be added at Alpha kickoff.
-- **Task 4 errata C2**: `cataforge.kg.export.render_entity` must be public-exported.
-- **`[待验证]` markers in Task 3**: LinkML `union` range syntax, SHACL closed-shape derivation, TC-NNN historical strictness — all are LinkML-tool questions to resolve during codegen integration in Alpha.
-- **`[待验证]` markers in Task 4**: pyoxigraph SPARQL property-path `a/rdfs:subClassOf*` behavior on 0.5.x — verify in Alpha smoke test.
-- **`[待验证]` markers in Task 5**: `belongs_to_work_unit` SPARQL CONSTRUCT inference rule, `sh:closed true` per-class lockdown, natural-language query LLM config — implementation-phase decisions, not design-phase blockers.
+Resolved during Alpha (sub-PR 1–6):
+
+- **Task 5 errata C1** — `QueryAPI.api()` + `QueryAPI.page()` typed accessors landed in sub-PR 5.
+- **Task 4 errata C2** — `cataforge.kg.export.render_entity` public-exported in sub-PR 5.
+- **Task 4 `[待验证]`** — pyoxigraph SPARQL property-path `a/rdfs:subClassOf*` verified (see reference doc).
+- **Task 3 `[待验证]`** — LinkML codegen produces well-formed artefacts; `belongs_to_work_unit` uses LinkML inheritance + verified subclass closure rather than `union_of`; TC-NNN pattern enforced at schema level.
+
+Deferred with documented escape hatch (not Alpha blockers):
+
+- **SHACL `sh:closed true` runtime enforcement** — `--shacl` is wired but always
+  reports `shacl_skipped=True` until the pyoxigraph ↔ rdflib bridge lands.
+  Schema-level write-time checks back-stop this; revisit for GA.
+- **Natural-language query LLM surface** — out of scope; re-open at 0.6.0+ planning.
 
 ## Conventions used
 

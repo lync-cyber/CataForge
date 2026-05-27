@@ -4,8 +4,9 @@ Subcommand build-out tracks the alpha sub-PR sequence in task-7 §7.1:
 
 * sub-PR 2 — `init`
 * sub-PR 3 — `import`, `validate`
-* sub-PR 4 — `export` (this file)
-* sub-PR 5+ — `repair`, `reconcile`, `snapshot`, `rollback`, `diff`
+* sub-PR 4 — `export`
+* sub-PR 6 — `reconcile`, `compare-read` (this file)
+* later — `repair`, `snapshot`, `rollback`, `diff`
 """
 from __future__ import annotations
 
@@ -361,3 +362,280 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
         err = CataforgeError(f"{len(result.errors)} export errors")
         err.exit_code = 3
         raise err
+
+
+@kg_group.command("reconcile")
+@click.option(
+    "--project-root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+    show_default=True,
+    help="Project root containing docs/ and .cataforge/.",
+)
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--doc-type",
+    "doc_types",
+    multiple=True,
+    help=(
+        "Restrict to specific doc_types. Repeatable. Default = the project's "
+        "kg_active_doc_types (framework.json kg.kg_active_doc_types, "
+        "fall-back: prd, arch, test)."
+    ),
+)
+@click.option(
+    "--report-output",
+    type=click.Path(file_okay=True, dir_okay=False, path_type=Path),
+    default=None,
+    help=(
+        "Path to write the JSON report. "
+        "Default = <project-root>/docs/.kg-reconcile-report.json."
+    ),
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Also emit the report to stdout as JSON.",
+)
+def kg_reconcile(
+    project_root: Path,
+    db_path: Path,
+    doc_types: tuple[str, ...],
+    report_output: Path | None,
+    json_output: bool,
+) -> None:
+    """Detect drift between Markdown sources and the KG store (per doc_type).
+
+    For each active doc_type, compares FS-extracted entities and
+    traceability triples against what is in the KG. Writes the diff to
+    `docs/.kg-reconcile-report.json` and exits non-zero if any
+    `missing` or `ghost` entry exists. Used at Alpha exit to certify
+    that doctor's ERROR-gate cycle has nothing to flag, and
+    operationally to spot drift after every `cataforge kg commit`.
+    """
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg._dispatch import kg_config_for
+    from cataforge.kg.reconcile import reconcile, write_report
+
+    project_root = project_root.resolve()
+    base_config = kg_config_for(project_root)
+
+    active = (
+        set(doc_types) if doc_types else set(base_config.kg_active_doc_types)
+    )
+
+    if not active:
+        click.echo(
+            "  (no active doc_types — nothing to reconcile; "
+            "set kg.kg_active_doc_types in framework.json)"
+        )
+        return
+
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=db_path,
+        kg_active_doc_types=active,
+        ontology_namespace=base_config.ontology_namespace,
+        base_namespace=base_config.base_namespace,
+    )
+
+    try:
+        with KnowledgeGraphStore.connect(config) as handle:
+            report = reconcile(handle.raw, project_root, config)
+    except KGStoreNotInitializedError as exc:
+        err = CataforgeError(str(exc))
+        err.exit_code = 1
+        raise err from exc
+
+    output_path = (
+        report_output
+        if report_output is not None
+        else project_root / "docs" / ".kg-reconcile-report.json"
+    )
+    write_report(report, output_path)
+
+    if json_output:
+        click.echo(
+            json.dumps(
+                report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False
+            )
+        )
+    else:
+        click.echo(
+            f"reconcile: divergence={report.overall_divergence_count} "
+            f"doc_types={sorted(active)}"
+        )
+        for dt, per in sorted(report.per_doc_type.items()):
+            marker = "OK" if per.divergence_count == 0 else "DRIFT"
+            click.echo(
+                f"  [{marker}] {dt}: "
+                f"missing_entities={len(per.missing_entities)} "
+                f"ghost_entities={len(per.ghost_entities)} "
+                f"missing_relations={len(per.missing_relations)} "
+                f"ghost_relations={len(per.ghost_relations)}"
+            )
+            if per.missing_entities:
+                preview = per.missing_entities[:5]
+                ellipsis = "..." if len(per.missing_entities) > 5 else ""
+                click.echo(
+                    f"        missing_entities: {preview}{ellipsis}"
+                )
+            if per.ghost_entities:
+                preview = per.ghost_entities[:5]
+                ellipsis = "..." if len(per.ghost_entities) > 5 else ""
+                click.echo(
+                    f"        ghost_entities: {preview}{ellipsis}"
+                )
+        click.echo(f"  report: {output_path}")
+
+    if not report.ok:
+        err = CataforgeError(
+            f"reconcile reported {report.overall_divergence_count} divergence(s); "
+            f"see {output_path}"
+        )
+        err.exit_code = 3
+        raise err
+
+
+@kg_group.command("compare-read")
+@click.option(
+    "--project-root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+    show_default=True,
+    help="Project root containing docs/ and .cataforge/.",
+)
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--doc-type",
+    "doc_types",
+    multiple=True,
+    help=(
+        "Restrict the sample to specific doc_types. Repeatable. "
+        "Default = the project's kg_active_doc_types."
+    ),
+)
+@click.option(
+    "--sample-size",
+    type=int,
+    default=20,
+    show_default=True,
+    help="How many random entities to sample. The audit walks every "
+    "entity when the population is smaller than this.",
+)
+@click.option(
+    "--threshold",
+    type=float,
+    default=1.0,
+    show_default=True,
+    help=(
+        "Reserved for forward-compat with §7.5; content_hash compare is "
+        "binary so this value is currently ignored."
+    ),
+)
+@click.option(
+    "--seed",
+    type=int,
+    default=None,
+    help="Optional RNG seed; pin to get a reproducible sample.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit a JSON audit report instead of the table.",
+)
+def kg_compare_read(
+    project_root: Path,
+    db_path: Path,
+    doc_types: tuple[str, ...],
+    sample_size: int,
+    threshold: float,
+    seed: int | None,
+    json_output: bool,
+) -> None:
+    """Sample-audit KG-rendered entities against the legacy file slice.
+
+    Per task-7 §7.5, this is a *diagnostic* check, not a gate: alarms
+    do not block writes. Operators run it periodically post-cutover; if
+    alarms persist for a doc_type the prescribed response is to remove
+    that doc_type from `kg_active_doc_types` and investigate. Exit code
+    is always 0 (success) unless the run itself fails.
+    """
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
+    from cataforge.kg._dispatch import kg_config_for
+    from cataforge.kg.compare_read import (
+        compare_read,
+    )
+
+    project_root = project_root.resolve()
+    base_config = kg_config_for(project_root)
+
+    active = (
+        set(doc_types) if doc_types else set(base_config.kg_active_doc_types)
+    )
+
+    if not active:
+        click.echo("  (no active doc_types — nothing to audit)")
+        return
+
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=db_path,
+        kg_active_doc_types=active,
+        ontology_namespace=base_config.ontology_namespace,
+        base_namespace=base_config.base_namespace,
+    )
+
+    try:
+        with KnowledgeGraph.connect(config) as kg:
+            report = compare_read(
+                kg,
+                project_root,
+                doc_types=active,
+                sample_size=sample_size,
+                threshold=threshold,
+                seed=seed,
+            )
+    except KGStoreNotInitializedError as exc:
+        err = CataforgeError(str(exc))
+        err.exit_code = 1
+        raise err from exc
+
+    if json_output:
+        click.echo(
+            json.dumps(
+                report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False
+            )
+        )
+        return
+
+    click.echo(
+        f"compare-read: sampled={report.sampled_count} "
+        f"alarms={len(report.alarms)}"
+    )
+    if not report.alarms:
+        click.echo("  OK (every sampled entity's content_hash matches KG)")
+        return
+    for alarm in report.alarms[:10]:
+        click.echo(
+            f"  ALARM {alarm.entity_id} ({alarm.doc_type}): "
+            f"{alarm.reason}"
+        )
+    if len(report.alarms) > 10:
+        click.echo(f"  ... +{len(report.alarms) - 10} more")
