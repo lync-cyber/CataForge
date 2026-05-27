@@ -27,8 +27,11 @@ def _slot_iri(slot_curie: str, namespace: str) -> str:
 
 
 def _sort_key(entity_id: str) -> str:
-    prefix, numeric = entity_id.split("-", 1)
-    return f"{prefix}:{int(numeric):0{_PREFIX_LEN_PADDING}d}"
+    prefix, rest = entity_id.split("-", 1)
+    try:
+        return f"{prefix}:{int(rest):0{_PREFIX_LEN_PADDING}d}"
+    except ValueError:
+        return f"{entity_id}:{0:0{_PREFIX_LEN_PADDING}d}"
 
 
 def build_entity_quads(
@@ -95,13 +98,15 @@ def build_entity_quads(
 
     if extra_slots:
         for slot_curie, value in extra_slots.items():
-            quads.append(
-                ox.Quad(
-                    subject,
-                    ox.NamedNode(_slot_iri(slot_curie, namespace)),
-                    ox.Literal(value, datatype=string_dt),
+            values = value if isinstance(value, list) else [value]
+            for v in values:
+                quads.append(
+                    ox.Quad(
+                        subject,
+                        ox.NamedNode(_slot_iri(slot_curie, namespace)),
+                        ox.Literal(v, datatype=string_dt),
+                    )
                 )
-            )
 
     return quads
 

@@ -1,7 +1,7 @@
 """`cataforge kg query` CLI tests (backlog C1).
 
 Exercises SPARQL query execution against an in-memory KG store
-pre-loaded with the waterfall vertical-slice fixture (8 entities,
+pre-loaded with the waterfall vertical-slice fixture (9 entities,
 4 traceability relations). Tests cover SELECT / ASK / CONSTRUCT
 result types across table / json / turtle output formats.
 """
@@ -113,10 +113,11 @@ class TestSelectJson:
         assert result.exit_code == 0, result.output
         rows = json.loads(result.output)
         assert isinstance(rows, list)
-        assert len(rows) == 8
+        assert len(rows) == 9
         eids = {r["eid"] for r in rows}
         assert eids == {"AC-001", "AC-002", "F-001", "F-002",
-                        "M-001", "M-002", "TC-001", "TC-002"}
+                        "M-001", "M-002", "TC-001", "TC-002",
+                        "tech-stack-arch"}
         assert all("title" in r for r in rows)
 
     def test_json_limit_caps_result(self, tmp_path: Path) -> None:
@@ -227,7 +228,7 @@ class TestConstruct:
         assert result.exit_code == 0, result.output
         triples = json.loads(result.output)
         assert isinstance(triples, list)
-        assert len(triples) == 8
+        assert len(triples) == 9
         assert all({"subject", "predicate", "object"} <= set(t) for t in triples)
 
 

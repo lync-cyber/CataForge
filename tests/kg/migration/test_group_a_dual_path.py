@@ -22,6 +22,7 @@ pass end-to-end.
 from __future__ import annotations
 
 import importlib.util
+import re
 import warnings
 from dataclasses import replace
 from pathlib import Path
@@ -80,8 +81,12 @@ def test_entity_id_set_matches_legacy_scan(variant: str) -> None:
     )
     kg_ids = kg.query.entity_ids()
 
-    assert fs_ids == kg_ids, (
-        f"FS-only: {fs_ids - kg_ids}; KG-only: {kg_ids - fs_ids}"
+    # TechStack entities are synthesized from section headings (not
+    # PREFIX-NNN patterns), so the FS regex scanner won't discover them.
+    synthesized = {eid for eid in kg_ids if not re.match(r"[A-Z]+-\d{3,}$", eid)}
+    assert fs_ids == kg_ids - synthesized, (
+        f"FS-only: {fs_ids - kg_ids}; KG-only (non-synthesized): "
+        f"{(kg_ids - synthesized) - fs_ids}"
     )
 
 

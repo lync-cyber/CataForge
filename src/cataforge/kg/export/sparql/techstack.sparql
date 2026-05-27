@@ -1,0 +1,20 @@
+PREFIX cf: <https://cataforge.dev/ontology/>
+
+SELECT
+  ?entity_id ?sort_key ?title
+  ?content_hash ?source_doc ?source_section
+  ?narrative_body ?stack_layer
+WHERE {
+  ?ts a cf:TechStack ;
+      cf:entity_id %(entity_id)s ;
+      cf:entity_id ?entity_id ;
+      cf:sort_key  ?sort_key ;
+      cf:title     ?title .
+
+  OPTIONAL { ?ts cf:content_hash   ?content_hash }
+  OPTIONAL { ?ts cf:source_doc     ?source_doc }
+  OPTIONAL { ?ts cf:source_section ?source_section }
+  OPTIONAL { ?ts cf:narrative_body ?narrative_body }
+  OPTIONAL { ?ts cf:stack_layers   ?stack_layer }
+}
+ORDER BY ?sort_key ?stack_layer

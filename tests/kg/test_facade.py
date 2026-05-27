@@ -68,6 +68,7 @@ def test_query_entity_ids_diff_against_filesystem(variant: str) -> None:
         "AC-001", "AC-002",
         "M-001", "M-002",
         "TC-001", "TC-002",
+        "tech-stack-arch",
     }
 
 

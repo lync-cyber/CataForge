@@ -16,6 +16,7 @@ from cataforge.kg.ingest.relation_extract import (
     extract_relations,
 )
 from cataforge.kg.ingest.scan import scan_business_docs
+from cataforge.kg.ingest.techstack_extract import extract_techstack
 from cataforge.kg.ingest.verify import VerifyResult, verify_after_write
 from cataforge.kg.ingest.writer import (
     WriteStats,
@@ -113,6 +114,9 @@ def run_migration(
     for doc in parsed_docs:
         for entity in extract_entities(doc):
             deduped_entities.setdefault(entity.entity_id, entity)
+        ts = extract_techstack(doc)
+        if ts is not None:
+            deduped_entities.setdefault(ts.entity_id, ts)
     entities: list[ExtractedEntity] = list(deduped_entities.values())
     stats.extracted_entities = len(entities)
 

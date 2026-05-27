@@ -32,6 +32,7 @@ from cataforge.kg._config import KGConfig
 from cataforge.kg.ingest.entity_extract import extract_entities
 from cataforge.kg.ingest.relation_extract import extract_relations
 from cataforge.kg.ingest.scan import scan_business_docs
+from cataforge.kg.ingest.techstack_extract import extract_techstack
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -222,6 +223,9 @@ def reconcile(
             doc_ids.add(doc.doc_id)
             for entity in extract_entities(doc):
                 fs_entities.add(entity.entity_id)
+            ts = extract_techstack(doc)
+            if ts is not None:
+                fs_entities.add(ts.entity_id)
             for relation in extract_relations(doc):
                 fs_relations.add(
                     (

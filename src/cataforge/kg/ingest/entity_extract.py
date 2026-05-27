@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from cataforge.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS
 from cataforge.kg.ingest.scan import HeadingSpan, ParsedDoc
@@ -48,6 +49,7 @@ class ExtractedEntity:
     section_line_end: int
     file_path: Path
     mtime: float
+    extra_slots: dict[str, Any] = field(default_factory=dict)
 
 
 def _section_for_line(spans: list[HeadingSpan], line_idx: int) -> HeadingSpan | None:
