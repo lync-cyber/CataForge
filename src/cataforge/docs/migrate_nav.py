@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from cataforge.core.paths import find_project_root
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 
 _TABLE_ROW_RE = re.compile(
     r"^\|\s*(?P<doc_id>[A-Za-z0-9_-]+)\s*\|\s*(?P<path>[^|]+?)\s*\|"
@@ -167,7 +167,7 @@ def migrate(project_root: Path, *, dry_run: bool = False) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ensure_utf8_stdio()
+    ensure_utf8()
     parser = argparse.ArgumentParser(
         description="Migrate legacy docs/NAV-INDEX.md to docs/.doc-index.json",
     )

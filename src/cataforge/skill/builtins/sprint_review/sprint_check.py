@@ -23,7 +23,7 @@ from cataforge.skill.builtins.sprint_review.ignore import (
     build_ignore_spec,
     list_candidate_files,
 )
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 
@@ -523,7 +523,7 @@ def render_json(
 
 
 def main() -> None:
-    ensure_utf8_stdio()
+    ensure_utf8()
     parser = argparse.ArgumentParser(description="Sprint completion structural check")
     parser.add_argument("sprint_number", type=int, help="Sprint number to check")
     parser.add_argument("--dev-plan", default="docs/dev-plan/", help="Dev plan directory")

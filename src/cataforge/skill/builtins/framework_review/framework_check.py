@@ -22,7 +22,7 @@ import json
 import sys
 from pathlib import Path
 
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 
 from ._constants import (
     B1_REQUIRED_SECTIONS_EXEMPT_AGENTS,
@@ -148,7 +148,7 @@ def run(
 
 
 def main() -> None:
-    ensure_utf8_stdio()
+    ensure_utf8()
     parser = argparse.ArgumentParser(
         description="CataForge framework meta-asset audit",
         formatter_class=argparse.RawDescriptionHelpFormatter,

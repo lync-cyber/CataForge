@@ -30,7 +30,7 @@ from cataforge.utils.common import (
     RED,
     YELLOW,
     detect_platform,
-    ensure_utf8_stdio,
+    ensure_utf8,
     fail,
     find_available_port,
     get_command_version,
@@ -961,7 +961,7 @@ HANDLERS: dict[str, Callable[[dict], int]] = {
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    ensure_utf8_stdio()
+    ensure_utf8()
     load_dotenv(set_env=True)
 
     parser = argparse.ArgumentParser(description="CataForge Penpot integration")

@@ -342,7 +342,7 @@ class TestStubExitCode:
 
 class TestWindowsEncoding:
     """CLI output uses ``—``/``→``/Chinese in several paths. On Windows,
-    ``ensure_utf8_stdio()`` (invoked at import time) guarantees UTF-8 on
+    ``ensure_utf8()`` (invoked at import time) guarantees UTF-8 on
     stdout/stderr with ``errors='replace'``. These tests pin that down.
 
     A crash here would typically be ``UnicodeEncodeError: 'charmap'`` and

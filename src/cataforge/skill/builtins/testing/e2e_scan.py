@@ -29,7 +29,7 @@ from cataforge.skill.builtins.testing.e2e_patterns import (
     all_extensions,
     rule_for_extension,
 )
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 
 
 def collect_e2e_files(target: Path) -> list[Path]:
@@ -107,7 +107,7 @@ def run(target: str) -> int:
 
 
 def main() -> None:
-    ensure_utf8_stdio()
+    ensure_utf8()
     if len(sys.argv) < 2 or sys.argv[1] in {"-h", "--help"}:
         print(
             "用法: python -m cataforge.skill.builtins.testing.e2e_scan <e2e_dir>"

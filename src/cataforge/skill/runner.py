@@ -102,7 +102,7 @@ class SkillRunner:
 
         # The wrapper defaults to text=True + encoding=utf-8 + errors=replace,
         # which is exactly what we want here: skill scripts pair with
-        # ensure_utf8_stdio() so both ends agree on UTF-8, and a stray
+        # ensure_utf8() so both ends agree on UTF-8, and a stray
         # non-UTF-8 byte from a child becomes a replacement char instead of
         # crashing the reader.
         t_start = time.monotonic()

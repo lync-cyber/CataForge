@@ -1,13 +1,13 @@
 """Guard: every standalone ``scripts/*.py`` reconfigures stdio to UTF-8.
 
 Standalone build/check scripts run outside the ``cataforge`` CLI machinery
-(which already calls ``ensure_utf8_stdio()`` in ``cli/main.py``). On
+(which already calls ``ensure_utf8()`` in ``cli/main.py``). On
 Windows cp1252 terminals these scripts crash with ``UnicodeEncodeError``
 when they print arrows / ✓ / Chinese — the v0.1.15 audit caught this in
 ``sync_scaffold.py`` (since removed by PR #84 along with the scaffold
 mirror). This test forces every remaining script to either:
 
-1. Import ``cataforge.utils.common.ensure_utf8_stdio`` and call it, or
+1. Import ``cataforge.utils.common.ensure_utf8`` and call it, or
 2. Inline ``sys.stdout.reconfigure(encoding="utf-8")`` and the same for
    stderr (chicken-and-egg case where cataforge isn't importable yet).
 
@@ -37,7 +37,7 @@ ASCII_ONLY_WHITELIST: frozenset[str] = frozenset({
 })
 
 CALL_PATTERNS = (
-    re.compile(r"\bensure_utf8_stdio\s*\("),
+    re.compile(r"\bensure_utf8\s*\("),
     re.compile(r"sys\.stdout\.reconfigure\s*\(\s*[^)]*encoding\s*=\s*['\"]utf-?8['\"]"),
     re.compile(r"\.reconfigure\s*\(\s*[^)]*encoding\s*=\s*['\"]utf-?8['\"]", re.DOTALL),
 )
@@ -66,7 +66,7 @@ def test_scripts_reconfigure_stdio_to_utf8() -> None:
     assert not offenders, (
         "These scripts emit text without reconfiguring stdio to UTF-8. "
         "On Windows cp1252 terminals they crash with UnicodeEncodeError. "
-        "Either call cataforge.utils.common.ensure_utf8_stdio() at module "
+        "Either call cataforge.utils.common.ensure_utf8() at module "
         "top, or inline sys.stdout.reconfigure(encoding='utf-8'). If the "
         "script provably emits ASCII only, add it to ASCII_ONLY_WHITELIST. "
         f"Offenders: {offenders}"

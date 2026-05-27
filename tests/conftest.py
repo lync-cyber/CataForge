@@ -167,7 +167,7 @@ def run_utf8(
     Why this exists: ``subprocess.run(text=True)`` decodes captured
     bytes with the *parent*'s ``locale.getpreferredencoding`` — on
     Windows CI that's cp1252. cataforge's CLI scripts force UTF-8
-    output via ``ensure_utf8_stdio()`` + ``PYTHONUTF8=1``, so the
+    output via ``ensure_utf8()`` + ``PYTHONUTF8=1``, so the
     captured bytes are UTF-8. Decoding UTF-8 as cp1252 raises
     ``UnicodeDecodeError`` inside the reader thread, which then
     silently leaves ``CompletedProcess.stdout`` as ``None``. Tests
