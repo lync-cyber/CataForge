@@ -23,6 +23,7 @@ def skill_group() -> None:
 @require_initialized
 def skill_list() -> None:
     """List all skills discovered under ``.cataforge/skills/``."""
+    from cataforge.cli.ui import ui
     from cataforge.skill.loader import SkillLoader
 
     loader = SkillLoader(project_root=resolve_root())
@@ -34,8 +35,10 @@ def skill_list() -> None:
             "or add a new skill directory under .cataforge/skills/<id>/."
         )
         return
-    for s in skills:
-        click.echo(f"  {s.id} ({s.skill_type.value}): {s.name}")
+    ui.table(
+        headers=["id", "type", "name"],
+        rows=[[s.id, s.skill_type.value, s.name] for s in skills],
+    )
 
 
 @skill_group.command("run")

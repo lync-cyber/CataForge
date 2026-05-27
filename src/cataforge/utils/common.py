@@ -32,24 +32,40 @@ NC = "\033[0m"  # No Color / reset
 # ---------------------------------------------------------------------------
 
 
+# The five primitives below are now thin wrappers over :mod:`cataforge.cli.ui`
+# so every caller (CLI subcommands, integrations, hook scripts) goes through
+# the same colour/Unicode/TTY detection. The signatures are preserved to keep
+# external callers source-compatible.
+
+
 def section(msg: str) -> None:
-    print(f"\n{BOLD}[*] {msg}{NC}")
+    from cataforge.cli.ui import ui as _ui
+
+    _ui.section(msg)
 
 
 def info(msg: str) -> None:
-    print(f"  {DIM}\u2139 {msg}{NC}")
+    from cataforge.cli.ui import ui as _ui
+
+    _ui.info(msg)
 
 
 def ok(msg: str) -> None:
-    print(f"  {GREEN}\u2714 {msg}{NC}")
+    from cataforge.cli.ui import ui as _ui
+
+    _ui.ok(msg)
 
 
 def warn(msg: str) -> None:
-    print(f"  {YELLOW}\u26a0 {msg}{NC}", file=sys.stderr)
+    from cataforge.cli.ui import ui as _ui
+
+    _ui.warn(msg)
 
 
 def fail(msg: str) -> None:
-    print(f"  {RED}\u2716 {msg}{NC}", file=sys.stderr)
+    from cataforge.cli.ui import ui as _ui
+
+    _ui.fail(msg)
 
 
 # ---------------------------------------------------------------------------

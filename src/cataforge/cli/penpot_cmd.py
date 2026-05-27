@@ -32,11 +32,35 @@ def _run_penpot(handler_name: str, command_label: str) -> None:
 
 @cli.group("penpot")
 def penpot_group() -> None:
-    """Manage Penpot Docker deployment and the Penpot MCP server.
+    """Penpot 设计工具集成 — 给 LLM 提供读写设计稿的能力。
 
-    Reads ``.cataforge/integrations/penpot.env`` for credentials and
-    ports. Requires Docker to be running on PATH.
+    \b
+    三种模式（选一个）：
+      cataforge penpot init       交互式向导（推荐首次使用）
+      cataforge penpot remote     SaaS：design.penpot.app + 本地 MCP（零 Docker）
+      cataforge penpot deploy     自托管：6 容器 + MCP（需 Docker）
+      cataforge penpot mcp-only   只起 MCP，自己接已有 Penpot
+
+    \b
+    日常管理：
+      cataforge penpot status     看运行状态
+      cataforge penpot start      启动已配置的服务
+      cataforge penpot stop       全部停止
+      cataforge penpot doctor     诊断已知失败模式并给出修复建议
+      cataforge penpot ensure     若 MCP 未运行则启动（skill 内部调度用）
+
+    \b
+    环境变量覆盖：
+      PENPOT_PORT, PENPOT_MCP_SERVER_PORT, PENPOT_MCP_PLUGIN_PORT
+      PENPOT_MCP_VERSION   pin @penpot/mcp 包版本（默认 latest）
+      PENPOT_INSTALL_DIR   docker-compose.yml 落盘位置
     """
+
+
+@penpot_group.command("init")
+def penpot_init() -> None:
+    """Interactive wizard: pick Remote / Local / MCP-only and configure."""
+    _run_penpot("cmd_init", "init")
 
 
 @penpot_group.command("deploy")
@@ -49,6 +73,17 @@ def penpot_deploy() -> None:
 def penpot_mcp_only() -> None:
     """Start only the MCP server (assumes Penpot is already running)."""
     _run_penpot("cmd_mcp_only", "mcp-only")
+
+
+@penpot_group.command("remote")
+def penpot_remote() -> None:
+    """SaaS mode: use design.penpot.app + a local MCP server (no Docker).
+
+    Spins up the MCP server on localhost and prints browser-side steps to
+    load the MCP plugin into design.penpot.app. The fastest path for users
+    who don't need a self-hosted Penpot instance.
+    """
+    _run_penpot("cmd_remote", "remote")
 
 
 @penpot_group.command("start")
@@ -67,6 +102,17 @@ def penpot_stop() -> None:
 def penpot_status() -> None:
     """Show the status of Penpot services and the MCP server."""
     _run_penpot("cmd_status", "status")
+
+
+@penpot_group.command("doctor")
+def penpot_doctor() -> None:
+    """Diagnose Penpot integration failures and suggest fixes.
+
+    Checks Node version, compose template freshness (Bug 1 fix presence),
+    and the MCP log tail for known error patterns (Bug 2 / port-in-use /
+    nginx upstream).
+    """
+    _run_penpot("cmd_doctor", "doctor")
 
 
 @penpot_group.command("ensure")

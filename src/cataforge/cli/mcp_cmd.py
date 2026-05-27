@@ -26,6 +26,7 @@ def mcp_group() -> None:
 @require_initialized
 def mcp_list() -> None:
     """List all registered MCP servers."""
+    from cataforge.cli.ui import ui
     from cataforge.mcp.registry import MCPRegistry
 
     registry = MCPRegistry(project_root=resolve_root())
@@ -37,8 +38,13 @@ def mcp_list() -> None:
             "`cataforge mcp register <path/to/server.yaml>`."
         )
         return
-    for srv in servers:
-        click.echo(f"  {srv.id}: {srv.name} [{srv.transport}] — {srv.description}")
+    ui.table(
+        headers=["id", "name", "transport", "description"],
+        rows=[
+            [srv.id, srv.name, srv.transport, srv.description]
+            for srv in servers
+        ],
+    )
 
 
 @mcp_group.command("register")

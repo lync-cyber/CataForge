@@ -54,8 +54,11 @@ def upgrade_check() -> None:
         )
         return
 
+    from cataforge.cli.guidance import print_next_steps
+
     if scaffold_version == installed:
         click.echo("\nScaffold is up to date with the installed package.")
+        print_next_steps("upgrade-up-to-date")
         return
 
     click.echo(
@@ -64,6 +67,7 @@ def upgrade_check() -> None:
         "\nTo upgrade the package itself first:\n"
         "  pip install --upgrade cataforge   # or: uv tool upgrade cataforge"
     )
+    print_next_steps("upgrade-checked-stale")
 
     breaking = _find_breaking_entries(scaffold_version, installed)
     if breaking:
@@ -171,11 +175,16 @@ def upgrade_apply(dry_run: bool) -> None:
     # ...) are produced by `cataforge deploy`, not by scaffold refresh. If a
     # deploy has already happened at least once, remind the user to re-run it
     # so the refreshed scaffold actually lands in the IDE-facing directory.
+    from cataforge.cli.guidance import print_next_steps
+
     if cfg.paths.deploy_state.is_file():
         click.echo(
             "\nTip: scaffold refreshed — run `cataforge deploy` to propagate "
             "changes to platform deliverables (e.g. .claude/settings.json)."
         )
+        print_next_steps("upgrade-applied")
+    else:
+        print_next_steps("upgrade-applied")
 
 
 @upgrade_group.command("verify")

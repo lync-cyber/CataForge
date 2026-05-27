@@ -83,11 +83,13 @@ def record_command(
         deviation=deviation,
         write_event_log=not no_event_log,
     )
-    click.echo(f"CORRECTIONS-LOG: {result['corrections_log']}")
+    from cataforge.cli.ui import ui
+
+    pairs: dict[str, str] = {"CORRECTIONS-LOG": str(result["corrections_log"])}
     if result["event_log"] is not None:
-        click.echo(f"EVENT-LOG:       {result['event_log']}")
+        pairs["EVENT-LOG"] = str(result["event_log"])
     elif not no_event_log:
-        click.echo(
-            "EVENT-LOG: (write failed — see log / rerun with "
-            "CATAFORGE_HOOK_DEBUG=1)"
+        pairs["EVENT-LOG"] = (
+            "(write failed — see log / rerun with CATAFORGE_HOOK_DEBUG=1)"
         )
+    ui.kv(pairs)

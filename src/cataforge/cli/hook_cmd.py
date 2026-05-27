@@ -54,15 +54,27 @@ def hook_list(platform: str | None) -> None:
     if platform:
         annotations = _platform_status_map(platform)
 
+    from cataforge.cli.ui import ui
+
     hooks = spec.get("hooks", {})
+    headers = ["script", "type", "description"]
+    if platform:
+        headers.insert(2, "platform-status")
     for event_name, hook_entries in hooks.items():
-        click.echo(f"\n{event_name}:")
+        ui.section(event_name)
+        rows: list[list[str]] = []
         for h in hook_entries:
             script = h.get("script", "?")
             desc = h.get("description", "")
             htype = h.get("type", "observe")
-            status = f" [{annotations.get(script.replace('.py', ''), '?')}]" if platform else ""
-            click.echo(f"  {script} ({htype}){status} - {desc}")
+            row = [script, htype, desc]
+            if platform:
+                # Brackets are preserved so existing platform-conformance
+                # tests can grep on ``[native]`` / ``[degraded]`` markers.
+                status = annotations.get(script.replace(".py", ""), "?")
+                row.insert(2, f"[{status}]")
+            rows.append(row)
+        ui.table(headers=headers, rows=rows)
 
 
 def _platform_status_map(platform_id: str) -> dict[str, str]:

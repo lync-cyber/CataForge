@@ -189,15 +189,17 @@ def setup_command(
         click.echo(f"Platform set to: {platform}")
         click.echo("  (framework.json modified only at runtime.platform)")
 
+    from cataforge.cli.guidance import print_next_steps
+    from cataforge.cli.ui import ui
+
     # --no-deploy and "neither --deploy nor --no-deploy" both mean: skip deploy.
     if not deploy_after or no_deploy:
         bus.emit(
             FRAMEWORK_SETUP,
             {"platform": platform, "with_penpot": with_penpot, "scaffold_only": True},
         )
-        click.echo(
-            "Setup complete. Run `cataforge deploy` to write IDE artifacts."
-        )
+        ui.ok("Setup complete. Run `cataforge deploy` to write IDE artifacts.")
+        print_next_steps("setup-done")
         return
 
     target = platform or cfg.runtime_platform
@@ -211,7 +213,8 @@ def setup_command(
         click.echo(f"  {action}")
 
     bus.emit(FRAMEWORK_SETUP, {"platform": target, "with_penpot": with_penpot})
-    click.echo("Setup complete.")
+    ui.ok("Setup complete.")
+    print_next_steps("setup-deployed")
 
 
 def _scaffold(dest: Path, *, force: bool) -> None:

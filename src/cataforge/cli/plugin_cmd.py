@@ -29,6 +29,7 @@ def plugin_group() -> None:
 @require_initialized
 def plugin_list() -> None:
     """List all discovered plugins (entry-point + local)."""
+    from cataforge.cli.ui import ui
     from cataforge.plugin.loader import PluginLoader
 
     loader = PluginLoader(project_root=resolve_root())
@@ -41,8 +42,10 @@ def plugin_list() -> None:
             ".cataforge/plugins/<id>/."
         )
         return
-    for p in plugins:
-        click.echo(f"  {p.id} v{p.version}: {p.name}")
+    ui.table(
+        headers=["id", "version", "name"],
+        rows=[[p.id, p.version, p.name] for p in plugins],
+    )
 
 
 @plugin_group.command("install")
