@@ -35,7 +35,6 @@ from cataforge.kg._ask import ask
 from cataforge.kg.ingest.entity_extract import extract_entities
 from cataforge.kg.ingest.iri import entity_iri
 from cataforge.kg.ingest.scan import scan_business_docs
-from cataforge.kg.ingest.techstack_extract import extract_techstack
 
 if TYPE_CHECKING:
     from cataforge.kg.facade import KnowledgeGraph
@@ -149,17 +148,6 @@ def compare_read(
                         doc_type,
                         doc.doc_id,
                         entity.content_hash,
-                    )
-                )
-            ts = extract_techstack(doc)
-            if ts is not None and ts.entity_id not in seen:
-                seen.add(ts.entity_id)
-                fs_entities.append(
-                    (
-                        ts.entity_id,
-                        doc_type,
-                        doc.doc_id,
-                        ts.content_hash,
                     )
                 )
 

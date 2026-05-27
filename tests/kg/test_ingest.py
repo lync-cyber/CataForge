@@ -50,7 +50,7 @@ def test_codemod_end_to_end(variant: str) -> None:
         "AC-001", "AC-002",
         "M-001", "M-002",
         "TC-001", "TC-002",
-        "tech-stack-arch",
+        "TS-001",
     }, f"{variant}: unexpected entity set: {extracted_ids}"
 
     # Relation-side
@@ -134,8 +134,8 @@ def test_xref_inside_arch_does_not_pollute_arch_entity_set() -> None:
     assert len(docs) == 1
     entities = extract_entities(docs[0])
     entity_ids = {e.entity_id for e in entities}
-    assert entity_ids == {"M-001", "M-002"}, (
-        f"arch should only define M-NNN entities; got {entity_ids}"
+    assert entity_ids == {"M-001", "M-002", "TS-001"}, (
+        f"arch should only define M-NNN/TS-NNN entities; got {entity_ids}"
     )
 
 

@@ -27,11 +27,8 @@ def _slot_iri(slot_curie: str, namespace: str) -> str:
 
 
 def _sort_key(entity_id: str) -> str:
-    prefix, rest = entity_id.split("-", 1)
-    try:
-        return f"{prefix}:{int(rest):0{_PREFIX_LEN_PADDING}d}"
-    except ValueError:
-        return f"{entity_id}:{0:0{_PREFIX_LEN_PADDING}d}"
+    prefix, numeric = entity_id.split("-", 1)
+    return f"{prefix}:{int(numeric):0{_PREFIX_LEN_PADDING}d}"
 
 
 def build_entity_quads(

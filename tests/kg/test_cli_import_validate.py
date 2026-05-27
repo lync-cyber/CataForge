@@ -151,6 +151,6 @@ def test_kg_export_end_to_end_oxigraph(tmp_path: Path) -> None:
         "prd/F-001.md", "prd/F-002.md",
         "prd/AC-001.md", "prd/AC-002.md",
         "arch/M-001.md", "arch/M-002.md",
-        "arch/tech-stack-arch.md",
+        "arch/TS-001.md",
         "test-report/TC-001.md", "test-report/TC-002.md",
     }

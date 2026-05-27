@@ -207,7 +207,7 @@ def test_a15_all_entities_enumerates_fixture_set() -> None:
     assert ids == {
         "F-001", "F-002", "AC-001", "AC-002",
         "M-001", "M-002", "TC-001", "TC-002",
-        "tech-stack-arch",
+        "TS-001",
     }
 
 

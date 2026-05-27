@@ -117,7 +117,7 @@ class TestSelectJson:
         eids = {r["eid"] for r in rows}
         assert eids == {"AC-001", "AC-002", "F-001", "F-002",
                         "M-001", "M-002", "TC-001", "TC-002",
-                        "tech-stack-arch"}
+                        "TS-001"}
         assert all("title" in r for r in rows)
 
     def test_json_limit_caps_result(self, tmp_path: Path) -> None:

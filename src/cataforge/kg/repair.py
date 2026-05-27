@@ -11,7 +11,6 @@ from cataforge.kg.ingest.entity_extract import extract_entities
 from cataforge.kg.ingest.iri import entity_iri
 from cataforge.kg.ingest.relation_extract import extract_relations
 from cataforge.kg.ingest.scan import scan_business_docs
-from cataforge.kg.ingest.techstack_extract import extract_techstack
 from cataforge.kg.ingest.writer import write_entities, write_project, write_relations
 from cataforge.kg.reconcile import reconcile
 
@@ -62,10 +61,7 @@ def _reingest_doc_type(
 
     total = 0
     for doc in parsed:
-        entities = list(extract_entities(doc))
-        ts = extract_techstack(doc)
-        if ts is not None:
-            entities.append(ts)
+        entities = extract_entities(doc)
         relations = extract_relations(doc)
         ws = write_entities(store, entities, project_iri, config)
         write_relations(store, relations, config)

@@ -1,4 +1,4 @@
-"""Tests for TechStack entity extraction from arch documents."""
+"""Tests for TechStack entity extraction via the standard entity_extract path."""
 from __future__ import annotations
 
 import importlib.util
@@ -33,35 +33,34 @@ def _open_memory_store():
     return init_store(config, force=True), config
 
 
-# -- unit tests for extract_techstack ----------------------------------------
+# -- unit tests: TechStack extracted via standard extract_entities -----------
 
-def test_extract_techstack_from_section_14() -> None:
-    from cataforge.kg.ingest.techstack_extract import extract_techstack
+def test_extract_entities_finds_techstack() -> None:
+    from cataforge.kg.ingest.entity_extract import extract_entities
 
     doc = _parse_arch("waterfall")
-    ts = extract_techstack(doc)
+    entities = extract_entities(doc)
+    ts = [e for e in entities if e.class_name == "TechStack"]
 
-    assert ts is not None
-    assert ts.entity_id == "tech-stack-arch"
-    assert ts.class_name == "TechStack"
-    assert ts.source_doc == "arch"
-    assert "技术栈" in ts.source_section
+    assert len(ts) == 1
+    assert ts[0].entity_id == "TS-001"
+    assert ts[0].source_doc == "arch"
 
 
-def test_narrative_body_populated() -> None:
-    from cataforge.kg.ingest.techstack_extract import extract_techstack
+def test_techstack_narrative_body_in_extra_slots() -> None:
+    from cataforge.kg.ingest.entity_extract import extract_entities
 
-    ts = extract_techstack(_parse_arch())
-    assert ts is not None
+    entities = extract_entities(_parse_arch())
+    ts = next(e for e in entities if e.class_name == "TechStack")
     body = ts.extra_slots.get("cf:narrative_body", "")
     assert "Python 3.12" in body
 
 
-def test_stack_layers_parsed() -> None:
-    from cataforge.kg.ingest.techstack_extract import extract_techstack
+def test_techstack_stack_layers_in_extra_slots() -> None:
+    from cataforge.kg.ingest.entity_extract import extract_entities
 
-    ts = extract_techstack(_parse_arch())
-    assert ts is not None
+    entities = extract_entities(_parse_arch())
+    ts = next(e for e in entities if e.class_name == "TechStack")
     layers = ts.extra_slots.get("cf:stack_layers", [])
     assert isinstance(layers, list)
     assert len(layers) == 3
@@ -69,38 +68,12 @@ def test_stack_layers_parsed() -> None:
     assert any("JWT" in layer for layer in layers)
 
 
-def test_no_techstack_when_absent(tmp_path: Path) -> None:
-    from cataforge.kg.ingest.scan import ParsedDoc
-    from cataforge.kg.ingest.techstack_extract import extract_techstack
+def test_non_techstack_entities_have_empty_extra_slots() -> None:
+    from cataforge.kg.ingest.entity_extract import extract_entities
 
-    doc = ParsedDoc(
-        doc_id="arch",
-        doc_type="arch",
-        file_path=tmp_path / "arch.md",
-        mtime=0.0,
-        raw="# Architecture\n\n## §2 Modules\n\nSome content.\n",
-        body="## §2 Modules\n\nSome content.\n",
-        body_offset=2,
-        sections=[],
-    )
-    assert extract_techstack(doc) is None
-
-
-def test_non_arch_doc_returns_none(tmp_path: Path) -> None:
-    from cataforge.kg.ingest.scan import HeadingSpan, ParsedDoc
-    from cataforge.kg.ingest.techstack_extract import extract_techstack
-
-    doc = ParsedDoc(
-        doc_id="prd",
-        doc_type="prd",
-        file_path=tmp_path / "prd.md",
-        mtime=0.0,
-        raw="# PRD\n\n### §1.4 技术栈\n\n- item\n",
-        body="### §1.4 技术栈\n\n- item\n",
-        body_offset=2,
-        sections=[HeadingSpan(line_start=2, line_end=5, level=3, title="§1.4 技术栈")],
-    )
-    assert extract_techstack(doc) is None
+    entities = extract_entities(_parse_arch())
+    non_ts = [e for e in entities if e.class_name != "TechStack"]
+    assert all(e.extra_slots == {} for e in non_ts)
 
 
 # -- integration: TechStack in the full migration pipeline -------------------
@@ -115,7 +88,7 @@ def test_migration_includes_techstack(variant: str) -> None:
 
     ts_entities = [e for e in entities if e.class_name == "TechStack"]
     assert len(ts_entities) == 1
-    assert ts_entities[0].entity_id == "tech-stack-arch"
+    assert ts_entities[0].entity_id == "TS-001"
 
     rows = list(
         handle.raw.query(
@@ -124,7 +97,7 @@ def test_migration_includes_techstack(variant: str) -> None:
         )
     )
     assert len(rows) == 1
-    assert rows[0]["eid"].value == "tech-stack-arch"
+    assert rows[0]["eid"].value == "TS-001"
 
 
 @pytest.mark.parametrize("variant", ("waterfall", "agile"))
@@ -169,7 +142,7 @@ def test_build_entity_quads_multivalued_extra_slots() -> None:
 
     config = KGConfig(store_backend="memory")
     quads = build_entity_quads(
-        "tech-stack-demo",
+        "TS-001",
         "TechStack",
         "Demo Stack",
         "arch",
