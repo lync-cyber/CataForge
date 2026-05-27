@@ -1,7 +1,7 @@
-"""`compile_to_markdown()` — task-4 §4.1 query → render → write pipeline.
+"""`compile_to_markdown()` — query → render → write pipeline.
 
-Sub-PR 4 scope: full export only (no `EntityFilter`, no snapshot, no
-incremental). Idempotency rests on three guarantees:
+Full export only (no `EntityFilter`, no snapshot, no incremental).
+Idempotency rests on three guarantees:
 
 * every SPARQL template ends with `ORDER BY ?sort_key`;
 * `hydrator.hydrate_rows()` re-sorts every relation group by
@@ -133,8 +133,7 @@ def compile_to_markdown(
 
     Entities whose class is unknown to the registry (no `<entity_type>.sparql`
     template registered) are skipped with an `errors` entry rather than
-    raising — sub-PR 4 only ships built-in templates for the four-entity
-    fixture vertical slice.
+    raising.
     """
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -1,10 +1,9 @@
-"""Single-entity Markdown rendering — task-5 errata C2.
+"""Single-entity Markdown rendering.
 
 `compile_to_markdown()` walks the whole store and writes one file per
-entity. The shim layer's `extract_with_body()` (Task 6 §6.5 #1) needs
-the same render path but for one entity at a time, without writing to
-disk. `render_entity(store, entity_id, *, template=None)` is that
-extraction.
+entity. The shim layer's `extract_with_body()` needs the same render
+path but for one entity at a time, without writing to disk.
+`render_entity(store, entity_id, *, template=None)` provides that path.
 
 Public symbol exposed from `cataforge.kg.export` so shim callers can
 import directly: `from cataforge.kg.export import render_entity`.

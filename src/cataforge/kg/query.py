@@ -1,15 +1,10 @@
 """`QueryAPI` — read-only SPARQL accessors keyed by SDLC layer.
 
-Sub-PR 5 surface: the methods needed by `_shim.py` and the Group A
-call-site migration. The full Pydantic-hydrated surface specified in
-task-5 §5.2 lands when SHACL-validated Pydantic round-trip arrives in
-a later PR; this module returns flat dicts that mirror the legacy
-loader/indexer dict shape so the shim layer is a straight pass-through.
+Returns flat dicts that mirror the legacy loader/indexer dict shape so the
+shim layer is a straight pass-through.
 
-The single-character typed accessors (`feature`, `module`, `component`,
-`page`, `api`, `task`, `test_case`) mirror task-5 §5.2 and resolve
-Task 5 errata C1 (`api()` / `page()` were missing from the original
-task-5 surface; flagged by Task 6 §6.5 #2).
+The typed accessors (`feature`, `module`, `component`, `page`, `api`,
+`task`, `test_case`) cover all entity types in the business ontology.
 """
 from __future__ import annotations
 
@@ -102,7 +97,7 @@ class QueryAPI:
         return ask(self._store, sparql)
 
     # ------------------------------------------------------------------
-    # Typed accessors (task-5 §5.2 + errata C1)
+    # Typed accessors
     # ------------------------------------------------------------------
 
     def feature(self, feature_id: str) -> dict[str, Any] | None:
@@ -258,12 +253,11 @@ class QueryAPI:
     ) -> PlanLoadResult:
         """Topologically order the requested entities within a token budget.
 
-        Sub-PR 5 ships a simple variant: deduplicate input, optionally
-        expand by `cf:depends_on` 1-hop neighbours, then greedily fit
-        within `token_budget` using a flat 200-token-per-entity estimate.
-        Anything that does not fit goes to `dropped`. This matches the
-        contract of the legacy `cataforge.docs.loader.plan_load()` that
-        the shim wraps.
+        Deduplicates input, optionally expands by `cf:depends_on` 1-hop
+        neighbours, then greedily fits within `token_budget` using a flat
+        200-token-per-entity estimate. Anything that does not fit goes to
+        `dropped`. Matches the contract of the legacy
+        `cataforge.docs.loader.plan_load()` that the shim wraps.
         """
         seeds: list[str] = []
         seen: set[str] = set()

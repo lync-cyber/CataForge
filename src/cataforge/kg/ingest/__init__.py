@@ -1,7 +1,6 @@
-"""Markdown → KG ingest pipeline (task-7 §7.2).
+"""Markdown → KG ingest pipeline.
 
-Sub-PR 3 implements the six-phase migration codemod described in
-`task-7-rollout-strategy.md §7.2`:
+Implements the six-phase migration codemod:
 
     scan → parse → entity-extract → relation-extract → write → verify
 

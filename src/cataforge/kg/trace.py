@@ -1,10 +1,8 @@
 """`TraceAPI` — traceability chain queries.
 
-Sub-PR 5 surface: enough to back the doc-review §6.4 A13 bidirectional
-coverage rewrite, sprint-review's `targets_artifact` back-reference need,
-and the shim layer's `legacy_validate_report()` stale-dep query. Returns
-flat dicts and lists; the typed `TraceChain` dataclass from task-5 §5.2
-lands once `_models_core` Pydantic round-trip arrives.
+Returns flat dicts and lists for bidirectional coverage, sprint-review
+back-references, and stale-dep queries. The typed `TraceChain` dataclass
+is used by consumers that need structured traversal results.
 """
 from __future__ import annotations
 
@@ -31,9 +29,7 @@ class CoverageRow:
 
 @dataclass
 class TraceChain:
-    """Subset of task-5 §5.2 TraceChain — only the fields sub-PR 5
-    consumers need. Lists hold entity_id strings.
-    """
+    """Flat traceability chain rooted at one entity. Lists hold entity_id strings."""
 
     root_id: str
     requirements: list[str] = field(default_factory=list)
@@ -55,16 +51,15 @@ class TraceAPI:
         self._config = config
 
     # ------------------------------------------------------------------
-    # §6.4 A13 — bidirectional coverage rewrite
+    # Bidirectional coverage
     # ------------------------------------------------------------------
 
     def bidirectional_coverage(self) -> list[CoverageRow]:
         """Return one row per Feature with implementation + test status.
 
-        Replaces `doc-review check_bidirectional_coverage()` regex pass
-        per Task 6 §6.4 A13. A Feature is covered iff some artifact
-        asserts `cf:implements` on it AND some TestCase reaches it via
-        `cf:verifies+` (transitive). Mention-in-prose no longer counts.
+        A Feature is covered iff some artifact asserts `cf:implements` on it
+        AND some TestCase reaches it via `cf:verifies+` (transitive).
+        Mention-in-prose does not count.
         """
         ns = self._cf_ns()
         sparql = (
@@ -142,7 +137,7 @@ class TraceAPI:
         return {"has_impl": has_impl, "has_test": has_test, "status": status}
 
     # ------------------------------------------------------------------
-    # §6.4 A7 — sprint-review chain (CODE-REVIEW back-reference)
+    # Sprint-review chain
     # ------------------------------------------------------------------
 
     def from_requirement(
@@ -234,7 +229,7 @@ class TraceAPI:
         return chain
 
     # ------------------------------------------------------------------
-    # §6.5 #3 — stale dependency detector (legacy_validate_report)
+    # Stale dependency detector
     # ------------------------------------------------------------------
 
     def stale_dependencies(self) -> list[tuple[str, str]]:

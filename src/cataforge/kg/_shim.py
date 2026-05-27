@@ -1,8 +1,7 @@
 """Backward-compatible shims for 0.4.x business-doc call points.
 
-Task 5 §5.5 + Task 6 §6.5. Every public entry point dispatches on
-`doc_type in KGConfig.kg_active_doc_types` (per-doc_type rolling
-cutover, Task 7 §7.5). The KG branch runs against a `KnowledgeGraph`
+Every public entry point dispatches on `doc_type in KGConfig.kg_active_doc_types`
+(per-doc_type rolling cutover). The KG branch runs against a `KnowledgeGraph`
 connection; the legacy branch delegates to :mod:`cataforge.docs.loader`
 and :mod:`cataforge.docs.indexer` so non-active doc_types continue to
 work exactly as in 0.4.x.
@@ -417,7 +416,7 @@ def _legacy_resolve_deps(
 
 
 # ---------------------------------------------------------------------------
-# Extension shim 1 — extract_with_body (Task 6 §6.5 #1)
+# Extension shim: extract_with_body
 # ---------------------------------------------------------------------------
 
 
@@ -465,7 +464,7 @@ def extract_with_body(
 
 
 # ---------------------------------------------------------------------------
-# Extension shim 2 — legacy_validate_report (Task 6 §6.5 #3)
+# Extension shim: legacy_validate_report
 # ---------------------------------------------------------------------------
 
 
@@ -560,7 +559,7 @@ def _legacy_validate_report(
 
 
 # ---------------------------------------------------------------------------
-# Extension shim 3 — source_section (Task 6 §6.5 #5)
+# Extension shim: source_section
 # ---------------------------------------------------------------------------
 
 

@@ -1,4 +1,4 @@
-"""Phase 3 of task-7 §7.2: extract business entities from parsed Markdown.
+"""Phase 3: extract business entities from parsed Markdown.
 
 Each entity is uniquely identified by its `entity_id` (e.g. `F-001`).
 The codemod records the first occurrence inside the first owning section

@@ -5,9 +5,8 @@ A pyoxigraph `SELECT` row is a `dict[str, Term | None]` where every
 hydrator deduplicates scalar fields (first non-null wins) and
 aggregates multi-valued fields keyed on a sort-stable composite.
 
-The output is a plain dict consumed by Jinja2 — sub-PR 4 deliberately
-skips Pydantic hydration (task-4 §4.1.4) to keep the surface area
-small. Pydantic context objects land when SHACL / governance arrives.
+The output is a plain dict consumed by Jinja2. Pydantic context objects
+are used when SHACL / governance validation is active.
 """
 from __future__ import annotations
 

@@ -1,25 +1,19 @@
 """Post-cutover audit: KG content hash vs current Markdown source.
 
-Task-7 §7.5 retains `compare-read` as a **diagnostic** check, not a
-gating mechanism. For each active doc_type, sample N entities; for each
-sampled entity:
+A diagnostic check, not a gating mechanism. For each active doc_type,
+sample N entities; for each sampled entity:
 
 * recompute the section content hash from the current on-disk Markdown
   using the same `extract_entities` pipeline that ran at ingest time;
 * fetch the `cf:content_hash` literal stored in KG for the same entity;
 * if they differ → emit an alarm with both digests.
 
-Alarms surface but never affect the exit code. The §7.5-prescribed
-response to a persistent alarm on a doc_type is to remove that doc_type
-from `kg_active_doc_types` and re-ingest.
+Alarms surface but never affect the exit code. The recommended response
+to a persistent alarm on a doc_type is to remove that doc_type from
+`kg_active_doc_types` and re-ingest.
 
-This is intentionally *not* the proposal's literal "Jaccard on rendered
-Markdown" idea: the export template ships as a structural traceability
-card without the source body (sub-PR 4), which makes a token-level
-diff against `loader.extract()` semantically meaningless. Content-hash
-diffing keeps the same job — detect material content drift — without
-that semantic mismatch, and reuses the canonical hash the ingest
-codemod already records.
+Content-hash diffing detects material content drift and reuses the
+canonical hash the ingest pipeline already records.
 
 Sampling uses Python stdlib `random.Random` so `--seed` yields
 reproducible audits.
@@ -164,7 +158,7 @@ def compare_read(
         if kg_hash is None:
             if _kg_entity_exists(kg, entity_id):
                 # Entity exists but lacks cf:content_hash — schema requires
-                # it (sub-PR 5 writer always populates), so missing means
+                # it (the writer always populates), so missing means
                 # something corrupted the store.
                 report.alarms.append(
                     CompareReadAlarm(

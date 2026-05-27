@@ -1,4 +1,4 @@
-"""Phase 6 of task-7 §7.2: post-write integrity verification."""
+"""Phase 6: post-write integrity verification."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

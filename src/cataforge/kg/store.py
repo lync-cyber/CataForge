@@ -1,14 +1,13 @@
 """KG store lifecycle — open / bootstrap / close.
 
-Sub-PR 2 deliberately ships a minimal surface: a thin wrapper around
-`pyoxigraph.Store` that knows how to open either an in-memory or
-RocksDB-backed graph and how to materialize the LinkML `is_a` chain as
-`rdfs:subClassOf` triples (spike-2 §2.1, issue #142).
+A thin wrapper around `pyoxigraph.Store` that opens either an in-memory or
+RocksDB-backed graph and materializes the LinkML `is_a` chain as
+`rdfs:subClassOf` triples.
 
-The full `KnowledgeGraph` facade described in task-5 §5.2 (query / trace /
-transaction sub-APIs) is layered on top of this primitive in later
-sub-PRs; sub-PR 2's sole job is "you can open an empty store, the
-subclass-closure hierarchy is loaded, and SPARQL ASK works correctly".
+The `KnowledgeGraph` facade (query / trace / transaction sub-APIs) is
+layered on top of this primitive; this module's sole responsibility is
+opening the store and bootstrapping the subclass-closure hierarchy so
+SPARQL ASK queries work correctly.
 """
 from __future__ import annotations
 
@@ -91,7 +90,7 @@ def bootstrap_subclass_axioms(
 
 
 class KnowledgeGraphStore:
-    """Minimal sync store handle for sub-PR 2.
+    """Minimal sync store handle.
 
     Wraps `pyoxigraph.Store` so callers receive a typed handle they can pass
     around without importing `pyoxigraph` directly. The underlying store is
