@@ -17,8 +17,12 @@ This helper centralises the policy:
   can't block the CLI forever. Pass ``timeout=None`` for genuinely
   unbounded operations (e.g. ``cataforge sync-main`` waiting on git
   fetch over a slow link).
-* ``text=True`` + ``encoding="utf-8"`` by default so the Windows
-  ``cp1252`` fallback path doesn't garble output.
+* ``text=True`` + ``encoding="utf-8"`` + ``errors="replace"`` by default
+  so the Windows ``cp1252``/OEM-codepage fallback path doesn't garble
+  output AND a child that emits a stray non-UTF-8 byte (cmd ``mklink``,
+  Chinese-locale tasklist output) doesn't crash the stdout reader
+  thread with ``UnicodeDecodeError``. Pass ``errors="strict"``
+  explicitly when you genuinely need decode-failure visibility.
 * ``capture_output=True`` by default — most callers want stdout/stderr
   in the returned ``CompletedProcess``. Pass ``capture_output=False``
   to stream straight to the terminal.
@@ -46,7 +50,7 @@ def run(
     capture_output: bool = True,
     input: str | None = None,
     encoding: str = "utf-8",
-    errors: str = "strict",
+    errors: str = "replace",
 ) -> subprocess.CompletedProcess[str]:
     """Run *argv* with the repo-wide subprocess policy.
 
