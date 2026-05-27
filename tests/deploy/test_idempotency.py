@@ -588,6 +588,65 @@ def test_rebuild_purges_prior_owned_then_redeploys(tmp_path: Path) -> None:
     assert user_cmd.is_file()
 
 
+def test_rebuild_refuses_to_purge_prior_other_platform(tmp_path: Path) -> None:
+    """``--rebuild`` must NOT purge paths whose ownership stake belongs
+    to a different platform than the one being deployed.
+
+    Concretely: if a user deployed Cursor previously (recording paths
+    under ``.cursor/`` in the manifest) and then runs
+    ``cataforge deploy --platform=claude-code --rebuild``, the prior
+    manifest still names ``.cursor/...`` paths. Pre-fix the rebuild
+    purge blasted those away regardless — silent data loss for any
+    hand-edits the user made under ``.cursor/``. Post-fix the deployer
+    refuses with a clear warning, leaving the user to clean the old
+    platform's tree manually if they want a true switch.
+    """
+    from cataforge.deploy.manifest import _MANIFEST_REL
+
+    root = _init_project(tmp_path)
+    clear_cache()
+
+    # Plant a manifest that records a previous cursor deploy with
+    # paths that exist on disk (we use real touched files so the purge
+    # would actually try to delete them if the platform check failed).
+    cursor_owned_a = root / ".cursor" / "rules" / "owned-a.mdc"
+    cursor_owned_b = root / ".cursor" / "commands" / "owned-b.md"
+    for p in (cursor_owned_a, cursor_owned_b):
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("cursor-era content", encoding="utf-8")
+
+    manifest_path = root / _MANIFEST_REL
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "platform": "cursor",
+                "owned_paths": [
+                    str(cursor_owned_a.relative_to(root)).replace("\\", "/"),
+                    str(cursor_owned_b.relative_to(root)).replace("\\", "/"),
+                ],
+            },
+            indent=2,
+        ) + "\n",
+        encoding="utf-8",
+    )
+
+    actions = Deployer(ConfigManager(root)).deploy("claude-code", rebuild=True)
+
+    # Warning was surfaced and the prior platform's files survived.
+    assert any(
+        "rebuild-purge skipped" in a and "'cursor'" in a and "'claude-code'" in a
+        for a in actions
+    ), f"warning must explain the refusal; got: {actions}"
+    assert cursor_owned_a.is_file(), (
+        ".cursor/-owned file was purged despite the platform mismatch — "
+        "this is the silent data-loss bug C3 fixes."
+    )
+    assert cursor_owned_b.is_file()
+    # No purge action recorded.
+    assert not any("rebuild-purged" in a for a in actions), actions
+
+
 def test_rebuild_on_fresh_project_is_safe_noop(tmp_path: Path) -> None:
     """``--rebuild`` on a project that never deployed before must not
     error and must not delete anything (no manifest → nothing to purge)."""

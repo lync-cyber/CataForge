@@ -99,6 +99,26 @@ def load_prior_manifest(project_root: Path) -> set[str]:
     return {str(p) for p in owned if isinstance(p, str)}
 
 
+def load_prior_manifest_platform(project_root: Path) -> str | None:
+    """Return the ``platform`` id the previous deploy recorded, or ``None``.
+
+    Used by ``--rebuild`` to refuse to wholesale-purge paths whose
+    ownership stake belongs to a different platform than the one we're
+    deploying now — see :meth:`Deployer._rebuild_purge`.
+    """
+    path = project_root / _MANIFEST_REL
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    platform = data.get("platform")
+    return str(platform) if isinstance(platform, str) else None
+
+
 def save_manifest(project_root: Path, manifest: DeployManifest) -> None:
     """Persist *manifest* to ``.cataforge/.deploy-manifest.json``."""
     path = project_root / _MANIFEST_REL

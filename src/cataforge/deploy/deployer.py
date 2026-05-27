@@ -15,6 +15,7 @@ from cataforge.core.events import FRAMEWORK_DEPLOY, EventBus
 from cataforge.deploy.manifest import (
     DeployManifest,
     load_prior_manifest,
+    load_prior_manifest_platform,
     save_manifest,
 )
 from cataforge.platform.base import PlatformAdapter
@@ -76,7 +77,15 @@ class Deployer:
         manifest = DeployManifest(platform_id)
 
         if rebuild:
-            actions.extend(self._rebuild_purge(root, prior_owned, dry_run=dry_run))
+            actions.extend(
+                self._rebuild_purge(
+                    root,
+                    prior_owned,
+                    platform_id=platform_id,
+                    prior_platform=load_prior_manifest_platform(root),
+                    dry_run=dry_run,
+                )
+            )
             # After a purge the prior manifest no longer reflects reality;
             # treat downstream prune passes as a fresh start so nothing
             # else gets second-guessed.
@@ -241,6 +250,8 @@ class Deployer:
         root: Path,
         prior_owned: set[str],
         *,
+        platform_id: str,
+        prior_platform: str | None,
         dry_run: bool = False,
     ) -> list[str]:
         """Remove every path the prior manifest claimed.
@@ -249,11 +260,28 @@ class Deployer:
         ``_remove_target`` so symlinks, junctions, files and real dirs all
         wash out the same way. User-authored paths that were never in the
         manifest are not touched.
+
+        Refuses to purge when the prior manifest belongs to a *different*
+        platform than the one we're about to deploy: rebuilding cursor
+        after a claude-code deploy (or vice versa) would otherwise blast
+        away paths that the new platform is about to author from scratch
+        — silent, irreversible data loss for any user-edited file under
+        ``.claude/`` / ``.cursor/`` that the new platform doesn't own.
+        Switching platforms is a deliberate two-step: clean up the old
+        target manually (``rm -rf .claude/`` etc.) then deploy fresh.
         """
         from cataforge.platform.helpers import _remove_target
 
         if not prior_owned:
             return ["rebuild: no prior manifest — nothing to purge"]
+        if prior_platform is not None and prior_platform != platform_id:
+            return [
+                f"WARN: rebuild-purge skipped — prior deploy was "
+                f"{prior_platform!r} but this run targets "
+                f"{platform_id!r}. Remove the old platform's artefacts "
+                f"manually before switching, otherwise this purge would "
+                f"erase files the new platform never owned."
+            ]
         actions: list[str] = []
         for rel in sorted(prior_owned):
             target = root / rel
@@ -281,8 +309,26 @@ class Deployer:
 
         try:
             hooks_config, warnings = generate_platform_hooks(adapter)
+        except (ImportError, AttributeError) as e:
+            # Almost always means a plugin's hook module fails to import
+            # (missing dep, syntax error) or the plugin's adapter class
+            # lost a method between versions. Both want re-install /
+            # version pinning, not a generic "generation failed" line.
+            logger.exception("hook generation failed (likely plugin issue)")
+            return [
+                f"hooks: generation failed — {type(e).__name__}: {e}. "
+                f"Check that plugins providing hooks are installed and "
+                f"compatible; full traceback in logs."
+            ]
         except Exception as e:
-            return [f"hooks: generation failed — {e}"]
+            # Any other failure: keep the message terse for the user-facing
+            # action log but persist the full traceback to the logger so
+            # CI / doctor can pick it up.
+            logger.exception("hook generation failed")
+            return [
+                f"hooks: generation failed — {type(e).__name__}: {e}. "
+                f"Full traceback in logs."
+            ]
 
         config_path_str = adapter.hook_config_path
         actions: list[str] = [f"WARN: {w}" for w in warnings]
@@ -326,8 +372,18 @@ class Deployer:
 
         try:
             return apply_degradation(adapter, root, dry_run=dry_run)
+        except (ImportError, AttributeError) as e:
+            logger.exception("degradation failed (likely plugin issue)")
+            return [
+                f"degradation: skipped — {type(e).__name__}: {e}. "
+                f"Check plugin compatibility; full traceback in logs."
+            ]
         except Exception as e:
-            return [f"degradation: skipped — {e}"]
+            logger.exception("degradation failed")
+            return [
+                f"degradation: skipped — {type(e).__name__}: {e}. "
+                f"Full traceback in logs."
+            ]
 
     def _deploy_mcp(
         self,

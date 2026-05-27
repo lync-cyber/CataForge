@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -79,8 +80,20 @@ class EventBus:
 def _safe_call(handler: EventHandler, ev: Event) -> None:
     try:
         handler(ev)
-    except Exception:
+    except Exception as e:
         logger.exception("Event handler %s failed for %s", handler, ev.name)
+        # When the logger is silent (typical CLI session has the
+        # cataforge logger at WARNING and no stderr handler attached
+        # at all), the exception above writes to nothing visible.
+        # Drop a one-liner to stderr so a broken event handler can't
+        # vanish without any user-facing trace. ``core`` deliberately
+        # uses ``sys.stderr.write`` rather than click.echo to keep
+        # this module free of CLI deps.
+        if logger.getEffectiveLevel() > logging.ERROR:
+            sys.stderr.write(
+                f"[events] handler {handler!r} failed for "
+                f"{ev.name!r}: {type(e).__name__}: {e}\n"
+            )
 
 
 # Well-known event names

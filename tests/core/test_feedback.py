@@ -303,6 +303,75 @@ class TestAssembleBug:
         assert "Skipped" in body or "skipped" in body
 
 
+class TestCollectFrameworkReviewExceptionHandling:
+    """C5: import failure vs runner runtime failure must surface as
+    *distinct* status / reason / payload shapes so the upstream bug
+    report can tell whether the skill subsystem is missing entirely
+    or simply crashed on this run."""
+
+    def test_import_failure_returns_runner_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Force the ``from cataforge.skill.runner import SkillRunner``
+        line to raise ImportError. Result must carry ``status=skipped``
+        and a reason starting with ``runner-unavailable:`` — *not* the
+        runtime-error branch's ``runner-failed:``."""
+        import sys
+
+        from cataforge.core import feedback as feedback_mod
+
+        # Wipe any cached import so the first attempt actually re-runs.
+        monkeypatch.delitem(sys.modules, "cataforge.skill.runner", raising=False)
+
+        class _Blocker:
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname == "cataforge.skill.runner":
+                    raise ImportError("simulated missing dep")
+                return None
+
+        blocker = _Blocker()
+        monkeypatch.setattr(sys, "meta_path", [blocker, *sys.meta_path])
+
+        # Project must exist (later check is `.cataforge.is_dir()`).
+        (tmp_path / ".cataforge").mkdir()
+
+        result = feedback_mod.collect_framework_review(tmp_path)
+        assert result["status"] == "skipped"
+        assert result["reason"].startswith("runner-unavailable:"), result
+        # The traceback key only exists on the runtime-error branch.
+        assert "traceback" not in result
+
+    def test_runtime_failure_returns_error_with_traceback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A real SkillRunner that raises at .run() time must surface
+        as ``status=error`` with both a reason and a traceback the bug
+        report can paste straight through."""
+        from cataforge.core import feedback as feedback_mod
+
+        (tmp_path / ".cataforge").mkdir()
+
+        class _BrokenRunner:
+            def __init__(self, *, project_root):
+                self._root = project_root
+
+            def run(self, *_a, **_kw):
+                raise RuntimeError("simulated runner crash")
+
+        # Patch the symbol on the actual runner module so the
+        # in-function import inside collect_framework_review picks it up.
+        from cataforge.skill import runner as runner_mod
+        monkeypatch.setattr(runner_mod, "SkillRunner", _BrokenRunner)
+
+        result = feedback_mod.collect_framework_review(tmp_path)
+        assert result["status"] == "error"
+        assert result["reason"].startswith("runner-failed:")
+        assert "RuntimeError" in result["reason"]
+        assert "simulated runner crash" in result["reason"]
+        assert "traceback" in result
+        assert "simulated runner crash" in result["traceback"]
+
+
 class TestAssembleSuggestion:
     def test_renders_proposal_section(self, tmp_path: Path) -> None:
         project = _bootstrap(tmp_path)

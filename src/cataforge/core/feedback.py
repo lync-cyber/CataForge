@@ -292,17 +292,32 @@ def collect_framework_review(project_root: Path) -> dict[str, Any]:
     project pre-setup) or when the skill is unreachable. Used by the bug
     report to surface upstream-meta issues the user might not have noticed.
     """
+    # Step 1: import — failure here means the skill subsystem isn't
+    # importable at all (missing optional dep, broken upstream package).
+    # That is genuinely unavailable, not a runtime error.
     try:
         from cataforge.skill.runner import SkillRunner
-    except Exception as e:
-        return {"status": "skipped", "reason": f"runner-import-failed: {e}"}
+    except ImportError as e:
+        return {"status": "skipped", "reason": f"runner-unavailable: {e}"}
+
     if not (project_root / ".cataforge").is_dir():
         return {"status": "skipped", "reason": "no .cataforge/ scaffold"}
+
+    # Step 2: instantiate + run — failure here is a real runtime
+    # problem in the skill runner itself (subprocess crash, malformed
+    # SKILL.md, etc.). Surface a traceback so the bug report carries
+    # enough context to act on, instead of collapsing every cause into
+    # a single opaque "runner-failed" line.
     try:
         runner = SkillRunner(project_root=project_root)
         result = runner.run("framework-review", ["all"], agent="feedback-report")
     except Exception as e:
-        return {"status": "skipped", "reason": f"runner-failed: {e}"}
+        import traceback as _tb
+        return {
+            "status": "error",
+            "reason": f"runner-failed: {type(e).__name__}: {e}",
+            "traceback": _tb.format_exc(),
+        }
     fails = [
         line
         for line in (result.stdout or "").splitlines()

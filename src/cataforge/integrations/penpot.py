@@ -19,6 +19,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from cataforge.cli.errors import CataforgeError
 from cataforge.utils.common import (
     BOLD,
     CYAN,
@@ -357,14 +358,14 @@ def _read_mcp_pid() -> int | None:
     if not os.path.isfile(MCP_PID_FILE):
         return None
     try:
-        with open(MCP_PID_FILE) as f:
+        with open(MCP_PID_FILE, encoding="utf-8") as f:
             return int(f.read().strip())
     except (ValueError, OSError):
         return None
 
 
 def _write_mcp_pid(pid: int) -> None:
-    with open(MCP_PID_FILE, "w") as f:
+    with open(MCP_PID_FILE, "w", encoding="utf-8") as f:
         f.write(str(pid))
 
 
@@ -517,6 +518,19 @@ def stop_mcp(config: dict) -> bool:
         info(f"停止 MCP Server (PID: {pid})...")
         try:
             if PLATFORM == "windows":
+                # taskkill is part of every supported Windows SKU but is
+                # absent from stripped images (Nano Server, some CI
+                # containers). Fail loudly rather than swallow the
+                # FileNotFoundError into the bare ``except OSError``
+                # below and leave the user looking at "stopped" output
+                # with the process still alive.
+                if not shutil.which("taskkill"):
+                    raise CataforgeError(
+                        "taskkill not found on PATH — required to stop the "
+                        f"Penpot MCP server (PID {pid}) on Windows. Install "
+                        "the Windows admin tools (taskkill ships with every "
+                        "Pro/Enterprise SKU) or stop the process manually."
+                    )
                 subprocess.run(
                     ["taskkill", "/F", "/T", "/PID", str(pid)],
                     capture_output=True, timeout=10,

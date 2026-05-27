@@ -87,10 +87,14 @@ class ConfigManager:
         """
         raw = str(self.load().get("version", "0.0.0"))
         if raw.startswith("0.0.0-"):
+            # Narrow to ImportError so circular-import bugs, syntax
+            # errors in cataforge/__init__.py, etc. don't get silently
+            # swallowed as "use the placeholder string". Only a genuine
+            # missing-package situation should fall back here.
             try:
                 from cataforge import __version__ as pkg_version
                 return pkg_version
-            except Exception:
+            except ImportError:
                 return raw
         return raw
 

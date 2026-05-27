@@ -17,12 +17,15 @@ Design constraints:
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal
+
+_logger = logging.getLogger("cataforge.cli.ui")
 
 # ---------------------------------------------------------------------------
 # Terminal capability detection
@@ -184,10 +187,20 @@ class UI:
         try:
             stream.write(line + "\n")
             stream.flush()
-        except (BrokenPipeError, ValueError):
-            # ValueError: I/O operation on closed file — happens in pytest's
-            # CliRunner when the captured stream is swapped between calls.
+        except BrokenPipeError:
+            # Downstream of a closed pipe (``cataforge … | head``). The
+            # canonical CLI response is to stop writing silently rather
+            # than spam errors on every subsequent line.
             pass
+        except ValueError as e:
+            # Typically ``I/O operation on closed file`` — happens in
+            # pytest's CliRunner when the captured stream is swapped
+            # between invocations. Log at DEBUG so it's recoverable in
+            # tracing without polluting normal output, but don't lump
+            # it together with BrokenPipeError (different cause; if a
+            # real ValueError ever escapes from a stream write we want
+            # to see it, not just swallow it forever).
+            _logger.debug("ui write got ValueError: %s", e)
 
     # ── section structure ──────────────────────────────────────────────
     def header(self, title: str, *, subtitle: str | None = None) -> None:
