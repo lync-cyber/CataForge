@@ -13,13 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from cataforge.kg._sparql_utils import _row_lookup, _term_value
 from cataforge.kg.export.hydrator import hydrate_rows
 from cataforge.kg.export.pipeline import (
     _RELATION_GROUPS,
     _entity_type_to_doc_type,
-    _row_lookup,
     _template_name,
-    _term_value,
 )
 from cataforge.kg.export.registry import SparqlRegistry
 from cataforge.kg.export.template_loader import build_jinja_env

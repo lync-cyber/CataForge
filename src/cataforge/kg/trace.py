@@ -12,28 +12,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from cataforge.kg._config import KGConfig
+from cataforge.kg._sparql_utils import _row_lookup, _strv, _term_value
 from cataforge.kg.ingest.iri import entity_iri
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
-
-
-def _term_value(term: Any) -> Any:
-    if term is None:
-        return None
-    return getattr(term, "value", term)
-
-
-def _row_get(row: Any, var: str) -> Any:
-    try:
-        return row[var]
-    except (KeyError, IndexError):
-        return None
-
-
-def _strv(term: Any) -> str | None:
-    v = _term_value(term)
-    return None if v is None else str(v)
 
 
 @dataclass(frozen=True)
@@ -107,15 +90,15 @@ class TraceAPI:
         )
         out: list[CoverageRow] = []
         for row in self._store.query(sparql):
-            fid = _strv(_row_get(row, "feature_id"))
+            fid = _strv(_row_lookup(row, "feature_id"))
             if fid is None:
                 continue
             out.append(
                 CoverageRow(
                     feature_id=fid,
-                    title=_strv(_row_get(row, "title")),
-                    has_impl=_bool_term(_row_get(row, "has_impl")),
-                    has_test=_bool_term(_row_get(row, "has_test")),
+                    title=_strv(_row_lookup(row, "title")),
+                    has_impl=_bool_term(_row_lookup(row, "has_impl")),
+                    has_test=_bool_term(_row_lookup(row, "has_test")),
                 )
             )
         return out
@@ -148,8 +131,8 @@ class TraceAPI:
         if not rows:
             return {"has_impl": False, "has_test": False, "status": "none"}
         row = rows[0]
-        has_impl = _bool_term(_row_get(row, "has_impl"))
-        has_test = _bool_term(_row_get(row, "has_test"))
+        has_impl = _bool_term(_row_lookup(row, "has_impl"))
+        has_test = _bool_term(_row_lookup(row, "has_test"))
         if has_impl and has_test:
             status = "full"
         elif has_impl or has_test:
@@ -235,8 +218,8 @@ class TraceAPI:
 
         chain = TraceChain(root_id=entity_id)
         for row in downstream_rows + upstream_rows:
-            neighbour_id = _strv(_row_get(row, "neighbour_id"))
-            cls = _term_value(_row_get(row, "cls"))
+            neighbour_id = _strv(_row_lookup(row, "neighbour_id"))
+            cls = _term_value(_row_lookup(row, "cls"))
             if neighbour_id is None or cls is None:
                 continue
             cls_name = str(cls).rsplit("/", 1)[-1]
@@ -274,8 +257,8 @@ class TraceAPI:
         )
         out: list[tuple[str, str]] = []
         for row in self._store.query(sparql):
-            a = _strv(_row_get(row, "a_id"))
-            b = _strv(_row_get(row, "b_id"))
+            a = _strv(_row_lookup(row, "a_id"))
+            b = _strv(_row_lookup(row, "b_id"))
             if a is not None and b is not None:
                 out.append((a, b))
         return out

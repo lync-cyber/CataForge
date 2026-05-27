@@ -19,8 +19,9 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+from cataforge.kg._sparql_utils import _row_lookup, _term_value
 from cataforge.kg.export.hydrator import hydrate_rows
 from cataforge.kg.export.registry import SparqlRegistry
 from cataforge.kg.export.template_loader import build_jinja_env
@@ -86,19 +87,6 @@ def _entity_type_to_doc_type(entity_type: str) -> str:
 def _template_name(entity_type: str) -> str:
     return f"{_entity_type_to_doc_type(entity_type)}/{entity_type.lower()}.md.j2"
 
-
-def _term_value(term: Any) -> Any:
-    if term is None:
-        return None
-    return getattr(term, "value", term)
-
-
-def _row_lookup(row: Any, var: str) -> Any:
-    """Tolerant `row[var]` for pyoxigraph QuerySolution (None when absent)."""
-    try:
-        return row[var]
-    except (KeyError, IndexError):
-        return None
 
 
 def _list_business_entities(

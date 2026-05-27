@@ -11,11 +11,9 @@ small. Pydantic context objects land when SHACL / governance arrives.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    pass
-
+from cataforge.kg._sparql_utils import _row_lookup, _term_value
 
 _SCALAR_FIELDS = (
     "entity_id",
@@ -32,27 +30,6 @@ _SCALAR_FIELDS = (
     "test_result",
     "narrative_body",
 )
-
-
-def _term_value(term: Any) -> Any:
-    """Return the Python value for a pyoxigraph Term (or None)."""
-    if term is None:
-        return None
-    return getattr(term, "value", term)
-
-
-def _row_lookup(row: Any, var: str) -> Any:
-    """Read `row[var]` from a pyoxigraph `QuerySolution` (or a dict).
-
-    `QuerySolution.__getitem__` returns None for an unbound projection
-    variable and raises `KeyError` when the variable isn't in the SELECT
-    at all; both shapes collapse to "absent" here so the hydrator can
-    treat the row uniformly.
-    """
-    try:
-        return row[var]
-    except (KeyError, IndexError):
-        return None
 
 
 def hydrate_rows(
