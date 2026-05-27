@@ -32,18 +32,25 @@ import click
 from cataforge.cli.errors import CataforgeError, ExternalToolError
 from cataforge.cli.helpers import resolve_root
 from cataforge.cli.main import cli
+from cataforge.utils.run_subprocess import run as run_proc
 
 
 def _git(args: list[str], *, cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
-    """Run a git subprocess, returning the CompletedProcess."""
-    return subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        text=True,
-        capture_output=True,
-        check=check,
-        encoding="utf-8",
-    )
+    """Run a git subprocess, returning the CompletedProcess.
+
+    The ``check=True`` callers still get a ``CalledProcessError`` raised so
+    the surrounding ``try`` clauses keep working; the only change is that
+    the actual subprocess invocation goes through the repo-wide wrapper.
+    """
+    result = run_proc(["git", *args], cwd=cwd)
+    if check and result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            ["git", *args],
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return result
 
 
 def _detect_default_branch(repo: Path) -> str:

@@ -52,7 +52,7 @@ def _patch_gh(
             args=cmd, returncode=0, stdout=json.dumps(issues), stderr=""
         )
 
-    monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+    monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
     monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
 
 
@@ -80,7 +80,7 @@ def _patch_gh_per_label(
             args=cmd, returncode=0, stdout=json.dumps(payload), stderr=""
         )
 
-    monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+    monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
     monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
     return captured
 
@@ -469,7 +469,7 @@ class TestClose:
                 args=cmd, returncode=0, stdout="", stderr=""
             )
 
-        monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+        monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
         monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
 
         result = CliRunner().invoke(
@@ -510,14 +510,11 @@ class TestGhFailurePaths:
         monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
 
         def fake_run(cmd, **kwargs):  # noqa: ANN001
-            raise subprocess.CalledProcessError(
-                returncode=1,
-                cmd=cmd,
-                output="",
-                stderr="error: API rate limit exceeded",
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=1, stdout="", stderr="error: API rate limit exceeded"
             )
 
-        monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+        monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
         result = CliRunner().invoke(triage_command, ["--repo", "fake/repo"])
         assert result.exit_code != 0
         assert "rate limit" in result.output
@@ -530,14 +527,11 @@ class TestGhFailurePaths:
         monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
 
         def fake_run(cmd, **kwargs):  # noqa: ANN001
-            raise subprocess.CalledProcessError(
-                returncode=1,
-                cmd=cmd,
-                output="",
-                stderr="error: authentication required",
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=1, stdout="", stderr="error: authentication required"
             )
 
-        monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+        monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
         result = CliRunner().invoke(
             close_command,
             ["104", "--verdict", "fixed", "--pr", "108", "--repo", "fake/repo"],
@@ -560,7 +554,7 @@ class TestTriageGhParams:
                 args=cmd, returncode=0, stdout="[]", stderr=""
             )
 
-        monkeypatch.setattr(issue_cmd.subprocess, "run", fake_run)
+        monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
         monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
         result = CliRunner().invoke(
             triage_command, ["--repo", "fake/repo", "--dry-run"]
