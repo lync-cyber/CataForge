@@ -6,11 +6,17 @@ snapshot, rollback, repair, query, trace.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 import click
 
-from cataforge.cli.errors import CataforgeError, KGStoreError, KGVerificationError
+from cataforge.cli.errors import (
+    CataforgeError,
+    KGQueryTimeoutError,
+    KGStoreError,
+    KGVerificationError,
+)
 from cataforge.cli.main import cli
 
 
@@ -836,11 +842,28 @@ def kg_query(
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
         with KnowledgeGraphStore.connect(config) as handle:
-            try:
-                raw_result = handle.raw.query(sparql)
-            except Exception as exc:
-                raise CataforgeError(f"SPARQL error: {exc}") from exc
-            _format_query_result(raw_result, output_fmt)
+            result_box: list[object] = []
+            error_box: list[Exception] = []
+
+            def _run_query() -> None:
+                try:
+                    raw = handle.raw.query(sparql)
+                    result_box.append(_materialize_query_result(raw))
+                except Exception as exc:  # noqa: BLE001
+                    error_box.append(exc)
+
+            worker = threading.Thread(target=_run_query, daemon=True)
+            worker.start()
+            worker.join(timeout=timeout)
+
+            if worker.is_alive():
+                raise KGQueryTimeoutError(
+                    f"SPARQL query timed out after {timeout}s"
+                )
+            if error_box:
+                raise CataforgeError(f"SPARQL error: {error_box[0]}") from error_box[0]
+
+            _format_query_result(result_box[0], output_fmt)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
 
@@ -861,46 +884,57 @@ def _inject_limit(sparql: str, limit: int) -> str:
     return sparql
 
 
+def _materialize_query_result(raw: object) -> object:
+    """Consume pyoxigraph lazy iterators into thread-safe Python objects."""
+    type_name = type(raw).__name__
+    if type_name == "QueryBoolean" or isinstance(raw, bool):
+        return ("ask", bool(raw))
+    if type_name == "QuerySolutions":
+        variables = [str(v).lstrip("?") for v in raw.variables]  # type: ignore[union-attr]
+        rows: list[dict[str, str]] = []
+        for row in raw:  # type: ignore[arg-type]
+            record: dict[str, str] = {}
+            for raw_v, name in zip(raw.variables, variables, strict=True):  # type: ignore[union-attr]
+                try:
+                    val = row[raw_v]
+                except (KeyError, IndexError):
+                    val = None
+                record[name] = _term_to_str(val)
+            rows.append(record)
+        return ("select", variables, rows)
+    if type_name == "QueryTriples":
+        triples = [
+            {
+                "subject": t.subject,
+                "predicate": t.predicate,
+                "object": t.object,
+            }
+            for t in raw  # type: ignore[arg-type]
+        ]
+        return ("construct", triples)
+    return ("select", [], [])
+
+
 def _format_query_result(result: object, fmt: str) -> None:
-    result_type = type(result).__name__
-
-    if result_type == "QueryBoolean" or isinstance(result, bool):
-        _format_ask_result(result, fmt)
-    elif result_type == "QuerySolutions":
-        _format_select_result(result, fmt)
-    elif result_type == "QueryTriples":
-        _format_construct_result(result, fmt)
-    else:
-        _format_select_result(result, fmt)
+    kind = result[0]  # type: ignore[index]
+    if kind == "ask":
+        _format_ask_result(result[1], fmt)  # type: ignore[index]
+    elif kind == "select":
+        _format_select_result(result[1], result[2], fmt)  # type: ignore[index]
+    elif kind == "construct":
+        _format_construct_result(result[1], fmt)  # type: ignore[index]
 
 
-def _format_ask_result(result: object, fmt: str) -> None:
-    value = bool(result)
+def _format_ask_result(value: bool, fmt: str) -> None:
     if fmt == "json":
         click.echo(json.dumps({"result": value}))
     else:
         click.echo("true" if value else "false")
 
 
-def _format_select_result(result: object, fmt: str) -> None:
-    if hasattr(result, "variables"):
-        raw_vars = list(result.variables)  # type: ignore[union-attr]
-        variables = [str(v).lstrip("?") for v in raw_vars]
-    else:
-        raw_vars = []
-        variables = []
-
-    rows_data: list[dict[str, str]] = []
-    for row in result:  # type: ignore[arg-type]
-        record: dict[str, str] = {}
-        for raw_var, name in zip(raw_vars, variables, strict=True):
-            try:
-                val = row[raw_var]
-            except (KeyError, IndexError):
-                val = None
-            record[name] = _term_to_str(val)
-        rows_data.append(record)
-
+def _format_select_result(
+    variables: list[str], rows_data: list[dict[str, str]], fmt: str
+) -> None:
     if fmt == "json":
         click.echo(json.dumps(rows_data, indent=2, ensure_ascii=False))
         return
@@ -923,15 +957,15 @@ def _format_select_result(result: object, fmt: str) -> None:
         click.echo(line)
 
 
-def _format_construct_result(result: object, fmt: str) -> None:
-    triples = list(result)  # type: ignore[arg-type]
-
+def _format_construct_result(
+    triples: list[dict[str, object]], fmt: str
+) -> None:
     if fmt == "json":
         out = [
             {
-                "subject": _term_to_str(t.subject),
-                "predicate": _term_to_str(t.predicate),
-                "object": _term_to_str(t.object),
+                "subject": _term_to_str(t["subject"]),
+                "predicate": _term_to_str(t["predicate"]),
+                "object": _term_to_str(t["object"]),
             }
             for t in triples
         ]
@@ -940,19 +974,20 @@ def _format_construct_result(result: object, fmt: str) -> None:
 
     if fmt == "turtle":
         for t in triples:
-            s = _ntriples_term(t.subject)
-            p = _ntriples_term(t.predicate)
-            o = _ntriples_term(t.object)
-            click.echo(f"{s} {p} {o} .")
+            click.echo(
+                f"{_ntriples_term(t['subject'])} "
+                f"{_ntriples_term(t['predicate'])} "
+                f"{_ntriples_term(t['object'])} ."
+            )
         return
 
     col_widths = {"subject": 7, "predicate": 9, "object": 6}
     rows = []
     for t in triples:
         row = {
-            "subject": _term_to_str(t.subject),
-            "predicate": _term_to_str(t.predicate),
-            "object": _term_to_str(t.object),
+            "subject": _term_to_str(t["subject"]),
+            "predicate": _term_to_str(t["predicate"]),
+            "object": _term_to_str(t["object"]),
         }
         for k in col_widths:
             col_widths[k] = max(col_widths[k], len(row[k]))

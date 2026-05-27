@@ -487,14 +487,16 @@ def legacy_validate_report(
     cfg = _config_for(project_root, db_path=db_path, overrides=config)
     if not cfg.kg_active_doc_types:
         return _legacy_validate_report(project_root)
-    return _kg_validate_report(cfg, kg=kg)
+    return _kg_validate_report(cfg, project_root=Path(project_root), kg=kg)
 
 
 def _kg_validate_report(
     config: KGConfig,
     *,
+    project_root: Path,
     kg: KnowledgeGraph | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
+    from cataforge.kg.reconcile import reconcile as _kg_reconcile  # noqa: PLC0415
     from cataforge.kg.validate import validate as _kg_validate  # noqa: PLC0415
 
     report: dict[str, list[dict[str, Any]]] = {
@@ -522,6 +524,10 @@ def _kg_validate_report(
                 report["xref_errors"].append(entry)
         for src, dst in kg_inst.trace.stale_dependencies():
             report["stale_deps"].append({"from": src, "to": dst})
+        rec = _kg_reconcile(kg_inst.store, project_root, config)
+        for per in rec.per_doc_type.values():
+            for entity_id in per.ghost_entities:
+                report["stale"].append({"id": entity_id})
     return report
 
 
