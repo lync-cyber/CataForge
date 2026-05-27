@@ -23,7 +23,7 @@ from pathlib import Path
 
 # Reconfigure stdio to UTF-8 so Chinese characters in error messages don't
 # crash on Windows cp1252 terminals. Inline (rather than importing
-# cataforge.utils.common.ensure_utf8_stdio) so this script works in CI
+# cataforge.utils.common.ensure_utf8) so this script works in CI
 # before the editable install runs.
 for _stream_name in ("stdout", "stderr"):
     _stream = getattr(sys, _stream_name)

@@ -31,7 +31,7 @@ from cataforge.skill.builtins.code_review.wiring_patterns import (
     all_scanned_extensions,
     rule_for_extension,
 )
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 from cataforge.utils.run_subprocess import run as run_proc
 
 EXCLUDE_DIRS = {
@@ -395,7 +395,7 @@ class CodeScanner:
 
 
 def main() -> None:
-    ensure_utf8_stdio()
+    ensure_utf8()
     if len(sys.argv) < 2:
         print(
             "用法:\n"
