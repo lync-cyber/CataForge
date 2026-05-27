@@ -32,6 +32,7 @@ from cataforge.skill.builtins.code_review.wiring_patterns import (
     rule_for_extension,
 )
 from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.run_subprocess import run as run_proc
 
 EXCLUDE_DIRS = {
     "node_modules", ".git", "dist", "build", "__pycache__",
@@ -188,7 +189,7 @@ class CodeLinter:
         name = tool["name"]
         if name not in self.tool_cache:
             try:
-                subprocess.run(tool["detect"], capture_output=True, timeout=15)
+                run_proc(tool["detect"], timeout=15)
                 self.tool_cache[name] = True
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 self.tool_cache[name] = False
@@ -211,7 +212,7 @@ class CodeLinter:
             return
         cmd = (tool["fix"] if self.fix else tool["check"]) + [str(filepath)]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            result = run_proc(cmd, timeout=60)
             if result.returncode != 0:
                 output = (result.stdout + result.stderr).strip()
                 err_lines = [line for line in output.splitlines() if line.strip()]
@@ -322,14 +323,14 @@ class CodeScanner:
         if not (probe["extensions"] & present_exts):
             return
         try:
-            subprocess.run(probe["detect"], capture_output=True, timeout=15)
+            run_proc(probe["detect"], timeout=15)
         except (FileNotFoundError, subprocess.TimeoutExpired):
             print(f"WARN: probe '{name}' 未安装，跳过")
             self.skipped += 1
             return
         cmd = probe["build_cmd"](self.target)
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            result = run_proc(cmd, timeout=180)
         except subprocess.TimeoutExpired:
             print(f"WARN: probe '{name}' 超时")
             self.skipped += 1

@@ -46,6 +46,7 @@ def run(
     capture_output: bool = True,
     input: str | None = None,
     encoding: str = "utf-8",
+    errors: str = "strict",
 ) -> subprocess.CompletedProcess[str]:
     """Run *argv* with the repo-wide subprocess policy.
 
@@ -90,6 +91,7 @@ def run(
         input=input,
         text=True,
         encoding=encoding,
+        errors=errors,
         check=False,
     )
 

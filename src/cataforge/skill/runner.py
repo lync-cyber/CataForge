@@ -14,6 +14,7 @@ from pathlib import Path
 
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.skill.loader import SkillLoader, SkillMeta
+from cataforge.utils.run_subprocess import run as run_proc
 
 _DEFAULT_TIMEOUT_SECS = 300
 
@@ -105,15 +106,12 @@ class SkillRunner:
         # in the script's main(): both ends agree on UTF-8.
         t_start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = run_proc(
                 cmd,
-                cwd=str(self._paths.root),
+                cwd=self._paths.root,
                 env=env,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
                 timeout=effective_timeout,
+                errors="replace",
             )
         except subprocess.TimeoutExpired:
             duration = time.monotonic() - t_start
