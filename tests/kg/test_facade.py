@@ -139,3 +139,175 @@ def test_transaction_commit_and_rollback() -> None:
         txn.add(quad2)
         raise RuntimeError("boom")
     assert not list(kg.store.quads_for_pattern(quad2.subject, None, None, None))
+
+
+# ------------------------------------------------------------------
+# Q1 — QueryAPI.api() / .page() typed accessors (hit path)
+# ------------------------------------------------------------------
+
+
+def _make_kg_with_project():
+    from cataforge.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.kg.ingest.writer import write_project
+
+    config = KGConfig(store_backend="memory")
+    handle = init_store(config, force=True)
+    project_iri = write_project(
+        handle.raw, "proj-test", "Test", "waterfall", config
+    )
+    return KnowledgeGraph(handle.raw, config), config, project_iri
+
+
+def test_query_api_typed_accessor_returns_dict() -> None:
+    kg, config, project_iri = _make_kg_with_project()
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="API-001",
+            class_name="API",
+            title="POST /login",
+            source_doc="arch",
+            source_section="API-001 POST /login",
+            content_hash="api001hash",
+            project_iri=project_iri,
+        )
+
+    result = kg.query.api("API-001")
+    assert result is not None
+    assert result["_class"] == "API"
+    assert result["entity_id"] == "API-001"
+    assert result["title"] == "POST /login"
+
+    assert kg.query.api("API-999") is None
+
+
+def test_query_page_typed_accessor_returns_dict() -> None:
+    kg, config, project_iri = _make_kg_with_project()
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="P-001",
+            class_name="Page",
+            title="Dashboard",
+            source_doc="ui-spec",
+            source_section="P-001 Dashboard",
+            content_hash="p001hash",
+            project_iri=project_iri,
+        )
+
+    result = kg.query.page("P-001")
+    assert result is not None
+    assert result["_class"] == "Page"
+    assert result["entity_id"] == "P-001"
+    assert result["title"] == "Dashboard"
+
+    assert kg.query.page("P-999") is None
+
+
+# ------------------------------------------------------------------
+# Q2 — QueryAPI.depends_on() public + TraceAPI.stale_dependencies()
+# ------------------------------------------------------------------
+
+
+def test_depends_on_returns_dependency_ids() -> None:
+    kg, config, project_iri = _make_kg_with_project()
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="M-001",
+            class_name="Module",
+            title="Auth",
+            source_doc="arch",
+            source_section="M-001 Auth",
+            content_hash="m001hash",
+            project_iri=project_iri,
+        )
+        txn.add_entity(
+            entity_id="M-002",
+            class_name="Module",
+            title="Session",
+            source_doc="arch",
+            source_section="M-002 Session",
+            content_hash="m002hash",
+            project_iri=project_iri,
+        )
+        txn.add_relation("M-001", "cf:depends_on", "M-002")
+
+    deps = kg.query.depends_on("M-001")
+    assert deps == ["M-002"]
+
+
+def test_depends_on_empty_when_no_edges() -> None:
+    kg, config, project_iri = _make_kg_with_project()
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="F-001",
+            class_name="Feature",
+            title="Login",
+            source_doc="prd",
+            source_section="F-001 Login",
+            content_hash="f001hash",
+            project_iri=project_iri,
+        )
+
+    deps = kg.query.depends_on("F-001")
+    assert deps == []
+
+
+def test_stale_dependencies_empty_on_matching_hashes() -> None:
+    kg, config, project_iri = _make_kg_with_project()
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="M-001",
+            class_name="Module",
+            title="Auth",
+            source_doc="arch",
+            source_section="M-001 Auth",
+            content_hash="same_hash",
+            project_iri=project_iri,
+        )
+        txn.add_entity(
+            entity_id="M-002",
+            class_name="Module",
+            title="Session",
+            source_doc="arch",
+            source_section="M-002 Session",
+            content_hash="same_hash",
+            project_iri=project_iri,
+        )
+        txn.add_relation("M-001", "cf:depends_on", "M-002")
+
+    stale = kg.trace.stale_dependencies()
+    assert stale == []
+
+
+def test_stale_dependencies_detects_hash_mismatch() -> None:
+    kg, config, project_iri = _make_kg_with_project()
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="M-001",
+            class_name="Module",
+            title="Auth",
+            source_doc="arch",
+            source_section="M-001 Auth",
+            content_hash="hash_aaa",
+            project_iri=project_iri,
+        )
+        txn.add_entity(
+            entity_id="M-002",
+            class_name="Module",
+            title="Session",
+            source_doc="arch",
+            source_section="M-002 Session",
+            content_hash="hash_bbb",
+            project_iri=project_iri,
+        )
+        txn.add_relation("M-001", "cf:depends_on", "M-002")
+
+    stale = kg.trace.stale_dependencies()
+    assert len(stale) == 1
+    assert stale[0] == ("M-001", "M-002")
+
+
+@pytest.mark.parametrize("variant", VARIANTS)
+def test_stale_dependencies_empty_on_clean_fixture(variant: str) -> None:
+    kg, _ = _open_and_ingest(variant)
+    stale = kg.trace.stale_dependencies()
+    assert stale == []

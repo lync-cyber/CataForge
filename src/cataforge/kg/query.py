@@ -288,7 +288,7 @@ class QueryAPI:
 
         if include_related:
             for eid in list(seeds):
-                for dep in self._depends_on(eid):
+                for dep in self.depends_on(eid):
                     if dep not in seen:
                         seen.add(dep)
                         seeds.append(dep)
@@ -316,7 +316,7 @@ class QueryAPI:
     def _cf_ns(self) -> str:
         return self._config.ontology_namespace.rstrip("/") + "/"
 
-    def _depends_on(self, entity_id: str) -> list[str]:
+    def depends_on(self, entity_id: str) -> list[str]:
         ns = self._cf_ns()
         uri = entity_iri(entity_id, self._config.base_namespace)
         sparql = (
