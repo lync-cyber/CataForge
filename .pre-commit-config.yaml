@@ -122,17 +122,15 @@ repos:
         language: system
         pass_filenames: false
         files: ^src/cataforge/cli/.*\.py$
-      - id: raw-subprocess-inventory
-        name: raw subprocess inventory (advisory)
+      - id: no-raw-subprocess
+        name: no raw subprocess.run outside the wrapper
         description: |
-          Counts raw subprocess.run / Popen / call sites under
-          src/cataforge/ that have not yet migrated to
-          cataforge.utils.run_subprocess.run. Today this exits 0 (the
-          migration is gradual) but surfaces the backlog on every
-          commit so it stays visible. Will flip to enforcement
-          (ADVISORY_MODE = False in the script) once the migration is
-          done. Per-call exemption: `# allow-raw-subprocess: <reason>`
-          inline.
+          Every src/cataforge/ subprocess.run / Popen / call must go
+          through cataforge.utils.run_subprocess.run, which centralises
+          timeout / text mode / encoding / check=False policy. Sites
+          the wrapper deliberately doesn't cover (Popen for long-running
+          processes, shell=True with **proc_kwargs passthrough) carry
+          an inline `# allow-raw-subprocess: <reason>` exemption.
         entry: python scripts/checks/check_no_raw_subprocess.py
         language: system
         pass_filenames: false

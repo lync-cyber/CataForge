@@ -260,16 +260,16 @@ def _try_junction(source: Path, target: Path, removed: list[bool]) -> list[str] 
     if os.name != "nt":
         return None
     global _JUNCTION_WARNING_EMITTED
-    import subprocess
+    from cataforge.utils.run_subprocess import run as run_proc
 
     _remove_target_once(target, removed)
     try:
-        subprocess.run(
+        result = run_proc(
             ["cmd", "/c", "mklink", "/J", str(target), str(source)],
-            check=True,
-            capture_output=True,
         )
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except FileNotFoundError:
+        return None
+    if result.returncode != 0:
         return None
 
     actions = [f"{target} → {source} (junction)"]

@@ -120,22 +120,23 @@ class TestRemoveTargetIdempotency:
         def _denied_symlink(*_a, **_kw):
             raise OSError(1314, "privilege not held")
 
-        real_run = subprocess.run
-
         def _denied_mklink(args, *a, **kw):
-            if (
-                isinstance(args, list)
-                and len(args) >= 3
-                and args[0] == "cmd"
-                and "mklink" in args
-            ):
-                raise subprocess.CalledProcessError(
-                    returncode=1, cmd=args, output=b"", stderr=b"mklink denied"
-                )
-            return real_run(args, *a, **kw)
+            # The junction strategy now goes through
+            # cataforge.utils.run_subprocess.run, which never raises
+            # CalledProcessError — it returns a CompletedProcess and
+            # helpers._try_junction inspects ``.returncode``. Mirror that
+            # contract: return rc=1 to simulate "mklink denied".
+            return subprocess.CompletedProcess(
+                args=args, returncode=1, stdout="", stderr="mklink denied"
+            )
 
         monkeypatch.setattr(os, "symlink", _denied_symlink)
-        monkeypatch.setattr(subprocess, "run", _denied_mklink)
+        # Patch where helpers.py imports `run_proc` (the lazy local import
+        # inside _try_junction). monkeypatching the wrapper module itself
+        # would miss the binding because the import happens at call time.
+        monkeypatch.setattr(
+            "cataforge.utils.run_subprocess.run", _denied_mklink
+        )
         spy = _RemoveTargetSpy(monkeypatch)
 
         actions = symlink_or_copy(src, target)

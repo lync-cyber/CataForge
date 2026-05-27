@@ -57,7 +57,12 @@ class TestProbeCommandShellOff:
         assert "curl http://x; rm -rf /" in lhc
 
     def test_list_target_runs_shell_false(self, project: Path) -> None:
-        """A list health_check.target calls subprocess with shell=False and exact argv."""
+        """A list health_check.target calls the wrapper with the exact argv.
+
+        ``shell=False`` is now structurally guaranteed: lifecycle goes through
+        ``cataforge.utils.run_subprocess.run``, which has no ``shell=``
+        parameter at all. The assertion is therefore on the argv shape.
+        """
         _write_spec(
             project,
             "list-target",
@@ -73,15 +78,15 @@ class TestProbeCommandShellOff:
 
         captured_calls: list[dict] = []
 
-        import subprocess as _subprocess
+        from cataforge.utils import run_subprocess as _wrapper
 
-        original_run = _subprocess.run
+        original_run = _wrapper.run
 
         def capturing_run(args, **kwargs):
             captured_calls.append({"args": args, "kwargs": kwargs})
             return original_run(args, **kwargs)
 
-        with patch("cataforge.mcp.lifecycle.subprocess.run", side_effect=capturing_run):
+        with patch("cataforge.mcp.lifecycle.run_proc", side_effect=capturing_run):
             state = mgr.health("list-target")
 
         assert state is not None
@@ -89,9 +94,8 @@ class TestProbeCommandShellOff:
         assert "healthy" in lhc
         assert "exit 0" in lhc
 
-        assert captured_calls, "subprocess.run must have been called"
+        assert captured_calls, "wrapper must have been called"
         call = captured_calls[0]
-        assert call["kwargs"].get("shell") is False, "shell must be False"
         assert call["args"] == [sys.executable, "-c", "import sys; sys.exit(0)"], (
             "argv must be passed exactly as given"
         )

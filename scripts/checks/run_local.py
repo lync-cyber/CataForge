@@ -67,12 +67,11 @@ CHECKS: list[tuple[str, list[str]]] = [
             str(REPO_ROOT / "scripts" / "checks" / "check_schema_python_parity.py"),
         ],
     ),
-    # Advisory inventory of raw subprocess calls — exits 0 today but
-    # surfaces the migration backlog at every commit so the count
-    # stays visible. Will flip to enforcement (ADVISORY_MODE = False
-    # in the script) once the migration is done.
+    # Enforced: every src/cataforge/ subprocess.run / Popen / call must
+    # either go through cataforge.utils.run_subprocess.run or carry an
+    # inline `# allow-raw-subprocess: <reason>` exemption.
     (
-        "raw-subprocess inventory (advisory)",
+        "no raw subprocess outside the wrapper",
         [
             sys.executable,
             str(REPO_ROOT / "scripts" / "checks" / "check_no_raw_subprocess.py"),

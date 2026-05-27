@@ -1,23 +1,26 @@
 #!/usr/bin/env python3
-"""Advisory inventory of raw ``subprocess.run`` / ``subprocess.Popen``
-call sites under ``src/cataforge/``.
+"""Enforced guard against raw ``subprocess.run`` / ``subprocess.Popen``
+call sites outside :mod:`cataforge.utils.run_subprocess`.
 
-Background: the project's ~46 raw ``subprocess.run`` invocations each
-made independent decisions about timeout, ``check=True`` vs
-``check=False``, ``capture_output=True`` vs explicit ``stdout=PIPE``,
-text mode + encoding. A Codex shell-out and a git probe ended up
-handling errors in subtly different ways even when both "just wanted
-to capture stdout."
+Background: the project's raw ``subprocess.run`` invocations each made
+independent decisions about timeout, ``check=True`` vs ``check=False``,
+``capture_output=True`` vs explicit ``stdout=PIPE``, text mode +
+encoding. A Codex shell-out and a git probe ended up handling errors
+in subtly different ways even when both "just wanted to capture
+stdout."
 
-The unified wrapper at :mod:`cataforge.utils.run_subprocess` exists to
-collapse that policy surface to one entry point. Migration is gradual
-(each call site has its own subtle reasons), so this guard is
-**advisory only** today: it reports the current count and exits 0.
+The unified wrapper at :mod:`cataforge.utils.run_subprocess` collapses
+that policy surface to one entry point: every ``subprocess.run`` call
+under ``src/cataforge/`` must either go through ``run_proc`` or carry
+an inline ``# allow-raw-subprocess: <reason>`` exemption.
 
-Once the migration is far enough along that the remaining call sites
-genuinely need exemption (and have ``# allow-raw-subprocess: <reason>``
-inline comments), flip the ``ADVISORY_MODE`` constant below to
-``False`` and the guard will start enforcing.
+Legitimate exemptions (the wrapper deliberately doesn't cover these):
+
+* ``subprocess.Popen`` for long-running processes (MCP server,
+  Docker Desktop launcher) — the wrapper is one-shot ``run`` only.
+* ``subprocess.run(..., shell=True, **proc_kwargs)`` where the call
+  site needs ``shell=True`` and ``args=`` kwarg passthrough — the
+  wrapper takes argv positionally with no ``shell=`` parameter.
 """
 from __future__ import annotations
 
@@ -44,7 +47,7 @@ EXEMPT_PATHS = (
 RAW_RE = re.compile(r"\bsubprocess\.(run|Popen|call|check_output|check_call)\s*\(")
 ALLOW_MARKER = "# allow-raw-subprocess"
 
-ADVISORY_MODE = True
+ADVISORY_MODE = False
 
 
 def main() -> int:
