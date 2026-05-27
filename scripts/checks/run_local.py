@@ -67,6 +67,12 @@ CHECKS: list[tuple[str, list[str]]] = [
             str(REPO_ROOT / "scripts" / "checks" / "check_schema_python_parity.py"),
         ],
     ),
+    # `uv lock --check` is not in .pre-commit-config.yaml (it needs the uv
+    # binary, which is not pip-installable), but CI runs it and a stale
+    # lockfile fails the build. Keep it in this wrapper to close the loop.
+    # Skipped gracefully when uv is not on PATH so the wrapper still works
+    # on Python-only contributor setups.
+    ("uv lockfile freshness", ["uv", "lock", "--check"]),
 ]
 
 
@@ -79,9 +85,19 @@ def main() -> int:
             _stream.reconfigure(encoding="utf-8", errors="replace")
 
     failed: list[str] = []
+    skipped: list[str] = []
     for label, argv in CHECKS:
         print(f"\n=== {label} ===", flush=True)
-        result = subprocess.run(argv, cwd=REPO_ROOT, check=False)  # noqa: S603
+        try:
+            result = subprocess.run(argv, cwd=REPO_ROOT, check=False)  # noqa: S603
+        except FileNotFoundError:
+            print(
+                f"  (skipped — `{argv[0]}` not on PATH; install it or run "
+                f"via CI to cover this check)",
+                flush=True,
+            )
+            skipped.append(label)
+            continue
         if result.returncode != 0:
             failed.append(label)
 
@@ -91,7 +107,9 @@ def main() -> int:
         for label in failed:
             print(f"  - {label}", file=sys.stderr)
         return 1
-    print(f"OK: {len(CHECKS)} checks passed")
+    ran = len(CHECKS) - len(skipped)
+    suffix = f" ({len(skipped)} skipped)" if skipped else ""
+    print(f"OK: {ran} checks passed{suffix}")
     return 0
 
 
