@@ -1,8 +1,8 @@
 # KG 0.5.0 GA Backlog
 
-Tracks work remaining after the P0 implementation landed on branch
-`claude/knowledge-graph-progress-LNzCP`. Reference: the original
-design lives in this directory's task-1 through task-7 documents.
+Tracks work remaining after the P0 implementation landed. Reference:
+the original design lives in this directory's task-1 through task-7
+documents.
 
 ## Completed (P0)
 
@@ -17,16 +17,21 @@ design lives in this directory's task-1 through task-7 documents.
 | — | Error hierarchy: `KGTransactionConflictError`, `KGValidationError`, `KGEntityNotFoundError` | `_errors.py` |
 | — | Quad construction extracted to shared module | `_quads.py` |
 
-Test count: 154 passed, 4 skipped (codegen CLI).
+## Completed (P1)
 
-## P1 — high-value user-visible features
+| ID | Deliverable | Files |
+|----|-------------|-------|
+| C1 | `cataforge kg query` CLI — SPARQL SELECT/ASK/CONSTRUCT with table/json/turtle output, `--limit`, `.sparql` file input | `kg_cmd.py`, `errors.py` |
+| C2 | `cataforge kg trace` CLI — traceability chain with downstream/upstream/both, table/json/mermaid output, `--coverage` global matrix | `kg_cmd.py` |
+| Q1 | `QueryAPI.api()` / `.page()` typed accessors — hit-path tests confirmed (accessors landed in sub-PR 5) | `test_facade.py` |
+| Q2 | `QueryAPI.depends_on()` promoted to public API + `TraceAPI.stale_dependencies()` direct integration tests | `query.py`, `_shim.py`, `test_facade.py`, `test_group_a_remaining.py` |
+
+Test count: 186 passed, 4 skipped (codegen CLI).
+
+## P1 — remaining
 
 | ID | Task | Scope | Depends on |
 |----|------|-------|------------|
-| C1 | `cataforge kg query` CLI (SPARQL-only; NL deferred) | ~200 LOC: SPARQL parse, output format dispatch (table/json/turtle), timeout via `KGConfig.query_timeout` | — |
-| C2 | `cataforge kg trace` CLI | ~250 LOC: wrap `TraceAPI.from_requirement` + `bidirectional_coverage`; `--output mermaid` renderer | — |
-| Q1 | `QueryAPI.api()` / `.page()` typed accessors | ~30 LOC: 1:1 with existing `feature()` / `module()` pattern | — |
-| Q2 | `QueryAPI._depends_on()` public + `TraceAPI.stale_dependencies()` integration test | ~50 LOC: `_depends_on` already implemented, needs public exposure + test | — |
 | H1 | `TechStack` entity: core.yaml schema update + ingest codemod for arch §1.4 | ~150 LOC: schema slot + `ingest/migrate.py` extractor | — |
 
 ## P2 — stability and compliance
@@ -55,10 +60,10 @@ Test count: 154 passed, 4 skipped (codegen CLI).
 ## Dependency graph
 
 ```
-C1 (kg query CLI) ─────────────────────────────┐
-C2 (kg trace CLI) ─────────────────────────────┤
-Q1 (api/page accessors) ───────────────────────┤
-Q2 (_depends_on public) ──→ S3 (xref audit) ──┤
+✅ C1 (kg query CLI) ──────────────────────────┐
+✅ C2 (kg trace CLI) ──────────────────────────┤
+✅ Q1 (api/page accessors) ────────────────────┤
+✅ Q2 (depends_on public) ──→ S3 (xref audit) ┤
 H1 (TechStack schema) ────────────────────────┤
                                                ├──→ GA gate
 T2 (golden-file) ─────────────────────────────┤
@@ -81,9 +86,10 @@ All must be verifiable, never time-based:
 
 ## Sizing summary
 
-| Priority | Estimated LOC | Suggested sub-PRs |
-|----------|---------------|--------------------|
-| P1 | ~680 | 2 (CLI query+trace / QueryAPI+TechStack) |
-| P2 | ~800 | 1–2 (SHACL decision + audit + test hardening) |
-| P3 | ~1870 | as needed |
-| **GA total** | **~1480** (P1+P2) | **3–4 sub-PRs** |
+| Priority | Estimated LOC | Status |
+|----------|---------------|--------|
+| P1 C1+C2+Q1+Q2 | ~530 delivered | done |
+| P1 H1 | ~150 | remaining |
+| P2 | ~800 | 1–2 sub-PRs |
+| P3 | ~1870 | post-GA |
+| **GA remaining** | **~950** (H1+P2) | **2–3 sub-PRs** |

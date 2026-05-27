@@ -404,7 +404,7 @@ def resolve_deps(
     cfg = _config_for(project_root, db_path=db_path, overrides=config)
     if cfg.kg_active_doc_types:
         with _kg_session(cfg, kg=kg) as kg_inst:
-            return kg_inst.query._depends_on(item_id)
+            return kg_inst.query.depends_on(item_id)
     return _legacy_resolve_deps(item_id, project_root)
 
 

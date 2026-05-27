@@ -110,14 +110,14 @@ def test_a7_plan_load_respects_token_budget() -> None:
 def test_a8_depends_on_edge_discoverable() -> None:
     """A8: manually-added cf:depends_on edge is queryable via _depends_on."""
     kg, _ = _open_and_ingest_with_deps()
-    deps = kg.query._depends_on("M-001")
+    deps = kg.query.depends_on("M-001")
     assert "M-002" in deps
 
 
 def test_a8_depends_on_empty_when_no_deps() -> None:
     """A8: entity with no depends_on edges returns empty list."""
     kg, _ = _open_and_ingest()
-    deps = kg.query._depends_on("F-001")
+    deps = kg.query.depends_on("F-001")
     assert deps == []
 
 

@@ -31,6 +31,7 @@ import click
 
 EXIT_GENERIC_FAILURE = 1
 EXIT_KG_VERIFICATION_FAILED = 3
+EXIT_QUERY_TIMEOUT = 6
 EXIT_NOT_IMPLEMENTED = 70  # BSD sysexits.h EX_SOFTWARE
 
 
@@ -118,14 +119,22 @@ class KGVerificationError(KGError):
     exit_code = EXIT_KG_VERIFICATION_FAILED
 
 
+class KGQueryTimeoutError(KGError):
+    """Raised when a SPARQL query exceeds the configured timeout."""
+
+    exit_code = EXIT_QUERY_TIMEOUT
+
+
 __all__ = [
     "CataforgeError",
     "ConfigError",
     "EXIT_GENERIC_FAILURE",
     "EXIT_KG_VERIFICATION_FAILED",
     "EXIT_NOT_IMPLEMENTED",
+    "EXIT_QUERY_TIMEOUT",
     "ExternalToolError",
     "KGError",
+    "KGQueryTimeoutError",
     "KGStoreError",
     "KGVerificationError",
     "NotImplementedFeature",
