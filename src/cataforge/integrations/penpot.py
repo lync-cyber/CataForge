@@ -61,6 +61,13 @@ DEFAULT_PLUGIN_PORT = 4400
 # adds new build-script-bearing dependencies that pnpm 10+ refuses by default.
 DEFAULT_MCP_PACKAGE_VERSION = "latest"
 
+# Pin every ``penpotapp/*`` container image (frontend / backend / exporter /
+# mcp) to a known-good upstream release. ``latest`` floats and has caused
+# silent breakage when new required services (e.g. ``penpot-mcp`` in 2.15)
+# appeared in upstream's reference compose without matching changes here.
+# Override with ``PENPOT_IMAGE_TAG=<tag>`` to follow a different release.
+DEFAULT_PENPOT_IMAGE_TAG = "2.15"
+
 # Node major versions @penpot/mcp upstream tests against. Outside this range
 # we still let the user proceed (warn only) — pinning hard is too aggressive
 # given how often Node majors shift on developer machines.
@@ -94,7 +101,7 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
       penpot_assets:
     services:
       penpot-frontend:
-        image: penpotapp/frontend:latest
+        image: penpotapp/frontend:{image_tag}
         restart: always
         ports:
           - "{penpot_port}:8080"
@@ -103,18 +110,14 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
         depends_on:
           - penpot-backend
           - penpot-exporter
+          - penpot-mcp
         networks:
           - penpot
         environment:
-          # Frontend nginx hard-resolves `penpot-mcp` at startup unless these
-          # URIs are overridden; placeholder localhost + disable-mcp keep
-          # nginx happy while the real MCP runs on the host via npx.
-          - PENPOT_FLAGS={penpot_flags} disable-mcp
-          - PENPOT_MCP_URI=http://127.0.0.1
-          - PENPOT_MCP_URI_WS=http://127.0.0.1
+          - PENPOT_FLAGS={penpot_flags}
           - PENPOT_HTTP_SERVER_MAX_BODY_SIZE=367001600
       penpot-backend:
-        image: penpotapp/backend:latest
+        image: penpotapp/backend:{image_tag}
         restart: always
         volumes:
           - penpot_assets:/opt/data/assets
@@ -144,7 +147,7 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
           - PENPOT_SMTP_TLS=false
           - PENPOT_SMTP_SSL=false
       penpot-exporter:
-        image: penpotapp/exporter:latest
+        image: penpotapp/exporter:{image_tag}
         restart: always
         depends_on:
           penpot-valkey:
@@ -155,6 +158,11 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
           - PENPOT_SECRET_KEY={secret_key}
           - PENPOT_PUBLIC_URI=http://penpot-frontend:8080
           - PENPOT_REDIS_URI=redis://penpot-valkey/0
+      penpot-mcp:
+        image: penpotapp/mcp:{image_tag}
+        restart: always
+        networks:
+          - penpot
       penpot-postgres:
         image: postgres:15
         restart: always
@@ -216,6 +224,7 @@ def get_config() -> dict[str, Any]:
         "mcp_version": os.environ.get(
             "PENPOT_MCP_VERSION", DEFAULT_MCP_PACKAGE_VERSION
         ),
+        "image_tag": os.environ.get("PENPOT_IMAGE_TAG", DEFAULT_PENPOT_IMAGE_TAG),
     }
 
 
@@ -246,6 +255,7 @@ def _generate_compose_file(config: dict, force: bool = False) -> str:
         penpot_port=config["penpot_port"],
         penpot_flags=config["penpot_flags"],
         secret_key=secret_key,
+        image_tag=config["image_tag"],
     )
     with open(compose_file, "w", encoding="utf-8") as f:
         f.write(content)
@@ -864,10 +874,14 @@ def cmd_doctor(config: dict) -> int:
                 content = fh.read()
         except OSError:
             content = ""
-        if "disable-mcp" in content and "PENPOT_MCP_URI" in content:
-            ok("compose 已应用 nginx upstream 修复 (Bug 1)")
+        tag = config["image_tag"]
+        if "penpot-mcp:" in content and f":{tag}" in content:
+            ok(f"compose 含 penpot-mcp 服务且 image tag 已固定为 {tag}")
         else:
-            warn("compose 文件未包含 disable-mcp / PENPOT_MCP_URI 占位（Bug 1 未修）")
+            warn(
+                f"compose 文件缺少 penpot-mcp 服务或未固定 image tag ({tag}) — "
+                f"2.15 frontend 要求 penpot-mcp upstream 才能启动"
+            )
             problems.append("compose-stale")
             actions.append(
                 "运行 `cataforge penpot deploy --force-recreate` "

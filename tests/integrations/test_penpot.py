@@ -333,25 +333,52 @@ def test_mcp_pid_roundtrip(tmp_path, monkeypatch: pytest.MonkeyPatch):
 
 
 # ---------------------------------------------------------------------------
-# Wave 1 — compose template fix (Bug 1: nginx penpot-mcp upstream)
+# Compose template — penpot-mcp service + pinned image tags so the 2.15
+# frontend's hard-coded ``upstream penpot-mcp`` nginx config resolves.
 # ---------------------------------------------------------------------------
 
 
-def test_compose_template_disables_mcp_routing(tmp_path) -> None:
+def test_compose_template_declares_penpot_mcp_service(tmp_path) -> None:
     config = {
         "penpot_dir": str(tmp_path),
         "penpot_port": 9001,
         "penpot_flags": "enable-login-with-password",
+        "image_tag": penpot.DEFAULT_PENPOT_IMAGE_TAG,
     }
     compose_path = penpot._generate_compose_file(config, force=True)
     content = (tmp_path / "docker-compose.yml").read_text(encoding="utf-8")
 
     assert str(compose_path) == str(tmp_path / "docker-compose.yml")
-    # disable-mcp is appended so frontend nginx skips the MCP upstream entirely
-    assert "disable-mcp" in content
-    # Placeholder URIs prevent nginx from hard-resolving penpot-mcp at startup
-    assert "PENPOT_MCP_URI=http://127.0.0.1" in content
-    assert "PENPOT_MCP_URI_WS=http://127.0.0.1" in content
+    # 2.15 frontend hard-resolves nginx upstream `penpot-mcp` — without this
+    # service the container exits with "host not found in upstream".
+    assert "penpot-mcp:" in content
+    assert "- penpot-mcp" in content  # frontend depends_on entry
+    # Every penpotapp/* image must be pinned to config["image_tag"].
+    for image in (
+        "penpotapp/frontend",
+        "penpotapp/backend",
+        "penpotapp/exporter",
+        "penpotapp/mcp",
+    ):
+        assert f"{image}:{penpot.DEFAULT_PENPOT_IMAGE_TAG}" in content
+
+
+def test_image_tag_env_override(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.setenv("PENPOT_IMAGE_TAG", "nightly")
+    config = penpot.get_config()
+    config["penpot_dir"] = str(tmp_path)
+
+    penpot._generate_compose_file(config, force=True)
+    body = (tmp_path / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "penpotapp/frontend:nightly" in body
+    assert "penpotapp/mcp:nightly" in body
+
+
+def test_image_tag_default_when_env_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PENPOT_IMAGE_TAG", raising=False)
+    cfg = penpot.get_config()
+    assert cfg["image_tag"] == penpot.DEFAULT_PENPOT_IMAGE_TAG
 
 
 # ---------------------------------------------------------------------------
@@ -651,8 +678,10 @@ def test_cmd_status_table_prints_next_step_when_mcp_down(capsys) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cmd_doctor_flags_missing_compose_fix(tmp_path, capsys) -> None:
-    """Compose without disable-mcp triggers Bug 1 problem."""
+def test_cmd_doctor_flags_stale_compose_without_penpot_mcp(tmp_path, capsys) -> None:
+    """A compose file lacking the penpot-mcp service or pinned image tag
+    triggers the doctor's stale-template warning so users know to re-run
+    ``cataforge penpot deploy --force-recreate``."""
     compose = tmp_path / "docker-compose.yml"
     compose.write_text(
         "services:\n  penpot-frontend:\n    image: penpotapp/frontend:latest\n",
@@ -663,6 +692,7 @@ def test_cmd_doctor_flags_missing_compose_fix(tmp_path, capsys) -> None:
         "penpot_port": 9001,
         "mcp_port": 4401,
         "plugin_port": 4400,
+        "image_tag": penpot.DEFAULT_PENPOT_IMAGE_TAG,
     }
     with (
         patch("cataforge.integrations.penpot.has_command", return_value=True),
@@ -678,16 +708,18 @@ def test_cmd_doctor_flags_missing_compose_fix(tmp_path, capsys) -> None:
         rc = penpot.cmd_doctor(config)
     out = capsys.readouterr().out
     assert rc == 1
-    assert "disable-mcp" in out or "force-recreate" in out
+    assert "penpot-mcp" in out or "force-recreate" in out
 
 
-def test_cmd_doctor_passes_on_fixed_compose(tmp_path, capsys) -> None:
-    """Compose with the fix applied + healthy env should not report problems."""
+def test_cmd_doctor_passes_on_fresh_compose(tmp_path, capsys) -> None:
+    """Compose with penpot-mcp service + pinned image tag + healthy env
+    should not report problems."""
     compose = tmp_path / "docker-compose.yml"
+    tag = penpot.DEFAULT_PENPOT_IMAGE_TAG
     compose.write_text(
-        "services:\n  penpot-frontend:\n    environment:\n"
-        "      - PENPOT_FLAGS=foo disable-mcp\n"
-        "      - PENPOT_MCP_URI=http://127.0.0.1\n",
+        f"services:\n"
+        f"  penpot-frontend:\n    image: penpotapp/frontend:{tag}\n"
+        f"  penpot-mcp:\n    image: penpotapp/mcp:{tag}\n",
         encoding="utf-8",
     )
     config = {
@@ -695,6 +727,7 @@ def test_cmd_doctor_passes_on_fixed_compose(tmp_path, capsys) -> None:
         "penpot_port": 9001,
         "mcp_port": 4401,
         "plugin_port": 4400,
+        "image_tag": tag,
     }
     with (
         patch("cataforge.integrations.penpot.has_command", return_value=True),
