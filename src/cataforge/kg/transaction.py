@@ -238,9 +238,15 @@ class TransactionContext:
     # ------------------------------------------------------------------
 
     def commit(self) -> None:
-        """Apply staged removes followed by adds. Idempotent on re-call."""
-        if self._committed or self._rolled_back:
-            return
+        """Apply staged removes followed by adds."""
+        if self._rolled_back:
+            raise RuntimeError(
+                "Cannot commit a transaction that has already been rolled back."
+            )
+        if self._committed:
+            raise RuntimeError(
+                "Transaction has already been committed."
+            )
         for q in self._staged_removes:
             self._store.remove(q)
         for q in self._staged_adds:
@@ -290,10 +296,12 @@ def transaction(store: ox.Store, config: KGConfig) -> Iterator[TransactionContex
     try:
         yield txn
     except Exception:
-        txn.rollback()
+        if not txn._committed:
+            txn.rollback()
         raise
     else:
-        txn.commit()
+        if not txn._committed:
+            txn.commit()
 
 
 __all__ = [

@@ -1,4 +1,4 @@
-"""Six-phase migration orchestrator (task-7 §7.2)."""
+"""Six-phase migration orchestrator."""
 from __future__ import annotations
 
 import json
@@ -27,7 +27,6 @@ from cataforge.kg.ingest.writer import (
 if TYPE_CHECKING:
     import pyoxigraph as ox
 
-# Sub-PR 3 round-2 decision: Alpha first slice is prd / arch / test-report.
 DEFAULT_DOC_TYPES = ("prd", "arch", "test-report")
 
 

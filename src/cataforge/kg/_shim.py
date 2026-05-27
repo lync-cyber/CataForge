@@ -1,8 +1,7 @@
 """Backward-compatible shims for 0.4.x business-doc call points.
 
-Task 5 §5.5 + Task 6 §6.5. Every public entry point dispatches on
-`doc_type in KGConfig.kg_active_doc_types` (per-doc_type rolling
-cutover, Task 7 §7.5). The KG branch runs against a `KnowledgeGraph`
+Every public entry point dispatches on `doc_type in KGConfig.kg_active_doc_types`
+(per-doc_type rolling cutover). The KG branch runs against a `KnowledgeGraph`
 connection; the legacy branch delegates to :mod:`cataforge.docs.loader`
 and :mod:`cataforge.docs.indexer` so non-active doc_types continue to
 work exactly as in 0.4.x.
@@ -417,7 +416,7 @@ def _legacy_resolve_deps(
 
 
 # ---------------------------------------------------------------------------
-# Extension shim 1 — extract_with_body (Task 6 §6.5 #1)
+# Extension shim: extract_with_body
 # ---------------------------------------------------------------------------
 
 
@@ -465,7 +464,7 @@ def extract_with_body(
 
 
 # ---------------------------------------------------------------------------
-# Extension shim 2 — legacy_validate_report (Task 6 §6.5 #3)
+# Extension shim: legacy_validate_report
 # ---------------------------------------------------------------------------
 
 
@@ -487,14 +486,16 @@ def legacy_validate_report(
     cfg = _config_for(project_root, db_path=db_path, overrides=config)
     if not cfg.kg_active_doc_types:
         return _legacy_validate_report(project_root)
-    return _kg_validate_report(cfg, kg=kg)
+    return _kg_validate_report(cfg, project_root=Path(project_root), kg=kg)
 
 
 def _kg_validate_report(
     config: KGConfig,
     *,
+    project_root: Path,
     kg: KnowledgeGraph | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
+    from cataforge.kg.reconcile import reconcile as _kg_reconcile  # noqa: PLC0415
     from cataforge.kg.validate import validate as _kg_validate  # noqa: PLC0415
 
     report: dict[str, list[dict[str, Any]]] = {
@@ -522,6 +523,10 @@ def _kg_validate_report(
                 report["xref_errors"].append(entry)
         for src, dst in kg_inst.trace.stale_dependencies():
             report["stale_deps"].append({"from": src, "to": dst})
+        rec = _kg_reconcile(kg_inst.store, project_root, config)
+        for per in rec.per_doc_type.values():
+            for entity_id in per.ghost_entities:
+                report["stale"].append({"id": entity_id})
     return report
 
 
@@ -554,7 +559,7 @@ def _legacy_validate_report(
 
 
 # ---------------------------------------------------------------------------
-# Extension shim 3 — source_section (Task 6 §6.5 #5)
+# Extension shim: source_section
 # ---------------------------------------------------------------------------
 
 
@@ -632,7 +637,13 @@ def _row_strv(row: Any, var: str) -> str | None:
 
 def _sparql_lit(value: str) -> str:
     """Escape a Python string for safe inclusion in a SPARQL literal."""
-    return value.replace("\\", "\\\\").replace('"', '\\"')
+    return (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
 
 
 __all__ = [

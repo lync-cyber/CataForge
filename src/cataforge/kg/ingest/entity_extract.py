@@ -1,4 +1,4 @@
-"""Phase 3 of task-7 §7.2: extract business entities from parsed Markdown.
+"""Phase 3: extract business entities from parsed Markdown.
 
 Each entity is uniquely identified by its `entity_id` (e.g. `F-001`).
 The codemod records the first occurrence inside the first owning section
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -22,8 +23,15 @@ from cataforge.kg.ingest.scan import HeadingSpan, ParsedDoc
 
 _LAYER_BULLET_RE = re.compile(r"^\s*[-*]\s+(.+)", re.MULTILINE)
 
-_EXTRA_SLOT_EXTRACTORS: dict[str, str] = {
-    "TechStack": "_extract_techstack_slots",
+def _extract_techstack_slots(entity: ExtractedEntity, section_text: str) -> None:
+    entity.extra_slots["cf:narrative_body"] = section_text
+    layers = [m.group(1).strip() for m in _LAYER_BULLET_RE.finditer(section_text)]
+    if layers:
+        entity.extra_slots["cf:stack_layers"] = layers
+
+
+_EXTRA_SLOT_EXTRACTORS: dict[str, Callable[[ExtractedEntity, str], None]] = {
+    "TechStack": _extract_techstack_slots,
 }
 
 # Match entity-id occurrences inside arbitrary text. Longest-prefix-first
@@ -126,14 +134,7 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
 
 
 def _enrich_extra_slots(entity: ExtractedEntity, section_text: str) -> None:
-    fn_name = _EXTRA_SLOT_EXTRACTORS.get(entity.class_name)
-    if fn_name is None:
+    fn = _EXTRA_SLOT_EXTRACTORS.get(entity.class_name)
+    if fn is None:
         return
-    globals()[fn_name](entity, section_text)
-
-
-def _extract_techstack_slots(entity: ExtractedEntity, section_text: str) -> None:
-    entity.extra_slots["cf:narrative_body"] = section_text
-    layers = [m.group(1).strip() for m in _LAYER_BULLET_RE.finditer(section_text)]
-    if layers:
-        entity.extra_slots["cf:stack_layers"] = layers
+    fn(entity, section_text)

@@ -7,7 +7,7 @@ against the live store; when absent it is silently skipped (a `[skipped]`
 row appears in the report).
 
 The semantics-rich orphan / xref-target checks here cover the regular
-case; SHACL adds slot-cardinality and pattern enforcement (task-5 §5.4).
+case; SHACL adds slot-cardinality and pattern enforcement.
 """
 from __future__ import annotations
 

@@ -13,7 +13,6 @@ from cataforge.kg._errors import (
     KGError,
     KGStoreAlreadyExistsError,
     KGStoreNotInitializedError,
-    KGTransactionConflictError,
     KGValidationError,
 )
 from cataforge.kg.export.render import render_entity
@@ -33,7 +32,6 @@ __all__ = [
     "KGError",
     "KGStoreAlreadyExistsError",
     "KGStoreNotInitializedError",
-    "KGTransactionConflictError",
     "KGValidationError",
     "KnowledgeGraph",
     "KnowledgeGraphStore",

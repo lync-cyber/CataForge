@@ -1,8 +1,8 @@
 """Public dataclasses returned by `compile_to_markdown()`.
 
-Kept deliberately small: sub-PR 4 ships only what the round-trip test
-and CLI table renderer need. `EntityFilter`, snapshot manifests, and
-incremental-export plumbing land in later sub-PRs (task-4 §4.5 / §4.6).
+Kept deliberately small: only what the round-trip test and CLI table
+renderer need. `EntityFilter`, snapshot manifests, and incremental-export
+plumbing are not yet included.
 """
 from __future__ import annotations
 
@@ -25,8 +25,8 @@ class FileExportRecord:
 class CompileResult:
     """Return value of `compile_to_markdown()`.
 
-    `exported_at` exists for operational logging only; per task-4 §4.4.3
-    it is NEVER written into any output file.
+    `exported_at` exists for operational logging only and is NEVER
+    written into any output file.
     """
 
     exported_at: datetime

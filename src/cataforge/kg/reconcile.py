@@ -1,6 +1,6 @@
 """Per-doc_type drift detector between Markdown sources and the KG store.
 
-Implements task-7 §7.5 `cataforge kg reconcile`. For every doc_type in
+Implements `cataforge kg reconcile`. For every doc_type in
 `KGConfig.kg_active_doc_types`, the reconciler:
 
 1. Scans `docs/{subdir}/*.md` using the same ingest pipeline as
@@ -16,8 +16,7 @@ Implements task-7 §7.5 `cataforge kg reconcile`. For every doc_type in
 
 The doctor `kg_ingestion_completeness` gate runs an entity-only variant
 of this check at deploy time; `reconcile` is the periodic operational
-sweep that additionally covers relations and produces the artifact
-JSON consumed by Alpha exit and post-cutover ops.
+sweep that additionally covers relations.
 """
 from __future__ import annotations
 
@@ -184,7 +183,7 @@ def reconcile(
     project_root: Path,
     config: KGConfig,
 ) -> ReconcileReport:
-    """Run per-doc_type drift detection (task-7 §7.5).
+    """Run per-doc_type drift detection.
 
     Active doc_types come from `config.kg_active_doc_types`. The legacy
     `_load_doc_type_map` resolves each doc_type to a `docs/<subdir>`

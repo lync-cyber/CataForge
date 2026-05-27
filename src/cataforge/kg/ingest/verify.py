@@ -1,4 +1,4 @@
-"""Phase 6 of task-7 §7.2: post-write integrity verification."""
+"""Phase 6: post-write integrity verification."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -85,19 +85,19 @@ def verify_after_write(
             int(rows[0]["n"].value) if rows and rows[0]["n"] is not None else 0
         )
 
-    # Content-hash mismatches per extracted entity.
     for entity in entities:
         iri = entity_iri(entity.entity_id, base_ns)
-        sparql = (
+
+        presence_sparql = f"ASK {{ <{iri}> ?p ?o }}"
+        if not ask(store, presence_sparql):
+            result.missing_entities.append(entity.entity_id)
+            continue
+
+        hash_sparql = (
             f"PREFIX cf: <{namespace}> "
             f'ASK {{ <{iri}> cf:content_hash "{entity.content_hash}" }}'
         )
-        if not ask(store, sparql):
+        if not ask(store, hash_sparql):
             result.content_hash_mismatches.append(entity.entity_id)
-
-        # Missing-entity check.
-        sparql = f"ASK {{ <{iri}> ?p ?o }}"
-        if not ask(store, sparql):
-            result.missing_entities.append(entity.entity_id)
 
     return result

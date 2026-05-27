@@ -1,7 +1,6 @@
-"""Markdown → KG ingest pipeline (task-7 §7.2).
+"""Markdown → KG ingest pipeline.
 
-Sub-PR 3 implements the six-phase migration codemod described in
-`task-7-rollout-strategy.md §7.2`:
+Implements the six-phase migration codemod:
 
     scan → parse → entity-extract → relation-extract → write → verify
 
@@ -21,13 +20,11 @@ from cataforge.kg.ingest.iri import (
     ENTITY_PREFIX_TO_CLASS,
     class_iri,
     entity_iri,
-    id_prefix_to_type,
 )
 from cataforge.kg.ingest.migrate import DEFAULT_DOC_TYPES, MigrationStats, run_migration
 from cataforge.kg.ingest.relation_extract import (
     ExtractedRelation,
     extract_relations,
-    infer_predicate,
 )
 from cataforge.kg.ingest.scan import ParsedDoc, scan_business_docs
 from cataforge.kg.ingest.verify import VerifyResult, verify_after_write
@@ -46,8 +43,6 @@ __all__ = [
     "entity_iri",
     "extract_entities",
     "extract_relations",
-    "id_prefix_to_type",
-    "infer_predicate",
     "parse_frontmatter",
     "run_migration",
     "scan_business_docs",

@@ -1,4 +1,4 @@
-"""Phase 1 + 2 of task-7 §7.2: enumerate business docs and parse structure.
+"""Phases 1 + 2: enumerate business docs and parse structure.
 
 `scan_business_docs(project_root, doc_types)` walks the project's
 `docs/{subdir}/*.md` tree for each in-scope doc_type and returns one

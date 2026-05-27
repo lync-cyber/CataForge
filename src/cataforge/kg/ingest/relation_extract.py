@@ -1,11 +1,10 @@
-"""Phase 4 of task-7 §7.2: extract cross-document traceability edges.
+"""Phase 4: extract cross-document traceability edges.
 
 A traceability edge appears in source Markdown as `doc_id#§N.ITEM`
-(strict coverage mode — round-2 decision). The codemod locates the
-nearest enclosing entity_id (the subject) and infers a predicate from
-the (source_class, target_prefix) pair per the §7.2 table, falling
-back to the generic `cf:depends_on` when no specific predicate is
-known.
+(strict coverage mode). The codemod locates the nearest enclosing
+entity_id (the subject) and infers a predicate from the
+(source_class, target_prefix) pair, falling back to the generic
+`cf:depends_on` when no specific predicate is known.
 
 The predicates returned here are CURIEs against the business ontology
 namespace (`cf:`); phase 5 expands them to full IRIs at write time.
@@ -19,10 +18,8 @@ from cataforge.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS
 from cataforge.kg.ingest.scan import ParsedDoc
 
 # Source class × target prefix → predicate CURIE.
-# Mirrors task-7 §7.2 PREDICATE_MAP, retargeted at the slot names in
-# core.yaml (e.g. `cf:implements` rather than the proposal's
-# `cf:implementsFeature`). Schema is the source of truth — see
-# `core.yaml` slot definitions.
+# Uses slot names from core.yaml (e.g. `cf:implements`). Schema is the
+# source of truth — see `core.yaml` slot definitions.
 PREDICATE_MAP: dict[tuple[str, str], str] = {
     ("Module", "F"): "cf:implements",
     ("Component", "F"): "cf:implements",

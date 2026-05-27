@@ -82,7 +82,7 @@ class NotImplementedFeature(CataforgeError):  # noqa: N818 — public API since 
     exit_code = EXIT_NOT_IMPLEMENTED
 
 
-class KGError(CataforgeError):
+class KGCLIError(CataforgeError):
     """Base class for ``cataforge kg`` subcommand errors.
 
     Two concrete subclasses split the kg error surface along the only
@@ -102,7 +102,7 @@ class KGError(CataforgeError):
     """
 
 
-class KGStoreError(KGError):
+class KGStoreError(KGCLIError):
     """Raised when the KG store is in the wrong lifecycle state for the
     requested action (not initialised when one is needed, or already
     initialised when ``kg init`` was about to create one)."""
@@ -110,7 +110,7 @@ class KGStoreError(KGError):
     exit_code = EXIT_GENERIC_FAILURE
 
 
-class KGVerificationError(KGError):
+class KGVerificationError(KGCLIError):
     """Raised when a kg verification gate fails on the *content* of the
     graph: import-time triple verification, ``kg validate`` violations,
     ``kg export`` render errors, ``kg reconcile`` divergence between
@@ -119,7 +119,7 @@ class KGVerificationError(KGError):
     exit_code = EXIT_KG_VERIFICATION_FAILED
 
 
-class KGQueryTimeoutError(KGError):
+class KGQueryTimeoutError(KGCLIError):
     """Raised when a SPARQL query exceeds the configured timeout."""
 
     exit_code = EXIT_QUERY_TIMEOUT
@@ -133,7 +133,7 @@ __all__ = [
     "EXIT_NOT_IMPLEMENTED",
     "EXIT_QUERY_TIMEOUT",
     "ExternalToolError",
-    "KGError",
+    "KGCLIError",
     "KGQueryTimeoutError",
     "KGStoreError",
     "KGVerificationError",

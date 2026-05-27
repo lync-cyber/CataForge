@@ -1,15 +1,10 @@
 """`QueryAPI` — read-only SPARQL accessors keyed by SDLC layer.
 
-Sub-PR 5 surface: the methods needed by `_shim.py` and the Group A
-call-site migration. The full Pydantic-hydrated surface specified in
-task-5 §5.2 lands when SHACL-validated Pydantic round-trip arrives in
-a later PR; this module returns flat dicts that mirror the legacy
-loader/indexer dict shape so the shim layer is a straight pass-through.
+Returns flat dicts that mirror the legacy loader/indexer dict shape so the
+shim layer is a straight pass-through.
 
-The single-character typed accessors (`feature`, `module`, `component`,
-`page`, `api`, `task`, `test_case`) mirror task-5 §5.2 and resolve
-Task 5 errata C1 (`api()` / `page()` were missing from the original
-task-5 surface; flagged by Task 6 §6.5 #2).
+The typed accessors (`feature`, `module`, `component`, `page`, `api`,
+`task`, `test_case`) cover all entity types in the business ontology.
 """
 from __future__ import annotations
 
@@ -18,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from cataforge.kg._ask import ask
 from cataforge.kg._config import KGConfig
+from cataforge.kg._sparql_utils import _row_lookup, _strv, _term_value
 from cataforge.kg.ingest.iri import (
     class_iri,
     entity_iri,
@@ -41,19 +37,6 @@ _ARTIFACT_SCALAR_SLOTS = (
     "authored_by",
     "updated_at",
 )
-
-
-def _term_value(term: Any) -> Any:
-    if term is None:
-        return None
-    return getattr(term, "value", term)
-
-
-def _row_get(row: Any, var: str) -> Any:
-    try:
-        return row[var]
-    except (KeyError, IndexError):
-        return None
 
 
 @dataclass(frozen=True)
@@ -114,7 +97,7 @@ class QueryAPI:
         return ask(self._store, sparql)
 
     # ------------------------------------------------------------------
-    # Typed accessors (task-5 §5.2 + errata C1)
+    # Typed accessors
     # ------------------------------------------------------------------
 
     def feature(self, feature_id: str) -> dict[str, Any] | None:
@@ -140,7 +123,7 @@ class QueryAPI:
 
     def requirement(self, req_id: str) -> dict[str, Any] | None:
         """Fetch any Requirement-layer artifact (Feature / UserStory / Epic)."""
-        return self._fetch_subclass("Requirement", req_id)
+        return self._fetch_typed("Requirement", req_id)
 
     # ------------------------------------------------------------------
     # Bulk / cross-cutting
@@ -185,22 +168,22 @@ class QueryAPI:
         )
         out: list[dict[str, Any]] = []
         for row in self._store.query(sparql):
-            uri = _term_value(_row_get(row, "s"))
+            uri = _term_value(_row_lookup(row, "s"))
             if uri is None:
                 continue
-            cls_uri = _term_value(_row_get(row, "cls"))
+            cls_uri = _term_value(_row_lookup(row, "cls"))
             cls_name = (
                 str(cls_uri).rsplit("/", 1)[-1] if cls_uri else None
             )
             out.append(
                 {
                     "uri": str(uri),
-                    "entity_id": _strv(_row_get(row, "entity_id")),
-                    "sort_key": _strv(_row_get(row, "sort_key")),
-                    "title": _strv(_row_get(row, "title")),
-                    "status": _strv(_row_get(row, "status")),
-                    "source_doc": _strv(_row_get(row, "source_doc")),
-                    "source_section": _strv(_row_get(row, "source_section")),
+                    "entity_id": _strv(_row_lookup(row, "entity_id")),
+                    "sort_key": _strv(_row_lookup(row, "sort_key")),
+                    "title": _strv(_row_lookup(row, "title")),
+                    "status": _strv(_row_lookup(row, "status")),
+                    "source_doc": _strv(_row_lookup(row, "source_doc")),
+                    "source_section": _strv(_row_lookup(row, "source_section")),
                     "_class": cls_name,
                 }
             )
@@ -222,9 +205,9 @@ class QueryAPI:
             "}"
         )
         return {
-            _strv(_row_get(row, "entity_id"))
+            _strv(_row_lookup(row, "entity_id"))
             for row in self._store.query(sparql)
-            if _row_get(row, "entity_id") is not None
+            if _row_lookup(row, "entity_id") is not None
         }
 
     def source_section(self, doc_id: str, anchor: str) -> str | None:
@@ -249,7 +232,7 @@ class QueryAPI:
             return None
         from pathlib import Path  # noqa: PLC0415
 
-        src = _strv(_row_get(rows[0], "src"))
+        src = _strv(_row_lookup(rows[0], "src"))
         if not src:
             return None
         path = Path(src)
@@ -270,12 +253,11 @@ class QueryAPI:
     ) -> PlanLoadResult:
         """Topologically order the requested entities within a token budget.
 
-        Sub-PR 5 ships a simple variant: deduplicate input, optionally
-        expand by `cf:depends_on` 1-hop neighbours, then greedily fit
-        within `token_budget` using a flat 200-token-per-entity estimate.
-        Anything that does not fit goes to `dropped`. This matches the
-        contract of the legacy `cataforge.docs.loader.plan_load()` that
-        the shim wraps.
+        Deduplicates input, optionally expands by `cf:depends_on` 1-hop
+        neighbours, then greedily fits within `token_budget` using a flat
+        200-token-per-entity estimate. Anything that does not fit goes to
+        `dropped`. Matches the contract of the legacy
+        `cataforge.docs.loader.plan_load()` that the shim wraps.
         """
         seeds: list[str] = []
         seen: set[str] = set()
@@ -327,9 +309,9 @@ class QueryAPI:
             "} ORDER BY ?dep_id"
         )
         return [
-            _strv(_row_get(row, "dep_id"))
+            _strv(_row_lookup(row, "dep_id"))
             for row in self._store.query(sparql)
-            if _row_get(row, "dep_id") is not None
+            if _row_lookup(row, "dep_id") is not None
         ]
 
     def _fetch_typed(self, class_name: str, entity_id: str) -> dict[str, Any] | None:
@@ -343,12 +325,6 @@ class QueryAPI:
         if not ask(self._store, sparql):
             return None
         return self._fetch_by_uri(uri, entity_id)
-
-    def _fetch_subclass(self, parent_class: str, entity_id: str) -> dict[str, Any] | None:
-        # Same as _fetch_typed but the type-membership test walks the
-        # subclass chain — used by `requirement()` which accepts any of
-        # Feature / UserStory / Epic.
-        return self._fetch_typed(parent_class, entity_id)
 
     def _fetch_by_uri(self, uri: str, entity_id: str) -> dict[str, Any] | None:
         ns = self._cf_ns()
@@ -373,25 +349,18 @@ class QueryAPI:
         record: dict[str, Any] = {
             "uri": uri,
             "_class": (
-                str(_term_value(_row_get(row, "cls"))).rsplit("/", 1)[-1]
-                if _row_get(row, "cls")
+                str(_term_value(_row_lookup(row, "cls"))).rsplit("/", 1)[-1]
+                if _row_lookup(row, "cls")
                 else None
             ),
         }
         for slot in _ARTIFACT_SCALAR_SLOTS:
-            record[slot] = _strv(_row_get(row, slot))
+            record[slot] = _strv(_row_lookup(row, slot))
         # Ensure the entity_id is always populated even if the SELECT
         # bound it to None (defensive — schema guarantees presence).
         if not record.get("entity_id"):
             record["entity_id"] = entity_id
         return record
-
-
-def _strv(term: Any) -> Any:
-    v = _term_value(term)
-    if v is None:
-        return None
-    return str(v)
 
 
 def _slice_section(text: str, anchor: str) -> str | None:

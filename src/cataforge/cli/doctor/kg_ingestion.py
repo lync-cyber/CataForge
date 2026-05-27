@@ -175,7 +175,7 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
         click.echo(
             f"  FAIL: KG missing {len(missing)} entity_ids "
             f"({preview}{ellipsis}); run "
-            f"`cataforge kg import docs/ --on-conflict=overwrite` to "
+            f"`cataforge kg repair --project-root .` to "
             f"reconcile."
         )
 
@@ -184,8 +184,8 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
         ellipsis = "..." if len(stale) > 5 else ""
         click.echo(
             f"  WARN: KG has {len(stale)} entity_ids no longer in docs/ "
-            f"({preview}{ellipsis}); run `cataforge kg validate "
-            f"--fix-orphans` to prune."
+            f"({preview}{ellipsis}); run `cataforge kg repair` "
+            f"to prune."
         )
 
     return 1 if missing else 0

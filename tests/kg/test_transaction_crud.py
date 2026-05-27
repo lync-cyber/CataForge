@@ -342,8 +342,10 @@ def test_rollback_discards_high_level_adds() -> None:
 def test_write_lock_serializes_concurrent_transactions() -> None:
     kg, config, project_iri = _make_kg()
     order: list[str] = []
+    barrier = threading.Barrier(2)
 
     def writer(entity_id: str, delay_name: str) -> None:
+        barrier.wait()
         with kg.transaction() as txn:
             order.append(f"start-{delay_name}")
             txn.add_entity(
@@ -360,10 +362,12 @@ def test_write_lock_serializes_concurrent_transactions() -> None:
     t1 = threading.Thread(target=writer, args=("F-001", "first"))
     t2 = threading.Thread(target=writer, args=("F-002", "second"))
     t1.start()
-    t1.join()
     t2.start()
+    t1.join()
     t2.join()
 
     assert kg.query.exists("F-001")
     assert kg.query.exists("F-002")
-    assert order == ["start-first", "end-first", "start-second", "end-second"]
+    assert order[0].startswith("start-")
+    assert order[1].startswith("end-")
+    assert order[0].replace("start-", "") == order[1].replace("end-", "")

@@ -51,6 +51,7 @@ dependencies = [
     "pytest-cov>=7.1.0",
     "linkml-runtime>=1.11.1",
     "pyoxigraph>=0.5.8",
+    "jinja2>=3.0",
 ]
 
 [project.optional-dependencies]

@@ -1,10 +1,9 @@
 """SPARQL template registry — one `.sparql` file per entity type.
 
 The lookup key is the lowercased LinkML class name; the file stem in
-`sparql/` must match. Sub-PR 4 ships built-ins for the four entity
-types in the fixture vertical slice (Feature / AcceptanceCriteria /
-Module / TestCase); other types land alongside the call points that
-need them in later sub-PRs.
+`sparql/` must match. Built-in templates cover Feature, AcceptanceCriteria,
+Module, and TestCase; additional entity types add a corresponding `.sparql`
+file under `cataforge/kg/export/sparql/`.
 """
 from __future__ import annotations
 

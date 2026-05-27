@@ -1,9 +1,8 @@
 """Build the Jinja2 Environment used by the exporter.
 
-`StrictUndefined` is the idempotency safety net (task-4 §4.4.3):
-referencing an undefined variable in any template — including a
-phantom `{{ generated_at }}` — raises immediately rather than silently
-rendering as an empty string.
+`StrictUndefined` is the idempotency safety net: referencing an undefined
+variable in any template — including a phantom `{{ generated_at }}` —
+raises immediately rather than silently rendering as an empty string.
 """
 from __future__ import annotations
 

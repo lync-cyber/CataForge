@@ -5,17 +5,14 @@ A pyoxigraph `SELECT` row is a `dict[str, Term | None]` where every
 hydrator deduplicates scalar fields (first non-null wins) and
 aggregates multi-valued fields keyed on a sort-stable composite.
 
-The output is a plain dict consumed by Jinja2 — sub-PR 4 deliberately
-skips Pydantic hydration (task-4 §4.1.4) to keep the surface area
-small. Pydantic context objects land when SHACL / governance arrives.
+The output is a plain dict consumed by Jinja2. Pydantic context objects
+are used when SHACL / governance validation is active.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    pass
-
+from cataforge.kg._sparql_utils import _row_lookup, _term_value
 
 _SCALAR_FIELDS = (
     "entity_id",
@@ -32,27 +29,6 @@ _SCALAR_FIELDS = (
     "test_result",
     "narrative_body",
 )
-
-
-def _term_value(term: Any) -> Any:
-    """Return the Python value for a pyoxigraph Term (or None)."""
-    if term is None:
-        return None
-    return getattr(term, "value", term)
-
-
-def _row_lookup(row: Any, var: str) -> Any:
-    """Read `row[var]` from a pyoxigraph `QuerySolution` (or a dict).
-
-    `QuerySolution.__getitem__` returns None for an unbound projection
-    variable and raises `KeyError` when the variable isn't in the SELECT
-    at all; both shapes collapse to "absent" here so the hydrator can
-    treat the row uniformly.
-    """
-    try:
-        return row[var]
-    except (KeyError, IndexError):
-        return None
 
 
 def hydrate_rows(
@@ -99,13 +75,5 @@ def hydrate_rows(
                 entry[var] = _term_value(_row_lookup(row, var))
             bucket[key] = entry
         context[group_name] = [bucket[k] for k in sorted(bucket.keys())]
-
-    tags: set[str] = set()
-    for row in rows:
-        t = _term_value(_row_lookup(row, "tag"))
-        if t:
-            tags.add(str(t))
-    if tags:
-        context["tags"] = sorted(tags)
 
     return context

@@ -1,10 +1,8 @@
 """`TraceAPI` — traceability chain queries.
 
-Sub-PR 5 surface: enough to back the doc-review §6.4 A13 bidirectional
-coverage rewrite, sprint-review's `targets_artifact` back-reference need,
-and the shim layer's `legacy_validate_report()` stale-dep query. Returns
-flat dicts and lists; the typed `TraceChain` dataclass from task-5 §5.2
-lands once `_models_core` Pydantic round-trip arrives.
+Returns flat dicts and lists for bidirectional coverage, sprint-review
+back-references, and stale-dep queries. The typed `TraceChain` dataclass
+is used by consumers that need structured traversal results.
 """
 from __future__ import annotations
 
@@ -12,28 +10,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from cataforge.kg._config import KGConfig
+from cataforge.kg._sparql_utils import _row_lookup, _strv, _term_value
 from cataforge.kg.ingest.iri import entity_iri
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
-
-
-def _term_value(term: Any) -> Any:
-    if term is None:
-        return None
-    return getattr(term, "value", term)
-
-
-def _row_get(row: Any, var: str) -> Any:
-    try:
-        return row[var]
-    except (KeyError, IndexError):
-        return None
-
-
-def _strv(term: Any) -> str | None:
-    v = _term_value(term)
-    return None if v is None else str(v)
 
 
 @dataclass(frozen=True)
@@ -48,9 +29,7 @@ class CoverageRow:
 
 @dataclass
 class TraceChain:
-    """Subset of task-5 §5.2 TraceChain — only the fields sub-PR 5
-    consumers need. Lists hold entity_id strings.
-    """
+    """Flat traceability chain rooted at one entity. Lists hold entity_id strings."""
 
     root_id: str
     requirements: list[str] = field(default_factory=list)
@@ -72,16 +51,15 @@ class TraceAPI:
         self._config = config
 
     # ------------------------------------------------------------------
-    # §6.4 A13 — bidirectional coverage rewrite
+    # Bidirectional coverage
     # ------------------------------------------------------------------
 
     def bidirectional_coverage(self) -> list[CoverageRow]:
         """Return one row per Feature with implementation + test status.
 
-        Replaces `doc-review check_bidirectional_coverage()` regex pass
-        per Task 6 §6.4 A13. A Feature is covered iff some artifact
-        asserts `cf:implements` on it AND some TestCase reaches it via
-        `cf:verifies+` (transitive). Mention-in-prose no longer counts.
+        A Feature is covered iff some artifact asserts `cf:implements` on it
+        AND some TestCase reaches it via `cf:verifies+` (transitive).
+        Mention-in-prose does not count.
         """
         ns = self._cf_ns()
         sparql = (
@@ -107,15 +85,15 @@ class TraceAPI:
         )
         out: list[CoverageRow] = []
         for row in self._store.query(sparql):
-            fid = _strv(_row_get(row, "feature_id"))
+            fid = _strv(_row_lookup(row, "feature_id"))
             if fid is None:
                 continue
             out.append(
                 CoverageRow(
                     feature_id=fid,
-                    title=_strv(_row_get(row, "title")),
-                    has_impl=_bool_term(_row_get(row, "has_impl")),
-                    has_test=_bool_term(_row_get(row, "has_test")),
+                    title=_strv(_row_lookup(row, "title")),
+                    has_impl=_bool_term(_row_lookup(row, "has_impl")),
+                    has_test=_bool_term(_row_lookup(row, "has_test")),
                 )
             )
         return out
@@ -148,8 +126,8 @@ class TraceAPI:
         if not rows:
             return {"has_impl": False, "has_test": False, "status": "none"}
         row = rows[0]
-        has_impl = _bool_term(_row_get(row, "has_impl"))
-        has_test = _bool_term(_row_get(row, "has_test"))
+        has_impl = _bool_term(_row_lookup(row, "has_impl"))
+        has_test = _bool_term(_row_lookup(row, "has_test"))
         if has_impl and has_test:
             status = "full"
         elif has_impl or has_test:
@@ -159,7 +137,7 @@ class TraceAPI:
         return {"has_impl": has_impl, "has_test": has_test, "status": status}
 
     # ------------------------------------------------------------------
-    # §6.4 A7 — sprint-review chain (CODE-REVIEW back-reference)
+    # Sprint-review chain
     # ------------------------------------------------------------------
 
     def from_requirement(
@@ -168,13 +146,11 @@ class TraceAPI:
         *,
         direction: Literal["downstream", "upstream", "both"] = "downstream",
     ) -> TraceChain:
-        """Build a flat TraceChain rooted at `entity_id`.
+        """Build a flat TraceChain rooted at ``entity_id``.
 
-        Downstream traverses: `cf:implements`/`cf:realizes`/`cf:verifies`/
-        `cf:satisfies`/`cf:reviewed_by`. Upstream walks the inverses. The
-        implementation is a fan-out single-query CONSTRUCT-shape walker;
-        it is not transitive across more than one hop in sub-PR 5 — the
-        Group A consumers only need one-hop fan-out at this stage.
+        Downstream traverses: ``cf:implements`` / ``cf:realizes`` /
+        ``cf:verifies`` / ``cf:satisfies``.  Upstream walks the inverses
+        plus ``cf:reviewed_by``.  Single-hop fan-out only.
         """
         ns = self._cf_ns()
         uri = entity_iri(entity_id, self._config.base_namespace)
@@ -235,8 +211,8 @@ class TraceAPI:
 
         chain = TraceChain(root_id=entity_id)
         for row in downstream_rows + upstream_rows:
-            neighbour_id = _strv(_row_get(row, "neighbour_id"))
-            cls = _term_value(_row_get(row, "cls"))
+            neighbour_id = _strv(_row_lookup(row, "neighbour_id"))
+            cls = _term_value(_row_lookup(row, "cls"))
             if neighbour_id is None or cls is None:
                 continue
             cls_name = str(cls).rsplit("/", 1)[-1]
@@ -253,7 +229,7 @@ class TraceAPI:
         return chain
 
     # ------------------------------------------------------------------
-    # §6.5 #3 — stale dependency detector (legacy_validate_report)
+    # Stale dependency detector
     # ------------------------------------------------------------------
 
     def stale_dependencies(self) -> list[tuple[str, str]]:
@@ -274,8 +250,8 @@ class TraceAPI:
         )
         out: list[tuple[str, str]] = []
         for row in self._store.query(sparql):
-            a = _strv(_row_get(row, "a_id"))
-            b = _strv(_row_get(row, "b_id"))
+            a = _strv(_row_lookup(row, "a_id"))
+            b = _strv(_row_lookup(row, "b_id"))
             if a is not None and b is not None:
                 out.append((a, b))
         return out

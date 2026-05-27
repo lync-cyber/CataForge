@@ -1,12 +1,9 @@
-"""KG → Markdown export pipeline (task-4).
+"""KG → Markdown export pipeline.
 
-Sub-PR 4 surface: a single `compile_to_markdown(store, output_dir)`
-entry point plus dataclasses describing the result. The Jinja2 +
-SPARQL template trees ship as package data under `templates/` and
-`sparql/`.
-
-Sub-PR 5 errata C2: `render_entity(store, entity_id, *, template=None)`
-exposes a single-entity render path used by the shim layer.
+Entry points: `compile_to_markdown(store, output_dir)` for full-store
+export, and `render_entity(store, entity_id, *, template=None)` for
+single-entity rendering used by the shim layer. The Jinja2 + SPARQL
+template trees ship as package data under `templates/` and `sparql/`.
 """
 from __future__ import annotations
 

@@ -1,15 +1,13 @@
 """Deterministic entity-id → IRI mapping for the ingest pipeline.
 
-Per task-7 §7.2 idempotency clause: entity IRIs derive deterministically
-from the entity-id string so a re-run produces identical subjects and
-the ASK-dedup pass treats them as already present.
+Entity IRIs derive deterministically from the entity-id string so a
+re-run produces identical subjects and the ASK-dedup pass treats them
+as already present.
 
 The prefix → class-name map mirrors the canonical schema at
-`src/cataforge/kg/schemas/core.yaml` (and governance.yaml). The §7.2
-table in the proposal used pre-rename names (`APIContract`, `Entity`);
-the schema is the source of truth, so this file uses the post-rename
-class names (`API`, `DataModel`). A regression test pins consistency
-against the live `SchemaView`.
+`src/cataforge/kg/schemas/core.yaml` (and governance.yaml). The schema
+is the source of truth; a regression test pins consistency against the
+live `SchemaView`.
 """
 from __future__ import annotations
 
@@ -43,7 +41,7 @@ ENTITY_PREFIX_TO_CLASS: dict[str, str] = {
     "CHG": "ChangeRequest",
     "REV": "ReviewReport",
     "TP": "TestPlan",
-    "TS_": "TestSuite",  # unused — TS already maps to TechStack
+    "TS_": "TestSuite",  # explicit prefix — prevents TS from capturing TestSuite IDs
     "TR": "TestRun",
     "CR": "CoverageRule",
     "MS": "Milestone",

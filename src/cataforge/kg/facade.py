@@ -67,11 +67,7 @@ class KnowledgeGraph:
         (no explicit close in pyoxigraph 0.5.x).
         """
         store = _open_pyoxigraph(config, create=False)
-        kg = cls(store, config)
-        try:
-            yield kg
-        finally:
-            pass
+        yield cls(store, config)
 
     @contextmanager
     def transaction(self) -> Iterator[TransactionContext]:

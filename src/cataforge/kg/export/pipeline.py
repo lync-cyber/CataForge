@@ -1,7 +1,7 @@
-"""`compile_to_markdown()` — task-4 §4.1 query → render → write pipeline.
+"""`compile_to_markdown()` — query → render → write pipeline.
 
-Sub-PR 4 scope: full export only (no `EntityFilter`, no snapshot, no
-incremental). Idempotency rests on three guarantees:
+Full export only (no `EntityFilter`, no snapshot, no incremental).
+Idempotency rests on three guarantees:
 
 * every SPARQL template ends with `ORDER BY ?sort_key`;
 * `hydrator.hydrate_rows()` re-sorts every relation group by
@@ -19,8 +19,9 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+from cataforge.kg._sparql_utils import _row_lookup, _term_value
 from cataforge.kg.export.hydrator import hydrate_rows
 from cataforge.kg.export.registry import SparqlRegistry
 from cataforge.kg.export.template_loader import build_jinja_env
@@ -87,19 +88,6 @@ def _template_name(entity_type: str) -> str:
     return f"{_entity_type_to_doc_type(entity_type)}/{entity_type.lower()}.md.j2"
 
 
-def _term_value(term: Any) -> Any:
-    if term is None:
-        return None
-    return getattr(term, "value", term)
-
-
-def _row_lookup(row: Any, var: str) -> Any:
-    """Tolerant `row[var]` for pyoxigraph QuerySolution (None when absent)."""
-    try:
-        return row[var]
-    except (KeyError, IndexError):
-        return None
-
 
 def _list_business_entities(
     store: ox.Store, namespace: str
@@ -145,8 +133,7 @@ def compile_to_markdown(
 
     Entities whose class is unknown to the registry (no `<entity_type>.sparql`
     template registered) are skipped with an `errors` entry rather than
-    raising — sub-PR 4 only ships built-in templates for the four-entity
-    fixture vertical slice.
+    raising.
     """
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -168,7 +155,8 @@ def compile_to_markdown(
             continue
         try:
             sparql_template = registry.get(entity_type)
-            sparql_query = sparql_template % {"entity_id": f'"{entity_id}"'}
+            safe_id = entity_id.replace("\\", "\\\\").replace('"', '\\"')
+            sparql_query = sparql_template % {"entity_id": f'"{safe_id}"'}
             raw_rows = list(store.query(sparql_query))
             relation_groups = _RELATION_GROUPS.get(entity_type.lower(), {})
             context = hydrate_rows(raw_rows, relation_groups)

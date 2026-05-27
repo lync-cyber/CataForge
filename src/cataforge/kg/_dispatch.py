@@ -1,6 +1,6 @@
-"""Dispatch helpers for Group A call sites.
+"""Dispatch helpers for legacy entry points in the docs layer.
 
-Every legacy Group A entry point in :mod:`cataforge.docs.loader`,
+Every entry point in :mod:`cataforge.docs.loader`,
 :mod:`cataforge.docs.indexer`, and the doc-review checker decides at
 call time whether to read from the KG or fall back to the legacy
 file-based code path. The decision hinges on
@@ -9,14 +9,11 @@ file-based code path. The decision hinges on
 Resolution layer:
 
 * `.cataforge/framework.json` ``kg.kg_active_doc_types`` list (if
-  declared and non-empty) wins. Project authors flip this when they
-  want to opt out / promote per Task 7 §7.5.
-* Otherwise the dataclass default applies. Until Commit 5 of
-  sub-PR 5 lands, the dataclass default is an empty set (= legacy for
-  everything); Commit 5 flips it to `{prd, arch, test}`.
+  declared and non-empty) wins.
+* Otherwise the dataclass default applies.
 
 The helpers also cache per-project decisions to avoid re-reading
-`framework.json` on every Group A call.
+`framework.json` on every call.
 """
 from __future__ import annotations
 
