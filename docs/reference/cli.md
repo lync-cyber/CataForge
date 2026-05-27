@@ -403,6 +403,7 @@ cataforge feedback correction-export --threshold 3 --out docs/feedback/$(date +%
 | `0`  | 成功 | 正常完成 |
 | `1`  | 通用失败 | `doctor` 发现 FAIL；验证不通过；缺少前置条件（如 `.cataforge/` 未初始化）；配置错误 |
 | `2`  | Click 用法错误 | 未知选项、缺少必需参数、参数类型不符（由 Click 自动使用） |
+| `3`  | KG 内容校验门失败 | `kg import` 校验失败、`kg validate` 报违例、`kg export` 渲染错误、`kg reconcile` 检测到 doc↔store 漂移；由 `CataforgeError` 子类 `KGVerificationError` 抛出。与 `1` 分开是为了让 CI 能在 "数据真有问题" 与 "环境没准备好" 之间分别动作 |
 | `70` | 功能未实现（stub） | `plugin install` / `plugin remove` 等路线图占位命令；由 `CataforgeError` 子类 `NotImplementedFeature` 抛出 |
 
 > `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`，让 CI 脚本能区分"未实现"与"命令用错"。常量定义在 [`cataforge.cli.errors.EXIT_NOT_IMPLEMENTED`](../../src/cataforge/cli/errors.py)，自 v0.1.0 起就是此值。

@@ -218,11 +218,29 @@ def sync_main_command(
             cwd=repo,
             check=True,
         )
-        ahead_str, behind_str = (ahead_behind.stdout or "0\t0").strip().split()
-        ahead, behind = int(ahead_str), int(behind_str)
-    except (subprocess.CalledProcessError, ValueError) as e:
+    except subprocess.CalledProcessError as e:
         raise ExternalToolError(
             f"could not compare {target} vs origin/{target}: {e}"
+        ) from None
+
+    raw_stdout = ahead_behind.stdout or ""
+    # ``git rev-list --left-right --count`` is contractually two
+    # whitespace-separated integers on a single line. Validate the
+    # shape explicitly so a contract drift (or an unexpected git
+    # locale wrapping a warning into stdout) surfaces a diagnostic
+    # message rather than a bare ``ValueError``.
+    parts = raw_stdout.strip().split() or ["0", "0"]
+    if len(parts) != 2:
+        raise ExternalToolError(
+            f"unexpected `git rev-list --left-right --count` output while "
+            f"comparing {target} vs origin/{target}: {raw_stdout!r}"
+        )
+    try:
+        ahead, behind = int(parts[0]), int(parts[1])
+    except ValueError:
+        raise ExternalToolError(
+            f"non-integer ahead/behind counts from git while comparing "
+            f"{target} vs origin/{target}: {raw_stdout!r}"
         ) from None
 
     if ahead and behind:

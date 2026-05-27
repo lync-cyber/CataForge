@@ -200,7 +200,11 @@ def symlink_or_copy(
         shutil.copytree(source, target)
         return [f"{target} ← {source} (copy, forced)"]
 
-    rel = os.path.relpath(source, target.parent)
+    # Normalise to forward slashes so the link target stays portable: on
+    # Windows ``os.path.relpath`` emits backslashes which survive into the
+    # symlink reparse point, breaking the link the moment the project is
+    # cloned, copied, or mounted on a POSIX filesystem.
+    rel = os.path.relpath(source, target.parent).replace("\\", "/")
     try:
         os.symlink(rel, str(target), target_is_directory=True)
         return [f"{target} → {source} (symlink)"]
