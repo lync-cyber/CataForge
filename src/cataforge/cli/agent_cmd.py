@@ -32,6 +32,7 @@ def agent_group() -> None:
 def agent_list() -> None:
     """List all registered agents (from ``.cataforge/agents/``)."""
     from cataforge.agent.manager import AgentManager
+    from cataforge.cli.ui import ui
 
     mgr = AgentManager(project_root=resolve_root())
     agents = mgr.list_agents()
@@ -42,8 +43,8 @@ def agent_list() -> None:
             "or add a new agent directory under .cataforge/agents/<id>/."
         )
         return
-    for a in agents:
-        click.echo(f"  {a}")
+    ui.bullets(agents)
+    ui.info(f"{len(agents)} agent(s) registered")
 
 
 @agent_group.command("validate")
@@ -56,15 +57,16 @@ def agent_validate(agent_id: str | None) -> None:
     Fails with exit 1 if any issue is found, so it can gate CI.
     """
     from cataforge.agent.manager import AgentManager
+    from cataforge.cli.ui import ui
 
     mgr = AgentManager(project_root=resolve_root())
     issues = mgr.validate(agent_id)
     if not issues:
-        click.echo("All agents valid.")
+        ui.ok("All agents valid.")
         return
 
     for issue in issues:
-        click.secho(f"  {issue}", fg="red", err=True)
+        ui.fail(issue)
     raise CataforgeError(f"{len(issues)} agent definition issue(s) found.")
 
 

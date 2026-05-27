@@ -174,13 +174,14 @@ def deploy_command(
 
     deployer = Deployer(cfg, bus)
 
+    from cataforge.cli.guidance import print_next_steps
+    from cataforge.cli.ui import ui
+
     for target in targets:
-        click.echo(f"\n{'='*40}")
-        click.echo(f"Deploying: {target}")
-        click.echo(f"{'='*40}")
+        ui.header(f"Deploying: {target}")
 
         if dry_run:
-            click.echo("(dry-run — no files will be written)")
+            ui.info("dry-run — no files will be written")
             actions = deployer.deploy(
                 target,
                 dry_run=True,
@@ -189,7 +190,7 @@ def deploy_command(
                 rebuild=rebuild,
             )
             for action in actions:
-                click.echo(f"  {action}")
+                ui.print(f"  {action}")
             continue
 
         actions = deployer.deploy(
@@ -199,6 +200,8 @@ def deploy_command(
             rebuild=rebuild,
         )
         for action in actions:
-            click.echo(f"  {action}")
+            ui.print(f"  {action}")
 
-    click.echo("\nDeploy complete.")
+    ui.ok("Deploy complete.")
+    if not dry_run:
+        print_next_steps("deploy-done")

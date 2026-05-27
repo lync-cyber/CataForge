@@ -23,7 +23,10 @@ from cataforge.utils.common import (
     BOLD,
     CYAN,
     DIM,
+    GREEN,
     NC,
+    RED,
+    YELLOW,
     detect_platform,
     ensure_utf8_stdio,
     fail,
@@ -49,6 +52,16 @@ PLATFORM = detect_platform()
 DEFAULT_PENPOT_PORT = 9001
 DEFAULT_MCP_PORT = 4401
 DEFAULT_PLUGIN_PORT = 4400
+
+# Pin to a Penpot release whose frontend image and MCP server are known to
+# agree. ``latest`` floats and has burned users when the upstream monorepo
+# adds new build-script-bearing dependencies that pnpm 10+ refuses by default.
+DEFAULT_MCP_PACKAGE_VERSION = "latest"
+
+# Node major versions @penpot/mcp upstream tests against. Outside this range
+# we still let the user proceed (warn only) — pinning hard is too aggressive
+# given how often Node majors shift on developer machines.
+SUPPORTED_NODE_MAJORS = (20, 22)
 
 HEALTH_TIMEOUT = 60
 MCP_HEALTH_TIMEOUT = 120
@@ -90,7 +103,12 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
         networks:
           - penpot
         environment:
-          - PENPOT_FLAGS={penpot_flags}
+          # Frontend nginx hard-resolves `penpot-mcp` at startup unless these
+          # URIs are overridden; placeholder localhost + disable-mcp keep
+          # nginx happy while the real MCP runs on the host via npx.
+          - PENPOT_FLAGS={penpot_flags} disable-mcp
+          - PENPOT_MCP_URI=http://127.0.0.1
+          - PENPOT_MCP_URI_WS=http://127.0.0.1
           - PENPOT_HTTP_SERVER_MAX_BODY_SIZE=367001600
       penpot-backend:
         image: penpotapp/backend:latest
@@ -192,6 +210,9 @@ def get_config() -> dict[str, Any]:
             "enable-login-with-password disable-email-verification "
             "enable-smtp enable-prepl-server disable-secure-session-cookies",
         ),
+        "mcp_version": os.environ.get(
+            "PENPOT_MCP_VERSION", DEFAULT_MCP_PACKAGE_VERSION
+        ),
     }
 
 
@@ -244,6 +265,16 @@ def _is_penpot_running(config: dict) -> bool:
     return _is_penpot_container_running() and is_port_listening(config["penpot_port"])
 
 
+def _node_major(version_str: str) -> int | None:
+    """Parse the leading integer of a ``node --version`` output (``v22.11.0``)."""
+    s = version_str.strip().lstrip("v")
+    head = s.split(".", 1)[0]
+    try:
+        return int(head)
+    except ValueError:
+        return None
+
+
 def preflight_check(scope: str = "all") -> bool:
     section("依赖预检")
     passed = True
@@ -260,10 +291,19 @@ def preflight_check(scope: str = "all") -> bool:
         else:
             ok(f"Docker Compose {DIM}({get_command_version(dc_cmd + ['version'])}){NC}")
     if not has_command("node"):
-        fail("Node.js 未安装。请安装: https://nodejs.org (v18+)")
+        fail("Node.js 未安装。请安装: https://nodejs.org (推荐 v22 LTS)")
         passed = False
     else:
-        ok(f"Node.js {DIM}({get_command_version(['node', '--version'])}){NC}")
+        node_ver = get_command_version(["node", "--version"])
+        major = _node_major(node_ver)
+        lo, hi = SUPPORTED_NODE_MAJORS[0], SUPPORTED_NODE_MAJORS[-1]
+        if major is None or not (lo <= major <= hi):
+            warn(
+                f"Node.js {node_ver} 不在 @penpot/mcp 兼容范围 "
+                f"(v{lo}–v{hi})；如启动失败请改用 v22 LTS"
+            )
+        else:
+            ok(f"Node.js {DIM}({node_ver}){NC}")
     if not has_command("npx"):
         fail("npx 未找到")
         passed = False
@@ -359,6 +399,22 @@ def _is_process_alive(pid: int) -> bool:
         return False
 
 
+def _mcp_npx_env(config: dict) -> dict[str, str]:
+    """Environment for the npx-spawned @penpot/mcp process.
+
+    PNPM_CONFIG_STRICT_DEP_BUILDS=false demotes ERR_PNPM_IGNORED_BUILDS (raised
+    by pnpm 10+ when esbuild/sharp's build scripts are not pre-approved) into
+    a warning so the monorepo install can finish.
+    """
+    env = os.environ.copy()
+    env["PORT"] = str(config["mcp_port"])
+    env["PLUGIN_PORT"] = str(config["plugin_port"])
+    env["PNPM_CONFIG_STRICT_DEP_BUILDS"] = "false"
+    env["npm_config_strict_dep_builds"] = "false"
+    env["COREPACK_ENABLE_DOWNLOAD_PROMPT"] = "0"
+    return env
+
+
 def start_mcp(config: dict) -> bool:
     section("启动 MCP Server")
     if _is_mcp_running(config):
@@ -366,19 +422,17 @@ def start_mcp(config: dict) -> bool:
         return True
     config["mcp_port"] = find_available_port(config["mcp_port"], "MCP Server")
     config["plugin_port"] = find_available_port(config["plugin_port"], "Plugin Server")
-    env = os.environ.copy()
-    env["PORT"] = str(config["mcp_port"])
-    env["PLUGIN_PORT"] = str(config["plugin_port"])
-    if "PENPOT_BASE_URL" not in env:
-        env["PENPOT_BASE_URL"] = f"http://localhost:{config['penpot_port']}"
-    info("通过 npx @penpot/mcp@latest 启动 MCP Server...")
+    env = _mcp_npx_env(config)
+    mcp_version = config.get("mcp_version") or DEFAULT_MCP_PACKAGE_VERSION
+    package_spec = f"@penpot/mcp@{mcp_version}"
+    info(f"通过 npx {package_spec} 启动 MCP Server...")
     # Resolve npx to full path so we can avoid shell=True on Windows
     # (npx is typically `npx.cmd`, which Popen otherwise can't locate without the shell).
     npx_path = shutil.which("npx") or shutil.which("npx.cmd")
     if not npx_path:
         fail("未找到 npx 命令，请先安装 Node.js")
         return False
-    cmd = [npx_path, "--yes", "@penpot/mcp@latest"]
+    cmd = [npx_path, "--yes", package_spec]
     with open(MCP_LOG_FILE, "wb") as log_fh:
         if PLATFORM == "windows":
             proc = subprocess.Popen(
@@ -398,12 +452,63 @@ def start_mcp(config: dict) -> bool:
             ok(f"MCP Server 就绪 {DIM}-> http://localhost:{config['mcp_port']}/mcp{NC}")
             return True
         if proc.poll() is not None:
-            fail(f"MCP Server 进程已退出 (exit={proc.returncode})")
+            _report_mcp_failure(proc.returncode)
             _remove_mcp_pid()
             return False
         time.sleep(1)
     warn(f"MCP Server 在 {MCP_HEALTH_TIMEOUT}s 内未就绪")
     return False
+
+
+def _report_mcp_failure(exit_code: int | None) -> None:
+    """Print a tail of the MCP log plus a diagnosis for common failure modes."""
+    fail(f"MCP Server 进程已退出 (exit={exit_code})")
+    tail = _tail_log(MCP_LOG_FILE, lines=20)
+    if tail:
+        print(f"\n  {DIM}日志尾段 ({MCP_LOG_FILE}):{NC}")
+        for line in tail:
+            print(f"    {DIM}{line}{NC}")
+    diagnosis = _diagnose_mcp_log("\n".join(tail))
+    if diagnosis:
+        print()
+        for line in diagnosis:
+            print(f"  {line}")
+
+
+def _tail_log(path: str, *, lines: int = 20) -> list[str]:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            buf = f.readlines()
+    except OSError:
+        return []
+    return [line.rstrip("\r\n") for line in buf[-lines:]]
+
+
+def _diagnose_mcp_log(text: str) -> list[str]:
+    """Return human-readable hints for known MCP startup failures.
+
+    Backed by :mod:`cataforge.cli.diagnostics` so adding/editing a pattern
+    updates both ``penpot start`` failure reports and ``penpot doctor``
+    at the same time. Returns a flat list of strings to stay backward-
+    compatible with the prior signature (callers use ``"\\n".join`` for
+    log-style assertions).
+    """
+    from cataforge.cli.diagnostics import PENPOT_PATTERNS
+    from cataforge.cli.ui import _pattern_matches
+
+    hints: list[str] = []
+    for p in PENPOT_PATTERNS:
+        if not _pattern_matches(p.needle, text):
+            continue
+        hints.append(f"{YELLOW}诊断{NC}: {p.diagnosis}")
+        fix_line = f"{YELLOW}修复{NC}: {p.fix_action}"
+        if p.fix_command:
+            fix_line += f"\n         → {BOLD}{p.fix_command}{NC}"
+        hints.append(fix_line)
+        # Only report the first matching pattern to avoid noise — the
+        # original implementation used elif/elif so callers depend on this.
+        break
+    return hints
 
 
 def stop_mcp(config: dict) -> bool:
@@ -464,8 +569,20 @@ def register_claude_mcp(config: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+def print_header(title: str, subtitle: str | None = None) -> None:
+    """Render a consistent two-line banner above each sub-command's output."""
+    bar = "━" * max(len(title) + 4, 50)
+    print(f"\n{CYAN}{BOLD}━━ {title} {bar}{NC}")
+    if subtitle:
+        print(f"  {DIM}{subtitle}{NC}")
+    print()
+
+
 def cmd_deploy(config: dict) -> int:
-    print(f"\n{CYAN}{BOLD}  Penpot 完整部署 (Docker + MCP){NC}\n")
+    print_header(
+        "Penpot 完整部署",
+        "Docker 自托管 (frontend + backend + exporter + postgres + valkey + mailcatch) + MCP",
+    )
     if not preflight_check("all"):
         return 1
     if not deploy_penpot(config):
@@ -478,7 +595,7 @@ def cmd_deploy(config: dict) -> int:
 
 
 def cmd_mcp_only(config: dict) -> int:
-    print(f"\n{CYAN}{BOLD}  Penpot MCP Server 部署{NC}\n")
+    print_header("Penpot MCP Server 部署", "只起 MCP — 假定 Penpot 已运行")
     if not preflight_check("mcp"):
         return 1
     penpot_base = os.environ.get("PENPOT_BASE_URL", "")
@@ -493,8 +610,60 @@ def cmd_mcp_only(config: dict) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Remote (SaaS) — design.penpot.app + local MCP server
+# ---------------------------------------------------------------------------
+
+PENPOT_SAAS_URL = "https://design.penpot.app"
+
+
+def print_remote_onboarding(config: dict) -> None:
+    """Walk the user through loading the MCP plugin into design.penpot.app.
+
+    The MCP server itself talks to Penpot via a WebSocket-connected browser
+    plugin (not the REST API), so the SaaS flow requires the user to load the
+    plugin manifest into the Penpot UI exactly once per browser session.
+    """
+    plugin_manifest = (
+        f"http://localhost:{config['plugin_port']}/manifest.json"
+    )
+    mcp_endpoint = f"http://localhost:{config['mcp_port']}/mcp"
+    section("浏览器侧设置（必须完成才能让 LLM 看到设计）")
+    steps = [
+        f"在浏览器打开 {BOLD}{PENPOT_SAAS_URL}{NC} 并登录",
+        "打开任意设计文件 → 点击右上角 Plugins 图标",
+        f"在 'Plugin manager' 粘贴: {BOLD}{plugin_manifest}{NC}",
+        "点击 Install，再点 Open，最后点 Connect to MCP server",
+        f"状态变 Connected 即可在 LLM 端使用 MCP 工具 ({DIM}{mcp_endpoint}{NC})",
+    ]
+    for n, msg in enumerate(steps, start=1):
+        print(f"  {CYAN}{n}.{NC} {msg}")
+    print(
+        f"\n  {DIM}提示: Chrome 142+ 会弹出 'Private Network Access' 授权框，"
+        f"允许即可；Brave 需要对 design.penpot.app 关闭 Shield。{NC}"
+    )
+    print(
+        f"  {DIM}插件 UI 关闭后 WebSocket 会断开 — 让 Plugin 面板保持打开。{NC}\n"
+    )
+
+
+def cmd_remote(config: dict) -> int:
+    """Remote (SaaS) mode: only launch local MCP, point user at design.penpot.app."""
+    print_header(
+        "Penpot Remote (SaaS) + 本地 MCP",
+        f"使用 {PENPOT_SAAS_URL} 作为 Penpot 后端 — 无需 Docker 自托管",
+    )
+    if not preflight_check("mcp"):
+        return 1
+    if not start_mcp(config):
+        return 1
+    register_claude_mcp(config)
+    print_remote_onboarding(config)
+    return 0
+
+
 def cmd_start(config: dict) -> int:
-    print(f"\n{CYAN}{BOLD}  启动 Penpot 服务{NC}\n")
+    print_header("启动 Penpot 服务")
     if not preflight_check("all"):
         return 1
     compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
@@ -510,7 +679,7 @@ def cmd_start(config: dict) -> int:
 
 
 def cmd_stop(config: dict) -> int:
-    print(f"\n{CYAN}{BOLD}  停止 Penpot 服务{NC}\n")
+    print_header("停止 Penpot 服务")
     section("停止 MCP Server")
     stop_mcp(config)
     compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
@@ -525,22 +694,188 @@ def cmd_stop(config: dict) -> int:
     return 0
 
 
+def _status_rows(config: dict) -> list[tuple[str, bool, str]]:
+    """Probe every Penpot-side service. Returned as (label, up, endpoint)."""
+    return [
+        (
+            "Penpot Frontend",
+            _is_penpot_running(config),
+            f"http://localhost:{config['penpot_port']}",
+        ),
+        (
+            "MCP Server",
+            _is_mcp_running(config),
+            f"http://localhost:{config['mcp_port']}/mcp",
+        ),
+        (
+            "Plugin Server",
+            is_port_listening(config["plugin_port"]),
+            f"http://localhost:{config['plugin_port']}",
+        ),
+    ]
+
+
+def _print_status_table(rows: list[tuple[str, bool, str]]) -> None:
+    """Pretty-print the service probe results as an aligned three-column table."""
+    label_w = max(len(r[0]) for r in rows) + 2
+    state_w = 8
+    print(f"  {BOLD}{'服务':<{label_w}}{'状态':<{state_w}}端点{NC}")
+    print(f"  {DIM}{'─' * (label_w + state_w + 40)}{NC}")
+    for label, up, endpoint in rows:
+        state = f"{GREEN}✔ Up{NC}    " if up else f"{RED}✖ Down{NC}  "
+        print(f"  {label:<{label_w}}{state:<{state_w}}{DIM}{endpoint}{NC}")
+
+
 def cmd_status(config: dict) -> int:
-    print(f"\n{CYAN}{BOLD}  Penpot 服务状态{NC}\n")
-    if _is_penpot_running(config):
-        ok(f"Penpot Frontend  {DIM}-> http://localhost:{config['penpot_port']}{NC}")
+    print_header("Penpot 服务状态")
+    rows = _status_rows(config)
+    _print_status_table(rows)
+    mcp_up = rows[1][1]
+    if not mcp_up:
+        print(
+            f"\n  下一步: "
+            f"{BOLD}cataforge penpot init{NC}（交互向导）或 "
+            f"{BOLD}cataforge penpot remote{NC} / "
+            f"{BOLD}cataforge penpot deploy{NC}\n"
+        )
     else:
-        fail(f"Penpot Frontend  (端口 {config['penpot_port']} 未监听)")
-    if _is_mcp_running(config):
-        ok(f"MCP Server       {DIM}-> http://localhost:{config['mcp_port']}/mcp{NC}")
-    else:
-        fail(f"MCP Server       (端口 {config['mcp_port']} 未监听)")
-    if is_port_listening(config["plugin_port"]):
-        ok(f"Plugin Server    {DIM}-> http://localhost:{config['plugin_port']}{NC}")
-    else:
-        info(f"Plugin Server    (端口 {config['plugin_port']} 未监听)")
-    print()
+        print()
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Interactive init wizard
+# ---------------------------------------------------------------------------
+
+MODE_REMOTE = "remote"
+MODE_LOCAL = "local"
+MODE_MCP_ONLY = "mcp-only"
+
+_MODE_KEY_TO_NAME = {"1": MODE_REMOTE, "2": MODE_LOCAL, "3": MODE_MCP_ONLY}
+_MODE_NAME_TO_KEY = {v: k for k, v in _MODE_KEY_TO_NAME.items()}
+
+
+def _prompt_mode(default: str = MODE_REMOTE) -> str:
+    """Prompt the user to pick a Penpot integration mode."""
+    from cataforge.cli.ui import ChoiceOption
+    from cataforge.cli.ui import ui as _ui
+
+    options = [
+        ChoiceOption(
+            key="1",
+            label="Remote",
+            icon="☁",
+            description="design.penpot.app + 本地 MCP — 最快上手，零 Docker，需 Penpot 账号",
+        ),
+        ChoiceOption(
+            key="2",
+            label="Local",
+            icon="⚙",
+            description="全量自托管 (6 容器 + MCP) — 数据自己管，需 Docker + ~3GB 镜像",
+        ),
+        ChoiceOption(
+            key="3",
+            label="MCP only",
+            icon="🔌",
+            description="只起 MCP，自己接已有 Penpot 实例（自托管或他人共享）",
+        ),
+    ]
+    chosen = _ui.prompt_choice(
+        "选择 Penpot 集成模式",
+        options,
+        default=_MODE_NAME_TO_KEY[default],
+    )
+    return _MODE_KEY_TO_NAME[chosen]
+
+
+def cmd_init(config: dict) -> int:
+    """Interactive setup wizard — picks Remote / Local / MCP-only and dispatches."""
+    print_header(
+        "Penpot 集成向导",
+        "为新用户挑选最合适的部署模式",
+    )
+    mode = _prompt_mode()
+    print()
+    if mode == MODE_REMOTE:
+        return cmd_remote(config)
+    if mode == MODE_LOCAL:
+        return cmd_deploy(config)
+    return cmd_mcp_only(config)
+
+
+# ---------------------------------------------------------------------------
+# Doctor — diagnose + auto-fix common Penpot integration failures
+# ---------------------------------------------------------------------------
+
+
+def cmd_doctor(config: dict) -> int:
+    """Inspect compose file, MCP log, and service ports; suggest fixes."""
+    print_header("Penpot 服务诊断")
+    problems: list[str] = []
+    actions: list[str] = []
+
+    section("环境检查")
+    if has_command("node"):
+        node_ver = get_command_version(["node", "--version"])
+        major = _node_major(node_ver)
+        lo, hi = SUPPORTED_NODE_MAJORS[0], SUPPORTED_NODE_MAJORS[-1]
+        if major is None or not (lo <= major <= hi):
+            warn(f"Node.js {node_ver} 不在兼容范围 v{lo}–v{hi}")
+            problems.append("node-version")
+            actions.append("安装 Node v22 LTS（推荐通过 nvm/volta 管理）")
+        else:
+            ok(f"Node.js {node_ver}")
+    else:
+        fail("Node.js 未安装")
+        problems.append("node-missing")
+        actions.append("https://nodejs.org 安装 v22 LTS")
+
+    section("compose 模板检查")
+    compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
+    if os.path.isfile(compose_file):
+        try:
+            with open(compose_file, encoding="utf-8") as fh:
+                content = fh.read()
+        except OSError:
+            content = ""
+        if "disable-mcp" in content and "PENPOT_MCP_URI" in content:
+            ok("compose 已应用 nginx upstream 修复 (Bug 1)")
+        else:
+            warn("compose 文件未包含 disable-mcp / PENPOT_MCP_URI 占位（Bug 1 未修）")
+            problems.append("compose-stale")
+            actions.append(
+                "运行 `cataforge penpot deploy --force-recreate` "
+                "重写 compose 文件"
+            )
+    else:
+        info(f"未找到 compose 文件: {compose_file}")
+
+    section("MCP 日志检查")
+    if os.path.isfile(MCP_LOG_FILE):
+        tail = _tail_log(MCP_LOG_FILE, lines=80)
+        hints = _diagnose_mcp_log("\n".join(tail))
+        if hints:
+            for line in hints:
+                print(f"  {line}")
+            problems.append("mcp-startup")
+        else:
+            ok("MCP 日志未发现已知错误模式")
+    else:
+        info(f"未找到 MCP 日志: {MCP_LOG_FILE} (MCP 可能从未启动)")
+
+    section("运行状态")
+    rows = _status_rows(config)
+    _print_status_table(rows)
+
+    print()
+    if not problems:
+        ok("未发现已知问题")
+        return 0
+    section("修复建议")
+    for n, msg in enumerate(actions, start=1):
+        print(f"  {CYAN}{n}.{NC} {msg}")
+    print()
+    return 1
 
 
 def cmd_ensure(config: dict) -> int:
@@ -583,7 +918,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="CataForge Penpot integration")
     parser.add_argument(
         "command", nargs="?",
-        choices=["deploy", "mcp-only", "start", "stop", "status"],
+        choices=[
+            "init", "deploy", "mcp-only", "remote",
+            "start", "stop", "status", "doctor",
+        ],
     )
     parser.add_argument("--ensure", action="store_true")
     args = parser.parse_args(argv)
@@ -595,8 +933,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 0
     handlers = {
-        "deploy": cmd_deploy, "mcp-only": cmd_mcp_only,
+        "init": cmd_init,
+        "deploy": cmd_deploy, "mcp-only": cmd_mcp_only, "remote": cmd_remote,
         "start": cmd_start, "stop": cmd_stop, "status": cmd_status,
+        "doctor": cmd_doctor,
     }
     return handlers[args.command](config)
 

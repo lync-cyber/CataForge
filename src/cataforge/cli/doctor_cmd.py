@@ -42,9 +42,9 @@ def doctor_command(ctx: click.Context) -> None:
     treat doctor as a gate.
     """
     from cataforge.cli.helpers import get_config_manager
+    from cataforge.cli.ui import ui
 
-    click.echo("CataForge Doctor")
-    click.echo("=" * 40)
+    ui.header("CataForge Doctor", subtitle="Environment + scaffold integrity gate")
 
     cfg = get_config_manager()
 
@@ -90,12 +90,22 @@ def doctor_command(ctx: click.Context) -> None:
     check_import("yaml", "PyYAML")
     check_import("click", "click")
 
-    # External tools
+    # External tools — diagnostic patterns for missing tools live in
+    # cataforge.cli.diagnostics so the same diagnosis/fix copy is shown by
+    # other commands that probe these binaries (penpot doctor, hook tests).
+    from cataforge.cli.diagnostics import DOCTOR_PATTERNS
+    from cataforge.cli.ui import ui as _ui
+
     click.echo("\nExternal tools:")
+    missing_tools_blob: list[str] = []
     for tool in ("ruff", "npx", "docker", "git"):
         path = shutil.which(tool)
         status = f"found ({path})" if path else "not found"
         click.echo(f"  {tool}: {status}")
+        if path is None:
+            missing_tools_blob.append(f"{tool}: not found")
+    if missing_tools_blob:
+        _ui.diagnose("\n".join(missing_tools_blob), DOCTOR_PATTERNS)
 
     # Platform profiles
     click.echo("\nPlatform profiles:")
@@ -185,13 +195,20 @@ def _print_summary(failed_count: int) -> None:
     state than the value adds — sections already print their own running
     tallies (e.g. ``7/7 built-in skills``).
     """
+    from cataforge.cli.guidance import print_next_steps
+    from cataforge.cli.ui import NextStep, ui
+
     if failed_count == 0:
-        click.secho("\nSummary: all checks passed.", fg="green")
+        ui.ok("Summary: all checks passed.")
+        print_next_steps("doctor-pass")
         return
-    click.secho(
-        f"\nSummary: {failed_count} failed — see FAIL lines above; "
-        "fix the source issue (often `cataforge deploy` or "
-        "`cataforge upgrade apply`) and rerun `cataforge doctor`.",
-        fg="red",
-        err=True,
+    ui.fail(
+        f"Summary: {failed_count} failed — see FAIL lines above."
     )
+    # Tailored next-steps when doctor fails — the right follow-up depends on
+    # the symptom class. We give a triage list rather than a single command.
+    ui.next_steps([
+        NextStep("cataforge deploy", "if FAIL was in `Deploy integrity`"),
+        NextStep("cataforge upgrade apply", "if FAIL was in `Framework migration checks`"),
+        NextStep("cataforge doctor", "rerun to confirm after fixing"),
+    ])

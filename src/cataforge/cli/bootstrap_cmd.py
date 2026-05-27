@@ -107,7 +107,9 @@ def bootstrap_command(
         raise click.ClickException(plan.error)
 
     if not yes and plan.any_writes() and not _confirm_plan(plan):
-        click.echo("Aborted.")
+        from cataforge.cli.ui import ui
+
+        ui.warn("Aborted.")
         raise click.exceptions.Exit(1)
 
     _execute_plan(ctx, cfg, plan, skip_doctor=skip_doctor)
@@ -327,10 +329,10 @@ def _print_plan(plan: _Plan, *, dry_run: bool) -> None:
 
 
 def _confirm_plan(plan: _Plan) -> bool:
-    return click.confirm(
-        f"Run {sum(1 for s in plan.steps if s.action == 'run')} step(s)?",
-        default=True,
-    )
+    from cataforge.cli.ui import ui
+
+    n_run = sum(1 for s in plan.steps if s.action == "run")
+    return ui.prompt_confirm(f"Run {n_run} step(s)?", default=True)
 
 
 # ---- execution ----
@@ -350,6 +352,7 @@ def _execute_plan(
     Bootstrap's job is orchestration: deciding which steps run and
     halting on failure, not duplicating the side effects.
     """
+    from cataforge.cli.ui import ui
     from cataforge.core.events import FRAMEWORK_SETUP, EventBus
     from cataforge.core.scaffold import copy_scaffold_to
 
@@ -357,11 +360,12 @@ def _execute_plan(
 
     step_by_name = {s.name: s for s in plan.steps}
 
-    click.echo("")
+    ui.print("")
 
     setup_step = step_by_name.get("setup")
     if setup_step is not None and setup_step.action == "run":
-        click.echo(f"[setup] delegating to `cataforge setup --platform {plan.target_platform}`")
+        ui.print("")
+        ui.info(f"[setup] delegating to `cataforge setup --platform {plan.target_platform}`")
         # Delegate to setup_command so any new side effect added there
         # (e.g. --emit-env-block, additional checks) is automatically
         # picked up by bootstrap. We pass --no-deploy explicitly: bootstrap
@@ -391,25 +395,27 @@ def _execute_plan(
         # apply` no-prompt subcommand to invoke (apply has its own
         # interactive flow with backups + diff). When such a non-interactive
         # path is added, this branch can collapse to ctx.invoke.
-        click.echo(f"[upgrade] refreshing .cataforge/ at {cfg.paths.cataforge_dir}")
+        ui.print("")
+        ui.info(f"[upgrade] refreshing .cataforge/ at {cfg.paths.cataforge_dir}")
         written, _, backup = copy_scaffold_to(
             cfg.paths.cataforge_dir, force=True,
         )
         cfg.reload()
         if backup is not None:
-            click.echo(f"  backup: {backup.relative_to(cfg.paths.cataforge_dir.parent)}")
-        click.echo(f"  wrote {len(written)} file(s)")
+            ui.ok(f"backup: {backup.relative_to(cfg.paths.cataforge_dir.parent)}")
+        ui.ok(f"wrote {len(written)} file(s)")
 
     deploy_step = step_by_name.get("deploy")
     if deploy_step is not None and deploy_step.action == "run":
         target = plan.target_platform or cfg.runtime_platform
-        click.echo(f"[deploy] rendering artefacts for {target}")
+        ui.print("")
+        ui.info(f"[deploy] rendering artefacts for {target}")
         from cataforge.deploy.deployer import Deployer
 
         deployer = Deployer(cfg, bus)
         actions = deployer.deploy(target)
         for action in actions:
-            click.echo(f"  {action}")
+            ui.print(f"  {action}")
         bus.emit(FRAMEWORK_SETUP, {"platform": target, "bootstrap": True})
 
     # First-time bootstrap previously left docs/.doc-index.json absent
@@ -419,31 +425,28 @@ def _execute_plan(
     # failure so a malformed doc doesn't strand bootstrap mid-flow.
     docs_dir = cfg.paths.root / "docs"
     if docs_dir.is_dir() and any(docs_dir.rglob("*.md")):
-        click.echo("\n[docs-index] generating docs/.doc-index.json")
+        ui.print("")
+        ui.info("[docs-index] generating docs/.doc-index.json")
         from cataforge.docs.indexer import main as indexer_main
 
         try:
             rc = indexer_main(["--project-root", str(cfg.paths.root)])
             if rc != 0:
-                click.secho(
-                    f"  WARN docs index returned {rc} — see warnings above; "
-                    "fix front matter then rerun `cataforge docs index`.",
-                    fg="yellow",
-                    err=True,
+                ui.warn(
+                    f"docs index returned {rc} — see warnings above; "
+                    "fix front matter then rerun `cataforge docs index`."
                 )
         except Exception as e:  # noqa: BLE001
-            click.secho(
-                f"  WARN docs index crashed: {e} — bootstrap continuing.",
-                fg="yellow",
-                err=True,
-            )
+            ui.warn(f"docs index crashed: {e} — bootstrap continuing.")
 
     doctor_step = step_by_name.get("doctor")
     if skip_doctor:
-        click.echo("\n[doctor] skipped (--skip-doctor)")
+        ui.print("")
+        ui.info("[doctor] skipped (--skip-doctor)")
         return
     if doctor_step is not None and doctor_step.action == "run":
-        click.echo("\n[doctor] running diagnostics")
+        ui.print("")
+        ui.info("[doctor] running diagnostics")
         from cataforge.cli.doctor_cmd import doctor_command
 
         ctx.invoke(doctor_command)
