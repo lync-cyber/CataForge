@@ -56,6 +56,73 @@ def _make_ui(**kwargs) -> tuple[UI, io.StringIO, io.StringIO]:
     return UI(stdout=out, stderr=err, **kwargs), out, err
 
 
+class _BrokenStream:
+    """StringIO-shaped stub that raises a configurable exception on
+    every ``write`` call. Lets the ``_write`` exception split (C9) be
+    exercised without depending on actual broken pipes."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+        self.flushed = False
+
+    def write(self, *_a, **_kw) -> int:
+        raise self._exc
+
+    def flush(self) -> None:
+        self.flushed = True
+
+
+def test_write_silently_swallows_brokenpipe(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``BrokenPipeError`` (e.g. ``cataforge ... | head``) must not
+    bubble up and must not log — the canonical CLI shape is to go
+    quiet when the pipe closes downstream."""
+    import logging
+
+    stdout = _BrokenStream(BrokenPipeError("simulated broken pipe"))
+    ui = UI(stdout=stdout, stderr=io.StringIO(), color=False, unicode=False)
+
+    caplog.set_level(logging.DEBUG, logger="cataforge.cli.ui")
+    # Must not raise.
+    ui.ok("doesn't matter")
+
+    # Pre-fix this would have logged nothing either, so checking
+    # absence of log records pins the new behaviour: BrokenPipeError
+    # specifically stays out of the log stream too.
+    pipe_records = [r for r in caplog.records if "BrokenPipe" in r.getMessage()]
+    assert pipe_records == [], (
+        f"BrokenPipeError must not produce log noise; got {pipe_records!r}"
+    )
+
+
+def test_write_logs_valueerror_at_debug(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``ValueError`` on stream write (typically "I/O operation on
+    closed file" inside pytest CliRunner) must NOT be silently dropped
+    the way it was pre-fix: that lumped it together with
+    BrokenPipeError and made a real ValueError escaping from a future
+    stream-shaped object completely invisible. Now it lands at
+    DEBUG so users running with ``--verbose`` / tracing can see it."""
+    import logging
+
+    stdout = _BrokenStream(ValueError("I/O operation on closed file"))
+    ui = UI(stdout=stdout, stderr=io.StringIO(), color=False, unicode=False)
+
+    caplog.set_level(logging.DEBUG, logger="cataforge.cli.ui")
+    # Must not raise.
+    ui.ok("doesn't matter")
+
+    debug_records = [
+        r for r in caplog.records if "ui write got ValueError" in r.getMessage()
+    ]
+    assert debug_records, (
+        f"ValueError on write must be logged at DEBUG; got {caplog.records!r}"
+    )
+    assert debug_records[0].levelno == logging.DEBUG
+
+
 def test_ok_emits_glyph_and_message() -> None:
     ui, out, _ = _make_ui(color=False, unicode=True)
     ui.ok("everything good")

@@ -11,7 +11,7 @@ from cataforge.hook.scripts.session_context import _auto_deploy
 
 def test_auto_deploy_warns_on_failure(capsys):
     exc = FileNotFoundError("cataforge not in PATH")
-    with patch("cataforge.hook.scripts.session_context.subprocess.run", side_effect=exc):
+    with patch("cataforge.hook.scripts.session_context.run_proc", side_effect=exc):
         _auto_deploy()
 
     captured = capsys.readouterr()
@@ -22,7 +22,7 @@ def test_auto_deploy_warns_on_failure(capsys):
 
 def test_auto_deploy_does_not_raise(capsys):
     exc = FileNotFoundError("cataforge not in PATH")
-    with patch("cataforge.hook.scripts.session_context.subprocess.run", side_effect=exc):
+    with patch("cataforge.hook.scripts.session_context.run_proc", side_effect=exc):
         try:
             _auto_deploy()
         except Exception as e:

@@ -85,10 +85,13 @@ def doctor_command(ctx: click.Context) -> None:
     click.echo(f"\nFramework version: {cfg.version}")
     click.echo(f"Runtime platform: {cfg.runtime_platform}")
 
-    # Dependencies
+    # Dependencies — these two are load-bearing for the CLI itself; if
+    # either is missing the user can't run any cataforge command, so
+    # gate doctor's exit code on them. ``check_import(..., required=True)``
+    # mirrors the same pattern check_file / check_dir already use.
     click.echo("\nDependencies:")
-    check_import("yaml", "PyYAML")
-    check_import("click", "click")
+    failed_count += check_import("yaml", "PyYAML", required=True)
+    failed_count += check_import("click", "click", required=True)
 
     # External tools — diagnostic patterns for missing tools live in
     # cataforge.cli.diagnostics so the same diagnosis/fix copy is shown by

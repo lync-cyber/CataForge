@@ -13,19 +13,28 @@ from cataforge.cli.errors import CataforgeError
 from cataforge.cli.main import cli
 
 
-def _run_penpot(handler_name: str, command_label: str) -> None:
-    """Load the penpot integration lazily and forward its exit code."""
+def _run_penpot(command: str) -> None:
+    """Load the penpot integration lazily and forward its exit code.
+
+    ``command`` is the user-facing subcommand name (``"init"`` /
+    ``"deploy"`` / ``"ensure"`` / …). Looks it up in
+    ``penpot.HANDLERS``; missing entry surfaces a typed CataforgeError
+    on stderr instead of the older ``getattr`` path's AttributeError.
+    """
     from cataforge.integrations import penpot
 
-    load_dotenv = penpot.load_dotenv
-    get_config = penpot.get_config
-    handler = getattr(penpot, handler_name)
+    handler = penpot.HANDLERS.get(command)
+    if handler is None:
+        raise CataforgeError(
+            f"unknown penpot subcommand {command!r}; "
+            f"registered: {sorted(penpot.HANDLERS)}"
+        )
 
-    load_dotenv(set_env=True)
-    code = handler(get_config())
+    penpot.load_dotenv(set_env=True)
+    code = handler(penpot.get_config())
     if code == 0:
         return
-    err = CataforgeError(f"`cataforge penpot {command_label}` failed (exit code {code}).")
+    err = CataforgeError(f"`cataforge penpot {command}` failed (exit code {code}).")
     err.exit_code = code
     raise err
 
@@ -60,19 +69,19 @@ def penpot_group() -> None:
 @penpot_group.command("init")
 def penpot_init() -> None:
     """Interactive wizard: pick Remote / Local / MCP-only and configure."""
-    _run_penpot("cmd_init", "init")
+    _run_penpot("init")
 
 
 @penpot_group.command("deploy")
 def penpot_deploy() -> None:
     """Full deployment: Penpot (Docker stack) + MCP server."""
-    _run_penpot("cmd_deploy", "deploy")
+    _run_penpot("deploy")
 
 
 @penpot_group.command("mcp-only")
 def penpot_mcp_only() -> None:
     """Start only the MCP server (assumes Penpot is already running)."""
-    _run_penpot("cmd_mcp_only", "mcp-only")
+    _run_penpot("mcp-only")
 
 
 @penpot_group.command("remote")
@@ -83,25 +92,25 @@ def penpot_remote() -> None:
     load the MCP plugin into design.penpot.app. The fastest path for users
     who don't need a self-hosted Penpot instance.
     """
-    _run_penpot("cmd_remote", "remote")
+    _run_penpot("remote")
 
 
 @penpot_group.command("start")
 def penpot_start() -> None:
     """Start previously deployed Penpot services."""
-    _run_penpot("cmd_start", "start")
+    _run_penpot("start")
 
 
 @penpot_group.command("stop")
 def penpot_stop() -> None:
     """Stop all running Penpot services."""
-    _run_penpot("cmd_stop", "stop")
+    _run_penpot("stop")
 
 
 @penpot_group.command("status")
 def penpot_status() -> None:
     """Show the status of Penpot services and the MCP server."""
-    _run_penpot("cmd_status", "status")
+    _run_penpot("status")
 
 
 @penpot_group.command("doctor")
@@ -112,7 +121,7 @@ def penpot_doctor() -> None:
     and the MCP log tail for known error patterns (Bug 2 / port-in-use /
     nginx upstream).
     """
-    _run_penpot("cmd_doctor", "doctor")
+    _run_penpot("doctor")
 
 
 @penpot_group.command("ensure")
@@ -124,4 +133,4 @@ def penpot_ensure() -> None:
     tool list — they call ``cataforge penpot ensure`` to attempt a
     start-up before falling back to ``blocked``.
     """
-    _run_penpot("cmd_ensure", "ensure")
+    _run_penpot("ensure")

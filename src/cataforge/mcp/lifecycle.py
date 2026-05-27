@@ -41,6 +41,7 @@ from typing import Literal
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.mcp.registry import MCPRegistry
 from cataforge.schema.mcp_spec import HealthCheckSpec, MCPServerSpec, MCPServerState
+from cataforge.utils.run_subprocess import run as run_proc
 
 logger = logging.getLogger("cataforge.mcp.lifecycle")
 
@@ -300,7 +301,7 @@ class MCPLifecycleManager:
                 else:
                     stderr_target = subprocess.DEVNULL
 
-                proc = subprocess.Popen(
+                proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
                     cmd,
                     env=env,
                     stdout=subprocess.DEVNULL,
@@ -528,13 +529,7 @@ class MCPLifecycleManager:
                 ts=ts,
             )
         try:
-            proc = subprocess.run(  # noqa: S603
-                target,
-                shell=False,
-                timeout=check.timeout_seconds,
-                capture_output=True,
-                text=True,
-            )
+            proc = run_proc(target, timeout=check.timeout_seconds)
         except subprocess.TimeoutExpired:
             return HealthResult(
                 status="unhealthy",

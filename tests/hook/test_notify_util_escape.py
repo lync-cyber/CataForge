@@ -18,7 +18,10 @@ EVIL_MESSAGE = "line1\nline2 with $env:PATH"
 
 @pytest.fixture()
 def mock_subprocess_run() -> MagicMock:
-    with patch("cataforge.hook.scripts.notify_util.subprocess.run") as m:
+    # notify_util now goes through cataforge.utils.run_subprocess.run; we
+    # patch the module-local rebind (`run_proc`) so the assertions still
+    # observe what the helper passed downstream.
+    with patch("cataforge.hook.scripts.notify_util.run_proc") as m:
         yield m
 
 
@@ -120,8 +123,10 @@ class TestLinuxNotifySend:
         _notify_linux(EVIL_TITLE, EVIL_MESSAGE)
 
         mock_subprocess_run.assert_called_once()
-        call_kwargs = mock_subprocess_run.call_args[1]
-        assert call_kwargs.get("shell", False) is False
+        # The wrapper has no `shell=` parameter at all (it calls
+        # subprocess.run without it, defaulting to False); the previous
+        # call_kwargs check was a guard against accidental shell=True
+        # at the call site, which is now structurally impossible.
         cmd = mock_subprocess_run.call_args[0][0]
         assert cmd[0] == "notify-send"
         assert EVIL_TITLE in cmd

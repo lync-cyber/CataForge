@@ -213,6 +213,13 @@ def hook_main(func: Callable[[], Any]) -> Callable[[], None]:
             func()
         except SystemExit:
             raise
+        except KeyboardInterrupt:
+            # Ctrl+C is an explicit user signal to abort, not a hook
+            # failure. Swallowing it into ``exit 0`` would let the
+            # surrounding deploy / dispatch continue against the user's
+            # stated wish (and hide the interrupt from any wrapping
+            # CLI command that wants to print a "cancelled" message).
+            raise
         except Exception as exc:
             _record_hook_error(func.__module__, func.__name__, exc)
             if os.environ.get("CATAFORGE_HOOK_DEBUG"):

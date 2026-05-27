@@ -252,7 +252,7 @@ class TestSinks:
 
         monkeypatch.setattr("cataforge.cli.feedback_cmd.shutil.which", fake_which)
         monkeypatch.setattr(
-            "cataforge.cli.feedback_cmd.subprocess.run", fake_run
+            "cataforge.cli.feedback_cmd.run_proc", fake_run
         )
 
         result = CliRunner().invoke(
@@ -311,7 +311,7 @@ class TestSinks:
 
         monkeypatch.setattr("cataforge.cli.feedback_cmd.shutil.which", fake_which)
         monkeypatch.setattr(
-            "cataforge.cli.feedback_cmd.subprocess.run", fake_run
+            "cataforge.cli.feedback_cmd.run_proc", fake_run
         )
 
         result = CliRunner().invoke(
@@ -366,14 +366,11 @@ def test_gh_sink_propagates_error_text(
     )
 
     def fake_run(cmd, input=None, **kw):  # type: ignore[no-untyped-def]
-        raise subprocess.CalledProcessError(
-            returncode=4,
-            cmd=cmd,
-            output="",
-            stderr="GH_AUTH_REQUIRED",
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=4, stdout="", stderr="GH_AUTH_REQUIRED"
         )
 
-    monkeypatch.setattr("cataforge.cli.feedback_cmd.subprocess.run", fake_run)
+    monkeypatch.setattr("cataforge.cli.feedback_cmd.run_proc", fake_run)
 
     result = CliRunner().invoke(
         bug_command,
@@ -397,14 +394,11 @@ def test_gh_sink_propagates_rate_limit_error(
     )
 
     def fake_run(cmd, input=None, **kw):  # type: ignore[no-untyped-def]
-        raise subprocess.CalledProcessError(
-            returncode=1,
-            cmd=cmd,
-            output="",
-            stderr="error: API rate limit exceeded",
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=1, stdout="", stderr="error: API rate limit exceeded"
         )
 
-    monkeypatch.setattr("cataforge.cli.feedback_cmd.subprocess.run", fake_run)
+    monkeypatch.setattr("cataforge.cli.feedback_cmd.run_proc", fake_run)
 
     result = CliRunner().invoke(
         bug_command,

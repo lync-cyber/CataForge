@@ -38,12 +38,26 @@ def check_dir(label: str, path: Path, *, required: bool = False) -> int:
     return 0
 
 
-def check_import(module: str, display: str) -> None:
+def check_import(module: str, display: str, *, required: bool = False) -> int:
+    """Report whether *module* imports. Returns 0 on success.
+
+    When *required* is True a missing import returns 1 so ``doctor``
+    can fold it into ``failed_count`` the same way ``check_file`` /
+    ``check_dir`` already do. Default ``required=False`` preserves
+    the historic "MISSING" tone and zero-return for optional deps so
+    pre-existing callers that ignore the return value behave exactly
+    as before this change.
+    """
     try:
         __import__(module)
-        click.echo(f"  {display}: OK")
     except ImportError:
+        if required:
+            click.echo(f"  {display}: FAIL (missing — required import)")
+            return 1
         click.echo(f"  {display}: MISSING")
+        return 0
+    click.echo(f"  {display}: OK")
+    return 0
 
 
 def is_relative_to(path: Path, base: Path) -> bool:

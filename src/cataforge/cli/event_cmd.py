@@ -23,6 +23,7 @@ from cataforge.core.event_log import (
 )
 from cataforge.core.io import read_stdin_utf8
 from cataforge.core.paths import find_project_root
+from cataforge.utils.atomic_write import atomic_write_text
 
 
 @cli.group("event")
@@ -222,10 +223,13 @@ def event_accept_legacy(before: str | None, project_root: Path | None) -> None:
 
     # Touch disk directly — ConfigManager has no public writer for
     # upgrade.state, and the existing set_runtime_platform path uses the
-    # same load_raw → patch → write_text shape.
-    cfg.paths.framework_json.write_text(
+    # same load_raw → patch → write shape. Atomic so a crash between
+    # truncate and write can't leave framework.json half-rewritten —
+    # which would brick every subsequent CLI invocation that needs the
+    # version / runtime keys.
+    atomic_write_text(
+        cfg.paths.framework_json,
         json.dumps(raw, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
     )
     # Make sure today's timestamp is timezone-aware in the message.
     if not cutoff.endswith("Z") and "+" not in cutoff[10:]:

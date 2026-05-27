@@ -7,17 +7,17 @@ Always exits 0 — reports issues but never blocks.
 
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 from cataforge.hook.base import hook_main, matches_script_filters, read_hook_input
+from cataforge.utils.run_subprocess import run as run_proc
 
 
 def run_tool(cmd: list[str], label: str, filepath: str) -> None:
     """Run a formatting/linting tool, report errors to stderr."""
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = run_proc(cmd, timeout=30)
         if result.returncode != 0 and result.stderr:
             lines = [
                 line

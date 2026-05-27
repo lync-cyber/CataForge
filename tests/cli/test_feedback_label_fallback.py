@@ -11,10 +11,12 @@ from cataforge.cli import feedback_cmd
 from cataforge.cli.errors import ExternalToolError
 
 
-class _FakeCompleted:
-    def __init__(self, stdout: str = "", stderr: str = "") -> None:
-        self.stdout = stdout
-        self.stderr = stderr
+def _completed(
+    *, returncode: int = 0, stdout: str = "", stderr: str = ""
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=["gh"], returncode=returncode, stdout=stdout, stderr=stderr
+    )
 
 
 def _patch_subprocess(
@@ -22,7 +24,7 @@ def _patch_subprocess(
     *,
     side_effect_seq: list[Any],
 ) -> list[list[str]]:
-    """Replace ``subprocess.run`` inside feedback_cmd with a queue-driven fake.
+    """Replace ``run_proc`` inside feedback_cmd with a queue-driven fake.
 
     Returns the list that will collect every issued command for assertion.
     """
@@ -32,14 +34,13 @@ def _patch_subprocess(
     def fake_run(cmd, **kwargs):  # noqa: ANN001 — passthrough proxy
         calls.append(list(cmd))
         if not queue:
-            raise AssertionError(f"unexpected extra subprocess.run({cmd})")
+            raise AssertionError(f"unexpected extra run_proc({cmd})")
         outcome = queue.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
 
-    monkeypatch.setattr(feedback_cmd, "subprocess", subprocess)  # ensure real symbol
-    monkeypatch.setattr(feedback_cmd.subprocess, "run", fake_run)
+    monkeypatch.setattr(feedback_cmd, "run_proc", fake_run)
     monkeypatch.setattr(feedback_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
     return calls
 
@@ -50,7 +51,7 @@ class TestToGhFallback:
     ) -> None:
         calls = _patch_subprocess(
             monkeypatch,
-            side_effect_seq=[_FakeCompleted(stdout="https://example/issues/1")],
+            side_effect_seq=[_completed(stdout="https://example/issues/1")],
         )
         url = feedback_cmd._to_gh(
             "body",
@@ -65,17 +66,15 @@ class TestToGhFallback:
     def test_retries_without_label_on_unknown_label(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        first = subprocess.CalledProcessError(
+        first = _completed(
             returncode=1,
-            cmd=["gh", "issue", "create"],
-            output="",
             stderr="GraphQL: Could not add label: 'feedback' not found",
         )
         calls = _patch_subprocess(
             monkeypatch,
             side_effect_seq=[
                 first,
-                _FakeCompleted(stdout="https://example/issues/2"),
+                _completed(stdout="https://example/issues/2"),
             ],
         )
         url = feedback_cmd._to_gh(
@@ -90,10 +89,8 @@ class TestToGhFallback:
         assert "--label" not in calls[1]
 
     def test_no_retry_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        first = subprocess.CalledProcessError(
+        first = _completed(
             returncode=1,
-            cmd=["gh"],
-            output="",
             stderr="Could not add label: 'feedback' not found",
         )
         _patch_subprocess(monkeypatch, side_effect_seq=[first])
@@ -108,12 +105,7 @@ class TestToGhFallback:
     def test_propagates_unrelated_failure(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        first = subprocess.CalledProcessError(
-            returncode=2,
-            cmd=["gh"],
-            output="",
-            stderr="HTTP 500 — server fire",
-        )
+        first = _completed(returncode=2, stderr="HTTP 500 — server fire")
         _patch_subprocess(monkeypatch, side_effect_seq=[first])
         with pytest.raises(ExternalToolError) as exc:
             feedback_cmd._to_gh("body", title="t", labels=["bug"])
@@ -125,7 +117,7 @@ class TestToGhFallback:
         """Old call site using comma-string ``label="a,b"`` must still work."""
         calls = _patch_subprocess(
             monkeypatch,
-            side_effect_seq=[_FakeCompleted(stdout="https://example/issues/3")],
+            side_effect_seq=[_completed(stdout="https://example/issues/3")],
         )
         url = feedback_cmd._to_gh("body", title="t", label="bug,enhancement")
         assert url == "https://example/issues/3"

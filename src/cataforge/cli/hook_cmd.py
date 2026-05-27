@@ -200,7 +200,9 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
     click.echo(f"Payload : {source_label}")
     click.echo("-" * 40)
 
-    proc = subprocess.run(
+    # The wrapper only takes argv positionally; this site needs to pass args/shell
+    # via **proc_kwargs (shell=True for unsafe_shell hooks).
+    proc = subprocess.run(  # allow-raw-subprocess: shell=True for unsafe_shell hooks
         input=payload,
         capture_output=True,
         text=True,

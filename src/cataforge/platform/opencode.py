@@ -5,10 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from cataforge.agent.translator import translate_agent_md
 from cataforge.platform.base import PlatformAdapter
 from cataforge.platform.helpers import (
-    _prune_orphan_flat_files,
     merge_json_key,
     merge_opencode_project_mcp,
 )
@@ -48,69 +46,22 @@ class OpenCodeAdapter(PlatformAdapter):
     ) -> list[str]:
         """Deploy AGENT.md files to OpenCode native ``.opencode/agents/*.md``.
 
-        After deploy, ``<name>.md`` files whose source AGENT.md no longer
-        exists are pruned — matches the prune contract of every other
-        platform adapter so a renamed/deleted agent doesn't leave behind a
-        stale OpenCode profile. Only files whose frontmatter ``name:``
-        matches the stem are touched; user-authored .md files stay put.
+        Shares the flat-write + flat-prune pipeline with Claude Code via
+        the base ``_deploy_flat_agents`` helper — only the hardcoded
+        target directory differs (OpenCode doesn't surface its agents
+        path through ``agent_definition.scan_dirs``).
         """
-        target_rel = ".opencode/agents"
-        target_dir = project_root / target_rel
-        if not dry_run:
-            target_dir.mkdir(parents=True, exist_ok=True)
-
-        actions: list[str] = []
-        if not source_dir.is_dir():
-            return actions
-
-        source_agents = {
-            d.name
-            for d in source_dir.iterdir()
-            if d.is_dir() and (d / "AGENT.md").is_file()
-        }
-
-        dropped_collector: dict[str, set[str]] = {}
-
-        for agent_name in sorted(source_agents):
-            agent_md = source_dir / agent_name / "AGENT.md"
-            target_file = target_dir / f"{agent_name}.md"
-            target_rel_full = f"{target_rel}/{agent_name}.md"
-            if dry_run:
-                actions.append(
-                    f"would deploy agents/{agent_name}/AGENT.md → "
-                    f"{target_rel}/{agent_name}.md"
-                )
-                continue
-            content = agent_md.read_text(encoding="utf-8")
-            translated = translate_agent_md(content, self, dropped_collector=dropped_collector)
-            target_file.write_text(translated, encoding="utf-8")
-            if manifest is not None:
-                manifest.record(target_rel_full)
-            actions.append(
-                f"agents/{agent_name}/AGENT.md → {target_rel}/{agent_name}.md"
-            )
-
-        for field_name in sorted(dropped_collector):
-            caps = sorted(dropped_collector[field_name])
-            actions.append(
-                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
-                f"{field_name!r} have no platform mapping: {caps} — "
-                "these will be skipped during translation."
-            )
-
-        actions.extend(
-            _prune_orphan_flat_files(
-                target_dir,
-                source_agents,
-                ".md",
-                "name: {stem}",
-                target_rel,
-                dry_run=dry_run,
-                prior_manifest=prior_manifest,
-            )
+        return self._deploy_flat_agents(
+            source_dir,
+            project_root,
+            target_rel=".opencode/agents",
+            suffix=".md",
+            head_signature="name: {stem}",
+            formatter=lambda _name, translated: translated,
+            dry_run=dry_run,
+            manifest=manifest,
+            prior_manifest=prior_manifest,
         )
-
-        return actions
 
     def deploy_instruction_files(
         self,

@@ -37,7 +37,6 @@ from __future__ import annotations
 import json
 import re
 import shutil
-import subprocess
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -49,6 +48,7 @@ from cataforge import __version__
 from cataforge.cli.errors import CataforgeError, ExternalToolError
 from cataforge.cli.helpers import get_config_manager, resolve_root
 from cataforge.cli.main import cli
+from cataforge.utils.run_subprocess import run as run_proc
 
 INSTALLED_VERSION = __version__
 
@@ -262,12 +262,12 @@ def close_command(
         return
 
     cmd = ["gh", "issue", "close", str(number), "-R", repo, "--comment", comment]
-    try:
-        subprocess.run(cmd, check=True, text=True, encoding="utf-8")
-    except subprocess.CalledProcessError as e:
+    result = run_proc(cmd)
+    if result.returncode != 0:
         raise ExternalToolError(
-            f"gh issue close failed (exit {e.returncode}):\n{e.stderr or e.stdout}"
-        ) from None
+            f"gh issue close failed (exit {result.returncode}):\n"
+            f"{result.stderr or result.stdout}"
+        )
     click.secho(f"\nClosed #{number}.", fg="green")
 
 
@@ -576,18 +576,12 @@ def _fetch_issues(
         cmd = list(base_cmd)
         for lbl in group:
             cmd.extend(["--label", lbl])
-        try:
-            result = subprocess.run(
-                cmd,
-                text=True,
-                capture_output=True,
-                check=True,
-                encoding="utf-8",
-            )
-        except subprocess.CalledProcessError as e:
+        result = run_proc(cmd)
+        if result.returncode != 0:
             raise ExternalToolError(
-                f"gh issue list failed (exit {e.returncode}):\n{e.stderr or e.stdout}"
-            ) from None
+                f"gh issue list failed (exit {result.returncode}):\n"
+                f"{result.stderr or result.stdout}"
+            )
         for entry in json.loads(result.stdout or "[]"):
             number = entry.get("number")
             if not isinstance(number, int):

@@ -118,6 +118,73 @@ class TestSyncMainSafetyRails:
         assert "diverged" in result.output
 
 
+class TestSyncMainGitOutputContract:
+    """``git rev-list --left-right --count`` is documented to emit two
+    whitespace-separated integers on a single line. If a future git
+    version (or a locale-induced warning leaking onto stdout) breaks
+    that contract, the user must see a clear diagnostic — not a bare
+    ``ValueError: not enough values to unpack``.
+
+    Both cases are induced by patching the in-module ``_git`` helper so
+    only the rev-list call returns the malformed shape; every other git
+    invocation goes through to the real binary against the fixture repo.
+    """
+
+    def _patch_revlist_stdout(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        bad_stdout: str,
+    ) -> None:
+        from cataforge.cli import sync_cmd
+
+        real_git = sync_cmd._git
+
+        def _fake_git(args, *, cwd, check=True):  # type: ignore[no-untyped-def]
+            if args[:1] == ["rev-list"]:
+                return subprocess.CompletedProcess(
+                    args=["git", *args],
+                    returncode=0,
+                    stdout=bad_stdout,
+                    stderr="",
+                )
+            return real_git(args, cwd=cwd, check=check)
+
+        monkeypatch.setattr(sync_cmd, "_git", _fake_git)
+
+    def test_malformed_revlist_output_reports_diagnostic(
+        self, in_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Three tokens — a future contract drift or a locale warning
+        # crashing into stdout. Pre-fix this raised ``ValueError`` and
+        # surfaced as ``could not compare ...: not enough values...``,
+        # losing the actual stdout that caused it.
+        self._patch_revlist_stdout(monkeypatch, "1\t2\t3\n")
+        result = CliRunner().invoke(sync_main_command, [])
+        assert result.exit_code != 0
+        assert "unexpected" in result.output
+        assert "1\\t2\\t3" in result.output or "1\t2\t3" in result.output
+
+    def test_non_integer_revlist_output_reports_diagnostic(
+        self, in_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Two tokens but not parseable as int — e.g. git printed a hash
+        # instead of a count after a contract change.
+        self._patch_revlist_stdout(monkeypatch, "abc\tdef\n")
+        result = CliRunner().invoke(sync_main_command, [])
+        assert result.exit_code != 0
+        assert "non-integer" in result.output
+
+    def test_empty_revlist_output_treated_as_zero_zero(
+        self, in_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Empty stdout legitimately means "no commits either side";
+        # keep the prior tolerant behaviour rather than failing hard.
+        self._patch_revlist_stdout(monkeypatch, "")
+        result = CliRunner().invoke(sync_main_command, [])
+        assert result.exit_code == 0, result.output
+        assert "already up to date" in result.output
+
+
 class TestSyncMainPruneMerged:
     def test_prune_merged_deletes_merged_feature_branches(
         self, in_repo: Path, linked_repos: tuple[Path, Path]

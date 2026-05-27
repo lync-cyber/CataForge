@@ -108,3 +108,30 @@ repos:
         language: system
         pass_filenames: false
         files: ^src/cataforge/kg/.*\.py$
+      - id: echo-err-for-errors
+        name: cli/ error-toned echoes must use err=True (route to stderr)
+        description: |
+          src/cataforge/cli/ click.echo / click.secho calls whose first
+          arg starts with Error: / ERROR: / Cannot / Could not /
+          Refused / Invalid / Failed / FAIL: must pass err=True so
+          scripts piping success output (`cataforge … | jq`) do not
+          lose the message into stdout. Per-call exemption:
+          `# allow-stdout-echo: <reason>` inline. cli/doctor/ is
+          exempt — it is structured stdout by design.
+        entry: python scripts/checks/check_echo_err_for_errors.py
+        language: system
+        pass_filenames: false
+        files: ^src/cataforge/cli/.*\.py$
+      - id: no-raw-subprocess
+        name: no raw subprocess.run outside the wrapper
+        description: |
+          Every src/cataforge/ subprocess.run / Popen / call must go
+          through cataforge.utils.run_subprocess.run, which centralises
+          timeout / text mode / encoding / check=False policy. Sites
+          the wrapper deliberately doesn't cover (Popen for long-running
+          processes, shell=True with **proc_kwargs passthrough) carry
+          an inline `# allow-raw-subprocess: <reason>` exemption.
+        entry: python scripts/checks/check_no_raw_subprocess.py
+        language: system
+        pass_filenames: false
+        files: ^src/cataforge/.*\.py$

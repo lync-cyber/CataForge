@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
-
-import yaml
 
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.core.types import CAPABILITY_IDS
-
-_FRONTMATTER_RE = re.compile(r"^---\n(.*?\n)---\n", re.DOTALL)
+from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 
 def _parse_tools_from_frontmatter(content: str) -> list[str] | None:
@@ -19,12 +15,8 @@ def _parse_tools_from_frontmatter(content: str) -> list[str] | None:
 
     Returns ``None`` when no ``tools`` key is present.
     """
-    m = _FRONTMATTER_RE.match(content)
-    if not m:
-        return None
-    try:
-        fm = yaml.safe_load(m.group(1)) or {}
-    except yaml.YAMLError:
+    fm, _body = split_yaml_frontmatter(content)
+    if fm is None:
         return None
     raw = fm.get("tools")
     if raw is None:

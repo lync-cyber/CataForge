@@ -159,6 +159,101 @@ def test_record_correction_date_uses_utc(tmp_path: Path) -> None:
     )
 
 
+def test_first_call_atomic_failure_leaves_no_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pre-fix shape: the first call wrote ``_HEADER`` then ``entry`` in
+    two consecutive ``f.write`` calls inside a ``"w"`` open(). A crash
+    after the header (FS full / OS kill / power) left a header-only
+    file with no entry — and the next call's ``is_file()`` check
+    skipped the header branch, so a CORRECTIONS-LOG could end up in
+    production with no Header / 不齐全 entries forever.
+
+    Post-fix: ``atomic_write_text`` either writes the complete header
+    + entry or leaves the file absent entirely.
+    """
+    import os
+
+    log_path = tmp_path / "docs" / "reviews" / "CORRECTIONS-LOG.md"
+    assert not log_path.exists()
+
+    def _boom(*_a, **_kw):
+        raise OSError("simulated mid-write failure")
+
+    monkeypatch.setattr(os, "replace", _boom)
+
+    with pytest.raises(OSError, match="simulated"):
+        record_correction(
+            tmp_path,
+            trigger="option-override",
+            agent="orchestrator",
+            phase="x",
+            question="q",
+            baseline="b",
+            actual="a",
+            write_event_log=False,
+        )
+
+    assert not log_path.exists(), (
+        "atomic write must leave no file when the rename failed; pre-fix "
+        "this could exit with a header-only file in production."
+    )
+    # No temp residue either.
+    parent = log_path.parent
+    if parent.exists():
+        residue = [p for p in parent.iterdir() if p.name.startswith(".CORRECTIONS-LOG.md.")]
+        assert residue == [], f"atomic temp file leaked: {residue!r}"
+
+
+def test_second_call_atomic_failure_preserves_existing_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """First entry lands cleanly; a crash during the SECOND entry's
+    rename must leave the prior log intact (header + first entry),
+    never a truncated / appended-half state. With the new
+    read-modify-write through ``atomic_write_text`` this is the
+    natural behaviour."""
+    import os
+
+    record_correction(
+        tmp_path,
+        trigger="option-override",
+        agent="orchestrator",
+        phase="x",
+        question="first",
+        baseline="b1",
+        actual="a1",
+        write_event_log=False,
+    )
+    log_path = tmp_path / "docs" / "reviews" / "CORRECTIONS-LOG.md"
+    first_state = log_path.read_text(encoding="utf-8")
+    assert "first" in first_state
+    assert "# Corrections Log" in first_state
+
+    def _boom(*_a, **_kw):
+        raise OSError("simulated mid-write failure")
+
+    monkeypatch.setattr(os, "replace", _boom)
+
+    with pytest.raises(OSError, match="simulated"):
+        record_correction(
+            tmp_path,
+            trigger="review-flag",
+            agent="reviewer",
+            phase="review",
+            question="second",
+            baseline="b2",
+            actual="a2",
+            write_event_log=False,
+        )
+
+    after = log_path.read_text(encoding="utf-8")
+    assert after == first_state, (
+        "second-write failure must leave the prior log byte-for-byte intact"
+    )
+    assert "second" not in after
+
+
 def test_record_correction_accepts_upstream_gap_deviation(tmp_path: Path) -> None:
     """``upstream-gap`` is the deviation type that powers the framework-feedback
     aggregator. Round-trip it through the writer + markdown re-read to make

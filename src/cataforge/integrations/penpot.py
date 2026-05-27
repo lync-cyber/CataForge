@@ -17,8 +17,10 @@ import textwrap
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from typing import Any
 
+from cataforge.cli.errors import CataforgeError
 from cataforge.utils.common import (
     BOLD,
     CYAN,
@@ -46,6 +48,7 @@ from cataforge.utils.docker_util import (
     ensure_docker_running,
     pull_all_images_from_compose_file,
 )
+from cataforge.utils.run_subprocess import run as run_proc
 
 PLATFORM = detect_platform()
 
@@ -252,9 +255,9 @@ def _generate_compose_file(config: dict, force: bool = False) -> str:
 
 def _is_penpot_container_running() -> bool:
     try:
-        r = subprocess.run(
+        r = run_proc(
             ["docker", "ps", "--filter", "name=penpot", "--format", "{{.Names}}"],
-            capture_output=True, text=True, timeout=10,
+            timeout=10,
         )
         return bool(r.stdout.strip())
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
@@ -331,9 +334,11 @@ def deploy_penpot(config: dict) -> bool:
         fail("一个或多个 Docker 镜像拉取失败，已中止部署")
         return False
     info("启动 Penpot 服务...")
-    up_result = subprocess.run(
+    up_result = run_proc(
         dc_cmd + ["-f", compose_file, "up", "-d"],
-        cwd=compose_dir, timeout=120,
+        cwd=compose_dir,
+        timeout=120,
+        capture_output=False,
     )
     if up_result.returncode != 0:
         fail("Docker Compose 启动失败")
@@ -357,14 +362,14 @@ def _read_mcp_pid() -> int | None:
     if not os.path.isfile(MCP_PID_FILE):
         return None
     try:
-        with open(MCP_PID_FILE) as f:
+        with open(MCP_PID_FILE, encoding="utf-8") as f:
             return int(f.read().strip())
     except (ValueError, OSError):
         return None
 
 
 def _write_mcp_pid(pid: int) -> None:
-    with open(MCP_PID_FILE, "w") as f:
+    with open(MCP_PID_FILE, "w", encoding="utf-8") as f:
         f.write(str(pid))
 
 
@@ -376,6 +381,13 @@ def _remove_mcp_pid() -> None:
 def _is_mcp_running(config: dict) -> bool:
     try:
         req = urllib.request.Request(f"http://localhost:{config['mcp_port']}/mcp", method="GET")
+        # 2s is deliberate: this probe runs on every `penpot status` /
+        # `penpot ensure` / Penpot skill warm-up and must fail-fast on
+        # "server not up" without making the user wait. A higher
+        # timeout would make those entry points feel hung when MCP
+        # isn't installed yet — the failure mode we're checking for.
+        # Do NOT raise without a corresponding adjustment in
+        # ``cmd_ensure`` / ``cmd_status`` UX.
         urllib.request.urlopen(req, timeout=2)
         return True
     except urllib.error.HTTPError:
@@ -387,10 +399,7 @@ def _is_mcp_running(config: dict) -> bool:
 def _is_process_alive(pid: int) -> bool:
     try:
         if PLATFORM == "windows":
-            r = subprocess.run(
-                ["tasklist", "/FI", f"PID eq {pid}"],
-                capture_output=True, text=True, timeout=5,
-            )
+            r = run_proc(["tasklist", "/FI", f"PID eq {pid}"], timeout=5)
             return str(pid) in r.stdout
         else:
             os.kill(pid, 0)
@@ -435,13 +444,13 @@ def start_mcp(config: dict) -> bool:
     cmd = [npx_path, "--yes", package_spec]
     with open(MCP_LOG_FILE, "wb") as log_fh:
         if PLATFORM == "windows":
-            proc = subprocess.Popen(
+            proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
                 cmd, stdout=log_fh, stderr=subprocess.STDOUT,
                 env=env,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
             )
         else:
-            proc = subprocess.Popen(
+            proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
                 cmd, stdout=log_fh, stderr=subprocess.STDOUT,
                 env=env, start_new_session=True,
             )
@@ -517,9 +526,22 @@ def stop_mcp(config: dict) -> bool:
         info(f"停止 MCP Server (PID: {pid})...")
         try:
             if PLATFORM == "windows":
-                subprocess.run(
+                # taskkill is part of every supported Windows SKU but is
+                # absent from stripped images (Nano Server, some CI
+                # containers). Fail loudly rather than swallow the
+                # FileNotFoundError into the bare ``except OSError``
+                # below and leave the user looking at "stopped" output
+                # with the process still alive.
+                if not shutil.which("taskkill"):
+                    raise CataforgeError(
+                        "taskkill not found on PATH — required to stop the "
+                        f"Penpot MCP server (PID {pid}) on Windows. Install "
+                        "the Windows admin tools (taskkill ships with every "
+                        "Pro/Enterprise SKU) or stop the process manually."
+                    )
+                run_proc(
                     ["taskkill", "/F", "/T", "/PID", str(pid)],
-                    capture_output=True, timeout=10,
+                    timeout=10,
                 )
             else:
                 os.kill(pid, signal.SIGTERM)
@@ -670,9 +692,11 @@ def cmd_start(config: dict) -> int:
     if os.path.isfile(compose_file):
         dc_cmd = docker_compose_cmd()
         if dc_cmd and ensure_docker_running():
-            subprocess.run(
+            run_proc(
                 dc_cmd + ["-f", compose_file, "up", "-d"],
-                cwd=config["penpot_dir"], timeout=120,
+                cwd=config["penpot_dir"],
+                timeout=120,
+                capture_output=False,
             )
     start_mcp(config)
     return 0
@@ -687,9 +711,11 @@ def cmd_stop(config: dict) -> int:
         dc_cmd = docker_compose_cmd()
         if dc_cmd:
             section("停止 Penpot (Docker)")
-            subprocess.run(
+            run_proc(
                 dc_cmd + ["-f", compose_file, "down"],
-                cwd=config["penpot_dir"], timeout=120,
+                cwd=config["penpot_dir"],
+                timeout=120,
+                capture_output=False,
             )
     return 0
 
@@ -889,10 +915,10 @@ def cmd_ensure(config: dict) -> int:
             return 1
         dc_cmd = docker_compose_cmd()
         if dc_cmd and not _is_penpot_running(config):
-            subprocess.run(
+            run_proc(
                 dc_cmd + ["-f", compose_file, "up", "-d"],
                 cwd=config["penpot_dir"],
-                capture_output=True, timeout=120,
+                timeout=120,
             )
             for _ in range(30):
                 if _is_penpot_running(config):
@@ -902,6 +928,29 @@ def cmd_ensure(config: dict) -> int:
         return 0
     fail("Penpot MCP not installed. Run: cataforge penpot deploy")
     return 1
+
+
+# ---------------------------------------------------------------------------
+# Public handler registry
+# ---------------------------------------------------------------------------
+#
+# Maps user-facing subcommand name → handler callable. Both the Click
+# wrapper in ``cli/penpot_cmd.py`` and the ``__main__`` argparse entry
+# point look subcommands up here. Centralising the dispatch table
+# replaces an earlier ``getattr(penpot, handler_name)`` lookup whose
+# string parameters duplicated the same mapping in two places and
+# silently AttributeError'd if a function was renamed.
+HANDLERS: dict[str, Callable[[dict], int]] = {
+    "init": cmd_init,
+    "deploy": cmd_deploy,
+    "mcp-only": cmd_mcp_only,
+    "remote": cmd_remote,
+    "start": cmd_start,
+    "stop": cmd_stop,
+    "status": cmd_status,
+    "doctor": cmd_doctor,
+    "ensure": cmd_ensure,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -928,17 +977,11 @@ def main(argv: list[str] | None = None) -> int:
     config = get_config()
 
     if args.ensure:
-        return cmd_ensure(config)
+        return HANDLERS["ensure"](config)
     if not args.command:
         parser.print_help()
         return 0
-    handlers = {
-        "init": cmd_init,
-        "deploy": cmd_deploy, "mcp-only": cmd_mcp_only, "remote": cmd_remote,
-        "start": cmd_start, "stop": cmd_stop, "status": cmd_status,
-        "doctor": cmd_doctor,
-    }
-    return handlers[args.command](config)
+    return HANDLERS[args.command](config)
 
 
 if __name__ == "__main__":

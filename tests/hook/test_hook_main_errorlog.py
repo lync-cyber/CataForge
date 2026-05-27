@@ -71,6 +71,34 @@ def test_systemexit_propagates(project: Path) -> None:
     assert not log.exists(), "SystemExit is not an error — no log entry expected"
 
 
+def test_keyboard_interrupt_propagates(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ctrl+C is an explicit user-cancel signal. Pre-fix, the generic
+    ``except Exception`` clause caught it (KeyboardInterrupt derives
+    from BaseException in 3.x but historic code in the wild and the
+    print-then-exit-0 shape both made this load-bearing to test) and
+    converted to exit 0, so a deploy that spawned a long-running hook
+    couldn't be cancelled cleanly.
+
+    Post-fix: KeyboardInterrupt re-raises before the catch-all so the
+    surrounding command can see it and finalise / print "cancelled".
+    """
+
+    @hook_main
+    def interruptible() -> None:
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        interruptible()
+
+    # No JSONL record — KeyboardInterrupt is not a hook failure.
+    log = project / HOOK_ERROR_LOG_REL
+    assert not log.exists(), (
+        "KeyboardInterrupt is user-cancel, not a hook error — must not be logged"
+    )
+
+
 def test_log_rotates_when_large(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

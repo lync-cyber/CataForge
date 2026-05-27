@@ -14,6 +14,7 @@ from pathlib import Path
 
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.skill.loader import SkillLoader, SkillMeta
+from cataforge.utils.run_subprocess import run as run_proc
 
 _DEFAULT_TIMEOUT_SECS = 300
 
@@ -99,20 +100,17 @@ class SkillRunner:
         else:
             effective_timeout = float(timeout)
 
-        # Force UTF-8 on subprocess pipes — Windows cp1252 default would
-        # raise UnicodeDecodeError when a skill prints arrows / Chinese
-        # findings (e.g. framework_check.py). Pairs with ensure_utf8_stdio()
-        # in the script's main(): both ends agree on UTF-8.
+        # The wrapper defaults to text=True + encoding=utf-8 + errors=replace,
+        # which is exactly what we want here: skill scripts pair with
+        # ensure_utf8_stdio() so both ends agree on UTF-8, and a stray
+        # non-UTF-8 byte from a child becomes a replacement char instead of
+        # crashing the reader.
         t_start = time.monotonic()
         try:
-            result = subprocess.run(
+            result = run_proc(
                 cmd,
-                cwd=str(self._paths.root),
+                cwd=self._paths.root,
                 env=env,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
                 timeout=effective_timeout,
             )
         except subprocess.TimeoutExpired:

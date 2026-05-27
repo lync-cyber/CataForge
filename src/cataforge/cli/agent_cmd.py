@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import sys
 
 import click
@@ -13,6 +12,7 @@ from cataforge.cli.errors import CataforgeError
 from cataforge.cli.guards import require_initialized
 from cataforge.cli.helpers import emit_hint, resolve_root
 from cataforge.cli.main import cli
+from cataforge.utils.run_subprocess import run as run_proc
 
 
 @cli.group("agent")
@@ -167,17 +167,13 @@ def _try_copy_to_clipboard(text: str) -> bool:
     """Best-effort clipboard copy. Silently no-ops when no backend works."""
     if sys.platform == "win32":
         try:
-            proc = subprocess.run(
-                ["clip"], input=text, text=True, encoding="utf-8", check=False
-            )
+            proc = run_proc(["clip"], input=text)
             return proc.returncode == 0
         except (FileNotFoundError, OSError):
             return False
     if sys.platform == "darwin":
         try:
-            proc = subprocess.run(
-                ["pbcopy"], input=text, text=True, check=False
-            )
+            proc = run_proc(["pbcopy"], input=text)
             return proc.returncode == 0
         except (FileNotFoundError, OSError):
             return False
@@ -187,7 +183,7 @@ def _try_copy_to_clipboard(text: str) -> bool:
     for cmd in (["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]):
         if shutil.which(cmd[0]):
             try:
-                proc = subprocess.run(cmd, input=text, text=True, check=False)
+                proc = run_proc(cmd, input=text)
                 if proc.returncode == 0:
                     return True
             except OSError:

@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cataforge.platform.base import PlatformAdapter
-from cataforge.platform.helpers import _prune_orphan_flat_files
 
 if TYPE_CHECKING:
     from cataforge.deploy.manifest import DeployManifest as DeployManifest
@@ -44,8 +43,9 @@ class ClaudeCodeAdapter(PlatformAdapter):
         Claude Code's documented sub-agent convention is a flat file per
         agent (``.claude/agents/<name>.md`` with YAML frontmatter).  The base
         implementation's ``<name>/AGENT.md`` subdir layout is not picked up
-        by Claude Code's native ``/agents`` command, so we override to emit
-        only the flat form.
+        by Claude Code's native ``/agents`` command, so we use the shared
+        flat-layout helper to emit only the flat form, then layer on a
+        pre-M? legacy-subdir cleanup specific to this adapter.
 
         Orphan pruning covers flat ``.md`` files we likely wrote and any
         leftover ``<name>/AGENT.md`` subdirs from prior deploys. The manifest
@@ -53,99 +53,62 @@ class ClaudeCodeAdapter(PlatformAdapter):
         ``name: <stem>`` head signature by accident, prune still won't touch
         it unless we recorded the path in the previous deploy.
         """
-        from cataforge.agent.translator import translate_agent_md
-
         scan_dirs = self.get_agent_scan_dirs()
         if not scan_dirs:
             return []
-
-        target_dir = project_root / scan_dirs[0]
         target_rel = scan_dirs[0]
-        if not dry_run:
-            target_dir.mkdir(parents=True, exist_ok=True)
 
-        actions: list[str] = []
-        if not source_dir.is_dir():
-            return actions
-
-        source_agents = {
-            d.name
-            for d in source_dir.iterdir()
-            if d.is_dir() and (d / "AGENT.md").is_file()
-        }
-
-        dropped_collector: dict[str, set[str]] = {}
-
-        for agent_name in sorted(source_agents):
-            agent_md = source_dir / agent_name / "AGENT.md"
-            content = agent_md.read_text(encoding="utf-8")
-
-            flat_dst = target_dir / f"{agent_name}.md"
-            flat_rel = f"{target_rel}/{agent_name}.md"
-
-            if dry_run:
-                actions.append(
-                    f"would deploy agent {agent_name:<24} "
-                    f"→ {target_rel}/{agent_name}.md"
-                )
-                continue
-
-            translated = translate_agent_md(
-                content, self, dropped_collector=dropped_collector
-            )
-            flat_dst.write_text(translated, encoding="utf-8")
-            if manifest is not None:
-                manifest.record(flat_rel)
-            actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
-
-        # Prune orphans. Touch only files/dirs that look like ours — flat
-        # ``<name>.md`` files whose frontmatter ``name:`` matches our
-        # translator output, and subdirs containing ``AGENT.md`` (leftover
-        # from the pre-M? dual layout). IDE-native and user-authored files
-        # stay put.
-        if target_dir.is_dir():
-            for existing in target_dir.iterdir():
-                if existing.is_dir():
-                    if (existing / "AGENT.md").is_file():
-                        existing_rel = f"{target_rel}/{existing.name}/AGENT.md"
-                        if (
-                            prior_manifest is not None
-                            and existing_rel not in prior_manifest
-                        ):
-                            continue
-                        if dry_run:
-                            actions.append(
-                                f"would prune legacy {target_rel}/{existing.name}/"
-                            )
-                        else:
-                            import shutil as _shutil
-
-                            _shutil.rmtree(existing)
-                            actions.append(f"pruned legacy {target_rel}/{existing.name}/")
-                    continue
-
-        actions.extend(
-            _prune_orphan_flat_files(
-                target_dir,
-                source_agents,
-                ".md",
-                "name: {stem}",
-                target_rel,
-                dry_run=dry_run,
-                prior_manifest=prior_manifest,
-            )
+        actions = self._deploy_flat_agents(
+            source_dir,
+            project_root,
+            target_rel=target_rel,
+            suffix=".md",
+            head_signature="name: {stem}",
+            formatter=lambda _name, translated: translated,
+            dry_run=dry_run,
+            manifest=manifest,
+            prior_manifest=prior_manifest,
         )
 
-        # Single aggregated WARN for unmapped capabilities — see translator.py
-        # and the matching block in PlatformAdapter.deploy_agents for rationale.
-        for field_name in sorted(dropped_collector):
-            caps = sorted(dropped_collector[field_name])
-            actions.append(
-                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
-                f"{field_name!r} have no platform mapping: {caps} — "
-                "these will be skipped during translation."
+        actions.extend(
+            self._prune_legacy_agent_subdirs(
+                project_root / target_rel,
+                target_rel,
+                prior_manifest=prior_manifest,
+                dry_run=dry_run,
             )
+        )
+        return actions
 
+    def _prune_legacy_agent_subdirs(
+        self,
+        target_dir: Path,
+        target_rel: str,
+        *,
+        prior_manifest: set[str] | None,
+        dry_run: bool,
+    ) -> list[str]:
+        """Tear down leftover ``<name>/AGENT.md`` subdirs from the pre-M?
+        dual layout. Manifest-bounded so a user-authored agent subdir we
+        never wrote stays put."""
+        from cataforge.platform.helpers import remove_dir_with_manifest_check
+
+        actions: list[str] = []
+        if not target_dir.is_dir():
+            return actions
+        for existing in target_dir.iterdir():
+            if not existing.is_dir() or not (existing / "AGENT.md").is_file():
+                continue
+            actions.extend(
+                remove_dir_with_manifest_check(
+                    existing,
+                    display_rel=f"{target_rel}/{existing.name}",
+                    manifest_key=f"{target_rel}/{existing.name}/AGENT.md",
+                    prior_manifest=prior_manifest,
+                    dry_run=dry_run,
+                    kind="legacy",
+                )
+            )
         return actions
 
     def _mcp_json_path(self, project_root: Path) -> Path:

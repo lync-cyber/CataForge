@@ -150,6 +150,73 @@ def test_malformed_mcp_yaml_does_not_raise(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_hook_generation_failure_logs_traceback_and_continues(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When ``generate_platform_hooks`` raises, the action log must:
+
+    1. Surface a terse one-line message including the exception class.
+    2. Persist the FULL traceback to the logger so CI / doctor pick it up.
+    3. Not abort the rest of the deploy.
+
+    Pre-fix the deployer logged at WARN with only ``str(e)``; missing
+    plugin dependencies and AttributeErrors from version drift looked
+    identical to "config missing" failures, leaving the user with
+    nothing actionable. Post-fix the ``logger.exception`` call records
+    the traceback at ERROR.
+    """
+    import logging
+
+    root = _init_project(tmp_path)
+    profile = _minimal_profile("claude-code")
+    # Override the hooks block so _deploy_hooks actually runs (the
+    # minimal profile sets config_format=None which short-circuits the
+    # entire hook deploy branch before generate_platform_hooks is ever
+    # called).
+    profile["hooks"] = {
+        "config_format": "json",
+        "config_path": ".claude/settings.json",
+        "event_map": {},
+        "degradation": {},
+    }
+    _write_profile(root, "claude-code", profile)
+
+    clear_cache()
+    deployer = Deployer(ConfigManager(root))
+
+    def _exploding_generate(_adapter):
+        # AttributeError exercises the (ImportError, AttributeError)
+        # branch and its plugin-specific hint.
+        raise AttributeError("simulated plugin method removed in upstream")
+
+    caplog.set_level(logging.ERROR, logger="cataforge.deploy.deployer")
+    with patch(
+        "cataforge.hook.bridge.generate_platform_hooks",
+        side_effect=_exploding_generate,
+    ):
+        actions = deployer.deploy("claude-code")
+
+    # Action log carries the terse one-liner.
+    assert any(
+        "hooks: generation failed" in a
+        and "AttributeError" in a
+        and "simulated plugin method removed" in a
+        for a in actions
+    ), f"action log missing diagnostic; got {actions!r}"
+
+    # Logger captured the full traceback.
+    hook_records = [
+        r for r in caplog.records
+        if "hook generation failed" in r.getMessage().lower()
+    ]
+    assert hook_records, (
+        f"logger.exception must record the failure; got {caplog.records!r}"
+    )
+    assert hook_records[0].exc_info is not None, (
+        "exc_info must be attached so the traceback is preserved"
+    )
+
+
 def test_write_failure_propagates(tmp_path: Path) -> None:
     root = _init_project(tmp_path)
     profile = _minimal_profile("claude-code")

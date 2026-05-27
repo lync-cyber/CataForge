@@ -13,7 +13,8 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+
+from cataforge.utils.run_subprocess import run as run_proc
 
 # ---------------------------------------------------------------------------
 # Terminal colour constants (ANSI escape codes)
@@ -101,23 +102,20 @@ def run_cmd(
     *,
     cwd: str | None = None,
     timeout: int = 60,
-    **kwargs: Any,
 ) -> subprocess.CompletedProcess[str]:
-    """Run a command and return the CompletedProcess (never raises on non-zero)."""
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-        timeout=timeout,
-        **kwargs,
-    )
+    """Run a command and return the CompletedProcess (never raises on non-zero).
+
+    Thin shim over :func:`cataforge.utils.run_subprocess.run` retained for
+    source compatibility with the existing penpot callers; new code should
+    import ``run_proc`` directly.
+    """
+    return run_proc(cmd, cwd=cwd, timeout=timeout)
 
 
 def get_command_version(cmd: list[str]) -> str:
     """Run *cmd* and return stdout stripped, or ``""`` on failure."""
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        r = run_proc(cmd, timeout=10)
         return r.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return ""

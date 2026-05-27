@@ -190,6 +190,115 @@ def test_cmd_stop_invokes_stop_mcp_and_compose_down(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# D5: HANDLERS registry replaces getattr-based dispatch
+# ---------------------------------------------------------------------------
+
+
+def test_handlers_registry_lists_every_cmd() -> None:
+    """The HANDLERS registry must expose one entry per ``cmd_*``
+    function so a future renamed handler is caught here before a
+    dispatch site silently AttributeErrors."""
+    expected_commands = {
+        "init", "deploy", "mcp-only", "remote",
+        "start", "stop", "status", "doctor", "ensure",
+    }
+    assert set(penpot.HANDLERS) == expected_commands
+    # Every entry must be a callable that takes a single config dict.
+    for name, handler in penpot.HANDLERS.items():
+        assert callable(handler), f"HANDLERS[{name!r}] is not callable"
+
+
+def test_handlers_match_module_cmd_functions() -> None:
+    """Every HANDLERS value must be the actual ``cmd_*`` function from
+    the penpot module — guards against a refactor that swaps out one
+    handler without updating the dispatch table."""
+    name_to_attr = {
+        "init": "cmd_init",
+        "deploy": "cmd_deploy",
+        "mcp-only": "cmd_mcp_only",
+        "remote": "cmd_remote",
+        "start": "cmd_start",
+        "stop": "cmd_stop",
+        "status": "cmd_status",
+        "doctor": "cmd_doctor",
+        "ensure": "cmd_ensure",
+    }
+    for user_name, attr_name in name_to_attr.items():
+        assert penpot.HANDLERS[user_name] is getattr(penpot, attr_name)
+
+
+# ---------------------------------------------------------------------------
+# C7 / C8: stop_mcp guards taskkill availability + PID file encoding
+# ---------------------------------------------------------------------------
+
+
+def test_stop_mcp_raises_when_taskkill_missing_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """C7: on a Windows-flavoured run where ``taskkill`` is not on PATH
+    (stripped image / Nano Server / some CI containers), ``stop_mcp``
+    must raise a clear, actionable CataforgeError instead of
+    swallowing the FileNotFoundError into the bare ``except OSError``
+    and reporting success.
+    """
+    from cataforge.cli.errors import CataforgeError
+
+    monkeypatch.setattr(penpot, "PLATFORM", "windows")
+    monkeypatch.setattr(penpot, "_read_mcp_pid", lambda: 12345)
+    monkeypatch.setattr(penpot, "_is_process_alive", lambda pid: True)
+    monkeypatch.setattr(penpot.shutil, "which", lambda name: None)
+
+    with pytest.raises(CataforgeError, match="taskkill not found"):
+        penpot.stop_mcp({"mcp_port": 4401})
+
+
+def test_stop_mcp_uses_taskkill_when_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sanity baseline: when taskkill IS on PATH, stop_mcp proceeds and
+    invokes it. Guards against an over-eager raise on systems that have
+    the binary."""
+    monkeypatch.setattr(penpot, "PLATFORM", "windows")
+    monkeypatch.setattr(penpot, "_read_mcp_pid", lambda: 12345)
+    monkeypatch.setattr(penpot, "_is_process_alive", lambda pid: True)
+    monkeypatch.setattr(
+        penpot.shutil, "which",
+        lambda name: r"C:\Windows\System32\taskkill.exe" if name == "taskkill" else None,
+    )
+    monkeypatch.setattr(penpot, "_is_mcp_running", lambda c: False)
+
+    captured: list[list[str]] = []
+
+    def _fake_run(cmd, **_kw):
+        captured.append(list(cmd))
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(penpot.subprocess, "run", _fake_run)
+
+    # Should complete without raising.
+    penpot.stop_mcp({"mcp_port": 4401})
+
+    assert any(
+        c and c[0] == "taskkill" and "12345" in c for c in captured
+    ), f"expected a taskkill invocation; got {captured!r}"
+
+
+def test_pid_file_round_trip_uses_utf8(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """C8: PID file open() calls now specify encoding=utf-8. Round-trip
+    a write/read so a locale that defaults to non-UTF-8 (e.g. Windows
+    cp1252) doesn't silently corrupt the value."""
+    pid_file = tmp_path / "penpot-mcp-server.pid"
+    monkeypatch.setattr(penpot, "MCP_PID_FILE", str(pid_file))
+
+    penpot._write_mcp_pid(98765)
+    # File content is raw ASCII digits — utf-8 / cp1252 read it the same
+    # way, but the explicit encoding guards against future locale
+    # changes and matches the repo-wide consistency rule.
+    assert pid_file.read_bytes() == b"98765"
+    assert penpot._read_mcp_pid() == 98765
+
+
+# ---------------------------------------------------------------------------
 # cmd_status — reports based on running checks
 # ---------------------------------------------------------------------------
 
@@ -420,10 +529,20 @@ def test_cmd_remote_fails_when_mcp_cannot_start() -> None:
 
 
 def test_remote_argparse_subcommand_dispatches() -> None:
-    """`python -m cataforge.integrations.penpot remote` routes to cmd_remote."""
+    """`python -m cataforge.integrations.penpot remote` routes to the
+    ``remote`` entry in ``penpot.HANDLERS``.
+
+    Post-D5: dispatch is via the module-level ``HANDLERS`` registry, so
+    patching ``penpot.cmd_remote`` no longer intercepts the call (the
+    dict captured the original function reference at import time).
+    Patching ``HANDLERS["remote"]`` instead expresses the new
+    contract: ``main()`` must look the subcommand up in HANDLERS and
+    invoke whatever it finds there.
+    """
+    mock = MagicMock(return_value=0)
     with (
         patch("cataforge.integrations.penpot.load_dotenv"),
-        patch("cataforge.integrations.penpot.cmd_remote", return_value=0) as mock,
+        patch.dict(penpot.HANDLERS, {"remote": mock}),
     ):
         rc = penpot.main(["remote"])
     assert rc == 0
@@ -596,9 +715,12 @@ def test_cmd_doctor_passes_on_fixed_compose(tmp_path, capsys) -> None:
 
 
 def test_doctor_argparse_subcommand_dispatches() -> None:
+    # Post-D5: dispatch routes through penpot.HANDLERS — patch the entry
+    # there rather than the module-level function reference.
+    mock = MagicMock(return_value=0)
     with (
         patch("cataforge.integrations.penpot.load_dotenv"),
-        patch("cataforge.integrations.penpot.cmd_doctor", return_value=0) as mock,
+        patch.dict(penpot.HANDLERS, {"doctor": mock}),
     ):
         rc = penpot.main(["doctor"])
     assert rc == 0
@@ -606,9 +728,10 @@ def test_doctor_argparse_subcommand_dispatches() -> None:
 
 
 def test_init_argparse_subcommand_dispatches() -> None:
+    mock = MagicMock(return_value=0)
     with (
         patch("cataforge.integrations.penpot.load_dotenv"),
-        patch("cataforge.integrations.penpot.cmd_init", return_value=0) as mock,
+        patch.dict(penpot.HANDLERS, {"init": mock}),
     ):
         rc = penpot.main(["init"])
     assert rc == 0

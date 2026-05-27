@@ -15,7 +15,7 @@ from pathlib import Path
 
 import click
 
-from cataforge.cli.errors import CataforgeError
+from cataforge.cli.errors import KGStoreError, KGVerificationError
 from cataforge.cli.main import cli
 
 
@@ -81,9 +81,7 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
     try:
         handle = init_store(config, force=force)
     except KGStoreAlreadyExistsError as exc:
-        err = CataforgeError(str(exc))
-        err.exit_code = 1
-        raise err from exc
+        raise KGStoreError(str(exc)) from exc
 
     triple_count = sum(1 for _ in handle.raw.quads_for_pattern(None, None, None, None))
     handle.close()
@@ -171,11 +169,9 @@ def kg_import(
         try:
             handle = KnowledgeGraphStore.connect(config).__enter__()
         except KGStoreNotInitializedError as exc:
-            err = CataforgeError(
+            raise KGStoreError(
                 f"{exc}\nHint: run `cataforge kg init` before `kg import`."
-            )
-            err.exit_code = 1
-            raise err from exc
+            ) from exc
 
     try:
         stats, _entities, _relations = run_migration(
@@ -211,9 +207,7 @@ def kg_import(
             )
 
     if stats.verify_result is not None and not stats.verify_result.ok and not dry_run:
-        err = CataforgeError("KG import verification failed.")
-        err.exit_code = 3
-        raise err
+        raise KGVerificationError("KG import verification failed.")
 
 
 @kg_group.command("validate")
@@ -249,9 +243,7 @@ def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
         with KnowledgeGraphStore.connect(config) as handle:
             report = validate(handle.raw, config, run_shacl=shacl)
     except KGStoreNotInitializedError as exc:
-        err = CataforgeError(str(exc))
-        err.exit_code = 1
-        raise err from exc
+        raise KGStoreError(str(exc)) from exc
 
     if json_output:
         click.echo(
@@ -292,9 +284,7 @@ def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
             )
 
     if not report.ok:
-        err = CataforgeError("validation reported violations.")
-        err.exit_code = 3
-        raise err
+        raise KGVerificationError("validation reported violations.")
 
 
 @kg_group.command("export")
@@ -329,9 +319,7 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
         with KnowledgeGraphStore.connect(config) as handle:
             result = compile_to_markdown(handle.raw, output_dir)
     except KGStoreNotInitializedError as exc:
-        err = CataforgeError(str(exc))
-        err.exit_code = 1
-        raise err from exc
+        raise KGStoreError(str(exc)) from exc
 
     if json_output:
         click.echo(
@@ -359,9 +347,7 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
                 click.echo(f"   - {eid}: {msg}")
 
     if result.errors:
-        err = CataforgeError(f"{len(result.errors)} export errors")
-        err.exit_code = 3
-        raise err
+        raise KGVerificationError(f"{len(result.errors)} export errors")
 
 
 @kg_group.command("reconcile")
@@ -451,9 +437,7 @@ def kg_reconcile(
         with KnowledgeGraphStore.connect(config) as handle:
             report = reconcile(handle.raw, project_root, config)
     except KGStoreNotInitializedError as exc:
-        err = CataforgeError(str(exc))
-        err.exit_code = 1
-        raise err from exc
+        raise KGStoreError(str(exc)) from exc
 
     output_path = (
         report_output
@@ -497,12 +481,10 @@ def kg_reconcile(
         click.echo(f"  report: {output_path}")
 
     if not report.ok:
-        err = CataforgeError(
+        raise KGVerificationError(
             f"reconcile reported {report.overall_divergence_count} divergence(s); "
             f"see {output_path}"
         )
-        err.exit_code = 3
-        raise err
 
 
 @kg_group.command("compare-read")
@@ -613,9 +595,7 @@ def kg_compare_read(
                 seed=seed,
             )
     except KGStoreNotInitializedError as exc:
-        err = CataforgeError(str(exc))
-        err.exit_code = 1
-        raise err from exc
+        raise KGStoreError(str(exc)) from exc
 
     if json_output:
         click.echo(

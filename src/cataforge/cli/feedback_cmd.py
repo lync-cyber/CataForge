@@ -47,6 +47,7 @@ from cataforge.core.feedback import (
     iter_clipboard_commands,
     upstream_gap_count,
 )
+from cataforge.utils.run_subprocess import run as run_proc
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -183,12 +184,11 @@ def _emit(
 def _to_clipboard(body: str) -> None:
     for cmd in iter_clipboard_commands():
         if shutil.which(cmd[0]):
-            try:
-                subprocess.run(cmd, input=body, text=True, check=True, encoding="utf-8")
-            except subprocess.CalledProcessError as e:
+            result = run_proc(cmd, input=body)
+            if result.returncode != 0:
                 raise ExternalToolError(
-                    f"clipboard tool {cmd[0]} exited {e.returncode}"
-                ) from None
+                    f"clipboard tool {cmd[0]} exited {result.returncode}"
+                )
             return
     raise ExternalToolError(
         "no clipboard tool found on PATH (tried pbcopy / wl-copy / xclip / xsel / clip). "
@@ -253,22 +253,14 @@ def _to_gh(
     base_cmd = ["gh", "issue", "create", "--title", title, "--body-file", "-"]
 
     def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            cmd,
-            input=body,
-            text=True,
-            capture_output=True,
-            check=True,
-            encoding="utf-8",
-        )
+        return run_proc(cmd, input=body)
 
     cmd = list(base_cmd)
     for lbl in label_list:
         cmd.extend(["--label", lbl])
-    try:
-        result = _run(cmd)
-    except subprocess.CalledProcessError as e:
-        stderr = e.stderr or e.stdout or ""
+    result = _run(cmd)
+    if result.returncode != 0:
+        stderr = result.stderr or result.stdout or ""
         if (
             label_list
             and fallback_on_missing_label
@@ -281,17 +273,16 @@ def _to_gh(
                 fg="yellow",
                 err=True,
             )
-            try:
-                result = _run(base_cmd)
-            except subprocess.CalledProcessError as e2:
+            result = _run(base_cmd)
+            if result.returncode != 0:
                 raise ExternalToolError(
                     f"gh issue create failed even after dropping --label "
-                    f"(exit {e2.returncode}):\n{e2.stderr or e2.stdout}"
-                ) from None
+                    f"(exit {result.returncode}):\n{result.stderr or result.stdout}"
+                )
         else:
             raise ExternalToolError(
-                f"gh issue create failed (exit {e.returncode}):\n{stderr}"
-            ) from None
+                f"gh issue create failed (exit {result.returncode}):\n{stderr}"
+            )
     return (result.stdout or "").strip()
 
 
@@ -343,21 +334,17 @@ def ensure_labels_command(repo: str | None, dry_run: bool) -> None:
     # gh label list returns existing labels — used to skip duplicates so the
     # call is idempotent (gh label create exits 1 on duplicate).
     existing: set[str] = set()
-    try:
-        listing = subprocess.run(
-            ["gh", "label", "list", "-R", repo, "--limit", "100", "--json", "name"],
-            text=True,
-            capture_output=True,
-            check=True,
-            encoding="utf-8",
-        )
-        import json as _json
-        for entry in _json.loads(listing.stdout or "[]"):
-            existing.add(entry.get("name", ""))
-    except subprocess.CalledProcessError as e:
+    listing = run_proc(
+        ["gh", "label", "list", "-R", repo, "--limit", "100", "--json", "name"],
+    )
+    if listing.returncode != 0:
         raise ExternalToolError(
-            f"gh label list failed (exit {e.returncode}):\n{e.stderr or e.stdout}"
-        ) from None
+            f"gh label list failed (exit {listing.returncode}):\n"
+            f"{listing.stderr or listing.stdout}"
+        )
+    import json as _json
+    for entry in _json.loads(listing.stdout or "[]"):
+        existing.add(entry.get("name", ""))
 
     to_create = sorted(labels - existing)
     already_there = sorted(labels & existing)
@@ -374,18 +361,12 @@ def ensure_labels_command(repo: str | None, dry_run: bool) -> None:
         return
 
     for lbl in to_create:
-        try:
-            subprocess.run(
-                ["gh", "label", "create", lbl, "-R", repo],
-                text=True,
-                capture_output=True,
-                check=True,
-                encoding="utf-8",
-            )
+        result = run_proc(["gh", "label", "create", lbl, "-R", repo])
+        if result.returncode == 0:
             click.secho(f"  + {lbl}", fg="green")
-        except subprocess.CalledProcessError as e:
+        else:
             click.secho(
-                f"  ! {lbl} — gh label create failed: {e.stderr or e.stdout}",
+                f"  ! {lbl} — gh label create failed: {result.stderr or result.stdout}",
                 fg="red",
                 err=True,
             )

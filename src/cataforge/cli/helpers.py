@@ -7,7 +7,10 @@ group (and transitively every registered command) when they just need a
 
 from __future__ import annotations
 
+from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -59,4 +62,30 @@ def emit_hint(message: str) -> None:
     click.secho(message, fg="bright_black", err=True)
 
 
-__all__ = ["emit_hint", "get_config_manager", "resolve_project_dir", "resolve_root"]
+def classify_tallies(classified: Iterable[tuple[Any, str]]) -> Counter[str]:
+    """Tally the *status* component of a ``classify_scaffold_files`` result.
+
+    Both ``bootstrap`` and ``upgrade`` open-coded the same loop:
+
+    ```python
+    tallies: dict[str, int] = {}
+    for _, status in classified:
+        tallies[status] = tallies.get(status, 0) + 1
+    ```
+
+    ``Counter`` collapses that into a single expression and gives
+    ``most_common`` / arithmetic for free. The accepted-status set
+    (``update`` / ``user-modified`` / ``drift`` / ``new`` / ``ok`` etc.)
+    is enforced by the upstream classifier, not by this helper — we
+    just tally whatever statuses arrive.
+    """
+    return Counter(status for _, status in classified)
+
+
+__all__ = [
+    "classify_tallies",
+    "emit_hint",
+    "get_config_manager",
+    "resolve_project_dir",
+    "resolve_root",
+]

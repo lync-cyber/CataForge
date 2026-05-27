@@ -25,6 +25,8 @@ import os
 import subprocess
 from collections.abc import Iterable
 
+from cataforge.utils.run_subprocess import run as run_proc
+
 DEFAULT_IGNORE_PATTERNS: tuple[str, ...] = (
     # VCS / editor metadata
     ".git/",
@@ -134,10 +136,8 @@ def build_ignore_spec(
 
 def is_git_repo(cwd: str | None = None) -> bool:
     try:
-        r = subprocess.run(
+        r = run_proc(
             ["git", "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            text=True,
             cwd=cwd,
             timeout=5,
         )
@@ -160,9 +160,7 @@ def git_list_files(src_dirs: list[str], cwd: str | None = None) -> list[str]:
         return []
     cmd = ["git", "ls-files", "-co", "--exclude-standard", "-z", "--", *src_dirs]
     try:
-        r = subprocess.run(
-            cmd, capture_output=True, text=True, cwd=cwd, timeout=120
-        )
+        r = run_proc(cmd, cwd=cwd, timeout=120)
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         return []
     if r.returncode != 0:
