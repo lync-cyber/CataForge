@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Literal
 
 from cataforge.core.event_log import EventLogError, append_event, build_record
+from cataforge.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger("cataforge.corrections")
 
@@ -131,11 +132,16 @@ def _append_markdown(
         f"- 偏差类型: {deviation}\n"
     )
 
-    if not log_path.is_file():
-        with open(log_path, "w", encoding="utf-8") as f:
-            f.write(_HEADER)
-            f.write(entry)
-    else:
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(entry)
+    # Read-modify-write through ``atomic_write_text`` so a crash never
+    # leaves the file in a header-only / half-entry state. The previous
+    # two-branch shape (truncating ``"w"`` for first call, separate
+    # ``"a"`` for follow-ups) had two distinct mid-write failure modes:
+    # (1) interruption between header write and entry write leaving an
+    # entry-less header; (2) two appenders racing each other on a
+    # non-atomic ``"a"`` open. CORRECTIONS-LOG grows by one short entry
+    # per correction event (a handful per project lifetime), so the
+    # read-pre-write I/O overhead is negligible compared to the
+    # consistency guarantee.
+    existing = log_path.read_text(encoding="utf-8") if log_path.is_file() else _HEADER
+    atomic_write_text(log_path, existing + entry)
     return log_path

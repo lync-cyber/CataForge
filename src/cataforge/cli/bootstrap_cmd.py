@@ -25,6 +25,7 @@ from importlib.metadata import version as _pkg_version
 
 import click
 
+from cataforge.cli.errors import ConfigError
 from cataforge.cli.main import cli
 from cataforge.platform.conformance import ALL_PLATFORMS
 
@@ -249,10 +250,25 @@ def _build_plan(cfg, *, requested_platform: str | None) -> _Plan:
         plan.add("deploy", "run", "never deployed (.deploy-state missing)")
     else:
         import json as _json
+        # Distinguish "missing" (legitimate first-deploy signal) from
+        # "corrupted" (likely a crash during a prior deploy that left
+        # a truncated JSON). Pre-fix, both flowed into ``state = {}``
+        # and the user silently re-deployed instead of being told the
+        # state file is busted.
         try:
-            state = _json.loads(deploy_state_file.read_text(encoding="utf-8"))
-        except (OSError, _json.JSONDecodeError):
-            state = {}
+            text = deploy_state_file.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ConfigError(
+                f"deploy state at {deploy_state_file} is unreadable: {exc}. "
+                f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
+            ) from exc
+        try:
+            state = _json.loads(text)
+        except _json.JSONDecodeError as exc:
+            raise ConfigError(
+                f"deploy state at {deploy_state_file} is corrupted ({exc}). "
+                f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
+            ) from exc
         deployed_platform = state.get("platform")
         if deployed_platform != plan.target_platform:
             plan.add(

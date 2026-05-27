@@ -155,6 +155,96 @@ def reset_junction_warning_state() -> None:
     _JUNCTION_WARNING_EMITTED = False
 
 
+def _remove_target_once(target: Path, removed: list[bool]) -> None:
+    """``_remove_target`` wrapper that is a no-op on the second+ call.
+
+    The symlink → junction → copy fallback chain needs to clear *target*
+    before each strategy attempt, but the strategies share one *target*
+    path and only one of them ever lands a real artefact there. Calling
+    ``_remove_target`` repeatedly along the chain is wasteful at best;
+    in pathological cases (target briefly recreated by another process
+    between attempts, or the first attempt left a half-deleted state)
+    it racially deletes whatever happens to be there now.
+
+    *removed* is a single-element list (mutable cell) the caller threads
+    through the chain. ``[False]`` initially; flips to ``[True]`` on
+    first removal; subsequent calls short-circuit.
+    """
+    if removed[0]:
+        return
+    _remove_target(target)
+    removed[0] = True
+
+
+def _ntfs_junction_warning() -> str:
+    # Wording note: this WARN deliberately avoids the bare word
+    # ``symlink`` so test assertions that grep for it in action
+    # strings (see test_windows_falls_back_to_junction_then_copy)
+    # don't false-trigger. The recovery path's name is rendered
+    # as "relative-path link" / "soft link" instead.
+    return (
+        "WARN: falling back to NTFS junction(s). Two risks to "
+        "know: (1) the junction stores an ABSOLUTE path, so a "
+        "project rename / move breaks every link; (2) deleting "
+        "or editing files INSIDE the junction (e.g. "
+        ".claude/skills/<name>/SKILL.md) operates on the SOURCE "
+        "at .cataforge/, not a copy — one mis-click can destroy "
+        "source files. Enable Windows Developer Mode (Settings "
+        "→ For developers → Developer Mode) to get portable "
+        "relative-path soft links, or pass `cataforge deploy "
+        "--copy` to materialise independent copies instead."
+    )
+
+
+def _try_symlink(source: Path, target: Path, removed: list[bool]) -> list[str] | None:
+    """Attempt strategy 1: relative POSIX-normalised symlink. Returns the
+    action log on success, ``None`` if the kernel refused the syscall."""
+    # Normalise to forward slashes so the link target stays portable: on
+    # Windows ``os.path.relpath`` emits backslashes which survive into the
+    # symlink reparse point, breaking the link the moment the project is
+    # cloned, copied, or mounted on a POSIX filesystem.
+    rel = os.path.relpath(source, target.parent).replace("\\", "/")
+    _remove_target_once(target, removed)
+    try:
+        os.symlink(rel, str(target), target_is_directory=True)
+    except (OSError, NotImplementedError):
+        return None
+    return [f"{target} → {source} (symlink)"]
+
+
+def _try_junction(source: Path, target: Path, removed: list[bool]) -> list[str] | None:
+    """Attempt strategy 2 (Windows only): NTFS junction via ``mklink /J``.
+    Returns the action log on success, ``None`` if mklink failed."""
+    if os.name != "nt":
+        return None
+    global _JUNCTION_WARNING_EMITTED
+    import subprocess
+
+    _remove_target_once(target, removed)
+    try:
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(target), str(source)],
+            check=True,
+            capture_output=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+    actions = [f"{target} → {source} (junction)"]
+    if not _JUNCTION_WARNING_EMITTED:
+        _JUNCTION_WARNING_EMITTED = True
+        actions.insert(0, _ntfs_junction_warning())
+    return actions
+
+
+def _do_copy(source: Path, target: Path, removed: list[bool]) -> list[str]:
+    """Strategy 3 (terminal): full ``copytree``. Cannot fail-soft — any
+    error propagates."""
+    _remove_target_once(target, removed)
+    shutil.copytree(source, target)
+    return [f"{target} ← {source} (copy)"]
+
+
 def symlink_or_copy(
     source: Path,
     target: Path,
@@ -185,72 +275,29 @@ def symlink_or_copy(
     The dry-run message is deliberately label-free ("would link"):
     callers that need a specific label should emit their own action
     line instead of / in addition to calling this helper.
-    """
-    global _JUNCTION_WARNING_EMITTED
 
+    Strategies are tried in order and ``_remove_target`` is invoked at
+    most once across the whole chain — see :func:`_remove_target_once`.
+    """
     if dry_run:
         if force_copy:
             return [f"would copy {target} ← {source}"]
         return [f"would link {target} ← {source} (symlink|junction|copy)"]
 
-    _remove_target(target)
     target.parent.mkdir(parents=True, exist_ok=True)
+    removed = [False]
 
     if force_copy:
+        _remove_target_once(target, removed)
         shutil.copytree(source, target)
         return [f"{target} ← {source} (copy, forced)"]
 
-    # Normalise to forward slashes so the link target stays portable: on
-    # Windows ``os.path.relpath`` emits backslashes which survive into the
-    # symlink reparse point, breaking the link the moment the project is
-    # cloned, copied, or mounted on a POSIX filesystem.
-    rel = os.path.relpath(source, target.parent).replace("\\", "/")
-    try:
-        os.symlink(rel, str(target), target_is_directory=True)
-        return [f"{target} → {source} (symlink)"]
-    except (OSError, NotImplementedError):
-        # Windows non-Dev-Mode, or filesystems that don't support symlinks.
-        # Fall through to junction (Windows) or copy (Unix).
-        if os.path.lexists(str(target)):
-            _remove_target(target)
-
-    if os.name == "nt":
-        try:
-            import subprocess
-
-            subprocess.run(
-                ["cmd", "/c", "mklink", "/J", str(target), str(source)],
-                check=True,
-                capture_output=True,
-            )
-            actions = [f"{target} → {source} (junction)"]
-            if not _JUNCTION_WARNING_EMITTED:
-                _JUNCTION_WARNING_EMITTED = True
-                # Wording note: this WARN deliberately avoids the bare word
-                # ``symlink`` so test assertions that grep for it in action
-                # strings (see test_windows_falls_back_to_junction_then_copy)
-                # don't false-trigger.  The recovery path's name is rendered
-                # as "relative-path link" / "soft link" instead.
-                actions.insert(
-                    0,
-                    "WARN: falling back to NTFS junction(s). Two risks to "
-                    "know: (1) the junction stores an ABSOLUTE path, so a "
-                    "project rename / move breaks every link; (2) deleting "
-                    "or editing files INSIDE the junction (e.g. "
-                    ".claude/skills/<name>/SKILL.md) operates on the SOURCE "
-                    "at .cataforge/, not a copy — one mis-click can destroy "
-                    "source files. Enable Windows Developer Mode (Settings "
-                    "→ For developers → Developer Mode) to get portable "
-                    "relative-path soft links, or pass `cataforge deploy "
-                    "--copy` to materialise independent copies instead.",
-                )
+    for attempt in (_try_symlink, _try_junction):
+        actions = attempt(source, target, removed)
+        if actions is not None:
             return actions
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            if os.path.lexists(str(target)):
-                _remove_target(target)
 
-    shutil.copytree(source, target)
-    return [f"{target} ← {source} (copy)"]
+    return _do_copy(source, target, removed)
 
 
 def merge_json_key(

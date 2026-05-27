@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.schema.framework import FrameworkFile
+from cataforge.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger("cataforge.config")
 
@@ -208,8 +209,13 @@ class ConfigManager:
         return {"field": "runtime.platform", "before": current, "after": platform_id}
 
     def _write_raw(self, data: dict[str, Any]) -> None:
-        """Write *data* to framework.json as-is (preserves key order)."""
-        self._paths.framework_json.write_text(
+        """Write *data* to framework.json as-is (preserves key order).
+
+        Atomic so a crash between truncate and write can't strand
+        framework.json half-rewritten — which would brick every
+        subsequent CLI invocation that needs the version / runtime keys.
+        """
+        atomic_write_text(
+            self._paths.framework_json,
             json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
         )

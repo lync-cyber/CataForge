@@ -216,3 +216,52 @@ class TestEventAcceptLegacy:
         assert "→" in result.output
         assert "2026-01-01" in result.output
         assert "2026-04-01" in result.output
+
+    def test_framework_json_intact_when_atomic_rename_fails(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: ``event accept-legacy`` rewrites framework.json
+        wholesale. Pre-fix it used a bare ``Path.write_text`` which
+        truncates first — a crash between truncate and write would
+        leave a zero-length / half-written framework.json, bricking
+        every subsequent CLI invocation that needs ``version`` /
+        ``runtime``. With ``atomic_write_text`` the prior content
+        survives any mid-write failure.
+        """
+        import os
+
+        fw_path = project / ".cataforge" / "framework.json"
+        prior = fw_path.read_text(encoding="utf-8")
+        prior_parsed = json.loads(prior)
+
+        real_replace = os.replace
+
+        def _boom(*_a, **_kw):
+            raise OSError("simulated rename failure")
+
+        monkeypatch.setattr(os, "replace", _boom)
+
+        # ``_invoke`` runs with ``catch_exceptions=False`` so OSError would
+        # propagate; here we explicitly want Click to surface it as a
+        # non-zero exit instead.
+        result = CliRunner().invoke(cli, ["event", "accept-legacy"])
+        assert result.exit_code != 0, result.output
+
+        # Prior content untouched: keys, version, runtime all survive.
+        after = json.loads(fw_path.read_text(encoding="utf-8"))
+        assert after == prior_parsed
+        assert "upgrade" not in after or "state" not in after.get("upgrade", {})
+
+        # And no temp file leaked into .cataforge/.
+        residue = [
+            p for p in (project / ".cataforge").iterdir()
+            if p.name.startswith(".framework.json.") and p.name.endswith(".tmp")
+        ]
+        assert residue == [], f"atomic temp file leaked: {residue!r}"
+
+        # Sanity: restoring os.replace lets the write complete.
+        monkeypatch.setattr(os, "replace", real_replace)
+        result2 = _invoke("event", "accept-legacy")
+        assert result2.exit_code == 0, result2.output
+        fw_final = json.loads(fw_path.read_text(encoding="utf-8"))
+        assert "event_log_validate_since" in fw_final["upgrade"]["state"]

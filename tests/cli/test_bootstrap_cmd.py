@@ -131,6 +131,37 @@ class TestDryRunPlan:
         assert "deploy   run" in result.output
         assert "platform changed" in result.output
 
+    def test_missing_deploy_state_plans_first_deploy(
+        self, runner: CliRunner, scaffolded_project: Path
+    ) -> None:
+        """Sanity baseline for the corruption test below: a missing
+        ``.deploy-state`` is the legitimate first-deploy signal and
+        must plan a deploy without erroring out."""
+        result = runner.invoke(cli, ["bootstrap", "--dry-run"])
+        assert result.exit_code == 0, result.output
+        assert "deploy   run" in result.output
+        assert "never deployed" in result.output
+
+    def test_corrupted_deploy_state_errors_with_diagnostic(
+        self, runner: CliRunner, scaffolded_project: Path
+    ) -> None:
+        """Pre-fix, a JSON-decode failure on ``.deploy-state`` was
+        silently swallowed into ``state = {}``: the user was told
+        "first deploy" and bootstrap quietly re-ran the deploy, never
+        surfacing the corruption. Post-fix, the corrupted file must
+        cause a clear, actionable error so the user can either remove
+        it or run ``deploy --rebuild`` deliberately."""
+        state = scaffolded_project / ".cataforge" / ".deploy-state"
+        state.write_text("{not valid json", encoding="utf-8")
+
+        result = runner.invoke(cli, ["bootstrap", "--dry-run"])
+        assert result.exit_code != 0, result.output
+        assert "corrupted" in result.output
+        assert "deploy --rebuild" in result.output
+        # The error must mention the actual offending file path so the
+        # user knows what to remove.
+        assert ".deploy-state" in result.output
+
     def test_scaffold_drift_triggers_upgrade_and_deploy(
         self, runner: CliRunner, deployed_project: Path
     ) -> None:
