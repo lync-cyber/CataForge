@@ -1,21 +1,9 @@
 """Tests for KG repair."""
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
-import pytest
-
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
-
 
 def _make_populated_store(variant: str = "waterfall"):
     from cataforge.kg import KGConfig, init_store
@@ -26,7 +14,6 @@ def _make_populated_store(variant: str = "waterfall"):
     run_migration(handle.raw, FIXTURE_ROOT / variant, config)
     return handle, config
 
-
 def test_repair_on_clean_store_is_noop() -> None:
     from cataforge.kg.repair import repair
 
@@ -35,7 +22,6 @@ def test_repair_on_clean_store_is_noop() -> None:
     assert stats.ghosts_removed == 0
     assert stats.missing_ingested == 0
     assert not stats.errors
-
 
 def test_repair_removes_ghost_entity() -> None:
     from cataforge.kg._quads import build_entity_quads
@@ -69,7 +55,6 @@ def test_repair_removes_ghost_entity() -> None:
     report_after = reconcile(store, FIXTURE_ROOT / "waterfall", config)
     assert report_after.ok
 
-
 def test_repair_ingests_missing_entity() -> None:
     from cataforge.kg._quads import quads_for_subject
     from cataforge.kg.ingest.iri import entity_iri
@@ -93,7 +78,6 @@ def test_repair_ingests_missing_entity() -> None:
     report_after = reconcile(store, FIXTURE_ROOT / "waterfall", config)
     assert report_after.ok
 
-
 def test_repair_dry_run_no_mutation() -> None:
     from cataforge.kg._quads import quads_for_subject
     from cataforge.kg.ingest.iri import entity_iri
@@ -112,7 +96,6 @@ def test_repair_dry_run_no_mutation() -> None:
 
     report = reconcile(store, FIXTURE_ROOT / "waterfall", config)
     assert not report.ok
-
 
 def test_repair_idempotent() -> None:
     from cataforge.kg._quads import quads_for_subject

@@ -30,7 +30,6 @@ def _run_codegen(out_dir: Path) -> None:
         f"codegen exited {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
-
 def test_codegen_produces_expected_artifacts(tmp_path: Path) -> None:
     _run_codegen(tmp_path)
     for name in (
@@ -42,7 +41,6 @@ def test_codegen_produces_expected_artifacts(tmp_path: Path) -> None:
     ):
         assert (tmp_path / name).is_file(), f"missing artifact: {name}"
 
-
 def test_subclass_axioms_byte_identical_on_rerun(tmp_path: Path) -> None:
     """spike-2 §2.1 — subclass_axioms.ttl is the input to `kg init` bootstrap;
     deterministic emission is required so store init is reproducible."""
@@ -51,7 +49,6 @@ def test_subclass_axioms_byte_identical_on_rerun(tmp_path: Path) -> None:
     _run_codegen(a)
     _run_codegen(b)
     assert filecmp.cmp(a / "subclass_axioms.ttl", b / "subclass_axioms.ttl", shallow=False)
-
 
 def test_subclass_axioms_covers_known_chain(tmp_path: Path) -> None:
     """The `is_a` chain must materialize: Feature → Requirement → SoftwareArtifact,
@@ -69,7 +66,6 @@ def test_subclass_axioms_covers_known_chain(tmp_path: Path) -> None:
     ]:
         triple = f"{child} rdfs:subClassOf {parent} ."
         assert triple in ttl, f"missing axiom: {triple}\n--- ttl ---\n{ttl}"
-
 
 def test_pydantic_module_smoke_imports(tmp_path: Path) -> None:
     """Generated Pydantic module must be a parseable Python file with known classes."""

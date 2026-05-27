@@ -8,24 +8,11 @@ doctor exit code from the moment cutover lands.
 from __future__ import annotations
 
 import gc
-import importlib.util
 import json
 from dataclasses import dataclass
 from pathlib import Path
 
-import pytest
-
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
-
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
-
 
 @dataclass
 class FakePaths:
@@ -35,11 +22,9 @@ class FakePaths:
     def framework_json(self) -> Path:
         return self.root / ".cataforge" / "framework.json"
 
-
 @dataclass
 class FakeConfig:
     paths: FakePaths
-
 
 def _setup_project_with_kg(tmp_path: Path) -> Path:
     """Copy the waterfall fixture into tmp_path and ingest into KG."""
@@ -64,7 +49,6 @@ def _setup_project_with_kg(tmp_path: Path) -> Path:
     gc.collect()
     return project_root
 
-
 def test_gate_passes_when_fs_matches_kg(tmp_path, capsys) -> None:
     from cataforge.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
@@ -76,7 +60,6 @@ def test_gate_passes_when_fs_matches_kg(tmp_path, capsys) -> None:
 
     assert failures == 0, out
     assert "OK" in out
-
 
 def test_gate_fails_when_kg_missing_fs_entity(tmp_path, capsys) -> None:
     from cataforge.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
@@ -96,7 +79,6 @@ def test_gate_fails_when_kg_missing_fs_entity(tmp_path, capsys) -> None:
     assert failures == 1
     assert "FAIL" in out
     assert "F-999" in out
-
 
 def test_gate_warns_but_does_not_fail_on_stale_only(tmp_path, capsys) -> None:
     """A KG entity present but no longer on disk surfaces as WARN; the
@@ -125,7 +107,6 @@ def test_gate_warns_but_does_not_fail_on_stale_only(tmp_path, capsys) -> None:
     assert "TC-002" in out, "stale TC-002 must appear in WARN"
     assert "WARN" in out
 
-
 def test_gate_skips_when_no_store(tmp_path, capsys) -> None:
     """No `.cataforge/kg/store/` present → gate returns 0 (skip).
 
@@ -143,7 +124,6 @@ def test_gate_skips_when_no_store(tmp_path, capsys) -> None:
 
     assert failures == 0
     assert "skipping" in out
-
 
 def test_gate_skips_when_no_active_doc_types(tmp_path, capsys) -> None:
     """No `kg.kg_active_doc_types` in framework.json AND no built-in

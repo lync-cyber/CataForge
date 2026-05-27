@@ -16,6 +16,7 @@ from cataforge.kg._errors import (
     KGTransactionConflictError,
     KGValidationError,
 )
+from cataforge.kg.export.render import render_entity
 from cataforge.kg.facade import KnowledgeGraph
 from cataforge.kg.query import QueryAPI
 from cataforge.kg.store import (
@@ -37,6 +38,7 @@ __all__ = [
     "KnowledgeGraph",
     "KnowledgeGraphStore",
     "QueryAPI",
+    "render_entity",
     "TraceAPI",
     "TransactionContext",
     "ask",

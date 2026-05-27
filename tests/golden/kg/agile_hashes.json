@@ -1,0 +1,11 @@
+{
+  "arch/M-001.md": "f2f9d56789ece46b805d8dc3dc9baf7c28d3de0801aa08f7300351f00710ecf3",
+  "arch/M-002.md": "f2ae0f38e1a0ffc5ea115b4acfbb0ea1ac8a57eb8ad8b7bc20e72dcebc26cd05",
+  "arch/TS-001.md": "3d325ac2280bc05a6b11e67a8f7db858ba42010bacd9710e1defbb1f9ebe4be8",
+  "prd/AC-001.md": "fc6730e6b0c2e9d29eb1996f3185630518ab024229cba956b6ef29db6ceb2394",
+  "prd/AC-002.md": "d1152653637c115ac2c3bb643ae553b679b5fdd5eed8022cb4c2781b0f7ea07f",
+  "prd/F-001.md": "8344b265790bda3b984d88320761f32bca2c66433fb69172a7adcd5a6ef2cd68",
+  "prd/F-002.md": "dad4ebbe7375195a97fab12b07eb1291bed9db60290d6fae5a984704d26ab2eb",
+  "test-report/TC-001.md": "cdeae6edc54bbed382998247524fcae226c58a3a4a3149bf60fb53469b869cff",
+  "test-report/TC-002.md": "a13d405791e0ecefd455574b65b904d0f90eb032236e27613eb4505c9cd4d995"
+}

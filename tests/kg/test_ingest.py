@@ -7,23 +7,12 @@ fixture project covering both waterfall and agile process models").
 """
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
 import pytest
 
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
-
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 VARIANTS = ("waterfall", "agile")
-
 
 def _open_memory_store():
     from cataforge.kg import KGConfig
@@ -31,7 +20,6 @@ def _open_memory_store():
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_codemod_end_to_end(variant: str) -> None:
@@ -78,7 +66,6 @@ def test_codemod_end_to_end(variant: str) -> None:
         f"hash_mismatch={stats.verify_result.content_hash_mismatches}"
     )
 
-
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_codemod_is_idempotent(variant: str) -> None:
     from cataforge.kg.ingest import run_migration
@@ -102,7 +89,6 @@ def test_codemod_is_idempotent(variant: str) -> None:
     assert second.write_stats.relations_skipped == 4
     assert second.verify_result is not None and second.verify_result.ok
 
-
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_dry_run_does_not_write(variant: str) -> None:
     from cataforge.kg.ingest import run_migration
@@ -123,7 +109,6 @@ def test_dry_run_does_not_write(variant: str) -> None:
     assert stats.verify_result is not None
     assert len(stats.verify_result.missing_entities) == 9
 
-
 def test_xref_inside_arch_does_not_pollute_arch_entity_set() -> None:
     """Regression: ENTITY_PREFIX_RE used to capture `F-001` from
     `prd#§2.F-001` inside arch, attributing the Feature to arch's
@@ -137,7 +122,6 @@ def test_xref_inside_arch_does_not_pollute_arch_entity_set() -> None:
     assert entity_ids == {"M-001", "M-002", "TS-001"}, (
         f"arch should only define M-NNN/TS-NNN entities; got {entity_ids}"
     )
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_project_node_records_process_model(variant: str) -> None:
@@ -158,7 +142,6 @@ def test_project_node_records_process_model(variant: str) -> None:
     )
     assert len(rows) == 1, f"{variant}: expected exactly one Project node, got {len(rows)}"
     assert rows[0]["pm"].value == variant
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_validate_reports_zero_violations_after_clean_import(variant: str) -> None:

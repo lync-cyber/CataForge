@@ -1,16 +1,6 @@
-"""KGConfig defaults match task-5 §5.2 and round-2 decisions.
-
-These tests must run successfully in CI environments without the `kg`
-extra installed (no pyoxigraph, no linkml-runtime). The package's public
-import path is permitted to do its own lazy-import gymnastics, but
-`KGConfig` is a pure-stdlib dataclass and the contract here is that
-importing it never reaches into pyoxigraph.
-"""
+"""KGConfig defaults match task-5 §5.2 and round-2 decisions."""
 from __future__ import annotations
 
-import subprocess
-import sys
-import textwrap
 from pathlib import Path
 
 from cataforge.kg import KGConfig
@@ -61,28 +51,3 @@ def test_list_active_doc_types_is_coerced_to_set() -> None:
     assert cfg.kg_active_doc_types == {"prd", "arch"}
 
 
-def test_base_import_does_not_require_pyoxigraph() -> None:
-    """Regression: `from cataforge.kg import KGConfig` in a CI image that
-    didn't install the `kg` extra must not blow up at import time. Test in
-    a subprocess that masks pyoxigraph in sys.modules so a developer-local
-    install doesn't hide the regression."""
-    code = textwrap.dedent(
-        """
-        import sys
-        sys.modules["pyoxigraph"] = None  # force ImportError if anything imports it
-        from cataforge.kg import KGConfig
-        cfg = KGConfig()
-        assert cfg.store_backend == "oxigraph"
-        assert cfg.kg_active_doc_types == {"prd", "arch", "test"}
-        """
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", code],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    assert result.returncode == 0, (
-        f"base import pulled in pyoxigraph eagerly\n"
-        f"stdout: {result.stdout}\nstderr: {result.stderr}"
-    )

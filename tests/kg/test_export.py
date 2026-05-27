@@ -12,20 +12,9 @@ Sub-PR 4 exit condition pieces verified here:
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 from pathlib import Path
 
 import pytest
-
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-jinja2_installed = importlib.util.find_spec("jinja2") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed and jinja2_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime + jinja2)",
-)
-
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 VARIANTS = ("waterfall", "agile")
@@ -49,14 +38,12 @@ EXPECTED_RELATIONS = {
     ("TC-002", "AC-002"),
 }
 
-
 def _open_memory_store():
     from cataforge.kg import KGConfig
     from cataforge.kg.store import init_store
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config
-
 
 def _ingest_fixture(variant: str):
     from cataforge.kg.ingest import run_migration
@@ -65,7 +52,6 @@ def _ingest_fixture(variant: str):
     run_migration(handle.raw, FIXTURE_ROOT / variant, config)
     return handle, config
 
-
 def _sha256_dir(directory: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     for path in sorted(directory.rglob("*.md")):
@@ -73,7 +59,6 @@ def _sha256_dir(directory: Path) -> dict[str, str]:
             path.read_bytes()
         ).hexdigest()
     return out
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_renders_every_entity(tmp_path: Path, variant: str) -> None:
@@ -92,7 +77,6 @@ def test_export_renders_every_entity(tmp_path: Path, variant: str) -> None:
     for entity_id, doc_type in EXPECTED_ENTITIES.items():
         f = tmp_path / "out" / doc_type / f"{entity_id}.md"
         assert f.is_file(), f"{variant}: missing {f}"
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_is_byte_identical_across_runs(tmp_path: Path, variant: str) -> None:
@@ -122,7 +106,6 @@ def test_export_is_byte_identical_across_runs(tmp_path: Path, variant: str) -> N
     assert r1.file_hashes == hashes1
     assert r2.file_hashes == hashes2
 
-
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_in_place_overwrite_is_idempotent(
     tmp_path: Path, variant: str
@@ -147,7 +130,6 @@ def test_export_in_place_overwrite_is_idempotent(
         f"{set(first.items()) ^ set(second.items())}"
     )
 
-
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_renders_every_relation_as_link(
     tmp_path: Path, variant: str
@@ -170,7 +152,6 @@ def test_export_renders_every_relation_as_link(
             f"body=\n{body}"
         )
 
-
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_strict_undefined_blocks_generated_at(
     tmp_path: Path, variant: str
@@ -190,34 +171,3 @@ def test_export_strict_undefined_blocks_generated_at(
         assert "generated_at" not in text, f"{md} contains generated_at"
         assert "exported_at" not in text, f"{md} contains exported_at"
 
-
-def test_base_import_does_not_require_pyoxigraph() -> None:
-    """`from cataforge.kg.export import ...` must work without the kg extra.
-
-    Regression for the sub-PR 2 fix: top-level pyoxigraph imports break
-    the base wheel. The export package follows the same lazy-import
-    pattern (pyoxigraph used only inside function bodies / TYPE_CHECKING).
-    """
-    import subprocess
-    import sys
-    import textwrap
-
-    script = textwrap.dedent(
-        """
-        import sys
-        sys.modules["pyoxigraph"] = None  # simulate missing extra
-        from cataforge.kg.export import compile_to_markdown  # noqa: F401
-        print("ok")
-        """
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, (
-        f"base import failed without pyoxigraph:\nstdout={result.stdout}\n"
-        f"stderr={result.stderr}"
-    )
-    assert "ok" in result.stdout

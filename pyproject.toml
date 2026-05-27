@@ -49,6 +49,8 @@ dependencies = [
     "markdown-it-py>=3.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
+    "linkml-runtime>=1.11.1",
+    "pyoxigraph>=0.5.8",
 ]
 
 [project.optional-dependencies]
@@ -71,11 +73,8 @@ dev = [
 mcp = ["mcp>=1.0"]
 docker = ["docker>=7.0"]
 penpot = ["docker>=7.0"]
-kg = [
-    "linkml-runtime>=1.11.1",
-    "pyoxigraph>=0.5.8",
-]
-all = ["docker>=7.0", "mcp>=1.0", "linkml-runtime>=1.11.1", "pyoxigraph>=0.5.8"]
+kg = []
+all = ["docker>=7.0", "mcp>=1.0"]
 
 [project.urls]
 Homepage = "https://github.com/lync-cyber/CataForge"

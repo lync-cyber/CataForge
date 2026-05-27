@@ -12,24 +12,11 @@ small oxigraph-backed roundtrip in the last test.
 """
 from __future__ import annotations
 
-import importlib.util
 import warnings
 from dataclasses import replace
 from pathlib import Path
 
-import pytest
-
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
-
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
-
 
 def _ingest_into_memory(project_root: Path):
     from cataforge.kg import KGConfig, KnowledgeGraph, init_store
@@ -41,15 +28,12 @@ def _ingest_into_memory(project_root: Path):
     kg = KnowledgeGraph(handle.raw, config)
     return kg, config
 
-
 def _active(config, doc_types: set[str]):
     return replace(config, kg_active_doc_types=doc_types)
-
 
 # ---------------------------------------------------------------------------
 # extract
 # ---------------------------------------------------------------------------
-
 
 def test_extract_kg_branch() -> None:
     from cataforge.kg._shim import extract
@@ -73,7 +57,6 @@ def test_extract_kg_branch() -> None:
     assert result["entity_id"] == "F-001"
     assert result["_class"] == "Feature"
     assert result["doc_type"] == "prd"
-
 
 def test_extract_legacy_branch_is_invoked_when_doc_type_inactive(tmp_path: Path) -> None:
     """When the doc_type isn't in `kg_active_doc_types`, the shim must
@@ -122,11 +105,9 @@ def test_extract_legacy_branch_is_invoked_when_doc_type_inactive(tmp_path: Path)
     assert result.get("body"), "legacy branch must populate body text"
     assert "legacy body" in result["body"]
 
-
 # ---------------------------------------------------------------------------
 # extract_batch
 # ---------------------------------------------------------------------------
-
 
 def test_extract_batch_dispatches_per_spec() -> None:
     from cataforge.kg._shim import extract_batch
@@ -149,11 +130,9 @@ def test_extract_batch_dispatches_per_spec() -> None:
     eids = {r["entity_id"] for r in results}
     assert eids == {"F-001", "F-002"}
 
-
 # ---------------------------------------------------------------------------
 # plan_load
 # ---------------------------------------------------------------------------
-
 
 def test_plan_load_kg_branch_orders_entities() -> None:
     from cataforge.kg._shim import plan_load
@@ -176,7 +155,6 @@ def test_plan_load_kg_branch_orders_entities() -> None:
     assert result["dropped"] == []
     assert result["estimated_tokens"] > 0
 
-
 def test_plan_load_drops_when_budget_exhausted() -> None:
     from cataforge.kg._shim import plan_load
 
@@ -198,11 +176,9 @@ def test_plan_load_drops_when_budget_exhausted() -> None:
     assert result["ordered"] == []
     assert "F-001" in result["dropped"]
 
-
 # ---------------------------------------------------------------------------
 # build_full_index
 # ---------------------------------------------------------------------------
-
 
 def test_build_full_index_kg_branch() -> None:
     from cataforge.kg._shim import build_full_index
@@ -222,11 +198,9 @@ def test_build_full_index_kg_branch() -> None:
     assert f001["_class"] == "Feature"
     assert f001["sort_key"] == "F:000001"
 
-
 # ---------------------------------------------------------------------------
 # resolve_deps
 # ---------------------------------------------------------------------------
-
 
 def test_resolve_deps_kg_branch_empty_when_none_declared() -> None:
     from cataforge.kg._shim import resolve_deps
@@ -243,11 +217,9 @@ def test_resolve_deps_kg_branch_empty_when_none_declared() -> None:
 
     assert deps == []
 
-
 # ---------------------------------------------------------------------------
 # extract_with_body
 # ---------------------------------------------------------------------------
-
 
 def test_extract_with_body_renders_via_kg() -> None:
     from cataforge.kg._shim import extract_with_body
@@ -271,11 +243,9 @@ def test_extract_with_body_renders_via_kg() -> None:
     assert record.get("body"), "KG branch must render body via render_entity()"
     assert "F-001" in record["body"]
 
-
 # ---------------------------------------------------------------------------
 # source_section
 # ---------------------------------------------------------------------------
-
 
 def test_source_section_legacy_branch_slices_file() -> None:
     from cataforge.kg._shim import source_section
@@ -297,11 +267,9 @@ def test_source_section_legacy_branch_slices_file() -> None:
     assert section is not None
     assert "§1" in section
 
-
 # ---------------------------------------------------------------------------
 # DeprecationWarning emission
 # ---------------------------------------------------------------------------
-
 
 def test_shim_emits_deprecation_warning() -> None:
     from cataforge.kg._shim import build_full_index
@@ -318,11 +286,9 @@ def test_shim_emits_deprecation_warning() -> None:
     assert deps, "expected at least one DeprecationWarning"
     assert any("build_full_index" in str(w.message) for w in deps)
 
-
 # ---------------------------------------------------------------------------
 # Transient connection (oxigraph backend, full lifecycle)
 # ---------------------------------------------------------------------------
-
 
 def test_extract_transient_connection_oxigraph(tmp_path: Path) -> None:
     """End-to-end smoke without an injected `kg=...` handle.

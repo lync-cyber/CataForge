@@ -7,24 +7,12 @@ Content-hash compare semantics (see compare_read.py docstring).
 from __future__ import annotations
 
 import gc
-import importlib.util
 import json
 from pathlib import Path
 
-import pytest
 from click.testing import CliRunner
 
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
-
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
-
 
 def _setup_project_with_kg(tmp_path: Path) -> Path:
     import shutil
@@ -50,13 +38,11 @@ def _setup_project_with_kg(tmp_path: Path) -> Path:
     invalidate_cache()
     return project_root
 
-
 def _cli():
     from cataforge.cli.main import _register_commands, cli
 
     _register_commands()
     return cli
-
 
 def test_compare_read_clean_fixture_no_alarms(tmp_path: Path) -> None:
     """Freshly ingested fixture must audit clean: every sampled entity's
@@ -82,7 +68,6 @@ def test_compare_read_clean_fixture_no_alarms(tmp_path: Path) -> None:
 
     assert report.sampled_count == 9  # F×2 + AC×2 + M×2 + TC×2 + TS×1
     assert report.alarms == [], [a.to_dict() for a in report.alarms]
-
 
 def test_compare_read_flags_mutated_section_body(tmp_path: Path) -> None:
     """Mutating the body of an entity's section after ingest must surface
@@ -122,7 +107,6 @@ def test_compare_read_flags_mutated_section_body(tmp_path: Path) -> None:
     assert alarm_map["TC-001"].kg_content_hash is not None
     assert alarm_map["TC-001"].kg_content_hash != alarm_map["TC-001"].fs_content_hash
 
-
 def test_compare_read_flags_kg_missing_entity(tmp_path: Path) -> None:
     """A new entity in FS that hasn't been re-ingested into KG surfaces as
     `kg-missing-entity` alarm."""
@@ -153,7 +137,6 @@ def test_compare_read_flags_kg_missing_entity(tmp_path: Path) -> None:
     assert "F-999" in alarm_map
     assert alarm_map["F-999"].reason == "kg-missing-entity"
 
-
 def test_compare_read_seed_is_reproducible(tmp_path: Path) -> None:
     from cataforge.kg import KGConfig, KnowledgeGraph
     from cataforge.kg.compare_read import compare_read
@@ -182,7 +165,6 @@ def test_compare_read_seed_is_reproducible(tmp_path: Path) -> None:
 
     assert r1.per_doc_type_counts == r2.per_doc_type_counts
     assert r1.sampled_count == r2.sampled_count
-
 
 def test_compare_read_cli_exits_zero_even_on_alarms(tmp_path: Path) -> None:
     """Per task-7 §7.5, compare-read is diagnostic — alarms never set

@@ -21,25 +21,14 @@ pass end-to-end.
 """
 from __future__ import annotations
 
-import importlib.util
 import warnings
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
-
 FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "fixtures" / "kg-vertical-slice"
 VARIANTS = ("waterfall", "agile")
-
 
 def _ingest_into_memory(project_root: Path):
     from cataforge.kg import KGConfig, KnowledgeGraph, init_store
@@ -51,15 +40,12 @@ def _ingest_into_memory(project_root: Path):
     kg = KnowledgeGraph(handle.raw, config)
     return kg, config
 
-
 def _active(config, doc_types: set[str]):
     return replace(config, kg_active_doc_types=doc_types)
-
 
 # ---------------------------------------------------------------------------
 # Group A entity-id discovery dual-path
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_entity_id_set_matches_legacy_scan(variant: str) -> None:
@@ -84,11 +70,9 @@ def test_entity_id_set_matches_legacy_scan(variant: str) -> None:
         f"FS-only: {fs_ids - kg_ids}; KG-only: {kg_ids - fs_ids}"
     )
 
-
 # ---------------------------------------------------------------------------
 # A2 / A5 — typed accessors return non-null on existing entities
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_typed_accessors_locate_known_entities(variant: str) -> None:
@@ -103,11 +87,9 @@ def test_typed_accessors_locate_known_entities(variant: str) -> None:
     assert kg.query.api("API-999") is None
     assert kg.query.page("P-999") is None
 
-
 # ---------------------------------------------------------------------------
 # A6 — plan_load equivalence shape across active vs inactive flags
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_plan_load_shape_matches_across_branches(variant: str) -> None:
@@ -135,11 +117,9 @@ def test_plan_load_shape_matches_across_branches(variant: str) -> None:
     assert isinstance(kg_result["estimated_tokens"], int)
     assert "F-001" in kg_result["ordered"]
 
-
 # ---------------------------------------------------------------------------
 # A11 — legacy_validate_report return-shape is the 6-key 0.4.x dict
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_legacy_validate_report_keys_stable(variant: str) -> None:
@@ -166,11 +146,9 @@ def test_legacy_validate_report_keys_stable(variant: str) -> None:
     for k, v in report.items():
         assert isinstance(v, list), f"{k} must be a list"
 
-
 # ---------------------------------------------------------------------------
 # A13 — bidirectional coverage agrees with TraceAPI.bidirectional_coverage
 # ---------------------------------------------------------------------------
-
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_bidirectional_coverage_reflects_graph_edges(variant: str) -> None:
@@ -192,11 +170,9 @@ def test_bidirectional_coverage_reflects_graph_edges(variant: str) -> None:
         # check would falsely register coverage on string mention.
         assert by_id[fid].has_test is False
 
-
 # ---------------------------------------------------------------------------
 # Both process-model paths reach the same exit shape
 # ---------------------------------------------------------------------------
-
 
 def test_waterfall_and_agile_produce_identical_entity_set() -> None:
     """Alpha exit condition: both process_model = waterfall and = agile
