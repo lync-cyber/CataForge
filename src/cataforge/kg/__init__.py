@@ -1,18 +1,8 @@
-"""CataForge knowledge graph package (0.5.0 Alpha).
+"""CataForge knowledge graph package.
 
-Public surface:
-
-* `KGConfig` — connection configuration (task-5 §5.2).
-* `KnowledgeGraph` — read+write facade exposing `query`, `trace`, and a
-  synchronous `transaction()` context manager.
-* `KnowledgeGraphStore` — low-level sync store handle wrapping
-  `pyoxigraph.Store` (used by ingest / migrate scripts).
-* `QueryAPI` / `TraceAPI` / `TransactionContext` — sub-API classes.
-* `init_store` / `bootstrap_subclass_axioms` — `cataforge kg init` backend.
-* `ask` — SPARQL ASK chokepoint that returns a real Python `bool`
-  (spike-2 §2.2, issue #142).
-* `KGError` / `KGStoreNotInitializedError` / `KGStoreAlreadyExistsError`
-  — exceptions raised by this layer.
+Public surface: `KnowledgeGraph` facade (query / trace / transaction),
+`KGConfig`, `KnowledgeGraphStore`, `init_store`, `ask`, and the KG
+exception hierarchy.
 """
 from __future__ import annotations
 

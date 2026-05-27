@@ -1,4 +1,4 @@
-"""Tests for KG repair (sub-PR 9 — V1)."""
+"""Tests for KG repair."""
 from __future__ import annotations
 
 import importlib.util

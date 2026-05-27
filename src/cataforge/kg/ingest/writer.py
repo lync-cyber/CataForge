@@ -1,14 +1,9 @@
-"""Phase 5 of task-7 §7.2: write entity + relation triples idempotently.
+"""Write entity + relation triples to the KG store idempotently.
 
 Idempotency hinges on the content hash: every entity carries a
 `cf:content_hash` triple, and the writer skips an entity whose stored
-hash already matches the freshly computed one. Re-running the codemod
-on unchanged source therefore inserts zero new triples.
-
-Every ASK in this module flows through
-`cataforge.kg._ask.ask(store, sparql) -> bool` — the chokepoint that
-forces `QueryBoolean → bool` (spike-2 §2.2, issue #142). This is the
-first production-path consumer of the chokepoint.
+hash already matches the freshly computed one. Re-running on unchanged
+source therefore inserts zero new triples.
 """
 from __future__ import annotations
 

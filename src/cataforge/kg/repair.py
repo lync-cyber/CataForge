@@ -1,4 +1,4 @@
-"""Auto-fix KG drift detected by reconcile (task-7 §7.5)."""
+"""Auto-fix KG drift detected by reconcile."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

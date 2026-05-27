@@ -1,15 +1,7 @@
 """cataforge kg — knowledge graph store lifecycle.
 
-Subcommand build-out tracks the alpha sub-PR sequence in task-7 §7.1:
-
-* sub-PR 2 — `init`
-* sub-PR 3 — `import`, `validate`
-* sub-PR 4 — `export`
-* sub-PR 6 — `reconcile`, `compare-read` (this file)
-* sub-PR 7 — write lock + high-level CRUD (TransactionContext)
-* sub-PR 8 — `snapshot`, `rollback`
-* sub-PR 9 — `repair`
-* later — `diff`
+Subcommands: init, import, validate, export, reconcile, compare-read,
+snapshot, rollback, repair.
 """
 from __future__ import annotations
 
@@ -24,7 +16,7 @@ from cataforge.cli.main import cli
 
 @cli.group("kg")
 def kg_group() -> None:
-    """Knowledge graph store management (0.5.0 Alpha)."""
+    """Knowledge graph store management."""
 
 
 @kg_group.command("init")
@@ -65,7 +57,7 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
     """Initialize a new KG store with the rdfs:subClassOf hierarchy loaded.
 
     Bootstrap triples close the subclass-closure gap left by pyoxigraph's
-    lack of RDFS entailment (spike-2 §2.1) — without them, queries like
+    lack of RDFS entailment — without them, queries like
     `?s a/rdfs:subClassOf* cf:Screen` would return zero `cf:Page` rows
     even when Page instances exist.
     """
@@ -128,8 +120,8 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
     "doc_types",
     multiple=True,
     help=(
-        "Restrict to specific doc_types. Repeatable. Default = Alpha scope "
-        "(prd, arch, test-report) per task-7 §7.1."
+        "Restrict to specific doc_types. Repeatable. "
+        "Default = prd, arch, test-report."
     ),
 )
 @click.option(
@@ -153,7 +145,7 @@ def kg_import(
     dry_run: bool,
     json_output: bool,
 ) -> None:
-    """Ingest business documents into the KG (task-7 §7.2 six-phase pipeline)."""
+    """Ingest business documents into the KG (six-phase pipeline)."""
     from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
     from cataforge.kg.ingest import DEFAULT_DOC_TYPES, run_migration
 
@@ -313,7 +305,7 @@ def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
     help="Emit a JSON result blob (per-file sha256 included) instead of the table.",
 )
 def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
-    """Export the KG to per-entity Markdown files (task-4 pipeline)."""
+    """Export the KG to per-entity Markdown files."""
     from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
     from cataforge.kg.export import compile_to_markdown
 
@@ -406,9 +398,8 @@ def kg_reconcile(
     For each active doc_type, compares FS-extracted entities and
     traceability triples against what is in the KG. Writes the diff to
     `docs/.kg-reconcile-report.json` and exits non-zero if any
-    `missing` or `ghost` entry exists. Used at Alpha exit to certify
-    that doctor's ERROR-gate cycle has nothing to flag, and
-    operationally to spot drift after every `cataforge kg commit`.
+    `missing` or `ghost` entry exists. Operationally used to spot
+    drift after every `cataforge kg import`.
     """
     from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
     from cataforge.kg._dispatch import kg_config_for
@@ -528,7 +519,7 @@ def kg_reconcile(
     default=1.0,
     show_default=True,
     help=(
-        "Reserved for forward-compat with §7.5; content_hash compare is "
+        "Reserved for forward-compat; content_hash compare is "
         "binary so this value is currently ignored."
     ),
 )
@@ -556,7 +547,7 @@ def kg_compare_read(
 ) -> None:
     """Sample-audit KG-rendered entities against the legacy file slice.
 
-    Per task-7 §7.5, this is a *diagnostic* check, not a gate: alarms
+    This is a *diagnostic* check, not a gate: alarms
     do not block writes. Operators run it periodically post-cutover; if
     alarms persist for a doc_type the prescribed response is to remove
     that doc_type from `kg_active_doc_types` and investigate. Exit code

@@ -1,9 +1,4 @@
-"""Group A migration rows that lacked dedicated tests (sub-PR 9 — T1).
-
-Covers A3 (task→AC trace), A4 (source_section tech-stack), A7 (plan_load
-sprint-review), A8 (depends_on SPARQL), A12 (xref URI resolution),
-A14 (degraded-path query+render), A15 (build_xref SPARQL retired).
-"""
+"""Migration coverage for rows A3, A4, A7, A8, A12, A14, A15."""
 from __future__ import annotations
 
 import importlib.util

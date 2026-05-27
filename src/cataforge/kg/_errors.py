@@ -1,10 +1,4 @@
-"""Exception hierarchy for the KG layer (subset of task-5 §5.4).
-
-Sub-PR 2 only declares the errors actually raised by `store.py` /
-`cataforge kg init`. The remaining error classes from task-5 §5.4 land
-alongside the code paths that raise them (validation, traceability,
-transaction conflict).
-"""
+"""Exception hierarchy for the KG layer."""
 from __future__ import annotations
 
 

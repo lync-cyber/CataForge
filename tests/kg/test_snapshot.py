@@ -1,4 +1,4 @@
-"""Tests for KG snapshot and rollback (sub-PR 8)."""
+"""Tests for KG snapshot and rollback."""
 from __future__ import annotations
 
 import importlib.util
