@@ -378,6 +378,13 @@ def _remove_mcp_pid() -> None:
 def _is_mcp_running(config: dict) -> bool:
     try:
         req = urllib.request.Request(f"http://localhost:{config['mcp_port']}/mcp", method="GET")
+        # 2s is deliberate: this probe runs on every `penpot status` /
+        # `penpot ensure` / Penpot skill warm-up and must fail-fast on
+        # "server not up" without making the user wait. A higher
+        # timeout would make those entry points feel hung when MCP
+        # isn't installed yet — the failure mode we're checking for.
+        # Do NOT raise without a corresponding adjustment in
+        # ``cmd_ensure`` / ``cmd_status`` UX.
         urllib.request.urlopen(req, timeout=2)
         return True
     except urllib.error.HTTPError:
