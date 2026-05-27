@@ -6,7 +6,9 @@ Subcommand build-out tracks the alpha sub-PR sequence in task-7 §7.1:
 * sub-PR 3 — `import`, `validate`
 * sub-PR 4 — `export`
 * sub-PR 6 — `reconcile`, `compare-read` (this file)
-* later — `repair`, `snapshot`, `rollback`, `diff`
+* sub-PR 7 — write lock + high-level CRUD (TransactionContext)
+* sub-PR 8 — `snapshot`, `rollback`
+* later — `repair`, `diff`
 """
 from __future__ import annotations
 
@@ -619,3 +621,83 @@ def kg_compare_read(
         )
     if len(report.alarms) > 10:
         click.echo(f"  ... +{len(report.alarms) - 10} more")
+
+
+@kg_group.command("snapshot")
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path(".cataforge/kg/snapshots"),
+    show_default=True,
+    help="Directory to write the snapshot NQuads file and metadata.",
+)
+@click.option(
+    "--label",
+    default=None,
+    help="Optional label appended to the snapshot filename.",
+)
+def kg_snapshot(db_path: Path, output_dir: Path, label: str | None) -> None:
+    """Save a full snapshot of the current KG store."""
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg.snapshot import create_snapshot
+
+    config = KGConfig(store_backend="oxigraph", db_path=db_path)
+    try:
+        with KnowledgeGraphStore.connect(config) as handle:
+            meta = create_snapshot(
+                handle.raw, config, output_dir, label=label
+            )
+    except KGStoreNotInitializedError as exc:
+        raise KGStoreError(str(exc)) from exc
+
+    click.echo(
+        f"OK: snapshot saved to {meta.path} ({meta.quad_count} quads)"
+    )
+
+
+@kg_group.command("rollback")
+@click.argument(
+    "snapshot_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--db-path",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store to replace.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Overwrite the existing store without confirmation.",
+)
+def kg_rollback(snapshot_path: Path, db_path: Path, force: bool) -> None:
+    """Restore the KG store from a snapshot file.
+
+    SNAPSHOT_PATH is the path to the .nq file created by `cataforge kg snapshot`.
+    """
+    from cataforge.kg import KGConfig, KGStoreAlreadyExistsError
+    from cataforge.kg.snapshot import restore_snapshot
+
+    if not force:
+        click.confirm(
+            f"This will replace the store at {db_path}. Continue?",
+            abort=True,
+        )
+
+    config = KGConfig(store_backend="oxigraph", db_path=db_path)
+    try:
+        count = restore_snapshot(snapshot_path, config, force=True)
+    except KGStoreAlreadyExistsError as exc:
+        raise KGStoreError(str(exc)) from exc
+
+    click.echo(f"OK: restored {count} quads from {snapshot_path}")
