@@ -5,8 +5,9 @@ Falls back to console beep if no notification method is available.
 """
 
 import html
-import subprocess
 import sys
+
+from cataforge.utils.run_subprocess import run as run_proc
 
 
 def send_notification(
@@ -55,9 +56,8 @@ def _notify_windows(title: str, message: str) -> bool:
         f"[{toast_ns}.ToastNotificationManager]::CreateToastNotifier($appId)"
         f".Show([{toast_ns}.ToastNotification]::new($xml))"
     )
-    subprocess.run(
+    run_proc(
         ["powershell", "-NoProfile", "-Command", ps_script],
-        capture_output=True,
         timeout=10,
     )
     return True
@@ -67,7 +67,7 @@ def _notify_macos(title: str, message: str) -> bool:
     safe_title = title.replace('"', '\\"')
     safe_msg = message.replace('"', '\\"')
     script = f'display notification "{safe_msg}" with title "{safe_title}"'
-    subprocess.run(["osascript", "-e", script], capture_output=True, timeout=10)
+    run_proc(["osascript", "-e", script], timeout=10)
     return True
 
 
@@ -76,5 +76,5 @@ def _notify_linux(title: str, message: str, urgency: bool = False) -> bool:
     if urgency:
         args.append("--urgency=critical")
     args.extend([title, message])
-    subprocess.run(args, capture_output=True, timeout=10)
+    run_proc(args, timeout=10)
     return True

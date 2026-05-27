@@ -1,20 +1,24 @@
 """SessionStart Hook: Log session_start and trigger auto-deploy."""
 
-import subprocess
 import sys
 
 from cataforge.hook.base import hook_main, read_hook_input
+from cataforge.utils.run_subprocess import run as run_proc
 
 
 def _auto_deploy() -> None:
     """Run cataforge deploy on session start."""
     try:
-        subprocess.run(
+        result = run_proc(
             [sys.executable, "-m", "cataforge", "deploy"],
             timeout=15,
-            capture_output=True,
-            check=True,
         )
+        if result.returncode != 0:
+            print(
+                f"warn: auto-deploy skipped (exit {result.returncode}): "
+                f"{(result.stderr or result.stdout).strip()}",
+                file=sys.stderr,
+            )
     except Exception as e:
         print(f"warn: auto-deploy skipped: {e}", file=sys.stderr)
 
