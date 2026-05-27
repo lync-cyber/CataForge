@@ -40,8 +40,8 @@ no CONSTRUCT rule, no `union_of` workaround.
 matching SHACL `sh:pattern` constraint. Codegen smoke-test
 [`tests/kg/test_codegen.py`](../../tests/kg/test_codegen.py) asserts the regeneration
 is byte-stable. Historical TC- prefix variance (the proposal's open question) is
-treated as a migration concern: the ingest codemod simply skips non-conforming
-matches and the doctor gate surfaces them as missing.
+treated as a migration concern: the ingest codemod skips non-conforming matches
+and the doctor gate surfaces them as missing.
 
 ### Schema codegen produces well-formed Pydantic + SHACL
 *Origin*: task-3 `[待验证]` (LinkML codegen behavior with non-trivial slots).

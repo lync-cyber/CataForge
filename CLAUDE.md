@@ -44,13 +44,15 @@ pip install -e .[dev]    # 一次性安装 pre-commit 包到当前环境
 pre-commit install        # 一次性把 git hook 挂到 .git/hooks/pre-commit
 ```
 
-未挂 hook 的环境下（包括我自己 / CI 之前的 Claude session），**提交前必须手动跑**：
+未挂 hook 的环境（含 Claude Code session）**提交前必须手动跑这一条**：
 
 ```bash
-python -m ruff check src tests scripts
+python scripts/checks/run_local.py
 ```
 
-`feat(kg): alpha sub-pr 6` 因为没跑这条命令、commit 顺利落地、CI 才报 3 处 ruff 错误（F401 unused import + 两处 SIM108 ternary）。原则：**任何写到 `src/` `tests/` `scripts/` 的代码改动，commit 前必须本地确认 `ruff check` 退出 0**。其他 pre-commit 守卫脚本（`check_no_design_residue.py` / `check_no_language_coupling.py` / `check_doc_structure.py`）按各自 `files:` 正则触发，改 `.cataforge/agents|skills|rules/**/*.md` 时同样要手动跑对应脚本。
+[`run_local.py`](scripts/checks/run_local.py) 顺序调用 7 个 repo-wide 守卫 —— ruff lint + marketing-word + design-residue + language-coupling + doc-structure + QueryBoolean-eq-True + schema-python-parity；任一非零即非零退出。CI 跑的是同一组脚本，本地通过本地这条命令 ≈ CI 不会因这些 class 报错。
+
+不能省的原因：CI 已经多次把"本地没跑过这条命令"才漏掉的错误拦下来 —— ruff F401 / SIM108、marketing-word "simply" 都在最近的 PR 上出现过。一次性把所有 repo-wide 守卫塞进一条命令，意味着没有"我以为只改了文档不用跑 ruff"或"我以为这条不会被 marketing-word 命中"的借口。
 
 ## Dogfood：本仓的 Claude Code 调用面
 
