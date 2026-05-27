@@ -17,6 +17,7 @@ import textwrap
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from typing import Any
 
 from cataforge.cli.errors import CataforgeError
@@ -919,6 +920,29 @@ def cmd_ensure(config: dict) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Public handler registry
+# ---------------------------------------------------------------------------
+#
+# Maps user-facing subcommand name → handler callable. Both the Click
+# wrapper in ``cli/penpot_cmd.py`` and the ``__main__`` argparse entry
+# point look subcommands up here. Centralising the dispatch table
+# replaces an earlier ``getattr(penpot, handler_name)`` lookup whose
+# string parameters duplicated the same mapping in two places and
+# silently AttributeError'd if a function was renamed.
+HANDLERS: dict[str, Callable[[dict], int]] = {
+    "init": cmd_init,
+    "deploy": cmd_deploy,
+    "mcp-only": cmd_mcp_only,
+    "remote": cmd_remote,
+    "start": cmd_start,
+    "stop": cmd_stop,
+    "status": cmd_status,
+    "doctor": cmd_doctor,
+    "ensure": cmd_ensure,
+}
+
+
+# ---------------------------------------------------------------------------
 # CLI entry (for use as python -m cataforge.integrations.penpot)
 # ---------------------------------------------------------------------------
 
@@ -942,17 +966,11 @@ def main(argv: list[str] | None = None) -> int:
     config = get_config()
 
     if args.ensure:
-        return cmd_ensure(config)
+        return HANDLERS["ensure"](config)
     if not args.command:
         parser.print_help()
         return 0
-    handlers = {
-        "init": cmd_init,
-        "deploy": cmd_deploy, "mcp-only": cmd_mcp_only, "remote": cmd_remote,
-        "start": cmd_start, "stop": cmd_stop, "status": cmd_status,
-        "doctor": cmd_doctor,
-    }
-    return handlers[args.command](config)
+    return HANDLERS[args.command](config)
 
 
 if __name__ == "__main__":

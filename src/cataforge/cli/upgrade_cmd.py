@@ -102,12 +102,12 @@ def upgrade_apply(dry_run: bool) -> None:
     from cataforge.core.scaffold import classify_scaffold_files, copy_scaffold_to
 
     if dry_run:
+        from cataforge.cli.helpers import classify_tallies
+
         cfg = get_config_manager()
         dest = cfg.paths.cataforge_dir
         classified = classify_scaffold_files(dest)
-        tallies: dict[str, int] = {}
-        for _, status in classified:
-            tallies[status] = tallies.get(status, 0) + 1
+        tallies = classify_tallies(classified)
 
         click.echo(f"Would refresh scaffold at {dest}")
         click.echo(f"  Total files: {len(classified)}")

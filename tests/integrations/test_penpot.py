@@ -190,6 +190,44 @@ def test_cmd_stop_invokes_stop_mcp_and_compose_down(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# D5: HANDLERS registry replaces getattr-based dispatch
+# ---------------------------------------------------------------------------
+
+
+def test_handlers_registry_lists_every_cmd() -> None:
+    """The HANDLERS registry must expose one entry per ``cmd_*``
+    function so a future renamed handler is caught here before a
+    dispatch site silently AttributeErrors."""
+    expected_commands = {
+        "init", "deploy", "mcp-only", "remote",
+        "start", "stop", "status", "doctor", "ensure",
+    }
+    assert set(penpot.HANDLERS) == expected_commands
+    # Every entry must be a callable that takes a single config dict.
+    for name, handler in penpot.HANDLERS.items():
+        assert callable(handler), f"HANDLERS[{name!r}] is not callable"
+
+
+def test_handlers_match_module_cmd_functions() -> None:
+    """Every HANDLERS value must be the actual ``cmd_*`` function from
+    the penpot module — guards against a refactor that swaps out one
+    handler without updating the dispatch table."""
+    name_to_attr = {
+        "init": "cmd_init",
+        "deploy": "cmd_deploy",
+        "mcp-only": "cmd_mcp_only",
+        "remote": "cmd_remote",
+        "start": "cmd_start",
+        "stop": "cmd_stop",
+        "status": "cmd_status",
+        "doctor": "cmd_doctor",
+        "ensure": "cmd_ensure",
+    }
+    for user_name, attr_name in name_to_attr.items():
+        assert penpot.HANDLERS[user_name] is getattr(penpot, attr_name)
+
+
+# ---------------------------------------------------------------------------
 # C7 / C8: stop_mcp guards taskkill availability + PID file encoding
 # ---------------------------------------------------------------------------
 
@@ -491,10 +529,20 @@ def test_cmd_remote_fails_when_mcp_cannot_start() -> None:
 
 
 def test_remote_argparse_subcommand_dispatches() -> None:
-    """`python -m cataforge.integrations.penpot remote` routes to cmd_remote."""
+    """`python -m cataforge.integrations.penpot remote` routes to the
+    ``remote`` entry in ``penpot.HANDLERS``.
+
+    Post-D5: dispatch is via the module-level ``HANDLERS`` registry, so
+    patching ``penpot.cmd_remote`` no longer intercepts the call (the
+    dict captured the original function reference at import time).
+    Patching ``HANDLERS["remote"]`` instead expresses the new
+    contract: ``main()`` must look the subcommand up in HANDLERS and
+    invoke whatever it finds there.
+    """
+    mock = MagicMock(return_value=0)
     with (
         patch("cataforge.integrations.penpot.load_dotenv"),
-        patch("cataforge.integrations.penpot.cmd_remote", return_value=0) as mock,
+        patch.dict(penpot.HANDLERS, {"remote": mock}),
     ):
         rc = penpot.main(["remote"])
     assert rc == 0
@@ -667,9 +715,12 @@ def test_cmd_doctor_passes_on_fixed_compose(tmp_path, capsys) -> None:
 
 
 def test_doctor_argparse_subcommand_dispatches() -> None:
+    # Post-D5: dispatch routes through penpot.HANDLERS — patch the entry
+    # there rather than the module-level function reference.
+    mock = MagicMock(return_value=0)
     with (
         patch("cataforge.integrations.penpot.load_dotenv"),
-        patch("cataforge.integrations.penpot.cmd_doctor", return_value=0) as mock,
+        patch.dict(penpot.HANDLERS, {"doctor": mock}),
     ):
         rc = penpot.main(["doctor"])
     assert rc == 0
@@ -677,9 +728,10 @@ def test_doctor_argparse_subcommand_dispatches() -> None:
 
 
 def test_init_argparse_subcommand_dispatches() -> None:
+    mock = MagicMock(return_value=0)
     with (
         patch("cataforge.integrations.penpot.load_dotenv"),
-        patch("cataforge.integrations.penpot.cmd_init", return_value=0) as mock,
+        patch.dict(penpot.HANDLERS, {"init": mock}),
     ):
         rc = penpot.main(["init"])
     assert rc == 0

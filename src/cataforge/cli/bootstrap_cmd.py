@@ -231,9 +231,9 @@ def _build_plan(cfg, *, requested_platform: str | None) -> _Plan:
     installed_newer = installed is not None and _semver_newer(installed, cfg.version)
 
     if drifted or installed_newer:
-        tallies: dict[str, int] = {}
-        for _, status in classified:
-            tallies[status] = tallies.get(status, 0) + 1
+        from cataforge.cli.helpers import classify_tallies
+
+        tallies = classify_tallies(classified)
         parts = [f"{count} {status}" for status, count in sorted(tallies.items())
                  if status in ("update", "user-modified", "drift", "new")]
         summary = ", ".join(parts) if parts else "version bump only"

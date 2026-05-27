@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cataforge.platform.base import PlatformAdapter
-from cataforge.platform.helpers import _prune_orphan_flat_files, merge_codex_mcp_server
+from cataforge.platform.helpers import merge_codex_mcp_server
 
 if TYPE_CHECKING:
     from cataforge.deploy.manifest import DeployManifest as DeployManifest
@@ -44,78 +44,31 @@ class CodexAdapter(PlatformAdapter):
         """Convert AGENT.md (YAML frontmatter) to TOML for Codex.
 
         The frontmatter is first run through the canonical
-        :func:`translate_agent_md` pipeline so capability translation, model
-        tier resolution, and ``supported_fields`` filtering happen exactly the
-        same way as on every other platform — Codex just emits TOML instead
-        of YAML at the end. After deploy, orphan ``<name>.toml`` files whose
-        source AGENT.md no longer exists are pruned — matches the prune
-        contract of every other platform adapter so a renamed/deleted agent
-        doesn't leave behind a stale Codex profile.
+        :func:`translate_agent_md` pipeline (the shared
+        ``_deploy_flat_agents`` helper does this) so capability
+        translation, model tier resolution, and ``supported_fields``
+        filtering happen exactly the same way as on every other
+        platform — Codex just emits TOML instead of YAML, which the
+        ``formatter`` argument plugs in. After deploy, orphan
+        ``<name>.toml`` files whose source AGENT.md no longer exists are
+        pruned via the helper's flat-prune pass with Codex's TOML head
+        signature.
         """
-        from cataforge.agent.translator import translate_agent_md
-
         scan_dirs = self.get_agent_scan_dirs()
         if not scan_dirs:
             return []
-
-        target_dir = project_root / scan_dirs[0]
-        target_rel = scan_dirs[0]
-        if not dry_run:
-            target_dir.mkdir(parents=True, exist_ok=True)
-
-        actions: list[str] = []
-        if not source_dir.is_dir():
-            return actions
-
-        dropped_collector: dict[str, set[str]] = {}
-        source_agents = {
-            d.name
-            for d in source_dir.iterdir()
-            if d.is_dir() and (d / "AGENT.md").is_file()
-        }
-
-        for agent_name in sorted(source_agents):
-            agent_md = source_dir / agent_name / "AGENT.md"
-            toml_path = target_dir / f"{agent_name}.toml"
-            toml_rel = f"{target_rel}/{agent_name}.toml"
-            if dry_run:
-                actions.append(
-                    f"would deploy agents/{agent_name}/AGENT.md → {toml_path}"
-                )
-                continue
-
-            content = agent_md.read_text(encoding="utf-8")
-            translated = translate_agent_md(
-                content, self, dropped_collector=dropped_collector
-            )
-            toml_content = _md_to_toml(agent_name, translated)
-            toml_path.write_text(toml_content, encoding="utf-8")
-            if manifest is not None:
-                manifest.record(toml_rel)
-            actions.append(f"agents/{agent_name}/AGENT.md → {toml_path}")
-
-        actions.extend(
-            _prune_orphan_flat_files(
-                target_dir,
-                source_agents,
-                ".toml",
-                "# Auto-generated from {stem}/AGENT.md",
-                target_rel,
-                head_read_size=256,
-                dry_run=dry_run,
-                prior_manifest=prior_manifest,
-            )
+        return self._deploy_flat_agents(
+            source_dir,
+            project_root,
+            target_rel=scan_dirs[0],
+            suffix=".toml",
+            head_signature="# Auto-generated from {stem}/AGENT.md",
+            head_read_size=256,
+            formatter=_md_to_toml,
+            dry_run=dry_run,
+            manifest=manifest,
+            prior_manifest=prior_manifest,
         )
-
-        for field_name in sorted(dropped_collector):
-            caps = sorted(dropped_collector[field_name])
-            actions.append(
-                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
-                f"{field_name!r} have no platform mapping: {caps} — "
-                "these will be skipped during translation."
-            )
-
-        return actions
 
     def inject_mcp_config(
         self,

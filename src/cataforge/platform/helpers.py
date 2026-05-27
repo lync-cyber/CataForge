@@ -65,6 +65,48 @@ def _prune_orphan_flat_files(
     return actions
 
 
+def remove_dir_with_manifest_check(
+    target: Path,
+    *,
+    display_rel: str,
+    manifest_key: str,
+    prior_manifest: set[str] | None,
+    dry_run: bool = False,
+    kind: str = "orphan",
+) -> list[str]:
+    """``shutil.rmtree`` *target* only when it's safe to attribute to us.
+
+    Single deletion entry point for adapters that wholesale-remove a
+    subdir they recognise as their own (e.g. legacy
+    ``<name>/AGENT.md`` agent subdirs, the base-class orphan agent
+    subdir prune). All callers had the same shape: check
+    ``prior_manifest``, gate on ``dry_run``, call ``shutil.rmtree``,
+    emit one ``[would] prune <kind> <path>/`` action line. Centralising
+    it means a future change to that shape (logging the rmtree,
+    wrapping in error handling) lands in one place.
+
+    Two relative-path arguments because the manifest records the
+    *file* path (``<dir>/AGENT.md``) while the action log displays
+    the *dir* path (``<dir>/``):
+
+    * ``manifest_key`` — the relative path to look up in
+      ``prior_manifest``. Refusal here returns an empty list (treat
+      as user-authored / pre-manifest legacy).
+    * ``display_rel`` — what to print in the action line (no trailing
+      slash — the helper adds one).
+
+    ``kind`` is the noun in the action message; the verb tense
+    (``would prune`` vs ``pruned``) is owned by this helper so callers
+    can't drift apart.
+    """
+    if prior_manifest is not None and manifest_key not in prior_manifest:
+        return []
+    if dry_run:
+        return [f"would prune {kind} {display_rel}/"]
+    shutil.rmtree(target)
+    return [f"pruned {kind} {display_rel}/"]
+
+
 def _is_dir_link(path: Path) -> bool:
     """True for any directory-shaped link primitive across Python versions.
 

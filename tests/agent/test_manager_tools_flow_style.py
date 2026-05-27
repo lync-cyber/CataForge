@@ -38,6 +38,21 @@ class TestParseToolsFromFrontmatter:
         result = _parse_tools_from_frontmatter(content)
         assert result == ["file_read", "file_edit"]
 
+    def test_list_form_equals_comma_string_form(self) -> None:
+        """D1: after migrating off the local regex onto the shared
+        ``split_yaml_frontmatter`` utility, the two surface forms (YAML
+        flow-style list ``tools: [a, b]`` and comma-string
+        ``tools: a, b``) must still produce identical results. The shared
+        utility returns the YAML-parsed dict, so the list/string branch
+        choice lives entirely in ``_parse_tools_from_frontmatter`` — this
+        test pins that the convergence kept both forms equivalent.
+        """
+        list_form = "---\nname: agent\ntools: [file_read, file_edit, shell_exec]\n---\nBody\n"
+        comma_form = "---\nname: agent\ntools: file_read, file_edit, shell_exec\n---\nBody\n"
+        assert _parse_tools_from_frontmatter(list_form) == _parse_tools_from_frontmatter(
+            comma_form
+        ) == ["file_read", "file_edit", "shell_exec"]
+
 
 class TestAgentManagerValidateFlowStyle:
     def test_valid_flow_style_tools_no_issues(self, tmp_path: Path) -> None:

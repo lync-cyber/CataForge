@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -219,6 +220,8 @@ class PlatformAdapter(ABC):
         # actually wrote in a prior deploy — user-authored agents that
         # happen to follow our naming pattern survive.
         if target_dir.is_dir():
+            from cataforge.platform.helpers import remove_dir_with_manifest_check
+
             for existing in target_dir.iterdir():
                 if (
                     not existing.is_dir()
@@ -226,17 +229,125 @@ class PlatformAdapter(ABC):
                     or not (existing / "AGENT.md").is_file()
                 ):
                     continue
-                existing_rel = f"{target_rel}/{existing.name}/AGENT.md"
-                if prior_manifest is not None and existing_rel not in prior_manifest:
-                    # Not from a prior deploy — leave it alone.
-                    continue
-                if dry_run:
-                    actions.append(f"would prune orphan {scan_dirs[0]}/{existing.name}/")
-                else:
-                    import shutil as _shutil
+                actions.extend(
+                    remove_dir_with_manifest_check(
+                        existing,
+                        display_rel=f"{scan_dirs[0]}/{existing.name}",
+                        manifest_key=f"{target_rel}/{existing.name}/AGENT.md",
+                        prior_manifest=prior_manifest,
+                        dry_run=dry_run,
+                        kind="orphan",
+                    )
+                )
 
-                    _shutil.rmtree(existing)
-                    actions.append(f"pruned orphan {scan_dirs[0]}/{existing.name}/")
+        return actions
+
+    def _deploy_flat_agents(
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        target_rel: str,
+        suffix: str,
+        head_signature: str,
+        formatter: Callable[[str, str], str],
+        head_read_size: int = 512,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+        prior_manifest: set[str] | None = None,
+    ) -> list[str]:
+        """Shared write+prune+warn pipeline for adapters that emit
+        ``<name>{suffix}`` files (Claude Code .md, Codex .toml, OpenCode .md).
+
+        Each caller plugs in:
+
+        * ``target_rel`` — relative target dir (``scan_dirs[0]`` for most,
+          hardcoded ``.opencode/agents`` for OpenCode which doesn't expose
+          this via the agent_definition profile section).
+        * ``suffix`` — the file extension to write (``.md`` / ``.toml``).
+        * ``formatter(agent_name, translated)`` — final-content producer.
+          For identity-output adapters (ClaudeCode, OpenCode) this is
+          ``lambda _name, translated: translated``; for Codex it wraps
+          the translated yaml-frontmatter agent into TOML.
+        * ``head_signature`` — ownership signature used by orphan prune.
+          The flat-prune helper only removes files whose head bytes
+          contain ``head_signature.format(stem=<file_stem>)``, so a
+          user-authored file that happens to share the suffix survives.
+        * ``head_read_size`` — bytes to scan for the signature (default
+          512 matches the base helper; Codex's TOML header fits in 256).
+
+        Behaviour matches what the three call sites had open-coded:
+
+        1. Make the target dir.
+        2. Enumerate source agents (subdirs with ``AGENT.md``).
+        3. Translate each via :func:`translate_agent_md`, then run the
+           caller's ``formatter`` and write to ``target_dir / f"{name}{suffix}"``.
+        4. Record each written path in the manifest (when supplied).
+        5. Prune orphan flat files via :func:`_prune_orphan_flat_files`
+           with the caller's signature, bounded by ``prior_manifest`` so
+           user-authored files we never wrote stay put.
+        6. Emit one aggregated WARN per agent-field that lost capability
+           mappings on this platform.
+        """
+        from cataforge.agent.translator import translate_agent_md
+        from cataforge.platform.helpers import _prune_orphan_flat_files
+
+        target_dir = project_root / target_rel
+        if not dry_run:
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+        actions: list[str] = []
+        if not source_dir.is_dir():
+            return actions
+
+        source_agents = {
+            d.name
+            for d in source_dir.iterdir()
+            if d.is_dir() and (d / "AGENT.md").is_file()
+        }
+        dropped_collector: dict[str, set[str]] = {}
+
+        for agent_name in sorted(source_agents):
+            agent_md = source_dir / agent_name / "AGENT.md"
+            target_file = target_dir / f"{agent_name}{suffix}"
+            target_rel_full = f"{target_rel}/{agent_name}{suffix}"
+
+            if dry_run:
+                actions.append(
+                    f"would deploy agent {agent_name:<24} → {target_rel_full}"
+                )
+                continue
+
+            content = agent_md.read_text(encoding="utf-8")
+            translated = translate_agent_md(
+                content, self, dropped_collector=dropped_collector
+            )
+            final = formatter(agent_name, translated)
+            target_file.write_text(final, encoding="utf-8")
+            if manifest is not None:
+                manifest.record(target_rel_full)
+            actions.append(f"agents/{agent_name}/AGENT.md → {target_rel_full}")
+
+        actions.extend(
+            _prune_orphan_flat_files(
+                target_dir,
+                source_agents,
+                suffix,
+                head_signature,
+                target_rel,
+                head_read_size=head_read_size,
+                dry_run=dry_run,
+                prior_manifest=prior_manifest,
+            )
+        )
+
+        for field_name in sorted(dropped_collector):
+            caps = sorted(dropped_collector[field_name])
+            actions.append(
+                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
+                f"{field_name!r} have no platform mapping: {caps} — "
+                "these will be skipped during translation."
+            )
 
         return actions
 
