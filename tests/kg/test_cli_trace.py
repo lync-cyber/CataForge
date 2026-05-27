@@ -12,30 +12,16 @@ global --coverage matrix, and error paths.
 """
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
 
-import pytest
-
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
-
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
-
 
 def _cli():
     from cataforge.cli.main import _register_commands, cli
 
     _register_commands()
     return cli
-
 
 def _init_and_ingest(tmp_path: Path) -> Path:
     """Create an oxigraph store and ingest the waterfall fixture. Return db path."""
@@ -58,11 +44,9 @@ def _init_and_ingest(tmp_path: Path) -> Path:
     assert imp.exit_code == 0, imp.output
     return db
 
-
 # ------------------------------------------------------------------
 # Downstream trace
 # ------------------------------------------------------------------
-
 
 class TestDownstream:
     def test_table_shows_root_and_downstream_entities(self, tmp_path: Path) -> None:
@@ -105,11 +89,9 @@ class TestDownstream:
         assert chain["root_id"] == "F-002"
         assert "M-002" in chain["modules"]
 
-
 # ------------------------------------------------------------------
 # Upstream trace
 # ------------------------------------------------------------------
-
 
 class TestUpstream:
     def test_upstream_from_module_finds_feature(self, tmp_path: Path) -> None:
@@ -126,7 +108,6 @@ class TestUpstream:
         assert chain["root_id"] == "M-001"
         assert "F-001" in chain["requirements"]
 
-
 class TestBothDirections:
     def test_both_merges_up_and_downstream(self, tmp_path: Path) -> None:
         from click.testing import CliRunner
@@ -141,11 +122,9 @@ class TestBothDirections:
         chain = json.loads(result.output)
         assert "F-001" in chain["requirements"]
 
-
 # ------------------------------------------------------------------
 # Mermaid output
 # ------------------------------------------------------------------
-
 
 class TestMermaid:
     def test_mermaid_contains_graph_syntax(self, tmp_path: Path) -> None:
@@ -173,11 +152,9 @@ class TestMermaid:
         assert result.exit_code == 0, result.output
         assert "F-001" in result.output
 
-
 # ------------------------------------------------------------------
 # Global coverage matrix (--coverage without entity_id)
 # ------------------------------------------------------------------
-
 
 class TestGlobalCoverage:
     def test_coverage_table_lists_all_features(self, tmp_path: Path) -> None:
@@ -213,11 +190,9 @@ class TestGlobalCoverage:
         assert by_id["F-001"]["has_impl"] is True
         assert by_id["F-002"]["has_impl"] is True
 
-
 # ------------------------------------------------------------------
 # Coverage flag with a specific entity
 # ------------------------------------------------------------------
-
 
 class TestCoverageWithEntity:
     def test_coverage_appended_to_chain_json(self, tmp_path: Path) -> None:
@@ -235,11 +210,9 @@ class TestCoverageWithEntity:
         assert "coverage_detail" in chain
         assert chain["coverage_detail"]["has_impl"] is True
 
-
 # ------------------------------------------------------------------
 # Error handling
 # ------------------------------------------------------------------
-
 
 class TestErrors:
     def test_nonexistent_entity_exits_nonzero(self, tmp_path: Path) -> None:

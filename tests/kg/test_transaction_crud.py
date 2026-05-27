@@ -1,23 +1,12 @@
 """Tests for TransactionContext high-level CRUD and facade write lock."""
 from __future__ import annotations
 
-import importlib.util
 import threading
 from pathlib import Path
 
 import pytest
 
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
-
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
-
 
 def _make_kg():
     from cataforge.kg import KGConfig, KnowledgeGraph, init_store
@@ -29,7 +18,6 @@ def _make_kg():
         handle.raw, "proj-test", "Test Project", "waterfall", config
     )
     return KnowledgeGraph(handle.raw, config), config, project_iri
-
 
 def _make_kg_with_entity():
     kg, config, project_iri = _make_kg()
@@ -45,11 +33,9 @@ def _make_kg_with_entity():
         )
     return kg, config, project_iri
 
-
 # ------------------------------------------------------------------
 # add_entity
 # ------------------------------------------------------------------
-
 
 def test_add_entity_creates_quads() -> None:
     kg, config, project_iri = _make_kg()
@@ -71,7 +57,6 @@ def test_add_entity_creates_quads() -> None:
     assert f is not None
     assert f["title"] == "Login flow"
     assert f["entity_id"] == "F-001"
-
 
 def test_add_entity_idempotent_on_same_hash() -> None:
     kg, config, project_iri = _make_kg()
@@ -99,7 +84,6 @@ def test_add_entity_idempotent_on_same_hash() -> None:
         )
         assert txn.pending_inserts == 0
         assert txn.pending_deletes == 0
-
 
 def test_add_entity_replaces_on_different_hash() -> None:
     kg, config, project_iri = _make_kg()
@@ -130,7 +114,6 @@ def test_add_entity_replaces_on_different_hash() -> None:
     assert f is not None
     assert f["title"] == "Login flow v2"
 
-
 def test_add_entity_with_extra_slots() -> None:
     kg, config, project_iri = _make_kg()
 
@@ -154,11 +137,9 @@ def test_add_entity_with_extra_slots() -> None:
         f'PREFIX cf: <{ns}> ASK {{ <https://cataforge.dev/instance/F-001> cf:priority "high" }}',
     )
 
-
 # ------------------------------------------------------------------
 # update_entity
 # ------------------------------------------------------------------
-
 
 def test_update_entity_partial_slot() -> None:
     kg, config, project_iri = _make_kg_with_entity()
@@ -171,14 +152,12 @@ def test_update_entity_partial_slot() -> None:
     assert f["title"] == "Updated title"
     assert f["source_doc"] == "prd"
 
-
 def test_update_entity_with_content_hash_idempotent() -> None:
     kg, config, project_iri = _make_kg_with_entity()
 
     with kg.transaction() as txn:
         txn.update_entity("F-001", content_hash="abc123", title="Ignored")
         assert txn.pending_inserts == 0
-
 
 def test_update_entity_not_found_raises() -> None:
     kg, config, project_iri = _make_kg()
@@ -188,11 +167,9 @@ def test_update_entity_not_found_raises() -> None:
     with pytest.raises(KGEntityNotFoundError), kg.transaction() as txn:
         txn.update_entity("F-999", title="nope")
 
-
 # ------------------------------------------------------------------
 # delete_entity
 # ------------------------------------------------------------------
-
 
 def test_delete_entity_removes_all_quads() -> None:
     kg, config, project_iri = _make_kg_with_entity()
@@ -202,7 +179,6 @@ def test_delete_entity_removes_all_quads() -> None:
 
     assert not kg.query.exists("F-001")
 
-
 def test_delete_entity_not_found_raises() -> None:
     kg, config, project_iri = _make_kg()
 
@@ -210,7 +186,6 @@ def test_delete_entity_not_found_raises() -> None:
 
     with pytest.raises(KGEntityNotFoundError), kg.transaction() as txn:
         txn.delete_entity("F-999")
-
 
 def test_delete_entity_without_cascade_rejects_incoming_edges() -> None:
     kg, config, project_iri = _make_kg_with_entity()
@@ -233,7 +208,6 @@ def test_delete_entity_without_cascade_rejects_incoming_edges() -> None:
 
     with pytest.raises(KGValidationError, match="incoming edge"), kg.transaction() as txn:
         txn.delete_entity("F-001")
-
 
 def test_delete_entity_with_cascade_removes_incoming_edges() -> None:
     kg, config, project_iri = _make_kg_with_entity()
@@ -258,11 +232,9 @@ def test_delete_entity_with_cascade_removes_incoming_edges() -> None:
     assert not kg.query.exists("F-001")
     assert kg.query.exists("M-001")
 
-
 # ------------------------------------------------------------------
 # add_relation / remove_relation
 # ------------------------------------------------------------------
-
 
 def test_add_relation_creates_edge() -> None:
     kg, config, project_iri = _make_kg_with_entity()
@@ -291,7 +263,6 @@ def test_add_relation_creates_edge() -> None:
         f"<https://cataforge.dev/instance/F-001> }}",
     )
 
-
 def test_add_relation_idempotent() -> None:
     kg, config, project_iri = _make_kg_with_entity()
 
@@ -312,7 +283,6 @@ def test_add_relation_idempotent() -> None:
     with kg.transaction() as txn:
         txn.add_relation("M-001", "cf:implements", "F-001")
         assert txn.pending_inserts == 0
-
 
 def test_remove_relation() -> None:
     kg, config, project_iri = _make_kg_with_entity()
@@ -344,11 +314,9 @@ def test_remove_relation() -> None:
         f"<https://cataforge.dev/instance/F-001> }}",
     )
 
-
 # ------------------------------------------------------------------
 # rollback behavior with high-level API
 # ------------------------------------------------------------------
-
 
 def test_rollback_discards_high_level_adds() -> None:
     kg, config, project_iri = _make_kg()
@@ -367,11 +335,9 @@ def test_rollback_discards_high_level_adds() -> None:
 
     assert not kg.query.exists("F-099")
 
-
 # ------------------------------------------------------------------
 # write lock serialization
 # ------------------------------------------------------------------
-
 
 def test_write_lock_serializes_concurrent_transactions() -> None:
     kg, config, project_iri = _make_kg()

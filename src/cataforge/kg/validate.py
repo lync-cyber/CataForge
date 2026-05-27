@@ -12,6 +12,7 @@ case; SHACL adds slot-cardinality and pattern enforcement (task-5 §5.4).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cataforge.kg._ask import ask
@@ -145,14 +146,59 @@ def _check_xref_targets(
     return violations
 
 
+def _pyoxigraph_to_rdflib(store: ox.Store):
+    """Serialize all quads from pyoxigraph into an rdflib Graph."""
+    import rdflib  # noqa: PLC0415
+
+    g = rdflib.Graph()
+    for quad in store.quads_for_pattern(None, None, None):
+        s_term = quad.subject
+        p_term = quad.predicate
+        o_term = quad.object
+
+        s = _ox_to_rdflib_term(s_term)
+        p = _ox_to_rdflib_term(p_term)
+        o = _ox_to_rdflib_term(o_term)
+        if s is not None and p is not None and o is not None:
+            g.add((s, p, o))
+    return g
+
+
+def _ox_to_rdflib_term(term):
+    """Convert a pyoxigraph term to the equivalent rdflib term."""
+    import pyoxigraph as oxi  # noqa: PLC0415
+    import rdflib  # noqa: PLC0415
+
+    if isinstance(term, oxi.NamedNode):
+        return rdflib.URIRef(term.value)
+    if isinstance(term, oxi.BlankNode):
+        return rdflib.BNode(term.value)
+    if isinstance(term, oxi.Literal):
+        if term.language:
+            return rdflib.Literal(term.value, lang=term.language)
+        if term.datatype and term.datatype.value != "http://www.w3.org/2001/XMLSchema#string":
+            return rdflib.Literal(term.value, datatype=rdflib.URIRef(term.datatype.value))
+        return rdflib.Literal(term.value)
+    return None
+
+
+def _find_shapes_file() -> Path | None:
+    """Locate the SHACL shapes file from codegen output."""
+    import importlib.resources  # noqa: PLC0415
+
+    generated = Path(
+        str(importlib.resources.files("cataforge.kg") / "_generated" / "core_shapes.ttl")
+    )
+    if generated.is_file():
+        return generated
+    return None
+
+
 def _run_shacl(store: ox.Store) -> tuple[bool, list[ValidationViolation]]:
     """Optional SHACL pass; returns (skipped, violations).
 
-    The pyoxigraph → rdflib bridge is non-trivial in 0.5.x (no NTriples
-    dump exposed via Python yet); sub-PR 3 ships the wiring as a
-    permanently-skipped stub so the `--shacl` flag is documented and
-    discoverable. A follow-up PR implements the bridge once we need
-    SHACL in the doctor pipeline.
+    Bridges pyoxigraph store → rdflib Graph, then runs pyshacl
+    validation against the generated SHACL shapes.
     """
     import importlib.util  # noqa: PLC0415
 
@@ -161,8 +207,61 @@ def _run_shacl(store: ox.Store) -> tuple[bool, list[ValidationViolation]]:
         or importlib.util.find_spec("rdflib") is None
     ):
         return True, []
-    # Bridge stub — see docstring; treat as skipped for now.
-    return True, []
+
+    shapes_path = _find_shapes_file()
+    if shapes_path is None:
+        return True, []
+
+    import rdflib  # noqa: PLC0415
+    from pyshacl import validate as shacl_validate  # noqa: PLC0415
+
+    data_graph = _pyoxigraph_to_rdflib(store)
+    shapes_graph = rdflib.Graph()
+    shapes_graph.parse(str(shapes_path), format="turtle")
+
+    conforms, results_graph, results_text = shacl_validate(
+        data_graph,
+        shacl_graph=shapes_graph,
+        inference="none",
+        abort_on_first=False,
+    )
+
+    violations: list[ValidationViolation] = []
+    if not conforms:
+        sh = rdflib.Namespace("http://www.w3.org/ns/shacl#")
+        for result_node in results_graph.subjects(
+            rdflib.RDF.type, sh.ValidationResult
+        ):
+            focus = str(
+                results_graph.value(result_node, sh.focusNode) or ""
+            )
+            source_shape = str(
+                results_graph.value(result_node, sh.sourceShape) or ""
+            )
+            message = str(
+                results_graph.value(result_node, sh.resultMessage) or ""
+            )
+            severity_iri = str(
+                results_graph.value(result_node, sh.resultSeverity) or ""
+            )
+            if "Violation" in severity_iri:
+                sev = "violation"
+            elif "Warning" in severity_iri:
+                sev = "warning"
+            else:
+                sev = "info"
+
+            entity_id = focus.rsplit("/", 1)[-1] if "/" in focus else focus
+            violations.append(
+                ValidationViolation(
+                    severity=sev,
+                    entity_id=entity_id,
+                    shape=source_shape.rsplit("/", 1)[-1] if "/" in source_shape else source_shape,
+                    message=message or results_text[:200],
+                )
+            )
+
+    return False, violations
 
 
 def validate(

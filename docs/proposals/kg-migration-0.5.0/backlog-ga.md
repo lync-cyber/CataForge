@@ -29,16 +29,18 @@ documents.
 
 Test count: 197 passed, 4 skipped (codegen CLI).
 
-## P2 — stability and compliance
+## Completed (P2)
 
-| ID | Task | Scope | Depends on |
-|----|------|-------|------------|
-| W2 | SHACL runtime bridge (pyoxigraph → rdflib) **or** formal deferral to 0.6.0 | ~300 LOC if implemented; 0 LOC if documented as deferred | upstream pyoxigraph API |
-| S2 | Shim `DeprecationWarning` acknowledgment quota: define metric + CI gate | ~100 LOC | — |
-| S3 | Confirm doc-review `check_xref` uses KG path when active (no regex fallback) | ~100 LOC audit + test | Q2 |
-| T2 | Golden-file regression fixtures: pin reference reports under `tests/golden/kg/` | ~200 LOC | — |
-| T3 | Promote pyoxigraph to hard dependency; remove `skipif` test gates | ~50 LOC: `pyproject.toml` + grep-replace markers | — |
-| X1 | `_shim.py` export audit: confirm re-export from `cataforge.kg.__init__` | ~50 LOC | — |
+| ID | Deliverable | Files |
+|----|-------------|-------|
+| T3 | Promote pyoxigraph + linkml-runtime to hard dependencies; remove 22 `skipif` test gates | `pyproject.toml`, 22 test files |
+| X1 | `render_entity` re-exported from `cataforge.kg.__init__`; public API smoke tests | `__init__.py`, `test_public_api.py` |
+| T2 | Golden-file regression fixtures: 18 reference `.md` + 2 hash manifests under `tests/golden/kg/` | `test_golden_regression.py`, `tests/golden/kg/` |
+| S3 | doc-review `check_xref` + `check_bidirectional_coverage` KG dispatch integration tests | `test_doc_review_kg_dispatch.py` |
+| S2 | Shim `DeprecationWarning` quota CI gate (baseline 0) | `check_deprecation_quota.py`, `test.yml`, `run_local.py` |
+| W2 | SHACL runtime bridge: pyoxigraph → rdflib conversion + pyshacl validation | `validate.py`, `test_shacl_bridge.py`, `pyproject.toml` `[shacl]` extra |
+
+Test count: 212 passed, 4 skipped (codegen CLI).
 
 ## P3 — deferrable to post-GA
 
@@ -58,13 +60,13 @@ Test count: 197 passed, 4 skipped (codegen CLI).
 ✅ C1 (kg query CLI) ──────────────────────────┐
 ✅ C2 (kg trace CLI) ──────────────────────────┤
 ✅ Q1 (api/page accessors) ────────────────────┤
-✅ Q2 (depends_on public) ──→ S3 (xref audit) ┤
+✅ Q2 (depends_on public) ──→ ✅ S3 (xref)    ┤
 ✅ H1 (TechStack ingest) ─────────────────────┤
-                                               ├──→ GA gate
-T2 (golden-file) ─────────────────────────────┤
-T3 (hard dependency) ─────────────────────────┤
-W2 (SHACL decision) ──────────────────────────┤
-S2 (deprecation quota) ───────────────────────┘
+✅ T2 (golden-file) ──────────────────────────┤
+✅ T3 (hard dependency) ──────────────────────┤──→ GA gate
+✅ W2 (SHACL bridge) ─────────────────────────┤
+✅ S2 (deprecation quota) ────────────────────┤
+✅ X1 (export audit) ─────────────────────────┘
 ```
 
 ## GA exit conditions
@@ -84,6 +86,6 @@ All must be verifiable, never time-based:
 | Priority | Estimated LOC | Status |
 |----------|---------------|--------|
 | P1 C1+C2+Q1+Q2+H1 | ~680 delivered | done |
-| P2 | ~800 | 1–2 sub-PRs |
+| P2 T3+X1+T2+S3+S2+W2 | ~500 delivered | done |
 | P3 | ~1870 | post-GA |
-| **GA remaining** | **~800** (P2) | **1–2 sub-PRs** |
+| **GA remaining** | **0** | **all P2 complete** |

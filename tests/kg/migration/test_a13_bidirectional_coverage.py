@@ -8,18 +8,6 @@ mention; the KG SPARQL pass requires an actual edge.
 """
 from __future__ import annotations
 
-import importlib.util
-
-import pytest
-
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
 
 def _empty_memory_kg():
     from cataforge.kg import KGConfig, KnowledgeGraph, init_store
@@ -28,7 +16,6 @@ def _empty_memory_kg():
     handle = init_store(config, force=True)
     kg = KnowledgeGraph(handle.raw, config)
     return kg, handle
-
 
 def _add_quad(store, *, subject: str, predicate: str, obj):
     import pyoxigraph as ox
@@ -42,11 +29,9 @@ def _add_quad(store, *, subject: str, predicate: str, obj):
     )
     store.add(ox.Quad(s, p, o))
 
-
 _CF = "https://cataforge.dev/ontology/"
 _INST = "https://cataforge.dev/instance/"
 _RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
-
 
 def _add_feature(store, entity_id: str, title: str, sort_key: str | None = None) -> str:
     iri = f"{_INST}{entity_id}"
@@ -56,7 +41,6 @@ def _add_feature(store, entity_id: str, title: str, sort_key: str | None = None)
     _add_quad(store, subject=iri, predicate=f"{_CF}sort_key", obj=sk)
     _add_quad(store, subject=iri, predicate=f"{_CF}title", obj=title)
     return iri
-
 
 def _add_module(store, entity_id: str, title: str, implements_iri: str | None = None) -> str:
     iri = f"{_INST}{entity_id}"
@@ -68,7 +52,6 @@ def _add_module(store, entity_id: str, title: str, implements_iri: str | None = 
     if implements_iri:
         _add_quad(store, subject=iri, predicate=f"{_CF}implements", obj=implements_iri)
     return iri
-
 
 def test_kg_coverage_rejects_regex_false_positive() -> None:
     """A Feature appears in narrative ("see F-001 for background")
@@ -84,7 +67,6 @@ def test_kg_coverage_rejects_regex_false_positive() -> None:
     assert cov["has_test"] is False
     assert cov["status"] == "none"
 
-
 def test_kg_coverage_recognises_real_implementation() -> None:
     """Positive test: a Module with `cf:implements` edge counts as coverage."""
     kg, _ = _empty_memory_kg()
@@ -95,7 +77,6 @@ def test_kg_coverage_recognises_real_implementation() -> None:
     assert cov["has_impl"] is True
     assert cov["has_test"] is False
     assert cov["status"] == "partial"
-
 
 def test_bidirectional_coverage_report_segregates_features() -> None:
     """`bidirectional_coverage()` returns one row per Feature; rows

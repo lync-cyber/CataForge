@@ -1,24 +1,11 @@
 """Unit tests for _quads.py quad construction helpers."""
 from __future__ import annotations
 
-import importlib.util
-
-import pytest
-
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
 
 def _config():
     from cataforge.kg import KGConfig
 
     return KGConfig(store_backend="memory")
-
 
 def test_build_entity_quads_count_and_iri() -> None:
     from cataforge.kg._quads import build_entity_quads
@@ -48,7 +35,6 @@ def test_build_entity_quads_count_and_iri() -> None:
     assert f"{ns}updated_at" in predicates
     assert f"{ns}belongs_to_project" in predicates
 
-
 def test_build_entity_quads_with_extras() -> None:
     from cataforge.kg._quads import build_entity_quads
 
@@ -66,7 +52,6 @@ def test_build_entity_quads_with_extras() -> None:
     )
     assert len(quads) == 11
 
-
 def test_build_relation_quad_iri() -> None:
     from cataforge.kg._quads import build_relation_quad
 
@@ -76,7 +61,6 @@ def test_build_relation_quad_iri() -> None:
     assert str(quad.object.value) == "https://cataforge.dev/instance/F-001"
     ns = config.ontology_namespace.rstrip("/") + "/"
     assert str(quad.predicate.value) == f"{ns}implements"
-
 
 def test_quads_for_subject_returns_all() -> None:
     from cataforge.kg import KGConfig, init_store
@@ -101,7 +85,6 @@ def test_quads_for_subject_returns_all() -> None:
 
     retrieved = quads_for_subject(store, "https://cataforge.dev/instance/F-001")
     assert len(retrieved) == len(quads)
-
 
 def test_quads_targeting_returns_incoming() -> None:
     from cataforge.kg import KGConfig, init_store

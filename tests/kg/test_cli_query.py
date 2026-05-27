@@ -7,30 +7,16 @@ result types across table / json / turtle output formats.
 """
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
 
-import pytest
-
-pyoxigraph_installed = importlib.util.find_spec("pyoxigraph") is not None
-linkml_runtime_installed = importlib.util.find_spec("linkml_runtime") is not None
-
-pytestmark = pytest.mark.skipif(
-    not (pyoxigraph_installed and linkml_runtime_installed),
-    reason="kg extra not installed (pyoxigraph + linkml-runtime)",
-)
-
-
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
-
 
 def _cli():
     from cataforge.cli.main import _register_commands, cli
 
     _register_commands()
     return cli
-
 
 def _init_and_ingest(tmp_path: Path) -> Path:
     """Create an oxigraph store and ingest the waterfall fixture. Return db path."""
@@ -53,11 +39,9 @@ def _init_and_ingest(tmp_path: Path) -> Path:
     assert imp.exit_code == 0, imp.output
     return db
 
-
 # ------------------------------------------------------------------
 # SELECT queries
 # ------------------------------------------------------------------
-
 
 class TestSelectTable:
     def test_select_returns_entity_rows(self, tmp_path: Path) -> None:
@@ -93,7 +77,6 @@ class TestSelectTable:
         assert result.exit_code == 0, result.output
         rows = json.loads(result.output)
         assert len(rows) == 3
-
 
 class TestSelectJson:
     def test_json_output_is_parseable_list(self, tmp_path: Path) -> None:
@@ -137,11 +120,9 @@ class TestSelectJson:
         rows = json.loads(result.output)
         assert len(rows) == 2
 
-
 # ------------------------------------------------------------------
 # ASK queries
 # ------------------------------------------------------------------
-
 
 class TestAsk:
     def test_ask_true_returns_true(self, tmp_path: Path) -> None:
@@ -188,11 +169,9 @@ class TestAsk:
         payload = json.loads(result.output)
         assert payload == {"result": True}
 
-
 # ------------------------------------------------------------------
 # CONSTRUCT queries
 # ------------------------------------------------------------------
-
 
 class TestConstruct:
     def test_construct_turtle_output(self, tmp_path: Path) -> None:
@@ -231,11 +210,9 @@ class TestConstruct:
         assert len(triples) == 9
         assert all({"subject", "predicate", "object"} <= set(t) for t in triples)
 
-
 # ------------------------------------------------------------------
 # File input
 # ------------------------------------------------------------------
-
 
 class TestFileInput:
     def test_sparql_file_is_read_and_executed(self, tmp_path: Path) -> None:
@@ -259,11 +236,9 @@ class TestFileInput:
         eids = [r["eid"] for r in rows]
         assert eids == ["F-001", "F-002"]
 
-
 # ------------------------------------------------------------------
 # Error handling
 # ------------------------------------------------------------------
-
 
 class TestErrors:
     def test_sparql_syntax_error_exits_nonzero(self, tmp_path: Path) -> None:
