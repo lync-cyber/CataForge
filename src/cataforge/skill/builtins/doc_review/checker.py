@@ -6,7 +6,7 @@ import re
 import sys
 from pathlib import Path
 
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
@@ -441,7 +441,7 @@ class DocChecker(TypedDocChecksMixin):
 
 
 def main() -> None:
-    ensure_utf8_stdio()
+    ensure_utf8()
     if len(sys.argv) < 3:
         print(
             "用法: python -m cataforge.skill.builtins.doc_review.doc_check "

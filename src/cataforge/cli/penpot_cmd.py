@@ -2,7 +2,7 @@
 
 All subcommands delegate to ``cataforge.integrations.penpot`` and
 translate its integer return code into either normal completion (0) or
-a :class:`CataforgeError` carrying the same exit code. ``ensure_utf8_stdio``
+a :class:`CataforgeError` carrying the same exit code. ``ensure_utf8``
 is *not* called per-subcommand — ``cataforge.cli.main`` already did that
 once at startup.
 """

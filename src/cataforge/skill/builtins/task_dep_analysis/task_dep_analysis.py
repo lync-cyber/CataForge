@@ -17,7 +17,7 @@ import json
 import sys
 from collections import defaultdict, deque
 
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 
 WEIGHT_MAP = {"S": 1, "M": 2, "L": 3, "XL": 5}
 
@@ -158,7 +158,7 @@ def format_mermaid(edges: list[tuple[str, str]], cp: list[str]) -> str:
 
 
 def main() -> None:
-    ensure_utf8_stdio()
+    ensure_utf8()
     parser = argparse.ArgumentParser(description="任务依赖分析工具")
     parser.add_argument("--edges", required=True, help='边列表: "T-001→T-002,T-002→T-003"')
     parser.add_argument("--weights", default="", help='权重: "T-001:S,T-002:M,T-003:L"')

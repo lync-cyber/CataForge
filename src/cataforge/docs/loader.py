@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from cataforge.core.paths import find_project_root
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 from cataforge.utils.md_parse import iter_markdown_headings
 from cataforge.utils.patterns import HEADING_RE, REF_RE, SECTION_PATH_RE
 
@@ -586,7 +586,7 @@ def _emit_stale_warning(project_root: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ensure_utf8_stdio()
+    ensure_utf8()
     parser = argparse.ArgumentParser(
         description="CataForge load_section — extract Markdown sections by reference",
     )

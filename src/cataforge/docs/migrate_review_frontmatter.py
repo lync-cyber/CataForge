@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cataforge.core.paths import find_project_root
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 
 REVIEW_RE = re.compile(r"^REVIEW-(?P<doc_id>.+)-r(?P<n>\d+)\.md$")
 CODE_REVIEW_RE = re.compile(r"^CODE-REVIEW-(?P<task_id>.+)-r(?P<n>\d+)\.md$")
@@ -176,7 +176,7 @@ def apply_plan(plan: Plan, *, dry_run: bool) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ensure_utf8_stdio()
+    ensure_utf8()
     parser = argparse.ArgumentParser(
         description=(
             "Backfill YAML front matter on legacy review reports + "

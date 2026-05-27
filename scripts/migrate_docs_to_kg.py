@@ -19,9 +19,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from cataforge.utils.common import ensure_utf8_stdio  # noqa: E402
+from cataforge.utils.common import ensure_utf8  # noqa: E402
 
-ensure_utf8_stdio()
+ensure_utf8()
 
 
 def main(argv: list[str] | None = None) -> int:

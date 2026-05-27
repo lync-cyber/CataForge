@@ -27,7 +27,7 @@ from pathlib import Path
 
 # Inline stdio reconfigure — this wrapper deliberately does not import from
 # cataforge (chicken-and-egg: we run before cataforge is guaranteed to be
-# importable), so ensure_utf8_stdio() is unavailable. Windows cp1252
+# importable), so ensure_utf8() is unavailable. Windows cp1252
 # default would otherwise crash on any non-ASCII in error messages.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")

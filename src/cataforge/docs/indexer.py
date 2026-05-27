@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from cataforge.core.paths import find_project_root
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 from cataforge.utils.md_parse import iter_markdown_headings
 from cataforge.utils.patterns import (
     DOC_ID_RE,
@@ -575,7 +575,7 @@ def write_index(index: dict[str, Any], project_root: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ensure_utf8_stdio()
+    ensure_utf8()
     parser = argparse.ArgumentParser(
         description="CataForge build_doc_index — build chapter-level JSON index",
     )

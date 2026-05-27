@@ -74,8 +74,76 @@ def fail(msg: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def ensure_utf8_stdio() -> None:
-    """Reconfigure stdout/stderr to UTF-8, preventing encoding crashes on Windows."""
+def ensure_utf8() -> None:
+    """Make this Python process speak UTF-8 — for stdout, files, and subprocess I/O.
+
+    Two-phase:
+
+    1. **Re-exec under Python UTF-8 Mode** (Windows only, idempotent, pytest-safe).
+       Windows defaults ``locale.getpreferredencoding(False)`` to the ANSI code
+       page (cp936/GBK on zh-CN). That makes ``text=True`` subprocess calls
+       crash on UTF-8 bytes from child processes, and ``open()`` corrupt UTF-8
+       files. ``PYTHONUTF8=1`` / ``-X utf8`` fixes all of that at the interpreter
+       level — no per-callsite ``encoding="utf-8"`` plumbing needed.
+
+       The re-exec target is inferred from ``sys.modules['__main__'].__spec__``,
+       so calling this from a subscript main (e.g. ``python -m
+       cataforge.docs.loader``) correctly relaunches that subscript, not the
+       top-level CLI. Console-script launchers (``cataforge.exe`` etc.) have no
+       module spec but match ``sys.argv[0]`` basename "cataforge*"; those fall
+       back to ``-m cataforge``.
+
+       Standalone scripts that have neither a module spec nor the recognised
+       console-script name (e.g. ``python scripts/checks/check_foo.py``) skip
+       the re-exec — we can't reliably figure out what to relaunch, and these
+       scripts typically don't spawn UTF-8-sensitive subprocesses anyway.
+       Phase 2 still gives them UTF-8 stdout.
+
+       Skipped when running under pytest (detected via ``PYTEST_CURRENT_TEST``,
+       ``PYTEST_VERSION``, or ``pytest`` already in ``sys.modules``). Critical
+       for test collection: pytest imports test modules — which transitively
+       import ``cataforge.cli.main`` — before ``PYTEST_CURRENT_TEST`` is set,
+       so the env-var check alone would re-exec into the wrong process.
+
+    2. **Reconfigure stdout/stderr to UTF-8.** Belt-and-suspenders for the
+       cases where phase 1 is a no-op (non-Windows, already in UTF-8 Mode, or
+       under pytest). Also rescues weird locales like ``LC_ALL=C`` on Linux.
+
+    Idempotent — safe to call from CLI entry points and subscript ``main()``s.
+    """
+    # pytest imports test modules (which transitively import cataforge.cli.main)
+    # before PYTEST_CURRENT_TEST is set, so the env var alone is not enough —
+    # `pytest in sys.modules` is the load-time-stable signal.
+    under_pytest = (
+        "PYTEST_CURRENT_TEST" in os.environ
+        or "PYTEST_VERSION" in os.environ
+        or "pytest" in sys.modules
+    )
+    needs_reexec = (
+        sys.platform == "win32"
+        and not sys.flags.utf8_mode
+        and not under_pytest
+    )
+    module_name: str | None = None
+    if needs_reexec:
+        main = sys.modules.get("__main__")
+        spec = getattr(main, "__spec__", None)
+        if spec and spec.name:
+            module_name = spec.name
+        elif sys.argv and os.path.basename(sys.argv[0]).startswith("cataforge"):
+            # Console-script launcher (cataforge.exe / cataforge-script.py).
+            module_name = "cataforge"
+        # else: standalone script — skip re-exec, phase 2 still runs.
+    if needs_reexec and module_name:
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        os.execvpe(
+            sys.executable,
+            [sys.executable, "-X", "utf8", "-m", module_name, *sys.argv[1:]],
+            env,
+        )
+        # execvpe replaces the process — control returns here only on failure.
+
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name)
         if hasattr(stream, "reconfigure"):

@@ -45,7 +45,7 @@ from cataforge.core.feedback import (
     upstream_gap_count,
 )
 from cataforge.core.paths import find_project_root
-from cataforge.utils.common import ensure_utf8_stdio
+from cataforge.utils.common import ensure_utf8
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -119,7 +119,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ensure_utf8_stdio()
+    ensure_utf8()
     args = _build_parser().parse_args(argv)
     project_root = (args.root or find_project_root()).resolve()
 
