@@ -1079,7 +1079,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.5.0
 [0.4.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.4.1
 [0.4.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.4.0
 [0.3.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.3.1
