@@ -428,10 +428,9 @@ def kg_reconcile(
     project_root = project_root.resolve()
     base_config = kg_config_for(project_root)
 
-    if doc_types:
-        active = set(doc_types)
-    else:
-        active = set(base_config.kg_active_doc_types)
+    active = (
+        set(doc_types) if doc_types else set(base_config.kg_active_doc_types)
+    )
 
     if not active:
         click.echo(
@@ -587,10 +586,9 @@ def kg_compare_read(
     project_root = project_root.resolve()
     base_config = kg_config_for(project_root)
 
-    if doc_types:
-        active = set(doc_types)
-    else:
-        active = set(base_config.kg_active_doc_types)
+    active = (
+        set(doc_types) if doc_types else set(base_config.kg_active_doc_types)
+    )
 
     if not active:
         click.echo("  (no active doc_types — nothing to audit)")

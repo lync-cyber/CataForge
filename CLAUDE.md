@@ -35,6 +35,23 @@ git reset --hard origin/main
 git push -u origin <new-branch>
 ```
 
+## 提交前静态检查（硬约束）
+
+`.pre-commit-config.yaml` 配的 ruff + 文档守卫只有在两步都做了之后才会自动跑：
+
+```bash
+pip install -e .[dev]    # 一次性安装 pre-commit 包到当前环境
+pre-commit install        # 一次性把 git hook 挂到 .git/hooks/pre-commit
+```
+
+未挂 hook 的环境下（包括我自己 / CI 之前的 Claude session），**提交前必须手动跑**：
+
+```bash
+python -m ruff check src tests scripts
+```
+
+`feat(kg): alpha sub-pr 6` 因为没跑这条命令、commit 顺利落地、CI 才报 3 处 ruff 错误（F401 unused import + 两处 SIM108 ternary）。原则：**任何写到 `src/` `tests/` `scripts/` 的代码改动，commit 前必须本地确认 `ruff check` 退出 0**。其他 pre-commit 守卫脚本（`check_no_design_residue.py` / `check_no_language_coupling.py` / `check_doc_structure.py`）按各自 `files:` 正则触发，改 `.cataforge/agents|skills|rules/**/*.md` 时同样要手动跑对应脚本。
+
 ## Dogfood：本仓的 Claude Code 调用面
 
 CataForge 仓库自身也是 CataForge 项目。两条调用面，**clone 后无需 deploy 即可用第一条**：

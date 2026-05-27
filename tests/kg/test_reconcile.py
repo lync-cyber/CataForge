@@ -9,7 +9,6 @@ from __future__ import annotations
 import gc
 import importlib.util
 import json
-from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
