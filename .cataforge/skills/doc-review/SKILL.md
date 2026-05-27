@@ -68,6 +68,11 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{vol_file} --volume
 
 **维度收敛**: 调用方可传 `--focus <category[,...]>`（值取自 COMMON-RULES §统一问题分类体系），仅审查指定维度。不传时跑全维度。例如：`cataforge skill run doc-review -- prd docs/prd/prd-x.md --focus consistency,ambiguity`。
 
+**跨文档语义一致性**（当上游依赖文档已加载时追加）:
+- AC 传播完整性: PRD 的每个 AC-NNN 是否在当前文档（ARCH/DEV-PLAN）中有语义对应——不仅是 ID 引用，而是设计/任务确实覆盖了 AC 描述的验收条件
+- 契约传播: 上游文档的约束条件（边界值、异常流程、并发场景）是否在当前文档中保留，尤其注意 PRD 非功能需求 → ARCH 非功能架构、ARCH API 契约 → DEV-PLAN 任务 AC 的传播链
+- 术语一致: 上下游文档对同一概念的命名是否一致（如 PRD 称"订单"，ARCH 称"交易记录"，DEV-PLAN 称"order"——应统一或在文档内注明映射）
+
 **ui-spec专项审查维度**（仅当doc_type=ui-spec时追加）:
 - 设计方向一致性(consistency): §0设计方向声明是否贯穿到Token选择和组件风格——如声明"专业克制"但使用了高饱和度彩色和大圆角
 - 色彩体系层次(completeness): 主色/辅色/中性色是否有明确的主次关系，中性色是否有色相倾向而非纯灰

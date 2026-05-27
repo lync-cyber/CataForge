@@ -160,12 +160,21 @@ Mode Routing Protocol 在以下时刻被调用:
 3. **更新 CLAUDE.md 阶段信息** — 按 CLAUDE.md Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
 4. **一致性验证** — 确认文档头 status 与 CLAUDE.md 字段一致
 5. **依赖新鲜度检查** — 运行 `cataforge docs validate`，检查 `stale_deps` 输出：
-   - 无 stale deps → 通过，继续 Step 6
+   - 无 stale deps → 通过，继续 Step 5.5
    - 存在 stale deps → 向用户展示过期依赖清单并提供选项：
      1. 进入 cascade_amendment 更新受影响文档
      2. 确认变更不影响下游、继续推进（stale deps 降级为 WARN 记录到 EVENT-LOG）
      3. 暂停，手动审查
    - 用户选"确认不影响"时记录 **[EVENT]**: `cataforge event log --event state_change --phase {当前阶段} --detail "stale deps acknowledged: {upstream_ids}"`
+    <!-- allow-doc-structure: sub-step of Phase Transition, not an independent numbered list -->
+5.5. **跨文档一致性校验** — 当至少 2 个业务文档已 approved 时（即 Phase 2+ 的转换），运行 `cataforge skill run doc-consistency -- docs/`:
+   - exit 0（consistent）→ 通过，继续 Step 6
+   - exit 1（inconsistent，存在 CRITICAL/HIGH）→ 向用户展示一致性报告摘要并提供选项：
+     1. 进入 cascade_amendment 修复不一致
+     2. 降级为 WARN 继续推进（记录到 EVENT-LOG）
+     3. 暂停，手动审查
+   - exit 2（consistent_with_notes，仅 MEDIUM/LOW）→ 记录 WARN 到 EVENT-LOG，继续 Step 6
+   - 命令不存在时 WARN 跳过，不阻塞
 6. **[EVENT BATCH]** 通过 `--batch` 单次 stdin 管道一次性记录 4 条事件（phase_end → review_verdict → state_change → phase_start）:
    ```bash
    cataforge event log --batch <<'EOF'

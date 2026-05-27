@@ -55,6 +55,14 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "severity": "warn",
     },
     {
+        "id": "check_bidirectional_coverage",
+        "title": (
+            "双向覆盖: 下游文档覆盖上游所有 item"
+            " (arch↔prd / dev-plan↔arch / ui-spec↔prd)，仅主卷检查"
+        ),
+        "severity": "fail",
+    },
+    {
         "id": "check_prd",
         "title": "prd 专项: 用户故事/AC-NNN/非功能需求/优先级",
         "severity": "fail|warn",
