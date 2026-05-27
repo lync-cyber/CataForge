@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from cataforge.utils.common import detect_platform, fail, has_command, info, ok
+from cataforge.utils.run_subprocess import run as run_proc
 
 DOCKER_PULL_TIMEOUT = 300
 PULL_MAX_RETRIES = 3
@@ -43,9 +44,7 @@ def ensure_docker_running() -> bool:
         pass
 
     try:
-        r = subprocess.run(
-            ["docker", "info"], capture_output=True, text=True, timeout=10
-        )
+        r = run_proc(["docker", "info"], timeout=10)
         if r.returncode == 0:
             return True
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
@@ -66,20 +65,18 @@ def ensure_docker_running() -> bool:
                 flags = 0
                 if sys.platform == "win32":
                     flags = subprocess.CREATE_NEW_PROCESS_GROUP
-                subprocess.Popen([p], creationflags=flags)
+                subprocess.Popen(  # allow-raw-subprocess: fire-and-forget GUI launch
+                    [p], creationflags=flags
+                )
                 break
     elif _platform() == "darwin":
-        subprocess.run(["open", "-a", "Docker"], capture_output=True, timeout=10)
+        run_proc(["open", "-a", "Docker"], timeout=10)
     else:
-        subprocess.run(
-            ["sudo", "systemctl", "start", "docker"], capture_output=True, timeout=30
-        )
+        run_proc(["sudo", "systemctl", "start", "docker"], timeout=30)
 
     for _ in range(30):
         try:
-            r = subprocess.run(
-                ["docker", "info"], capture_output=True, timeout=10
-            )
+            r = run_proc(["docker", "info"], timeout=10)
             if r.returncode == 0:
                 ok("Docker daemon 已就绪")
                 return True
@@ -103,12 +100,7 @@ def docker_status() -> dict[str, Any]:
     except Exception:
         pass
     try:
-        r = subprocess.run(
-            ["docker", "info", "--format", "json"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        r = run_proc(["docker", "info", "--format", "json"], timeout=10)
         if r.returncode == 0:
             return json.loads(r.stdout)
     except (
@@ -124,12 +116,7 @@ def docker_status() -> dict[str, Any]:
 def docker_compose_cmd() -> list[str]:
     """Return ``[\"docker\", \"compose\"]`` or ``[\"docker-compose\"]``, or []."""
     try:
-        result = subprocess.run(
-            ["docker", "compose", "version"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        result = run_proc(["docker", "compose", "version"], timeout=10)
         if result.returncode == 0:
             return ["docker", "compose"]
     except (FileNotFoundError, OSError):
@@ -215,18 +202,15 @@ def pull_image_with_mirrors(
                 ok(f"  {image} <- {source_label}")
                 return True
             try:
-                result = subprocess.run(
+                result = run_proc(
                     ["docker", "pull", rewritten],
-                    capture_output=True,
-                    text=True,
                     timeout=pull_timeout,
                 )
                 if result.returncode == 0:
                     ok(f"  {image} <- {source_label}")
                     if mirror:
-                        subprocess.run(
+                        run_proc(
                             ["docker", "tag", rewritten, image],
-                            capture_output=True,
                             timeout=30,
                         )
                     return True
