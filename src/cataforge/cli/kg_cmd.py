@@ -8,7 +8,8 @@ Subcommand build-out tracks the alpha sub-PR sequence in task-7 §7.1:
 * sub-PR 6 — `reconcile`, `compare-read` (this file)
 * sub-PR 7 — write lock + high-level CRUD (TransactionContext)
 * sub-PR 8 — `snapshot`, `rollback`
-* later — `repair`, `diff`
+* sub-PR 9 — `repair`
+* later — `diff`
 """
 from __future__ import annotations
 
@@ -701,3 +702,90 @@ def kg_rollback(snapshot_path: Path, db_path: Path, force: bool) -> None:
         raise KGStoreError(str(exc)) from exc
 
     click.echo(f"OK: restored {count} quads from {snapshot_path}")
+
+
+@kg_group.command("repair")
+@click.option(
+    "--project-root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+    show_default=True,
+    help="Project root containing docs/ and .cataforge/.",
+)
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be repaired without modifying the store.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit a JSON stats blob instead of the human-readable summary.",
+)
+@click.pass_context
+def kg_repair(
+    ctx: click.Context,
+    project_root: Path,
+    db_path: Path,
+    dry_run: bool,
+    json_output: bool,
+) -> None:
+    """Auto-fix KG drift detected by reconcile."""
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg._dispatch import kg_config_for
+    from cataforge.kg.repair import repair
+
+    project_root = project_root.resolve()
+    base_config = kg_config_for(project_root)
+
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=db_path,
+        kg_active_doc_types=set(base_config.kg_active_doc_types),
+        ontology_namespace=base_config.ontology_namespace,
+        base_namespace=base_config.base_namespace,
+    )
+
+    try:
+        with KnowledgeGraphStore.connect(config) as handle:
+            stats = repair(
+                handle.raw, project_root, config, dry_run=dry_run
+            )
+    except KGStoreNotInitializedError as exc:
+        raise KGStoreError(str(exc)) from exc
+
+    if json_output:
+        import json as json_mod  # noqa: PLC0415
+
+        click.echo(
+            json_mod.dumps(
+                {
+                    "dry_run": dry_run,
+                    "ghosts_removed": stats.ghosts_removed,
+                    "missing_ingested": stats.missing_ingested,
+                    "errors": stats.errors,
+                },
+                indent=2,
+            )
+        )
+    else:
+        prefix = "[dry-run] " if dry_run else ""
+        click.echo(
+            f"{prefix}ghosts_removed={stats.ghosts_removed} "
+            f"missing_ingested={stats.missing_ingested}"
+        )
+        for err in stats.errors:
+            click.echo(f"  ERROR: {err}", err=True)
+
+    if stats.errors:
+        ctx.exit(1)
