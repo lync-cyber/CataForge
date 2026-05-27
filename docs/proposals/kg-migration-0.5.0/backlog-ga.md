@@ -25,14 +25,9 @@ documents.
 | C2 | `cataforge kg trace` CLI — traceability chain with downstream/upstream/both, table/json/mermaid output, `--coverage` global matrix | `kg_cmd.py` |
 | Q1 | `QueryAPI.api()` / `.page()` typed accessors — hit-path tests confirmed (accessors landed in sub-PR 5) | `test_facade.py` |
 | Q2 | `QueryAPI.depends_on()` promoted to public API + `TraceAPI.stale_dependencies()` direct integration tests | `query.py`, `_shim.py`, `test_facade.py`, `test_group_a_remaining.py` |
+| H1 | `TechStack` entity: standard `TS-NNN` ingest via `entity_extract.py` + `extra_slots` enrichment, SPARQL/Jinja2 export templates, `narrative_body` + `stack_layers` slots, `_quads.py` multivalued extra_slots support | `entity_extract.py`, `_quads.py`, `writer.py`, `hydrator.py`, `pipeline.py`, `techstack.sparql`, `techstack.md.j2`, `core.yaml` |
 
-Test count: 186 passed, 4 skipped (codegen CLI).
-
-## P1 — remaining
-
-| ID | Task | Scope | Depends on |
-|----|------|-------|------------|
-| H1 | `TechStack` entity: core.yaml schema update + ingest codemod for arch §1.4 | ~150 LOC: schema slot + `ingest/migrate.py` extractor | — |
+Test count: 197 passed, 4 skipped (codegen CLI).
 
 ## P2 — stability and compliance
 
@@ -64,7 +59,7 @@ Test count: 186 passed, 4 skipped (codegen CLI).
 ✅ C2 (kg trace CLI) ──────────────────────────┤
 ✅ Q1 (api/page accessors) ────────────────────┤
 ✅ Q2 (depends_on public) ──→ S3 (xref audit) ┤
-H1 (TechStack schema) ────────────────────────┤
+✅ H1 (TechStack ingest) ─────────────────────┤
                                                ├──→ GA gate
 T2 (golden-file) ─────────────────────────────┤
 T3 (hard dependency) ─────────────────────────┤
@@ -88,8 +83,7 @@ All must be verifiable, never time-based:
 
 | Priority | Estimated LOC | Status |
 |----------|---------------|--------|
-| P1 C1+C2+Q1+Q2 | ~530 delivered | done |
-| P1 H1 | ~150 | remaining |
+| P1 C1+C2+Q1+Q2+H1 | ~680 delivered | done |
 | P2 | ~800 | 1–2 sub-PRs |
 | P3 | ~1870 | post-GA |
-| **GA remaining** | **~950** (H1+P2) | **2–3 sub-PRs** |
+| **GA remaining** | **~800** (P2) | **1–2 sub-PRs** |
