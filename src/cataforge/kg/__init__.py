@@ -19,9 +19,12 @@ from __future__ import annotations
 from cataforge.kg._ask import ask
 from cataforge.kg._config import KGConfig
 from cataforge.kg._errors import (
+    KGEntityNotFoundError,
     KGError,
     KGStoreAlreadyExistsError,
     KGStoreNotInitializedError,
+    KGTransactionConflictError,
+    KGValidationError,
 )
 from cataforge.kg.facade import KnowledgeGraph
 from cataforge.kg.query import QueryAPI
@@ -35,9 +38,12 @@ from cataforge.kg.transaction import TransactionContext
 
 __all__ = [
     "KGConfig",
+    "KGEntityNotFoundError",
     "KGError",
     "KGStoreAlreadyExistsError",
     "KGStoreNotInitializedError",
+    "KGTransactionConflictError",
+    "KGValidationError",
     "KnowledgeGraph",
     "KnowledgeGraphStore",
     "QueryAPI",

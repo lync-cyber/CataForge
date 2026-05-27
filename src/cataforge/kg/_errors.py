@@ -23,3 +23,15 @@ class KGStoreNotInitializedError(KGError):
 
 class KGStoreAlreadyExistsError(KGError):
     """Raised by `kg init` when `db_path` already exists and `--force` is off."""
+
+
+class KGTransactionConflictError(KGError):
+    """Raised when a transaction's content_hash conflicts after max retries."""
+
+
+class KGValidationError(KGError):
+    """Raised when an entity write fails post-validation (orphan/xref/SHACL)."""
+
+
+class KGEntityNotFoundError(KGError):
+    """Raised when update/delete targets an entity_id absent from the store."""
