@@ -42,6 +42,7 @@ _ENTITY_TYPE_TO_DOC_TYPE: dict[str, str] = {
     "API": "arch",
     "DataModel": "arch",
     "ArchitectureDecision": "arch",
+    "TechStack": "arch",
     "Page": "ui-spec",
     "Wireframe": "ui-spec",
     "UIComponent": "ui-spec",
@@ -71,6 +72,9 @@ _RELATION_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "testcase": {
         "verifies": ("target_id", "target_sort_key", "target_title"),
+    },
+    "techstack": {
+        "stack_layers": ("stack_layer",),
     },
 }
 

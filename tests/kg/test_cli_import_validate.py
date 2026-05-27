@@ -44,9 +44,9 @@ def test_kg_import_memory_backend(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     stats = json.loads(result.output)
     assert stats["parsed_docs"] == 3
-    assert stats["extracted_entities"] == 8
+    assert stats["extracted_entities"] == 9
     assert stats["extracted_relations"] == 4
-    assert stats["entities_written"] == 8
+    assert stats["entities_written"] == 9
     assert stats["relations_written"] == 4
     assert stats["verify_ok"] is True
 
@@ -145,11 +145,12 @@ def test_kg_export_end_to_end_oxigraph(tmp_path: Path) -> None:
     )
     assert exp.exit_code == 0, exp.output
     payload = json.loads(exp.output)
-    assert payload["rendered"] == 8
+    assert payload["rendered"] == 9
     assert payload["errors"] == []
     assert set(payload["files"].keys()) == {
         "prd/F-001.md", "prd/F-002.md",
         "prd/AC-001.md", "prd/AC-002.md",
         "arch/M-001.md", "arch/M-002.md",
+        "arch/TS-001.md",
         "test-report/TC-001.md", "test-report/TC-002.md",
     }

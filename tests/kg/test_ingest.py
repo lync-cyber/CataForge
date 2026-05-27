@@ -50,6 +50,7 @@ def test_codemod_end_to_end(variant: str) -> None:
         "AC-001", "AC-002",
         "M-001", "M-002",
         "TC-001", "TC-002",
+        "TS-001",
     }, f"{variant}: unexpected entity set: {extracted_ids}"
 
     # Relation-side
@@ -65,7 +66,7 @@ def test_codemod_end_to_end(variant: str) -> None:
     }, f"{variant}: unexpected relations: {rel_keys}"
 
     # Write-side
-    assert stats.write_stats.entities_written == 8
+    assert stats.write_stats.entities_written == 9
     assert stats.write_stats.relations_written == 4
     assert stats.write_stats.entities_skipped == 0
     assert stats.write_stats.relations_skipped == 0
@@ -86,7 +87,7 @@ def test_codemod_is_idempotent(variant: str) -> None:
     root = FIXTURE_ROOT / variant
 
     first, _, _ = run_migration(handle.raw, root, config)
-    assert first.write_stats.entities_written == 8
+    assert first.write_stats.entities_written == 9
     assert first.write_stats.relations_written == 4
 
     second, _, _ = run_migration(handle.raw, root, config)
@@ -97,7 +98,7 @@ def test_codemod_is_idempotent(variant: str) -> None:
     assert second.write_stats.relations_written == 0, (
         f"{variant}: re-run wrote {second.write_stats.relations_written} relations"
     )
-    assert second.write_stats.entities_skipped == 8
+    assert second.write_stats.entities_skipped == 9
     assert second.write_stats.relations_skipped == 4
     assert second.verify_result is not None and second.verify_result.ok
 
@@ -116,11 +117,11 @@ def test_dry_run_does_not_write(variant: str) -> None:
     assert stats.dry_run is True
     assert stats.write_stats.entities_written == 0
     assert stats.write_stats.relations_written == 0
-    assert stats.extracted_entities == 8
+    assert stats.extracted_entities == 9
     assert stats.extracted_relations == 4
     # Graph is still empty of business data — verify reports everything missing.
     assert stats.verify_result is not None
-    assert len(stats.verify_result.missing_entities) == 8
+    assert len(stats.verify_result.missing_entities) == 9
 
 
 def test_xref_inside_arch_does_not_pollute_arch_entity_set() -> None:
@@ -133,8 +134,8 @@ def test_xref_inside_arch_does_not_pollute_arch_entity_set() -> None:
     assert len(docs) == 1
     entities = extract_entities(docs[0])
     entity_ids = {e.entity_id for e in entities}
-    assert entity_ids == {"M-001", "M-002"}, (
-        f"arch should only define M-NNN entities; got {entity_ids}"
+    assert entity_ids == {"M-001", "M-002", "TS-001"}, (
+        f"arch should only define M-NNN/TS-NNN entities; got {entity_ids}"
     )
 
 

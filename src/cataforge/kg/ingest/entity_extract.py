@@ -13,11 +13,18 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from cataforge.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS
 from cataforge.kg.ingest.scan import HeadingSpan, ParsedDoc
+
+_LAYER_BULLET_RE = re.compile(r"^\s*[-*]\s+(.+)", re.MULTILINE)
+
+_EXTRA_SLOT_EXTRACTORS: dict[str, str] = {
+    "TechStack": "_extract_techstack_slots",
+}
 
 # Match entity-id occurrences inside arbitrary text. Longest-prefix-first
 # ordering on the alternation guards against `API-001` matching as `A-001`
@@ -48,6 +55,7 @@ class ExtractedEntity:
     section_line_end: int
     file_path: Path
     mtime: float
+    extra_slots: dict[str, Any] = field(default_factory=dict)
 
 
 def _section_for_line(spans: list[HeadingSpan], line_idx: int) -> HeadingSpan | None:
@@ -101,7 +109,7 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
         section_text = "\n".join(
             doc.raw.splitlines()[section.line_start : section.line_end]
         )
-        seen[entity_id] = ExtractedEntity(
+        entity = ExtractedEntity(
             entity_id=entity_id,
             class_name=class_name,
             source_doc=doc.doc_id,
@@ -112,4 +120,20 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
             file_path=doc.file_path,
             mtime=doc.mtime,
         )
+        _enrich_extra_slots(entity, section_text)
+        seen[entity_id] = entity
     return list(seen.values())
+
+
+def _enrich_extra_slots(entity: ExtractedEntity, section_text: str) -> None:
+    fn_name = _EXTRA_SLOT_EXTRACTORS.get(entity.class_name)
+    if fn_name is None:
+        return
+    globals()[fn_name](entity, section_text)
+
+
+def _extract_techstack_slots(entity: ExtractedEntity, section_text: str) -> None:
+    entity.extra_slots["cf:narrative_body"] = section_text
+    layers = [m.group(1).strip() for m in _LAYER_BULLET_RE.finditer(section_text)]
+    if layers:
+        entity.extra_slots["cf:stack_layers"] = layers

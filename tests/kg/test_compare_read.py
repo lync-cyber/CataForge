@@ -80,7 +80,7 @@ def test_compare_read_clean_fixture_no_alarms(tmp_path: Path) -> None:
             seed=42,
         )
 
-    assert report.sampled_count == 8  # F×2 + AC×2 + M×2 + TC×2
+    assert report.sampled_count == 9  # F×2 + AC×2 + M×2 + TC×2 + TS×1
     assert report.alarms == [], [a.to_dict() for a in report.alarms]
 
 

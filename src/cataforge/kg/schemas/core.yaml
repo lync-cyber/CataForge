@@ -599,7 +599,7 @@ classes:
       - affects
     slot_usage:
       entity_id:
-        pattern: "^(TS-[0-9]{3,}|tech-stack(-[a-z0-9]+)?)$"
+        pattern: "^TS-[0-9]{3,}$"
 
   # ===== UI layer (ui-designer) ============================================
   Screen:

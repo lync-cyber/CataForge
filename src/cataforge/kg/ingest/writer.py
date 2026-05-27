@@ -84,6 +84,7 @@ def write_entities(
             entity.content_hash,
             project_iri,
             config,
+            extra_slots=entity.extra_slots or None,
             mtime=entity.mtime,
         ):
             store.add(q)

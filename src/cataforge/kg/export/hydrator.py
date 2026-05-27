@@ -30,6 +30,7 @@ _SCALAR_FIELDS = (
     "authored_by",
     "expected_result",
     "test_result",
+    "narrative_body",
 )
 
 

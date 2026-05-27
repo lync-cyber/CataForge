@@ -1,0 +1,18 @@
+{% extends "_base/artifact_base.md.j2" %}
+
+{% block body %}
+{% if entity.narrative_body %}
+
+## Tech Stack
+
+{{ entity.narrative_body }}
+{% endif %}
+{% if entity.stack_layers %}
+
+## Stack Layers
+
+{% for layer in entity.stack_layers %}
+- {{ layer.entity_id }}
+{% endfor %}
+{% endif %}
+{% endblock %}

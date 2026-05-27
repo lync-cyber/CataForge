@@ -37,6 +37,7 @@ EXPECTED_ENTITIES = {
     "AC-002": "prd",
     "M-001": "arch",
     "M-002": "arch",
+    "TS-001": "arch",
     "TC-001": "test-report",
     "TC-002": "test-report",
 }

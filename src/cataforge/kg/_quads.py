@@ -95,13 +95,15 @@ def build_entity_quads(
 
     if extra_slots:
         for slot_curie, value in extra_slots.items():
-            quads.append(
-                ox.Quad(
-                    subject,
-                    ox.NamedNode(_slot_iri(slot_curie, namespace)),
-                    ox.Literal(value, datatype=string_dt),
+            values = value if isinstance(value, list) else [value]
+            for v in values:
+                quads.append(
+                    ox.Quad(
+                        subject,
+                        ox.NamedNode(_slot_iri(slot_curie, namespace)),
+                        ox.Literal(v, datatype=string_dt),
+                    )
                 )
-            )
 
     return quads
 
