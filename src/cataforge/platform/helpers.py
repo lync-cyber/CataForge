@@ -239,13 +239,20 @@ def _ntfs_junction_warning() -> str:
 
 
 def _try_symlink(source: Path, target: Path, removed: list[bool]) -> list[str] | None:
-    """Attempt strategy 1: relative POSIX-normalised symlink. Returns the
-    action log on success, ``None`` if the kernel refused the syscall."""
-    # Normalise to forward slashes so the link target stays portable: on
-    # Windows ``os.path.relpath`` emits backslashes which survive into the
-    # symlink reparse point, breaking the link the moment the project is
-    # cloned, copied, or mounted on a POSIX filesystem.
-    rel = os.path.relpath(source, target.parent).replace("\\", "/")
+    """Attempt strategy 1: relative symlink. Returns the action log on
+    success, ``None`` if the kernel refused the syscall.
+
+    Path-separator handling: keep ``os.path.relpath``'s native output
+    (backslashes on Windows, forward slashes on POSIX). Windows
+    ``CreateSymbolicLinkW`` accepts the call when the target string
+    uses forward slashes but the resulting NTFS reparse point fails to
+    resolve at lookup time — ``target.exists()`` returns False even
+    though ``lexists()`` is True. The cross-OS portability argument for
+    normalising to forward slashes does not hold: NTFS reparse points
+    are Windows-only structures and POSIX kernels cannot follow them
+    regardless of separator style.
+    """
+    rel = os.path.relpath(source, target.parent)
     _remove_target_once(target, removed)
     try:
         os.symlink(rel, str(target), target_is_directory=True)
