@@ -16,12 +16,12 @@ def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
         return {}, content
 
     lines = content.splitlines(keepends=True)
-    if not lines or lines[0].rstrip("\n").rstrip("\r") != "---":
+    if not lines or lines[0].strip() != "---":
         return {}, content
 
     closing_idx = None
     for i, line in enumerate(lines[1:], start=1):
-        if line.rstrip("\n").rstrip("\r") == "---":
+        if line.strip() == "---":
             closing_idx = i
             break
 

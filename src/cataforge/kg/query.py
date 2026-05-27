@@ -128,7 +128,7 @@ class QueryAPI:
 
     def requirement(self, req_id: str) -> dict[str, Any] | None:
         """Fetch any Requirement-layer artifact (Feature / UserStory / Epic)."""
-        return self._fetch_subclass("Requirement", req_id)
+        return self._fetch_typed("Requirement", req_id)
 
     # ------------------------------------------------------------------
     # Bulk / cross-cutting
@@ -331,12 +331,6 @@ class QueryAPI:
         if not ask(self._store, sparql):
             return None
         return self._fetch_by_uri(uri, entity_id)
-
-    def _fetch_subclass(self, parent_class: str, entity_id: str) -> dict[str, Any] | None:
-        # Same as _fetch_typed but the type-membership test walks the
-        # subclass chain — used by `requirement()` which accepts any of
-        # Feature / UserStory / Epic.
-        return self._fetch_typed(parent_class, entity_id)
 
     def _fetch_by_uri(self, uri: str, entity_id: str) -> dict[str, Any] | None:
         ns = self._cf_ns()

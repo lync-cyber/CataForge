@@ -18,7 +18,7 @@ from cataforge.cli.errors import (
     CataforgeError,
     ConfigError,
     ExternalToolError,
-    KGError,
+    KGCLIError,
     KGStoreError,
     KGVerificationError,
     NotImplementedFeature,
@@ -34,7 +34,7 @@ class TestExitCodeContract:
             (CataforgeError, EXIT_GENERIC_FAILURE),
             (ConfigError, EXIT_GENERIC_FAILURE),
             (ExternalToolError, EXIT_GENERIC_FAILURE),
-            (KGError, EXIT_GENERIC_FAILURE),
+            (KGCLIError, EXIT_GENERIC_FAILURE),
             (KGStoreError, EXIT_GENERIC_FAILURE),
             (KGVerificationError, EXIT_KG_VERIFICATION_FAILED),
             (NotImplementedFeature, EXIT_NOT_IMPLEMENTED),
@@ -61,7 +61,7 @@ class TestSubclassHierarchy:
             ConfigError,
             ExternalToolError,
             NotImplementedFeature,
-            KGError,
+            KGCLIError,
             KGStoreError,
             KGVerificationError,
         ],
@@ -71,8 +71,8 @@ class TestSubclassHierarchy:
         assert issubclass(error_cls, click.ClickException)
 
     def test_kg_subclasses_share_kg_base(self) -> None:
-        assert issubclass(KGStoreError, KGError)
-        assert issubclass(KGVerificationError, KGError)
+        assert issubclass(KGStoreError, KGCLIError)
+        assert issubclass(KGVerificationError, KGCLIError)
 
 
 class TestRaiseRendersExpectedExitCode:

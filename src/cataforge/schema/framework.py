@@ -30,6 +30,17 @@ class FrameworkUpgrade(BaseModel):
     source: FrameworkUpgradeSource = Field(default_factory=FrameworkUpgradeSource)
 
 
+class FrameworkKG(BaseModel):
+    """Validated shape for the ``kg`` section of ``framework.json``."""
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    kg_active_doc_types: list[str] = Field(default_factory=list)
+    project_id: str = "proj-default"
+    title: str = "(unnamed)"
+    process_model: str = "waterfall"
+
+
 class FrameworkFile(BaseModel):
     """Top-level framework.json — unknown keys preserved via ``extra='allow'``."""
 
@@ -41,3 +52,4 @@ class FrameworkFile(BaseModel):
     features: dict[str, Any] = Field(default_factory=dict)
     upgrade: FrameworkUpgrade | None = None
     migration_checks: list[Any] = Field(default_factory=list)
+    kg: FrameworkKG = Field(default_factory=FrameworkKG)

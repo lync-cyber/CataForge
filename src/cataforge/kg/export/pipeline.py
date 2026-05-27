@@ -156,7 +156,8 @@ def compile_to_markdown(
             continue
         try:
             sparql_template = registry.get(entity_type)
-            sparql_query = sparql_template % {"entity_id": f'"{entity_id}"'}
+            safe_id = entity_id.replace("\\", "\\\\").replace('"', '\\"')
+            sparql_query = sparql_template % {"entity_id": f'"{safe_id}"'}
             raw_rows = list(store.query(sparql_query))
             relation_groups = _RELATION_GROUPS.get(entity_type.lower(), {})
             context = hydrate_rows(raw_rows, relation_groups)

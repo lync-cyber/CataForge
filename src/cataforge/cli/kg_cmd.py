@@ -8,8 +8,13 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
+
+if TYPE_CHECKING:
+    from cataforge.kg import KnowledgeGraph
+    from cataforge.kg.trace import TraceChain
 
 from cataforge.cli.errors import (
     CataforgeError,
@@ -520,16 +525,6 @@ def kg_reconcile(
     "entity when the population is smaller than this.",
 )
 @click.option(
-    "--threshold",
-    type=float,
-    default=1.0,
-    show_default=True,
-    help=(
-        "Reserved for forward-compat; content_hash compare is "
-        "binary so this value is currently ignored."
-    ),
-)
-@click.option(
     "--seed",
     type=int,
     default=None,
@@ -547,7 +542,6 @@ def kg_compare_read(
     db_path: Path,
     doc_types: tuple[str, ...],
     sample_size: int,
-    threshold: float,
     seed: int | None,
     json_output: bool,
 ) -> None:
@@ -591,7 +585,6 @@ def kg_compare_read(
                 project_root,
                 doc_types=active,
                 sample_size=sample_size,
-                threshold=threshold,
                 seed=seed,
             )
     except KGStoreNotInitializedError as exc:
@@ -785,7 +778,9 @@ def kg_repair(
             click.echo(f"  ERROR: {err}", err=True)
 
     if stats.errors:
-        ctx.exit(1)
+        raise KGVerificationError(
+            f"repair encountered {len(stats.errors)} error(s)"
+        )
 
 
 # ------------------------------------------------------------------
@@ -870,8 +865,6 @@ def kg_query(
 
 def _resolve_sparql_input(query_or_file: str) -> str:
     p = Path(query_or_file)
-    if p.suffix == ".sparql" and p.is_file():
-        return p.read_text(encoding="utf-8").strip()
     if p.is_file():
         return p.read_text(encoding="utf-8").strip()
     return query_or_file
@@ -1107,10 +1100,7 @@ def kg_trace(
         raise KGStoreError(str(exc)) from exc
 
 
-def _coverage_matrix(kg: object, fmt: str) -> None:
-    from cataforge.kg import KnowledgeGraph
-
-    assert isinstance(kg, KnowledgeGraph)
+def _coverage_matrix(kg: KnowledgeGraph, fmt: str) -> None:
     rows = kg.trace.bidirectional_coverage()
 
     if fmt == "json":
@@ -1156,10 +1146,7 @@ def _trace_json(chain: object, coverage_detail: dict | None) -> None:
     click.echo(json.dumps(d, indent=2, ensure_ascii=False))
 
 
-def _chain_buckets(chain: object):  # noqa: ANN201
-    from cataforge.kg.trace import TraceChain
-
-    assert isinstance(chain, TraceChain)
+def _chain_buckets(chain: TraceChain) -> list[tuple[str, list[str]]]:
     return [
         ("requirements", chain.requirements),
         ("acceptance_criteria", chain.acceptance_criteria),
@@ -1171,13 +1158,7 @@ def _chain_buckets(chain: object):  # noqa: ANN201
     ]
 
 
-def _trace_table(chain: object, kg: object, coverage_detail: dict | None) -> None:
-    from cataforge.kg import KnowledgeGraph
-    from cataforge.kg.trace import TraceChain
-
-    assert isinstance(chain, TraceChain)
-    assert isinstance(kg, KnowledgeGraph)
-
+def _trace_table(chain: TraceChain, kg: KnowledgeGraph, coverage_detail: dict | None) -> None:
     click.echo(f"Traceability chain from {chain.root_id} (coverage={chain.coverage_status})")
     click.echo()
 
@@ -1207,13 +1188,7 @@ def _trace_table(chain: object, kg: object, coverage_detail: dict | None) -> Non
         click.echo(f"Coverage: status={status} impl={impl} test={test}")
 
 
-def _trace_mermaid(chain: object, kg: object) -> None:
-    from cataforge.kg import KnowledgeGraph
-    from cataforge.kg.trace import TraceChain
-
-    assert isinstance(chain, TraceChain)
-    assert isinstance(kg, KnowledgeGraph)
-
+def _trace_mermaid(chain: TraceChain, kg: KnowledgeGraph) -> None:
     click.echo("graph TD")
 
     buckets = _chain_buckets(chain)

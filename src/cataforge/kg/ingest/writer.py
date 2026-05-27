@@ -94,7 +94,7 @@ def write_entities(
 
 
 def _triple_exists(
-    store: ox.Store, subject: str, predicate: str, obj: str, *, namespace: str
+    store: ox.Store, subject: str, predicate: str, obj: str,
 ) -> bool:
     sparql = f"ASK {{ <{subject}> <{predicate}> <{obj}> }}"
     return ask(store, sparql)
@@ -105,7 +105,6 @@ def write_relations(
     relations: list[ExtractedRelation],
     config: KGConfig,
 ) -> WriteStats:
-    namespace = config.ontology_namespace.rstrip("/") + "/"
     base_ns = config.base_namespace
 
     stats = WriteStats()
@@ -125,7 +124,6 @@ def write_relations(
             subject_iri_val,
             predicate_iri_val,
             object_iri_val,
-            namespace=namespace,
         ):
             stats.relations_skipped += 1
             continue

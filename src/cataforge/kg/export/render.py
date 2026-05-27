@@ -49,49 +49,49 @@ def render_entity(
     *,
     template: str | None = None,
     namespace: str = "https://cataforge.dev/ontology/",
+    registry: SparqlRegistry | None = None,
+    jinja_env: object | None = None,
 ) -> str | None:
-    """Render `entity_id` to Markdown using the registered Jinja template.
+    """Render ``entity_id`` to Markdown using the registered Jinja template.
 
     Parameters
     ----------
     store:
-        Open `pyoxigraph.Store`.
+        Open ``pyoxigraph.Store``.
     entity_id:
         Frontmatter ID such as ``"F-001"``.
     template:
-        Optional override of the auto-resolved template path
-        (e.g. ``"prd/feature.md.j2"``). When `None`, the template is
-        chosen from the entity's `rdf:type` via the pipeline's
-        `_entity_type_to_doc_type` map.
+        Optional override of the auto-resolved template path.
     namespace:
-        Ontology namespace. Defaults to the canonical `cf:` namespace.
-
-    Returns
-    -------
-    str | None
-        The rendered Markdown, or `None` if the entity is unknown / has
-        no registered template / yields no SPARQL results.
+        Ontology namespace.
+    registry:
+        Pre-built ``SparqlRegistry``. Built on each call when ``None``.
+    jinja_env:
+        Pre-built Jinja2 ``Environment``. Built on each call when ``None``.
     """
     namespace = namespace.rstrip("/") + "/"
     entity_type = _resolve_entity_type(store, entity_id, namespace)
     if entity_type is None:
         return None
 
-    registry = SparqlRegistry()
+    if registry is None:
+        registry = SparqlRegistry()
     if not registry.has(entity_type):
         return None
 
     sparql_template = registry.get(entity_type)
-    sparql_query = sparql_template % {"entity_id": f'"{entity_id}"'}
+    safe_id = entity_id.replace("\\", "\\\\").replace('"', '\\"')
+    sparql_query = sparql_template % {"entity_id": f'"{safe_id}"'}
     raw_rows = list(store.query(sparql_query))
     relation_groups = _RELATION_GROUPS.get(entity_type.lower(), {})
     context = hydrate_rows(raw_rows, relation_groups)
     if context is None:
         return None
 
-    jinja_env = build_jinja_env()
+    if jinja_env is None:
+        jinja_env = build_jinja_env()
     tpl_name = template or _template_name(entity_type)
-    jinja_template = jinja_env.get_template(tpl_name)
+    jinja_template = jinja_env.get_template(tpl_name)  # type: ignore[union-attr]
     return jinja_template.render(entity=context)
 
 

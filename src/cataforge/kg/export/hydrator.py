@@ -77,12 +77,4 @@ def hydrate_rows(
             bucket[key] = entry
         context[group_name] = [bucket[k] for k in sorted(bucket.keys())]
 
-    tags: set[str] = set()
-    for row in rows:
-        t = _term_value(_row_lookup(row, "tag"))
-        if t:
-            tags.add(str(t))
-    if tags:
-        context["tags"] = sorted(tags)
-
     return context

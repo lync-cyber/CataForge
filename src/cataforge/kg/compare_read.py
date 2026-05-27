@@ -69,14 +69,12 @@ class CompareReadReport:
     sampled_count: int
     alarms: list[CompareReadAlarm] = field(default_factory=list)
     per_doc_type_counts: dict[str, int] = field(default_factory=dict)
-    skipped: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "sampled_count": self.sampled_count,
             "alarms": [a.to_dict() for a in self.alarms],
             "per_doc_type_counts": dict(sorted(self.per_doc_type_counts.items())),
-            "skipped": sorted(self.skipped),
         }
 
 
@@ -112,21 +110,17 @@ def compare_read(
     *,
     doc_types: set[str],
     sample_size: int = 20,
-    threshold: float = 1.0,  # retained for CLI compat; unused at the unit level
     seed: int | None = None,
 ) -> CompareReadReport:
     """Sample-audit KG content hashes against the live filesystem.
 
-    `threshold` is accepted for forward-compat with the §7.5 CLI signature
-    but is not consulted: content_hash equality is binary. Any digest
-    mismatch is an alarm; any FS-extracted entity missing from KG is an
-    alarm (reason ``kg-missing-entity``); any KG-present entity whose
-    source section has been deleted is **silently skipped** because
-    reconcile is the dedicated detector for those.
+    Content-hash equality is binary: any digest mismatch is an alarm;
+    any FS-extracted entity missing from KG is an alarm (reason
+    ``kg-missing-entity``).
 
     The sample pool is the union of every entity the FS scan finds
     under each active doc_type, ordered deterministically by entity_id
-    for reproducibility with `seed`.
+    for reproducibility with ``seed``.
     """
     project_root = Path(project_root)
 

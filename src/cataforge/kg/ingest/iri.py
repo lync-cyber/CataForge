@@ -43,7 +43,7 @@ ENTITY_PREFIX_TO_CLASS: dict[str, str] = {
     "CHG": "ChangeRequest",
     "REV": "ReviewReport",
     "TP": "TestPlan",
-    "TS_": "TestSuite",  # unused — TS already maps to TechStack
+    "TS_": "TestSuite",  # explicit prefix — prevents TS from capturing TestSuite IDs
     "TR": "TestRun",
     "CR": "CoverageRule",
     "MS": "Milestone",

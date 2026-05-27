@@ -151,13 +151,11 @@ class TraceAPI:
         *,
         direction: Literal["downstream", "upstream", "both"] = "downstream",
     ) -> TraceChain:
-        """Build a flat TraceChain rooted at `entity_id`.
+        """Build a flat TraceChain rooted at ``entity_id``.
 
-        Downstream traverses: `cf:implements`/`cf:realizes`/`cf:verifies`/
-        `cf:satisfies`/`cf:reviewed_by`. Upstream walks the inverses. The
-        implementation is a fan-out single-query CONSTRUCT-shape walker;
-        it is not transitive across more than one hop in sub-PR 5 — the
-        Group A consumers only need one-hop fan-out at this stage.
+        Downstream traverses: ``cf:implements`` / ``cf:realizes`` /
+        ``cf:verifies`` / ``cf:satisfies``.  Upstream walks the inverses
+        plus ``cf:reviewed_by``.  Single-hop fan-out only.
         """
         ns = self._cf_ns()
         uri = entity_iri(entity_id, self._config.base_namespace)
