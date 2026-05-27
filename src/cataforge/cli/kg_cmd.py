@@ -1,12 +1,7 @@
 """cataforge kg — knowledge graph store lifecycle.
 
-Subcommand build-out tracks the alpha sub-PR sequence in task-7 §7.1:
-
-* sub-PR 2 — `init`
-* sub-PR 3 — `import`, `validate`
-* sub-PR 4 — `export`
-* sub-PR 6 — `reconcile`, `compare-read` (this file)
-* later — `repair`, `snapshot`, `rollback`, `diff`
+Subcommands: init, import, validate, export, reconcile, compare-read,
+snapshot, rollback, repair.
 """
 from __future__ import annotations
 
@@ -21,7 +16,7 @@ from cataforge.cli.main import cli
 
 @cli.group("kg")
 def kg_group() -> None:
-    """Knowledge graph store management (0.5.0 Alpha)."""
+    """Knowledge graph store management."""
 
 
 @kg_group.command("init")
@@ -62,7 +57,7 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
     """Initialize a new KG store with the rdfs:subClassOf hierarchy loaded.
 
     Bootstrap triples close the subclass-closure gap left by pyoxigraph's
-    lack of RDFS entailment (spike-2 §2.1) — without them, queries like
+    lack of RDFS entailment — without them, queries like
     `?s a/rdfs:subClassOf* cf:Screen` would return zero `cf:Page` rows
     even when Page instances exist.
     """
@@ -125,8 +120,8 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
     "doc_types",
     multiple=True,
     help=(
-        "Restrict to specific doc_types. Repeatable. Default = Alpha scope "
-        "(prd, arch, test-report) per task-7 §7.1."
+        "Restrict to specific doc_types. Repeatable. "
+        "Default = prd, arch, test-report."
     ),
 )
 @click.option(
@@ -150,7 +145,7 @@ def kg_import(
     dry_run: bool,
     json_output: bool,
 ) -> None:
-    """Ingest business documents into the KG (task-7 §7.2 six-phase pipeline)."""
+    """Ingest business documents into the KG (six-phase pipeline)."""
     from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
     from cataforge.kg.ingest import DEFAULT_DOC_TYPES, run_migration
 
@@ -310,7 +305,7 @@ def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
     help="Emit a JSON result blob (per-file sha256 included) instead of the table.",
 )
 def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
-    """Export the KG to per-entity Markdown files (task-4 pipeline)."""
+    """Export the KG to per-entity Markdown files."""
     from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
     from cataforge.kg.export import compile_to_markdown
 
@@ -403,9 +398,8 @@ def kg_reconcile(
     For each active doc_type, compares FS-extracted entities and
     traceability triples against what is in the KG. Writes the diff to
     `docs/.kg-reconcile-report.json` and exits non-zero if any
-    `missing` or `ghost` entry exists. Used at Alpha exit to certify
-    that doctor's ERROR-gate cycle has nothing to flag, and
-    operationally to spot drift after every `cataforge kg commit`.
+    `missing` or `ghost` entry exists. Operationally used to spot
+    drift after every `cataforge kg import`.
     """
     from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
     from cataforge.kg._dispatch import kg_config_for
@@ -525,7 +519,7 @@ def kg_reconcile(
     default=1.0,
     show_default=True,
     help=(
-        "Reserved for forward-compat with §7.5; content_hash compare is "
+        "Reserved for forward-compat; content_hash compare is "
         "binary so this value is currently ignored."
     ),
 )
@@ -553,7 +547,7 @@ def kg_compare_read(
 ) -> None:
     """Sample-audit KG-rendered entities against the legacy file slice.
 
-    Per task-7 §7.5, this is a *diagnostic* check, not a gate: alarms
+    This is a *diagnostic* check, not a gate: alarms
     do not block writes. Operators run it periodically post-cutover; if
     alarms persist for a doc_type the prescribed response is to remove
     that doc_type from `kg_active_doc_types` and investigate. Exit code
@@ -619,3 +613,170 @@ def kg_compare_read(
         )
     if len(report.alarms) > 10:
         click.echo(f"  ... +{len(report.alarms) - 10} more")
+
+
+@kg_group.command("snapshot")
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path(".cataforge/kg/snapshots"),
+    show_default=True,
+    help="Directory to write the snapshot NQuads file and metadata.",
+)
+@click.option(
+    "--label",
+    default=None,
+    help="Optional label appended to the snapshot filename.",
+)
+def kg_snapshot(db_path: Path, output_dir: Path, label: str | None) -> None:
+    """Save a full snapshot of the current KG store."""
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg.snapshot import create_snapshot
+
+    config = KGConfig(store_backend="oxigraph", db_path=db_path)
+    try:
+        with KnowledgeGraphStore.connect(config) as handle:
+            meta = create_snapshot(
+                handle.raw, config, output_dir, label=label
+            )
+    except KGStoreNotInitializedError as exc:
+        raise KGStoreError(str(exc)) from exc
+
+    click.echo(
+        f"OK: snapshot saved to {meta.path} ({meta.quad_count} quads)"
+    )
+
+
+@kg_group.command("rollback")
+@click.argument(
+    "snapshot_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--db-path",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store to replace.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Overwrite the existing store without confirmation.",
+)
+def kg_rollback(snapshot_path: Path, db_path: Path, force: bool) -> None:
+    """Restore the KG store from a snapshot file.
+
+    SNAPSHOT_PATH is the path to the .nq file created by `cataforge kg snapshot`.
+    """
+    from cataforge.kg import KGConfig, KGStoreAlreadyExistsError
+    from cataforge.kg.snapshot import restore_snapshot
+
+    if not force:
+        click.confirm(
+            f"This will replace the store at {db_path}. Continue?",
+            abort=True,
+        )
+
+    config = KGConfig(store_backend="oxigraph", db_path=db_path)
+    try:
+        count = restore_snapshot(snapshot_path, config, force=True)
+    except KGStoreAlreadyExistsError as exc:
+        raise KGStoreError(str(exc)) from exc
+
+    click.echo(f"OK: restored {count} quads from {snapshot_path}")
+
+
+@kg_group.command("repair")
+@click.option(
+    "--project-root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("."),
+    show_default=True,
+    help="Project root containing docs/ and .cataforge/.",
+)
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be repaired without modifying the store.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit a JSON stats blob instead of the human-readable summary.",
+)
+@click.pass_context
+def kg_repair(
+    ctx: click.Context,
+    project_root: Path,
+    db_path: Path,
+    dry_run: bool,
+    json_output: bool,
+) -> None:
+    """Auto-fix KG drift detected by reconcile."""
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg._dispatch import kg_config_for
+    from cataforge.kg.repair import repair
+
+    project_root = project_root.resolve()
+    base_config = kg_config_for(project_root)
+
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=db_path,
+        kg_active_doc_types=set(base_config.kg_active_doc_types),
+        ontology_namespace=base_config.ontology_namespace,
+        base_namespace=base_config.base_namespace,
+    )
+
+    try:
+        with KnowledgeGraphStore.connect(config) as handle:
+            stats = repair(
+                handle.raw, project_root, config, dry_run=dry_run
+            )
+    except KGStoreNotInitializedError as exc:
+        raise KGStoreError(str(exc)) from exc
+
+    if json_output:
+        import json as json_mod  # noqa: PLC0415
+
+        click.echo(
+            json_mod.dumps(
+                {
+                    "dry_run": dry_run,
+                    "ghosts_removed": stats.ghosts_removed,
+                    "missing_ingested": stats.missing_ingested,
+                    "errors": stats.errors,
+                },
+                indent=2,
+            )
+        )
+    else:
+        prefix = "[dry-run] " if dry_run else ""
+        click.echo(
+            f"{prefix}ghosts_removed={stats.ghosts_removed} "
+            f"missing_ingested={stats.missing_ingested}"
+        )
+        for err in stats.errors:
+            click.echo(f"  ERROR: {err}", err=True)
+
+    if stats.errors:
+        ctx.exit(1)

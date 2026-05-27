@@ -1,13 +1,12 @@
 """`KnowledgeGraph` — top-level facade that binds query / trace / txn.
 
-Sub-PR 5 surface: a synchronous facade plus a synchronous transaction
-context manager. The async `aconnect` / `async with kg.transaction()`
-pattern from task-5 §5.2 is built on top of the same sync primitives
-in a later sub-PR (when the write path actually has callers — sub-PR 5
-Group A migration is read-only).
+Provides a synchronous facade with a write-lock-guarded transaction
+context manager. The write lock serializes concurrent transactions on
+the same facade instance.
 """
 from __future__ import annotations
 
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -31,7 +30,7 @@ class KnowledgeGraph:
             feature = kg.query.feature("F-001")
             coverage = kg.trace.coverage("F-001")
             with kg.transaction() as txn:
-                txn.add(quad)
+                txn.add_entity(...)
 
     The facade does not own the store lifecycle by default — instances
     constructed directly take a borrowed `ox.Store` reference. The
@@ -42,6 +41,7 @@ class KnowledgeGraph:
     def __init__(self, store: ox.Store, config: KGConfig) -> None:
         self._store = store
         self._config = config
+        self._write_lock = threading.Lock()
         self.query = QueryAPI(store, config)
         self.trace = TraceAPI(store, config)
 
@@ -71,18 +71,16 @@ class KnowledgeGraph:
         try:
             yield kg
         finally:
-            # pyoxigraph 0.5.x has no Store.close(); release on GC.
             pass
 
     @contextmanager
     def transaction(self) -> Iterator[TransactionContext]:
-        """Open a synchronous transaction.
+        """Open a write-lock-guarded synchronous transaction.
 
-        Commits on clean exit, rolls back on exception. The asyncio
-        write-lock + retry decorator from task-5 §5.2 will wrap this
-        context once the async surface is wired in a follow-up sub-PR.
+        Commits on clean exit, rolls back on exception. The write lock
+        serializes concurrent callers on the same facade instance.
         """
-        with transaction(self._store, self._config) as txn:
+        with self._write_lock, transaction(self._store, self._config) as txn:
             yield txn
 
 
