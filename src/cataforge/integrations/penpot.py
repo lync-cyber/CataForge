@@ -48,6 +48,7 @@ from cataforge.utils.docker_util import (
     ensure_docker_running,
     pull_all_images_from_compose_file,
 )
+from cataforge.utils.run_subprocess import run as run_proc
 
 PLATFORM = detect_platform()
 
@@ -254,9 +255,9 @@ def _generate_compose_file(config: dict, force: bool = False) -> str:
 
 def _is_penpot_container_running() -> bool:
     try:
-        r = subprocess.run(
+        r = run_proc(
             ["docker", "ps", "--filter", "name=penpot", "--format", "{{.Names}}"],
-            capture_output=True, text=True, timeout=10,
+            timeout=10,
         )
         return bool(r.stdout.strip())
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
@@ -333,9 +334,11 @@ def deploy_penpot(config: dict) -> bool:
         fail("一个或多个 Docker 镜像拉取失败，已中止部署")
         return False
     info("启动 Penpot 服务...")
-    up_result = subprocess.run(
+    up_result = run_proc(
         dc_cmd + ["-f", compose_file, "up", "-d"],
-        cwd=compose_dir, timeout=120,
+        cwd=compose_dir,
+        timeout=120,
+        capture_output=False,
     )
     if up_result.returncode != 0:
         fail("Docker Compose 启动失败")
@@ -396,10 +399,7 @@ def _is_mcp_running(config: dict) -> bool:
 def _is_process_alive(pid: int) -> bool:
     try:
         if PLATFORM == "windows":
-            r = subprocess.run(
-                ["tasklist", "/FI", f"PID eq {pid}"],
-                capture_output=True, text=True, timeout=5,
-            )
+            r = run_proc(["tasklist", "/FI", f"PID eq {pid}"], timeout=5)
             return str(pid) in r.stdout
         else:
             os.kill(pid, 0)
@@ -444,13 +444,13 @@ def start_mcp(config: dict) -> bool:
     cmd = [npx_path, "--yes", package_spec]
     with open(MCP_LOG_FILE, "wb") as log_fh:
         if PLATFORM == "windows":
-            proc = subprocess.Popen(
+            proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
                 cmd, stdout=log_fh, stderr=subprocess.STDOUT,
                 env=env,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
             )
         else:
-            proc = subprocess.Popen(
+            proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
                 cmd, stdout=log_fh, stderr=subprocess.STDOUT,
                 env=env, start_new_session=True,
             )
@@ -539,9 +539,9 @@ def stop_mcp(config: dict) -> bool:
                         "the Windows admin tools (taskkill ships with every "
                         "Pro/Enterprise SKU) or stop the process manually."
                     )
-                subprocess.run(
+                run_proc(
                     ["taskkill", "/F", "/T", "/PID", str(pid)],
-                    capture_output=True, timeout=10,
+                    timeout=10,
                 )
             else:
                 os.kill(pid, signal.SIGTERM)
@@ -692,9 +692,11 @@ def cmd_start(config: dict) -> int:
     if os.path.isfile(compose_file):
         dc_cmd = docker_compose_cmd()
         if dc_cmd and ensure_docker_running():
-            subprocess.run(
+            run_proc(
                 dc_cmd + ["-f", compose_file, "up", "-d"],
-                cwd=config["penpot_dir"], timeout=120,
+                cwd=config["penpot_dir"],
+                timeout=120,
+                capture_output=False,
             )
     start_mcp(config)
     return 0
@@ -709,9 +711,11 @@ def cmd_stop(config: dict) -> int:
         dc_cmd = docker_compose_cmd()
         if dc_cmd:
             section("停止 Penpot (Docker)")
-            subprocess.run(
+            run_proc(
                 dc_cmd + ["-f", compose_file, "down"],
-                cwd=config["penpot_dir"], timeout=120,
+                cwd=config["penpot_dir"],
+                timeout=120,
+                capture_output=False,
             )
     return 0
 
@@ -911,10 +915,10 @@ def cmd_ensure(config: dict) -> int:
             return 1
         dc_cmd = docker_compose_cmd()
         if dc_cmd and not _is_penpot_running(config):
-            subprocess.run(
+            run_proc(
                 dc_cmd + ["-f", compose_file, "up", "-d"],
                 cwd=config["penpot_dir"],
-                capture_output=True, timeout=120,
+                timeout=120,
             )
             for _ in range(30):
                 if _is_penpot_running(config):
