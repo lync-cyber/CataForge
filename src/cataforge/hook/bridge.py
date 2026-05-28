@@ -2,10 +2,16 @@
 
 Bridges CataForge's canonical hook spec (``hooks.yaml``) to each platform's
 native hook config, collecting *warnings* for any hook entry that could not
-be materialised natively (missing event mapping, missing matcher mapping,
-unimplemented degradation strategy).  Callers (``deploy`` / ``doctor``) are
-expected to surface those warnings to the user so silent functional loss
-becomes observable.
+be materialised natively (missing event mapping, missing matcher mapping).
+Callers (``deploy`` / ``doctor``) are expected to surface those warnings to
+the user so silent functional loss becomes observable.
+
+Degradation strategies (used when a platform marks a canonical hook as
+``degraded`` rather than ``native``) are materialised by
+:func:`apply_degradation`. The implemented strategy set is the module-level
+:data:`KNOWN_DEGRADATION_STRATEGIES`; any other value found in a degradation
+template emits a ``WARN: …`` action line so the deploy log surfaces the gap
+instead of silently dropping the hook.
 """
 
 from __future__ import annotations
@@ -25,6 +31,43 @@ logger = logging.getLogger(__name__)
 # Highest schema version this release understands.  Older hooks.yaml files
 # are treated as v1 (missing/optional fields default to "no filter").
 SUPPORTED_SCHEMA_VERSION = 2
+
+# Degradation strategies materialised by :func:`apply_degradation`.
+#
+#  - ``rules_injection``    — accumulate safety rule text into
+#                             ``auto-safety-degradation.md``
+#  - ``prompt_instruction`` — accumulate agent instructions (e.g. audit-log
+#                             commands) into ``auto-prompt-instructions.md``
+#  - ``prompt_checklist``   — accumulate self-check checklists into
+#                             ``auto-prompt-checklists.md``
+#  - ``skip``               — emit a ``SKIP: …`` line; no file written
+#
+# Any other value found in a ``degradation_templates`` entry emits a
+# ``WARN: …`` action so the deploy log surfaces the unrecognised strategy
+# instead of silently dropping the hook.
+KNOWN_DEGRADATION_STRATEGIES = frozenset(
+    {"rules_injection", "prompt_instruction", "prompt_checklist", "skip"}
+)
+
+# Per-strategy aggregate output file. Strategies not listed here either do
+# not produce a file (``skip``) or are unknown (handled separately as WARN).
+_AGGREGATE_OUTPUTS: tuple[tuple[str, str, str], ...] = (
+    (
+        "rules_injection",
+        "auto-safety-degradation.md",
+        "Auto-generated Safety Rules (Hook Degradation)",
+    ),
+    (
+        "prompt_instruction",
+        "auto-prompt-instructions.md",
+        "Auto-generated Agent Instructions (Hook Degradation)",
+    ),
+    (
+        "prompt_checklist",
+        "auto-prompt-checklists.md",
+        "Auto-generated Self-check Checklists (Hook Degradation)",
+    ),
+)
 
 
 class HookGenerationResult(NamedTuple):
@@ -61,10 +104,7 @@ def check_schema_version(spec: dict[str, Any]) -> str | None:
     try:
         version = int(raw)
     except (TypeError, ValueError):
-        return (
-            f"hooks.yaml: schema_version must be an integer, got {raw!r}. "
-            "Treating as v1."
-        )
+        return f"hooks.yaml: schema_version must be an integer, got {raw!r}. Treating as v1."
     if version > SUPPORTED_SCHEMA_VERSION:
         return (
             f"hooks.yaml: schema_version={version} is newer than this "
@@ -125,9 +165,7 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> HookGenerationResult:
                 continue
 
             if capability:
-                native_tool = hook_tool_overrides.get(capability) or tool_map.get(
-                    capability
-                )
+                native_tool = hook_tool_overrides.get(capability) or tool_map.get(capability)
                 if native_tool is None:
                     warnings.append(
                         f"{adapter.platform_id}: matcher_capability "
@@ -148,9 +186,7 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> HookGenerationResult:
             # semantic tag used for CLI display and future policy — it must
             # not leak into platform configs, where it would be rejected or
             # silently ignored by the host IDE.
-            platform_entry_type = adapter.hook_entry_type or hook_entry.get(
-                "type", "command"
-            )
+            platform_entry_type = adapter.hook_entry_type or hook_entry.get("type", "command")
 
             translated.append(
                 {
@@ -211,53 +247,76 @@ def get_degraded_hooks(adapter: PlatformAdapter) -> list[dict[str, Any]]:
 def apply_degradation(
     adapter: PlatformAdapter, project_root: Path, *, dry_run: bool = False
 ) -> list[str]:
-    """Materialize degradation strategies into file changes."""
+    """Materialize degradation strategies into file changes.
+
+    Each strategy in :data:`KNOWN_DEGRADATION_STRATEGIES` is handled
+    explicitly; ``skip`` emits a single log line and the three
+    file-producing strategies aggregate per-hook content into one Markdown
+    file per strategy under ``.cataforge/platforms/{platform}/overrides/
+    rules/``. Whether the platform adapter automatically picks those files
+    up (Cursor scans ``overrides/rules/`` for ``.mdc`` wrapping; others may
+    leave them for manual review) is platform-specific — by writing them
+    unconditionally the bridge guarantees that no degraded hook is silently
+    dropped.
+
+    Unrecognised strategies emit a ``WARN: …`` action so the deploy log
+    surfaces the gap.
+    """
     degraded = get_degraded_hooks(adapter)
     actions: list[str] = []
-    rules_content_parts: list[str] = []
 
-    # Platforms with a plugin-based hook surface (OpenCode) materialise
-    # their hooks through a generated plugin file in addition to whatever
-    # per-hook degradation strategies still apply for events the plugin
-    # host cannot represent (e.g. Notification on OpenCode).
+    # Plugin-style platforms (OpenCode) materialise their hooks via a
+    # generated plugin file in addition to whatever per-hook degradation
+    # strategies still apply for events the plugin host cannot represent.
     plugin_actions = _emit_plugin_hooks(adapter, project_root, dry_run=dry_run)
     if plugin_actions is not None:
         actions.extend(plugin_actions)
 
+    # Per-strategy accumulator. Each entry is ``(hook_name, content)`` so
+    # the aggregated file labels every fragment with its source hook.
+    aggregates: dict[str, list[tuple[str, str]]] = {item[0]: [] for item in _AGGREGATE_OUTPUTS}
+
     for entry in degraded:
         strategy = entry["strategy"]
+        name = entry["name"]
         content = entry["content"]
 
-        if strategy == "rules_injection":
-            rules_content_parts.append(content)
+        if strategy in aggregates:
+            aggregates[strategy].append((name, content))
         elif strategy == "skip":
-            actions.append(f"SKIP: {entry['name']} — {entry.get('reason', '')}")
-
-    if rules_content_parts:
-        auto_rules_dir = (
-            project_root
-            / ".cataforge"
-            / "platforms"
-            / adapter.platform_id
-            / "overrides"
-            / "rules"
-        )
-        auto_rules_path = auto_rules_dir / "auto-safety-degradation.md"
-        if dry_run:
-            actions.append(
-                f"would write rules_injection → {auto_rules_path} "
-                f"({len(rules_content_parts)} fragment(s))"
-            )
+            actions.append(f"SKIP: {name} — {entry.get('reason', '')}")
         else:
-            auto_rules_dir.mkdir(parents=True, exist_ok=True)
-            auto_rules_path.write_text(
-                "# Auto-generated Safety Rules (Hook Degradation)\n\n"
-                + "\n\n".join(rules_content_parts),
-                encoding="utf-8",
+            actions.append(
+                f"WARN: {name} — unrecognised degradation strategy "
+                f"{strategy!r}; nothing emitted. Known strategies: "
+                f"{sorted(KNOWN_DEGRADATION_STRATEGIES)}"
             )
-            actions.append(f"rules_injection → {auto_rules_path}")
+
+    auto_rules_dir = (
+        project_root / ".cataforge" / "platforms" / adapter.platform_id / "overrides" / "rules"
+    )
+
+    for strategy, filename, heading in _AGGREGATE_OUTPUTS:
+        fragments = aggregates[strategy]
+        if not fragments:
+            continue
+        out_path = auto_rules_dir / filename
+        if dry_run:
+            actions.append(f"would write {strategy} → {out_path} ({len(fragments)} fragment(s))")
+            continue
+        auto_rules_dir.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(_render_aggregate(heading, fragments), encoding="utf-8")
+        actions.append(f"{strategy} → {out_path}")
 
     return actions
+
+
+def _render_aggregate(heading: str, fragments: list[tuple[str, str]]) -> str:
+    """Render aggregated degradation content with per-hook section headers."""
+    parts = [f"# {heading}\n"]
+    for hook_name, content in fragments:
+        parts.append(f"\n## {hook_name}\n\n{content.strip()}\n")
+    return "".join(parts)
 
 
 def _emit_plugin_hooks(
