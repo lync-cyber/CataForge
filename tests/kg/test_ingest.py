@@ -5,6 +5,7 @@ the verifiable-condition workhorse for task-7 §7.1 sub-PR 3 exit
 ("`cataforge kg validate` with zero `missing` entries on a hand-crafted
 fixture project covering both waterfall and agile process models").
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,12 +15,14 @@ import pytest
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 VARIANTS = ("waterfall", "agile")
 
+
 def _open_memory_store():
     from cataforge.kg import KGConfig
     from cataforge.kg.store import init_store
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config
+
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_codemod_end_to_end(variant: str) -> None:
@@ -34,18 +37,19 @@ def test_codemod_end_to_end(variant: str) -> None:
     assert stats.parsed_docs == 3, f"{variant}: expected 3 docs, got {stats.parsed_docs}"
     extracted_ids = {e.entity_id for e in entities}
     assert extracted_ids == {
-        "F-001", "F-002",
-        "AC-001", "AC-002",
-        "M-001", "M-002",
-        "TC-001", "TC-002",
+        "F-001",
+        "F-002",
+        "AC-001",
+        "AC-002",
+        "M-001",
+        "M-002",
+        "TC-001",
+        "TC-002",
         "TS-001",
     }, f"{variant}: unexpected entity set: {extracted_ids}"
 
     # Relation-side
-    rel_keys = {
-        (r.subject_entity_id, r.predicate_curie, r.object_entity_id)
-        for r in relations
-    }
+    rel_keys = {(r.subject_entity_id, r.predicate_curie, r.object_entity_id) for r in relations}
     assert rel_keys == {
         ("M-001", "cf:implements", "F-001"),
         ("M-002", "cf:implements", "F-002"),
@@ -65,6 +69,7 @@ def test_codemod_end_to_end(variant: str) -> None:
         f"{variant}: verify failed: missing={stats.verify_result.missing_entities} "
         f"hash_mismatch={stats.verify_result.content_hash_mismatches}"
     )
+
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_codemod_is_idempotent(variant: str) -> None:
@@ -89,6 +94,7 @@ def test_codemod_is_idempotent(variant: str) -> None:
     assert second.write_stats.relations_skipped == 4
     assert second.verify_result is not None and second.verify_result.ok
 
+
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_dry_run_does_not_write(variant: str) -> None:
     from cataforge.kg.ingest import run_migration
@@ -96,9 +102,7 @@ def test_dry_run_does_not_write(variant: str) -> None:
     handle, config = _open_memory_store()
     root = FIXTURE_ROOT / variant
 
-    stats, entities, relations = run_migration(
-        handle.raw, root, config, dry_run=True
-    )
+    stats, entities, relations = run_migration(handle.raw, root, config, dry_run=True)
 
     assert stats.dry_run is True
     assert stats.write_stats.entities_written == 0
@@ -108,6 +112,7 @@ def test_dry_run_does_not_write(variant: str) -> None:
     # Graph is still empty of business data — verify reports everything missing.
     assert stats.verify_result is not None
     assert len(stats.verify_result.missing_entities) == 9
+
 
 def test_xref_inside_arch_does_not_pollute_arch_entity_set() -> None:
     """Regression: ENTITY_PREFIX_RE used to capture `F-001` from
@@ -122,6 +127,7 @@ def test_xref_inside_arch_does_not_pollute_arch_entity_set() -> None:
     assert entity_ids == {"M-001", "M-002", "TS-001"}, (
         f"arch should only define M-NNN/TS-NNN entities; got {entity_ids}"
     )
+
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_project_node_records_process_model(variant: str) -> None:
@@ -143,6 +149,7 @@ def test_project_node_records_process_model(variant: str) -> None:
     assert len(rows) == 1, f"{variant}: expected exactly one Project node, got {len(rows)}"
     assert rows[0]["pm"].value == variant
 
+
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_validate_reports_zero_violations_after_clean_import(variant: str) -> None:
     from cataforge.kg.ingest import run_migration
@@ -153,8 +160,33 @@ def test_validate_reports_zero_violations_after_clean_import(variant: str) -> No
     run_migration(handle.raw, root, config)
 
     report = validate(handle.raw, config)
-    assert report.ok, (
-        f"{variant}: validate flagged violations on a clean fixture:\n"
-        + "\n".join(f"  {v.severity} {v.entity_id} {v.shape}: {v.message}"
-                    for v in report.violations)
+    assert report.ok, f"{variant}: validate flagged violations on a clean fixture:\n" + "\n".join(
+        f"  {v.severity} {v.entity_id} {v.shape}: {v.message}" for v in report.violations
+    )
+
+
+def test_run_migration_phase5_rolls_back_on_write_entities_failure() -> None:
+    """Phase 5 compensating rollback: store has no new entities after write_entities raises (C3)."""
+    from unittest.mock import patch
+
+    from cataforge.kg import KGConfig
+    from cataforge.kg._quads import quads_for_subject
+    from cataforge.kg.ingest import run_migration
+    from cataforge.kg.ingest.iri import entity_iri
+    from cataforge.kg.store import init_store
+
+    config = KGConfig(store_backend="memory")
+    handle = init_store(config, force=True)
+    store = handle.raw
+    root = FIXTURE_ROOT / "waterfall"
+
+    with patch(
+        "cataforge.kg.ingest.migrate.write_entities",
+        side_effect=RuntimeError("injected write_entities failure"),
+    ), pytest.raises(RuntimeError, match="injected write_entities failure"):
+        run_migration(store, root, config)
+
+    f001_iri = entity_iri("F-001", config.base_namespace)
+    assert len(quads_for_subject(store, f001_iri)) == 0, (
+        "No entity quads should remain after Phase 5 rollback"
     )

@@ -8,6 +8,7 @@ Every traceability-completeness ASK in the KG layer must consume the
 result through this single function.  A pre-commit grep gate enforces
 this constraint under ``src/cataforge/kg/``.
 """
+
 from __future__ import annotations
 
 import re
@@ -18,7 +19,11 @@ if TYPE_CHECKING:
 
 _SPARQL_KEYWORD_RE = re.compile(
     r"(?:#[^\n]*\n\s*)*"  # skip leading comment lines
-    r"(?:(?:PREFIX|BASE)\s+\S+\s+<[^>]*>\s*)*"  # skip PREFIX/BASE prologues
+    r"(?:(?:"
+    r"PREFIX\s+\S+\s+<[^>]*>"  # PREFIX <local>: <iri>
+    r"|"
+    r"BASE\s+<[^>]*>"  # BASE <iri>  (no intermediate token)
+    r")\s*)*"
     r"(\w+)",  # capture first keyword (ASK, SELECT, CONSTRUCT, …)
     re.IGNORECASE,
 )

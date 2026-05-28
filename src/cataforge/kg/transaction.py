@@ -5,10 +5,12 @@ entity CRUD (`add_entity`/`update_entity`/`delete_entity`/`add_relation`/
 `remove_relation`). High-level methods build quads via `_quads.py` and
 delegate to the low-level staging list; `commit()` applies them atomically.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from cataforge.kg._ask import ask
@@ -19,6 +21,11 @@ from cataforge.kg._quads import (
     build_relation_quad,
     quads_for_subject,
     quads_targeting,
+)
+from cataforge.kg._sparql_utils import (
+    assert_safe_iri,
+    cf_namespace,
+    escape_sparql_literal,
 )
 from cataforge.kg.ingest.iri import entity_iri
 
@@ -87,7 +94,7 @@ class TransactionContext:
         """
         self._guard_open()
         iri = entity_iri(entity_id, self._config.base_namespace)
-        ns = self._config.ontology_namespace.rstrip("/") + "/"
+        ns = cf_namespace(self._config)
 
         if self._content_hash_matches(iri, content_hash, ns):
             return iri
@@ -121,16 +128,12 @@ class TransactionContext:
         """Stage a partial update for specific slots on an existing entity."""
         self._guard_open()
         iri = entity_iri(entity_id, self._config.base_namespace)
-        ns = self._config.ontology_namespace.rstrip("/") + "/"
+        ns = cf_namespace(self._config)
 
         if not self._entity_exists(iri):
-            raise KGEntityNotFoundError(
-                f"Entity {entity_id} not found in store."
-            )
+            raise KGEntityNotFoundError(f"Entity {entity_id} not found in store.")
 
-        if content_hash is not None and self._content_hash_matches(
-            iri, content_hash, ns
-        ):
+        if content_hash is not None and self._content_hash_matches(iri, content_hash, ns):
             return
 
         import pyoxigraph as ox  # noqa: PLC0415
@@ -140,9 +143,7 @@ class TransactionContext:
 
         for slot_name, new_value in slot_values.items():
             pred = ox.NamedNode(f"{ns}{slot_name}")
-            for q in list(
-                self._store.quads_for_pattern(subject, pred, None, None)
-            ):
+            for q in list(self._store.quads_for_pattern(subject, pred, None, None)):
                 self._staged_removes.append(q)
             self._staged_adds.append(
                 ox.Quad(
@@ -154,9 +155,7 @@ class TransactionContext:
 
         if content_hash is not None:
             pred = ox.NamedNode(f"{ns}content_hash")
-            for q in list(
-                self._store.quads_for_pattern(subject, pred, None, None)
-            ):
+            for q in list(self._store.quads_for_pattern(subject, pred, None, None)):
                 self._staged_removes.append(q)
             self._staged_adds.append(
                 ox.Quad(
@@ -165,6 +164,21 @@ class TransactionContext:
                     ox.Literal(content_hash, datatype=string_dt),
                 )
             )
+
+        datetime_dt = ox.NamedNode("http://www.w3.org/2001/XMLSchema#dateTime")
+        updated_at_pred = ox.NamedNode(f"{ns}updated_at")
+        for q in list(self._store.quads_for_pattern(subject, updated_at_pred, None, None)):
+            self._staged_removes.append(q)
+        self._staged_adds.append(
+            ox.Quad(
+                subject,
+                updated_at_pred,
+                ox.Literal(
+                    datetime.now(timezone.utc).isoformat(),
+                    datatype=datetime_dt,
+                ),
+            )
+        )
 
     def delete_entity(
         self,
@@ -182,9 +196,7 @@ class TransactionContext:
         iri = entity_iri(entity_id, self._config.base_namespace)
 
         if not self._entity_exists(iri):
-            raise KGEntityNotFoundError(
-                f"Entity {entity_id} not found in store."
-            )
+            raise KGEntityNotFoundError(f"Entity {entity_id} not found in store.")
 
         incoming = quads_targeting(self._store, iri)
         if incoming and not cascade:
@@ -207,15 +219,15 @@ class TransactionContext:
     ) -> None:
         """Stage a traceability edge. Idempotent: skips if already present."""
         self._guard_open()
-        quad = build_relation_quad(
-            subject_id, predicate_curie, object_id, self._config
-        )
+        quad = build_relation_quad(subject_id, predicate_curie, object_id, self._config)
         s_iri = entity_iri(subject_id, self._config.base_namespace)
         o_iri = entity_iri(object_id, self._config.base_namespace)
         p_iri = quad.predicate.value
         if ask(
             self._store,
-            f"ASK {{ <{s_iri}> <{p_iri}> <{o_iri}> }}",
+            f"ASK {{ <{assert_safe_iri(s_iri)}> "
+            f"<{assert_safe_iri(p_iri)}> "
+            f"<{assert_safe_iri(o_iri)}> }}",
         ):
             return
         self._staged_adds.append(quad)
@@ -228,9 +240,7 @@ class TransactionContext:
     ) -> None:
         """Stage removal of a traceability edge."""
         self._guard_open()
-        quad = build_relation_quad(
-            subject_id, predicate_curie, object_id, self._config
-        )
+        quad = build_relation_quad(subject_id, predicate_curie, object_id, self._config)
         self._staged_removes.append(quad)
 
     # ------------------------------------------------------------------
@@ -240,13 +250,9 @@ class TransactionContext:
     def commit(self) -> None:
         """Apply staged removes followed by adds."""
         if self._rolled_back:
-            raise RuntimeError(
-                "Cannot commit a transaction that has already been rolled back."
-            )
+            raise RuntimeError("Cannot commit a transaction that has already been rolled back.")
         if self._committed:
-            raise RuntimeError(
-                "Transaction has already been committed."
-            )
+            raise RuntimeError("Transaction has already been committed.")
         for q in self._staged_removes:
             self._store.remove(q)
         for q in self._staged_adds:
@@ -256,9 +262,7 @@ class TransactionContext:
     def rollback(self) -> None:
         """Discard staged changes without touching the live store."""
         if self._committed:
-            raise RuntimeError(
-                "Cannot rollback a transaction that has already committed."
-            )
+            raise RuntimeError("Cannot rollback a transaction that has already committed.")
         self._staged_adds.clear()
         self._staged_removes.clear()
         self._rolled_back = True
@@ -276,12 +280,11 @@ class TransactionContext:
     def _entity_exists(self, iri: str) -> bool:
         return ask(self._store, f"ASK {{ <{iri}> a ?cls }}")
 
-    def _content_hash_matches(
-        self, iri: str, content_hash: str, namespace: str
-    ) -> bool:
+    def _content_hash_matches(self, iri: str, content_hash: str, namespace: str) -> bool:
+        safe_hash = escape_sparql_literal(content_hash)
         sparql = (
             f"PREFIX cf: <{namespace}> "
-            f'ASK {{ <{iri}> cf:content_hash "{content_hash}" }}'
+            f'ASK {{ <{assert_safe_iri(iri)}> cf:content_hash "{safe_hash}" }}'
         )
         return ask(self._store, sparql)
 
@@ -295,9 +298,12 @@ def transaction(store: ox.Store, config: KGConfig) -> Iterator[TransactionContex
     txn = TransactionContext(store, config)
     try:
         yield txn
-    except Exception:
+    except Exception as _orig_exc:
         if not txn._committed:
-            txn.rollback()
+            try:
+                txn.rollback()
+            except Exception as _rb_exc:
+                _orig_exc.add_note(f"rollback also failed: {_rb_exc!r}")
         raise
     else:
         if not txn._committed:

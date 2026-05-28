@@ -180,8 +180,10 @@ class CrossDocChecker:
 
         cfg = kg_config_for(project_root)
         try:
+            from cataforge.kg._sparql_utils import cf_namespace  # noqa: PLC0415
+
             with KnowledgeGraph.connect(cfg) as kg:
-                ns = cfg.ontology_namespace.rstrip("/") + "/"
+                ns = cf_namespace(cfg)
                 prd_q = (
                     f"PREFIX cf: <{ns}> "
                     "SELECT DISTINCT ?eid WHERE { "

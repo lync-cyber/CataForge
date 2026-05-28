@@ -15,6 +15,7 @@ Resolution layer:
 The helpers also cache per-project decisions to avoid re-reading
 `framework.json` on every call.
 """
+
 from __future__ import annotations
 
 import json
@@ -67,10 +68,29 @@ def kg_config_for(project_root: str | Path) -> KGConfig:
         return cached
 
     project_root = Path(project_root)
-    db_path = project_root / ".cataforge" / "kg" / "store"
+    data = _read_framework_json(project_root)
+    kg_section = data.get("kg") or {}
+
+    default_db = project_root / ".cataforge" / "kg" / "store"
+    raw_db = kg_section.get("db_path")
+    db_path = (project_root / raw_db) if raw_db else default_db
+
     active = active_doc_types(project_root)
 
-    cfg = KGConfig(db_path=db_path, kg_active_doc_types=active)
+    defaults = KGConfig()
+    cfg = KGConfig(
+        store_backend=kg_section.get("store_backend", defaults.store_backend),
+        db_path=db_path,
+        governance=kg_section.get("governance", defaults.governance),
+        coverage_mode=kg_section.get("coverage_mode", defaults.coverage_mode),
+        query_timeout=kg_section.get("query_timeout", defaults.query_timeout),
+        max_transaction_retries=kg_section.get(
+            "max_transaction_retries", defaults.max_transaction_retries
+        ),
+        base_namespace=kg_section.get("base_namespace", defaults.base_namespace),
+        ontology_namespace=kg_section.get("ontology_namespace", defaults.ontology_namespace),
+        kg_active_doc_types=active,
+    )
     _CONFIG_CACHE[key] = cfg
     return cfg
 

@@ -1,10 +1,12 @@
 """Quad construction helpers shared by ingest/writer.py and TransactionContext."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from cataforge.kg._config import KGConfig
+from cataforge.kg._sparql_utils import cf_namespace
 from cataforge.kg.ingest.iri import class_iri, entity_iri
 
 if TYPE_CHECKING:
@@ -27,8 +29,14 @@ def _slot_iri(slot_curie: str, namespace: str) -> str:
 
 
 def _sort_key(entity_id: str) -> str:
-    prefix, numeric = entity_id.split("-", 1)
-    return f"{prefix}:{int(numeric):0{_PREFIX_LEN_PADDING}d}"
+    parts = (entity_id or "").split("-", 1)
+    if len(parts) < 2:
+        return entity_id or ""
+    prefix, numeric = parts
+    try:
+        return f"{prefix}:{int(numeric):0{_PREFIX_LEN_PADDING}d}"
+    except ValueError:
+        return entity_id
 
 
 def build_entity_quads(
@@ -47,7 +55,7 @@ def build_entity_quads(
     """Return the complete set of quads describing one entity."""
     import pyoxigraph as ox  # noqa: PLC0415
 
-    namespace = config.ontology_namespace.rstrip("/") + "/"
+    namespace = cf_namespace(config)
     base_ns = config.base_namespace
     iri = entity_iri(entity_id, base_ns)
     subject = ox.NamedNode(iri)
@@ -117,7 +125,7 @@ def build_relation_quad(
     """Return a single traceability-edge quad."""
     import pyoxigraph as ox  # noqa: PLC0415
 
-    namespace = config.ontology_namespace.rstrip("/") + "/"
+    namespace = cf_namespace(config)
     base_ns = config.base_namespace
     return ox.Quad(
         ox.NamedNode(entity_iri(subject_id, base_ns)),

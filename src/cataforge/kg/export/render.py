@@ -8,17 +8,18 @@ path but for one entity at a time, without writing to disk.
 Public symbol exposed from `cataforge.kg.export` so shim callers can
 import directly: `from cataforge.kg.export import render_entity`.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from cataforge.kg._sparql_utils import _row_lookup, _term_value
-from cataforge.kg.export.hydrator import hydrate_rows
-from cataforge.kg.export.pipeline import (
+from cataforge.kg._sparql_utils import _row_lookup, _term_value, escape_sparql_literal
+from cataforge.kg.export._entity_meta import (
     _RELATION_GROUPS,
     _entity_type_to_doc_type,
     _template_name,
 )
+from cataforge.kg.export.hydrator import hydrate_rows
 from cataforge.kg.export.registry import SparqlRegistry
 from cataforge.kg.export.template_loader import build_jinja_env
 
@@ -28,10 +29,11 @@ if TYPE_CHECKING:
 
 def _resolve_entity_type(store: ox.Store, entity_id: str, namespace: str) -> str | None:
     """Look up `entity_id`'s rdf:type and return the local class name."""
+    safe_id = escape_sparql_literal(entity_id)
     sparql = (
         f"PREFIX cf: <{namespace}> "
         f"SELECT ?cls WHERE {{ "
-        f'  ?s cf:entity_id "{entity_id}" ; a ?cls . '
+        f'  ?s cf:entity_id "{safe_id}" ; a ?cls . '
         "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
         "} LIMIT 1"
     )
@@ -79,7 +81,7 @@ def render_entity(
         return None
 
     sparql_template = registry.get(entity_type)
-    safe_id = entity_id.replace("\\", "\\\\").replace('"', '\\"')
+    safe_id = escape_sparql_literal(entity_id)
     sparql_query = sparql_template % {"entity_id": f'"{safe_id}"'}
     raw_rows = list(store.query(sparql_query))
     relation_groups = _RELATION_GROUPS.get(entity_type.lower(), {})

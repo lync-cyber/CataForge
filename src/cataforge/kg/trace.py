@@ -4,13 +4,14 @@ Returns flat dicts and lists for bidirectional coverage, sprint-review
 back-references, and stale-dep queries. The typed `TraceChain` dataclass
 is used by consumers that need structured traversal results.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from cataforge.kg._config import KGConfig
-from cataforge.kg._sparql_utils import _row_lookup, _strv, _term_value
+from cataforge.kg._sparql_utils import _row_lookup, _strv, _term_value, cf_namespace
 from cataforge.kg.ingest.iri import entity_iri
 
 if TYPE_CHECKING:
@@ -60,43 +61,68 @@ class TraceAPI:
         A Feature is covered iff some artifact asserts `cf:implements` on it
         AND some TestCase reaches it via `cf:verifies+` (transitive).
         Mention-in-prose does not count.
+
+        Two separate SELECT queries are merged on the Python side to avoid
+        the SPARQL 1.1 cartesian-product semantics that parallel OPTIONAL
+        blocks produce when N impl-nodes x M test-cases both bind.
         """
         ns = self._cf_ns()
-        sparql = (
-            f"PREFIX cf:   <{ns}> "
-            "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
-            "SELECT ?feature_id ?title "
-            "       (BOUND(?impl) AS ?has_impl) "
-            "       (BOUND(?tc)   AS ?has_test) "
+        prefix = f"PREFIX cf:   <{ns}> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
+
+        # Pass 1: feature metadata + impl presence
+        impl_sparql = (
+            prefix + "SELECT DISTINCT ?feature_id ?title "
             "WHERE { "
             "  ?feature a cf:Feature ; "
             "           cf:entity_id ?feature_id ; "
             "           cf:title     ?title . "
-            "  OPTIONAL { "
+            "} ORDER BY ?feature_id"
+        )
+        titles: dict[str, str | None] = {}
+        for row in self._store.query(impl_sparql):
+            fid = _strv(_row_lookup(row, "feature_id"))
+            if fid is not None:
+                titles[fid] = _strv(_row_lookup(row, "title"))
+
+        # Pass 2: which features have at least one impl artifact
+        has_impl_sparql = (
+            prefix + "SELECT DISTINCT ?feature_id WHERE { "
+            "  ?feature a cf:Feature ; cf:entity_id ?feature_id . "
+            "  FILTER EXISTS { "
             "    ?impl_node cf:implements ?feature . "
             "    ?impl_node a ?impl_class . "
             "    ?impl_class rdfs:subClassOf* cf:SoftwareArtifact . "
-            "    BIND(?impl_node AS ?impl) "
             "  } "
-            "  OPTIONAL { "
-            "    ?tc a cf:TestCase ; cf:verifies+ ?feature . "
-            "  } "
-            "} ORDER BY ?feature_id"
+            "}"
         )
-        out: list[CoverageRow] = []
-        for row in self._store.query(sparql):
+        has_impl: set[str] = set()
+        for row in self._store.query(has_impl_sparql):
             fid = _strv(_row_lookup(row, "feature_id"))
-            if fid is None:
-                continue
-            out.append(
-                CoverageRow(
-                    feature_id=fid,
-                    title=_strv(_row_lookup(row, "title")),
-                    has_impl=_bool_term(_row_lookup(row, "has_impl")),
-                    has_test=_bool_term(_row_lookup(row, "has_test")),
-                )
+            if fid is not None:
+                has_impl.add(fid)
+
+        # Pass 3: which features have at least one verifying TestCase
+        has_test_sparql = (
+            prefix + "SELECT DISTINCT ?feature_id WHERE { "
+            "  ?feature a cf:Feature ; cf:entity_id ?feature_id . "
+            "  FILTER EXISTS { ?tc a cf:TestCase ; cf:verifies+ ?feature } "
+            "}"
+        )
+        has_test: set[str] = set()
+        for row in self._store.query(has_test_sparql):
+            fid = _strv(_row_lookup(row, "feature_id"))
+            if fid is not None:
+                has_test.add(fid)
+
+        return [
+            CoverageRow(
+                feature_id=fid,
+                title=titles[fid],
+                has_impl=fid in has_impl,
+                has_test=fid in has_test,
             )
-        return out
+            for fid in sorted(titles)
+        ]
 
     def coverage(self, feature_id: str) -> dict[str, Any]:
         """Coverage status for a single Feature.
@@ -219,9 +245,7 @@ class TraceAPI:
             _push_by_class(chain, cls_name, neighbour_id)
 
         if chain.modules or chain.components or chain.tasks:
-            chain.coverage_status = (
-                "full" if chain.test_cases else "partial"
-            )
+            chain.coverage_status = "full" if chain.test_cases else "partial"
         elif chain.test_cases:
             chain.coverage_status = "partial"
         else:
@@ -261,7 +285,7 @@ class TraceAPI:
     # ------------------------------------------------------------------
 
     def _cf_ns(self) -> str:
-        return self._config.ontology_namespace.rstrip("/") + "/"
+        return cf_namespace(self._config)
 
 
 def _bool_term(term: Any) -> bool:

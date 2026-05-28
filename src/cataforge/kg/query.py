@@ -6,6 +6,7 @@ shim layer is a straight pass-through.
 The typed accessors (`feature`, `module`, `component`, `page`, `api`,
 `task`, `test_case`) cover all entity types in the business ontology.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,7 +14,13 @@ from typing import TYPE_CHECKING, Any
 
 from cataforge.kg._ask import ask
 from cataforge.kg._config import KGConfig
-from cataforge.kg._sparql_utils import _row_lookup, _strv, _term_value
+from cataforge.kg._sparql_utils import (
+    _row_lookup,
+    _strv,
+    _term_value,
+    cf_namespace,
+    escape_sparql_literal,
+)
 from cataforge.kg.ingest.iri import (
     class_iri,
     entity_iri,
@@ -23,7 +30,7 @@ if TYPE_CHECKING:
     import pyoxigraph as ox
 
 
-_CF_NS = "https://cataforge.dev/ontology/"
+_PLAN_LOAD_TOKENS_PER_ENTITY = 200
 _ARTIFACT_SCALAR_SLOTS = (
     "entity_id",
     "sort_key",
@@ -90,10 +97,7 @@ class QueryAPI:
             uri = entity_id_or_uri
         else:
             uri = entity_iri(entity_id_or_uri, self._config.base_namespace)
-        sparql = (
-            f"PREFIX cf: <{self._cf_ns()}> "
-            f"ASK {{ <{uri}> cf:entity_id ?eid }}"
-        )
+        sparql = f"PREFIX cf: <{self._cf_ns()}> ASK {{ <{uri}> cf:entity_id ?eid }}"
         return ask(self._store, sparql)
 
     # ------------------------------------------------------------------
@@ -129,9 +133,7 @@ class QueryAPI:
     # Bulk / cross-cutting
     # ------------------------------------------------------------------
 
-    def all_entities(
-        self, *, types: list[str] | None = None
-    ) -> list[dict[str, Any]]:
+    def all_entities(self, *, types: list[str] | None = None) -> list[dict[str, Any]]:
         """Enumerate every entity, ordered by sort_key.
 
         `types` is an optional list of LinkML class names (e.g. ``["Feature"]``);
@@ -172,9 +174,7 @@ class QueryAPI:
             if uri is None:
                 continue
             cls_uri = _term_value(_row_lookup(row, "cls"))
-            cls_name = (
-                str(cls_uri).rsplit("/", 1)[-1] if cls_uri else None
-            )
+            cls_name = str(cls_uri).rsplit("/", 1)[-1] if cls_uri else None
             out.append(
                 {
                     "uri": str(uri),
@@ -219,12 +219,13 @@ class QueryAPI:
         `anchor`. Returns `None` when no source can be located.
         """
         ns = self._cf_ns()
-        anchor_lit = anchor.replace("\\", "\\\\").replace('"', '\\"')
+        anchor_lit = escape_sparql_literal(anchor)
+        doc_id_lit = escape_sparql_literal(doc_id)
         sparql = (
             f"PREFIX cf: <{ns}> "
             "SELECT DISTINCT ?src WHERE { "
             "  ?s cf:source_doc ?src . "
-            f'  FILTER(STRSTARTS(STR(?src), "{doc_id}")) '
+            f'  FILTER(STRSTARTS(STR(?src), "{doc_id_lit}")) '
             "} LIMIT 1"
         )
         rows = list(self._store.query(sparql))
@@ -275,7 +276,7 @@ class QueryAPI:
                         seen.add(dep)
                         seeds.append(dep)
 
-        per_entity = 200
+        per_entity = _PLAN_LOAD_TOKENS_PER_ENTITY
         ordered: list[str] = []
         dropped: list[str] = []
         remaining = token_budget
@@ -296,7 +297,7 @@ class QueryAPI:
     # ------------------------------------------------------------------
 
     def _cf_ns(self) -> str:
-        return self._config.ontology_namespace.rstrip("/") + "/"
+        return cf_namespace(self._config)
 
     def depends_on(self, entity_id: str) -> list[str]:
         ns = self._cf_ns()
@@ -364,19 +365,37 @@ class QueryAPI:
 
 
 def _slice_section(text: str, anchor: str) -> str | None:
-    """Return the slice of `text` from the heading matching `anchor` to
-    the next sibling heading (or EOF). Anchor matching tolerates the
-    common ``§N.M`` form by stripping the leading ``§`` before comparison.
+    """Return the slice from the heading matching `anchor` to the next
+    sibling-or-shallower heading.
+
+    Anchor tolerates ``§N.M`` by stripping the leading ``§``; the marker
+    is matched on word boundaries so ``"F-1"`` does not hit ``"F-12"``,
+    and the slice end is determined by markdown heading level so a deeper
+    sub-heading does not prematurely terminate the section.
     """
+    import re  # noqa: PLC0415
+
     lines = text.splitlines()
     marker = anchor.lstrip("§").strip()
+    if not marker:
+        return None
+    boundary = r"(?:^|[^0-9A-Za-z_-])"
+    after = r"(?=$|[^0-9A-Za-z_-])"
+    pattern = re.compile(boundary + re.escape(marker) + after)
     start: int | None = None
+    start_level = 0
     end = len(lines)
     for i, line in enumerate(lines):
-        if line.startswith("#") and marker in line:
-            start = i
+        stripped = line.lstrip()
+        if not stripped.startswith("#"):
             continue
-        if start is not None and line.startswith("#") and i > start:
+        level = len(stripped) - len(stripped.lstrip("#"))
+        if start is None:
+            if pattern.search(line):
+                start = i
+                start_level = level
+            continue
+        if level <= start_level:
             end = i
             break
     if start is None:

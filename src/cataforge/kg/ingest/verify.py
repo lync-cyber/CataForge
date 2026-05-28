@@ -1,4 +1,5 @@
 """Phase 6: post-write integrity verification."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -6,6 +7,11 @@ from typing import TYPE_CHECKING
 
 from cataforge.kg._ask import ask
 from cataforge.kg._config import KGConfig
+from cataforge.kg._sparql_utils import (
+    assert_safe_iri,
+    cf_namespace,
+    escape_sparql_literal,
+)
 from cataforge.kg.ingest.entity_extract import ExtractedEntity
 from cataforge.kg.ingest.iri import entity_iri
 from cataforge.kg.ingest.relation_extract import ExtractedRelation
@@ -55,15 +61,12 @@ def verify_after_write(
     relations: list[ExtractedRelation],
     config: KGConfig,
 ) -> VerifyResult:
-    namespace = config.ontology_namespace.rstrip("/") + "/"
+    namespace = cf_namespace(config)
     base_ns = config.base_namespace
     result = VerifyResult(
         entity_count_expected=len({e.entity_id for e in entities}),
         relation_count_expected=len(
-            {
-                (r.subject_entity_id, r.predicate_curie, r.object_entity_id)
-                for r in relations
-            }
+            {(r.subject_entity_id, r.predicate_curie, r.object_entity_id) for r in relations}
         ),
     )
 
@@ -71,13 +74,10 @@ def verify_after_write(
 
     # Relation count: count distinct (s, p, o) triples whose predicate is
     # a cf:* slot used for traceability. Filter out type / literal slots.
-    traceability_predicates = sorted(
-        {r.predicate_curie for r in relations}
-    )
+    traceability_predicates = sorted({r.predicate_curie for r in relations})
     if traceability_predicates:
         union = " UNION ".join(
-            f"{{ ?s <{namespace}{c.split(':', 1)[1]}> ?o }}"
-            for c in traceability_predicates
+            f"{{ ?s <{namespace}{c.split(':', 1)[1]}> ?o }}" for c in traceability_predicates
         )
         sparql = f"SELECT (COUNT(*) AS ?n) WHERE {{ {union} }}"
         rows = list(store.query(sparql))
@@ -87,15 +87,16 @@ def verify_after_write(
 
     for entity in entities:
         iri = entity_iri(entity.entity_id, base_ns)
+        safe_iri = assert_safe_iri(iri)
 
-        presence_sparql = f"ASK {{ <{iri}> ?p ?o }}"
+        presence_sparql = f"ASK {{ <{safe_iri}> ?p ?o }}"
         if not ask(store, presence_sparql):
             result.missing_entities.append(entity.entity_id)
             continue
 
+        safe_hash = escape_sparql_literal(entity.content_hash)
         hash_sparql = (
-            f"PREFIX cf: <{namespace}> "
-            f'ASK {{ <{iri}> cf:content_hash "{entity.content_hash}" }}'
+            f'PREFIX cf: <{namespace}> ASK {{ <{safe_iri}> cf:content_hash "{safe_hash}" }}'
         )
         if not ask(store, hash_sparql):
             result.content_hash_mismatches.append(entity.entity_id)

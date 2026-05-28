@@ -9,9 +9,12 @@ The prefix → class-name map mirrors the canonical schema at
 is the source of truth; a regression test pins consistency against the
 live `SchemaView`.
 """
+
 from __future__ import annotations
 
 import re
+
+from cataforge.kg._sparql_utils import escape_iri_component
 
 # Maps entity-id prefix → core.yaml class name. The prefix portion is the
 # longest leading uppercase run before the dash; entity_ids must be
@@ -80,9 +83,13 @@ def id_prefix_to_type(entity_id: str) -> str | None:
 
 def entity_iri(entity_id: str, base_namespace: str = DEFAULT_INSTANCE_NS) -> str:
     """Return the canonical instance IRI for an entity_id."""
-    return f"{base_namespace.rstrip('/')}/{entity_id}"
+    if not entity_id or len(entity_id) > 256:
+        raise ValueError(f"invalid entity_id: {entity_id!r}")
+    return f"{base_namespace.rstrip('/')}/{escape_iri_component(entity_id)}"
 
 
 def class_iri(class_name: str, ontology_namespace: str = DEFAULT_ONTOLOGY_NS) -> str:
     """Return the canonical ontology IRI for a class name."""
-    return f"{ontology_namespace.rstrip('/')}/{class_name}"
+    if not class_name or len(class_name) > 256:
+        raise ValueError(f"invalid class_name: {class_name!r}")
+    return f"{ontology_namespace.rstrip('/')}/{escape_iri_component(class_name)}"

@@ -5,9 +5,12 @@ Idempotency hinges on the content hash: every entity carries a
 hash already matches the freshly computed one. Re-running on unchanged
 source therefore inserts zero new triples.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass
+import contextlib
+import re
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from cataforge.kg._ask import ask
@@ -15,7 +18,11 @@ from cataforge.kg._config import KGConfig
 from cataforge.kg._quads import (
     build_entity_quads,
     build_relation_quad,
-    quads_for_subject,
+)
+from cataforge.kg._sparql_utils import (
+    assert_safe_iri,
+    cf_namespace,
+    escape_sparql_literal,
 )
 from cataforge.kg.ingest.entity_extract import ExtractedEntity
 from cataforge.kg.ingest.iri import entity_iri
@@ -31,6 +38,11 @@ class WriteStats:
     entities_skipped: int = 0
     relations_written: int = 0
     relations_skipped: int = 0
+    written_iris: list[str] = field(default_factory=list)
+    written_relation_quads: list = field(default_factory=list)
+
+
+_CONTENT_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _content_hash_matches(
@@ -41,10 +53,11 @@ def _content_hash_matches(
     namespace: str,
 ) -> bool:
     """Has this exact (iri, content_hash) pair already been ingested?"""
-    sparql = (
-        f"PREFIX cf: <{namespace}> "
-        f'ASK {{ <{iri}> cf:content_hash "{content_hash}" }}'
-    )
+    if not _CONTENT_HASH_RE.match(content_hash):
+        raise ValueError(f"invalid content_hash format: {content_hash!r}")
+    safe_iri = assert_safe_iri(iri)
+    safe_hash = escape_sparql_literal(content_hash)
+    sparql = f'PREFIX cf: <{namespace}> ASK {{ <{safe_iri}> cf:content_hash "{safe_hash}" }}'
     return ask(store, sparql)
 
 
@@ -54,28 +67,50 @@ def _title_from_section(section_title: str, entity_id: str) -> str:
     return candidate or entity_id
 
 
+def _atomic_replace_entity(
+    store: ox.Store,
+    iri: str,
+    new_quads: list[ox.Quad],
+) -> None:
+    """Replace all quads for `iri`. Restores prior state on failure."""
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    subject = ox.NamedNode(iri)
+    prior = list(store.quads_for_pattern(subject, None, None, None))
+    added: list[ox.Quad] = []
+    try:
+        for q in prior:
+            store.remove(q)
+        for q in new_quads:
+            store.add(q)
+            added.append(q)
+    except Exception:
+        for q in reversed(added):
+            with contextlib.suppress(Exception):
+                store.remove(q)
+        for q in prior:
+            with contextlib.suppress(Exception):
+                store.add(q)
+        raise
+
+
 def write_entities(
     store: ox.Store,
     entities: list[ExtractedEntity],
     project_iri: str,
     config: KGConfig,
 ) -> WriteStats:
-    namespace = config.ontology_namespace.rstrip("/") + "/"
+    namespace = cf_namespace(config)
     base_ns = config.base_namespace
 
     stats = WriteStats()
     for entity in entities:
         iri = entity_iri(entity.entity_id, base_ns)
-        if _content_hash_matches(
-            store, iri, entity.content_hash, namespace=namespace
-        ):
+        if _content_hash_matches(store, iri, entity.content_hash, namespace=namespace):
             stats.entities_skipped += 1
             continue
 
-        for q in quads_for_subject(store, iri):
-            store.remove(q)
-
-        for q in build_entity_quads(
+        new_quads = build_entity_quads(
             entity.entity_id,
             entity.class_name,
             _title_from_section(entity.source_section, entity.entity_id),
@@ -86,15 +121,18 @@ def write_entities(
             config,
             extra_slots=entity.extra_slots or None,
             mtime=entity.mtime,
-        ):
-            store.add(q)
-
+        )
+        _atomic_replace_entity(store, iri, new_quads)
         stats.entities_written += 1
+        stats.written_iris.append(iri)
     return stats
 
 
 def _triple_exists(
-    store: ox.Store, subject: str, predicate: str, obj: str,
+    store: ox.Store,
+    subject: str,
+    predicate: str,
+    obj: str,
 ) -> bool:
     sparql = f"ASK {{ <{subject}> <{predicate}> <{obj}> }}"
     return ask(store, sparql)
@@ -130,6 +168,7 @@ def write_relations(
 
         store.add(quad)
         stats.relations_written += 1
+        stats.written_relation_quads.append(quad)
     return stats
 
 
@@ -146,24 +185,18 @@ def write_project(
     from cataforge.kg._quads import XSD_STRING_IRI, _slot_iri
     from cataforge.kg.ingest.iri import class_iri
 
-    namespace = config.ontology_namespace.rstrip("/") + "/"
+    namespace = cf_namespace(config)
     base_ns = config.base_namespace
     project_iri_val = entity_iri(project_id, base_ns)
     rdf_type = ox.NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
     string_dt = ox.NamedNode(XSD_STRING_IRI)
 
-    sparql = (
-        f"ASK {{ <{project_iri_val}> a <{class_iri('Project', namespace)}> }}"
-    )
+    sparql = f"ASK {{ <{project_iri_val}> a <{class_iri('Project', namespace)}> }}"
     if ask(store, sparql):
         return project_iri_val
 
     subject = ox.NamedNode(project_iri_val)
-    store.add(
-        ox.Quad(
-            subject, rdf_type, ox.NamedNode(class_iri("Project", namespace))
-        )
-    )
+    store.add(ox.Quad(subject, rdf_type, ox.NamedNode(class_iri("Project", namespace))))
     store.add(
         ox.Quad(
             subject,

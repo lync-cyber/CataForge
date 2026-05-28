@@ -1,6 +1,8 @@
 """Auto-fix KG drift detected by reconcile."""
+
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -9,6 +11,7 @@ from cataforge.kg._config import KGConfig
 from cataforge.kg._quads import quads_for_subject
 from cataforge.kg.ingest.entity_extract import extract_entities
 from cataforge.kg.ingest.iri import entity_iri
+from cataforge.kg.ingest.migrate import _read_project_metadata
 from cataforge.kg.ingest.relation_extract import extract_relations
 from cataforge.kg.ingest.scan import scan_business_docs
 from cataforge.kg.ingest.writer import write_entities, write_project, write_relations
@@ -55,8 +58,9 @@ def _reingest_doc_type(
     if not parsed:
         return 0
 
+    meta = _read_project_metadata(project_root)
     project_iri = write_project(
-        store, "proj-default", str(project_root.name), "waterfall", config
+        store, meta["project_id"], meta["title"], meta["process_model"], config
     )
 
     total = 0
@@ -76,7 +80,13 @@ def repair(
     *,
     dry_run: bool = False,
 ) -> RepairStats:
-    """Two-phase repair: remove ghosts, then ingest missing items."""
+    """Two-phase repair: remove ghosts, then ingest missing items.
+
+    Ghost quads are snapshotted before deletion. If the subsequent
+    reingest phase fails for a doc_type, the ghost quads from that
+    doc_type are restored so the store is not left in a half-mutated
+    state.
+    """
     report = reconcile(store, project_root, config)
     if report.ok:
         return RepairStats()
@@ -84,9 +94,15 @@ def repair(
     stats = RepairStats()
 
     for per in report.per_doc_type.values():
+        ghost_entity_snapshots: dict[str, list] = {}
+        ghost_relation_snapshots: list = []
+
         for eid in per.ghost_entities:
             if not dry_run:
+                iri = entity_iri(eid, config.base_namespace)
                 try:
+                    snapshot = quads_for_subject(store, iri)
+                    ghost_entity_snapshots[eid] = list(snapshot)
                     _remove_entity_quads(store, eid, config)
                 except Exception as exc:  # noqa: BLE001
                     stats.errors.append(f"ghost entity {eid}: {exc}")
@@ -96,6 +112,10 @@ def repair(
         for s_id, pred, o_id in per.ghost_relations:
             if not dry_run:
                 try:
+                    from cataforge.kg._quads import build_relation_quad  # noqa: PLC0415
+
+                    snapshot_quad = build_relation_quad(s_id, pred, o_id, config)
+                    ghost_relation_snapshots.append(snapshot_quad)
                     _remove_relation_quad(store, s_id, pred, o_id, config)
                 except Exception as exc:  # noqa: BLE001
                     stats.errors.append(f"ghost relation ({s_id},{pred},{o_id}): {exc}")
@@ -105,18 +125,33 @@ def repair(
         if per.missing_entities or per.missing_relations:
             if not dry_run:
                 try:
-                    written = _reingest_doc_type(
-                        store, project_root, per.doc_type, config
-                    )
+                    written = _reingest_doc_type(store, project_root, per.doc_type, config)
                     stats.missing_ingested += written
                 except Exception as exc:  # noqa: BLE001
                     stats.errors.append(f"reingest {per.doc_type}: {exc}")
+                    _restore_ghosts(store, ghost_entity_snapshots, ghost_relation_snapshots)
+                    stats.ghosts_removed -= len(ghost_entity_snapshots) + len(
+                        ghost_relation_snapshots
+                    )
             else:
-                stats.missing_ingested += (
-                    len(per.missing_entities) + len(per.missing_relations)
-                )
+                stats.missing_ingested += len(per.missing_entities) + len(per.missing_relations)
 
     return stats
+
+
+def _restore_ghosts(
+    store: ox.Store,
+    entity_snapshots: dict[str, list],
+    relation_snapshots: list,
+) -> None:
+    """Restore ghost quads after a failed reingest (best-effort)."""
+    for quads in entity_snapshots.values():
+        for q in quads:
+            with contextlib.suppress(Exception):
+                store.add(q)
+    for q in relation_snapshots:
+        with contextlib.suppress(Exception):
+            store.add(q)
 
 
 __all__ = [

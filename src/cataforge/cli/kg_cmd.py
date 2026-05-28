@@ -7,6 +7,7 @@ snapshot, rollback, repair, query, trace.
 from __future__ import annotations
 
 import json
+import re
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -162,28 +163,34 @@ def kg_import(
         db_path=db_path,
     )
 
+    import contextlib  # noqa: PLC0415
+
     types = doc_types if doc_types else DEFAULT_DOC_TYPES
 
-    if backend == "memory":
-        from cataforge.kg.store import init_store
-
-        handle = init_store(config, force=True)
-    else:
-        try:
-            handle = KnowledgeGraphStore.connect(config).__enter__()
-        except KGStoreNotInitializedError as exc:
-            raise KGStoreError(f"{exc}\nHint: run `cataforge kg init` before `kg import`.") from exc
-
     try:
-        stats, _entities, _relations = run_migration(
-            handle.raw,
-            project_root,
-            config,
-            doc_types=tuple(types),
-            dry_run=dry_run,
-        )
-    finally:
-        handle.close()
+        if backend == "memory":
+            from cataforge.kg.store import init_store  # noqa: PLC0415
+
+            handle = init_store(config, force=True)
+            with contextlib.closing(handle):
+                stats, _entities, _relations = run_migration(
+                    handle.raw,
+                    project_root,
+                    config,
+                    doc_types=tuple(types),
+                    dry_run=dry_run,
+                )
+        else:
+            with KnowledgeGraphStore.connect(config) as handle:
+                stats, _entities, _relations = run_migration(
+                    handle.raw,
+                    project_root,
+                    config,
+                    doc_types=tuple(types),
+                    dry_run=dry_run,
+                )
+    except KGStoreNotInitializedError as exc:
+        raise KGStoreError(f"{exc}\nHint: run `cataforge kg init` before `kg import`.") from exc
 
     if json_output:
         click.echo(json.dumps(stats.to_dict(), indent=2, sort_keys=True))
@@ -321,7 +328,7 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
         click.echo(
             json.dumps(
                 {
-                    "entity_count": result.entity_count,
+                    "discovered_count": result.discovered_count,
                     "rendered": len(result.file_records),
                     "errors": [{"entity_id": e, "message": m} for e, m in result.errors],
                     "files": result.file_hashes,
@@ -332,7 +339,7 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
         )
     else:
         click.echo(
-            f"OK: rendered {len(result.file_records)}/{result.entity_count} entities "
+            f"OK: rendered {len(result.file_records)}/{result.discovered_count} entities "
             f"→ {result.output_dir}"
         )
         if result.errors:
@@ -712,10 +719,8 @@ def kg_repair(
         raise KGStoreError(str(exc)) from exc
 
     if json_output:
-        import json as json_mod  # noqa: PLC0415
-
         click.echo(
-            json_mod.dumps(
+            json.dumps(
                 {
                     "dry_run": dry_run,
                     "ghosts_removed": stats.ghosts_removed,
@@ -788,6 +793,7 @@ def kg_query(
     from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
 
     sparql = _resolve_sparql_input(query_or_file)
+    _guard_sparql_writes(sparql)
     sparql = _inject_limit(sparql, limit)
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
@@ -811,6 +817,10 @@ def kg_query(
                 raise KGQueryTimeoutError(f"SPARQL query timed out after {timeout}s")
             if error_box:
                 raise CataforgeError(f"SPARQL error: {error_box[0]}") from error_box[0]
+            if not result_box:
+                raise CataforgeError(
+                    "SPARQL query returned no result (worker exited without populating result)"
+                )
 
             _format_query_result(result_box[0], output_fmt)
     except KGStoreNotInitializedError as exc:
@@ -822,6 +832,32 @@ def _resolve_sparql_input(query_or_file: str) -> str:
     if p.is_file():
         return p.read_text(encoding="utf-8").strip()
     return query_or_file
+
+
+_SPARQL_WRITE_KEYWORDS = frozenset(
+    ["UPDATE", "INSERT", "DELETE", "CLEAR", "DROP", "LOAD", "CREATE", "COPY", "MOVE", "ADD"]
+)
+_SPARQL_STRIP_RE = re.compile(
+    r"(#[^\n]*\n|PREFIX\s+\S+\s*:\s*<[^>]*>\s*|BASE\s+<[^>]*>\s*)",
+    re.IGNORECASE,
+)
+
+
+def _first_sparql_keyword(sparql: str) -> str:
+    """Return the first operative keyword of a SPARQL string, upper-cased."""
+    stripped = _SPARQL_STRIP_RE.sub("", sparql).lstrip()
+    token = stripped.split()[0].upper() if stripped.split() else ""
+    return token
+
+
+def _guard_sparql_writes(sparql: str) -> None:
+    """Raise CataforgeError when sparql contains a write operation."""
+    keyword = _first_sparql_keyword(sparql)
+    if keyword in _SPARQL_WRITE_KEYWORDS:
+        raise CataforgeError(
+            "SPARQL writes are not supported via 'kg query' — "
+            "use 'kg add/update/delete' or a transaction script"
+        )
 
 
 def _inject_limit(sparql: str, limit: int) -> str:
@@ -837,11 +873,12 @@ def _materialize_query_result(raw: object) -> object:
     if type_name == "QueryBoolean" or isinstance(raw, bool):
         return ("ask", bool(raw))
     if type_name == "QuerySolutions":
-        variables = [str(v).lstrip("?") for v in raw.variables]  # type: ignore[union-attr]
+        variables_terms = list(raw.variables)  # type: ignore[union-attr]
+        variables = [str(v).lstrip("?") for v in variables_terms]
         rows: list[dict[str, str]] = []
         for row in raw:  # type: ignore[arg-type]
             record: dict[str, str] = {}
-            for raw_v, name in zip(raw.variables, variables, strict=True):  # type: ignore[union-attr]
+            for raw_v, name in zip(variables_terms, variables, strict=True):
                 try:
                     val = row[raw_v]
                 except (KeyError, IndexError):
@@ -1212,11 +1249,12 @@ def _resolve_project_iri(
        — if exactly one exists, use it.
     3. Otherwise raise: caller must pick.
     """
+    from cataforge.kg._sparql_utils import cf_namespace  # noqa: PLC0415
     from cataforge.kg.ingest.iri import class_iri
     from cataforge.kg.ingest.writer import write_project
 
     config = kg.config
-    namespace = config.ontology_namespace.rstrip("/") + "/"
+    namespace = cf_namespace(config)
 
     if project_id is not None:
         title = project_title or project_id
@@ -1548,7 +1586,7 @@ def kg_delete(
         KnowledgeGraph,
     )
 
-    if not yes and not json_output:
+    if not yes:
         suffix = " (and incoming edges)" if cascade else ""
         if not click.confirm(f"Delete {entity_id}{suffix}?", default=False):
             click.echo("Aborted.")
