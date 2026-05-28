@@ -10,15 +10,15 @@ tool_map:
   file_grep: Grep
   shell_exec: Shell
   web_search: WebSearch
-  web_fetch: null            # Cursor has no native WebFetch tool
-  user_question: null        # Cursor 3.0 added "Ask Questions" but name/behavior not stable for hooks
+  web_fetch: null            # unsupported on this platform — see docs/reference/platform-capability-matrix.md
+  user_question: null        # unsupported on this platform — see docs/reference/platform-capability-matrix.md
   agent_dispatch: Task
 
 extended_capabilities:
-  notebook_edit: null
+  notebook_edit: null          # unsupported on this platform — see docs/reference/platform-capability-matrix.md
   browser_preview: computer    # Cloud agent computer use capability
-  image_input: null
-  code_review: null            # BugBot is a service-level feature, not a tool
+  image_input: null            # unsupported on this platform — see docs/reference/platform-capability-matrix.md
+  code_review: null            # unsupported on this platform — see docs/reference/platform-capability-matrix.md
 
 agent_definition:
   format: yaml-frontmatter

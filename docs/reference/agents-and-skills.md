@@ -5,6 +5,8 @@
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
 >
 > **适用版本**：v0.4.x。计数 13 Agent + 29 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
+>
+> **平台差异**：Agent 通过 `tools.allow` 声明的 capability 在各平台的原生工具映射见 [platform-capability-matrix.md](platform-capability-matrix.md)；`null` 映射的 capability 在 deploy 时被过滤并发 WARN。
 
 ## 目录
 
