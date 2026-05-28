@@ -1,3 +1,4 @@
+# pyright: reportUnusedImport=false
 """CataForge CLI — unified entry point.
 
 Usage:
@@ -90,12 +91,14 @@ CTX_PROJECT_DIR = "project_dir"
 )
 @click.version_option(__version__, prog_name="cataforge")
 @click.option(
-    "-v", "--verbose",
+    "-v",
+    "--verbose",
     is_flag=True,
     help="Enable debug-level logging for cataforge.* loggers.",
 )
 @click.option(
-    "-q", "--quiet",
+    "-q",
+    "--quiet",
     is_flag=True,
     help="Suppress non-error output (logging level = WARNING).",
 )

@@ -181,13 +181,11 @@ def pull_image_with_mirrors(
     max_retries: int = PULL_MAX_RETRIES,
 ) -> bool:
     """Try ``docker pull`` via mirrors; tag back to *image* when using a mirror."""
+    import importlib.util
+
     from cataforge.utils.common import info, ok, warn
 
-    sdk_available = True
-    try:
-        import docker  # noqa: F401
-    except ImportError:
-        sdk_available = False
+    sdk_available = importlib.util.find_spec("docker") is not None
 
     for mirror in mirrors:
         source_label = mirror if mirror else "Docker Hub"
@@ -246,7 +244,4 @@ def pull_all_images_from_compose_file(
     if not images:
         return False
     info(f"共需拉取 {len(images)} 个镜像")
-    return all(
-        pull_image_with_mirrors(img, mirrors, pull_timeout=pull_timeout)
-        for img in images
-    )
+    return all(pull_image_with_mirrors(img, mirrors, pull_timeout=pull_timeout) for img in images)

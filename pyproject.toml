@@ -149,6 +149,42 @@ extend-exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
 
+[tool.pyright]
+# Mypy is the primary type checker (see `[tool.mypy]` per-package
+# strict overrides). Pyright runs in IDE / editor only as a syntax
+# + unused-symbol layer; `basic` mode produces 170+ false positives
+# against pyoxigraph / linkml / docker (no stubs, dynamic APIs)
+# which drown real signal. `typeCheckingMode = "off"` disables type
+# inference reporting; the explicit `report*` overrides below pin
+# the surface to what we actually want:
+#
+#   - real dead-import / dead-expression detection (warning)
+#   - silence "unused-variable" hints for underscore-prefix &
+#     decorator-injected params (ruff F841 with proper underscore
+#     semantics is the source of truth)
+#   - silence missing-stubs noise for runtime-only deps
+include = ["src", "tests", "scripts"]
+exclude = [
+    "**/__pycache__",
+    "**/_generated/**",
+    "**/.venv/**",
+    ".cataforge/**",
+    "build/**",
+    "dist/**",
+]
+pythonVersion = "3.10"
+typeCheckingMode = "off"
+
+reportUnusedVariable = "none"
+reportUnusedFunction = "none"
+reportUnusedClass = "none"
+reportUnusedImport = "warning"
+reportUnusedExpression = "warning"
+reportPrivateUsage = "none"
+reportPrivateImportUsage = "none"
+reportMissingTypeStubs = "none"
+reportMissingModuleSource = "none"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
