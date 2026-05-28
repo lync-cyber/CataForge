@@ -29,7 +29,17 @@ user-invocable: false
 - 预期影响范围
 
 ### Step 2: 文档覆盖度扫描
-通过doc-nav检索已有文档，逐级检查:
+
+**数据源优先级**（自动）：
+
+- **KG 优先**（当变更涉及的实体所在 doc_type ∈ `framework.json.kg.kg_active_doc_types`）：
+  对每个已识别的实体 ID 跑 `cataforge kg trace <id> --direction both --output json`，从结果直接读出：
+  - 上下游追溯链（覆盖 PRD→ARCH→UI-SPEC→DEV-PLAN 全链路）
+  - `cf:implementsFeature` / `cf:verifies` / `cf:depends_on` 关系
+  - 配合 `cataforge kg trace --coverage` 取全局 Feature 覆盖矩阵，一次性定位"哪个 Feature 已有 / 缺实现 / 缺测试"
+- **Legacy 回退**（非 active doc_type）：通过 doc-nav 检索已有文档，逐级 grep
+
+两条路径均按以下结构逐级检查:
 
 1. **PRD**: 搜索相关功能 (F-NNN)、用户故事、验收标准 (AC-NNN)
 2. **ARCH**: 搜索相关模块 (M-NNN)、接口 (API-NNN)、数据模型 (E-NNN)

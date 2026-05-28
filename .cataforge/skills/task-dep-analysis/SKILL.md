@@ -28,10 +28,26 @@ user-invocable: true
 ## 执行流程
 
 ### Step 1: 提取依赖数据
-- 从dev-plan#§1 Sprint任务表提取: 任务ID + 依赖列
-- 从dev-plan#§2 依赖图提取: 文本DAG关系(T-001 ─→ T-002)
-- 从任务卡提取: depends_on字段(如存在)
-- 合并去重，形成边列表
+
+**数据源优先级**（自动）:
+
+1. **KG 优先**（当 `dev-plan` ∈ `framework.json.kg.kg_active_doc_types` 且 KG store 存在）：
+   ```bash
+   cataforge kg query 'SELECT ?src_id ?dst_id WHERE {
+     ?src cf:depends_on ?dst .
+     ?src cf:entity_id ?src_id .
+     ?dst cf:entity_id ?dst_id .
+     FILTER(STRSTARTS(?src_id, "T-") && STRSTARTS(?dst_id, "T-"))
+   }' --output json
+   ```
+   返回的 src→dst 对直接拼成 `--edges "T-001→T-002,..."`。任务卡 `depends_on` 字段在 KG ingest 时已转为 `cf:depends_on` 三元组，无需再读 Markdown
+2. **Legacy 回退**（非 active / KG 不可用）：
+   - 从dev-plan#§1 Sprint任务表提取: 任务ID + 依赖列
+   - 从dev-plan#§2 依赖图提取: 文本DAG关系(T-001 ─→ T-002)
+   - 从任务卡提取: depends_on字段
+   - 合并去重，形成边列表
+
+任一路径都必须输出边列表（`(src, dst)` 元组），交给 Step 2 的脚本。
 
 ### Step 2: 运行依赖分析脚本
 **调用约定（单一入口）**: 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。
