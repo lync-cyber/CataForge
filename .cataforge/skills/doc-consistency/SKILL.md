@@ -31,6 +31,8 @@ user-invocable: true
 
 调用入口: `cataforge skill run doc-consistency -- <docs_dir> [--scope full|incremental]`
 
+**KG dispatch（自动）**: 当 `prd` / `arch` / `dev-plan` 等 doc_type ∈ `framework.json.kg.kg_active_doc_types` 且 KG store 存在时，AC 追踪检查（`check_prd_arch_ac_coverage` / `check_prd_devplan_ac_traceability`）改用 SPARQL — 通过 `cf:source_doc` 枚举 PRD 中 ingest 的 AC 实体，再查询下游 doc 中是否有任何谓词指向该 AC URI。**消除 regex 在代码块 / HTML 注释 / 跨分卷 ID 出现上的假阳性 / 假阴性**；其余检查（NFR 映射、优先级对齐、API 端点契约、孤立组件）仍走 regex —— 后者依赖文档结构而非实体关系，无 KG 等价。KG 不可达 / 无关 AC ingest 时自动 fallback。
+
 校验维度（按文档对组织）:
 
 **PRD → ARCH 一致性**:

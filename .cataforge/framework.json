@@ -320,6 +320,14 @@
       "type": "file_must_contain",
       "path": ".cataforge/scripts/framework/event_logger.py",
       "patterns": ["from cataforge.cli.main import cli", "event", "log"]
+    },
+    {
+      "id": "mc-0.5.0-kg-config",
+      "release_version": "0.5.0",
+      "description": "framework.json 必须声明 kg.kg_active_doc_types — 自 0.5.0 起 doc-gen finalize / cataforge docs load / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走 legacy 路径，掩盖 KG cutover 的覆盖率门。",
+      "type": "file_must_contain",
+      "path": ".cataforge/framework.json",
+      "patterns": ["kg_active_doc_types"]
     }
   ]
 }

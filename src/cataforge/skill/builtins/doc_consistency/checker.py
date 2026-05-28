@@ -96,6 +96,7 @@ class CrossDocChecker:
         self._content: dict[str, str] = {}
         for doc_type, paths in self._docs.items():
             self._content[doc_type] = _read_all_content(paths)
+        self._kg_active: set[str] | None = None  # lazily resolved per-doc_type set
 
     def _issue(
         self,
@@ -114,12 +115,127 @@ class CrossDocChecker:
     def _has_content(self, doc_type: str) -> bool:
         return bool(self._content.get(doc_type, "").strip())
 
+    # ---- KG dispatch helpers ----
+
+    def _project_root(self) -> Path | None:
+        """Heuristically resolve project root from ``docs_dir``.
+
+        Mirrors the resolver in `doc_review.checker` — `docs_dir` is
+        usually `<project_root>/docs/`; the parent is the project root.
+        Returns None when the path doesn't look like a CataForge project.
+        """
+        docs_path = self.docs_dir.resolve()
+        candidate = docs_path.parent
+        if (candidate / ".cataforge").exists():
+            return candidate
+        if (docs_path / ".cataforge").exists():
+            return docs_path
+        return None
+
+    def _active_doc_types(self) -> set[str]:
+        """Resolve the active doc_type set once and cache.
+
+        Returns the empty set when KG dispatch is unavailable (no project
+        root, no `_dispatch` import, no store on disk) so callers can use
+        ``if "prd" in self._active_doc_types()`` uniformly.
+        """
+        if self._kg_active is not None:
+            return self._kg_active
+        project_root = self._project_root()
+        if project_root is None:
+            self._kg_active = set()
+            return self._kg_active
+        store_path = project_root / ".cataforge" / "kg" / "store"
+        if not store_path.exists():
+            self._kg_active = set()
+            return self._kg_active
+        try:
+            from cataforge.kg._dispatch import active_doc_types  # noqa: PLC0415
+
+            self._kg_active = set(active_doc_types(project_root))
+        except ImportError:
+            self._kg_active = set()
+        return self._kg_active
+
+    def _kg_uncovered_acs(self, downstream_doc_type: str) -> set[str] | None:
+        """Return PRD ACs not referenced from ``downstream_doc_type`` via KG.
+
+        Uses the ingested ``cf:source_doc`` slot to enumerate ACs sourced
+        in PRD docs, then queries for any AC entity whose IRI appears in
+        a triple originating from an entity sourced in the downstream
+        doc_type. Returns ``None`` to signal "fall through to regex" when
+        either doc_type is not in the active set or the KG query fails.
+        """
+        active = self._active_doc_types()
+        if "prd" not in active or downstream_doc_type not in active:
+            return None
+        project_root = self._project_root()
+        if project_root is None:
+            return None
+        try:
+            from cataforge.kg import KnowledgeGraph  # noqa: PLC0415
+            from cataforge.kg._dispatch import kg_config_for  # noqa: PLC0415
+        except ImportError:
+            return None
+
+        cfg = kg_config_for(project_root)
+        try:
+            with KnowledgeGraph.connect(cfg) as kg:
+                ns = cfg.ontology_namespace.rstrip("/") + "/"
+                prd_q = (
+                    f"PREFIX cf: <{ns}> "
+                    "SELECT DISTINCT ?eid WHERE { "
+                    "  ?s cf:entity_id ?eid ; "
+                    "     cf:source_doc ?src . "
+                    '  FILTER(STRSTARTS(STR(?eid), "AC-")) '
+                    '  FILTER(CONTAINS(STR(?src), "prd")) '
+                    "}"
+                )
+                downstream_q = (
+                    f"PREFIX cf: <{ns}> "
+                    "SELECT DISTINCT ?ac_id WHERE { "
+                    "  ?src cf:source_doc ?src_doc . "
+                    f'  FILTER(CONTAINS(STR(?src_doc), "{downstream_doc_type}")) '
+                    "  ?src ?p ?ac . "
+                    "  ?ac cf:entity_id ?ac_id . "
+                    '  FILTER(STRSTARTS(STR(?ac_id), "AC-")) '
+                    "}"
+                )
+                prd_acs = {
+                    str(row["eid"].value)  # type: ignore[union-attr]
+                    for row in kg.store.query(prd_q)
+                    if row["eid"] is not None  # type: ignore[index]
+                }
+                referenced = {
+                    str(row["ac_id"].value)  # type: ignore[union-attr]
+                    for row in kg.store.query(downstream_q)
+                    if row["ac_id"] is not None  # type: ignore[index]
+                }
+        except Exception:
+            return None
+        if not prd_acs:
+            return None  # no ACs ingested; let regex handle
+        return prd_acs - referenced
+
     # ---- PRD → ARCH consistency ----
 
     def check_prd_arch_ac_coverage(self) -> None:
         """PRD AC-NNN should be referenced or semantically covered in ARCH."""
         if not self._has_content("prd") or not self._has_content("arch"):
             return
+
+        kg_missing = self._kg_uncovered_acs("arch")
+        if kg_missing is not None:
+            if kg_missing:
+                display = ", ".join(sorted(kg_missing)[:8])
+                suffix = f" (共 {len(kg_missing)} 项)" if len(kg_missing) > 8 else ""
+                self._issue(
+                    "HIGH",
+                    "ac-traceability",
+                    f"PRD 中 {len(kg_missing)} 个 AC 未在 ARCH 中引用: {display}{suffix}",
+                )
+            return
+
         prd_content = _strip_code_blocks(self._content["prd"])
         arch_content = _strip_code_blocks(self._content["arch"])
 
@@ -145,9 +261,7 @@ class CrossDocChecker:
         prd_content = self._content["prd"]
         arch_content = self._content["arch"]
 
-        nfr_match = re.search(
-            r"## 3\.\s*非功能需求(.*?)(?=\n## \d|\Z)", prd_content, re.DOTALL
-        )
+        nfr_match = re.search(r"## 3\.\s*非功能需求(.*?)(?=\n## \d|\Z)", prd_content, re.DOTALL)
         if not nfr_match:
             return
 
@@ -208,9 +322,7 @@ class CrossDocChecker:
         if not api_sections:
             return
 
-        endpoint_re = re.compile(
-            r"(GET|POST|PUT|PATCH|DELETE)\s+(/[\w/{}\-]+)", re.IGNORECASE
-        )
+        endpoint_re = re.compile(r"(GET|POST|PUT|PATCH|DELETE)\s+(/[\w/{}\-]+)", re.IGNORECASE)
         arch_endpoints: dict[str, set[str]] = {}
         for api_id, section in api_sections.items():
             endpoints = set()
@@ -271,6 +383,19 @@ class CrossDocChecker:
         """Every PRD AC-NNN should appear in DEV-PLAN tdd_acceptance."""
         if not self._has_content("prd") or not self._has_content("dev-plan"):
             return
+
+        kg_missing = self._kg_uncovered_acs("dev-plan")
+        if kg_missing is not None:
+            if kg_missing:
+                display = ", ".join(sorted(kg_missing)[:8])
+                suffix = f" (共 {len(kg_missing)} 项)" if len(kg_missing) > 8 else ""
+                self._issue(
+                    "HIGH",
+                    "ac-traceability",
+                    f"PRD 中 {len(kg_missing)} 个 AC 未传播到 DEV-PLAN: {display}{suffix}",
+                )
+            return
+
         prd_content = _strip_code_blocks(self._content["prd"])
         devplan_content = _strip_code_blocks(self._content["dev-plan"])
 
@@ -307,11 +432,7 @@ class CrossDocChecker:
             if prd_ac_count == 0:
                 continue
 
-            related_tasks = [
-                t_text
-                for t_text in t_sections.values()
-                if f_id in t_text
-            ]
+            related_tasks = [t_text for t_text in t_sections.values() if f_id in t_text]
             if not related_tasks:
                 continue
 
@@ -393,29 +514,45 @@ class CrossDocChecker:
             section = f_sections[f_id]
             ac_count = len(re.findall(r"AC-\d+", section))
 
-            arch_modules = sorted(
-                m
-                for m in _extract_all_ids(arch_content, "M")
-                if f_id in _extract_sections(arch_content, "M").get(m, "")
-            ) if arch_content else []
+            arch_modules = (
+                sorted(
+                    m
+                    for m in _extract_all_ids(arch_content, "M")
+                    if f_id in _extract_sections(arch_content, "M").get(m, "")
+                )
+                if arch_content
+                else []
+            )
 
-            arch_apis = sorted(
-                a
-                for a in _extract_all_ids(arch_content, "API")
-                if f_id in _extract_sections(arch_content, "API").get(a, "")
-            ) if arch_content else []
+            arch_apis = (
+                sorted(
+                    a
+                    for a in _extract_all_ids(arch_content, "API")
+                    if f_id in _extract_sections(arch_content, "API").get(a, "")
+                )
+                if arch_content
+                else []
+            )
 
-            devplan_tasks = sorted(
-                t
-                for t in _extract_all_ids(devplan_content, "T")
-                if f_id in _extract_sections(devplan_content, "T").get(t, "")
-            ) if devplan_content else []
+            devplan_tasks = (
+                sorted(
+                    t
+                    for t in _extract_all_ids(devplan_content, "T")
+                    if f_id in _extract_sections(devplan_content, "T").get(t, "")
+                )
+                if devplan_content
+                else []
+            )
 
-            uispec_pages = sorted(
-                p
-                for p in _extract_all_ids(uispec_content, "P")
-                if f_id in _extract_sections(uispec_content, "P").get(p, "")
-            ) if uispec_content else []
+            uispec_pages = (
+                sorted(
+                    p
+                    for p in _extract_all_ids(uispec_content, "P")
+                    if f_id in _extract_sections(uispec_content, "P").get(p, "")
+                )
+                if uispec_content
+                else []
+            )
 
             has_arch = bool(arch_modules or arch_apis)
             has_devplan = bool(devplan_tasks)
@@ -428,15 +565,17 @@ class CrossDocChecker:
             else:
                 coverage = "missing"
 
-            matrix.append({
-                "feature": f_id,
-                "ac_count": str(ac_count),
-                "arch_modules": ", ".join(arch_modules) or "—",
-                "arch_apis": ", ".join(arch_apis) or "—",
-                "devplan_tasks": ", ".join(devplan_tasks) or "—",
-                "uispec_pages": ", ".join(uispec_pages) or "—",
-                "coverage": coverage,
-            })
+            matrix.append(
+                {
+                    "feature": f_id,
+                    "ac_count": str(ac_count),
+                    "arch_modules": ", ".join(arch_modules) or "—",
+                    "arch_apis": ", ".join(arch_apis) or "—",
+                    "devplan_tasks": ", ".join(devplan_tasks) or "—",
+                    "uispec_pages": ", ".join(uispec_pages) or "—",
+                    "coverage": coverage,
+                }
+            )
 
         return matrix
 
@@ -444,8 +583,7 @@ class CrossDocChecker:
 
     def run(self) -> int:
         """Run all cross-document checks. Return 0/1/2 per exit semantics."""
-        available = [dt for dt in ("prd", "arch", "ui-spec", "dev-plan")
-                     if self._has_content(dt)]
+        available = [dt for dt in ("prd", "arch", "ui-spec", "dev-plan") if self._has_content(dt)]
         if len(available) < 2:
             print(f"跳过: 仅发现 {len(available)} 个文档类型，跨文档校验需要至少 2 个")
             return 0

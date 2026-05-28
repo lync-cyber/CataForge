@@ -103,6 +103,17 @@ Agent 间统一格式：
 - 各 agent 自己的 Input Contract 段落保留**该角色实际需要的 doc_id 白名单**，但不重复"禁止 Read 全文"这条通用规则。
 - `cataforge docs load` 失败（exit 2 = 至少一个 ref 失败）按 stderr 提示修正；索引漂移时 `cataforge docs validate` 校验、`cataforge docs index` 重建。
 
+## Agent 文档 I/O 契约（KG-active 通用约定）
+适用：所有产文档的 Agent（product-manager / architect / ui-designer / tech-lead / qa-engineer / devops）以及读文档的 sub-agent（test-writer / implementer / reviewer / debugger 等）。
+
+下列约定对所有 Agent 一次性生效，**各 Agent 的 Input/Output Contract 不再重复**：
+
+- **写后无需手动调 KG CLI** — `doc-gen finalize` 已按 `framework.json.kg.kg_active_doc_types` 自动分流：active doc_type 触发 `cataforge kg import` + `cataforge kg reconcile`；非 active 触发 `cataforge docs index`。Agent 完成章节填充后只需 finalize，不应自行调度 `cataforge kg *`
+- **读取无需感知 KG 存在** — `cataforge docs load <ref>` 在 active doc_type 下自动从 KG 解析（实体级引用 `doc_id#§N.ITEM-NNN` 走 `kg.query.entity` + `render_entity`；whole-section 走文件 slice）；非 active doc_type 仍走 `.doc-index.json` + 文件切片。两条路径返回相同 markdown 形式，Agent 调用方式不变
+- **依赖展开同样统一** — `cataforge docs load <ref> --with-deps` 在 active doc_type 全覆盖时通过 `kg.query.depends_on` 走图查询，否则 fall back 到 `.doc-index.json` 的 `deps[]` 字段（见 [`docs/loader._try_kg_resolve_deps`](../../src/cataforge/docs/loader.py)）
+- **drift 检查由 orchestrator 负责** — Phase Transition Step 5.3 自动跑 `cataforge kg reconcile`；Agent 无需在 Output Contract 中声明"reconcile 通过"
+- **Read 工具仍可在 KG 不可达时兜底** — KG store 缺失 / 损坏 / KG-active doc_type 未 ingest 时，`cataforge docs load` 会自动降级到文件路径，Agent 调用契约不变
+
 ## 输出质量原则
 
 ### 对比式约束
