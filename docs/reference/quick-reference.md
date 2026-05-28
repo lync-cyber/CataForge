@@ -44,6 +44,7 @@
 | `cataforge upgrade rollback [--list] [--from <ts>]` | 从快照回滚 | [upgrade.md](../guide/upgrade.md#快照与回滚) |
 | `cataforge upgrade verify` | `doctor` 别名 | [cli#upgrade](./cli.md#upgrade) |
 | `cataforge docs list / load <ref>` | 文档索引与段落加载 | [cli#docs](./cli.md#docs) |
+| `cataforge kg init / import / reconcile / trace` | 知识图谱 store 生命周期、导入、漂移检测、追溯链 | [cli#kg](./cli.md#kg) |
 | `cataforge event log` | 写事件日志 | [cli.md](./cli.md) |
 | `cataforge correction record --deviation <type>` | 写 On-Correction Learning 偏离日志 | [cli#correction](./cli.md#correction) |
 | `cataforge feedback bug \| suggest \| correction-export` | 把下游信号打包为上游可消费的 markdown 反馈（`--print` / `--out` / `--clip` / `--gh`） | [cli#feedback](./cli.md#feedback) |
@@ -52,7 +53,7 @@
 
 | 文件 | 位置 | 用户可编辑字段 |
 |------|------|---------------|
-| `framework.json` | `.cataforge/framework.json` | `runtime.platform` · `runtime.mode` · `runtime.checkpoints` · `upgrade.state` |
+| `framework.json` | `.cataforge/framework.json` | `runtime.platform` · `runtime.mode` · `runtime.checkpoints` · `upgrade.state` · `kg.kg_active_doc_types` |
 | `PROJECT-STATE.md` | `.cataforge/PROJECT-STATE.md` | 整个文件 |
 | `profile.yaml` | `.cataforge/platforms/<id>/profile.yaml` | 能力声明、降级策略、`context_injection` |
 | `hooks.yaml` | `.cataforge/hooks/hooks.yaml` | hook 规范（平台无关） |
@@ -66,4 +67,5 @@
 | `0`  | 成功 |
 | `1`  | 业务失败 |
 | `2`  | Click 用法错误 |
+| `3`  | KG 内容校验门失败（`kg import` / `kg validate` / `kg export` / `kg reconcile` 漂移） |
 | `70` | 路线图 stub（未实现） |

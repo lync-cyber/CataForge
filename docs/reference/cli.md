@@ -18,6 +18,7 @@
 | [`cataforge plugin`](#plugin) | 插件发现 |
 | [`cataforge upgrade`](#upgrade) | 脚手架升级与校验 |
 | [`cataforge docs`](#docs) | 文档索引与段落加载 |
+| [`cataforge kg`](#kg) | 知识图谱 store 生命周期、导入/导出、SPARQL 查询、追溯 |
 | [`cataforge event`](#event) | 写事件日志 |
 | [`cataforge correction`](#correction) | 写 On-Correction Learning 日志 |
 | [`cataforge feedback`](#feedback) | 把下游信号打包为上游可消费的 markdown 反馈 |
@@ -271,6 +272,100 @@ cataforge docs load 'arch#§3.M-auth'        # 加载架构文档第 3 节 Modul
 cataforge docs load 'prd#§2.F-003'          # 加载 PRD 第 2 节 Feature F-003
 cataforge docs load 'dev-plan#§1.T-005'     # 加载开发计划第 1 节 Task T-005
 ```
+
+---
+
+## kg
+
+**何时用它**：管理 RocksDB-backed Oxigraph 知识图谱 — 业务文档（PRD / ARCH / TEST-REPORT）实体与追溯关系的权威存储。`kg_active_doc_types` 中的 doc_type 走图查询路径，未列入的 doc_type 仍走 [`cataforge docs load`](#docs) legacy 路径。整体设计见 [`../proposals/kg-migration-0.5.0/`](../proposals/kg-migration-0.5.0/)。
+
+```bash
+cataforge kg init                                # 初始化 store + bootstrap rdfs:subClassOf
+cataforge kg import [--doc-type prd ...]         # 六阶段管道：scan/parse/extract/relation/write/verify
+cataforge kg validate [--shacl]                  # 孤儿节点、断裂追溯边、可选 SHACL 校验
+cataforge kg export [--output-dir docs]          # KG → 每实体一份 Markdown
+cataforge kg reconcile [--doc-type ...]          # 漂移检测：md ⊕ kg → missing / ghost
+cataforge kg repair [--dry-run]                  # 自动修复 reconcile 发现的漂移
+cataforge kg compare-read [--sample-size 20]     # 抽样审计：KG 渲染 vs 源文件 slice
+cataforge kg snapshot [--label ...]              # 写完整 NQuads 快照到 .cataforge/kg/snapshots/
+cataforge kg rollback <snapshot_path>            # 从快照恢复 store
+cataforge kg query <sparql-or-file>              # 执行 SPARQL（含超时控制）
+cataforge kg trace <entity_id> [--coverage]      # 追溯链 + 覆盖矩阵（table / json / mermaid）
+```
+
+### kg init
+
+初始化空 store 并加载 `rdfs:subClassOf` 闭包三元组 — pyoxigraph 无 RDFS entailment，没有这层三元组 `?s a/rdfs:subClassOf* cf:Screen` 这类子类枚举会返回零行。
+
+| 参数 | 作用 |
+|------|------|
+| `--db-path <path>` | RocksDB store 目录（默认 `.cataforge/kg/store`） |
+| `--backend oxigraph\|memory` | 后端选择（`memory` 仅测试） |
+| `--governance` | 同时 bootstrap 治理子本体的类层级 |
+| `--force` | 覆盖已存在的 store |
+
+### kg import
+
+按六阶段管道导入业务文档：scan → parse → entity extraction → relation extraction → write → verify。幂等设计（IRI 由 entity ID 确定性派生，mtime 守卫跳过未变更实体）。
+
+| 参数 | 作用 |
+|------|------|
+| `--project-root <path>` | 项目根（含 `docs/` 与 `.cataforge/`，默认 CWD） |
+| `--doc-type <id>` | 限定 doc_type（可重复，默认 `prd / arch / test-report`） |
+| `--dry-run` | 跑阶段 1–4 + 6，跳过 phase 5 写入 |
+| `--json` | 输出 JSON stats blob |
+
+### kg validate
+
+| 参数 | 作用 |
+|------|------|
+| `--shacl / --no-shacl` | 跑 `_generated/core_shapes.ttl`（需 pyshacl + rdflib，缺则静默跳过） |
+| `--json` | 输出 JSON 违例报告 |
+
+### kg export
+
+KG → 每实体一份 Markdown，幂等：两次连续 export 字节相同。
+
+| 参数 | 作用 |
+|------|------|
+| `--output-dir <path>` | 输出根（默认 `docs/`） |
+| `--json` | 输出每文件 sha256 的 JSON |
+
+### kg reconcile
+
+per-doc_type 漂移检测：Markdown 与 KG 的对称差。任一 `missing` / `ghost` 条目存在则 exit 3（见 §退出码）。
+
+| 参数 | 作用 |
+|------|------|
+| `--doc-type <id>` | 限定 doc_type（默认 `framework.json.kg.kg_active_doc_types`） |
+| `--report-output <path>` | JSON 报告路径（默认 `docs/.kg-reconcile-report.json`） |
+| `--json` | 同时把报告打到 stdout |
+
+### kg query
+
+| 参数 | 作用 |
+|------|------|
+| `query_or_file` | SPARQL 字符串或 `.sparql` 文件路径 |
+| `--output table\|json\|turtle` | 输出格式 |
+| `--limit <N>` | SELECT 行上限（默认 100，自动注入） |
+| `--timeout <secs>` | 查询超时（默认 30s） |
+
+### kg trace
+
+```bash
+cataforge kg trace F-001 --direction both --coverage
+cataforge kg trace --coverage                       # 全局 Feature 覆盖矩阵（不带 ENTITY_ID）
+cataforge kg trace F-001 --output mermaid > trace.mmd
+```
+
+| 参数 | 作用 |
+|------|------|
+| `ENTITY_ID` | 业务实体（缺省时配合 `--coverage` 输出全局矩阵） |
+| `--direction downstream\|upstream\|both` | 链方向 |
+| `--coverage` | 追加覆盖矩阵（has_impl / has_test） |
+| `--output table\|json\|mermaid` | 输出格式 |
+
+> KG 校验门失败统一退出码 `3`（见 §退出码）。`KGStoreError` / `KGStoreNotInitializedError` 走 `1`。
 
 ---
 

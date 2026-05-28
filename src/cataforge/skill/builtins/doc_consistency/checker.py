@@ -49,7 +49,7 @@ def _find_docs(docs_dir: Path) -> dict[str, list[Path]]:
         "dev-plan": [],
     }
     for doc_type, paths in result.items():
-        type_dir = docs_dir / doc_type.replace("-", "-")
+        type_dir = docs_dir / doc_type
         if type_dir.is_dir():
             for f in sorted(type_dir.glob("*.md")):
                 paths.append(f)

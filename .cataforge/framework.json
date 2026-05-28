@@ -28,6 +28,13 @@
       "fallback_on_missing_label": true
     }
   },
+  "kg": {
+    "kg_active_doc_types": ["prd", "arch", "test"],
+    "store_backend": "oxigraph",
+    "db_path": ".cataforge/kg/store",
+    "ontology_namespace": "https://cataforge.dev/kg/",
+    "base_namespace": "https://cataforge.dev/kg/instances/"
+  },
   "claude_md_limits": {
     "max_bytes": 30000,
     "max_state_section_lines": 80,
