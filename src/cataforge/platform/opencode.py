@@ -28,9 +28,7 @@ class OpenCodeAdapter(PlatformAdapter):
         return None
 
     def get_agent_scan_dirs(self) -> list[str]:
-        return list(
-            self._profile.get("agent_definition", {}).get("scan_dirs", [".claude/agents"])
-        )
+        return list(self._profile.get("agent_definition", {}).get("scan_dirs", [".claude/agents"]))
 
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"
@@ -108,15 +106,24 @@ class OpenCodeAdapter(PlatformAdapter):
         *,
         dry_run: bool = False,
     ) -> list[str]:
-        return merge_opencode_project_mcp(
-            project_root, server_id, server_config, dry_run=dry_run
-        )
+        return merge_opencode_project_mcp(project_root, server_id, server_config, dry_run=dry_run)
+
+    def _wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
+        """OpenCode registers rule paths via opencode.json#instructions.
+
+        Override rules are referenced **in place** under
+        ``.cataforge/platforms/opencode/overrides/rules/*.md`` (declared in
+        profile.yaml#rules_distribution.files); no per-file write to a
+        platform-native directory is needed. Returning ``None`` suppresses
+        the base default which would otherwise write to ``opencode.json/<name>.md``
+        — opencode.json is a config file, not a directory.
+        """
+        del name, content  # signal intentional unused
+        return None
 
     # ---- hooks (OpenCode plugin-based surface) -----------------------
 
-    def emit_plugin_hooks(
-        self, project_root: Path, *, dry_run: bool = False
-    ) -> list[str]:
+    def emit_plugin_hooks(self, project_root: Path, *, dry_run: bool = False) -> list[str]:
         """Generate a TypeScript plugin that bridges OpenCode events to the
         CataForge Python hook scripts.
 
@@ -176,9 +183,7 @@ def _render_opencode_plugin(active_events: dict[str, list[dict[str, Any]]]) -> s
             descriptor[plugin_event].append(
                 {
                     "script": script,
-                    "matcher_capability": str(
-                        entry.get("matcher_capability", "")
-                    ),
+                    "matcher_capability": str(entry.get("matcher_capability", "")),
                     "type": str(entry.get("type", "observe")),
                 }
             )

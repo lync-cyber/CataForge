@@ -13,7 +13,7 @@ skills:
   - code-review
   - sprint-review
   - doc-nav
-  - penpot-review  # 仅当 CLAUDE.md 设计工具=penpot 时使用
+  - penpot-review  # 仅当 {INSTRUCTION_FILE} 设计工具=penpot 时使用
 model_tier: standard
 maxTurns: 50
 ---

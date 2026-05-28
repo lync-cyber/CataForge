@@ -118,9 +118,7 @@ class Deployer:
         )
 
         if adapter.hook_config_format:
-            actions.extend(
-                self._deploy_hooks(root, adapter, manifest=manifest, dry_run=dry_run)
-            )
+            actions.extend(self._deploy_hooks(root, adapter, manifest=manifest, dry_run=dry_run))
 
         if adapter.additional_outputs:
             actions.extend(
@@ -173,10 +171,12 @@ class Deployer:
             )
 
         actions.extend(self._apply_degradation(root, adapter, dry_run=dry_run))
+        # Materialise platform override rules AFTER apply_degradation so any
+        # auto-*.md files the hook bridge just wrote land in the platform's
+        # native rule surface in the same deploy.
+        actions.extend(adapter.deploy_overrides_rules(root, dry_run=dry_run, manifest=manifest))
         actions.extend(
-            self._deploy_mcp(
-                root, platform_id, adapter, manifest=manifest, dry_run=dry_run
-            )
+            self._deploy_mcp(root, platform_id, adapter, manifest=manifest, dry_run=dry_run)
         )
 
         if not dry_run:
@@ -187,10 +187,7 @@ class Deployer:
                 f"would write deploy state → {self._cfg.paths.deploy_state} "
                 f"(platform={platform_id})"
             )
-            actions.append(
-                f"would write deploy manifest "
-                f"({len(manifest.owned)} owned path(s))"
-            )
+            actions.append(f"would write deploy manifest ({len(manifest.owned)} owned path(s))")
 
         self._bus.emit(
             FRAMEWORK_DEPLOY,
@@ -225,9 +222,7 @@ class Deployer:
             return ["would self-heal missing .cataforge/ files (force=False)"]
 
         try:
-            written, _, _ = copy_scaffold_to(
-                cataforge_dir, force=False, backup=False
-            )
+            written, _, _ = copy_scaffold_to(cataforge_dir, force=False, backup=False)
         except FileNotFoundError as exc:
             # Editable install with no bundled scaffold visible — log and
             # carry on. ``setup`` will have already populated the dir.
@@ -238,10 +233,7 @@ class Deployer:
         # Reset the config cache so the rest of deploy sees the restored
         # framework.json (if that was one of the files we just refilled).
         self._cfg.reload()
-        return [
-            f"self-heal: restored {len(written)} missing scaffold file(s) "
-            f"from bundled wheel"
-        ]
+        return [f"self-heal: restored {len(written)} missing scaffold file(s) from bundled wheel"]
 
     # ---- P3: --rebuild prunes prior-owned paths before deploy ----
 
@@ -325,10 +317,7 @@ class Deployer:
             # action log but persist the full traceback to the logger so
             # CI / doctor can pick it up.
             logger.exception("hook generation failed")
-            return [
-                f"hooks: generation failed — {type(e).__name__}: {e}. "
-                f"Full traceback in logs."
-            ]
+            return [f"hooks: generation failed — {type(e).__name__}: {e}. Full traceback in logs."]
 
         config_path_str = adapter.hook_config_path
         actions: list[str] = [f"WARN: {w}" for w in warnings]
@@ -339,8 +328,7 @@ class Deployer:
         config_path = root / config_path_str
         if dry_run:
             actions.append(
-                f"would merge hooks into {config_path_str} "
-                f"({len(hooks_config)} event(s))"
+                f"would merge hooks into {config_path_str} ({len(hooks_config)} event(s))"
             )
             return actions
 
@@ -380,10 +368,7 @@ class Deployer:
             ]
         except Exception as e:
             logger.exception("degradation failed")
-            return [
-                f"degradation: skipped — {type(e).__name__}: {e}. "
-                f"Full traceback in logs."
-            ]
+            return [f"degradation: skipped — {type(e).__name__}: {e}. Full traceback in logs."]
 
     def _deploy_mcp(
         self,
@@ -403,11 +388,7 @@ class Deployer:
             if not payload:
                 actions.append(f"SKIP: mcp.{server.id} — empty platform payload")
                 continue
-            actions.extend(
-                adapter.inject_mcp_config(
-                    server.id, payload, root, dry_run=dry_run
-                )
-            )
+            actions.extend(adapter.inject_mcp_config(server.id, payload, root, dry_run=dry_run))
         return actions
 
     def _write_deploy_state(self, root: Path, platform_id: str) -> None:

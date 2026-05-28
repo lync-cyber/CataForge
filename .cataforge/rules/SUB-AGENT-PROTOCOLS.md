@@ -1,7 +1,7 @@
 # Sub-Agent Protocols
 
 > 本文件仅包含子代理（非 orchestrator）在接收不同 task_type 时需要遵循的恢复/修订流程。
-> 完整编排协议见 `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`（仅 orchestrator 需要）。
+> 完整编排协议见 `{AGENTS_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md`（仅 orchestrator 需要）。
 
 ---
 

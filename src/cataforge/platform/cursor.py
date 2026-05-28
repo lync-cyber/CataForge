@@ -31,11 +31,7 @@ class CursorAdapter(PlatformAdapter):
         # the false impression that Cursor deploy would produce artifacts
         # under ``.claude/``. Users who really want ``.claude/agents`` scanned
         # can still declare it explicitly in their profile.yaml.
-        return list(
-            self._profile.get("agent_definition", {}).get(
-                "scan_dirs", [".cursor/agents"]
-            )
-        )
+        return list(self._profile.get("agent_definition", {}).get("scan_dirs", [".cursor/agents"]))
 
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"
@@ -49,9 +45,7 @@ class CursorAdapter(PlatformAdapter):
         manifest: DeployManifest | None = None,
         prior_manifest: set[str] | None = None,
     ) -> list[str]:
-        return self._generate_mdc_rules(
-            rules_dir, project_root, dry_run=dry_run, manifest=manifest
-        )
+        return self._generate_mdc_rules(rules_dir, project_root, dry_run=dry_run, manifest=manifest)
 
     def deploy_rules(
         self,
@@ -109,16 +103,19 @@ class CursorAdapter(PlatformAdapter):
         dry_run: bool = False,
         manifest: DeployManifest | None = None,
     ) -> list[str]:
-        """Generate .cursor/rules/ MDC files from Markdown sources."""
+        """Generate .cursor/rules/ MDC files from canonical rule sources.
+
+        Only handles ``.cataforge/rules/*.md`` here; override rules under
+        ``.cataforge/platforms/cursor/overrides/rules/`` are picked up by
+        the base-class ``deploy_overrides_rules`` flow which calls
+        :meth:`_wrap_rule_for_platform` (overridden below to produce the
+        same MDC + ``alwaysApply`` wrapping).
+        """
         output_dir = project_root / ".cursor" / "rules"
         if not dry_run:
             output_dir.mkdir(parents=True, exist_ok=True)
 
         actions: list[str] = []
-        overrides_dir = (
-            project_root / ".cataforge" / "platforms" / "cursor" / "overrides" / "rules"
-        )
-
         for md_file in sorted(source_dir.glob("*.md")):
             mdc_name = md_file.stem + ".mdc"
             mdc_rel = f".cursor/rules/{mdc_name}"
@@ -132,23 +129,17 @@ class CursorAdapter(PlatformAdapter):
                 manifest.record(mdc_rel)
             actions.append(f"rules/{md_file.name} → .cursor/rules/{mdc_name}")
 
-        if overrides_dir.is_dir():
-            for md_file in sorted(overrides_dir.glob("*.md")):
-                mdc_name = md_file.stem + ".mdc"
-                mdc_rel = f".cursor/rules/{mdc_name}"
-                if dry_run:
-                    actions.append(
-                        f"would deploy overrides/{md_file.name} → .cursor/rules/{mdc_name}"
-                    )
-                    continue
-                content = md_file.read_text(encoding="utf-8")
-                mdc_content = _wrap_as_mdc(md_file.stem, content)
-                (output_dir / mdc_name).write_text(mdc_content, encoding="utf-8")
-                if manifest is not None:
-                    manifest.record(mdc_rel)
-                actions.append(f"overrides/{md_file.name} → .cursor/rules/{mdc_name}")
-
         return actions
+
+    def _wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
+        """Wrap an override rule as a Cursor MDC file with ``alwaysApply``.
+
+        Called by the base-class ``deploy_overrides_rules`` flow for every
+        ``.cataforge/platforms/cursor/overrides/rules/*.md`` file (including
+        the auto-generated ``auto-*.md`` outputs from hook bridge
+        ``apply_degradation``).
+        """
+        return (f".cursor/rules/{name}.mdc", _wrap_as_mdc(name, content))
 
     def _mcp_json_path(self, project_root: Path) -> Path:
         return project_root / ".cursor" / "mcp.json"

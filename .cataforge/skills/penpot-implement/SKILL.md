@@ -14,7 +14,7 @@ user-invocable: true
 - 不做: 完整业务逻辑实现、状态管理、API对接、设计-代码一致性验证（由 penpot-review 负责）、Token 同步（由 penpot-sync 负责）
 
 ## 前置条件
-- CLAUDE.md `设计工具` 字段为 `penpot`
+- {INSTRUCTION_FILE} `设计工具` 字段为 `penpot`
 - Penpot MCP Server 已配置并可用
 - ui-spec 中对应的 C-{NNN} 规范已定义
 

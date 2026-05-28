@@ -22,6 +22,7 @@
 .cataforge/rules/
 .cataforge/schemas/
 .cataforge/scripts/
+.cataforge/commands/
 .cataforge/framework.json
 
 # 注意: .cataforge/PROJECT-STATE.md 不在白名单

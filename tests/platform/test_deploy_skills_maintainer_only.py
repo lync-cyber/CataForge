@@ -107,9 +107,7 @@ def _write_skill(
     (skill_dir / "SKILL.md").write_text("\n".join(fm_lines), encoding="utf-8")
 
 
-def test_default_skips_maintainer_only_skill(
-    tmp_path: Path, adapter: _MinimalAdapter
-) -> None:
+def test_default_skips_maintainer_only_skill(tmp_path: Path, adapter: _MinimalAdapter) -> None:
     source = tmp_path / ".cataforge" / "skills"
     _write_skill(source, "normal-skill")
     _write_skill(source, "maintainer-only-skill", maintainer_only=True)
@@ -120,14 +118,11 @@ def test_default_skips_maintainer_only_skill(
     assert (target / "normal-skill" / "SKILL.md").is_file()
     assert not (target / "maintainer-only-skill").exists()
     assert any(
-        "SKIP" in a and "maintainer-only-skill" in a and "maintainer-only" in a
-        for a in actions
+        "SKIP" in a and "maintainer-only-skill" in a and "maintainer-only" in a for a in actions
     )
 
 
-def test_include_maintainer_only_links_everything(
-    tmp_path: Path, adapter: _MinimalAdapter
-) -> None:
+def test_include_maintainer_only_links_everything(tmp_path: Path, adapter: _MinimalAdapter) -> None:
     source = tmp_path / ".cataforge" / "skills"
     _write_skill(source, "normal-skill")
     _write_skill(source, "maintainer-only-skill", maintainer_only=True)
@@ -155,9 +150,7 @@ def test_dirs_without_skill_md_are_silently_ignored(
     assert not (target / "drafts").exists()
 
 
-def test_prunes_orphan_per_skill_entries(
-    tmp_path: Path, adapter: _MinimalAdapter
-) -> None:
+def test_prunes_orphan_per_skill_entries(tmp_path: Path, adapter: _MinimalAdapter) -> None:
     source = tmp_path / ".cataforge" / "skills"
     _write_skill(source, "kept-skill")
 
@@ -166,9 +159,7 @@ def test_prunes_orphan_per_skill_entries(
     target = tmp_path / ".test" / "skills"
     orphan = target / "removed-skill"
     orphan.mkdir(parents=True)
-    (orphan / "SKILL.md").write_text(
-        "---\nname: removed-skill\n---\nstale\n", encoding="utf-8"
-    )
+    (orphan / "SKILL.md").write_text("---\nname: removed-skill\n---\nstale\n", encoding="utf-8")
 
     actions = adapter.deploy_skills(source, tmp_path)
     assert (target / "kept-skill" / "SKILL.md").is_file()
@@ -176,9 +167,7 @@ def test_prunes_orphan_per_skill_entries(
     assert any("pruned orphan" in a and "removed-skill" in a for a in actions)
 
 
-def test_unwraps_legacy_whole_dir_link(
-    tmp_path: Path, adapter: _MinimalAdapter
-) -> None:
+def test_unwraps_legacy_whole_dir_link(tmp_path: Path, adapter: _MinimalAdapter) -> None:
     """A whole-directory symlink left over from the pre-filter deploy gets
     torn down so per-skill linking can take over on the next run.
     """
@@ -206,9 +195,7 @@ def test_unwraps_legacy_whole_dir_link(
     assert any("unwrapped whole-dir link" in a for a in actions)
 
 
-def test_dry_run_emits_actions_without_writing(
-    tmp_path: Path, adapter: _MinimalAdapter
-) -> None:
+def test_dry_run_emits_actions_without_writing(tmp_path: Path, adapter: _MinimalAdapter) -> None:
     source = tmp_path / ".cataforge" / "skills"
     _write_skill(source, "normal")
     _write_skill(source, "internal", maintainer_only=True)
@@ -220,8 +207,9 @@ def test_dry_run_emits_actions_without_writing(
     assert not target.exists() or not any(target.iterdir())
     # SKIP for maintainer-only still reported.
     assert any("SKIP" in a and "internal" in a for a in actions)
-    # Normal skill scheduled.
-    assert any("would link" in a and "normal" in a for a in actions)
+    # Normal skill scheduled. Copy+render is the new default — symlink path
+    # would serve unrendered placeholders to the IDE.
+    assert any("would copy+render" in a and "normal" in a for a in actions)
 
 
 def test_maintainer_only_phrase_in_body_does_not_trigger_skip(

@@ -14,7 +14,7 @@ user-invocable: true
 - 不做: 修改代码、修改设计、功能测试
 
 ## 前置条件
-- CLAUDE.md `设计工具` 字段为 `penpot`
+- {INSTRUCTION_FILE} `设计工具` 字段为 `penpot`
 - Penpot MCP Server 已配置并可用
 - 目标组件已有代码实现
 

@@ -11,7 +11,7 @@ skills:
   - doc-gen
   - doc-nav
   - research
-  - penpot-sync    # 仅当 CLAUDE.md 设计工具=penpot 时使用
+  - penpot-sync    # 仅当 {INSTRUCTION_FILE} 设计工具=penpot 时使用
 model_tier: standard
 maxTurns: 60
 ---
@@ -34,10 +34,10 @@ maxTurns: 60
 - 使用模板: 通过doc-gen调用 ui-spec 模板
 
 ### Penpot 降级策略
-当 CLAUDE.md 设计工具=penpot 但 Penpot MCP 不可用时:
+当 {INSTRUCTION_FILE} 设计工具=penpot 但 Penpot MCP 不可用时:
 1. 向用户报告 MCP 连接失败
 2. 提供选项: "退化为手动模式（跳过 Penpot 步骤）" / "排查 MCP 连接后重试"
-3. 用户选择退化时，将 CLAUDE.md 设计工具临时标记为 none，跳过所有 penpot-sync/penpot-review 步骤
+3. 用户选择退化时，将 {INSTRUCTION_FILE} 设计工具临时标记为 none，跳过所有 penpot-sync/penpot-review 步骤
 4. 设计 Token 通过手动编辑 CSS 变量文件替代 Penpot 同步
 
 ## Anti-Patterns

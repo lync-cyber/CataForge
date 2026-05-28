@@ -7,8 +7,8 @@
 
 <!-- OVERRIDE:startup_notes -->
     === 启动须知 ===
-    - 请首先读取 .cataforge/rules/COMMON-RULES.md（Codex 不自动注入规则文件）
-    - 你的角色定义见 .cataforge/agents/{agent_id}/AGENT.md
+    - 请首先读取 {RULES_DIR}/COMMON-RULES.md（Codex 不自动注入规则文件）
+    - 你的角色定义见 {AGENTS_DIR}/{agent_id}/AGENT.md
 <!-- /OVERRIDE:startup_notes -->
 
 <!-- OVERRIDE:tool_usage -->

@@ -32,9 +32,7 @@ _VALID_UPDATE_STRATEGY = {"overwrite", "section-merge"}
 # Cheap frontmatter scan for ``maintainer-only: true``. Avoids importing
 # SkillLoader from the platform layer (the loader pulls in builtins and
 # project config, neither of which the deployer needs at this point).
-_MAINTAINER_ONLY_RE = re.compile(
-    r"^maintainer-only\s*:\s*true\s*$", re.IGNORECASE | re.MULTILINE
-)
+_MAINTAINER_ONLY_RE = re.compile(r"^maintainer-only\s*:\s*true\s*$", re.IGNORECASE | re.MULTILINE)
 
 
 def _peek_maintainer_only(skill_md: Path) -> bool:
@@ -159,21 +157,25 @@ class PlatformAdapter(ABC):
             return actions
 
         source_agents = {
-            d.name
-            for d in source_dir.iterdir()
-            if d.is_dir() and (d / "AGENT.md").is_file()
+            d.name for d in source_dir.iterdir() if d.is_dir() and (d / "AGENT.md").is_file()
         }
 
         # Collect dropped capabilities across all agents so we emit ONE line
         # per platform instead of spamming one warning per agent per field.
         dropped_collector: dict[str, set[str]] = {}
 
-        # Only AGENT.md is an IDE-visible agent definition. Sibling files
-        # (e.g. ORCHESTRATOR-PROTOCOLS.md) are reference material for the
-        # agent itself — they live in .cataforge/ and are read by the agent
-        # at runtime, not registered as additional agents.
+        # Both AGENT.md and its sibling *.md (PROTOCOLS, META, …) deploy into
+        # the platform's per-agent subdir. The siblings carry detailed
+        # protocol material that AGENT.md references; without them in the
+        # IDE-visible tree the LLM follows a placeholder-laden source path
+        # back into .cataforge/ and sees unrendered tokens. Render at write
+        # time so {INSTRUCTION_FILE} / {AGENTS_DIR} etc. resolve to the
+        # platform-native values before the file lands.
+        from cataforge.core.template import render_runtime_content
+
         for agent_name in sorted(source_agents):
-            agent_md = source_dir / agent_name / "AGENT.md"
+            agent_src_dir = source_dir / agent_name
+            agent_md = agent_src_dir / "AGENT.md"
             agent_dst = target_dir / agent_name
             agent_rel = f"{target_rel}/{agent_name}/AGENT.md"
             if dry_run:
@@ -181,28 +183,57 @@ class PlatformAdapter(ABC):
                 # can't confuse "same filename in every line" for "all agents
                 # being written to the same file".
                 actions.append(
-                    f"would deploy agent {agent_name:<24} "
-                    f"→ {target_rel}/{agent_name}/AGENT.md"
+                    f"would deploy agent {agent_name:<24} → {target_rel}/{agent_name}/AGENT.md"
                 )
+                for sibling in sorted(agent_src_dir.iterdir()):
+                    if sibling.is_file() and sibling.suffix == ".md" and sibling.name != "AGENT.md":
+                        actions.append(
+                            f"would deploy agent-doc {agent_name}/{sibling.name:<32} → "
+                            f"{target_rel}/{agent_name}/{sibling.name}"
+                        )
                 continue
 
             agent_dst.mkdir(exist_ok=True)
             content = agent_md.read_text(encoding="utf-8")
-            translated = translate_agent_md(
-                content, self, dropped_collector=dropped_collector
-            )
-            (agent_dst / "AGENT.md").write_text(translated, encoding="utf-8")
+            translated = translate_agent_md(content, self, dropped_collector=dropped_collector)
+            rendered = render_runtime_content(translated, self)
+            (agent_dst / "AGENT.md").write_text(rendered, encoding="utf-8")
             if manifest is not None:
                 manifest.record(agent_rel)
             actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
 
-            # Prune stale sibling files inside this agent subdir — they were
-            # historically deployed (e.g. ORCHESTRATOR-PROTOCOLS.md) but are
-            # no longer part of the IDE-visible surface.
-            for stale in agent_dst.iterdir():
-                if stale.is_file() and stale.name != "AGENT.md":
-                    stale.unlink()
-                    actions.append(f"pruned stale {target_rel}/{agent_name}/{stale.name}")
+            # Render and write sibling *.md files. Track each in the manifest
+            # so the next deploy's orphan prune can reclaim stale ones the
+            # source removed, without touching user-authored ones the
+            # manifest doesn't know about.
+            written_siblings: set[str] = set()
+            for sibling in sorted(agent_src_dir.iterdir()):
+                if not (sibling.is_file() and sibling.suffix == ".md"):
+                    continue
+                if sibling.name == "AGENT.md":
+                    continue
+                sib_content = sibling.read_text(encoding="utf-8")
+                sib_rendered = render_runtime_content(sib_content, self)
+                (agent_dst / sibling.name).write_text(sib_rendered, encoding="utf-8")
+                sib_rel = f"{target_rel}/{agent_name}/{sibling.name}"
+                written_siblings.add(sibling.name)
+                if manifest is not None:
+                    manifest.record(sib_rel)
+                actions.append(f"agents/{agent_name}/{sibling.name} → {target_rel}/{agent_name}")
+
+            # Prune sibling *.md that previous deploys wrote but source no
+            # longer carries. Scope tightly: only files in prior_manifest,
+            # never AGENT.md itself, never non-md files (user backups etc.).
+            for existing in agent_dst.iterdir():
+                if not (existing.is_file() and existing.suffix == ".md"):
+                    continue
+                if existing.name == "AGENT.md" or existing.name in written_siblings:
+                    continue
+                existing_rel = f"{target_rel}/{agent_name}/{existing.name}"
+                if prior_manifest is not None and existing_rel not in prior_manifest:
+                    continue
+                existing.unlink()
+                actions.append(f"pruned orphan {target_rel}/{agent_name}/{existing.name}")
 
         # Emit a single aggregated WARN per field, listing every dropped cap.
         for field_name in sorted(dropped_collector):
@@ -290,6 +321,7 @@ class PlatformAdapter(ABC):
            mappings on this platform.
         """
         from cataforge.agent.translator import translate_agent_md
+        from cataforge.core.template import render_runtime_content
         from cataforge.platform.helpers import _prune_orphan_flat_files
 
         target_dir = project_root / target_rel
@@ -301,9 +333,7 @@ class PlatformAdapter(ABC):
             return actions
 
         source_agents = {
-            d.name
-            for d in source_dir.iterdir()
-            if d.is_dir() and (d / "AGENT.md").is_file()
+            d.name for d in source_dir.iterdir() if d.is_dir() and (d / "AGENT.md").is_file()
         }
         dropped_collector: dict[str, set[str]] = {}
 
@@ -313,16 +343,16 @@ class PlatformAdapter(ABC):
             target_rel_full = f"{target_rel}/{agent_name}{suffix}"
 
             if dry_run:
-                actions.append(
-                    f"would deploy agent {agent_name:<24} → {target_rel_full}"
-                )
+                actions.append(f"would deploy agent {agent_name:<24} → {target_rel_full}")
                 continue
 
             content = agent_md.read_text(encoding="utf-8")
-            translated = translate_agent_md(
-                content, self, dropped_collector=dropped_collector
-            )
-            final = formatter(agent_name, translated)
+            translated = translate_agent_md(content, self, dropped_collector=dropped_collector)
+            # Render runtime placeholders BEFORE the formatter wraps the body
+            # — Codex's TOML wrapper embeds the markdown verbatim, so rendering
+            # afterwards would have to re-parse the TOML to find the body.
+            rendered = render_runtime_content(translated, self)
+            final = formatter(agent_name, rendered)
             target_file.write_text(final, encoding="utf-8")
             if manifest is not None:
                 manifest.record(target_rel_full)
@@ -399,10 +429,16 @@ class PlatformAdapter(ABC):
         if not project_state_path.is_file():
             return ["SKIP: PROJECT-STATE.md not found"]
 
-        from cataforge.core.template import render_project_state
+        from cataforge.core.template import render_project_state, render_runtime_content
 
         content = project_state_path.read_text(encoding="utf-8")
         content = render_project_state(content, platform_id)
+        # Apply runtime placeholders ({INSTRUCTION_FILE}, {RULES_DIR}, …) so
+        # the user's CLAUDE.md / AGENTS.md ships with platform-native paths
+        # baked in. ``render_project_state`` only handles the legacy
+        # ``运行时: {platform}`` token; this second pass picks up the new
+        # placeholder surface declared by the renderer registry.
+        content = render_runtime_content(content, self)
 
         # Prepend an at-mention preamble when the platform declares one via
         # context_injection.  Today only Claude Code uses this — CLAUDE.md gets
@@ -445,16 +481,12 @@ class PlatformAdapter(ABC):
             try:
                 dst.resolve().relative_to(project_root.resolve())
             except ValueError as exc:
-                raise CataforgeError(
-                    f"target_rel escapes project root: {target_rel!r}"
-                ) from exc
+                raise CataforgeError(f"target_rel escapes project root: {target_rel!r}") from exc
 
             # ---- on_conflict gate ----
             if dst.exists() and on_conflict != "overwrite":
                 if on_conflict == "preserve":
-                    actions.append(
-                        f"SKIP {target_rel} ← on_conflict=preserve (target exists)"
-                    )
+                    actions.append(f"SKIP {target_rel} ← on_conflict=preserve (target exists)")
                     continue
                 # preserve_if_edited: compare sha256 with last-deployed hash
                 cur_hash = hashlib.sha256(dst.read_bytes()).hexdigest()
@@ -575,17 +607,18 @@ class PlatformAdapter(ABC):
         prior_manifest: set[str] | None = None,
         force_copy: bool = False,
     ) -> list[str]:
-        """Expose each skill subdir to the IDE via symlink/junction/copy.
+        """Materialise each skill subdir under the IDE's skill tree via
+        copy + placeholder render.
 
         Per-skill (not whole-dir) so the deployer can drop skills that
         declare ``maintainer-only: true`` in their SKILL.md frontmatter —
         those ship only when the caller passes ``include_maintainer_only=True``
         (``cataforge deploy --include-maintainer-only``).
 
-        ``force_copy=True`` skips the symlink/junction attempts and goes
-        straight to ``copytree`` so destructive deletes inside
-        ``.claude/skills/<name>/`` never propagate back to the source under
-        ``.cataforge/skills/<name>/``.
+        ``force_copy`` is retained for API compatibility; the new default
+        always copies (and renders ``*.md`` files in the copy) because the
+        symlink path served stale placeholders to the IDE. Source edits no
+        longer round-trip without ``cataforge deploy``.
 
         ``prior_manifest`` is the ownership set from the previous deploy.
         Prune only removes target entries that *both* lack a source
@@ -594,11 +627,8 @@ class PlatformAdapter(ABC):
 
         Subclasses can override to transform content per platform.
         """
-        from cataforge.platform.helpers import (
-            _is_dir_link,
-            _remove_target,
-            symlink_or_copy,
-        )
+        del force_copy  # retained for API compat; always copy under J render
+        from cataforge.platform.helpers import _is_dir_link, _remove_target
 
         target_rel = self.get_skill_target_dir()
         if not target_rel or not source_dir.is_dir():
@@ -611,11 +641,9 @@ class PlatformAdapter(ABC):
         source_names = {p.name for p in source_dir.iterdir() if p.is_dir()}
         actions: list[str] = []
 
-        # Migrate from a pre-existing whole-dir symlink/junction: if the
-        # target itself is the link (not a real dir containing per-skill
-        # entries), tear it down once so we can rebuild per-skill links.
-        # ``_is_dir_link`` covers Py 3.10/3.11 junctions via ctypes — the
-        # naked ``Path.is_junction`` check was a no-op there.
+        # Migrate from a pre-existing whole-dir symlink/junction left over
+        # from the pre-J deploy: tear it down so we can rebuild per-skill
+        # copies. ``_is_dir_link`` covers Py 3.10/3.11 junctions via ctypes.
         if _is_dir_link(target_dir):
             if dry_run:
                 actions.append(f"would unwrap whole-dir link {target_rel}/")
@@ -633,10 +661,7 @@ class PlatformAdapter(ABC):
                 if existing.name in source_names:
                     continue
                 existing_rel = f"{target_rel}/{existing.name}"
-                if (
-                    prior_manifest is not None
-                    and existing_rel not in prior_manifest
-                ):
+                if prior_manifest is not None and existing_rel not in prior_manifest:
                     # User-authored or pre-manifest legacy — leave alone.
                     continue
                 if dry_run:
@@ -652,19 +677,59 @@ class PlatformAdapter(ABC):
             if not skill_md.is_file():
                 continue
             if _peek_maintainer_only(skill_md) and not include_maintainer_only:
-                actions.append(
-                    f"SKIP: {target_rel}/{skill_dir.name} (maintainer-only)"
-                )
+                actions.append(f"SKIP: {target_rel}/{skill_dir.name} (maintainer-only)")
                 continue
             target = target_dir / skill_dir.name
             target_rel_path = f"{target_rel}/{skill_dir.name}"
-            actions.extend(
-                symlink_or_copy(
-                    skill_dir, target, dry_run=dry_run, force_copy=force_copy
-                )
-            )
+            actions.extend(self._copy_render_md_tree(skill_dir, target, dry_run=dry_run))
             if manifest is not None and not dry_run:
                 manifest.record(target_rel_path)
+        return actions
+
+    def _copy_render_md_tree(
+        self,
+        source: Path,
+        target: Path,
+        *,
+        dry_run: bool = False,
+    ) -> list[str]:
+        """Copy *source* tree to *target* and render ``*.md`` files in place.
+
+        Tightly scoped helper used by :meth:`deploy_skills` and
+        :meth:`deploy_rules`. Distinct from ``symlink_or_copy`` in two ways:
+
+        1. Always copies — never symlinks/junctions. Placeholders in
+           ``SKILL.md`` / ``COMMON-RULES.md`` must be substituted before the
+           file reaches the IDE, which requires an independent copy.
+        2. Walks the copy and rewrites every ``*.md`` file through
+           :func:`render_runtime_content`, so ``{INSTRUCTION_FILE}`` and
+           friends resolve to the platform-native value.
+
+        Non-markdown files (scripts, templates with literal braces, etc.) are
+        copied verbatim — the renderer is only invoked on ``*.md`` to keep
+        the brace-passthrough rule from interfering with code.
+        """
+        import shutil
+
+        from cataforge.core.template import render_runtime_content
+        from cataforge.platform.helpers import _remove_target
+
+        if dry_run:
+            return [f"would copy+render {target} ← {source}"]
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists() or target.is_symlink():
+            _remove_target(target)
+        shutil.copytree(source, target)
+
+        actions = [f"{target} ← {source} (copy+render)"]
+        for md_file in target.rglob("*.md"):
+            if not md_file.is_file():
+                continue
+            original = md_file.read_text(encoding="utf-8")
+            rendered = render_runtime_content(original, self)
+            if rendered != original:
+                md_file.write_text(rendered, encoding="utf-8")
         return actions
 
     # ---- slash commands deployment ----
@@ -718,10 +783,7 @@ class PlatformAdapter(ABC):
                 if existing.name in source_names:
                     continue
                 existing_rel = f"{target_rel}/{existing.name}"
-                if (
-                    prior_manifest is not None
-                    and existing_rel not in prior_manifest
-                ):
+                if prior_manifest is not None and existing_rel not in prior_manifest:
                     continue
                 if dry_run:
                     actions.append(f"would prune orphan {target_rel}/{existing.name}")
@@ -729,16 +791,18 @@ class PlatformAdapter(ABC):
                     existing.unlink()
                     actions.append(f"pruned orphan {target_rel}/{existing.name}")
 
+        from cataforge.core.template import render_runtime_content
+
         for md_file in sorted(source_dir.glob("*.md")):
             dst = target_dir / md_file.name
             cmd_rel = f"{target_rel}/{md_file.name}"
             if dry_run:
                 actions.append(
-                    f"would deploy commands/{md_file.name} → "
-                    f"{target_rel}/{md_file.name}"
+                    f"would deploy commands/{md_file.name} → {target_rel}/{md_file.name}"
                 )
                 continue
-            dst.write_text(md_file.read_text(encoding="utf-8"), encoding="utf-8")
+            rendered = render_runtime_content(md_file.read_text(encoding="utf-8"), self)
+            dst.write_text(rendered, encoding="utf-8")
             if manifest is not None:
                 manifest.record(cmd_rel)
             actions.append(f"commands/{md_file.name} → {target_rel}")
@@ -758,19 +822,20 @@ class PlatformAdapter(ABC):
     ) -> list[str]:
         """Deploy rule files to the platform's rule directory.
 
-        Default: symlink/copy to ``<scan_dirs[0]>/../rules``.
-        Subclasses override for additional outputs (e.g. Cursor MDC).
+        Copy + render so placeholders in ``COMMON-RULES.md`` /
+        ``SUB-AGENT-PROTOCOLS.md`` reach the IDE already substituted.
+        ``force_copy`` is retained for API parity with the skills path; the
+        default now always copies (rendering forces independent copies —
+        symlinks would point back at unrendered source).
         """
-        from cataforge.platform.helpers import symlink_or_copy
+        del force_copy  # retained for API compat; always copy under J render
 
         scan_dirs = self.get_agent_scan_dirs()
         if not scan_dirs:
             return []
         platform_root = Path(scan_dirs[0]).parent
         target = project_root / platform_root / "rules"
-        actions = symlink_or_copy(
-            source_dir, target, dry_run=dry_run, force_copy=force_copy
-        )
+        actions = self._copy_render_md_tree(source_dir, target, dry_run=dry_run)
         if manifest is not None and not dry_run:
             manifest.record(f"{platform_root.as_posix()}/rules")
         return actions
@@ -791,6 +856,87 @@ class PlatformAdapter(ABC):
         Default: no-op. Subclasses override (e.g. Cursor MDC rules).
         """
         return []
+
+    # ---- overrides/rules deployment ----
+
+    def deploy_overrides_rules(
+        self,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: DeployManifest | None = None,
+    ) -> list[str]:
+        """Materialise platform override rules into native artefacts.
+
+        Scans ``.cataforge/platforms/{platform_id}/overrides/rules/*.md``
+        (both hand-authored rules and auto-generated ones from hook bridge
+        ``apply_degradation``) and writes each through
+        :meth:`_wrap_rule_for_platform`.
+
+        Subclasses control output format and target path by overriding the
+        hook; the default produces a verbatim copy at
+        ``<context_injection.rules_distribution.target>/<name>.md``.
+        Returning ``None`` from the hook signals the platform opted not to
+        emit a file (e.g. when the rule is registered through a different
+        mechanism such as ``opencode.json#instructions``).
+        """
+        overrides_dir = (
+            project_root / ".cataforge" / "platforms" / self.platform_id / "overrides" / "rules"
+        )
+        if not overrides_dir.is_dir():
+            return []
+
+        actions: list[str] = []
+        for md_file in sorted(overrides_dir.glob("*.md")):
+            content = md_file.read_text(encoding="utf-8")
+            wrapped = self._wrap_rule_for_platform(md_file.stem, content)
+            if wrapped is None:
+                actions.append(
+                    f"SKIP: overrides/rules/{md_file.name} — "
+                    f"{self.platform_id} platform opted not to materialise"
+                )
+                continue
+            target_rel, body = wrapped
+            target_path = project_root / target_rel
+            if dry_run:
+                actions.append(f"would deploy overrides/rules/{md_file.name} → {target_rel}")
+                continue
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_text(body, encoding="utf-8")
+            if manifest is not None:
+                manifest.record(target_rel)
+            actions.append(f"overrides/rules/{md_file.name} → {target_rel}")
+        return actions
+
+    def _wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
+        """Return ``(target_relpath, body)`` for an override rule, or ``None``.
+
+        Default: copy verbatim to
+        ``<context_injection.rules_distribution.target>/<name>.md`` when the
+        profile declares a rules target; otherwise return ``None`` (skip).
+
+        Subclasses override to:
+
+        * change the wrapping (e.g. Cursor wraps as MDC with ``alwaysApply``)
+        * change the target path
+        * return ``None`` to suppress writing entirely (e.g. when the rule
+          is surfaced through a different mechanism)
+        """
+        rules_target = self._default_rules_target_dir()
+        if not rules_target:
+            return None
+        return (f"{rules_target}/{name}.md", content)
+
+    def _default_rules_target_dir(self) -> str | None:
+        """Return the platform's declared rule distribution directory, if any.
+
+        Looks at ``context_injection.rules_distribution.target`` in the
+        profile.  Used by :meth:`_wrap_rule_for_platform` so subclasses that
+        only want to change wrapping (not the target path) can call this
+        helper instead of re-reading the profile.
+        """
+        target = (self.context_injection.get("rules_distribution", {}) or {}).get("target")
+        return str(target) if target else None
 
     # ---- agent configuration ----
 
@@ -960,9 +1106,7 @@ class PlatformAdapter(ABC):
         from cataforge.platform.helpers import merge_json_key
 
         mcp_path = self._mcp_json_path(project_root)
-        return merge_json_key(
-            mcp_path, f"mcpServers.{server_id}", server_config, dry_run=dry_run
-        )
+        return merge_json_key(mcp_path, f"mcpServers.{server_id}", server_config, dry_run=dry_run)
 
     def _mcp_json_path(self, project_root: Path) -> Path:
         """Return the JSON file path the default ``inject_mcp_config`` writes to.
@@ -972,6 +1116,5 @@ class PlatformAdapter(ABC):
         ``inject_mcp_config`` directly and can leave this raising.
         """
         raise NotImplementedError(
-            f"{type(self).__name__} must override either "
-            "inject_mcp_config() or _mcp_json_path()"
+            f"{type(self).__name__} must override either inject_mcp_config() or _mcp_json_path()"
         )

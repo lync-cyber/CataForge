@@ -39,14 +39,12 @@ user-invocable: false
 当前运行时平台由 `.cataforge/platforms/{platform_id}/profile.yaml` 声明。
 调度工具名和参数由 profile.yaml 的 `dispatch` 段定义。
 
-完整 prompt 模板见: `.cataforge/skills/agent-dispatch/templates/dispatch-prompt.md`（含 OVERRIDE 标记点）。
-平台 override 见: `.cataforge/platforms/{platform_id}/overrides/dispatch-prompt.md`。
+prompt 主模板: `.cataforge/skills/agent-dispatch/templates/dispatch-prompt.md`。
+平台特异性覆盖: `.cataforge/platforms/{platform_id}/overrides/dispatch-prompt.md`（若存在）。
 
-运行时工具层（`.cataforge/runtime/`）提供:
-- `profile_loader.py`: 加载平台 profile 和 tool_map
-- `template_renderer.py`: 基础模板 + override 合并
-- `frontmatter_translator.py`: AGENT.md 能力标识符翻译
-- `result_parser.py`: 4 级容错解析器
+调度前 orchestrator 自行 Read 主模板 + 当前平台 override（若有），两者由 LLM 上下文合并使用 —— OVERRIDE 块边界在源文件中以 `<!-- OVERRIDE:<section> -->` 注释标识，便于 LLM 识别替换语义。主模板已含平台分支（如 "Claude: .claude/rules，Cursor: .cursor/rules"），override 只在需要补充平台特异性内容时才填充对应块。
+
+deploy 阶段无运行时合并器；frontmatter 能力标识符翻译由 `cataforge.agent.translator.translate_agent_md` 负责，agent 返回值解析由 orchestrator 主循环按下方 §返回值解析与容错 处理。
 
 > 修改 prompt 模板影响所有通过 agent-dispatch 调度的 Agent，请谨慎变更并做 diff review。
 > TDD 子代理由 tdd-engine 直接调度，仅传入任务信息，通用约束和返回格式依赖 AGENT.md 自动加载，无需同步。
@@ -73,7 +71,7 @@ orchestrator 收到子代理返回后，按以下优先级解析:
    - 所有修改文件均在 allowed_paths 列表的目录下 → 正常
    - 存在 allowed_paths 以外的修改文件 → 使用 `git checkout -- {违规文件}` 回滚，在 summary 中标注"Agent 写入违规已回滚"，记录违规文件路径
 
-Python 实现: `.cataforge/runtime/result_parser.py`
+实现: orchestrator 主循环按上述优先级处理子代理返回，无独立 runtime 模块。
 
 ## 注意事项
 - 每个Phase Agent作为独立子代理运行，拥有自己的上下文窗口
