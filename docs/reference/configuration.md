@@ -76,6 +76,13 @@
     "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
     "RETRO_TRIGGER_SELF_CAUSED": 5
   },
+  "kg": {
+    "kg_active_doc_types": ["prd", "arch", "test"],
+    "store_backend": "oxigraph",
+    "db_path": ".cataforge/kg/store",
+    "ontology_namespace": "https://cataforge.dev/kg/",
+    "base_namespace": "https://cataforge.dev/kg/instances/"
+  },
   "features": {
     "tdd-engine": {
       "min_version": "0.1.0",
@@ -155,6 +162,11 @@
 | `upgrade.state.last_commit` | ✅ | **preserve** | 上次 apply 拉取的 commit SHA |
 | `upgrade.state.last_version` | ✅ | **preserve** | 上次 apply 时的包版本 |
 | `upgrade.state.last_upgrade_date` | ✅ | **preserve** | 上次 apply 时间戳（ISO 8601） |
+| `kg.kg_active_doc_types` | ✅ | **preserve** | 走 KG 路径的 doc_type 集合（per-doc_type rolling cutover，见 [`../proposals/kg-migration-0.5.0/task-7-rollout-strategy.md`](../proposals/kg-migration-0.5.0/task-7-rollout-strategy.md) §7.5）。空数组 = 全部走 legacy file-loader；scaffold 默认 `["prd","arch","test"]` |
+| `kg.store_backend` | ❌ | overwrite | KG 存储后端：`oxigraph`（默认，RocksDB 持久化）/ `memory`（仅测试） |
+| `kg.db_path` | ❌ | overwrite | KG store 路径（默认 `.cataforge/kg/store`） |
+| `kg.ontology_namespace` | ❌ | overwrite | 本体 IRI 命名空间（默认 `https://cataforge.dev/kg/`） |
+| `kg.base_namespace` | ❌ | overwrite | 实例 IRI 命名空间（默认 `https://cataforge.dev/kg/instances/`） |
 
 > **常见误解**：示例中的 `upgrade.source` 子树**不是 preserve 字段**。如果你 fork 了 CataForge 并希望从私有镜像拉 scaffold，目前只能在每次 `upgrade apply` 后重新写入这些字段；持久化用户自定义 source 的能力跟踪在 `upgrade.source preserve mode` issue。
 
