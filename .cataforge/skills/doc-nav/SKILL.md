@@ -56,7 +56,7 @@ cataforge docs load <ref> [<ref> ...]
 ```bash
 cataforge docs load <ref> --with-deps
 ```
-依赖关系来自 `.doc-index.json` 的 `deps` 字段（由 doc-gen 在生成时声明）。
+依赖关系按 doc_type 分流：KG-active 走 `kg.query.depends_on` 图查询，legacy 走 `.doc-index.json` 的 `deps` 字段（由 doc-gen 在生成时声明）。详见 COMMON-RULES §Agent 文档 I/O 契约。
 
 ### 指令4: 校验索引完整性 (validate)
 当 Agent 怀疑索引漂移（doc 加载失败、ref 解析不到）时：
