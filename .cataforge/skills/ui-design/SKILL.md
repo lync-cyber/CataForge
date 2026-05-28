@@ -57,7 +57,7 @@ user-invocable: true
 - 圆角程度与产品调性一致(企业工具偏小圆角2-4px，消费产品可用较大圆角8-16px)
 
 ### Step 3: [Penpot可选] Token同步
-若 CLAUDE.md `设计工具` 为 `penpot`，调用 penpot-sync 将token同步到Penpot项目和 tokens.css
+若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，调用 penpot-sync 将token同步到Penpot项目和 tokens.css
 
 ### Step 4: 页面与组件规划
 从PRD功能需求推导页面和组件需求:
@@ -88,7 +88,7 @@ user-invocable: true
 4. Token变量化，确保全局一致
 
 ### Step 9: [Penpot可选] 设计一致性验证
-若 CLAUDE.md `设计工具` 为 `penpot`，调用 penpot-review 验证设计文件与ui-spec的一致性
+若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，调用 penpot-review 验证设计文件与ui-spec的一致性
 
 ## Anti-Patterns
 - 禁止: 跳过 Token 阶段直接画组件 —— Token 是设计系统基础，未先确立会让组件层风格漂移，后期返工成本高

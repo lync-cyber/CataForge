@@ -1,17 +1,17 @@
 # Orchestrator Protocols
 
-> 阶段调度热路径协议 — Bootstrap, **Mode Routing**, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, **Parallel Task Dispatch**, Sprint Review, Change Request, Agent Crash Recovery, **Sub-Agent Truncation Recovery**, needs_revision 计数 | 模板: CLAUDE.md Update Template
+> 阶段调度热路径协议 — Bootstrap, **Mode Routing**, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, **Parallel Task Dispatch**, Sprint Review, Change Request, Agent Crash Recovery, **Sub-Agent Truncation Recovery**, needs_revision 计数 | 模板: {INSTRUCTION_FILE} Update Template
 >
 > 元运维与学习协议（低频触发、reference 性质）见 [`ORCHESTRATOR-META-PROTOCOLS.md`](ORCHESTRATOR-META-PROTOCOLS.md)：Framework Upgrade, Event Log 规范, On-Correction Learning, Adaptive Review (含反向降级), Retrospective & Improvement.
 
 ## Project Bootstrap
-当项目从零开始 (CLAUDE.md 不存在) 时:
+当项目从零开始 ({INSTRUCTION_FILE} 不存在) 时:
 1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认 `[pre_dev, pre_deploy]`）
 2. **选择执行模式** — 通过 AskUserQuestion 单独提问，选项:
     - `standard`（默认/推荐）— 中大型正式交付项目，7 阶段全流程
     - `agile-lite` — 5-20 feature 的轻量工具或小型 Web 项目（产出 prd-lite / arch-lite / dev-plan-lite 各目标 ≤100 行）
     - `agile-prototype` — 原型 / PoC / 单文件脚本（单一 brief.md 目标 ≤200 行，合并 Phase 1~4）
-    完整差异矩阵见 COMMON-RULES §执行模式矩阵。选择结果写入 CLAUDE.md §框架元信息.执行模式
+    完整差异矩阵见 COMMON-RULES §执行模式矩阵。选择结果写入 {INSTRUCTION_FILE} §框架元信息.执行模式
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
@@ -44,11 +44,11 @@
     ```
 
     > 适用：Node / Python / 含 fixture 的多平台项目。纯 Linux/macOS 服务端项目可裁剪至首行 `* text=auto eol=lf`。
-5. **创建 CLAUDE.md** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§框架元信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
+5. **创建 {INSTRUCTION_FILE}** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§框架元信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
     - `standard` → `requirements`
     - `agile-lite` → `planning`（Phase 1+2 合并）
     - `agile-prototype` → `brief`（Phase 1~4 合并）
-6. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 CLAUDE.md `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
+6. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 {INSTRUCTION_FILE} `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
 7. **选择目标平台** — 通过 AskUserQuestion 单独提问，选项:
     - `claude-code`（默认）— Anthropic Claude Code CLI / Desktop / Web
     - `cursor` — Cursor IDE
@@ -56,9 +56,9 @@
     - `opencode` — OpenCode CLI
     确认后执行: `cataforge setup --platform {选定值}`，该命令将写入 `framework.json` 的 `runtime.platform` 字段并自动执行 deploy，生成对应平台的部署产物。若用户跳过选择则默认 `claude-code`。
 8. **填入 §执行环境 + 最小 permissions** — 按顺序运行两条命令:
-   - `cataforge setup --emit-env-block`：将输出注入 CLAUDE.md §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
+   - `cataforge setup --emit-env-block`：将输出注入 {INSTRUCTION_FILE} §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
    - `cataforge setup --apply-permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
-   本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 CLAUDE.md，并收紧运行时权限以符合最小权限原则。
+   本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 {INSTRUCTION_FILE}，并收紧运行时权限以符合最小权限原则。
 9. **初始化文档索引与知识图谱** —
    - `cataforge kg init`（幂等；首次创建 RocksDB store + 加载 `rdfs:subClassOf` 闭包三元组，命令缺失或 `framework.json.kg` 段未声明时 WARN 跳过）
    - `cataforge docs index`（生成空的 `docs/.doc-index.json`，作为 legacy doc_type 的缓存来源，首个文档落盘后由 doc-gen 增量刷新；KG-active doc_type 由 doc-gen finalize 触发 `cataforge kg import`）
@@ -68,10 +68,10 @@
     - `agile-prototype` → product-manager（brief 阶段，产出单一 brief.md）
 
 ## Mode Routing Protocol
-orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪份文档"时，先读取 CLAUDE.md §框架元信息.执行模式（字段缺失或占位符未填 → 按 `standard` 处理），然后按下列矩阵路由。模式完整差异见 COMMON-RULES §执行模式矩阵。
+orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪份文档"时，先读取 {INSTRUCTION_FILE} §框架元信息.执行模式（字段缺失或占位符未填 → 按 `standard` 处理），然后按下列矩阵路由。模式完整差异见 COMMON-RULES §执行模式矩阵。
 
 ### standard 模式
-按 7 阶段顺序推进: requirements → architecture → ui_design → dev_planning → development → testing → deployment。阶段可被 CLAUDE.md §框架元信息.阶段配置 标记为 N/A 跳过（ui_design / testing / deployment）。所有 Agent 产出 standard 文档（prd / arch / ui-spec / dev-plan / test-report / deploy-spec）。
+按 7 阶段顺序推进: requirements → architecture → ui_design → dev_planning → development → testing → deployment。阶段可被 {INSTRUCTION_FILE} §框架元信息.阶段配置 标记为 N/A 跳过（ui_design / testing / deployment）。所有 Agent 产出 standard 文档（prd / arch / ui-spec / dev-plan / test-report / deploy-spec）。
 
 ### agile-lite 模式
 合并 Phase 1+2 为 `planning`，跳过 Phase 3，Phase 4 使用 lite 模板。阶段序列: planning → dev_planning → development → (testing) → (deployment)。
@@ -81,7 +81,7 @@ orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪�
    - prd-lite 通过 doc-review（Layer 1 强制；Layer 2 按 `DOC_REVIEW_L2_SKIP_*` 短路）
    - approved 后**链式**激活 architect（无需额外用户交互窗口），传入 `template_id=arch-lite` + `deps=[prd-lite]`，产出 `docs/arch/arch-lite-{project}.md`
    - arch-lite 通过 doc-review 后 planning 阶段结束
-2. **跳过 Phase 3 ui_design** — CLAUDE.md §阶段配置.ui_design 默认标记 N/A；若项目显式需要 UI 设计（Bootstrap 时由用户标注），则 fallback 到 standard ui-designer + ui-spec 流程
+2. **跳过 Phase 3 ui_design** — {INSTRUCTION_FILE} §阶段配置.ui_design 默认标记 N/A；若项目显式需要 UI 设计（Bootstrap 时由用户标注），则 fallback 到 standard ui-designer + ui-spec 流程
 3. **dev_planning 阶段**: 激活 tech-lead，传入 `template_id=dev-plan-lite`，任务卡默认 `tdd_mode: light`（tech-lead 按 `TDD_LIGHT_LOC_THRESHOLD` 判定）
 4. **development / testing / deployment**: 按 standard 流程推进；Sprint-review 按 `SPRINT_REVIEW_MICRO_TASK_COUNT` 判定；人工检查点仅 `pre_dev`
 
@@ -94,16 +94,16 @@ orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪�
    - brief.md 仅跑 doc-review Layer 1（`DOC_REVIEW_L2_SKIP_DOC_TYPES` 含 brief，Layer 2 直接短路）
 2. **跳过 Phase 3 ui_design** — 原型默认无 UI 设计阶段
 3. **development 阶段**: orchestrator 直接从 brief.md §5 读取任务卡，按 tdd-engine §Prototype Inline 模式（implementer 主线程内联，不 dispatch 子代理）执行；Sprint-review 跳过；Retrospective 跳过；人工检查点 `none`
-4. **testing / deployment**: 默认跳过（CLAUDE.md §阶段配置 标记 N/A）；若用户显式启用，fallback 到 standard 流程
+4. **testing / deployment**: 默认跳过（{INSTRUCTION_FILE} §阶段配置 标记 N/A）；若用户显式启用，fallback 到 standard 流程
 
 ### 路由时机
 Mode Routing Protocol 在以下时刻被调用:
 - Bootstrap 完成后首次进入初始阶段
 - 每次 Phase Transition Protocol Step 6（激活下一阶段 Agent）前，用于确定"下一阶段"的具体含义
-- 会话恢复时（Startup Protocol 读取 CLAUDE.md 后）
+- 会话恢复时（Startup Protocol 读取 {INSTRUCTION_FILE} 后）
 
 ### 模式回退
-- `agile-lite` / `agile-prototype` 运行中若 orchestrator 检测到以下信号，应通过 AskUserQuestion 提示用户切换到更高档位模式: brief.md 实际产出超过 DOC_SPLIT_THRESHOLD_LINES；agile-lite 任务数 >25；或任何 lite 文档超过 150 行且仍无法表达核心决策。切换由用户手动编辑 CLAUDE.md §框架元信息.执行模式完成，orchestrator 不自动改写该字段。
+- `agile-lite` / `agile-prototype` 运行中若 orchestrator 检测到以下信号，应通过 AskUserQuestion 提示用户切换到更高档位模式: brief.md 实际产出超过 DOC_SPLIT_THRESHOLD_LINES；agile-lite 任务数 >25；或任何 lite 文档超过 150 行且仍无法表达核心决策。切换由用户手动编辑 {INSTRUCTION_FILE} §框架元信息.执行模式完成，orchestrator 不自动改写该字段。
 
 ## Interrupt-Resume Protocol
 注: 前台子代理(默认)可直接使用AskUserQuestion向用户提问。本协议仅在后台子代理返回 needs_input 时触发。
@@ -114,7 +114,7 @@ Mode Routing Protocol 在以下时刻被调用:
 4. 通过 agent-dispatch 重新激活同一Agent (task_type=continuation)
 5. 循环控制: 每Agent每阶段最多2轮interrupt-resume，第3轮请求人工介入
 
-> 子代理收到 `task_type=continuation` 后的恢复步骤见 `.cataforge/rules/SUB-AGENT-PROTOCOLS.md §task_type=continuation 恢复流程`，orchestrator 无需关注子代理内部执行细节。
+> 子代理收到 `task_type=continuation` 后的恢复步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=continuation 恢复流程`，orchestrator 无需关注子代理内部执行细节。
 
 ## Revision Protocol
 当 reviewer 返回 needs_revision 时，先记录审查结论:
@@ -130,7 +130,7 @@ Mode Routing Protocol 在以下时刻被调用:
 4. 修复完成后重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
 5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入（收紧自 N≥3，避免低效 revision 循环）
 
-> 子代理收到 `task_type=revision` 后的修订步骤见 `.cataforge/rules/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
+> 子代理收到 `task_type=revision` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
 
 ## Approved-with-Notes Protocol
 当 reviewer 返回 approved_with_notes 时:
@@ -158,9 +158,9 @@ Mode Routing Protocol 在以下时刻被调用:
 当 reviewer 返回 approved 或 approved_with_notes 且用户选择"接受并继续"时，执行以下状态持久化步骤:
 
 1. **更新文档头状态** — 将文档内部 `status: draft` / `status: review` 更新为 `status: approved`
-2. **更新 CLAUDE.md 文档状态** — 对应文档状态字段标记为 approved
-3. **更新 CLAUDE.md 阶段信息** — 按 CLAUDE.md Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
-4. **一致性验证** — 确认文档头 status 与 CLAUDE.md 字段一致
+2. **更新 {INSTRUCTION_FILE} 文档状态** — 对应文档状态字段标记为 approved
+3. **更新 {INSTRUCTION_FILE} 阶段信息** — 按 {INSTRUCTION_FILE} Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
+4. **一致性验证** — 确认文档头 status 与 {INSTRUCTION_FILE} 字段一致
 5. **依赖新鲜度检查** — 运行 `cataforge docs validate`，检查 `stale_deps` 输出：
    - 无 stale deps → 通过，继续 Step 5.5
    - 存在 stale deps → 向用户展示过期依赖清单并提供选项：
@@ -191,18 +191,18 @@ Mode Routing Protocol 在以下时刻被调用:
    cataforge event log --batch <<'EOF'
    {"event":"phase_end","phase":"{当前阶段}","status":"approved","detail":"reviewer 通过"}
    {"event":"review_verdict","phase":"{当前阶段}","agent":"reviewer","status":"approved","detail":"审查通过"}
-   {"event":"state_change","phase":"{新阶段}","detail":"CLAUDE.md 阶段更新: {旧阶段} → {新阶段}"}
+   {"event":"state_change","phase":"{新阶段}","detail":"{INSTRUCTION_FILE} 阶段更新: {旧阶段} → {新阶段}"}
    {"event":"phase_start","phase":"{新阶段}","detail":"进入{新阶段名}阶段"}
    EOF
    ```
-7. **CLAUDE.md hygiene 强制门** — 在派发下一阶段 Agent 之前执行：
+7. **{INSTRUCTION_FILE} hygiene 强制门** — 在派发下一阶段 Agent 之前执行：
    ```bash
    cataforge claude-md check
    ```
    - exit 0 → 通过，继续 Step 8
    - exit 1（任一 `claude_md_limits` 阈值越界）→ **阻塞 Phase Transition**，向用户展示 stdout 的问题摘要并提供选项：
      1. 自动 compact：执行 `cataforge claude-md compact`，重新跑 `check`，PASS 后继续 Step 8
-     2. 手动处理：暂停 Phase Transition，等待用户编辑 CLAUDE.md 后再次推进（再次推进时重新跑 Step 7）
+     2. 手动处理：暂停 Phase Transition，等待用户编辑 {INSTRUCTION_FILE} 后再次推进（再次推进时重新跑 Step 7）
    - 执行 compact 后追加 **[EVENT]** 记录：`cataforge event log --event state_change --phase {新阶段} --detail "claude-md compact applied at phase transition"`
    - 命令不存在时 WARN 跳过，不阻塞
 8. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
@@ -215,7 +215,7 @@ Mode Routing Protocol 在以下时刻被调用:
 **触发时机**: 文档状态变为 approved 且 orchestrator 即将进入下一 Phase 时。
 
 **执行步骤**:
-1. 读取 CLAUDE.md §全局约定 中的 `人工审查检查点` 字段（未配置则使用 COMMON-RULES 默认值 `[pre_dev, post_sprint, pre_deploy]`）
+1. 读取 {INSTRUCTION_FILE} §全局约定 中的 `人工审查检查点` 字段（未配置则使用 COMMON-RULES 默认值 `[pre_dev, post_sprint, pre_deploy]`）
 2. 判断当前转换是否命中检查点:
    - `phase_transition` → 所有 Phase 转换均命中
    - `pre_dev` → 仅 Phase 4→5（dev_planning → development）命中
@@ -346,7 +346,7 @@ batch_dispatch([
 - 所有需即时 code-review 的任务（`security_sensitive` / `user_facing_critical_path` / `consumer_components` 非空）结论为 approved，且延迟任务的 implementer self-report 无 `refactor_needed=true`
 
 短路时处理:
-1. 在 CLAUDE.md 当前 Sprint 字段追加注记 `sprint-review skipped (micro sprint)`
+1. 在 {INSTRUCTION_FILE} 当前 Sprint 字段追加注记 `sprint-review skipped (micro sprint)`
 2. **[EVENT]** 记录跳过事件:
    ```bash
    cataforge event log --event review_verdict --phase development --agent orchestrator --status approved --detail "sprint-review skipped (micro sprint)"
@@ -358,7 +358,7 @@ batch_dispatch([
 2. 传入: dev-plan路径, Sprint编号, 已有CODE-REVIEW报告路径（仅即时审查的任务）, arch文档路径。本 Sprint 中未经 per-task code-review 的延迟任务由 sprint-review 承担等价审查（Batch Code-Review）：reviewer 在报告的 §per-task L2 维度表中逐任务覆盖 structure / error-handling / test-quality / security 维度（复用 §merged-review 的维度表格式），这些任务不需要独立 CODE-REVIEW-T-NNN 文件
 3. reviewer执行sprint-review skill，产出 `SPRINT-REVIEW-s{N}-r{M}.md`
 4. 结果处理:
-   - **approved** → 更新CLAUDE.md Sprint字段，进入下一Sprint（或全部Sprint完成后进入Phase 6）
+   - **approved** → 更新{INSTRUCTION_FILE} Sprint字段，进入下一Sprint（或全部Sprint完成后进入Phase 6）
    - **approved_with_notes** → 按 Approved-with-Notes Protocol 处理
    - **needs_revision** → 从SPRINT-REVIEW报告中提取标记为CRITICAL/HIGH的任务ID，仅这些任务重新进入TDD（已通过的任务保持done状态不变）
 5. Sprint Review的needs_revision不计入Phase级needs_revision计数（独立跟踪）
@@ -386,7 +386,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 
 变更完成后回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
 
-> 子代理收到 `task_type=amendment` 后的修订步骤见 `.cataforge/rules/SUB-AGENT-PROTOCOLS.md §task_type=amendment 变更修订流程`。
+> 子代理收到 `task_type=amendment` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=amendment 变更修订流程`。
 
 ## Agent Crash Recovery Protocol
 当子代理返回结果不含 `<agent-result>` 标签且 agent-dispatch 的标签缺失兜底也无法推断状态时（即真正的崩溃/截断场景）:
@@ -419,7 +419,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
 - N=1: 正常修订流程（增量审查模式）
 - N>=2: 暂停自动推进，请求人工介入（同时触发 [`ORCHESTRATOR-META-PROTOCOLS.md §Adaptive Review Protocol`](ORCHESTRATOR-META-PROTOCOLS.md#adaptive-review-protocol)）
 
-## CLAUDE.md Update Template
+## {INSTRUCTION_FILE} Update Template
 每次阶段转换时更新:
 ```
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)

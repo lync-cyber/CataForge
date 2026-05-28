@@ -2,8 +2,19 @@
 
 本文件是 CataForge 各 Agent / Skill / Hook 共用的纪律与枚举单一事实来源；其他文件通过 `见 COMMON-RULES §<章节>` 引用，不重述。COMMON-RULES 默认加载到 Agent 上下文，引用时无需附加文件路径。
 
+## 项目指令文件
+
+各平台原生加载的项目指令文件名不同：
+
+| 平台 | 文件名 | 由 profile.yaml 声明 |
+|------|--------|-------------------|
+| claude-code | `CLAUDE.md` | `instruction_file.targets[0].path` |
+| cursor / codex / opencode | `AGENTS.md` | 同上 |
+
+本文档及下游 SKILL / AGENT / PROTOCOLS 引用 **项目指令文件**（中文短语，免加引号）时，按当前平台对应的文件解读 —— 即 claude-code 上读写 `CLAUDE.md`，其他平台读写 `AGENTS.md`。需要精确引用具体平台的文件（如 "Claude Code 用户的 CLAUDE.md 不存在则执行 Bootstrap"）时仍写文件名字面值。
+
 ## 全局约定
-- 遵循 CLAUDE.md 效率原则中的全局约定。
+- 遵循项目指令文件中定义的全局约定（§效率原则）。
 - Agent 间传递 `doc_id#§N[.item]` 引用，不复制全文。
 - 单一事实来源：每条规则只在一个文件中定义完整内容，他处引用不重述。
 - 不确定时通过 research skill 调研，不猜测（详见 `.cataforge/skills/research/SKILL.md`）。
@@ -41,10 +52,10 @@
 | post_sprint | Sprint Review 通过后 | 是否继续下一 Sprint |
 | none | — | 完全自动推进，仅保留失败驱动门禁 |
 
-规则：默认 `[pre_dev, post_sprint, pre_deploy]` 覆盖最高风险节点；用户在 Bootstrap 时或运行中通过 CLAUDE.md §全局约定 覆盖；`none` 与其他值互斥。
+规则：默认 `[pre_dev, post_sprint, pre_deploy]` 覆盖最高风险节点；用户在 Bootstrap 时或运行中通过 项目指令文件 §全局约定 覆盖；`none` 与其他值互斥。
 
 ## 执行模式矩阵
-框架支持三种执行模式，写入 CLAUDE.md §框架元信息.执行模式，未填默认 `standard`。
+框架支持三种执行模式，写入 项目指令文件 §框架元信息.执行模式，未填默认 `standard`。
 
 | 维度 | standard（默认） | agile-lite | agile-prototype |
 |------|-----------------|-----------|-----------------|
@@ -166,9 +177,9 @@ closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已
 ``` 
 
 ## 通用 Anti-Patterns
-- 禁止：猜测项目状态——以 CLAUDE.md 和 `docs/` 目录为唯一事实来源。
+- 禁止：猜测项目状态——以 项目指令文件 和 `docs/` 目录为唯一事实来源。
 - 禁止：遗留未标注的 TODO / TBD / FIXME（必须标注 `[ASSUMPTION]`）。强制由 doc-review Layer 1 检查器实现，参见 `cataforge.skill.builtins.doc_review.checker.check_no_todo`。
-- 禁止：写入 CLAUDE.md 项目状态区（orchestrator 专属）。
+- 禁止：写入 项目指令文件 项目状态区（orchestrator 专属）。
 - 禁止：硬编码 §框架配置常量 中已定义的数值（应直接引用常量名）。
 
 ## 统一问题分类体系

@@ -3,13 +3,13 @@ description: Run the CataForge orchestrator Bootstrap protocol for this project.
 ---
 
 Invoke the orchestrator agent with instructions to execute the full Bootstrap
-protocol defined in `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`.
+protocol defined in `{AGENTS_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md`.
 
 The orchestrator must:
 
 1. Detect the project's execution environment (package manager, install /
    test / lint commands) by running `cataforge setup --emit-env-block`
-   and injecting the result into `CLAUDE.md` §执行环境.
+   and injecting the result into `{INSTRUCTION_FILE}` §执行环境.
 2. Apply minimal permissions to `.claude/settings.json` by running
    `cataforge setup --apply-permissions`.
 3. Report back the detected stack, the commands wired in, and any manual

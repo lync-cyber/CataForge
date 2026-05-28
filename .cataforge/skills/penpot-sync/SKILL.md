@@ -14,13 +14,13 @@ user-invocable: true
 - 不做: 组件设计、页面布局、代码实现
 
 ## 前置条件
-- CLAUDE.md `设计工具` 字段为 `penpot`
+- {INSTRUCTION_FILE} `设计工具` 字段为 `penpot`
 - Penpot MCP Server 已配置并可用（Claude: `.mcp.json` / `.claude/settings.json`；Cursor: `.cursor/mcp.json`；OpenCode: `opencode.json`）
 - 若 Penpot MCP 不可用，返回 blocked 并提示用户检查配置
 
 ## 输入规范
 - ui-spec#§1 设计系统Token表（色彩/排版/间距）
-- Penpot 项目 ID（从 CLAUDE.md 或用户输入获取）
+- Penpot 项目 ID（从 {INSTRUCTION_FILE} 或用户输入获取）
 
 ## 输出规范
 - `src/styles/tokens.css` — CSS变量文件（W3C Design Tokens 格式）

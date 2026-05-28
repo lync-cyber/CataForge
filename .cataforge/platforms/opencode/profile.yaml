@@ -147,3 +147,4 @@ context_injection:
     files:
       - AGENTS.md
       - .cataforge/rules/*.md
+      - .cataforge/platforms/opencode/overrides/rules/*.md

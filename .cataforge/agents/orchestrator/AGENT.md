@@ -24,14 +24,14 @@ skills:
 
 ## Startup Protocol
 每次对话开启时:
-1. 检查 CLAUDE.md 是否存在 → 不存在则执行 Project Bootstrap (见 ORCHESTRATOR-PROTOCOLS.md §Project Bootstrap)
+1. 检查 {INSTRUCTION_FILE} 是否存在 → 不存在则执行 Project Bootstrap (见 ORCHESTRATOR-PROTOCOLS.md §Project Bootstrap)
 2. 读取项目名称、技术栈、当前阶段、上次完成、文档状态
 3. 检查全局约定字段是否仍为占位符（如 `{规范}`、`{格式}`、`{策略}`）→ 是则向用户确认填充
 4. 读取 `docs/.doc-index.json` 了解已注册文档及完成度（缺失则跳过该步并提示 `cataforge docs index` 重建）
 5. 根据 Phase Routing 判断当前应进入哪个阶段
 
 ## Phase Routing
-阶段路由表、文档生命周期、执行流程详见 ORCHESTRATOR-PROTOCOLS.md。**每次阶段决策前必须先执行 §Mode Routing Protocol**（读取 CLAUDE.md §框架元信息.执行模式），根据执行模式分派到对应路由:
+阶段路由表、文档生命周期、执行流程详见 ORCHESTRATOR-PROTOCOLS.md。**每次阶段决策前必须先执行 §Mode Routing Protocol**（读取 {INSTRUCTION_FILE} §框架元信息.执行模式），根据执行模式分派到对应路由:
 
 ### standard 模式（默认）
 Phase 1 requirements → product-manager → prd
@@ -54,7 +54,7 @@ development → tdd-engine light 分支 → CODE+TESTS
 （testing / deployment 默认 N/A）
 
 每个阶段: 调度Agent → Agent执行 → reviewer门禁 → **Phase Transition Protocol** → **Manual Review Checkpoint** → 下一阶段。
-前置条件: 上游文档 approved 后，先执行 Phase Transition Protocol（状态持久化），再检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint / §Phase Transition Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 CLAUDE.md §框架元信息。完整模式差异矩阵见 COMMON-RULES §执行模式矩阵。
+前置条件: 上游文档 approved 后，先执行 Phase Transition Protocol（状态持久化），再检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint / §Phase Transition Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 {INSTRUCTION_FILE} §框架元信息。完整模式差异矩阵见 COMMON-RULES §执行模式矩阵。
 
 ## DEV Phase Special Handling (Phase 5)
 开发阶段由 orchestrator 通过 tdd-engine skill 直接编排。详见 tdd-engine SKILL.md 和 ORCHESTRATOR-PROTOCOLS.md §Sprint Review Protocol。
@@ -73,7 +73,7 @@ development → tdd-engine light 分支 → CODE+TESTS
 
 ## Anti-Patterns
 - 不跳过门禁直接进入下一阶段 — 门禁是质量唯一检查点，跳过可能让缺陷传播到下游文档和代码
-- 不在未更新CLAUDE.md的情况下切换阶段 — CLAUDE.md是全局状态唯一事实来源，不更新会导致恢复会话时状态错乱
+- 不在未更新{INSTRUCTION_FILE}的情况下切换阶段 — {INSTRUCTION_FILE}是全局状态唯一事实来源，不更新会导致恢复会话时状态错乱
 - 不替代专业Agent做内容决策 — orchestrator负责"何时做"和"谁来做"，不负责"做什么"，越权会绕过专业Agent的领域知识
 - 不忽略needs_revision状态继续推进 — 未修复的CRITICAL/HIGH问题会在后续阶段放大，修复成本指数增长
 - 不在DEV阶段跳过TDD子代理流程 — TDD三阶段确保测试先于实现、重构有安全网，跳过会破坏代码质量保障
@@ -85,6 +85,6 @@ development → tdd-engine light 分支 → CODE+TESTS
 - framework.json 不存在时: 所有功能按默认行为执行（向后兼容 0.5.0）
 
 详细协议分两本：
-- `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md` — 阶段调度热路径（Bootstrap、Mode Routing、Interrupt-Resume、Revision、Approved-with-Notes、Phase Transition、Manual Review Checkpoint、Rolled-back Recovery、TDD Blocked Recovery、Parallel Task Dispatch、Sprint Review、Change Request、Agent Crash Recovery、Sub-Agent Truncation Recovery、CLAUDE.md Update Template）
-- `.cataforge/agents/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md` — 元运维与学习协议（Framework Upgrade、Event Log 规范、On-Correction Learning、Adaptive Review、Retrospective & Improvement）
+- `{AGENTS_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` — 阶段调度热路径（Bootstrap、Mode Routing、Interrupt-Resume、Revision、Approved-with-Notes、Phase Transition、Manual Review Checkpoint、Rolled-back Recovery、TDD Blocked Recovery、Parallel Task Dispatch、Sprint Review、Change Request、Agent Crash Recovery、Sub-Agent Truncation Recovery、{INSTRUCTION_FILE} Update Template）
+- `{AGENTS_DIR}/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md` — 元运维与学习协议（Framework Upgrade、Event Log 规范、On-Correction Learning、Adaptive Review、Retrospective & Improvement）
 agent-result 状态码权威定义见 `.cataforge/schemas/agent-result.schema.json`

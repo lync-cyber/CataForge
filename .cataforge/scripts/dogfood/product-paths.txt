@@ -1,9 +1,8 @@
 # CataForge Dogfood — 产品文件白名单
 #
 # 列出哪些路径被视为"产品文件"，允许从 feature 分支（经 prepare-pr.sh）
-# PR 到 main。其他任何差异（orchestrator 过程产出、PROJECT-STATE 状态
-# 变更、dogfood 提交、本地 CLAUDE.md 等）在 prepare-pr.sh 运行时都会被
-# 还原到 origin/main 的状态。
+# PR 到 main。其他任何差异（orchestrator 过程产出、dogfood 提交、本地
+# CLAUDE.md 等）在 prepare-pr.sh 运行时都会被还原到 origin/main 的状态。
 #
 # 格式:
 #   - 以 `/` 结尾        → 目录前缀（递归匹配子内容）
@@ -22,10 +21,14 @@
 .cataforge/rules/
 .cataforge/schemas/
 .cataforge/scripts/
+.cataforge/commands/
 .cataforge/framework.json
+.cataforge/PROJECT-STATE.md
 
-# 注意: .cataforge/PROJECT-STATE.md 不在白名单
-# 它是模板，dogfood 期间会被写成当前项目状态，PR 前必须还原
+# PROJECT-STATE.md 与 framework.json 同性质：模板文件。运行时由
+# `_preserve_if_exists` 兜底，`cataforge upgrade apply` 不会刷新
+# 已存在的副本，所以不存在"dogfood 期间被写脏"风险。模板级修改
+# 走正常 PR 渠道即可。
 
 # ---- 产品代码 ----
 src/
