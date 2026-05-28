@@ -41,14 +41,19 @@ from cataforge.utils.patterns import HEADING_RE, REF_RE, SECTION_PATH_RE
 # ---------------------------------------------------------------------------
 
 _DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
-    "prd": "prd", "arch": "arch", "ui-spec": "ui-spec",
-    "dev-plan": "dev-plan", "test-report": "test-report",
+    "prd": "prd",
+    "arch": "arch",
+    "ui-spec": "ui-spec",
+    "dev-plan": "dev-plan",
+    "test-report": "test-report",
     # `test` is the canonical KG-cutover alias for the test-report subdir
     # (matches `KGConfig.kg_active_doc_types` default `{prd, arch, test}`
     # and `cataforge.cli.doctor.kg_ingestion._doc_type_to_subdir`).
     "test": "test-report",
-    "deploy-spec": "deploy-spec", "research": "research",
-    "changelog": "changelog", "brief": "brief",
+    "deploy-spec": "deploy-spec",
+    "research": "research",
+    "changelog": "changelog",
+    "brief": "brief",
 }
 
 _DOC_TYPE_MAP_CACHE: dict[str, dict[str, str]] = {}
@@ -140,9 +145,7 @@ def _index_age_days(generated_at: str | None) -> float | None:
         return None
 
 
-def _resolve_doc_entry(
-    index: dict[str, Any], doc_id: str
-) -> dict[str, Any] | None:
+def _resolve_doc_entry(index: dict[str, Any], doc_id: str) -> dict[str, Any] | None:
     """Resolve ``doc_id`` to a document entry via the staged lookup chain.
 
     Order: exact match → aliases map → prefix fallback (``{doc_id}-*``).
@@ -195,9 +198,13 @@ def _lookup_in_index(
     if item_id:
         item_data = sec_data.get("items", {}).get(item_id)
         if item_data:
-            return {"file_path": file_path, "line_start": item_data["line_start"],
-                    "line_end": item_data["line_end"], "est_tokens": item_data.get("est_tokens", 0),
-                    "deps": item_data.get("deps", [])}
+            return {
+                "file_path": file_path,
+                "line_start": item_data["line_start"],
+                "line_end": item_data["line_end"],
+                "est_tokens": item_data.get("est_tokens", 0),
+                "deps": item_data.get("deps", []),
+            }
         xref = index.get("xref", {})
         if item_id in xref:
             for ref_entry in xref[item_id]:
@@ -209,24 +216,34 @@ def _lookup_in_index(
                     other_sec = other_doc.get("sections", {}).get(ref_entry["section"], {})
                     other_item = other_sec.get("items", {}).get(item_id)
                     if other_item:
-                        return {"file_path": ref_entry["file_path"],
-                                "line_start": other_item["line_start"],
-                                "line_end": other_item["line_end"],
-                                "est_tokens": other_item.get("est_tokens", 0),
-                                "deps": other_item.get("deps", [])}
+                        return {
+                            "file_path": ref_entry["file_path"],
+                            "line_start": other_item["line_start"],
+                            "line_end": other_item["line_end"],
+                            "est_tokens": other_item.get("est_tokens", 0),
+                            "deps": other_item.get("deps", []),
+                        }
         return None
 
     if "." in section_path:
         sub_data = sec_data.get("items", {}).get(section_path)
         if sub_data:
-            return {"file_path": file_path, "line_start": sub_data["line_start"],
-                    "line_end": sub_data["line_end"], "est_tokens": sub_data.get("est_tokens", 0),
-                    "deps": sub_data.get("deps", [])}
+            return {
+                "file_path": file_path,
+                "line_start": sub_data["line_start"],
+                "line_end": sub_data["line_end"],
+                "est_tokens": sub_data.get("est_tokens", 0),
+                "deps": sub_data.get("deps", []),
+            }
         return None
 
-    return {"file_path": file_path, "line_start": sec_data["line_start"],
-            "line_end": sec_data["line_end"], "est_tokens": sec_data.get("est_tokens", 0),
-            "deps": sec_data.get("deps", [])}
+    return {
+        "file_path": file_path,
+        "line_start": sec_data["line_start"],
+        "line_end": sec_data["line_end"],
+        "est_tokens": sec_data.get("est_tokens", 0),
+        "deps": sec_data.get("deps", []),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -324,19 +341,19 @@ def _find_heading_line(
             if title == item_id:
                 return i, level
             if title.startswith(item_id):
-                nxt = title[len(item_id): len(item_id) + 1]
+                nxt = title[len(item_id) : len(item_id) + 1]
                 if nxt in ("", ":", " ", "\t"):
                     return i, level
         elif "." in section_path:
             if title == section_path or (
                 title.startswith(section_path)
-                and title[len(section_path): len(section_path) + 1] in ("", " ", ".", "\t")
+                and title[len(section_path) : len(section_path) + 1] in ("", " ", ".", "\t")
             ):
                 return i, level
         else:
             if title == section_path or (
                 title.startswith(section_path)
-                and title[len(section_path): len(section_path) + 1] in ("", ".", " ", "\t")
+                and title[len(section_path) : len(section_path) + 1] in ("", ".", " ", "\t")
             ):
                 return i, level
     return None
@@ -444,9 +461,7 @@ def _try_kg_extract(
     return rendered if rendered else None
 
 
-def _read_lines_cached(
-    abs_path: str, file_cache: dict[str, list[str]] | None
-) -> list[str]:
+def _read_lines_cached(abs_path: str, file_cache: dict[str, list[str]] | None) -> list[str]:
     if file_cache is not None and abs_path in file_cache:
         return file_cache[abs_path]
     with open(abs_path, encoding="utf-8") as f:
@@ -456,9 +471,7 @@ def _read_lines_cached(
     return lines
 
 
-def _read_splitlines_cached(
-    file_path: str, file_cache: dict[str, list[str]] | None
-) -> list[str]:
+def _read_splitlines_cached(file_path: str, file_cache: dict[str, list[str]] | None) -> list[str]:
     """Like ``_read_lines_cached`` but returns ``str.splitlines()`` form (no trailing newlines).
 
     Stored under a separate key suffix so the two read modes do not collide.
@@ -496,9 +509,11 @@ def extract_batch(
     return successes, errors
 
 
-def plan_load(
-    refs: list[str], project_root: str, token_budget: int
-) -> tuple[list[str], list[str]]:
+def plan_load(refs: list[str], project_root: str, token_budget: int) -> tuple[list[str], list[str]]:
+    kg_result = _try_kg_plan_load(refs, project_root, token_budget)
+    if kg_result is not None:
+        return kg_result
+
     index = _load_index(project_root)
     loadable: list[str] = []
     deferred: list[str] = []
@@ -522,6 +537,10 @@ def plan_load(
 
 
 def resolve_deps(ref: str, project_root: str, max_depth: int = 2) -> list[str]:
+    kg_deps = _try_kg_resolve_deps(ref, project_root, max_depth)
+    if kg_deps is not None:
+        return kg_deps
+
     index = _load_index(project_root)
     if not index:
         return []
@@ -549,6 +568,137 @@ def resolve_deps(ref: str, project_root: str, max_depth: int = 2) -> list[str]:
 
     _resolve(ref, 0)
     return result
+
+
+def _try_kg_plan_load(
+    refs: list[str], project_root: str, token_budget: int
+) -> tuple[list[str], list[str]] | None:
+    """KG-backed ``plan_load`` when every ref targets an active doc_type.
+
+    Returns ``(loadable, deferred)`` ref-form tuples, or ``None`` to signal
+    "fall through to legacy". The fall-through criteria are deliberately
+    strict — mixed active+legacy inputs go to legacy because budget math
+    over heterogeneous sources is not well-defined.
+    """
+    parsed = _all_active_parsed_refs(refs, project_root)
+    if parsed is None:
+        return None
+    if not parsed:
+        # empty input — legacy returns ([], []), match that without touching KG
+        return [], []
+    try:
+        from cataforge.kg import KnowledgeGraph  # noqa: PLC0415
+        from cataforge.kg._dispatch import kg_config_for  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    item_ids = [item_id for _ref, _doc_id, item_id in parsed]
+    cfg = kg_config_for(project_root)
+    try:
+        with KnowledgeGraph.connect(cfg) as kg:
+            result = kg.query.plan_load(item_ids, token_budget, include_related=False)
+    except Exception:
+        return None
+
+    by_eid = {item_id: ref for ref, _doc_id, item_id in parsed}
+    loadable = [by_eid[eid] for eid in result.ordered if eid in by_eid]
+    deferred = [by_eid[eid] for eid in result.dropped if eid in by_eid]
+    return loadable, deferred
+
+
+def _try_kg_resolve_deps(ref: str, project_root: str, max_depth: int) -> list[str] | None:
+    """KG-backed ``resolve_deps`` returning legacy ref-form list.
+
+    Walks ``cf:depends_on`` transitively up to ``max_depth`` from the
+    ref's entity_id, then reconstructs each dep's ref form from KG's
+    stored ``source_doc`` / ``source_section`` slots. Returns ``None`` to
+    fall through to the legacy ``.doc-index.json`` walk.
+    """
+    try:
+        doc_id, _section, item_id = parse_ref(ref)
+    except LoadSectionError:
+        return None
+    if item_id is None:
+        return None  # whole-section refs have no entity to walk
+    try:
+        from cataforge.kg._dispatch import is_active_for  # noqa: PLC0415
+    except ImportError:
+        return None
+    if not is_active_for(doc_id, project_root):
+        return None
+    try:
+        from cataforge.kg import KnowledgeGraph  # noqa: PLC0415
+        from cataforge.kg._dispatch import kg_config_for  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    cfg = kg_config_for(project_root)
+    try:
+        with KnowledgeGraph.connect(cfg) as kg:
+            visited: set[str] = {item_id}
+            ordered: list[str] = []
+
+            def _walk(eid: str, depth: int) -> None:
+                if depth > max_depth:
+                    return
+                for dep_id in kg.query.depends_on(eid):
+                    if dep_id in visited:
+                        continue
+                    visited.add(dep_id)
+                    _walk(dep_id, depth + 1)
+                    ordered.append(dep_id)
+
+            _walk(item_id, 0)
+            return [_entity_id_to_ref(kg, eid) or eid for eid in ordered]
+    except Exception:
+        return None
+
+
+def _entity_id_to_ref(kg: Any, entity_id: str) -> str | None:
+    """Reconstruct the legacy ``doc_id#§section`` form from KG metadata.
+
+    Falls back to ``None`` when KG carries no ``source_doc`` for the
+    entity — caller substitutes the bare entity_id, which keeps the dep
+    visible in CLI output even if it won't round-trip through ``extract``.
+    """
+    entity = kg.query.entity(entity_id)
+    if not entity:
+        return None
+    source_doc = entity.get("source_doc")
+    if not source_doc:
+        return None
+    source_section = entity.get("source_section") or ""
+    anchor = source_section.lstrip("§").strip()
+    return f"{source_doc}#§{anchor}" if anchor else f"{source_doc}#§{entity_id}"
+
+
+def _all_active_parsed_refs(
+    refs: list[str], project_root: str
+) -> list[tuple[str, str, str]] | None:
+    """Pre-parse refs and verify every one targets an active doc_type.
+
+    Returns ``[(ref, doc_id, item_id), ...]`` when all refs parse cleanly
+    AND every ``doc_id`` is in ``kg_active_doc_types`` AND every ref
+    carries an ``item_id`` (whole-section refs have no entity to plan).
+    Returns ``None`` to signal "fall through to legacy".
+    """
+    try:
+        from cataforge.kg._dispatch import active_doc_types  # noqa: PLC0415
+    except ImportError:
+        return None
+    active = active_doc_types(project_root)
+    if not active:
+        return None
+    parsed: list[tuple[str, str, str]] = []
+    for ref in refs:
+        try:
+            doc_id, _section, item_id = parse_ref(ref)
+        except LoadSectionError:
+            return None
+        if doc_id not in active or item_id is None:
+            return None
+        parsed.append((ref, doc_id, item_id))
+    return parsed
 
 
 def _index_lookup_or_none(
@@ -627,7 +777,7 @@ def main(argv: list[str] | None = None) -> int:
                     seen.add(dep)
                     expanded.append(dep)
         if expanded != refs:
-            extras = expanded[len(refs):]
+            extras = expanded[len(refs) :]
             print(
                 f"[DEPS] resolved {len(extras)} dependency ref(s): {' '.join(extras)}",
                 file=sys.stderr,
@@ -652,14 +802,16 @@ def main(argv: list[str] | None = None) -> int:
         out: list[dict[str, Any]] = []
         for ref, content in successes:
             entry = _index_lookup_or_none(index, ref)
-            out.append({
-                "ref": ref,
-                "status": "ok",
-                "content": content,
-                "file_path": (entry or {}).get("file_path"),
-                "line_start": (entry or {}).get("line_start"),
-                "line_end": (entry or {}).get("line_end"),
-            })
+            out.append(
+                {
+                    "ref": ref,
+                    "status": "ok",
+                    "content": content,
+                    "file_path": (entry or {}).get("file_path"),
+                    "line_start": (entry or {}).get("line_start"),
+                    "line_end": (entry or {}).get("line_end"),
+                }
+            )
         for ref, msg in errors:
             out.append({"ref": ref, "status": "error", "error": msg})
         for ref in deferred:

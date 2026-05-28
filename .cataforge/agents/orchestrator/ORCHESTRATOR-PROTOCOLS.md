@@ -59,7 +59,9 @@
    - `cataforge setup --emit-env-block`：将输出注入 CLAUDE.md §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
    - `cataforge setup --apply-permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
    本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 CLAUDE.md，并收紧运行时权限以符合最小权限原则。
-9. **初始化文档索引** — 运行 `cataforge docs index`，生成空的 `docs/.doc-index.json`（首个文档落盘后会被 doc-gen 增量刷新）
+9. **初始化文档索引与知识图谱** —
+   - `cataforge kg init`（幂等；首次创建 RocksDB store + 加载 `rdfs:subClassOf` 闭包三元组，命令缺失或 `framework.json.kg` 段未声明时 WARN 跳过）
+   - `cataforge docs index`（生成空的 `docs/.doc-index.json`，作为 legacy doc_type 的缓存来源，首个文档落盘后由 doc-gen 增量刷新；KG-active doc_type 由 doc-gen finalize 触发 `cataforge kg import`）
 10. **进入初始阶段** — 通过 agent-dispatch 激活:
     - `standard` → product-manager（Phase 1 requirements）
     - `agile-lite` → product-manager（planning 阶段，按 §Mode Routing Protocol 产出 prd-lite 后链式激活 architect 产出 arch-lite）
@@ -166,6 +168,15 @@ Mode Routing Protocol 在以下时刻被调用:
      2. 确认变更不影响下游、继续推进（stale deps 降级为 WARN 记录到 EVENT-LOG）
      3. 暂停，手动审查
    - 用户选"确认不影响"时记录 **[EVENT]**: `cataforge event log --event state_change --phase {当前阶段} --detail "stale deps acknowledged: {upstream_ids}"`
+    <!-- allow-doc-structure: sub-step of Phase Transition, not an independent numbered list -->
+5.3. **KG 漂移最终守门** — 当 `framework.json.kg.kg_active_doc_types` 非空时（即项目至少有一种 doc_type 走 KG 权威路径），运行 `cataforge kg reconcile`:
+   - exit 0（无漂移）→ 通过，继续 Step 5.5
+   - exit 3（漂移：missing / ghost 实体或关系存在）→ 向用户展示 `docs/.kg-reconcile-report.json` 摘要并提供选项：
+     1. 自动修复：执行 `cataforge kg repair`，重跑 reconcile，PASS 后继续 Step 5.5
+     2. 进入 cascade_amendment 修订上游文档以匹配 KG（适用于 finalize 路径漏 import 的场景）
+     3. 暂停，手动审查
+   - exit 1（store 未初始化等其它错误）→ WARN 跳过（kg init 应在 Bootstrap 完成；缺失记录到 EVENT-LOG 供 reflector 复盘），不阻塞
+   - 命令不存在或 `kg_active_doc_types` 为空时 WARN 跳过
     <!-- allow-doc-structure: sub-step of Phase Transition, not an independent numbered list -->
 5.5. **跨文档一致性校验** — 当至少 2 个业务文档已 approved 时（即 Phase 2+ 的转换），运行 `cataforge skill run doc-consistency -- docs/`:
    - exit 0（consistent）→ 通过，继续 Step 6
