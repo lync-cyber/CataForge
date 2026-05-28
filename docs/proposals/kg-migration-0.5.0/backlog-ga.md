@@ -42,13 +42,20 @@ Test count: 197 passed, 4 skipped (codegen CLI).
 
 Test count: 212 passed, 4 skipped (codegen CLI).
 
+## Completed (post-GA P3 batch 1)
+
+| ID | Deliverable | Files |
+|----|-------------|-------|
+| C3 | `cataforge kg add` CLI — class / title / source-doc / source-section / content-hash / project-id / repeatable --slot + --relation; auto-detects unique Project; idempotent on same content-hash | `kg_cmd.py`, `test_cli_crud.py` |
+| C4 | `cataforge kg update` CLI — partial slot update with content-hash short-circuit; requires at least one change field | `kg_cmd.py`, `test_cli_crud.py` |
+| C5 | `cataforge kg delete` CLI — interactive confirm with --yes bypass; --cascade to remove incoming edges | `kg_cmd.py`, `test_cli_crud.py` |
+
+Test count: 226 passed (14 new CRUD tests; full kg suite 230 passed).
+
 ## P3 — deferrable to post-GA
 
 | ID | Task | Scope | Notes |
 |----|------|-------|-------|
-| C3 | `cataforge kg add` CLI | ~150 LOC | agents use Python API |
-| C4 | `cataforge kg update` CLI | ~100 LOC | agents use Python API |
-| C5 | `cataforge kg delete` CLI | ~120 LOC | agents use Python API |
 | C8 | `cataforge kg diff` (semantic diff between snapshots) | ~200 LOC | operational diagnostic |
 | X2 | 0.4.x → 0.5.0 migration guide | ~1000 LOC docs | ships with GA release |
 | O1 | Natural-language query LLM adapter | ~300 LOC | deferred to 0.6.0+ |
@@ -87,5 +94,6 @@ All must be verifiable, never time-based:
 |----------|---------------|--------|
 | P1 C1+C2+Q1+Q2+H1 | ~680 delivered | done |
 | P2 T3+X1+T2+S3+S2+W2 | ~500 delivered | done |
-| P3 | ~1870 | post-GA |
+| P3 batch 1 C3+C4+C5 | ~370 delivered | done |
+| P3 remaining (C8+X2+O1+O3) | ~1500 | post-GA |
 | **GA remaining** | **0** | **all P2 complete** |

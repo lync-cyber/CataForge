@@ -3,6 +3,7 @@
 Subcommands: init, import, validate, export, reconcile, compare-read,
 snapshot, rollback, repair, query, trace.
 """
+
 from __future__ import annotations
 
 import json
@@ -99,8 +100,7 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
         )
     else:
         click.echo(
-            f"OK: initialized KG store at {db_path} with {triple_count} "
-            f"rdfs:subClassOf triples."
+            f"OK: initialized KG store at {db_path} with {triple_count} rdfs:subClassOf triples."
         )
 
 
@@ -130,10 +130,7 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
     "--doc-type",
     "doc_types",
     multiple=True,
-    help=(
-        "Restrict to specific doc_types. Repeatable. "
-        "Default = prd, arch, test-report."
-    ),
+    help=("Restrict to specific doc_types. Repeatable. Default = prd, arch, test-report."),
 )
 @click.option(
     "--dry-run",
@@ -175,9 +172,7 @@ def kg_import(
         try:
             handle = KnowledgeGraphStore.connect(config).__enter__()
         except KGStoreNotInitializedError as exc:
-            raise KGStoreError(
-                f"{exc}\nHint: run `cataforge kg init` before `kg import`."
-            ) from exc
+            raise KGStoreError(f"{exc}\nHint: run `cataforge kg init` before `kg import`.") from exc
 
     try:
         stats, _entities, _relations = run_migration(
@@ -275,18 +270,13 @@ def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
         if not report.violations:
             click.echo("OK: no violations")
         else:
-            click.echo(
-                f"{'Severity':<12} {'Entity':<20} {'Shape':<28} Message"
-            )
+            click.echo(f"{'Severity':<12} {'Entity':<20} {'Shape':<28} Message")
             click.echo("-" * 80)
             for v in report.violations:
-                click.echo(
-                    f"{v.severity:<12} {v.entity_id:<20} {v.shape:<28} {v.message}"
-                )
+                click.echo(f"{v.severity:<12} {v.entity_id:<20} {v.shape:<28} {v.message}")
         if report.shacl_skipped and shacl:
             click.echo(
-                "Note: SHACL pass skipped (pyshacl/rdflib not installed "
-                "or shapes file missing)."
+                "Note: SHACL pass skipped (pyshacl/rdflib not installed or shapes file missing)."
             )
 
     if not report.ok:
@@ -333,9 +323,7 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
                 {
                     "entity_count": result.entity_count,
                     "rendered": len(result.file_records),
-                    "errors": [
-                        {"entity_id": e, "message": m} for e, m in result.errors
-                    ],
+                    "errors": [{"entity_id": e, "message": m} for e, m in result.errors],
                     "files": result.file_hashes,
                 },
                 indent=2,
@@ -386,8 +374,7 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
     type=click.Path(file_okay=True, dir_okay=False, path_type=Path),
     default=None,
     help=(
-        "Path to write the JSON report. "
-        "Default = <project-root>/docs/.kg-reconcile-report.json."
+        "Path to write the JSON report. Default = <project-root>/docs/.kg-reconcile-report.json."
     ),
 )
 @click.option(
@@ -419,9 +406,7 @@ def kg_reconcile(
     project_root = project_root.resolve()
     base_config = kg_config_for(project_root)
 
-    active = (
-        set(doc_types) if doc_types else set(base_config.kg_active_doc_types)
-    )
+    active = set(doc_types) if doc_types else set(base_config.kg_active_doc_types)
 
     if not active:
         click.echo(
@@ -452,15 +437,10 @@ def kg_reconcile(
     write_report(report, output_path)
 
     if json_output:
-        click.echo(
-            json.dumps(
-                report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False
-            )
-        )
+        click.echo(json.dumps(report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False))
     else:
         click.echo(
-            f"reconcile: divergence={report.overall_divergence_count} "
-            f"doc_types={sorted(active)}"
+            f"reconcile: divergence={report.overall_divergence_count} doc_types={sorted(active)}"
         )
         for dt, per in sorted(report.per_doc_type.items()):
             marker = "OK" if per.divergence_count == 0 else "DRIFT"
@@ -474,21 +454,16 @@ def kg_reconcile(
             if per.missing_entities:
                 preview = per.missing_entities[:5]
                 ellipsis = "..." if len(per.missing_entities) > 5 else ""
-                click.echo(
-                    f"        missing_entities: {preview}{ellipsis}"
-                )
+                click.echo(f"        missing_entities: {preview}{ellipsis}")
             if per.ghost_entities:
                 preview = per.ghost_entities[:5]
                 ellipsis = "..." if len(per.ghost_entities) > 5 else ""
-                click.echo(
-                    f"        ghost_entities: {preview}{ellipsis}"
-                )
+                click.echo(f"        ghost_entities: {preview}{ellipsis}")
         click.echo(f"  report: {output_path}")
 
     if not report.ok:
         raise KGVerificationError(
-            f"reconcile reported {report.overall_divergence_count} divergence(s); "
-            f"see {output_path}"
+            f"reconcile reported {report.overall_divergence_count} divergence(s); see {output_path}"
         )
 
 
@@ -562,9 +537,7 @@ def kg_compare_read(
     project_root = project_root.resolve()
     base_config = kg_config_for(project_root)
 
-    active = (
-        set(doc_types) if doc_types else set(base_config.kg_active_doc_types)
-    )
+    active = set(doc_types) if doc_types else set(base_config.kg_active_doc_types)
 
     if not active:
         click.echo("  (no active doc_types — nothing to audit)")
@@ -591,25 +564,15 @@ def kg_compare_read(
         raise KGStoreError(str(exc)) from exc
 
     if json_output:
-        click.echo(
-            json.dumps(
-                report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False
-            )
-        )
+        click.echo(json.dumps(report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False))
         return
 
-    click.echo(
-        f"compare-read: sampled={report.sampled_count} "
-        f"alarms={len(report.alarms)}"
-    )
+    click.echo(f"compare-read: sampled={report.sampled_count} alarms={len(report.alarms)}")
     if not report.alarms:
         click.echo("  OK (every sampled entity's content_hash matches KG)")
         return
     for alarm in report.alarms[:10]:
-        click.echo(
-            f"  ALARM {alarm.entity_id} ({alarm.doc_type}): "
-            f"{alarm.reason}"
-        )
+        click.echo(f"  ALARM {alarm.entity_id} ({alarm.doc_type}): {alarm.reason}")
     if len(report.alarms) > 10:
         click.echo(f"  ... +{len(report.alarms) - 10} more")
 
@@ -642,15 +605,11 @@ def kg_snapshot(db_path: Path, output_dir: Path, label: str | None) -> None:
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
         with KnowledgeGraphStore.connect(config) as handle:
-            meta = create_snapshot(
-                handle.raw, config, output_dir, label=label
-            )
+            meta = create_snapshot(handle.raw, config, output_dir, label=label)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
 
-    click.echo(
-        f"OK: snapshot saved to {meta.path} ({meta.quad_count} quads)"
-    )
+    click.echo(f"OK: snapshot saved to {meta.path} ({meta.quad_count} quads)")
 
 
 @kg_group.command("rollback")
@@ -748,9 +707,7 @@ def kg_repair(
 
     try:
         with KnowledgeGraphStore.connect(config) as handle:
-            stats = repair(
-                handle.raw, project_root, config, dry_run=dry_run
-            )
+            stats = repair(handle.raw, project_root, config, dry_run=dry_run)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
 
@@ -778,14 +735,13 @@ def kg_repair(
             click.echo(f"  ERROR: {err}", err=True)
 
     if stats.errors:
-        raise KGVerificationError(
-            f"repair encountered {len(stats.errors)} error(s)"
-        )
+        raise KGVerificationError(f"repair encountered {len(stats.errors)} error(s)")
 
 
 # ------------------------------------------------------------------
 # kg query
 # ------------------------------------------------------------------
+
 
 @kg_group.command("query")
 @click.argument("query_or_file")
@@ -852,9 +808,7 @@ def kg_query(
             worker.join(timeout=timeout)
 
             if worker.is_alive():
-                raise KGQueryTimeoutError(
-                    f"SPARQL query timed out after {timeout}s"
-                )
+                raise KGQueryTimeoutError(f"SPARQL query timed out after {timeout}s")
             if error_box:
                 raise CataforgeError(f"SPARQL error: {error_box[0]}") from error_box[0]
 
@@ -925,9 +879,7 @@ def _format_ask_result(value: bool, fmt: str) -> None:
         click.echo("true" if value else "false")
 
 
-def _format_select_result(
-    variables: list[str], rows_data: list[dict[str, str]], fmt: str
-) -> None:
+def _format_select_result(variables: list[str], rows_data: list[dict[str, str]], fmt: str) -> None:
     if fmt == "json":
         click.echo(json.dumps(rows_data, indent=2, ensure_ascii=False))
         return
@@ -950,9 +902,7 @@ def _format_select_result(
         click.echo(line)
 
 
-def _format_construct_result(
-    triples: list[dict[str, object]], fmt: str
-) -> None:
+def _format_construct_result(triples: list[dict[str, object]], fmt: str) -> None:
     if fmt == "json":
         out = [
             {
@@ -1018,6 +968,7 @@ def _ntriples_term(term: object) -> str:
 # ------------------------------------------------------------------
 # kg trace
 # ------------------------------------------------------------------
+
 
 @kg_group.command("trace")
 @click.argument("entity_id", required=False, default=None)
@@ -1122,19 +1073,12 @@ def _coverage_matrix(kg: KnowledgeGraph, fmt: str) -> None:
 
     id_w = max(len("Feature"), max(len(r.feature_id) for r in rows))
     title_w = max(len("Title"), max(len(r.title or "") for r in rows))
-    click.echo(
-        f"{'Feature':<{id_w}}  {'Title':<{title_w}}  Impl?  Test?"
-    )
-    click.echo(
-        f"{'-' * id_w}  {'-' * title_w}  -----  -----"
-    )
+    click.echo(f"{'Feature':<{id_w}}  {'Title':<{title_w}}  Impl?  Test?")
+    click.echo(f"{'-' * id_w}  {'-' * title_w}  -----  -----")
     for r in rows:
         impl = "yes" if r.has_impl else "no"
         test = "yes" if r.has_test else "no"
-        click.echo(
-            f"{r.feature_id:<{id_w}}  {(r.title or ''):<{title_w}}  "
-            f"{impl:<5}  {test:<5}"
-        )
+        click.echo(f"{r.feature_id:<{id_w}}  {(r.title or ''):<{title_w}}  {impl:<5}  {test:<5}")
 
 
 def _trace_json(chain: object, coverage_detail: dict | None) -> None:
@@ -1218,8 +1162,7 @@ def _trace_mermaid(chain: TraceChain, kg: KnowledgeGraph) -> None:
 
     downstream_ids = [eid for eid in all_ids if eid != chain.root_id]
     if downstream_ids and not any(
-        bucket_map.get(src) and bucket_map.get(dst)
-        for src, dst, _ in _MERMAID_EDGE_MAP
+        bucket_map.get(src) and bucket_map.get(dst) for src, dst, _ in _MERMAID_EDGE_MAP
     ):
         for d in downstream_ids:
             click.echo(f"    {chain.root_id} --> {d}")
@@ -1232,3 +1175,412 @@ _MERMAID_EDGE_MAP = [
     ("acceptance_criteria", "test_cases", "verifies"),
     ("requirements", "acceptance_criteria", "validates"),
 ]
+
+
+# ------------------------------------------------------------------
+# kg add / update / delete (backlog C3 / C4 / C5)
+# ------------------------------------------------------------------
+
+
+def _parse_kv_pairs(pairs: tuple[str, ...], flag_name: str) -> dict[str, str]:
+    """Parse repeatable ``--flag KEY=VALUE`` options into a dict."""
+    out: dict[str, str] = {}
+    for raw in pairs:
+        if "=" not in raw:
+            raise CataforgeError(f"{flag_name} expects KEY=VALUE, got: {raw}")
+        key, value = raw.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise CataforgeError(f"{flag_name} key may not be empty: {raw}")
+        out[key] = value
+    return out
+
+
+def _resolve_project_iri(
+    kg: KnowledgeGraph,
+    project_id: str | None,
+    *,
+    project_title: str | None,
+    project_process_model: str,
+) -> str:
+    """Resolve the parent project IRI for entity writes.
+
+    Resolution order:
+    1. If ``project_id`` is given, idempotently materialize that Project
+       node (creating it if missing) and return its IRI.
+    2. Otherwise query the store for an existing ``cf:Project`` instance
+       — if exactly one exists, use it.
+    3. Otherwise raise: caller must pick.
+    """
+    from cataforge.kg.ingest.iri import class_iri
+    from cataforge.kg.ingest.writer import write_project
+
+    config = kg.config
+    namespace = config.ontology_namespace.rstrip("/") + "/"
+
+    if project_id is not None:
+        title = project_title or project_id
+        return write_project(kg.store, project_id, title, project_process_model, config)
+
+    sparql = f"SELECT ?p WHERE {{ ?p a <{class_iri('Project', namespace)}> }} LIMIT 2"
+    raw = kg.store.query(sparql)
+    project_iris: list[str] = []
+    for row in raw:  # type: ignore[union-attr]
+        try:
+            term = row["p"]
+        except (KeyError, IndexError):
+            continue
+        project_iris.append(getattr(term, "value", str(term)))
+
+    if len(project_iris) == 1:
+        return project_iris[0]
+    if len(project_iris) == 0:
+        raise CataforgeError(
+            "No cf:Project node found in store. "
+            "Pass --project-id to create one (and --project-title / "
+            "--project-process to set its metadata)."
+        )
+    raise CataforgeError(
+        f"Multiple cf:Project nodes found in store ({len(project_iris)}+). "
+        "Pass --project-id to disambiguate."
+    )
+
+
+@kg_group.command("add")
+@click.argument("entity_id")
+@click.option(
+    "--class",
+    "class_name",
+    required=True,
+    help="Schema class name (e.g. Feature, Module, Component, TestCase).",
+)
+@click.option(
+    "--title",
+    required=True,
+    help="Human-readable title for the entity.",
+)
+@click.option(
+    "--source-doc",
+    default="",
+    show_default=False,
+    help="Originating doc_id (e.g. 'prd'). Empty string allowed for synthetic entities.",
+)
+@click.option(
+    "--source-section",
+    default="",
+    show_default=False,
+    help="Originating section heading. Defaults to ENTITY_ID + title.",
+)
+@click.option(
+    "--content-hash",
+    default=None,
+    help=(
+        "Content hash for idempotency. Default: sha256 of '{source_doc}|{source_section}|{title}'."
+    ),
+)
+@click.option(
+    "--project-id",
+    default=None,
+    help=(
+        "Project entity_id for the cf:in_project edge. "
+        "If omitted, the store's unique Project node is auto-detected."
+    ),
+)
+@click.option(
+    "--project-title",
+    default=None,
+    help="Project title — only used when --project-id materializes a new node.",
+)
+@click.option(
+    "--project-process",
+    type=click.Choice(["waterfall", "agile"]),
+    default="waterfall",
+    show_default=True,
+    help="Project process_model — only used when --project-id materializes a new node.",
+)
+@click.option(
+    "--slot",
+    "slots",
+    multiple=True,
+    help="Extra slot in KEY=VALUE form. Repeatable. KEY may use 'cf:' prefix.",
+)
+@click.option(
+    "--relation",
+    "relations",
+    multiple=True,
+    help="Outgoing edge in PREDICATE=OBJECT_ID form. Repeatable.",
+)
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit a JSON status blob instead of the human-readable line.",
+)
+def kg_add(
+    entity_id: str,
+    class_name: str,
+    title: str,
+    source_doc: str,
+    source_section: str,
+    content_hash: str | None,
+    project_id: str | None,
+    project_title: str | None,
+    project_process: str,
+    slots: tuple[str, ...],
+    relations: tuple[str, ...],
+    db_path: Path,
+    json_output: bool,
+) -> None:
+    """Add a new entity (and optional outgoing edges) to the KG.
+
+    Idempotent: re-running with an unchanged --content-hash is a no-op.
+    Re-running with a changed hash replaces the entity's quads atomically.
+    """
+    import hashlib
+
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
+
+    slot_dict = _parse_kv_pairs(slots, "--slot")
+    relation_dict = _parse_kv_pairs(relations, "--relation")
+
+    effective_section = source_section or f"{entity_id} {title}"
+    if content_hash is None:
+        payload = f"{source_doc}|{effective_section}|{title}".encode()
+        content_hash = hashlib.sha256(payload).hexdigest()
+
+    config = KGConfig(store_backend="oxigraph", db_path=db_path)
+    try:
+        with KnowledgeGraph.connect(config) as kg:
+            project_iri = _resolve_project_iri(
+                kg,
+                project_id,
+                project_title=project_title,
+                project_process_model=project_process,
+            )
+            with kg.transaction() as txn:
+                iri = txn.add_entity(
+                    entity_id=entity_id,
+                    class_name=class_name,
+                    title=title,
+                    source_doc=source_doc,
+                    source_section=effective_section,
+                    content_hash=content_hash,
+                    project_iri=project_iri,
+                    extra_slots=slot_dict or None,
+                )
+                added_relations = 0
+                for predicate, object_id in relation_dict.items():
+                    before = txn.pending_inserts
+                    txn.add_relation(entity_id, predicate, object_id)
+                    if txn.pending_inserts > before:
+                        added_relations += 1
+                inserts = txn.pending_inserts
+                deletes = txn.pending_deletes
+    except KGStoreNotInitializedError as exc:
+        raise KGStoreError(str(exc)) from exc
+
+    if json_output:
+        click.echo(
+            json.dumps(
+                {
+                    "entity_id": entity_id,
+                    "iri": iri,
+                    "class": class_name,
+                    "content_hash": content_hash,
+                    "pending_inserts": inserts,
+                    "pending_deletes": deletes,
+                    "relations_added": added_relations,
+                },
+                indent=2,
+            )
+        )
+    else:
+        verb = "added" if inserts > 0 else "unchanged"
+        click.echo(
+            f"OK: {entity_id} {verb} ({inserts} inserts, {deletes} deletes, "
+            f"{added_relations}/{len(relation_dict)} relations)"
+        )
+        click.echo(f"  iri: {iri}")
+
+
+@kg_group.command("update")
+@click.argument("entity_id")
+@click.option("--title", default=None, help="New title.")
+@click.option("--source-section", default=None, help="New source_section heading.")
+@click.option(
+    "--slot",
+    "slots",
+    multiple=True,
+    help="Slot update in KEY=VALUE form. Repeatable.",
+)
+@click.option(
+    "--content-hash",
+    default=None,
+    help=(
+        "New content_hash. Idempotent: if the entity already carries this "
+        "hash, the update is skipped."
+    ),
+)
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit a JSON status blob instead of the human-readable line.",
+)
+def kg_update(
+    entity_id: str,
+    title: str | None,
+    source_section: str | None,
+    slots: tuple[str, ...],
+    content_hash: str | None,
+    db_path: Path,
+    json_output: bool,
+) -> None:
+    """Update slots on an existing entity. Raises if the entity is absent."""
+    from cataforge.kg import (
+        KGConfig,
+        KGEntityNotFoundError,
+        KGStoreNotInitializedError,
+        KnowledgeGraph,
+    )
+
+    slot_dict = _parse_kv_pairs(slots, "--slot")
+    if title is not None:
+        slot_dict.setdefault("title", title)
+    if source_section is not None:
+        slot_dict.setdefault("source_section", source_section)
+
+    if not slot_dict and content_hash is None:
+        raise CataforgeError(
+            "kg update requires at least one of: --title, --source-section, "
+            "--slot KEY=VALUE, --content-hash."
+        )
+
+    config = KGConfig(store_backend="oxigraph", db_path=db_path)
+    try:
+        with KnowledgeGraph.connect(config) as kg, kg.transaction() as txn:
+            try:
+                txn.update_entity(entity_id, content_hash=content_hash, **slot_dict)
+            except KGEntityNotFoundError as exc:
+                raise KGStoreError(str(exc)) from exc
+            inserts = txn.pending_inserts
+            deletes = txn.pending_deletes
+    except KGStoreNotInitializedError as exc:
+        raise KGStoreError(str(exc)) from exc
+
+    if json_output:
+        click.echo(
+            json.dumps(
+                {
+                    "entity_id": entity_id,
+                    "slots_updated": sorted(slot_dict.keys()),
+                    "content_hash_set": content_hash is not None,
+                    "pending_inserts": inserts,
+                    "pending_deletes": deletes,
+                },
+                indent=2,
+            )
+        )
+    else:
+        if inserts == 0 and deletes == 0:
+            click.echo(f"OK: {entity_id} unchanged (content_hash matched).")
+        else:
+            click.echo(f"OK: {entity_id} updated ({inserts} inserts, {deletes} deletes)")
+
+
+@kg_group.command("delete")
+@click.argument("entity_id")
+@click.option(
+    "--cascade",
+    is_flag=True,
+    default=False,
+    help="Also remove incoming edges. Without it, refuses if any exist.",
+)
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Skip the interactive confirmation prompt.",
+)
+@click.option(
+    "--db-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path(".cataforge/kg/store"),
+    show_default=True,
+    help="Filesystem path of the RocksDB-backed Oxigraph store.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit a JSON status blob instead of the human-readable line.",
+)
+def kg_delete(
+    entity_id: str,
+    cascade: bool,
+    yes: bool,
+    db_path: Path,
+    json_output: bool,
+) -> None:
+    """Remove an entity (and optionally its incoming edges) from the KG."""
+    from cataforge.kg import (
+        KGConfig,
+        KGEntityNotFoundError,
+        KGStoreNotInitializedError,
+        KGValidationError,
+        KnowledgeGraph,
+    )
+
+    if not yes and not json_output:
+        suffix = " (and incoming edges)" if cascade else ""
+        if not click.confirm(f"Delete {entity_id}{suffix}?", default=False):
+            click.echo("Aborted.")
+            return
+
+    config = KGConfig(store_backend="oxigraph", db_path=db_path)
+    try:
+        with KnowledgeGraph.connect(config) as kg, kg.transaction() as txn:
+            try:
+                txn.delete_entity(entity_id, cascade=cascade)
+            except KGEntityNotFoundError as exc:
+                raise KGStoreError(str(exc)) from exc
+            except KGValidationError as exc:
+                raise KGStoreError(
+                    f"{exc}\nHint: pass --cascade to remove incoming edges too."
+                ) from exc
+            deletes = txn.pending_deletes
+    except KGStoreNotInitializedError as exc:
+        raise KGStoreError(str(exc)) from exc
+
+    if json_output:
+        click.echo(
+            json.dumps(
+                {
+                    "entity_id": entity_id,
+                    "cascade": cascade,
+                    "pending_deletes": deletes,
+                },
+                indent=2,
+            )
+        )
+    else:
+        click.echo(
+            f"OK: {entity_id} deleted ({deletes} quads removed{', cascade' if cascade else ''})."
+        )

@@ -291,6 +291,9 @@ cataforge kg snapshot [--label ...]              # 写完整 NQuads 快照到 .c
 cataforge kg rollback <snapshot_path>            # 从快照恢复 store
 cataforge kg query <sparql-or-file>              # 执行 SPARQL（含超时控制）
 cataforge kg trace <entity_id> [--coverage]      # 追溯链 + 覆盖矩阵（table / json / mermaid）
+cataforge kg add <entity_id> --class ...         # 新增单实体 + 可选 outgoing 边
+cataforge kg update <entity_id> [--title ...]    # 更新现有实体的 slot
+cataforge kg delete <entity_id> [--cascade]      # 删除实体（可级联入向边）
 ```
 
 ### kg init
@@ -365,7 +368,67 @@ cataforge kg trace F-001 --output mermaid > trace.mmd
 | `--coverage` | 追加覆盖矩阵（has_impl / has_test） |
 | `--output table\|json\|mermaid` | 输出格式 |
 
-> KG 校验门失败统一退出码 `3`（见 §退出码）。`KGStoreError` / `KGStoreNotInitializedError` 走 `1`。
+### kg add
+
+新建一个实体（含可选 outgoing 关系边）。幂等：相同 `--content-hash` 重跑为 no-op；不同 hash 原子替换该实体的全部 quad。store 中无 `cf:Project` 节点时必须传 `--project-id`；唯一 Project 时自动选用。
+
+```bash
+cataforge kg add F-010 --class Feature --title "Profile edit" \
+  --source-doc prd --source-section "F-010 Profile edit" \
+  --project-id proj-myapp --slot cf:priority=high \
+  --relation cf:implements=F-001
+```
+
+| 参数 | 作用 |
+|------|------|
+| `ENTITY_ID` | 实体 ID（如 `F-001` / `TC-042`） |
+| `--class <name>` | 必填 schema class（`Feature` / `Module` / `TestCase` 等） |
+| `--title <text>` | 必填可读标题 |
+| `--source-doc <id>` | 来源 doc_id（默认空串） |
+| `--source-section <text>` | 来源 section 标题（默认 `ENTITY_ID + title`） |
+| `--content-hash <hex>` | 幂等键（默认 sha256(`source_doc \| source_section \| title`)） |
+| `--project-id <id>` | 父 Project entity_id（store 中唯一 Project 时可省） |
+| `--project-title <text>` | 仅在 `--project-id` 物化新 Project 节点时使用 |
+| `--project-process waterfall\|agile` | 同上 |
+| `--slot KEY=VALUE` | 额外 slot（可重复，KEY 可带 `cf:` 前缀） |
+| `--relation PRED=OBJECT_ID` | outgoing 边（可重复） |
+| `--json` | 输出 JSON status blob |
+
+### kg update
+
+更新现有实体的 slot。实体不存在时 exit 1。`--content-hash` 与 store 已有值相同则整次更新短路（用于幂等同步场景）。
+
+```bash
+cataforge kg update F-010 --title "Profile edit (v2)" --slot cf:priority=critical
+```
+
+| 参数 | 作用 |
+|------|------|
+| `ENTITY_ID` | 必填 |
+| `--title <text>` | 新 title |
+| `--source-section <text>` | 新 source_section |
+| `--slot KEY=VALUE` | slot 更新（可重复） |
+| `--content-hash <hex>` | 新 content_hash（与现有相同则跳过） |
+| `--json` | 输出 JSON status blob |
+
+至少需提供 `--title` / `--source-section` / `--slot` / `--content-hash` 之一，否则 exit 1。
+
+### kg delete
+
+删除一个实体（默认禁止删除有入向边的实体；`--cascade` 同时移除入向边）。默认走 stdin 交互确认；脚本场景用 `--yes`。
+
+```bash
+cataforge kg delete F-010 --cascade --yes
+```
+
+| 参数 | 作用 |
+|------|------|
+| `ENTITY_ID` | 必填 |
+| `--cascade` | 同时移除入向边（无此 flag 且存在入向边时 exit 1） |
+| `--yes` | 跳过交互确认 |
+| `--json` | 输出 JSON status blob |
+
+> KG 校验门失败统一退出码 `3`（见 §退出码）。`KGStoreError` / `KGStoreNotInitializedError` / CRUD 参数错误走 `1`。
 
 ---
 
