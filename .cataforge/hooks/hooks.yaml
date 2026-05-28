@@ -73,7 +73,7 @@ degradation_templates:
 
   detect_correction:
     strategy: skip
-    reason: "纠正学习为非关键功能"
+    reason: "原生 PostToolUse 不可用时降级为 alwaysApply 规则提醒；见 .cataforge/platforms/{platform}/overrides/rules/correction-record.md"
 
   detect_review_flag:
     strategy: skip
