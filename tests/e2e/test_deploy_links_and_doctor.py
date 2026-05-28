@@ -46,24 +46,16 @@ def bootstrapped_project(tmp_path: Path, cataforge_venv: Path) -> Path:
     return project
 
 
-def _readlink_or_none(p: Path) -> str | None:
-    """``os.readlink`` for symlinks; ``None`` for real dirs and junctions
-    we cannot reliably read on this Python. We accept ``None`` because
-    a copy fallback is also acceptable post-fix."""
-    try:
-        return os.readlink(str(p))
-    except (OSError, ValueError):
-        return None
-
-
 class TestPortableSkillLinks:
     def test_deployed_skill_links_avoid_absolute_paths_when_possible(
         self, bootstrapped_project: Path
     ) -> None:
-        """Post-fix: every deployed skill should be either (a) a relative
-        symlink, (b) a junction (only on Windows without Developer Mode),
-        or (c) a copy. The Unix branch must never produce an absolute
-        symlink target."""
+        """Every deployed skill must be either (a) a relative symlink,
+        (b) a junction (only on Windows without Developer Mode), or
+        (c) a copy. Copy is the default now (deploy renders runtime
+        placeholders into SKILL.md, which requires an independent copy);
+        the assertion below only fires when the deploy *did* produce a
+        symlink — in which case the stored target must still be relative."""
         skills_dir = bootstrapped_project / ".claude" / "skills"
         assert skills_dir.is_dir(), (
             "bootstrap did not materialise .claude/skills/ — deploy regression."
@@ -71,15 +63,15 @@ class TestPortableSkillLinks:
         children = list(skills_dir.iterdir())
         assert children, "no skills deployed — scaffold mismatch?"
 
-        if os.name != "nt":
-            # Unix: must be relative symlinks.
-            for child in children:
-                assert child.is_symlink(), child
-                stored = os.readlink(str(child))
-                assert not os.path.isabs(stored), (
-                    f"{child} stores absolute target {stored!r}; "
-                    "deploy must use relative symlinks on Unix."
-                )
+        for child in children:
+            if not child.is_symlink():
+                # Copy or junction — both legitimate post-J deploy outcomes.
+                continue
+            stored = os.readlink(str(child))
+            assert not os.path.isabs(stored), (
+                f"{child} stores absolute target {stored!r}; "
+                "any symlink path must be relative for project-rename portability."
+            )
 
     def test_deployed_skills_survive_project_rename(
         self, bootstrapped_project: Path, tmp_path: Path
@@ -137,9 +129,7 @@ class TestDoctorIsIntegrityGate:
         """Delete the deployed skills dir; doctor must exit non-zero."""
         shutil.rmtree(bootstrapped_project / ".claude" / "skills")
 
-        result = run_cataforge(
-            cataforge_venv, "doctor", cwd=bootstrapped_project, check=False
-        )
+        result = run_cataforge(cataforge_venv, "doctor", cwd=bootstrapped_project, check=False)
         assert result.returncode != 0, result.stdout + result.stderr
         out = result.stdout
         assert ".claude/skills" in out, out
@@ -151,9 +141,7 @@ class TestDoctorIsIntegrityGate:
     ) -> None:
         """Sanity check: a green project must remain green after we tighten
         the gate — otherwise we have just broken every existing user."""
-        result = run_cataforge(
-            cataforge_venv, "doctor", cwd=bootstrapped_project, check=False
-        )
+        result = run_cataforge(cataforge_venv, "doctor", cwd=bootstrapped_project, check=False)
         assert result.returncode == 0, (
             f"doctor failed on a freshly bootstrapped project:\n{result.stdout}\n{result.stderr}"
         )
