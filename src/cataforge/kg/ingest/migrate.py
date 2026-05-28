@@ -1,6 +1,8 @@
 """Six-phase migration orchestrator."""
+
 from __future__ import annotations
 
+import contextlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,11 +53,11 @@ class MigrationStats:
             "dry_run": self.dry_run,
             "verify_ok": None if self.verify_result is None else self.verify_result.ok,
             "verify_missing": (
-                [] if self.verify_result is None
-                else list(self.verify_result.missing_entities)
+                [] if self.verify_result is None else list(self.verify_result.missing_entities)
             ),
             "verify_hash_mismatches": (
-                [] if self.verify_result is None
+                []
+                if self.verify_result is None
                 else list(self.verify_result.content_hash_mismatches)
             ),
         }
@@ -116,9 +118,7 @@ def run_migration(
     stats.extracted_entities = len(entities)
 
     # PHASE 4: RELATION EXTRACT, dedupe by (s, p, o).
-    deduped_relations: dict[
-        tuple[str, str, str], ExtractedRelation
-    ] = {}
+    deduped_relations: dict[tuple[str, str, str], ExtractedRelation] = {}
     for doc in parsed_docs:
         for relation in extract_relations(doc):
             key = (
@@ -138,6 +138,24 @@ def run_migration(
 
     # PHASE 5: WRITE (Project node first, then entities, then relations).
     meta = _read_project_metadata(project_root)
+    stats.write_stats = _write_phase5(store, meta, entities, relations, config)
+
+    # PHASE 6: VERIFY
+    stats.verify_result = verify_after_write(store, entities, relations, config)
+
+    return stats, entities, relations
+
+
+def _write_phase5(
+    store: ox.Store,
+    meta: dict[str, str],
+    entities: list[ExtractedEntity],
+    relations: list[ExtractedRelation],
+    config: KGConfig,
+) -> WriteStats:
+    """Write project, entities, relations with compensating rollback on failure."""
+    import pyoxigraph as ox  # noqa: PLC0415
+
     project_iri = write_project(
         store,
         meta["project_id"],
@@ -145,12 +163,61 @@ def run_migration(
         meta["process_model"],
         config,
     )
-    stats.write_stats = write_entities(store, entities, project_iri, config)
-    rel_stats = write_relations(store, relations, config)
-    stats.write_stats.relations_written = rel_stats.relations_written
-    stats.write_stats.relations_skipped = rel_stats.relations_skipped
+    project_node = ox.NamedNode(project_iri)
+    prior_project_quads = list(store.quads_for_pattern(project_node, None, None, None))
 
-    # PHASE 6: VERIFY
-    stats.verify_result = verify_after_write(store, entities, relations, config)
+    write_stats: WriteStats | None = None
+    rel_stats: WriteStats | None = None
+    try:
+        write_stats = write_entities(store, entities, project_iri, config)
+        rel_stats = write_relations(store, relations, config)
+    except Exception:
+        _rollback_phase5(
+            store,
+            project_iri,
+            prior_project_quads,
+            write_stats.written_iris if write_stats is not None else [],
+            rel_stats.written_relation_quads if rel_stats is not None else [],
+            config,
+        )
+        raise
 
-    return stats, entities, relations
+    combined = WriteStats(
+        entities_written=write_stats.entities_written,
+        entities_skipped=write_stats.entities_skipped,
+        relations_written=rel_stats.relations_written,
+        relations_skipped=rel_stats.relations_skipped,
+        written_iris=write_stats.written_iris,
+    )
+    return combined
+
+
+def _rollback_phase5(
+    store: ox.Store,
+    project_iri: str,
+    prior_project_quads: list,
+    written_entity_iris: list[str],
+    written_relation_quads: list,
+    config: KGConfig,
+) -> None:
+    """Best-effort compensating rollback for Phase 5 partial writes."""
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    from cataforge.kg._quads import quads_for_subject as _quads_for_subject
+
+    for iri in written_entity_iris:
+        for q in _quads_for_subject(store, iri):
+            with contextlib.suppress(Exception):
+                store.remove(q)
+
+    for q in written_relation_quads:
+        with contextlib.suppress(Exception):
+            store.remove(q)
+
+    project_node = ox.NamedNode(project_iri)
+    for q in list(store.quads_for_pattern(project_node, None, None, None)):
+        with contextlib.suppress(Exception):
+            store.remove(q)
+    for q in prior_project_quads:
+        with contextlib.suppress(Exception):
+            store.add(q)

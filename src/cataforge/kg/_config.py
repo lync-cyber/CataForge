@@ -16,16 +16,6 @@ from typing import Literal
 # Default active doc_types. The doctor `kg_ingestion_completeness` gate
 # enforces reconciliation for every doc_type in this set. Down-stream
 # projects override via `framework.json`.
-#
-# Expansion path (per task-7 rollout strategy §7.5):
-#   0.5.x  (current) — prd + arch + test
-#   0.6.0  candidate — add `dev-plan` (T-NNN, depends_on graph),
-#                      add `ui-spec` (C-NNN / P-NNN)
-# Ingest already supports T/C/P prefixes via `ENTITY_PREFIX_TO_CLASS`;
-# expansion requires (a) extending the fixture vertical-slice to cover the
-# new doc_type, (b) regression on golden-file diff, (c) updating this
-# constant + scaffold framework.json default. Project owners can opt in
-# earlier by editing their own `framework.json.kg.kg_active_doc_types`.
 DEFAULT_KG_ACTIVE_DOC_TYPES: frozenset[str] = frozenset({"prd", "arch", "test"})
 
 

@@ -135,3 +135,16 @@ repos:
         language: system
         pass_filenames: false
         files: ^src/cataforge/.*\.py$
+      - id: kg-injection-regression
+        name: KG SPARQL/IRI injection regression
+        description: |
+          Whenever the escape utilities, ASK chokepoint, or the typed
+          write surfaces (writer / transaction / shim) change, run the
+          dedicated escape unit tests and the end-to-end injection
+          regression to catch a re-introduction of the percent-encoding
+          or literal-escape bugs the centralised helpers were created
+          to close. Mirrors the named CI step in test.yml.
+        entry: python -m pytest tests/kg/test_sparql_escape.py tests/kg/test_injection_regression.py -q
+        language: system
+        pass_filenames: false
+        files: ^src/cataforge/kg/(_sparql_utils|_ask|transaction|_shim|ingest/writer|ingest/verify)\.py$

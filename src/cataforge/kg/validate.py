@@ -9,14 +9,21 @@ row appears in the report).
 The semantics-rich orphan / xref-target checks here cover the regular
 case; SHACL adds slot-cardinality and pattern enforcement.
 """
+
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from cataforge.kg._ask import ask
 from cataforge.kg._config import KGConfig
+from cataforge.kg._sparql_utils import (
+    _row_lookup,
+    _strv,
+    assert_safe_iri,
+    cf_namespace,
+)
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -40,62 +47,40 @@ class ValidationReport:
         return not any(v.severity == "violation" for v in self.violations)
 
 
-def _list_typed_entities(store: ox.Store, namespace: str) -> list[tuple[str, str]]:
+def _check_orphans(store: ox.Store, namespace: str) -> list[ValidationViolation]:
+    """Entities present but lacking required slots (entity_id / title).
+
+    Single SELECT with OPTIONAL bindings, processed in Python, so the
+    cost is one scan rather than O(N) ASKs.
+    """
     sparql = (
         f"PREFIX cf: <{namespace}> "
-        "SELECT ?s ?cls WHERE { ?s a ?cls "
-        "FILTER(STRSTARTS(STR(?cls), STR(cf:))) }"
+        "SELECT ?s ?cls ?eid ?title WHERE { "
+        "  ?s a ?cls . "
+        "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
+        f"  FILTER(?cls != <{namespace}Project>) "
+        "  OPTIONAL { ?s cf:entity_id ?eid } "
+        "  OPTIONAL { ?s cf:title     ?title } "
+        "}"
     )
-    out: list[tuple[str, str]] = []
-    for row in store.query(sparql):
-        s_value = row["s"]
-        c_value = row["cls"]
-        if s_value is None or c_value is None:
-            continue
-        out.append((str(s_value.value), str(c_value.value)))
-    return out
-
-
-def _entity_id_for(store: ox.Store, iri: str, namespace: str) -> str:
-    sparql = (
-        f"PREFIX cf: <{namespace}> "
-        f"SELECT ?eid WHERE {{ <{iri}> cf:entity_id ?eid }} LIMIT 1"
-    )
-    for row in store.query(sparql):
-        eid = row["eid"]
-        if eid is not None:
-            return str(eid.value)
-    return iri  # fall back to IRI when entity_id missing
-
-
-def _check_orphans(
-    store: ox.Store, namespace: str
-) -> list[ValidationViolation]:
-    """Entities present but lacking required slots (entity_id / title)."""
     violations: list[ValidationViolation] = []
-    for iri, cls in _list_typed_entities(store, namespace):
-        if cls.rstrip("/").endswith("/Project"):
-            continue  # Project itself is the root container
-        has_eid = ask(
-            store,
-            f"PREFIX cf: <{namespace}> ASK {{ <{iri}> cf:entity_id ?x }}",
-        )
-        if not has_eid:
+    for row in store.query(sparql):
+        s_iri = _strv(_row_lookup(row, "s"))
+        if s_iri is None:
+            continue
+        eid = _strv(_row_lookup(row, "eid"))
+        title = _strv(_row_lookup(row, "title"))
+        if eid is None:
             violations.append(
                 ValidationViolation(
                     severity="violation",
-                    entity_id=iri,
+                    entity_id=s_iri,
                     shape="cf:entity_id-required",
                     message="entity has no cf:entity_id triple",
                 )
             )
             continue
-        has_title = ask(
-            store,
-            f"PREFIX cf: <{namespace}> ASK {{ <{iri}> cf:title ?x }}",
-        )
-        if not has_title:
-            eid = _entity_id_for(store, iri, namespace)
+        if title is None:
             violations.append(
                 ValidationViolation(
                     severity="violation",
@@ -107,11 +92,13 @@ def _check_orphans(
     return violations
 
 
-def _check_xref_targets(
-    store: ox.Store, namespace: str
-) -> list[ValidationViolation]:
-    """Every traceability edge's object must resolve to a typed entity."""
-    violations: list[ValidationViolation] = []
+def _check_xref_targets(store: ox.Store, namespace: str) -> list[ValidationViolation]:
+    """Every traceability edge's object must resolve to a typed entity.
+
+    Single SELECT joins each traceability triple to its target's class
+    (via OPTIONAL) and to the subject's entity_id so the result is
+    self-contained — no per-row follow-up queries.
+    """
     traceability_slots = (
         "implements",
         "satisfies",
@@ -121,28 +108,37 @@ def _check_xref_targets(
         "affects",
         "depends_on",
     )
-    for slot in traceability_slots:
-        sparql = (
-            f"PREFIX cf: <{namespace}> "
-            f"SELECT ?s ?o WHERE {{ ?s cf:{slot} ?o }}"
+    union_clauses = " UNION ".join(
+        f'{{ ?s cf:{slot} ?o . BIND("{slot}" AS ?slot) }}' for slot in traceability_slots
+    )
+    sparql = (
+        f"PREFIX cf: <{namespace}> "
+        "SELECT ?s ?s_eid ?slot ?o ?o_cls WHERE { "
+        f"  {{ {union_clauses} }} "
+        "  OPTIONAL { ?s cf:entity_id ?s_eid } "
+        "  OPTIONAL { ?o a ?o_cls } "
+        "}"
+    )
+    violations: list[ValidationViolation] = []
+    for row in store.query(sparql):
+        s_iri = _strv(_row_lookup(row, "s"))
+        slot = _strv(_row_lookup(row, "slot"))
+        target = _strv(_row_lookup(row, "o"))
+        if s_iri is None or slot is None or target is None:
+            continue
+        if _row_lookup(row, "o_cls") is not None:
+            continue
+        source_eid = _strv(_row_lookup(row, "s_eid")) or s_iri
+        with contextlib.suppress(ValueError):
+            assert_safe_iri(target)
+        violations.append(
+            ValidationViolation(
+                severity="violation",
+                entity_id=source_eid,
+                shape=f"cf:{slot}-target-exists",
+                message=f"cf:{slot} target {target} is missing in the graph",
+            )
         )
-        for row in store.query(sparql):
-            s_val = row["s"]
-            o_val = row["o"]
-            if s_val is None or o_val is None:
-                continue
-            target = str(o_val.value)
-            has_type = ask(store, f"ASK {{ <{target}> a ?cls }}")
-            if not has_type:
-                source_eid = _entity_id_for(store, str(s_val.value), namespace)
-                violations.append(
-                    ValidationViolation(
-                        severity="violation",
-                        entity_id=source_eid,
-                        shape=f"cf:{slot}-target-exists",
-                        message=f"cf:{slot} target {target} is missing in the graph",
-                    )
-                )
     return violations
 
 
@@ -178,6 +174,8 @@ def _ox_to_rdflib_term(term):
             return rdflib.Literal(term.value, lang=term.language)
         if term.datatype and term.datatype.value != "http://www.w3.org/2001/XMLSchema#string":
             return rdflib.Literal(term.value, datatype=rdflib.URIRef(term.datatype.value))
+        # xsd:string is implicit in SPARQL 1.1; emit a plain literal so
+        # the bridged rdflib graph matches the SHACL shapes' expectations.
         return rdflib.Literal(term.value)
     return None
 
@@ -202,10 +200,7 @@ def _run_shacl(store: ox.Store) -> tuple[bool, list[ValidationViolation]]:
     """
     import importlib.util  # noqa: PLC0415
 
-    if (
-        importlib.util.find_spec("pyshacl") is None
-        or importlib.util.find_spec("rdflib") is None
-    ):
+    if importlib.util.find_spec("pyshacl") is None or importlib.util.find_spec("rdflib") is None:
         return True, []
 
     shapes_path = _find_shapes_file()
@@ -229,21 +224,11 @@ def _run_shacl(store: ox.Store) -> tuple[bool, list[ValidationViolation]]:
     violations: list[ValidationViolation] = []
     if not conforms:
         sh = rdflib.Namespace("http://www.w3.org/ns/shacl#")
-        for result_node in results_graph.subjects(
-            rdflib.RDF.type, sh.ValidationResult
-        ):
-            focus = str(
-                results_graph.value(result_node, sh.focusNode) or ""
-            )
-            source_shape = str(
-                results_graph.value(result_node, sh.sourceShape) or ""
-            )
-            message = str(
-                results_graph.value(result_node, sh.resultMessage) or ""
-            )
-            severity_iri = str(
-                results_graph.value(result_node, sh.resultSeverity) or ""
-            )
+        for result_node in results_graph.subjects(rdflib.RDF.type, sh.ValidationResult):
+            focus = str(results_graph.value(result_node, sh.focusNode) or "")
+            source_shape = str(results_graph.value(result_node, sh.sourceShape) or "")
+            message = str(results_graph.value(result_node, sh.resultMessage) or "")
+            severity_iri = str(results_graph.value(result_node, sh.resultSeverity) or "")
             if "Violation" in severity_iri:
                 sev = "violation"
             elif "Warning" in severity_iri:
@@ -270,7 +255,7 @@ def validate(
     *,
     run_shacl: bool = False,
 ) -> ValidationReport:
-    namespace = config.ontology_namespace.rstrip("/") + "/"
+    namespace = cf_namespace(config)
     report = ValidationReport()
     report.violations.extend(_check_orphans(store, namespace))
     report.violations.extend(_check_xref_targets(store, namespace))

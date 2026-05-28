@@ -98,15 +98,46 @@ def _scaffold_root() -> Traversable:
     return packaged  # let downstream FileNotFoundError surface naturally
 
 
+# Files written into ``<project>/.cataforge/`` at deploy/upgrade time, not
+# part of the scaffold. The editable-install fallback walks the live repo-root
+# ``.cataforge/`` (the framework dogfoods itself), which carries these files
+# from local deploys. Without this filter every scaffolded test project
+# inherits the framework's own deploy state and bootstrap reports
+# "deploy skip — already deployed" on a fresh fixture.
+_SCAFFOLD_LOCAL_STATE_FILES: frozenset[str] = frozenset(
+    {
+        ".deploy-state",
+        ".deploy-manifest.json",
+        ".instruction-hashes.json",
+        ".scaffold-manifest.json",
+    }
+)
+_SCAFFOLD_LOCAL_STATE_DIRS: frozenset[str] = frozenset(
+    {
+        ".backups",
+    }
+)
+
+
 def iter_scaffold_files() -> Iterator[tuple[str, Traversable]]:
-    """Yield ``(relative_posix_path, traversable)`` for every bundled file."""
+    """Yield ``(relative_posix_path, traversable)`` for every bundled file.
+
+    Local per-deployment state (see ``_SCAFFOLD_LOCAL_STATE_FILES`` /
+    ``_SCAFFOLD_LOCAL_STATE_DIRS``) is omitted so the editable-install
+    fallback does not pollute scaffolded projects with the framework's
+    own deploy state.
+    """
 
     def walk(node: Traversable, prefix: str) -> Iterator[tuple[str, Traversable]]:
         for child in node.iterdir():
             rel = f"{prefix}{child.name}"
             if child.is_dir():
+                if not prefix and child.name in _SCAFFOLD_LOCAL_STATE_DIRS:
+                    continue
                 yield from walk(child, rel + "/")
             else:
+                if not prefix and child.name in _SCAFFOLD_LOCAL_STATE_FILES:
+                    continue
                 yield rel, child
 
     yield from walk(_scaffold_root(), "")
@@ -150,9 +181,7 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
     # so the scaffold default must not stomp on local progress.
     existing_kg = existing.get("kg") or {}
     if isinstance(existing_kg, dict) and "kg_active_doc_types" in existing_kg:
-        merged.setdefault("kg", {})["kg_active_doc_types"] = existing_kg[
-            "kg_active_doc_types"
-        ]
+        merged.setdefault("kg", {})["kg_active_doc_types"] = existing_kg["kg_active_doc_types"]
 
     return (json.dumps(merged, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 

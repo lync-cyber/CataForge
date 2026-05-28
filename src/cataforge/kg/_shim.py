@@ -22,15 +22,28 @@ Framework-asset call points (skill loading, agent registry, rule
 evaluation) deliberately have no shim — they access `.cataforge/`
 filesystem assets directly and are unaffected by the KG migration.
 """
+
 from __future__ import annotations
 
+import logging
 import warnings
 from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 from typing import Any
 
 from cataforge.kg._config import KGConfig
+from cataforge.kg._sparql_utils import (
+    _row_lookup,
+    _strv,
+    cf_namespace,
+    escape_sparql_literal,
+)
 from cataforge.kg.facade import KnowledgeGraph
+
+logger = logging.getLogger(__name__)
+
+# Legacy path estimate; KG path uses actual rendered token count.
+_LEGACY_TOKEN_PER_REF = 200
 
 # ---------------------------------------------------------------------------
 # Config / dispatch helpers
@@ -136,10 +149,11 @@ def _kg_extract(
     """
     import re  # noqa: PLC0415
 
-    namespace = config.ontology_namespace.rstrip("/") + "/"
+    namespace = cf_namespace(config)
     match = re.search(r"([A-Z]+-\d{3,})", section_id)
-    if match:
-        entity_id_lit = _sparql_lit(match.group(1))
+    parsed_entity_id = match.group(1) if match else None
+    if parsed_entity_id is not None:
+        entity_id_lit = _sparql_lit(parsed_entity_id)
         where_clauses = f'  ?uri cf:entity_id "{entity_id_lit}" . '
     else:
         section_lit = _sparql_lit(section_id)
@@ -165,14 +179,16 @@ def _kg_extract(
     if not rows:
         return None
     row = rows[0]
+    # entity_id from the SELECT trumps the parsed fallback, but if the
+    # row is missing the literal (data corruption / pre-migration row),
+    # the regex-parsed ID is the next-best identifier.
+    entity_id = _row_strv(row, "entity_id") or parsed_entity_id
     return {
         "uri": _row_strv(row, "uri"),
-        "entity_id": _row_strv(row, "entity_id"),
+        "entity_id": entity_id,
         "title": _row_strv(row, "title"),
         "status": _row_strv(row, "status"),
-        "_class": (
-            (_row_strv(row, "cls") or "").rsplit("/", 1)[-1] or None
-        ),
+        "_class": ((_row_strv(row, "cls") or "").rsplit("/", 1)[-1] or None),
         "source_doc": _row_strv(row, "source_doc"),
         "source_section": _row_strv(row, "source_section") or section_id,
         "doc_type": doc_type,
@@ -264,18 +280,39 @@ def plan_load(
     _emit("plan_load", "kg.query.plan_load()")
     cfg = _config_for(project_root, db_path=db_path, overrides=config)
 
-    if any("#" in item for item in items) and not cfg.kg_active_doc_types:
+    kg_items: list[str] = []
+    legacy_items: list[str] = []
+    for item in items:
+        if _active_for_item(item, cfg):
+            kg_items.append(item)
+        else:
+            legacy_items.append(item)
+
+    if not kg_items:
         return _legacy_plan_load(items, budget, project_root)
 
-    if all(_active_for_item(item, cfg) for item in items):
+    if not legacy_items:
         with _kg_session(cfg, kg=kg) as kg_inst:
-            result = kg_inst.query.plan_load(items, budget, include_related=True)
+            result = kg_inst.query.plan_load(kg_items, budget, include_related=True)
         return {
             "ordered": result.ordered,
             "dropped": result.dropped,
             "estimated_tokens": result.estimated_tokens,
         }
-    return _legacy_plan_load(items, budget, project_root)
+
+    # Mixed batch: KG items go through KG planner; legacy items through
+    # legacy loader. The two ordered lists are concatenated; budgeting is
+    # split proportionally by item count.
+    kg_share = int(budget * len(kg_items) / len(items))
+    legacy_share = budget - kg_share
+    with _kg_session(cfg, kg=kg) as kg_inst:
+        kg_result = kg_inst.query.plan_load(kg_items, kg_share, include_related=True)
+    legacy_result = _legacy_plan_load(legacy_items, legacy_share, project_root)
+    return {
+        "ordered": kg_result.ordered + legacy_result["ordered"],
+        "dropped": kg_result.dropped + legacy_result["dropped"],
+        "estimated_tokens": kg_result.estimated_tokens + legacy_result["estimated_tokens"],
+    }
 
 
 def _active_for_item(item: str, config: KGConfig) -> bool:
@@ -292,16 +329,14 @@ def _active_for_item(item: str, config: KGConfig) -> bool:
     return bool(config.kg_active_doc_types)
 
 
-def _legacy_plan_load(
-    items: list[str], budget: int, project_root: str | Path
-) -> dict[str, Any]:
+def _legacy_plan_load(items: list[str], budget: int, project_root: str | Path) -> dict[str, Any]:
     from cataforge.docs.loader import plan_load as _file_plan_load
 
     loadable, deferred = _file_plan_load(items, str(project_root), budget)
     return {
         "ordered": loadable,
         "dropped": deferred,
-        "estimated_tokens": budget - max(0, budget - len(loadable) * 200),
+        "estimated_tokens": len(loadable) * _LEGACY_TOKEN_PER_REF,
     }
 
 
@@ -393,7 +428,11 @@ def resolve_deps(
 ) -> list[str]:
     """Direct (1-hop) dependencies for `item_id`.
 
-    KG path: SPARQL over `cf:depends_on`.
+    KG path: verify the entity exists in the store; if so, SPARQL over
+    `cf:depends_on`. If the entity is missing from KG (reconcile drift,
+    not yet ingested, or wrong-doc_type mapping) fall back to the legacy
+    index so callers do not silently receive an empty deps list when the
+    file-side answer still exists.
 
     Legacy path: delegates to
     :func:`cataforge.docs.loader.resolve_deps` which walks
@@ -403,13 +442,16 @@ def resolve_deps(
     cfg = _config_for(project_root, db_path=db_path, overrides=config)
     if cfg.kg_active_doc_types:
         with _kg_session(cfg, kg=kg) as kg_inst:
-            return kg_inst.query.depends_on(item_id)
+            if kg_inst.query.exists(item_id):
+                return kg_inst.query.depends_on(item_id)
+        logger.warning(
+            "resolve_deps: %r absent from KG; falling back to legacy index.",
+            item_id,
+        )
     return _legacy_resolve_deps(item_id, project_root)
 
 
-def _legacy_resolve_deps(
-    item_id: str, project_root: str | Path
-) -> list[str]:
+def _legacy_resolve_deps(item_id: str, project_root: str | Path) -> list[str]:
     from cataforge.docs.loader import resolve_deps as _file_resolve
 
     return _file_resolve(item_id, str(project_root))
@@ -603,15 +645,37 @@ def _legacy_source_section(
 
 
 def _slice_section(text: str, anchor: str) -> str | None:
+    """Return the heading slice matching `anchor` up to the next sibling
+    heading (or EOF).
+
+    Matching is word-boundary aware on either side of the marker so that
+    ``"F-1"`` does not spuriously match ``"## F-12 …"``. The end of the
+    slice is the next heading at the same level or shallower, so a
+    sub-heading does not prematurely terminate the section.
+    """
+    import re  # noqa: PLC0415
+
     lines = text.splitlines()
     marker = anchor.lstrip("§").strip()
+    if not marker:
+        return None
+    boundary = r"(?:^|[^0-9A-Za-z_-])"
+    after = r"(?=$|[^0-9A-Za-z_-])"
+    pattern = re.compile(boundary + re.escape(marker) + after)
     start: int | None = None
+    start_level = 0
     end = len(lines)
     for i, line in enumerate(lines):
-        if line.startswith("#") and marker in line:
-            start = i
+        stripped = line.lstrip()
+        if not stripped.startswith("#"):
             continue
-        if start is not None and line.startswith("#") and i > start:
+        level = len(stripped) - len(stripped.lstrip("#"))
+        if start is None:
+            if pattern.search(line):
+                start = i
+                start_level = level
+            continue
+        if level <= start_level:
             end = i
             break
     if start is None:
@@ -625,25 +689,12 @@ def _slice_section(text: str, anchor: str) -> str | None:
 
 
 def _row_strv(row: Any, var: str) -> str | None:
-    try:
-        term = row[var]
-    except (KeyError, IndexError):
-        return None
-    if term is None:
-        return None
-    val = getattr(term, "value", term)
-    return None if val is None else str(val)
+    return _strv(_row_lookup(row, var))
 
 
 def _sparql_lit(value: str) -> str:
-    """Escape a Python string for safe inclusion in a SPARQL literal."""
-    return (
-        value.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
-    )
+    """Backwards-compatible alias for the canonical literal escaper."""
+    return escape_sparql_literal(value)
 
 
 __all__ = [

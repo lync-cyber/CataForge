@@ -18,6 +18,7 @@ canonical hash the ingest pipeline already records.
 Sampling uses Python stdlib `random.Random` so `--seed` yields
 reproducible audits.
 """
+
 from __future__ import annotations
 
 import random
@@ -26,6 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cataforge.kg._ask import ask
+from cataforge.kg._sparql_utils import _row_lookup, _strv, cf_namespace
 from cataforge.kg.ingest.entity_extract import extract_entities
 from cataforge.kg.ingest.iri import entity_iri
 from cataforge.kg.ingest.scan import scan_business_docs
@@ -72,25 +74,18 @@ class CompareReadReport:
         }
 
 
-def _kg_content_hash(
-    kg: KnowledgeGraph, entity_id: str
-) -> str | None:
+def _kg_content_hash(kg: KnowledgeGraph, entity_id: str) -> str | None:
     """Read the `cf:content_hash` literal stored in KG for `entity_id`."""
-    ns = kg.config.ontology_namespace.rstrip("/") + "/"
+    ns = cf_namespace(kg.config)
     iri = entity_iri(entity_id, kg.config.base_namespace)
-    sparql = (
-        f"PREFIX cf: <{ns}> "
-        f"SELECT ?h WHERE {{ <{iri}> cf:content_hash ?h }} LIMIT 1"
-    )
+    sparql = f"PREFIX cf: <{ns}> SELECT ?h WHERE {{ <{iri}> cf:content_hash ?h }} LIMIT 1"
     for row in kg.store.query(sparql):
-        term = row["h"]
-        if term is not None:
-            return str(term.value)
+        return _strv(_row_lookup(row, "h"))
     return None
 
 
 def _kg_entity_exists(kg: KnowledgeGraph, entity_id: str) -> bool:
-    ns = kg.config.ontology_namespace.rstrip("/") + "/"
+    ns = cf_namespace(kg.config)
     iri = entity_iri(entity_id, kg.config.base_namespace)
     return ask(
         kg.store,
@@ -151,9 +146,7 @@ def compare_read(
     report = CompareReadReport(sampled_count=len(sample))
 
     for entity_id, doc_type, source_doc, fs_hash in sample:
-        report.per_doc_type_counts[doc_type] = (
-            report.per_doc_type_counts.get(doc_type, 0) + 1
-        )
+        report.per_doc_type_counts[doc_type] = report.per_doc_type_counts.get(doc_type, 0) + 1
         kg_hash = _kg_content_hash(kg, entity_id)
         if kg_hash is None:
             if _kg_entity_exists(kg, entity_id):

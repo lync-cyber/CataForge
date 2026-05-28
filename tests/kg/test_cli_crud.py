@@ -451,3 +451,26 @@ class TestDelete:
             ],
         )
         assert ask.output.strip() == "true"
+
+    def test_delete_json_without_yes_still_prompts(self, tmp_path: Path) -> None:
+        """--json must not bypass the confirmation prompt (A4)."""
+        db = _seed_project_with_entity(tmp_path)
+        result = CliRunner().invoke(
+            _cli(),
+            ["kg", "delete", "F-001", "--json", "--db-path", str(db)],
+            input="n\n",
+        )
+        assert result.exit_code == 0
+        assert "Aborted" in result.output
+
+        ask = CliRunner().invoke(
+            _cli(),
+            [
+                "kg",
+                "query",
+                "--db-path",
+                str(db),
+                'PREFIX cf: <https://cataforge.dev/ontology/> ASK { ?s cf:entity_id "F-001" }',
+            ],
+        )
+        assert ask.output.strip() == "true"

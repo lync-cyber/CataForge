@@ -1,4 +1,5 @@
 """Store snapshot: serialize all quads to NQuads file; restore from file."""
+
 from __future__ import annotations
 
 import json
@@ -8,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cataforge.kg._config import KGConfig
-from cataforge.kg._errors import KGStoreAlreadyExistsError
+from cataforge.kg._errors import KGError, KGStoreAlreadyExistsError
 from cataforge.kg.store import init_store
 
 if TYPE_CHECKING:
@@ -71,8 +72,7 @@ def create_snapshot(
 
     meta_path = nq_path.with_suffix(".meta.json")
     meta_path.write_text(
-        json.dumps(meta.to_dict(), indent=2, sort_keys=True, ensure_ascii=False)
-        + "\n",
+        json.dumps(meta.to_dict(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 
@@ -101,14 +101,19 @@ def restore_snapshot(
         and not force
     ):
         raise KGStoreAlreadyExistsError(
-            f"KG store already exists at {db_path}. "
-            "Pass --force to overwrite."
+            f"KG store already exists at {db_path}. Pass --force to overwrite."
         )
 
     handle = init_store(config, force=True)
     store = handle.raw
 
-    nq_data = snapshot_path.read_bytes()
+    try:
+        nq_data = snapshot_path.read_bytes()
+    except FileNotFoundError as exc:
+        raise KGError(f"snapshot not found: {snapshot_path}") from exc
+    except (PermissionError, IsADirectoryError, OSError) as exc:
+        raise KGError(f"cannot read snapshot {snapshot_path}: {exc}") from exc
+
     count = 0
     for quad in ox.parse(nq_data, ox.RdfFormat.N_QUADS):
         store.add(quad)

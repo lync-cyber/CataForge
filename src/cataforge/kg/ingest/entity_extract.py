@@ -9,6 +9,7 @@ The patterns `ENTITY_PREFIX_RE` and `XREF_RE` live here so phase 3 can
 exclude xref occurrences from entity detection without a circular
 dependency with `relation_extract`.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -22,6 +23,7 @@ from cataforge.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS
 from cataforge.kg.ingest.scan import HeadingSpan, ParsedDoc
 
 _LAYER_BULLET_RE = re.compile(r"^\s*[-*]\s+(.+)", re.MULTILINE)
+
 
 def _extract_techstack_slots(entity: ExtractedEntity, section_text: str) -> None:
     entity.extra_slots["cf:narrative_body"] = section_text
@@ -45,9 +47,7 @@ ENTITY_PREFIX_RE = re.compile(rf"\b(?:{_PREFIX_ALT})-\d{{3,}}\b")
 
 # Strict xref form: `doc_id#§<section>.<ENTITY-NNN>`. Shared with
 # relation_extract; defined here to break the import cycle.
-XREF_RE = re.compile(
-    r"\b(?P<doc>[\w-]+)#§(?P<section>\d+(?:\.\d+)*)\.(?P<entity>[A-Z]+-\d{3,})\b"
-)
+XREF_RE = re.compile(r"\b(?P<doc>[\w-]+)#§(?P<section>\d+(?:\.\d+)*)\.(?P<entity>[A-Z]+-\d{3,})\b")
 
 
 @dataclass
@@ -79,6 +79,11 @@ def _line_index_for_offset(text: str, offset: int) -> int:
     return text.count("\n", 0, offset)
 
 
+def _inside_code_block(offset: int, ranges: list[tuple[int, int]]) -> bool:
+    """Return True when ``offset`` falls inside any of the code/html ``ranges``."""
+    return any(start <= offset < end for start, end in ranges)
+
+
 def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
     """Phase 3: scan `doc` for entity_id occurrences.
 
@@ -90,9 +95,11 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
 
     Xref pattern matches (`prd#§2.F-001` inside an arch document) are
     excluded; otherwise the target entity_id leaks into every doc that
-    references it.
+    references it.  Matches inside fenced code blocks, inline code, or
+    HTML blocks are also excluded.
     """
     xref_spans = [(m.start(), m.end()) for m in XREF_RE.finditer(doc.raw)]
+    code_ranges = doc.code_block_offsets
 
     def _inside_xref(offset: int) -> bool:
         return any(start <= offset < end for start, end in xref_spans)
@@ -100,6 +107,8 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
     seen: dict[str, ExtractedEntity] = {}
     for match in ENTITY_PREFIX_RE.finditer(doc.raw):
         if _inside_xref(match.start()):
+            continue
+        if _inside_code_block(match.start(), code_ranges):
             continue
         entity_id = match.group(0)
         if entity_id in seen:
@@ -114,9 +123,7 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
             continue
         # Compute the hash on the section body so re-imports detect content
         # drift even when the entity_id stayed the same.
-        section_text = "\n".join(
-            doc.raw.splitlines()[section.line_start : section.line_end]
-        )
+        section_text = "\n".join(doc.raw.splitlines()[section.line_start : section.line_end])
         entity = ExtractedEntity(
             entity_id=entity_id,
             class_name=class_name,

@@ -4,6 +4,7 @@ Public surface: `KnowledgeGraph` facade (query / trace / transaction),
 `KGConfig`, `KnowledgeGraphStore`, `init_store`, `ask`, and the KG
 exception hierarchy.
 """
+
 from __future__ import annotations
 
 from cataforge.kg._ask import ask
@@ -16,7 +17,7 @@ from cataforge.kg._errors import (
     KGValidationError,
 )
 from cataforge.kg.export.render import render_entity
-from cataforge.kg.facade import KnowledgeGraph
+from cataforge.kg.facade import KnowledgeGraph, open_store
 from cataforge.kg.query import QueryAPI
 from cataforge.kg.store import (
     KnowledgeGraphStore,
@@ -42,4 +43,5 @@ __all__ = [
     "ask",
     "bootstrap_subclass_axioms",
     "init_store",
+    "open_store",
 ]

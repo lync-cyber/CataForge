@@ -18,6 +18,7 @@ The doctor `kg_ingestion_completeness` gate runs an entity-only variant
 of this check at deploy time; `reconcile` is the periodic operational
 sweep that additionally covers relations.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 
 from cataforge.docs.loader import _load_doc_type_map
 from cataforge.kg._config import KGConfig
+from cataforge.kg._sparql_utils import _row_lookup, _strv, cf_namespace, escape_sparql_literal
 from cataforge.kg.ingest.entity_extract import extract_entities
 from cataforge.kg.ingest.relation_extract import extract_relations
 from cataforge.kg.ingest.scan import scan_business_docs
@@ -91,9 +93,7 @@ class ReconcileReport:
         return {
             "timestamp": self.timestamp,
             "active_doc_types": self.active_doc_types,
-            "per_doc_type": {
-                k: v.to_dict() for k, v in sorted(self.per_doc_type.items())
-            },
+            "per_doc_type": {k: v.to_dict() for k, v in sorted(self.per_doc_type.items())},
             "overall_divergence_count": self.overall_divergence_count,
             "ok": self.ok,
         }
@@ -106,18 +106,16 @@ def _utc_now_iso() -> str:
 def _curie_for_iri(iri: str, namespace: str) -> str:
     """Map a full predicate IRI back to the canonical `cf:slot` CURIE form."""
     if iri.startswith(namespace):
-        return f"cf:{iri[len(namespace):]}"
+        return f"cf:{iri[len(namespace) :]}"
     return iri
 
 
-def _kg_entities_for_doc_ids(
-    store: ox.Store, config: KGConfig, doc_ids: set[str]
-) -> set[str]:
+def _kg_entities_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[str]:
     """Return entity_ids in KG whose `cf:source_doc` is one of `doc_ids`."""
     if not doc_ids:
         return set()
-    ns = config.ontology_namespace.rstrip("/") + "/"
-    values_clause = " ".join(f'"{d}"' for d in sorted(doc_ids))
+    ns = cf_namespace(config)
+    values_clause = " ".join(f'"{escape_sparql_literal(d)}"' for d in sorted(doc_ids))
     sparql = (
         f"PREFIX cf: <{ns}> "
         "SELECT DISTINCT ?entity_id WHERE { "
@@ -128,15 +126,13 @@ def _kg_entities_for_doc_ids(
     )
     out: set[str] = set()
     for row in store.query(sparql):
-        term = row["entity_id"]
-        if term is not None:
-            out.add(str(term.value))
+        eid = _strv(_row_lookup(row, "entity_id"))
+        if eid is not None:
+            out.add(eid)
     return out
 
 
-def _kg_relations_for_doc_ids(
-    store: ox.Store, config: KGConfig, doc_ids: set[str]
-) -> set[RelKey]:
+def _kg_relations_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[RelKey]:
     """Return `(s_id, predicate_curie, o_id)` triples where the subject's
     `cf:source_doc` is one of `doc_ids`.
 
@@ -147,8 +143,8 @@ def _kg_relations_for_doc_ids(
     """
     if not doc_ids:
         return set()
-    ns = config.ontology_namespace.rstrip("/") + "/"
-    values_clause = " ".join(f'"{d}"' for d in sorted(doc_ids))
+    ns = cf_namespace(config)
+    values_clause = " ".join(f'"{escape_sparql_literal(d)}"' for d in sorted(doc_ids))
     sparql = (
         f"PREFIX cf: <{ns}> "
         "SELECT ?s_id ?p ?o_id WHERE { "
@@ -157,24 +153,22 @@ def _kg_relations_for_doc_ids(
         "     cf:source_doc ?src ; "
         "     ?p ?o . "
         "  ?o cf:entity_id ?o_id . "
-        f"  FILTER(STRSTARTS(STR(?p), \"{ns}\")) "
-        # Exclude data-property predicates that happen to point at literals
-        # — already excluded by `?o cf:entity_id ?o_id` above.
+        f'  FILTER(STRSTARTS(STR(?p), "{ns}")) '
+        # ?o cf:entity_id ?o_id above already filters to object-property
+        # edges, so this branch only sees traceability predicates.
         "}"
     )
     out: set[RelKey] = set()
     for row in store.query(sparql):
-        s_term = row["s_id"]
-        p_term = row["p"]
-        o_term = row["o_id"]
-        if s_term is None or p_term is None or o_term is None:
+        s_id = _strv(_row_lookup(row, "s_id"))
+        p_iri = _strv(_row_lookup(row, "p"))
+        o_id = _strv(_row_lookup(row, "o_id"))
+        if s_id is None or p_iri is None or o_id is None:
             continue
-        curie = _curie_for_iri(str(p_term.value), ns)
-        # Skip housekeeping object properties so the diff only covers
-        # traceability slots (the same slots `extract_relations` emits).
+        curie = _curie_for_iri(p_iri, ns)
         if curie == "cf:belongs_to_project":
             continue
-        out.add((str(s_term.value), curie, str(o_term.value)))
+        out.add((s_id, curie, o_id))
     return out
 
 
@@ -249,8 +243,7 @@ def reconcile(
 def write_report(report: ReconcileReport, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False)
-        + "\n",
+        json.dumps(report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 

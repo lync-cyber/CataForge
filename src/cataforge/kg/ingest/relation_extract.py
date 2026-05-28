@@ -9,13 +9,19 @@ entity_id (the subject) and infers a predicate from the
 The predicates returned here are CURIEs against the business ontology
 namespace (`cf:`); phase 5 expands them to full IRIs at write time.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from cataforge.kg.ingest.entity_extract import ENTITY_PREFIX_RE, XREF_RE
+from cataforge.kg.ingest.entity_extract import (
+    ENTITY_PREFIX_RE,
+    XREF_RE,
+    _inside_code_block,
+    _line_index_for_offset,
+)
 from cataforge.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS
-from cataforge.kg.ingest.scan import ParsedDoc
+from cataforge.kg.ingest.scan import HeadingSpan, ParsedDoc
 
 # Source class × target prefix → predicate CURIE.
 # Uses slot names from core.yaml (e.g. `cf:implements`). Schema is the
@@ -56,12 +62,48 @@ def infer_predicate(source_class: str | None, target_prefix: str) -> str:
     return PREDICATE_MAP.get((source_class, target_prefix), DEFAULT_PREDICATE)
 
 
-def _enclosing_entity(doc: ParsedDoc, offset: int) -> tuple[str, str] | None:
-    """Return the (entity_id, class) of the nearest entity_id *before* `offset`."""
+def _section_for_offset(doc: ParsedDoc, offset: int) -> HeadingSpan | None:
+    """Return the deepest HeadingSpan that contains ``offset`` (char-based)."""
+    line_idx = _line_index_for_offset(doc.raw, offset)
+    candidates = [s for s in doc.sections if s.line_start <= line_idx < s.line_end]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda s: s.level)
+
+
+def _enclosing_entity(
+    doc: ParsedDoc,
+    offset: int,
+    *,
+    xref_section: HeadingSpan | None,
+) -> tuple[str, str] | None:
+    """Return (entity_id, class) of the nearest entity_id before ``offset``.
+
+    Search is restricted to the same HeadingSpan as the xref when
+    ``xref_section`` is provided, preventing cross-section pollution.
+    Candidates inside fenced code blocks, inline code, or HTML blocks are
+    skipped.
+    """
+    if xref_section is not None:
+        # Convert section line bounds back to char offsets for the search window.
+        lines = doc.raw.splitlines(keepends=True)
+        cumoffsets = [0]
+        for line in lines:
+            cumoffsets.append(cumoffsets[-1] + len(line))
+        section_start_char = (
+            cumoffsets[xref_section.line_start] if xref_section.line_start < len(cumoffsets) else 0
+        )
+        search_start = section_start_char
+    else:
+        search_start = 0
+
     best: tuple[int, str] | None = None
-    for match in ENTITY_PREFIX_RE.finditer(doc.raw, 0, offset):
+    for match in ENTITY_PREFIX_RE.finditer(doc.raw, search_start, offset):
+        if _inside_code_block(match.start(), doc.code_block_offsets):
+            continue
         if best is None or match.start() > best[0]:
             best = (match.start(), match.group(0))
+
     if best is None:
         return None
     entity_id = best[1]
@@ -81,7 +123,8 @@ def extract_relations(doc: ParsedDoc) -> list[ExtractedRelation]:
         target_class = ENTITY_PREFIX_TO_CLASS.get(target_prefix)
         if target_class is None:
             continue
-        enclosing = _enclosing_entity(doc, match.start())
+        xref_section = _section_for_offset(doc, match.start())
+        enclosing = _enclosing_entity(doc, match.start(), xref_section=xref_section)
         if enclosing is None:
             continue
         subject_entity_id, subject_class = enclosing
