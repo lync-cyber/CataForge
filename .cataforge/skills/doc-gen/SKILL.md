@@ -160,5 +160,5 @@ required_sections:
 
 ## 效率策略
 - 按模板生成骨架，减少Agent的格式化工作
-- finalize 时自动调用 `cataforge docs index` 增量更新 `.doc-index.json`，避免手动维护
+- finalize 按 `kg.kg_active_doc_types` 自动分流持久化：KG-active doc_type 走 `cataforge kg import` + `cataforge kg reconcile`，legacy doc_type 走 `cataforge docs index` 增量更新 `.doc-index.json`（见 §指令3.Step 3）
 - 拆分后每个分卷可独立加载，支持按需消费
