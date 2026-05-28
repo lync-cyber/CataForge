@@ -23,6 +23,40 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 <a id='changelog-0.5.0'></a>
 ## [0.5.0] — 2026-05-27
 
+完整迁移指南见 [docs/migration/kg-cutover-0.5.0.md](docs/migration/kg-cutover-0.5.0.md)。
+
+### 替代范围
+
+0.5.0 替换了 0.4.x 业务文档（PRD / Arch / Test）的索引与跨文档关系层。下表列清哪些旧路径被取代、新路径长什么样、对终端用户的可见差异。
+
+| 旧路径（0.4.x） | 新路径（0.5.0） | 范围 |
+|----------------|----------------|------|
+| `docs/.doc-index.json` 作为权威索引 | RocksDB-backed Oxigraph store at `.cataforge/kg/store/`，`.doc-index.json` 降级为派生缓存 | `kg_active_doc_types ⊇ {prd, arch, test}` 内 |
+| `loader.extract()` 文件切片读 PRD/Arch/Test 段 | `cataforge.kg.export.render_entity` 经 SPARQL hydrate 出 canonical Markdown | 同上 |
+| `check_xref` 用 file-glob 解析 entity_id（URL-fragment / cross-volume 误报） | SPARQL 实体解析 | 同上 |
+| `check_bidirectional_coverage` 正则 grep 双向覆盖（task-1 §1.4 case A 假阳） | `cf:implements + cf:verifies+` SPARQL property path | 同上 |
+| arch §1.4 tech-stack narrative 走 `source_section()` 转义 hatch | `cf:TechStack` 类 + `cataforge kg import` codemod 抽取为实体 | arch doc_type |
+| ui-spec `C-NNN` 与 arch `C-NNN` 同 prefix 冲突 | ui-spec 重映射为 `UC-NNN`（`UIComponent`），arch `C-NNN` 保持为 `Component` | ui-spec doc_type（codemod 自动重写） |
+| `loader.extract()` 直读 `governance` 元资产 | 仍走 file-system；`KGConfig.governance=False` 默认关闭 | `.cataforge/` 自身资产（不在替代范围内） |
+
+不在 `kg_active_doc_types` 集合内的 doc_type 全部走旧 `loader.extract()` 路径，0.5.0 内不变。
+
+### BREAKING
+
+KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破坏点 + 缓解迁移路径如下。
+
+| 影响项 | 0.4.x 行为 | 0.5.0 行为 | 如果你曾依赖 X，改为 Y |
+|--------|-----------|-----------|----------------------|
+| Optional `[kg]` extra 必装 | 无 KG 概念，`pip install cataforge` 即够用 | 启用 KG 模式的项目必须 `pip install cataforge[kg]`；不装则 `cataforge kg *` 子命令退出码 1 提示安装 | 升级时执行 `pip install --upgrade "cataforge[kg]"`（uv: `uv tool install --upgrade "cataforge[kg]"`） |
+| `cataforge kg init` 是先决条件 | N/A | `.cataforge/kg/store/` 不存在时 `kg_active_doc_types` 配了也按 SKIP 处理，doctor 不阻断；但黄金路径不再连通 | 升级后跑一次 `cataforge kg init` |
+| `kg_ingestion_completeness` ERROR-gate | N/A | `cataforge doctor` 在某 active doc_type 的 Markdown 实体缺失于 KG 时 ERROR 阻断，无 WARN 过渡期 | 翻 flag 前先 `cataforge kg import` + `cataforge kg reconcile`，确认零 missing |
+| `docs/.doc-index.json` 派生化 | 权威索引，第三方可直接 import 读字段 | 派生缓存，可能落后于 KG | 第三方读者改用 `cataforge kg query` 或 `cataforge docs load`（后者自动按 doc_type 路由到 KG 或 legacy） |
+| Component C-NNN 与 ui-spec C-NNN 命名空间分裂 | 共享 `C-NNN` prefix，混淆来源 | ui-spec C-NNN 在 `cataforge kg import` 中 codemod 为 UC-NNN（`UIComponent`） | inbound xref 由 codemod 自动追踪；下游 grep 工具切到 `UC-` |
+| `cataforge.kg._shim` 公开接口 | N/A | shim 层 5 + 3 个函数（`extract` / `extract_batch` / `plan_load` / `build_full_index` / `resolve_deps` + `extract_with_body` / `legacy_validate_report` / `source_section`）发 `DeprecationWarning` | 调用方迁到 `QueryAPI` / `TraceAPI` 直接接口；0.6.0 移除 shim 层 |
+| `governance.yaml` schema 提供但默认关闭 | N/A | `KGConfig.governance=False` 默认；仅 framework-review 等内部 skill 开关切 True | 业务项目无操作；自定 governance 整合的项目自管 `governance=True` 切换 |
+
+回滚粒度 = 单 doc_type：从 `kg_active_doc_types` 移除该 doc_type 即让该 doc_type 读路径退回 legacy loader，其它 doc_type 不受影响。Systemic snapshot 回滚走 `cataforge kg snapshot --output <path>` → `cataforge kg rollback <path>`。完整流程见 [迁移指南](docs/migration/kg-cutover-0.5.0.md) §回滚。
+
 ### Added
 
 - **`cataforge mcp health <id>`** —— 主动探测注册的 MCP 服务健康。按 `spec.health_check.type` 分派：`http` → `GET` 目标 URL（2xx 即健康）；`tcp` → `socket.connect("host:port")`；`command` → shell 执行（exit 0 即健康）；缺省 → pid alive 兜底。结果写回 `last_health_check`；unhealthy 时 exit 1。
@@ -392,6 +426,22 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 ### Documentation
 
 - **`hook test` 自定义命令 `shell=True` 的边界说明** —— `docs/reference/cli.md` 补一段 *Custom hook commands run via shell=True* 注记，明确威胁模型（hook 字符串由仓库维护者拥有，不接收远程输入；pipe / redirect 是设计目的），让审计读到代码注释时不必反推意图。
+- **`docs/migration/kg-cutover-0.5.0.md`** —— KG-first 切换的 operator 视角迁移指南：cutover 模型（per-doc_type rolling，无 dual-track）、推进/撤回 doc_type 的判定、单 doc_type 回滚与 systemic snapshot 回滚的两级路径、已知边界。从 [task-7 §7.5](docs/proposals/kg-migration-0.5.0/task-7-rollout-strategy.md) 提取后按 operator 视角重写。
+
+### Known Limits
+
+KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落地，但决定推进节奏与故障兜底面。
+
+| 项 | 状态 | 处置 |
+|---|------|------|
+| `kg_active_doc_types` Alpha 范围 = `{prd, arch, test}` | 设计选择 | 其它 doc_type 在 0.6.0+ 评估扩展；当前对它们读路径不变 |
+| SHACL `sh:closed true` 运行期校验 | `--shacl` flag 已留，pyoxigraph↔rdflib 桥未实现 | LinkML schema-level write-time 检查兜底；GA 重审 |
+| 自然语言查询 LLM 接口 | 0.6.0+ 候选 | 现有 `QueryAPI` / `TraceAPI` 提供编程接口 |
+| `cataforge kg compare-read` 退出码 = 0 | 设计选择（diagnostic, not gate） | alarm 持续才触发"移出 `kg_active_doc_types`" 运维动作 |
+| `docs/.doc-index.json` 派生化 | 0.5.0 已生效 | 第三方读者改 `cataforge kg query` 或 `cataforge docs load`（按 doc_type 自动路由） |
+| `cataforge.kg._shim` 5 + 3 个函数发 `DeprecationWarning` | 0.6.0 移除 | 调用方迁到 `QueryAPI` / `TraceAPI` 直接接口 |
+| pyoxigraph 0.5.x 无 OWL/RDFS 推理 | 受 pyoxigraph 上游限制 | `cataforge kg init` 在 bootstrap 时显式物化 `rdfs:subClassOf` triples 兜底子类闭包查询 |
+| Systemic snapshot 回滚依赖人工预先 `cataforge kg snapshot` | 0.5.0 已发货命令 | 升级前打 git tag (`git tag pre-kg-cutover-0.5.0`) + 跑 `cataforge kg snapshot`，建议合并到 upgrade 流程 |
 
 <a id='changelog-0.4.1'></a>
 ## [0.4.1] — 2026-05-24
