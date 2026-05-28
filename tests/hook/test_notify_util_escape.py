@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,7 +18,7 @@ EVIL_MESSAGE = "line1\nline2 with $env:PATH"
 
 
 @pytest.fixture()
-def mock_subprocess_run() -> MagicMock:
+def mock_subprocess_run() -> Iterator[MagicMock]:
     # notify_util now goes through cataforge.utils.run_subprocess.run; we
     # patch the module-local rebind (`run_proc`) so the assertions still
     # observe what the helper passed downstream.
@@ -35,23 +36,17 @@ class TestWindowsToastEscape:
         ps_script = mock_subprocess_run.call_args[0][0][-1]
         # html.escape encodes ' -> &#x27; so single-quoted PS string stays safe
         assert "&#x27;" in ps_script
-        load_xml_line = next(
-            line for line in ps_script.splitlines() if "LoadXml" in line
-        )
+        load_xml_line = next(line for line in ps_script.splitlines() if "LoadXml" in line)
         inner = load_xml_line.split("LoadXml('", 1)[1].rsplit("')", 1)[0]
         assert "'" not in inner
 
-    def test_double_quote_in_message_is_html_escaped(
-        self, mock_subprocess_run: MagicMock
-    ) -> None:
+    def test_double_quote_in_message_is_html_escaped(self, mock_subprocess_run: MagicMock) -> None:
         _notify_windows("Title", 'msg with "quotes"')
 
         ps_script = mock_subprocess_run.call_args[0][0][-1]
         assert "&quot;" in ps_script
 
-    def test_subprocess_called_with_powershell_argv(
-        self, mock_subprocess_run: MagicMock
-    ) -> None:
+    def test_subprocess_called_with_powershell_argv(self, mock_subprocess_run: MagicMock) -> None:
         _notify_windows("Hello", "World")
 
         mock_subprocess_run.assert_called_once()
@@ -60,9 +55,7 @@ class TestWindowsToastEscape:
 
 
 class TestMacOsOsascriptEscape:
-    def test_double_quote_in_title_is_escaped(
-        self, mock_subprocess_run: MagicMock
-    ) -> None:
+    def test_double_quote_in_title_is_escaped(self, mock_subprocess_run: MagicMock) -> None:
         _notify_macos(EVIL_TITLE, "normal message")
 
         mock_subprocess_run.assert_called_once()
@@ -72,18 +65,14 @@ class TestMacOsOsascriptEscape:
         expected_safe_title = EVIL_TITLE.replace('"', '\\"')
         assert expected_safe_title in script
 
-    def test_double_quote_in_message_is_escaped(
-        self, mock_subprocess_run: MagicMock
-    ) -> None:
+    def test_double_quote_in_message_is_escaped(self, mock_subprocess_run: MagicMock) -> None:
         _notify_macos("Normal title", 'message with "quotes"')
 
         cmd = mock_subprocess_run.call_args[0][0]
         script = cmd[2]
         assert '\\"' in script
 
-    def test_evil_title_and_message_together(
-        self, mock_subprocess_run: MagicMock
-    ) -> None:
+    def test_evil_title_and_message_together(self, mock_subprocess_run: MagicMock) -> None:
         _notify_macos(EVIL_TITLE, EVIL_MESSAGE)
 
         cmd = mock_subprocess_run.call_args[0][0]
@@ -117,9 +106,7 @@ class TestMacOsOsascriptEscape:
 
 
 class TestLinuxNotifySend:
-    def test_argv_list_no_shell_injection(
-        self, mock_subprocess_run: MagicMock
-    ) -> None:
+    def test_argv_list_no_shell_injection(self, mock_subprocess_run: MagicMock) -> None:
         _notify_linux(EVIL_TITLE, EVIL_MESSAGE)
 
         mock_subprocess_run.assert_called_once()

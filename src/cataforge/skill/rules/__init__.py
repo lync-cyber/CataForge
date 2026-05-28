@@ -9,10 +9,18 @@ key replace the package default. Adding a brand-new language is a single
 project YAML, no cataforge fork required.
 """
 
-from cataforge.skill.rules.loader import (  # noqa: F401
+from cataforge.skill.rules.loader import (
     CURRENT_SCHEMA_VERSION,
     RuleLoadError,
     RuleSpec,
     discover_rules,
     validate_yaml_text,
 )
+
+__all__ = [
+    "CURRENT_SCHEMA_VERSION",
+    "RuleLoadError",
+    "RuleSpec",
+    "discover_rules",
+    "validate_yaml_text",
+]
