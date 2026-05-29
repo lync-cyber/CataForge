@@ -9,8 +9,11 @@ old docs<->kg import cycle and the indexer->loader private-symbol crossing.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
+
+from cataforge.utils.patterns import REF_RE, SECTION_PATH_RE
 
 DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
     "prd": "prd",
@@ -188,3 +191,22 @@ class SectionNotFoundError(LoadSectionError):
 
 class AmbiguousRefError(LoadSectionError):
     pass
+
+
+def parse_ref(ref: str) -> tuple[str, str, str | None]:
+    if not isinstance(ref, str) or not ref.strip():
+        raise RefParseError(f"引用为空或类型错误: {ref!r}")
+    m = REF_RE.match(ref.strip())
+    if not m:
+        raise RefParseError(f"引用格式非法: {ref!r}，应为 doc_id#§<section>[.item]")
+    doc_id = m.group("doc_id")
+    section_part = m.group("section")
+
+    item_match = re.match(r"^(?P<sec>\d+(?:\.\d+)*)\.(?P<item>[A-Z]+-\d+)$", section_part)
+    if item_match:
+        return doc_id, item_match.group("sec"), item_match.group("item")
+
+    if SECTION_PATH_RE.match(section_part):
+        return doc_id, section_part, None
+
+    raise RefParseError(f"无法解析节路径 {section_part!r}")
