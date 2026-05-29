@@ -35,6 +35,20 @@ PNPM_IGNORED_BUILDS = DiagPattern(
     ),
 )
 
+PNPM_BUILD_TOOLCHAIN_MISSING = DiagPattern(
+    needle=re.compile(
+        r"ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"
+        r"|Cannot find module.*(?:typescript[\\/]bin[\\/]tsc"
+        r"|esbuild[\\/]bin[\\/]esbuild)"
+    ),
+    diagnosis=(
+        "@penpot/mcp 从源码构建时找不到 tsc/esbuild —— "
+        "Node 版本超出兼容范围时 pnpm 工作区未正确落地构建工具链"
+    ),
+    fix_action="改用 Node v22 LTS 后重试（预检对过新 Node 仅警告不阻断）",
+    fix_command="cataforge penpot remote",
+)
+
 NGINX_UPSTREAM_MISSING = DiagPattern(
     needle="host not found in upstream",
     diagnosis="Penpot frontend nginx 找不到 penpot-mcp 主机",
@@ -51,6 +65,7 @@ PORT_IN_USE = DiagPattern(
 
 PENPOT_PATTERNS: list[DiagPattern] = [
     PNPM_IGNORED_BUILDS,
+    PNPM_BUILD_TOOLCHAIN_MISSING,
     NGINX_UPSTREAM_MISSING,
     PORT_IN_USE,
 ]

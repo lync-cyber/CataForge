@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,8 +15,13 @@ import cataforge.integrations.penpot as penpot
 
 
 def testget_config_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    for var in ("PENPOT_INSTALL_DIR", "PENPOT_PORT", "PENPOT_MCP_SERVER_PORT",
-                "PENPOT_MCP_PLUGIN_PORT", "PENPOT_FLAGS"):
+    for var in (
+        "PENPOT_INSTALL_DIR",
+        "PENPOT_PORT",
+        "PENPOT_MCP_SERVER_PORT",
+        "PENPOT_MCP_PLUGIN_PORT",
+        "PENPOT_FLAGS",
+    ):
         monkeypatch.delenv(var, raising=False)
 
     cfg = penpot.get_config()
@@ -199,8 +205,15 @@ def test_handlers_registry_lists_every_cmd() -> None:
     function so a future renamed handler is caught here before a
     dispatch site silently AttributeErrors."""
     expected_commands = {
-        "init", "deploy", "mcp-only", "remote",
-        "start", "stop", "status", "doctor", "ensure",
+        "init",
+        "deploy",
+        "mcp-only",
+        "remote",
+        "start",
+        "stop",
+        "status",
+        "doctor",
+        "ensure",
     }
     assert set(penpot.HANDLERS) == expected_commands
     # Every entry must be a callable that takes a single config dict.
@@ -262,7 +275,8 @@ def test_stop_mcp_uses_taskkill_when_present(
     monkeypatch.setattr(penpot, "_read_mcp_pid", lambda: 12345)
     monkeypatch.setattr(penpot, "_is_process_alive", lambda pid: True)
     monkeypatch.setattr(
-        penpot.shutil, "which",
+        penpot.shutil,
+        "which",
         lambda name: r"C:\Windows\System32\taskkill.exe" if name == "taskkill" else None,
     )
     monkeypatch.setattr(penpot, "_is_mcp_running", lambda c: False)
@@ -278,9 +292,9 @@ def test_stop_mcp_uses_taskkill_when_present(
     # Should complete without raising.
     penpot.stop_mcp({"mcp_port": 4401})
 
-    assert any(
-        c and c[0] == "taskkill" and "12345" in c for c in captured
-    ), f"expected a taskkill invocation; got {captured!r}"
+    assert any(c and c[0] == "taskkill" and "12345" in c for c in captured), (
+        f"expected a taskkill invocation; got {captured!r}"
+    )
 
 
 def test_pid_file_round_trip_uses_utf8(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -444,7 +458,7 @@ def test_diagnose_recognises_ignored_builds() -> None:
     log = (
         "Lockfile is up to date, resolution step is skipped\n"
         " ERR_PNPM_IGNORED_BUILDS  Ignored build scripts: esbuild@0.25.12\n"
-        "Run \"pnpm approve-builds\" to pick which dependencies should be allowed.\n"
+        'Run "pnpm approve-builds" to pick which dependencies should be allowed.\n'
     )
     hints = penpot._diagnose_mcp_log(log)
     assert hints
@@ -467,8 +481,55 @@ def test_diagnose_recognises_port_in_use() -> None:
     assert "stop" in "\n".join(hints).lower() or "占用" in "\n".join(hints)
 
 
+def test_diagnose_recognises_build_toolchain_missing() -> None:
+    log = (
+        "[ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] mcp-common@1.0.0 build: tsc --build\n"
+        "packages/server build: Error: Cannot find module "
+        r"'C:\...\packages\server\node_modules\esbuild\bin\esbuild'"
+        "\n  code: 'MODULE_NOT_FOUND'\n"
+    )
+    hints = penpot._diagnose_mcp_log(log)
+    assert hints
+    joined = "\n".join(hints)
+    assert "Node" in joined or "v22" in joined
+
+
 def test_diagnose_returns_empty_on_unknown_log() -> None:
     assert penpot._diagnose_mcp_log("totally unexpected output") == []
+
+
+# ---------------------------------------------------------------------------
+# register_claude_mcp — slow/absent claude CLI must not abort startup
+# ---------------------------------------------------------------------------
+
+
+def test_register_survives_claude_list_timeout() -> None:
+    """A hung `claude mcp list` must not crash an already-started MCP."""
+
+    def fake_run_cmd(cmd, **_kw):
+        if cmd[:3] == ["claude", "mcp", "list"]:
+            raise subprocess.TimeoutExpired(cmd, 30)
+        return subprocess.CompletedProcess(cmd, 0, stdout="Added penpot", stderr="")
+
+    with (
+        patch("cataforge.integrations.penpot.has_command", return_value=True),
+        patch("cataforge.integrations.penpot.run_cmd", side_effect=fake_run_cmd),
+    ):
+        # Must not raise; list-timeout falls through to the idempotent add.
+        penpot.register_claude_mcp({"mcp_port": 4401})
+
+
+def test_register_warns_when_claude_fully_unresponsive(capsys) -> None:
+    with (
+        patch("cataforge.integrations.penpot.has_command", return_value=True),
+        patch(
+            "cataforge.integrations.penpot.run_cmd",
+            side_effect=subprocess.TimeoutExpired(["claude"], 30),
+        ),
+    ):
+        penpot.register_claude_mcp({"mcp_port": 4401})
+    captured = capsys.readouterr()
+    assert "claude mcp add penpot" in (captured.out + captured.err)
 
 
 def test_tail_log_returns_last_lines(tmp_path) -> None:
@@ -506,8 +567,7 @@ def test_cmd_remote_skips_docker_preflight() -> None:
         return True
 
     with (
-        patch("cataforge.integrations.penpot.preflight_check",
-              side_effect=fake_preflight),
+        patch("cataforge.integrations.penpot.preflight_check", side_effect=fake_preflight),
         patch("cataforge.integrations.penpot.start_mcp", return_value=True),
         patch("cataforge.integrations.penpot.register_claude_mcp"),
         patch("cataforge.integrations.penpot.print_remote_onboarding"),
@@ -556,9 +616,7 @@ def test_remote_argparse_subcommand_dispatches() -> None:
 
 def test_cmd_init_dispatches_remote_on_choice_1(monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda _prompt="": "1")
-    with patch(
-        "cataforge.integrations.penpot.cmd_remote", return_value=0
-    ) as mock:
+    with patch("cataforge.integrations.penpot.cmd_remote", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -566,9 +624,7 @@ def test_cmd_init_dispatches_remote_on_choice_1(monkeypatch) -> None:
 
 def test_cmd_init_dispatches_deploy_on_choice_2(monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda _prompt="": "2")
-    with patch(
-        "cataforge.integrations.penpot.cmd_deploy", return_value=0
-    ) as mock:
+    with patch("cataforge.integrations.penpot.cmd_deploy", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -576,9 +632,7 @@ def test_cmd_init_dispatches_deploy_on_choice_2(monkeypatch) -> None:
 
 def test_cmd_init_dispatches_mcp_only_on_choice_3(monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda _prompt="": "3")
-    with patch(
-        "cataforge.integrations.penpot.cmd_mcp_only", return_value=0
-    ) as mock:
+    with patch("cataforge.integrations.penpot.cmd_mcp_only", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -586,9 +640,7 @@ def test_cmd_init_dispatches_mcp_only_on_choice_3(monkeypatch) -> None:
 
 def test_cmd_init_uses_default_on_empty_input(monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda _prompt="": "")
-    with patch(
-        "cataforge.integrations.penpot.cmd_remote", return_value=0
-    ) as mock:
+    with patch("cataforge.integrations.penpot.cmd_remote", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -596,13 +648,12 @@ def test_cmd_init_uses_default_on_empty_input(monkeypatch) -> None:
 
 def test_cmd_init_handles_eof_gracefully(monkeypatch) -> None:
     """EOFError → fall back to default mode (remote)."""
+
     def _raises(_prompt: str = "") -> str:
         raise EOFError
 
     monkeypatch.setattr("builtins.input", _raises)
-    with patch(
-        "cataforge.integrations.penpot.cmd_remote", return_value=0
-    ) as mock:
+    with patch("cataforge.integrations.penpot.cmd_remote", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -624,9 +675,9 @@ def test_status_rows_probes_all_three_services() -> None:
     assert len(rows) == 3
     labels = [r[0] for r in rows]
     assert labels == ["Penpot Frontend", "MCP Server", "Plugin Server"]
-    assert rows[0][1] is True   # frontend
+    assert rows[0][1] is True  # frontend
     assert rows[1][1] is False  # mcp
-    assert rows[2][1] is True   # plugin
+    assert rows[2][1] is True  # plugin
     assert rows[0][2] == "http://localhost:9001"
     assert rows[1][2] == "http://localhost:4401/mcp"
 
