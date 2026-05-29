@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import pytest
 
-from cataforge.kg._sparql_utils import (
+from cataforge.domain.kg._sparql_utils import (
     assert_safe_iri,
     escape_iri_component,
 )
-from cataforge.kg.ingest.iri import class_iri, entity_iri
+from cataforge.domain.kg.ingest.iri import class_iri, entity_iri
 
 
 class TestEntityIriEncoding:
@@ -48,7 +48,7 @@ class TestContentHashGuard:
     """``writer._content_hash_matches`` rejects non-SHA-hex inputs."""
 
     def test_invalid_hex_rejected(self) -> None:
-        from cataforge.kg.ingest.writer import _content_hash_matches
+        from cataforge.domain.kg.ingest.writer import _content_hash_matches
 
         # SHA-256 hex is 64 lowercase hex chars; anything else is bogus.
         with pytest.raises(ValueError, match="invalid content_hash format"):
@@ -62,7 +62,7 @@ class TestContentHashGuard:
     def test_uppercase_hex_rejected(self) -> None:
         """SHA-256 ``hashlib.sha256().hexdigest()`` is lowercase; uppercase
         is non-canonical input and the guard refuses it."""
-        from cataforge.kg.ingest.writer import _content_hash_matches
+        from cataforge.domain.kg.ingest.writer import _content_hash_matches
 
         upper = "A" * 64
         with pytest.raises(ValueError, match="invalid content_hash format"):
@@ -74,7 +74,7 @@ class TestContentHashGuard:
             )
 
     def test_short_hex_rejected(self) -> None:
-        from cataforge.kg.ingest.writer import _content_hash_matches
+        from cataforge.domain.kg.ingest.writer import _content_hash_matches
 
         with pytest.raises(ValueError, match="invalid content_hash format"):
             _content_hash_matches(

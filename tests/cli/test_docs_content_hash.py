@@ -7,8 +7,8 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from cataforge.cli.docs_cmd import docs_validate
-from cataforge.docs import indexer
+from cataforge.domain.docs import indexer
+from cataforge.interface.cli.docs_cmd import docs_validate
 
 _PRD_FM = "---\nid: prd-foo\ndoc_type: prd\n---\n"
 _ARCH_FM = (

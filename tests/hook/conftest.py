@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from cataforge.platform.registry import clear_cache
+from cataforge.adapter.platform.registry import clear_cache
 
 
 @pytest.fixture(autouse=True)

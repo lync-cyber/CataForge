@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from cataforge.cli.main import cli
+from cataforge.interface.cli.main import cli
 
 
 def _bootstrap(tmp_path: Path) -> Path:

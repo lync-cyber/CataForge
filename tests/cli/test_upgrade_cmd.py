@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cataforge.cli.main import cli
-from cataforge.cli.upgrade_cmd import _find_breaking_entries
+from cataforge.application.services.upgrade import find_breaking_entries
+from cataforge.interface.cli.main import cli
 
 
 @pytest.fixture
@@ -132,7 +132,7 @@ def test_breaking_detection_on_matching_range(tmp_path: Path, monkeypatch) -> No
     )
     monkeypatch.chdir(tmp_path)
 
-    entries = _find_breaking_entries("0.1.8", "0.2.0")
+    entries = find_breaking_entries("0.1.8", "0.2.0")
     assert entries == [("0.2.0", "framework.json renamed to project.json")]
 
 
@@ -148,11 +148,11 @@ def test_breaking_detection_skips_out_of_range(
     monkeypatch.chdir(tmp_path)
 
     # installed=0.2.0 skips the 0.3.0 BREAKING since it's above the range.
-    assert _find_breaking_entries("0.1.0", "0.2.0") == []
+    assert find_breaking_entries("0.1.0", "0.2.0") == []
 
 
 def test_breaking_detection_no_changelog_returns_empty(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    assert _find_breaking_entries("0.1.0", "0.2.0") == []
+    assert find_breaking_entries("0.1.0", "0.2.0") == []

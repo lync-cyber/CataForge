@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.plugin.loader import PluginLoader
+from cataforge.runtime.plugin.loader import PluginLoader
 
 
 @pytest.fixture

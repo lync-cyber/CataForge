@@ -9,8 +9,8 @@ import pytest
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
 def _make_kg():
-    from cataforge.kg import KGConfig, KnowledgeGraph, init_store
-    from cataforge.kg.ingest.writer import write_project
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.domain.kg.ingest.writer import write_project
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -129,7 +129,7 @@ def test_add_entity_with_extra_slots() -> None:
             extra_slots={"cf:priority": "high"},
         )
 
-    from cataforge.kg._ask import ask
+    from cataforge.domain.kg._ask import ask
 
     ns = config.ontology_namespace.rstrip("/") + "/"
     assert ask(
@@ -162,7 +162,7 @@ def test_update_entity_with_content_hash_idempotent() -> None:
 def test_update_entity_not_found_raises() -> None:
     kg, config, project_iri = _make_kg()
 
-    from cataforge.kg import KGEntityNotFoundError
+    from cataforge.domain.kg import KGEntityNotFoundError
 
     with pytest.raises(KGEntityNotFoundError), kg.transaction() as txn:
         txn.update_entity("F-999", title="nope")
@@ -182,7 +182,7 @@ def test_delete_entity_removes_all_quads() -> None:
 def test_delete_entity_not_found_raises() -> None:
     kg, config, project_iri = _make_kg()
 
-    from cataforge.kg import KGEntityNotFoundError
+    from cataforge.domain.kg import KGEntityNotFoundError
 
     with pytest.raises(KGEntityNotFoundError), kg.transaction() as txn:
         txn.delete_entity("F-999")
@@ -204,7 +204,7 @@ def test_delete_entity_without_cascade_rejects_incoming_edges() -> None:
     with kg.transaction() as txn:
         txn.add_relation("M-001", "cf:implements", "F-001")
 
-    from cataforge.kg import KGValidationError
+    from cataforge.domain.kg import KGValidationError
 
     with pytest.raises(KGValidationError, match="incoming edge"), kg.transaction() as txn:
         txn.delete_entity("F-001")
@@ -253,7 +253,7 @@ def test_add_relation_creates_edge() -> None:
     with kg.transaction() as txn:
         txn.add_relation("M-001", "cf:implements", "F-001")
 
-    from cataforge.kg._ask import ask
+    from cataforge.domain.kg._ask import ask
 
     ns = config.ontology_namespace.rstrip("/") + "/"
     assert ask(
@@ -304,7 +304,7 @@ def test_remove_relation() -> None:
     with kg.transaction() as txn:
         txn.remove_relation("M-001", "cf:implements", "F-001")
 
-    from cataforge.kg._ask import ask
+    from cataforge.domain.kg._ask import ask
 
     ns = config.ontology_namespace.rstrip("/") + "/"
     assert not ask(

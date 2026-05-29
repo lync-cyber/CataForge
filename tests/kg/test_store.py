@@ -10,7 +10,7 @@ import pytest
 # --------------------------------------------------------------------------
 
 def test_init_store_memory_backend_loads_subclass_axioms() -> None:
-    from cataforge.kg import KGConfig, init_store
+    from cataforge.domain.kg import KGConfig, init_store
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config)
@@ -38,7 +38,7 @@ def test_subclass_closure_query_returns_page_for_screen() -> None:
     """
     import pyoxigraph as ox
 
-    from cataforge.kg import KGConfig, init_store
+    from cataforge.domain.kg import KGConfig, init_store
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config)
@@ -66,7 +66,7 @@ def test_subclass_closure_query_returns_page_for_screen() -> None:
 # --------------------------------------------------------------------------
 
 def test_init_store_oxigraph_backend_creates_db_path(tmp_path: Path) -> None:
-    from cataforge.kg import KGConfig, init_store
+    from cataforge.domain.kg import KGConfig, init_store
 
     db = tmp_path / "kg-store"
     handle = init_store(KGConfig(store_backend="oxigraph", db_path=db))
@@ -77,7 +77,7 @@ def test_init_store_oxigraph_backend_creates_db_path(tmp_path: Path) -> None:
     assert any(db.iterdir())
 
 def test_init_store_refuses_overwrite_without_force(tmp_path: Path) -> None:
-    from cataforge.kg import KGConfig, KGStoreAlreadyExistsError, init_store
+    from cataforge.domain.kg import KGConfig, KGStoreAlreadyExistsError, init_store
 
     db = tmp_path / "kg-store"
     init_store(KGConfig(store_backend="oxigraph", db_path=db)).close()
@@ -86,7 +86,7 @@ def test_init_store_refuses_overwrite_without_force(tmp_path: Path) -> None:
         init_store(KGConfig(store_backend="oxigraph", db_path=db))
 
 def test_init_store_force_replaces_existing(tmp_path: Path) -> None:
-    from cataforge.kg import KGConfig, init_store
+    from cataforge.domain.kg import KGConfig, init_store
 
     db = tmp_path / "kg-store"
     init_store(KGConfig(store_backend="oxigraph", db_path=db)).close()
@@ -96,7 +96,7 @@ def test_init_store_force_replaces_existing(tmp_path: Path) -> None:
     assert db.is_dir()
 
 def test_connect_raises_when_db_path_missing(tmp_path: Path) -> None:
-    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
 
     db = tmp_path / "nope"
     with (

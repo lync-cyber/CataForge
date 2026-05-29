@@ -81,7 +81,7 @@ user-invocable: true
 
 ## Layer 1 检查项 (e2e_backdoor_scan)
 
-> 权威清单见 `cataforge.skill.builtins.testing.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
+> 权威清单见 `cataforge.runtime.skill.builtins.testing.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
 
 - e2e 后门正则扫描 (tests/e2e/**) — 默认覆盖 .js/.ts/.jsx/.tsx + .py；命中 `window\.__\w+__\s*=` / `\?e2e=1` / `setStore\(.*JSON\.parse` 等模式即 WARN
 - 真实输入路径声明 — e2e 套件至少含一处 `keyboard.type` / `page.fill` / `send_keys` 等真实交互调用，无任何 → WARN（提示套件可能纯 fixture 注入）
@@ -92,7 +92,7 @@ user-invocable: true
 
 后门 + 真实输入正则按语言拆到 YAML：
 
-- 默认（cataforge package）：`cataforge.skill.builtins.testing.rules.e2e-{lang}.yaml`
+- 默认（cataforge package）：`cataforge.runtime.skill.builtins.testing.rules.e2e-{lang}.yaml`
 - 项目 override（opt-in）：`<project>/.cataforge/skills/testing/rules/e2e-{lang}.yaml`
 
 加新语言：在项目 `rules/` 放 `e2e-csharp.yaml` 等；schema 必填 `schema_version: 1` / `rule_type: e2e` / `language` / `extensions` + `backdoor_patterns`（每条需 `label`）/ `real_input_patterns`。framework-review B3-β 自动校验。

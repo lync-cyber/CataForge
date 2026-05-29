@@ -12,7 +12,7 @@ import re
 
 import pytest
 
-from cataforge.kg._sparql_utils import (
+from cataforge.domain.kg._sparql_utils import (
     assert_safe_iri,
     escape_iri_component,
     escape_sparql_literal,

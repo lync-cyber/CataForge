@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.skill.builtins.doc_review.checker import DocChecker
-from cataforge.skill.builtins.doc_review.constants import VOLUME_TYPES
-from cataforge.skill.builtins.doc_review.template_registry import (
+from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
+from cataforge.runtime.skill.builtins.doc_review.constants import VOLUME_TYPES
+from cataforge.runtime.skill.builtins.doc_review.template_registry import (
     build_template_path_map,
 )
 

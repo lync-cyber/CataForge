@@ -199,7 +199,7 @@ def cmd_platform(platform_id: str) -> int:
     documentation can reference a stable script path.
     """
     try:
-        from cataforge.cli.main import cli
+        from cataforge.interface.cli.main import cli
     except ImportError:
         print(
             "cataforge package not importable — please install it "

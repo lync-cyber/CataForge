@@ -52,7 +52,7 @@ CI 会跑同一组检查兜底，但本地装上能把 ruff I001 / `tests/test_r
 ruff format --check .
 ruff check .
 mypy src           # 全仓扫描，info-only
-mypy --strict src/cataforge/services  # opt-in strict 包：必须 0 errors
+mypy --strict src/cataforge/application/services  # opt-in strict 包：必须 0 errors
 pytest -q
 ```
 
@@ -65,7 +65,7 @@ pytest -q
 | 全仓 | 默认 mypy（非 strict） | **info-only**：CI 打印错误数，不阻塞 PR |
 | Opt-in 包 | `[[tool.mypy.overrides]] strict = true` | **阻塞**：任何新错误必须修掉 |
 
-当前 opt-in strict 的包：`cataforge.services.*`。
+当前 opt-in strict 的包：`cataforge.application.services.*`。
 
 **新增包加入 strict 的流程**：
 
@@ -181,7 +181,7 @@ python scripts/gen_cli_reference.py --diff
 
 ## 新增平台适配
 
-1. 在 `src/cataforge/platform/<id>.py` 实现 `PlatformAdapter`
+1. 在 `src/cataforge/adapter/platform/<id>.py` 实现 `PlatformAdapter`
 2. 在 `.cataforge/platforms/<id>/profile.yaml` 声明能力与降级策略
 3. 在 `pyproject.toml` 的 `[project.entry-points."cataforge.platforms"]` 注册
 4. 添加 conformance 测试：`tests/platform/test_<id>_adapter.py`

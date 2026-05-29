@@ -34,7 +34,7 @@ Test count: 197 passed, 4 skipped (codegen CLI).
 | ID | Deliverable | Files |
 |----|-------------|-------|
 | T3 | Promote pyoxigraph + linkml-runtime to hard dependencies; remove 22 `skipif` test gates | `pyproject.toml`, 22 test files |
-| X1 | `render_entity` re-exported from `cataforge.kg.__init__`; public API smoke tests | `__init__.py`, `test_public_api.py` |
+| X1 | `render_entity` re-exported from `cataforge.domain.kg.__init__`; public API smoke tests | `__init__.py`, `test_public_api.py` |
 | T2 | Golden-file regression fixtures: 18 reference `.md` + 2 hash manifests under `tests/golden/kg/` | `test_golden_regression.py`, `tests/golden/kg/` |
 | S3 | doc-review `check_xref` + `check_bidirectional_coverage` KG dispatch integration tests | `test_doc_review_kg_dispatch.py` |
 | S2 | Shim `DeprecationWarning` quota CI gate (baseline 0) | `check_deprecation_quota.py`, `test.yml`, `run_local.py` |

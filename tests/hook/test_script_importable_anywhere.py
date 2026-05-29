@@ -11,7 +11,7 @@ def test_validate_agent_result_importable_outside_project(tmp_path):
         [
             sys.executable,
             "-c",
-            "import cataforge.hook.scripts.validate_agent_result",
+            "import cataforge.runtime.hook.scripts.validate_agent_result",
         ],
         cwd=str(tmp_path),
         capture_output=True,

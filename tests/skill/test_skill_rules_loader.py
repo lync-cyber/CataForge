@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.skill.builtins.code_review import wiring_patterns as wp
-from cataforge.skill.builtins.testing import e2e_patterns as ep
-from cataforge.skill.rules.loader import (
+from cataforge.runtime.skill.builtins.code_review import wiring_patterns as wp
+from cataforge.runtime.skill.builtins.testing import e2e_patterns as ep
+from cataforge.runtime.skill.rules.loader import (
     CURRENT_SCHEMA_VERSION,
     RuleLoadError,
     discover_rules,
@@ -19,7 +19,7 @@ from cataforge.skill.rules.loader import (
 def test_package_defaults_load_for_code_review() -> None:
     rules = discover_rules(
         "code-review",
-        builtin_module="cataforge.skill.builtins.code_review",
+        builtin_module="cataforge.runtime.skill.builtins.code_review",
     )
     assert ("wiring", "js-ts") in rules
     assert ("wiring", "python") in rules
@@ -32,7 +32,7 @@ def test_package_defaults_load_for_code_review() -> None:
 def test_package_defaults_load_for_testing() -> None:
     rules = discover_rules(
         "testing",
-        builtin_module="cataforge.skill.builtins.testing",
+        builtin_module="cataforge.runtime.skill.builtins.testing",
     )
     assert ("e2e", "js-ts") in rules
     assert ("e2e", "python") in rules
@@ -128,7 +128,7 @@ empty_handler_patterns:
     _write_project_rule(tmp_path, "code-review", "wiring-js-ts.yaml", body)
     rules = discover_rules(
         "code-review",
-        builtin_module="cataforge.skill.builtins.code_review",
+        builtin_module="cataforge.runtime.skill.builtins.code_review",
         project_root=tmp_path,
     )
     js = rules[("wiring", "js-ts")]
@@ -149,7 +149,7 @@ empty_handler_patterns:
     _write_project_rule(tmp_path, "code-review", "wiring-rust.yaml", body)
     rules = discover_rules(
         "code-review",
-        builtin_module="cataforge.skill.builtins.code_review",
+        builtin_module="cataforge.runtime.skill.builtins.code_review",
         project_root=tmp_path,
     )
     assert ("wiring", "rust") in rules

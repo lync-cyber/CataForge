@@ -569,15 +569,15 @@ cfprj:proj-demo a cf:Project ;
 # Pydantic v2 models — agent-facing typed API
 gen-pydantic docs/proposals/kg-migration-0.5.0/schemas/core.yaml \
   --pydantic-version 2 \
-  > src/cataforge/kg/_models_core.py
+  > src/cataforge/domain/kg/_models_core.py
 
 # SHACL shapes — write-time validation
 gen-shacl docs/proposals/kg-migration-0.5.0/schemas/core.yaml \
-  > src/cataforge/kg/shapes/core.shacl.ttl
+  > src/cataforge/domain/kg/shapes/core.shacl.ttl
 
 # OWL ontology — interoperability export
 gen-owl docs/proposals/kg-migration-0.5.0/schemas/core.yaml \
-  > src/cataforge/kg/exports/core.owl.ttl
+  > src/cataforge/domain/kg/exports/core.owl.ttl
 ```
 
 ### §3.8.2 Sample generated Pydantic output (excerpt — 3 classes)

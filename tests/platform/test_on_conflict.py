@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.platform.registry import clear_cache, get_adapter
+from cataforge.adapter.platform.registry import clear_cache, get_adapter
 
 
 @pytest.fixture(autouse=True)

@@ -1,4 +1,4 @@
-"""KG dispatch tests for ``cataforge.docs.loader.plan_load`` / ``resolve_deps``.
+"""KG dispatch tests for ``cataforge.domain.docs.loader.plan_load`` / ``resolve_deps``.
 
 Covers the boundary added in Wave B (P0-5): when every input ref targets a
 doc_type in ``framework.json.kg.kg_active_doc_types`` and a KG store exists,
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.docs import loader
+from cataforge.domain.docs import loader
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
@@ -30,7 +30,7 @@ def reset_loader_caches():
 
 @pytest.fixture(autouse=True)
 def reset_dispatch_cache():
-    from cataforge.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg._dispatch import invalidate_cache
 
     invalidate_cache()
     yield
@@ -39,8 +39,8 @@ def reset_dispatch_cache():
 
 def _project_with_kg(tmp_path: Path, *, active: list[str]) -> Path:
     """Build a project root with an ingested KG store + framework.json."""
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     project = tmp_path / "project"
     project.mkdir()
@@ -189,7 +189,7 @@ def test_resolve_deps_falls_back_for_whole_section_ref(tmp_path: Path) -> None:
 
 
 def test_entity_id_to_ref_reconstructs_from_kg_metadata(tmp_path: Path) -> None:
-    from cataforge.kg import KGConfig, KnowledgeGraph
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph
 
     project = _project_with_kg(tmp_path, active=["prd", "arch", "test"])
     config = KGConfig(

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cataforge.cli.doctor_cmd import doctor_command
+from cataforge.interface.cli.doctor_cmd import doctor_command
 
 
 def _project_with_claude_md(

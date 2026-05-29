@@ -14,7 +14,7 @@ user-invocable: true
 - 不做: 文档内容生成(由 doc-gen 负责)、文档评审(由 doc-review 负责)、索引重建(由 `cataforge docs index` 负责)
 
 ## 执行后端
-权威后端是 `cataforge docs load` CLI 子命令（实现位于 `cataforge.docs.loader`）。Agent 应通过 Bash 调用以获得真正的章节级提取（而非 Read 全文后人眼定位）。
+权威后端是 `cataforge docs load` CLI 子命令（实现位于 `cataforge.domain.docs.loader`）。Agent 应通过 Bash 调用以获得真正的章节级提取（而非 Read 全文后人眼定位）。
 
 索引文件 `docs/.doc-index.json` 由 `cataforge docs index` 维护：含每个 doc_id / 章节 / item 的 `file_path` + `line_start` + `line_end` + `est_tokens` + `deps`。loader 命中索引走 O(1) 查表；索引缺失或过期时自动回退到 markdown 标题扫描。
 

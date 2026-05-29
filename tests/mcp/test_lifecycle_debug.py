@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cataforge.mcp.lifecycle import MCPLifecycleManager
-from cataforge.schema.mcp_spec import MCPServerSpec
+from cataforge.core.schema.mcp_spec import MCPServerSpec
+from cataforge.runtime.mcp.lifecycle import MCPLifecycleManager
 
 
 def _make_spec(server_id: str = "test-server") -> MCPServerSpec:

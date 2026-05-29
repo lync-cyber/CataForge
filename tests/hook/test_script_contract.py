@@ -29,6 +29,7 @@ SCRIPTS_DIR = (
     Path(__file__).resolve().parents[2]
     / "src"
     / "cataforge"
+    / "runtime"
     / "hook"
     / "scripts"
 )

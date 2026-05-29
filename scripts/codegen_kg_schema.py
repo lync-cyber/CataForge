@@ -2,10 +2,10 @@
 """Generate Pydantic models, SHACL shapes, and rdfs:subClassOf axioms from LinkML schemas.
 
 Reads:
-  - src/cataforge/kg/schemas/core.yaml
-  - src/cataforge/kg/schemas/governance.yaml
+  - src/cataforge/domain/kg/schemas/core.yaml
+  - src/cataforge/domain/kg/schemas/governance.yaml
 
-Writes (under src/cataforge/kg/_generated/, gitignored):
+Writes (under src/cataforge/domain/kg/_generated/, gitignored):
   - core_pydantic.py            Pydantic v2 models for the business ontology
   - governance_pydantic.py      Pydantic v2 models for governance sub-ontology
   - core_shapes.ttl             SHACL shapes for business ontology
@@ -44,9 +44,9 @@ from cataforge.utils.common import ensure_utf8  # noqa: E402
 
 ensure_utf8()
 
-SCHEMA_DIR = REPO_ROOT / "src" / "cataforge" / "kg" / "schemas"
+SCHEMA_DIR = REPO_ROOT / "src" / "cataforge" / "domain" / "kg" / "schemas"
 
-DEFAULT_OUT_DIR = REPO_ROOT / "src" / "cataforge" / "kg" / "_generated"
+DEFAULT_OUT_DIR = REPO_ROOT / "src" / "cataforge" / "domain" / "kg" / "_generated"
 
 CORE_YAML = SCHEMA_DIR / "core.yaml"
 GOVERNANCE_YAML = SCHEMA_DIR / "governance.yaml"
@@ -76,7 +76,7 @@ def gen_shacl(yaml_path: Path, out_path: Path) -> None:
 
 
 def gen_subclass_axioms(yaml_paths: list[Path], out_path: Path) -> None:
-    from cataforge.kg._schema_axioms import iter_subclass_axioms, prefix_map
+    from cataforge.domain.kg._schema_axioms import iter_subclass_axioms, prefix_map
 
     namespaces = prefix_map(yaml_paths)
     pairs = list(iter_subclass_axioms(yaml_paths))
@@ -120,13 +120,13 @@ def codegen(target_dir: Path) -> list[Path]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="LinkML → Pydantic + SHACL + rdfs:subClassOf codegen for cataforge.kg",
+        description="LinkML → Pydantic + SHACL + rdfs:subClassOf codegen for cataforge.domain.kg",
     )
     parser.add_argument(
         "--out",
         type=Path,
         default=DEFAULT_OUT_DIR,
-        help="output directory (default: src/cataforge/kg/_generated)",
+        help="output directory (default: src/cataforge/domain/kg/_generated)",
     )
     args = parser.parse_args(argv)
 

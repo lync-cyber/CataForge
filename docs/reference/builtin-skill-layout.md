@@ -8,12 +8,12 @@ deps: []
 
 # Builtin Skill Layout
 
-`src/cataforge/skill/builtins/<skill_id>/` 的目录骨架约定。所有新增 builtin skill 按本规范布局，框架审查（framework-review）的 B3 manifest drift 检查依赖此结构定位入口模块。
+`src/cataforge/runtime/skill/builtins/<skill_id>/` 的目录骨架约定。所有新增 builtin skill 按本规范布局，框架审查（framework-review）的 B3 manifest drift 检查依赖此结构定位入口模块。
 
 ## 目录结构
 
 ```
-src/cataforge/skill/builtins/<skill_id>/
+src/cataforge/runtime/skill/builtins/<skill_id>/
 ├── __init__.py            # CHECKS_MANIFEST + 公共导出
 ├── <skill_id>_check.py    # CLI 入口 + main() + run()
 ├── _<helper>.py           # 私有 helper（前缀下划线，不外露）
@@ -27,7 +27,7 @@ src/cataforge/skill/builtins/<skill_id>/
 ## 命名规范
 
 - **包目录**: `snake_case` 与 SKILL.md 的 `name:` 对齐（连字符 → 下划线）。
-- **入口模块**: `<skill_id>_check.py`（统一后缀 `_check`）。CLI 通过 `python -m cataforge.skill.builtins.<skill_id>.<skill_id>_check ...` 调用。
+- **入口模块**: `<skill_id>_check.py`（统一后缀 `_check`）。CLI 通过 `python -m cataforge.runtime.skill.builtins.<skill_id>.<skill_id>_check ...` 调用。
 - **私有 helper**: `_<concept>.py` 前缀下划线，导入路径包内可见，包外不应直接 import。
 - **check 家族**: 大于 5 个独立 check 时拆 `checks/<family>.py`，每个家族独立 import dataclasses，主入口 `__init__.py` 维护 `CHECKS_MANIFEST` 单一事实源。
 - **rules YAML**: `rules/<concept>-<lang>.yaml`（语言相关）或 `rules/<concept>.yaml`（语言无关）。

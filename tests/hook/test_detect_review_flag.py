@@ -14,7 +14,7 @@ def _run_hook(project_root: Path, payload: dict) -> subprocess.CompletedProcess:
     """Invoke detect_review_flag as a subprocess with stdin JSON."""
     env = {**os.environ, "CLAUDE_PROJECT_DIR": str(project_root)}
     return subprocess.run(
-        [sys.executable, "-m", "cataforge.hook.scripts.detect_review_flag"],
+        [sys.executable, "-m", "cataforge.runtime.hook.scripts.detect_review_flag"],
         input=json.dumps(payload).encode("utf-8"),
         capture_output=True,
         cwd=str(project_root),

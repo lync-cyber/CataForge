@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.platform.opencode import OpenCodeAdapter, _render_opencode_plugin
+from cataforge.adapter.platform.opencode import OpenCodeAdapter, _render_opencode_plugin
 
 
 @pytest.fixture()
@@ -61,7 +61,7 @@ def test_emit_plugin_hooks_writes_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Stub load_hooks_spec so the generator doesn't reach into the repo.
-    import cataforge.hook.bridge as bridge
+    import cataforge.runtime.hook.bridge as bridge
 
     monkeypatch.setattr(
         bridge,
@@ -103,7 +103,7 @@ def test_emit_plugin_hooks_dry_run_does_not_write(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import cataforge.hook.bridge as bridge
+    import cataforge.runtime.hook.bridge as bridge
 
     monkeypatch.setattr(
         bridge,
@@ -132,7 +132,7 @@ def test_apply_degradation_emits_plugin_on_opencode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The public entry point used by deploy() routes through the plugin."""
-    import cataforge.hook.bridge as bridge
+    import cataforge.runtime.hook.bridge as bridge
 
     monkeypatch.setattr(
         bridge,

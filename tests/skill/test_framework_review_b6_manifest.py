@@ -1,7 +1,7 @@
 """B6-ε — HOOKS_MANIFEST drift detection.
 
 Tests that hooks.yaml entries cross-validate against
-``cataforge.hook.manifest.HOOKS_MANIFEST``:
+``cataforge.runtime.hook.manifest.HOOKS_MANIFEST``:
 
 * Orphan reference (script in hooks.yaml not in manifest) → FAIL
 * Unwired manifest entry (manifest entry not referenced) → WARN
@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-from cataforge.skill.builtins.framework_review.framework_check import (
+from cataforge.runtime.skill.builtins.framework_review.framework_check import (
     Report,
     check_b6_hook_consistency,
 )
@@ -35,8 +35,8 @@ def _write_minimal_project(
 
 
 def _stub_manifest_module(monkeypatch, names: list[str]) -> None:
-    """Inject a fake cataforge.hook.manifest with controlled entries."""
-    fake = ModuleType("cataforge.hook.manifest")
+    """Inject a fake cataforge.runtime.hook.manifest with controlled entries."""
+    fake = ModuleType("cataforge.runtime.hook.manifest")
     entries = tuple(
         {
             "name": n,
@@ -50,7 +50,7 @@ def _stub_manifest_module(monkeypatch, names: list[str]) -> None:
     )
     fake.HOOKS_MANIFEST = entries  # type: ignore[attr-defined]
     fake.manifest_names = lambda: frozenset(names)  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "cataforge.hook.manifest", fake)
+    monkeypatch.setitem(sys.modules, "cataforge.runtime.hook.manifest", fake)
 
 
 def test_b6_epsilon_happy_all_referenced(tmp_path: Path, monkeypatch) -> None:
@@ -172,7 +172,7 @@ hooks:
 """,
     )
     # Force ImportError by injecting a sentinel that raises.
-    monkeypatch.setitem(sys.modules, "cataforge.hook.manifest", None)
+    monkeypatch.setitem(sys.modules, "cataforge.runtime.hook.manifest", None)
 
     report = Report()
     check_b6_hook_consistency(tmp_path, report)
@@ -187,8 +187,8 @@ def test_real_manifest_covers_all_real_builtin_scripts() -> None:
     else in cataforge/hook/scripts/ that's not in the manifest is a
     registration bug (the file ships but isn't an advertised hook).
     """
-    import cataforge.hook.scripts as scripts_pkg
-    from cataforge.hook.manifest import manifest_names
+    import cataforge.runtime.hook.scripts as scripts_pkg
+    from cataforge.runtime.hook.manifest import manifest_names
 
     scripts_dir = Path(scripts_pkg.__file__).parent
     real_modules = {
@@ -198,7 +198,7 @@ def test_real_manifest_covers_all_real_builtin_scripts() -> None:
     declared = manifest_names()
     missing_from_manifest = real_modules - declared
     assert not missing_from_manifest, (
-        f"these .py modules ship in cataforge.hook.scripts but are NOT "
+        f"these .py modules ship in cataforge.runtime.hook.scripts but are NOT "
         f"in HOOKS_MANIFEST: {sorted(missing_from_manifest)}"
     )
     extra_in_manifest = declared - real_modules

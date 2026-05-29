@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cataforge.cli.docs_cmd import docs_validate
-from cataforge.cli.doctor_cmd import doctor_command
-from cataforge.docs import indexer
+from cataforge.domain.docs import indexer
+from cataforge.interface.cli.docs_cmd import docs_validate
+from cataforge.interface.cli.doctor_cmd import doctor_command
 from tests.cli.conftest import invoke_under_group
 
 

@@ -53,7 +53,7 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{vol_file} --volume
 
 **Layer 1 KG 分流**（自动，无需 agent 干预）: 当被审文档的 doc_type ∈ `framework.json.kg.kg_active_doc_types` 且 `.cataforge/kg/store/` 已存在时，下列两项检查自动从文件 glob 切换到 SPARQL：
 
-- `check_xref` → KG `query.exists()` 强校验。消除原 file-glob 路径在 URL fragment 与跨分卷引用上的假阳性（见 [`checker.py:_maybe_kg_xref_resolver`](../../../src/cataforge/skill/builtins/doc_review/checker.py)）
+- `check_xref` → KG `query.exists()` 强校验。消除原 file-glob 路径在 URL fragment 与跨分卷引用上的假阳性（见 [`checker.py:_maybe_kg_xref_resolver`](../../../src/cataforge/runtime/skill/builtins/doc_review/checker.py)）
 - `check_bidirectional_coverage` → `kg.trace.bidirectional_coverage()` SPARQL 查询，覆盖判定从 "字面 ID 出现" 升级为 "图上有 `cf:implementsFeature` / `cf:verifiesTask` 边"。代码块 / HTML 注释里的 ID 不再算覆盖
 
 回退兜底：KG 连接失败 / 异常 / store 缺失 → 自动降级到 legacy file-glob，不阻塞 Layer 1 通过。该行为由 checker.py 内部实现，agent 无需感知。
@@ -110,7 +110,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 
 ## Layer 1 检查项 (doc_check.py)
 
-> 权威清单见 `cataforge.skill.builtins.doc_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
+> 权威清单见 `cataforge.runtime.skill.builtins.doc_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
 
 通用 (所有文档类型):
 - 文档头元数据完整(id, author, status, deps, consumers)

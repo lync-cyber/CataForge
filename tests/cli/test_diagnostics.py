@@ -1,8 +1,8 @@
-"""Tests for cataforge.cli.diagnostics — pattern registry sanity."""
+"""Tests for cataforge.interface.cli.diagnostics — pattern registry sanity."""
 
 from __future__ import annotations
 
-from cataforge.cli.diagnostics import (
+from cataforge.interface.cli.diagnostics import (
     DOCTOR_PATTERNS,
     NGINX_UPSTREAM_MISSING,
     PENPOT_PATTERNS,
@@ -10,7 +10,7 @@ from cataforge.cli.diagnostics import (
     PORT_IN_USE,
     UPGRADE_PATTERNS,
 )
-from cataforge.cli.ui import UI, DiagPattern
+from cataforge.interface.cli.ui import UI, DiagPattern
 
 
 def _ui_with_buffers():

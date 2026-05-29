@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.platform.conformance import check_conformance, check_extended_conformance
-from cataforge.platform.registry import clear_cache
+from cataforge.adapter.platform.conformance import check_conformance, check_extended_conformance
+from cataforge.adapter.platform.registry import clear_cache
 
 
 def _make_full_profile() -> dict:

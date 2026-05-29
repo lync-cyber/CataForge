@@ -22,8 +22,8 @@ _UPDATE = os.environ.get("UPDATE_GOLDEN") == "1"
 
 
 def _build_store(variant: str):
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -33,7 +33,7 @@ def _build_store(variant: str):
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_matches_golden_hashes(tmp_path: Path, variant: str) -> None:
-    from cataforge.kg.export import compile_to_markdown
+    from cataforge.domain.kg.export import compile_to_markdown
 
     handle = _build_store(variant)
     out = tmp_path / "export"
@@ -72,7 +72,7 @@ def test_export_matches_golden_hashes(tmp_path: Path, variant: str) -> None:
 def test_export_content_matches_golden_files(
     tmp_path: Path, variant: str
 ) -> None:
-    from cataforge.kg.export import compile_to_markdown
+    from cataforge.domain.kg.export import compile_to_markdown
 
     if _UPDATE:
         pytest.skip("golden update mode — use hash test")

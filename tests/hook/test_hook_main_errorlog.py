@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-import cataforge.hook.base as hook_base
-from cataforge.hook.base import HOOK_ERROR_LOG_REL, hook_main
+import cataforge.runtime.hook.base as hook_base
+from cataforge.runtime.hook.base import HOOK_ERROR_LOG_REL, hook_main
 
 
 @pytest.fixture()

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from cataforge.cli.doctor_cmd import doctor_command
+from cataforge.interface.cli.doctor_cmd import doctor_command
 
 
 def _minimal_project(tmp_path: Path, *, migration_checks: list[dict] | None = None) -> Path:
@@ -50,7 +50,7 @@ def _materialize_owned_dirs(root: Path, platform: str) -> None:
     short-circuit the new gate so the assertion under test remains the
     only thing that can flip exit code.
     """
-    from cataforge.cli.doctor.provenance import _OWNED_DIRS_BY_PLATFORM
+    from cataforge.interface.cli.doctor.provenance import _OWNED_DIRS_BY_PLATFORM
 
     for rel in _OWNED_DIRS_BY_PLATFORM.get(platform, []):
         p = root / rel

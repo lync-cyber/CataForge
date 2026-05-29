@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from cataforge.agent.result_parser import parse_agent_result
 from cataforge.core.types import AgentStatus
+from cataforge.runtime.agent.result_parser import parse_agent_result
 
 
 def test_bare_status_tag_in_markdown_no_container_returns_incomplete():
@@ -54,7 +54,7 @@ def test_questions_invalid_json_logs_debug_and_questions_none(caplog):
         '<questions>{ "broken": </questions>'
         '</agent-result>'
     )
-    with caplog.at_level(logging.DEBUG, logger="cataforge.agent.result_parser"):
+    with caplog.at_level(logging.DEBUG, logger="cataforge.runtime.agent.result_parser"):
         result = parse_agent_result(text)
 
     assert result is not None

@@ -14,12 +14,12 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.skill.builtins.doc_consistency.checker import CrossDocChecker
+from cataforge.runtime.skill.builtins.doc_consistency.checker import CrossDocChecker
 
 
 @pytest.fixture(autouse=True)
 def reset_dispatch_cache():
-    from cataforge.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg._dispatch import invalidate_cache
 
     invalidate_cache()
     yield
@@ -104,8 +104,8 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-s
 
 def _project_with_kg(tmp_path: Path, *, active: list[str]) -> Path:
     """Build a project with ingested KG (fixture) + framework.json."""
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     project = tmp_path / "project"
     project.mkdir()

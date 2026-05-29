@@ -2,7 +2,7 @@
 
 > code-review §integration-wiring 与 tech-lead §production-path AC 引用的具体语言识别模式。skill / agent 主体保持语言无关，本文档承载语言特定的反例与正则候选。
 >
-> 新增语言时在 §对应小节增条；正则候选同步到 `cataforge.skill.builtins.code_review.rules.wiring-{lang}.yaml`（package default）或 `<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`（project override）。
+> 新增语言时在 §对应小节增条；正则候选同步到 `cataforge.runtime.skill.builtins.code_review.rules.wiring-{lang}.yaml`（package default）或 `<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`（project override）。
 
 ## 1. 通用判定
 
@@ -24,7 +24,7 @@
 | `() => null` | 仅 return null |
 | `() => undefined` | 仅 return undefined |
 
-正则候选：`cataforge.skill.builtins.code_review.rules.wiring-js-ts.yaml`
+正则候选：`cataforge.runtime.skill.builtins.code_review.rules.wiring-js-ts.yaml`
 
 ### 2.2 prop 链路终点
 

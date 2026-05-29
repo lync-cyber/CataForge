@@ -11,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
+from cataforge.adapter.platform.registry import get_adapter
 from cataforge.core.template import (
     known_placeholders,
     render_runtime_content,
     resolve_placeholder,
 )
-from cataforge.platform.registry import get_adapter
 
 
 def _platforms_dir() -> Path:

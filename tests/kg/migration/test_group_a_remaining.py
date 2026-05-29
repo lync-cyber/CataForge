@@ -6,8 +6,8 @@ from pathlib import Path
 FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "fixtures" / "kg-vertical-slice"
 
 def _open_and_ingest(variant: str = "waterfall"):
-    from cataforge.kg import KGConfig, KnowledgeGraph, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -18,7 +18,7 @@ def _open_and_ingest(variant: str = "waterfall"):
 def _open_and_ingest_with_deps():
     """Ingest + manually add a depends_on edge for A8 testing."""
     kg, config = _open_and_ingest()
-    from cataforge.kg._quads import build_relation_quad
+    from cataforge.domain.kg._quads import build_relation_quad
 
     quad = build_relation_quad("M-001", "cf:depends_on", "M-002", config)
     kg.store.add(quad)
@@ -132,7 +132,7 @@ def test_a14_query_entity_returns_dict() -> None:
 
 def test_a14_render_entity_produces_markdown() -> None:
     """A14: render_entity() returns readable markdown for known entities."""
-    from cataforge.kg.export import render_entity
+    from cataforge.domain.kg.export import render_entity
 
     kg, _ = _open_and_ingest()
     md = render_entity(kg.store, "F-001")
@@ -141,7 +141,7 @@ def test_a14_render_entity_produces_markdown() -> None:
 
 def test_a14_render_entity_returns_none_for_missing() -> None:
     """A14: render_entity() returns None for nonexistent entity_ids."""
-    from cataforge.kg.export import render_entity
+    from cataforge.domain.kg.export import render_entity
 
     kg, _ = _open_and_ingest()
     assert render_entity(kg.store, "F-999") is None
@@ -152,7 +152,7 @@ def test_a14_render_entity_returns_none_for_missing() -> None:
 
 def test_a15_traceability_edges_present_after_ingest() -> None:
     """A15: After ingest, traceability predicates exist as typed edges."""
-    from cataforge.kg._ask import ask
+    from cataforge.domain.kg._ask import ask
 
     kg, config = _open_and_ingest()
     ns = config.ontology_namespace.rstrip("/") + "/"

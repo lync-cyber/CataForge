@@ -6,7 +6,7 @@ the AGENTS.md multi-platform scenario (item 3 of the deploy-strategy work).
 
 from __future__ import annotations
 
-from cataforge.platform.section_merge import merge_sections
+from cataforge.adapter.platform.section_merge import merge_sections
 
 
 def _has_section(text: str, title: str) -> bool:

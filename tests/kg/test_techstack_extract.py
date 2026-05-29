@@ -8,14 +8,14 @@ import pytest
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
 def _parse_arch(variant: str = "waterfall"):
-    from cataforge.kg.ingest.scan import scan_business_docs
+    from cataforge.domain.kg.ingest.scan import scan_business_docs
 
     docs = scan_business_docs(FIXTURE_ROOT / variant, ["arch"])
     assert len(docs) == 1
     return docs[0]
 
 def _open_memory_store():
-    from cataforge.kg import KGConfig, init_store
+    from cataforge.domain.kg import KGConfig, init_store
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config
@@ -23,7 +23,7 @@ def _open_memory_store():
 # -- unit tests: TechStack extracted via standard extract_entities -----------
 
 def test_extract_entities_finds_techstack() -> None:
-    from cataforge.kg.ingest.entity_extract import extract_entities
+    from cataforge.domain.kg.ingest.entity_extract import extract_entities
 
     doc = _parse_arch("waterfall")
     entities = extract_entities(doc)
@@ -34,7 +34,7 @@ def test_extract_entities_finds_techstack() -> None:
     assert ts[0].source_doc == "arch"
 
 def test_techstack_narrative_body_in_extra_slots() -> None:
-    from cataforge.kg.ingest.entity_extract import extract_entities
+    from cataforge.domain.kg.ingest.entity_extract import extract_entities
 
     entities = extract_entities(_parse_arch())
     ts = next(e for e in entities if e.class_name == "TechStack")
@@ -42,7 +42,7 @@ def test_techstack_narrative_body_in_extra_slots() -> None:
     assert "Python 3.12" in body
 
 def test_techstack_stack_layers_in_extra_slots() -> None:
-    from cataforge.kg.ingest.entity_extract import extract_entities
+    from cataforge.domain.kg.ingest.entity_extract import extract_entities
 
     entities = extract_entities(_parse_arch())
     ts = next(e for e in entities if e.class_name == "TechStack")
@@ -53,7 +53,7 @@ def test_techstack_stack_layers_in_extra_slots() -> None:
     assert any("JWT" in layer for layer in layers)
 
 def test_non_techstack_entities_have_empty_extra_slots() -> None:
-    from cataforge.kg.ingest.entity_extract import extract_entities
+    from cataforge.domain.kg.ingest.entity_extract import extract_entities
 
     entities = extract_entities(_parse_arch())
     non_ts = [e for e in entities if e.class_name != "TechStack"]
@@ -63,7 +63,7 @@ def test_non_techstack_entities_have_empty_extra_slots() -> None:
 
 @pytest.mark.parametrize("variant", ("waterfall", "agile"))
 def test_migration_includes_techstack(variant: str) -> None:
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg.ingest import run_migration
 
     handle, config = _open_memory_store()
     root = FIXTURE_ROOT / variant
@@ -84,7 +84,7 @@ def test_migration_includes_techstack(variant: str) -> None:
 
 @pytest.mark.parametrize("variant", ("waterfall", "agile"))
 def test_techstack_narrative_body_in_store(variant: str) -> None:
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg.ingest import run_migration
 
     handle, config = _open_memory_store()
     run_migration(handle.raw, FIXTURE_ROOT / variant, config)
@@ -100,7 +100,7 @@ def test_techstack_narrative_body_in_store(variant: str) -> None:
 
 @pytest.mark.parametrize("variant", ("waterfall", "agile"))
 def test_techstack_stack_layers_in_store(variant: str) -> None:
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg.ingest import run_migration
 
     handle, config = _open_memory_store()
     run_migration(handle.raw, FIXTURE_ROOT / variant, config)
@@ -117,8 +117,8 @@ def test_techstack_stack_layers_in_store(variant: str) -> None:
 # -- _quads.py: multivalued extra_slots --------------------------------------
 
 def test_build_entity_quads_multivalued_extra_slots() -> None:
-    from cataforge.kg import KGConfig
-    from cataforge.kg._quads import build_entity_quads
+    from cataforge.domain.kg import KGConfig
+    from cataforge.domain.kg._quads import build_entity_quads
 
     config = KGConfig(store_backend="memory")
     quads = build_entity_quads(

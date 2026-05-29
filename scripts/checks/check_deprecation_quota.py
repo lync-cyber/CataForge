@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Anti-rot guard: cap the number of deprecated shim call sites.
 
-The ``cataforge.kg._shim`` module exposes 8 backward-compatible wrappers
+The ``cataforge.domain.kg._shim`` module exposes 8 backward-compatible wrappers
 scheduled for removal in 0.6.0.  New production code must use the typed
 ``KnowledgeGraph`` API instead.
 

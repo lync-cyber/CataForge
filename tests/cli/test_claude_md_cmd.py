@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.cli.claude_md_cmd import check_command, compact_command
+from cataforge.interface.cli.claude_md_cmd import check_command, compact_command
 from tests.cli.conftest import invoke_under_group
 
 

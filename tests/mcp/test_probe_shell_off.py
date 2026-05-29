@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from cataforge.mcp.lifecycle import MCPLifecycleManager
+from cataforge.runtime.mcp.lifecycle import MCPLifecycleManager
 
 
 @pytest.fixture
@@ -86,7 +86,7 @@ class TestProbeCommandShellOff:
             captured_calls.append({"args": args, "kwargs": kwargs})
             return original_run(args, **kwargs)
 
-        with patch("cataforge.mcp.lifecycle.run_proc", side_effect=capturing_run):
+        with patch("cataforge.runtime.mcp.lifecycle.run_proc", side_effect=capturing_run):
             state = mgr.health("list-target")
 
         assert state is not None

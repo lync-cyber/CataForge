@@ -27,7 +27,7 @@ consumers: [orchestrator, architect, tech-lead]
 
 ### A1. indexer.py — 文档内容哈希计算
 
-**文件**: `src/cataforge/docs/indexer.py`
+**文件**: `src/cataforge/domain/docs/indexer.py`
 
 **变更 1**: 新增 `_content_hash()` 函数（在 `_estimate_tokens()` 之后）
 
@@ -62,7 +62,7 @@ entry: dict[str, Any] = {
 
 ### A2. indexer.py — 依赖新鲜度验证
 
-**文件**: `src/cataforge/docs/indexer.py`
+**文件**: `src/cataforge/domain/docs/indexer.py`
 
 **变更**: 新增 `find_stale_deps()` 函数，加入 `validate_docs()` 结果
 
@@ -127,7 +127,7 @@ def validate_docs(project_root: str) -> dict[str, list]:
 
 ### A3. indexer.py — doc-gen finalize 时记录依赖哈希快照
 
-**文件**: `src/cataforge/docs/indexer.py`
+**文件**: `src/cataforge/domain/docs/indexer.py`
 
 **变更**: 在 `build_document_entry()` 中，当文档有 deps 时，记录各上游文档的当前 content_hash 快照到 `dep_hashes` 字段。
 
@@ -172,7 +172,7 @@ def _fill_dep_hashes(documents: dict[str, Any]) -> None:
 
 ### A4. CLI 输出 — validate 命令展示 stale deps
 
-**文件**: `src/cataforge/cli/docs_cmd.py`
+**文件**: `src/cataforge/interface/cli/docs_cmd.py`
 
 **变更**: 在 `docs_validate` 命令的输出中增加 stale_deps 展示。
 
@@ -212,7 +212,7 @@ test_content_hash_stability
 
 ### B1. checker.py — 双向覆盖检查
 
-**文件**: `src/cataforge/skill/builtins/doc_review/checker.py`
+**文件**: `src/cataforge/runtime/skill/builtins/doc_review/checker.py`
 
 **变更**: 在 `DocChecker` 中新增 `check_bidirectional_coverage()` 方法，在 `run()` 中调用。
 
@@ -295,7 +295,7 @@ self.check_bidirectional_coverage()
 
 ### B3. typed_checks.py — ARCH 模块功能映射反向检查
 
-**文件**: `src/cataforge/skill/builtins/doc_review/typed_checks.py`
+**文件**: `src/cataforge/runtime/skill/builtins/doc_review/typed_checks.py`
 
 **变更**: 在 `check_arch()` 方法末尾追加反向检查逻辑。
 
@@ -565,16 +565,16 @@ graph TD
 ### 批次 A — 4 个文件
 | 文件 | 操作 | 行数估算 |
 |------|------|---------|
-| `src/cataforge/docs/indexer.py` | 修改 | +60 行 |
-| `src/cataforge/cli/docs_cmd.py` | 修改 | +15 行 |
+| `src/cataforge/domain/docs/indexer.py` | 修改 | +60 行 |
+| `src/cataforge/interface/cli/docs_cmd.py` | 修改 | +15 行 |
 | `tests/cli/test_docs_validate.py` | 修改 | +50 行 |
 | `tests/cli/test_docs_indexer.py` | 修改 | +20 行 |
 
 ### 批次 B — 4 个文件
 | 文件 | 操作 | 行数估算 |
 |------|------|---------|
-| `src/cataforge/skill/builtins/doc_review/checker.py` | 修改 | +40 行 |
-| `src/cataforge/skill/builtins/doc_review/typed_checks.py` | 修改 | +15 行 |
+| `src/cataforge/runtime/skill/builtins/doc_review/checker.py` | 修改 | +40 行 |
+| `src/cataforge/runtime/skill/builtins/doc_review/typed_checks.py` | 修改 | +15 行 |
 | `.cataforge/skills/sprint-review/SKILL.md` | 修改 | +5 行 |
 | `tests/cli/test_doc_review_coverage.py` | 新建 | +80 行 |
 

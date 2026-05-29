@@ -140,7 +140,7 @@ deps: []
 
 ## Layer 1 检查项 (code_lint.py)
 
-> 权威清单见 `cataforge.skill.builtins.code_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
+> 权威清单见 `cataforge.runtime.skill.builtins.code_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
 
 review 模式（按文件类型自动选择工具）:
 - ESLint (.js/.ts/.jsx/.tsx)
@@ -156,10 +156,10 @@ review 模式（按文件类型自动选择工具）:
 
 正则规则按语言拆到 YAML：
 
-- 默认（cataforge package）：`cataforge.skill.builtins.code_review.rules.wiring-{lang}.yaml`
+- 默认（cataforge package）：`cataforge.runtime.skill.builtins.code_review.rules.wiring-{lang}.yaml`
 - 项目 override（opt-in）：`<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`
 
-加新语言：在项目 `rules/` 放 `wiring-rust.yaml` 等；schema 见 `cataforge.skill.rules.loader.CURRENT_SCHEMA_VERSION`，必填字段 `schema_version: 1` / `rule_type: wiring` / `language` / `extensions`。framework-review B3-β `rules_schema_compliance` 自动校验项目 YAML。
+加新语言：在项目 `rules/` 放 `wiring-rust.yaml` 等；schema 见 `cataforge.runtime.skill.rules.loader.CURRENT_SCHEMA_VERSION`，必填字段 `schema_version: 1` / `rule_type: wiring` / `language` / `extensions`。framework-review B3-β `rules_schema_compliance` 自动校验项目 YAML。
 
 scan 模式额外的腐化 probe（按 --focus 选择性执行）:
 - duplication: jscpd（多语言：JS/TS/Py/Go/C#/Rust/Java/Kotlin/Swift）/ pmd-cpd (.java)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.skill.builtins.doc_review.checker import DocChecker
+from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
 
 def _write(root: Path, rel: str, body: str) -> Path:

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Anti-rot guard: no `query(...ASK...) == True` antipatterns under cataforge.kg.
+"""Anti-rot guard: no `query(...ASK...) == True` antipatterns under cataforge.domain.kg.
 
 pyoxigraph 0.5.x returns a `QueryBoolean` from `Store.query()` for ASK
 queries. `QueryBoolean == True` silently evaluates False even when the
 answer is True (spike-2 §2.2, issue #142). Every ASK consumer in the KG
-layer must go through `cataforge.kg._ask.ask(store, sparql) -> bool`.
+layer must go through `cataforge.domain.kg._ask.ask(store, sparql) -> bool`.
 
 This guard rejects `.query(...) == True` / `... == True` / `is True`
-patterns when they appear in `src/cataforge/kg/**.py` so the bug cannot
+patterns when they appear in `src/cataforge/domain/kg/**.py` so the bug cannot
 sneak back via a copy-paste from external SPARQL examples.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ from cataforge.utils.common import ensure_utf8  # noqa: E402
 
 ensure_utf8()
 
-SCAN_DIRS = [REPO_ROOT / "src" / "cataforge" / "kg"]
+SCAN_DIRS = [REPO_ROOT / "src" / "cataforge" / "domain" / "kg"]
 
 QUERY_EQ_TRUE = re.compile(
     r"\.query\s*\([^)]*\)\s*(==|is)\s*True\b",
@@ -70,10 +70,10 @@ def main() -> int:
     if offenders:
         print(
             "FAIL: `query(...) == True` antipattern detected under "
-            "src/cataforge/kg/ (spike-2 §2.2 / issue #142). pyoxigraph "
+            "src/cataforge/domain/kg/ (spike-2 §2.2 / issue #142). pyoxigraph "
             "returns QueryBoolean for ASK; `== True` silently always "
             "evaluates False. Route all ASK consumption through "
-            "`cataforge.kg._ask.ask(store, sparql) -> bool`.",
+            "`cataforge.domain.kg._ask.ask(store, sparql) -> bool`.",
             file=sys.stderr,
         )
         for offender in offenders:

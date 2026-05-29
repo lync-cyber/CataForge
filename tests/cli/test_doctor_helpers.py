@@ -1,4 +1,4 @@
-"""Tests for ``cataforge.cli.doctor._helpers``.
+"""Tests for ``cataforge.interface.cli.doctor._helpers``.
 
 After D6, ``check_import`` returns an ``int`` (0/1) like its sibling
 helpers ``check_file`` / ``check_dir``. The ``doctor_cmd`` exit code
@@ -14,7 +14,7 @@ import builtins
 
 import pytest
 
-from cataforge.cli.doctor._helpers import check_dir, check_file, check_import
+from cataforge.interface.cli.doctor._helpers import check_dir, check_file, check_import
 
 
 class TestCheckImportContract:

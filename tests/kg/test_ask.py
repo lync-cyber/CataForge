@@ -29,14 +29,14 @@ def _store_with_one_triple():
     return s
 
 def test_returns_real_python_bool_false() -> None:
-    from cataforge.kg import ask
+    from cataforge.domain.kg import ask
 
     result = ask(_empty_store(), "ASK { ?s ?p ?o }")
     assert result is False
     assert isinstance(result, bool)
 
 def test_returns_real_python_bool_true() -> None:
-    from cataforge.kg import ask
+    from cataforge.domain.kg import ask
 
     result = ask(_store_with_one_triple(), "ASK { ?s ?p ?o }")
     assert result is True
@@ -52,18 +52,18 @@ def test_documents_the_antipattern_in_a_pin() -> None:
     raw = ox.Store().query("ASK { ?s ?p ?o }")
     assert not isinstance(raw, bool), (
         "pyoxigraph.Store.query() now returns a real bool; the ask() "
-        "chokepoint in cataforge.kg._ask is no longer load-bearing — "
+        "chokepoint in cataforge.domain.kg._ask is no longer load-bearing — "
         "consider removing it and the pre-commit grep gate."
     )
 
 def test_rejects_non_ask_query() -> None:
-    from cataforge.kg import ask
+    from cataforge.domain.kg import ask
 
     with pytest.raises(ValueError):
         ask(_empty_store(), "SELECT ?s WHERE { ?s ?p ?o }")
 
 def test_bindings_not_yet_supported() -> None:
-    from cataforge.kg import ask
+    from cataforge.domain.kg import ask
 
     with pytest.raises(NotImplementedError):
         ask(_empty_store(), "ASK { ?s ?p ?o }", bindings={"s": "?"})

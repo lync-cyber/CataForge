@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.mcp.lifecycle import MCPLifecycleManager
-from cataforge.schema.mcp_spec import MCPServerState
+from cataforge.core.schema.mcp_spec import MCPServerState
+from cataforge.runtime.mcp.lifecycle import MCPLifecycleManager
 
 
 @pytest.fixture

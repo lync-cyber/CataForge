@@ -73,7 +73,7 @@ cataforge kg reconcile
 }
 ```
 
-读路径切换由 `cataforge.kg._dispatch.is_active_for(doc_type, project_root)` 双层 gate 控制：(a) `doc_type` 在 `kg_active_doc_types` 集合内，且 (b) `.cataforge/kg/store/` 物理存在。任一不成立则透明回退 legacy `loader.extract()` 路径，已部署但未跑 `cataforge kg init` 的项目自动维持 0.4.x 行为。
+读路径切换由 `cataforge.domain.kg._dispatch.is_active_for(doc_type, project_root)` 双层 gate 控制：(a) `doc_type` 在 `kg_active_doc_types` 集合内，且 (b) `.cataforge/kg/store/` 物理存在。任一不成立则透明回退 legacy `loader.extract()` 路径，已部署但未跑 `cataforge kg init` 的项目自动维持 0.4.x 行为。
 
 ## doctor 闸口：`kg_ingestion_completeness`
 

@@ -65,7 +65,7 @@ Mapping convention: `Old → New (parameter signature)`. New-API method names ar
 | A11 | `indexer.validate_docs()` → `dict{orphans, stale, xref_errors, alias_conflicts, invalid_ids, stale_deps}` | `cataforge kg validate --severity warning` + `cataforge kg reconcile --coverage-mode strict --fail-on-unresolved` (Task 5 §5.1) | All classes | **Not fully equivalent** — old report has six named keys; new validate returns SHACL-shaped violation rows. Compensation: a wrapper `legacy_validate_report()` (see §6.5 breaking-change #3) maps the new report into the old shape for callers that depend on it (CI workflows, pre-commit hooks). |
 | A12 | `check_xref()` — regex over full doc body + `Path.glob` resolution | `kg.query.entity(<cfprj:doc-id>)` to verify referent existence; reconciler covers the rest via `cataforge kg reconcile` | All classes (cross-doc refs) | **Strictly stronger**: regex-based xref produces false positives (URL fragments) and false negatives (cross-volume globs, Task 1 §1.4 case B). KG-based resolution requires the strict form `doc_id#§N.ITEM`; any unresolved ref fails with `KGEntityNotFoundError`. Compensation: legacy `mentions` mode opt-in via `KGConfig.coverage_mode="mentions"` for grandfathered docs. |
 | A13 | `check_bidirectional_coverage()` — `re.search` for upstream item ID in downstream doc body | SPARQL `cf:verifies` / `cf:coveredBy` query (see §6.4 A13 SPARQL) | Feature, Module, Component, Task, TestCase | **Strictly stronger** — eliminates the assassin false positive in Task 1 §1.4 case A. A mention in a comment block no longer counts as coverage; coverage requires an asserted `cf:satisfies`/`cf:implements`/`cf:verifies` edge in the graph. |
-| A14 | `doc-nav` degraded path — `Read .doc-index.json` + `Read <file>` offset/limit slice | `kg.query.entity(uri)` + Task 4 `render_entity(uri)` to materialize markdown | All classes | Equivalent for the Bash-less Agent if a small `cataforge.kg` Python adapter is exposed (already true via `KnowledgeGraph.connect(config)` sync API, Task 5 §5.2). Degraded path is now "open store + run typed accessor"; no JSON-slicing. |
+| A14 | `doc-nav` degraded path — `Read .doc-index.json` + `Read <file>` offset/limit slice | `kg.query.entity(uri)` + Task 4 `render_entity(uri)` to materialize markdown | All classes | Equivalent for the Bash-less Agent if a small `cataforge.domain.kg` Python adapter is exposed (already true via `KnowledgeGraph.connect(config)` sync API, Task 5 §5.2). Degraded path is now "open store + run typed accessor"; no JSON-slicing. |
 | A15 | `indexer.build_xref()` — scan all sections for ITEM_ID_RE matches | SPARQL CONSTRUCT of (subject, `cf:references`, object) where object is any `cf:SoftwareArtifact` whose `entity_id` appears in subject's body — but this is **superseded**: the KG ingest layer (Task 5 `cataforge kg import`) emits typed predicates (`cf:satisfies`, `cf:implements`, `cf:verifies`, `cf:realizes`, `cf:delivers`) at parse time, so `build_xref()` no longer has a runtime purpose | All classes | Effectively retired. Compensation: a SPARQL query (see §6.4 A15 SPARQL) materializes the same `{item_id → [{doc_id, section, file_path}]}` shape on demand for callers that still need it (e.g., the legacy doc-index export). |
 
 ---
@@ -210,7 +210,7 @@ The `cf:verifies+` property path (Task 3 §3.3 Q1) walks transitively, so a Test
 
 ### A14 — doc-nav degraded path
 - **A.** Old: JSON slice + file Read. New: open KG sync (already in Task 5 §5.2 `KnowledgeGraph.connect()`).
-- **B.** **Fully equivalent** for Bash-less Agents — they import `cataforge.kg` Python module directly.
+- **B.** **Fully equivalent** for Bash-less Agents — they import `cataforge.domain.kg` Python module directly.
 - **C.** None.
 
 ### A15 — `indexer.build_xref()`
@@ -246,8 +246,8 @@ truth for business-doc access. If any entity discoverable by markdown scan
 is absent from the graph, all agents reading via kg.query.* would silently
 get None — masking real coverage gaps.
 """
-from cataforge.kg import KnowledgeGraph, KGConfig
-from cataforge.docs._scan import iter_entity_ids_in_docs  # filesystem walker
+from cataforge.domain.kg import KnowledgeGraph, KGConfig
+from cataforge.domain.docs._scan import iter_entity_ids_in_docs  # filesystem walker
 
 def check_kg_ingestion_completeness(project_root: Path) -> CheckResult:
     """
@@ -317,7 +317,7 @@ def _dispatch_read(doc_type: str, section_id: str, *, config: KGConfig):
         return _legacy_read(doc_type, section_id)
 ```
 
-This dispatch lives in `src/cataforge/kg/_shim.py` and wraps every public 0.4.x-compat entry point (`extract`, `extract_batch`, `extract_with_body`, `plan_load`, `build_full_index`, `resolve_deps`, `source_section`). Per the flag-granularity decision recorded in [README §User decisions](README.md), the dispatch is per-doc_type, not per-call-site — a single config check per call. The shim implementations below show only the KG-path branch; the dispatch wrapper is implicit.
+This dispatch lives in `src/cataforge/domain/kg/_shim.py` and wraps every public 0.4.x-compat entry point (`extract`, `extract_batch`, `extract_with_body`, `plan_load`, `build_full_index`, `resolve_deps`, `source_section`). Per the flag-granularity decision recorded in [README §User decisions](README.md), the dispatch is per-doc_type, not per-call-site — a single config check per call. The shim implementations below show only the KG-path branch; the dispatch wrapper is implicit.
 
 ### Breaking-change #1 — `extract()` body text loss
 
@@ -325,7 +325,7 @@ This dispatch lives in `src/cataforge/kg/_shim.py` and wraps every public 0.4.x-
 
 **Refactor plan:** Two-tier shim. Tier 1 (existing in Task 5 §5.5) returns flat dict. Tier 2 (new) renders body markdown for callers that need narrative text.
 
-**Shim — extend `src/cataforge/kg/_shim.py`:**
+**Shim — extend `src/cataforge/domain/kg/_shim.py`:**
 
 ```python
 def extract_with_body(
@@ -342,13 +342,13 @@ def extract_with_body(
     a Feature description).
 
     .. deprecated:: 0.5.0
-        Use kg.query.entity(uri) + cataforge.kg.export.render_entity(uri).
+        Use kg.query.entity(uri) + cataforge.domain.kg.export.render_entity(uri).
     """
     import warnings
-    from cataforge.kg.export import render_entity
+    from cataforge.domain.kg.export import render_entity
     warnings.warn(
         "extract_with_body() is a transitional shim removed in 0.6.0; "
-        "use kg.query + cataforge.kg.export.render_entity instead.",
+        "use kg.query + cataforge.domain.kg.export.render_entity instead.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -365,10 +365,10 @@ def extract_with_body(
 
 **Refactor plan:** Extend `QueryAPI` with `api()` and `page()` methods. This is a **Task 5 errata**, flagged in the cross-output inconsistency report.
 
-**Shim — `src/cataforge/kg/_shim.py` proposed additions to `QueryAPI`:**
+**Shim — `src/cataforge/domain/kg/_shim.py` proposed additions to `QueryAPI`:**
 
 ```python
-# src/cataforge/kg/_query.py — add these methods to the QueryAPI class
+# src/cataforge/domain/kg/_query.py — add these methods to the QueryAPI class
 # defined in Task 5 §5.2.
 
 def api(self, api_id: str) -> "API | None":
@@ -394,7 +394,7 @@ def page(self, page_id: str) -> "Page | None":
 
 **Refactor plan:** Map SHACL violations onto the legacy 6-key shape for CI workflows and pre-commit hooks that depend on the old keys.
 
-**Shim — `src/cataforge/kg/_shim.py` new function:**
+**Shim — `src/cataforge/domain/kg/_shim.py` new function:**
 
 ```python
 def legacy_validate_report(
@@ -417,7 +417,7 @@ def legacy_validate_report(
         report directly.
     """
     import warnings
-    from cataforge.kg import KnowledgeGraph, KGConfig
+    from cataforge.domain.kg import KnowledgeGraph, KGConfig
     warnings.warn(
         "legacy_validate_report() is a transitional shim removed in 0.6.0; "
         "consume `cataforge kg validate --output json` directly.",
@@ -431,7 +431,7 @@ def legacy_validate_report(
     }
     with KnowledgeGraph.connect(config) as kg:
         # SHACL pass
-        from cataforge.kg._validate import run_shacl  # exposed by Task 5 §5.4
+        from cataforge.domain.kg._validate import run_shacl  # exposed by Task 5 §5.4
         for v in run_shacl(kg):
             if v.shape_id == "cf:entity_id-pattern":
                 report["invalid_ids"].append({"id": v.entity_id, "message": v.message})
@@ -473,7 +473,7 @@ def legacy_validate_report(
 
 **Refactor plan:** One-shot codemod inside `cataforge kg import` first run. Documented in Task 7 rollout.
 
-**Shim — `src/cataforge/kg/_codemod_deps.py`:**
+**Shim — `src/cataforge/domain/kg/_codemod_deps.py`:**
 
 ```python
 """
@@ -515,7 +515,7 @@ def split_deps(task_entity_id: str, raw_deps: Iterable[str]) -> dict[str, list[s
 
 **Refactor plan:** Add `kg.query.source_section(doc_id, anchor)` helper that uses `cf:source_doc` + `cf:source_section` slots to materialize the underlying markdown via Task 4 export rendering.
 
-**Shim — `src/cataforge/kg/_shim.py` new function:**
+**Shim — `src/cataforge/domain/kg/_shim.py` new function:**
 
 ```python
 def source_section(
@@ -539,7 +539,7 @@ def source_section(
     """
     import warnings
     from pathlib import Path
-    from cataforge.kg import KnowledgeGraph, KGConfig
+    from cataforge.domain.kg import KnowledgeGraph, KGConfig
     warnings.warn(
         "source_section() is a transitional shim; narrative sections will be "
         "modeled as entities in 0.6.0.",
@@ -595,7 +595,7 @@ Every Group A row in §6.1.1 (A1–A15) MUST have at least one unit test in `tes
 
 ```toml
 [tool.coverage.run]
-source = ["src/cataforge/kg/_shim.py"]
+source = ["src/cataforge/domain/kg/_shim.py"]
 
 [tool.coverage.report]
 fail_under = 95   # shim layer is small + critical
@@ -621,8 +621,8 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from cataforge.kg import KnowledgeGraph, KGConfig
-from cataforge.kg._models_core import Feature, Module, TestCase
+from cataforge.domain.kg import KnowledgeGraph, KGConfig
+from cataforge.domain.kg._models_core import Feature, Module, TestCase
 from cataforge.doc_review.checker import check_bidirectional_coverage as legacy
 
 
@@ -837,7 +837,7 @@ Three complete before/after pairs covering the three required scenarios.
 ```python
 # src/cataforge/agent_helpers/requirement.py — 0.4.1
 import subprocess
-from cataforge.docs.md_parse import iter_markdown_headings
+from cataforge.domain.docs.md_parse import iter_markdown_headings
 
 def get_requirement_description(feature_id: str, project_root: str) -> str | None:
     """
@@ -864,7 +864,7 @@ def get_requirement_description(feature_id: str, project_root: str) -> str | Non
 
 ```python
 # src/cataforge/agent_helpers/requirement.py — 0.5.0
-from cataforge.kg import KnowledgeGraph, KGConfig
+from cataforge.domain.kg import KnowledgeGraph, KGConfig
 
 def get_requirement_description(feature_id: str, project_root: str) -> str | None:
     """
@@ -874,7 +874,7 @@ def get_requirement_description(feature_id: str, project_root: str) -> str | Non
       1. No subprocess — opens an in-process KnowledgeGraph connection.
       2. Returns the structured `description` slot rather than the raw
          markdown body. Agents that need the full body should call
-         `cataforge.kg.export.render_entity(feature.id)` instead — see
+         `cataforge.domain.kg.export.render_entity(feature.id)` instead — see
          Task 6 §6.5 #1 (extract_with_body shim) for the rationale.
       3. Strongly typed: feature.description is `Optional[str]`, no
          "starts with ===" hack to strip the legacy CLI banner.
@@ -920,7 +920,7 @@ def find_test_cases_for_requirement(req_id: str, project_root: str) -> list[str]
 
 ```python
 # src/cataforge/agent_helpers/coverage.py — 0.5.0
-from cataforge.kg import KnowledgeGraph, KGConfig
+from cataforge.domain.kg import KnowledgeGraph, KGConfig
 
 def find_test_cases_for_requirement(req_id: str, project_root: str) -> list[str]:
     """
@@ -993,7 +993,7 @@ def check_bidirectional_coverage(
 
 ```python
 # src/cataforge/skills/doc_review/checker.py — 0.5.0
-from cataforge.kg import KnowledgeGraph, KGConfig
+from cataforge.domain.kg import KnowledgeGraph, KGConfig
 
 def check_bidirectional_coverage(
     project_root: str,
@@ -1060,7 +1060,7 @@ def check_bidirectional_coverage(
 **关键决策**:
 - 16 个调用点拆为 Group A (15 个业务文档) + Group B (≥2 个框架资产)；只有 Group A 走 `KnowledgeGraph` API。Orchestrator 整合时按此清单分配迁移工单。
 - `extract()` 全文回退已撤，`doctor` 新增 `kg_ingestion_completeness` ERROR 级硬门（§6.4 末），阻断 `cataforge ready`；Task 7 上线检查单必须把此 gate 列为前置条件。
-- 5 个不可 1:1 映射的破坏性变更各配 shim：`extract_with_body` (§6.5 #1)、`QueryAPI.api()/page()` errata (§6.5 #2)、`legacy_validate_report()` (§6.5 #3)、`deps:` codemod (§6.5 #4)、`source_section()` (§6.5 #5)。所有 shim 居于 `src/cataforge/kg/_shim.py`，0.6.0 移除。
+- 5 个不可 1:1 映射的破坏性变更各配 shim：`extract_with_body` (§6.5 #1)、`QueryAPI.api()/page()` errata (§6.5 #2)、`legacy_validate_report()` (§6.5 #3)、`deps:` codemod (§6.5 #4)、`source_section()` (§6.5 #5)。所有 shim 居于 `src/cataforge/domain/kg/_shim.py`，0.6.0 移除。
 - A13 双向覆盖检查迁到 SPARQL `cf:implements`/`cf:verifies+`，A8 依赖推断同源；`coverage_mode=strict` 默认根除假阳性。
 - 测试覆盖要求：A1–A15 每行 ≥1 单测，doc-review/sprint-review 双路径黄金对比测试入库 `tests/golden/`，shim 覆盖率门槛 95%。
 - 量化收益：token 单实体获取 ~12×、validate 全量 ~150×、可追溯链 ~100×；正确性方面假阳性归零、一致性从 WARN 升 FAIL。

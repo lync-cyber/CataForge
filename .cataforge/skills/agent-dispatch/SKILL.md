@@ -44,7 +44,7 @@ prompt 主模板: `.cataforge/skills/agent-dispatch/templates/dispatch-prompt.md
 
 调度前 orchestrator 自行 Read 主模板 + 当前平台 override（若有），两者由 LLM 上下文合并使用 —— OVERRIDE 块边界在源文件中以 `<!-- OVERRIDE:<section> -->` 注释标识，便于 LLM 识别替换语义。主模板已含平台分支（如 "Claude: .claude/rules，Cursor: .cursor/rules"），override 只在需要补充平台特异性内容时才填充对应块。
 
-deploy 阶段无运行时合并器；frontmatter 能力标识符翻译由 `cataforge.agent.translator.translate_agent_md` 负责，agent 返回值解析由 orchestrator 主循环按下方 §返回值解析与容错 处理。
+deploy 阶段无运行时合并器；frontmatter 能力标识符翻译由 `cataforge.runtime.agent.translator.translate_agent_md` 负责，agent 返回值解析由 orchestrator 主循环按下方 §返回值解析与容错 处理。
 
 > 修改 prompt 模板影响所有通过 agent-dispatch 调度的 Agent，请谨慎变更并做 diff review。
 > TDD 子代理由 tdd-engine 直接调度，仅传入任务信息，通用约束和返回格式依赖 AGENT.md 自动加载，无需同步。

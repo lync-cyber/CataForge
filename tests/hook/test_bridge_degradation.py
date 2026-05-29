@@ -1,6 +1,6 @@
 """Hook bridge degradation strategy materialisation.
 
-Pins :func:`cataforge.hook.bridge.apply_degradation` behaviour for the four
+Pins :func:`cataforge.runtime.hook.bridge.apply_degradation` behaviour for the four
 supported strategies and the unknown-strategy fallback.
 """
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-import cataforge.hook.bridge as bridge
+import cataforge.runtime.hook.bridge as bridge
 
 
 class _StubAdapter:

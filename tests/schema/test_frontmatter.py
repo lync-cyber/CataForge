@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cataforge.schema.framework import FrameworkFile
+from cataforge.core.schema.framework import FrameworkFile
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.md_parse import iter_markdown_headings
 

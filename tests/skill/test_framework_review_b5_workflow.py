@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cataforge.skill.builtins.framework_review.framework_check import (
+from cataforge.runtime.skill.builtins.framework_review.framework_check import (
     Report,
     check_b5_workflow_coverage,
 )

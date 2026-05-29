@@ -17,10 +17,10 @@ from pathlib import Path
 import pytest
 
 from cataforge.core.corrections import record_correction
-from cataforge.skill.builtins.framework_feedback import CHECKS_MANIFEST
-from cataforge.skill.builtins.framework_feedback.framework_feedback import main
-from cataforge.skill.loader import SkillLoader
-from cataforge.skill.runner import SkillRunner
+from cataforge.runtime.skill.builtins.framework_feedback import CHECKS_MANIFEST
+from cataforge.runtime.skill.builtins.framework_feedback.framework_feedback import main
+from cataforge.runtime.skill.loader import SkillLoader
+from cataforge.runtime.skill.runner import SkillRunner
 
 
 def _bootstrap(tmp_path: Path) -> Path:
@@ -152,7 +152,7 @@ class TestMainEntry:
 
 class TestRunnerSmoke:
     def test_skill_runner_invokes_builtin(self, tmp_path: Path) -> None:
-        """Drives a real ``python -m cataforge.skill.builtins.framework_feedback...``
+        """Drives a real ``python -m cataforge.runtime.skill.builtins.framework_feedback...``
         fork. Slow (~1s) but it's the only thing that proves the entire
         wiring chain works the way ``cataforge skill run`` will use it."""
         project = _bootstrap(tmp_path)

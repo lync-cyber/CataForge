@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from cataforge.hook.bridge import generate_platform_hooks
+from cataforge.runtime.hook.bridge import generate_platform_hooks
 
 
 class _StubAdapter:
@@ -41,11 +41,11 @@ class _StubAdapter:
         return dict(self._degradation)
 
     def get_hook_command_template(self) -> str:
-        return "python -m cataforge.hook.scripts.{module}"
+        return "python -m cataforge.runtime.hook.scripts.{module}"
 
 
 def test_warns_on_unmapped_event(monkeypatch: pytest.MonkeyPatch) -> None:
-    import cataforge.hook.bridge as bridge
+    import cataforge.runtime.hook.bridge as bridge
 
     spec = {
         "hooks": {
@@ -70,7 +70,7 @@ def test_warns_on_unmapped_event(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_warns_on_missing_tool_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
-    import cataforge.hook.bridge as bridge
+    import cataforge.runtime.hook.bridge as bridge
 
     spec = {
         "hooks": {
@@ -95,7 +95,7 @@ def test_warns_on_missing_tool_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_warns_on_non_native_degradation(monkeypatch: pytest.MonkeyPatch) -> None:
-    import cataforge.hook.bridge as bridge
+    import cataforge.runtime.hook.bridge as bridge
 
     spec = {
         "hooks": {

@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.skill.builtins.framework_review.framework_check import (
+from cataforge.runtime.skill.builtins.framework_review.framework_check import (
     Report,
     check_b6_hook_consistency,
 )
@@ -48,7 +48,7 @@ def _make_project(
 
 
 # Minimal valid hooks.yaml referencing only one builtin (guard_dangerous)
-# that exists in cataforge.hook.scripts. The B6 check resolves this via
+# that exists in cataforge.runtime.hook.scripts. The B6 check resolves this via
 # importlib.resources, so it works regardless of cwd.
 _HAPPY_HOOKS_YAML = """\
 schema_version: 2

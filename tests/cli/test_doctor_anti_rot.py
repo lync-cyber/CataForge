@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from cataforge.cli.doctor_cmd import doctor_command
+from cataforge.interface.cli.doctor_cmd import doctor_command
 
 
 def _scaffold(tmp_path: Path) -> Path:
@@ -214,7 +214,7 @@ def test_doctor_anti_rot_table_contains_expected_entries() -> None:
     If we ever rename/remove one of these, this test will force the author to
     confirm it is intentional rather than silently dropping CI coverage.
     """
-    from cataforge.cli.doctor_cmd import _DEPRECATED_REFS
+    from cataforge.interface.cli.doctor_cmd import _DEPRECATED_REFS
 
     names = {entry["name"] for entry in _DEPRECATED_REFS}
     assert names == {

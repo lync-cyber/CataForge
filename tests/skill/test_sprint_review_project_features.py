@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.skill.builtins.sprint_review.ignore import build_ignore_spec
-from cataforge.skill.builtins.sprint_review.sprint_check import (
+from cataforge.runtime.skill.builtins.sprint_review.ignore import build_ignore_spec
+from cataforge.runtime.skill.builtins.sprint_review.sprint_check import (
     check_code_reviews,
     check_deliverables,
     check_unplanned_files,

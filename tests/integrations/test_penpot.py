@@ -1,4 +1,4 @@
-"""Unit tests for cataforge.integrations.penpot public API."""
+"""Unit tests for cataforge.adapter.integrations.penpot public API."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import cataforge.integrations.penpot as penpot
+import cataforge.adapter.integrations.penpot as penpot
 
 # ---------------------------------------------------------------------------
 # get_config
@@ -97,8 +97,8 @@ def test_is_penpot_container_running_returns_true_when_output():
 
 def test_preflight_check_fails_when_docker_absent(capsys):
     with (
-        patch("cataforge.integrations.penpot.docker.has_command", return_value=False),
-        patch("cataforge.integrations.penpot.docker.docker_compose_cmd", return_value=None),
+        patch("cataforge.adapter.integrations.penpot.docker.has_command", return_value=False),
+        patch("cataforge.adapter.integrations.penpot.docker.docker_compose_cmd", return_value=None),
     ):
         result = penpot.preflight_check(scope="all")
     assert result is False
@@ -111,7 +111,10 @@ def test_preflight_check_fails_when_docker_absent(capsys):
 
 def test_deploy_penpot_returns_false_when_docker_not_running():
     config = penpot.get_config()
-    with patch("cataforge.integrations.penpot.docker.ensure_docker_running", return_value=False):
+    with patch(
+        "cataforge.adapter.integrations.penpot.docker.ensure_docker_running",
+        return_value=False,
+    ):
         assert penpot.deploy_penpot(config) is False
 
 
@@ -139,14 +142,14 @@ def test_cmd_start_calls_compose_up_when_file_exists(tmp_path):
         return r
 
     with (
-        patch("cataforge.integrations.penpot.preflight_check", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.preflight_check", return_value=True),
         patch(
-            "cataforge.integrations.penpot.docker_compose_cmd",
+            "cataforge.adapter.integrations.penpot.docker_compose_cmd",
             return_value=["docker", "compose"],
         ),
-        patch("cataforge.integrations.penpot.ensure_docker_running", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.ensure_docker_running", return_value=True),
         patch("subprocess.run", side_effect=fake_run),
-        patch("cataforge.integrations.penpot.start_mcp", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.start_mcp", return_value=True),
     ):
         rc = penpot.cmd_start(config)
 
@@ -180,9 +183,9 @@ def test_cmd_stop_invokes_stop_mcp_and_compose_down(tmp_path):
         return r
 
     with (
-        patch("cataforge.integrations.penpot.stop_mcp", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.stop_mcp", return_value=True),
         patch(
-            "cataforge.integrations.penpot.docker_compose_cmd",
+            "cataforge.adapter.integrations.penpot.docker_compose_cmd",
             return_value=["docker", "compose"],
         ),
         patch("subprocess.run", side_effect=fake_run),
@@ -320,9 +323,9 @@ def test_pid_file_round_trip_uses_utf8(monkeypatch: pytest.MonkeyPatch, tmp_path
 def test_cmd_status_returns_zero(capsys):
     config = penpot.get_config()
     with (
-        patch("cataforge.integrations.penpot._is_penpot_running", return_value=False),
-        patch("cataforge.integrations.penpot._is_mcp_running", return_value=False),
-        patch("cataforge.integrations.penpot.is_port_listening", return_value=False),
+        patch("cataforge.adapter.integrations.penpot._is_penpot_running", return_value=False),
+        patch("cataforge.adapter.integrations.penpot._is_mcp_running", return_value=False),
+        patch("cataforge.adapter.integrations.penpot.is_port_listening", return_value=False),
     ):
         rc = penpot.cmd_status(config)
     assert rc == 0
@@ -413,13 +416,13 @@ def test_node_major_handles_garbage() -> None:
 
 def test_preflight_warns_on_unsupported_node(capsys) -> None:
     with (
-        patch("cataforge.integrations.penpot.docker.has_command", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.docker.has_command", return_value=True),
         patch(
-            "cataforge.integrations.penpot.docker.get_command_version",
+            "cataforge.adapter.integrations.penpot.docker.get_command_version",
             return_value="v25.8.0",
         ),
         patch(
-            "cataforge.integrations.penpot.docker.docker_compose_cmd",
+            "cataforge.adapter.integrations.penpot.docker.docker_compose_cmd",
             return_value=["docker", "compose"],
         ),
     ):
@@ -433,13 +436,13 @@ def test_preflight_warns_on_unsupported_node(capsys) -> None:
 
 def test_preflight_accepts_supported_node(capsys) -> None:
     with (
-        patch("cataforge.integrations.penpot.docker.has_command", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.docker.has_command", return_value=True),
         patch(
-            "cataforge.integrations.penpot.docker.get_command_version",
+            "cataforge.adapter.integrations.penpot.docker.get_command_version",
             return_value="v22.11.0",
         ),
         patch(
-            "cataforge.integrations.penpot.docker.docker_compose_cmd",
+            "cataforge.adapter.integrations.penpot.docker.docker_compose_cmd",
             return_value=["docker", "compose"],
         ),
     ):
@@ -512,8 +515,8 @@ def test_register_survives_claude_list_timeout() -> None:
         return subprocess.CompletedProcess(cmd, 0, stdout="Added penpot", stderr="")
 
     with (
-        patch("cataforge.integrations.penpot.client.has_command", return_value=True),
-        patch("cataforge.integrations.penpot.client.run_cmd", side_effect=fake_run_cmd),
+        patch("cataforge.adapter.integrations.penpot.client.has_command", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.client.run_cmd", side_effect=fake_run_cmd),
     ):
         # Must not raise; list-timeout falls through to the idempotent add.
         penpot.register_claude_mcp({"mcp_port": 4401})
@@ -521,9 +524,9 @@ def test_register_survives_claude_list_timeout() -> None:
 
 def test_register_warns_when_claude_fully_unresponsive(capsys) -> None:
     with (
-        patch("cataforge.integrations.penpot.client.has_command", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.client.has_command", return_value=True),
         patch(
-            "cataforge.integrations.penpot.client.run_cmd",
+            "cataforge.adapter.integrations.penpot.client.run_cmd",
             side_effect=subprocess.TimeoutExpired(["claude"], 30),
         ),
     ):
@@ -567,10 +570,10 @@ def test_cmd_remote_skips_docker_preflight() -> None:
         return True
 
     with (
-        patch("cataforge.integrations.penpot.preflight_check", side_effect=fake_preflight),
-        patch("cataforge.integrations.penpot.start_mcp", return_value=True),
-        patch("cataforge.integrations.penpot.register_claude_mcp"),
-        patch("cataforge.integrations.penpot.print_remote_onboarding"),
+        patch("cataforge.adapter.integrations.penpot.preflight_check", side_effect=fake_preflight),
+        patch("cataforge.adapter.integrations.penpot.start_mcp", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.register_claude_mcp"),
+        patch("cataforge.adapter.integrations.penpot.print_remote_onboarding"),
     ):
         rc = penpot.cmd_remote(config)
 
@@ -581,15 +584,15 @@ def test_cmd_remote_skips_docker_preflight() -> None:
 def test_cmd_remote_fails_when_mcp_cannot_start() -> None:
     config = penpot.get_config()
     with (
-        patch("cataforge.integrations.penpot.preflight_check", return_value=True),
-        patch("cataforge.integrations.penpot.start_mcp", return_value=False),
+        patch("cataforge.adapter.integrations.penpot.preflight_check", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.start_mcp", return_value=False),
     ):
         rc = penpot.cmd_remote(config)
     assert rc == 1
 
 
 def test_remote_argparse_subcommand_dispatches() -> None:
-    """`python -m cataforge.integrations.penpot remote` routes to the
+    """`python -m cataforge.adapter.integrations.penpot remote` routes to the
     ``remote`` entry in ``penpot.HANDLERS``.
 
     Post-D5: dispatch is via the module-level ``HANDLERS`` registry, so
@@ -601,7 +604,7 @@ def test_remote_argparse_subcommand_dispatches() -> None:
     """
     mock = MagicMock(return_value=0)
     with (
-        patch("cataforge.integrations.penpot.load_dotenv"),
+        patch("cataforge.adapter.integrations.penpot.load_dotenv"),
         patch.dict(penpot.HANDLERS, {"remote": mock}),
     ):
         rc = penpot.main(["remote"])
@@ -616,7 +619,7 @@ def test_remote_argparse_subcommand_dispatches() -> None:
 
 def test_cmd_init_dispatches_remote_on_choice_1(monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda _prompt="": "1")
-    with patch("cataforge.integrations.penpot.cmd_remote", return_value=0) as mock:
+    with patch("cataforge.adapter.integrations.penpot.cmd_remote", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -624,7 +627,7 @@ def test_cmd_init_dispatches_remote_on_choice_1(monkeypatch) -> None:
 
 def test_cmd_init_dispatches_deploy_on_choice_2(monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda _prompt="": "2")
-    with patch("cataforge.integrations.penpot.cmd_deploy", return_value=0) as mock:
+    with patch("cataforge.adapter.integrations.penpot.cmd_deploy", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -632,7 +635,7 @@ def test_cmd_init_dispatches_deploy_on_choice_2(monkeypatch) -> None:
 
 def test_cmd_init_dispatches_mcp_only_on_choice_3(monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda _prompt="": "3")
-    with patch("cataforge.integrations.penpot.cmd_mcp_only", return_value=0) as mock:
+    with patch("cataforge.adapter.integrations.penpot.cmd_mcp_only", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -640,7 +643,7 @@ def test_cmd_init_dispatches_mcp_only_on_choice_3(monkeypatch) -> None:
 
 def test_cmd_init_uses_default_on_empty_input(monkeypatch) -> None:
     monkeypatch.setattr("builtins.input", lambda _prompt="": "")
-    with patch("cataforge.integrations.penpot.cmd_remote", return_value=0) as mock:
+    with patch("cataforge.adapter.integrations.penpot.cmd_remote", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -653,7 +656,7 @@ def test_cmd_init_handles_eof_gracefully(monkeypatch) -> None:
         raise EOFError
 
     monkeypatch.setattr("builtins.input", _raises)
-    with patch("cataforge.integrations.penpot.cmd_remote", return_value=0) as mock:
+    with patch("cataforge.adapter.integrations.penpot.cmd_remote", return_value=0) as mock:
         rc = penpot.cmd_init(penpot.get_config())
     assert rc == 0
     mock.assert_called_once()
@@ -667,9 +670,9 @@ def test_cmd_init_handles_eof_gracefully(monkeypatch) -> None:
 def test_status_rows_probes_all_three_services() -> None:
     config = {"penpot_port": 9001, "mcp_port": 4401, "plugin_port": 4400}
     with (
-        patch("cataforge.integrations.penpot._is_penpot_running", return_value=True),
-        patch("cataforge.integrations.penpot._is_mcp_running", return_value=False),
-        patch("cataforge.integrations.penpot.is_port_listening", return_value=True),
+        patch("cataforge.adapter.integrations.penpot._is_penpot_running", return_value=True),
+        patch("cataforge.adapter.integrations.penpot._is_mcp_running", return_value=False),
+        patch("cataforge.adapter.integrations.penpot.is_port_listening", return_value=True),
     ):
         rows = penpot._status_rows(config)
     assert len(rows) == 3
@@ -685,9 +688,9 @@ def test_status_rows_probes_all_three_services() -> None:
 def test_cmd_status_table_prints_next_step_when_mcp_down(capsys) -> None:
     config = penpot.get_config()
     with (
-        patch("cataforge.integrations.penpot._is_penpot_running", return_value=False),
-        patch("cataforge.integrations.penpot._is_mcp_running", return_value=False),
-        patch("cataforge.integrations.penpot.is_port_listening", return_value=False),
+        patch("cataforge.adapter.integrations.penpot._is_penpot_running", return_value=False),
+        patch("cataforge.adapter.integrations.penpot._is_mcp_running", return_value=False),
+        patch("cataforge.adapter.integrations.penpot.is_port_listening", return_value=False),
     ):
         rc = penpot.cmd_status(config)
     out = capsys.readouterr().out
@@ -716,14 +719,14 @@ def test_cmd_doctor_flags_missing_compose_fix(tmp_path, capsys) -> None:
         "plugin_port": 4400,
     }
     with (
-        patch("cataforge.integrations.penpot.has_command", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.has_command", return_value=True),
         patch(
-            "cataforge.integrations.penpot.get_command_version",
+            "cataforge.adapter.integrations.penpot.get_command_version",
             return_value="v22.11.0",
         ),
-        patch("cataforge.integrations.penpot._is_penpot_running", return_value=False),
-        patch("cataforge.integrations.penpot._is_mcp_running", return_value=False),
-        patch("cataforge.integrations.penpot.is_port_listening", return_value=False),
+        patch("cataforge.adapter.integrations.penpot._is_penpot_running", return_value=False),
+        patch("cataforge.adapter.integrations.penpot._is_mcp_running", return_value=False),
+        patch("cataforge.adapter.integrations.penpot.is_port_listening", return_value=False),
         patch("os.path.isfile", side_effect=lambda p: p == str(compose)),
     ):
         rc = penpot.cmd_doctor(config)
@@ -748,14 +751,14 @@ def test_cmd_doctor_passes_on_fixed_compose(tmp_path, capsys) -> None:
         "plugin_port": 4400,
     }
     with (
-        patch("cataforge.integrations.penpot.has_command", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.has_command", return_value=True),
         patch(
-            "cataforge.integrations.penpot.get_command_version",
+            "cataforge.adapter.integrations.penpot.get_command_version",
             return_value="v22.11.0",
         ),
-        patch("cataforge.integrations.penpot._is_penpot_running", return_value=True),
-        patch("cataforge.integrations.penpot._is_mcp_running", return_value=True),
-        patch("cataforge.integrations.penpot.is_port_listening", return_value=True),
+        patch("cataforge.adapter.integrations.penpot._is_penpot_running", return_value=True),
+        patch("cataforge.adapter.integrations.penpot._is_mcp_running", return_value=True),
+        patch("cataforge.adapter.integrations.penpot.is_port_listening", return_value=True),
         # MCP log absent → "MCP 可能从未启动" info, not a problem
         patch("os.path.isfile", side_effect=lambda p: p == str(compose)),
     ):
@@ -770,7 +773,7 @@ def test_doctor_argparse_subcommand_dispatches() -> None:
     # there rather than the module-level function reference.
     mock = MagicMock(return_value=0)
     with (
-        patch("cataforge.integrations.penpot.load_dotenv"),
+        patch("cataforge.adapter.integrations.penpot.load_dotenv"),
         patch.dict(penpot.HANDLERS, {"doctor": mock}),
     ):
         rc = penpot.main(["doctor"])
@@ -781,7 +784,7 @@ def test_doctor_argparse_subcommand_dispatches() -> None:
 def test_init_argparse_subcommand_dispatches() -> None:
     mock = MagicMock(return_value=0)
     with (
-        patch("cataforge.integrations.penpot.load_dotenv"),
+        patch("cataforge.adapter.integrations.penpot.load_dotenv"),
         patch.dict(penpot.HANDLERS, {"init": mock}),
     ):
         rc = penpot.main(["init"])

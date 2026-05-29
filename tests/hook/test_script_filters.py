@@ -2,7 +2,7 @@
 
 These filters narrow a hook beyond what IDE-native matchers can express
 (they can only pick "Bash" or "Edit" at the tool level).  The evaluator
-lives in ``cataforge.hook.base.matches_script_filters``; scripts call it
+lives in ``cataforge.runtime.hook.base.matches_script_filters``; scripts call it
 after their capability gate.
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.hook.base import matches_script_filters
+from cataforge.runtime.hook.base import matches_script_filters
 
 
 @pytest.fixture()
@@ -48,7 +48,7 @@ def spec_with_filters(
             ],
         },
     }
-    import cataforge.hook.bridge as bridge
+    import cataforge.runtime.hook.bridge as bridge
 
     monkeypatch.setattr(bridge, "load_hooks_spec", lambda _p=None: spec)
     return spec
@@ -93,7 +93,7 @@ class TestNoFiltersDeclared:
     def test_script_not_in_spec_allows(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import cataforge.hook.bridge as bridge
+        import cataforge.runtime.hook.bridge as bridge
 
         monkeypatch.setattr(
             bridge, "load_hooks_spec", lambda _p=None: {"hooks": {}}
@@ -103,7 +103,7 @@ class TestNoFiltersDeclared:
     def test_script_with_no_filters_allows(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import cataforge.hook.bridge as bridge
+        import cataforge.runtime.hook.bridge as bridge
 
         spec = {
             "hooks": {

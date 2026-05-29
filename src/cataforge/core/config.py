@@ -14,7 +14,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from cataforge.core.paths import ProjectPaths, find_project_root
-from cataforge.schema.framework import FrameworkFile
+from cataforge.core.schema.framework import FrameworkFile
 from cataforge.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger("cataforge.config")

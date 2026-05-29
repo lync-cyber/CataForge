@@ -1,10 +1,10 @@
 """Shim layer per-doc_type dispatch tests.
 
-Verifies each public shim in :mod:`cataforge.kg._shim`:
+Verifies each public shim in :mod:`cataforge.domain.kg._shim`:
 
 * with an active doc_type → KG branch returns a typed dict
 * with no active doc_type → legacy branch delegates to
-  :mod:`cataforge.docs.loader` / :mod:`cataforge.docs.indexer`
+  :mod:`cataforge.domain.docs.loader` / :mod:`cataforge.domain.docs.indexer`
 
 Tests inject an already-open `KnowledgeGraph` via the `kg=...`
 parameter; the production `db_path` path is exercised via a
@@ -19,8 +19,8 @@ from pathlib import Path
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
 def _ingest_into_memory(project_root: Path):
-    from cataforge.kg import KGConfig, KnowledgeGraph, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -36,7 +36,7 @@ def _active(config, doc_types: set[str]):
 # ---------------------------------------------------------------------------
 
 def test_extract_kg_branch() -> None:
-    from cataforge.kg._shim import extract
+    from cataforge.domain.kg._shim import extract
 
     project_root = FIXTURE_ROOT / "waterfall"
     kg, base_config = _ingest_into_memory(project_root)
@@ -60,14 +60,14 @@ def test_extract_kg_branch() -> None:
 
 def test_extract_legacy_branch_is_invoked_when_doc_type_inactive(tmp_path: Path) -> None:
     """When the doc_type isn't in `kg_active_doc_types`, the shim must
-    delegate to :mod:`cataforge.docs.loader` (not the KG).
+    delegate to :mod:`cataforge.domain.docs.loader` (not the KG).
 
     The fixture's heading style (``## §1 概览``) is not loader-friendly
     by itself, so we synthesize a tiny project on `tmp_path` with a
     legacy-loader-compatible heading and confirm the legacy branch
     surfaces the body text.
     """
-    from cataforge.kg._shim import extract
+    from cataforge.domain.kg._shim import extract
 
     project_root = tmp_path / "proj"
     (project_root / "docs" / "brief").mkdir(parents=True)
@@ -82,7 +82,7 @@ def test_extract_legacy_branch_is_invoked_when_doc_type_inactive(tmp_path: Path)
     )
 
     # No KG store on disk; doc_type "brief" not in active set → legacy.
-    from cataforge.kg import KGConfig
+    from cataforge.domain.kg import KGConfig
 
     config = KGConfig(
         store_backend="oxigraph",
@@ -110,7 +110,7 @@ def test_extract_legacy_branch_is_invoked_when_doc_type_inactive(tmp_path: Path)
 # ---------------------------------------------------------------------------
 
 def test_extract_batch_dispatches_per_spec() -> None:
-    from cataforge.kg._shim import extract_batch
+    from cataforge.domain.kg._shim import extract_batch
 
     project_root = FIXTURE_ROOT / "waterfall"
     kg, base_config = _ingest_into_memory(project_root)
@@ -135,7 +135,7 @@ def test_extract_batch_dispatches_per_spec() -> None:
 # ---------------------------------------------------------------------------
 
 def test_plan_load_kg_branch_orders_entities() -> None:
-    from cataforge.kg._shim import plan_load
+    from cataforge.domain.kg._shim import plan_load
 
     project_root = FIXTURE_ROOT / "waterfall"
     kg, base_config = _ingest_into_memory(project_root)
@@ -156,7 +156,7 @@ def test_plan_load_kg_branch_orders_entities() -> None:
     assert result["estimated_tokens"] > 0
 
 def test_plan_load_drops_when_budget_exhausted() -> None:
-    from cataforge.kg._shim import plan_load
+    from cataforge.domain.kg._shim import plan_load
 
     project_root = FIXTURE_ROOT / "waterfall"
     kg, base_config = _ingest_into_memory(project_root)
@@ -181,7 +181,7 @@ def test_plan_load_drops_when_budget_exhausted() -> None:
 # ---------------------------------------------------------------------------
 
 def test_build_full_index_kg_branch() -> None:
-    from cataforge.kg._shim import build_full_index
+    from cataforge.domain.kg._shim import build_full_index
 
     project_root = FIXTURE_ROOT / "waterfall"
     kg, base_config = _ingest_into_memory(project_root)
@@ -203,7 +203,7 @@ def test_build_full_index_kg_branch() -> None:
 # ---------------------------------------------------------------------------
 
 def test_resolve_deps_kg_branch_empty_when_none_declared() -> None:
-    from cataforge.kg._shim import resolve_deps
+    from cataforge.domain.kg._shim import resolve_deps
 
     project_root = FIXTURE_ROOT / "waterfall"
     kg, base_config = _ingest_into_memory(project_root)
@@ -222,7 +222,7 @@ def test_resolve_deps_kg_branch_empty_when_none_declared() -> None:
 # ---------------------------------------------------------------------------
 
 def test_extract_with_body_renders_via_kg() -> None:
-    from cataforge.kg._shim import extract_with_body
+    from cataforge.domain.kg._shim import extract_with_body
 
     project_root = FIXTURE_ROOT / "waterfall"
     kg, base_config = _ingest_into_memory(project_root)
@@ -248,7 +248,7 @@ def test_extract_with_body_renders_via_kg() -> None:
 # ---------------------------------------------------------------------------
 
 def test_source_section_legacy_branch_slices_file() -> None:
-    from cataforge.kg._shim import source_section
+    from cataforge.domain.kg._shim import source_section
 
     project_root = FIXTURE_ROOT / "waterfall"
     kg, base_config = _ingest_into_memory(project_root)
@@ -272,7 +272,7 @@ def test_source_section_legacy_branch_slices_file() -> None:
 # ---------------------------------------------------------------------------
 
 def test_shim_emits_deprecation_warning() -> None:
-    from cataforge.kg._shim import build_full_index
+    from cataforge.domain.kg._shim import build_full_index
 
     project_root = FIXTURE_ROOT / "waterfall"
     kg, base_config = _ingest_into_memory(project_root)
@@ -303,9 +303,9 @@ def test_extract_transient_connection_oxigraph(tmp_path: Path) -> None:
     """
     import gc
 
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg._shim import extract
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._shim import extract
+    from cataforge.domain.kg.ingest import run_migration
 
     project_root = FIXTURE_ROOT / "waterfall"
     db_path = tmp_path / ".cataforge" / "kg" / "store"

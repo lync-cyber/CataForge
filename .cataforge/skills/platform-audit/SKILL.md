@@ -12,7 +12,7 @@ user-invocable: true
 
 ## 能力边界
 - 能做: 检索各 AI IDE 最新能力文档、与现有 profile.yaml 差异分析、更新配置/源码/测试、运行合规检查
-- 不做: 新增全新平台 adapter（需先在 `src/cataforge/platform/` 创建 adapter 类）、修改核心调度逻辑、审查 `.cataforge/` 下框架内部 agents/skills/hooks（由 framework-review 负责）
+- 不做: 新增全新平台 adapter（需先在 `src/cataforge/adapter/platform/` 创建 adapter 类）、修改核心调度逻辑、审查 `.cataforge/` 下框架内部 agents/skills/hooks（由 framework-review 负责）
 
 ## 设计原理
 
@@ -122,10 +122,10 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
 - `profile.yaml` — 几乎所有差异都需要更新
 - `src/cataforge/core/types.py` — CAPABILITY_IDS / OPTIONAL / EXTENDED / AGENT_FRONTMATTER_FIELDS / PLATFORM_FEATURES / PermissionMode
-- `src/cataforge/platform/<id>.py` — adapter 代码（tool_overrides / deploy_agents / inject_mcp_config）
-- `src/cataforge/platform/base.py` — 基类属性（仅当新增通用属性时）
-- `src/cataforge/hook/bridge.py` — hook 生成逻辑
-- `src/cataforge/platform/conformance.py` — 合规检查逻辑
+- `src/cataforge/adapter/platform/<id>.py` — adapter 代码（tool_overrides / deploy_agents / inject_mcp_config）
+- `src/cataforge/adapter/platform/base.py` — 基类属性（仅当新增通用属性时）
+- `src/cataforge/runtime/hook/bridge.py` — hook 生成逻辑
+- `src/cataforge/adapter/platform/conformance.py` — 合规检查逻辑
 - `.cataforge/platforms/<id>/overrides/dispatch-prompt.md` — 调度提示模板
 - `.cataforge/platforms/_schema.yaml` — profile 字段定义
 - `tests/test_platform.py` / `test_hook_bridge.py` / `test_translator.py` / `test_conformance.py` / `test_deployer_refactor.py`
@@ -186,8 +186,8 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
 核心 + 扩展合规:
 ```bash
-python -c "from cataforge.platform.conformance import check_all_conformance; print('\n'.join(check_all_conformance()))"
-python -c "from cataforge.platform.conformance import check_all_extended_conformance; print('\n'.join(check_all_extended_conformance()))"
+python -c "from cataforge.adapter.platform.conformance import check_all_conformance; print('\n'.join(check_all_conformance()))"
+python -c "from cataforge.adapter.platform.conformance import check_all_extended_conformance; print('\n'.join(check_all_extended_conformance()))"
 ```
 
 确认所有平台通过核心合规（FAIL=0，WARN 仅针对已知缺失的可选能力）。扩展合规的 INFO 表示该平台不支持的扩展能力/特性，属于预期行为。

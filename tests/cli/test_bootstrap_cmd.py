@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cataforge.cli.main import cli
+from cataforge.interface.cli.main import cli
 
 
 @pytest.fixture

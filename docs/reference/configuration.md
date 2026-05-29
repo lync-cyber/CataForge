@@ -34,7 +34,7 @@
 
 ## framework.json
 
-框架单一配置源。Schema 由 [`cataforge.schema.framework.FrameworkFile`](../../src/cataforge/schema/framework.py) 校验；upgrade 时的 preserve / overwrite 策略由 [`cataforge.core.scaffold._merge_framework_json`](../../src/cataforge/core/scaffold.py) 实现 —— 修改本节字段说明前请先核对那两处代码。
+框架单一配置源。Schema 由 [`cataforge.core.schema.framework.FrameworkFile`](../../src/cataforge/core/schema/framework.py) 校验；upgrade 时的 preserve / overwrite 策略由 [`cataforge.core.scaffold._merge_framework_json`](../../src/cataforge/core/scaffold.py) 实现 —— 修改本节字段说明前请先核对那两处代码。
 
 ### 结构示例（与 `.cataforge/framework.json` 实际形态一致）
 
@@ -112,7 +112,7 @@
 }
 ```
 
-> 用户安装时 `cataforge setup` / `cataforge upgrade apply` 写盘的 `version` 字段由 [`scaffold._stamp_framework_version`](../../src/cataforge/core/scaffold.py) 戳入实际包版本（`cataforge.__version__`）；用户侧不会看到 `0.0.0-template` 字面值。源仓库 `.cataforge/framework.json:version` 留 `0.0.0-template` 占位，[`Config.version`](../../src/cataforge/core/config.py) 在读取时检测此前缀并解析为运行包版本（这样 dogfood 开发者在 `cataforge bootstrap` / `cataforge doctor` 看到的是真实版本号），同时 [`bootstrap_cmd._semver_newer`](../../src/cataforge/cli/bootstrap_cmd.py) 也对 `0.0.0-` 前缀短路返回 False，避免触发"installed > scaffold"伪升级。
+> 用户安装时 `cataforge setup` / `cataforge upgrade apply` 写盘的 `version` 字段由 [`scaffold._stamp_framework_version`](../../src/cataforge/core/scaffold.py) 戳入实际包版本（`cataforge.__version__`）；用户侧不会看到 `0.0.0-template` 字面值。源仓库 `.cataforge/framework.json:version` 留 `0.0.0-template` 占位，[`Config.version`](../../src/cataforge/core/config.py) 在读取时检测此前缀并解析为运行包版本（这样 dogfood 开发者在 `cataforge bootstrap` / `cataforge doctor` 看到的是真实版本号），同时 [`bootstrap_cmd._semver_newer`](../../src/cataforge/interface/cli/bootstrap_cmd.py) 也对 `0.0.0-` 前缀短路返回 False，避免触发"installed > scaffold"伪升级。
 
 ### 字段说明
 
@@ -350,7 +350,7 @@ rules:                               # 可选：跨平台镜像
 
 ## hooks.yaml
 
-平台无关 hook 规范，由 `cataforge.hook.bridge` 解析后联同各 platform profile 的 `hooks.event_map` / `matcher_map` / `degradation` 生成平台原生 hook 配置（`.claude/settings.json`、`.cursor/hooks.json` 等）。
+平台无关 hook 规范，由 `cataforge.runtime.hook.bridge` 解析后联同各 platform profile 的 `hooks.event_map` / `matcher_map` / `degradation` 生成平台原生 hook 配置（`.claude/settings.json`、`.cursor/hooks.json` 等）。
 
 `schema_version: 2` 是当前形态；schema 演化策略见 hooks.yaml 顶部注释。
 
@@ -362,7 +362,7 @@ schema_version: 2
 hooks:
   PreToolUse:
     - matcher_capability: shell_exec       # CataForge capability id（不是平台原生工具名）
-      script: guard_dangerous              # 短名 — 解析为 cataforge.hook.scripts.guard_dangerous
+      script: guard_dangerous              # 短名 — 解析为 cataforge.runtime.hook.scripts.guard_dangerous
       type: block                          # block | observe
       description: "危险命令拦截"
       safety_critical: true                # 该 hook 失败应阻断流程，degraded 时也必须有降级方案
@@ -406,7 +406,7 @@ degradation_templates:                     # 平台不支持某 hook 时的降�
 
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
-| `script` | str | ✅ | hook 实现的模块短名；解析为 `cataforge.hook.scripts.<name>` |
+| `script` | str | ✅ | hook 实现的模块短名；解析为 `cataforge.runtime.hook.scripts.<name>` |
 | `type` | enum[block, observe] | ✅ | `block` 失败时阻断当前工具调用；`observe` 仅观测，失败不阻断 |
 | `description` | str | ⚠️ 推荐 | 一句说明，写入 deploy 产物注释 |
 | `matcher_capability` | str | 可选 | CataForge capability id（如 `shell_exec` / `agent_dispatch` / `file_edit` / `user_question`），由 platform 的 `tool_map` / `matcher_map` 翻译为原生工具名。缺省 = 全事件触发（适合 `Stop` / `Notification` / `SessionStart`） |
@@ -425,7 +425,7 @@ degradation_templates:                     # 平台不支持某 hook 时的降�
 
 ### 实物 hook 列表（dogfood 项目）
 
-`cataforge doctor` 在 `Hook script importability` 段会校验全部声明 hook 的 `cataforge.hook.scripts.<name>` 都可 `importlib.find_spec`：
+`cataforge doctor` 在 `Hook script importability` 段会校验全部声明 hook 的 `cataforge.runtime.hook.scripts.<name>` 都可 `importlib.find_spec`：
 
 | event | matcher_capability | script |
 |-------|-------------------|--------|

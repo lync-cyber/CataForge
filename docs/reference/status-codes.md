@@ -2,7 +2,7 @@
 
 > CataForge 运行时的统一状态码、文档引用格式、事件日志规范。
 >
-> **适用版本**：v0.1.15。常量定义以 [`cataforge.cli.errors`](../../src/cataforge/cli/errors.py) 为权威。
+> **适用版本**：v0.1.15。常量定义以 [`cataforge.interface.cli.errors`](../../src/cataforge/interface/cli/errors.py) 为权威。
 
 ## 1. Agent 状态码
 
@@ -103,7 +103,7 @@ Agent 间通过标准化引用格式传递信息，避免全文复制：
 | `2`  | Click 用法错误（未知选项、缺必需参数等） |
 | `70` | 功能未实现（路线图 stub）— BSD sysexits `EX_SOFTWARE` |
 
-> `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`。完整定义以 [`cli.md`](./cli.md) §退出码 为准；常量在 [`cataforge.cli.errors`](../../src/cataforge/cli/errors.py)。
+> `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`。完整定义以 [`cli.md`](./cli.md) §退出码 为准；常量在 [`cataforge.interface.cli.errors`](../../src/cataforge/interface/cli/errors.py)。
 
 ---
 

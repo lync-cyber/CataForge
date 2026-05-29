@@ -12,7 +12,7 @@ later when re-encoded as UTF-8.
 :func:`cataforge.core.io.read_stdin_utf8` is the single approved entry
 point — it reads raw bytes from ``sys.stdin.buffer`` and decodes them
 as UTF-8 itself, sidestepping the locale entirely. Every other call
-site MUST go through it (or :func:`cataforge.hook.base.read_hook_input`,
+site MUST go through it (or :func:`cataforge.runtime.hook.base.read_hook_input`,
 which wraps it).
 
 This test parses ``src/cataforge/`` with ``ast`` so docstrings and
@@ -99,7 +99,7 @@ def test_no_text_mode_stdin_read_outside_core_io() -> None:
 
     assert not violations, (
         "Use cataforge.core.io.read_stdin_utf8() (or "
-        "cataforge.hook.base.read_hook_input() for hooks) instead of "
+        "cataforge.runtime.hook.base.read_hook_input() for hooks) instead of "
         "sys.stdin.read*(). Python's text-mode stdin decodes through the "
         "platform locale and corrupts UTF-8 payloads on non-UTF-8 systems "
         "(Windows cp936/cp1252 in particular).\n\nViolations:\n  - "

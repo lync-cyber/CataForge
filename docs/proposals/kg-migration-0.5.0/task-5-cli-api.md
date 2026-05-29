@@ -10,9 +10,9 @@ Anchors:
 - Backward-compat shim layer covers ≥5 business-doc call points from Task 1 §1.3.
 
 Companion artifacts required by this task:
-- `src/cataforge/kg/_models_core.py` — Pydantic v2 auto-generated from `schemas/core.yaml`
-- `src/cataforge/kg/shapes/extra.shacl.ttl` — 3 hand-written SHACL invariants (see §3.2.4)
-- `src/cataforge/kg/_shim.py` — backward-compat shim layer (§5.5)
+- `src/cataforge/domain/kg/_models_core.py` — Pydantic v2 auto-generated from `schemas/core.yaml`
+- `src/cataforge/domain/kg/shapes/extra.shacl.ttl` — 3 hand-written SHACL invariants (see §3.2.4)
+- `src/cataforge/domain/kg/_shim.py` — backward-compat shim layer (§5.5)
 
 ---
 
@@ -528,7 +528,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from cataforge.kg._config import KGConfig
+from cataforge.domain.kg._config import KGConfig
 
 
 @runtime_checkable
@@ -578,11 +578,11 @@ from typing import AsyncIterator, Iterator
 
 import pyoxigraph as ox
 
-from cataforge.kg._config import KGConfig
-from cataforge.kg._query import QueryAPI
-from cataforge.kg._trace import TraceAPI
-from cataforge.kg._transaction import TransactionContext
-from cataforge.kg._protocol import KnowledgeGraphProtocol
+from cataforge.domain.kg._config import KGConfig
+from cataforge.domain.kg._query import QueryAPI
+from cataforge.domain.kg._trace import TraceAPI
+from cataforge.domain.kg._transaction import TransactionContext
+from cataforge.domain.kg._protocol import KnowledgeGraphProtocol
 
 
 class KnowledgeGraph:
@@ -783,11 +783,11 @@ from typing import Any, Sequence
 
 import pyoxigraph as ox
 
-from cataforge.kg._config import KGConfig
-from cataforge.kg._models_core import (
+from cataforge.domain.kg._config import KGConfig
+from cataforge.domain.kg._models_core import (
     Feature, Module, Component, Task, TestCase, SoftwareArtifact,
 )
-from cataforge.kg._exceptions import KGQueryTimeoutError
+from cataforge.domain.kg._exceptions import KGQueryTimeoutError
 
 
 CF = "https://cataforge.dev/ontology/"
@@ -1085,8 +1085,8 @@ from typing import Literal
 
 import pyoxigraph as ox
 
-from cataforge.kg._config import KGConfig
-from cataforge.kg._models_core import (
+from cataforge.domain.kg._config import KGConfig
+from cataforge.domain.kg._models_core import (
     Feature, Module, Component, Task, TestCase, Release, SoftwareArtifact,
 )
 
@@ -1307,9 +1307,9 @@ from typing import Any, Sequence
 
 import pyoxigraph as ox
 
-from cataforge.kg._config import KGConfig
-from cataforge.kg._models_core import SoftwareArtifact
-from cataforge.kg._exceptions import KGNodeConflictError, KGGraphInconsistencyError
+from cataforge.domain.kg._config import KGConfig
+from cataforge.domain.kg._models_core import SoftwareArtifact
+from cataforge.domain.kg._exceptions import KGNodeConflictError, KGGraphInconsistencyError
 
 
 class TransactionContext:
@@ -1540,7 +1540,7 @@ Expected: All `mentions`-style cross-refs are rewritten to `doc_id#§N.ITEM`; ex
 
 ```python
 import asyncio
-from cataforge.kg import KnowledgeGraph, KGConfig
+from cataforge.domain.kg import KnowledgeGraph, KGConfig
 
 config = KGConfig(db_path=".cataforge/kg/store")
 
@@ -1563,8 +1563,8 @@ asyncio.run(check_coverage())
 
 ```python
 import asyncio
-from cataforge.kg import KnowledgeGraph, KGConfig
-from cataforge.kg._models_core import TestCase
+from cataforge.domain.kg import KnowledgeGraph, KGConfig
+from cataforge.domain.kg._models_core import TestCase
 
 config = KGConfig(db_path=".cataforge/kg/store")
 
@@ -1590,7 +1590,7 @@ asyncio.run(add_test_case())
 **Use case A-3: Agent uses plan_load to fit context within a token budget**
 
 ```python
-from cataforge.kg import KnowledgeGraph, KGConfig
+from cataforge.domain.kg import KnowledgeGraph, KGConfig
 
 config = KGConfig(db_path=".cataforge/kg/store")
 
@@ -1621,8 +1621,8 @@ with KnowledgeGraph.connect(config) as kg:
 
 ```python
 import asyncio
-from cataforge.kg import KnowledgeGraph, KGConfig
-from cataforge.kg._models_core import Feature, Module
+from cataforge.domain.kg import KnowledgeGraph, KGConfig
+from cataforge.domain.kg._models_core import Feature, Module
 
 config = KGConfig(db_path=".cataforge/kg/store")
 
@@ -1887,7 +1887,7 @@ def retry_on_conflict(max_retries: int = 3, base_delay: float = 0.1) -> Callable
 
 The shim layer provides drop-in replacements for the five business-doc call points identified in Task 1 §1.3. Framework-asset call points (skill loading, agent registry, rule evaluation, EVENT-LOG lifting) do **not** require shims because they operate on `.cataforge/` filesystem assets that are not mediated by the 0.4.x KG API.
 
-The shim module is located at `src/cataforge/kg/_shim.py` and is imported by `src/cataforge/docs/_compat.py` for backward compatibility.
+The shim module is located at `src/cataforge/domain/kg/_shim.py` and is imported by `src/cataforge/domain/docs/_compat.py` for backward compatibility.
 
 ### Deprecation policy
 
@@ -1914,8 +1914,8 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-from cataforge.kg._kg import KnowledgeGraph
-from cataforge.kg._config import KGConfig
+from cataforge.domain.kg._kg import KnowledgeGraph
+from cataforge.domain.kg._config import KGConfig
 
 _DEFAULT_CONFIG = KGConfig()
 
@@ -1939,7 +1939,7 @@ def extract(
     """
     0.4.x shim: extract a single entity by doc_type and section anchor.
 
-    Replaces the old ``cataforge.docs.extract(doc_type, section_id)`` call
+    Replaces the old ``cataforge.domain.docs.extract(doc_type, section_id)`` call
     that read from ``.doc-index.json``.
 
     Parameters
@@ -2004,7 +2004,7 @@ def extract_batch(
     """
     0.4.x shim: batch-extract multiple entities by spec list.
 
-    Replaces the old ``cataforge.docs.extract_batch(specs)`` call.
+    Replaces the old ``cataforge.domain.docs.extract_batch(specs)`` call.
 
     Parameters
     ----------
@@ -2052,7 +2052,7 @@ def plan_load(
     """
     0.4.x shim: produce a load plan for a list of entity_id strings.
 
-    Replaces the old ``cataforge.docs.plan_load(items, budget)`` call that
+    Replaces the old ``cataforge.domain.docs.plan_load(items, budget)`` call that
     operated on the ``.doc-index.json`` dependency graph.
 
     Parameters
@@ -2103,7 +2103,7 @@ def build_full_index(
     """
     0.4.x shim: build a full entity index dict keyed by entity_id.
 
-    Replaces the old ``cataforge.docs.build_full_index()`` call that
+    Replaces the old ``cataforge.domain.docs.build_full_index()`` call that
     scanned ``.doc-index.json`` to build an in-memory dict for downstream
     skills.  Now implemented as a SPARQL SELECT across all SoftwareArtifact
     instances (Q6-style deterministic sort).
@@ -2181,7 +2181,7 @@ def resolve_deps(
     """
     0.4.x shim: return the list of entity_ids that ``item_id`` depends on.
 
-    Replaces the old ``cataforge.docs.resolve_deps(item_id)`` call that
+    Replaces the old ``cataforge.domain.docs.resolve_deps(item_id)`` call that
     walked the ``.doc-index.json`` dependency graph.  Now implemented as a
     SPARQL query over ``cf:depends_on`` edges.
 

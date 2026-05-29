@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cataforge.cli.doctor_cmd import doctor_command
+from cataforge.interface.cli.doctor_cmd import doctor_command
 
 
 def _minimal_project(tmp_path: Path) -> Path:

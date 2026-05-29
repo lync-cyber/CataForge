@@ -91,7 +91,7 @@ Sprint审查额外category:
 
 ## Layer 1 检查项 (sprint_check.py)
 
-> 权威清单见 `cataforge.skill.builtins.sprint_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。anchor 模式：每条 manifest 项必须在本段以 HTML check_id 注释形式出现（见下方各条），反之亦然。
+> 权威清单见 `cataforge.runtime.skill.builtins.sprint_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。anchor 模式：每条 manifest 项必须在本段以 HTML check_id 注释形式出现（见下方各条），反之亦然。
 
 - <!-- check_id: task_status_done --> Sprint任务表中所有任务状态=done
 - <!-- check_id: deliverables_exist --> 每个任务的deliverables文件路径全部存在于磁盘
@@ -125,7 +125,7 @@ project_features:
 | `deliverables_accept_alternation` | bool | false | true 时 `check_deliverables` 把 `A \| B` 视为或关系（任一存在即过），同时 `check_unplanned_files` 把两候选都标为 planned（避免 gold-plating 误报） |
 | `unplanned_glob_patterns` | list[str] | `[]` | 每条 fnmatch 模式应用于 `check_unplanned_files` 输出；匹配的文件被滤掉。典型用途：项目级测试/fixture/helper 命名约定 |
 
-读取由 `cataforge.skill.builtins.sprint_review.sprint_check.load_project_features()` 完成；优先读非 sprint 分卷（不带 `-sN.md` 后缀）的第一个含 `project_features:` 的文件。
+读取由 `cataforge.runtime.skill.builtins.sprint_review.sprint_check.load_project_features()` 完成；优先读非 sprint 分卷（不带 `-sN.md` 后缀）的第一个含 `project_features:` 的文件。
 
 ## Anti-Patterns
 
