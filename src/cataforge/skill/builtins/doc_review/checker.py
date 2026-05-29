@@ -6,6 +6,7 @@ import re
 import sys
 from pathlib import Path
 
+from cataforge.core.paths import project_root_from_docs_dir
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.md_parse import strip_code_blocks
@@ -296,20 +297,8 @@ class DocChecker(TypedDocChecksMixin):
     # ------------------------------------------------------------------
 
     def _project_root(self) -> Path | None:
-        """Heuristically resolve the project root from `docs_dir`.
-
-        `docs_dir` is usually ``<project_root>/docs/``; the parent is
-        the project root. Returns `None` when the path doesn't look
-        like a CataForge project (no `.cataforge/` sibling).
-        """
-        docs_path = Path(self.docs_dir).resolve()
-        candidate = docs_path.parent
-        if (candidate / ".cataforge").exists():
-            return candidate
-        # Fall back: maybe docs_dir already IS the project root.
-        if (docs_path / ".cataforge").exists():
-            return docs_path
-        return None
+        """Resolve the project root from ``docs_dir`` (None when not a project)."""
+        return project_root_from_docs_dir(self.docs_dir)
 
     def _maybe_kg_xref_resolver(self):
         """Return a ``callable(entity_id) -> bool`` if KG is active.

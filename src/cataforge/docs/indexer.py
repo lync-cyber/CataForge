@@ -411,12 +411,12 @@ def find_xref_errors(project_root: str) -> list[dict[str, str]]:
     here so the failure surfaces at validation time instead of at
     ``cataforge docs load`` time.
     """
-    from cataforge.docs.loader import (
+    from cataforge.docs.index_ops import (
         AmbiguousRefError,
         LoadSectionError,
         _lookup_in_index,
-        parse_ref,
     )
+    from cataforge.docs.loader import parse_ref
 
     index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
     if not os.path.isfile(index_path):

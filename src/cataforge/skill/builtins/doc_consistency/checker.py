@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from cataforge.core.paths import project_root_from_docs_dir
 from cataforge.core.types import Severity
 from cataforge.skill.builtins._shared import Issue, IssueCollector
 from cataforge.skill.builtins.doc_consistency._checks import _CrossDocChecksMixin
@@ -56,19 +57,8 @@ class CrossDocChecker(_CrossDocChecksMixin):
         return bool(self._content.get(doc_type, "").strip())
 
     def _project_root(self) -> Path | None:
-        """Heuristically resolve project root from ``docs_dir``.
-
-        Mirrors the resolver in `doc_review.checker` — `docs_dir` is
-        usually `<project_root>/docs/`; the parent is the project root.
-        Returns None when the path doesn't look like a CataForge project.
-        """
-        docs_path = self.docs_dir.resolve()
-        candidate = docs_path.parent
-        if (candidate / ".cataforge").exists():
-            return candidate
-        if (docs_path / ".cataforge").exists():
-            return docs_path
-        return None
+        """Resolve project root from ``docs_dir`` (None when not a project)."""
+        return project_root_from_docs_dir(self.docs_dir)
 
     def _active_doc_types(self) -> set[str]:
         """Resolve the active doc_type set once and cache.

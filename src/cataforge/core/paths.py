@@ -37,6 +37,23 @@ def find_project_root(start: Path | None = None) -> Path:
         d = parent
 
 
+def project_root_from_docs_dir(docs_dir: Path | str) -> Path | None:
+    """Resolve a project root from a ``docs/`` directory, or ``None``.
+
+    ``docs_dir`` is usually ``<root>/docs/`` (parent is the root); falls back
+    to ``docs_dir`` itself when that is the root. Unlike :func:`find_project_root`
+    this returns ``None`` (no cwd fallback) when no ``.cataforge/`` is found, so
+    checkers can use it to decide whether the path is a CataForge project at all.
+    """
+    docs_path = Path(docs_dir).resolve()
+    candidate = docs_path.parent
+    if (candidate / ".cataforge").exists():
+        return candidate
+    if (docs_path / ".cataforge").exists():
+        return docs_path
+    return None
+
+
 class ProjectPaths:
     """All well-known paths derived from a single project root."""
 

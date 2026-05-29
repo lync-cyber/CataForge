@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from cataforge.docs.loader import _load_doc_type_map
+from cataforge.docs.index_ops import _load_doc_type_map
 from cataforge.kg.ingest.frontmatter import _PARSE_ERROR_KEY, parse_frontmatter
 from cataforge.utils.md_parse import iter_markdown_headings
 

@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from cataforge.docs.loader import _load_doc_type_map
+from cataforge.docs.index_ops import _load_doc_type_map
 from cataforge.kg._config import KGConfig
 from cataforge.kg._sparql_utils import _row_lookup, _strv, cf_namespace, escape_sparql_literal
 from cataforge.kg.ingest.entity_extract import extract_entities
