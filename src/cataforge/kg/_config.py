@@ -1,7 +1,7 @@
 """KG connection configuration.
 
 `KGConfig` is the single configuration object consumed by every entry point in
-`cataforge.kg`. The `kg_active_doc_types` default is `{prd, arch, test}`.
+`cataforge.kg`. The `kg_active_doc_types` default is `BUSINESS_DOC_TYPES`.
 Projects that have not yet ingested into KG remain on the legacy read path
 because `cataforge.kg._dispatch.is_active_for()` additionally gates on
 `.cataforge/kg/store/` existing on disk.
@@ -13,10 +13,26 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+# Single source of truth for the business doc_type universe. Every doc_type
+# here carries entity classes the KG ingest pipeline extracts and the render
+# pipeline materializes (specific template when present, generic artifact
+# fallback otherwise). Entries are the canonical doc_id values that refs use
+# (`prd#§2.F-001`, `test-report#§2.TC-001`), so dispatch matching on doc_id
+# works directly — `test-report`, not the legacy `test` alias.
+BUSINESS_DOC_TYPES: tuple[str, ...] = (
+    "prd",
+    "arch",
+    "ui-spec",
+    "dev-plan",
+    "test-report",
+    "deploy-spec",
+)
+
 # Default active doc_types. The doctor `kg_ingestion_completeness` gate
-# enforces reconciliation for every doc_type in this set. Down-stream
-# projects override via `framework.json`.
-DEFAULT_KG_ACTIVE_DOC_TYPES: frozenset[str] = frozenset({"prd", "arch", "test"})
+# enforces reconciliation for every doc_type in this set; `kg import` and the
+# dispatch layer read the same set. Down-stream projects override via
+# `framework.json`.
+DEFAULT_KG_ACTIVE_DOC_TYPES: frozenset[str] = frozenset(BUSINESS_DOC_TYPES)
 
 
 @dataclass

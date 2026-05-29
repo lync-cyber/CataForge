@@ -17,7 +17,7 @@ from cataforge.kg._sparql_utils import _row_lookup, _term_value, escape_sparql_l
 from cataforge.kg.export._entity_meta import (
     _RELATION_GROUPS,
     _entity_type_to_doc_type,
-    _template_name,
+    resolve_template,
 )
 from cataforge.kg.export.hydrator import hydrate_rows
 from cataforge.kg.export.registry import SparqlRegistry
@@ -91,9 +91,8 @@ def render_entity(
 
     if jinja_env is None:
         jinja_env = build_jinja_env()
-    tpl_name = template or _template_name(entity_type)
-    jinja_template = jinja_env.get_template(tpl_name)  # type: ignore[union-attr]
-    return jinja_template.render(entity=context)
+    jinja_template = resolve_template(jinja_env, entity_type, override=template)
+    return jinja_template.render(entity=context)  # type: ignore[attr-defined]
 
 
 def entity_doc_type(entity_type: str) -> str:

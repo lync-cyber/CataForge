@@ -31,7 +31,7 @@ from cataforge.kg._sparql_utils import (
 from cataforge.kg.export._entity_meta import (
     _RELATION_GROUPS,
     _entity_type_to_doc_type,
-    _template_name,
+    resolve_template,
 )
 from cataforge.kg.export.hydrator import hydrate_rows
 from cataforge.kg.export.registry import SparqlRegistry
@@ -102,9 +102,6 @@ def compile_to_markdown(
     errors: list[tuple[str, str]] = []
 
     for entity_id, _sort_key, entity_type in entities:
-        if not registry.has(entity_type):
-            errors.append((entity_id, f"no SPARQL template for entity type '{entity_type}'"))
-            continue
         try:
             sparql_template = registry.get(entity_type)
             sparql_query = sparql_template % {"entity_id": f'"{escape_sparql_literal(entity_id)}"'}
@@ -115,7 +112,7 @@ def compile_to_markdown(
                 errors.append((entity_id, "empty SPARQL result"))
                 continue
 
-            template = jinja_env.get_template(_template_name(entity_type))
+            template = resolve_template(jinja_env, entity_type)
             rendered = template.render(entity=context)
 
             doc_type = _entity_type_to_doc_type(entity_type)
