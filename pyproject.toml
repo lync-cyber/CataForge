@@ -58,6 +58,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
+    "pytest-xdist>=3.5",
     "ruff>=0.4",
     "mypy>=1.10",
     "build>=1.2",
@@ -191,6 +192,15 @@ pythonpath = ["src"]
 markers = [
     "slow: end-to-end tests that build a wheel, spawn a venv, or hit PyPI — opt out with `pytest -m 'not slow'`",
     "network: tests that reach external services (e.g. PyPI); gated by CATAFORGE_E2E_NETWORK=1",
+]
+filterwarnings = [
+    # `requests` (a transitive dep of the linkml stack — cataforge never
+    # imports it directly) emits this at import time when the resolved
+    # urllib3 / charset_normalizer are newer than the requests release
+    # knows about. Not actionable in our code. Matched by message, not
+    # category, so the filter resolves even where requests isn't installed
+    # (e.g. the default-extras uv collection smoke).
+    "ignore:urllib3 .*doesn't match a supported version:Warning",
 ]
 
 [tool.mypy]
