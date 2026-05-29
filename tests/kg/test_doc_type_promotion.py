@@ -37,9 +37,8 @@ def _doc(doc_id: str, doc_type: str, section: str, body: str) -> str:
 
 
 def _ingest_memory(project_root: Path, doc_types: tuple[str, ...]):
-    from cataforge.kg import KGConfig
+    from cataforge.kg import KGConfig, init_store
     from cataforge.kg.ingest import run_migration
-    from cataforge.kg.store import init_store
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)

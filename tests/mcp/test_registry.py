@@ -175,10 +175,10 @@ class TestLifecycle:
         # spawn below would read as alive forever, and teardown's stop()
         # would burn the full SIGTERM + SIGKILL timeouts waiting for a pid
         # that is already gone.
-        real_pid_alive = lc._pid_alive
+        real_pid_alive = lc.pid_alive
         monkeypatch.setattr(
             lc,
-            "_pid_alive",
+            "pid_alive",
             lambda pid: False if pid == 999999 else real_pid_alive(pid),
         )
 
@@ -203,11 +203,11 @@ class TestLifecycle:
         mgr = MCPLifecycleManager(project)
         state = mgr.start("waitable")
         pid = state.pid
-        assert pid is not None and lc._pid_alive(pid)
+        assert pid is not None and lc.pid_alive(pid)
 
         result = mgr.stop("waitable")
         assert result.status == "stopped"
-        assert not lc._pid_alive(pid), "stop() returned 'stopped' but the pid is still alive"
+        assert not lc.pid_alive(pid), "stop() returned 'stopped' but the pid is still alive"
 
 
 class TestRegistryPersistence:

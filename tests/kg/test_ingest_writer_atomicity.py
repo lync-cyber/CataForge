@@ -32,10 +32,9 @@ class _FailingStoreProxy:
 
 def _make_store_with_entity(entity_id: str = "F-001"):
     """Return (store, config, iri) with one entity pre-ingested."""
-    from cataforge.kg import KGConfig
+    from cataforge.kg import KGConfig, init_store
     from cataforge.kg._quads import build_entity_quads
     from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.store import init_store
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -118,12 +117,11 @@ def test_atomic_replace_entity_rolls_back_on_failure() -> None:
 
 def test_write_entities_propagates_failure_keeping_prior_entities() -> None:
     """write_entities propagates a mid-batch failure; previously-written entities remain."""
-    from cataforge.kg import KGConfig
+    from cataforge.kg import KGConfig, init_store
     from cataforge.kg._quads import quads_for_subject
     from cataforge.kg.ingest.entity_extract import ExtractedEntity
     from cataforge.kg.ingest.iri import entity_iri
     from cataforge.kg.ingest.writer import write_entities
-    from cataforge.kg.store import init_store
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)

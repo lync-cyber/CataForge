@@ -18,7 +18,7 @@ from cataforge.deploy.manifest import (
     load_prior_manifest_platform,
     save_manifest,
 )
-from cataforge.platform.base import PlatformAdapter
+from cataforge.platform.adapter import PlatformAdapter
 from cataforge.platform.registry import get_adapter
 
 logger = logging.getLogger("cataforge.deploy")

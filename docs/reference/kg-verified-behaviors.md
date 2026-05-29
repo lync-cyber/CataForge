@@ -13,7 +13,7 @@ documented escape hatch, or rolled into a downstream sub-PR.
 
 pyoxigraph 0.5.x performs no OWL/RDFS entailment. `cataforge kg init`
 materializes `rdfs:subClassOf` triples from `core.yaml` `is_a` chains via
-[`bootstrap_subclass_axioms`](../../src/cataforge/kg/store.py) so property-path
+[`bootstrap_subclass_axioms`](../../src/cataforge/kg/_store.py) so property-path
 queries traverse the closure directly.
 
 Evidence: [tests/kg/test_store.py::test_subclass_closure_query_returns_page_for_screen](../../tests/kg/test_store.py)

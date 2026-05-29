@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import TYPE_CHECKING
 
-from cataforge.platform.base import PlatformAdapter
+if TYPE_CHECKING:
+    from cataforge.platform.adapter import PlatformAdapter
 
 logger = logging.getLogger("cataforge.agent.translator")
 
@@ -69,7 +71,7 @@ def _split_frontmatter(content: str) -> tuple[str, str, str] | None:
     m = _FRONTMATTER_RE.match(content)
     if not m:
         return None
-    return ("---\n", m.group(1), content[m.end():])
+    return ("---\n", m.group(1), content[m.end() :])
 
 
 def translate_agent_md(
@@ -123,9 +125,7 @@ def translate_agent_md(
         if dropped:
             local_dropped.setdefault(field_name, set()).update(dropped)
 
-        native_names = [
-            name for cap in caps if (name := tool_map.get(cap)) is not None
-        ]
+        native_names = [name for cap in caps if (name := tool_map.get(cap)) is not None]
         return f"{field_name}: {', '.join(native_names)}"
 
     content = re.sub(
@@ -194,9 +194,7 @@ def _translate_model_tier(content: str, adapter: PlatformAdapter) -> str:
     if resolved is None:
         new_fm = _MODEL_TIER_LINE_RE.sub("", fm_body, count=1)
     else:
-        new_fm = _MODEL_TIER_LINE_RE.sub(
-            f"model: {resolved}", fm_body, count=1
-        )
+        new_fm = _MODEL_TIER_LINE_RE.sub(f"model: {resolved}", fm_body, count=1)
 
     new_fm = re.sub(r"\n{2,}", "\n", new_fm)
     return prefix + new_fm + "---\n" + body
