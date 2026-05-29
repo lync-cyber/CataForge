@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import contextlib
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from cataforge.core.config import ConfigManager
 from cataforge.kg._config import BUSINESS_DOC_TYPES as DEFAULT_DOC_TYPES
 from cataforge.kg._config import KGConfig
 from cataforge.kg.ingest.entity_extract import (
@@ -68,13 +68,10 @@ def _read_project_metadata(project_root: Path) -> dict[str, str]:
     Defaults: project_id=`proj-default`, title=`(unnamed)`, process_model=`waterfall`.
     Fixture projects ship a fully populated `kg` block.
     """
-    framework_json = project_root / ".cataforge" / "framework.json"
     out = {"project_id": "proj-default", "title": "(unnamed)", "process_model": "waterfall"}
-    if not framework_json.is_file():
-        return out
     try:
-        data = json.loads(framework_json.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        data = ConfigManager(project_root).load_raw()
+    except (OSError, ValueError):
         return out
     kg = (data or {}).get("kg")
     if isinstance(kg, dict):

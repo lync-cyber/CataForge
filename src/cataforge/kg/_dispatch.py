@@ -18,9 +18,9 @@ The helpers also cache per-project decisions to avoid re-reading
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+from cataforge.core.config import ConfigManager
 from cataforge.kg._config import KGConfig
 
 _ACTIVE_CACHE: dict[str, set[str]] = {}
@@ -32,11 +32,8 @@ def _project_root_key(project_root: str | Path) -> str:
 
 
 def _read_framework_json(project_root: Path) -> dict:
-    path = project_root / ".cataforge" / "framework.json"
-    if not path.is_file():
-        return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return ConfigManager(project_root).load_raw()
     except (OSError, ValueError):
         return {}
 
