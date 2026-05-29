@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from cataforge.core.types import Severity
 from cataforge.skill.builtins.doc_consistency.checker import CrossDocChecker
 
 
@@ -61,7 +62,7 @@ def test_prd_arch_ac_coverage_missing(docs_dir: Path) -> None:
     checker = CrossDocChecker(str(docs_dir), quiet=True)
     checker.check_prd_arch_ac_coverage()
     assert len(checker.errors) == 1
-    assert "AC-002" in checker.errors[0]["message"] or "AC-003" in checker.errors[0]["message"]
+    assert "AC-002" in checker.errors[0].message or "AC-003" in checker.errors[0].message
 
 
 def test_prd_arch_ac_coverage_full(docs_dir: Path) -> None:
@@ -139,8 +140,8 @@ def test_prd_arch_p0_missing_in_arch(docs_dir: Path) -> None:
     checker = CrossDocChecker(str(docs_dir), quiet=True)
     checker.check_prd_arch_priority_alignment()
     assert len(checker.errors) == 1
-    assert "F-001" in checker.errors[0]["message"]
-    assert checker.errors[0]["severity"] == "CRITICAL"
+    assert "F-001" in checker.errors[0].message
+    assert checker.errors[0].severity == Severity.CRITICAL
 
 
 # ---- ARCH → DEV-PLAN API contract ----
@@ -181,8 +182,8 @@ def test_arch_devplan_api_contract_mismatch(docs_dir: Path) -> None:
     checker = CrossDocChecker(str(docs_dir), quiet=True)
     checker.check_arch_devplan_api_contract()
     assert len(checker.errors) == 1
-    assert "API-001" in checker.errors[0]["message"]
-    assert "/auth/login" in checker.errors[0]["message"]
+    assert "API-001" in checker.errors[0].message
+    assert "/auth/login" in checker.errors[0].message
 
 
 def test_arch_devplan_api_contract_match(docs_dir: Path) -> None:
@@ -261,7 +262,7 @@ def test_prd_devplan_ac_missing(docs_dir: Path) -> None:
     checker = CrossDocChecker(str(docs_dir), quiet=True)
     checker.check_prd_devplan_ac_traceability()
     assert len(checker.errors) == 1
-    assert "2" in checker.errors[0]["message"]  # 2 missing ACs
+    assert "2" in checker.errors[0].message  # 2 missing ACs
 
 
 # ---- Orphaned components ----
@@ -291,7 +292,7 @@ def test_orphaned_ui_components(docs_dir: Path) -> None:
     checker = CrossDocChecker(str(docs_dir), quiet=True)
     checker.check_orphaned_components()
     assert len(checker.warnings) == 1
-    assert "C-002" in checker.warnings[0]["message"]
+    assert "C-002" in checker.warnings[0].message
 
 
 # ---- Traceability matrix ----

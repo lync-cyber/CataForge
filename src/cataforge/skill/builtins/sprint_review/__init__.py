@@ -12,17 +12,17 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
     {
         "id": "task_status_done",
         "title": "Sprint 任务表中所有任务状态 = done",
-        "severity": "fail",
+        "severity": "HIGH",
     },
     {
         "id": "deliverables_exist",
         "title": "每个任务 deliverables 中声明的文件路径在磁盘上存在",
-        "severity": "fail",
+        "severity": "HIGH",
     },
     {
         "id": "ac_coverage",
         "title": "tdd_acceptance 中的 AC-NNN 在 tests/ 目录下有引用",
-        "severity": "fail",
+        "severity": "HIGH",
     },
     {
         "id": "unplanned_files",
@@ -31,7 +31,7 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
             "(gold-plating 信号; 候选集尊重 .gitignore + 默认忽略列表 "
             "node_modules/, dist/, *.tsbuildinfo, ...)"
         ),
-        "severity": "warn",
+        "severity": "LOW",
     },
     {
         "id": "code_review_present",
@@ -39,6 +39,6 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
             "每个任务有对应的 docs/reviews/code/"
             "CODE-REVIEW-{task_id}-*.md（低风险任务可由sprint-review批量审查覆盖）"
         ),
-        "severity": "warn",
+        "severity": "MEDIUM",
     },
 )

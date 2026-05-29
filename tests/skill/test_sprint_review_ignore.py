@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from cataforge.core.types import Severity
+from cataforge.skill.builtins._shared import Issue
 from cataforge.skill.builtins.sprint_review import CHECKS_MANIFEST
 from cataforge.skill.builtins.sprint_review.ignore import (
     DEFAULT_IGNORE_PATTERNS,
@@ -109,8 +111,11 @@ class TestIgnoreSpec:
 
 def _git(args: list[str], cwd: Path) -> None:
     subprocess.run(
-        ["git", *args], cwd=cwd, check=True,
-        capture_output=True, text=True,
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -119,7 +124,10 @@ def git_repo(tmp_path: Path) -> Path:
     """Mini git repo with a planned src file + a node_modules + a dist."""
     try:
         subprocess.run(
-            ["git", "--version"], capture_output=True, text=True, check=True,
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         pytest.skip("git not available")
@@ -132,7 +140,8 @@ def git_repo(tmp_path: Path) -> Path:
     _git(["config", "commit.gpgsign", "false"], repo)
 
     (repo / ".gitignore").write_text(
-        "node_modules/\ndist/\n*.tsbuildinfo\n", encoding="utf-8",
+        "node_modules/\ndist/\n*.tsbuildinfo\n",
+        encoding="utf-8",
     )
     src = repo / "packages" / "skill" / "src"
     src.mkdir(parents=True)
@@ -148,7 +157,8 @@ def git_repo(tmp_path: Path) -> Path:
     dist.mkdir(parents=True)
     (dist / "index.js").write_text("// build\n", encoding="utf-8")
     (repo / "packages" / "skill" / "tsconfig.tsbuildinfo").write_text(
-        "{}\n", encoding="utf-8",
+        "{}\n",
+        encoding="utf-8",
     )
 
     _git(["add", "."], repo)
@@ -170,9 +180,7 @@ class TestGitIntegration:
         assert not any("/dist/" in f for f in files)
         assert not any(f.endswith(".tsbuildinfo") for f in files)
 
-    def test_list_candidate_files_respects_gitignore_then_default(
-        self, git_repo: Path
-    ) -> None:
+    def test_list_candidate_files_respects_gitignore_then_default(self, git_repo: Path) -> None:
         spec = build_ignore_spec(use_defaults=True)
         files = list_candidate_files(
             ["packages/skill"],
@@ -210,40 +218,48 @@ class TestGitIntegration:
 
 class TestCheckUnplannedFiles:
     def test_planned_file_passes_extra_warns(self, git_repo: Path) -> None:
-        tasks = [{
-            "id": "T-001",
-            "deliverables": ["packages/skill/src/index.ts"],
-        }]
+        tasks = [
+            {
+                "id": "T-001",
+                "deliverables": ["packages/skill/src/index.ts"],
+            }
+        ]
         spec = build_ignore_spec(use_defaults=True)
         old = os.getcwd()
         os.chdir(git_repo)
         try:
             issues = check_unplanned_files(
-                tasks, ["packages/skill"],
-                respect_gitignore=True, ignore_spec=spec,
+                tasks,
+                ["packages/skill"],
+                respect_gitignore=True,
+                ignore_spec=spec,
             )
         finally:
             os.chdir(old)
 
         # only extra.ts is unplanned — node_modules / dist / tsbuildinfo
         # all silenced by gitignore + default ignores
-        assert [it["path"] for it in issues] == ["packages/skill/src/extra.ts"]
-        assert all(it["severity"] == "warn" for it in issues)
-        assert all(it["category"] == "unplanned_files" for it in issues)
+        assert [it.path for it in issues] == ["packages/skill/src/extra.ts"]
+        assert all(it.severity == Severity.LOW for it in issues)
+        assert all(it.category == "unplanned_files" for it in issues)
 
     def test_deliverable_dir_covers_subtree(self, git_repo: Path) -> None:
         # if deliverable is a directory path, files under it aren't unplanned
-        tasks = [{
-            "id": "T-001",
-            "deliverables": ["packages/skill/src"],
-        }]
+        tasks = [
+            {
+                "id": "T-001",
+                "deliverables": ["packages/skill/src"],
+            }
+        ]
         spec = build_ignore_spec(use_defaults=True)
         old = os.getcwd()
         os.chdir(git_repo)
         try:
             issues = check_unplanned_files(
-                tasks, ["packages/skill"],
-                respect_gitignore=True, ignore_spec=spec,
+                tasks,
+                ["packages/skill"],
+                respect_gitignore=True,
+                ignore_spec=spec,
             )
         finally:
             os.chdir(old)
@@ -256,13 +272,14 @@ class TestCheckUnplannedFiles:
 
 
 class TestAggregateUnplanned:
-    def _mk(self, n: int, prefix: str) -> list[dict]:
+    def _mk(self, n: int, prefix: str) -> list[Issue]:
         return [
-            {
-                "severity": "warn", "category": "unplanned_files",
-                "message": f"... {prefix}/{i}",
-                "path": f"{prefix}/file{i}.txt",
-            }
+            Issue(
+                Severity.LOW,
+                "unplanned_files",
+                f"... {prefix}/{i}",
+                path=f"{prefix}/file{i}.txt",
+            )
             for i in range(n)
         ]
 
@@ -318,13 +335,18 @@ class TestCLIIntegration:
     def _run(self, repo: Path, *extra: str) -> subprocess.CompletedProcess:
         return run_utf8(
             [
-                sys.executable, "-m",
+                sys.executable,
+                "-m",
                 "cataforge.skill.builtins.sprint_review.sprint_check",
                 "1",
-                "--dev-plan", "docs/dev-plan/",
-                "--src-dir", "packages/skill",
-                "--test-dir", "tests/",
-                "--reviews-dir", "docs/reviews/code/",
+                "--dev-plan",
+                "docs/dev-plan/",
+                "--src-dir",
+                "packages/skill",
+                "--test-dir",
+                "tests/",
+                "--reviews-dir",
+                "docs/reviews/code/",
                 *extra,
             ],
             cwd=repo,
@@ -338,21 +360,19 @@ class TestCLIIntegration:
         assert payload["sprint"] == 1
         assert payload["tasks"] == ["T-001"]
         # only extra.ts surfaces; node_modules/dist/tsbuildinfo silenced
-        unplanned = [
-            it for it in payload["issues"]
-            if it["category"] == "unplanned_files"
-        ]
-        assert [it["path"] for it in unplanned] == [
-            "packages/skill/src/extra.ts"
-        ]
-        assert payload["summary"]["fail"] == 0
+        unplanned = [it for it in payload["issues"] if it["category"] == "unplanned_files"]
+        assert [it["path"] for it in unplanned] == ["packages/skill/src/extra.ts"]
+        assert payload["summary"]["blocking"] == 0
 
     def test_warn_cap_writes_unplanned_log(self, git_repo: Path) -> None:
         _make_dev_plan(git_repo, 1, ["packages/skill/src/index.ts"])
         log = git_repo / "out" / "unplanned.txt"
         r = self._run(
-            git_repo, "--warn-cap", "0",
-            "--unplanned-log", str(log),
+            git_repo,
+            "--warn-cap",
+            "0",
+            "--unplanned-log",
+            str(log),
         )
         assert r.returncode == 0, r.stdout + r.stderr
         assert log.is_file()
@@ -368,34 +388,40 @@ class TestCLIIntegration:
         _git(["add", "."], git_repo)
         _git(["commit", "-q", "-m", "add shared-types"], git_repo)
 
-        _make_dev_plan(git_repo, 1, [
-            "packages/skill/src/index.ts",
-            "packages/shared-types/src/index.ts",
-        ])
+        _make_dev_plan(
+            git_repo,
+            1,
+            [
+                "packages/skill/src/index.ts",
+                "packages/shared-types/src/index.ts",
+            ],
+        )
         r = run_utf8(
             [
-                sys.executable, "-m",
+                sys.executable,
+                "-m",
                 "cataforge.skill.builtins.sprint_review.sprint_check",
                 "1",
-                "--dev-plan", "docs/dev-plan/",
-                "--src-dir", "packages/skill/src",
-                "--src-dir", "packages/shared-types/src",
-                "--test-dir", "tests/",
-                "--reviews-dir", "docs/reviews/code/",
-                "--format", "json",
+                "--dev-plan",
+                "docs/dev-plan/",
+                "--src-dir",
+                "packages/skill/src",
+                "--src-dir",
+                "packages/shared-types/src",
+                "--test-dir",
+                "tests/",
+                "--reviews-dir",
+                "docs/reviews/code/",
+                "--format",
+                "json",
             ],
             cwd=git_repo,
         )
         assert r.returncode == 0, r.stdout + r.stderr
         payload = json.loads(r.stdout)
-        unplanned = [
-            it for it in payload["issues"]
-            if it["category"] == "unplanned_files"
-        ]
+        unplanned = [it for it in payload["issues"] if it["category"] == "unplanned_files"]
         # extra.ts in skill is the only file outside both deliverables
-        assert [it["path"] for it in unplanned] == [
-            "packages/skill/src/extra.ts"
-        ]
+        assert [it["path"] for it in unplanned] == ["packages/skill/src/extra.ts"]
 
 
 # ---------------------------------------------------------------------------
@@ -422,9 +448,13 @@ class TestManifestContract:
         # regression guard: shrinking DEFAULT_IGNORE_PATTERNS would re-noise
         # the original bug
         for required in (
-            "node_modules/", "dist/", "build/", "*.tsbuildinfo", "*.map",
-            "__pycache__/", ".venv/", ".pytest_cache/",
+            "node_modules/",
+            "dist/",
+            "build/",
+            "*.tsbuildinfo",
+            "*.map",
+            "__pycache__/",
+            ".venv/",
+            ".pytest_cache/",
         ):
-            assert required in DEFAULT_IGNORE_PATTERNS, (
-                f"missing default ignore: {required}"
-            )
+            assert required in DEFAULT_IGNORE_PATTERNS, f"missing default ignore: {required}"

@@ -75,7 +75,7 @@ def test_regex_path_runs_when_no_kg_store(tmp_path: Path) -> None:
     checker.check_prd_arch_ac_coverage()
 
     # Regex set-difference: AC-002 is missing in ARCH
-    assert any("AC-002" in e["message"] for e in checker.errors)
+    assert any("AC-002" in e.message for e in checker.errors)
 
 
 # ---------------------------------------------------------------------------

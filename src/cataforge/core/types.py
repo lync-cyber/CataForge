@@ -16,6 +16,21 @@ class AgentStatus(Enum):
     ROLLED_BACK = "rolled-back"
 
 
+class Severity(Enum):
+    """Review-issue severity (SSOT for the CRITICAL/HIGH/MEDIUM/LOW scale).
+
+    Shared by the structural Layer 1 builtins that emit graded findings
+    (doc-consistency, sprint-review). CRITICAL/HIGH are blocking; MEDIUM/LOW
+    are advisory. The blocking partition lives with the issue model in
+    ``skill.builtins._shared`` so this enum stays free of review semantics.
+    """
+
+    CRITICAL = "CRITICAL"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
 @dataclass
 class DispatchRequest:
     agent_id: str
@@ -64,18 +79,18 @@ CAPABILITY_IDS: list[str] = [
 # Capabilities that may legitimately be null on some platforms.
 # Conformance checks emit INFO instead of WARN for these.
 OPTIONAL_CAPABILITY_IDS: set[str] = {
-    "user_question",   # Codex has no AskUserQuestion; Cursor support is partial
-    "web_fetch",       # Cursor / Codex lack a native web-fetch tool
+    "user_question",  # Codex has no AskUserQuestion; Cursor support is partial
+    "web_fetch",  # Cursor / Codex lack a native web-fetch tool
 }
 
 # Extended capability IDs — tools that exist on some platforms but are not
 # part of the core 10.  Platforms declare support in profile.yaml
 # ``extended_capabilities``.  Conformance treats these as INFO when missing.
 EXTENDED_CAPABILITY_IDS: list[str] = [
-    "notebook_edit",     # Jupyter notebook editing (Claude Code: NotebookEdit)
-    "browser_preview",   # Browser automation / preview (Claude Code: preview_*, Cursor: computer)
-    "image_input",       # Image/screenshot input (Codex: -i flag, OpenCode: drag-drop)
-    "code_review",       # Dedicated code review tool (Codex: /review)
+    "notebook_edit",  # Jupyter notebook editing (Claude Code: NotebookEdit)
+    "browser_preview",  # Browser automation / preview (Claude Code: preview_*, Cursor: computer)
+    "image_input",  # Image/screenshot input (Codex: -i flag, OpenCode: drag-drop)
+    "code_review",  # Dedicated code review tool (Codex: /review)
 ]
 
 # ---------------------------------------------------------------------------
@@ -118,23 +133,23 @@ AGENT_FRONTMATTER_FIELDS: list[str] = [
 # Declared in profile.yaml ``features`` section.  These are boolean flags
 # describing what a platform supports as a whole, not per-tool mappings.
 PLATFORM_FEATURES: list[str] = [
-    "cloud_agents",         # Remote/cloud agent execution (Cursor, Codex cloud)
-    "agent_teams",          # Multi-session agent coordination (Claude Code)
-    "parallel_agents",      # Concurrent agent execution (Cursor, Claude Code)
-    "scheduled_tasks",      # Cron/scheduled agent execution (Claude Code, Cursor)
-    "background_agents",    # Background agent execution within a session
-    "plan_mode",            # Read-only planning mode
-    "computer_use",         # Native UI/browser automation capability
-    "realtime_voice",       # Voice input/output (Codex WebRTC)
-    "multi_model",          # Per-task model selection / routing
-    "session_resume",       # Session persistence and resume
-    "worktree_isolation",   # Git worktree-based agent isolation
-    "autonomy_slider",      # Configurable agent autonomy level (Cursor)
-    "ci_cd_integration",    # Native CI/CD pipeline integration (OpenCode)
-    "multi_root",           # Multi-project workspace (Codex --add-dir)
-    "agent_memory",         # Agent-level persistent memory across sessions
-    "plugin_marketplace",   # Plugin discovery and installation service
-    "context_management",   # Context window management (chapters, compression)
+    "cloud_agents",  # Remote/cloud agent execution (Cursor, Codex cloud)
+    "agent_teams",  # Multi-session agent coordination (Claude Code)
+    "parallel_agents",  # Concurrent agent execution (Cursor, Claude Code)
+    "scheduled_tasks",  # Cron/scheduled agent execution (Claude Code, Cursor)
+    "background_agents",  # Background agent execution within a session
+    "plan_mode",  # Read-only planning mode
+    "computer_use",  # Native UI/browser automation capability
+    "realtime_voice",  # Voice input/output (Codex WebRTC)
+    "multi_model",  # Per-task model selection / routing
+    "session_resume",  # Session persistence and resume
+    "worktree_isolation",  # Git worktree-based agent isolation
+    "autonomy_slider",  # Configurable agent autonomy level (Cursor)
+    "ci_cd_integration",  # Native CI/CD pipeline integration (OpenCode)
+    "multi_root",  # Multi-project workspace (Codex --add-dir)
+    "agent_memory",  # Agent-level persistent memory across sessions
+    "plugin_marketplace",  # Plugin discovery and installation service
+    "context_management",  # Context window management (chapters, compression)
 ]
 
 # ---------------------------------------------------------------------------
@@ -149,14 +164,14 @@ class PermissionMode(Enum):
     Declared in profile.yaml ``permissions.modes``.
     """
 
-    DEFAULT = "default"                  # Standard prompts (Claude Code, OpenCode)
-    ACCEPT_EDITS = "accept_edits"        # Auto-accept file edits (Claude Code)
-    AUTO = "auto"                        # Classifier-based auto-approval (Claude Code, Codex)
-    DONT_ASK = "dont_ask"               # Auto-deny prompts (Claude Code)
-    BYPASS = "bypass"                    # Skip all permission prompts (Claude Code)
-    PLAN = "plan"                        # Read-only exploration (Claude Code, OpenCode)
-    READ_ONLY = "read_only"             # Consultative mode (Codex)
-    FULL_ACCESS = "full_access"         # Unrestricted (Codex)
+    DEFAULT = "default"  # Standard prompts (Claude Code, OpenCode)
+    ACCEPT_EDITS = "accept_edits"  # Auto-accept file edits (Claude Code)
+    AUTO = "auto"  # Classifier-based auto-approval (Claude Code, Codex)
+    DONT_ASK = "dont_ask"  # Auto-deny prompts (Claude Code)
+    BYPASS = "bypass"  # Skip all permission prompts (Claude Code)
+    PLAN = "plan"  # Read-only exploration (Claude Code, OpenCode)
+    READ_ONLY = "read_only"  # Consultative mode (Codex)
+    FULL_ACCESS = "full_access"  # Unrestricted (Codex)
 
 
 class SkillType(Enum):
