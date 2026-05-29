@@ -125,7 +125,7 @@ def _spawn_lock(lock_path: Path):
                 lock_pid: int | None = None
                 with contextlib.suppress(OSError, ValueError):
                     lock_pid = int(lock_path.read_text(encoding="ascii").strip())
-                if lock_pid is not None and not _pid_alive(lock_pid):
+                if lock_pid is not None and not pid_alive(lock_pid):
                     with contextlib.suppress(OSError):
                         os.unlink(str(lock_path))
                     continue
@@ -162,7 +162,7 @@ class HealthResult:
     ts: str
 
 
-def _pid_alive(pid: int | None) -> bool:
+def pid_alive(pid: int | None) -> bool:
     """Return True if *pid* identifies a live process on this host.
 
     Cross-platform: on POSIX uses ``os.kill(pid, 0)`` (no signal sent, just
@@ -236,10 +236,10 @@ def _wait_for_pid_dead(pid: int, timeout: float) -> bool:
     """Poll until *pid* is gone or *timeout* elapses. Returns True if dead."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if not _pid_alive(pid):
+        if not pid_alive(pid):
             return True
         time.sleep(_PID_POLL_INTERVAL_SECONDS)
-    return not _pid_alive(pid)
+    return not pid_alive(pid)
 
 
 class MCPLifecycleManager:
@@ -283,7 +283,7 @@ class MCPLifecycleManager:
             # below is the only proof we have.
             persisted = self._load_state(server_id)
             if persisted and persisted.status == "running":
-                if _pid_alive(persisted.pid):
+                if pid_alive(persisted.pid):
                     return persisted
                 logger.info(
                     "MCP %s: stale 'running' state (pid=%s) — process gone, restarting",
@@ -348,7 +348,7 @@ class MCPLifecycleManager:
         state = self._load_state(server_id)
         pid = state.pid if state else None
 
-        if pid is None or not _pid_alive(pid):
+        if pid is None or not pid_alive(pid):
             stopped = MCPServerState(spec_id=server_id, status="stopped")
             self._save_state(stopped)
             return stopped
@@ -433,7 +433,7 @@ class MCPLifecycleManager:
         if check is None:
             state = self._load_state(spec.id)
             pid = state.pid if state else None
-            alive = _pid_alive(pid)
+            alive = pid_alive(pid)
             return HealthResult(
                 status="healthy" if alive else "unhealthy",
                 detail=f"pid_alive={alive} (pid={pid})",

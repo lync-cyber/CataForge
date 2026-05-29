@@ -258,7 +258,7 @@ def test_stop_mcp_raises_when_taskkill_missing_on_windows(
 
     monkeypatch.setattr(penpot, "PLATFORM", "windows")
     monkeypatch.setattr(penpot, "_read_mcp_pid", lambda: 12345)
-    monkeypatch.setattr(penpot, "_is_process_alive", lambda pid: True)
+    monkeypatch.setattr(penpot, "pid_alive", lambda pid: True)
     monkeypatch.setattr(penpot.shutil, "which", lambda name: None)
 
     with pytest.raises(CataforgeError, match="taskkill not found"):
@@ -273,7 +273,7 @@ def test_stop_mcp_uses_taskkill_when_present(
     the binary."""
     monkeypatch.setattr(penpot, "PLATFORM", "windows")
     monkeypatch.setattr(penpot, "_read_mcp_pid", lambda: 12345)
-    monkeypatch.setattr(penpot, "_is_process_alive", lambda pid: True)
+    monkeypatch.setattr(penpot, "pid_alive", lambda pid: True)
     monkeypatch.setattr(
         penpot.shutil,
         "which",

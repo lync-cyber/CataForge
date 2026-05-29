@@ -21,6 +21,7 @@ from collections.abc import Callable
 from typing import Any
 
 from cataforge.core.errors import CataforgeError
+from cataforge.mcp.lifecycle import pid_alive
 from cataforge.utils.common import (
     BOLD,
     CYAN,
@@ -395,18 +396,6 @@ def _is_mcp_running(config: dict) -> bool:
         return False
 
 
-def _is_process_alive(pid: int) -> bool:
-    try:
-        if PLATFORM == "windows":
-            r = run_proc(["tasklist", "/FI", f"PID eq {pid}"], timeout=5)
-            return str(pid) in r.stdout
-        else:
-            os.kill(pid, 0)
-            return True
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-
-
 def _mcp_npx_env(config: dict) -> dict[str, str]:
     """Environment for the npx-spawned @penpot/mcp process.
 
@@ -526,7 +515,7 @@ def _diagnose_mcp_log(text: str) -> list[str]:
 
 def stop_mcp(config: dict) -> bool:
     pid = _read_mcp_pid()
-    if pid and _is_process_alive(pid):
+    if pid and pid_alive(pid):
         info(f"停止 MCP Server (PID: {pid})...")
         try:
             if PLATFORM == "windows":
@@ -550,7 +539,7 @@ def stop_mcp(config: dict) -> bool:
             else:
                 os.kill(pid, signal.SIGTERM)
                 for _ in range(10):
-                    if not _is_process_alive(pid):
+                    if not pid_alive(pid):
                         break
                     time.sleep(0.5)
                 else:
