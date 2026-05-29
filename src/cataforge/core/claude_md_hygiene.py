@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from cataforge.utils.atomic_write import atomic_write_text
+
 # H2 heading we look for in CLAUDE.md. Allow trailing parenthetical
 # annotations like "项目状态 (orchestrator专属写入区，其他Agent禁止修改)".
 _PROJECT_STATE_H2_RE = re.compile(
@@ -155,14 +157,14 @@ def compact_learnings_registry(
     # so this matches insertion order without extra timestamping.
     keep_count = max_entries
     archive_entries = entries[: len(entries) - keep_count]
-    keep_entries = entries[len(entries) - keep_count:]
+    keep_entries = entries[len(entries) - keep_count :]
 
     new_field = _render_registry_field(keep_entries)
-    new_text = text[: match.start()] + new_field + text[match.end():]
+    new_text = text[: match.start()] + new_field + text[match.end() :]
 
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     _append_archive(archive_path, archive_entries)
-    claude_md_path.write_text(new_text, encoding="utf-8")
+    atomic_write_text(claude_md_path, new_text)
 
     return CompactionResult(
         archived_entries=len(archive_entries),
@@ -242,8 +244,7 @@ def _render_registry_field(entries: list[str]) -> str:
     """
     if not entries:
         return (
-            "- Learnings Registry: (compacted; archive in "
-            ".cataforge/learnings/registry-archive.md)"
+            "- Learnings Registry: (compacted; archive in .cataforge/learnings/registry-archive.md)"
         )
     lines = ["- Learnings Registry:"]
     for e in entries:
@@ -262,14 +263,14 @@ def _append_archive(archive_path: Path, archive_entries: list[str]) -> None:
         existing = archive_path.read_text(encoding="utf-8")
         if not existing.endswith("\n"):
             existing += "\n"
-        archive_path.write_text(existing + chunk, encoding="utf-8")
+        atomic_write_text(archive_path, existing + chunk)
     else:
         preamble = (
             "# Learnings Registry — archive\n\n"
             "<!-- author: claude-md-hygiene · auto-archived from CLAUDE.md -->\n"
             "<!-- Each section header (## YYYY-MM-DD) marks one compaction batch. -->\n"
         )
-        archive_path.write_text(preamble + chunk, encoding="utf-8")
+        atomic_write_text(archive_path, preamble + chunk)
 
 
 __all__ = [

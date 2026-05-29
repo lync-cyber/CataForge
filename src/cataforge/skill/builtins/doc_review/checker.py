@@ -120,12 +120,31 @@ class DocChecker(TypedDocChecksMixin):
         if remaining > 0:
             self.fail(f"{remaining}个未处理TODO/TBD/FIXME")
 
+    def _split_threshold(self) -> int:
+        """Resolve ``DOC_SPLIT_THRESHOLD_LINES`` from framework.json.
+
+        Falls back to the module default when no project root is resolvable
+        or the constant is absent/invalid — so the check still runs against
+        an arbitrary docs directory.
+        """
+        root = self._project_root()
+        if root is None:
+            return DOC_SPLIT_THRESHOLD_LINES
+        try:
+            from cataforge.core.config import ConfigManager
+
+            val = ConfigManager(root).get_constant("DOC_SPLIT_THRESHOLD_LINES")
+        except Exception:
+            return DOC_SPLIT_THRESHOLD_LINES
+        if isinstance(val, int) and not isinstance(val, bool) and val > 0:
+            return val
+        return DOC_SPLIT_THRESHOLD_LINES
+
     def check_line_count(self) -> None:
         line_count = len(self.lines)
-        if line_count > DOC_SPLIT_THRESHOLD_LINES:
-            self.warn(
-                f"文档行数({line_count})超过{DOC_SPLIT_THRESHOLD_LINES}行阈值，建议通过doc-gen拆分为分卷"
-            )
+        threshold = self._split_threshold()
+        if line_count > threshold:
+            self.warn(f"文档行数({line_count})超过{threshold}行阈值，建议通过doc-gen拆分为分卷")
 
     def check_xref(self) -> None:
         content_no_code = strip_code_blocks(self.content)

@@ -38,9 +38,7 @@ class TestLoadProjectFeatures:
         f.write_text("# dev-plan\nno frontmatter here.\n", encoding="utf-8")
         assert load_project_features([str(f)]) == {}
 
-    def test_returns_empty_when_no_project_features_key(
-        self, tmp_path: Path
-    ) -> None:
+    def test_returns_empty_when_no_project_features_key(self, tmp_path: Path) -> None:
         f = tmp_path / "dev-plan-foo.md"
         f.write_text(
             "---\nid: dev-plan-foo\nversion: '0.1.0'\n---\n# title\n",
@@ -66,7 +64,8 @@ class TestLoadProjectFeatures:
         assert feats["merged_review"] is True
         assert feats["deliverables_accept_alternation"] is True
         assert feats["unplanned_glob_patterns"] == [
-            "**/*.test.ts", "**/helpers/*.py",
+            "**/*.test.ts",
+            "**/helpers/*.py",
         ]
 
     def test_skips_sprint_volumes(self, tmp_path: Path) -> None:
@@ -100,7 +99,7 @@ class TestCheckCodeReviewsMergedReview:
         tasks = [{"id": "T-001"}, {"id": "T-002"}]
         issues = check_code_reviews(tasks, str(reviews))
         assert len(issues) == 2
-        assert all(i["category"] == "code_review_present" for i in issues)
+        assert all(i.category == "code_review_present" for i in issues)
 
     def test_merged_review_short_circuits(self, tmp_path: Path) -> None:
         reviews = tmp_path / "reviews"
@@ -108,14 +107,10 @@ class TestCheckCodeReviewsMergedReview:
         tasks = [{"id": "T-001"}, {"id": "T-002"}]
         assert check_code_reviews(tasks, str(reviews), merged_review=True) == []
 
-    def test_merged_review_skips_missing_dir_warning(
-        self, tmp_path: Path
-    ) -> None:
+    def test_merged_review_skips_missing_dir_warning(self, tmp_path: Path) -> None:
         # Even when dir doesn't exist, merged_review skips the warn.
         nonexistent = tmp_path / "nope"
-        assert check_code_reviews(
-            [{"id": "T-001"}], str(nonexistent), merged_review=True
-        ) == []
+        assert check_code_reviews([{"id": "T-001"}], str(nonexistent), merged_review=True) == []
 
 
 # ---------------------------------------------------------------------------
@@ -128,41 +123,42 @@ class TestCheckDeliverablesAlternation:
         (tmp_path / "src").mkdir()
         (tmp_path / "src" / "foo.tsx").write_text("", encoding="utf-8")
         # foo.ts missing, foo.tsx present → A | B passes when alternation enabled.
-        tasks = [{
-            "id": "T-1",
-            "deliverables": [
-                str(tmp_path / "src" / "foo.ts")
-                + " | " + str(tmp_path / "src" / "foo.tsx"),
-            ],
-        }]
+        tasks = [
+            {
+                "id": "T-1",
+                "deliverables": [
+                    str(tmp_path / "src" / "foo.ts") + " | " + str(tmp_path / "src" / "foo.tsx"),
+                ],
+            }
+        ]
         assert check_deliverables(tasks, accept_alternation=True) == []
 
     def test_alternation_fails_when_both_missing(self, tmp_path: Path) -> None:
-        tasks = [{
-            "id": "T-1",
-            "deliverables": [
-                str(tmp_path / "missing-a.ts")
-                + " | " + str(tmp_path / "missing-b.ts"),
-            ],
-        }]
+        tasks = [
+            {
+                "id": "T-1",
+                "deliverables": [
+                    str(tmp_path / "missing-a.ts") + " | " + str(tmp_path / "missing-b.ts"),
+                ],
+            }
+        ]
         issues = check_deliverables(tasks, accept_alternation=True)
         assert len(issues) == 1
-        assert "所有候选均缺失" in issues[0]["message"]
+        assert "所有候选均缺失" in issues[0].message
 
-    def test_alternation_disabled_treats_pipe_as_literal(
-        self, tmp_path: Path
-    ) -> None:
+    def test_alternation_disabled_treats_pipe_as_literal(self, tmp_path: Path) -> None:
         # Default behavior: literal "A | B" is one missing path.
-        tasks = [{
-            "id": "T-1",
-            "deliverables": [
-                str(tmp_path / "src" / "foo.ts")
-                + " | " + str(tmp_path / "src" / "foo.tsx"),
-            ],
-        }]
+        tasks = [
+            {
+                "id": "T-1",
+                "deliverables": [
+                    str(tmp_path / "src" / "foo.ts") + " | " + str(tmp_path / "src" / "foo.tsx"),
+                ],
+            }
+        ]
         issues = check_deliverables(tasks)
         assert len(issues) == 1
-        assert "交付物缺失" in issues[0]["message"]
+        assert "交付物缺失" in issues[0].message
 
 
 # ---------------------------------------------------------------------------
@@ -194,50 +190,48 @@ class TestCheckUnplannedFilesWhitelist:
 
     def test_no_whitelist_flags_test_and_helper(self, project: Path) -> None:
         issues = self._check(project)
-        paths = sorted(i["path"] for i in issues)
+        paths = sorted(i.path for i in issues)
         assert any("feature.test.ts" in p for p in paths)
         assert any("helpers" in p for p in paths)
 
     def test_whitelist_filters_test_files(self, project: Path) -> None:
         issues = self._check(project, glob_whitelist=["**/*.test.ts"])
-        paths = sorted(i["path"] for i in issues)
+        paths = sorted(i.path for i in issues)
         # test file gone, helper remains.
         assert not any("feature.test.ts" in p for p in paths)
         assert any("helpers" in p for p in paths)
 
     def test_whitelist_filters_helper_dir(self, project: Path) -> None:
         issues = self._check(project, glob_whitelist=["**/helpers/*"])
-        paths = sorted(i["path"] for i in issues)
+        paths = sorted(i.path for i in issues)
         # helper gone, test remains.
         assert not any("helpers" in p for p in paths)
         assert any("feature.test.ts" in p for p in paths)
 
     def test_whitelist_combines(self, project: Path) -> None:
-        issues = self._check(
-            project, glob_whitelist=["**/*.test.ts", "**/helpers/*"]
-        )
+        issues = self._check(project, glob_whitelist=["**/*.test.ts", "**/helpers/*"])
         # Both filtered; only feature.ts (planned) remains, so issues empty.
         assert issues == []
 
-    def test_alternation_deliverable_counts_both_as_planned(
-        self, tmp_path: Path
-    ) -> None:
+    def test_alternation_deliverable_counts_both_as_planned(self, tmp_path: Path) -> None:
         src = tmp_path / "src"
         src.mkdir()
         (src / "foo.ts").write_text("", encoding="utf-8")
         (src / "foo.tsx").write_text("", encoding="utf-8")
         ignore_spec = build_ignore_spec(use_defaults=True)
         issues = check_unplanned_files(
-            [{
-                "id": "T-1",
-                "deliverables": [
-                    str(src / "foo.ts") + " | " + str(src / "foo.tsx"),
-                ],
-            }],
+            [
+                {
+                    "id": "T-1",
+                    "deliverables": [
+                        str(src / "foo.ts") + " | " + str(src / "foo.tsx"),
+                    ],
+                }
+            ],
             [str(src)],
             respect_gitignore=False,
             ignore_spec=ignore_spec,
         )
         # Neither alternative should be flagged as unplanned.
-        paths = [i["path"] for i in issues]
+        paths = [i.path for i in issues]
         assert all("foo." not in p for p in paths)

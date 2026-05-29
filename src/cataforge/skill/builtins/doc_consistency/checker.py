@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cataforge.core.types import Severity
+from cataforge.skill.builtins._shared import Issue, IssueCollector
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter as _split_fm
 from cataforge.utils.md_parse import strip_code_blocks
@@ -86,8 +88,7 @@ class CrossDocChecker:
 
     def __init__(self, docs_dir: str = "docs/", quiet: bool = False) -> None:
         self.docs_dir = Path(docs_dir)
-        self.errors: list[dict[str, str]] = []
-        self.warnings: list[dict[str, str]] = []
+        self._issues = IssueCollector()
         self._quiet = quiet
         self._docs = _find_docs(self.docs_dir)
         self._content: dict[str, str] = {}
@@ -95,17 +96,21 @@ class CrossDocChecker:
             self._content[doc_type] = _read_all_content(paths)
         self._kg_active: set[str] | None = None  # lazily resolved per-doc_type set
 
+    @property
+    def errors(self) -> list[Issue]:
+        return self._issues.blocking
+
+    @property
+    def warnings(self) -> list[Issue]:
+        return self._issues.advisory
+
     def _issue(
         self,
         severity: str,
         category: str,
         message: str,
     ) -> None:
-        entry = {"severity": severity, "category": category, "message": message}
-        if severity in ("CRITICAL", "HIGH"):
-            self.errors.append(entry)
-        else:
-            self.warnings.append(entry)
+        self._issues.add(Severity(severity), category, message)
         if not self._quiet:
             print(f"{severity}: [{category}] {message}")
 

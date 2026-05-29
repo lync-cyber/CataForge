@@ -18,6 +18,8 @@ import os
 import re
 import sys
 
+from cataforge.core.types import Severity
+from cataforge.skill.builtins._shared import Issue
 from cataforge.skill.builtins.sprint_review.ignore import (
     IgnoreSpec,
     build_ignore_spec,
@@ -107,8 +109,10 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
                 if current_task:
                     tasks.append(current_task)
                 current_task = {
-                    "id": task_match.group(1), "status": "",
-                    "deliverables": [], "tdd_acceptance": [],
+                    "id": task_match.group(1),
+                    "status": "",
+                    "deliverables": [],
+                    "tdd_acceptance": [],
                 }
                 i += 1
                 continue
@@ -122,7 +126,8 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
 
                 deliv_match = re.match(
                     r"^[-*]\s+\*?\*?(?:deliverables|交付物)\*?\*?\s*(?:\([^)]*\)\s*)?[:：]",
-                    line, re.IGNORECASE,
+                    line,
+                    re.IGNORECASE,
                 )
                 if deliv_match:
                     i += 1
@@ -138,7 +143,8 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
 
                 ac_match = re.match(
                     r"^[-*]\s+\*?\*?(?:tdd_acceptance|验收标准)\*?\*?\s*[:：]",
-                    line, re.IGNORECASE,
+                    line,
+                    re.IGNORECASE,
                 )
                 if ac_match:
                     rest = line + " "
@@ -152,7 +158,8 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
 
                 table_match = re.match(
                     r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
-                    line, re.IGNORECASE,
+                    line,
+                    re.IGNORECASE,
                 )
                 if (
                     table_match
@@ -164,14 +171,18 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
             if not current_task:
                 table_match = re.match(
                     r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
-                    line, re.IGNORECASE,
+                    line,
+                    re.IGNORECASE,
                 )
                 if table_match and (in_sprint or sprint_volume):
-                    tasks.append({
-                        "id": table_match.group(1),
-                        "status": table_match.group(2).strip().lower(),
-                        "deliverables": [], "tdd_acceptance": [],
-                    })
+                    tasks.append(
+                        {
+                            "id": table_match.group(1),
+                            "status": table_match.group(2).strip().lower(),
+                            "deliverables": [],
+                            "tdd_acceptance": [],
+                        }
+                    )
 
             i += 1
 
@@ -186,7 +197,8 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
                 for line in f:
                     table_match = re.match(
                         r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
-                        line, re.IGNORECASE,
+                        line,
+                        re.IGNORECASE,
                     )
                     if table_match and table_match.group(1) in tasks_missing_status:
                         tid = table_match.group(1)
@@ -206,30 +218,28 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
 
 
 def _issue(
-    severity: str,
+    severity: Severity,
     category: str,
     message: str,
     *,
     task: str | None = None,
     path: str | None = None,
-) -> dict:
-    out: dict = {"severity": severity, "category": category, "message": message}
-    if task is not None:
-        out["task"] = task
-    if path is not None:
-        out["path"] = path
-    return out
+) -> Issue:
+    return Issue(severity, category, message, task=task, path=path)
 
 
-def check_task_status(tasks: list[dict]) -> list[dict]:
-    issues: list[dict] = []
+def check_task_status(tasks: list[dict]) -> list[Issue]:
+    issues: list[Issue] = []
     for task in tasks:
         if task["status"] != "done":
-            issues.append(_issue(
-                "fail", "task_status_done",
-                f"任务 {task['id']} 状态为 '{task['status']}'，期望 'done'",
-                task=task["id"],
-            ))
+            issues.append(
+                _issue(
+                    Severity.HIGH,
+                    "task_status_done",
+                    f"任务 {task['id']} 状态为 '{task['status']}'，期望 'done'",
+                    task=task["id"],
+                )
+            )
     return issues
 
 
@@ -237,40 +247,53 @@ def check_deliverables(
     tasks: list[dict],
     *,
     accept_alternation: bool = False,
-) -> list[dict]:
+) -> list[Issue]:
     """Check each deliverable exists.
 
     When *accept_alternation* is true, a ``A | B`` entry passes if any
     candidate exists. Without the flag, the literal ``"A | B"`` string is
     treated as a single (non-existent) path — preserving prior behavior.
     """
-    issues: list[dict] = []
+    issues: list[Issue] = []
     for task in tasks:
         for path in task["deliverables"]:
             if accept_alternation and "|" in path:
                 candidates = [p.strip() for p in path.split("|") if p.strip()]
                 if not any(os.path.exists(c) for c in candidates):
-                    issues.append(_issue(
-                        "fail", "deliverables_exist",
-                        f"任务 {task['id']} 交付物所有候选均缺失: {path}",
-                        task=task["id"], path=path,
-                    ))
+                    issues.append(
+                        _issue(
+                            Severity.HIGH,
+                            "deliverables_exist",
+                            f"任务 {task['id']} 交付物所有候选均缺失: {path}",
+                            task=task["id"],
+                            path=path,
+                        )
+                    )
                 continue
             if not os.path.exists(path):
-                issues.append(_issue(
-                    "fail", "deliverables_exist",
-                    f"任务 {task['id']} 交付物缺失: {path}",
-                    task=task["id"], path=path,
-                ))
+                issues.append(
+                    _issue(
+                        Severity.HIGH,
+                        "deliverables_exist",
+                        f"任务 {task['id']} 交付物缺失: {path}",
+                        task=task["id"],
+                        path=path,
+                    )
+                )
     return issues
 
 
-def check_ac_coverage(tasks: list[dict], test_dir: str) -> list[dict]:
-    issues: list[dict] = []
+def check_ac_coverage(tasks: list[dict], test_dir: str) -> list[Issue]:
+    issues: list[Issue] = []
     if not os.path.isdir(test_dir):
-        issues.append(_issue(
-            "warn", "ac_coverage", f"测试目录不存在: {test_dir}", path=test_dir,
-        ))
+        issues.append(
+            _issue(
+                Severity.MEDIUM,
+                "ac_coverage",
+                f"测试目录不存在: {test_dir}",
+                path=test_dir,
+            )
+        )
         return issues
     test_content = ""
     for root, _, files in os.walk(test_dir):
@@ -284,11 +307,14 @@ def check_ac_coverage(tasks: list[dict], test_dir: str) -> list[dict]:
     for task in tasks:
         for ac_id in task["tdd_acceptance"]:
             if ac_id not in test_content:
-                issues.append(_issue(
-                    "fail", "ac_coverage",
-                    f"任务 {task['id']} 的 {ac_id} 在 {test_dir} 中无测试引用",
-                    task=task["id"],
-                ))
+                issues.append(
+                    _issue(
+                        Severity.HIGH,
+                        "ac_coverage",
+                        f"任务 {task['id']} 的 {ac_id} 在 {test_dir} 中无测试引用",
+                        task=task["id"],
+                    )
+                )
     return issues
 
 
@@ -299,7 +325,7 @@ def check_unplanned_files(
     respect_gitignore: bool,
     ignore_spec: IgnoreSpec,
     glob_whitelist: list[str] | None = None,
-) -> list[dict]:
+) -> list[Issue]:
     """Detect gold-plating: files under ``src_dirs`` not in any deliverable.
 
     Candidate enumeration honours .gitignore (when in a git repo and
@@ -321,8 +347,7 @@ def check_unplanned_files(
         for path in task["deliverables"]:
             # Alternation in deliverables — both candidates count as planned.
             for candidate in (
-                [p.strip() for p in path.split("|") if p.strip()]
-                if "|" in path else [path]
+                [p.strip() for p in path.split("|") if p.strip()] if "|" in path else [path]
             ):
                 norm = os.path.normpath(candidate).replace("\\", "/")
                 planned_norm.add(norm)
@@ -335,7 +360,7 @@ def check_unplanned_files(
         ignore_spec=ignore_spec,
     )
     whitelist = list(glob_whitelist or [])
-    issues: list[dict] = []
+    issues: list[Issue] = []
     for fp in candidates:
         norm = os.path.normpath(fp).replace("\\", "/")
         if norm in planned_norm:
@@ -344,11 +369,14 @@ def check_unplanned_files(
             continue
         if any(fnmatch.fnmatch(norm, g) for g in whitelist):
             continue
-        issues.append(_issue(
-            "warn", "unplanned_files",
-            f"计划外文件(可能gold-plating): {fp}",
-            path=fp,
-        ))
+        issues.append(
+            _issue(
+                Severity.LOW,
+                "unplanned_files",
+                f"计划外文件(可能gold-plating): {fp}",
+                path=fp,
+            )
+        )
     return issues
 
 
@@ -357,7 +385,7 @@ def check_code_reviews(
     reviews_dir: str,
     *,
     merged_review: bool = False,
-) -> list[dict]:
+) -> list[Issue]:
     """Verify each task has a per-task CODE-REVIEW report.
 
     Short-circuits when *merged_review* is true (the sprint-review report
@@ -371,22 +399,29 @@ def check_code_reviews(
     """
     if merged_review:
         return []
-    issues: list[dict] = []
+    issues: list[Issue] = []
     if not os.path.isdir(reviews_dir):
-        issues.append(_issue(
-            "warn", "code_review_present",
-            f"审查报告目录不存在: {reviews_dir}", path=reviews_dir,
-        ))
+        issues.append(
+            _issue(
+                Severity.MEDIUM,
+                "code_review_present",
+                f"审查报告目录不存在: {reviews_dir}",
+                path=reviews_dir,
+            )
+        )
         return issues
     review_files = os.listdir(reviews_dir)
     for task in tasks:
         pattern = f"CODE-REVIEW-{task['id']}"
         if not any(f.startswith(pattern) for f in review_files):
-            issues.append(_issue(
-                "warn", "code_review_present",
-                f"任务 {task['id']} 缺少CODE-REVIEW报告（将由sprint-review批量审查覆盖）",
-                task=task["id"],
-            ))
+            issues.append(
+                _issue(
+                    Severity.MEDIUM,
+                    "code_review_present",
+                    f"任务 {task['id']} 缺少CODE-REVIEW报告（将由sprint-review批量审查覆盖）",
+                    task=task["id"],
+                )
+            )
     return issues
 
 
@@ -395,9 +430,7 @@ def check_code_reviews(
 # ---------------------------------------------------------------------------
 
 
-def _aggregate_unplanned(
-    issues: list[dict], cap: int
-) -> tuple[list[dict], dict[str, int], int]:
+def _aggregate_unplanned(issues: list[Issue], cap: int) -> tuple[list[Issue], dict[str, int], int]:
     """Fold the unplanned-files WARN list to a printable subset.
 
     Returns ``(visible, by_top_dir, total_hidden)``:
@@ -414,7 +447,7 @@ def _aggregate_unplanned(
     hidden = issues[cap:]
     by_dir: collections.Counter[str] = collections.Counter()
     for it in hidden:
-        path = it.get("path", "")
+        path = it.path or ""
         top = path.split("/", 1)[0] if "/" in path else "<root>"
         by_dir[top] += 1
     return visible, dict(by_dir), len(hidden)
@@ -423,17 +456,17 @@ def _aggregate_unplanned(
 def render_text(
     sprint_num: int,
     tasks: list[dict],
-    sections: list[tuple[str, list[dict], str]],
+    sections: list[tuple[str, list[Issue], str]],
     warn_cap: int,
     unplanned_log: str | None,
 ) -> bool:
-    """Render text mode. Returns True if any FAIL was printed."""
+    """Render text mode. Returns True if any blocking issue was printed."""
     print(f"Sprint {sprint_num} 结构检查\n{'=' * 40}")
     print(f"找到 {len(tasks)} 个任务: {', '.join(t['id'] for t in tasks)}")
 
-    has_fail = False
-    all_fail = 0
-    all_warn = 0
+    has_blocking = False
+    all_blocking = 0
+    all_advisory = 0
     folded_total = 0
 
     for title, issues, ok_msg in sections:
@@ -442,13 +475,9 @@ def render_text(
         if is_unplanned:
             visible, by_dir, hidden = _aggregate_unplanned(issues, warn_cap)
             for it in visible:
-                tag = "[FAIL]" if it["severity"] == "fail" else "[WARN]"
-                print(f"  {tag} {it['message']}")
+                print(f"  [{it.severity.value}] {it.message}")
             if hidden:
-                print(
-                    f"  [WARN] ...折叠 {hidden} 条 "
-                    "(--warn-cap=0 关闭折叠)"
-                )
+                print(f"  [LOW] ...折叠 {hidden} 条 (--warn-cap=0 关闭折叠)")
                 for top, n in sorted(by_dir.items(), key=lambda kv: -kv[1]):
                     print(f"         {top}/* ({n})")
                 folded_total += hidden
@@ -457,69 +486,67 @@ def render_text(
         else:
             if issues:
                 for it in issues:
-                    tag = "[FAIL]" if it["severity"] == "fail" else "[WARN]"
-                    print(f"  {tag} {it['message']}")
+                    print(f"  [{it.severity.value}] {it.message}")
             else:
                 print(f"  {ok_msg}")
 
         for it in issues:
-            if it["severity"] == "fail":
-                has_fail = True
-                all_fail += 1
+            if it.blocking:
+                has_blocking = True
+                all_blocking += 1
             else:
-                all_warn += 1
+                all_advisory += 1
 
     if unplanned_log:
         unplanned = [
-            it for _, items, _ in sections for it in items
-            if it["category"] == "unplanned_files"
+            it for _, items, _ in sections for it in items if it.category == "unplanned_files"
         ]
         try:
             os.makedirs(os.path.dirname(unplanned_log) or ".", exist_ok=True)
             with open(unplanned_log, "w", encoding="utf-8") as fh:
                 for it in unplanned:
-                    fh.write(it.get("path", "") + "\n")
+                    fh.write((it.path or "") + "\n")
         except OSError as exc:
             print(f"  [WARN] 无法写入 unplanned-log {unplanned_log}: {exc}")
 
     print(f"\n{'=' * 40}")
     if folded_total:
         print(
-            f"结果: {all_fail} FAIL, {all_warn} WARN "
+            f"结果: {all_blocking} blocking, {all_advisory} advisory "
             f"(其中 {folded_total} 条 unplanned 已折叠)"
         )
     else:
-        print(f"结果: {all_fail} FAIL, {all_warn} WARN")
-    return has_fail
+        print(f"结果: {all_blocking} blocking, {all_advisory} advisory")
+    return has_blocking
 
 
 def render_json(
     sprint_num: int,
     tasks: list[dict],
-    sections: list[tuple[str, list[dict], str]],
+    sections: list[tuple[str, list[Issue], str]],
     unplanned_log: str | None,
 ) -> bool:
-    flat: list[dict] = [it for _, items, _ in sections for it in items]
-    fails = sum(1 for it in flat if it["severity"] == "fail")
-    warns = sum(1 for it in flat if it["severity"] == "warn")
+    flat_issues: list[Issue] = [it for _, items, _ in sections for it in items]
+    blocking = sum(1 for it in flat_issues if it.blocking)
+    advisory = len(flat_issues) - blocking
     payload = {
         "sprint": sprint_num,
         "tasks": [t["id"] for t in tasks],
-        "summary": {"fail": fails, "warn": warns, "total": len(flat)},
-        "issues": flat,
+        "summary": {"blocking": blocking, "advisory": advisory, "total": len(flat_issues)},
+        "issues": [it.to_dict() for it in flat_issues],
     }
     if unplanned_log:
         payload["unplanned_log"] = unplanned_log
         try:
-            unplanned = [it for it in flat if it["category"] == "unplanned_files"]
+            unplanned = [it for it in flat_issues if it.category == "unplanned_files"]
             os.makedirs(os.path.dirname(unplanned_log) or ".", exist_ok=True)
             with open(unplanned_log, "w", encoding="utf-8") as fh:
                 for it in unplanned:
-                    fh.write(it.get("path", "") + "\n")
+                    fh.write((it.path or "") + "\n")
         except OSError:
             pass
     print(json.dumps(payload, ensure_ascii=False, indent=2))
-    return fails > 0
+    return blocking > 0
 
 
 def main() -> None:
@@ -528,45 +555,56 @@ def main() -> None:
     parser.add_argument("sprint_number", type=int, help="Sprint number to check")
     parser.add_argument("--dev-plan", default="docs/dev-plan/", help="Dev plan directory")
     parser.add_argument(
-        "--src-dir", action="append", default=None,
-        help="Source directory to scope unplanned-file detection. "
-             "Repeatable; default ['src/'].",
+        "--src-dir",
+        action="append",
+        default=None,
+        help="Source directory to scope unplanned-file detection. Repeatable; default ['src/'].",
     )
     parser.add_argument("--test-dir", default="tests/", help="Test directory")
     parser.add_argument(
-        "--reviews-dir", default="docs/reviews/code/",
+        "--reviews-dir",
+        default="docs/reviews/code/",
         help="Code reviews directory",
     )
     parser.add_argument(
-        "--ignore", action="append", default=[],
+        "--ignore",
+        action="append",
+        default=[],
         help="Extra gitignore-style pattern (repeatable).",
     )
     parser.add_argument(
-        "--ignore-file", action="append", default=[],
+        "--ignore-file",
+        action="append",
+        default=[],
         help="Extra gitignore-style file to load (repeatable).",
     )
     parser.add_argument(
-        "--no-respect-gitignore", action="store_true",
-        help="Disable .gitignore integration "
-             "(default: honour .gitignore via 'git ls-files').",
+        "--no-respect-gitignore",
+        action="store_true",
+        help="Disable .gitignore integration (default: honour .gitignore via 'git ls-files').",
     )
     parser.add_argument(
-        "--no-default-ignores", action="store_true",
-        help="Disable built-in default ignore list "
-             "(node_modules/, dist/, *.tsbuildinfo, ...).",
+        "--no-default-ignores",
+        action="store_true",
+        help="Disable built-in default ignore list (node_modules/, dist/, *.tsbuildinfo, ...).",
     )
     parser.add_argument(
-        "--warn-cap", type=int, default=50,
+        "--warn-cap",
+        type=int,
+        default=50,
         help="Max unplanned-file WARNs to print verbatim (0 = unlimited). "
-             "Excess folded to per-directory counts. Default 50.",
+        "Excess folded to per-directory counts. Default 50.",
     )
     parser.add_argument(
-        "--unplanned-log", default=None,
+        "--unplanned-log",
+        default=None,
         help="Write the full unplanned-files list to this path "
-             "(useful when WARN cap is in effect).",
+        "(useful when WARN cap is in effect).",
     )
     parser.add_argument(
-        "--format", choices=("text", "json"), default="text",
+        "--format",
+        choices=("text", "json"),
+        default="text",
         help="Output format. JSON is structured for CI / framework-review.",
     )
     args = parser.parse_args()
@@ -583,31 +621,47 @@ def main() -> None:
     dev_plan_files = find_dev_plan_files(args.dev_plan)
     if not dev_plan_files:
         if args.format == "json":
-            print(json.dumps({
-                "sprint": sprint_num,
-                "summary": {"fail": 1, "warn": 0, "total": 1},
-                "issues": [{
-                    "severity": "fail", "category": "dev_plan_missing",
-                    "message": f"未找到dev-plan文件: {args.dev_plan}",
-                }],
-            }, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {
+                        "sprint": sprint_num,
+                        "summary": {"blocking": 1, "advisory": 0, "total": 1},
+                        "issues": [
+                            {
+                                "severity": "CRITICAL",
+                                "category": "dev_plan_missing",
+                                "message": f"未找到dev-plan文件: {args.dev_plan}",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
         else:
-            print(f"[FAIL] 未找到dev-plan文件: {args.dev_plan}")
+            print(f"[CRITICAL] 未找到dev-plan文件: {args.dev_plan}")
         sys.exit(1)
 
     tasks = extract_sprint_tasks(dev_plan_files, sprint_num)
     if not tasks:
         if args.format == "json":
-            print(json.dumps({
-                "sprint": sprint_num,
-                "summary": {"fail": 1, "warn": 0, "total": 1},
-                "issues": [{
-                    "severity": "fail", "category": "sprint_tasks_missing",
-                    "message": f"Sprint {sprint_num} 中未找到任务",
-                }],
-            }, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {
+                        "sprint": sprint_num,
+                        "summary": {"blocking": 1, "advisory": 0, "total": 1},
+                        "issues": [
+                            {
+                                "severity": "CRITICAL",
+                                "category": "sprint_tasks_missing",
+                                "message": f"Sprint {sprint_num} 中未找到任务",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
         else:
-            print(f"[FAIL] Sprint {sprint_num} 中未找到任务")
+            print(f"[CRITICAL] Sprint {sprint_num} 中未找到任务")
         sys.exit(1)
 
     features = load_project_features(dev_plan_files)
@@ -616,30 +670,46 @@ def main() -> None:
     glob_whitelist_raw = features.get("unplanned_glob_patterns") or []
     glob_whitelist = [g for g in glob_whitelist_raw if isinstance(g, str)]
 
-    sections: list[tuple[str, list[dict], str]] = [
+    sections: list[tuple[str, list[Issue], str]] = [
         ("任务状态检查", check_task_status(tasks), "所有任务状态为 done"),
-        ("交付物检查",
-         check_deliverables(tasks, accept_alternation=accept_alternation),
-         f"所有交付物存在 ({sum(len(t['deliverables']) for t in tasks)} 个文件)"),
-        ("AC覆盖检查", check_ac_coverage(tasks, args.test_dir),
-         f"所有AC已覆盖 ({sum(len(t['tdd_acceptance']) for t in tasks)} 个验收标准)"),
-        ("计划外文件检测", check_unplanned_files(
-            tasks, src_dirs,
-            respect_gitignore=not args.no_respect_gitignore,
-            ignore_spec=ignore_spec,
-            glob_whitelist=glob_whitelist,
-        ), "未发现计划外文件"),
-        ("CODE-REVIEW报告检查",
-         check_code_reviews(tasks, args.reviews_dir, merged_review=merged_review),
-         "所有任务有CODE-REVIEW报告"
-         + (" (跳过: project_features.merged_review)" if merged_review else "")),
+        (
+            "交付物检查",
+            check_deliverables(tasks, accept_alternation=accept_alternation),
+            f"所有交付物存在 ({sum(len(t['deliverables']) for t in tasks)} 个文件)",
+        ),
+        (
+            "AC覆盖检查",
+            check_ac_coverage(tasks, args.test_dir),
+            f"所有AC已覆盖 ({sum(len(t['tdd_acceptance']) for t in tasks)} 个验收标准)",
+        ),
+        (
+            "计划外文件检测",
+            check_unplanned_files(
+                tasks,
+                src_dirs,
+                respect_gitignore=not args.no_respect_gitignore,
+                ignore_spec=ignore_spec,
+                glob_whitelist=glob_whitelist,
+            ),
+            "未发现计划外文件",
+        ),
+        (
+            "CODE-REVIEW报告检查",
+            check_code_reviews(tasks, args.reviews_dir, merged_review=merged_review),
+            "所有任务有CODE-REVIEW报告"
+            + (" (跳过: project_features.merged_review)" if merged_review else ""),
+        ),
     ]
 
     if args.format == "json":
         has_fail = render_json(sprint_num, tasks, sections, args.unplanned_log)
     else:
         has_fail = render_text(
-            sprint_num, tasks, sections, args.warn_cap, args.unplanned_log,
+            sprint_num,
+            tasks,
+            sections,
+            args.warn_cap,
+            args.unplanned_log,
         )
 
     sys.exit(1 if has_fail else 0)
@@ -653,17 +723,24 @@ def _emit_runtime_error(exc: Exception, fmt: str) -> None:
     summary = f"{type(exc).__name__}: {exc}"
     tb = traceback.format_exc(limit=5)
     if fmt == "json":
-        print(json.dumps({
-            "summary": {"fail": 1, "warn": 0, "total": 1},
-            "issues": [{
-                "severity": "fail",
-                "category": "runtime_error",
-                "message": f"sprint_check runtime error: {summary}",
-                "traceback": tb.strip().splitlines()[-3:],
-            }],
-        }, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "summary": {"blocking": 1, "advisory": 0, "total": 1},
+                    "issues": [
+                        {
+                            "severity": "CRITICAL",
+                            "category": "runtime_error",
+                            "message": f"sprint_check runtime error: {summary}",
+                            "traceback": tb.strip().splitlines()[-3:],
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            )
+        )
     else:
-        print(f"[FAIL] sprint_check runtime error: {summary}", file=sys.stderr)
+        print(f"[CRITICAL] sprint_check runtime error: {summary}", file=sys.stderr)
         print(tb, file=sys.stderr)
 
 

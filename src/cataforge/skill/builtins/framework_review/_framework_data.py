@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cataforge.core.config import ConfigManager
 from cataforge.core.event_log import EVENT_LOG_REL
 
 from ._constants import DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS
@@ -12,12 +13,9 @@ from ._constants import DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS
 
 def read_framework_data(root: Path) -> dict:
     """Return parsed ``framework.json`` content, or empty dict on failure."""
-    fw_json = root / ".cataforge" / "framework.json"
-    if not fw_json.is_file():
-        return {}
     try:
-        data = json.loads(fw_json.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = ConfigManager(root).load_raw()
+    except (OSError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
 
