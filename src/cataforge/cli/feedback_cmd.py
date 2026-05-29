@@ -35,9 +35,9 @@ from typing import Any, TypeVar
 
 import click
 
-from cataforge.cli.errors import CataforgeError, ExternalToolError
 from cataforge.cli.helpers import get_config_manager, resolve_root
 from cataforge.cli.main import cli
+from cataforge.core.errors import CataforgeError, ExternalToolError
 from cataforge.core.feedback import (
     RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT,
     UPSTREAM_GAP,

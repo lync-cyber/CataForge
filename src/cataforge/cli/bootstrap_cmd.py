@@ -25,8 +25,8 @@ from importlib.metadata import version as _pkg_version
 
 import click
 
-from cataforge.cli.errors import ConfigError
 from cataforge.cli.main import cli
+from cataforge.core.errors import ConfigError
 from cataforge.platform.conformance import ALL_PLATFORMS
 
 

@@ -8,10 +8,10 @@ import json
 from pathlib import Path
 
 import pytest
-from click.testing import CliRunner
 
 from cataforge.cli.docs_cmd import docs_validate
 from cataforge.docs import indexer, loader
+from tests.cli.conftest import invoke_under_group
 
 
 @pytest.fixture(autouse=True)
@@ -153,7 +153,7 @@ def test_validate_docs_reports_unresolvable_dep(tmp_path: Path, monkeypatch) -> 
     indexer.main(["--project-root", str(root)])
 
     monkeypatch.chdir(root)
-    result = CliRunner().invoke(docs_validate, [])
+    result = invoke_under_group(docs_validate, [])
     assert result.exit_code == 3
     out = result.output + (result.stderr_bytes or b"").decode("utf-8", errors="replace")
     assert "nonexistent#§1" in out or "未找到引用目标" in out
@@ -179,7 +179,7 @@ def test_validate_docs_alias_resolves_dep(tmp_path: Path, monkeypatch) -> None:
     indexer.main(["--project-root", str(root)])
 
     monkeypatch.chdir(root)
-    result = CliRunner().invoke(docs_validate, [])
+    result = invoke_under_group(docs_validate, [])
     assert result.exit_code == 0, result.output
 
 
@@ -201,7 +201,7 @@ def test_validate_docs_rejects_doc_id_with_dot(tmp_path: Path, monkeypatch) -> N
     indexer.main(["--project-root", str(root)])
 
     monkeypatch.chdir(root)
-    result = CliRunner().invoke(docs_validate, [])
+    result = invoke_under_group(docs_validate, [])
     assert result.exit_code == 3
     combined = result.output + (result.stderr_bytes or b"").decode("utf-8", errors="replace")
     assert "invalid id" in combined or "非法 doc_id" in combined
@@ -218,7 +218,7 @@ def test_validate_docs_rejects_alias_with_dot(tmp_path: Path, monkeypatch) -> No
     indexer.main(["--project-root", str(root)])
 
     monkeypatch.chdir(root)
-    result = CliRunner().invoke(docs_validate, [])
+    result = invoke_under_group(docs_validate, [])
     assert result.exit_code == 3
     combined = result.output + (result.stderr_bytes or b"").decode("utf-8", errors="replace")
     assert "invalid id" in combined or "非法 alias" in combined

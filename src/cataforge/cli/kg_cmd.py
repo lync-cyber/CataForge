@@ -18,13 +18,13 @@ if TYPE_CHECKING:
     from cataforge.kg import KnowledgeGraph
     from cataforge.kg.trace import TraceChain
 
-from cataforge.cli.errors import (
+from cataforge.cli.main import cli
+from cataforge.core.errors import (
     CataforgeError,
     KGQueryTimeoutError,
     KGStoreError,
     KGVerificationError,
 )
-from cataforge.cli.main import cli
 
 
 @cli.group("kg")

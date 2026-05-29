@@ -1,9 +1,10 @@
-"""Contract tests for ``cataforge.cli.errors``.
+"""Contract tests for ``cataforge.core.errors`` + the CLI render adapter.
 
 Each subclass carries a documented ``exit_code`` that downstream CI
 scripts branch on (see ``docs/reference/cli.md`` §退出码). The mapping
 is part of the public CLI surface — changing a value silently would
-break those scripts. These tests freeze the table.
+break those scripts. These tests freeze the table and the rendering
+contract provided by :class:`cataforge.cli.errors.CataforgeGroup`.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import click
 import pytest
 
-from cataforge.cli.errors import (
+from cataforge.core.errors import (
     EXIT_GENERIC_FAILURE,
     EXIT_KG_VERIFICATION_FAILED,
     EXIT_NOT_IMPLEMENTED,
@@ -51,9 +52,8 @@ class TestExitCodeContract:
 
 
 class TestSubclassHierarchy:
-    """All error types must derive from ``CataforgeError`` so Click
-    renders them via ``ClickException.show`` (single ``Error:`` prefix
-    on stderr, correct exit code)."""
+    """All error types derive from ``CataforgeError`` and stay decoupled
+    from Click — rendering is the CLI adapter's job, not the error's."""
 
     @pytest.mark.parametrize(
         "error_cls",
@@ -68,7 +68,7 @@ class TestSubclassHierarchy:
     )
     def test_inherits_from_cataforge_error(self, error_cls) -> None:
         assert issubclass(error_cls, CataforgeError)
-        assert issubclass(error_cls, click.ClickException)
+        assert not issubclass(error_cls, click.ClickException)
 
     def test_kg_subclasses_share_kg_base(self) -> None:
         assert issubclass(KGStoreError, KGCLIError)
@@ -76,21 +76,25 @@ class TestSubclassHierarchy:
 
 
 class TestRaiseRendersExpectedExitCode:
-    """End-to-end: when raised inside a Click command, the runner's
-    ``result.exit_code`` matches the class attribute. Pre-fix this
-    held only because every kg call site manually set
-    ``err.exit_code = N`` — moving the value onto the class is what
-    makes call sites correct by construction.
+    """End-to-end: a ``CataforgeError`` raised inside a command mounted
+    under :class:`CataforgeGroup` renders ``Error: <msg>`` on stderr and
+    exits with the error's class-level ``exit_code``.
     """
 
     def _run_raising(self, exc_to_raise):
         from click.testing import CliRunner
 
-        @click.command()
+        from cataforge.cli.errors import CataforgeGroup
+
+        @click.group(cls=CataforgeGroup)
+        def root() -> None:
+            pass
+
+        @root.command()
         def boom() -> None:
             raise exc_to_raise
 
-        return CliRunner().invoke(boom, [])
+        return CliRunner().invoke(root, ["boom"])
 
     def test_kg_store_error_exits_one(self) -> None:
         result = self._run_raising(KGStoreError("store not initialised"))

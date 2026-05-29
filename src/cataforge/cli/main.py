@@ -31,6 +31,7 @@ from pathlib import Path
 import click
 
 from cataforge import __version__
+from cataforge.cli.errors import CataforgeGroup
 from cataforge.utils.common import ensure_utf8
 
 # Reconfigure stdout/stderr to UTF-8 before any command runs, so users never need
@@ -47,6 +48,7 @@ CTX_PROJECT_DIR = "project_dir"
 
 
 @click.group(
+    cls=CataforgeGroup,
     help=(
         "CataForge — AI Programming: Agent + Skill Workflow Framework.\n"
         "\n"

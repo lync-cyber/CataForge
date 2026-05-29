@@ -7,7 +7,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from click.testing import CliRunner
 
 from cataforge.cli.feedback_cmd import (
     bug_command,
@@ -15,6 +14,7 @@ from cataforge.cli.feedback_cmd import (
     suggest_command,
 )
 from cataforge.core.corrections import record_correction
+from tests.cli.conftest import invoke_under_group
 
 
 def _bootstrap(tmp_path: Path) -> Path:
@@ -54,7 +54,7 @@ class TestBugCommand:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             bug_command,
             [
                 "--print",
@@ -71,7 +71,7 @@ class TestBugCommand:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             bug_command,
             [
                 "--out", "docs/feedback/bug.md",
@@ -93,7 +93,7 @@ class TestBugCommand:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             bug_command,
             [
                 "--out", "out.md",
@@ -114,7 +114,7 @@ class TestBugCommand:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             bug_command,
             [
                 "--print", "--clip",
@@ -130,7 +130,7 @@ class TestBugCommand:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             bug_command,
             [
                 "--summary", "x",
@@ -150,7 +150,7 @@ class TestSuggestCommand:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             suggest_command,
             [
                 "--print",
@@ -172,7 +172,7 @@ class TestCorrectionExportCommand:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             correction_export_command, ["--print", "--summary", "x"]
         )
         assert result.exit_code != 0
@@ -184,7 +184,7 @@ class TestCorrectionExportCommand:
         project = _bootstrap(tmp_path)
         _seed_upstream_gap(project, n=1)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             correction_export_command,
             ["--print", "--summary", "x", "--threshold", "3"],
         )
@@ -197,7 +197,7 @@ class TestCorrectionExportCommand:
         project = _bootstrap(tmp_path)
         _seed_upstream_gap(project, n=3)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             correction_export_command,
             ["--print", "--summary", "see attached", "--threshold", "3"],
         )
@@ -213,7 +213,7 @@ class TestCorrectionExportCommand:
         project = _bootstrap(tmp_path)
         _seed_upstream_gap(project, n=1)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             correction_export_command,
             ["--print", "--summary", "x", "--threshold", "0"],
         )
@@ -255,7 +255,7 @@ class TestSinks:
             "cataforge.cli.feedback_cmd.run_proc", fake_run
         )
 
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             bug_command,
             [
                 "--gh",
@@ -284,7 +284,7 @@ class TestSinks:
         monkeypatch.setattr(
             "cataforge.cli.feedback_cmd.shutil.which", lambda _name: None
         )
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             bug_command,
             ["--gh", "--summary", "x", "--skip-framework-review"],
         )
@@ -314,7 +314,7 @@ class TestSinks:
             "cataforge.cli.feedback_cmd.run_proc", fake_run
         )
 
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             bug_command,
             ["--clip", "--summary", "x", "--skip-framework-review"],
         )
@@ -332,7 +332,7 @@ class TestSinks:
         monkeypatch.setattr(
             "cataforge.cli.feedback_cmd.shutil.which", lambda _name: None
         )
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             bug_command,
             ["--clip", "--summary", "x", "--skip-framework-review"],
         )
@@ -372,7 +372,7 @@ def test_gh_sink_propagates_error_text(
 
     monkeypatch.setattr("cataforge.cli.feedback_cmd.run_proc", fake_run)
 
-    result = CliRunner().invoke(
+    result = invoke_under_group(
         bug_command,
         ["--gh", "--summary", "x", "--skip-framework-review"],
     )
@@ -400,7 +400,7 @@ def test_gh_sink_propagates_rate_limit_error(
 
     monkeypatch.setattr("cataforge.cli.feedback_cmd.run_proc", fake_run)
 
-    result = CliRunner().invoke(
+    result = invoke_under_group(
         bug_command,
         ["--gh", "--summary", "x", "--skip-framework-review"],
     )

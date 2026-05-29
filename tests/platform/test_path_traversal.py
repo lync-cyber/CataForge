@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.cli.errors import CataforgeError
+from cataforge.core.errors import CataforgeError
 from cataforge.platform.registry import clear_cache, get_adapter
 
 

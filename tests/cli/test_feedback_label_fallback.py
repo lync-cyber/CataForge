@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from cataforge.cli import feedback_cmd
-from cataforge.cli.errors import ExternalToolError
+from cataforge.core.errors import ExternalToolError
 
 
 def _completed(

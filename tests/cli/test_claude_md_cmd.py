@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
-from click.testing import CliRunner
 
 from cataforge.cli.claude_md_cmd import check_command, compact_command
+from tests.cli.conftest import invoke_under_group
 
 
 def _bootstrap(
@@ -46,7 +46,7 @@ class TestCheckCommand:
     ) -> None:
         project = _bootstrap(tmp_path, learnings=["one", "two"])
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(check_command, [])
+        result = invoke_under_group(check_command, [])
         assert result.exit_code == 0, result.output
         assert "OK" in result.output
 
@@ -59,7 +59,7 @@ class TestCheckCommand:
             limits={"learnings_registry_max_entries": 5},
         )
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(check_command, [])
+        result = invoke_under_group(check_command, [])
         assert result.exit_code == 1
         assert "registry exceeds max" in result.output
 
@@ -72,7 +72,7 @@ class TestCheckCommand:
             limits={"learnings_registry_max_entries": 2},
         )
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(check_command, [])
+        result = invoke_under_group(check_command, [])
         assert result.exit_code == 1
         assert "Error:" in result.output
         assert "limits exceeded" in result.output
@@ -85,7 +85,7 @@ class TestCheckCommand:
             json.dumps({"version": "0.0.0-test"}), encoding="utf-8"
         )
         monkeypatch.chdir(tmp_path)
-        result = CliRunner().invoke(check_command, [])
+        result = invoke_under_group(check_command, [])
         assert result.exit_code == 0
         assert "No CLAUDE.md" in result.output
 
@@ -96,7 +96,7 @@ class TestCompactCommand:
     ) -> None:
         project = _bootstrap(tmp_path, learnings=["a", "b"])
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(compact_command, [])
+        result = invoke_under_group(compact_command, [])
         assert result.exit_code == 0
         assert "no compaction needed" in result.output
 
@@ -109,7 +109,7 @@ class TestCompactCommand:
             limits={"learnings_registry_max_entries": 4},
         )
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(compact_command, [])
+        result = invoke_under_group(compact_command, [])
         assert result.exit_code == 0, result.output
         assert "archived 11" in result.output
         archive = project / ".cataforge" / "learnings" / "registry-archive.md"
@@ -136,7 +136,7 @@ class TestCompactCommand:
         )
         monkeypatch.chdir(project)
         before = (project / "CLAUDE.md").read_text(encoding="utf-8")
-        result = CliRunner().invoke(compact_command, ["--dry-run"])
+        result = invoke_under_group(compact_command, ["--dry-run"])
         assert result.exit_code == 0
         assert "would archive" in result.output
         after = (project / "CLAUDE.md").read_text(encoding="utf-8")

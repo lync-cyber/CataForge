@@ -13,7 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from cataforge.cli.errors import CataforgeError
+from cataforge.core.errors import CataforgeError
 from cataforge.platform.instruction_cache import (
     load_instruction_hashes,
     save_instruction_hashes,

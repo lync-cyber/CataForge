@@ -6,11 +6,21 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
-from cataforge.cli.errors import CataforgeError
+from cataforge.cli.errors import CataforgeGroup
 from cataforge.cli.feedback_cmd import bug_command, suggest_command
+from cataforge.core.errors import CataforgeError
+
+
+def _invoke_under_group(cmd: click.Command, args: list[str]):
+    """Run ``cmd`` mounted under a ``CataforgeGroup`` so a raised
+    ``CataforgeError`` is rendered exactly as in production."""
+    root = CataforgeGroup("root")
+    root.add_command(cmd)
+    return CliRunner().invoke(root, [cmd.name, *args])
 
 
 def _bootstrap(tmp_path: Path) -> Path:
@@ -38,7 +48,7 @@ class TestFeedbackExceptionChain:
         monkeypatch.chdir(project)
         cause = ValueError("internal bug detail")
         with patch("cataforge.cli.feedback_cmd.assemble_bug", side_effect=cause):
-            result = CliRunner().invoke(bug_command, ["--print", "--summary", "s"])
+            result = _invoke_under_group(bug_command, ["--print", "--summary", "s"])
         assert result.exit_code == 1
         assert "failed to assemble bug bundle" in result.output
         assert "Error:" in result.output
@@ -50,7 +60,7 @@ class TestFeedbackExceptionChain:
         monkeypatch.chdir(project)
         cause = ValueError("internal suggest detail")
         with patch("cataforge.cli.feedback_cmd.assemble_suggestion", side_effect=cause):
-            result = CliRunner().invoke(suggest_command, ["--print", "--summary", "s"])
+            result = _invoke_under_group(suggest_command, ["--print", "--summary", "s"])
         assert result.exit_code == 1
         assert "failed to assemble suggestion bundle" in result.output
         assert "Error:" in result.output

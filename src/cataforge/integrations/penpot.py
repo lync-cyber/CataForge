@@ -20,7 +20,7 @@ import urllib.request
 from collections.abc import Callable
 from typing import Any
 
-from cataforge.cli.errors import CataforgeError
+from cataforge.core.errors import CataforgeError
 from cataforge.utils.common import (
     BOLD,
     CYAN,

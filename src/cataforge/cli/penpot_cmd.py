@@ -9,8 +9,8 @@ once at startup.
 
 from __future__ import annotations
 
-from cataforge.cli.errors import CataforgeError
 from cataforge.cli.main import cli
+from cataforge.core.errors import CataforgeError
 
 
 def _run_penpot(command: str) -> None:

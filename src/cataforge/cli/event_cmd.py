@@ -12,8 +12,8 @@ from pathlib import Path
 
 import click
 
-from cataforge.cli.errors import CataforgeError
 from cataforge.cli.main import cli
+from cataforge.core.errors import CataforgeError
 from cataforge.core.event_log import (
     EventLogError,
     append_batch,

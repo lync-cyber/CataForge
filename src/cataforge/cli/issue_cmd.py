@@ -45,9 +45,9 @@ from typing import Any
 import click
 
 from cataforge import __version__
-from cataforge.cli.errors import CataforgeError, ExternalToolError
 from cataforge.cli.helpers import get_config_manager, resolve_root
 from cataforge.cli.main import cli
+from cataforge.core.errors import CataforgeError, ExternalToolError
 from cataforge.utils.run_subprocess import run as run_proc
 
 INSTALLED_VERSION = __version__

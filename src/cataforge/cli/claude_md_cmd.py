@@ -16,13 +16,13 @@ from __future__ import annotations
 
 import click
 
-from cataforge.cli.errors import CataforgeError, NotInitializedError
 from cataforge.cli.helpers import get_config_manager
 from cataforge.cli.main import cli
 from cataforge.core.claude_md_hygiene import (
     compact_learnings_registry,
     measure_claude_md,
 )
+from cataforge.core.errors import CataforgeError, NotInitializedError
 
 
 @cli.group("claude-md")

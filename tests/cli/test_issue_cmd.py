@@ -12,10 +12,10 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from click.testing import CliRunner
 
 from cataforge.cli import issue_cmd
 from cataforge.cli.issue_cmd import close_command, triage_command
+from tests.cli.conftest import invoke_under_group
 
 
 def _bootstrap(tmp_path: Path) -> Path:
@@ -105,7 +105,7 @@ class TestTriage:
                 },
             ],
         )
-        result = CliRunner().invoke(triage_command, ["--dry-run"])
+        result = invoke_under_group(triage_command, ["--dry-run"])
         assert result.exit_code == 0, result.output
         assert "already-fixed" in result.output
         # Dry-run skips writes regardless of verdict.
@@ -134,7 +134,7 @@ class TestTriage:
                 },
             ],
         )
-        result = CliRunner().invoke(triage_command, [])
+        result = invoke_under_group(triage_command, [])
         assert result.exit_code == 0, result.output
         assert "confirmed" in result.output
         draft_path = project / "docs" / "reviews" / "triage" / (
@@ -163,7 +163,7 @@ class TestTriage:
                 },
             ],
         )
-        result = CliRunner().invoke(triage_command, [])
+        result = invoke_under_group(triage_command, [])
         assert result.exit_code == 0
         assert "unrelated" in result.output
         assert not (project / "docs" / "reviews" / "triage").exists()
@@ -186,7 +186,7 @@ class TestTriage:
                 },
             ],
         )
-        result = CliRunner().invoke(triage_command, [])
+        result = invoke_under_group(triage_command, [])
         assert result.exit_code == 0
         assert "needs-repro" in result.output
 
@@ -249,7 +249,7 @@ class TestTriage:
             },
         )
 
-        result = CliRunner().invoke(triage_command, ["--dry-run"])
+        result = invoke_under_group(triage_command, ["--dry-run"])
         assert result.exit_code == 0, result.output
 
         # Both issues should appear in the verdict table.
@@ -306,7 +306,7 @@ class TestTriage:
             issues_by_label={"bug": [dual], "enhancement": [dual]},
         )
 
-        result = CliRunner().invoke(triage_command, ["--dry-run"])
+        result = invoke_under_group(triage_command, ["--dry-run"])
         assert result.exit_code == 0, result.output
         # The header line says "N issue(s) fetched"; verify it says 1, not 2.
         assert "1 issue(s) fetched" in result.output
@@ -348,7 +348,7 @@ class TestTriage:
                 }
             ],
         )
-        result = CliRunner().invoke(triage_command, [])
+        result = invoke_under_group(triage_command, [])
         assert result.exit_code == 0, result.output
         # H3 form must be recognised → matches installed version → confirmed.
         assert "confirmed" in result.output, result.output
@@ -386,7 +386,7 @@ class TestTriage:
                 }
             ],
         )
-        result = CliRunner().invoke(triage_command, [])
+        result = invoke_under_group(triage_command, [])
         assert result.exit_code == 0, result.output
         assert "confirmed" in result.output, result.output
 
@@ -397,7 +397,7 @@ class TestClose:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             close_command,
             ["104", "--verdict", "fixed", "--pr", "108", "--dry-run"],
         )
@@ -411,7 +411,7 @@ class TestClose:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             close_command,
             ["102", "--verdict", "wontfix",
              "--reason", "doc_id slug-only is intentional design",
@@ -426,7 +426,7 @@ class TestClose:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             close_command,
             ["77", "--verdict", "already-fixed", "--pr", "65", "--dry-run"],
         )
@@ -439,7 +439,7 @@ class TestClose:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             close_command, ["104", "--verdict", "fixed", "--dry-run"]
         )
         assert result.exit_code != 0
@@ -450,7 +450,7 @@ class TestClose:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             close_command, ["102", "--verdict", "wontfix", "--dry-run"]
         )
         assert result.exit_code != 0
@@ -472,7 +472,7 @@ class TestClose:
         monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
         monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
 
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             close_command,
             ["104", "--verdict", "fixed", "--pr", "108", "--repo", "fake/repo"],
         )
@@ -491,7 +491,7 @@ class TestClose:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             close_command,
             ["104", "--verdict", "fixed", "--pr", "108",
              "--message", "Triage: docs/reviews/triage/foo.md", "--dry-run"],
@@ -515,7 +515,7 @@ class TestGhFailurePaths:
             )
 
         monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
-        result = CliRunner().invoke(triage_command, ["--repo", "fake/repo"])
+        result = invoke_under_group(triage_command, ["--repo", "fake/repo"])
         assert result.exit_code != 0
         assert "rate limit" in result.output
 
@@ -532,7 +532,7 @@ class TestGhFailurePaths:
             )
 
         monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             close_command,
             ["104", "--verdict", "fixed", "--pr", "108", "--repo", "fake/repo"],
         )
@@ -556,7 +556,7 @@ class TestTriageGhParams:
 
         monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
         monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             triage_command, ["--repo", "fake/repo", "--dry-run"]
         )
         assert result.exit_code == 0, result.output

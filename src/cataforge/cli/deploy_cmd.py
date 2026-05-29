@@ -6,8 +6,8 @@ from pathlib import Path
 
 import click
 
-from cataforge.cli.errors import ConfigError, NotInitializedError
 from cataforge.cli.main import cli
+from cataforge.core.errors import ConfigError, NotInitializedError
 from cataforge.platform.conformance import ALL_PLATFORMS
 
 PLATFORM_CHOICES = ALL_PLATFORMS + ["all"]
