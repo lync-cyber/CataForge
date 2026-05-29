@@ -17,9 +17,9 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-s
 def _setup_project_with_kg(tmp_path: Path) -> Path:
     import shutil
 
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg._dispatch import invalidate_cache
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg.ingest import run_migration
 
     source = FIXTURE_ROOT / "waterfall"
     project_root = tmp_path / "proj"
@@ -39,7 +39,7 @@ def _setup_project_with_kg(tmp_path: Path) -> Path:
     return project_root
 
 def _cli():
-    from cataforge.cli.main import _register_commands, cli
+    from cataforge.interface.cli.main import _register_commands, cli
 
     _register_commands()
     return cli
@@ -48,8 +48,8 @@ def test_compare_read_clean_fixture_no_alarms(tmp_path: Path) -> None:
     """Freshly ingested fixture must audit clean: every sampled entity's
     FS-recomputed content_hash equals the `cf:content_hash` literal in KG.
     """
-    from cataforge.kg import KGConfig, KnowledgeGraph
-    from cataforge.kg.compare_read import compare_read
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph
+    from cataforge.domain.kg.compare_read import compare_read
 
     project_root = _setup_project_with_kg(tmp_path)
     config = KGConfig(
@@ -73,8 +73,8 @@ def test_compare_read_flags_mutated_section_body(tmp_path: Path) -> None:
     """Mutating the body of an entity's section after ingest must surface
     as a content_hash mismatch alarm.
     """
-    from cataforge.kg import KGConfig, KnowledgeGraph
-    from cataforge.kg.compare_read import compare_read
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph
+    from cataforge.domain.kg.compare_read import compare_read
 
     project_root = _setup_project_with_kg(tmp_path)
 
@@ -110,8 +110,8 @@ def test_compare_read_flags_mutated_section_body(tmp_path: Path) -> None:
 def test_compare_read_flags_kg_missing_entity(tmp_path: Path) -> None:
     """A new entity in FS that hasn't been re-ingested into KG surfaces as
     `kg-missing-entity` alarm."""
-    from cataforge.kg import KGConfig, KnowledgeGraph
-    from cataforge.kg.compare_read import compare_read
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph
+    from cataforge.domain.kg.compare_read import compare_read
 
     project_root = _setup_project_with_kg(tmp_path)
     prd = project_root / "docs" / "prd" / "prd-vertical-slice.md"
@@ -138,8 +138,8 @@ def test_compare_read_flags_kg_missing_entity(tmp_path: Path) -> None:
     assert alarm_map["F-999"].reason == "kg-missing-entity"
 
 def test_compare_read_seed_is_reproducible(tmp_path: Path) -> None:
-    from cataforge.kg import KGConfig, KnowledgeGraph
-    from cataforge.kg.compare_read import compare_read
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph
+    from cataforge.domain.kg.compare_read import compare_read
 
     project_root = _setup_project_with_kg(tmp_path)
     config = KGConfig(

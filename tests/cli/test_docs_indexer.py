@@ -1,4 +1,4 @@
-"""In-process tests for cataforge.docs.indexer.main exit semantics
+"""In-process tests for cataforge.domain.docs.indexer.main exit semantics
 plus the reverse-orphan / stale-entry detection added in PR #75."""
 
 from __future__ import annotations
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.docs import indexer
+from cataforge.domain.docs import indexer
 
 
 def _make_project(root: Path) -> None:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from cataforge.skill.builtins.framework_review.framework_check import (
+from cataforge.runtime.skill.builtins.framework_review.framework_check import (
     Report,
     check_b7_model_tier,
 )

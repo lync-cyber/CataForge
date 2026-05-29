@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from cataforge.hook.scripts import session_context
-from cataforge.hook.scripts.session_context import _log_session_start
+from cataforge.runtime.hook.scripts import session_context
+from cataforge.runtime.hook.scripts.session_context import _log_session_start
 
 
 def test_log_session_start_warns_on_failure(capsys):

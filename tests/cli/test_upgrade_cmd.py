@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cataforge.cli.main import cli
-from cataforge.services.upgrade import find_breaking_entries
+from cataforge.application.services.upgrade import find_breaking_entries
+from cataforge.interface.cli.main import cli
 
 
 @pytest.fixture

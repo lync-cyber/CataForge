@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.hook.bridge import generate_platform_hooks
-from cataforge.platform.registry import get_adapter
+from cataforge.adapter.platform.registry import get_adapter
+from cataforge.runtime.hook.bridge import generate_platform_hooks
 
 
 @pytest.fixture()
@@ -110,10 +110,10 @@ class TestHookBridge:
         assert len(pre) == 1
         assert pre[0]["matcher"] == "Bash"
         cmd = pre[0]["hooks"][0]["command"]
-        assert "python -m cataforge.hook.scripts.guard_dangerous" in cmd
+        assert "python -m cataforge.runtime.hook.scripts.guard_dangerous" in cmd
 
     def test_cursor_hooks_use_module_invocation(self, project_dir: Path) -> None:
-        """Hooks are invoked via python -m cataforge.hook.scripts.<module>."""
+        """Hooks are invoked via python -m cataforge.runtime.hook.scripts.<module>."""
         platforms_dir = project_dir / ".cataforge" / "platforms"
         adapter = get_adapter("cursor", platforms_dir)
 
@@ -122,7 +122,7 @@ class TestHookBridge:
         assert "preToolUse" in hooks
         pre = hooks["preToolUse"]
         cmd = pre[0]["hooks"][0]["command"]
-        assert "python -m cataforge.hook.scripts.guard_dangerous" in cmd
+        assert "python -m cataforge.runtime.hook.scripts.guard_dangerous" in cmd
 
     def test_cursor_uses_platform_tool_names(self, project_dir: Path) -> None:
         platforms_dir = project_dir / ".cataforge" / "platforms"
@@ -209,7 +209,7 @@ class TestHookBridgeWarnings:
     def test_schema_version_newer_than_release_warns(
         self, project_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import cataforge.hook.bridge as bridge
+        import cataforge.runtime.hook.bridge as bridge
 
         spec = {"schema_version": 999, "hooks": {}, "degradation_templates": {}}
         monkeypatch.setattr(bridge, "load_hooks_spec", lambda _p=None: spec)

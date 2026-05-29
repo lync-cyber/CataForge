@@ -20,9 +20,9 @@ def _setup_project_with_kg(tmp_path: Path, variant: str = "waterfall") -> Path:
     """Copy a fixture variant into tmp_path and run the ingest codemod."""
     import shutil
 
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg._dispatch import invalidate_cache
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg.ingest import run_migration
 
     source = FIXTURE_ROOT / variant
     project_root = tmp_path / "proj"
@@ -43,7 +43,7 @@ def _setup_project_with_kg(tmp_path: Path, variant: str = "waterfall") -> Path:
 
 
 def _cli():
-    from cataforge.cli.main import _register_commands, cli
+    from cataforge.interface.cli.main import _register_commands, cli
 
     _register_commands()
     return cli
@@ -51,8 +51,8 @@ def _cli():
 
 def test_reconcile_clean_fixture_is_ok(tmp_path: Path) -> None:
     """Freshly ingested fixture must reconcile with zero divergence."""
-    from cataforge.kg import KGConfig, KnowledgeGraphStore
-    from cataforge.kg.reconcile import reconcile
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore
+    from cataforge.domain.kg.reconcile import reconcile
 
     project_root = _setup_project_with_kg(tmp_path)
     config = KGConfig(
@@ -75,8 +75,8 @@ def test_reconcile_clean_fixture_is_ok(tmp_path: Path) -> None:
 
 def test_reconcile_detects_fs_only_entity(tmp_path: Path) -> None:
     """Appending a new entity_id to a markdown source must surface as missing."""
-    from cataforge.kg import KGConfig, KnowledgeGraphStore
-    from cataforge.kg.reconcile import reconcile
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore
+    from cataforge.domain.kg.reconcile import reconcile
 
     project_root = _setup_project_with_kg(tmp_path)
     prd = project_root / "docs" / "prd" / "prd-vertical-slice.md"
@@ -101,8 +101,8 @@ def test_reconcile_detects_fs_only_entity(tmp_path: Path) -> None:
 
 def test_reconcile_detects_kg_only_entity(tmp_path: Path) -> None:
     """Removing an entity from filesystem must surface as ghost in KG."""
-    from cataforge.kg import KGConfig, KnowledgeGraphStore
-    from cataforge.kg.reconcile import reconcile
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore
+    from cataforge.domain.kg.reconcile import reconcile
 
     project_root = _setup_project_with_kg(tmp_path)
     tc_file = project_root / "docs" / "test-report" / "test-report-vertical-slice.md"
@@ -127,8 +127,8 @@ def test_reconcile_detects_missing_relation(tmp_path: Path) -> None:
     """Stripping the cross-reference but keeping the entity should leave the
     entity intact and surface a missing relation only.
     """
-    from cataforge.kg import KGConfig, KnowledgeGraphStore
-    from cataforge.kg.reconcile import reconcile
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore
+    from cataforge.domain.kg.reconcile import reconcile
 
     project_root = _setup_project_with_kg(tmp_path)
     arch_file = project_root / "docs" / "arch" / "arch-vertical-slice.md"
@@ -156,8 +156,8 @@ def test_reconcile_agile_variant_is_clean(tmp_path: Path) -> None:
     """The agile fixture (same content, different process_model) reconciles
     just as cleanly as waterfall.
     """
-    from cataforge.kg import KGConfig, KnowledgeGraphStore
-    from cataforge.kg.reconcile import reconcile
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore
+    from cataforge.domain.kg.reconcile import reconcile
 
     project_root = _setup_project_with_kg(tmp_path, variant="agile")
     config = KGConfig(
@@ -190,7 +190,7 @@ def test_reconcile_cli_clean_exits_zero_and_writes_report(tmp_path: Path) -> Non
     payload = json.loads(result.output)
     assert payload["ok"] is True
     assert payload["overall_divergence_count"] == 0
-    from cataforge.kg._config import BUSINESS_DOC_TYPES
+    from cataforge.domain.kg._config import BUSINESS_DOC_TYPES
 
     # No kg_active_doc_types in the fixture → CLI resolves the full default set.
     assert set(payload["active_doc_types"]) == set(BUSINESS_DOC_TYPES)

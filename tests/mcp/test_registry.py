@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.mcp.lifecycle import MCPLifecycleManager
-from cataforge.mcp.registry import MCPRegistry
-from cataforge.schema.mcp_spec import MCPServerSpec
+from cataforge.core.schema.mcp_spec import MCPServerSpec
+from cataforge.runtime.mcp.lifecycle import MCPLifecycleManager
+from cataforge.runtime.mcp.registry import MCPRegistry
 
 
 @pytest.fixture
@@ -155,7 +155,7 @@ class TestLifecycle:
     ) -> None:
         """If a persisted 'running' state references a dead pid, start()
         clears it and spawns a fresh process instead of refusing."""
-        from cataforge.mcp import lifecycle as lc
+        from cataforge.runtime.mcp import lifecycle as lc
 
         _write_spec(
             project,
@@ -192,7 +192,7 @@ class TestLifecycle:
 
     def test_stop_waits_for_pid_to_die(self, project: Path) -> None:
         """stop() must not return until the pid is actually gone."""
-        from cataforge.mcp import lifecycle as lc
+        from cataforge.runtime.mcp import lifecycle as lc
 
         _write_spec(
             project,

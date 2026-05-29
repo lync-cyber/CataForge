@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.skill.runner import SkillRunner, SkillTimeoutError
+from cataforge.runtime.skill.runner import SkillRunner, SkillTimeoutError
 
 
 @pytest.fixture

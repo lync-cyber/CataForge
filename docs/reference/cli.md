@@ -147,7 +147,7 @@ Hook 按事件分组：`PreToolUse` / `PostToolUse` / `Stop` / `Notification` / 
 
 ```bash
 # 用 inline JSON 喂一个 PostToolUse 事件
-cataforge hook test PostToolUse --inline '{"tool_name":"Edit","file_path":"src/cataforge/cli/__init__.py"}'
+cataforge hook test PostToolUse --inline '{"tool_name":"Edit","file_path":"src/cataforge/interface/cli/__init__.py"}'
 
 # 或用 fixture 文件
 cataforge hook test PreToolUse --fixture tests/fixtures/pretool-edit.json
@@ -564,7 +564,7 @@ cataforge feedback correction-export --threshold 3 --out docs/feedback/$(date +%
 | `3`  | KG 内容校验门失败 | `kg import` 校验失败、`kg validate` 报违例、`kg export` 渲染错误、`kg reconcile` 检测到 doc↔store 漂移；由 `CataforgeError` 子类 `KGVerificationError` 抛出。与 `1` 分开是为了让 CI 能在 "数据真有问题" 与 "环境没准备好" 之间分别动作 |
 | `70` | 功能未实现（stub） | `plugin install` / `plugin remove` 等路线图占位命令；由 `CataforgeError` 子类 `NotImplementedFeature` 抛出 |
 
-> `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`，让 CI 脚本能区分"未实现"与"命令用错"。常量定义在 [`cataforge.cli.errors.EXIT_NOT_IMPLEMENTED`](../../src/cataforge/cli/errors.py)，自 v0.1.0 起就是此值。
+> `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`，让 CI 脚本能区分"未实现"与"命令用错"。常量定义在 [`cataforge.interface.cli.errors.EXIT_NOT_IMPLEMENTED`](../../src/cataforge/interface/cli/errors.py)，自 v0.1.0 起就是此值。
 
 所有非零退出均以统一的 stderr 前缀 `Error: …` 输出（`click.ClickException` 渲染），便于 CI/脚本捕获。
 

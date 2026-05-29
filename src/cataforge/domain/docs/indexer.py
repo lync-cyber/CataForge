@@ -1,0 +1,664 @@
+"""build_doc_index — build chapter-level JSON index for docs/.
+
+Invoked via ``python -m cataforge.domain.docs.indexer`` or ``cataforge docs index``.
+
+Scans docs/**/*.md, parses YAML Front Matter and Markdown heading structure,
+produces docs/.doc-index.json for O(1) section lookup.
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
+import hashlib
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+from typing import Any
+
+from cataforge.core.paths import find_project_root
+from cataforge.utils.common import ensure_utf8
+from cataforge.utils.md_parse import iter_markdown_headings
+from cataforge.utils.patterns import (
+    DOC_ID_RE,
+    ITEM_ID_RE,
+    SECTION_NUM_RE,
+    SUBSECTION_NUM_RE,
+)
+from cataforge.utils.yaml_parser import parse_yaml_frontmatter
+
+SECTION_META_RE = re.compile(r"<!--\s*section_meta:\s*\{(.*?)\}\s*-->", re.DOTALL)
+INDEX_FILENAME = ".doc-index.json"
+
+
+def _parse_section_meta(lines: list[str], start: int, end: int) -> dict[str, Any]:
+    for i in range(start, min(end, start + 5)):
+        if i >= len(lines):
+            break
+        m = SECTION_META_RE.search(lines[i])
+        if m:
+            meta_text = m.group(1).strip()
+            result: dict[str, Any] = {}
+            for part in re.split(r",\s*(?=[a-z_]+:)", meta_text):
+                kv = part.split(":", 1)
+                if len(kv) == 2:
+                    k = kv[0].strip()
+                    v = kv[1].strip()
+                    if v.startswith("[") and v.endswith("]"):
+                        items = v[1:-1].split(",")
+                        result[k] = [i.strip().strip('"').strip("'") for i in items if i.strip()]
+                    elif v.isdigit():
+                        result[k] = int(v)
+                    else:
+                        result[k] = v.strip('"').strip("'")
+            return result
+    return {}
+
+
+def _estimate_tokens(text: str) -> int:
+    if not text:
+        return 0
+    return max(1, len(text) // 3)
+
+
+def _content_hash(content: str) -> str:
+    """Compute short hash of document body (post-frontmatter)."""
+    from cataforge.utils.frontmatter import split_yaml_frontmatter
+
+    _, body = split_yaml_frontmatter(content)
+    text = body if body is not None else content
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
+
+
+def _extract_item_id(title: str) -> str | None:
+    m = re.match(r"^([A-Z]+-\d+)", title)
+    return m.group(1) if m else None
+
+
+def _extract_section_number(title: str) -> str | None:
+    m = SUBSECTION_NUM_RE.match(title)
+    if m:
+        return m.group(1)
+    m = SECTION_NUM_RE.match(title)
+    return m.group(1) if m else None
+
+
+def build_document_entry(
+    file_path: str, rel_path: str
+) -> tuple[str | None, dict[str, Any] | None]:
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        return None, None
+
+    lines = content.splitlines()
+    total_lines = len(lines)
+
+    fm = parse_yaml_frontmatter(content)
+    doc_id = fm.get("id", "")
+    if not doc_id or "{" in doc_id:
+        return None, None
+
+    doc_type = fm.get("doc_type", "")
+    volume = fm.get("volume", "main")
+    status = fm.get("status", "draft")
+    split_from = fm.get("split_from", "")
+    deps_raw = fm.get("deps", [])
+    if isinstance(deps_raw, str):
+        deps_raw = [d.strip() for d in deps_raw.split(",") if d.strip()]
+
+    aliases_raw = fm.get("aliases", [])
+    if isinstance(aliases_raw, str):
+        aliases_raw = [a.strip() for a in aliases_raw.split(",") if a.strip()]
+    if not isinstance(aliases_raw, list):
+        aliases_raw = []
+    aliases_clean = [str(a).strip() for a in aliases_raw if str(a).strip()]
+
+    sections: dict[str, Any] = {}
+    headings: list[tuple[int, int, str]] = []
+    for i, level, title in iter_markdown_headings(content):
+        headings.append((i, level, title.strip()))
+
+    for idx, (line_idx, level, title) in enumerate(headings):
+        line_end = total_lines
+        for j in range(idx + 1, len(headings)):
+            next_line_idx, next_level, _ = headings[j]
+            if next_level <= level:
+                line_end = next_line_idx
+                break
+        if level == 1:
+            continue
+
+        section_text = "\n".join(lines[line_idx:line_end])
+        est_tokens = _estimate_tokens(section_text)
+        meta = _parse_section_meta(lines, line_idx + 1, line_end)
+        if "est_tokens" in meta:
+            est_tokens = meta["est_tokens"]
+
+        sec_num = _extract_section_number(title)
+        item_id = _extract_item_id(title)
+
+        if level == 2 and sec_num:
+            sections[sec_num] = {
+                "heading": lines[line_idx].rstrip(), "level": level,
+                "line_start": line_idx + 1, "line_end": line_end,
+                "est_tokens": est_tokens, "deps": meta.get("deps", []),
+                "items": {},
+            }
+        elif level >= 3 and item_id:
+            parent_sec = _find_parent_section(sections, line_idx)
+            if parent_sec:
+                parent_sec["items"][item_id] = {
+                    "heading": lines[line_idx].rstrip(),
+                    "line_start": line_idx + 1, "line_end": line_end,
+                    "est_tokens": est_tokens, "deps": meta.get("deps", []),
+                }
+        elif level >= 3 and sec_num:
+            parent_sec = _find_parent_section(sections, line_idx)
+            if parent_sec:
+                parent_sec["items"][sec_num] = {
+                    "heading": lines[line_idx].rstrip(),
+                    "line_start": line_idx + 1, "line_end": line_end,
+                    "est_tokens": est_tokens, "deps": meta.get("deps", []),
+                }
+
+    entry: dict[str, Any] = {
+        "file_path": rel_path.replace("\\", "/"),
+        "doc_type": doc_type, "volume": volume, "status": status,
+        "total_lines": total_lines, "est_tokens": _estimate_tokens(content),
+        "content_hash": _content_hash(content),
+        "sections": sections,
+    }
+    if split_from:
+        entry["split_from"] = split_from
+    if deps_raw:
+        entry["deps"] = deps_raw
+    if aliases_clean:
+        entry["aliases"] = aliases_clean
+    return doc_id, entry
+
+
+def _find_parent_section(sections: dict[str, Any], line_idx: int) -> dict[str, Any] | None:
+    best = None
+    best_start = -1
+    for _sec_num, sec_data in sections.items():
+        start = sec_data["line_start"] - 1
+        end = sec_data["line_end"]
+        if start <= line_idx < end and start > best_start:
+            best = sec_data
+            best_start = start
+    return best
+
+
+def build_xref(documents: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
+    xref: dict[str, list[dict[str, str]]] = {}
+    for doc_id, doc_entry in documents.items():
+        file_path = doc_entry["file_path"]
+        for sec_num, sec_data in doc_entry.get("sections", {}).items():
+            for item_id in sec_data.get("items", {}):
+                if ITEM_ID_RE.match(item_id):
+                    if item_id not in xref:
+                        xref[item_id] = []
+                    xref[item_id].append({
+                        "doc_id": doc_id, "section": sec_num, "file_path": file_path,
+                    })
+    return xref
+
+
+def _fill_dep_hashes(documents: dict[str, Any]) -> None:
+    """Snapshot each upstream doc's ``content_hash`` into ``dep_hashes``."""
+    for _doc_id, entry in documents.items():
+        deps = entry.get("deps") or []
+        if not isinstance(deps, list) or not deps:
+            continue
+        dep_hashes: dict[str, str] = {}
+        for dep in deps:
+            bare_id = dep.split("#")[0] if "#" in dep else dep
+            upstream = documents.get(bare_id)
+            if upstream and upstream.get("content_hash"):
+                dep_hashes[bare_id] = upstream["content_hash"]
+        if dep_hashes:
+            entry["dep_hashes"] = dep_hashes
+
+
+def _fill_dep_hashes_single(documents: dict[str, Any], target_id: str) -> None:
+    """Refresh ``dep_hashes`` for *only* the given document."""
+    entry = documents.get(target_id)
+    if not entry:
+        return
+    deps = entry.get("deps") or []
+    if not isinstance(deps, list) or not deps:
+        return
+    dep_hashes: dict[str, str] = {}
+    for dep in deps:
+        bare_id = dep.split("#")[0] if "#" in dep else dep
+        upstream = documents.get(bare_id)
+        if upstream and upstream.get("content_hash"):
+            dep_hashes[bare_id] = upstream["content_hash"]
+    if dep_hashes:
+        entry["dep_hashes"] = dep_hashes
+
+
+def build_full_index(project_root: str) -> dict[str, Any]:
+    docs_dir = os.path.join(project_root, "docs")
+    documents: dict[str, Any] = {}
+    if not os.path.isdir(docs_dir):
+        return _make_index(documents)
+    for md_path in sorted(glob.glob(os.path.join(docs_dir, "**", "*.md"), recursive=True)):
+        rel_path = os.path.relpath(md_path, project_root)
+        doc_id, entry = build_document_entry(md_path, rel_path)
+        if doc_id and entry:
+            documents[doc_id] = entry
+    _fill_dep_hashes(documents)
+    return _make_index(documents)
+
+
+def find_orphan_docs(project_root: str) -> list[str]:
+    """Return rel-paths of ``docs/**/*.md`` that the indexer cannot ingest.
+
+    A file is "orphan" when it is missing YAML front matter, or its ``id``
+    field is empty/contains a ``{...}`` template placeholder. Such files are
+    silently skipped by :func:`build_full_index` and never appear in
+    ``.doc-index.json``, which means downstream consumers (``cataforge docs
+    load``, ``--with-deps``, agent prose) cannot resolve them. Surfacing them
+    is the only way to catch this whole class of rot.
+
+    Files under ``.archive/`` are excluded — those are intentional snapshots
+    of historical NAV-INDEX content kept by ``cataforge docs migrate-nav``.
+    """
+    docs_dir = os.path.join(project_root, "docs")
+    if not os.path.isdir(docs_dir):
+        return []
+    orphans: list[str] = []
+    for md_path in sorted(glob.glob(os.path.join(docs_dir, "**", "*.md"), recursive=True)):
+        rel_path = os.path.relpath(md_path, project_root)
+        rel_posix = rel_path.replace("\\", "/")
+        if "/.archive/" in rel_posix or rel_posix.startswith("docs/.archive/"):
+            continue
+        doc_id, entry = build_document_entry(md_path, rel_path)
+        if not (doc_id and entry):
+            orphans.append(rel_posix)
+    return orphans
+
+
+def validate_docs(project_root: str) -> dict[str, list]:
+    """Run all docs validations and return a unified result.
+
+    Single source of truth for both ``cataforge docs validate`` and
+    ``cataforge doctor`` — enhancements (e.g. cross-ref resolution) added here
+    flow into both call sites without duplication.
+    """
+    return {
+        "orphans": find_orphan_docs(project_root),
+        "stale": find_stale_index_entries(project_root),
+        "xref_errors": find_xref_errors(project_root),
+        "alias_conflicts": find_alias_conflicts(project_root),
+        "invalid_ids": find_invalid_doc_ids(project_root),
+        "stale_deps": find_stale_deps(project_root),
+    }
+
+
+def find_stale_deps(project_root: str) -> list[dict[str, str]]:
+    """Return deps whose upstream ``content_hash`` changed since last index build.
+
+    Each document with a ``dep_hashes`` snapshot is compared against its
+    upstream documents' current ``content_hash``. A mismatch signals that
+    the upstream was revised after the downstream was written against it —
+    the downstream may need updating to reflect the upstream changes.
+    """
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    stale: list[dict[str, str]] = []
+    documents = index.get("documents") or {}
+
+    for doc_id, entry in documents.items():
+        dep_hashes = entry.get("dep_hashes") or {}
+        if not dep_hashes:
+            continue
+        for upstream_id, pinned_hash in dep_hashes.items():
+            upstream = documents.get(upstream_id)
+            if not upstream:
+                continue
+            current_hash = upstream.get("content_hash", "")
+            if pinned_hash and current_hash and pinned_hash != current_hash:
+                stale.append({
+                    "doc_id": doc_id,
+                    "file_path": entry.get("file_path", ""),
+                    "upstream_id": upstream_id,
+                    "pinned_hash": pinned_hash,
+                    "current_hash": current_hash,
+                })
+    return stale
+
+
+def find_invalid_doc_ids(project_root: str) -> list[dict[str, str]]:
+    """Return doc_ids / aliases whose slug violates ``DOC_ID_RE``.
+
+    The loader's ``REF_RE`` only accepts ``[\\w-]+`` in the doc_id position,
+    so any id or alias containing ``.`` (e.g. version strings like
+    ``0.1.0``) silently breaks every cross-reference targeting it.
+    Reporting them here turns the silent failure into a hard validate
+    error so doc-gen template misuse surfaces immediately.
+    """
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    errors: list[dict[str, str]] = []
+    documents = index.get("documents") or {}
+    for doc_id, entry in documents.items():
+        rel_path = entry.get("file_path", "")
+        if not DOC_ID_RE.match(doc_id):
+            errors.append({
+                "kind": "doc_id", "value": doc_id, "file_path": rel_path,
+                "reason": (
+                    f"非法 doc_id {doc_id!r}: 仅允许 [A-Za-z0-9_-]，"
+                    f"含 '.' 等字符会让 REF_RE 拒绝任何指向本文档的引用"
+                ),
+            })
+        for alias in entry.get("aliases") or []:
+            if not isinstance(alias, str) or not DOC_ID_RE.match(alias):
+                errors.append({
+                    "kind": "alias", "value": str(alias), "file_path": rel_path,
+                    "reason": (
+                        f"非法 alias {alias!r} (claimed by {doc_id!r}): "
+                        f"仅允许 [A-Za-z0-9_-]"
+                    ),
+                })
+    return errors
+
+
+def find_alias_conflicts(project_root: str) -> list[dict[str, Any]]:
+    """Return frontmatter alias conflicts recorded in the index.
+
+    Two docs claiming the same alias, or an alias that shadows an existing
+    doc_id, are first-claim-wins at index time and recorded here so the
+    second claim's silent no-op surfaces at validate time.
+    """
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    conflicts = index.get("alias_conflicts") or []
+    return list(conflicts) if isinstance(conflicts, list) else []
+
+
+def find_xref_errors(project_root: str) -> list[dict[str, str]]:
+    """Return cross-reference resolution errors for all docs in the index.
+
+    Each entry's frontmatter ``deps:`` is parsed; every ``doc_id#§N[.item]``
+    is resolved against the index (with prefix fallback + aliases). Refs that
+    cannot resolve, or that resolve ambiguously to multiple docs, are reported
+    here so the failure surfaces at validation time instead of at
+    ``cataforge docs load`` time.
+    """
+    from cataforge.domain.docs.index_ops import (
+        AmbiguousRefError,
+        LoadSectionError,
+        _lookup_in_index,
+    )
+    from cataforge.domain.docs.loader import parse_ref
+
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    errors: list[dict[str, str]] = []
+    documents = index.get("documents") or {}
+    for doc_id, entry in documents.items():
+        rel_path = entry.get("file_path", "")
+        deps = entry.get("deps") or []
+        if not isinstance(deps, list):
+            continue
+        for dep in deps:
+            if not isinstance(dep, str) or "#§" not in dep:
+                continue
+            try:
+                ref_doc, section_path, item_id = parse_ref(dep)
+            except LoadSectionError as e:
+                errors.append({"doc_id": doc_id, "file_path": rel_path,
+                               "ref": dep, "reason": f"parse error: {e}"})
+                continue
+            try:
+                hit = _lookup_in_index(index, ref_doc, section_path, item_id)
+            except AmbiguousRefError as e:
+                errors.append({"doc_id": doc_id, "file_path": rel_path,
+                               "ref": dep, "reason": str(e)})
+                continue
+            if hit is None:
+                errors.append({
+                    "doc_id": doc_id, "file_path": rel_path, "ref": dep,
+                    "reason": (
+                        f"未找到引用目标 {ref_doc!r}"
+                        "（短别名？参考 frontmatter aliases:）"
+                    ),
+                })
+    return errors
+
+
+def find_stale_index_entries(project_root: str) -> list[tuple[str, str]]:
+    """Return ``(doc_id, file_path)`` pairs whose ``file_path`` is gone from disk.
+
+    Symmetric to :func:`find_orphan_docs`: that function catches files
+    on disk the indexer can't read; this one catches index entries that
+    survived a manual ``rm`` / rename. Both are silent failure modes
+    pre-v0.1.14 — the loader returned "ref not found" instead of
+    pointing at the stale entry.
+    """
+    index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        return []
+    try:
+        with open(index_path, encoding="utf-8") as f:
+            index = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    stale: list[tuple[str, str]] = []
+    for doc_id, entry in (index.get("documents") or {}).items():
+        rel = entry.get("file_path", "")
+        if not rel:
+            continue
+        abs_path = os.path.join(project_root, rel)
+        if not os.path.isfile(abs_path):
+            stale.append((doc_id, rel))
+    return stale
+
+
+def update_single_doc(
+    project_root: str, doc_file: str, existing_index: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    if existing_index is None:
+        index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
+        if os.path.isfile(index_path):
+            with open(index_path, encoding="utf-8") as f:
+                existing_index = json.load(f)
+        else:
+            existing_index = _make_index({})
+
+    documents = existing_index.get("documents", {})
+    abs_path = os.path.join(project_root, doc_file) if not os.path.isabs(doc_file) else doc_file
+    rel_path = os.path.relpath(abs_path, project_root)
+
+    old_ids = [did for did, d in documents.items()
+               if d.get("file_path") == rel_path.replace("\\", "/")]
+    for old_id in old_ids:
+        del documents[old_id]
+
+    doc_id, entry = build_document_entry(abs_path, rel_path)
+    if doc_id and entry:
+        documents[doc_id] = entry
+        _fill_dep_hashes_single(documents, doc_id)
+    return _make_index(documents)
+
+
+def _make_index(documents: dict[str, Any]) -> dict[str, Any]:
+    aliases, alias_conflicts = build_aliases(documents)
+    index: dict[str, Any] = {
+        "version": "1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "documents": documents,
+        "xref": build_xref(documents),
+        "aliases": aliases,
+    }
+    if alias_conflicts:
+        index["alias_conflicts"] = alias_conflicts
+    return index
+
+
+def build_aliases(
+    documents: dict[str, Any],
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    """Build the top-level ``alias → doc_id`` map.
+
+    Each doc's frontmatter ``aliases:`` list contributes alias names that
+    point at its own ``id``. The resolver consults this map after exact and
+    prefix lookups (see :func:`cataforge.domain.docs.loader._resolve_doc_entry`).
+
+    First-claim wins on conflicts; collisions are recorded in the returned
+    ``alias_conflicts`` list and surface in ``cataforge docs validate``.
+    Aliases that collide with an actual doc_id are also rejected — a real
+    doc_id always shadows an alias, so registering the alias would be a
+    silent no-op.
+    """
+    aliases: dict[str, str] = {}
+    conflicts: list[dict[str, Any]] = []
+    for doc_id, entry in documents.items():
+        for alias in entry.get("aliases") or []:
+            if alias in documents:
+                conflicts.append({
+                    "alias": alias, "claimed_by": doc_id,
+                    "reason": f"shadowed by an existing doc_id {alias!r}",
+                })
+                continue
+            existing = aliases.get(alias)
+            if existing is not None and existing != doc_id:
+                conflicts.append({
+                    "alias": alias, "claimed_by": doc_id,
+                    "reason": f"already claimed by {existing!r}",
+                })
+                continue
+            aliases[alias] = doc_id
+    return aliases, conflicts
+
+
+def write_index(index: dict[str, Any], project_root: str) -> str:
+    docs_dir = os.path.join(project_root, "docs")
+    os.makedirs(docs_dir, exist_ok=True)
+    out_path = os.path.join(docs_dir, INDEX_FILENAME)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False, indent=2)
+    return out_path
+
+
+def main(argv: list[str] | None = None) -> int:
+    ensure_utf8()
+    parser = argparse.ArgumentParser(
+        description="CataForge build_doc_index — build chapter-level JSON index",
+    )
+    parser.add_argument("--project-root", default=None)
+    parser.add_argument("--doc-file", default=None, help="Incremental update for a single file")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero if any docs/**/*.md is missing YAML front matter "
+             "and gets skipped (useful as a CI gate).",
+    )
+    args = parser.parse_args(argv)
+
+    project_root = args.project_root or str(find_project_root())
+
+    if args.doc_file:
+        index = update_single_doc(project_root, args.doc_file)
+    else:
+        index = build_full_index(project_root)
+
+    out_path = write_index(index, project_root)
+    doc_count = len(index.get("documents", {}))
+    xref_count = len(index.get("xref", {}))
+    print(f"索引已写入: {out_path}")
+    print(f"文档数: {doc_count}, 交叉引用条目: {xref_count}")
+
+    # Orphan scan is a tree-wide property — run it on every invocation,
+    # incremental or not. Previously the scan was skipped when --doc-file
+    # was set, which made --strict a silent no-op for incremental updates
+    # (e.g. PostToolUse hook scenarios) and let bad front matter slip past
+    # the gate as long as the offending file wasn't the one being updated.
+    orphans = find_orphan_docs(project_root)
+    if orphans:
+        print(
+            f"[WARN] {len(orphans)} 个 docs/**/*.md 文件缺少 YAML "
+            f"front matter (id 字段) — 已被 indexer 跳过：",
+            file=sys.stderr,
+        )
+        for rel in orphans:
+            print(f"  - {rel}", file=sys.stderr)
+        print(
+            "  → 补 front matter (id/doc_type/...) 后重跑，或确认这些"
+            "文件不应出现在 docs/ 下。",
+            file=sys.stderr,
+        )
+        # Same orphan list also FAILS `cataforge doctor` (orphan count
+        # feeds doctor's exit gate, see cli/doctor_cmd.py:_check_orphan_docs),
+        # so a missing front matter is already a hard CI gate even without
+        # --strict — surface that explicitly so users don't think this is
+        # advisory-only.
+        print(
+            "  注意：同样的 orphan 也会让 `cataforge doctor` 退出非零，"
+            "进而 FAIL 任何把 doctor 接入 CI 的工作流（见 "
+            ".github/workflows/test.yml）。--strict 只控制本命令是否 FAIL。",
+            file=sys.stderr,
+        )
+        if args.strict:
+            return 3
+
+    # Reverse-orphan scan: index entries pointing at deleted/renamed
+    # files. The fresh index we just wrote is consistent by construction,
+    # so this only matters if `--doc-file` was used (incremental: other
+    # entries weren't refreshed).
+    if args.doc_file:
+        stale = find_stale_index_entries(project_root)
+        if stale:
+            print(
+                f"[WARN] {len(stale)} 个 .doc-index.json 条目指向磁盘"
+                f"已不存在的文件：",
+                file=sys.stderr,
+            )
+            for doc_id, rel in stale:
+                print(f"  - {doc_id} → {rel}", file=sys.stderr)
+            print(
+                "  → 跑 `cataforge docs index`（不带 --doc-file）做全量"
+                "重建以清掉这些条目。",
+                file=sys.stderr,
+            )
+            if args.strict:
+                return 3
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

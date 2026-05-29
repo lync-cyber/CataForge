@@ -25,8 +25,8 @@ class TestSparqlWriteGuard:
         ],
     )
     def test_write_operations_are_rejected(self, sparql: str) -> None:
-        from cataforge.cli.kg.query import _guard_sparql_writes
         from cataforge.core.errors import CataforgeError
+        from cataforge.interface.cli.kg.query import _guard_sparql_writes
 
         with pytest.raises(CataforgeError, match="writes are not supported"):
             _guard_sparql_writes(sparql)
@@ -44,22 +44,22 @@ class TestSparqlWriteGuard:
         ],
     )
     def test_read_operations_pass_through(self, sparql: str) -> None:
-        from cataforge.cli.kg.query import _guard_sparql_writes
+        from cataforge.interface.cli.kg.query import _guard_sparql_writes
 
         # Must not raise
         _guard_sparql_writes(sparql)
 
     def test_write_with_prefix_declarations_is_still_rejected(self) -> None:
-        from cataforge.cli.kg.query import _guard_sparql_writes
         from cataforge.core.errors import CataforgeError
+        from cataforge.interface.cli.kg.query import _guard_sparql_writes
 
         sparql = "PREFIX ex: <http://example.org/>\nINSERT DATA { ex:a ex:b ex:c }"
         with pytest.raises(CataforgeError, match="writes are not supported"):
             _guard_sparql_writes(sparql)
 
     def test_write_with_leading_comment_is_rejected(self) -> None:
-        from cataforge.cli.kg.query import _guard_sparql_writes
         from cataforge.core.errors import CataforgeError
+        from cataforge.interface.cli.kg.query import _guard_sparql_writes
 
         sparql = "# This is a comment\nDELETE DATA { <urn:a> <urn:b> <urn:c> }"
         with pytest.raises(CataforgeError, match="writes are not supported"):
@@ -96,7 +96,7 @@ class TestMaterializeQueryResult:
         return mock_raw
 
     def test_large_result_set_row_count_is_preserved(self) -> None:
-        from cataforge.cli.kg.query import _materialize_query_result
+        from cataforge.interface.cli.kg.query import _materialize_query_result
 
         n = 500
         mock_raw = MagicMock()
@@ -133,7 +133,7 @@ class TestMaterializeQueryResult:
 
     def test_variables_consumed_only_once(self) -> None:
         """variables must be read before the row loop, not inside it."""
-        from cataforge.cli.kg.query import _materialize_query_result
+        from cataforge.interface.cli.kg.query import _materialize_query_result
 
         try:
             from pyoxigraph import Variable  # type: ignore[import]

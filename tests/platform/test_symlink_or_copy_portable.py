@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.platform.helpers import reset_junction_warning_state, symlink_or_copy
+from cataforge.adapter.platform.helpers import reset_junction_warning_state, symlink_or_copy
 
 
 @pytest.fixture(autouse=True)

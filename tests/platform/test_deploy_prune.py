@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from cataforge.platform.adapter import PlatformAdapter
+from cataforge.adapter.platform.adapter import PlatformAdapter
 
 
 class _MinimalAdapter(PlatformAdapter):

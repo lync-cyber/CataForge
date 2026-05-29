@@ -13,9 +13,9 @@ from pathlib import Path
 
 import yaml
 
+from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
-from cataforge.deploy.deployer import Deployer
-from cataforge.platform.registry import clear_cache
+from cataforge.runtime.deploy.deployer import Deployer
 
 
 def _write_profile(base: Path, platform_id: str, profile: dict) -> None:

@@ -60,7 +60,7 @@ docs/{doc_type}/{template_id}-{project}.md
 
 ### 主路径：`cataforge docs load` CLI
 
-**函数签名**（`src/cataforge/docs/loader.py`）：
+**函数签名**（`src/cataforge/domain/docs/loader.py`）：
 
 ```python
 def extract(ref: str, project_root: str, file_cache: dict[str, list[str]] | None = None) -> str
@@ -127,7 +127,7 @@ Agent 直接读取 `docs/.doc-index.json`，按 `file_path` + `line_start` + `li
 
 **案例 A：回退扫描全文标题**
 
-`loader.extract()` 在索引缺失或过期时，回退路径是调用 `iter_markdown_headings(content)` 对文件全文做 markdown-it 解析（`src/cataforge/docs/loader.py:384-391`）。`iter_markdown_headings` 内部走完整 CommonMark 解析器（`md_parse.py:8-36`），对一个 300 行的 arch 主卷来说，每次 fallback 都要解析整个文件，且仅为了定位一个 section 的行号范围。索引失效（7 天 stale 告警阈值在 `_STALE_DAYS_WARN = 7`）期间每个 Agent 每次调用均退化为此路径。
+`loader.extract()` 在索引缺失或过期时，回退路径是调用 `iter_markdown_headings(content)` 对文件全文做 markdown-it 解析（`src/cataforge/domain/docs/loader.py:384-391`）。`iter_markdown_headings` 内部走完整 CommonMark 解析器（`md_parse.py:8-36`），对一个 300 行的 arch 主卷来说，每次 fallback 都要解析整个文件，且仅为了定位一个 section 的行号范围。索引失效（7 天 stale 告警阈值在 `_STALE_DAYS_WARN = 7`）期间每个 Agent 每次调用均退化为此路径。
 
 **案例 B：doc-review Layer 1 `check_xref()` 正则宽泛**
 

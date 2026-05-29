@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.agent.translator import translate_agent_md
-from cataforge.platform.registry import get_adapter
+from cataforge.adapter.platform.registry import get_adapter
+from cataforge.runtime.agent.translator import translate_agent_md
 
 
 @pytest.fixture()

@@ -32,7 +32,7 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 | 旧路径（0.4.x） | 新路径（0.5.0） | 范围 |
 |----------------|----------------|------|
 | `docs/.doc-index.json` 作为权威索引 | RocksDB-backed Oxigraph store at `.cataforge/kg/store/`，`.doc-index.json` 降级为派生缓存 | `kg_active_doc_types ⊇ {prd, arch, test}` 内 |
-| `loader.extract()` 文件切片读 PRD/Arch/Test 段 | `cataforge.kg.export.render_entity` 经 SPARQL hydrate 出 canonical Markdown | 同上 |
+| `loader.extract()` 文件切片读 PRD/Arch/Test 段 | `cataforge.domain.kg.export.render_entity` 经 SPARQL hydrate 出 canonical Markdown | 同上 |
 | `check_xref` 用 file-glob 解析 entity_id（URL-fragment / cross-volume 误报） | SPARQL 实体解析 | 同上 |
 | `check_bidirectional_coverage` 正则 grep 双向覆盖（task-1 §1.4 case A 假阳） | `cf:implements + cf:verifies+` SPARQL property path | 同上 |
 | arch §1.4 tech-stack narrative 走 `source_section()` 转义 hatch | `cf:TechStack` 类 + `cataforge kg import` codemod 抽取为实体 | arch doc_type |
@@ -52,7 +52,7 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 | `kg_ingestion_completeness` ERROR-gate | N/A | `cataforge doctor` 在某 active doc_type 的 Markdown 实体缺失于 KG 时 ERROR 阻断，无 WARN 过渡期 | 翻 flag 前先 `cataforge kg import` + `cataforge kg reconcile`，确认零 missing |
 | `docs/.doc-index.json` 派生化 | 权威索引，第三方可直接 import 读字段 | 派生缓存，可能落后于 KG | 第三方读者改用 `cataforge kg query` 或 `cataforge docs load`（后者自动按 doc_type 路由到 KG 或 legacy） |
 | Component C-NNN 与 ui-spec C-NNN 命名空间分裂 | 共享 `C-NNN` prefix，混淆来源 | ui-spec C-NNN 在 `cataforge kg import` 中 codemod 为 UC-NNN（`UIComponent`） | inbound xref 由 codemod 自动追踪；下游 grep 工具切到 `UC-` |
-| `cataforge.kg._shim` 公开接口 | N/A | shim 层 5 + 3 个函数（`extract` / `extract_batch` / `plan_load` / `build_full_index` / `resolve_deps` + `extract_with_body` / `legacy_validate_report` / `source_section`）发 `DeprecationWarning` | 调用方迁到 `QueryAPI` / `TraceAPI` 直接接口；0.6.0 移除 shim 层 |
+| `cataforge.domain.kg._shim` 公开接口 | N/A | shim 层 5 + 3 个函数（`extract` / `extract_batch` / `plan_load` / `build_full_index` / `resolve_deps` + `extract_with_body` / `legacy_validate_report` / `source_section`）发 `DeprecationWarning` | 调用方迁到 `QueryAPI` / `TraceAPI` 直接接口；0.6.0 移除 shim 层 |
 | `governance.yaml` schema 提供但默认关闭 | N/A | `KGConfig.governance=False` 默认；仅 framework-review 等内部 skill 开关切 True | 业务项目无操作；自定 governance 整合的项目自管 `governance=True` 切换 |
 
 回滚粒度 = 单 doc_type：从 `kg_active_doc_types` 移除该 doc_type 即让该 doc_type 读路径退回 legacy loader，其它 doc_type 不受影响。Systemic snapshot 回滚走 `cataforge kg snapshot --output <path>` → `cataforge kg rollback <path>`。完整流程见 [迁移指南](docs/migration/kg-cutover-0.5.0.md) §回滚。
@@ -62,7 +62,7 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 - **`cataforge mcp health <id>`** —— 主动探测注册的 MCP 服务健康。按 `spec.health_check.type` 分派：`http` → `GET` 目标 URL（2xx 即健康）；`tcp` → `socket.connect("host:port")`；`command` → shell 执行（exit 0 即健康）；缺省 → pid alive 兜底。结果写回 `last_health_check`；unhealthy 时 exit 1。
 - **`start()` 完成后跑 readiness 探测** —— spawn 后立即调一次 `health()`，返回的 state 反映「真正可用」而非「OS 已 fork」。
 - **Codex / OpenCode `deploy_agents` orphan prune** —— 与 Claude Code / base 对齐。删除/重命名 agent 后，下次 `cataforge deploy` 自动清掉旧的 `.codex/agents/<name>.toml` / `.opencode/agents/<name>.md`。只动带自动生成签名（`# Auto-generated from <stem>/AGENT.md` / `name: <stem>` frontmatter）的文件，用户自创的同名文件不动。
-- **CI `mypy` informational + 严格包阻塞** —— `mypy src/cataforge` 整库 info-only 印错误数；opt-in strict 包列表（首批：`cataforge.services.*`）任何 strict 错误阻塞 PR。convergence 流程文档化在 [docs/contributing.md § 类型检查](docs/contributing.md)。
+- **CI `mypy` informational + 严格包阻塞** —— `mypy src/cataforge` 整库 info-only 印错误数；opt-in strict 包列表（首批：`cataforge.application.services.*`）任何 strict 错误阻塞 PR。convergence 流程文档化在 [docs/contributing.md § 类型检查](docs/contributing.md)。
 - **CI `uv run --extra dev pytest` smoke + 默认 extras collect smoke** —— 前者覆盖 uv 路径不漂移；后者干净 venv 跑 pytest collect 守住 P0-1 的 jinja2 修复（防止 runtime dep 再次被 [dev] 间接拉入掩盖）。
 - **CI 平台 dry-run 矩阵** —— `cataforge deploy --platform cursor/codex/opencode --dry-run` 每个 PR 都跑一次，弥补 [README.md:90](README.md) 承认的「Cursor/CodeX/OpenCode 未等同 E2E 验证」缺口。
 
@@ -71,9 +71,9 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 
 - **`[kg]` optional-dependencies group** —— `pip install cataforge[kg]` 拉 `linkml-runtime>=1.11.1` 和 `pyoxigraph>=0.5.8`，是 0.5.0 KG 迁移 sub-PR 1（schema + codegen）的运行时依赖前置。`[dev]` 同时加入 `linkml>=1.11.1` 提供 `gen-pydantic` / `gen-shacl` / `gen-owl` codegen 工具链。`[all]` 已同步包含 KG 两包。
 
-- **`src/cataforge/kg/schemas/` 作为 KG schema 唯一权威源** —— `core.yaml` / `governance.yaml` 从 `docs/proposals/kg-migration-0.5.0/schemas/` 复制到包内可寻址路径，runtime 通过 `importlib.resources.files("cataforge.kg.schemas")` 解析。`docs/proposals/` 副本冻结为设计时刻快照，不再随实现演进更新（README 顶部已加 SoT 指针）。
+- **`src/cataforge/domain/kg/schemas/` 作为 KG schema 唯一权威源** —— `core.yaml` / `governance.yaml` 从 `docs/proposals/kg-migration-0.5.0/schemas/` 复制到包内可寻址路径，runtime 通过 `importlib.resources.files("cataforge.domain.kg.schemas")` 解析。`docs/proposals/` 副本冻结为设计时刻快照，不再随实现演进更新（README 顶部已加 SoT 指针）。
 
-- **`scripts/codegen_kg_schema.py` LinkML → Pydantic / SHACL / rdfs:subClassOf 一次性编译** —— 调用 LinkML Python API（`PydanticGenerator` / `ShaclGenerator`）把 `core.yaml` + `governance.yaml` 编译到 `src/cataforge/kg/_generated/`（`.gitignore` 已收）：
+- **`scripts/codegen_kg_schema.py` LinkML → Pydantic / SHACL / rdfs:subClassOf 一次性编译** —— 调用 LinkML Python API（`PydanticGenerator` / `ShaclGenerator`）把 `core.yaml` + `governance.yaml` 编译到 `src/cataforge/domain/kg/_generated/`（`.gitignore` 已收）：
   * `core_pydantic.py` / `governance_pydantic.py` —— Pydantic v2 模型，供 ingest / write 层数据校验
   * `core_shapes.ttl` / `governance_shapes.ttl` —— SHACL shapes，供可选 `pyshacl` 后置校验
   * `subclass_axioms.ttl` —— 把 LinkML `is_a` 链显式物化成 `rdfs:subClassOf` triples，给 sub-PR 2 的 `cataforge kg init` 在 store bootstrap 时灌入。pyoxigraph 0.5.x 不做 OWL/RDFS 推理，property-path 查询 `a/rdfs:subClassOf*` 必须依赖显式三元组才能走通子类闭包（spike-2 §2.1，[CataForge#142](https://github.com/lync-cyber/CataForge/issues/142)）。
@@ -81,25 +81,25 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 
 - **`tests/kg/test_codegen.py` codegen 烟测 4 例** —— 产物存在、`subclass_axioms.ttl` 重跑字节级一致、已知 `is_a` 链（Feature→Requirement→SoftwareArtifact、Page→Screen→SoftwareArtifact、Sprint→WorkUnit→SoftwareArtifact）落到产物里、生成的 Pydantic 模块能 import 出 Feature / Component / TestCase / Project / SoftwareArtifact 五个核心类。`linkml` 未安装时整组测试自动 skip（属 `dev` extra，不进运行时依赖）。
 
-- **`cataforge kg init` —— 0.5.0 KG store lifecycle 起手** —— Alpha sub-PR 2 (`store + init`，task-7 §7.1)。新建 `src/cataforge/kg/` 运行时包：
+- **`cataforge kg init` —— 0.5.0 KG store lifecycle 起手** —— Alpha sub-PR 2 (`store + init`，task-7 §7.1)。新建 `src/cataforge/domain/kg/` 运行时包：
 
   * `KGConfig` dataclass（task-5 §5.2）—— `store_backend` / `db_path` / `governance` / `coverage_mode` / `kg_active_doc_types` 等十个字段；其中 `kg_active_doc_types: set[str]` 默认空 set，per-doc_type cutover 旗标的存放点。round-2 决策落地。
   * `KnowledgeGraphStore` —— 包住 `pyoxigraph.Store` 的薄壳，sync `connect()` context manager + `.ask()` 走 `_ask.ask()` 单点。完整 `KnowledgeGraph` facade（query/trace/transaction）留给后续 sub-PR。
   * `bootstrap_subclass_axioms(store)` —— 把 LinkML `is_a` 链直接写成 `rdfs:subClassOf` triples 灌进 store（spike-2 §2.1）。pyoxigraph 0.5.x 无 OWL/RDFS 推理，`a/rdfs:subClassOf*` 必须依赖显式三元组才能走子类闭包。集成测试断言 `?s a/rdfs:subClassOf* cf:Screen` 在插入一个 `cf:Page` 实例后返回它。
   * `cataforge kg init [--db-path] [--backend memory|oxigraph] [--governance] [--force]` —— 创建 RocksDB store 目录 + bootstrap；存在则 `KGStoreAlreadyExistsError` 退出 1 除非给 `--force`。
 
-- **`cataforge.kg._ask.ask(store, sparql) -> bool` —— `QueryBoolean` 单点 chokepoint**（spike-2 §2.2 / 风险册 R-09 / [#142](https://github.com/lync-cyber/CataForge/issues/142)）—— pyoxigraph `Store.query()` 对 ASK 返回 `QueryBoolean`，`== True` 永远等于 False 即使答案为 True。所有 ASK 消费走这一个 wrapper；测试 pin 住"return is real Python bool"契约，并加一条"如果 pyoxigraph 改成返回真 bool 就提醒移除 wrapper"的回归 pin。
+- **`cataforge.domain.kg._ask.ask(store, sparql) -> bool` —— `QueryBoolean` 单点 chokepoint**（spike-2 §2.2 / 风险册 R-09 / [#142](https://github.com/lync-cyber/CataForge/issues/142)）—— pyoxigraph `Store.query()` 对 ASK 返回 `QueryBoolean`，`== True` 永远等于 False 即使答案为 True。所有 ASK 消费走这一个 wrapper；测试 pin 住"return is real Python bool"契约，并加一条"如果 pyoxigraph 改成返回真 bool 就提醒移除 wrapper"的回归 pin。
 
-- **`scripts/checks/check_no_query_boolean_eq_true.py` 防回归 grep gate** —— 拒绝 `src/cataforge/kg/**.py` 里出现 `.query(...) == True` / `is True` / `== False` / `is False` 模式（docstring 反引号 / 字符串字面量自动排除）。挂上 pre-commit + per-PR test.yml。
+- **`scripts/checks/check_no_query_boolean_eq_true.py` 防回归 grep gate** —— 拒绝 `src/cataforge/domain/kg/**.py` 里出现 `.query(...) == True` / `is True` / `== False` / `is False` 模式（docstring 反引号 / 字符串字面量自动排除）。挂上 pre-commit + per-PR test.yml。
 
-- **`src/cataforge/kg/_schema_axioms.py` 共享 is_a → subClassOf 萃取器** —— `iter_subclass_axioms()` / `prefix_map()` / `expand_curie()`。`scripts/codegen_kg_schema.py`（sub-PR 1 codegen）和 `cataforge.kg.store.bootstrap_subclass_axioms()`（runtime）共用同一份遍历逻辑，runtime 不依赖 `_generated/` 工件存在。
+- **`src/cataforge/domain/kg/_schema_axioms.py` 共享 is_a → subClassOf 萃取器** —— `iter_subclass_axioms()` / `prefix_map()` / `expand_curie()`。`scripts/codegen_kg_schema.py`（sub-PR 1 codegen）和 `cataforge.domain.kg.store.bootstrap_subclass_axioms()`（runtime）共用同一份遍历逻辑，runtime 不依赖 `_generated/` 工件存在。
 
-- **`cataforge kg import` —— 0.5.0 KG 迁移 codemod**（Alpha sub-PR 3，task-7 §7.2）。新增 `src/cataforge/kg/ingest/` 子包，按设计文档的六阶段管道实现：
+- **`cataforge kg import` —— 0.5.0 KG 迁移 codemod**（Alpha sub-PR 3，task-7 §7.2）。新增 `src/cataforge/domain/kg/ingest/` 子包，按设计文档的六阶段管道实现：
 
   * **scan + parse**（`scan.py` / `frontmatter.py`）—— 枚举 prd / arch / test-report 下 `*.md`、提取 YAML frontmatter、用 `markdown-it-py` 解析 heading 边界。
   * **entity-extract**（`entity_extract.py`）—— `ENTITY_PREFIX_RE` 在 section 文本里 finditer，归属到最深 enclosing heading，SHA-256 hash section body。`prd#§2.F-001` 形式的 xref 不再被误抽成 arch 的 Feature（曾导致跨文档 entity_id 重复）。
   * **relation-extract**（`relation_extract.py`）—— `XREF_RE` 抽 `doc_id#§N.ITEM`，按 `(source_class, target_prefix)` 查表推断 predicate；表项对齐 `core.yaml` 真实 slot 名（`cf:implements` / `cf:verifies` / `cf:realizes` / `cf:satisfies`），不再用设计文档草案里的 `cf:implementsFeature` 旧名。
-  * **writer**（`writer.py`）—— 用 [#142](https://github.com/lync-cyber/CataForge/issues/142) §2.2 的 `cataforge.kg._ask.ask()` chokepoint 做 content-hash dedup ASK。再跑同一份 source zero new triples（idempotency）。先写 Project node（从 `framework.json` `kg` 块读 process_model / project_id / title）再写 entities + relations。
+  * **writer**（`writer.py`）—— 用 [#142](https://github.com/lync-cyber/CataForge/issues/142) §2.2 的 `cataforge.domain.kg._ask.ask()` chokepoint 做 content-hash dedup ASK。再跑同一份 source zero new triples（idempotency）。先写 Project node（从 `framework.json` `kg` 块读 process_model / project_id / title）再写 entities + relations。
   * **verify**（`verify.py`）—— 六阶段最后做实体/关系计数对账、content-hash compare、missing-entity 扫描；任意不通过则非零退出。
   * **migrate orchestrator**（`migrate.py`）—— 串六阶段，跨文档 entity dedup（first occurrence wins —— prd 顶部 doc_types 顺序保证 Feature/AC 的"主定义"来自 prd），支持 `--dry-run` 跳 phase 5。
 
@@ -111,7 +111,7 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 
 - **15 个新增 sub-PR 3 测试** —— end-to-end @parametrize(variant) × {ingest, idempotency, dry-run, process_model, validate-clean} + xref-pollution 回归 pin + CLI smoke {memory, dry-run, oxigraph round-trip}。
 
-- **`cataforge kg export` —— 0.5.0 KG 导出管道**（Alpha sub-PR 4，task-4 §4.1）。新增 `src/cataforge/kg/export/` 子包，按设计文档的 query → hydrate → render → write 四层落地：
+- **`cataforge kg export` —— 0.5.0 KG 导出管道**（Alpha sub-PR 4，task-4 §4.1）。新增 `src/cataforge/domain/kg/export/` 子包，按设计文档的 query → hydrate → render → write 四层落地：
 
   * **registry**（`registry.py`）—— `SparqlRegistry` 扫描 `sparql/*.sparql`，stem 即 LinkML 类名（小写）。sub-PR 4 ships built-ins for the four-entity fixture slice（Feature / AcceptanceCriteria / Module / TestCase）；其它实体类型在被引用的 sub-PR 里随之落地。
   * **hydrator**（`hydrator.py`）—— SPARQL `QuerySolution` 多行结果折叠成 render context dict：标量字段 first-non-null wins；多值关系组按 `(sort_key, entity_id)` 复合键 stable-sort。`_row_lookup()` 容忍 pyoxigraph `QuerySolution.__getitem__` 的 KeyError，把"变量不在 projection"和"OPTIONAL 未绑定"都归一成 None。
@@ -124,18 +124,18 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 
 - **Alpha sub-PR 5 —— KG cutover + doctor gate ERROR**（task-7 §7.1 收官）。本 PR 同时落 Alpha 退出条件所需的 5 项构件：
 
-  * **KnowledgeGraph facade + QueryAPI / TraceAPI / TransactionContext**（`src/cataforge/kg/{facade,query,trace,transaction}.py`）—— 同步读 + 同步事务最小可行面。`QueryAPI` 覆盖 `feature/module/component/page/api/task/test_case/requirement/entity/exists/all_entities/entity_ids/source_section/plan_load`，errata C1 (`api()`/`page()` typed accessor) 落地。`TraceAPI` 提供 `bidirectional_coverage` / `coverage` / `from_requirement` / `stale_dependencies`。返回 flat dict（Pydantic 完整往返留待后续 sub-PR，配合 SHACL post-validation）。
-  * **`cataforge.kg.export.render_entity`** —— 单实体渲染公共符号（errata C2）。复用 sub-PR 4 的 SparqlRegistry / hydrator / Jinja2 stack，shim 层的 `extract_with_body` 依赖它。
-  * **Shim 层 `src/cataforge/kg/_shim.py`** —— Task 5 §5.5 五函数 (`extract` / `extract_batch` / `plan_load` / `build_full_index` / `resolve_deps`) + Task 6 §6.5 三延伸 (`extract_with_body` / `legacy_validate_report` / `source_section`)。每函数按 `doc_type in KGConfig.kg_active_doc_types` per-doc_type dispatch，KG 分支走 QueryAPI / TraceAPI，legacy 分支委托 `cataforge.docs.loader` / `indexer`。可选 `kg: KnowledgeGraph` 参数让测试 / 批量调用复用连接而非反复 reopen。所有公共函数发 `DeprecationWarning`，0.6.0 移除。
-  * **Doctor gate `kg_ingestion_completeness`** —— `src/cataforge/cli/doctor/kg_ingestion.py` 直接以 ERROR 级别接入，不走 WARN 过渡（README §User decisions Round 2 明确）。missing 实体贡献 `failed_count`，stale 仅 WARN 打印不阻断；`.cataforge/kg/store/` 不存在或 active 集为空时优雅 SKIP，避免阻塞未启用 KG 的下游项目。doctor_cmd 在 "Docs validation" 之后调度。
+  * **KnowledgeGraph facade + QueryAPI / TraceAPI / TransactionContext**（`src/cataforge/domain/kg/{facade,query,trace,transaction}.py`）—— 同步读 + 同步事务最小可行面。`QueryAPI` 覆盖 `feature/module/component/page/api/task/test_case/requirement/entity/exists/all_entities/entity_ids/source_section/plan_load`，errata C1 (`api()`/`page()` typed accessor) 落地。`TraceAPI` 提供 `bidirectional_coverage` / `coverage` / `from_requirement` / `stale_dependencies`。返回 flat dict（Pydantic 完整往返留待后续 sub-PR，配合 SHACL post-validation）。
+  * **`cataforge.domain.kg.export.render_entity`** —— 单实体渲染公共符号（errata C2）。复用 sub-PR 4 的 SparqlRegistry / hydrator / Jinja2 stack，shim 层的 `extract_with_body` 依赖它。
+  * **Shim 层 `src/cataforge/domain/kg/_shim.py`** —— Task 5 §5.5 五函数 (`extract` / `extract_batch` / `plan_load` / `build_full_index` / `resolve_deps`) + Task 6 §6.5 三延伸 (`extract_with_body` / `legacy_validate_report` / `source_section`)。每函数按 `doc_type in KGConfig.kg_active_doc_types` per-doc_type dispatch，KG 分支走 QueryAPI / TraceAPI，legacy 分支委托 `cataforge.domain.docs.loader` / `indexer`。可选 `kg: KnowledgeGraph` 参数让测试 / 批量调用复用连接而非反复 reopen。所有公共函数发 `DeprecationWarning`，0.6.0 移除。
+  * **Doctor gate `kg_ingestion_completeness`** —— `src/cataforge/interface/cli/doctor/kg_ingestion.py` 直接以 ERROR 级别接入，不走 WARN 过渡（README §User decisions Round 2 明确）。missing 实体贡献 `failed_count`，stale 仅 WARN 打印不阻断；`.cataforge/kg/store/` 不存在或 active 集为空时优雅 SKIP，避免阻塞未启用 KG 的下游项目。doctor_cmd 在 "Docs validation" 之后调度。
 
-- **`cataforge kg reconcile` —— per-doc_type drift detector**（Alpha sub-PR 6，task-7 §7.5 收口）。`src/cataforge/kg/reconcile.py` 实现六步管线：scan → extract entities → extract relations → KG SPARQL pull → symmetric diff → JSON report。默认报告路径 `docs/.kg-reconcile-report.json`；有 `missing` / `ghost` entry 即非零退出。这是 Alpha exit condition 2（doctor `kg_ingestion_completeness` 在 ERROR 严重度下跑完一个完整 reconcile cycle）从此可验证的前提 —— 没有这条命令，"reconcile cycle" 无法实操地度量。
+- **`cataforge kg reconcile` —— per-doc_type drift detector**（Alpha sub-PR 6，task-7 §7.5 收口）。`src/cataforge/domain/kg/reconcile.py` 实现六步管线：scan → extract entities → extract relations → KG SPARQL pull → symmetric diff → JSON report。默认报告路径 `docs/.kg-reconcile-report.json`；有 `missing` / `ghost` entry 即非零退出。这是 Alpha exit condition 2（doctor `kg_ingestion_completeness` 在 ERROR 严重度下跑完一个完整 reconcile cycle）从此可验证的前提 —— 没有这条命令，"reconcile cycle" 无法实操地度量。
 
   * SPARQL 侧以 `cf:source_doc` 把每条 entity / relation 归属到 doc_type；relations 继承 subject 的 source_doc。
   * 与 `cataforge kg import` 复用同一组 `scan_business_docs` / `extract_entities` / `extract_relations`，确保 FS 侧的"看见过什么"与 ingest 完全等价。
   * CURIE-normalize 谓词（`cf:slot` form），过滤掉 `cf:belongs_to_project` 这种 housekeeping 边，diff 集合仅覆盖 traceability slots。
 
-- **`cataforge kg compare-read` —— post-cutover 内容漂移采样**（task-7 §7.5）。`src/cataforge/kg/compare_read.py` 改用 **content_hash 对比** 而非提案原文的 "Jaccard on rendered Markdown"：sub-PR 4 的 export 模板是 traceability card（不含 source body），与 `loader.extract()` 切片在结构上不对等，按原意算 Jaccard 永远低于阈值。content_hash 既精确又复用 sub-PR 3 已经持久化的同一个哈希，是同义务的更可靠实现。
+- **`cataforge kg compare-read` —— post-cutover 内容漂移采样**（task-7 §7.5）。`src/cataforge/domain/kg/compare_read.py` 改用 **content_hash 对比** 而非提案原文的 "Jaccard on rendered Markdown"：sub-PR 4 的 export 模板是 traceability card（不含 source body），与 `loader.extract()` 切片在结构上不对等，按原意算 Jaccard 永远低于阈值。content_hash 既精确又复用 sub-PR 3 已经持久化的同一个哈希，是同义务的更可靠实现。
 
   * 三种 alarm reason：`content-hash-mismatch`（KG 旧、FS 新）/ `kg-missing-entity`（FS 新加但未 re-ingest）/ `kg-content-hash-absent`（KG store 损坏）。
   * 任何 alarm 都不改变 exit code —— 与 §7.5 "diagnostic, not gating" 一致；alarm 持续才触发"该 doc_type 移出 `kg_active_doc_types`" 的运维动作。
@@ -145,13 +145,13 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 
 - **`cataforge.utils.atomic_write.atomic_write_text(path, data)`** —— 统一的"写 tmp + `os.replace`"原子写入封装。多个 CLI 命令此前用裸 `Path.write_text` 改写 `framework.json` / `CORRECTIONS-LOG.md` / 部署状态缓存，进程中断会留半截文件下次解析直接失败。后续把这些站点逐步切到该 helper（本 PR 仅提供基建，迁移在后续阶段）。
 
-- **`KGStoreError` / `KGVerificationError` 类型化 KG 错误**（`src/cataforge/cli/errors.py`） —— `cataforge kg` 子命令此前在 10 个位置重复 `err = CataforgeError(...); err.exit_code = N; raise err`，运行时赋值脆弱且无类型保证。两个子类把退出码声明到类属性：`KGStoreError`（store 未初始化 / 已存在，exit 1）、`KGVerificationError`（import 校验 / validate 违例 / export 渲染 / reconcile 漂移，exit 3）。
+- **`KGStoreError` / `KGVerificationError` 类型化 KG 错误**（`src/cataforge/interface/cli/errors.py`） —— `cataforge kg` 子命令此前在 10 个位置重复 `err = CataforgeError(...); err.exit_code = N; raise err`，运行时赋值脆弱且无类型保证。两个子类把退出码声明到类属性：`KGStoreError`（store 未初始化 / 已存在，exit 1）、`KGVerificationError`（import 校验 / validate 违例 / export 渲染 / reconcile 漂移，exit 3）。
 
 - **`cataforge.utils.run_subprocess.run`** —— 统一的 subprocess 封装：固定 `check=False`（调用方显式查 `returncode`）、默认 `timeout=60.0s`、默认 `capture_output=True`、强制 `text=True` + `encoding="utf-8"`（避开 Windows cp1252 fallback）。`TimeoutExpired` 与 `FileNotFoundError` 仍透传，便于调用方区分"诊断后继续"vs"抛 CataforgeError 中止命令"。仓库现有 46 处裸 `subprocess.run` 是分多次 PR 渐进迁移的目标，本 PR 仅引入封装本身与迁移模式（见函数 docstring 的 before/after 范例）。
 
 - **`scripts/checks/check_no_raw_subprocess.py`** —— 裸 subprocess 调用清单守卫（advisory 模式）。今日 exit 0 不强制，但在每次 commit 都打印剩余清单数（当前 46），让迁移积压保持可见。脚本顶部 `ADVISORY_MODE = True` 一旦切 `False` 即进入强制模式；同行 `# allow-raw-subprocess: <reason>` 注释豁免单点。已接入 `scripts/checks/run_local.py` 与 `.pre-commit-config.yaml`。
 
-- **`scripts/checks/check_echo_err_for_errors.py`** —— `cli/` 错误输出走 stderr 的守卫。扫描 `src/cataforge/cli/`（排除 `cli/doctor/` —— 那里整棵子树按设计就是结构化 stdout 报告）下 `click.echo(...)` / `click.secho(...)` 第一个参数以 `Error:` / `ERROR:` / `Cannot ` / `Could not ` / `Refused` / `Invalid ` / `Failed` / `FAIL:` 开头的调用，要求同一调用带 `err=True`。同行 `# allow-stdout-echo: <reason>` 豁免。守卫初次扫描当前 cli/ 0 违规（错误均走 `CataforgeError`），直接 enforced 防未来回归。守卫自带 13 个自测覆盖 enforcement / 豁免 / 多行调用 / 各前缀 / 中性消息。已接入 `run_local.py` 与 `.pre-commit-config.yaml`。
+- **`scripts/checks/check_echo_err_for_errors.py`** —— `cli/` 错误输出走 stderr 的守卫。扫描 `src/cataforge/interface/cli/`（排除 `cli/doctor/` —— 那里整棵子树按设计就是结构化 stdout 报告）下 `click.echo(...)` / `click.secho(...)` 第一个参数以 `Error:` / `ERROR:` / `Cannot ` / `Could not ` / `Refused` / `Invalid ` / `Failed` / `FAIL:` 开头的调用，要求同一调用带 `err=True`。同行 `# allow-stdout-echo: <reason>` 豁免。守卫初次扫描当前 cli/ 0 违规（错误均走 `CataforgeError`），直接 enforced 防未来回归。守卫自带 13 个自测覆盖 enforcement / 豁免 / 多行调用 / 各前缀 / 中性消息。已接入 `run_local.py` 与 `.pre-commit-config.yaml`。
 
 ### Changed
 
@@ -173,14 +173,14 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 - **hooks.yaml `detect_review_flag` degradation reason 补 v2 schema 风险说明** —— 此 hook 依赖 schema v2 `matcher_agent_id` 过滤目标 agent，v1-only 平台无法约束触发范围，文字注明统一 skip 的合理性。
 - **orchestrator.AGENT.md frontmatter 显式声明 `model_tier: inherit`** —— 其他 12 个 agent 均已显式声明；orchestrator 在主线程运行不走 model_routing，显式 > 隐式利于可读性。
 
-- **`core/feedback` 分层倒置修复** —— `collect_doctor_summary` 实现迁移到新模块 `cataforge.services.doctor_summary`；`core/feedback.py` 不再在模块顶层 `from cataforge.cli.main import cli`，只通过 lazy delegation 调用 service。新增 `cataforge/services/` 包作为允许依赖 `cli/` 的编排层；新增机器可检守卫测试防回归。
+- **`core/feedback` 分层倒置修复** —— `collect_doctor_summary` 实现迁移到新模块 `cataforge.application.services.doctor_summary`；`core/feedback.py` 不再在模块顶层 `from cataforge.interface.cli.main import cli`，只通过 lazy delegation 调用 service。新增 `cataforge/services/` 包作为允许依赖 `cli/` 的编排层；新增机器可检守卫测试防回归。
 
-- **`mypy strict = true` 退役 → opt-in strict per-package** —— 此前 ~200 个 baseline error 让 strict 永远做不成真正的门禁。现在 `[tool.mypy]` 全局非 strict，`[[tool.mypy.overrides]]` 按包 opt-in。首批 opt-in：`cataforge.services.*`（0 errors）。新增包加入 strict 的流程见 contributing.md。
+- **`mypy strict = true` 退役 → opt-in strict per-package** —— 此前 ~200 个 baseline error 让 strict 永远做不成真正的门禁。现在 `[tool.mypy]` 全局非 strict，`[[tool.mypy.overrides]]` 按包 opt-in。首批 opt-in：`cataforge.application.services.*`（0 errors）。新增包加入 strict 的流程见 contributing.md。
 
 - **`requires-python` 加上界 `<3.15` + `.python-version` 钉到 3.13** —— 之前 `>=3.10` 无上界，`uv venv` 会乐于挑当前最新 CPython（包括尚未在 CI 矩阵内验证的 3.14 / 3.15-prerelease）。现在 `pyproject.toml` 收口到 `>=3.10,<3.15`（覆盖 3.10/3.11/3.12/3.13/3.14 但拒绝 3.15+），仓库根 `.python-version` 钉 `3.13`，让 `uv sync` 默认选最新 LTS-class CPython（与发布物 classifiers + CI 矩阵 ["3.10","3.13"] 对齐）。
 - **`AGENT_MODEL_DEFAULTS` 显式补 `orchestrator: inherit`** —— 之前 12 个条目 vs 13 个 agent 像是漏项；实际上 orchestrator 是主线程，AGENT.md 已声明 `model_tier: inherit`。补登记后表项完整，B7 已接受 `inherit`，行为零变化。
 
-- **Platform adapter 孤儿剪枝抽公共 helper** —— `claude_code.py` / `opencode.py` / `codex.py` 三处的 flat-file 剪枝（枚举 + 排除已知名 + 读 head 签名校验 + unlink）合并到 [`platform/helpers._prune_orphan_flat_files`](src/cataforge/platform/helpers.py)，参数化 `head_signature` 占位符（`name: {stem}` / `# Auto-generated from {stem}/AGENT.md`） + `head_read_size`（codex 256-byte 窗口）。`base.py` 的 subdir/glob 形态结构不同，保留原样。
+- **Platform adapter 孤儿剪枝抽公共 helper** —— `claude_code.py` / `opencode.py` / `codex.py` 三处的 flat-file 剪枝（枚举 + 排除已知名 + 读 head 签名校验 + unlink）合并到 [`platform/helpers._prune_orphan_flat_files`](src/cataforge/adapter/platform/helpers.py)，参数化 `head_signature` 占位符（`name: {stem}` / `# Auto-generated from {stem}/AGENT.md`） + `head_read_size`（codex 256-byte 窗口）。`base.py` 的 subdir/glob 形态结构不同，保留原样。
 - **`HealthCheckSpec.target`: `str` → `str | list[str]`** —— http/tcp probe 接受 URL 字符串，command probe 强制 list。
 - **设计阶段残留清扫** —— 删除 src/ 与 tests/ docstring 中所有版本里程碑（`Pre-v0.1.13` / `since vX.Y.Z`）、回溯叙事（`Before the fix...` / `Historically...`）、issue 编号引用（`Regression for issue #115`）等违反 [CLAUDE.md 硬约束 1](CLAUDE.md) 的内容。`check_no_design_residue.py` 全仓 clean。
 - **`platform/helpers._replace_toml_mcp_section` assert → raise** —— 生产路径 `assert end is not None` 在 `python -O` 下被剥除会用 None 切片静默损坏 TOML；改 `RuntimeError` 含 start 行号。
@@ -193,89 +193,89 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 
 - **`docs/proposals/kg-migration-0.5.0/README.md` Round 2 决策回灌** —— 把 Alpha 范围澄清产出的 6 项用户决策（PRD+Arch+Test 三层垂直切片、full cutover 去 Beta dual-track、waterfall+agile 双覆盖、`KGConfig.kg_active_doc_types` per-doc_type 旗标、doctor 门 ERROR 严重度、严格线性 sub-PR）合入提案主文档；路线图从 3 阶段简化为 2 阶段；`task-7-rollout-strategy.md` §7.1 同步重写为 5 个严格线性 sub-PR。
 
-- **`scripts/codegen_kg_schema.py` 折射到共享 helper** —— `gen_subclass_axioms()` 改成调 `cataforge.kg._schema_axioms`，移除内联的 `SchemaView` 遍历副本。sub-PR 1 的 4 个 codegen 烟测继续全绿。
+- **`scripts/codegen_kg_schema.py` 折射到共享 helper** —— `gen_subclass_axioms()` 改成调 `cataforge.domain.kg._schema_axioms`，移除内联的 `SchemaView` 遍历副本。sub-PR 1 的 4 个 codegen 烟测继续全绿。
 
-- **Group A read-side call sites 接入 per-doc_type 调度** —— 新增 `src/cataforge/kg/_dispatch.py` (`is_active_for` / `kg_config_for`)，按 `.cataforge/framework.json` `kg.kg_active_doc_types` + 文件系统 store 存在性两层 gate。已接入：
+- **Group A read-side call sites 接入 per-doc_type 调度** —— 新增 `src/cataforge/domain/kg/_dispatch.py` (`is_active_for` / `kg_config_for`)，按 `.cataforge/framework.json` `kg.kg_active_doc_types` + 文件系统 store 存在性两层 gate。已接入：
 
-  * `cataforge.docs.loader.extract()` —— ref 携带 entity_id 且 doc_type active 时通过 `render_entity` 返回 canonical Markdown；其余 fallback 到原 file-slice 路径
-  * `cataforge.skill.builtins.doc_review.checker.check_xref()` —— active 时 SPARQL 解析 entity_id，淘汰 file-glob 的 URL-fragment / cross-volume 误报（Task 6 §6.4 A12）
-  * `cataforge.skill.builtins.doc_review.checker.check_bidirectional_coverage()` —— active 时走 `cf:implements` + `cf:verifies+` SPARQL，斩首 Task 1 §1.4 case A 假阳性（Task 6 §6.4 A13）
+  * `cataforge.domain.docs.loader.extract()` —— ref 携带 entity_id 且 doc_type active 时通过 `render_entity` 返回 canonical Markdown；其余 fallback 到原 file-slice 路径
+  * `cataforge.runtime.skill.builtins.doc_review.checker.check_xref()` —— active 时 SPARQL 解析 entity_id，淘汰 file-glob 的 URL-fragment / cross-volume 误报（Task 6 §6.4 A12）
+  * `cataforge.runtime.skill.builtins.doc_review.checker.check_bidirectional_coverage()` —— active 时走 `cf:implements` + `cf:verifies+` SPARQL，斩首 Task 1 §1.4 case A 假阳性（Task 6 §6.4 A13）
 
   KG 分支任何错误透明降级回 legacy file 路径；硬 gate 由 doctor `kg_ingestion_completeness` 在部署期强制完整性，运行期 read 不阻断。
 
 - **`KGConfig.kg_active_doc_types` 默认值翻转为 `{prd, arch, test}`** —— Alpha cutover 范围。安全网：`_dispatch.is_active_for()` 同时要求 `.cataforge/kg/store/` 存在，未 `cataforge kg init` 的下游项目自动保持 legacy 读路径，默认翻转不破坏现有行为。新增模块级 `DEFAULT_KG_ACTIVE_DOC_TYPES` frozenset 作为规范常量。
 
-- **`cataforge.docs.loader._DEFAULT_DOC_TYPE_MAP` 补 `test → test-report` 别名** —— 这是 `KGConfig.kg_active_doc_types` 默认值（`{prd, arch, test}`）和 doctor `_doc_type_to_subdir` 一直在用的规范别名；之前 loader 自己的默认 map 里缺这条，导致用 `"test"` 作 doc_type 调 `_load_doc_type_map` 的代码路径（reconcile / scan_business_docs）解析到不存在的 `docs/test/` 目录。两份分叉的别名表合并为一份，doctor / loader / reconcile 现在共用同一份规范。
+- **`cataforge.domain.docs.loader._DEFAULT_DOC_TYPE_MAP` 补 `test → test-report` 别名** —— 这是 `KGConfig.kg_active_doc_types` 默认值（`{prd, arch, test}`）和 doctor `_doc_type_to_subdir` 一直在用的规范别名；之前 loader 自己的默认 map 里缺这条，导致用 `"test"` 作 doc_type 调 `_load_doc_type_map` 的代码路径（reconcile / scan_business_docs）解析到不存在的 `docs/test/` 目录。两份分叉的别名表合并为一份，doctor / loader / reconcile 现在共用同一份规范。
 
 - **`docs/reference/cli.md` §退出码补全 `3`** —— `cataforge kg` 已用退出码 `3` 表达"内容门失败"（数据真有问题）vs `1`（环境没准备好），但文档此前缺失这条；现统一记录由 `KGVerificationError` 抛出，便于 CI 脚本基于此分流。
 
-- **`cataforge.platform.helpers.symlink_or_copy` 重构 symlink → junction → copy 回退链** —— 抽出 `_try_symlink` / `_try_junction` / `_do_copy` 三个尝试函数，共享一个 `removed` 状态格控制 `_remove_target` 在整条回退链里**至多调用一次**。旧实现在每个策略之前都独立删一次 target，前一次删除留下的半完成状态（或与外部进程的竞态）有概率让后续删除递归进真目录；新的状态格让回退链幂等于一次删除。
+- **`cataforge.adapter.platform.helpers.symlink_or_copy` 重构 symlink → junction → copy 回退链** —— 抽出 `_try_symlink` / `_try_junction` / `_do_copy` 三个尝试函数，共享一个 `removed` 状态格控制 `_remove_target` 在整条回退链里**至多调用一次**。旧实现在每个策略之前都独立删一次 target，前一次删除留下的半完成状态（或与外部进程的竞态）有概率让后续删除递归进真目录；新的状态格让回退链幂等于一次删除。
 
 - **`cataforge.core.config.ConfigManager._write_raw` 切到原子写** —— `set_runtime_platform` 之类的写入路径不再用裸 `Path.write_text`；改走 `atomic_write_text`（tmp + `os.replace`）。崩溃时 `framework.json` 保持上一次完整状态，不会半改写后让下次 CLI 调用整体起不来。
 
-- **`cataforge.cli.bootstrap_cmd` 区分 `.deploy-state` 缺失 vs 损坏** —— 旧实现 `(OSError, JSONDecodeError)` 一并吞掉成 `state = {}`，于是 JSON 文件被截断后用户只会看到"never deployed"再静默重跑 deploy，永远不知道状态文件已坏。改为分支处理：`FileNotFoundError` 走 first-deploy 分支；其他 `OSError`/`JSONDecodeError` 都升级为 `ConfigError`，错误信息含具体路径并提示 `cataforge deploy --rebuild`。
+- **`cataforge.interface.cli.bootstrap_cmd` 区分 `.deploy-state` 缺失 vs 损坏** —— 旧实现 `(OSError, JSONDecodeError)` 一并吞掉成 `state = {}`，于是 JSON 文件被截断后用户只会看到"never deployed"再静默重跑 deploy，永远不知道状态文件已坏。改为分支处理：`FileNotFoundError` 走 first-deploy 分支；其他 `OSError`/`JSONDecodeError` 都升级为 `ConfigError`，错误信息含具体路径并提示 `cataforge deploy --rebuild`。
 
-- **`cataforge.deploy.deployer.Deployer._rebuild_purge` 增加 platform_id 校验** —— 旧实现 `--rebuild` 会按上一次 manifest 删除所有路径，不管那些路径属不属于本次目标 platform。`cursor` deploy 后切换到 `claude-code --rebuild` 会清掉 `.cursor/` 下的所有 manifest 路径（包括用户手编辑过的内容），是静默数据丢失。改为在 `_rebuild_purge` 入口比对 `prior_platform vs platform_id`，不匹配直接打 WARN 跳过 purge —— 切换平台需要用户先手动清旧 platform 的目录树。新增 `load_prior_manifest_platform(project_root)` 辅助返回历史 platform_id。
+- **`cataforge.runtime.deploy.deployer.Deployer._rebuild_purge` 增加 platform_id 校验** —— 旧实现 `--rebuild` 会按上一次 manifest 删除所有路径，不管那些路径属不属于本次目标 platform。`cursor` deploy 后切换到 `claude-code --rebuild` 会清掉 `.cursor/` 下的所有 manifest 路径（包括用户手编辑过的内容），是静默数据丢失。改为在 `_rebuild_purge` 入口比对 `prior_platform vs platform_id`，不匹配直接打 WARN 跳过 purge —— 切换平台需要用户先手动清旧 platform 的目录树。新增 `load_prior_manifest_platform(project_root)` 辅助返回历史 platform_id。
 
 - **`cataforge.core.feedback.collect_framework_review` 分段异常处理** —— 旧实现把 `import SkillRunner` 与 `runner.run(...)` 两阶段用同一个 `except Exception` 兜底，所有失败都归到含糊的 `runner-failed:` 一行。改为：import 阶段单独捕 `ImportError` → `status=skipped`, `reason=runner-unavailable:`；运行时阶段保留 `Exception` 兜底但加 `status=error`, `reason=runner-failed: {type}: {msg}`, `traceback=...` 三字段，让上游 bug 报告能区分"skill 子系统不可用" vs "runner 自身崩溃"并直接贴 traceback。
 
-- **`cataforge.agent.manager._parse_tools_from_frontmatter` 收敛到 `utils.frontmatter.split_yaml_frontmatter`** —— 删掉本地正则 `_FRONTMATTER_RE` 与对 `yaml.safe_load` 的直接调用，与 skill loader / docs indexer 公用同一份 frontmatter 解析。两者规则一旦漂变（如新的 `---` 分隔符变体）将自动同步，避免后续因双实现而出现"agent 校验通过但 docs 索引失败"的不一致。
+- **`cataforge.runtime.agent.manager._parse_tools_from_frontmatter` 收敛到 `utils.frontmatter.split_yaml_frontmatter`** —— 删掉本地正则 `_FRONTMATTER_RE` 与对 `yaml.safe_load` 的直接调用，与 skill loader / docs indexer 公用同一份 frontmatter 解析。两者规则一旦漂变（如新的 `---` 分隔符变体）将自动同步，避免后续因双实现而出现"agent 校验通过但 docs 索引失败"的不一致。
 
-- **`cataforge.platform.PlatformAdapter._deploy_flat_agents` 新增基类 helper** —— 抽出 Claude Code / Codex / OpenCode 三个 adapter 都在做的"扫源 → translate → 写 `<name>{suffix}` → 用头部签名 prune 孤儿 → 聚合 dropped capability WARN"流水线。差异通过 `suffix` / `head_signature` / `formatter`（`(agent_name, translated) → final_text`）/ `head_read_size` 参数化注入。`ClaudeCodeAdapter` 复用 helper 后将额外的"旧 `<name>/AGENT.md` 子目录清理"拆为独立私有方法 `_prune_legacy_agent_subdirs`，逻辑零行为变化。OpenCode 与 Codex 之间的样板代码完全消失。
+- **`cataforge.adapter.platform.PlatformAdapter._deploy_flat_agents` 新增基类 helper** —— 抽出 Claude Code / Codex / OpenCode 三个 adapter 都在做的"扫源 → translate → 写 `<name>{suffix}` → 用头部签名 prune 孤儿 → 聚合 dropped capability WARN"流水线。差异通过 `suffix` / `head_signature` / `formatter`（`(agent_name, translated) → final_text`）/ `head_read_size` 参数化注入。`ClaudeCodeAdapter` 复用 helper 后将额外的"旧 `<name>/AGENT.md` 子目录清理"拆为独立私有方法 `_prune_legacy_agent_subdirs`，逻辑零行为变化。OpenCode 与 Codex 之间的样板代码完全消失。
 
-- **`cataforge.platform.helpers.remove_dir_with_manifest_check` 新增 helper** —— `platform.base.deploy_agents` 与 `claude_code._prune_legacy_agent_subdirs` 中重复的"`prior_manifest` 检查 → `dry_run` 分支 → `shutil.rmtree` → action 一行"五行样板抽成单一入口。`display_rel`（用于显示）与 `manifest_key`（用于查 manifest）分参数因为前者是目录路径、后者是文件路径，不能合一。`kind` 是 action 消息里的名词（`orphan` / `legacy`），动词时态由 helper 拥有，调用方不会因笔误让 dry-run 与 real 输出走形。
+- **`cataforge.adapter.platform.helpers.remove_dir_with_manifest_check` 新增 helper** —— `platform.base.deploy_agents` 与 `claude_code._prune_legacy_agent_subdirs` 中重复的"`prior_manifest` 检查 → `dry_run` 分支 → `shutil.rmtree` → action 一行"五行样板抽成单一入口。`display_rel`（用于显示）与 `manifest_key`（用于查 manifest）分参数因为前者是目录路径、后者是文件路径，不能合一。`kind` 是 action 消息里的名词（`orphan` / `legacy`），动词时态由 helper 拥有，调用方不会因笔误让 dry-run 与 real 输出走形。
 
-- **`cataforge.cli.helpers.classify_tallies` 新增 helper** —— `bootstrap_cmd` 与 `upgrade_cmd` 里那段 `tallies: dict[str, int] = {}; for _, status in classified: tallies[status] = tallies.get(status, 0) + 1` 收敛到 `collections.Counter` 的单表达式。两个调用点都替换。
+- **`cataforge.interface.cli.helpers.classify_tallies` 新增 helper** —— `bootstrap_cmd` 与 `upgrade_cmd` 里那段 `tallies: dict[str, int] = {}; for _, status in classified: tallies[status] = tallies.get(status, 0) + 1` 收敛到 `collections.Counter` 的单表达式。两个调用点都替换。
 
-- **`cataforge.integrations.penpot.HANDLERS` 注册表替代 `getattr` 调度** —— 旧调用面 `cli/penpot_cmd._run_penpot("cmd_init", "init")` 同时传"内部函数名"和"用户子命令名"，两个字符串在两个文件里维护同一份映射，一旦 `cmd_*` 函数重命名只在运行时 AttributeError 才会发现。新模块级 `HANDLERS: dict[str, Callable]` 在 `penpot.py` 顶层声明、由 `cli/penpot_cmd._run_penpot(command)` 与 `penpot.main()` 共用查表，未注册的子命令前置抛 `CataforgeError` 含已注册列表。`_run_penpot` 参数从两个收成一个，9 个 click 子命令的调用点同步精简。
+- **`cataforge.adapter.integrations.penpot.HANDLERS` 注册表替代 `getattr` 调度** —— 旧调用面 `cli/penpot_cmd._run_penpot("cmd_init", "init")` 同时传"内部函数名"和"用户子命令名"，两个字符串在两个文件里维护同一份映射，一旦 `cmd_*` 函数重命名只在运行时 AttributeError 才会发现。新模块级 `HANDLERS: dict[str, Callable]` 在 `penpot.py` 顶层声明、由 `cli/penpot_cmd._run_penpot(command)` 与 `penpot.main()` 共用查表，未注册的子命令前置抛 `CataforgeError` 含已注册列表。`_run_penpot` 参数从两个收成一个，9 个 click 子命令的调用点同步精简。
 
-- **`cataforge.cli.doctor._helpers.check_import` 返回 `int`** —— 之前函数返回 `None`，与同模块的 `check_file` / `check_dir`（都返回 0/1）接口不一致；`doctor_cmd` 想根据缺失依赖把 doctor 标 FAIL 时无法做到。新增 `required=True` 关键字参数（默认 False 保留旧行为）让 doctor 像对待 `required` 文件那样把 PyYAML / click 缺失计入 `failed_count`；调用点同步加 `+=` 累加。
+- **`cataforge.interface.cli.doctor._helpers.check_import` 返回 `int`** —— 之前函数返回 `None`，与同模块的 `check_file` / `check_dir`（都返回 0/1）接口不一致；`doctor_cmd` 想根据缺失依赖把 doctor 标 FAIL 时无法做到。新增 `required=True` 关键字参数（默认 False 保留旧行为）让 doctor 像对待 `required` 文件那样把 PyYAML / click 缺失计入 `failed_count`；调用点同步加 `+=` 累加。
 
 - **`scripts/checks/run_local.py` 新增 2 条守卫接入** —— `raw-subprocess inventory (advisory)` + `no error output to stdout`，与现有 8 条守卫一起跑。本地 pre-commit 通过同 `.pre-commit-config.yaml` 入口共用，确保 CI / 本地 / `pre-commit run --all-files` 三处口径一致。
 
-- **`cataforge.integrations.penpot._is_mcp_running` 2 秒 `urlopen` 超时增加注释** —— `urlopen(req, timeout=2)` 是故意的快失败：探针在 `penpot status` / `penpot ensure` / Penpot 系列 skill 的 warm-up 路径上每次调用都会跑，更长的超时会让 MCP 没装的场景里这些命令看着像卡死。注释明确警告未来不要随手调大、并指向 `cmd_ensure` / `cmd_status` 的 UX 依赖。
+- **`cataforge.adapter.integrations.penpot._is_mcp_running` 2 秒 `urlopen` 超时增加注释** —— `urlopen(req, timeout=2)` 是故意的快失败：探针在 `penpot status` / `penpot ensure` / Penpot 系列 skill 的 warm-up 路径上每次调用都会跑，更长的超时会让 MCP 没装的场景里这些命令看着像卡死。注释明确警告未来不要随手调大、并指向 `cmd_ensure` / `cmd_status` 的 UX 依赖。
 
-- **`cataforge.hook.scripts.lint_format` / `notify_util` / `session_context` 走 `run_subprocess.run`** —— 三个 hook 脚本里 5 处裸 `subprocess.run` 迁到统一封装；`session_context._auto_deploy` 顺手脱掉 `check=True`，改用 `returncode != 0` + 显式 stderr 警告（封装从不抛 `CalledProcessError`）。`check_no_raw_subprocess.py` 计数 46 → 41。配套测试 `tests/hook/test_notify_util_escape.py` / `test_session_context_warns.py` patch 目标改为模块内 `run_proc` 重绑定，原 `shell=` 防御断言去掉（封装结构上没有 `shell=` 入口）。
+- **`cataforge.runtime.hook.scripts.lint_format` / `notify_util` / `session_context` 走 `run_subprocess.run`** —— 三个 hook 脚本里 5 处裸 `subprocess.run` 迁到统一封装；`session_context._auto_deploy` 顺手脱掉 `check=True`，改用 `returncode != 0` + 显式 stderr 警告（封装从不抛 `CalledProcessError`）。`check_no_raw_subprocess.py` 计数 46 → 41。配套测试 `tests/hook/test_notify_util_escape.py` / `test_session_context_warns.py` patch 目标改为模块内 `run_proc` 重绑定，原 `shell=` 防御断言去掉（封装结构上没有 `shell=` 入口）。
 
 - **`cataforge.utils.common` / `docker_util` 走 `run_subprocess.run`** —— `common.run_cmd` 改为 `run_proc` 的薄壳（去掉了无人使用的 `**kwargs` 漏接口）；`common.get_command_version` 与 `docker_util` 里 10 处裸 `subprocess.run`（docker info / pull / tag / compose version 等）迁到统一封装。`docker_util.py:69` 的 `Popen([Docker Desktop.exe], creationflags=...)` 是 fire-and-forget GUI 启动、wrapper 不覆盖 Popen 语义，加 `# allow-raw-subprocess:` 同行豁免并落到多行让 ruff E501 通过。计数 41 → 30。
 
 - **`cataforge.utils.run_subprocess.run` 增加 `errors=` 参数** —— 默认 `"strict"`（保持 subprocess 行为），允许 skill runner 这类对子进程输出宽容（非 UTF-8 字节回退到 replace）的调用方显式传 `errors="replace"`。
 
-- **`cataforge.skill.runner` / `skill.builtins.code_review.code_lint` / `skill.builtins.sprint_review.ignore` 走 `run_subprocess.run`** —— 7 处裸 `subprocess.run`（skill 脚本调度入口 + lint/scan 探针 + git ls-files / rev-parse 探针）迁到统一封装。skill runner 保留 `errors="replace"` —— skill 输出可能含 emoji、中文、warning 行，cp1252 fallback 会让 runner 自身崩在 decode 上。计数 30 → 23。
+- **`cataforge.runtime.skill.runner` / `skill.builtins.code_review.code_lint` / `skill.builtins.sprint_review.ignore` 走 `run_subprocess.run`** —— 7 处裸 `subprocess.run`（skill 脚本调度入口 + lint/scan 探针 + git ls-files / rev-parse 探针）迁到统一封装。skill runner 保留 `errors="replace"` —— skill 输出可能含 emoji、中文、warning 行，cp1252 fallback 会让 runner 自身崩在 decode 上。计数 30 → 23。
 
-- **`cataforge.integrations.penpot` 走 `run_subprocess.run`** —— 7 处裸 `subprocess.run`（`docker ps` / `tasklist` / `taskkill` 探针 + 3 处 `docker compose up -d` / `down`）迁到统一封装。`docker compose up -d` / `down` 这类用户应能看到拉镜像 / 启动日志的命令显式传 `capture_output=False` 让 stdout 直通到终端 —— 不然 `cataforge penpot start` 看着像卡死。两处 MCP server `subprocess.Popen` 加 `# allow-raw-subprocess: long-running MCP server` 同行豁免（wrapper 只覆盖 one-shot `run`，进程控制 Popen 留作显式例外）。计数 23 → 14。
+- **`cataforge.adapter.integrations.penpot` 走 `run_subprocess.run`** —— 7 处裸 `subprocess.run`（`docker ps` / `tasklist` / `taskkill` 探针 + 3 处 `docker compose up -d` / `down`）迁到统一封装。`docker compose up -d` / `down` 这类用户应能看到拉镜像 / 启动日志的命令显式传 `capture_output=False` 让 stdout 直通到终端 —— 不然 `cataforge penpot start` 看着像卡死。两处 MCP server `subprocess.Popen` 加 `# allow-raw-subprocess: long-running MCP server` 同行豁免（wrapper 只覆盖 one-shot `run`，进程控制 Popen 留作显式例外）。计数 23 → 14。
 
-- **`cataforge.cli` 命令模块走 `run_subprocess.run`** —— `agent_cmd` / `feedback_cmd` / `issue_cmd` / `sync_cmd` 共 10 处裸 `subprocess.run` 迁到统一封装：
+- **`cataforge.interface.cli` 命令模块走 `run_subprocess.run`** —— `agent_cmd` / `feedback_cmd` / `issue_cmd` / `sync_cmd` 共 10 处裸 `subprocess.run` 迁到统一封装：
   - `agent_cmd._try_copy_to_clipboard` 3 处剪贴板探针（clip / pbcopy / xclip / xsel）。
   - `feedback_cmd._to_clipboard` / `_to_gh` / `ensure_labels` 4 处 `gh issue create` / `gh label list` / `gh label create`：把 `check=True` + `except subprocess.CalledProcessError` 模式重构为显式 `returncode != 0` 判断 + 直接抛 `ExternalToolError`，错误信息从 `e.stderr or e.stdout` 改为 `result.stderr or result.stdout`，行为不变。
   - `issue_cmd.close_command` 与 `triage_command` 同样重构（`gh issue close` / `gh issue list`）。
   - `sync_cmd._git` 改为薄壳：内部走 `run_proc`，但当 `check=True` 时手动构造 `CalledProcessError` 抛出，保留所有 14 处 `_git(..., check=True)` 调用者的 `try/except` 语义。
 
-- **`cataforge.cli.hook_cmd` test 子命令豁免** —— `hook test` 必须支持 `unsafe_shell: true` 的 hook 入口（`shell=True` 走 shell 解释），封装故意不暴露 `shell=` 也不支持 `args=` kwarg 透传，加同行 `# allow-raw-subprocess: shell=True for unsafe_shell hooks` 豁免。
+- **`cataforge.interface.cli.hook_cmd` test 子命令豁免** —— `hook test` 必须支持 `unsafe_shell: true` 的 hook 入口（`shell=True` 走 shell 解释），封装故意不暴露 `shell=` 也不支持 `args=` kwarg 透传，加同行 `# allow-raw-subprocess: shell=True for unsafe_shell hooks` 豁免。
 
 - 配套测试 `tests/cli/test_feedback_cmd.py` / `test_feedback_label_fallback.py` / `test_issue_cmd.py` 6 个 mock 点位 patch 目标从 `<mod>.subprocess.run` 迁到 `<mod>.run_proc`，并把 `raise subprocess.CalledProcessError(...)` 改为 `return subprocess.CompletedProcess(returncode=1, stderr=...)`。
 
 计数 14 → 3（剩 mcp/lifecycle Popen + platform/helpers 的最后清理，下一批处理）。
 
-- **`cataforge.mcp.lifecycle` 健康探针 + `cataforge.platform.helpers` mklink 走 `run_subprocess.run`** —— 最后 3 处裸 `subprocess` 调用清零：
+- **`cataforge.runtime.mcp.lifecycle` 健康探针 + `cataforge.adapter.platform.helpers` mklink 走 `run_subprocess.run`** —— 最后 3 处裸 `subprocess` 调用清零：
   - `lifecycle._probe_command` 的 `subprocess.run(target, shell=False, ...)` 改为 `run_proc(target, timeout=...)`，`shell=False` 在 wrapper 是结构性保证（封装没有 `shell=` 入口）。
   - `lifecycle._start_one` 启动 MCP server 的 `subprocess.Popen` 加 `# allow-raw-subprocess: long-running MCP server` 同行豁免。
   - `platform.helpers._try_junction` 的 `mklink /J` 调用从 `check=True` + `except CalledProcessError` 改为 `returncode != 0` 判定。
 
 - **`scripts/checks/check_no_raw_subprocess.py` 切 enforced 模式** —— `ADVISORY_MODE = False`，从今天起任何新增 `subprocess.run` / `Popen` / `call` 调用必须走 `cataforge.utils.run_subprocess.run` 或同行加 `# allow-raw-subprocess: <reason>` 豁免，pre-commit + CI 直接拒掉。脚本顶部 docstring 改为说明"enforced + 合法例外清单"（Popen 长寿命进程、`shell=True` + `**proc_kwargs` 透传）。守卫 id 从 `raw-subprocess-inventory` 重命名为 `no-raw-subprocess`，[`scripts/checks/run_local.py`](scripts/checks/run_local.py) 与 [`.pre-commit-config.yaml`](.pre-commit-config.yaml) 同步。
 
-- **`tests/mcp/test_probe_shell_off.py` + `tests/platform/test_link_strategies.py` 配套修订** —— 把 patch 目标从 `cataforge.mcp.lifecycle.subprocess.run` / 全局 `subprocess.run` 改到 `cataforge.mcp.lifecycle.run_proc` / `cataforge.utils.run_subprocess.run`，并把 `raise CalledProcessError(...)` 改为 `return subprocess.CompletedProcess(returncode=1, ...)`。`shell=False` 断言删除（封装结构上不暴露 `shell=`，断言再也没有意义）。
+- **`tests/mcp/test_probe_shell_off.py` + `tests/platform/test_link_strategies.py` 配套修订** —— 把 patch 目标从 `cataforge.runtime.mcp.lifecycle.subprocess.run` / 全局 `subprocess.run` 改到 `cataforge.runtime.mcp.lifecycle.run_proc` / `cataforge.utils.run_subprocess.run`，并把 `raise CalledProcessError(...)` 改为 `return subprocess.CompletedProcess(returncode=1, ...)`。`shell=False` 断言删除（封装结构上不暴露 `shell=`，断言再也没有意义）。
 
 经过 6 批迁移，46 → 0 unmarked，共 4 处合法 Popen / shell-passthrough 豁免，guard 进入 enforced 模式。
 
 - **`cataforge.utils.common.ensure_utf8_stdio` 重命名为 `ensure_utf8` + 新增 Windows UTF-8 Mode re-exec** —— 老的 `ensure_utf8_stdio` 只重配 stdout / stderr，subprocess 子进程仍按 ANSI codepage（zh-CN 默认 cp936 / GBK）解码 stdin / stdout / 写文件，碰到 UTF-8 字节就 `UnicodeDecodeError`。新函数走两阶段：
 
-  1. Windows 上 `PYTHONUTF8` 未设 + 非 pytest 上下文时，`os.execvpe(sys.executable, ["-X", "utf8", "-m", <inferred>, ...])` 把整个进程换到 UTF-8 Mode —— 一次解决 subprocess / `open()` / locale 三处编码，再不用每个调用点显式塞 `encoding="utf-8"`。re-exec target 通过 `sys.modules['__main__'].__spec__` 推断，所以 `python -m cataforge.docs.loader` 这种 subscript 会正确 relaunch 自己而不是顶层 CLI；console-script (`cataforge.exe`) 走 argv\[0\] basename 匹配 fall back 到 `-m cataforge`；standalone 脚本（`python scripts/checks/check_foo.py`）re-exec target 推不出来时静默跳过，只保留 phase 2 stdio reconfigure。
+  1. Windows 上 `PYTHONUTF8` 未设 + 非 pytest 上下文时，`os.execvpe(sys.executable, ["-X", "utf8", "-m", <inferred>, ...])` 把整个进程换到 UTF-8 Mode —— 一次解决 subprocess / `open()` / locale 三处编码，再不用每个调用点显式塞 `encoding="utf-8"`。re-exec target 通过 `sys.modules['__main__'].__spec__` 推断，所以 `python -m cataforge.domain.docs.loader` 这种 subscript 会正确 relaunch 自己而不是顶层 CLI；console-script (`cataforge.exe`) 走 argv\[0\] basename 匹配 fall back 到 `-m cataforge`；standalone 脚本（`python scripts/checks/check_foo.py`）re-exec target 推不出来时静默跳过，只保留 phase 2 stdio reconfigure。
   2. Phase 2 是原来的 stdout / stderr UTF-8 重配（兜底非 Windows / 已在 UTF-8 Mode / pytest）。
 
-- **pytest 检测必须用 `sys.modules` 而不只是 `PYTEST_CURRENT_TEST`** —— pytest collection 在执行任何测试前先 import 所有测试模块，那些 import 链最终拉到 `cataforge.cli.main`，后者 module-load 时就调 `ensure_utf8()`。此时 `PYTEST_CURRENT_TEST` 尚未设置，但 `pytest` 已经在 `sys.modules` 里。少了这条检查 Windows pytest 会在 collection 阶段把自己 re-exec 到 `python -X utf8 -m cataforge`，整个进程崩成 access violation。
+- **pytest 检测必须用 `sys.modules` 而不只是 `PYTEST_CURRENT_TEST`** —— pytest collection 在执行任何测试前先 import 所有测试模块，那些 import 链最终拉到 `cataforge.interface.cli.main`，后者 module-load 时就调 `ensure_utf8()`。此时 `PYTEST_CURRENT_TEST` 尚未设置，但 `pytest` 已经在 `sys.modules` 里。少了这条检查 Windows pytest 会在 collection 阶段把自己 re-exec 到 `python -X utf8 -m cataforge`，整个进程崩成 access violation。
 
-- **`ensure_utf8_stdio` → `ensure_utf8` 在 28 个调用点同步替换** —— `cataforge.cli.main`、`integrations/penpot`、`docs/`、所有 `skill/builtins/*` 子脚本、所有 `scripts/checks/*` 守卫脚本、`tests/conftest.py` / `tests/cli/test_cli_smoke.py`。`tests/test_scripts_stdio_guard.py` 的 `CALL_PATTERNS` 正则同步换为 `\bensure_utf8\s*\(`。
+- **`ensure_utf8_stdio` → `ensure_utf8` 在 28 个调用点同步替换** —— `cataforge.interface.cli.main`、`integrations/penpot`、`docs/`、所有 `skill/builtins/*` 子脚本、所有 `scripts/checks/*` 守卫脚本、`tests/conftest.py` / `tests/cli/test_cli_smoke.py`。`tests/test_scripts_stdio_guard.py` 的 `CALL_PATTERNS` 正则同步换为 `\bensure_utf8\s*\(`。
 
 - **CLI `KGError` 重命名为 `KGCLIError`** —— 消除与 domain 层 `KGError(Exception)` 的命名冲突。
 - **KG SPARQL 工具函数统一到 `_sparql_utils.py`** —— `_term_value`/`_row_lookup`/`_strv` 从 4 个文件提取为共享模块。
@@ -307,7 +307,7 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 - **`yaml.safe_load(None)` 让 deploy 崩** —— `platform/registry.py` 的 `dict(yaml.safe_load(f))` 在空 profile.yaml 下 None → TypeError；改 `dict(... or {})`。
 - **OpenCode 生成的 TS plugin 同步 lambda 丢 async Promise** —— `event.on(evt, (ctx) => dispatch(...))` 改为 `async (ctx) => { await dispatch(...) }`，hook `throw Error` 阻断逻辑现在能传播给 OpenCode；OpenCode `deploy_agents` 补传 `dropped_collector` 与其他三平台对齐；Cursor MDC `alwaysApply: true` 时省略空 `globs:` 字段；platform adapter cache 加 `threading.Lock`。
 - **Hook scripts import-time I/O + auto-deploy 静默** —— `validate_agent_result.py` 模块顶层 `ProjectPaths().schemas_dir` 改 lazy（原本在项目根外 import 即抛）；`session_context.py` `_auto_deploy` 失败不再 `suppress(Exception)`，改 stderr `warn` 行（仍 hook_main 保护下，退出码 0）。
-- **CLI 错误一致性 5 项** —— `correction record` 改 `resolve_root()` 让 `--project-dir` 全局标志生效；`claude-md check` 失败改抛 `CataforgeError`（之前裸 `SystemExit(1)` 绕过 [errors.py](src/cataforge/cli/errors.py) 统一渲染）；`feedback` 三处 assemble 包装异常改 `from e` 保留 `__cause__`；`mcp_cmd` / `cli/helpers.py` 过宽 `except Exception` 收窄到具体异常元组。
+- **CLI 错误一致性 5 项** —— `correction record` 改 `resolve_root()` 让 `--project-dir` 全局标志生效；`claude-md check` 失败改抛 `CataforgeError`（之前裸 `SystemExit(1)` 绕过 [errors.py](src/cataforge/interface/cli/errors.py) 统一渲染）；`feedback` 三处 assemble 包装异常改 `from e` 保留 `__cause__`；`mcp_cmd` / `cli/helpers.py` 过宽 `except Exception` 收窄到具体异常元组。
 - **`EventBus.emit` 写盘失败让所有上游崩** —— 包 `try/except OSError` 降级 `logger.warning`。
 - **`utils/docker_util.PLATFORM` 模块导入时立即求值** —— 改 PEP 562 `__getattr__` 懒加载，测试 mock `sys.platform` 现在生效；保留 `from cataforge.utils.docker_util import PLATFORM` 兼容性。
 - **`doctor_summary` 短路三元改显式 if/else** —— `findall and [...] or []` 语义模糊且重复计算，改 `if _DOCTOR_FAIL_RE.search(text):` 显式分支。
@@ -316,7 +316,7 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 
 **hook / 入口结构（测试加固反向暴露）**
 
-- **`python -m cataforge.cli.main` 结构上不可作为入口** —— 即使加 `__main__` block 也是虚假修复：subcommand 模块 `from cataforge.cli.main import cli` 在 `__main__` 加载路径下触发重复导入产生第二份 `cli`，subcommands 注册到第二份但 `__main__.cli()` 运行第一份。cli/main.py 留 7 行警告注释 + 测试 2 个回归屏障（含一条负向 guard 防止后人误加）。pre-commit 与 hook 调用统一改用 `python -m cataforge`。
+- **`python -m cataforge.interface.cli.main` 结构上不可作为入口** —— 即使加 `__main__` block 也是虚假修复：subcommand 模块 `from cataforge.interface.cli.main import cli` 在 `__main__` 加载路径下触发重复导入产生第二份 `cli`，subcommands 注册到第二份但 `__main__.cli()` 运行第一份。cli/main.py 留 7 行警告注释 + 测试 2 个回归屏障（含一条负向 guard 防止后人误加）。pre-commit 与 hook 调用统一改用 `python -m cataforge`。
 
 **Core/utils + KG parser + hook/mcp/agent 一致性**
 
@@ -332,11 +332,11 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 - **`hook/base._spec_entry_for_script` 高频读盘** —— 加 `@functools.cache` 避免每次 PostToolUse 重复读 hooks.yaml 解析。
 
 - **`cataforge deploy` 偏好相对 symlink，落地 `.claude/skills/` 跨环境可移植** —— `platform/helpers.py:symlink_or_copy` 之前在 Windows 直奔 `mklink /J`，junction 在 NTFS reparse point 里只能存绝对路径，仓库目录改名 / 移动后所有 `.claude/skills/*` 静默失效；多人开发者 / devcontainer 场景一并踩雷。现在 Unix 与 Windows-DevMode 都走 `os.symlink(rel, …)` 写相对路径，权限不足时回落 junction，最后兜底 copy。首次回落 junction 时 deploy log emit 一次 WARN，引导用户启用 Developer Mode。
-- **`cataforge doctor` 升级为部署完整性的硬门禁** —— 之前 `.cataforge/{agents,skills,rules,hooks,platforms}` / `.claude/skills/` 缺失或链接悬空时，doctor 只打印 `MISSING` / `[absent]` 仍 exit 0，部署回归无人值守。新增 [`cli/doctor/deploy_integrity.py`](src/cataforge/cli/doctor/deploy_integrity.py)：读 `.deploy-state` 后逐项校验 owned dir 存在 + per-skill 子链接可解析，悬空 junction / symlink 单独标 dangling 并指出修复命令。`check_file` / `check_dir` 引入 `required=True` 把源资产纳入退出码。doctor 末尾追加 `Summary: N passed / M failed` 一行，失败时附 `cataforge deploy` / `cataforge upgrade apply` 建议。
+- **`cataforge doctor` 升级为部署完整性的硬门禁** —— 之前 `.cataforge/{agents,skills,rules,hooks,platforms}` / `.claude/skills/` 缺失或链接悬空时，doctor 只打印 `MISSING` / `[absent]` 仍 exit 0，部署回归无人值守。新增 [`cli/doctor/deploy_integrity.py`](src/cataforge/interface/cli/doctor/deploy_integrity.py)：读 `.deploy-state` 后逐项校验 owned dir 存在 + per-skill 子链接可解析，悬空 junction / symlink 单独标 dangling 并指出修复命令。`check_file` / `check_dir` 引入 `required=True` 把源资产纳入退出码。doctor 末尾追加 `Summary: N passed / M failed` 一行，失败时附 `cataforge deploy` / `cataforge upgrade apply` 建议。
 
 - **`cataforge deploy` 端到端幂等：删了文件能自愈、不再误删用户文件** —— 之前 `cataforge deploy` 对资产包内单文件型产物（agents `.md` / commands `.md` / `CLAUDE.md` 等）是幂等的，但对目录型产物（`.claude/skills/`、`.claude/rules/`）和源 `.cataforge/` 完全不是：在 Windows 非 Dev-Mode 走 NTFS junction 的链接里删一个 `SKILL.md` 会穿透删源；用户自己写的 `.claude/commands/<name>.md` 或 `.claude/skills/<name>/` 会被无归属判断的 prune 直接清掉（dogfood 的 `.claude/commands/framework-issue-resolve.md` 每次 deploy 都被点名）。本次重构按 P0+P1+P2+P3 一次性把幂等性补上：
 
-  * **P0 归属型 prune**：新增 [`src/cataforge/deploy/manifest.py`](src/cataforge/deploy/manifest.py) 记录每次 deploy 写过 / 链过的相对路径到 `.cataforge/.deploy-manifest.json`；`deploy_commands` / `deploy_skills` / `deploy_agents` / `_prune_orphan_flat_files` 的 prune 一律改成「孤儿 ∩ 上次 manifest」，没在上次 manifest 里的文件一律视为用户自写，永远不删。
+  * **P0 归属型 prune**：新增 [`src/cataforge/runtime/deploy/manifest.py`](src/cataforge/runtime/deploy/manifest.py) 记录每次 deploy 写过 / 链过的相对路径到 `.cataforge/.deploy-manifest.json`；`deploy_commands` / `deploy_skills` / `deploy_agents` / `_prune_orphan_flat_files` 的 prune 一律改成「孤儿 ∩ 上次 manifest」，没在上次 manifest 里的文件一律视为用户自写，永远不删。
   * **P1 scaffold 自愈**：`Deployer.deploy()` 入口先跑 `copy_scaffold_to(force=False, backup=False)`，把 `.cataforge/` 里被穿透删 / 误删的源文件从 wheel 包补齐；`force=False` 决定它绝不覆盖用户编辑过的源。
   * **P2 junction 风险告警 + `--copy`**：`symlink_or_copy` 在第一次落 junction 时的 WARN 现在显式提示「**穿过 junction 删文件等同删源**」并指路 Developer Mode 或 `--copy`；新加 `cataforge deploy --copy` flag 直接落 `shutil.copytree`，IDE 侧的 `.claude/skills/<name>/` 是独立副本，删它不会再波及源。
   * **P3 `--rebuild`**：新加 `cataforge deploy --rebuild`，先按上次 manifest 清掉所有 owned path 再正常 deploy，用来从损坏 / 不一致状态做硬重置；首次部署上无 manifest 时退化为 no-op，绝不误伤用户文件。
@@ -346,21 +346,21 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 - **Windows CI 单元测试 4 个 pre-existing 失败一次性扫平** —— 都是 Py 3.10 / Windows 上的潜伏问题，PR #138 的 CI 触发后浮出。在 `.venv-py310` 本地复现到根因后逐个修：
 
   * **`test_windows_falls_back_to_junction_then_copy`** —— `symlink_or_copy` 的 WARN 文本里含「symlinks」字样，assertion `"symlink" in a` 误命中。改 WARN 文案为「relative-path soft links」绕开 substring；同时给 [`tests/platform/test_symlink_or_copy_portable.py`](tests/platform/test_symlink_or_copy_portable.py) 加 autouse fixture 在每测前后 `reset_junction_warning_state()`，把进程级 once-flag 重置干净，避免顺序依赖（先跑的测试烧掉 flag 后这个测试看不到 WARN）。
-  * **`test_unwraps_legacy_whole_dir_link`** —— Py 3.10 没有 `Path.is_junction`，`Path.is_symlink()` 对 NTFS junction 也返回 False，导致 `deploy_skills` 的「whole-dir 链接 unwrap」分支在 3.10 上变成 no-op，stale junction 永远拆不掉。新增 [`helpers._is_dir_link`](src/cataforge/platform/helpers.py:18) 三段式检测：symlink → `is_junction()` → `ctypes.windll.kernel32.GetFileAttributesW` 检 `FILE_ATTRIBUTE_REPARSE_POINT` 位，覆盖 3.10 / 3.11 / 3.12+。test_helper 同步替换为这个 production helper。
+  * **`test_unwraps_legacy_whole_dir_link`** —— Py 3.10 没有 `Path.is_junction`，`Path.is_symlink()` 对 NTFS junction 也返回 False，导致 `deploy_skills` 的「whole-dir 链接 unwrap」分支在 3.10 上变成 no-op，stale junction 永远拆不掉。新增 [`helpers._is_dir_link`](src/cataforge/adapter/platform/helpers.py:18) 三段式检测：symlink → `is_junction()` → `ctypes.windll.kernel32.GetFileAttributesW` 检 `FILE_ATTRIBUTE_REPARSE_POINT` 位，覆盖 3.10 / 3.11 / 3.12+。test_helper 同步替换为这个 production helper。
   * **`test_concurrent_start_produces_single_pid`** —— 两线程争 spawn-lock 时 10s 必超时。本地复现锁定根因：`os.open(O_CREAT | O_EXCL)` 在 Py 3.10 Windows + 线程争用下，holder 释放锁（`os.unlink` 返回 OK、`os.path.exists` 返回 False）后，peer 线程的 `os.open(O_EXCL)` 仍持续报 `FileExistsError`，长达 10s。属内核句柄 / dirent 缓存的边角行为。修复加一层进程内 `threading.Lock`（per lock_path）做同进程串行化，文件锁仍保留给跨进程场景；额外把临界区收窄到「spawn-or-attach 决策 + 写 state」，readiness probe 移到锁外，并支持 `CATAFORGE_MCP_SPAWN_LOCK_TIMEOUT` env 让慢机器可调。
   * **`test_doc_gen_version_in_frontmatter_resolves_via_xref`** —— 在本地 Py 3.10 venv 上无法复现（运行 1290 测全绿），疑似与上面 3 个失败的连带受害测试。等本 PR CI 跑完再观察是否退稳定。
 
 - **MCP `_save_state` 改为 atomic rename** —— PR #138 合并到 main 后，Ubuntu Py 3.13 `uv run --extra dev pytest` smoke 步骤仍稳定挂 `test_concurrent_start_produces_single_pid: multiple distinct PIDs {N, N+1}`。同 job 的主步 pytest 是绿的，同一份代码同一台机，只是 timing 略不同 —— 典型部分写竞争。
 
-  根因：[`MCPLifecycleManager._save_state`](src/cataforge/mcp/lifecycle.py) 用 `path.write_text(...)` 单步写状态文件。它 open + write + close 之间存在窄窗：thread A 在 open / 写一半 / close 的任意中间点暂停，thread B 刚释放 spawn-lock 进入 `_load_state` 调 `json.loads`，读到半成品 → `JSONDecodeError` → 返回 None → thread B 误判「服务未起」→ 自己再 spawn 一遍。这就是为何两个 PID 总是连续号 ({N, N+1})：thread A 抢到锁创建第一个进程，状态还没写干净 thread B 已经读完空状态在 race 它。
+  根因：[`MCPLifecycleManager._save_state`](src/cataforge/runtime/mcp/lifecycle.py) 用 `path.write_text(...)` 单步写状态文件。它 open + write + close 之间存在窄窗：thread A 在 open / 写一半 / close 的任意中间点暂停，thread B 刚释放 spawn-lock 进入 `_load_state` 调 `json.loads`，读到半成品 → `JSONDecodeError` → 返回 None → thread B 误判「服务未起」→ 自己再 spawn 一遍。这就是为何两个 PID 总是连续号 ({N, N+1})：thread A 抢到锁创建第一个进程，状态还没写干净 thread B 已经读完空状态在 race 它。
 
   修复：dump 到同级 `.tmp.<pid>.<tid>` 临时文件，然后 `os.replace` 原子重命名替换正式状态文件。POSIX rename / NTFS replace 都是原子的，reader 看到的永远是「上一份完整状态」或「这次写完的完整状态」，不会再看见半成品 JSON。tmpfile 名带 pid+tid 保证同进程多线程写不互相覆盖临时文件。
 
-- **`#142` §2.2 chokepoint 闭环** —— `cataforge.kg._ask.ask()` 在 sub-PR 2 引入但仅在测试里使用；sub-PR 3 的 writer.py 在 phase 5 dedup ASK 上真正消费它。pre-commit grep gate 仍守住 `query(...) == True` 反模式不再出现于 `src/cataforge/kg/`。
+- **`#142` §2.2 chokepoint 闭环** —— `cataforge.domain.kg._ask.ask()` 在 sub-PR 2 引入但仅在测试里使用；sub-PR 3 的 writer.py 在 phase 5 dedup ASK 上真正消费它。pre-commit grep gate 仍守住 `query(...) == True` 反模式不再出现于 `src/cataforge/domain/kg/`。
 
 - **`.claude/scheduled_tasks.lock`** —— 加入 `.gitignore`（harness 本地锁文件不应入库）。
 
-- **Windows 上 `symlink_or_copy` 写入的 symlink target 反斜杠破裂跨平台访问**（`src/cataforge/platform/helpers.py`） —— `os.path.relpath()` 在 Windows 返回 `..\\..\\src`，直接交给 `os.symlink()` 会把反斜杠原样写进 NTFS reparse 点。链接随后在 WSL / 网络挂载 / sibling POSIX CI runner 上访问即失效。修复：交给 `os.symlink` 前 `.replace("\\", "/")` 一次。回归测试在所有平台（即使无 symlink 权限）通过 `os.path.relpath` mock 拦截，验证传给内核的 target 串无反斜杠。
+- **Windows 上 `symlink_or_copy` 写入的 symlink target 反斜杠破裂跨平台访问**（`src/cataforge/adapter/platform/helpers.py`） —— `os.path.relpath()` 在 Windows 返回 `..\\..\\src`，直接交给 `os.symlink()` 会把反斜杠原样写进 NTFS reparse 点。链接随后在 WSL / 网络挂载 / sibling POSIX CI runner 上访问即失效。修复：交给 `os.symlink` 前 `.replace("\\", "/")` 一次。回归测试在所有平台（即使无 symlink 权限）通过 `os.path.relpath` mock 拦截，验证传给内核的 target 串无反斜杠。
 
 - **`cataforge sync-main` 解析 `git rev-list --left-right --count` 输出时未验证 token 数量** —— git 输出契约漂变（或者 locale 让 warning 串进 stdout）时只能见到含糊的 `ValueError: not enough values to unpack`，看不到 git 真实输出。改为先校验 token 数、再用专门的 `unexpected git rev-list ... output: <raw>` 错误信息；非整数也分开抛 `non-integer ahead/behind counts`。空输出仍按 `0/0` 处理保持容错。
 
@@ -368,23 +368,23 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 
 - **`cataforge.core.corrections._append_markdown` 合并双写入分支并原子化** —— 旧实现首次调用 `with open("w")` 顺序 `write(_HEADER)` + `write(entry)`；进程在两次 write 之间挂掉就留下"只有 header 无 entry"且 `is_file()` 为真的状态，后续调用永远走 append 分支不再补 entry。改为读 (若不存在用 `_HEADER` 模板) → 拼接 → `atomic_write_text` 一次落盘；CORRECTIONS-LOG 增长频率低（每个项目寿命内一只手数得过来），多一次读 I/O 远小于"文件状态从此一致"的收益。
 
-- **`cataforge.hook.base.hook_main` 不再吞掉 `KeyboardInterrupt`** —— 旧实现的 `except Exception` 把 `Ctrl+C` 转成 `exit 0`，部署或调度中 hook 出现长时间运行时用户按 Ctrl+C 想取消但外层流程继续跑下去，同时取消信号也对 wrapping CLI 不可见。新增显式 `except KeyboardInterrupt: raise` 早于通用分支，hook-errors.jsonl 也不再记录用户取消。
+- **`cataforge.runtime.hook.base.hook_main` 不再吞掉 `KeyboardInterrupt`** —— 旧实现的 `except Exception` 把 `Ctrl+C` 转成 `exit 0`，部署或调度中 hook 出现长时间运行时用户按 Ctrl+C 想取消但外层流程继续跑下去，同时取消信号也对 wrapping CLI 不可见。新增显式 `except KeyboardInterrupt: raise` 早于通用分支，hook-errors.jsonl 也不再记录用户取消。
 
-- **`cataforge.deploy.deployer._deploy_hooks` / `_apply_degradation` 保留 traceback** —— 旧实现 `except Exception as e: return [...]` 配 `logger.warning` 把 plugin import 错、属性缺失等真实问题压成 "hooks: generation failed — X" 一行，CI 排错只能看到这条没有 traceback。改为：先匹配 `(ImportError, AttributeError)` 给出 plugin 兼容性提示；其余 `Exception` 保留兜底；两条分支都用 `logger.exception(...)` 把完整 traceback 留到日志，action 行加上异常类型。
+- **`cataforge.runtime.deploy.deployer._deploy_hooks` / `_apply_degradation` 保留 traceback** —— 旧实现 `except Exception as e: return [...]` 配 `logger.warning` 把 plugin import 错、属性缺失等真实问题压成 "hooks: generation failed — X" 一行，CI 排错只能看到这条没有 traceback。改为：先匹配 `(ImportError, AttributeError)` 给出 plugin 兼容性提示；其余 `Exception` 保留兜底；两条分支都用 `logger.exception(...)` 把完整 traceback 留到日志，action 行加上异常类型。
 
 - **`cataforge.core.config.ConfigManager.version` 收窄 `except Exception` 为 `ImportError`** —— 老的兜底分支会把 `cataforge/__init__.py` 中的循环导入 / 语法错误悄悄当成 "用占位符版本"，让真 bug 永远没机会浮出水面。改为只兜底 `ImportError`。
 
 - **`cataforge.core.events._safe_call` 添加 stderr 兜底** —— 典型 CLI 进程把 `cataforge` logger 默认在 WARNING 以上、无 stderr handler 绑定；事件处理器出错时 `logger.exception(...)` 实际写入了 *nothing*，handler bug 静默到完全看不见。改为：`logger.exception(...)` 之后若 `logger.getEffectiveLevel() > ERROR` 则向 `sys.stderr` 写一行 `[events] handler ... failed for ...: TypeName: msg`。`core` 模块不引入 click 依赖，使用裸 `sys.stderr.write`。
 
-- **`cataforge.integrations.penpot.stop_mcp` 前置校验 `taskkill`** —— Windows Nano Server / 裁剪过的 CI 镜像里没有 `taskkill`；旧实现 `FileNotFoundError` 被外层裸 `except OSError: pass` 吞掉，函数照样报"已停止"但进程其实还活着。改为：调 `subprocess.run` 前 `shutil.which("taskkill")` 检查，缺失就抛 `CataforgeError` 含可操作的修复提示。
+- **`cataforge.adapter.integrations.penpot.stop_mcp` 前置校验 `taskkill`** —— Windows Nano Server / 裁剪过的 CI 镜像里没有 `taskkill`；旧实现 `FileNotFoundError` 被外层裸 `except OSError: pass` 吞掉，函数照样报"已停止"但进程其实还活着。改为：调 `subprocess.run` 前 `shutil.which("taskkill")` 检查，缺失就抛 `CataforgeError` 含可操作的修复提示。
 
-- **`cataforge.integrations.penpot._read_mcp_pid` / `_write_mcp_pid` 补 `encoding="utf-8"`** —— PID 是 ASCII 数字，行为上无差，但消除"裸 `open()` 跟随系统 locale"的隐患，与仓库内其他 I/O 一致。
+- **`cataforge.adapter.integrations.penpot._read_mcp_pid` / `_write_mcp_pid` 补 `encoding="utf-8"`** —— PID 是 ASCII 数字，行为上无差，但消除"裸 `open()` 跟随系统 locale"的隐患，与仓库内其他 I/O 一致。
 
-- **`cataforge.cli.ui.UI._write` 拆分 `BrokenPipeError` 与 `ValueError`** —— 老实现 `except (BrokenPipeError, ValueError): pass` 把两种含义完全不同的异常一起吞掉：前者是下游管道关了（合理静默），后者通常是 pytest CliRunner 在 invocation 之间换了 stream（也合理）但如果将来真有未预期的 `ValueError` 从 stream write 跑出来就会无声蒸发。改为：`BrokenPipeError` 单独静默；`ValueError` 走 `logger.debug(...)` 在 verbose 跟踪时可见、正常模式不污染输出。
+- **`cataforge.interface.cli.ui.UI._write` 拆分 `BrokenPipeError` 与 `ValueError`** —— 老实现 `except (BrokenPipeError, ValueError): pass` 把两种含义完全不同的异常一起吞掉：前者是下游管道关了（合理静默），后者通常是 pytest CliRunner 在 invocation 之间换了 stream（也合理）但如果将来真有未预期的 `ValueError` 从 stream write 跑出来就会无声蒸发。改为：`BrokenPipeError` 单独静默；`ValueError` 走 `logger.debug(...)` 在 verbose 跟踪时可见、正常模式不污染输出。
 
 - **`cataforge.utils.run_subprocess.run` 默认 `errors="replace"`** —— 修 Windows CI 上 `tests/platform/test_deploy_skills_maintainer_only.py` / `test_idempotency.py` / `test_symlink_or_copy.py` 共 8 个用例（target 路径不存在）。`platform.helpers._try_junction` 跑 `cmd /c mklink /J ...` 时 cmd 的 stdout 是 OEM codepage（CI 上的 US English Windows runner 用 cp437），出现 ≥0x80 字节就会在 wrapper 强制的 `text=True, encoding="utf-8", errors="strict"` 解码路径上抛 `UnicodeDecodeError`。本机表现为 daemon reader 线程异常告警但 junction 已建（test 过），CI 上则把异常上抛炸掉整条 `symlink_or_copy` 调用链，目标根本没建出来。
 
-  默认改 replace 是真正想要的 child-process I/O 行为 —— strict 模式只在调用方明确需要"看到 decode 失败"时才有意义；批 3 加 `errors=` 参数时把默认设成 strict 是过度防守。`cataforge.skill.runner` 同步删掉显式 `errors="replace"`（现在已是默认）。
+  默认改 replace 是真正想要的 child-process I/O 行为 —— strict 模式只在调用方明确需要"看到 decode 失败"时才有意义；批 3 加 `errors=` 参数时把默认设成 strict 是过度防守。`cataforge.runtime.skill.runner` 同步删掉显式 `errors="replace"`（现在已是默认）。
 
 - **Windows admin / Dev-Mode 环境下 `symlink_or_copy` 生成不可解析 symlink** —— [#153](https://github.com/lync-cyber/CataForge/pull/153) 在 `_try_symlink` 加了 `os.path.relpath(...).replace("\\", "/")`，把相对目标里的反斜杠强制换成正斜杠（`..\..\src` → `../../src`）。无 `SeCreateSymbolicLinkPrivilege` 的 Windows 客户机上 `os.symlink` 抛 `WinError 1314`，fallback 到 junction 路径，问题被掩盖；但 GitHub Actions `windows-latest` 跑 `runneradmin` 时 `CreateSymbolicLinkW` 接受 `../../src` 创建 reparse 点成功，Windows 内核随后 lookup 阶段拒绝跟随正斜杠的相对 reparse target —— `target.exists()` / `is_file()` 返回 `False`，整条 fallback chain 因为没有异常信号也不会兜底，调用方拿到的"成功"返回值是假的。具体表现：`tests/platform/test_symlink_or_copy.py::test_creates_target_when_parent_missing` + 7 个 `deploy_skills` 相关 test 在 `windows-latest` 上 fail，本地无 admin / Dev-Mode 的 Windows 与所有 POSIX runner 全通过。
 
@@ -439,7 +439,7 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 | 自然语言查询 LLM 接口 | 0.6.0+ 候选 | 现有 `QueryAPI` / `TraceAPI` 提供编程接口 |
 | `cataforge kg compare-read` 退出码 = 0 | 设计选择（diagnostic, not gate） | alarm 持续才触发"移出 `kg_active_doc_types`" 运维动作 |
 | `docs/.doc-index.json` 派生化 | 0.5.0 已生效 | 第三方读者改 `cataforge kg query` 或 `cataforge docs load`（按 doc_type 自动路由） |
-| `cataforge.kg._shim` 5 + 3 个函数发 `DeprecationWarning` | 0.6.0 移除 | 调用方迁到 `QueryAPI` / `TraceAPI` 直接接口 |
+| `cataforge.domain.kg._shim` 5 + 3 个函数发 `DeprecationWarning` | 0.6.0 移除 | 调用方迁到 `QueryAPI` / `TraceAPI` 直接接口 |
 | pyoxigraph 0.5.x 无 OWL/RDFS 推理 | 受 pyoxigraph 上游限制 | `cataforge kg init` 在 bootstrap 时显式物化 `rdfs:subClassOf` triples 兜底子类闭包查询 |
 | Systemic snapshot 回滚依赖人工预先 `cataforge kg snapshot` | 0.5.0 已发货命令 | 升级前打 git tag (`git tag pre-kg-cutover-0.5.0`) + 跑 `cataforge kg snapshot`，建议合并到 upgrade 流程 |
 
@@ -454,7 +454,7 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 - **orchestrator Phase Transition hygiene gate** —— Phase Transition Protocol 新增 Step 6：派发下一阶段 Agent 前强制运行 `cataforge claude-md check`，FAIL 时阻塞推进并提供 inline `cataforge claude-md compact` 恢复选项。
 - **framework-review B5_hook_installed 检查** —— 新增 FAIL 级检查：`hooks.yaml` PostToolUse 段必须含 `script: validate_agent_result` + `matcher_capability: agent_dispatch` 条目，否则 `agent_return` 事件永远不会写入 EVENT-LOG，B5-γ 漂移检测会在 0 数据下静默放行。
 - **framework-review B8 Anti-Patterns 系列** —— 新增 B8-α/β/γ：每个非豁免 skill / agent 应有 `## Anti-Patterns` 段（缺失 WARN）；skill bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_SKILL`（默认 3）/ agent ≥ `ANTI_PATTERN_MIN_COUNT_AGENT`（默认 4），不足 FAIL；每条 bullet 正文 ≥ 12 字符（过滤 placeholder），不足 WARN。
-- **plugin-style 跨语言规则架构** —— 新增 `cataforge.skill.rules.loader` 模块（`validate_yaml_text` / `discover_rules` / `RuleSpec`），按 `(rule_type, language)` 索引；wiring + e2e 正则迁移到 YAML（`cataforge.skill.builtins.{code_review,testing}.rules.*.yaml`），项目可在 `.cataforge/skills/<skill>/rules/` 放同名文件覆盖默认值，加新语言只需放 YAML 不改 Python；framework-review 新增 B3-β `rules_schema_compliance` 自动校验项目 YAML。
+- **plugin-style 跨语言规则架构** —— 新增 `cataforge.runtime.skill.rules.loader` 模块（`validate_yaml_text` / `discover_rules` / `RuleSpec`），按 `(rule_type, language)` 索引；wiring + e2e 正则迁移到 YAML（`cataforge.runtime.skill.builtins.{code_review,testing}.rules.*.yaml`），项目可在 `.cataforge/skills/<skill>/rules/` 放同名文件覆盖默认值，加新语言只需放 YAML 不改 Python；framework-review 新增 B3-β `rules_schema_compliance` 自动校验项目 YAML。
 - **doc-review `ac-observability` 检查** —— dev-plan AC 用主观语义动词（"很好地处理…"/"友好地…"）会被 needs_revision；AC 必须可观察可测试。
 - **sprint-review `wiring-completeness` 维度** —— Layer 2 新增维度，并细化 `ac-coverage` 要求 non-mock 测试。
 - **COMMON-RULES §verdict_blocking_semantics** —— 明确 `approved` / `approved_with_notes` / `conditional_release` / `needs_revision` 在 Phase Transition / Sprint Review 流转上的阻塞语义，禁止用 `[ENV-LIMITATION]` 让缺陷豁免 needs_revision。
@@ -474,8 +474,8 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 - **SKILL.md `<!-- requires: cataforge>=X.Y.Z -->` 注解 + B3 release-lag INFO 降级** —— B3 anchor 漂移 (`check_id` 引用了 manifest 未声明的 id) 在 release 发布到 PyPI 与下游 `cataforge upgrade` 之间窗口内可能误判：上游 SKILL.md 已声明新 check_id，下游 cataforge 包仍是旧版未注册。SKILL.md 顶部可加 `<!-- requires: cataforge>=0.4.1 -->` 注解，runtime 版本低于声明时把 orphan anchor 从 FAIL 降为 INFO；runtime 满足时维持严格 FAIL 守护。
 - **B1-β PROTOCOL companion 扫描** —— `framework-review` B1-β size threshold 之前仅扫 AGENT.md / SKILL.md 主体，遗漏 `agents/<id>/*PROTOCOL*.md`（如 ORCHESTRATOR-PROTOCOLS.md）等 companion 文档；这些 companion 与主体一样每次 LLM 调度都被加载，必须共同受 META_DOC_SPLIT_THRESHOLD_LINES (500) 约束。新增 5 个测试覆盖发现 / 单数 PROTOCOL / 复数 PROTOCOLS / 超阈值 FAIL / scope=skills 不扫 agent。
 - **12 个 skill `## Anti-Patterns` 段** —— arc-design / change-guard / debug / deploy-config / penpot-{implement,review,sync} / platform-audit / req-analysis / task-decomp / tech-eval / ui-design 在 B8-α/β/γ 守门下补齐 Anti-Patterns 段（每段 ≥3 条具体反例 + 后果描述）。devops / tech-lead placeholder-thin 条目重写为含具体后果陈述。
-- **`docs/reference/builtin-skill-layout.md`** —— builtin skill Python 包命名约定（`cataforge.skill.builtins.<skill_name>`，下划线分词），同时列出存量不符约定的 skill 待后续 narrow-PR 迁移。
-- **`cataforge.platform.instruction_cache`** —— `platform/base.py` 的 instruction-hash 持久化逻辑抽取为独立模块；platform deploy 现复用统一缓存接口。
+- **`docs/reference/builtin-skill-layout.md`** —— builtin skill Python 包命名约定（`cataforge.runtime.skill.builtins.<skill_name>`，下划线分词），同时列出存量不符约定的 skill 待后续 narrow-PR 迁移。
+- **`cataforge.adapter.platform.instruction_cache`** —— `platform/base.py` 的 instruction-hash 持久化逻辑抽取为独立模块；platform deploy 现复用统一缓存接口。
 
 - **doc `content_hash` + `dep_hashes` 快照** —— `.doc-index.json` 每个文档新增 `content_hash`（frontmatter 剔除后 body 的 sha256 前 8 位），含 `deps:` 字段的文档同时写入 `dep_hashes: {upstream_id → upstream_content_hash}` 快照其依赖时的上游版本。
 - **`cataforge docs validate` 检 `stale_deps`** —— 比对 downstream 文档的 `dep_hashes` snapshot 与上游 doc 当前 `content_hash`，不一致即列为 stale dependency WARN（不阻断 validate，仅提示 downstream 可能需要跟随更新）。`validate_docs()` 返回值新增 `stale_deps` key。
@@ -507,8 +507,8 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 - **refactorer/AGENT.md §Anti-Patterns 硬禁所有 git 操作** —— refactorer 仅产出文件路径，git 由 orchestrator 独占；add / commit / push / branch / reset / restore / checkout / stash 全部明文禁止。配套 tdd-engine §Step 4 协议层防御。
 - **tdd-engine/SKILL.md §Step 4 REFACTOR 完成后验证** —— orchestrator 在 refactorer 返回 completed 后跑 `git status --short` 比对调度前 baseline；staged/unstaged 变化中含 deliverables 外文件、HEAD 位移（分支切换 / 新增 commit）、working tree 出现 stash 或 cherry-pick 中间态 → BLOCKED 并请求人工介入。
 
-- **`framework_check.py` 1613 → 203 LOC** —— B1..B8 检查拆分到 `cataforge.skill.builtins.framework_review.checks.b{1..8}`，配合 `_types/_discover/_constants/_framework_data/_hook_resolution` 内部模块；公开 API 通过 `__all__` re-export 保持稳定，下游调用方零修改。
-- **`doctor_cmd.py` 1218 → 142 LOC** —— `cataforge.cli.doctor` 拆分为 `_helpers/migration/protocol_refs/hook_health/skill_health/event_log/hygiene/provenance` 子模块；`cataforge doctor` 命令行接口不变。
+- **`framework_check.py` 1613 → 203 LOC** —— B1..B8 检查拆分到 `cataforge.runtime.skill.builtins.framework_review.checks.b{1..8}`，配合 `_types/_discover/_constants/_framework_data/_hook_resolution` 内部模块；公开 API 通过 `__all__` re-export 保持稳定，下游调用方零修改。
+- **`doctor_cmd.py` 1218 → 142 LOC** —— `cataforge.interface.cli.doctor` 拆分为 `_helpers/migration/protocol_refs/hook_health/skill_health/event_log/hygiene/provenance` 子模块；`cataforge doctor` 命令行接口不变。
 - **B5-γ phase-routed agent 0 returns 升级条件** —— `total_returns ≥ EVENT_LOG_DRIFT_MIN_EVENTS` 且某 phase-routed agent 0 returns 时 FAIL（强 dead-routing 信号；阈值过滤稀疏数据），低于阈值时仍为 INFO。
 - **`test-writer` / `refactorer` `skills: []` 标注** —— 两个 AGENT 留空 skills 不是疏漏而是 tdd-engine inline-dispatch 设计：tdd-engine 直接组装 prompt 调度二者，不经 skill 路由。在 frontmatter 注释明确，避免 framework-review B5 误报 orphan。
 
@@ -551,7 +551,7 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 
 - **ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery Protocol** —— 与既有 §Agent Crash Recovery 协议区分：crash 是 process 死（无任何输出），truncation 是 token budget 耗尽（artifact 已部分落地，仅 `<agent-result>` JSON 缺失）。截断时主线程不再 blocked，而是按完成度路由：≥70% AC PASS（或 deliverables 齐全）→ 主线程接管收尾（inline-fix lint/typecheck + 补落盘 + 写 EVENT-LOG `state_change` 事件）；<70% → blocked 请求人工。每任务最多 1 次 truncation recovery，第 2 次同任务截断说明 prompt 设计问题，进 retrospective backlog。与 tdd-engine §Mid-Progress Drop Contract 协同：契约预防截断，本协议事后兜底。
 
-- **sprint-review 三档模式 + `project_features` schema** —— sprint-review SKILL.md §审查档位 正式声明 standard / lite / **merged-review** 三档（merged-review 之前隐式存在，5 次实战稳定但框架文档未承认）。dev-plan 主卷 frontmatter 新增可选 `project_features` 块（`merged_review` / `deliverables_accept_alternation` / `unplanned_glob_patterns` 三键），由 `cataforge.skill.builtins.sprint_review.sprint_check.load_project_features()` 加载。
+- **sprint-review 三档模式 + `project_features` schema** —— sprint-review SKILL.md §审查档位 正式声明 standard / lite / **merged-review** 三档（merged-review 之前隐式存在，5 次实战稳定但框架文档未承认）。dev-plan 主卷 frontmatter 新增可选 `project_features` 块（`merged_review` / `deliverables_accept_alternation` / `unplanned_glob_patterns` 三键），由 `cataforge.runtime.skill.builtins.sprint_review.sprint_check.load_project_features()` 加载。
 
 - **tdd-engine §Mid-Progress Drop Contract** —— LOC > 200 或 AC > 6 的任务在 implementer dispatch prompt（standard Step 3 + light-dispatch）强制注入 4 步落盘契约：先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit。治理子代理在 finalize 阶段集中产出导致的 task-notification truncation（100+ tools / 100K+ tokens / 5min+ 后被打断）。light-inline / prototype-inline 不适用（主线程产出，不受子代理 token 额度限制）。失效时由 ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery 接管。
 
@@ -628,7 +628,7 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 ### Added
 
 - **B5 子检查从 1 个扩到 4 个** —— `B5_workflow_coverage_matrix` 维持 phase→agent 单跳；新增 `B5_phase_skill_coverage` 三跳验证（每个 phase-routed agent 必须 ≥1 skill 且引用的 skill 必须存在），`B5_eventlog_agent_return_drift` 读 `docs/EVENT-LOG.jsonl` 比对（≥10 events 启用，0 returns 的 phase-routed agent 标 dead routing；returns 全缺 ref 字段标 output_path 追溯断链），`B5_feature_phase_alignment` 校验 framework.json `features[*].phase_guard` 命中 Phase Routing 已知 phase。新增 11 个测试。
-- **HOOKS_MANIFEST 注册机制** —— 新模块 `cataforge.hook.manifest` 声明 builtin hook 脚本目录（含 events / default_capability / default_type / safety_critical 元数据），catch "把 helper 当 hook 挂" bug；framework-review 增 B6-ε 子检查双向校验：hooks.yaml 非 `custom:` 引用必须 ∈ HOOKS_MANIFEST（FAIL），HOOKS_MANIFEST 条目必须被 hooks.yaml 引用（WARN dead inventory）。新增 6 个测试覆盖正常 / 孤儿引用 / 未挂 / custom 跳过 / manifest 不可导入降级 / 真实 manifest 与 .py 文件 1:1 对账。
+- **HOOKS_MANIFEST 注册机制** —— 新模块 `cataforge.runtime.hook.manifest` 声明 builtin hook 脚本目录（含 events / default_capability / default_type / safety_critical 元数据），catch "把 helper 当 hook 挂" bug；framework-review 增 B6-ε 子检查双向校验：hooks.yaml 非 `custom:` 引用必须 ∈ HOOKS_MANIFEST（FAIL），HOOKS_MANIFEST 条目必须被 hooks.yaml 引用（WARN dead inventory）。新增 6 个测试覆盖正常 / 孤儿引用 / 未挂 / custom 跳过 / manifest 不可导入降级 / 真实 manifest 与 .py 文件 1:1 对账。
 - **Pydantic V2 strict mode（保守应用）** —— `MCPServerState` 加 `strict=True`（输入仅来自 cataforge 自写状态文件，类型保真）；所有 schema 模型统一加 `validate_assignment=True`（catch "构造后赋错类型" bug）；`extra="allow"` / `extra="ignore"` 维持原状以容忍用户 YAML/JSON 类型宽松。文档化策略边界（user-input 模型暂不开 strict）。
 - **CI gate `uv lock --check`** —— `.github/workflows/test.yml` Linux job 加 uv 安装 + 锁文件新鲜度检查，pyproject.toml 改依赖未刷 uv.lock 即 fail。`docs/contributing.md` 加锁文件刷新指引。
 
@@ -637,8 +637,8 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 - **`tests.conftest.run_utf8` 共享 subprocess 帮助函数** —— `subprocess.run(text=True)` 用 parent 的 cp1252 (Windows CI 默认) 解码 UTF-8 输出会让 reader 线程崩溃、`stdout` 静默变 `None`，下游 `json.loads` 报"not NoneType"难以诊断。提取 `run_utf8(cmd, *, cwd, check, timeout, extra_env, **kw)` 到根 `tests/conftest.py`，统一 `encoding="utf-8"` / `errors="replace"` / `PYTHONUTF8=1`；`tests/e2e/conftest.py` 的 `built_wheel` / `pip_install` / `run_cataforge` 与 sprint-review CLI 测试切换调用；新增 `tests/test_run_utf8.py` 5 个回归测试 (中文+em-dash 解码 / `PYTHONUTF8` 注入 / `extra_env` 合并 / `check=True` 抛错 / 默认放行非零码)，防止有人"简化"掉 `encoding`。
 - **pre-commit 装机率 guard 三件套** —— 解决"`.pre-commit-config.yaml` 已配 ruff 但本地从未跑 `pre-commit install`，CI 60 秒后才翻红"的问题。(1) `tests/conftest.py` `pytest_sessionstart` 探测 `.git/hooks/pre-commit` 缺失时**自动**调用 `python -m pre_commit install` 安装钩子（`pre-commit` 已在 [dev] 依赖、且 `pre-commit install` 幂等无副作用），失败 fail-soft；power user 可设 `CATAFORGE_SKIP_HOOK_AUTOINSTALL=1` 关闭；(2) `.github/workflows/test.yml` Linux job 加 `pre-commit run --all-files --show-diff-on-failure` 作为 belt-and-braces step，杜绝 `.pre-commit-config.yaml` 与 CI 单点 ruff 命令偷偷漂移；(3) `docs/contributing.md` 把 `pre-commit install` 从"可选"提为开发环境 setup 必跑步骤，改写说明强调本地↔CI 检查 1:1 对账。
 
-- **frontmatter `aliases:` 字段 + 三段式 doc_id 解析** —— 旧 cross-ref resolver 短引用（如 `arch-data#§4.E-002`）只在严格 doc_id 匹配 / `{doc_id}-*` prefix-fallback 两层尝试，命中不到 `arch-wechat-typeset-X-0.1.0-data` 这类后缀别名时直接 FAIL，下游 doc-review 在每份 theme 分卷上系统性触发"交叉引用目标未找到"。新增 `aliases:` frontmatter 字段：indexer 抽取后写入顶层 `aliases: {alias → doc_id}` 映射，`cataforge.docs.loader._resolve_doc_entry` 改三段式（exact → aliases → prefix-fallback），prefix 多匹配从"取 dict 迭代第一个"升级为抛 `AmbiguousRefError` 并列出全部候选。重复声明 / 与真 doc_id 撞名的 alias 由 `build_aliases()` 第一占位胜出并记入 `alias_conflicts`，validate 时上报。
-- **`cataforge docs validate` 跨引用 + alias 冲突校验** —— 旧实现仅查 orphan / stale，无法在 commit / CI 时拦下"DEPS 行写错 doc_id"或"两份文档抢同一 alias"；前者要等到下游 `cataforge docs load` 才暴露、后者完全静默。新增 `validate_docs(project_root)` 统一入口（`cataforge.docs.indexer.validate_docs`），同时跑 orphans / stale / `find_xref_errors` / `find_alias_conflicts`；`cataforge doctor` 的 `_check_orphan_docs` 重命名为 `_check_docs_validate` 并切到同一 helper，命名段从 "Docs index completeness" 改为 "Docs validation"。
+- **frontmatter `aliases:` 字段 + 三段式 doc_id 解析** —— 旧 cross-ref resolver 短引用（如 `arch-data#§4.E-002`）只在严格 doc_id 匹配 / `{doc_id}-*` prefix-fallback 两层尝试，命中不到 `arch-wechat-typeset-X-0.1.0-data` 这类后缀别名时直接 FAIL，下游 doc-review 在每份 theme 分卷上系统性触发"交叉引用目标未找到"。新增 `aliases:` frontmatter 字段：indexer 抽取后写入顶层 `aliases: {alias → doc_id}` 映射，`cataforge.domain.docs.loader._resolve_doc_entry` 改三段式（exact → aliases → prefix-fallback），prefix 多匹配从"取 dict 迭代第一个"升级为抛 `AmbiguousRefError` 并列出全部候选。重复声明 / 与真 doc_id 撞名的 alias 由 `build_aliases()` 第一占位胜出并记入 `alias_conflicts`，validate 时上报。
+- **`cataforge docs validate` 跨引用 + alias 冲突校验** —— 旧实现仅查 orphan / stale，无法在 commit / CI 时拦下"DEPS 行写错 doc_id"或"两份文档抢同一 alias"；前者要等到下游 `cataforge docs load` 才暴露、后者完全静默。新增 `validate_docs(project_root)` 统一入口（`cataforge.domain.docs.indexer.validate_docs`），同时跑 orphans / stale / `find_xref_errors` / `find_alias_conflicts`；`cataforge doctor` 的 `_check_orphan_docs` 重命名为 `_check_docs_validate` 并切到同一 helper，命名段从 "Docs index completeness" 改为 "Docs validation"。
 - **doc-review `required_sections` 模板未覆盖时回退读 frontmatter** —— `_registry.yaml` 未注册的 `(doc_type, volume_type)` 组合（如 `ui-spec/theme`）在 layer-1 checker 里只发一行 WARN 然后 `return`，等于该分卷整段 required_sections 校验被静默跳过。`DocChecker.check_required_sections` 现在在 `load_template_required_sections` miss 后回退读文档自声明 `required_sections:`（通过新公开的 `parse_required_sections_from_list`），仍发降级 WARN 提示模板缺失但不再短路。同时新注册 `ui-spec/theme` 模板 + `volumes/ui-spec-theme.md` 起手骨架，`-theme-NN-slug` 文件名加入 `_detect_volume_type` filename 探测。
 - **COMMON-RULES §禁止估算任务用时** —— 适用所有 Agent 的 backlog / 改进建议 / PR 描述 / todo / 口头汇报；明确 LLM 任务用时与人类工时不可比，必须用"成本 / 复杂度"维度（"单点改动" / "涉及多文件" / "需新写测试"）替代"X 分钟 / 小时 / 天"等口语估算。
 
@@ -688,7 +688,7 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 
 ### Fixed
 
-- **sprint-review unplanned-file 检测在 monorepo 下噪声爆炸** —— 旧实现 `os.walk(--src-dir)` 无 ignore 列表，packages 根目录里的 `node_modules/zod/...`、`dist/`、`*.tsbuildinfo` 等会被全部当成 gold-plating，单次运行 13k+ WARN 把 6 条真实 FAIL (缺 CODE-REVIEW 报告) 完全淹没。重写 `cataforge.skill.builtins.sprint_review.sprint_check.check_unplanned_files`：候选集合默认通过 `git ls-files -co --exclude-standard` 取得（同时尊重 `.gitignore` / 子模块 / global excludes），不在 git 仓内时回落到 `os.walk` 并预剪 `node_modules` / `__pycache__` / `.git`；新增 `cataforge.skill.builtins.sprint_review.ignore` 模块，`DEFAULT_IGNORE_PATTERNS` 兜底覆盖 Node / TS / Python / coverage / lock 文件常见产物。
+- **sprint-review unplanned-file 检测在 monorepo 下噪声爆炸** —— 旧实现 `os.walk(--src-dir)` 无 ignore 列表，packages 根目录里的 `node_modules/zod/...`、`dist/`、`*.tsbuildinfo` 等会被全部当成 gold-plating，单次运行 13k+ WARN 把 6 条真实 FAIL (缺 CODE-REVIEW 报告) 完全淹没。重写 `cataforge.runtime.skill.builtins.sprint_review.sprint_check.check_unplanned_files`：候选集合默认通过 `git ls-files -co --exclude-standard` 取得（同时尊重 `.gitignore` / 子模块 / global excludes），不在 git 仓内时回落到 `os.walk` 并预剪 `node_modules` / `__pycache__` / `.git`；新增 `cataforge.runtime.skill.builtins.sprint_review.ignore` 模块，`DEFAULT_IGNORE_PATTERNS` 兜底覆盖 Node / TS / Python / coverage / lock 文件常见产物。
 
 - **`check_required_sections` 在 frontmatter 内自命中** —— 旧实现 `re.search(re.escape(heading), self.content, re.MULTILINE)` 直接在全文跑，`required_sections:` YAML 数组里写的字面量（`- "## 4. 主题方案"`）会先于真正的 `## 4. 主题方案` 标题被匹中并截走 group(1) 直到下一个 `^## `，导致缺章节场景永远不 FAIL。改为先 `split_yaml_frontmatter` 剥离 frontmatter 再做 regex；新增的 `test_check_required_sections_fallback_flags_missing_section` 守住该回归。
 
@@ -737,7 +737,7 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 - `.pre-commit-config.yaml` scaffold-sync hook 由 `--check` 改为实际写入。
 - `scripts/sync_scaffold.py` 顶部 reconfigure stdio 为 UTF-8（修 `→` 字符在 Windows cp1252 崩溃）。
 - `reflector/AGENT.md` 文档化 on-demand 用法。
-- `cataforge.docs.indexer.main` orphan WARN 文案改进。
+- `cataforge.domain.docs.indexer.main` orphan WARN 文案改进。
 - `doc-review` / `code-review` SKILL.md Step 4 强制 front matter。
 - `reflector/AGENT.md` Retrospective Protocol 改为 glob-based 说明。
 
@@ -765,13 +765,13 @@ doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 a
 
 - **`.github/workflows/test.yml` 加 `cataforge doctor` step**（Linux job）—— v0.1.13 落地的 6 个 anti-rot 守卫之外，把 doctor 自身从"diagnostic"升级为"required gate"，捕获 `_DEPRECATED_REFS` / `runtime_api_version` 漂移 / protocol-script orphan / EVENT-LOG schema / 新加的 docs-index 反向 orphan。Audit A1。
 - **`cataforge docs validate` 子命令** —— 只读 CI gate，覆盖 `docs index --strict` 不写盘的语义。失败时 stderr 列出 orphan + stale entry：exit 0 = clean，exit 2 = `docs/.doc-index.json` 不存在（distinct error class — 调用者应先 `docs index`），exit 3 = 校验不通过。pre-commit、CI workflow、agent 自检三种场景都可调用。Audit A6。
-- **`cataforge.docs.indexer.find_stale_index_entries()` + doctor + `docs index --strict` 接入反向 orphan 检测** —— `.doc-index.json` 登记的 `file_path` 在磁盘已不存在时：doctor 报 FAIL（counts toward `failed_count` exit gate）+ `docs index --strict` 增量分支 exit 3。这是 audit A5 提到的"反向孤儿"，与正向 orphan（磁盘有 md 文件但缺 front matter）形成对称：indexer 维护双向一致性。
+- **`cataforge.domain.docs.indexer.find_stale_index_entries()` + doctor + `docs index --strict` 接入反向 orphan 检测** —— `.doc-index.json` 登记的 `file_path` 在磁盘已不存在时：doctor 报 FAIL（counts toward `failed_count` exit gate）+ `docs index --strict` 增量分支 exit 3。这是 audit A5 提到的"反向孤儿"，与正向 orphan（磁盘有 md 文件但缺 front matter）形成对称：indexer 维护双向一致性。
 - **`bootstrap` 末尾自动跑 `cataforge docs index`**（仅当 `docs/` 含 `.md` 文件）—— 闭合"首次 bootstrap 永远拿不到 `.doc-index.json` → doctor 的 orphan 检查永远静默跳过 → 用户从未感知到 docs-index 子系统"的链式失败模式。失败时 WARN 不阻塞 bootstrap 流程。Audit A4 + A3。
 - **`upgrade apply` 末尾自动 rebuild `.doc-index.json`**（仅当文件已存在）—— 让 upgrade 的副作用包括索引刷新，避免用户手动跑 `docs index`。orphan 失败时 WARN，不回滚 upgrade。Audit A3。
 - **`.pre-commit-config.yaml`** —— 三个本地钩子：(1) `scripts/sync_scaffold.py --check`（防 dogfood ↔ mirror drift）；(2) `ruff check`（防误提带 lint 错的 commit）；(3) `.github/workflows/*.yml` PyYAML safe_load 解析（防 step name 未引号冒号这类静默 workflow rejection）。`docs/contributing.md` 加 `pre-commit install` 指引段。Audit B1 + 本轮 PR-1 暴露的 workflow YAML 失败模式的防再发。
 - **`src/cataforge/_assets/cataforge_scaffold/GENERATED.md`** —— 在生成镜像目录根放 banner，明确"DO NOT EDIT" + 指向 `scripts/sync_scaffold.py`。`scripts/sync_scaffold.py` 的 `TARGET_ONLY_FILES = frozenset({"GENERATED.md"})` 集合保护该文件不被双向同步覆盖；`tests/test_scaffold_sync.py::EXPECTED_ONLY_IN_SHIPPED` 同步 carve-out。Audit B2。
 - **`COMMON-RULES.md` 新增 §文档加载纪律**（在 §文档引用格式 与 §通用 Anti-Patterns 之间）—— 把 5 个 AGENT.md 中重复出现的"禁止 Read 全文 + 必走 `cataforge docs load`"通用规则单点收敛。COMMON-RULES 由 platform adapter 在 deploy 时通过 `@.cataforge/rules/COMMON-RULES.md` at-mention 自动 prepend 到 CLAUDE.md，所有 sub-agent 加载即得，AGENT.md 不需要回引。Audit A7。
-- **`scripts/checks/check_schema_python_parity.py` + `tests/schema/test_schema_python_parity.py`** —— 新 anti-rot 守卫（CI + pre-commit + unit），锁定 `.cataforge/schemas/{event-log,agent-result}.schema.json` 与各自 Python 镜像的 enum / required / allowed-fields 一致性。两个 schema 文件历来是文档-only（无 jsonschema-validate 调用），运行时校验由 `cataforge.core.event_log.validate_record` 和 `cataforge.hook.scripts.validate_agent_result` 中的硬编码常量承担——任一边漂移会让 validation 静默分叉。本守卫闭合该漂移面。Audit 新-3（采用 parity-guard 路线，避免引入 jsonschema 新依赖）。
+- **`scripts/checks/check_schema_python_parity.py` + `tests/schema/test_schema_python_parity.py`** —— 新 anti-rot 守卫（CI + pre-commit + unit），锁定 `.cataforge/schemas/{event-log,agent-result}.schema.json` 与各自 Python 镜像的 enum / required / allowed-fields 一致性。两个 schema 文件历来是文档-only（无 jsonschema-validate 调用），运行时校验由 `cataforge.core.event_log.validate_record` 和 `cataforge.runtime.hook.scripts.validate_agent_result` 中的硬编码常量承担——任一边漂移会让 validation 静默分叉。本守卫闭合该漂移面。Audit 新-3（采用 parity-guard 路线，避免引入 jsonschema 新依赖）。
 - **`tests/cli/test_docs_indexer.py` + `tests/cli/test_docs_validate.py` + `tests/schema/test_schema_python_parity.py`** —— 17 个新测试覆盖：`--strict` 全量 / 增量 / 干净树矩阵、reverse-orphan 检测、`docs validate` 三种 exit 码、doctor 新 WARN/FAIL 路径、schema-Python parity 双面。
 
 ### Changed
@@ -783,7 +783,7 @@ doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 a
 
 ### Fixed
 
-- **`cataforge.docs.indexer.main` `--strict` 增量分支 no-op (audit 新-1)** —— `--doc-file` 增量更新时整段跳过 `find_orphan_docs` 全树扫描，意味着 `--strict` 在 PostToolUse 钩子 / agent 单文件回写等增量场景下永远不会失败，前条目缺失 front matter 也能溜过 gate。现在每次调用都跑全树 orphan + 反向 stale-entry 扫描；增量场景的 `--strict` 与全量行为对称。
+- **`cataforge.domain.docs.indexer.main` `--strict` 增量分支 no-op (audit 新-1)** —— `--doc-file` 增量更新时整段跳过 `find_orphan_docs` 全树扫描，意味着 `--strict` 在 PostToolUse 钩子 / agent 单文件回写等增量场景下永远不会失败，前条目缺失 front matter 也能溜过 gate。现在每次调用都跑全树 orphan + 反向 stale-entry 扫描；增量场景的 `--strict` 与全量行为对称。
 - **`.github/workflows/test.yml` 因 step `name` 含未引号冒号导致 YAML 解析失败** —— `Anti-rot guards (6: skill count, ...)` 这一行的 `6:` 让 GitHub Actions 报 "workflow file issue" 直接拒跑（"This run likely failed because of a workflow file issue"，无任何 job log），main 已连红 3 个 PR 都是这个原因（不是 ruff、不是 pytest，是 workflow 根本没启动）。给该 name 加引号，本轮新加的 doctor step name 同时引号化；pre-commit hook 加 workflow YAML 解析检查防再发。
 - **3 处 pre-existing ruff 错误**（`UP012` × 2 in `tests/cli/test_event_cmd.py` / `tests/core/test_io.py`，`I001` in `src/cataforge/core/template.py`）—— 与 workflow YAML 一起 unblock CI。这 3 处源自 #72，但因 workflow 根本未启动而被 CI 漏掉。
 
@@ -820,7 +820,7 @@ doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 a
 - **`docs/reference/cli.md`**：`hook test` 的 `(v0.2+)` 标注（功能已发版）；`plugin install/remove` 的硬编码 v0.3 计划改为 GitHub issue 链接。
 - **`docs/reference/configuration.md` schema 漂移整组**：`runtime.mode` / `runtime.checkpoints` / 扁平 `features` 等大量"文档里有、代码里没"的字段已删除；正确的 preserve / overwrite 字段表对应 `_merge_framework_json`。
 - **`workflow-framework-generator/SKILL.md:135`** 字段名拼写错：`suggested_tools:` → `suggested-tools:`（SkillLoader 仅识别短横线形式；旧拼写会让生成的 skill 静默丢失 suggested-tools 字段）。
-- **`mc-0.1.5-session-context-simplified` 路径**：原 `.cataforge/hooks/session_context.py` 实物不存在 → vacuous PASS（`file_must_not_contain` 在文件缺失时默认按通过处理）；现改为 `src/cataforge/hook/scripts/session_context.py` + `allow_missing: true` + `deprecate_after: "0.2.0"`。
+- **`mc-0.1.5-session-context-simplified` 路径**：原 `.cataforge/hooks/session_context.py` 实物不存在 → vacuous PASS（`file_must_not_contain` 在文件缺失时默认按通过处理）；现改为 `src/cataforge/runtime/hook/scripts/session_context.py` + `allow_missing: true` + `deprecate_after: "0.2.0"`。
 - **doctor `file_must_not_contain` 默认严格**：路径缺失时 FAIL 并提示三种解决方案（修路径 / 加 `allow_missing` / 加 `deprecate_after`），堵住同类 vacuous-PASS 失败模式。
 - **CHANGELOG `[0.1.0]` Roadmap 段**：补 STATUS UPDATE 注脚说明 `upgrade {check,apply,verify}` 与 `hook test` 自 v0.1.5 起已发版，仅 `plugin install/remove` 仍为 stub。
 - **`framework.json.description`**：之前写"upgrade.source 升级时保留用户配置"与代码（每次 overwrite）矛盾；改为以代码为准。
@@ -837,7 +837,7 @@ doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 a
 
 ### Fixed
 
-- **`dep-analysis` 与三个 Penpot Skill 的脚本路径同形 bug** — `dep-analysis/SKILL.md` 与 `tech-lead/AGENT.md` 仍指令 `python .cataforge/skills/dep-analysis/scripts/dep_analysis.py`，磁盘上无该路径（实现已移到 `cataforge.skill.builtins.dep_analysis`）；`penpot-sync` / `penpot-implement` / `penpot-review` 三个 Skill 指令 `python .cataforge/integrations/penpot/setup_penpot.py ensure`，磁盘上同样无该路径，且 `cataforge penpot` CLI 缺失 `ensure` 子命令（`cmd_ensure` 函数实现完整但未注册）。这是 v0.1.11 修复 review skill 时遗漏的同类缺陷。现 dep-analysis 改走 `cataforge skill run dep-analysis -- ...`、Penpot 改走新加的 `cataforge penpot ensure`，scaffold 镜像同步更新。
+- **`dep-analysis` 与三个 Penpot Skill 的脚本路径同形 bug** — `dep-analysis/SKILL.md` 与 `tech-lead/AGENT.md` 仍指令 `python .cataforge/skills/dep-analysis/scripts/dep_analysis.py`，磁盘上无该路径（实现已移到 `cataforge.runtime.skill.builtins.dep_analysis`）；`penpot-sync` / `penpot-implement` / `penpot-review` 三个 Skill 指令 `python .cataforge/integrations/penpot/setup_penpot.py ensure`，磁盘上同样无该路径，且 `cataforge penpot` CLI 缺失 `ensure` 子命令（`cmd_ensure` 函数实现完整但未注册）。这是 v0.1.11 修复 review skill 时遗漏的同类缺陷。现 dep-analysis 改走 `cataforge skill run dep-analysis -- ...`、Penpot 改走新加的 `cataforge penpot ensure`，scaffold 镜像同步更新。
 
 ### Changed
 
@@ -845,11 +845,11 @@ doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 a
 - **`cataforge doctor` Layer 1 reachability 检查改名为 Built-in skill reachability，覆盖所有内置 Skill** — 之前硬编码 `(code-review, sprint-review, doc-review)`，新增 builtin（如 dep-analysis）会自动绕过检查；现从 `SkillLoader._scan_builtins()` 动态枚举，新增内置 Skill 的可达性自动纳入门禁。
 - **`SkillRunner` 事件日志开关改由 SKILL.md frontmatter 驱动** — 新增 `record-to-event-log: true` 字段，`SkillMeta.record_to_event_log` 解析并经 `_merge_builtin_fallback` 在项目覆写时自动从 builtin 继承；移除 runner 端的硬编码 `_EVENT_LOGGED_SKILLS` 常量。新增审查类 Skill 只需翻一处标志，不再需要同时改 runner 与 doctor 两份名单。
 - **`SkillLoader` 用 AST 判 `if __name__ == "__main__"`** — 旧实现是 `"__main__" in text and "__name__" in text` 文本匹配，会把 docstring 偶然提及这两个 token 的 helper 模块误判为 CLI 入口、混入 `meta.scripts`；现改用 `ast.parse` + `Compare` 节点结构匹配，false-positive 收敛为零。
-- **`cataforge penpot` 新增 `ensure` 子命令** — `cmd_ensure(config)` 已存在于 `cataforge.integrations.penpot` 但未挂到 click group；本次显式注册，三个 Penpot Skill 才能按文档调用。
+- **`cataforge penpot` 新增 `ensure` 子命令** — `cmd_ensure(config)` 已存在于 `cataforge.adapter.integrations.penpot` 但未挂到 click group；本次显式注册，三个 Penpot Skill 才能按文档调用。
 
 ### Added
 
-- **migration check `mc-0.1.10-event-logger-shim`** — 守住 `event_logger.py` 必须保持 forwarder 形态（`from cataforge.cli.main import cli`）。orchestrator/tdd-engine/doc-gen 等十几处 `[EVENT]` 行依赖该 shim 的路径稳定性，以前没有任何机制阻止它被"重构掉"。
+- **migration check `mc-0.1.10-event-logger-shim`** — 守住 `event_logger.py` 必须保持 forwarder 形态（`from cataforge.interface.cli.main import cli`）。orchestrator/tdd-engine/doc-gen 等十几处 `[EVENT]` 行依赖该 shim 的路径稳定性，以前没有任何机制阻止它被"重构掉"。
 - **scaffold-sync 守卫测试** — `tests/test_scaffold_sync.py` 用 `filecmp.dircmp` 递归对比 `.cataforge/` 与 `src/cataforge/_assets/cataforge_scaffold/`，要求两边除显式白名单（`scripts/dogfood`）外字节级一致。dep-analysis 与 Penpot bug 在两份副本里同时存在，是双写无校验放大错误的直接证据；测试关掉这条退路。
 - **doctor 静态扫描的回归用例** — `tests/cli/test_doctor_exit_code.py` 新增 `test_doctor_flags_missing_skill_subdir_script` / `test_doctor_flags_missing_integrations_script`，分别覆盖 `python .cataforge/skills/<id>/scripts/...` 与 `python .cataforge/integrations/...` 两个新扫描盲区的死亡情形。
 
@@ -861,7 +861,7 @@ doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 a
 
 ### Fixed
 
-- **Layer 1 审查脚本从未真正运行** — 三个审查 Skill（`code-review` / `sprint-review` / `doc-review`）的 `SKILL.md` 向 AI 指令 `python .cataforge/skills/<id>/scripts/<script>.py`，但该路径在默认 scaffold 中不存在（脚本实为 `cataforge.skill.builtins.*` Python 模块，需通过 `-m` 调用）。AI 按字面执行必然 `FileNotFoundError`，命中 SKILL.md 定义的"脚本异常→降级 Layer 2"分支，Layer 1 质量闸从未真正运行；叠加 `SkillLoader.get_skill` 的 overshadow bug（项目级空壳 SKILL.md 屏蔽 builtin），`cataforge skill run` 也无退路（实测 `Error: Skill code-review has no executable scripts`）。现象是 `docs/reviews/` 目录长期为空、用户反馈"缺少 Layer 1 脚本工具、没有生成 code review 报告"。
+- **Layer 1 审查脚本从未真正运行** — 三个审查 Skill（`code-review` / `sprint-review` / `doc-review`）的 `SKILL.md` 向 AI 指令 `python .cataforge/skills/<id>/scripts/<script>.py`，但该路径在默认 scaffold 中不存在（脚本实为 `cataforge.runtime.skill.builtins.*` Python 模块，需通过 `-m` 调用）。AI 按字面执行必然 `FileNotFoundError`，命中 SKILL.md 定义的"脚本异常→降级 Layer 2"分支，Layer 1 质量闸从未真正运行；叠加 `SkillLoader.get_skill` 的 overshadow bug（项目级空壳 SKILL.md 屏蔽 builtin），`cataforge skill run` 也无退路（实测 `Error: Skill code-review has no executable scripts`）。现象是 `docs/reviews/` 目录长期为空、用户反馈"缺少 Layer 1 脚本工具、没有生成 code review 报告"。
 
 ### Changed
 
@@ -954,7 +954,7 @@ doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 a
 - **`cataforge correction record` CLI** — interrupt-override 通路的官方写入入口。orchestrator 在 Interrupt-Resume 协议中识别用户推翻 `[ASSUMPTION]` 后调用此命令，自动双写 `docs/reviews/CORRECTIONS-LOG.md` 与 `docs/EVENT-LOG.jsonl (event=correction)`，替代之前易漏写的"手动编辑两个文件"流程。
 - **`detect_review_flag` hook（review-flag 通路自动化）** — 新增 PostToolUse / Agent 钩子（matcher_agent_id=`reviewer`），当 reviewer 报告中出现包含 `[ASSUMPTION]` 的 CRITICAL/HIGH 级问题时，自动 append 到 CORRECTIONS-LOG + EVENT-LOG，无需 reviewer 自我约束写入。
 - **`cataforge.core.corrections.record_correction` 共享写入器** — On-Correction Learning Protocol 三条通路（option-override / interrupt-override / review-flag）共享单一写入函数，schema 与双日志同步由此点统一保证；旧 `detect_correction.py` 仅写 markdown 不写 EVENT-LOG 的偏移随之消失。
-- **`cataforge doctor` Hook script importability 检查** — 对 `hooks.yaml` 中声明的每个内置脚本执行 `importlib.util.find_spec("cataforge.hook.scripts.<name>")`，模块缺失（如 site-packages 残留旧 stub 遮蔽 editable install）即 FAIL 并提示 `pip install -e .` 修复。这是导致 `detect_correction` 静默失效数周的失败模式的直接守卫。
+- **`cataforge doctor` Hook script importability 检查** — 对 `hooks.yaml` 中声明的每个内置脚本执行 `importlib.util.find_spec("cataforge.runtime.hook.scripts.<name>")`，模块缺失（如 site-packages 残留旧 stub 遮蔽 editable install）即 FAIL 并提示 `pip install -e .` 修复。这是导致 `detect_correction` 静默失效数周的失败模式的直接守卫。
 - **`cataforge doctor` Runtime degradation 段** — 在导入性检查后报告当前平台的每脚本降级状态（native / skip / degraded），让"已安装但运行时被跳过"这种隐式行为损失不再隐藏在 deploy 输出里。
 - **`self-update` 用户技能** — 新增 `/self-update [check|apply|verify]` 用户可调用技能，在 AI IDE 会话内标准化 CataForge 升级流程：`check` 对比已安装包版本与项目 scaffold 版本；`apply` 自动识别 pip/uv、升级包、刷新 `.cataforge/` scaffold 并写入 `upgrade.state`；`verify` 通过 `cataforge doctor` 执行迁移检查。无参调用时依次执行 check → confirm → apply → verify 完整流程。
 - **`.cataforge/.scaffold-manifest.json` 脚手架清单** — `cataforge setup` / `cataforge upgrade apply` 写入 scaffold 时，同时记录每个文件的 `sha256` 与写入它的包版本。升级时 `upgrade apply --dry-run` 可对比清单，逐文件标注 `[new]` / `[unchanged]` / `[update]` / `[user-modified]` / `[preserved]`，首次把"哪些文件将被覆盖"从黑箱变为透明清单。
@@ -980,7 +980,7 @@ doc-index 审计**完整闭环**（PR-1 #74 + PR-2 #75 = 2 个 PR 一线串过 a
 
 ### Fixed
 
-- **`cataforge hook test` 子进程找不到 cataforge 包** — 非 site-packages 安装（editable / `pip install <path>`）下，`hook test` 通过 `subprocess.run` 调用 `python -m cataforge.hook.scripts.X` 时子进程继承不到 pytest 的 `pythonpath=["src"]`。新增 `_child_env_with_cataforge_importable` 基于 `cataforge.__file__` 反推包根并注入子进程 `PYTHONPATH`。
+- **`cataforge hook test` 子进程找不到 cataforge 包** — 非 site-packages 安装（editable / `pip install <path>`）下，`hook test` 通过 `subprocess.run` 调用 `python -m cataforge.runtime.hook.scripts.X` 时子进程继承不到 pytest 的 `pythonpath=["src"]`。新增 `_child_env_with_cataforge_importable` 基于 `cataforge.__file__` 反推包根并注入子进程 `PYTHONPATH`。
 - **`log_agent_dispatch` 降级模板容错** — 审计日志属 `observe` 类最佳努力行为，但降级模板之前没有说明失败不应阻断流程。现模板追加 `|| true` 并注明"任何非 0 退出仅作 stderr 警告"，避免 shim 偶发失败中断 LLM 主流程。
 - **orchestrator 协议脚本清单漂移** — `ORCHESTRATOR-PROTOCOLS.md` 的脚本清单段落仍在列举已被 CLI 子命令取代的 `.py` 路径。改写为反映当前真实布局，并重写"本地路径升级步骤"小节以使用 `pip install <path> && cataforge upgrade apply` 模型。
 
@@ -1105,7 +1105,7 @@ scaffold and deploy it to four AI IDE platforms from a single
   `SkillRunner` that invokes built-in and project-level scripts with a
   consistent `CATAFORGE_PROJECT_ROOT` environment.
 - **MCP registry & lifecycle** — declarative `.cataforge/mcp/*.yaml`
-  specs, `cataforge.mcp` entry-points, and process start/stop with
+  specs, `cataforge.runtime.mcp` entry-points, and process start/stop with
   on-disk state under `.cataforge/.mcp-state/`.
 - **Plugin loader** — `cataforge.plugins` entry-points and project-local
   `.cataforge/plugins/*/cataforge-plugin.yaml` manifests.
@@ -1127,7 +1127,7 @@ hint; full implementation is tracked for later milestones:
 - `cataforge hook test <name>` — planned v0.2.
 - `cataforge plugin {install,remove}` — planned v0.3.
 
-> **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
+> **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
 [Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.5.0...HEAD
 [0.5.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.5.0

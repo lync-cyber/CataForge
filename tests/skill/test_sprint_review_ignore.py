@@ -22,9 +22,9 @@ from pathlib import Path
 import pytest
 
 from cataforge.core.types import Severity
-from cataforge.skill.builtins._shared import Issue
-from cataforge.skill.builtins.sprint_review import CHECKS_MANIFEST
-from cataforge.skill.builtins.sprint_review.ignore import (
+from cataforge.runtime.skill.builtins._shared import Issue
+from cataforge.runtime.skill.builtins.sprint_review import CHECKS_MANIFEST
+from cataforge.runtime.skill.builtins.sprint_review.ignore import (
     DEFAULT_IGNORE_PATTERNS,
     IgnoreSpec,
     build_ignore_spec,
@@ -32,7 +32,7 @@ from cataforge.skill.builtins.sprint_review.ignore import (
     is_git_repo,
     list_candidate_files,
 )
-from cataforge.skill.builtins.sprint_review.sprint_check import (
+from cataforge.runtime.skill.builtins.sprint_review.sprint_check import (
     _aggregate_unplanned,
     check_unplanned_files,
 )
@@ -81,7 +81,7 @@ class TestIgnoreSpec:
         spec = build_ignore_spec(use_defaults=True)
         for keep in (
             "packages/skill/src/index.ts",
-            "src/cataforge/cli/main.py",
+            "src/cataforge/interface/cli/main.py",
             "tests/skill/test_x.py",
         ):
             assert not spec.match(keep), f"unexpectedly ignored: {keep}"
@@ -337,7 +337,7 @@ class TestCLIIntegration:
             [
                 sys.executable,
                 "-m",
-                "cataforge.skill.builtins.sprint_review.sprint_check",
+                "cataforge.runtime.skill.builtins.sprint_review.sprint_check",
                 "1",
                 "--dev-plan",
                 "docs/dev-plan/",
@@ -400,7 +400,7 @@ class TestCLIIntegration:
             [
                 sys.executable,
                 "-m",
-                "cataforge.skill.builtins.sprint_review.sprint_check",
+                "cataforge.runtime.skill.builtins.sprint_review.sprint_check",
                 "1",
                 "--dev-plan",
                 "docs/dev-plan/",

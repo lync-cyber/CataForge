@@ -41,10 +41,12 @@ DOC_PATH = REPO_ROOT / "docs" / "reference" / "cli.md"
 
 def load_cli() -> click.Group:
     sys.path.insert(0, str(REPO_ROOT / "src"))
-    from cataforge.cli.main import cli  # type: ignore[import-not-found]
+    from cataforge.interface.cli.main import cli  # type: ignore[import-not-found]
 
     if not isinstance(cli, click.Group):
-        raise TypeError(f"Expected click.Group at cataforge.cli.main:cli, got {type(cli).__name__}")
+        raise TypeError(
+            f"Expected click.Group at cataforge.interface.cli.main:cli, got {type(cli).__name__}"
+        )
     return cli
 
 

@@ -13,7 +13,7 @@ documented escape hatch, or rolled into a downstream sub-PR.
 
 pyoxigraph 0.5.x performs no OWL/RDFS entailment. `cataforge kg init`
 materializes `rdfs:subClassOf` triples from `core.yaml` `is_a` chains via
-[`bootstrap_subclass_axioms`](../../src/cataforge/kg/_store.py) so property-path
+[`bootstrap_subclass_axioms`](../../src/cataforge/domain/kg/_store.py) so property-path
 queries traverse the closure directly.
 
 Evidence: [tests/kg/test_store.py::test_subclass_closure_query_returns_page_for_screen](../../tests/kg/test_store.py)
@@ -28,7 +28,7 @@ SPARQL enumeration.
 The design proposal flagged "is LinkML `union_of` syntax sufficient, or does this
 need a SPARQL CONSTRUCT inference rule?" The schema resolves it without either:
 `belongs_to_work_unit` has `range: WorkUnit`, and `Phase` / `Sprint` / `Iteration`
-each `is_a: WorkUnit` ([core.yaml lines 410–438](../../src/cataforge/kg/schemas/core.yaml)).
+each `is_a: WorkUnit` ([core.yaml lines 410–438](../../src/cataforge/domain/kg/schemas/core.yaml)).
 Polymorphic queries fall back on the verified `a/rdfs:subClassOf*` mechanic above —
 no CONSTRUCT rule, no `union_of` workaround.
 
@@ -47,7 +47,7 @@ and the doctor gate surfaces them as missing.
 *Origin*: task-3 `[待验证]` (LinkML codegen behavior with non-trivial slots).
 
 `scripts/codegen_kg_schema.py` runs `gen-pydantic` and `gen-shacl` over `core.yaml`
-and `governance.yaml`; the generated artefacts in `src/cataforge/kg/_generated/` are
+and `governance.yaml`; the generated artefacts in `src/cataforge/domain/kg/_generated/` are
 imported at runtime by the ingest pipeline and the export pipeline. Failure modes
 are caught by `tests/kg/test_codegen.py` (byte-stable regeneration) and
 `tests/kg/test_ingest.py` (live ingest exercises the generated types).
@@ -59,7 +59,7 @@ are caught by `tests/kg/test_codegen.py` (byte-stable regeneration) and
 
 `core.yaml` declares closed shapes per class, and `gen-shacl` materializes them
 into `_generated/core_shapes.ttl`. **Runtime SHACL validation is currently a
-documented stub** in [`validate.py::_run_shacl`](../../src/cataforge/kg/validate.py) —
+documented stub** in [`validate.py::_run_shacl`](../../src/cataforge/domain/kg/validate.py) —
 `--shacl` is wired through the CLI for discoverability but always reports
 `shacl_skipped = True` until the pyoxigraph ↔ rdflib bridge lands. The bridge is
 non-trivial because pyoxigraph 0.5.x does not expose an in-memory NTriples dump
@@ -89,7 +89,7 @@ The following live in this branch and back the dispositions above:
 * `tests/kg/test_compare_read.py` — confirms the content-hash sampler raises
   alarms on mutated source body and on FS-only entities, and stays silent on a
   freshly-ingested fixture.
-* `_DEFAULT_DOC_TYPE_MAP` in [`docs/loader.py`](../../src/cataforge/docs/loader.py)
+* `_DEFAULT_DOC_TYPE_MAP` in [`docs/loader.py`](../../src/cataforge/domain/docs/loader.py)
   now carries the canonical `test → test-report` alias, matching the
   `KGConfig.kg_active_doc_types` default and the doctor module's internal map.
   This removes the per-module fork that previously diverged.

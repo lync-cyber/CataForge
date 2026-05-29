@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.cli import issue_cmd
-from cataforge.cli.issue_cmd import close_command, triage_command
-from cataforge.services import issue as issue_svc
+from cataforge.application.services import issue as issue_svc
+from cataforge.interface.cli import issue_cmd
+from cataforge.interface.cli.issue_cmd import close_command, triage_command
 from tests.cli.conftest import invoke_under_group
 
 

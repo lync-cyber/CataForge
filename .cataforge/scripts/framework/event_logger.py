@@ -22,7 +22,7 @@ import sys
 
 def main() -> int:
     try:
-        from cataforge.cli.main import cli
+        from cataforge.interface.cli.main import cli
     except ImportError as e:
         sys.stderr.write(
             "event_logger.py: cannot import cataforge "

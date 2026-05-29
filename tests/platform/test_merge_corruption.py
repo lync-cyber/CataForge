@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.core.errors import CataforgeError
-from cataforge.platform.helpers import (
+from cataforge.adapter.platform.helpers import (
     merge_codex_mcp_server,
     merge_json_key,
     merge_opencode_project_mcp,
 )
+from cataforge.core.errors import CataforgeError
 
 _BROKEN_JSON = '{ "broken": '
 _VALID_JSON = '{"mcpServers": {"existing": {"command": "keep-me"}}}\n'

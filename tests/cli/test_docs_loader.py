@@ -1,4 +1,4 @@
-"""Unit tests for cataforge.docs.loader optimizations and externalization."""
+"""Unit tests for cataforge.domain.docs.loader optimizations and externalization."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.docs import loader
+from cataforge.domain.docs import loader
 
 
 @pytest.fixture(autouse=True)
@@ -169,7 +169,7 @@ def _build_indexed_project(tmp_path: Path, capsys=None) -> None:
         "### F-001 Login\nLogin desc spanning multiple words.\n"
     )
     _write_doc(tmp_path, "prd", "prd-foo-v1.md", body)
-    from cataforge.docs.indexer import main as indexer_main
+    from cataforge.domain.docs.indexer import main as indexer_main
     rc = indexer_main(["--project-root", str(tmp_path)])
     assert rc == 0
     if capsys is not None:

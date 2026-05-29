@@ -39,13 +39,13 @@ EXPECTED_RELATIONS = {
 }
 
 def _open_memory_store():
-    from cataforge.kg import KGConfig, init_store
+    from cataforge.domain.kg import KGConfig, init_store
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config
 
 def _ingest_fixture(variant: str):
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg.ingest import run_migration
 
     handle, config = _open_memory_store()
     run_migration(handle.raw, FIXTURE_ROOT / variant, config)
@@ -61,7 +61,7 @@ def _sha256_dir(directory: Path) -> dict[str, str]:
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_renders_every_entity(tmp_path: Path, variant: str) -> None:
-    from cataforge.kg.export import compile_to_markdown
+    from cataforge.domain.kg.export import compile_to_markdown
 
     handle, _ = _ingest_fixture(variant)
     result = compile_to_markdown(handle.raw, tmp_path / "out")
@@ -79,7 +79,7 @@ def test_export_renders_every_entity(tmp_path: Path, variant: str) -> None:
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_is_byte_identical_across_runs(tmp_path: Path, variant: str) -> None:
-    from cataforge.kg.export import compile_to_markdown
+    from cataforge.domain.kg.export import compile_to_markdown
 
     handle, _ = _ingest_fixture(variant)
     out1 = tmp_path / "run1"
@@ -114,7 +114,7 @@ def test_export_in_place_overwrite_is_idempotent(
     Guards against any rendering path that depends on whether the output
     file already existed (mtime injection, append modes, etc.).
     """
-    from cataforge.kg.export import compile_to_markdown
+    from cataforge.domain.kg.export import compile_to_markdown
 
     handle, _ = _ingest_fixture(variant)
     out = tmp_path / "in-place"
@@ -134,7 +134,7 @@ def test_export_renders_every_relation_as_link(
     tmp_path: Path, variant: str
 ) -> None:
     """Each (subject, object) traceability pair must appear as a relative link."""
-    from cataforge.kg.export import compile_to_markdown
+    from cataforge.domain.kg.export import compile_to_markdown
 
     handle, _ = _ingest_fixture(variant)
     out = tmp_path / "out"
@@ -156,7 +156,7 @@ def test_export_strict_undefined_blocks_generated_at(
     tmp_path: Path, variant: str
 ) -> None:
     """`StrictUndefined` is the safety net against accidental timestamps."""
-    from cataforge.kg.export import compile_to_markdown
+    from cataforge.domain.kg.export import compile_to_markdown
 
     handle, _ = _ingest_fixture(variant)
     out = tmp_path / "out"

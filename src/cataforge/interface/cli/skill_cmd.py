@@ -1,0 +1,87 @@
+"""cataforge skill — skill management."""
+
+from __future__ import annotations
+
+import click
+
+from cataforge.core.errors import CataforgeError, ConfigError
+from cataforge.interface.cli.guards import require_initialized
+from cataforge.interface.cli.helpers import emit_hint, resolve_root
+from cataforge.interface.cli.main import cli
+
+
+@cli.group("skill")
+def skill_group() -> None:
+    """Manage CataForge skills.
+
+    Skills live under ``.cataforge/skills/<id>/SKILL.md``. Some skills
+    are plain playbooks; others are executable via ``cataforge skill run``.
+    """
+
+
+@skill_group.command("list")
+@require_initialized
+def skill_list() -> None:
+    """List all skills discovered under ``.cataforge/skills/``."""
+    from cataforge.interface.cli.ui import ui
+    from cataforge.runtime.skill.loader import SkillLoader
+
+    loader = SkillLoader(project_root=resolve_root())
+    skills = loader.discover()
+    if not skills:
+        click.echo("No skills found.")
+        emit_hint(
+            "  Hint: scaffold with `cataforge setup --force-scaffold`, "
+            "or add a new skill directory under .cataforge/skills/<id>/."
+        )
+        return
+    ui.table(
+        headers=["id", "type", "name"],
+        rows=[[s.id, s.skill_type.value, s.name] for s in skills],
+    )
+
+
+@skill_group.command("run")
+@click.argument("skill_id")
+@click.argument("args", nargs=-1)
+@click.option(
+    "--agent",
+    "agent",
+    default=None,
+    help=(
+        "Agent that initiated this run. Recorded in EVENT-LOG when the skill "
+        "is review-class. Falls back to env CATAFORGE_INVOKING_AGENT, then "
+        "to 'reviewer'."
+    ),
+)
+@require_initialized
+def skill_run(skill_id: str, args: tuple[str, ...], agent: str | None) -> None:
+    """Run an executable skill, forwarding ARGS to the skill's entry point.
+
+    Exits with the skill's own return code so shell pipelines can gate on
+    it. Non-executable skills raise a ConfigError.
+    """
+    from cataforge.runtime.skill.runner import SkillRunner
+
+    try:
+        runner = SkillRunner(project_root=resolve_root())
+        result = runner.run(skill_id, list(args), agent=agent)
+    except (ValueError, FileNotFoundError) as e:
+        raise ConfigError(str(e)) from None
+
+    if result.stdout:
+        click.echo(result.stdout)
+    if result.returncode == 0:
+        if result.stderr and result.stderr.strip():
+            # Skill succeeded but emitted warnings — surface them without
+            # making the exit code non-zero.
+            click.secho(result.stderr, fg="yellow", err=True)
+        return
+
+    if result.stderr:
+        click.secho(result.stderr, fg="red", err=True)
+    # Preserve the child's exit code rather than coercing to 1 — shell
+    # pipelines that dispatch on specific codes (e.g. 2 for block) still work.
+    err = CataforgeError(f"skill {skill_id!r} exited with code {result.returncode}.")
+    err.exit_code = result.returncode
+    raise err

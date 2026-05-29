@@ -32,7 +32,7 @@ standard hook JSON payload on stdin.
 # .cataforge/hooks/custom/my_scan.py
 import sys
 
-from cataforge.hook.base import read_hook_input
+from cataforge.runtime.hook.base import read_hook_input
 
 payload = read_hook_input()
 cmd = (payload.get("tool_input") or {}).get("command", "")
@@ -52,8 +52,8 @@ sys.exit(0)
 ## Re-use the shared helpers
 
 To share behaviour with built-in hooks (`matches_capability`, stdin
-parsing, error logging), import from `cataforge.hook.base`:
+parsing, error logging), import from `cataforge.runtime.hook.base`:
 
 ```python
-from cataforge.hook.base import matches_capability, read_hook_input
+from cataforge.runtime.hook.base import matches_capability, read_hook_input
 ```

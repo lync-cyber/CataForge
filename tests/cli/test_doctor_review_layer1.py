@@ -15,7 +15,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from cataforge.cli.doctor_cmd import doctor_command
+from cataforge.interface.cli.doctor_cmd import doctor_command
 
 
 def _project(tmp_path: Path) -> Path:
@@ -30,7 +30,7 @@ def _project(tmp_path: Path) -> Path:
 
 def test_doctor_passes_for_default_builtin_skills(tmp_path: Path, monkeypatch) -> None:
     """With no project override, every builtin must be reachable."""
-    from cataforge.skill.loader import SkillLoader
+    from cataforge.runtime.skill.loader import SkillLoader
 
     root = _project(tmp_path)
     monkeypatch.chdir(root)
@@ -49,7 +49,7 @@ def test_doctor_passes_when_project_override_merges_builtin(
     """A project-level SKILL.md with no scripts/ must still resolve via
     the loader's builtin-fallback merge — covers code-review (review skill)
     and task-dep-analysis."""
-    from cataforge.skill.loader import SkillLoader
+    from cataforge.runtime.skill.loader import SkillLoader
 
     root = _project(tmp_path)
     for skill_id in ("code-review", "task-dep-analysis"):

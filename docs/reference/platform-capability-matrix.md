@@ -1,6 +1,6 @@
 # Platform Capability Matrix
 
-本文档列出 CataForge 支持的四个平台对各 capability 的原生映射。`null` 表示该平台无原生工具/能力，deploy 时会被 `PlatformAdapter.resolve_tools_list` 过滤并触发一次性 WARN（见 [src/cataforge/platform/base.py](../../src/cataforge/platform/base.py) `resolve_tools_list`）。
+本文档列出 CataForge 支持的四个平台对各 capability 的原生映射。`null` 表示该平台无原生工具/能力，deploy 时会被 `PlatformAdapter.resolve_tools_list` 过滤并触发一次性 WARN（见 [src/cataforge/adapter/platform/base.py](../../src/cataforge/adapter/platform/base.py) `resolve_tools_list`）。
 
 > 数据来源：`.cataforge/platforms/{platform}/profile.yaml`。
 

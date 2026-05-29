@@ -15,8 +15,8 @@ from typing import Any
 
 import pytest
 
-from cataforge.platform.adapter import PlatformAdapter
-from cataforge.platform.registry import get_adapter
+from cataforge.adapter.platform.adapter import PlatformAdapter
+from cataforge.adapter.platform.registry import get_adapter
 
 
 def _platforms_dir() -> Path:
@@ -127,7 +127,7 @@ def test_deploy_agents_prunes_stale_sibling(tmp_path: Path) -> None:
     (src / "orchestrator" / "STALE-PROTOCOL.md").write_text(
         "v1 {INSTRUCTION_FILE}", encoding="utf-8"
     )
-    from cataforge.deploy.manifest import DeployManifest
+    from cataforge.runtime.deploy.manifest import DeployManifest
 
     manifest = DeployManifest("test-subdir")
     adapter.deploy_agents(src, tmp_path, manifest=manifest)

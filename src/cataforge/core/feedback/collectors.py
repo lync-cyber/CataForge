@@ -94,15 +94,15 @@ def collect_environment(project_root: Path) -> dict[str, str]:
 
 
 def collect_doctor_summary(project_root: Path) -> dict[str, Any]:
-    """Lazy shim over :func:`cataforge.services.doctor_summary.collect_doctor_summary`.
+    """Lazy shim over :func:`cataforge.application.services.doctor_summary.collect_doctor_summary`.
 
-    The actual implementation depends on ``cataforge.cli.main`` (via Click's
+    The actual implementation depends on ``cataforge.interface.cli.main`` (via Click's
     ``CliRunner``) and therefore cannot live in ``core/`` — that would form
     a ``core/`` → ``cli/`` import edge, inverting the package dependency
     direction. The import is performed at call time so static analysis and
     fresh imports of ``core/`` stay free of the cycle.
     """
-    from cataforge.services.doctor_summary import (
+    from cataforge.application.services.doctor_summary import (
         collect_doctor_summary as _service_collect,
     )
 
@@ -249,7 +249,7 @@ def collect_framework_review(project_root: Path) -> dict[str, Any]:
     # importable at all (missing optional dep, broken upstream package).
     # That is genuinely unavailable, not a runtime error.
     try:
-        from cataforge.skill.runner import SkillRunner
+        from cataforge.runtime.skill.runner import SkillRunner
     except ImportError as e:
         return {"status": "skipped", "reason": f"runner-unavailable: {e}"}
 

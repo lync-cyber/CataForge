@@ -36,7 +36,7 @@ repos:
         entry: python scripts/checks/check_schema_python_parity.py
         language: system
         pass_filenames: false
-        files: ^(\.cataforge/schemas/.*\.schema\.json|src/cataforge/core/event_log\.py|src/cataforge/hook/scripts/validate_agent_result\.py)$
+        files: ^(\.cataforge/schemas/.*\.schema\.json|src/cataforge/core/event_log\.py|src/cataforge/runtime/hook/scripts/validate_agent_result\.py)$
       - id: workflow-yaml-parse
         name: github workflows parse cleanly
         description: |
@@ -96,22 +96,35 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.cataforge/(agents|skills|rules)/.*\.md$
+      - id: layer-dependencies
+        name: layered dependency direction (interface→…→core→utils)
+        description: |
+          Enforce the layered dependency direction inside src/cataforge:
+          interface → application → {runtime, domain} → adapter → core →
+          utils. A module-level (static) import from a lower layer up to a
+          higher one inverts the graph / creates an import cycle. Lazy
+          function-local imports are the sanctioned escape valve; annotate a
+          deliberate static edge with `# allow-layer-dep: <reason>`.
+        entry: python scripts/checks/check_layer_dependencies.py
+        language: system
+        pass_filenames: false
+        files: ^src/cataforge/.*\.py$
       - id: no-query-boolean-eq-true
-        name: no QueryBoolean == True antipattern under cataforge.kg
+        name: no QueryBoolean == True antipattern under cataforge.domain.kg
         description: |
           pyoxigraph 0.5.x returns QueryBoolean from Store.query() for ASK;
           `QueryBoolean == True` silently always evaluates False. Every
           ASK consumer in the KG layer must route through
-          cataforge.kg._ask.ask(store, sparql) -> bool. Spike-2 §2.2,
+          cataforge.domain.kg._ask.ask(store, sparql) -> bool. Spike-2 §2.2,
           issue #142. Mirrors the CI guard in test.yml.
         entry: python scripts/checks/check_no_query_boolean_eq_true.py
         language: system
         pass_filenames: false
-        files: ^src/cataforge/kg/.*\.py$
+        files: ^src/cataforge/domain/kg/.*\.py$
       - id: echo-err-for-errors
         name: cli/ error-toned echoes must use err=True (route to stderr)
         description: |
-          src/cataforge/cli/ click.echo / click.secho calls whose first
+          src/cataforge/interface/cli/ click.echo / click.secho calls whose first
           arg starts with Error: / ERROR: / Cannot / Could not /
           Refused / Invalid / Failed / FAIL: must pass err=True so
           scripts piping success output (`cataforge … | jq`) do not
@@ -121,7 +134,7 @@ repos:
         entry: python scripts/checks/check_echo_err_for_errors.py
         language: system
         pass_filenames: false
-        files: ^src/cataforge/cli/.*\.py$
+        files: ^src/cataforge/interface/cli/.*\.py$
       - id: no-raw-subprocess
         name: no raw subprocess.run outside the wrapper
         description: |
@@ -147,4 +160,4 @@ repos:
         entry: python -m pytest tests/kg/test_sparql_escape.py tests/kg/test_injection_regression.py -q
         language: system
         pass_filenames: false
-        files: ^src/cataforge/kg/(_sparql_utils|_ask|transaction|_shim|ingest/writer|ingest/verify)\.py$
+        files: ^src/cataforge/domain/kg/(_sparql_utils|_ask|transaction|_shim|ingest/writer|ingest/verify)\.py$

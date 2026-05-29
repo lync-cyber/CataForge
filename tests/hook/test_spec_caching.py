@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-import cataforge.hook.bridge as bridge
-from cataforge.hook.base import _spec_entry_for_script, matches_script_filters
+import cataforge.runtime.hook.bridge as bridge
+from cataforge.runtime.hook.base import _spec_entry_for_script, matches_script_filters
 
 
 @pytest.fixture(autouse=True)

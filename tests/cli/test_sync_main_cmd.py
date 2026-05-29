@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.cli.sync_cmd import sync_main_command
+from cataforge.interface.cli.sync_cmd import sync_main_command
 from tests.cli.conftest import invoke_under_group
 
 
@@ -138,7 +138,7 @@ class TestSyncMainGitOutputContract:
         monkeypatch: pytest.MonkeyPatch,
         bad_stdout: str,
     ) -> None:
-        from cataforge.cli import sync_cmd
+        from cataforge.interface.cli import sync_cmd
 
         real_git = sync_cmd._git
 

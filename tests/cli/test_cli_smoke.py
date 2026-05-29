@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cataforge.cli.main import cli
-from cataforge.cli.stubs import STUB_EXIT_CODE
+from cataforge.interface.cli.main import cli
+from cataforge.interface.cli.stubs import STUB_EXIT_CODE
 
 
 @pytest.fixture
@@ -334,7 +334,7 @@ class TestStubExitCode:
     def test_stub_exit_is_not_2(self) -> None:
         """POSIX exit 2 belongs to Click for usage errors. Stubs must not
         collide with that (would hide real argv mistakes in CI)."""
-        from cataforge.cli.stubs import STUB_EXIT_CODE
+        from cataforge.interface.cli.stubs import STUB_EXIT_CODE
 
         assert STUB_EXIT_CODE != 2
         assert STUB_EXIT_CODE == 70  # EX_SOFTWARE

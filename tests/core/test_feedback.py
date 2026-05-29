@@ -31,13 +31,13 @@ from cataforge.core.feedback import (
 
 
 class TestLayering:
-    """``core/feedback`` must not statically import from ``cataforge.cli``.
+    """``core/feedback`` must not statically import from ``cataforge.interface.cli``.
 
     Regression guard: an earlier version of ``core/feedback`` imported
-    ``cataforge.cli.main.cli`` at module top level so ``CliRunner`` could
+    ``cataforge.interface.cli.main.cli`` at module top level so ``CliRunner`` could
     invoke ``doctor``. That inverted the package dependency direction
     (``core/`` should be importable without booting the CLI surface). The
-    fix delegates to ``cataforge.services.doctor_summary`` and lazy-imports
+    fix delegates to ``cataforge.application.services.doctor_summary`` and lazy-imports
     it inside the function body. This test makes the rule machine-checked.
     """
 
@@ -50,7 +50,7 @@ class TestLayering:
         for src_file in sorted(pkg_dir.glob("*.py")):
             source = src_file.read_text(encoding="utf-8")
             # Only the lazy delegation inside function bodies should mention
-            # cli-flavoured names; module-level imports from ``cataforge.cli``
+            # cli-flavoured names; module-level imports from ``cataforge.interface.cli``
             # are forbidden.
             for line in source.splitlines():
                 stripped = line.lstrip()
@@ -60,14 +60,14 @@ class TestLayering:
                 # therefore indented — filter those out by indent check.
                 if line.startswith((" ", "\t")):
                     continue
-                assert "cataforge.cli" not in line, (
+                assert "cataforge.interface.cli" not in line, (
                     f"{src_file.name} must not statically import from "
-                    f"cataforge.cli; offending line: {line!r}"
+                    f"cataforge.interface.cli; offending line: {line!r}"
                 )
 
     def test_doctor_summary_lives_in_services(self) -> None:
         """The CliRunner-based implementation must live in services/, not core/."""
-        from cataforge.services import doctor_summary
+        from cataforge.application.services import doctor_summary
 
         assert hasattr(doctor_summary, "collect_doctor_summary")
 
@@ -310,7 +310,7 @@ class TestCollectFrameworkReviewExceptionHandling:
     def test_import_failure_returns_runner_unavailable(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Force the ``from cataforge.skill.runner import SkillRunner``
+        """Force the ``from cataforge.runtime.skill.runner import SkillRunner``
         line to raise ImportError. Result must carry ``status=skipped``
         and a reason starting with ``runner-unavailable:`` — *not* the
         runtime-error branch's ``runner-failed:``."""
@@ -319,11 +319,11 @@ class TestCollectFrameworkReviewExceptionHandling:
         from cataforge.core import feedback as feedback_mod
 
         # Wipe any cached import so the first attempt actually re-runs.
-        monkeypatch.delitem(sys.modules, "cataforge.skill.runner", raising=False)
+        monkeypatch.delitem(sys.modules, "cataforge.runtime.skill.runner", raising=False)
 
         class _Blocker:
             def find_spec(self, fullname, path=None, target=None):
-                if fullname == "cataforge.skill.runner":
+                if fullname == "cataforge.runtime.skill.runner":
                     raise ImportError("simulated missing dep")
                 return None
 
@@ -358,7 +358,7 @@ class TestCollectFrameworkReviewExceptionHandling:
 
         # Patch the symbol on the actual runner module so the
         # in-function import inside collect_framework_review picks it up.
-        from cataforge.skill import runner as runner_mod
+        from cataforge.runtime.skill import runner as runner_mod
 
         monkeypatch.setattr(runner_mod, "SkillRunner", _BrokenRunner)
 

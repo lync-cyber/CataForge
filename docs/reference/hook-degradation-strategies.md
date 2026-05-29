@@ -2,7 +2,7 @@
 
 各平台 `profile.yaml#hooks.degradation` 把 canonical hook 标记为 `native` / `degraded` / 缺失。`native` 表示直接生成平台 hook 配置；`degraded` 表示走 [hooks.yaml#degradation_templates](../../.cataforge/hooks/hooks.yaml) 中的降级策略；缺失等同于 `native`。
 
-本文档列出 `cataforge.hook.bridge.apply_degradation` 当前实装的降级策略。策略集合的权威定义是模块常量 [`KNOWN_DEGRADATION_STRATEGIES`](../../src/cataforge/hook/bridge.py)。
+本文档列出 `cataforge.runtime.hook.bridge.apply_degradation` 当前实装的降级策略。策略集合的权威定义是模块常量 [`KNOWN_DEGRADATION_STRATEGIES`](../../src/cataforge/runtime/hook/bridge.py)。
 
 ## 策略一览
 
@@ -51,7 +51,7 @@
 新增 strategy 必须**同步**修改三处：
 
 1. `.cataforge/hooks/hooks.yaml` 在 `degradation_templates` 下定义模板
-2. `src/cataforge/hook/bridge.py` 把新 key 加入 `KNOWN_DEGRADATION_STRATEGIES`，并在 `_AGGREGATE_OUTPUTS` 注册输出文件名（除非该 strategy 不写文件）
+2. `src/cataforge/runtime/hook/bridge.py` 把新 key 加入 `KNOWN_DEGRADATION_STRATEGIES`，并在 `_AGGREGATE_OUTPUTS` 注册输出文件名（除非该 strategy 不写文件）
 3. 本文档 §策略一览 表追加一行
 
 模块级守卫测试 [tests/hook/test_bridge_degradation.py](../../tests/hook/test_bridge_degradation.py) 的 `test_known_strategies_set_matches_aggregate_outputs_plus_skip` 断言 `KNOWN_DEGRADATION_STRATEGIES == set(_AGGREGATE_OUTPUTS keys) | {"skip"}`；不同步会立刻 FAIL。

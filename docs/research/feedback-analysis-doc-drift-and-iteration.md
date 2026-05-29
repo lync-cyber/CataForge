@@ -15,7 +15,7 @@ consumers: [orchestrator, architect, tech-lead]
 - orchestrator 阶段调度与 Phase Transition Protocol
 - doc-gen / doc-review / doc-nav / task-decomp / task-dep-analysis 五个核心 Skill
 - COMMON-RULES / ORCHESTRATOR-PROTOCOLS / SUB-AGENT-PROTOCOLS
-- `src/cataforge/docs/indexer.py` / `loader.py` / `checker.py`
+- `src/cataforge/domain/docs/indexer.py` / `loader.py` / `checker.py`
 - `framework.json` 常量与 feature 配置
 - 文档模板 `_registry.yaml` 及 standard/volumes/lite 模板
 

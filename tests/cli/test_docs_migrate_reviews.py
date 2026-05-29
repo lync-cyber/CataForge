@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.docs.migrate_review_frontmatter import (
+from cataforge.domain.docs.migrate_review_frontmatter import (
     apply_plan,
     collect_plans,
     main,
@@ -109,7 +109,7 @@ def test_main_writes_front_matter_for_real(tmp_path: Path) -> None:
 
 def test_migration_output_indexable(tmp_path: Path) -> None:
     """Front matter written by migration must round-trip through the indexer."""
-    from cataforge.docs.indexer import find_orphan_docs
+    from cataforge.domain.docs.indexer import find_orphan_docs
 
     _write(tmp_path / "docs" / "reviews" / "doc" / "REVIEW-prd-r1.md", "# A\n## §1\n")
     _write(

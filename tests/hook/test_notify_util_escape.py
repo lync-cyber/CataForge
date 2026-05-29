@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cataforge.hook.scripts.notify_util import (
+from cataforge.runtime.hook.scripts.notify_util import (
     _notify_linux,
     _notify_macos,
     _notify_windows,
@@ -22,7 +22,7 @@ def mock_subprocess_run() -> Iterator[MagicMock]:
     # notify_util now goes through cataforge.utils.run_subprocess.run; we
     # patch the module-local rebind (`run_proc`) so the assertions still
     # observe what the helper passed downstream.
-    with patch("cataforge.hook.scripts.notify_util.run_proc") as m:
+    with patch("cataforge.runtime.hook.scripts.notify_util.run_proc") as m:
         yield m
 
 

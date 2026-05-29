@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.agent.manager import AgentManager, _parse_tools_from_frontmatter
+from cataforge.runtime.agent.manager import AgentManager, _parse_tools_from_frontmatter
 
 
 class TestParseToolsFromFrontmatter:

@@ -15,8 +15,8 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-s
 VARIANTS = ("waterfall", "agile")
 
 def _open_and_ingest(variant: str):
-    from cataforge.kg import KGConfig, KnowledgeGraph, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -82,7 +82,7 @@ def test_trace_from_requirement_downstream(variant: str) -> None:
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_render_entity_produces_markdown(variant: str) -> None:
-    from cataforge.kg.export import render_entity
+    from cataforge.domain.kg.export import render_entity
 
     kg, _ = _open_and_ingest(variant)
     md = render_entity(kg.store, "F-001")
@@ -94,7 +94,7 @@ def test_render_entity_produces_markdown(variant: str) -> None:
 def test_transaction_commit_and_rollback() -> None:
     import pyoxigraph as ox
 
-    from cataforge.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -127,8 +127,8 @@ def test_transaction_commit_and_rollback() -> None:
 # ------------------------------------------------------------------
 
 def _make_kg_with_project():
-    from cataforge.kg import KGConfig, KnowledgeGraph, init_store
-    from cataforge.kg.ingest.writer import write_project
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.domain.kg.ingest.writer import write_project
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)

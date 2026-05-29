@@ -20,7 +20,7 @@ SCRIPT = REPO_ROOT / "scripts" / "checks" / "check_echo_err_for_errors.py"
 
 
 def _run_with_test_tree(tmp_root: Path) -> subprocess.CompletedProcess[str]:
-    """Run the guard against a synthetic ``src/cataforge/cli/`` tree.
+    """Run the guard against a synthetic ``src/cataforge/interface/cli/`` tree.
 
     The script hardcodes ``REPO_ROOT / src / cataforge / cli`` as
     ``SCAN_DIR``; monkeypatch it via a one-shot wrapper that swaps the

@@ -8,7 +8,9 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-LINT_FORMAT_SCRIPT = REPO_ROOT / "src" / "cataforge" / "hook" / "scripts" / "lint_format.py"
+LINT_FORMAT_SCRIPT = (
+    REPO_ROOT / "src" / "cataforge" / "runtime" / "hook" / "scripts" / "lint_format.py"
+)
 
 
 def _run(script: Path, payload: dict) -> subprocess.CompletedProcess:

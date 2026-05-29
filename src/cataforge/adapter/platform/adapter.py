@@ -1,0 +1,323 @@
+"""PlatformAdapter abstract base class.
+
+All platform-specific differences are encapsulated here. The core runtime
+NEVER imports platform-specific modules directly. Deployment algorithms live
+in :mod:`cataforge.adapter.platform._deploy_mixins`; this class is the config /
+capability carrier composing those mixins.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
+
+from cataforge.adapter.platform._deploy_mixins import (
+    AgentDeployMixin,
+    CommandRulesDeployMixin,
+    InstructionDeployMixin,
+    McpDeployMixin,
+    SkillDeployMixin,
+)
+
+if TYPE_CHECKING:
+    from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
+
+
+class PlatformAdapter(
+    AgentDeployMixin,
+    InstructionDeployMixin,
+    SkillDeployMixin,
+    CommandRulesDeployMixin,
+    McpDeployMixin,
+    ABC,
+):
+    """Abstract base for all AI IDE platform adapters."""
+
+    def __init__(self, profile: dict[str, Any]) -> None:
+        self._profile = profile
+
+    @property
+    @abstractmethod
+    def platform_id(self) -> str: ...
+
+    @property
+    @abstractmethod
+    def display_name(self) -> str: ...
+
+    def get_tool_map(self) -> dict[str, str | None]:
+        """Return capability_id → native_tool_name mapping (core 10).
+
+        Default: read ``tool_map`` from the platform profile.  Subclasses
+        override only when they need to synthesize the mapping differently.
+        """
+        return dict(self._profile.get("tool_map", {}))
+
+    def get_extended_tool_map(self) -> dict[str, str | None]:
+        """Return extended capability → native tool name mapping.
+
+        Extended capabilities (notebook_edit, browser_preview, etc.) are
+        declared in ``profile.yaml`` under ``extended_capabilities``.
+        """
+        return dict(self._profile.get("extended_capabilities", {}))
+
+    def get_full_tool_map(self) -> dict[str, str | None]:
+        """Return combined core + extended capability mapping."""
+        combined = self.get_tool_map()
+        combined.update(self.get_extended_tool_map())
+        return combined
+
+    def resolve_tool_name(self, capability: str) -> str | None:
+        return self.get_full_tool_map().get(capability)
+
+    def resolve_tools_list(self, capabilities: list[str]) -> list[str]:
+        tool_map = self.get_full_tool_map()
+        return [name for cap in capabilities if (name := tool_map.get(cap)) is not None]
+
+    @abstractmethod
+    def get_project_root_env_var(self) -> str | None:
+        """Return the environment variable name for project root (e.g. CLAUDE_PROJECT_DIR)."""
+        ...
+
+    def get_hook_command_template(self) -> str:
+        """Return the hook command template with {module} placeholder.
+
+        Hooks are invoked via ``python -m cataforge.runtime.hook.scripts.<module>``.
+        """
+        return "python -m cataforge.runtime.hook.scripts.{module}"
+
+    @abstractmethod
+    def get_agent_scan_dirs(self) -> list[str]:
+        """Return directories the IDE scans for agent definitions."""
+        ...
+
+    @abstractmethod
+    def get_agent_format(self) -> str:
+        """Return agent definition format: 'yaml-frontmatter' or 'toml'."""
+        ...
+
+    @property
+    def needs_agent_deploy(self) -> bool:
+        return bool(self._profile.get("agent_definition", {}).get("needs_deploy", True))
+
+    @property
+    def reads_claude_md(self) -> bool:
+        return bool(self._profile.get("instruction_file", {}).get("reads_claude_md", False))
+
+    @property
+    def additional_outputs(self) -> list[dict[str, Any]]:
+        return list(self._profile.get("instruction_file", {}).get("additional_outputs", []))
+
+    @property
+    def instruction_targets(self) -> list[dict[str, Any]]:
+        """Instruction artifacts this platform expects.
+
+        Each entry uses:
+        - ``type``: currently ``project_state_copy``
+        - ``path``: relative output path (for example ``CLAUDE.md`` / ``AGENTS.md``)
+        """
+        targets = self._profile.get("instruction_file", {}).get("targets")
+        if isinstance(targets, list) and targets:
+            return [dict(t) for t in targets if isinstance(t, dict)]
+        if self.reads_claude_md:
+            return [{"type": "project_state_copy", "path": "CLAUDE.md"}]
+        return []
+
+    @property
+    def dispatch_info(self) -> dict[str, Any]:
+        return dict(self._profile.get("dispatch", {}))
+
+    @property
+    def hook_config_format(self) -> str | None:
+        return self._profile.get("hooks", {}).get("config_format")
+
+    @property
+    def hook_config_path(self) -> str | None:
+        return self._profile.get("hooks", {}).get("config_path")
+
+    @property
+    def hook_event_map(self) -> dict[str, str | None]:
+        return dict(self._profile.get("hooks", {}).get("event_map", {}))
+
+    @property
+    def hook_degradation(self) -> dict[str, str]:
+        return dict(self._profile.get("hooks", {}).get("degradation", {}))
+
+    @property
+    def hook_tool_overrides(self) -> dict[str, str]:
+        """Per-platform overrides for hook matcher tool names.
+
+        Hook matchers may use different names from the tool_map (e.g. Codex
+        tool_map has ``shell_exec: shell`` but hook events use ``Bash``).
+        When present, these override tool_map for hook matcher resolution only.
+        """
+        return dict(self._profile.get("hooks", {}).get("tool_overrides", {}))
+
+    @property
+    def hook_entry_type(self) -> str | None:
+        """Platform-native value for a hook entry's ``type`` field.
+
+        Declared in ``profile.yaml`` under ``hooks.entry_type`` (e.g. Claude
+        Code, Cursor and Codex all use ``"command"``).  When ``None`` the
+        bridge falls back to the internal ``type`` from ``hooks.yaml`` — used
+        only by platforms that do not emit JSON hook configs (e.g. OpenCode
+        which uses plugins).
+        """
+        value = self._profile.get("hooks", {}).get("entry_type")
+        return str(value) if value else None
+
+    @property
+    def needs_skill_deploy(self) -> bool:
+        """Whether this platform wants skill definitions deployed to an IDE-visible path."""
+        return bool(self._profile.get("skill_definition", {}).get("needs_deploy", False))
+
+    def get_skill_target_dir(self) -> str | None:
+        """Target directory (relative to project root) for IDE-visible skills."""
+        target = self._profile.get("skill_definition", {}).get("target_dir")
+        return str(target) if target else None
+
+    @property
+    def needs_command_deploy(self) -> bool:
+        """Whether this platform has a slash-command surface to deploy to."""
+        return bool(self._profile.get("command_definition", {}).get("needs_deploy", False))
+
+    def get_command_target_dir(self) -> str | None:
+        """Target directory (relative to project root) for IDE-visible slash commands."""
+        target = self._profile.get("command_definition", {}).get("target_dir")
+        return str(target) if target else None
+
+    @property
+    def agent_supported_fields(self) -> list[str]:
+        """Agent frontmatter fields this platform supports.
+
+        Declared in ``profile.yaml`` under ``agent_config.supported_fields``.
+        Used by the translator/deployer to decide which fields to pass through.
+        """
+        return list(self._profile.get("agent_config", {}).get("supported_fields", []))
+
+    @property
+    def agent_memory_scopes(self) -> list[str]:
+        """Memory scopes the platform supports for agent-level persistence.
+
+        Typical values: ``user``, ``project``, ``local``.
+        """
+        return list(self._profile.get("agent_config", {}).get("memory_scopes", []))
+
+    @property
+    def agent_isolation_modes(self) -> list[str]:
+        """Isolation modes the platform supports (e.g. ``worktree``)."""
+        return list(self._profile.get("agent_config", {}).get("isolation_modes", []))
+
+    def get_supported_features(self) -> dict[str, bool]:
+        """Return platform feature flags.
+
+        Declared in ``profile.yaml`` under ``features``.  These describe
+        higher-order platform behaviors (cloud agents, agent teams, etc.),
+        not per-tool mappings.
+        """
+        return dict(self._profile.get("features", {}))
+
+    def supports_feature(self, feature: str) -> bool:
+        """Check whether a specific feature is supported."""
+        return bool(self._profile.get("features", {}).get(feature, False))
+
+    @property
+    def permission_modes(self) -> list[str]:
+        """Permission/approval modes this platform supports.
+
+        Declared in ``profile.yaml`` under ``permissions.modes``.
+        """
+        return list(self._profile.get("permissions", {}).get("modes", []))
+
+    @property
+    def available_models(self) -> list[str]:
+        """Models available on this platform for selection."""
+        return list(self._profile.get("model_routing", {}).get("available_models", []))
+
+    @property
+    def supports_per_agent_model(self) -> bool:
+        """Whether the platform supports per-agent model selection."""
+        return bool(self._profile.get("model_routing", {}).get("per_agent_model", False))
+
+    @property
+    def user_resolved_model(self) -> bool:
+        """Whether model selection is resolved at the user/runtime level.
+
+        OpenCode (and any future provider-agnostic platform) lets the user
+        choose models at runtime via Models.dev / config — agent files should
+        not pin a specific model id. The deploy adapter omits ``model:`` for
+        these platforms regardless of tier resolution.
+        """
+        return bool(self._profile.get("model_routing", {}).get("user_resolved", False))
+
+    def get_model_tier_map(self) -> dict[str, str | None]:
+        """Tier → native model id map (e.g. ``{"light": "haiku", ...}``).
+
+        Tiers are platform-agnostic capability levels (``light``, ``standard``,
+        ``heavy``).  ``inherit`` and ``none`` are sentinel values handled by
+        :meth:`resolve_agent_model` and never appear as keys here.
+
+        Returns an empty dict when the platform omits the section — callers
+        treat that as "no model can be resolved → omit ``model:``".
+        """
+        raw = self._profile.get("model_routing", {}).get("tier_map", {}) or {}
+        if not isinstance(raw, dict):
+            return {}
+        return {str(k): (str(v) if v is not None else None) for k, v in raw.items()}
+
+    def resolve_agent_model(self, tier: str | None) -> str | None:
+        """Translate a ``model_tier:`` value into a platform-native model id.
+
+        Returns ``None`` when the tier should not be written to the deployed
+        agent file — covers four cases:
+
+        * platform does not support per-agent models (e.g. Codex)
+        * platform resolves models at the user/runtime level (e.g. OpenCode)
+        * tier is ``none`` (agent opted out, e.g. orchestrator main-thread)
+        * tier is ``inherit`` (agent defers to main-thread model)
+
+        For ``light``/``standard``/``heavy`` we look up
+        ``model_routing.tier_map`` from the profile.  Unknown tiers fall back
+        to ``None`` (audit B7-α catches these in the source AGENT.md).
+        """
+        if not self.supports_per_agent_model:
+            return None
+        if self.user_resolved_model:
+            return None
+        if not tier or tier in {"none", "inherit"}:
+            return None
+        return self.get_model_tier_map().get(tier)
+
+    @property
+    def context_injection(self) -> dict[str, Any]:
+        """Platform context-loading / rules-distribution declaration.
+
+        Declared in ``profile.yaml`` under ``context_injection``.  Consumed at
+        deploy time to bake platform-specific artifacts (e.g. an ``@path``
+        preamble in Claude Code's ``CLAUDE.md``, an ``instructions`` list in
+        ``opencode.json``).  Adapters read from this property rather than
+        hard-coding platform-specific paths.
+
+        Returns an empty dict when the profile omits the section so adapters
+        can gracefully fall back to legacy defaults.
+        """
+        return dict(self._profile.get("context_injection", {}) or {})
+
+    def get_instruction_preamble(self) -> str:
+        """Render the preamble block prepended to the instruction file body.
+
+        Currently only used when ``context_injection.inline_file_syntax.kind``
+        is ``at_mention`` (i.e. Claude Code / Cursor).  Returns an empty
+        string for platforms that cannot cheaply reference files from inside
+        their instruction file — those platforms rely on
+        ``rules_distribution`` or explicit Read instructions instead.
+        """
+        ci = self.context_injection
+        syntax = ci.get("inline_file_syntax", {}) or {}
+        if syntax.get("kind") != "at_mention":
+            return ""
+        template = str(syntax.get("template") or "@{path}")
+        files = (ci.get("auto_injection", {}) or {}).get("preamble_files") or []
+        if not files:
+            return ""
+        lines = [template.format(path=p) for p in files]
+        return "\n".join(lines) + "\n\n"

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 
 def _empty_memory_kg():
-    from cataforge.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)

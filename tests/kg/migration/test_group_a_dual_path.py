@@ -31,8 +31,8 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "fixtures" / "kg-vertical-s
 VARIANTS = ("waterfall", "agile")
 
 def _ingest_into_memory(project_root: Path):
-    from cataforge.kg import KGConfig, KnowledgeGraph, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -54,7 +54,7 @@ def test_entity_id_set_matches_legacy_scan(variant: str) -> None:
     missed entities (KG ⊂ FS) or the graph holds stale entities
     (KG ⊃ FS) — both are doctor gate failure modes.
     """
-    from cataforge.cli.doctor.kg_ingestion import _scan_fs_entity_ids
+    from cataforge.interface.cli.doctor.kg_ingestion import _scan_fs_entity_ids
 
     project_root = FIXTURE_ROOT / variant
     kg, _ = _ingest_into_memory(project_root)
@@ -98,7 +98,7 @@ def test_plan_load_shape_matches_across_branches(variant: str) -> None:
     would return ref strings. We verify the SHAPE is identical (keys +
     types) so callers don't break across cutover.
     """
-    from cataforge.kg._shim import plan_load
+    from cataforge.domain.kg._shim import plan_load
 
     project_root = FIXTURE_ROOT / variant
     kg, base_config = _ingest_into_memory(project_root)
@@ -123,7 +123,7 @@ def test_plan_load_shape_matches_across_branches(variant: str) -> None:
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_legacy_validate_report_keys_stable(variant: str) -> None:
-    from cataforge.kg._shim import legacy_validate_report
+    from cataforge.domain.kg._shim import legacy_validate_report
 
     project_root = FIXTURE_ROOT / variant
     kg, base_config = _ingest_into_memory(project_root)

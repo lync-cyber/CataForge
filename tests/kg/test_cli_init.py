@@ -7,7 +7,7 @@ from click.testing import CliRunner
 
 
 def _import_cli():
-    from cataforge.cli.main import _register_commands, cli
+    from cataforge.interface.cli.main import _register_commands, cli
 
     _register_commands()
     return cli

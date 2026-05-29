@@ -32,9 +32,9 @@ class _FailingStoreProxy:
 
 def _make_store_with_entity(entity_id: str = "F-001"):
     """Return (store, config, iri) with one entity pre-ingested."""
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg._quads import build_entity_quads
-    from cataforge.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._quads import build_entity_quads
+    from cataforge.domain.kg.ingest.iri import entity_iri
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -59,9 +59,9 @@ def test_atomic_replace_entity_happy_path() -> None:
     """_atomic_replace_entity replaces quads cleanly when no error occurs."""
     import pyoxigraph as ox
 
-    from cataforge.kg._quads import _slot_iri, build_entity_quads
-    from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.ingest.writer import _atomic_replace_entity
+    from cataforge.domain.kg._quads import _slot_iri, build_entity_quads
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.ingest.writer import _atomic_replace_entity
 
     store, config, iri = _make_store_with_entity("F-001")
     project_iri = entity_iri("proj-default", config.base_namespace)
@@ -86,9 +86,9 @@ def test_atomic_replace_entity_happy_path() -> None:
 
 def test_atomic_replace_entity_rolls_back_on_failure() -> None:
     """Prior quads are restored when an exception interrupts the write."""
-    from cataforge.kg._quads import build_entity_quads, quads_for_subject
-    from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.ingest.writer import _atomic_replace_entity
+    from cataforge.domain.kg._quads import build_entity_quads, quads_for_subject
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.ingest.writer import _atomic_replace_entity
 
     store, config, iri = _make_store_with_entity("F-001")
     prior_count = len(quads_for_subject(store, iri))
@@ -117,11 +117,11 @@ def test_atomic_replace_entity_rolls_back_on_failure() -> None:
 
 def test_write_entities_propagates_failure_keeping_prior_entities() -> None:
     """write_entities propagates a mid-batch failure; previously-written entities remain."""
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg._quads import quads_for_subject
-    from cataforge.kg.ingest.entity_extract import ExtractedEntity
-    from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.ingest.writer import write_entities
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._quads import quads_for_subject
+    from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.ingest.writer import write_entities
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)

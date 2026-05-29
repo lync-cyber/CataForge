@@ -3,12 +3,12 @@ from __future__ import annotations
 
 
 def _config():
-    from cataforge.kg import KGConfig
+    from cataforge.domain.kg import KGConfig
 
     return KGConfig(store_backend="memory")
 
 def test_build_entity_quads_count_and_iri() -> None:
-    from cataforge.kg._quads import build_entity_quads
+    from cataforge.domain.kg._quads import build_entity_quads
 
     config = _config()
     quads = build_entity_quads(
@@ -36,7 +36,7 @@ def test_build_entity_quads_count_and_iri() -> None:
     assert f"{ns}belongs_to_project" in predicates
 
 def test_build_entity_quads_with_extras() -> None:
-    from cataforge.kg._quads import build_entity_quads
+    from cataforge.domain.kg._quads import build_entity_quads
 
     config = _config()
     quads = build_entity_quads(
@@ -53,7 +53,7 @@ def test_build_entity_quads_with_extras() -> None:
     assert len(quads) == 11
 
 def test_build_relation_quad_iri() -> None:
-    from cataforge.kg._quads import build_relation_quad
+    from cataforge.domain.kg._quads import build_relation_quad
 
     config = _config()
     quad = build_relation_quad("M-001", "cf:implements", "F-001", config)
@@ -63,8 +63,8 @@ def test_build_relation_quad_iri() -> None:
     assert str(quad.predicate.value) == f"{ns}implements"
 
 def test_quads_for_subject_returns_all() -> None:
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg._quads import build_entity_quads, quads_for_subject
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._quads import build_entity_quads, quads_for_subject
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -87,8 +87,8 @@ def test_quads_for_subject_returns_all() -> None:
     assert len(retrieved) == len(quads)
 
 def test_quads_targeting_returns_incoming() -> None:
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg._quads import (
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._quads import (
         build_entity_quads,
         build_relation_quad,
         quads_targeting,

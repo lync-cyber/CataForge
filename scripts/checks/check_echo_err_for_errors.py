@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Guard: error-toned ``click.echo`` / ``click.secho`` lines under
-``src/cataforge/cli/`` must route to stderr via ``err=True``.
+``src/cataforge/interface/cli/`` must route to stderr via ``err=True``.
 
 Rule: when the first argument to ``click.echo(...)`` / ``click.secho(...)``
 starts with one of the error-marker prefixes below, the call must
@@ -38,12 +38,12 @@ from cataforge.utils.common import ensure_utf8  # noqa: E402
 
 ensure_utf8()
 
-SCAN_DIR = REPO_ROOT / "src" / "cataforge" / "cli"
+SCAN_DIR = REPO_ROOT / "src" / "cataforge" / "interface" / "cli"
 EXEMPT_SUBTREES = (
     # Doctor produces a structured stdout report by design — FAIL /
     # MISSING rows there are part of the report, not error messages
     # that should be redirected.
-    "src/cataforge/cli/doctor",
+    "src/cataforge/interface/cli/doctor",
 )
 
 # Match ``click.echo(...)`` or ``click.secho(...)`` whose first positional
@@ -134,7 +134,7 @@ def main() -> int:
     if offenders:
         print(
             f"FAIL: {len(offenders)} error-toned click.echo / click.secho "
-            f"call(s) under src/cataforge/cli/ are missing err=True. Errors "
+            f"call(s) under src/cataforge/interface/cli/ are missing err=True. Errors "
             f"belong on stderr so scripts piping success output ("
             f"`cataforge … | jq`) don't lose them into stdout. Add err=True "
             f"to the call, or `{ALLOW_MARKER}: <reason>` on the same line "

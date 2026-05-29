@@ -15,8 +15,8 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-s
 
 def _setup_project(tmp_path: Path, variant: str = "waterfall") -> Path:
     """Create a minimal CataForge project with an ingested KG store."""
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     project = tmp_path / "project"
     project.mkdir()
@@ -91,8 +91,8 @@ Implements F-002.
 
 
 def test_check_xref_uses_kg_when_active(tmp_path: Path) -> None:
-    from cataforge.kg._dispatch import invalidate_cache
-    from cataforge.skill.builtins.doc_review.checker import DocChecker
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
     project = _setup_project(tmp_path)
     doc_file = _write_doc(project, "prd", _PRD_WITH_XREF)
@@ -110,8 +110,8 @@ def test_check_xref_uses_kg_when_active(tmp_path: Path) -> None:
 
 
 def test_check_xref_reports_missing_entity_via_kg(tmp_path: Path) -> None:
-    from cataforge.kg._dispatch import invalidate_cache
-    from cataforge.skill.builtins.doc_review.checker import DocChecker
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
     project = _setup_project(tmp_path)
     content = _PRD_WITH_XREF.replace("arch#§2.M-001", "arch#§2.M-999")
@@ -128,8 +128,8 @@ def test_check_xref_reports_missing_entity_via_kg(tmp_path: Path) -> None:
 
 
 def test_check_xref_falls_back_when_kg_inactive(tmp_path: Path) -> None:
-    from cataforge.kg._dispatch import invalidate_cache
-    from cataforge.skill.builtins.doc_review.checker import DocChecker
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
     project = tmp_path / "no-kg"
     project.mkdir()
@@ -148,8 +148,8 @@ def test_check_xref_falls_back_when_kg_inactive(tmp_path: Path) -> None:
 
 
 def test_bidirectional_coverage_uses_kg_when_active(tmp_path: Path) -> None:
-    from cataforge.kg._dispatch import invalidate_cache
-    from cataforge.skill.builtins.doc_review.checker import DocChecker
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
     project = _setup_project(tmp_path)
     doc_file = _write_doc(project, "arch", _ARCH_CONTENT)
@@ -165,8 +165,8 @@ def test_bidirectional_coverage_uses_kg_when_active(tmp_path: Path) -> None:
 def test_bidirectional_coverage_falls_back_when_inactive(
     tmp_path: Path,
 ) -> None:
-    from cataforge.kg._dispatch import invalidate_cache
-    from cataforge.skill.builtins.doc_review.checker import DocChecker
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
     project = tmp_path / "no-kg"
     project.mkdir()

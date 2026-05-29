@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.platform.registry import get_adapter
+from cataforge.adapter.platform.registry import get_adapter
 
 
 @pytest.fixture()
@@ -373,15 +373,15 @@ class TestHookCommandTemplate:
     def test_hook_template_uses_python_m(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
         template = adapter.get_hook_command_template()
-        assert template == "python -m cataforge.hook.scripts.{module}"
+        assert template == "python -m cataforge.runtime.hook.scripts.{module}"
         cmd = template.format(module="guard_dangerous")
-        assert "cataforge.hook.scripts.guard_dangerous" in cmd
+        assert "cataforge.runtime.hook.scripts.guard_dangerous" in cmd
 
     def test_all_platforms_share_same_template(self, project_dir: Path) -> None:
         platforms_dir = project_dir / ".cataforge" / "platforms"
         for pid in ("claude-code", "cursor", "opencode"):
             adapter = get_adapter(pid, platforms_dir)
-            expected = "python -m cataforge.hook.scripts.{module}"
+            expected = "python -m cataforge.runtime.hook.scripts.{module}"
             assert adapter.get_hook_command_template() == expected
 
 

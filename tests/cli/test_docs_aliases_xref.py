@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.cli.docs_cmd import docs_validate
-from cataforge.docs import indexer, loader
+from cataforge.domain.docs import indexer, loader
+from cataforge.interface.cli.docs_cmd import docs_validate
 from tests.cli.conftest import invoke_under_group
 
 

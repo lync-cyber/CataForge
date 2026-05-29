@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from cataforge.core.types import Severity
-from cataforge.skill.builtins.doc_consistency.checker import CrossDocChecker
+from cataforge.runtime.skill.builtins.doc_consistency.checker import CrossDocChecker
 
 
 @pytest.fixture()

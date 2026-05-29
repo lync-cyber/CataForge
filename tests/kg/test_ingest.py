@@ -17,7 +17,7 @@ VARIANTS = ("waterfall", "agile")
 
 
 def _open_memory_store():
-    from cataforge.kg import KGConfig, init_store
+    from cataforge.domain.kg import KGConfig, init_store
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config
@@ -25,7 +25,7 @@ def _open_memory_store():
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_codemod_end_to_end(variant: str) -> None:
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg.ingest import run_migration
 
     handle, config = _open_memory_store()
     root = FIXTURE_ROOT / variant
@@ -72,7 +72,7 @@ def test_codemod_end_to_end(variant: str) -> None:
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_codemod_is_idempotent(variant: str) -> None:
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg.ingest import run_migration
 
     handle, config = _open_memory_store()
     root = FIXTURE_ROOT / variant
@@ -96,7 +96,7 @@ def test_codemod_is_idempotent(variant: str) -> None:
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_dry_run_does_not_write(variant: str) -> None:
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg.ingest import run_migration
 
     handle, config = _open_memory_store()
     root = FIXTURE_ROOT / variant
@@ -117,7 +117,7 @@ def test_xref_inside_arch_does_not_pollute_arch_entity_set() -> None:
     """Regression: ENTITY_PREFIX_RE used to capture `F-001` from
     `prd#§2.F-001` inside arch, attributing the Feature to arch's
     Module heading. Fix lives in entity_extract._inside_xref."""
-    from cataforge.kg.ingest import extract_entities, scan_business_docs
+    from cataforge.domain.kg.ingest import extract_entities, scan_business_docs
 
     docs = scan_business_docs(FIXTURE_ROOT / "waterfall", ["arch"])
     assert len(docs) == 1
@@ -133,7 +133,7 @@ def test_project_node_records_process_model(variant: str) -> None:
     """Round-2 decision: waterfall + agile both write through the codemod.
     Project node must carry the right cf:process_model literal so sub-PR 5
     can branch on it without reparsing framework.json."""
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg.ingest import run_migration
 
     handle, config = _open_memory_store()
     root = FIXTURE_ROOT / variant
@@ -151,8 +151,8 @@ def test_project_node_records_process_model(variant: str) -> None:
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_validate_reports_zero_violations_after_clean_import(variant: str) -> None:
-    from cataforge.kg.ingest import run_migration
-    from cataforge.kg.validate import validate
+    from cataforge.domain.kg.ingest import run_migration
+    from cataforge.domain.kg.validate import validate
 
     handle, config = _open_memory_store()
     root = FIXTURE_ROOT / variant
@@ -168,10 +168,10 @@ def test_run_migration_phase5_rolls_back_on_write_entities_failure() -> None:
     """Phase 5 compensating rollback: store has no new entities after write_entities raises (C3)."""
     from unittest.mock import patch
 
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg._quads import quads_for_subject
-    from cataforge.kg.ingest import run_migration
-    from cataforge.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._quads import quads_for_subject
+    from cataforge.domain.kg.ingest import run_migration
+    from cataforge.domain.kg.ingest.iri import entity_iri
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -179,7 +179,7 @@ def test_run_migration_phase5_rolls_back_on_write_entities_failure() -> None:
     root = FIXTURE_ROOT / "waterfall"
 
     with patch(
-        "cataforge.kg.ingest.migrate.write_entities",
+        "cataforge.domain.kg.ingest.migrate.write_entities",
         side_effect=RuntimeError("injected write_entities failure"),
     ), pytest.raises(RuntimeError, match="injected write_entities failure"):
         run_migration(store, root, config)

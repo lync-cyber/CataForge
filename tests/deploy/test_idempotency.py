@@ -22,7 +22,7 @@ The bugs these tests document:
   user skills.
 
 The fix lives across three pieces:
-  - ``cataforge.deploy.manifest`` — records which paths a deploy claims
+  - ``cataforge.runtime.deploy.manifest`` — records which paths a deploy claims
   - manifest-scoped prune in each ``deploy_*`` method
   - scaffold self-heal at deploy entry (``copy_scaffold_to(force=False)``)
 """
@@ -35,9 +35,9 @@ from pathlib import Path
 
 import yaml
 
+from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
-from cataforge.deploy.deployer import Deployer
-from cataforge.platform.registry import clear_cache
+from cataforge.runtime.deploy.deployer import Deployer
 
 # ---------------------------------------------------------------------------
 # Test fixtures
@@ -601,7 +601,7 @@ def test_rebuild_refuses_to_purge_prior_other_platform(tmp_path: Path) -> None:
     refuses with a clear warning, leaving the user to clean the old
     platform's tree manually if they want a true switch.
     """
-    from cataforge.deploy.manifest import _MANIFEST_REL
+    from cataforge.runtime.deploy.manifest import _MANIFEST_REL
 
     root = _init_project(tmp_path)
     clear_cache()

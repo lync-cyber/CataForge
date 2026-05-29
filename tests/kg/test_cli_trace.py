@@ -18,7 +18,7 @@ from pathlib import Path
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
 def _cli():
-    from cataforge.cli.main import _register_commands, cli
+    from cataforge.interface.cli.main import _register_commands, cli
 
     _register_commands()
     return cli

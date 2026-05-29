@@ -87,6 +87,6 @@ cataforge correction record \
 
 ## 引用
 
-- 实现：`src/cataforge/cli/correction_cmd.py` / `src/cataforge/core/corrections.py`
+- 实现：`src/cataforge/interface/cli/correction_cmd.py` / `src/cataforge/core/corrections.py`
 - 回流：`cataforge feedback correction-export` —— 见 `src/cataforge/core/feedback.py` `UPSTREAM_GAP` 常量
 - 报告：`docs/reviews/CORRECTIONS-LOG.md`（项目本地，每次 `record` 追加）

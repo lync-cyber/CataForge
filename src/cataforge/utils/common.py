@@ -33,38 +33,38 @@ NC = "\033[0m"  # No Color / reset
 # ---------------------------------------------------------------------------
 
 
-# The five primitives below are now thin wrappers over :mod:`cataforge.cli.ui`
+# The five primitives below are now thin wrappers over :mod:`cataforge.interface.cli.ui`
 # so every caller (CLI subcommands, integrations, hook scripts) goes through
 # the same colour/Unicode/TTY detection. The signatures are preserved to keep
 # external callers source-compatible.
 
 
 def section(msg: str) -> None:
-    from cataforge.cli.ui import ui as _ui
+    from cataforge.interface.cli.ui import ui as _ui
 
     _ui.section(msg)
 
 
 def info(msg: str) -> None:
-    from cataforge.cli.ui import ui as _ui
+    from cataforge.interface.cli.ui import ui as _ui
 
     _ui.info(msg)
 
 
 def ok(msg: str) -> None:
-    from cataforge.cli.ui import ui as _ui
+    from cataforge.interface.cli.ui import ui as _ui
 
     _ui.ok(msg)
 
 
 def warn(msg: str) -> None:
-    from cataforge.cli.ui import ui as _ui
+    from cataforge.interface.cli.ui import ui as _ui
 
     _ui.warn(msg)
 
 
 def fail(msg: str) -> None:
-    from cataforge.cli.ui import ui as _ui
+    from cataforge.interface.cli.ui import ui as _ui
 
     _ui.fail(msg)
 
@@ -102,7 +102,7 @@ def ensure_utf8() -> None:
        Skipped when running under pytest (detected via ``PYTEST_CURRENT_TEST``,
        ``PYTEST_VERSION``, or ``pytest`` already in ``sys.modules``). Critical
        for test collection: pytest imports test modules — which transitively
-       import ``cataforge.cli.main`` — before ``PYTEST_CURRENT_TEST`` is set,
+       import ``cataforge.interface.cli.main`` — before ``PYTEST_CURRENT_TEST`` is set,
        so the env-var check alone would relaunch into the wrong process.
 
     2. **Reconfigure stdout/stderr to UTF-8.** Belt-and-suspenders for the
@@ -111,7 +111,7 @@ def ensure_utf8() -> None:
 
     Idempotent — safe to call from CLI entry points and subscript ``main()``s.
     """
-    # pytest imports test modules (which transitively import cataforge.cli.main)
+    # pytest imports test modules (which transitively import cataforge.interface.cli.main)
     # before PYTEST_CURRENT_TEST is set, so the env var alone is not enough —
     # `pytest in sys.modules` is the load-time-stable signal.
     under_pytest = (

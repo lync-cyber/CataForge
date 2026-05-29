@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from cataforge.services.doctor_summary import collect_doctor_summary
+from cataforge.application.services.doctor_summary import collect_doctor_summary
 
 
 def _make_result(output: str, exit_code: int = 0):

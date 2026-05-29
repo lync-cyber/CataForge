@@ -59,7 +59,7 @@ Agent逐章填充内容时:
 4. **[EVENT]** `cataforge event log --event doc_finalize --phase {当前阶段} --ref "{doc_id}" --detail "文档finalize: {doc_id}"`
 5. 返回: 最终文档路径 + 持久化路径确认（kg-active / legacy-index）
 
-注: KG-active doc_type 下 `docs/.doc-index.json` 由 doctor 维护为派生缓存（doc-nav 仍兼容），但权威读路径已切换到 KG —— `cataforge docs load <ref>` 在 active doc_type 上自动从 KG 解析（见 [loader._try_kg_extract](../../../src/cataforge/docs/loader.py)）。
+注: KG-active doc_type 下 `docs/.doc-index.json` 由 doctor 维护为派生缓存（doc-nav 仍兼容），但权威读路径已切换到 KG —— `cataforge docs load <ref>` 在 active doc_type 上自动从 KG 解析（见 [loader._try_kg_extract](../../../src/cataforge/domain/docs/loader.py)）。
 
 注意: finalize 是轻量格式预检；深度内容审查由 doc-review 负责
 

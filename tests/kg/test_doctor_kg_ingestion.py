@@ -30,8 +30,8 @@ def _setup_project_with_kg(tmp_path: Path) -> Path:
     """Copy the waterfall fixture into tmp_path and ingest into KG."""
     import shutil
 
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     source = FIXTURE_ROOT / "waterfall"
     project_root = tmp_path / "proj"
@@ -50,7 +50,7 @@ def _setup_project_with_kg(tmp_path: Path) -> Path:
     return project_root
 
 def test_gate_passes_when_fs_matches_kg(tmp_path, capsys) -> None:
-    from cataforge.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
     project_root = _setup_project_with_kg(tmp_path)
     cfg = FakeConfig(paths=FakePaths(root=project_root))
@@ -62,7 +62,7 @@ def test_gate_passes_when_fs_matches_kg(tmp_path, capsys) -> None:
     assert "OK" in out
 
 def test_gate_fails_when_kg_missing_fs_entity(tmp_path, capsys) -> None:
-    from cataforge.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
     project_root = _setup_project_with_kg(tmp_path)
     # Append a brand-new entity to the PRD so FS has it but KG does not.
@@ -85,7 +85,7 @@ def test_gate_warns_but_does_not_fail_on_stale_only(tmp_path, capsys) -> None:
     gate stays green because the active read path still resolves —
     stale entities are cleanup debt, not correctness hazards.
     """
-    from cataforge.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
     project_root = _setup_project_with_kg(tmp_path)
     # Remove TC-002 from the test-report so KG has it but FS does not.
@@ -113,7 +113,7 @@ def test_gate_skips_when_no_store(tmp_path, capsys) -> None:
     Downstream projects that have not opted into KG cutover are not
     blocked by this gate.
     """
-    from cataforge.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
     project_root = tmp_path / "proj"
     (project_root / "docs").mkdir(parents=True)
@@ -129,7 +129,7 @@ def test_gate_skips_when_no_active_doc_types(tmp_path, capsys) -> None:
     """No `kg.kg_active_doc_types` in framework.json AND no built-in
     default for an empty project — skip cleanly.
     """
-    from cataforge.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
     project_root = tmp_path / "proj"
     (project_root / ".cataforge" / "kg" / "store").mkdir(parents=True)

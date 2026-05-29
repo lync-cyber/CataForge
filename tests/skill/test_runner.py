@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.skill.loader import SkillLoader
-from cataforge.skill.runner import SkillRunner
+from cataforge.runtime.skill.loader import SkillLoader
+from cataforge.runtime.skill.runner import SkillRunner
 
 
 @pytest.fixture

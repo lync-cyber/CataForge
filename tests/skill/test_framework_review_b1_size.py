@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.skill.builtins.framework_review.framework_check import (
+from cataforge.runtime.skill.builtins.framework_review.framework_check import (
     Report,
     check_b1_size,
     discover_agent_protocol_docs,

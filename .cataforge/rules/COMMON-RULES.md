@@ -121,7 +121,7 @@ Agent 间统一格式：
 
 - **写后无需手动调 KG CLI** — `doc-gen finalize` 已按 `framework.json.kg.kg_active_doc_types` 自动分流：active doc_type 触发 `cataforge kg import` + `cataforge kg reconcile`；非 active 触发 `cataforge docs index`。Agent 完成章节填充后只需 finalize，不应自行调度 `cataforge kg *`
 - **读取无需感知 KG 存在** — `cataforge docs load <ref>` 在 active doc_type 下自动从 KG 解析（实体级引用 `doc_id#§N.ITEM-NNN` 走 `kg.query.entity` + `render_entity`；whole-section 走文件 slice）；非 active doc_type 仍走 `.doc-index.json` + 文件切片。两条路径返回相同 markdown 形式，Agent 调用方式不变
-- **依赖展开同样统一** — `cataforge docs load <ref> --with-deps` 在 active doc_type 全覆盖时通过 `kg.query.depends_on` 走图查询，否则 fall back 到 `.doc-index.json` 的 `deps[]` 字段（见 [`docs/loader._try_kg_resolve_deps`](../../src/cataforge/docs/loader.py)）
+- **依赖展开同样统一** — `cataforge docs load <ref> --with-deps` 在 active doc_type 全覆盖时通过 `kg.query.depends_on` 走图查询，否则 fall back 到 `.doc-index.json` 的 `deps[]` 字段（见 [`docs/loader._try_kg_resolve_deps`](../../src/cataforge/domain/docs/loader.py)）
 - **drift 检查由 orchestrator 负责** — Phase Transition Step 5.3 自动跑 `cataforge kg reconcile`；Agent 无需在 Output Contract 中声明"reconcile 通过"
 - **Read 工具仍可在 KG 不可达时兜底** — KG store 缺失 / 损坏 / KG-active doc_type 未 ingest 时，`cataforge docs load` 会自动降级到文件路径，Agent 调用契约不变
 
@@ -178,7 +178,7 @@ closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已
 
 ## 通用 Anti-Patterns
 - 禁止：猜测项目状态——以 项目指令文件 和 `docs/` 目录为唯一事实来源。
-- 禁止：遗留未标注的 TODO / TBD / FIXME（必须标注 `[ASSUMPTION]`）。强制由 doc-review Layer 1 检查器实现，参见 `cataforge.skill.builtins.doc_review.checker.check_no_todo`。
+- 禁止：遗留未标注的 TODO / TBD / FIXME（必须标注 `[ASSUMPTION]`）。强制由 doc-review Layer 1 检查器实现，参见 `cataforge.runtime.skill.builtins.doc_review.checker.check_no_todo`。
 - 禁止：写入 项目指令文件 项目状态区（orchestrator 专属）。
 - 禁止：硬编码 §框架配置常量 中已定义的数值（应直接引用常量名）。
 
@@ -203,7 +203,7 @@ closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已
 | coupling | 代码 | 模块间引用过密、依赖图循环或扇出过大 |
 
 ## Layer 1 调用协议
-三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过 `cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner` 路由到内置实现（`python -m cataforge.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md / Agent / Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。完整规约见 [`docs/architecture/quality-and-learning.md §2.1`](../../docs/architecture/quality-and-learning.md)。
+三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过 `cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner` 路由到内置实现（`python -m cataforge.runtime.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md / Agent / Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。完整规约见 [`docs/architecture/quality-and-learning.md §2.1`](../../docs/architecture/quality-and-learning.md)。
 
 Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2；`2` / `127` / `CataforgeError("no executable scripts")` → **FAIL**（先 `cataforge doctor`）；运行时异常 / 超时 → 降级进入 Layer 2。
 

@@ -9,8 +9,8 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-s
 
 
 def _make_populated_store(variant: str = "waterfall"):
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -19,7 +19,7 @@ def _make_populated_store(variant: str = "waterfall"):
 
 
 def test_repair_on_clean_store_is_noop() -> None:
-    from cataforge.kg.repair import repair
+    from cataforge.domain.kg.repair import repair
 
     handle, config = _make_populated_store()
     stats = repair(handle.raw, FIXTURE_ROOT / "waterfall", config)
@@ -29,10 +29,10 @@ def test_repair_on_clean_store_is_noop() -> None:
 
 
 def test_repair_removes_ghost_entity() -> None:
-    from cataforge.kg._quads import build_entity_quads
-    from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.reconcile import reconcile
-    from cataforge.kg.repair import repair
+    from cataforge.domain.kg._quads import build_entity_quads
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.reconcile import reconcile
+    from cataforge.domain.kg.repair import repair
 
     handle, config = _make_populated_store()
     store = handle.raw
@@ -62,10 +62,10 @@ def test_repair_removes_ghost_entity() -> None:
 
 
 def test_repair_ingests_missing_entity() -> None:
-    from cataforge.kg._quads import quads_for_subject
-    from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.reconcile import reconcile
-    from cataforge.kg.repair import repair
+    from cataforge.domain.kg._quads import quads_for_subject
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.reconcile import reconcile
+    from cataforge.domain.kg.repair import repair
 
     handle, config = _make_populated_store()
     store = handle.raw
@@ -86,10 +86,10 @@ def test_repair_ingests_missing_entity() -> None:
 
 
 def test_repair_dry_run_no_mutation() -> None:
-    from cataforge.kg._quads import quads_for_subject
-    from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.reconcile import reconcile
-    from cataforge.kg.repair import repair
+    from cataforge.domain.kg._quads import quads_for_subject
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.reconcile import reconcile
+    from cataforge.domain.kg.repair import repair
 
     handle, config = _make_populated_store()
     store = handle.raw
@@ -106,9 +106,9 @@ def test_repair_dry_run_no_mutation() -> None:
 
 
 def test_repair_idempotent() -> None:
-    from cataforge.kg._quads import quads_for_subject
-    from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.repair import repair
+    from cataforge.domain.kg._quads import quads_for_subject
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.repair import repair
 
     handle, config = _make_populated_store()
     store = handle.raw
@@ -128,9 +128,9 @@ def test_repair_ghost_restored_when_reingest_fails(tmp_path) -> None:
     """Ghost quads are restored if reingest raises (C1 compensating rollback)."""
     from unittest.mock import patch
 
-    from cataforge.kg._quads import build_entity_quads, quads_for_subject
-    from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.repair import repair
+    from cataforge.domain.kg._quads import build_entity_quads, quads_for_subject
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.repair import repair
 
     handle, config = _make_populated_store()
     store = handle.raw
@@ -159,7 +159,7 @@ def test_repair_ghost_restored_when_reingest_fails(tmp_path) -> None:
     assert len(quads_for_subject(store, ghost_iri)) > 0
 
     with patch(
-        "cataforge.kg.repair._reingest_doc_type",
+        "cataforge.domain.kg.repair._reingest_doc_type",
         side_effect=RuntimeError("boom"),
     ):
         stats = repair(store, FIXTURE_ROOT / "waterfall", config)
@@ -171,9 +171,9 @@ def test_repair_ghost_restored_when_reingest_fails(tmp_path) -> None:
 
 def test_repair_uses_framework_project_id(tmp_path) -> None:
     """repair() reads project_id from framework.json (C4 fix)."""
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.ingest import run_migration
-    from cataforge.kg.repair import repair
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
+    from cataforge.domain.kg.repair import repair
 
     project_root = tmp_path / "myproject"
     waterfall_root = FIXTURE_ROOT / "waterfall"
@@ -191,8 +191,8 @@ def test_repair_uses_framework_project_id(tmp_path) -> None:
     run_migration(handle.raw, project_root, config)
     store = handle.raw
 
-    from cataforge.kg._quads import quads_for_subject
-    from cataforge.kg.ingest.iri import entity_iri as _entity_iri
+    from cataforge.domain.kg._quads import quads_for_subject
+    from cataforge.domain.kg.ingest.iri import entity_iri as _entity_iri
 
     f001_iri = _entity_iri("F-001", config.base_namespace)
     for q in quads_for_subject(store, f001_iri):
@@ -205,7 +205,7 @@ def test_repair_uses_framework_project_id(tmp_path) -> None:
     namespace = config.ontology_namespace.rstrip("/") + "/"
     import pyoxigraph as ox
 
-    from cataforge.kg._quads import _slot_iri
+    from cataforge.domain.kg._quads import _slot_iri
 
     subject = ox.NamedNode(f001_iri)
     btp_pred = ox.NamedNode(_slot_iri("cf:belongs_to_project", namespace))

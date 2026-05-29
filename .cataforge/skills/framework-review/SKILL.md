@@ -19,8 +19,8 @@ user-invocable: true
 - 可选 `--focus`: 限定子检查（B1-α/β、B2-α、B3-α、B4-α、B5-α/β/γ/δ、B6-α/β/γ/δ/ε、B7-α/β/γ）
 - 可选 `--target <asset_id>`: 仅审单个 agent / skill 名（Layer 2 节省 token；Layer 1 仍按 scope 全跑）
 - 项目根下的 `.cataforge/` 目录（必读）
-- `cataforge.skill.builtins.*.CHECKS_MANIFEST`（B3 对账数据源，从已安装的 cataforge 包导入）
-- `cataforge.hook.scripts.*` (B6-α/β script 可达性 + ast.parse 数据源)
+- `cataforge.runtime.skill.builtins.*.CHECKS_MANIFEST`（B3 对账数据源，从已安装的 cataforge 包导入）
+- `cataforge.runtime.hook.scripts.*` (B6-α/β script 可达性 + ast.parse 数据源)
 - `cataforge.core.types.CAPABILITY_IDS` / `EXTENDED_CAPABILITY_IDS` (B6-γ matcher 校验集)
 - `framework.json#/constants/AGENT_MODEL_DEFAULTS` + `AGENT_MODEL_TIER_HEAVY_WHITELIST` (B7 数据源)
 - `framework.json#/dispatcher_skills` (B5-α 区分 skill-as-router vs 未定义 agent)
@@ -60,7 +60,7 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 | B6-β | 每个 hook script .py 必须 ast.parse 成功 | hooks, all | FAIL |
 | B6-γ | matcher_capability 必须是 CAPABILITY_IDS / EXTENDED_CAPABILITY_IDS 成员 | hooks, all | FAIL |
 | B6-δ | 每 platform profile.yaml 的 hooks.degradation 与 hooks.yaml 脚本集对账 | hooks, all | WARN (缺) / WARN (孤儿) |
-| B6-ε | hooks.yaml 非 custom: 脚本 ∈ cataforge.hook.manifest.HOOKS_MANIFEST | hooks, all | FAIL (孤儿引用) / WARN (未挂的 manifest 条目) |
+| B6-ε | hooks.yaml 非 custom: 脚本 ∈ cataforge.runtime.hook.manifest.HOOKS_MANIFEST | hooks, all | FAIL (孤儿引用) / WARN (未挂的 manifest 条目) |
 | B7-α | AGENT.md `model_tier` 合规 + 与 AGENT_MODEL_DEFAULTS 一致；heavy 需进白名单 | agents, all | FAIL / WARN |
 | B7-β | AGENT.md 仍含 legacy `model:` 字段（deprecated） | agents, all | WARN |
 | B7-γ | platform profile.yaml `model_routing.tier_map` 覆盖 light/standard/heavy | agents, all | WARN |
@@ -97,7 +97,7 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 |------|----------|---------|
 | matcher_capability 必要性 | completeness | 每条 hook 都声明 matcher_capability；无 matcher 的全局 hook 仅在 SessionStart/Stop 等无匹配事件下合理 |
 | degradation 合理性 | consistency | 每平台 native vs degraded 的判定与该平台的 capability 限制一致（如 codex 无 user_question → detect_correction degraded） |
-| script 命名与位置一致 | structure | builtin 在 cataforge.hook.scripts；custom 在 .cataforge/hooks/custom；命名 snake_case |
+| script 命名与位置一致 | structure | builtin 在 cataforge.runtime.hook.scripts；custom 在 .cataforge/hooks/custom；命名 snake_case |
 
 **维度收敛**: `--focus <category[,...]>` 同上；可与 `--target <asset_id>` 组合。
 
@@ -124,7 +124,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 
 ## Layer 1 检查项 (framework_check.py)
 
-> 权威清单见 `cataforge.skill.builtins.framework_review.CHECKS_MANIFEST`。
+> 权威清单见 `cataforge.runtime.skill.builtins.framework_review.CHECKS_MANIFEST`。
 <!-- requires: cataforge>=0.4.1 -->
 
 下方锚点列表会跟随 main 分支推进 —— 若运行时 cataforge 版本低于 `requires` 声明，B3-α 会把"锚点找不到 manifest 条目"从 FAIL 降级为 INFO 并提示升级 cataforge。
@@ -133,18 +133,18 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 - B1-β: 单文件行数 ≤ META_DOC_SPLIT_THRESHOLD_LINES (WARN 提示拆分)；覆盖 AGENT.md / SKILL.md / `agents/<id>/*PROTOCOL*.md` 伴生文档 / `rules/*.md` 四类 prompt-context 文件，与 {INSTRUCTION_FILE} §硬约束 1 对齐<!-- check_id: B1_size_threshold -->
 - B2-α: 解析所有 AGENT.md `skills:` + SKILL.md `depends:` + framework.json `features` → 引用不存在的 skill/agent FAIL；无任何 AGENT.md 引用的 skill WARN（白名单豁免：基础设施类 skill 如 agent-dispatch / tdd-engine / change-guard / start-orchestrator / doc-nav / doc-gen / research / debug / self-update / workflow-framework-generator / platform-audit / framework-review / framework-issue-resolve / framework-feedback）<!-- check_id: B2_cross_reference_graph -->
 - B3-α: skill SKILL.md 的 "## Layer 1 检查项" 段与对应 builtin 的 `CHECKS_MANIFEST` 对账。两种识别策略二者必居其一：(1) **anchor 模式** — 段内若出现 `<!-- check_id: <id> -->` HTML 注释锚点，按 ID 双向校验（孤儿锚点 / 缺失锚点 → FAIL）；(2) **delegation 模式** — 段内出现 `权威清单见 ...CHECKS_MANIFEST` 短语，跳过逐条对照（manifest 存在性即契约）。缺该段、或既无锚点又无 delegation 句 → FAIL<!-- check_id: B3_manifest_drift -->
-- B3-β: 项目级 `.cataforge/skills/<skill>/rules/*.yaml` plugin 覆写文件按 `cataforge.skill.rules.loader.validate_yaml_text` schema 校验（`schema_version` / `rule_type` / `language` / `extensions` / 正则可编译 / `flags` 已知 / e2e backdoor entry 必填 `label`）→ 不合规 FAIL<!-- check_id: B3_rules_schema_compliance -->
+- B3-β: 项目级 `.cataforge/skills/<skill>/rules/*.yaml` plugin 覆写文件按 `cataforge.runtime.skill.rules.loader.validate_yaml_text` schema 校验（`schema_version` / `rule_type` / `language` / `extensions` / 正则可编译 / `flags` 已知 / e2e backdoor entry 必填 `label`）→ 不合规 FAIL<!-- check_id: B3_rules_schema_compliance -->
 - B4-α: 在 .cataforge/{agents,skills,rules}/**/*.md 中 grep 框架常量对应的裸数值（如 `≤3 问` / `300 行` / `>200 行`），未引用常量名 → WARN（豁免：代码块、版本号、ID 编号）<!-- check_id: B4_hardcoded_constants -->
 - B5-α: 解析 orchestrator AGENT.md Phase Routing → 输出 phase × agent 覆盖矩阵；空位标 WARN（phase 路由到既不在 .cataforge/agents/ 又不在 framework.json#/dispatcher_skills 的目标 / agent 定义但未被任何 phase 引用）<!-- check_id: B5_workflow_coverage_matrix -->
 - B5-β: 对每个 phase-routed agent 解析 AGENT.md `skills:` 字段 → 三跳验证（agent 必须 ≥1 skill；引用的 skill 必须存在于 `.cataforge/skills/` 或 builtin）<!-- check_id: B5_phase_skill_coverage -->
 - B5-γ: 读 `docs/EVENT-LOG.jsonl`，按 `event=agent_return` 聚合 → 总 returns ≥ `EVENT_LOG_DRIFT_MIN_EVENTS` 且 phase-routed agent 0 returns 时 **FAIL**（强 dead-routing 信号；阈值已替你过滤稀疏数据噪声）；未达阈值时输出一条 INFO（"drift check skipped"）；agent 有 returns 但全部缺 `ref` 字段 → WARN（output_path 追溯断链）<!-- check_id: B5_eventlog_agent_return_drift -->
 - B5-δ: 解析 framework.json `features` → 每个非 null `phase_guard` 必须命中 Phase Routing 已知 phase<!-- check_id: B5_feature_phase_alignment -->
 - B5-ε: 解析 `.cataforge/hooks/hooks.yaml` PostToolUse 段，必须有一条 `script: validate_agent_result` + `matcher_capability: agent_dispatch` 条目；缺失则 `agent_return` 事件永远不会写入 EVENT-LOG，B5-γ 会在 0 数据下静默放行 → FAIL<!-- check_id: B5_hook_installed -->
-- B6-α: 解析 .cataforge/hooks/hooks.yaml，每个 `script` 字段须解析到真实 .py（builtin: `cataforge.hook.scripts.<name>` 通过 `importlib.resources` 定位；custom: `.cataforge/hooks/custom/<name>.py`）→ FAIL on missing<!-- check_id: B6_hook_script_reachability -->
+- B6-α: 解析 .cataforge/hooks/hooks.yaml，每个 `script` 字段须解析到真实 .py（builtin: `cataforge.runtime.hook.scripts.<name>` 通过 `importlib.resources` 定位；custom: `.cataforge/hooks/custom/<name>.py`）→ FAIL on missing<!-- check_id: B6_hook_script_reachability -->
 - B6-β: 每个解析到的 hook script .py 必须 `ast.parse` 通过（不依赖 import 副作用）→ FAIL on SyntaxError<!-- check_id: B6_hook_script_syntax -->
 - B6-γ: 每个 `matcher_capability` 值必须是 `CAPABILITY_IDS` ∪ `EXTENDED_CAPABILITY_IDS` 成员（typo 会让 hook 静默永不触发）→ FAIL on unknown capability<!-- check_id: B6_hook_matcher_capability -->
 - B6-δ: 遍历 `.cataforge/platforms/<id>/profile.yaml`，`hooks.degradation` 的 keys 必须严格等于 hooks.yaml 引用的 script name 集合（`custom:` 前缀脱皮后比较）→ 缺失 WARN（deploy 默认 native 可能掩盖真实降级需求）/ 孤儿 WARN（dead config）<!-- check_id: B6_hook_degradation_coverage -->
-- B6-ε: hooks.yaml 中所有非 `custom:` 前缀的 `script` 必须在 `cataforge.hook.manifest.HOOKS_MANIFEST` 中注册 → FAIL（manifest 缺失则脚本是 helper 而非 hook target，B6-α 单纯文件存在性查不出来）；HOOKS_MANIFEST 条目未被 hooks.yaml 引用 → WARN（dead inventory）<!-- check_id: B6_hook_manifest_drift -->
+- B6-ε: hooks.yaml 中所有非 `custom:` 前缀的 `script` 必须在 `cataforge.runtime.hook.manifest.HOOKS_MANIFEST` 中注册 → FAIL（manifest 缺失则脚本是 helper 而非 hook target，B6-α 单纯文件存在性查不出来）；HOOKS_MANIFEST 条目未被 hooks.yaml 引用 → WARN（dead inventory）<!-- check_id: B6_hook_manifest_drift -->
 - B7-α: AGENT.md `model_tier ∈ {light, standard, heavy, inherit, none}`；与 `constants.AGENT_MODEL_DEFAULTS` 一致（不一致 → WARN）；`heavy` 需进 `constants.AGENT_MODEL_TIER_HEAVY_WHITELIST`（不在白名单 → FAIL，控制成本面）<!-- check_id: B7_model_tier_value -->
 - B7-β: AGENT.md 仍含 legacy `model: <id>` 字段（无 `model_tier:`）→ FAIL，必须迁移；deploy 直接丢弃 legacy `model:` 行（无过渡期）<!-- check_id: B7_legacy_model_field -->
 - B7-γ: platform `profile.yaml#/model_routing` 在 `per_agent_model: true` 且 `user_resolved: false` 时，`tier_map` 必须同时声明 `light` / `standard` / `heavy` 三档；缺哪档则该档 deploy 时静默不写 `model:` → WARN<!-- check_id: B7_platform_tier_map -->

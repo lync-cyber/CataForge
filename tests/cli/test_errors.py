@@ -4,7 +4,7 @@ Each subclass carries a documented ``exit_code`` that downstream CI
 scripts branch on (see ``docs/reference/cli.md`` §退出码). The mapping
 is part of the public CLI surface — changing a value silently would
 break those scripts. These tests freeze the table and the rendering
-contract provided by :class:`cataforge.cli.errors.CataforgeGroup`.
+contract provided by :class:`cataforge.interface.cli.errors.CataforgeGroup`.
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ class TestRaiseRendersExpectedExitCode:
     def _run_raising(self, exc_to_raise):
         from click.testing import CliRunner
 
-        from cataforge.cli.errors import CataforgeGroup
+        from cataforge.interface.cli.errors import CataforgeGroup
 
         @click.group(cls=CataforgeGroup)
         def root() -> None:

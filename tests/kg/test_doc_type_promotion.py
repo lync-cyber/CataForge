@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cataforge.kg._config import BUSINESS_DOC_TYPES
+from cataforge.domain.kg._config import BUSINESS_DOC_TYPES
 
 
 def _write(path: Path, text: str) -> None:
@@ -37,8 +37,8 @@ def _doc(doc_id: str, doc_type: str, section: str, body: str) -> str:
 
 
 def _ingest_memory(project_root: Path, doc_types: tuple[str, ...]):
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -76,7 +76,7 @@ def promoted_project(tmp_path: Path) -> Path:
 def test_generic_fallback_renders_untemplated_classes(
     promoted_project: Path, entity_id: str, title_fragment: str
 ) -> None:
-    from cataforge.kg.export import render_entity
+    from cataforge.domain.kg.export import render_entity
 
     handle = _ingest_memory(promoted_project, ("ui-spec", "dev-plan", "deploy-spec"))
     try:
@@ -92,8 +92,8 @@ def test_generic_fallback_renders_untemplated_classes(
 
 
 def test_registry_falls_back_to_generic_for_untemplated_class() -> None:
-    from cataforge.kg.export._entity_meta import GENERIC_SPARQL_KEY
-    from cataforge.kg.export.registry import SparqlRegistry
+    from cataforge.domain.kg.export._entity_meta import GENERIC_SPARQL_KEY
+    from cataforge.domain.kg.export.registry import SparqlRegistry
 
     reg = SparqlRegistry()
     # No bespoke Deployment/Page template, but render is still possible.
@@ -111,7 +111,7 @@ def test_registry_falls_back_to_generic_for_untemplated_class() -> None:
 
 
 def test_ingest_default_equals_business_doc_types() -> None:
-    from cataforge.kg.ingest import DEFAULT_DOC_TYPES
+    from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES
 
     assert tuple(DEFAULT_DOC_TYPES) == BUSINESS_DOC_TYPES
 
@@ -126,8 +126,8 @@ def test_business_set_uses_canonical_test_report_doc_id() -> None:
 def test_kg_import_default_scope_follows_active_doc_types(tmp_path: Path) -> None:
     """A plain `kg import` ingests the project's active doc_types — proving
     import scope is wired to framework.json, not a hardcoded triplet."""
-    from cataforge.cli.main import _register_commands, cli
-    from cataforge.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.interface.cli.main import _register_commands, cli
 
     project = tmp_path / "proj"
     _write(

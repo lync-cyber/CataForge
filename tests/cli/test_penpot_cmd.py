@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import inspect
 
-from cataforge.integrations import penpot
+from cataforge.adapter.integrations import penpot
 
 
 def test_penpot_uses_public_get_config() -> None:
@@ -21,7 +21,7 @@ def test_get_config_returns_expected_keys() -> None:
 
 
 def test_penpot_cmd_uses_public_get_config() -> None:
-    from cataforge.cli import penpot_cmd
+    from cataforge.interface.cli import penpot_cmd
 
     source = inspect.getsource(penpot_cmd)
     assert "penpot._get_config" not in source
@@ -30,7 +30,7 @@ def test_penpot_cmd_uses_public_get_config() -> None:
 
 def test_penpot_remote_subcommand_registered() -> None:
     """Wave 2: `cataforge penpot remote` must be a click subcommand."""
-    from cataforge.cli import penpot_cmd
+    from cataforge.interface.cli import penpot_cmd
 
     cmd = penpot_cmd.penpot_group.get_command(None, "remote")
     assert cmd is not None, "`cataforge penpot remote` is not registered"
@@ -39,7 +39,7 @@ def test_penpot_remote_subcommand_registered() -> None:
 
 def test_penpot_init_and_doctor_registered() -> None:
     """Wave 3: init wizard and doctor must be click subcommands."""
-    from cataforge.cli import penpot_cmd
+    from cataforge.interface.cli import penpot_cmd
 
     init_cmd = penpot_cmd.penpot_group.get_command(None, "init")
     doctor_cmd = penpot_cmd.penpot_group.get_command(None, "doctor")
@@ -49,7 +49,7 @@ def test_penpot_init_and_doctor_registered() -> None:
 
 def test_penpot_group_help_lists_new_subcommands() -> None:
     """Wave 3: group help should advertise the new entry points."""
-    from cataforge.cli import penpot_cmd
+    from cataforge.interface.cli import penpot_cmd
 
     help_text = penpot_cmd.penpot_group.help or ""
     for needle in ("init", "remote", "doctor", "design.penpot.app"):

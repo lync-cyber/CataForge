@@ -46,7 +46,7 @@ Layer 2 — AI 审查：
 cataforge skill run <skill-id> -- <args...>
 ```
 
-由 `SkillRunner` 解析 SKILL.md 元数据后派发——对内置脚本走 `python -m cataforge.skill.builtins.<pkg>.<script>`，对项目覆写脚本走 `python <project-script-path>`。**不得**直接 `python .cataforge/skills/<id>/scripts/*.py`：该路径为框架内部实现细节，在仅发放 SKILL.md（无 `scripts/` 目录）的默认 scaffold 中不存在。
+由 `SkillRunner` 解析 SKILL.md 元数据后派发——对内置脚本走 `python -m cataforge.runtime.skill.builtins.<pkg>.<script>`，对项目覆写脚本走 `python <project-script-path>`。**不得**直接 `python .cataforge/skills/<id>/scripts/*.py`：该路径为框架内部实现细节，在仅发放 SKILL.md（无 `scripts/` 目录）的默认 scaffold 中不存在。
 
 当项目仅覆写了 SKILL.md 文本（`scripts=[]`）而未提供自己的脚本时，`SkillLoader` 自动回落到内置脚本（参见 `SkillLoader._merge_builtin_fallback`），无需手动桥接。
 

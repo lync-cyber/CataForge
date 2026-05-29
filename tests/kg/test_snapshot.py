@@ -8,8 +8,8 @@ import pytest
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
 def _make_populated_store():
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.ingest import run_migration
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -24,7 +24,7 @@ def test_snapshot_roundtrip(tmp_path: Path) -> None:
     original_count = _count_quads(handle.raw)
     assert original_count > 0
 
-    from cataforge.kg.snapshot import create_snapshot, restore_snapshot
+    from cataforge.domain.kg.snapshot import create_snapshot, restore_snapshot
 
     meta = create_snapshot(handle.raw, config, tmp_path / "snapshots")
     assert meta.quad_count == original_count
@@ -32,7 +32,7 @@ def test_snapshot_roundtrip(tmp_path: Path) -> None:
     assert meta.path.suffix == ".nq"
     assert meta.path.with_suffix(".meta.json").exists()
 
-    from cataforge.kg import KGConfig
+    from cataforge.domain.kg import KGConfig
 
     restore_config = KGConfig(
         store_backend="oxigraph", db_path=tmp_path / "restored-store"
@@ -45,7 +45,7 @@ def test_snapshot_meta_fields(tmp_path: Path) -> None:
 
     handle, config = _make_populated_store()
 
-    from cataforge.kg.snapshot import create_snapshot
+    from cataforge.domain.kg.snapshot import create_snapshot
 
     meta = create_snapshot(
         handle.raw, config, tmp_path / "snapshots", label="test-label"
@@ -66,14 +66,14 @@ def test_snapshot_meta_fields(tmp_path: Path) -> None:
 def test_rollback_refuses_without_force(tmp_path: Path) -> None:
     handle, config = _make_populated_store()
 
-    from cataforge.kg import KGConfig, KGStoreAlreadyExistsError
-    from cataforge.kg.snapshot import create_snapshot, restore_snapshot
+    from cataforge.domain.kg import KGConfig, KGStoreAlreadyExistsError
+    from cataforge.domain.kg.snapshot import create_snapshot, restore_snapshot
 
     meta = create_snapshot(handle.raw, config, tmp_path / "snapshots")
 
     db_path = tmp_path / "existing-store"
     existing_config = KGConfig(store_backend="oxigraph", db_path=db_path)
-    from cataforge.kg import init_store
+    from cataforge.domain.kg import init_store
 
     init_store(existing_config, force=True).close()
 
@@ -85,7 +85,7 @@ def test_list_snapshots_sorted(tmp_path: Path) -> None:
 
     handle, config = _make_populated_store()
 
-    from cataforge.kg.snapshot import create_snapshot, list_snapshots
+    from cataforge.domain.kg.snapshot import create_snapshot, list_snapshots
 
     snap_dir = tmp_path / "snapshots"
     create_snapshot(handle.raw, config, snap_dir, label="first")
@@ -97,8 +97,8 @@ def test_list_snapshots_sorted(tmp_path: Path) -> None:
     assert snapshots[0].timestamp >= snapshots[1].timestamp
 
 def test_snapshot_empty_store(tmp_path: Path) -> None:
-    from cataforge.kg import KGConfig, init_store
-    from cataforge.kg.snapshot import create_snapshot
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.snapshot import create_snapshot
 
     config = KGConfig(store_backend="memory", kg_active_doc_types=set())
     handle = init_store(config, force=True)
@@ -107,14 +107,14 @@ def test_snapshot_empty_store(tmp_path: Path) -> None:
     assert meta.quad_count > 0  # bootstrap axioms are still present
 
 def test_list_snapshots_empty_dir(tmp_path: Path) -> None:
-    from cataforge.kg.snapshot import list_snapshots
+    from cataforge.domain.kg.snapshot import list_snapshots
 
     assert list_snapshots(tmp_path / "nonexistent") == []
 
 def test_snapshot_label_sanitization(tmp_path: Path) -> None:
     handle, config = _make_populated_store()
 
-    from cataforge.kg.snapshot import create_snapshot
+    from cataforge.domain.kg.snapshot import create_snapshot
 
     meta = create_snapshot(
         handle.raw, config, tmp_path / "snapshots", label="my label/v2"

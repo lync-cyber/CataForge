@@ -702,7 +702,7 @@ def sha256_dir(directory: Path) -> Dict[str, str]:
 
 def test_export_idempotency(tmp_path, populated_graph):
     """Two consecutive compile_to_markdown() calls must produce byte-identical output."""
-    from cataforge.kg.export.pipeline import compile_to_markdown
+    from cataforge.domain.kg.export.pipeline import compile_to_markdown
 
     out1 = tmp_path / "export1"
     out2 = tmp_path / "export2"
@@ -987,17 +987,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from cataforge.kg.export.types import (
+from cataforge.domain.kg.export.types import (
     CompileResult,
     EntityFilter,
     FileExportRecord,
     KnowledgeGraphProtocol,
 )
-from cataforge.kg.export.registry import SparqlRegistry
-from cataforge.kg.export.hydrator import hydrate_entity, stable_sort_relations
-from cataforge.kg.export.template_loader import build_jinja_env
-from cataforge.kg.export.postprocess import PostProcessor
-from cataforge.kg.export.snapshot import SnapshotManager
+from cataforge.domain.kg.export.registry import SparqlRegistry
+from cataforge.domain.kg.export.hydrator import hydrate_entity, stable_sort_relations
+from cataforge.domain.kg.export.template_loader import build_jinja_env
+from cataforge.domain.kg.export.postprocess import PostProcessor
+from cataforge.domain.kg.export.snapshot import SnapshotManager
 
 logger = logging.getLogger(__name__)
 

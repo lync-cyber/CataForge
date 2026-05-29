@@ -157,7 +157,7 @@ jobs:
         # Strategy (docs/contributing.md § 类型检查):
         #  - Full repo: `mypy src` is informational. CI prints the count
         #    so type debt is visible, but does not fail the build.
-        #  - Strict-clean packages (currently cataforge.services.*) MUST
+        #  - Strict-clean packages (currently cataforge.application.services.*) MUST
         #    have zero errors. New strict-opt-in packages add rows here.
         if: runner.os == 'Linux'
         run: |
@@ -166,7 +166,7 @@ jobs:
           python -m mypy src/cataforge --no-incremental || true
           echo "::endgroup::"
           echo "::group::Strict packages (must be clean)"
-          python -m mypy --strict --no-incremental src/cataforge/services
+          python -m mypy --strict --no-incremental src/cataforge/application/services
           echo "::endgroup::"
 
       - name: "platform dry-run snapshots (cursor / codex / opencode)"

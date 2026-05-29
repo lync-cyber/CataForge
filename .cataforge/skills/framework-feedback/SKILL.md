@@ -88,7 +88,7 @@ label 由 `framework.json#feedback.gh.labels` 配置（`bug` / `suggest` / `corr
 | feedback_redaction | 路径脱敏 (~ / <project>，--include-paths 显式关闭) | fail |
 | feedback_sinks | 输出通道 --print / --out / --clip / --gh 互斥校验 | fail |
 
-权威清单见 `cataforge.skill.builtins.framework_feedback.CHECKS_MANIFEST`。
+权威清单见 `cataforge.runtime.skill.builtins.framework_feedback.CHECKS_MANIFEST`。
 
 ## Anti-Patterns
 - 把下游项目自身的用户反馈走这条 skill —— 本 skill 仅打包"对 CataForge 框架"的反馈

@@ -54,6 +54,10 @@ CHECKS: list[tuple[str, list[str]]] = [
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_doc_structure.py")],
     ),
     (
+        "layered dependency direction",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_layer_dependencies.py")],
+    ),
+    (
         "no QueryBoolean == True",
         [
             sys.executable,

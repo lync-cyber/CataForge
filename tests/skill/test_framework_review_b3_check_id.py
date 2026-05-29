@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-from cataforge.skill.builtins.framework_review.framework_check import (
+from cataforge.runtime.skill.builtins.framework_review.framework_check import (
     Report,
     check_b3_manifest_drift,
 )
@@ -54,11 +54,11 @@ def _stub_manifest_module(monkeypatch, module_name: str, manifest: tuple) -> Non
 
 
 # Reuse the existing builtin map keys so check_b3_manifest_drift picks
-# our fixture up. Using "code-review" → "cataforge.skill.builtins.code_review"
+# our fixture up. Using "code-review" → "cataforge.runtime.skill.builtins.code_review"
 # means we must also stub-import that module to avoid the real one
 # loading.
 _TEST_SKILL_ID = "code-review"
-_TEST_MODULE = "cataforge.skill.builtins.code_review"
+_TEST_MODULE = "cataforge.runtime.skill.builtins.code_review"
 
 
 def test_b3_anchor_happy_path_no_findings(tmp_path: Path, monkeypatch) -> None:
@@ -161,7 +161,7 @@ def test_b3_mixed_anchor_and_delegation_only_orphan_fails(
     leave less-important ones to the manifest alone.
     """
     body = (
-        "> 权威清单见 `cataforge.skill.builtins.X.CHECKS_MANIFEST`。\n\n"
+        "> 权威清单见 `cataforge.runtime.skill.builtins.X.CHECKS_MANIFEST`。\n\n"
         "- 关键检查\n"
         "  <!-- check_id: ID_A -->\n"
         "- 误锚点\n"
@@ -198,7 +198,7 @@ def test_b3_delegation_alone_unchanged(tmp_path: Path, monkeypatch) -> None:
     """Delegation marker without anchors → manifest existence is the only
     contract (legacy delegation behavior preserved)."""
     body = (
-        "> 权威清单见 `cataforge.skill.builtins.X.CHECKS_MANIFEST`（"
+        "> 权威清单见 `cataforge.runtime.skill.builtins.X.CHECKS_MANIFEST`（"
         "framework-review 自动对账，本段与 manifest 不一致即 FAIL）。\n\n"
         "- 检查 A 简述\n"
         "- 检查 B 简述\n"

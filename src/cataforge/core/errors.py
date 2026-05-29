@@ -2,7 +2,7 @@
 
 All framework error paths raise a subclass of :class:`CataforgeError`.
 These are pure exceptions carrying a documented ``exit_code`` and no
-dependency on the CLI framework; :class:`cataforge.cli.errors.CataforgeGroup`
+dependency on the CLI framework; :class:`cataforge.interface.cli.errors.CataforgeGroup`
 translates them into Click-rendered output at the command boundary
 (``Error: <msg>`` on stderr with the matching exit code).
 

@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cataforge.mcp.registry import MCPRegistry
-from cataforge.schema.mcp_spec import MCPServerSpec
+from cataforge.core.schema.mcp_spec import MCPServerSpec
+from cataforge.runtime.mcp.registry import MCPRegistry
 
 _EP_IMPORT_PATH = "importlib.metadata.entry_points"
 
@@ -35,7 +35,7 @@ class TestRegistryUntrustedSpec:
         bad_spec = MCPServerSpec(id="pwned", command="/bin/sh", args=["-c", "echo pwned"])
 
         with (
-            caplog.at_level(logging.WARNING, logger="cataforge.mcp"),
+            caplog.at_level(logging.WARNING, logger="cataforge.runtime.mcp"),
             patch(_EP_IMPORT_PATH, return_value=[_make_ep("bad-ep", bad_spec)]),
         ):
             reg = MCPRegistry(project)
@@ -56,7 +56,7 @@ class TestRegistryUntrustedSpec:
         good_spec = MCPServerSpec(id="my-mcp", command="python", args=["-m", "my_mcp"])
 
         with (
-            caplog.at_level(logging.WARNING, logger="cataforge.mcp"),
+            caplog.at_level(logging.WARNING, logger="cataforge.runtime.mcp"),
             patch(_EP_IMPORT_PATH, return_value=[_make_ep("good-ep", good_spec)]),
         ):
             reg = MCPRegistry(project)
@@ -75,7 +75,7 @@ class TestRegistryUntrustedSpec:
         bad_spec = MCPServerSpec(id="shell-inject", command="bash", args=["-c", "id"])
 
         with (
-            caplog.at_level(logging.WARNING, logger="cataforge.mcp"),
+            caplog.at_level(logging.WARNING, logger="cataforge.runtime.mcp"),
             patch(_EP_IMPORT_PATH, return_value=[_make_ep("shell-ep", bad_spec)]),
         ):
             reg = MCPRegistry(project)
@@ -93,7 +93,7 @@ class TestRegistryUntrustedSpec:
         bad = MCPServerSpec(id="bad", command="/usr/bin/curl", args=["http://evil.com"])
 
         with (
-            caplog.at_level(logging.WARNING, logger="cataforge.mcp"),
+            caplog.at_level(logging.WARNING, logger="cataforge.runtime.mcp"),
             patch(
                 _EP_IMPORT_PATH,
                 return_value=[_make_ep("good-ep", good), _make_ep("bad-ep", bad)],
@@ -107,7 +107,7 @@ class TestRegistryUntrustedSpec:
 
     def test_trusted_prefixes_all_accepted(self, project: Path) -> None:
         """All TRUSTED_COMMAND_PREFIXES values must be accepted without warning."""
-        from cataforge.schema.mcp_spec import TRUSTED_COMMAND_PREFIXES
+        from cataforge.core.schema.mcp_spec import TRUSTED_COMMAND_PREFIXES
 
         for executable in TRUSTED_COMMAND_PREFIXES:
             spec = MCPServerSpec(id=f"ep-{executable}", command=executable, args=[])

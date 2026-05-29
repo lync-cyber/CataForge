@@ -9,9 +9,9 @@ from unittest.mock import patch
 import pytest
 import yaml
 
+from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
-from cataforge.deploy.deployer import Deployer
-from cataforge.platform.registry import clear_cache
+from cataforge.runtime.deploy.deployer import Deployer
 
 # ---------------------------------------------------------------------------
 # Shared helpers (mirrors test_deployer.py style)
@@ -189,9 +189,9 @@ def test_hook_generation_failure_logs_traceback_and_continues(
         # branch and its plugin-specific hint.
         raise AttributeError("simulated plugin method removed in upstream")
 
-    caplog.set_level(logging.ERROR, logger="cataforge.deploy.deployer")
+    caplog.set_level(logging.ERROR, logger="cataforge.runtime.deploy.deployer")
     with patch(
-        "cataforge.hook.bridge.generate_platform_hooks",
+        "cataforge.runtime.hook.bridge.generate_platform_hooks",
         side_effect=_exploding_generate,
     ):
         actions = deployer.deploy("claude-code")

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.kg import KGConfig
-from cataforge.kg._config import BUSINESS_DOC_TYPES
+from cataforge.domain.kg import KGConfig
+from cataforge.domain.kg._config import BUSINESS_DOC_TYPES
 
 
 def test_defaults_match_spec() -> None:

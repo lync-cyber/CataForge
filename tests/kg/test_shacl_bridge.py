@@ -42,7 +42,7 @@ def test_pyoxigraph_to_rdflib_roundtrip() -> None:
     if not _HAS_SHACL_DEPS:
         pytest.skip("rdflib not installed")
 
-    from cataforge.kg.validate import _pyoxigraph_to_rdflib
+    from cataforge.domain.kg.validate import _pyoxigraph_to_rdflib
 
     store = _make_store_with_entity()
     g = _pyoxigraph_to_rdflib(store)
@@ -65,7 +65,7 @@ def test_ox_to_rdflib_handles_datatypes() -> None:
     import pyoxigraph as ox
     import rdflib
 
-    from cataforge.kg.validate import _ox_to_rdflib_term
+    from cataforge.domain.kg.validate import _ox_to_rdflib_term
 
     named = ox.NamedNode("http://example.org/x")
     assert _ox_to_rdflib_term(named) == rdflib.URIRef("http://example.org/x")
@@ -87,7 +87,7 @@ def test_ox_to_rdflib_handles_datatypes() -> None:
 
 
 def test_run_shacl_skips_when_deps_missing() -> None:
-    from cataforge.kg.validate import _run_shacl
+    from cataforge.domain.kg.validate import _run_shacl
 
     store = _make_store_with_entity()
     skipped, violations = _run_shacl(store)
@@ -102,10 +102,10 @@ def test_run_shacl_skips_when_shapes_file_missing() -> None:
 
     from unittest.mock import patch
 
-    from cataforge.kg.validate import _run_shacl
+    from cataforge.domain.kg.validate import _run_shacl
 
     store = _make_store_with_entity()
-    with patch("cataforge.kg.validate._find_shapes_file", return_value=None):
+    with patch("cataforge.domain.kg.validate._find_shapes_file", return_value=None):
         skipped, violations = _run_shacl(store)
 
     assert skipped is True
@@ -120,7 +120,7 @@ def test_run_shacl_detects_violation_with_inline_shapes(
 
     from unittest.mock import patch
 
-    from cataforge.kg.validate import _run_shacl
+    from cataforge.domain.kg.validate import _run_shacl
 
     shapes_ttl = tmp_path / "shapes.ttl"
     shapes_ttl.write_text(
@@ -141,7 +141,7 @@ cf:FeatureShape a sh:NodeShape ;
     )
 
     store = _make_store_with_entity()
-    with patch("cataforge.kg.validate._find_shapes_file", return_value=shapes_ttl):
+    with patch("cataforge.domain.kg.validate._find_shapes_file", return_value=shapes_ttl):
         skipped, violations = _run_shacl(store)
 
     assert skipped is False
@@ -157,7 +157,7 @@ def test_run_shacl_passes_with_conforming_data(
 
     from unittest.mock import patch
 
-    from cataforge.kg.validate import _run_shacl
+    from cataforge.domain.kg.validate import _run_shacl
 
     shapes_ttl = tmp_path / "shapes.ttl"
     shapes_ttl.write_text(
@@ -180,7 +180,7 @@ cf:FeatureShape a sh:NodeShape ;
     )
 
     store = _make_store_with_entity()
-    with patch("cataforge.kg.validate._find_shapes_file", return_value=shapes_ttl):
+    with patch("cataforge.domain.kg.validate._find_shapes_file", return_value=shapes_ttl):
         skipped, violations = _run_shacl(store)
 
     assert skipped is False

@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.platform.registry import get_adapter
+from cataforge.adapter.platform.registry import get_adapter
 
 
 @pytest.fixture()

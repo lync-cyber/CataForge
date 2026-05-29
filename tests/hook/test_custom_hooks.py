@@ -3,14 +3,14 @@
 Users can drop their own hooks into ``.cataforge/hooks/custom/<name>.py``
 and reference them from ``hooks.yaml`` with a ``custom:`` prefix.  The
 bridge rewrites the invocation command to run the file directly instead
-of going through the ``cataforge.hook.scripts`` package namespace.
+of going through the ``cataforge.runtime.hook.scripts`` package namespace.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from cataforge.hook.bridge import generate_platform_hooks
+from cataforge.runtime.hook.bridge import generate_platform_hooks
 
 
 class _StubAdapter:
@@ -29,11 +29,11 @@ class _StubAdapter:
         return {"custom:my_scan": "native"}
 
     def get_hook_command_template(self) -> str:
-        return "python -m cataforge.hook.scripts.{module}"
+        return "python -m cataforge.runtime.hook.scripts.{module}"
 
 
 def test_custom_hook_uses_file_invocation(monkeypatch: pytest.MonkeyPatch) -> None:
-    import cataforge.hook.bridge as bridge
+    import cataforge.runtime.hook.bridge as bridge
 
     spec = {
         "hooks": {
@@ -57,4 +57,4 @@ def test_custom_hook_uses_file_invocation(monkeypatch: pytest.MonkeyPatch) -> No
     # the file directly rather than going through the ``-m`` package path.
     assert cmd == "python .cataforge/hooks/custom/my_scan.py"
     # And the module-style command must NOT be used for customs.
-    assert "cataforge.hook.scripts" not in cmd
+    assert "cataforge.runtime.hook.scripts" not in cmd

@@ -2,7 +2,7 @@
 """Markdown → KG migration codemod (task-7 §7.2 six-phase pipeline).
 
 This script is a thin shell wrapper around `cataforge kg import`; the
-real logic lives in `cataforge.kg.ingest`. Use the CLI for normal
+real logic lives in `cataforge.domain.kg.ingest`. Use the CLI for normal
 operation:
 
     cataforge kg import --project-root . --doc-type prd --doc-type arch
@@ -25,7 +25,7 @@ ensure_utf8()
 
 
 def main(argv: list[str] | None = None) -> int:
-    from cataforge.cli.main import _register_commands, cli  # noqa: PLC0415
+    from cataforge.interface.cli.main import _register_commands, cli  # noqa: PLC0415
 
     _register_commands()
     argv = ["kg", "import", *(argv if argv is not None else sys.argv[1:])]

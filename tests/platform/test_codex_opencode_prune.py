@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.platform.codex import CodexAdapter
-from cataforge.platform.opencode import OpenCodeAdapter
+from cataforge.adapter.platform.codex import CodexAdapter
+from cataforge.adapter.platform.opencode import OpenCodeAdapter
 
 # Minimal AGENT.md that survives translator filtering on both platforms.
 _AGENT_MD = """---
