@@ -11,10 +11,14 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
+from typing import TYPE_CHECKING
 
 from cataforge.adapter.platform.conformance import ALL_PLATFORMS
 from cataforge.core.errors import ConfigError
 from cataforge.core.version import parse_semver
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 
 class StepPlan:
@@ -49,7 +53,7 @@ class Plan:
         return any(s.action == "run" for s in self.steps if s.name != "doctor")
 
 
-def build_plan(cfg, *, requested_platform: str | None) -> Plan:
+def build_plan(cfg: ConfigManager, *, requested_platform: str | None) -> Plan:
     """Inspect on-disk state and decide what each step must do."""
     from cataforge.core.scaffold import classify_scaffold_files
 
