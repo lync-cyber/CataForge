@@ -88,13 +88,6 @@ CHECKS: list[tuple[str, list[str]]] = [
             str(REPO_ROOT / "scripts" / "checks" / "check_echo_err_for_errors.py"),
         ],
     ),
-    (
-        "shim deprecation quota",
-        [
-            sys.executable,
-            str(REPO_ROOT / "scripts" / "checks" / "check_deprecation_quota.py"),
-        ],
-    ),
     # `uv lock --check` is not in .pre-commit-config.yaml (it needs the uv
     # binary, which is not pip-installable), but CI runs it and a stale
     # lockfile fails the build. Keep it in this wrapper to close the loop.
