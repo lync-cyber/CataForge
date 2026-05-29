@@ -115,6 +115,7 @@ opencode.json
 # CataForge internal state
 .cataforge/.deploy-state
 .cataforge/.deploy-manifest.json
+.cataforge/.scaffold-manifest.json
 .cataforge/.mcp-state/
 .cataforge/.instruction-hashes.json
 .cataforge/.backups/
