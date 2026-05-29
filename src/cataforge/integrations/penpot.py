@@ -59,7 +59,8 @@ DEFAULT_PLUGIN_PORT = 4400
 # Pin to a Penpot release whose frontend image and MCP server are known to
 # agree. ``latest`` floats and has burned users when the upstream monorepo
 # adds new build-script-bearing dependencies that pnpm 10+ refuses by default.
-DEFAULT_MCP_PACKAGE_VERSION = "latest"
+# Override with PENPOT_MCP_VERSION to track a newer release.
+DEFAULT_MCP_PACKAGE_VERSION = "2.15.0"
 
 # Node major versions @penpot/mcp upstream tests against. Outside this range
 # we still let the user proceed (warn only) — pinning hard is too aggressive
@@ -213,9 +214,7 @@ def get_config() -> dict[str, Any]:
             "enable-login-with-password disable-email-verification "
             "enable-smtp enable-prepl-server disable-secure-session-cookies",
         ),
-        "mcp_version": os.environ.get(
-            "PENPOT_MCP_VERSION", DEFAULT_MCP_PACKAGE_VERSION
-        ),
+        "mcp_version": os.environ.get("PENPOT_MCP_VERSION", DEFAULT_MCP_PACKAGE_VERSION),
     }
 
 
@@ -445,14 +444,19 @@ def start_mcp(config: dict) -> bool:
     with open(MCP_LOG_FILE, "wb") as log_fh:
         if PLATFORM == "windows":
             proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
-                cmd, stdout=log_fh, stderr=subprocess.STDOUT,
+                cmd,
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
                 env=env,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
             )
         else:
             proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
-                cmd, stdout=log_fh, stderr=subprocess.STDOUT,
-                env=env, start_new_session=True,
+                cmd,
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                env=env,
+                start_new_session=True,
             )
     _write_mcp_pid(proc.pid)
     info(f"等待 MCP Server 就绪 (最多 {MCP_HEALTH_TIMEOUT}s)...")
@@ -565,25 +569,45 @@ def stop_mcp(config: dict) -> bool:
     return True
 
 
+def _run_claude_mcp(args: list[str]) -> subprocess.CompletedProcess[str] | None:
+    """Run ``claude mcp …`` best-effort; return None if it hangs or is absent.
+
+    ``claude mcp list`` health-checks every registered MCP server serially,
+    so on a machine with several slow remote servers it routinely exceeds a
+    short budget. A hung claude CLI must not abort an already-started Penpot
+    MCP — registration is convenience, not a precondition.
+    """
+    try:
+        return run_cmd(["claude", *args], timeout=30)
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+
+
 def register_claude_mcp(config: dict) -> None:
     section("注册 MCP 到 Claude Code")
     mcp_url = f"http://localhost:{config['mcp_port']}/mcp"
+    manual_hint = f"claude mcp add penpot -t http {mcp_url}"
     if not has_command("claude"):
-        info(
-            f"Claude Code CLI 未检测到，请手动注册:\n"
-            f"    {BOLD}claude mcp add penpot -t http {mcp_url}{NC}"
-        )
+        info(f"Claude Code CLI 未检测到，请手动注册:\n    {BOLD}{manual_hint}{NC}")
         return
-    result = run_cmd(["claude", "mcp", "list"], timeout=10)
-    if result.returncode == 0 and result.stdout and "penpot" in result.stdout.lower():
+    listed = _run_claude_mcp(["mcp", "list"])
+    if (
+        listed is not None
+        and listed.returncode == 0
+        and listed.stdout
+        and "penpot" in listed.stdout.lower()
+    ):
         ok("Claude Code 已注册 penpot MCP")
         return
-    result = run_cmd(["claude", "mcp", "add", "penpot", "-t", "http", mcp_url], timeout=10)
-    stdout = result.stdout or ""
-    if result.returncode == 0 or "Added" in stdout or "already" in stdout:
+    added = _run_claude_mcp(["mcp", "add", "penpot", "-t", "http", mcp_url])
+    if added is None:
+        warn(f"claude CLI 无响应，请手动注册: {manual_hint}")
+        return
+    stdout = added.stdout or ""
+    if added.returncode == 0 or "Added" in stdout or "already" in stdout:
         ok("已注册到 Claude Code")
     else:
-        warn(f"自动注册失败，请手动执行: claude mcp add penpot -t http {mcp_url}")
+        warn(f"自动注册失败，请手动执行: {manual_hint}")
 
 
 # ---------------------------------------------------------------------------
@@ -646,9 +670,7 @@ def print_remote_onboarding(config: dict) -> None:
     plugin (not the REST API), so the SaaS flow requires the user to load the
     plugin manifest into the Penpot UI exactly once per browser session.
     """
-    plugin_manifest = (
-        f"http://localhost:{config['plugin_port']}/manifest.json"
-    )
+    plugin_manifest = f"http://localhost:{config['plugin_port']}/manifest.json"
     mcp_endpoint = f"http://localhost:{config['mcp_port']}/mcp"
     section("浏览器侧设置（必须完成才能让 LLM 看到设计）")
     steps = [
@@ -664,9 +686,7 @@ def print_remote_onboarding(config: dict) -> None:
         f"\n  {DIM}提示: Chrome 142+ 会弹出 'Private Network Access' 授权框，"
         f"允许即可；Brave 需要对 design.penpot.app 关闭 Shield。{NC}"
     )
-    print(
-        f"  {DIM}插件 UI 关闭后 WebSocket 会断开 — 让 Plugin 面板保持打开。{NC}\n"
-    )
+    print(f"  {DIM}插件 UI 关闭后 WebSocket 会断开 — 让 Plugin 面板保持打开。{NC}\n")
 
 
 def cmd_remote(config: dict) -> int:
@@ -869,10 +889,7 @@ def cmd_doctor(config: dict) -> int:
         else:
             warn("compose 文件未包含 disable-mcp / PENPOT_MCP_URI 占位（Bug 1 未修）")
             problems.append("compose-stale")
-            actions.append(
-                "运行 `cataforge penpot deploy --force-recreate` "
-                "重写 compose 文件"
-            )
+            actions.append("运行 `cataforge penpot deploy --force-recreate` 重写 compose 文件")
     else:
         info(f"未找到 compose 文件: {compose_file}")
 
@@ -966,10 +983,17 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="CataForge Penpot integration")
     parser.add_argument(
-        "command", nargs="?",
+        "command",
+        nargs="?",
         choices=[
-            "init", "deploy", "mcp-only", "remote",
-            "start", "stop", "status", "doctor",
+            "init",
+            "deploy",
+            "mcp-only",
+            "remote",
+            "start",
+            "stop",
+            "status",
+            "doctor",
         ],
     )
     parser.add_argument("--ensure", action="store_true")
