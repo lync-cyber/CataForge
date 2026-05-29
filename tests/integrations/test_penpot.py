@@ -413,13 +413,13 @@ def test_node_major_handles_garbage() -> None:
 
 def test_preflight_warns_on_unsupported_node(capsys) -> None:
     with (
-        patch("cataforge.integrations.penpot.has_command", return_value=True),
+        patch("cataforge.integrations.penpot.docker.has_command", return_value=True),
         patch(
-            "cataforge.integrations.penpot.get_command_version",
+            "cataforge.integrations.penpot.docker.get_command_version",
             return_value="v25.8.0",
         ),
         patch(
-            "cataforge.integrations.penpot.docker_compose_cmd",
+            "cataforge.integrations.penpot.docker.docker_compose_cmd",
             return_value=["docker", "compose"],
         ),
     ):
