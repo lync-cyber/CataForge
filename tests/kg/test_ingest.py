@@ -17,8 +17,7 @@ VARIANTS = ("waterfall", "agile")
 
 
 def _open_memory_store():
-    from cataforge.kg import KGConfig
-    from cataforge.kg.store import init_store
+    from cataforge.kg import KGConfig, init_store
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config
@@ -169,11 +168,10 @@ def test_run_migration_phase5_rolls_back_on_write_entities_failure() -> None:
     """Phase 5 compensating rollback: store has no new entities after write_entities raises (C3)."""
     from unittest.mock import patch
 
-    from cataforge.kg import KGConfig
+    from cataforge.kg import KGConfig, init_store
     from cataforge.kg._quads import quads_for_subject
     from cataforge.kg.ingest import run_migration
     from cataforge.kg.ingest.iri import entity_iri
-    from cataforge.kg.store import init_store
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)

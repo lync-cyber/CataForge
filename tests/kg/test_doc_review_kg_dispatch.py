@@ -15,9 +15,8 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-s
 
 def _setup_project(tmp_path: Path, variant: str = "waterfall") -> Path:
     """Create a minimal CataForge project with an ingested KG store."""
-    from cataforge.kg import KGConfig
+    from cataforge.kg import KGConfig, init_store
     from cataforge.kg.ingest import run_migration
-    from cataforge.kg.store import init_store
 
     project = tmp_path / "project"
     project.mkdir()

@@ -74,7 +74,7 @@ def kg_import(
     json_output: bool,
 ) -> None:
     """Ingest business documents into the KG (six-phase pipeline)."""
-    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.kg._dispatch import active_doc_types
     from cataforge.kg.ingest import DEFAULT_DOC_TYPES, run_migration
 
@@ -96,7 +96,7 @@ def kg_import(
 
     try:
         if backend == "memory":
-            from cataforge.kg.store import init_store  # noqa: PLC0415
+            from cataforge.kg import init_store  # noqa: PLC0415
 
             handle = init_store(config, force=True)
             with contextlib.closing(handle):
@@ -108,9 +108,9 @@ def kg_import(
                     dry_run=dry_run,
                 )
         else:
-            with KnowledgeGraphStore.connect(config) as handle:
+            with KnowledgeGraph.connect(config) as kg:
                 stats, _entities, _relations = run_migration(
-                    handle.raw,
+                    kg.store,
                     project_root,
                     config,
                     doc_types=tuple(types),
@@ -170,13 +170,13 @@ def kg_import(
 )
 def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
     """Check the live KG for orphan nodes and broken traceability edges."""
-    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.kg.validate import validate
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
-        with KnowledgeGraphStore.connect(config) as handle:
-            report = validate(handle.raw, config, run_shacl=shacl)
+        with KnowledgeGraph.connect(config) as kg:
+            report = validate(kg.store, config, run_shacl=shacl)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
 
@@ -241,13 +241,13 @@ def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
 )
 def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
     """Export the KG to per-entity Markdown files."""
-    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.kg.export import compile_to_markdown
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
-        with KnowledgeGraphStore.connect(config) as handle:
-            result = compile_to_markdown(handle.raw, output_dir)
+        with KnowledgeGraph.connect(config) as kg:
+            result = compile_to_markdown(kg.store, output_dir)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
 
@@ -333,7 +333,7 @@ def kg_reconcile(
     `missing` or `ghost` entry exists. Operationally used to spot
     drift after every `cataforge kg import`.
     """
-    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.kg._dispatch import kg_config_for
     from cataforge.kg.reconcile import reconcile, write_report
 
@@ -358,8 +358,8 @@ def kg_reconcile(
     )
 
     try:
-        with KnowledgeGraphStore.connect(config) as handle:
-            report = reconcile(handle.raw, project_root, config)
+        with KnowledgeGraph.connect(config) as kg:
+            report = reconcile(kg.store, project_root, config)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
 

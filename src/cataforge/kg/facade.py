@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cataforge.kg._config import KGConfig
+from cataforge.kg._store import _open_pyoxigraph
 from cataforge.kg.query import QueryAPI
-from cataforge.kg.store import _open_pyoxigraph
 from cataforge.kg.trace import TraceAPI
 from cataforge.kg.transaction import TransactionContext, transaction
 
@@ -75,7 +75,7 @@ class KnowledgeGraph:
 
         The store is opened read-only-by-convention; writes still work
         but should always go through :meth:`transaction`. Lifecycle
-        guarantees match :class:`cataforge.kg.store.KnowledgeGraphStore`
+        guarantees match :class:`cataforge.kg._store.KnowledgeGraphStore`
         (no explicit close in pyoxigraph 0.5.x).
         """
         store = _open_pyoxigraph(config, create=False)

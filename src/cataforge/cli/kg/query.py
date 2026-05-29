@@ -65,7 +65,7 @@ def kg_query(
 
     QUERY_OR_FILE is a SPARQL string or a path to a .sparql file.
     """
-    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
 
     sparql = _resolve_sparql_input(query_or_file)
     _guard_sparql_writes(sparql)
@@ -73,13 +73,13 @@ def kg_query(
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
-        with KnowledgeGraphStore.connect(config) as handle:
+        with KnowledgeGraph.connect(config) as kg:
             result_box: list[object] = []
             error_box: list[Exception] = []
 
             def _run_query() -> None:
                 try:
-                    raw = handle.raw.query(sparql)
+                    raw = kg.store.query(sparql)
                     result_box.append(_materialize_query_result(raw))
                 except Exception as exc:  # noqa: BLE001
                     error_box.append(exc)

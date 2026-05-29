@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from cataforge.kg._config import KGConfig
 from cataforge.kg._errors import KGError, KGStoreAlreadyExistsError
-from cataforge.kg.store import init_store
+from cataforge.kg._store import init_store
 
 if TYPE_CHECKING:
     import pyoxigraph as ox

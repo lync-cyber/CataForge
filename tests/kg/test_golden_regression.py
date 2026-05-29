@@ -22,9 +22,8 @@ _UPDATE = os.environ.get("UPDATE_GOLDEN") == "1"
 
 
 def _build_store(variant: str):
-    from cataforge.kg import KGConfig
+    from cataforge.kg import KGConfig, init_store
     from cataforge.kg.ingest import run_migration
-    from cataforge.kg.store import init_store
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)

@@ -1,8 +1,10 @@
 """CataForge knowledge graph package.
 
-Public surface: `KnowledgeGraph` facade (query / trace / transaction),
-`KGConfig`, `KnowledgeGraphStore`, `init_store`, `ask`, and the KG
-exception hierarchy.
+Primary entry point is the `KnowledgeGraph` facade (query / trace /
+write-lock-guarded transaction). Read/CLI callers go through the facade and
+its typed sub-APIs; the low-level `KnowledgeGraphStore` (in the internal
+`_store` module) and `init_store` remain available for store creation and
+ingest paths that operate on the raw pyoxigraph store.
 """
 
 from __future__ import annotations
@@ -16,14 +18,14 @@ from cataforge.kg._errors import (
     KGStoreNotInitializedError,
     KGValidationError,
 )
-from cataforge.kg.export.render import render_entity
-from cataforge.kg.facade import KnowledgeGraph, open_store
-from cataforge.kg.query import QueryAPI
-from cataforge.kg.store import (
+from cataforge.kg._store import (
     KnowledgeGraphStore,
     bootstrap_subclass_axioms,
     init_store,
 )
+from cataforge.kg.export.render import render_entity
+from cataforge.kg.facade import KnowledgeGraph, open_store
+from cataforge.kg.query import QueryAPI
 from cataforge.kg.trace import TraceAPI
 from cataforge.kg.transaction import TransactionContext
 

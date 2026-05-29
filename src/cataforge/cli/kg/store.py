@@ -114,13 +114,13 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
 )
 def kg_snapshot(db_path: Path, output_dir: Path, label: str | None) -> None:
     """Save a full snapshot of the current KG store."""
-    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.kg.snapshot import create_snapshot
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
-        with KnowledgeGraphStore.connect(config) as handle:
-            meta = create_snapshot(handle.raw, config, output_dir, label=label)
+        with KnowledgeGraph.connect(config) as kg:
+            meta = create_snapshot(kg.store, config, output_dir, label=label)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
 
@@ -205,7 +205,7 @@ def kg_repair(
     json_output: bool,
 ) -> None:
     """Auto-fix KG drift detected by reconcile."""
-    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.kg._dispatch import kg_config_for
     from cataforge.kg.repair import repair
 
@@ -221,8 +221,8 @@ def kg_repair(
     )
 
     try:
-        with KnowledgeGraphStore.connect(config) as handle:
-            stats = repair(handle.raw, project_root, config, dry_run=dry_run)
+        with KnowledgeGraph.connect(config) as kg:
+            stats = repair(kg.store, project_root, config, dry_run=dry_run)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
 

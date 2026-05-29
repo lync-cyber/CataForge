@@ -39,8 +39,7 @@ EXPECTED_RELATIONS = {
 }
 
 def _open_memory_store():
-    from cataforge.kg import KGConfig
-    from cataforge.kg.store import init_store
+    from cataforge.kg import KGConfig, init_store
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config

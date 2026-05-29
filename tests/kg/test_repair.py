@@ -171,10 +171,9 @@ def test_repair_ghost_restored_when_reingest_fails(tmp_path) -> None:
 
 def test_repair_uses_framework_project_id(tmp_path) -> None:
     """repair() reads project_id from framework.json (C4 fix)."""
-    from cataforge.kg import KGConfig
+    from cataforge.kg import KGConfig, init_store
     from cataforge.kg.ingest import run_migration
     from cataforge.kg.repair import repair
-    from cataforge.kg.store import init_store
 
     project_root = tmp_path / "myproject"
     waterfall_root = FIXTURE_ROOT / "waterfall"

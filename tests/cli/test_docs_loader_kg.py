@@ -39,9 +39,8 @@ def reset_dispatch_cache():
 
 def _project_with_kg(tmp_path: Path, *, active: list[str]) -> Path:
     """Build a project root with an ingested KG store + framework.json."""
-    from cataforge.kg import KGConfig
+    from cataforge.kg import KGConfig, init_store
     from cataforge.kg.ingest import run_migration
-    from cataforge.kg.store import init_store
 
     project = tmp_path / "project"
     project.mkdir()
