@@ -8,17 +8,19 @@ module focuses exclusively on inter-document relationships.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 from cataforge.core.paths import project_root_from_docs_dir
 from cataforge.core.types import Severity
-from cataforge.runtime.skill.builtins._shared import Issue, IssueCollector
+from cataforge.runtime.skill.builtins._shared import CheckReport, Issue, IssueCollector
 from cataforge.runtime.skill.builtins.doc_consistency._checks import _CrossDocChecksMixin
 from cataforge.runtime.skill.builtins.doc_consistency._parse import (
     _find_docs,
     _read_all_content,
 )
+from cataforge.runtime.skill.builtins.doc_consistency._render import render_text
 from cataforge.utils.common import ensure_utf8
 
 
@@ -50,8 +52,6 @@ class CrossDocChecker(_CrossDocChecksMixin):
         message: str,
     ) -> None:
         self._issues.add(Severity(severity), category, message)
-        if not self._quiet:
-            print(f"{severity}: [{category}] {message}")
 
     def _has_content(self, doc_type: str) -> bool:
         return bool(self._content.get(doc_type, "").strip())
@@ -147,15 +147,22 @@ class CrossDocChecker(_CrossDocChecksMixin):
             return None  # no ACs ingested; let regex handle
         return prd_acs - referenced
 
-    def run(self) -> int:
-        """Run all cross-document checks. Return 0/1/2 per exit semantics."""
+    def collect(self) -> CheckReport:
+        """Run all cross-document checks and return a structured report.
+
+        Pure of console I/O: findings accumulate in ``self._issues`` and the
+        traceability matrix lands in ``summary``. Rendering (text or JSON)
+        is the caller's job via :mod:`._render` / :meth:`CheckReport.to_dict`.
+        """
         available = [dt for dt in ("prd", "arch", "ui-spec", "dev-plan") if self._has_content(dt)]
         if len(available) < 2:
-            print(f"跳过: 仅发现 {len(available)} 个文档类型，跨文档校验需要至少 2 个")
-            return 0
-
-        print(f"跨文档一致性校验: 发现 {', '.join(available)}")
-        print()
+            return CheckReport(
+                self._issues,
+                summary={"available": available, "skipped": True},
+                headline=(
+                    f"跳过: 仅发现 {len(available)} 个文档类型，跨文档校验需要至少 2 个"
+                ),
+            )
 
         self.check_prd_arch_ac_coverage()
         self.check_prd_arch_nfr_mapping()
@@ -167,49 +174,39 @@ class CrossDocChecker(_CrossDocChecksMixin):
         self.check_prd_uispec_user_facing_coverage()
         self.check_orphaned_components()
 
-        matrix = self.build_traceability_matrix()
-        if matrix:
-            print()
-            print("=== 需求追踪矩阵 ===")
-            print(
-                "| Feature | ACs | ARCH Module | ARCH API "
-                "| DEV-PLAN Task | UI-SPEC Page | Coverage |"
-            )
-            print("|" + "|".join(["---"] * 7) + "|")
-            for row in matrix:
-                print(
-                    f"| {row['feature']} | {row['ac_count']} "
-                    f"| {row['arch_modules']} | {row['arch_apis']} "
-                    f"| {row['devplan_tasks']} | {row['uispec_pages']} "
-                    f"| {row['coverage']} |"
-                )
+        return CheckReport(
+            self._issues,
+            summary={"available": available, "matrix": self.build_traceability_matrix()},
+            headline=f"跨文档一致性校验: 发现 {', '.join(available)}",
+        )
 
-            missing_count = sum(1 for r in matrix if r["coverage"] == "missing")
-            partial_count = sum(1 for r in matrix if r["coverage"] == "partial")
-            if missing_count > 0:
-                print(
-                    f"\n覆盖缺口: {missing_count} missing, {partial_count} partial "
-                    f"/ {len(matrix)} total"
-                )
-
-        print()
-        if self.errors:
-            print(f"CRITICAL/HIGH: {len(self.errors)} 项")
-            return 1
-        if self.warnings:
-            print(f"MEDIUM/LOW: {len(self.warnings)} 项 (无阻塞问题)")
-            return 2
-        print("PASS: 跨文档一致性校验全部通过")
-        return 0
+    def run(self) -> int:
+        """Run checks, print the text report (unless quiet), return 0/1/2."""
+        report = self.collect()
+        if not self._quiet:
+            print(render_text(report))
+        return report.exit_code
 
 
 def main() -> None:
     ensure_utf8()
     docs_dir = "docs/"
-    if len(sys.argv) > 1:
-        docs_dir = sys.argv[1]
+    fmt = "text"
+    args = sys.argv[1:]
+    if "--format" in args:
+        idx = args.index("--format")
+        fmt = args[idx + 1] if idx + 1 < len(args) else "text"
+        args = args[:idx] + args[idx + 2 :]
+    if args:
+        docs_dir = args[0]
+
     checker = CrossDocChecker(docs_dir)
-    sys.exit(checker.run())
+    report = checker.collect()
+    if fmt == "json":
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        print(render_text(report))
+    sys.exit(report.exit_code)
 
 
 if __name__ == "__main__":
