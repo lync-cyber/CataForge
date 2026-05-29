@@ -16,6 +16,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from cataforge.core.io import read_json
 from cataforge.utils.md_parse import iter_markdown_headings
 from cataforge.utils.patterns import (
     ITEM_ID_RE,
@@ -256,11 +257,7 @@ def update_single_doc(
 ) -> dict[str, Any]:
     if existing_index is None:
         index_path = os.path.join(project_root, "docs", INDEX_FILENAME)
-        if os.path.isfile(index_path):
-            with open(index_path, encoding="utf-8") as f:
-                existing_index = json.load(f)
-        else:
-            existing_index = _make_index({})
+        existing_index = read_json(index_path) if os.path.isfile(index_path) else _make_index({})
 
     documents = existing_index.get("documents", {})
     abs_path = os.path.join(project_root, doc_file) if not os.path.isabs(doc_file) else doc_file

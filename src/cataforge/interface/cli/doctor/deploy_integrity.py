@@ -13,10 +13,12 @@ either be a real file/dir or, if it is a symlink/junction, must resolve.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import click
+
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 
 from .provenance import _OWNED_DIRS_BY_PLATFORM
 
@@ -33,8 +35,8 @@ def check_deploy_integrity(cfg) -> int:
         return 0
 
     try:
-        state = json.loads(deploy_state_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        state = read_json(deploy_state_path)
+    except ConfigError:
         # provenance.py already reports the parse failure; don't double-count.
         return 0
 

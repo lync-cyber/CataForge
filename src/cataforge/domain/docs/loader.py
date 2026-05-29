@@ -22,6 +22,8 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.core.paths import find_project_root
 from cataforge.domain.docs._loader_kg import (
     _entity_id_to_ref as _entity_id_to_ref,
@@ -105,11 +107,10 @@ def _load_index(project_root: str) -> dict[str, Any] | None:
         _INDEX_CACHE_ROOT = project_root
         return None
     try:
-        with open(index_path, encoding="utf-8") as f:
-            _INDEX_CACHE = json.load(f)
+        _INDEX_CACHE = read_json(index_path)
         _INDEX_CACHE_ROOT = project_root
         return _INDEX_CACHE
-    except (json.JSONDecodeError, OSError):
+    except ConfigError:
         return None
 
 

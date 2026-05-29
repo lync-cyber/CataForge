@@ -38,6 +38,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.core.schema.mcp_spec import HealthCheckSpec, MCPServerSpec, MCPServerState
 from cataforge.runtime.mcp.registry import MCPRegistry
@@ -609,7 +611,7 @@ class MCPLifecycleManager:
         if not path.is_file():
             return None
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            data = read_json(path)
+        except ConfigError:
             return None
         return MCPServerState.model_validate(data)

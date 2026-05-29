@@ -23,6 +23,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
+
 logger = logging.getLogger("cataforge.runtime.hook")
 
 HOOK_ERROR_LOG_MAX_BYTES = 256 * 1024
@@ -68,10 +71,9 @@ def _detect_from_framework_json() -> str:
     if root is None:
         return "claude-code"
     try:
-        with open(ProjectPaths(root).framework_json, encoding="utf-8") as f:
-            config = json.load(f)
+        config = read_json(ProjectPaths(root).framework_json)
         return str(config.get("runtime", {}).get("platform", "claude-code"))
-    except (OSError, json.JSONDecodeError):
+    except ConfigError:
         return "claude-code"
 
 
@@ -100,7 +102,6 @@ def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
 
     Falls back to Claude Code defaults only when no profile can be found.
     """
-    import json as _json
 
     from cataforge.core.paths import ProjectPaths, find_project_root_or_none
 
@@ -121,7 +122,7 @@ def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
         profile_json = profile_yaml.with_suffix(".json")
         if profile_json.is_file():
             try:
-                raw = _json.loads(profile_json.read_text(encoding="utf-8"))
+                raw = read_json(profile_json)
                 if isinstance(raw, dict) and "tool_map" in raw:
                     return dict(raw["tool_map"])
             except Exception:

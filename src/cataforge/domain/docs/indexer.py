@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import argparse
 import glob
-import json
 import os
 import sys
 from typing import Any
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.core.paths import find_project_root
 from cataforge.domain.docs._index_build import INDEX_FILENAME as INDEX_FILENAME
 from cataforge.domain.docs._index_build import build_aliases as build_aliases
@@ -88,9 +89,8 @@ def find_stale_deps(project_root: str) -> list[dict[str, str]]:
     if not os.path.isfile(index_path):
         return []
     try:
-        with open(index_path, encoding="utf-8") as f:
-            index = json.load(f)
-    except (OSError, json.JSONDecodeError):
+        index = read_json(index_path)
+    except ConfigError:
         return []
 
     stale: list[dict[str, str]] = []
@@ -129,9 +129,8 @@ def find_invalid_doc_ids(project_root: str) -> list[dict[str, str]]:
     if not os.path.isfile(index_path):
         return []
     try:
-        with open(index_path, encoding="utf-8") as f:
-            index = json.load(f)
-    except (OSError, json.JSONDecodeError):
+        index = read_json(index_path)
+    except ConfigError:
         return []
 
     errors: list[dict[str, str]] = []
@@ -169,9 +168,8 @@ def find_alias_conflicts(project_root: str) -> list[dict[str, Any]]:
     if not os.path.isfile(index_path):
         return []
     try:
-        with open(index_path, encoding="utf-8") as f:
-            index = json.load(f)
-    except (OSError, json.JSONDecodeError):
+        index = read_json(index_path)
+    except ConfigError:
         return []
     conflicts = index.get("alias_conflicts") or []
     return list(conflicts) if isinstance(conflicts, list) else []
@@ -197,9 +195,8 @@ def find_xref_errors(project_root: str) -> list[dict[str, str]]:
     if not os.path.isfile(index_path):
         return []
     try:
-        with open(index_path, encoding="utf-8") as f:
-            index = json.load(f)
-    except (OSError, json.JSONDecodeError):
+        index = read_json(index_path)
+    except ConfigError:
         return []
 
     errors: list[dict[str, str]] = []
@@ -248,9 +245,8 @@ def find_stale_index_entries(project_root: str) -> list[tuple[str, str]]:
     if not os.path.isfile(index_path):
         return []
     try:
-        with open(index_path, encoding="utf-8") as f:
-            index = json.load(f)
-    except (OSError, json.JSONDecodeError):
+        index = read_json(index_path)
+    except ConfigError:
         return []
     stale: list[tuple[str, str]] = []
     for doc_id, entry in (index.get("documents") or {}).items():

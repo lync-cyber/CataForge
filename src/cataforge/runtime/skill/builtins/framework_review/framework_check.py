@@ -18,10 +18,11 @@ Exit codes follow §Layer 1 调用协议: 0=PASS, 1=FAIL, 2=usage error.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.core.paths import ProjectPaths
 from cataforge.utils.common import ensure_utf8
 
@@ -190,11 +191,11 @@ def main() -> None:
         threshold = DEFAULT_META_SIZE
         if fw_json.is_file():
             try:
-                data = json.loads(fw_json.read_text(encoding="utf-8"))
+                data = read_json(fw_json)
                 v = (data.get("constants") or {}).get("META_DOC_SPLIT_THRESHOLD_LINES")
                 if isinstance(v, int) and v > 0:
                     threshold = v
-            except (OSError, json.JSONDecodeError):
+            except ConfigError:
                 pass
 
     sys.exit(run(scope=args.scope, focus=focus, root=root, meta_size_threshold=threshold))

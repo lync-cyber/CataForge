@@ -7,13 +7,14 @@ that have not opted into KG cutover are not blocked.
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.core.paths import KG_STORE_REL
 from cataforge.domain.docs.loader import DEFAULT_DOC_TYPE_MAP
 
@@ -49,8 +50,8 @@ def _load_framework_json(cfg: ConfigManager) -> dict | None:
     if not Path(framework).is_file():
         return None
     try:
-        return json.loads(Path(framework).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        return read_json(framework)
+    except ConfigError:
         return None
 
 

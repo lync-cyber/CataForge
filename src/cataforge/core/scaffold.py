@@ -23,6 +23,9 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
+
 try:
     from importlib.resources.abc import Traversable
 except ImportError:  # Python 3.10 — `importlib.resources.abc` landed in 3.11.
@@ -156,8 +159,8 @@ MergeFn = Callable[[bytes, Path], bytes]
 def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
     """Overwrite scaffold-owned keys while preserving user-owned state."""
     try:
-        existing = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        existing = read_json(target)
+    except ConfigError:
         return new_bytes
 
     merged: dict[str, Any] = json.loads(new_bytes.decode("utf-8"))
@@ -295,8 +298,8 @@ def read_manifest(dest: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = read_json(path)
+    except ConfigError:
         return {}
     files_map = data.get("files") if isinstance(data, dict) else None
     if not isinstance(files_map, dict):

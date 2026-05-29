@@ -31,6 +31,8 @@ import json
 from collections.abc import Iterable
 from pathlib import Path
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.core.paths import DEPLOY_MANIFEST_REL
 
 _MANIFEST_VERSION = 1
@@ -89,8 +91,8 @@ def load_prior_manifest(project_root: Path) -> set[str]:
     if not path.is_file():
         return set()
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = read_json(path)
+    except ConfigError:
         return set()
     if not isinstance(data, dict):
         return set()
@@ -111,8 +113,8 @@ def load_prior_manifest_platform(project_root: Path) -> str | None:
     if not path.is_file():
         return None
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = read_json(path)
+    except ConfigError:
         return None
     if not isinstance(data, dict):
         return None

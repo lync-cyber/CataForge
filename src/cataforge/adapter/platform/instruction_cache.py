@@ -10,6 +10,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
+
 _INSTRUCTION_HASHES_REL = ".cataforge/.instruction-hashes.json"
 
 
@@ -18,8 +21,8 @@ def load_instruction_hashes(project_root: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = read_json(path)
+    except ConfigError:
         return {}
     if not isinstance(data, dict):
         return {}

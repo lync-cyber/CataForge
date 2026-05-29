@@ -8,11 +8,12 @@ old docs<->kg import cycle and the indexer->loader private-symbol crossing.
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.utils.patterns import REF_RE, SECTION_PATH_RE
 
 DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
@@ -52,14 +53,13 @@ def _load_doc_type_map(project_root: str) -> dict[str, str]:
     framework_json = ProjectPaths(Path(project_root)).framework_json
     if framework_json.is_file():
         try:
-            with open(framework_json, encoding="utf-8") as f:
-                data = json.load(f)
+            data = read_json(framework_json)
             override = (data.get("docs") or {}).get("doc_types")
             if isinstance(override, dict):
                 for k, v in override.items():
                     if isinstance(k, str) and isinstance(v, str):
                         merged[k] = v
-        except (json.JSONDecodeError, OSError):
+        except ConfigError:
             pass
 
     _DOC_TYPE_MAP_CACHE[project_root] = merged

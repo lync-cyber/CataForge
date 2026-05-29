@@ -13,7 +13,9 @@ from pathlib import Path
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.registry import get_adapter
 from cataforge.core.config import ConfigManager
+from cataforge.core.errors import ConfigError
 from cataforge.core.events import FRAMEWORK_DEPLOY, EventBus
+from cataforge.core.io import read_json
 from cataforge.runtime.deploy.manifest import (
     DeployManifest,
     load_prior_manifest,
@@ -336,8 +338,8 @@ class Deployer:
 
         if config_path.is_file():
             try:
-                existing = json.loads(config_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError) as e:
+                existing = read_json(config_path)
+            except ConfigError as e:
                 logger.warning("Overwriting invalid hook config %s: %s", config_path, e)
                 existing = {}
         else:
