@@ -52,7 +52,7 @@ hooks:
   SessionStart:
     - script: session_context
       type: observe
-      description: "会话初始化 + deploy 同步"
+      description: "记录 session_start 事件（不部署、不改 tracked 文件）"
 
 degradation_templates:
   guard_dangerous:

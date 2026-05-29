@@ -1,32 +1,38 @@
-"""SessionStart Hook: Log session_start and trigger auto-deploy."""
+"""SessionStart Hook: record a session_start event.
+
+Best-effort only: opening an IDE session must never mutate tracked files
+or shell out to other commands. The event is appended to the gitignored
+``docs/EVENT-LOG.jsonl``; any failure degrades to a stderr warning.
+"""
 
 import sys
 
 from cataforge.hook.base import hook_main, read_hook_input
-from cataforge.utils.run_subprocess import run as run_proc
 
 
-def _auto_deploy() -> None:
-    """Run cataforge deploy on session start."""
+def _log_session_start() -> None:
+    """Append a session_start event; warn (never raise) on failure."""
     try:
-        result = run_proc(
-            [sys.executable, "-m", "cataforge", "deploy"],
-            timeout=15,
+        from cataforge.core.event_log import append_event, now_iso
+        from cataforge.core.paths import find_project_root
+
+        append_event(
+            find_project_root(),
+            {
+                "ts": now_iso(),
+                "event": "session_start",
+                "phase": "session",
+                "detail": "IDE session started",
+            },
         )
-        if result.returncode != 0:
-            print(
-                f"warn: auto-deploy skipped (exit {result.returncode}): "
-                f"{(result.stderr or result.stdout).strip()}",
-                file=sys.stderr,
-            )
     except Exception as e:
-        print(f"warn: auto-deploy skipped: {e}", file=sys.stderr)
+        print(f"warn: session_start log skipped: {e}", file=sys.stderr)
 
 
 @hook_main
 def main() -> None:
     read_hook_input()
-    _auto_deploy()
+    _log_session_start()
     sys.exit(0)
 
 
