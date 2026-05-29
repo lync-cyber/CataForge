@@ -79,31 +79,31 @@ def ensure_utf8() -> None:
 
     Two-phase:
 
-    1. **Re-exec under Python UTF-8 Mode** (Windows only, idempotent, pytest-safe).
+    1. **Relaunch under Python UTF-8 Mode** (Windows only, idempotent, pytest-safe).
        Windows defaults ``locale.getpreferredencoding(False)`` to the ANSI code
        page (cp936/GBK on zh-CN). That makes ``text=True`` subprocess calls
        crash on UTF-8 bytes from child processes, and ``open()`` corrupt UTF-8
-       files. ``PYTHONUTF8=1`` / ``-X utf8`` fixes all of that at the interpreter
-       level — no per-callsite ``encoding="utf-8"`` plumbing needed.
+       files. Setting ``PYTHONUTF8=1`` and relaunching fixes all of that at the
+       interpreter level — no per-callsite ``encoding="utf-8"`` plumbing needed.
 
-       The re-exec target is inferred from ``sys.modules['__main__'].__spec__``,
-       so calling this from a subscript main (e.g. ``python -m
-       cataforge.docs.loader``) correctly relaunches that subscript, not the
-       top-level CLI. Console-script launchers (``cataforge.exe`` etc.) have no
-       module spec but match ``sys.argv[0]`` basename "cataforge*"; those fall
-       back to ``-m cataforge``.
+       The relaunch replays ``sys.orig_argv`` verbatim with ``PYTHONUTF8=1`` in
+       the environment. ``orig_argv`` preserves the exact original interpreter
+       invocation — console-script launcher (run as a zipapp), ``-m module``,
+       and plain ``python script.py`` all relaunch identically without inferring
+       a module target. The env var (read at interpreter startup) flips
+       ``sys.flags.utf8_mode`` on, so the relaunched process sees this branch's
+       ``not utf8_mode`` guard as false and proceeds — idempotent, no loop.
 
-       Standalone scripts that have neither a module spec nor the recognised
-       console-script name (e.g. ``python scripts/checks/check_foo.py``) skip
-       the re-exec — we can't reliably figure out what to relaunch, and these
-       scripts typically don't spawn UTF-8-sensitive subprocesses anyway.
-       Phase 2 still gives them UTF-8 stdout.
+       We spawn a child and exit with its return code rather than ``os.exec*``:
+       Windows has no real ``exec``, and the CRT emulation crashes the
+       interpreter mid-handoff (access violation) on non-trivial output. The
+       parent stays alive only long enough to forward the child's exit code.
 
        Skipped when running under pytest (detected via ``PYTEST_CURRENT_TEST``,
        ``PYTEST_VERSION``, or ``pytest`` already in ``sys.modules``). Critical
        for test collection: pytest imports test modules — which transitively
        import ``cataforge.cli.main`` — before ``PYTEST_CURRENT_TEST`` is set,
-       so the env-var check alone would re-exec into the wrong process.
+       so the env-var check alone would relaunch into the wrong process.
 
     2. **Reconfigure stdout/stderr to UTF-8.** Belt-and-suspenders for the
        cases where phase 1 is a no-op (non-Windows, already in UTF-8 Mode, or
@@ -119,30 +119,14 @@ def ensure_utf8() -> None:
         or "PYTEST_VERSION" in os.environ
         or "pytest" in sys.modules
     )
-    needs_reexec = (
-        sys.platform == "win32"
-        and not sys.flags.utf8_mode
-        and not under_pytest
-    )
-    module_name: str | None = None
-    if needs_reexec:
-        main = sys.modules.get("__main__")
-        spec = getattr(main, "__spec__", None)
-        if spec and spec.name:
-            module_name = spec.name
-        elif sys.argv and os.path.basename(sys.argv[0]).startswith("cataforge"):
-            # Console-script launcher (cataforge.exe / cataforge-script.py).
-            module_name = "cataforge"
-        # else: standalone script — skip re-exec, phase 2 still runs.
-    if needs_reexec and module_name:
+    needs_reexec = sys.platform == "win32" and not sys.flags.utf8_mode and not under_pytest
+    if needs_reexec and sys.orig_argv:
         env = os.environ.copy()
         env["PYTHONUTF8"] = "1"
-        os.execvpe(
-            sys.executable,
-            [sys.executable, "-X", "utf8", "-m", module_name, *sys.argv[1:]],
-            env,
-        )
-        # execvpe replaces the process — control returns here only on failure.
+        # relaunch must inherit stdio so the CLI writes straight to the
+        # terminal; the run_proc wrapper captures output.
+        completed = subprocess.run(sys.orig_argv, env=env)  # allow-raw-subprocess: inherit stdio
+        sys.exit(completed.returncode)
 
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name)
@@ -247,9 +231,7 @@ def load_dotenv(path: str | Path | None = None, *, set_env: bool = False) -> dic
 
     try:
         if not path.is_relative_to(cwd):
-            raise ValueError(
-                f"load_dotenv: path is outside the working directory: {path}"
-            )
+            raise ValueError(f"load_dotenv: path is outside the working directory: {path}")
     except AttributeError:
         # Python < 3.9 fallback
         try:
