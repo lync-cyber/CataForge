@@ -170,8 +170,17 @@ class TestLifecycle:
             encoding="utf-8",
         )
 
-        # Force the alive-check to report False for the fake pid.
-        monkeypatch.setattr(lc, "_pid_alive", lambda pid: pid != 999999)
+        # Force the alive-check to report False for the fake pid, but keep
+        # real behaviour for every other pid — otherwise the live child we
+        # spawn below would read as alive forever, and teardown's stop()
+        # would burn the full SIGTERM + SIGKILL timeouts waiting for a pid
+        # that is already gone.
+        real_pid_alive = lc._pid_alive
+        monkeypatch.setattr(
+            lc,
+            "_pid_alive",
+            lambda pid: False if pid == 999999 else real_pid_alive(pid),
+        )
 
         mgr = MCPLifecycleManager(project)
         state = mgr.start("ghost")
@@ -198,9 +207,7 @@ class TestLifecycle:
 
         result = mgr.stop("waitable")
         assert result.status == "stopped"
-        assert not lc._pid_alive(pid), (
-            "stop() returned 'stopped' but the pid is still alive"
-        )
+        assert not lc._pid_alive(pid), "stop() returned 'stopped' but the pid is still alive"
 
 
 class TestRegistryPersistence:
@@ -255,9 +262,7 @@ class TestRegistryPersistence:
         with pytest.raises(FileExistsError, match="already registered"):
             reg.register_from_file(replacement)
 
-    def test_register_from_file_force_overwrites(
-        self, project: Path, tmp_path: Path
-    ) -> None:
+    def test_register_from_file_force_overwrites(self, project: Path, tmp_path: Path) -> None:
         _write_spec(project, "existing", name="original")
         replacement = tmp_path / "replacement.yaml"
         replacement.write_text(
@@ -313,9 +318,7 @@ class TestHealth:
         finally:
             mgr.stop("no-check")
 
-    def test_health_tcp_probe_against_listening_socket(
-        self, project: Path
-    ) -> None:
+    def test_health_tcp_probe_against_listening_socket(self, project: Path) -> None:
         """An open TCP port reports healthy; closed reports unhealthy."""
         import socket as _socket
 

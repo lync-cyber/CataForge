@@ -73,15 +73,24 @@ jobs:
         # The full suite re-runs these tests in the next step; that
         # duplication is intentional and the cost is negligible.
         #
-        # Single line on purpose: backslash line continuation works in
-        # bash but is a literal character in PowerShell, so on the
-        # Windows matrix it would feed pytest a stray "\" arg that pytest
-        # interprets as the filesystem root and walks System Volume
-        # Information until access-denied.
+        # Linux-only: these are pure-Python SPARQL-escaping tests with no
+        # OS-specific behaviour, so the named-attribution gate on one leg
+        # is sufficient; the Windows matrix still covers them via the full
+        # suite. Single line on purpose — backslash line continuation is a
+        # literal character in PowerShell, irrelevant here but kept so the
+        # step stays copy-paste safe across shells.
+        if: runner.os == 'Linux'
         run: python -m pytest tests/kg/test_sparql_escape.py tests/kg/test_injection_regression.py tests/kg/test_ingest_writer_atomicity.py tests/cli/test_cli_query.py -q
 
       - name: Pytest (fast — exclude slow marker)
-        run: python -m pytest tests/ -q -m "not slow"
+        # `-n auto` parallelizes across the runner's cores; `--dist
+        # loadscope` keeps a module's/class's tests on one worker so the
+        # cwd-mutating (monkeypatch.chdir) and socket-binding tests never
+        # interleave across processes. The slow suite is NOT run here, so
+        # the session-scoped wheel/venv fixtures (which must build once,
+        # serially) are never parallelized — that's why `-n auto` lives on
+        # this step and not in pyproject addopts.
+        run: python -m pytest tests/ -q -m "not slow" -n auto --dist loadscope
 
       - name: "Anti-rot guards (12: skill count, dev branch, changelog links, changelog fragments, doc versions, profile schema, hooks schema, schema-Python parity, marketing words, design residue, doc structure, deprecation quota)"
         # Run on Linux only — these scripts read the same files everywhere
@@ -134,11 +143,15 @@ jobs:
           uv run --python .venv-smoke pytest --collect-only -q
 
       - name: "uv run --extra dev pytest smoke (covers the uv code path)"
-        # CI's primary `pytest` step uses pip-editable; this one runs the
-        # same suite via uv so a uv-only regression (resolver edge case,
-        # lockfile-induced version pin, .venv layout drift) surfaces here.
+        # CI's primary `pytest` step uses pip-editable; this one runs a
+        # representative subset via uv so a uv-only regression (resolver
+        # edge case, lockfile-induced version pin, .venv layout drift)
+        # surfaces here. A subset — not the whole suite — because the
+        # pip-editable step above already gates correctness; this step
+        # only needs to exercise the uv resolve+run code path, and tests/cli
+        # + tests/core touch the broadest import surface to do that.
         if: runner.os == 'Linux'
-        run: uv run --extra dev pytest tests/ -q -m "not slow"
+        run: uv run --extra dev pytest tests/cli tests/core -q -m "not slow" -n auto --dist loadscope
 
       - name: "mypy (informational — strict-clean packages gate; rest reports count)"
         # Strategy (docs/contributing.md § 类型检查):

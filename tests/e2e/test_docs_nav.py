@@ -15,6 +15,8 @@ import pytest
 
 from .conftest import run_cataforge
 
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture
 def project_with_doc(tmp_path: Path) -> Path:
@@ -43,9 +45,7 @@ def test_docs_load_extracts_section_via_real_cli(
     rc_index = run_cataforge(cataforge_venv, "docs", "index", cwd=project_with_doc)
     assert rc_index.returncode == 0, rc_index.stderr
 
-    rc_load = run_cataforge(
-        cataforge_venv, "docs", "load", "prd#§2.F-001", cwd=project_with_doc
-    )
+    rc_load = run_cataforge(cataforge_venv, "docs", "load", "prd#§2.F-001", cwd=project_with_doc)
     assert rc_load.returncode == 0, rc_load.stderr
     assert "=== prd#§2.F-001 ===" in rc_load.stdout
     assert "用户通过邮箱密码登录" in rc_load.stdout
@@ -56,7 +56,12 @@ def test_docs_load_json_flag_emits_parseable_array(
 ) -> None:
     run_cataforge(cataforge_venv, "docs", "index", cwd=project_with_doc)
     rc = run_cataforge(
-        cataforge_venv, "docs", "load", "--json", "prd#§1", "prd#§2.F-002",
+        cataforge_venv,
+        "docs",
+        "load",
+        "--json",
+        "prd#§1",
+        "prd#§2.F-002",
         cwd=project_with_doc,
     )
     assert rc.returncode == 0, rc.stderr
@@ -76,8 +81,13 @@ def test_docs_load_budget_routes_overflow_to_stderr(
     # est_tokens for tiny sections is at most a few dozen — budget=1 forces
     # every ref to defer.
     rc = run_cataforge(
-        cataforge_venv, "docs", "load", "--budget", "1",
-        "prd#§1", "prd#§2.F-001",
+        cataforge_venv,
+        "docs",
+        "load",
+        "--budget",
+        "1",
+        "prd#§1",
+        "prd#§2.F-001",
         cwd=project_with_doc,
     )
     assert rc.returncode == 0, rc.stderr
@@ -93,8 +103,12 @@ def test_docs_load_failed_ref_exits_2_with_stderr(
 ) -> None:
     run_cataforge(cataforge_venv, "docs", "index", cwd=project_with_doc)
     rc = run_cataforge(
-        cataforge_venv, "docs", "load", "prd#§99",
-        cwd=project_with_doc, check=False,
+        cataforge_venv,
+        "docs",
+        "load",
+        "prd#§99",
+        cwd=project_with_doc,
+        check=False,
     )
     assert rc.returncode == 2
     assert "[ERROR]" in rc.stderr
@@ -115,9 +129,7 @@ def test_docs_migrate_nav_archives_deletes_and_rebuilds(
         encoding="utf-8",
     )
 
-    rc = run_cataforge(
-        cataforge_venv, "docs", "migrate-nav", cwd=project_with_doc
-    )
+    rc = run_cataforge(cataforge_venv, "docs", "migrate-nav", cwd=project_with_doc)
     assert rc.returncode == 0, rc.stderr
 
     assert not nav.exists(), "NAV-INDEX.md should be removed after migration"
@@ -133,9 +145,7 @@ def test_docs_migrate_nav_archives_deletes_and_rebuilds(
     assert idx_data["documents"], "rebuilt index must contain documents"
 
     # And the loader should now succeed against the rebuilt index.
-    rc_load = run_cataforge(
-        cataforge_venv, "docs", "load", "prd#§1", cwd=project_with_doc
-    )
+    rc_load = run_cataforge(cataforge_venv, "docs", "load", "prd#§1", cwd=project_with_doc)
     assert rc_load.returncode == 0, rc_load.stderr
     assert "Foo is a sample app" in rc_load.stdout
 
@@ -149,9 +159,7 @@ def test_docs_migrate_nav_dry_run_preserves_files(
         encoding="utf-8",
     )
 
-    rc = run_cataforge(
-        cataforge_venv, "docs", "migrate-nav", "--dry-run", cwd=project_with_doc
-    )
+    rc = run_cataforge(cataforge_venv, "docs", "migrate-nav", "--dry-run", cwd=project_with_doc)
     assert rc.returncode == 0, rc.stderr
     assert nav.exists(), "dry-run must not delete NAV-INDEX.md"
     assert not (project_with_doc / ".cataforge" / ".archive").exists()
@@ -188,24 +196,28 @@ def test_docs_index_strict_exits_nonzero_on_orphan(
     )
 
     rc = run_cataforge(
-        cataforge_venv, "docs", "index", "--strict",
-        cwd=project_with_doc, check=False,
+        cataforge_venv,
+        "docs",
+        "index",
+        "--strict",
+        cwd=project_with_doc,
+        check=False,
     )
     assert rc.returncode != 0, "--strict must escalate orphan warnings to a non-zero exit"
     assert "[WARN]" in rc.stderr
     assert "docs/research/raw-requirements-v1.md" in rc.stderr
 
 
-def test_docs_load_uses_external_doc_type_map(
-    cataforge_venv: Path, tmp_path: Path
-) -> None:
+def test_docs_load_uses_external_doc_type_map(cataforge_venv: Path, tmp_path: Path) -> None:
     """Custom doc_type registered in framework.json must be resolvable."""
     (tmp_path / ".cataforge").mkdir()
     (tmp_path / ".cataforge" / "framework.json").write_text(
-        json.dumps({
-            "version": "0.1.0",
-            "docs": {"doc_types": {"runbook": "runbooks"}},
-        }),
+        json.dumps(
+            {
+                "version": "0.1.0",
+                "docs": {"doc_types": {"runbook": "runbooks"}},
+            }
+        ),
         encoding="utf-8",
     )
     (tmp_path / "docs" / "runbooks").mkdir(parents=True)
@@ -216,8 +228,6 @@ def test_docs_load_uses_external_doc_type_map(
     )
 
     run_cataforge(cataforge_venv, "docs", "index", cwd=tmp_path)
-    rc = run_cataforge(
-        cataforge_venv, "docs", "load", "runbook#§1", cwd=tmp_path
-    )
+    rc = run_cataforge(cataforge_venv, "docs", "load", "runbook#§1", cwd=tmp_path)
     assert rc.returncode == 0, rc.stderr
     assert "Kubectl 1.30+" in rc.stdout
