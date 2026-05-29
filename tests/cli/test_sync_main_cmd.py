@@ -11,9 +11,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from click.testing import CliRunner
 
 from cataforge.cli.sync_cmd import sync_main_command
+from tests.cli.conftest import invoke_under_group
 
 
 def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -62,7 +62,7 @@ def in_repo(linked_repos, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 class TestSyncMainHappyPath:
     def test_already_up_to_date_is_no_op(self, in_repo: Path) -> None:
-        result = CliRunner().invoke(sync_main_command, [])
+        result = invoke_under_group(sync_main_command, [])
         assert result.exit_code == 0, result.output
         assert "already up to date" in result.output
 
@@ -81,7 +81,7 @@ class TestSyncMainHappyPath:
         _run(other, "commit", "-m", "two")
         _run(other, "push")
 
-        result = CliRunner().invoke(sync_main_command, [])
+        result = invoke_under_group(sync_main_command, [])
         assert result.exit_code == 0, result.output
         assert "fast-forwarded" in result.output
         assert (in_repo / "two.txt").is_file()
@@ -94,7 +94,7 @@ class TestSyncMainSafetyRails:
         # Make a feature branch and dirty the working tree.
         _run(in_repo, "switch", "-c", "feat/foo")
         (in_repo / "scratch.txt").write_text("dirty\n", encoding="utf-8")
-        result = CliRunner().invoke(sync_main_command, [])
+        result = invoke_under_group(sync_main_command, [])
         assert result.exit_code != 0
         assert "uncommitted changes" in result.output
 
@@ -116,7 +116,7 @@ class TestSyncMainSafetyRails:
         _run(other, "add", "remote.txt")
         _run(other, "commit", "-m", "remote-only")
         _run(other, "push")
-        result = CliRunner().invoke(sync_main_command, [])
+        result = invoke_under_group(sync_main_command, [])
         assert result.exit_code != 0
         assert "diverged" in result.output
 
@@ -162,7 +162,7 @@ class TestSyncMainGitOutputContract:
         # surfaced as ``could not compare ...: not enough values...``,
         # losing the actual stdout that caused it.
         self._patch_revlist_stdout(monkeypatch, "1\t2\t3\n")
-        result = CliRunner().invoke(sync_main_command, [])
+        result = invoke_under_group(sync_main_command, [])
         assert result.exit_code != 0
         assert "unexpected" in result.output
         assert "1\\t2\\t3" in result.output or "1\t2\t3" in result.output
@@ -173,7 +173,7 @@ class TestSyncMainGitOutputContract:
         # Two tokens but not parseable as int — e.g. git printed a hash
         # instead of a count after a contract change.
         self._patch_revlist_stdout(monkeypatch, "abc\tdef\n")
-        result = CliRunner().invoke(sync_main_command, [])
+        result = invoke_under_group(sync_main_command, [])
         assert result.exit_code != 0
         assert "non-integer" in result.output
 
@@ -183,7 +183,7 @@ class TestSyncMainGitOutputContract:
         # Empty stdout legitimately means "no commits either side";
         # keep the prior tolerant behaviour rather than failing hard.
         self._patch_revlist_stdout(monkeypatch, "")
-        result = CliRunner().invoke(sync_main_command, [])
+        result = invoke_under_group(sync_main_command, [])
         assert result.exit_code == 0, result.output
         assert "already up to date" in result.output
 
@@ -208,7 +208,7 @@ class TestSyncMainPruneMerged:
         _run(in_repo, "commit", "-m", "wip")
         _run(in_repo, "switch", "main")
 
-        result = CliRunner().invoke(
+        result = invoke_under_group(
             sync_main_command, ["--prune-merged", "--yes"]
         )
         assert result.exit_code == 0, result.output

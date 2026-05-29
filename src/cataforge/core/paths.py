@@ -10,6 +10,10 @@ from pathlib import Path
 
 logger = logging.getLogger("cataforge.paths")
 
+# On-disk KG store location relative to project root (SSOT). CLI ``--db-path``
+# defaults and the doctor ingestion gate derive from this.
+KG_STORE_REL = Path(".cataforge") / "kg" / "store"
+
 
 def find_project_root(start: Path | None = None) -> Path:
     """Walk up from *start* (default: cwd) until a ``.cataforge/`` dir is found.
@@ -104,11 +108,16 @@ class ProjectPaths:
     @property
     def event_log(self) -> Path:
         from cataforge.core.event_log import EVENT_LOG_REL
+
         return self.root / EVENT_LOG_REL
 
     @property
     def mcp_state_dir(self) -> Path:
         return self.cataforge_dir / ".mcp-state"
+
+    @property
+    def kg_store_dir(self) -> Path:
+        return self.root / KG_STORE_REL
 
     # ---- helpers ----
 

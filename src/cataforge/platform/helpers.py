@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from cataforge.cli.errors import CataforgeError
+from cataforge.core.errors import CataforgeError
 
 
 def _prune_orphan_flat_files(

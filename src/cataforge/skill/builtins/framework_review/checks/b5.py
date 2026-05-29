@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from cataforge.core.event_log import EVENT_LOG_REL
+
 from .._constants import B5_CROSS_CUTTING, B5_SUBAGENTS
 from .._discover import (
     discover_agents,
@@ -105,8 +107,7 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                 "B5_workflow_coverage_matrix",
                 "WARN",
                 f"agents/{agent}",
-                "agent defined but not referenced by any phase routing "
-                "or sub-agent dispatcher",
+                "agent defined but not referenced by any phase routing or sub-agent dispatcher",
             )
 
     # ---- B5_phase_skill_coverage (triple-hop: phase → agent → skill) ----
@@ -150,7 +151,7 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                 )
 
     # ---- B5_eventlog_agent_return_drift (EVENT-LOG cross-check) ----
-    log_path = root / "docs" / "EVENT-LOG.jsonl"
+    log_path = root / EVENT_LOG_REL
     log_exists = log_path.is_file()
     returns, returns_with_ref = read_event_log_returns(root)
     total_returns = sum(returns.values())

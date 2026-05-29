@@ -15,6 +15,28 @@ each duplicating the same six-line boilerplate.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import click
+
+
+def invoke_under_group(command: click.Command, args: list[str] | None = None, **kwargs):
+    """Invoke ``command`` mounted under a ``CataforgeGroup``.
+
+    Framework errors render via the CLI adapter group, not the error class
+    itself; invoking a bare command/subgroup in isolation skips that
+    rendering. Mounting under :class:`~cataforge.cli.errors.CataforgeGroup`
+    reproduces the production path so a raised ``CataforgeError`` becomes the
+    expected ``Error: <msg>`` output + ``exit_code``.
+    """
+    from click.testing import CliRunner
+
+    from cataforge.cli.errors import CataforgeGroup
+
+    root = CataforgeGroup("root")
+    root.add_command(command)
+    return CliRunner().invoke(root, [command.name, *(args or [])], **kwargs)
 
 
 def populate_required_source_assets(cataforge_dir: Path) -> None:

@@ -12,10 +12,10 @@ from pathlib import Path
 
 import click
 
-from cataforge.cli.errors import CataforgeError, ConfigError
 from cataforge.cli.guards import require_initialized
 from cataforge.cli.helpers import get_config_manager, resolve_root
 from cataforge.cli.main import cli
+from cataforge.core.errors import CataforgeError, ConfigError
 
 _SHELL_META_RE = re.compile(r"[;&|`$<>(){}\\\n]")
 

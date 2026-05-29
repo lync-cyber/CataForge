@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.cli.errors import CataforgeError
+from cataforge.core.errors import CataforgeError
 from cataforge.platform.helpers import (
     merge_codex_mcp_server,
     merge_json_key,

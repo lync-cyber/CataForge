@@ -40,7 +40,7 @@ from cataforge.utils.patterns import HEADING_RE, REF_RE, SECTION_PATH_RE
 # replace all defaults.
 # ---------------------------------------------------------------------------
 
-_DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
+DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
     "prd": "prd",
     "arch": "arch",
     "ui-spec": "ui-spec",
@@ -70,7 +70,7 @@ def _load_doc_type_map(project_root: str) -> dict[str, str]:
     if cached is not None:
         return cached
 
-    merged = dict(_DEFAULT_DOC_TYPE_MAP)
+    merged = dict(DEFAULT_DOC_TYPE_MAP)
     framework_json = os.path.join(project_root, ".cataforge", "framework.json")
     if os.path.isfile(framework_json):
         try:
@@ -90,7 +90,7 @@ def _load_doc_type_map(project_root: str) -> dict[str, str]:
 
 def _get_doc_type_map(project_root: str | None = None) -> dict[str, str]:
     if project_root is None:
-        return dict(_DEFAULT_DOC_TYPE_MAP)
+        return dict(DEFAULT_DOC_TYPE_MAP)
     return _load_doc_type_map(project_root)
 
 

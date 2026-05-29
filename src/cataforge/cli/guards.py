@@ -18,7 +18,7 @@ import functools
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from cataforge.cli.errors import NotInitializedError
+from cataforge.core.errors import NotInitializedError
 
 F = TypeVar("F", bound=Callable[..., Any])
 

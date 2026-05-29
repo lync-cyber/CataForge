@@ -11,7 +11,7 @@ BSD sysexits ``EX_SOFTWARE``) so that:
 
 from __future__ import annotations
 
-from cataforge.cli.errors import EXIT_NOT_IMPLEMENTED, NotImplementedFeature
+from cataforge.core.errors import EXIT_NOT_IMPLEMENTED, NotImplementedFeature
 
 # Preserved as a public constant so tests and external tooling can import
 # it without hard-coding the literal. Value is the exit code Click uses

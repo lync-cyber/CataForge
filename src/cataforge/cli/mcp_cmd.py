@@ -6,10 +6,10 @@ import click
 import yaml
 from pydantic import ValidationError
 
-from cataforge.cli.errors import CataforgeError, ConfigError
 from cataforge.cli.guards import require_initialized
 from cataforge.cli.helpers import emit_hint, resolve_root
 from cataforge.cli.main import cli
+from cataforge.core.errors import CataforgeError, ConfigError
 
 
 @cli.group("mcp")

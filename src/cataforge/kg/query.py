@@ -25,6 +25,7 @@ from cataforge.kg.ingest.iri import (
     class_iri,
     entity_iri,
 )
+from cataforge.utils.md_parse import slice_section
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -239,7 +240,7 @@ class QueryAPI:
         path = Path(src)
         if not path.exists():
             return None
-        return _slice_section(path.read_text(encoding="utf-8"), anchor_lit)
+        return slice_section(path.read_text(encoding="utf-8"), anchor_lit)
 
     # ------------------------------------------------------------------
     # plan_load — token-budget-aware load ordering
@@ -362,45 +363,6 @@ class QueryAPI:
         if not record.get("entity_id"):
             record["entity_id"] = entity_id
         return record
-
-
-def _slice_section(text: str, anchor: str) -> str | None:
-    """Return the slice from the heading matching `anchor` to the next
-    sibling-or-shallower heading.
-
-    Anchor tolerates ``§N.M`` by stripping the leading ``§``; the marker
-    is matched on word boundaries so ``"F-1"`` does not hit ``"F-12"``,
-    and the slice end is determined by markdown heading level so a deeper
-    sub-heading does not prematurely terminate the section.
-    """
-    import re  # noqa: PLC0415
-
-    lines = text.splitlines()
-    marker = anchor.lstrip("§").strip()
-    if not marker:
-        return None
-    boundary = r"(?:^|[^0-9A-Za-z_-])"
-    after = r"(?=$|[^0-9A-Za-z_-])"
-    pattern = re.compile(boundary + re.escape(marker) + after)
-    start: int | None = None
-    start_level = 0
-    end = len(lines)
-    for i, line in enumerate(lines):
-        stripped = line.lstrip()
-        if not stripped.startswith("#"):
-            continue
-        level = len(stripped) - len(stripped.lstrip("#"))
-        if start is None:
-            if pattern.search(line):
-                start = i
-                start_level = level
-            continue
-        if level <= start_level:
-            end = i
-            break
-    if start is None:
-        return None
-    return "\n".join(lines[start:end])
 
 
 __all__ = [

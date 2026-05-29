@@ -39,6 +39,7 @@ from cataforge.kg._sparql_utils import (
     escape_sparql_literal,
 )
 from cataforge.kg.facade import KnowledgeGraph
+from cataforge.utils.md_parse import slice_section
 
 logger = logging.getLogger(__name__)
 
@@ -641,46 +642,7 @@ def _legacy_source_section(
     except DocResolveError:
         return None
     text = Path(path).read_text(encoding="utf-8")
-    return _slice_section(text, section_anchor)
-
-
-def _slice_section(text: str, anchor: str) -> str | None:
-    """Return the heading slice matching `anchor` up to the next sibling
-    heading (or EOF).
-
-    Matching is word-boundary aware on either side of the marker so that
-    ``"F-1"`` does not spuriously match ``"## F-12 …"``. The end of the
-    slice is the next heading at the same level or shallower, so a
-    sub-heading does not prematurely terminate the section.
-    """
-    import re  # noqa: PLC0415
-
-    lines = text.splitlines()
-    marker = anchor.lstrip("§").strip()
-    if not marker:
-        return None
-    boundary = r"(?:^|[^0-9A-Za-z_-])"
-    after = r"(?=$|[^0-9A-Za-z_-])"
-    pattern = re.compile(boundary + re.escape(marker) + after)
-    start: int | None = None
-    start_level = 0
-    end = len(lines)
-    for i, line in enumerate(lines):
-        stripped = line.lstrip()
-        if not stripped.startswith("#"):
-            continue
-        level = len(stripped) - len(stripped.lstrip("#"))
-        if start is None:
-            if pattern.search(line):
-                start = i
-                start_level = level
-            continue
-        if level <= start_level:
-            end = i
-            break
-    if start is None:
-        return None
-    return "\n".join(lines[start:end])
+    return slice_section(text, section_anchor)
 
 
 # ---------------------------------------------------------------------------

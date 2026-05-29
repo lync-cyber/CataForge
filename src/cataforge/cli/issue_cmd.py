@@ -45,9 +45,10 @@ from typing import Any
 import click
 
 from cataforge import __version__
-from cataforge.cli.errors import CataforgeError, ExternalToolError
 from cataforge.cli.helpers import get_config_manager, resolve_root
 from cataforge.cli.main import cli
+from cataforge.core.errors import CataforgeError, ExternalToolError
+from cataforge.core.version import parse_semver
 from cataforge.utils.run_subprocess import run as run_proc
 
 INSTALLED_VERSION = __version__
@@ -71,35 +72,53 @@ def issue_group() -> None:
 
 @issue_group.command("triage")
 @click.option(
-    "--repo", "repo", default=None,
+    "--repo",
+    "repo",
+    default=None,
     help="Source repo (owner/name). Defaults to framework.json#upgrade.source.repo.",
 )
 @click.option(
-    "--label", "labels", multiple=True, default=None,
+    "--label",
+    "labels",
+    multiple=True,
+    default=None,
     help="Filter by label (repeatable). Defaults to every label declared "
-         "in framework.json#feedback.gh.labels.",
+    "in framework.json#feedback.gh.labels.",
 )
 @click.option(
-    "--state", "state", type=click.Choice(["open", "closed", "all"]),
-    default="open", show_default=True,
+    "--state",
+    "state",
+    type=click.Choice(["open", "closed", "all"]),
+    default="open",
+    show_default=True,
     help="Issue state to fetch.",
 )
 @click.option(
-    "--since", "since", default=None,
+    "--since",
+    "since",
+    default=None,
     help="Only triage issues created at or after this date (YYYY-MM-DD).",
 )
 @click.option(
-    "--limit", "limit", type=int, default=30, show_default=True,
+    "--limit",
+    "limit",
+    type=int,
+    default=30,
+    show_default=True,
     help="Max issues to fetch from gh.",
 )
 @click.option(
-    "--out-dir", "out_dir",
+    "--out-dir",
+    "out_dir",
     type=click.Path(file_okay=False, path_type=Path),
     default=None,
     help="Where to write drafts (default: docs/reviews/triage/).",
 )
 @click.option(
-    "--dry-run", "dry_run", is_flag=True, default=False,
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    default=False,
     help="Print the verdict table without writing any draft files.",
 )
 def triage_command(
@@ -181,29 +200,42 @@ def triage_command(
 @issue_group.command("close")
 @click.argument("number", type=int)
 @click.option(
-    "--verdict", "verdict",
+    "--verdict",
+    "verdict",
     type=click.Choice(["fixed", "wontfix", "already-fixed"]),
     required=True,
     help="Closure reason. fixed/already-fixed need --pr; wontfix needs --reason.",
 )
 @click.option(
-    "--pr", "pr_number", type=int, default=None,
+    "--pr",
+    "pr_number",
+    type=int,
+    default=None,
     help="PR number that fixed (or previously fixed) the issue.",
 )
 @click.option(
-    "--reason", "reason", default=None,
+    "--reason",
+    "reason",
+    default=None,
     help="One-line wontfix justification (required when --verdict wontfix).",
 )
 @click.option(
-    "--repo", "repo", default=None,
+    "--repo",
+    "repo",
+    default=None,
     help="Source repo (owner/name). Defaults to framework.json#upgrade.source.repo.",
 )
 @click.option(
-    "--message", "extra_message", default=None,
+    "--message",
+    "extra_message",
+    default=None,
     help="Extra trailing line appended to the templated comment (optional).",
 )
 @click.option(
-    "--dry-run", "dry_run", is_flag=True, default=False,
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    default=False,
     help="Print the comment that would be posted; do not call gh.",
 )
 def close_command(
@@ -265,8 +297,7 @@ def close_command(
     result = run_proc(cmd)
     if result.returncode != 0:
         raise ExternalToolError(
-            f"gh issue close failed (exit {result.returncode}):\n"
-            f"{result.stderr or result.stdout}"
+            f"gh issue close failed (exit {result.returncode}):\n{result.stderr or result.stdout}"
         )
     click.secho(f"\nClosed #{number}.", fg="green")
 
@@ -335,9 +366,7 @@ _FRAMEWORK_REVIEW_FAIL_RE = re.compile(
     r"FAIL\s+(?:in\s+)?(?:skill|agent)?[:\s]+(?P<id>[a-z0-9][a-z0-9\-]+)",
     re.IGNORECASE,
 )
-_UPSTREAM_GAP_RE = re.compile(
-    r"deviation:\s*upstream[-_]gap", re.IGNORECASE
-)
+_UPSTREAM_GAP_RE = re.compile(r"deviation:\s*upstream[-_]gap", re.IGNORECASE)
 
 
 def _parse_issue_body(
@@ -440,12 +469,15 @@ def _extract_fail_excerpt(body: str, *, max_lines: int = 8) -> str:
 
 def _semver_lt(a: str, b: str) -> bool:
     """Loose semver compare: treat anything past `X.Y.Z` as a tiebreaker."""
+
     def _key(s: str) -> tuple[int, int, int, str]:
         cleaned = s.lstrip("v")
-        m = re.match(r"^(\d+)\.(\d+)\.(\d+)(.*)$", cleaned)
-        if not m:
+        nums = parse_semver(cleaned)
+        if nums is None:
             return (0, 0, 0, cleaned)
-        return (int(m.group(1)), int(m.group(2)), int(m.group(3)), m.group(4))
+        suffix = re.sub(r"^\d+\.\d+\.\d+", "", cleaned)
+        return (*nums, suffix)
+
     return _key(a) < _key(b)
 
 
@@ -480,8 +512,10 @@ def _write_skill_improve_draft(
 ) -> Path:
     number = issue.get("number")
     target_id = (
-        parsed.target_skills[0] if parsed.target_skills
-        else parsed.target_agents[0] if parsed.target_agents
+        parsed.target_skills[0]
+        if parsed.target_skills
+        else parsed.target_agents[0]
+        if parsed.target_agents
         else "unknown"
     )
     target_kind = "skill" if parsed.target_skills else "agent"
@@ -564,10 +598,17 @@ def _fetch_issues(
     caller wants every issue in scope, so we issue a single labelless call.
     """
     base_cmd = [
-        "gh", "issue", "list", "-R", repo,
-        "--state", state,
-        "--limit", str(limit),
-        "--json", "number,title,body,createdAt,url,labels",
+        "gh",
+        "issue",
+        "list",
+        "-R",
+        repo,
+        "--state",
+        state,
+        "--limit",
+        str(limit),
+        "--json",
+        "number,title,body,createdAt,url,labels",
     ]
 
     label_groups = [[lbl] for lbl in labels] if labels else [[]]
@@ -595,11 +636,6 @@ def _fetch_issues(
         try:
             since_dt = datetime.fromisoformat(since).date()
         except ValueError as e:
-            raise CataforgeError(
-                f"--since must be YYYY-MM-DD ({e})"
-            ) from None
-        issues = [
-            i for i in issues
-            if (i.get("createdAt") or "")[:10] >= since_dt.isoformat()
-        ]
+            raise CataforgeError(f"--since must be YYYY-MM-DD ({e})") from None
+        issues = [i for i in issues if (i.get("createdAt") or "")[:10] >= since_dt.isoformat()]
     return issues

@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from cataforge.core.types import AgentStatus
+
 logger = logging.getLogger("cataforge.event_log")
 
 # Maximum byte size of an existing event log that is read into memory for
@@ -36,47 +38,54 @@ MAX_EVENTLOG_BYTES: int = 100 * 1024 * 1024  # 100 MB
 
 # Mirrors `.cataforge/schemas/event-log.schema.json` — kept in Python so the
 # CLI can validate without a hard dependency on the jsonschema package.
-VALID_EVENTS: frozenset[str] = frozenset({
-    "session_start",
-    "session_end",
-    "phase_start",
-    "phase_end",
-    "agent_dispatch",
-    "agent_return",
-    "review_verdict",
-    "user_decision",
-    "revision_start",
-    "tdd_phase",
-    "incident",
-    "state_change",
-    "correction",
-    "doc_finalize",
-})
+VALID_EVENTS: frozenset[str] = frozenset(
+    {
+        "session_start",
+        "session_end",
+        "phase_start",
+        "phase_end",
+        "agent_dispatch",
+        "agent_return",
+        "review_verdict",
+        "user_decision",
+        "revision_start",
+        "tdd_phase",
+        "incident",
+        "state_change",
+        "correction",
+        "doc_finalize",
+    }
+)
 
-VALID_STATUSES: frozenset[str] = frozenset({
-    "completed",
-    "needs_input",
-    "blocked",
-    "approved",
-    "approved_with_notes",
-    "needs_revision",
-    "rolled-back",
-})
+# Derived from the AgentStatus enum (SSOT) so the event-log schema and the
+# agent return-value contract can never drift apart.
+VALID_STATUSES: frozenset[str] = frozenset(s.value for s in AgentStatus)
 
-VALID_TASK_TYPES: frozenset[str] = frozenset({
-    "new_creation",
-    "revision",
-    "continuation",
-    "retrospective",
-    "skill-improvement",
-    "apply-learnings",
-    "amendment",
-})
+VALID_TASK_TYPES: frozenset[str] = frozenset(
+    {
+        "new_creation",
+        "revision",
+        "continuation",
+        "retrospective",
+        "skill-improvement",
+        "apply-learnings",
+        "amendment",
+    }
+)
 
 REQUIRED_FIELDS: tuple[str, ...] = ("ts", "event", "phase", "detail")
-ALLOWED_FIELDS: frozenset[str] = frozenset({
-    "ts", "event", "phase", "agent", "task_type", "status", "ref", "detail",
-})
+ALLOWED_FIELDS: frozenset[str] = frozenset(
+    {
+        "ts",
+        "event",
+        "phase",
+        "agent",
+        "task_type",
+        "status",
+        "ref",
+        "detail",
+    }
+)
 
 # Relative to project root.
 EVENT_LOG_REL = Path("docs") / "EVENT-LOG.jsonl"
@@ -105,27 +114,17 @@ def validate_record(record: Mapping[str, Any]) -> list[str]:
 
     event = record.get("event")
     if event is not None and event not in VALID_EVENTS:
-        errors.append(
-            f"event={event!r} not in enum "
-            f"(known: {sorted(VALID_EVENTS)})"
-        )
+        errors.append(f"event={event!r} not in enum (known: {sorted(VALID_EVENTS)})")
 
     status = record.get("status")
     if status is not None and status not in VALID_STATUSES:
-        errors.append(
-            f"status={status!r} not in enum "
-            f"(known: {sorted(VALID_STATUSES)})"
-        )
+        errors.append(f"status={status!r} not in enum (known: {sorted(VALID_STATUSES)})")
 
     task_type = record.get("task_type")
     if task_type is not None and task_type not in VALID_TASK_TYPES:
-        errors.append(
-            f"task_type={task_type!r} not in enum "
-            f"(known: {sorted(VALID_TASK_TYPES)})"
-        )
+        errors.append(f"task_type={task_type!r} not in enum (known: {sorted(VALID_TASK_TYPES)})")
 
-    for field in ("ts", "event", "phase", "detail", "agent", "status",
-                  "ref", "task_type"):
+    for field in ("ts", "event", "phase", "detail", "agent", "status", "ref", "task_type"):
         val = record.get(field)
         if val is None:
             continue
@@ -229,8 +228,7 @@ def append_batch(
     path.parent.mkdir(parents=True, exist_ok=True)
 
     new_lines = "".join(
-        json.dumps(rec, ensure_ascii=False, sort_keys=False) + "\n"
-        for rec in records
+        json.dumps(rec, ensure_ascii=False, sort_keys=False) + "\n" for rec in records
     ).encode("utf-8")
 
     oversized = path.is_file() and path.stat().st_size > MAX_EVENTLOG_BYTES
@@ -247,9 +245,7 @@ def append_batch(
     existing = path.read_bytes() if path.is_file() else b""
 
     # Same directory so os.replace is atomic on every supported OS.
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=".event-log-", suffix=".tmp", dir=str(path.parent)
-    )
+    fd, tmp_name = tempfile.mkstemp(prefix=".event-log-", suffix=".tmp", dir=str(path.parent))
     try:
         with os.fdopen(fd, "wb") as f:
             if existing and not existing.endswith(b"\n"):
@@ -283,9 +279,7 @@ def parse_batch_stream(text: str) -> list[dict[str, Any]]:
         except json.JSONDecodeError as e:
             raise EventLogError(f"line {i}: invalid JSON: {e}") from None
         if not isinstance(obj, dict):
-            raise EventLogError(
-                f"line {i}: expected JSON object, got {type(obj).__name__}"
-            )
+            raise EventLogError(f"line {i}: expected JSON object, got {type(obj).__name__}")
         obj.setdefault("ts", now_iso())
         out.append(obj)
     return out

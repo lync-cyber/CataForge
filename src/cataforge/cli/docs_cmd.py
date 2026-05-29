@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import click
 
-from cataforge.cli.errors import CataforgeError
 from cataforge.cli.main import cli
+from cataforge.core.errors import CataforgeError
 
 
 def _raise_on_nonzero(code: int, command_label: str) -> None:

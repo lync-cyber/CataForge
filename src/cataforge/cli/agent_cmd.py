@@ -8,10 +8,10 @@ import sys
 
 import click
 
-from cataforge.cli.errors import CataforgeError
 from cataforge.cli.guards import require_initialized
 from cataforge.cli.helpers import emit_hint, resolve_root
 from cataforge.cli.main import cli
+from cataforge.core.errors import CataforgeError
 from cataforge.utils.run_subprocess import run as run_proc
 
 

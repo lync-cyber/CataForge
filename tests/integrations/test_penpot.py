@@ -254,7 +254,7 @@ def test_stop_mcp_raises_when_taskkill_missing_on_windows(
     swallowing the FileNotFoundError into the bare ``except OSError``
     and reporting success.
     """
-    from cataforge.cli.errors import CataforgeError
+    from cataforge.core.errors import CataforgeError
 
     monkeypatch.setattr(penpot, "PLATFORM", "windows")
     monkeypatch.setattr(penpot, "_read_mcp_pid", lambda: 12345)

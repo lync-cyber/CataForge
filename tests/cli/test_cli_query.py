@@ -25,8 +25,8 @@ class TestSparqlWriteGuard:
         ],
     )
     def test_write_operations_are_rejected(self, sparql: str) -> None:
-        from cataforge.cli.errors import CataforgeError
         from cataforge.cli.kg_cmd import _guard_sparql_writes
+        from cataforge.core.errors import CataforgeError
 
         with pytest.raises(CataforgeError, match="writes are not supported"):
             _guard_sparql_writes(sparql)
@@ -50,16 +50,16 @@ class TestSparqlWriteGuard:
         _guard_sparql_writes(sparql)
 
     def test_write_with_prefix_declarations_is_still_rejected(self) -> None:
-        from cataforge.cli.errors import CataforgeError
         from cataforge.cli.kg_cmd import _guard_sparql_writes
+        from cataforge.core.errors import CataforgeError
 
         sparql = "PREFIX ex: <http://example.org/>\nINSERT DATA { ex:a ex:b ex:c }"
         with pytest.raises(CataforgeError, match="writes are not supported"):
             _guard_sparql_writes(sparql)
 
     def test_write_with_leading_comment_is_rejected(self) -> None:
-        from cataforge.cli.errors import CataforgeError
         from cataforge.cli.kg_cmd import _guard_sparql_writes
+        from cataforge.core.errors import CataforgeError
 
         sparql = "# This is a comment\nDELETE DATA { <urn:a> <urn:b> <urn:c> }"
         with pytest.raises(CataforgeError, match="writes are not supported"):

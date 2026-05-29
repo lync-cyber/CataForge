@@ -9,22 +9,13 @@ import re
 import sys
 
 from cataforge.core.paths import ProjectPaths
+from cataforge.core.types import AgentStatus
 from cataforge.hook.base import (
     hook_main,
     matches_capability,
     matches_script_filters,
     read_hook_input,
 )
-
-VALID_STATUSES: set[str] = {
-    "completed",
-    "needs_input",
-    "blocked",
-    "approved",
-    "approved_with_notes",
-    "needs_revision",
-    "rolled-back",
-}
 
 
 def _load_valid_statuses() -> set[str]:
@@ -34,7 +25,9 @@ def _load_valid_statuses() -> set[str]:
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         return set(schema["properties"]["status"]["enum"])
     except (OSError, KeyError, json.JSONDecodeError):
-        return set(VALID_STATUSES)
+        # Fallback derived from the AgentStatus enum (SSOT); kept in parity
+        # with the schema JSON by the schema-python-parity guard.
+        return {s.value for s in AgentStatus}
 
 
 def _warn(msg: str) -> None:
@@ -70,9 +63,7 @@ def main() -> None:
     if m:
         status = m.group(1).strip()
         if status not in valid_statuses:
-            _warn(
-                f"invalid status='{status}', expected: {'|'.join(sorted(valid_statuses))}"
-            )
+            _warn(f"invalid status='{status}', expected: {'|'.join(sorted(valid_statuses))}")
 
         if status == "needs_input":
             for field in ("questions", "completed-steps", "resume-guidance"):

@@ -32,8 +32,8 @@ def test_event_log_python_mirrors_match_schema() -> None:
 
 
 def test_agent_result_hook_fallback_matches_schema() -> None:
-    from cataforge.hook.scripts import validate_agent_result
+    from cataforge.core.types import AgentStatus
 
     schema = _load("agent-result.schema.json")
     expected = set(schema["properties"]["status"]["enum"])
-    assert expected == validate_agent_result.VALID_STATUSES
+    assert expected == {s.value for s in AgentStatus}

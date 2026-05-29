@@ -8,6 +8,7 @@ from pathlib import Path
 
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter
+from cataforge.utils.md_parse import strip_code_blocks
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
 from .constants import DOC_SPLIT_THRESHOLD_LINES, KNOWN_DOC_PREFIXES, VOLUME_TYPES
@@ -106,11 +107,7 @@ class DocChecker(TypedDocChecksMixin):
         nav_top_sections = sorted(set(nav_sections))
         actual_sections = re.findall(r"^## (\d+)\.", self.content, re.MULTILINE)
         actual_top_sections = sorted(set(actual_sections))
-        if (
-            nav_top_sections
-            and actual_top_sections
-            and nav_top_sections != actual_top_sections
-        ):
+        if nav_top_sections and actual_top_sections and nav_top_sections != actual_top_sections:
             self.warn(
                 f"[NAV]块章节({','.join('§' + s for s in nav_top_sections)}) "
                 f"与实际章节({','.join('§' + s for s in actual_top_sections)})不一致"
@@ -123,10 +120,6 @@ class DocChecker(TypedDocChecksMixin):
         if remaining > 0:
             self.fail(f"{remaining}个未处理TODO/TBD/FIXME")
 
-    @staticmethod
-    def _strip_code_blocks(text: str) -> str:
-        return re.sub(r"```.*?```", "", text, flags=re.DOTALL)
-
     def check_line_count(self) -> None:
         line_count = len(self.lines)
         if line_count > DOC_SPLIT_THRESHOLD_LINES:
@@ -135,7 +128,7 @@ class DocChecker(TypedDocChecksMixin):
             )
 
     def check_xref(self) -> None:
-        content_no_code = self._strip_code_blocks(self.content)
+        content_no_code = strip_code_blocks(self.content)
         refs = re.findall(r"([\w-]+)#([\w§.\-]+)", content_no_code)
         docs_path = Path(self.docs_dir)
         if not docs_path.exists():
@@ -158,9 +151,7 @@ class DocChecker(TypedDocChecksMixin):
             if kg_resolver is not None:
                 entity_match = re.search(r"\b([A-Z]+-\d{3,})\b", _section)
                 if entity_match and not kg_resolver(entity_match.group(1)):
-                    self.fail(
-                        f"交叉引用目标 {doc_id}#{_section} 在 KG 中未解析"
-                    )
+                    self.fail(f"交叉引用目标 {doc_id}#{_section} 在 KG 中未解析")
                 continue
 
             matches = list(docs_path.glob(f"{doc_id}*"))
@@ -176,15 +167,11 @@ class DocChecker(TypedDocChecksMixin):
     def check_required_sections(self) -> None:
         fm = parse_yaml_frontmatter(self.content)
         mode = fm.get("mode", "standard") if fm else "standard"
-        sections = load_template_required_sections(
-            self.doc_type, self.volume_type, mode
-        )
+        sections = load_template_required_sections(self.doc_type, self.volume_type, mode)
         if sections is None:
             self_declared = (fm or {}).get("required_sections")
             if isinstance(self_declared, list) and self_declared:
-                sections = parse_required_sections_from_list(
-                    [str(h) for h in self_declared if h]
-                )
+                sections = parse_required_sections_from_list([str(h) for h in self_declared if h])
                 self.warn(
                     f"模板未注册 (doc_type={self.doc_type}, "
                     f"volume_type={self.volume_type})，回退使用文档自声明的 "
@@ -201,9 +188,7 @@ class DocChecker(TypedDocChecksMixin):
         body = body if body is not None else self.content
         for heading, name in sections:
             pattern = re.escape(heading)
-            match = re.search(
-                pattern + r"(.*?)(?=^## |\Z)", body, re.DOTALL | re.MULTILINE
-            )
+            match = re.search(pattern + r"(.*?)(?=^## |\Z)", body, re.DOTALL | re.MULTILINE)
             if not match:
                 self.fail(f"缺少必填章节: {name}")
             elif len(match.group(1).strip()) == 0:
@@ -225,9 +210,7 @@ class DocChecker(TypedDocChecksMixin):
             expected = list(range(ids_sorted[0], ids_sorted[-1] + 1))
             missing = set(expected) - set(ids_sorted)
             if missing:
-                missing_str = ", ".join(
-                    f"{prefix}-{str(m).zfill(3)}" for m in sorted(missing)
-                )
+                missing_str = ", ".join(f"{prefix}-{str(m).zfill(3)}" for m in sorted(missing))
                 self.warn(f"ID编号不连续, 缺少: {missing_str}")
 
     def check_split_header(self) -> None:
@@ -273,29 +256,21 @@ class DocChecker(TypedDocChecksMixin):
                 up_content = up_file.read_text(encoding="utf-8")
             except OSError:
                 continue
-            for m in re.finditer(
-                rf"^### ({upstream_prefix}-\d+)", up_content, re.MULTILINE
-            ):
+            for m in re.finditer(rf"^### ({upstream_prefix}-\d+)", up_content, re.MULTILINE):
                 upstream_items.add(m.group(1))
 
         if not upstream_items:
             return
 
-        content_no_code = self._strip_code_blocks(self.content)
-        covered = {
-            item for item in upstream_items
-            if re.search(re.escape(item), content_no_code)
-        }
+        content_no_code = strip_code_blocks(self.content)
+        covered = {item for item in upstream_items if re.search(re.escape(item), content_no_code)}
         uncovered = upstream_items - covered
 
         if uncovered:
             sorted_uncovered = sorted(uncovered)
             display = ", ".join(sorted_uncovered[:5])
             suffix = f" (共 {len(sorted_uncovered)} 项)" if len(sorted_uncovered) > 5 else ""
-            self.fail(
-                f"上游 {upstream_type} 中 {len(uncovered)} 项未被覆盖: "
-                f"{display}{suffix}"
-            )
+            self.fail(f"上游 {upstream_type} 中 {len(uncovered)} 项未被覆盖: {display}{suffix}")
 
     # ------------------------------------------------------------------
     # KG dispatch helpers (Task 6 §6.4 A12 / A13)
@@ -376,8 +351,7 @@ class DocChecker(TypedDocChecksMixin):
         uncovered = [
             r.feature_id
             for r in rows
-            if r.feature_id.startswith(upstream_prefix + "-")
-            and not (r.has_impl and r.has_test)
+            if r.feature_id.startswith(upstream_prefix + "-") and not (r.has_impl and r.has_test)
         ]
         if uncovered:
             display = ", ".join(sorted(uncovered)[:5])

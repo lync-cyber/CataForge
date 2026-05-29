@@ -8,9 +8,10 @@ dep). Validation is hand-rolled in:
 
   - `cataforge.core.event_log`   (validate_record / VALID_EVENTS / VALID_STATUSES /
                                   VALID_TASK_TYPES / REQUIRED_FIELDS / ALLOWED_FIELDS)
-  - `cataforge.hook.scripts.validate_agent_result`
-                                  (VALID_STATUSES fallback constant — primary path
-                                   reads the schema file at runtime)
+  - `cataforge.core.types.AgentStatus`
+                                  (status SSOT; event_log.VALID_STATUSES and the
+                                   validate_agent_result hook fallback both derive
+                                   from it)
 
 When someone edits the JSON file but forgets the Python mirror (or vice
 versa), validation diverges silently — events the schema rejects could
@@ -37,7 +38,7 @@ SCHEMA_DIR = REPO_ROOT / ".cataforge" / "schemas"
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from cataforge.core import event_log  # noqa: E402
-from cataforge.hook.scripts import validate_agent_result  # noqa: E402
+from cataforge.core.types import AgentStatus  # noqa: E402
 
 
 def _load(path: Path) -> dict:
@@ -97,7 +98,7 @@ def _check_event_log() -> list[str]:
 def _check_agent_result() -> list[str]:
     schema = _load(SCHEMA_DIR / "agent-result.schema.json")
     expected = set(schema["properties"]["status"]["enum"])
-    fallback = validate_agent_result.VALID_STATUSES
+    fallback = {s.value for s in AgentStatus}
     if expected != fallback:
         return [
             "agent-result: VALID_STATUSES fallback drift\n"
@@ -119,10 +120,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    print(
-        "OK: schema vs Python mirror parity (event-log: 5 fields/enums; "
-        "agent-result: 1 enum)"
-    )
+    print("OK: schema vs Python mirror parity (event-log: 5 fields/enums; agent-result: 1 enum)")
     return 0
 
 
