@@ -31,7 +31,8 @@ import json
 from collections.abc import Iterable
 from pathlib import Path
 
-_MANIFEST_REL = ".cataforge/.deploy-manifest.json"
+from cataforge.core.paths import DEPLOY_MANIFEST_REL
+
 _MANIFEST_VERSION = 1
 
 
@@ -84,7 +85,7 @@ def load_prior_manifest(project_root: Path) -> set[str]:
     files that predate the manifest stay put on the first manifest-aware
     deploy.
     """
-    path = project_root / _MANIFEST_REL
+    path = project_root / DEPLOY_MANIFEST_REL
     if not path.is_file():
         return set()
     try:
@@ -106,7 +107,7 @@ def load_prior_manifest_platform(project_root: Path) -> str | None:
     ownership stake belongs to a different platform than the one we're
     deploying now — see :meth:`Deployer._rebuild_purge`.
     """
-    path = project_root / _MANIFEST_REL
+    path = project_root / DEPLOY_MANIFEST_REL
     if not path.is_file():
         return None
     try:
@@ -121,7 +122,7 @@ def load_prior_manifest_platform(project_root: Path) -> str | None:
 
 def save_manifest(project_root: Path, manifest: DeployManifest) -> None:
     """Persist *manifest* to ``.cataforge/.deploy-manifest.json``."""
-    path = project_root / _MANIFEST_REL
+    path = project_root / DEPLOY_MANIFEST_REL
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n"
     path.write_text(payload, encoding="utf-8")
@@ -129,4 +130,4 @@ def save_manifest(project_root: Path, manifest: DeployManifest) -> None:
 
 def manifest_path(project_root: Path) -> Path:
     """Where the manifest lives. Exposed for ``--rebuild`` / doctor."""
-    return project_root / _MANIFEST_REL
+    return project_root / DEPLOY_MANIFEST_REL

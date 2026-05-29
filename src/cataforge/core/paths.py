@@ -10,9 +10,28 @@ from pathlib import Path
 
 logger = logging.getLogger("cataforge.paths")
 
-# On-disk KG store location relative to project root (SSOT). CLI ``--db-path``
-# defaults and the doctor ingestion gate derive from this.
+# Project-relative locations (SSOT). CLI defaults, doctor gates, and the
+# hook/deploy runtimes derive from these rather than re-spelling the literals.
 KG_STORE_REL = Path(".cataforge") / "kg" / "store"
+HOOK_ERROR_LOG_REL = Path(".cataforge") / ".hook-errors.jsonl"
+DEPLOY_MANIFEST_REL = Path(".cataforge") / ".deploy-manifest.json"
+
+
+def find_project_root_or_none(start: Path | None = None) -> Path | None:
+    """Walk up from *start* (default: cwd) to the dir containing ``.cataforge/``.
+
+    Returns ``None`` (no warning, no cwd fallback) when no ``.cataforge/``
+    exists anywhere in the ancestor chain — callers that must not act outside a
+    project (best-effort log writers, platform detection) branch on this.
+    """
+    d = (start or Path.cwd()).resolve()
+    while True:
+        if (d / ".cataforge").is_dir():
+            return d
+        parent = d.parent
+        if parent == d:
+            return None
+        d = parent
 
 
 def find_project_root(start: Path | None = None) -> Path:
@@ -21,20 +40,16 @@ def find_project_root(start: Path | None = None) -> Path:
     Falls back to *cwd* with a warning if no ``.cataforge/`` directory exists
     anywhere in the ancestor chain.
     """
-    d = (start or Path.cwd()).resolve()
-    while True:
-        if (d / ".cataforge").is_dir():
-            return d
-        parent = d.parent
-        if parent == d:
-            cwd = Path.cwd().resolve()
-            logger.warning(
-                "No .cataforge/ directory found above %s; falling back to cwd (%s)",
-                start or cwd,
-                cwd,
-            )
-            return cwd
-        d = parent
+    root = find_project_root_or_none(start)
+    if root is not None:
+        return root
+    cwd = Path.cwd().resolve()
+    logger.warning(
+        "No .cataforge/ directory found above %s; falling back to cwd (%s)",
+        start or cwd,
+        cwd,
+    )
+    return cwd
 
 
 def project_root_from_docs_dir(docs_dir: Path | str) -> Path | None:
@@ -121,6 +136,18 @@ class ProjectPaths:
     @property
     def deploy_state(self) -> Path:
         return self.cataforge_dir / ".deploy-state"
+
+    @property
+    def deploy_manifest(self) -> Path:
+        return self.root / DEPLOY_MANIFEST_REL
+
+    @property
+    def hook_error_log(self) -> Path:
+        return self.root / HOOK_ERROR_LOG_REL
+
+    @property
+    def docs_dir(self) -> Path:
+        return self.root / "docs"
 
     @property
     def event_log(self) -> Path:

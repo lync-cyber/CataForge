@@ -25,9 +25,6 @@ from typing import Any
 
 logger = logging.getLogger("cataforge.runtime.hook")
 
-# Relative to the project root.  One JSONL per failure so ``doctor`` can
-# cheaply tail-scan without parsing a whole stateful file.
-HOOK_ERROR_LOG_REL = Path(".cataforge") / ".hook-errors.jsonl"
 HOOK_ERROR_LOG_MAX_BYTES = 256 * 1024
 
 
@@ -65,31 +62,17 @@ def get_platform() -> str:
 
 
 def _detect_from_framework_json() -> str:
-    fj_path = Path(__file__).resolve().parent.parent.parent.parent / ".cataforge" / "framework.json"
-    if not fj_path.is_file():
-        fj_path2 = _find_framework_json()
-        if fj_path2:
-            fj_path = fj_path2
+    from cataforge.core.paths import ProjectPaths, find_project_root_or_none
 
+    root = find_project_root_or_none()
+    if root is None:
+        return "claude-code"
     try:
-        with open(fj_path, encoding="utf-8") as f:
+        with open(ProjectPaths(root).framework_json, encoding="utf-8") as f:
             config = json.load(f)
         return str(config.get("runtime", {}).get("platform", "claude-code"))
     except (OSError, json.JSONDecodeError):
         return "claude-code"
-
-
-def _find_framework_json() -> Path | None:
-    """Walk up from CWD looking for .cataforge/framework.json."""
-    d = Path.cwd()
-    while True:
-        candidate = d / ".cataforge" / "framework.json"
-        if candidate.is_file():
-            return candidate
-        parent = d.parent
-        if parent == d:
-            return None
-        d = parent
 
 
 _tool_map_cache: dict[str, str | None] | None = None
@@ -119,10 +102,12 @@ def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
     """
     import json as _json
 
+    from cataforge.core.paths import ProjectPaths, find_project_root_or_none
+
     # Try to find .cataforge/platforms/<id>/profile.yaml near the project root
-    fj_path = _find_framework_json()
-    if fj_path:
-        profile_yaml = fj_path.parent / "platforms" / platform_id / "profile.yaml"
+    root = find_project_root_or_none()
+    if root is not None:
+        profile_yaml = ProjectPaths(root).platform_profile(platform_id)
         try:
             import yaml
 
@@ -241,12 +226,12 @@ def _record_hook_error(module: str, func_name: str, exc: BaseException) -> None:
     must never block because its diagnostics plumbing is broken.
     """
     try:
-        fj = _find_framework_json()
-        if fj is None:
+        from cataforge.core.paths import ProjectPaths, find_project_root_or_none
+
+        root = find_project_root_or_none()
+        if root is None:
             return
-        # fj = <root>/.cataforge/framework.json — the log lives next to it.
-        project_root = fj.parent.parent
-        log_path = project_root / HOOK_ERROR_LOG_REL
+        log_path = ProjectPaths(root).hook_error_log
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         _rotate_if_too_large(log_path)

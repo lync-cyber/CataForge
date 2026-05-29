@@ -23,7 +23,7 @@ from typing import Any, NamedTuple
 import yaml
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
-from cataforge.core.paths import find_project_root
+from cataforge.core.paths import ProjectPaths
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class HookGenerationResult(NamedTuple):
 def load_hooks_spec(hooks_yaml: Path | None = None) -> dict[str, Any]:
     """Load the canonical hook specification from hooks.yaml."""
     if hooks_yaml is None:
-        hooks_yaml = find_project_root() / ".cataforge" / "hooks" / "hooks.yaml"
+        hooks_yaml = ProjectPaths().hooks_spec
 
     with open(hooks_yaml, encoding="utf-8") as f:
         data = yaml.safe_load(f)

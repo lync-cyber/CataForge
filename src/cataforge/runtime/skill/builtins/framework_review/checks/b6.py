@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from cataforge.core.paths import ProjectPaths
+
 from .._hook_resolution import (
     load_capability_ids,
     load_hooks_manifest_names,
@@ -41,7 +43,7 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
       must appear in ``cataforge.runtime.hook.manifest.HOOKS_MANIFEST``. Catches
       "wired a helper module as a hook" bugs.
     """
-    hooks_yaml = root / ".cataforge" / "hooks" / "hooks.yaml"
+    hooks_yaml = ProjectPaths(root).hooks_spec
     if not hooks_yaml.is_file():
         return
     try:
@@ -89,7 +91,7 @@ def _check_reachability_and_syntax(
 ) -> None:
     """α + β: every referenced script resolves to a real, ast-parseable .py."""
     builtin_dir = resolve_builtin_hook_dir()
-    custom_dir = root / ".cataforge" / "hooks" / "custom"
+    custom_dir = ProjectPaths(root).hooks_dir / "custom"
     for script in sorted(referenced_scripts):
         py_path = resolve_hook_script(script, builtin_dir, custom_dir)
         if py_path is None:
@@ -167,7 +169,7 @@ def _check_degradation_parity(
     referenced_scripts: set[str], root: Path, report: Report
 ) -> None:
     """δ: each platform profile's degradation keys match hooks.yaml scripts."""
-    platforms_dir = root / ".cataforge" / "platforms"
+    platforms_dir = ProjectPaths(root).platforms_dir
     if not platforms_dir.is_dir():
         return
     for plat_dir in sorted(platforms_dir.iterdir()):

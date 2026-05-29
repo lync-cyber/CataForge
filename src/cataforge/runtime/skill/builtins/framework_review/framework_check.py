@@ -22,6 +22,7 @@ import json
 import sys
 from pathlib import Path
 
+from cataforge.core.paths import ProjectPaths
 from cataforge.utils.common import ensure_utf8
 
 from ._constants import (
@@ -185,7 +186,7 @@ def main() -> None:
 
     threshold = args.meta_size_threshold
     if threshold is None:
-        fw_json = root / ".cataforge" / "framework.json"
+        fw_json = ProjectPaths(root).framework_json
         threshold = DEFAULT_META_SIZE
         if fw_json.is_file():
             try:

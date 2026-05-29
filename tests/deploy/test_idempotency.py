@@ -601,7 +601,7 @@ def test_rebuild_refuses_to_purge_prior_other_platform(tmp_path: Path) -> None:
     refuses with a clear warning, leaving the user to clean the old
     platform's tree manually if they want a true switch.
     """
-    from cataforge.runtime.deploy.manifest import _MANIFEST_REL
+    from cataforge.core.paths import DEPLOY_MANIFEST_REL
 
     root = _init_project(tmp_path)
     clear_cache()
@@ -615,7 +615,7 @@ def test_rebuild_refuses_to_purge_prior_other_platform(tmp_path: Path) -> None:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text("cursor-era content", encoding="utf-8")
 
-    manifest_path = root / _MANIFEST_REL
+    manifest_path = root / DEPLOY_MANIFEST_REL
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
         json.dumps(

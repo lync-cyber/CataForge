@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from cataforge.core.paths import ProjectPaths
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 from .._constants import VALID_MODEL_TIERS
@@ -92,7 +93,7 @@ def check_b7_model_tier(root: Path, report: Report) -> None:
                 "'model_tier: light|standard|heavy'",
             )
 
-    platforms_dir = root / ".cataforge" / "platforms"
+    platforms_dir = ProjectPaths(root).platforms_dir
     if not platforms_dir.is_dir():
         return
     for plat_dir in sorted(platforms_dir.iterdir()):

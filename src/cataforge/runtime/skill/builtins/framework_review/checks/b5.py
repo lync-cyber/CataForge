@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 
 from cataforge.core.event_log import EVENT_LOG_REL
+from cataforge.core.paths import ProjectPaths
 
 from .._constants import B5_CROSS_CUTTING, B5_SUBAGENTS
 from .._discover import (
@@ -30,7 +31,7 @@ def _parse_phase_routing(root: Path) -> dict[str, str]:
     Empty dict on missing file or unparseable content (callers treat as
     "no routing data — skip checks" rather than FAIL).
     """
-    orch_path = root / ".cataforge" / "agents" / "orchestrator" / "AGENT.md"
+    orch_path = ProjectPaths(root).agent_dir("orchestrator") / "AGENT.md"
     if not orch_path.is_file():
         return {}
     try:
@@ -267,7 +268,7 @@ def _check_b5_hook_installed(root: Path, report: Report) -> None:
     This check fails FAST so the user fixes the hook before chasing
     phantom drift signals.
     """
-    hooks_yaml = root / ".cataforge" / "hooks" / "hooks.yaml"
+    hooks_yaml = ProjectPaths(root).hooks_spec
     if not hooks_yaml.is_file():
         return  # B6 will FAIL on this independently
     try:

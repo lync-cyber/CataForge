@@ -9,7 +9,7 @@ old docs<->kg import cycle and the indexer->loader private-symbol crossing.
 from __future__ import annotations
 
 import json
-import os
+from pathlib import Path
 from typing import Any
 
 DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
@@ -43,9 +43,11 @@ def _load_doc_type_map(project_root: str) -> dict[str, str]:
     if cached is not None:
         return cached
 
+    from cataforge.core.paths import ProjectPaths
+
     merged = dict(DEFAULT_DOC_TYPE_MAP)
-    framework_json = os.path.join(project_root, ".cataforge", "framework.json")
-    if os.path.isfile(framework_json):
+    framework_json = ProjectPaths(Path(project_root)).framework_json
+    if framework_json.is_file():
         try:
             with open(framework_json, encoding="utf-8") as f:
                 data = json.load(f)

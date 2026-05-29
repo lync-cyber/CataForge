@@ -6,6 +6,8 @@ import importlib
 import re
 from pathlib import Path
 
+from cataforge.core.paths import ProjectPaths
+
 from .._types import Report
 
 _CHECK_ID_ANCHOR_RE = re.compile(r"<!--\s*check_id:\s*([\w.-]+)\s*-->")
@@ -76,7 +78,7 @@ def check_b3_manifest_drift(root: Path, report: Report) -> None:
     }
 
     for skill_id, module_name in builtin_map.items():
-        skill_md = root / ".cataforge" / "skills" / skill_id / "SKILL.md"
+        skill_md = ProjectPaths(root).skill_dir(skill_id) / "SKILL.md"
         if not skill_md.is_file():
             continue
         try:
@@ -212,7 +214,7 @@ def check_b3_rules_schema(root: Path, report: Report) -> None:
     except ImportError:
         return
 
-    skills_dir = root / ".cataforge" / "skills"
+    skills_dir = ProjectPaths(root).skills_dir
     if not skills_dir.is_dir():
         return
     for skill_dir in sorted(skills_dir.iterdir()):

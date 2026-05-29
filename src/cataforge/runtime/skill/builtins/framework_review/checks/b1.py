@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from cataforge.core.paths import ProjectPaths
+
 from .._constants import (
     B1_REQUIRED_SECTIONS_EXEMPT_AGENTS,
     B1_REQUIRED_SECTIONS_EXEMPT_SKILLS,
@@ -69,7 +71,7 @@ def check_b1_size(
         for sid, path in discover_skills(root).items():
             targets.append((f"skills/{sid}", path))
     if scope in ("rules", "all"):
-        rules_dir = root / ".cataforge" / "rules"
+        rules_dir = ProjectPaths(root).rules_dir
         if rules_dir.is_dir():
             for path in sorted(rules_dir.rglob("*.md")):
                 try:
