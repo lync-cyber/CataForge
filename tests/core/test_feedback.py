@@ -44,22 +44,26 @@ class TestLayering:
     def test_no_static_cli_import(self) -> None:
         from cataforge.core import feedback
 
-        source = Path(feedback.__file__).read_text(encoding="utf-8")
-        # Only the lazy delegation inside the function body should mention
-        # cli-flavoured names; module-level imports from ``cataforge.cli``
-        # are forbidden.
-        for line in source.splitlines():
-            stripped = line.lstrip()
-            if not (stripped.startswith("import ") or stripped.startswith("from ")):
-                continue
-            # The lazy-import lines live inside function bodies and are
-            # therefore indented — filter those out by indent check.
-            if line.startswith((" ", "\t")):
-                continue
-            assert "cataforge.cli" not in line, (
-                f"core/feedback.py must not statically import from "
-                f"cataforge.cli; offending line: {line!r}"
-            )
+        # Scan every module in the feedback package — collectors/renderers/
+        # assemblers and __init__ — so the rule still holds after the split.
+        pkg_dir = Path(feedback.__file__).parent
+        for src_file in sorted(pkg_dir.glob("*.py")):
+            source = src_file.read_text(encoding="utf-8")
+            # Only the lazy delegation inside function bodies should mention
+            # cli-flavoured names; module-level imports from ``cataforge.cli``
+            # are forbidden.
+            for line in source.splitlines():
+                stripped = line.lstrip()
+                if not (stripped.startswith("import ") or stripped.startswith("from ")):
+                    continue
+                # The lazy-import lines live inside function bodies and are
+                # therefore indented — filter those out by indent check.
+                if line.startswith((" ", "\t")):
+                    continue
+                assert "cataforge.cli" not in line, (
+                    f"{src_file.name} must not statically import from "
+                    f"cataforge.cli; offending line: {line!r}"
+                )
 
     def test_doctor_summary_lives_in_services(self) -> None:
         """The CliRunner-based implementation must live in services/, not core/."""
@@ -96,20 +100,14 @@ class TestEnvironment:
         assert "." in env["python_version"]
         assert env["platform"]
 
-    def test_collect_environment_handles_missing_scaffold(
-        self, tmp_path: Path
-    ) -> None:
+    def test_collect_environment_handles_missing_scaffold(self, tmp_path: Path) -> None:
         env = collect_environment(tmp_path)
         assert env["scaffold_version"] == "(unknown)"
         assert env["runtime_platform"] == "(unknown)"
 
-    def test_collect_environment_tolerates_malformed_framework_json(
-        self, tmp_path: Path
-    ) -> None:
+    def test_collect_environment_tolerates_malformed_framework_json(self, tmp_path: Path) -> None:
         project = _bootstrap(tmp_path)
-        (project / ".cataforge" / "framework.json").write_text(
-            "not-json{", encoding="utf-8"
-        )
+        (project / ".cataforge" / "framework.json").write_text("not-json{", encoding="utf-8")
         env = collect_environment(project)
         assert env["scaffold_version"] == "(unknown)"
 
@@ -164,7 +162,7 @@ class TestRecentEvents:
         log = project / EVENT_LOG_REL
         log.parent.mkdir(parents=True, exist_ok=True)
         log.write_bytes(b"x" * (MAX_EVENTLOG_BYTES + 1))
-        with patch("cataforge.core.feedback.logger") as mock_log:
+        with patch("cataforge.core.feedback.collectors.logger") as mock_log:
             events = collect_recent_events(project)
             assert mock_log.warning.called
         assert events == []
@@ -361,6 +359,7 @@ class TestCollectFrameworkReviewExceptionHandling:
         # Patch the symbol on the actual runner module so the
         # in-function import inside collect_framework_review picks it up.
         from cataforge.skill import runner as runner_mod
+
         monkeypatch.setattr(runner_mod, "SkillRunner", _BrokenRunner)
 
         result = feedback_mod.collect_framework_review(tmp_path)
