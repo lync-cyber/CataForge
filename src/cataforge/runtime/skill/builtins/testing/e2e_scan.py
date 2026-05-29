@@ -22,9 +22,13 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
+from cataforge.core.types import Severity
+from cataforge.runtime.skill.builtins._shared import CheckReport, IssueCollector
+from cataforge.runtime.skill.builtins.testing._render import render_text
 from cataforge.runtime.skill.builtins.testing.e2e_patterns import (
     all_extensions,
     rule_for_extension,
@@ -70,15 +74,15 @@ def scan_file(path: Path) -> tuple[list[tuple[int, str, str]], int]:
     return findings, real_input
 
 
-def run(target: str) -> int:
-    base = Path(target)
-    if not base.exists():
-        print(f"ERROR: 目标路径不存在: {base}")
-        return 2
+def collect(base: Path) -> CheckReport:
+    """Scan *base* and return a structured report (no console I/O).
 
+    Every finding is advisory (WARN): backdoor matches per line, plus a
+    single real-input-absence warning when the whole tree has zero real
+    interaction calls. Counts land in ``summary`` for the renderer.
+    """
     files = collect_e2e_files(base)
-    print(f"e2e_scan: 扫描 {len(files)} 个 e2e 文件 @ {base}")
-    print("=" * 50)
+    issues = IssueCollector()
 
     backdoor_total = 0
     real_input_total = 0
@@ -87,33 +91,67 @@ def run(target: str) -> int:
         real_input_total += real_input
         for lineno, label, snippet in findings:
             backdoor_total += 1
-            print(f"WARN: [{f}:{lineno}] e2e_backdoor_scan ({label}): {snippet}")
+            issues.add(
+                Severity.LOW,
+                "e2e_backdoor_scan",
+                f"[{f}:{lineno}] e2e_backdoor_scan ({label}): {snippet}",
+                path=str(f),
+            )
 
     if files and real_input_total == 0:
-        print(
-            "WARN: e2e_real_input_presence — 整个 e2e 套件未发现任何真实交互调用 "
+        issues.add(
+            Severity.LOW,
+            "e2e_real_input_presence",
+            "e2e_real_input_presence — 整个 e2e 套件未发现任何真实交互调用 "
             "(keyboard.type / page.fill / page.click / page.press / .type)；"
-            "可能完全依赖 fixture/store 注入"
+            "可能完全依赖 fixture/store 注入",
         )
 
-    print()
-    print("=" * 50)
-    print(
-        f"Summary: {backdoor_total} backdoor WARN, "
-        f"{real_input_total} real-input call(s) across {len(files)} file(s)"
+    return CheckReport(
+        issues,
+        summary={
+            "backdoor_total": backdoor_total,
+            "real_input_total": real_input_total,
+            "file_count": len(files),
+        },
+        headline=f"e2e_scan: 扫描 {len(files)} 个 e2e 文件 @ {base}",
     )
-    print("RESULT: PASS" + (" (warnings only)" if backdoor_total or not real_input_total else ""))
+
+
+def run(target: str) -> int:
+    """Scan *target* and print the text report. Returns 0, or 2 if missing."""
+    base = Path(target)
+    if not base.exists():
+        print(f"ERROR: 目标路径不存在: {base}")
+        return 2
+    print(render_text(collect(base)))
     return 0
 
 
 def main() -> None:
     ensure_utf8()
-    if len(sys.argv) < 2 or sys.argv[1] in {"-h", "--help"}:
+    args = sys.argv[1:]
+    fmt = "text"
+    if "--format" in args:
+        idx = args.index("--format")
+        fmt = args[idx + 1] if idx + 1 < len(args) else "text"
+        args = args[:idx] + args[idx + 2 :]
+    if not args or args[0] in {"-h", "--help"}:
         print(
             "用法: python -m cataforge.runtime.skill.builtins.testing.e2e_scan <e2e_dir>"
         )
         sys.exit(2)
-    sys.exit(run(sys.argv[1]))
+
+    base = Path(args[0])
+    if not base.exists():
+        print(f"ERROR: 目标路径不存在: {base}")
+        sys.exit(2)
+    report = collect(base)
+    if fmt == "json":
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        print(render_text(report))
+    sys.exit(0)
 
 
 if __name__ == "__main__":

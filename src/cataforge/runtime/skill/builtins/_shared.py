@@ -9,7 +9,7 @@ and keeps its own ``Finding`` model.)
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from cataforge.core.types import Severity
@@ -76,4 +76,42 @@ class IssueCollector:
         return len(self.issues)
 
 
-__all__ = ["Issue", "IssueCollector"]
+@dataclass
+class CheckReport:
+    """Structured outcome of a Layer 1 check run.
+
+    Separates *what was found* (``issues`` + ``summary``) from *how it
+    prints*, so a checker's ``collect()`` can stay free of I/O and a single
+    rendering layer can target text or JSON. ``exit_code`` is the single
+    source of truth for the 0/1/2 subprocess contract shared by these
+    builtins: 0 = clean, 1 = blocking findings, 2 = advisory only.
+
+    ``summary`` carries non-issue render data (traceability matrices,
+    coverage counts) keyed by the producing checker; ``headline`` is the
+    leading status line a checker emits before its findings.
+    """
+
+    issues: IssueCollector
+    summary: dict[str, Any] = field(default_factory=dict)
+    headline: str | None = None
+
+    @property
+    def exit_code(self) -> int:
+        if self.issues.blocking:
+            return 1
+        if self.issues.advisory:
+            return 2
+        return 0
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "exit_code": self.exit_code,
+            "issues": [i.to_dict() for i in self.issues],
+            "summary": self.summary,
+        }
+        if self.headline is not None:
+            out["headline"] = self.headline
+        return out
+
+
+__all__ = ["CheckReport", "Issue", "IssueCollector"]
