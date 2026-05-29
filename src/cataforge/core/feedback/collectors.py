@@ -16,6 +16,7 @@ from typing import Any
 from cataforge import __version__ as _package_version
 from cataforge.core.config import ConfigManager
 from cataforge.core.corrections import CORRECTIONS_LOG_REL
+from cataforge.core.errors import ConfigError
 from cataforge.core.event_log import EVENT_LOG_REL, MAX_EVENTLOG_BYTES
 
 logger = logging.getLogger("cataforge.feedback")
@@ -78,7 +79,7 @@ def collect_environment(project_root: Path) -> dict[str, str]:
     """Capture the static env block (no PII)."""
     try:
         data = ConfigManager(project_root).load_raw()
-    except (OSError, ValueError):
+    except (OSError, ValueError, ConfigError):
         data = {}
     scaffold_version = str(data.get("version", "(unknown)"))
     runtime_platform = str((data.get("runtime") or {}).get("platform", "(unknown)"))
