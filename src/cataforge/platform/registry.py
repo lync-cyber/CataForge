@@ -12,6 +12,11 @@ from cataforge.platform.base import PlatformAdapter
 
 logger = logging.getLogger("cataforge.platform")
 
+# Built-in platform ids (SSOT). The id→class map in ``_create_adapter`` must
+# cover exactly these; ``conformance.ALL_PLATFORMS`` and CLI ``--platform``
+# choices derive from this tuple.
+BUILTIN_PLATFORM_IDS: tuple[str, ...] = ("claude-code", "cursor", "codex", "opencode")
+
 _adapter_cache: dict[tuple[str, str | None], PlatformAdapter] = {}
 _cache_lock = threading.Lock()
 

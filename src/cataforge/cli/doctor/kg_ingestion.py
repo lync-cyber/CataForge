@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 
 import click
 
+from cataforge.core.paths import KG_STORE_REL
+
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
 
@@ -155,7 +157,7 @@ def _kg_entity_ids(db_path: Path) -> set[str]:
 def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     """Doctor gate — returns failure count for missing KG entity IDs."""
     project_root = Path(cfg.paths.root)
-    db_path = project_root / ".cataforge" / "kg" / "store"
+    db_path = project_root / KG_STORE_REL
 
     if not db_path.exists():
         click.echo(

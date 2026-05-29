@@ -15,6 +15,7 @@ from typing import Any
 
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter as _split_fm
+from cataforge.utils.md_parse import strip_code_blocks
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
 _ITEM_ID_RE = re.compile(r"^### ([A-Z]+-\d+)", re.MULTILINE)
@@ -26,10 +27,6 @@ _T_ID_RE = re.compile(r"T-(\d+)")
 _C_ID_RE = re.compile(r"C-(\d+)")
 _P_ID_RE = re.compile(r"P-(\d+)")
 _E_ID_RE = re.compile(r"E-(\d+)")
-
-
-def _strip_code_blocks(text: str) -> str:
-    return re.sub(r"```.*?```", "", text, flags=re.DOTALL)
 
 
 def _load_doc(path: Path) -> tuple[dict[str, Any], str]:
@@ -70,7 +67,7 @@ def _extract_sections(content: str, prefix: str) -> dict[str, str]:
 
 def _extract_all_ids(content: str, prefix: str) -> set[str]:
     """Extract all item IDs with a given prefix from text."""
-    return set(re.findall(rf"{prefix}-\d+", _strip_code_blocks(content)))
+    return set(re.findall(rf"{prefix}-\d+", strip_code_blocks(content)))
 
 
 def _read_all_content(paths: list[Path]) -> str:
@@ -238,8 +235,8 @@ class CrossDocChecker:
                 )
             return
 
-        prd_content = _strip_code_blocks(self._content["prd"])
-        arch_content = _strip_code_blocks(self._content["arch"])
+        prd_content = strip_code_blocks(self._content["prd"])
+        arch_content = strip_code_blocks(self._content["arch"])
 
         prd_acs = set(re.findall(r"AC-\d+", prd_content))
         if not prd_acs:
@@ -292,7 +289,7 @@ class CrossDocChecker:
         if not self._has_content("prd") or not self._has_content("arch"):
             return
         prd_content = self._content["prd"]
-        arch_content = _strip_code_blocks(self._content["arch"])
+        arch_content = strip_code_blocks(self._content["arch"])
 
         p0_features: set[str] = set()
         f_sections = _extract_sections(prd_content, "F")
@@ -336,7 +333,7 @@ class CrossDocChecker:
         if not arch_endpoints:
             return
 
-        devplan_no_code = _strip_code_blocks(devplan_content)
+        devplan_no_code = strip_code_blocks(devplan_content)
         all_devplan_endpoints: set[str] = set()
         for m in endpoint_re.finditer(devplan_no_code):
             all_devplan_endpoints.add(f"{m.group(1).upper()} {m.group(2)}")
@@ -364,7 +361,7 @@ class CrossDocChecker:
         if not self._has_content("arch") or not self._has_content("dev-plan"):
             return
         arch_content = self._content["arch"]
-        devplan_content = _strip_code_blocks(self._content["dev-plan"])
+        devplan_content = strip_code_blocks(self._content["dev-plan"])
 
         arch_entities = _extract_all_ids(arch_content, "E")
         if not arch_entities:
@@ -398,8 +395,8 @@ class CrossDocChecker:
                 )
             return
 
-        prd_content = _strip_code_blocks(self._content["prd"])
-        devplan_content = _strip_code_blocks(self._content["dev-plan"])
+        prd_content = strip_code_blocks(self._content["prd"])
+        devplan_content = strip_code_blocks(self._content["dev-plan"])
 
         prd_acs = set(re.findall(r"AC-\d+", prd_content))
         if not prd_acs:
@@ -457,7 +454,7 @@ class CrossDocChecker:
         if not self._has_content("prd") or not self._has_content("ui-spec"):
             return
         prd_content = self._content["prd"]
-        uispec_content = _strip_code_blocks(self._content["ui-spec"])
+        uispec_content = strip_code_blocks(self._content["ui-spec"])
 
         ui_verbs = re.compile(
             r"显示|渲染|展示|输入|点击|导航|页面|表单|列表|弹窗|对话框"
@@ -505,9 +502,9 @@ class CrossDocChecker:
         if not self._has_content("prd"):
             return []
         prd_content = self._content["prd"]
-        arch_content = _strip_code_blocks(self._content.get("arch", ""))
-        devplan_content = _strip_code_blocks(self._content.get("dev-plan", ""))
-        uispec_content = _strip_code_blocks(self._content.get("ui-spec", ""))
+        arch_content = strip_code_blocks(self._content.get("arch", ""))
+        devplan_content = strip_code_blocks(self._content.get("dev-plan", ""))
+        uispec_content = strip_code_blocks(self._content.get("ui-spec", ""))
 
         f_sections = _extract_sections(prd_content, "F")
         matrix: list[dict[str, str]] = []

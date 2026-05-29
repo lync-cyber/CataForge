@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from cataforge.core.paths import KG_STORE_REL
+
 # Single source of truth for the business doc_type universe. Every doc_type
 # here carries entity classes the KG ingest pipeline extracts and the render
 # pipeline materializes (specific template when present, generic artifact
@@ -40,7 +42,7 @@ class KGConfig:
     """Configuration for a KnowledgeGraph connection."""
 
     store_backend: Literal["oxigraph", "memory"] = "oxigraph"
-    db_path: Path = field(default_factory=lambda: Path(".cataforge/kg/store"))
+    db_path: Path = field(default_factory=lambda: KG_STORE_REL)
     governance: bool = False
     coverage_mode: Literal["strict", "mentions"] = "strict"
     query_timeout: float | None = 30.0

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cataforge.core.event_log import EVENT_LOG_REL
+
 from ._constants import DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS
 
 
@@ -26,9 +28,7 @@ def read_framework_features(root: Path) -> dict[str, dict[str, object]]:
     features = data.get("features")
     if not isinstance(features, dict):
         return {}
-    return {
-        str(k): v for k, v in features.items() if isinstance(v, dict)
-    }
+    return {str(k): v for k, v in features.items() if isinstance(v, dict)}
 
 
 def read_dispatcher_skills(root: Path) -> set[str]:
@@ -110,7 +110,7 @@ def read_event_log_returns(
     missing — caller treats that as "no event data, skip cross-check"
     rather than treating absence as evidence of dead routing.
     """
-    log_path = root / "docs" / "EVENT-LOG.jsonl"
+    log_path = root / EVENT_LOG_REL
     if not log_path.is_file():
         return {}, {}
 

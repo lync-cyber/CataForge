@@ -25,6 +25,7 @@ from cataforge.core.errors import (
     KGStoreError,
     KGVerificationError,
 )
+from cataforge.core.paths import KG_STORE_REL
 
 
 @cli.group("kg")
@@ -36,7 +37,7 @@ def kg_group() -> None:
 @click.option(
     "--db-path",
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path for the RocksDB-backed Oxigraph store.",
 )
@@ -116,7 +117,7 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
 @click.option(
     "--db-path",
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path for the RocksDB-backed Oxigraph store.",
 )
@@ -235,7 +236,7 @@ def kg_import(
 @click.option(
     "--db-path",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -307,7 +308,7 @@ def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
 @click.option(
     "--db-path",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -375,7 +376,7 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
 @click.option(
     "--db-path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -498,7 +499,7 @@ def kg_reconcile(
 @click.option(
     "--db-path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -601,7 +602,7 @@ def kg_compare_read(
 @click.option(
     "--db-path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -640,7 +641,7 @@ def kg_snapshot(db_path: Path, output_dir: Path, label: str | None) -> None:
 @click.option(
     "--db-path",
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store to replace.",
 )
@@ -684,7 +685,7 @@ def kg_rollback(snapshot_path: Path, db_path: Path, force: bool) -> None:
 @click.option(
     "--db-path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -766,7 +767,7 @@ def kg_repair(
 @click.option(
     "--db-path",
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -1025,7 +1026,7 @@ def _ntriples_term(term: object) -> str:
 @click.option(
     "--db-path",
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -1364,7 +1365,7 @@ def _resolve_project_iri(
 @click.option(
     "--db-path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -1483,7 +1484,7 @@ def kg_add(
 @click.option(
     "--db-path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )
@@ -1572,7 +1573,7 @@ def kg_update(
 @click.option(
     "--db-path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=Path(".cataforge/kg/store"),
+    default=KG_STORE_REL,
     show_default=True,
     help="Filesystem path of the RocksDB-backed Oxigraph store.",
 )

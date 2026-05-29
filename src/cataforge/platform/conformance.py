@@ -11,11 +11,11 @@ from cataforge.core.types import (
     OPTIONAL_CAPABILITY_IDS,
     PLATFORM_FEATURES,
 )
-from cataforge.platform.registry import get_adapter
+from cataforge.platform.registry import BUILTIN_PLATFORM_IDS, get_adapter
 
 REQUIRED_CAPABILITIES = CAPABILITY_IDS
 
-ALL_PLATFORMS = ["claude-code", "cursor", "codex", "opencode"]
+ALL_PLATFORMS = list(BUILTIN_PLATFORM_IDS)
 
 
 def check_conformance(platform_id: str, platforms_dir: Path | None = None) -> list[str]:
@@ -42,9 +42,7 @@ def check_conformance(platform_id: str, platforms_dir: Path | None = None) -> li
     return issues
 
 
-def check_extended_conformance(
-    platform_id: str, platforms_dir: Path | None = None
-) -> list[str]:
+def check_extended_conformance(platform_id: str, platforms_dir: Path | None = None) -> list[str]:
     """Extended conformance check covering features, agent config, and more.
 
     Unlike :func:`check_conformance` which checks hard requirements, this
@@ -68,9 +66,7 @@ def check_extended_conformance(
     if supported_fields:
         missing = [f for f in AGENT_FRONTMATTER_FIELDS if f not in supported_fields]
         if missing:
-            issues.append(
-                f"INFO: {platform_id} agent config missing fields: {', '.join(missing)}"
-            )
+            issues.append(f"INFO: {platform_id} agent config missing fields: {', '.join(missing)}")
     else:
         issues.append(f"INFO: {platform_id} does not declare agent_config.supported_fields")
 
@@ -79,9 +75,7 @@ def check_extended_conformance(
     if features:
         unsupported = [f for f in PLATFORM_FEATURES if not features.get(f, False)]
         if unsupported:
-            issues.append(
-                f"INFO: {platform_id} unsupported features: {', '.join(unsupported)}"
-            )
+            issues.append(f"INFO: {platform_id} unsupported features: {', '.join(unsupported)}")
     else:
         issues.append(f"INFO: {platform_id} does not declare features section")
 
