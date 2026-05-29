@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from cataforge.platform.base import PlatformAdapter
+from cataforge.platform.adapter import PlatformAdapter
 
 logger = logging.getLogger("cataforge.platform")
 

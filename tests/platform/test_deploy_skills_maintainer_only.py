@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from cataforge.platform.base import PlatformAdapter
+from cataforge.platform.adapter import PlatformAdapter
 
 
 def _make_dir_link(target: Path, source: Path) -> bool:

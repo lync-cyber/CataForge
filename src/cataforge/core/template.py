@@ -26,7 +26,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cataforge.platform.base import PlatformAdapter
+    from cataforge.platform.adapter import PlatformAdapter
 
 _PROJECT_STATE_PLATFORM_PLACEHOLDER = "运行时: {platform}"
 

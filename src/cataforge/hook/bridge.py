@@ -23,7 +23,7 @@ from typing import Any, NamedTuple
 import yaml
 
 from cataforge.core.paths import find_project_root
-from cataforge.platform.base import PlatformAdapter
+from cataforge.platform.adapter import PlatformAdapter
 
 logger = logging.getLogger(__name__)
 

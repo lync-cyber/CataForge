@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 
-from cataforge.platform.base import PlatformAdapter
+from cataforge.platform.adapter import PlatformAdapter
 from cataforge.platform.registry import get_adapter
 
 
