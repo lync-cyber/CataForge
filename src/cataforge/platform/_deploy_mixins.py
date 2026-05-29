@@ -48,6 +48,37 @@ def _peek_maintainer_only(skill_md: Path) -> bool:
     return bool(_MAINTAINER_ONLY_RE.search(fm))
 
 
+def _dry_run_agent_lines(agent_src_dir: Path, agent_name: str, target_rel: str) -> list[str]:
+    """Describe what a non-dry-run deploy of one agent dir would write.
+
+    Shows both the logical source and the physical target so users can't
+    confuse "same filename in every line" for "all agents being written to
+    the same file".
+    """
+    lines = [f"would deploy agent {agent_name:<24} → {target_rel}/{agent_name}/AGENT.md"]
+    for sibling in sorted(agent_src_dir.iterdir()):
+        if sibling.is_file() and sibling.suffix == ".md" and sibling.name != "AGENT.md":
+            lines.append(
+                f"would deploy agent-doc {agent_name}/{sibling.name:<32} → "
+                f"{target_rel}/{agent_name}/{sibling.name}"
+            )
+    return lines
+
+
+def _dropped_capability_warnings(
+    platform_id: str, dropped_collector: dict[str, set[str]]
+) -> list[str]:
+    """One aggregated WARN per agent-field that lost capability mappings."""
+    warnings: list[str] = []
+    for field_name in sorted(dropped_collector):
+        caps = sorted(dropped_collector[field_name])
+        warnings.append(
+            f"WARN: {platform_id}: {len(caps)} capability id(s) in "
+            f"{field_name!r} have no platform mapping: {caps} — "
+            "these will be skipped during translation."
+        )
+    return warnings
+
 
 class AgentDeployMixin:
     """Agent deployment (cataforge agents → platform-native agent files)."""
@@ -66,8 +97,6 @@ class AgentDeployMixin:
         Default: translates yaml-frontmatter agent files and copies them.
         Subclasses override for different formats (e.g. TOML).
         """
-        from cataforge.agent.translator import translate_agent_md
-
         scan_dirs = self.get_agent_scan_dirs()
         if not scan_dirs:
             return []
@@ -89,113 +118,136 @@ class AgentDeployMixin:
         # per platform instead of spamming one warning per agent per field.
         dropped_collector: dict[str, set[str]] = {}
 
-        # Both AGENT.md and its sibling *.md (PROTOCOLS, META, …) deploy into
-        # the platform's per-agent subdir. The siblings carry detailed
-        # protocol material that AGENT.md references; without them in the
-        # IDE-visible tree the LLM follows a placeholder-laden source path
-        # back into .cataforge/ and sees unrendered tokens. Render at write
-        # time so {INSTRUCTION_FILE} / {AGENTS_DIR} etc. resolve to the
-        # platform-native values before the file lands.
-        from cataforge.core.template import render_runtime_content
-
         for agent_name in sorted(source_agents):
             agent_src_dir = source_dir / agent_name
-            agent_md = agent_src_dir / "AGENT.md"
             agent_dst = target_dir / agent_name
-            agent_rel = f"{target_rel}/{agent_name}/AGENT.md"
             if dry_run:
-                # Show both the logical source and the physical target so users
-                # can't confuse "same filename in every line" for "all agents
-                # being written to the same file".
-                actions.append(
-                    f"would deploy agent {agent_name:<24} → {target_rel}/{agent_name}/AGENT.md"
-                )
-                for sibling in sorted(agent_src_dir.iterdir()):
-                    if sibling.is_file() and sibling.suffix == ".md" and sibling.name != "AGENT.md":
-                        actions.append(
-                            f"would deploy agent-doc {agent_name}/{sibling.name:<32} → "
-                            f"{target_rel}/{agent_name}/{sibling.name}"
-                        )
+                actions.extend(_dry_run_agent_lines(agent_src_dir, agent_name, target_rel))
                 continue
-
-            agent_dst.mkdir(exist_ok=True)
-            content = agent_md.read_text(encoding="utf-8")
-            translated = translate_agent_md(content, self, dropped_collector=dropped_collector)
-            rendered = render_runtime_content(translated, self)
-            (agent_dst / "AGENT.md").write_text(rendered, encoding="utf-8")
-            if manifest is not None:
-                manifest.record(agent_rel)
-            actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
-
-            # Render and write sibling *.md files. Track each in the manifest
-            # so the next deploy's orphan prune can reclaim stale ones the
-            # source removed, without touching user-authored ones the
-            # manifest doesn't know about.
-            written_siblings: set[str] = set()
-            for sibling in sorted(agent_src_dir.iterdir()):
-                if not (sibling.is_file() and sibling.suffix == ".md"):
-                    continue
-                if sibling.name == "AGENT.md":
-                    continue
-                sib_content = sibling.read_text(encoding="utf-8")
-                sib_rendered = render_runtime_content(sib_content, self)
-                (agent_dst / sibling.name).write_text(sib_rendered, encoding="utf-8")
-                sib_rel = f"{target_rel}/{agent_name}/{sibling.name}"
-                written_siblings.add(sibling.name)
-                if manifest is not None:
-                    manifest.record(sib_rel)
-                actions.append(f"agents/{agent_name}/{sibling.name} → {target_rel}/{agent_name}")
-
-            # Prune sibling *.md that previous deploys wrote but source no
-            # longer carries. Scope tightly: only files in prior_manifest,
-            # never AGENT.md itself, never non-md files (user backups etc.).
-            for existing in agent_dst.iterdir():
-                if not (existing.is_file() and existing.suffix == ".md"):
-                    continue
-                if existing.name == "AGENT.md" or existing.name in written_siblings:
-                    continue
-                existing_rel = f"{target_rel}/{agent_name}/{existing.name}"
-                if prior_manifest is not None and existing_rel not in prior_manifest:
-                    continue
-                existing.unlink()
-                actions.append(f"pruned orphan {target_rel}/{agent_name}/{existing.name}")
-
-        # Emit a single aggregated WARN per field, listing every dropped cap.
-        for field_name in sorted(dropped_collector):
-            caps = sorted(dropped_collector[field_name])
-            actions.append(
-                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
-                f"{field_name!r} have no platform mapping: {caps} — "
-                "these will be skipped during translation."
+            actions.extend(
+                self._write_agent_dir(
+                    agent_src_dir,
+                    agent_dst,
+                    agent_name,
+                    target_rel,
+                    dropped_collector,
+                    manifest,
+                    prior_manifest,
+                )
             )
 
-        # Prune orphan agent subdirs that no longer exist in source. The
-        # subdir-with-AGENT.md ownership check stays as a defence-in-depth
-        # layer (we never touch dirs that don't look like ours), and on top
-        # of that the manifest scoping ensures we only delete agents we
-        # actually wrote in a prior deploy — user-authored agents that
-        # happen to follow our naming pattern survive.
-        if target_dir.is_dir():
-            from cataforge.platform.helpers import remove_dir_with_manifest_check
+        actions.extend(_dropped_capability_warnings(self.platform_id, dropped_collector))
+        actions.extend(
+            self._prune_orphan_agent_dirs(
+                target_dir, source_agents, scan_dirs[0], target_rel, prior_manifest, dry_run
+            )
+        )
+        return actions
 
-            for existing in target_dir.iterdir():
-                if (
-                    not existing.is_dir()
-                    or existing.name in source_agents
-                    or not (existing / "AGENT.md").is_file()
-                ):
-                    continue
-                actions.extend(
-                    remove_dir_with_manifest_check(
-                        existing,
-                        display_rel=f"{scan_dirs[0]}/{existing.name}",
-                        manifest_key=f"{target_rel}/{existing.name}/AGENT.md",
-                        prior_manifest=prior_manifest,
-                        dry_run=dry_run,
-                        kind="orphan",
-                    )
+    def _write_agent_dir(
+        self,
+        agent_src_dir: Path,
+        agent_dst: Path,
+        agent_name: str,
+        target_rel: str,
+        dropped_collector: dict[str, set[str]],
+        manifest: DeployManifest | None,
+        prior_manifest: set[str] | None,
+    ) -> list[str]:
+        """Render+write a single agent's AGENT.md and sibling *.md, pruning stale siblings.
+
+        Both AGENT.md and its sibling *.md (PROTOCOLS, META, …) deploy into
+        the platform's per-agent subdir. The siblings carry detailed protocol
+        material that AGENT.md references; without them in the IDE-visible tree
+        the LLM follows a placeholder-laden source path back into .cataforge/
+        and sees unrendered tokens. Render at write time so {INSTRUCTION_FILE}
+        / {AGENTS_DIR} etc. resolve to platform-native values before the file
+        lands.
+        """
+        from cataforge.agent.translator import translate_agent_md
+        from cataforge.core.template import render_runtime_content
+
+        actions: list[str] = []
+        agent_dst.mkdir(exist_ok=True)
+        content = (agent_src_dir / "AGENT.md").read_text(encoding="utf-8")
+        translated = translate_agent_md(content, self, dropped_collector=dropped_collector)
+        rendered = render_runtime_content(translated, self)
+        (agent_dst / "AGENT.md").write_text(rendered, encoding="utf-8")
+        if manifest is not None:
+            manifest.record(f"{target_rel}/{agent_name}/AGENT.md")
+        actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
+
+        # Render and write sibling *.md files. Track each in the manifest so
+        # the next deploy's orphan prune can reclaim stale ones the source
+        # removed, without touching user-authored ones the manifest doesn't
+        # know about.
+        written_siblings: set[str] = set()
+        for sibling in sorted(agent_src_dir.iterdir()):
+            if not (sibling.is_file() and sibling.suffix == ".md"):
+                continue
+            if sibling.name == "AGENT.md":
+                continue
+            sib_rendered = render_runtime_content(sibling.read_text(encoding="utf-8"), self)
+            (agent_dst / sibling.name).write_text(sib_rendered, encoding="utf-8")
+            written_siblings.add(sibling.name)
+            if manifest is not None:
+                manifest.record(f"{target_rel}/{agent_name}/{sibling.name}")
+            actions.append(f"agents/{agent_name}/{sibling.name} → {target_rel}/{agent_name}")
+
+        # Prune sibling *.md that previous deploys wrote but source no longer
+        # carries. Scope tightly: only files in prior_manifest, never AGENT.md
+        # itself, never non-md files (user backups etc.).
+        for existing in agent_dst.iterdir():
+            if not (existing.is_file() and existing.suffix == ".md"):
+                continue
+            if existing.name == "AGENT.md" or existing.name in written_siblings:
+                continue
+            existing_rel = f"{target_rel}/{agent_name}/{existing.name}"
+            if prior_manifest is not None and existing_rel not in prior_manifest:
+                continue
+            existing.unlink()
+            actions.append(f"pruned orphan {target_rel}/{agent_name}/{existing.name}")
+        return actions
+
+    def _prune_orphan_agent_dirs(
+        self,
+        target_dir: Path,
+        source_agents: set[str],
+        scan_dir: str,
+        target_rel: str,
+        prior_manifest: set[str] | None,
+        dry_run: bool,
+    ) -> list[str]:
+        """Remove agent subdirs no longer present in source.
+
+        The subdir-with-AGENT.md ownership check stays as a defence-in-depth
+        layer (we never touch dirs that don't look like ours), and on top of
+        that the manifest scoping ensures we only delete agents we actually
+        wrote in a prior deploy — user-authored agents that happen to follow
+        our naming pattern survive.
+        """
+        if not target_dir.is_dir():
+            return []
+        from cataforge.platform.helpers import remove_dir_with_manifest_check
+
+        actions: list[str] = []
+        for existing in target_dir.iterdir():
+            if (
+                not existing.is_dir()
+                or existing.name in source_agents
+                or not (existing / "AGENT.md").is_file()
+            ):
+                continue
+            actions.extend(
+                remove_dir_with_manifest_check(
+                    existing,
+                    display_rel=f"{scan_dir}/{existing.name}",
+                    manifest_key=f"{target_rel}/{existing.name}/AGENT.md",
+                    prior_manifest=prior_manifest,
+                    dry_run=dry_run,
+                    kind="orphan",
                 )
-
+            )
         return actions
 
     def _deploy_flat_agents(
@@ -296,14 +348,7 @@ class AgentDeployMixin:
             )
         )
 
-        for field_name in sorted(dropped_collector):
-            caps = sorted(dropped_collector[field_name])
-            actions.append(
-                f"WARN: {self.platform_id}: {len(caps)} capability id(s) in "
-                f"{field_name!r} have no platform mapping: {caps} — "
-                "these will be skipped during translation."
-            )
-
+        actions.extend(_dropped_capability_warnings(self.platform_id, dropped_collector))
         return actions
 
 

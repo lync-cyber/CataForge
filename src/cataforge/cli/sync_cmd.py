@@ -187,38 +187,54 @@ def sync_main_command(
             "Detached HEAD — checkout a branch first, then re-run `cataforge sync-main`."
         )
 
-    # Fetch + prune
+    _fetch_origin(repo, target, dry_run)
+    _switch_to_target(repo, starting_branch, target, dry_run)
+    ahead, behind = _compute_ahead_behind(repo, target)
+    _fast_forward(repo, target, ahead, behind, dry_run)
+
+    if prune_merged:
+        _prune_merged_branches(repo, target=target, auto_yes=auto_yes, dry_run=dry_run)
+
+    # Restore the original branch when the user was on something else *and*
+    # they didn't ask us to nuke it via --prune-merged.
+    if starting_branch != target and not prune_merged:
+        _restore_branch(repo, starting_branch, dry_run)
+
+
+def _fetch_origin(repo: Path, target: str, dry_run: bool) -> None:
     fetch_args = ["fetch", "origin", target, "--prune"]
     if dry_run:
         click.echo(f"  DRY-RUN: git {' '.join(fetch_args)}")
-    else:
-        try:
-            _git(fetch_args, cwd=repo, check=True)
-            click.secho(f"  fetched origin/{target}", fg="green")
-        except subprocess.CalledProcessError as e:
-            raise ExternalToolError(
-                f"git fetch failed:\n  {e.stderr or e.stdout}"
-            ) from None
+        return
+    try:
+        _git(fetch_args, cwd=repo, check=True)
+        click.secho(f"  fetched origin/{target}", fg="green")
+    except subprocess.CalledProcessError as e:
+        raise ExternalToolError(f"git fetch failed:\n  {e.stderr or e.stdout}") from None
 
-    # Switch to target if needed
-    if starting_branch != target:
-        if not _is_working_tree_clean(repo):
-            raise CataforgeError(
-                f"Working tree on `{starting_branch}` has uncommitted changes — "
-                f"commit or stash before running `cataforge sync-main`."
-            )
-        if dry_run:
-            click.echo(f"  DRY-RUN: git switch {target}")
-        else:
-            try:
-                _git(["switch", target], cwd=repo, check=True)
-                click.secho(f"  switched to {target}", fg="green")
-            except subprocess.CalledProcessError as e:
-                raise ExternalToolError(
-                    f"git switch {target} failed:\n  {e.stderr or e.stdout}"
-                ) from None
 
-    # Compare local target vs origin/target
+def _switch_to_target(repo: Path, starting_branch: str, target: str, dry_run: bool) -> None:
+    if starting_branch == target:
+        return
+    if not _is_working_tree_clean(repo):
+        raise CataforgeError(
+            f"Working tree on `{starting_branch}` has uncommitted changes — "
+            f"commit or stash before running `cataforge sync-main`."
+        )
+    if dry_run:
+        click.echo(f"  DRY-RUN: git switch {target}")
+        return
+    try:
+        _git(["switch", target], cwd=repo, check=True)
+        click.secho(f"  switched to {target}", fg="green")
+    except subprocess.CalledProcessError as e:
+        raise ExternalToolError(
+            f"git switch {target} failed:\n  {e.stderr or e.stdout}"
+        ) from None
+
+
+def _compute_ahead_behind(repo: Path, target: str) -> tuple[int, int]:
+    """Return ``(ahead, behind)`` of local ``target`` vs ``origin/target``."""
     try:
         ahead_behind = _git(
             ["rev-list", "--left-right", "--count", f"{target}...origin/{target}"],
@@ -243,13 +259,15 @@ def sync_main_command(
             f"comparing {target} vs origin/{target}: {raw_stdout!r}"
         )
     try:
-        ahead, behind = int(parts[0]), int(parts[1])
+        return int(parts[0]), int(parts[1])
     except ValueError:
         raise ExternalToolError(
             f"non-integer ahead/behind counts from git while comparing "
             f"{target} vs origin/{target}: {raw_stdout!r}"
         ) from None
 
+
+def _fast_forward(repo: Path, target: str, ahead: int, behind: int, dry_run: bool) -> None:
     if ahead and behind:
         raise CataforgeError(
             f"`{target}` and `origin/{target}` have diverged "
@@ -263,42 +281,37 @@ def sync_main_command(
             "skipping fast-forward (push when ready).",
             fg="yellow",
         )
-    elif behind:
-        ff_args = ["merge", "--ff-only", f"origin/{target}"]
-        if dry_run:
-            click.echo(f"  DRY-RUN: git {' '.join(ff_args)}")
-        else:
-            try:
-                _git(ff_args, cwd=repo, check=True)
-                click.secho(
-                    f"  fast-forwarded {target} by {behind} commit(s)", fg="green"
-                )
-            except subprocess.CalledProcessError as e:
-                raise ExternalToolError(
-                    f"git merge --ff-only failed:\n  {e.stderr or e.stdout}"
-                ) from None
-    else:
+        return
+    if not behind:
         click.echo(f"  `{target}` already up to date.")
+        return
+    ff_args = ["merge", "--ff-only", f"origin/{target}"]
+    if dry_run:
+        click.echo(f"  DRY-RUN: git {' '.join(ff_args)}")
+        return
+    try:
+        _git(ff_args, cwd=repo, check=True)
+        click.secho(f"  fast-forwarded {target} by {behind} commit(s)", fg="green")
+    except subprocess.CalledProcessError as e:
+        raise ExternalToolError(
+            f"git merge --ff-only failed:\n  {e.stderr or e.stdout}"
+        ) from None
 
-    if prune_merged:
-        _prune_merged_branches(repo, target=target, auto_yes=auto_yes, dry_run=dry_run)
 
-    # Restore the original branch when the user was on something else *and*
-    # they didn't ask us to nuke it via --prune-merged.
-    if starting_branch != target and not prune_merged:
-        if dry_run:
-            click.echo(f"  DRY-RUN: git switch {starting_branch}")
-        else:
-            try:
-                _git(["switch", starting_branch], cwd=repo, check=True)
-                click.echo(f"  back to {starting_branch}")
-            except subprocess.CalledProcessError:
-                # Non-fatal — user is on `target` now, which is fine.
-                click.secho(
-                    f"  WARN: could not switch back to `{starting_branch}` "
-                    "(maybe it was deleted?). You're on the default branch.",
-                    fg="yellow",
-                )
+def _restore_branch(repo: Path, starting_branch: str, dry_run: bool) -> None:
+    if dry_run:
+        click.echo(f"  DRY-RUN: git switch {starting_branch}")
+        return
+    try:
+        _git(["switch", starting_branch], cwd=repo, check=True)
+        click.echo(f"  back to {starting_branch}")
+    except subprocess.CalledProcessError:
+        # Non-fatal — user is on `target` now, which is fine.
+        click.secho(
+            f"  WARN: could not switch back to `{starting_branch}` "
+            "(maybe it was deleted?). You're on the default branch.",
+            fg="yellow",
+        )
 
 
 def _prune_merged_branches(

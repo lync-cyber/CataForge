@@ -82,7 +82,20 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
     agents = discover_agents(root)
     dispatcher_skills = read_dispatcher_skills(root)
 
-    # ---- B5_workflow_coverage_matrix (single-hop) ----
+    _check_coverage_matrix(phase_to_agent, agents, dispatcher_skills, report)
+    _check_phase_skill_coverage(phase_to_agent, agents, root, report)
+    _check_eventlog_drift(phase_to_agent, agents, dispatcher_skills, root, report)
+    _check_feature_phase_alignment(phase_to_agent, root, report)
+    _check_b5_hook_installed(root, report)
+
+
+def _check_coverage_matrix(
+    phase_to_agent: dict[str, str],
+    agents: dict[str, Path],
+    dispatcher_skills: set[str],
+    report: Report,
+) -> None:
+    """Single-hop phase → agent: undefined targets WARN; unreferenced agents WARN."""
     for phase, agent in phase_to_agent.items():
         if agent in agents:
             continue
@@ -110,7 +123,14 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                 "agent defined but not referenced by any phase routing or sub-agent dispatcher",
             )
 
-    # ---- B5_phase_skill_coverage (triple-hop: phase → agent → skill) ----
+
+def _check_phase_skill_coverage(
+    phase_to_agent: dict[str, str],
+    agents: dict[str, Path],
+    root: Path,
+    report: Report,
+) -> None:
+    """Triple-hop phase → agent → skill: each routed agent declares resolvable skills."""
     skills = discover_skills(root)
     builtin_skill_ids: set[str] = set()
     try:
@@ -150,7 +170,15 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                     f"but not found in .cataforge/skills/ or builtins",
                 )
 
-    # ---- B5_eventlog_agent_return_drift (EVENT-LOG cross-check) ----
+
+def _check_eventlog_drift(
+    phase_to_agent: dict[str, str],
+    agents: dict[str, Path],
+    dispatcher_skills: set[str],
+    root: Path,
+    report: Report,
+) -> None:
+    """Cross-check phase-routed agents against agent_return events in EVENT-LOG."""
     log_path = root / EVENT_LOG_REL
     log_exists = log_path.is_file()
     returns, returns_with_ref = read_event_log_returns(root)
@@ -207,7 +235,11 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                     f"can't trace deliverables",
                 )
 
-    # ---- B5_feature_phase_alignment (framework.json features) ----
+
+def _check_feature_phase_alignment(
+    phase_to_agent: dict[str, str], root: Path, report: Report
+) -> None:
+    """Every framework.json features[*].phase_guard must name a routed phase."""
     features = read_framework_features(root)
     valid_phases = set(phase_to_agent.keys())
     for feat_id, feat_meta in sorted(features.items()):
@@ -223,8 +255,6 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
                 f"orchestrator AGENT.md Phase Routing "
                 f"(known phases: {sorted(valid_phases)})",
             )
-
-    _check_b5_hook_installed(root, report)
 
 
 def _check_b5_hook_installed(root: Path, report: Report) -> None:

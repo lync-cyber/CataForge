@@ -7,6 +7,13 @@ import re
 
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
+# A dev-plan task-status table row: ``| T-12 | … | done |``. Shared by the
+# in-task, standalone-row, and status-backfill scans below.
+_TASK_TABLE_RE = re.compile(
+    r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
+    re.IGNORECASE,
+)
+
 
 def find_dev_plan_files(dev_plan_dir: str) -> list[str]:
     files = []
@@ -49,17 +56,49 @@ def load_project_features(dev_plan_files: list[str]) -> dict:
     return {}
 
 
+def _find_sprint_volume(dev_plan_files: list[str], sprint_number: int) -> str | None:
+    """Return the ``-s{N}.md`` volume for this sprint, or None when absent."""
+    for f in dev_plan_files:
+        if re.search(rf"-s{sprint_number}\.md$", f):
+            return f
+    return None
+
+
+def _consume_deliverables(lines: list[str], i: int, current_task: dict) -> int:
+    """Absorb the indented bullet block after a ``deliverables:`` line.
+
+    ``i`` points at the ``deliverables:`` line; returns the index of the first
+    line past the block.
+    """
+    i += 1
+    while i < len(lines) and re.match(r"^\s+[-*]", lines[i]):
+        path = re.sub(r"^\s+[-*]\s+", "", lines[i]).strip()
+        path = re.sub(r"^\[[ x]\]\s*", "", path).strip()
+        path = re.sub(r"[`*]", "", path).strip()
+        path = re.sub(r"\s+[—\-]{1,2}\s+.*$", "", path).strip()
+        if path and not re.search(r"[一-鿿\s{]", path):
+            current_task["deliverables"].append(path)
+        i += 1
+    return i
+
+
+def _consume_acceptance(line: str, lines: list[str], i: int, current_task: dict) -> int:
+    """Absorb the ``tdd_acceptance:`` line plus its indented continuation."""
+    rest = line + " "
+    i += 1
+    while i < len(lines) and re.match(r"^\s+[-*]", lines[i]):
+        rest += lines[i] + " "
+        i += 1
+    current_task["tdd_acceptance"] = list(set(re.findall(r"AC-\d+", rest)))
+    return i
+
+
 def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[dict]:
     tasks: list[dict] = []
     in_sprint = False
     current_task: dict | None = None
 
-    sprint_volume = None
-    for f in dev_plan_files:
-        if re.search(rf"-s{sprint_number}\.md$", f):
-            sprint_volume = f
-            break
-
+    sprint_volume = _find_sprint_volume(dev_plan_files, sprint_number)
     files_to_search = [sprint_volume] if sprint_volume else dev_plan_files
 
     for filepath in files_to_search:
@@ -109,15 +148,7 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
                     re.IGNORECASE,
                 )
                 if deliv_match:
-                    i += 1
-                    while i < len(lines) and re.match(r"^\s+[-*]", lines[i]):
-                        path = re.sub(r"^\s+[-*]\s+", "", lines[i]).strip()
-                        path = re.sub(r"^\[[ x]\]\s*", "", path).strip()
-                        path = re.sub(r"[`*]", "", path).strip()
-                        path = re.sub(r"\s+[—\-]{1,2}\s+.*$", "", path).strip()
-                        if path and not re.search(r"[一-鿿\s{]", path):
-                            current_task["deliverables"].append(path)
-                        i += 1
+                    i = _consume_deliverables(lines, i, current_task)
                     continue
 
                 ac_match = re.match(
@@ -126,20 +157,10 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
                     re.IGNORECASE,
                 )
                 if ac_match:
-                    rest = line + " "
-                    i += 1
-                    while i < len(lines) and re.match(r"^\s+[-*]", lines[i]):
-                        rest += lines[i] + " "
-                        i += 1
-                    ac_ids = re.findall(r"AC-\d+", rest)
-                    current_task["tdd_acceptance"] = list(set(ac_ids))
+                    i = _consume_acceptance(line, lines, i, current_task)
                     continue
 
-                table_match = re.match(
-                    r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
-                    line,
-                    re.IGNORECASE,
-                )
+                table_match = _TASK_TABLE_RE.match(line)
                 if (
                     table_match
                     and not current_task["status"]
@@ -148,11 +169,7 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
                     current_task["status"] = table_match.group(2).strip().lower()
 
             if not current_task:
-                table_match = re.match(
-                    r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
-                    line,
-                    re.IGNORECASE,
-                )
+                table_match = _TASK_TABLE_RE.match(line)
                 if table_match and (in_sprint or sprint_volume):
                     tasks.append(
                         {
@@ -169,23 +186,24 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
             tasks.append(current_task)
             current_task = None
 
-    tasks_missing_status = {t["id"] for t in tasks if not t["status"]}
-    if tasks_missing_status:
-        for filepath in dev_plan_files:
-            with open(filepath, encoding="utf-8") as f:
-                for line in f:
-                    table_match = re.match(
-                        r"^\|\s*(T-\d+[a-z]?)\s*\|.*?\|\s*(done|todo|in[_-]?progress|blocked)\s*\|",
-                        line,
-                        re.IGNORECASE,
-                    )
-                    if table_match and table_match.group(1) in tasks_missing_status:
-                        tid = table_match.group(1)
-                        for t in tasks:
-                            if t["id"] == tid and not t["status"]:
-                                t["status"] = table_match.group(2).strip().lower()
-                        tasks_missing_status.discard(tid)
-            if not tasks_missing_status:
-                break
-
+    _backfill_missing_status(tasks, dev_plan_files)
     return tasks
+
+
+def _backfill_missing_status(tasks: list[dict], dev_plan_files: list[str]) -> None:
+    """Fill in status for tasks parsed without one from any status table row."""
+    tasks_missing_status = {t["id"] for t in tasks if not t["status"]}
+    if not tasks_missing_status:
+        return
+    for filepath in dev_plan_files:
+        with open(filepath, encoding="utf-8") as f:
+            for line in f:
+                table_match = _TASK_TABLE_RE.match(line)
+                if table_match and table_match.group(1) in tasks_missing_status:
+                    tid = table_match.group(1)
+                    for t in tasks:
+                        if t["id"] == tid and not t["status"]:
+                            t["status"] = table_match.group(2).strip().lower()
+                    tasks_missing_status.discard(tid)
+        if not tasks_missing_status:
+            break

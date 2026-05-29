@@ -57,6 +57,16 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
     if not isinstance(hooks_data, dict):
         return
 
+    referenced_scripts, referenced_caps = _collect_references(hooks_data)
+
+    _check_reachability_and_syntax(referenced_scripts, root, report)
+    _check_capabilities(referenced_caps, report)
+    _check_manifest_drift(referenced_scripts, report)
+    _check_degradation_parity(referenced_scripts, root, report)
+
+
+def _collect_references(hooks_data: dict) -> tuple[set[str], set[str]]:
+    """Gather the ``script`` and ``matcher_capability`` values wired in hooks.yaml."""
     referenced_scripts: set[str] = set()
     referenced_caps: set[str] = set()
     for _event, entries in (hooks_data.get("hooks") or {}).items():
@@ -71,8 +81,13 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
                 referenced_scripts.add(script)
             if cap:
                 referenced_caps.add(cap)
+    return referenced_scripts, referenced_caps
 
-    # α + β: script reachability and syntax.
+
+def _check_reachability_and_syntax(
+    referenced_scripts: set[str], root: Path, report: Report
+) -> None:
+    """α + β: every referenced script resolves to a real, ast-parseable .py."""
     builtin_dir = resolve_builtin_hook_dir()
     custom_dir = root / ".cataforge" / "hooks" / "custom"
     for script in sorted(referenced_scripts):
@@ -97,7 +112,9 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
                 f"script {py_path.name} not ast-parseable: {e}",
             )
 
-    # γ: matcher_capability validity.
+
+def _check_capabilities(referenced_caps: set[str], report: Report) -> None:
+    """γ: every matcher_capability is a known CAPABILITY id."""
     valid_caps = load_capability_ids()
     if valid_caps:
         for cap in sorted(referenced_caps):
@@ -112,7 +129,9 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
                     "platform tool)",
                 )
 
-    # ε: hooks.yaml builtin scripts must appear in HOOKS_MANIFEST.
+
+def _check_manifest_drift(referenced_scripts: set[str], report: Report) -> None:
+    """ε: hooks.yaml builtin scripts must appear in HOOKS_MANIFEST (and vice versa)."""
     manifest_names_set = load_hooks_manifest_names()
     if manifest_names_set:
         for script in sorted(referenced_scripts):
@@ -143,7 +162,11 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
                 f"entry to avoid shipping dead inventory",
             )
 
-    # δ: per-platform degradation parity.
+
+def _check_degradation_parity(
+    referenced_scripts: set[str], root: Path, report: Report
+) -> None:
+    """δ: each platform profile's degradation keys match hooks.yaml scripts."""
     platforms_dir = root / ".cataforge" / "platforms"
     if not platforms_dir.is_dir():
         return

@@ -148,7 +148,13 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "C901"]
+
+[tool.ruff.lint.mccabe]
+# Cyclomatic-complexity ceiling. Functions above this fail the lint gate so
+# the worst hotspots can't silently grow back. Tighten the ceiling in future
+# passes as the remaining high-complexity functions are split.
+max-complexity = 20
 
 [tool.pyright]
 # Mypy is the primary type checker (see `[tool.mypy]` per-package
