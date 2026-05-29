@@ -131,7 +131,12 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
     "--doc-type",
     "doc_types",
     multiple=True,
-    help=("Restrict to specific doc_types. Repeatable. Default = prd, arch, test-report."),
+    help=(
+        "Restrict to specific doc_types. Repeatable. Default = the project's "
+        "framework.json kg_active_doc_types (falls back to the built-in "
+        "business doc_type set when unset), so import scope matches the doctor "
+        "kg_ingestion_completeness gate."
+    ),
 )
 @click.option(
     "--dry-run",
@@ -156,6 +161,7 @@ def kg_import(
 ) -> None:
     """Ingest business documents into the KG (six-phase pipeline)."""
     from cataforge.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraphStore
+    from cataforge.kg._dispatch import active_doc_types
     from cataforge.kg.ingest import DEFAULT_DOC_TYPES, run_migration
 
     config = KGConfig(
@@ -165,7 +171,14 @@ def kg_import(
 
     import contextlib  # noqa: PLC0415
 
-    types = doc_types if doc_types else DEFAULT_DOC_TYPES
+    # Default scope = the project's active doc_types, so a plain `kg import`
+    # ingests exactly what the doctor `kg_ingestion_completeness` gate checks.
+    # Fall back to the built-in business set when none are declared.
+    if doc_types:
+        types: tuple[str, ...] = doc_types
+    else:
+        active = active_doc_types(project_root)
+        types = tuple(sorted(active)) if active else tuple(DEFAULT_DOC_TYPES)
 
     try:
         if backend == "memory":
@@ -373,7 +386,7 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
     help=(
         "Restrict to specific doc_types. Repeatable. Default = the project's "
         "kg_active_doc_types (framework.json kg.kg_active_doc_types, "
-        "fall-back: prd, arch, test)."
+        "fall-back: the built-in business doc_type set)."
     ),
 )
 @click.option(

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from cataforge.kg._config import BUSINESS_DOC_TYPES as DEFAULT_DOC_TYPES
 from cataforge.kg._config import KGConfig
 from cataforge.kg.ingest.entity_extract import (
     ExtractedEntity,
@@ -28,8 +29,6 @@ from cataforge.kg.ingest.writer import (
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
-
-DEFAULT_DOC_TYPES = ("prd", "arch", "test-report")
 
 
 @dataclass

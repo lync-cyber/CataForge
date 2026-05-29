@@ -18,8 +18,6 @@ if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
 
 
-_DEFAULT_KG_ACTIVE = {"prd", "arch", "test"}
-
 # Lazy-initialized; built on first use from ENTITY_PREFIX_TO_CLASS keys.
 _ENTITY_ID_RE: re.Pattern[str] | None = None
 
@@ -53,16 +51,24 @@ def _load_framework_json(cfg: ConfigManager) -> dict | None:
         return None
 
 
+def _default_kg_active() -> set[str]:
+    # Lazy import: `cataforge.kg.__init__` pulls in the pyoxigraph stack, so we
+    # only touch it on the framework.json-missing fallback (a KG-active path).
+    from cataforge.kg._config import DEFAULT_KG_ACTIVE_DOC_TYPES
+
+    return set(DEFAULT_KG_ACTIVE_DOC_TYPES)
+
+
 def _project_active_doc_types(cfg: ConfigManager) -> set[str]:
     """Resolve the active doc_type set for cfg."""
     data = _load_framework_json(cfg)
     if data is None:
-        return set(_DEFAULT_KG_ACTIVE)
+        return _default_kg_active()
     kg_section = data.get("kg") or {}
     declared = kg_section.get("kg_active_doc_types")
     if isinstance(declared, list) and all(isinstance(d, str) for d in declared):
         return set(declared)
-    return set(_DEFAULT_KG_ACTIVE)
+    return _default_kg_active()
 
 
 def _doc_type_to_subdir(cfg: ConfigManager) -> dict[str, str]:

@@ -1,9 +1,11 @@
 """KGConfig defaults match task-5 §5.2 and round-2 decisions."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
 from cataforge.kg import KGConfig
+from cataforge.kg._config import BUSINESS_DOC_TYPES
 
 
 def test_defaults_match_spec() -> None:
@@ -19,19 +21,23 @@ def test_defaults_match_spec() -> None:
     assert cfg.plugins_dir is None
 
 
-def test_kg_active_doc_types_default_alpha_cutover_scope() -> None:
-    """Sub-PR 5 default: `{prd, arch, test}` per Task 7 §7.1 + README Round 2.
+def test_kg_active_doc_types_default_is_full_business_set() -> None:
+    """Default covers every business doc_type with a KG render path.
 
     Projects that have not yet ingested into KG remain on the legacy
     path because `_dispatch.is_active_for()` additionally gates on
-    `.cataforge/kg/store/` existing. Tests that need pre-Alpha
+    `.cataforge/kg/store/` existing. Tests that need legacy-only
     semantics pass an explicit empty set.
     """
     cfg = KGConfig()
-    assert cfg.kg_active_doc_types == {"prd", "arch", "test"}
+    assert cfg.kg_active_doc_types == set(BUSINESS_DOC_TYPES)
+    # `test-report` (the canonical doc_id), not the legacy `test` alias —
+    # otherwise dispatch matching on doc_id would never fire for test docs.
+    assert "test-report" in cfg.kg_active_doc_types
+    assert "test" not in cfg.kg_active_doc_types
     # Per-instance set, not shared mutable default.
-    cfg.kg_active_doc_types.add("ui-spec")
-    assert KGConfig().kg_active_doc_types == {"prd", "arch", "test"}
+    cfg.kg_active_doc_types.add("zzz-extra")
+    assert KGConfig().kg_active_doc_types == set(BUSINESS_DOC_TYPES)
 
 
 def test_kg_active_doc_types_can_be_explicitly_empty() -> None:
@@ -49,5 +55,3 @@ def test_str_db_path_is_coerced_to_path() -> None:
 def test_list_active_doc_types_is_coerced_to_set() -> None:
     cfg = KGConfig(kg_active_doc_types=["prd", "arch", "prd"])  # type: ignore[arg-type]
     assert cfg.kg_active_doc_types == {"prd", "arch"}
-
-

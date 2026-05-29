@@ -29,7 +29,7 @@
     }
   },
   "kg": {
-    "kg_active_doc_types": ["prd", "arch", "test"],
+    "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"],
     "store_backend": "oxigraph",
     "db_path": ".cataforge/kg/store",
     "ontology_namespace": "https://cataforge.dev/kg/",
