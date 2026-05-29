@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 import click
 
 from cataforge.core.paths import KG_STORE_REL
+from cataforge.docs.loader import DEFAULT_DOC_TYPE_MAP
 
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
@@ -74,24 +75,12 @@ def _project_active_doc_types(cfg: ConfigManager) -> set[str]:
 
 
 def _doc_type_to_subdir(cfg: ConfigManager) -> dict[str, str]:
-    """Mirror cataforge.docs.loader._load_doc_type_map without importing it."""
-    defaults = {
-        "prd": "prd",
-        "arch": "arch",
-        "ui-spec": "ui-spec",
-        "dev-plan": "dev-plan",
-        "test-report": "test-report",
-        "test": "test-report",
-        "deploy-spec": "deploy-spec",
-        "research": "research",
-        "changelog": "changelog",
-        "brief": "brief",
-    }
+    """Resolve the doc_type → subdir map (defaults + framework.json override)."""
     data = _load_framework_json(cfg)
     if data is None:
-        return defaults
+        return dict(DEFAULT_DOC_TYPE_MAP)
     override = (data.get("docs") or {}).get("doc_types") or {}
-    merged = dict(defaults)
+    merged = dict(DEFAULT_DOC_TYPE_MAP)
     for k, v in override.items():
         if isinstance(k, str) and isinstance(v, str):
             merged[k] = v

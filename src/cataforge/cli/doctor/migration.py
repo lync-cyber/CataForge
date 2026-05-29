@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
+
+from cataforge.core.version import parse_semver
 
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
@@ -79,9 +80,7 @@ def run_migration_checks(cfg: ConfigManager) -> int:
         cid = str(check.get("id", "?"))
         deprecate_after = check.get("deprecate_after")
         if isinstance(deprecate_after, str) and _semver_ge(pkg_version, deprecate_after):
-            skipped.append(
-                (cid, f"deprecated since {deprecate_after} (current {pkg_version})")
-            )
+            skipped.append((cid, f"deprecated since {deprecate_after} (current {pkg_version})"))
             continue
         if bool(check.get("requires_deploy", False)) and not deployed:
             skipped.append((cid, "requires deploy (run `cataforge deploy` first)"))
@@ -111,12 +110,11 @@ def _semver_ge(a: str, b: str) -> bool:
     False when either side can't be parsed — avoids silently skipping a
     check that should still run.
     """
-    tup_re = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
-    ma = tup_re.match(a)
-    mb = tup_re.match(b)
-    if ma is None or mb is None:
+    ta = parse_semver(a)
+    tb = parse_semver(b)
+    if ta is None or tb is None:
         return False
-    return tuple(int(x) for x in ma.groups()) >= tuple(int(x) for x in mb.groups())
+    return ta >= tb
 
 
 def _evaluate_check(check: dict, root: Path) -> tuple[bool, str]:

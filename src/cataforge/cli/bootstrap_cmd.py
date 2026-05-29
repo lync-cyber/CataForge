@@ -27,6 +27,7 @@ import click
 
 from cataforge.cli.main import cli
 from cataforge.core.errors import ConfigError
+from cataforge.core.version import parse_semver
 from cataforge.platform.conformance import ALL_PLATFORMS
 
 
@@ -36,7 +37,7 @@ from cataforge.platform.conformance import ALL_PLATFORMS
     type=click.Choice(ALL_PLATFORMS),
     default=None,
     help="Target AI IDE platform. Required on fresh install; "
-         "on an existing project defaults to framework.json's runtime.platform.",
+    "on an existing project defaults to framework.json's runtime.platform.",
 )
 @click.option(
     "--dry-run",
@@ -44,7 +45,8 @@ from cataforge.platform.conformance import ALL_PLATFORMS
     help="Print the plan without executing. Shows skip/run decision per step.",
 )
 @click.option(
-    "--yes", "-y",
+    "--yes",
+    "-y",
     is_flag=True,
     help="Skip interactive confirmation before writing.",
 )
@@ -52,7 +54,7 @@ from cataforge.platform.conformance import ALL_PLATFORMS
     "--skip-doctor",
     is_flag=True,
     help="Skip the final `doctor` gate (not recommended — doctor is the "
-         "whole point of the final step).",
+    "whole point of the final step).",
 )
 @click.pass_context
 def bootstrap_command(
@@ -118,12 +120,14 @@ def bootstrap_command(
 
 # ---- plan model ----
 
+
 class _StepPlan:
     """One pipeline step's skip/run decision and the reason behind it.
 
     Kept dataclass-free to stay aligned with the plain-dict style used
     elsewhere in the CLI (cf. the ``ctx.obj`` pattern in main.py).
     """
+
     __slots__ = ("name", "action", "reason")
 
     def __init__(self, name: str, action: str, reason: str) -> None:
@@ -180,7 +184,8 @@ def _build_plan(cfg, *, requested_platform: str | None) -> _Plan:
             plan.add("doctor", "skip", "blocked on setup")
             return plan
         plan.add(
-            "setup", "run",
+            "setup",
+            "run",
             f"no .cataforge/ at {scaffold_dir} — fresh scaffold",
         )
         plan.target_platform = requested_platform
@@ -191,7 +196,8 @@ def _build_plan(cfg, *, requested_platform: str | None) -> _Plan:
         return plan
 
     plan.add(
-        "setup", "skip",
+        "setup",
+        "skip",
         f"scaffold present (version {cfg.version})",
     )
 
@@ -234,8 +240,11 @@ def _build_plan(cfg, *, requested_platform: str | None) -> _Plan:
         from cataforge.cli.helpers import classify_tallies
 
         tallies = classify_tallies(classified)
-        parts = [f"{count} {status}" for status, count in sorted(tallies.items())
-                 if status in ("update", "user-modified", "drift", "new")]
+        parts = [
+            f"{count} {status}"
+            for status, count in sorted(tallies.items())
+            if status in ("update", "user-modified", "drift", "new")
+        ]
         summary = ", ".join(parts) if parts else "version bump only"
         if installed_newer:
             summary = f"installed={installed} > scaffold={cfg.version}; {summary}"
@@ -250,6 +259,7 @@ def _build_plan(cfg, *, requested_platform: str | None) -> _Plan:
         plan.add("deploy", "run", "never deployed (.deploy-state missing)")
     else:
         import json as _json
+
         # Distinguish "missing" (legitimate first-deploy signal) from
         # "corrupted" (likely a crash during a prior deploy that left
         # a truncated JSON). Pre-fix, both flowed into ``state = {}``
@@ -272,13 +282,14 @@ def _build_plan(cfg, *, requested_platform: str | None) -> _Plan:
         deployed_platform = state.get("platform")
         if deployed_platform != plan.target_platform:
             plan.add(
-                "deploy", "run",
-                f"platform changed: deployed={deployed_platform} "
-                f"→ target={plan.target_platform}",
+                "deploy",
+                "run",
+                f"platform changed: deployed={deployed_platform} → target={plan.target_platform}",
             )
         elif upgrade_running:
             plan.add(
-                "deploy", "run",
+                "deploy",
+                "run",
                 "scaffold refreshed — IDE artefacts must be re-rendered",
             )
         else:
@@ -307,17 +318,14 @@ def _semver_newer(a: str, b: str) -> bool:
     semantically means "this scaffold has not been materialised by setup
     yet; defer the comparison until it has".
     """
-    import re
-
     if b.startswith("0.0.0-"):
         return False
 
-    tup_re = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
-    ma = tup_re.match(a)
-    mb = tup_re.match(b)
-    if ma is None or mb is None:
+    ta = parse_semver(a)
+    tb = parse_semver(b)
+    if ta is None or tb is None:
         return a != b
-    return tuple(int(x) for x in ma.groups()) > tuple(int(x) for x in mb.groups())
+    return ta > tb
 
 
 # ---- presentation ----
@@ -335,8 +343,7 @@ def _print_plan(plan: _Plan, *, dry_run: bool) -> None:
     for step in plan.steps:
         mark, color = _ACTION_STYLE.get(step.action, ("?", "white"))
         click.echo(
-            f"  {click.style(mark, fg=color)} {step.name:<8} "
-            f"{step.action:<5} — {step.reason}"
+            f"  {click.style(mark, fg=color)} {step.name:<8} {step.action:<5} — {step.reason}"
         )
     if plan.target_platform and not plan.error:
         click.echo(f"\n  target platform: {plan.target_platform}")
@@ -352,6 +359,7 @@ def _confirm_plan(plan: _Plan) -> bool:
 
 
 # ---- execution ----
+
 
 def _execute_plan(
     ctx: click.Context,
@@ -414,7 +422,8 @@ def _execute_plan(
         ui.print("")
         ui.info(f"[upgrade] refreshing .cataforge/ at {cfg.paths.cataforge_dir}")
         written, _, backup = copy_scaffold_to(
-            cfg.paths.cataforge_dir, force=True,
+            cfg.paths.cataforge_dir,
+            force=True,
         )
         cfg.reload()
         if backup is not None:

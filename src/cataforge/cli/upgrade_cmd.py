@@ -21,6 +21,7 @@ from pathlib import Path
 import click
 
 from cataforge.cli.main import cli
+from cataforge.core.version import parse_semver
 
 
 @cli.group("upgrade")
@@ -144,8 +145,7 @@ def upgrade_apply(dry_run: bool) -> None:
         click.echo(f"  backup: {backup.relative_to(dest.parent)}")
         click.echo("  (roll back with `cataforge upgrade rollback`)")
     click.echo(
-        f"  wrote {len(written)} file(s)"
-        + (f", kept {len(skipped)} existing" if skipped else "")
+        f"  wrote {len(written)} file(s)" + (f", kept {len(skipped)} existing" if skipped else "")
     )
     cfg.reload()
     click.echo(f"CataForge v{cfg.version} — scaffold up to date.")
@@ -201,24 +201,28 @@ def upgrade_verify(ctx: click.Context) -> None:
 
 @upgrade_group.command("rollback")
 @click.option(
-    "--list", "list_only",
+    "--list",
+    "list_only",
     is_flag=True,
     help="List available snapshots and exit.",
 )
 @click.option(
-    "--from", "from_backup",
+    "--from",
+    "from_backup",
     default=None,
     metavar="TS_OR_PATH",
-    help="Restore this snapshot (timestamp name or absolute path). "
-         "Default: the newest snapshot.",
+    help="Restore this snapshot (timestamp name or absolute path). Default: the newest snapshot.",
 )
 @click.option(
-    "--yes", "-y",
+    "--yes",
+    "-y",
     is_flag=True,
     help="Skip the interactive confirmation prompt.",
 )
 def upgrade_rollback(
-    list_only: bool, from_backup: str | None, yes: bool,
+    list_only: bool,
+    from_backup: str | None,
+    yes: bool,
 ) -> None:
     """Restore ``.cataforge/`` from a previous ``upgrade apply`` snapshot.
 
@@ -287,7 +291,8 @@ _BREAKING_HEADER_RE = re.compile(r"^#{2,4}\s*(?:BREAKING|breaking)(?:\s|$)")
 
 
 def _find_breaking_entries(
-    scaffold_version: str, installed_version: str,
+    scaffold_version: str,
+    installed_version: str,
 ) -> list[tuple[str, str]]:
     """Scan CHANGELOG.md for BREAKING sections in the upgrade range.
 
@@ -342,19 +347,11 @@ def _iter_changelog_sections(text: str) -> list[tuple[str, str]]:
     return sections
 
 
-def _parse_semver(version: str) -> tuple[int, int, int] | None:
-    """Best-effort semver tuple; returns None for non-numeric versions."""
-    m = re.match(r"^(\d+)\.(\d+)\.(\d+)", version)
-    if m is None:
-        return None
-    return int(m.group(1)), int(m.group(2)), int(m.group(3))
-
-
 def _is_in_upgrade_range(version: str, lower: str, upper: str) -> bool:
     """True iff *lower < version <= upper* on semver ordering."""
-    vv = _parse_semver(version)
-    lo = _parse_semver(lower)
-    hi = _parse_semver(upper)
+    vv = parse_semver(version)
+    lo = parse_semver(lower)
+    hi = parse_semver(upper)
     if vv is None or lo is None or hi is None:
         return False
     return lo < vv <= hi
@@ -365,7 +362,7 @@ def _extract_breaking_summary(body: str) -> str | None:
     lines = body.splitlines()
     for i, line in enumerate(lines):
         if _BREAKING_HEADER_RE.match(line):
-            for follow in lines[i + 1:]:
+            for follow in lines[i + 1 :]:
                 stripped = follow.strip().lstrip("-*").strip()
                 if stripped:
                     return stripped
