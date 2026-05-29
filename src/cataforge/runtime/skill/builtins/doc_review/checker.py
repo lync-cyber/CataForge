@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
 
 from cataforge.core.paths import project_root_from_docs_dir
+from cataforge.core.types import Severity
+from cataforge.runtime.skill.builtins._shared import CheckReport, IssueCollector
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.md_parse import strip_code_blocks
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
+from ._render import render_text
 from .constants import DOC_SPLIT_THRESHOLD_LINES, KNOWN_DOC_PREFIXES, VOLUME_TYPES
 from .template_registry import (
     load_template_required_sections,
@@ -38,10 +42,17 @@ class DocChecker(TypedDocChecksMixin):
         self.docs_dir = docs_dir
         self.content = read_file(doc_file)
         self.lines = self.content.splitlines()
-        self.errors: list[str] = []
-        self.warnings: list[str] = []
+        self._issues = IssueCollector()
         self._quiet = quiet
         self.volume_type = volume_type or self._detect_volume_type()
+
+    @property
+    def errors(self) -> list[str]:
+        return [i.message for i in self._issues.blocking]
+
+    @property
+    def warnings(self) -> list[str]:
+        return [i.message for i in self._issues.advisory]
 
     def _detect_volume_type(self) -> str:
         fm = parse_yaml_frontmatter(self.content)
@@ -67,15 +78,11 @@ class DocChecker(TypedDocChecksMixin):
                 return vol_type
         return "main"
 
-    def fail(self, msg: str) -> None:
-        self.errors.append(msg)
-        if not self._quiet:
-            print(f"FAIL: {msg}")
+    def fail(self, msg: str, category: str = "doc-structure") -> None:
+        self._issues.add(Severity.HIGH, category, msg)
 
-    def warn(self, msg: str) -> None:
-        self.warnings.append(msg)
-        if not self._quiet:
-            print(f"WARN: {msg}")
+    def warn(self, msg: str, category: str = "doc-structure") -> None:
+        self._issues.add(Severity.LOW, category, msg)
 
     # ---- Generic checks ----
 
@@ -384,9 +391,13 @@ class DocChecker(TypedDocChecksMixin):
             if vf.stem not in self.content and vf.name not in self.content:
                 self.warn(f"主卷未引用分卷文件: {vf.name}")
 
-    def run(self) -> int:
-        print(f"检查: {self.doc_file} (type={self.doc_type}, volume={self.volume_type})")
+    def collect(self) -> CheckReport:
+        """Run all checks and return a structured report (no console I/O).
 
+        Findings accumulate in ``self._issues``; an unrecognized doc_type is
+        flagged in ``summary`` so the renderer can note that only the generic
+        checks ran.
+        """
         self.check_meta()
         self.check_nav_block()
         self.check_no_todo()
@@ -408,18 +419,28 @@ class DocChecker(TypedDocChecksMixin):
             "research": self.check_research,
             "changelog": self.check_changelog,
         }
-        if self.doc_type in checks:
+        unknown = self.doc_type not in checks
+        if not unknown:
             checks[self.doc_type]()
-        else:
-            print(f"WARN: 未知的文档类型 '{self.doc_type}'，仅执行通用检查")
 
-        if self.warnings:
-            print(f"WARNINGS: {len(self.warnings)}")
-        if not self.errors:
-            print("PASS: 所有检查通过")
-            return 0
-        print(f"TOTAL FAILURES: {len(self.errors)}")
-        return 1
+        return CheckReport(
+            self._issues,
+            summary={"unknown_doc_type": self.doc_type if unknown else None},
+            headline=(
+                f"检查: {self.doc_file} (type={self.doc_type}, volume={self.volume_type})"
+            ),
+        )
+
+    def run(self) -> int:
+        """Run checks, print the text report (unless quiet), return 0/1.
+
+        Advisory findings do not gate, so the exit code is 1 only when
+        blocking findings exist.
+        """
+        report = self.collect()
+        if not self._quiet:
+            print(render_text(report))
+        return 1 if report.issues.blocking else 0
 
 
 def main() -> None:
@@ -435,6 +456,7 @@ def main() -> None:
     doc_file = sys.argv[2]
     docs_dir = "docs/"
     volume_type = None
+    fmt = "text"
 
     if "--docs-dir" in sys.argv:
         idx = sys.argv.index("--docs-dir")
@@ -442,6 +464,14 @@ def main() -> None:
     if "--volume-type" in sys.argv:
         idx = sys.argv.index("--volume-type")
         volume_type = sys.argv[idx + 1]
+    if "--format" in sys.argv:
+        idx = sys.argv.index("--format")
+        fmt = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "text"
 
     checker = DocChecker(doc_type, doc_file, docs_dir, volume_type)
-    sys.exit(checker.run())
+    report = checker.collect()
+    if fmt == "json":
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        print(render_text(report))
+    sys.exit(1 if report.issues.blocking else 0)
