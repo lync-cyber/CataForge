@@ -97,8 +97,8 @@ def test_is_penpot_container_running_returns_true_when_output():
 
 def test_preflight_check_fails_when_docker_absent(capsys):
     with (
-        patch("cataforge.integrations.penpot.has_command", return_value=False),
-        patch("cataforge.integrations.penpot.docker_compose_cmd", return_value=None),
+        patch("cataforge.integrations.penpot.docker.has_command", return_value=False),
+        patch("cataforge.integrations.penpot.docker.docker_compose_cmd", return_value=None),
     ):
         result = penpot.preflight_check(scope="all")
     assert result is False
@@ -111,7 +111,7 @@ def test_preflight_check_fails_when_docker_absent(capsys):
 
 def test_deploy_penpot_returns_false_when_docker_not_running():
     config = penpot.get_config()
-    with patch("cataforge.integrations.penpot.ensure_docker_running", return_value=False):
+    with patch("cataforge.integrations.penpot.docker.ensure_docker_running", return_value=False):
         assert penpot.deploy_penpot(config) is False
 
 
@@ -256,10 +256,10 @@ def test_stop_mcp_raises_when_taskkill_missing_on_windows(
     """
     from cataforge.core.errors import CataforgeError
 
-    monkeypatch.setattr(penpot, "PLATFORM", "windows")
-    monkeypatch.setattr(penpot, "_read_mcp_pid", lambda: 12345)
-    monkeypatch.setattr(penpot, "pid_alive", lambda pid: True)
-    monkeypatch.setattr(penpot.shutil, "which", lambda name: None)
+    monkeypatch.setattr(penpot.mcp_process, "PLATFORM", "windows")
+    monkeypatch.setattr(penpot.mcp_process, "_read_mcp_pid", lambda: 12345)
+    monkeypatch.setattr(penpot.mcp_process, "pid_alive", lambda pid: True)
+    monkeypatch.setattr(penpot.mcp_process.shutil, "which", lambda name: None)
 
     with pytest.raises(CataforgeError, match="taskkill not found"):
         penpot.stop_mcp({"mcp_port": 4401})
@@ -271,15 +271,15 @@ def test_stop_mcp_uses_taskkill_when_present(
     """Sanity baseline: when taskkill IS on PATH, stop_mcp proceeds and
     invokes it. Guards against an over-eager raise on systems that have
     the binary."""
-    monkeypatch.setattr(penpot, "PLATFORM", "windows")
-    monkeypatch.setattr(penpot, "_read_mcp_pid", lambda: 12345)
-    monkeypatch.setattr(penpot, "pid_alive", lambda pid: True)
+    monkeypatch.setattr(penpot.mcp_process, "PLATFORM", "windows")
+    monkeypatch.setattr(penpot.mcp_process, "_read_mcp_pid", lambda: 12345)
+    monkeypatch.setattr(penpot.mcp_process, "pid_alive", lambda pid: True)
     monkeypatch.setattr(
-        penpot.shutil,
+        penpot.mcp_process.shutil,
         "which",
         lambda name: r"C:\Windows\System32\taskkill.exe" if name == "taskkill" else None,
     )
-    monkeypatch.setattr(penpot, "_is_mcp_running", lambda c: False)
+    monkeypatch.setattr(penpot.mcp_process, "_is_mcp_running", lambda c: False)
 
     captured: list[list[str]] = []
 
@@ -287,7 +287,7 @@ def test_stop_mcp_uses_taskkill_when_present(
         captured.append(list(cmd))
         return MagicMock(returncode=0)
 
-    monkeypatch.setattr(penpot.subprocess, "run", _fake_run)
+    monkeypatch.setattr(penpot.mcp_process.subprocess, "run", _fake_run)
 
     # Should complete without raising.
     penpot.stop_mcp({"mcp_port": 4401})
@@ -302,7 +302,7 @@ def test_pid_file_round_trip_uses_utf8(monkeypatch: pytest.MonkeyPatch, tmp_path
     a write/read so a locale that defaults to non-UTF-8 (e.g. Windows
     cp1252) doesn't silently corrupt the value."""
     pid_file = tmp_path / "penpot-mcp-server.pid"
-    monkeypatch.setattr(penpot, "MCP_PID_FILE", str(pid_file))
+    monkeypatch.setattr(penpot.mcp_process, "MCP_PID_FILE", str(pid_file))
 
     penpot._write_mcp_pid(98765)
     # File content is raw ASCII digits — utf-8 / cp1252 read it the same
@@ -335,7 +335,7 @@ def test_cmd_status_returns_zero(capsys):
 
 def test_mcp_pid_roundtrip(tmp_path, monkeypatch: pytest.MonkeyPatch):
     pid_file = tmp_path / "penpot-mcp-server.pid"
-    monkeypatch.setattr(penpot, "MCP_PID_FILE", str(pid_file))
+    monkeypatch.setattr(penpot.mcp_process, "MCP_PID_FILE", str(pid_file))
 
     assert penpot._read_mcp_pid() is None
 
@@ -433,13 +433,13 @@ def test_preflight_warns_on_unsupported_node(capsys) -> None:
 
 def test_preflight_accepts_supported_node(capsys) -> None:
     with (
-        patch("cataforge.integrations.penpot.has_command", return_value=True),
+        patch("cataforge.integrations.penpot.docker.has_command", return_value=True),
         patch(
-            "cataforge.integrations.penpot.get_command_version",
+            "cataforge.integrations.penpot.docker.get_command_version",
             return_value="v22.11.0",
         ),
         patch(
-            "cataforge.integrations.penpot.docker_compose_cmd",
+            "cataforge.integrations.penpot.docker.docker_compose_cmd",
             return_value=["docker", "compose"],
         ),
     ):
@@ -512,8 +512,8 @@ def test_register_survives_claude_list_timeout() -> None:
         return subprocess.CompletedProcess(cmd, 0, stdout="Added penpot", stderr="")
 
     with (
-        patch("cataforge.integrations.penpot.has_command", return_value=True),
-        patch("cataforge.integrations.penpot.run_cmd", side_effect=fake_run_cmd),
+        patch("cataforge.integrations.penpot.client.has_command", return_value=True),
+        patch("cataforge.integrations.penpot.client.run_cmd", side_effect=fake_run_cmd),
     ):
         # Must not raise; list-timeout falls through to the idempotent add.
         penpot.register_claude_mcp({"mcp_port": 4401})
@@ -521,9 +521,9 @@ def test_register_survives_claude_list_timeout() -> None:
 
 def test_register_warns_when_claude_fully_unresponsive(capsys) -> None:
     with (
-        patch("cataforge.integrations.penpot.has_command", return_value=True),
+        patch("cataforge.integrations.penpot.client.has_command", return_value=True),
         patch(
-            "cataforge.integrations.penpot.run_cmd",
+            "cataforge.integrations.penpot.client.run_cmd",
             side_effect=subprocess.TimeoutExpired(["claude"], 30),
         ),
     ):
