@@ -34,6 +34,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.core.paths import find_project_root
 from cataforge.utils.common import ensure_utf8
 
@@ -92,15 +94,13 @@ def _rebuild_index(project_root: Path) -> int:
 
 
 def _list_index_doc_ids(project_root: Path) -> set[str]:
-    import json
 
     idx_path = project_root / "docs" / ".doc-index.json"
     if not idx_path.is_file():
         return set()
     try:
-        with open(idx_path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
+        data = read_json(idx_path)
+    except ConfigError:
         return set()
     return set((data.get("documents") or {}).keys())
 

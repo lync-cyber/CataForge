@@ -8,9 +8,13 @@ old docs<->kg import cycle and the indexer->loader private-symbol crossing.
 
 from __future__ import annotations
 
-import json
-import os
+import re
+from pathlib import Path
 from typing import Any
+
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
+from cataforge.utils.patterns import REF_RE, SECTION_PATH_RE
 
 DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
     "prd": "prd",
@@ -43,18 +47,19 @@ def _load_doc_type_map(project_root: str) -> dict[str, str]:
     if cached is not None:
         return cached
 
+    from cataforge.core.paths import ProjectPaths
+
     merged = dict(DEFAULT_DOC_TYPE_MAP)
-    framework_json = os.path.join(project_root, ".cataforge", "framework.json")
-    if os.path.isfile(framework_json):
+    framework_json = ProjectPaths(Path(project_root)).framework_json
+    if framework_json.is_file():
         try:
-            with open(framework_json, encoding="utf-8") as f:
-                data = json.load(f)
+            data = read_json(framework_json)
             override = (data.get("docs") or {}).get("doc_types")
             if isinstance(override, dict):
                 for k, v in override.items():
                     if isinstance(k, str) and isinstance(v, str):
                         merged[k] = v
-        except (json.JSONDecodeError, OSError):
+        except ConfigError:
             pass
 
     _DOC_TYPE_MAP_CACHE[project_root] = merged
@@ -186,3 +191,22 @@ class SectionNotFoundError(LoadSectionError):
 
 class AmbiguousRefError(LoadSectionError):
     pass
+
+
+def parse_ref(ref: str) -> tuple[str, str, str | None]:
+    if not isinstance(ref, str) or not ref.strip():
+        raise RefParseError(f"引用为空或类型错误: {ref!r}")
+    m = REF_RE.match(ref.strip())
+    if not m:
+        raise RefParseError(f"引用格式非法: {ref!r}，应为 doc_id#§<section>[.item]")
+    doc_id = m.group("doc_id")
+    section_part = m.group("section")
+
+    item_match = re.match(r"^(?P<sec>\d+(?:\.\d+)*)\.(?P<item>[A-Z]+-\d+)$", section_part)
+    if item_match:
+        return doc_id, item_match.group("sec"), item_match.group("item")
+
+    if SECTION_PATH_RE.match(section_part):
+        return doc_id, section_part, None
+
+    raise RefParseError(f"无法解析节路径 {section_part!r}")

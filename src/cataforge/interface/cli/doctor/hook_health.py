@@ -117,9 +117,7 @@ def report_hook_errors(cfg) -> None:
     import json as _json
     from datetime import datetime, timedelta, timezone
 
-    from cataforge.runtime.hook.base import HOOK_ERROR_LOG_REL
-
-    log_path = cfg.paths.root / HOOK_ERROR_LOG_REL
+    log_path = cfg.paths.hook_error_log
     if not log_path.is_file():
         click.echo("  (no hook errors recorded)")
         return

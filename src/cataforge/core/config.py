@@ -13,6 +13,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from cataforge.core.io import read_json
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.core.schema.framework import FrameworkFile
 from cataforge.utils.atomic_write import atomic_write_text
@@ -45,7 +46,7 @@ class ConfigManager:
         if not path.is_file():
             self._cache = {}
             return self._cache
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = read_json(path)
         try:
             self._cache = FrameworkFile.model_validate(raw).model_dump(
                 mode="json", exclude_none=False
@@ -65,7 +66,7 @@ class ConfigManager:
         path = self._paths.framework_json
         if not path.is_file():
             return {}
-        return json.loads(path.read_text(encoding="utf-8"))
+        return read_json(path)
 
     def reload(self) -> dict[str, Any]:
         """Force re-read from disk."""

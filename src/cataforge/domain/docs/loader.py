@@ -18,15 +18,21 @@ import argparse
 import glob
 import json
 import os
-import re
 import sys
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from cataforge.domain.docs.kg_port import KGReadPort
-
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.core.paths import find_project_root
+from cataforge.domain.docs._loader_kg import (
+    _entity_id_to_ref as _entity_id_to_ref,
+)
+from cataforge.domain.docs._loader_kg import (
+    _try_kg_extract,
+    _try_kg_plan_load,
+    _try_kg_resolve_deps,
+)
 from cataforge.domain.docs.index_ops import (
     _DOC_TYPE_MAP_CACHE as _DOC_TYPE_MAP_CACHE,
 )
@@ -60,9 +66,12 @@ from cataforge.domain.docs.index_ops import (
 from cataforge.domain.docs.index_ops import (
     _resolve_doc_entry as _resolve_doc_entry,
 )
+from cataforge.domain.docs.index_ops import (
+    parse_ref as parse_ref,
+)
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.md_parse import iter_markdown_headings
-from cataforge.utils.patterns import HEADING_RE, REF_RE, SECTION_PATH_RE
+from cataforge.utils.patterns import HEADING_RE
 
 # ---------------------------------------------------------------------------
 # doc_id → doc_type mapping
@@ -98,11 +107,10 @@ def _load_index(project_root: str) -> dict[str, Any] | None:
         _INDEX_CACHE_ROOT = project_root
         return None
     try:
-        with open(index_path, encoding="utf-8") as f:
-            _INDEX_CACHE = json.load(f)
+        _INDEX_CACHE = read_json(index_path)
         _INDEX_CACHE_ROOT = project_root
         return _INDEX_CACHE
-    except (json.JSONDecodeError, OSError):
+    except ConfigError:
         return None
 
 
@@ -126,35 +134,6 @@ def _index_age_days(generated_at: str | None) -> float | None:
         return (datetime.now(timezone.utc) - gen_dt).total_seconds() / 86400.0
     except ValueError:
         return None
-
-
-# ---------------------------------------------------------------------------
-# Exceptions
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# Ref parsing
-# ---------------------------------------------------------------------------
-
-
-def parse_ref(ref: str) -> tuple[str, str, str | None]:
-    if not isinstance(ref, str) or not ref.strip():
-        raise RefParseError(f"引用为空或类型错误: {ref!r}")
-    m = REF_RE.match(ref.strip())
-    if not m:
-        raise RefParseError(f"引用格式非法: {ref!r}，应为 doc_id#§<section>[.item]")
-    doc_id = m.group("doc_id")
-    section_part = m.group("section")
-
-    item_match = re.match(r"^(?P<sec>\d+(?:\.\d+)*)\.(?P<item>[A-Z]+-\d+)$", section_part)
-    if item_match:
-        return doc_id, item_match.group("sec"), item_match.group("item")
-
-    if SECTION_PATH_RE.match(section_part):
-        return doc_id, section_part, None
-
-    raise RefParseError(f"无法解析节路径 {section_part!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -284,45 +263,6 @@ def extract(
     return _extract_section_from_lines(splitlines, start_idx, level)
 
 
-def _try_kg_extract(
-    doc_id: str,
-    section_path: str,
-    item_id: str | None,
-    project_root: str,
-) -> str | None:
-    """Resolve a ref through the KG when active.
-
-    Returns the rendered Markdown body when the graph holds the entity,
-    or `None` to signal "fall through to the legacy file path". Never
-    raises — KG failures during a Group A read always degrade to legacy
-    behavior so the cutover gate stays a soft fence at the read layer
-    (the doctor `kg_ingestion_completeness` gate enforces hard
-    completeness at deploy time).
-    """
-    if item_id is None:
-        return None  # whole-section refs have no entity to render
-    try:
-        from cataforge.domain.kg._dispatch import is_active_for, kg_config_for
-    except ImportError:
-        return None
-    if not is_active_for(doc_id, project_root):
-        return None
-    try:
-        from cataforge.domain.kg import KnowledgeGraph
-        from cataforge.domain.kg.export import render_entity
-    except ImportError:
-        return None
-    cfg = kg_config_for(project_root)
-    try:
-        with KnowledgeGraph.connect(cfg) as kg:
-            if not kg.query.exists(item_id):
-                return None
-            rendered = render_entity(kg.store, item_id)
-    except Exception:
-        return None
-    return rendered if rendered else None
-
-
 def _read_lines_cached(abs_path: str, file_cache: dict[str, list[str]] | None) -> list[str]:
     if file_cache is not None and abs_path in file_cache:
         return file_cache[abs_path]
@@ -430,137 +370,6 @@ def resolve_deps(ref: str, project_root: str, max_depth: int = 2) -> list[str]:
 
     _resolve(ref, 0)
     return result
-
-
-def _try_kg_plan_load(
-    refs: list[str], project_root: str, token_budget: int
-) -> tuple[list[str], list[str]] | None:
-    """KG-backed ``plan_load`` when every ref targets an active doc_type.
-
-    Returns ``(loadable, deferred)`` ref-form tuples, or ``None`` to signal
-    "fall through to legacy". The fall-through criteria are deliberately
-    strict — mixed active+legacy inputs go to legacy because budget math
-    over heterogeneous sources is not well-defined.
-    """
-    parsed = _all_active_parsed_refs(refs, project_root)
-    if parsed is None:
-        return None
-    if not parsed:
-        # empty input — legacy returns ([], []), match that without touching KG
-        return [], []
-    try:
-        from cataforge.domain.kg import KnowledgeGraph  # noqa: PLC0415
-        from cataforge.domain.kg._dispatch import kg_config_for  # noqa: PLC0415
-    except ImportError:
-        return None
-
-    item_ids = [item_id for _ref, _doc_id, item_id in parsed]
-    cfg = kg_config_for(project_root)
-    try:
-        with KnowledgeGraph.connect(cfg) as kg:
-            result = kg.query.plan_load(item_ids, token_budget, include_related=False)
-    except Exception:
-        return None
-
-    by_eid = {item_id: ref for ref, _doc_id, item_id in parsed}
-    loadable = [by_eid[eid] for eid in result.ordered if eid in by_eid]
-    deferred = [by_eid[eid] for eid in result.dropped if eid in by_eid]
-    return loadable, deferred
-
-
-def _try_kg_resolve_deps(ref: str, project_root: str, max_depth: int) -> list[str] | None:
-    """KG-backed ``resolve_deps`` returning legacy ref-form list.
-
-    Walks ``cf:depends_on`` transitively up to ``max_depth`` from the
-    ref's entity_id, then reconstructs each dep's ref form from KG's
-    stored ``source_doc`` / ``source_section`` slots. Returns ``None`` to
-    fall through to the legacy ``.doc-index.json`` walk.
-    """
-    try:
-        doc_id, _section, item_id = parse_ref(ref)
-    except LoadSectionError:
-        return None
-    if item_id is None:
-        return None  # whole-section refs have no entity to walk
-    try:
-        from cataforge.domain.kg._dispatch import is_active_for  # noqa: PLC0415
-    except ImportError:
-        return None
-    if not is_active_for(doc_id, project_root):
-        return None
-    try:
-        from cataforge.domain.kg import KnowledgeGraph  # noqa: PLC0415
-        from cataforge.domain.kg._dispatch import kg_config_for  # noqa: PLC0415
-    except ImportError:
-        return None
-
-    cfg = kg_config_for(project_root)
-    try:
-        with KnowledgeGraph.connect(cfg) as kg:
-            visited: set[str] = {item_id}
-            ordered: list[str] = []
-
-            def _walk(eid: str, depth: int) -> None:
-                if depth > max_depth:
-                    return
-                for dep_id in kg.query.depends_on(eid):
-                    if dep_id in visited:
-                        continue
-                    visited.add(dep_id)
-                    _walk(dep_id, depth + 1)
-                    ordered.append(dep_id)
-
-            _walk(item_id, 0)
-            return [_entity_id_to_ref(kg, eid) or eid for eid in ordered]
-    except Exception:
-        return None
-
-
-def _entity_id_to_ref(kg: KGReadPort, entity_id: str) -> str | None:
-    """Reconstruct the legacy ``doc_id#§section`` form from KG metadata.
-
-    Falls back to ``None`` when KG carries no ``source_doc`` for the
-    entity — caller substitutes the bare entity_id, which keeps the dep
-    visible in CLI output even if it won't round-trip through ``extract``.
-    """
-    entity = kg.query.entity(entity_id)
-    if not entity:
-        return None
-    source_doc = entity.get("source_doc")
-    if not source_doc:
-        return None
-    source_section = entity.get("source_section") or ""
-    anchor = source_section.lstrip("§").strip()
-    return f"{source_doc}#§{anchor}" if anchor else f"{source_doc}#§{entity_id}"
-
-
-def _all_active_parsed_refs(
-    refs: list[str], project_root: str
-) -> list[tuple[str, str, str]] | None:
-    """Pre-parse refs and verify every one targets an active doc_type.
-
-    Returns ``[(ref, doc_id, item_id), ...]`` when all refs parse cleanly
-    AND every ``doc_id`` is in ``kg_active_doc_types`` AND every ref
-    carries an ``item_id`` (whole-section refs have no entity to plan).
-    Returns ``None`` to signal "fall through to legacy".
-    """
-    try:
-        from cataforge.domain.kg._dispatch import active_doc_types  # noqa: PLC0415
-    except ImportError:
-        return None
-    active = active_doc_types(project_root)
-    if not active:
-        return None
-    parsed: list[tuple[str, str, str]] = []
-    for ref in refs:
-        try:
-            doc_id, _section, item_id = parse_ref(ref)
-        except LoadSectionError:
-            return None
-        if doc_id not in active or item_id is None:
-            return None
-        parsed.append((ref, doc_id, item_id))
-    return parsed
 
 
 def _index_lookup_or_none(

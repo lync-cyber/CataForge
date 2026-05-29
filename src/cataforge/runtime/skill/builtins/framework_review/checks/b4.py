@@ -5,16 +5,19 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from cataforge.core.paths import ProjectPaths
+
 from .._constants import CONSTANT_LITERALS
 from .._types import Report
 
 
 def check_b4_hardcoded_constants(root: Path, report: Report) -> None:
     """B4-α: bare numeric literals that should reference constants."""
+    paths = ProjectPaths(root)
     scan_roots = (
-        root / ".cataforge" / "agents",
-        root / ".cataforge" / "skills",
-        root / ".cataforge" / "rules",
+        paths.agents_dir,
+        paths.skills_dir,
+        paths.rules_dir,
     )
     for base in scan_roots:
         if not base.is_dir():

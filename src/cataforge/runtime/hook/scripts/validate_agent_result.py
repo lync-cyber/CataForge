@@ -4,10 +4,11 @@ Matcher: Agent
 Warning-only (exit 0) — agent-dispatch already has fallback logic.
 """
 
-import json
 import re
 import sys
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
 from cataforge.core.paths import ProjectPaths
 from cataforge.core.types import AgentStatus
 from cataforge.runtime.hook.base import (
@@ -22,9 +23,9 @@ def _load_valid_statuses() -> set[str]:
     schemas_dir = ProjectPaths().schemas_dir
     schema_path = schemas_dir / "agent-result.schema.json"
     try:
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        schema = read_json(schema_path)
         return set(schema["properties"]["status"]["enum"])
-    except (OSError, KeyError, json.JSONDecodeError):
+    except (ConfigError, KeyError):
         # Fallback derived from the AgentStatus enum (SSOT); kept in parity
         # with the schema JSON by the schema-python-parity guard.
         return {s.value for s in AgentStatus}

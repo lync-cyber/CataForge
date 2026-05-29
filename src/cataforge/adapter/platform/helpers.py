@@ -12,7 +12,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from cataforge.core.errors import CataforgeError
+from cataforge.core.errors import CataforgeError, ConfigError
+from cataforge.core.io import read_json
 
 
 def _prune_orphan_flat_files(
@@ -360,8 +361,8 @@ def merge_json_key(
 
     if path.is_file():
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
+            data = read_json(path)
+        except ConfigError as exc:
             raise CataforgeError(
                 f"existing config corrupted (cannot merge): {path} ({exc}). "
                 f"Fix or remove the file and retry."
@@ -428,10 +429,10 @@ def merge_opencode_project_mcp(
     data: dict[str, Any] = {}
     if path.is_file():
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
+            raw = read_json(path)
             if isinstance(raw, dict):
                 data = raw
-        except json.JSONDecodeError as exc:
+        except ConfigError as exc:
             raise CataforgeError(
                 f"existing config corrupted (cannot merge): {path} ({exc}). "
                 f"Fix or remove the file and retry."

@@ -14,12 +14,13 @@ from pathlib import Path
 import pytest
 
 import cataforge.runtime.hook.base as hook_base
-from cataforge.runtime.hook.base import HOOK_ERROR_LOG_REL, hook_main
+from cataforge.core.paths import HOOK_ERROR_LOG_REL
+from cataforge.runtime.hook.base import hook_main
 
 
 @pytest.fixture()
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Create a minimal .cataforge/ tree that _find_framework_json can see."""
+    """Create a minimal .cataforge/ tree that find_project_root can see."""
     cataforge_dir = tmp_path / ".cataforge"
     cataforge_dir.mkdir()
     (cataforge_dir / "framework.json").write_text(

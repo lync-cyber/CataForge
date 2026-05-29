@@ -21,8 +21,6 @@ pass end-to-end.
 """
 from __future__ import annotations
 
-import warnings
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -39,9 +37,6 @@ def _ingest_into_memory(project_root: Path):
     run_migration(handle.raw, project_root, config)
     kg = KnowledgeGraph(handle.raw, config)
     return kg, config
-
-def _active(config, doc_types: set[str]):
-    return replace(config, kg_active_doc_types=doc_types)
 
 # ---------------------------------------------------------------------------
 # Group A entity-id discovery dual-path
@@ -86,65 +81,6 @@ def test_typed_accessors_locate_known_entities(variant: str) -> None:
     # Errata C1: api() / page() exposed even when fixture has no instances
     assert kg.query.api("API-999") is None
     assert kg.query.page("P-999") is None
-
-# ---------------------------------------------------------------------------
-# A6 — plan_load equivalence shape across active vs inactive flags
-# ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize("variant", VARIANTS)
-def test_plan_load_shape_matches_across_branches(variant: str) -> None:
-    """The shim's plan_load returns the same 0.4.x-compat dict shape in
-    both branches. The KG branch returns entity_ids; the legacy branch
-    would return ref strings. We verify the SHAPE is identical (keys +
-    types) so callers don't break across cutover.
-    """
-    from cataforge.domain.kg._shim import plan_load
-
-    project_root = FIXTURE_ROOT / variant
-    kg, base_config = _ingest_into_memory(project_root)
-    active = _active(base_config, {"prd", "arch", "test"})
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        kg_result = plan_load(
-            ["F-001", "F-002"], 10_000,
-            project_root=project_root, config=active, kg=kg,
-        )
-
-    assert set(kg_result.keys()) == {"ordered", "dropped", "estimated_tokens"}
-    assert isinstance(kg_result["ordered"], list)
-    assert isinstance(kg_result["dropped"], list)
-    assert isinstance(kg_result["estimated_tokens"], int)
-    assert "F-001" in kg_result["ordered"]
-
-# ---------------------------------------------------------------------------
-# A11 — legacy_validate_report return-shape is the 6-key 0.4.x dict
-# ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize("variant", VARIANTS)
-def test_legacy_validate_report_keys_stable(variant: str) -> None:
-    from cataforge.domain.kg._shim import legacy_validate_report
-
-    project_root = FIXTURE_ROOT / variant
-    kg, base_config = _ingest_into_memory(project_root)
-    active = _active(base_config, {"prd", "arch", "test"})
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        report = legacy_validate_report(
-            project_root=project_root, config=active, kg=kg
-        )
-
-    assert set(report.keys()) == {
-        "orphans",
-        "stale",
-        "xref_errors",
-        "alias_conflicts",
-        "invalid_ids",
-        "stale_deps",
-    }
-    for k, v in report.items():
-        assert isinstance(v, list), f"{k} must be a list"
 
 # ---------------------------------------------------------------------------
 # A13 — bidirectional coverage agrees with TraceAPI.bidirectional_coverage

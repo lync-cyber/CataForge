@@ -6,6 +6,9 @@ from pathlib import Path
 
 import click
 
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_json
+
 # Single source of truth for "what does CataForge own under each platform?"
 # Shared with :mod:`deploy_integrity` so the informational report and the
 # hard gate cannot drift apart.
@@ -37,7 +40,6 @@ def report_deployment_provenance(cfg) -> None:
     the directory namespace that CataForge owns, then reports which of
     those paths actually exist on disk vs which are user/IDE native.
     """
-    import json as _json
 
     deploy_state_path = cfg.paths.cataforge_dir / ".deploy-state"
     if not deploy_state_path.is_file():
@@ -45,8 +47,8 @@ def report_deployment_provenance(cfg) -> None:
         return
 
     try:
-        state = _json.loads(deploy_state_path.read_text(encoding="utf-8"))
-    except (OSError, _json.JSONDecodeError) as e:
+        state = read_json(deploy_state_path)
+    except ConfigError as e:
         click.echo(f"  (could not parse {deploy_state_path}: {e})")
         return
 

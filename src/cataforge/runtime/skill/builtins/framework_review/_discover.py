@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from cataforge.core.paths import ProjectPaths
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 
 def discover_agents(root: Path) -> dict[str, Path]:
-    base = root / ".cataforge" / "agents"
+    base = ProjectPaths(root).agents_dir
     if not base.is_dir():
         return {}
     return {
@@ -19,7 +20,7 @@ def discover_agents(root: Path) -> dict[str, Path]:
 
 
 def discover_skills(root: Path) -> dict[str, Path]:
-    base = root / ".cataforge" / "skills"
+    base = ProjectPaths(root).skills_dir
     if not base.is_dir():
         return {}
     return {
@@ -37,7 +38,7 @@ def discover_agent_protocol_docs(root: Path) -> list[tuple[str, Path]]:
     the same size threshold (B1-β) and content checks even though they
     aren't the agent's entry doc.
     """
-    base = root / ".cataforge" / "agents"
+    base = ProjectPaths(root).agents_dir
     if not base.is_dir():
         return []
     found: list[tuple[str, Path]] = []

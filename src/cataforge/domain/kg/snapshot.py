@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from cataforge.core.io import read_json
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._errors import KGError, KGStoreAlreadyExistsError
 from cataforge.domain.kg._store import init_store
@@ -134,7 +135,7 @@ def list_snapshots(snapshot_dir: Path) -> list[SnapshotMeta]:
         nq_file = meta_file.with_suffix("").with_suffix(".nq")
         if not nq_file.exists():
             continue
-        raw = json.loads(meta_file.read_text(encoding="utf-8"))
+        raw = read_json(meta_file)
         metas.append(
             SnapshotMeta(
                 path=Path(raw.get("path", str(nq_file))),
