@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_yaml
 from cataforge.core.paths import ProjectPaths
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
@@ -103,8 +103,8 @@ def check_b7_model_tier(root: Path, report: Report) -> None:
         if not profile_path.is_file():
             continue
         try:
-            profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
+            profile = read_yaml(profile_path)
+        except ConfigError:
             continue
         if not isinstance(profile, dict):
             continue

@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import yaml
-
+from cataforge.core.errors import ConfigError
 from cataforge.core.event_log import EVENT_LOG_REL
+from cataforge.core.io import read_yaml
 from cataforge.core.paths import ProjectPaths
 
 from .._constants import B5_CROSS_CUTTING, B5_SUBAGENTS
@@ -272,8 +272,8 @@ def _check_b5_hook_installed(root: Path, report: Report) -> None:
     if not hooks_yaml.is_file():
         return  # B6 will FAIL on this independently
     try:
-        hooks_data = yaml.safe_load(hooks_yaml.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError):
+        hooks_data = read_yaml(hooks_yaml)
+    except ConfigError:
         return
     if not isinstance(hooks_data, dict):
         return

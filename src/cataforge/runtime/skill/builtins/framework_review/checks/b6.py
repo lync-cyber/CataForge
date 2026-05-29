@@ -5,8 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import yaml
-
+from cataforge.core.errors import ConfigError
+from cataforge.core.io import read_yaml
 from cataforge.core.paths import ProjectPaths
 
 from .._hook_resolution import (
@@ -47,8 +47,8 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
     if not hooks_yaml.is_file():
         return
     try:
-        hooks_data = yaml.safe_load(hooks_yaml.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as e:
+        hooks_data = read_yaml(hooks_yaml)
+    except ConfigError as e:
         report.add(
             "B6_hook_consistency",
             "FAIL",
@@ -179,8 +179,8 @@ def _check_degradation_parity(
         if not profile_path.is_file():
             continue
         try:
-            profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
+            profile = read_yaml(profile_path)
+        except ConfigError:
             continue
         if not isinstance(profile, dict):
             continue
