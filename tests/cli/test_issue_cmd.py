@@ -15,6 +15,7 @@ import pytest
 
 from cataforge.cli import issue_cmd
 from cataforge.cli.issue_cmd import close_command, triage_command
+from cataforge.services import issue as issue_svc
 from tests.cli.conftest import invoke_under_group
 
 
@@ -52,7 +53,7 @@ def _patch_gh(
             args=cmd, returncode=0, stdout=json.dumps(issues), stderr=""
         )
 
-    monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
+    monkeypatch.setattr(issue_svc, "run_proc", fake_run)
     monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
 
 
@@ -80,7 +81,7 @@ def _patch_gh_per_label(
             args=cmd, returncode=0, stdout=json.dumps(payload), stderr=""
         )
 
-    monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
+    monkeypatch.setattr(issue_svc, "run_proc", fake_run)
     monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
     return captured
 
@@ -514,7 +515,7 @@ class TestGhFailurePaths:
                 args=cmd, returncode=1, stdout="", stderr="error: API rate limit exceeded"
             )
 
-        monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
+        monkeypatch.setattr(issue_svc, "run_proc", fake_run)
         result = invoke_under_group(triage_command, ["--repo", "fake/repo"])
         assert result.exit_code != 0
         assert "rate limit" in result.output
@@ -554,7 +555,7 @@ class TestTriageGhParams:
                 args=cmd, returncode=0, stdout="[]", stderr=""
             )
 
-        monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
+        monkeypatch.setattr(issue_svc, "run_proc", fake_run)
         monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
         result = invoke_under_group(
             triage_command, ["--repo", "fake/repo", "--dry-run"]

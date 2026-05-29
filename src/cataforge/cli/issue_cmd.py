@@ -34,24 +34,25 @@ action in this module. Maintainer must invoke it explicitly per issue
 
 from __future__ import annotations
 
-import json
-import re
 import shutil
-from dataclasses import dataclass, field
-from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 import click
 
-from cataforge import __version__
 from cataforge.cli.helpers import get_config_manager, resolve_root
 from cataforge.cli.main import cli
 from cataforge.core.errors import CataforgeError, ExternalToolError
-from cataforge.core.version import parse_semver
+from cataforge.services.issue import (
+    ParsedIssue,
+    fetch_issues,
+    list_local_agents,
+    list_local_skills,
+    parse_issue_body,
+    render_close_comment,
+    write_skill_improve_draft,
+)
 from cataforge.utils.run_subprocess import run as run_proc
-
-INSTALLED_VERSION = __version__
 
 
 @cli.group("issue")
@@ -162,13 +163,13 @@ def triage_command(
                 merged.add(lbl)
         labels = tuple(sorted(merged))
 
-    issues = _fetch_issues(repo, labels=list(labels), state=state, since=since, limit=limit)
+    issues = fetch_issues(repo, labels=list(labels), state=state, since=since, limit=limit)
     if not issues:
         click.echo(f"No issues matched on {repo} (labels={list(labels) or 'any'}).")
         return
 
-    skill_ids = _list_local_skills(project_root)
-    agent_ids = _list_local_agents(project_root)
+    skill_ids = list_local_skills(project_root)
+    agent_ids = list_local_agents(project_root)
 
     target_dir = out_dir if out_dir is not None else project_root / "docs" / "reviews" / "triage"
 
@@ -178,7 +179,7 @@ def triage_command(
     skipped = 0
 
     for raw in issues:
-        parsed = _parse_issue_body(raw, skill_ids=skill_ids, agent_ids=agent_ids)
+        parsed = parse_issue_body(raw, skill_ids=skill_ids, agent_ids=agent_ids)
         click.echo(_format_verdict_row(raw, parsed))
         if parsed.verdict != "confirmed":
             skipped += 1
@@ -187,7 +188,7 @@ def triage_command(
             continue
         if not target_dir.exists():
             target_dir.mkdir(parents=True, exist_ok=True)
-        path = _write_skill_improve_draft(target_dir, raw, parsed, repo=repo)
+        path = write_skill_improve_draft(target_dir, raw, parsed, repo=repo)
         click.secho(f"  → wrote {path.relative_to(project_root)}", fg="green")
         written += 1
 
@@ -275,7 +276,7 @@ def close_command(
             )
         repo = str(owner_repo)
 
-    comment = _render_close_comment(
+    comment = render_close_comment(
         verdict=verdict,
         pr_number=pr_number,
         reason=reason,
@@ -302,186 +303,7 @@ def close_command(
     click.secho(f"\nClosed #{number}.", fg="green")
 
 
-def _render_close_comment(
-    *,
-    verdict: str,
-    pr_number: int | None,
-    reason: str | None,
-    extra_message: str | None,
-) -> str:
-    if verdict == "fixed":
-        body = f"Fixed in v{INSTALLED_VERSION} (PR #{pr_number})."
-    elif verdict == "already-fixed":
-        body = f"Already fixed in v{INSTALLED_VERSION} (PR #{pr_number})."
-    elif verdict == "wontfix":
-        body = f"Wontfix — by design: {reason}"
-    else:
-        raise CataforgeError(f"unknown verdict: {verdict!r}")
-    if extra_message:
-        body = f"{body}\n\n{extra_message}"
-    return body
-
-
-# ─── helpers ──────────────────────────────────────────────────────────────────
-
-
-@dataclass
-class _ParsedIssue:
-    # Auto verdicts: "confirmed" | "already-fixed" | "needs-repro" |
-    # "unrelated". A 5th value "wontfix-by-design" is valid in draft
-    # frontmatter but only set by maintainer hand-edit on a confirmed
-    # draft when the report turns out to misread an intentional design.
-    verdict: str
-    reported_version: str | None = None
-    target_skills: list[str] = field(default_factory=list)
-    target_agents: list[str] = field(default_factory=list)
-    upstream_gap_signals: int = 0
-    review_fail_summary: str = ""
-    rationale: str = ""
-
-
-_VERSION_LINE_RE = re.compile(
-    r"cataforge[^\n]*?\bversion\b[^\n]*?(\d+\.\d+\.\d+(?:[A-Za-z0-9.\-+]*)?)",
-    re.IGNORECASE,
-)
-_VERSION_HEADER_RE = re.compile(
-    r"^\s*[*\-]?\s*(?:package|cataforge)\s*[:=]\s*v?(\d+\.\d+\.\d+(?:[A-Za-z0-9.\-+]*)?)\s*$",
-    re.IGNORECASE | re.MULTILINE,
-)
-# `cataforge feedback ... --gh` renders Environment lines as
-# `- **CataForge package**: \`0.4.0\`` (markdown bold + inline code) — the
-# header regex above can't see past the `**` wrapping. Issue #115 P7.
-_VERSION_BOLD_RE = re.compile(
-    r"\*\*(?:CataForge\s+)?(?:package|scaffold)(?:\s+version)?\*\*"
-    r"\s*[:=]\s*[`'\"]?v?(\d+\.\d+\.\d+(?:[A-Za-z0-9.\-+]*)?)",
-    re.IGNORECASE,
-)
-# Native GitHub issue template form (`cataforge feedback ... --gh` uses an
-# H3 + blank line + bare version on the next line). Issue #115 P7.
-_VERSION_TEMPLATE_RE = re.compile(
-    r"###\s+CataForge\s+version\s*\n+\s*v?(\d+\.\d+\.\d+(?:[A-Za-z0-9.\-+]*)?)",
-    re.IGNORECASE,
-)
-_FRAMEWORK_REVIEW_FAIL_RE = re.compile(
-    r"FAIL\s+(?:in\s+)?(?:skill|agent)?[:\s]+(?P<id>[a-z0-9][a-z0-9\-]+)",
-    re.IGNORECASE,
-)
-_UPSTREAM_GAP_RE = re.compile(r"deviation:\s*upstream[-_]gap", re.IGNORECASE)
-
-
-def _parse_issue_body(
-    issue: dict[str, Any],
-    *,
-    skill_ids: set[str],
-    agent_ids: set[str],
-) -> _ParsedIssue:
-    body = issue.get("body") or ""
-
-    # Reported version. Order matters: try the most specific issue-template
-    # forms first (template H3, then markdown-bold env block) so the looser
-    # legacy regexes don't snag a false positive on e.g. a `cataforge 0.3.x`
-    # mention deeper in the body. Issue #115 P7.
-    reported = None
-    for pattern in (
-        _VERSION_TEMPLATE_RE,
-        _VERSION_BOLD_RE,
-        _VERSION_HEADER_RE,
-        _VERSION_LINE_RE,
-    ):
-        m = pattern.search(body)
-        if m:
-            reported = m.group(1)
-            break
-
-    # Skill / agent IDs cited in framework-review FAIL lines.
-    cited_skills: list[str] = []
-    cited_agents: list[str] = []
-    for fm in _FRAMEWORK_REVIEW_FAIL_RE.finditer(body):
-        ident = fm.group("id").lower()
-        if ident in skill_ids and ident not in cited_skills:
-            cited_skills.append(ident)
-        elif ident in agent_ids and ident not in cited_agents:
-            cited_agents.append(ident)
-
-    # Upstream-gap mentions.
-    gaps = len(_UPSTREAM_GAP_RE.findall(body))
-
-    # Layer 1 fact-check.
-    if reported and _semver_lt(reported, INSTALLED_VERSION):
-        return _ParsedIssue(
-            verdict="already-fixed",
-            reported_version=reported,
-            target_skills=cited_skills,
-            target_agents=cited_agents,
-            upstream_gap_signals=gaps,
-            rationale=(
-                f"Issue reports cataforge {reported}; installed is "
-                f"{INSTALLED_VERSION}. Verify the fix landed before "
-                "auto-closing — a regression test would be ideal."
-            ),
-        )
-
-    # No version + no skill/agent reference + no gap signals = not a
-    # parseable feedback bundle.
-    if not reported and not cited_skills and not cited_agents and gaps == 0:
-        return _ParsedIssue(
-            verdict="unrelated",
-            rationale="No env block or framework-review citation found.",
-        )
-
-    # No version block at all → can't fact-check, but the citations are
-    # still useful evidence.
-    if not reported:
-        return _ParsedIssue(
-            verdict="needs-repro",
-            target_skills=cited_skills,
-            target_agents=cited_agents,
-            upstream_gap_signals=gaps,
-            rationale=(
-                "Body lacks a `cataforge --version` line — ask reporter to "
-                "rerun `cataforge feedback bug --gh` (which embeds env)."
-            ),
-        )
-
-    return _ParsedIssue(
-        verdict="confirmed",
-        reported_version=reported,
-        target_skills=cited_skills,
-        target_agents=cited_agents,
-        upstream_gap_signals=gaps,
-        review_fail_summary=_extract_fail_excerpt(body),
-        rationale=(
-            f"reported_version={reported} matches installed {INSTALLED_VERSION}; "
-            f"{len(cited_skills)} skill / {len(cited_agents)} agent ref(s) "
-            f"and {gaps} upstream-gap signal(s) in body."
-        ),
-    )
-
-
-def _extract_fail_excerpt(body: str, *, max_lines: int = 8) -> str:
-    """Return up to ``max_lines`` of FAIL-tagged lines from the issue body."""
-    out: list[str] = []
-    for line in body.splitlines():
-        if "FAIL" in line and len(out) < max_lines:
-            out.append(line.strip())
-    return "\n".join(out)
-
-
-def _semver_lt(a: str, b: str) -> bool:
-    """Loose semver compare: treat anything past `X.Y.Z` as a tiebreaker."""
-
-    def _key(s: str) -> tuple[int, int, int, str]:
-        cleaned = s.lstrip("v")
-        nums = parse_semver(cleaned)
-        if nums is None:
-            return (0, 0, 0, cleaned)
-        suffix = re.sub(r"^\d+\.\d+\.\d+", "", cleaned)
-        return (*nums, suffix)
-
-    return _key(a) < _key(b)
-
-
-def _format_verdict_row(issue: dict[str, Any], parsed: _ParsedIssue) -> str:
+def _format_verdict_row(issue: dict[str, Any], parsed: ParsedIssue) -> str:
     color = {
         "confirmed": "green",
         "already-fixed": "yellow",
@@ -501,141 +323,3 @@ def _format_verdict_row(issue: dict[str, Any], parsed: _ParsedIssue) -> str:
     base = f"#{number}  {parsed.verdict:<14}  {target_str}"
     line = click.style(base, fg=color)
     return f"{line}  {title}"
-
-
-def _write_skill_improve_draft(
-    out_dir: Path,
-    issue: dict[str, Any],
-    parsed: _ParsedIssue,
-    *,
-    repo: str,
-) -> Path:
-    number = issue.get("number")
-    target_id = (
-        parsed.target_skills[0]
-        if parsed.target_skills
-        else parsed.target_agents[0]
-        if parsed.target_agents
-        else "unknown"
-    )
-    target_kind = "skill" if parsed.target_skills else "agent"
-    today = date.today().isoformat()
-    fname = f"SKILL-IMPROVE-{target_id}-issue-{number}.md"
-    path = out_dir / fname
-
-    issue_url = issue.get("url") or f"https://github.com/{repo}/issues/{number}"
-    body = (
-        f"---\n"
-        f"author: framework-issue-resolve\n"
-        f"date: {today}\n"
-        f"status: triage-draft\n"
-        f"source_issue: {issue_url}\n"
-        f"target_id: {target_id}\n"
-        f"target_kind: {target_kind}\n"
-        f"installed_version: {INSTALLED_VERSION}\n"
-        f"reported_version: {parsed.reported_version or 'unknown'}\n"
-        f"---\n\n"
-        f"# SKILL-IMPROVE-{target_id} (from issue #{number})\n\n"
-        f"## Source\n"
-        f"- Issue: {issue_url}\n"
-        f"- Title: {issue.get('title', '')}\n"
-        f"- Reporter env: cataforge {parsed.reported_version or '?'} "
-        f"(installed: {INSTALLED_VERSION})\n\n"
-        f"## Triage Verdict\n"
-        f"- verdict: **{parsed.verdict}**\n"
-        f"- target_kind: {target_kind}\n"
-        f"- target_id: {target_id}\n"
-        f"- target_file: .cataforge/{target_kind}s/{target_id}/"
-        f"{'SKILL.md' if target_kind == 'skill' else 'AGENT.md'}\n"
-        f"- upstream_gap_signals: {parsed.upstream_gap_signals}\n\n"
-        f"## Rationale\n"
-        f"{parsed.rationale or '(none)'}\n\n"
-        f"## Evidence (excerpt)\n"
-        f"```\n"
-        f"{parsed.review_fail_summary or '(no FAIL lines in body)'}\n"
-        f"```\n\n"
-        f"## Proposed change\n"
-        f"_TODO: maintainer fills in current_text / proposed_text after "
-        f"reading the issue body in full. This draft only fact-checks the "
-        f"reported context against installed scaffold._\n\n"
-        f"## Next step\n"
-        f"- [ ] Promote this draft to `docs/reviews/retro/SKILL-IMPROVE-"
-        f"{target_id}.md` after maintainer review, or close the issue with "
-        f"a link to the existing fix.\n"
-    )
-    path.write_text(body, encoding="utf-8")
-    return path
-
-
-def _list_local_skills(project_root: Path) -> set[str]:
-    skills_dir = project_root / ".cataforge" / "skills"
-    if not skills_dir.is_dir():
-        return set()
-    return {p.name for p in skills_dir.iterdir() if p.is_dir()}
-
-
-def _list_local_agents(project_root: Path) -> set[str]:
-    agents_dir = project_root / ".cataforge" / "agents"
-    if not agents_dir.is_dir():
-        return set()
-    return {p.name for p in agents_dir.iterdir() if p.is_dir()}
-
-
-def _fetch_issues(
-    repo: str,
-    *,
-    labels: list[str],
-    state: str,
-    since: str | None,
-    limit: int,
-) -> list[dict[str, Any]]:
-    """Issue list with **OR** semantics across ``labels``.
-
-    ``gh issue list`` treats repeated ``--label`` flags as AND — a label
-    union (which is what ``framework.json#feedback.gh.labels`` actually
-    declares: ``{bug, enhancement}``) needs one ``gh`` call per label and a
-    merge by issue number (issue #115 P6). When ``labels`` is empty the
-    caller wants every issue in scope, so we issue a single labelless call.
-    """
-    base_cmd = [
-        "gh",
-        "issue",
-        "list",
-        "-R",
-        repo,
-        "--state",
-        state,
-        "--limit",
-        str(limit),
-        "--json",
-        "number,title,body,createdAt,url,labels",
-    ]
-
-    label_groups = [[lbl] for lbl in labels] if labels else [[]]
-    merged: dict[int, dict[str, Any]] = {}
-    for group in label_groups:
-        cmd = list(base_cmd)
-        for lbl in group:
-            cmd.extend(["--label", lbl])
-        result = run_proc(cmd)
-        if result.returncode != 0:
-            raise ExternalToolError(
-                f"gh issue list failed (exit {result.returncode}):\n"
-                f"{result.stderr or result.stdout}"
-            )
-        for entry in json.loads(result.stdout or "[]"):
-            number = entry.get("number")
-            if not isinstance(number, int):
-                continue
-            # First-write-wins; later passes are duplicates of the same issue.
-            merged.setdefault(number, entry)
-
-    issues = sorted(merged.values(), key=lambda e: e.get("createdAt") or "")
-
-    if since:
-        try:
-            since_dt = datetime.fromisoformat(since).date()
-        except ValueError as e:
-            raise CataforgeError(f"--since must be YYYY-MM-DD ({e})") from None
-        issues = [i for i in issues if (i.get("createdAt") or "")[:10] >= since_dt.isoformat()]
-    return issues
