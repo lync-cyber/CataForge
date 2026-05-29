@@ -32,6 +32,45 @@ from .doctor.skill_health import check_builtin_skill_reachability, check_docs_va
 
 __all__ = ["doctor_command", "_DEPRECATED_REFS"]
 
+# Declarative tail of the doctor run: each entry is (header, check, gating).
+# ``check(cfg)`` runs after its header is printed; when ``gating`` is True its
+# return value (a failure count) is added to the exit-code tally. Informational
+# reporters (provenance, hook log) return nothing and never gate. Adding a
+# diagnostic is a one-line append here rather than another echo+accumulate pair.
+_DOCTOR_SECTIONS = [
+    # runtime_api_version contract — drift between scaffold-shipped value and
+    # on-disk value means framework.json was authored against a different
+    # runtime API revision than the package can serve.
+    ("runtime_api_version contract:", check_runtime_api_version, True),
+    # Framework migration checks — defined in framework.json, verified here so
+    # scaffold/repo drift surfaces automatically instead of only at upgrade time.
+    ("Framework migration checks:", run_migration_checks, True),
+    # Protocol script references — markdown/YAML in .cataforge/ invoke
+    # ``python .cataforge/scripts/...``; a missing script fails silently at
+    # runtime, so a static scan catches the rot at diagnostic time.
+    ("Protocol script references:", check_protocol_script_references, True),
+    ("Deprecated protocol references:", check_deprecated_references, True),
+    ("Docs validation:", check_docs_validate, True),
+    # KG ingestion completeness — hard ERROR gate ensuring the KG is the single
+    # source of truth for active doc_types (ERROR when an FS entity_id is
+    # missing from the graph; skipped when no store exists).
+    ("KG ingestion completeness:", check_kg_ingestion_completeness, True),
+    ("Hook script importability:", check_hook_script_importability, True),
+    ("Built-in skill reachability:", check_builtin_skill_reachability, True),
+    ("EVENT-LOG schema sample:", check_event_log_schema, True),
+    ("EVENT-LOG bypass guard:", check_event_log_bypass_writes, True),
+    ("CLAUDE.md hygiene:", check_claude_md_hygiene, True),
+    # Deployment provenance — informational: shows which platform dirs the last
+    # deploy would have written so users see what is CataForge-managed.
+    ("Deployment provenance:", report_deployment_provenance, False),
+    # Deploy integrity — the hard gate: turns dangling links / missing owned
+    # dirs into FAILs so post-deploy regressions can't slip past doctor.
+    ("Deploy integrity:", check_deploy_integrity, True),
+    # Recent hook execution failures — informational; surfaces silent
+    # observer-hook crashes logged by hook_main().
+    ("Hook execution log:", report_hook_errors, False),
+]
+
 
 @cli.command("doctor")
 @click.pass_context
@@ -117,71 +156,11 @@ def doctor_command(ctx: click.Context) -> None:
         status = "OK" if path.is_file() else "MISSING"
         click.echo(f"  {pid}: {status}")
 
-    # runtime_api_version contract — drift between scaffold-shipped value
-    # and on-disk value means the user's framework.json was authored
-    # against a different runtime API revision than the package can serve.
-    click.echo("\nruntime_api_version contract:")
-    failed_count += check_runtime_api_version(cfg)
-
-    # Framework migration checks — defined in framework.json, verified here so
-    # scaffold/repo drift surfaces automatically instead of only at upgrade time.
-    click.echo("\nFramework migration checks:")
-    failed_count += run_migration_checks(cfg)
-
-    # Protocol script references — markdown/YAML files inside .cataforge/
-    # routinely invoke ``python .cataforge/scripts/...`` commands. If one of
-    # those scripts is missing, every call site silently fails at runtime,
-    # with no signal until someone reads the hook error log. Static scan
-    # catches the rot at diagnostic time.
-    click.echo("\nProtocol script references:")
-    failed_count += check_protocol_script_references(cfg)
-
-    click.echo("\nDeprecated protocol references:")
-    failed_count += check_deprecated_references(cfg)
-
-    click.echo("\nDocs validation:")
-    failed_count += check_docs_validate(cfg)
-
-    # KG ingestion completeness — hard ERROR gate ensuring the KG is the
-    # single source of truth for active doc_types. Skipped when no store
-    # has been initialized; ERROR when any FS-discovered entity_id is
-    # missing from the graph. Per Task 7 §7.1 sub-PR 5.
-    click.echo("\nKG ingestion completeness:")
-    failed_count += check_kg_ingestion_completeness(cfg)
-
-    click.echo("\nHook script importability:")
-    failed_count += check_hook_script_importability(cfg)
-
-    click.echo("\nBuilt-in skill reachability:")
-    failed_count += check_builtin_skill_reachability(cfg)
-
-    click.echo("\nEVENT-LOG schema sample:")
-    failed_count += check_event_log_schema(cfg)
-
-    click.echo("\nEVENT-LOG bypass guard:")
-    failed_count += check_event_log_bypass_writes(cfg)
-
-    click.echo("\nCLAUDE.md hygiene:")
-    failed_count += check_claude_md_hygiene(cfg)
-
-    # Deployment provenance — shows which platform-specific directories would
-    # have been written by the last successful deploy. Lets users see at a
-    # glance which ``.claude/`` / ``.cursor/`` / etc. are CataForge-managed
-    # vs user/IDE-native.
-    click.echo("\nDeployment provenance:")
-    report_deployment_provenance(cfg)
-
-    # Deploy integrity — the hard gate. provenance.py prints ``[present]`` /
-    # ``[absent]`` but never failed the run; this check turns dangling links
-    # and missing owned dirs into FAILs that contribute to the exit code,
-    # so post-deploy regressions cannot slip past doctor unnoticed.
-    click.echo("\nDeploy integrity:")
-    failed_count += check_deploy_integrity(cfg)
-
-    # Recent hook execution failures — logged by hook_main() so silent
-    # observer-hook crashes don't stay invisible.
-    click.echo("\nHook execution log:")
-    report_hook_errors(cfg)
+    for header, check, gating in _DOCTOR_SECTIONS:
+        click.echo(f"\n{header}")
+        result = check(cfg)
+        if gating:
+            failed_count += result
 
     click.echo("\nDiagnostics complete.")
     _print_summary(failed_count)
