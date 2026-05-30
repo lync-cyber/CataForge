@@ -49,6 +49,7 @@ Test count: 212 passed, 4 skipped (codegen CLI).
 | C3 | `cataforge kg add` CLI — class / title / source-doc / source-section / content-hash / project-id / repeatable --slot + --relation; auto-detects unique Project; idempotent on same content-hash | `kg_cmd.py`, `test_cli_crud.py` |
 | C4 | `cataforge kg update` CLI — partial slot update with content-hash short-circuit; requires at least one change field | `kg_cmd.py`, `test_cli_crud.py` |
 | C5 | `cataforge kg delete` CLI — interactive confirm with --yes bypass; --cascade to remove incoming edges | `kg_cmd.py`, `test_cli_crud.py` |
+| C8 | `cataforge kg diff` — entity/relation semantic diff between two snapshots, `--json`, non-zero exit on divergence | `diff.py`, `interface/cli/kg/store.py`, `test_diff.py` |
 
 Test count: 226 passed (14 new CRUD tests; full kg suite 230 passed).
 
@@ -56,7 +57,6 @@ Test count: 226 passed (14 new CRUD tests; full kg suite 230 passed).
 
 | ID | Task | Scope | Notes |
 |----|------|-------|-------|
-| C8 | `cataforge kg diff` (semantic diff between snapshots) | ~200 LOC | operational diagnostic |
 | X2 | 0.4.x → 0.5.0 migration guide | ~1000 LOC docs | ships with GA release |
 | O1 | Natural-language query LLM adapter | ~300 LOC | deferred to 0.6.0+ |
 | O3 | Export templates for ui-spec / dev-plan doc_types | ~100 LOC per type | incremental |

@@ -251,6 +251,45 @@ def kg_repair(
         raise KGVerificationError(f"repair encountered {len(stats.errors)} error(s)")
 
 
+@kg_group.command("diff")
+@click.argument(
+    "snapshot_a",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.argument(
+    "snapshot_b",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit the diff as a JSON blob instead of the grouped summary.",
+)
+@click.pass_context
+def kg_diff(
+    ctx: click.Context,
+    snapshot_a: Path,
+    snapshot_b: Path,
+    json_output: bool,
+) -> None:
+    """Show the entity/relation delta between two snapshot files.
+
+    SNAPSHOT_A and SNAPSHOT_B are `.nq` files created by `cataforge kg
+    snapshot`. The diff is computed from A to B at the entity level
+    (added / removed / content-modified) and the traceability-relation
+    level (added / removed). Exits non-zero when the snapshots differ.
+    """
+    from cataforge.domain.kg.diff import diff_snapshots, render_diff_json, render_diff_text
+
+    diff = diff_snapshots(snapshot_a, snapshot_b)
+    click.echo(render_diff_json(diff) if json_output else render_diff_text(diff))
+
+    if not diff.ok:
+        ctx.exit(1)
+
+
 # ------------------------------------------------------------------
 # kg query
 # ------------------------------------------------------------------

@@ -33,6 +33,7 @@ from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _strv,
     cf_namespace,
+    curie_for_iri,
     escape_sparql_literal,
 )
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
@@ -108,13 +109,6 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _curie_for_iri(iri: str, namespace: str) -> str:
-    """Map a full predicate IRI back to the canonical `cf:slot` CURIE form."""
-    if iri.startswith(namespace):
-        return f"cf:{iri[len(namespace) :]}"
-    return iri
-
-
 def _kg_entities_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[str]:
     """Return entity_ids in KG whose `cf:source_doc` is one of `doc_ids`."""
     if not doc_ids:
@@ -170,7 +164,7 @@ def _kg_relations_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[st
         o_id = _strv(_row_lookup(row, "o_id"))
         if s_id is None or p_iri is None or o_id is None:
             continue
-        curie = _curie_for_iri(p_iri, ns)
+        curie = curie_for_iri(p_iri, ns)
         if curie == "cf:belongs_to_project":
             continue
         out.add((s_id, curie, o_id))
