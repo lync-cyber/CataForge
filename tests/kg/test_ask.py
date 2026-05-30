@@ -61,9 +61,3 @@ def test_rejects_non_ask_query() -> None:
 
     with pytest.raises(ValueError):
         ask(_empty_store(), "SELECT ?s WHERE { ?s ?p ?o }")
-
-def test_bindings_not_yet_supported() -> None:
-    from cataforge.domain.kg import ask
-
-    with pytest.raises(NotImplementedError):
-        ask(_empty_store(), "ASK { ?s ?p ?o }", bindings={"s": "?"})

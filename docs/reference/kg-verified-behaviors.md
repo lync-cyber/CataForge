@@ -71,12 +71,15 @@ back-stop this for environments without the extra installed.
 
 ## Deferred — known escape hatch, no Alpha blocker
 
-### Natural-language query LLM configuration
+### Embedded LLM client for natural-language query
 *Origin*: task-5 §5.7 `[待验证]`.
 
-Out of scope for Alpha. The proposal's `kg query "<natural language>"` surface is
-not implemented; the only typed SPARQL surface in 0.5.0 is `QueryAPI` and
-`TraceAPI`. Re-open at 0.6.0+ planning.
+The natural-language query surface ships as the `kg-ask` skill (B1): a host
+agent translates a question into read-only SPARQL grounded on the schema card
+from `cataforge kg schema-context`, then runs it through the write-guarded
+`kg query`. An embedded LLM client (B2 — `anthropic` client + `[llm]` extra for
+headless/CI translation) is deferred to 0.6.0+; it reuses the same schema card
+as its system prompt.
 
 ## Sub-PR 6 verification additions
 

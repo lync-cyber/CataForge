@@ -4,7 +4,7 @@
 
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
 >
-> **适用版本**：v0.4.x。计数 13 Agent + 29 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
+> **适用版本**：v0.4.x。计数 13 Agent + 30 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
 >
 > **平台差异**：Agent 通过 `tools.allow` 声明的 capability 在各平台的原生工具映射见 [platform-capability-matrix.md](platform-capability-matrix.md)；`null` 映射的 capability 在 deploy 时被过滤并发 WARN。
 
@@ -12,7 +12,7 @@
 
 - [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
-- [Skill 清单（29 个）](#skill-清单29-个) — 总览表 + 按类别折叠
+- [Skill 清单（30 个）](#skill-清单30-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
 
 ---
@@ -206,7 +206,7 @@ tools:
 
 ---
 
-## Skill 清单（29 个）
+## Skill 清单（30 个）
 
 ### 总览
 
@@ -241,6 +241,7 @@ tools:
 | 27 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
 | 28 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
 | 29 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
+| 30 | kg-ask | 领域技能 | 知识图谱 | 自然语言问题翻译为只读 SPARQL，对项目知识图谱（需求/模块/任务/测试追溯关系）检索作答；执行与写守卫复用 `cataforge kg query`，schema card 由 `cataforge kg schema-context` 提供 |
 
 ### 详细说明
 
@@ -290,7 +291,7 @@ tools:
 </details>
 
 <details>
-<summary><b>领域 Skill</b>（arc-design · ui-design · task-decomp · task-dep-analysis · tech-eval · req-analysis · research）</summary>
+<summary><b>领域 Skill</b>（arc-design · ui-design · task-decomp · task-dep-analysis · tech-eval · req-analysis · research · kg-ask）</summary>
 
 **arc-design** — 架构设计技能，涵盖模块划分、接口定义、数据建模。
 
@@ -305,6 +306,8 @@ tools:
 **req-analysis** — 需求分析技能，将粗粒度需求分解为结构化的用户故事和验收标准。
 
 **research** — 调研技能，通过 Web 搜索和用户访谈收集决策所需信息。
+
+**kg-ask** — 知识图谱自然语言查询技能，把问题翻译为只读 SPARQL 检索项目追溯关系并作答；schema card 由 `cataforge kg schema-context` 提供，执行与写守卫复用 `cataforge kg query`。
 
 </details>
 

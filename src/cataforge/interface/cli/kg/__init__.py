@@ -4,6 +4,7 @@ Command families (one module each):
 - store:  init, snapshot, rollback, repair
 - ingest: import, export, validate, reconcile, compare-read
 - query:  query, trace
+- schema: schema-context
 - write:  add, update, delete
 """
 
@@ -17,4 +18,4 @@ def kg_group() -> None:
     """Knowledge graph store management."""
 
 
-from . import ingest, query, store, write  # noqa: E402,F401
+from . import ingest, query, schema, store, write  # noqa: E402,F401

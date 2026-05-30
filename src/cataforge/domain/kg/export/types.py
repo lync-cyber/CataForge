@@ -1,8 +1,7 @@
 """Public dataclasses returned by `compile_to_markdown()`.
 
 Kept deliberately small: only what the round-trip test and CLI table
-renderer need. `EntityFilter`, snapshot manifests, and incremental-export
-plumbing are not yet included.
+renderer need.
 """
 
 from __future__ import annotations

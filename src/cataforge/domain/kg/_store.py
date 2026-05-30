@@ -12,7 +12,7 @@ SPARQL ASK queries work correctly.
 from __future__ import annotations
 
 import shutil
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
@@ -95,7 +95,7 @@ class KnowledgeGraphStore:
     Wraps `pyoxigraph.Store` so callers receive a typed handle they can pass
     around without importing `pyoxigraph` directly. The underlying store is
     exposed via `.raw` for code paths (ingest / export) that legitimately
-    need to call pyoxigraph APIs the wrapper does not yet surface.
+    need pyoxigraph APIs beyond the wrapper's typed surface.
     """
 
     def __init__(self, store: ox.Store, config: KGConfig) -> None:
@@ -127,7 +127,7 @@ class KnowledgeGraphStore:
 
     @classmethod
     @contextmanager
-    def connect(cls, config: KGConfig) -> Iterator[KnowledgeGraphStore]:
+    def connect(cls, config: KGConfig) -> Generator[KnowledgeGraphStore, None, None]:
         """Open an existing store; raise if the on-disk path is missing."""
         store = _open_pyoxigraph(config, create=False)
         handle = cls(store, config)

@@ -66,11 +66,17 @@ Test count: 226 passed (14 new CRUD tests; full kg suite 230 passed).
 |----|-------------|-------|
 | O3b | Page / Task scalar-slot ingest extractors — pull `ui_route` / `layout_spec` / `task_status` from in-section inline-labeled bullets (`- Route:` / `- Layout:` / `- Status:`) into `extra_slots`; `task_status` normalized to `TaskStatusEnum`, invalid literals dropped. Closes the O3 gap where these scalars rendered by templates but were never produced by ingest | `entity_extract.py`, `test_page_task_extract.py` |
 
+## Completed (post-GA P3 batch 4)
+
+| ID | Deliverable | Files |
+|----|-------------|-------|
+| O1 | `kg-ask` natural-language query skill (B1, schema-grounded) — host agent translates a natural-language question into read-only SPARQL grounded on a schema card, then runs it through the write-guarded `kg query`. New `cataforge kg schema-context` command emits the card (entity classes, traceability predicates, scalar slots, worked examples) derived from the ontology registries with no store dependency. Zero new runtime dependencies | `schema_context.py`, `interface/cli/kg/schema.py`, `.cataforge/skills/kg-ask/SKILL.md`, `test_schema_context.py`, `test_kg_schema_context.py` |
+
 ## P3 — deferrable to post-GA
 
 | ID | Task | Scope | Notes |
 |----|------|-------|-------|
-| O1 | Natural-language query skill (schema-grounded, B1) | new | deferred to 0.6.0+; host-agent NL→SPARQL over existing `kg query`, zero new deps |
+| O1b | Embedded LLM client for NL query (B2) | new | optional follow-up to O1's B1 skill; adds an `anthropic` client + `[llm]` extra for headless/CI NL→SPARQL, reusing the O1 schema card as system prompt. Deferred to 0.6.0+ |
 
 ## Dependency graph
 
@@ -106,5 +112,7 @@ All must be verifiable, never time-based:
 | P1 C1+C2+Q1+Q2+H1 | ~680 delivered | done |
 | P2 T3+X1+T2+S3+S2+W2 | ~500 delivered | done |
 | P3 batch 1 C3+C4+C5 | ~370 delivered | done |
-| P3 remaining (O1) | ~300 | post-GA |
+| P3 batch 2+3 O3+O3b | delivered | done |
+| P3 batch 4 O1 (kg-ask, B1) | delivered | done |
+| P3 remaining (O1b, B2 LLM client) | optional | post-GA 0.6.0+ |
 | **GA remaining** | **0** | **all P2 complete** |

@@ -8,7 +8,7 @@ delegate to the low-level staging list; `commit()` applies them atomically.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -290,7 +290,7 @@ class TransactionContext:
 
 
 @contextmanager
-def transaction(store: ox.Store, config: KGConfig) -> Iterator[TransactionContext]:
+def transaction(store: ox.Store, config: KGConfig) -> Generator[TransactionContext, None, None]:
     """Synchronous transaction context manager.
 
     Commits on clean exit, rolls back on exception.
