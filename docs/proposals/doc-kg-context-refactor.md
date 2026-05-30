@@ -364,6 +364,52 @@ blast-radius 实测约 360 处、80+ 文件。五个旧 id 统一收敛到 `cont
 
 ---
 
+## 7. 读写信息获取完整性（context skill 能否覆盖开发期全部必要信息）
+
+结论：**读取侧完整**；写入侧的"文档 → KG 投影"主路径完整，但需 §7.4 / §7.5 两处补强，才能说 LLM 经 `context` skill 拿得到读写所需的全部信息。
+
+### 7.1 开发期信息需求全集 ↔ context 分支 ↔ 后端 CLI
+
+| 开发期需求 | context 分支 | 后端 CLI（路由透明） | 覆盖 |
+|---|---|---|---|
+| 取已知 ref 的章节/实体正文 | navigate | `cataforge context read <ref>`（→ `docs load`：实体走 `render_entity`，散文走文件切片） | ✅ |
+| 查实体关系/追溯/覆盖（"谁依赖 M-002""哪些 F 无测试"） | query | `cataforge context relate`（→ `kg query` / `kg trace`） | ✅ |
+| 取本体（实体类 / 谓词方向 / `entity_id` 模式 / 必填 slot） | query（读侧接地）；generate（写前接地，见 §7.4） | `cataforge kg schema-context` | 读 ✅ / 写需补 |
+| 创建 / 填充 / 拆分文档并登记到权威存储 | generate | `Write`/`Edit` + `finalize` →（active）`kg import` + `kg reconcile` /（legacy）`docs index` | ✅ |
+| 单文档结构审查 / 跨文档一致性 | review / consistency | `cataforge skill run context --script review\|consistency` | ✅ |
+| 直接改实体（状态翻转 / 手工加边） | —（有意不设分支） | `kg add` / `update` / `delete` | 见 §7.5 |
+
+读侧两件事保证"信息可得"：navigate 给**确定 ref 的内容**，query 给**关系**；而 `kg schema-context` 先把本体喂给 LLM，使它知道有哪些实体类与谓词可问——不靠记忆拼 SPARQL。
+
+### 7.2 读取示例：implementer 装载任务 T-007 的开发上下文
+
+1. **取任务卡 + 前置依赖**（一次批量、按需，不读全文）：
+   `cataforge context read dev-plan#§3.T-007 --with-deps`
+   → 返回 T-007 任务卡正文，并自动附上其依赖链（如 `arch#§2.M-014` 模块契约、关联 `AC-003`）。路由层判定 `dev-plan` ∈ active 且 store 在 → 走 `kg.query.entity` + `render_entity` + `depends_on` 图遍历；否则文件切片 + `.doc-index.json` 的 `deps[]`。两路返回同形 markdown，agent 不感知。
+2. **补一条卡片里没有的关系**（"哪些 TestCase 已 verify T-007"）：先 `cataforge kg schema-context` 拿到谓词 `cf:verifies` 及方向，再
+   `cataforge context relate -- "SELECT ?tc WHERE { ?t cf:entity_id 'T-007' . ?tc cf:verifies ?t ; cf:entity_id ?id }"`（→ `kg query`）。
+3. 至此 implementer 手里有：任务规格 + 上游模块/AC + 既有测试覆盖，全部按需加载、零全文读取。
+
+### 7.3 写入示例：architect 产出模块 M-014 并投影到 KG
+
+1. **载 generate 分支 + 取模板**：load `context/references/generate.md` → 读 `_registry.yaml` 定位 `arch-modules` 模板 → `Read templates/arch-modules.md`。
+2. **写前本体接地**（§7.4 补强）：`cataforge kg schema-context` → 确认 `Module.entity_id` 模式 `^M-[0-9]{3,}$`、必填 slot、合法关系（`satisfies`→Requirement、`realized_as`→Task）。据此避免写出 ingest 阶段才报错的实体。
+3. **写章节**：`Edit` 把 M-014 写入 `docs/arch/arch-{project}-modules.md`，frontmatter / ID 合规，交叉引用 `M-014 satisfies F-003`。
+4. **finalize 投影**：`cataforge skill run context --script …` 或 generate 分支的 finalize → 结构预检通过 → 因 `arch` ∈ `kg_active_doc_types` → `cataforge kg import --doc-type arch` + `cataforge kg reconcile --doc-type arch`。KG 此刻已持有 M-014 实体及其 `cf:satisfies F-003` 边；`reconcile` exit 0 = md 与图无漂移。
+5. **回读确认**（可选）：`cataforge context relate -- "ASK { ?m cf:entity_id 'M-014' ; cf:satisfies ?f . ?f cf:entity_id 'F-003' }"` → true。写入即时可查，证明"写文档"等价于"写 KG"。
+
+状态类写入同理：T-007 完成 → 改 `docs/dev-plan/...` 任务卡 `task_status: done`（generate/edit）→ finalize 重投影；**不**用 `kg update` 直接翻转（见 §7.5）。
+
+### 7.4 补强一：generate 分支前置 `schema-context`（写侧接地）
+
+现状 doc-gen 只持模板，本体约束（ID 模式 / 必填 slot / 合法关系）要到 finalize 的 `kg import`/`reconcile` 才暴露。补强：generate 分支在写实体前先调 `cataforge kg schema-context`，与 query 分支用同一张本体卡接地 NL→SPARQL **对称**——读写两侧共用同一本体来源。这样 LLM 写文档时就"知道图想要什么"，把错误从 finalize 失败前移到落笔前。
+
+### 7.5 补强二：直接 KG 变更不作常规分支（防漂移）
+
+`kg add/update/delete` 存在，但**有意不纳入 `context` 分支**。理由：第 3 节确立"md = 可编辑源，KG = 派生投影"。开发期一切实体写入（新增/状态翻转/加边）都走"改源 markdown → finalize → 重投影"，保持 md 为单一编辑入口。`kg add/update/delete` 仅作修复/维护逃生口（如 `kg repair` 配套），若用作常规写入会让 md 与 KG 漂移、下次 `reconcile` 必 FAIL。`context` skill 的 SKILL.md 应显式声明这条边界，引导 agent 不误用直接变更。
+
+---
+
 ## 附：现状证据索引（便于核对）
 
 - 代码层已存在的统一 facade：`domain/docs/loader.py:239,315,342`、`domain/docs/_loader_kg.py:42`、`domain/docs/kg_port.py`、`domain/kg/_dispatch.py`。
