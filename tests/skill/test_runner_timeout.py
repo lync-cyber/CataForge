@@ -64,7 +64,10 @@ class TestSkillRunnerTimeout:
         with pytest.raises(SkillTimeoutError):
             runner.run("slow-skill", timeout=1)
         elapsed = time.monotonic() - t0
-        assert elapsed < 1.5, f"Expected return within 1.5s, got {elapsed:.2f}s"
+        # The script sleeps 600s, so any return in a few seconds proves the
+        # timeout fired. The margin above the 1s limit absorbs interpreter
+        # spawn and process teardown, which run slow on loaded Windows CI.
+        assert elapsed < 5.0, f"Expected prompt return after 1s timeout, got {elapsed:.2f}s"
 
     def test_timeout_emits_skill_timeout_event(self, project: Path) -> None:
         _write_skill(
