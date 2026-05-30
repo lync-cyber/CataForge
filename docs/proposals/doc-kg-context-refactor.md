@@ -93,7 +93,7 @@
 ┌────────────────────────────────────────────────────────────────────┐
 │ Agent / Skill 层 —— 单一 `context` skill，按分支调用，不感知后端        │
 │   context/navigate → ReadPort      context/generate → WritePort      │
-│   context/review · consistency → VerifyPort   context/ask → RelatePort│
+│   context/review · consistency → VerifyPort   context/query → RelatePort│
 │   不出现 "kg_active_doc_types / store 是否存在 / SPARQL" 字样          │
 └───────────────┬────────────────────────────────────────────────────┘
                 │   CLI 门面：cataforge context <port> <op>（skill 即其 prompt 包装，同名连贯）
@@ -265,7 +265,7 @@ route(port, op, args):
 
 ## 6. Skill 命名与分支重构（细化第 4 阶段，含完整 blast-radius 与依赖顺序）
 
-第 4 阶段把"统一调用面"列为目标，本节给出可执行细则：把扁平的 `doc-nav` / `doc-gen` / `doc-review` / `doc-consistency` / `kg-ask` 五个同级 skill 收敛为**单一 `context` 父 skill + reference 分支**。`context` skill 即 `cataforge context` CLI 的 prompt 包装，二者同名、语义连贯（skill 是 agent 面的任务入口，CLI 是其后端分发）。目的：让伪层级的 `doc-*` 前缀变成真正的父子结构，每个操作的详细 playbook 仅在该操作执行时按需进入上下文；读上下文的能力（navigate + ask）重新统一到一个发现面。
+第 4 阶段把"统一调用面"列为目标，本节给出可执行细则：把扁平的 `doc-nav` / `doc-gen` / `doc-review` / `doc-consistency` / `kg-ask` 五个同级 skill 收敛为**单一 `context` 父 skill + reference 分支**。`context` skill 即 `cataforge context` CLI 的 prompt 包装，二者同名、语义连贯（skill 是 agent 面的任务入口，CLI 是其后端分发）。目的：让伪层级的 `doc-*` 前缀变成真正的父子结构，每个操作的详细 playbook 仅在该操作执行时按需进入上下文；读上下文的能力（navigate + query）重新统一到一个发现面。
 
 ### 6.1 目标 skill 树（before → after）
 
@@ -285,7 +285,7 @@ after（1 个父 skill，发现面 1 条 description）
       generate.md             # ← doc-gen 正文（WritePort）
       review.md               # ← doc-review 正文（VerifyPort·单文档）
       consistency.md          # ← doc-consistency 正文（VerifyPort·跨文档）
-      ask.md                  # ← kg-ask 正文（RelatePort：NL→SPARQL 关系/追溯查询）
+      query.md                # ← kg-ask 正文（RelatePort：NL→SPARQL 关系/追溯查询）
     templates/                # ← 由 doc-gen 迁入
   src/cataforge/runtime/skill/builtins/context/   # ← doc_review + doc_consistency 合并
     review.py                 # 入口（原 doc_review/doc_check.py 的 __main__）
@@ -293,7 +293,7 @@ after（1 个父 skill，发现面 1 条 description）
     checker.py / _checks.py / _render.py / typed_checks.py / constants.py / ...（helper 模块迁入）
 ```
 
-运行时调用从 `cataforge skill run doc-review -- …` 变为 `cataforge skill run context --script review -- …`（runner 的 `--script` 选择器，`runner.py:237` 已支持）。`_merge_builtin_fallback`（`loader.py:124`）会把项目级 `context/SKILL.md`（无 scripts/）与 builtin `context` 的 review/consistency 脚本合并，调用链不断。navigate / generate / ask 三分支是 instructional（无 builtin 脚本），分别调 `cataforge context read`（或 `docs load`）、模板实例化、`cataforge context relate`（或 `kg query`）。
+运行时调用从 `cataforge skill run doc-review -- …` 变为 `cataforge skill run context --script review -- …`（runner 的 `--script` 选择器，`runner.py:237` 已支持）。`_merge_builtin_fallback`（`loader.py:124`）会把项目级 `context/SKILL.md`（无 scripts/）与 builtin `context` 的 review/consistency 脚本合并，调用链不断。navigate / generate / query 三分支是 instructional（无 builtin 脚本），分别调 `cataforge context read`（或 `docs load`）、模板实例化、`cataforge context relate`（或 `kg query`）。
 
 **skill 与 CLI 同名 `context` 不冲突**：`cataforge skill run context --script review`（调 skill 的 Layer 1 脚本）与 `cataforge context read <ref>`（调路由 CLI）是不同子命令路径，无技术碰撞；同名反而点明"skill 是该 CLI 的 prompt 封装"。
 
@@ -318,8 +318,8 @@ blast-radius 实测约 360 处、80+ 文件。五个旧 id 统一收敛到 `cont
 | AGENT.md `skills:` + 正文 | 10 agent 列 `doc-nav`、7 列 `doc-gen`、1 列 `doc-review`；正文 "通过 doc-nav/doc-gen…" | `skills:` 改 `context`；正文 "通过 context skill 的 navigate/generate/review 分支" |
 | orchestrator / sub-agent / common-rules 协议 | Phase 2+ 触发、三审查 skill invocation、文档 I/O 契约 | `cataforge skill run doc-consistency -- docs/` → `... context --script consistency -- docs/`；doc-review → `context --script review`；doc-gen finalize → `context` 的 generate 分支 |
 | `framework.json` | `features.doc-review` 块；migration check 内 `.cataforge/skills/doc-gen/...` 路径（216/225/232/234）、shim 依赖（319）、kg-active 说明（327） | `features` key `doc-review` → `context`（description 改为覆盖生命周期）；路径改 `.cataforge/skills/context/...`；prose 引用改 `context` |
-| `docs/reference/agents-and-skills.md` | 5 行 skill 表 + agent 映射表 + 核心 skill 清单 + skill 卡片 | 重写为单条 `context`（含 navigate/generate/review/consistency/ask 子项）；agent 映射列 `context` |
-| 其他 docs | `cli.md:132`（事件日志清单 `doc-review`）、`status-codes.md:69`（doc-nav）、`kg-verified-behaviors.md`（kg-ask）、`README.md:46`（doc-review） | 文本替换为 `context`（含 ask 分支说明） |
+| `docs/reference/agents-and-skills.md` | 5 行 skill 表 + agent 映射表 + 核心 skill 清单 + skill 卡片 | 重写为单条 `context`（含 navigate/generate/review/consistency/query 子项）；agent 映射列 `context` |
+| 其他 docs | `cli.md:132`（事件日志清单 `doc-review`）、`status-codes.md:69`（doc-nav）、`kg-verified-behaviors.md`（kg-ask）、`README.md:46`（doc-review） | 文本替换为 `context`（含 query 分支说明） |
 | tests | `tests/skill/test_doc_review_*`、`test_doc_consistency*`、`tests/kg/test_doc_review_kg_dispatch.py`、`test_doc_consistency_kg.py`、`test_schema_context.py`（kg-ask）、`tests/e2e/test_docs_nav.py`、`tests/cli/test_doc_review_coverage.py`、`test_builtin_subprocess_contract.py` | import 前缀 `builtins.doc_review`/`doc_consistency` → `builtins.context`；skill-run id `doc-review`/`doc-consistency` → `context --script …` |
 | CI | `.github/workflows/pr-title.yml:42` 示例 scope `doc-review` | 示例改 `context`（仅注释性，非阻塞） |
 
@@ -330,7 +330,7 @@ blast-radius 实测约 360 处、80+ 文件。五个旧 id 统一收敛到 `cont
 按"被依赖者先行、改完即可独立回归"排序。S1 最高优先级（id 不解析则全链断）：
 
 1. **S1 · 运行时绑定（foundation）** — §6.2 全部 + 同步改动到的 tests。先合并 builtin 包、改 loader/b3/template_registry，使 `cataforge skill run context --script review|consistency` 端到端可跑。**Gate**：`pytest tests/skill tests/kg tests/cli/test_doc_review_coverage.py` 绿；`cataforge skill run context --script review -- prd <doc>` 与 `--script consistency -- docs/` 返回码语义不变。
-2. **S2 · prompt 树（structural）** — 建 `.cataforge/skills/context/`：小调度 SKILL.md + 五个 `references/*.md`（navigate/generate/review/consistency/ask，迁入原五 skill 正文，同时按第 4 阶段删除其中 KG 分发叙述）+ `templates/` 迁入；删除旧 `doc-{nav,gen,review,consistency}/` 与 `kg-ask/` 目录。**Gate**：`cataforge skill list` 含 `context`、不含旧五 id；`cataforge deploy --dry-run` 复制 `context/references/*`；framework-review B 系列检查通过。
+2. **S2 · prompt 树（structural）** — 建 `.cataforge/skills/context/`：小调度 SKILL.md + 五个 `references/*.md`（navigate/generate/review/consistency/query，迁入原五 skill 正文，同时按第 4 阶段删除其中 KG 分发叙述）+ `templates/` 迁入；删除旧 `doc-{nav,gen,review,consistency}/` 与 `kg-ask/` 目录。**Gate**：`cataforge skill list` 含 `context`、不含旧五 id；`cataforge deploy --dry-run` 复制 `context/references/*`；framework-review B 系列检查通过。
 3. **S3 · 引用 rewiring（breadth）** — §6.3 的 depends / AGENT / 协议 / framework.json。**Gate**：`cataforge doctor`（skill_health 无 dangling depends）；framework-review 孤儿/白名单检查通过；`python scripts/checks/run_local.py` 绿。
 4. **S4 · 文档收尾** — 重写 `agents-and-skills.md` 分类（5 条 → 1 条 `context` + 分支）、`cli.md` / `status-codes.md` / `kg-verified-behaviors.md` / `README.md`。**Gate**：`cataforge docs validate` 干净。
 5. **S5 · 守卫与清理** — 新增守卫禁止旧扁平 id（`doc-nav` / `doc-gen` / `doc-review` / `doc-consistency` / `kg-ask`）在 SKILL/AGENT/rules 主体复活；全量 `pytest` + `run_local.py`。
