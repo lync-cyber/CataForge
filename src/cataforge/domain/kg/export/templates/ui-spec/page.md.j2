@@ -1,0 +1,27 @@
+{% extends "_base/artifact_base.md.j2" %}
+
+{% block body %}
+{% if entity.ui_route %}
+
+## Route
+
+{{ entity.ui_route }}
+{% endif %}
+{% if entity.layout_spec %}
+
+## Layout
+
+{{ entity.layout_spec }}
+{% endif %}
+{% endblock %}
+
+{% block relations %}
+{% if entity.satisfies %}
+
+## Satisfies
+
+{% for req in entity.satisfies %}
+- [{{ req.entity_id }}](../prd/{{ req.entity_id }}.md) — {{ req.req_title }}
+{% endfor %}
+{% endif %}
+{% endblock %}

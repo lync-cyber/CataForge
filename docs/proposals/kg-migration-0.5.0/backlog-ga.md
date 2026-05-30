@@ -54,12 +54,17 @@ Test count: 212 passed, 4 skipped (codegen CLI).
 
 Test count: 226 passed (14 new CRUD tests; full kg suite 230 passed).
 
+## Completed (post-GA P3 batch 2)
+
+| ID | Deliverable | Files |
+|----|-------------|-------|
+| O3 | Export templates for `Page` / `UIComponent` (ui-spec) + `Task` (dev-plan) — render ingest-produced `satisfies` / `realizes` / `verifies` edges + conditional `ui_route` / `layout_spec` / `task_status` scalars; relation-sparse classes (Wireframe / UserFlow / Subtask / Sprint / Iteration / Milestone) stay on the generic artifact template by design | `export/sparql/{page,uicomponent,task}.sparql`, `export/templates/ui-spec/{page,uicomponent}.md.j2`, `export/templates/dev-plan/task.md.j2`, `export/_entity_meta.py`, `export/hydrator.py`, `test_export_ui_devplan.py` |
+
 ## P3 — deferrable to post-GA
 
 | ID | Task | Scope | Notes |
 |----|------|-------|-------|
 | O1 | Natural-language query LLM adapter | ~300 LOC | deferred to 0.6.0+ |
-| O3 | Export templates for ui-spec / dev-plan doc_types | ~100 LOC per type | dedicated templates; generic artifact fallback already wired |
 
 ## Dependency graph
 
@@ -95,5 +100,5 @@ All must be verifiable, never time-based:
 | P1 C1+C2+Q1+Q2+H1 | ~680 delivered | done |
 | P2 T3+X1+T2+S3+S2+W2 | ~500 delivered | done |
 | P3 batch 1 C3+C4+C5 | ~370 delivered | done |
-| P3 remaining (O1+O3) | ~400 | post-GA |
+| P3 remaining (O1) | ~300 | post-GA |
 | **GA remaining** | **0** | **all P2 complete** |
