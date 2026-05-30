@@ -28,6 +28,9 @@ _SCALAR_FIELDS = (
     "expected_result",
     "test_result",
     "narrative_body",
+    "ui_route",
+    "layout_spec",
+    "task_status",
 )
 
 

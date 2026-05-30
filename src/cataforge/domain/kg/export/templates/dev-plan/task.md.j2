@@ -1,0 +1,37 @@
+{% extends "_base/artifact_base.md.j2" %}
+
+{% block body %}
+{% if entity.task_status %}
+
+## Status
+
+{{ entity.task_status }}
+{% endif %}
+{% endblock %}
+
+{% block relations %}
+{% if entity.realizes %}
+
+## Realizes
+
+{% for art in entity.realizes %}
+- [{{ art.entity_id }}](../arch/{{ art.entity_id }}.md) — {{ art.real_title }}
+{% endfor %}
+{% endif %}
+{% if entity.satisfies %}
+
+## Satisfies
+
+{% for ac in entity.satisfies %}
+- [{{ ac.entity_id }}](../prd/{{ ac.entity_id }}.md) — {{ ac.ac_title }}
+{% endfor %}
+{% endif %}
+{% if entity.verifications %}
+
+## Verified By
+
+{% for tc in entity.verifications %}
+- [{{ tc.entity_id }}](../test-report/{{ tc.entity_id }}.md) — {{ tc.tc_title }}
+{% endfor %}
+{% endif %}
+{% endblock %}

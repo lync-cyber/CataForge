@@ -73,6 +73,17 @@ _RELATION_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {
     "techstack": {
         "stack_layers": ("stack_layer",),
     },
+    "page": {
+        "satisfies": ("req_id", "req_sort_key", "req_title"),
+    },
+    "uicomponent": {
+        "satisfies": ("req_id", "req_sort_key", "req_title"),
+    },
+    "task": {
+        "realizes": ("real_id", "real_sort_key", "real_title"),
+        "satisfies": ("ac_id", "ac_sort_key", "ac_title"),
+        "verifications": ("tc_id", "tc_sort_key", "tc_title"),
+    },
 }
 
 

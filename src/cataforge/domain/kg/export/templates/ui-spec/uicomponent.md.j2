@@ -1,0 +1,12 @@
+{% extends "_base/artifact_base.md.j2" %}
+
+{% block relations %}
+{% if entity.satisfies %}
+
+## Satisfies
+
+{% for req in entity.satisfies %}
+- [{{ req.entity_id }}](../prd/{{ req.entity_id }}.md) — {{ req.req_title }}
+{% endfor %}
+{% endif %}
+{% endblock %}

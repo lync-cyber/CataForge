@@ -1,0 +1,32 @@
+PREFIX cf: <https://cataforge.dev/ontology/>
+
+SELECT
+  ?entity_id ?sort_key ?title ?description ?status ?priority
+  ?content_hash ?source_doc ?source_section ?authored_by
+  ?ui_route ?layout_spec
+  ?req_id ?req_sort_key ?req_title
+WHERE {
+  ?page a cf:Page ;
+        cf:entity_id %(entity_id)s ;
+        cf:entity_id ?entity_id ;
+        cf:sort_key  ?sort_key ;
+        cf:title     ?title .
+
+  OPTIONAL { ?page cf:description    ?description }
+  OPTIONAL { ?page cf:status         ?status }
+  OPTIONAL { ?page cf:priority       ?priority }
+  OPTIONAL { ?page cf:content_hash   ?content_hash }
+  OPTIONAL { ?page cf:source_doc     ?source_doc }
+  OPTIONAL { ?page cf:source_section ?source_section }
+  OPTIONAL { ?page cf:authored_by    ?authored_by }
+  OPTIONAL { ?page cf:ui_route       ?ui_route }
+  OPTIONAL { ?page cf:layout_spec    ?layout_spec }
+
+  OPTIONAL {
+    ?page cf:satisfies ?req .
+    ?req cf:entity_id ?req_id ;
+         cf:sort_key  ?req_sort_key ;
+         cf:title     ?req_title .
+  }
+}
+ORDER BY ?sort_key ?req_sort_key
