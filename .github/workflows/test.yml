@@ -1,18 +1,19 @@
 name: Tests
 
-# Runs pytest on every PR and push to main.  Split into two jobs:
+# Three jobs run in parallel:
 #
-#   - `unit`  fast, cross-platform, cross-Python matrix (no slow marker).
-#             Any regression here should block the PR.
-#   - `e2e`   single ubuntu + py3.12 job that actually builds a wheel,
-#             spawns venvs and exercises `cataforge setup` / `upgrade`
-#             via subprocess. Runs only on Linux because venv creation
-#             plus subprocess encoding on Windows add flakiness without
-#             testing anything the unit suite doesn't already cover.
-#
-# Historical context: until this workflow landed, the 298-test suite only
-# ran on contributors' laptops — CI had scaffold-sync, pr-title lint, and
-# PyPI publish, but no gate for broken tests on merge. See review PR #57.
+#   - `guards` single ubuntu + py3.12. All repo-content checks that are
+#             independent of OS / Python version: ruff, pre-commit parity,
+#             anti-rot guards, uv smokes, mypy, platform dry-runs, doctor,
+#             framework-review. Runs ONCE — these read repo files, not
+#             OS/version state, so the matrix must not duplicate them.
+#   - `unit`  cross-platform / cross-Python pytest matrix (no slow marker).
+#             Pure test execution — the only thing that actually varies by
+#             OS and Python version. Any regression here blocks the PR.
+#   - `e2e`   single ubuntu + py3.12 job that builds a wheel, spawns venvs
+#             and exercises `cataforge setup` / `upgrade` via subprocess.
+#             Linux-only — venv creation plus subprocess encoding on Windows
+#             add flakiness without testing anything unit doesn't cover.
 
 on:
   pull_request:
@@ -20,29 +21,32 @@ on:
   push:
     branches: [main]
 
+# Cancel superseded PR runs; never cancel push-to-main validation.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  unit:
-    name: Unit (${{ matrix.os }}, py${{ matrix.python-version }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.13"]
+  guards:
+    name: Lint + guards + meta-audit (ubuntu, py3.12)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
-          # Full history needed so check_changelog_fragments.py can diff
-          # HEAD against origin/main — the default shallow clone hides
-          # HEAD's parent so `git diff origin/main...HEAD` cannot find a
-          # merge base.
+          # Full history so check_changelog_fragments.py can diff HEAD
+          # against origin/main — a shallow clone hides the merge base.
           fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: pip
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Install dev deps (editable)
         run: |
@@ -54,48 +58,21 @@ jobs:
 
       - name: "pre-commit parity (catches local hooks ↔ CI drift)"
         # Runs the full .pre-commit-config.yaml hook set so a contributor
-        # without `pre-commit install` can't ship a change that local
-        # hooks would have caught. Linux-only — the hooks read repo
-        # files only, OS-specific runs add no coverage. If this step
-        # red-lights but the dedicated check above is green, somebody
-        # has changed .pre-commit-config.yaml in a way CI doesn't yet
+        # without `pre-commit install` can't ship a change that local hooks
+        # would have caught. If this red-lights but Ruff above is green,
+        # somebody changed .pre-commit-config.yaml in a way CI doesn't yet
         # mirror — fix the divergence rather than relaxing the hook.
-        if: runner.os == 'Linux'
         run: |
           python -m pip install pre-commit
           pre-commit run --all-files --show-diff-on-failure
 
       - name: "KG injection regression (P0–P3 named gate)"
-        # Run the dedicated escape-utility + injection regression tests
-        # as a named step so a re-introduction of a SPARQL literal or
-        # IRI percent-encoding bug surfaces with a clear failure
-        # attribution before the full suite reports a generic failure.
-        # The full suite re-runs these tests in the next step; that
-        # duplication is intentional and the cost is negligible.
-        #
-        # Linux-only: these are pure-Python SPARQL-escaping tests with no
-        # OS-specific behaviour, so the named-attribution gate on one leg
-        # is sufficient; the Windows matrix still covers them via the full
-        # suite. Single line on purpose — backslash line continuation is a
-        # literal character in PowerShell, irrelevant here but kept so the
-        # step stays copy-paste safe across shells.
-        if: runner.os == 'Linux'
+        # Named step so a re-introduced SPARQL literal or IRI percent-encoding
+        # bug surfaces with clear attribution. The unit matrix re-runs these
+        # via the full suite; this gate just pins the attribution.
         run: python -m pytest tests/kg/test_sparql_escape.py tests/kg/test_injection_regression.py tests/kg/test_ingest_writer_atomicity.py tests/cli/test_cli_query.py -q
 
-      - name: Pytest (fast — exclude slow marker)
-        # `-n auto` parallelizes across the runner's cores; `--dist
-        # loadscope` keeps a module's/class's tests on one worker so the
-        # cwd-mutating (monkeypatch.chdir) and socket-binding tests never
-        # interleave across processes. The slow suite is NOT run here, so
-        # the session-scoped wheel/venv fixtures (which must build once,
-        # serially) are never parallelized — that's why `-n auto` lives on
-        # this step and not in pyproject addopts.
-        run: python -m pytest tests/ -q -m "not slow" -n auto --dist loadscope
-
-      - name: "Anti-rot guards (11: skill count, dev branch, changelog links, changelog fragments, doc versions, profile schema, hooks schema, schema-Python parity, marketing words, design residue, doc structure)"
-        # Run on Linux only — these scripts read the same files everywhere
-        # and the matrix duplication adds noise without coverage.
-        if: runner.os == 'Linux'
+      - name: "Anti-rot guards (13: skill count, dev branch, changelog links, changelog fragments, doc versions, profile schema, hooks schema, schema-Python parity, marketing words, design residue, language coupling, doc structure, QueryBoolean-eq-True)"
         env:
           # check_changelog_fragments.py diffs HEAD against this base.
           # PR runs use the actual base branch; push-to-main runs default
@@ -118,47 +95,32 @@ jobs:
           python scripts/checks/check_no_query_boolean_eq_true.py
 
       - name: "uv lockfile freshness (uv.lock ↔ pyproject.toml in sync)"
-        # Verifies uv.lock matches the resolved deps from pyproject.toml.
         # Catches "edited deps but forgot to refresh uv.lock" before it
-        # silently rots downstream uv-based installs. Linux-only because
-        # the lockfile is platform-independent.
-        if: runner.os == 'Linux'
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.local/bin:$PATH"
-          uv lock --check
+        # silently rots downstream uv-based installs.
+        run: uv lock --check
 
       - name: "uv smoke — default-extras pytest collection (catches runtime-dep gaps)"
-        # `pip install -e ".[dev]"` above hides runtime/dev dep mix-ups:
-        # if a runtime module imports a [dev]-only transitive (e.g. the
-        # historical jinja2 ← scriv leak), the dev-extras install masks
-        # the bug and downstream users hit ImportError on first run.
-        # This step builds the package via uv with default extras only
-        # and runs `pytest --collect-only` to surface the gap in CI.
-        if: runner.os == 'Linux'
+        # `pip install -e ".[dev]"` above hides runtime/dev dep mix-ups: if a
+        # runtime module imports a [dev]-only transitive, the dev-extras
+        # install masks it and downstream users hit ImportError on first run.
+        # Build with default extras only and collect to surface the gap.
         run: |
           uv venv .venv-smoke
           uv pip install --python .venv-smoke -e . pytest
           uv run --python .venv-smoke pytest --collect-only -q
 
       - name: "uv run --extra dev pytest smoke (covers the uv code path)"
-        # CI's primary `pytest` step uses pip-editable; this one runs a
-        # representative subset via uv so a uv-only regression (resolver
-        # edge case, lockfile-induced version pin, .venv layout drift)
-        # surfaces here. A subset — not the whole suite — because the
-        # pip-editable step above already gates correctness; this step
-        # only needs to exercise the uv resolve+run code path, and tests/cli
-        # + tests/core touch the broadest import surface to do that.
-        if: runner.os == 'Linux'
+        # A representative subset via uv so a uv-only regression (resolver
+        # edge case, lockfile-induced pin, .venv layout drift) surfaces. The
+        # pip-editable matrix gates correctness; this only exercises the uv
+        # resolve+run path — tests/cli + tests/core touch the broadest import
+        # surface to do that.
         run: uv run --extra dev pytest tests/cli tests/core -q -m "not slow" -n auto --dist loadscope
 
       - name: "mypy (informational — strict-clean packages gate; rest reports count)"
-        # Strategy (docs/contributing.md § 类型检查):
-        #  - Full repo: `mypy src` is informational. CI prints the count
-        #    so type debt is visible, but does not fail the build.
-        #  - Strict-clean packages (currently cataforge.application.services.*) MUST
-        #    have zero errors. New strict-opt-in packages add rows here.
-        if: runner.os == 'Linux'
+        # Full repo: informational (prints count, does not fail).
+        # Strict-clean packages (cataforge.application.services.*) MUST be
+        # zero-error. New strict-opt-in packages add rows here.
         run: |
           set -eu
           echo "::group::Full-repo mypy (informational)"
@@ -169,12 +131,9 @@ jobs:
           echo "::endgroup::"
 
       - name: "platform dry-run snapshots (cursor / codex / opencode)"
-        # README.md L90 admits Cursor/CodeX/OpenCode are not validated end-
-        # to-end. This step at least exercises each adapter's `deploy
-        # --dry-run` code path so a refactor that breaks one of them
-        # surfaces in CI without needing the real IDE installed.
+        # Exercises each adapter's `deploy --dry-run` code path so a refactor
+        # that breaks one surfaces without the real IDE installed.
         # `--project-dir` is a global flag (lives before the subcommand).
-        if: runner.os == 'Linux'
         run: |
           set -eu
           tmpdir=$(mktemp -d)
@@ -187,33 +146,55 @@ jobs:
           done
 
       - name: "cataforge doctor (gates _DEPRECATED_REFS, runtime_api_version, orphan docs, …)"
-        # Promote `cataforge doctor` from a manually-invoked diagnostic to a
-        # required CI gate. Until this step landed every doctor check
-        # (deprecated-protocol-script-references, runtime_api_version drift,
-        # protocol-script orphans, EVENT-LOG schema, and the new docs-index
-        # orphan check from PR #73) only fired when a contributor remembered
-        # to run it locally. Linux-only — same rationale as the anti-rot
-        # block above; doctor reads the repo, not OS-specific state.
-        if: runner.os == 'Linux'
         run: cataforge doctor
 
       - name: "framework-review (B1/B2/B3/B4/B5 meta-asset audit)"
-        # Promote framework-review from a manually-invoked audit to a
-        # required CI gate. Catches the rot classes that doctor can't see:
-        # AGENT.md / SKILL.md missing required sections, broken cross-refs
-        # in skills:/depends:, SKILL.md ↔ CHECKS_MANIFEST drift, hard-coded
-        # constant literals, and phase × agent × skill coverage gaps.
-        # Linux-only — same rationale as doctor.
-        if: runner.os == 'Linux'
+        # Catches rot classes doctor can't see: AGENT.md / SKILL.md missing
+        # required sections, broken cross-refs in skills:/depends:, SKILL.md
+        # ↔ CHECKS_MANIFEST drift, hard-coded constant literals, phase ×
+        # agent × skill coverage gaps.
         run: cataforge skill run framework-review -- all
+
+  unit:
+    name: Unit (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu covers both the oldest and newest supported Python;
+        # windows covers only the newest — the windows × oldest-Python
+        # combination historically surfaced nothing the other legs miss.
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: windows-latest
+            python-version: "3.13"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dev deps (editable)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Pytest (fast — exclude slow marker)
+        # `-n auto` parallelizes across cores; `--dist loadscope` keeps a
+        # module's/class's tests on one worker so cwd-mutating
+        # (monkeypatch.chdir) and socket-binding tests never interleave
+        # across processes.
+        run: python -m pytest tests/ -q -m "not slow" -n auto --dist loadscope
 
   e2e:
     name: E2E install + upgrade (ubuntu, py3.12)
     runs-on: ubuntu-latest
-    # Don't block the PR on network flakiness from the cross-version test —
-    # the install-and-upgrade test (which uses only the locally-built wheel)
-    # is the real regression gate. Mark this job continue-on-error so the
-    # required-check is the `unit` matrix above.
     continue-on-error: false
     steps:
       - uses: actions/checkout@v5
@@ -232,7 +213,7 @@ jobs:
       - name: Pytest (e2e — slow marker only, network gated)
         env:
           # Enable the PyPI-fetching cross-version test. If PyPI is
-          # transiently unavailable the job red-lights — acceptable
-          # because a release-chain problem *should* surface loudly.
+          # transiently unavailable the job red-lights — acceptable because
+          # a release-chain problem *should* surface loudly.
           CATAFORGE_E2E_NETWORK: "1"
         run: python -m pytest tests/e2e/ -q -m slow
