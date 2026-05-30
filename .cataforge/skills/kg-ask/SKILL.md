@@ -18,6 +18,18 @@ user-invocable: true
 - 仅查本项目知识图谱：回答的依据限于图谱中已 ingest 的实体与追溯边，不引入外部知识；需要外部资料时转 research skill。
 - 前置条件：图谱已初始化并 ingest（`cataforge kg init` + `cataforge kg import`）。store 不存在时如实告知用户先 ingest，不杜撰结果。
 
+## 输入
+
+- **用户问题**：一句中文或英文的追溯类自然语言问题（如「哪些 Feature 没有测试覆盖」「谁依赖 M-002」）。
+- **schema card**：由 `cataforge kg schema-context` 提供，含实体类 / 追溯谓词及方向 / 标量 slot / 示例查询，作为 NL→SPARQL 的接地上下文。
+- **知识图谱 store**：已 ingest 的 `.cataforge/kg/store`，由 `cataforge kg query` 读取。
+
+## 输出
+
+- **自然语言答案**：中文陈述结论；命中实体以 `entity_id + title` 呈现，空结果明确说明「未命中」。
+- **所用 SPARQL**：随答案附上最终执行的查询，供用户核对。
+- **卡点说明**（仅失败时）：重试耗尽后给出被转译的错误原因与最后一版 SPARQL，不杜撰答案。
+
 ## 操作指令
 
 1. **取 schema card** — 运行 `cataforge kg schema-context`，拿到实体类、追溯谓词、标量 slot、示例查询。card 是静态的，无需 store 即可获取。
