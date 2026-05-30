@@ -49,6 +49,7 @@ Test count: 212 passed, 4 skipped (codegen CLI).
 | C3 | `cataforge kg add` CLI — class / title / source-doc / source-section / content-hash / project-id / repeatable --slot + --relation; auto-detects unique Project; idempotent on same content-hash | `kg_cmd.py`, `test_cli_crud.py` |
 | C4 | `cataforge kg update` CLI — partial slot update with content-hash short-circuit; requires at least one change field | `kg_cmd.py`, `test_cli_crud.py` |
 | C5 | `cataforge kg delete` CLI — interactive confirm with --yes bypass; --cascade to remove incoming edges | `kg_cmd.py`, `test_cli_crud.py` |
+| X2 | 0.4.x → 0.5.0 migration guide | `docs/migration/kg-cutover-0.5.0.md` |
 | C8 | `cataforge kg diff` — entity/relation semantic diff between two snapshots, `--json`, non-zero exit on divergence | `diff.py`, `interface/cli/kg/store.py`, `test_diff.py` |
 
 Test count: 226 passed (14 new CRUD tests; full kg suite 230 passed).
@@ -57,9 +58,8 @@ Test count: 226 passed (14 new CRUD tests; full kg suite 230 passed).
 
 | ID | Task | Scope | Notes |
 |----|------|-------|-------|
-| X2 | 0.4.x → 0.5.0 migration guide | ~1000 LOC docs | ships with GA release |
 | O1 | Natural-language query LLM adapter | ~300 LOC | deferred to 0.6.0+ |
-| O3 | Export templates for ui-spec / dev-plan doc_types | ~100 LOC per type | incremental |
+| O3 | Export templates for ui-spec / dev-plan doc_types | ~100 LOC per type | dedicated templates; generic artifact fallback already wired |
 
 ## Dependency graph
 
@@ -95,5 +95,5 @@ All must be verifiable, never time-based:
 | P1 C1+C2+Q1+Q2+H1 | ~680 delivered | done |
 | P2 T3+X1+T2+S3+S2+W2 | ~500 delivered | done |
 | P3 batch 1 C3+C4+C5 | ~370 delivered | done |
-| P3 remaining (C8+X2+O1+O3) | ~1500 | post-GA |
+| P3 remaining (O1+O3) | ~400 | post-GA |
 | **GA remaining** | **0** | **all P2 complete** |
