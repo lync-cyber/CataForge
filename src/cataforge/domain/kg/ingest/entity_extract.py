@@ -32,8 +32,47 @@ def _extract_techstack_slots(entity: ExtractedEntity, section_text: str) -> None
         entity.extra_slots["cf:stack_layers"] = layers
 
 
+def _labeled_bullet_re(label: str) -> re.Pattern[str]:
+    return re.compile(rf"^\s*[-*]\s+{label}\s*[:：]\s*(.+)$", re.MULTILINE | re.IGNORECASE)
+
+
+_ROUTE_RE = _labeled_bullet_re("Route")
+_LAYOUT_RE = _labeled_bullet_re("Layout")
+_STATUS_RE = _labeled_bullet_re("Status")
+_TASK_STATUS_VALUES = frozenset(
+    {"todo", "in_progress", "blocked", "review", "done", "cancelled"}
+)
+
+
+def _first_labeled_value(pattern: re.Pattern[str], section_text: str) -> str | None:
+    m = pattern.search(section_text)
+    return m.group(1).strip() if m else None
+
+
+def _extract_page_slots(entity: ExtractedEntity, section_text: str) -> None:
+    route = _first_labeled_value(_ROUTE_RE, section_text)
+    if route:
+        entity.extra_slots["cf:ui_route"] = route
+    layout = _first_labeled_value(_LAYOUT_RE, section_text)
+    if layout:
+        entity.extra_slots["cf:layout_spec"] = layout
+
+
+def _extract_task_slots(entity: ExtractedEntity, section_text: str) -> None:
+    raw = _first_labeled_value(_STATUS_RE, section_text)
+    if raw is None:
+        return
+    # Normalize "In Progress" / "in-progress" → "in_progress"; drop anything
+    # outside TaskStatusEnum so an invalid literal never reaches the store.
+    status = re.sub(r"[\s-]+", "_", raw.lower())
+    if status in _TASK_STATUS_VALUES:
+        entity.extra_slots["cf:task_status"] = status
+
+
 _EXTRA_SLOT_EXTRACTORS: dict[str, Callable[[ExtractedEntity, str], None]] = {
     "TechStack": _extract_techstack_slots,
+    "Page": _extract_page_slots,
+    "Task": _extract_task_slots,
 }
 
 # Match entity-id occurrences inside arbitrary text. Longest-prefix-first
