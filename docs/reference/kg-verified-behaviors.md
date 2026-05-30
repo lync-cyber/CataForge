@@ -52,25 +52,24 @@ imported at runtime by the ingest pipeline and the export pipeline. Failure mode
 are caught by `tests/kg/test_codegen.py` (byte-stable regeneration) and
 `tests/kg/test_ingest.py` (live ingest exercises the generated types).
 
-## Deferred — known escape hatch, no Alpha blocker
-
 ### SHACL `sh:closed true` enforcement at runtime
 *Origin*: task-3 §6 / task-5 `[待验证]`.
 
 `core.yaml` declares closed shapes per class, and `gen-shacl` materializes them
-into `_generated/core_shapes.ttl`. **Runtime SHACL validation is currently a
-documented stub** in [`validate.py::_run_shacl`](../../src/cataforge/domain/kg/validate.py) —
-`--shacl` is wired through the CLI for discoverability but always reports
-`shacl_skipped = True` until the pyoxigraph ↔ rdflib bridge lands. The bridge is
-non-trivial because pyoxigraph 0.5.x does not expose an in-memory NTriples dump
-through its Python API yet.
+into `_generated/core_shapes.ttl`. `--shacl` runs them at runtime:
+[`validate.py::_run_shacl`](../../src/cataforge/domain/kg/validate.py) bridges the
+pyoxigraph store into an rdflib `Graph` (`_pyoxigraph_to_rdflib`) and validates it
+with `pyshacl`. `shacl_skipped = True` is reported only when the optional
+`[shacl]` extra (`pyshacl` + `rdflib`) is absent or the shapes file is missing;
+when present, conformance and per-shape violations are returned.
 
-This does not block Alpha exit because: (a) the schema-derived constraints are
-checked at write time inside the ingest codemod (`verify_after_write`); (b) the
-business value of an authoritative re-check is operational, not correctness-critical,
-in the Alpha scope (prd / arch / test only). Track full SHACL wiring as part of
-GA-phase deliverables (alongside `cataforge kg repair` and the
-pyshacl-required-in-CI question).
+Evidence: [`tests/kg/test_shacl_bridge.py`](../../tests/kg/test_shacl_bridge.py)
+covers the term-level round-trip, datatype handling, the skip paths when deps or
+shapes are missing, and both the violation-detected and conforming-data cases.
+Write-time schema constraints inside the ingest codemod (`verify_after_write`)
+back-stop this for environments without the extra installed.
+
+## Deferred — known escape hatch, no Alpha blocker
 
 ### Natural-language query LLM configuration
 *Origin*: task-5 §5.7 `[待验证]`.

@@ -140,12 +140,10 @@ Resolved during Alpha (sub-PR 1–6):
 - **Task 4 errata C2** — `cataforge.domain.kg.export.render_entity` public-exported in sub-PR 5.
 - **Task 4 `[待验证]`** — pyoxigraph SPARQL property-path `a/rdfs:subClassOf*` verified (see reference doc).
 - **Task 3 `[待验证]`** — LinkML codegen produces well-formed artefacts; `belongs_to_work_unit` uses LinkML inheritance + verified subclass closure rather than `union_of`; TC-NNN pattern enforced at schema level.
+- **SHACL `sh:closed true` runtime enforcement** — `--shacl` bridges pyoxigraph → rdflib and validates with `pyshacl` (optional `[shacl]` extra); `shacl_skipped=True` only when the extra is absent. Backed by `tests/kg/test_shacl_bridge.py`.
 
 Deferred with documented escape hatch (not Alpha blockers):
 
-- **SHACL `sh:closed true` runtime enforcement** — `--shacl` is wired but always
-  reports `shacl_skipped=True` until the pyoxigraph ↔ rdflib bridge lands.
-  Schema-level write-time checks back-stop this; revisit for GA.
 - **Natural-language query LLM surface** — out of scope; re-open at 0.6.0+ planning.
 
 ## Conventions used

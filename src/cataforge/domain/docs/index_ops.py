@@ -23,8 +23,7 @@ DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
     "dev-plan": "dev-plan",
     "test-report": "test-report",
     # `test` is the canonical KG-cutover alias for the test-report subdir
-    # (matches `KGConfig.kg_active_doc_types` default `{prd, arch, test}`
-    # and `cataforge.interface.cli.doctor.kg_ingestion._doc_type_to_subdir`).
+    # (matches `cataforge.interface.cli.doctor.kg_ingestion._doc_type_to_subdir`).
     "test": "test-report",
     "deploy-spec": "deploy-spec",
     "research": "research",
