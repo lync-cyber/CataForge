@@ -60,11 +60,17 @@ Test count: 226 passed (14 new CRUD tests; full kg suite 230 passed).
 |----|-------------|-------|
 | O3 | Export templates for `Page` / `UIComponent` (ui-spec) + `Task` (dev-plan) — render ingest-produced `satisfies` / `realizes` / `verifies` edges + conditional `ui_route` / `layout_spec` / `task_status` scalars; relation-sparse classes (Wireframe / UserFlow / Subtask / Sprint / Iteration / Milestone) stay on the generic artifact template by design | `export/sparql/{page,uicomponent,task}.sparql`, `export/templates/ui-spec/{page,uicomponent}.md.j2`, `export/templates/dev-plan/task.md.j2`, `export/_entity_meta.py`, `export/hydrator.py`, `test_export_ui_devplan.py` |
 
+## Completed (post-GA P3 batch 3)
+
+| ID | Deliverable | Files |
+|----|-------------|-------|
+| O3b | Page / Task scalar-slot ingest extractors — pull `ui_route` / `layout_spec` / `task_status` from in-section inline-labeled bullets (`- Route:` / `- Layout:` / `- Status:`) into `extra_slots`; `task_status` normalized to `TaskStatusEnum`, invalid literals dropped. Closes the O3 gap where these scalars rendered by templates but were never produced by ingest | `entity_extract.py`, `test_page_task_extract.py` |
+
 ## P3 — deferrable to post-GA
 
 | ID | Task | Scope | Notes |
 |----|------|-------|-------|
-| O1 | Natural-language query LLM adapter | ~300 LOC | deferred to 0.6.0+ |
+| O1 | Natural-language query skill (schema-grounded, B1) | new | deferred to 0.6.0+; host-agent NL→SPARQL over existing `kg query`, zero new deps |
 
 ## Dependency graph
 
