@@ -263,6 +263,107 @@ route(port, op, args):
 
 ---
 
+## 6. Skill 命名与分支重构（细化第 4 阶段，含完整 blast-radius 与依赖顺序）
+
+第 4 阶段把"统一调用面"列为目标，本节给出可执行细则：把扁平的 `doc-nav` / `doc-gen` / `doc-review` / `doc-consistency` 四个 `doc-*` 同级 skill 收敛为**单一 `doc` 父 skill + reference 分支**，`kg-ask` 保留为独立的关系查询 skill。目的：让"doc-" 这个伪层级变成真正的父子结构，每个操作的详细 playbook 仅在该操作执行时按需进入上下文。
+
+### 6.1 目标 skill 树（before → after）
+
+```
+before（5 个同级 skill，发现面 5 条 description）
+  .cataforge/skills/doc-nav/SKILL.md
+  .cataforge/skills/doc-gen/SKILL.md         + templates/
+  .cataforge/skills/doc-review/SKILL.md      ⇄ builtins/doc_review/
+  .cataforge/skills/doc-consistency/SKILL.md ⇄ builtins/doc_consistency/
+  .cataforge/skills/kg-ask/SKILL.md
+
+after（1 个父 skill + 1 个关系 skill，发现面 2 条 description）
+  .cataforge/skills/doc/
+    SKILL.md                  # 小调度体：生命周期图 + "按需 load 哪个 branch"
+    references/
+      navigate.md             # ← doc-nav 正文（ReadPort）
+      generate.md             # ← doc-gen 正文（WritePort）
+      review.md               # ← doc-review 正文（VerifyPort·单文档）
+      consistency.md          # ← doc-consistency 正文（VerifyPort·跨文档）
+    templates/                # ← 由 doc-gen 迁入
+  .cataforge/skills/kg-ask/   # 保留：RelatePort，关系/追溯查询不属于文档生命周期
+  src/cataforge/runtime/skill/builtins/doc/   # ← doc_review + doc_consistency 合并
+    review.py                 # 入口（原 doc_review/doc_check.py 的 __main__）
+    consistency.py            # 入口（原 doc_consistency/checker.py 的 __main__）
+    checker.py / _checks.py / _render.py / typed_checks.py / constants.py / ...（helper 模块迁入）
+```
+
+运行时调用从 `cataforge skill run doc-review -- …` 变为 `cataforge skill run doc --script review -- …`（runner 的 `--script` 选择器，`runner.py:237` 已支持）。`_merge_builtin_fallback`（`loader.py:124`）会把项目级 `doc/SKILL.md`（无 scripts/）与 builtin `doc` 的 review/consistency 脚本合并，调用链不断。
+
+**为何 `kg-ask` 不并入 `doc`**：它查询的是跨实体的事实基座（"哪些 Feature 无测试"），不是某一份文档的生命周期操作；并入会破坏第 3 节确立的非对称边界。保留为 RelatePort 的独立发现面。
+
+### 6.2 运行时绑定改动（硬约束，必须同批落地）
+
+| 文件:行 | 现状 | 改为 |
+|---|---|---|
+| `runtime/skill/loader.py:17` | `"doc_review": "doc-review"`（`_BUILTIN_ID_MAP`） | 删除该行；builtin 目录 `doc` 经 `_BUILTIN_ID_MAP.get(name, name)` 回退即得 id `doc` |
+| `runtime/skill/loader.py:35` | `_BUILTIN_EVENT_LOGGED` 含 `"doc-review"` | 改为 `"doc"`（review/consistency 两脚本的 EVENT-LOG ref 已带 `skill:doc/<script>` 区分；consistency 由此也进入日志，为有意的可观测性增益） |
+| `runtime/skill/builtins/doc_review/`、`doc_consistency/` | 两个独立 builtin 包 | 合并为 `builtins/doc/`：入口脚本 `review.py` / `consistency.py`（保留 `__main__` guard），helper 模块平移；修内部 import 前缀 `...builtins.doc_review`/`doc_consistency` → `...builtins.doc` |
+| `runtime/skill/builtins/framework_review/checks/b3.py:75` | `"doc-review": "cataforge.runtime.skill.builtins.doc_review"` | `"doc": "cataforge.runtime.skill.builtins.doc"`（B3 按 skill-id 校验 builtin 模块路径） |
+| `runtime/skill/builtins/framework_review/_constants.py:32,51` | `B1_REQUIRED_SECTIONS_EXEMPT_SKILLS` / `ORPHAN_SKILL_WHITELIST` 含 `"doc-nav"`、`"doc-gen"` | 改为 `"doc"`（父 skill 被各 agent 引用后，孤儿白名单项可同时移除多数条目） |
+| `runtime/skill/builtins/doc_review/template_registry.py:40,49,99` | 硬编码 `.cataforge/skills/doc-gen/templates` | `.cataforge/skills/doc/templates`（模板随 generate 分支迁入 `doc/`） |
+
+### 6.3 引用站点改动（breadth，按类别）
+
+blast-radius 实测约 360 处、80+ 文件。按类别批改：
+
+| 类别 | 量级 | 改法 |
+|---|---|---|
+| SKILL.md `depends:`（`loader.py` 解析） | 18 个依赖 `doc-nav`、7 个依赖 `doc-gen`、2 个依赖 doc-review/consistency 链 | 统一改为 `depends: [doc]`，去重（如 task-decomp `[doc-gen, doc-nav, task-dep-analysis]` → `[doc, task-dep-analysis]`） |
+| AGENT.md `skills:` + 正文 | 10 agent 列 `doc-nav`、7 列 `doc-gen`、1 列 `doc-review`；正文 "通过 doc-nav/doc-gen…" | `skills:` 改 `doc`；正文 "通过 doc skill 的 navigate/generate/review 分支" |
+| orchestrator / sub-agent / common-rules 协议 | Phase 2+ 触发、三审查 skill invocation、文档 I/O 契约 | `cataforge skill run doc-consistency -- docs/` → `... doc --script consistency -- docs/`；doc-review → `doc --script review`；doc-gen finalize → `doc` 的 generate 分支 |
+| `framework.json` | `features.doc-review` 块；migration check 内 `.cataforge/skills/doc-gen/...` 路径（216/225/232/234）、shim 依赖（319）、kg-active 说明（327） | `features` key `doc-review` → `doc`（description 改为覆盖生命周期）；路径改 `.cataforge/skills/doc/...`；prose 引用改 `doc` |
+| `docs/reference/agents-and-skills.md` | 5 行 skill 表 + agent 映射表 + 核心 skill 清单 + skill 卡片 | 重写为 `doc`（含 navigate/generate/review/consistency 子项）+ `kg-ask` 两条；agent 映射列 `doc` |
+| 其他 docs | `cli.md:132`（事件日志清单 `doc-review`）、`status-codes.md:69`（doc-nav）、`README.md:46`（doc-review） | 文本替换为 `doc` |
+| tests | `tests/skill/test_doc_review_*`、`test_doc_consistency*`、`tests/kg/test_doc_review_kg_dispatch.py`、`test_doc_consistency_kg.py`、`tests/e2e/test_docs_nav.py`、`tests/cli/test_doc_review_coverage.py`、`test_builtin_subprocess_contract.py` | import 前缀 `builtins.doc_review`/`doc_consistency` → `builtins.doc`；skill-run id `doc-review`/`doc-consistency` → `doc --script …` |
+| CI | `.github/workflows/pr-title.yml:42` 示例 scope `doc-review` | 示例改 `doc`（仅注释性，非阻塞） |
+
+**保留不改的**：常量名 `DOC_SPLIT_THRESHOLD_LINES` / `DOC_REVIEW_L2_SKIP_*`（`framework.json` + COMMON-RULES + checker + tests 多处引用，重命名是纯 churn、无澄清收益）；它们归属 `doc` 的 review 分支即可，名字不动。
+
+### 6.4 依赖顺序与任务优先级（不可乱序）
+
+按"被依赖者先行、改完即可独立回归"排序。S1 最高优先级（id 不解析则全链断）：
+
+1. **S1 · 运行时绑定（foundation）** — §6.2 全部 + 同步改动到的 tests。先合并 builtin 包、改 loader/b3/template_registry，使 `cataforge skill run doc --script review|consistency` 端到端可跑。**Gate**：`pytest tests/skill tests/kg tests/cli/test_doc_review_coverage.py` 绿；`cataforge skill run doc --script review -- prd <doc>` 与 `--script consistency -- docs/` 返回码语义不变。
+2. **S2 · prompt 树（structural）** — 建 `.cataforge/skills/doc/`：小调度 SKILL.md + 四个 `references/*.md`（迁入原四 skill 正文，同时按第 4 阶段删除其中 KG 分发叙述）+ `templates/` 迁入；删除旧 `doc-{nav,gen,review,consistency}/` 目录。**Gate**：`cataforge skill list` 含 `doc`、不含旧四 id；`cataforge deploy --dry-run` 复制 `doc/references/*`；framework-review B 系列检查通过。
+3. **S3 · 引用 rewiring（breadth）** — §6.3 的 depends / AGENT / 协议 / framework.json。**Gate**：`cataforge doctor`（skill_health 无 dangling depends）；framework-review 孤儿/白名单检查通过；`python scripts/checks/run_local.py` 绿。
+4. **S4 · 文档与 kg-ask 收尾** — 重写 `agents-and-skills.md` 分类、`cli.md` / `status-codes.md` / `README.md`；`kg-ask` 本体不变，仅同步引用文档。**Gate**：`cataforge docs validate` 干净。
+5. **S5 · 守卫与清理** — 新增守卫禁止旧扁平 id（`doc-nav` / `doc-gen` / `doc-review` / `doc-consistency`）在 SKILL/AGENT/rules 主体复活；全量 `pytest` + `run_local.py`。
+
+与前述端口/本体阶段的衔接：S1–S5 可独立于 `cataforge context` CLI（端口 CLI）落地；分支正文中"后端分发透明"的指向，待端口 CLI（前述第 3 阶段）就绪后由一次跟进 PR 把 `cataforge docs load`/`kg query` 替换为 `cataforge context …`。即本节先把 skill **形状**理清，端口 CLI 再把 skill 调用的**后端**理清，两者解耦推进。
+
+### 6.5 关键实施细则
+
+- **入口脚本识别**：`_scan_builtins`（`loader.py:179`）只把含 `if __name__ == "__main__"` 的 `*.py` 当作可运行脚本。合并后须确保 `review.py` / `consistency.py` 各保留 main guard，helper 模块（`checker.py` 等）不带 guard，否则会被误列为脚本、`--script` 默认错位。
+- **default script 行为**：`runner._find_script` 在不传 `--script` 时取 `meta.scripts[0]`（按文件名排序）。合并后 `consistency.py` 排在 `review.py` 前，默认会落到 consistency。须在 `doc/SKILL.md` 与协议中明确两个 Layer 1 调用**始终显式带 `--script`**，避免依赖默认顺序。
+- **EVENT-LOG 兼容**：`record_to_event_log` 现按 skill-id 生效；`doc` 入集后 review 与 consistency 都记录，ref 形如 `skill:doc/review`。reflector/sprint-review 若按旧 ref `skill:doc-review/...` 解析，需同步更新匹配前缀。
+- **framework-review CHECKS_MANIFEST 对账**：`doc-review` 的 `CHECKS_MANIFEST`（COMMON-RULES 声明"与 manifest 不一致即 FAIL"）随包迁入 `builtins/doc/`，B3 模块路径同改；迁移后跑一次 framework-review 确认 manifest 对账通过。
+- **deploy 无机制改动**：`deploy_skills` 按 skill 子目录整树 copy+render（`skills.py:110`），`doc/references/*` 与 `templates/` 自动随 `doc/` 部署，无需新增逻辑。
+
+### 6.6 验证矩阵
+
+| 验证项 | 命令 | 通过判据 |
+|---|---|---|
+| 运行时入口 | `cataforge skill run doc --script review -- <args>` / `--script consistency -- docs/` | 退出码与旧 `doc-review`/`doc-consistency` 一致 |
+| 发现面 | `cataforge skill list` | 含 `doc`、`kg-ask`；无 `doc-nav/gen/review/consistency` |
+| 依赖完整性 | `cataforge doctor` | skill_health 无 dangling `depends`；无 orphan 误报 |
+| 元资产守卫 | `cataforge skill run framework-review` | B1/B3 + manifest 对账通过 |
+| repo 守卫 | `python scripts/checks/run_local.py` | 11 项全绿 |
+| 单测 | `pytest` | 全绿（重点 `tests/skill` `tests/kg`） |
+
+### 6.7 风险与回滚
+
+- **大面积重命名**：~360 处引用，遗漏即 dangling。缓解：S3 完成后用一次全仓 grep（旧四 id + `builtins.doc_review`/`doc_consistency`）断言零残留，并在 S5 落守卫固化。
+- **默认 script 错位**：见 §6.5，靠"始终显式 `--script`"消除。
+- **回滚单元**：S1–S5 各为独立可回滚提交；S1（runtime）与 S2（prompt 树）若需回退须成对回退，因二者共同决定 `doc` id 能否解析。
+
+---
+
 ## 附：现状证据索引（便于核对）
 
 - 代码层已存在的统一 facade：`domain/docs/loader.py:239,315,342`、`domain/docs/_loader_kg.py:42`、`domain/docs/kg_port.py`、`domain/kg/_dispatch.py`。
