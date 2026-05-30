@@ -23,6 +23,7 @@ from cataforge.domain.kg._store import (
     bootstrap_subclass_axioms,
     init_store,
 )
+from cataforge.domain.kg.diff import SnapshotDiff, diff_snapshots
 from cataforge.domain.kg.export.render import render_entity
 from cataforge.domain.kg.facade import KnowledgeGraph, open_store
 from cataforge.domain.kg.query import QueryAPI
@@ -40,10 +41,12 @@ __all__ = [
     "KnowledgeGraphStore",
     "QueryAPI",
     "render_entity",
+    "SnapshotDiff",
     "TraceAPI",
     "TransactionContext",
     "ask",
     "bootstrap_subclass_axioms",
+    "diff_snapshots",
     "init_store",
     "open_store",
 ]

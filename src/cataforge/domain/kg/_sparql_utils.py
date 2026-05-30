@@ -137,12 +137,20 @@ def cf_namespace(config: KGConfig) -> str:
     return config.ontology_namespace.rstrip("/") + "/"
 
 
+def curie_for_iri(iri: str, namespace: str) -> str:
+    """Map a full predicate IRI back to the canonical ``cf:slot`` CURIE form."""
+    if iri.startswith(namespace):
+        return f"cf:{iri[len(namespace) :]}"
+    return iri
+
+
 __all__ = [
     "_row_lookup",
     "_strv",
     "_term_value",
     "assert_safe_iri",
     "cf_namespace",
+    "curie_for_iri",
     "escape_iri_component",
     "escape_sparql_literal",
 ]
