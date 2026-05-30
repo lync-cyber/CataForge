@@ -8,7 +8,7 @@ the same facade instance.
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -70,7 +70,7 @@ class KnowledgeGraph:
 
     @classmethod
     @contextmanager
-    def connect(cls, config: KGConfig) -> Iterator[KnowledgeGraph]:
+    def connect(cls, config: KGConfig) -> Generator[KnowledgeGraph, None, None]:
         """Open an existing store on `config.db_path` and return a facade.
 
         The store is opened read-only-by-convention; writes still work
@@ -85,7 +85,7 @@ class KnowledgeGraph:
             raise
 
     @contextmanager
-    def transaction(self) -> Iterator[TransactionContext]:
+    def transaction(self) -> Generator[TransactionContext, None, None]:
         """Open a write-lock-guarded synchronous transaction.
 
         Commits on clean exit, rolls back on exception. The write lock

@@ -12,7 +12,7 @@ this constraint under ``src/cataforge/domain/kg/``.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -35,7 +35,7 @@ def _first_sparql_keyword(sparql: str) -> str | None:
     return m.group(1).upper() if m else None
 
 
-def ask(store: ox.Store, sparql: str, bindings: dict[str, Any] | None = None) -> bool:
+def ask(store: ox.Store, sparql: str) -> bool:
     """Run an ASK query and return a real Python ``bool``.
 
     Parameters
@@ -45,20 +45,12 @@ def ask(store: ox.Store, sparql: str, bindings: dict[str, Any] | None = None) ->
     sparql:
         A SPARQL ASK query.  Other forms (SELECT / CONSTRUCT / UPDATE)
         are rejected up front; route those through ``QueryAPI`` instead.
-    bindings:
-        Reserved for future use.  Raises ``NotImplementedError`` when a
-        non-empty dict is passed.
     """
     first_keyword = _first_sparql_keyword(sparql)
     if first_keyword != "ASK":
         raise ValueError(
             "ask() only accepts ASK queries; for SELECT/CONSTRUCT/UPDATE use "
             "the typed QueryAPI surface."
-        )
-    if bindings:
-        raise NotImplementedError(
-            "ask() does not yet pass through bindings; substitute server-side or "
-            "interpolate before passing the SPARQL string in."
         )
     result = store.query(sparql)
     return bool(result)
