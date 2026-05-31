@@ -77,8 +77,6 @@ def render_entity(
 
     if registry is None:
         registry = SparqlRegistry()
-    if not registry.has(entity_type):
-        return None
 
     sparql_template = registry.get(entity_type)
     safe_id = escape_sparql_literal(entity_id)

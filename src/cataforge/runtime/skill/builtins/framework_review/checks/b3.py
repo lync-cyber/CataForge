@@ -12,6 +12,19 @@ from .._types import Report
 
 _CHECK_ID_ANCHOR_RE = re.compile(r"<!--\s*check_id:\s*([\w.-]+)\s*-->")
 _DELEGATION_RE = re.compile(r"权威清单见.*?CHECKS_MANIFEST", re.DOTALL)
+
+# Skill id → builtin module exposing CHECKS_MANIFEST. Only review-class
+# skills whose builtin runs Layer 1 checks AND that ship a data-driven
+# SKILL.md belong here — each entry's SKILL.md '## Layer 1 检查项' section is
+# reconciled against the builtin manifest. A builtin-only engine with no
+# SKILL.md (its prose folded into another skill's reference) is not listed.
+# Integrity of this map vs the on-disk SKILL.md set is guarded by a test.
+_BUILTIN_MAP = {
+    "code-review": "cataforge.runtime.skill.builtins.code_review",
+    "sprint-review": "cataforge.runtime.skill.builtins.sprint_review",
+    "framework-review": "cataforge.runtime.skill.builtins.framework_review",
+    "testing": "cataforge.runtime.skill.builtins.testing",
+}
 _REQUIRES_RE = re.compile(
     r"<!--\s*requires:\s*cataforge\s*>=\s*([0-9]+(?:\.[0-9]+){0,2})\s*-->"
 )
@@ -65,19 +78,7 @@ def check_b3_manifest_drift(root: Path, report: Report) -> None:
     A SKILL.md with a "## Layer 1 检查项" section but neither anchors nor
     delegation marker → FAIL.
     """
-    # Map skill id → builtin module name. Only review-class skills
-    # (whose builtin runs Layer 1 checks) are tracked here.
-    # task-dep-analysis is a deterministic graph algorithm — its
-    # CHECKS_MANIFEST describes algorithms, not Layer 1 checks, so
-    # prose drift detection doesn't apply.
-    builtin_map = {
-        "code-review": "cataforge.runtime.skill.builtins.code_review",
-        "doc-review": "cataforge.runtime.skill.builtins.doc_review",
-        "sprint-review": "cataforge.runtime.skill.builtins.sprint_review",
-        "framework-review": "cataforge.runtime.skill.builtins.framework_review",
-    }
-
-    for skill_id, module_name in builtin_map.items():
+    for skill_id, module_name in _BUILTIN_MAP.items():
         skill_md = ProjectPaths(root).skill_dir(skill_id) / "SKILL.md"
         if not skill_md.is_file():
             continue

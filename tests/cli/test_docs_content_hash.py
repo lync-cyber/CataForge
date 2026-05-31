@@ -200,3 +200,40 @@ def test_validate_shows_stale_deps_as_warn(
     result = CliRunner().invoke(docs_validate, [])
     assert result.exit_code == 0
     assert "stale dep" in result.output.lower()
+
+
+def test_doctor_surfaces_stale_deps_without_gating(
+    tmp_path: Path, capsys,
+) -> None:
+    """`doctor`'s docs-validation check must DISPLAY stale deps (parity with
+    `docs validate`) but never count them toward its gating fail tally."""
+    from types import SimpleNamespace
+
+    from cataforge.interface.cli.doctor.skill_health import check_docs_validate
+
+    root = _make_project(tmp_path)
+    _write_doc(
+        root, "docs/prd/prd-foo.md",
+        _PRD_FM + "# PRD\nOriginal\n",
+    )
+    _write_doc(root, "docs/arch/arch-foo.md", _ARCH_FM)
+    indexer.main(["--project-root", str(root)])
+
+    _write_doc(
+        root, "docs/prd/prd-foo.md",
+        _PRD_FM + "# PRD\nRevised\n",
+    )
+    indexer.main([
+        "--project-root", str(root),
+        "--doc-file", "docs/prd/prd-foo.md",
+    ])
+
+    cfg = SimpleNamespace(paths=SimpleNamespace(root=root))
+    fail_count = check_docs_validate(cfg)
+    out = capsys.readouterr().out
+
+    # Surfaced …
+    assert "stale dep" in out.lower()
+    assert "arch-foo" in out
+    # … but not gated (everything else is in sync, so the count stays 0).
+    assert fail_count == 0

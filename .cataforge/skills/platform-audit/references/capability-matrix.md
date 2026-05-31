@@ -127,7 +127,7 @@ Agent 定义支持的 frontmatter 字段超集:
 | 7 | `read_only` | 顾问模式 | - | - | ✓ | - |
 | 8 | `full_access` | 无限制 | - | - | ✓ | - |
 
-代码位置: `src/cataforge/core/types.py` — `PermissionMode`
+声明位置: 各平台 `profile.yaml` 的 `permissions.modes`
 
 ---
 

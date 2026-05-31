@@ -55,6 +55,31 @@ def test_render_plugin_shape() -> None:
     assert "throw new Error" in ts
 
 
+def test_block_hook_fails_closed_on_spawn_error() -> None:
+    """A block hook must refuse when its Python guard cannot run cleanly.
+
+    Guards the regression where ``child.on('error', () => resolve(0))`` plus a
+    ``code === 2``-only throw let a missing python/cataforge silently allow
+    guard_dangerous.
+    """
+    ts = _render_opencode_plugin(
+        {
+            "tool.execute.before": [
+                {"script": "guard_dangerous", "matcher_capability": "shell_exec", "type": "block"}
+            ],
+        }
+    )
+
+    # The fail-open construct must be gone.
+    assert "resolve(0)" not in ts
+    # Spawn error / null exit resolve to the fail-closed sentinel.
+    assert "const failCode = isBlock ? 2 : 0;" in ts
+    assert "child.on('error', () => resolve(failCode));" in ts
+    assert "resolve(code ?? failCode)" in ts
+    # Block dispatch refuses on any non-clean exit, not only the explicit 2.
+    assert "h.type === 'block' && code !== 0" in ts
+
+
 def test_emit_plugin_hooks_writes_file(
     opencode_adapter: OpenCodeAdapter,
     tmp_path: Path,

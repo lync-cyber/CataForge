@@ -394,16 +394,22 @@ class CodeScanner:
         return 0
 
 
+_USAGE = (
+    "用法:\n"
+    "  python -m cataforge.runtime.skill.builtins.code_review.code_lint"
+    " <file_or_dir> [--fix]\n"
+    "  python -m cataforge.runtime.skill.builtins.code_review.code_lint"
+    " scan <path> [--focus <category[,category...]>]"
+)
+
+
 def main() -> None:
     ensure_utf8()
+    if len(sys.argv) >= 2 and sys.argv[1] in ("-h", "--help"):
+        print(_USAGE)
+        sys.exit(0)
     if len(sys.argv) < 2:
-        print(
-            "用法:\n"
-            "  python -m cataforge.runtime.skill.builtins.code_review.code_lint"
-            " <file_or_dir> [--fix]\n"
-            "  python -m cataforge.runtime.skill.builtins.code_review.code_lint"
-            " scan <path> [--focus <category[,category...]>]"
-        )
+        print(_USAGE)
         sys.exit(2)
 
     if sys.argv[1] == "scan":

@@ -22,7 +22,7 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 2. **扩展能力 ID** (`EXTENDED_CAPABILITY_IDS`) — 部分平台独有的工具（notebook_edit, browser_preview, image_input, code_review）
 3. **Agent 配置** (`AGENT_FRONTMATTER_FIELDS`) — 17 个 agent 定义 frontmatter 字段的跨平台超集
 4. **平台特性** (`PLATFORM_FEATURES`) — 17 个 boolean 功能标志（cloud_agents, agent_teams, scheduled_tasks 等）
-5. **权限模型** (`PermissionMode`) — 8 种审批模式的跨平台枚举
+5. **权限模型** — 审批模式集，各平台在 `profile.yaml` 的 `permissions.modes` 声明所支持的子集
 6. **模型路由** — 可用模型列表和 per-agent 模型选择支持
 7. **Hook 事件** — 5 个标准事件 + 降级策略
 
@@ -121,7 +121,8 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 对每个差异项，评估波及的文件:
 
 - `profile.yaml` — 几乎所有差异都需要更新
-- `src/cataforge/core/types.py` — CAPABILITY_IDS / OPTIONAL / EXTENDED / AGENT_FRONTMATTER_FIELDS / PLATFORM_FEATURES / PermissionMode
+- `src/cataforge/core/types.py` — CAPABILITY_IDS / OPTIONAL / EXTENDED / AGENT_FRONTMATTER_FIELDS / PLATFORM_FEATURES
+- `profile.yaml` 的 `permissions.modes` — 各平台支持的审批模式集
 - `src/cataforge/adapter/platform/<id>.py` — adapter 代码（tool_overrides / deploy_agents / inject_mcp_config）
 - `src/cataforge/adapter/platform/base.py` — 基类属性（仅当新增通用属性时）
 - `src/cataforge/runtime/hook/bridge.py` — hook 生成逻辑
@@ -148,8 +149,9 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 - 新增 `EXTENDED_CAPABILITY_IDS` 条目 — 当新工具出现在 2+ 平台上
 - 新增 `AGENT_FRONTMATTER_FIELDS` 条目 — 当新字段出现在 2+ 平台上
 - 新增 `PLATFORM_FEATURES` 条目 — 当新特性出现在 2+ 平台上
-- 新增 `PermissionMode` 枚举值 — 当新审批模式出现
 - 调整 `OPTIONAL_CAPABILITY_IDS` — 当可选能力变为必需或反之
+
+新增审批模式时不改 types.py — 在对应 `profile.yaml` 的 `permissions.modes` 声明即可。
 
 **Step 9: 更新源码**
 

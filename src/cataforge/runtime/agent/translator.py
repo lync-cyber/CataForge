@@ -31,6 +31,12 @@ _NOISE_TOKENS = frozenset({"", "[]", "''", '""', "null", "~"})
 # ``model:`` (or dropped).
 _INTERNAL_FIELDS = frozenset({"allowed_paths", "model_tier"})
 
+# Frontmatter fields whose silent removal changes the agent's privilege
+# posture. When a platform does not declare support for one of these, dropping
+# it means a high-privilege declaration in source becomes unenforced on that
+# platform — the deploy must surface a WARN rather than drop quietly.
+_SECURITY_SENSITIVE_FIELDS = frozenset({"permissionMode"})
+
 
 def _clean_cap_list_str(raw: str) -> str:
     """Strip YAML-ish decoration around a flow-style capability list.
@@ -79,6 +85,7 @@ def translate_agent_md(
     adapter: PlatformAdapter,
     *,
     dropped_collector: dict[str, set[str]] | None = None,
+    warnings_collector: list[str] | None = None,
 ) -> str:
     """Translate capability IDs and model tier in AGENT.md to platform-native.
 
@@ -94,6 +101,11 @@ def translate_agent_md(
        Internal-only fields like ``allowed_paths`` are dropped on every
        platform regardless.
 
+    Diagnostics that are not plain unmapped-capability drops — a native tool
+    that resolves into BOTH ``tools`` and ``disallowedTools`` (allow/deny
+    collision), and a dropped security-sensitive field — are routed to
+    ``warnings_collector`` so the deployer can surface them.
+
     Parameters
     ----------
     dropped_collector:
@@ -103,11 +115,20 @@ def translate_agent_md(
         aggregated message after processing all agents. When not provided,
         falls back to the historical per-agent ``logger.warning`` behaviour
         (still de-duplicated within a single call and gated on real noise).
+    warnings_collector:
+        Optional list that accumulates free-form WARN strings across many
+        calls (allow/deny tool collisions, dropped security-sensitive
+        fields). The deployer appends these to its returned action lines.
     """
     tool_map = adapter.get_tool_map()
     # Per-call aggregation so a single agent with the same missing cap in
     # both ``tools:`` and ``disallowedTools:`` logs at most once.
     local_dropped: dict[str, set[str]] = {}
+    # ``{source_field: {native_tool: {source_cap, ...}}}`` so an allow/deny
+    # collision on a resolved name can be detected after both lists are
+    # translated (e.g. cursor maps file_edit + file_write → Write) and the
+    # warning can name both the native tool and the colliding source caps.
+    resolved_by_field: dict[str, dict[str, set[str]]] = {}
 
     def translate_field(match: re.Match[str]) -> str:
         field_name = match.group(1)
@@ -125,8 +146,11 @@ def translate_agent_md(
         if dropped:
             local_dropped.setdefault(field_name, set()).update(dropped)
 
-        native_names = [name for cap in caps if (name := tool_map.get(cap)) is not None]
-        return f"{field_name}: {', '.join(native_names)}"
+        native_by_cap = {cap: tool_map[cap] for cap in caps if tool_map.get(cap) is not None}
+        field_resolved = resolved_by_field.setdefault(field_name, {})
+        for cap, native in native_by_cap.items():
+            field_resolved.setdefault(native, set()).add(cap)
+        return f"{field_name}: {', '.join(native_by_cap.values())}"
 
     content = re.sub(
         r"^(tools|disallowedTools):\s*(.+)$",
@@ -135,11 +159,13 @@ def translate_agent_md(
         flags=re.MULTILINE,
     )
 
+    _collect_tool_collisions(adapter.platform_id, resolved_by_field, warnings_collector)
+
     # ---- model_tier → native model resolution -------------------------
     content = _translate_model_tier(content, adapter)
 
     # ---- supported_fields filter --------------------------------------
-    content = _filter_unsupported_fields(content, adapter)
+    content = _filter_unsupported_fields(content, adapter, warnings_collector)
 
     if local_dropped:
         if dropped_collector is not None:
@@ -156,6 +182,34 @@ def translate_agent_md(
                 )
 
     return content
+
+
+def _collect_tool_collisions(
+    platform_id: str,
+    resolved_by_field: dict[str, dict[str, set[str]]],
+    warnings_collector: list[str] | None,
+) -> None:
+    """Surface native tools that resolve into BOTH allow and deny lists.
+
+    When a platform's tool_map folds several capabilities onto one native tool
+    (e.g. cursor maps both ``file_edit`` and ``file_write`` → ``Write``), an
+    agent listing one collapsed capability under ``tools`` and another under
+    ``disallowedTools`` ends up emitting the same native tool in both lists.
+    The translator does not silently drop either side — it records a WARN
+    naming the colliding tool and the source capabilities so the conflict is
+    visible at deploy time.
+    """
+    if warnings_collector is None:
+        return
+    allow = resolved_by_field.get("tools", {})
+    deny = resolved_by_field.get("disallowedTools", {})
+    for native in sorted(set(allow) & set(deny)):
+        caps = sorted(allow[native] | deny[native])
+        warnings_collector.append(
+            f"WARN: {platform_id}: native tool {native!r} resolves into both "
+            f"'tools' and 'disallowedTools' from capabilities {caps} — "
+            "the allow/deny declaration is ambiguous on this platform."
+        )
 
 
 _MODEL_TIER_LINE_RE = re.compile(r"^model_tier:\s*(\S+).*$", re.MULTILINE)
@@ -203,7 +257,11 @@ def _translate_model_tier(content: str, adapter: PlatformAdapter) -> str:
 _FIELD_LINE_RE = re.compile(r"^([A-Za-z_][\w-]*):", re.MULTILINE)
 
 
-def _filter_unsupported_fields(content: str, adapter: PlatformAdapter) -> str:
+def _filter_unsupported_fields(
+    content: str,
+    adapter: PlatformAdapter,
+    warnings_collector: list[str] | None = None,
+) -> str:
     """Drop frontmatter top-level keys not in ``agent_supported_fields``.
 
     Always-kept fields:
@@ -217,6 +275,12 @@ def _filter_unsupported_fields(content: str, adapter: PlatformAdapter) -> str:
     When ``agent_supported_fields`` is empty (platform didn't declare it) we
     treat that as "pass through everything except internal" so we don't
     accidentally regress platforms with no profile config.
+
+    Dropping a field in :data:`_SECURITY_SENSITIVE_FIELDS` (e.g.
+    ``permissionMode``) on a platform that does not declare support for it
+    means a high-privilege source declaration becomes unenforced. Such drops
+    are routed to ``warnings_collector`` (when provided) so the deployer can
+    surface a WARN rather than removing them silently.
     """
     fm_split = _split_frontmatter(content)
     if not fm_split:
@@ -225,7 +289,9 @@ def _filter_unsupported_fields(content: str, adapter: PlatformAdapter) -> str:
 
     supported = set(adapter.agent_supported_fields)
     if not supported:
-        return _drop_internal_only(prefix, fm_body, body)
+        return _drop_internal_only(
+            adapter.platform_id, prefix, fm_body, body, warnings_collector
+        )
 
     # Always allow the universal pair regardless of profile declaration.
     supported.update({"name", "description"})
@@ -237,6 +303,10 @@ def _filter_unsupported_fields(content: str, adapter: PlatformAdapter) -> str:
         if m:
             key = m.group(1)
             if key in _INTERNAL_FIELDS or key not in supported:
+                if key not in _INTERNAL_FIELDS:
+                    _warn_security_sensitive_drop(
+                        adapter.platform_id, key, warnings_collector
+                    )
                 drop_active = True
                 continue
             drop_active = False
@@ -257,9 +327,33 @@ def _filter_unsupported_fields(content: str, adapter: PlatformAdapter) -> str:
     return prefix + new_fm + "---\n" + body
 
 
-def _drop_internal_only(prefix: str, fm_body: str, body: str) -> str:
+def _warn_security_sensitive_drop(
+    platform_id: str, key: str, warnings_collector: list[str] | None
+) -> None:
+    """Record a WARN when an unsupported field is security-sensitive."""
+    if warnings_collector is None or key not in _SECURITY_SENSITIVE_FIELDS:
+        return
+    warnings_collector.append(
+        f"WARN: {platform_id}: agent field {key!r} is not supported on this "
+        "platform and was dropped — the high-privilege declaration is "
+        "unenforced here."
+    )
+
+
+def _drop_internal_only(
+    platform_id: str,
+    prefix: str,
+    fm_body: str,
+    body: str,
+    warnings_collector: list[str] | None = None,
+) -> str:
     """Fallback when the platform declared no supported_fields — drop only
-    CataForge-internal fields and leave everything else as-is."""
+    CataForge-internal fields and leave everything else as-is.
+
+    Nothing security-sensitive is dropped on this path (non-internal fields
+    pass through), so no WARN is emitted here; the parameter is accepted for a
+    uniform call signature with :func:`_filter_unsupported_fields`."""
+    del warnings_collector  # no field is dropped that warrants a WARN here
     out_lines: list[str] = []
     drop_active = False
     for line in fm_body.splitlines():

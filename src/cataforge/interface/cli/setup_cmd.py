@@ -29,13 +29,9 @@ from cataforge.interface.cli.main import cli
     ),
 )
 @click.option(
-    "--check-prereqs", "--check", "--check-only", "check_only",
+    "--check-prereqs", "--check-only", "check_only",
     is_flag=True,
-    help=(
-        "Only check prerequisites, do not install. "
-        "(Aliases: --check, --check-only; --check will be removed in v0.3 — "
-        "in `deploy` it means --dry-run, so the alias is ambiguous.)"
-    ),
+    help="Only check prerequisites, do not install. (Alias: --check-only.)",
 )
 @click.option(
     "--force-scaffold",
@@ -103,8 +99,7 @@ def setup_command(
 
     \b
       cataforge setup --check-prereqs
-          Validate environment only — no writes. (`--check` is a
-          deprecated alias, removed in v0.3.)
+          Validate environment only — no writes.
 
     \b
     NOTES:
@@ -112,8 +107,10 @@ def setup_command(
         (and ``cataforge upgrade apply``, which passed it explicitly)
         keep working. It will be removed in v0.3.
     """
+    from cataforge.core.config import ConfigManager
     from cataforge.core.events import FRAMEWORK_SETUP, EventBus
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.core.paths import find_project_root_or_none
+    from cataforge.interface.cli.helpers import resolve_project_dir
 
     if no_deploy:
         click.secho(
@@ -123,9 +120,26 @@ def setup_command(
             err=True,
         )
 
-    # find_project_root walks up for an existing .cataforge/; when nothing is
-    # found it falls back to cwd — exactly what we want for a fresh install.
-    cfg = get_config_manager()
+    # Resolve the project root. `--project-dir` is the explicit opt-in to target
+    # any directory (including a parent project). Without it, setup initialises
+    # in cwd: it must NOT silently walk up and attach to an ancestor's
+    # .cataforge/ — that would scaffold into the wrong project. Running setup
+    # inside an existing root (cwd already has .cataforge/) stays unchanged.
+    override = resolve_project_dir()
+    if override is not None:
+        root = override
+    else:
+        root = Path.cwd()
+        ancestor = find_project_root_or_none(root)
+        if ancestor is not None and ancestor != root.resolve():
+            click.secho(
+                f"Note: an ancestor project exists at {ancestor}. Initialising "
+                f"in the current directory ({root}) instead of attaching to it. "
+                f"Pass `--project-dir {ancestor}` to target the ancestor.",
+                fg="yellow",
+                err=True,
+            )
+    cfg = ConfigManager(project_root=root)
     bus = EventBus()
 
     click.echo(f"Project root: {cfg.paths.root}")

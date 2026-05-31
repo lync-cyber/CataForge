@@ -296,6 +296,6 @@
 | 新增扩展 Capability | `types.py`, 所有 `profile.yaml` |
 | 新增 Agent 字段 | `types.py`, 支持该字段的 `profile.yaml` |
 | 新增 Platform Feature | `types.py`, 所有 `profile.yaml` |
-| 新增 PermissionMode | `types.py`, 支持该模式的 `profile.yaml` |
+| 新增审批模式 | 支持该模式的 `profile.yaml` 的 `permissions.modes` |
 | 可选能力变更 | `types.py`, `conformance.py`, `test_conformance.py` |
 | 上下文/模型变更 | `dispatch-prompt.md`, `profile.yaml` |

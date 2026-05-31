@@ -152,28 +152,6 @@ PLATFORM_FEATURES: list[str] = [
     "context_management",  # Context window management (chapters, compression)
 ]
 
-# ---------------------------------------------------------------------------
-# Permission / approval modes
-# ---------------------------------------------------------------------------
-
-
-class PermissionMode(Enum):
-    """Platform-agnostic permission/approval modes.
-
-    Each platform maps a subset of these to its native approval system.
-    Declared in profile.yaml ``permissions.modes``.
-    """
-
-    DEFAULT = "default"  # Standard prompts (Claude Code, OpenCode)
-    ACCEPT_EDITS = "accept_edits"  # Auto-accept file edits (Claude Code)
-    AUTO = "auto"  # Classifier-based auto-approval (Claude Code, Codex)
-    DONT_ASK = "dont_ask"  # Auto-deny prompts (Claude Code)
-    BYPASS = "bypass"  # Skip all permission prompts (Claude Code)
-    PLAN = "plan"  # Read-only exploration (Claude Code, OpenCode)
-    READ_ONLY = "read_only"  # Consultative mode (Codex)
-    FULL_ACCESS = "full_access"  # Unrestricted (Codex)
-
-
 class SkillType(Enum):
     """Skill classification."""
 

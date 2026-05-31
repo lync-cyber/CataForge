@@ -15,8 +15,8 @@ from cataforge.core.errors import (
     CataforgeError,
     KGStoreError,
 )
-from cataforge.core.paths import KG_STORE_REL
 from cataforge.interface.cli.kg import kg_group
+from cataforge.interface.cli.kg._options import db_path_ro_option
 
 
 def _parse_kv_pairs(pairs: tuple[str, ...], flag_name: str) -> dict[str, str]:
@@ -148,13 +148,7 @@ def _resolve_project_iri(
     multiple=True,
     help="Outgoing edge in PREDICATE=OBJECT_ID form. Repeatable.",
 )
-@click.option(
-    "--db-path",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--json",
     "json_output",
@@ -267,13 +261,7 @@ def kg_add(
         "hash, the update is skipped."
     ),
 )
-@click.option(
-    "--db-path",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--json",
     "json_output",
@@ -356,13 +344,7 @@ def kg_update(
     default=False,
     help="Skip the interactive confirmation prompt.",
 )
-@click.option(
-    "--db-path",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--json",
     "json_output",

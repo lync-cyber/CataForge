@@ -172,3 +172,60 @@ def test_opencode_dry_run_reports_prune_without_writing(
 
     assert orphan.exists(), "dry-run must not actually delete"
     assert any("would prune orphan" in a for a in actions)
+
+
+# ---- Codex TOML passthrough derives from supported_fields ----------------
+
+
+def _codex_with_fields(*fields: str) -> CodexAdapter:
+    return CodexAdapter(
+        {
+            "platform_id": "codex",
+            "agent_config": {"supported_fields": list(fields)},
+            "agent_definition": {"scan_dirs": [".codex/agents"]},
+        }
+    )
+
+
+def _deploy_one(adapter: CodexAdapter, tmp_path: Path, frontmatter: str) -> str:
+    src = tmp_path / ".cataforge" / "agents"
+    (src / "a").mkdir(parents=True)
+    (src / "a" / "AGENT.md").write_text(
+        f"---\n{frontmatter}---\n# body\n", encoding="utf-8"
+    )
+    adapter.deploy_agents(src, tmp_path)
+    return (tmp_path / ".codex" / "agents" / "a.toml").read_text(encoding="utf-8")
+
+
+def test_codex_passthrough_honors_extra_supported_field(tmp_path: Path) -> None:
+    """Adding a field to the profile's supported_fields makes it survive the
+    TOML round-trip with no code change to ``_md_to_toml``."""
+    adapter = _codex_with_fields(
+        "name", "description", "sandbox_mode", "extra_codex_knob"
+    )
+    toml = _deploy_one(
+        adapter,
+        tmp_path,
+        "name: a\ndescription: d\nsandbox_mode: full\nextra_codex_knob: tuned\n",
+    )
+    # name/description still emitted (explicit), body wrapped.
+    assert 'name = "a"' in toml
+    assert 'description = "d"' in toml
+    assert 'developer_instructions = """' in toml
+    # Declared extras pass through — including a brand-new profile field that
+    # the formatter never hardcoded.
+    assert 'sandbox_mode = "full"' in toml
+    assert 'extra_codex_knob = "tuned"' in toml
+
+
+def test_codex_passthrough_excludes_undeclared_field(tmp_path: Path) -> None:
+    """A field absent from supported_fields is filtered before TOML and never
+    passed through, while a declared sibling survives."""
+    adapter = _codex_with_fields("name", "description", "sandbox_mode")
+    toml = _deploy_one(
+        tmp_path=tmp_path,
+        adapter=adapter,
+        frontmatter="name: a\ndescription: d\nsandbox_mode: full\nextra_codex_knob: tuned\n",
+    )
+    assert 'sandbox_mode = "full"' in toml
+    assert "extra_codex_knob" not in toml

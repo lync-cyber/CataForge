@@ -248,15 +248,28 @@ class TransactionContext:
     # ------------------------------------------------------------------
 
     def commit(self) -> None:
-        """Apply staged removes followed by adds."""
+        """Apply staged removes followed by adds.
+
+        pyoxigraph exposes no native transaction, so a failure partway
+        through the adds would otherwise leave the removed quads gone. The
+        removed quads are restored on any exception (re-add is idempotent)
+        so a mid-commit failure does not silently lose data.
+        """
         if self._rolled_back:
             raise RuntimeError("Cannot commit a transaction that has already been rolled back.")
         if self._committed:
             raise RuntimeError("Transaction has already been committed.")
-        for q in self._staged_removes:
-            self._store.remove(q)
-        for q in self._staged_adds:
-            self._store.add(q)
+        removed: list = []
+        try:
+            for q in self._staged_removes:
+                self._store.remove(q)
+                removed.append(q)
+            for q in self._staged_adds:
+                self._store.add(q)
+        except Exception:
+            for q in removed:
+                self._store.add(q)
+            raise
         self._committed = True
 
     def rollback(self) -> None:

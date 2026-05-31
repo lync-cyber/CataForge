@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import click
 
+from cataforge.core.errors import CataforgeError
 from cataforge.interface.cli.main import cli
 
 
@@ -117,7 +118,9 @@ def context_finalize(project_root: str, output_dir: str | None) -> None:
     if result.errors:
         for err in result.errors:
             click.echo(f"[ERROR] {err}", err=True)
-        raise SystemExit(2)
+        failure = CataforgeError(f"finalize: {len(result.errors)} export error(s)")
+        failure.exit_code = 1
+        raise failure
 
 
 @context_group.command("ingest")
@@ -145,4 +148,6 @@ def context_reconcile(project_root: str) -> None:
         click.echo("reconcile OK (no drift)")
         return
     click.echo(f"DRIFT: {report.overall_divergence_count} divergence(s)", err=True)
-    raise SystemExit(3)
+    failure = CataforgeError(f"reconcile: {report.overall_divergence_count} divergence(s)")
+    failure.exit_code = 3
+    raise failure

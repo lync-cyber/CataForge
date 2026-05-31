@@ -135,7 +135,11 @@ def docs_validate(project_root: str | None) -> None:
     """
     import os
 
-    from cataforge.domain.docs.indexer import INDEX_FILENAME, validate_docs
+    from cataforge.domain.docs.indexer import (
+        INDEX_FILENAME,
+        format_stale_deps_warning,
+        validate_docs,
+    )
 
     root = project_root or str(resolve_root())
     index_path = os.path.join(root, "docs", INDEX_FILENAME)
@@ -171,18 +175,8 @@ def docs_validate(project_root: str | None) -> None:
         if stale_deps:
             summary += f" · {len(stale_deps)} stale dep(s)"
         click.echo(summary)
-        if stale_deps:
-            click.echo(
-                f"WARN · {len(stale_deps)} stale dependency(ies) — "
-                "upstream content changed since downstream was written:",
-                err=True,
-            )
-            for sd in stale_deps:
-                click.echo(
-                    f"  - {sd['doc_id']} depends on {sd['upstream_id']} "
-                    f"(pinned={sd['pinned_hash']}, current={sd['current_hash']})",
-                    err=True,
-                )
+        for line in format_stale_deps_warning(stale_deps):
+            click.echo(line, err=True)
         return
 
     if orphans:
@@ -232,18 +226,8 @@ def docs_validate(project_root: str | None) -> None:
                 err=True,
             )
 
-    if stale_deps:
-        click.echo(
-            f"WARN · {len(stale_deps)} stale dependency(ies) — "
-            "upstream content changed since downstream was written:",
-            err=True,
-        )
-        for sd in stale_deps:
-            click.echo(
-                f"  - {sd['doc_id']} depends on {sd['upstream_id']} "
-                f"(pinned={sd['pinned_hash']}, current={sd['current_hash']})",
-                err=True,
-            )
+    for line in format_stale_deps_warning(stale_deps):
+        click.echo(line, err=True)
 
     err = CataforgeError(
         f"docs validate failed ({len(orphans)} orphan, {len(stale)} stale, "

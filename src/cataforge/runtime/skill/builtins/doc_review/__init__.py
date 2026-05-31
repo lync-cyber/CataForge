@@ -1,9 +1,9 @@
 """Built-in doc-review skill.
 
 ``CHECKS_MANIFEST`` mirrors the actual checks executed by ``checker.py``
-and the typed-doc mixin. ``framework-review`` cross-checks this list
-against the prose ``## Layer 1 检查项`` section in
-``.cataforge/skills/doc-review/SKILL.md``; any divergence FAILs.
+and the typed-doc mixin. doc-review is a builtin-only engine with no
+standalone SKILL.md — its prose surface lives in the context skill's
+review reference, which delegates the authoritative check list here.
 """
 
 from __future__ import annotations

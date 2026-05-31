@@ -45,8 +45,6 @@ class KGConfig:
     db_path: Path = field(default_factory=lambda: KG_STORE_REL)
     governance: bool = False
     coverage_mode: Literal["strict", "mentions"] = "strict"
-    query_timeout: float | None = 30.0
-    max_transaction_retries: int = 3
     base_namespace: str = "https://cataforge.dev/instance/"
     ontology_namespace: str = "https://cataforge.dev/ontology/"
     plugins_dir: Path | None = None

@@ -57,55 +57,25 @@ class TestFencedCodeBlockFalsePositive:
         assert "F-001" in ids
 
 
-class TestFrontmatterPriority:
-    def test_frontmatter_id_used_when_present(self) -> None:
-        """When frontmatter has id: F-001, only that ID is collected (not regex scan)."""
-        from cataforge.interface.cli.doctor.kg_ingestion import (
-            _extract_frontmatter_id,
-        )
+class TestScanCollectsItemIds:
+    """``_scan_fs_entity_ids`` collects item-level ids (F-/M-/...), the only
+    ids the importer mints as ``cf:entity_id``. A document-level frontmatter
+    ``id`` is not an entity and must not be treated as a required one."""
 
-        content = "---\nid: F-001\ndoc_type: prd\n---\n\nSome body text.\n"
-        fm_id = _extract_frontmatter_id(content)
-        assert fm_id == "F-001"
-
-    def test_frontmatter_id_not_found_falls_back_to_regex(self) -> None:
-        """Without frontmatter id, regex scan is used and finds whitelisted IDs."""
-        from cataforge.interface.cli.doctor.kg_ingestion import (
-            _extract_frontmatter_id,
-            _scan_markdown_entity_ids,
-        )
-
-        content = "---\ndoc_type: prd\n---\n\n### §2 Feature F-002\n"
-        fm_id = _extract_frontmatter_id(content)
-        assert fm_id is None
-
-        ids = _scan_markdown_entity_ids(content)
-        assert "F-002" in ids
-
-    def test_no_frontmatter_falls_back_to_regex(self) -> None:
-        from cataforge.interface.cli.doctor.kg_ingestion import (
-            _extract_frontmatter_id,
-            _scan_markdown_entity_ids,
-        )
-
-        content = "# A document\n\nM-001 is a module.\n"
-        fm_id = _extract_frontmatter_id(content)
-        assert fm_id is None
-
-        ids = _scan_markdown_entity_ids(content)
-        assert "M-001" in ids
-
-    def test_scan_fs_uses_frontmatter_id_over_body_scan(self, tmp_path: Path) -> None:
-        """_scan_fs_entity_ids picks frontmatter id and does not add body IDs."""
+    def test_item_ids_collected_regardless_of_doc_level_frontmatter_id(
+        self, tmp_path: Path
+    ) -> None:
         from cataforge.interface.cli.doctor.kg_ingestion import _scan_fs_entity_ids
 
         docs_prd = tmp_path / "docs" / "prd"
         docs_prd.mkdir(parents=True)
         (docs_prd / "test.md").write_text(
-            "---\nid: F-001\n---\n\nMentions F-002 in body.\n",
+            "---\nid: prd-myapp\n---\n\n### F-001 Login\n\nDepends on M-001.\n",
             encoding="utf-8",
         )
 
         ids = _scan_fs_entity_ids(tmp_path, {"prd"}, {"prd": "prd"})
-        assert "F-001" in ids
-        assert "F-002" not in ids
+        assert ids == {"F-001", "M-001"}
+        # The doc-level frontmatter id is not a cf:entity_id; it must not be
+        # demanded of the graph (the importer never mints it).
+        assert "prd-myapp" not in ids

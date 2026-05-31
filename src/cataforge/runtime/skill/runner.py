@@ -57,9 +57,11 @@ class SkillRunner:
                 back to ``CATAFORGE_INVOKING_AGENT`` env var, then to
                 ``"reviewer"`` (preserves prior behaviour for callers that
                 don't yet pass attribution).
-            timeout: Maximum seconds to allow the script to run. Defaults to
-                ``SKILL_RUNNER_TIMEOUT_DEFAULT_SECS`` from framework constants
-                (300 s). Pass ``0`` or a negative value to disable the limit.
+            timeout: Maximum seconds to allow the script to run. When
+                ``None``, resolves ``SKILL_RUNNER_TIMEOUT_DEFAULT_SECS``
+                from framework.json ``constants`` (falling back to 300 s
+                when the file or key is absent). Pass ``0`` or a negative
+                value to disable the limit.
 
         Raises:
             SkillTimeoutError: If the script exceeds *timeout* seconds.
@@ -94,7 +96,7 @@ class SkillRunner:
 
         effective_timeout: float | None
         if timeout is None:
-            effective_timeout = _DEFAULT_TIMEOUT_SECS
+            effective_timeout = self._default_timeout_secs()
         elif timeout <= 0:
             effective_timeout = None
         else:
@@ -122,6 +124,27 @@ class SkillRunner:
 
         self._emit_run_event(meta, script_entry, result.returncode, agent=agent)
         return result
+
+    def _default_timeout_secs(self) -> float:
+        """Resolve the default run timeout from framework.json.
+
+        Reads ``constants.SKILL_RUNNER_TIMEOUT_DEFAULT_SECS`` for the
+        project the runner is bound to. Falls back to
+        ``_DEFAULT_TIMEOUT_SECS`` when framework.json is missing, the key
+        is absent, or the value is not a positive number.
+        """
+        try:
+            from cataforge.core.config import ConfigManager
+
+            raw = ConfigManager(self._paths.root).get_constant(
+                "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS"
+            )
+            value = float(raw)
+        except Exception:
+            return float(_DEFAULT_TIMEOUT_SECS)
+        if value <= 0:
+            return float(_DEFAULT_TIMEOUT_SECS)
+        return value
 
     def _emit_run_event(
         self,
@@ -172,6 +195,9 @@ class SkillRunner:
             status = "completed"
         elif returncode == 1:
             detail = f"skill-run: {skill_id} Layer 1 reported issues"
+            status = "needs_revision"
+        elif returncode == 2:
+            detail = f"skill-run: {skill_id} Layer 1 bad arguments (exit 2)"
             status = "needs_revision"
         else:
             detail = (

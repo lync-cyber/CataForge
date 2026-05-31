@@ -57,6 +57,18 @@ class CodexAdapter(PlatformAdapter):
         scan_dirs = self.get_agent_scan_dirs()
         if not scan_dirs:
             return []
+
+        # Single source of truth for which extra fields survive into the TOML:
+        # the profile's ``agent_config.supported_fields`` minus the keys the
+        # formatter already emits explicitly (name/description). Adding a field
+        # to the profile flows through here without a code change.
+        passthrough = [
+            f for f in self.agent_supported_fields if f not in _EXPLICIT_TOML_FIELDS
+        ]
+
+        def formatter(agent_id: str, content: str) -> str:
+            return _md_to_toml(agent_id, content, passthrough)
+
         return self._deploy_flat_agents(
             source_dir,
             project_root,
@@ -64,7 +76,7 @@ class CodexAdapter(PlatformAdapter):
             suffix=".toml",
             head_signature="# Auto-generated from {stem}/AGENT.md",
             head_read_size=256,
-            formatter=_md_to_toml,
+            formatter=formatter,
             dry_run=dry_run,
             manifest=manifest,
             prior_manifest=prior_manifest,
@@ -84,12 +96,21 @@ class CodexAdapter(PlatformAdapter):
         )
 
 
-def _md_to_toml(agent_id: str, content: str) -> str:
+# Fields the TOML formatter emits explicitly (under Codex-native names) and so
+# excludes from the derived passthrough set.
+_EXPLICIT_TOML_FIELDS = frozenset({"name", "description"})
+
+
+def _md_to_toml(agent_id: str, content: str, passthrough: list[str]) -> str:
     """Convert AGENT.md (YAML frontmatter) to Codex TOML agent format.
 
     Uses ``yaml.safe_load`` for correct handling of lists, booleans,
     and nested values.  The output uses Codex's required field names:
     ``name``, ``description``, ``developer_instructions``.
+
+    *passthrough* lists the additional frontmatter keys to copy through as-is
+    (derived by the caller from the profile's supported_fields), preserving
+    declaration order.
     """
     import re
 
@@ -114,8 +135,7 @@ def _md_to_toml(agent_id: str, content: str) -> str:
     lines.append("")
     lines.append(f'developer_instructions = """\n{body}\n"""')
 
-    # Pass through optional Codex-recognized fields
-    for key in ("model", "model_reasoning_effort", "sandbox_mode", "nickname_candidates"):
+    for key in passthrough:
         if key in data:
             lines.append(f"{key} = {_toml_value(data[key])}")
 

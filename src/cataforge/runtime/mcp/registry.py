@@ -109,7 +109,8 @@ class MCPRegistry:
 
         Bare executable names must appear in TRUSTED_COMMAND_PREFIXES.
         Relative paths (containing a path separator, e.g. ``./scripts/run``)
-        are accepted as project-local binaries. Absolute paths are rejected.
+        are accepted as project-local binaries. Absolute paths and paths
+        that climb out of the project tree (any ``..`` segment) are rejected.
         """
         cmd = spec.command.strip()
         if not cmd:
@@ -118,7 +119,13 @@ class MCPRegistry:
         if executable in TRUSTED_COMMAND_PREFIXES:
             return True
         from pathlib import PurePosixPath, PureWindowsPath
-        if PurePosixPath(executable).is_absolute() or PureWindowsPath(executable).is_absolute():
+        posix = PurePosixPath(executable)
+        windows = PureWindowsPath(executable)
+        if posix.is_absolute() or windows.is_absolute():
+            return False
+        # Reject parent-directory escapes regardless of separator style:
+        # ``../../evil.sh`` must not pass as a project-local binary.
+        if ".." in posix.parts or ".." in windows.parts:
             return False
         # Allow relative paths that contain a separator (e.g. ./bin/tool).
         return "/" in executable or "\\" in executable
