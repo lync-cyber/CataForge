@@ -28,11 +28,6 @@ from cataforge.core.paths import find_project_root
 from cataforge.domain.docs._loader_kg import (
     _entity_id_to_ref as _entity_id_to_ref,
 )
-from cataforge.domain.docs._loader_kg import (
-    _try_kg_extract,
-    _try_kg_plan_load,
-    _try_kg_resolve_deps,
-)
 from cataforge.domain.docs.index_ops import (
     _DOC_TYPE_MAP_CACHE as _DOC_TYPE_MAP_CACHE,
 )
@@ -224,21 +219,30 @@ def extract(
 ) -> str:
     """Return the content of ``ref`` from the project at ``project_root``.
 
-    When the ref's doc_type is in ``KGConfig.kg_active_doc_types`` and a
-    KG store exists for the project, the reference is resolved through
-    the graph (entity slots + canonical rendering); otherwise the
-    legacy file-based slice runs. ``file_cache`` is an optional
-    ``{absolute_file_path: lines}`` map used by the legacy path to
-    avoid duplicate reads when many refs target the same source.
+    Dispatch is delegated to the context :class:`FidelityRouter`, which
+    routes per the project's ``context.strategy`` to the highest-fidelity
+    backend available for a section read (graph entity/section render vs
+    file slice). ``file_cache`` is an optional ``{absolute_file_path:
+    lines}`` map the file backend uses to avoid duplicate reads when many
+    refs target the same source.
+    """
+    from cataforge.domain.context.router import build_router  # lazy: avoid import cycle
+
+    return build_router(project_root).read_section(ref, project_root, file_cache=file_cache)
+
+
+def _doc_extract(
+    ref: str,
+    project_root: str,
+    file_cache: dict[str, list[str]] | None = None,
+) -> str:
+    """File/index-backed section read (the ``doc`` backend implementation).
+
+    Resolves ``ref`` through ``.doc-index.json`` when fresh, else falls
+    back to a Markdown heading scan. Raises ``SectionNotFoundError`` when
+    the section genuinely cannot be located.
     """
     doc_id, section_path, item_id = parse_ref(ref)
-
-    # KG dispatch: only attempt the graph when the project has opted in
-    # and the ref carries an entity_id. Whole-section refs (no item_id)
-    # have no rendering template and always fall back to file slicing.
-    kg_body = _try_kg_extract(doc_id, section_path, item_id, project_root)
-    if kg_body is not None:
-        return kg_body
 
     index = _load_index(project_root)
     if index:
@@ -312,10 +316,15 @@ def extract_batch(
 
 
 def plan_load(refs: list[str], project_root: str, token_budget: int) -> tuple[list[str], list[str]]:
-    kg_result = _try_kg_plan_load(refs, project_root, token_budget)
-    if kg_result is not None:
-        return kg_result
+    from cataforge.domain.context.router import build_router  # lazy: avoid import cycle
 
+    return build_router(project_root).plan_load(refs, project_root, token_budget)
+
+
+def _doc_plan_load(
+    refs: list[str], project_root: str, token_budget: int
+) -> tuple[list[str], list[str]]:
+    """Index-backed budgeted plan-load (the ``doc`` backend implementation)."""
     index = _load_index(project_root)
     loadable: list[str] = []
     deferred: list[str] = []
@@ -339,10 +348,13 @@ def plan_load(refs: list[str], project_root: str, token_budget: int) -> tuple[li
 
 
 def resolve_deps(ref: str, project_root: str, max_depth: int = 2) -> list[str]:
-    kg_deps = _try_kg_resolve_deps(ref, project_root, max_depth)
-    if kg_deps is not None:
-        return kg_deps
+    from cataforge.domain.context.router import build_router  # lazy: avoid import cycle
 
+    return build_router(project_root).deps(ref, project_root, max_depth)
+
+
+def _doc_resolve_deps(ref: str, project_root: str, max_depth: int = 2) -> list[str]:
+    """Index-backed transitive dependency walk (the ``doc`` backend implementation)."""
     index = _load_index(project_root)
     if not index:
         return []
