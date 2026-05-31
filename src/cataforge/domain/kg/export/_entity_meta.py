@@ -43,6 +43,12 @@ _ENTITY_TYPE_TO_DOC_TYPE: dict[str, str] = {
     "Pipeline": "deploy-spec",
     "Environment": "deploy-spec",
     "Release": "deploy-spec",
+    # Cross-phase tracking entities (ingest-registered in ENTITY_PREFIX_TO_CLASS)
+    # routed to the nearest owning doc_type rather than falling silently to misc/.
+    "ChangeRequest": "prd",
+    "Phase": "arch",
+    "SprintReviewIssue": "dev-plan",
+    "ReviewReport": "test-report",
 }
 
 # Generic template + SPARQL registry key used when an entity class has no

@@ -14,8 +14,6 @@ def test_defaults_match_spec() -> None:
     assert cfg.db_path == Path(".cataforge/kg/store")
     assert cfg.governance is False
     assert cfg.coverage_mode == "strict"
-    assert cfg.query_timeout == 30.0
-    assert cfg.max_transaction_retries == 3
     assert cfg.base_namespace == "https://cataforge.dev/instance/"
     assert cfg.ontology_namespace == "https://cataforge.dev/ontology/"
     assert cfg.plugins_dir is None

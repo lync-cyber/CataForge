@@ -36,7 +36,3 @@ class SparqlRegistry:
 
     def registered_types(self) -> list[str]:
         return sorted(self._templates)
-
-    def has(self, entity_type: str) -> bool:
-        """True for any class — bespoke when registered, generic otherwise."""
-        return GENERIC_SPARQL_KEY in self._templates

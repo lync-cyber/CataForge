@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -129,7 +128,11 @@ def repair(
                     stats.missing_ingested += written
                 except Exception as exc:  # noqa: BLE001
                     stats.errors.append(f"reingest {per.doc_type}: {exc}")
-                    _restore_ghosts(store, ghost_entity_snapshots, ghost_relation_snapshots)
+                    stats.errors.extend(
+                        _restore_ghosts(
+                            store, ghost_entity_snapshots, ghost_relation_snapshots
+                        )
+                    )
                     stats.ghosts_removed -= len(ghost_entity_snapshots) + len(
                         ghost_relation_snapshots
                     )
@@ -143,15 +146,26 @@ def _restore_ghosts(
     store: ox.Store,
     entity_snapshots: dict[str, list],
     relation_snapshots: list,
-) -> None:
-    """Restore ghost quads after a failed reingest (best-effort)."""
-    for quads in entity_snapshots.values():
+) -> list[str]:
+    """Restore ghost quads after a failed reingest (best-effort).
+
+    Returns a description of every quad that could not be restored. A
+    non-empty result means the store is in a mixed state and the caller
+    should surface it rather than report a clean rollback.
+    """
+    errors: list[str] = []
+    for eid, quads in entity_snapshots.items():
         for q in quads:
-            with contextlib.suppress(Exception):
+            try:
                 store.add(q)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"restore ghost entity {eid}: {exc}")
     for q in relation_snapshots:
-        with contextlib.suppress(Exception):
+        try:
             store.add(q)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"restore ghost relation: {exc}")
+    return errors
 
 
 __all__ = [

@@ -96,10 +96,8 @@ def test_registry_falls_back_to_generic_for_untemplated_class() -> None:
     from cataforge.domain.kg.export.registry import SparqlRegistry
 
     reg = SparqlRegistry()
-    # No bespoke Deployment/Page template, but render is still possible.
-    assert reg.has("Deployment") is True
-    assert reg.has("Page") is True
-    # The untemplated class resolves to the generic core-slots query.
+    # No bespoke Deployment template, but render is still possible: the
+    # untemplated class resolves to the generic core-slots query.
     assert reg.get("Deployment") == reg.get(GENERIC_SPARQL_KEY)
     # A bespoke class keeps its own template.
     assert reg.get("Feature") != reg.get(GENERIC_SPARQL_KEY)

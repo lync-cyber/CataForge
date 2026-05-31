@@ -149,6 +149,9 @@ def _triple_exists(
     predicate: str,
     obj: str,
 ) -> bool:
+    assert_safe_iri(subject)
+    assert_safe_iri(predicate)
+    assert_safe_iri(obj)
     sparql = f"ASK {{ <{subject}> <{predicate}> <{obj}> }}"
     return ask(store, sparql)
 

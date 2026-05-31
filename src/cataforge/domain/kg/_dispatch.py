@@ -109,10 +109,6 @@ def kg_config_for(project_root: str | Path) -> KGConfig:
         db_path=db_path,
         governance=kg_section.get("governance", defaults.governance),
         coverage_mode=kg_section.get("coverage_mode", defaults.coverage_mode),
-        query_timeout=kg_section.get("query_timeout", defaults.query_timeout),
-        max_transaction_retries=kg_section.get(
-            "max_transaction_retries", defaults.max_transaction_retries
-        ),
         base_namespace=kg_section.get("base_namespace", defaults.base_namespace),
         ontology_namespace=kg_section.get("ontology_namespace", defaults.ontology_namespace),
         kg_active_doc_types=active,
