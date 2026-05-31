@@ -219,17 +219,19 @@ def setup_command(
 
 def _scaffold(dest: Path, *, force: bool) -> None:
     """Copy the bundled .cataforge/ skeleton into *dest*."""
-    from cataforge.core.scaffold import copy_scaffold_to
+    from cataforge.core.scaffold import copy_scaffold_to, format_protected_warning
 
     action = "Refreshing" if dest.is_dir() else "Scaffolding"
     click.echo(f"{action} .cataforge/ at {dest}")
-    written, skipped, backup = copy_scaffold_to(dest, force=force)
-    if backup is not None:
-        click.echo(f"  backup: {backup.relative_to(dest.parent)}")
+    result = copy_scaffold_to(dest, force=force)
+    if result.backup is not None:
+        click.echo(f"  backup: {result.backup.relative_to(dest.parent)}")
     click.echo(
-        f"  wrote {len(written)} file(s)"
-        + (f", kept {len(skipped)} existing" if skipped else "")
+        f"  wrote {len(result.written)} file(s)"
+        + (f", kept {len(result.skipped)} existing" if result.skipped else "")
     )
+    for line in format_protected_warning(result.protected, dest):
+        click.secho(f"  {line}", fg="yellow", err=True)
 
 
 def _run_checks(cfg) -> None:

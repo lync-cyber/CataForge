@@ -98,7 +98,12 @@ def upgrade_apply(dry_run: bool) -> None:
     Equivalent to ``cataforge setup --force-scaffold`` — the package
     itself must be upgraded separately via pip/uv.
     """
-    from cataforge.core.scaffold import classify_scaffold_files, copy_scaffold_to
+    from cataforge.core.scaffold import (
+        SIDECAR_SUFFIX,
+        classify_scaffold_files,
+        copy_scaffold_to,
+        format_protected_warning,
+    )
     from cataforge.interface.cli.helpers import get_config_manager
 
     if dry_run:
@@ -122,9 +127,9 @@ def upgrade_apply(dry_run: bool) -> None:
         if user_modified:
             click.echo("")
             click.secho(
-                f"  WARNING: {user_modified} file(s) marked user-modified/drift "
-                "will be overwritten by `upgrade apply`. "
-                "Back up or commit them before proceeding.",
+                f"  NOTE: {user_modified} file(s) marked user-modified/drift "
+                "will be kept; `upgrade apply` writes the framework version "
+                f"alongside as *{SIDECAR_SUFFIX} for you to review and merge.",
                 fg="yellow",
                 err=True,
             )
@@ -139,13 +144,16 @@ def upgrade_apply(dry_run: bool) -> None:
     cfg = get_config_manager()
     dest = cfg.paths.cataforge_dir
     click.echo(f"Refreshing .cataforge/ at {dest}")
-    written, skipped, backup = copy_scaffold_to(dest, force=True)
-    if backup is not None:
-        click.echo(f"  backup: {backup.relative_to(dest.parent)}")
+    result = copy_scaffold_to(dest, force=True)
+    if result.backup is not None:
+        click.echo(f"  backup: {result.backup.relative_to(dest.parent)}")
         click.echo("  (roll back with `cataforge upgrade rollback`)")
     click.echo(
-        f"  wrote {len(written)} file(s)" + (f", kept {len(skipped)} existing" if skipped else "")
+        f"  wrote {len(result.written)} file(s)"
+        + (f", kept {len(result.skipped)} existing" if result.skipped else "")
     )
+    for line in format_protected_warning(result.protected, dest):
+        click.secho(f"  {line}", fg="yellow", err=True)
     cfg.reload()
     click.echo(f"CataForge v{cfg.version} — scaffold up to date.")
 

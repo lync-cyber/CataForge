@@ -18,6 +18,7 @@ import json
 import logging
 import shutil
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from importlib.resources import as_file, files
 from pathlib import Path
@@ -42,6 +43,12 @@ _SCAFFOLD_SUBDIR = "_dot_cataforge"
 
 MANIFEST_REL = ".scaffold-manifest.json"
 MANIFEST_VERSION = 1
+
+# Suffix for the framework copy written *beside* a user-modified scaffold file
+# during a forced refresh. Rather than overwrite local edits (recoverable only
+# by rolling the whole snapshot back), the new version lands at
+# ``<file><SIDECAR_SUFFIX>`` for the user to diff and merge by hand.
+SIDECAR_SUFFIX = ".cataforge-new"
 
 # Backups of the scaffold directory live under ``<cataforge_dir>/.backups/<ts>/``.
 # Using a nested dir (rather than a sibling like ``.cataforge.bak-<ts>``) keeps
@@ -207,24 +214,48 @@ _MERGE_HANDLERS: dict[str, MergeFn] = {
 }
 
 
+@dataclass(frozen=True)
+class ScaffoldCopyResult:
+    """Outcome of one :func:`copy_scaffold_to` run.
+
+    * ``written``   — files freshly written (new copy or refreshed update).
+    * ``skipped``   — existing files left untouched in a non-force copy.
+    * ``protected`` — user-modified/drift files preserved during a forced
+      refresh; the framework version was written beside each as
+      ``<file>`` + :data:`SIDECAR_SUFFIX` for manual merge.
+    * ``backup``    — pre-refresh snapshot dir, or ``None``.
+    """
+
+    written: list[Path] = field(default_factory=list)
+    skipped: list[Path] = field(default_factory=list)
+    protected: list[Path] = field(default_factory=list)
+    backup: Path | None = None
+
+
 def copy_scaffold_to(
     dest: Path,
     *,
     force: bool = False,
     backup: bool = True,
-) -> tuple[list[Path], list[Path], Path | None]:
+) -> ScaffoldCopyResult:
     """Copy the bundled scaffold into *dest* (typically ``<project>/.cataforge``).
 
-    Returns ``(written, skipped, backup_path)``. ``backup_path`` is the
-    snapshot created before a forced refresh (or ``None`` when there was
-    nothing to snapshot, or when *backup* was suppressed).
+    Returns a :class:`ScaffoldCopyResult`. ``backup`` is the snapshot created
+    before a forced refresh (or ``None`` when there was nothing to snapshot,
+    or when *backup* was suppressed).
 
-    When *force* is ``True`` existing files are overwritten, except for
-    files registered in :data:`_MERGE_HANDLERS` which receive a field-level
-    merge that preserves user-owned state (e.g.
-    ``framework.json.runtime.platform``). Set *backup* to ``False`` to skip
-    the automatic snapshot — callers doing a fresh install or their own
-    backup should pass ``backup=False``.
+    When *force* is ``True`` existing files are refreshed, with two
+    exceptions that never lose local work:
+
+    * files registered in :data:`_MERGE_HANDLERS` receive a field-level merge
+      that preserves user-owned state (e.g. ``framework.json.runtime.platform``);
+    * files the user has edited away from the recorded manifest hash
+      (``user-modified``/``drift``) are *kept on disk*, and the incoming
+      framework version is written beside them at ``<file>`` +
+      :data:`SIDECAR_SUFFIX` so the user can diff and merge by hand.
+
+    Set *backup* to ``False`` to skip the automatic snapshot — callers doing a
+    fresh install or their own backup should pass ``backup=False``.
 
     On every invocation, also writes ``<dest>/.scaffold-manifest.json``
     recording the bytes-hash of each written file and the package version
@@ -234,8 +265,10 @@ def copy_scaffold_to(
     if force and backup and dest.is_dir():
         backup_path = create_backup(dest)
 
+    prior_manifest = read_manifest(dest)
     written: list[Path] = []
     skipped: list[Path] = []
+    protected: list[Path] = []
     manifest_files: dict[str, str] = {}
     for rel, src in iter_scaffold_files():
         target = dest / rel
@@ -261,6 +294,19 @@ def copy_scaffold_to(
             handler = _MERGE_HANDLERS.get(rel)
             if handler is not None:
                 new_bytes = handler(new_bytes, target)
+            elif _is_user_modified(target, new_bytes, prior_manifest.get(rel)):
+                # Keep the user's file; drop the framework version beside it.
+                sidecar = target.with_name(target.name + SIDECAR_SUFFIX)
+                sidecar.parent.mkdir(parents=True, exist_ok=True)
+                sidecar.write_bytes(new_bytes)
+                protected.append(target)
+                # Carry the recorded hash forward unchanged; never seed one for
+                # a drift file (no prior entry) — leaving it absent keeps the
+                # file classifying as user-modified/drift, so the next refresh
+                # protects it again instead of mistaking it for a clean update.
+                if rel in prior_manifest:
+                    manifest_files[rel] = prior_manifest[rel]
+                continue
 
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(new_bytes)
@@ -268,7 +314,40 @@ def copy_scaffold_to(
         written.append(target)
 
     _write_manifest(dest, manifest_files)
-    return written, skipped, backup_path
+    return ScaffoldCopyResult(written, skipped, protected, backup_path)
+
+
+def format_protected_warning(protected: list[Path], dest: Path) -> list[str]:
+    """Warning lines (UI-agnostic) for files preserved during a forced refresh.
+
+    Empty when nothing was protected, so callers can ``for line in ...`` with
+    no special-casing.
+    """
+    if not protected:
+        return []
+    lines = [
+        f"preserved {len(protected)} user-modified file(s); the framework "
+        f"version was written alongside as *{SIDECAR_SUFFIX} — review and merge:"
+    ]
+    for target in protected:
+        rel = target.relative_to(dest) if target.is_relative_to(dest) else target
+        lines.append(f"  {rel}{SIDECAR_SUFFIX}")
+    return lines
+
+
+def _is_user_modified(target: Path, new_bytes: bytes, manifest_hash: str | None) -> bool:
+    """Whether *target* carries edits a forced overwrite would destroy.
+
+    Mirrors :func:`classify_scaffold_files`'s ``user-modified``/``drift``
+    verdicts: the on-disk bytes differ from the incoming scaffold *and* from
+    the recorded manifest hash (a clean prior install matches the manifest, so
+    it is a safe ``update``). Unreadable targets fall through to overwrite.
+    """
+    try:
+        disk_hash = _sha256(target.read_bytes())
+    except OSError:
+        return False
+    return disk_hash != _sha256(new_bytes) and disk_hash != manifest_hash
 
 
 def _sha256(data: bytes) -> str:

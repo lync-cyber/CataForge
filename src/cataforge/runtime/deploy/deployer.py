@@ -224,7 +224,7 @@ class Deployer:
             return ["would self-heal missing .cataforge/ files (force=False)"]
 
         try:
-            written, _, _ = copy_scaffold_to(cataforge_dir, force=False, backup=False)
+            written = copy_scaffold_to(cataforge_dir, force=False, backup=False).written
         except FileNotFoundError as exc:
             # Editable install with no bundled scaffold visible — log and
             # carry on. ``setup`` will have already populated the dir.

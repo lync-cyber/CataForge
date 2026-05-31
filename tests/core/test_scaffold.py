@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from cataforge.core.scaffold import (
     BACKUPS_DIRNAME,
+    SIDECAR_SUFFIX,
     _preserve_if_exists,
     copy_scaffold_to,
     create_backup,
@@ -18,10 +19,11 @@ from cataforge.core.scaffold import (
 
 def test_copy_scaffold_fresh(tmp_path: Path) -> None:
     dest = tmp_path / ".cataforge"
-    written, skipped, backup = copy_scaffold_to(dest, force=False)
-    assert written, "scaffold should have produced some files"
-    assert skipped == []
-    assert backup is None, "fresh copy must not create a backup"
+    result = copy_scaffold_to(dest, force=False)
+    assert result.written, "scaffold should have produced some files"
+    assert result.skipped == []
+    assert result.protected == []
+    assert result.backup is None, "fresh copy must not create a backup"
     assert (dest / "framework.json").is_file()
     assert (dest / "PROJECT-STATE.md").is_file()
 
@@ -80,7 +82,9 @@ def test_scaffold_stamps_runtime_package_version(tmp_path: Path) -> None:
     assert refreshed["version"] == __version__
 
 
-def test_force_copy_creates_backup_snapshot(tmp_path: Path) -> None:
+def test_force_copy_preserves_user_edits_with_sidecar(tmp_path: Path) -> None:
+    """A forced refresh keeps user-modified files and writes the framework
+    version beside them as ``*.cataforge-new`` instead of overwriting."""
     dest = tmp_path / ".cataforge"
     copy_scaffold_to(dest, force=False)
 
@@ -88,20 +92,61 @@ def test_force_copy_creates_backup_snapshot(tmp_path: Path) -> None:
     target_agent.write_text("custom edit\n", encoding="utf-8")
     user_rel = target_agent.relative_to(dest).as_posix()
 
-    _, _, backup = copy_scaffold_to(dest, force=True)
-    assert backup is not None
-    assert backup.is_dir()
-    assert backup.parent.name == BACKUPS_DIRNAME
-    # Snapshot captures pre-overwrite bytes.
-    assert (backup / user_rel).read_text(encoding="utf-8") == "custom edit\n"
-    # Live scaffold no longer has the user edit.
-    assert "custom edit" not in target_agent.read_text(encoding="utf-8")
+    result = copy_scaffold_to(dest, force=True)
+    assert result.backup is not None
+    assert result.backup.is_dir()
+    assert result.backup.parent.name == BACKUPS_DIRNAME
+    # Snapshot still captures pre-refresh bytes.
+    assert (result.backup / user_rel).read_text(encoding="utf-8") == "custom edit\n"
+
+    # User edit is preserved in place — not overwritten.
+    assert target_agent.read_text(encoding="utf-8") == "custom edit\n"
+    assert target_agent in result.protected
+
+    # Framework version landed beside it for manual merge.
+    sidecar = target_agent.with_name(target_agent.name + SIDECAR_SUFFIX)
+    assert sidecar.is_file()
+    assert "custom edit" not in sidecar.read_text(encoding="utf-8")
+
+    # Only the edited file is protected — untouched files refresh silently.
+    sidecars = [p for p in dest.rglob(f"*{SIDECAR_SUFFIX}")]
+    assert sidecars == [sidecar]
+
+
+def test_force_refresh_does_not_sidecar_clean_files(tmp_path: Path) -> None:
+    """A second forced refresh with no local edits writes no sidecars."""
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+    result = copy_scaffold_to(dest, force=True)
+    assert result.protected == []
+    assert list(dest.rglob(f"*{SIDECAR_SUFFIX}")) == []
+
+
+def test_drift_file_stays_protected_across_repeated_refresh(tmp_path: Path) -> None:
+    """A drift file (edited, no manifest baseline) is protected on every
+    refresh — not seeded into the manifest and overwritten on the next pass."""
+    from cataforge.core.scaffold import MANIFEST_REL
+
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+
+    target = next((dest / "agents").rglob("AGENT.md"))
+    target.write_text("# drifted\n", encoding="utf-8")
+    # Drop the manifest so the edit has no recorded baseline → classified drift.
+    (dest / MANIFEST_REL).unlink()
+
+    first = copy_scaffold_to(dest, force=True, backup=False)
+    assert target in first.protected
+    assert target.read_text(encoding="utf-8") == "# drifted\n"
+
+    second = copy_scaffold_to(dest, force=True, backup=False)
+    assert target in second.protected
+    assert target.read_text(encoding="utf-8") == "# drifted\n"
 
 
 def test_fresh_install_does_not_backup(tmp_path: Path) -> None:
     dest = tmp_path / ".cataforge"
-    _, _, backup = copy_scaffold_to(dest, force=True)
-    assert backup is None
+    assert copy_scaffold_to(dest, force=True).backup is None
 
 
 def test_create_and_restore_backup_roundtrip(tmp_path: Path) -> None:

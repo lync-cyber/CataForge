@@ -230,7 +230,7 @@ cataforge upgrade rollback   # 回滚到上一次 apply 前的快照
 |------|------|
 | `--dry-run` | 逐文件列出 `[new]` / `[unchanged]` / `[update]` / `[user-modified]` / `[preserved]` 分类，不写盘 |
 
-> 保留字段：`framework.json` 的 `runtime.platform` / `upgrade.state`、整个 `PROJECT-STATE.md`。其它文件整体覆盖 — 详见 [`../guide/upgrade.md`](../guide/upgrade.md)。
+> 保留字段：`framework.json` 的 `runtime.platform` / `upgrade.state`、整个 `PROJECT-STATE.md`。其它文件按 manifest 哈希分类：未改动的整体刷新，手改过的保留并把新版写成 `<文件名>.cataforge-new` — 详见 [`../guide/upgrade.md`](../guide/upgrade.md)。
 
 ### upgrade rollback
 

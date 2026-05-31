@@ -1,4 +1,4 @@
-"""End-to-end: fresh install + in-place upgrade with user edits preserved/overwritten.
+"""End-to-end: fresh install + in-place upgrade with user edits preserved.
 
 Exercises the complete user journey against a *real* wheel installed into
 a venv via subprocess (not in-process CliRunner):
@@ -116,20 +116,23 @@ def test_upgrade_apply_dry_run_flags_user_modified_files(
     assert any("framework.json" in ln for ln in preserved_lines), out
     assert any("PROJECT-STATE.md" in ln for ln in preserved_lines), out
 
-    # The yellow WARNING fires on stderr when any file is user-modified/drift.
-    assert "WARNING" in result.stderr or "WARNING" in out, (result.stdout, result.stderr)
+    # The advisory NOTE fires when any file is user-modified/drift, telling
+    # the user their edits are kept and the framework copy lands as a sidecar.
+    note_haystack = result.stderr + out
+    assert "NOTE" in note_haystack, (result.stdout, result.stderr)
+    assert ".cataforge-new" in note_haystack, (result.stdout, result.stderr)
 
 
-def test_upgrade_apply_overwrites_user_mods_but_preserves_runtime_platform(
+def test_upgrade_apply_preserves_user_mods_and_runtime_platform(
     fresh_project: Path, cataforge_venv: Path
 ) -> None:
     """Locks in the current contract:
 
-    * Arbitrary scaffold files under ``.cataforge/`` get overwritten on
-      ``upgrade apply`` — this is intentional; users must put customisations
-      in ``.cataforge/plugins/`` or outside the scaffold.
+    * User-modified scaffold files are *kept*; ``upgrade apply`` writes the
+      incoming framework version beside them as ``<file>.cataforge-new`` for
+      manual merge (no silent data loss).
     * ``framework.json.runtime.platform`` is preserved (field-level merge).
-    * The scaffold manifest is rewritten to reflect post-apply hashes.
+    * The scaffold manifest keeps the file flagged user-modified.
     """
     run_cataforge(
         cataforge_venv, "setup", "--platform", "claude-code", cwd=fresh_project
@@ -154,21 +157,25 @@ def test_upgrade_apply_overwrites_user_mods_but_preserves_runtime_platform(
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
-    # Contract: user edits to scaffold files are dropped.
-    assert "# user custom section" not in target_agent.read_text(encoding="utf-8")
+    # Contract: user edits to scaffold files are preserved, not dropped.
+    assert "# user custom section" in target_agent.read_text(encoding="utf-8")
+    # The framework version lands beside the file for manual merge.
+    sidecar = target_agent.with_name(target_agent.name + ".cataforge-new")
+    assert sidecar.is_file()
+    assert "# user custom section" not in sidecar.read_text(encoding="utf-8")
 
     # Contract: runtime.platform is preserved across refresh.
     fw_after = json.loads(fw_path.read_text(encoding="utf-8"))
     assert fw_after["runtime"]["platform"] == "cursor"
 
-    # Manifest rewritten: hash for the re-written agent file now matches the
-    # bundled scaffold, so classify_scaffold_files would report `unchanged`.
+    # Manifest keeps the file flagged user-modified: its recorded hash differs
+    # from the preserved (edited) bytes on disk.
     manifest = json.loads(
         (cataforge_dir / ".scaffold-manifest.json").read_text(encoding="utf-8")
     )
     agent_rel = target_agent.relative_to(cataforge_dir).as_posix()
     disk_hash = hashlib.sha256(target_agent.read_bytes()).hexdigest()
-    assert manifest["files"][agent_rel] == disk_hash
+    assert manifest["files"][agent_rel] != disk_hash
 
 
 def test_upgrade_check_reports_up_to_date_after_setup(

@@ -207,14 +207,18 @@ def _execute_plan(
         # path is added, this branch can collapse to ctx.invoke.
         ui.print("")
         ui.info(f"[upgrade] refreshing .cataforge/ at {cfg.paths.cataforge_dir}")
-        written, _, backup = copy_scaffold_to(
+        result = copy_scaffold_to(
             cfg.paths.cataforge_dir,
             force=True,
         )
         cfg.reload()
-        if backup is not None:
-            ui.ok(f"backup: {backup.relative_to(cfg.paths.cataforge_dir.parent)}")
-        ui.ok(f"wrote {len(written)} file(s)")
+        if result.backup is not None:
+            ui.ok(f"backup: {result.backup.relative_to(cfg.paths.cataforge_dir.parent)}")
+        ui.ok(f"wrote {len(result.written)} file(s)")
+        from cataforge.core.scaffold import format_protected_warning
+
+        for line in format_protected_warning(result.protected, cfg.paths.cataforge_dir):
+            ui.warn(line)
 
     deploy_step = step_by_name.get("deploy")
     if deploy_step is not None and deploy_step.action == "run":

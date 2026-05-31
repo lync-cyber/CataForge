@@ -64,16 +64,16 @@ CLI 启动时已自动切 UTF-8。若仍乱码，通常是**终端渲染**问题
 - **Claude Code**：检查 `.claude/settings.json` 的 `hooks.*` 是否被部署写入。
 - **CodeX**：仅 `Bash` matcher 生效，其它动作看不到 hook 属于预期。
 
-## 升级后 AGENT.md 或 Hook 脚本不见了
+## 升级后想找回手改的 AGENT.md 或 Hook 脚本
 
-`cataforge upgrade apply` 会整体覆盖 `.cataforge/` 下除 `framework.json` 保留字段和 `PROJECT-STATE.md` 以外的文件。但 apply 前已自动快照到 `.cataforge/.backups/<ts>/`：
+`cataforge upgrade apply` 不会冲掉你手改过的文件：检测到偏离上次记录的 manifest 哈希后，原样保留你的版本，框架新版本写到同目录的 `<文件名>.cataforge-new`，diff 合并后删掉旁路文件即可。
+
+万一需要回到 apply 之前的整体状态，apply 前已自动快照到 `.cataforge/.backups/<ts>/`：
 
 ```bash
 cataforge upgrade rollback --list                    # 找回最近的快照
 cataforge upgrade rollback --from <ts> --yes         # 恢复它
 ```
-
-长期方案：把自定义 agent / hook 放到 `.cataforge/plugins/`（不会被覆盖），或直接提交到项目 `docs/`、`scripts/` 下。
 
 ## 登录态异常
 
