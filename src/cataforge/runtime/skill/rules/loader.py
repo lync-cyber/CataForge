@@ -94,19 +94,55 @@ def _validate_pattern_entry(entry: Any, where: str, *, require_label: bool = Fal
             raise RuleLoadError(f"{where}: 'label' field required and must be non-empty")
 
 
-_RULE_TYPE_SCHEMA: dict[str, dict[str, Any]] = {
-    "wiring": {
-        "list_pattern_keys": [("empty_handler_patterns", False)],
-        "single_pattern_keys": [("placeholder_pragma", False)],
-    },
-    "e2e": {
-        "list_pattern_keys": [
-            ("backdoor_patterns", True),  # require label
-            ("real_input_patterns", False),
-        ],
-        "single_pattern_keys": [],
-    },
-}
+@dataclass(frozen=True)
+class RuleTypeSchema:
+    """Per-rule_type pattern-key contract.
+
+    ``list_pattern_keys`` / ``single_pattern_keys`` are ``(key, require_label)``
+    tuples naming the YAML keys whose entries are validated as pattern objects
+    (``{regex, flags?, label?}``). ``require_label`` forces a non-empty
+    ``label`` (used where downstream consumers need a human tag per pattern).
+    """
+
+    list_pattern_keys: tuple[tuple[str, bool], ...]
+    single_pattern_keys: tuple[tuple[str, bool], ...] = ()
+
+
+RULE_TYPE_SCHEMAS: dict[str, RuleTypeSchema] = {}
+
+
+def register_rule_type(
+    name: str,
+    *,
+    list_pattern_keys: list[tuple[str, bool]],
+    single_pattern_keys: list[tuple[str, bool]] | None = None,
+) -> None:
+    """Register a rule_type so :func:`validate_yaml_text` accepts its YAMLs.
+
+    The extension point that lets new skill rule families (and project /
+    plugin overrides) plug into the same loader without editing it.
+    """
+    RULE_TYPE_SCHEMAS[name] = RuleTypeSchema(
+        tuple(list_pattern_keys), tuple(single_pattern_keys or ())
+    )
+
+
+register_rule_type(
+    "wiring",
+    list_pattern_keys=[("empty_handler_patterns", False)],
+    single_pattern_keys=[("placeholder_pragma", False)],
+)
+register_rule_type(
+    "e2e",
+    list_pattern_keys=[
+        ("backdoor_patterns", True),  # require label
+        ("real_input_patterns", False),
+    ],
+)
+register_rule_type(
+    "doc_terms",
+    list_pattern_keys=[("forbidden_terms", True)],  # doc-review term checks
+)
 
 
 def validate_yaml_text(text: str, source: str) -> RuleSpec:
@@ -128,10 +164,10 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
     rule_type = data.get("rule_type")
     if not isinstance(rule_type, str) or not rule_type:
         raise RuleLoadError(f"{source}: 'rule_type' required (got {rule_type!r})")
-    if rule_type not in _RULE_TYPE_SCHEMA:
+    if rule_type not in RULE_TYPE_SCHEMAS:
         raise RuleLoadError(
             f"{source}: unknown rule_type {rule_type!r}; "
-            f"supported: {sorted(_RULE_TYPE_SCHEMA)}"
+            f"supported: {sorted(RULE_TYPE_SCHEMAS)}"
         )
 
     language = data.get("language")
@@ -147,8 +183,8 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
             raise RuleLoadError(f"{source}: extension entries must be strings")
         exts.add(e.lower())
 
-    schema = _RULE_TYPE_SCHEMA[rule_type]
-    for key, require_label in schema["list_pattern_keys"]:
+    schema = RULE_TYPE_SCHEMAS[rule_type]
+    for key, require_label in schema.list_pattern_keys:
         items = data.get(key) or []
         if not isinstance(items, list):
             raise RuleLoadError(f"{source}: {key!r} must be a list")
@@ -156,7 +192,7 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
             _validate_pattern_entry(
                 entry, f"{source}:{key}[{idx}]", require_label=require_label
             )
-    for key, require_label in schema["single_pattern_keys"]:
+    for key, require_label in schema.single_pattern_keys:
         entry = data.get(key)
         if entry is None:
             continue

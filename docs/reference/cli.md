@@ -15,7 +15,7 @@
 | [`cataforge skill`](#skill) | Skill 发现与执行 |
 | [`cataforge hook`](#hook) | Hook 列表与测试 |
 | [`cataforge mcp`](#mcp) | MCP 服务注册与生命周期 |
-| [`cataforge plugin`](#plugin) | 插件发现 |
+| [`cataforge plugin`](#plugin) | 插件发现 / 安装 / 卸载 |
 | [`cataforge override`](#override) | 覆盖层定制 agent/skill |
 | [`cataforge upgrade`](#upgrade) | 脚手架升级与校验 |
 | [`cataforge docs`](#docs) | 文档索引与段落加载 |
@@ -201,12 +201,13 @@ cataforge mcp stop echo-mcp
 ## plugin
 
 ```bash
-cataforge plugin list       # 列出已发现的插件
+cataforge plugin list                      # 列出已发现的插件
+cataforge plugin install ./path/to/plugin  # 本地目录拷入 .cataforge/plugins/<id>/
+cataforge plugin install some-pip-package  # pip 包安装（需声明 cataforge.plugins entry point）
+cataforge plugin remove <id-or-package>    # 本地删目录 / pip 卸载
 ```
 
-发现来源：Python entry points (`cataforge.plugins`) + 本地目录 `.cataforge/plugins/*/cataforge-plugin.yaml`。
-
-`cataforge plugin install <source>` 与 `cataforge plugin remove <id>` 仍为 stub（规划中，进度跟踪：[lync-cyber/CataForge issues](https://github.com/lync-cyber/CataForge/issues?q=is%3Aopen+plugin+install)）。届时将支持从 Git / 本地目录安装插件并写入 `pyproject.toml` 的 entry points；当前版本需手动克隆到 `.cataforge/plugins/` 下或通过 `pip install` 注册 entry point。
+发现来源：Python entry points (`cataforge.plugins`) + 本地目录 `.cataforge/plugins/*/cataforge-plugin.yaml`。`install` 对带 `cataforge-plugin.yaml` 的本地目录做拷贝（已存在加 `--force`），否则按 pip 包安装；装/删后跑 `cataforge deploy` 落地或清除资产。完整布局与 `provides_*` 见 [`plugins.md`](./plugins.md)。
 
 ---
 

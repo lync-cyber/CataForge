@@ -43,6 +43,64 @@ def test_package_defaults_load_for_testing() -> None:
         assert isinstance(entry["label"], str) and entry["label"]
 
 
+def test_rule_type_registry_has_builtins() -> None:
+    from cataforge.runtime.skill.rules.loader import RULE_TYPE_SCHEMAS
+
+    assert {"wiring", "e2e", "doc_terms"} <= set(RULE_TYPE_SCHEMAS)
+
+
+def test_validate_doc_terms_requires_label() -> None:
+    bad = """
+schema_version: 1
+rule_type: doc_terms
+language: zh
+extensions: []
+forbidden_terms:
+  - regex: 'simply'
+"""
+    with pytest.raises(RuleLoadError, match="'label' field required"):
+        validate_yaml_text(bad, "test")
+
+
+def test_validate_doc_terms_ok() -> None:
+    good = """
+schema_version: 1
+rule_type: doc_terms
+language: zh
+extensions: []
+forbidden_terms:
+  - regex: 'simply'
+    label: marketing-adverb
+"""
+    spec = validate_yaml_text(good, "test")
+    assert spec.rule_type == "doc_terms"
+    assert spec.raw["forbidden_terms"][0]["label"] == "marketing-adverb"
+
+
+def test_register_custom_rule_type_roundtrip() -> None:
+    from cataforge.runtime.skill.rules.loader import (
+        RULE_TYPE_SCHEMAS,
+        register_rule_type,
+    )
+
+    register_rule_type("custom_x", list_pattern_keys=[("foo_patterns", False)])
+    try:
+        spec = validate_yaml_text(
+            """
+schema_version: 1
+rule_type: custom_x
+language: any
+extensions: []
+foo_patterns:
+  - regex: 'x'
+""",
+            "test",
+        )
+        assert spec.rule_type == "custom_x"
+    finally:
+        RULE_TYPE_SCHEMAS.pop("custom_x", None)
+
+
 def test_validate_yaml_rejects_unknown_rule_type() -> None:
     bad = """
 schema_version: 1

@@ -34,6 +34,23 @@ cataforge setup --language typescript --language go   # 写入 project.languages
 
 synonyms 自动归一化为 canonical id。不带 `--language` 时 setup 会提示当前探测到的语言，并说明读取时按 marker 兜底。`project.languages` 是 `upgrade apply` 的 preserve 字段（见 [`configuration.md`](./configuration.md)），升级不会重置。
 
+## agent 语言细则注入
+
+agent prompt 主体保持语言无关（`check_no_language_coupling` 守卫强制 `AGENT.md` 主体不含语言业务关键字）。语言特定内容放进**片段文件** `.cataforge/agents/<id>/rules/lang-<lang>.md`（在守卫扫描范围之外）。
+
+声明 `lang_aware: true` 的 agent，部署时按 `active_languages()` 在**落地副本**末尾追加一段 `## 语言细则`，链接当前激活语言对应的片段文件：
+
+```markdown
+## 语言细则
+- 见 `.cataforge/agents/architect/rules/lang-python.md`
+```
+
+仓库源文件不变（守卫照过），只有部署产物带语言链接。无匹配片段则不注入。
+
+## 自定义 rule_type
+
+skill 规则加载器的 rule_type 是可注册的（`register_rule_type`），内置 `wiring` / `e2e` / `doc_terms`。新规则族（含项目 / 插件覆盖）调用 `register_rule_type(name, list_pattern_keys=..., single_pattern_keys=...)` 即被 `validate_yaml_text` 接受，无需改加载器本体。
+
 ## 防漂移契约
 
 `tests/core/test_languages.py` 的 parity 测试断言：**每个内置 wiring / e2e 规则 YAML 的 `language` id 与 `extensions` 都必须在注册表中存在且一致**。新增一条 `wiring-<lang>.yaml` 而忘了登记语言，测试立即失败，逼着回到 `LANGUAGES` 补齐——这是"避免漂移"的硬约束，而非约定。
