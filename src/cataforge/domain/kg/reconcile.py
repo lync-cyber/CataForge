@@ -39,6 +39,7 @@ from cataforge.domain.kg._sparql_utils import (
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.scan import scan_business_docs
+from cataforge.domain.kg.ingest.structure_extract import extract_structure
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -58,6 +59,8 @@ class PerDocTypeReport:
     ghost_entities: list[str] = field(default_factory=list)
     missing_relations: list[RelKey] = field(default_factory=list)
     ghost_relations: list[RelKey] = field(default_factory=list)
+    missing_sections: list[str] = field(default_factory=list)
+    ghost_sections: list[str] = field(default_factory=list)
 
     @property
     def divergence_count(self) -> int:
@@ -66,6 +69,8 @@ class PerDocTypeReport:
             + len(self.ghost_entities)
             + len(self.missing_relations)
             + len(self.ghost_relations)
+            + len(self.missing_sections)
+            + len(self.ghost_sections)
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -75,6 +80,8 @@ class PerDocTypeReport:
             "ghost_entities": sorted(self.ghost_entities),
             "missing_relations": [list(t) for t in sorted(self.missing_relations)],
             "ghost_relations": [list(t) for t in sorted(self.ghost_relations)],
+            "missing_sections": sorted(self.missing_sections),
+            "ghost_sections": sorted(self.ghost_sections),
             "divergence_count": self.divergence_count,
         }
 
@@ -171,6 +178,30 @@ def _kg_relations_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[st
     return out
 
 
+def _kg_sections_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[str]:
+    """Return `cf:section_anchor` values of Section nodes whose
+    `cf:source_doc` is one of `doc_ids`."""
+    if not doc_ids:
+        return set()
+    ns = cf_namespace(config)
+    values_clause = " ".join(f'"{escape_sparql_literal(d)}"' for d in sorted(doc_ids))
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        "SELECT DISTINCT ?anchor WHERE { "
+        f"  VALUES ?src {{ {values_clause} }} "
+        "  ?s a cf:Section ; "
+        "     cf:section_anchor ?anchor ; "
+        "     cf:source_doc ?src . "
+        "}"
+    )
+    out: set[str] = set()
+    for row in store.query(sparql):
+        anchor = _strv(_row_lookup(row, "anchor"))
+        if anchor is not None:
+            out.add(anchor)
+    return out
+
+
 def reconcile(
     store: ox.Store,
     project_root: Path,
@@ -209,10 +240,12 @@ def reconcile(
         # FS-side extraction
         fs_entities: set[str] = set()
         fs_relations: set[RelKey] = set()
+        fs_sections: set[str] = set()
         doc_ids: set[str] = set()
         for doc in parsed:
             doc_ids.add(doc.doc_id)
-            for entity in extract_entities(doc):
+            doc_entities = extract_entities(doc)
+            for entity in doc_entities:
                 fs_entities.add(entity.entity_id)
             for relation in extract_relations(doc):
                 fs_relations.add(
@@ -222,6 +255,9 @@ def reconcile(
                         relation.object_entity_id,
                     )
                 )
+            _document, doc_sections = extract_structure(doc, doc_entities)
+            for section in doc_sections:
+                fs_sections.add(section.anchor)
 
         # If no parsed docs but the doc_type has a built-in subdir name,
         # still consult KG by the subdir-as-doc_id (cheap; usually empty).
@@ -230,11 +266,14 @@ def reconcile(
 
         kg_entities = _kg_entities_for_doc_ids(store, config, doc_ids)
         kg_relations = _kg_relations_for_doc_ids(store, config, doc_ids)
+        kg_sections = _kg_sections_for_doc_ids(store, config, doc_ids)
 
         per.missing_entities = sorted(fs_entities - kg_entities)
         per.ghost_entities = sorted(kg_entities - fs_entities)
         per.missing_relations = sorted(fs_relations - kg_relations)
         per.ghost_relations = sorted(kg_relations - fs_relations)
+        per.missing_sections = sorted(fs_sections - kg_sections)
+        per.ghost_sections = sorted(kg_sections - fs_sections)
 
     return report
 

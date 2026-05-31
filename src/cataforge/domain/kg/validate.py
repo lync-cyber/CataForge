@@ -53,12 +53,18 @@ def _check_orphans(store: ox.Store, namespace: str) -> list[ValidationViolation]
     Single SELECT with OPTIONAL bindings, processed in Python, so the
     cost is one scan rather than O(N) ASKs.
     """
+    # Project + the structural container classes (Document / Volume /
+    # Section) are identified by their `id` IRI, not by a `cf:entity_id`
+    # literal, so they are exempt from the entity_id-required shape.
+    id_identified = ", ".join(
+        f"<{namespace}{cls}>" for cls in ("Project", "Document", "Volume", "Section")
+    )
     sparql = (
         f"PREFIX cf: <{namespace}> "
         "SELECT ?s ?cls ?eid ?title WHERE { "
         "  ?s a ?cls . "
         "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
-        f"  FILTER(?cls != <{namespace}Project>) "
+        f"  FILTER(?cls NOT IN ({id_identified})) "
         "  OPTIONAL { ?s cf:entity_id ?eid } "
         "  OPTIONAL { ?s cf:title     ?title } "
         "}"

@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._sparql_utils import cf_namespace
-from cataforge.domain.kg.ingest.iri import class_iri, entity_iri
+from cataforge.domain.kg.ingest.iri import (
+    class_iri,
+    document_iri,
+    entity_iri,
+    section_iri,
+)
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -116,6 +121,121 @@ def build_entity_quads(
     return quads
 
 
+def build_section_quads(
+    doc_id: str,
+    anchor: str,
+    title: str,
+    narrative_body: str,
+    content_hash: str,
+    source_doc: str,
+    config: KGConfig,
+    *,
+    contained_entity_ids: list[str] | None = None,
+    document_iri_val: str | None = None,
+) -> list[ox.Quad]:
+    """Return the quads describing one Section structural node.
+
+    Identity is the section IRI (no `cf:entity_id` — Sections are
+    structural, identified by the `id` IRI like Project/Document).
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    namespace = cf_namespace(config)
+    base_ns = config.base_namespace
+    subject = ox.NamedNode(section_iri(doc_id, anchor, base_ns))
+    string_dt = ox.NamedNode(XSD_STRING_IRI)
+
+    quads: list[ox.Quad] = [
+        ox.Quad(subject, ox.NamedNode(RDF_TYPE_IRI), ox.NamedNode(class_iri("Section", namespace))),
+    ]
+    for slot, value in (
+        ("title", title),
+        ("section_anchor", anchor),
+        ("narrative_body", narrative_body),
+        ("content_hash", content_hash),
+        ("source_doc", source_doc),
+        ("sort_key", anchor),
+    ):
+        quads.append(
+            ox.Quad(
+                subject,
+                ox.NamedNode(_slot_iri(f"cf:{slot}", namespace)),
+                ox.Literal(value, datatype=string_dt),
+            )
+        )
+    if document_iri_val:
+        quads.append(
+            ox.Quad(
+                subject,
+                ox.NamedNode(_slot_iri("cf:part_of_document", namespace)),
+                ox.NamedNode(document_iri_val),
+            )
+        )
+    for eid in contained_entity_ids or []:
+        quads.append(
+            ox.Quad(
+                subject,
+                ox.NamedNode(_slot_iri("cf:contains_entity", namespace)),
+                ox.NamedNode(entity_iri(eid, base_ns)),
+            )
+        )
+    return quads
+
+
+def build_document_quads(
+    doc_id: str,
+    doc_type: str,
+    title: str,
+    source_doc: str,
+    content_hash: str,
+    config: KGConfig,
+    *,
+    section_anchors: list[str] | None = None,
+    version: str | None = None,
+    status: str | None = None,
+) -> list[ox.Quad]:
+    """Return the quads describing one Document structural node."""
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    namespace = cf_namespace(config)
+    base_ns = config.base_namespace
+    subject = ox.NamedNode(document_iri(doc_id, base_ns))
+    string_dt = ox.NamedNode(XSD_STRING_IRI)
+
+    quads: list[ox.Quad] = [
+        ox.Quad(
+            subject, ox.NamedNode(RDF_TYPE_IRI), ox.NamedNode(class_iri("Document", namespace))
+        ),
+    ]
+    literal_slots = [
+        ("title", title),
+        ("doc_type", doc_type),
+        ("source_doc", source_doc),
+        ("content_hash", content_hash),
+    ]
+    if version:
+        literal_slots.append(("version", version))
+    if status:
+        literal_slots.append(("status", status))
+    for slot, value in literal_slots:
+        quads.append(
+            ox.Quad(
+                subject,
+                ox.NamedNode(_slot_iri(f"cf:{slot}", namespace)),
+                ox.Literal(value, datatype=string_dt),
+            )
+        )
+    for anchor in section_anchors or []:
+        quads.append(
+            ox.Quad(
+                subject,
+                ox.NamedNode(_slot_iri("cf:has_section", namespace)),
+                ox.NamedNode(section_iri(doc_id, anchor, base_ns)),
+            )
+        )
+    return quads
+
+
 def build_relation_quad(
     subject_id: str,
     predicate_curie: str,
@@ -149,8 +269,10 @@ def quads_targeting(store: ox.Store, iri: str) -> list[ox.Quad]:
 
 
 __all__ = [
+    "build_document_quads",
     "build_entity_quads",
     "build_relation_quad",
+    "build_section_quads",
     "quads_for_subject",
     "quads_targeting",
 ]

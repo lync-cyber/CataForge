@@ -93,3 +93,28 @@ def class_iri(class_name: str, ontology_namespace: str = DEFAULT_ONTOLOGY_NS) ->
     if not class_name or len(class_name) > 256:
         raise ValueError(f"invalid class_name: {class_name!r}")
     return f"{ontology_namespace.rstrip('/')}/{escape_iri_component(class_name)}"
+
+
+def document_iri(doc_id: str, base_namespace: str = DEFAULT_INSTANCE_NS) -> str:
+    """Return the canonical instance IRI for a Document node.
+
+    Structural nodes live under a `/doc/` path segment so they never
+    collide with entity IRIs (which sit directly under the base namespace).
+    """
+    if not doc_id or len(doc_id) > 256:
+        raise ValueError(f"invalid doc_id: {doc_id!r}")
+    return f"{base_namespace.rstrip('/')}/doc/{escape_iri_component(doc_id)}"
+
+
+def section_iri(doc_id: str, anchor: str, base_namespace: str = DEFAULT_INSTANCE_NS) -> str:
+    """Return the canonical instance IRI for a Section node.
+
+    Identity is `(doc_id, anchor)`; deterministic so a re-ingest of the
+    same section produces the same subject.
+    """
+    if not doc_id or not anchor or len(doc_id) + len(anchor) > 512:
+        raise ValueError(f"invalid section identity: {doc_id!r} / {anchor!r}")
+    return (
+        f"{base_namespace.rstrip('/')}/doc/"
+        f"{escape_iri_component(doc_id)}/sec/{escape_iri_component(anchor)}"
+    )
