@@ -3,6 +3,10 @@
 > code-review §integration-wiring 与 tech-lead §production-path AC 引用的具体语言识别模式。skill / agent 主体保持语言无关，本文档承载语言特定的反例与正则候选。
 >
 > 新增语言时在 §对应小节增条；正则候选同步到 `cataforge.runtime.skill.builtins.code_review.rules.wiring-{lang}.yaml`（package default）或 `<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`（project override）。
+>
+> project override 在运行期生效：扫描器按 `cataforge skill run` 注入的项目根逐次解析规则，覆盖 YAML 改完即被 Layer 1 grep 采纳，无需重装包。
+>
+> 新增语言的 `language:` id 必须在语言注册表 [`languages.md`](languages.md) 登记（parity 测试强制一致），其 `extensions` 须是注册表中该语言扩展名的子集。
 
 ## 1. 通用判定
 

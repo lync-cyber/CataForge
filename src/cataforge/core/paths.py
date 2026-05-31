@@ -6,6 +6,7 @@ Single source of truth for all framework directory/file paths.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 logger = logging.getLogger("cataforge.paths")
@@ -50,6 +51,20 @@ def find_project_root(start: Path | None = None) -> Path:
         cwd,
     )
     return cwd
+
+
+def project_root_from_env(start: Path | None = None) -> Path | None:
+    """Resolve the active project root for builtin skill scripts.
+
+    Prefers ``CATAFORGE_PROJECT_ROOT`` (injected by the skill runner so a
+    subprocess scans the invoking project, not its own cwd). Falls back to
+    an upward search from *start* / cwd, returning ``None`` when neither
+    yields a project.
+    """
+    raw = os.environ.get("CATAFORGE_PROJECT_ROOT")
+    if raw:
+        return Path(raw)
+    return find_project_root_or_none(start)
 
 
 def project_root_from_docs_dir(docs_dir: Path | str) -> Path | None:
@@ -132,6 +147,19 @@ class ProjectPaths:
     @property
     def plugins_dir(self) -> Path:
         return self.cataforge_dir / "plugins"
+
+    @property
+    def overrides_dir(self) -> Path:
+        """Root of the user/project override layers.
+
+        Lives outside the scaffold manifest, so ``upgrade apply`` never
+        touches it — customisations here survive every framework refresh.
+        """
+        return self.cataforge_dir / "overrides"
+
+    def override_layer(self, layer: str) -> Path:
+        """Root of one override layer (``"project"`` or ``"user"``)."""
+        return self.overrides_dir / layer
 
     @property
     def deploy_state(self) -> Path:

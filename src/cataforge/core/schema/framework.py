@@ -60,6 +60,18 @@ class FrameworkContext(BaseModel):
     kg_active_doc_types: list[str] = Field(default_factory=list)
 
 
+class FrameworkProject(BaseModel):
+    """Validated shape for the ``project`` section of ``framework.json``.
+
+    ``languages`` is the project's declared language set (canonical ids from
+    :mod:`cataforge.core.languages`); empty means "auto-detect from markers".
+    """
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    languages: list[str] = Field(default_factory=list)
+
+
 class FrameworkFile(BaseModel):
     """Top-level framework.json — unknown keys preserved via ``extra='allow'``."""
 
@@ -73,3 +85,4 @@ class FrameworkFile(BaseModel):
     migration_checks: list[Any] = Field(default_factory=list)
     kg: FrameworkKG = Field(default_factory=FrameworkKG)
     context: FrameworkContext = Field(default_factory=FrameworkContext)
+    project: FrameworkProject = Field(default_factory=FrameworkProject)

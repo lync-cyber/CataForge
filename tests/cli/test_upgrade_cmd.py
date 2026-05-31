@@ -87,22 +87,32 @@ def test_rollback_list_with_no_backups_exits_nonzero(
     assert "(none" in result.output
 
 
-def test_rollback_restores_user_edits(
+def test_apply_preserves_edit_and_rollback_restores_snapshot(
     runner: CliRunner, project: Path
 ) -> None:
+    from cataforge.core.scaffold import SIDECAR_SUFFIX
+
     target_agent = next((project / ".cataforge" / "agents").rglob("AGENT.md"))
     target_agent.write_text("# my agent v1\n", encoding="utf-8")
 
     apply_result = runner.invoke(cli, ["upgrade", "apply"])
     assert apply_result.exit_code == 0, apply_result.output
-    # Post-apply, the custom edit is gone.
-    assert "# my agent v1" not in target_agent.read_text(encoding="utf-8")
+    # Post-apply, the custom edit is preserved and the framework version lands
+    # beside it as a sidecar for manual merge.
+    assert target_agent.read_text(encoding="utf-8") == "# my agent v1\n"
+    sidecar = target_agent.with_name(target_agent.name + SIDECAR_SUFFIX)
+    assert sidecar.is_file()
+
+    # The user keeps editing past the pre-apply snapshot point.
+    target_agent.write_text("# my agent v2\n", encoding="utf-8")
 
     rollback = runner.invoke(cli, ["upgrade", "rollback", "--yes"])
     assert rollback.exit_code == 0, rollback.output
-    assert "Rollback complete" in rollback.output or "rollback complete" in rollback.output
-    # The user edit is back.
-    assert "# my agent v1" in target_agent.read_text(encoding="utf-8")
+    assert "rollback complete" in rollback.output.lower()
+    # Restored to the pre-apply snapshot: v1 content, and the sidecar (written
+    # after the snapshot) is gone.
+    assert target_agent.read_text(encoding="utf-8") == "# my agent v1\n"
+    assert not sidecar.exists()
 
 
 def test_rollback_from_unknown_snapshot_errors(

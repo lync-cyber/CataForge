@@ -10,7 +10,9 @@ Duplicate IDs: entry_points take precedence over project-level plugins.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.core.schema.plugin_manifest import PluginManifest
@@ -39,6 +41,51 @@ class PluginLoader:
                 plugins.append(p)
 
         return plugins
+
+    # ---- resolved contributions (shared by loaders / deploy / hooks / MCP) ----
+
+    def provided_skill_dirs(self) -> dict[str, Path]:
+        """Map ``skill_id → <source_path>/skills/<id>`` for plugin skills."""
+        return self._provided_asset_dirs("skills", "SKILL.md", lambda p: p.provides_skills)
+
+    def provided_agent_dirs(self) -> dict[str, Path]:
+        """Map ``agent_id → <source_path>/agents/<id>`` for plugin agents."""
+        return self._provided_asset_dirs("agents", "AGENT.md", lambda p: p.provides_agents)
+
+    def provided_hooks(self) -> list[dict[str, Any]]:
+        """Flatten every plugin's ``provides.hooks`` entries (discover order)."""
+        out: list[dict[str, Any]] = []
+        for p in self.discover():
+            out.extend(p.provides_hooks)
+        return out
+
+    def provided_mcp_spec_files(self) -> dict[str, Path]:
+        """Map ``server_id → <source_path>/mcp/<id>.yaml`` for plugin MCP servers."""
+        out: dict[str, Path] = {}
+        for p in self.discover():
+            if p.source_path is None:
+                continue
+            for sid in p.provides_mcp_servers:
+                spec = p.source_path / "mcp" / f"{sid}.yaml"
+                if spec.is_file():
+                    out.setdefault(sid, spec)
+        return out
+
+    def _provided_asset_dirs(
+        self,
+        kind: str,
+        main_file: str,
+        ids_of: Callable[[PluginManifest], list[str]],
+    ) -> dict[str, Path]:
+        out: dict[str, Path] = {}
+        for p in self.discover():
+            if p.source_path is None:
+                continue
+            for asset_id in ids_of(p):
+                d = p.source_path / kind / asset_id
+                if (d / main_file).is_file():
+                    out.setdefault(asset_id, d)  # first discoverer wins (entry-point > local)
+        return out
 
     def _scan_project_plugins(self) -> list[PluginManifest]:
         """Scan .cataforge/plugins/ for local plugin manifests."""

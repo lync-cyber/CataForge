@@ -157,6 +157,7 @@ def _register_commands() -> None:
         issue_cmd,
         kg,
         mcp_cmd,
+        override_cmd,
         penpot_cmd,
         plugin_cmd,
         setup_cmd,

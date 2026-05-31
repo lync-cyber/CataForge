@@ -15,7 +15,8 @@
 | [`cataforge skill`](#skill) | Skill 发现与执行 |
 | [`cataforge hook`](#hook) | Hook 列表与测试 |
 | [`cataforge mcp`](#mcp) | MCP 服务注册与生命周期 |
-| [`cataforge plugin`](#plugin) | 插件发现 |
+| [`cataforge plugin`](#plugin) | 插件发现 / 安装 / 卸载 |
+| [`cataforge override`](#override) | 覆盖层定制 agent/skill |
 | [`cataforge upgrade`](#upgrade) | 脚手架升级与校验 |
 | [`cataforge docs`](#docs) | 文档索引与段落加载 |
 | [`cataforge kg`](#kg) | 知识图谱 store 生命周期、导入/导出、SPARQL 查询、追溯 |
@@ -200,12 +201,34 @@ cataforge mcp stop echo-mcp
 ## plugin
 
 ```bash
-cataforge plugin list       # 列出已发现的插件
+cataforge plugin list                      # 列出已发现的插件
+cataforge plugin install ./path/to/plugin  # 本地目录拷入 .cataforge/plugins/<id>/
+cataforge plugin install some-pip-package  # pip 包安装（需声明 cataforge.plugins entry point）
+cataforge plugin remove <id-or-package>    # 本地删目录 / pip 卸载
 ```
 
-发现来源：Python entry points (`cataforge.plugins`) + 本地目录 `.cataforge/plugins/*/cataforge-plugin.yaml`。
+发现来源：Python entry points (`cataforge.plugins`) + 本地目录 `.cataforge/plugins/*/cataforge-plugin.yaml`。`install` 对带 `cataforge-plugin.yaml` 的本地目录做拷贝（已存在加 `--force`），否则按 pip 包安装；装/删后跑 `cataforge deploy` 落地或清除资产。完整布局与 `provides_*` 见 [`plugins.md`](./plugins.md)。
 
-`cataforge plugin install <source>` 与 `cataforge plugin remove <id>` 仍为 stub（规划中，进度跟踪：[lync-cyber/CataForge issues](https://github.com/lync-cyber/CataForge/issues?q=is%3Aopen+plugin+install)）。届时将支持从 Git / 本地目录安装插件并写入 `pyproject.toml` 的 entry points；当前版本需手动克隆到 `.cataforge/plugins/` 下或通过 `pip install` 注册 entry point。
+---
+
+## override
+
+在升级免疫的覆盖层定制框架 agent / skill，支持整文件覆盖与 section 补丁（覆盖已有 section + 新增 section）。
+
+```bash
+cataforge override list                                   # 每个 asset 由哪些层定义
+cataforge override eject agents architect                 # 从发货层导出起点（project 层、整文件）
+cataforge override eject agents architect --layer user --patch --section "Execution Rules"
+```
+
+| 参数 | 作用 |
+|------|------|
+| `--layer project\|user` | 写入哪一层（默认 `project`；`user` 优先级更高） |
+| `--patch` | 生成 `<name>.patch.md` section 补丁骨架，而非整文件拷贝 |
+| `--section <标题>` | 配合 `--patch`，把该 section 的当前正文塞进骨架 |
+| `--force` | 覆写已存在的覆盖文件 |
+
+优先级 `user > project > 发货层 > builtin`。完整语义见 [`overrides.md`](./overrides.md)。
 
 ---
 
@@ -230,7 +253,7 @@ cataforge upgrade rollback   # 回滚到上一次 apply 前的快照
 |------|------|
 | `--dry-run` | 逐文件列出 `[new]` / `[unchanged]` / `[update]` / `[user-modified]` / `[preserved]` 分类，不写盘 |
 
-> 保留字段：`framework.json` 的 `runtime.platform` / `upgrade.state`、整个 `PROJECT-STATE.md`。其它文件整体覆盖 — 详见 [`../guide/upgrade.md`](../guide/upgrade.md)。
+> 保留字段：`framework.json` 的 `runtime.platform` / `upgrade.state`、整个 `PROJECT-STATE.md`。其它文件按 manifest 哈希分类：未改动的整体刷新，手改过的保留并把新版写成 `<文件名>.cataforge-new` — 详见 [`../guide/upgrade.md`](../guide/upgrade.md)。
 
 ### upgrade rollback
 

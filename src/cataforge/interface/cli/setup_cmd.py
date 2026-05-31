@@ -19,6 +19,16 @@ from cataforge.interface.cli.main import cli
 )
 @click.option("--with-penpot", is_flag=True, help="Include Penpot design integration.")
 @click.option(
+    "--language",
+    "languages",
+    multiple=True,
+    metavar="LANG",
+    help=(
+        "Declare a project language (repeatable). Synonyms like 'typescript' "
+        "normalise to canonical ids. Omit to auto-detect from markers at read time."
+    ),
+)
+@click.option(
     "--check-prereqs", "--check", "--check-only", "check_only",
     is_flag=True,
     help=(
@@ -57,6 +67,7 @@ from cataforge.interface.cli.main import cli
 def setup_command(
     platform: str | None,
     with_penpot: bool,
+    languages: tuple[str, ...],
     check_only: bool,
     force_scaffold: bool,
     deploy_after: bool,
@@ -151,6 +162,14 @@ def setup_command(
         else:
             click.echo("  no --platform specified; framework.json would be untouched")
 
+        if languages:
+            from cataforge.core.languages import normalize
+
+            click.echo(
+                f"  would set framework.json: project.languages = "
+                f"{normalize(list(languages))}"
+            )
+
         if deploy_after:
             click.echo(
                 "  would chain `cataforge deploy` "
@@ -189,6 +208,8 @@ def setup_command(
         click.echo(f"Platform set to: {platform}")
         click.echo("  (framework.json modified only at runtime.platform)")
 
+    _apply_languages(cfg, languages)
+
     from cataforge.interface.cli.guidance import print_next_steps
     from cataforge.interface.cli.ui import ui
 
@@ -219,17 +240,43 @@ def setup_command(
 
 def _scaffold(dest: Path, *, force: bool) -> None:
     """Copy the bundled .cataforge/ skeleton into *dest*."""
-    from cataforge.core.scaffold import copy_scaffold_to
+    from cataforge.core.scaffold import copy_scaffold_to, format_protected_warning
 
     action = "Refreshing" if dest.is_dir() else "Scaffolding"
     click.echo(f"{action} .cataforge/ at {dest}")
-    written, skipped, backup = copy_scaffold_to(dest, force=force)
-    if backup is not None:
-        click.echo(f"  backup: {backup.relative_to(dest.parent)}")
+    result = copy_scaffold_to(dest, force=force)
+    if result.backup is not None:
+        click.echo(f"  backup: {result.backup.relative_to(dest.parent)}")
     click.echo(
-        f"  wrote {len(written)} file(s)"
-        + (f", kept {len(skipped)} existing" if skipped else "")
+        f"  wrote {len(result.written)} file(s)"
+        + (f", kept {len(result.skipped)} existing" if result.skipped else "")
     )
+    for line in format_protected_warning(result.protected, dest):
+        click.secho(f"  {line}", fg="yellow", err=True)
+
+
+def _apply_languages(cfg, languages: tuple[str, ...]) -> None:
+    """Write declared ``project.languages``, or hint at what auto-detect sees."""
+    from cataforge.core.languages import active_languages, detect_languages, normalize
+
+    if languages:
+        normalized = normalize(list(languages))
+        cfg.set_languages(normalized)
+        click.echo(f"Languages set to: {', '.join(normalized)}")
+        return
+    # None declared — surface detection so the user knows what the SSOT resolves
+    # to, and how to pin it.
+    detected = detect_languages(cfg.paths.root)
+    if detected:
+        click.echo(
+            f"  detected languages: {', '.join(detected)} "
+            "(auto-detected at read time; pin with `setup --language <id>`)"
+        )
+    elif not active_languages(cfg):
+        click.echo(
+            "  no project languages declared or detected "
+            "(declare with `setup --language <id>`)"
+        )
 
 
 def _run_checks(cfg) -> None:

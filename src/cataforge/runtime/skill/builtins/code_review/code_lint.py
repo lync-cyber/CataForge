@@ -27,10 +27,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from cataforge.runtime.skill.builtins.code_review.wiring_patterns import (
-    all_scanned_extensions,
-    rule_for_extension,
-)
+from cataforge.core.paths import project_root_from_env
+from cataforge.runtime.skill.builtins.code_review.wiring_patterns import load_wiring_rules
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.run_subprocess import run as run_proc
 
@@ -90,10 +88,10 @@ for _group in LINTERS:
 
 
 # Per-language wiring scan rules live in :mod:`wiring_patterns` so adding
-# coverage for a new language is a single-file diff. Layer 2 AI semantic
-# review (`integration-wiring` dimension in code-review SKILL.md) covers
-# any language whose Layer 1 ruleset is empty.
-WIRING_SCAN_EXTENSIONS = all_scanned_extensions()
+# coverage for a new language is a single-file diff. They are resolved per
+# project root at linter construction (see ``CodeLinter.__init__``). Layer 2
+# AI semantic review (`integration-wiring` dimension in code-review SKILL.md)
+# covers any language whose Layer 1 ruleset is empty.
 
 
 # Project-level rot probes for the ``scan`` operation. Each entry maps a
@@ -184,6 +182,7 @@ class CodeLinter:
         self.warnings = 0
         self.files_checked = 0
         self.tool_cache: dict[str, bool] = {}
+        self.wiring_rules = load_wiring_rules(project_root_from_env())
 
     def tool_available(self, tool: dict) -> bool:
         name = tool["name"]
@@ -234,14 +233,14 @@ class CodeLinter:
         (whole-file opt-out for tasks legitimately stubbing handlers).
         Patterns dispatched by extension via :mod:`wiring_patterns`.
         """
-        rule = rule_for_extension(filepath.suffix)
+        rule = self.wiring_rules.rule_for_extension(filepath.suffix)
         if rule is None or not rule.empty_handler_patterns:
             return
         try:
             text = filepath.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return
-        if rule.placeholder_pragma.search(text):
+        if rule.placeholder_pragma is not None and rule.placeholder_pragma.search(text):
             return
         for lineno, line in enumerate(text.splitlines(), start=1):
             for pattern in rule.empty_handler_patterns:
@@ -264,6 +263,7 @@ class CodeLinter:
             return 0
 
         checked_files: set[Path] = set()
+        wiring_exts = self.wiring_rules.scanned_extensions()
         for f in files:
             ext = f.suffix.lower()
             for linter_group in LINTERS:
@@ -273,7 +273,7 @@ class CodeLinter:
                         checked_files.add(f)
                     for tool in linter_group["tools"]:
                         self.run_tool(tool, f)
-            if ext in WIRING_SCAN_EXTENSIONS and not self.fix:
+            if ext in wiring_exts and not self.fix:
                 self.scan_wiring(f)
 
         print()

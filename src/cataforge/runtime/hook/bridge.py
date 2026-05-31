@@ -128,6 +128,8 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> HookGenerationResult:
     if version_warning:
         warnings.append(version_warning)
 
+    _merge_plugin_hooks(spec)
+
     event_map = adapter.hook_event_map
     degradation = adapter.hook_degradation
     tool_map = adapter.get_tool_map()
@@ -204,6 +206,33 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> HookGenerationResult:
             platform_hooks[platform_event] = translated
 
     return HookGenerationResult(platform_hooks, warnings)
+
+
+def _merge_plugin_hooks(spec: dict[str, Any]) -> None:
+    """Fold plugin ``provides.hooks`` entries into *spec*'s event table.
+
+    Each plugin hook dict carries an ``event`` key naming the canonical event;
+    the remaining keys (``script`` / ``matcher_capability`` / ``type`` …) form
+    a hook entry appended to that event's list, so plugin hooks translate
+    through the same per-platform pipeline as built-in ones.
+    """
+    from cataforge.runtime.plugin.loader import PluginLoader
+
+    try:
+        plugin_hooks = PluginLoader().provided_hooks()
+    except Exception as exc:  # plugin discovery must never break a deploy
+        logger.warning("plugin hook discovery failed: %s", exc)
+        return
+    if not plugin_hooks:
+        return
+    hooks = spec.setdefault("hooks", {})
+    for hook in plugin_hooks:
+        event = hook.get("event")
+        if not event:
+            logger.warning("plugin hook missing 'event' key, skipped: %r", hook)
+            continue
+        entry = {k: v for k, v in hook.items() if k != "event"}
+        hooks.setdefault(event, []).append(entry)
 
 
 def _resolve_command(template: str, script_name: str) -> str:

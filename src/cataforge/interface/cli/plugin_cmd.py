@@ -2,26 +2,25 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import click
 
 from cataforge.interface.cli.guards import require_initialized
 from cataforge.interface.cli.helpers import emit_hint, resolve_root
 from cataforge.interface.cli.main import cli
-from cataforge.interface.cli.stubs import exit_not_implemented
 
 
 @cli.group("plugin")
 def plugin_group() -> None:
     """Manage CataForge plugins.
 
-    Plugins extend the framework with custom skills, agents, or platform
-    adapters. They are discovered via the ``cataforge.plugins`` entry
-    point group or from ``.cataforge/plugins/<id>/``.
+    Plugins extend the framework with custom skills, agents, hooks, or MCP
+    servers. They are discovered via the ``cataforge.plugins`` entry point
+    group (pip-installed) or from ``.cataforge/plugins/<id>/`` (local).
 
-    Available now: ``list``. The ``install`` / ``remove`` subcommands are
-    not implemented yet — use ``pip install <pkg>`` or drop a folder
-    under ``.cataforge/plugins/<id>/`` directly in the meantime. Track
-    progress at https://github.com/lync-cyber/CataForge/issues.
+    ``install`` copies a local plugin dir into ``.cataforge/plugins/`` or
+    ``pip install``s a packaged one; ``remove`` reverses either.
     """
 
 
@@ -49,37 +48,78 @@ def plugin_list() -> None:
 
 
 @plugin_group.command("install")
-@click.argument("name")
-def plugin_install(name: str) -> None:
-    """[未实现 · 规划中] Install a plugin.
+@click.argument("source")
+@click.option("--force", is_flag=True, help="Overwrite an existing local plugin dir.")
+@require_initialized
+def plugin_install(source: str, force: bool) -> None:
+    """Install a plugin from a local directory or a pip package.
 
-    This command always exits 70 (NotImplementedFeature). Use ``pip install
-    <pkg>`` for entry-point plugins, or drop the plugin folder into
-    ``.cataforge/plugins/<id>/`` for local plugins.
+    SOURCE that is an existing directory containing ``cataforge-plugin.yaml``
+    is copied into ``.cataforge/plugins/<id>/``. Otherwise SOURCE is treated
+    as a pip requirement and installed (the package must declare a
+    ``cataforge.plugins`` entry point to be discovered).
     """
-    exit_not_implemented(
-        "插件安装",
-        f"(name={name!r})",
-        workaround=(
-            f"pip install {name}  # 包需声明 cataforge.plugins entry_point；"
-            "或将插件目录放入 .cataforge/plugins/<id>/ 并附带 cataforge-plugin.yaml"
-        ),
-    )
+    import shutil
+
+    from cataforge.core.paths import ProjectPaths
+    from cataforge.core.schema.plugin_manifest import PluginManifest
+
+    src = Path(source)
+    manifest_file = src / "cataforge-plugin.yaml"
+    if src.is_dir() and manifest_file.is_file():
+        manifest = PluginManifest.from_yaml_file(manifest_file)
+        dest = ProjectPaths(resolve_root()).plugins_dir / manifest.id
+        if dest.exists():
+            if not force:
+                raise click.ClickException(
+                    f"plugin {manifest.id!r} already installed at "
+                    f"{dest}; pass --force to overwrite"
+                )
+            shutil.rmtree(dest)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dest)
+        click.echo(f"installed local plugin {manifest.id!r} → {dest}")
+        click.echo("run `cataforge deploy` to materialise its assets.")
+        return
+
+    if src.is_dir():
+        raise click.ClickException(
+            f"{source}: directory has no cataforge-plugin.yaml — not a local plugin"
+        )
+
+    _pip(["install", source])
+    click.echo(f"pip-installed {source!r}; entry-point plugins are auto-discovered.")
+    click.echo("run `cataforge deploy` to materialise its assets.")
 
 
 @plugin_group.command("remove")
 @click.argument("name")
+@require_initialized
 def plugin_remove(name: str) -> None:
-    """[未实现 · 规划中] Remove a plugin.
+    """Remove a plugin: a local ``.cataforge/plugins/<name>/`` dir, else a pip package."""
+    import shutil
 
-    This command always exits 70 (NotImplementedFeature). Use ``pip
-    uninstall <pkg>`` for entry-point plugins, or delete the plugin folder
-    at ``.cataforge/plugins/<id>/`` for local plugins.
-    """
-    exit_not_implemented(
-        "插件卸载",
-        f"(name={name!r})",
-        workaround=(
-            f"pip uninstall {name}  # 或删除 .cataforge/plugins/{name}/ 目录"
-        ),
-    )
+    from cataforge.core.paths import ProjectPaths
+
+    local = ProjectPaths(resolve_root()).plugins_dir / name
+    if local.is_dir():
+        shutil.rmtree(local)
+        click.echo(f"removed local plugin {name!r} ({local})")
+        click.echo("run `cataforge deploy` to drop its materialised assets.")
+        return
+
+    _pip(["uninstall", "-y", name])
+    click.echo(f"pip-uninstalled {name!r}.")
+
+
+def _pip(args: list[str]) -> None:
+    import sys
+
+    from cataforge.utils.run_subprocess import run as run_proc
+
+    result = run_proc([sys.executable, "-m", "pip", *args], timeout=600)
+    if result.returncode != 0:
+        raise click.ClickException(
+            f"pip {args[0]} failed (exit {result.returncode}):\n"
+            f"{(result.stdout + result.stderr).strip()}"
+        )

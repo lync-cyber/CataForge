@@ -3,8 +3,12 @@
 Thin wrapper over :mod:`cataforge.runtime.skill.rules.loader`: discovers the
 shipped YAML files in ``cataforge.runtime.skill.builtins.code_review.rules``
 plus any project overrides in ``.cataforge/skills/code-review/rules/``,
-compiles regexes once at import time, and exposes a per-extension
-lookup the linter calls for each scanned file.
+compiles their regexes, and exposes a per-extension lookup the linter
+calls for each scanned file.
+
+Rules are resolved per *project_root* at scanner construction time (the
+runner injects ``CATAFORGE_PROJECT_ROOT``), so a project's override YAML
+takes effect at runtime rather than only the package defaults.
 
 To extend coverage to a new language, drop a YAML file into either
 location (see ``cataforge.runtime.skill.builtins.code_review.rules`` for
@@ -28,6 +32,28 @@ class LangRule:
     extensions: frozenset[str]
     empty_handler_patterns: tuple[re.Pattern[str], ...]
     placeholder_pragma: re.Pattern[str] | None
+
+
+@dataclass(frozen=True)
+class WiringRuleSet:
+    """Compiled wiring rules for one project_root, keyed by language."""
+
+    by_language: dict[str, LangRule]
+
+    def rule_for_extension(self, ext: str) -> LangRule | None:
+        ext_lower = ext.lower()
+        for rule in self.by_language.values():
+            if ext_lower in rule.extensions:
+                return rule
+        return None
+
+    def scanned_extensions(self) -> frozenset[str]:
+        """Extensions for which at least one empty-handler pattern is wired."""
+        out: set[str] = set()
+        for rule in self.by_language.values():
+            if rule.empty_handler_patterns:
+                out.update(rule.extensions)
+        return frozenset(out)
 
 
 def _compile_flags(flags_raw) -> int:
@@ -60,42 +86,13 @@ def _compile_lang_rule(spec: RuleSpec) -> LangRule:
     )
 
 
-def _load(project_root: Path | None) -> dict[str, LangRule]:
+def load_wiring_rules(project_root: Path | None = None) -> WiringRuleSet:
+    """Discover + compile wiring rules for *project_root* (None → defaults only)."""
+    by_language: dict[str, LangRule] = {}
     specs = discover_rules(
         _SKILL_ID, builtin_module=_BUILTIN_MODULE, project_root=project_root
     )
-    out: dict[str, LangRule] = {}
     for (rule_type, language), spec in specs.items():
-        if rule_type != "wiring":
-            continue
-        out[language] = _compile_lang_rule(spec)
-    return out
-
-
-# Loaded at import time using the package defaults. Tests / runtime can
-# call :func:`reload_for_project` to layer on a project override path
-# (e.g. tests pointing at a synthetic project_root).
-LANGUAGE_RULES: dict[str, LangRule] = _load(project_root=None)
-
-
-def reload_for_project(project_root: Path | None) -> None:
-    """Re-discover rules with a project root in scope (replaces in place)."""
-    global LANGUAGE_RULES
-    LANGUAGE_RULES = _load(project_root)
-
-
-def rule_for_extension(ext: str) -> LangRule | None:
-    ext_lower = ext.lower()
-    for rule in LANGUAGE_RULES.values():
-        if ext_lower in rule.extensions:
-            return rule
-    return None
-
-
-def all_scanned_extensions() -> frozenset[str]:
-    """Extensions for which at least one empty-handler pattern is wired."""
-    out: set[str] = set()
-    for rule in LANGUAGE_RULES.values():
-        if rule.empty_handler_patterns:
-            out.update(rule.extensions)
-    return frozenset(out)
+        if rule_type == "wiring":
+            by_language[language] = _compile_lang_rule(spec)
+    return WiringRuleSet(by_language)

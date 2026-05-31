@@ -14,7 +14,6 @@ import pytest
 from click.testing import CliRunner
 
 from cataforge.interface.cli.main import cli
-from cataforge.interface.cli.stubs import STUB_EXIT_CODE
 
 
 @pytest.fixture
@@ -86,6 +85,29 @@ class TestSetupCommand:
         assert "would scaffold" in result.output
         assert "would set" in result.output or "would patch" in result.output
         assert "Dry-run complete" in result.output
+
+    def test_setup_language_writes_normalized_declaration(
+        self, fresh_project: Path
+    ) -> None:
+        """`setup --language typescript --language go` writes canonical ids."""
+        import json
+
+        result = _invoke("setup", "--language", "typescript", "--language", "go")
+        assert result.exit_code == 0, result.output
+        assert "Languages set to: js-ts, go" in result.output
+        fw = json.loads(
+            (fresh_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
+        )
+        assert fw["project"]["languages"] == ["js-ts", "go"]
+
+    def test_setup_language_dry_run_previews(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = _invoke("setup", "--dry-run", "--language", "py")
+        assert result.exit_code == 0, result.output
+        assert "project.languages = ['python']" in result.output
+        assert not (tmp_path / ".cataforge").exists()
 
     def test_setup_dry_run_on_existing_project_reports_diff(
         self, fresh_project: Path
@@ -189,17 +211,6 @@ class TestStubCommands:
         result = _invoke("hook", "test", "nonexistent_hook_xyz")
         assert result.exit_code == 1
         assert "not declared" in result.output.lower() or "no hook" in result.output.lower()
-
-    def test_plugin_install_is_stub(self, fresh_project: Path) -> None:
-        result = _invoke("plugin", "install", "example")
-        assert result.exit_code == STUB_EXIT_CODE
-        # Install-stub points users at the real installation path.
-        assert "pip" in result.output or "pip" in (result.stderr or "")
-
-    def test_plugin_remove_is_stub(self, fresh_project: Path) -> None:
-        result = _invoke("plugin", "remove", "example")
-        assert result.exit_code == STUB_EXIT_CODE
-
 
 class TestDeployErrors:
     """Deploy must fail gracefully when scaffold is missing."""
@@ -354,12 +365,13 @@ class TestWindowsEncoding:
         assert result.exit_code == 0
         assert "Traceback" not in result.output
 
-    def test_stub_chinese_renders(self, fresh_project: Path) -> None:
-        result = _invoke("plugin", "install", "foo")
+    def test_chinese_output_renders(self, fresh_project: Path) -> None:
+        # `hook list` prints Chinese hook descriptions (e.g. 危险命令拦截);
+        # they must render without a UnicodeEncodeError traceback.
+        result = _invoke("hook", "list")
+        assert result.exit_code == 0, result.output
         assert "Traceback" not in result.output
-        # The stub message contains both Chinese characters and the
-        # replacement-free output should include the literal prefix.
-        assert "尚未实现" in result.output
+        assert any("一" <= c <= "鿿" for c in result.output)
 
     def test_deploy_dry_run_arrow_renders(self, fresh_project: Path) -> None:
         """The deploy command banner uses the em-dash separator; setup's

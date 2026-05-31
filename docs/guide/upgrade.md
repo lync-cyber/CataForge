@@ -48,17 +48,24 @@ git add . && git commit -m "upgrade scaffold" && git push
 
 ## 文件保留规则
 
-`upgrade apply`（等价于 `setup --force-scaffold`）只保留下表中的字段/文件；`.cataforge/` 下其它文件在刷新时整体覆盖。手改过的 agent prompt、hook 脚本、skill 定义会丢失——自定义内容请放到 `.cataforge/plugins/` 或项目外。
+`upgrade apply`（等价于 `setup --force-scaffold`）刷新 `.cataforge/` 时不会静默丢弃本地改动：
 
-| 文件 | 保留项 | 覆盖项 |
+- 与上次记录的 manifest 哈希一致的文件（`update`）整体刷新；
+- 被你手改过的文件（`user-modified` / `drift`）原样保留，框架新版本写到同目录的 `<文件名>.cataforge-new` 旁路文件，供你手动 diff 合并；
+- 下表中的字段/文件按字段级合并保留。
+
+| 文件 | 保留项 | 刷新项 |
 |------|-------|-------|
 | `framework.json` | `runtime.platform`、`upgrade.state` | `constants` / `features` / `migration_checks` / `upgrade.source` / `version` |
 | `PROJECT-STATE.md` | 整个文件 | — |
-| 其它 `.cataforge/` 下文件 | — | 整个文件 |
+| `.cataforge/overrides/` 下文件 | 整个目录（升级免疫） | — |
+| 其它 `.cataforge/` 下文件 | 改动过的整体保留，新版写为 `<文件名>.cataforge-new` | 未改动的整体刷新 |
+
+> 定制 agent / skill 的正确归宿是 `.cataforge/overrides/`——它在 scaffold manifest 之外，`upgrade apply` 永不触碰，且支持整文件覆盖与 section 补丁两种粒度。详见 [`../reference/overrides.md`](../reference/overrides.md)。直接改发货层只会在每次升级时多产生一个 `.cataforge-new` 旁路文件要你合并。
 
 > `framework.json` 的 `version` 字段在 scaffold 写入时由当前安装包的 `cataforge.__version__` 实时戳入，保证 `upgrade apply` 之后 `upgrade check` 立刻报告 "up to date"。
 
-**每次升级前建议先跑 `upgrade apply --dry-run`**——它把上表的"覆盖"分类到具体文件上，每行附状态标签。
+**每次升级前建议先跑 `upgrade apply --dry-run`**——它把每个文件分类到 `[new]` / `[update]` / `[user-modified]` / `[preserved]`，并提示哪些会写成 `.cataforge-new`。合并完旁路文件后删除即可。
 
 ---
 
