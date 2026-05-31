@@ -26,18 +26,16 @@ import json
 import sys
 from pathlib import Path
 
+from cataforge.core.paths import project_root_from_env
 from cataforge.core.types import Severity
 from cataforge.runtime.skill.builtins._shared import CheckReport, IssueCollector
 from cataforge.runtime.skill.builtins.testing._render import render_text
-from cataforge.runtime.skill.builtins.testing.e2e_patterns import (
-    all_extensions,
-    rule_for_extension,
-)
+from cataforge.runtime.skill.builtins.testing.e2e_patterns import E2ERuleSet, load_e2e_rules
 from cataforge.utils.common import ensure_utf8
 
 
-def collect_e2e_files(target: Path) -> list[Path]:
-    exts = all_extensions()
+def collect_e2e_files(target: Path, rules: E2ERuleSet) -> list[Path]:
+    exts = rules.all_extensions()
     if target.is_file():
         return [target] if target.suffix.lower() in exts else []
     files: list[Path] = []
@@ -52,11 +50,11 @@ def collect_e2e_files(target: Path) -> list[Path]:
     return sorted(files)
 
 
-def scan_file(path: Path) -> tuple[list[tuple[int, str, str]], int]:
+def scan_file(path: Path, rules: E2ERuleSet) -> tuple[list[tuple[int, str, str]], int]:
     """Return ``(backdoor_findings, real_input_count)`` for *path*."""
     findings: list[tuple[int, str, str]] = []
     real_input = 0
-    rule = rule_for_extension(path.suffix)
+    rule = rules.rule_for_extension(path.suffix)
     if rule is None:
         return findings, 0
     try:
@@ -74,20 +72,22 @@ def scan_file(path: Path) -> tuple[list[tuple[int, str, str]], int]:
     return findings, real_input
 
 
-def collect(base: Path) -> CheckReport:
+def collect(base: Path, project_root: Path | None = None) -> CheckReport:
     """Scan *base* and return a structured report (no console I/O).
 
     Every finding is advisory (WARN): backdoor matches per line, plus a
     single real-input-absence warning when the whole tree has zero real
     interaction calls. Counts land in ``summary`` for the renderer.
+    Rules are resolved for *project_root* so project overrides apply.
     """
-    files = collect_e2e_files(base)
+    rules = load_e2e_rules(project_root)
+    files = collect_e2e_files(base, rules)
     issues = IssueCollector()
 
     backdoor_total = 0
     real_input_total = 0
     for f in files:
-        findings, real_input = scan_file(f)
+        findings, real_input = scan_file(f, rules)
         real_input_total += real_input
         for lineno, label, snippet in findings:
             backdoor_total += 1
@@ -124,7 +124,7 @@ def run(target: str) -> int:
     if not base.exists():
         print(f"ERROR: 目标路径不存在: {base}")
         return 2
-    print(render_text(collect(base)))
+    print(render_text(collect(base, project_root_from_env())))
     return 0
 
 
@@ -146,7 +146,7 @@ def main() -> None:
     if not base.exists():
         print(f"ERROR: 目标路径不存在: {base}")
         sys.exit(2)
-    report = collect(base)
+    report = collect(base, project_root_from_env())
     if fmt == "json":
         print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
     else:
