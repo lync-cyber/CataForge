@@ -22,15 +22,27 @@ from cataforge.application.context.read import (
     resolve_deps,
 )
 from cataforge.application.context.router import FidelityRouter, build_router
+from cataforge.application.context.write import (
+    author_entity,
+    finalize,
+    ingest,
+    reconcile_check,
+    write_narrative,
+)
 
 __all__ = [
     "ContextReadPort",
     "Fidelity",
     "FidelityRouter",
     "RelationPort",
+    "author_entity",
     "build_router",
     "extract",
     "extract_batch",
+    "finalize",
+    "ingest",
     "plan_load",
+    "reconcile_check",
     "resolve_deps",
+    "write_narrative",
 ]
