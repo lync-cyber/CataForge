@@ -477,10 +477,10 @@ skills:
 
 ```md
 ---
-id: doc-review
+id: context
 type: instructional   # 或 script
-domain: quality
-description: 文档双层审计（脚本 + AI）
+domain: context
+description: 统一上下文 I/O（navigate / generate / review / consistency / query 分支）
 ---
 
 （Skill 触发条件、输入输出契约、行为步骤）
