@@ -71,7 +71,8 @@
 
 | ID | severity | 裁定 | 处置摘要 |
 |----|----------|------|---------|
-| W-001 / W-002 / W-003 | HIGH×3 | **escalated（待维护者决策）** | agile-lite × KG-active 下 lite 文档系统性 FAIL doc-review，涉「lite 文档如何通过 doc-review/KG 覆盖门」的产品方向（报告 03 已标 W-003「牵动演进策略」）。按任务 §四模糊地带处置上抛维护者做选择题，未擅自实施。详见 §决策记录。 |
+| W-001 / W-002 | HIGH×2 | **fixed（方向已定）** | 维护者选定「把 lite 文档做厚」方向（见 §决策记录）。enrich lite 模板：prd-lite 每功能补「用户故事」、§3 改为「非功能需求」（对齐 check_prd 正则）；arch-lite API 补 `request:` 定义。实测忠实填写的 prd/arch/dev-plan lite 文档通过 doc-review Layer-1 typed 检查（PASS），附回归测试。DOC_REVIEW_L2_SKIP_DOC_TYPES 的 -lite 条目在「base 类型 + 做厚」方向下不被命中，留待 W-003 闭环时一并收口。 |
+| W-003 | HIGH | **deferred（方向已定，KG 流程闭环留后续）** | KG-active 覆盖门（`check_bidirectional_coverage` SPARQL + `check_xref` 的 KG resolver）只在 lite 文档被 ingest 进 KG 且带 implementation/verification typed 关系时才通过。lite 作者路径当前不 ingest、且 lite 无 test-report（F→verification 覆盖需扩展），该闭环是跨 domain/kg + context skill 的工作流能力。方向已定（做厚 + ingest），闭环作为聚焦后续。 |
 | W-004 | MEDIUM | deferred | `cataforge phase status` 是新 CLI 子命令（task 2）。 |
 | W-005 | LOW | fixed | code-review 入口对 `-h`/`--help` 打印 usage 并 exit 0，与 doc-review 对齐。 |
 | W-006 | LOW | fixed | `arch-lite.md` 技术栈示例 `{如 FastAPI}` 改语言中立 `{如 Web 框架}`。 |
@@ -97,7 +98,7 @@
 
 **R-009 映射选择。** 4 个 meta 实体（ChangeRequest/Phase/SprintReviewIssue/ReviewReport）无对应 SDLC doc_type，按最近承载阶段就近映射（prd/arch/dev-plan/test-report），核心保护是 ingest⊆export 的 parity 守卫——杜绝未来任何 ingest 类静默落 misc/。若这些 meta 实体将来获得专属 doc_type，可重评映射目标。
 
-**W-001/002/003 上抛维护者。** 三条同指一个产品决策：agile-lite 的 lite 文档在 KG-active 下如何通过 doc-review。候选方向风险/语义差异实质牵动演进（lite 模板补字段会「让 lite 不再 lite」；doc-review 放宽/`-lite` 类型注册/KG 覆盖降 WARN 各有取舍），按任务纪律不擅自猜测，已以选择题形式上抛。
+**W-001/002/003 上抛维护者 → 选定「把 lite 文档做厚」。** 三条同指一个产品决策：agile-lite 的 lite 文档在 KG-active 下如何通过 doc-review。候选方向风险/语义差异实质牵动演进（lite 模板补字段会「让 lite 不再 lite」；doc-review 放宽/`-lite` 类型注册/KG 覆盖降 WARN 各有取舍），按任务纪律以选择题上抛。维护者选定**方向三「把 lite 文档做厚」**（明确接受「lite 不再轻量」代价）。据此实施 W-001/002 的模板 enrich（Layer-1 typed 检查已通过）；W-003 的 KG 覆盖门闭环需让 lite 流程把 implementation/verification 关系 ingest 进 KG——经核实这是跨 domain/kg + context skill 的工作流能力（且 lite 无 test-report，F→verification 覆盖需另行扩展），不属单点修复，按方向作为聚焦后续推进，不在本轮草率半实现。
 
 ---
 
@@ -106,7 +107,7 @@
 - **自审工具新增能力**：R-021 完整 B9（migration_checks 三维结构审查，需 editable/downstream 区分）、R-023（doctor 读 manifest 做 source-removed 孤儿反向检出）。
 - **平台验证升档**：H-3/H-4/H-5 与 M-1/M-3/M-4/M-5/M-8~M-14、L-1~L-6——三端 artifact 行为级 E2E、conformance 守卫前移、version_tested 时效门、platform-audit CI 触发等（报告 02 §三 选项 A/B）。
 - **走查能力增强**：W-004（`cataforge phase status` 新 CLI）、P-001~P-004 / P-S1（framework-walkthrough 沙盒隔离 + run-id 唯一性 + rubric 硬门）。
-- **agile-lite × KG-active 契约**：W-001/002/003 待维护者方向决策后实施。
+- **agile-lite × KG-active 契约（W-003 闭环）**：方向已定为「做厚 + ingest」。W-001/002 的模板 enrich 已落地（Layer-1 通过）；剩 KG 覆盖门闭环——让 lite 流程把 implementation/verification typed 关系 ingest 进 KG（涉 domain/kg ingest + context skill lite 路由），并解决 lite 无 test-report 时 F→verification 覆盖的语义（可能需 test-report-lite 或覆盖门对 lite 接受 implementation-only）。
 
 ## 附 · 修复期间的增量观察（非报告 finding，未处置）
 
