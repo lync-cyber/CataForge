@@ -59,6 +59,7 @@ ORPHAN_SKILL_WHITELIST = frozenset({
     "framework-review",
     "framework-issue-resolve",
     "framework-feedback",
+    "framework-walkthrough",
 })
 
 # Constants whose names must be referenced instead of bare numerics.

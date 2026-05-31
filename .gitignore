@@ -238,3 +238,6 @@ docs/test-report/
 docs/deploy-spec/
 docs/reviews/
 docs/retrospectives/
+
+# framework-walkthrough 沙盒（端到端自测的隔离运行目录，不入仓）
+walkthrough-sandbox/
