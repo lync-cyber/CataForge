@@ -1,6 +1,6 @@
 """The two context backends: the knowledge graph and the file/index store.
 
-Each wraps the existing read implementations and declares its
+Each adapts an existing domain read implementation and declares its
 per-operation fidelity. Backends never *choose* whether to run — that is
 the router's job; they return ``None`` when they cannot serve a request
 so the router can fall through to the next-highest-fidelity backend.
@@ -15,16 +15,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from cataforge.domain.context.ports import (
+from cataforge.application.context.ports import (
     OP_DEPS,
     OP_PLAN_LOAD,
     OP_READ_SECTION,
     Fidelity,
 )
+from cataforge.domain.docs import _loader_kg, loader
+from cataforge.domain.docs.index_ops import LoadSectionError, parse_ref
 
 
 class DocBackend:
-    """Markdown/file + ``.doc-index.json`` backend."""
+    """Markdown/file + ``.doc-index.json`` backend (doc-only loader primitives)."""
 
     name = "doc"
     fidelity = {
@@ -36,21 +38,15 @@ class DocBackend:
     def read_section(
         self, ref: str, project_root: str, *, file_cache: dict[str, Any] | None = None
     ) -> str | None:
-        from cataforge.domain.docs.loader import _doc_extract
-
-        return _doc_extract(ref, project_root, file_cache=file_cache)
+        return loader.extract(ref, project_root, file_cache=file_cache)
 
     def plan_load(
         self, refs: list[str], project_root: str, token_budget: int
     ) -> tuple[list[str], list[str]] | None:
-        from cataforge.domain.docs.loader import _doc_plan_load
-
-        return _doc_plan_load(refs, project_root, token_budget)
+        return loader.plan_load(refs, project_root, token_budget)
 
     def deps(self, ref: str, project_root: str, max_depth: int) -> list[str] | None:
-        from cataforge.domain.docs.loader import _doc_resolve_deps
-
-        return _doc_resolve_deps(ref, project_root, max_depth)
+        return loader.resolve_deps(ref, project_root, max_depth)
 
 
 class KgBackend:
@@ -66,23 +62,16 @@ class KgBackend:
     def read_section(
         self, ref: str, project_root: str, *, file_cache: dict[str, Any] | None = None
     ) -> str | None:
-        from cataforge.domain.docs._loader_kg import _try_kg_extract
-        from cataforge.domain.docs.index_ops import LoadSectionError, parse_ref
-
         try:
             doc_id, section_path, item_id = parse_ref(ref)
         except LoadSectionError:
             return None  # malformed ref — let the file backend raise authoritatively
-        return _try_kg_extract(doc_id, section_path, item_id, project_root)
+        return _loader_kg._try_kg_extract(doc_id, section_path, item_id, project_root)
 
     def plan_load(
         self, refs: list[str], project_root: str, token_budget: int
     ) -> tuple[list[str], list[str]] | None:
-        from cataforge.domain.docs._loader_kg import _try_kg_plan_load
-
-        return _try_kg_plan_load(refs, project_root, token_budget)
+        return _loader_kg._try_kg_plan_load(refs, project_root, token_budget)
 
     def deps(self, ref: str, project_root: str, max_depth: int) -> list[str] | None:
-        from cataforge.domain.docs._loader_kg import _try_kg_resolve_deps
-
-        return _try_kg_resolve_deps(ref, project_root, max_depth)
+        return _loader_kg._try_kg_resolve_deps(ref, project_root, max_depth)

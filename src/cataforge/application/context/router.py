@@ -13,13 +13,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from cataforge.domain.context.backends import DocBackend, KgBackend
-from cataforge.domain.context.ports import (
+from cataforge.application.context.backends import DocBackend, KgBackend
+from cataforge.application.context.ports import (
     OP_DEPS,
     OP_PLAN_LOAD,
     OP_READ_SECTION,
     Fidelity,
 )
+from cataforge.domain.kg._dispatch import context_strategy
 
 
 class FidelityRouter:
@@ -35,13 +36,11 @@ class FidelityRouter:
     def read_section(
         self, ref: str, project_root: str, *, file_cache: dict[str, Any] | None = None
     ) -> str:
-        backends = self._ordered(OP_READ_SECTION)
-        for backend in backends:
+        for backend in self._ordered(OP_READ_SECTION):
             result = backend.read_section(ref, project_root, file_cache=file_cache)
             if result is not None:
                 return result
-        # No backend served it and none raised — surface a not-found error
-        # through the most-foundational (file) backend's contract.
+        # No backend served it and none raised — surface a not-found error.
         from cataforge.domain.docs.index_ops import SectionNotFoundError
 
         raise SectionNotFoundError(f"no context backend could resolve {ref!r}")
@@ -69,8 +68,6 @@ def build_router(project_root: str) -> FidelityRouter:
     ``doc-only`` enables the file backend alone; ``kg-first`` (default)
     enables the graph backend ahead of the file backend.
     """
-    from cataforge.domain.kg._dispatch import context_strategy
-
     if context_strategy(project_root) == "doc-only":
         backends: list[Any] = [DocBackend()]
     else:

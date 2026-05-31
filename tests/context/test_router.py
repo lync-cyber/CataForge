@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.domain.context.ports import (
+from cataforge.application.context.ports import (
     OP_DEPS,
     OP_READ_SECTION,
     Fidelity,
 )
-from cataforge.domain.context.router import FidelityRouter, build_router
+from cataforge.application.context.router import FidelityRouter, build_router
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
@@ -136,6 +136,7 @@ def _kg_project(tmp_path: Path, strategy: str) -> Path:
 def test_doc_only_never_serves_pure_prose_from_kg(tmp_path: Path) -> None:
     """arch#§1 (no entity) only resolves via the graph; doc-only must NOT
     serve it from KG — proving the strategy gates the backend topology."""
+    from cataforge.application.context import read as context_read
     from cataforge.domain.docs import loader
     from cataforge.domain.docs.index_ops import SectionNotFoundError
 
@@ -143,7 +144,7 @@ def test_doc_only_never_serves_pure_prose_from_kg(tmp_path: Path) -> None:
     loader._INDEX_CACHE = None
     loader._INDEX_CACHE_ROOT = None
     loader._DOC_TYPE_MAP_CACHE.clear()
-    assert "概览" in loader.extract("arch#§1", str(project))  # kg-first serves it
+    assert "概览" in context_read.extract("arch#§1", str(project))  # kg-first serves it
 
     from cataforge.domain.kg._dispatch import invalidate_cache
 
@@ -153,4 +154,4 @@ def test_doc_only_never_serves_pure_prose_from_kg(tmp_path: Path) -> None:
     loader._INDEX_CACHE_ROOT = None
     loader._DOC_TYPE_MAP_CACHE.clear()
     with pytest.raises(SectionNotFoundError):
-        loader.extract("arch#§1", str(project2))  # file backend can't match §1
+        context_read.extract("arch#§1", str(project2))  # file backend can't match §1

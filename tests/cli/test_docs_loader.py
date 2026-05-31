@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from cataforge.application.context import read as context_read
 from cataforge.domain.docs import loader
 
 
@@ -178,7 +179,7 @@ def _build_indexed_project(tmp_path: Path, capsys=None) -> None:
 
 def test_loader_main_json_output(tmp_path: Path, capsys) -> None:
     _build_indexed_project(tmp_path, capsys=capsys)
-    rc = loader.main(["--project-root", str(tmp_path), "--json", "prd#§1"])
+    rc = context_read.main(["--project-root", str(tmp_path), "--json", "prd#§1"])
     assert rc == 0
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
@@ -193,7 +194,7 @@ def test_loader_main_json_output(tmp_path: Path, capsys) -> None:
 def test_loader_main_budget_defers(tmp_path: Path, capsys) -> None:
     _build_indexed_project(tmp_path, capsys=capsys)
     # Tiny budget → every ref defers
-    rc = loader.main([
+    rc = context_read.main([
         "--project-root", str(tmp_path),
         "--budget", "1",
         "prd#§1", "prd#§2.F-001",
@@ -238,7 +239,7 @@ def test_loader_main_with_deps_expands_refs(tmp_path: Path, capsys) -> None:
         json.dumps(index), encoding="utf-8"
     )
 
-    rc = loader.main([
+    rc = context_read.main([
         "--project-root", str(tmp_path),
         "--with-deps",
         "prd#§2.F-001",

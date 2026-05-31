@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from cataforge.application.context import read as context_read
 from cataforge.domain.docs import loader
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
@@ -84,7 +85,7 @@ def test_plan_load_uses_kg_when_all_refs_active(tmp_path: Path) -> None:
     project = _project_with_kg(tmp_path, active=["prd", "arch", "test"])
 
     refs = ["prd#§2.F-001", "prd#§2.F-002"]
-    loadable, deferred = loader.plan_load(refs, str(project), token_budget=10_000)
+    loadable, deferred = context_read.plan_load(refs, str(project), token_budget=10_000)
 
     # KG path: returns ref-form preserving input shape (mapped back from entity_ids)
     assert set(loadable) == set(refs)
@@ -96,7 +97,7 @@ def test_plan_load_budget_drop_under_kg(tmp_path: Path) -> None:
 
     refs = ["prd#§2.F-001", "prd#§2.F-002"]
     # 200 tokens per entity flat estimate; budget 250 fits only one
-    loadable, deferred = loader.plan_load(refs, str(project), token_budget=250)
+    loadable, deferred = context_read.plan_load(refs, str(project), token_budget=250)
 
     assert len(loadable) == 1
     assert len(deferred) == 1
@@ -108,7 +109,7 @@ def test_plan_load_falls_back_to_legacy_when_no_active(tmp_path: Path) -> None:
 
     # No KG, no index → legacy path returns all as loadable (default 200/entity)
     refs = ["prd#§2.F-001"]
-    loadable, deferred = loader.plan_load(refs, str(project), token_budget=10_000)
+    loadable, deferred = context_read.plan_load(refs, str(project), token_budget=10_000)
     assert loadable == refs
     assert deferred == []
 
@@ -120,7 +121,7 @@ def test_plan_load_falls_back_when_ref_targets_inactive_doc_type(
     project = _project_with_kg(tmp_path, active=["prd"])  # only prd active
 
     refs = ["prd#§2.F-001", "arch#§2.M-001"]  # arch is legacy
-    loadable, deferred = loader.plan_load(refs, str(project), token_budget=10_000)
+    loadable, deferred = context_read.plan_load(refs, str(project), token_budget=10_000)
 
     # Falls back to legacy; without index, both stay loadable at default 200 each
     assert set(loadable) | set(deferred) == set(refs)
@@ -131,7 +132,7 @@ def test_plan_load_falls_back_for_whole_section_ref(tmp_path: Path) -> None:
     project = _project_with_kg(tmp_path, active=["prd", "arch", "test"])
 
     refs = ["prd#§1"]  # whole section, no F-NNN
-    loadable, deferred = loader.plan_load(refs, str(project), token_budget=10_000)
+    loadable, deferred = context_read.plan_load(refs, str(project), token_budget=10_000)
 
     # Legacy keeps it loadable (no index entry → default 200)
     assert loadable == refs
@@ -140,7 +141,7 @@ def test_plan_load_falls_back_for_whole_section_ref(tmp_path: Path) -> None:
 def test_plan_load_empty_input(tmp_path: Path) -> None:
     project = _project_with_kg(tmp_path, active=["prd", "arch", "test"])
 
-    loadable, deferred = loader.plan_load([], str(project), token_budget=1000)
+    loadable, deferred = context_read.plan_load([], str(project), token_budget=1000)
 
     assert loadable == []
     assert deferred == []
@@ -156,14 +157,14 @@ def test_extract_whole_section_pure_prose_from_kg(tmp_path: Path) -> None:
     Section node now that ingest emits every §-level section."""
     project = _project_with_kg(tmp_path, active=["prd", "arch", "test-report"])
 
-    body = loader.extract("arch#§1", str(project))
+    body = context_read.extract("arch#§1", str(project))
     assert "概览" in body  # §1 概览 narrative_body served from the graph
 
 
 def test_extract_whole_section_entity_section_from_kg(tmp_path: Path) -> None:
     project = _project_with_kg(tmp_path, active=["prd", "arch", "test-report"])
 
-    body = loader.extract("prd#§2.1", str(project))
+    body = context_read.extract("prd#§2.1", str(project))
     assert "F-001" in body
 
 
@@ -178,7 +179,7 @@ def test_resolve_deps_uses_kg_when_active(tmp_path: Path) -> None:
     # KG path is invoked. Fixture has no explicit cf:depends_on triples for
     # F-001 in the ingested vertical-slice → expect empty result, but NOT
     # fallback to legacy (which would return [] from missing index anyway).
-    deps = loader.resolve_deps("prd#§2.F-001", str(project))
+    deps = context_read.resolve_deps("prd#§2.F-001", str(project))
     assert isinstance(deps, list)
 
 
@@ -186,21 +187,21 @@ def test_resolve_deps_falls_back_when_doc_type_inactive(tmp_path: Path) -> None:
     project = _project_with_kg(tmp_path, active=["prd"])  # arch is legacy
 
     # arch doc_type not in active set → KG dispatch returns None → legacy path
-    deps = loader.resolve_deps("arch#§2.M-001", str(project))
+    deps = context_read.resolve_deps("arch#§2.M-001", str(project))
     assert deps == []  # legacy with no index
 
 
 def test_resolve_deps_falls_back_for_unparseable_ref(tmp_path: Path) -> None:
     project = _project_with_kg(tmp_path, active=["prd", "arch", "test"])
 
-    deps = loader.resolve_deps("not-a-ref-at-all", str(project))
+    deps = context_read.resolve_deps("not-a-ref-at-all", str(project))
     assert deps == []
 
 
 def test_resolve_deps_falls_back_for_whole_section_ref(tmp_path: Path) -> None:
     project = _project_with_kg(tmp_path, active=["prd", "arch", "test"])
 
-    deps = loader.resolve_deps("prd#§1", str(project))
+    deps = context_read.resolve_deps("prd#§1", str(project))
     assert deps == []
 
 
