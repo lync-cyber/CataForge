@@ -197,22 +197,41 @@ def _iter_package_rule_files(builtin_module: str):
         yield name, text
 
 
+def _project_rule_dirs(project_root: Path, skill_id: str) -> list[Path]:
+    """Rule dirs for *skill_id*, LOW → HIGH priority.
+
+    The scaffold ``skills/<id>/rules`` first, then the project and user
+    override layers, so a later layer's YAML for the same ``(rule_type,
+    language)`` replaces the earlier one.
+    """
+    from cataforge.core.layers import OVERRIDE_LAYERS
+    from cataforge.core.paths import ProjectPaths
+
+    paths = ProjectPaths(project_root)
+    dirs = [paths.skills_dir / skill_id / "rules"]
+    dirs += [
+        paths.override_layer(layer) / "skills" / skill_id / "rules"
+        for layer in OVERRIDE_LAYERS
+    ]
+    return dirs
+
+
 def _iter_project_rule_files(project_root: Path | None, skill_id: str):
     if project_root is None:
         return
-    rules_dir = project_root / ".cataforge" / "skills" / skill_id / "rules"
-    if not rules_dir.is_dir():
-        return
-    for path in sorted(rules_dir.iterdir()):
-        if not path.is_file():
+    for rules_dir in _project_rule_dirs(project_root, skill_id):
+        if not rules_dir.is_dir():
             continue
-        if path.suffix.lower() not in YAML_SUFFIXES:
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        yield path, text
+        for path in sorted(rules_dir.iterdir()):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in YAML_SUFFIXES:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            yield path, text
 
 
 def discover_rules(

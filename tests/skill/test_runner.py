@@ -99,6 +99,51 @@ class TestSkillDiscovery:
         assert meta.scripts == [{"name": "main", "entry": "scripts/main.py"}]
 
 
+def _write_override_skill(
+    project_root: Path, layer: str, skill_id: str, description: str
+) -> Path:
+    skill_dir = (
+        project_root / ".cataforge" / "overrides" / layer / "skills" / skill_id
+    )
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: {skill_id}\ndescription: {description}\n---\nBody.\n",
+        encoding="utf-8",
+    )
+    return skill_dir
+
+
+class TestSkillOverrideLayers:
+    def test_override_layer_beats_scaffold(self, project: Path) -> None:
+        _write_skill(project, "my-skill")  # scaffold .cataforge/skills
+        _write_override_skill(project, "project", "my-skill", "from project override")
+        loader = SkillLoader(project)
+        meta = loader.get_skill("my-skill")
+        assert meta is not None
+        assert meta.description == "from project override"
+
+    def test_user_layer_beats_project(self, project: Path) -> None:
+        _write_override_skill(project, "project", "my-skill", "project desc")
+        _write_override_skill(project, "user", "my-skill", "user desc")
+        loader = SkillLoader(project)
+        assert loader.get_skill("my-skill").description == "user desc"
+
+    def test_discover_lists_override_once(self, project: Path) -> None:
+        _write_skill(project, "my-skill")
+        _write_override_skill(project, "user", "my-skill", "user desc")
+        metas = [m for m in SkillLoader(project).discover() if m.id == "my-skill"]
+        assert len(metas) == 1
+        assert metas[0].description == "user desc"
+
+    def test_override_prose_borrows_builtin_scripts(self, project: Path) -> None:
+        """A prose-only override in a layer still borrows builtin scripts."""
+        _write_override_skill(project, "user", "code-review", "user prose override")
+        meta = SkillLoader(project).get_skill("code-review")
+        assert meta.description == "user prose override"
+        assert any(s["name"] == "code_lint" for s in meta.scripts)
+        assert meta.builtin is True
+
+
 class TestSkillRunner:
     def test_run_project_skill_succeeds(self, project: Path) -> None:
         _write_skill(

@@ -84,6 +84,8 @@ OpenCode 原生不支持 hook，框架默认降级为 `rules_injection`。若需
 
 不会。`upgrade apply` 检测到该文件偏离上次记录的 manifest 哈希后，原样保留你的版本，框架新版本写到同目录的 `AGENT.md.cataforge-new`，供你手动 diff 合并（合并完删掉旁路文件即可）。apply 前还会整体快照到 `.cataforge/.backups/<ts>/`，必要时 `cataforge upgrade rollback` 回滚。
 
+更省心的做法：把定制放进 `.cataforge/overrides/`（升级免疫），用 `cataforge override eject` 生成起点。支持整文件覆盖和 section 补丁，详见 [`reference/overrides.md`](./reference/overrides.md)。
+
 ### Q：`upgrade apply` 每次都生成快照，不会把 `.cataforge/` 撑爆吗？
 
 快照在 `.cataforge/.backups/` 下，`.gitignore` 默认排除。目前需手动清理，见 [`guide/upgrade.md`](./guide/upgrade.md) §快照生命周期。

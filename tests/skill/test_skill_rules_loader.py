@@ -137,6 +137,75 @@ empty_handler_patterns:
     assert ("wiring", "python") in rules
 
 
+def _write_override_rule(
+    project_root: Path, layer: str, skill_id: str, filename: str, body: str
+) -> Path:
+    rules_dir = (
+        project_root / ".cataforge" / "overrides" / layer / "skills" / skill_id / "rules"
+    )
+    rules_dir.mkdir(parents=True, exist_ok=True)
+    path = rules_dir / filename
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_override_layer_replaces_scaffold_rule(tmp_path: Path) -> None:
+    """A project-override YAML beats the scaffold skills/<id>/rules YAML."""
+    scaffold_body = """
+schema_version: 1
+rule_type: wiring
+language: js-ts
+extensions: [".js"]
+empty_handler_patterns:
+  - regex: 'scaffoldOnly'
+"""
+    override_body = """
+schema_version: 1
+rule_type: wiring
+language: js-ts
+extensions: [".js"]
+empty_handler_patterns:
+  - regex: 'overrideWins'
+"""
+    _write_project_rule(tmp_path, "code-review", "wiring-js-ts.yaml", scaffold_body)
+    _write_override_rule(
+        tmp_path, "project", "code-review", "wiring-js-ts.yaml", override_body
+    )
+    rules = discover_rules(
+        "code-review",
+        builtin_module="cataforge.runtime.skill.builtins.code_review",
+        project_root=tmp_path,
+    )
+    js = rules[("wiring", "js-ts")]
+    assert "overrideWins" in js.raw["empty_handler_patterns"][0]["regex"]
+
+
+def test_user_override_layer_beats_project(tmp_path: Path) -> None:
+    """user layer wins over project layer for the same (rule_type, language)."""
+    for layer, marker in (("project", "projectMark"), ("user", "userMark")):
+        _write_override_rule(
+            tmp_path,
+            layer,
+            "code-review",
+            "wiring-js-ts.yaml",
+            f"""
+schema_version: 1
+rule_type: wiring
+language: js-ts
+extensions: [".js"]
+empty_handler_patterns:
+  - regex: '{marker}'
+""",
+        )
+    rules = discover_rules(
+        "code-review",
+        builtin_module="cataforge.runtime.skill.builtins.code_review",
+        project_root=tmp_path,
+    )
+    js = rules[("wiring", "js-ts")]
+    assert "userMark" in js.raw["empty_handler_patterns"][0]["regex"]
+
+
 def test_project_can_add_new_language(tmp_path: Path) -> None:
     body = """
 schema_version: 1

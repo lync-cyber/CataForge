@@ -68,6 +68,8 @@ CLI 启动时已自动切 UTF-8。若仍乱码，通常是**终端渲染**问题
 
 `cataforge upgrade apply` 不会冲掉你手改过的文件：检测到偏离上次记录的 manifest 哈希后，原样保留你的版本，框架新版本写到同目录的 `<文件名>.cataforge-new`，diff 合并后删掉旁路文件即可。
 
+长期定制 agent / skill 请放进 `.cataforge/overrides/`（升级免疫，支持整文件覆盖与 section 补丁）—— `cataforge override eject` 生成起点，详见 [`../reference/overrides.md`](../reference/overrides.md)。
+
 万一需要回到 apply 之前的整体状态，apply 前已自动快照到 `.cataforge/.backups/<ts>/`：
 
 ```bash

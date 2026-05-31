@@ -58,7 +58,10 @@ git add . && git commit -m "upgrade scaffold" && git push
 |------|-------|-------|
 | `framework.json` | `runtime.platform`、`upgrade.state` | `constants` / `features` / `migration_checks` / `upgrade.source` / `version` |
 | `PROJECT-STATE.md` | 整个文件 | — |
+| `.cataforge/overrides/` 下文件 | 整个目录（升级免疫） | — |
 | 其它 `.cataforge/` 下文件 | 改动过的整体保留，新版写为 `<文件名>.cataforge-new` | 未改动的整体刷新 |
+
+> 定制 agent / skill 的正确归宿是 `.cataforge/overrides/`——它在 scaffold manifest 之外，`upgrade apply` 永不触碰，且支持整文件覆盖与 section 补丁两种粒度。详见 [`../reference/overrides.md`](../reference/overrides.md)。直接改发货层只会在每次升级时多产生一个 `.cataforge-new` 旁路文件要你合并。
 
 > `framework.json` 的 `version` 字段在 scaffold 写入时由当前安装包的 `cataforge.__version__` 实时戳入，保证 `upgrade apply` 之后 `upgrade check` 立刻报告 "up to date"。
 

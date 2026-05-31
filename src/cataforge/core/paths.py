@@ -149,6 +149,19 @@ class ProjectPaths:
         return self.cataforge_dir / "plugins"
 
     @property
+    def overrides_dir(self) -> Path:
+        """Root of the user/project override layers.
+
+        Lives outside the scaffold manifest, so ``upgrade apply`` never
+        touches it — customisations here survive every framework refresh.
+        """
+        return self.cataforge_dir / "overrides"
+
+    def override_layer(self, layer: str) -> Path:
+        """Root of one override layer (``"project"`` or ``"user"``)."""
+        return self.overrides_dir / layer
+
+    @property
     def deploy_state(self) -> Path:
         return self.cataforge_dir / ".deploy-state"
 

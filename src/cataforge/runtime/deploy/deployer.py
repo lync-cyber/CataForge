@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
+import tempfile
+from contextlib import ExitStack
 from pathlib import Path
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
@@ -43,6 +46,32 @@ class Deployer:
         rebuild: bool = False,
     ) -> list[str]:
         """Execute a full deployment for *platform_id*. Returns action log.
+
+        Thin wrapper owning an :class:`ExitStack`, so any override-resolution
+        staging dir is cleaned up on return or exception. The real work lives
+        in :meth:`_deploy`.
+        """
+        with ExitStack() as stack:
+            return self._deploy(
+                platform_id,
+                stack,
+                dry_run=dry_run,
+                include_maintainer_only=include_maintainer_only,
+                force_copy=force_copy,
+                rebuild=rebuild,
+            )
+
+    def _deploy(
+        self,
+        platform_id: str,
+        stack: ExitStack,
+        *,
+        dry_run: bool = False,
+        include_maintainer_only: bool = False,
+        force_copy: bool = False,
+        rebuild: bool = False,
+    ) -> list[str]:
+        """Run the full deployment pipeline (see :meth:`deploy`).
 
         When *dry_run* is True, no files are written and actions describe what
         would be performed. When *include_maintainer_only* is True, skills
@@ -97,10 +126,17 @@ class Deployer:
         # try to render IDE artefacts from them.
         actions.extend(self._self_heal_scaffold(dry_run=dry_run))
 
+        # Resolve user/project override layers onto the scaffold. When no
+        # overrides exist this returns the original source dirs unchanged, so
+        # the common path stays byte-identical and allocation-free.
+        agents_src, skills_src, stage_action = self._resolve_override_sources(stack)
+        if stage_action:
+            actions.append(stage_action)
+
         if adapter.needs_agent_deploy:
             actions.extend(
                 adapter.deploy_agents(
-                    self._cfg.paths.agents_dir,
+                    agents_src,
                     root,
                     dry_run=dry_run,
                     manifest=manifest,
@@ -146,11 +182,10 @@ class Deployer:
                 )
             )
 
-        skills_dir = self._cfg.paths.skills_dir
-        if adapter.needs_skill_deploy and skills_dir.is_dir():
+        if adapter.needs_skill_deploy and skills_src.is_dir():
             actions.extend(
                 adapter.deploy_skills(
-                    skills_dir,
+                    skills_src,
                     root,
                     dry_run=dry_run,
                     include_maintainer_only=include_maintainer_only,
@@ -236,6 +271,36 @@ class Deployer:
         # framework.json (if that was one of the files we just refilled).
         self._cfg.reload()
         return [f"self-heal: restored {len(written)} missing scaffold file(s) from bundled wheel"]
+
+    # ---- P1: resolve user/project override layers ----
+
+    def _resolve_override_sources(
+        self, stack: ExitStack
+    ) -> tuple[Path, Path, str | None]:
+        """Return the (agents, skills) source dirs deploy should read from.
+
+        With no ``.cataforge/overrides/`` present, returns the scaffold dirs
+        unchanged so the common path is byte-identical to the pre-overrides
+        flow. Otherwise stages the layered, section-patched result into a temp
+        dir (cleaned up via *stack*) and returns those resolved dirs plus a
+        one-line action describing the staging.
+        """
+        from cataforge.core.layers import has_overrides
+        from cataforge.runtime.assets.resolver import resolve_kind
+
+        paths = self._cfg.paths
+        if not has_overrides(paths):
+            return paths.agents_dir, paths.skills_dir, None
+
+        staging = Path(tempfile.mkdtemp(prefix="cataforge-deploy-"))
+        stack.callback(shutil.rmtree, staging, ignore_errors=True)
+        resolve_kind(paths, "agents", staging / "agents")
+        resolve_kind(paths, "skills", staging / "skills")
+        return (
+            staging / "agents",
+            staging / "skills",
+            "resolved override layers (project/user) for agents + skills",
+        )
 
     # ---- P3: --rebuild prunes prior-owned paths before deploy ----
 

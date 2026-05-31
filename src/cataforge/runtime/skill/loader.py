@@ -7,6 +7,7 @@ import importlib.resources
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from cataforge.core.layers import asset_layer_dirs
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.core.types import SkillType
 from cataforge.utils.frontmatter import split_yaml_frontmatter
@@ -70,15 +71,19 @@ class SkillLoader:
         self._paths = ProjectPaths(project_root or find_project_root())
 
     def discover(self) -> list[SkillMeta]:
-        """Scan skills directory and builtins, return metadata for all found skills."""
-        seen_ids: set[str] = set()
-        result: list[SkillMeta] = []
-        builtins_by_id = {m.id: m for m in self._scan_builtins()}
+        """Return metadata for every skill: builtins overlaid by each layer.
 
-        # Project-level skills take precedence
-        skills_dir = self._paths.skills_dir
-        if skills_dir.is_dir():
-            for skill_dir in sorted(skills_dir.iterdir()):
+        Precedence (low → high): package builtins, the scaffold
+        ``.cataforge/skills/``, then the project and user override layers.
+        A later layer's SKILL.md replaces a same-id entry; its frontmatter is
+        what runtime metadata reads (a body-only ``SKILL.patch.md`` is a
+        deploy-time concern and does not change frontmatter).
+        """
+        builtins_by_id = {m.id: m for m in self._scan_builtins()}
+        by_id: dict[str, SkillMeta] = dict(builtins_by_id)
+
+        for root in asset_layer_dirs(self._paths, "skills"):
+            for skill_dir in sorted(root.iterdir()):
                 if not skill_dir.is_dir():
                     continue
                 skill_md = skill_dir / "SKILL.md"
@@ -86,40 +91,28 @@ class SkillLoader:
                     continue
                 meta = self._parse_skill(skill_dir.name, skill_md)
                 if meta:
-                    meta = self._merge_builtin_fallback(meta, builtins_by_id)
-                    seen_ids.add(meta.id)
-                    result.append(meta)
+                    by_id[meta.id] = self._merge_builtin_fallback(meta, builtins_by_id)
 
-        # Built-in skills (only if not overridden at project level)
-        for meta in builtins_by_id.values():
-            if meta.id not in seen_ids:
-                seen_ids.add(meta.id)
-                result.append(meta)
-
-        return result
+        return list(by_id.values())
 
     def get_skill(self, skill_id: str) -> SkillMeta | None:
-        """Load a single skill by ID (project-level first, then builtins).
+        """Load a single skill by ID (highest override layer wins, then builtin).
 
-        When a project-level SKILL.md exists but declares no executable
-        scripts (i.e. it is a pure playbook overriding a builtin's prose),
-        the matching builtin's scripts are merged in so that
-        ``cataforge skill run`` remains functional. Without this merge,
-        a project-level SKILL.md silently shadows the builtin and the
-        runner reports ``no executable scripts``.
+        When the winning SKILL.md declares no executable scripts (i.e. it is a
+        pure playbook overriding a builtin's prose), the matching builtin's
+        scripts are merged in so that ``cataforge skill run`` remains
+        functional. Without this merge, a prose-only override silently shadows
+        the builtin and the runner reports ``no executable scripts``.
         """
-        skill_md = self._paths.skill_dir(skill_id) / "SKILL.md"
-        if skill_md.is_file():
-            meta = self._parse_skill(skill_id, skill_md)
-            if meta is not None:
-                builtins_by_id = {m.id: m for m in self._scan_builtins()}
-                meta = self._merge_builtin_fallback(meta, builtins_by_id)
-            return meta
-        # Try builtin
-        for meta in self._scan_builtins():
-            if meta.id == skill_id:
+        builtins_by_id = {m.id: m for m in self._scan_builtins()}
+        for root in reversed(asset_layer_dirs(self._paths, "skills")):
+            skill_md = root / skill_id / "SKILL.md"
+            if skill_md.is_file():
+                meta = self._parse_skill(skill_id, skill_md)
+                if meta is not None:
+                    meta = self._merge_builtin_fallback(meta, builtins_by_id)
                 return meta
-        return None
+        return builtins_by_id.get(skill_id)
 
     @staticmethod
     def _merge_builtin_fallback(
