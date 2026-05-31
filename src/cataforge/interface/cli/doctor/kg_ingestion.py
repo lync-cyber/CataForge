@@ -88,22 +88,6 @@ def _doc_type_to_subdir(cfg: ConfigManager) -> dict[str, str]:
     return merged
 
 
-def _extract_frontmatter_id(content: str) -> str | None:
-    """Return the `id:` value from YAML front matter, or None."""
-    if not content.startswith("---"):
-        return None
-    end = content.find("\n---", 3)
-    if end == -1:
-        return None
-    fm_block = content[3:end]
-    for line in fm_block.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("id:"):
-            value = stripped[3:].strip().strip('"').strip("'")
-            return value if value else None
-    return None
-
-
 def _scan_markdown_entity_ids(content: str) -> set[str]:
     """Extract whitelisted entity IDs from markdown, skipping code blocks."""
     body = _FENCED_CODE_RE.sub("", content)
@@ -127,11 +111,7 @@ def _scan_fs_entity_ids(
                 content = path.read_text(encoding="utf-8")
             except OSError:
                 continue
-            fm_id = _extract_frontmatter_id(content)
-            if fm_id:
-                found.add(fm_id)
-            else:
-                found.update(_scan_markdown_entity_ids(content))
+            found.update(_scan_markdown_entity_ids(content))
     return found
 
 

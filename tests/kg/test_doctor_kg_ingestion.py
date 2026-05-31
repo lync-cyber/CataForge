@@ -107,6 +107,33 @@ def test_gate_warns_but_does_not_fail_on_stale_only(tmp_path, capsys) -> None:
     assert "TC-002" in out, "stale TC-002 must appear in WARN"
     assert "WARN" in out
 
+def test_gate_passes_with_doc_level_frontmatter_id(tmp_path, capsys) -> None:
+    """A document-level frontmatter ``id`` (the scaffold's ``id: prd-<x>``
+    shape) must not be demanded of the graph.
+
+    The importer mints ``cf:entity_id`` only for item-level entities
+    (F-/M-/...), never for document nodes. Treating the doc-level id as a
+    required entity made every happy-path KG-active project FAIL with no
+    working remediation.
+    """
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    prd = project_root / "docs" / "prd" / "prd-vertical-slice.md"
+    body = prd.read_text(encoding="utf-8").split("---", 2)[2]
+    prd.write_text(
+        "---\nid: prd-vertical-slice\ndoc_type: prd\n---" + body,
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 0, out
+    assert "FAIL" not in out
+    assert "prd-vertical-slice" not in out
+
 def test_gate_skips_when_no_store(tmp_path, capsys) -> None:
     """No `.cataforge/kg/store/` present → gate returns 0 (skip).
 
