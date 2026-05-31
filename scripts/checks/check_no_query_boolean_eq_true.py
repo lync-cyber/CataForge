@@ -47,7 +47,7 @@ def _is_inside_docstring_or_quoted(line: str, match_start: int) -> bool:
         return True
     # Inside a single- or double-quoted string literal that starts on the same line.
     # (Not bullet-proof for multi-line strings, but check_no_design_residue
-    # / check_no_marketing_words use the same line-scoped heuristic.)
+    # uses the same line-scoped heuristic.)
     return head.count('"') % 2 == 1 or head.count("'") % 2 == 1
 
 
