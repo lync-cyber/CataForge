@@ -92,6 +92,11 @@ AGENTS.md
 .claude/commands/*
 !.claude/commands/framework-issue-resolve.md
 .claude/settings.json
+# Exception: web-session bootstrap is committed so every Claude Code on the
+# web session bootstraps identically (deps + pre-commit + env vars).
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/session-start.sh
 
 # Cursor
 .cursor/agents/
