@@ -52,6 +52,7 @@ orchestrator (主线程)
 
 以下约束适用于所有 TDD 子代理，通过 AGENT.md 的 disallowedTools 和本节定义：
 
+- 各 Step 的 dispatch 块：角色定义 / 返回格式 / 异常处理由对应 AGENT.md 经 subagent_type 自动加载，prompt 仅内联任务上下文，各 Step 不再重述
 - AskUserQuestion 不可用。如需用户输入，返回 blocked 并在 `<questions>` 描述问题，orchestrator 以 continuation 重启
 - 返回 `<agent-result>` 格式（详见 dispatch-prompt.md §COMMON-SECTIONS）
 - blocked 时可追加 `<questions>` 字段
@@ -123,8 +124,6 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 - **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD RED: {T-xxx}"`
 
-通过调度接口启动。角色定义、返回格式和异常处理已在 test-writer AGENT.md 中定义，通过 subagent_type 自动加载，prompt 内联任务上下文：
-
 ```
 调度请求:
   agent_id: "test-writer"
@@ -172,8 +171,6 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 ### Step 3: GREEN Phase — 启动implementer子代理
 
 - **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD GREEN: {T-xxx}"`
-
-通过调度接口启动。角色定义、返回格式和异常处理已在 implementer AGENT.md 中定义，通过 subagent_type 自动加载，prompt 内联任务上下文：
 
 ```
 调度请求:
@@ -231,8 +228,6 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 > **审计兜底**：sprint-review 阶段对该 sprint 的所有 impl_files 跑一次批量 `code-review --focus complexity,duplication,coupling`（Layer 1），覆盖 implementer 漏判的情况。
 
-触发后通过调度接口启动，prompt 内联必要上下文：
-
 ```
 调度请求:
   agent_id: "refactorer"
@@ -275,8 +270,6 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 将 Step 2 和 Step 3 合并为一次 implementer 子代理调用，子代理内部先写 AC 对应的失败测试再补最小实现。
 
 - **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD LIGHT-DISPATCH: {T-xxx}"`
-
-通过调度接口启动，prompt 内联任务上下文：
 
 ```
 调度请求:

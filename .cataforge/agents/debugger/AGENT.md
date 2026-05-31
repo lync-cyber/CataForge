@@ -8,7 +8,6 @@ allowed_paths:
   - tests/
   - .cataforge/scripts/
   - .cataforge/hooks/
-  - .cataforge/skills/
 skills:
   - debug
   - context

@@ -145,7 +145,7 @@ input: <输入描述>
 output: <输出描述>
 used_by: [<agent_id>]
 depends: [<skill_id>]
-suggested-tools: [<capability_id>]   # 注意短横线，非下划线 — SkillLoader (loader.py:231) 仅识别带短横线的键名
+suggested-tools: [<capability_id>]   # 注意短横线，非下划线 — SkillLoader 仅识别带短横线的键名
 ```
 
 **提取规则**：
@@ -396,28 +396,13 @@ phases:
 
 ## 领域模式快速参考
 
-以下是常见领域的Agent/Skill/Workflow模式，详见 `references/domain-patterns.md`：
-
-| 领域 | 典型 Agent 角色 | 核心 Skill | 工作流模式 |
-|------|----------------|-----------|-----------|
-| 软件开发 | orchestrator, architect, implementer, reviewer, tester | tdd-engine, code-review, context | 线性+门禁 |
-| 内容创作 | planner, writer, editor, publisher | content-gen, seo-optimize, format-convert | 线性+修订循环 |
-| 电商运营 | analyst, copywriter, campaign-manager, data-analyst | market-research, copy-gen, data-viz | 并行+汇总 |
-| 研究分析 | researcher, analyst, synthesizer, reporter | literature-search, data-analysis, report-gen | 迭代深化 |
+常见领域（软件开发 / 内容创作 / 电商运营 / 研究分析等）的 Agent / Skill / Workflow 模式见 `references/domain-patterns.md`。
 
 ---
 
 ## 扩展机制
 
-生成的框架支持以下扩展方式：
-
-1. **新增 Agent**: 在 `agents/` 下创建新目录和 AGENT.md
-2. **新增 Skill**: 在 `skills/` 下创建新目录和 SKILL.md
-3. **新增 Workflow**: 在 `workflows/` 下创建新 YAML 文件
-4. **新增平台**: 在 `platforms/` 下创建新目录和 profile.yaml
-5. **自定义 Hook**: 在 `hooks/hooks.yaml` 中添加新规则
-
-每种扩展均不需要修改已有文件（开闭原则）。
+生成的框架遵循开闭原则：新增 Agent / Skill / Workflow / 平台 / Hook 均在 §3.1 目录树对应子目录下新建文件（`agents/` / `skills/` / `workflows/` / `platforms/` / `hooks/hooks.yaml`），不需修改已有文件。
 
 ---
 
@@ -434,5 +419,4 @@ phases:
 
 - 生成的框架使用 CataForge 能力标识符，部署时由 deployer 自动翻译为平台原生名称
 - Agent 指令内容使用中文（与 CataForge 项目惯例一致），技术标识符和配置键使用英文
-- 生成的文件不包含任何未实现占位符，每个文件都是完整可用的
-- 每个生成的文件都是完整可用的，不依赖后续手动补全
+- 生成的文件不包含任何未实现占位符，每个文件都是完整可用的，不依赖后续手动补全

@@ -91,8 +91,8 @@ label 由 `framework.json#feedback.gh.labels` 配置（`bug` / `suggest` / `corr
 权威清单见 `cataforge.runtime.skill.builtins.framework_feedback.CHECKS_MANIFEST`。
 
 ## Anti-Patterns
-- 把下游项目自身的用户反馈走这条 skill —— 本 skill 仅打包"对 CataForge 框架"的反馈
-- 在没有 `gh` CLI 时强行 `--gh` —— 会直接 ExternalToolError，应回退 `--clip` 或 `--print`
-- 用 `--include-paths` 输出后直接贴公开 issue —— 会泄漏本机目录结构
-- 没有 `upstream-gap` 纠偏时跑 `correction-export` —— 该子命令会拒绝（exit 1）以防止空 bundle
-- 在 `framework.json#feedback.gh.labels` 里写上游不存在的 label 而不先 `cataforge feedback ensure-labels` —— fallback 兜得住但 issue 缺分类标签，影响上游分诊
+- 禁止: 把下游项目自身的用户反馈走这条 skill —— 应走下游产品反馈渠道；本 skill 仅打包"对 CataForge 框架"的反馈
+- 禁止: 在没有 `gh` CLI 时强行 `--gh` —— 会直接 ExternalToolError；应回退 `--clip` 或 `--print`
+- 禁止: 用 `--include-paths` 输出后直接贴公开 issue —— 会泄漏本机目录结构；公开前先脱敏或去掉路径
+- 禁止: 没有 `upstream-gap` 纠偏时跑 `correction-export` —— 该子命令会拒绝（exit 1）以防止空 bundle；应先积累纠偏记录
+- 避免: 在 `framework.json#feedback.gh.labels` 里写上游不存在的 label 而不先 `cataforge feedback ensure-labels` —— fallback 兜得住但 issue 缺分类标签，影响上游分诊

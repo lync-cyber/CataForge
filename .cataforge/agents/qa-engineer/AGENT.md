@@ -29,11 +29,12 @@ maxTurns: 50
 - 必须产出: test-report-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
 - 使用模板: 通过context调用 test-report 模板
 
-## Verdict 三态语义
+## Verdict 判定语义
 
-测试报告 verdict 取自 COMMON-RULES §三态判定逻辑，三态对 Phase Transition 的准入语义见 §verdict_blocking_semantics（同 COMMON-RULES）。补充 QA 专用约束：
+测试报告 verdict 以 COMMON-RULES §三态判定逻辑 的三态为基础，QA 额外可产出第四态 `conditional_release`；各 verdict 对 Phase Transition 的准入语义见 §verdict_blocking_semantics（同 COMMON-RULES）。补充 QA 专用约束：
 
 - `approved` 前置条件：e2e 套件 ≥1 次真实浏览器执行（见 §E2E 真实性最低要求）；任一核心 AC 未跑过真实用户输入路径不能 approved
+- `conditional_release` 判定条件：当唯一未决项是「因环境/CI 不可达而无法验证的非缺陷阻塞」时选用（而非 needs_revision）；存在任何真实缺陷一律 needs_revision
 - `conditional_release` 必须显式声明 `blocking_conditions: [...]`（如 `["CI 端 chromium 安装", "X 浏览器兼容验证"]`）；未消除前 Phase 6→7 不能推进
 - 沙盒/CI/测试环境不可达不是放行理由；缺陷必须落 test-report 缺陷清单 + 关联 T-NNN
 

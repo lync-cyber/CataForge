@@ -89,7 +89,7 @@ user-invocable: true
 
 ## Anti-Patterns
 - 禁止: 在 ARCH 主卷塞入实现细节代码 —— ARCH 写接口契约 / 数据流 / 模块边界；实现归 implementer 的 src/，越界让两层职责粘连
-- 禁止: 跳过 §6 部署运行时章节 —— 没有部署拓扑的 ARCH 让 devops 无法产出 deploy-spec，下游断链
+- 禁止: 跳过 §5.4 配置管理章节 —— 没有配置形态决策（环境变量清单 / 加载策略 / secrets 处理）的 ARCH 让 deploy-config 与 devops 无据可依，下游断链
 - 禁止: 模块划分循环依赖 —— ARCH 阶段的依赖图必须是 DAG；循环会让 tech-lead 任务拆解无起点
 - 避免: 把多个候选方案并列写在 ARCH 正文 —— 终态决策入 ARCH，候选讨论进 research-note 或 decision-log
 
