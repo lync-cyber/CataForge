@@ -65,6 +65,34 @@ class TestConfigManager:
         cfg2 = ConfigManager(project_dir)
         assert cfg2.runtime_platform == "codex"
 
+    def test_languages_default_empty(self, project_dir: Path) -> None:
+        assert ConfigManager(project_dir).languages == []
+
+    def test_languages_read(self, project_dir: Path) -> None:
+        fw_path = project_dir / ".cataforge" / "framework.json"
+        data = json.loads(fw_path.read_text(encoding="utf-8"))
+        data["project"] = {"languages": ["python", "go"]}
+        fw_path.write_text(json.dumps(data), encoding="utf-8")
+        assert ConfigManager(project_dir).languages == ["python", "go"]
+
+    def test_set_languages_preserves_other_fields(self, project_dir: Path) -> None:
+        cfg = ConfigManager(project_dir)
+        cfg.set_languages(["python"])
+        assert cfg.languages == ["python"]
+        # Unrelated fields untouched.
+        reread = ConfigManager(project_dir)
+        assert reread.runtime_platform == "cursor"
+        assert reread.get_constant("MAX_QUESTIONS_PER_BATCH") == 3
+        assert reread.languages == ["python"]
+
+    def test_set_languages_survives_platform_change(self, project_dir: Path) -> None:
+        cfg = ConfigManager(project_dir)
+        cfg.set_languages(["rust", "go"])
+        cfg.set_runtime_platform("codex")
+        reread = ConfigManager(project_dir)
+        assert reread.languages == ["rust", "go"]
+        assert reread.runtime_platform == "codex"
+
     def test_reload(self, project_dir: Path) -> None:
         cfg = ConfigManager(project_dir)
         assert cfg.version == "0.1.0"

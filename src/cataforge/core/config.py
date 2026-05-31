@@ -126,6 +126,19 @@ class ConfigManager:
         upgrade = self.load().get("upgrade") or {}
         return dict(upgrade.get("source") or {})
 
+    @property
+    def languages(self) -> list[str]:
+        """Declared ``project.languages`` (verbatim; empty list when unset).
+
+        The canonical resolution — declaration with detection fallback and
+        alias normalisation — lives in
+        :func:`cataforge.core.languages.active_languages`; this accessor is the
+        raw read.
+        """
+        project = self.load().get("project") or {}
+        langs = project.get("languages")
+        return [str(x) for x in langs] if isinstance(langs, list) else []
+
     # ---- feedback / hygiene config ----
 
     @property
@@ -197,6 +210,17 @@ class ConfigManager:
         raw.setdefault("runtime", {})["platform"] = platform_id
         self._write_raw(raw)
         # Invalidate the Pydantic-view cache so the next `load()` re-reads.
+        self._cache = None
+
+    def set_languages(self, languages: list[str]) -> None:
+        """Write ``project.languages``, preserving every other field.
+
+        Same verbatim-read / single-key-patch / atomic-write discipline as
+        :meth:`set_runtime_platform`, so unrelated keys keep their order.
+        """
+        raw = self.load_raw()
+        raw.setdefault("project", {})["languages"] = list(languages)
+        self._write_raw(raw)
         self._cache = None
 
     def describe_platform_change(self, platform_id: str) -> dict[str, Any] | None:

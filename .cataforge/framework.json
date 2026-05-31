@@ -4,7 +4,7 @@
   "runtime": {
     "platform": "claude-code"
   },
-  "description": "CataForge 统一框架配置。version 字段在 cataforge setup / upgrade apply 写盘时由 scaffold._stamp_framework_version 戳入实际包版本（cataforge.__version__）。upgrade apply 的 preserve 字段：runtime.platform、upgrade.state；其余字段（version、constants、features、migration_checks、upgrade.source 与 description 自身）均被最新 scaffold 全量覆盖。详见 docs/reference/configuration.md §framework.json。",
+  "description": "CataForge 统一框架配置。version 字段在 cataforge setup / upgrade apply 写盘时由 scaffold._stamp_framework_version 戳入实际包版本（cataforge.__version__）。upgrade apply 的 preserve 字段：runtime.platform、upgrade.state、context.kg_active_doc_types、project.languages；其余字段（version、constants、features、migration_checks、upgrade.source 与 description 自身）均被最新 scaffold 全量覆盖。详见 docs/reference/configuration.md §framework.json。",
   "upgrade": {
     "source": {
       "type": "github",
@@ -37,6 +37,9 @@
   "context": {
     "strategy": "kg-first",
     "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"]
+  },
+  "project": {
+    "languages": []
   },
   "claude_md_limits": {
     "max_bytes": 30000,

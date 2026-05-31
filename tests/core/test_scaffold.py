@@ -51,6 +51,22 @@ def test_copy_scaffold_preserves_runtime_platform_on_force(tmp_path: Path) -> No
     assert "migration_checks" in refreshed
 
 
+def test_copy_scaffold_preserves_project_languages_on_force(tmp_path: Path) -> None:
+    """--force-scaffold must not reset user-declared project.languages."""
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+
+    fw_path = dest / "framework.json"
+    fw = json.loads(fw_path.read_text(encoding="utf-8"))
+    fw.setdefault("project", {})["languages"] = ["python", "go"]
+    fw_path.write_text(json.dumps(fw), encoding="utf-8")
+
+    copy_scaffold_to(dest, force=True)
+
+    refreshed = json.loads(fw_path.read_text(encoding="utf-8"))
+    assert refreshed["project"]["languages"] == ["python", "go"]
+
+
 def test_copy_scaffold_preserves_project_state_md_on_force(tmp_path: Path) -> None:
     dest = tmp_path / ".cataforge"
     copy_scaffold_to(dest, force=False)

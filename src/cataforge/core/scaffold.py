@@ -195,6 +195,12 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
             "kg_active_doc_types"
         ]
 
+    # project.languages is the per-project language declaration — user-owned,
+    # so an upgrade must not reset it to the scaffold default.
+    existing_project = existing.get("project") or {}
+    if isinstance(existing_project, dict) and "languages" in existing_project:
+        merged.setdefault("project", {})["languages"] = existing_project["languages"]
+
     return (json.dumps(merged, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 

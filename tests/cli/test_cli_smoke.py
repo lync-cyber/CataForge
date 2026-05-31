@@ -87,6 +87,29 @@ class TestSetupCommand:
         assert "would set" in result.output or "would patch" in result.output
         assert "Dry-run complete" in result.output
 
+    def test_setup_language_writes_normalized_declaration(
+        self, fresh_project: Path
+    ) -> None:
+        """`setup --language typescript --language go` writes canonical ids."""
+        import json
+
+        result = _invoke("setup", "--language", "typescript", "--language", "go")
+        assert result.exit_code == 0, result.output
+        assert "Languages set to: js-ts, go" in result.output
+        fw = json.loads(
+            (fresh_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
+        )
+        assert fw["project"]["languages"] == ["js-ts", "go"]
+
+    def test_setup_language_dry_run_previews(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = _invoke("setup", "--dry-run", "--language", "py")
+        assert result.exit_code == 0, result.output
+        assert "project.languages = ['python']" in result.output
+        assert not (tmp_path / ".cataforge").exists()
+
     def test_setup_dry_run_on_existing_project_reports_diff(
         self, fresh_project: Path
     ) -> None:
