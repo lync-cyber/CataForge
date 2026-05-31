@@ -51,12 +51,7 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{vol_file} --volume
 
 **规则**: 所有分卷必须全部通过 Layer 1 才进入 Layer 2。Layer 1 返回码语义按 §Layer 1 调用协议处理。
 
-**Layer 1 KG 分流**（自动，无需 agent 干预）: 当被审文档的 doc_type ∈ `framework.json.kg.kg_active_doc_types` 且 `.cataforge/kg/store/` 已存在时，下列两项检查自动从文件 glob 切换到 SPARQL：
-
-- `check_xref` → KG `query.exists()` 强校验。消除原 file-glob 路径在 URL fragment 与跨分卷引用上的假阳性（见 [`checker.py:_maybe_kg_xref_resolver`](../../../src/cataforge/runtime/skill/builtins/doc_review/checker.py)）
-- `check_bidirectional_coverage` → `kg.trace.bidirectional_coverage()` SPARQL 查询，覆盖判定从 "字面 ID 出现" 升级为 "图上有 `cf:implementsFeature` / `cf:verifiesTask` 边"。代码块 / HTML 注释里的 ID 不再算覆盖
-
-回退兜底：KG 连接失败 / 异常 / store 缺失 → 自动降级到 legacy file-glob，不阻塞 Layer 1 通过。该行为由 checker.py 内部实现，agent 无需感知。
+**Layer 1 关系类检查后端无关**（自动，无需 agent 干预）: 交叉引用存在性(`check_xref`)与双向覆盖(`check_bidirectional_coverage`)由框架按当前可用的最高保真后端执行——高保真后端按实体关系判定,消除字面 ID 在 URL fragment、代码块、注释、跨分卷上的假阳性 / 假阴性;后端不可达时自动降级到文件扫描,不阻塞 Layer 1。后端选择由框架内部实现,agent 无需感知。
 
 **Layer 2 短路条件** (降低轻量文档的审查开销):
 - 若 Layer 1 exit 0、被审文档行数 < `DOC_REVIEW_L2_SKIP_THRESHOLD_LINES`、且 `doc_type ∈ DOC_REVIEW_L2_SKIP_DOC_TYPES`，则**跳过 Layer 2** 直接判定为 `approved`

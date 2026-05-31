@@ -48,6 +48,7 @@ ORPHAN_SKILL_WHITELIST = frozenset({
     "tdd-engine",
     "change-guard",
     "start-orchestrator",
+    "context",
     "doc-nav",
     "doc-gen",
     "research",

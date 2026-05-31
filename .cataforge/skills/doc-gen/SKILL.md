@@ -44,22 +44,9 @@ Agent逐章填充内容时:
    - **检查通过**: 继续 Step 2
    - **检查失败**: 返回缺失项清单给调用 Agent，不执行 Step 2-5。Agent 应补充缺失章节后重新调用 finalize
 2. 拆分判断: 如文档行数超过 `DOC_SPLIT_THRESHOLD_LINES`，按下方"文档拆分策略"执行拆分
-3. **持久化到权威存储（按 doc_type 分流）**:
-   - 读取 `.cataforge/framework.json` 的 `kg.kg_active_doc_types`
-   - **doc_type 在 active 集合中**（KG 权威）:
-     ```bash
-     cataforge kg import --doc-type {doc_type}                # 写 KG，权威路径
-     cataforge kg reconcile --doc-type {doc_type}             # 漂移检查（exit 3 = drift）
-     ```
-     reconcile 非零退出（漂移）→ 返回错误给调用 Agent，不继续 Step 4-5；Agent 决定走 `cataforge kg repair` 或回到草稿修订
-   - **doc_type 不在 active 集合**（legacy 路径）:
-     ```bash
-     cataforge docs index --doc-file {最终文档路径}           # 增量刷新 .doc-index.json
-     ```
+3. **持久化到权威存储**: 调框架定稿命令将最终文档写入权威存储——后端(图/文件)与一致性守门由项目上下文方案路由;若守门报漂移,返回错误给调用 Agent,不继续 Step 4-5。Agent 无需感知后端,操作细节见 context skill 的 generate 分支。
 4. **[EVENT]** `cataforge event log --event doc_finalize --phase {当前阶段} --ref "{doc_id}" --detail "文档finalize: {doc_id}"`
-5. 返回: 最终文档路径 + 持久化路径确认（kg-active / legacy-index）
-
-注: KG-active doc_type 下 `docs/.doc-index.json` 由 doctor 维护为派生缓存（doc-nav 仍兼容），但权威读路径已切换到 KG —— `cataforge docs load <ref>` 在 active doc_type 上自动从 KG 解析（见 [loader._try_kg_extract](../../../src/cataforge/domain/docs/loader.py)）。
+5. 返回: 最终文档路径 + 持久化确认
 
 注意: finalize 是轻量格式预检；深度内容审查由 doc-review 负责
 
@@ -87,7 +74,7 @@ Agent逐章填充内容时:
 1. **确定拆分方案** — 根据上表确定 doc_type 对应的 volume_type 组合
 2. **创建分卷骨架** — 使用分卷模板 (`templates/{模板文件}`) 创建各分卷文件
 3. **移动内容** — 将主卷中对应章节内容移入分卷，主卷保留交叉引用目录
-4. **持久化到权威存储** — 对每个分卷分别走 §指令3.Step 3 的 doc_type 分流逻辑（KG-active 走 `cataforge kg import --doc-type {doc_type}` + reconcile；legacy 走 `cataforge docs index --doc-file <分卷路径>`）。`split_from` 字段写入分卷的 YAML Front Matter，indexer 与 KG ingest 都会读取
+4. **持久化到权威存储** — 对每个分卷分别走 §指令3.Step 3 的定稿持久化（后端由上下文方案路由）。`split_from` 字段写入分卷的 YAML Front Matter
 5. **分卷存放路径** — 与主卷同目录: `docs/{doc_type}/`
 
 ### 拆分规则
@@ -153,12 +140,12 @@ required_sections:
 
 ## Anti-Patterns
 - 禁止: `id` 字段含版本号 / 点号 / 空格 / 大写字母 — `cataforge docs validate` 强制 slug 规范，违反会阻塞 doctor / CI；版本统一走 frontmatter `version:` 字段
-- 禁止: 跳过 finalize 直接退出 — finalize 负责权威持久化（KG ingest 或 .doc-index.json 增量刷新）与 doc_finalize 事件写入，跳过会让 doc-nav / KG 找不到新文档且 reflector 漏事件
-- 禁止: 在 KG-active doc_type 上跳过 `cataforge kg import` 直接调 `cataforge docs index` — 会让 KG 与 Markdown 漂移，下次 `cataforge doctor kg_ingestion_completeness` 必 FAIL；正确路径见 §指令3.Step 3 的 doc_type 分流
+- 禁止: 跳过 finalize 直接退出 — finalize 负责权威持久化与 doc_finalize 事件写入，跳过会让后续读取找不到新文档且 reflector 漏事件
+- 禁止: 绕过 finalize 自行调度后端写命令 — 持久化后端由框架按上下文方案路由，手工调度会与方案漂移
 - 禁止: 用模板默认值 Write 覆盖已存在文档而不先 Read 检查 — Write 工具静默覆盖，会丢失上下游 agent 已填充的内容
 - 避免: 在 doc-gen 主体扩展业务模板映射 — 模板演化经 `_registry.yaml` 注册流程；直接在 SKILL.md 加映射条目会绕过 schema 校验
 
 ## 效率策略
 - 按模板生成骨架，减少Agent的格式化工作
-- finalize 按 `kg.kg_active_doc_types` 自动分流持久化：KG-active doc_type 走 `cataforge kg import` + `cataforge kg reconcile`，legacy doc_type 走 `cataforge docs index` 增量更新 `.doc-index.json`（见 §指令3.Step 3）
+- finalize 自动持久化到权威存储，后端由上下文方案路由，Agent 只调一次定稿（见 §指令3.Step 3）
 - 拆分后每个分卷可独立加载，支持按需消费
