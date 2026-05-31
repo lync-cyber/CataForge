@@ -120,7 +120,7 @@ Agent 间统一格式：
 下列约定对所有 Agent 一次性生效，**各 Agent 的 Input/Output Contract 不再重复**：
 
 - **写后无需手动调 KG CLI** — `doc-gen finalize` 已按 `framework.json.kg.kg_active_doc_types` 自动分流：active doc_type 触发 `cataforge kg import` + `cataforge kg reconcile`；非 active 触发 `cataforge docs index`。Agent 完成章节填充后只需 finalize，不应自行调度 `cataforge kg *`
-- **读取无需感知 KG 存在** — `cataforge docs load <ref>` 在 active doc_type 下自动从 KG 解析（实体级引用 `doc_id#§N.ITEM-NNN` 走 `kg.query.entity` + `render_entity`；whole-section 走文件 slice）；非 active doc_type 仍走 `.doc-index.json` + 文件切片。两条路径返回相同 markdown 形式，Agent 调用方式不变
+- **读取无需感知 KG 存在** — `cataforge docs load <ref>` 在 active doc_type 下自动从 KG 解析（实体级引用 `doc_id#§N.ITEM-NNN` 取实体渲染；whole-section 引用取该章节 Section 节点的 narrative_body）；非 active doc_type 仍走 `.doc-index.json` + 文件切片。两条路径返回相同 markdown 形式，Agent 调用方式不变
 - **依赖展开同样统一** — `cataforge docs load <ref> --with-deps` 在 active doc_type 全覆盖时通过 `kg.query.depends_on` 走图查询，否则 fall back 到 `.doc-index.json` 的 `deps[]` 字段（见 [`docs/loader._try_kg_resolve_deps`](../../src/cataforge/domain/docs/loader.py)）
 - **drift 检查由 orchestrator 负责** — Phase Transition Step 5.3 自动跑 `cataforge kg reconcile`；Agent 无需在 Output Contract 中声明"reconcile 通过"
 - **Read 工具仍可在 KG 不可达时兜底** — KG store 缺失 / 损坏 / KG-active doc_type 未 ingest 时，`cataforge docs load` 会自动降级到文件路径，Agent 调用契约不变

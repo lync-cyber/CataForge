@@ -5,11 +5,13 @@ phase produces the structural backbone — one `Document` per file and one
 `Section` per entity-owning heading — plus the containment edges that
 make whole-document content first-class in the graph.
 
-Scope: a Section is emitted for every heading that owns at least one
-entity. The Section carries the heading's prose body (`narrative_body`)
-and `contains_entity` edges to the entities sourced from it; the Document
-links the sections via `has_section`. Pure-prose sections (no entities)
-and split-Volume nodes are out of scope for this phase.
+Scope: a Section is emitted for every `§`-level heading (level ≥ 2),
+including pure-prose sections that own no entity, so whole-section reads
+resolve from the graph. The Section carries the heading's prose body
+(`narrative_body`) and `contains_entity` edges to the entities whose
+innermost owning heading is this section; the Document links the sections
+via `has_section`. The level-1 document title is represented by the
+Document node itself; split-Volume nodes are out of scope for this phase.
 """
 
 from __future__ import annotations
@@ -49,38 +51,51 @@ class ExtractedDocument:
 
 
 def _section_body(doc: ParsedDoc, line_start: int, line_end: int) -> str:
-    return "\n".join(doc.raw.splitlines()[line_start:line_end])
+    """Return the section's lines with trailing blank lines trimmed.
+
+    Mirrors the legacy file slice (`loader._extract_section_from_lines`)
+    so a KG-served whole-section read matches the file-served one.
+    """
+    lines = doc.raw.splitlines()[line_start:line_end]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
 
 
 def extract_structure(
     doc: ParsedDoc,
     entities: list[ExtractedEntity],
 ) -> tuple[ExtractedDocument, list[ExtractedSection]]:
-    """Return the Document node and its entity-owning Section nodes.
+    """Return the Document node and one Section per `§`-level heading.
 
     `entities` are this document's own entities (the per-doc output of
-    `extract_entities`), so `source_section` / `section_line_*` are
-    attributed to headings in this file.
+    `extract_entities`); each is attached to its innermost owning heading
+    via `contains_entity` (matched on `source_section` == heading title).
     """
-    # Group entities by the heading that owns them. `source_section` is
-    # the heading title; entities under the same heading share line bounds.
-    groups: dict[str, list[ExtractedEntity]] = {}
+    # Entities keyed by the title of their innermost owning heading.
+    owned: dict[str, list[str]] = {}
     for entity in entities:
-        groups.setdefault(entity.source_section, []).append(entity)
+        owned.setdefault(entity.source_section, []).append(entity.entity_id)
 
     sections: list[ExtractedSection] = []
-    for anchor, group in groups.items():
-        head = group[0]
-        body = _section_body(doc, head.section_line_start, head.section_line_end)
+    seen_anchors: set[str] = set()
+    for span in doc.sections:
+        if span.level < 2:
+            continue  # level-1 title is the Document node, not a Section
+        anchor = span.title.strip()
+        if not anchor or anchor in seen_anchors:
+            continue
+        seen_anchors.add(anchor)
+        body = _section_body(doc, span.line_start, span.line_end)
         sections.append(
             ExtractedSection(
                 doc_id=doc.doc_id,
                 anchor=anchor,
                 title=anchor,
                 narrative_body=body,
-                content_hash=head.content_hash,
+                content_hash=hashlib.sha256(body.encode("utf-8")).hexdigest(),
                 source_doc=doc.doc_id,
-                contained_entity_ids=sorted(e.entity_id for e in group),
+                contained_entity_ids=sorted(owned.get(anchor, [])),
             )
         )
     sections.sort(key=lambda s: s.anchor)

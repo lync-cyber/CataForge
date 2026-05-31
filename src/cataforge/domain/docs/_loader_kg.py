@@ -10,12 +10,26 @@ without the optional KG store keeps working on the legacy path.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.docs.index_ops import LoadSectionError, parse_ref
 
 if TYPE_CHECKING:
     from cataforge.domain.docs.kg_port import KGReadPort
+
+_SECTION_NUMBER_RE = re.compile(r"^\d+(?:\.\d+)*$")
+
+
+def _anchor_section_number(anchor: str) -> str | None:
+    """Return the leading numeric path of a section anchor, e.g.
+
+    ``"§2.1 F-001 用户登录"`` → ``"2.1"``; ``None`` when the heading is
+    not numbered. Mirrors how refs address sections (``doc#§2.1``).
+    """
+    head = anchor.lstrip("§ \t")
+    token = head.split(maxsplit=1)[0] if head.split() else ""
+    return token if _SECTION_NUMBER_RE.match(token) else None
 
 
 def _try_kg_extract(
@@ -26,15 +40,15 @@ def _try_kg_extract(
 ) -> str | None:
     """Resolve a ref through the KG when active.
 
-    Returns the rendered Markdown body when the graph holds the entity,
-    or `None` to signal "fall through to the legacy file path". Never
-    raises — KG failures during a Group A read always degrade to legacy
-    behavior so the cutover gate stays a soft fence at the read layer
-    (the doctor `kg_ingestion_completeness` gate enforces hard
-    completeness at deploy time).
+    Entity refs (`item_id` present) render through the entity template;
+    whole-section refs (`item_id is None`) resolve the matching Section
+    node and return its `narrative_body`. Either way a `None` return
+    signals "fall through to the legacy file path". Never raises — KG
+    failures during a read always degrade to legacy behavior so the
+    cutover gate stays a soft fence at the read layer (the doctor
+    `kg_ingestion_completeness` gate enforces hard completeness at
+    deploy time).
     """
-    if item_id is None:
-        return None  # whole-section refs have no entity to render
     try:
         from cataforge.domain.kg._dispatch import is_active_for, kg_config_for
     except ImportError:
@@ -49,12 +63,40 @@ def _try_kg_extract(
     cfg = kg_config_for(project_root)
     try:
         with KnowledgeGraph.connect(cfg) as kg:
+            if item_id is None:
+                return _kg_section_body(kg.store, cfg, doc_id, section_path)
             if not kg.query.exists(item_id):
                 return None
             rendered = render_entity(kg.store, item_id)
     except Exception:
         return None
     return rendered if rendered else None
+
+
+def _kg_section_body(store: Any, cfg: Any, doc_id: str, section_path: str) -> str | None:
+    """Return the `narrative_body` of the Section in `doc_id` whose anchor's
+    numeric path equals `section_path`, or `None` to fall back to file."""
+    from cataforge.domain.kg._sparql_utils import cf_namespace, escape_sparql_literal
+
+    ns = cf_namespace(cfg)
+    safe_doc = escape_sparql_literal(doc_id)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        "SELECT ?anchor ?body WHERE { "
+        "  ?s a cf:Section ; "
+        f'     cf:source_doc "{safe_doc}" ; '
+        "     cf:section_anchor ?anchor ; "
+        "     cf:narrative_body ?body . "
+        "}"
+    )
+    for row in store.query(sparql):
+        anchor = row["anchor"]
+        body = row["body"]
+        if anchor is None or body is None:
+            continue
+        if _anchor_section_number(str(anchor.value)) == section_path:
+            return str(body.value) or None
+    return None
 
 
 def _try_kg_plan_load(

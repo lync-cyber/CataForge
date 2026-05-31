@@ -147,6 +147,27 @@ def test_plan_load_empty_input(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# extract — whole-section read from the KG (Phase 1c)
+# ---------------------------------------------------------------------------
+
+
+def test_extract_whole_section_pure_prose_from_kg(tmp_path: Path) -> None:
+    """`arch#§1` (a pure-prose overview, no entity) resolves from the KG
+    Section node now that ingest emits every §-level section."""
+    project = _project_with_kg(tmp_path, active=["prd", "arch", "test-report"])
+
+    body = loader.extract("arch#§1", str(project))
+    assert "概览" in body  # §1 概览 narrative_body served from the graph
+
+
+def test_extract_whole_section_entity_section_from_kg(tmp_path: Path) -> None:
+    project = _project_with_kg(tmp_path, active=["prd", "arch", "test-report"])
+
+    body = loader.extract("prd#§2.1", str(project))
+    assert "F-001" in body
+
+
+# ---------------------------------------------------------------------------
 # resolve_deps — KG dispatch
 # ---------------------------------------------------------------------------
 
