@@ -179,12 +179,14 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
     if isinstance(existing_upgrade, dict) and "state" in existing_upgrade:
         merged.setdefault("upgrade", {})["state"] = existing_upgrade["state"]
 
-    # kg.kg_active_doc_types is the per-project rolling-cutover toggle —
+    # context.kg_active_doc_types is the per-project rolling-cutover toggle —
     # users add doc_types one at a time as they validate the migration,
     # so the scaffold default must not stomp on local progress.
-    existing_kg = existing.get("kg") or {}
-    if isinstance(existing_kg, dict) and "kg_active_doc_types" in existing_kg:
-        merged.setdefault("kg", {})["kg_active_doc_types"] = existing_kg["kg_active_doc_types"]
+    existing_ctx = existing.get("context") or {}
+    if isinstance(existing_ctx, dict) and "kg_active_doc_types" in existing_ctx:
+        merged.setdefault("context", {})["kg_active_doc_types"] = existing_ctx[
+            "kg_active_doc_types"
+        ]
 
     return (json.dumps(merged, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 

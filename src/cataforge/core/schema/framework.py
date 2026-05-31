@@ -31,14 +31,33 @@ class FrameworkUpgrade(BaseModel):
 
 
 class FrameworkKG(BaseModel):
-    """Validated shape for the ``kg`` section of ``framework.json``."""
+    """Validated shape for the ``kg`` section of ``framework.json``.
+
+    Store-level connection settings only; the active doc_type set lives
+    on :class:`FrameworkContext`.
+    """
 
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
-    kg_active_doc_types: list[str] = Field(default_factory=list)
     project_id: str = "proj-default"
     title: str = "(unnamed)"
     process_model: str = "waterfall"
+
+
+class FrameworkContext(BaseModel):
+    """Validated shape for the ``context`` section of ``framework.json``.
+
+    ``strategy`` selects the context-IO backend topology: ``kg-first``
+    (graph is the source-of-truth, Markdown is the exported review view)
+    or ``doc-only`` (Markdown is the source, no graph backend).
+    ``kg_active_doc_types`` is the canonical set of doc_types whose
+    context I/O routes through the graph.
+    """
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    strategy: str = "kg-first"
+    kg_active_doc_types: list[str] = Field(default_factory=list)
 
 
 class FrameworkFile(BaseModel):
@@ -53,3 +72,4 @@ class FrameworkFile(BaseModel):
     upgrade: FrameworkUpgrade | None = None
     migration_checks: list[Any] = Field(default_factory=list)
     kg: FrameworkKG = Field(default_factory=FrameworkKG)
+    context: FrameworkContext = Field(default_factory=FrameworkContext)

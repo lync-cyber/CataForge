@@ -68,8 +68,8 @@ def _project_active_doc_types(cfg: ConfigManager) -> set[str]:
     data = _load_framework_json(cfg)
     if data is None:
         return _default_kg_active()
-    kg_section = data.get("kg") or {}
-    declared = kg_section.get("kg_active_doc_types")
+    context_section = data.get("context") or {}
+    declared = context_section.get("kg_active_doc_types")
     if isinstance(declared, list) and all(isinstance(d, str) for d in declared):
         return set(declared)
     return _default_kg_active()

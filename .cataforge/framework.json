@@ -29,11 +29,14 @@
     }
   },
   "kg": {
-    "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"],
     "store_backend": "oxigraph",
     "db_path": ".cataforge/kg/store",
     "ontology_namespace": "https://cataforge.dev/kg/",
     "base_namespace": "https://cataforge.dev/kg/instances/"
+  },
+  "context": {
+    "strategy": "kg-first",
+    "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"]
   },
   "claude_md_limits": {
     "max_bytes": 30000,
@@ -324,7 +327,7 @@
     {
       "id": "mc-0.5.0-kg-config",
       "release_version": "0.5.0",
-      "description": "framework.json 必须声明 kg.kg_active_doc_types — 自 0.5.0 起 doc-gen finalize / cataforge docs load / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走 legacy 路径，掩盖 KG cutover 的覆盖率门。",
+      "description": "framework.json 必须声明 context.kg_active_doc_types — 自 0.5.0 起 doc-gen finalize / cataforge docs load / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走 legacy 路径，掩盖 KG cutover 的覆盖率门。",
       "type": "file_must_contain",
       "path": ".cataforge/framework.json",
       "patterns": ["kg_active_doc_types"]

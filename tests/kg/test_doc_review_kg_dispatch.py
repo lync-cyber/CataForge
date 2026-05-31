@@ -31,7 +31,7 @@ def _setup_project(tmp_path: Path, variant: str = "waterfall") -> Path:
     run_migration(handle.raw, FIXTURE_ROOT / variant, config)
     handle.raw.flush()
 
-    framework = {"kg": {"kg_active_doc_types": ["prd", "arch", "test"]}}
+    framework = {"context": {"kg_active_doc_types": ["prd", "arch", "test"]}}
     (project / ".cataforge" / "framework.json").write_text(
         json.dumps(framework), encoding="utf-8"
     )

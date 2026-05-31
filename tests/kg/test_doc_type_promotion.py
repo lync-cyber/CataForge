@@ -132,7 +132,7 @@ def test_kg_import_default_scope_follows_active_doc_types(tmp_path: Path) -> Non
     project = tmp_path / "proj"
     _write(
         project / ".cataforge" / "framework.json",
-        json.dumps({"kg": {"kg_active_doc_types": ["dev-plan"]}}),
+        json.dumps({"context": {"kg_active_doc_types": ["dev-plan"]}}),
     )
     _write(
         project / "docs" / "dev-plan" / "dev-plan.md",

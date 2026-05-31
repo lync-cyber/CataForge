@@ -58,7 +58,7 @@ def _project_with_kg(tmp_path: Path, *, active: list[str]) -> Path:
     handle.close()
 
     (project / ".cataforge" / "framework.json").write_text(
-        json.dumps({"kg": {"kg_active_doc_types": active}}), encoding="utf-8"
+        json.dumps({"context": {"kg_active_doc_types": active}}), encoding="utf-8"
     )
     return project
 
@@ -70,7 +70,7 @@ def _project_no_kg(tmp_path: Path) -> Path:
     (project / ".cataforge").mkdir()
     (project / "docs").mkdir()
     (project / ".cataforge" / "framework.json").write_text(
-        json.dumps({"kg": {"kg_active_doc_types": []}}), encoding="utf-8"
+        json.dumps({"context": {"kg_active_doc_types": []}}), encoding="utf-8"
     )
     return project
 
