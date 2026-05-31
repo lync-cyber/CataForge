@@ -62,17 +62,6 @@ ORPHAN_SKILL_WHITELIST = frozenset({
     "framework-walkthrough",
 })
 
-# Constants whose names must be referenced instead of bare numerics.
-# (constant_name, numeric_pattern, doc_hint)
-CONSTANT_LITERALS: tuple[tuple[str, str, str], ...] = (
-    ("MAX_QUESTIONS_PER_BATCH", r"≤\s*3\s*(问|题|个问题)", "≤3 问"),
-    ("DOC_SPLIT_THRESHOLD_LINES", r"(>|超过|≥)\s*300\s*行", ">300 行"),
-    ("DOC_REVIEW_L2_SKIP_THRESHOLD_LINES", r"<\s*200\s*行", "<200 行"),
-    ("TDD_LIGHT_LOC_THRESHOLD", r"(≤|<|>)\s*150\s*(LOC|loc|行代码)", "150 LOC 阈值"),
-    ("RETRO_TRIGGER_SELF_CAUSED", r"(累计|≥)\s*5\s*条", "≥5 条"),
-    ("SPRINT_REVIEW_MICRO_TASK_COUNT", r"(≤|<=)\s*3\s*个任务", "≤3 个任务"),
-)
-
 # Sub-agents not directly phase-routed but invoked by orchestrator or
 # tdd-engine — counted as "referenced" so B5 doesn't warn on them.
 B5_SUBAGENTS = frozenset({"test-writer", "implementer", "refactorer"})

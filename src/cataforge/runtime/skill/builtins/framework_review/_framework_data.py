@@ -20,6 +20,36 @@ def read_framework_data(root: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+# (constant_name, regex_template, hint_template) — ``__V__`` is replaced with
+# the live framework.json value so B4 flags whatever number the constant
+# currently holds instead of a hardcoded copy that silently goes stale.
+_CONSTANT_LITERAL_TEMPLATES: tuple[tuple[str, str, str], ...] = (
+    ("MAX_QUESTIONS_PER_BATCH", r"≤\s*__V__\s*(问|题|个问题)", "≤__V__ 问"),
+    ("DOC_SPLIT_THRESHOLD_LINES", r"(>|超过|≥)\s*__V__\s*行", ">__V__ 行"),
+    ("DOC_REVIEW_L2_SKIP_THRESHOLD_LINES", r"<\s*__V__\s*行", "<__V__ 行"),
+    ("TDD_LIGHT_LOC_THRESHOLD", r"(≤|<|>)\s*__V__\s*(LOC|loc|行代码)", "__V__ LOC 阈值"),
+    ("RETRO_TRIGGER_SELF_CAUSED", r"(累计|≥)\s*__V__\s*条", "≥__V__ 条"),
+    ("SPRINT_REVIEW_MICRO_TASK_COUNT", r"(≤|<=)\s*__V__\s*个任务", "≤__V__ 个任务"),
+)
+
+
+def build_constant_literals(root: Path) -> tuple[tuple[str, str, str], ...]:
+    """Build B4's ``(name, regex, hint)`` triples with values read live from
+    framework.json. A constant absent or non-integer is skipped (no literal
+    to match against)."""
+    consts = read_framework_data(root).get("constants") or {}
+    if not isinstance(consts, dict):
+        return ()
+    out: list[tuple[str, str, str]] = []
+    for name, pattern_t, hint_t in _CONSTANT_LITERAL_TEMPLATES:
+        value = consts.get(name)
+        if not isinstance(value, int):
+            continue
+        v = str(value)
+        out.append((name, pattern_t.replace("__V__", v), hint_t.replace("__V__", v)))
+    return tuple(out)
+
+
 def read_framework_features(root: Path) -> dict[str, dict[str, object]]:
     """Return ``framework.json#/features`` mapping, or empty on failure."""
     data = read_framework_data(root)

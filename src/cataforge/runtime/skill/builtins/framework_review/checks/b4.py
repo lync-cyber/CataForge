@@ -7,13 +7,14 @@ from pathlib import Path
 
 from cataforge.core.paths import ProjectPaths
 
-from .._constants import CONSTANT_LITERALS
+from .._framework_data import build_constant_literals
 from .._types import Report
 
 
 def check_b4_hardcoded_constants(root: Path, report: Report) -> None:
     """B4-α: bare numeric literals that should reference constants."""
     paths = ProjectPaths(root)
+    constant_literals = build_constant_literals(root)
     scan_roots = (
         paths.agents_dir,
         paths.skills_dir,
@@ -48,7 +49,7 @@ def check_b4_hardcoded_constants(root: Path, report: Report) -> None:
                 # so the canonical row isn't mis-flagged.
                 if stripped.startswith("|"):
                     continue
-                for const_name, pattern, hint in CONSTANT_LITERALS:
+                for const_name, pattern, hint in constant_literals:
                     if const_name in line:
                         continue
                     if re.search(pattern, line_outside_inline_code):
