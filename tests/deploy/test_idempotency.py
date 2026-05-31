@@ -481,6 +481,53 @@ def test_deploy_writes_manifest_file(tmp_path: Path) -> None:
     assert "CLAUDE.md" in owned_set
 
 
+def test_save_manifest_is_atomic_on_interrupted_replace(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An interrupted write must leave the prior manifest intact rather
+    than truncating it. ``save_manifest`` routes through the atomic
+    helper (tmp file then ``os.replace``), so a failing ``os.replace``
+    aborts before the live file is touched."""
+    import cataforge.utils.atomic_write as atomic_mod
+    from cataforge.core.paths import DEPLOY_MANIFEST_REL
+    from cataforge.runtime.deploy.manifest import DeployManifest, save_manifest
+
+    root = tmp_path
+
+    # Seed a valid prior manifest on disk.
+    prior = DeployManifest("claude-code")
+    prior.record(".claude/agents/orchestrator.md")
+    save_manifest(root, prior)
+    manifest_file = root / DEPLOY_MANIFEST_REL
+    prior_bytes = manifest_file.read_bytes()
+    assert prior_bytes, "precondition: prior manifest written"
+
+    # Next save dies at the rename step.
+    def _boom(*_args, **_kwargs):
+        raise OSError("simulated crash during replace")
+
+    monkeypatch.setattr(atomic_mod.os, "replace", _boom)
+
+    nxt = DeployManifest("claude-code")
+    nxt.record(".claude/commands/bootstrap.md")
+    import pytest
+
+    with pytest.raises(OSError, match="simulated crash"):
+        save_manifest(root, nxt)
+
+    # The prior file is byte-for-byte intact — not truncated or partial.
+    assert manifest_file.read_bytes() == prior_bytes, (
+        "interrupted save corrupted the prior manifest; write was not atomic"
+    )
+    # No stray temp file left behind in the manifest's directory.
+    leftovers = [
+        p.name
+        for p in manifest_file.parent.iterdir()
+        if p.name != manifest_file.name and ".deploy-manifest" in p.name
+    ]
+    assert not leftovers, f"atomic write leaked temp files: {leftovers}"
+
+
 def test_manifest_omits_user_authored_paths(tmp_path: Path) -> None:
     """The manifest must record only what *this* deploy wrote — not what
     happened to be on disk."""

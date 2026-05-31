@@ -115,3 +115,35 @@ class TestSkillRunnerTimeout:
         result = runner.run("quick-skill")
         assert result.returncode == 0
         assert "ok" in result.stdout
+
+
+class TestDefaultTimeoutFromFramework:
+    """``timeout=None`` resolves the default from framework.json
+    ``constants.SKILL_RUNNER_TIMEOUT_DEFAULT_SECS`` for the bound project,
+    not a hardcoded module constant."""
+
+    def test_framework_default_timeout_is_honoured(self, project: Path) -> None:
+        (project / ".cataforge" / "framework.json").write_text(
+            json.dumps({"constants": {"SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 1}}),
+            encoding="utf-8",
+        )
+        _write_skill(
+            project,
+            "slow-skill",
+            script_body="import time; time.sleep(600)\n",
+        )
+        runner = SkillRunner(project)
+        with pytest.raises(SkillTimeoutError) as exc_info:
+            runner.run("slow-skill", timeout=None)
+        assert exc_info.value.timeout_secs == 1.0
+
+    def test_missing_framework_falls_back_to_default(self, project: Path) -> None:
+        """No framework.json (or no key) → fall back to the built-in 300 s
+        default rather than disabling the limit."""
+        _write_skill(
+            project,
+            "quick-skill",
+            script_body="print('ok')\n",
+        )
+        runner = SkillRunner(project)
+        assert runner._default_timeout_secs() == 300.0

@@ -34,6 +34,7 @@ from pathlib import Path
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
 from cataforge.core.paths import DEPLOY_MANIFEST_REL
+from cataforge.utils.atomic_write import atomic_write_text
 
 _MANIFEST_VERSION = 1
 
@@ -123,11 +124,15 @@ def load_prior_manifest_platform(project_root: Path) -> str | None:
 
 
 def save_manifest(project_root: Path, manifest: DeployManifest) -> None:
-    """Persist *manifest* to ``.cataforge/.deploy-manifest.json``."""
+    """Persist *manifest* to ``.cataforge/.deploy-manifest.json``.
+
+    Written atomically: an interrupted write leaves the prior manifest
+    intact rather than a truncated file that the next deploy's prune
+    step cannot parse.
+    """
     path = project_root / DEPLOY_MANIFEST_REL
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n"
-    path.write_text(payload, encoding="utf-8")
+    atomic_write_text(path, payload)
 
 
 def manifest_path(project_root: Path) -> Path:

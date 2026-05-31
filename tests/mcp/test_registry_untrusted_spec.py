@@ -118,3 +118,35 @@ class TestRegistryUntrustedSpec:
             assert reg.get_server(f"ep-{executable}") is not None, (
                 f"'{executable}' must be trusted"
             )
+
+
+class TestIsTrustedCommandPathTraversal:
+    """A relative path that climbs out of the project tree must not be
+    waved through as a project-local binary."""
+
+    def test_parent_dir_escape_rejected_posix(self, project: Path) -> None:
+        spec = MCPServerSpec(id="x", command="../../evil.sh", args=[])
+        assert MCPRegistry._is_trusted_command(spec) is False
+
+    def test_parent_dir_escape_rejected_windows_sep(self, project: Path) -> None:
+        spec = MCPServerSpec(id="x", command="..\\..\\evil.exe", args=[])
+        assert MCPRegistry._is_trusted_command(spec) is False
+
+    def test_local_relative_path_still_trusted(self, project: Path) -> None:
+        spec = MCPServerSpec(id="x", command="./bin/tool", args=[])
+        assert MCPRegistry._is_trusted_command(spec) is True
+
+    def test_bare_name_behaviour_unchanged(self, project: Path) -> None:
+        # Bare untrusted name stays untrusted; trusted prefix stays trusted.
+        assert (
+            MCPRegistry._is_trusted_command(
+                MCPServerSpec(id="x", command="evil", args=[])
+            )
+            is False
+        )
+        assert (
+            MCPRegistry._is_trusted_command(
+                MCPServerSpec(id="x", command="python", args=[])
+            )
+            is True
+        )

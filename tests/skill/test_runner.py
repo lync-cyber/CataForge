@@ -241,6 +241,32 @@ class TestSkillRunnerEventLog:
         statuses = [r.get("status") for r in records]
         assert "needs_revision" in statuses
 
+    def test_review_skill_exit2_distinct_from_unreachable(
+        self, project: Path
+    ) -> None:
+        """Exit 2 is a Layer-1 bad-arguments signal, not "scripts
+        unreachable". Its event must not borrow the generic
+        unreachable/blocked labelling reserved for non-business exit codes
+        like 127."""
+        _write_skill(
+            project,
+            "code-review",
+            script_body="import sys; sys.exit(2)\n",
+        )
+        runner = SkillRunner(project)
+        runner.run("code-review")
+
+        log = project / "docs" / "EVENT-LOG.jsonl"
+        import json
+        records = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+        rec = records[-1]
+        assert "unreachable" not in rec["detail"], (
+            "exit 2 must not be conflated with the unreachable label"
+        )
+        assert rec["status"] != "blocked", (
+            "exit 2 must not share the generic unreachable/blocked status"
+        )
+
     def test_event_log_flag_propagated_to_override(self, project: Path) -> None:
         """A project-level override that ships its own scripts must still
         inherit the event-log flag from the builtin — the "review-ness"
