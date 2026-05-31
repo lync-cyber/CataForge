@@ -7,7 +7,7 @@ allowed_paths:
   - docs/reviews/retro/
   - .cataforge/learnings/
 skills:
-  - doc-nav
+  - context
 model_tier: light
 inline_dispatch: true
 maxTurns: 30

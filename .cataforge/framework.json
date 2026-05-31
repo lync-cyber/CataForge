@@ -29,11 +29,14 @@
     }
   },
   "kg": {
-    "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"],
     "store_backend": "oxigraph",
     "db_path": ".cataforge/kg/store",
     "ontology_namespace": "https://cataforge.dev/kg/",
     "base_namespace": "https://cataforge.dev/kg/instances/"
+  },
+  "context": {
+    "strategy": "kg-first",
+    "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"]
   },
   "claude_md_limits": {
     "max_bytes": 30000,
@@ -213,25 +216,25 @@
       "deprecate_after": "0.2.0",
       "description": "agile-lite / agile-prototype 模式所需模板齐全",
       "type": "dir_must_contain_files",
-      "path": ".cataforge/skills/doc-gen/templates",
+      "path": ".cataforge/skills/context/templates",
       "patterns": ["prototype/brief.md", "lite/prd-lite.md", "lite/arch-lite.md", "lite/dev-plan-lite.md"]
     },
     {
       "id": "mc-0.1.0-docgen-constant-ref",
       "release_version": "0.1.0",
       "deprecate_after": "0.2.0",
-      "description": "doc-gen SKILL.md 必须引用 DOC_SPLIT_THRESHOLD_LINES 而非硬编码 '500 行'",
+      "description": "context generate 分支必须引用 DOC_SPLIT_THRESHOLD_LINES 而非硬编码 '500 行'",
       "type": "file_must_contain",
-      "path": ".cataforge/skills/doc-gen/SKILL.md",
+      "path": ".cataforge/skills/context/references/generate.md",
       "patterns": ["DOC_SPLIT_THRESHOLD_LINES"]
     },
     {
       "id": "mc-0.1.0-docgen-no-hardcoded-500",
       "release_version": "0.1.0",
       "deprecate_after": "0.2.0",
-      "description": "doc-gen SKILL.md 不得出现硬编码 '500 行'",
+      "description": "context generate 分支不得出现硬编码 '500 行'",
       "type": "file_must_not_contain",
-      "path": ".cataforge/skills/doc-gen/SKILL.md",
+      "path": ".cataforge/skills/context/references/generate.md",
       "patterns": ["500 行", "500行"]
     },
     {
@@ -324,7 +327,7 @@
     {
       "id": "mc-0.5.0-kg-config",
       "release_version": "0.5.0",
-      "description": "framework.json 必须声明 kg.kg_active_doc_types — 自 0.5.0 起 doc-gen finalize / cataforge docs load / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走 legacy 路径，掩盖 KG cutover 的覆盖率门。",
+      "description": "framework.json 必须声明 context.kg_active_doc_types — 自 0.5.0 起 doc-gen finalize / cataforge docs load / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走 legacy 路径，掩盖 KG cutover 的覆盖率门。",
       "type": "file_must_contain",
       "path": ".cataforge/framework.json",
       "patterns": ["kg_active_doc_types"]

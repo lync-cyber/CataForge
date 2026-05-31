@@ -1,5 +1,5 @@
 # Template Registry — 模板注册表（单一事实来源）
-# 所有模板的元数据定义。doc-gen、doc-check、load_section 均从此文件派生映射。
+# 所有模板的元数据定义。context、doc-check、load_section 均从此文件派生映射。
 version: "1"
 
 templates:

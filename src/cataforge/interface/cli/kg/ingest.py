@@ -299,7 +299,7 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
     multiple=True,
     help=(
         "Restrict to specific doc_types. Repeatable. Default = the project's "
-        "kg_active_doc_types (framework.json kg.kg_active_doc_types, "
+        "kg_active_doc_types (framework.json context.kg_active_doc_types, "
         "fall-back: the built-in business doc_type set)."
     ),
 )
@@ -345,7 +345,7 @@ def kg_reconcile(
     if not active:
         click.echo(
             "  (no active doc_types — nothing to reconcile; "
-            "set kg.kg_active_doc_types in framework.json)"
+            "set context.kg_active_doc_types in framework.json)"
         )
         return
 

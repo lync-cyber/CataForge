@@ -36,7 +36,7 @@ cataforge bootstrap --platform cursor    # 或 claude-code / codex / opencode
 | 在 4 个 IDE 之间维护 4 套 Agent / Skill 定义 | 写一份 `.cataforge/`，`cataforge deploy` 翻译成各 IDE 的原生产物 |
 | 某 IDE 不支持某个能力 | `PlatformAdapter` 按能力矩阵自动降级（`rules_injection` / `prompt_check`），而不是直接放弃 |
 | 升级时怕覆盖手改的文件 | `upgrade apply` 前自动快照到 `.cataforge/.backups/<ts>/`，`upgrade rollback` 可回退 |
-| 项目从零搭 SDLC 流程 | 内置 13 个 Agent + 30 个 Skill，覆盖需求 → 架构 → 设计 → TDD → 评审 |
+| 项目从零搭 SDLC 流程 | 内置 13 个 Agent + 26 个 Skill，覆盖需求 → 架构 → 设计 → TDD → 评审 |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/lync-cyber/CataForge/main/docs/assets/artifact-map.svg" alt="一份 .cataforge/ 在四平台分别落盘的产物对照" width="100%">
@@ -46,7 +46,7 @@ cataforge bootstrap --platform cursor    # 或 claude-code / codex / opencode
 
 ### 中文原生 AI 编程工作流
 
-CataForge 专为中文开发团队设计。13 个内置 Agent 的指令、30 个 Skill 的定义、全套 SDLC 文档模板（PRD、架构文档、开发计划等）均以中文撰写，Agent 之间通过中文语义传递上下文。你无需在英文 prompt 和中文需求之间反复翻译——输入中文需求，输出中文文档，代码注释和 commit 风格也遵循团队约定。
+CataForge 专为中文开发团队设计。13 个内置 Agent 的指令、26 个 Skill 的定义、全套 SDLC 文档模板（PRD、架构文档、开发计划等）均以中文撰写，Agent 之间通过中文语义传递上下文。你无需在英文 prompt 和中文需求之间反复翻译——输入中文需求，输出中文文档，代码注释和 commit 风格也遵循团队约定。
 
 ### 框架套娃：生成任意领域的 AI 工作流框架
 
@@ -67,7 +67,7 @@ RED → GREEN → REFACTOR 三阶段流水线，每阶段由独立 SubAgent 在�
 
 三种工作流模式，在 orchestrator 启动时选择并写入 CLAUDE.md，无需改配置文件：
 
-- **standard**（7 阶段）：需求 → 架构 → UI 设计 → 开发计划 → TDD 开发 → QA 测试 → 部署发布，每阶段有质量门禁（`doc-review` + `code-review`），适合交付质量要求高的项目
+- **standard**（7 阶段）：需求 → 架构 → UI 设计 → 开发计划 → TDD 开发 → QA 测试 → 部署发布，每阶段有质量门禁（`context` review 分支 + `code-review`），适合交付质量要求高的项目
 - **agile-lite**（精简敏捷）：PM + 架构师阶段产出 lite 文档（TDD 默认 light 模式），减少文档开销，保留质量评审
 - **agile-prototype**（快速原型）：PM 产出一页 `brief.md` 合并前 4 阶段，直接进 TDD light 模式，最快路径验证想法
 

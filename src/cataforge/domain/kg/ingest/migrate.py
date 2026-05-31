@@ -19,12 +19,19 @@ from cataforge.domain.kg.ingest.relation_extract import (
     extract_relations,
 )
 from cataforge.domain.kg.ingest.scan import scan_business_docs
+from cataforge.domain.kg.ingest.structure_extract import (
+    ExtractedDocument,
+    ExtractedSection,
+    extract_structure,
+)
 from cataforge.domain.kg.ingest.verify import VerifyResult, verify_after_write
 from cataforge.domain.kg.ingest.writer import (
+    StructureWriteStats,
     WriteStats,
     write_entities,
     write_project,
     write_relations,
+    write_structure,
 )
 
 if TYPE_CHECKING:
@@ -36,7 +43,10 @@ class MigrationStats:
     parsed_docs: int = 0
     extracted_entities: int = 0
     extracted_relations: int = 0
+    extracted_documents: int = 0
+    extracted_sections: int = 0
     write_stats: WriteStats = field(default_factory=WriteStats)
+    structure_stats: StructureWriteStats = field(default_factory=StructureWriteStats)
     verify_result: VerifyResult | None = None
     dry_run: bool = False
 
@@ -45,10 +55,16 @@ class MigrationStats:
             "parsed_docs": self.parsed_docs,
             "extracted_entities": self.extracted_entities,
             "extracted_relations": self.extracted_relations,
+            "extracted_documents": self.extracted_documents,
+            "extracted_sections": self.extracted_sections,
             "entities_written": self.write_stats.entities_written,
             "entities_skipped": self.write_stats.entities_skipped,
             "relations_written": self.write_stats.relations_written,
             "relations_skipped": self.write_stats.relations_skipped,
+            "documents_written": self.structure_stats.documents_written,
+            "documents_skipped": self.structure_stats.documents_skipped,
+            "sections_written": self.structure_stats.sections_written,
+            "sections_skipped": self.structure_stats.sections_skipped,
             "dry_run": self.dry_run,
             "verify_ok": None if self.verify_result is None else self.verify_result.ok,
             "verify_missing": (
@@ -107,11 +123,21 @@ def run_migration(
     # *defines* an entity (prd for Feature / AC, arch for Module, …) ahead
     # of documents that merely reference it.
     deduped_entities: dict[str, ExtractedEntity] = {}
+    documents: list[ExtractedDocument] = []
+    sections: list[ExtractedSection] = []
     for doc in parsed_docs:
-        for entity in extract_entities(doc):
+        doc_entities = extract_entities(doc)
+        for entity in doc_entities:
             deduped_entities.setdefault(entity.entity_id, entity)
+        # PHASE 3b: structural nodes (Document + entity-owning Sections).
+        # Per-doc so each file's sections own the entities defined in it.
+        document, doc_sections = extract_structure(doc, doc_entities)
+        documents.append(document)
+        sections.extend(doc_sections)
     entities: list[ExtractedEntity] = list(deduped_entities.values())
     stats.extracted_entities = len(entities)
+    stats.extracted_documents = len(documents)
+    stats.extracted_sections = len(sections)
 
     # PHASE 4: RELATION EXTRACT, dedupe by (s, p, o).
     deduped_relations: dict[tuple[str, str, str], ExtractedRelation] = {}
@@ -132,9 +158,11 @@ def run_migration(
         stats.verify_result = verify_after_write(store, entities, relations, config)
         return stats, entities, relations
 
-    # PHASE 5: WRITE (Project node first, then entities, then relations).
+    # PHASE 5: WRITE (Project node first, then entities, relations, structure).
     meta = _read_project_metadata(project_root)
-    stats.write_stats = _write_phase5(store, meta, entities, relations, config)
+    stats.write_stats, stats.structure_stats = _write_phase5(
+        store, meta, entities, relations, documents, sections, config
+    )
 
     # PHASE 6: VERIFY
     stats.verify_result = verify_after_write(store, entities, relations, config)
@@ -147,9 +175,11 @@ def _write_phase5(
     meta: dict[str, str],
     entities: list[ExtractedEntity],
     relations: list[ExtractedRelation],
+    documents: list[ExtractedDocument],
+    sections: list[ExtractedSection],
     config: KGConfig,
-) -> WriteStats:
-    """Write project, entities, relations with compensating rollback on failure."""
+) -> tuple[WriteStats, StructureWriteStats]:
+    """Write project, entities, relations, structure with rollback on failure."""
     import pyoxigraph as ox  # noqa: PLC0415
 
     project_iri = write_project(
@@ -164,15 +194,18 @@ def _write_phase5(
 
     write_stats: WriteStats | None = None
     rel_stats: WriteStats | None = None
+    struct_stats: StructureWriteStats | None = None
     try:
         write_stats = write_entities(store, entities, project_iri, config)
         rel_stats = write_relations(store, relations, config)
+        struct_stats = write_structure(store, documents, sections, config)
     except Exception:
+        structure_iris = struct_stats.written_iris if struct_stats is not None else []
         _rollback_phase5(
             store,
             project_iri,
             prior_project_quads,
-            write_stats.written_iris if write_stats is not None else [],
+            (write_stats.written_iris if write_stats is not None else []) + structure_iris,
             rel_stats.written_relation_quads if rel_stats is not None else [],
             config,
         )
@@ -185,14 +218,14 @@ def _write_phase5(
         relations_skipped=rel_stats.relations_skipped,
         written_iris=write_stats.written_iris,
     )
-    return combined
+    return combined, struct_stats
 
 
 def _rollback_phase5(
     store: ox.Store,
     project_iri: str,
     prior_project_quads: list,
-    written_entity_iris: list[str],
+    written_subject_iris: list[str],
     written_relation_quads: list,
     config: KGConfig,
 ) -> None:
@@ -201,7 +234,7 @@ def _rollback_phase5(
 
     from cataforge.domain.kg._quads import quads_for_subject as _quads_for_subject
 
-    for iri in written_entity_iris:
+    for iri in written_subject_iris:
         for q in _quads_for_subject(store, iri):
             with contextlib.suppress(Exception):
                 store.remove(q)

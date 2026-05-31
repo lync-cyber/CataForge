@@ -1,9 +1,9 @@
 ---
 name: research
-description: "调查研究 — 网络检索 (web-search)、用户访谈 (user-interview)、资料查阅 (doc-lookup)，解决不确定性。当 agent 遇到信息缺失 / 用户输入模糊 / 技术选型需对比 / 不确定不应猜测时使用此 skill。本 skill 仅产出调研记录与选项，不替 agent 做决策（由调用方决策），不生成正式文档（由 doc-gen 负责）。"
+description: "调查研究 — 网络检索 (web-search)、用户访谈 (user-interview)、资料查阅 (doc-lookup)，解决不确定性。当 agent 遇到信息缺失 / 用户输入模糊 / 技术选型需对比 / 不确定不应猜测时使用此 skill。本 skill 仅产出调研记录与选项，不替 agent 做决策（由调用方决策），不生成正式文档（由 context 负责）。"
 argument-hint: "<调研模式: web-search|user-interview|doc-lookup> <问题描述>"
 suggested-tools: Read, Glob, Grep, WebSearch, WebFetch, AskUserQuestion
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -17,7 +17,7 @@ user-invocable: true
 Agent遇到不确定性时:
 - 信息可从网络获取? → web-search
 - 信息取决于用户偏好/业务决策? → user-interview (选择题优先)
-- 信息在已有文档中? → doc-lookup (通过doc-nav加载)
+- 信息在已有文档中? → doc-lookup (通过context加载)
 - 以上均不适用? → 标注为[ASSUMPTION]并在文档中声明
 
 ## 操作指令
@@ -28,7 +28,7 @@ Agent遇到不确定性时:
 1. 使用 WebSearch 工具搜索相关信息
 2. 使用 WebFetch 获取具体页面内容
 3. 整理为结构化调研摘要(来源 + 结论 + 可信度)
-4. 通过doc-gen创建research-note文档记录调研结果
+4. 通过context创建research-note文档记录调研结果
 5. 标注来源URL和可信度评级
 
 ### 指令2: 用户访谈 (user-interview)
@@ -53,7 +53,7 @@ Agent遇到不确定性时:
 ### 指令3: 资料查阅 (doc-lookup)
 触发场景: 需要参考已有项目文档/技术规范
 执行步骤:
-1. 通过doc-nav的load-section指令加载相关章节
+1. 通过context的load-section指令加载相关章节
 2. 提取并汇总相关信息
 3. 将摘要返回给调用Agent
 

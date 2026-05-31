@@ -3,7 +3,7 @@ name: deploy-config
 description: "部署配置 — CI/CD流水线、容器化、环境配置、基础设施即代码。"
 argument-hint: "<操作: pipeline|container|env|iac> <平台或环境类型>"
 suggested-tools: Read, Write, Edit, Bash
-depends: [doc-gen, doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -36,7 +36,7 @@ user-invocable: true
 - **GitHub Actions**(默认): 项目托管在GitHub时
 - **GitLab CI**: 项目托管在GitLab时
 - **Jenkins**: 企业内部部署、复杂流水线需求时
-- 不确定时通过doc-nav查阅arch#§1.4技术栈决策，信息不足则标注[ASSUMPTION]
+- 不确定时通过context查阅arch#§1.4技术栈决策，信息不足则标注[ASSUMPTION]
 
 #### Step 2: 配置标准流水线阶段
 按以下顺序配置流水线:

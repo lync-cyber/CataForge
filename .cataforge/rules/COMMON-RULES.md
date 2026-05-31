@@ -30,7 +30,7 @@
 | MANUAL_REVIEW_CHECKPOINTS | [pre_dev, post_sprint, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 | orchestrator |
 | EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL） | `cataforge event log`、ORCHESTRATOR-PROTOCOLS |
 | EVENT_LOG_SCHEMA | .cataforge/schemas/event-log.schema.json | 事件日志 Schema | `cataforge event log`（核心校验在 `cataforge.core.event_log`） |
-| DOC_SPLIT_THRESHOLD_LINES | 300 | 单文档触发拆分的行数 | doc-gen |
+| DOC_SPLIT_THRESHOLD_LINES | 300 | 单文档触发拆分的行数 | context |
 | META_DOC_SPLIT_THRESHOLD_LINES | 500 | SKILL.md / AGENT.md / 协议文档拆分提示行数（协议天然偏长） | framework-review |
 | DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
 | DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, prd-lite, arch-lite, dev-plan-lite, changelog] | 可短路 Layer 2 的文档类型白名单 | doc-review |
@@ -104,7 +104,7 @@ Agent 间统一格式：
 | `prd#§2.F-003` | PRD 第 2 章 F-003 条目 |
 | `arch#§3.API-001` | 架构第 3 章 API-001 接口 |
 
-规则：`doc_id` = template_id（见 doc-gen 映射表）；`section_number` 为纯数字；`item_id` 为条目编号（F/M/API/E/T/C/P-xxx）；分卷文件引用格式不变，doc-nav 负责定位到正确分卷。
+规则：`doc_id` = template_id（见 context 映射表）；`section_number` 为纯数字；`item_id` 为条目编号（F/M/API/E/T/C/P-xxx）；分卷文件引用格式不变，context 负责定位到正确分卷。
 
 ## 文档加载纪律
 适用：所有 sub-agent 加载 `docs/` 下指定章节时（architect / tech-lead / qa-engineer / devops / ui-designer 等读 PRD/ARCH/UI-SPEC/DEV-PLAN 的角色，及任何用 doc_id#§N 做输入契约的下游）。
@@ -114,16 +114,15 @@ Agent 间统一格式：
 - 各 agent 自己的 Input Contract 段落保留**该角色实际需要的 doc_id 白名单**，但不重复"禁止 Read 全文"这条通用规则。
 - `cataforge docs load` 失败（exit 2 = 至少一个 ref 失败）按 stderr 提示修正；索引漂移时 `cataforge docs validate` 校验、`cataforge docs index` 重建。
 
-## Agent 文档 I/O 契约（KG-active 通用约定）
+## Agent 文档 I/O 契约（通用约定）
 适用：所有产文档的 Agent（product-manager / architect / ui-designer / tech-lead / qa-engineer / devops）以及读文档的 sub-agent（test-writer / implementer / reviewer / debugger 等）。
 
-下列约定对所有 Agent 一次性生效，**各 Agent 的 Input/Output Contract 不再重复**：
+下列约定对所有 Agent 一次性生效，**各 Agent 的 Input/Output Contract 不再重复**（操作细节见 context skill）：
 
-- **写后无需手动调 KG CLI** — `doc-gen finalize` 已按 `framework.json.kg.kg_active_doc_types` 自动分流：active doc_type 触发 `cataforge kg import` + `cataforge kg reconcile`；非 active 触发 `cataforge docs index`。Agent 完成章节填充后只需 finalize，不应自行调度 `cataforge kg *`
-- **读取无需感知 KG 存在** — `cataforge docs load <ref>` 在 active doc_type 下自动从 KG 解析（实体级引用 `doc_id#§N.ITEM-NNN` 走 `kg.query.entity` + `render_entity`；whole-section 走文件 slice）；非 active doc_type 仍走 `.doc-index.json` + 文件切片。两条路径返回相同 markdown 形式，Agent 调用方式不变
-- **依赖展开同样统一** — `cataforge docs load <ref> --with-deps` 在 active doc_type 全覆盖时通过 `kg.query.depends_on` 走图查询，否则 fall back 到 `.doc-index.json` 的 `deps[]` 字段（见 [`docs/loader._try_kg_resolve_deps`](../../src/cataforge/domain/docs/loader.py)）
-- **drift 检查由 orchestrator 负责** — Phase Transition Step 5.3 自动跑 `cataforge kg reconcile`；Agent 无需在 Output Contract 中声明"reconcile 通过"
-- **Read 工具仍可在 KG 不可达时兜底** — KG store 缺失 / 损坏 / KG-active doc_type 未 ingest 时，`cataforge docs load` 会自动降级到文件路径，Agent 调用契约不变
+- **统一经 context 能力入口** — 读取、依赖展开、生成定稿、校验都经 `cataforge docs` / `cataforge context`。后端与保真度由框架按项目上下文方案路由，**调用方不在 prompt 里判断走哪个后端**；后端选择复述会随实现漂移。
+- **写后无需手动调后端命令** — Agent 完成章节填充后只调 generate 的定稿，持久化由框架路由；不应自行调度后端写命令。
+- **读取与依赖展开后端无关** — `cataforge docs load <ref>` / `--with-deps` 返回相同 markdown 形式；后端不可达时框架自动降级到文件路径，Agent 调用契约不变。
+- **drift 检查由 orchestrator 负责** — Phase Transition 自动跑一致性守门；Agent 无需在 Output Contract 中声明。
 
 ## 输出质量原则
 
@@ -222,7 +221,7 @@ Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2�
 |---------|------|----------|-----------|--------------|
 | 文档审查报告 | `docs/reviews/doc/REVIEW-{doc_id}-r{N}.md` | `review-{doc_id}-r{N}` | `review` | `draft` / `approved` |
 | 代码审查报告 | `docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md` | `code-review-{task_id}-r{N}` | `code-review` | `draft` / `approved` |
-| Sprint 审查报告 | `docs/reviews/sprint/SPRINT-REVIEW-*.md` | 见 [`utility/sprint-review.md`](../skills/doc-gen/templates/utility/sprint-review.md) | `sprint-review` | `draft` / `approved` |
+| Sprint 审查报告 | `docs/reviews/sprint/SPRINT-REVIEW-*.md` | 见 [`utility/sprint-review.md`](../skills/context/templates/utility/sprint-review.md) | `sprint-review` | `draft` / `approved` |
 | 框架元资产审查 | `docs/reviews/framework/FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}-r{N}.md` | `framework-review-{scope}-{YYYYMMDD}-r{N}` | `framework-review` | `draft` / `approved` |
 | 项目级代码扫描 | `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md` | `code-scan-{YYYYMMDD}-r{N}` | `code-review` | `draft` / `approved` |
 | 运维订正日志 | `docs/reviews/CORRECTIONS-LOG.md` | `corrections-log` | `correction-log` | `approved` |

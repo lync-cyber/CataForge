@@ -3,7 +3,7 @@ name: req-analysis
 description: "需求分析 — 需求拆解、用户故事编写、验收标准定义。"
 argument-hint: "<用户需求描述或已有PRD路径>"
 suggested-tools: Read, Write, Edit
-depends: [doc-gen, doc-nav, research]
+depends: [context, research]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -59,7 +59,7 @@ user-invocable: true
   - 假设: 前提假设，标注[ASSUMPTION]
   - 调研记录: 引用research-note编号(如有)
 - §5 术语表: 领域特定术语(术语 | 定义)表
-- 通过doc-gen finalize交付PRD
+- 通过context finalize交付PRD
 
 ## Anti-Patterns
 - 禁止: 把 P0/P1/P2 优先级直接抄用户原话 —— 必须基于 MoSCoW 框架重新评估；否则出现"用户说全部 P0"的瀑布化退化

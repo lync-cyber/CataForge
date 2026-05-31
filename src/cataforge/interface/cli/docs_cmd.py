@@ -71,7 +71,7 @@ def docs_load(
     ``doc_id#§N`` (top section), ``doc_id#§N.M`` (subsection), or
     ``doc_id#§N.ITEM-xxx`` (item, e.g. ``prd#§2.F-001``).
     """
-    from cataforge.domain.docs.loader import main as loader_main
+    from cataforge.application.context.read import main as context_load_main
 
     argv = list(refs)
     if project_root:
@@ -82,7 +82,7 @@ def docs_load(
         argv.append("--with-deps")
     if budget is not None:
         argv.extend(["--budget", str(budget)])
-    _raise_on_nonzero(loader_main(argv), "docs load")
+    _raise_on_nonzero(context_load_main(argv), "docs load")
 
 
 @docs_group.command("index")

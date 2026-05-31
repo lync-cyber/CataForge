@@ -3,7 +3,7 @@ name: platform-audit
 description: "平台能力审计 — 检索 AI IDE 最新文档，与 CataForge 平台配置进行差异分析，输出更新方案并执行修复。适用于定期对齐 Claude Code / Cursor / Codex / OpenCode 等平台的 tool / hook / agent / dispatch / sandbox / CLI / plugin / 扩展能力 / agent配置 / 平台特性 / 权限模型 / 模型路由 能力变化，确保 profile.yaml、adapter 源码、hook bridge、conformance 检查、测试用例保持最新。当用户提到平台升级、能力变化、profile 过期、跨平台兼容性检查、新增平台接入时，务必使用此 skill。"
 argument-hint: "[平台ID列表(逗号分隔) | all] [--scope tools,hooks,dispatch,agent,features,permissions,models,mcp]"
 suggested-tools: Read, Edit, Write, Glob, Grep, Bash, WebSearch, WebFetch, Agent
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
 ---

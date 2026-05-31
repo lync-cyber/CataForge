@@ -76,7 +76,7 @@ orchestrator 在关键节点向 `docs/EVENT-LOG.jsonl` 追加事件记录，用�
 | revision_start | 进入 Revision Protocol | **[EVENT]** orchestrator 手动 |
 | tdd_phase | TDD RED/GREEN/REFACTOR 阶段切换 | **[EVENT]** tdd-engine skill 步骤内嵌 |
 | state_change | {INSTRUCTION_FILE} 状态字段变更 | **[EVENT]** orchestrator 手动 |
-| doc_finalize | doc-gen finalize 完成 | **[EVENT]** doc-gen skill 步骤内嵌 |
+| doc_finalize | context finalize 完成 | **[EVENT]** context skill 步骤内嵌 |
 | incident | 崩溃、rolled-back 等异常事件 | **[EVENT]** orchestrator 手动 |
 | correction | On-Correction Learning 触发时 | **[EVENT]** orchestrator 手动 |
 

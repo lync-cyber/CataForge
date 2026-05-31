@@ -14,9 +14,7 @@ Exit codes:
 
 from __future__ import annotations
 
-import argparse
 import glob
-import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -24,14 +22,8 @@ from typing import Any
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
-from cataforge.core.paths import find_project_root
 from cataforge.domain.docs._loader_kg import (
     _entity_id_to_ref as _entity_id_to_ref,
-)
-from cataforge.domain.docs._loader_kg import (
-    _try_kg_extract,
-    _try_kg_plan_load,
-    _try_kg_resolve_deps,
 )
 from cataforge.domain.docs.index_ops import (
     _DOC_TYPE_MAP_CACHE as _DOC_TYPE_MAP_CACHE,
@@ -69,7 +61,6 @@ from cataforge.domain.docs.index_ops import (
 from cataforge.domain.docs.index_ops import (
     parse_ref as parse_ref,
 )
-from cataforge.utils.common import ensure_utf8
 from cataforge.utils.md_parse import iter_markdown_headings
 from cataforge.utils.patterns import HEADING_RE
 
@@ -222,23 +213,17 @@ def extract(
     project_root: str,
     file_cache: dict[str, list[str]] | None = None,
 ) -> str:
-    """Return the content of ``ref`` from the project at ``project_root``.
+    """File/index-backed section read — the ``doc`` backend primitive.
 
-    When the ref's doc_type is in ``KGConfig.kg_active_doc_types`` and a
-    KG store exists for the project, the reference is resolved through
-    the graph (entity slots + canonical rendering); otherwise the
-    legacy file-based slice runs. ``file_cache`` is an optional
-    ``{absolute_file_path: lines}`` map used by the legacy path to
-    avoid duplicate reads when many refs target the same source.
+    Resolves ``ref`` through ``.doc-index.json`` when fresh, else falls
+    back to a Markdown heading scan. Raises ``SectionNotFoundError`` when
+    the section genuinely cannot be located. Strategy-aware routing
+    (graph vs file) lives one layer up in
+    :mod:`cataforge.application.context`; this function never consults the
+    knowledge graph. ``file_cache`` is an optional ``{absolute_file_path:
+    lines}`` map used to avoid duplicate reads across many refs.
     """
     doc_id, section_path, item_id = parse_ref(ref)
-
-    # KG dispatch: only attempt the graph when the project has opted in
-    # and the ref carries an entity_id. Whole-section refs (no item_id)
-    # have no rendering template and always fall back to file slicing.
-    kg_body = _try_kg_extract(doc_id, section_path, item_id, project_root)
-    if kg_body is not None:
-        return kg_body
 
     index = _load_index(project_root)
     if index:
@@ -312,10 +297,7 @@ def extract_batch(
 
 
 def plan_load(refs: list[str], project_root: str, token_budget: int) -> tuple[list[str], list[str]]:
-    kg_result = _try_kg_plan_load(refs, project_root, token_budget)
-    if kg_result is not None:
-        return kg_result
-
+    """Index-backed budgeted plan-load — the ``doc`` backend primitive."""
     index = _load_index(project_root)
     loadable: list[str] = []
     deferred: list[str] = []
@@ -339,10 +321,7 @@ def plan_load(refs: list[str], project_root: str, token_budget: int) -> tuple[li
 
 
 def resolve_deps(ref: str, project_root: str, max_depth: int = 2) -> list[str]:
-    kg_deps = _try_kg_resolve_deps(ref, project_root, max_depth)
-    if kg_deps is not None:
-        return kg_deps
-
+    """Index-backed transitive dependency walk — the ``doc`` backend primitive."""
     index = _load_index(project_root)
     if not index:
         return []
@@ -401,105 +380,3 @@ def _emit_stale_warning(project_root: str) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
-# CLI entry
-# ---------------------------------------------------------------------------
-
-
-def main(argv: list[str] | None = None) -> int:
-    ensure_utf8()
-    parser = argparse.ArgumentParser(
-        description="CataForge load_section — extract Markdown sections by reference",
-    )
-    parser.add_argument("refs", nargs="+", help="doc_id#§N references")
-    parser.add_argument("--project-root", default=None)
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        dest="json_output",
-        help="Emit a JSON array instead of '=== <ref> ===' separators",
-    )
-    parser.add_argument(
-        "--with-deps",
-        action="store_true",
-        help="Also load dependency refs declared in .doc-index.json (depth ≤ 2)",
-    )
-    parser.add_argument(
-        "--budget",
-        type=int,
-        default=None,
-        metavar="TOKENS",
-        help="Token budget; refs exceeding budget are listed under [DEFERRED] on stderr",
-    )
-    args = parser.parse_args(argv)
-
-    project_root = args.project_root or str(find_project_root())
-
-    _emit_stale_warning(project_root)
-
-    refs: list[str] = list(args.refs)
-
-    if args.with_deps:
-        seen = set(refs)
-        expanded: list[str] = list(refs)
-        for ref in refs:
-            for dep in resolve_deps(ref, project_root):
-                if dep not in seen:
-                    seen.add(dep)
-                    expanded.append(dep)
-        if expanded != refs:
-            extras = expanded[len(refs) :]
-            print(
-                f"[DEPS] resolved {len(extras)} dependency ref(s): {' '.join(extras)}",
-                file=sys.stderr,
-            )
-        refs = expanded
-
-    deferred: list[str] = []
-    if args.budget is not None:
-        loadable, deferred = plan_load(refs, project_root, args.budget)
-        refs = loadable
-        if deferred:
-            print(
-                f"[DEFERRED] {len(deferred)} ref(s) exceed budget {args.budget}: "
-                f"{' '.join(deferred)}",
-                file=sys.stderr,
-            )
-
-    successes, errors = extract_batch(refs, project_root)
-
-    if args.json_output:
-        index = _load_index(project_root)
-        out: list[dict[str, Any]] = []
-        for ref, content in successes:
-            entry = _index_lookup_or_none(index, ref)
-            out.append(
-                {
-                    "ref": ref,
-                    "status": "ok",
-                    "content": content,
-                    "file_path": (entry or {}).get("file_path"),
-                    "line_start": (entry or {}).get("line_start"),
-                    "line_end": (entry or {}).get("line_end"),
-                }
-            )
-        for ref, msg in errors:
-            out.append({"ref": ref, "status": "error", "error": msg})
-        for ref in deferred:
-            out.append({"ref": ref, "status": "deferred"})
-        print(json.dumps(out, ensure_ascii=False, indent=2))
-    else:
-        for ref, content in successes:
-            print(f"=== {ref} ===")
-            print(content)
-            print()
-
-        if errors:
-            for ref, msg in errors:
-                print(f"[ERROR] {ref}: {msg}", file=sys.stderr)
-
-    return 2 if errors else 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

@@ -4,7 +4,7 @@
 
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
 >
-> **适用版本**：v0.4.x。计数 13 Agent + 30 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
+> **适用版本**：v0.4.x。计数 13 Agent + 26 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
 >
 > **平台差异**：Agent 通过 `tools.allow` 声明的 capability 在各平台的原生工具映射见 [platform-capability-matrix.md](platform-capability-matrix.md)；`null` 映射的 capability 在 deploy 时被过滤并发 WARN。
 
@@ -12,7 +12,7 @@
 
 - [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
-- [Skill 清单（30 个）](#skill-清单30-个) — 总览表 + 按类别折叠
+- [Skill 清单（26 个）](#skill-清单26-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
 
 ---
@@ -67,7 +67,7 @@ tools:
 - **职责**：协调整个软件开发生命周期，负责项目引导（Bootstrap）、阶段路由、手动审查检查点、中断恢复协议、TDD 编排。
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, agent_dispatch, user_question
 - **写入路径**：无限制
-- **关联 Skill**：agent-dispatch, doc-nav, tdd-engine, change-guard
+- **关联 Skill**：agent-dispatch, context, tdd-engine, change-guard, framework-feedback
 - **特殊协议**：拥有专属编排协议（ORCHESTRATOR-PROTOCOLS.md），管理阶段转换、修订流程、Sprint 回顾触发等。
 
 </details>
@@ -79,7 +79,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, web_search, web_fetch, user_question
 - **禁用工具（deny）**：shell_exec, agent_dispatch
 - **写入路径**：docs/prd/, docs/research/
-- **关联 Skill**：req-analysis, doc-gen, doc-nav, research
+- **关联 Skill**：req-analysis, context, research
 
 </details>
 
@@ -90,7 +90,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
 - **禁用工具（deny）**：agent_dispatch
 - **写入路径**：docs/arch/, docs/research/
-- **关联 Skill**：arc-design, tech-eval, doc-gen, doc-nav, research
+- **关联 Skill**：arc-design, tech-eval, context, research
 
 </details>
 
@@ -101,7 +101,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
 - **禁用工具（deny）**：agent_dispatch
 - **写入路径**：docs/ui-spec/, docs/research/
-- **关联 Skill**：ui-design, doc-gen, doc-nav, research, penpot-sync（条件启用）
+- **关联 Skill**：ui-design, context, research, penpot-sync（条件启用）
 
 </details>
 
@@ -112,7 +112,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
 - **禁用工具（deny）**：agent_dispatch, web_search, web_fetch
 - **写入路径**：docs/dev-plan/, docs/research/
-- **关联 Skill**：task-decomp, task-dep-analysis, doc-gen, doc-nav
+- **关联 Skill**：task-decomp, task-dep-analysis, context
 
 </details>
 
@@ -156,7 +156,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 - **禁用工具（deny）**：agent_dispatch
 - **写入路径**：docs/reviews/doc/, docs/reviews/code/, docs/reviews/sprint/（严格限制）
-- **关联 Skill**：doc-review, code-review, sprint-review, doc-nav, penpot-review（条件启用）
+- **关联 Skill**：context, code-review, sprint-review, penpot-review（条件启用）
 
 </details>
 
@@ -167,7 +167,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
 - **禁用工具（deny）**：agent_dispatch, web_search, web_fetch
 - **写入路径**：docs/test-report/, src/, tests/
-- **关联 Skill**：testing, doc-gen, doc-nav
+- **关联 Skill**：testing, context
 
 </details>
 
@@ -178,7 +178,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 - **禁用工具（deny）**：agent_dispatch, user_question, web_search, web_fetch
 - **写入路径**：docs/deploy-spec/, docs/changelog/
-- **关联 Skill**：deploy-config, doc-gen, doc-nav
+- **关联 Skill**：deploy-config, context
 
 </details>
 
@@ -189,7 +189,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
 - **禁用工具（deny）**：agent_dispatch, web_search, web_fetch
 - **写入路径**：src/, tests/, .cataforge/scripts/, .cataforge/hooks/, .cataforge/skills/
-- **关联 Skill**：debug, doc-nav
+- **关联 Skill**：debug, context
 
 </details>
 
@@ -200,78 +200,62 @@ tools:
 - **允许工具（allow）**：file_read, file_edit, file_glob, file_grep
 - **禁用工具（deny）**：agent_dispatch, user_question, shell_exec, web_search, web_fetch
 - **写入路径**：docs/reviews/retro/, docs/reviews/CORRECTIONS-LOG.md, docs/EVENT-LOG.jsonl, .cataforge/learnings/
-- **关联 Skill**：doc-nav
+- **关联 Skill**：context
 
 </details>
 
 ---
 
-## Skill 清单（30 个）
+## Skill 清单（26 个）
 
 ### 总览
 
 | # | Skill ID | 类型 | 领域 | 简要说明 |
 |---|----------|------|------|---------|
 | 1 | agent-dispatch | 核心框架 | 编排 | 子代理调度与运行时翻译 |
-| 2 | doc-gen | 核心框架 | 文档 | 统一文档生成、模板实例化、文档拆分 |
-| 3 | doc-nav | 核心框架 | 文档 | 文档导航与选择性段落加载 |
-| 4 | doc-review | 核心框架 | 质量 | 文档双层审计（脚本 + AI） |
-| 5 | doc-consistency | 核心框架 | 质量 | 跨文档语义一致性校验（PRD/ARCH/UI-SPEC/DEV-PLAN 间 AC 追踪、API 契约、覆盖矩阵） |
-| 6 | code-review | 核心框架 | 质量 | 代码质量、合规性、安全性审查 |
-| 7 | tdd-engine | 核心框架 | 开发 | TDD RED→GREEN→REFACTOR 三阶段编排 |
-| 8 | arc-design | 领域技能 | 架构 | 模块划分、接口定义、数据建模 |
-| 9 | ui-design | 领域技能 | 设计 | 页面布局、组件规格、交互流程 |
-| 10 | task-decomp | 领域技能 | 计划 | 功能到任务的分解 |
-| 11 | task-dep-analysis | 领域技能 | 计划 | 依赖建模、关键路径、循环检测 |
-| 12 | tech-eval | 领域技能 | 架构 | 技术方案对比与选型决策 |
-| 13 | req-analysis | 领域技能 | 需求 | 需求分解、用户故事、验收标准定义 |
-| 14 | research | 领域技能 | 信息 | Web 搜索、用户访谈、信息收集 |
-| 15 | change-guard | 核心框架 | 治理 | 变更请求分析与路由 |
-| 16 | testing | 测试质量 | 测试 | 测试策略、测试编写、覆盖率分析 |
-| 17 | sprint-review | 测试质量 | 回顾 | Sprint 完成度审查、AC 覆盖、范围偏移检测 |
-| 18 | deploy-config | 部署运维 | 部署 | CI/CD 流水线、容器化、基础设施即代码 |
-| 19 | debug | 部署运维 | 调试 | 结构化错误定位、根因分析、最小修复 |
-| 20 | penpot-sync | 设计集成 | 设计 | Design Token 双向同步（条件启用） |
-| 21 | penpot-implement | 设计集成 | 设计 | 从 Penpot 生成组件代码骨架（条件启用） |
-| 22 | penpot-review | 设计集成 | 设计 | 设计-代码一致性验证（条件启用） |
-| 23 | platform-audit | 管理技能 | 平台 | 平台能力审计、profile.yaml 更新 |
-| 24 | start-orchestrator | 管理技能 | 启动 | CataForge 工作流初始化与恢复 |
-| 25 | workflow-framework-generator | 管理技能 | 生成 | 根据工作流类型与目标平台生成完整框架 |
-| 26 | self-update | 管理技能 | 升级 | 检测包/scaffold 版本差异并执行 pip/uv 升级 + scaffold 刷新 + 迁移验证 |
-| 27 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
-| 28 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
-| 29 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
-| 30 | kg-ask | 领域技能 | 知识图谱 | 自然语言问题翻译为只读 SPARQL，对项目知识图谱（需求/模块/任务/测试追溯关系）检索作答；执行与写守卫复用 `cataforge kg query`，schema card 由 `cataforge kg schema-context` 提供 |
+| 2 | context | 核心框架 | 上下文 | 统一上下文 I/O：navigate（段落精准加载）/ generate（文档生成、模板实例化、拆分）/ review（文档双层审计）/ consistency（跨文档语义一致性校验）/ query（知识图谱只读 SPARQL 问答）五个分支；review / consistency 分支由内置 Layer-1 引擎支撑 |
+| 3 | code-review | 核心框架 | 质量 | 代码质量、合规性、安全性审查 |
+| 4 | tdd-engine | 核心框架 | 开发 | TDD RED→GREEN→REFACTOR 三阶段编排 |
+| 5 | arc-design | 领域技能 | 架构 | 模块划分、接口定义、数据建模 |
+| 6 | ui-design | 领域技能 | 设计 | 页面布局、组件规格、交互流程 |
+| 7 | task-decomp | 领域技能 | 计划 | 功能到任务的分解 |
+| 8 | task-dep-analysis | 领域技能 | 计划 | 依赖建模、关键路径、循环检测 |
+| 9 | tech-eval | 领域技能 | 架构 | 技术方案对比与选型决策 |
+| 10 | req-analysis | 领域技能 | 需求 | 需求分解、用户故事、验收标准定义 |
+| 11 | research | 领域技能 | 信息 | Web 搜索、用户访谈、信息收集 |
+| 12 | change-guard | 核心框架 | 治理 | 变更请求分析与路由 |
+| 13 | testing | 测试质量 | 测试 | 测试策略、测试编写、覆盖率分析 |
+| 14 | sprint-review | 测试质量 | 回顾 | Sprint 完成度审查、AC 覆盖、范围偏移检测 |
+| 15 | deploy-config | 部署运维 | 部署 | CI/CD 流水线、容器化、基础设施即代码 |
+| 16 | debug | 部署运维 | 调试 | 结构化错误定位、根因分析、最小修复 |
+| 17 | penpot-sync | 设计集成 | 设计 | Design Token 双向同步（条件启用） |
+| 18 | penpot-implement | 设计集成 | 设计 | 从 Penpot 生成组件代码骨架（条件启用） |
+| 19 | penpot-review | 设计集成 | 设计 | 设计-代码一致性验证（条件启用） |
+| 20 | platform-audit | 管理技能 | 平台 | 平台能力审计、profile.yaml 更新 |
+| 21 | start-orchestrator | 管理技能 | 启动 | CataForge 工作流初始化与恢复 |
+| 22 | workflow-framework-generator | 管理技能 | 生成 | 根据工作流类型与目标平台生成完整框架 |
+| 23 | self-update | 管理技能 | 升级 | 检测包/scaffold 版本差异并执行 pip/uv 升级 + scaffold 刷新 + 迁移验证 |
+| 24 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
+| 25 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
+| 26 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
 
 ### 详细说明
 
 > 按类别分组，点击展开查看详细说明。
 
 <details>
-<summary><b>核心框架 Skill</b>（agent-dispatch · doc-gen · doc-nav · doc-review · doc-consistency · code-review · tdd-engine · change-guard）</summary>
+<summary><b>核心框架 Skill</b>（agent-dispatch · context · code-review · tdd-engine · change-guard）</summary>
 
 **agent-dispatch** — 子代理调度与运行时翻译
 - 负责将编排器的 agent 调度请求翻译为目标平台的原生调度格式
 - 包含调度 prompt 模板（支持平台覆盖：Cursor / Codex）
 
-**doc-gen** — 统一文档生成
-- 支持三套模板体系：standard（完整）、lite（轻量）、prototype（原型简报）
-- 内置文档拆分功能，超过 DOC_SPLIT_THRESHOLD_LINES 自动分卷
-- 模板目录：`.cataforge/skills/doc-gen/templates/`
-
-**doc-nav** — 文档导航与段落加载
-- 提供 `load_section` 能力，按 `{doc_id}#§{section}` 格式精准加载文档段落
-- 避免全文读取，降低 agent 上下文占用
-
-**doc-review** — 文档双层审计
-- Layer 1：脚本化检查（结构完整性、格式合规性）
-- Layer 2：AI 审查（语义一致性、业务逻辑正确性）
-- 对轻量文档类型（brief、prd-lite 等）可跳过 Layer 2
-
-**doc-consistency** — 跨文档一致性校验
-- PRD↔ARCH AC 追踪、ARCH↔DEV-PLAN API 契约、PRD↔UI-SPEC 用户可见性覆盖
-- 输出 F-NNN 追踪矩阵 + 严重等级问题清单
-- 退出码：0 全部通过 / 1 存在 CRITICAL/HIGH / 2 仅 MEDIUM/LOW；由 Phase Transition Protocol §5.5 在 Phase 2+ 转换时调用
+**context** — 统一上下文 I/O，分五个 reference 分支：
+- **navigate** — 提供 `load_section` 能力，按 `{doc_id}#§{section}` 格式精准加载文档段落，避免全文读取，降低 agent 上下文占用
+- **generate** — 统一文档生成，支持 standard（完整）/ lite（轻量）/ prototype（原型简报）三套模板体系；内置文档拆分，超过 DOC_SPLIT_THRESHOLD_LINES 自动分卷；模板目录 `.cataforge/skills/context/templates/`
+- **review** — 文档双层审计，Layer 1 脚本化检查（结构完整性、格式合规性）+ Layer 2 AI 审查（语义一致性、业务逻辑正确性）；轻量文档类型（brief、prd-lite 等）可跳过 Layer 2；Layer 1 由内置引擎 `cataforge skill run doc-review` 支撑
+- **consistency** — 跨文档语义一致性校验，PRD↔ARCH AC 追踪、ARCH↔DEV-PLAN API 契约、PRD↔UI-SPEC 用户可见性覆盖；输出 F-NNN 追踪矩阵 + 严重等级问题清单；退出码 0 全部通过 / 1 存在 CRITICAL/HIGH / 2 仅 MEDIUM/LOW，由 Phase Transition Protocol §5.5 在 Phase 2+ 转换时调用；Layer 1 由内置引擎 `cataforge skill run doc-consistency` 支撑
+- **query** — 知识图谱自然语言查询，把问题翻译为只读 SPARQL 检索项目追溯关系并作答；schema card 由 `cataforge kg schema-context` 提供，执行与写守卫复用 `cataforge kg query`
 
 **code-review** — 代码双层审查
 - Layer 1：lint 工具检查（ruff 等）
@@ -291,7 +275,7 @@ tools:
 </details>
 
 <details>
-<summary><b>领域 Skill</b>（arc-design · ui-design · task-decomp · task-dep-analysis · tech-eval · req-analysis · research · kg-ask）</summary>
+<summary><b>领域 Skill</b>（arc-design · ui-design · task-decomp · task-dep-analysis · tech-eval · req-analysis · research）</summary>
 
 **arc-design** — 架构设计技能，涵盖模块划分、接口定义、数据建模。
 
@@ -306,8 +290,6 @@ tools:
 **req-analysis** — 需求分析技能，将粗粒度需求分解为结构化的用户故事和验收标准。
 
 **research** — 调研技能，通过 Web 搜索和用户访谈收集决策所需信息。
-
-**kg-ask** — 知识图谱自然语言查询技能，把问题翻译为只读 SPARQL 检索项目追溯关系并作答；schema card 由 `cataforge kg schema-context` 提供，执行与写守卫复用 `cataforge kg query`。
 
 </details>
 
@@ -365,19 +347,19 @@ tools:
 
 | Agent | 默认启用 Skill | 条件启用 |
 |-------|---------------|---------|
-| **orchestrator** | `agent-dispatch` · `doc-nav` · `tdd-engine` · `change-guard` · `framework-feedback` | — |
-| **product-manager** | `doc-gen` · `doc-nav` · `req-analysis` · `research` | — |
-| **architect** | `doc-gen` · `doc-nav` · `arc-design` · `tech-eval` · `research` | — |
-| **ui-designer** | `doc-gen` · `doc-nav` · `ui-design` · `research` | `penpot-sync` |
-| **tech-lead** | `doc-gen` · `doc-nav` · `task-decomp` · `task-dep-analysis` | — |
+| **orchestrator** | `agent-dispatch` · `context` · `tdd-engine` · `change-guard` · `framework-feedback` | — |
+| **product-manager** | `req-analysis` · `context` · `research` | — |
+| **architect** | `arc-design` · `tech-eval` · `context` · `research` | — |
+| **ui-designer** | `ui-design` · `context` · `research` | `penpot-sync` |
+| **tech-lead** | `task-decomp` · `task-dep-analysis` · `context` | — |
 | **test-writer** | — | — |
 | **implementer** | — | `penpot-implement` |
 | **refactorer** | — | — |
-| **reviewer** | `doc-nav` · `doc-review` · `code-review` · `sprint-review` | `penpot-review` |
-| **qa-engineer** | `doc-gen` · `doc-nav` · `testing` | — |
-| **devops** | `doc-gen` · `doc-nav` · `deploy-config` | — |
-| **debugger** | `doc-nav` · `debug` | — |
-| **reflector** | `doc-nav` | — |
+| **reviewer** | `context` · `code-review` · `sprint-review` | `penpot-review` |
+| **qa-engineer** | `testing` · `context` | — |
+| **devops** | `deploy-config` · `context` | — |
+| **debugger** | `debug` · `context` | — |
+| **reflector** | `context` | — |
 
 > **条件启用**由 `design-tool` 配置触发（如 `design-tool: penpot` 时启用 `penpot-*` 系列）。
 

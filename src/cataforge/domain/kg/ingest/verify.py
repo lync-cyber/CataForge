@@ -42,9 +42,12 @@ class VerifyResult:
 
 
 def _count_typed_subjects(store: ox.Store, namespace: str) -> int:
+    # Business entities only — they carry a `cf:entity_id`. Project and the
+    # structural container nodes (Document / Volume / Section) are identified
+    # by their `id` IRI and are excluded by requiring the entity_id literal.
     sparql = (
         f"PREFIX cf: <{namespace}> "
-        "SELECT (COUNT(DISTINCT ?s) AS ?n) WHERE { ?s a ?cls "
+        "SELECT (COUNT(DISTINCT ?s) AS ?n) WHERE { ?s a ?cls ; cf:entity_id ?eid "
         "FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
         "FILTER(?cls != cf:Project) }"
     )

@@ -29,23 +29,10 @@ user-invocable: true
 
 ### Step 1: 提取依赖数据
 
-**数据源优先级**（自动）:
+**数据源**（自动）:
 
-1. **KG 优先**（当 `dev-plan` ∈ `framework.json.kg.kg_active_doc_types` 且 KG store 存在）：
-   ```bash
-   cataforge kg query 'SELECT ?src_id ?dst_id WHERE {
-     ?src cf:depends_on ?dst .
-     ?src cf:entity_id ?src_id .
-     ?dst cf:entity_id ?dst_id .
-     FILTER(STRSTARTS(?src_id, "T-") && STRSTARTS(?dst_id, "T-"))
-   }' --output json
-   ```
-   返回的 src→dst 对直接拼成 `--edges "T-001→T-002,..."`。任务卡 `depends_on` 字段在 KG ingest 时已转为 `cf:depends_on` 三元组，无需再读 Markdown
-2. **Legacy 回退**（非 active / KG 不可用）：
-   - 从dev-plan#§1 Sprint任务表提取: 任务ID + 依赖列
-   - 从dev-plan#§2 依赖图提取: 文本DAG关系(T-001 ─→ T-002)
-   - 从任务卡提取: depends_on字段
-   - 合并去重，形成边列表
+1. **优先经图谱取依赖边** — 用 context 的 query 分支把"列出所有任务依赖边（T→T）"翻译为只读追溯查询并执行，返回的 src→dst 对直接拼成 `--edges "T-001→T-002,..."`，无需再读 Markdown。
+2. **回退读文档** — 追溯后端不可用时，从 dev-plan#§1 Sprint 任务表（任务 ID + 依赖列）、§2 依赖图（文本 DAG，T-001 ─→ T-002）、任务卡 `depends_on` 字段提取，合并去重成边列表。
 
 任一路径都必须输出边列表（`(src, dst)` 元组），交给 Step 2 的脚本。
 
@@ -95,7 +82,7 @@ graph LR
 - 有环 → 报告环路径，建议打破方式，status=blocked
 - 无环 → 执行以下操作:
   1. 使用 `--format mermaid` 获取 Mermaid 依赖图
-  2. 通过 doc-gen write-section 将 Mermaid 图自动写入 dev-plan#§2（包裹在 ` ```mermaid ` 代码块中）
+  2. 通过 context write-section 将 Mermaid 图自动写入 dev-plan#§2（包裹在 ` ```mermaid ` 代码块中）
   3. 使用 `--format json` 获取关键路径和Sprint分组数据
   4. 将关键路径信息写入 dev-plan#§4
 

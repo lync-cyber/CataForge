@@ -22,7 +22,7 @@
 ### 核心 Skill
 - tdd-engine: TDD三阶段开发 (RED→GREEN→REFACTOR)
 - code-review: 代码审查 (lint + AI 双层)
-- doc-gen: 文档生成与模板填充
+- context: 文档生成与模板填充
 - task-decomp: 任务分解为可执行开发任务
 
 ### 工作流模式

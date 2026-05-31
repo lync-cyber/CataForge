@@ -16,8 +16,10 @@ from typing import TYPE_CHECKING
 from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._quads import (
+    build_document_quads,
     build_entity_quads,
     build_relation_quad,
+    build_section_quads,
 )
 from cataforge.domain.kg._sparql_utils import (
     assert_safe_iri,
@@ -25,8 +27,12 @@ from cataforge.domain.kg._sparql_utils import (
     escape_sparql_literal,
 )
 from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity
-from cataforge.domain.kg.ingest.iri import entity_iri
+from cataforge.domain.kg.ingest.iri import document_iri, entity_iri, section_iri
 from cataforge.domain.kg.ingest.relation_extract import ExtractedRelation
+from cataforge.domain.kg.ingest.structure_extract import (
+    ExtractedDocument,
+    ExtractedSection,
+)
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -40,6 +46,15 @@ class WriteStats:
     relations_skipped: int = 0
     written_iris: list[str] = field(default_factory=list)
     written_relation_quads: list = field(default_factory=list)
+
+
+@dataclass
+class StructureWriteStats:
+    documents_written: int = 0
+    documents_skipped: int = 0
+    sections_written: int = 0
+    sections_skipped: int = 0
+    written_iris: list[str] = field(default_factory=list)
 
 
 _CONTENT_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -169,6 +184,65 @@ def write_relations(
         store.add(quad)
         stats.relations_written += 1
         stats.written_relation_quads.append(quad)
+    return stats
+
+
+def write_structure(
+    store: ox.Store,
+    documents: list[ExtractedDocument],
+    sections: list[ExtractedSection],
+    config: KGConfig,
+) -> StructureWriteStats:
+    """Idempotently write Document + Section structural nodes.
+
+    Skips a node whose stored `cf:content_hash` already matches (same
+    rule as `write_entities`), so re-running on unchanged source inserts
+    zero new triples.
+    """
+    namespace = cf_namespace(config)
+    base_ns = config.base_namespace
+    stats = StructureWriteStats()
+
+    for section in sections:
+        iri = section_iri(section.doc_id, section.anchor, base_ns)
+        if _content_hash_matches(store, iri, section.content_hash, namespace=namespace):
+            stats.sections_skipped += 1
+            continue
+        quads = build_section_quads(
+            section.doc_id,
+            section.anchor,
+            section.title,
+            section.narrative_body,
+            section.content_hash,
+            section.source_doc,
+            config,
+            contained_entity_ids=section.contained_entity_ids,
+            document_iri_val=document_iri(section.doc_id, base_ns),
+        )
+        _atomic_replace_entity(store, iri, quads)
+        stats.sections_written += 1
+        stats.written_iris.append(iri)
+
+    for document in documents:
+        iri = document_iri(document.doc_id, base_ns)
+        if _content_hash_matches(store, iri, document.content_hash, namespace=namespace):
+            stats.documents_skipped += 1
+            continue
+        quads = build_document_quads(
+            document.doc_id,
+            document.doc_type,
+            document.title,
+            document.source_doc,
+            document.content_hash,
+            config,
+            section_anchors=document.section_anchors,
+            version=document.version,
+            status=document.status,
+        )
+        _atomic_replace_entity(store, iri, quads)
+        stats.documents_written += 1
+        stats.written_iris.append(iri)
+
     return stats
 
 

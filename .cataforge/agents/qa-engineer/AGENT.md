@@ -8,8 +8,7 @@ allowed_paths:
   - tests/
 skills:
   - testing
-  - doc-gen
-  - doc-nav
+  - context
 model_tier: standard
 maxTurns: 50
 ---
@@ -28,7 +27,7 @@ maxTurns: 50
 
 ## Output Contract
 - 必须产出: test-report-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
-- 使用模板: 通过doc-gen调用 test-report 模板
+- 使用模板: 通过context调用 test-report 模板
 
 ## Verdict 三态语义
 

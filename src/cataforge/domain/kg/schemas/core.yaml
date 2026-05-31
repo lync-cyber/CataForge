@@ -354,6 +354,34 @@ slots:
   narrative_body:   { range: string }
   stack_layers:     { range: string, multivalued: true }
 
+  # ---- document-structure slots (Document / Volume / Section) --------------
+  doc_type:         { range: string, description: "doc_type of a Document, e.g. prd / arch." }
+  volume_type:      { range: string, description: "Split-volume kind, e.g. features / modules / sprint." }
+  section_anchor:   { range: string, description: "Section anchor inside its document, e.g. §2.M-001." }
+  has_volume:
+    range: Volume
+    multivalued: true
+    description: Document → its split volumes.
+  has_section:
+    range: Section
+    multivalued: true
+    description: Document / Volume → its sections.
+  part_of_document:
+    range: Document
+    description: Volume / Section → the document it belongs to.
+  part_of_volume:
+    range: Volume
+    description: Section → the volume it belongs to (when the document is split).
+  contains_entity:
+    range: SoftwareArtifact
+    multivalued: true
+    inverse: located_in_section
+    description: Section → the structured entities sourced from it.
+  located_in_section:
+    range: Section
+    inverse: contains_entity
+    description: SoftwareArtifact → the Section it was sourced from.
+
 # ---------------------------------------------------------------------------
 # Class hierarchy
 # ---------------------------------------------------------------------------
@@ -391,6 +419,7 @@ classes:
       - replaced_by
       - was_revision_of
       - reviewed_by
+      - located_in_section
 
   # ===== process model =====================================================
   Project:
@@ -816,3 +845,62 @@ classes:
     slot_usage:
       entity_id:
         pattern: "^SR-[0-9]{3,}$"
+
+  # ===== document-structure layer ==========================================
+  # Document / Volume / Section are structural containers, not business
+  # artifacts — they are standalone (like Project), identified by `id`, and
+  # carry whole-document content (structured entities via contains_entity plus
+  # prose via Section.narrative_body) so the graph is a complete backend for
+  # both entity-level and whole-section context I/O.
+  Document:
+    description: A whole business document; container for its volumes, sections, and entities.
+    class_uri: cf:Document
+    slots:
+      - id
+      - title
+      - doc_type
+      - version
+      - status
+      - source_doc
+      - authored_by
+      - created_at
+      - updated_at
+      - has_volume
+      - has_section
+    slot_usage:
+      id:    { required: true }
+      title: { required: true }
+
+  Volume:
+    description: A split volume of a Document (honors split_from / volume_type).
+    class_uri: cf:Volume
+    slots:
+      - id
+      - title
+      - volume_type
+      - source_doc
+      - part_of_document
+      - has_section
+    slot_usage:
+      id: { required: true }
+
+  Section:
+    description: >-
+      Heading-delimited section of a Document/Volume. Carries narrative prose
+      (narrative_body) and the structured entities sourced from it
+      (contains_entity), making whole-document content — structured and prose —
+      first-class graph content.
+    class_uri: cf:Section
+    slots:
+      - id
+      - title
+      - section_anchor
+      - narrative_body
+      - sort_key
+      - content_hash
+      - source_doc
+      - part_of_document
+      - part_of_volume
+      - contains_entity
+    slot_usage:
+      id: { required: true }

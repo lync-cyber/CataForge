@@ -8,8 +8,7 @@ allowed_paths:
   - docs/research/
 skills:
   - req-analysis
-  - doc-gen
-  - doc-nav
+  - context
   - research
 model_tier: standard
 maxTurns: 60
@@ -25,11 +24,11 @@ maxTurns: 60
 
 ## Input Contract
 - 必须加载: 用户原始需求描述
-- 可选参考: 已有项目文档 (通过doc-nav按需加载)
+- 可选参考: 已有项目文档 (通过context按需加载)
 
 ## Output Contract
 - 必须产出: prd-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
-- 使用模板: 通过doc-gen调用 prd 模板
+- 使用模板: 通过context调用 prd 模板
 
 ## Anti-Patterns
 - 禁止: 跳过需求澄清直接编写PRD — 至少执行一轮user-interview确认核心需求方向后再开始结构化编写

@@ -226,7 +226,7 @@ phases:
 │   │       └── profile.yaml
 │   └── schemas/                    # 数据模型
 │       └── agent-result.schema.json
-├── docs/                           # 工作产出目录（空，由 doc-gen 在生成首份文档时调用 `cataforge docs index` 创建 .doc-index.json）
+├── docs/                           # 工作产出目录（空，由 context 在生成首份文档时调用 `cataforge docs index` 创建 .doc-index.json）
 └── README.md                       # 框架说明
 ```
 
@@ -400,7 +400,7 @@ phases:
 
 | 领域 | 典型 Agent 角色 | 核心 Skill | 工作流模式 |
 |------|----------------|-----------|-----------|
-| 软件开发 | orchestrator, architect, implementer, reviewer, tester | tdd-engine, code-review, doc-gen | 线性+门禁 |
+| 软件开发 | orchestrator, architect, implementer, reviewer, tester | tdd-engine, code-review, context | 线性+门禁 |
 | 内容创作 | planner, writer, editor, publisher | content-gen, seo-optimize, format-convert | 线性+修订循环 |
 | 电商运营 | analyst, copywriter, campaign-manager, data-analyst | market-research, copy-gen, data-viz | 并行+汇总 |
 | 研究分析 | researcher, analyst, synthesizer, reporter | literature-search, data-analysis, report-gen | 迭代深化 |

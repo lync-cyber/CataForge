@@ -25,6 +25,14 @@ from cataforge.domain.kg._config import KGConfig
 
 _ACTIVE_CACHE: dict[str, set[str]] = {}
 _CONFIG_CACHE: dict[str, KGConfig] = {}
+_STRATEGY_CACHE: dict[str, str] = {}
+
+# Context-IO backend topologies a project can select via
+# `framework.json` ``context.strategy``. ``kg-first`` (default) keeps the
+# graph as source-of-truth with Markdown as the exported review view;
+# ``doc-only`` keeps Markdown as the source with no graph backend.
+CONTEXT_STRATEGIES: frozenset[str] = frozenset({"kg-first", "doc-only"})
+DEFAULT_CONTEXT_STRATEGY = "kg-first"
 
 
 def _project_root_key(project_root: str | Path) -> str:
@@ -39,21 +47,42 @@ def _read_framework_json(project_root: Path) -> dict:
 
 
 def active_doc_types(project_root: str | Path) -> set[str]:
-    """Resolve the active doc_type set for `project_root` (cached)."""
+    """Resolve the active doc_type set for `project_root` (cached).
+
+    The set lives at ``context.kg_active_doc_types``. A well-formed list
+    wins even when empty (an explicit empty list means legacy-only); an
+    absent or malformed value applies the dataclass default.
+    """
     key = _project_root_key(project_root)
     cached = _ACTIVE_CACHE.get(key)
     if cached is not None:
         return cached
 
     data = _read_framework_json(Path(project_root))
-    kg_section = data.get("kg") or {}
-    declared = kg_section.get("kg_active_doc_types")
-    if isinstance(declared, list) and all(isinstance(d, str) for d in declared):
-        resolved = set(declared)
-    else:
-        resolved = set(KGConfig().kg_active_doc_types)
+    declared = (data.get("context") or {}).get("kg_active_doc_types")
+    well_formed = isinstance(declared, list) and all(isinstance(d, str) for d in declared)
+    resolved = set(declared) if well_formed else set(KGConfig().kg_active_doc_types)
 
     _ACTIVE_CACHE[key] = resolved
+    return resolved
+
+
+def context_strategy(project_root: str | Path) -> str:
+    """Resolve the context-IO strategy for `project_root` (cached).
+
+    Returns one of :data:`CONTEXT_STRATEGIES`; an absent or unrecognized
+    value resolves to :data:`DEFAULT_CONTEXT_STRATEGY`.
+    """
+    key = _project_root_key(project_root)
+    cached = _STRATEGY_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    data = _read_framework_json(Path(project_root))
+    declared = (data.get("context") or {}).get("strategy")
+    resolved = declared if declared in CONTEXT_STRATEGIES else DEFAULT_CONTEXT_STRATEGY
+
+    _STRATEGY_CACHE[key] = resolved
     return resolved
 
 
@@ -111,10 +140,14 @@ def invalidate_cache() -> None:
     """Clear all dispatch caches. Test-only helper."""
     _ACTIVE_CACHE.clear()
     _CONFIG_CACHE.clear()
+    _STRATEGY_CACHE.clear()
 
 
 __all__ = [
+    "CONTEXT_STRATEGIES",
+    "DEFAULT_CONTEXT_STRATEGY",
     "active_doc_types",
+    "context_strategy",
     "invalidate_cache",
     "is_active_for",
     "kg_config_for",

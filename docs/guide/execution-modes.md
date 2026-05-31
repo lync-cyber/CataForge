@@ -37,8 +37,8 @@ Requirements → Architecture → Design → Planning
 
 五阶段：**合并需求与架构** 为单一 lite 文档，其它阶段使用简化模板。
 
-- 每份 lite 文档 ≤ 50 行（由 `doc-gen` 模板强约束）。
-- 保留 TDD 引擎与质量闸，但 `doc-review` Layer 2（AI 审查，见 [`../architecture/quality-and-learning.md`](../architecture/quality-and-learning.md) §1）对轻量文档默认跳过。
+- 每份 lite 文档 ≤ 50 行（由 `context` 的 generate 分支模板强约束）。
+- 保留 TDD 引擎与质量闸，但 `context` review 分支的 Layer 2（AI 审查，见 [`../architecture/quality-and-learning.md`](../architecture/quality-and-learning.md) §1）对轻量文档默认跳过。
 
 ## agile-prototype：快速原型
 

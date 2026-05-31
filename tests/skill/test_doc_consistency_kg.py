@@ -43,7 +43,7 @@ def test_regex_path_runs_when_no_kg_store(tmp_path: Path) -> None:
     (project / ".cataforge").mkdir()
     # No store dir → _active_doc_types() returns empty → regex path
     (project / ".cataforge" / "framework.json").write_text(
-        json.dumps({"kg": {"kg_active_doc_types": ["prd", "arch"]}}),
+        json.dumps({"context": {"kg_active_doc_types": ["prd", "arch"]}}),
         encoding="utf-8",
     )
 
@@ -122,7 +122,7 @@ def _project_with_kg(tmp_path: Path, *, active: list[str]) -> Path:
     handle.close()
 
     (project / ".cataforge" / "framework.json").write_text(
-        json.dumps({"kg": {"kg_active_doc_types": active}}), encoding="utf-8"
+        json.dumps({"context": {"kg_active_doc_types": active}}), encoding="utf-8"
     )
 
     # Mirror the fixture docs into the project so CrossDocChecker can read them

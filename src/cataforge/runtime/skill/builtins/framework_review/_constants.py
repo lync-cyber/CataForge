@@ -29,8 +29,6 @@ REQUIRED_SECTIONS_AGENT = {
 # orchestration skills, scaffold generators.
 B1_REQUIRED_SECTIONS_EXEMPT_SKILLS = frozenset({
     "agent-dispatch",
-    "doc-gen",
-    "doc-nav",
     "research",
     "start-orchestrator",
     "tdd-engine",
@@ -43,13 +41,16 @@ B1_REQUIRED_SECTIONS_EXEMPT_AGENTS = frozenset({
 
 # Infrastructure skills called by orchestrator / main-thread or by
 # other skills directly, not advertised in any AGENT.md skills: list.
+# doc-review / doc-consistency are builtin-only Layer-1 engines invoked via
+# `cataforge skill run` by the context review/consistency branches.
 ORPHAN_SKILL_WHITELIST = frozenset({
     "agent-dispatch",
     "tdd-engine",
     "change-guard",
     "start-orchestrator",
-    "doc-nav",
-    "doc-gen",
+    "context",
+    "doc-review",
+    "doc-consistency",
     "research",
     "debug",
     "self-update",

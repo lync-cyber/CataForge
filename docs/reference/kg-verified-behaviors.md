@@ -74,7 +74,7 @@ back-stop this for environments without the extra installed.
 ### Embedded LLM client for natural-language query
 *Origin*: task-5 §5.7 `[待验证]`.
 
-The natural-language query surface ships as the `kg-ask` skill (B1): a host
+The natural-language query surface ships as the `context` skill's query branch (B1): a host
 agent translates a question into read-only SPARQL grounded on the schema card
 from `cataforge kg schema-context`, then runs it through the write-guarded
 `kg query`. An embedded LLM client (B2 — `anthropic` client + `[llm]` extra for

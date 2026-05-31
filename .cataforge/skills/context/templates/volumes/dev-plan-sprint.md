@@ -30,7 +30,7 @@ required_sections:
 - **deliverables** (交付物):
   - [ ] `src/module-a/feature_x.py` — {功能模块实现}
   - [ ] `tests/module-a/test_feature_x.py` — {单元测试}
-- **context_load**: (doc-nav加载清单)
+- **context_load**: (context加载清单)
   - arch#§2.M-001
   - arch-api#API-001
   - arch-data#E-001

@@ -126,8 +126,8 @@ def test_gate_skips_when_no_store(tmp_path, capsys) -> None:
     assert "skipping" in out
 
 def test_gate_skips_when_no_active_doc_types(tmp_path, capsys) -> None:
-    """No `kg.kg_active_doc_types` in framework.json AND no built-in
-    default for an empty project — skip cleanly.
+    """Empty `context.kg_active_doc_types` in framework.json AND no
+    built-in default for an empty project — skip cleanly.
     """
     from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
@@ -135,7 +135,7 @@ def test_gate_skips_when_no_active_doc_types(tmp_path, capsys) -> None:
     (project_root / ".cataforge" / "kg" / "store").mkdir(parents=True)
     (project_root / "docs").mkdir(parents=True)
     (project_root / ".cataforge" / "framework.json").write_text(
-        json.dumps({"kg": {"kg_active_doc_types": []}}),
+        json.dumps({"context": {"kg_active_doc_types": []}}),
         encoding="utf-8",
     )
     cfg = FakeConfig(paths=FakePaths(root=project_root))

@@ -59,7 +59,7 @@ C4Context
 - **依赖模块**: M-002, M-005
 - **内部关键组件**: {类/组件列表}
 - **context_load**: [prd#§2.F-001, prd#§2.F-003, arch#§3.API-001, arch#§3.API-002]
-  <!-- 下游Agent(tech-lead/ui-designer)处理本模块时应通过doc-nav按需加载的最小必要章节，避免全文读取 -->
+  <!-- 下游Agent(tech-lead/ui-designer)处理本模块时应通过context按需加载的最小必要章节，避免全文读取 -->
 
 
 ## 3. 接口契约

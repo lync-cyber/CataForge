@@ -8,8 +8,7 @@ allowed_paths:
   - docs/changelog/
 skills:
   - deploy-config
-  - doc-gen
-  - doc-nav
+  - context
 model_tier: standard
 maxTurns: 50
 ---
@@ -29,7 +28,7 @@ maxTurns: 50
 
 ## Output Contract
 - 必须产出: deploy-spec-{project}.md + changelog-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
-- 使用模板: 通过doc-gen调用 deploy-spec 模板 + changelog 模板
+- 使用模板: 通过context调用 deploy-spec 模板 + changelog 模板
 
 ## Anti-Patterns
 - 禁止: 构建步骤含硬编码路径或密钥

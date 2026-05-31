@@ -3,7 +3,7 @@ name: penpot-implement
 description: "Penpot 组件代码生成 — 从 Penpot 设计组件读取结构/样式/属性，生成前端组件代码骨架。当 ui-spec 已定义 C-{NNN} 组件且需要从设计稿落地代码骨架时使用此 skill。本 skill 专注 generation；设计 ↔ 代码一致性验证由 penpot-review 负责，Token 双向同步由 penpot-sync 负责。"
 argument-hint: "<component-id: C-NNN 或 Penpot组件名>"
 suggested-tools: Read, Write, Edit, Glob, Grep
-depends: [doc-nav, penpot-sync]
+depends: [context, penpot-sync]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -32,8 +32,8 @@ user-invocable: true
 ## 执行流程
 
 ### Step 1: 加载上下文
-- 通过 doc-nav 加载 ui-spec 中目标 C-{NNN} 的完整规范
-- 通过 doc-nav 加载 arch#§1.4 确定技术栈
+- 通过 context 加载 ui-spec 中目标 C-{NNN} 的完整规范
+- 通过 context 加载 arch#§1.4 确定技术栈
 - 通过 Penpot MCP 读取对应组件的设计数据（结构/CSS/SVG）
 
 ### Step 2: 解析 Penpot 组件

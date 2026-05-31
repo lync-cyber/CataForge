@@ -3,7 +3,7 @@ name: tdd-engine
 description: "TDD引擎 — 编排RED→GREEN→REFACTOR三阶段子代理执行TDD开发，支持 light-dispatch / light-inline / standard / prototype-inline 四档与 sprint 内独立任务并行调度。"
 argument-hint: "<任务卡ID如T-001>"
 suggested-tools: file_read, file_write, file_edit, shell_exec, file_glob, file_grep, agent_dispatch
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -60,7 +60,7 @@ orchestrator (主线程)
 ## 输入规范
 
 - dev-plan#T-xxx任务卡(含tdd_acceptance, deliverables, context_load, 可选 task_kind/tdd_mode/tdd_refactor/security_sensitive/loc_estimate)
-- 通过doc-nav加载的arch相关章节(接口契约、数据模型、目录结构、命名规范)
+- 通过context加载的arch相关章节(接口契约、数据模型、目录结构、命名规范)
 
 ## 阶段间传递格式
 
@@ -108,7 +108,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 ### Step 1: 准备任务上下文
 
-通过doc-nav加载任务卡的context_load章节，提取以下内容并在主线程保留，后续子代理 prompt 将按需内联传入：
+通过context加载任务卡的context_load章节，提取以下内容并在主线程保留，后续子代理 prompt 将按需内联传入：
 
 - 验收标准(tdd_acceptance → AC列表)
 - 接口契约(arch#API-xxx)
@@ -358,7 +358,7 @@ orchestrator完成以下收尾:
    - **即时 per-task code-review**（reviewer dispatch）: 仅对满足以下任一条件的任务触发：`security_sensitive: true`、`user_facing_critical_path: true`、`consumer_components` 非空。审查范围包含 impl_files 和 test_files
    - **延迟到 sprint-review 批量审查**: 其余任务不触发 per-task code-review，由 sprint-review 的 §Batch Code-Review 覆盖（见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）
    - **prototype-inline**: 跳过 per-task code-review（不变）
-4. 通过doc-gen(write-section)将dev-plan#§1对应任务行状态更新为done
+4. 通过context(write-section)将dev-plan#§1对应任务行状态更新为done
 5. 如 blocked 且含 questions → 按 ORCHESTRATOR-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
 6. 如 blocked 且无 questions → 记录原因并请求人工介入
 
