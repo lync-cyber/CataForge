@@ -20,6 +20,7 @@ from cataforge.core.errors import (
     KGStoreError,
 )
 from cataforge.core.paths import KG_STORE_REL
+from cataforge.interface.cli.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
 
 
@@ -54,7 +55,9 @@ from cataforge.interface.cli.kg import kg_group
     show_default=True,
     help="Query timeout in seconds.",
 )
+@click.pass_context
 def kg_query(
+    ctx: click.Context,
     query_or_file: str,
     db_path: Path,
     output_fmt: str,
@@ -65,6 +68,8 @@ def kg_query(
 
     QUERY_OR_FILE is a SPARQL string or a path to a .sparql file.
     """
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
+
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
 
     sparql = _resolve_sparql_input(query_or_file)
@@ -315,7 +320,9 @@ def _ntriples_term(term: object) -> str:
     show_default=True,
     help="Output format.",
 )
+@click.pass_context
 def kg_trace(
+    ctx: click.Context,
     entity_id: str | None,
     db_path: Path,
     direction: str,
@@ -327,6 +334,8 @@ def kg_trace(
     When called with --coverage and no ENTITY_ID, prints a global
     Feature coverage matrix instead of a single-entity chain.
     """
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
+
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)

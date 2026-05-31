@@ -16,6 +16,7 @@ from cataforge.core.errors import (
     KGVerificationError,
 )
 from cataforge.core.paths import KG_STORE_REL
+from cataforge.interface.cli.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
 
 
@@ -65,7 +66,9 @@ from cataforge.interface.cli.kg import kg_group
     default=False,
     help="Emit a JSON stats blob instead of the human-readable table.",
 )
+@click.pass_context
 def kg_import(
+    ctx: click.Context,
     project_root: Path,
     db_path: Path,
     backend: str,
@@ -74,6 +77,9 @@ def kg_import(
     json_output: bool,
 ) -> None:
     """Ingest business documents into the KG (six-phase pipeline)."""
+    project_root = root_relative_default(ctx, "project_root", project_root)
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
+
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.domain.kg._dispatch import active_doc_types
     from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, run_migration
@@ -168,8 +174,13 @@ def kg_import(
     default=False,
     help="Emit a JSON report instead of the table.",
 )
-def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
+@click.pass_context
+def kg_validate(
+    ctx: click.Context, db_path: Path, shacl: bool, json_output: bool
+) -> None:
     """Check the live KG for orphan nodes and broken traceability edges."""
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
+
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.domain.kg.validate import validate
 
@@ -239,8 +250,14 @@ def kg_validate(db_path: Path, shacl: bool, json_output: bool) -> None:
     default=False,
     help="Emit a JSON result blob (per-file sha256 included) instead of the table.",
 )
-def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
+@click.pass_context
+def kg_export(
+    ctx: click.Context, db_path: Path, output_dir: Path, json_output: bool
+) -> None:
     """Export the KG to per-entity Markdown files."""
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
+    output_dir = root_relative_default(ctx, "output_dir", output_dir, rel=Path("docs"))
+
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.domain.kg.export import compile_to_markdown
 
@@ -318,7 +335,9 @@ def kg_export(db_path: Path, output_dir: Path, json_output: bool) -> None:
     default=False,
     help="Also emit the report to stdout as JSON.",
 )
+@click.pass_context
 def kg_reconcile(
+    ctx: click.Context,
     project_root: Path,
     db_path: Path,
     doc_types: tuple[str, ...],
@@ -337,6 +356,8 @@ def kg_reconcile(
     from cataforge.domain.kg._dispatch import kg_config_for
     from cataforge.domain.kg.reconcile import reconcile, write_report
 
+    project_root = root_relative_default(ctx, "project_root", project_root)
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
     project_root = project_root.resolve()
     base_config = kg_config_for(project_root)
 
@@ -446,7 +467,9 @@ def kg_reconcile(
     default=False,
     help="Emit a JSON audit report instead of the table.",
 )
+@click.pass_context
 def kg_compare_read(
+    ctx: click.Context,
     project_root: Path,
     db_path: Path,
     doc_types: tuple[str, ...],
@@ -468,6 +491,8 @@ def kg_compare_read(
         compare_read,
     )
 
+    project_root = root_relative_default(ctx, "project_root", project_root)
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
     project_root = project_root.resolve()
     base_config = kg_config_for(project_root)
 
