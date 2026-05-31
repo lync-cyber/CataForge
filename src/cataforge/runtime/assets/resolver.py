@@ -18,12 +18,15 @@ Two override granularities, applied per file as layers are walked low → high:
 
 from __future__ import annotations
 
+import logging
 from collections import OrderedDict
 from pathlib import Path
 
 from cataforge.core.layers import asset_layer_dirs
 from cataforge.core.paths import ProjectPaths
 from cataforge.core.section_patch import apply_section_patch
+
+logger = logging.getLogger("cataforge.runtime.assets.resolver")
 
 _PATCH_SUFFIX = ".patch.md"
 
@@ -58,7 +61,15 @@ def resolve_kind(
 
 
 def _materialize(src_dirs: list[Path], dest: Path) -> None:
-    """Overlay *src_dirs* (low → high) into *dest*, applying section patches."""
+    """Overlay *src_dirs* (low → high) into *dest*, applying section patches.
+
+    A ``<name>.patch.md`` patches the working ``<name>.md`` overlaid from a
+    lower layer. A patch with no such base in any lower layer is an orphan —
+    almost always a typo in the patch name (e.g. ``orchestrater.patch.md``).
+    Materialising it would write the patch verbatim as a brand-new
+    ``<name>.md`` asset; instead the orphan is skipped and logged so the typo
+    surfaces rather than silently shipping a bogus asset.
+    """
     files: OrderedDict[str, bytes] = OrderedDict()
     for asset_dir in src_dirs:
         for src in sorted(asset_dir.rglob("*")):
@@ -67,7 +78,16 @@ def _materialize(src_dirs: list[Path], dest: Path) -> None:
             rel = src.relative_to(asset_dir).as_posix()
             if rel.endswith(_PATCH_SUFFIX):
                 base_rel = rel[: -len(_PATCH_SUFFIX)] + ".md"
-                base_text = files.get(base_rel, b"").decode("utf-8")
+                if base_rel not in files:
+                    logger.warning(
+                        "Skipping orphan patch %r in %s: no base %r to patch "
+                        "(check the patch filename for a typo).",
+                        rel,
+                        asset_dir,
+                        base_rel,
+                    )
+                    continue
+                base_text = files[base_rel].decode("utf-8")
                 patched = apply_section_patch(base_text, src.read_text(encoding="utf-8"))
                 files[base_rel] = patched.encode("utf-8")
             else:

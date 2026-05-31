@@ -569,3 +569,106 @@ class TestCodexDeployIntegration:
         assert "model_tier" not in content
         # per_agent_model=false → no model line.
         assert "model = " not in content
+
+
+class TestAllowDenyToolCollision:
+    """A native tool resolving into BOTH allow + deny lists must not be
+    silently emitted in both — the translator surfaces a collision WARN."""
+
+    def test_cursor_collision_surfaces_warning(self, project_dir: Path) -> None:
+        # cursor maps both file_edit and file_write → Write.
+        from cataforge.runtime.agent.translator import translate_agent_md
+
+        adapter = get_adapter("cursor", project_dir / ".cataforge" / "platforms")
+        content = (
+            "---\nname: a\ndescription: d\n"
+            "tools: file_write\n"
+            "disallowedTools: file_edit\n"
+            "---\n# body\n"
+        )
+        warnings: list[str] = []
+        out = translate_agent_md(content, adapter, warnings_collector=warnings)
+
+        # Write does land in both lists (the platform can't distinguish the
+        # two source caps) — so the collision must be reported, not hidden.
+        assert "tools: Write" in out
+        assert "disallowedTools: Write" in out
+        assert warnings, "expected an allow/deny collision warning, got none"
+        collision = [w for w in warnings if "Write" in w and "both" in w]
+        assert collision, f"no collision warning naming Write: {warnings}"
+        assert "file_edit" in collision[0] and "file_write" in collision[0]
+
+    def test_no_collision_no_warning(self, project_dir: Path) -> None:
+        from cataforge.runtime.agent.translator import translate_agent_md
+
+        adapter = get_adapter("cursor", project_dir / ".cataforge" / "platforms")
+        content = (
+            "---\nname: a\ndescription: d\n"
+            "tools: file_read\n"
+            "disallowedTools: shell_exec\n"
+            "---\n# body\n"
+        )
+        warnings: list[str] = []
+        translate_agent_md(content, adapter, warnings_collector=warnings)
+        assert not warnings
+
+
+class TestSecuritySensitiveFieldDrop:
+    """Dropping permissionMode on a platform that doesn't support it must
+    surface a WARN — a high-privilege declaration silently lost otherwise."""
+
+    @pytest.mark.parametrize("platform", ["cursor", "codex", "opencode"])
+    def test_permission_mode_drop_warns(
+        self, project_dir: Path, platform: str
+    ) -> None:
+        from cataforge.runtime.agent.translator import translate_agent_md
+
+        adapter = get_adapter(platform, project_dir / ".cataforge" / "platforms")
+        # Sanity: none of these declare permissionMode support.
+        assert "permissionMode" not in adapter.agent_supported_fields
+        content = (
+            "---\nname: a\ndescription: d\n"
+            "permissionMode: bypassPermissions\n"
+            "---\n# body\n"
+        )
+        warnings: list[str] = []
+        out = translate_agent_md(content, adapter, warnings_collector=warnings)
+
+        # Field is gone from the deployed file ...
+        assert "permissionMode" not in out
+        # ... but its removal is announced.
+        assert warnings, f"expected a dropped-field warning on {platform}, got none"
+        assert any("permissionMode" in w for w in warnings)
+
+    def test_supported_permission_mode_not_warned(self, project_dir: Path) -> None:
+        # claude-code declares permissionMode → kept, no warning.
+        from cataforge.runtime.agent.translator import translate_agent_md
+
+        adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
+        content = (
+            "---\nname: a\ndescription: d\n"
+            "permissionMode: bypassPermissions\n"
+            "---\n# body\n"
+        )
+        warnings: list[str] = []
+        out = translate_agent_md(content, adapter, warnings_collector=warnings)
+        assert "permissionMode: bypassPermissions" in out
+        assert not warnings
+
+    def test_deploy_surfaces_field_drop_in_actions(
+        self, project_dir: Path
+    ) -> None:
+        """The dropped-field WARN reaches the deployer's action log, not just
+        the in-memory collector."""
+        adapter = get_adapter("opencode", project_dir / ".cataforge" / "platforms")
+        src = project_dir / ".cataforge" / "agents"
+        (src / "guard").mkdir(parents=True)
+        (src / "guard" / "AGENT.md").write_text(
+            "---\nname: guard\ndescription: d\n"
+            "permissionMode: bypassPermissions\n---\n# body\n",
+            encoding="utf-8",
+        )
+        actions = adapter.deploy_agents(src, project_dir, dry_run=False)
+        assert any(
+            "permissionMode" in a and "WARN" in a for a in actions
+        ), f"deploy actions missing permissionMode drop WARN: {actions}"

@@ -121,3 +121,52 @@ def test_no_layers_returns_empty(tmp_path: Path) -> None:
     (tmp_path / ".cataforge").mkdir()
     dest = tmp_path / "staged" / "agents"
     assert resolve_kind(ProjectPaths(tmp_path), "agents", dest) == []
+
+
+def test_orphan_patch_not_materialized_as_real_asset(
+    tmp_path: Path, caplog
+) -> None:
+    """A ``<typo>.patch.md`` with no base ``<typo>.md`` in any layer is an
+    orphan (typo'd patch name) — it must be skipped + logged, never written
+    out verbatim as a real ``<typo>.md`` asset."""
+    import logging
+
+    _write(tmp_path, ".cataforge/agents/architect/AGENT.md", _AGENT)
+    # Typo: base is AGENT.md, patch is mis-named orchestrater.patch.md → no
+    # orchestrater.md to patch.
+    _write(
+        tmp_path,
+        ".cataforge/overrides/project/agents/architect/orchestrater.patch.md",
+        "## Bogus\n- should not ship\n",
+    )
+    dest = tmp_path / "staged" / "agents"
+    with caplog.at_level(logging.WARNING, logger="cataforge.runtime.assets.resolver"):
+        resolve_kind(ProjectPaths(tmp_path), "agents", dest)
+
+    # The orphan patch is NOT written as a standalone asset ...
+    assert not (dest / "architect" / "orchestrater.md").exists()
+    assert not (dest / "architect" / "orchestrater.patch.md").exists()
+    assert "should not ship" not in (
+        dest / "architect" / "AGENT.md"
+    ).read_text(encoding="utf-8")
+    # ... and the skip is surfaced as a diagnostic.
+    assert any(
+        "orphan patch" in r.message or "orphan patch" in r.getMessage()
+        for r in caplog.records
+    ), f"no orphan-patch warning logged: {[r.getMessage() for r in caplog.records]}"
+
+
+def test_patch_with_base_still_applies(tmp_path: Path) -> None:
+    """Regression guard for the orphan check: a patch WITH a matching base in
+    a lower layer still patches normally (the legitimate path is untouched)."""
+    _write(tmp_path, ".cataforge/agents/architect/AGENT.md", _AGENT)
+    _write(
+        tmp_path,
+        ".cataforge/overrides/project/agents/architect/AGENT.patch.md",
+        "## Rules\n- patched rule\n",
+    )
+    dest = tmp_path / "staged" / "agents"
+    resolve_kind(ProjectPaths(tmp_path), "agents", dest)
+    out = (dest / "architect" / "AGENT.md").read_text(encoding="utf-8")
+    assert "patched rule" in out
+    assert "base rule" not in out

@@ -79,6 +79,9 @@ class AgentDeployMixin:
         # Collect dropped capabilities across all agents so we emit ONE line
         # per platform instead of spamming one warning per agent per field.
         dropped_collector: dict[str, set[str]] = {}
+        # Free-form WARN lines (allow/deny tool collisions, dropped
+        # security-sensitive fields) surfaced alongside the action log.
+        warnings_collector: list[str] = []
 
         for agent_name in sorted(source_agents):
             agent_src_dir = source_dir / agent_name
@@ -93,12 +96,14 @@ class AgentDeployMixin:
                     agent_name,
                     target_rel,
                     dropped_collector,
+                    warnings_collector,
                     manifest,
                     prior_manifest,
                 )
             )
 
         actions.extend(_dropped_capability_warnings(self.platform_id, dropped_collector))
+        actions.extend(warnings_collector)
         actions.extend(
             self._prune_orphan_agent_dirs(
                 target_dir, source_agents, scan_dirs[0], target_rel, prior_manifest, dry_run
@@ -113,6 +118,7 @@ class AgentDeployMixin:
         agent_name: str,
         target_rel: str,
         dropped_collector: dict[str, set[str]],
+        warnings_collector: list[str],
         manifest: DeployManifest | None,
         prior_manifest: set[str] | None,
     ) -> list[str]:
@@ -132,7 +138,12 @@ class AgentDeployMixin:
         actions: list[str] = []
         agent_dst.mkdir(exist_ok=True)
         content = (agent_src_dir / "AGENT.md").read_text(encoding="utf-8")
-        translated = translate_agent_md(content, self, dropped_collector=dropped_collector)
+        translated = translate_agent_md(
+            content,
+            self,
+            dropped_collector=dropped_collector,
+            warnings_collector=warnings_collector,
+        )
         rendered = render_runtime_content(translated, self)
         (agent_dst / "AGENT.md").write_text(rendered, encoding="utf-8")
         if manifest is not None:
@@ -275,6 +286,7 @@ class AgentDeployMixin:
             d.name for d in source_dir.iterdir() if d.is_dir() and (d / "AGENT.md").is_file()
         }
         dropped_collector: dict[str, set[str]] = {}
+        warnings_collector: list[str] = []
 
         for agent_name in sorted(source_agents):
             agent_md = source_dir / agent_name / "AGENT.md"
@@ -286,7 +298,12 @@ class AgentDeployMixin:
                 continue
 
             content = agent_md.read_text(encoding="utf-8")
-            translated = translate_agent_md(content, self, dropped_collector=dropped_collector)
+            translated = translate_agent_md(
+                content,
+                self,
+                dropped_collector=dropped_collector,
+                warnings_collector=warnings_collector,
+            )
             # Render runtime placeholders BEFORE the formatter wraps the body
             # — Codex's TOML wrapper embeds the markdown verbatim, so rendering
             # afterwards would have to re-parse the TOML to find the body.
@@ -311,4 +328,5 @@ class AgentDeployMixin:
         )
 
         actions.extend(_dropped_capability_warnings(self.platform_id, dropped_collector))
+        actions.extend(warnings_collector)
         return actions
