@@ -1,6 +1,6 @@
 ---
 name: start-orchestrator
-description: "启动CataForge编排流程 — 从需求到交付的全流程入口。新项目初始化或已有项目恢复推进。"
+description: "启动CataForge编排流程 — 从需求到交付的全流程入口。当用户说'开始新项目''继续上次''continue'或描述一个待开发项目、需要初始化或恢复推进编排流程时使用。"
 argument-hint: "<项目描述 或 'continue' 继续上次>"
 suggested-tools: Read, Glob
 depends: []
@@ -11,8 +11,8 @@ user-invocable: true
 # 启动编排流程 (start-orchestrator)
 
 ## 能力边界
-- 能做: orchestrator 编排流程的用户入口
-- 不做: 替代 orchestrator 的编排逻辑
+- 能做: 判断启动模式（新项目初始化 A / 已有项目恢复 B）、加载 orchestrator 角色定义、框架版本与 framework.json 检查、定位恢复阶段
+- 不做: 通过 agent-dispatch 启动 orchestrator 子代理（见 §角色假设）；不替代 orchestrator 各 phase 的编排判定逻辑；不直接写 docs/ 子目录产物
 
 ## 角色假设（关键）
 **你（当前主线程会话）即是 orchestrator。** 读取 AGENT.md 是为了加载角色定义，**不要通过 agent-dispatch 启动 orchestrator 子代理**。orchestrator 在主线程运行、跨会话持续感知状态，由主线程直接扮演该角色是框架设计的核心约束。

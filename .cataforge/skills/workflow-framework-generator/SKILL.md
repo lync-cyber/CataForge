@@ -145,7 +145,7 @@ input: <输入描述>
 output: <输出描述>
 used_by: [<agent_id>]
 depends: [<skill_id>]
-suggested-tools: [<capability_id>]   # 注意短横线，非下划线 — SkillLoader (loader.py:231) 仅识别带短横线的键名
+suggested-tools: [<capability_id>]   # 注意短横线，非下划线 — SkillLoader 仅识别带短横线的键名
 ```
 
 **提取规则**：
@@ -434,5 +434,4 @@ phases:
 
 - 生成的框架使用 CataForge 能力标识符，部署时由 deployer 自动翻译为平台原生名称
 - Agent 指令内容使用中文（与 CataForge 项目惯例一致），技术标识符和配置键使用英文
-- 生成的文件不包含任何未实现占位符，每个文件都是完整可用的
-- 每个生成的文件都是完整可用的，不依赖后续手动补全
+- 生成的文件不包含任何未实现占位符，每个文件都是完整可用的，不依赖后续手动补全

@@ -1,6 +1,6 @@
 ---
 name: agent-dispatch
-description: "子代理调度 — 将Agent激活指令翻译为运行时具体操作。"
+description: "子代理调度 — 将Agent激活指令翻译为运行时具体操作。当 orchestrator 将某 phase agent 激活为 subagent_type 子代理、需要派发任务并解析返回值时由本 skill 翻译执行。"
 argument-hint: "<agent_id: 目录名如architect> <task: 任务描述>"
 suggested-tools: file_read, file_glob, file_grep, shell_exec, agent_dispatch
 depends: []

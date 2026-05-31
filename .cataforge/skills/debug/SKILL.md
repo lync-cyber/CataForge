@@ -40,7 +40,7 @@ user-invocable: true
 1. 从 stacktrace 最内层帧开始，Read 相关文件和行号
 2. 向调用链上游追溯，理解数据流和控制流
 3. 识别根因类别:
-   - **编码/环境**: 字符编码、路径分隔符、平台差异、Python 版本
+   - **编码/环境**: 字符编码、路径分隔符、平台差异、语言运行时版本
    - **数据/类型**: 空值、类型不匹配、格式解析错误、边界条件
    - **依赖/配置**: 缺失依赖、版本不兼容、配置错误
    - **逻辑**: 算法错误、状态管理、竞态条件
@@ -73,21 +73,14 @@ user-invocable: true
 
 适用于: 已修复一个问题，需要检查整个项目中是否存在同类问题。
 
-**Step 1**: 从已修复的问题中提取特征模式（如 `print(.*ensure_ascii`、缺少 encoding 参数的 `open()`）
+**Step 1**: 从已修复的问题中提取特征模式（如未显式声明编码的文件读写、未转义的正则元字符；语言特定示例见 [debug-patterns.md](../../../docs/reference/debug-patterns.md)）
 **Step 2**: 使用 Grep 在项目范围内搜索该模式
 **Step 3**: 逐一检查匹配项，判断是否存在同类问题
 **Step 4**: 对确认存在问题的文件应用修复
 **Step 5**: 汇总扫描结果: 检查了 N 个文件，修复了 M 个
 
 ## 常见问题模式库
-
-| 模式 | 特征 | 典型修复 |
-|------|------|---------|
-| Windows 编码 | `UnicodeEncodeError: 'charmap'` | stdout/stderr 包装 UTF-8 TextIOWrapper |
-| 路径分隔符 | `FileNotFoundError` + 混用 `/` `\` | 使用 `os.path.join` 或 `pathlib` |
-| 正则解析 | `re.error` 或匹配结果为 None | 转义特殊字符、检查 None 后再访问 `.group()` |
-| JSON 编码 | `ensure_ascii=False` + 非 UTF-8 终端 | 输出前包装 stdout 编码 |
-| 导入路径 | `ModuleNotFoundError` | 检查 `sys.path` 和相对/绝对导入 |
+语言/平台特定的症状—修复对照（Python/Windows 等）见 [debug-patterns.md](../../../docs/reference/debug-patterns.md)，新增语言在该文档增条。
 
 ## Anti-Patterns
 - 禁止: 修复表面 symptom 而不查 root cause —— 让最近一次报错消失不等于修了 bug，root_cause 可能在两层调用栈以上

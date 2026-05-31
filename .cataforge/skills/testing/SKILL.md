@@ -1,6 +1,6 @@
 ---
 name: testing
-description: "测试 — 测试策略规划、测试编写与执行、覆盖率分析、缺陷记录。"
+description: "测试 — 测试策略规划、测试编写与执行、覆盖率分析、缺陷记录。当需要规划测试策略、编写或执行测试套件、分析覆盖率或记录缺陷时使用。"
 argument-hint: "<操作: plan|write|execute|report> <测试类型: unit|integration|e2e|all>"
 suggested-tools: Read, Write, Edit, Bash, Glob, Grep
 depends: [context]
@@ -101,7 +101,7 @@ user-invocable: true
 
 - 禁止：e2e 通过 `window.__*__` / `?e2e=1` / `?test=1` 后门或守门绕过真实用户输入路径；e2e 必须 ≥1 次真实浏览器交互（`keyboard.type` / `page.click` 等）作为 verdict=approved 前置条件
 - 禁止：直接调用 store action / `setState` / `setAst(JSON.parse(...))` 等注入预构造数据替代真实输入路径 — 编辑器/表单/路由的 wiring 链路必须由测试照过
-- 禁止：把"沙盒不可达 → CI 兜底"作为 verdict=conditional_release 的放行理由 —— `conditional_release` 必须显式声明 `blocking_conditions: []`，未消除前 Phase Transition 不能推进（详见 §Verdict 三态语义对应 qa-engineer/AGENT.md）
+- 禁止：把"沙盒不可达 → CI 兜底"作为 verdict=conditional_release 的放行理由 —— `conditional_release` 必须显式声明 `blocking_conditions: []`，未消除前 Phase Transition 不能推进（详见 §Verdict 判定语义对应 qa-engineer/AGENT.md）
 - 避免：单元测试用 `vi.mock` / `jest.mock` 全 stub 替换被测包的顶层导出，导致接口契约未真实验证（sprint-review `ac-coverage` 维度会复核）
 
 ## 效率策略

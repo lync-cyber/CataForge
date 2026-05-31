@@ -77,7 +77,7 @@ degradation_templates:
 
   detect_review_flag:
     strategy: skip
-    reason: "纠正学习为非关键功能 (review-flag 信号)；同时此 hook 依赖 schema v2 matcher_agent_id 过滤目标 agent，v1-only 平台无法约束触发范围，统一降级为 skip"
+    reason: "纠正学习为非关键功能 (review-flag 信号)；且此 hook 依赖 agent_dispatch 的 PostToolUse 匹配，无 agent matcher 的平台不触发，统一降级为 skip"
 
   notify_permission:
     strategy: skip

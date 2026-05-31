@@ -117,7 +117,7 @@ deps: []
 ---
 ```
 
-front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 category: structure / consistency / convention / completeness / ambiguity / duplication（B3 漂移按 consistency；裸数值按 convention；孤立 skill 按 dead-code；model_tier 不当按 convention）。
+front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 category: structure / consistency / convention / completeness / ambiguity / duplication / dead-code（B3 漂移按 consistency；裸数值按 convention；孤立 skill 按 dead-code；model_tier 不当按 convention）。
 
 ### Step 5: 判定结论
 三态判定按 COMMON-RULES §三态判定逻辑。framework-review 默认不阻塞业务流程（不进 needs_revision 自动重试），仅产出报告供后续元资产维护决策。
@@ -131,7 +131,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 
 - B1-α: AGENT.md / SKILL.md 必填段（能力边界 / 输入规范 / 输出规范 / Anti-Patterns / 操作指令 任选其一作为入口段）<!-- check_id: B1_required_sections -->
 - B1-β: 单文件行数 ≤ META_DOC_SPLIT_THRESHOLD_LINES (WARN 提示拆分)；覆盖 AGENT.md / SKILL.md / `agents/<id>/*PROTOCOL*.md` 伴生文档 / `rules/*.md` 四类 prompt-context 文件，与 {INSTRUCTION_FILE} §硬约束 1 对齐<!-- check_id: B1_size_threshold -->
-- B2-α: 解析所有 AGENT.md `skills:` + SKILL.md `depends:` + framework.json `features` → 引用不存在的 skill/agent FAIL；无任何 AGENT.md 引用的 skill WARN（白名单豁免：基础设施类 skill 如 agent-dispatch / tdd-engine / change-guard / start-orchestrator / context / context / research / debug / self-update / workflow-framework-generator / platform-audit / framework-review / framework-issue-resolve / framework-feedback）<!-- check_id: B2_cross_reference_graph -->
+- B2-α: 解析所有 AGENT.md `skills:` + SKILL.md `depends:` + framework.json `features` → 引用不存在的 skill/agent FAIL；无任何 AGENT.md 引用的 skill WARN（白名单豁免：基础设施类 skill 如 agent-dispatch / tdd-engine / change-guard / start-orchestrator / context / research / debug / self-update / workflow-framework-generator / platform-audit / framework-review / framework-issue-resolve / framework-feedback）<!-- check_id: B2_cross_reference_graph -->
 - B3-α: skill SKILL.md 的 "## Layer 1 检查项" 段与对应 builtin 的 `CHECKS_MANIFEST` 对账。两种识别策略二者必居其一：(1) **anchor 模式** — 段内若出现 `<!-- check_id: <id> -->` HTML 注释锚点，按 ID 双向校验（孤儿锚点 / 缺失锚点 → FAIL）；(2) **delegation 模式** — 段内出现 `权威清单见 ...CHECKS_MANIFEST` 短语，跳过逐条对照（manifest 存在性即契约）。缺该段、或既无锚点又无 delegation 句 → FAIL<!-- check_id: B3_manifest_drift -->
 - B3-β: 项目级 `.cataforge/skills/<skill>/rules/*.yaml` plugin 覆写文件按 `cataforge.runtime.skill.rules.loader.validate_yaml_text` schema 校验（`schema_version` / `rule_type` / `language` / `extensions` / 正则可编译 / `flags` 已知 / e2e backdoor entry 必填 `label`）→ 不合规 FAIL<!-- check_id: B3_rules_schema_compliance -->
 - B4-α: 在 .cataforge/{agents,skills,rules}/**/*.md 中 grep 框架常量对应的裸数值（如 `≤3 问` / `300 行` / `>200 行`），未引用常量名 → WARN（豁免：代码块、版本号、ID 编号）<!-- check_id: B4_hardcoded_constants -->

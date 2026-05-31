@@ -71,7 +71,7 @@
 规则：`standard` 等价于未引入本矩阵前的 7 阶段流程；`agile-lite` / `agile-prototype` 由用户在 Bootstrap 显式选择；模式切换由 orchestrator §Mode Routing Protocol 路由（见 `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`）。
 
 ## 统一状态码
-权威枚举见 `.cataforge/schemas/agent-result.schema.json`；本表为语义说明。所有 Agent 与子代理返回值取自下表。
+权威枚举见 `.cataforge/schemas/agent-result.schema.json`；本表为语义说明。所有 Agent 与子代理返回值取自下表。`conditional_release` 是 qa-engineer 的 verdict（见 §verdict_blocking_semantics），不是 agent-result.status 枚举值，故不在本表。
 
 | 状态码 | 含义 | 使用场景 | orchestrator 处理 |
 |--------|------|---------|------------------|
@@ -263,6 +263,8 @@ deps: ["{被审 doc_id 或 task_id}"] # CORRECTIONS-LOG 用 []
 | 存在 CRITICAL 或 HIGH | **needs_revision** |
 | 无 CRITICAL/HIGH，但有 MEDIUM/LOW | **approved_with_notes** |
 | 无问题 | **approved** |
+
+本表为 reviewer 通用三态。qa-engineer 在 Phase 6 testing 额外可产出第四态 `conditional_release`，其判定条件见 qa-engineer/AGENT.md；该 verdict 的阻塞语义见下方 §verdict_blocking_semantics。
 
 ### verdict_blocking_semantics
 
