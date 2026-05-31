@@ -5,6 +5,7 @@ from __future__ import annotations
 import click
 
 from cataforge.core.errors import CataforgeError
+from cataforge.interface.cli.helpers import resolve_project_dir, resolve_root
 from cataforge.interface.cli.main import cli
 
 
@@ -74,8 +75,9 @@ def docs_load(
     from cataforge.application.context.read import main as context_load_main
 
     argv = list(refs)
-    if project_root:
-        argv.extend(["--project-root", project_root])
+    effective_root = project_root or resolve_project_dir()
+    if effective_root:
+        argv.extend(["--project-root", str(effective_root)])
     if json_output:
         argv.append("--json")
     if with_deps:
@@ -104,8 +106,9 @@ def docs_index(project_root: str | None, doc_file: str | None, strict: bool) -> 
     from cataforge.domain.docs.indexer import main as indexer_main
 
     argv: list[str] = []
-    if project_root:
-        argv.extend(["--project-root", project_root])
+    effective_root = project_root or resolve_project_dir()
+    if effective_root:
+        argv.extend(["--project-root", str(effective_root)])
     if doc_file:
         argv.extend(["--doc-file", doc_file])
     if strict:
@@ -132,10 +135,9 @@ def docs_validate(project_root: str | None) -> None:
     """
     import os
 
-    from cataforge.core.paths import find_project_root
     from cataforge.domain.docs.indexer import INDEX_FILENAME, validate_docs
 
-    root = project_root or str(find_project_root())
+    root = project_root or str(resolve_root())
     index_path = os.path.join(root, "docs", INDEX_FILENAME)
     if not os.path.isfile(index_path):
         click.echo(
@@ -270,8 +272,9 @@ def docs_migrate_nav(project_root: str | None, dry_run: bool) -> None:
     from cataforge.domain.docs.migrate_nav import main as migrate_main
 
     argv: list[str] = []
-    if project_root:
-        argv.extend(["--project-root", project_root])
+    effective_root = project_root or resolve_project_dir()
+    if effective_root:
+        argv.extend(["--project-root", str(effective_root)])
     if dry_run:
         argv.append("--dry-run")
     _raise_on_nonzero(migrate_main(argv), "docs migrate-nav")
@@ -300,8 +303,9 @@ def docs_migrate_reviews(project_root: str | None, dry_run: bool) -> None:
     from cataforge.domain.docs.migrate_review_frontmatter import main as migrate_main
 
     argv: list[str] = []
-    if project_root:
-        argv.extend(["--project-root", project_root])
+    effective_root = project_root or resolve_project_dir()
+    if effective_root:
+        argv.extend(["--project-root", str(effective_root)])
     if dry_run:
         argv.append("--dry-run")
     _raise_on_nonzero(migrate_main(argv), "docs migrate-reviews")

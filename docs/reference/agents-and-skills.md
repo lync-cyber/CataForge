@@ -4,7 +4,7 @@
 
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
 >
-> **适用版本**：v0.4.x。计数 13 Agent + 26 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
+> **适用版本**：v0.4.x。计数 13 Agent + 27 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
 >
 > **平台差异**：Agent 通过 `tools.allow` 声明的 capability 在各平台的原生工具映射见 [platform-capability-matrix.md](platform-capability-matrix.md)；`null` 映射的 capability 在 deploy 时被过滤并发 WARN。
 
@@ -12,7 +12,7 @@
 
 - [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
-- [Skill 清单（26 个）](#skill-清单26-个) — 总览表 + 按类别折叠
+- [Skill 清单（27 个）](#skill-清单27-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
 
 ---
@@ -206,7 +206,7 @@ tools:
 
 ---
 
-## Skill 清单（26 个）
+## Skill 清单（27 个）
 
 ### 总览
 
@@ -238,6 +238,7 @@ tools:
 | 24 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
 | 25 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
 | 26 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
+| 27 | framework-walkthrough | 测试质量 | 元自测 | 隔离沙盒内端到端跑通小型示例项目的完整 SDLC 工作流，观察各阶段/门禁/降级行为，产出框架本身与走查流程两类改进建议；framework-review 的动态对偶 |
 
 ### 详细说明
 

@@ -16,6 +16,7 @@ from cataforge.core.errors import (
     KGVerificationError,
 )
 from cataforge.core.paths import KG_STORE_REL
+from cataforge.interface.cli.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
 
 
@@ -53,7 +54,10 @@ from cataforge.interface.cli.kg import kg_group
     default=False,
     help="Overwrite an existing store at --db-path.",
 )
-def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
+@click.pass_context
+def kg_init(
+    ctx: click.Context, db_path: Path, backend: str, governance: bool, force: bool
+) -> None:
     """Initialize a new KG store with the rdfs:subClassOf hierarchy loaded.
 
     Bootstrap triples close the subclass-closure gap left by pyoxigraph's
@@ -61,6 +65,8 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
     `?s a/rdfs:subClassOf* cf:Screen` would return zero `cf:Page` rows
     even when Page instances exist.
     """
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
+
     from cataforge.domain.kg import (
         KGConfig,
         KGStoreAlreadyExistsError,
@@ -112,8 +118,16 @@ def kg_init(db_path: Path, backend: str, governance: bool, force: bool) -> None:
     default=None,
     help="Optional label appended to the snapshot filename.",
 )
-def kg_snapshot(db_path: Path, output_dir: Path, label: str | None) -> None:
+@click.pass_context
+def kg_snapshot(
+    ctx: click.Context, db_path: Path, output_dir: Path, label: str | None
+) -> None:
     """Save a full snapshot of the current KG store."""
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
+    output_dir = root_relative_default(
+        ctx, "output_dir", output_dir, rel=Path(".cataforge/kg/snapshots")
+    )
+
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.domain.kg.snapshot import create_snapshot
 
@@ -145,11 +159,16 @@ def kg_snapshot(db_path: Path, output_dir: Path, label: str | None) -> None:
     default=False,
     help="Overwrite the existing store without confirmation.",
 )
-def kg_rollback(snapshot_path: Path, db_path: Path, force: bool) -> None:
+@click.pass_context
+def kg_rollback(
+    ctx: click.Context, snapshot_path: Path, db_path: Path, force: bool
+) -> None:
     """Restore the KG store from a snapshot file.
 
     SNAPSHOT_PATH is the path to the .nq file created by `cataforge kg snapshot`.
     """
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
+
     from cataforge.domain.kg import KGConfig, KGStoreAlreadyExistsError
     from cataforge.domain.kg.snapshot import restore_snapshot
 
@@ -209,6 +228,8 @@ def kg_repair(
     from cataforge.domain.kg._dispatch import kg_config_for
     from cataforge.domain.kg.repair import repair
 
+    project_root = root_relative_default(ctx, "project_root", project_root)
+    db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
     project_root = project_root.resolve()
     base_config = kg_config_for(project_root)
 

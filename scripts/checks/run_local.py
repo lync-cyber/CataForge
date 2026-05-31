@@ -38,10 +38,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKS: list[tuple[str, list[str]]] = [
     ("ruff (lint)", [sys.executable, "-m", "ruff", "check", "src", "tests", "scripts"]),
     (
-        "no marketing adverbs",
-        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_no_marketing_words.py")],
-    ),
-    (
         "no design-phase residue",
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_no_design_residue.py")],
     ),

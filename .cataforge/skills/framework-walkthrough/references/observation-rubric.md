@@ -1,0 +1,59 @@
+# 观察与归类口径
+
+本文件定义走查过程中「看什么、怎么记、怎么归类」。走查的核心价值是过程信号，事后无法补采，故须逐阶段即时记录。
+
+## 1. 逐阶段观察点
+
+每跨一个阶段 / 门禁 / 降级，对照下列维度记录「期望 vs 实际」：
+
+| 维度 | 观察什么 | 异常信号示例 |
+|------|---------|------------|
+| 产物生成 | 该阶段应产出的文档/代码是否生成、路径与命名是否合规 | 文档缺 front matter、落错目录、未注册索引 |
+| 门禁触发 | doc-review / code-review / sprint-review 是否如期触发、Layer 1↔2 短路判定是否正确 | 该审却没审、该短路却全跑（反之亦然） |
+| 降级行为 | 缺能力时降级是否显式、是否有日志 | 静默丢能力、未提示降级即继续 |
+| CLI / skill / hook | `cataforge` 子命令、`skill run`、hook 是否报错或退出码异常 | 命令不存在、参数不符、Layer 1 返回 2/127 |
+| 文档加载 / KG | `cataforge docs load` 按 KG-active / legacy 分流是否正常、reconcile 是否通过 | 实体级引用解析失败、drift 未被 reconcile 捕获 |
+| 交互负担 | 多少处需要人工代答、提问是否选择题优先、是否重复提问 | 同一问题反复问、开放式提问过多 |
+| 状态一致 | PROJECT-STATE / EVENT-LOG 与实际推进是否一致 | 阶段标记与产物不符、事件漏写 |
+
+## 2. 两类 findings
+
+走查产出严格分两类，避免把「框架问题」与「走查方法问题」混为一谈：
+
+- **framework**：被走查的框架本身的缺陷/摩擦——CLI/skill/hook 报错、门禁逻辑偏差、降级静默、文档契约不一致、跨平台行为差异等。这类 finding 反哺实现审查与跨平台评估。
+- **process**：走查流程/本 skill 本身的可改进项——示例目标大小是否合适、步骤是否欠明确、观察口径是否漏项、沙盒搭建是否有坑、单轮预算是否合理等。这类 finding 反哺本 skill 的迭代。
+
+## 3. 归类与严重度
+
+每条 finding 套 COMMON-RULES：
+
+- `category` 取自 §统一问题分类体系（completeness / consistency / convention / security / structure / error-handling / …）。
+- `root_cause` 取自 §归因分类（self-caused / upstream-caused / input-caused / reviewer-calibration）。
+- `severity`：CRITICAL（走查无法继续 / 数据被破坏）> HIGH（主干阶段功能性偏差）> MEDIUM（局部偏差有 workaround）> LOW（措辞/体验）。
+- 证据：写明在哪个阶段、哪条命令、哪个产物路径上观察到，附原始输出片段或 `file:line`。
+
+## 4. 报告结构
+
+写 `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-{YYYYMMDD}-r{N}.md`，首行 YAML front matter：
+
+```yaml
+---
+id: "framework-review-walkthrough-{YYYYMMDD}-r{N}"
+doc_type: framework-review
+author: framework-walkthrough
+status: draft
+deps: []
+---
+```
+
+正文建议章节：
+
+1. **走查配置**：平台 / 执行模式 / 示例目标 / 框架版本。
+2. **阶段时间线**：逐阶段「做了什么 → 产物 → 观察点」一行一条。
+3. **framework findings**：按 §问题格式 列出，severity 降序。
+4. **process findings**：同上，聚焦本 skill 与走查方法。
+5. **结论**：三态判定（COMMON-RULES §三态判定逻辑）+ 最值得优先的改进项。
+
+## 5. 自我校准
+
+走查者须区分「框架真的有问题」与「走查者操作不当」。无法在沙盒复核、或源于走查者误用的现象，归 `process` 而非 `framework`，并在证据里写明判定依据，避免把操作失误冤枉成框架缺陷。
