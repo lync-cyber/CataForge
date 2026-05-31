@@ -3,7 +3,7 @@ name: testing
 description: "测试 — 测试策略规划、测试编写与执行、覆盖率分析、缺陷记录。"
 argument-hint: "<操作: plan|write|execute|report> <测试类型: unit|integration|e2e|all>"
 suggested-tools: Read, Write, Edit, Bash, Glob, Grep
-depends: [doc-gen, doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -77,7 +77,7 @@ user-invocable: true
 2. 覆盖率分析(对比目标)
 3. 缺陷清单(严重等级 + 关联任务)
 4. 结论与建议(是否达到发布标准)
-5. 通过doc-gen填充test-report模板
+5. 通过context填充test-report模板
 
 ## Layer 1 检查项 (e2e_backdoor_scan)
 

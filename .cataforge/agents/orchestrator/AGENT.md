@@ -7,7 +7,7 @@ allowed_paths: []  # 空数组表示无写入路径限制（见 agent-dispatch �
 model_tier: inherit  # 主线程运行，不通过 model_routing 重派
 skills:
   - agent-dispatch
-  - doc-nav
+  - context
   - tdd-engine
   - change-guard
   - framework-feedback

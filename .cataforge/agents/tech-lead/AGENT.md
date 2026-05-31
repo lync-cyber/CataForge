@@ -9,8 +9,7 @@ allowed_paths:
 skills:
   - task-decomp
   - task-dep-analysis
-  - doc-gen
-  - doc-nav
+  - context
 model_tier: standard
 maxTurns: 60
 ---
@@ -29,7 +28,7 @@ maxTurns: 60
 
 ## Output Contract
 - 必须产出: dev-plan-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
-- 使用模板: 通过doc-gen调用 dev-plan 模板
+- 使用模板: 通过context调用 dev-plan 模板
 
 ## Execution Rules
 - **task_kind 标注**: 每个 T-xxx 标注 `task_kind ∈ {feature, fix, chore, config, docs}`。`chore`/`config`/`docs` 跳过 TDD（直接由 implementer 单次产出 + lint hook 兜底），仅 `feature`/`fix` 走 RED/GREEN/REFACTOR

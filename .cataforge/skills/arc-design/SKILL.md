@@ -3,7 +3,7 @@ name: arc-design
 description: "架构设计 — 模块划分、接口定义、数据模型、系统架构建模。"
 argument-hint: "<PRD文档路径或功能需求描述>"
 suggested-tools: Read, Write, Edit, Glob, Grep
-depends: [doc-gen, doc-nav, tech-eval, research]
+depends: [context, tech-eval, research]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -28,7 +28,7 @@ user-invocable: true
 ## 执行流程
 
 ### Step 1: 需求分析与架构决策 (对应ARCH §1)
-- 通过doc-nav加载PRD全文(首次需全量理解)
+- 通过context加载PRD全文(首次需全量理解)
 - §1.1 确定项目类型: fullstack | backend-only | CLI | API-only
   (此决定影响orchestrator是否跳过Phase 3 UI设计)
 - §1.2 架构风格选型: 结合tech-eval调研结果
@@ -66,12 +66,12 @@ user-invocable: true
   ```
 - 必填: request headers + body字段(type + required + desc)
 - 必填: response成功码 + 错误码schema
-- 接口数 > 10时，通过doc-gen拆分为arch-api分卷
+- 接口数 > 10时，通过context拆分为arch-api分卷
 
 ### Step 4: 数据模型 (对应ARCH §4)
 - 描述实体关系(1:N / M:N / 继承等，Mermaid erDiagram 格式)
 - 定义实体E-{NNN}，字段表格(字段 | 类型 | 约束 | 说明)
-- 实体数 > 8时，通过doc-gen拆分为arch-data分卷
+- 实体数 > 8时，通过context拆分为arch-data分卷
 
 ### Step 5: 非功能架构 (对应ARCH §5)
 - §5.1 性能方案: 缓存策略 / 异步处理 / 分页方案
@@ -85,7 +85,7 @@ user-invocable: true
 - §7.1 命名规范: 文件/变量/接口命名规则
 - §7.2 代码风格: Lint/格式化工具配置
 - §7.3 Git约定: 分支策略/Commit格式
-- 通过doc-gen finalize交付ARCH
+- 通过context finalize交付ARCH
 
 ## Anti-Patterns
 - 禁止: 在 ARCH 主卷塞入实现细节代码 —— ARCH 写接口契约 / 数据流 / 模块边界；实现归 implementer 的 src/，越界让两层职责粘连

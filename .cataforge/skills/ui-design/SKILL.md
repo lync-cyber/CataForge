@@ -3,7 +3,7 @@ name: ui-design
 description: "UI设计 — 页面布局、组件规范、交互流程、组件目录维护。"
 argument-hint: "<prd文档路径或功能需求ID>"
 suggested-tools: Read, Write, Edit
-depends: [doc-gen, doc-nav, research]
+depends: [context, research]
 disable-model-invocation: false
 user-invocable: true
 ---

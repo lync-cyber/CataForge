@@ -37,7 +37,7 @@ def build_template_path_map() -> dict[str, dict[str, dict[str, str]]]:
     try:
         registry_dir = Path(
             importlib.resources.files("cataforge").joinpath(
-                "..", "..", "..", ".cataforge", "skills", "doc-gen", "templates"
+                "..", "..", "..", ".cataforge", "skills", "context", "templates"
             )
         ).resolve()
     except Exception:
@@ -46,7 +46,7 @@ def build_template_path_map() -> dict[str, dict[str, dict[str, str]]]:
     if registry_dir is None or not (registry_dir / "_registry.yaml").is_file():
         from cataforge.core.paths import find_project_root
 
-        registry_dir = find_project_root() / ".cataforge" / "skills" / "doc-gen" / "templates"
+        registry_dir = find_project_root() / ".cataforge" / "skills" / "context" / "templates"
 
     registry_path = registry_dir / "_registry.yaml"
     if not registry_path.is_file():
@@ -96,7 +96,7 @@ def _get_templates_dir() -> Path:
         return _templates_dir
     from cataforge.core.paths import find_project_root
 
-    _templates_dir = find_project_root() / ".cataforge" / "skills" / "doc-gen" / "templates"
+    _templates_dir = find_project_root() / ".cataforge" / "skills" / "context" / "templates"
     return _templates_dir
 
 

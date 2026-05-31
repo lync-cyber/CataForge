@@ -3,7 +3,7 @@ name: change-guard
 description: "变更守卫 — 分析用户变更请求与现有文档的一致性，决定处理路径。"
 argument-hint: "<change_description: 用户变更描述>"
 suggested-tools: Read, Glob, Grep
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: false
 ---
@@ -15,7 +15,7 @@ user-invocable: false
 
 ## 输入规范
 - 用户变更描述 (自然语言)
-- 当前项目已有文档 (通过doc-nav检索: PRD, ARCH, UI-SPEC, DEV-PLAN)
+- 当前项目已有文档 (通过context检索: PRD, ARCH, UI-SPEC, DEV-PLAN)
 
 ## 输出规范
 - `<change-analysis>` 结构化分析结果，供orchestrator路由决策
@@ -30,7 +30,7 @@ user-invocable: false
 
 ### Step 2: 文档覆盖度扫描
 
-**数据源**（自动）：对每个已识别的实体 ID 取追溯链——`cataforge kg trace <id> --direction both --output json` 取上下游追溯（PRD→ARCH→UI-SPEC→DEV-PLAN 全链路），配合 `--coverage` 取全局 Feature 覆盖矩阵，一次性定位"哪个 Feature 已有 / 缺实现 / 缺测试"；追溯后端不可达时经 doc-nav 检索已有文档逐级核对。后端选择由框架路由，无需在此判断。
+**数据源**（自动）：对每个已识别的实体 ID 取追溯链——`cataforge kg trace <id> --direction both --output json` 取上下游追溯（PRD→ARCH→UI-SPEC→DEV-PLAN 全链路），配合 `--coverage` 取全局 Feature 覆盖矩阵，一次性定位"哪个 Feature 已有 / 缺实现 / 缺测试"；追溯后端不可达时经 context 检索已有文档逐级核对。后端选择由框架路由，无需在此判断。
 
 按以下结构逐级检查:
 
@@ -101,6 +101,6 @@ user-invocable: false
 - 避免: 让 reviewer 替代 change-guard 做影响分析 —— reviewer 审产物质量，change-guard 决定流程走向，两者职责正交不可互替
 
 ## 效率策略
-- 通过doc-nav按需加载，不全量读取所有文档
+- 通过context按需加载，不全量读取所有文档
 - 优先检查PRD级覆盖度（决定是否为new_requirement），再检查下游
 - 对clarification类型快速返回，不做深度影响分析

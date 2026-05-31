@@ -3,7 +3,7 @@ name: sprint-review
 description: "Sprint 完成度审查 — 计划 vs 实际对比、AC 覆盖验证、范围偏移检测 (gold-plating / drift / 缺失)。当一个 Sprint 全部任务卡完成、需要进入下一 Sprint 或发布前的完成度评估时使用此 skill。本 skill 做 Sprint 级聚合：单任务 code-review 由 code-review review 负责，项目级腐化扫描由 code-review scan 负责，文档评审由 doc-review 负责。"
 argument-hint: "<sprint_number: 1|2|3...>"
 suggested-tools: Read, Glob, Grep, Bash
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -60,7 +60,7 @@ cataforge skill run sprint-review -- {N} \
 | `--format {text,json}` | text | `json`：结构化 issues，供 framework-review / CI 机读 |
 
 ### Step 2: Layer 2 — AI语义审查
-通过doc-nav加载dev-plan Sprint任务详情、arch接口契约、CODE-REVIEW报告，审查:
+通过context加载dev-plan Sprint任务详情、arch接口契约、CODE-REVIEW报告，审查:
 - 完成度(completeness): 所有计划交付物是否存在且功能完整，非空壳文件
 - AC覆盖(ac-coverage): 每个AC-NNN是否有对应测试且测试逻辑有效（非仅grep匹配）；至少一个关联测试**不**使用 `vi.mock` / `jest.mock` / `unittest.mock` 全 stub 替换被测包顶层导出（避免接口契约虚假绿色）
 - Wiring 完成度(wiring-completeness): 任务卡 `user_facing_critical_path: true` 或 `consumer_components` 非空时，验证 deliverable 真实挂载到至少一个消费点（路由 / app shell / 父组件 prop），而非仅"组件存在"。读取 implementer self-report 的 `wiring_complete` / `wiring_evidence` 字段（agent-result.schema 0.2.0+）做交叉核对；缺失 evidence 但任务声称 wiring_complete=true 时升 HIGH
@@ -136,5 +136,5 @@ project_features:
 
 ## 效率策略
 - Layer 1 先行（脚本结构检查不通过即跳过 AI 审查）；Layer 2 聚焦脚本不可覆盖的行为偏移和质量模式
-- 通过 doc-nav 按需加载，不全量读 dev-plan
+- 通过 context 按需加载，不全量读 dev-plan
 - **merged-review**：任务同质 sprint 单份 sprint-review 替代 N 份 CODE-REVIEW，跨任务模式更易识别

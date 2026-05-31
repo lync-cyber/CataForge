@@ -66,7 +66,7 @@ Agent 间通过标准化引用格式传递信息，避免全文复制：
   dev-plan#§1.T-005 → 开发计划第 1 节 Task T-005
 ```
 
-`doc-nav` Skill 负责按引用格式精准加载对应段落，降低 Agent 上下文占用。
+`context` 的 navigate 分支负责按引用格式精准加载对应段落，降低 Agent 上下文占用。
 
 ---
 

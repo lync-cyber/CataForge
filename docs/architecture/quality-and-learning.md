@@ -2,7 +2,7 @@
 
 > CataForge 通过多层质量闸保证产出质量，并通过学习系统自动提取跨项目经验。
 
-## 1. 文档审查（doc-review）
+## 1. 文档审查（context review 分支）
 
 ```text
 Layer 1 — 脚本检查：
@@ -136,7 +136,7 @@ Reflector 聚合（阈值触发）
     ↓
 .cataforge/learnings/EXP-*.md
     ↓
-下次 Agent 通过 doc-nav 加载相关经验，避免重蹈覆辙
+下次 Agent 通过 context navigate 加载相关经验，避免重蹈覆辙
 ```
 
 ---

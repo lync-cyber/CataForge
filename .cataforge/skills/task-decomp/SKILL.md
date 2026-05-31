@@ -3,7 +3,7 @@ name: task-decomp
 description: "任务拆分 — 功能到任务的分解，确保粒度单一可控。"
 argument-hint: "<ARCH文档路径或模块列表>"
 suggested-tools: Read, Write, Edit, Grep
-depends: [doc-gen, doc-nav, task-dep-analysis]
+depends: [context, task-dep-analysis]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -22,7 +22,7 @@ user-invocable: true
   - 目标、模块、接口、复杂度(S/M/L)
   - tdd_acceptance: 验收标准映射（每条 AC 采用 Given-When-Then 格式，Then 子句必须包含可断言的具体值或约束）
   - deliverables: 交付物文件清单
-  - context_load: doc-nav加载清单
+  - context_load: context加载清单
   - 实现提示(仅在必要时)
 - Sprint划分表
 - 依赖图 + 关键路径
@@ -37,7 +37,7 @@ user-invocable: true
    - Then: 可观测结果（具体返回值/字段、状态变化、错误类型+消息）
    - Then 子句必须包含可断言的具体值或约束，禁止"实现 X"、"支持 Y"等无行为描述
 4. 定义deliverables(明确交付文件)
-5. 定义context_load(doc-nav引用)
+5. 定义context_load(context引用)
 6. 建立依赖图: 调用 task-dep-analysis skill，脚本自动生成 Mermaid 依赖图并写入 dev-plan#§2
 7. 按依赖关系划分Sprint(参考 task-dep-analysis 输出的 sprint_groups)，遵循 MVP 切分原则:
    - 每个 Sprint 的产出应包含至少一个用户可感知的完整功能

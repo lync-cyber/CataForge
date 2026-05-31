@@ -18,7 +18,7 @@ Agent tool:
     - 你的 AGENT.md 已通过 subagent_type 自动加载
 <!-- /OVERRIDE:startup_notes -->
     - 开始工作前，阅读你的核心 Skill 的 SKILL.md（见 AGENT.md skills 列表）
-    - 通用 Skill（doc-gen/doc-nav）仅在需要操作时查阅
+    - 通用 Skill（context/context）仅在需要操作时查阅
     - 所有文档和报告输出使用中文（代码、变量命名、框架参数除外）
     - 信息不足时标注[ASSUMPTION]并给出合理默认值
 

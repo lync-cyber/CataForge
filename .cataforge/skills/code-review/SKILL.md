@@ -3,7 +3,7 @@ name: code-review
 description: "代码评审 — 任务粒度评审 (review) 与项目级健康度扫描 (scan) 双入口；代码质量检查、规范合规验证、安全漏洞检测、腐化指标扫描。当任务卡 GREEN 完成 / Sprint 发布前 / 用户要求扫描代码腐化时使用此 skill。审查范围限 src/ 业务代码：文档审查由 doc-review 负责；框架元资产 (.cataforge/) 审查由 framework-review 负责；Sprint 完成度由 sprint-review 负责。"
 argument-hint: "<代码文件路径或目录> | scan <path> [--focus <category[,...]>]"
 suggested-tools: Read, Glob, Grep, Bash
-depends: [doc-nav]
+depends: [context]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -53,7 +53,7 @@ user-invocable: true
 
 命中短路时仍需按 Step 3/4 产出 `CODE-REVIEW-{task_id}-r{N}.md` 报告，front matter `status: approved`，并在报告标题下标注 `Layer 2 skipped (short-circuit: <触发条件>)`。降级场景（Layer 1 异常 / FAIL）不适用短路。
 
-通过doc-nav加载 arch#§7开发约定 和 arch#§5非功能架构，按以下维度审查（括号内为对应的 category 枚举值）:
+通过context加载 arch#§7开发约定 和 arch#§5非功能架构，按以下维度审查（括号内为对应的 category 枚举值）:
 - 命名规范(convention): 文件/变量/接口命名是否符合arch约定
 - 代码结构(structure): 模块组织、职责划分是否合理
 - 安全漏洞(security): OWASP Top 10 检查(注入/XSS/认证/敏感数据暴露等)

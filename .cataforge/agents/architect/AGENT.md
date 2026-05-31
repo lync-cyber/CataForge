@@ -9,8 +9,7 @@ allowed_paths:
 skills:
   - arc-design
   - tech-eval
-  - doc-gen
-  - doc-nav
+  - context
   - research
 model_tier: heavy
 maxTurns: 60
@@ -31,7 +30,7 @@ maxTurns: 60
 
 ## Output Contract
 - 必须产出: arch-{project}.md (含分卷: API, DATA, 模块)；版本号写入 frontmatter `version:` 字段，不进入 id/文件名
-- 使用模板: 通过doc-gen调用 arch 模板
+- 使用模板: 通过context调用 arch 模板
 
 ## Error Handling
 | 场景 | 处理策略 |

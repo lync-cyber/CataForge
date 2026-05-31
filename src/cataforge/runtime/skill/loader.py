@@ -15,6 +15,7 @@ from cataforge.utils.frontmatter import split_yaml_frontmatter
 _BUILTIN_ID_MAP = {
     "code_review": "code-review",
     "doc_review": "doc-review",
+    "doc_consistency": "doc-consistency",
     "framework_review": "framework-review",
     "framework_feedback": "framework-feedback",
     "sprint_review": "sprint-review",

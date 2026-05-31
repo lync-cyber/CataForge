@@ -11,7 +11,7 @@ allowed_paths:
   - .cataforge/skills/
 skills:
   - debug
-  - doc-nav
+  - context
 model_tier: heavy
 maxTurns: 40
 ---

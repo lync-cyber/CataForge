@@ -9,11 +9,10 @@ allowed_paths:
   - docs/reviews/sprint/
   - docs/reviews/design/
 skills:
-  - doc-review
+  - context
   - code-review
   - sprint-review
-  - doc-nav
-  - penpot-review  # 仅当 {INSTRUCTION_FILE} 设计工具=penpot 时使用
+  - penpot-review
 model_tier: standard
 maxTurns: 50
 ---
@@ -29,8 +28,8 @@ maxTurns: 50
 - **写入范围限制**: Write/Edit 工具仅允许操作 docs/reviews/doc/、docs/reviews/code/、docs/reviews/sprint/、docs/reviews/design/ 四个子目录下的文件。写入任何其他路径前必须立即停止并报告违规
 
 ## Input Contract
-- 文档审查: 被审文档 + 上游依赖文档(相关章节) (通过doc-nav加载)
-- 代码审查: 代码文件路径 + arch#§7开发约定 + arch#§5非功能架构 (通过doc-nav加载)
+- 文档审查: 被审文档 + 上游依赖文档(相关章节) (通过context加载)
+- 代码审查: 代码文件路径 + arch#§7开发约定 + arch#§5非功能架构 (通过context加载)
 
 ## Output Contract
 - 文档审查: docs/reviews/doc/REVIEW-{doc_id}-r{N}.md (问题列表 + 严重等级)
@@ -42,7 +41,7 @@ maxTurns: 50
 - **强制批量提问**: 当一次审查中发现多个歧义点需要向用户确认时，必须通过单次 AskUserQuestion 批量提问（每批 ≤ `MAX_QUESTIONS_PER_BATCH`），禁止拆分为多轮提问。若问题数超过上限，按严重等级排序，优先追问 CRITICAL/HIGH 级别
 
 ## Document Review Protocol
-执行 doc-review skill 的完整流程（见 doc-review SKILL.md）。
+执行 doc-review 完整流程（见 context skill 的 review 分支）。
 
 ## Code Review Protocol
 执行 code-review skill 的完整流程（见 code-review SKILL.md）。

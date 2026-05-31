@@ -131,8 +131,8 @@
 | `constants.MANUAL_REVIEW_CHECKPOINTS` | ❌ | overwrite | 手动审查检查点列表（如 `["pre_dev", "pre_deploy"]`） |
 | `constants.MAX_QUESTIONS_PER_BATCH` | ❌ | overwrite | `AskUserQuestion` 单批最大问题数 |
 | `constants.EVENT_LOG_PATH` / `EVENT_LOG_SCHEMA` | ❌ | overwrite | 事件日志路径与 JSON Schema 位置 |
-| `constants.DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | `doc-gen` 自动分卷阈值 |
-| `constants.DOC_REVIEW_L2_SKIP_THRESHOLD_LINES` | ❌ | overwrite | `doc-review` Layer 2 跳过阈值 |
+| `constants.DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | `context` generate 分支自动分卷阈值 |
+| `constants.DOC_REVIEW_L2_SKIP_THRESHOLD_LINES` | ❌ | overwrite | `context` review 分支 Layer 2 跳过阈值 |
 | `constants.DOC_REVIEW_L2_SKIP_DOC_TYPES` | ❌ | overwrite | Layer 2 跳过的文档类型 |
 | `constants.TDD_LIGHT_LOC_THRESHOLD` | ❌ | overwrite | tdd_mode 升 standard 的 LOC 上限阈值（默认 150；≤ 阈值 → light） |
 | `constants.TDD_DEFAULT_MODE` | ❌ | overwrite | 任务卡 `tdd_mode` 缺省值（默认 light） |
@@ -458,8 +458,7 @@ write_paths:
   - docs/research/
 skills:
   - req-analysis
-  - doc-gen
-  - doc-nav
+  - context
   - research
 ---
 
