@@ -28,29 +28,39 @@ from cataforge.core.section_patch import apply_section_patch
 _PATCH_SUFFIX = ".patch.md"
 
 
-def resolve_kind(paths: ProjectPaths, kind: str, dest_dir: Path) -> list[str]:
+def resolve_kind(
+    paths: ProjectPaths,
+    kind: str,
+    dest_dir: Path,
+    *,
+    plugin_dirs: dict[str, Path] | None = None,
+) -> list[str]:
     """Materialise every effective *kind* asset under *dest_dir*.
 
-    Returns the sorted asset ids written. ``dest_dir/<id>/...`` mirrors the
-    structure the deploy mixins expect from ``.cataforge/<kind>/``.
+    Source dirs per asset id, low → high priority: plugin-provided dir (when
+    *plugin_dirs* maps the id), then the scaffold and override layers. Returns
+    the sorted asset ids written. ``dest_dir/<id>/...`` mirrors the structure
+    the deploy mixins expect from ``.cataforge/<kind>/``.
     """
     layers = asset_layer_dirs(paths, kind)
-    if not layers:
+    plugin_dirs = plugin_dirs or {}
+    if not layers and not plugin_dirs:
         return []
 
-    ids = sorted({d.name for root in layers for d in root.iterdir() if d.is_dir()})
-    for asset_id in ids:
-        _materialize(layers, asset_id, dest_dir / asset_id)
-    return ids
+    ids = set(plugin_dirs) | {d.name for root in layers for d in root.iterdir() if d.is_dir()}
+    for asset_id in sorted(ids):
+        srcs: list[Path] = []
+        if asset_id in plugin_dirs:  # lowest priority — scaffold/overrides win
+            srcs.append(plugin_dirs[asset_id])
+        srcs += [root / asset_id for root in layers if (root / asset_id).is_dir()]
+        _materialize(srcs, dest_dir / asset_id)
+    return sorted(ids)
 
 
-def _materialize(layers: list[Path], asset_id: str, dest: Path) -> None:
-    """Overlay *asset_id* across *layers* (low → high) and write into *dest*."""
+def _materialize(src_dirs: list[Path], dest: Path) -> None:
+    """Overlay *src_dirs* (low → high) into *dest*, applying section patches."""
     files: OrderedDict[str, bytes] = OrderedDict()
-    for root in layers:
-        asset_dir = root / asset_id
-        if not asset_dir.is_dir():
-            continue
+    for asset_dir in src_dirs:
         for src in sorted(asset_dir.rglob("*")):
             if not src.is_file():
                 continue
@@ -67,3 +77,4 @@ def _materialize(layers: list[Path], asset_id: str, dest: Path) -> None:
         target = dest / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
+

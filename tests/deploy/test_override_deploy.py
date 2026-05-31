@@ -113,6 +113,27 @@ def test_project_override_section_patch_reaches_deploy(tmp_path: Path) -> None:
     assert "name: architect" in deployed
 
 
+def test_plugin_agent_materialises_in_deploy(tmp_path: Path) -> None:
+    _init_project(tmp_path)
+    # A local plugin provides a brand-new agent.
+    pdir = tmp_path / ".cataforge" / "plugins" / "p1"
+    (pdir / "agents" / "scribe").mkdir(parents=True)
+    (pdir / "cataforge-plugin.yaml").write_text(
+        yaml.safe_dump({"id": "p1", "provides": {"agents": ["scribe"]}}),
+        encoding="utf-8",
+    )
+    (pdir / "agents" / "scribe" / "AGENT.md").write_text(
+        "---\nname: scribe\ntools: file_read\n---\n\n# Role\n\n## Identity\n- plugin scribe\n",
+        encoding="utf-8",
+    )
+
+    _deploy(tmp_path)
+
+    deployed = tmp_path / ".claude" / "agents" / "scribe.md"
+    assert deployed.is_file()
+    assert "plugin scribe" in deployed.read_text(encoding="utf-8")
+
+
 def test_user_layer_whole_file_beats_project_patch(tmp_path: Path) -> None:
     _init_project(tmp_path)
     proj = tmp_path / ".cataforge" / "overrides" / "project" / "agents" / "architect"

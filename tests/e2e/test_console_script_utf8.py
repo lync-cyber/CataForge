@@ -86,10 +86,14 @@ def test_console_script_help_runs(cataforge_venv: Path, tmp_path: Path) -> None:
 
 
 def test_console_script_non_ascii_renders(cataforge_venv: Path, tmp_path: Path) -> None:
-    """Chinese + em-dash output must survive the relaunch + UTF-8 reconfigure
-    without a UnicodeEncodeError traceback."""
-    proc = _run_launcher(cataforge_venv, "plugin", "install", "foo", cwd=tmp_path)
+    """Chinese output must survive the relaunch + UTF-8 reconfigure without a
+    UnicodeEncodeError traceback. ``hook list`` prints Chinese hook
+    descriptions (e.g. 危险命令拦截) once the project is scaffolded."""
+    scaffold = _run_launcher(cataforge_venv, "setup", "--no-deploy", cwd=tmp_path)
+    assert scaffold.returncode == 0, _text(scaffold)
+
+    proc = _run_launcher(cataforge_venv, "hook", "list", cwd=tmp_path)
     out = _text(proc)
+    assert proc.returncode == 0, out
     assert "Traceback" not in out
-    assert "尚未实现" in out
-    assert proc.returncode == 70  # STUB_EXIT_CODE (EX_SOFTWARE)
+    assert any("一" <= c <= "鿿" for c in out)

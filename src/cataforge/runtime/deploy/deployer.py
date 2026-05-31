@@ -279,28 +279,39 @@ class Deployer:
     ) -> tuple[Path, Path, str | None]:
         """Return the (agents, skills) source dirs deploy should read from.
 
-        With no ``.cataforge/overrides/`` present, returns the scaffold dirs
-        unchanged so the common path is byte-identical to the pre-overrides
-        flow. Otherwise stages the layered, section-patched result into a temp
-        dir (cleaned up via *stack*) and returns those resolved dirs plus a
-        one-line action describing the staging.
+        Stages a layered, section-patched, plugin-merged tree into a temp dir
+        (cleaned up via *stack*) when overrides or plugin contributions exist;
+        otherwise returns the scaffold dirs unchanged so the common path stays
+        byte-identical to the pre-overrides flow.
         """
         from cataforge.core.layers import has_overrides
         from cataforge.runtime.assets.resolver import resolve_kind
+        from cataforge.runtime.plugin.loader import PluginLoader
 
         paths = self._cfg.paths
-        if not has_overrides(paths):
+        plugins = PluginLoader(paths.root)
+        plugin_agents = plugins.provided_agent_dirs()
+        plugin_skills = plugins.provided_skill_dirs()
+        overrides = has_overrides(paths)
+
+        need_agents = overrides or bool(plugin_agents)
+        need_skills = overrides or bool(plugin_skills)
+        if not need_agents and not need_skills:
             return paths.agents_dir, paths.skills_dir, None
 
         staging = Path(tempfile.mkdtemp(prefix="cataforge-deploy-"))
         stack.callback(shutil.rmtree, staging, ignore_errors=True)
-        resolve_kind(paths, "agents", staging / "agents")
-        resolve_kind(paths, "skills", staging / "skills")
-        return (
-            staging / "agents",
-            staging / "skills",
-            "resolved override layers (project/user) for agents + skills",
-        )
+        agents_src, skills_src = paths.agents_dir, paths.skills_dir
+        bits: list[str] = []
+        if need_agents:
+            resolve_kind(paths, "agents", staging / "agents", plugin_dirs=plugin_agents)
+            agents_src = staging / "agents"
+            bits.append("agents")
+        if need_skills:
+            resolve_kind(paths, "skills", staging / "skills", plugin_dirs=plugin_skills)
+            skills_src = staging / "skills"
+            bits.append("skills")
+        return agents_src, skills_src, f"resolved override/plugin layers for {' + '.join(bits)}"
 
     # ---- P3: --rebuild prunes prior-owned paths before deploy ----
 

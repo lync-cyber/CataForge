@@ -82,6 +82,12 @@ class SkillLoader:
         builtins_by_id = {m.id: m for m in self._scan_builtins()}
         by_id: dict[str, SkillMeta] = dict(builtins_by_id)
 
+        # Plugin skills sit above builtins but below the scaffold/override layers.
+        for sid, sdir in self._plugin_skill_dirs().items():
+            meta = self._parse_skill(sid, sdir / "SKILL.md")
+            if meta:
+                by_id[meta.id] = self._merge_builtin_fallback(meta, builtins_by_id)
+
         for root in asset_layer_dirs(self._paths, "skills"):
             for skill_dir in sorted(root.iterdir()):
                 if not skill_dir.is_dir():
@@ -112,7 +118,18 @@ class SkillLoader:
                 if meta is not None:
                     meta = self._merge_builtin_fallback(meta, builtins_by_id)
                 return meta
+        plugin_dirs = self._plugin_skill_dirs()
+        if skill_id in plugin_dirs:
+            meta = self._parse_skill(skill_id, plugin_dirs[skill_id] / "SKILL.md")
+            if meta is not None:
+                meta = self._merge_builtin_fallback(meta, builtins_by_id)
+            return meta
         return builtins_by_id.get(skill_id)
+
+    def _plugin_skill_dirs(self) -> dict[str, Path]:
+        from cataforge.runtime.plugin.loader import PluginLoader
+
+        return PluginLoader(self._paths.root).provided_skill_dirs()
 
     @staticmethod
     def _merge_builtin_fallback(

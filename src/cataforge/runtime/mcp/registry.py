@@ -29,6 +29,7 @@ class MCPRegistry:
         self._states: dict[str, MCPServerState] = {}
         self._scan_declarative()
         self._scan_entry_points()
+        self._scan_plugins()
 
     def _scan_declarative(self) -> None:
         """Scan .cataforge/mcp/ for YAML server specs."""
@@ -73,6 +74,34 @@ class MCPRegistry:
                     logger.warning("Skipping MCP entry_point %s: %s", ep.name, e)
         except Exception as e:
             logger.debug("entry_points scan unavailable: %s", e)
+
+    def _scan_plugins(self) -> None:
+        """Register MCP servers contributed by plugins (``provides.mcp_servers``).
+
+        Each id resolves to ``<plugin source_path>/mcp/<id>.yaml``. Declarative
+        project specs and entry-point servers (scanned first) win on id clash;
+        plugin specs pass the same untrusted-command gate.
+        """
+        try:
+            from cataforge.runtime.plugin.loader import PluginLoader
+
+            spec_files = PluginLoader(self._paths.root).provided_mcp_spec_files()
+        except Exception as e:
+            logger.debug("plugin MCP scan unavailable: %s", e)
+            return
+        for sid, path in spec_files.items():
+            try:
+                spec = self._parse_spec_file(path)
+            except Exception as e:
+                logger.warning("Skipping plugin MCP spec %s: %s", path.name, e)
+                continue
+            if not self._is_trusted_command(spec):
+                logger.warning(
+                    "Skipping plugin MCP %s: untrusted command %r", sid, spec.command
+                )
+                continue
+            self._servers.setdefault(spec.id, spec)
+            self._states.setdefault(spec.id, MCPServerState(spec_id=spec.id))
 
     @staticmethod
     def _is_trusted_command(spec: MCPServerSpec) -> bool:

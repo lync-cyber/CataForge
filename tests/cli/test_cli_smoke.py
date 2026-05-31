@@ -14,7 +14,6 @@ import pytest
 from click.testing import CliRunner
 
 from cataforge.interface.cli.main import cli
-from cataforge.interface.cli.stubs import STUB_EXIT_CODE
 
 
 @pytest.fixture
@@ -213,17 +212,6 @@ class TestStubCommands:
         assert result.exit_code == 1
         assert "not declared" in result.output.lower() or "no hook" in result.output.lower()
 
-    def test_plugin_install_is_stub(self, fresh_project: Path) -> None:
-        result = _invoke("plugin", "install", "example")
-        assert result.exit_code == STUB_EXIT_CODE
-        # Install-stub points users at the real installation path.
-        assert "pip" in result.output or "pip" in (result.stderr or "")
-
-    def test_plugin_remove_is_stub(self, fresh_project: Path) -> None:
-        result = _invoke("plugin", "remove", "example")
-        assert result.exit_code == STUB_EXIT_CODE
-
-
 class TestDeployErrors:
     """Deploy must fail gracefully when scaffold is missing."""
 
@@ -377,12 +365,13 @@ class TestWindowsEncoding:
         assert result.exit_code == 0
         assert "Traceback" not in result.output
 
-    def test_stub_chinese_renders(self, fresh_project: Path) -> None:
-        result = _invoke("plugin", "install", "foo")
+    def test_chinese_output_renders(self, fresh_project: Path) -> None:
+        # `hook list` prints Chinese hook descriptions (e.g. 危险命令拦截);
+        # they must render without a UnicodeEncodeError traceback.
+        result = _invoke("hook", "list")
+        assert result.exit_code == 0, result.output
         assert "Traceback" not in result.output
-        # The stub message contains both Chinese characters and the
-        # replacement-free output should include the literal prefix.
-        assert "尚未实现" in result.output
+        assert any("一" <= c <= "鿿" for c in result.output)
 
     def test_deploy_dry_run_arrow_renders(self, fresh_project: Path) -> None:
         """The deploy command banner uses the em-dash separator; setup's
