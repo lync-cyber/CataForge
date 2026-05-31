@@ -64,8 +64,6 @@
     "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
     "RETRO_TRIGGER_SELF_CAUSED": 5,
     "EVENT_LOG_DRIFT_MIN_EVENTS": 10,
-    "PRE_DEPLOY_DEMO_REQUIRED": null,
-    "PRE_DEPLOY_DEMO_MIN_ACS": 1,
     "ANTI_PATTERN_MIN_COUNT_SKILL": 3,
     "ANTI_PATTERN_MIN_COUNT_AGENT": 4,
     "AGENT_MODEL_DEFAULTS": {
@@ -173,7 +171,7 @@
     {
       "id": "mc-0.2.0-tdd-light-default",
       "release_version": "0.2.0",
-      "description": "TDD_LIGHT_LOC_THRESHOLD 提升至 150 且默认模式翻转为 light，配套 TDD_DEFAULT_MODE / TDD_REFACTOR_TRIGGER 等新常量；旧值 50/standard-default 已废弃",
+      "description": "COMMON-RULES.md 必须声明 TDD_LIGHT_LOC_THRESHOLD=150、TDD_DEFAULT_MODE=light 及配套 TDD_REFACTOR_TRIGGER / SPRINT_REVIEW_MICRO_TASK_COUNT 常量",
       "type": "file_must_contain",
       "path": ".cataforge/rules/COMMON-RULES.md",
       "patterns": [
@@ -185,7 +183,7 @@
     {
       "id": "mc-0.2.0-model-tier-migration",
       "release_version": "0.2.0",
-      "description": "AGENT.md 必须使用 model_tier (light/standard/heavy/inherit/none) 取代 legacy model 字面量。translator 在 deploy 时丢弃 legacy `model:` 行（无过渡期）；framework-review B7-β FAIL 阻拦升级残留",
+      "description": "AGENT.md 必须使用 model_tier (light/standard/heavy/inherit/none)；translator 在 deploy 时丢弃裸 `model:` 行；framework-review B7-β 对残留 model 字面量 FAIL",
       "type": "file_must_contain",
       "path": ".cataforge/framework.json",
       "patterns": [
@@ -197,7 +195,7 @@
     {
       "id": "mc-0.2.0-dispatcher-skills",
       "release_version": "0.2.0",
-      "description": "framework.json 顶层必须声明 dispatcher_skills，B5-α 据此区分 skill-as-router 与未定义 agent；endswith('-engine') 命名硬编码已删除",
+      "description": "framework.json 顶层必须声明 dispatcher_skills，B5-α 据此区分 skill-as-router 与未定义 agent",
       "type": "file_must_contain",
       "path": ".cataforge/framework.json",
       "patterns": [
@@ -208,7 +206,7 @@
       "id": "mc-0.1.0-no-legacy-constant",
       "release_version": "0.1.0",
       "deprecate_after": "0.2.0",
-      "description": "MIN_REVIEW_SOURCES 已被 RETRO_TRIGGER_SELF_CAUSED 取代",
+      "description": "COMMON-RULES.md 不得含 MIN_REVIEW_SOURCES",
       "type": "file_must_not_contain",
       "path": ".cataforge/rules/COMMON-RULES.md",
       "patterns": ["MIN_REVIEW_SOURCES"]
@@ -239,16 +237,6 @@
       "type": "file_must_not_contain",
       "path": ".cataforge/skills/context/references/generate.md",
       "patterns": ["500 行", "500行"]
-    },
-    {
-      "id": "mc-0.1.5-session-context-simplified",
-      "release_version": "0.1.5",
-      "deprecate_after": "0.2.0",
-      "description": "session_context.py 职责仅写 session_start 事件：不得注入 additionalContext，也不得在 SessionStart 触发 deploy（会话启动重写 CLAUDE.md / 写 manifest 会污染 tracked 文件）。此检查针对框架源码（dogfood / editable install），用户 site-packages 安装下文件不在 path 中，allow_missing 让该场景通过而非误报",
-      "type": "file_must_not_contain",
-      "path": "src/cataforge/hook/scripts/session_context.py",
-      "patterns": ["_detect_pkg_env", "additionalContext", "deploy"],
-      "allow_missing": true
     },
     {
       "id": "mc-0.1.5-setup-emit-env",
@@ -282,7 +270,7 @@
       "id": "mc-0.1.5-retro-threshold-relaxed",
       "release_version": "0.1.5",
       "deprecate_after": "0.2.0",
-      "description": "RETRO_TRIGGER_SELF_CAUSED 已从 2 放宽至 5 以补偿高频 option-override",
+      "description": "COMMON-RULES.md 必须声明 RETRO_TRIGGER_SELF_CAUSED=5",
       "type": "file_must_contain",
       "path": ".cataforge/rules/COMMON-RULES.md",
       "patterns": ["RETRO_TRIGGER_SELF_CAUSED | 5"]
@@ -322,7 +310,7 @@
     {
       "id": "mc-0.1.10-event-logger-shim",
       "release_version": "0.1.10",
-      "description": "event_logger.py 是 markdown 协议（orchestrator/tdd-engine/doc-gen 等十几处）依赖的路径稳定 shim。删除会让所有 [EVENT] 调用静默 ImportError；shim 自身必须保持 forwarder 形态（导入 cataforge.interface.cli.main:cli），不允许重新内联实现。",
+      "description": "event_logger.py 是 markdown 协议（orchestrator/tdd-engine/context 等十几处）依赖的路径稳定 shim。删除会让所有 [EVENT] 调用静默 ImportError；shim 自身必须保持 forwarder 形态（导入 cataforge.interface.cli.main:cli），不允许重新内联实现。",
       "type": "file_must_contain",
       "path": ".cataforge/scripts/framework/event_logger.py",
       "patterns": ["from cataforge.interface.cli.main import cli", "event", "log"]
@@ -330,7 +318,7 @@
     {
       "id": "mc-0.5.0-kg-config",
       "release_version": "0.5.0",
-      "description": "framework.json 必须声明 context.kg_active_doc_types — 自 0.5.0 起 doc-gen finalize / cataforge docs load / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走 legacy 路径，掩盖 KG cutover 的覆盖率门。",
+      "description": "framework.json 必须声明 context.kg_active_doc_types — context finalize / cataforge docs load / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走旧路径，掩盖 KG 覆盖率门。",
       "type": "file_must_contain",
       "path": ".cataforge/framework.json",
       "patterns": ["kg_active_doc_types"]

@@ -42,6 +42,12 @@
 | CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC | 2 | light 模式下 AC 数 ≤ 此值且 Layer 1 通过时短路 code-review Layer 2（security/error-handling 关键字命中时不短路） | code-review |
 | ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS | 10 | 连续 N 个任务零 self-caused 问题时 Adaptive Review 反向降级（仅跑 Layer 1） | orchestrator |
 | RETRO_TRIGGER_SELF_CAUSED | 5 | CORRECTIONS-LOG 中 `hard`+`review` 条目累计达此值触发 retrospective（`soft` 不计） | orchestrator, reflector |
+| EVENT_LOG_DRIFT_MIN_EVENTS | 10 | EVENT-LOG 漂移检测要求的最小事件数 | framework-review |
+| ANTI_PATTERN_MIN_COUNT_SKILL | 3 | SKILL.md Anti-Patterns 段最小条目数 | workflow-framework-generator, framework-review |
+| ANTI_PATTERN_MIN_COUNT_AGENT | 4 | AGENT.md Anti-Patterns 段最小条目数 | workflow-framework-generator, framework-review |
+| AGENT_MODEL_DEFAULTS | per-agent 默认 tier（heavy: architect/debugger；light: reflector；inherit: orchestrator；余 standard） | 各 agent 缺省 model tier | framework-review |
+| AGENT_MODEL_TIER_HEAVY_WHITELIST | [architect, debugger] | 允许 heavy tier 的 agent 白名单 | framework-review |
+| SKILL_RUNNER_TIMEOUT_DEFAULT_SECS | 300 | skill runner 单次执行缺省超时秒数 | skill runner |
 
 ### MANUAL_REVIEW_CHECKPOINTS 可选值
 | 值 | 触发时机 | 说明 |
