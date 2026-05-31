@@ -55,6 +55,19 @@ def check_builtin_skill_reachability(cfg: ConfigManager) -> int:
     return len(missing)
 
 
+def _emit_doctor_stale_deps(stale_deps: list[dict[str, str]]) -> None:
+    """Print stale-dep warnings under doctor's indentation.
+
+    Stale deps are a WARN, not a gating failure — surfaced here so they show
+    in ``doctor`` as well as ``docs validate``, but never added to the
+    returned fail count.
+    """
+    from cataforge.domain.docs.indexer import format_stale_deps_warning
+
+    for line in format_stale_deps_warning(stale_deps):
+        click.echo(f"  {line}")
+
+
 def check_docs_validate(cfg) -> int:
     """Run the same validation suite as ``cataforge docs validate``.
 
@@ -100,6 +113,7 @@ def check_docs_validate(cfg) -> int:
     xref_errors = result["xref_errors"]
     alias_conflicts = result["alias_conflicts"]
     invalid_ids = result.get("invalid_ids", [])
+    stale_deps = result.get("stale_deps", [])
 
     if (
         not orphans and not stale and not xref_errors
@@ -109,6 +123,7 @@ def check_docs_validate(cfg) -> int:
             "  0 orphan documents · 0 stale entries · 0 xref errors · "
             "0 alias conflicts · 0 invalid ids (everything in sync)"
         )
+        _emit_doctor_stale_deps(stale_deps)
         return 0
 
     if orphans:
@@ -192,6 +207,8 @@ def check_docs_validate(cfg) -> int:
             "  → 别在 doc id/alias 里塞版本号或带 '.' 的串；版本归 frontmatter "
             "`version:` 字段。doc-gen 已遵循该规则。"
         )
+
+    _emit_doctor_stale_deps(stale_deps)
 
     return (
         len(orphans) + len(stale) + len(xref_errors)

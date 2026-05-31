@@ -50,13 +50,6 @@ def _require_scaffold(root: Path, targets: list[str], platforms_dir: Path) -> No
     is_flag=True,
     help="Preview actions without writing files.",
 )
-@click.option(
-    "--check",
-    "check_legacy",
-    is_flag=True,
-    hidden=True,
-    help="Deprecated alias for --dry-run. Will be removed in v0.3.",
-)
 @click.option("--conformance", is_flag=True, help="Run platform conformance checks only.")
 @click.option(
     "--include-maintainer-only",
@@ -100,7 +93,6 @@ def _require_scaffold(root: Path, targets: list[str], platforms_dir: Path) -> No
 def deploy_command(
     platform: str | None,
     dry_run: bool,
-    check_legacy: bool,
     conformance: bool,
     include_maintainer_only: bool,
     force_copy: bool,
@@ -137,15 +129,6 @@ def deploy_command(
     """
     from cataforge.core.events import EventBus
     from cataforge.interface.cli.helpers import get_config_manager
-
-    if check_legacy:
-        click.secho(
-            "[deprecated] --check is an alias for --dry-run and will be "
-            "removed in v0.3. Use `cataforge deploy --dry-run` instead.",
-            fg="yellow",
-            err=True,
-        )
-        dry_run = True
 
     cfg = get_config_manager()
     bus = EventBus()

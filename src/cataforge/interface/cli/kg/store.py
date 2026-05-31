@@ -18,16 +18,11 @@ from cataforge.core.errors import (
 from cataforge.core.paths import KG_STORE_REL
 from cataforge.interface.cli.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
+from cataforge.interface.cli.kg._options import db_path_option, db_path_ro_option
 
 
 @kg_group.command("init")
-@click.option(
-    "--db-path",
-    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path for the RocksDB-backed Oxigraph store.",
-)
+@db_path_option()
 @click.option(
     "--backend",
     type=click.Choice(["oxigraph", "memory"]),
@@ -99,13 +94,7 @@ def kg_init(
 
 
 @kg_group.command("snapshot")
-@click.option(
-    "--db-path",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--output-dir",
     type=click.Path(file_okay=False, path_type=Path),
@@ -146,13 +135,7 @@ def kg_snapshot(
     "snapshot_path",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
 )
-@click.option(
-    "--db-path",
-    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store to replace.",
-)
+@db_path_option()
 @click.option(
     "--force",
     is_flag=True,
@@ -195,13 +178,7 @@ def kg_rollback(
     show_default=True,
     help="Project root containing docs/ and .cataforge/.",
 )
-@click.option(
-    "--db-path",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--dry-run",
     is_flag=True,

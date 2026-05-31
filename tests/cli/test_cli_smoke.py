@@ -42,6 +42,26 @@ class TestSetupCommand:
         assert (tmp_path / ".cataforge" / "hooks" / "hooks.yaml").is_file()
         assert "Setup complete" in result.output
 
+    def test_setup_in_child_does_not_attach_to_parent_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """setup in an empty child of an existing project must initialise the
+        child, not silently walk up and scaffold into the parent's root."""
+        from cataforge.core.scaffold import copy_scaffold_to
+
+        copy_scaffold_to(tmp_path / ".cataforge", force=False)
+        child = tmp_path / "child"
+        child.mkdir()
+        monkeypatch.chdir(child)
+
+        result = _invoke("setup", "--no-deploy")
+        assert result.exit_code == 0, result.output
+        # Initialised in the child, not the parent.
+        assert (child / ".cataforge").is_dir()
+        assert f"Project root: {child}" in result.output
+        # And it told the user the ancestor was deliberately not adopted.
+        assert "ancestor" in result.output.lower()
+
     def test_setup_platform_does_not_deploy_by_default(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -323,14 +343,34 @@ class TestGlobalFlags:
         assert "FRAMEWORK OBJECTS" in result.output
 
 
-class TestDeprecationWarnings:
-    def test_deploy_check_alias_warns(self, fresh_project: Path) -> None:
-        """Legacy --check keeps working but prints a deprecation line."""
-        result = _invoke("deploy", "--check")
-        assert result.exit_code == 0, result.output
-        assert "[deprecated]" in result.output
-        assert "--dry-run" in result.output
+class TestRemovedCheckAlias:
+    """The ambiguous ``--check`` alias (dry-run in deploy, check-prereqs in
+    setup) is gone from both commands; only the unambiguous flags remain."""
 
+    def test_deploy_check_alias_removed(self, fresh_project: Path) -> None:
+        result = _invoke("deploy", "--check")
+        assert result.exit_code == 2, result.output
+        assert "no such option" in result.output.lower()
+
+    def test_deploy_dry_run_still_works(self, fresh_project: Path) -> None:
+        result = _invoke("deploy", "--dry-run", "--platform", "claude-code")
+        assert result.exit_code == 0, result.output
+
+    def test_setup_check_alias_removed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = _invoke("setup", "--check")
+        assert result.exit_code == 2, result.output
+        assert "no such option" in result.output.lower()
+
+    def test_setup_check_prereqs_alias_still_works(self, fresh_project: Path) -> None:
+        for flag in ("--check-prereqs", "--check-only"):
+            result = _invoke("setup", flag)
+            assert result.exit_code == 0, result.output
+
+
+class TestDeprecationWarnings:
     def test_setup_no_deploy_warns(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

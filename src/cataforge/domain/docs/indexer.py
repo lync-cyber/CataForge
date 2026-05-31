@@ -77,6 +77,28 @@ def validate_docs(project_root: str) -> dict[str, list]:
     }
 
 
+def format_stale_deps_warning(stale_deps: list[dict[str, str]]) -> list[str]:
+    """Render the stale-dependency WARN block shared by ``docs validate`` and
+    ``doctor``.
+
+    Returns an empty list when there are no stale deps. Stale deps are a
+    warning, not a gating failure, so both call sites display these lines
+    without counting them toward an exit-code tally.
+    """
+    if not stale_deps:
+        return []
+    lines = [
+        f"WARN · {len(stale_deps)} stale dependency(ies) — "
+        "upstream content changed since downstream was written:"
+    ]
+    for sd in stale_deps:
+        lines.append(
+            f"  - {sd['doc_id']} depends on {sd['upstream_id']} "
+            f"(pinned={sd['pinned_hash']}, current={sd['current_hash']})"
+        )
+    return lines
+
+
 def find_stale_deps(project_root: str) -> list[dict[str, str]]:
     """Return deps whose upstream ``content_hash`` changed since last index build.
 

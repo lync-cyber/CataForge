@@ -18,6 +18,7 @@ from cataforge.core.errors import (
 from cataforge.core.paths import KG_STORE_REL
 from cataforge.interface.cli.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
+from cataforge.interface.cli.kg._options import db_path_option, db_path_ro_option
 
 
 @kg_group.command("import")
@@ -28,13 +29,7 @@ from cataforge.interface.cli.kg import kg_group
     show_default=True,
     help="Project root containing docs/ and .cataforge/.",
 )
-@click.option(
-    "--db-path",
-    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path for the RocksDB-backed Oxigraph store.",
-)
+@db_path_option()
 @click.option(
     "--backend",
     type=click.Choice(["oxigraph", "memory"]),
@@ -152,13 +147,7 @@ def kg_import(
 
 
 @kg_group.command("validate")
-@click.option(
-    "--db-path",
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--shacl/--no-shacl",
     default=False,
@@ -229,13 +218,7 @@ def kg_validate(
 
 
 @kg_group.command("export")
-@click.option(
-    "--db-path",
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--output-dir",
     type=click.Path(file_okay=False, path_type=Path),
@@ -303,13 +286,7 @@ def kg_export(
     show_default=True,
     help="Project root containing docs/ and .cataforge/.",
 )
-@click.option(
-    "--db-path",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--doc-type",
     "doc_types",
@@ -430,13 +407,7 @@ def kg_reconcile(
     show_default=True,
     help="Project root containing docs/ and .cataforge/.",
 )
-@click.option(
-    "--db-path",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--doc-type",
     "doc_types",

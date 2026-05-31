@@ -42,6 +42,17 @@ def test_python_m_cataforge_subcommands_resolve() -> None:
     assert "deploy" in combined.lower()
 
 
+def test_code_review_entry_prints_usage_on_help() -> None:
+    """`-h`/`--help` on the code-review entry must print usage and exit 0,
+    not treat the flag as a target path (`目标路径不存在: --help`)."""
+    for flag in ("--help", "-h"):
+        result = _run(
+            "cataforge.runtime.skill.builtins.code_review.code_lint", flag
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "用法" in (result.stdout + result.stderr)
+
+
 def test_python_m_cataforge_cli_main_does_not_resolve_subcommands() -> None:
     # Two failure modes prove the same point — `python -m cataforge.interface.cli.main`
     # must not be treated as a working entrypoint:

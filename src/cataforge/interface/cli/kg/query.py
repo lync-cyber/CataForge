@@ -22,17 +22,12 @@ from cataforge.core.errors import (
 from cataforge.core.paths import KG_STORE_REL
 from cataforge.interface.cli.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
+from cataforge.interface.cli.kg._options import db_path_ro_option
 
 
 @kg_group.command("query")
 @click.argument("query_or_file")
-@click.option(
-    "--db-path",
-    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--output",
     "output_fmt",
@@ -289,13 +284,7 @@ def _ntriples_term(term: object) -> str:
 
 @kg_group.command("trace")
 @click.argument("entity_id", required=False, default=None)
-@click.option(
-    "--db-path",
-    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=KG_STORE_REL,
-    show_default=True,
-    help="Filesystem path of the RocksDB-backed Oxigraph store.",
-)
+@db_path_ro_option()
 @click.option(
     "--direction",
     type=click.Choice(["downstream", "upstream", "both"]),
