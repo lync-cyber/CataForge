@@ -26,6 +26,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# CI has no use for the local pre-commit hook (the guards job runs the same
+# checks directly). Opt out so conftest's auto-install never runs — it would
+# otherwise print a banner into pytest output on every fresh runner.
+env:
+  CATAFORGE_SKIP_HOOK_AUTOINSTALL: "1"
+
 jobs:
   guards:
     name: Lint + guards + meta-audit (ubuntu, py3.12)

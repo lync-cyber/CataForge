@@ -79,7 +79,7 @@ def pytest_configure(config: pytest.Config) -> None:  # noqa: ARG001
     pytest.exit("missing dev dependencies (see message above)", returncode=2)
 
 
-def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
+def pytest_sessionstart(session: pytest.Session) -> None:
     """Auto-install pre-commit hooks on first session if missing.
 
     `.pre-commit-config.yaml` runs the same ruff / utf-8-stdio / schema-
@@ -101,6 +101,11 @@ def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
     """
     if os.environ.get("CATAFORGE_SKIP_HOOK_AUTOINSTALL"):
         return
+    # xdist fires pytest_sessionstart in every worker. Installing per worker
+    # spams the banner, races on the hook file, and corrupts node-startup
+    # output over execnet. Only the controller (or a non-xdist run) installs.
+    if hasattr(session.config, "workerinput"):
+        return
     try:
         git_dir = _REPO_ROOT / ".git"
         if not git_dir.is_dir():
@@ -121,7 +126,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
         print(
-            f"\n⚠  pre-commit not auto-installed ({exc}); run "
+            f"\nWARN: pre-commit not auto-installed ({exc}); run "
             "`pre-commit install` manually.\n",
             file=sys.stderr,
         )
@@ -131,18 +136,18 @@ def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
         print(
             "\n".join([
                 "",
-                "─" * 70,
-                "✓ pre-commit hooks auto-installed (.git/hooks/pre-commit).",
+                "=" * 70,
+                "OK: pre-commit hooks auto-installed (.git/hooks/pre-commit).",
                 "  ruff / utf-8-stdio / schema-parity checks now run on commit.",
                 "  Opt out: export CATAFORGE_SKIP_HOOK_AUTOINSTALL=1",
-                "─" * 70,
+                "=" * 70,
                 "",
             ]),
             file=sys.stderr,
         )
     else:
         print(
-            f"\n⚠  pre-commit install failed (rc={result.returncode}): "
+            f"\nWARN: pre-commit install failed (rc={result.returncode}): "
             f"{result.stderr.strip()[:200]}\n",
             file=sys.stderr,
         )
