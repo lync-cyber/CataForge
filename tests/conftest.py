@@ -79,7 +79,7 @@ def pytest_configure(config: pytest.Config) -> None:  # noqa: ARG001
     pytest.exit("missing dev dependencies (see message above)", returncode=2)
 
 
-def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
+def pytest_sessionstart(session: pytest.Session) -> None:
     """Auto-install pre-commit hooks on first session if missing.
 
     `.pre-commit-config.yaml` runs the same ruff / utf-8-stdio / schema-
@@ -100,6 +100,11 @@ def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
     blocked by a setup convenience.
     """
     if os.environ.get("CATAFORGE_SKIP_HOOK_AUTOINSTALL"):
+        return
+    # xdist fires pytest_sessionstart in every worker. Installing per worker
+    # spams the banner, races on the hook file, and corrupts node-startup
+    # output over execnet. Only the controller (or a non-xdist run) installs.
+    if hasattr(session.config, "workerinput"):
         return
     try:
         git_dir = _REPO_ROOT / ".git"
