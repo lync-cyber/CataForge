@@ -211,7 +211,7 @@ class TestStubCommands:
         assert "Would refresh scaffold" in result.output
         # Per-file classification added with the scaffold manifest.
         assert "Summary:" in result.output
-        assert "[preserved]" in result.output  # framework.json / PROJECT-STATE.md
+        assert "[preserved]" in result.output  # framework.json is merge-handled
         # Fresh scaffold: nothing should be [user-modified] or [drift].
         assert "[user-modified]" not in result.output
         assert "[drift]" not in result.output

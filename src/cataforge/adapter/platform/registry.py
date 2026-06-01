@@ -88,6 +88,30 @@ def get_adapter(platform_id: str, platforms_dir: Path | None = None) -> Platform
         return adapter
 
 
+def resolve_instruction_file(root: Path) -> Path:
+    """Resolve the platform-native instruction file under *root*.
+
+    Reads the project's platform (env override → framework.json), loads its
+    adapter, and returns the first instruction target path (``CLAUDE.md`` on
+    Claude Code, ``AGENTS.md`` on Cursor/Codex/OpenCode). Falls back to
+    ``AGENTS.md`` when the platform declares no instruction target.
+    """
+    from cataforge.core.paths import ProjectPaths
+
+    paths = ProjectPaths(root)
+    platform_id = detect_platform(paths.framework_json)
+    try:
+        adapter = get_adapter(platform_id, paths.platforms_dir)
+        for target in adapter.instruction_targets:
+            rel = target.get("path")
+            if rel:
+                return root / str(rel)
+    except (FileNotFoundError, ImportError, ConfigError):
+        pass
+    # Profile unreachable — fall back to the platform's conventional file.
+    return root / ("CLAUDE.md" if platform_id == "claude-code" else "AGENTS.md")
+
+
 def clear_cache() -> None:
     with _cache_lock:
         _adapter_cache.clear()

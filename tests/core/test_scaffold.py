@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 from cataforge.core.scaffold import (
     BACKUPS_DIRNAME,
     SIDECAR_SUFFIX,
-    _preserve_if_exists,
     copy_scaffold_to,
     create_backup,
     list_backups,
@@ -25,7 +23,8 @@ def test_copy_scaffold_fresh(tmp_path: Path) -> None:
     assert result.protected == []
     assert result.backup is None, "fresh copy must not create a backup"
     assert (dest / "framework.json").is_file()
-    assert (dest / "PROJECT-STATE.md").is_file()
+    # PROJECT-STATE.md is a packaged template only — never copied downstream.
+    assert not (dest / "PROJECT-STATE.md").exists()
 
 
 def test_copy_scaffold_preserves_runtime_platform_on_force(tmp_path: Path) -> None:
@@ -67,15 +66,15 @@ def test_copy_scaffold_preserves_project_languages_on_force(tmp_path: Path) -> N
     assert refreshed["project"]["languages"] == ["python", "go"]
 
 
-def test_copy_scaffold_preserves_project_state_md_on_force(tmp_path: Path) -> None:
+def test_scaffold_excludes_project_state_md(tmp_path: Path) -> None:
+    """PROJECT-STATE.md is the instruction-file source template, packaged only;
+    neither fresh copy nor force refresh emits it into the project."""
     dest = tmp_path / ".cataforge"
     copy_scaffold_to(dest, force=False)
-
-    ps = dest / "PROJECT-STATE.md"
-    ps.write_text("# user edits\n", encoding="utf-8")
+    assert not (dest / "PROJECT-STATE.md").exists()
 
     copy_scaffold_to(dest, force=True)
-    assert ps.read_text(encoding="utf-8") == "# user edits\n"
+    assert not (dest / "PROJECT-STATE.md").exists()
 
 
 def test_scaffold_stamps_runtime_package_version(tmp_path: Path) -> None:
@@ -204,16 +203,3 @@ def test_backups_dir_excluded_from_snapshot(tmp_path: Path) -> None:
     assert not (second / BACKUPS_DIRNAME).exists()
 
 
-def test_preserve_if_exists_returns_existing_content(tmp_path: Path) -> None:
-    target = tmp_path / "file.txt"
-    target.write_bytes(b"existing content")
-    result = _preserve_if_exists(b"new content", target)
-    assert result == b"existing content"
-
-
-def test_preserve_if_exists_toctou_fallback_on_os_error(tmp_path: Path) -> None:
-    target = tmp_path / "missing.txt"
-    with patch("cataforge.core.scaffold.logger") as mock_log:
-        result = _preserve_if_exists(b"fallback bytes", target)
-        assert mock_log.warning.called
-    assert result == b"fallback bytes"

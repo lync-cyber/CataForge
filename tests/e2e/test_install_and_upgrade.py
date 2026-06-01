@@ -111,10 +111,9 @@ def test_upgrade_apply_dry_run_flags_user_modified_files(
         + out
     )
 
-    # framework.json + PROJECT-STATE.md are merge-handled → always [preserved].
+    # framework.json is merge-handled → always [preserved].
     preserved_lines = [ln for ln in out.splitlines() if "[preserved]" in ln]
     assert any("framework.json" in ln for ln in preserved_lines), out
-    assert any("PROJECT-STATE.md" in ln for ln in preserved_lines), out
 
     # The advisory NOTE fires when any file is user-modified/drift, telling
     # the user their edits are kept and the framework copy lands as a sidecar.

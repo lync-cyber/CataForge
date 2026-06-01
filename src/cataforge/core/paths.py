@@ -101,10 +101,6 @@ class ProjectPaths:
         return self.cataforge_dir / "framework.json"
 
     @property
-    def project_state_md(self) -> Path:
-        return self.cataforge_dir / "PROJECT-STATE.md"
-
-    @property
     def agents_dir(self) -> Path:
         return self.cataforge_dir / "agents"
 

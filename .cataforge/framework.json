@@ -284,7 +284,6 @@
       "path": ".cataforge",
       "patterns": [
         "framework.json",
-        "PROJECT-STATE.md",
         "platforms/claude-code/profile.yaml",
         "hooks/hooks.yaml"
       ]

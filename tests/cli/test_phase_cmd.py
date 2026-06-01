@@ -45,9 +45,7 @@ def _make_project(
     phase_start: str | None = None,
 ) -> Path:
     (tmp / ".cataforge").mkdir()
-    (tmp / ".cataforge" / "PROJECT-STATE.md").write_text(
-        _state(phase, doc_status), encoding="utf-8"
-    )
+    (tmp / "CLAUDE.md").write_text(_state(phase, doc_status), encoding="utf-8")
     docs = tmp / "docs"
     docs.mkdir()
     if prd_file:

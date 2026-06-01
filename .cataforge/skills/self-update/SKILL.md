@@ -1,6 +1,6 @@
 ---
 name: self-update
-description: "CataForge 自更新 — 检测已安装包与项目 scaffold 的版本差异，升级包并刷新 scaffold，运行迁移检查验证一致性。支持 pip 和 uv 两种包管理器，保留 runtime.platform、upgrade.state 和 PROJECT-STATE.md 等用户可编辑状态。当用户提到 CataForge 升级、scaffold 过期、framework 版本不一致、更新框架配置时，使用此 skill。"
+description: "CataForge 自更新 — 检测已安装包与项目 scaffold 的版本差异，升级包并刷新 scaffold，运行迁移检查验证一致性。支持 pip 和 uv 两种包管理器，保留 runtime.platform、upgrade.state 等用户可编辑状态。当用户提到 CataForge 升级、scaffold 过期、framework 版本不一致、更新框架配置时，使用此 skill。"
 argument-hint: "[check | apply [--dry-run] | verify]  # apply 调用 cataforge bootstrap"
 suggested-tools: Bash, Read
 depends: []
@@ -201,7 +201,6 @@ cataforge doctor
 | 文件 | 保留项 | 覆盖项 |
 |------|--------|--------|
 | `framework.json` | `runtime.platform`、`upgrade.state` | `version`、`constants`、`features`、`migration_checks`、`upgrade.source` |
-| `PROJECT-STATE.md` | 整个文件 | — |
 | 其它 `.cataforge/` 文件 | — | **整个文件**；`apply` 前自动快照到 `.cataforge/.backups/<ts>/`，可用 `cataforge upgrade rollback` 恢复 |
 
 > `upgrade.state` 由本 skill 在 Step 5 手动写入，不被 `upgrade apply` 覆盖，因此升级日期和版本记录会持久保留。

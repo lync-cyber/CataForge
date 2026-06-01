@@ -106,8 +106,8 @@ def setup_command(
     \b
       cataforge setup --force-scaffold
           Re-copy the bundled scaffold over an existing project. User
-          edits to framework.json runtime.platform and PROJECT-STATE.md
-          are preserved; other files under .cataforge/ are overwritten.
+          edits to framework.json runtime.platform are preserved; other
+          files under .cataforge/ are overwritten.
           For per-file preview use `cataforge upgrade apply --dry-run`.
 
     \b
