@@ -51,6 +51,7 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 | **quick-check** | 只想知道当前配置是否过期，不执行修改 | 指令 2 |
 | **deep `<platform_id>`** | 某平台刚发布重大更新，需深度审计 | 指令 3 |
 | **evaluate `<platform_name>`** | 评估新 AI IDE 是否可接入 | `references/evaluate-new-platform.md` |
+| **offline** | CI / 本地静态门禁：不联网、不需 LLM，只跑可执行的合规子集 | 指令 5 |
 
 ---
 
@@ -250,6 +251,24 @@ python -m ruff check src/ tests/
 ### 指令4: 新平台接入评估 (evaluate `<platform_name>`)
 
 完整流程见 `references/evaluate-new-platform.md`。**不修改仓库内任何文件**，输出可行性报告供决策。
+
+---
+
+### 指令5: 离线子集 (offline)
+
+CI 与本地预检用的无网络子集，由 builtin 执行、不需要 LLM：
+
+```bash
+cataforge skill run platform-audit -- --offline
+```
+
+跑三项静态检查并按严重度分级退出：
+
+- **core conformance** — 每端必需能力映射 + dispatch 声明；profile 加载失败或缺必需能力 → **阻断**（退出非 0）
+- **consistency** — 跨字段/跨平台一致性（工具替换、feature↔cap 路由不可见、隔离字段缺失、native 离群声明）→ **WARN**，打印但不阻断（追踪已接受的降级）
+- **profile schema** — 每端 profile.yaml 含 `_schema.yaml` 全部 required_fields；缺失 → **阻断**
+
+`version_tested` 时效是基于 git 历史的独立周扫守卫（`check_profile_version_tested`，anti-rot.yml），不在本子集内。需联网检索 + 修复的完整审计见指令 1。
 
 ---
 

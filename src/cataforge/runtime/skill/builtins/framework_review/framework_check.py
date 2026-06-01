@@ -8,7 +8,7 @@ sibling modules prefixed with ``_``.
 Usage:
   python -m cataforge.runtime.skill.builtins.framework_review.framework_check \\
         <scope: agents|skills|hooks|rules|workflow|all> \\
-        [--focus B1,B2,B3,B4,B5,B6,B7,B8] \\
+        [--focus B1,B2,B3,B4,B5,B6,B7,B8,B9] \\
         [--root <project_root>] \\
         [--meta-size-threshold N]
 
@@ -54,6 +54,7 @@ from .checks.b5 import check_b5_workflow_coverage
 from .checks.b6 import check_b6_hook_consistency
 from .checks.b7 import check_b7_model_tier
 from .checks.b8 import check_b8_anti_pattern_floor
+from .checks.b9 import check_b9_migration_checks
 
 __all__ = [
     # Dataclasses
@@ -87,6 +88,7 @@ __all__ = [
     "check_b6_hook_consistency",
     "check_b7_model_tier",
     "check_b8_anti_pattern_floor",
+    "check_b9_migration_checks",
     # Entry
     "run",
     "main",
@@ -102,7 +104,7 @@ def run(
     report = Report()
 
     enabled = set(focus) if focus else {
-        "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"
+        "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9"
     }
 
     if "B1" in enabled and scope in ("agents", "skills", "rules", "all"):
@@ -123,6 +125,8 @@ def run(
         check_b7_model_tier(root, report)
     if "B8" in enabled and scope in ("agents", "skills", "all"):
         check_b8_anti_pattern_floor(root, scope, report)
+    if "B9" in enabled and scope in ("workflow", "all"):
+        check_b9_migration_checks(root, report)
 
     print(f"framework-review scope={scope} focus={sorted(enabled)} root={root}")
     print("=" * 60)
@@ -161,7 +165,7 @@ def main() -> None:
     parser.add_argument(
         "--focus",
         default=None,
-        help="Comma-separated subset of B1,B2,B3,B4,B5,B6,B7,B8",
+        help="Comma-separated subset of B1,B2,B3,B4,B5,B6,B7,B8,B9",
     )
     parser.add_argument(
         "--root",

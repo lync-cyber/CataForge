@@ -61,7 +61,7 @@ agent_config:
   isolation_modes: [worktree]
 
 instruction_file:
-  reads_claude_md: false
+  reads_claude_md: true           # Claude Code natively loads CLAUDE.md; targets[] drives the deploy output
   targets:
     - type: project_state_copy
       path: CLAUDE.md

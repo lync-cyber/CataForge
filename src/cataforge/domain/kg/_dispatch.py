@@ -86,6 +86,16 @@ def context_strategy(project_root: str | Path) -> str:
     return resolved
 
 
+def kg_enabled(project_root: str | Path) -> bool:
+    """True iff the project drives documents through the KG (``kg-first``).
+
+    Under ``doc-only`` the graph is not a backend at all: every KG gate
+    (read resolution, doc-review coverage, ingest scope) must bypass to the
+    Markdown/file path regardless of which doc_types are listed active.
+    """
+    return context_strategy(project_root) == "kg-first"
+
+
 def kg_config_for(project_root: str | Path) -> KGConfig:
     """Return a `KGConfig` populated from `framework.json` + defaults."""
     key = _project_root_key(project_root)
@@ -118,14 +128,18 @@ def kg_config_for(project_root: str | Path) -> KGConfig:
 
 
 def is_active_for(doc_type: str, project_root: str | Path) -> bool:
-    """True iff `doc_type` is in the active set AND a KG store exists.
+    """True iff KG is enabled, `doc_type` is active, AND a KG store exists.
 
-    A non-existent store is treated as "not active" — callers fall back
-    to the legacy path even if the framework.json lists the doc_type,
+    Under `doc-only` strategy this is always False — the graph is not a
+    backend, so a stray store on disk never reactivates KG gates. A
+    non-existent store is likewise treated as "not active": callers fall
+    back to the legacy path even if framework.json lists the doc_type,
     because there's nothing to query yet. The doctor's
     `kg_ingestion_completeness` gate surfaces the missing store as a
     skipped check; callers don't have to deal with it.
     """
+    if not kg_enabled(project_root):
+        return False
     if doc_type not in active_doc_types(project_root):
         return False
     db_path = Path(project_root) / ".cataforge" / "kg" / "store"
@@ -147,4 +161,5 @@ __all__ = [
     "invalidate_cache",
     "is_active_for",
     "kg_config_for",
+    "kg_enabled",
 ]

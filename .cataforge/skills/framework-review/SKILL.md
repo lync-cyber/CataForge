@@ -64,6 +64,9 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 | B7-α | AGENT.md `model_tier` 合规 + 与 AGENT_MODEL_DEFAULTS 一致；heavy 需进白名单 | agents, all | FAIL / WARN |
 | B7-β | AGENT.md 仍含 legacy `model:` 字段（deprecated） | agents, all | WARN |
 | B7-γ | platform profile.yaml `model_routing.tier_map` 覆盖 light/standard/heavy | agents, all | WARN |
+| B9-α | migration_checks 活跃条目: editable 树下 src/ 路径存在性 + allow_missing 类型适配 | workflow, all | WARN |
+| B9-β | migration_checks `deprecate_after` 必须 > `release_version` | workflow, all | WARN |
+| B9-γ | migration_checks 已废弃且路径缺失的死条目提示 | workflow, all | INFO |
 
 `--focus` 缺省时执行 scope 对应的全部子检查。
 
@@ -151,6 +154,9 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 - B8-α: 每个非豁免 skill / agent 应有 `## Anti-Patterns` 段；缺失 WARN（留作 backlog 渐进补齐，不阻塞流程）<!-- check_id: B8_anti_pattern_section_present -->
 - B8-β: skill bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_SKILL`（默认 3），agent bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_AGENT`（默认 4）；不足 FAIL<!-- check_id: B8_anti_pattern_floor -->
 - B8-γ: 每条 bullet 正文 ≥ 12 字符（过滤 placeholder 占位条目，如 `- 禁止: x`）；命中 WARN<!-- check_id: B8_anti_pattern_substantive -->
+- B9-α: 解析 framework.json `migration_checks` → 活跃（未废弃）条目: editable 树（`src/cataforge/` 存在）下 `path` 以 `src/` 开头却缺失 → WARN（检查对空内容静默放行）；`allow_missing` 挂在非 `file_must_not_contain` type 上 → WARN（该 flag 仅此 type 消费）<!-- check_id: B9_migration_path_validity -->
+- B9-β: `deprecate_after` 语义版本 ≤ `release_version` → WARN（条目发布即废弃，任何已发布版本都不会执行它）<!-- check_id: B9_migration_deprecate_order -->
+- B9-γ: 已废弃（运行时版本 ≥ `deprecate_after`）且 `path` 缺失的条目 → INFO（死条目，建议从 framework.json#/migration_checks 移除；前瞻守卫不自动清理）<!-- check_id: B9_migration_dead_entry -->
 
 ## Anti-Patterns
 - 禁止: framework-review 报告写入 `docs/reviews/doc/` 或 `docs/reviews/code/` — 必须写 `docs/reviews/framework/`，否则会与业务审查报告混淆并污染 reflector 聚合

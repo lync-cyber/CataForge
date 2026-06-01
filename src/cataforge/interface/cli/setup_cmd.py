@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import click
@@ -18,6 +19,17 @@ from cataforge.interface.cli.main import cli
     help="Target AI IDE platform.",
 )
 @click.option("--with-penpot", is_flag=True, help="Include Penpot design integration.")
+@click.option(
+    "--context-strategy",
+    type=click.Choice(["kg-first", "doc-only"]),
+    default=None,
+    help=(
+        "Document-driving backend. kg-first: the graph is the source of truth, "
+        "`cataforge kg export` renders markdown for human review. doc-only: "
+        "markdown is the source and the graph is bypassed. Prompted on a fresh "
+        "install when omitted; defaults to kg-first non-interactively."
+    ),
+)
 @click.option(
     "--language",
     "languages",
@@ -63,6 +75,7 @@ from cataforge.interface.cli.main import cli
 def setup_command(
     platform: str | None,
     with_penpot: bool,
+    context_strategy: str | None,
     languages: tuple[str, ...],
     check_only: bool,
     force_scaffold: bool,
@@ -148,48 +161,16 @@ def setup_command(
     scaffold_missing = not scaffold_dir.is_dir()
 
     if dry_run:
-        click.echo("(dry-run — no files will be written)")
-        if scaffold_missing:
-            click.echo(f"  would scaffold .cataforge/ at {scaffold_dir}")
-        elif force_scaffold:
-            click.echo(f"  would refresh .cataforge/ at {scaffold_dir}")
-        else:
-            click.echo("  .cataforge/ already present (no scaffold changes)")
-
-        if platform:
-            diff = cfg.describe_platform_change(platform) if not scaffold_missing else None
-            if scaffold_missing:
-                click.echo(
-                    f"  would set framework.json: runtime.platform = {platform} "
-                    "(file created by scaffold)"
-                )
-            elif diff is None:
-                click.echo(
-                    f"  framework.json: runtime.platform already = {platform} (no change)"
-                )
-            else:
-                click.echo(
-                    f"  would patch framework.json: {diff['field']}: "
-                    f"{diff['before']!r} → {diff['after']!r}"
-                )
-                click.echo("  (no other framework.json fields will be touched)")
-        else:
-            click.echo("  no --platform specified; framework.json would be untouched")
-
-        if languages:
-            from cataforge.core.languages import normalize
-
-            click.echo(
-                f"  would set framework.json: project.languages = "
-                f"{normalize(list(languages))}"
-            )
-
-        if deploy_after:
-            click.echo(
-                "  would chain `cataforge deploy` "
-                "(run `cataforge deploy --dry-run` to preview)"
-            )
-        click.echo("Dry-run complete. No changes made.")
+        _report_dry_run(
+            cfg,
+            scaffold_missing=scaffold_missing,
+            scaffold_dir=scaffold_dir,
+            force_scaffold=force_scaffold,
+            platform=platform,
+            languages=languages,
+            context_strategy=context_strategy,
+            deploy_after=deploy_after,
+        )
         return
 
     if scaffold_missing or force_scaffold:
@@ -223,6 +204,7 @@ def setup_command(
         click.echo("  (framework.json modified only at runtime.platform)")
 
     _apply_languages(cfg, languages)
+    _apply_context_strategy(cfg, context_strategy, scaffold_missing=scaffold_missing)
 
     from cataforge.interface.cli.guidance import print_next_steps
     from cataforge.interface.cli.ui import ui
@@ -291,6 +273,111 @@ def _apply_languages(cfg, languages: tuple[str, ...]) -> None:
             "  no project languages declared or detected "
             "(declare with `setup --language <id>`)"
         )
+
+
+def _report_dry_run(
+    cfg,
+    *,
+    scaffold_missing: bool,
+    scaffold_dir: Path,
+    force_scaffold: bool,
+    platform: str | None,
+    languages: tuple[str, ...],
+    context_strategy: str | None,
+    deploy_after: bool,
+) -> None:
+    """Print what a real `setup` run would change, writing nothing."""
+    click.echo("(dry-run — no files will be written)")
+    if scaffold_missing:
+        click.echo(f"  would scaffold .cataforge/ at {scaffold_dir}")
+    elif force_scaffold:
+        click.echo(f"  would refresh .cataforge/ at {scaffold_dir}")
+    else:
+        click.echo("  .cataforge/ already present (no scaffold changes)")
+
+    if platform:
+        diff = cfg.describe_platform_change(platform) if not scaffold_missing else None
+        if scaffold_missing:
+            click.echo(
+                f"  would set framework.json: runtime.platform = {platform} "
+                "(file created by scaffold)"
+            )
+        elif diff is None:
+            click.echo(
+                f"  framework.json: runtime.platform already = {platform} (no change)"
+            )
+        else:
+            click.echo(
+                f"  would patch framework.json: {diff['field']}: "
+                f"{diff['before']!r} → {diff['after']!r}"
+            )
+            click.echo("  (no other framework.json fields will be touched)")
+    else:
+        click.echo("  no --platform specified; framework.json would be untouched")
+
+    if languages:
+        from cataforge.core.languages import normalize
+
+        click.echo(
+            f"  would set framework.json: project.languages = "
+            f"{normalize(list(languages))}"
+        )
+
+    if context_strategy:
+        click.echo(
+            f"  would set framework.json: context.strategy = {context_strategy}"
+        )
+
+    if deploy_after:
+        click.echo(
+            "  would chain `cataforge deploy` "
+            "(run `cataforge deploy --dry-run` to preview)"
+        )
+    click.echo("Dry-run complete. No changes made.")
+
+
+def _apply_context_strategy(
+    cfg, strategy: str | None, *, scaffold_missing: bool
+) -> None:
+    """Resolve and persist ``context.strategy``.
+
+    An explicit ``--context-strategy`` always wins. On a fresh interactive
+    install with no flag, prompt the user. Otherwise leave the scaffold
+    default (kg-first) untouched — orthogonal to the execution-mode choice.
+    """
+    resolved = strategy
+    if resolved is None and scaffold_missing and sys.stdin.isatty():
+        resolved = _prompt_context_strategy()
+    if resolved is None:
+        return
+    current = (cfg.load_raw().get("context") or {}).get("strategy")
+    if resolved == current:
+        click.echo(f"Document-driving strategy: {resolved} (no change)")
+        return
+    cfg.set_context_strategy(resolved)
+    click.echo(f"Document-driving strategy set to: {resolved}")
+
+
+def _prompt_context_strategy() -> str:
+    from cataforge.interface.cli.ui import ChoiceOption, ui
+
+    choice = ui.prompt_choice(
+        "文档驱动方式",
+        [
+            ChoiceOption(
+                "1",
+                "KG 驱动",
+                description="图为源，cataforge kg export 导出 markdown 供人工审查",
+            ),
+            ChoiceOption(
+                "2",
+                "markdown + doc CLI 驱动",
+                description="markdown 为源，默认旁路 KG",
+            ),
+        ],
+        default="1",
+    )
+    return "kg-first" if choice == "1" else "doc-only"
 
 
 def _run_checks(cfg) -> None:

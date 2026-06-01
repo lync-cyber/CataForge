@@ -8,8 +8,16 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.adapter.platform.conformance import check_conformance, check_extended_conformance
+from cataforge.adapter.platform.conformance import (
+    _load_hook_degradation_strategies,
+    check_all_consistency,
+    check_conformance,
+    check_extended_conformance,
+    check_platform_consistency,
+)
 from cataforge.adapter.platform.registry import clear_cache
+
+REPO_PLATFORMS_DIR = Path(__file__).resolve().parents[2] / ".cataforge" / "platforms"
 
 
 def _make_full_profile() -> dict:
@@ -185,3 +193,91 @@ class TestExtendedConformance:
         # cloud_agents is False in the fixture — must always produce a report
         assert feature_issues, "expected unsupported-features INFO line but got none"
         assert any("cloud_agents" in i for i in feature_issues)
+
+
+def _rewrite_profile(project_dir: Path, mutate) -> Path:
+    profile_path = project_dir / ".cataforge" / "platforms" / "claude-code" / "profile.yaml"
+    profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+    mutate(profile)
+    with open(profile_path, "w", encoding="utf-8") as f:
+        yaml.dump(profile, f)
+    clear_cache()
+    return project_dir / ".cataforge" / "platforms"
+
+
+class TestPlatformConsistency:
+    def test_clean_profile_has_no_consistency_warn(self, project_dir: Path) -> None:
+        platforms_dir = project_dir / ".cataforge" / "platforms"
+        issues = check_platform_consistency("claude-code", platforms_dir)
+        assert issues == [], f"expected clean profile but got: {issues}"
+
+    def test_web_fetch_routed_to_shell_warns(self, project_dir: Path) -> None:
+        def mutate(p: dict) -> None:
+            p["tool_map"]["web_fetch"] = p["tool_map"]["shell_exec"]
+
+        platforms_dir = _rewrite_profile(project_dir, mutate)
+        issues = check_platform_consistency("claude-code", platforms_dir)
+        assert any("WARN" in i and "web_fetch" in i and "shell" in i for i in issues)
+
+    def test_computer_use_without_browser_preview_warns(self, project_dir: Path) -> None:
+        def mutate(p: dict) -> None:
+            p["features"]["computer_use"] = True
+            p["extended_capabilities"]["browser_preview"] = None
+
+        platforms_dir = _rewrite_profile(project_dir, mutate)
+        issues = check_platform_consistency("claude-code", platforms_dir)
+        assert any("WARN" in i and "computer_use" in i and "browser_preview" in i for i in issues)
+
+    def test_worktree_isolation_without_field_warns(self, project_dir: Path) -> None:
+        def mutate(p: dict) -> None:
+            p["features"]["worktree_isolation"] = True
+            p["agent_config"]["supported_fields"] = [
+                f for f in p["agent_config"]["supported_fields"] if f != "isolation"
+            ]
+
+        platforms_dir = _rewrite_profile(project_dir, mutate)
+        issues = check_platform_consistency("claude-code", platforms_dir)
+        assert any("WARN" in i and "worktree_isolation" in i and "isolation" in i for i in issues)
+
+    def test_nonconventional_scan_dir_warns(self, project_dir: Path) -> None:
+        def mutate(p: dict) -> None:
+            p["agent_definition"] = {"scan_dirs": [".cursor/agents/custom"]}
+
+        platforms_dir = _rewrite_profile(project_dir, mutate)
+        issues = check_platform_consistency("claude-code", platforms_dir)
+        assert any("WARN" in i and "scan dir" in i and "rules" in i for i in issues)
+
+    def test_conventional_scan_dir_clean(self, project_dir: Path) -> None:
+        def mutate(p: dict) -> None:
+            p["agent_definition"] = {"scan_dirs": [".claude/agents"]}
+
+        platforms_dir = _rewrite_profile(project_dir, mutate)
+        issues = check_platform_consistency("claude-code", platforms_dir)
+        assert not any("scan dir" in i for i in issues)
+
+    def test_hook_strategies_none_when_hooks_yaml_absent(self, project_dir: Path) -> None:
+        platforms_dir = project_dir / ".cataforge" / "platforms"
+        assert _load_hook_degradation_strategies(platforms_dir) is None
+
+
+class TestConsistencySnapshot:
+    """Snapshot the WARN set the real four profiles produce today.
+
+    These four are the report-02 deferred findings the guard is built to keep
+    visible. The snapshot breaks (deliberately) if a profile is changed to
+    resolve or introduce one — at which point the expected set is updated.
+    """
+
+    def test_expected_warn_set(self) -> None:
+        lines = check_all_consistency(REPO_PLATFORMS_DIR)
+        blob = "\n".join(lines)
+        # No profile should fail to load.
+        assert "FAIL" not in blob, blob
+        # codex H-3: web_fetch routed to shell
+        assert any("codex" in ln and "web_fetch" in ln for ln in lines)
+        # codex M-5: computer_use feature without browser_preview mapping
+        assert any("codex" in ln and "browser_preview" in ln for ln in lines)
+        # cursor L-4: worktree_isolation without the isolation field
+        assert any("cursor" in ln and "worktree_isolation" in ln for ln in lines)
+        # claude-code M-8: lone native claim for a skip-strategy hook
+        assert any("claude-code" in ln and "notify_permission" in ln for ln in lines)

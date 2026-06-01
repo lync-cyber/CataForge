@@ -28,6 +28,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: main
+          # check_profile_version_tested reads each profile's last-commit date
+          # from git history — needs the full log, not a shallow clone.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -44,7 +47,7 @@ jobs:
         run: |
           set +e
           fails=()
-          for s in check_skill_count check_no_dev_branch_refs check_changelog_link_table check_doc_versions check_profile_yaml_keys check_hooks_yaml_schema check_no_design_residue check_no_language_coupling; do
+          for s in check_skill_count check_no_dev_branch_refs check_changelog_link_table check_doc_versions check_profile_yaml_keys check_profile_version_tested check_hooks_yaml_schema check_no_design_residue check_no_language_coupling; do
               echo "::group::$s"
               python "scripts/checks/$s.py"
               rc=$?
@@ -81,6 +84,7 @@ jobs:
           - \`check_changelog_link_table\`: backfill the missing \`## [X.Y.Z]\` section or remove the orphan link
           - \`check_doc_versions\`: bump the example version in the named doc to the current package version
           - \`check_profile_yaml_keys\`: edit configuration.md §profile.yaml example to match real .cataforge/platforms/<id>/profile.yaml schema
+          - \`check_profile_version_tested\`: a platform profile.yaml has been untouched > 180 days — run platform-audit to re-validate version_tested / available_models / tool names against the live IDE
           - \`check_hooks_yaml_schema\`: edit configuration.md §hooks.yaml example to match real .cataforge/hooks/hooks.yaml (schema_version, top-level keys, entry shape)
           - \`check_no_design_residue\`: remove design-phase comments (\`<!-- 变更原因 -->\` etc.) and inline narrative residue (issue #N, PR #N, \`v0.1.10 起\`, \`pre-v0.4.0\`, \`landed in\`) from .cataforge/agents and .cataforge/skills — they bloat LLM context at runtime
           - \`check_no_language_coupling\`: agent / skill body shouldn't embed language-specific business keywords (FastAPI lifespan, Spring @Autowired, Redux dispatch, useEffect, …); move them to \`docs/reference/<topic>.md\` and link from the body, or append \`<!-- allow-language-coupling: <reason> -->\` if unavoidable

@@ -307,6 +307,7 @@ def _filter_unsupported_fields(
                     _warn_security_sensitive_drop(
                         adapter.platform_id, key, warnings_collector
                     )
+                    _warn_skills_drop(adapter, key, warnings_collector)
                 drop_active = True
                 continue
             drop_active = False
@@ -337,6 +338,20 @@ def _warn_security_sensitive_drop(
         f"WARN: {platform_id}: agent field {key!r} is not supported on this "
         "platform and was dropped — the high-privilege declaration is "
         "unenforced here."
+    )
+
+
+def _warn_skills_drop(
+    adapter: PlatformAdapter, key: str, warnings_collector: list[str] | None
+) -> None:
+    """Record a WARN when an agent's ``skills`` field is dropped on a platform
+    that does not deploy skills — the referenced skill context is lost with no
+    fallback, mirroring :func:`_warn_security_sensitive_drop`."""
+    if warnings_collector is None or key != "skills" or adapter.needs_skill_deploy:
+        return
+    warnings_collector.append(
+        f"WARN: {adapter.platform_id}: agent field 'skills' is not supported and "
+        "this platform does not deploy skills — the skill context is dropped silently."
     )
 
 

@@ -14,6 +14,80 @@ def _cli():
     _register_commands()
     return cli
 
+def _doc_only_project(tmp_path: Path) -> Path:
+    project = tmp_path / "doc-only"
+    (project / ".cataforge").mkdir(parents=True)
+    (project / "docs").mkdir()
+    (project / ".cataforge" / "framework.json").write_text(
+        json.dumps(
+            {"context": {"strategy": "doc-only", "kg_active_doc_types": ["prd", "arch"]}}
+        ),
+        encoding="utf-8",
+    )
+    return project
+
+
+def test_kg_import_doc_only_is_noop(tmp_path: Path) -> None:
+    from cataforge.domain.kg._dispatch import invalidate_cache
+
+    invalidate_cache()
+    project = _doc_only_project(tmp_path)
+    result = CliRunner().invoke(
+        _cli(),
+        ["kg", "import", "--project-root", str(project), "--backend", "memory"],
+    )
+    invalidate_cache()
+    assert result.exit_code == 0, result.output
+    assert "doc-only" in result.output
+    assert not (project / ".cataforge" / "kg" / "store").exists()
+
+
+def test_kg_reconcile_doc_only_is_noop_despite_store(tmp_path: Path) -> None:
+    """A stray store on a doc-only project must not be reconciled."""
+    from cataforge.domain.kg._dispatch import invalidate_cache
+
+    invalidate_cache()
+    project = _doc_only_project(tmp_path)
+    db = project / ".cataforge" / "kg" / "store"
+    init = CliRunner().invoke(
+        _cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"]
+    )
+    assert init.exit_code == 0, init.output
+
+    result = CliRunner().invoke(
+        _cli(),
+        ["kg", "reconcile", "--project-root", str(project), "--db-path", str(db)],
+    )
+    invalidate_cache()
+    assert result.exit_code == 0, result.output
+    assert "doc-only" in result.output
+
+
+def test_kg_import_doc_only_honors_explicit_doc_type(tmp_path: Path) -> None:
+    """An explicit --doc-type overrides the doc-only default no-op gate."""
+    from cataforge.domain.kg._dispatch import invalidate_cache
+
+    invalidate_cache()
+    project = _doc_only_project(tmp_path)
+    result = CliRunner().invoke(
+        _cli(),
+        [
+            "kg",
+            "import",
+            "--project-root",
+            str(project),
+            "--backend",
+            "memory",
+            "--doc-type",
+            "prd",
+            "--json",
+        ],
+    )
+    invalidate_cache()
+    assert result.exit_code == 0, result.output
+    assert "doc-only" not in result.output
+
+
 def test_kg_import_memory_backend(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(

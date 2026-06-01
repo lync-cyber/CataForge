@@ -164,4 +164,28 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         ),
         "severity": "warn",
     },
+    {
+        "id": "B9_migration_path_validity",
+        "title": (
+            "migration_checks 活跃条目: editable 树下 src/ 路径必须存在; "
+            "allow_missing 仅对 file_must_not_contain 有效"
+        ),
+        "severity": "warn",
+    },
+    {
+        "id": "B9_migration_deprecate_order",
+        "title": (
+            "migration_checks deprecate_after > release_version "
+            "(否则发布即废弃, 永不执行)"
+        ),
+        "severity": "warn",
+    },
+    {
+        "id": "B9_migration_dead_entry",
+        "title": (
+            "migration_checks 已废弃且路径缺失的死条目提示 "
+            "(建议从 framework.json 移除)"
+        ),
+        "severity": "info",
+    },
 )

@@ -36,7 +36,7 @@ user-invocable: true
 ## 执行步骤
 
 ### Step 1: 准备隔离沙盒
-1. 在 gitignored 沙盒目录（缺省 `walkthrough-sandbox/<run-id>/`，`<run-id>` 取目标平台+模式）新建空项目目录
+1. 在 gitignored 沙盒目录（缺省 `walkthrough-sandbox/<run-id>/`，`<run-id>` = `<platform>-<mode>-<时间戳>`，时间戳取 `Get-Date -Format yyyyMMdd-HHmmss` / `date +%Y%m%d-%H%M%S`，保证并发/重跑各占独立目录）新建空项目目录；目标目录非空时另起新 run-id 或先 `--clean` 清空，非空目录直接复用会让两次走查互相写入对方产物、归因困难
 2. 在沙盒 cwd 内 `cataforge setup --platform <platform>` 部署目标平台资产；确认 `framework.json#/version` 非占位符 `0.0.0-template`
 3. 校验沙盒与宿主隔离：沙盒有独立的 `.cataforge/` 与空 `docs/`，后续所有写入均在沙盒 cwd 内
 

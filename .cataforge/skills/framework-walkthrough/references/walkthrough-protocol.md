@@ -8,8 +8,8 @@
 
 ### 1.1 搭建沙盒
 
-1. 选沙盒路径：缺省 `walkthrough-sandbox/<platform>-<mode>/`（相对宿主仓库根）。确保该路径被 `.gitignore` 覆盖（缺则先补一行）。
-2. 新建空目录并进入（后续所有命令的 cwd = 沙盒目录）。
+1. 选沙盒路径：缺省 `walkthrough-sandbox/<platform>-<mode>-<时间戳>/`（相对宿主仓库根；时间戳 `yyyyMMdd-HHmmss`，使并发/重跑各占独立目录）。确保该路径被 `.gitignore` 覆盖（缺则先补一行）。
+2. 目标目录非空时**另起新 run-id 或先 `--clean` 清空**再用——非空目录直接复用会让两次走查互相写入对方产物、归因困难。新建空目录并进入（后续所有命令的 cwd = 沙盒目录）。
 3. 初始化框架资产：`cataforge setup`（按 `cataforge setup --help` 确认平台参数；若 setup 不接受平台参数，则 `cataforge deploy --platform <platform>`）。目标是在沙盒内得到独立的 `.cataforge/` 与目标平台的部署产物。
 4. 健全性确认：`cataforge doctor` 应通过；`framework.json#/version` 非 `0.0.0-template`。
 
@@ -26,7 +26,7 @@
 最能在单轮内触达主干：
 
 1. **planning**：起 start-orchestrator → Bootstrap，选 `agile-lite`。产出 prd-lite + arch-lite + dev-plan-lite（各 ≤100 行）。喂入 `example-project.md` 的功能项 / 架构契约 / 任务分解。
-2. **doc-review**：对三份 lite 文档跑 Layer 1（经 `cataforge skill run doc-review -- ...`）；按 `DOC_REVIEW_L2_SKIP_*` 判断是否短路 Layer 2。
+2. **doc-review**：对三份 lite 文档跑 Layer 1（经 `cataforge skill run doc-review -- <doc-type> <path>`）；`<doc-type>` 取文档 front-matter 的 `doc_type` 字面值——lite 文档仍为 `prd`/`arch`/`dev-plan`，**非** `prd-lite`；传错会落到「未知类型仅通用检查」而漏掉 typed 检查。按 `DOC_REVIEW_L2_SKIP_*` 判断是否短路 Layer 2。
 3. **development**：按 dev-plan-lite 的 T-001/T-002/T-003 跑 TDD light（RED+GREEN 合并）。T-001 是纯逻辑表驱动 AC，最适合作为 TDD 主验证。
 4. **code-review**：GREEN 后对核心跑 code-review；按 `CODE_REVIEW_L2_SKIP_*` 判断短路。
 5. **收敛**：development 全部任务 approved 且评审通过即结束（任务数 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT` 时跳过 sprint-review）。deployment 标 N/A。
@@ -46,3 +46,7 @@ Phase 1~4 合并为单一 `brief.md`（≤200 行），implementer 主线程一�
 ## 4. 单轮预算保护
 
 若某阶段反复 `needs_revision` 或 `blocked` 超过两轮仍不收敛，停止驱动，把卡点连同原始输出记为 `framework`/`blocked` 类 finding，转入 Step 6 出报告——走查的产出是「跑的过程暴露了什么」，不是「必须把示例做完」。
+
+## 5. 阶段产物硬门槛（phase status）
+
+每跨完一个阶段，立即在沙盒 cwd 跑 `cataforge phase status` 校验当前阶段应有产物：当前阶段非占位符、期望 `docs/<doc_type>(-lite).md` 存在且已 index、有 `phase_start` 事件、文档状态 ≠ 未开始。**退出非 0 即判该阶段 `blocked`**，把 `phase status` 输出连同卡点记为 `framework`/`blocked` 类 finding 并停止推进。此门槛把「框架已部署」与「阶段真被驱动」分开——委派子代理只部署不驱动时（`docs/` 空、无 `EVENT-LOG`、当前阶段仍占位）会在此处暴露，不可凭「最终有没有文档」事后补判。

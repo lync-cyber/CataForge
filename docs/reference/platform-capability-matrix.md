@@ -1,6 +1,6 @@
 # Platform Capability Matrix
 
-本文档列出 CataForge 支持的四个平台对各 capability 的原生映射。`null` 表示该平台无原生工具/能力，deploy 时会被 `PlatformAdapter.resolve_tools_list` 过滤并触发一次性 WARN（见 [src/cataforge/adapter/platform/base.py](../../src/cataforge/adapter/platform/base.py) `resolve_tools_list`）。
+本文档列出 CataForge 支持的四个平台对各 capability 的原生映射。`null` 表示该平台无原生工具/能力，deploy 时会被 `PlatformAdapter.resolve_tools_list` 过滤并触发一次性 WARN（见 [src/cataforge/adapter/platform/adapter.py](../../src/cataforge/adapter/platform/adapter.py) `resolve_tools_list`）。
 
 > 数据来源：`.cataforge/platforms/{platform}/profile.yaml`。
 
@@ -32,7 +32,7 @@
 
 deploy 读取 [.cataforge/hooks/hooks.yaml](../../.cataforge/hooks/hooks.yaml) 后按 `profile.yaml#hooks.degradation` 解析；`native` 表示直接生成平台 hook 配置，`degraded` 表示走 `degradation_templates` 中的降级策略。当前实装策略集合（`rules_injection` / `prompt_instruction` / `prompt_checklist` / `skip`）与各自输出文件的语义见 [hook-degradation-strategies.md](hook-degradation-strategies.md)。
 
-下表仅列出"至少有一个平台 degraded"的 hook；未列出的 hook（`guard_dangerous` / `notify_done` / `session_context`）在四个平台都是 `native`。
+下表仅列出"至少有一个平台 degraded"的 hook；未列出的 hook（`guard_dangerous` / `notify_done` / `session_context`）在四端 `profile.yaml#hooks.degradation` 均**声明**为 `native`（即不在降级表中；属声明默认值，非逐项行为实测）。
 
 | hook | strategy | claude-code | cursor | codex | opencode |
 |---|---|---|---|---|---|

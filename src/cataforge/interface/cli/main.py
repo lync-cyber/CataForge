@@ -159,6 +159,7 @@ def _register_commands() -> None:
         mcp_cmd,
         override_cmd,
         penpot_cmd,
+        phase_cmd,
         plugin_cmd,
         setup_cmd,
         skill_cmd,
