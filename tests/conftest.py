@@ -126,7 +126,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
         print(
-            f"\n⚠  pre-commit not auto-installed ({exc}); run "
+            f"\nWARN: pre-commit not auto-installed ({exc}); run "
             "`pre-commit install` manually.\n",
             file=sys.stderr,
         )
@@ -136,18 +136,18 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         print(
             "\n".join([
                 "",
-                "─" * 70,
-                "✓ pre-commit hooks auto-installed (.git/hooks/pre-commit).",
+                "=" * 70,
+                "OK: pre-commit hooks auto-installed (.git/hooks/pre-commit).",
                 "  ruff / utf-8-stdio / schema-parity checks now run on commit.",
                 "  Opt out: export CATAFORGE_SKIP_HOOK_AUTOINSTALL=1",
-                "─" * 70,
+                "=" * 70,
                 "",
             ]),
             file=sys.stderr,
         )
     else:
         print(
-            f"\n⚠  pre-commit install failed (rc={result.returncode}): "
+            f"\nWARN: pre-commit install failed (rc={result.returncode}): "
             f"{result.stderr.strip()[:200]}\n",
             file=sys.stderr,
         )
