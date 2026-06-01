@@ -47,7 +47,7 @@ class EventBus:
 
         if self._log_path:
             try:
-                with open(self._log_path, "a", encoding="utf-8") as f:
+                with open(self._log_path, "a") as f:
                     f.write(ev.to_json() + "\n")
             except OSError as e:
                 logger.warning("Event log write failed (%s): %s", self._log_path, e)

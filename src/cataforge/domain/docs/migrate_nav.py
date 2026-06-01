@@ -115,7 +115,7 @@ def migrate(project_root: Path, *, dry_run: bool = False) -> int:
         return 0
 
     try:
-        nav_text = nav_path.read_text(encoding="utf-8")
+        nav_text = nav_path.read_text()
     except OSError as e:
         print(f"[ERROR] 读取 {nav_path} 失败: {e}", file=sys.stderr)
         return 2

@@ -71,7 +71,7 @@ def measure_claude_md(claude_md_path: Path) -> ClaudeMdMeasurement:
             state_section_lines=0,
             learnings_entries=0,
         )
-    text = claude_md_path.read_text(encoding="utf-8")
+    text = claude_md_path.read_text()
     total_bytes = len(text.encode("utf-8"))
     total_lines = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
 
@@ -130,7 +130,7 @@ def compact_learnings_registry(
             rewrote_claude_md=False,
         )
 
-    text = claude_md_path.read_text(encoding="utf-8")
+    text = claude_md_path.read_text()
     match = _LEARNINGS_FIELD_RE.search(text)
     if match is None:
         return CompactionResult(
@@ -260,7 +260,7 @@ def _append_archive(archive_path: Path, archive_entries: list[str]) -> None:
     chunk = header + "\n".join(body_lines) + "\n"
 
     if archive_path.is_file():
-        existing = archive_path.read_text(encoding="utf-8")
+        existing = archive_path.read_text()
         if not existing.endswith("\n"):
             existing += "\n"
         atomic_write_text(archive_path, existing + chunk)

@@ -46,7 +46,7 @@ def load_project_features(dev_plan_files: list[str]) -> dict:
         if re.search(r"-s\d+\.md$", f):
             continue
         try:
-            with open(f, encoding="utf-8") as fh:
+            with open(f) as fh:
                 raw = fh.read()
         except OSError:
             continue
@@ -102,7 +102,7 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
     files_to_search = [sprint_volume] if sprint_volume else dev_plan_files
 
     for filepath in files_to_search:
-        with open(filepath, encoding="utf-8") as f:
+        with open(filepath) as f:
             content = f.read()
 
         lines = content.split("\n")
@@ -196,7 +196,7 @@ def _backfill_missing_status(tasks: list[dict], dev_plan_files: list[str]) -> No
     if not tasks_missing_status:
         return
     for filepath in dev_plan_files:
-        with open(filepath, encoding="utf-8") as f:
+        with open(filepath) as f:
             for line in f:
                 table_match = _TASK_TABLE_RE.match(line)
                 if table_match and table_match.group(1) in tasks_missing_status:

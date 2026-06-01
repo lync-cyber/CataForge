@@ -162,7 +162,7 @@ class OpenCodeAdapter(PlatformAdapter):
             ]
 
         plugin_path.parent.mkdir(parents=True, exist_ok=True)
-        plugin_path.write_text(content, encoding="utf-8")
+        plugin_path.write_text(content)
         return [f"opencode plugin → {plugin_path.relative_to(project_root)}"]
 
 

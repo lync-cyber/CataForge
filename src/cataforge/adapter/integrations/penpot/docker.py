@@ -36,7 +36,7 @@ from cataforge.utils.run_subprocess import run as run_proc
 
 def _extract_secret_key(compose_file: str) -> str | None:
     try:
-        with open(compose_file, encoding="utf-8") as f:
+        with open(compose_file) as f:
             for line in f:
                 if "PENPOT_SECRET_KEY=" in line:
                     val = line.split("=", 1)[1].strip()
@@ -62,7 +62,7 @@ def _generate_compose_file(config: dict, force: bool = False) -> str:
         penpot_flags=config["penpot_flags"],
         secret_key=secret_key,
     )
-    with open(compose_file, "w", encoding="utf-8") as f:
+    with open(compose_file, "w") as f:
         f.write(content)
     ok(f"{'已重新生成' if force else '已生成'} docker-compose.yml: {compose_file}")
     return compose_file

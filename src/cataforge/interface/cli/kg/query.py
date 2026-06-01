@@ -105,7 +105,7 @@ def kg_query(
 def _resolve_sparql_input(query_or_file: str) -> str:
     p = Path(query_or_file)
     if p.is_file():
-        return p.read_text(encoding="utf-8").strip()
+        return p.read_text().strip()
     return query_or_file
 
 

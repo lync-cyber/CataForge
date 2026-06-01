@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.out is not None:
         target = args.out if args.out.is_absolute() else project_root / args.out
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(body, encoding="utf-8")
+        target.write_text(body)
         print(f"Wrote {target}")
     else:
         sys.stdout.write(body)

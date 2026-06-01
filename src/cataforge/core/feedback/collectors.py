@@ -134,7 +134,7 @@ def collect_recent_events(
         return []
     cutoff = _parse_since(since)
     rows: list[dict[str, Any]] = []
-    for raw in log.read_text(encoding="utf-8").splitlines():
+    for raw in log.read_text().splitlines():
         line = raw.strip()
         if not line:
             continue
@@ -185,7 +185,7 @@ def collect_corrections(
     log = project_root / CORRECTIONS_LOG_REL
     if not log.is_file():
         return []
-    text = log.read_text(encoding="utf-8")
+    text = log.read_text()
     cutoff = _parse_since_date(since)
 
     out: list[CorrectionEntry] = []

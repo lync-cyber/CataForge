@@ -260,7 +260,7 @@ def write_skill_improve_draft(
         f"{target_id}.md` after maintainer review, or close the issue with "
         f"a link to the existing fix.\n"
     )
-    path.write_text(body, encoding="utf-8")
+    path.write_text(body)
     return path
 
 

@@ -142,6 +142,6 @@ def _append_markdown(
     # per correction event (a handful per project lifetime), so the
     # read-pre-write I/O overhead is negligible compared to the
     # consistency guarantee.
-    existing = log_path.read_text(encoding="utf-8") if log_path.is_file() else _HEADER
+    existing = log_path.read_text() if log_path.is_file() else _HEADER
     atomic_write_text(log_path, existing + entry)
     return log_path

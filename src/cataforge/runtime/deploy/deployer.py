@@ -445,7 +445,6 @@ class Deployer:
         )
         config_path.write_text(
             json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
         )
         if manifest is not None:
             manifest.record(config_path_str)
@@ -494,5 +493,4 @@ class Deployer:
         state_file = self._cfg.paths.deploy_state
         state_file.write_text(
             json.dumps({"platform": platform_id}, indent=2) + "\n",
-            encoding="utf-8",
         )

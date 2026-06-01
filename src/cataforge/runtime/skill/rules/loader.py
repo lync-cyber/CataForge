@@ -227,7 +227,7 @@ def _iter_package_rule_files(builtin_module: str):
         if not name.endswith(YAML_SUFFIXES):
             continue
         try:
-            text = entry.read_text(encoding="utf-8")
+            text = entry.read_text()
         except OSError:
             continue
         yield name, text
@@ -264,7 +264,7 @@ def _iter_project_rule_files(project_root: Path | None, skill_id: str):
             if path.suffix.lower() not in YAML_SUFFIXES:
                 continue
             try:
-                text = path.read_text(encoding="utf-8")
+                text = path.read_text()
             except OSError:
                 continue
             yield path, text

@@ -34,7 +34,7 @@ def render_template(
         Merged template text.
     """
     base_path = cataforge_dir / template_rel_path
-    base_content = base_path.read_text(encoding="utf-8")
+    base_content = base_path.read_text()
 
     override_path = (
         cataforge_dir / "platforms" / platform_id / "overrides" / Path(template_rel_path).name
@@ -43,7 +43,7 @@ def render_template(
     if not override_path.is_file():
         return _strip_override_markers(base_content)
 
-    override_content = override_path.read_text(encoding="utf-8")
+    override_content = override_path.read_text()
     overrides = _parse_overrides(override_content)
 
     def replacer(match: re.Match[str]) -> str:
@@ -58,7 +58,7 @@ def render_template(
 def list_override_points(template_rel_path: str, cataforge_dir: Path) -> list[str]:
     """List all OVERRIDE marker names in a template."""
     base_path = cataforge_dir / template_rel_path
-    content = base_path.read_text(encoding="utf-8")
+    content = base_path.read_text()
     return [m.group(1) for m in _OVERRIDE_PATTERN.finditer(content)]
 
 

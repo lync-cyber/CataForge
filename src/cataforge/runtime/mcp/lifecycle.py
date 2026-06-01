@@ -598,7 +598,7 @@ class MCPLifecycleManager:
         tmp = path.with_suffix(
             path.suffix + f".tmp.{os.getpid()}.{threading.get_ident()}"
         )
-        tmp.write_text(payload, encoding="utf-8")
+        tmp.write_text(payload)
         os.replace(str(tmp), str(path))
 
     def _delete_state(self, server_id: str) -> None:

@@ -34,7 +34,7 @@ class PluginManifest(BaseModel):
     def from_yaml_file(cls, path: Path) -> PluginManifest:
         import yaml
 
-        with open(path, encoding="utf-8") as f:
+        with open(path) as f:
             data = yaml.safe_load(f)
         if not isinstance(data, dict) or "id" not in data:
             raise ValueError(f"Invalid plugin manifest: missing 'id' in {path.name}")

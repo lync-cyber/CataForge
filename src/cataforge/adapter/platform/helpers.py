@@ -52,7 +52,7 @@ def _prune_orphan_flat_files(
             or existing.stem in known_names
         ):
             continue
-        head = existing.read_text(encoding="utf-8", errors="ignore")[:head_read_size]
+        head = existing.read_text(errors="ignore")[:head_read_size]
         if head_signature.format(stem=existing.stem) not in head:
             continue
         existing_rel = f"{target_rel}/{existing.name}"
@@ -380,7 +380,7 @@ def merge_json_key(
         obj = obj.setdefault(k, {})
     obj[keys[-1]] = value
 
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return [f"merged {dotted_key} → {path}"]
 
 
@@ -490,7 +490,7 @@ def merge_opencode_project_mcp(
     mcp = data.setdefault("mcp", {})
     mcp[server_id] = mcp_entry
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return [f"mcp.{server_id} → {path}"]
 
 
@@ -506,7 +506,7 @@ def merge_codex_mcp_server(
         return [f"would merge mcp_servers.{server_id} → {path}"]
 
     try:
-        existing = path.read_text(encoding="utf-8") if path.is_file() else ""
+        existing = path.read_text() if path.is_file() else ""
     except OSError as exc:
         raise CataforgeError(
             f"cannot read existing config: {path} ({exc})."
@@ -514,7 +514,7 @@ def merge_codex_mcp_server(
     section = _render_codex_mcp_section(server_id, server_config)
     merged = _replace_toml_mcp_section(existing, server_id, section)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(merged, encoding="utf-8")
+    path.write_text(merged)
     return [f"mcp_servers.{server_id} → {path}"]
 
 

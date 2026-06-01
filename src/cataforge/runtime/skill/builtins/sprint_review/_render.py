@@ -59,7 +59,7 @@ def render_text(
         ]
         try:
             os.makedirs(os.path.dirname(unplanned_log) or ".", exist_ok=True)
-            with open(unplanned_log, "w", encoding="utf-8") as fh:
+            with open(unplanned_log, "w") as fh:
                 for it in unplanned:
                     fh.write((it.path or "") + "\n")
         except OSError as exc:
@@ -96,7 +96,7 @@ def render_json(
         try:
             unplanned = [it for it in flat_issues if it.category == "unplanned_files"]
             os.makedirs(os.path.dirname(unplanned_log) or ".", exist_ok=True)
-            with open(unplanned_log, "w", encoding="utf-8") as fh:
+            with open(unplanned_log, "w") as fh:
                 for it in unplanned:
                     fh.write((it.path or "") + "\n")
         except OSError:

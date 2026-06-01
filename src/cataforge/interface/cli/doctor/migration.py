@@ -131,7 +131,7 @@ def _evaluate_check(check: dict, root: Path) -> tuple[bool, str]:
         if not target.is_file():
             return False, f"{rel} does not exist"
         try:
-            text = target.read_text(encoding="utf-8")
+            text = target.read_text()
         except OSError as e:
             return False, f"cannot read {rel}: {e}"
         missing = [p for p in patterns if p not in text]
@@ -154,7 +154,7 @@ def _evaluate_check(check: dict, root: Path) -> tuple[bool, str]:
                 "`allow_missing: true`, or set `deprecate_after` for it"
             )
         try:
-            text = target.read_text(encoding="utf-8")
+            text = target.read_text()
         except OSError as e:
             return False, f"cannot read {rel}: {e}"
         present = [p for p in patterns if p in text]

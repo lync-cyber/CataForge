@@ -133,7 +133,7 @@ def load_template_required_sections(
         return None
     template_path = _get_templates_dir() / filename
     try:
-        content = template_path.read_text(encoding="utf-8")
+        content = template_path.read_text()
     except OSError:
         return None
     fm_match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)

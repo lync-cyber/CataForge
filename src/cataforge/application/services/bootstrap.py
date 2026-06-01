@@ -166,7 +166,7 @@ def build_plan(cfg: ConfigManager, *, requested_platform: str | None) -> Plan:
         # and the user silently re-deployed instead of being told the
         # state file is busted.
         try:
-            text = deploy_state_file.read_text(encoding="utf-8")
+            text = deploy_state_file.read_text()
         except OSError as exc:
             raise ConfigError(
                 f"deploy state at {deploy_state_file} is unreadable: {exc}. "

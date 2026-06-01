@@ -35,7 +35,7 @@ def _parse_phase_routing(root: Path) -> dict[str, str]:
     if not orch_path.is_file():
         return {}
     try:
-        orch_text = orch_path.read_text(encoding="utf-8")
+        orch_text = orch_path.read_text()
     except OSError:
         return {}
 
@@ -148,7 +148,7 @@ def _check_phase_skill_coverage(
         if agent not in agents:
             continue
         try:
-            agent_text = agents[agent].read_text(encoding="utf-8")
+            agent_text = agents[agent].read_text()
         except OSError:
             continue
         agent_skills = parse_skills_field(agent_text)

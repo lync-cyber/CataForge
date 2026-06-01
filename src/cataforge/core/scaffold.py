@@ -377,7 +377,7 @@ def _write_manifest(dest: Path, files_map: dict[str, str]) -> None:
     path = dest / MANIFEST_REL
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
-    path.write_text(payload, encoding="utf-8")
+    path.write_text(payload)
 
 
 def read_manifest(dest: Path) -> dict[str, str]:

@@ -15,7 +15,9 @@ this helper closes.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import locale
 import os
 import subprocess
 import sys
@@ -25,6 +27,43 @@ from typing import Any
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _ensure_utf8_test_session(config: pytest.Config) -> None:
+    """Run the test session under a UTF-8 default text encoding.
+
+    Production always runs in Python UTF-8 Mode — ``ensure_utf8`` re-execs at
+    every entry point — and that relaunch is deliberately suppressed under
+    pytest. So bare ``open()`` / ``read_text()`` would default to a non-UTF-8
+    codec only under tests, in a non-UTF-8 locale (Windows cp1252, a legacy
+    POSIX locale). Mirror production: when the default encoding is not UTF-8,
+    relaunch the session under ``PYTHONUTF8=1`` so the contract holds in tests
+    too. No-op when the locale already resolves to UTF-8 (the common case:
+    UTF-8 locales, and ``C``/``POSIX`` via PEP 540), and idempotent once
+    relaunched (``utf8_mode`` makes the default UTF-8, so this returns early).
+
+    Runs in ``pytest_configure`` — before xdist spawns workers, so the
+    relaunched controller exports ``PYTHONUTF8=1`` and workers inherit it.
+    fd-level capture has already redirected fds 1/2 by now, so global capture
+    is suspended first to restore the real terminal before the handoff.
+    """
+    enc = locale.getpreferredencoding(False)
+    if enc.replace("-", "").replace("_", "").lower() == "utf8":
+        return
+    if os.environ.get("_CATAFORGE_TEST_UTF8_REEXEC") or not sys.orig_argv:
+        return
+    capman = config.pluginmanager.getplugin("capturemanager")
+    if capman is not None:
+        with contextlib.suppress(Exception):
+            capman.suspend_global_capture(in_=True)
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["_CATAFORGE_TEST_UTF8_REEXEC"] = "1"
+    if sys.platform == "win32":
+        completed = subprocess.run(sys.orig_argv, env=env)
+        raise SystemExit(completed.returncode)
+    os.execve(sys.executable, sys.orig_argv, env)
+
 
 # Modules that must be importable for the test suite to function.
 # Each entry is (module_name, install_hint).
@@ -41,8 +80,9 @@ REQUIRED_DEV_MODULES: tuple[tuple[str, str], ...] = (
 )
 
 
-def pytest_configure(config: pytest.Config) -> None:  # noqa: ARG001
-    """Verify dev dependencies before collecting tests.
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config: pytest.Config) -> None:
+    """Relaunch the session in UTF-8 Mode if needed, then verify dev deps.
 
     Failing in pytest_configure produces a single clear stderr message
     with the install command, instead of letting tests fail one-by-one
@@ -50,6 +90,8 @@ def pytest_configure(config: pytest.Config) -> None:  # noqa: ARG001
     dependencies].dev`` table in pyproject.toml — that's where these
     deps are *declared*; this hook is where their *absence* is surfaced.
     """
+    _ensure_utf8_test_session(config)
+
     missing: list[tuple[str, str]] = []
     for mod, hint in REQUIRED_DEV_MODULES:
         if importlib.util.find_spec(mod) is None:

@@ -23,7 +23,7 @@ _E_ID_RE = re.compile(r"E-(\d+)")
 
 def _load_doc(path: Path) -> tuple[dict[str, Any], str]:
     """Return (frontmatter_dict, body_text) for a markdown doc."""
-    content = path.read_text(encoding="utf-8")
+    content = path.read_text()
     fm = parse_yaml_frontmatter(content) or {}
     _, body = _split_fm(content)
     return fm, body if body else content
@@ -67,7 +67,7 @@ def _read_all_content(paths: list[Path]) -> str:
     parts = []
     for p in paths:
         try:
-            parts.append(p.read_text(encoding="utf-8"))
+            parts.append(p.read_text())
         except OSError:
             continue
     return "\n".join(parts)

@@ -157,7 +157,7 @@ def _emit(
     if out_path is not None:
         target = out_path if out_path.is_absolute() else project_root / out_path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(body, encoding="utf-8")
+        target.write_text(body)
         if not quiet:
             click.secho(f"Wrote {target}", fg="green", err=True)
         return

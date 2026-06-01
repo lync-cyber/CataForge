@@ -25,7 +25,7 @@ def check_b4_hardcoded_constants(root: Path, report: Report) -> None:
             continue
         for path in sorted(base.rglob("*.md")):
             try:
-                text = path.read_text(encoding="utf-8")
+                text = path.read_text()
             except OSError:
                 continue
             try:
