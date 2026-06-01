@@ -37,6 +37,14 @@ maxTurns: 50
 - 交付标准: 三态判定 — CRITICAL/HIGH存在 → needs_revision; 仅MEDIUM/LOW → approved_with_notes; 无问题 → approved
 - 注: 审查报告为过程文件，不进入 `docs/.doc-index.json`（无 YAML front matter，indexer 自动跳过）
 
+## Mid-Progress 落盘契约
+长审查（多文件 / 大文档 / 多维度）易在末尾集中产出 REVIEW 报告时被 task-notification truncation 打断（征兆：大量 tool-use / token 后 `<agent-result>` 未返回但报告未落盘）。命中长审查时强制：
+
+1. 先 `Write` REVIEW 报告骨架（报告头 + 各严重等级问题段占位）
+2. 逐文件 / 逐维度审查，发现问题立即 `Edit` 追加到报告
+3. 每审完一个文件 / 维度即落盘，不在内存累积
+4. **禁止**末尾一次 `Write` 堆全部问题 —— 停滞时已落盘的部分报告即 mid-progress checkpoint
+
 ## Execution Rules
 - **强制批量提问**: 当一次审查中发现多个歧义点需要向用户确认时，必须通过单次 AskUserQuestion 批量提问（每批 ≤ `MAX_QUESTIONS_PER_BATCH`），禁止拆分为多轮提问。若问题数超过上限，按严重等级排序，优先追问 CRITICAL/HIGH 级别
 
