@@ -16,7 +16,7 @@ repos:
         pass_filenames: false
         types_or: [python]
       - id: stdio-utf8-guard
-        name: scripts/*.py call ensure_utf8_stdio() (Windows cp1252 guard)
+        name: scripts/*.py call ensure_utf8() (Windows cp1252 guard)
         description: |
           Mirrors tests/test_scripts_stdio_guard.py at commit time. Any
           new script that prints non-ASCII (→/中文/emoji) to stdout will
