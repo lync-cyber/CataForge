@@ -62,10 +62,10 @@
 - Agent编排: orchestrator 通过 agent-dispatch skill 激活子代理
 - DEV阶段: orchestrator 通过 tdd-engine skill 编排 RED/GREEN/REFACTOR 三个子代理（独立上下文）
 - Skill调用: Agent按SKILL.md步骤式指令执行工作流
-- 状态持久化: PROJECT-STATE.md + docs/ 目录
+- 状态持久化: 项目指令文件（CLAUDE.md/AGENTS.md）§项目状态 + docs/ 目录
 - 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
 - 运行时: 由 framework.json runtime.platform 决定（deploy 自动适配）
-- **写权限**: PROJECT-STATE.md 由 orchestrator 独占写入；其他Agent只写 docs/ 或 src/ 下的产出文件
+- **写权限**: 项目指令文件 §项目状态 由 orchestrator 独占写入；其他Agent只写 docs/ 或 src/ 下的产出文件
 - 统一配置 `.cataforge/framework.json`:
   - `upgrade.source` — 远程升级源配置。升级时保留用户已配置值，仅补充新字段
   - `upgrade.state` — 本地升级状态。升级时始终保留

@@ -4,7 +4,7 @@ CataForge's upgrade model is **package-manager driven**: the Python package
 is upgraded via ``pip install --upgrade cataforge`` or ``uv tool upgrade
 cataforge``, after which ``cataforge setup --force-scaffold`` refreshes the
 in-project ``.cataforge/`` scaffold while preserving user-owned state
-(``runtime.platform``, ``upgrade.state``, ``PROJECT-STATE.md``).
+(``runtime.platform``, ``upgrade.state``).
 
 There is no in-repo self-upgrade mechanism — that would duplicate and diverge
 from the package manager's version resolution. ``cataforge upgrade apply``
@@ -135,7 +135,7 @@ def upgrade_apply(dry_run: bool) -> None:
             )
         click.echo(
             "\nUser-owned state preserved: framework.json(runtime.platform, "
-            "upgrade.state), PROJECT-STATE.md"
+            "upgrade.state)"
         )
         return
 

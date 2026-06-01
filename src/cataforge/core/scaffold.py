@@ -127,6 +127,11 @@ _SCAFFOLD_LOCAL_STATE_DIRS: frozenset[str] = frozenset(
         ".backups",
     }
 )
+# Bundled files that are NOT copied into downstream projects. PROJECT-STATE.md
+# is the source template for the platform instruction file (CLAUDE.md /
+# AGENTS.md) — deploy reads it from the package, so copying it into the project
+# would duplicate workflow state into a second file beside the instruction one.
+_SCAFFOLD_EXCLUDED_FILES: frozenset[str] = frozenset({"PROJECT-STATE.md"})
 
 
 def iter_scaffold_files() -> Iterator[tuple[str, Traversable]]:
@@ -148,9 +153,22 @@ def iter_scaffold_files() -> Iterator[tuple[str, Traversable]]:
             else:
                 if not prefix and child.name in _SCAFFOLD_LOCAL_STATE_FILES:
                     continue
+                if not prefix and child.name in _SCAFFOLD_EXCLUDED_FILES:
+                    continue
                 yield rel, child
 
     yield from walk(_scaffold_root(), "")
+
+
+def packaged_instruction_template() -> Traversable:
+    """The bundled PROJECT-STATE.md template.
+
+    Deploy's source for generating the platform instruction file
+    (CLAUDE.md / AGENTS.md). Lives in the package only — it is excluded from
+    the downstream scaffold (:data:`_SCAFFOLD_EXCLUDED_FILES`), so deploy reads
+    it from the package on each run rather than from the project tree.
+    """
+    return _scaffold_root().joinpath("PROJECT-STATE.md")
 
 
 # ---- merge strategies for user-writable scaffold files ----
@@ -204,19 +222,8 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
     return (json.dumps(merged, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 
-def _preserve_if_exists(new_bytes: bytes, target: Path) -> bytes:
-    """Keep user edits untouched — return the current content."""
-    try:
-        return target.read_bytes()
-    except OSError as e:
-        logger.warning("could not read %s (%s); using new content", target, e)
-        return new_bytes
-
-
 _MERGE_HANDLERS: dict[str, MergeFn] = {
     "framework.json": _merge_framework_json,
-    # PROJECT-STATE.md is the project's living runbook — never clobber.
-    "PROJECT-STATE.md": _preserve_if_exists,
 }
 
 

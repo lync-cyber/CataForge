@@ -11,6 +11,7 @@ import logging
 import shutil
 import tempfile
 from contextlib import ExitStack
+from importlib.resources import as_file
 from pathlib import Path
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
@@ -19,6 +20,7 @@ from cataforge.core.config import ConfigManager
 from cataforge.core.errors import ConfigError
 from cataforge.core.events import FRAMEWORK_DEPLOY, EventBus
 from cataforge.core.io import read_json
+from cataforge.core.scaffold import packaged_instruction_template
 from cataforge.runtime.deploy.manifest import (
     DeployManifest,
     load_prior_manifest,
@@ -144,9 +146,13 @@ class Deployer:
                 )
             )
 
+        # Source the instruction file (CLAUDE.md / AGENTS.md) from the bundled
+        # PROJECT-STATE.md template, not a downstream copy — the scaffold no
+        # longer ships PROJECT-STATE.md into projects.
+        instruction_src = stack.enter_context(as_file(packaged_instruction_template()))
         actions.extend(
             adapter.deploy_instruction_files(
-                self._cfg.paths.project_state_md,
+                instruction_src,
                 root,
                 platform_id=platform_id,
                 dry_run=dry_run,

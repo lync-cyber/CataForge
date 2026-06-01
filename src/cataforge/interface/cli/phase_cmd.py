@@ -1,8 +1,8 @@
 """cataforge phase — read-only inspection of a project's workflow phase.
 
 Distinguishes "framework deployed" from "workflow actually driven": a fresh
-deploy leaves PROJECT-STATE.md 当前阶段 as a placeholder with no docs, no
-EVENT-LOG, no index. ``phase status`` checks the current phase's expected
+deploy leaves the instruction file's 当前阶段 as a placeholder with no docs,
+no EVENT-LOG, no index. ``phase status`` checks the current phase's expected
 artifacts exist and exits non-zero when they don't, giving orchestration a
 machine-checkable phase boundary.
 """
@@ -15,12 +15,13 @@ from pathlib import Path
 
 import click
 
+from cataforge.adapter.platform.registry import resolve_instruction_file
 from cataforge.core.errors import CataforgeError
 from cataforge.interface.cli.helpers import resolve_root
 from cataforge.interface.cli.main import cli
 
-# Canonical SDLC phase sequence — mirrors PROJECT-STATE.md 当前阶段 enum and
-# event-log.schema.json's phase description.
+# Canonical SDLC phase sequence — mirrors the instruction file's 当前阶段 enum
+# and event-log.schema.json's phase description.
 PHASES: tuple[str, ...] = (
     "requirements",
     "architecture",
@@ -116,11 +117,11 @@ def evaluate_phase(root: Path) -> tuple[str | None, list[tuple[str, bool, str]]]
 
     Returns ``(current_phase, checks)`` where each check is
     ``(label, ok, detail)``. Raises :class:`CataforgeError` when the project
-    has no readable PROJECT-STATE.md (not a driven CataForge project).
+    has no readable instruction file (not a driven CataForge project).
     """
-    state_path = root / ".cataforge" / "PROJECT-STATE.md"
+    state_path = resolve_instruction_file(root)
     if not state_path.is_file():
-        err = CataforgeError(f"no PROJECT-STATE.md under {root / '.cataforge'}")
+        err = CataforgeError(f"no {state_path.name} at {root}")
         err.exit_code = 2
         raise err
 
@@ -196,7 +197,7 @@ def phase_status() -> None:
 
     Exit 0 when every check for the current phase passes; exit 1 when an
     expected artifact is missing (phase not driven, doc absent/unindexed, no
-    phase_start); exit 2 when the project has no PROJECT-STATE.md.
+    phase_start); exit 2 when the project has no instruction file.
     """
     root = resolve_root()
     current, checks = evaluate_phase(root)
