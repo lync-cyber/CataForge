@@ -16,7 +16,10 @@ import click
 from cataforge.interface.cli.main import cli
 
 from .doctor._helpers import check_dir, check_file, check_import
-from .doctor.deploy_integrity import check_deploy_integrity
+from .doctor.deploy_integrity import (
+    check_deploy_integrity,
+    check_deploy_source_orphans,
+)
 from .doctor.event_log import check_event_log_bypass_writes, check_event_log_schema
 from .doctor.hook_health import check_hook_script_importability, report_hook_errors
 from .doctor.hygiene import check_claude_md_hygiene
@@ -66,6 +69,11 @@ _DOCTOR_SECTIONS = [
     # Deploy integrity — the hard gate: turns dangling links / missing owned
     # dirs into FAILs so post-deploy regressions can't slip past doctor.
     ("Deploy integrity:", check_deploy_integrity, True),
+    # Deploy source orphans — informational: a deployed skill whose source
+    # under .cataforge/skills/ was removed lingers until the next deploy
+    # prunes it. WARN-only (non-gating) so the self-healing artefact doesn't
+    # fail doctor.
+    ("Deploy source orphans:", check_deploy_source_orphans, False),
     # Recent hook execution failures — informational; surfaces silent
     # observer-hook crashes logged by hook_main().
     ("Hook execution log:", report_hook_errors, False),

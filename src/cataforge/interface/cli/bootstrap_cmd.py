@@ -36,6 +36,16 @@ from cataforge.interface.cli.main import cli
     "on an existing project defaults to framework.json's runtime.platform.",
 )
 @click.option(
+    "--context-strategy",
+    type=click.Choice(["kg-first", "doc-only"]),
+    default=None,
+    help=(
+        "Document-driving backend forwarded to `setup`. kg-first (graph is "
+        "source, export markdown for review) or doc-only (markdown is source, "
+        "bypass the graph). Prompted on a fresh install when omitted."
+    ),
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Print the plan without executing. Shows skip/run decision per step.",
@@ -56,6 +66,7 @@ from cataforge.interface.cli.main import cli
 def bootstrap_command(
     ctx: click.Context,
     platform: str | None,
+    context_strategy: str | None,
     dry_run: bool,
     yes: bool,
     skip_doctor: bool,
@@ -111,7 +122,9 @@ def bootstrap_command(
         ui.warn("Aborted.")
         raise click.exceptions.Exit(1)
 
-    _execute_plan(ctx, cfg, plan, skip_doctor=skip_doctor)
+    _execute_plan(
+        ctx, cfg, plan, context_strategy=context_strategy, skip_doctor=skip_doctor
+    )
 
 
 # ---- presentation ----
@@ -152,6 +165,7 @@ def _execute_plan(
     cfg,
     plan: Plan,
     *,
+    context_strategy: str | None,
     skip_doctor: bool,
 ) -> None:
     """Run each planned step in order. Halt on first failure.
@@ -186,6 +200,7 @@ def _execute_plan(
             setup_command,
             platform=plan.target_platform,
             with_penpot=False,
+            context_strategy=context_strategy,
             check_only=False,
             force_scaffold=False,
             # deploy_after=False so setup doesn't chain a deploy — bootstrap

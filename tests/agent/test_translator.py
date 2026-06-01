@@ -179,6 +179,45 @@ class TestBracketStripRobustness:
         assert len(warning_records) == 2, [r.getMessage() for r in warning_records]
 
 
+def _skills_project(tmp_path: Path, *, needs_skill_deploy: bool) -> Path:
+    cataforge_dir = tmp_path / ".cataforge"
+    cataforge_dir.mkdir()
+    (cataforge_dir / "framework.json").write_text(
+        json.dumps({"version": "0.1.0", "runtime": {"platform": "codex"}}),
+        encoding="utf-8",
+    )
+    profile = {
+        "platform_id": "codex",
+        "tool_map": {"file_read": "shell", "agent_dispatch": "spawn_agent"},
+        "agent_config": {"supported_fields": ["name", "description", "model"]},
+        "skill_definition": {"needs_deploy": needs_skill_deploy},
+    }
+    p = cataforge_dir / "platforms" / "codex"
+    p.mkdir(parents=True)
+    with open(p / "profile.yaml", "w", encoding="utf-8") as f:
+        yaml.dump(profile, f)
+    return cataforge_dir / "platforms"
+
+
+class TestSkillsDropWarning:
+    AGENT_MD = "---\nname: a\ndescription: d\nskills: research, doc-gen\n---\nbody\n"
+
+    def test_skills_drop_warns_when_not_deployed(self, tmp_path: Path) -> None:
+        platforms_dir = _skills_project(tmp_path, needs_skill_deploy=False)
+        adapter = get_adapter("codex", platforms_dir)
+        warnings: list[str] = []
+        result = translate_agent_md(self.AGENT_MD, adapter, warnings_collector=warnings)
+        assert "skills:" not in result
+        assert any("WARN" in w and "skills" in w and "codex" in w for w in warnings)
+
+    def test_skills_drop_silent_when_deployed(self, tmp_path: Path) -> None:
+        platforms_dir = _skills_project(tmp_path, needs_skill_deploy=True)
+        adapter = get_adapter("codex", platforms_dir)
+        warnings: list[str] = []
+        translate_agent_md(self.AGENT_MD, adapter, warnings_collector=warnings)
+        assert not any("skills" in w for w in warnings)
+
+
 @pytest.fixture()
 def tier_project_dir(tmp_path: Path) -> Path:
     """Project fixture with model_routing tier_map across 4 platforms."""

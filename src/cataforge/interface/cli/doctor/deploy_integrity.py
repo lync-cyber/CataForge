@@ -110,6 +110,60 @@ def check_deploy_integrity(cfg) -> int:
     return failures
 
 
+def check_deploy_source_orphans(cfg) -> int:
+    """Warn when the deploy manifest owns a skill whose source was removed.
+
+    A skill recorded under ``<platform>/skills/<name>`` whose source
+    ``.cataforge/skills/<name>`` no longer exists is a ghost: the next
+    ``cataforge deploy`` prunes it (it is in the prior manifest and absent
+    from source). Always non-gating — this is a self-healing artefact, not a
+    failure — so it is wired into doctor with ``gating=False``.
+    """
+    from cataforge.runtime.deploy.manifest import load_prior_manifest
+
+    root = cfg.paths.root
+    owned = load_prior_manifest(root)
+    if not owned:
+        click.echo("  (no deploy manifest — skipping source-orphan scan)")
+        return 0
+
+    # The manifest records each deployed skill as ``<dir>/skills/<name>``
+    # (e.g. ``.claude/skills/code-review``). Matching the ``skills/<name>``
+    # tail keeps this platform-agnostic.
+    deployed: dict[str, str] = {}
+    for rel in owned:
+        parts = rel.split("/")
+        if len(parts) >= 2 and parts[-2] == "skills":
+            deployed[parts[-1]] = rel
+    if not deployed:
+        click.echo("  (no skills recorded in deploy manifest)")
+        return 0
+
+    try:
+        from cataforge.runtime.skill.loader import SkillLoader
+
+        valid_ids = {m.id for m in SkillLoader(project_root=root).discover()}
+    except Exception:
+        click.echo("  (skill loader unavailable — skipping source-orphan scan)")
+        return 0
+
+    ghosts = sorted(name for name in deployed if name not in valid_ids)
+    if not ghosts:
+        click.echo(f"  {len(deployed)} deployed skill(s) all have sources")
+        return 0
+
+    click.echo(
+        f"  {len(ghosts)} deployed skill(s) have no source "
+        "(next `cataforge deploy` self-heals):"
+    )
+    for name in ghosts:
+        click.echo(
+            f"    WARN {deployed[name]} — no source skill {name!r}; "
+            "re-run `cataforge deploy` to prune"
+        )
+    return 0
+
+
 def _link_target(p: Path) -> str:
     """Best-effort readlink for a symlink or junction; '?' if unreadable."""
     import os

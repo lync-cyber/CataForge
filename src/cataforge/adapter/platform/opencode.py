@@ -170,10 +170,11 @@ def _render_opencode_plugin(active_events: dict[str, list[dict[str, Any]]]) -> s
     """Render the TS plugin source.  Kept free-standing for testability."""
     import json as _json
 
-    # Build an event → list[{script, matcher_capability}] descriptor the TS
-    # side can iterate.  All business logic lives in Python; the TS plugin
-    # is a thin dispatcher.
-    descriptor: dict[str, list[dict[str, str]]] = {}
+    # Build an event → list[{script, matcher_capability, matcher_agent_id}]
+    # descriptor the TS side can iterate.  All business logic lives in Python;
+    # the TS plugin is a thin dispatcher that pre-filters on matcher_agent_id
+    # before spawning so a non-matching agent never pays the python startup.
+    descriptor: dict[str, list[dict[str, Any]]] = {}
     for plugin_event, entries in active_events.items():
         descriptor[plugin_event] = []
         for entry in entries:
@@ -185,6 +186,7 @@ def _render_opencode_plugin(active_events: dict[str, list[dict[str, Any]]]) -> s
                     "script": script,
                     "matcher_capability": str(entry.get("matcher_capability", "")),
                     "type": str(entry.get("type", "observe")),
+                    "matcher_agent_id": [str(a) for a in (entry.get("matcher_agent_id") or [])],
                 }
             )
 
@@ -223,9 +225,20 @@ def _render_opencode_plugin(active_events: dict[str, list[dict[str, Any]]]) -> s
         "  });\n"
         "}\n"
         "\n"
+        "function agentMatches(ids: readonly string[], payload: HookPayload): boolean {\n"
+        "  // Mirror Python matches_script_filters: an empty allowlist always\n"
+        "  // matches; otherwise the dispatched agent (subagent_type / agent)\n"
+        "  // must be on the list, else skip spawning entirely.\n"
+        "  if (ids.length === 0) return true;\n"
+        "  const ti = (payload.tool_input ?? {}) as Record<string, unknown>;\n"
+        "  const candidate = (ti.subagent_type ?? ti.agent ?? payload.agent ?? '') as string;\n"
+        "  return candidate !== '' && ids.includes(candidate);\n"
+        "}\n"
+        "\n"
         "async function dispatch(event: keyof typeof HOOKS, payload: HookPayload) {\n"
         "  const handlers = HOOKS[event] ?? [];\n"
         "  for (const h of handlers) {\n"
+        "    if (!agentMatches(h.matcher_agent_id, payload)) continue;\n"
         "    const code = await runPython(h.script, payload, h.type === 'block');\n"
         "    if (h.type === 'block' && code !== 0) {\n"
         "      // Only a clean exit 0 allows; any non-zero (explicit block 2,\n"

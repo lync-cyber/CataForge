@@ -223,6 +223,17 @@ class ConfigManager:
         self._write_raw(raw)
         self._cache = None
 
+    def set_context_strategy(self, strategy: str) -> None:
+        """Write ``context.strategy``, preserving every other field.
+
+        Same verbatim-read / single-key-patch / atomic-write discipline as
+        :meth:`set_runtime_platform`, so unrelated keys keep their order.
+        """
+        raw = self.load_raw()
+        raw.setdefault("context", {})["strategy"] = strategy
+        self._write_raw(raw)
+        self._cache = None
+
     def describe_platform_change(self, platform_id: str) -> dict[str, Any] | None:
         """Return a description of what ``set_runtime_platform`` would change.
 

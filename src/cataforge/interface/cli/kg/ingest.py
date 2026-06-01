@@ -76,7 +76,7 @@ def kg_import(
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
 
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
-    from cataforge.domain.kg._dispatch import active_doc_types
+    from cataforge.domain.kg._dispatch import active_doc_types, kg_enabled
     from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, run_migration
 
     config = KGConfig(
@@ -91,6 +91,12 @@ def kg_import(
     # Fall back to the built-in business set when none are declared.
     if doc_types:
         types: tuple[str, ...] = doc_types
+    elif not kg_enabled(project_root):
+        click.echo(
+            "doc-only strategy (context.strategy): KG disabled — nothing to import. "
+            "Pass --doc-type to override."
+        )
+        return
     else:
         active = active_doc_types(project_root)
         types = tuple(sorted(active)) if active else tuple(DEFAULT_DOC_TYPES)
@@ -330,12 +336,19 @@ def kg_reconcile(
     drift after every `cataforge kg import`.
     """
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
-    from cataforge.domain.kg._dispatch import kg_config_for
+    from cataforge.domain.kg._dispatch import kg_config_for, kg_enabled
     from cataforge.domain.kg.reconcile import reconcile, write_report
 
     project_root = root_relative_default(ctx, "project_root", project_root)
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
     project_root = project_root.resolve()
+
+    if not doc_types and not kg_enabled(project_root):
+        click.echo(
+            "doc-only strategy (context.strategy): KG disabled — nothing to reconcile."
+        )
+        return
+
     base_config = kg_config_for(project_root)
 
     active = set(doc_types) if doc_types else set(base_config.kg_active_doc_types)

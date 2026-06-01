@@ -154,6 +154,13 @@ jobs:
         # agent × skill coverage gaps.
         run: cataforge skill run framework-review -- all
 
+      - name: "platform-audit offline (profile conformance + consistency + schema)"
+        # Static no-network subset of platform-audit. FAIL-level findings
+        # (unloadable profile, missing required capability, schema-required key
+        # absent) block; the accepted-degradation consistency WARNs print but
+        # do not fail. version_tested staleness is the weekly anti-rot guard.
+        run: cataforge skill run platform-audit -- --offline
+
   unit:
     name: Unit (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}

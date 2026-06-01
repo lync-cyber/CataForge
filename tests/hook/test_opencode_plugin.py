@@ -8,11 +8,15 @@ same Python scripts every other platform uses.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from cataforge.adapter.platform.opencode import OpenCodeAdapter, _render_opencode_plugin
+
+_NODE = shutil.which("node")
 
 
 @pytest.fixture()
@@ -78,6 +82,55 @@ def test_block_hook_fails_closed_on_spawn_error() -> None:
     assert "resolve(code ?? failCode)" in ts
     # Block dispatch refuses on any non-clean exit, not only the explicit 2.
     assert "h.type === 'block' && code !== 0" in ts
+
+
+def test_descriptor_carries_matcher_agent_id() -> None:
+    """The TS descriptor carries matcher_agent_id so the dispatcher can
+    pre-filter on the dispatched agent before paying the python startup."""
+    ts = _render_opencode_plugin(
+        {
+            "tool.execute.after": [
+                {
+                    "script": "detect_review_flag",
+                    "matcher_capability": "agent_dispatch",
+                    "type": "observe",
+                    "matcher_agent_id": ["reviewer"],
+                }
+            ],
+        }
+    )
+    assert '"matcher_agent_id"' in ts
+    assert '"reviewer"' in ts
+    # Pre-filter helper present and wired into the dispatch loop.
+    assert "function agentMatches" in ts
+    assert "if (!agentMatches(h.matcher_agent_id, payload)) continue;" in ts
+    # Mirror of Python's candidate extraction order.
+    assert "ti.subagent_type ?? ti.agent ?? payload.agent" in ts
+
+
+@pytest.mark.skipif(_NODE is None, reason="node not available")
+def test_real_plugin_passes_node_check(tmp_path: Path) -> None:
+    """Deploy the real OpenCode plugin and assert node can parse it — the
+    artifact behaviour-level check for the TS surface."""
+    from cataforge.adapter.platform.registry import clear_cache, get_adapter
+
+    clear_cache()
+    adapter = get_adapter("opencode")
+    adapter.emit_plugin_hooks(tmp_path, dry_run=False)
+    plugin = tmp_path / ".opencode" / "plugins" / "cataforge-hooks.ts"
+    assert plugin.is_file()
+
+    assert _NODE is not None
+    result = subprocess.run(
+        [_NODE, "--check", str(plugin)], capture_output=True, text=True, timeout=60
+    )
+    assert result.returncode == 0, result.stderr
+
+    body = plugin.read_text(encoding="utf-8")
+    # detect_review_flag's matcher_agent_id allowlist reaches the real artifact.
+    assert "matcher_agent_id" in body
+    assert "reviewer" in body
+    assert "function agentMatches" in body
 
 
 def test_emit_plugin_hooks_writes_file(

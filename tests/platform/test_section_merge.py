@@ -241,6 +241,68 @@ class TestNestedFieldPreservation:
         assert "{策略}" not in out
 
 
+class TestForeignCuratedFile:
+    """A hand-curated instruction file with zero schema/runtime overlap must
+    keep its content and only gain framework sections — never template
+    boilerplate injection."""
+
+    _POLICY = {
+        "framework": ["文档导航", "框架机制"],
+        "schema": ["项目信息", "全局约定"],
+        "runtime": ["项目状态", "执行环境"],
+        "user_extensible": True,
+    }
+    _TPL = (
+        "# CataForge\n\n"
+        "## 项目信息\n- 技术栈: {框架/语言/工具}\n\n"
+        "## 项目状态\n- 当前阶段: {x}\n\n"
+        "## 文档导航\n- 导航索引: docs/.doc-index.json\n\n"
+        "## 框架机制\n- Agent编排: orchestrator\n"
+    )
+    _CURATED = (
+        "# My Project\n\n"
+        "## Git Workflow\nmain protected; PRs only\n\n"
+        "## House Rules\nrun tests before commit\n"
+    )
+
+    def test_preserves_curated_content_and_appends_framework(self) -> None:
+        out = merge_sections(self._CURATED, self._TPL, policy=self._POLICY)
+        # User sections survive verbatim.
+        assert _has_section(out, "Git Workflow")
+        assert "main protected" in out
+        assert _has_section(out, "House Rules")
+        # Framework sections are attached.
+        assert _has_section(out, "文档导航")
+        assert "导航索引: docs/.doc-index.json" in out
+        assert _has_section(out, "框架机制")
+        # Schema/runtime scaffolding is NOT injected.
+        assert not _has_section(out, "项目信息")
+        assert not _has_section(out, "项目状态")
+
+    def test_is_idempotent(self) -> None:
+        once = merge_sections(self._CURATED, self._TPL, policy=self._POLICY)
+        twice = merge_sections(once, self._TPL, policy=self._POLICY)
+        assert once == twice
+
+    def test_template_derived_file_is_not_foreign(self) -> None:
+        """A file carrying even one schema section uses the normal merge path."""
+        cur = "## 项目信息\n- 技术栈: Python\n\n## My Extension\ncustom\n"
+        out = merge_sections(cur, self._TPL, policy=self._POLICY)
+        assert "技术栈: Python" in out  # schema field preserved (normal path)
+        assert _has_section(out, "项目状态")  # runtime scaffolding injected (normal path)
+        assert _has_section(out, "My Extension")
+
+    def test_framework_only_policy_keeps_normal_path(self) -> None:
+        """No schema/runtime declared → foreign detection is inert."""
+        cur = "## A\nuser-a\n## Extra\nuser-extra\n"
+        tpl = "## A\nnew-a\n"
+        out = merge_sections(
+            cur, tpl, policy={"framework": ["A"], "user_extensible": True}
+        )
+        assert "new-a" in out
+        assert _has_section(out, "Extra")
+
+
 class TestAGENTSMultiPlatform:
     """Item 3: cursor → codex sequential deploys to AGENTS.md should not lose
     the current platform's runtime identifier."""

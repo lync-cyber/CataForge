@@ -430,7 +430,13 @@ class Deployer:
         else:
             existing = {}
 
-        existing["hooks"] = hooks_config
+        from cataforge.adapter.platform.helpers import merge_hooks_config
+
+        template = adapter.get_hook_command_template()
+        owned_prefixes = (template.split("{module}")[0], "python .cataforge/hooks/custom/")
+        existing["hooks"] = merge_hooks_config(
+            existing.get("hooks", {}), hooks_config, owned_prefixes
+        )
         config_path.write_text(
             json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",

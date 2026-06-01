@@ -21,6 +21,7 @@ _BUILTIN_ID_MAP = {
     "framework_feedback": "framework-feedback",
     "sprint_review": "sprint-review",
     "task_dep_analysis": "task-dep-analysis",
+    "platform_audit": "platform-audit",
 }
 
 # Built-in skills whose runs are recorded in docs/EVENT-LOG.jsonl. Driven

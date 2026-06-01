@@ -13,6 +13,11 @@ section, classified per the target's ``section_policy``:
 - _unlisted_ — if the current file has a section the template does not,
   it is preserved verbatim (user extension) when ``user_extensible`` is true.
 
+A *foreign* current file — one sharing none of the template's schema/runtime
+sections (a hand-curated instruction file authored from scratch) — is never
+injected with template scaffolding: its sections are preserved verbatim and
+only the ``framework`` sections are (re)attached at the end.
+
 ``section_policy`` structure on a deploy target::
 
     section_policy:
@@ -68,6 +73,31 @@ def merge_sections(
     # won't receive future preamble-level framework updates automatically;
     # they must re-run deploy on a fresh preamble or reconcile by hand.
     result_preamble = _merge_preamble(cur_preamble, tpl_preamble)
+
+    # A hand-curated instruction file (e.g. a downstream CLAUDE.md authored
+    # from scratch) shares none of the template's schema/runtime sections.
+    # Injecting that scaffolding would bury the user's content under template
+    # boilerplate, so preserve their sections verbatim and only (re)attach the
+    # framework-owned sections at the end. Gating on schema∪runtime — not all
+    # sections — keeps the decision stable across deploys: appending framework
+    # sections never makes a foreign file look template-derived. Skipped when
+    # the policy declares no schema/runtime scaffolding (nothing to be foreign to).
+    managed_non_framework = {_strip_section_annotations(t) for t in (schema | runtime)}
+    cur_stripped = {_strip_section_annotations(t) for t in cur_sections}
+    if (
+        managed_non_framework
+        and cur_sections
+        and cur_stripped.isdisjoint(managed_non_framework)
+    ):
+        foreign: OrderedDict[str, str] = OrderedDict()
+        for title, body in cur_sections.items():
+            if _classify(title, framework, schema, runtime) != "framework":
+                foreign[title] = body
+        for title, tpl_body in tpl_sections.items():
+            if _classify(title, framework, schema, runtime) == "framework":
+                foreign[title] = tpl_body
+        return _serialize(result_preamble, foreign)
+
     result: OrderedDict[str, str] = OrderedDict()
 
     # 1) Walk the template in its declared order so the framework can reorder.

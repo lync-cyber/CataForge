@@ -20,6 +20,18 @@ def read_framework_data(root: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def is_editable_tree(root: Path) -> bool:
+    """True iff *root* is a CataForge source checkout (editable install).
+
+    The proxy is ``src/cataforge/`` existing as a package dir — present in
+    the dogfood / editable tree, absent in a downstream site-packages
+    install. Gates checks that only make sense against framework source
+    (e.g. a migration check's ``src/`` path must resolve here but legitimately
+    does not downstream).
+    """
+    return (root / "src" / "cataforge").is_dir()
+
+
 # (constant_name, regex_template, hint_template) — ``__V__`` is replaced with
 # the live framework.json value so B4 flags whatever number the constant
 # currently holds instead of a hardcoded copy that silently goes stale.
