@@ -31,6 +31,14 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 - outputs: 测试文件路径列表(逗号+空格分隔)
 - summary: "N FAILED, M PASSED (其中X个为pre-existing)。失败分类: {K个未实现, J个返回值不符}。{执行摘要}"
 
+## Mid-Progress 落盘契约
+批量 RED（多 AC / 多任务块）易在末尾集中落盘测试时被 task-notification truncation 打断（征兆：大量 tool-use / token 后 `<agent-result>` 未返回但测试未落盘）。命中长产出时强制：
+
+1. 先 `Write` 全部目标测试文件的空骨架（import + 测试块占位）
+2. 逐 AC 填充测试用例
+3. 每完成一条 AC 的测试立即运行确认 FAIL 状态
+4. **禁止**末尾一次 `Edit` 堆全部测试 + 断言 —— 停滞时已落盘的骨架与部分用例即 mid-progress checkpoint
+
 ## Execution Rules
 - 每个 AC 对应至少一个测试用例
 - 所有测试必须运行并确认 FAIL 状态
