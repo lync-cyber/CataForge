@@ -122,9 +122,9 @@ class CursorAdapter(PlatformAdapter):
             if dry_run:
                 actions.append(f"would deploy rules/{md_file.name} → .cursor/rules/{mdc_name}")
                 continue
-            content = md_file.read_text(encoding="utf-8")
+            content = md_file.read_text()
             mdc_content = _wrap_as_mdc(md_file.stem, content)
-            (output_dir / mdc_name).write_text(mdc_content, encoding="utf-8")
+            (output_dir / mdc_name).write_text(mdc_content)
             if manifest is not None:
                 manifest.record(mdc_rel)
             actions.append(f"rules/{md_file.name} → .cursor/rules/{mdc_name}")

@@ -125,7 +125,7 @@ def report_hook_errors(cfg) -> None:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     recent: list[dict] = []
     try:
-        with open(log_path, encoding="utf-8") as f:
+        with open(log_path) as f:
             for raw in f:
                 raw = raw.strip()
                 if not raw:

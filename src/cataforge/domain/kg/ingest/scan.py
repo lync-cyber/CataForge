@@ -153,7 +153,7 @@ def scan_business_docs(
         if not directory.is_dir():
             continue
         for path in sorted(directory.glob("*.md")):
-            raw = path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+            raw = path.read_text().replace("\r\n", "\n").replace("\r", "\n")
             frontmatter, body = parse_frontmatter(raw)
             if _PARSE_ERROR_KEY in frontmatter:
                 warnings.warn(

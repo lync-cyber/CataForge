@@ -196,7 +196,7 @@ def append_event(project_root: Path, record: Mapping[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     line = json.dumps(record, ensure_ascii=False, sort_keys=False)
-    with open(path, "a", encoding="utf-8", newline="\n") as f:
+    with open(path, "a", newline="\n") as f:
         f.write(line + "\n")
     return path
 

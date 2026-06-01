@@ -230,7 +230,7 @@ def pull_all_images_from_compose_file(
 
     images: list[str] = []
     try:
-        with open(compose_file, encoding="utf-8") as f:
+        with open(compose_file) as f:
             for line in f:
                 stripped = line.strip()
                 if stripped.startswith("image:"):

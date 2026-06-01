@@ -85,7 +85,7 @@ def build_document_entry(
     file_path: str, rel_path: str
 ) -> tuple[str | None, dict[str, Any] | None]:
     try:
-        with open(file_path, encoding="utf-8") as f:
+        with open(file_path) as f:
             content = f.read()
     except OSError:
         return None, None
@@ -329,6 +329,6 @@ def write_index(index: dict[str, Any], project_root: str) -> str:
     docs_dir = os.path.join(project_root, "docs")
     os.makedirs(docs_dir, exist_ok=True)
     out_path = os.path.join(docs_dir, INDEX_FILENAME)
-    with open(out_path, "w", encoding="utf-8") as f:
+    with open(out_path, "w") as f:
         json.dump(index, f, ensure_ascii=False, indent=2)
     return out_path

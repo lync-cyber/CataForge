@@ -165,13 +165,13 @@ def collect_plans(project_root: Path) -> list[Plan]:
 
 def apply_plan(plan: Plan, *, dry_run: bool) -> str:
     """Apply a single plan. Returns one of: ``written`` / ``skipped`` / ``would-write``."""
-    text = plan.path.read_text(encoding="utf-8")
+    text = plan.path.read_text()
     if _has_front_matter(text):
         return "skipped"
     if dry_run:
         return "would-write"
     new_text = _format_front_matter(plan) + text
-    plan.path.write_text(new_text, encoding="utf-8")
+    plan.path.write_text(new_text)
     return "written"
 
 

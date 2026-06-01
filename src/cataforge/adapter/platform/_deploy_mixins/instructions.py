@@ -48,7 +48,7 @@ class InstructionDeployMixin:
 
         from cataforge.core.template import render_project_state, render_runtime_content
 
-        content = project_state_path.read_text(encoding="utf-8")
+        content = project_state_path.read_text()
         content = render_project_state(content, platform_id)
         # Apply runtime placeholders ({INSTRUCTION_FILE}, {RULES_DIR}, …) so
         # the user's CLAUDE.md / AGENTS.md ships with platform-native paths
@@ -119,7 +119,7 @@ class InstructionDeployMixin:
             new_content = content
             if update_strategy == "section-merge" and dst.exists():
                 section_policy = target.get("section_policy", {}) or {}
-                current_text = dst.read_text(encoding="utf-8")
+                current_text = dst.read_text()
                 new_content = merge_sections(
                     current_text,
                     content,
@@ -136,7 +136,7 @@ class InstructionDeployMixin:
                 continue
 
             dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_text(new_content, encoding="utf-8")
+            dst.write_text(new_content)
             # Hash what's actually on disk — avoids Windows CRLF translation
             # making cur_hash on subsequent deploys diverge from the stored
             # hash even when the user has not edited the file.

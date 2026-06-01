@@ -28,7 +28,7 @@ pytest -q
 
 ### pre-commit 钩子（强烈推荐装）
 
-`.pre-commit-config.yaml` 内置 ruff、`ensure_utf8_stdio()` guard、JSON Schema↔Python 镜像对账、workflow YAML 解析、营销词 / 设计残留扫描等 6 个本地钩子。装一次：
+`.pre-commit-config.yaml` 内置 ruff、`ensure_utf8()` guard、JSON Schema↔Python 镜像对账、workflow YAML 解析、营销词 / 设计残留扫描等 6 个本地钩子。装一次：
 
 ```bash
 pre-commit install        # pre-commit 已在 [dev] 依赖里，无需单独 pip install

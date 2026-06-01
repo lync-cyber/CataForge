@@ -240,7 +240,7 @@ class QueryAPI:
         path = Path(src)
         if not path.exists():
             return None
-        return slice_section(path.read_text(encoding="utf-8"), anchor_lit)
+        return slice_section(path.read_text(), anchor_lit)
 
     # ------------------------------------------------------------------
     # plan_load — token-budget-aware load ordering

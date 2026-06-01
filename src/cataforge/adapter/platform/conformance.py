@@ -183,7 +183,7 @@ def _load_hook_degradation_strategies(platforms_dir: Path | None) -> dict[str, s
     if not hooks_yaml.is_file():
         return None
     try:
-        data = yaml.safe_load(hooks_yaml.read_text(encoding="utf-8")) or {}
+        data = yaml.safe_load(hooks_yaml.read_text()) or {}
     except (OSError, yaml.YAMLError):
         return None
     templates = data.get("degradation_templates", {})

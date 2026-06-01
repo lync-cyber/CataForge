@@ -105,7 +105,7 @@ def _check_reachability_and_syntax(
             )
             continue
         try:
-            ast.parse(py_path.read_text(encoding="utf-8"))
+            ast.parse(py_path.read_text())
         except (OSError, SyntaxError) as e:
             report.add(
                 "B6_hook_script_syntax",

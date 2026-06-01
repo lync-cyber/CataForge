@@ -96,7 +96,7 @@ def check_protocol_script_references(cfg) -> int:
             if any(is_relative_to(path, sub) for sub in skip_subtrees):
                 continue
             try:
-                text = path.read_text(encoding="utf-8")
+                text = path.read_text()
             except OSError:
                 continue
             for lineno, line in enumerate(text.splitlines(), start=1):
@@ -175,7 +175,7 @@ def check_deprecated_references(cfg) -> int:
             if any(is_relative_to(path, sub) for sub in skip_subtrees):
                 continue
             try:
-                text = path.read_text(encoding="utf-8")
+                text = path.read_text()
             except OSError:
                 continue
             for lineno, line in enumerate(text.splitlines(), start=1):

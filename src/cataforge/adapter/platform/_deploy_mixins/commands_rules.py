@@ -71,8 +71,8 @@ class CommandRulesDeployMixin:
                     f"would deploy commands/{md_file.name} → {target_rel}/{md_file.name}"
                 )
                 continue
-            rendered = render_runtime_content(md_file.read_text(encoding="utf-8"), self)
-            dst.write_text(rendered, encoding="utf-8")
+            rendered = render_runtime_content(md_file.read_text(), self)
+            dst.write_text(rendered)
             if manifest is not None:
                 manifest.record(cmd_rel)
             actions.append(f"commands/{md_file.name} → {target_rel}")
@@ -150,7 +150,7 @@ class CommandRulesDeployMixin:
 
         actions: list[str] = []
         for md_file in sorted(overrides_dir.glob("*.md")):
-            content = md_file.read_text(encoding="utf-8")
+            content = md_file.read_text()
             wrapped = self._wrap_rule_for_platform(md_file.stem, content)
             if wrapped is None:
                 actions.append(
@@ -164,7 +164,7 @@ class CommandRulesDeployMixin:
                 actions.append(f"would deploy overrides/rules/{md_file.name} → {target_rel}")
                 continue
             target_path.parent.mkdir(parents=True, exist_ok=True)
-            target_path.write_text(body, encoding="utf-8")
+            target_path.write_text(body)
             if manifest is not None:
                 manifest.record(target_rel)
             actions.append(f"overrides/rules/{md_file.name} → {target_rel}")

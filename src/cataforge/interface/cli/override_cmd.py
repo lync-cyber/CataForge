@@ -107,11 +107,11 @@ def override_eject(
     if dest.exists() and not force:
         raise click.UsageError(f"{dest.relative_to(paths.root)} exists; pass --force to overwrite")
 
-    base_text = base_file.read_text(encoding="utf-8")
+    base_text = base_file.read_text()
     content = _patch_stub(base_text, section) if patch else base_text
 
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest.write_text(content, encoding="utf-8")
+    dest.write_text(content)
     ui.ok(f"ejected → {dest.relative_to(paths.root)}")
     ui.info("edit it, then `cataforge deploy` to apply.")
 

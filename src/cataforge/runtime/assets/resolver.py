@@ -88,7 +88,7 @@ def _materialize(src_dirs: list[Path], dest: Path) -> None:
                     )
                     continue
                 base_text = files[base_rel].decode("utf-8")
-                patched = apply_section_patch(base_text, src.read_text(encoding="utf-8"))
+                patched = apply_section_patch(base_text, src.read_text())
                 files[base_rel] = patched.encode("utf-8")
             else:
                 files[rel] = src.read_bytes()

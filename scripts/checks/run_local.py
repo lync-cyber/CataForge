@@ -84,6 +84,16 @@ CHECKS: list[tuple[str, list[str]]] = [
             str(REPO_ROOT / "scripts" / "checks" / "check_echo_err_for_errors.py"),
         ],
     ),
+    # Enforced: file I/O under src/cataforge/ relies on the process-wide
+    # UTF-8 Mode contract; no redundant `encoding="utf-8"` on open / read_text
+    # / write_text outside the boundary layer.
+    (
+        "no redundant encoding on file I/O",
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "checks" / "check_no_redundant_encoding.py"),
+        ],
+    ),
     # `uv lock --check` is not in .pre-commit-config.yaml (it needs the uv
     # binary, which is not pip-installable), but CI runs it and a stale
     # lockfile fails the build. Keep it in this wrapper to close the loop.

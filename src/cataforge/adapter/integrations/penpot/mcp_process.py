@@ -41,14 +41,14 @@ def _read_mcp_pid() -> int | None:
     if not os.path.isfile(MCP_PID_FILE):
         return None
     try:
-        with open(MCP_PID_FILE, encoding="utf-8") as f:
+        with open(MCP_PID_FILE) as f:
             return int(f.read().strip())
     except (ValueError, OSError):
         return None
 
 
 def _write_mcp_pid(pid: int) -> None:
-    with open(MCP_PID_FILE, "w", encoding="utf-8") as f:
+    with open(MCP_PID_FILE, "w") as f:
         f.write(str(pid))
 
 
@@ -158,7 +158,7 @@ def _report_mcp_failure(exit_code: int | None) -> None:
 
 def _tail_log(path: str, *, lines: int = 20) -> list[str]:
     try:
-        with open(path, encoding="utf-8", errors="replace") as f:
+        with open(path, errors="replace") as f:
             buf = f.readlines()
     except OSError:
         return []

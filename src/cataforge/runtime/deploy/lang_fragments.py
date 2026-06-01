@@ -58,12 +58,12 @@ def inject_into_staged_agents(
         agent_md = agent_dir / "AGENT.md"
         if not agent_md.is_file():
             continue
-        content = agent_md.read_text(encoding="utf-8")
+        content = agent_md.read_text()
         fm, _ = split_yaml_frontmatter(content)
         if not (fm and fm.get("lang_aware")):
             continue
         new = inject_lang_fragments(content, agent_dir.name, langs, paths)
         if new != content:
-            agent_md.write_text(new, encoding="utf-8")
+            agent_md.write_text(new)
             injected.append(agent_dir.name)
     return injected

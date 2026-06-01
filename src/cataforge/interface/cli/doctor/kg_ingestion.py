@@ -108,7 +108,7 @@ def _scan_fs_entity_ids(
             continue
         for path in directory.glob("*.md"):
             try:
-                content = path.read_text(encoding="utf-8")
+                content = path.read_text()
             except OSError:
                 continue
             found.update(_scan_markdown_entity_ids(content))

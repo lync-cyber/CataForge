@@ -94,7 +94,7 @@ def _read_cursor_mirror_flag(profile_path: Path) -> bool:
     try:
         import yaml as _yaml
 
-        data = _yaml.safe_load(profile_path.read_text(encoding="utf-8")) or {}
+        data = _yaml.safe_load(profile_path.read_text()) or {}
     except Exception:
         return False
     if not isinstance(data, dict):

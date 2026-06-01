@@ -51,7 +51,7 @@
 | Git | 近期版本（CataForge 依赖 git 元信息） |
 | 可选工具 | `ruff`、`docker`、`npx` — `doctor` 会检测但不强制 |
 
-> CLI 启动时已自动切换 stdout/stderr 到 UTF-8（`cataforge.utils.common.ensure_utf8_stdio`）。多数情形下无需手动设置 `PYTHONUTF8=1` 或 `chcp 65001`；若仍在 legacy 代码页（cp936/cp1252）下出现 `UnicodeEncodeError`，参照 [`../getting-started/troubleshooting.md`](../getting-started/troubleshooting.md) §CLI 乱码。
+> CLI 启动时已自动切换 stdout/stderr 到 UTF-8（`cataforge.utils.common.ensure_utf8`）。多数情形下无需手动设置 `PYTHONUTF8=1` 或 `chcp 65001`；若仍在 legacy 代码页（cp936/cp1252）下出现 `UnicodeEncodeError`，参照 [`../getting-started/troubleshooting.md`](../getting-started/troubleshooting.md) §CLI 乱码。
 
 ### 安装 CataForge
 

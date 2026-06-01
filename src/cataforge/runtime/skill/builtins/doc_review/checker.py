@@ -25,7 +25,7 @@ from .typed_checks import TypedDocChecksMixin
 
 
 def read_file(path: str) -> str:
-    return Path(path).read_text(encoding="utf-8")
+    return Path(path).read_text()
 
 
 class DocChecker(TypedDocChecksMixin):
@@ -280,7 +280,7 @@ class DocChecker(TypedDocChecksMixin):
         upstream_items: set[str] = set()
         for up_file in docs_path.glob(f"**/{upstream_type}*.md"):
             try:
-                up_content = up_file.read_text(encoding="utf-8")
+                up_content = up_file.read_text()
             except OSError:
                 continue
             for m in re.finditer(rf"^### ({upstream_prefix}-\d+)", up_content, re.MULTILINE):

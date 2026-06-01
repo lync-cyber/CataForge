@@ -74,7 +74,6 @@ def create_snapshot(
     meta_path = nq_path.with_suffix(".meta.json")
     meta_path.write_text(
         json.dumps(meta.to_dict(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
     )
 
     return meta

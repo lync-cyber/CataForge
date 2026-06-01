@@ -137,7 +137,7 @@ class AgentDeployMixin:
 
         actions: list[str] = []
         agent_dst.mkdir(exist_ok=True)
-        content = (agent_src_dir / "AGENT.md").read_text(encoding="utf-8")
+        content = (agent_src_dir / "AGENT.md").read_text()
         translated = translate_agent_md(
             content,
             self,
@@ -145,7 +145,7 @@ class AgentDeployMixin:
             warnings_collector=warnings_collector,
         )
         rendered = render_runtime_content(translated, self)
-        (agent_dst / "AGENT.md").write_text(rendered, encoding="utf-8")
+        (agent_dst / "AGENT.md").write_text(rendered)
         if manifest is not None:
             manifest.record(f"{target_rel}/{agent_name}/AGENT.md")
         actions.append(f"agents/{agent_name}/AGENT.md → {target_rel}")
@@ -160,8 +160,8 @@ class AgentDeployMixin:
                 continue
             if sibling.name == "AGENT.md":
                 continue
-            sib_rendered = render_runtime_content(sibling.read_text(encoding="utf-8"), self)
-            (agent_dst / sibling.name).write_text(sib_rendered, encoding="utf-8")
+            sib_rendered = render_runtime_content(sibling.read_text(), self)
+            (agent_dst / sibling.name).write_text(sib_rendered)
             written_siblings.add(sibling.name)
             if manifest is not None:
                 manifest.record(f"{target_rel}/{agent_name}/{sibling.name}")
@@ -297,7 +297,7 @@ class AgentDeployMixin:
                 actions.append(f"would deploy agent {agent_name:<24} → {target_rel_full}")
                 continue
 
-            content = agent_md.read_text(encoding="utf-8")
+            content = agent_md.read_text()
             translated = translate_agent_md(
                 content,
                 self,
@@ -309,7 +309,7 @@ class AgentDeployMixin:
             # afterwards would have to re-parse the TOML to find the body.
             rendered = render_runtime_content(translated, self)
             final = formatter(agent_name, rendered)
-            target_file.write_text(final, encoding="utf-8")
+            target_file.write_text(final)
             if manifest is not None:
                 manifest.record(target_rel_full)
             actions.append(f"agents/{agent_name}/AGENT.md → {target_rel_full}")

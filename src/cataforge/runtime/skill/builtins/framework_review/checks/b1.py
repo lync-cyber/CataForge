@@ -39,7 +39,7 @@ def check_b1_required_sections(
 
     for label, path, required in targets:
         try:
-            text = path.read_text(encoding="utf-8")
+            text = path.read_text()
         except OSError as exc:
             report.add("B1_required_sections", "FAIL", label, f"cannot read: {exc}")
             continue
@@ -82,7 +82,7 @@ def check_b1_size(
 
     for label, path in targets:
         try:
-            line_count = sum(1 for _ in path.open(encoding="utf-8"))
+            line_count = sum(1 for _ in path.open())
         except OSError:
             continue
         if line_count > threshold:

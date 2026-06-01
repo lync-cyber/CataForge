@@ -66,7 +66,7 @@ def load_profile(platform_id: str, platforms_dir: Path | None = None) -> dict[st
     try:
         import yaml
 
-        with open(profile_path, encoding="utf-8") as f:
+        with open(profile_path) as f:
             return dict(yaml.safe_load(f) or {})
     except ImportError:
         json_path = profile_path.with_suffix(".json")

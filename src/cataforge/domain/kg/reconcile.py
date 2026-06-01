@@ -282,7 +282,6 @@ def write_report(report: ReconcileReport, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
     )
 
 
