@@ -109,3 +109,33 @@ def test_theme_volume_detected_from_filename(tmp_path: Path) -> None:
         "ui-spec", str(doc), docs_dir=str(tmp_path), quiet=True,
     )
     assert checker.volume_type == "theme"
+
+
+def test_deploy_spec_requires_local_stack_evidence_section(tmp_path: Path) -> None:
+    """deploy-spec 模板把'本地最小栈验证证据'列为必填章节；
+    Layer 1 对缺该段的 deploy-spec 文档判 fail。"""
+    body = (
+        "---\n"
+        "id: deploy-spec-x\n"
+        "doc_type: deploy-spec\n"
+        "author: devops\n"
+        "status: draft\n"
+        "deps: []\n"
+        "consumers: []\n"
+        "---\n"
+        "# Deployment Spec\n\n[NAV]\n[/NAV]\n\n"
+        "## 1. 构建流程\n内容\n\n"
+        "## 2. 环境配置\n内容\n\n"
+        "## 3. CI/CD流水线\n内容\n\n"
+        "## 4. 发布检查清单\n内容\n"
+    )
+    doc = _write(tmp_path / "deploy-spec-x.md", body)
+    checker = DocChecker(
+        "deploy-spec", str(doc), docs_dir=str(tmp_path), quiet=True,
+    )
+    # 默认 volume_type='main' 命中注册模板，required_sections 含证据段
+    assert checker.volume_type == "main"
+    checker.check_required_sections()
+    assert any(
+        "本地最小栈验证证据" in e for e in checker.errors
+    ), checker.errors

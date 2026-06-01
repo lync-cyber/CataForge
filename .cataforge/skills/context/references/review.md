@@ -12,7 +12,7 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{doc_file} --docs-d
 **Layer 2 短路**: Layer 1 exit 0、行数 < `DOC_REVIEW_L2_SKIP_THRESHOLD_LINES`、且 `doc_type ∈ DOC_REVIEW_L2_SKIP_DOC_TYPES` → 跳过 Layer 2 判 `approved`(仍出报告并标注短路)。
 
 ## Layer 2 — AI 语义审查
-经 navigate 按需加载被审文档与上游依赖,按维度审查: 完整性 / 一致性 / 可行性 / 安全性 / 规范性 / 清晰度;dev-plan 追加 AC 可观测性,ui-spec 追加设计方向/色彩/组件可区分性/空间构成/无障碍。可传 `--focus <category[,...]>` 收敛维度。
+经 navigate 按需加载被审文档与上游依赖,按维度审查: 完整性 / 一致性 / 可行性 / 安全性 / 规范性 / 清晰度;dev-plan 追加 AC 可观测性,ui-spec 追加设计方向/色彩/组件可区分性/空间构成/无障碍,deploy-spec 追加本地最小栈验证证据真实性（§5 须为真实 bring-up 日志而非占位）。可传 `--focus <category[,...]>` 收敛维度。
 
 ## 报告
 产出 `docs/reviews/doc/REVIEW-{doc_id}-r{N}.md`,首行 YAML front matter(id/doc_type=review/author/status/deps),问题列表含严重等级 CRITICAL/HIGH/MEDIUM/LOW;结论 approved / approved_with_notes / needs_revision。Layer 1 权威检查清单见 doc-review 的 `CHECKS_MANIFEST`。
