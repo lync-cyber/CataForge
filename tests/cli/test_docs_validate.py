@@ -100,6 +100,45 @@ def test_doctor_silent_when_docs_dir_empty(tmp_path: Path, monkeypatch) -> None:
     assert "WARN" not in result.output
 
 
+def test_docignore_excludes_orphan_from_failure(tmp_path: Path, monkeypatch) -> None:
+    root = _minimal_project(tmp_path)
+    _write_doc(root, "docs/prd/good.md", "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n")
+    indexer.main(["--project-root", str(root)])
+    _write_doc(root, "docs/guide/published.md", "# No front matter\n")
+    _write_doc(root, "docs/.docignore", "guide/\n")
+
+    monkeypatch.chdir(root)
+    result = invoke_under_group(docs_validate, [])
+    assert result.exit_code == 0
+    assert "1 doc(s) excluded by docs/.docignore" in result.output
+
+
+def test_docignore_does_not_hide_unlisted_orphan(tmp_path: Path, monkeypatch) -> None:
+    root = _minimal_project(tmp_path)
+    _write_doc(root, "docs/prd/good.md", "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n")
+    indexer.main(["--project-root", str(root)])
+    _write_doc(root, "docs/guide/published.md", "# excluded\n")
+    _write_doc(root, "docs/research/real-orphan.md", "# still an orphan\n")
+    _write_doc(root, "docs/.docignore", "guide/\n")
+
+    monkeypatch.chdir(root)
+    result = invoke_under_group(docs_validate, [])
+    assert result.exit_code == 3
+    assert "research/real-orphan.md" in result.output
+    assert "guide/published.md" not in result.output
+
+
+def test_docignore_split_in_validate_result(tmp_path: Path) -> None:
+    root = _minimal_project(tmp_path)
+    _write_doc(root, "docs/reference/api.md", "# published\n")
+    _write_doc(root, "docs/research/orphan.md", "# real orphan\n")
+    _write_doc(root, "docs/.docignore", "# comment\n\nreference/\n")
+
+    result = indexer.validate_docs(str(root))
+    assert result["orphans"] == ["docs/research/orphan.md"]
+    assert result["ignored"] == ["docs/reference/api.md"]
+
+
 def test_doctor_reports_stale_index_entries(tmp_path: Path, monkeypatch) -> None:
     root = _minimal_project(tmp_path)
     good = _write_doc(root, "docs/prd/good.md", "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n")

@@ -157,11 +157,15 @@ def docs_validate(project_root: str | None) -> None:
 
     result = validate_docs(root)
     orphans = result["orphans"]
+    ignored = result.get("ignored", [])
     stale = result["stale"]
     xref_errors = result["xref_errors"]
     alias_conflicts = result["alias_conflicts"]
     invalid_ids = result.get("invalid_ids", [])
     stale_deps = result.get("stale_deps", [])
+
+    if ignored:
+        click.echo(f"{len(ignored)} doc(s) excluded by docs/.docignore")
 
     if not orphans and not stale and not xref_errors and not alias_conflicts and not invalid_ids:
         summary = (

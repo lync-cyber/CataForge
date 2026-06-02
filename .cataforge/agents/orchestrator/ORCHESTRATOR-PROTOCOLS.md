@@ -5,6 +5,8 @@
 > 元运维与学习协议（低频触发、reference 性质）见 [`ORCHESTRATOR-META-PROTOCOLS.md`](ORCHESTRATOR-META-PROTOCOLS.md)：Framework Upgrade, Event Log 规范, On-Correction Learning, Adaptive Review (含反向降级), Retrospective & Improvement.
 
 ## Project Bootstrap
+> 本协议是 from-scratch 项目 SDLC 初始化路径。框架包/脚手架的部署与**升级**不在此处——由 `cataforge bootstrap`（`/bootstrap` command Step 1）/ `cataforge upgrade apply` 幂等负责；`{INSTRUCTION_FILE}` 已存在时不重跑本协议（走 Startup/Resume）。经 `/bootstrap` 进入时目标平台已由其 Step 1 确定，Step 7 直接取 framework.json `runtime.platform`，不重复选型/部署。
+
 当项目从零开始 ({INSTRUCTION_FILE} 不存在) 时:
 1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认 `[pre_dev, pre_deploy]`）
 2. **选择执行模式** — 通过 AskUserQuestion 单独提问，选项:
