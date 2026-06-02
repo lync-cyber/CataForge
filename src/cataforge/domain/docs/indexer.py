@@ -44,7 +44,7 @@ def _load_docignore_patterns(docs_dir: str) -> list[str]:
     if not os.path.isfile(path):
         return []
     patterns: list[str] = []
-    with open(path, encoding="utf-8") as fh:
+    with open(path) as fh:
         for raw in fh:
             line = raw.strip()
             if not line or line.startswith("#"):
