@@ -11,6 +11,8 @@
 
 两条路径读写同一套状态。`/self-update` 内部调用 `cataforge upgrade`，并额外处理 `pip install --upgrade` / `uv tool upgrade` 这一步包管理命令。
 
+`/bootstrap`（命令）在 `cataforge bootstrap` 之上叠加项目初始化：它先经 `cataforge bootstrap` 幂等刷新脚手架，因此在已部署项目上重跑 `/bootstrap` 等价于触发一次升级检查 + 刷新，再按项目指令文件存在与否分流初始化或恢复。
+
 ## 升级四步法（CLI）
 
 ```bash
