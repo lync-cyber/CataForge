@@ -32,32 +32,82 @@ from cataforge.utils.common import ensure_utf8
 from cataforge.utils.patterns import DOC_ID_RE
 
 
-def find_orphan_docs(project_root: str) -> list[str]:
-    """Return rel-paths of ``docs/**/*.md`` that the indexer cannot ingest.
+def _load_docignore_patterns(docs_dir: str) -> list[str]:
+    """Read ``docs/.docignore`` exclusion globs (gitignore-flavoured subset).
 
-    A file is "orphan" when it is missing YAML front matter, or its ``id``
-    field is empty/contains a ``{...}`` template placeholder. Such files are
-    silently skipped by :func:`build_full_index` and never appear in
-    ``.doc-index.json``, which means downstream consumers (``cataforge docs
-    load``, ``--with-deps``, agent prose) cannot resolve them. Surfacing them
-    is the only way to catch this whole class of rot.
+    One pattern per line; ``#`` comments and blank lines are skipped. Patterns
+    match against the doc path relative to ``docs/`` (posix). A trailing ``/``
+    means "this directory and everything under it"; otherwise the line is an
+    ``fnmatch`` glob whose ``*`` also crosses ``/``.
+    """
+    path = os.path.join(docs_dir, ".docignore")
+    if not os.path.isfile(path):
+        return []
+    patterns: list[str] = []
+    with open(path, encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            patterns.append(line.replace("\\", "/"))
+    return patterns
 
-    Files under ``.archive/`` are excluded — those are intentional snapshots
-    of historical NAV-INDEX content kept by ``cataforge docs migrate-nav``.
+
+def _docignore_matches(rel_under_docs: str, patterns: list[str]) -> bool:
+    from fnmatch import fnmatchcase
+
+    for pat in patterns:
+        if pat.endswith("/"):
+            base = pat[:-1]
+            if rel_under_docs == base or rel_under_docs.startswith(base + "/"):
+                return True
+        elif fnmatchcase(rel_under_docs, pat):
+            return True
+    return False
+
+
+def _scan_docs_orphans(project_root: str) -> tuple[list[str], list[str]]:
+    """Walk ``docs/**/*.md`` once, splitting un-ingestable files into
+    ``(orphans, ignored)``.
+
+    A file is un-ingestable when it is missing YAML front matter, or its ``id``
+    field is empty/contains a ``{...}`` template placeholder — such files are
+    skipped by :func:`build_full_index` and never appear in ``.doc-index.json``,
+    so ``cataforge docs load`` / ``--with-deps`` / agent prose cannot resolve
+    them. ``orphans`` are surfaced as failures; ``ignored`` are un-ingestable
+    files a ``docs/.docignore`` pattern claims as intentional (published prose
+    that is not an SDLC artefact), reported but not gating.
+
+    Files under ``.archive/`` are excluded outright — intentional snapshots of
+    historical NAV-INDEX content kept by ``cataforge docs migrate-nav``.
     """
     docs_dir = os.path.join(project_root, "docs")
     if not os.path.isdir(docs_dir):
-        return []
+        return [], []
+    patterns = _load_docignore_patterns(docs_dir)
     orphans: list[str] = []
+    ignored: list[str] = []
     for md_path in sorted(glob.glob(os.path.join(docs_dir, "**", "*.md"), recursive=True)):
         rel_path = os.path.relpath(md_path, project_root)
         rel_posix = rel_path.replace("\\", "/")
         if "/.archive/" in rel_posix or rel_posix.startswith("docs/.archive/"):
             continue
         doc_id, entry = build_document_entry(md_path, rel_path)
-        if not (doc_id and entry):
+        if doc_id and entry:
+            continue
+        rel_under_docs = rel_posix[len("docs/") :]
+        if patterns and _docignore_matches(rel_under_docs, patterns):
+            ignored.append(rel_posix)
+        else:
             orphans.append(rel_posix)
-    return orphans
+    return orphans, ignored
+
+
+def find_orphan_docs(project_root: str) -> list[str]:
+    """Return rel-paths of ``docs/**/*.md`` the indexer cannot ingest, minus
+    any a ``docs/.docignore`` pattern excludes. See :func:`_scan_docs_orphans`.
+    """
+    return _scan_docs_orphans(project_root)[0]
 
 
 def validate_docs(project_root: str) -> dict[str, list]:
@@ -67,8 +117,10 @@ def validate_docs(project_root: str) -> dict[str, list]:
     ``cataforge doctor`` — enhancements (e.g. cross-ref resolution) added here
     flow into both call sites without duplication.
     """
+    orphans, ignored = _scan_docs_orphans(project_root)
     return {
-        "orphans": find_orphan_docs(project_root),
+        "orphans": orphans,
+        "ignored": ignored,
         "stale": find_stale_index_entries(project_root),
         "xref_errors": find_xref_errors(project_root),
         "alias_conflicts": find_alias_conflicts(project_root),

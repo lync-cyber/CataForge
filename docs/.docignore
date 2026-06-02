@@ -1,0 +1,21 @@
+# docs/.docignore — paths excluded from doc-index orphan checks.
+#
+# These are human-facing published documentation (the MkDocs site), not SDLC
+# pipeline artefacts loaded via `cataforge docs load <doc_id>#§N`, so they need
+# no YAML front matter `id`. SDLC docs (prd/ arch/ dev-plan/ reviews/ research/
+# …) are deliberately NOT listed here and stay orphan-checked.
+#
+# Syntax: one glob per line; `#` comments and blank lines ignored. A trailing
+# `/` excludes a directory and everything under it; otherwise the line is an
+# fnmatch glob (relative to docs/) whose `*` also crosses `/`.
+
+README.md
+faq.md
+contributing.md
+architecture/
+assets/
+getting-started/
+guide/
+migration/
+proposals/
+reference/
