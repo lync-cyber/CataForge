@@ -58,6 +58,12 @@ def main() -> None:
     if not os.path.isfile(file_path):
         sys.exit(0)
 
+    # Framework assets under .cataforge/ are out of the ruff / markdownlint
+    # scope (lint runs on src/tests/scripts only) and are governed by their own
+    # guards — never auto-format them, regardless of extension.
+    if ".cataforge" in Path(file_path).parts:
+        sys.exit(0)
+
     ext = os.path.splitext(file_path)[1].lower()
 
     if ext in (".js", ".ts", ".jsx", ".tsx"):
@@ -91,15 +97,12 @@ def main() -> None:
         if _has_command("dotnet"):
             run_tool(["dotnet", "format", "--include", file_path], "dotnet format", file_path)
 
-    elif ext == ".md":
-        if ".cataforge" in Path(file_path).parts:
-            pass
-        elif _has_command("npx"):
-            run_tool(
-                ["npx", "markdownlint-cli", "--fix", file_path],
-                "markdownlint",
-                file_path,
-            )
+    elif ext == ".md" and _has_command("npx"):
+        run_tool(
+            ["npx", "markdownlint-cli", "--fix", file_path],
+            "markdownlint",
+            file_path,
+        )
 
     if "dispatch-prompt.md" in file_path:
         print(

@@ -68,6 +68,9 @@ jobs:
       - name: Ruff
         run: python -m ruff check src tests scripts
 
+      - name: "Ruff format (check)"
+        run: python -m ruff format --check src tests scripts
+
       - name: "pre-commit parity (catches local hooks ↔ CI drift)"
         # Runs the full .pre-commit-config.yaml hook set so a contributor
         # without `pre-commit install` can't ship a change that local hooks
