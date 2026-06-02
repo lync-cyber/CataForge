@@ -16,7 +16,7 @@ repos:
         pass_filenames: false
         types_or: [python]
       - id: stdio-utf8-guard
-        name: scripts/*.py call ensure_utf8_stdio() (Windows cp1252 guard)
+        name: scripts/*.py call ensure_utf8() (Windows cp1252 guard)
         description: |
           Mirrors tests/test_scripts_stdio_guard.py at commit time. Any
           new script that prints non-ASCII (→/中文/emoji) to stdout will
@@ -135,6 +135,19 @@ repos:
           processes, shell=True with **proc_kwargs passthrough) carry
           an inline `# allow-raw-subprocess: <reason>` exemption.
         entry: python scripts/checks/check_no_raw_subprocess.py
+        language: system
+        pass_filenames: false
+        files: ^src/cataforge/.*\.py$
+      - id: no-redundant-encoding
+        name: no redundant encoding="utf-8" on file I/O
+        description: |
+          The process runs in Python UTF-8 Mode end to end (ensure_utf8
+          re-execs under PYTHONUTF8=1; the test session does the same), so
+          open / read_text / write_text already default to UTF-8. An explicit
+          encoding="utf-8" on those calls under src/cataforge/ is redundant —
+          drop it, or carry an inline `# allow-explicit-encoding: <reason>`.
+          The boundary layer that defines the contract is exempt.
+        entry: python scripts/checks/check_no_redundant_encoding.py
         language: system
         pass_filenames: false
         files: ^src/cataforge/.*\.py$

@@ -43,7 +43,7 @@ def check_b7_model_tier(root: Path, report: Report) -> None:
 
     for aid, path in sorted(agents.items()):
         try:
-            content = path.read_text(encoding="utf-8")
+            content = path.read_text()
         except OSError:
             continue
         fm, _body = split_yaml_frontmatter(content)

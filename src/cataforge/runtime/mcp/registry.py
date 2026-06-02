@@ -132,7 +132,7 @@ class MCPRegistry:
 
     def _parse_spec_file(self, path: Path) -> MCPServerSpec:
         """Parse a YAML spec file into MCPServerSpec."""
-        with open(path, encoding="utf-8") as f:
+        with open(path) as f:
             data = yaml.safe_load(f)
 
         if not isinstance(data, dict) or "id" not in data:

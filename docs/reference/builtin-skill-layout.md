@@ -43,7 +43,7 @@ src/cataforge/runtime/skill/builtins/<skill_id>/
 `<skill_id>_check.py` 必须提供:
 
 - `run(...)` 函数：核心逻辑，返回 int exit code（0=PASS、1=FAIL、2=usage error）。
-- `main()` 函数：argparse + 调用 `ensure_utf8_stdio()` + 调用 `run()`。
+- `main()` 函数：argparse + 调用 `ensure_utf8()` + 调用 `run()`。
 - `__main__` block：`if __name__ == "__main__": main()`。
 - 公开 dataclass / 公共 API 通过 `__all__` 显式导出，方便其他 builtin 或 framework-review 引用。
 

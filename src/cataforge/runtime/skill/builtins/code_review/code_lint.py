@@ -237,7 +237,7 @@ class CodeLinter:
         if rule is None or not rule.empty_handler_patterns:
             return
         try:
-            text = filepath.read_text(encoding="utf-8", errors="replace")
+            text = filepath.read_text(errors="replace")
         except OSError:
             return
         if rule.placeholder_pragma is not None and rule.placeholder_pragma.search(text):

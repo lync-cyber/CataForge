@@ -83,7 +83,7 @@ def check_b3_manifest_drift(root: Path, report: Report) -> None:
         if not skill_md.is_file():
             continue
         try:
-            text = skill_md.read_text(encoding="utf-8")
+            text = skill_md.read_text()
         except OSError as exc:
             report.add(
                 "B3_manifest_drift",
@@ -234,7 +234,7 @@ def check_b3_rules_schema(root: Path, report: Report) -> None:
             except ValueError:
                 rel = str(path)
             try:
-                text = path.read_text(encoding="utf-8")
+                text = path.read_text()
             except OSError as exc:
                 report.add(
                     "B3_rules_schema_compliance",

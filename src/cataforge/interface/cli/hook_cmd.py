@@ -139,14 +139,14 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
         payload = inline_input
         source_label = "inline --input"
     elif fixture is not None:
-        payload = fixture.read_text(encoding="utf-8")
+        payload = fixture.read_text()
         source_label = str(fixture)
     else:
         default_fixture = (
             root / ".cataforge" / "hooks" / "fixtures" / f"{hook_name}.json"
         )
         if default_fixture.is_file():
-            payload = default_fixture.read_text(encoding="utf-8")
+            payload = default_fixture.read_text()
             source_label = str(default_fixture)
         else:
             payload = "{}"

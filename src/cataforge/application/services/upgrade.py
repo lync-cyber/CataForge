@@ -33,7 +33,7 @@ def find_breaking_entries(
     if changelog is None:
         return []
 
-    sections = _iter_changelog_sections(changelog.read_text(encoding="utf-8"))
+    sections = _iter_changelog_sections(changelog.read_text())
     out: list[tuple[str, str]] = []
     for version, body in sections:
         if not _is_in_upgrade_range(version, scaffold_version, installed_version):

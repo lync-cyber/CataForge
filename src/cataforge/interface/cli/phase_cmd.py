@@ -107,7 +107,7 @@ def indexed_doc_types(index_text: str) -> set[str]:
 
 def _read(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8")
+        return path.read_text()
     except OSError:
         return ""
 

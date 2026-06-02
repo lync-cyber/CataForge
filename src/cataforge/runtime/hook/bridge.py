@@ -86,7 +86,7 @@ def load_hooks_spec(hooks_yaml: Path | None = None) -> dict[str, Any]:
     if hooks_yaml is None:
         hooks_yaml = ProjectPaths().hooks_spec
 
-    with open(hooks_yaml, encoding="utf-8") as f:
+    with open(hooks_yaml) as f:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
         raise ValueError(f"hooks.yaml must be a mapping, got {type(data).__name__}")
@@ -334,7 +334,7 @@ def apply_degradation(
             actions.append(f"would write {strategy} → {out_path} ({len(fragments)} fragment(s))")
             continue
         auto_rules_dir.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(_render_aggregate(heading, fragments), encoding="utf-8")
+        out_path.write_text(_render_aggregate(heading, fragments))
         actions.append(f"{strategy} → {out_path}")
 
     return actions

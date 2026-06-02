@@ -29,8 +29,14 @@ concurrency:
 # CI has no use for the local pre-commit hook (the guards job runs the same
 # checks directly). Opt out so conftest's auto-install never runs — it would
 # otherwise print a banner into pytest output on every fresh runner.
+#
+# PYTHONUTF8=1 puts every job in Python UTF-8 Mode, matching how the CLI runs
+# in production (ensure_utf8 re-execs under it). Internal code reads/writes
+# files without an explicit encoding= and relies on that default; on the
+# Windows runner the ANSI code page would otherwise make bare file I/O cp1252.
 env:
   CATAFORGE_SKIP_HOOK_AUTOINSTALL: "1"
+  PYTHONUTF8: "1"
 
 jobs:
   guards:

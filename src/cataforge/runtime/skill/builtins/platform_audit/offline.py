@@ -33,7 +33,7 @@ def _required_schema_keys(platforms_dir: Path) -> set[str]:
         return set()
     keys: set[str] = set()
     in_required = False
-    for line in schema.read_text(encoding="utf-8").splitlines():
+    for line in schema.read_text().splitlines():
         if line.startswith("required_fields:"):
             in_required = True
             continue
@@ -55,7 +55,7 @@ def check_profile_schema(platforms_dir: Path) -> list[str]:
     for profile in sorted(platforms_dir.glob("*/profile.yaml")):
         pid = profile.parent.name
         try:
-            data = yaml.safe_load(profile.read_text(encoding="utf-8")) or {}
+            data = yaml.safe_load(profile.read_text()) or {}
         except (OSError, yaml.YAMLError) as e:
             issues.append(f"FAIL: {pid} profile.yaml is unreadable: {e}")
             continue

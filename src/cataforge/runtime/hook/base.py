@@ -112,7 +112,7 @@ def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
         try:
             import yaml
 
-            with open(profile_yaml, encoding="utf-8") as f:
+            with open(profile_yaml) as f:
                 profile = yaml.safe_load(f)
             if isinstance(profile, dict) and "tool_map" in profile:
                 return dict(profile["tool_map"])
@@ -247,7 +247,7 @@ def _record_hook_error(module: str, func_name: str, exc: BaseException) -> None:
                 traceback.format_exception(type(exc), exc, exc.__traceback__)
             ),
         }
-        with open(log_path, "a", encoding="utf-8") as f:
+        with open(log_path, "a") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
     except Exception:
         # Swallow — observability plumbing must never break the hook itself.

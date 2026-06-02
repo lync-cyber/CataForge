@@ -220,7 +220,7 @@ class SkillLoader:
 
     def _parse_skill(self, skill_id: str, skill_md: Path) -> SkillMeta | None:
         """Parse SKILL.md frontmatter to extract metadata."""
-        content = skill_md.read_text(encoding="utf-8")
+        content = skill_md.read_text()
         fm, _body = split_yaml_frontmatter(content)
         if fm is None:
             return SkillMeta(
@@ -279,7 +279,7 @@ def _has_main_guard(py_file: Path) -> bool:
     Parses without executing, so the loader stays import-free.
     """
     try:
-        text = py_file.read_text(encoding="utf-8")
+        text = py_file.read_text()
     except OSError:
         return False
     try:

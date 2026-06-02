@@ -57,7 +57,7 @@ class AgentManager:
 
     def _validate_agent(self, agent_id: str, agent_md: Path) -> list[str]:
         issues: list[str] = []
-        content = agent_md.read_text(encoding="utf-8")
+        content = agent_md.read_text()
 
         # Check frontmatter exists
         if not content.startswith("---"):
@@ -79,5 +79,5 @@ class AgentManager:
     def get_agent_content(self, agent_id: str) -> str | None:
         agent_md = self._paths.agent_dir(agent_id) / "AGENT.md"
         if agent_md.is_file():
-            return agent_md.read_text(encoding="utf-8")
+            return agent_md.read_text()
         return None

@@ -113,7 +113,7 @@ def load_ignore_file(path: str) -> list[str]:
     if not path or not os.path.isfile(path):
         return []
     try:
-        with open(path, encoding="utf-8") as fh:
+        with open(path) as fh:
             return [line.rstrip("\n") for line in fh]
     except OSError:
         return []

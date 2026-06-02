@@ -17,7 +17,7 @@ _MAINTAINER_ONLY_RE = re.compile(r"^maintainer-only\s*:\s*true\s*$", re.IGNORECA
 
 def _peek_maintainer_only(skill_md: Path) -> bool:
     try:
-        text = skill_md.read_text(encoding="utf-8")
+        text = skill_md.read_text()
     except (OSError, UnicodeDecodeError):
         return False
     # Frontmatter ends at the second `---` line. Anything past that is body
@@ -163,8 +163,8 @@ class SkillDeployMixin:
         for md_file in target.rglob("*.md"):
             if not md_file.is_file():
                 continue
-            original = md_file.read_text(encoding="utf-8")
+            original = md_file.read_text()
             rendered = render_runtime_content(original, self)
             if rendered != original:
-                md_file.write_text(rendered, encoding="utf-8")
+                md_file.write_text(rendered)
         return actions

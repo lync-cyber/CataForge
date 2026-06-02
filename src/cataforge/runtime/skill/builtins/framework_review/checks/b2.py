@@ -33,7 +33,7 @@ def check_b2_cross_references(root: Path, report: Report) -> None:
 
     for aid, path in agents.items():
         try:
-            content = path.read_text(encoding="utf-8")
+            content = path.read_text()
         except OSError:
             continue
         for skill_id in parse_skills_field(content):
@@ -43,7 +43,7 @@ def check_b2_cross_references(root: Path, report: Report) -> None:
         if not path.is_file():
             continue
         try:
-            content = path.read_text(encoding="utf-8")
+            content = path.read_text()
         except OSError:
             continue
         for dep_id in parse_depends_field(content):

@@ -154,7 +154,7 @@ def resolve_file(
 
     for path in candidates:
         try:
-            with open(path, encoding="utf-8") as f:
+            with open(path) as f:
                 content = f.read()
         except OSError:
             continue
@@ -251,7 +251,7 @@ def extract(
 def _read_lines_cached(abs_path: str, file_cache: dict[str, list[str]] | None) -> list[str]:
     if file_cache is not None and abs_path in file_cache:
         return file_cache[abs_path]
-    with open(abs_path, encoding="utf-8") as f:
+    with open(abs_path) as f:
         lines = f.readlines()
     if file_cache is not None:
         file_cache[abs_path] = lines
@@ -266,7 +266,7 @@ def _read_splitlines_cached(file_path: str, file_cache: dict[str, list[str]] | N
     cache_key = file_path + "::splitlines"
     if file_cache is not None and cache_key in file_cache:
         return file_cache[cache_key]
-    with open(file_path, encoding="utf-8") as f:
+    with open(file_path) as f:
         content = f.read()
     splitlines = content.splitlines()
     if file_cache is not None:

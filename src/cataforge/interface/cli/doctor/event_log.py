@@ -33,7 +33,7 @@ def check_event_log_schema(
         return 0
 
     try:
-        with open(log_path, encoding="utf-8") as f:
+        with open(log_path) as f:
             lines = f.readlines()
     except OSError as e:
         click.echo(f"  (cannot read {log_path}: {e})")
@@ -160,7 +160,7 @@ def check_event_log_bypass_writes(cfg: ConfigManager) -> int:
             if not path.is_file() or path.suffix.lower() not in suffixes:
                 continue
             try:
-                text = path.read_text(encoding="utf-8")
+                text = path.read_text()
             except OSError:
                 continue
             for lineno, line in enumerate(text.splitlines(), start=1):

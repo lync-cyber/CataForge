@@ -409,7 +409,7 @@ def cmd_doctor(config: dict) -> int:
     compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
     if os.path.isfile(compose_file):
         try:
-            with open(compose_file, encoding="utf-8") as fh:
+            with open(compose_file) as fh:
                 content = fh.read()
         except OSError:
             content = ""

@@ -74,7 +74,7 @@ def check_b8_anti_pattern_floor(root: Path, scope: str, report: Report) -> None:
 
     for label, path, kind, floor in targets:
         try:
-            text = path.read_text(encoding="utf-8")
+            text = path.read_text()
         except OSError:
             continue
         result = _extract_anti_patterns(text)

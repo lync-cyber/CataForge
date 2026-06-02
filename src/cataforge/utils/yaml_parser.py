@@ -12,14 +12,14 @@ from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 def load_yaml(path: Path) -> dict[str, Any]:
     """Load a YAML file."""
-    with open(path, encoding="utf-8") as f:
+    with open(path) as f:
         result = yaml.safe_load(f)
         return dict(result) if result else {}
 
 
 def dump_yaml(data: dict[str, Any], path: Path) -> None:
     """Write data to a YAML file."""
-    with open(path, "w", encoding="utf-8") as f:
+    with open(path, "w") as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
 
 

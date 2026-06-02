@@ -58,7 +58,7 @@ def scan_file(path: Path, rules: E2ERuleSet) -> tuple[list[tuple[int, str, str]]
     if rule is None:
         return findings, 0
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(errors="replace")
     except OSError:
         return findings, 0
     for lineno, line in enumerate(text.splitlines(), start=1):

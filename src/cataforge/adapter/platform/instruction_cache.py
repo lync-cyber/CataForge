@@ -36,5 +36,4 @@ def save_instruction_hashes(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(hashes, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )

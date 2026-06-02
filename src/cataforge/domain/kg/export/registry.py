@@ -23,7 +23,7 @@ class SparqlRegistry:
     def __init__(self, builtin_dir: Path = _BUILTIN_SPARQL_DIR) -> None:
         self._templates: dict[str, str] = {}
         for path in sorted(builtin_dir.glob("*.sparql")):
-            self._templates[path.stem.lower()] = path.read_text(encoding="utf-8")
+            self._templates[path.stem.lower()] = path.read_text()
         if GENERIC_SPARQL_KEY not in self._templates:
             raise KeyError(
                 f"Generic SPARQL template '{GENERIC_SPARQL_KEY}.sparql' is missing "

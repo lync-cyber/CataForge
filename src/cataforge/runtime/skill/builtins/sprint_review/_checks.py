@@ -97,7 +97,7 @@ def check_ac_coverage(tasks: list[dict], test_dir: str) -> list[Issue]:
         for f in files:
             filepath = os.path.join(root, f)
             try:
-                with open(filepath, encoding="utf-8", errors="replace") as fh:
+                with open(filepath, errors="replace") as fh:
                     test_content += fh.read() + "\n"
             except (OSError, UnicodeDecodeError):
                 continue
