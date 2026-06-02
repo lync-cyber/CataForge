@@ -53,10 +53,23 @@ _PROFILES = {
         },
         "agent_config": {
             "supported_fields": [
-                "name", "description", "tools", "disallowedTools", "model",
-                "permissionMode", "maxTurns", "skills", "mcpServers", "hooks",
-                "memory", "background", "effort", "isolation", "color",
-                "initialPrompt", "prompt",
+                "name",
+                "description",
+                "tools",
+                "disallowedTools",
+                "model",
+                "permissionMode",
+                "maxTurns",
+                "skills",
+                "mcpServers",
+                "hooks",
+                "memory",
+                "background",
+                "effort",
+                "isolation",
+                "color",
+                "initialPrompt",
+                "prompt",
             ],
             "memory_scopes": ["user", "project", "local"],
             "isolation_modes": ["worktree"],
@@ -105,8 +118,15 @@ _PROFILES = {
         },
         "agent_config": {
             "supported_fields": [
-                "name", "description", "tools", "disallowedTools",
-                "model", "maxTurns", "mcpServers", "hooks", "background",
+                "name",
+                "description",
+                "tools",
+                "disallowedTools",
+                "model",
+                "maxTurns",
+                "mcpServers",
+                "hooks",
+                "background",
             ],
             "memory_scopes": [],
             "isolation_modes": ["worktree"],
@@ -155,8 +175,11 @@ _PROFILES = {
         },
         "agent_config": {
             "supported_fields": [
-                "name", "description", "model",
-                "model_reasoning_effort", "sandbox_mode",
+                "name",
+                "description",
+                "model",
+                "model_reasoning_effort",
+                "sandbox_mode",
             ],
             "memory_scopes": [],
             "isolation_modes": [],
@@ -422,9 +445,7 @@ class TestClaudeCodeAgentLayout:
 
         assert not (project_dir / ".claude" / "agents" / "orchestrator.md").exists()
 
-    def test_claude_code_prunes_legacy_subdir_on_deploy(
-        self, project_dir: Path
-    ) -> None:
+    def test_claude_code_prunes_legacy_subdir_on_deploy(self, project_dir: Path) -> None:
         """Upgrading users: a pre-existing ``<name>/AGENT.md`` subdir left from
         the old dual layout must be cleaned up on the next deploy, even when
         the agent still exists in source."""
@@ -479,41 +500,25 @@ def project_dir_with_tier_map(project_dir: Path) -> Path:
 class TestModelTierResolution:
     """resolve_agent_model() drops the field correctly per platform."""
 
-    def test_claude_code_resolves_to_native(
-        self, project_dir_with_tier_map: Path
-    ) -> None:
-        adapter = get_adapter(
-            "claude-code", project_dir_with_tier_map / ".cataforge" / "platforms"
-        )
+    def test_claude_code_resolves_to_native(self, project_dir_with_tier_map: Path) -> None:
+        adapter = get_adapter("claude-code", project_dir_with_tier_map / ".cataforge" / "platforms")
         assert adapter.resolve_agent_model("light") == "haiku"
         assert adapter.resolve_agent_model("standard") == "sonnet"
         assert adapter.resolve_agent_model("heavy") == "opus"
 
-    def test_inherit_returns_none(
-        self, project_dir_with_tier_map: Path
-    ) -> None:
-        adapter = get_adapter(
-            "claude-code", project_dir_with_tier_map / ".cataforge" / "platforms"
-        )
+    def test_inherit_returns_none(self, project_dir_with_tier_map: Path) -> None:
+        adapter = get_adapter("claude-code", project_dir_with_tier_map / ".cataforge" / "platforms")
         assert adapter.resolve_agent_model("inherit") is None
         assert adapter.resolve_agent_model("none") is None
         assert adapter.resolve_agent_model(None) is None
 
-    def test_codex_per_agent_false_returns_none(
-        self, project_dir_with_tier_map: Path
-    ) -> None:
-        adapter = get_adapter(
-            "codex", project_dir_with_tier_map / ".cataforge" / "platforms"
-        )
+    def test_codex_per_agent_false_returns_none(self, project_dir_with_tier_map: Path) -> None:
+        adapter = get_adapter("codex", project_dir_with_tier_map / ".cataforge" / "platforms")
         assert adapter.resolve_agent_model("standard") is None
         assert adapter.resolve_agent_model("heavy") is None
 
-    def test_opencode_user_resolved_returns_none(
-        self, project_dir_with_tier_map: Path
-    ) -> None:
-        adapter = get_adapter(
-            "opencode", project_dir_with_tier_map / ".cataforge" / "platforms"
-        )
+    def test_opencode_user_resolved_returns_none(self, project_dir_with_tier_map: Path) -> None:
+        adapter = get_adapter("opencode", project_dir_with_tier_map / ".cataforge" / "platforms")
         assert adapter.resolve_agent_model("standard") is None
 
 
@@ -538,22 +543,16 @@ class TestCodexDeployIntegration:
         )
         return src
 
-    def test_codex_drops_per_agent_fields(
-        self, project_dir_with_tier_map: Path
-    ) -> None:
+    def test_codex_drops_per_agent_fields(self, project_dir_with_tier_map: Path) -> None:
         """Codex supported_fields = [name, description, model, ...] →
         tools/disallowedTools/skills/maxTurns/allowed_paths/model_tier all dropped.
         per_agent_model=false → no `model =` line either."""
-        adapter = get_adapter(
-            "codex", project_dir_with_tier_map / ".cataforge" / "platforms"
-        )
+        adapter = get_adapter("codex", project_dir_with_tier_map / ".cataforge" / "platforms")
         src = self._make_source(project_dir_with_tier_map)
 
         adapter.deploy_agents(src, project_dir_with_tier_map, dry_run=False)
 
-        toml_path = (
-            project_dir_with_tier_map / ".codex" / "agents" / "implementer.toml"
-        )
+        toml_path = project_dir_with_tier_map / ".codex" / "agents" / "implementer.toml"
         assert toml_path.is_file()
         content = toml_path.read_text(encoding="utf-8")
 
@@ -618,19 +617,13 @@ class TestSecuritySensitiveFieldDrop:
     surface a WARN — a high-privilege declaration silently lost otherwise."""
 
     @pytest.mark.parametrize("platform", ["cursor", "codex", "opencode"])
-    def test_permission_mode_drop_warns(
-        self, project_dir: Path, platform: str
-    ) -> None:
+    def test_permission_mode_drop_warns(self, project_dir: Path, platform: str) -> None:
         from cataforge.runtime.agent.translator import translate_agent_md
 
         adapter = get_adapter(platform, project_dir / ".cataforge" / "platforms")
         # Sanity: none of these declare permissionMode support.
         assert "permissionMode" not in adapter.agent_supported_fields
-        content = (
-            "---\nname: a\ndescription: d\n"
-            "permissionMode: bypassPermissions\n"
-            "---\n# body\n"
-        )
+        content = "---\nname: a\ndescription: d\npermissionMode: bypassPermissions\n---\n# body\n"
         warnings: list[str] = []
         out = translate_agent_md(content, adapter, warnings_collector=warnings)
 
@@ -645,30 +638,23 @@ class TestSecuritySensitiveFieldDrop:
         from cataforge.runtime.agent.translator import translate_agent_md
 
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
-        content = (
-            "---\nname: a\ndescription: d\n"
-            "permissionMode: bypassPermissions\n"
-            "---\n# body\n"
-        )
+        content = "---\nname: a\ndescription: d\npermissionMode: bypassPermissions\n---\n# body\n"
         warnings: list[str] = []
         out = translate_agent_md(content, adapter, warnings_collector=warnings)
         assert "permissionMode: bypassPermissions" in out
         assert not warnings
 
-    def test_deploy_surfaces_field_drop_in_actions(
-        self, project_dir: Path
-    ) -> None:
+    def test_deploy_surfaces_field_drop_in_actions(self, project_dir: Path) -> None:
         """The dropped-field WARN reaches the deployer's action log, not just
         the in-memory collector."""
         adapter = get_adapter("opencode", project_dir / ".cataforge" / "platforms")
         src = project_dir / ".cataforge" / "agents"
         (src / "guard").mkdir(parents=True)
         (src / "guard" / "AGENT.md").write_text(
-            "---\nname: guard\ndescription: d\n"
-            "permissionMode: bypassPermissions\n---\n# body\n",
+            "---\nname: guard\ndescription: d\npermissionMode: bypassPermissions\n---\n# body\n",
             encoding="utf-8",
         )
         actions = adapter.deploy_agents(src, project_dir, dry_run=False)
-        assert any(
-            "permissionMode" in a and "WARN" in a for a in actions
-        ), f"deploy actions missing permissionMode drop WARN: {actions}"
+        assert any("permissionMode" in a and "WARN" in a for a in actions), (
+            f"deploy actions missing permissionMode drop WARN: {actions}"
+        )

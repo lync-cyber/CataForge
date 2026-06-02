@@ -15,6 +15,12 @@ repos:
         language: system
         pass_filenames: false
         types_or: [python]
+      - id: ruff-format
+        name: ruff format (check)
+        entry: python -m ruff format --check src tests scripts
+        language: system
+        pass_filenames: false
+        types_or: [python]
       - id: stdio-utf8-guard
         name: scripts/*.py call ensure_utf8() (Windows cp1252 guard)
         description: |

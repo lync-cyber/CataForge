@@ -88,9 +88,7 @@ class TestSyncMainHappyPath:
 
 
 class TestSyncMainSafetyRails:
-    def test_dirty_tree_blocks_switch(
-        self, in_repo: Path, linked_repos: tuple[Path, Path]
-    ) -> None:
+    def test_dirty_tree_blocks_switch(self, in_repo: Path, linked_repos: tuple[Path, Path]) -> None:
         # Make a feature branch and dirty the working tree.
         _run(in_repo, "switch", "-c", "feat/foo")
         (in_repo / "scratch.txt").write_text("dirty\n", encoding="utf-8")
@@ -98,9 +96,7 @@ class TestSyncMainSafetyRails:
         assert result.exit_code != 0
         assert "uncommitted changes" in result.output
 
-    def test_diverged_history_refuses(
-        self, in_repo: Path, linked_repos: tuple[Path, Path]
-    ) -> None:
+    def test_diverged_history_refuses(self, in_repo: Path, linked_repos: tuple[Path, Path]) -> None:
         work, bare = linked_repos
         # Local main gets a commit.
         (work / "local.txt").write_text("L\n", encoding="utf-8")
@@ -208,14 +204,15 @@ class TestSyncMainPruneMerged:
         _run(in_repo, "commit", "-m", "wip")
         _run(in_repo, "switch", "main")
 
-        result = invoke_under_group(
-            sync_main_command, ["--prune-merged", "--yes"]
-        )
+        result = invoke_under_group(sync_main_command, ["--prune-merged", "--yes"])
         assert result.exit_code == 0, result.output
         # done branch was merged → should be gone.
         branches = subprocess.run(
             ["git", "branch", "--list"],
-            cwd=in_repo, text=True, capture_output=True, check=True,
+            cwd=in_repo,
+            text=True,
+            capture_output=True,
+            check=True,
         ).stdout
         assert "feat/done" not in branches
         # wip branch was not merged → should still be there.

@@ -108,9 +108,7 @@ def _empty_doc_index(root: Path) -> None:
     )
 
 
-def test_doctor_flags_orphan_doc_missing_front_matter(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_flags_orphan_doc_missing_front_matter(tmp_path: Path, monkeypatch) -> None:
     """A docs/*.md without YAML front matter must trip the index-completeness gate."""
     root = _scaffold(tmp_path)
     _empty_doc_index(root)
@@ -131,9 +129,7 @@ def test_doctor_flags_orphan_doc_missing_front_matter(
     assert "docs/research/raw-requirements-v1.md" in result.output
 
 
-def test_doctor_passes_when_every_doc_has_front_matter(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_passes_when_every_doc_has_front_matter(tmp_path: Path, monkeypatch) -> None:
     root = _scaffold(tmp_path)
     _empty_doc_index(root)
     (root / "docs" / "prd").mkdir(parents=True)
@@ -148,9 +144,7 @@ def test_doctor_passes_when_every_doc_has_front_matter(
     assert "0 orphan documents" in section, section
 
 
-def test_doctor_orphan_check_skips_archive(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_orphan_check_skips_archive(tmp_path: Path, monkeypatch) -> None:
     """Archived NAV-INDEX copies live in docs/.archive or .cataforge/.archive and
     must not be flagged — they are intentional snapshots without front matter."""
     root = _scaffold(tmp_path)
@@ -168,9 +162,7 @@ def test_doctor_orphan_check_skips_archive(
     assert "0 orphan documents" in section, section
 
 
-def test_doctor_warns_when_docs_present_but_no_index(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_warns_when_docs_present_but_no_index(tmp_path: Path, monkeypatch) -> None:
     """Projects whose docs/ holds markdown but never built an index get a
     non-blocking WARN pointing at `cataforge docs index`. Pre-PR-#75 this
     was a silent skip, so first-time bootstraps had no signal that opting
@@ -194,9 +186,7 @@ def test_doctor_warns_when_docs_present_but_no_index(
     assert "FAIL" not in section_block, section_block
 
 
-def test_doctor_silent_when_docs_dir_has_no_markdown(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_silent_when_docs_dir_has_no_markdown(tmp_path: Path, monkeypatch) -> None:
     """An empty docs/ (or docs/ with non-markdown content only) must not
     emit the WARN — there is nothing to index."""
     root = _scaffold(tmp_path)
@@ -229,9 +219,7 @@ def test_doctor_anti_rot_table_contains_expected_entries() -> None:
         assert entry["since"], entry
 
 
-def test_doctor_flags_relative_event_logger_script_call(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_flags_relative_event_logger_script_call(tmp_path: Path, monkeypatch) -> None:
     """The old `python .cataforge/scripts/framework/event_logger.py` invocation
     breaks under monorepo subdirectory cwds. doctor must catch any prose that
     reintroduces it so we don't regress the v0.1.14 sweep."""

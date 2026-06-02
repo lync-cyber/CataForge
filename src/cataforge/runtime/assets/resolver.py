@@ -97,4 +97,3 @@ def _materialize(src_dirs: list[Path], dest: Path) -> None:
         target = dest / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
-

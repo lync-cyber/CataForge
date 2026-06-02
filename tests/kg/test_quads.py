@@ -1,4 +1,5 @@
 """Unit tests for _quads.py quad construction helpers."""
+
 from __future__ import annotations
 
 
@@ -6,6 +7,7 @@ def _config():
     from cataforge.domain.kg import KGConfig
 
     return KGConfig(store_backend="memory")
+
 
 def test_build_entity_quads_count_and_iri() -> None:
     from cataforge.domain.kg._quads import build_entity_quads
@@ -35,6 +37,7 @@ def test_build_entity_quads_count_and_iri() -> None:
     assert f"{ns}updated_at" in predicates
     assert f"{ns}belongs_to_project" in predicates
 
+
 def test_build_entity_quads_with_extras() -> None:
     from cataforge.domain.kg._quads import build_entity_quads
 
@@ -52,6 +55,7 @@ def test_build_entity_quads_with_extras() -> None:
     )
     assert len(quads) == 11
 
+
 def test_build_relation_quad_iri() -> None:
     from cataforge.domain.kg._quads import build_relation_quad
 
@@ -61,6 +65,7 @@ def test_build_relation_quad_iri() -> None:
     assert str(quad.object.value) == "https://cataforge.dev/instance/F-001"
     ns = config.ontology_namespace.rstrip("/") + "/"
     assert str(quad.predicate.value) == f"{ns}implements"
+
 
 def test_quads_for_subject_returns_all() -> None:
     from cataforge.domain.kg import KGConfig, init_store
@@ -85,6 +90,7 @@ def test_quads_for_subject_returns_all() -> None:
 
     retrieved = quads_for_subject(store, "https://cataforge.dev/instance/F-001")
     assert len(retrieved) == len(quads)
+
 
 def test_quads_targeting_returns_incoming() -> None:
     from cataforge.domain.kg import KGConfig, init_store

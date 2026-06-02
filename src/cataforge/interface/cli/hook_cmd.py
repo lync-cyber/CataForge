@@ -104,7 +104,8 @@ def _platform_status_map(platform_id: str) -> dict[str, str]:
     help="Path to stdin JSON fixture. Default: .cataforge/hooks/fixtures/<name>.json",
 )
 @click.option(
-    "--input", "inline_input",
+    "--input",
+    "inline_input",
     default=None,
     help="Inline JSON payload (alternative to --fixture).",
 )
@@ -142,9 +143,7 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
         payload = fixture.read_text()
         source_label = str(fixture)
     else:
-        default_fixture = (
-            root / ".cataforge" / "hooks" / "fixtures" / f"{hook_name}.json"
-        )
+        default_fixture = root / ".cataforge" / "hooks" / "fixtures" / f"{hook_name}.json"
         if default_fixture.is_file():
             payload = default_fixture.read_text()
             source_label = str(default_fixture)
@@ -171,7 +170,7 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
     # in the hook entry to opt in to shell=True (user accepts responsibility).
     unsafe_shell = _hook_has_unsafe_shell(root, hook_name)
     if command.startswith("python "):
-        argv = [sys.executable, *shlex.split(command[len("python "):])]
+        argv = [sys.executable, *shlex.split(command[len("python ") :])]
         proc_kwargs: dict[str, object] = {"args": argv, "shell": False}
         display = " ".join(shlex.quote(a) for a in argv)
         # When the child is ``python -m cataforge...``, it needs the same
@@ -255,18 +254,14 @@ def _child_env_with_cataforge_importable() -> dict[str, str]:
     parts = existing.split(os.pathsep) if existing else []
     if pkg_parent in parts:
         return env
-    env["PYTHONPATH"] = (
-        os.pathsep.join([pkg_parent, *parts]) if parts else pkg_parent
-    )
+    env["PYTHONPATH"] = os.pathsep.join([pkg_parent, *parts]) if parts else pkg_parent
     return env
 
 
 def _resolve_hook_command(root: Path, hook_name: str) -> str | None:
     """Return the shell command that invokes *hook_name*, or None."""
     if not re.fullmatch(r"[a-zA-Z0-9_]+", hook_name):
-        raise CataforgeError(
-            f"invalid hook name: {hook_name!r} (must match [a-zA-Z0-9_]+)"
-        )
+        raise CataforgeError(f"invalid hook name: {hook_name!r} (must match [a-zA-Z0-9_]+)")
 
     from cataforge.runtime.hook.bridge import _resolve_command, load_hooks_spec
 
@@ -287,14 +282,7 @@ def _resolve_hook_command(root: Path, hook_name: str) -> str | None:
     # If the user passes an undeclared built-in script name, we still
     # allow running it (handy for quick iteration).
     builtin = (
-        root
-        / ".." / ".."
-        / ".."
-        / "src"
-        / "cataforge"
-        / "hook"
-        / "scripts"
-        / f"{hook_name}.py"
+        root / ".." / ".." / ".." / "src" / "cataforge" / "hook" / "scripts" / f"{hook_name}.py"
     ).resolve()
     if builtin.is_file():
         return f"python -m cataforge.runtime.hook.scripts.{hook_name}"

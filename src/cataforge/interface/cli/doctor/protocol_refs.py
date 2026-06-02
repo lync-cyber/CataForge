@@ -64,9 +64,7 @@ def check_protocol_script_references(cfg) -> int:
     Returns the number of distinct missing scripts (counts toward the
     ``cataforge doctor`` exit code gate).
     """
-    pattern = re.compile(
-        r"python\s+(\.cataforge/[^\s`\"'<>|&;]+\.py)"
-    )
+    pattern = re.compile(r"python\s+(\.cataforge/[^\s`\"'<>|&;]+\.py)")
 
     root = cfg.paths.root
     scan_roots = (
@@ -81,9 +79,7 @@ def check_protocol_script_references(cfg) -> int:
     # tutorial prose (``.cataforge/hooks/custom/`` is user-extension
     # territory; its README walks readers through naming a hook script
     # that doesn't exist yet).
-    skip_subtrees = (
-        cfg.paths.hooks_dir / "custom",
-    )
+    skip_subtrees = (cfg.paths.hooks_dir / "custom",)
 
     suffixes = {".md", ".yaml", ".yml"}
     refs: dict[str, list[str]] = {}
@@ -158,10 +154,7 @@ def check_deprecated_references(cfg) -> int:
         root / ".cataforge" / ".archive",
     )
 
-    patterns = [
-        (entry, re.compile(entry["pattern"]))
-        for entry in _DEPRECATED_REFS
-    ]
+    patterns = [(entry, re.compile(entry["pattern"])) for entry in _DEPRECATED_REFS]
 
     suffixes = {".md", ".yaml", ".yml"}
     findings: dict[str, list[str]] = {}
@@ -185,9 +178,7 @@ def check_deprecated_references(cfg) -> int:
                             display = path.relative_to(root).as_posix()
                         except ValueError:
                             display = str(path)
-                        findings.setdefault(entry["name"], []).append(
-                            f"{display}:{lineno}"
-                        )
+                        findings.setdefault(entry["name"], []).append(f"{display}:{lineno}")
 
     if not findings:
         click.echo(f"  0 deprecated references found ({len(_DEPRECATED_REFS)} patterns scanned)")
@@ -201,9 +192,7 @@ def check_deprecated_references(cfg) -> int:
     for name in sorted(findings):
         entry = by_name[name]
         callers = sorted(set(findings[name]))
-        click.echo(
-            f"  FAIL {name} → use {entry['replacement']} (deprecated {entry['since']})"
-        )
+        click.echo(f"  FAIL {name} → use {entry['replacement']} (deprecated {entry['since']})")
         shown = callers[:5]
         for caller in shown:
             click.echo(f"    - {caller}")

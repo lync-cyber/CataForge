@@ -11,9 +11,7 @@ if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
 
 
-def check_event_log_schema(
-    cfg: ConfigManager, *, sample_size: int = 200
-) -> int:
+def check_event_log_schema(cfg: ConfigManager, *, sample_size: int = 200) -> int:
     """Validate the last ``sample_size`` EVENT-LOG.jsonl records via
     :func:`validate_record`. Returns the count of invalid records.
 
@@ -39,19 +37,13 @@ def check_event_log_schema(
         click.echo(f"  (cannot read {log_path}: {e})")
         return 0
 
-    cutoff_raw = (
-        (cfg.load().get("upgrade") or {})
-        .get("state", {})
-        .get("event_log_validate_since")
-    )
+    cutoff_raw = (cfg.load().get("upgrade") or {}).get("state", {}).get("event_log_validate_since")
     cutoff: datetime | None = None
     if isinstance(cutoff_raw, str) and cutoff_raw.strip():
         try:
             cutoff = datetime.fromisoformat(cutoff_raw.replace("Z", "+00:00"))
         except ValueError:
-            click.echo(
-                f"  (ignoring malformed event_log_validate_since={cutoff_raw!r})"
-            )
+            click.echo(f"  (ignoring malformed event_log_validate_since={cutoff_raw!r})")
 
     total_lines = len(lines)
     start_idx = max(0, total_lines - sample_size)

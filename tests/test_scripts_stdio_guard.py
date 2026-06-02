@@ -25,16 +25,18 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 
 # Scripts permitted to skip the stdio reconfigure because they
 # provably emit ASCII only and are never invoked outside CI.
-ASCII_ONLY_WHITELIST: frozenset[str] = frozenset({
-    "checks/check_no_dev_branch_refs.py",
-    "checks/check_doc_versions.py",
-    "checks/check_changelog_link_table.py",
-    "checks/check_profile_yaml_keys.py",
-    "checks/check_hooks_yaml_schema.py",
-    "checks/check_schema_python_parity.py",
-    "checks/check_skill_count.py",
-    "hatch_build.py",
-})
+ASCII_ONLY_WHITELIST: frozenset[str] = frozenset(
+    {
+        "checks/check_no_dev_branch_refs.py",
+        "checks/check_doc_versions.py",
+        "checks/check_changelog_link_table.py",
+        "checks/check_profile_yaml_keys.py",
+        "checks/check_hooks_yaml_schema.py",
+        "checks/check_schema_python_parity.py",
+        "checks/check_skill_count.py",
+        "hatch_build.py",
+    }
+)
 
 CALL_PATTERNS = (
     re.compile(r"\bensure_utf8\s*\("),

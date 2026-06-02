@@ -25,9 +25,7 @@ _ISSUE_RE = re.compile(
     r"^###\s*\[(R-\d+)\]\s+(CRITICAL|HIGH|MEDIUM|LOW)\s*[:：]\s*(.+?)\s*$",
     re.MULTILINE,
 )
-_ROOT_CAUSE_RE = re.compile(
-    r"^\s*-\s*\*\*root_cause\*\*\s*[:：]\s*([\w-]+)", re.MULTILINE
-)
+_ROOT_CAUSE_RE = re.compile(r"^\s*-\s*\*\*root_cause\*\*\s*[:：]\s*([\w-]+)", re.MULTILINE)
 _ASSUMPTION_TOKEN = "[ASSUMPTION]"
 
 
@@ -38,9 +36,7 @@ def _split_issues(text: str) -> list[tuple[str, str, str, str]]:
     for i, m in enumerate(matches):
         body_start = m.end()
         body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        out.append(
-            (m.group(1), m.group(2).upper(), m.group(3).strip(), text[body_start:body_end])
-        )
+        out.append((m.group(1), m.group(2).upper(), m.group(3).strip(), text[body_start:body_end]))
     return out
 
 
@@ -102,9 +98,7 @@ def main() -> None:
                 baseline="(reviewer-flagged assumption — see review report)",
                 actual=body.strip().splitlines()[0][:200] if body.strip() else "",
                 deviation=(
-                    root_cause
-                    if root_cause in {"self-caused", "external"}
-                    else "self-caused"
+                    root_cause if root_cause in {"self-caused", "external"} else "self-caused"
                 ),
             )
             written += 1

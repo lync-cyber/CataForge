@@ -20,9 +20,7 @@ from typing_extensions import Self
 
 # Executables trusted as the first element of MCPServerSpec.command.
 # Relative paths (no leading /) are also accepted for project-local binaries.
-TRUSTED_COMMAND_PREFIXES: frozenset[str] = frozenset(
-    {"python", "python3", "node", "uv", "uvx"}
-)
+TRUSTED_COMMAND_PREFIXES: frozenset[str] = frozenset({"python", "python3", "node", "uv", "uvx"})
 
 
 class HealthCheckSpec(BaseModel):

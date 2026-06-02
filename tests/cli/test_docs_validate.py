@@ -77,9 +77,7 @@ def test_docs_validate_no_index_exits_2(tmp_path: Path, monkeypatch) -> None:
     assert result.exit_code == 2
 
 
-def test_doctor_warns_when_index_missing_but_docs_present(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_warns_when_index_missing_but_docs_present(tmp_path: Path, monkeypatch) -> None:
     """Pre-PR-#75 doctor silently returned 0 here, hiding the
     opt-in-or-not signal from first-time users."""
     root = _minimal_project(tmp_path)

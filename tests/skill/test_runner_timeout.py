@@ -82,11 +82,7 @@ class TestSkillRunnerTimeout:
 
         log = project / "docs" / "EVENT-LOG.jsonl"
         assert log.is_file(), "timeout must write an EVENT-LOG entry"
-        records = [
-            json.loads(ln)
-            for ln in log.read_text().splitlines()
-            if ln.strip()
-        ]
+        records = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
         timeout_records = [r for r in records if "skill_timeout" in r.get("detail", "")]
         assert timeout_records, "no skill_timeout entry found in EVENT-LOG"
         rec = timeout_records[-1]

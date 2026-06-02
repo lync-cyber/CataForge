@@ -12,6 +12,7 @@ pyoxigraph 0.5.x performs no OWL/RDFS entailment, so property-path queries
 like `a/rdfs:subClassOf*` only traverse triples that are explicitly present.
 Materializing the `is_a` chain at bootstrap closes this gap.
 """
+
 from __future__ import annotations
 
 import importlib.resources

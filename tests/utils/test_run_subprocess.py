@@ -66,9 +66,7 @@ class TestRunContract:
         """Pass ``capture_output=False`` to let the child's stdout/stderr
         flow to the parent's tty (used for interactive helpers like
         ``git fetch`` whose progress lines belong in the user's terminal)."""
-        result = run(
-            [sys.executable, "-c", "print('streamed')"], capture_output=False
-        )
+        result = run([sys.executable, "-c", "print('streamed')"], capture_output=False)
         assert result.returncode == 0
         # stdout was streamed, not captured into result.
         assert result.stdout is None

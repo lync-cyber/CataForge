@@ -97,9 +97,7 @@ class TestCompactLearningsRegistry:
             assert old in archive_text
         # Count headings via line-start prefix (so HTML comments containing
         # the literal `##` substring don't false-positive).
-        date_headers = [
-            ln for ln in archive_text.splitlines() if ln.startswith("## ")
-        ]
+        date_headers = [ln for ln in archive_text.splitlines() if ln.startswith("## ")]
         assert len(date_headers) == 1
 
     def test_subsequent_compaction_appends_archive(self, tmp_path: Path) -> None:
@@ -120,8 +118,7 @@ class TestCompactLearningsRegistry:
         assert result.rewrote_claude_md is True
         # First batch + second batch → two `## YYYY-MM-DD` headings (line-start).
         date_headers = [
-            ln for ln in archive.read_text(encoding="utf-8").splitlines()
-            if ln.startswith("## ")
+            ln for ln in archive.read_text(encoding="utf-8").splitlines() if ln.startswith("## ")
         ]
         assert len(date_headers) == 2
 
@@ -138,6 +135,4 @@ class TestCompactLearningsRegistry:
         path = tmp_path / "CLAUDE.md"
         _write_claude_md(path)
         with pytest.raises(ValueError):
-            compact_learnings_registry(
-                path, archive_path=tmp_path / "a.md", max_entries=-1
-            )
+            compact_learnings_registry(path, archive_path=tmp_path / "a.md", max_entries=-1)

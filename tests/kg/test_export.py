@@ -9,6 +9,7 @@ Sub-PR 4 exit condition pieces verified here:
 * **relation presence** — every traceability edge in the KG is rendered
   as a relative Markdown link in the source file.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -38,11 +39,13 @@ EXPECTED_RELATIONS = {
     ("TC-002", "AC-002"),
 }
 
+
 def _open_memory_store():
     from cataforge.domain.kg import KGConfig, init_store
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config
+
 
 def _ingest_fixture(variant: str):
     from cataforge.domain.kg.ingest import run_migration
@@ -50,6 +53,7 @@ def _ingest_fixture(variant: str):
     handle, config = _open_memory_store()
     run_migration(handle.raw, FIXTURE_ROOT / variant, config)
     return handle, config
+
 
 def _sha256_dir(directory: Path) -> dict[str, str]:
     out: dict[str, str] = {}
@@ -59,6 +63,7 @@ def _sha256_dir(directory: Path) -> dict[str, str]:
         ).hexdigest()
     return out
 
+
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_renders_every_entity(tmp_path: Path, variant: str) -> None:
     from cataforge.domain.kg.export import compile_to_markdown
@@ -66,9 +71,7 @@ def test_export_renders_every_entity(tmp_path: Path, variant: str) -> None:
     handle, _ = _ingest_fixture(variant)
     result = compile_to_markdown(handle.raw, tmp_path / "out")
 
-    assert not result.errors, (
-        f"{variant}: export reported errors: {result.errors}"
-    )
+    assert not result.errors, f"{variant}: export reported errors: {result.errors}"
     rendered_ids = {r.entity_id for r in result.file_records}
     assert rendered_ids == set(EXPECTED_ENTITIES), (
         f"{variant}: rendered {rendered_ids}, expected {set(EXPECTED_ENTITIES)}"
@@ -76,6 +79,7 @@ def test_export_renders_every_entity(tmp_path: Path, variant: str) -> None:
     for entity_id, doc_type in EXPECTED_ENTITIES.items():
         f = tmp_path / "out" / doc_type / f"{entity_id}.md"
         assert f.is_file(), f"{variant}: missing {f}"
+
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_export_is_byte_identical_across_runs(tmp_path: Path, variant: str) -> None:
@@ -92,23 +96,20 @@ def test_export_is_byte_identical_across_runs(tmp_path: Path, variant: str) -> N
     hashes1 = _sha256_dir(out1)
     hashes2 = _sha256_dir(out2)
     assert hashes1.keys() == hashes2.keys(), (
-        f"{variant}: file sets differ between runs: "
-        f"{hashes1.keys() ^ hashes2.keys()}"
+        f"{variant}: file sets differ between runs: {hashes1.keys() ^ hashes2.keys()}"
     )
     for rel in hashes1:
         assert hashes1[rel] == hashes2[rel], (
-            f"{variant}: SHA-256 mismatch for {rel}: "
-            f"{hashes1[rel]} != {hashes2[rel]}"
+            f"{variant}: SHA-256 mismatch for {rel}: {hashes1[rel]} != {hashes2[rel]}"
         )
 
     # CompileResult.file_hashes must match the on-disk hashes.
     assert r1.file_hashes == hashes1
     assert r2.file_hashes == hashes2
 
+
 @pytest.mark.parametrize("variant", VARIANTS)
-def test_export_in_place_overwrite_is_idempotent(
-    tmp_path: Path, variant: str
-) -> None:
+def test_export_in_place_overwrite_is_idempotent(tmp_path: Path, variant: str) -> None:
     """Two exports into the SAME directory must leave bytes unchanged.
 
     Guards against any rendering path that depends on whether the output
@@ -129,10 +130,9 @@ def test_export_in_place_overwrite_is_idempotent(
         f"{set(first.items()) ^ set(second.items())}"
     )
 
+
 @pytest.mark.parametrize("variant", VARIANTS)
-def test_export_renders_every_relation_as_link(
-    tmp_path: Path, variant: str
-) -> None:
+def test_export_renders_every_relation_as_link(tmp_path: Path, variant: str) -> None:
     """Each (subject, object) traceability pair must appear as a relative link."""
     from cataforge.domain.kg.export import compile_to_markdown
 
@@ -147,14 +147,12 @@ def test_export_renders_every_relation_as_link(
         # The template emits `[<target>](<relative>/<target>.md)` for
         # every outbound traceability edge.
         assert f"]({target}.md" in body or f"/{target}.md" in body, (
-            f"{variant}: {subject}.md is missing a link to {target}\n"
-            f"body=\n{body}"
+            f"{variant}: {subject}.md is missing a link to {target}\nbody=\n{body}"
         )
 
+
 @pytest.mark.parametrize("variant", VARIANTS)
-def test_export_strict_undefined_blocks_generated_at(
-    tmp_path: Path, variant: str
-) -> None:
+def test_export_strict_undefined_blocks_generated_at(tmp_path: Path, variant: str) -> None:
     """`StrictUndefined` is the safety net against accidental timestamps."""
     from cataforge.domain.kg.export import compile_to_markdown
 
@@ -169,4 +167,3 @@ def test_export_strict_undefined_blocks_generated_at(
         # adding `{{ generated_at }}` would crash this test).
         assert "generated_at" not in text, f"{md} contains generated_at"
         assert "exported_at" not in text, f"{md} contains exported_at"
-

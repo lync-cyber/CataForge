@@ -23,8 +23,7 @@ def render_text(report: CheckReport) -> str:
         lines.append("")
         lines.append("=== 需求追踪矩阵 ===")
         lines.append(
-            "| Feature | ACs | ARCH Module | ARCH API "
-            "| DEV-PLAN Task | UI-SPEC Page | Coverage |"
+            "| Feature | ACs | ARCH Module | ARCH API | DEV-PLAN Task | UI-SPEC Page | Coverage |"
         )
         lines.append("|" + "|".join(["---"] * 7) + "|")
         for row in matrix:
@@ -39,8 +38,7 @@ def render_text(report: CheckReport) -> str:
         if missing_count > 0:
             lines.append("")
             lines.append(
-                f"覆盖缺口: {missing_count} missing, {partial_count} partial "
-                f"/ {len(matrix)} total"
+                f"覆盖缺口: {missing_count} missing, {partial_count} partial / {len(matrix)} total"
             )
 
     lines.append("")

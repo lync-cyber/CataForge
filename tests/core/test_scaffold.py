@@ -184,9 +184,7 @@ def test_create_and_restore_backup_roundtrip(tmp_path: Path) -> None:
     restored = target.read_text(encoding="utf-8")
     assert restored.endswith("# v1\n")
     # Stash captured the v2 state we rolled away from.
-    assert (stash / target.relative_to(dest)).read_text(
-        encoding="utf-8"
-    ).endswith("# v2\n")
+    assert (stash / target.relative_to(dest)).read_text(encoding="utf-8").endswith("# v2\n")
     # Earlier snapshots still listable (not wiped).
     assert snap_v2.is_dir()
 
@@ -201,5 +199,3 @@ def test_backups_dir_excluded_from_snapshot(tmp_path: Path) -> None:
     second = create_backup(dest, ts="second")
     assert second is not None
     assert not (second / BACKUPS_DIRNAME).exists()
-
-

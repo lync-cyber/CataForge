@@ -67,6 +67,5 @@ def check_b2_cross_references(root: Path, report: Report) -> None:
                 "B2_cross_reference_graph",
                 "WARN",
                 f"skills/{skill_id}",
-                "orphan skill: not referenced by any AGENT.md.skills "
-                "or SKILL.md.depends",
+                "orphan skill: not referenced by any AGENT.md.skills or SKILL.md.depends",
             )

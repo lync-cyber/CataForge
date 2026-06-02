@@ -72,8 +72,7 @@ def plugin_install(source: str, force: bool) -> None:
         if dest.exists():
             if not force:
                 raise click.ClickException(
-                    f"plugin {manifest.id!r} already installed at "
-                    f"{dest}; pass --force to overwrite"
+                    f"plugin {manifest.id!r} already installed at {dest}; pass --force to overwrite"
                 )
             shutil.rmtree(dest)
         dest.parent.mkdir(parents=True, exist_ok=True)

@@ -43,9 +43,7 @@ def test_doctor_passes_for_default_builtin_skills(tmp_path: Path, monkeypatch) -
     )
 
 
-def test_doctor_passes_when_project_override_merges_builtin(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_passes_when_project_override_merges_builtin(tmp_path: Path, monkeypatch) -> None:
     """A project-level SKILL.md with no scripts/ must still resolve via
     the loader's builtin-fallback merge — covers code-review (review skill)
     and task-dep-analysis."""

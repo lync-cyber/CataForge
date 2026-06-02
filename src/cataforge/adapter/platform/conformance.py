@@ -219,8 +219,10 @@ def check_hook_native_outliers(platforms_dir: Path | None = None) -> list[str]:
             continue
         native = [pid for pid, dmap in degradation.items() if dmap.get(hook) == "native"]
         others = [pid for pid in degradation if pid not in native]
-        if len(native) == 1 and others and all(
-            degradation[pid].get(hook) != "native" for pid in others
+        if (
+            len(native) == 1
+            and others
+            and all(degradation[pid].get(hook) != "native" for pid in others)
         ):
             issues.append(
                 f"[{native[0]}]\n  WARN: {native[0]} is the only platform marking hook "

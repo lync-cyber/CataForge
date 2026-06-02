@@ -109,9 +109,7 @@ def _init_project(tmp_path: Path) -> Path:
     (cf / "skills" / "demo-skill" / "SKILL.md").write_text(
         "---\nname: demo-skill\ndescription: demo\n---\nbody\n", encoding="utf-8"
     )
-    (cf / "skills" / "demo-skill" / "helper.md").write_text(
-        "helper content\n", encoding="utf-8"
-    )
+    (cf / "skills" / "demo-skill" / "helper.md").write_text("helper content\n", encoding="utf-8")
     (cf / "commands").mkdir(exist_ok=True)
     (cf / "commands" / "bootstrap.md").write_text(
         "---\ndescription: bootstrap\n---\nbody\n", encoding="utf-8"
@@ -207,9 +205,7 @@ def test_user_authored_command_md_survives_deploy(tmp_path: Path) -> None:
     Deployer(ConfigManager(root)).deploy("claude-code")
 
     wrapper = root / ".claude" / "commands" / "framework-issue-resolve.md"
-    wrapper.write_text(
-        "---\ndescription: dogfood wrapper\n---\nbody\n", encoding="utf-8"
-    )
+    wrapper.write_text("---\ndescription: dogfood wrapper\n---\nbody\n", encoding="utf-8")
 
     clear_cache()
     Deployer(ConfigManager(root)).deploy("claude-code")
@@ -298,13 +294,14 @@ def test_orphan_skill_from_prior_deploy_pruned_when_source_removed(
     assert (root / ".claude" / "skills" / "extra-skill").exists()
 
     import shutil
+
     shutil.rmtree(extra_src)
 
     clear_cache()
     Deployer(ConfigManager(root)).deploy("claude-code")
-    assert not os.path.lexists(
-        str(root / ".claude" / "skills" / "extra-skill")
-    ), "Skill we previously deployed lingered after its source disappeared."
+    assert not os.path.lexists(str(root / ".claude" / "skills" / "extra-skill")), (
+        "Skill we previously deployed lingered after its source disappeared."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -383,9 +380,7 @@ def _install_fake_scaffold(monkeypatch, contents: dict[str, bytes], tmp_path: Pa
     return fake
 
 
-def test_redeploy_restores_deleted_source_skill_file(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_redeploy_restores_deleted_source_skill_file(tmp_path: Path, monkeypatch) -> None:
     """The B1/B2 fix: when a file under ``.cataforge/`` goes missing
     (user delete, or junction-through-delete from ``.claude/skills/``),
     the next deploy restores it from the bundled scaffold.
@@ -426,9 +421,7 @@ def test_redeploy_restores_deleted_source_skill_file(
     assert helper.read_text(encoding="utf-8") == "helper content\n"
 
 
-def test_redeploy_does_not_overwrite_user_edits_to_source(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_redeploy_does_not_overwrite_user_edits_to_source(tmp_path: Path, monkeypatch) -> None:
     """Self-heal must NOT clobber user edits.
 
     ``copy_scaffold_to(force=False)`` only writes when target is absent,
@@ -481,9 +474,7 @@ def test_deploy_writes_manifest_file(tmp_path: Path) -> None:
     assert "CLAUDE.md" in owned_set
 
 
-def test_save_manifest_is_atomic_on_interrupted_replace(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_save_manifest_is_atomic_on_interrupted_replace(tmp_path: Path, monkeypatch) -> None:
     """An interrupted write must leave the prior manifest intact rather
     than truncating it. ``save_manifest`` routes through the atomic
     helper (tmp file then ``os.replace``), so a failing ``os.replace``
@@ -674,7 +665,8 @@ def test_rebuild_refuses_to_purge_prior_other_platform(tmp_path: Path) -> None:
                 ],
             },
             indent=2,
-        ) + "\n",
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -682,8 +674,7 @@ def test_rebuild_refuses_to_purge_prior_other_platform(tmp_path: Path) -> None:
 
     # Warning was surfaced and the prior platform's files survived.
     assert any(
-        "rebuild-purge skipped" in a and "'cursor'" in a and "'claude-code'" in a
-        for a in actions
+        "rebuild-purge skipped" in a and "'cursor'" in a and "'claude-code'" in a for a in actions
     ), f"warning must explain the refusal; got: {actions}"
     assert cursor_owned_a.is_file(), (
         ".cursor/-owned file was purged despite the platform mismatch — "
@@ -701,8 +692,8 @@ def test_rebuild_on_fresh_project_is_safe_noop(tmp_path: Path) -> None:
     clear_cache()
     actions = Deployer(ConfigManager(root)).deploy("claude-code", rebuild=True)
 
-    assert any(
-        "rebuild: no prior manifest" in a for a in actions
-    ), f"--rebuild on fresh project should report no-op; got: {actions}"
+    assert any("rebuild: no prior manifest" in a for a in actions), (
+        f"--rebuild on fresh project should report no-op; got: {actions}"
+    )
     # Deploy still produces the canonical state.
     assert (root / ".claude" / "agents" / "orchestrator.md").is_file()

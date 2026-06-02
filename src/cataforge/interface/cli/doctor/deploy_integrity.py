@@ -43,9 +43,7 @@ def check_deploy_integrity(cfg) -> int:
     platform_id = state.get("platform")
     owned = _OWNED_DIRS_BY_PLATFORM.get(platform_id, [])
     if not owned:
-        click.echo(
-            f"  (no integrity map declared for platform {platform_id!r})"
-        )
+        click.echo(f"  (no integrity map declared for platform {platform_id!r})")
         return 0
 
     root = cfg.paths.root
@@ -75,22 +73,16 @@ def check_deploy_integrity(cfg) -> int:
         # dir or a link that resolves.
         if rel.endswith("/skills") and p.is_dir():
             for child in p.iterdir():
-                if child.is_symlink() or (
-                    hasattr(child, "is_junction") and child.is_junction()
-                ):
+                if child.is_symlink() or (hasattr(child, "is_junction") and child.is_junction()):
                     if not child.exists():
-                        dangling.append(
-                            (f"{rel}/{child.name}", _link_target(child))
-                        )
+                        dangling.append((f"{rel}/{child.name}", _link_target(child)))
                         failures += 1
                 elif not child.exists():
                     missing.append(f"{rel}/{child.name}")
                     failures += 1
 
     if not failures:
-        click.echo(
-            f"  {len(owned)} owned path(s) verified for {platform_id} deploy"
-        )
+        click.echo(f"  {len(owned)} owned path(s) verified for {platform_id} deploy")
         return 0
 
     if missing:
@@ -99,8 +91,7 @@ def check_deploy_integrity(cfg) -> int:
             click.echo(f"    FAIL {rel} — re-run `cataforge deploy`")
     if dangling:
         click.echo(
-            f"  {len(dangling)} deploy artefact(s) are dangling links "
-            "(source moved or deleted):"
+            f"  {len(dangling)} deploy artefact(s) are dangling links (source moved or deleted):"
         )
         for rel, link_target in dangling:
             click.echo(
@@ -153,8 +144,7 @@ def check_deploy_source_orphans(cfg) -> int:
         return 0
 
     click.echo(
-        f"  {len(ghosts)} deployed skill(s) have no source "
-        "(next `cataforge deploy` self-heals):"
+        f"  {len(ghosts)} deployed skill(s) have no source (next `cataforge deploy` self-heals):"
     )
     for name in ghosts:
         click.echo(

@@ -1,4 +1,5 @@
 """`cataforge kg import` + `validate` + `export` CLI smoke."""
+
 from __future__ import annotations
 
 import json
@@ -8,20 +9,20 @@ from click.testing import CliRunner
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
+
 def _cli():
     from cataforge.interface.cli.main import _register_commands, cli
 
     _register_commands()
     return cli
 
+
 def _doc_only_project(tmp_path: Path) -> Path:
     project = tmp_path / "doc-only"
     (project / ".cataforge").mkdir(parents=True)
     (project / "docs").mkdir()
     (project / ".cataforge" / "framework.json").write_text(
-        json.dumps(
-            {"context": {"strategy": "doc-only", "kg_active_doc_types": ["prd", "arch"]}}
-        ),
+        json.dumps({"context": {"strategy": "doc-only", "kg_active_doc_types": ["prd", "arch"]}}),
         encoding="utf-8",
     )
     return project
@@ -49,9 +50,7 @@ def test_kg_reconcile_doc_only_is_noop_despite_store(tmp_path: Path) -> None:
     invalidate_cache()
     project = _doc_only_project(tmp_path)
     db = project / ".cataforge" / "kg" / "store"
-    init = CliRunner().invoke(
-        _cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"]
-    )
+    init = CliRunner().invoke(_cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"])
     assert init.exit_code == 0, init.output
 
     result = CliRunner().invoke(
@@ -111,6 +110,7 @@ def test_kg_import_memory_backend(tmp_path: Path) -> None:
     assert stats["relations_written"] == 4
     assert stats["verify_ok"] is True
 
+
 def test_kg_import_dry_run_exits_zero(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
@@ -132,13 +132,12 @@ def test_kg_import_dry_run_exits_zero(tmp_path: Path) -> None:
     assert stats["entities_written"] == 0
     assert stats["relations_written"] == 0
 
+
 def test_kg_import_then_validate_oxigraph_backend(tmp_path: Path) -> None:
     db = tmp_path / "store"
     runner = CliRunner()
 
-    init = runner.invoke(
-        _cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"]
-    )
+    init = runner.invoke(_cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"])
     assert init.exit_code == 0, init.output
 
     imp = runner.invoke(
@@ -156,22 +155,19 @@ def test_kg_import_then_validate_oxigraph_backend(tmp_path: Path) -> None:
     )
     assert imp.exit_code == 0, imp.output
 
-    val = runner.invoke(
-        _cli(), ["kg", "validate", "--db-path", str(db), "--json"]
-    )
+    val = runner.invoke(_cli(), ["kg", "validate", "--db-path", str(db), "--json"])
     assert val.exit_code == 0, val.output
     report = json.loads(val.output)
     assert report["ok"] is True
     assert report["violations"] == []
+
 
 def test_kg_export_end_to_end_oxigraph(tmp_path: Path) -> None:
     db = tmp_path / "store"
     out = tmp_path / "exported"
     runner = CliRunner()
 
-    init = runner.invoke(
-        _cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"]
-    )
+    init = runner.invoke(_cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"])
     assert init.exit_code == 0, init.output
 
     imp = runner.invoke(
@@ -206,9 +202,13 @@ def test_kg_export_end_to_end_oxigraph(tmp_path: Path) -> None:
     assert payload["rendered"] == 9
     assert payload["errors"] == []
     assert set(payload["files"].keys()) == {
-        "prd/F-001.md", "prd/F-002.md",
-        "prd/AC-001.md", "prd/AC-002.md",
-        "arch/M-001.md", "arch/M-002.md",
+        "prd/F-001.md",
+        "prd/F-002.md",
+        "prd/AC-001.md",
+        "prd/AC-002.md",
+        "arch/M-001.md",
+        "arch/M-002.md",
         "arch/TS-001.md",
-        "test-report/TC-001.md", "test-report/TC-002.md",
+        "test-report/TC-001.md",
+        "test-report/TC-002.md",
     }

@@ -35,9 +35,7 @@ def _console_script(py_exe: Path) -> Path:
     return exe
 
 
-def _run_launcher(
-    py_exe: Path, *args: str, cwd: Path
-) -> subprocess.CompletedProcess[bytes]:
+def _run_launcher(py_exe: Path, *args: str, cwd: Path) -> subprocess.CompletedProcess[bytes]:
     """Run the console script with a UTF-8-relaunch-enabling environment.
 
     Strips ``PYTHONUTF8`` and all ``PYTEST_*`` vars so the child's

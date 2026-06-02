@@ -49,8 +49,17 @@ def test_eject_whole_file_default_layer(runner: CliRunner, project: Path) -> Non
 def test_eject_patch_with_section(runner: CliRunner, project: Path) -> None:
     result = runner.invoke(
         cli,
-        ["override", "eject", "agents", "architect", "--patch",
-         "--section", "Execution Rules", "--layer", "user"],
+        [
+            "override",
+            "eject",
+            "agents",
+            "architect",
+            "--patch",
+            "--section",
+            "Execution Rules",
+            "--layer",
+            "user",
+        ],
     )
     assert result.exit_code == 0, result.output
     dest = project / ".cataforge/overrides/user/agents/architect/AGENT.patch.md"

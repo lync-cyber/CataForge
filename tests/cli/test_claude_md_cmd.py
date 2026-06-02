@@ -21,9 +21,7 @@ def _bootstrap(
     payload = {"version": "0.0.0-test", "runtime": {"platform": "claude-code"}}
     if limits:
         payload["claude_md_limits"] = limits
-    (tmp_path / ".cataforge" / "framework.json").write_text(
-        json.dumps(payload), encoding="utf-8"
-    )
+    (tmp_path / ".cataforge" / "framework.json").write_text(json.dumps(payload), encoding="utf-8")
 
     children = ""
     if learnings:
@@ -41,9 +39,7 @@ def _bootstrap(
 
 
 class TestCheckCommand:
-    def test_passes_under_limits(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_passes_under_limits(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path, learnings=["one", "two"])
         monkeypatch.chdir(project)
         result = invoke_under_group(check_command, [])
@@ -91,9 +87,7 @@ class TestCheckCommand:
 
 
 class TestCompactCommand:
-    def test_no_op_when_under_limit(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_op_when_under_limit(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path, learnings=["a", "b"])
         monkeypatch.chdir(project)
         result = invoke_under_group(compact_command, [])

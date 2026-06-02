@@ -34,9 +34,7 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return root
 
 
-def test_upgrade_apply_creates_backup_and_reports_it(
-    runner: CliRunner, project: Path
-) -> None:
+def test_upgrade_apply_creates_backup_and_reports_it(runner: CliRunner, project: Path) -> None:
     """`apply` on an existing scaffold must echo the backup path."""
     target_agent = next((project / ".cataforge" / "agents").rglob("AGENT.md"))
     target_agent.write_text("custom\n", encoding="utf-8")
@@ -68,9 +66,7 @@ def test_upgrade_apply_hints_deploy_when_deploy_state_exists(
     assert "platform deliverables" in result.output
 
 
-def test_upgrade_apply_no_deploy_hint_when_never_deployed(
-    runner: CliRunner, project: Path
-) -> None:
+def test_upgrade_apply_no_deploy_hint_when_never_deployed(runner: CliRunner, project: Path) -> None:
     """Fresh projects (pre-deploy) must not see the re-deploy nag."""
     assert not (project / ".cataforge" / ".deploy-state").exists()
 
@@ -79,9 +75,7 @@ def test_upgrade_apply_no_deploy_hint_when_never_deployed(
     assert "`cataforge deploy`" not in result.output
 
 
-def test_rollback_list_with_no_backups_exits_nonzero(
-    runner: CliRunner, project: Path
-) -> None:
+def test_rollback_list_with_no_backups_exits_nonzero(runner: CliRunner, project: Path) -> None:
     result = runner.invoke(cli, ["upgrade", "rollback"])
     assert result.exit_code == 1
     assert "(none" in result.output
@@ -115,13 +109,9 @@ def test_apply_preserves_edit_and_rollback_restores_snapshot(
     assert not sidecar.exists()
 
 
-def test_rollback_from_unknown_snapshot_errors(
-    runner: CliRunner, project: Path
-) -> None:
+def test_rollback_from_unknown_snapshot_errors(runner: CliRunner, project: Path) -> None:
     runner.invoke(cli, ["upgrade", "apply"])
-    result = runner.invoke(
-        cli, ["upgrade", "rollback", "--from", "nonexistent-ts", "--yes"]
-    )
+    result = runner.invoke(cli, ["upgrade", "rollback", "--from", "nonexistent-ts", "--yes"])
     assert result.exit_code != 0
     assert "No snapshot matches" in (result.output)
 
@@ -146,13 +136,10 @@ def test_breaking_detection_on_matching_range(tmp_path: Path, monkeypatch) -> No
     assert entries == [("0.2.0", "framework.json renamed to project.json")]
 
 
-def test_breaking_detection_skips_out_of_range(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_breaking_detection_skips_out_of_range(tmp_path: Path, monkeypatch) -> None:
     changelog = tmp_path / "CHANGELOG.md"
     changelog.write_text(
-        "## [0.3.0]\n### BREAKING\n- big change\n\n"
-        "## [0.2.0]\n### Added\n- feature\n",
+        "## [0.3.0]\n### BREAKING\n- big change\n\n## [0.2.0]\n### Added\n- feature\n",
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
@@ -161,8 +148,6 @@ def test_breaking_detection_skips_out_of_range(
     assert find_breaking_entries("0.1.0", "0.2.0") == []
 
 
-def test_breaking_detection_no_changelog_returns_empty(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_breaking_detection_no_changelog_returns_empty(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     assert find_breaking_entries("0.1.0", "0.2.0") == []

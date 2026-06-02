@@ -39,9 +39,7 @@ from cataforge.core.io import read_json
 from cataforge.core.paths import find_project_root
 from cataforge.utils.common import ensure_utf8
 
-_TABLE_ROW_RE = re.compile(
-    r"^\|\s*(?P<doc_id>[A-Za-z0-9_-]+)\s*\|\s*(?P<path>[^|]+?)\s*\|"
-)
+_TABLE_ROW_RE = re.compile(r"^\|\s*(?P<doc_id>[A-Za-z0-9_-]+)\s*\|\s*(?P<path>[^|]+?)\s*\|")
 
 
 def _parse_nav_table(nav_text: str) -> list[tuple[str, str]]:
@@ -158,10 +156,7 @@ def migrate(project_root: Path, *, dry_run: bool = False) -> int:
             file=sys.stderr,
         )
     if extras:
-        print(
-            f"[INFO] {len(extras)} 个新发现的 doc_id (NAV-INDEX 未登记): "
-            f"{', '.join(extras)}"
-        )
+        print(f"[INFO] {len(extras)} 个新发现的 doc_id (NAV-INDEX 未登记): {', '.join(extras)}")
     print("[DONE] 迁移完成")
     return 0
 

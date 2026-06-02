@@ -31,9 +31,7 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def test_exception_logged_to_jsonl(
-    project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_exception_logged_to_jsonl(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     @hook_main
     def crashy() -> None:
         raise RuntimeError("kaboom")
@@ -45,9 +43,7 @@ def test_exception_logged_to_jsonl(
     log = project / HOOK_ERROR_LOG_REL
     assert log.is_file(), "hook_main must write a JSONL record on crash"
 
-    records = [
-        json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line
-    ]
+    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line]
     assert len(records) == 1
     entry = records[0]
     assert entry["error_type"] == "RuntimeError"
@@ -72,9 +68,7 @@ def test_systemexit_propagates(project: Path) -> None:
     assert not log.exists(), "SystemExit is not an error — no log entry expected"
 
 
-def test_keyboard_interrupt_propagates(
-    project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_keyboard_interrupt_propagates(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Ctrl+C is an explicit user-cancel signal. Pre-fix, the generic
     ``except Exception`` clause caught it (KeyboardInterrupt derives
     from BaseException in 3.x but historic code in the wild and the
@@ -100,9 +94,7 @@ def test_keyboard_interrupt_propagates(
     )
 
 
-def test_log_rotates_when_large(
-    project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_log_rotates_when_large(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Runaway crash loops must not grow the log without bound."""
     log = project / HOOK_ERROR_LOG_REL
     log.parent.mkdir(parents=True, exist_ok=True)

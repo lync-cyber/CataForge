@@ -21,9 +21,7 @@ from .._discover import (
 from .._types import Report
 
 
-def check_b1_required_sections(
-    root: Path, scope: str, report: Report
-) -> None:
+def check_b1_required_sections(root: Path, scope: str, report: Report) -> None:
     """B1-α: required structural sections in AGENT.md / SKILL.md."""
     targets: list[tuple[str, Path, dict[str, str]]] = []
     if scope in ("agents", "all"):
@@ -53,9 +51,7 @@ def check_b1_required_sections(
                 )
 
 
-def check_b1_size(
-    root: Path, scope: str, threshold: int, report: Report
-) -> None:
+def check_b1_size(root: Path, scope: str, threshold: int, report: Report) -> None:
     """B1-β: META_DOC_SPLIT_THRESHOLD_LINES soft cap.
 
     Covers every prompt-context file enumerated in CLAUDE.md §硬约束 1:

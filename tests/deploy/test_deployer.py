@@ -74,8 +74,10 @@ def test_claude_mcp_uses_project_mcp_json(tmp_path: Path) -> None:
             },
             "dispatch": {"tool_name": "Agent", "is_async": False},
             "hooks": {
-                "config_format": None, "config_path": None,
-                "event_map": {}, "degradation": {},
+                "config_format": None,
+                "config_path": None,
+                "event_map": {},
+                "degradation": {},
             },
         },
     )
@@ -114,8 +116,10 @@ def test_codex_deploy_writes_agents_md_not_toml_agents(tmp_path: Path) -> None:
             },
             "dispatch": {"tool_name": "spawn_agent", "is_async": True},
             "hooks": {
-                "config_format": None, "config_path": None,
-                "event_map": {}, "degradation": {},
+                "config_format": None,
+                "config_path": None,
+                "event_map": {},
+                "degradation": {},
             },
         },
     )
@@ -150,8 +154,10 @@ def test_opencode_deploy_uses_native_agent_directory(tmp_path: Path) -> None:
             },
             "dispatch": {"tool_name": "task", "is_async": False},
             "hooks": {
-                "config_format": None, "config_path": None,
-                "event_map": {}, "degradation": {},
+                "config_format": None,
+                "config_path": None,
+                "event_map": {},
+                "degradation": {},
             },
         },
     )

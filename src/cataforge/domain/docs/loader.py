@@ -378,5 +378,3 @@ def _emit_stale_warning(project_root: str) -> None:
             f"[WARN] docs/.doc-index.json 已 {age:.0f} 天未更新，建议运行 `cataforge docs index`",
             file=sys.stderr,
         )
-
-

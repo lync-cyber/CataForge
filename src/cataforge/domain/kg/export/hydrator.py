@@ -8,6 +8,7 @@ aggregates multi-valued fields keyed on a sort-stable composite.
 The output is a plain dict consumed by Jinja2. Pydantic context objects
 are used when SHACL / governance validation is active.
 """
+
 from __future__ import annotations
 
 from typing import Any

@@ -50,9 +50,7 @@ def _check_entity_class(entity_id: str, class_name: str) -> None:
     if expected is None:
         raise KGValidationError(f"entity_id {entity_id!r} has no schema-known prefix")
     if expected != class_name:
-        raise KGValidationError(
-            f"entity_id {entity_id!r} maps to {expected}, not {class_name!r}"
-        )
+        raise KGValidationError(f"entity_id {entity_id!r} maps to {expected}, not {class_name!r}")
 
 
 def author_entity(
@@ -81,9 +79,7 @@ def author_entity(
     source_doc = entity_doc_type(class_name)
 
     with KnowledgeGraph.connect(cfg) as kg:
-        project_iri = write_project(
-            kg.store, pid, meta["title"], meta["process_model"], cfg
-        )
+        project_iri = write_project(kg.store, pid, meta["title"], meta["process_model"], cfg)
         with kg.transaction() as txn:
             iri = txn.add_entity(
                 entity_id,

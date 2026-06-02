@@ -1,4 +1,5 @@
 """Exception hierarchy for the KG layer."""
+
 from __future__ import annotations
 
 

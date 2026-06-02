@@ -37,12 +37,14 @@ class Language:
 # this. Markers are matched at the project root (glob patterns allowed).
 LANGUAGES: dict[str, Language] = {
     "python": Language(
-        "python", "Python",
+        "python",
+        "Python",
         ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"),
         frozenset({".py", ".pyi"}),
     ),
     "js-ts": Language(
-        "js-ts", "JavaScript / TypeScript",
+        "js-ts",
+        "JavaScript / TypeScript",
         ("package.json", "tsconfig.json", "deno.json"),
         frozenset({".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"}),
     ),
@@ -50,7 +52,8 @@ LANGUAGES: dict[str, Language] = {
     "rust": Language("rust", "Rust", ("Cargo.toml",), frozenset({".rs"})),
     "csharp": Language("csharp", "C#", ("*.csproj", "*.sln"), frozenset({".cs"})),
     "java": Language(
-        "java", "Java",
+        "java",
+        "Java",
         ("pom.xml", "build.gradle", "build.gradle.kts"),
         frozenset({".java"}),
     ),
@@ -60,12 +63,20 @@ LANGUAGES: dict[str, Language] = {
 # ``golang`` normalises to the canonical ``js-ts`` / ``go`` so the rest of the
 # system only ever sees registry ids.
 ALIASES: dict[str, str] = {
-    "py": "python", "python3": "python",
-    "ts": "js-ts", "typescript": "js-ts", "js": "js-ts", "javascript": "js-ts",
-    "node": "js-ts", "nodejs": "js-ts",
+    "py": "python",
+    "python3": "python",
+    "ts": "js-ts",
+    "typescript": "js-ts",
+    "js": "js-ts",
+    "javascript": "js-ts",
+    "node": "js-ts",
+    "nodejs": "js-ts",
     "golang": "go",
     "rs": "rust",
-    "cs": "csharp", "c#": "csharp", "dotnet": "csharp", ".net": "csharp",
+    "cs": "csharp",
+    "c#": "csharp",
+    "dotnet": "csharp",
+    ".net": "csharp",
 }
 
 

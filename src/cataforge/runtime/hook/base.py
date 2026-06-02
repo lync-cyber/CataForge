@@ -243,9 +243,7 @@ def _record_hook_error(module: str, func_name: str, exc: BaseException) -> None:
             "func": func_name,
             "error_type": type(exc).__name__,
             "error": str(exc),
-            "traceback": "".join(
-                traceback.format_exception(type(exc), exc, exc.__traceback__)
-            ),
+            "traceback": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
         }
         with open(log_path, "a") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -301,9 +299,7 @@ def _spec_entry_for_script(script_name: str) -> dict[str, Any] | None:
     return None
 
 
-def matches_script_filters(
-    data: dict[str, Any], script_name: str | None = None
-) -> bool:
+def matches_script_filters(data: dict[str, Any], script_name: str | None = None) -> bool:
     """Return True when *data* satisfies all v2 filters declared for
     *script_name* in ``hooks.yaml``.
 
@@ -332,8 +328,7 @@ def matches_script_filters(
         normalised = str(raw_path).replace("\\", "/")
         basename = normalised.rsplit("/", 1)[-1]
         if not any(
-            fnmatch.fnmatch(normalised, p) or fnmatch.fnmatch(basename, p)
-            for p in patterns
+            fnmatch.fnmatch(normalised, p) or fnmatch.fnmatch(basename, p) for p in patterns
         ):
             return False
 
@@ -348,10 +343,7 @@ def matches_script_filters(
     agent_ids = entry.get("matcher_agent_id")
     if agent_ids:
         candidate = (
-            tool_input.get("subagent_type")
-            or tool_input.get("agent")
-            or data.get("agent")
-            or ""
+            tool_input.get("subagent_type") or tool_input.get("agent") or data.get("agent") or ""
         )
         if not candidate or candidate not in agent_ids:
             return False

@@ -103,27 +103,13 @@ def doctor_command(ctx: click.Context) -> None:
     # carry. Missing any of them is a setup failure, not a notice.
     click.echo(f"\nProject root: {cfg.paths.root}")
     failed_count = 0
-    failed_count += check_file(
-        "framework.json", cfg.paths.framework_json, required=True
-    )
-    failed_count += check_dir(
-        ".cataforge/agents", cfg.paths.agents_dir, required=True
-    )
-    failed_count += check_dir(
-        ".cataforge/skills", cfg.paths.skills_dir, required=True
-    )
-    failed_count += check_dir(
-        ".cataforge/rules", cfg.paths.rules_dir, required=True
-    )
-    failed_count += check_dir(
-        ".cataforge/hooks", cfg.paths.hooks_dir, required=True
-    )
-    failed_count += check_file(
-        "hooks.yaml", cfg.paths.hooks_spec, required=True
-    )
-    failed_count += check_dir(
-        ".cataforge/platforms", cfg.paths.platforms_dir, required=True
-    )
+    failed_count += check_file("framework.json", cfg.paths.framework_json, required=True)
+    failed_count += check_dir(".cataforge/agents", cfg.paths.agents_dir, required=True)
+    failed_count += check_dir(".cataforge/skills", cfg.paths.skills_dir, required=True)
+    failed_count += check_dir(".cataforge/rules", cfg.paths.rules_dir, required=True)
+    failed_count += check_dir(".cataforge/hooks", cfg.paths.hooks_dir, required=True)
+    failed_count += check_file("hooks.yaml", cfg.paths.hooks_spec, required=True)
+    failed_count += check_dir(".cataforge/platforms", cfg.paths.platforms_dir, required=True)
 
     # Config
     click.echo(f"\nFramework version: {cfg.version}")
@@ -189,13 +175,13 @@ def _print_summary(failed_count: int) -> None:
         ui.ok("Summary: all checks passed.")
         print_next_steps("doctor-pass")
         return
-    ui.fail(
-        f"Summary: {failed_count} failed — see FAIL lines above."
-    )
+    ui.fail(f"Summary: {failed_count} failed — see FAIL lines above.")
     # Tailored next-steps when doctor fails — the right follow-up depends on
     # the symptom class. We give a triage list rather than a single command.
-    ui.next_steps([
-        NextStep("cataforge deploy", "if FAIL was in `Deploy integrity`"),
-        NextStep("cataforge upgrade apply", "if FAIL was in `Framework migration checks`"),
-        NextStep("cataforge doctor", "rerun to confirm after fixing"),
-    ])
+    ui.next_steps(
+        [
+            NextStep("cataforge deploy", "if FAIL was in `Deploy integrity`"),
+            NextStep("cataforge upgrade apply", "if FAIL was in `Framework migration checks`"),
+            NextStep("cataforge doctor", "rerun to confirm after fixing"),
+        ]
+    )

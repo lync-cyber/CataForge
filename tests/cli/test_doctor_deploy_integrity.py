@@ -101,9 +101,7 @@ class TestDoctorAsIntegrityGate:
     ) -> None:
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
-            "version: 1\n", encoding="utf-8"
-        )
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
         # skills/ deliberately missing
         monkeypatch.chdir(root)
 
@@ -118,12 +116,8 @@ class TestDoctorAsIntegrityGate:
     ) -> None:
         """Deploy-state recorded → owned dirs must exist."""
         root = _minimal_project(tmp_path)
-        _populate_source_dirs(
-            root, "agents", "skills", "rules", "hooks", "platforms"
-        )
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
-            "version: 1\n", encoding="utf-8"
-        )
+        _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
         _make_skill(root / ".cataforge" / "skills", "alpha")
         _write_deploy_state(root, "claude-code")
         # No .claude/skills/ created — owned but missing.
@@ -141,12 +135,8 @@ class TestDoctorAsIntegrityGate:
         """A symlink/junction whose source disappeared must FAIL with the
         skill name in the output."""
         root = _minimal_project(tmp_path)
-        _populate_source_dirs(
-            root, "agents", "skills", "rules", "hooks", "platforms"
-        )
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
-            "version: 1\n", encoding="utf-8"
-        )
+        _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
         src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
         deployed_skills = root / ".claude" / "skills"
         _link_skill(src_skill, deployed_skills)
@@ -169,12 +159,8 @@ class TestDoctorAsIntegrityGate:
         """Sanity guard: a well-formed project must still exit 0 after the
         stricter checks land."""
         root = _minimal_project(tmp_path)
-        _populate_source_dirs(
-            root, "agents", "skills", "rules", "hooks", "platforms"
-        )
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
-            "version: 1\n", encoding="utf-8"
-        )
+        _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
         src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
         _link_skill(src_skill, root / ".claude" / "skills")
         # ``.claude/settings.json`` is in the owned provenance map — create
@@ -195,12 +181,8 @@ class TestDoctorAsIntegrityGate:
     ) -> None:
         """Final ``Summary:`` row makes the verdict scannable."""
         root = _minimal_project(tmp_path)
-        _populate_source_dirs(
-            root, "agents", "skills", "rules", "hooks", "platforms"
-        )
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
-            "version: 1\n", encoding="utf-8"
-        )
+        _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
         monkeypatch.chdir(root)
 
         result = CliRunner().invoke(doctor_command, [])
@@ -215,9 +197,7 @@ class TestDoctorAsIntegrityGate:
         root = _minimal_project(tmp_path)
         # skills/ missing → at least one failure expected.
         _populate_source_dirs(root, "agents", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
-            "version: 1\n", encoding="utf-8"
-        )
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
         monkeypatch.chdir(root)
 
         result = CliRunner().invoke(doctor_command, [])

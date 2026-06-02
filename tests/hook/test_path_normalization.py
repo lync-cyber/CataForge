@@ -28,28 +28,37 @@ class TestLintFormatPathNormalization:
         md = tmp_path / ".cataforge" / "skills" / "foo.md"
         md.parent.mkdir(parents=True)
         md.write_text("# Hello\n", encoding="utf-8")
-        result = _run(LINT_FORMAT_SCRIPT, {
-            "tool_name": "Edit",
-            "tool_input": {"file_path": str(md).replace("\\", "/")},
-        })
+        result = _run(
+            LINT_FORMAT_SCRIPT,
+            {
+                "tool_name": "Edit",
+                "tool_input": {"file_path": str(md).replace("\\", "/")},
+            },
+        )
         assert result.returncode == 0
 
     def test_windows_style_cataforge_path_skips_markdownlint(self, tmp_path: Path) -> None:
         md = tmp_path / ".cataforge" / "skills" / "foo.md"
         md.parent.mkdir(parents=True)
         md.write_text("# Hello\n", encoding="utf-8")
-        result = _run(LINT_FORMAT_SCRIPT, {
-            "tool_name": "Edit",
-            "tool_input": {"file_path": str(md).replace("/", "\\")},
-        })
+        result = _run(
+            LINT_FORMAT_SCRIPT,
+            {
+                "tool_name": "Edit",
+                "tool_input": {"file_path": str(md).replace("/", "\\")},
+            },
+        )
         assert result.returncode == 0
 
     def test_relative_cataforge_path_skips_markdownlint(self, tmp_path: Path) -> None:
         md = tmp_path / ".cataforge" / "skills" / "foo.md"
         md.parent.mkdir(parents=True)
         md.write_text("# Hello\n", encoding="utf-8")
-        result = _run(LINT_FORMAT_SCRIPT, {
-            "tool_name": "Edit",
-            "tool_input": {"file_path": ".cataforge/skills/foo.md"},
-        })
+        result = _run(
+            LINT_FORMAT_SCRIPT,
+            {
+                "tool_name": "Edit",
+                "tool_input": {"file_path": ".cataforge/skills/foo.md"},
+            },
+        )
         assert result.returncode == 0

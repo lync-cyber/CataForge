@@ -170,9 +170,7 @@ def kg_import(
     help="Emit a JSON report instead of the table.",
 )
 @click.pass_context
-def kg_validate(
-    ctx: click.Context, db_path: Path, shacl: bool, json_output: bool
-) -> None:
+def kg_validate(ctx: click.Context, db_path: Path, shacl: bool, json_output: bool) -> None:
     """Check the live KG for orphan nodes and broken traceability edges."""
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
 
@@ -240,9 +238,7 @@ def kg_validate(
     help="Emit a JSON result blob (per-file sha256 included) instead of the table.",
 )
 @click.pass_context
-def kg_export(
-    ctx: click.Context, db_path: Path, output_dir: Path, json_output: bool
-) -> None:
+def kg_export(ctx: click.Context, db_path: Path, output_dir: Path, json_output: bool) -> None:
     """Export the KG to per-entity Markdown files."""
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
     output_dir = root_relative_default(ctx, "output_dir", output_dir, rel=Path("docs"))
@@ -344,9 +340,7 @@ def kg_reconcile(
     project_root = project_root.resolve()
 
     if not doc_types and not kg_enabled(project_root):
-        click.echo(
-            "doc-only strategy (context.strategy): KG disabled — nothing to reconcile."
-        )
+        click.echo("doc-only strategy (context.strategy): KG disabled — nothing to reconcile.")
         return
 
     base_config = kg_config_for(project_root)

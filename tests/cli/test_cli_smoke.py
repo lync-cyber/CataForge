@@ -106,9 +106,7 @@ class TestSetupCommand:
         assert "would set" in result.output or "would patch" in result.output
         assert "Dry-run complete" in result.output
 
-    def test_setup_language_writes_normalized_declaration(
-        self, fresh_project: Path
-    ) -> None:
+    def test_setup_language_writes_normalized_declaration(self, fresh_project: Path) -> None:
         """`setup --language typescript --language go` writes canonical ids."""
         import json
 
@@ -129,9 +127,7 @@ class TestSetupCommand:
         assert "project.languages = ['python']" in result.output
         assert not (tmp_path / ".cataforge").exists()
 
-    def test_setup_dry_run_on_existing_project_reports_diff(
-        self, fresh_project: Path
-    ) -> None:
+    def test_setup_dry_run_on_existing_project_reports_diff(self, fresh_project: Path) -> None:
         """Existing project: dry-run shows the exact runtime.platform patch."""
         result = _invoke("setup", "--dry-run", "--platform", "cursor")
         assert result.exit_code == 0, result.output
@@ -147,9 +143,7 @@ class TestSetupCommand:
         assert "runtime.platform" in result.output
         assert "framework.json modified only at runtime.platform" in result.output
 
-    def test_setup_platform_preserves_framework_json_fields(
-        self, fresh_project: Path
-    ) -> None:
+    def test_setup_platform_preserves_framework_json_fields(self, fresh_project: Path) -> None:
         """End-to-end M1 regression: CLI setup --platform doesn't lose fields."""
         import json as _json
 
@@ -232,6 +226,7 @@ class TestStubCommands:
         assert result.exit_code == 1
         assert "not declared" in result.output.lower() or "no hook" in result.output.lower()
 
+
 class TestDeployErrors:
     """Deploy must fail gracefully when scaffold is missing."""
 
@@ -247,9 +242,7 @@ class TestDeployErrors:
         assert "cataforge setup" in result.output
         assert ".cataforge" in result.output
 
-    def test_deploy_with_missing_profile_is_friendly(
-        self, fresh_project: Path
-    ) -> None:
+    def test_deploy_with_missing_profile_is_friendly(self, fresh_project: Path) -> None:
         """Scaffold exists but a platform profile is missing — friendly hint."""
         profile = fresh_project / ".cataforge" / "platforms" / "claude-code" / "profile.yaml"
         profile.unlink()
@@ -272,9 +265,7 @@ class TestGlobalFlags:
         assert result.exit_code != 0
         assert "mutually exclusive" in result.output
 
-    def test_project_dir_override(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_project_dir_override(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """--project-dir must make subcommands operate on the given root
         regardless of cwd. The previous version of this test used a
         ``fresh_project == tmp_path`` fixture and then chdir'd to a subdir
@@ -298,9 +289,7 @@ class TestGlobalFlags:
         assert result.exit_code == 0, result.output
         # Project root line must point at sibling_a (the override target),
         # never at sibling_b (cwd) or tmp_path (common ancestor).
-        root_lines = [
-            line for line in result.output.splitlines() if "Project root:" in line
-        ]
+        root_lines = [line for line in result.output.splitlines() if "Project root:" in line]
         assert root_lines, f"no 'Project root:' line in output:\n{result.output}"
         assert str(sibling_a) in root_lines[0]
         assert str(sibling_b) not in root_lines[0]
@@ -371,9 +360,7 @@ class TestRemovedCheckAlias:
 
 
 class TestDeprecationWarnings:
-    def test_setup_no_deploy_warns(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_setup_no_deploy_warns(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(tmp_path)
         result = _invoke("setup", "--no-deploy")
         assert result.exit_code == 0, result.output

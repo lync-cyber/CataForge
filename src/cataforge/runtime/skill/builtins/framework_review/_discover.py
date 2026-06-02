@@ -13,9 +13,7 @@ def discover_agents(root: Path) -> dict[str, Path]:
     if not base.is_dir():
         return {}
     return {
-        d.name: d / "AGENT.md"
-        for d in base.iterdir()
-        if d.is_dir() and (d / "AGENT.md").is_file()
+        d.name: d / "AGENT.md" for d in base.iterdir() if d.is_dir() and (d / "AGENT.md").is_file()
     }
 
 
@@ -24,9 +22,7 @@ def discover_skills(root: Path) -> dict[str, Path]:
     if not base.is_dir():
         return {}
     return {
-        d.name: d / "SKILL.md"
-        for d in base.iterdir()
-        if d.is_dir() and (d / "SKILL.md").is_file()
+        d.name: d / "SKILL.md" for d in base.iterdir() if d.is_dir() and (d / "SKILL.md").is_file()
     }
 
 

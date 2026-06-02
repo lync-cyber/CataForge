@@ -49,16 +49,15 @@ def _seed_upstream_gap(project: Path, *, n: int = 1) -> None:
 
 
 class TestBugCommand:
-    def test_print_renders_to_stdout(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_print_renders_to_stdout(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
         result = invoke_under_group(
             bug_command,
             [
                 "--print",
-                "--summary", "hook fires twice",
+                "--summary",
+                "hook fires twice",
                 "--skip-framework-review",
             ],
         )
@@ -74,8 +73,10 @@ class TestBugCommand:
         result = invoke_under_group(
             bug_command,
             [
-                "--out", "docs/feedback/bug.md",
-                "--summary", "x",
+                "--out",
+                "docs/feedback/bug.md",
+                "--summary",
+                "x",
                 "--skip-framework-review",
                 "--quiet",
             ],
@@ -96,9 +97,11 @@ class TestBugCommand:
         result = invoke_under_group(
             bug_command,
             [
-                "--out", "out.md",
+                "--out",
+                "out.md",
                 "--include-paths",
-                "--summary", "x",
+                "--summary",
+                "x",
                 "--skip-framework-review",
                 "--quiet",
             ],
@@ -117,8 +120,10 @@ class TestBugCommand:
         result = invoke_under_group(
             bug_command,
             [
-                "--print", "--clip",
-                "--summary", "x",
+                "--print",
+                "--clip",
+                "--summary",
+                "x",
                 "--skip-framework-review",
             ],
         )
@@ -133,7 +138,8 @@ class TestBugCommand:
         result = invoke_under_group(
             bug_command,
             [
-                "--summary", "x",
+                "--summary",
+                "x",
                 "--skip-framework-review",
             ],
         )
@@ -145,17 +151,17 @@ class TestBugCommand:
 
 
 class TestSuggestCommand:
-    def test_print_renders_proposal(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_print_renders_proposal(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
         result = invoke_under_group(
             suggest_command,
             [
                 "--print",
-                "--summary", "support --dry-run on bootstrap",
-                "--notes", "would let users preview impact",
+                "--summary",
+                "support --dry-run on bootstrap",
+                "--notes",
+                "would let users preview impact",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -172,15 +178,11 @@ class TestCorrectionExportCommand:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = invoke_under_group(
-            correction_export_command, ["--print", "--summary", "x"]
-        )
+        result = invoke_under_group(correction_export_command, ["--print", "--summary", "x"])
         assert result.exit_code != 0
         assert "No `upstream-gap`" in result.output
 
-    def test_refuses_below_threshold(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_refuses_below_threshold(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path)
         _seed_upstream_gap(project, n=1)
         monkeypatch.chdir(project)
@@ -251,16 +253,16 @@ class TestSinks:
             )
 
         monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.shutil.which", fake_which)
-        monkeypatch.setattr(
-            "cataforge.interface.cli.feedback_cmd.run_proc", fake_run
-        )
+        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.run_proc", fake_run)
 
         result = invoke_under_group(
             bug_command,
             [
                 "--gh",
-                "--summary", "deploy fails on Windows",
-                "--title", "bug: deploy fails on Windows",
+                "--summary",
+                "deploy fails on Windows",
+                "--title",
+                "bug: deploy fails on Windows",
                 "--skip-framework-review",
             ],
         )
@@ -281,9 +283,7 @@ class TestSinks:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        monkeypatch.setattr(
-            "cataforge.interface.cli.feedback_cmd.shutil.which", lambda _name: None
-        )
+        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.shutil.which", lambda _name: None)
         result = invoke_under_group(
             bug_command,
             ["--gh", "--summary", "x", "--skip-framework-review"],
@@ -310,9 +310,7 @@ class TestSinks:
             return subprocess.CompletedProcess(args=cmd, returncode=0)
 
         monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.shutil.which", fake_which)
-        monkeypatch.setattr(
-            "cataforge.interface.cli.feedback_cmd.run_proc", fake_run
-        )
+        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.run_proc", fake_run)
 
         result = invoke_under_group(
             bug_command,
@@ -329,9 +327,7 @@ class TestSinks:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        monkeypatch.setattr(
-            "cataforge.interface.cli.feedback_cmd.shutil.which", lambda _name: None
-        )
+        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.shutil.which", lambda _name: None)
         result = invoke_under_group(
             bug_command,
             ["--clip", "--summary", "x", "--skip-framework-review"],
@@ -343,9 +339,7 @@ class TestSinks:
 # ─── error propagation from the gh subprocess ────────────────────────────────
 
 
-def test_gh_sink_propagates_error_text(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_gh_sink_propagates_error_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Stub ``shutil.which`` + ``subprocess.run`` so the CLI thinks ``gh``
     exists but the call fails — the stderr text must surface in the error.
 

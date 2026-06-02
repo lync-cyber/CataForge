@@ -9,6 +9,7 @@ layered on top of this primitive; this module's sole responsibility is
 opening the store and bootstrapping the subclass-closure hierarchy so
 SPARQL ASK queries work correctly.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -58,9 +59,7 @@ def _open_pyoxigraph(config: KGConfig, *, create: bool = False) -> ox.Store:
     return ox.Store(str(db_path))
 
 
-def bootstrap_subclass_axioms(
-    store: ox.Store, *, include_governance: bool = False
-) -> int:
+def bootstrap_subclass_axioms(store: ox.Store, *, include_governance: bool = False) -> int:
     """Insert `rdfs:subClassOf` triples derived from the LinkML `is_a` chain.
 
     Returns the number of triples inserted. Idempotent: re-inserting an
@@ -73,9 +72,7 @@ def bootstrap_subclass_axioms(
     subclassof = ox.NamedNode(RDFS_SUBCLASSOF_IRI)
 
     count = 0
-    for child_curie, parent_curie in iter_subclass_axioms(
-        include_governance=include_governance
-    ):
+    for child_curie, parent_curie in iter_subclass_axioms(include_governance=include_governance):
         child_iri = expand_curie(child_curie, prefixes)
         parent_iri = expand_curie(parent_curie, prefixes)
         store.add(
@@ -115,9 +112,7 @@ class KnowledgeGraphStore:
         return ask(self._store, sparql)
 
     def bootstrap_subclass_axioms(self) -> int:
-        return bootstrap_subclass_axioms(
-            self._store, include_governance=self._config.governance
-        )
+        return bootstrap_subclass_axioms(self._store, include_governance=self._config.governance)
 
     def close(self) -> None:
         # pyoxigraph 0.5.x has no explicit close on Store; resources release
@@ -154,8 +149,7 @@ def init_store(config: KGConfig, *, force: bool = False) -> KnowledgeGraphStore:
     ):
         if not force:
             raise KGStoreAlreadyExistsError(
-                f"KG store already exists at {config.db_path}. "
-                "Pass --force to overwrite."
+                f"KG store already exists at {config.db_path}. Pass --force to overwrite."
             )
         shutil.rmtree(config.db_path)
 

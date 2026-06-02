@@ -17,11 +17,13 @@ def _project(tmp_path: Path, hooks_yaml: str) -> Path:
     cf = tmp_path / ".cataforge"
     (cf / "hooks").mkdir(parents=True)
     (cf / "framework.json").write_text(
-        json.dumps({
-            "version": "0.1.0",
-            "runtime_api_version": "1.0",
-            "runtime": {"platform": "claude-code"},
-        }),
+        json.dumps(
+            {
+                "version": "0.1.0",
+                "runtime_api_version": "1.0",
+                "runtime": {"platform": "claude-code"},
+            }
+        ),
         encoding="utf-8",
     )
     (cf / "hooks" / "hooks.yaml").write_text(hooks_yaml, encoding="utf-8")
@@ -29,9 +31,7 @@ def _project(tmp_path: Path, hooks_yaml: str) -> Path:
     return tmp_path
 
 
-def test_doctor_passes_when_all_declared_scripts_importable(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_passes_when_all_declared_scripts_importable(tmp_path: Path, monkeypatch) -> None:
     yaml = textwrap.dedent("""
         schema_version: 2
         hooks:

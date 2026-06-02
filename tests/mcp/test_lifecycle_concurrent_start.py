@@ -61,9 +61,7 @@ class TestConcurrentStart:
 
         # All running results must agree on the same PID — no duplicates.
         pids = {r.pid for r in running if r.pid is not None}
-        assert len(pids) == 1, (
-            f"concurrent start() spawned multiple distinct PIDs: {pids}"
-        )
+        assert len(pids) == 1, f"concurrent start() spawned multiple distinct PIDs: {pids}"
 
         # Clean up
         mgr = MCPLifecycleManager(project)
@@ -86,6 +84,7 @@ class TestConcurrentStart:
         assert state_file.is_file(), "state file must exist after concurrent starts"
 
         import json
+
         data = json.loads(state_file.read_text(encoding="utf-8"))
         assert "status" in data, "state file must contain a 'status' key"
         assert data["status"] in ("running", "stopped", "error"), (

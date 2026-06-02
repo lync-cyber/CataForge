@@ -87,9 +87,7 @@ def test_deploy_commands_leaves_foreign_non_md_alone(
     assert (target / "README.txt").is_file()
 
 
-def test_deploy_agents_prunes_orphan_subdirs(
-    tmp_path: Path, adapter: _MinimalAdapter
-) -> None:
+def test_deploy_agents_prunes_orphan_subdirs(tmp_path: Path, adapter: _MinimalAdapter) -> None:
     source = tmp_path / ".cataforge" / "agents"
     (source / "orchestrator").mkdir(parents=True)
     (source / "orchestrator" / "AGENT.md").write_text(
@@ -100,9 +98,7 @@ def test_deploy_agents_prunes_orphan_subdirs(
     target = tmp_path / ".test" / "agents"
     orphan = target / "retired-agent"
     orphan.mkdir(parents=True)
-    (orphan / "AGENT.md").write_text(
-        "---\nname: retired-agent\n---\nold\n", encoding="utf-8"
-    )
+    (orphan / "AGENT.md").write_text("---\nname: retired-agent\n---\nold\n", encoding="utf-8")
 
     adapter.deploy_agents(source, tmp_path)
     assert (target / "orchestrator" / "AGENT.md").is_file()

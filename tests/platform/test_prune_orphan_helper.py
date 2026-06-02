@@ -21,9 +21,7 @@ def test_removes_orphan_with_matching_signature(tmp_path: Path) -> None:
     _write(tmp_path, "current.md", "name: current\nbody\n")
     orphan = _write(tmp_path, "retired.md", "name: retired\nold body\n")
 
-    actions = _prune_orphan_flat_files(
-        tmp_path, known, ".md", "name: {stem}", "agents"
-    )
+    actions = _prune_orphan_flat_files(tmp_path, known, ".md", "name: {stem}", "agents")
 
     assert not orphan.exists()
     assert set(tmp_path.iterdir()) == {tmp_path / "current.md"}
@@ -34,9 +32,7 @@ def test_preserves_file_without_matching_signature(tmp_path: Path) -> None:
     known: set[str] = set()
     user_file = _write(tmp_path, "notes.md", "# user notes\n")
 
-    actions = _prune_orphan_flat_files(
-        tmp_path, known, ".md", "name: {stem}", "agents"
-    )
+    actions = _prune_orphan_flat_files(tmp_path, known, ".md", "name: {stem}", "agents")
 
     assert user_file.exists()
     assert actions == []
@@ -46,9 +42,7 @@ def test_preserves_known_name_even_with_signature(tmp_path: Path) -> None:
     known = {"active"}
     active = _write(tmp_path, "active.md", "name: active\nbody\n")
 
-    actions = _prune_orphan_flat_files(
-        tmp_path, known, ".md", "name: {stem}", "agents"
-    )
+    actions = _prune_orphan_flat_files(tmp_path, known, ".md", "name: {stem}", "agents")
 
     assert active.exists()
     assert actions == []
@@ -59,9 +53,7 @@ def test_empty_known_names_removes_all_matching(tmp_path: Path) -> None:
     a = _write(tmp_path, "alpha.md", "name: alpha\n")
     b = _write(tmp_path, "beta.md", "name: beta\n")
 
-    actions = _prune_orphan_flat_files(
-        tmp_path, known, ".md", "name: {stem}", "agents"
-    )
+    actions = _prune_orphan_flat_files(tmp_path, known, ".md", "name: {stem}", "agents")
 
     assert not a.exists()
     assert not b.exists()
@@ -76,9 +68,7 @@ def test_ignores_wrong_extension(tmp_path: Path) -> None:
     known: set[str] = set()
     toml_file = _write(tmp_path, "agent.toml", "# Auto-generated from agent/AGENT.md\n")
 
-    actions = _prune_orphan_flat_files(
-        tmp_path, known, ".md", "name: {stem}", "agents"
-    )
+    actions = _prune_orphan_flat_files(tmp_path, known, ".md", "name: {stem}", "agents")
 
     assert toml_file.exists()
     assert actions == []
@@ -87,9 +77,9 @@ def test_ignores_wrong_extension(tmp_path: Path) -> None:
 def test_toml_signature_variant(tmp_path: Path) -> None:
     known: set[str] = set()
     orphan = _write(
-        tmp_path, "retired.toml", "# Auto-generated from retired/AGENT.md\nname = \"retired\"\n"
+        tmp_path, "retired.toml", '# Auto-generated from retired/AGENT.md\nname = "retired"\n'
     )
-    user_toml = _write(tmp_path, "manual.toml", "name = \"manual\"\n")
+    user_toml = _write(tmp_path, "manual.toml", 'name = "manual"\n')
 
     actions = _prune_orphan_flat_files(
         tmp_path,
@@ -142,9 +132,7 @@ def test_dry_run_does_not_delete(tmp_path: Path) -> None:
 def test_nonexistent_directory_returns_empty(tmp_path: Path) -> None:
     missing = tmp_path / "does_not_exist"
 
-    actions = _prune_orphan_flat_files(
-        missing, set(), ".md", "name: {stem}", "agents"
-    )
+    actions = _prune_orphan_flat_files(missing, set(), ".md", "name: {stem}", "agents")
 
     assert actions == []
 
@@ -159,8 +147,6 @@ def test_exact_residual_set_after_mixed_prune(tmp_path: Path) -> None:
     _write(tmp_path, "orphan-x.md", "name: orphan-x\n")
     user_y = _write(tmp_path, "user-y.md", "# plain user file\n")
 
-    _prune_orphan_flat_files(
-        tmp_path, known, ".md", "name: {stem}", "agents"
-    )
+    _prune_orphan_flat_files(tmp_path, known, ".md", "name: {stem}", "agents")
 
     assert set(tmp_path.iterdir()) == {keep_a, keep_b, user_y}

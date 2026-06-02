@@ -84,10 +84,13 @@ class TestLegitimateCommandRegression:
         fake_proc.stdout = "ok"
         fake_proc.stderr = ""
 
-        with patch(
-            "cataforge.interface.cli.hook_cmd._resolve_hook_command",
-            return_value="python -m cataforge.runtime.hook.scripts.lint_format",
-        ), patch("subprocess.run", return_value=fake_proc) as mock_run:
+        with (
+            patch(
+                "cataforge.interface.cli.hook_cmd._resolve_hook_command",
+                return_value="python -m cataforge.runtime.hook.scripts.lint_format",
+            ),
+            patch("subprocess.run", return_value=fake_proc) as mock_run,
+        ):
             result = _invoke("hook", "test", "lint_format", "--input", "{}")
 
         assert result.exit_code == 0
@@ -107,13 +110,17 @@ class TestUnsafeShellEscapeHatch:
 
         meta_command = "echo hello | cat"
 
-        with patch(
-            "cataforge.interface.cli.hook_cmd._resolve_hook_command",
-            return_value=meta_command,
-        ), patch(
-            "cataforge.interface.cli.hook_cmd._hook_has_unsafe_shell",
-            return_value=True,
-        ), patch("subprocess.run", return_value=fake_proc) as mock_run:
+        with (
+            patch(
+                "cataforge.interface.cli.hook_cmd._resolve_hook_command",
+                return_value=meta_command,
+            ),
+            patch(
+                "cataforge.interface.cli.hook_cmd._hook_has_unsafe_shell",
+                return_value=True,
+            ),
+            patch("subprocess.run", return_value=fake_proc) as mock_run,
+        ):
             result = _invoke("hook", "test", "my_shell_hook", "--input", "{}")
 
         assert result.exit_code == 0

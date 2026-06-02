@@ -29,7 +29,7 @@ def _write_skill(
 ) -> Path:
     skill_dir = project_root / ".cataforge" / "skills" / skill_id
     skill_dir.mkdir(parents=True)
-    fm = frontmatter or f'---\nname: {skill_id}\ndescription: test skill\n---\n'
+    fm = frontmatter or f"---\nname: {skill_id}\ndescription: test skill\n---\n"
     (skill_dir / "SKILL.md").write_text(fm + "\nBody.\n", encoding="utf-8")
     scripts_dir = skill_dir / "scripts"
     scripts_dir.mkdir()
@@ -62,9 +62,7 @@ class TestSkillDiscovery:
         loader = SkillLoader(project)
         assert loader.get_skill("nonexistent-skill-xyz") is None
 
-    def test_project_skill_without_scripts_borrows_builtin(
-        self, project: Path
-    ) -> None:
+    def test_project_skill_without_scripts_borrows_builtin(self, project: Path) -> None:
         """When a project SKILL.md exists but has no scripts/, the builtin
         scripts are merged in so `cataforge skill run` stays functional.
 
@@ -86,9 +84,7 @@ class TestSkillDiscovery:
         assert meta.builtin is True
         assert any(s["name"] == "code_lint" for s in meta.scripts)
 
-    def test_project_skill_with_scripts_keeps_its_own(
-        self, project: Path
-    ) -> None:
+    def test_project_skill_with_scripts_keeps_its_own(self, project: Path) -> None:
         """A project-level SKILL.md that ships its own scripts/ directory
         must not be quietly replaced by the builtin."""
         _write_skill(project, "code-review", script_body="print('local')\n")
@@ -99,12 +95,8 @@ class TestSkillDiscovery:
         assert meta.scripts == [{"name": "main", "entry": "scripts/main.py"}]
 
 
-def _write_override_skill(
-    project_root: Path, layer: str, skill_id: str, description: str
-) -> Path:
-    skill_dir = (
-        project_root / ".cataforge" / "overrides" / layer / "skills" / skill_id
-    )
+def _write_override_skill(project_root: Path, layer: str, skill_id: str, description: str) -> Path:
+    skill_dir = project_root / ".cataforge" / "overrides" / layer / "skills" / skill_id
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
         f"---\nname: {skill_id}\ndescription: {description}\n---\nBody.\n",
@@ -215,6 +207,7 @@ class TestSkillRunnerEventLog:
         log = project / "docs" / "EVENT-LOG.jsonl"
         assert log.is_file(), "review skill runs must emit an event"
         import json
+
         lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
         assert any(
             r.get("event") == "state_change"
@@ -224,9 +217,7 @@ class TestSkillRunnerEventLog:
             for r in lines
         )
 
-    def test_review_skill_exit1_recorded_as_needs_revision(
-        self, project: Path
-    ) -> None:
+    def test_review_skill_exit1_recorded_as_needs_revision(self, project: Path) -> None:
         _write_skill(
             project,
             "sprint-review",
@@ -237,13 +228,12 @@ class TestSkillRunnerEventLog:
 
         log = project / "docs" / "EVENT-LOG.jsonl"
         import json
+
         records = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
         statuses = [r.get("status") for r in records]
         assert "needs_revision" in statuses
 
-    def test_review_skill_exit2_distinct_from_unreachable(
-        self, project: Path
-    ) -> None:
+    def test_review_skill_exit2_distinct_from_unreachable(self, project: Path) -> None:
         """Exit 2 is a Layer-1 bad-arguments signal, not "scripts
         unreachable". Its event must not borrow the generic
         unreachable/blocked labelling reserved for non-business exit codes
@@ -258,6 +248,7 @@ class TestSkillRunnerEventLog:
 
         log = project / "docs" / "EVENT-LOG.jsonl"
         import json
+
         records = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
         rec = records[-1]
         assert "unreachable" not in rec["detail"], (
@@ -280,13 +271,9 @@ class TestSkillRunnerEventLog:
         )
         loader = SkillLoader(project)
         meta = loader.get_skill("doc-review")
-        assert meta.record_to_event_log, (
-            "doc-review override should still record to EVENT-LOG"
-        )
+        assert meta.record_to_event_log, "doc-review override should still record to EVENT-LOG"
 
-    def test_maintainer_only_flag_parsed_from_frontmatter(
-        self, project: Path
-    ) -> None:
+    def test_maintainer_only_flag_parsed_from_frontmatter(self, project: Path) -> None:
         """`maintainer-only: true` in SKILL.md frontmatter flips the
         `SkillMeta.maintainer_only` field. `cataforge deploy` uses this to
         decide whether the skill ships to downstream projects.
@@ -294,10 +281,7 @@ class TestSkillRunnerEventLog:
         _write_skill(
             project,
             "upstream-only",
-            frontmatter=(
-                "---\nname: upstream-only\ndescription: x\n"
-                "maintainer-only: true\n---\n"
-            ),
+            frontmatter=("---\nname: upstream-only\ndescription: x\nmaintainer-only: true\n---\n"),
             script_body="import sys; sys.exit(0)\n",
         )
         loader = SkillLoader(project)
@@ -316,8 +300,7 @@ class TestSkillRunnerEventLog:
             project,
             "custom-gate",
             frontmatter=(
-                "---\nname: custom-gate\ndescription: x\n"
-                "record-to-event-log: true\n---\n"
+                "---\nname: custom-gate\ndescription: x\nrecord-to-event-log: true\n---\n"
             ),
             script_body="import sys; sys.exit(0)\n",
         )
@@ -349,12 +332,9 @@ class TestSkillRunnerAgentAttribution:
 
     def _last_record(self, project: Path) -> dict:
         import json
+
         log = project / "docs" / "EVENT-LOG.jsonl"
-        lines = [
-            json.loads(ln)
-            for ln in log.read_text().splitlines()
-            if ln.strip()
-        ]
+        lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
         return lines[-1]
 
     def test_explicit_agent_param_wins(self, project: Path) -> None:
@@ -393,9 +373,7 @@ class TestSkillRunnerAgentAttribution:
         runner.run("code-review", agent="reflector")
         assert self._last_record(project)["agent"] == "reflector"
 
-    def test_legacy_reviewer_fallback(
-        self, project: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_legacy_reviewer_fallback(self, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """No param, no env — keep the historical 'reviewer'
         attribution so existing review-class skill flows don't change
         meaning."""

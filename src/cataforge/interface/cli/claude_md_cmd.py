@@ -49,8 +49,7 @@ def check_command() -> None:
     failed = 0
     click.echo(f"CLAUDE.md: {measurement.path}")
     click.echo(
-        f"  size:               {measurement.total_bytes:>6} bytes "
-        f"(limit: {limits['max_bytes']})"
+        f"  size:               {measurement.total_bytes:>6} bytes (limit: {limits['max_bytes']})"
     )
     if measurement.total_bytes > limits["max_bytes"]:
         click.secho(
@@ -76,10 +75,7 @@ def check_command() -> None:
         f"  Learnings Registry: {measurement.learnings_entries:>6} entries "
         f"(limit: {limits['learnings_registry_max_entries']})"
     )
-    if (
-        measurement.learnings_entries
-        > limits["learnings_registry_max_entries"]
-    ):
+    if measurement.learnings_entries > limits["learnings_registry_max_entries"]:
         click.secho(
             "    FAIL: registry exceeds max — run "
             "`cataforge claude-md compact` to archive older entries.",
@@ -96,11 +92,17 @@ def check_command() -> None:
 
 @claude_md_group.command("compact")
 @click.option(
-    "--max-entries", "max_entries", type=int, default=None,
+    "--max-entries",
+    "max_entries",
+    type=int,
+    default=None,
     help="Override learnings_registry_max_entries from framework.json.",
 )
 @click.option(
-    "--dry-run", "dry_run", is_flag=True, default=False,
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    default=False,
     help="Print the compaction plan without modifying files.",
 )
 def compact_command(max_entries: int | None, dry_run: bool) -> None:
@@ -116,9 +118,7 @@ def compact_command(max_entries: int | None, dry_run: bool) -> None:
 
     measurement = measure_claude_md(claude_md)
     if measurement.learnings_entries <= bound:
-        click.echo(
-            f"  no compaction needed ({measurement.learnings_entries} ≤ {bound})."
-        )
+        click.echo(f"  no compaction needed ({measurement.learnings_entries} ≤ {bound}).")
         return
 
     surplus = measurement.learnings_entries - bound
@@ -130,9 +130,7 @@ def compact_command(max_entries: int | None, dry_run: bool) -> None:
         click.echo("  (dry-run; pass without --dry-run to apply)")
         return
 
-    result = compact_learnings_registry(
-        claude_md, archive_path=archive, max_entries=bound
-    )
+    result = compact_learnings_registry(claude_md, archive_path=archive, max_entries=bound)
     click.secho(
         f"  archived {result.archived_entries} → {result.archive_path}; "
         f"kept {result.kept_entries} in CLAUDE.md.",

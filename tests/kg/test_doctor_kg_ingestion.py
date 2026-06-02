@@ -5,6 +5,7 @@ Per Task 7 §7.1 sub-PR 5 (and the explicit user decision in
 WARN-to-ERROR promotion period: missing entities contribute to the
 doctor exit code from the moment cutover lands.
 """
+
 from __future__ import annotations
 
 import gc
@@ -14,6 +15,7 @@ from pathlib import Path
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
+
 @dataclass
 class FakePaths:
     root: Path
@@ -22,9 +24,11 @@ class FakePaths:
     def framework_json(self) -> Path:
         return self.root / ".cataforge" / "framework.json"
 
+
 @dataclass
 class FakeConfig:
     paths: FakePaths
+
 
 def _setup_project_with_kg(tmp_path: Path) -> Path:
     """Copy the waterfall fixture into tmp_path and ingest into KG."""
@@ -49,6 +53,7 @@ def _setup_project_with_kg(tmp_path: Path) -> Path:
     gc.collect()
     return project_root
 
+
 def test_gate_passes_when_fs_matches_kg(tmp_path, capsys) -> None:
     from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
@@ -60,6 +65,7 @@ def test_gate_passes_when_fs_matches_kg(tmp_path, capsys) -> None:
 
     assert failures == 0, out
     assert "OK" in out
+
 
 def test_gate_fails_when_kg_missing_fs_entity(tmp_path, capsys) -> None:
     from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
@@ -79,6 +85,7 @@ def test_gate_fails_when_kg_missing_fs_entity(tmp_path, capsys) -> None:
     assert failures == 1
     assert "FAIL" in out
     assert "F-999" in out
+
 
 def test_gate_warns_but_does_not_fail_on_stale_only(tmp_path, capsys) -> None:
     """A KG entity present but no longer on disk surfaces as WARN; the
@@ -107,6 +114,7 @@ def test_gate_warns_but_does_not_fail_on_stale_only(tmp_path, capsys) -> None:
     assert "TC-002" in out, "stale TC-002 must appear in WARN"
     assert "WARN" in out
 
+
 def test_gate_passes_with_doc_level_frontmatter_id(tmp_path, capsys) -> None:
     """A document-level frontmatter ``id`` (the scaffold's ``id: prd-<x>``
     shape) must not be demanded of the graph.
@@ -134,6 +142,7 @@ def test_gate_passes_with_doc_level_frontmatter_id(tmp_path, capsys) -> None:
     assert "FAIL" not in out
     assert "prd-vertical-slice" not in out
 
+
 def test_gate_skips_when_no_store(tmp_path, capsys) -> None:
     """No `.cataforge/kg/store/` present → gate returns 0 (skip).
 
@@ -151,6 +160,7 @@ def test_gate_skips_when_no_store(tmp_path, capsys) -> None:
 
     assert failures == 0
     assert "skipping" in out
+
 
 def test_gate_skips_when_no_active_doc_types(tmp_path, capsys) -> None:
     """Empty `context.kg_active_doc_types` in framework.json AND no

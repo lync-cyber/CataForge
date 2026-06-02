@@ -91,9 +91,7 @@ def test_write_silently_swallows_brokenpipe(
     # absence of log records pins the new behaviour: BrokenPipeError
     # specifically stays out of the log stream too.
     pipe_records = [r for r in caplog.records if "BrokenPipe" in r.getMessage()]
-    assert pipe_records == [], (
-        f"BrokenPipeError must not produce log noise; got {pipe_records!r}"
-    )
+    assert pipe_records == [], f"BrokenPipeError must not produce log noise; got {pipe_records!r}"
 
 
 def test_write_logs_valueerror_at_debug(
@@ -114,12 +112,8 @@ def test_write_logs_valueerror_at_debug(
     # Must not raise.
     ui.ok("doesn't matter")
 
-    debug_records = [
-        r for r in caplog.records if "ui write got ValueError" in r.getMessage()
-    ]
-    assert debug_records, (
-        f"ValueError on write must be logged at DEBUG; got {caplog.records!r}"
-    )
+    debug_records = [r for r in caplog.records if "ui write got ValueError" in r.getMessage()]
+    assert debug_records, f"ValueError on write must be logged at DEBUG; got {caplog.records!r}"
     assert debug_records[0].levelno == logging.DEBUG
 
 
@@ -260,10 +254,12 @@ def test_code_block_indents() -> None:
 
 def test_next_steps_renders_command_and_why() -> None:
     ui, out, _ = _make_ui(color=False, unicode=True)
-    ui.next_steps([
-        NextStep("cataforge doctor", "verify integrity"),
-        NextStep("cataforge deploy"),
-    ])
+    ui.next_steps(
+        [
+            NextStep("cataforge doctor", "verify integrity"),
+            NextStep("cataforge deploy"),
+        ]
+    )
     text = out.getvalue()
     assert "下一步" in text
     assert "cataforge doctor" in text

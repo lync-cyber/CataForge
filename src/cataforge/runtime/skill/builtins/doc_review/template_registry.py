@@ -122,8 +122,10 @@ def load_template_required_sections(
     mode_map = _get_template_map().get(doc_type)
     if not mode_map:
         return None
-    mode_key = mode if mode in mode_map else (
-        "standard" if "standard" in mode_map else next(iter(mode_map), "")
+    mode_key = (
+        mode
+        if mode in mode_map
+        else ("standard" if "standard" in mode_map else next(iter(mode_map), ""))
     )
     type_map = mode_map.get(mode_key) or {}
     filename = type_map.get(volume_type)
@@ -152,9 +154,7 @@ def load_template_required_sections(
                 break
             continue
         if in_required_sections:
-            list_item = re.match(r'^\s+-\s+"(.*)"', line) or re.match(
-                r"^\s+-\s+'(.*)'", line
-            )
+            list_item = re.match(r'^\s+-\s+"(.*)"', line) or re.match(r"^\s+-\s+'(.*)'", line)
             if list_item:
                 headings.append(list_item.group(1))
             elif re.match(r"^\s+-\s+", line):

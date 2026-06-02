@@ -13,8 +13,7 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
     {
         "id": "e2e_backdoor_scan",
         "title": (
-            "e2e 后门正则扫描 — window.__*__ / ?e2e=1 / setStore / "
-            "setAst(JSON.parse) 等命中 → WARN"
+            "e2e 后门正则扫描 — window.__*__ / ?e2e=1 / setStore / setAst(JSON.parse) 等命中 → WARN"
         ),
         "severity": "warn",
     },

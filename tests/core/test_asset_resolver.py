@@ -123,9 +123,7 @@ def test_no_layers_returns_empty(tmp_path: Path) -> None:
     assert resolve_kind(ProjectPaths(tmp_path), "agents", dest) == []
 
 
-def test_orphan_patch_not_materialized_as_real_asset(
-    tmp_path: Path, caplog
-) -> None:
+def test_orphan_patch_not_materialized_as_real_asset(tmp_path: Path, caplog) -> None:
     """A ``<typo>.patch.md`` with no base ``<typo>.md`` in any layer is an
     orphan (typo'd patch name) — it must be skipped + logged, never written
     out verbatim as a real ``<typo>.md`` asset."""
@@ -146,13 +144,10 @@ def test_orphan_patch_not_materialized_as_real_asset(
     # The orphan patch is NOT written as a standalone asset ...
     assert not (dest / "architect" / "orchestrater.md").exists()
     assert not (dest / "architect" / "orchestrater.patch.md").exists()
-    assert "should not ship" not in (
-        dest / "architect" / "AGENT.md"
-    ).read_text(encoding="utf-8")
+    assert "should not ship" not in (dest / "architect" / "AGENT.md").read_text(encoding="utf-8")
     # ... and the skip is surfaced as a diagnostic.
     assert any(
-        "orphan patch" in r.message or "orphan patch" in r.getMessage()
-        for r in caplog.records
+        "orphan patch" in r.message or "orphan patch" in r.getMessage() for r in caplog.records
     ), f"no orphan-patch warning logged: {[r.getMessage() for r in caplog.records]}"
 
 

@@ -35,18 +35,13 @@ def _project_with_claude_md(
     )
     children = "\n".join(f"  - e{i}" for i in range(learnings_count))
     (tmp_path / "CLAUDE.md").write_text(
-        "# Test\n\n"
-        "## 项目状态\n\n"
-        "- 当前阶段: development\n"
-        f"- Learnings Registry:\n{children}\n",
+        f"# Test\n\n## 项目状态\n\n- 当前阶段: development\n- Learnings Registry:\n{children}\n",
         encoding="utf-8",
     )
     return tmp_path
 
 
-def test_doctor_reports_hygiene_section(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_doctor_reports_hygiene_section(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = _project_with_claude_md(tmp_path, learnings_count=3, max_entries=10)
     monkeypatch.chdir(root)
     result = CliRunner().invoke(doctor_command, [])
@@ -64,9 +59,7 @@ def test_doctor_fails_when_learnings_overflow(
     assert "Learnings Registry over limit" in result.output
 
 
-def test_doctor_passes_without_claude_md(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_doctor_passes_without_claude_md(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cf = tmp_path / ".cataforge"
     cf.mkdir()
     (cf / "framework.json").write_text(

@@ -108,15 +108,17 @@ def pytest_configure(config: pytest.Config) -> None:
     ]
     for mod, hint in missing:
         msg_lines.append(f"  - {mod}    →  {hint}")
-    msg_lines.extend([
-        "",
-        "Recommended one-shot:",
-        "    pip install -e '.[dev]'",
-        "",
-        "(or with uv:  uv sync --extra dev)",
-        "=" * 70,
-        "",
-    ])
+    msg_lines.extend(
+        [
+            "",
+            "Recommended one-shot:",
+            "    pip install -e '.[dev]'",
+            "",
+            "(or with uv:  uv sync --extra dev)",
+            "=" * 70,
+            "",
+        ]
+    )
     print("\n".join(msg_lines), file=sys.stderr)
     pytest.exit("missing dev dependencies (see message above)", returncode=2)
 
@@ -168,23 +170,24 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
         print(
-            f"\nWARN: pre-commit not auto-installed ({exc}); run "
-            "`pre-commit install` manually.\n",
+            f"\nWARN: pre-commit not auto-installed ({exc}); run `pre-commit install` manually.\n",
             file=sys.stderr,
         )
         return
 
     if result.returncode == 0:
         print(
-            "\n".join([
-                "",
-                "=" * 70,
-                "OK: pre-commit hooks auto-installed (.git/hooks/pre-commit).",
-                "  ruff / utf-8-stdio / schema-parity checks now run on commit.",
-                "  Opt out: export CATAFORGE_SKIP_HOOK_AUTOINSTALL=1",
-                "=" * 70,
-                "",
-            ]),
+            "\n".join(
+                [
+                    "",
+                    "=" * 70,
+                    "OK: pre-commit hooks auto-installed (.git/hooks/pre-commit).",
+                    "  ruff / utf-8-stdio / schema-parity checks now run on commit.",
+                    "  Opt out: export CATAFORGE_SKIP_HOOK_AUTOINSTALL=1",
+                    "=" * 70,
+                    "",
+                ]
+            ),
             file=sys.stderr,
         )
     else:

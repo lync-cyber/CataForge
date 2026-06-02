@@ -280,9 +280,7 @@ class Deployer:
 
     # ---- P1: resolve user/project override layers ----
 
-    def _resolve_override_sources(
-        self, stack: ExitStack
-    ) -> tuple[Path, Path, str | None]:
+    def _resolve_override_sources(self, stack: ExitStack) -> tuple[Path, Path, str | None]:
         """Return the (agents, skills) source dirs deploy should read from.
 
         Stages a layered, section-patched, plugin-merged tree into a temp dir

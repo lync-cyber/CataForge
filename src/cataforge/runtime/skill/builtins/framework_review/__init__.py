@@ -158,10 +158,7 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
     },
     {
         "id": "B8_anti_pattern_substantive",
-        "title": (
-            "Anti-Patterns 每条 bullet 正文 ≥ 12 字符 "
-            "(过滤 placeholder 占位条目)"
-        ),
+        "title": ("Anti-Patterns 每条 bullet 正文 ≥ 12 字符 (过滤 placeholder 占位条目)"),
         "severity": "warn",
     },
     {
@@ -174,18 +171,12 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
     },
     {
         "id": "B9_migration_deprecate_order",
-        "title": (
-            "migration_checks deprecate_after > release_version "
-            "(否则发布即废弃, 永不执行)"
-        ),
+        "title": ("migration_checks deprecate_after > release_version (否则发布即废弃, 永不执行)"),
         "severity": "warn",
     },
     {
         "id": "B9_migration_dead_entry",
-        "title": (
-            "migration_checks 已废弃且路径缺失的死条目提示 "
-            "(建议从 framework.json 移除)"
-        ),
+        "title": ("migration_checks 已废弃且路径缺失的死条目提示 (建议从 framework.json 移除)"),
         "severity": "info",
     },
 )

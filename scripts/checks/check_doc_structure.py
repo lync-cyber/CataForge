@@ -78,12 +78,14 @@ def check_non_standard_numbering(
             continue
         m = NON_STD_STEP.match(line)
         if m:
-            issues.append((
-                lineno,
-                "non-standard-step",
-                f"'{m.group(1)}' — use sequential integers; "
-                f"merge sub-steps inline or as nested bullets",
-            ))
+            issues.append(
+                (
+                    lineno,
+                    "non-standard-step",
+                    f"'{m.group(1)}' — use sequential integers; "
+                    f"merge sub-steps inline or as nested bullets",
+                )
+            )
     return issues
 
 
@@ -129,19 +131,23 @@ def check_step_gaps(
 
         # Duplicate check
         if num in seen_in_section:
-            issues.append((
-                lineno,
-                "duplicate-step",
-                f"step {num} duplicated (first at line {seen_in_section[num]})",
-            ))
+            issues.append(
+                (
+                    lineno,
+                    "duplicate-step",
+                    f"step {num} duplicated (first at line {seen_in_section[num]})",
+                )
+            )
 
         # Gap check (only when we have a prior step)
         if prev_num > 0 and num > prev_num + 1:
-            issues.append((
-                lineno,
-                "step-gap",
-                f"step {prev_num} → {num} (missing {prev_num + 1})",
-            ))
+            issues.append(
+                (
+                    lineno,
+                    "step-gap",
+                    f"step {prev_num} → {num} (missing {prev_num + 1})",
+                )
+            )
 
         seen_in_section[num] = lineno
         prev_num = num

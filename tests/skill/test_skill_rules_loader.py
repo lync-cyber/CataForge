@@ -163,9 +163,7 @@ empty_handler_patterns:
         validate_yaml_text(bad, "test")
 
 
-def _write_project_rule(
-    project_root: Path, skill_id: str, filename: str, body: str
-) -> Path:
+def _write_project_rule(project_root: Path, skill_id: str, filename: str, body: str) -> Path:
     rules_dir = project_root / ".cataforge" / "skills" / skill_id / "rules"
     rules_dir.mkdir(parents=True, exist_ok=True)
     path = rules_dir / filename
@@ -198,9 +196,7 @@ empty_handler_patterns:
 def _write_override_rule(
     project_root: Path, layer: str, skill_id: str, filename: str, body: str
 ) -> Path:
-    rules_dir = (
-        project_root / ".cataforge" / "overrides" / layer / "skills" / skill_id / "rules"
-    )
+    rules_dir = project_root / ".cataforge" / "overrides" / layer / "skills" / skill_id / "rules"
     rules_dir.mkdir(parents=True, exist_ok=True)
     path = rules_dir / filename
     path.write_text(body, encoding="utf-8")
@@ -226,9 +222,7 @@ empty_handler_patterns:
   - regex: 'overrideWins'
 """
     _write_project_rule(tmp_path, "code-review", "wiring-js-ts.yaml", scaffold_body)
-    _write_override_rule(
-        tmp_path, "project", "code-review", "wiring-js-ts.yaml", override_body
-    )
+    _write_override_rule(tmp_path, "project", "code-review", "wiring-js-ts.yaml", override_body)
     rules = discover_rules(
         "code-review",
         builtin_module="cataforge.runtime.skill.builtins.code_review",

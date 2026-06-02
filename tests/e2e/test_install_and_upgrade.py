@@ -44,7 +44,11 @@ def test_fresh_install_writes_scaffold_manifest_and_ide_artifacts(
 ) -> None:
     """0→1: `cataforge setup --platform X --deploy` in a fresh project."""
     result = run_cataforge(
-        cataforge_venv, "setup", "--platform", "claude-code", "--deploy",
+        cataforge_venv,
+        "setup",
+        "--platform",
+        "claude-code",
+        "--deploy",
         cwd=fresh_project,
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -59,14 +63,10 @@ def test_fresh_install_writes_scaffold_manifest_and_ide_artifacts(
     assert (fresh_project / ".claude" / "settings.json").is_file()
 
     # Manifest shape: versioned, every entry is a sha256 hex digest
-    manifest = json.loads(
-        (cataforge_dir / ".scaffold-manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((cataforge_dir / ".scaffold-manifest.json").read_text(encoding="utf-8"))
     assert manifest["manifest_version"] == 1
     assert manifest["package_version"]  # non-empty
-    assert len(manifest["files"]) > 50, (
-        f"expected >50 tracked files, got {len(manifest['files'])}"
-    )
+    assert len(manifest["files"]) > 50, f"expected >50 tracked files, got {len(manifest['files'])}"
     for rel, digest in manifest["files"].items():
         assert len(digest) == 64, f"{rel}: digest is not sha256 hex ({digest!r})"
         assert all(c in "0123456789abcdef" for c in digest), f"{rel}: non-hex digest"
@@ -77,9 +77,7 @@ def test_upgrade_apply_dry_run_flags_user_modified_files(
 ) -> None:
     """User-modified scaffold files must surface as ``[user-modified]``
     and framework.json / PROJECT-STATE.md as ``[preserved]``."""
-    run_cataforge(
-        cataforge_venv, "setup", "--platform", "claude-code", cwd=fresh_project
-    )
+    run_cataforge(cataforge_venv, "setup", "--platform", "claude-code", cwd=fresh_project)
 
     cataforge_dir = fresh_project / ".cataforge"
     agents_dir = cataforge_dir / "agents"
@@ -92,9 +90,7 @@ def test_upgrade_apply_dry_run_flags_user_modified_files(
     )
     agent_rel = target_agent.relative_to(cataforge_dir).as_posix()
 
-    result = run_cataforge(
-        cataforge_venv, "upgrade", "apply", "--dry-run", cwd=fresh_project
-    )
+    result = run_cataforge(cataforge_venv, "upgrade", "apply", "--dry-run", cwd=fresh_project)
     assert result.returncode == 0, result.stdout + result.stderr
     out = result.stdout
 
@@ -133,9 +129,7 @@ def test_upgrade_apply_preserves_user_mods_and_runtime_platform(
     * ``framework.json.runtime.platform`` is preserved (field-level merge).
     * The scaffold manifest keeps the file flagged user-modified.
     """
-    run_cataforge(
-        cataforge_venv, "setup", "--platform", "claude-code", cwd=fresh_project
-    )
+    run_cataforge(cataforge_venv, "setup", "--platform", "claude-code", cwd=fresh_project)
 
     cataforge_dir = fresh_project / ".cataforge"
     agent_files = sorted((cataforge_dir / "agents").rglob("AGENT.md"))
@@ -151,9 +145,7 @@ def test_upgrade_apply_preserves_user_mods_and_runtime_platform(
     fw["runtime"]["platform"] = "cursor"
     fw_path.write_text(json.dumps(fw, indent=2), encoding="utf-8")
 
-    result = run_cataforge(
-        cataforge_venv, "upgrade", "apply", cwd=fresh_project
-    )
+    result = run_cataforge(cataforge_venv, "upgrade", "apply", cwd=fresh_project)
     assert result.returncode == 0, result.stdout + result.stderr
 
     # Contract: user edits to scaffold files are preserved, not dropped.
@@ -169,9 +161,7 @@ def test_upgrade_apply_preserves_user_mods_and_runtime_platform(
 
     # Manifest keeps the file flagged user-modified: its recorded hash differs
     # from the preserved (edited) bytes on disk.
-    manifest = json.loads(
-        (cataforge_dir / ".scaffold-manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((cataforge_dir / ".scaffold-manifest.json").read_text(encoding="utf-8"))
     agent_rel = target_agent.relative_to(cataforge_dir).as_posix()
     disk_hash = hashlib.sha256(target_agent.read_bytes()).hexdigest()
     assert manifest["files"][agent_rel] != disk_hash
@@ -181,12 +171,8 @@ def test_upgrade_check_reports_up_to_date_after_setup(
     fresh_project: Path, cataforge_venv: Path
 ) -> None:
     """Immediately after ``setup``, ``upgrade check`` must report parity."""
-    run_cataforge(
-        cataforge_venv, "setup", "--platform", "claude-code", cwd=fresh_project
-    )
+    run_cataforge(cataforge_venv, "setup", "--platform", "claude-code", cwd=fresh_project)
 
-    result = run_cataforge(
-        cataforge_venv, "upgrade", "check", cwd=fresh_project
-    )
+    result = run_cataforge(cataforge_venv, "upgrade", "check", cwd=fresh_project)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Scaffold is up to date" in result.stdout, result.stdout

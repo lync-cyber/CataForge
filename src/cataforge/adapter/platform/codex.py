@@ -25,9 +25,7 @@ class CodexAdapter(PlatformAdapter):
         return "CODEX_HOME"
 
     def get_agent_scan_dirs(self) -> list[str]:
-        return list(
-            self._profile.get("agent_definition", {}).get("scan_dirs", [".codex/agents"])
-        )
+        return list(self._profile.get("agent_definition", {}).get("scan_dirs", [".codex/agents"]))
 
     def get_agent_format(self) -> str:
         return "toml"
@@ -62,9 +60,7 @@ class CodexAdapter(PlatformAdapter):
         # the profile's ``agent_config.supported_fields`` minus the keys the
         # formatter already emits explicitly (name/description). Adding a field
         # to the profile flows through here without a code change.
-        passthrough = [
-            f for f in self.agent_supported_fields if f not in _EXPLICIT_TOML_FIELDS
-        ]
+        passthrough = [f for f in self.agent_supported_fields if f not in _EXPLICIT_TOML_FIELDS]
 
         def formatter(agent_id: str, content: str) -> str:
             return _md_to_toml(agent_id, content, passthrough)
@@ -91,9 +87,7 @@ class CodexAdapter(PlatformAdapter):
         dry_run: bool = False,
     ) -> list[str]:
         config_path = project_root / ".codex" / "config.toml"
-        return merge_codex_mcp_server(
-            config_path, server_id, server_config, dry_run=dry_run
-        )
+        return merge_codex_mcp_server(config_path, server_id, server_config, dry_run=dry_run)
 
 
 # Fields the TOML formatter emits explicitly (under Codex-native names) and so
@@ -126,10 +120,10 @@ def _md_to_toml(agent_id: str, content: str, passthrough: list[str]) -> str:
     body = fm_match.group(2).strip()
 
     lines = [f"# Auto-generated from {agent_id}/AGENT.md"]
-    lines.append(f'name = {_toml_value(data.get("name", agent_id))}')
+    lines.append(f"name = {_toml_value(data.get('name', agent_id))}")
 
     if "description" in data:
-        lines.append(f'description = {_toml_value(data["description"])}')
+        lines.append(f"description = {_toml_value(data['description'])}")
 
     # Codex uses developer_instructions (not instructions)
     lines.append("")

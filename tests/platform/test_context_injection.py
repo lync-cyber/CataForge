@@ -44,15 +44,11 @@ def _minimal(pid: str, *, extra: dict | None = None) -> dict:
             "scan_dirs": [f".{pid}/agents"],
             "needs_deploy": True,
         },
-        "instruction_file": {
-            "targets": [{"type": "project_state_copy", "path": "AGENTS.md"}]
-        },
+        "instruction_file": {"targets": [{"type": "project_state_copy", "path": "AGENTS.md"}]},
         "dispatch": {"tool_name": "task", "is_async": False},
     }
     if pid == "claude-code":
-        base["instruction_file"]["targets"] = [
-            {"type": "project_state_copy", "path": "CLAUDE.md"}
-        ]
+        base["instruction_file"]["targets"] = [{"type": "project_state_copy", "path": "CLAUDE.md"}]
         base["tool_map"]["agent_dispatch"] = "Agent"
     if extra:
         base.update(extra)
@@ -95,8 +91,9 @@ class TestContextInjectionProperty:
 
 
 class TestInstructionPreamble:
-    def _setup(self, tmp_path: Path, *, preamble_files: list[str] | None,
-               kind: str = "at_mention") -> Path:
+    def _setup(
+        self, tmp_path: Path, *, preamble_files: list[str] | None, kind: str = "at_mention"
+    ) -> Path:
         (tmp_path / ".cataforge").mkdir()
         platforms_dir = tmp_path / ".cataforge" / "platforms"
         ci: dict = {
@@ -143,9 +140,7 @@ class TestInstructionPreamble:
 
 
 class TestDeployInstructionFilesPreamble:
-    def test_claude_code_prepends_at_preamble_to_claude_md(
-        self, tmp_path: Path
-    ) -> None:
+    def test_claude_code_prepends_at_preamble_to_claude_md(self, tmp_path: Path) -> None:
         cataforge_dir = tmp_path / ".cataforge"
         cataforge_dir.mkdir()
         (cataforge_dir / "framework.json").write_text(
@@ -200,9 +195,7 @@ class TestOpenCodeInstructionsDrivenByProfile:
         extra: dict = {}
         if ci is not None:
             extra["context_injection"] = ci
-        _write_profile(
-            cataforge_dir / "platforms", "opencode", _minimal("opencode", extra=extra)
-        )
+        _write_profile(cataforge_dir / "platforms", "opencode", _minimal("opencode", extra=extra))
         return project_state
 
     def test_uses_profile_files_list(self, tmp_path: Path) -> None:
@@ -216,9 +209,7 @@ class TestOpenCodeInstructionsDrivenByProfile:
                 }
             },
         )
-        adapter = get_adapter(
-            "opencode", tmp_path / ".cataforge" / "platforms"
-        )
+        adapter = get_adapter("opencode", tmp_path / ".cataforge" / "platforms")
         adapter.deploy_instruction_files(
             project_state, tmp_path, platform_id="opencode", dry_run=False
         )
@@ -232,9 +223,7 @@ class TestOpenCodeInstructionsDrivenByProfile:
 
     def test_falls_back_when_context_injection_absent(self, tmp_path: Path) -> None:
         project_state = self._setup_project(tmp_path, ci=None)
-        adapter = get_adapter(
-            "opencode", tmp_path / ".cataforge" / "platforms"
-        )
+        adapter = get_adapter("opencode", tmp_path / ".cataforge" / "platforms")
         adapter.deploy_instruction_files(
             project_state, tmp_path, platform_id="opencode", dry_run=False
         )

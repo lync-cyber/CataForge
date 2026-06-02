@@ -43,13 +43,15 @@ def override_list() -> None:
             "scaffold": paths.cataforge_dir / kind,
             **{layer: paths.override_layer(layer) / kind for layer in OVERRIDE_LAYERS},
         }
-        ids = sorted({
-            d.name
-            for root in layer_roots.values()
-            if root.is_dir()
-            for d in root.iterdir()
-            if d.is_dir()
-        })
+        ids = sorted(
+            {
+                d.name
+                for root in layer_roots.values()
+                if root.is_dir()
+                for d in root.iterdir()
+                if d.is_dir()
+            }
+        )
         ui.section(kind)
         if not ids:
             ui.print("  (none)")

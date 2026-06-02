@@ -39,9 +39,7 @@ def _labeled_bullet_re(label: str) -> re.Pattern[str]:
 _ROUTE_RE = _labeled_bullet_re("Route")
 _LAYOUT_RE = _labeled_bullet_re("Layout")
 _STATUS_RE = _labeled_bullet_re("Status")
-_TASK_STATUS_VALUES = frozenset(
-    {"todo", "in_progress", "blocked", "review", "done", "cancelled"}
-)
+_TASK_STATUS_VALUES = frozenset({"todo", "in_progress", "blocked", "review", "done", "cancelled"})
 
 
 def _first_labeled_value(pattern: re.Pattern[str], section_text: str) -> str | None:

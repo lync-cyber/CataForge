@@ -44,7 +44,6 @@ def detect_platform(framework_json_path: Path | None = None) -> str:
         return "claude-code"
 
     if framework_json_path and framework_json_path.is_file():
-
         try:
             data = read_json(framework_json_path)
             return str(data.get("runtime", {}).get("platform", "claude-code"))
@@ -71,7 +70,6 @@ def load_profile(platform_id: str, platforms_dir: Path | None = None) -> dict[st
     except ImportError:
         json_path = profile_path.with_suffix(".json")
         if json_path.is_file():
-
             return dict(read_json(json_path))
         raise ImportError(f"PyYAML not available and no JSON fallback at {json_path}") from None
 

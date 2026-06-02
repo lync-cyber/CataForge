@@ -91,8 +91,7 @@ def _safe_call(handler: EventHandler, ev: Event) -> None:
         # this module free of CLI deps.
         if logger.getEffectiveLevel() > logging.ERROR:
             sys.stderr.write(
-                f"[events] handler {handler!r} failed for "
-                f"{ev.name!r}: {type(e).__name__}: {e}\n"
+                f"[events] handler {handler!r} failed for {ev.name!r}: {type(e).__name__}: {e}\n"
             )
 
 

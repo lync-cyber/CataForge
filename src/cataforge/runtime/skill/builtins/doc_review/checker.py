@@ -426,9 +426,7 @@ class DocChecker(TypedDocChecksMixin):
         return CheckReport(
             self._issues,
             summary={"unknown_doc_type": self.doc_type if unknown else None},
-            headline=(
-                f"检查: {self.doc_file} (type={self.doc_type}, volume={self.volume_type})"
-            ),
+            headline=(f"检查: {self.doc_file} (type={self.doc_type}, volume={self.volume_type})"),
         )
 
     def run(self) -> int:

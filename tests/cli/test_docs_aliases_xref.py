@@ -48,7 +48,8 @@ def _write_doc(root: Path, rel: str, body: str) -> Path:
 def test_alias_resolves_to_full_doc_id(tmp_path: Path) -> None:
     _make_project(tmp_path)
     _write_doc(
-        tmp_path, "docs/arch/arch-wechat-data.md",
+        tmp_path,
+        "docs/arch/arch-wechat-data.md",
         '---\nid: arch-wechat-data\ndoc_type: arch\naliases: ["arch-data"]\n---\n'
         "# arch\n\n## 4. 数据\n\n### E-002 模型\n字段 A\n",
     )
@@ -61,7 +62,8 @@ def test_alias_resolves_to_full_doc_id(tmp_path: Path) -> None:
 def test_aliases_recorded_in_index_top_level(tmp_path: Path) -> None:
     _make_project(tmp_path)
     _write_doc(
-        tmp_path, "docs/arch/arch-foo-data.md",
+        tmp_path,
+        "docs/arch/arch-foo-data.md",
         '---\nid: arch-foo-data\ndoc_type: arch\naliases: ["arch-data", "data"]\n---\n# x\n',
     )
     indexer.main(["--project-root", str(tmp_path)])
@@ -75,11 +77,13 @@ def test_alias_conflict_first_claim_wins_and_reported(tmp_path: Path) -> None:
     # Two docs claim the same alias `arch-data`. First claim wins; second
     # surfaces as an alias_conflict.
     _write_doc(
-        tmp_path, "docs/arch/arch-aaa-data.md",
+        tmp_path,
+        "docs/arch/arch-aaa-data.md",
         '---\nid: arch-aaa-data\ndoc_type: arch\naliases: ["arch-data"]\n---\n# a\n',
     )
     _write_doc(
-        tmp_path, "docs/arch/arch-bbb-data.md",
+        tmp_path,
+        "docs/arch/arch-bbb-data.md",
         '---\nid: arch-bbb-data\ndoc_type: arch\naliases: ["arch-data"]\n---\n# b\n',
     )
     indexer.main(["--project-root", str(tmp_path)])
@@ -87,18 +91,19 @@ def test_alias_conflict_first_claim_wins_and_reported(tmp_path: Path) -> None:
     # First (sorted) wins
     assert idx["aliases"]["arch-data"] == "arch-aaa-data"
     conflicts = idx.get("alias_conflicts", [])
-    assert any(c["alias"] == "arch-data" and c["claimed_by"] == "arch-bbb-data"
-               for c in conflicts)
+    assert any(c["alias"] == "arch-data" and c["claimed_by"] == "arch-bbb-data" for c in conflicts)
 
 
 def test_alias_shadowed_by_real_doc_id_is_rejected(tmp_path: Path) -> None:
     _make_project(tmp_path)
     _write_doc(
-        tmp_path, "docs/arch/arch.md",
-        '---\nid: arch\ndoc_type: arch\n---\n# arch\n',
+        tmp_path,
+        "docs/arch/arch.md",
+        "---\nid: arch\ndoc_type: arch\n---\n# arch\n",
     )
     _write_doc(
-        tmp_path, "docs/arch/arch-foo.md",
+        tmp_path,
+        "docs/arch/arch-foo.md",
         '---\nid: arch-foo\ndoc_type: arch\naliases: ["arch"]\n---\n# foo\n',
     )
     indexer.main(["--project-root", str(tmp_path)])
@@ -115,9 +120,9 @@ def test_prefix_fallback_unique_match_resolves(tmp_path: Path) -> None:
     """Single match still resolves — backwards compat with the old behavior."""
     _make_project(tmp_path)
     _write_doc(
-        tmp_path, "docs/prd/prd-foo-v1.md",
-        "---\nid: prd-foo-v1\ndoc_type: prd\n---\n"
-        "# x\n\n## 1. Overview\n内容\n",
+        tmp_path,
+        "docs/prd/prd-foo-v1.md",
+        "---\nid: prd-foo-v1\ndoc_type: prd\n---\n# x\n\n## 1. Overview\n内容\n",
     )
     indexer.main(["--project-root", str(tmp_path)])
     content = loader.extract("prd#§1", str(tmp_path))
@@ -127,11 +132,13 @@ def test_prefix_fallback_unique_match_resolves(tmp_path: Path) -> None:
 def test_prefix_fallback_multiple_matches_raises(tmp_path: Path) -> None:
     _make_project(tmp_path)
     _write_doc(
-        tmp_path, "docs/prd/prd-foo-v1.md",
+        tmp_path,
+        "docs/prd/prd-foo-v1.md",
         "---\nid: prd-foo-v1\ndoc_type: prd\n---\n# foo\n\n## 1. X\nA\n",
     )
     _write_doc(
-        tmp_path, "docs/prd/prd-bar-v1.md",
+        tmp_path,
+        "docs/prd/prd-bar-v1.md",
         "---\nid: prd-bar-v1\ndoc_type: prd\n---\n# bar\n\n## 1. Y\nB\n",
     )
     indexer.main(["--project-root", str(tmp_path)])
@@ -145,10 +152,9 @@ def test_prefix_fallback_multiple_matches_raises(tmp_path: Path) -> None:
 def test_validate_docs_reports_unresolvable_dep(tmp_path: Path, monkeypatch) -> None:
     root = _make_project(tmp_path)
     _write_doc(
-        root, "docs/arch/arch-foo.md",
-        '---\nid: arch-foo\ndoc_type: arch\n'
-        'deps: ["nonexistent#§1"]\n'
-        '---\n# x\n\n## 1. X\nA\n',
+        root,
+        "docs/arch/arch-foo.md",
+        '---\nid: arch-foo\ndoc_type: arch\ndeps: ["nonexistent#§1"]\n---\n# x\n\n## 1. X\nA\n',
     )
     indexer.main(["--project-root", str(root)])
 
@@ -163,18 +169,20 @@ def test_validate_docs_alias_resolves_dep(tmp_path: Path, monkeypatch) -> None:
     """A dep using an alias must resolve cleanly through validate_docs."""
     root = _make_project(tmp_path)
     _write_doc(
-        root, "docs/arch/arch-foo-data.md",
+        root,
+        "docs/arch/arch-foo-data.md",
         '---\nid: arch-foo-data\ndoc_type: arch\naliases: ["arch-data"]\n---\n'
         "# data\n\n## 4. 数据\n\n### E-002 模型\n字段\n",
     )
     _write_doc(
-        root, "docs/ui-spec/ui-spec-foo-theme-04.md",
-        '---\nid: ui-spec-foo-theme-04\ndoc_type: ui-spec\n'
-        'volume_type: theme\n'
+        root,
+        "docs/ui-spec/ui-spec-foo-theme-04.md",
+        "---\nid: ui-spec-foo-theme-04\ndoc_type: ui-spec\n"
+        "volume_type: theme\n"
         'deps: ["arch-data#§4.E-002"]\n'
-        'split_from: ui-spec-foo\n'
+        "split_from: ui-spec-foo\n"
         'required_sections:\n  - "## 4. 主题"\n'
-        '---\n# theme\n\n## 4. 主题\n内容\n',
+        "---\n# theme\n\n## 4. 主题\n内容\n",
     )
     indexer.main(["--project-root", str(root)])
 
@@ -195,7 +203,8 @@ def test_validate_docs_rejects_doc_id_with_dot(tmp_path: Path, monkeypatch) -> N
     """
     root = _make_project(tmp_path)
     _write_doc(
-        root, "docs/prd/prd-myapp-0.1.0.md",
+        root,
+        "docs/prd/prd-myapp-0.1.0.md",
         '---\nid: "prd-myapp-0.1.0"\ndoc_type: prd\n---\n# x\n\n## 1. X\n内容\n',
     )
     indexer.main(["--project-root", str(root)])
@@ -212,7 +221,8 @@ def test_validate_docs_rejects_alias_with_dot(tmp_path: Path, monkeypatch) -> No
     """An alias slug must obey the same rules as doc_id."""
     root = _make_project(tmp_path)
     _write_doc(
-        root, "docs/arch/arch-foo.md",
+        root,
+        "docs/arch/arch-foo.md",
         '---\nid: arch-foo\ndoc_type: arch\naliases: ["arch.data"]\n---\n# x\n',
     )
     indexer.main(["--project-root", str(root)])
@@ -228,7 +238,8 @@ def test_validate_docs_rejects_alias_with_dot(tmp_path: Path, monkeypatch) -> No
 def test_find_invalid_doc_ids_returns_empty_for_clean_index(tmp_path: Path) -> None:
     root = _make_project(tmp_path)
     _write_doc(
-        root, "docs/prd/prd-myapp.md",
+        root,
+        "docs/prd/prd-myapp.md",
         '---\nid: prd-myapp\nversion: "0.1.0"\ndoc_type: prd\n---\n# x\n\n## 1. X\nA\n',
     )
     indexer.main(["--project-root", str(root)])
@@ -240,7 +251,8 @@ def test_doc_gen_version_in_frontmatter_resolves_via_xref(tmp_path: Path) -> Non
     must round-trip through the loader without tripping the REF_RE bug."""
     root = _make_project(tmp_path)
     _write_doc(
-        root, "docs/prd/prd-myapp.md",
+        root,
+        "docs/prd/prd-myapp.md",
         '---\nid: prd-myapp\nversion: "0.1.0"\ndoc_type: prd\n---\n'
         "# x\n\n## 2. 功能\n\n### F-001 登录\n登录流程\n",
     )

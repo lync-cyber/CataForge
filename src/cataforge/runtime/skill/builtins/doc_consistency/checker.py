@@ -159,9 +159,7 @@ class CrossDocChecker(_CrossDocChecksMixin):
             return CheckReport(
                 self._issues,
                 summary={"available": available, "skipped": True},
-                headline=(
-                    f"跳过: 仅发现 {len(available)} 个文档类型，跨文档校验需要至少 2 个"
-                ),
+                headline=(f"跳过: 仅发现 {len(available)} 个文档类型，跨文档校验需要至少 2 个"),
             )
 
         self.check_prd_arch_ac_coverage()

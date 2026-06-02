@@ -1,4 +1,5 @@
 """Tests for TechStack entity extraction via the standard entity_extract path."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,6 +8,7 @@ import pytest
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
+
 def _parse_arch(variant: str = "waterfall"):
     from cataforge.domain.kg.ingest.scan import scan_business_docs
 
@@ -14,13 +16,16 @@ def _parse_arch(variant: str = "waterfall"):
     assert len(docs) == 1
     return docs[0]
 
+
 def _open_memory_store():
     from cataforge.domain.kg import KGConfig, init_store
 
     config = KGConfig(store_backend="memory")
     return init_store(config, force=True), config
 
+
 # -- unit tests: TechStack extracted via standard extract_entities -----------
+
 
 def test_extract_entities_finds_techstack() -> None:
     from cataforge.domain.kg.ingest.entity_extract import extract_entities
@@ -33,6 +38,7 @@ def test_extract_entities_finds_techstack() -> None:
     assert ts[0].entity_id == "TS-001"
     assert ts[0].source_doc == "arch"
 
+
 def test_techstack_narrative_body_in_extra_slots() -> None:
     from cataforge.domain.kg.ingest.entity_extract import extract_entities
 
@@ -40,6 +46,7 @@ def test_techstack_narrative_body_in_extra_slots() -> None:
     ts = next(e for e in entities if e.class_name == "TechStack")
     body = ts.extra_slots.get("cf:narrative_body", "")
     assert "Python 3.12" in body
+
 
 def test_techstack_stack_layers_in_extra_slots() -> None:
     from cataforge.domain.kg.ingest.entity_extract import extract_entities
@@ -52,6 +59,7 @@ def test_techstack_stack_layers_in_extra_slots() -> None:
     assert any("Python" in layer for layer in layers)
     assert any("JWT" in layer for layer in layers)
 
+
 def test_non_techstack_entities_have_empty_extra_slots() -> None:
     from cataforge.domain.kg.ingest.entity_extract import extract_entities
 
@@ -59,7 +67,9 @@ def test_non_techstack_entities_have_empty_extra_slots() -> None:
     non_ts = [e for e in entities if e.class_name != "TechStack"]
     assert all(e.extra_slots == {} for e in non_ts)
 
+
 # -- integration: TechStack in the full migration pipeline -------------------
+
 
 @pytest.mark.parametrize("variant", ("waterfall", "agile"))
 def test_migration_includes_techstack(variant: str) -> None:
@@ -82,6 +92,7 @@ def test_migration_includes_techstack(variant: str) -> None:
     assert len(rows) == 1
     assert rows[0]["eid"].value == "TS-001"
 
+
 @pytest.mark.parametrize("variant", ("waterfall", "agile"))
 def test_techstack_narrative_body_in_store(variant: str) -> None:
     from cataforge.domain.kg.ingest import run_migration
@@ -97,6 +108,7 @@ def test_techstack_narrative_body_in_store(variant: str) -> None:
     )
     assert len(rows) == 1
     assert "Python 3.12" in rows[0]["body"].value
+
 
 @pytest.mark.parametrize("variant", ("waterfall", "agile"))
 def test_techstack_stack_layers_in_store(variant: str) -> None:
@@ -114,7 +126,9 @@ def test_techstack_stack_layers_in_store(variant: str) -> None:
     layer_values = {r["layer"].value for r in rows}
     assert len(layer_values) == 3
 
+
 # -- _quads.py: multivalued extra_slots --------------------------------------
+
 
 def test_build_entity_quads_multivalued_extra_slots() -> None:
     from cataforge.domain.kg import KGConfig
@@ -135,17 +149,11 @@ def test_build_entity_quads_multivalued_extra_slots() -> None:
             "cf:stack_layers": ["layer-a", "layer-b", "layer-c"],
         },
     )
-    layer_quads = [
-        q for q in quads
-        if "stack_layers" in q.predicate.value
-    ]
+    layer_quads = [q for q in quads if "stack_layers" in q.predicate.value]
     assert len(layer_quads) == 3
     layer_values = {q.object.value for q in layer_quads}
     assert layer_values == {"layer-a", "layer-b", "layer-c"}
 
-    body_quads = [
-        q for q in quads
-        if "narrative_body" in q.predicate.value
-    ]
+    body_quads = [q for q in quads if "narrative_body" in q.predicate.value]
     assert len(body_quads) == 1
     assert body_quads[0].object.value == "Some text"

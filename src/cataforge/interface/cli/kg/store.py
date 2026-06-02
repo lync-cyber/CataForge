@@ -50,9 +50,7 @@ from cataforge.interface.cli.kg._options import db_path_option, db_path_ro_optio
     help="Overwrite an existing store at --db-path.",
 )
 @click.pass_context
-def kg_init(
-    ctx: click.Context, db_path: Path, backend: str, governance: bool, force: bool
-) -> None:
+def kg_init(ctx: click.Context, db_path: Path, backend: str, governance: bool, force: bool) -> None:
     """Initialize a new KG store with the rdfs:subClassOf hierarchy loaded.
 
     Bootstrap triples close the subclass-closure gap left by pyoxigraph's
@@ -108,9 +106,7 @@ def kg_init(
     help="Optional label appended to the snapshot filename.",
 )
 @click.pass_context
-def kg_snapshot(
-    ctx: click.Context, db_path: Path, output_dir: Path, label: str | None
-) -> None:
+def kg_snapshot(ctx: click.Context, db_path: Path, output_dir: Path, label: str | None) -> None:
     """Save a full snapshot of the current KG store."""
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
     output_dir = root_relative_default(
@@ -143,9 +139,7 @@ def kg_snapshot(
     help="Overwrite the existing store without confirmation.",
 )
 @click.pass_context
-def kg_rollback(
-    ctx: click.Context, snapshot_path: Path, db_path: Path, force: bool
-) -> None:
+def kg_rollback(ctx: click.Context, snapshot_path: Path, db_path: Path, force: bool) -> None:
     """Restore the KG store from a snapshot file.
 
     SNAPSHOT_PATH is the path to the .nq file created by `cataforge kg snapshot`.

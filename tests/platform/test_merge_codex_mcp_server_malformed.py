@@ -48,15 +48,15 @@ class TestMalformedTomlRuntimeError:
         """(a) Section header at EOF with no body and no next section."""
         toml = "[mcp_servers.cataforge]\n"
         with pytest.raises(RuntimeError) as exc_info:
-            _force_end_none_error(toml, "cataforge", "[mcp_servers.cataforge]\ncommand = \"npx\"\n")
+            _force_end_none_error(toml, "cataforge", '[mcp_servers.cataforge]\ncommand = "npx"\n')
         assert "malformed" in str(exc_info.value)
         assert "line 1" in str(exc_info.value)
 
     def test_section_open_with_only_keys_no_next_section_raises_runtime_error(self) -> None:
         """(b) Section header followed by key-value pairs but no next header."""
-        toml = "[mcp_servers.cataforge]\ncommand = \"old\"\nargs = [\"--flag\"]\n"
+        toml = '[mcp_servers.cataforge]\ncommand = "old"\nargs = ["--flag"]\n'
         with pytest.raises(RuntimeError) as exc_info:
-            _force_end_none_error(toml, "cataforge", "[mcp_servers.cataforge]\ncommand = \"npx\"\n")
+            _force_end_none_error(toml, "cataforge", '[mcp_servers.cataforge]\ncommand = "npx"\n')
         assert "malformed" in str(exc_info.value)
         assert "line 1" in str(exc_info.value)
 
@@ -66,7 +66,7 @@ class TestNearBoundaryEdgeCases:
         """Section is last in file (no subsequent header) — merge succeeds."""
         toml_file = tmp_path / "config.toml"
         toml_file.write_text(
-            "[other_section]\nkey = \"val\"\n\n[mcp_servers.cataforge]\ncommand = \"old\"\n",
+            '[other_section]\nkey = "val"\n\n[mcp_servers.cataforge]\ncommand = "old"\n',
             encoding="utf-8",
         )
         merge_codex_mcp_server(toml_file, "cataforge", _SERVER_CFG)
@@ -79,7 +79,7 @@ class TestNearBoundaryEdgeCases:
         """Section has inline keys, no next header — merge succeeds without corruption."""
         toml_file = tmp_path / "config.toml"
         toml_file.write_text(
-            "[mcp_servers.cataforge]\ncommand = \"old-cmd\"\nargs = [\"--flag\"]\n",
+            '[mcp_servers.cataforge]\ncommand = "old-cmd"\nargs = ["--flag"]\n',
             encoding="utf-8",
         )
         merge_codex_mcp_server(toml_file, "cataforge", _SERVER_CFG)

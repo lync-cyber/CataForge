@@ -289,9 +289,7 @@ def _filter_unsupported_fields(
 
     supported = set(adapter.agent_supported_fields)
     if not supported:
-        return _drop_internal_only(
-            adapter.platform_id, prefix, fm_body, body, warnings_collector
-        )
+        return _drop_internal_only(adapter.platform_id, prefix, fm_body, body, warnings_collector)
 
     # Always allow the universal pair regardless of profile declaration.
     supported.update({"name", "description"})
@@ -304,9 +302,7 @@ def _filter_unsupported_fields(
             key = m.group(1)
             if key in _INTERNAL_FIELDS or key not in supported:
                 if key not in _INTERNAL_FIELDS:
-                    _warn_security_sensitive_drop(
-                        adapter.platform_id, key, warnings_collector
-                    )
+                    _warn_security_sensitive_drop(adapter.platform_id, key, warnings_collector)
                     _warn_skills_drop(adapter, key, warnings_collector)
                 drop_active = True
                 continue

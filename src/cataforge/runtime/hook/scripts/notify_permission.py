@@ -18,9 +18,7 @@ def main() -> None:
     if len(message) > 200:
         message = message[:197] + "..."
 
-    send_notification(
-        "Claude Code - Permission Required", message, urgency=True, beep_count=3
-    )
+    send_notification("Claude Code - Permission Required", message, urgency=True, beep_count=3)
     sys.exit(0)
 
 

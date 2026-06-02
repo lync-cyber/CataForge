@@ -156,9 +156,9 @@ def test_windows_falls_back_to_junction_then_copy(
     # Junction or copy — either is acceptable as a fallback. What matters
     # is that the action log makes the choice explicit (NOT silently
     # claiming symlink) so the doctor / deploy-output can warn.
-    assert any(
-        "junction" in a or "copy" in a for a in actions
-    ), f"fallback type must be labelled; actions={actions}"
-    assert not any(
-        "symlink" in a and "would" not in a for a in actions
-    ), f"must NOT claim symlink after fallback; actions={actions}"
+    assert any("junction" in a or "copy" in a for a in actions), (
+        f"fallback type must be labelled; actions={actions}"
+    )
+    assert not any("symlink" in a and "would" not in a for a in actions), (
+        f"must NOT claim symlink after fallback; actions={actions}"
+    )

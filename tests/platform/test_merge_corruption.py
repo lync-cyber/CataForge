@@ -42,6 +42,7 @@ class TestMergeJsonKey:
         merge_json_key(cfg, "mcpServers.added", {"command": "new-tool"})
 
         import json
+
         result = json.loads(cfg.read_text(encoding="utf-8"))
         assert "existing" in result["mcpServers"]
         assert "added" in result["mcpServers"]
@@ -53,6 +54,7 @@ class TestMergeJsonKey:
         merge_json_key(cfg, "mcpServers.added", {"command": "x"})
 
         import json
+
         result = json.loads(cfg.read_text(encoding="utf-8"))
         assert "added" in result["mcpServers"]
 
@@ -63,18 +65,14 @@ class TestMergeOpencodeProjectMcp:
         cfg.write_text(_BROKEN_JSON, encoding="utf-8")
 
         with pytest.raises(CataforgeError, match="corrupted"):
-            merge_opencode_project_mcp(
-                tmp_path, "my-server", {"command": "x", "args": []}
-            )
+            merge_opencode_project_mcp(tmp_path, "my-server", {"command": "x", "args": []})
 
     def test_file_unchanged_after_corrupt_raise(self, tmp_path: Path) -> None:
         cfg = tmp_path / "opencode.json"
         cfg.write_text(_BROKEN_JSON, encoding="utf-8")
 
         with pytest.raises(CataforgeError):
-            merge_opencode_project_mcp(
-                tmp_path, "my-server", {"command": "x", "args": []}
-            )
+            merge_opencode_project_mcp(tmp_path, "my-server", {"command": "x", "args": []})
 
         assert cfg.read_text(encoding="utf-8") == _BROKEN_JSON
 
@@ -82,11 +80,10 @@ class TestMergeOpencodeProjectMcp:
         cfg = tmp_path / "opencode.json"
         cfg.write_text(_VALID_OPENCODE, encoding="utf-8")
 
-        merge_opencode_project_mcp(
-            tmp_path, "added-server", {"command": "y", "args": []}
-        )
+        merge_opencode_project_mcp(tmp_path, "added-server", {"command": "y", "args": []})
 
         import json
+
         result = json.loads(cfg.read_text(encoding="utf-8"))
         assert "existing" in result["mcp"]
         assert "added-server" in result["mcp"]

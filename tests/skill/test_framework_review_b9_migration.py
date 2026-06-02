@@ -30,8 +30,14 @@ def _of(report: Report, check_id: str) -> list:
 def test_editable_src_path_missing_warns(tmp_path: Path) -> None:
     root = _project(
         tmp_path,
-        [{"id": "mc-x", "release_version": "0.1.0", "type": "file_must_exist",
-          "path": "src/cataforge/gone.py"}],
+        [
+            {
+                "id": "mc-x",
+                "release_version": "0.1.0",
+                "type": "file_must_exist",
+                "path": "src/cataforge/gone.py",
+            }
+        ],
         editable=True,
     )
     report = Report()
@@ -46,8 +52,14 @@ def test_downstream_src_path_missing_does_not_warn(tmp_path: Path) -> None:
     """A site-packages install has no src/ tree — the check is downstream-mute."""
     root = _project(
         tmp_path,
-        [{"id": "mc-x", "release_version": "0.1.0", "type": "file_must_exist",
-          "path": "src/cataforge/gone.py"}],
+        [
+            {
+                "id": "mc-x",
+                "release_version": "0.1.0",
+                "type": "file_must_exist",
+                "path": "src/cataforge/gone.py",
+            }
+        ],
         editable=False,
     )
     report = Report()
@@ -58,8 +70,16 @@ def test_downstream_src_path_missing_does_not_warn(tmp_path: Path) -> None:
 def test_allow_missing_on_wrong_type_warns(tmp_path: Path) -> None:
     root = _project(
         tmp_path,
-        [{"id": "mc-am", "release_version": "0.1.0", "type": "file_must_contain",
-          "path": ".cataforge/x.md", "allow_missing": True, "patterns": ["x"]}],
+        [
+            {
+                "id": "mc-am",
+                "release_version": "0.1.0",
+                "type": "file_must_contain",
+                "path": ".cataforge/x.md",
+                "allow_missing": True,
+                "patterns": ["x"],
+            }
+        ],
         editable=False,
     )
     report = Report()
@@ -73,8 +93,16 @@ def test_allow_missing_on_wrong_type_warns(tmp_path: Path) -> None:
 def test_allow_missing_on_correct_type_is_clean(tmp_path: Path) -> None:
     root = _project(
         tmp_path,
-        [{"id": "mc-ok", "release_version": "0.1.0", "type": "file_must_not_contain",
-          "path": ".cataforge/x.md", "allow_missing": True, "patterns": ["x"]}],
+        [
+            {
+                "id": "mc-ok",
+                "release_version": "0.1.0",
+                "type": "file_must_not_contain",
+                "path": ".cataforge/x.md",
+                "allow_missing": True,
+                "patterns": ["x"],
+            }
+        ],
         editable=False,
     )
     report = Report()
@@ -85,8 +113,15 @@ def test_allow_missing_on_correct_type_is_clean(tmp_path: Path) -> None:
 def test_deprecate_at_or_before_release_warns(tmp_path: Path) -> None:
     root = _project(
         tmp_path,
-        [{"id": "mc-dep", "release_version": "0.2.0", "deprecate_after": "0.2.0",
-          "type": "file_must_exist", "path": ".cataforge/framework.json"}],
+        [
+            {
+                "id": "mc-dep",
+                "release_version": "0.2.0",
+                "deprecate_after": "0.2.0",
+                "type": "file_must_exist",
+                "path": ".cataforge/framework.json",
+            }
+        ],
         editable=False,
     )
     report = Report()
@@ -100,8 +135,15 @@ def test_deprecated_missing_path_is_dead_entry_info(tmp_path: Path) -> None:
     """pkg version (0.6.0) > deprecate_after → the check is deprecated; absent path → INFO."""
     root = _project(
         tmp_path,
-        [{"id": "mc-dead", "release_version": "0.1.0", "deprecate_after": "0.2.0",
-          "type": "file_must_exist", "path": ".cataforge/gone.md"}],
+        [
+            {
+                "id": "mc-dead",
+                "release_version": "0.1.0",
+                "deprecate_after": "0.2.0",
+                "type": "file_must_exist",
+                "path": ".cataforge/gone.md",
+            }
+        ],
         editable=False,
     )
     report = Report()
@@ -116,8 +158,14 @@ def test_deprecated_missing_path_is_dead_entry_info(tmp_path: Path) -> None:
 def test_live_editable_check_with_present_src_path_is_clean(tmp_path: Path) -> None:
     root = _project(
         tmp_path,
-        [{"id": "mc-clean", "release_version": "99.0.0", "type": "dir_must_contain_files",
-          "path": "src/cataforge"}],
+        [
+            {
+                "id": "mc-clean",
+                "release_version": "99.0.0",
+                "type": "dir_must_contain_files",
+                "path": "src/cataforge",
+            }
+        ],
         editable=True,
     )
     report = Report()

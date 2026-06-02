@@ -75,7 +75,9 @@ def test_provided_skill_and_agent_dirs(project: Path) -> None:
 
 def test_provided_hooks_and_mcp(project: Path) -> None:
     _make_plugin(
-        project, "p1", mcp=("srv1",),
+        project,
+        "p1",
+        mcp=("srv1",),
         hooks=({"event": "PreToolUse", "script": "guard.py"},),
     )
     loader = PluginLoader(project)
@@ -135,13 +137,12 @@ def test_mcp_registry_picks_up_plugin_server(project: Path) -> None:
     assert reg.get_server("srv1") is not None
 
 
-def test_bridge_merges_plugin_hooks(
-    project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_bridge_merges_plugin_hooks(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from cataforge.runtime.hook import bridge
 
     _make_plugin(
-        project, "p1",
+        project,
+        "p1",
         hooks=({"event": "PreToolUse", "script": "guard.py"},),
     )
     monkeypatch.chdir(project)

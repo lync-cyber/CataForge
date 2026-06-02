@@ -6,6 +6,7 @@ generic `_base/artifact.md.j2` renders none of them. The store is built
 through the public CRUD path so the test exercises the templates without
 touching the shared vertical-slice golden fixture.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -22,41 +23,69 @@ def _make_store_with_ui_devplan():
 
     with kg.transaction() as txn:
         txn.add_entity(
-            entity_id="F-001", class_name="Feature", title="Login",
-            source_doc="prd", source_section="F-001 Login",
-            content_hash="h-f1", project_iri=project_iri,
+            entity_id="F-001",
+            class_name="Feature",
+            title="Login",
+            source_doc="prd",
+            source_section="F-001 Login",
+            content_hash="h-f1",
+            project_iri=project_iri,
         )
         txn.add_entity(
-            entity_id="AC-001", class_name="AcceptanceCriteria", title="Valid creds accepted",
-            source_doc="prd", source_section="AC-001",
-            content_hash="h-ac1", project_iri=project_iri,
+            entity_id="AC-001",
+            class_name="AcceptanceCriteria",
+            title="Valid creds accepted",
+            source_doc="prd",
+            source_section="AC-001",
+            content_hash="h-ac1",
+            project_iri=project_iri,
         )
         txn.add_entity(
-            entity_id="M-001", class_name="Module", title="Auth",
-            source_doc="arch", source_section="M-001 Auth",
-            content_hash="h-m1", project_iri=project_iri,
+            entity_id="M-001",
+            class_name="Module",
+            title="Auth",
+            source_doc="arch",
+            source_section="M-001 Auth",
+            content_hash="h-m1",
+            project_iri=project_iri,
         )
         txn.add_entity(
-            entity_id="P-001", class_name="Page", title="Login Page",
-            source_doc="ui-spec", source_section="P-001 Login Page",
-            content_hash="h-p1", project_iri=project_iri,
+            entity_id="P-001",
+            class_name="Page",
+            title="Login Page",
+            source_doc="ui-spec",
+            source_section="P-001 Login Page",
+            content_hash="h-p1",
+            project_iri=project_iri,
             extra_slots={"ui_route": "/login", "layout_spec": "single-column"},
         )
         txn.add_entity(
-            entity_id="UC-001", class_name="UIComponent", title="Login Form",
-            source_doc="ui-spec", source_section="UC-001 Login Form",
-            content_hash="h-uc1", project_iri=project_iri,
+            entity_id="UC-001",
+            class_name="UIComponent",
+            title="Login Form",
+            source_doc="ui-spec",
+            source_section="UC-001 Login Form",
+            content_hash="h-uc1",
+            project_iri=project_iri,
         )
         txn.add_entity(
-            entity_id="T-001", class_name="Task", title="Build auth module",
-            source_doc="dev-plan", source_section="T-001",
-            content_hash="h-t1", project_iri=project_iri,
+            entity_id="T-001",
+            class_name="Task",
+            title="Build auth module",
+            source_doc="dev-plan",
+            source_section="T-001",
+            content_hash="h-t1",
+            project_iri=project_iri,
             extra_slots={"task_status": "in_progress"},
         )
         txn.add_entity(
-            entity_id="TC-001", class_name="TestCase", title="Auth login test",
-            source_doc="test-report", source_section="TC-001",
-            content_hash="h-tc1", project_iri=project_iri,
+            entity_id="TC-001",
+            class_name="TestCase",
+            title="Auth login test",
+            source_doc="test-report",
+            source_section="TC-001",
+            content_hash="h-tc1",
+            project_iri=project_iri,
         )
 
     with kg.transaction() as txn:
@@ -137,9 +166,13 @@ def test_page_without_optional_scalars_omits_sections(tmp_path: Path) -> None:
     kg = KnowledgeGraph(handle.raw, config)
     with kg.transaction() as txn:
         txn.add_entity(
-            entity_id="P-009", class_name="Page", title="Bare Page",
-            source_doc="ui-spec", source_section="P-009",
-            content_hash="h-p9", project_iri=project_iri,
+            entity_id="P-009",
+            class_name="Page",
+            title="Bare Page",
+            source_doc="ui-spec",
+            source_section="P-009",
+            content_hash="h-p9",
+            project_iri=project_iri,
         )
 
     out = tmp_path / "out"

@@ -48,9 +48,7 @@ def test_render_failures_and_warnings_interleaved_in_order() -> None:
 
 def test_render_warnings_only_still_passes() -> None:
     report = _report(issues=((Severity.LOW, "ID编号不连续"),))
-    assert render_text(report) == (
-        f"{_HEAD}\nWARN: ID编号不连续\nWARNINGS: 1\nPASS: 所有检查通过"
-    )
+    assert render_text(report) == (f"{_HEAD}\nWARN: ID编号不连续\nWARNINGS: 1\nPASS: 所有检查通过")
 
 
 def test_render_unknown_doc_type_line() -> None:

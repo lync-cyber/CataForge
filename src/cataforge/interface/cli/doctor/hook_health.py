@@ -87,9 +87,7 @@ def _report_runtime_degradation(cfg: ConfigManager, declared: list[str]) -> None
         statuses[name] = str(degradation.get(name, "native"))
 
     skipped = sorted(n for n, s in statuses.items() if s == "skip")
-    other_degraded = sorted(
-        n for n, s in statuses.items() if s not in ("native", "skip")
-    )
+    other_degraded = sorted(n for n, s in statuses.items() if s not in ("native", "skip"))
     native_count = sum(1 for s in statuses.values() if s == "native")
 
     summary = f"  Runtime degradation on {cfg.runtime_platform}: {native_count} native"
@@ -99,10 +97,7 @@ def _report_runtime_degradation(cfg: ConfigManager, declared: list[str]) -> None
         summary += f", {len(other_degraded)} degraded"
     click.echo(summary)
     for name in skipped:
-        click.echo(
-            f"    SKIP {name} — will not fire at runtime "
-            "(platform lacks native hook event)"
-        )
+        click.echo(f"    SKIP {name} — will not fire at runtime (platform lacks native hook event)")
     for name in other_degraded:
         click.echo(f"    {statuses[name].upper()} {name}")
 

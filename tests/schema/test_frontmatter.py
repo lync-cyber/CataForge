@@ -30,9 +30,7 @@ def test_iter_markdown_headings() -> None:
 
 
 def test_framework_file_validate() -> None:
-    fw = FrameworkFile.model_validate(
-        {"version": "0.4", "runtime": {"platform": "cursor"}}
-    )
+    fw = FrameworkFile.model_validate({"version": "0.4", "runtime": {"platform": "cursor"}})
     assert fw.version == "0.4"
     assert fw.runtime is not None
     assert fw.runtime.platform == "cursor"

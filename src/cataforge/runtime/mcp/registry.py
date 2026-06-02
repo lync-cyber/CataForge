@@ -67,9 +67,7 @@ class MCPRegistry:
                                 )
                                 continue
                             self._servers.setdefault(spec.id, spec)
-                            self._states.setdefault(
-                                spec.id, MCPServerState(spec_id=spec.id)
-                            )
+                            self._states.setdefault(spec.id, MCPServerState(spec_id=spec.id))
                 except Exception as e:
                     logger.warning("Skipping MCP entry_point %s: %s", ep.name, e)
         except Exception as e:
@@ -96,9 +94,7 @@ class MCPRegistry:
                 logger.warning("Skipping plugin MCP spec %s: %s", path.name, e)
                 continue
             if not self._is_trusted_command(spec):
-                logger.warning(
-                    "Skipping plugin MCP %s: untrusted command %r", sid, spec.command
-                )
+                logger.warning("Skipping plugin MCP %s: untrusted command %r", sid, spec.command)
                 continue
             self._servers.setdefault(spec.id, spec)
             self._states.setdefault(spec.id, MCPServerState(spec_id=spec.id))
@@ -119,6 +115,7 @@ class MCPRegistry:
         if executable in TRUSTED_COMMAND_PREFIXES:
             return True
         from pathlib import PurePosixPath, PureWindowsPath
+
         posix = PurePosixPath(executable)
         windows = PureWindowsPath(executable)
         if posix.is_absolute() or windows.is_absolute():
@@ -146,9 +143,7 @@ class MCPRegistry:
         if spec.id not in self._states:
             self._states[spec.id] = MCPServerState(spec_id=spec.id)
 
-    def register_from_file(
-        self, path: str | Path, *, overwrite: bool = False
-    ) -> MCPServerSpec:
+    def register_from_file(self, path: str | Path, *, overwrite: bool = False) -> MCPServerSpec:
         """Register a server from a YAML spec, persisting it to ``.cataforge/mcp/``.
 
         Without persistence the registration would only live in the current

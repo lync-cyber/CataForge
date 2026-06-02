@@ -210,8 +210,7 @@ def phase_status() -> None:
     failed = [label for label, ok, _ in checks if not ok]
     if failed:
         err = CataforgeError(
-            f"phase {current!r}: {len(failed)} expected artifact(s) missing — "
-            + ", ".join(failed)
+            f"phase {current!r}: {len(failed)} expected artifact(s) missing — " + ", ".join(failed)
         )
         err.exit_code = 1
         raise err

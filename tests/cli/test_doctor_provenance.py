@@ -82,9 +82,7 @@ class TestDoctorProvenance:
         assert "Deployment provenance:" in result.output
         assert "no deploy has been run yet" in result.output
 
-    def test_claude_code_deploy_lists_owned_dirs(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_claude_code_deploy_lists_owned_dirs(self, tmp_path: Path, monkeypatch) -> None:
         """After a claude-code deploy, doctor lists the owned namespace.
 
         The setup intentionally creates only one owned dir so we can
@@ -129,9 +127,7 @@ class TestDoctorProvenance:
         assert "NOTE: .claude/rules exists" in result.output
         assert "cross_platform_mirror" in result.output
 
-    def test_cursor_deploy_no_note_when_mirror_on(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_cursor_deploy_no_note_when_mirror_on(self, tmp_path: Path, monkeypatch) -> None:
         """Mirror opt-in: `.claude/rules` is expected, so no stale-note fires."""
         root = _minimal_project(tmp_path)
         _write_deploy_state(root, "cursor")
@@ -145,9 +141,7 @@ class TestDoctorProvenance:
         assert result.exit_code == 0, result.output
         assert "NOTE: .claude/rules exists" not in result.output
 
-    def test_cursor_deploy_no_note_when_mirror_absent(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_cursor_deploy_no_note_when_mirror_absent(self, tmp_path: Path, monkeypatch) -> None:
         """No stale `.claude/rules` on disk → no stale-note."""
         root = _minimal_project(tmp_path)
         _write_deploy_state(root, "cursor")
@@ -159,9 +153,7 @@ class TestDoctorProvenance:
         assert result.exit_code == 0, result.output
         assert "NOTE: .claude/rules exists" not in result.output
 
-    def test_unknown_platform_reports_missing_map(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_unknown_platform_reports_missing_map(self, tmp_path: Path, monkeypatch) -> None:
         """Deploy-state referencing an unmapped platform degrades gracefully."""
         root = _minimal_project(tmp_path)
         _write_deploy_state(root, "some-new-platform")
@@ -171,14 +163,10 @@ class TestDoctorProvenance:
         assert result.exit_code == 0, result.output
         assert "no provenance map declared" in result.output
 
-    def test_malformed_deploy_state_reported(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_malformed_deploy_state_reported(self, tmp_path: Path, monkeypatch) -> None:
         """Corrupt .deploy-state: surface the parse failure, don't crash doctor."""
         root = _minimal_project(tmp_path)
-        (root / ".cataforge" / ".deploy-state").write_text(
-            "{not-json", encoding="utf-8"
-        )
+        (root / ".cataforge" / ".deploy-state").write_text("{not-json", encoding="utf-8")
         monkeypatch.chdir(root)
 
         result = CliRunner().invoke(doctor_command, [])

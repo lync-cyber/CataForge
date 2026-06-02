@@ -15,6 +15,7 @@ from cataforge.interface.cli.ui import UI, DiagPattern
 
 def _ui_with_buffers():
     import io
+
     out = io.StringIO()
     err = io.StringIO()
     return UI(color=False, unicode=True, stdout=out, stderr=err), out, err
@@ -51,10 +52,7 @@ def test_penpot_patterns_include_three_canonical_failures() -> None:
 
 
 def test_doctor_patterns_cover_missing_tools() -> None:
-    needles = {
-        p.needle if isinstance(p.needle, str) else p.needle.pattern
-        for p in DOCTOR_PATTERNS
-    }
+    needles = {p.needle if isinstance(p.needle, str) else p.needle.pattern for p in DOCTOR_PATTERNS}
     assert any("ruff" in n for n in needles)
     assert any("npx" in n for n in needles)
     assert any("docker" in n for n in needles)

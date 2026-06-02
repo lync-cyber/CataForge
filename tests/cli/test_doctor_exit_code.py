@@ -16,11 +16,13 @@ def _minimal_project(tmp_path: Path, checks: list[dict]) -> Path:
     cf = tmp_path / ".cataforge"
     cf.mkdir()
     (cf / "framework.json").write_text(
-        json.dumps({
-            "version": "0.1.0",
-            "runtime_api_version": "1.0",
-            "migration_checks": checks,
-        }),
+        json.dumps(
+            {
+                "version": "0.1.0",
+                "runtime_api_version": "1.0",
+                "migration_checks": checks,
+            }
+        ),
         encoding="utf-8",
     )
     populate_required_source_assets(cf)
@@ -91,9 +93,7 @@ def test_doctor_skips_requires_deploy_check_before_first_deploy(
     assert "SKIP mc-test-requires-deploy" in result.output
 
 
-def test_doctor_fails_on_missing_protocol_script(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_fails_on_missing_protocol_script(tmp_path: Path, monkeypatch) -> None:
     """Regression: ``doctor`` must flag markdown that invokes a ``python
     .cataforge/scripts/...`` path that does not exist on disk. This is the
     class of bug that let ``event_logger.py`` go missing unnoticed for months.
@@ -112,9 +112,7 @@ def test_doctor_fails_on_missing_protocol_script(
     assert ".cataforge/agents/phantom/AGENT.md:1" in result.output
 
 
-def test_doctor_flags_missing_skill_subdir_script(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_flags_missing_skill_subdir_script(tmp_path: Path, monkeypatch) -> None:
     """Regression for the dep-analysis class of bug: SKILL.md docs that
     instruct ``python .cataforge/skills/<id>/scripts/<x>.py`` must be flagged
     when ``scripts/`` doesn't exist on disk. The original regex only
@@ -132,9 +130,7 @@ def test_doctor_flags_missing_skill_subdir_script(
     assert ".cataforge/skills/phantom/scripts/runner.py" in result.output
 
 
-def test_doctor_flags_missing_integrations_script(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_flags_missing_integrations_script(tmp_path: Path, monkeypatch) -> None:
     """Regression for the Penpot class of bug: docs that instruct
     ``python .cataforge/integrations/<x>/<y>.py`` must be flagged when the
     on-disk path is missing — those scripts now live inside the cataforge
@@ -152,9 +148,7 @@ def test_doctor_flags_missing_integrations_script(
     assert ".cataforge/integrations/foo/setup.py" in result.output
 
 
-def test_doctor_passes_when_referenced_script_exists(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_passes_when_referenced_script_exists(tmp_path: Path, monkeypatch) -> None:
     """A reference that resolves should not count toward doctor's exit code."""
     root = _minimal_project(tmp_path, [])
     scripts_dir = root / ".cataforge" / "scripts" / "framework"
@@ -173,9 +167,7 @@ def test_doctor_passes_when_referenced_script_exists(
     assert "FAIL" not in result.output
 
 
-def test_doctor_runs_requires_deploy_check_after_deploy(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_doctor_runs_requires_deploy_check_after_deploy(tmp_path: Path, monkeypatch) -> None:
     """Once .deploy-state exists, requires_deploy checks are enforced."""
     root = _minimal_project(
         tmp_path,

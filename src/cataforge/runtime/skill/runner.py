@@ -25,9 +25,7 @@ class SkillTimeoutError(RuntimeError):
     def __init__(self, skill_id: str, timeout_secs: int | float) -> None:
         self.skill_id = skill_id
         self.timeout_secs = timeout_secs
-        super().__init__(
-            f"Skill {skill_id!r} exceeded timeout of {timeout_secs}s"
-        )
+        super().__init__(f"Skill {skill_id!r} exceeded timeout of {timeout_secs}s")
 
 
 class SkillRunner:
@@ -117,9 +115,7 @@ class SkillRunner:
             )
         except subprocess.TimeoutExpired:
             duration = time.monotonic() - t_start
-            self._emit_timeout_event(
-                meta, script_entry, effective_timeout, duration, agent=agent
-            )
+            self._emit_timeout_event(meta, script_entry, effective_timeout, duration, agent=agent)
             raise SkillTimeoutError(skill_id, effective_timeout) from None
 
         self._emit_run_event(meta, script_entry, result.returncode, agent=agent)
@@ -136,9 +132,7 @@ class SkillRunner:
         try:
             from cataforge.core.config import ConfigManager
 
-            raw = ConfigManager(self._paths.root).get_constant(
-                "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS"
-            )
+            raw = ConfigManager(self._paths.root).get_constant("SKILL_RUNNER_TIMEOUT_DEFAULT_SECS")
             value = float(raw)
         except Exception:
             return float(_DEFAULT_TIMEOUT_SECS)
@@ -185,11 +179,7 @@ class SkillRunner:
             return
 
         phase = os.environ.get("CATAFORGE_EVENT_PHASE") or "development"
-        attributed_agent = (
-            agent
-            or os.environ.get("CATAFORGE_INVOKING_AGENT")
-            or "reviewer"
-        )
+        attributed_agent = agent or os.environ.get("CATAFORGE_INVOKING_AGENT") or "reviewer"
         if returncode == 0:
             detail = f"skill-run: {skill_id} Layer 1 passed"
             status = "completed"
@@ -201,8 +191,7 @@ class SkillRunner:
             status = "needs_revision"
         else:
             detail = (
-                f"skill-run: {skill_id} Layer 1 exit={returncode} "
-                "(unreachable or runtime error)"
+                f"skill-run: {skill_id} Layer 1 exit={returncode} (unreachable or runtime error)"
             )
             status = "blocked"
 
@@ -239,18 +228,13 @@ class SkillRunner:
             return
 
         phase = os.environ.get("CATAFORGE_EVENT_PHASE") or "development"
-        attributed_agent = (
-            agent
-            or os.environ.get("CATAFORGE_INVOKING_AGENT")
-            or "reviewer"
-        )
+        attributed_agent = agent or os.environ.get("CATAFORGE_INVOKING_AGENT") or "reviewer"
         try:
             record = build_record(
                 event="state_change",
                 phase=phase,
                 detail=(
-                    f"skill_timeout: {skill_id} exceeded {timeout_secs}s "
-                    f"(elapsed={duration:.1f}s)"
+                    f"skill_timeout: {skill_id} exceeded {timeout_secs}s (elapsed={duration:.1f}s)"
                 ),
                 agent=attributed_agent,
                 status="blocked",

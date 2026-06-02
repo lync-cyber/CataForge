@@ -101,7 +101,9 @@ FORBIDDEN: list[tuple[str, re.Pattern[str], str]] = [
     ),
     (
         "spring-stereotype",
-        re.compile(r"@(?:Autowired|Component|Service|Bean|SpringBootApplication)\b|\bSpring\s+Boot\b"),
+        re.compile(
+            r"@(?:Autowired|Component|Service|Bean|SpringBootApplication)\b|\bSpring\s+Boot\b"
+        ),
         "docs/reference/wiring-checks.md §Java (or a new docs/reference/spring-*.md)",
     ),
     (
@@ -176,9 +178,7 @@ def main() -> int:
             for label, pattern, hint in FORBIDDEN:
                 if pattern.search(stripped):
                     rel = path.relative_to(REPO_ROOT)
-                    fails.append(
-                        (f"{rel}:{lineno}: [{label}] {line.strip()}", hint)
-                    )
+                    fails.append((f"{rel}:{lineno}: [{label}] {line.strip()}", hint))
                     break  # one violation per line is enough
 
     if fails:

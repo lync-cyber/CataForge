@@ -51,8 +51,7 @@ def correction_group() -> None:
     type=click.Choice(sorted(VALID_DEVIATIONS)),
     default="self-caused",
     show_default=True,
-    help="Deviation category (counts toward RETRO_TRIGGER_SELF_CAUSED "
-    "threshold when self-caused).",
+    help="Deviation category (counts toward RETRO_TRIGGER_SELF_CAUSED threshold when self-caused).",
 )
 @click.option(
     "--no-event-log",
@@ -89,7 +88,5 @@ def record_command(
     if result["event_log"] is not None:
         pairs["EVENT-LOG"] = str(result["event_log"])
     elif not no_event_log:
-        pairs["EVENT-LOG"] = (
-            "(write failed — see log / rerun with CATAFORGE_HOOK_DEBUG=1)"
-        )
+        pairs["EVENT-LOG"] = "(write failed — see log / rerun with CATAFORGE_HOOK_DEBUG=1)"
     ui.kv(pairs)

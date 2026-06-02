@@ -88,8 +88,7 @@ def test_b6_happy_path_no_findings(tmp_path: Path) -> None:
     check_b6_hook_consistency(root, report)
     relevant = _without_manifest_drift(report)
     assert relevant == [], (
-        f"happy path should produce no α/β/γ/δ findings, got: "
-        f"{[f.render() for f in relevant]}"
+        f"happy path should produce no α/β/γ/δ findings, got: {[f.render() for f in relevant]}"
     )
 
 
@@ -172,9 +171,7 @@ hooks:
     check_b6_hook_consistency(root, report)
 
     findings = [
-        f
-        for f in report.findings
-        if "degradation_coverage" in f.check_id and f.severity == "WARN"
+        f for f in report.findings if "degradation_coverage" in f.check_id and f.severity == "WARN"
     ]
     assert len(findings) == 1
     assert "guard_dangerous" in findings[0].message
@@ -199,9 +196,7 @@ hooks:
     check_b6_hook_consistency(root, report)
 
     findings = [
-        f
-        for f in report.findings
-        if "degradation_coverage" in f.check_id and f.severity == "WARN"
+        f for f in report.findings if "degradation_coverage" in f.check_id and f.severity == "WARN"
     ]
     assert len(findings) == 1
     assert "removed_script_xyz" in findings[0].message
@@ -262,9 +257,7 @@ hooks:
     report = Report()
     check_b6_hook_consistency(root, report)
 
-    coverage_findings = [
-        f for f in report.findings if "degradation_coverage" in f.check_id
-    ]
+    coverage_findings = [f for f in report.findings if "degradation_coverage" in f.check_id]
     assert coverage_findings == [], (
         f"custom: prefix should be stripped before degradation parity check, "
         f"got: {[f.render() for f in coverage_findings]}"

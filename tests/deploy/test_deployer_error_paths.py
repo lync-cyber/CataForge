@@ -81,9 +81,7 @@ def _minimal_profile(platform_id: str, path: str = "CLAUDE.md") -> dict:
 def test_unknown_instruction_type_emits_skip_action(tmp_path: Path) -> None:
     root = _init_project(tmp_path)
     profile = _minimal_profile("claude-code")
-    profile["instruction_file"]["targets"] = [
-        {"type": "magic_unknown_type", "path": "CLAUDE.md"}
-    ]
+    profile["instruction_file"]["targets"] = [{"type": "magic_unknown_type", "path": "CLAUDE.md"}]
     _write_profile(root, "claude-code", profile)
 
     clear_cache()
@@ -91,9 +89,7 @@ def test_unknown_instruction_type_emits_skip_action(tmp_path: Path) -> None:
     actions = deployer.deploy("claude-code")
 
     skip_actions = [a for a in actions if "SKIP" in a and "magic_unknown_type" in a]
-    assert skip_actions, (
-        f"expected a SKIP action mentioning 'magic_unknown_type', got: {actions}"
-    )
+    assert skip_actions, f"expected a SKIP action mentioning 'magic_unknown_type', got: {actions}"
 
 
 # ---------------------------------------------------------------------------
@@ -118,9 +114,7 @@ def test_invalid_on_conflict_emits_skip_with_field_name(tmp_path: Path) -> None:
     actions = deployer.deploy("claude-code")
 
     skip_actions = [a for a in actions if "SKIP" in a and "on_conflict" in a]
-    assert skip_actions, (
-        f"expected a SKIP action mentioning 'on_conflict', got: {actions}"
-    )
+    assert skip_actions, f"expected a SKIP action mentioning 'on_conflict', got: {actions}"
 
 
 # ---------------------------------------------------------------------------
@@ -205,13 +199,8 @@ def test_hook_generation_failure_logs_traceback_and_continues(
     ), f"action log missing diagnostic; got {actions!r}"
 
     # Logger captured the full traceback.
-    hook_records = [
-        r for r in caplog.records
-        if "hook generation failed" in r.getMessage().lower()
-    ]
-    assert hook_records, (
-        f"logger.exception must record the failure; got {caplog.records!r}"
-    )
+    hook_records = [r for r in caplog.records if "hook generation failed" in r.getMessage().lower()]
+    assert hook_records, f"logger.exception must record the failure; got {caplog.records!r}"
     assert hook_records[0].exc_info is not None, (
         "exc_info must be attached so the traceback is preserved"
     )
@@ -275,6 +264,4 @@ def test_missing_project_state_md_yields_skip_when_self_heal_absent(
     actions = deployer.deploy("claude-code")
 
     skip_actions = [a for a in actions if "SKIP" in a and "PROJECT-STATE" in a]
-    assert skip_actions, (
-        f"expected a SKIP action for missing PROJECT-STATE.md, got: {actions}"
-    )
+    assert skip_actions, f"expected a SKIP action for missing PROJECT-STATE.md, got: {actions}"

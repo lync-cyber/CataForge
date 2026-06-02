@@ -11,6 +11,7 @@ This script exists so the migration pipeline has a discoverable entry
 point matching `task-7 §7.2`'s explicit reference to
 `scripts/migrate_docs_to_kg.py`.
 """
+
 from __future__ import annotations
 
 import sys

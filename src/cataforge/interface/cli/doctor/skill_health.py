@@ -36,12 +36,14 @@ def check_builtin_skill_reachability(cfg: ConfigManager) -> int:
             missing.append((skill_id, "skill not discovered (no SKILL.md and no builtin)"))
             continue
         if not meta.scripts:
-            missing.append((
-                skill_id,
-                "SKILL.md found but no executable scripts — project override "
-                "shadowing the builtin. Delete .cataforge/skills/"
-                f"{skill_id}/SKILL.md or add scripts/ alongside it.",
-            ))
+            missing.append(
+                (
+                    skill_id,
+                    "SKILL.md found but no executable scripts — project override "
+                    "shadowing the builtin. Delete .cataforge/skills/"
+                    f"{skill_id}/SKILL.md or add scripts/ alongside it.",
+                )
+            )
 
     present = len(targets) - len(missing)
     click.echo(f"  {present}/{len(targets)} built-in skills have an executable entry point")
@@ -102,13 +104,10 @@ def check_docs_validate(cfg) -> int:
     if not (root / "docs" / INDEX_FILENAME).is_file():
         md_files = glob.glob(os.path.join(str(root), "docs", "**", "*.md"), recursive=True)
         if not md_files:
-            click.echo(
-                f"  (no docs/{INDEX_FILENAME} and docs/ has no markdown — skipping)"
-            )
+            click.echo(f"  (no docs/{INDEX_FILENAME} and docs/ has no markdown — skipping)")
             return 0
         click.secho(
-            f"  WARN no docs/{INDEX_FILENAME} but docs/ contains "
-            f"{len(md_files)} markdown file(s)",
+            f"  WARN no docs/{INDEX_FILENAME} but docs/ contains {len(md_files)} markdown file(s)",
             fg="yellow",
         )
         click.echo(
@@ -128,10 +127,7 @@ def check_docs_validate(cfg) -> int:
 
     _emit_docignored(ignored)
 
-    if (
-        not orphans and not stale and not xref_errors
-        and not alias_conflicts and not invalid_ids
-    ):
+    if not orphans and not stale and not xref_errors and not alias_conflicts and not invalid_ids:
         click.echo(
             "  0 orphan documents · 0 stale entries · 0 xref errors · "
             "0 alias conflicts · 0 invalid ids (everything in sync)"
@@ -140,45 +136,32 @@ def check_docs_validate(cfg) -> int:
         return 0
 
     if orphans:
-        click.echo(
-            f"  {len(orphans)} orphan document(s) — missing YAML front matter "
-            f"(id field):"
-        )
+        click.echo(f"  {len(orphans)} orphan document(s) — missing YAML front matter (id field):")
         shown = orphans[:5]
         for rel in shown:
             click.echo(f"    FAIL {rel}")
         extra = len(orphans) - len(shown)
         if extra > 0:
             click.echo(f"    - ... and {extra} more")
-        click.echo(
-            "  → add `id`/`doc_type` front matter and rerun `cataforge docs index`."
-        )
+        click.echo("  → add `id`/`doc_type` front matter and rerun `cataforge docs index`.")
 
     if stale:
-        click.echo(
-            f"  {len(stale)} stale index entry(ies) — file_path missing on disk:"
-        )
+        click.echo(f"  {len(stale)} stale index entry(ies) — file_path missing on disk:")
         shown_stale = stale[:5]
         for doc_id, rel in shown_stale:
             click.echo(f"    FAIL {doc_id} → {rel}")
         extra = len(stale) - len(shown_stale)
         if extra > 0:
             click.echo(f"    - ... and {extra} more")
-        click.echo(
-            "  → run `cataforge docs index` (full rebuild) to drop stale entries."
-        )
+        click.echo("  → run `cataforge docs index` (full rebuild) to drop stale entries.")
 
     if xref_errors:
         click.echo(
-            f"  {len(xref_errors)} cross-reference error(s) — frontmatter "
-            f"deps that don't resolve:"
+            f"  {len(xref_errors)} cross-reference error(s) — frontmatter deps that don't resolve:"
         )
         shown_xref = xref_errors[:5]
         for e in shown_xref:
-            click.echo(
-                f"    FAIL {e['doc_id']} ({e['file_path']}) → "
-                f"{e['ref']}: {e['reason']}"
-            )
+            click.echo(f"    FAIL {e['doc_id']} ({e['file_path']}) → {e['ref']}: {e['reason']}")
         extra = len(xref_errors) - len(shown_xref)
         if extra > 0:
             click.echo(f"    - ... and {extra} more")
@@ -194,10 +177,7 @@ def check_docs_validate(cfg) -> int:
         )
         shown_alias = alias_conflicts[:5]
         for c in shown_alias:
-            click.echo(
-                f"    FAIL {c['alias']} (claimed by {c['claimed_by']}): "
-                f"{c['reason']}"
-            )
+            click.echo(f"    FAIL {c['alias']} (claimed by {c['claimed_by']}): {c['reason']}")
         extra = len(alias_conflicts) - len(shown_alias)
         if extra > 0:
             click.echo(f"    - ... and {extra} more")
@@ -209,10 +189,7 @@ def check_docs_validate(cfg) -> int:
         )
         shown_invalid = invalid_ids[:5]
         for e in shown_invalid:
-            click.echo(
-                f"    FAIL [{e['kind']}] {e['value']!r} ({e['file_path']}): "
-                f"{e['reason']}"
-            )
+            click.echo(f"    FAIL [{e['kind']}] {e['value']!r} ({e['file_path']}): {e['reason']}")
         extra = len(invalid_ids) - len(shown_invalid)
         if extra > 0:
             click.echo(f"    - ... and {extra} more")
@@ -223,7 +200,4 @@ def check_docs_validate(cfg) -> int:
 
     _emit_doctor_stale_deps(stale_deps)
 
-    return (
-        len(orphans) + len(stale) + len(xref_errors)
-        + len(alias_conflicts) + len(invalid_ids)
-    )
+    return len(orphans) + len(stale) + len(xref_errors) + len(alias_conflicts) + len(invalid_ids)

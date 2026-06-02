@@ -63,9 +63,7 @@ def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture(scope="session")
-def cataforge_venv(
-    tmp_path_factory: pytest.TempPathFactory, built_wheel: Path
-) -> Path:
+def cataforge_venv(tmp_path_factory: pytest.TempPathFactory, built_wheel: Path) -> Path:
     """A session-wide venv with the locally-built wheel installed.
 
     Returns the venv's python executable. Shared across every e2e test
@@ -95,8 +93,13 @@ def pip_install(py_exe: Path, *args: str) -> None:
     """
     run_utf8(
         [
-            str(py_exe), "-m", "pip", "install",
-            "--quiet", "--disable-pip-version-check", "--no-compile",
+            str(py_exe),
+            "-m",
+            "pip",
+            "install",
+            "--quiet",
+            "--disable-pip-version-check",
+            "--no-compile",
             *args,
         ],
         check=True,

@@ -50,11 +50,7 @@ def _has_front_matter(text: str) -> bool:
 
 
 def _format_front_matter(plan: Plan) -> str:
-    deps_yaml = (
-        "[]"
-        if not plan.deps
-        else "[" + ", ".join(f'"{d}"' for d in plan.deps) + "]"
-    )
+    deps_yaml = "[]" if not plan.deps else "[" + ", ".join(f'"{d}"' for d in plan.deps) + "]"
     return (
         "---\n"
         f'id: "{plan.fm_id}"\n'

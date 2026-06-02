@@ -5,6 +5,7 @@ This file covers the wired call-sites: the escape utilities are
 actually invoked at the boundaries that previously did naked f-string
 interpolation, and adversarial inputs no longer break SPARQL parsing.
 """
+
 from __future__ import annotations
 
 import pytest

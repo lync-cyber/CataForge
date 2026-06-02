@@ -18,8 +18,7 @@ def _write_agent(tmp_path: Path, agent_id: str, frontmatter: dict) -> None:
     agent_dir.mkdir(parents=True, exist_ok=True)
     fm_lines = [f"{k}: {v}" for k, v in frontmatter.items()]
     (agent_dir / "AGENT.md").write_text(
-        "---\nname: " + agent_id + "\n"
-        + "\n".join(fm_lines) + "\n---\n"
+        "---\nname: " + agent_id + "\n" + "\n".join(fm_lines) + "\n---\n"
         f"# {agent_id}\n## Identity\n- test\n",
         encoding="utf-8",
     )
@@ -85,8 +84,7 @@ def test_b7_heavy_without_whitelist_fails(tmp_path: Path) -> None:
     report = Report()
     check_b7_model_tier(tmp_path, report)
     findings = [
-        f for f in report.findings
-        if f.check_id == "B7_model_tier_value" and "heavy" in f.message
+        f for f in report.findings if f.check_id == "B7_model_tier_value" and "heavy" in f.message
     ]
     assert len(findings) == 1
     assert findings[0].severity == "FAIL"
@@ -117,7 +115,8 @@ def test_b7_tier_diverges_from_default_warns(tmp_path: Path) -> None:
     report = Report()
     check_b7_model_tier(tmp_path, report)
     findings = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B7_model_tier_value" and "diverges" in f.message
     ]
     assert len(findings) == 1
@@ -146,7 +145,8 @@ def test_b7_legacy_model_with_tier_does_not_fail(tmp_path: Path) -> None:
         heavy_whitelist=[],
     )
     _write_agent(
-        tmp_path, "foo",
+        tmp_path,
+        "foo",
         {"model": "sonnet", "model_tier": "standard"},
     )
 
@@ -159,7 +159,8 @@ def test_b7_legacy_model_with_tier_does_not_fail(tmp_path: Path) -> None:
 def test_b7_platform_tier_map_complete_passes(tmp_path: Path) -> None:
     _write_framework_json(tmp_path, defaults={}, heavy_whitelist=[])
     _write_platform_profile(
-        tmp_path, "claude-like",
+        tmp_path,
+        "claude-like",
         {
             "per_agent_model": True,
             "user_resolved": False,
@@ -176,7 +177,8 @@ def test_b7_platform_tier_map_complete_passes(tmp_path: Path) -> None:
 def test_b7_platform_tier_map_missing_warns(tmp_path: Path) -> None:
     _write_framework_json(tmp_path, defaults={}, heavy_whitelist=[])
     _write_platform_profile(
-        tmp_path, "claude-like",
+        tmp_path,
+        "claude-like",
         {
             "per_agent_model": True,
             "user_resolved": False,
@@ -197,7 +199,8 @@ def test_b7_platform_per_agent_false_skipped(tmp_path: Path) -> None:
     """per_agent_model=false → no tier_map check (deploy never writes model:)."""
     _write_framework_json(tmp_path, defaults={}, heavy_whitelist=[])
     _write_platform_profile(
-        tmp_path, "codex-like",
+        tmp_path,
+        "codex-like",
         {
             "per_agent_model": False,
             "user_resolved": False,
@@ -215,7 +218,8 @@ def test_b7_platform_user_resolved_skipped(tmp_path: Path) -> None:
     """user_resolved=true → no tier_map check (provider-agnostic)."""
     _write_framework_json(tmp_path, defaults={}, heavy_whitelist=[])
     _write_platform_profile(
-        tmp_path, "opencode-like",
+        tmp_path,
+        "opencode-like",
         {
             "per_agent_model": True,
             "user_resolved": True,

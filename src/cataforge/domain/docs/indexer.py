@@ -180,13 +180,15 @@ def find_stale_deps(project_root: str) -> list[dict[str, str]]:
                 continue
             current_hash = upstream.get("content_hash", "")
             if pinned_hash and current_hash and pinned_hash != current_hash:
-                stale.append({
-                    "doc_id": doc_id,
-                    "file_path": entry.get("file_path", ""),
-                    "upstream_id": upstream_id,
-                    "pinned_hash": pinned_hash,
-                    "current_hash": current_hash,
-                })
+                stale.append(
+                    {
+                        "doc_id": doc_id,
+                        "file_path": entry.get("file_path", ""),
+                        "upstream_id": upstream_id,
+                        "pinned_hash": pinned_hash,
+                        "current_hash": current_hash,
+                    }
+                )
     return stale
 
 
@@ -212,22 +214,29 @@ def find_invalid_doc_ids(project_root: str) -> list[dict[str, str]]:
     for doc_id, entry in documents.items():
         rel_path = entry.get("file_path", "")
         if not DOC_ID_RE.match(doc_id):
-            errors.append({
-                "kind": "doc_id", "value": doc_id, "file_path": rel_path,
-                "reason": (
-                    f"非法 doc_id {doc_id!r}: 仅允许 [A-Za-z0-9_-]，"
-                    f"含 '.' 等字符会让 REF_RE 拒绝任何指向本文档的引用"
-                ),
-            })
+            errors.append(
+                {
+                    "kind": "doc_id",
+                    "value": doc_id,
+                    "file_path": rel_path,
+                    "reason": (
+                        f"非法 doc_id {doc_id!r}: 仅允许 [A-Za-z0-9_-]，"
+                        f"含 '.' 等字符会让 REF_RE 拒绝任何指向本文档的引用"
+                    ),
+                }
+            )
         for alias in entry.get("aliases") or []:
             if not isinstance(alias, str) or not DOC_ID_RE.match(alias):
-                errors.append({
-                    "kind": "alias", "value": str(alias), "file_path": rel_path,
-                    "reason": (
-                        f"非法 alias {alias!r} (claimed by {doc_id!r}): "
-                        f"仅允许 [A-Za-z0-9_-]"
-                    ),
-                })
+                errors.append(
+                    {
+                        "kind": "alias",
+                        "value": str(alias),
+                        "file_path": rel_path,
+                        "reason": (
+                            f"非法 alias {alias!r} (claimed by {doc_id!r}): 仅允许 [A-Za-z0-9_-]"
+                        ),
+                    }
+                )
     return errors
 
 
@@ -286,23 +295,33 @@ def find_xref_errors(project_root: str) -> list[dict[str, str]]:
             try:
                 ref_doc, section_path, item_id = parse_ref(dep)
             except LoadSectionError as e:
-                errors.append({"doc_id": doc_id, "file_path": rel_path,
-                               "ref": dep, "reason": f"parse error: {e}"})
+                errors.append(
+                    {
+                        "doc_id": doc_id,
+                        "file_path": rel_path,
+                        "ref": dep,
+                        "reason": f"parse error: {e}",
+                    }
+                )
                 continue
             try:
                 hit = _lookup_in_index(index, ref_doc, section_path, item_id)
             except AmbiguousRefError as e:
-                errors.append({"doc_id": doc_id, "file_path": rel_path,
-                               "ref": dep, "reason": str(e)})
+                errors.append(
+                    {"doc_id": doc_id, "file_path": rel_path, "ref": dep, "reason": str(e)}
+                )
                 continue
             if hit is None:
-                errors.append({
-                    "doc_id": doc_id, "file_path": rel_path, "ref": dep,
-                    "reason": (
-                        f"未找到引用目标 {ref_doc!r}"
-                        "（短别名？参考 frontmatter aliases:）"
-                    ),
-                })
+                errors.append(
+                    {
+                        "doc_id": doc_id,
+                        "file_path": rel_path,
+                        "ref": dep,
+                        "reason": (
+                            f"未找到引用目标 {ref_doc!r}（短别名？参考 frontmatter aliases:）"
+                        ),
+                    }
+                )
     return errors
 
 
@@ -344,7 +363,7 @@ def main(argv: list[str] | None = None) -> int:
         "--strict",
         action="store_true",
         help="Exit non-zero if any docs/**/*.md is missing YAML front matter "
-             "and gets skipped (useful as a CI gate).",
+        "and gets skipped (useful as a CI gate).",
     )
     args = parser.parse_args(argv)
 
@@ -376,8 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         for rel in orphans:
             print(f"  - {rel}", file=sys.stderr)
         print(
-            "  → 补 front matter (id/doc_type/...) 后重跑，或确认这些"
-            "文件不应出现在 docs/ 下。",
+            "  → 补 front matter (id/doc_type/...) 后重跑，或确认这些文件不应出现在 docs/ 下。",
             file=sys.stderr,
         )
         # Same orphan list also FAILS `cataforge doctor` (orphan count
@@ -402,15 +420,13 @@ def main(argv: list[str] | None = None) -> int:
         stale = find_stale_index_entries(project_root)
         if stale:
             print(
-                f"[WARN] {len(stale)} 个 .doc-index.json 条目指向磁盘"
-                f"已不存在的文件：",
+                f"[WARN] {len(stale)} 个 .doc-index.json 条目指向磁盘已不存在的文件：",
                 file=sys.stderr,
             )
             for doc_id, rel in stale:
                 print(f"  - {doc_id} → {rel}", file=sys.stderr)
             print(
-                "  → 跑 `cataforge docs index`（不带 --doc-file）做全量"
-                "重建以清掉这些条目。",
+                "  → 跑 `cataforge docs index`（不带 --doc-file）做全量重建以清掉这些条目。",
                 file=sys.stderr,
             )
             if args.strict:

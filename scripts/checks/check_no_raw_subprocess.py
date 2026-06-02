@@ -22,6 +22,7 @@ Legitimate exemptions (the wrapper deliberately doesn't cover these):
   site needs ``shell=True`` and ``args=`` kwarg passthrough — the
   wrapper takes argv positionally with no ``shell=`` parameter.
 """
+
 from __future__ import annotations
 
 import re

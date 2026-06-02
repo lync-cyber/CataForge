@@ -65,7 +65,7 @@ def main() -> int:
         for f in fails:
             print(f"  {f}", file=sys.stderr)
         print(
-            '\nFix: bump the example to the current version, or replace the literal '
+            "\nFix: bump the example to the current version, or replace the literal "
             'with a placeholder like "0.0.0-template" that is resolved at read time.',
             file=sys.stderr,
         )

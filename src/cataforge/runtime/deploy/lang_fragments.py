@@ -43,9 +43,7 @@ def inject_lang_fragments(
     return f"{agent_md}{sep}\n## {_SECTION_TITLE}\n{links}\n"
 
 
-def inject_into_staged_agents(
-    agents_dir: Path, langs: list[str], paths: ProjectPaths
-) -> list[str]:
+def inject_into_staged_agents(agents_dir: Path, langs: list[str], paths: ProjectPaths) -> list[str]:
     """Inject fragments into every ``lang_aware`` agent under *agents_dir*.
 
     Mutates the staged AGENT.md files in place. Returns the ids injected.

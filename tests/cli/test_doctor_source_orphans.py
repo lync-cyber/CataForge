@@ -35,9 +35,7 @@ def _make_skill(root: Path, name: str) -> Path:
 def _write_manifest(root: Path, owned: list[str], platform: str = "claude-code") -> None:
     (root / ".cataforge").mkdir(parents=True, exist_ok=True)
     (root / ".cataforge" / ".deploy-manifest.json").write_text(
-        json.dumps(
-            {"manifest_version": 1, "platform": platform, "owned_paths": owned}
-        ),
+        json.dumps({"manifest_version": 1, "platform": platform, "owned_paths": owned}),
         encoding="utf-8",
     )
 
@@ -101,9 +99,7 @@ def test_full_doctor_exit_code_unchanged_by_ghost(
     cf = tmp_path / ".cataforge"
     cf.mkdir()
     (cf / "framework.json").write_text(
-        json.dumps(
-            {"version": "0.1.0", "runtime_api_version": "1.0", "migration_checks": []}
-        ),
+        json.dumps({"version": "0.1.0", "runtime_api_version": "1.0", "migration_checks": []}),
         encoding="utf-8",
     )
     for name in ("agents", "skills", "rules", "hooks", "platforms"):
@@ -115,9 +111,7 @@ def test_full_doctor_exit_code_unchanged_by_ghost(
     (tmp_path / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
     (tmp_path / ".claude" / "rules").mkdir(parents=True, exist_ok=True)
     (tmp_path / ".claude" / "commands").mkdir(parents=True, exist_ok=True)
-    (cf / ".deploy-state").write_text(
-        json.dumps({"platform": "claude-code"}), encoding="utf-8"
-    )
+    (cf / ".deploy-state").write_text(json.dumps({"platform": "claude-code"}), encoding="utf-8")
     _write_manifest(tmp_path, [".claude/skills/alpha", ".claude/skills/ghost"])
     monkeypatch.chdir(tmp_path)
 

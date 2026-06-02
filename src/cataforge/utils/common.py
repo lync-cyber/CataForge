@@ -130,9 +130,7 @@ def ensure_utf8() -> None:
         or "pytest" in sys.modules
     )
     needs_reexec = (
-        not sys.flags.utf8_mode
-        and not under_pytest
-        and not _preferred_encoding_is_utf8()
+        not sys.flags.utf8_mode and not under_pytest and not _preferred_encoding_is_utf8()
     )
     if needs_reexec and sys.orig_argv:
         env = os.environ.copy()

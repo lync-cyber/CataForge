@@ -95,7 +95,8 @@ hooks:
     report = Report()
     check_b6_hook_consistency(tmp_path, report)
     fails = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B6_hook_manifest_drift"
         and f.severity == "FAIL"
         and "notify_util" in f.message
@@ -122,7 +123,8 @@ hooks:
     report = Report()
     check_b6_hook_consistency(tmp_path, report)
     warns = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B6_hook_manifest_drift"
         and f.severity == "WARN"
         and "unused_helper" in f.message
@@ -152,7 +154,8 @@ hooks:
     report = Report()
     check_b6_hook_consistency(tmp_path, report)
     fails = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B6_hook_manifest_drift" and f.severity == "FAIL"
     ]
     assert fails == []
@@ -192,8 +195,7 @@ def test_real_manifest_covers_all_real_builtin_scripts() -> None:
 
     scripts_dir = Path(scripts_pkg.__file__).parent
     real_modules = {
-        p.stem for p in scripts_dir.glob("*.py")
-        if p.stem not in ("__init__", "notify_util")
+        p.stem for p in scripts_dir.glob("*.py") if p.stem not in ("__init__", "notify_util")
     }
     declared = manifest_names()
     missing_from_manifest = real_modules - declared
@@ -203,6 +205,5 @@ def test_real_manifest_covers_all_real_builtin_scripts() -> None:
     )
     extra_in_manifest = declared - real_modules
     assert not extra_in_manifest, (
-        f"these names are in HOOKS_MANIFEST but have no .py file: "
-        f"{sorted(extra_in_manifest)}"
+        f"these names are in HOOKS_MANIFEST but have no .py file: {sorted(extra_in_manifest)}"
     )

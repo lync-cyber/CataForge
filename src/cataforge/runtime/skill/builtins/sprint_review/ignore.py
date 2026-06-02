@@ -176,11 +176,7 @@ def walk_files(src_dirs: list[str]) -> list[str]:
         for root, dirs, files in os.walk(d):
             # in-place prune of obviously-noisy dirs to avoid descending
             # into million-file trees before the ignore filter even runs
-            dirs[:] = [
-                x
-                for x in dirs
-                if x not in {"node_modules", "__pycache__", ".git"}
-            ]
+            dirs[:] = [x for x in dirs if x not in {"node_modules", "__pycache__", ".git"}]
             for f in files:
                 out.append(os.path.join(root, f).replace("\\", "/"))
     return out
