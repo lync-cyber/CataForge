@@ -37,9 +37,7 @@ def _network_enabled() -> bool:
     not _network_enabled(),
     reason="set CATAFORGE_E2E_NETWORK=1 to run PyPI-fetching e2e tests",
 )
-def test_cross_version_upgrade_from_baseline(
-    tmp_path: Path, built_wheel: Path
-) -> None:
+def test_cross_version_upgrade_from_baseline(tmp_path: Path, built_wheel: Path) -> None:
     """Install v0.1.7, scaffold, overlay current wheel, verify drift surfaces."""
     py = make_venv(tmp_path / "venv")
 

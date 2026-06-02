@@ -40,13 +40,9 @@ class TestRegistryUntrustedSpec:
         ):
             reg = MCPRegistry(project)
 
-        assert reg.get_server("pwned") is None, (
-            "untrusted spec must not appear in registry"
-        )
+        assert reg.get_server("pwned") is None, "untrusted spec must not appear in registry"
         warning_text = " ".join(caplog.messages)
-        assert "/bin/sh" in warning_text, (
-            "warning must include the offending command"
-        )
+        assert "/bin/sh" in warning_text, "warning must include the offending command"
         assert "untrusted command" in warning_text.lower()
 
     def test_trusted_python_command_registered(
@@ -61,12 +57,10 @@ class TestRegistryUntrustedSpec:
         ):
             reg = MCPRegistry(project)
 
-        assert reg.get_server("my-mcp") is not None, (
-            "trusted spec must be registered"
+        assert reg.get_server("my-mcp") is not None, "trusted spec must be registered"
+        assert all("untrusted" not in msg.lower() for msg in caplog.messages), (
+            "no warning should be emitted for a trusted command"
         )
-        assert all(
-            "untrusted" not in msg.lower() for msg in caplog.messages
-        ), "no warning should be emitted for a trusted command"
 
     def test_untrusted_shell_command_warning_includes_command(
         self, project: Path, caplog: pytest.LogCaptureFixture
@@ -111,13 +105,9 @@ class TestRegistryUntrustedSpec:
 
         for executable in TRUSTED_COMMAND_PREFIXES:
             spec = MCPServerSpec(id=f"ep-{executable}", command=executable, args=[])
-            with patch(
-                _EP_IMPORT_PATH, return_value=[_make_ep(f"ep-{executable}", spec)]
-            ):
+            with patch(_EP_IMPORT_PATH, return_value=[_make_ep(f"ep-{executable}", spec)]):
                 reg = MCPRegistry(project)
-            assert reg.get_server(f"ep-{executable}") is not None, (
-                f"'{executable}' must be trusted"
-            )
+            assert reg.get_server(f"ep-{executable}") is not None, f"'{executable}' must be trusted"
 
 
 class TestIsTrustedCommandPathTraversal:
@@ -139,14 +129,9 @@ class TestIsTrustedCommandPathTraversal:
     def test_bare_name_behaviour_unchanged(self, project: Path) -> None:
         # Bare untrusted name stays untrusted; trusted prefix stays trusted.
         assert (
-            MCPRegistry._is_trusted_command(
-                MCPServerSpec(id="x", command="evil", args=[])
-            )
-            is False
+            MCPRegistry._is_trusted_command(MCPServerSpec(id="x", command="evil", args=[])) is False
         )
         assert (
-            MCPRegistry._is_trusted_command(
-                MCPServerSpec(id="x", command="python", args=[])
-            )
+            MCPRegistry._is_trusted_command(MCPServerSpec(id="x", command="python", args=[]))
             is True
         )

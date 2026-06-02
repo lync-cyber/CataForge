@@ -26,8 +26,7 @@ def _run_penpot(command: str) -> None:
     handler = penpot.HANDLERS.get(command)
     if handler is None:
         raise CataforgeError(
-            f"unknown penpot subcommand {command!r}; "
-            f"registered: {sorted(penpot.HANDLERS)}"
+            f"unknown penpot subcommand {command!r}; registered: {sorted(penpot.HANDLERS)}"
         )
 
     penpot.load_dotenv(set_env=True)

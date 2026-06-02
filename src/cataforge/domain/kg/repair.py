@@ -129,9 +129,7 @@ def repair(
                 except Exception as exc:  # noqa: BLE001
                     stats.errors.append(f"reingest {per.doc_type}: {exc}")
                     stats.errors.extend(
-                        _restore_ghosts(
-                            store, ghost_entity_snapshots, ghost_relation_snapshots
-                        )
+                        _restore_ghosts(store, ghost_entity_snapshots, ghost_relation_snapshots)
                     )
                     stats.ghosts_removed -= len(ghost_entity_snapshots) + len(
                         ghost_relation_snapshots

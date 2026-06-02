@@ -6,6 +6,7 @@ arbitrary markdown text, or chained agent output. Tests assert both
 *safety* (no character can escape the literal boundary) and *round-trip*
 (escaped output parsed back yields the original value).
 """
+
 from __future__ import annotations
 
 import re
@@ -66,9 +67,7 @@ class TestEscapeSparqlLiteral:
         # Every unescaped " must terminate the literal — so the wrapped
         # form should have exactly two unescaped quotes (the wrappers).
         unescaped_quotes = re.findall(r'(?<!\\)"', wrapped)
-        assert len(unescaped_quotes) == 2, (
-            f"injection slipped through: {wrapped!r}"
-        )
+        assert len(unescaped_quotes) == 2, f"injection slipped through: {wrapped!r}"
 
     def test_double_escape_idempotency_on_safe_input(self) -> None:
         """Calling escape twice on safe input should not introduce damage."""
@@ -142,7 +141,7 @@ class TestAssertSafeIri:
         [
             "https://example.com/<inject>",
             "https://example.com/with space",
-            "https://example.com/quote\"",
+            'https://example.com/quote"',
             "https://example.com/back\\slash",
             "https://example.com/pipe|",
             "https://example.com/brace{",

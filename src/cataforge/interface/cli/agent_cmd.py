@@ -93,9 +93,7 @@ def agent_validate(agent_id: str | None) -> None:
     ),
 )
 @require_initialized
-def agent_run(
-    agent_id: str, task: tuple[str, ...], task_type: str, print_only: bool
-) -> None:
+def agent_run(agent_id: str, task: tuple[str, ...], task_type: str, print_only: bool) -> None:
     """Surface AGENT.md + task framing for on-demand invocation.
 
     This is **not** a remote dispatcher — sub-agent dispatch is the
@@ -133,16 +131,13 @@ def agent_run(
 
     if _try_copy_to_clipboard(payload):
         click.secho(
-            "\n(prompt copied to clipboard — paste into your IDE chat to "
-            "invoke the agent)",
+            "\n(prompt copied to clipboard — paste into your IDE chat to invoke the agent)",
             fg="green",
             err=True,
         )
 
 
-def _render_invocation_prompt(
-    agent_id: str, task_type: str, task_text: str, agent_md: str
-) -> str:
+def _render_invocation_prompt(agent_id: str, task_type: str, task_text: str, agent_md: str) -> str:
     """Compose the on-demand invocation payload.
 
     Layout:

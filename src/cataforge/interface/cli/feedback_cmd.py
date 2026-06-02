@@ -73,41 +73,63 @@ def _sink_options(func: F) -> F:
     """Attach the four mutually-exclusive --print / --out / --clip / --gh flags
     plus the shared --title / --include-paths / --notes / --quiet."""
     func = click.option(
-        "--print", "print_to_stdout", is_flag=True, default=False,
+        "--print",
+        "print_to_stdout",
+        is_flag=True,
+        default=False,
         help="Write the rendered body to stdout (default sink when none given).",
     )(func)
     func = click.option(
-        "--out", "out_path",
+        "--out",
+        "out_path",
         type=click.Path(dir_okay=False, writable=True, path_type=Path),
         default=None,
         help="Write the body to PATH (relative resolves under the project root).",
     )(func)
     func = click.option(
-        "--clip", "to_clipboard", is_flag=True, default=False,
+        "--clip",
+        "to_clipboard",
+        is_flag=True,
+        default=False,
         help="Copy the body to the system clipboard (pbcopy / xclip / wl-copy / clip).",
     )(func)
     func = click.option(
-        "--gh", "to_gh", is_flag=True, default=False,
+        "--gh",
+        "to_gh",
+        is_flag=True,
+        default=False,
         help="Open a GitHub issue via `gh issue create` (requires gh + auth).",
     )(func)
     func = click.option(
-        "--title", "title", default=None,
+        "--title",
+        "title",
+        default=None,
         help="Issue title (default: synthesised from kind + summary).",
     )(func)
     func = click.option(
-        "--summary", "summary", default=None,
+        "--summary",
+        "summary",
+        default=None,
         help="One-paragraph summary. Reads from stdin (until EOF) when omitted.",
     )(func)
     func = click.option(
-        "--notes", "notes", default="",
+        "--notes",
+        "notes",
+        default="",
         help="Extra free-form text appended under '## Additional notes'.",
     )(func)
     func = click.option(
-        "--include-paths", "include_paths", is_flag=True, default=False,
+        "--include-paths",
+        "include_paths",
+        is_flag=True,
+        default=False,
         help="Disable the ~/<project> path redaction (use only for private filings).",
     )(func)
     func = click.option(
-        "--quiet", "quiet", is_flag=True, default=False,
+        "--quiet",
+        "quiet",
+        is_flag=True,
+        default=False,
         help="Suppress non-essential output (sink confirmations).",
     )(func)
     return func
@@ -145,9 +167,7 @@ def _emit(
     """
     chosen = sum(bool(x) for x in (print_to_stdout, out_path, to_clipboard, to_gh))
     if chosen > 1:
-        raise click.UsageError(
-            "--print / --out / --clip / --gh are mutually exclusive."
-        )
+        raise click.UsageError("--print / --out / --clip / --gh are mutually exclusive.")
     if chosen == 0:
         print_to_stdout = True
 
@@ -186,9 +206,7 @@ def _to_clipboard(body: str) -> None:
         if shutil.which(cmd[0]):
             result = run_proc(cmd, input=body)
             if result.returncode != 0:
-                raise ExternalToolError(
-                    f"clipboard tool {cmd[0]} exited {result.returncode}"
-                )
+                raise ExternalToolError(f"clipboard tool {cmd[0]} exited {result.returncode}")
             return
     raise ExternalToolError(
         "no clipboard tool found on PATH (tried pbcopy / wl-copy / xclip / xsel / clip). "
@@ -261,11 +279,7 @@ def _to_gh(
     result = _run(cmd)
     if result.returncode != 0:
         stderr = result.stderr or result.stdout or ""
-        if (
-            label_list
-            and fallback_on_missing_label
-            and _looks_like_missing_label_error(stderr)
-        ):
+        if label_list and fallback_on_missing_label and _looks_like_missing_label_error(stderr):
             click.secho(
                 f"WARN: upstream repo rejected label(s) {label_list!r}; "
                 "retrying without --label. Run `cataforge feedback ensure-labels` "
@@ -280,9 +294,7 @@ def _to_gh(
                     f"(exit {result.returncode}):\n{result.stderr or result.stdout}"
                 )
         else:
-            raise ExternalToolError(
-                f"gh issue create failed (exit {result.returncode}):\n{stderr}"
-            )
+            raise ExternalToolError(f"gh issue create failed (exit {result.returncode}):\n{stderr}")
     return (result.stdout or "").strip()
 
 
@@ -291,12 +303,17 @@ def _to_gh(
 
 @feedback_group.command("ensure-labels")
 @click.option(
-    "--repo", "repo", default=None,
+    "--repo",
+    "repo",
+    default=None,
     help="Target repo (owner/name). Defaults to the upstream from "
-         "`framework.json#upgrade.source.repo`.",
+    "`framework.json#upgrade.source.repo`.",
 )
 @click.option(
-    "--dry-run", "dry_run", is_flag=True, default=False,
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    default=False,
     help="Print what would be created without calling `gh label create`.",
 )
 def ensure_labels_command(repo: str | None, dry_run: bool) -> None:
@@ -339,10 +356,10 @@ def ensure_labels_command(repo: str | None, dry_run: bool) -> None:
     )
     if listing.returncode != 0:
         raise ExternalToolError(
-            f"gh label list failed (exit {listing.returncode}):\n"
-            f"{listing.stderr or listing.stdout}"
+            f"gh label list failed (exit {listing.returncode}):\n{listing.stderr or listing.stdout}"
         )
     import json as _json
+
     for entry in _json.loads(listing.stdout or "[]"):
         existing.add(entry.get("name", ""))
 
@@ -378,16 +395,24 @@ def ensure_labels_command(repo: str | None, dry_run: bool) -> None:
 @feedback_group.command("bug")
 @_sink_options
 @click.option(
-    "--since", "since", default=None,
+    "--since",
+    "since",
+    default=None,
     help="Only include EVENT-LOG / corrections at or after this date (YYYY-MM-DD).",
 )
 @click.option(
-    "--event-limit", "event_limit", type=int, default=20, show_default=True,
+    "--event-limit",
+    "event_limit",
+    type=int,
+    default=20,
+    show_default=True,
     help="Max number of recent EVENT-LOG records to include (0 = all).",
 )
 @click.option(
-    "--skip-framework-review", "skip_framework_review",
-    is_flag=True, default=False,
+    "--skip-framework-review",
+    "skip_framework_review",
+    is_flag=True,
+    default=False,
     help="Don't run `framework-review` (faster; useful when the scaffold is broken).",
 )
 def bug_command(
@@ -483,16 +508,18 @@ def suggest_command(
 @feedback_group.command("correction-export")
 @_sink_options
 @click.option(
-    "--since", "since", default=None,
+    "--since",
+    "since",
+    default=None,
     help="Only include corrections dated at or after YYYY-MM-DD.",
 )
 @click.option(
-    "--threshold", "threshold", type=int,
-    default=RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT, show_default=True,
-    help=(
-        "Minimum upstream-gap correction count required before export. "
-        "Use 0 to always export."
-    ),
+    "--threshold",
+    "threshold",
+    type=int,
+    default=RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT,
+    show_default=True,
+    help=("Minimum upstream-gap correction count required before export. Use 0 to always export."),
 )
 def correction_export_command(
     print_to_stdout: bool,
@@ -528,8 +555,7 @@ def correction_export_command(
         )
 
     summary_text = _resolve_summary(
-        summary
-        or f"Aggregated {count} `{UPSTREAM_GAP}` correction signal(s) from downstream."
+        summary or f"Aggregated {count} `{UPSTREAM_GAP}` correction signal(s) from downstream."
     )
     final_title = title or f"feedback: {count} upstream-gap signals"
     try:
@@ -542,9 +568,7 @@ def correction_export_command(
             include_paths=include_paths,
         )
     except Exception as e:
-        raise CataforgeError(
-            f"failed to assemble correction-export bundle: {e}"
-        ) from e
+        raise CataforgeError(f"failed to assemble correction-export bundle: {e}") from e
     _emit(
         body,
         project_root=project_root,

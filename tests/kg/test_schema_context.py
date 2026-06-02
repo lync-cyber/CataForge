@@ -1,4 +1,5 @@
 """Schema card for NL→SPARQL grounding (kg-ask skill backing)."""
+
 from __future__ import annotations
 
 
@@ -47,9 +48,7 @@ def test_card_predicate_direction_is_source_to_target() -> None:
     from cataforge.domain.kg.schema_context import build_schema_card
 
     card = build_schema_card()
-    satisfies_line = next(
-        ln for ln in card.splitlines() if ln.startswith("- `cf:satisfies`")
-    )
+    satisfies_line = next(ln for ln in card.splitlines() if ln.startswith("- `cf:satisfies`"))
     assert "Page -> Feature" in satisfies_line
 
 

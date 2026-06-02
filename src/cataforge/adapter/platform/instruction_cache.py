@@ -29,9 +29,7 @@ def load_instruction_hashes(project_root: Path) -> dict[str, str]:
     return {str(k): str(v) for k, v in data.items() if isinstance(v, str)}
 
 
-def save_instruction_hashes(
-    project_root: Path, hashes: dict[str, str]
-) -> None:
+def save_instruction_hashes(project_root: Path, hashes: dict[str, str]) -> None:
     path = project_root / _INSTRUCTION_HASHES_REL
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

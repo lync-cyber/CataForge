@@ -27,44 +27,55 @@ REQUIRED_SECTIONS_AGENT = {
 # Skills whose SKILL.md serves a different role than the canonical
 # 能力边界/输入/输出/Anti-Patterns shape — runtime adapters, macro
 # orchestration skills, scaffold generators.
-B1_REQUIRED_SECTIONS_EXEMPT_SKILLS = frozenset({
-    "agent-dispatch",
-    "research",
-    "start-orchestrator",
-    "tdd-engine",
-    "workflow-framework-generator",
-})
+B1_REQUIRED_SECTIONS_EXEMPT_SKILLS = frozenset(
+    {
+        "agent-dispatch",
+        "research",
+        "start-orchestrator",
+        "tdd-engine",
+        "workflow-framework-generator",
+    }
+)
 
-B1_REQUIRED_SECTIONS_EXEMPT_AGENTS = frozenset({
-    "orchestrator",
-})
+B1_REQUIRED_SECTIONS_EXEMPT_AGENTS = frozenset(
+    {
+        "orchestrator",
+    }
+)
 
 # Infrastructure skills called by orchestrator / main-thread or by
 # other skills directly, not advertised in any AGENT.md skills: list.
 # doc-review / doc-consistency are builtin-only Layer-1 engines invoked via
 # `cataforge skill run` by the context review/consistency branches.
-ORPHAN_SKILL_WHITELIST = frozenset({
-    "agent-dispatch",
-    "tdd-engine",
-    "change-guard",
-    "start-orchestrator",
-    "context",
-    "doc-review",
-    "doc-consistency",
-    "research",
-    "debug",
-    "self-update",
-    "workflow-framework-generator",
-    "platform-audit",
-    "framework-review",
-    "framework-issue-resolve",
-    "framework-feedback",
-    "framework-walkthrough",
-})
+ORPHAN_SKILL_WHITELIST = frozenset(
+    {
+        "agent-dispatch",
+        "tdd-engine",
+        "change-guard",
+        "start-orchestrator",
+        "context",
+        "doc-review",
+        "doc-consistency",
+        "research",
+        "debug",
+        "self-update",
+        "workflow-framework-generator",
+        "platform-audit",
+        "framework-review",
+        "framework-issue-resolve",
+        "framework-feedback",
+        "framework-walkthrough",
+    }
+)
 
 # Sub-agents not directly phase-routed but invoked by orchestrator or
 # tdd-engine — counted as "referenced" so B5 doesn't warn on them.
 B5_SUBAGENTS = frozenset({"test-writer", "implementer", "refactorer"})
-B5_CROSS_CUTTING = frozenset({
-    "reviewer", "debugger", "orchestrator", "reflector",
-})
+B5_CROSS_CUTTING = frozenset(
+    {
+        "reviewer",
+        "debugger",
+        "orchestrator",
+        "reflector",
+    }
+)

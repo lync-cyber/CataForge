@@ -49,9 +49,11 @@ class TestParseToolsFromFrontmatter:
         """
         list_form = "---\nname: agent\ntools: [file_read, file_edit, shell_exec]\n---\nBody\n"
         comma_form = "---\nname: agent\ntools: file_read, file_edit, shell_exec\n---\nBody\n"
-        assert _parse_tools_from_frontmatter(list_form) == _parse_tools_from_frontmatter(
-            comma_form
-        ) == ["file_read", "file_edit", "shell_exec"]
+        assert (
+            _parse_tools_from_frontmatter(list_form)
+            == _parse_tools_from_frontmatter(comma_form)
+            == ["file_read", "file_edit", "shell_exec"]
+        )
 
 
 class TestAgentManagerValidateFlowStyle:

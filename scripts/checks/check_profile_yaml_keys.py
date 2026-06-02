@@ -39,9 +39,9 @@ REAL_PROFILE = REPO_ROOT / ".cataforge" / "platforms" / "cursor" / "profile.yaml
 # Keys that may legitimately be elided from the doc example (purely
 # optional sections — the example doesn't have to enumerate them).
 OPTIONAL_OMISSIONS: set[str] = {
-    "rules",            # cross-platform mirror flag — almost always default false
-    "permissions",      # listed inline in feature matrix
-    "model_routing",    # documented in a separate matrix
+    "rules",  # cross-platform mirror flag — almost always default false
+    "permissions",  # listed inline in feature matrix
+    "model_routing",  # documented in a separate matrix
     "extended_capabilities",  # often null-only on minimal platforms
 }
 

@@ -133,10 +133,7 @@ def _spawn_lock(lock_path: Path):
                     continue
                 time.sleep(_SPAWN_LOCK_POLL_INTERVAL_SECONDS)
         if not acquired:
-            raise TimeoutError(
-                f"could not acquire MCP spawn lock {lock_path} within "
-                f"{timeout}s"
-            )
+            raise TimeoutError(f"could not acquire MCP spawn lock {lock_path} within {timeout}s")
         try:
             yield
         finally:
@@ -144,6 +141,7 @@ def _spawn_lock(lock_path: Path):
                 os.unlink(str(lock_path))
     finally:
         inproc.release()
+
 
 HealthStatus = Literal["healthy", "unhealthy", "unknown"]
 
@@ -220,9 +218,7 @@ def _pid_alive_windows(pid: int) -> bool:
     from ctypes import wintypes
 
     kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-    handle = kernel32.OpenProcess(
-        _WIN_PROCESS_QUERY_LIMITED_INFORMATION, False, pid
-    )
+    handle = kernel32.OpenProcess(_WIN_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
         return False
     try:
@@ -331,8 +327,9 @@ class MCPLifecycleManager:
         # for the lock can proceed (and will short-circuit on the live
         # persisted state we just wrote).
         if new_state is None:  # defensive — should never happen
-            return MCPServerState(spec_id=server_id, status="error",
-                                  error_message="spawn produced no state")
+            return MCPServerState(
+                spec_id=server_id, status="error", error_message="spawn produced no state"
+            )
 
         with contextlib.suppress(Exception):
             refreshed = self.health(server_id)
@@ -380,8 +377,7 @@ class MCPLifecycleManager:
             status="error",
             pid=pid,
             error_message=(
-                f"pid {pid} still alive after SIGTERM + SIGKILL "
-                f"({self._stop_timeout}s each)"
+                f"pid {pid} still alive after SIGTERM + SIGKILL ({self._stop_timeout}s each)"
             ),
         )
         self._save_state(err)
@@ -458,9 +454,7 @@ class MCPLifecycleManager:
     def _probe_http(check: HealthCheckSpec, ts: str) -> HealthResult:
         target = check.target
         if not target:
-            return HealthResult(
-                status="unknown", detail="http: target is empty", ts=ts
-            )
+            return HealthResult(status="unknown", detail="http: target is empty", ts=ts)
         req = urllib.request.Request(target, method="GET")
         try:
             with urllib.request.urlopen(  # noqa: S310 — operator-configured URL
@@ -474,9 +468,7 @@ class MCPLifecycleManager:
                 ts=ts,
             )
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            return HealthResult(
-                status="unhealthy", detail=f"http: {exc}", ts=ts
-            )
+            return HealthResult(status="unhealthy", detail=f"http: {exc}", ts=ts)
         return HealthResult(
             status="healthy" if 200 <= code < 300 else "unhealthy",
             detail=f"http: HTTP {code}",
@@ -502,31 +494,22 @@ class MCPLifecycleManager:
                 ts=ts,
             )
         try:
-            with socket.create_connection(
-                (host, port), timeout=check.timeout_seconds
-            ):
+            with socket.create_connection((host, port), timeout=check.timeout_seconds):
                 pass
         except OSError as exc:
-            return HealthResult(
-                status="unhealthy", detail=f"tcp: {exc}", ts=ts
-            )
-        return HealthResult(
-            status="healthy", detail=f"tcp: connected to {host}:{port}", ts=ts
-        )
+            return HealthResult(status="unhealthy", detail=f"tcp: {exc}", ts=ts)
+        return HealthResult(status="healthy", detail=f"tcp: connected to {host}:{port}", ts=ts)
 
     @staticmethod
     def _probe_command(check: HealthCheckSpec, ts: str) -> HealthResult:
         target = check.target
         if not target:
-            return HealthResult(
-                status="unknown", detail="command: target is empty", ts=ts
-            )
+            return HealthResult(status="unknown", detail="command: target is empty", ts=ts)
         if isinstance(target, str):
             return HealthResult(
                 status="unknown",
                 detail=(
-                    f"command: health_check.target must be a list of args;"
-                    f" got string {target!r}"
+                    f"command: health_check.target must be a list of args; got string {target!r}"
                 ),
                 ts=ts,
             )
@@ -539,13 +522,9 @@ class MCPLifecycleManager:
                 ts=ts,
             )
         except OSError as exc:
-            return HealthResult(
-                status="unhealthy", detail=f"command: {exc}", ts=ts
-            )
+            return HealthResult(status="unhealthy", detail=f"command: {exc}", ts=ts)
         if proc.returncode == 0:
-            return HealthResult(
-                status="healthy", detail="command: exit 0", ts=ts
-            )
+            return HealthResult(status="healthy", detail="command: exit 0", ts=ts)
         return HealthResult(
             status="unhealthy",
             detail=f"command: exit {proc.returncode}",
@@ -581,23 +560,24 @@ class MCPLifecycleManager:
         """
         path = self._state_dir / f"{state.spec_id}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload = json.dumps(
-            {
-                "spec_id": state.spec_id,
-                "status": state.status,
-                "pid": state.pid,
-                "port": state.port,
-                "started_at": state.started_at,
-                "last_health_check": state.last_health_check,
-                "error_message": state.error_message,
-            },
-            indent=2,
-        ) + "\n"
+        payload = (
+            json.dumps(
+                {
+                    "spec_id": state.spec_id,
+                    "status": state.status,
+                    "pid": state.pid,
+                    "port": state.port,
+                    "started_at": state.started_at,
+                    "last_health_check": state.last_health_check,
+                    "error_message": state.error_message,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
         # Sibling tmpfile keyed by pid + thread id so concurrent writers from
         # the same process never collide on the rename source.
-        tmp = path.with_suffix(
-            path.suffix + f".tmp.{os.getpid()}.{threading.get_ident()}"
-        )
+        tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}.{threading.get_ident()}")
         tmp.write_text(payload)
         os.replace(str(tmp), str(path))
 

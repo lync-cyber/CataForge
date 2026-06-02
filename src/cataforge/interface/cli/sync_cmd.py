@@ -70,7 +70,7 @@ def _detect_default_branch(repo: Path) -> str:
         )
         ref = (result.stdout or "").strip()
         if ref.startswith("origin/"):
-            return ref[len("origin/"):]
+            return ref[len("origin/") :]
     except subprocess.CalledProcessError:
         pass
 
@@ -136,19 +136,30 @@ def _merged_into(repo: Path, branch: str) -> set[str]:
 
 @cli.command("sync-main")
 @click.option(
-    "--branch", "branch", default=None,
+    "--branch",
+    "branch",
+    default=None,
     help="Default branch to sync (auto-detected from origin/HEAD when omitted).",
 )
 @click.option(
-    "--prune-merged", "prune_merged", is_flag=True, default=False,
+    "--prune-merged",
+    "prune_merged",
+    is_flag=True,
+    default=False,
     help="Delete fully-merged local feature branches after sync.",
 )
 @click.option(
-    "--yes", "auto_yes", is_flag=True, default=False,
+    "--yes",
+    "auto_yes",
+    is_flag=True,
+    default=False,
     help="Skip the confirmation prompt for --prune-merged.",
 )
 @click.option(
-    "--dry-run", "dry_run", is_flag=True, default=False,
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    default=False,
     help="Print the git commands and decisions without executing destructive ones.",
 )
 def sync_main_command(
@@ -228,9 +239,7 @@ def _switch_to_target(repo: Path, starting_branch: str, target: str, dry_run: bo
         _git(["switch", target], cwd=repo, check=True)
         click.secho(f"  switched to {target}", fg="green")
     except subprocess.CalledProcessError as e:
-        raise ExternalToolError(
-            f"git switch {target} failed:\n  {e.stderr or e.stdout}"
-        ) from None
+        raise ExternalToolError(f"git switch {target} failed:\n  {e.stderr or e.stdout}") from None
 
 
 def _compute_ahead_behind(repo: Path, target: str) -> tuple[int, int]:
@@ -242,9 +251,7 @@ def _compute_ahead_behind(repo: Path, target: str) -> tuple[int, int]:
             check=True,
         )
     except subprocess.CalledProcessError as e:
-        raise ExternalToolError(
-            f"could not compare {target} vs origin/{target}: {e}"
-        ) from None
+        raise ExternalToolError(f"could not compare {target} vs origin/{target}: {e}") from None
 
     raw_stdout = ahead_behind.stdout or ""
     # ``git rev-list --left-right --count`` is contractually two
@@ -293,9 +300,7 @@ def _fast_forward(repo: Path, target: str, ahead: int, behind: int, dry_run: boo
         _git(ff_args, cwd=repo, check=True)
         click.secho(f"  fast-forwarded {target} by {behind} commit(s)", fg="green")
     except subprocess.CalledProcessError as e:
-        raise ExternalToolError(
-            f"git merge --ff-only failed:\n  {e.stderr or e.stdout}"
-        ) from None
+        raise ExternalToolError(f"git merge --ff-only failed:\n  {e.stderr or e.stdout}") from None
 
 
 def _restore_branch(repo: Path, starting_branch: str, dry_run: bool) -> None:
@@ -314,24 +319,18 @@ def _restore_branch(repo: Path, starting_branch: str, dry_run: bool) -> None:
         )
 
 
-def _prune_merged_branches(
-    repo: Path, *, target: str, auto_yes: bool, dry_run: bool
-) -> None:
+def _prune_merged_branches(repo: Path, *, target: str, auto_yes: bool, dry_run: bool) -> None:
     """Delete every local branch that's fully merged into ``target``."""
     locals_ = _local_branches(repo)
     merged = _merged_into(repo, target)
-    candidates = sorted(
-        b for b in locals_ if b in merged and b != target and b != "HEAD"
-    )
+    candidates = sorted(b for b in locals_ if b in merged and b != target and b != "HEAD")
     if not candidates:
         click.echo("  no merged feature branches to prune.")
         return
     click.echo("  Merged feature branches eligible for deletion:")
     for b in candidates:
         click.echo(f"    - {b}")
-    if not auto_yes and not click.confirm(
-        "  Delete these branches?", default=False
-    ):
+    if not auto_yes and not click.confirm("  Delete these branches?", default=False):
         click.echo("  skipped.")
         return
     for b in candidates:

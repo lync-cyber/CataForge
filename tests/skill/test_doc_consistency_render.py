@@ -33,10 +33,7 @@ def test_render_skip_is_headline_only() -> None:
 def test_render_pass_no_matrix() -> None:
     report = _report(headline="跨文档一致性校验: 发现 prd, arch", summary={"matrix": []})
     assert render_text(report) == (
-        "跨文档一致性校验: 发现 prd, arch\n"
-        "\n"
-        "\n"
-        "PASS: 跨文档一致性校验全部通过"
+        "跨文档一致性校验: 发现 prd, arch\n\n\nPASS: 跨文档一致性校验全部通过"
     )
 
 

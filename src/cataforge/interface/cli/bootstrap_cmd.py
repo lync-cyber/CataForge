@@ -122,9 +122,7 @@ def bootstrap_command(
         ui.warn("Aborted.")
         raise click.exceptions.Exit(1)
 
-    _execute_plan(
-        ctx, cfg, plan, context_strategy=context_strategy, skip_doctor=skip_doctor
-    )
+    _execute_plan(ctx, cfg, plan, context_strategy=context_strategy, skip_doctor=skip_doctor)
 
 
 # ---- presentation ----

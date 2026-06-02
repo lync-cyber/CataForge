@@ -32,12 +32,14 @@ _BUILTIN_ID_MAP = {
 # ``framework-feedback`` is in the set so each upstream-bound bundle
 # leaves a durable EVENT-LOG state_change entry — gives the project a
 # timeline of "we drafted feedback X times" without a bespoke event type.
-_BUILTIN_EVENT_LOGGED: frozenset[str] = frozenset({
-    "code-review",
-    "sprint-review",
-    "doc-review",
-    "framework-feedback",
-})
+_BUILTIN_EVENT_LOGGED: frozenset[str] = frozenset(
+    {
+        "code-review",
+        "sprint-review",
+        "doc-review",
+        "framework-feedback",
+    }
+)
 
 
 @dataclass
@@ -206,16 +208,18 @@ class SkillLoader:
             ]
             if not scripts:
                 continue
-            result.append(SkillMeta(
-                id=skill_id,
-                name=skill_id,
-                description=f"Built-in {skill_id} skill",
-                skill_type=SkillType.HYBRID,
-                scripts=scripts,
-                builtin=True,
-                path=child,
-                record_to_event_log=skill_id in _BUILTIN_EVENT_LOGGED,
-            ))
+            result.append(
+                SkillMeta(
+                    id=skill_id,
+                    name=skill_id,
+                    description=f"Built-in {skill_id} skill",
+                    skill_type=SkillType.HYBRID,
+                    scripts=scripts,
+                    builtin=True,
+                    path=child,
+                    record_to_event_log=skill_id in _BUILTIN_EVENT_LOGGED,
+                )
+            )
         return result
 
     def _parse_skill(self, skill_id: str, skill_md: Path) -> SkillMeta | None:

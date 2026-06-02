@@ -154,8 +154,7 @@ def test_record_correction_date_uses_utc(tmp_path: Path) -> None:
     )
     text = (tmp_path / CORRECTIONS_LOG_REL).read_text(encoding="utf-8")
     assert f"### {expected} " in text, (
-        f"correction header must start with the UTC date {expected!r}; "
-        f"found {text!r}"
+        f"correction header must start with the UTC date {expected!r}; found {text!r}"
     )
 
 
@@ -268,9 +267,7 @@ def test_record_correction_accepts_upstream_gap_deviation(tmp_path: Path) -> Non
         actual="B: gitops",
         deviation="upstream-gap",
     )
-    text = (tmp_path / result["corrections_log"].relative_to(tmp_path)).read_text(
-        encoding="utf-8"
-    )
+    text = (tmp_path / result["corrections_log"].relative_to(tmp_path)).read_text(encoding="utf-8")
     assert "偏差类型: upstream-gap" in text
     # And it should be visible to the downstream aggregator.
     from cataforge.core.feedback import collect_corrections

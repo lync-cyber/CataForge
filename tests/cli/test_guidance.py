@@ -21,9 +21,7 @@ def test_known_keys_exist() -> None:
         "bootstrap-done",
         "penpot-mcp-up",
     }
-    assert required.issubset(NEXT_STEPS.keys()), (
-        f"missing keys: {required - NEXT_STEPS.keys()}"
-    )
+    assert required.issubset(NEXT_STEPS.keys()), f"missing keys: {required - NEXT_STEPS.keys()}"
 
 
 def test_terminal_keys_are_empty_lists() -> None:

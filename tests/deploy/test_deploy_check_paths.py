@@ -71,8 +71,10 @@ class TestCursorDryRunPaths:
                 },
                 "dispatch": {"tool_name": "Task", "is_async": False},
                 "hooks": {
-                    "config_format": None, "config_path": None,
-                    "event_map": {}, "degradation": {},
+                    "config_format": None,
+                    "config_path": None,
+                    "event_map": {},
+                    "degradation": {},
                 },
             },
         )
@@ -81,12 +83,8 @@ class TestCursorDryRunPaths:
         actions = Deployer(cfg).deploy("cursor", dry_run=True)
 
         # Each agent has its own physical path — not "all → .cursor/agents/AGENT.md".
-        assert any(
-            ".cursor/agents/orchestrator/AGENT.md" in a for a in actions
-        ), actions
-        assert any(
-            ".cursor/agents/implementer/AGENT.md" in a for a in actions
-        ), actions
+        assert any(".cursor/agents/orchestrator/AGENT.md" in a for a in actions), actions
+        assert any(".cursor/agents/implementer/AGENT.md" in a for a in actions), actions
         # The old ambiguous format must not regress.
         for action in actions:
             assert not action.endswith(" → .cursor/agents/AGENT.md"), action
@@ -113,8 +111,10 @@ class TestClaudeCodeDryRunPaths:
                 },
                 "dispatch": {"tool_name": "Agent", "is_async": False},
                 "hooks": {
-                    "config_format": None, "config_path": None,
-                    "event_map": {}, "degradation": {},
+                    "config_format": None,
+                    "config_path": None,
+                    "event_map": {},
+                    "degradation": {},
                 },
             },
         )

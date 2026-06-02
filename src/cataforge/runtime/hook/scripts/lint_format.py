@@ -65,9 +65,13 @@ def main() -> None:
             run_tool(["npx", "prettier", "--write", file_path], "Prettier", file_path)
             run_tool(
                 [
-                    "npx", "eslint", "--fix",
-                    "--rule", "no-unused-vars: off",
-                    "--rule", "@typescript-eslint/no-unused-vars: off",
+                    "npx",
+                    "eslint",
+                    "--fix",
+                    "--rule",
+                    "no-unused-vars: off",
+                    "--rule",
+                    "@typescript-eslint/no-unused-vars: off",
                     file_path,
                 ],
                 "ESLint",
@@ -85,9 +89,7 @@ def main() -> None:
 
     elif ext == ".cs":
         if _has_command("dotnet"):
-            run_tool(
-                ["dotnet", "format", "--include", file_path], "dotnet format", file_path
-            )
+            run_tool(["dotnet", "format", "--include", file_path], "dotnet format", file_path)
 
     elif ext == ".md":
         if ".cataforge" in Path(file_path).parts:

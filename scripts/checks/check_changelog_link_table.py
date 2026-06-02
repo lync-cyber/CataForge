@@ -27,9 +27,7 @@ CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 
 SECTION_RE = re.compile(r"^##\s+\[(\d+\.\d+\.\d+)\]")
 LINK_RE = re.compile(r"^\[(\d+\.\d+\.\d+)\]:")
-UNRELEASED_RE = re.compile(
-    r"^\[Unreleased\]:\s*https?://[^\s]*compare/v(\d+\.\d+\.\d+)\.\.\.HEAD"
-)
+UNRELEASED_RE = re.compile(r"^\[Unreleased\]:\s*https?://[^\s]*compare/v(\d+\.\d+\.\d+)\.\.\.HEAD")
 
 
 def parse_semver(s: str) -> tuple[int, int, int]:
@@ -80,9 +78,7 @@ def main() -> int:
     if sections:
         latest = max(sections, key=parse_semver)
         if unreleased_base is None:
-            fails.append(
-                "[Unreleased]: ...compare/vX...HEAD line missing or unparsable."
-            )
+            fails.append("[Unreleased]: ...compare/vX...HEAD line missing or unparsable.")
         elif unreleased_base != latest:
             fails.append(
                 f"[Unreleased] compares against v{unreleased_base}, "

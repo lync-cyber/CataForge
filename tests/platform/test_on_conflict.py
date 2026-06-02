@@ -55,9 +55,7 @@ def _setup(tmp_path: Path, **profile_kwargs) -> tuple[Path, Path]:
         encoding="utf-8",
     )
     project_state = cataforge_dir / "PROJECT-STATE.md"
-    project_state.write_text(
-        "# state\n运行时: {platform}\n", encoding="utf-8"
-    )
+    project_state.write_text("# state\n运行时: {platform}\n", encoding="utf-8")
 
     platforms_dir = cataforge_dir / "platforms" / "claude-code"
     platforms_dir.mkdir(parents=True)
@@ -80,9 +78,7 @@ class TestDefaultIsOverwrite:
         claude_md = root / "CLAUDE.md"
         claude_md.write_text("# manually written\n", encoding="utf-8")
 
-        adapter = get_adapter(
-            "claude-code", root / ".cataforge" / "platforms"
-        )
+        adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
         adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
         )
@@ -93,9 +89,7 @@ class TestDefaultIsOverwrite:
 
     def test_overwrite_records_hash(self, tmp_path: Path) -> None:
         project_state, root = _setup(tmp_path, path="CLAUDE.md")
-        adapter = get_adapter(
-            "claude-code", root / ".cataforge" / "platforms"
-        )
+        adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
         adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
         )
@@ -107,15 +101,11 @@ class TestDefaultIsOverwrite:
 
 class TestPreserve:
     def test_skip_when_target_exists(self, tmp_path: Path) -> None:
-        project_state, root = _setup(
-            tmp_path, path="CLAUDE.md", on_conflict="preserve"
-        )
+        project_state, root = _setup(tmp_path, path="CLAUDE.md", on_conflict="preserve")
         claude_md = root / "CLAUDE.md"
         claude_md.write_text("# hand-curated\n", encoding="utf-8")
 
-        adapter = get_adapter(
-            "claude-code", root / ".cataforge" / "platforms"
-        )
+        adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
         actions = adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
         )
@@ -124,30 +114,20 @@ class TestPreserve:
         assert any("on_conflict=preserve" in a for a in actions)
 
     def test_writes_when_target_absent(self, tmp_path: Path) -> None:
-        project_state, root = _setup(
-            tmp_path, path="CLAUDE.md", on_conflict="preserve"
-        )
-        adapter = get_adapter(
-            "claude-code", root / ".cataforge" / "platforms"
-        )
+        project_state, root = _setup(tmp_path, path="CLAUDE.md", on_conflict="preserve")
+        adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
         adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
         )
 
         assert (root / "CLAUDE.md").is_file()
-        assert "运行时: claude-code" in (root / "CLAUDE.md").read_text(
-            encoding="utf-8"
-        )
+        assert "运行时: claude-code" in (root / "CLAUDE.md").read_text(encoding="utf-8")
 
 
 class TestPreserveIfEdited:
     def test_overwrites_when_unedited(self, tmp_path: Path) -> None:
-        project_state, root = _setup(
-            tmp_path, path="CLAUDE.md", on_conflict="preserve_if_edited"
-        )
-        adapter = get_adapter(
-            "claude-code", root / ".cataforge" / "platforms"
-        )
+        project_state, root = _setup(tmp_path, path="CLAUDE.md", on_conflict="preserve_if_edited")
+        adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
         # First deploy records the hash
         adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
@@ -156,9 +136,7 @@ class TestPreserveIfEdited:
 
         # Mutate the template and re-deploy; file should update because the
         # on-disk content matches last-deployed hash (no user edit).
-        project_state.write_text(
-            "# state v2\n运行时: {platform}\n", encoding="utf-8"
-        )
+        project_state.write_text("# state v2\n运行时: {platform}\n", encoding="utf-8")
         adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
         )
@@ -168,12 +146,8 @@ class TestPreserveIfEdited:
         assert "state v2" in second
 
     def test_skips_when_user_edited(self, tmp_path: Path) -> None:
-        project_state, root = _setup(
-            tmp_path, path="CLAUDE.md", on_conflict="preserve_if_edited"
-        )
-        adapter = get_adapter(
-            "claude-code", root / ".cataforge" / "platforms"
-        )
+        project_state, root = _setup(tmp_path, path="CLAUDE.md", on_conflict="preserve_if_edited")
+        adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
         adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
         )
@@ -183,9 +157,7 @@ class TestPreserveIfEdited:
         claude_md.write_text("# USER EDIT\n", encoding="utf-8")
 
         # Template changes but re-deploy must not touch user's edits
-        project_state.write_text(
-            "# state v2\n运行时: {platform}\n", encoding="utf-8"
-        )
+        project_state.write_text("# state v2\n运行时: {platform}\n", encoding="utf-8")
         actions = adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
         )
@@ -193,21 +165,15 @@ class TestPreserveIfEdited:
         assert claude_md.read_text(encoding="utf-8") == "# USER EDIT\n"
         assert any("preserve_if_edited" in a for a in actions)
 
-    def test_first_deploy_writes_without_prior_hash(
-        self, tmp_path: Path
-    ) -> None:
-        project_state, root = _setup(
-            tmp_path, path="CLAUDE.md", on_conflict="preserve_if_edited"
-        )
+    def test_first_deploy_writes_without_prior_hash(self, tmp_path: Path) -> None:
+        project_state, root = _setup(tmp_path, path="CLAUDE.md", on_conflict="preserve_if_edited")
         # Target exists (e.g. from a previous framework version without hash
         # tracking). Missing hash means no basis for diffing, so we treat the
         # file as the trusted state and skip to be safe.
         claude_md = root / "CLAUDE.md"
         claude_md.write_text("# pre-existing\n", encoding="utf-8")
 
-        adapter = get_adapter(
-            "claude-code", root / ".cataforge" / "platforms"
-        )
+        adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
         adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
         )
@@ -218,12 +184,8 @@ class TestPreserveIfEdited:
 
 class TestInvalidValue:
     def test_invalid_on_conflict_skips_target(self, tmp_path: Path) -> None:
-        project_state, root = _setup(
-            tmp_path, path="CLAUDE.md", on_conflict="bogus"
-        )
-        adapter = get_adapter(
-            "claude-code", root / ".cataforge" / "platforms"
-        )
+        project_state, root = _setup(tmp_path, path="CLAUDE.md", on_conflict="bogus")
+        adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
         actions = adapter.deploy_instruction_files(
             project_state, root, platform_id="claude-code", dry_run=False
         )

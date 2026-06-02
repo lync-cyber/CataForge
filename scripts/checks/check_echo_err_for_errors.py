@@ -26,6 +26,7 @@ Per-call exemption: add ``# allow-stdout-echo: <reason>`` on the same
 line. Use sparingly; the explicit comment turns "code smell" into
 "documented contract".
 """
+
 from __future__ import annotations
 
 import re
@@ -91,7 +92,7 @@ def _extract_full_call(text: str, start_offset: int) -> str:
         elif ch == ")":
             depth -= 1
             if depth == 0:
-                return text[start_offset:i + 1]
+                return text[start_offset : i + 1]
     return text[start_offset:]  # unterminated — caller will see it
 
 
@@ -146,10 +147,7 @@ def main() -> int:
             print(f"  {offender}", file=sys.stderr)
         return 1
 
-    print(
-        f"OK: scanned {files_scanned} cli file(s), no error-toned echoes "
-        f"miss err=True"
-    )
+    print(f"OK: scanned {files_scanned} cli file(s), no error-toned echoes miss err=True")
     return 0
 
 

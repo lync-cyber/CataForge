@@ -33,17 +33,11 @@ def mcp_list() -> None:
     servers = registry.list_servers()
     if not servers:
         click.echo("No MCP servers registered.")
-        emit_hint(
-            "  Hint: register one with "
-            "`cataforge mcp register <path/to/server.yaml>`."
-        )
+        emit_hint("  Hint: register one with `cataforge mcp register <path/to/server.yaml>`.")
         return
     ui.table(
         headers=["id", "name", "transport", "description"],
-        rows=[
-            [srv.id, srv.name, srv.transport, srv.description]
-            for srv in servers
-        ],
+        rows=[[srv.id, srv.name, srv.transport, srv.description] for srv in servers],
     )
 
 

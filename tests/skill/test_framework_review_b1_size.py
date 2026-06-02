@@ -27,13 +27,9 @@ def _build_agent(
     """Create a tmp agent dir with AGENT.md and optional PROTOCOL companion."""
     agent_dir = tmp_path / ".cataforge" / "agents" / agent_id
     agent_dir.mkdir(parents=True)
-    (agent_dir / "AGENT.md").write_text(
-        "\n".join(["x"] * agent_lines), encoding="utf-8"
-    )
+    (agent_dir / "AGENT.md").write_text("\n".join(["x"] * agent_lines), encoding="utf-8")
     if protocol_lines is not None:
-        (agent_dir / protocol_name).write_text(
-            "\n".join(["y"] * protocol_lines), encoding="utf-8"
-        )
+        (agent_dir / protocol_name).write_text("\n".join(["y"] * protocol_lines), encoding="utf-8")
     return tmp_path
 
 

@@ -36,9 +36,7 @@ def _extract_answers(tool_response: object) -> dict[str, Any]:
     answers = tool_response.get("answers")
     if isinstance(answers, dict):
         return answers
-    return (
-        tool_response if all(isinstance(v, str) for v in tool_response.values()) else {}
-    )
+    return tool_response if all(isinstance(v, str) for v in tool_response.values()) else {}
 
 
 @hook_main

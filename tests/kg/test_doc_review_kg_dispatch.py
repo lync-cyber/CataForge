@@ -5,6 +5,7 @@ Verifies that the doc-review checker uses the KG path when the doc_type
 is active and a store exists, and falls back to legacy file-glob when
 the KG is inactive.
 """
+
 from __future__ import annotations
 
 import json
@@ -13,9 +14,7 @@ from pathlib import Path
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
 
-def _setup_project(
-    tmp_path: Path, variant: str = "waterfall", strategy: str | None = None
-) -> Path:
+def _setup_project(tmp_path: Path, variant: str = "waterfall", strategy: str | None = None) -> Path:
     """Create a minimal CataForge project with an ingested KG store.
 
     `strategy` writes ``context.strategy`` (e.g. ``doc-only``) so tests can
@@ -106,15 +105,11 @@ def test_check_xref_uses_kg_when_active(tmp_path: Path) -> None:
     doc_file = _write_doc(project, "prd", _PRD_WITH_XREF)
     invalidate_cache()
 
-    checker = DocChecker(
-        "prd", str(doc_file), docs_dir=str(project / "docs"), quiet=True
-    )
+    checker = DocChecker("prd", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
     checker.check_xref()
 
     xref_failures = [e for e in checker.errors if "交叉引用" in e]
-    assert not xref_failures, (
-        f"KG-active xref check should resolve M-001: {xref_failures}"
-    )
+    assert not xref_failures, f"KG-active xref check should resolve M-001: {xref_failures}"
 
 
 def test_check_xref_reports_missing_entity_via_kg(tmp_path: Path) -> None:
@@ -126,9 +121,7 @@ def test_check_xref_reports_missing_entity_via_kg(tmp_path: Path) -> None:
     doc_file = _write_doc(project, "prd", content)
     invalidate_cache()
 
-    checker = DocChecker(
-        "prd", str(doc_file), docs_dir=str(project / "docs"), quiet=True
-    )
+    checker = DocChecker("prd", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
     checker.check_xref()
 
     xref_failures = [e for e in checker.errors if "KG" in e]
@@ -148,9 +141,7 @@ def test_check_xref_falls_back_when_kg_inactive(tmp_path: Path) -> None:
     doc_file = _write_doc(project, "prd", _PRD_WITH_XREF)
     invalidate_cache()
 
-    checker = DocChecker(
-        "prd", str(doc_file), docs_dir=str(docs), quiet=True
-    )
+    checker = DocChecker("prd", str(doc_file), docs_dir=str(docs), quiet=True)
     checker.check_xref()
     assert checker._maybe_kg_xref_resolver() is None
 
@@ -163,9 +154,7 @@ def test_bidirectional_coverage_uses_kg_when_active(tmp_path: Path) -> None:
     doc_file = _write_doc(project, "arch", _ARCH_CONTENT)
     invalidate_cache()
 
-    checker = DocChecker(
-        "arch", str(doc_file), docs_dir=str(project / "docs"), quiet=True
-    )
+    checker = DocChecker("arch", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
     ran_kg = checker._kg_bidirectional_coverage("F")
     assert ran_kg, "should have used KG path for bidirectional coverage"
 
@@ -185,9 +174,7 @@ def test_bidirectional_coverage_falls_back_when_inactive(
     doc_file = _write_doc(project, "arch", _ARCH_CONTENT)
     invalidate_cache()
 
-    checker = DocChecker(
-        "arch", str(doc_file), docs_dir=str(docs), quiet=True
-    )
+    checker = DocChecker("arch", str(doc_file), docs_dir=str(docs), quiet=True)
     ran_kg = checker._kg_bidirectional_coverage("F")
     assert not ran_kg, "should fall back to legacy when KG not active"
 
@@ -201,9 +188,7 @@ def test_xref_bypasses_kg_under_doc_only_despite_store(tmp_path: Path) -> None:
     doc_file = _write_doc(project, "prd", _PRD_WITH_XREF)
     invalidate_cache()
 
-    checker = DocChecker(
-        "prd", str(doc_file), docs_dir=str(project / "docs"), quiet=True
-    )
+    checker = DocChecker("prd", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
     assert checker._maybe_kg_xref_resolver() is None
 
 
@@ -217,8 +202,6 @@ def test_bidirectional_coverage_bypasses_kg_under_doc_only_despite_store(
     doc_file = _write_doc(project, "arch", _ARCH_CONTENT)
     invalidate_cache()
 
-    checker = DocChecker(
-        "arch", str(doc_file), docs_dir=str(project / "docs"), quiet=True
-    )
+    checker = DocChecker("arch", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
     ran_kg = checker._kg_bidirectional_coverage("F")
     assert not ran_kg, "doc-only must not enter the KG coverage path"

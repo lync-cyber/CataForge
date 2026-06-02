@@ -89,9 +89,7 @@ def _compile_lang_rule(spec: RuleSpec) -> LangRule:
 def load_wiring_rules(project_root: Path | None = None) -> WiringRuleSet:
     """Discover + compile wiring rules for *project_root* (None → defaults only)."""
     by_language: dict[str, LangRule] = {}
-    specs = discover_rules(
-        _SKILL_ID, builtin_module=_BUILTIN_MODULE, project_root=project_root
-    )
+    specs = discover_rules(_SKILL_ID, builtin_module=_BUILTIN_MODULE, project_root=project_root)
     for (rule_type, language), spec in specs.items():
         if rule_type == "wiring":
             by_language[language] = _compile_lang_rule(spec)

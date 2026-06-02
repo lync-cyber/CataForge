@@ -26,8 +26,7 @@ def _require_scaffold(root: Path, targets: list[str], platforms_dir: Path) -> No
         raise NotInitializedError(root, hint_platform=hint_platform)
 
     missing = [
-        p for p in targets
-        if p != "all" and not (platforms_dir / p / "profile.yaml").is_file()
+        p for p in targets if p != "all" and not (platforms_dir / p / "profile.yaml").is_file()
     ]
     if missing:
         raise ConfigError(
@@ -46,7 +45,8 @@ def _require_scaffold(root: Path, targets: list[str], platforms_dir: Path) -> No
     help="Target platform (default: from framework.json).",
 )
 @click.option(
-    "--dry-run", "dry_run",
+    "--dry-run",
+    "dry_run",
     is_flag=True,
     help="Preview actions without writing files.",
 )

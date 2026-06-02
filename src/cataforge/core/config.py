@@ -94,6 +94,7 @@ class ConfigManager:
             # missing-package situation should fall back here.
             try:
                 from cataforge import __version__ as pkg_version
+
                 return pkg_version
             except ImportError:
                 return raw
@@ -190,9 +191,7 @@ class ConfigManager:
                 try:
                     result[k] = int(v)
                 except ValueError as e:
-                    raise ValueError(
-                        f"claude_md_limits.{k}: expected int, got {v!r}"
-                    ) from e
+                    raise ValueError(f"claude_md_limits.{k}: expected int, got {v!r}") from e
         return {**defaults, **result}
 
     # ---- save helpers ----

@@ -47,10 +47,7 @@ def test_add_new_section_appended() -> None:
 
 
 def test_override_and_add_in_one_patch() -> None:
-    patch = (
-        "## Identity\n- 你是改写后的架构师\n\n"
-        "## Extra Guidance\n- 额外约定\n"
-    )
+    patch = "## Identity\n- 你是改写后的架构师\n\n## Extra Guidance\n- 额外约定\n"
     out = apply_section_patch(_BASE, patch)
     assert "你是改写后的架构师" in out
     assert "你是架构师" not in out

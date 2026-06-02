@@ -41,7 +41,9 @@ from cataforge.interface.cli.main import cli
     ),
 )
 @click.option(
-    "--check-prereqs", "--check-only", "check_only",
+    "--check-prereqs",
+    "--check-only",
+    "check_only",
     is_flag=True,
     help="Only check prerequisites, do not install. (Alias: --check-only.)",
 )
@@ -190,9 +192,7 @@ def setup_command(
         diff = cfg.describe_platform_change(platform)
         if show_diff:
             if diff is None:
-                click.echo(
-                    f"  framework.json: runtime.platform already = {platform} (no change)"
-                )
+                click.echo(f"  framework.json: runtime.platform already = {platform} (no change)")
             else:
                 click.echo(
                     f"  framework.json diff: {diff['field']}: "
@@ -270,8 +270,7 @@ def _apply_languages(cfg, languages: tuple[str, ...]) -> None:
         )
     elif not active_languages(cfg):
         click.echo(
-            "  no project languages declared or detected "
-            "(declare with `setup --language <id>`)"
+            "  no project languages declared or detected (declare with `setup --language <id>`)"
         )
 
 
@@ -303,9 +302,7 @@ def _report_dry_run(
                 "(file created by scaffold)"
             )
         elif diff is None:
-            click.echo(
-                f"  framework.json: runtime.platform already = {platform} (no change)"
-            )
+            click.echo(f"  framework.json: runtime.platform already = {platform} (no change)")
         else:
             click.echo(
                 f"  would patch framework.json: {diff['field']}: "
@@ -318,27 +315,17 @@ def _report_dry_run(
     if languages:
         from cataforge.core.languages import normalize
 
-        click.echo(
-            f"  would set framework.json: project.languages = "
-            f"{normalize(list(languages))}"
-        )
+        click.echo(f"  would set framework.json: project.languages = {normalize(list(languages))}")
 
     if context_strategy:
-        click.echo(
-            f"  would set framework.json: context.strategy = {context_strategy}"
-        )
+        click.echo(f"  would set framework.json: context.strategy = {context_strategy}")
 
     if deploy_after:
-        click.echo(
-            "  would chain `cataforge deploy` "
-            "(run `cataforge deploy --dry-run` to preview)"
-        )
+        click.echo("  would chain `cataforge deploy` (run `cataforge deploy --dry-run` to preview)")
     click.echo("Dry-run complete. No changes made.")
 
 
-def _apply_context_strategy(
-    cfg, strategy: str | None, *, scaffold_missing: bool
-) -> None:
+def _apply_context_strategy(cfg, strategy: str | None, *, scaffold_missing: bool) -> None:
     """Resolve and persist ``context.strategy``.
 
     An explicit ``--context-strategy`` always wins. On a fresh interactive

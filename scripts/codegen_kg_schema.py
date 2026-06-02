@@ -28,6 +28,7 @@ churn diffs.
 Usage:
     python scripts/codegen_kg_schema.py
 """
+
 from __future__ import annotations
 
 import argparse

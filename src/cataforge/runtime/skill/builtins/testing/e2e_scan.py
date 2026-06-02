@@ -137,9 +137,7 @@ def main() -> None:
         fmt = args[idx + 1] if idx + 1 < len(args) else "text"
         args = args[:idx] + args[idx + 2 :]
     if not args or args[0] in {"-h", "--help"}:
-        print(
-            "用法: python -m cataforge.runtime.skill.builtins.testing.e2e_scan <e2e_dir>"
-        )
+        print("用法: python -m cataforge.runtime.skill.builtins.testing.e2e_scan <e2e_dir>")
         sys.exit(2)
 
     base = Path(args[0])

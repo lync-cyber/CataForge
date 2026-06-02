@@ -178,10 +178,13 @@ def test_run_migration_phase5_rolls_back_on_write_entities_failure() -> None:
     store = handle.raw
     root = FIXTURE_ROOT / "waterfall"
 
-    with patch(
-        "cataforge.domain.kg.ingest.migrate.write_entities",
-        side_effect=RuntimeError("injected write_entities failure"),
-    ), pytest.raises(RuntimeError, match="injected write_entities failure"):
+    with (
+        patch(
+            "cataforge.domain.kg.ingest.migrate.write_entities",
+            side_effect=RuntimeError("injected write_entities failure"),
+        ),
+        pytest.raises(RuntimeError, match="injected write_entities failure"),
+    ):
         run_migration(store, root, config)
 
     f001_iri = entity_iri("F-001", config.base_namespace)

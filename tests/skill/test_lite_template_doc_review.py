@@ -15,12 +15,7 @@ import pytest
 from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
 LITE_DIR = (
-    Path(__file__).resolve().parents[2]
-    / ".cataforge"
-    / "skills"
-    / "context"
-    / "templates"
-    / "lite"
+    Path(__file__).resolve().parents[2] / ".cataforge" / "skills" / "context" / "templates" / "lite"
 )
 
 

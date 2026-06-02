@@ -7,6 +7,7 @@ baseline signals an unintended rendering change.
 Set env var ``UPDATE_GOLDEN=1`` to regenerate the baselines after an
 intentional template or pipeline change.
 """
+
 from __future__ import annotations
 
 import json
@@ -57,8 +58,7 @@ def test_export_matches_golden_hashes(tmp_path: Path, variant: str) -> None:
 
     manifest_path = GOLDEN_ROOT / f"{variant}_hashes.json"
     assert manifest_path.is_file(), (
-        f"missing golden manifest {manifest_path}; "
-        f"run with UPDATE_GOLDEN=1 to generate"
+        f"missing golden manifest {manifest_path}; run with UPDATE_GOLDEN=1 to generate"
     )
     golden_hashes = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert result.file_hashes == golden_hashes, (
@@ -69,9 +69,7 @@ def test_export_matches_golden_hashes(tmp_path: Path, variant: str) -> None:
 
 
 @pytest.mark.parametrize("variant", VARIANTS)
-def test_export_content_matches_golden_files(
-    tmp_path: Path, variant: str
-) -> None:
+def test_export_content_matches_golden_files(tmp_path: Path, variant: str) -> None:
     from cataforge.domain.kg.export import compile_to_markdown
 
     if _UPDATE:
@@ -91,6 +89,4 @@ def test_export_content_matches_golden_files(
         assert golden_file.is_file(), f"missing golden file: {golden_file}"
         actual = rec.output_path.read_text(encoding="utf-8")
         expected = golden_file.read_text(encoding="utf-8")
-        assert actual == expected, (
-            f"{variant}/{rel}: content differs from golden baseline"
-        )
+        assert actual == expected, f"{variant}/{rel}: content differs from golden baseline"

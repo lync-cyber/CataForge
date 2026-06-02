@@ -84,9 +84,7 @@ def _compile_e2e_rule(spec: RuleSpec) -> E2ELangRule:
 def load_e2e_rules(project_root: Path | None = None) -> E2ERuleSet:
     """Discover + compile e2e rules for *project_root* (None → defaults only)."""
     by_language: dict[str, E2ELangRule] = {}
-    specs = discover_rules(
-        _SKILL_ID, builtin_module=_BUILTIN_MODULE, project_root=project_root
-    )
+    specs = discover_rules(_SKILL_ID, builtin_module=_BUILTIN_MODULE, project_root=project_root)
     for (rule_type, language), spec in specs.items():
         if rule_type == "e2e":
             by_language[language] = _compile_e2e_rule(spec)

@@ -67,9 +67,7 @@ def main() -> int:
     real_sv = real.get("schema_version")
     doc_sv = doc.get("schema_version")
     if real_sv != doc_sv:
-        fails.append(
-            f"schema_version mismatch: doc shows {doc_sv!r}, real is {real_sv!r}"
-        )
+        fails.append(f"schema_version mismatch: doc shows {doc_sv!r}, real is {real_sv!r}")
 
     real_top = set(real.keys())
     doc_top = set(doc.keys())

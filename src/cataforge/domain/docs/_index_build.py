@@ -81,9 +81,7 @@ def _extract_section_number(title: str) -> str | None:
     return m.group(1) if m else None
 
 
-def build_document_entry(
-    file_path: str, rel_path: str
-) -> tuple[str | None, dict[str, Any] | None]:
+def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dict[str, Any] | None]:
     try:
         with open(file_path) as f:
             content = f.read()
@@ -139,9 +137,12 @@ def build_document_entry(
 
         if level == 2 and sec_num:
             sections[sec_num] = {
-                "heading": lines[line_idx].rstrip(), "level": level,
-                "line_start": line_idx + 1, "line_end": line_end,
-                "est_tokens": est_tokens, "deps": meta.get("deps", []),
+                "heading": lines[line_idx].rstrip(),
+                "level": level,
+                "line_start": line_idx + 1,
+                "line_end": line_end,
+                "est_tokens": est_tokens,
+                "deps": meta.get("deps", []),
                 "items": {},
             }
         elif level >= 3 and item_id:
@@ -149,22 +150,29 @@ def build_document_entry(
             if parent_sec:
                 parent_sec["items"][item_id] = {
                     "heading": lines[line_idx].rstrip(),
-                    "line_start": line_idx + 1, "line_end": line_end,
-                    "est_tokens": est_tokens, "deps": meta.get("deps", []),
+                    "line_start": line_idx + 1,
+                    "line_end": line_end,
+                    "est_tokens": est_tokens,
+                    "deps": meta.get("deps", []),
                 }
         elif level >= 3 and sec_num:
             parent_sec = _find_parent_section(sections, line_idx)
             if parent_sec:
                 parent_sec["items"][sec_num] = {
                     "heading": lines[line_idx].rstrip(),
-                    "line_start": line_idx + 1, "line_end": line_end,
-                    "est_tokens": est_tokens, "deps": meta.get("deps", []),
+                    "line_start": line_idx + 1,
+                    "line_end": line_end,
+                    "est_tokens": est_tokens,
+                    "deps": meta.get("deps", []),
                 }
 
     entry: dict[str, Any] = {
         "file_path": rel_path.replace("\\", "/"),
-        "doc_type": doc_type, "volume": volume, "status": status,
-        "total_lines": total_lines, "est_tokens": _estimate_tokens(content),
+        "doc_type": doc_type,
+        "volume": volume,
+        "status": status,
+        "total_lines": total_lines,
+        "est_tokens": _estimate_tokens(content),
         "content_hash": _content_hash(content),
         "sections": sections,
     }
@@ -198,9 +206,13 @@ def build_xref(documents: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
                 if ITEM_ID_RE.match(item_id):
                     if item_id not in xref:
                         xref[item_id] = []
-                    xref[item_id].append({
-                        "doc_id": doc_id, "section": sec_num, "file_path": file_path,
-                    })
+                    xref[item_id].append(
+                        {
+                            "doc_id": doc_id,
+                            "section": sec_num,
+                            "file_path": file_path,
+                        }
+                    )
     return xref
 
 
@@ -263,8 +275,9 @@ def update_single_doc(
     abs_path = os.path.join(project_root, doc_file) if not os.path.isabs(doc_file) else doc_file
     rel_path = os.path.relpath(abs_path, project_root)
 
-    old_ids = [did for did, d in documents.items()
-               if d.get("file_path") == rel_path.replace("\\", "/")]
+    old_ids = [
+        did for did, d in documents.items() if d.get("file_path") == rel_path.replace("\\", "/")
+    ]
     for old_id in old_ids:
         del documents[old_id]
 
@@ -309,17 +322,23 @@ def build_aliases(
     for doc_id, entry in documents.items():
         for alias in entry.get("aliases") or []:
             if alias in documents:
-                conflicts.append({
-                    "alias": alias, "claimed_by": doc_id,
-                    "reason": f"shadowed by an existing doc_id {alias!r}",
-                })
+                conflicts.append(
+                    {
+                        "alias": alias,
+                        "claimed_by": doc_id,
+                        "reason": f"shadowed by an existing doc_id {alias!r}",
+                    }
+                )
                 continue
             existing = aliases.get(alias)
             if existing is not None and existing != doc_id:
-                conflicts.append({
-                    "alias": alias, "claimed_by": doc_id,
-                    "reason": f"already claimed by {existing!r}",
-                })
+                conflicts.append(
+                    {
+                        "alias": alias,
+                        "claimed_by": doc_id,
+                        "reason": f"already claimed by {existing!r}",
+                    }
+                )
                 continue
             aliases[alias] = doc_id
     return aliases, conflicts

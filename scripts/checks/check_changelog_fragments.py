@@ -60,11 +60,13 @@ EXEMPT_SUBPATHS: tuple[str, ...] = (
 
 # Fragment files that exist for documentation / templating only and
 # don't count toward the "added a fragment" check.
-META_FRAGMENT_NAMES: frozenset[str] = frozenset({
-    "README.md",
-    ".template.md.j2",
-    ".gitkeep",
-})
+META_FRAGMENT_NAMES: frozenset[str] = frozenset(
+    {
+        "README.md",
+        ".template.md.j2",
+        ".gitkeep",
+    }
+)
 
 # Fragment filename pattern: {PR#}.md (or any-id.md). scriv's default
 # is `{timestamp}_{branch}.md`; CataForge convention is to rename to
@@ -158,16 +160,14 @@ def main() -> int:
     messages = _commit_messages(base_ref)
     if any(SKIP_TOKEN in msg for msg in messages):
         print(
-            f"OK: {SKIP_TOKEN} found in commit message(s) — "
-            f"changelog fragment requirement waived."
+            f"OK: {SKIP_TOKEN} found in commit message(s) — changelog fragment requirement waived."
         )
         return 0
 
     added_fragments = [f for f in _added_files(base_ref) if _is_real_fragment(f)]
     if added_fragments:
         print(
-            f"OK: {len(added_fragments)} changelog fragment(s) added: "
-            + ", ".join(added_fragments)
+            f"OK: {len(added_fragments)} changelog fragment(s) added: " + ", ".join(added_fragments)
         )
         return 0
 

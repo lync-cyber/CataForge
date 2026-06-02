@@ -17,9 +17,7 @@ from cataforge.runtime.hook.base import matches_script_filters
 
 
 @pytest.fixture()
-def spec_with_filters(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> dict:
+def spec_with_filters(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
     """Stub load_hooks_spec so matches_script_filters sees custom filters."""
     spec = {
         "schema_version": 2,
@@ -72,9 +70,7 @@ class TestCommandPatternFilter:
         data = {"tool_input": {"command": "npm publish --force"}}
         assert matches_script_filters(data, "guard_dangerous") is True
 
-    def test_does_not_match_unrelated_command(
-        self, spec_with_filters: dict
-    ) -> None:
+    def test_does_not_match_unrelated_command(self, spec_with_filters: dict) -> None:
         data = {"tool_input": {"command": "ls -la"}}
         assert matches_script_filters(data, "guard_dangerous") is False
 
@@ -90,28 +86,16 @@ class TestAgentIdFilter:
 
 
 class TestNoFiltersDeclared:
-    def test_script_not_in_spec_allows(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_script_not_in_spec_allows(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import cataforge.runtime.hook.bridge as bridge
 
-        monkeypatch.setattr(
-            bridge, "load_hooks_spec", lambda _p=None: {"hooks": {}}
-        )
+        monkeypatch.setattr(bridge, "load_hooks_spec", lambda _p=None: {"hooks": {}})
         assert matches_script_filters({}, "no_such_script") is True
 
-    def test_script_with_no_filters_allows(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_script_with_no_filters_allows(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import cataforge.runtime.hook.bridge as bridge
 
-        spec = {
-            "hooks": {
-                "PostToolUse": [
-                    {"script": "detect_correction", "type": "observe"}
-                ]
-            }
-        }
+        spec = {"hooks": {"PostToolUse": [{"script": "detect_correction", "type": "observe"}]}}
         monkeypatch.setattr(bridge, "load_hooks_spec", lambda _p=None: spec)
 
         assert matches_script_filters({}, "detect_correction") is True
@@ -119,12 +103,7 @@ class TestNoFiltersDeclared:
 
 def test_builtin_hooks_yaml_loads_and_is_schema_v2() -> None:
     """The canonical hooks.yaml must parse cleanly + declare v2."""
-    path = (
-        Path(__file__).resolve().parents[2]
-        / ".cataforge"
-        / "hooks"
-        / "hooks.yaml"
-    )
+    path = Path(__file__).resolve().parents[2] / ".cataforge" / "hooks" / "hooks.yaml"
     with open(path, encoding="utf-8") as f:
         spec = yaml.safe_load(f)
 

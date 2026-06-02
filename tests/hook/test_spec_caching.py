@@ -47,13 +47,9 @@ class TestSpecCaching:
         matches_script_filters(data, "lint_format")
         matches_script_filters(data, "lint_format")
 
-        assert call_count == 1, (
-            f"load_hooks_spec called {call_count} times; expected 1 (cached)"
-        )
+        assert call_count == 1, f"load_hooks_spec called {call_count} times; expected 1 (cached)"
 
-    def test_different_script_names_each_call_once(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_different_script_names_each_call_once(self, monkeypatch: pytest.MonkeyPatch) -> None:
         call_count = 0
         spec = _make_spec("lint_format")
 
@@ -74,9 +70,7 @@ class TestSpecCaching:
             f"load_hooks_spec called {call_count} times; expected 2 (one per unique script name)"
         )
 
-    def test_cache_clear_reloads_spec(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cache_clear_reloads_spec(self, monkeypatch: pytest.MonkeyPatch) -> None:
         call_count = 0
         spec = _make_spec("lint_format")
 

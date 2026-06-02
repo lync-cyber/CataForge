@@ -3,6 +3,7 @@
 Verifies pyoxigraph → rdflib conversion and SHACL validation when
 both pyshacl and rdflib are available.
 """
+
 from __future__ import annotations
 
 import importlib.util

@@ -52,9 +52,7 @@ class TestPluginDiscovery:
     def test_invalid_manifest_skipped(self, project: Path) -> None:
         bad_dir = project / ".cataforge" / "plugins" / "broken"
         bad_dir.mkdir(parents=True)
-        (bad_dir / "cataforge-plugin.yaml").write_text(
-            "not a mapping\n", encoding="utf-8"
-        )
+        (bad_dir / "cataforge-plugin.yaml").write_text("not a mapping\n", encoding="utf-8")
         _write_manifest(project, "good")
         ids = [p.id for p in PluginLoader(project).discover()]
         assert ids == ["good"]

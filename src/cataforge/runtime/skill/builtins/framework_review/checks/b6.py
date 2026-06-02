@@ -151,9 +151,7 @@ def _check_manifest_drift(referenced_scripts: set[str], report: Report) -> None:
                 )
         # Reverse: every manifest entry that's never wired in hooks.yaml
         # is dead inventory (WARN).
-        wired_builtins = {
-            s for s in referenced_scripts if not s.startswith("custom:")
-        }
+        wired_builtins = {s for s in referenced_scripts if not s.startswith("custom:")}
         for unwired in sorted(manifest_names_set - wired_builtins):
             report.add(
                 "B6_hook_manifest_drift",
@@ -165,9 +163,7 @@ def _check_manifest_drift(referenced_scripts: set[str], report: Report) -> None:
             )
 
 
-def _check_degradation_parity(
-    referenced_scripts: set[str], root: Path, report: Report
-) -> None:
+def _check_degradation_parity(referenced_scripts: set[str], root: Path, report: Report) -> None:
     """δ: each platform profile's degradation keys match hooks.yaml scripts."""
     platforms_dir = ProjectPaths(root).platforms_dir
     if not platforms_dir.is_dir():
@@ -189,9 +185,7 @@ def _check_degradation_parity(
             continue
         declared = set(degradation.keys())
         # custom: scripts ship per-project; degradation key drops the prefix.
-        normalized_refs = {
-            s.removeprefix("custom:") for s in referenced_scripts
-        }
+        normalized_refs = {s.removeprefix("custom:") for s in referenced_scripts}
         missing = sorted(normalized_refs - declared)
         orphan = sorted(declared - normalized_refs)
         for script in missing:

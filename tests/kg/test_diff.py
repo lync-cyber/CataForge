@@ -1,4 +1,5 @@
 """Tests for `cataforge kg diff` — semantic snapshot diffing."""
+
 from __future__ import annotations
 
 from pathlib import Path

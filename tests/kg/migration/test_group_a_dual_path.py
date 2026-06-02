@@ -19,6 +19,7 @@ Tests are parametrized over both fixture variants (waterfall + agile)
 to satisfy the Alpha exit condition that *both* process-model paths
 pass end-to-end.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -27,6 +28,7 @@ import pytest
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "fixtures" / "kg-vertical-slice"
 VARIANTS = ("waterfall", "agile")
+
 
 def _ingest_into_memory(project_root: Path):
     from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
@@ -38,9 +40,11 @@ def _ingest_into_memory(project_root: Path):
     kg = KnowledgeGraph(handle.raw, config)
     return kg, config
 
+
 # ---------------------------------------------------------------------------
 # Group A entity-id discovery dual-path
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_entity_id_set_matches_legacy_scan(variant: str) -> None:
@@ -61,13 +65,13 @@ def test_entity_id_set_matches_legacy_scan(variant: str) -> None:
     )
     kg_ids = kg.query.entity_ids()
 
-    assert fs_ids == kg_ids, (
-        f"FS-only: {fs_ids - kg_ids}; KG-only: {kg_ids - fs_ids}"
-    )
+    assert fs_ids == kg_ids, f"FS-only: {fs_ids - kg_ids}; KG-only: {kg_ids - fs_ids}"
+
 
 # ---------------------------------------------------------------------------
 # A2 / A5 — typed accessors return non-null on existing entities
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_typed_accessors_locate_known_entities(variant: str) -> None:
@@ -82,9 +86,11 @@ def test_typed_accessors_locate_known_entities(variant: str) -> None:
     assert kg.query.api("API-999") is None
     assert kg.query.page("P-999") is None
 
+
 # ---------------------------------------------------------------------------
 # A13 — bidirectional coverage agrees with TraceAPI.bidirectional_coverage
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_bidirectional_coverage_reflects_graph_edges(variant: str) -> None:
@@ -106,9 +112,11 @@ def test_bidirectional_coverage_reflects_graph_edges(variant: str) -> None:
         # check would falsely register coverage on string mention.
         assert by_id[fid].has_test is False
 
+
 # ---------------------------------------------------------------------------
 # Both process-model paths reach the same exit shape
 # ---------------------------------------------------------------------------
+
 
 def test_waterfall_and_agile_produce_identical_entity_set() -> None:
     """Alpha exit condition: both process_model = waterfall and = agile

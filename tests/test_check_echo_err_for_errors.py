@@ -51,9 +51,7 @@ class TestStderrEchoGuard:
     def test_passes_when_call_has_err_true(self, tmp_path: Path) -> None:
         f = tmp_path / "good.py"
         f.write_text(
-            'import click\n'
-            'def cmd():\n'
-            '    click.echo("Error: something broke", err=True)\n',
+            'import click\ndef cmd():\n    click.echo("Error: something broke", err=True)\n',
             encoding="utf-8",
         )
         result = _run_with_test_tree(tmp_path)
@@ -62,9 +60,7 @@ class TestStderrEchoGuard:
     def test_fails_when_error_message_missing_err_true(self, tmp_path: Path) -> None:
         f = tmp_path / "bad.py"
         f.write_text(
-            'import click\n'
-            'def cmd():\n'
-            '    click.echo("Error: something broke")\n',
+            'import click\ndef cmd():\n    click.echo("Error: something broke")\n',
             encoding="utf-8",
         )
         result = _run_with_test_tree(tmp_path)
@@ -74,8 +70,8 @@ class TestStderrEchoGuard:
     def test_allow_marker_silences_violation(self, tmp_path: Path) -> None:
         f = tmp_path / "exempt.py"
         f.write_text(
-            'import click\n'
-            'def cmd():\n'
+            "import click\n"
+            "def cmd():\n"
             '    click.echo("Error: x")  # allow-stdout-echo: doctor-report row\n',
             encoding="utf-8",
         )
@@ -94,8 +90,7 @@ class TestStderrEchoGuard:
         )
         result = _run_with_test_tree(tmp_path)
         assert result.returncode == 1, (
-            f"prefix {prefix!r} must be flagged when missing err=True; "
-            f"stdout: {result.stdout!r}"
+            f"prefix {prefix!r} must be flagged when missing err=True; stdout: {result.stdout!r}"
         )
 
     def test_does_not_flag_neutral_messages(self, tmp_path: Path) -> None:
@@ -104,8 +99,8 @@ class TestStderrEchoGuard:
         ``"errors:"`` inside a summary line must not false-trigger."""
         f = tmp_path / "neutral.py"
         f.write_text(
-            'import click\n'
-            'def cmd():\n'
+            "import click\n"
+            "def cmd():\n"
             '    click.echo("OK: deployed 12 files")\n'
             '    click.echo(f"  errors: {0}")  # summary count, not an error\n'
             '    click.echo("missing:")  # lowercase prefix not in marker list\n',
@@ -119,12 +114,12 @@ class TestStderrEchoGuard:
         still detect ``err=True`` on the continuation lines."""
         f = tmp_path / "multi.py"
         f.write_text(
-            'import click\n'
-            'def cmd():\n'
-            '    click.echo(\n'
+            "import click\n"
+            "def cmd():\n"
+            "    click.echo(\n"
             '        "Error: long message that wraps across lines",\n'
-            '        err=True,\n'
-            '    )\n',
+            "        err=True,\n"
+            "    )\n",
             encoding="utf-8",
         )
         result = _run_with_test_tree(tmp_path)

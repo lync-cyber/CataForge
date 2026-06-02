@@ -55,8 +55,7 @@ def docs_group() -> None:
     default=None,
     metavar="TOKENS",
     help=(
-        "Token budget; refs exceeding the budget are listed on stderr as "
-        "[DEFERRED] and not loaded."
+        "Token budget; refs exceeding the budget are listed on stderr as [DEFERRED] and not loaded."
     ),
 )
 def docs_load(
@@ -99,7 +98,7 @@ def docs_load(
     is_flag=True,
     default=False,
     help="Exit non-zero (3) if any docs/**/*.md is skipped for missing YAML "
-         "front matter — useful as a CI gate.",
+    "front matter — useful as a CI gate.",
 )
 def docs_index(project_root: str | None, doc_file: str | None, strict: bool) -> None:
     """Build or update the chapter-level JSON index ``docs/.doc-index.json``."""
@@ -164,13 +163,9 @@ def docs_validate(project_root: str | None) -> None:
     invalid_ids = result.get("invalid_ids", [])
     stale_deps = result.get("stale_deps", [])
 
-    if (
-        not orphans and not stale and not xref_errors
-        and not alias_conflicts and not invalid_ids
-    ):
+    if not orphans and not stale and not xref_errors and not alias_conflicts and not invalid_ids:
         summary = (
-            "OK · 0 orphans · 0 stale entries · 0 xref errors · "
-            "0 alias conflicts · 0 invalid ids"
+            "OK · 0 orphans · 0 stale entries · 0 xref errors · 0 alias conflicts · 0 invalid ids"
         )
         if stale_deps:
             summary += f" · {len(stale_deps)} stale dep(s)"
@@ -189,14 +184,16 @@ def docs_validate(project_root: str | None) -> None:
 
     if stale:
         click.echo(
-            f"FAIL · {len(stale)} stale index entry(ies):", err=True,
+            f"FAIL · {len(stale)} stale index entry(ies):",
+            err=True,
         )
         for doc_id, rel in stale:
             click.echo(f"  - {doc_id} → {rel}", err=True)
 
     if xref_errors:
         click.echo(
-            f"FAIL · {len(xref_errors)} cross-reference error(s):", err=True,
+            f"FAIL · {len(xref_errors)} cross-reference error(s):",
+            err=True,
         )
         for e in xref_errors:
             click.echo(
@@ -206,7 +203,8 @@ def docs_validate(project_root: str | None) -> None:
 
     if alias_conflicts:
         click.echo(
-            f"FAIL · {len(alias_conflicts)} alias conflict(s):", err=True,
+            f"FAIL · {len(alias_conflicts)} alias conflict(s):",
+            err=True,
         )
         for c in alias_conflicts:
             click.echo(
@@ -216,8 +214,7 @@ def docs_validate(project_root: str | None) -> None:
 
     if invalid_ids:
         click.echo(
-            f"FAIL · {len(invalid_ids)} invalid id(s) — slug must match "
-            f"[A-Za-z0-9_-]+:",
+            f"FAIL · {len(invalid_ids)} invalid id(s) — slug must match [A-Za-z0-9_-]+:",
             err=True,
         )
         for e in invalid_ids:

@@ -47,12 +47,12 @@ def test_plain_text_no_tags_returns_none():
 
 def test_questions_invalid_json_logs_debug_and_questions_none(caplog):
     text = (
-        '<agent-result>'
-        '<status>needs_input</status>'
-        '<outputs></outputs>'
-        '<summary>need info</summary>'
+        "<agent-result>"
+        "<status>needs_input</status>"
+        "<outputs></outputs>"
+        "<summary>need info</summary>"
         '<questions>{ "broken": </questions>'
-        '</agent-result>'
+        "</agent-result>"
     )
     with caplog.at_level(logging.DEBUG, logger="cataforge.runtime.agent.result_parser"):
         result = parse_agent_result(text)

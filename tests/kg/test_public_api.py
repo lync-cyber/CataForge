@@ -1,4 +1,5 @@
 """Smoke tests for the cataforge.domain.kg public API surface."""
+
 from __future__ import annotations
 
 

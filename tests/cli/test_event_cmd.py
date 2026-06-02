@@ -28,10 +28,14 @@ def _invoke(*args: str, input: str | None = None) -> object:
 class TestEventLogSingle:
     def test_writes_jsonl(self, project: Path) -> None:
         result = _invoke(
-            "event", "log",
-            "--event", "phase_start",
-            "--phase", "architecture",
-            "--detail", "进入架构设计阶段",
+            "event",
+            "log",
+            "--event",
+            "phase_start",
+            "--phase",
+            "architecture",
+            "--detail",
+            "进入架构设计阶段",
         )
         assert result.exit_code == 0, result.output
 
@@ -44,18 +48,20 @@ class TestEventLogSingle:
         assert "ts" in record
 
     def test_missing_required_option_errors(self, project: Path) -> None:
-        result = _invoke(
-            "event", "log", "--event", "phase_start", "--detail", "x"
-        )
+        result = _invoke("event", "log", "--event", "phase_start", "--detail", "x")
         assert result.exit_code != 0
         assert "required" in result.output.lower()
 
     def test_rejects_unknown_event(self, project: Path) -> None:
         result = _invoke(
-            "event", "log",
-            "--event", "framework:setup",  # not in schema enum
-            "--phase", "x",
-            "--detail", "y",
+            "event",
+            "log",
+            "--event",
+            "framework:setup",  # not in schema enum
+            "--phase",
+            "x",
+            "--detail",
+            "y",
         )
         assert result.exit_code != 0
         assert "not in enum" in result.output
@@ -63,16 +69,19 @@ class TestEventLogSingle:
     def test_data_merges_with_flags(self, project: Path) -> None:
         # --data can supply optional fields not exposed as flags.
         result = _invoke(
-            "event", "log",
-            "--event", "agent_dispatch",
-            "--phase", "development",
-            "--detail", "dispatching architect",
-            "--data", '{"agent":"architect","task_type":"new_creation"}',
+            "event",
+            "log",
+            "--event",
+            "agent_dispatch",
+            "--phase",
+            "development",
+            "--detail",
+            "dispatching architect",
+            "--data",
+            '{"agent":"architect","task_type":"new_creation"}',
         )
         assert result.exit_code == 0, result.output
-        record = json.loads(
-            (project / EVENT_LOG_REL).read_text(encoding="utf-8").strip()
-        )
+        record = json.loads((project / EVENT_LOG_REL).read_text(encoding="utf-8").strip())
         assert record["agent"] == "architect"
         assert record["task_type"] == "new_creation"
 
@@ -101,14 +110,19 @@ class TestEventLogBatch:
         lines = (project / EVENT_LOG_REL).read_text(encoding="utf-8").splitlines()
         assert len(lines) == 4
         assert [json.loads(line)["event"] for line in lines] == [
-            "phase_end", "review_verdict", "state_change", "phase_start",
+            "phase_end",
+            "review_verdict",
+            "state_change",
+            "phase_start",
         ]
 
     def test_batch_mutex_with_single_flags(self, project: Path) -> None:
         result = _invoke(
-            "event", "log",
+            "event",
+            "log",
             "--batch",
-            "--event", "phase_start",
+            "--event",
+            "phase_start",
             input='{"event":"x","phase":"y","detail":"z"}\n',
         )
         assert result.exit_code != 0
@@ -169,27 +183,19 @@ class TestEventAcceptLegacy:
         result = _invoke("event", "accept-legacy")
         assert result.exit_code == 0, result.output
 
-        fw = json.loads(
-            (project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
+        fw = json.loads((project / ".cataforge" / "framework.json").read_text(encoding="utf-8"))
         cutoff = fw["upgrade"]["state"]["event_log_validate_since"]
         assert cutoff  # non-empty ISO timestamp
         # Must be parseable ISO-8601.
         from datetime import datetime
+
         datetime.fromisoformat(cutoff.replace("Z", "+00:00"))
 
     def test_accepts_explicit_before(self, project: Path) -> None:
-        result = _invoke(
-            "event", "accept-legacy", "--before", "2026-04-01T00:00:00+00:00"
-        )
+        result = _invoke("event", "accept-legacy", "--before", "2026-04-01T00:00:00+00:00")
         assert result.exit_code == 0, result.output
-        fw = json.loads(
-            (project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
-        assert (
-            fw["upgrade"]["state"]["event_log_validate_since"]
-            == "2026-04-01T00:00:00+00:00"
-        )
+        fw = json.loads((project / ".cataforge" / "framework.json").read_text(encoding="utf-8"))
+        assert fw["upgrade"]["state"]["event_log_validate_since"] == "2026-04-01T00:00:00+00:00"
 
     def test_rejects_bad_timestamp(self, project: Path) -> None:
         result = _invoke("event", "accept-legacy", "--before", "not-a-date")
@@ -201,17 +207,13 @@ class TestEventAcceptLegacy:
         these across the CLI and silent rewrites are how C-1 happened."""
         result = _invoke("event", "accept-legacy")
         assert result.exit_code == 0, result.output
-        fw = json.loads(
-            (project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
+        fw = json.loads((project / ".cataforge" / "framework.json").read_text(encoding="utf-8"))
         assert fw["version"] == "0.1.9"
         assert fw["runtime"]["platform"] == "claude-code"
 
     def test_reports_update_over_previous_cutoff(self, project: Path) -> None:
         _invoke("event", "accept-legacy", "--before", "2026-01-01T00:00:00+00:00")
-        result = _invoke(
-            "event", "accept-legacy", "--before", "2026-04-01T00:00:00+00:00"
-        )
+        result = _invoke("event", "accept-legacy", "--before", "2026-04-01T00:00:00+00:00")
         assert result.exit_code == 0, result.output
         assert "→" in result.output
         assert "2026-01-01" in result.output
@@ -254,7 +256,8 @@ class TestEventAcceptLegacy:
 
         # And no temp file leaked into .cataforge/.
         residue = [
-            p for p in (project / ".cataforge").iterdir()
+            p
+            for p in (project / ".cataforge").iterdir()
             if p.name.startswith(".framework.json.") and p.name.endswith(".tmp")
         ]
         assert residue == [], f"atomic temp file leaked: {residue!r}"

@@ -18,6 +18,5 @@ def test_validate_agent_result_importable_outside_project(tmp_path):
         text=True,
     )
     assert result.returncode == 0, (
-        f"import failed (rc={result.returncode}):\n"
-        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        f"import failed (rc={result.returncode}):\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )

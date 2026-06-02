@@ -84,11 +84,7 @@ def merge_sections(
     # the policy declares no schema/runtime scaffolding (nothing to be foreign to).
     managed_non_framework = {_strip_section_annotations(t) for t in (schema | runtime)}
     cur_stripped = {_strip_section_annotations(t) for t in cur_sections}
-    if (
-        managed_non_framework
-        and cur_sections
-        and cur_stripped.isdisjoint(managed_non_framework)
-    ):
+    if managed_non_framework and cur_sections and cur_stripped.isdisjoint(managed_non_framework):
         foreign: OrderedDict[str, str] = OrderedDict()
         for title, body in cur_sections.items():
             if _classify(title, framework, schema, runtime) != "framework":
@@ -116,9 +112,7 @@ def merge_sections(
         elif category == "runtime":
             # Preserve what's already there; only use template when the section
             # is absent or is still the literal template body (first deploy).
-            result[title] = (
-                cur_body if cur_body is not None and cur_body.strip() else tpl_body
-            )
+            result[title] = cur_body if cur_body is not None and cur_body.strip() else tpl_body
         else:
             # Unclassified template section = framework-owned by default.
             result[title] = tpl_body
@@ -313,9 +307,7 @@ def _parse_bullets(body: str) -> OrderedDict[str, _BulletBlock]:
     return blocks
 
 
-def _extract_tail(
-    body: str, parsed: OrderedDict[str, _BulletBlock]
-) -> str:
+def _extract_tail(body: str, parsed: OrderedDict[str, _BulletBlock]) -> str:
     """Return content that is *not* part of any parsed bullet block."""
     if not parsed:
         return body

@@ -33,9 +33,7 @@ def _seed_source(root: Path, *agent_names: str) -> Path:
     for name in agent_names:
         agent_dir = src / name
         agent_dir.mkdir(parents=True, exist_ok=True)
-        (agent_dir / "AGENT.md").write_text(
-            _AGENT_MD.format(name=name), encoding="utf-8"
-        )
+        (agent_dir / "AGENT.md").write_text(_AGENT_MD.format(name=name), encoding="utf-8")
     return src
 
 
@@ -63,8 +61,7 @@ def test_codex_prunes_orphan_toml_when_agent_removed(
     target_dir.mkdir(parents=True)
     orphan_toml = target_dir / "retired-agent.toml"
     orphan_toml.write_text(
-        "# Auto-generated from retired-agent/AGENT.md\n"
-        'name = "retired-agent"\n',
+        '# Auto-generated from retired-agent/AGENT.md\nname = "retired-agent"\n',
         encoding="utf-8",
     )
 
@@ -99,9 +96,7 @@ def test_codex_dry_run_reports_prune_without_writing(
     target_dir = tmp_path / ".codex" / "agents"
     target_dir.mkdir(parents=True)
     orphan_toml = target_dir / "retired-agent.toml"
-    orphan_toml.write_text(
-        "# Auto-generated from retired-agent/AGENT.md\n", encoding="utf-8"
-    )
+    orphan_toml.write_text("# Auto-generated from retired-agent/AGENT.md\n", encoding="utf-8")
 
     actions = codex_adapter.deploy_agents(src, tmp_path, dry_run=True)
 
@@ -131,9 +126,7 @@ def test_opencode_prunes_orphan_md_when_agent_removed(
     target_dir = tmp_path / ".opencode" / "agents"
     target_dir.mkdir(parents=True)
     orphan = target_dir / "retired-agent.md"
-    orphan.write_text(
-        "---\nname: retired-agent\n---\nold body\n", encoding="utf-8"
-    )
+    orphan.write_text("---\nname: retired-agent\n---\nold body\n", encoding="utf-8")
 
     actions = opencode_adapter.deploy_agents(src, tmp_path)
 
@@ -190,9 +183,7 @@ def _codex_with_fields(*fields: str) -> CodexAdapter:
 def _deploy_one(adapter: CodexAdapter, tmp_path: Path, frontmatter: str) -> str:
     src = tmp_path / ".cataforge" / "agents"
     (src / "a").mkdir(parents=True)
-    (src / "a" / "AGENT.md").write_text(
-        f"---\n{frontmatter}---\n# body\n", encoding="utf-8"
-    )
+    (src / "a" / "AGENT.md").write_text(f"---\n{frontmatter}---\n# body\n", encoding="utf-8")
     adapter.deploy_agents(src, tmp_path)
     return (tmp_path / ".codex" / "agents" / "a.toml").read_text(encoding="utf-8")
 
@@ -200,9 +191,7 @@ def _deploy_one(adapter: CodexAdapter, tmp_path: Path, frontmatter: str) -> str:
 def test_codex_passthrough_honors_extra_supported_field(tmp_path: Path) -> None:
     """Adding a field to the profile's supported_fields makes it survive the
     TOML round-trip with no code change to ``_md_to_toml``."""
-    adapter = _codex_with_fields(
-        "name", "description", "sandbox_mode", "extra_codex_knob"
-    )
+    adapter = _codex_with_fields("name", "description", "sandbox_mode", "extra_codex_knob")
     toml = _deploy_one(
         adapter,
         tmp_path,

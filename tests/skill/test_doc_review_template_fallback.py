@@ -49,8 +49,10 @@ def test_check_required_sections_falls_back_to_frontmatter(tmp_path: Path) -> No
     doc = _write(tmp_path / "doc.md", body)
 
     checker = DocChecker(
-        "ui-spec", str(doc),
-        docs_dir=str(tmp_path), volume_type="nonexistent-volume",
+        "ui-spec",
+        str(doc),
+        docs_dir=str(tmp_path),
+        volume_type="nonexistent-volume",
         quiet=True,
     )
     checker.check_required_sections()
@@ -80,8 +82,10 @@ def test_check_required_sections_fallback_flags_missing_section(
     doc = _write(tmp_path / "doc.md", body)
 
     checker = DocChecker(
-        "ui-spec", str(doc),
-        docs_dir=str(tmp_path), volume_type="nonexistent-volume",
+        "ui-spec",
+        str(doc),
+        docs_dir=str(tmp_path),
+        volume_type="nonexistent-volume",
         quiet=True,
     )
     checker.check_required_sections()
@@ -102,11 +106,12 @@ def test_theme_volume_detected_from_filename(tmp_path: Path) -> None:
         "---\n"
         "# theme\n"
     )
-    doc = _write(
-        tmp_path / "ui-spec-x-vN-theme-04-japanese-mook.md", body
-    )
+    doc = _write(tmp_path / "ui-spec-x-vN-theme-04-japanese-mook.md", body)
     checker = DocChecker(
-        "ui-spec", str(doc), docs_dir=str(tmp_path), quiet=True,
+        "ui-spec",
+        str(doc),
+        docs_dir=str(tmp_path),
+        quiet=True,
     )
     assert checker.volume_type == "theme"
 
@@ -131,11 +136,12 @@ def test_deploy_spec_requires_local_stack_evidence_section(tmp_path: Path) -> No
     )
     doc = _write(tmp_path / "deploy-spec-x.md", body)
     checker = DocChecker(
-        "deploy-spec", str(doc), docs_dir=str(tmp_path), quiet=True,
+        "deploy-spec",
+        str(doc),
+        docs_dir=str(tmp_path),
+        quiet=True,
     )
     # 默认 volume_type='main' 命中注册模板，required_sections 含证据段
     assert checker.volume_type == "main"
     checker.check_required_sections()
-    assert any(
-        "本地最小栈验证证据" in e for e in checker.errors
-    ), checker.errors
+    assert any("本地最小栈验证证据" in e for e in checker.errors), checker.errors

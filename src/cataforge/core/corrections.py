@@ -26,13 +26,9 @@ TriggerSignal = Literal["option-override", "interrupt-override", "review-flag"]
 # (CataForge framework defect) and ``self-caused`` (downstream drift). The
 # ``framework-feedback`` skill aggregates these into an upstream-bound
 # issue draft via ``cataforge feedback correction-export``.
-DeviationType = Literal[
-    "preference", "self-caused", "external", "framework-bug", "upstream-gap"
-]
+DeviationType = Literal["preference", "self-caused", "external", "framework-bug", "upstream-gap"]
 
-VALID_TRIGGERS: frozenset[str] = frozenset(
-    {"option-override", "interrupt-override", "review-flag"}
-)
+VALID_TRIGGERS: frozenset[str] = frozenset({"option-override", "interrupt-override", "review-flag"})
 VALID_DEVIATIONS: frozenset[str] = frozenset(
     {"preference", "self-caused", "external", "framework-bug", "upstream-gap"}
 )
@@ -70,13 +66,9 @@ def record_correction(
     swallowed so a schema error never drops the human-facing entry.
     """
     if trigger not in VALID_TRIGGERS:
-        raise ValueError(
-            f"trigger={trigger!r} not in {sorted(VALID_TRIGGERS)}"
-        )
+        raise ValueError(f"trigger={trigger!r} not in {sorted(VALID_TRIGGERS)}")
     if deviation not in VALID_DEVIATIONS:
-        raise ValueError(
-            f"deviation={deviation!r} not in {sorted(VALID_DEVIATIONS)}"
-        )
+        raise ValueError(f"deviation={deviation!r} not in {sorted(VALID_DEVIATIONS)}")
 
     md_path = _append_markdown(
         project_root,

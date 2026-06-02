@@ -50,16 +50,21 @@ def test_strict_incremental_doc_file_still_exits_3_on_unrelated_orphan(
     invocation, incremental or not."""
     _make_project(tmp_path)
     good = _write_doc(
-        tmp_path, "docs/prd/good.md",
+        tmp_path,
+        "docs/prd/good.md",
         "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n",
     )
     _write_doc(tmp_path, "docs/research/orphan.md", "# No front matter\n")
 
-    rc = indexer.main([
-        "--project-root", str(tmp_path),
-        "--doc-file", str(good),
-        "--strict",
-    ])
+    rc = indexer.main(
+        [
+            "--project-root",
+            str(tmp_path),
+            "--doc-file",
+            str(good),
+            "--strict",
+        ]
+    )
 
     assert rc == 3, "incremental --strict must still escalate orphans elsewhere in the tree"
     err = capsys.readouterr().err
@@ -71,15 +76,20 @@ def test_incremental_without_strict_warns_but_exits_zero(
 ) -> None:
     _make_project(tmp_path)
     good = _write_doc(
-        tmp_path, "docs/prd/good.md",
+        tmp_path,
+        "docs/prd/good.md",
         "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n",
     )
     _write_doc(tmp_path, "docs/research/orphan.md", "# No front matter\n")
 
-    rc = indexer.main([
-        "--project-root", str(tmp_path),
-        "--doc-file", str(good),
-    ])
+    rc = indexer.main(
+        [
+            "--project-root",
+            str(tmp_path),
+            "--doc-file",
+            str(good),
+        ]
+    )
 
     assert rc == 0
     err = capsys.readouterr().err
@@ -99,7 +109,8 @@ def test_strict_full_rebuild_clean_tree_exits_zero(tmp_path: Path) -> None:
 def test_find_stale_index_entries_detects_disk_deletion(tmp_path: Path) -> None:
     _make_project(tmp_path)
     good = _write_doc(
-        tmp_path, "docs/prd/good.md",
+        tmp_path,
+        "docs/prd/good.md",
         "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n",
     )
     indexer.main(["--project-root", str(tmp_path)])
@@ -138,11 +149,15 @@ def test_strict_incremental_warns_on_stale_entry(
 
     b.unlink()
 
-    rc = indexer.main([
-        "--project-root", str(tmp_path),
-        "--doc-file", str(a),
-        "--strict",
-    ])
+    rc = indexer.main(
+        [
+            "--project-root",
+            str(tmp_path),
+            "--doc-file",
+            str(a),
+            "--strict",
+        ]
+    )
 
     assert rc == 3, "stale index entry must trip --strict on incremental run"
     err = capsys.readouterr().err

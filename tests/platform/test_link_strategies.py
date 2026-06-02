@@ -134,9 +134,7 @@ class TestRemoveTargetIdempotency:
         # Patch where helpers.py imports `run_proc` (the lazy local import
         # inside _try_junction). monkeypatching the wrapper module itself
         # would miss the binding because the import happens at call time.
-        monkeypatch.setattr(
-            "cataforge.utils.run_subprocess.run", _denied_mklink
-        )
+        monkeypatch.setattr("cataforge.utils.run_subprocess.run", _denied_mklink)
         spy = _RemoveTargetSpy(monkeypatch)
 
         actions = symlink_or_copy(src, target)
@@ -162,8 +160,7 @@ class TestRemoveTargetIdempotency:
             symlink_or_copy(src, target)
 
         assert len(spy.calls) <= 1, (
-            f"removal must not run more than once; got {len(spy.calls)} "
-            f"call(s): {spy.calls!r}"
+            f"removal must not run more than once; got {len(spy.calls)} call(s): {spy.calls!r}"
         )
 
     def test_force_copy_removes_once_and_skips_link_attempts(
@@ -188,11 +185,8 @@ class TestRemoveTargetIdempotency:
 
         actions = symlink_or_copy(src, target, force_copy=True)
 
-        assert symlink_attempts == [], (
-            "force_copy=True must not even try os.symlink"
-        )
+        assert symlink_attempts == [], "force_copy=True must not even try os.symlink"
         assert any("forced" in a for a in actions), actions
         assert len(spy.calls) == 1, (
-            f"force_copy removal must run exactly once; got {len(spy.calls)} "
-            f"call(s): {spy.calls!r}"
+            f"force_copy removal must run exactly once; got {len(spy.calls)} call(s): {spy.calls!r}"
         )

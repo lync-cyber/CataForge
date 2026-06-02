@@ -18,8 +18,7 @@ from cataforge.interface.cli.phase_cmd import (
 )
 
 PLACEHOLDER = (
-    "{requirements|architecture|ui_design|dev_planning"
-    "|development|testing|deployment|completed}"
+    "{requirements|architecture|ui_design|dev_planning|development|testing|deployment|completed}"
 )
 
 

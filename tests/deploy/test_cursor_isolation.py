@@ -35,9 +35,7 @@ _CURSOR_PROFILE_BASE: dict = {
     "instruction_file": {
         "reads_claude_md": False,
         "targets": [{"type": "project_state_copy", "path": "AGENTS.md"}],
-        "additional_outputs": [
-            {"target": ".cursor/rules/", "format": "mdc", "source": "rules"}
-        ],
+        "additional_outputs": [{"target": ".cursor/rules/", "format": "mdc", "source": "rules"}],
     },
     "dispatch": {"tool_name": "Task", "is_async": False},
     "hooks": {

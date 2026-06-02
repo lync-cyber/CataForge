@@ -157,8 +157,7 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
     sv = data.get("schema_version")
     if sv != CURRENT_SCHEMA_VERSION:
         raise RuleLoadError(
-            f"{source}: unsupported schema_version {sv!r}; "
-            f"expected {CURRENT_SCHEMA_VERSION}"
+            f"{source}: unsupported schema_version {sv!r}; expected {CURRENT_SCHEMA_VERSION}"
         )
 
     rule_type = data.get("rule_type")
@@ -166,8 +165,7 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
         raise RuleLoadError(f"{source}: 'rule_type' required (got {rule_type!r})")
     if rule_type not in RULE_TYPE_SCHEMAS:
         raise RuleLoadError(
-            f"{source}: unknown rule_type {rule_type!r}; "
-            f"supported: {sorted(RULE_TYPE_SCHEMAS)}"
+            f"{source}: unknown rule_type {rule_type!r}; supported: {sorted(RULE_TYPE_SCHEMAS)}"
         )
 
     language = data.get("language")
@@ -189,9 +187,7 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
         if not isinstance(items, list):
             raise RuleLoadError(f"{source}: {key!r} must be a list")
         for idx, entry in enumerate(items):
-            _validate_pattern_entry(
-                entry, f"{source}:{key}[{idx}]", require_label=require_label
-            )
+            _validate_pattern_entry(entry, f"{source}:{key}[{idx}]", require_label=require_label)
     for key, require_label in schema.single_pattern_keys:
         entry = data.get(key)
         if entry is None:
@@ -246,8 +242,7 @@ def _project_rule_dirs(project_root: Path, skill_id: str) -> list[Path]:
     paths = ProjectPaths(project_root)
     dirs = [paths.skills_dir / skill_id / "rules"]
     dirs += [
-        paths.override_layer(layer) / "skills" / skill_id / "rules"
-        for layer in OVERRIDE_LAYERS
+        paths.override_layer(layer) / "skills" / skill_id / "rules" for layer in OVERRIDE_LAYERS
     ]
     return dirs
 

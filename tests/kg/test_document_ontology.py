@@ -39,9 +39,7 @@ def test_section_carries_prose_and_entity_containment() -> None:
 def test_document_and_volume_structure_slots() -> None:
     sv = _schema_view()
     assert {"has_volume", "has_section", "doc_type"} <= set(sv.class_slots("Document"))
-    assert {"part_of_document", "has_section", "volume_type"} <= set(
-        sv.class_slots("Volume")
-    )
+    assert {"part_of_document", "has_section", "volume_type"} <= set(sv.class_slots("Volume"))
 
 
 def test_entities_backlink_to_their_section() -> None:

@@ -150,9 +150,7 @@ class TestBracketStripRobustness:
 
         # Collector should have captured the miss, but logger should be silent.
         assert collector == {"tools": {"unknown_cap"}}
-        warning_records = [
-            r for r in caplog.records if "no platform mapping" in r.getMessage()
-        ]
+        warning_records = [r for r in caplog.records if "no platform mapping" in r.getMessage()]
         assert warning_records == []
 
     def test_fallback_logger_dedups_within_call(
@@ -173,9 +171,7 @@ class TestBracketStripRobustness:
             translate_agent_md(md, adapter)
 
         # One WARN per field — two total, not four.
-        warning_records = [
-            r for r in caplog.records if "no platform mapping" in r.getMessage()
-        ]
+        warning_records = [r for r in caplog.records if "no platform mapping" in r.getMessage()]
         assert len(warning_records) == 2, [r.getMessage() for r in warning_records]
 
 
@@ -234,8 +230,13 @@ def tier_project_dir(tmp_path: Path) -> Path:
             "tool_map": {"file_read": "Read", "agent_dispatch": "Agent"},
             "agent_config": {
                 "supported_fields": [
-                    "name", "description", "tools", "disallowedTools",
-                    "model", "skills", "maxTurns",
+                    "name",
+                    "description",
+                    "tools",
+                    "disallowedTools",
+                    "model",
+                    "skills",
+                    "maxTurns",
                 ],
             },
             "model_routing": {
@@ -281,62 +282,37 @@ def tier_project_dir(tmp_path: Path) -> Path:
 
 class TestModelTierTranslation:
     def test_tier_resolves_to_native_id(self, tier_project_dir: Path) -> None:
-        adapter = get_adapter(
-            "claude-code", tier_project_dir / ".cataforge" / "platforms"
-        )
-        md = (
-            "---\nname: test\ntools: file_read\nmodel_tier: heavy\n"
-            "---\nbody\n"
-        )
+        adapter = get_adapter("claude-code", tier_project_dir / ".cataforge" / "platforms")
+        md = "---\nname: test\ntools: file_read\nmodel_tier: heavy\n---\nbody\n"
         out = translate_agent_md(md, adapter)
         assert "model: opus" in out
         assert "model_tier" not in out
 
     def test_per_agent_false_drops_model(self, tier_project_dir: Path) -> None:
         """Codex-like (per_agent_model=false) → no model line written."""
-        adapter = get_adapter(
-            "codex", tier_project_dir / ".cataforge" / "platforms"
-        )
-        md = (
-            "---\nname: test\ntools: file_read\nmodel_tier: standard\n"
-            "---\nbody\n"
-        )
+        adapter = get_adapter("codex", tier_project_dir / ".cataforge" / "platforms")
+        md = "---\nname: test\ntools: file_read\nmodel_tier: standard\n---\nbody\n"
         out = translate_agent_md(md, adapter)
         assert "model:" not in out
         assert "model_tier" not in out
 
     def test_user_resolved_drops_model(self, tier_project_dir: Path) -> None:
         """Opencode-like (user_resolved=true) → no model line written."""
-        adapter = get_adapter(
-            "opencode", tier_project_dir / ".cataforge" / "platforms"
-        )
-        md = (
-            "---\nname: test\ntools: file_read\nmodel_tier: heavy\n"
-            "---\nbody\n"
-        )
+        adapter = get_adapter("opencode", tier_project_dir / ".cataforge" / "platforms")
+        md = "---\nname: test\ntools: file_read\nmodel_tier: heavy\n---\nbody\n"
         out = translate_agent_md(md, adapter)
         assert "model:" not in out
 
     def test_tier_inherit_drops_model(self, tier_project_dir: Path) -> None:
-        adapter = get_adapter(
-            "claude-code", tier_project_dir / ".cataforge" / "platforms"
-        )
-        md = (
-            "---\nname: test\ntools: file_read\nmodel_tier: inherit\n"
-            "---\nbody\n"
-        )
+        adapter = get_adapter("claude-code", tier_project_dir / ".cataforge" / "platforms")
+        md = "---\nname: test\ntools: file_read\nmodel_tier: inherit\n---\nbody\n"
         out = translate_agent_md(md, adapter)
         assert "model:" not in out
 
     def test_legacy_model_field_dropped(self, tier_project_dir: Path) -> None:
         """Direct migration: legacy `model: <id>` is stripped at deploy."""
-        adapter = get_adapter(
-            "claude-code", tier_project_dir / ".cataforge" / "platforms"
-        )
-        md = (
-            "---\nname: test\ntools: file_read\nmodel: opus\n"
-            "---\nbody\n"
-        )
+        adapter = get_adapter("claude-code", tier_project_dir / ".cataforge" / "platforms")
+        md = "---\nname: test\ntools: file_read\nmodel: opus\n---\nbody\n"
         out = translate_agent_md(md, adapter)
         assert "model: opus" not in out
         assert "model:" not in out
@@ -345,9 +321,7 @@ class TestModelTierTranslation:
 class TestSupportedFieldsFilter:
     def test_drops_unsupported_field(self, tier_project_dir: Path) -> None:
         """Codex-like supported_fields excludes `tools` → it's stripped."""
-        adapter = get_adapter(
-            "codex", tier_project_dir / ".cataforge" / "platforms"
-        )
+        adapter = get_adapter("codex", tier_project_dir / ".cataforge" / "platforms")
         md = (
             "---\nname: test\ndescription: x\ntools: file_read\n"
             "skills:\n  - foo\n  - bar\nmaxTurns: 30\n---\nbody\n"
@@ -359,16 +333,9 @@ class TestSupportedFieldsFilter:
         assert "name: test" in out
         assert "description: x" in out
 
-    def test_drops_internal_allowed_paths_always(
-        self, tier_project_dir: Path
-    ) -> None:
-        adapter = get_adapter(
-            "claude-code", tier_project_dir / ".cataforge" / "platforms"
-        )
-        md = (
-            "---\nname: test\ntools: file_read\nallowed_paths:\n"
-            "  - src/\n  - tests/\n---\nbody\n"
-        )
+    def test_drops_internal_allowed_paths_always(self, tier_project_dir: Path) -> None:
+        adapter = get_adapter("claude-code", tier_project_dir / ".cataforge" / "platforms")
+        md = "---\nname: test\ntools: file_read\nallowed_paths:\n  - src/\n  - tests/\n---\nbody\n"
         out = translate_agent_md(md, adapter)
         assert "allowed_paths" not in out
         assert "- src/" not in out
@@ -376,16 +343,9 @@ class TestSupportedFieldsFilter:
         # Body untouched.
         assert "body" in out
 
-    def test_keeps_supported_multiline_field(
-        self, tier_project_dir: Path
-    ) -> None:
-        adapter = get_adapter(
-            "claude-code", tier_project_dir / ".cataforge" / "platforms"
-        )
-        md = (
-            "---\nname: test\ntools: file_read\nskills:\n"
-            "  - foo\n  - bar\n---\nbody\n"
-        )
+    def test_keeps_supported_multiline_field(self, tier_project_dir: Path) -> None:
+        adapter = get_adapter("claude-code", tier_project_dir / ".cataforge" / "platforms")
+        md = "---\nname: test\ntools: file_read\nskills:\n  - foo\n  - bar\n---\nbody\n"
         out = translate_agent_md(md, adapter)
         assert "skills:" in out
         assert "  - foo" in out

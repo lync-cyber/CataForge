@@ -46,11 +46,7 @@ def _prune_orphan_flat_files(
     if not directory.is_dir():
         return actions
     for existing in directory.iterdir():
-        if (
-            not existing.is_file()
-            or existing.suffix != suffix
-            or existing.stem in known_names
-        ):
+        if not existing.is_file() or existing.suffix != suffix or existing.stem in known_names:
             continue
         head = existing.read_text(errors="ignore")[:head_read_size]
         if head_signature.format(stem=existing.stem) not in head:
@@ -350,9 +346,7 @@ def symlink_or_copy(
     return _do_copy(source, target, removed)
 
 
-def merge_json_key(
-    path: Path, dotted_key: str, value: Any, *, dry_run: bool = False
-) -> list[str]:
+def merge_json_key(path: Path, dotted_key: str, value: Any, *, dry_run: bool = False) -> list[str]:
     """Merge a value into a JSON file at a dotted key path."""
     if dry_run:
         return [f"would merge {dotted_key} → {path}"]
@@ -368,9 +362,7 @@ def merge_json_key(
                 f"Fix or remove the file and retry."
             ) from exc
         except OSError as exc:
-            raise CataforgeError(
-                f"cannot read existing config: {path} ({exc})."
-            ) from exc
+            raise CataforgeError(f"cannot read existing config: {path} ({exc}).") from exc
     else:
         data = {}
 
@@ -483,9 +475,7 @@ def merge_opencode_project_mcp(
                 f"Fix or remove the file and retry."
             ) from exc
         except OSError as exc:
-            raise CataforgeError(
-                f"cannot read existing config: {path} ({exc})."
-            ) from exc
+            raise CataforgeError(f"cannot read existing config: {path} ({exc}).") from exc
 
     mcp = data.setdefault("mcp", {})
     mcp[server_id] = mcp_entry
@@ -508,9 +498,7 @@ def merge_codex_mcp_server(
     try:
         existing = path.read_text() if path.is_file() else ""
     except OSError as exc:
-        raise CataforgeError(
-            f"cannot read existing config: {path} ({exc})."
-        ) from exc
+        raise CataforgeError(f"cannot read existing config: {path} ({exc}).") from exc
     section = _render_codex_mcp_section(server_id, server_config)
     merged = _replace_toml_mcp_section(existing, server_id, section)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -584,7 +572,7 @@ def _render_codex_mcp_section(server_id: str, cfg: dict[str, Any]) -> str:
         lines.append("")
         lines.append(f"[mcp_servers.{server_id}.{table_key}]")
         for k, v in table.items():
-            lines.append(f'{_toml_key(str(k))} = {_toml_value(v)}')
+            lines.append(f"{_toml_key(str(k))} = {_toml_value(v)}")
 
     return "\n".join(lines).rstrip() + "\n"
 

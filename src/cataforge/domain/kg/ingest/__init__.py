@@ -8,6 +8,7 @@ The pipeline is intentionally split across modules so each phase is
 unit-testable in isolation. `migrate.run_migration()` orchestrates the
 six in order.
 """
+
 from __future__ import annotations
 
 from cataforge.domain.kg.ingest.entity_extract import (

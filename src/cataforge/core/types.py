@@ -152,6 +152,7 @@ PLATFORM_FEATURES: list[str] = [
     "context_management",  # Context window management (chapters, compression)
 ]
 
+
 class SkillType(Enum):
     """Skill classification."""
 

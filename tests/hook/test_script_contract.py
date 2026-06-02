@@ -19,19 +19,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-HOOKS_YAML = (
-    Path(__file__).resolve().parents[2]
-    / ".cataforge"
-    / "hooks"
-    / "hooks.yaml"
-)
+HOOKS_YAML = Path(__file__).resolve().parents[2] / ".cataforge" / "hooks" / "hooks.yaml"
 SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "src"
-    / "cataforge"
-    / "runtime"
-    / "hook"
-    / "scripts"
+    Path(__file__).resolve().parents[2] / "src" / "cataforge" / "runtime" / "hook" / "scripts"
 )
 
 
@@ -47,8 +37,10 @@ def _uses_hook_main(script_path: Path) -> bool:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for deco in node.decorator_list:
                 name = (
-                    deco.id if isinstance(deco, ast.Name)
-                    else deco.attr if isinstance(deco, ast.Attribute)
+                    deco.id
+                    if isinstance(deco, ast.Name)
+                    else deco.attr
+                    if isinstance(deco, ast.Attribute)
                     else None
                 )
                 if name == "hook_main":

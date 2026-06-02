@@ -19,9 +19,7 @@ from cataforge.domain.kg._dispatch import (
 def _write_framework(root: Path, payload: dict) -> None:
     cataforge_dir = root / ".cataforge"
     cataforge_dir.mkdir(parents=True, exist_ok=True)
-    (cataforge_dir / "framework.json").write_text(
-        json.dumps(payload), encoding="utf-8"
-    )
+    (cataforge_dir / "framework.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 @pytest.fixture(autouse=True)

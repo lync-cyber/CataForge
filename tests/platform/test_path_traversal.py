@@ -30,9 +30,7 @@ def _minimal_profile(path: str) -> dict:
             "scan_dirs": [".claude/agents"],
             "needs_deploy": True,
         },
-        "instruction_file": {
-            "targets": [{"type": "project_state_copy", "path": path}]
-        },
+        "instruction_file": {"targets": [{"type": "project_state_copy", "path": path}]},
         "dispatch": {"tool_name": "Agent", "is_async": False},
     }
 
@@ -84,9 +82,7 @@ class TestPathTraversal:
         )
 
         assert (root / "docs" / "foo.md").is_file()
-        assert "运行时: claude-code" in (root / "docs" / "foo.md").read_text(
-            encoding="utf-8"
-        )
+        assert "运行时: claude-code" in (root / "docs" / "foo.md").read_text(encoding="utf-8")
 
     def test_root_level_rel_path_writes(self, tmp_path: Path) -> None:
         project_state, root = _setup(tmp_path, "CLAUDE.md")

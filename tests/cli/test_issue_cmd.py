@@ -118,6 +118,7 @@ class TestTriage:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
         from cataforge import __version__
+
         body = (
             f"Package: {__version__}\n\n"
             "framework-review reported FAIL skill: tdd-engine — light-mode threshold off\n"
@@ -138,17 +139,15 @@ class TestTriage:
         result = invoke_under_group(triage_command, [])
         assert result.exit_code == 0, result.output
         assert "confirmed" in result.output
-        draft_path = project / "docs" / "reviews" / "triage" / (
-            "SKILL-IMPROVE-tdd-engine-issue-42.md"
+        draft_path = (
+            project / "docs" / "reviews" / "triage" / ("SKILL-IMPROVE-tdd-engine-issue-42.md")
         )
         assert draft_path.is_file()
         text = draft_path.read_text(encoding="utf-8")
         assert "status: triage-draft" in text
         assert "tdd-engine" in text
 
-    def test_unrelated_issue_skipped(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_unrelated_issue_skipped(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
         _patch_gh(
@@ -414,9 +413,14 @@ class TestClose:
         monkeypatch.chdir(project)
         result = invoke_under_group(
             close_command,
-            ["102", "--verdict", "wontfix",
-             "--reason", "doc_id slug-only is intentional design",
-             "--dry-run"],
+            [
+                "102",
+                "--verdict",
+                "wontfix",
+                "--reason",
+                "doc_id slug-only is intentional design",
+                "--dry-run",
+            ],
         )
         assert result.exit_code == 0, result.output
         assert "Wontfix" in result.output
@@ -435,25 +439,17 @@ class TestClose:
         assert "Already fixed in v" in result.output
         assert "(PR #65)" in result.output
 
-    def test_fixed_requires_pr(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_fixed_requires_pr(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = invoke_under_group(
-            close_command, ["104", "--verdict", "fixed", "--dry-run"]
-        )
+        result = invoke_under_group(close_command, ["104", "--verdict", "fixed", "--dry-run"])
         assert result.exit_code != 0
         assert "--pr" in result.output
 
-    def test_wontfix_requires_reason(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_wontfix_requires_reason(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        result = invoke_under_group(
-            close_command, ["102", "--verdict", "wontfix", "--dry-run"]
-        )
+        result = invoke_under_group(close_command, ["102", "--verdict", "wontfix", "--dry-run"])
         assert result.exit_code != 0
         assert "--reason" in result.output
 
@@ -466,9 +462,7 @@ class TestClose:
 
         def fake_run(cmd, **kwargs):  # noqa: ANN001
             captured.append(list(cmd))
-            return subprocess.CompletedProcess(
-                args=cmd, returncode=0, stdout="", stderr=""
-            )
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
         monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
         monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
@@ -487,15 +481,21 @@ class TestClose:
         assert "Fixed in v" in comment
         assert "(PR #108)" in comment
 
-    def test_extra_message_appended(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_extra_message_appended(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
         result = invoke_under_group(
             close_command,
-            ["104", "--verdict", "fixed", "--pr", "108",
-             "--message", "Triage: docs/reviews/triage/foo.md", "--dry-run"],
+            [
+                "104",
+                "--verdict",
+                "fixed",
+                "--pr",
+                "108",
+                "--message",
+                "Triage: docs/reviews/triage/foo.md",
+                "--dry-run",
+            ],
         )
         assert result.exit_code == 0, result.output
         assert "Fixed in v" in result.output
@@ -551,15 +551,11 @@ class TestTriageGhParams:
 
         def fake_run(cmd, **kwargs):  # noqa: ANN001
             captured.append(list(cmd))
-            return subprocess.CompletedProcess(
-                args=cmd, returncode=0, stdout="[]", stderr=""
-            )
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="[]", stderr="")
 
         monkeypatch.setattr(issue_svc, "run_proc", fake_run)
         monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
-        result = invoke_under_group(
-            triage_command, ["--repo", "fake/repo", "--dry-run"]
-        )
+        result = invoke_under_group(triage_command, ["--repo", "fake/repo", "--dry-run"])
         assert result.exit_code == 0, result.output
         assert len(captured) >= 1
         cmd = captured[0]

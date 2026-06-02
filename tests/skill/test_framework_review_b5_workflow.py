@@ -53,8 +53,7 @@ def _write_skill(tmp_path: Path, skill_id: str) -> None:
     skill_dir = tmp_path / ".cataforge" / "skills" / skill_id
     skill_dir.mkdir(parents=True, exist_ok=True)
     (skill_dir / "SKILL.md").write_text(
-        f"---\nname: {skill_id}\ndescription: test fixture\n---\n"
-        f"# {skill_id}\n",
+        f"---\nname: {skill_id}\ndescription: test fixture\n---\n# {skill_id}\n",
         encoding="utf-8",
     )
 
@@ -117,7 +116,8 @@ def test_b5_triple_hop_agent_with_no_skills_warns(tmp_path: Path) -> None:
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)
     findings = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B5_phase_skill_coverage" and "no skills:" in f.message
     ]
     assert len(findings) == 1
@@ -133,7 +133,8 @@ def test_b5_triple_hop_dangling_skill_warns(tmp_path: Path) -> None:
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)
     findings = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B5_phase_skill_coverage" and "does-not-exist" in f.message
     ]
     assert len(findings) == 1
@@ -165,10 +166,16 @@ def test_b5_eventlog_skipped_below_threshold(tmp_path: Path) -> None:
     _write_event_log(
         tmp_path,
         [
-            {"ts": "2026-01-01T00:00:00Z", "event": "agent_return",
-             "phase": "requirements", "agent": "architect",
-             "ref": "docs/arch.md", "detail": "x"},
-        ] * 5,
+            {
+                "ts": "2026-01-01T00:00:00Z",
+                "event": "agent_return",
+                "phase": "requirements",
+                "agent": "architect",
+                "ref": "docs/arch.md",
+                "detail": "x",
+            },
+        ]
+        * 5,
     )
 
     report = Report()
@@ -183,29 +190,33 @@ def test_b5_eventlog_threshold_overridable(tmp_path: Path) -> None:
     """constants.EVENT_LOG_DRIFT_MIN_EVENTS lowers/raises the activation bar."""
     _write_orchestrator(
         tmp_path,
-        "Phase 1 requirements → product-manager → prd\n"
-        "Phase 2 architecture → architect → arch",
+        "Phase 1 requirements → product-manager → prd\nPhase 2 architecture → architect → arch",
     )
     _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
     _write_agent(tmp_path, "architect", skills=["doc-nav"])
     _write_skill(tmp_path, "doc-nav")
-    _write_framework_json(
-        tmp_path, constants={"EVENT_LOG_DRIFT_MIN_EVENTS": 3}
-    )
+    _write_framework_json(tmp_path, constants={"EVENT_LOG_DRIFT_MIN_EVENTS": 3})
     # 3 returns all to architect → above threshold; product-manager has 0.
     _write_event_log(
         tmp_path,
         [
-            {"ts": "2026-01-01T00:00:00Z", "event": "agent_return",
-             "phase": "architecture", "agent": "architect",
-             "ref": "docs/arch.md", "detail": "x"},
-        ] * 3,
+            {
+                "ts": "2026-01-01T00:00:00Z",
+                "event": "agent_return",
+                "phase": "architecture",
+                "agent": "architect",
+                "ref": "docs/arch.md",
+                "detail": "x",
+            },
+        ]
+        * 3,
     )
 
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)
     dead = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B5_eventlog_agent_return_drift"
         and "product-manager" in f.message
         and "0 agent_return" in f.message
@@ -218,8 +229,7 @@ def test_b5_eventlog_dead_routing_warns(tmp_path: Path) -> None:
     """Phase-routed agent has 0 returns while log has ≥10 → FAIL (post-F-010)."""
     _write_orchestrator(
         tmp_path,
-        "Phase 1 requirements → product-manager → prd\n"
-        "Phase 2 architecture → architect → arch",
+        "Phase 1 requirements → product-manager → prd\nPhase 2 architecture → architect → arch",
     )
     _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
     _write_agent(tmp_path, "architect", skills=["doc-nav"])
@@ -228,16 +238,23 @@ def test_b5_eventlog_dead_routing_warns(tmp_path: Path) -> None:
     _write_event_log(
         tmp_path,
         [
-            {"ts": "2026-01-01T00:00:00Z", "event": "agent_return",
-             "phase": "architecture", "agent": "architect",
-             "ref": "docs/arch.md", "detail": "x"},
-        ] * 10,
+            {
+                "ts": "2026-01-01T00:00:00Z",
+                "event": "agent_return",
+                "phase": "architecture",
+                "agent": "architect",
+                "ref": "docs/arch.md",
+                "detail": "x",
+            },
+        ]
+        * 10,
     )
 
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)
     dead_findings = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B5_eventlog_agent_return_drift"
         and "product-manager" in f.message
         and "0 agent_return" in f.message
@@ -254,16 +271,22 @@ def test_b5_eventlog_missing_ref_warns(tmp_path: Path) -> None:
     _write_event_log(
         tmp_path,
         [
-            {"ts": "2026-01-01T00:00:00Z", "event": "agent_return",
-             "phase": "requirements", "agent": "product-manager",
-             "detail": "x"},  # no ref field
-        ] * 10,
+            {
+                "ts": "2026-01-01T00:00:00Z",
+                "event": "agent_return",
+                "phase": "requirements",
+                "agent": "product-manager",
+                "detail": "x",
+            },  # no ref field
+        ]
+        * 10,
     )
 
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)
     no_ref = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B5_eventlog_agent_return_drift"
         and "lack" in f.message
         and "'ref'" in f.message
@@ -285,11 +308,15 @@ def test_b5_eventlog_tolerates_malformed_lines(tmp_path: Path) -> None:
         '"ref": "x", "detail": "x"}\n'
         "garbage line that's not json\n"
         "{broken json\n"
-        + "\n".join([
-            '{"event": "agent_return", "agent": "product-manager", '
-            '"phase": "requirements", "ts": "2026-01-01T00:00:00Z", '
-            '"ref": "x", "detail": "x"}'
-        ] * 9) + "\n",
+        + "\n".join(
+            [
+                '{"event": "agent_return", "agent": "product-manager", '
+                '"phase": "requirements", "ts": "2026-01-01T00:00:00Z", '
+                '"ref": "x", "detail": "x"}'
+            ]
+            * 9
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -297,9 +324,11 @@ def test_b5_eventlog_tolerates_malformed_lines(tmp_path: Path) -> None:
     check_b5_workflow_coverage(tmp_path, report)
     # 10 valid returns for product-manager, no dead-routing warning.
     dead = [
-        f for f in report.findings
+        f
+        for f in report.findings
         if f.check_id == "B5_eventlog_agent_return_drift"
-        and "product-manager" in f.message and "0 agent_return" in f.message
+        and "product-manager" in f.message
+        and "0 agent_return" in f.message
     ]
     assert dead == []
 
@@ -313,8 +342,7 @@ def test_b5_feature_phase_alignment_happy(tmp_path: Path) -> None:
     """All features.phase_guard hit known phases → no findings."""
     _write_orchestrator(
         tmp_path,
-        "Phase 1 requirements → product-manager → prd\n"
-        "Phase 5 development → tdd-engine → CODE",
+        "Phase 1 requirements → product-manager → prd\nPhase 5 development → tdd-engine → CODE",
     )
     _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
     _write_skill(tmp_path, "doc-nav")
@@ -337,8 +365,7 @@ def test_b5_feature_phase_alignment_unknown_phase_warns(tmp_path: Path) -> None:
     """features.phase_guard refers to a phase not in routing → WARN."""
     _write_orchestrator(
         tmp_path,
-        "Phase 1 requirements → product-manager → prd\n"
-        "Phase 5 development → tdd-engine → CODE",
+        "Phase 1 requirements → product-manager → prd\nPhase 5 development → tdd-engine → CODE",
     )
     _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
     _write_skill(tmp_path, "doc-nav")
@@ -351,9 +378,9 @@ def test_b5_feature_phase_alignment_unknown_phase_warns(tmp_path: Path) -> None:
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)
     findings = [
-        f for f in report.findings
-        if f.check_id == "B5_feature_phase_alignment"
-        and "ghost-feature" in f.location
+        f
+        for f in report.findings
+        if f.check_id == "B5_feature_phase_alignment" and "ghost-feature" in f.location
     ]
     assert len(findings) == 1
     assert findings[0].severity == "WARN"
@@ -365,10 +392,13 @@ def test_b5_feature_phase_alignment_null_guard_skipped(tmp_path: Path) -> None:
     _write_orchestrator(tmp_path, "Phase 1 requirements → product-manager → prd")
     _write_agent(tmp_path, "product-manager", skills=["doc-nav"])
     _write_skill(tmp_path, "doc-nav")
-    _write_framework_json(tmp_path, {
-        "global-feat-1": {"phase_guard": None},
-        "global-feat-2": {"phase_guard": None, "auto_enable": True},
-    })
+    _write_framework_json(
+        tmp_path,
+        {
+            "global-feat-1": {"phase_guard": None},
+            "global-feat-2": {"phase_guard": None, "auto_enable": True},
+        },
+    )
 
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)

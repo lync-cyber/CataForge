@@ -20,10 +20,7 @@ from tests.conftest import run_utf8
 # A short Python program that writes Chinese + em-dash bytes to stdout.
 # Crashes the parent's reader thread under cp1252 if encoding isn't
 # explicit — symptom is r.stdout == None.
-_UTF8_PROGRAM = (
-    "import sys; "
-    "sys.stdout.buffer.write('结果: PASS — 中文 ✓\\n'.encode('utf-8'))"
-)
+_UTF8_PROGRAM = "import sys; sys.stdout.buffer.write('结果: PASS — 中文 ✓\\n'.encode('utf-8'))"
 
 
 def test_run_utf8_decodes_non_ascii_stdout() -> None:
@@ -37,18 +34,14 @@ def test_run_utf8_decodes_non_ascii_stdout() -> None:
 
 
 def test_run_utf8_pythonutf8_env_set_in_child() -> None:
-    r = run_utf8(
-        [sys.executable, "-c",
-         "import os; print(os.environ.get('PYTHONUTF8', 'unset'))"]
-    )
+    r = run_utf8([sys.executable, "-c", "import os; print(os.environ.get('PYTHONUTF8', 'unset'))"])
     assert r.returncode == 0
     assert r.stdout.strip() == "1"
 
 
 def test_run_utf8_extra_env_merges() -> None:
     r = run_utf8(
-        [sys.executable, "-c",
-         "import os; print(os.environ.get('CATAFORGE_TEST_VAR', 'missing'))"],
+        [sys.executable, "-c", "import os; print(os.environ.get('CATAFORGE_TEST_VAR', 'missing'))"],
         extra_env={"CATAFORGE_TEST_VAR": "ok"},
     )
     assert r.returncode == 0
@@ -57,6 +50,7 @@ def test_run_utf8_extra_env_merges() -> None:
 
 def test_run_utf8_check_raises_on_nonzero() -> None:
     import subprocess
+
     with pytest.raises(subprocess.CalledProcessError):
         run_utf8([sys.executable, "-c", "import sys; sys.exit(7)"], check=True)
 

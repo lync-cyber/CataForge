@@ -14,11 +14,41 @@ from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 # describe state machines whose only consumer is another internal
 # component, and that's fine when the consumer test is itself observable).
 _AC_OBSERVABLE_VERBS = (
-    "渲染", "返回", "显示", "抛出", "存储", "发送", "触发", "写入",
-    "导航", "挂载", "刷新", "更新", "记录", "落盘", "回调", "广播",
-    "render", "return", "display", "throw", "store", "send", "emit",
-    "write", "navigate", "mount", "refresh", "update", "log", "publish",
-    "callback", "broadcast", "raise", "show", "hide",
+    "渲染",
+    "返回",
+    "显示",
+    "抛出",
+    "存储",
+    "发送",
+    "触发",
+    "写入",
+    "导航",
+    "挂载",
+    "刷新",
+    "更新",
+    "记录",
+    "落盘",
+    "回调",
+    "广播",
+    "render",
+    "return",
+    "display",
+    "throw",
+    "store",
+    "send",
+    "emit",
+    "write",
+    "navigate",
+    "mount",
+    "refresh",
+    "update",
+    "log",
+    "publish",
+    "callback",
+    "broadcast",
+    "raise",
+    "show",
+    "hide",
 )
 _AC_OBSERVABLE_RE = re.compile(
     "(" + "|".join(re.escape(v) for v in _AC_OBSERVABLE_VERBS) + ")",
@@ -42,9 +72,7 @@ class TypedDocChecksMixin:
             if ac_count == 0:
                 self.fail("无验收标准 (AC-NNN)")
         if self.volume_type in ("main",):
-            nfr_match = re.search(
-                r"## 3\. 非功能需求(.*?)(?=\n## \d|\Z)", self.content, re.DOTALL
-            )
+            nfr_match = re.search(r"## 3\. 非功能需求(.*?)(?=\n## \d|\Z)", self.content, re.DOTALL)
             if not nfr_match or len(nfr_match.group(1).strip().splitlines()) < 3:
                 self.fail("非功能需求章节过短 (至少3行)")
         f_sections = re.findall(
@@ -83,9 +111,7 @@ class TypedDocChecksMixin:
                 self.content,
                 re.MULTILINE | re.DOTALL,
             )
-            missing_mapping = sum(
-                1 for section in m_sections if not re.search(r"F-\d+", section)
-            )
+            missing_mapping = sum(1 for section in m_sections if not re.search(r"F-\d+", section))
             if missing_mapping > 0:
                 self.fail(f"{missing_mapping}个模块缺少功能映射 (F-NNN引用)")
         if self.volume_type in ("main", "data"):
@@ -119,14 +145,10 @@ class TypedDocChecksMixin:
             re.MULTILINE | re.DOTALL,
         )
         missing_deliverables = sum(
-            1
-            for s in t_sections
-            if not re.search(r"deliverables|交付物", s, re.IGNORECASE)
+            1 for s in t_sections if not re.search(r"deliverables|交付物", s, re.IGNORECASE)
         )
         missing_tdd = sum(
-            1
-            for s in t_sections
-            if not re.search(r"tdd_acceptance|验收标准", s, re.IGNORECASE)
+            1 for s in t_sections if not re.search(r"tdd_acceptance|验收标准", s, re.IGNORECASE)
         )
         missing_context = sum(
             1 for s in t_sections if not re.search(r"context_load", s, re.IGNORECASE)
@@ -185,13 +207,15 @@ class TypedDocChecksMixin:
             ac_block = re.search(
                 r"(tdd_acceptance|验收标准)(.*?)(?=^[-*]\s+\*?\*?(?:deliverables|"
                 r"交付物|context_load)|^### |\Z)",
-                sec, re.IGNORECASE | re.DOTALL | re.MULTILINE,
+                sec,
+                re.IGNORECASE | re.DOTALL | re.MULTILINE,
             )
             if not ac_block:
                 continue
             for line in ac_block.group(2).splitlines():
                 ac_match = re.search(
-                    r"AC-\d+\s*[:：]\s*(.+)", line,
+                    r"AC-\d+\s*[:：]\s*(.+)",
+                    line,
                 )
                 if not ac_match:
                     continue
@@ -232,9 +256,7 @@ class TypedDocChecksMixin:
                     self.content,
                     re.MULTILINE | re.DOTALL,
                 )
-                if dir_match and re.search(
-                    r"\{.*调性.*\}|\{.*关键词.*\}", dir_match.group(1)
-                ):
+                if dir_match and re.search(r"\{.*调性.*\}|\{.*关键词.*\}", dir_match.group(1)):
                     self.fail("§0设计方向仍为占位符，未填写实际内容")
         c_sections = re.findall(
             r"^### C-\d+.*?(?=^### C-\d+|^### P-\d+|^## |\Z)",
@@ -242,12 +264,8 @@ class TypedDocChecksMixin:
             re.MULTILINE | re.DOTALL,
         )
         c_count = len(c_sections)
-        mv = sum(
-            1 for s in c_sections if not re.search(r"变体|variant", s, re.IGNORECASE)
-        )
-        mp = sum(
-            1 for s in c_sections if not re.search(r"Props|props|属性", s, re.IGNORECASE)
-        )
+        mv = sum(1 for s in c_sections if not re.search(r"变体|variant", s, re.IGNORECASE))
+        mp = sum(1 for s in c_sections if not re.search(r"Props|props|属性", s, re.IGNORECASE))
         vd_pat = r"视觉差异|视觉变化|visual diff"
         mvd = sum(1 for s in c_sections if not re.search(vd_pat, s, re.IGNORECASE))
         if mv > 0:
@@ -263,14 +281,8 @@ class TypedDocChecksMixin:
                 re.MULTILINE | re.DOTALL,
             )
             p_count = len(p_sections)
-            mr = sum(
-                1
-                for s in p_sections
-                if not re.search(r"路由|route|/\w+", s, re.IGNORECASE)
-            )
-            mc = sum(
-                1 for s in p_sections if not re.search(r"C-\d+|组件", s, re.IGNORECASE)
-            )
+            mr = sum(1 for s in p_sections if not re.search(r"路由|route|/\w+", s, re.IGNORECASE))
+            mc = sum(1 for s in p_sections if not re.search(r"C-\d+|组件", s, re.IGNORECASE))
             sp_pat = r"空间构成|视觉重心|留白"
             ms = sum(1 for s in p_sections if not re.search(sp_pat, s, re.IGNORECASE))
             if mr > 0:
@@ -284,9 +296,7 @@ class TypedDocChecksMixin:
                 self.warn("设计系统缺少色彩定义")
             if not re.search(r"排版|[Tt]ypography", self.content):
                 self.warn("设计系统缺少排版定义")
-            color_tokens = re.findall(
-                r"\|\s*\S+.*?\|.*?#[0-9a-fA-F]{3,8}", self.content
-            )
+            color_tokens = re.findall(r"\|\s*\S+.*?\|.*?#[0-9a-fA-F]{3,8}", self.content)
             if len(color_tokens) < min_color_tokens:
                 mode_label = "agile-lite" if is_lite else "standard"
                 if len(color_tokens) == 0:
@@ -367,9 +377,7 @@ class TypedDocChecksMixin:
     # ---- RESEARCH ----
 
     def check_research(self) -> None:
-        if not re.search(
-            r"web-search|doc-lookup|user-interview", self.content, re.IGNORECASE
-        ):
+        if not re.search(r"web-search|doc-lookup|user-interview", self.content, re.IGNORECASE):
             self.warn("调研方法未指明具体模式 (web-search/doc-lookup/user-interview)")
         conclusion_match = re.search(
             r"## 结论(.*?)(?=^## |\Z)", self.content, re.DOTALL | re.MULTILINE

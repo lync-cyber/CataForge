@@ -1,4 +1,5 @@
 """`cataforge kg schema-context` CLI command."""
+
 from __future__ import annotations
 
 

@@ -103,9 +103,7 @@ def run(
 ) -> int:
     report = Report()
 
-    enabled = set(focus) if focus else {
-        "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9"
-    }
+    enabled = set(focus) if focus else {"B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9"}
 
     if "B1" in enabled and scope in ("agents", "skills", "rules", "all"):
         check_b1_required_sections(root, scope, report)
@@ -140,10 +138,7 @@ def run(
 
     print()
     print("=" * 60)
-    print(
-        f"Summary: {report.fail_count} FAIL, "
-        f"{report.warn_count} WARN, {report.info_count} INFO"
-    )
+    print(f"Summary: {report.fail_count} FAIL, {report.warn_count} WARN, {report.info_count} INFO")
     if report.fail_count > 0:
         print("RESULT: FAIL")
         return 1
@@ -181,11 +176,7 @@ def main() -> None:
     args = parser.parse_args()
 
     root = Path(args.root).resolve() if args.root else Path.cwd()
-    focus = (
-        [s.strip() for s in args.focus.split(",") if s.strip()]
-        if args.focus
-        else None
-    )
+    focus = [s.strip() for s in args.focus.split(",") if s.strip()] if args.focus else None
 
     threshold = args.meta_size_threshold
     if threshold is None:

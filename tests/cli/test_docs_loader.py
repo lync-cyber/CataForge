@@ -59,8 +59,8 @@ def test_doc_type_map_merges_custom_override(tmp_path: Path) -> None:
     _make_project(tmp_path, doc_type_override={"runbook": "ops/runbooks", "prd": "requirements"})
     mapping = loader._load_doc_type_map(str(tmp_path))
     assert mapping["runbook"] == "ops/runbooks"  # custom added
-    assert mapping["prd"] == "requirements"      # default overridden
-    assert mapping["arch"] == "arch"             # untouched defaults preserved
+    assert mapping["prd"] == "requirements"  # default overridden
+    assert mapping["arch"] == "arch"  # untouched defaults preserved
 
 
 def test_doc_type_map_resolves_custom_doc_id(tmp_path: Path) -> None:
@@ -171,6 +171,7 @@ def _build_indexed_project(tmp_path: Path, capsys=None) -> None:
     )
     _write_doc(tmp_path, "prd", "prd-foo-v1.md", body)
     from cataforge.domain.docs.indexer import main as indexer_main
+
     rc = indexer_main(["--project-root", str(tmp_path)])
     assert rc == 0
     if capsys is not None:
@@ -194,11 +195,16 @@ def test_loader_main_json_output(tmp_path: Path, capsys) -> None:
 def test_loader_main_budget_defers(tmp_path: Path, capsys) -> None:
     _build_indexed_project(tmp_path, capsys=capsys)
     # Tiny budget → every ref defers
-    rc = context_read.main([
-        "--project-root", str(tmp_path),
-        "--budget", "1",
-        "prd#§1", "prd#§2.F-001",
-    ])
+    rc = context_read.main(
+        [
+            "--project-root",
+            str(tmp_path),
+            "--budget",
+            "1",
+            "prd#§1",
+            "prd#§2.F-001",
+        ]
+    )
     assert rc == 0
     captured = capsys.readouterr()
     assert "[DEFERRED]" in captured.err
@@ -224,7 +230,8 @@ def test_loader_main_with_deps_expands_refs(tmp_path: Path, capsys) -> None:
                         "line_end": 8,
                         "items": {
                             "F-001": {
-                                "line_start": 7, "line_end": 8,
+                                "line_start": 7,
+                                "line_end": 8,
                                 "deps": ["prd#§1"],
                             },
                         },
@@ -235,15 +242,16 @@ def test_loader_main_with_deps_expands_refs(tmp_path: Path, capsys) -> None:
         },
         "xref": {},
     }
-    (tmp_path / "docs" / ".doc-index.json").write_text(
-        json.dumps(index), encoding="utf-8"
-    )
+    (tmp_path / "docs" / ".doc-index.json").write_text(json.dumps(index), encoding="utf-8")
 
-    rc = context_read.main([
-        "--project-root", str(tmp_path),
-        "--with-deps",
-        "prd#§2.F-001",
-    ])
+    rc = context_read.main(
+        [
+            "--project-root",
+            str(tmp_path),
+            "--with-deps",
+            "prd#§2.F-001",
+        ]
+    )
     assert rc == 0
     captured = capsys.readouterr()
     # The dep should have been auto-loaded

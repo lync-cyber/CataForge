@@ -46,8 +46,7 @@ def _make_legacy_project(root: Path, *, with_doc: bool = True) -> Path:
         )
         (root / "docs" / "arch").mkdir()
         (root / "docs" / "arch" / "arch-foo-v1.md").write_text(
-            "---\nid: arch-foo-v1\ndoc_type: arch\n---\n\n"
-            "# Arch\n\n## 1. Overview\nIntro.\n",
+            "---\nid: arch-foo-v1\ndoc_type: arch\n---\n\n# Arch\n\n## 1. Overview\nIntro.\n",
             encoding="utf-8",
         )
     return root
@@ -71,20 +70,13 @@ def test_parse_nav_table_extracts_doc_id_path_pairs(tmp_path: Path) -> None:
 
 
 def test_parse_nav_table_skips_header_and_divider_rows() -> None:
-    nav_text = (
-        "| Doc ID | 文件路径 |\n"
-        "|--------|----------|\n"
-        "| prd | docs/prd/prd-foo-v1.md |\n"
-    )
+    nav_text = "| Doc ID | 文件路径 |\n|--------|----------|\n| prd | docs/prd/prd-foo-v1.md |\n"
     pairs = migrate_nav._parse_nav_table(nav_text)
     assert pairs == [("prd", "docs/prd/prd-foo-v1.md")]
 
 
 def test_parse_nav_table_dedupes_duplicate_doc_ids() -> None:
-    nav_text = (
-        "| prd | docs/prd/prd-foo-v1.md |\n"
-        "| prd | docs/prd/prd-foo-v2.md |\n"
-    )
+    nav_text = "| prd | docs/prd/prd-foo-v1.md |\n| prd | docs/prd/prd-foo-v2.md |\n"
     pairs = migrate_nav._parse_nav_table(nav_text)
     assert pairs == [("prd", "docs/prd/prd-foo-v1.md")]
 

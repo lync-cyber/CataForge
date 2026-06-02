@@ -26,9 +26,7 @@ class TestFrameworkCategory:
     def test_framework_section_is_overwritten(self) -> None:
         cur = "## Docs\nold body\n"
         tpl = "## Docs\nnew body from framework upgrade\n"
-        out = merge_sections(
-            cur, tpl, policy={"framework": ["Docs"]}
-        )
+        out = merge_sections(cur, tpl, policy={"framework": ["Docs"]})
         assert "new body from framework upgrade" in out
         assert "old body" not in out
 
@@ -82,13 +80,8 @@ class TestSchemaCategory:
 
 class TestRuntimeCategory:
     def test_preserves_orchestrator_populated_body(self) -> None:
-        cur = (
-            "## State\n- 当前阶段: development\n- 上次完成: sprint-3\n"
-        )
-        tpl = (
-            "## State\n- 当前阶段: {requirements|...}\n"
-            "- 上次完成: {agent} — {desc}\n"
-        )
+        cur = "## State\n- 当前阶段: development\n- 上次完成: sprint-3\n"
+        tpl = "## State\n- 当前阶段: {requirements|...}\n- 上次完成: {agent} — {desc}\n"
         out = merge_sections(cur, tpl, policy={"runtime": ["State"]})
         assert "当前阶段: development" in out
         assert "上次完成: sprint-3" in out
@@ -103,23 +96,16 @@ class TestRuntimeCategory:
 
 class TestUserExtension:
     def test_preserves_unclassified_sections_from_current(self) -> None:
-        cur = (
-            "## Info\n- a: 1\n"
-            "## Dogfood Rules\n1. rule\n2. rule2\n"
-        )
+        cur = "## Info\n- a: 1\n## Dogfood Rules\n1. rule\n2. rule2\n"
         tpl = "## Info\n- a: 1\n"
-        out = merge_sections(
-            cur, tpl, policy={"schema": ["Info"], "user_extensible": True}
-        )
+        out = merge_sections(cur, tpl, policy={"schema": ["Info"], "user_extensible": True})
         assert _has_section(out, "Dogfood Rules")
         assert "1. rule" in out
 
     def test_user_extensible_false_drops_extra_sections(self) -> None:
         cur = "## Info\n- a: 1\n## Extra\nbody\n"
         tpl = "## Info\n- a: 1\n"
-        out = merge_sections(
-            cur, tpl, policy={"schema": ["Info"], "user_extensible": False}
-        )
+        out = merge_sections(cur, tpl, policy={"schema": ["Info"], "user_extensible": False})
         assert not _has_section(out, "Extra")
 
 
@@ -128,9 +114,7 @@ class TestTemplateOrderingDrives:
         # Template introduces a new section and reorders
         cur = "## B\nold-b\n## A\nold-a\n"
         tpl = "## A\nnew-a\n## B\nnew-b\n## C\nnew-c\n"
-        out = merge_sections(
-            cur, tpl, policy={"framework": ["A", "B", "C"]}
-        )
+        out = merge_sections(cur, tpl, policy={"framework": ["A", "B", "C"]})
         idx_a = out.index("## A")
         idx_b = out.index("## B")
         idx_c = out.index("## C")
@@ -144,9 +128,7 @@ class TestSectionAnnotationStripping:
         # Policy names plain "项目状态"; merger strips the annotation.
         cur = "## 项目状态 (orchestrator专属写入区)\nuser-data\n"
         tpl = "## 项目状态 (orchestrator专属写入区)\ntemplate-default\n"
-        out = merge_sections(
-            cur, tpl, policy={"runtime": ["项目状态"]}
-        )
+        out = merge_sections(cur, tpl, policy={"runtime": ["项目状态"]})
         assert "user-data" in out
         assert "template-default" not in out
 
@@ -186,11 +168,7 @@ class TestPreamble:
             "# CataForge (dev)\n\n"
             "## X\nbody\n"
         )
-        tpl = (
-            "@.cataforge/rules/COMMON-RULES.md\n\n"
-            "# CataForge\n\n"
-            "## X\nbody\n"
-        )
+        tpl = "@.cataforge/rules/COMMON-RULES.md\n\n# CataForge\n\n## X\nbody\n"
         out = merge_sections(cur, tpl, policy={"framework": ["X"]})
         assert "DOGFOOD WORKTREE" in out
         assert "# CataForge (dev)" in out
@@ -200,12 +178,7 @@ class TestNestedFieldPreservation:
     """Regression tests for multi-line schema fields."""
 
     def test_nested_value_preserved_over_template(self) -> None:
-        cur = (
-            "## Info\n"
-            "- 阶段配置:\n"
-            "  - ui_design: N/A\n"
-            "  - testing: 保留\n"
-        )
+        cur = "## Info\n- 阶段配置:\n  - ui_design: N/A\n  - testing: 保留\n"
         tpl = (
             "## Info\n"
             "- 阶段配置: 以下阶段可在 Bootstrap 时标记为 N/A 以跳过:\n"
@@ -228,12 +201,7 @@ class TestNestedFieldPreservation:
 
     def test_nested_list_under_bullet_preserved(self) -> None:
         """Nested markdown list under a bullet counts as content."""
-        cur = (
-            "## Info\n"
-            "- 分支:\n"
-            "  - main — 发布主线\n"
-            "  - dev — dogfood\n"
-        )
+        cur = "## Info\n- 分支:\n  - main — 发布主线\n  - dev — dogfood\n"
         tpl = "## Info\n- 分支: {策略}\n"
         out = merge_sections(cur, tpl, policy={"schema": ["Info"]})
         assert "main — 发布主线" in out
@@ -296,9 +264,7 @@ class TestForeignCuratedFile:
         """No schema/runtime declared → foreign detection is inert."""
         cur = "## A\nuser-a\n## Extra\nuser-extra\n"
         tpl = "## A\nnew-a\n"
-        out = merge_sections(
-            cur, tpl, policy={"framework": ["A"], "user_extensible": True}
-        )
+        out = merge_sections(cur, tpl, policy={"framework": ["A"], "user_extensible": True})
         assert "new-a" in out
         assert _has_section(out, "Extra")
 

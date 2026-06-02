@@ -15,6 +15,7 @@ legacy fixture, a binary-adjacent codec) names that codec and is not matched
 here. Reach for an inline ``# allow-explicit-encoding: <reason>`` only when a
 call must pin ``utf-8`` for a reason the boundary layer can't carry.
 """
+
 from __future__ import annotations
 
 import re
@@ -66,11 +67,11 @@ def main() -> int:
             offenders.append(f"{rel}:{line_no}: {line.strip()}")
 
     if not offenders:
-        print("OK: no redundant encoding=\"utf-8\" on file I/O")
+        print('OK: no redundant encoding="utf-8" on file I/O')
         return 0
 
     print(
-        f"FAIL: {len(offenders)} redundant encoding=\"utf-8\" on file I/O under "
+        f'FAIL: {len(offenders)} redundant encoding="utf-8" on file I/O under '
         f"src/cataforge/. The process runs in UTF-8 Mode — drop the argument, or "
         f"add `{ALLOW_MARKER}: <reason>` inline.",
         file=sys.stderr,

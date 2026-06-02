@@ -68,9 +68,7 @@ def test_install_pip_path_invokes_pip(
     runner: CliRunner, project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[list[str]] = []
-    monkeypatch.setattr(
-        "cataforge.interface.cli.plugin_cmd._pip", lambda args: calls.append(args)
-    )
+    monkeypatch.setattr("cataforge.interface.cli.plugin_cmd._pip", lambda args: calls.append(args))
     result = runner.invoke(cli, ["plugin", "install", "cataforge-some-plugin"])
     assert result.exit_code == 0, result.output
     assert calls == [["install", "cataforge-some-plugin"]]
@@ -88,9 +86,7 @@ def test_remove_pip_path_invokes_pip(
     runner: CliRunner, project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[list[str]] = []
-    monkeypatch.setattr(
-        "cataforge.interface.cli.plugin_cmd._pip", lambda args: calls.append(args)
-    )
+    monkeypatch.setattr("cataforge.interface.cli.plugin_cmd._pip", lambda args: calls.append(args))
     result = runner.invoke(cli, ["plugin", "remove", "cataforge-some-plugin"])
     assert result.exit_code == 0, result.output
     assert calls == [["uninstall", "-y", "cataforge-some-plugin"]]

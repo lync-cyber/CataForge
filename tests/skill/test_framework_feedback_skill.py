@@ -26,9 +26,7 @@ from cataforge.runtime.skill.runner import SkillRunner
 def _bootstrap(tmp_path: Path) -> Path:
     (tmp_path / ".cataforge").mkdir()
     (tmp_path / ".cataforge" / "framework.json").write_text(
-        json.dumps(
-            {"version": "0.2.1-test", "runtime": {"platform": "claude-code"}}
-        ),
+        json.dumps({"version": "0.2.1-test", "runtime": {"platform": "claude-code"}}),
         encoding="utf-8",
     )
     return tmp_path
@@ -38,9 +36,7 @@ def _bootstrap(tmp_path: Path) -> Path:
 
 
 class TestDiscovery:
-    def test_loader_finds_framework_feedback_builtin(
-        self, tmp_path: Path
-    ) -> None:
+    def test_loader_finds_framework_feedback_builtin(self, tmp_path: Path) -> None:
         project = _bootstrap(tmp_path)
         loader = SkillLoader(project_root=project)
         meta = loader.get_skill("framework-feedback")
@@ -77,8 +73,10 @@ class TestMainEntry:
         rc = main(
             [
                 "bug",
-                "--summary", "smoke from skill",
-                "--root", str(project),
+                "--summary",
+                "smoke from skill",
+                "--root",
+                str(project),
                 "--skip-framework-review",
             ]
         )
@@ -94,8 +92,10 @@ class TestMainEntry:
         rc = main(
             [
                 "correction-export",
-                "--summary", "x",
-                "--root", str(project),
+                "--summary",
+                "x",
+                "--root",
+                str(project),
             ]
         )
         assert rc == 1
@@ -120,9 +120,12 @@ class TestMainEntry:
         rc = main(
             [
                 "correction-export",
-                "--summary", "see attached",
-                "--root", str(project),
-                "--threshold", "3",
+                "--summary",
+                "see attached",
+                "--root",
+                str(project),
+                "--threshold",
+                "3",
             ]
         )
         assert rc == 0
@@ -136,10 +139,13 @@ class TestMainEntry:
         rc = main(
             [
                 "bug",
-                "--summary", "x",
-                "--root", str(project),
+                "--summary",
+                "x",
+                "--root",
+                str(project),
                 "--skip-framework-review",
-                "--out", str(target),
+                "--out",
+                str(target),
             ]
         )
         assert rc == 0
@@ -162,9 +168,7 @@ class TestRunnerSmoke:
             ["bug", "--summary", "subprocess smoke", "--skip-framework-review"],
             agent="orchestrator",
         )
-        assert result.returncode == 0, (
-            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
-        )
+        assert result.returncode == 0, f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         assert "## Environment" in result.stdout
         assert "subprocess smoke" in result.stdout
 
@@ -188,7 +192,8 @@ class TestRunnerSmoke:
             if line.strip()
         ]
         skill_run_events = [
-            r for r in lines
+            r
+            for r in lines
             if r.get("event") == "state_change"
             and r.get("ref", "").startswith("skill:framework-feedback/")
         ]

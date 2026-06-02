@@ -25,9 +25,7 @@ _BUILTIN_MAP = {
     "framework-review": "cataforge.runtime.skill.builtins.framework_review",
     "testing": "cataforge.runtime.skill.builtins.testing",
 }
-_REQUIRES_RE = re.compile(
-    r"<!--\s*requires:\s*cataforge\s*>=\s*([0-9]+(?:\.[0-9]+){0,2})\s*-->"
-)
+_REQUIRES_RE = re.compile(r"<!--\s*requires:\s*cataforge\s*>=\s*([0-9]+(?:\.[0-9]+){0,2})\s*-->")
 
 
 def _parse_semver(value: str) -> tuple[int, ...]:
@@ -135,9 +133,7 @@ def check_b3_manifest_drift(root: Path, report: Report) -> None:
         release_lag = _detect_release_lag(section_text)
 
         if anchored_ids:
-            _check_b3_anchors(
-                skill_id, anchored_ids, manifest, delegated, release_lag, report
-            )
+            _check_b3_anchors(skill_id, anchored_ids, manifest, delegated, release_lag, report)
             continue
         if delegated:
             continue
@@ -189,9 +185,7 @@ def _check_b3_anchors(
                 "entry — was the check renamed in the builtin without "
                 "updating the SKILL.md anchor?"
             )
-        report.add(
-            "B3_manifest_drift", orphan_severity, f"skills/{skill_id}", message
-        )
+        report.add("B3_manifest_drift", orphan_severity, f"skills/{skill_id}", message)
 
     if delegated:
         return

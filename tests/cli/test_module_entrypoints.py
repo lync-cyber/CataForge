@@ -46,9 +46,7 @@ def test_code_review_entry_prints_usage_on_help() -> None:
     """`-h`/`--help` on the code-review entry must print usage and exit 0,
     not treat the flag as a target path (`目标路径不存在: --help`)."""
     for flag in ("--help", "-h"):
-        result = _run(
-            "cataforge.runtime.skill.builtins.code_review.code_lint", flag
-        )
+        result = _run("cataforge.runtime.skill.builtins.code_review.code_lint", flag)
         assert result.returncode == 0, result.stdout + result.stderr
         assert "用法" in (result.stdout + result.stderr)
 

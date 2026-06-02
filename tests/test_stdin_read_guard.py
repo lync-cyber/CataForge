@@ -31,10 +31,12 @@ SRC_DIR = REPO_ROOT / "src" / "cataforge"
 # Files allowed to call ``sys.stdin.read*`` directly. Keep this list
 # minimal — every entry is a place where the locale trap could resurface,
 # so additions need a justification in the call site itself.
-ALLOWED: frozenset[str] = frozenset({
-    # The helper that everyone else delegates to.
-    "core/io.py",
-})
+ALLOWED: frozenset[str] = frozenset(
+    {
+        # The helper that everyone else delegates to.
+        "core/io.py",
+    }
+)
 
 _FORBIDDEN_METHODS: frozenset[str] = frozenset({"read", "readline", "readlines"})
 
@@ -66,11 +68,11 @@ def test_finder_catches_forbidden_and_skips_buffer() -> None:
     """
     sample = (
         "import sys\n"
-        "a = sys.stdin.read()\n"            # line 2 — flagged
-        "b = sys.stdin.readline()\n"        # line 3 — flagged
-        "c = sys.stdin.readlines()\n"       # line 4 — flagged
-        "d = sys.stdin.buffer.read()\n"     # line 5 — OK
-        "e = my_stdin.read()\n"             # line 6 — OK (different object)
+        "a = sys.stdin.read()\n"  # line 2 — flagged
+        "b = sys.stdin.readline()\n"  # line 3 — flagged
+        "c = sys.stdin.readlines()\n"  # line 4 — flagged
+        "d = sys.stdin.buffer.read()\n"  # line 5 — OK
+        "e = my_stdin.read()\n"  # line 6 — OK (different object)
     )
     finder = _StdinReadFinder()
     finder.visit(ast.parse(sample))
@@ -102,6 +104,5 @@ def test_no_text_mode_stdin_read_outside_core_io() -> None:
         "cataforge.runtime.hook.base.read_hook_input() for hooks) instead of "
         "sys.stdin.read*(). Python's text-mode stdin decodes through the "
         "platform locale and corrupts UTF-8 payloads on non-UTF-8 systems "
-        "(Windows cp936/cp1252 in particular).\n\nViolations:\n  - "
-        + "\n  - ".join(violations)
+        "(Windows cp936/cp1252 in particular).\n\nViolations:\n  - " + "\n  - ".join(violations)
     )

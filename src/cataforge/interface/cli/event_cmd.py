@@ -47,11 +47,15 @@ def event_group() -> None:
 @click.option("--phase", type=str, default=None, help="Current project phase.")
 @click.option("--agent", type=str, default=None, help="Agent directory name (optional).")
 @click.option(
-    "--status", type=str, default=None,
+    "--status",
+    type=str,
+    default=None,
     help="Result status (optional, schema enum).",
 )
 @click.option(
-    "--task-type", type=str, default=None,
+    "--task-type",
+    type=str,
+    default=None,
     help="agent-dispatch task type (optional, schema enum).",
 )
 @click.option("--ref", type=str, default=None, help="doc_id#section or file path.")
@@ -105,15 +109,12 @@ def event_log_cmd(
     if batch:
         if event_name or phase or detail or data:
             raise CataforgeError(
-                "--batch is mutually exclusive with "
-                "--event/--phase/--detail/--data."
+                "--batch is mutually exclusive with --event/--phase/--detail/--data."
             )
         try:
             text = read_stdin_utf8()
         except UnicodeDecodeError as e:
-            raise CataforgeError(
-                f"--batch stdin is not valid UTF-8: {e}"
-            ) from e
+            raise CataforgeError(f"--batch stdin is not valid UTF-8: {e}") from e
         if not text.strip():
             raise CataforgeError("--batch requested but stdin is empty.")
         try:
@@ -126,8 +127,7 @@ def event_log_cmd(
 
     if not event_name or not phase or not detail:
         raise CataforgeError(
-            "--event, --phase, and --detail are all required "
-            "(or use --batch for stdin input)."
+            "--event, --phase, and --detail are all required (or use --batch for stdin input)."
         )
 
     extra: dict[str, object] = {}
@@ -155,9 +155,7 @@ def event_log_cmd(
         raise CataforgeError(f"event rejected: {e}") from e
 
     if extra:
-        raise CataforgeError(
-            f"--data contains unknown field(s): {sorted(extra)}"
-        )
+        raise CataforgeError(f"--data contains unknown field(s): {sorted(extra)}")
 
     try:
         path = append_event(root, record)
@@ -233,16 +231,10 @@ def event_accept_legacy(before: str | None, project_root: Path | None) -> None:
     )
     # Make sure today's timestamp is timezone-aware in the message.
     if not cutoff.endswith("Z") and "+" not in cutoff[10:]:
-        cutoff = datetime.fromisoformat(cutoff).replace(
-            tzinfo=timezone.utc
-        ).isoformat()
+        cutoff = datetime.fromisoformat(cutoff).replace(tzinfo=timezone.utc).isoformat()
 
     if previous:
-        click.echo(
-            f"Updated event_log_validate_since: {previous} → {cutoff}"
-        )
+        click.echo(f"Updated event_log_validate_since: {previous} → {cutoff}")
     else:
         click.echo(f"Set event_log_validate_since: {cutoff}")
-    click.echo(
-        "  cataforge doctor will skip EVENT-LOG records with ts < cutoff."
-    )
+    click.echo("  cataforge doctor will skip EVENT-LOG records with ts < cutoff.")

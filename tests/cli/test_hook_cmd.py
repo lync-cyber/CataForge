@@ -42,17 +42,13 @@ class TestHookTest:
     def test_block_hook_with_dangerous_command(self, fresh_project: Path) -> None:
         """guard_dangerous must exit 2 on rm -rf regardless of fixture plumbing."""
         payload = '{"tool_name": "Bash", "tool_input": {"command": "rm -rf /"}}'
-        result = _invoke(
-            "hook", "test", "guard_dangerous", "--input", payload
-        )
+        result = _invoke("hook", "test", "guard_dangerous", "--input", payload)
         assert result.exit_code == 2, result.output
         assert "BLOCKED" in result.output
 
     def test_block_hook_with_safe_command(self, fresh_project: Path) -> None:
         payload = '{"tool_name": "Bash", "tool_input": {"command": "ls -la"}}'
-        result = _invoke(
-            "hook", "test", "guard_dangerous", "--input", payload
-        )
+        result = _invoke("hook", "test", "guard_dangerous", "--input", payload)
         assert result.exit_code == 0, result.output
         assert "OK" in result.output
 
@@ -62,8 +58,6 @@ class TestHookTest:
         assert "not declared" in result.output.lower() or "no hook" in result.output.lower()
 
     def test_invalid_json_payload(self, fresh_project: Path) -> None:
-        result = _invoke(
-            "hook", "test", "guard_dangerous", "--input", "{not json"
-        )
+        result = _invoke("hook", "test", "guard_dangerous", "--input", "{not json")
         assert result.exit_code == 1
         assert "not valid JSON" in result.output

@@ -60,8 +60,7 @@ def main() -> int:
         claimed = int(m.group(1))
         if claimed != expected:
             fails.append(
-                f"{path.relative_to(REPO_ROOT)}: claims {claimed} skills, "
-                f"disk has {expected}"
+                f"{path.relative_to(REPO_ROOT)}: claims {claimed} skills, disk has {expected}"
             )
 
     if fails:

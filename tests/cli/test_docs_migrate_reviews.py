@@ -57,7 +57,7 @@ def test_apply_plan_idempotent_skips_files_with_front_matter(tmp_path: Path) -> 
         "doc_type: review\n"
         "author: reviewer\n"
         "status: approved\n"
-        "deps: [\"prd\"]\n"
+        'deps: ["prd"]\n'
         "---\n"
         "# already has fm\n"
     )
@@ -94,15 +94,13 @@ def test_main_writes_front_matter_for_real(tmp_path: Path) -> None:
     rc = main(["--project-root", str(tmp_path)])
     assert rc == 0
 
-    log_text = (tmp_path / "docs" / "reviews" / "CORRECTIONS-LOG.md").read_text(
-        encoding="utf-8"
-    )
+    log_text = (tmp_path / "docs" / "reviews" / "CORRECTIONS-LOG.md").read_text(encoding="utf-8")
     assert log_text.startswith("---\n")
     assert "doc_type: correction-log" in log_text
 
-    cr_text = (
-        tmp_path / "docs" / "reviews" / "code" / "CODE-REVIEW-T-001-r1.md"
-    ).read_text(encoding="utf-8")
+    cr_text = (tmp_path / "docs" / "reviews" / "code" / "CODE-REVIEW-T-001-r1.md").read_text(
+        encoding="utf-8"
+    )
     assert cr_text.startswith("---\n")
     assert "doc_type: code-review" in cr_text
 

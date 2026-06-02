@@ -15,9 +15,7 @@ def _bootstrap(tmp_path: Path, **framework_overrides) -> Path:
         "runtime": {"platform": "claude-code"},
         **framework_overrides,
     }
-    (tmp_path / ".cataforge" / "framework.json").write_text(
-        json.dumps(payload), encoding="utf-8"
-    )
+    (tmp_path / ".cataforge" / "framework.json").write_text(json.dumps(payload), encoding="utf-8")
     return tmp_path
 
 

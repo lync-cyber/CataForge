@@ -294,8 +294,7 @@ class UI:
 
         sep = "  "
         head = sep.join(
-            self._c("bold", _pad(norm_headers[i], widths[i], align_spec[i]))
-            for i in range(ncols)
+            self._c("bold", _pad(norm_headers[i], widths[i], align_spec[i])) for i in range(ncols)
         )
         self._write("  " + head)
         rule = sep.join(self._glyph("hr") * widths[i] for i in range(ncols))

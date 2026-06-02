@@ -5,6 +5,7 @@ pre-loaded with the waterfall vertical-slice fixture (9 entities,
 4 traceability relations). Tests cover SELECT / ASK / CONSTRUCT
 result types across table / json / turtle output formats.
 """
+
 from __future__ import annotations
 
 import json
@@ -12,11 +13,13 @@ from pathlib import Path
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
+
 def _cli():
     from cataforge.interface.cli.main import _register_commands, cli
 
     _register_commands()
     return cli
+
 
 def _init_and_ingest(tmp_path: Path) -> Path:
     """Create an oxigraph store and ingest the waterfall fixture. Return db path."""
@@ -31,17 +34,22 @@ def _init_and_ingest(tmp_path: Path) -> Path:
     imp = runner.invoke(
         _cli(),
         [
-            "kg", "import",
-            "--project-root", str(FIXTURE_ROOT / "waterfall"),
-            "--db-path", str(db),
+            "kg",
+            "import",
+            "--project-root",
+            str(FIXTURE_ROOT / "waterfall"),
+            "--db-path",
+            str(db),
         ],
     )
     assert imp.exit_code == 0, imp.output
     return db
 
+
 # ------------------------------------------------------------------
 # SELECT queries
 # ------------------------------------------------------------------
+
 
 class TestSelectTable:
     def test_select_returns_entity_rows(self, tmp_path: Path) -> None:
@@ -53,12 +61,12 @@ class TestSelectTable:
             "SELECT ?eid WHERE { ?s cf:entity_id ?eid } ORDER BY ?eid"
         )
         result = CliRunner().invoke(
-            _cli(), ["kg", "query", "--db-path", str(db), sparql],
+            _cli(),
+            ["kg", "query", "--db-path", str(db), sparql],
         )
         assert result.exit_code == 0, result.output
         assert "eid" in result.output
-        for eid in ("AC-001", "AC-002", "F-001", "F-002",
-                     "M-001", "M-002", "TC-001", "TC-002"):
+        for eid in ("AC-001", "AC-002", "F-001", "F-002", "M-001", "M-002", "TC-001", "TC-002"):
             assert eid in result.output
 
     def test_select_limit_caps_rows(self, tmp_path: Path) -> None:
@@ -71,12 +79,12 @@ class TestSelectTable:
         )
         result = CliRunner().invoke(
             _cli(),
-            ["kg", "query", "--db-path", str(db),
-             "--output", "json", "--limit", "3", sparql],
+            ["kg", "query", "--db-path", str(db), "--output", "json", "--limit", "3", sparql],
         )
         assert result.exit_code == 0, result.output
         rows = json.loads(result.output)
         assert len(rows) == 3
+
 
 class TestSelectJson:
     def test_json_output_is_parseable_list(self, tmp_path: Path) -> None:
@@ -98,9 +106,17 @@ class TestSelectJson:
         assert isinstance(rows, list)
         assert len(rows) == 9
         eids = {r["eid"] for r in rows}
-        assert eids == {"AC-001", "AC-002", "F-001", "F-002",
-                        "M-001", "M-002", "TC-001", "TC-002",
-                        "TS-001"}
+        assert eids == {
+            "AC-001",
+            "AC-002",
+            "F-001",
+            "F-002",
+            "M-001",
+            "M-002",
+            "TC-001",
+            "TC-002",
+            "TS-001",
+        }
         assert all("title" in r for r in rows)
 
     def test_json_limit_caps_result(self, tmp_path: Path) -> None:
@@ -113,28 +129,27 @@ class TestSelectJson:
         )
         result = CliRunner().invoke(
             _cli(),
-            ["kg", "query", "--db-path", str(db),
-             "--output", "json", "--limit", "2", sparql],
+            ["kg", "query", "--db-path", str(db), "--output", "json", "--limit", "2", sparql],
         )
         assert result.exit_code == 0, result.output
         rows = json.loads(result.output)
         assert len(rows) == 2
 
+
 # ------------------------------------------------------------------
 # ASK queries
 # ------------------------------------------------------------------
+
 
 class TestAsk:
     def test_ask_true_returns_true(self, tmp_path: Path) -> None:
         from click.testing import CliRunner
 
         db = _init_and_ingest(tmp_path)
-        sparql = (
-            "PREFIX cf: <https://cataforge.dev/ontology/> "
-            'ASK { ?s cf:entity_id "F-001" }'
-        )
+        sparql = 'PREFIX cf: <https://cataforge.dev/ontology/> ASK { ?s cf:entity_id "F-001" }'
         result = CliRunner().invoke(
-            _cli(), ["kg", "query", "--db-path", str(db), sparql],
+            _cli(),
+            ["kg", "query", "--db-path", str(db), sparql],
         )
         assert result.exit_code == 0, result.output
         assert result.output.strip() == "true"
@@ -144,11 +159,11 @@ class TestAsk:
 
         db = _init_and_ingest(tmp_path)
         sparql = (
-            "PREFIX cf: <https://cataforge.dev/ontology/> "
-            'ASK { ?s cf:entity_id "NONEXISTENT-999" }'
+            'PREFIX cf: <https://cataforge.dev/ontology/> ASK { ?s cf:entity_id "NONEXISTENT-999" }'
         )
         result = CliRunner().invoke(
-            _cli(), ["kg", "query", "--db-path", str(db), sparql],
+            _cli(),
+            ["kg", "query", "--db-path", str(db), sparql],
         )
         assert result.exit_code == 0, result.output
         assert result.output.strip() == "false"
@@ -157,10 +172,7 @@ class TestAsk:
         from click.testing import CliRunner
 
         db = _init_and_ingest(tmp_path)
-        sparql = (
-            "PREFIX cf: <https://cataforge.dev/ontology/> "
-            'ASK { ?s cf:entity_id "F-001" }'
-        )
+        sparql = 'PREFIX cf: <https://cataforge.dev/ontology/> ASK { ?s cf:entity_id "F-001" }'
         result = CliRunner().invoke(
             _cli(),
             ["kg", "query", "--db-path", str(db), "--output", "json", sparql],
@@ -169,9 +181,11 @@ class TestAsk:
         payload = json.loads(result.output)
         assert payload == {"result": True}
 
+
 # ------------------------------------------------------------------
 # CONSTRUCT queries
 # ------------------------------------------------------------------
+
 
 class TestConstruct:
     def test_construct_turtle_output(self, tmp_path: Path) -> None:
@@ -210,9 +224,11 @@ class TestConstruct:
         assert len(triples) == 9
         assert all({"subject", "predicate", "object"} <= set(t) for t in triples)
 
+
 # ------------------------------------------------------------------
 # File input
 # ------------------------------------------------------------------
+
 
 class TestFileInput:
     def test_sparql_file_is_read_and_executed(self, tmp_path: Path) -> None:
@@ -228,17 +244,18 @@ class TestFileInput:
         )
         result = CliRunner().invoke(
             _cli(),
-            ["kg", "query", "--db-path", str(db), "--output", "json",
-             str(sparql_file)],
+            ["kg", "query", "--db-path", str(db), "--output", "json", str(sparql_file)],
         )
         assert result.exit_code == 0, result.output
         rows = json.loads(result.output)
         eids = [r["eid"] for r in rows]
         assert eids == ["F-001", "F-002"]
 
+
 # ------------------------------------------------------------------
 # Error handling
 # ------------------------------------------------------------------
+
 
 class TestErrors:
     def test_sparql_syntax_error_exits_nonzero(self, tmp_path: Path) -> None:
@@ -257,8 +274,12 @@ class TestErrors:
         db = tmp_path / "nonexistent"
         result = CliRunner().invoke(
             _cli(),
-            ["kg", "query", "--db-path", str(db),
-             "PREFIX cf: <https://cataforge.dev/ontology/> "
-             "SELECT ?s WHERE { ?s ?p ?o } LIMIT 1"],
+            [
+                "kg",
+                "query",
+                "--db-path",
+                str(db),
+                "PREFIX cf: <https://cataforge.dev/ontology/> SELECT ?s WHERE { ?s ?p ?o } LIMIT 1",
+            ],
         )
         assert result.exit_code != 0

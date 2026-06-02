@@ -63,12 +63,7 @@ _TEST_MODULE = "cataforge.runtime.skill.builtins.code_review"
 
 def test_b3_anchor_happy_path_no_findings(tmp_path: Path, monkeypatch) -> None:
     """Every manifest ID has a matching anchor → no findings."""
-    body = (
-        "- 通用文档结构\n"
-        "  <!-- check_id: ID_A -->\n"
-        "- 文件大小阈值\n"
-        "  <!-- check_id: ID_B -->\n"
-    )
+    body = "- 通用文档结构\n  <!-- check_id: ID_A -->\n- 文件大小阈值\n  <!-- check_id: ID_B -->\n"
     _make_skill_md(tmp_path, _TEST_SKILL_ID, body)
     _stub_manifest_module(
         monkeypatch,
@@ -105,14 +100,9 @@ def test_b3_orphan_anchor_fails(tmp_path: Path, monkeypatch) -> None:
     report = Report()
     check_b3_manifest_drift(tmp_path, report)
 
-    orphan_findings = [
-        f
-        for f in report.findings
-        if "ID_RENAMED_AWAY" in f.message
-    ]
+    orphan_findings = [f for f in report.findings if "ID_RENAMED_AWAY" in f.message]
     assert len(orphan_findings) == 1, (
-        f"expected 1 orphan-anchor FAIL, got: "
-        f"{[f.render() for f in report.findings]}"
+        f"expected 1 orphan-anchor FAIL, got: {[f.render() for f in report.findings]}"
     )
     assert orphan_findings[0].severity == "FAIL"
     assert "no matching manifest entry" in orphan_findings[0].message
@@ -120,10 +110,7 @@ def test_b3_orphan_anchor_fails(tmp_path: Path, monkeypatch) -> None:
 
 def test_b3_missing_anchor_fails(tmp_path: Path, monkeypatch) -> None:
     """Manifest entry has no anchor in prose → FAIL."""
-    body = (
-        "- 已锚定的检查\n"
-        "  <!-- check_id: ID_A -->\n"
-    )
+    body = "- 已锚定的检查\n  <!-- check_id: ID_A -->\n"
     _make_skill_md(tmp_path, _TEST_SKILL_ID, body)
     _stub_manifest_module(
         monkeypatch,
@@ -138,21 +125,13 @@ def test_b3_missing_anchor_fails(tmp_path: Path, monkeypatch) -> None:
     report = Report()
     check_b3_manifest_drift(tmp_path, report)
 
-    missing_findings = [
-        f
-        for f in report.findings
-        if "no <!-- check_id:" in f.message
-    ]
+    missing_findings = [f for f in report.findings if "no <!-- check_id:" in f.message]
     assert len(missing_findings) == 2  # ID_B and ID_C
-    missing_ids = {
-        f.message.split("'")[1] for f in missing_findings
-    }
+    missing_ids = {f.message.split("'")[1] for f in missing_findings}
     assert missing_ids == {"ID_B", "ID_C"}
 
 
-def test_b3_mixed_anchor_and_delegation_only_orphan_fails(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_b3_mixed_anchor_and_delegation_only_orphan_fails(tmp_path: Path, monkeypatch) -> None:
     """Anchor + delegation marker → only orphan anchors fail.
 
     Missing anchors are silently allowed because the delegation marker
@@ -181,9 +160,7 @@ def test_b3_mixed_anchor_and_delegation_only_orphan_fails(
     check_b3_manifest_drift(tmp_path, report)
 
     # Orphan anchor → FAIL.
-    orphan_findings = [
-        f for f in report.findings if "ID_GHOST" in f.message
-    ]
+    orphan_findings = [f for f in report.findings if "ID_GHOST" in f.message]
     assert len(orphan_findings) == 1
     assert orphan_findings[0].severity == "FAIL"
 
@@ -219,9 +196,7 @@ def test_b3_delegation_alone_unchanged(tmp_path: Path, monkeypatch) -> None:
     assert report.findings == []
 
 
-def test_b3_section_without_anchor_or_delegation_fails(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_b3_section_without_anchor_or_delegation_fails(tmp_path: Path, monkeypatch) -> None:
     """No anchors + no delegation → FAIL (token heuristic removed in
     direct migration; every Layer 1 SKILL.md must use anchor or delegation)."""
     body = "- 文档结构检查与字段校验\n- 引用图完整性\n"
@@ -229,9 +204,7 @@ def test_b3_section_without_anchor_or_delegation_fails(
     _stub_manifest_module(
         monkeypatch,
         _TEST_MODULE,
-        (
-            {"id": "ID_A", "title": "字段校验", "severity": "fail"},
-        ),
+        ({"id": "ID_A", "title": "字段校验", "severity": "fail"},),
     )
 
     report = Report()
@@ -243,9 +216,7 @@ def test_b3_section_without_anchor_or_delegation_fails(
     assert "锚点" in findings[0].message or "委托" in findings[0].message
 
 
-def test_b3_release_lag_downgrades_orphan_anchor_to_info(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_b3_release_lag_downgrades_orphan_anchor_to_info(tmp_path: Path, monkeypatch) -> None:
     """SKILL.md declares ``<!-- requires: cataforge>=X.Y.Z -->`` higher than
     the running cataforge version → orphan-anchor FAIL downgraded to INFO
     with a 'release lag' explanation."""
@@ -273,9 +244,7 @@ def test_b3_release_lag_downgrades_orphan_anchor_to_info(
     assert "999.0.0" in orphan_findings[0].message
 
 
-def test_b3_release_lag_not_triggered_when_runtime_satisfies(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_b3_release_lag_not_triggered_when_runtime_satisfies(tmp_path: Path, monkeypatch) -> None:
     """Running cataforge ≥ requires → strict FAIL preserved (no downgrade)."""
     body = (
         "<!-- requires: cataforge>=0.0.1 -->\n\n"

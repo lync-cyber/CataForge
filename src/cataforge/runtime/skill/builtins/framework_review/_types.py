@@ -32,7 +32,5 @@ class Report:
     def info_count(self) -> int:
         return sum(1 for f in self.findings if f.severity == "INFO")
 
-    def add(
-        self, check_id: str, severity: str, location: str, message: str
-    ) -> None:
+    def add(self, check_id: str, severity: str, location: str, message: str) -> None:
         self.findings.append(Finding(check_id, severity, location, message))

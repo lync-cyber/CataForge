@@ -10,9 +10,7 @@ import sys
 from cataforge.utils.run_subprocess import run as run_proc
 
 
-def send_notification(
-    title: str, message: str, urgency: bool = False, beep_count: int = 1
-) -> None:
+def send_notification(title: str, message: str, urgency: bool = False, beep_count: int = 1) -> None:
     """Send desktop notification, fallback to console beep."""
     notified = False
     platform = sys.platform
@@ -37,13 +35,12 @@ def _notify_windows(title: str, message: str) -> bool:
     toast_ns = "Windows.UI.Notifications"
     xml_ns = "Windows.Data.Xml.Dom"
     app_id = (
-        "{{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}}"
-        "\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe"
+        "{{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}}\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe"
     )
     toast_xml = (
-        f"<toast><visual><binding template=\"ToastGeneric\">"
+        f'<toast><visual><binding template="ToastGeneric">'
         f"<text>{safe_title}</text><text>{safe_msg}</text>"
-        f"</binding></visual><audio silent=\"true\"/></toast>"
+        f'</binding></visual><audio silent="true"/></toast>'
     )
     ps_script = (
         f"[{toast_ns}.ToastNotificationManager,"

@@ -133,10 +133,7 @@ def upgrade_apply(dry_run: bool) -> None:
                 fg="yellow",
                 err=True,
             )
-        click.echo(
-            "\nUser-owned state preserved: framework.json(runtime.platform, "
-            "upgrade.state)"
-        )
+        click.echo("\nUser-owned state preserved: framework.json(runtime.platform, upgrade.state)")
         return
 
     # Direct scaffold refresh — avoids the fragile ctx.invoke(setup_command, ...)

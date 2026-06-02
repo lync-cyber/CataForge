@@ -5,6 +5,7 @@ doc_type in ``framework.json.kg.kg_active_doc_types`` and a KG store exists,
 the calls go through ``KnowledgeGraph.query``; otherwise they keep using the
 legacy ``.doc-index.json`` walk.
 """
+
 from __future__ import annotations
 
 import json

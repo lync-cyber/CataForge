@@ -70,15 +70,11 @@ class TestCheckHelperInterfaceConsistency:
         present = tmp_path / "x.txt"
         present.write_text("hi", encoding="utf-8")
         assert isinstance(check_file("present", present), int)
-        assert isinstance(
-            check_file("missing", tmp_path / "missing.txt", required=True), int
-        )
+        assert isinstance(check_file("missing", tmp_path / "missing.txt", required=True), int)
 
     def test_check_dir_returns_int(self, tmp_path) -> None:
         assert isinstance(check_dir("present", tmp_path), int)
-        assert isinstance(
-            check_dir("missing", tmp_path / "missing", required=True), int
-        )
+        assert isinstance(check_dir("missing", tmp_path / "missing", required=True), int)
 
     def test_check_import_returns_int(self) -> None:
         """Pre-D6 this returned None — adding it into a sum() blew up

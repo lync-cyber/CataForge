@@ -33,51 +33,85 @@ from cataforge.utils.common import ensure_utf8
 from cataforge.utils.run_subprocess import run as run_proc
 
 EXCLUDE_DIRS = {
-    "node_modules", ".git", "dist", "build", "__pycache__",
-    ".venv", "venv", ".next", "coverage", "bin", "obj",
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".next",
+    "coverage",
+    "bin",
+    "obj",
 }
 
 LINTERS = [
     {
         "extensions": {".js", ".ts", ".jsx", ".tsx"},
         "tools": [
-            {"name": "ESLint", "detect": ["npx", "eslint", "--version"],
-             "check": ["npx", "eslint"], "fix": ["npx", "eslint", "--fix"]},
-            {"name": "Prettier", "detect": ["npx", "prettier", "--version"],
-             "check": ["npx", "prettier", "--check"], "fix": ["npx", "prettier", "--write"]},
+            {
+                "name": "ESLint",
+                "detect": ["npx", "eslint", "--version"],
+                "check": ["npx", "eslint"],
+                "fix": ["npx", "eslint", "--fix"],
+            },
+            {
+                "name": "Prettier",
+                "detect": ["npx", "prettier", "--version"],
+                "check": ["npx", "prettier", "--check"],
+                "fix": ["npx", "prettier", "--write"],
+            },
         ],
     },
     {
         "extensions": {".py"},
         "tools": [
-            {"name": "Ruff Check", "detect": ["ruff", "--version"],
-             "check": ["ruff", "check"], "fix": ["ruff", "check", "--fix"]},
-            {"name": "Ruff Format", "detect": ["ruff", "--version"],
-             "check": ["ruff", "format", "--check"], "fix": ["ruff", "format"]},
+            {
+                "name": "Ruff Check",
+                "detect": ["ruff", "--version"],
+                "check": ["ruff", "check"],
+                "fix": ["ruff", "check", "--fix"],
+            },
+            {
+                "name": "Ruff Format",
+                "detect": ["ruff", "--version"],
+                "check": ["ruff", "format", "--check"],
+                "fix": ["ruff", "format"],
+            },
         ],
     },
     {
         "extensions": {".cs"},
         "tools": [
-            {"name": "dotnet format", "detect": ["dotnet", "--version"],
-             "check": ["dotnet", "format", "--verify-no-changes", "--include"],
-             "fix": ["dotnet", "format", "--include"]},
+            {
+                "name": "dotnet format",
+                "detect": ["dotnet", "--version"],
+                "check": ["dotnet", "format", "--verify-no-changes", "--include"],
+                "fix": ["dotnet", "format", "--include"],
+            },
         ],
     },
     {
         "extensions": {".go"},
         "tools": [
-            {"name": "golangci-lint", "detect": ["golangci-lint", "--version"],
-             "check": ["golangci-lint", "run"],
-             "fix": ["golangci-lint", "run", "--fix"]},
+            {
+                "name": "golangci-lint",
+                "detect": ["golangci-lint", "--version"],
+                "check": ["golangci-lint", "run"],
+                "fix": ["golangci-lint", "run", "--fix"],
+            },
         ],
     },
     {
         "extensions": {".rs"},
         "tools": [
-            {"name": "clippy", "detect": ["cargo", "clippy", "--version"],
-             "check": ["cargo", "clippy", "--", "-D", "warnings"],
-             "fix": ["cargo", "clippy", "--fix", "--allow-dirty"]},
+            {
+                "name": "clippy",
+                "detect": ["cargo", "clippy", "--version"],
+                "check": ["cargo", "clippy", "--", "-D", "warnings"],
+                "fix": ["cargo", "clippy", "--fix", "--allow-dirty"],
+            },
         ],
     },
 ]
@@ -103,8 +137,17 @@ SCAN_PROBES: dict[str, list[dict]] = {
         {
             "name": "jscpd",
             "extensions": {
-                ".js", ".ts", ".jsx", ".tsx", ".py", ".go",
-                ".cs", ".rs", ".java", ".kt", ".swift",
+                ".js",
+                ".ts",
+                ".jsx",
+                ".tsx",
+                ".py",
+                ".go",
+                ".cs",
+                ".rs",
+                ".java",
+                ".kt",
+                ".swift",
             },
             "detect": ["npx", "jscpd", "--version"],
             "build_cmd": lambda target: ["npx", "jscpd", "--silent", str(target)],
@@ -120,8 +163,14 @@ SCAN_PROBES: dict[str, list[dict]] = {
             "extensions": {".java"},
             "detect": ["pmd", "cpd", "--help"],
             "build_cmd": lambda target: [
-                "pmd", "cpd", "--minimum-tokens", "100",
-                "--language", "java", "--dir", str(target),
+                "pmd",
+                "cpd",
+                "--minimum-tokens",
+                "100",
+                "--language",
+                "java",
+                "--dir",
+                str(target),
             ],
             "fail_on_nonzero": False,
         },
@@ -246,10 +295,7 @@ class CodeLinter:
             for pattern in rule.empty_handler_patterns:
                 if pattern.search(line):
                     self.warnings += 1
-                    print(
-                        f"WARN: [{filepath}:{lineno}] wiring_empty_handler: "
-                        f"{line.strip()[:80]}"
-                    )
+                    print(f"WARN: [{filepath}:{lineno}] wiring_empty_handler: {line.strip()[:80]}")
                     break
 
     def run(self) -> int:
@@ -337,9 +383,8 @@ class CodeScanner:
             return
         output = (result.stdout + "\n" + result.stderr).strip()
         non_empty = bool(output)
-        signal = (
-            (probe["fail_on_nonzero"] and result.returncode != 0)
-            or (not probe["fail_on_nonzero"] and non_empty)
+        signal = (probe["fail_on_nonzero"] and result.returncode != 0) or (
+            not probe["fail_on_nonzero"] and non_empty
         )
         if signal:
             self.findings += 1
@@ -356,10 +401,7 @@ class CodeScanner:
 
         invalid = [c for c in self.focus if c not in VALID_FOCUS]
         if invalid:
-            print(
-                f"ERROR: 无效的 --focus 值: {invalid}; "
-                f"可选: {sorted(VALID_FOCUS)}"
-            )
+            print(f"ERROR: 无效的 --focus 值: {invalid}; 可选: {sorted(VALID_FOCUS)}")
             return 2
 
         print(f"Scanning {self.target} (focus: {','.join(self.focus)})")

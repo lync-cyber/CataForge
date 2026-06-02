@@ -46,9 +46,7 @@ def _patch_subprocess(
 
 
 class TestToGhFallback:
-    def test_succeeds_first_try_with_labels(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_succeeds_first_try_with_labels(self, monkeypatch: pytest.MonkeyPatch) -> None:
         calls = _patch_subprocess(
             monkeypatch,
             side_effect_seq=[_completed(stdout="https://example/issues/1")],
@@ -63,9 +61,7 @@ class TestToGhFallback:
         # All requested labels passed through.
         assert calls[0].count("--label") == 2
 
-    def test_retries_without_label_on_unknown_label(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_retries_without_label_on_unknown_label(self, monkeypatch: pytest.MonkeyPatch) -> None:
         first = _completed(
             returncode=1,
             stderr="GraphQL: Could not add label: 'feedback' not found",
@@ -102,18 +98,14 @@ class TestToGhFallback:
                 fallback_on_missing_label=False,
             )
 
-    def test_propagates_unrelated_failure(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_propagates_unrelated_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         first = _completed(returncode=2, stderr="HTTP 500 — server fire")
         _patch_subprocess(monkeypatch, side_effect_seq=[first])
         with pytest.raises(ExternalToolError) as exc:
             feedback_cmd._to_gh("body", title="t", labels=["bug"])
         assert "server fire" in str(exc.value)
 
-    def test_back_compat_label_string_form(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_back_compat_label_string_form(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Old call site using comma-string ``label="a,b"`` must still work."""
         calls = _patch_subprocess(
             monkeypatch,

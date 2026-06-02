@@ -10,6 +10,7 @@ This guard rejects `.query(...) == True` / `... == True` / `is True`
 patterns when they appear in `src/cataforge/domain/kg/**.py` so the bug cannot
 sneak back via a copy-paste from external SPARQL examples.
 """
+
 from __future__ import annotations
 
 import re
@@ -80,8 +81,10 @@ def main() -> int:
             print(f"  {offender}", file=sys.stderr)
         return 1
 
-    print(f"OK: scanned {sum(1 for d in SCAN_DIRS if d.is_dir())} dirs, no "
-          f"QueryBoolean == True antipatterns")
+    print(
+        f"OK: scanned {sum(1 for d in SCAN_DIRS if d.is_dir())} dirs, no "
+        f"QueryBoolean == True antipatterns"
+    )
     return 0
 
 
