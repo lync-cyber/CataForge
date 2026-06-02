@@ -68,6 +68,16 @@ def _emit_doctor_stale_deps(stale_deps: list[dict[str, str]]) -> None:
         click.echo(f"  {line}")
 
 
+def _emit_docignored(ignored: list[str]) -> None:
+    """Print the docs/.docignore exclusion count under doctor's indentation.
+
+    Excluded docs are intentional published prose, not a gating failure —
+    surfaced for transparency so suppressed orphans are never silent.
+    """
+    if ignored:
+        click.echo(f"  {len(ignored)} doc(s) excluded by docs/.docignore")
+
+
 def check_docs_validate(cfg) -> int:
     """Run the same validation suite as ``cataforge docs validate``.
 
@@ -109,11 +119,14 @@ def check_docs_validate(cfg) -> int:
 
     result = validate_docs(str(root))
     orphans = result["orphans"]
+    ignored = result.get("ignored", [])
     stale = result["stale"]
     xref_errors = result["xref_errors"]
     alias_conflicts = result["alias_conflicts"]
     invalid_ids = result.get("invalid_ids", [])
     stale_deps = result.get("stale_deps", [])
+
+    _emit_docignored(ignored)
 
     if (
         not orphans and not stale and not xref_errors
