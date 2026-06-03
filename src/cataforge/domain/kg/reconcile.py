@@ -37,7 +37,7 @@ from cataforge.domain.kg._sparql_utils import (
     escape_sparql_literal,
 )
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
-from cataforge.domain.kg.ingest.iri import SUBORDINATE_CLASSES
+from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_CLASSES
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.scan import scan_business_docs
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
@@ -128,6 +128,11 @@ def _scope_key(entity_id: str, class_name: str | None, parent_id: str | None) ->
     if class_name in SUBORDINATE_CLASSES and parent_id:
         return f"{parent_id}/{entity_id}"
     return entity_id
+
+
+def _is_subordinate_id(entity_id: str) -> bool:
+    """True when ``entity_id``'s prefix maps to a subordinate class (e.g. AC)."""
+    return ENTITY_PREFIX_TO_CLASS.get(entity_id.split("-", 1)[0]) in SUBORDINATE_CLASSES
 
 
 def _kg_entities_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[str]:
@@ -246,49 +251,72 @@ def reconcile(
 
     report = ReconcileReport(timestamp=_utc_now_iso(), active_doc_types=active)
 
+    # Pre-pass: scan every active doc_type once, recording the doc_id(s) that
+    # *define* each entity and collecting every FS relation. A relation is a
+    # project-global fact; the KG keys it by its subject's `cf:source_doc`
+    # (`_kg_relations_for_doc_ids`), so attributing the FS side by the doc that
+    # merely *declares* the xref (arch declaring a Feature→Feature dependency)
+    # would diverge. Bucketing FS relations by the subject's home doc keeps both
+    # sides apples-to-apples.
+    parsed_by_type: dict[str, list] = {}
+    doc_ids_by_type: dict[str, set[str]] = {}
+    entity_home: dict[str, set[str]] = {}
+    raw_relations: list[tuple[RelKey, str]] = []  # (relation key, extraction doc_id)
     for doc_type in active:
-        per = PerDocTypeReport(doc_type=doc_type)
-        report.per_doc_type[doc_type] = per
-
         # Resolve the on-disk subdir; honour the framework.json override
         # the same way the legacy loader does.
         subdir = type_map.get(doc_type, doc_type)
         directory = project_root / "docs" / subdir
-        if not directory.is_dir():
-            # FS has nothing for this doc_type. Anything in KG attributed
-            # to a doc_id under this doc_type would surface as ghost — but
-            # we can't compute that without scanning, so we attribute
-            # ghost entities at the per-doc_id level below.
-            parsed: list = []
-        else:
-            parsed = scan_business_docs(project_root, [doc_type])
-
-        # FS-side extraction
-        fs_entities: set[str] = set()
-        fs_relations: set[RelKey] = set()
-        fs_sections: set[str] = set()
+        parsed = scan_business_docs(project_root, [doc_type]) if directory.is_dir() else []
+        parsed_by_type[doc_type] = parsed
         doc_ids: set[str] = set()
         for doc in parsed:
             doc_ids.add(doc.doc_id)
+            for entity in extract_entities(doc):
+                entity_home.setdefault(entity.entity_id, set()).add(doc.doc_id)
+            for relation in extract_relations(doc):
+                key = (
+                    relation.subject_entity_id,
+                    relation.predicate_curie,
+                    relation.object_entity_id,
+                )
+                raw_relations.append((key, doc.doc_id))
+        # If no parsed docs but the doc_type has a built-in subdir name, still
+        # consult KG by the subdir-as-doc_id (cheap; usually empty).
+        doc_ids_by_type[doc_type] = doc_ids or {subdir, doc_type}
+
+    # Attribute each FS relation to the doc(s) the KG keys it under — its
+    # subject node's `cf:source_doc`. A subordinate subject (AcceptanceCriteria)
+    # is parent-local and defined in its extraction doc, so the edge lives there;
+    # any other subject is keyed by its unique defining doc, which may differ
+    # from the doc that merely declares the xref. A subject with no definition
+    # resolves to no home and drops out — matching the KG, which never wrote an
+    # edge for a subjectless node.
+    fs_rel_by_doc: dict[str, set[RelKey]] = {}
+    for key, ext_doc in raw_relations:
+        homes = {ext_doc} if _is_subordinate_id(key[0]) else entity_home.get(key[0], set())
+        for home in homes:
+            fs_rel_by_doc.setdefault(home, set()).add(key)
+
+    for doc_type in active:
+        per = PerDocTypeReport(doc_type=doc_type)
+        report.per_doc_type[doc_type] = per
+        parsed = parsed_by_type[doc_type]
+        doc_ids = doc_ids_by_type[doc_type]
+
+        fs_entities: set[str] = set()
+        fs_sections: set[str] = set()
+        for doc in parsed:
             doc_entities = extract_entities(doc)
             for entity in doc_entities:
                 fs_entities.add(entity.scope_key)
-            for relation in extract_relations(doc):
-                fs_relations.add(
-                    (
-                        relation.subject_entity_id,
-                        relation.predicate_curie,
-                        relation.object_entity_id,
-                    )
-                )
             _document, doc_sections = extract_structure(doc, doc_entities)
             for section in doc_sections:
                 fs_sections.add(section.anchor)
 
-        # If no parsed docs but the doc_type has a built-in subdir name,
-        # still consult KG by the subdir-as-doc_id (cheap; usually empty).
-        if not doc_ids:
-            doc_ids = {subdir, doc_type}
+        fs_relations: set[RelKey] = set()
+        for did in doc_ids:
+            fs_relations |= fs_rel_by_doc.get(did, set())
 
         kg_entities = _kg_entities_for_doc_ids(store, config, doc_ids)
         kg_relations = _kg_relations_for_doc_ids(store, config, doc_ids)
