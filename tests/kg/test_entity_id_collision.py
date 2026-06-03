@@ -126,3 +126,35 @@ def test_run_migration_allows_identical_cross_doc_mention(tmp_path: Path) -> Non
     stats, entities, _ = run_migration(handle.raw, tmp_path, config, doc_types=("prd", "arch"))
     assert {e.entity_id for e in entities} == {"F-001"}
     assert stats.verify_result is not None and stats.verify_result.ok
+
+
+def test_run_migration_ignores_bare_ac_mention_without_parent(tmp_path: Path) -> None:
+    """A parent-local AC id mentioned in prose under a non-entity heading
+    (`F-001 AC-001` in a tech-stack table) is a reference, not a definition: it
+    must mint no phantom global node and must not collide with the genuine
+    parent-scoped AC defined elsewhere."""
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
+
+    # prd defines AC-001 under its Feature; arch only *mentions* it in a table.
+    _write(
+        tmp_path,
+        "prd",
+        "prd-x.md",
+        "# PRD\n\n## F-001 写作体验\n\n- AC-001: 用户可登录，返回 200。\n",
+    )
+    _write(
+        tmp_path,
+        "arch",
+        "arch-x.md",
+        "# ARCH\n\n## 1.4 技术栈\n\n| 测试 | Vitest | F-001 AC-001 跨运行时一致 |\n",
+    )
+
+    config = KGConfig(store_backend="memory")
+    handle = init_store(config, force=True)
+
+    # No KGEntityCollisionError despite AC-001 appearing in both documents.
+    _, entities, _ = run_migration(handle.raw, tmp_path, config, doc_types=("prd", "arch"))
+    scope_keys = {e.scope_key for e in entities}
+    assert "F-001/AC-001" in scope_keys
+    assert "AC-001" not in scope_keys

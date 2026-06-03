@@ -152,6 +152,50 @@ def test_reconcile_detects_missing_relation(tmp_path: Path) -> None:
     assert ("M-001", "cf:implements", "F-001") in arch.ghost_relations
 
 
+def test_reconcile_cross_doc_relation_attributed_by_subject_home(tmp_path: Path) -> None:
+    """A relation whose subject is defined in one doc but *declared* in another
+    must reconcile cleanly. Here arch holds 'F-001 … 映射功能: prd#§2.F-002', so the
+    edge's subject (F-001) lives in prd while the xref sits in arch. The KG keys
+    the edge by F-001's `cf:source_doc` (prd); the FS side must attribute it to
+    prd too, not to the arch doc that merely declares it.
+    """
+    import gc
+
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore, init_store
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg.ingest import run_migration
+    from cataforge.domain.kg.reconcile import reconcile
+
+    project_root = _setup_project_with_kg(tmp_path)
+    arch = project_root / "docs" / "arch" / "arch-vertical-slice.md"
+    arch.write_text(
+        arch.read_text(encoding="utf-8")
+        + "\n\n## §3 跨域引用\n\nF-001 复用登出能力\n\n- 映射功能: prd#§2.F-002\n",
+        encoding="utf-8",
+    )
+
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=project_root / ".cataforge" / "kg" / "store",
+        kg_active_doc_types={"prd", "arch", "test"},
+    )
+    handle = init_store(config, force=True)
+    _stats, _entities, relations = run_migration(handle.raw, project_root, config)
+    del handle
+    gc.collect()
+    invalidate_cache()
+
+    # Non-vacuous: the cross-doc edge F-001 → F-002 was actually extracted.
+    assert any(
+        r.subject_entity_id == "F-001" and r.object_entity_id == "F-002" for r in relations
+    ), [(r.subject_entity_id, r.predicate_curie, r.object_entity_id) for r in relations]
+
+    with KnowledgeGraphStore.connect(config) as handle:
+        report = reconcile(handle.raw, project_root, config)
+
+    assert report.ok, report.to_dict()
+
+
 def test_reconcile_agile_variant_is_clean(tmp_path: Path) -> None:
     """The agile fixture (same content, different process_model) reconciles
     just as cleanly as waterfall.

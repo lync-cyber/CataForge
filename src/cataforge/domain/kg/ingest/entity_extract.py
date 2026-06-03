@@ -187,10 +187,12 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
 
     A non-subordinate entity is a *definition* only at the occurrence whose
     owning section heading names it as its subject (see `_title_defines`); a
-    bare mention in someone else's section is ignored. Subordinate classes
-    (`SUBORDINATE_CLASSES`) keep first-occurrence semantics and are scoped by
-    their resolved parent, so the same AC-id under two parents survives as two
-    entities (dedup key is `(parent_id, entity_id)`, not the bare id).
+    bare mention in someone else's section is ignored. A subordinate class
+    (`SUBORDINATE_CLASSES`) is a definition under its resolved parent (or as
+    its own heading subject) and is scoped by that parent, so the same AC-id
+    under two parents survives as two entities (dedup key is
+    `(parent_id, entity_id)`). A subordinate id with neither a parent nor its
+    own heading — `F-013 AC-001` in prose — is a reference, also ignored.
     """
     xref_spans = [(m.start(), m.end()) for m in XREF_RE.finditer(doc.raw)]
     code_ranges = doc.code_block_offsets
@@ -216,6 +218,10 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
         subordinate = class_name in SUBORDINATE_CLASSES
         if subordinate:
             parent_id = _resolve_parent_id(doc.sections, line_idx)
+            # No owning parent and not its own heading subject → a bare prose
+            # reference (`F-013 AC-001` in a table), not a definition; skip.
+            if parent_id is None and not _title_defines(section.title, entity_id):
+                continue
         else:
             # Heading-anchored definition: skip this occurrence when the entity
             # is not the subject of its owning heading. A later occurrence in
