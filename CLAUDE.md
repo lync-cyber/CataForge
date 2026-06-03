@@ -112,17 +112,17 @@ git push -u origin <new-branch>
 `.pre-commit-config.yaml` 配的 ruff + 文档守卫只有在两步都做了之后才会自动跑：
 
 ```bash
-pip install -e .[dev]    # 一次性安装 pre-commit 包到当前环境
-pre-commit install        # 一次性把 git hook 挂到 .git/hooks/pre-commit
+uv sync --extra dev        # 一次性按 uv.lock 把 dev 依赖（含 pre-commit / ruff）装进受管 .venv
+uv run pre-commit install  # 一次性把 git hook 挂到 .git/hooks/pre-commit
 ```
 
 未挂 hook 的环境（含 Claude Code session）**提交前必须手动跑这一条**：
 
 ```bash
-python scripts/checks/run_local.py
+uv run --extra dev python scripts/checks/run_local.py
 ```
 
-[`run_local.py`](scripts/checks/run_local.py) 顺序调用 6 个 repo-wide 守卫 —— ruff lint + design-residue + language-coupling + doc-structure + QueryBoolean-eq-True + schema-python-parity；任一非零即非零退出。CI 跑的是同一组脚本，本地通过本地这条命令 ≈ CI 不会因这些 class 报错。
+[`run_local.py`](scripts/checks/run_local.py) 顺序调用全部 repo-wide 静态守卫 —— 与 `.pre-commit-config.yaml` 的 no-arg 钩子同源（ruff lint + `scripts/checks/check_*.py` 系列），外加 `uv lock --check` lockfile 新鲜度校验，权威清单以脚本内 `CHECKS` 为准；任一非零即非零退出。CI 跑的是同一组脚本，本地通过本地这条命令 ≈ CI 不会因这些 class 报错。
 
 不能省的原因：CI 已经多次把"本地没跑过这条命令"才漏掉的错误拦下来 —— ruff F401 / SIM108 都在最近的 PR 上出现过。一次性把所有 repo-wide 守卫塞进一条命令，意味着没有"我以为只改了文档不用跑 ruff"的借口。
 

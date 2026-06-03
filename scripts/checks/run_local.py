@@ -18,11 +18,11 @@ but expensive on the whole repo, so CI keeps them.
 
 Run before every commit:
 
-    python scripts/checks/run_local.py
+    uv run --extra dev python scripts/checks/run_local.py
 
 Or via the canonical pre-commit if installed:
 
-    pre-commit run --all-files
+    uv run pre-commit run --all-files
 """
 
 from __future__ import annotations

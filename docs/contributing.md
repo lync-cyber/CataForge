@@ -9,17 +9,17 @@
 ```bash
 git clone https://github.com/lync-cyber/CataForge.git
 cd CataForge
-uv venv && uv pip install -e ".[dev]"
-# source .venv/bin/activate       # macOS / Linux
-# .venv\Scripts\activate          # Windows
-pre-commit install                # ← 必装；详情见下
+uv sync --extra dev               # 按 uv.lock 建/同步受管 .venv（含 dev 依赖）
+uv run pre-commit install         # ← 必装；详情见下
 ```
+
+后续所有命令统一用 `uv run <cmd>` 在受管 `.venv` 里执行，无需手动 `activate`。
 
 健康检查：
 
 ```bash
-cataforge doctor
-pytest -q
+uv run cataforge doctor
+uv run pytest -q
 ```
 
 当前基线：`pytest -q` 应全量通过（具体数量见 `CHANGELOG.md`）。
@@ -31,7 +31,7 @@ pytest -q
 `.pre-commit-config.yaml` 内置 ruff、`ensure_utf8()` guard、JSON Schema↔Python 镜像对账、workflow YAML 解析、营销词 / 设计残留扫描等 6 个本地钩子。装一次：
 
 ```bash
-pre-commit install        # pre-commit 已在 [dev] 依赖里，无需单独 pip install
+uv run pre-commit install        # pre-commit 已在 [dev] 依赖里，无需单独安装
 ```
 
 CI 会跑同一组检查兜底，但本地装上能把 ruff I001 / `tests/test_run_utf8.py` 这类典型问题压到 commit 期发现 —— 不装则只能等 60 秒后 GitHub Actions 翻红。`pytest` 启动时会探测 `.git/hooks/pre-commit` 缺失并打印一次提示（不阻断，仅提醒）。
@@ -49,11 +49,11 @@ CI 会跑同一组检查兜底，但本地装上能把 ruff I001 / `tests/test_r
 提交前自测：
 
 ```bash
-ruff format --check .
-ruff check .
-mypy src           # 全仓扫描，info-only
-mypy --strict src/cataforge/application/services  # opt-in strict 包：必须 0 errors
-pytest -q
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy src           # 全仓扫描，info-only
+uv run mypy --strict src/cataforge/application/services  # opt-in strict 包：必须 0 errors
+uv run pytest -q
 ```
 
 ### 类型检查
@@ -90,10 +90,10 @@ pytest -q
 - 回归测试基线：`pytest -q` 全量通过后再提 PR
 
 ```bash
-pytest -q                            # 全量
-pytest tests/platform/ -v            # 平台适配
-pytest tests/deploy/ -v              # 部署编排
-pytest --cov=cataforge --cov-report=term-missing
+uv run pytest -q                            # 全量
+uv run pytest tests/platform/ -v            # 平台适配
+uv run pytest tests/deploy/ -v              # 部署编排
+uv run pytest --cov=cataforge --cov-report=term-missing
 ```
 
 ---
