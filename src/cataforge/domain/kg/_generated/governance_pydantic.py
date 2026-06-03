@@ -90,7 +90,7 @@ linkml_meta = LinkMLMeta({'default_prefix': 'cfgov',
                            'prefix_reference': 'http://www.w3.org/ns/prov#'},
                   'xsd': {'prefix_prefix': 'xsd',
                           'prefix_reference': 'http://www.w3.org/2001/XMLSchema#'}},
-     'source_file': 'C:\\Users\\huanc\\Work\\GitRepo\\CataForge\\.claude\\worktrees\\crazy-goldstine-d6487f\\src\\cataforge\\domain\\kg\\schemas\\governance.yaml',
+     'source_file': 'src/cataforge/domain/kg/schemas/governance.yaml',
      'title': 'CataForge Framework Governance Sub-Ontology (Skeleton)'} )
 
 class ProcessModelEnum(str, Enum):

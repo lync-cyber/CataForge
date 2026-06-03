@@ -101,7 +101,7 @@ linkml_meta = LinkMLMeta({'default_prefix': 'cf',
                          'prefix_reference': 'http://www.w3.org/ns/shacl#'},
                   'xsd': {'prefix_prefix': 'xsd',
                           'prefix_reference': 'http://www.w3.org/2001/XMLSchema#'}},
-     'source_file': 'C:\\Users\\huanc\\Work\\GitRepo\\CataForge\\.claude\\worktrees\\crazy-goldstine-d6487f\\src\\cataforge\\domain\\kg\\schemas\\core.yaml',
+     'source_file': 'src/cataforge/domain/kg/schemas/core.yaml',
      'title': 'CataForge Core Business-Document Ontology',
      'types': {'ContentHash': {'base': 'str',
                                'description': 'SHA-256 hex of the source Markdown '
