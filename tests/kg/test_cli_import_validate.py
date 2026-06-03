@@ -133,6 +133,38 @@ def test_kg_import_dry_run_exits_zero(tmp_path: Path) -> None:
     assert stats["relations_written"] == 0
 
 
+def test_kg_import_aborts_on_cross_doc_collision(tmp_path: Path) -> None:
+    """A diverging same-id definition across doc_types exits 3 (content gate)
+    with an actionable unify-the-markdown message — not a silent overwrite."""
+    project = tmp_path / "proj"
+    for doc_type, body in (
+        ("prd", "# PRD\n\n## §2 AC\n\n### AC-001 用户可登录\n\n登录成功返回 200。\n"),
+        ("dev-plan", "# Dev\n\n## §5 Tasks\n\n### AC-001 任务验收\n\n覆盖率不低于 80%。\n"),
+    ):
+        d = project / "docs" / doc_type
+        d.mkdir(parents=True)
+        (d / f"{doc_type}-x.md").write_text(body, encoding="utf-8")
+
+    result = CliRunner().invoke(
+        _cli(),
+        [
+            "kg",
+            "import",
+            "--project-root",
+            str(project),
+            "--backend",
+            "memory",
+            "--doc-type",
+            "prd",
+            "--doc-type",
+            "dev-plan",
+        ],
+    )
+    assert result.exit_code == 3, result.output
+    assert "AC-001" in result.output
+    assert "kg import" in result.output
+
+
 def test_kg_import_then_validate_oxigraph_backend(tmp_path: Path) -> None:
     db = tmp_path / "store"
     runner = CliRunner()

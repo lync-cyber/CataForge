@@ -75,7 +75,12 @@ def kg_import(
     project_root = root_relative_default(ctx, "project_root", project_root)
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
 
-    from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
+    from cataforge.domain.kg import (
+        KGConfig,
+        KGEntityCollisionError,
+        KGStoreNotInitializedError,
+        KnowledgeGraph,
+    )
     from cataforge.domain.kg._dispatch import active_doc_types, kg_enabled
     from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, run_migration
 
@@ -125,6 +130,8 @@ def kg_import(
                 )
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(f"{exc}\nHint: run `cataforge kg init` before `kg import`.") from exc
+    except KGEntityCollisionError as exc:
+        raise KGVerificationError(str(exc)) from exc
 
     if json_output:
         click.echo(json.dumps(stats.to_dict(), indent=2, sort_keys=True))

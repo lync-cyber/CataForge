@@ -124,6 +124,25 @@ def _kg_entity_ids(db_path: Path) -> set[str]:
         return kg.query.entity_ids()
 
 
+def _fs_entity_collisions(project_root: Path, doc_types: set[str]) -> list:
+    """Same-id-defined-across-docs collisions, parsed straight from markdown.
+
+    Mirrors the import-time gate so a store ingested before the gate landed
+    (or never re-imported) still surfaces the collapse instead of staying
+    falsely green on a set-vs-set comparison that the collapsed node satisfies.
+    """
+    from cataforge.domain.kg.ingest.entity_extract import (  # noqa: PLC0415
+        detect_entity_id_collisions,
+        extract_entities,
+    )
+    from cataforge.domain.kg.ingest.scan import scan_business_docs  # noqa: PLC0415
+
+    all_entities: list = []
+    for doc in scan_business_docs(project_root, sorted(doc_types)):
+        all_entities.extend(extract_entities(doc))
+    return detect_entity_id_collisions(all_entities)
+
+
 def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     """Doctor gate — returns failure count for missing KG entity IDs."""
     project_root = Path(cfg.paths.root)
@@ -139,6 +158,24 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     if not active:
         click.echo("  (no active doc_types — skipping)")
         return 0
+
+    collisions = _fs_entity_collisions(project_root, active)
+    if collisions:
+        click.echo(
+            f"  FAIL: {len(collisions)} entity_id(s) defined across multiple "
+            "documents with diverging content (collapses to one node — silent "
+            "data loss):"
+        )
+        for c in collisions[:5]:
+            docs = ", ".join(doc for doc, _ in c.occurrences)
+            click.echo(f"    {c.entity_id}: {docs}")
+        if len(collisions) > 5:
+            click.echo("    ...")
+        click.echo(
+            "  Define each entity once and reference it via `doc_id#§N.ENTITY-ID`; "
+            "unify the source markdown, then re-run `cataforge kg import`."
+        )
+        return 1
 
     type_map = _doc_type_to_subdir(cfg)
     fs_ids = _scan_fs_entity_ids(project_root, active, type_map)

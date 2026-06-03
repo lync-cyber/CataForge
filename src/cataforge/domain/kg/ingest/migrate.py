@@ -10,9 +10,12 @@ from typing import TYPE_CHECKING, Any
 from cataforge.core.config import ConfigManager
 from cataforge.domain.kg._config import BUSINESS_DOC_TYPES as DEFAULT_DOC_TYPES
 from cataforge.domain.kg._config import KGConfig
+from cataforge.domain.kg._errors import KGEntityCollisionError
 from cataforge.domain.kg.ingest.entity_extract import (
     ExtractedEntity,
+    detect_entity_id_collisions,
     extract_entities,
+    format_entity_id_collisions,
 )
 from cataforge.domain.kg.ingest.relation_extract import (
     ExtractedRelation,
@@ -123,10 +126,12 @@ def run_migration(
     # *defines* an entity (prd for Feature / AC, arch for Module, …) ahead
     # of documents that merely reference it.
     deduped_entities: dict[str, ExtractedEntity] = {}
+    all_doc_entities: list[ExtractedEntity] = []
     documents: list[ExtractedDocument] = []
     sections: list[ExtractedSection] = []
     for doc in parsed_docs:
         doc_entities = extract_entities(doc)
+        all_doc_entities.extend(doc_entities)
         for entity in doc_entities:
             deduped_entities.setdefault(entity.entity_id, entity)
         # PHASE 3b: structural nodes (Document + entity-owning Sections).
@@ -134,6 +139,14 @@ def run_migration(
         document, doc_sections = extract_structure(doc, doc_entities)
         documents.append(document)
         sections.extend(doc_sections)
+
+    # An entity_id defined across documents with diverging content would
+    # collapse into one node under the flat IRI scheme; refuse the import so
+    # the author unifies the source markdown first.
+    collisions = detect_entity_id_collisions(all_doc_entities)
+    if collisions:
+        raise KGEntityCollisionError(format_entity_id_collisions(collisions))
+
     entities: list[ExtractedEntity] = list(deduped_entities.values())
     stats.extracted_entities = len(entities)
     stats.extracted_documents = len(documents)
