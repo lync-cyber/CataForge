@@ -12,6 +12,7 @@ from __future__ import annotations
 from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._errors import (
+    KGEntityCollisionError,
     KGEntityNotFoundError,
     KGError,
     KGStoreAlreadyExistsError,
@@ -32,6 +33,7 @@ from cataforge.domain.kg.transaction import TransactionContext
 
 __all__ = [
     "KGConfig",
+    "KGEntityCollisionError",
     "KGEntityNotFoundError",
     "KGError",
     "KGStoreAlreadyExistsError",

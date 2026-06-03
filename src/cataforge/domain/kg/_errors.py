@@ -26,3 +26,9 @@ class KGValidationError(KGError):
 
 class KGEntityNotFoundError(KGError):
     """Raised when update/delete targets an entity_id absent from the store."""
+
+
+class KGEntityCollisionError(KGError):
+    """Raised when one entity_id is defined across documents with diverging
+    content, which the flat `cfprj:<entity_id>` IRI scheme would collapse into
+    a single node with silent data loss."""

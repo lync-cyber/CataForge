@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -182,3 +182,62 @@ def _enrich_extra_slots(entity: ExtractedEntity, section_text: str) -> None:
     if fn is None:
         return
     fn(entity, section_text)
+
+
+@dataclass
+class EntityIdCollision:
+    """One entity_id defined in multiple documents with diverging content."""
+
+    entity_id: str
+    occurrences: list[tuple[str, str]]  # sorted (source_doc, content_hash) pairs
+
+
+def detect_entity_id_collisions(
+    entities: Iterable[ExtractedEntity],
+) -> list[EntityIdCollision]:
+    """Flag entity_ids defined in ≥2 source_docs with ≥2 distinct content hashes.
+
+    Instance IRIs are `cfprj:<entity_id>`, so an entity_id is project-global:
+    defining the same id in two documents collapses both into one node and the
+    last write silently wins. A flagged id means the same identifier carries
+    diverging content across documents — cross-document drift, or a definition
+    that should have been an xref. The canonical model is define-once /
+    reference-by-xref, so callers refuse the import until the source markdown
+    is unified. Identical content across docs is a harmless duplicate the
+    writer dedups and is not flagged.
+    """
+    by_id: dict[str, dict[str, str]] = {}
+    for entity in entities:
+        by_id.setdefault(entity.entity_id, {}).setdefault(entity.source_doc, entity.content_hash)
+    collisions: list[EntityIdCollision] = []
+    for entity_id, docs in by_id.items():
+        if len(docs) >= 2 and len(set(docs.values())) >= 2:
+            collisions.append(
+                EntityIdCollision(entity_id=entity_id, occurrences=sorted(docs.items()))
+            )
+    return sorted(collisions, key=lambda c: c.entity_id)
+
+
+def format_entity_id_collisions(collisions: list[EntityIdCollision]) -> str:
+    """Render a collision list into an actionable error message."""
+    lines = [
+        f"KG import aborted: {len(collisions)} entity_id(s) are defined in "
+        "multiple documents with diverging content, which collapses them into "
+        "one node and silently loses data.",
+        "",
+    ]
+    lines.extend(
+        f"  {c.entity_id}: {', '.join(doc for doc, _ in c.occurrences)}" for c in collisions
+    )
+    lines.extend(
+        [
+            "",
+            "entity_ids must be project-globally unique. This usually means the "
+            "same logical entity was described differently across documents "
+            "(cross-document drift). Define each entity in one document and "
+            "reference it elsewhere via the xref form `doc_id#§N.ENTITY-ID`. "
+            "Unify the source markdown so each entity_id is defined once, then "
+            "re-run `cataforge kg import`.",
+        ]
+    )
+    return "\n".join(lines)

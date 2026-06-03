@@ -143,6 +143,30 @@ def test_gate_passes_with_doc_level_frontmatter_id(tmp_path, capsys) -> None:
     assert "prd-vertical-slice" not in out
 
 
+def test_gate_fails_on_cross_doc_entity_id_collision(tmp_path, capsys) -> None:
+    """Same entity_id defined in two doc_types with diverging content collapses
+    into one node; the gate must FAIL rather than stay falsely green on the
+    set-vs-set comparison the collapsed node satisfies."""
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    # PRD already defines AC-001; redefine it (different content) in arch.
+    arch = project_root / "docs" / "arch" / "arch-vertical-slice.md"
+    arch.write_text(
+        arch.read_text(encoding="utf-8")
+        + "\n\n## §9 Arch acceptance\n\n### AC-001 模块级验收\n\n架构侧的不同叙述。\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 1, out
+    assert "FAIL" in out
+    assert "AC-001" in out
+
+
 def test_gate_skips_when_no_store(tmp_path, capsys) -> None:
     """No `.cataforge/kg/store/` present → gate returns 0 (skip).
 
