@@ -86,6 +86,12 @@ ENTITY_PREFIX_RE = re.compile(rf"\b(?:{_PREFIX_ALT})-\d{{3,}}\b")
 # relation_extract; defined here to break the import cycle.
 XREF_RE = re.compile(r"\b(?P<doc>[\w-]+)#§(?P<section>\d+(?:\.\d+)*)\.(?P<entity>[A-Z]+-\d{3,})\b")
 
+# Classes exempt from heading-anchored definition detection: subordinate
+# entities attach to a parent section's body (an AcceptanceCriteria sits in
+# the bullet list of its owning Feature/Task), not to a heading of their own,
+# so they keep first-occurrence semantics.
+_TITLE_ANCHOR_EXEMPT_CLASSES = frozenset({"AcceptanceCriteria"})
+
 
 @dataclass
 class ExtractedEntity:
@@ -121,6 +127,19 @@ def _inside_code_block(offset: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start <= offset < end for start, end in ranges)
 
 
+def _title_defines(title: str, entity_id: str) -> bool:
+    """Return True when ``entity_id`` is the subject of heading ``title``.
+
+    The subject is the first entity-id token in the heading (a numbering
+    prefix like ``§2.1`` is not an entity-id and does not count). This lets
+    ``### §2.1 F-001 用户登录`` define F-001 while ``### T-097: … C-001/C-002``
+    defines only T-097 — the trailing component ids are mentions, not
+    definitions.
+    """
+    m = ENTITY_PREFIX_RE.search(title)
+    return m is not None and m.group(0) == entity_id
+
+
 def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
     """Phase 3: scan `doc` for entity_id occurrences.
 
@@ -134,6 +153,11 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
     excluded; otherwise the target entity_id leaks into every doc that
     references it.  Matches inside fenced code blocks, inline code, or
     HTML blocks are also excluded.
+
+    A non-subordinate entity is a *definition* only at the occurrence whose
+    owning section heading names it as its subject (see `_title_defines`); a
+    bare mention in someone else's section is ignored. Subordinate classes
+    (`_TITLE_ANCHOR_EXEMPT_CLASSES`) keep first-occurrence semantics.
     """
     xref_spans = [(m.start(), m.end()) for m in XREF_RE.finditer(doc.raw)]
     code_ranges = doc.code_block_offsets
@@ -157,6 +181,13 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
         line_idx = _line_index_for_offset(doc.raw, match.start())
         section = _section_for_line(doc.sections, line_idx)
         if section is None:
+            continue
+        # Heading-anchored definition: skip this occurrence when the entity is
+        # not the subject of its owning section heading. A later occurrence in
+        # the entity's own heading still qualifies (this one wasn't recorded).
+        if class_name not in _TITLE_ANCHOR_EXEMPT_CLASSES and not _title_defines(
+            section.title, entity_id
+        ):
             continue
         # Compute the hash on the section body so re-imports detect content
         # drift even when the entity_id stayed the same.
