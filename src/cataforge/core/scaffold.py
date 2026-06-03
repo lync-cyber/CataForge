@@ -128,6 +128,10 @@ _SCAFFOLD_LOCAL_STATE_DIRS: frozenset[str] = frozenset(
         ".backups",
     }
 )
+# Override layers are upgrade-immune, project-local customisation — never part
+# of the scaffold. Bundling them would put them in the manifest and let
+# ``upgrade apply`` clobber the very customisations they exist to protect.
+_SCAFFOLD_OVERRIDE_DIRS: frozenset[str] = frozenset({"overrides"})
 # Bundled files that are NOT copied into downstream projects. PROJECT-STATE.md
 # is the source template for the platform instruction file (CLAUDE.md /
 # AGENTS.md) — deploy reads it from the package, so copying it into the project
@@ -148,7 +152,10 @@ def iter_scaffold_files() -> Iterator[tuple[str, Traversable]]:
         for child in node.iterdir():
             rel = f"{prefix}{child.name}"
             if child.is_dir():
-                if not prefix and child.name in _SCAFFOLD_LOCAL_STATE_DIRS:
+                if not prefix and (
+                    child.name in _SCAFFOLD_LOCAL_STATE_DIRS
+                    or child.name in _SCAFFOLD_OVERRIDE_DIRS
+                ):
                     continue
                 yield from walk(child, rel + "/")
             else:

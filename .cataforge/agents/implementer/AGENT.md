@@ -1,5 +1,6 @@
 ---
 name: implementer
+lang_aware: true
 description: "TDD GREEN阶段 — 编写最小实现代码使所有测试通过。由orchestrator通过tdd-engine skill启动。"
 tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 disallowedTools: agent_dispatch, web_search, web_fetch, user_question

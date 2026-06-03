@@ -9,6 +9,8 @@
 
 覆盖层不在 scaffold manifest 里，`upgrade apply` 永不触碰它们。两层默认都随仓库提交（团队共享 project 层、个人偏好走 user 层）。
 
+> 覆盖层目录默认为空或尚未存在——不随 scaffold 分发、不进 manifest。用下方 `cataforge override eject` 从发货层导出第一个定制起点即自动创建对应层目录。
+
 ## 优先级
 
 同一个 asset（agent / skill 子目录）跨层解析，**高层胜出**：

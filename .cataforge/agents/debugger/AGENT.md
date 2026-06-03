@@ -1,5 +1,6 @@
 ---
 name: debugger
+lang_aware: true
 description: "调试工程师 — 诊断运行时错误、测试失败和脚本异常。由orchestrator或用户按需激活。"
 tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
 disallowedTools: agent_dispatch, web_search, web_fetch

@@ -1,5 +1,6 @@
 ---
 name: reviewer
+lang_aware: true
 description: "评审员 — 跨阶段质量审查。当文档完成需要评审(doc-review双审门禁)或代码提交需要审查(code-review)时激活。"
 tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_question
 disallowedTools: agent_dispatch

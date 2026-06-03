@@ -1,0 +1,20 @@
+schema_version: 1
+rule_type: wiring
+language: rust
+extensions: [".rs"]
+
+# Unwired / stub implementations — the todo!/unimplemented! macros and
+# not-implemented panics are Rust's canonical placeholders. Each line
+# match is WARN.
+empty_handler_patterns:
+  - label: "todo! macro"
+    regex: '\btodo!\s*\('
+  - label: "unimplemented! macro"
+    regex: '\bunimplemented!\s*\('
+  - label: "panic not-implemented stub"
+    regex: 'panic!\s*\(\s*"(?:not implemented|TODO|unimplemented)'
+    flags: ["IGNORECASE"]
+
+placeholder_pragma:
+  regex: '(?://|#|--|/\*)\s*cataforge:\s*wiring-placeholder'
+  flags: ["IGNORECASE"]

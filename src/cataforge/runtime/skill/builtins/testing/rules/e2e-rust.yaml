@@ -1,0 +1,22 @@
+schema_version: 1
+rule_type: e2e
+language: rust
+extensions: [".rs"]
+
+# Backdoor patterns — test-only escape hatches that bypass the real user
+# input path (thirtyfour / fantoccini drive a real WebDriver; JS injection
+# via execute/evaluate). Each match is WARN.
+backdoor_patterns:
+  - label: "?e2e=1 / ?test=1 query param"
+    regex: '\?(?:e2e|test)=1\b'
+  - label: "window.__*__ via execute_script"
+    regex: 'window\.__\w+__\s*='
+  - label: "__E2E__ global"
+    regex: '\b__E2E__\b'
+
+# Real-input patterns — genuine user interaction via WebDriver. Layer 1
+# WARNs when an entire e2e tree has zero matches.
+real_input_patterns:
+  - regex: '\.click\(\)'
+  - regex: '\.send_keys\('
+  - regex: '\.find\(\s*By::'
