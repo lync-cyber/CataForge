@@ -1,0 +1,17 @@
+schema_version: 1
+rule_type: wiring
+language: csharp
+extensions: [".cs"]
+
+# Unwired / stub implementations — NotImplementedException is C#'s scaffold
+# default, and empty UI event handlers (WinForms/WPF/MAUI) leave the wiring
+# dangling. Each line match is WARN.
+empty_handler_patterns:
+  - label: "NotImplementedException stub"
+    regex: 'throw\s+new\s+NotImplementedException'
+  - label: "empty event handler body"
+    regex: 'void\s+\w+_(?:Click|Changed|Load|Closing|Closed)\s*\([^)]*\)\s*\{\s*\}'
+
+placeholder_pragma:
+  regex: '(?://|#|--|/\*)\s*cataforge:\s*wiring-placeholder'
+  flags: ["IGNORECASE"]

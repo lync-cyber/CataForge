@@ -17,6 +17,8 @@ CataForge 用一个**单一来源**描述项目用到的编程语言：`framewor
 
 注册表本体：[`cataforge.core.languages.LANGUAGES`](../../src/cataforge/core/languages.py)。新增语言**只改这一处**。
 
+> 内置 wiring / e2e 规则当前覆盖 `python` 与 `js-ts`；其余注册语言可正常声明并参与下文的 agent 语言细则注入，但若要 Layer 1 wiring / e2e 扫描，需在覆盖层自带对应规则 YAML（见 [`overrides.md`](overrides.md) §skill 级 rules YAML）。
+
 ## 声明 vs 探测
 
 解析顺序（[`active_languages`](../../src/cataforge/core/languages.py)）：

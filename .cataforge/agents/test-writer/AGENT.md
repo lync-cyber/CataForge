@@ -1,5 +1,6 @@
 ---
 name: test-writer
+lang_aware: true
 description: "TDD RED阶段 — 为验收标准编写失败测试用例。由orchestrator通过tdd-engine skill启动。"
 tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 disallowedTools: agent_dispatch, web_search, web_fetch, user_question

@@ -10,6 +10,7 @@ from cataforge.core.scaffold import (
     SIDECAR_SUFFIX,
     copy_scaffold_to,
     create_backup,
+    iter_scaffold_files,
     list_backups,
     restore_backup,
 )
@@ -199,3 +200,17 @@ def test_backups_dir_excluded_from_snapshot(tmp_path: Path) -> None:
     second = create_backup(dest, ts="second")
     assert second is not None
     assert not (second / BACKUPS_DIRNAME).exists()
+
+
+def test_overrides_dir_excluded_from_scaffold() -> None:
+    """Override layers are upgrade-immune — never bundled into the scaffold copy."""
+    rels = [rel for rel, _ in iter_scaffold_files()]
+    assert rels, "scaffold should yield files"
+    assert not any(rel == "overrides" or rel.startswith("overrides/") for rel in rels)
+
+
+def test_overrides_dir_not_copied_downstream(tmp_path: Path) -> None:
+    """A fresh scaffold copy must not materialise the override skeleton."""
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+    assert not (dest / "overrides").exists()

@@ -1,5 +1,6 @@
 ---
 name: devops
+lang_aware: true
 description: "运维工程师 — 负责构建部署与发布配置。Phase 7部署阶段激活。"
 tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 disallowedTools: agent_dispatch, user_question, web_search, web_fetch

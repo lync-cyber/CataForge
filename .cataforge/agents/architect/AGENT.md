@@ -1,5 +1,6 @@
 ---
 name: architect
+lang_aware: true
 description: "架构师 — 负责系统架构设计与技术选型。当需要基于PRD产出架构设计文档时激活。"
 tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
 disallowedTools: agent_dispatch
