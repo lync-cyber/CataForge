@@ -11,6 +11,7 @@ from cataforge.domain.kg.ingest.iri import (
     class_iri,
     document_iri,
     entity_iri,
+    resolve_entity_iri,
     section_iri,
 )
 
@@ -54,15 +55,21 @@ def build_entity_quads(
     project_iri: str,
     config: KGConfig,
     *,
+    parent_id: str | None = None,
     extra_slots: dict[str, str] | None = None,
     mtime: float | None = None,
 ) -> list[ox.Quad]:
-    """Return the complete set of quads describing one entity."""
+    """Return the complete set of quads describing one entity.
+
+    A subordinate entity (``parent_id`` set, class in ``SUBORDINATE_CLASSES``)
+    gets a parent-scoped IRI and a ``cf:part_of`` edge to its parent so its
+    scope is queryable without parsing the IRI.
+    """
     import pyoxigraph as ox  # noqa: PLC0415
 
     namespace = cf_namespace(config)
     base_ns = config.base_namespace
-    iri = entity_iri(entity_id, base_ns)
+    iri = resolve_entity_iri(entity_id, class_name, parent_id, base_ns)
     subject = ox.NamedNode(iri)
     rdf_type = ox.NamedNode(RDF_TYPE_IRI)
     string_dt = ox.NamedNode(XSD_STRING_IRI)
@@ -71,6 +78,17 @@ def build_entity_quads(
     quads: list[ox.Quad] = [
         ox.Quad(subject, rdf_type, ox.NamedNode(class_iri(class_name, namespace))),
     ]
+
+    if iri != entity_iri(entity_id, base_ns) and parent_id:
+        # Parent-scoped subordinate: record the owning entity so reconcile can
+        # recover the scope and queries can walk up to the parent.
+        quads.append(
+            ox.Quad(
+                subject,
+                ox.NamedNode(_slot_iri("cf:part_of", namespace)),
+                ox.NamedNode(entity_iri(parent_id, base_ns)),
+            )
+        )
 
     for slot, value in (
         ("entity_id", entity_id),
@@ -241,16 +259,24 @@ def build_relation_quad(
     predicate_curie: str,
     object_id: str,
     config: KGConfig,
+    *,
+    subject_iri: str | None = None,
+    object_iri: str | None = None,
 ) -> ox.Quad:
-    """Return a single traceability-edge quad."""
+    """Return a single traceability-edge quad.
+
+    ``subject_iri`` / ``object_iri`` override the default flat-IRI derivation
+    so an edge can point at a parent-scoped subordinate node; callers that
+    operate on non-subordinate endpoints omit them.
+    """
     import pyoxigraph as ox  # noqa: PLC0415
 
     namespace = cf_namespace(config)
     base_ns = config.base_namespace
     return ox.Quad(
-        ox.NamedNode(entity_iri(subject_id, base_ns)),
+        ox.NamedNode(subject_iri or entity_iri(subject_id, base_ns)),
         ox.NamedNode(_slot_iri(predicate_curie, namespace)),
-        ox.NamedNode(entity_iri(object_id, base_ns)),
+        ox.NamedNode(object_iri or entity_iri(object_id, base_ns)),
     )
 
 

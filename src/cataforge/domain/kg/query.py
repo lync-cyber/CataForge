@@ -20,11 +20,9 @@ from cataforge.domain.kg._sparql_utils import (
     _term_value,
     cf_namespace,
     escape_sparql_literal,
+    resolve_stored_entity_iri,
 )
-from cataforge.domain.kg.ingest.iri import (
-    class_iri,
-    entity_iri,
-)
+from cataforge.domain.kg.ingest.iri import class_iri
 from cataforge.utils.md_parse import slice_section
 
 if TYPE_CHECKING:
@@ -89,7 +87,7 @@ class QueryAPI:
             entity_id = uri.rsplit("/", 1)[-1]
         else:
             entity_id = entity_id_or_uri
-            uri = entity_iri(entity_id, self._config.base_namespace)
+            uri = resolve_stored_entity_iri(self._store, self._config, entity_id)
         return self._fetch_by_uri(uri, entity_id)
 
     def exists(self, entity_id_or_uri: str) -> bool:
@@ -97,7 +95,7 @@ class QueryAPI:
         if "://" in entity_id_or_uri:
             uri = entity_id_or_uri
         else:
-            uri = entity_iri(entity_id_or_uri, self._config.base_namespace)
+            uri = resolve_stored_entity_iri(self._store, self._config, entity_id_or_uri)
         sparql = f"PREFIX cf: <{self._cf_ns()}> ASK {{ <{uri}> cf:entity_id ?eid }}"
         return ask(self._store, sparql)
 
@@ -302,7 +300,7 @@ class QueryAPI:
 
     def depends_on(self, entity_id: str) -> list[str]:
         ns = self._cf_ns()
-        uri = entity_iri(entity_id, self._config.base_namespace)
+        uri = resolve_stored_entity_iri(self._store, self._config, entity_id)
         sparql = (
             f"PREFIX cf: <{ns}> "
             "SELECT ?dep_id WHERE { "
@@ -317,7 +315,7 @@ class QueryAPI:
         ]
 
     def _fetch_typed(self, class_name: str, entity_id: str) -> dict[str, Any] | None:
-        uri = entity_iri(entity_id, self._config.base_namespace)
+        uri = resolve_stored_entity_iri(self._store, self._config, entity_id)
         cls_uri = class_iri(class_name, self._cf_ns())
         sparql = (
             f"PREFIX cf:   <{self._cf_ns()}> "

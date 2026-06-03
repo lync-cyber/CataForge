@@ -144,6 +144,34 @@ def curie_for_iri(iri: str, namespace: str) -> str:
     return iri
 
 
+def resolve_stored_entity_iri(store: Any, config: KGConfig, entity_id: str) -> str:
+    """Return the IRI of the stored node for `entity_id`, flat or parent-scoped.
+
+    Fast path: the flat IRI, when such a node exists (every non-subordinate
+    entity, plus legacy stores). Otherwise — a subordinate entity living under
+    a parent-scoped composite IRI — the first node carrying the matching
+    `cf:entity_id` literal (deterministic by IRI order). Read-side facades use
+    this so a bare-id lookup of an AcceptanceCriteria still resolves.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    from cataforge.domain.kg.ingest.iri import entity_iri  # noqa: PLC0415 — avoid import cycle
+
+    flat = entity_iri(entity_id, config.base_namespace)
+    if next(store.quads_for_pattern(ox.NamedNode(flat), None, None, None), None) is not None:
+        return flat
+    ns = cf_namespace(config)
+    lit = escape_sparql_literal(entity_id)
+    sparql = (
+        f'PREFIX cf: <{ns}> SELECT ?s WHERE {{ ?s cf:entity_id "{lit}" }} ORDER BY STR(?s) LIMIT 1'
+    )
+    for row in store.query(sparql):
+        node = _term_value(_row_lookup(row, "s"))
+        if node is not None:
+            return str(node)
+    return flat
+
+
 __all__ = [
     "_row_lookup",
     "_strv",
@@ -153,4 +181,5 @@ __all__ = [
     "curie_for_iri",
     "escape_iri_component",
     "escape_sparql_literal",
+    "resolve_stored_entity_iri",
 ]

@@ -37,6 +37,7 @@ from cataforge.domain.kg._sparql_utils import (
     escape_sparql_literal,
 )
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
+from cataforge.domain.kg.ingest.iri import SUBORDINATE_CLASSES
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.scan import scan_business_docs
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
@@ -48,6 +49,12 @@ if TYPE_CHECKING:
 # Triple-key form used for set diffing. CURIE-normalized predicate so
 # the FS-side `cf:implements` and the KG-side full IRI compare equal.
 RelKey = tuple[str, str, str]  # (subject_entity_id, predicate_curie, object_entity_id)
+
+# Structural / scoping edges between entities that are NOT source-derived
+# traceability relations, so they must not surface as reconcile ghosts.
+# `cf:part_of` links a subordinate entity to its owning parent (written by the
+# ingest writer, never extracted from xref prose).
+_NON_TRACEABILITY_PREDICATES: frozenset[str] = frozenset({"cf:belongs_to_project", "cf:part_of"})
 
 
 @dataclass
@@ -116,25 +123,44 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _scope_key(entity_id: str, class_name: str | None, parent_id: str | None) -> str:
+    """Identity used for entity reconciliation: parent-scoped when subordinate."""
+    if class_name in SUBORDINATE_CLASSES and parent_id:
+        return f"{parent_id}/{entity_id}"
+    return entity_id
+
+
 def _kg_entities_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[str]:
-    """Return entity_ids in KG whose `cf:source_doc` is one of `doc_ids`."""
+    """Return scope keys in KG whose `cf:source_doc` is one of `doc_ids`.
+
+    Subordinate nodes are keyed `parent/entity_id` (parent recovered via
+    `cf:part_of`), matching the FS-side `ExtractedEntity.scope_key`, so a
+    parent-scoped AC reconciles instead of colliding on the bare id.
+    """
     if not doc_ids:
         return set()
     ns = cf_namespace(config)
     values_clause = " ".join(f'"{escape_sparql_literal(d)}"' for d in sorted(doc_ids))
     sparql = (
         f"PREFIX cf: <{ns}> "
-        "SELECT DISTINCT ?entity_id WHERE { "
+        "SELECT DISTINCT ?entity_id ?cls ?parent_id WHERE { "
         f"  VALUES ?src {{ {values_clause} }} "
-        "  ?s cf:entity_id ?entity_id ; "
+        "  ?s a ?cls ; "
+        "     cf:entity_id ?entity_id ; "
         "     cf:source_doc ?src . "
+        "  OPTIONAL { ?s cf:part_of ?p . ?p cf:entity_id ?parent_id . } "
+        "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
         "}"
     )
     out: set[str] = set()
     for row in store.query(sparql):
         eid = _strv(_row_lookup(row, "entity_id"))
-        if eid is not None:
-            out.add(eid)
+        if eid is None:
+            continue
+        cls_iri = _strv(_row_lookup(row, "cls"))
+        cls_name = cls_iri.rsplit("/", 1)[-1] if cls_iri else None
+        parent_id = _strv(_row_lookup(row, "parent_id"))
+        out.add(_scope_key(eid, cls_name, parent_id))
     return out
 
 
@@ -172,7 +198,7 @@ def _kg_relations_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[st
         if s_id is None or p_iri is None or o_id is None:
             continue
         curie = curie_for_iri(p_iri, ns)
-        if curie == "cf:belongs_to_project":
+        if curie in _NON_TRACEABILITY_PREDICATES:
             continue
         out.add((s_id, curie, o_id))
     return out
@@ -246,7 +272,7 @@ def reconcile(
             doc_ids.add(doc.doc_id)
             doc_entities = extract_entities(doc)
             for entity in doc_entities:
-                fs_entities.add(entity.entity_id)
+                fs_entities.add(entity.scope_key)
             for relation in extract_relations(doc):
                 fs_relations.add(
                     (
