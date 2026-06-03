@@ -7,9 +7,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cataforge.domain.kg._config import KGConfig
-from cataforge.domain.kg._quads import quads_for_subject
+from cataforge.domain.kg._quads import _slot_iri, quads_for_subject
+from cataforge.domain.kg._sparql_utils import (
+    _row_lookup,
+    _term_value,
+    cf_namespace,
+    escape_sparql_literal,
+)
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
-from cataforge.domain.kg.ingest.iri import entity_iri
+from cataforge.domain.kg.ingest.iri import entity_iri, subordinate_entity_iri
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.scan import scan_business_docs
@@ -27,23 +33,56 @@ class RepairStats:
     errors: list[str] = field(default_factory=list)
 
 
-def _remove_entity_quads(store: ox.Store, eid: str, config: KGConfig) -> None:
-    iri = entity_iri(eid, config.base_namespace)
-    for q in quads_for_subject(store, iri):
-        store.remove(q)
+def _scope_key_to_iri(scope_key: str, config: KGConfig) -> str:
+    """Map a reconcile scope key back to its node IRI.
+
+    `parent/entity_id` → parent-scoped subordinate IRI; a bare `entity_id`
+    → flat IRI. Entity ids never contain a slash, so the split is unambiguous.
+    """
+    base = config.base_namespace
+    if "/" in scope_key:
+        parent_id, entity_id = scope_key.split("/", 1)
+        return subordinate_entity_iri(parent_id, entity_id, base)
+    return entity_iri(scope_key, base)
 
 
-def _remove_relation_quad(
+def _entity_quads_by_scope_key(store: ox.Store, scope_key: str, config: KGConfig) -> list:
+    return quads_for_subject(store, _scope_key_to_iri(scope_key, config))
+
+
+def _ghost_relation_quads(
     store: ox.Store,
     subject_id: str,
     predicate_curie: str,
     object_id: str,
     config: KGConfig,
-) -> None:
-    from cataforge.domain.kg._quads import build_relation_quad  # noqa: PLC0415
+) -> list:
+    """Return the live edge quad(s) for a `(subject, predicate, object)` triple.
 
-    quad = build_relation_quad(subject_id, predicate_curie, object_id, config)
-    store.remove(quad)
+    Resolves endpoints by `cf:entity_id` rather than reconstructing flat IRIs,
+    so an edge pointing at a parent-scoped subordinate node is still found.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    ns = cf_namespace(config)
+    pred_iri = _slot_iri(predicate_curie, ns)
+    s_lit = escape_sparql_literal(subject_id)
+    o_lit = escape_sparql_literal(object_id)
+    sparql = (
+        f"PREFIX cf: <{ns}> SELECT ?s ?o WHERE {{ "
+        f'  ?s cf:entity_id "{s_lit}" . '
+        f'  ?o cf:entity_id "{o_lit}" . '
+        f"  ?s <{pred_iri}> ?o . "
+        "}"
+    )
+    pred_node = ox.NamedNode(pred_iri)
+    quads: list = []
+    for row in store.query(sparql):
+        s_node = _term_value(_row_lookup(row, "s"))
+        o_node = _term_value(_row_lookup(row, "o"))
+        if s_node is not None and o_node is not None:
+            quads.append(ox.Quad(ox.NamedNode(str(s_node)), pred_node, ox.NamedNode(str(o_node))))
+    return quads
 
 
 def _reingest_doc_type(
@@ -96,26 +135,25 @@ def repair(
         ghost_entity_snapshots: dict[str, list] = {}
         ghost_relation_snapshots: list = []
 
-        for eid in per.ghost_entities:
+        for scope_key in per.ghost_entities:
             if not dry_run:
-                iri = entity_iri(eid, config.base_namespace)
                 try:
-                    snapshot = quads_for_subject(store, iri)
-                    ghost_entity_snapshots[eid] = list(snapshot)
-                    _remove_entity_quads(store, eid, config)
+                    snapshot = _entity_quads_by_scope_key(store, scope_key, config)
+                    ghost_entity_snapshots[scope_key] = list(snapshot)
+                    for q in snapshot:
+                        store.remove(q)
                 except Exception as exc:  # noqa: BLE001
-                    stats.errors.append(f"ghost entity {eid}: {exc}")
+                    stats.errors.append(f"ghost entity {scope_key}: {exc}")
                     continue
             stats.ghosts_removed += 1
 
         for s_id, pred, o_id in per.ghost_relations:
             if not dry_run:
                 try:
-                    from cataforge.domain.kg._quads import build_relation_quad  # noqa: PLC0415
-
-                    snapshot_quad = build_relation_quad(s_id, pred, o_id, config)
-                    ghost_relation_snapshots.append(snapshot_quad)
-                    _remove_relation_quad(store, s_id, pred, o_id, config)
+                    edge_quads = _ghost_relation_quads(store, s_id, pred, o_id, config)
+                    ghost_relation_snapshots.extend(edge_quads)
+                    for q in edge_quads:
+                        store.remove(q)
                 except Exception as exc:  # noqa: BLE001
                     stats.errors.append(f"ghost relation ({s_id},{pred},{o_id}): {exc}")
                     continue

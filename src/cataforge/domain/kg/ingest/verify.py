@@ -13,7 +13,7 @@ from cataforge.domain.kg._sparql_utils import (
     escape_sparql_literal,
 )
 from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity
-from cataforge.domain.kg.ingest.iri import entity_iri
+from cataforge.domain.kg.ingest.iri import resolve_entity_iri
 from cataforge.domain.kg.ingest.relation_extract import ExtractedRelation
 
 if TYPE_CHECKING:
@@ -67,7 +67,7 @@ def verify_after_write(
     namespace = cf_namespace(config)
     base_ns = config.base_namespace
     result = VerifyResult(
-        entity_count_expected=len({e.entity_id for e in entities}),
+        entity_count_expected=len({(e.parent_id, e.entity_id) for e in entities}),
         relation_count_expected=len(
             {(r.subject_entity_id, r.predicate_curie, r.object_entity_id) for r in relations}
         ),
@@ -89,7 +89,7 @@ def verify_after_write(
         )
 
     for entity in entities:
-        iri = entity_iri(entity.entity_id, base_ns)
+        iri = resolve_entity_iri(entity.entity_id, entity.class_name, entity.parent_id, base_ns)
         safe_iri = assert_safe_iri(iri)
 
         presence_sparql = f"ASK {{ <{safe_iri}> ?p ?o }}"

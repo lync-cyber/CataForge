@@ -60,6 +60,13 @@ ENTITY_PREFIX_TO_CLASS: dict[str, str] = {
 DEFAULT_ONTOLOGY_NS = "https://cataforge.dev/ontology/"
 DEFAULT_INSTANCE_NS = "https://cataforge.dev/instance/"
 
+# Subordinate classes are scoped under a parent entity: their entity_id
+# (e.g. AC-001) is local to an owning Feature/Task/Component and is reused
+# across parents, so a flat project-global IRI would collapse them. Their
+# IRI is qualified by the parent's entity_id. Source of truth for the set;
+# mirrors core.yaml (an AcceptanceCriteria is `part_of` its Requirement/Task).
+SUBORDINATE_CLASSES: frozenset[str] = frozenset({"AcceptanceCriteria"})
+
 _PREFIX_RE = re.compile(r"^([A-Z]+(?:-[A-Z]+)*?|[A-Z]+)-\d+$")
 
 
@@ -86,6 +93,40 @@ def entity_iri(entity_id: str, base_namespace: str = DEFAULT_INSTANCE_NS) -> str
     if not entity_id or len(entity_id) > 256:
         raise ValueError(f"invalid entity_id: {entity_id!r}")
     return f"{base_namespace.rstrip('/')}/{escape_iri_component(entity_id)}"
+
+
+def subordinate_entity_iri(
+    parent_id: str, entity_id: str, base_namespace: str = DEFAULT_INSTANCE_NS
+) -> str:
+    """Return the parent-scoped instance IRI for a subordinate entity.
+
+    `{base}/{parent_id}/{entity_id}` — the same path-segment pattern as
+    `section_iri`, so an AC-001 under F-001 and an AC-001 under T-003 become
+    distinct nodes instead of collapsing onto one flat `{base}/AC-001`.
+    """
+    if not parent_id or not entity_id or len(parent_id) + len(entity_id) > 512:
+        raise ValueError(f"invalid subordinate identity: {parent_id!r} / {entity_id!r}")
+    return (
+        f"{base_namespace.rstrip('/')}/"
+        f"{escape_iri_component(parent_id)}/{escape_iri_component(entity_id)}"
+    )
+
+
+def resolve_entity_iri(
+    entity_id: str,
+    class_name: str | None,
+    parent_id: str | None,
+    base_namespace: str = DEFAULT_INSTANCE_NS,
+) -> str:
+    """Return the instance IRI for an entity, parent-scoped when subordinate.
+
+    A subordinate-class entity with a resolved parent gets the composite IRI;
+    everything else (and a subordinate entity whose parent could not be
+    resolved) keeps the flat `{base}/{entity_id}`.
+    """
+    if class_name in SUBORDINATE_CLASSES and parent_id:
+        return subordinate_entity_iri(parent_id, entity_id, base_namespace)
+    return entity_iri(entity_id, base_namespace)
 
 
 def class_iri(class_name: str, ontology_namespace: str = DEFAULT_ONTOLOGY_NS) -> str:

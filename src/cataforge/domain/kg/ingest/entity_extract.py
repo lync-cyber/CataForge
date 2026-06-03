@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS
+from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_CLASSES
 from cataforge.domain.kg.ingest.scan import HeadingSpan, ParsedDoc
 
 _LAYER_BULLET_RE = re.compile(r"^\s*[-*]\s+(.+)", re.MULTILINE)
@@ -86,11 +86,10 @@ ENTITY_PREFIX_RE = re.compile(rf"\b(?:{_PREFIX_ALT})-\d{{3,}}\b")
 # relation_extract; defined here to break the import cycle.
 XREF_RE = re.compile(r"\b(?P<doc>[\w-]+)#§(?P<section>\d+(?:\.\d+)*)\.(?P<entity>[A-Z]+-\d{3,})\b")
 
-# Classes exempt from heading-anchored definition detection: subordinate
-# entities attach to a parent section's body (an AcceptanceCriteria sits in
-# the bullet list of its owning Feature/Task), not to a heading of their own,
-# so they keep first-occurrence semantics.
-_TITLE_ANCHOR_EXEMPT_CLASSES = frozenset({"AcceptanceCriteria"})
+# Subordinate entities attach to a parent section's body (an AcceptanceCriteria
+# sits in the bullet list of its owning Feature/Task) rather than a heading of
+# their own, so they are exempt from heading-anchored definition detection and
+# are instead scoped by their resolved parent.
 
 
 @dataclass
@@ -106,7 +105,15 @@ class ExtractedEntity:
     section_line_end: int
     file_path: Path
     mtime: float
+    parent_id: str | None = None
     extra_slots: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def scope_key(self) -> str:
+        """Identity for dedup / reconcile: parent-qualified when subordinate."""
+        if self.class_name in SUBORDINATE_CLASSES and self.parent_id:
+            return f"{self.parent_id}/{self.entity_id}"
+        return self.entity_id
 
 
 def _section_for_line(spans: list[HeadingSpan], line_idx: int) -> HeadingSpan | None:
@@ -140,6 +147,30 @@ def _title_defines(title: str, entity_id: str) -> bool:
     return m is not None and m.group(0) == entity_id
 
 
+def _resolve_parent_id(spans: list[HeadingSpan], line_idx: int) -> str | None:
+    """Return the owning non-subordinate entity for a subordinate occurrence.
+
+    Walks the enclosing headings from deepest to shallowest and returns the
+    first whose subject (heading head entity-id) is a non-subordinate class —
+    the Feature/Task/Component the AcceptanceCriteria belongs to. The AC's own
+    heading (if it has one) is skipped because its subject is itself.
+    """
+    containing = sorted(
+        (s for s in spans if s.line_start <= line_idx < s.line_end),
+        key=lambda s: s.level,
+        reverse=True,
+    )
+    for span in containing:
+        m = ENTITY_PREFIX_RE.search(span.title)
+        if m is None:
+            continue
+        candidate = m.group(0)
+        cls = ENTITY_PREFIX_TO_CLASS.get(candidate.split("-", 1)[0])
+        if cls is not None and cls not in SUBORDINATE_CLASSES:
+            return candidate
+    return None
+
+
 def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
     """Phase 3: scan `doc` for entity_id occurrences.
 
@@ -157,7 +188,9 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
     A non-subordinate entity is a *definition* only at the occurrence whose
     owning section heading names it as its subject (see `_title_defines`); a
     bare mention in someone else's section is ignored. Subordinate classes
-    (`_TITLE_ANCHOR_EXEMPT_CLASSES`) keep first-occurrence semantics.
+    (`SUBORDINATE_CLASSES`) keep first-occurrence semantics and are scoped by
+    their resolved parent, so the same AC-id under two parents survives as two
+    entities (dedup key is `(parent_id, entity_id)`, not the bare id).
     """
     xref_spans = [(m.start(), m.end()) for m in XREF_RE.finditer(doc.raw)]
     code_ranges = doc.code_block_offsets
@@ -165,15 +198,13 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
     def _inside_xref(offset: int) -> bool:
         return any(start <= offset < end for start, end in xref_spans)
 
-    seen: dict[str, ExtractedEntity] = {}
+    seen: dict[tuple[str | None, str], ExtractedEntity] = {}
     for match in ENTITY_PREFIX_RE.finditer(doc.raw):
         if _inside_xref(match.start()):
             continue
         if _inside_code_block(match.start(), code_ranges):
             continue
         entity_id = match.group(0)
-        if entity_id in seen:
-            continue
         prefix = entity_id.split("-", 1)[0]
         class_name = ENTITY_PREFIX_TO_CLASS.get(prefix)
         if class_name is None:
@@ -182,12 +213,18 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
         section = _section_for_line(doc.sections, line_idx)
         if section is None:
             continue
-        # Heading-anchored definition: skip this occurrence when the entity is
-        # not the subject of its owning section heading. A later occurrence in
-        # the entity's own heading still qualifies (this one wasn't recorded).
-        if class_name not in _TITLE_ANCHOR_EXEMPT_CLASSES and not _title_defines(
-            section.title, entity_id
-        ):
+        subordinate = class_name in SUBORDINATE_CLASSES
+        if subordinate:
+            parent_id = _resolve_parent_id(doc.sections, line_idx)
+        else:
+            # Heading-anchored definition: skip this occurrence when the entity
+            # is not the subject of its owning heading. A later occurrence in
+            # the entity's own heading still qualifies (not yet recorded).
+            if not _title_defines(section.title, entity_id):
+                continue
+            parent_id = None
+        key = (parent_id, entity_id)
+        if key in seen:
             continue
         # Compute the hash on the section body so re-imports detect content
         # drift even when the entity_id stayed the same.
@@ -202,9 +239,10 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
             section_line_end=section.line_end,
             file_path=doc.file_path,
             mtime=doc.mtime,
+            parent_id=parent_id,
         )
         _enrich_extra_slots(entity, section_text)
-        seen[entity_id] = entity
+        seen[key] = entity
     return list(seen.values())
 
 
@@ -228,23 +266,22 @@ def detect_entity_id_collisions(
 ) -> list[EntityIdCollision]:
     """Flag entity_ids defined in ≥2 source_docs with ≥2 distinct content hashes.
 
-    Instance IRIs are `cfprj:<entity_id>`, so an entity_id is project-global:
-    defining the same id in two documents collapses both into one node and the
-    last write silently wins. A flagged id means the same identifier carries
-    diverging content across documents — cross-document drift, or a definition
-    that should have been an xref. The canonical model is define-once /
-    reference-by-xref, so callers refuse the import until the source markdown
-    is unified. Identical content across docs is a harmless duplicate the
-    writer dedups and is not flagged.
+    Grouping is by `scope_key`: a non-subordinate entity is project-global
+    (key = entity_id), so defining `F-001` in two documents with diverging
+    content collapses both onto one IRI and the last write silently wins. A
+    subordinate entity is parent-scoped (key = `parent/entity_id`), so the same
+    `AC-001` under two different parents lands on distinct IRIs and is NOT a
+    collision — only diverging content under the *same* scope is. Identical
+    content across docs is a harmless duplicate the writer dedups, not flagged.
     """
-    by_id: dict[str, dict[str, str]] = {}
+    by_key: dict[str, dict[str, str]] = {}
     for entity in entities:
-        by_id.setdefault(entity.entity_id, {}).setdefault(entity.source_doc, entity.content_hash)
+        by_key.setdefault(entity.scope_key, {}).setdefault(entity.source_doc, entity.content_hash)
     collisions: list[EntityIdCollision] = []
-    for entity_id, docs in by_id.items():
+    for scope_key, docs in by_key.items():
         if len(docs) >= 2 and len(set(docs.values())) >= 2:
             collisions.append(
-                EntityIdCollision(entity_id=entity_id, occurrences=sorted(docs.items()))
+                EntityIdCollision(entity_id=scope_key, occurrences=sorted(docs.items()))
             )
     return sorted(collisions, key=lambda c: c.entity_id)
 

@@ -22,12 +22,20 @@ from cataforge.domain.kg._quads import (
     build_section_quads,
 )
 from cataforge.domain.kg._sparql_utils import (
+    _row_lookup,
+    _term_value,
     assert_safe_iri,
     cf_namespace,
     escape_sparql_literal,
 )
 from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity
-from cataforge.domain.kg.ingest.iri import document_iri, entity_iri, section_iri
+from cataforge.domain.kg.ingest.iri import (
+    SUBORDINATE_CLASSES,
+    document_iri,
+    entity_iri,
+    resolve_entity_iri,
+    section_iri,
+)
 from cataforge.domain.kg.ingest.relation_extract import ExtractedRelation
 from cataforge.domain.kg.ingest.structure_extract import (
     ExtractedDocument,
@@ -120,7 +128,7 @@ def write_entities(
 
     stats = WriteStats()
     for entity in entities:
-        iri = entity_iri(entity.entity_id, base_ns)
+        iri = resolve_entity_iri(entity.entity_id, entity.class_name, entity.parent_id, base_ns)
         if _content_hash_matches(store, iri, entity.content_hash, namespace=namespace):
             stats.entities_skipped += 1
             continue
@@ -134,6 +142,7 @@ def write_entities(
             entity.content_hash,
             project_iri,
             config,
+            parent_id=entity.parent_id,
             extra_slots=entity.extra_slots or None,
             mtime=entity.mtime,
         )
@@ -156,22 +165,66 @@ def _triple_exists(
     return ask(store, sparql)
 
 
+def _lookup_node_iri(
+    store: ox.Store, config: KGConfig, entity_id: str, source_doc: str
+) -> str | None:
+    """Return the IRI of the node with this `(entity_id, source_doc)`, or None.
+
+    Resolves a subordinate endpoint to the actual parent-scoped node already
+    written to the store, so a relation edge points at the composite IRI rather
+    than a non-existent flat one. Deterministic first match under ambiguity.
+    """
+    ns = cf_namespace(config)
+    eid = escape_sparql_literal(entity_id)
+    src = escape_sparql_literal(source_doc)
+    sparql = (
+        f'PREFIX cf: <{ns}> SELECT ?s WHERE {{ ?s cf:entity_id "{eid}" ; '
+        f'cf:source_doc "{src}" }} ORDER BY STR(?s) LIMIT 1'
+    )
+    for row in store.query(sparql):
+        node = _term_value(_row_lookup(row, "s"))
+        if node is not None:
+            return str(node)
+    return None
+
+
+def _relation_endpoint_iri(
+    store: ox.Store,
+    config: KGConfig,
+    entity_id: str,
+    class_name: str,
+    source_doc: str | None,
+) -> str:
+    """Resolve a relation endpoint's IRI, parent-scoped when subordinate."""
+    if class_name not in SUBORDINATE_CLASSES:
+        return entity_iri(entity_id, config.base_namespace)
+    if source_doc:
+        node = _lookup_node_iri(store, config, entity_id, source_doc)
+        if node is not None:
+            return node
+    return entity_iri(entity_id, config.base_namespace)
+
+
 def write_relations(
     store: ox.Store,
     relations: list[ExtractedRelation],
     config: KGConfig,
 ) -> WriteStats:
-    base_ns = config.base_namespace
-
     stats = WriteStats()
     for relation in relations:
-        subject_iri_val = entity_iri(relation.subject_entity_id, base_ns)
-        object_iri_val = entity_iri(relation.object_entity_id, base_ns)
+        subject_iri_val = _relation_endpoint_iri(
+            store, config, relation.subject_entity_id, relation.subject_class, relation.source_doc
+        )
+        object_iri_val = _relation_endpoint_iri(
+            store, config, relation.object_entity_id, relation.object_class, relation.object_doc
+        )
         quad = build_relation_quad(
             relation.subject_entity_id,
             relation.predicate_curie,
             relation.object_entity_id,
             config,
+            subject_iri=subject_iri_val,
+            object_iri=object_iri_val,
         )
         predicate_iri_val = quad.predicate.value
 

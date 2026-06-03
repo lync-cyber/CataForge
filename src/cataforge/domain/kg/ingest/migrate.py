@@ -125,7 +125,7 @@ def run_migration(
     # First occurrence wins — `doc_types` ordering puts the document that
     # *defines* an entity (prd for Feature / AC, arch for Module, …) ahead
     # of documents that merely reference it.
-    deduped_entities: dict[str, ExtractedEntity] = {}
+    deduped_entities: dict[tuple[str | None, str], ExtractedEntity] = {}
     all_doc_entities: list[ExtractedEntity] = []
     documents: list[ExtractedDocument] = []
     sections: list[ExtractedSection] = []
@@ -133,7 +133,7 @@ def run_migration(
         doc_entities = extract_entities(doc)
         all_doc_entities.extend(doc_entities)
         for entity in doc_entities:
-            deduped_entities.setdefault(entity.entity_id, entity)
+            deduped_entities.setdefault((entity.parent_id, entity.entity_id), entity)
         # PHASE 3b: structural nodes (Document + entity-owning Sections).
         # Per-doc so each file's sections own the entities defined in it.
         document, doc_sections = extract_structure(doc, doc_entities)
