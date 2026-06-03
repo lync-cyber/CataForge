@@ -7,67 +7,8 @@ from unittest.mock import MagicMock
 import pytest
 
 # ------------------------------------------------------------------
-# A3 — write-operation guard
-# ------------------------------------------------------------------
-
-
-class TestSparqlWriteGuard:
-    @pytest.mark.parametrize(
-        "sparql",
-        [
-            "INSERT DATA { <urn:a> <urn:b> <urn:c> }",
-            "DELETE DATA { <urn:a> <urn:b> <urn:c> }",
-            "UPDATE { DELETE { ?s ?p ?o } WHERE { ?s ?p ?o } }",
-            "CLEAR DEFAULT",
-            "DROP GRAPH <urn:g>",
-            "LOAD <http://example.org/graph>",
-            "CREATE GRAPH <urn:g>",
-        ],
-    )
-    def test_write_operations_are_rejected(self, sparql: str) -> None:
-        from cataforge.core.errors import CataforgeError
-        from cataforge.interface.cli.kg.query import _guard_sparql_writes
-
-        with pytest.raises(CataforgeError, match="writes are not supported"):
-            _guard_sparql_writes(sparql)
-
-    @pytest.mark.parametrize(
-        "sparql",
-        [
-            "PREFIX cf: <https://cataforge.dev/ontology/> SELECT ?s WHERE { ?s ?p ?o }",
-            "ASK { ?s ?p ?o }",
-            "DESCRIBE <urn:x>",
-            "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }",
-            # PREFIX declarations before SELECT must not be misidentified
-            "PREFIX ex: <http://example.org/>\nPREFIX cf: <https://cataforge.dev/ontology/>\n"
-            "SELECT ?eid WHERE { ?s cf:entity_id ?eid }",
-        ],
-    )
-    def test_read_operations_pass_through(self, sparql: str) -> None:
-        from cataforge.interface.cli.kg.query import _guard_sparql_writes
-
-        # Must not raise
-        _guard_sparql_writes(sparql)
-
-    def test_write_with_prefix_declarations_is_still_rejected(self) -> None:
-        from cataforge.core.errors import CataforgeError
-        from cataforge.interface.cli.kg.query import _guard_sparql_writes
-
-        sparql = "PREFIX ex: <http://example.org/>\nINSERT DATA { ex:a ex:b ex:c }"
-        with pytest.raises(CataforgeError, match="writes are not supported"):
-            _guard_sparql_writes(sparql)
-
-    def test_write_with_leading_comment_is_rejected(self) -> None:
-        from cataforge.core.errors import CataforgeError
-        from cataforge.interface.cli.kg.query import _guard_sparql_writes
-
-        sparql = "# This is a comment\nDELETE DATA { <urn:a> <urn:b> <urn:c> }"
-        with pytest.raises(CataforgeError, match="writes are not supported"):
-            _guard_sparql_writes(sparql)
-
-
-# ------------------------------------------------------------------
 # A1 — _materialize_query_result does not drop rows on large results
+# (write-guard tests moved to tests/kg/test_read_query.py)
 # ------------------------------------------------------------------
 
 

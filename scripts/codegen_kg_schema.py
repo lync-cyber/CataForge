@@ -22,8 +22,10 @@ relies on stdout encoding.
 
 Idempotency: subclass_axioms.ttl is byte-identical across runs (sorted triples,
 no timestamps). The Pydantic / SHACL outputs are deterministic-modulo-LinkML;
-a `# Generation date:` header line is stripped so unrelated reruns do not
-churn diffs.
+a `# Generation date:` header line is stripped and LinkML's absolute
+`source_file:` metadata is rewritten to a repo-relative POSIX path, so artifacts
+are byte-identical across machines / OSes (the check-in freshness guard compares
+them verbatim).
 
 Usage:
     python scripts/codegen_kg_schema.py
@@ -33,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -53,6 +56,9 @@ CORE_YAML = SCHEMA_DIR / "core.yaml"
 GOVERNANCE_YAML = SCHEMA_DIR / "governance.yaml"
 
 
+_SOURCE_FILE_RE = re.compile(r"('source_file':\s*')([^']*)(')")
+
+
 def _strip_timestamps(text: str) -> str:
     keep = []
     for line in text.splitlines(keepends=True):
@@ -62,18 +68,26 @@ def _strip_timestamps(text: str) -> str:
     return "".join(keep)
 
 
+def _normalize(text: str, yaml_path: Path) -> str:
+    """Strip the generation-date line and rewrite LinkML's machine-specific
+    absolute `source_file:` path to a repo-relative POSIX path."""
+    rel = yaml_path.resolve().relative_to(REPO_ROOT).as_posix()
+    text = _SOURCE_FILE_RE.sub(lambda m: f"{m.group(1)}{rel}{m.group(3)}", text)
+    return _strip_timestamps(text)
+
+
 def gen_pydantic(yaml_path: Path, out_path: Path) -> None:
     from linkml.generators.pydanticgen import PydanticGenerator
 
     gen = PydanticGenerator(str(yaml_path))
-    out_path.write_text(_strip_timestamps(gen.serialize()), encoding="utf-8")
+    out_path.write_text(_normalize(gen.serialize(), yaml_path), encoding="utf-8")
 
 
 def gen_shacl(yaml_path: Path, out_path: Path) -> None:
     from linkml.generators.shaclgen import ShaclGenerator
 
     gen = ShaclGenerator(str(yaml_path))
-    out_path.write_text(_strip_timestamps(gen.serialize()), encoding="utf-8")
+    out_path.write_text(_normalize(gen.serialize(), yaml_path), encoding="utf-8")
 
 
 def gen_subclass_axioms(yaml_paths: list[Path], out_path: Path) -> None:

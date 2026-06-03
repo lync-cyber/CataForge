@@ -59,32 +59,44 @@ def test_pyoxigraph_to_rdflib_roundtrip() -> None:
     assert (inst["F-001"], rdflib.RDF.type, ns.Feature) in g
 
 
-def test_ox_to_rdflib_handles_datatypes() -> None:
+def test_pyoxigraph_to_rdflib_preserves_datatypes_and_langs() -> None:
     if not _HAS_SHACL_DEPS:
         pytest.skip("rdflib not installed")
 
     import pyoxigraph as ox
     import rdflib
 
-    from cataforge.domain.kg.validate import _ox_to_rdflib_term
+    from cataforge.domain.kg.validate import _pyoxigraph_to_rdflib
 
-    named = ox.NamedNode("http://example.org/x")
-    assert _ox_to_rdflib_term(named) == rdflib.URIRef("http://example.org/x")
+    ns = "https://cataforge.dev/ontology/"
+    xsd_int = "http://www.w3.org/2001/XMLSchema#integer"
+    subj = ox.NamedNode(f"{ns}x")
+    store = ox.Store()
+    store.add(
+        ox.Quad(
+            subj,
+            ox.NamedNode(f"{ns}count"),
+            ox.Literal("42", datatype=ox.NamedNode(xsd_int)),
+            ox.DefaultGraph(),
+        )
+    )
+    store.add(ox.Quad(subj, ox.NamedNode(f"{ns}label"), ox.Literal("hola", language="es")))
+    store.add(ox.Quad(subj, ox.NamedNode(f"{ns}plain"), ox.Literal("hello")))
+    store.add(ox.Quad(ox.BlankNode("b0"), ox.NamedNode(f"{ns}ref"), subj))
 
-    blank = ox.BlankNode("b0")
-    result = _ox_to_rdflib_term(blank)
-    assert isinstance(result, rdflib.BNode)
+    g = _pyoxigraph_to_rdflib(store)
 
-    lit_plain = ox.Literal("hello")
-    assert _ox_to_rdflib_term(lit_plain) == rdflib.Literal("hello")
-
-    lit_lang = ox.Literal("hola", language="es")
-    assert _ox_to_rdflib_term(lit_lang) == rdflib.Literal("hola", lang="es")
-
-    xsd_int = ox.NamedNode("http://www.w3.org/2001/XMLSchema#integer")
-    lit_typed = ox.Literal("42", datatype=xsd_int)
-    result = _ox_to_rdflib_term(lit_typed)
-    assert result.datatype == rdflib.URIRef("http://www.w3.org/2001/XMLSchema#integer")
+    assert len(g) == 4
+    # Item access (`p_ns["count"]`), not attribute access — rdflib.Namespace
+    # shadows str method names like `count` when accessed as attributes.
+    p_ns = rdflib.Namespace(ns)
+    x = p_ns["x"]
+    assert (x, p_ns["count"], rdflib.Literal("42", datatype=rdflib.URIRef(xsd_int))) in g
+    assert (x, p_ns["label"], rdflib.Literal("hola", lang="es")) in g
+    assert (x, p_ns["plain"], rdflib.Literal("hello")) in g
+    # The blank-node subject survives as some BNode pointing at x (the exact
+    # BNode id is reassigned by the N-Quads round-trip, so match structurally).
+    assert any(isinstance(s, rdflib.BNode) and o == x for s, _, o in g)
 
 
 def test_run_shacl_skips_when_deps_missing() -> None:

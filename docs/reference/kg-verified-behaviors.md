@@ -77,9 +77,11 @@ back-stop this for environments without the extra installed.
 The natural-language query surface ships as the `context` skill's query branch (B1): a host
 agent translates a question into read-only SPARQL grounded on the schema card
 from `cataforge kg schema-context`, then runs it through the write-guarded
-`kg query`. An embedded LLM client (B2 — `anthropic` client + `[llm]` extra for
-headless/CI translation) is deferred to 0.6.0+; it reuses the same schema card
-as its system prompt.
+`kg query`. A baked-in embedded LLM client (B2 — e.g. an `anthropic` client
+behind its own optional extra, for headless/CI translation) is deferred to
+0.6.0+; it reuses the same schema card as its system prompt. The
+`cataforge.domain.kg.nl_query` surface in the meantime stays framework-free:
+the caller injects any `.invoke(prompt)`-compatible client.
 
 ## Sub-PR 6 verification additions
 
