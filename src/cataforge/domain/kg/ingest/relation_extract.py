@@ -54,6 +54,7 @@ class ExtractedRelation:
     object_entity_id: str
     object_class: str
     source_doc: str
+    object_doc: str | None = None
 
 
 def infer_predicate(source_class: str | None, target_prefix: str) -> str:
@@ -140,6 +141,7 @@ def extract_relations(doc: ParsedDoc) -> list[ExtractedRelation]:
                 object_entity_id=target_entity_id,
                 object_class=target_class,
                 source_doc=doc.doc_id,
+                object_doc=match.group("doc"),
             )
         )
     return relations

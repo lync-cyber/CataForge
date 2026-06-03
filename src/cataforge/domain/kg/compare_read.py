@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any
 from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._sparql_utils import _row_lookup, _strv, cf_namespace
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
-from cataforge.domain.kg.ingest.iri import entity_iri
+from cataforge.domain.kg.ingest.iri import resolve_entity_iri
 from cataforge.domain.kg.ingest.scan import scan_business_docs
 
 if TYPE_CHECKING:
@@ -74,19 +74,17 @@ class CompareReadReport:
         }
 
 
-def _kg_content_hash(kg: KnowledgeGraph, entity_id: str) -> str | None:
-    """Read the `cf:content_hash` literal stored in KG for `entity_id`."""
+def _kg_content_hash(kg: KnowledgeGraph, iri: str) -> str | None:
+    """Read the `cf:content_hash` literal stored in KG for node `iri`."""
     ns = cf_namespace(kg.config)
-    iri = entity_iri(entity_id, kg.config.base_namespace)
     sparql = f"PREFIX cf: <{ns}> SELECT ?h WHERE {{ <{iri}> cf:content_hash ?h }} LIMIT 1"
     for row in kg.store.query(sparql):
         return _strv(_row_lookup(row, "h"))
     return None
 
 
-def _kg_entity_exists(kg: KnowledgeGraph, entity_id: str) -> bool:
+def _kg_entity_exists(kg: KnowledgeGraph, iri: str) -> bool:
     ns = cf_namespace(kg.config)
-    iri = entity_iri(entity_id, kg.config.base_namespace)
     return ask(
         kg.store,
         f"PREFIX cf: <{ns}> ASK {{ <{iri}> cf:entity_id ?e }}",
@@ -115,22 +113,26 @@ def compare_read(
 
     # FS-side pool: rerun the ingest extraction phase to get authoritative
     # current-content hashes.
-    fs_entities: list[tuple[str, str, str, str]] = []
-    # (entity_id, doc_type, source_doc, fs_content_hash)
+    fs_entities: list[tuple[str, str, str, str, str]] = []
+    # (entity_id, doc_type, source_doc, fs_content_hash, node_iri)
+    base_ns = kg.config.base_namespace
     for doc_type in sorted(doc_types):
         parsed = scan_business_docs(project_root, [doc_type])
         seen: set[str] = set()
         for doc in parsed:
             for entity in extract_entities(doc):
-                if entity.entity_id in seen:
+                if entity.scope_key in seen:
                     continue
-                seen.add(entity.entity_id)
+                seen.add(entity.scope_key)
                 fs_entities.append(
                     (
                         entity.entity_id,
                         doc_type,
                         doc.doc_id,
                         entity.content_hash,
+                        resolve_entity_iri(
+                            entity.entity_id, entity.class_name, entity.parent_id, base_ns
+                        ),
                     )
                 )
 
@@ -145,11 +147,11 @@ def compare_read(
 
     report = CompareReadReport(sampled_count=len(sample))
 
-    for entity_id, doc_type, source_doc, fs_hash in sample:
+    for entity_id, doc_type, source_doc, fs_hash, node_iri in sample:
         report.per_doc_type_counts[doc_type] = report.per_doc_type_counts.get(doc_type, 0) + 1
-        kg_hash = _kg_content_hash(kg, entity_id)
+        kg_hash = _kg_content_hash(kg, node_iri)
         if kg_hash is None:
-            if _kg_entity_exists(kg, entity_id):
+            if _kg_entity_exists(kg, node_iri):
                 # Entity exists but lacks cf:content_hash — schema requires
                 # it (the writer always populates), so missing means
                 # something corrupted the store.

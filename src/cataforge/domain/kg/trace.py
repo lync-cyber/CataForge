@@ -11,8 +11,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from cataforge.domain.kg._config import KGConfig
-from cataforge.domain.kg._sparql_utils import _row_lookup, _strv, _term_value, cf_namespace
-from cataforge.domain.kg.ingest.iri import entity_iri
+from cataforge.domain.kg._sparql_utils import (
+    _row_lookup,
+    _strv,
+    _term_value,
+    cf_namespace,
+    resolve_stored_entity_iri,
+)
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -131,7 +136,7 @@ class TraceAPI:
         "full"|"partial"|"none"}``.
         """
         ns = self._cf_ns()
-        uri = entity_iri(feature_id, self._config.base_namespace)
+        uri = resolve_stored_entity_iri(self._store, self._config, feature_id)
         sparql = (
             f"PREFIX cf:   <{ns}> "
             "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
@@ -179,7 +184,7 @@ class TraceAPI:
         plus ``cf:reviewed_by``.  Single-hop fan-out only.
         """
         ns = self._cf_ns()
-        uri = entity_iri(entity_id, self._config.base_namespace)
+        uri = resolve_stored_entity_iri(self._store, self._config, entity_id)
 
         if direction in ("downstream", "both"):
             downstream_rows = list(
