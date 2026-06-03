@@ -1,6 +1,6 @@
 ### Added
 
-- **自然语言 → SPARQL 只读查询面** —— `cataforge.domain.kg.nl_query` 新增 `translate()` / `query()`：用调用方提供的 LLM（LangChain 兼容的 `.invoke()` 契约）把自然语言问题翻译成 SPARQL，经 SELECT/ASK 白名单门控（`read_query.assert_read_only`）后走现有只读路径执行，杜绝幻觉写操作落库；`answer()` 为 LangChain `GraphSparqlQAChain` 便捷入口。装 `cataforge[llm]` 启用。
+- **自然语言 → SPARQL 只读查询面** —— `cataforge.domain.kg.nl_query` 新增 `translate()` / `query()` / `answer()`：用调用方注入的、仅需暴露 `.invoke(prompt)` 的 LLM（不引入任何 LLM 框架依赖）把自然语言问题翻译成 SPARQL，经 SELECT/ASK 白名单门控（`read_query.assert_read_only`）后走现有只读路径执行，杜绝幻觉写操作落库；`answer()` 复用 `query()` 取数后再一次 `.invoke()` 把结果行转述为自然语言，同样受只读门控保护。
 - **LinkML 生成的 Pydantic 模型可作运行时类型视图** —— `cataforge.domain.kg.models.to_model()` 把 `QueryAPI` 的标量 dict 提升为生成的 Pydantic 模型（`model_construct` 标量视图），生成产物缺失时优雅返回 `None`。生成的 `*_pydantic.py` + `subclass_axioms.ttl` 现纳入版本控制并随 wheel 分发，新增 `check_codegen_fresh` 守卫保证它们与 `schemas/*.yaml` 始终同步。
 
 ### Changed

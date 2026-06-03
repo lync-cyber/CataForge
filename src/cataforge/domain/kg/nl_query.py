@@ -5,10 +5,11 @@ SPARQL string, which is gate-checked to SELECT/ASK by
 `read_query.assert_read_only` and run through the existing pyoxigraph read
 path. It never touches ingest/export — the deterministic core stays LLM-free.
 
-`translate()` / `query()` only need an object exposing `.invoke(prompt)` (the
-LangChain language-model contract), so the core path does not import LangChain;
-install `cataforge[llm]` for a concrete model. `answer()` is a thin convenience
-wrapper over LangChain's `GraphSparqlQAChain`.
+The caller injects any object exposing `.invoke(prompt) -> str` (the contract
+LangChain, litellm, and most thin clients already expose), so this module adds
+no LLM-framework dependency of its own. `answer()` reuses `query()` for the data
+path — same SELECT/ASK write-guard — and makes one further `.invoke()` to phrase
+the rows in prose.
 """
 
 from __future__ import annotations
@@ -97,23 +98,24 @@ def query(
     return NLQueryResult(question=question, sparql=sparql, columns=columns, rows=rows)
 
 
-def answer(kg: KnowledgeGraph, question: str, llm: LanguageModel) -> str:
-    """Convenience NL answer via LangChain's `GraphSparqlQAChain`.
+_ANSWER_PROMPT = (
+    "Answer the question using only the SPARQL results below. Be concise and "
+    "factual; if there are no rows, say the query returned no matches.\n\n"
+    "Question: {question}\nResults ({n} row(s)): {rows}\n\nAnswer:"
+)
 
-    Requires `cataforge[llm]`. The chain runs the LLM-generated SPARQL against an
-    in-memory rdflib copy of the store (`_pyoxigraph_to_rdflib`), so a write the
-    LLM might emit mutates only that throwaway copy — the live store is never
-    touched. For a structured, write-guarded result over the live store, prefer
+
+def answer(kg: KnowledgeGraph, question: str, llm: LanguageModel, *, limit: int = 100) -> str:
+    """Answer `question` in prose, grounded on a read-only SPARQL query.
+
+    Runs `query()` so the generated SPARQL passes the same SELECT/ASK
+    write-guard, then makes one further `.invoke()` to turn the rows into a
+    natural-language sentence. For the structured rows themselves, call
     `query()`.
     """
-    from langchain.chains import GraphSparqlQAChain  # noqa: PLC0415
-    from langchain_community.graphs import RdfGraph  # noqa: PLC0415
-
-    from cataforge.domain.kg.validate import _pyoxigraph_to_rdflib  # noqa: PLC0415
-
-    graph = RdfGraph(graph=_pyoxigraph_to_rdflib(kg.store))
-    chain = GraphSparqlQAChain.from_llm(llm, graph=graph, allow_dangerous_requests=True)
-    return chain.invoke({"query": f"{build_schema_card(kg.config)}\n\n{question}"})["result"]
+    result = query(kg, question, llm, limit=limit)
+    prompt = _ANSWER_PROMPT.format(question=question, n=len(result.rows), rows=result.rows)
+    return _llm_text(llm.invoke(prompt)).strip()
 
 
 __all__ = ["LanguageModel", "NLQueryResult", "answer", "query", "translate"]

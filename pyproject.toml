@@ -73,10 +73,6 @@ dev = [
     "pre-commit>=3.5",
 ]
 mcp = ["mcp>=1.0"]
-# Natural-language → SPARQL query surface (cataforge.domain.kg.nl_query.answer).
-# Heavy + opt-in; the core query() path only needs a caller-supplied LLM with an
-# `.invoke()` method, so it does not import LangChain itself.
-llm = ["langchain>=0.3", "langchain-community>=0.3"]
 docker = ["docker>=7.0"]
 penpot = ["docker>=7.0"]
 kg = []

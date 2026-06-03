@@ -17,13 +17,24 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-s
 
 
 class _FakeLLM:
-    """Minimal LangChain-compatible stub: returns a fixed reply to `.invoke()`."""
+    """Minimal stub: returns a fixed reply to every `.invoke()`."""
 
     def __init__(self, reply: str) -> None:
         self._reply = reply
 
     def invoke(self, _prompt: str) -> str:
         return self._reply
+
+
+class _ScriptedLLM:
+    """Returns queued replies in order, one per `.invoke()` — for the two-call
+    `answer()` path (translate, then summarize)."""
+
+    def __init__(self, *replies: str) -> None:
+        self._replies = list(replies)
+
+    def invoke(self, _prompt: str) -> str:
+        return self._replies.pop(0)
 
 
 def _open_and_ingest(variant: str):
@@ -82,9 +93,29 @@ def test_query_ask_returns_boolean_row() -> None:
     assert result.rows == [{"result": "true"}]
 
 
-def test_answer_lazy_imports_langchain() -> None:
-    pytest.importorskip("langchain")
-    pytest.importorskip("langchain_community")
-    from cataforge.domain.kg import nl_query
+def test_answer_summarizes_query_rows() -> None:
+    from cataforge.domain.kg.nl_query import answer
 
-    assert hasattr(nl_query, "answer")
+    kg, _ = _open_and_ingest("waterfall")
+    sparql = (
+        "PREFIX cf: <https://cataforge.dev/ontology/> "
+        "SELECT ?id WHERE { ?f a cf:Feature ; cf:entity_id ?id } ORDER BY ?id"
+    )
+    # First invoke → SPARQL; second invoke → prose over the resulting rows.
+    llm = _ScriptedLLM(f"```sparql\n{sparql}\n```", "The graph defines feature F-001.")
+
+    out = answer(kg, "list every feature", llm)
+
+    assert out == "The graph defines feature F-001."
+
+
+def test_answer_inherits_read_only_guard() -> None:
+    from cataforge.domain.kg.nl_query import answer
+
+    kg, _ = _open_and_ingest("waterfall")
+    # A single scripted reply: the write must be rejected by query()'s gate
+    # before any summarization invoke is reached.
+    llm = _ScriptedLLM("INSERT DATA { <urn:a> <urn:b> <urn:c> }")
+
+    with pytest.raises(CataforgeError, match="writes are not supported"):
+        answer(kg, "wipe the graph", llm)
