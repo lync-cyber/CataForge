@@ -99,6 +99,13 @@ CHECKS: list[tuple[str, list[str]]] = [
     # lockfile fails the build. Keep it in this wrapper to close the loop.
     # Skipped gracefully when uv is not on PATH so the wrapper still works
     # on Python-only contributor setups.
+    # KG codegen output (_generated/*_pydantic.py + subclass_axioms.ttl) is
+    # checked in; regenerating from schemas/*.yaml must produce no diff. The
+    # nondeterministic SHACL shapes are excluded. Skipped when linkml is absent.
+    (
+        "kg codegen freshness",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_codegen_fresh.py")],
+    ),
     ("uv lockfile freshness", ["uv", "lock", "--check"]),
 ]
 

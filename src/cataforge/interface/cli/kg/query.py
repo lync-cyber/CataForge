@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -66,10 +65,11 @@ def kg_query(
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
 
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
+    from cataforge.domain.kg.read_query import assert_read_only, inject_limit
 
     sparql = _resolve_sparql_input(query_or_file)
-    _guard_sparql_writes(sparql)
-    sparql = _inject_limit(sparql, limit)
+    assert_read_only(sparql)
+    sparql = inject_limit(sparql, limit)
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
@@ -107,39 +107,6 @@ def _resolve_sparql_input(query_or_file: str) -> str:
     if p.is_file():
         return p.read_text().strip()
     return query_or_file
-
-
-_SPARQL_WRITE_KEYWORDS = frozenset(
-    ["UPDATE", "INSERT", "DELETE", "CLEAR", "DROP", "LOAD", "CREATE", "COPY", "MOVE", "ADD"]
-)
-_SPARQL_STRIP_RE = re.compile(
-    r"(#[^\n]*\n|PREFIX\s+\S+\s*:\s*<[^>]*>\s*|BASE\s+<[^>]*>\s*)",
-    re.IGNORECASE,
-)
-
-
-def _first_sparql_keyword(sparql: str) -> str:
-    """Return the first operative keyword of a SPARQL string, upper-cased."""
-    stripped = _SPARQL_STRIP_RE.sub("", sparql).lstrip()
-    token = stripped.split()[0].upper() if stripped.split() else ""
-    return token
-
-
-def _guard_sparql_writes(sparql: str) -> None:
-    """Raise CataforgeError when sparql contains a write operation."""
-    keyword = _first_sparql_keyword(sparql)
-    if keyword in _SPARQL_WRITE_KEYWORDS:
-        raise CataforgeError(
-            "SPARQL writes are not supported via 'kg query' — "
-            "use 'kg add/update/delete' or a transaction script"
-        )
-
-
-def _inject_limit(sparql: str, limit: int) -> str:
-    upper = sparql.upper()
-    if "SELECT" in upper and "LIMIT" not in upper:
-        return f"{sparql.rstrip().rstrip(';')} LIMIT {limit}"
-    return sparql
 
 
 def _materialize_query_result(raw: object) -> object:

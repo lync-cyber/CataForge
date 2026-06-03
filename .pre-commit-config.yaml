@@ -43,6 +43,19 @@ repos:
         language: system
         pass_filenames: false
         files: ^(\.cataforge/schemas/.*\.schema\.json|src/cataforge/core/event_log\.py|src/cataforge/runtime/hook/scripts/validate_agent_result\.py)$
+      - id: kg-codegen-fresh
+        name: kg _generated/ in sync with LinkML schemas
+        description: |
+          src/cataforge/domain/kg/_generated/{core,governance}_pydantic.py and
+          subclass_axioms.ttl are checked-in codegen output. Editing a schema
+          under src/cataforge/domain/kg/schemas/ without rerunning
+          scripts/codegen_kg_schema.py leaves them stale; this regenerates into
+          a temp dir and byte-compares. The nondeterministic SHACL shapes
+          (*_shapes.ttl) are excluded and stay gitignored.
+        entry: python scripts/checks/check_codegen_fresh.py
+        language: system
+        pass_filenames: false
+        files: ^(src/cataforge/domain/kg/(schemas/.*\.yaml|_generated/.*\.(py|ttl))|scripts/codegen_kg_schema\.py)$
       - id: workflow-yaml-parse
         name: github workflows parse cleanly
         description: |

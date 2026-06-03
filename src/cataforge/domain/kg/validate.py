@@ -149,41 +149,21 @@ def _check_xref_targets(store: ox.Store, namespace: str) -> list[ValidationViola
 
 
 def _pyoxigraph_to_rdflib(store: ox.Store):
-    """Serialize all quads from pyoxigraph into an rdflib Graph."""
+    """Bridge the store's default graph into an rdflib Graph.
+
+    pyoxigraph serializes to N-Triples and rdflib parses it back; both are
+    spec-compliant, so datatypes, language tags and IRI/blank-node escaping
+    round-trip without a hand-maintained term mapping. All CataForge data
+    lives in the default graph (see _quads.py — every Quad is built without a
+    graph name), which is also the only graph the SHACL shapes target.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
     import rdflib  # noqa: PLC0415
 
-    g = rdflib.Graph()
-    for quad in store.quads_for_pattern(None, None, None):
-        s_term = quad.subject
-        p_term = quad.predicate
-        o_term = quad.object
-
-        s = _ox_to_rdflib_term(s_term)
-        p = _ox_to_rdflib_term(p_term)
-        o = _ox_to_rdflib_term(o_term)
-        if s is not None and p is not None and o is not None:
-            g.add((s, p, o))
-    return g
-
-
-def _ox_to_rdflib_term(term):
-    """Convert a pyoxigraph term to the equivalent rdflib term."""
-    import pyoxigraph as oxi  # noqa: PLC0415
-    import rdflib  # noqa: PLC0415
-
-    if isinstance(term, oxi.NamedNode):
-        return rdflib.URIRef(term.value)
-    if isinstance(term, oxi.BlankNode):
-        return rdflib.BNode(term.value)
-    if isinstance(term, oxi.Literal):
-        if term.language:
-            return rdflib.Literal(term.value, lang=term.language)
-        if term.datatype and term.datatype.value != "http://www.w3.org/2001/XMLSchema#string":
-            return rdflib.Literal(term.value, datatype=rdflib.URIRef(term.datatype.value))
-        # xsd:string is implicit in SPARQL 1.1; emit a plain literal so
-        # the bridged rdflib graph matches the SHACL shapes' expectations.
-        return rdflib.Literal(term.value)
-    return None
+    nt = store.dump(None, ox.RdfFormat.N_TRIPLES, from_graph=ox.DefaultGraph())
+    graph = rdflib.Graph()
+    graph.parse(data=nt, format="nt")
+    return graph
 
 
 def _find_shapes_file() -> Path | None:
