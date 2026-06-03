@@ -61,7 +61,12 @@ def _ensure_utf8_test_session(config: pytest.Config) -> None:
     env["_CATAFORGE_TEST_UTF8_REEXEC"] = "1"
     if sys.platform == "win32":
         completed = subprocess.run(sys.orig_argv, env=env)
-        raise SystemExit(completed.returncode)
+        # The child ran the real session; mirror its exit code via os._exit.
+        # `raise SystemExit` here is swallowed by pytest's main loop and
+        # reported as INTERNALERROR (exit 3), masking the child's result.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(completed.returncode)
     os.execve(sys.executable, sys.orig_argv, env)
 
 
