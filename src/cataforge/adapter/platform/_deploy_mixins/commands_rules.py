@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cataforge.core.paths import ProjectPaths
+from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:
     from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
@@ -72,7 +73,7 @@ class CommandRulesDeployMixin:
                 )
                 continue
             rendered = render_runtime_content(md_file.read_text(), self)
-            dst.write_text(rendered)
+            atomic_write_text(dst, rendered)
             if manifest is not None:
                 manifest.record(cmd_rel)
             actions.append(f"commands/{md_file.name} → {target_rel}")
@@ -164,7 +165,7 @@ class CommandRulesDeployMixin:
                 actions.append(f"would deploy overrides/rules/{md_file.name} → {target_rel}")
                 continue
             target_path.parent.mkdir(parents=True, exist_ok=True)
-            target_path.write_text(body)
+            atomic_write_text(target_path, body)
             if manifest is not None:
                 manifest.record(target_rel)
             actions.append(f"overrides/rules/{md_file.name} → {target_rel}")

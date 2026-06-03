@@ -12,6 +12,7 @@ from cataforge.adapter.platform.instruction_cache import (
 )
 from cataforge.adapter.platform.section_merge import merge_sections
 from cataforge.core.errors import CataforgeError
+from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:
     from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
@@ -136,7 +137,7 @@ class InstructionDeployMixin:
                 continue
 
             dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_text(new_content)
+            atomic_write_text(dst, new_content)
             # Hash what's actually on disk — avoids Windows CRLF translation
             # making cur_hash on subsequent deploys diverge from the stored
             # hash even when the user has not edited the file.

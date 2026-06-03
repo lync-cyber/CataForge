@@ -214,14 +214,22 @@ def test_write_failure_propagates(tmp_path: Path) -> None:
     clear_cache()
     deployer = Deployer(ConfigManager(root))
 
-    original_write = Path.write_text
+    # The instruction-file write routes through ``atomic_write_text`` (LF +
+    # atomic), so a failure there must still propagate out of deploy. Patch
+    # the helper in the instructions namespace rather than ``Path.write_text``.
+    from cataforge.adapter.platform._deploy_mixins import instructions as instr_mod
 
-    def failing_write(self: Path, *args, **kwargs):
-        if self.name == "CLAUDE.md":
-            raise PermissionError(f"no write permission: {self}")
-        return original_write(self, *args, **kwargs)
+    real_atomic = instr_mod.atomic_write_text
 
-    with patch.object(Path, "write_text", failing_write), pytest.raises(PermissionError):
+    def failing_write(path: Path, data: str, **kwargs):
+        if path.name == "CLAUDE.md":
+            raise PermissionError(f"no write permission: {path}")
+        return real_atomic(path, data, **kwargs)
+
+    with (
+        patch.object(instr_mod, "atomic_write_text", failing_write),
+        pytest.raises(PermissionError),
+    ):
         deployer.deploy("claude-code")
 
 

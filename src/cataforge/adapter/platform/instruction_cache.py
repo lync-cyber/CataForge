@@ -12,6 +12,7 @@ from pathlib import Path
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
+from cataforge.utils.atomic_write import atomic_write_text
 
 _INSTRUCTION_HASHES_REL = ".cataforge/.instruction-hashes.json"
 
@@ -31,7 +32,4 @@ def load_instruction_hashes(project_root: Path) -> dict[str, str]:
 
 def save_instruction_hashes(project_root: Path, hashes: dict[str, str]) -> None:
     path = project_root / _INSTRUCTION_HASHES_REL
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(hashes, indent=2, sort_keys=True) + "\n",
-    )
+    atomic_write_text(path, json.dumps(hashes, indent=2, sort_keys=True) + "\n")

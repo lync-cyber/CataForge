@@ -27,6 +27,7 @@ from cataforge.runtime.deploy.manifest import (
     load_prior_manifest_platform,
     save_manifest,
 )
+from cataforge.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger("cataforge.runtime.deploy")
 
@@ -441,9 +442,7 @@ class Deployer:
         existing["hooks"] = merge_hooks_config(
             existing.get("hooks", {}), hooks_config, owned_prefixes
         )
-        config_path.write_text(
-            json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-        )
+        atomic_write_text(config_path, json.dumps(existing, indent=2, ensure_ascii=False) + "\n")
         if manifest is not None:
             manifest.record(config_path_str)
         actions.append(f"hooks → {config_path_str}")
@@ -489,6 +488,4 @@ class Deployer:
 
     def _write_deploy_state(self, root: Path, platform_id: str) -> None:
         state_file = self._cfg.paths.deploy_state
-        state_file.write_text(
-            json.dumps({"platform": platform_id}, indent=2) + "\n",
-        )
+        atomic_write_text(state_file, json.dumps({"platform": platform_id}, indent=2) + "\n")

@@ -10,6 +10,7 @@ from cataforge.adapter.platform.helpers import (
     merge_json_key,
     merge_opencode_project_mcp,
 )
+from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:
     from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
@@ -162,7 +163,7 @@ class OpenCodeAdapter(PlatformAdapter):
             ]
 
         plugin_path.parent.mkdir(parents=True, exist_ok=True)
-        plugin_path.write_text(content)
+        atomic_write_text(plugin_path, content)
         return [f"opencode plugin → {plugin_path.relative_to(project_root)}"]
 
 

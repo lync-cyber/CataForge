@@ -26,6 +26,7 @@ from typing import Any
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
+from cataforge.utils.atomic_write import atomic_write_text
 
 try:
     from importlib.resources.abc import Traversable
@@ -375,9 +376,8 @@ def _write_manifest(dest: Path, files_map: dict[str, str]) -> None:
         "files": dict(sorted(files_map.items())),
     }
     path = dest / MANIFEST_REL
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
-    path.write_text(payload)
+    atomic_write_text(path, payload)
 
 
 def read_manifest(dest: Path) -> dict[str, str]:
