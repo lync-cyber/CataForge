@@ -16,6 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cataforge.core.paths import ProjectPaths
+from cataforge.utils.atomic_write import atomic_write_text
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 _SECTION_TITLE = "语言细则"
@@ -62,6 +63,6 @@ def inject_into_staged_agents(agents_dir: Path, langs: list[str], paths: Project
             continue
         new = inject_lang_fragments(content, agent_dir.name, langs, paths)
         if new != content:
-            agent_md.write_text(new)
+            atomic_write_text(agent_md, new)
             injected.append(agent_dir.name)
     return injected

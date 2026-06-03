@@ -14,6 +14,7 @@ from typing import Any
 
 from cataforge.core.errors import CataforgeError, ConfigError
 from cataforge.core.io import read_json
+from cataforge.utils.atomic_write import atomic_write_text
 
 
 def _prune_orphan_flat_files(
@@ -372,7 +373,7 @@ def merge_json_key(path: Path, dotted_key: str, value: Any, *, dry_run: bool = F
         obj = obj.setdefault(k, {})
     obj[keys[-1]] = value
 
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    atomic_write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return [f"merged {dotted_key} → {path}"]
 
 
@@ -480,7 +481,7 @@ def merge_opencode_project_mcp(
     mcp = data.setdefault("mcp", {})
     mcp[server_id] = mcp_entry
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    atomic_write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return [f"mcp.{server_id} → {path}"]
 
 
@@ -502,7 +503,7 @@ def merge_codex_mcp_server(
     section = _render_codex_mcp_section(server_id, server_config)
     merged = _replace_toml_mcp_section(existing, server_id, section)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(merged)
+    atomic_write_text(path, merged)
     return [f"mcp_servers.{server_id} → {path}"]
 
 

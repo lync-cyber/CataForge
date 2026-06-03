@@ -24,6 +24,7 @@ import yaml
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.core.paths import ProjectPaths
+from cataforge.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -334,7 +335,7 @@ def apply_degradation(
             actions.append(f"would write {strategy} → {out_path} ({len(fragments)} fragment(s))")
             continue
         auto_rules_dir.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(_render_aggregate(heading, fragments))
+        atomic_write_text(out_path, _render_aggregate(heading, fragments))
         actions.append(f"{strategy} → {out_path}")
 
     return actions

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.helpers import symlink_or_copy
+from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:
     from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
@@ -124,7 +125,7 @@ class CursorAdapter(PlatformAdapter):
                 continue
             content = md_file.read_text()
             mdc_content = _wrap_as_mdc(md_file.stem, content)
-            (output_dir / mdc_name).write_text(mdc_content)
+            atomic_write_text(output_dir / mdc_name, mdc_content)
             if manifest is not None:
                 manifest.record(mdc_rel)
             actions.append(f"rules/{md_file.name} → .cursor/rules/{mdc_name}")

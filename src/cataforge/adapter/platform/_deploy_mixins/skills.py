@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from cataforge.utils.atomic_write import atomic_write_text
+
 if TYPE_CHECKING:
     from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
 
@@ -166,5 +168,5 @@ class SkillDeployMixin:
             original = md_file.read_text()
             rendered = render_runtime_content(original, self)
             if rendered != original:
-                md_file.write_text(rendered)
+                atomic_write_text(md_file, rendered)
         return actions
