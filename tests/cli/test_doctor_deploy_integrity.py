@@ -176,6 +176,53 @@ class TestDoctorAsIntegrityGate:
         result = CliRunner().invoke(doctor_command, [])
         assert result.exit_code == 0, result.output
 
+    def test_doctor_passes_when_no_command_sources_and_no_commands_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A project with no ``.cataforge/commands/`` deploys no commands dir;
+        an absent ``.claude/commands`` is then correct, not an integrity FAIL.
+        Mirrors ``deploy_commands`` returning early when the source is absent."""
+        root = _minimal_project(tmp_path)
+        _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
+        _link_skill(src_skill, root / ".claude" / "skills")
+        (root / ".claude").mkdir(exist_ok=True)
+        (root / ".claude" / "settings.json").write_text("{}\n", encoding="utf-8")
+        (root / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
+        (root / ".claude" / "rules").mkdir(parents=True, exist_ok=True)
+        # No .cataforge/commands/ source and no .claude/commands target.
+        _write_deploy_state(root, "claude-code")
+        monkeypatch.chdir(root)
+
+        result = CliRunner().invoke(doctor_command, [])
+        assert result.exit_code == 0, result.output
+        assert "FAIL .claude/commands" not in result.output
+
+    def test_doctor_fails_when_command_sources_present_but_target_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """With command sources on disk, an absent deployed commands dir is a
+        real integrity failure — the conditional skip must not mask it."""
+        root = _minimal_project(tmp_path)
+        _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
+        _link_skill(src_skill, root / ".claude" / "skills")
+        (root / ".claude").mkdir(exist_ok=True)
+        (root / ".claude" / "settings.json").write_text("{}\n", encoding="utf-8")
+        (root / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
+        (root / ".claude" / "rules").mkdir(parents=True, exist_ok=True)
+        # Command source exists → .claude/commands becomes required.
+        (root / ".cataforge" / "commands").mkdir(parents=True, exist_ok=True)
+        (root / ".cataforge" / "commands" / "demo.md").write_text("# demo\n", encoding="utf-8")
+        _write_deploy_state(root, "claude-code")
+        monkeypatch.chdir(root)
+
+        result = CliRunner().invoke(doctor_command, [])
+        assert result.exit_code != 0, result.output
+        assert ".claude/commands" in result.output
+
     def test_doctor_prints_summary_line(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
