@@ -39,7 +39,7 @@ def _is_dir_link(path: Path) -> bool:
     intent reads as ``"the post-deploy state is still a link"`` and the
     cross-version detail lives behind ``helpers._is_dir_link`` (see its
     docstring for the Py 3.10/3.11 ctypes fallback rationale)."""
-    from cataforge.adapter.platform.helpers import _is_dir_link as _impl
+    from cataforge.adapter.platform.fileops import _is_dir_link as _impl
 
     return _impl(path)
 

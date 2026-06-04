@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cataforge.adapter.platform.helpers import merge_hooks_config
+from cataforge.adapter.platform.hooks_config import merge_hooks_config
 
 _OWNED = ("python -m cataforge.runtime.hook.scripts.", "python .cataforge/hooks/custom/")
 _GUARD = "python -m cataforge.runtime.hook.scripts.guard_dangerous"

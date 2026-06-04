@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.adapter.platform.helpers import merge_codex_mcp_server
+from cataforge.adapter.platform.mcp_config import merge_codex_mcp_server
 
 _SERVER_CFG: dict = {"command": "npx", "args": ["-y", "@cataforge/mcp"]}
 

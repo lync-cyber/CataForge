@@ -91,7 +91,7 @@ class ClaudeCodeAdapter(PlatformAdapter):
         """Tear down leftover ``<name>/AGENT.md`` subdirs from the pre-M?
         dual layout. Manifest-bounded so a user-authored agent subdir we
         never wrote stays put."""
-        from cataforge.adapter.platform.helpers import remove_dir_with_manifest_check
+        from cataforge.adapter.platform.fileops import remove_dir_with_manifest_check
 
         actions: list[str] = []
         if not target_dir.is_dir():

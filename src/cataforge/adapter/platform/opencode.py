@@ -6,10 +6,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
-from cataforge.adapter.platform.helpers import (
-    merge_json_key,
-    merge_opencode_project_mcp,
-)
+from cataforge.adapter.platform.hooks_config import merge_json_key
+from cataforge.adapter.platform.mcp_config import merge_opencode_project_mcp
 from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:

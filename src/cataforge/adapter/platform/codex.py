@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
-from cataforge.adapter.platform.helpers import merge_codex_mcp_server
+from cataforge.adapter.platform.mcp_config import merge_codex_mcp_server
 
 if TYPE_CHECKING:
     from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
@@ -110,7 +110,7 @@ def _md_to_toml(agent_id: str, content: str, passthrough: list[str]) -> str:
 
     import yaml
 
-    from cataforge.adapter.platform.helpers import _toml_value
+    from cataforge.adapter.platform.mcp_config import _toml_value
 
     fm_match = re.match(r"^---\n(.*?)\n---\n(.*)", content, re.DOTALL)
     if not fm_match:

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
-from cataforge.adapter.platform.helpers import symlink_or_copy
+from cataforge.adapter.platform.fileops import symlink_or_copy
 from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:

@@ -6,11 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.adapter.platform.helpers import (
-    merge_codex_mcp_server,
-    merge_json_key,
-    merge_opencode_project_mcp,
-)
+from cataforge.adapter.platform.hooks_config import merge_json_key
+from cataforge.adapter.platform.mcp_config import merge_codex_mcp_server, merge_opencode_project_mcp
 from cataforge.core.errors import CataforgeError
 
 _BROKEN_JSON = '{ "broken": '

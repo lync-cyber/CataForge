@@ -203,7 +203,7 @@ class AgentDeployMixin:
         """
         if not target_dir.is_dir():
             return []
-        from cataforge.adapter.platform.helpers import remove_dir_with_manifest_check
+        from cataforge.adapter.platform.fileops import remove_dir_with_manifest_check
 
         actions: list[str] = []
         for existing in target_dir.iterdir():
@@ -272,7 +272,7 @@ class AgentDeployMixin:
         6. Emit one aggregated WARN per agent-field that lost capability
            mappings on this platform.
         """
-        from cataforge.adapter.platform.helpers import _prune_orphan_flat_files
+        from cataforge.adapter.platform.fileops import _prune_orphan_flat_files
         from cataforge.core.template import render_runtime_content
         from cataforge.runtime.agent.translator import translate_agent_md
 

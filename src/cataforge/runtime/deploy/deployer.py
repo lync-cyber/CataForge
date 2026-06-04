@@ -359,7 +359,7 @@ class Deployer:
         Switching platforms is a deliberate two-step: clean up the old
         target manually (``rm -rf .claude/`` etc.) then deploy fresh.
         """
-        from cataforge.adapter.platform.helpers import _remove_target
+        from cataforge.adapter.platform.fileops import _remove_target
 
         if not prior_owned:
             return ["rebuild: no prior manifest — nothing to purge"]
@@ -440,7 +440,7 @@ class Deployer:
         else:
             existing = {}
 
-        from cataforge.adapter.platform.helpers import merge_hooks_config
+        from cataforge.adapter.platform.hooks_config import merge_hooks_config
 
         template = adapter.get_hook_command_template()
         owned_prefixes = (template.split("{module}")[0], "python .cataforge/hooks/custom/")

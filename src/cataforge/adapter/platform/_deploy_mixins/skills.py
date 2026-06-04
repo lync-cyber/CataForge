@@ -67,7 +67,7 @@ class SkillDeployMixin:
         Subclasses can override to transform content per platform.
         """
         del force_copy  # retained for API compat; always copy under J render
-        from cataforge.adapter.platform.helpers import _is_dir_link, _remove_target
+        from cataforge.adapter.platform.fileops import _is_dir_link, _remove_target
 
         target_rel = self.get_skill_target_dir()
         if not target_rel or not source_dir.is_dir():
@@ -150,7 +150,7 @@ class SkillDeployMixin:
         """
         import shutil
 
-        from cataforge.adapter.platform.helpers import _remove_target
+        from cataforge.adapter.platform.fileops import _remove_target
         from cataforge.core.template import render_runtime_content
 
         if dry_run:

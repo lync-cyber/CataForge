@@ -25,7 +25,7 @@ class McpDeployMixin:
         non-JSON or non-standard layout (e.g. Codex TOML, OpenCode's per-repo
         merge) override ``inject_mcp_config`` itself instead.
         """
-        from cataforge.adapter.platform.helpers import merge_json_key
+        from cataforge.adapter.platform.hooks_config import merge_json_key
 
         mcp_path = self._mcp_json_path(project_root)
         return merge_json_key(mcp_path, f"mcpServers.{server_id}", server_config, dry_run=dry_run)
