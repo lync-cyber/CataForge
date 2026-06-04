@@ -1,7 +1,7 @@
 """framework_feedback.py — assemble an upstream-bound feedback bundle.
 
 Layer 1 entry point for the ``framework-feedback`` builtin skill.
-Thin wrapper over ``cataforge.core.feedback.assemble_*`` so the skill
+Thin wrapper over ``cataforge.application.feedback.assemble_*`` so the skill
 runner gets a deterministic ``python -m`` target that mirrors the
 ``cataforge feedback`` CLI surface.
 
@@ -35,20 +35,16 @@ import argparse
 import sys
 from pathlib import Path
 
-from cataforge.core.feedback import (
-    DEFAULT_EVENT_LOG_TAIL,
-    RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT,
-    UPSTREAM_GAP,
-    assemble_bug,
-    assemble_correction_export,
-    assemble_suggestion,
-    upstream_gap_count,
-)
 from cataforge.core.paths import find_project_root
 from cataforge.utils.common import ensure_utf8
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    from cataforge.application.feedback import (
+        DEFAULT_EVENT_LOG_TAIL,
+        RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT,
+    )
+
     p = argparse.ArgumentParser(
         prog="framework-feedback",
         description="Assemble a CataForge framework feedback bundle.",
@@ -119,6 +115,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from cataforge.application.feedback import (
+        UPSTREAM_GAP,
+        assemble_bug,
+        assemble_correction_export,
+        assemble_suggestion,
+        upstream_gap_count,
+    )
+
     ensure_utf8()
     args = _build_parser().parse_args(argv)
     project_root = (args.root or find_project_root()).resolve()

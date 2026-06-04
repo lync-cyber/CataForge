@@ -360,7 +360,7 @@ class TestTriage:
         """`- **CataForge package**: \\`0.4.0\\`` parses as reported_version=0.4.0.
 
         This is the form produced by ``_render_environment`` in
-        ``cataforge.core.feedback`` — markdown bold wrapping defeats the
+        ``cataforge.application.feedback`` — markdown bold wrapping defeats the
         legacy header regex (issue #115 P7).
         """
         project = _bootstrap(tmp_path)

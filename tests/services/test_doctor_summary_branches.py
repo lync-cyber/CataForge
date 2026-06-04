@@ -10,16 +10,18 @@ from cataforge.application.services.doctor_summary import collect_doctor_summary
 
 def _make_result(output: str, exit_code: int = 0):
     r = MagicMock()
-    r.output = output
-    r.exit_code = exit_code
+    r.stdout = output
+    r.stderr = ""
+    r.returncode = exit_code
     return r
 
 
 def _patch_runner(output: str, exit_code: int = 0):
     result = _make_result(output, exit_code)
-    runner = MagicMock()
-    runner.invoke.return_value = result
-    return patch("click.testing.CliRunner", return_value=runner)
+    return patch(
+        "cataforge.application.services.doctor_summary.run_proc",
+        return_value=result,
+    )
 
 
 class TestDoctorSummaryBranches:

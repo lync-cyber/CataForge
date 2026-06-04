@@ -1,6 +1,6 @@
 """``cataforge feedback`` — package downstream signals into an upstream-ready bundle.
 
-Three subcommands sharing one assembler (``cataforge.core.feedback``):
+Three subcommands sharing one assembler (``cataforge.application.feedback``):
 
 * ``feedback bug``                — diagnostics + doctor + framework-review summary
 * ``feedback suggest``            — proposal scaffold (lighter; no doctor noise)
@@ -35,8 +35,7 @@ from typing import Any, TypeVar
 
 import click
 
-from cataforge.core.errors import CataforgeError, ExternalToolError
-from cataforge.core.feedback import (
+from cataforge.application.feedback import (
     RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT,
     UPSTREAM_GAP,
     assemble_bug,
@@ -45,6 +44,7 @@ from cataforge.core.feedback import (
     iter_clipboard_commands,
     upstream_gap_count,
 )
+from cataforge.core.errors import CataforgeError, ExternalToolError
 from cataforge.interface.cli.helpers import get_config_manager, resolve_root
 from cataforge.interface.cli.main import cli
 from cataforge.utils.run_subprocess import run as run_proc

@@ -271,7 +271,7 @@ def test_record_correction_accepts_upstream_gap_deviation(tmp_path: Path) -> Non
     text = (tmp_path / result["corrections_log"].relative_to(tmp_path)).read_text(encoding="utf-8")
     assert "偏差类型: upstream-gap" in text
     # And it should be visible to the downstream aggregator.
-    from cataforge.core.feedback import collect_corrections
+    from cataforge.application.feedback import collect_corrections
 
     entries = collect_corrections(tmp_path, deviation="upstream-gap")
     assert len(entries) == 1

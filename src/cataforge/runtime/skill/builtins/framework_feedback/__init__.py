@@ -9,7 +9,7 @@ feedback channel the downstream may have for its own product:
 * The downstream project's own user-feedback flow stays untouched.
 
 ``CHECKS_MANIFEST`` declares the bundle slices the underlying
-``cataforge.core.feedback`` assembler can produce, so ``framework-review``
+``cataforge.application.feedback`` assembler can produce, so ``framework-review``
 B3 can verify the SKILL.md prose and this manifest stay aligned.
 """
 
