@@ -30,7 +30,6 @@
 | [执行模式](./guide/execution-modes.md) | standard / agile-lite / agile-prototype 怎么选 |
 | [TDD 工作流](./guide/tdd-workflow.md) | RED→GREEN→REFACTOR 三阶段引擎使用 |
 | [升级与脚手架刷新](./guide/upgrade.md) | 从旧版本迁到新版本，包括快照与回滚 |
-| [0.5.0 KG 切换迁移指南](./migration/kg-cutover-0.5.0.md) | 从 0.4.x 迁到 0.5.0 的 per-doc_type cutover、推进与回滚 |
 | [手动验证（流水线总览）](./guide/manual-verification.md) | 在 4 个 IDE 内端到端真跑一遍的 5 步法 |
 | [手动验证 · 分平台步骤](./guide/verify-per-platform.md) | 每个 IDE 的 6 步详细操作 |
 | [手动验证 · 专题](./guide/verify-topics.md) | Hook / MCP / 自动化回归 / 升级幂等专题 |

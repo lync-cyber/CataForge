@@ -1,8 +1,7 @@
 # KG · Verified behaviors and remaining follow-ups
 
-Closes [README §Open follow-ups](../proposals/kg-migration-0.5.0/README.md). For each
-`[待验证]` marker raised in the 0.5.0 design proposals (task-3 / task-4 / task-5), this
-file records the disposition: verified during Alpha implementation, deferred with
+For each `[待验证]` marker raised in the 0.5.0 KG design (task-3 / task-4 / task-5), this
+file records the disposition: verified during implementation, deferred with a
 documented escape hatch, or rolled into a downstream sub-PR.
 
 ## Verified during Alpha

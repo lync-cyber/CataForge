@@ -55,6 +55,15 @@
             "command": "python -m cataforge.runtime.hook.scripts.session_context"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.deploy_drift"
+          }
+        ]
       }
     ],
     "Notification": [

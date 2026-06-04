@@ -300,7 +300,7 @@ cataforge docs load 'dev-plan#§1.T-005'     # 加载开发计划第 1 节 Task 
 
 ## kg
 
-**何时用它**：管理 RocksDB-backed Oxigraph 知识图谱 — 业务文档（PRD / ARCH / TEST-REPORT）实体与追溯关系的权威存储。`kg_active_doc_types` 中的 doc_type 走图查询路径，未列入的 doc_type 仍走 [`cataforge docs load`](#docs) legacy 路径。整体设计见 [`../proposals/kg-migration-0.5.0/`](../proposals/kg-migration-0.5.0/)。
+**何时用它**：管理 RocksDB-backed Oxigraph 知识图谱 — 业务文档（PRD / ARCH / TEST-REPORT）实体与追溯关系的权威存储。`kg_active_doc_types` 中的 doc_type 走图查询路径，未列入的 doc_type 仍走 [`cataforge docs load`](#docs) legacy 路径。
 
 ```bash
 cataforge kg init                                # 初始化 store + bootstrap rdfs:subClassOf
