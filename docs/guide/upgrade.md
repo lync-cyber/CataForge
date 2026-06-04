@@ -7,11 +7,11 @@
 | 路径 | 谁用 | 命令 |
 |------|-----|------|
 | **CLI** | 终端 / CI | `cataforge upgrade {check,apply,rollback,verify}` |
-| **IDE skill** | Claude Code / Cursor 会话内 | `/self-update [check\|apply\|verify]` |
+| **IDE skill** | Claude Code / Cursor 会话内 | `/framework-update [check\|apply\|verify]` |
 
-两条路径读写同一套状态。`/self-update` 内部调用 `cataforge upgrade`，并额外处理 `pip install --upgrade` / `uv tool upgrade` 这一步包管理命令。
+两条路径读写同一套状态。`/framework-update` 内部调用 `cataforge upgrade` / `cataforge bootstrap`，并额外处理 `pip install --upgrade` / `uv tool upgrade` 这一步包管理命令。
 
-`/bootstrap`（命令）在 `cataforge bootstrap` 之上叠加项目初始化：它先经 `cataforge bootstrap` 幂等刷新脚手架，因此在已部署项目上重跑 `/bootstrap` 等价于触发一次升级检查 + 刷新，再按项目指令文件存在与否分流初始化或恢复。
+`/framework-update apply` 在脚手架刷新之上叠加项目初始化：它先经 `cataforge bootstrap` 幂等刷新脚手架，因此在已部署项目上重跑等价于触发一次升级检查 + 刷新，再按项目指令文件存在与否分流初始化或恢复。
 
 ## 升级四步法（CLI）
 

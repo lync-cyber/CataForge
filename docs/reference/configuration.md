@@ -158,7 +158,7 @@
 | `migration_checks[].patterns` | ❌ | overwrite | 待匹配子串 / 文件名列表 |
 | `migration_checks[].requires_deploy` | ❌ | overwrite | true 时该检查作用于 `cataforge deploy` 写出的产物（如 `.claude/settings.json`），doctor 在未 deploy 的 workspace 上跳过 |
 | `migration_checks[].allow_missing` | ❌ | overwrite | （仅 `file_must_not_contain` 类型）默认 false 时，路径不存在 → FAIL（防止 vacuous PASS）。设 true 表示"路径在某些安装下不存在是合法情况"（典型场景：检查源码而非用户项目文件，end-user 安装走 site-packages 时 path 缺失） |
-| `upgrade.source.type` | ❌ | overwrite | 当前固定 `"github"`；这是**框架资产**的远程拉取协议（区别于 `cataforge` Python 包的安装机制——后者由 pip / uv 处理，由 `self-update` skill 编排） |
+| `upgrade.source.type` | ❌ | overwrite | 当前固定 `"github"`；这是**框架资产**的远程拉取协议（区别于 `cataforge` Python 包的安装机制——后者由 pip / uv 处理，由 `framework-update` skill 编排） |
 | `upgrade.source.repo` | ❌ | overwrite | scaffold 远程仓库（`<owner>/<repo>` 形态） |
 | `upgrade.source.branch` | ❌ | overwrite | scaffold 拉取分支（默认 `main`） |
 | `upgrade.source.token_env` | ❌ | overwrite | 私有仓库使用的环境变量名（默认 `GITHUB_TOKEN`） |

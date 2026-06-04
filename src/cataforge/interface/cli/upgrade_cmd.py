@@ -85,7 +85,7 @@ def upgrade_check() -> None:
         )
 
     click.echo(
-        "\nTip: inside Claude Code / Cursor, the `/self-update` skill automates "
+        "\nTip: inside Claude Code / Cursor, the `/framework-update` skill automates "
         "the whole flow (check → confirm → apply → verify)."
     )
 

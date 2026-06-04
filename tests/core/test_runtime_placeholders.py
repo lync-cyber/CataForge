@@ -80,7 +80,21 @@ def test_known_placeholders_lists_full_surface() -> None:
         "{RULES_DIR}",
         "{SKILLS_DIR}",
         "{COMMANDS_DIR}",
+        "{FRAMEWORK_VERSION}",
     }
+
+
+def test_framework_version_resolves_to_package_version() -> None:
+    """``{FRAMEWORK_VERSION}`` is adapter-independent and resolves to the
+    installed package version on every platform, so the instruction file's
+    框架版本 field is stamped deterministically at deploy."""
+    import cataforge
+
+    for platform_id in sorted(_EXPECTED):
+        adapter = get_adapter(platform_id, _platforms_dir())
+        assert resolve_placeholder("{FRAMEWORK_VERSION}", adapter) == cataforge.__version__
+        rendered = render_runtime_content("- 框架版本: {FRAMEWORK_VERSION}", adapter)
+        assert rendered == f"- 框架版本: {cataforge.__version__}"
 
 
 def test_render_substitutes_all_known_tokens_in_one_pass() -> None:

@@ -62,7 +62,7 @@ instruction_file:
         runtime:   [项目状态, 执行环境]
         user_extensible: true
         always_overwrite_fields:
-          项目信息: [运行时]
+          项目信息: [运行时, 框架版本]
   additional_outputs: []
 
 dispatch:

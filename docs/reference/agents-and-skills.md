@@ -234,7 +234,7 @@ tools:
 | 20 | platform-audit | 管理技能 | 平台 | 平台能力审计、profile.yaml 更新 |
 | 21 | start-orchestrator | 管理技能 | 启动 | CataForge 工作流初始化与恢复 |
 | 22 | workflow-framework-generator | 管理技能 | 生成 | 根据工作流类型与目标平台生成完整框架 |
-| 23 | self-update | 管理技能 | 升级 | 检测包/scaffold 版本差异并执行 pip/uv 升级 + scaffold 刷新 + 迁移验证 |
+| 23 | framework-update | 管理技能 | 同步 | 包↔scaffold 版本检测 + pip/uv 升级 + scaffold 刷新/部署/doctor + 项目初始化/恢复分流 |
 | 24 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
 | 25 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
 | 26 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
@@ -326,7 +326,7 @@ tools:
 </details>
 
 <details>
-<summary><b>管理 Skill</b>（platform-audit · start-orchestrator · workflow-framework-generator · self-update · framework-feedback）</summary>
+<summary><b>管理 Skill</b>（platform-audit · start-orchestrator · workflow-framework-generator · framework-update · framework-feedback）</summary>
 
 **platform-audit** — 平台能力审计，检查各平台的 profile.yaml 与实际能力匹配度。
 
@@ -334,7 +334,7 @@ tools:
 
 **workflow-framework-generator** — 工作流框架生成器，根据用户指定的工作流类型（软件开发、内容创作、电商运营、研究分析等）与目标 AI IDE 平台（Claude Code / Cursor / CodeX / OpenCode），自动生成一套完整的 CataForge 兼容框架。包含 Agent 定义、Skill 模块、Workflow 编排、平台适配配置等。内置 6 大领域模式库、四平台能力矩阵、框架校验脚本。
 
-**self-update** — CataForge 自更新。三个指令：`check`（检测已安装包与项目 scaffold 的版本差异）、`apply`（升级包并刷新 scaffold，自 v0.1.10 起调用 `cataforge bootstrap`）、`verify`（运行迁移检查验证一致性）。支持 pip 与 uv 两种包管理器；保留 `runtime.platform`、`upgrade.state`、`PROJECT-STATE.md` 等用户可编辑状态。
+**framework-update** — CataForge 框架同步。三个指令：`check`（检测已安装包与项目 scaffold 的版本差异 + 项目初始化状态）、`apply`（条件包升级 → `cataforge bootstrap` 刷新 scaffold / 部署 / doctor → upgrade.state 与框架版本簿记 → 按项目指令文件存在与否分流项目初始化或恢复）、`verify`（运行迁移检查验证一致性）。支持 pip 与 uv 两种包管理器；保留 `runtime.platform`、`upgrade.state` 等用户可编辑状态。
 
 **framework-feedback** — 下游 → 上游反馈打包（v0.3.0 引入）。聚合 `cataforge doctor` + 最近 `EVENT-LOG` + `CORRECTIONS-LOG` 中 `deviation=upstream-gap` 的纠偏 + `framework-review` Layer 1 FAIL 摘要为单个 markdown body，通过等价 CLI `cataforge feedback bug|suggest|correction-export` 经四选一互斥 sink 发出（`--print` / `--out PATH` / `--clip` / `--gh`）。命名上与 `framework-review` 平行（都针对 `.cataforge/` 框架本体），与下游产品自身的用户反馈渠道无关。`record-to-event-log: true`，每次运行写一条 `state_change` 事件（`ref=skill:framework-feedback/...`）。挂在 `orchestrator.skills`（持有 `shell_exec`）；reflector 因为是只读 Agent，不直接持有此 skill。详细参数见 [`cli.md` §feedback](./cli.md#feedback)。
 
@@ -373,4 +373,4 @@ tools:
 | `platform-audit` | 管理 | 审计 `profile.yaml` 与平台实际能力匹配度 |
 | `start-orchestrator` | 管理 | 初始化 / 恢复 CataForge 工作流 |
 | `workflow-framework-generator` | 管理 | 按工作流类型 + 目标平台生成完整框架 |
-| `self-update` | 管理 | 升级 CataForge 包 + 刷新 scaffold + 跑迁移检查 |
+| `framework-update` | 管理 | 升级 CataForge 包 + 刷新 scaffold + 跑迁移检查 + 项目初始化/恢复 |

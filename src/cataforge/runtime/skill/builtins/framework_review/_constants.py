@@ -58,7 +58,7 @@ ORPHAN_SKILL_WHITELIST = frozenset(
         "doc-consistency",
         "research",
         "debug",
-        "self-update",
+        "framework-update",
         "workflow-framework-generator",
         "platform-audit",
         "framework-review",
