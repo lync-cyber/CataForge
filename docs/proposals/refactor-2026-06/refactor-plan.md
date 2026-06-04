@@ -311,6 +311,8 @@ src/cataforge/
 
 阶段 0/1/2 可并行推进（互不依赖）；3→4→5 有弱顺序（G1 的 console 注入便于 G2 的 step 测试，G4 先于 G5 的 feedback strict）。**阶段 5 是唯一高风险节点**，对应 COMMON-RULES 的 `pre_dev` 人工检查点，建议单独评审 go/no-go。
 
+> **PR 级展开**：上述 6 阶段已逐条拆成 37 个可独立 squash-merge / 可勾选的 PR，含 conventional-commits 标题、依赖、风险、验证命令与关键路径——见 [`pr-breakdown.md`](./pr-breakdown.md)。
+
 ---
 
 ## 6. 死代码清理清单
