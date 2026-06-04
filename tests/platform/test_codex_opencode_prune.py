@@ -18,6 +18,7 @@ import pytest
 
 from cataforge.adapter.platform.codex import CodexAdapter
 from cataforge.adapter.platform.opencode import OpenCodeAdapter
+from cataforge.adapter.platform.profile_schema import PlatformProfile
 
 # Minimal AGENT.md that survives translator filtering on both platforms.
 _AGENT_MD = """---
@@ -43,11 +44,13 @@ def _seed_source(root: Path, *agent_names: str) -> Path:
 @pytest.fixture()
 def codex_adapter() -> CodexAdapter:
     return CodexAdapter(
-        {
-            "platform_id": "codex",
-            "agent_supported_fields": ["name", "description", "model"],
-            "agent_definition": {"scan_dirs": [".codex/agents"]},
-        }
+        PlatformProfile.model_validate(
+            {
+                "platform_id": "codex",
+                "agent_config": {"supported_fields": ["name", "description", "model"]},
+                "agent_definition": {"scan_dirs": [".codex/agents"]},
+            }
+        )
     )
 
 
@@ -110,11 +113,13 @@ def test_codex_dry_run_reports_prune_without_writing(
 @pytest.fixture()
 def opencode_adapter() -> OpenCodeAdapter:
     return OpenCodeAdapter(
-        {
-            "platform_id": "opencode",
-            "agent_supported_fields": ["name", "description", "model"],
-            "agent_definition": {"scan_dirs": [".opencode/agents"]},
-        }
+        PlatformProfile.model_validate(
+            {
+                "platform_id": "opencode",
+                "agent_config": {"supported_fields": ["name", "description", "model"]},
+                "agent_definition": {"scan_dirs": [".opencode/agents"]},
+            }
+        )
     )
 
 
@@ -172,11 +177,13 @@ def test_opencode_dry_run_reports_prune_without_writing(
 
 def _codex_with_fields(*fields: str) -> CodexAdapter:
     return CodexAdapter(
-        {
-            "platform_id": "codex",
-            "agent_config": {"supported_fields": list(fields)},
-            "agent_definition": {"scan_dirs": [".codex/agents"]},
-        }
+        PlatformProfile.model_validate(
+            {
+                "platform_id": "codex",
+                "agent_config": {"supported_fields": list(fields)},
+                "agent_definition": {"scan_dirs": [".codex/agents"]},
+            }
+        )
     )
 
 

@@ -24,6 +24,7 @@ import yaml
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.core.paths import ProjectPaths
+from cataforge.runtime.hook.hooks_schema import HooksSpec
 from cataforge.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
@@ -83,7 +84,14 @@ class HookGenerationResult(NamedTuple):
 
 
 def load_hooks_spec(hooks_yaml: Path | None = None) -> dict[str, Any]:
-    """Load the canonical hook specification from hooks.yaml."""
+    """Load and validate the canonical hook specification from hooks.yaml.
+
+    A structurally malformed spec (wrong ``schema_version`` type, ``hooks``
+    that is not an event→entry-list mapping, a hook entry missing ``script`` …)
+    fails here with a ``pydantic.ValidationError`` naming the offending field
+    rather than as a ``KeyError`` deep in the platform bridge. The validated
+    mapping is returned unchanged so the downstream dict pipeline is untouched.
+    """
     if hooks_yaml is None:
         hooks_yaml = ProjectPaths().hooks_spec
 
@@ -91,6 +99,7 @@ def load_hooks_spec(hooks_yaml: Path | None = None) -> dict[str, Any]:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
         raise ValueError(f"hooks.yaml must be a mapping, got {type(data).__name__}")
+    HooksSpec.model_validate(data)
     return data
 
 

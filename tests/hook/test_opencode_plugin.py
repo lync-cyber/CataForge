@@ -15,24 +15,27 @@ from pathlib import Path
 import pytest
 
 from cataforge.adapter.platform.opencode import OpenCodeAdapter, _render_opencode_plugin
+from cataforge.adapter.platform.profile_schema import PlatformProfile
 
 _NODE = shutil.which("node")
 
 
 @pytest.fixture()
 def opencode_adapter() -> OpenCodeAdapter:
-    profile = {
-        "platform_id": "opencode",
-        "tool_map": {"shell_exec": "bash", "file_edit": "edit"},
-        "hooks": {
-            "config_format": "plugin",
-            "event_map": {
-                "PreToolUse": "tool.execute.before",
-                "PostToolUse": "tool.execute.after",
+    profile = PlatformProfile.model_validate(
+        {
+            "platform_id": "opencode",
+            "tool_map": {"shell_exec": "bash", "file_edit": "edit"},
+            "hooks": {
+                "config_format": "plugin",
+                "event_map": {
+                    "PreToolUse": "tool.execute.before",
+                    "PostToolUse": "tool.execute.after",
+                },
+                "degradation": {"guard_dangerous": "native", "lint_format": "native"},
             },
-            "degradation": {"guard_dangerous": "native", "lint_format": "native"},
-        },
-    }
+        }
+    )
     return OpenCodeAdapter(profile)
 
 

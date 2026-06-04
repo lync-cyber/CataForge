@@ -16,6 +16,7 @@ from typing import Any
 import pytest
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
+from cataforge.adapter.platform.profile_schema import PlatformProfile
 from cataforge.adapter.platform.registry import get_adapter
 
 
@@ -31,15 +32,17 @@ class _SubdirAgentAdapter(PlatformAdapter):
 
     def __init__(self) -> None:
         super().__init__(
-            {
-                "agent_definition": {"scan_dirs": [".test/agents"], "needs_deploy": True},
-                "skill_definition": {"target_dir": ".test/skills", "needs_deploy": True},
-                "command_definition": {"target_dir": ".test/commands", "needs_deploy": True},
-                "context_injection": {"rules_distribution": {"target": ".test/rules"}},
-                "instruction_file": {
-                    "targets": [{"type": "project_state_copy", "path": "AGENTS.md"}]
-                },
-            }
+            PlatformProfile.model_validate(
+                {
+                    "agent_definition": {"scan_dirs": [".test/agents"], "needs_deploy": True},
+                    "skill_definition": {"target_dir": ".test/skills", "needs_deploy": True},
+                    "command_definition": {"target_dir": ".test/commands", "needs_deploy": True},
+                    "context_injection": {"rules_distribution": {"target": ".test/rules"}},
+                    "instruction_file": {
+                        "targets": [{"type": "project_state_copy", "path": "AGENTS.md"}]
+                    },
+                }
+            )
         )
 
     @property
@@ -54,7 +57,7 @@ class _SubdirAgentAdapter(PlatformAdapter):
         return None
 
     def get_agent_scan_dirs(self) -> list[str]:
-        return list(self._profile["agent_definition"]["scan_dirs"])
+        return list(self._profile.agent_definition.scan_dirs)
 
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"

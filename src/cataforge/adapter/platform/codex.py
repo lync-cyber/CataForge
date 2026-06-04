@@ -25,7 +25,7 @@ class CodexAdapter(PlatformAdapter):
         return "CODEX_HOME"
 
     def get_agent_scan_dirs(self) -> list[str]:
-        return list(self._profile.get("agent_definition", {}).get("scan_dirs", [".codex/agents"]))
+        return list(self._profile.agent_definition.scan_dirs) or [".codex/agents"]
 
     def get_agent_format(self) -> str:
         return "toml"

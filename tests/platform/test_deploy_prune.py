@@ -8,13 +8,14 @@ from typing import Any
 import pytest
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
+from cataforge.adapter.platform.profile_schema import PlatformProfile
 
 
 class _MinimalAdapter(PlatformAdapter):
     """Test adapter exercising default deploy_commands / deploy_agents."""
 
     def __init__(self, profile: dict[str, Any]) -> None:
-        super().__init__(profile)
+        super().__init__(PlatformProfile.model_validate(profile))
 
     @property
     def platform_id(self) -> str:

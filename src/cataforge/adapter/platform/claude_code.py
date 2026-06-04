@@ -24,7 +24,7 @@ class ClaudeCodeAdapter(PlatformAdapter):
         return "CLAUDE_PROJECT_DIR"
 
     def get_agent_scan_dirs(self) -> list[str]:
-        return list(self._profile.get("agent_definition", {}).get("scan_dirs", [".claude/agents"]))
+        return list(self._profile.agent_definition.scan_dirs) or [".claude/agents"]
 
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"

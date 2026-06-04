@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
+from cataforge.adapter.platform.profile_schema import PlatformProfile
 
 
 def _make_dir_link(target: Path, source: Path) -> bool:
@@ -48,7 +49,7 @@ class _MinimalAdapter(PlatformAdapter):
     """Test adapter exercising default deploy_skills."""
 
     def __init__(self, profile: dict[str, Any]) -> None:
-        super().__init__(profile)
+        super().__init__(PlatformProfile.model_validate(profile))
 
     @property
     def platform_id(self) -> str:

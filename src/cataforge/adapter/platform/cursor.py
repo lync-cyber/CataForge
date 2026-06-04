@@ -32,7 +32,7 @@ class CursorAdapter(PlatformAdapter):
         # the false impression that Cursor deploy would produce artifacts
         # under ``.claude/``. Users who really want ``.claude/agents`` scanned
         # can still declare it explicitly in their profile.yaml.
-        return list(self._profile.get("agent_definition", {}).get("scan_dirs", [".cursor/agents"]))
+        return list(self._profile.agent_definition.scan_dirs) or [".cursor/agents"]
 
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"
@@ -72,8 +72,7 @@ class CursorAdapter(PlatformAdapter):
         ``platforms/cursor/overrides/profile.yaml`` if the registry supports
         overrides on your install.
         """
-        rules_cfg = self._profile.get("rules") or {}
-        if not bool(rules_cfg.get("cross_platform_mirror", False)):
+        if not self._profile.rules.cross_platform_mirror:
             if dry_run:
                 return [
                     "SKIP: .claude/rules Markdown mirror "
