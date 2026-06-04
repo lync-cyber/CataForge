@@ -57,7 +57,7 @@ class DeployContext:
 # Step type alias
 # ---------------------------------------------------------------------------
 
-_StepFn = Callable[[DeployContext], list[str]]
+_StepFn = Callable[["Deployer", DeployContext], list[str]]
 _GuardFn = Callable[[DeployContext], bool]
 
 
