@@ -1,14 +1,9 @@
-"""Deployment algorithm mixins for :class:`PlatformAdapter`.
+"""Deploy-method mixins for :class:`PlatformAdapter`.
 
-These mixins carry the per-resource deploy logic (agents / instructions /
-skills / commands+rules / mcp). They keep ``self`` semantics so concrete
-adapters can override individual deploy methods and call ``super()``; the
-config/capability surface stays on
-:class:`~cataforge.adapter.platform.adapter.PlatformAdapter`.
-
-Each concern lives in its own submodule; this package re-exports the mixin
-classes so ``from cataforge.adapter.platform._deploy_mixins import (...)``
-keeps working as a single import surface.
+Each mixin is a thin shell whose ``deploy_*`` method delegates to the matching
+function in :mod:`cataforge.runtime.deploy.steps`, passing ``self`` as the
+adapter. The deploy algorithms live in the runtime step modules; these mixins
+keep ``adapter.deploy_*`` callable for direct callers.
 """
 
 from __future__ import annotations

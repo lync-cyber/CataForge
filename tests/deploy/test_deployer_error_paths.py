@@ -216,8 +216,8 @@ def test_write_failure_propagates(tmp_path: Path) -> None:
 
     # The instruction-file write routes through ``atomic_write_text`` (LF +
     # atomic), so a failure there must still propagate out of deploy. Patch
-    # the helper in the instructions namespace rather than ``Path.write_text``.
-    from cataforge.adapter.platform._deploy_mixins import instructions as instr_mod
+    # the helper in the instructions step namespace rather than ``Path.write_text``.
+    from cataforge.runtime.deploy.steps import instructions as instr_mod
 
     real_atomic = instr_mod.atomic_write_text
 

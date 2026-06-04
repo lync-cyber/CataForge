@@ -213,7 +213,10 @@ class Deployer:
     # ---- Step implementations ----
 
     def _step_deploy_agents(self, ctx: DeployContext) -> list[str]:
-        return ctx.adapter.deploy_agents(
+        from cataforge.runtime.deploy.steps import deploy_agents
+
+        return deploy_agents(
+            ctx.adapter,
             ctx.agents_src,
             ctx.root,
             dry_run=ctx.dry_run,
@@ -235,7 +238,10 @@ class Deployer:
         return self._deploy_hooks(ctx.root, ctx.adapter, manifest=ctx.manifest, dry_run=ctx.dry_run)
 
     def _step_deploy_additional_outputs(self, ctx: DeployContext) -> list[str]:
-        return ctx.adapter.deploy_additional_outputs(
+        from cataforge.runtime.deploy.steps import deploy_additional_outputs
+
+        return deploy_additional_outputs(
+            ctx.adapter,
             ctx.cfg.paths.rules_dir,
             ctx.root,
             dry_run=ctx.dry_run,
@@ -254,7 +260,10 @@ class Deployer:
         )
 
     def _step_deploy_skills(self, ctx: DeployContext) -> list[str]:
-        return ctx.adapter.deploy_skills(
+        from cataforge.runtime.deploy.steps import deploy_skills
+
+        return deploy_skills(
+            ctx.adapter,
             ctx.skills_src,
             ctx.root,
             dry_run=ctx.dry_run,
@@ -265,7 +274,10 @@ class Deployer:
         )
 
     def _step_deploy_commands(self, ctx: DeployContext) -> list[str]:
-        return ctx.adapter.deploy_commands(
+        from cataforge.runtime.deploy.steps import deploy_commands
+
+        return deploy_commands(
+            ctx.adapter,
             ctx.cfg.paths.commands_dir,
             ctx.root,
             dry_run=ctx.dry_run,
@@ -277,8 +289,10 @@ class Deployer:
         return self._apply_degradation(ctx.root, ctx.adapter, dry_run=ctx.dry_run)
 
     def _step_deploy_overrides_rules(self, ctx: DeployContext) -> list[str]:
-        return ctx.adapter.deploy_overrides_rules(
-            ctx.root, dry_run=ctx.dry_run, manifest=ctx.manifest
+        from cataforge.runtime.deploy.steps import deploy_overrides_rules
+
+        return deploy_overrides_rules(
+            ctx.adapter, ctx.root, dry_run=ctx.dry_run, manifest=ctx.manifest
         )
 
     def _step_deploy_mcp(self, ctx: DeployContext) -> list[str]:

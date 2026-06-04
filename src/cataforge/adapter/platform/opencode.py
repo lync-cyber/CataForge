@@ -32,33 +32,14 @@ class OpenCodeAdapter(PlatformAdapter):
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"
 
-    def deploy_agents(
-        self,
-        source_dir: Path,
-        project_root: Path,
-        *,
-        dry_run: bool = False,
-        manifest: DeployManifest | None = None,
-        prior_manifest: set[str] | None = None,
-    ) -> list[str]:
-        """Deploy AGENT.md files to OpenCode native ``.opencode/agents/*.md``.
+    @property
+    def agent_layout(self) -> str:
+        return "flat"
 
-        Shares the flat-write + flat-prune pipeline with Claude Code via
-        the base ``_deploy_flat_agents`` helper — only the hardcoded
-        target directory differs (OpenCode doesn't surface its agents
-        path through ``agent_definition.scan_dirs``).
-        """
-        return self._deploy_flat_agents(
-            source_dir,
-            project_root,
-            target_rel=".opencode/agents",
-            suffix=".md",
-            head_signature="name: {stem}",
-            formatter=lambda _name, translated: translated,
-            dry_run=dry_run,
-            manifest=manifest,
-            prior_manifest=prior_manifest,
-        )
+    def agent_target_rel(self) -> str | None:
+        # OpenCode doesn't surface its agents path through ``scan_dirs`` (those
+        # are read-scan dirs, not the write target).
+        return ".opencode/agents"
 
     def deploy_instruction_files(
         self,
@@ -107,14 +88,14 @@ class OpenCodeAdapter(PlatformAdapter):
     ) -> list[str]:
         return merge_opencode_project_mcp(project_root, server_id, server_config, dry_run=dry_run)
 
-    def _wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
+    def wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
         """OpenCode registers rule paths via opencode.json#instructions.
 
         Override rules are referenced **in place** under
         ``.cataforge/platforms/opencode/overrides/rules/*.md`` (declared in
         profile.yaml#rules_distribution.files); no per-file write to a
-        platform-native directory is needed. Returning ``None`` suppresses
-        the base default which would otherwise write to ``opencode.json/<name>.md``
+        platform-native directory is needed. Returning ``None`` suppresses the
+        base default which would otherwise write to ``opencode.json/<name>.md``
         — opencode.json is a config file, not a directory.
         """
         del name, content  # signal intentional unused
@@ -122,23 +103,26 @@ class OpenCodeAdapter(PlatformAdapter):
 
     # ---- hooks (OpenCode plugin-based surface) -----------------------
 
-    def emit_plugin_hooks(self, project_root: Path, *, dry_run: bool = False) -> list[str]:
+    def emit_plugin_hooks(
+        self,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        hooks_spec: dict[str, Any] | None = None,
+    ) -> list[str]:
         """Generate a TypeScript plugin that bridges OpenCode events to the
         CataForge Python hook scripts.
 
         OpenCode doesn't accept JSON hook configs — it loads ``.ts`` plugins
         that subscribe to events like ``tool.execute.before``.  The generated
         plugin ``spawn``s each canonical hook's Python script with the event
-        payload on stdin, exactly matching how Claude Code / Cursor invoke
-        the same scripts.  The end result: the same ``guard_dangerous`` /
-        ``lint_format`` / etc. code runs on every supported platform.
+        payload on stdin, exactly matching how Claude Code / Cursor invoke the
+        same scripts.  The hook spec is supplied by the caller (the hook
+        bridge) so this adapter does not reach back up into the runtime layer.
         """
-        from cataforge.runtime.hook.bridge import load_hooks_spec
-
-        try:
-            spec = load_hooks_spec()
-        except (OSError, ValueError) as exc:
-            return [f"opencode plugin: load hooks.yaml failed — {exc}"]
+        if hooks_spec is None:
+            return ["opencode plugin: no hooks spec supplied — skipping"]
+        spec = hooks_spec
 
         event_map = self.hook_event_map
         active_events: dict[str, list[dict[str, Any]]] = {}

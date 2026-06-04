@@ -367,11 +367,18 @@ def _emit_plugin_hooks(
     implement this method to generate the plugin wrapper in one go.  Returns
     ``None`` when the adapter has no plugin surface — in that case the
     caller falls back to per-hook rules injection / skip.
+
+    The hook spec is loaded here (same layer) and threaded into the adapter
+    so the adapter never imports back up into the runtime layer.
     """
     fn = getattr(adapter, "emit_plugin_hooks", None)
     if fn is None:
         return None
-    return list(fn(project_root, dry_run=dry_run))
+    try:
+        spec = load_hooks_spec()
+    except (OSError, ValueError) as exc:
+        return [f"opencode plugin: load hooks.yaml failed — {exc}"]
+    return list(fn(project_root, dry_run=dry_run, hooks_spec=spec))
 
 
 def _script_to_hook_name(script: str) -> str:

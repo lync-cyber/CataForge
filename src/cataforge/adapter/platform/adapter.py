@@ -1,14 +1,15 @@
 """PlatformAdapter abstract base class.
 
 All platform-specific differences are encapsulated here. The core runtime
-NEVER imports platform-specific modules directly. Deployment algorithms live
-in :mod:`cataforge.adapter.platform._deploy_mixins`; this class is the config /
-capability carrier composing those mixins.
+NEVER imports platform-specific modules directly. Deploy algorithms live in
+:mod:`cataforge.runtime.deploy.steps`; this class is the config / capability
+carrier and the home for per-platform strategy hooks the steps read.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cataforge.adapter.platform._deploy_mixins import (
@@ -99,6 +100,58 @@ class PlatformAdapter(
     @property
     def needs_agent_deploy(self) -> bool:
         return bool(self._profile.agent_definition.needs_deploy)
+
+    @property
+    def agent_layout(self) -> str:
+        """Agent deploy layout: ``flat`` (one ``<name><suffix>`` per agent) or
+        ``subdir`` (reproduce the ``<name>/AGENT.md`` tree)."""
+        return str(self._profile.agent_definition.layout)
+
+    def agent_target_rel(self) -> str | None:
+        """Target dir (relative to project root) for flat-layout agent files.
+
+        Defaults to ``scan_dirs[0]``; the profile's ``agent_definition.target_rel``
+        overrides it for platforms that don't surface their agents path via
+        ``scan_dirs`` (e.g. OpenCode's ``.opencode/agents``)."""
+        declared = self._profile.agent_definition.target_rel
+        if declared:
+            return str(declared)
+        scan_dirs = self.get_agent_scan_dirs()
+        return scan_dirs[0] if scan_dirs else None
+
+    @property
+    def agent_file_suffix(self) -> str:
+        """File extension flat-layout agents are written with (``.md`` / ``.toml``)."""
+        return str(self._profile.agent_definition.file_suffix)
+
+    @property
+    def agent_head_signature(self) -> str:
+        """Orphan-prune ownership signature for flat-layout agent files.
+
+        The flat-prune helper removes a file only when its head bytes contain
+        ``head_signature.format(stem=<file_stem>)``, so a user-authored file
+        sharing the suffix survives."""
+        return str(self._profile.agent_definition.head_signature)
+
+    @property
+    def agent_head_read_size(self) -> int:
+        """Bytes scanned for :attr:`agent_head_signature` during orphan prune."""
+        return int(self._profile.agent_definition.head_read_size)
+
+    @property
+    def prune_legacy_agent_subdirs(self) -> bool:
+        """Whether flat-layout deploy also tears down leftover ``<name>/AGENT.md``
+        subdirs from a prior dual-layout deploy."""
+        return bool(self._profile.agent_definition.prune_legacy_subdirs)
+
+    def render_agent(self, agent_id: str, content: str) -> str:
+        """Produce the final flat-layout agent file body from translated content.
+
+        Default: identity (Claude Code / OpenCode write the translated
+        yaml-frontmatter verbatim). Subclasses override to wrap the body in a
+        platform-native envelope (e.g. Codex TOML)."""
+        del agent_id
+        return content
 
     @property
     def reads_claude_md(self) -> bool:
@@ -300,6 +353,51 @@ class PlatformAdapter(
         can gracefully fall back to legacy defaults.
         """
         return dict(self._profile.context_injection)
+
+    def _default_rules_target_dir(self) -> str | None:
+        """Return the platform's declared rule distribution directory, if any.
+
+        Looks at ``context_injection.rules_distribution.target`` in the
+        profile.  Used by the rules step and the runtime placeholder renderer
+        so subclasses that only want to change wrapping (not the target path)
+        share one source of truth."""
+        target = (self.context_injection.get("rules_distribution", {}) or {}).get("target")
+        return str(target) if target else None
+
+    def wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
+        """Return ``(target_relpath, body)`` for an override rule, or ``None``.
+
+        Default: copy verbatim to
+        ``<context_injection.rules_distribution.target>/<name>.md`` when the
+        profile declares a rules target; otherwise return ``None`` (skip).
+
+        Subclasses override to:
+
+        * change the wrapping (e.g. Cursor wraps as MDC with ``alwaysApply``)
+        * change the target path
+        * return ``None`` to suppress writing entirely (e.g. when the rule is
+          surfaced through a different mechanism)
+        """
+        rules_target = self._default_rules_target_dir()
+        if not rules_target:
+            return None
+        return (f"{rules_target}/{name}.md", content)
+
+    def deploy_additional_outputs_hook(
+        self,
+        rules_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: Any = None,
+        prior_manifest: set[str] | None = None,
+    ) -> list[str]:
+        """Generate platform-specific additional outputs (e.g. Cursor MDC rules).
+
+        Default: no-op. Subclasses override to emit native artefacts whose
+        format is platform-specific. The runtime step routes to this hook."""
+        del rules_dir, project_root, dry_run, manifest, prior_manifest
+        return []
 
     def get_instruction_preamble(self) -> str:
         """Render the preamble block prepended to the instruction file body.

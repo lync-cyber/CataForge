@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.mcp_config import merge_codex_mcp_server
-
-if TYPE_CHECKING:
-    from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
 
 
 class CodexAdapter(PlatformAdapter):
@@ -30,53 +27,32 @@ class CodexAdapter(PlatformAdapter):
     def get_agent_format(self) -> str:
         return "toml"
 
-    def deploy_agents(
-        self,
-        source_dir: Path,
-        project_root: Path,
-        *,
-        dry_run: bool = False,
-        manifest: DeployManifest | None = None,
-        prior_manifest: set[str] | None = None,
-    ) -> list[str]:
-        """Convert AGENT.md (YAML frontmatter) to TOML for Codex.
+    @property
+    def agent_layout(self) -> str:
+        return "flat"
 
-        The frontmatter is first run through the canonical
-        :func:`translate_agent_md` pipeline (the shared
-        ``_deploy_flat_agents`` helper does this) so capability
-        translation, model tier resolution, and ``supported_fields``
-        filtering happen exactly the same way as on every other
-        platform — Codex just emits TOML instead of YAML, which the
-        ``formatter`` argument plugs in. After deploy, orphan
-        ``<name>.toml`` files whose source AGENT.md no longer exists are
-        pruned via the helper's flat-prune pass with Codex's TOML head
-        signature.
+    @property
+    def agent_file_suffix(self) -> str:
+        return ".toml"
+
+    @property
+    def agent_head_signature(self) -> str:
+        return "# Auto-generated from {stem}/AGENT.md"
+
+    @property
+    def agent_head_read_size(self) -> int:
+        return 256
+
+    def render_agent(self, agent_id: str, content: str) -> str:
+        """Wrap the translated yaml-frontmatter agent body into Codex TOML.
+
+        Single source of truth for which extra fields survive into the TOML:
+        the profile's ``agent_config.supported_fields`` minus the keys the
+        formatter already emits explicitly (name/description). Adding a field
+        to the profile flows through here without a code change.
         """
-        scan_dirs = self.get_agent_scan_dirs()
-        if not scan_dirs:
-            return []
-
-        # Single source of truth for which extra fields survive into the TOML:
-        # the profile's ``agent_config.supported_fields`` minus the keys the
-        # formatter already emits explicitly (name/description). Adding a field
-        # to the profile flows through here without a code change.
         passthrough = [f for f in self.agent_supported_fields if f not in _EXPLICIT_TOML_FIELDS]
-
-        def formatter(agent_id: str, content: str) -> str:
-            return _md_to_toml(agent_id, content, passthrough)
-
-        return self._deploy_flat_agents(
-            source_dir,
-            project_root,
-            target_rel=scan_dirs[0],
-            suffix=".toml",
-            head_signature="# Auto-generated from {stem}/AGENT.md",
-            head_read_size=256,
-            formatter=formatter,
-            dry_run=dry_run,
-            manifest=manifest,
-            prior_manifest=prior_manifest,
-        )
+        return _md_to_toml(agent_id, content, passthrough)
 
     def inject_mcp_config(
         self,

@@ -32,6 +32,16 @@ class AgentDefinition(BaseModel):
     format: str | None = None
     scan_dirs: list[str] = Field(default_factory=list)
     needs_deploy: bool = True
+    # Deploy strategy knobs consumed by ``runtime.deploy.steps.agents``.
+    # ``layout`` ``flat`` writes one ``<name><suffix>`` per agent; ``subdir``
+    # reproduces the ``<name>/AGENT.md`` tree. ``target_rel`` overrides the
+    # flat target dir when the platform does not surface it via ``scan_dirs``.
+    layout: str = "subdir"
+    target_rel: str | None = None
+    file_suffix: str = ".md"
+    head_signature: str = "name: {stem}"
+    head_read_size: int = 512
+    prune_legacy_subdirs: bool = False
 
 
 class SkillDefinition(BaseModel):

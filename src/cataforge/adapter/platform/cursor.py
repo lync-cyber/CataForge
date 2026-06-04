@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.fileops import symlink_or_copy
@@ -26,24 +26,18 @@ class CursorAdapter(PlatformAdapter):
         return "CURSOR_PROJECT_DIR"
 
     def get_agent_scan_dirs(self) -> list[str]:
-        # Default: Cursor-native only. The legacy fallback to ``.claude/agents``
-        # was removed in the M5 change — only ``scan_dirs[0]`` is ever written
-        # during deploy, so listing ``.claude/agents`` as a fallback created
-        # the false impression that Cursor deploy would produce artifacts
-        # under ``.claude/``. Users who really want ``.claude/agents`` scanned
-        # can still declare it explicitly in their profile.yaml.
         return list(self._profile.agent_definition.scan_dirs) or [".cursor/agents"]
 
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"
 
-    def deploy_additional_outputs(
+    def deploy_additional_outputs_hook(
         self,
         rules_dir: Path,
         project_root: Path,
         *,
         dry_run: bool = False,
-        manifest: DeployManifest | None = None,
+        manifest: Any = None,
         prior_manifest: set[str] | None = None,
     ) -> list[str]:
         return self._generate_mdc_rules(rules_dir, project_root, dry_run=dry_run, manifest=manifest)
@@ -66,11 +60,9 @@ class CursorAdapter(PlatformAdapter):
         intended for projects that also run Claude Code against the same
         tree and want to share source-of-truth prompts.
 
-        The mirror is **off by default** (as of the M5 change).  Opt in via
+        The mirror is off by default.  Opt in via
         ``rules.cross_platform_mirror: true`` in
-        ``.cataforge/platforms/cursor/profile.yaml`` — or a user-level
-        ``platforms/cursor/overrides/profile.yaml`` if the registry supports
-        overrides on your install.
+        ``.cataforge/platforms/cursor/profile.yaml``.
         """
         if not self._profile.rules.cross_platform_mirror:
             if dry_run:
@@ -91,8 +83,6 @@ class CursorAdapter(PlatformAdapter):
             "note: Cursor deploy linked .claude/rules for cross-platform prompt "
             "sharing (profile rules.cross_platform_mirror=true)"
         )
-        if dry_run:
-            return actions + [note]
         return actions + [note]
 
     def _generate_mdc_rules(
@@ -108,7 +98,7 @@ class CursorAdapter(PlatformAdapter):
         Only handles ``.cataforge/rules/*.md`` here; override rules under
         ``.cataforge/platforms/cursor/overrides/rules/`` are picked up by
         the base-class ``deploy_overrides_rules`` flow which calls
-        :meth:`_wrap_rule_for_platform` (overridden below to produce the
+        :meth:`wrap_rule_for_platform` (overridden below to produce the
         same MDC + ``alwaysApply`` wrapping).
         """
         output_dir = project_root / ".cursor" / "rules"
@@ -131,7 +121,7 @@ class CursorAdapter(PlatformAdapter):
 
         return actions
 
-    def _wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
+    def wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
         """Wrap an override rule as a Cursor MDC file with ``alwaysApply``.
 
         Called by the base-class ``deploy_overrides_rules`` flow for every
@@ -141,7 +131,7 @@ class CursorAdapter(PlatformAdapter):
         """
         return (f".cursor/rules/{name}.mdc", _wrap_as_mdc(name, content))
 
-    def _mcp_json_path(self, project_root: Path) -> Path:
+    def mcp_json_path(self, project_root: Path) -> Path:
         return project_root / ".cursor" / "mcp.json"
 
 
