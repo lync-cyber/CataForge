@@ -148,15 +148,15 @@ def doctor_command(ctx: click.Context) -> None:
     # Platform profiles
     click.echo("\nPlatform profiles:")
     for pid in ("claude-code", "cursor", "codex", "opencode"):
-        path = cfg.paths.platform_profile(pid)
-        status = "OK" if path.is_file() else "MISSING"
+        profile_path = cfg.paths.platform_profile(pid)
+        status = "OK" if profile_path.is_file() else "MISSING"
         click.echo(f"  {pid}: {status}")
 
     for header, check, gating in _DOCTOR_SECTIONS:
         click.echo(f"\n{header}")
         result = check(cfg)
         if gating:
-            failed_count += result
+            failed_count += result or 0
 
     click.echo("\nDiagnostics complete.")
     _print_summary(failed_count)

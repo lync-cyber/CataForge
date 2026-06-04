@@ -10,9 +10,12 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import click
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 
 def resolve_project_dir() -> Path | None:
@@ -31,7 +34,7 @@ def resolve_project_dir() -> Path | None:
     return Path(override) if override else None
 
 
-def get_config_manager():
+def get_config_manager() -> ConfigManager:
     """Return a :class:`ConfigManager` honouring ``--project-dir`` if set.
 
     All CLI commands should instantiate their ConfigManager through this

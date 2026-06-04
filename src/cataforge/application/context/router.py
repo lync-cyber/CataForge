@@ -34,7 +34,7 @@ class FidelityRouter:
         return sorted(eligible, key=lambda b: b.fidelity[op], reverse=True)
 
     def read_section(
-        self, ref: str, project_root: str, *, file_cache: dict[str, Any] | None = None
+        self, ref: str, project_root: str, *, file_cache: dict[str, list[str]] | None = None
     ) -> str:
         for backend in self._ordered(OP_READ_SECTION):
             result = backend.read_section(ref, project_root, file_cache=file_cache)

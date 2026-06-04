@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from abc import abstractmethod
 from collections import defaultdict
 
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
@@ -58,6 +59,16 @@ _AC_OBSERVABLE_RE = re.compile(
 
 class TypedDocChecksMixin:
     """Mixin providing ``check_<doc_type>`` methods used by ``DocChecker``."""
+
+    volume_type: str
+    content: str
+    lines: list[str]
+
+    @abstractmethod
+    def fail(self, msg: str, category: str = "doc-structure") -> None: ...
+
+    @abstractmethod
+    def warn(self, msg: str, category: str = "doc-structure") -> None: ...
 
     # ---- PRD ----
 
