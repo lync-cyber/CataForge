@@ -29,6 +29,7 @@ _EXPECTED = {
     "claude-code": {
         "{INSTRUCTION_FILE}": "CLAUDE.md",
         "{AGENTS_DIR}": ".claude/agents",
+        "{AGENTS_SRC_DIR}": ".cataforge/agents",
         "{RULES_DIR}": ".claude/rules",
         "{SKILLS_DIR}": ".claude/skills",
         "{COMMANDS_DIR}": ".claude/commands",
@@ -36,6 +37,7 @@ _EXPECTED = {
     "cursor": {
         "{INSTRUCTION_FILE}": "AGENTS.md",
         "{AGENTS_DIR}": ".cursor/agents",
+        "{AGENTS_SRC_DIR}": ".cataforge/agents",
         "{RULES_DIR}": ".cursor/rules",
         "{SKILLS_DIR}": ".claude/skills",  # Cursor shares Claude's skills dir
         "{COMMANDS_DIR}": ".cursor/commands",
@@ -43,6 +45,7 @@ _EXPECTED = {
     "codex": {
         "{INSTRUCTION_FILE}": "AGENTS.md",
         "{AGENTS_DIR}": ".codex/agents",
+        "{AGENTS_SRC_DIR}": ".cataforge/agents",
         "{RULES_DIR}": ".codex/rules",
         # Codex doesn't deploy skills/commands — fallback to source overlay
         # so cross-refs resolve to a readable path on every platform.
@@ -52,6 +55,7 @@ _EXPECTED = {
     "opencode": {
         "{INSTRUCTION_FILE}": "AGENTS.md",
         "{AGENTS_DIR}": ".opencode/agents",
+        "{AGENTS_SRC_DIR}": ".cataforge/agents",
         # OpenCode registers rules through opencode.json#instructions (file,
         # not dir). Render path falls back to the source overlay; the
         # in-place glob still picks the same content up.
@@ -77,6 +81,7 @@ def test_known_placeholders_lists_full_surface() -> None:
     assert set(known_placeholders()) == {
         "{INSTRUCTION_FILE}",
         "{AGENTS_DIR}",
+        "{AGENTS_SRC_DIR}",
         "{RULES_DIR}",
         "{SKILLS_DIR}",
         "{COMMANDS_DIR}",
@@ -97,22 +102,52 @@ def test_framework_version_resolves_to_package_version() -> None:
         assert rendered == f"- 框架版本: {cataforge.__version__}"
 
 
+@pytest.mark.parametrize("platform_id", sorted(_EXPECTED))
+def test_agents_src_dir_resolves_to_source_overlay(platform_id: str) -> None:
+    """``{AGENTS_SRC_DIR}`` resolves to the persistent ``.cataforge/agents``
+    source on every platform, so cross-references reaching a file *inside* an
+    agent dir (sibling ``*PROTOCOLS*.md`` or another agent's ``AGENT.md``)
+    point at a path that survives flat-layout deploy.
+
+    Flat platforms (Claude/OpenCode/Codex) deploy ``<name>.md`` only, so the
+    same reference rendered through ``{AGENTS_DIR}`` would dangle at a
+    ``<name>/<file>`` subpath that flat deploy never produces.
+    """
+    adapter = get_adapter(platform_id, _platforms_dir())
+    source = "协议见 {AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md"
+    rendered = render_runtime_content(source, adapter)
+    assert rendered == "协议见 .cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md"
+
+
+def test_agents_dir_and_src_dir_coexist_without_clobber() -> None:
+    """Both tokens render independently; substituting ``{AGENTS_DIR}`` must not
+    corrupt the longer ``{AGENTS_SRC_DIR}`` token sharing the ``AGENTS_`` stem."""
+    adapter = get_adapter("claude-code", _platforms_dir())
+    source = "body 在 {AGENTS_DIR}/x.md；源协议在 {AGENTS_SRC_DIR}/x/P.md"
+    rendered = render_runtime_content(source, adapter)
+    assert rendered == "body 在 .claude/agents/x.md；源协议在 .cataforge/agents/x/P.md"
+    assert "{AGENTS_DIR}" not in rendered
+    assert "{AGENTS_SRC_DIR}" not in rendered
+
+
 def test_render_substitutes_all_known_tokens_in_one_pass() -> None:
     adapter = get_adapter("claude-code", _platforms_dir())
     source = (
         "见 {INSTRUCTION_FILE} §项目状态；细则见 {RULES_DIR}/COMMON-RULES.md；"
-        "skill 引用 {SKILLS_DIR}/research/SKILL.md；agent 协议见 "
-        "{AGENTS_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md。"
+        "skill 引用 {SKILLS_DIR}/research/SKILL.md；部署后 agent 目录 {AGENTS_DIR}；"
+        "源协议见 {AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md。"
     )
     rendered = render_runtime_content(source, adapter)
     assert "{INSTRUCTION_FILE}" not in rendered
     assert "{RULES_DIR}" not in rendered
     assert "{SKILLS_DIR}" not in rendered
     assert "{AGENTS_DIR}" not in rendered
+    assert "{AGENTS_SRC_DIR}" not in rendered
     assert "CLAUDE.md" in rendered
     assert ".claude/rules/COMMON-RULES.md" in rendered
     assert ".claude/skills/research/SKILL.md" in rendered
-    assert ".claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md" in rendered
+    assert "部署后 agent 目录 .claude/agents；" in rendered
+    assert ".cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md" in rendered
 
 
 def test_render_leaves_unknown_braces_untouched() -> None:

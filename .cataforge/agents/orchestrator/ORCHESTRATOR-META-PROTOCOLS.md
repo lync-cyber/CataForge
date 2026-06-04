@@ -165,7 +165,7 @@ cataforge event log --event phase_start --phase architecture --detail "进入架
    - `docs/reviews/CORRECTIONS-LOG.md` 中 `偏差类型` 累计命中 self-caused 的条目数 ≥ `RETRO_TRIGGER_SELF_CAUSED`，或
    - 本项目任一 REVIEW / CODE-REVIEW / CODE-SCAN / FRAMEWORK-REVIEW 报告包含 CRITICAL 级别问题
    跳过时在 {INSTRUCTION_FILE} `Learnings Registry` 字段记录 `retro skipped (below threshold)` 并**[EVENT]** 写入 `review_verdict`（agent=reflector, status=approved, detail="retro skipped (below threshold)"）
-2. **执行 reflector §Retrospective Protocol**: orchestrator 自行加载 `{AGENTS_DIR}/reflector/AGENT.md` §Retrospective Protocol（含 EVENT-LOG.jsonl 扫描），按其步骤 1-7 完成产出
+2. **执行 reflector §Retrospective Protocol**: orchestrator 自行加载 `{AGENTS_SRC_DIR}/reflector/AGENT.md` §Retrospective Protocol（含 EVENT-LOG.jsonl 扫描），按其步骤 1-7 完成产出
 3. 产出文件:
    - docs/reviews/retro/RETRO-{project}-{cycle}.md（`{cycle}` = sprint 编号或迭代标签，仅 slug；版本号写入 frontmatter `version:`，含 EXP 经验条目）
    - docs/reviews/retro/SKILL-IMPROVE-{skill_id}.md（含每条 EXP 对应的具体 Agent/Skill 文件修改建议）

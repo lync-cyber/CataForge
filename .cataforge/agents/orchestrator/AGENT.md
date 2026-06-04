@@ -85,6 +85,6 @@ development → tdd-engine light 分支 → CODE+TESTS
 - framework.json 不存在时: 所有功能按默认行为执行（无 framework.json 时的兼容路径）
 
 详细协议分两本：
-- `{AGENTS_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` — 阶段调度热路径（Bootstrap、Mode Routing、Interrupt-Resume、Revision、Approved-with-Notes、Phase Transition、Manual Review Checkpoint、Rolled-back Recovery、TDD Blocked Recovery、Parallel Task Dispatch、Sprint Review、Change Request、Agent Crash Recovery、Sub-Agent Truncation Recovery、{INSTRUCTION_FILE} Update Template）
-- `{AGENTS_DIR}/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md` — 元运维与学习协议（Framework Upgrade、Event Log 规范、On-Correction Learning、Adaptive Review、Retrospective & Improvement）
+- `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` — 阶段调度热路径（Bootstrap、Mode Routing、Interrupt-Resume、Revision、Approved-with-Notes、Phase Transition、Manual Review Checkpoint、Rolled-back Recovery、TDD Blocked Recovery、Parallel Task Dispatch、Sprint Review、Change Request、Agent Crash Recovery、Sub-Agent Truncation Recovery、{INSTRUCTION_FILE} Update Template）
+- `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md` — 元运维与学习协议（Framework Upgrade、Event Log 规范、On-Correction Learning、Adaptive Review、Retrospective & Improvement）
 agent-result 状态码权威定义见 `.cataforge/schemas/agent-result.schema.json`

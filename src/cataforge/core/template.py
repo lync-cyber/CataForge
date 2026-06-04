@@ -7,9 +7,9 @@ Two responsibilities, kept in one module so callers have a single import for
   PROJECT-STATE.md. Predates :func:`render_runtime_content` and is kept as a
   thin alias so PROJECT-STATE.md callers don't need to thread an adapter.
 * :func:`render_runtime_content` — substitutes ``{INSTRUCTION_FILE}``,
-  ``{AGENTS_DIR}``, ``{RULES_DIR}``, ``{SKILLS_DIR}``, ``{COMMANDS_DIR}``,
-  ``{FRAMEWORK_VERSION}`` into any markdown body before it lands at a
-  platform-native path.
+  ``{AGENTS_DIR}``, ``{AGENTS_SRC_DIR}``, ``{RULES_DIR}``, ``{SKILLS_DIR}``,
+  ``{COMMANDS_DIR}``, ``{FRAMEWORK_VERSION}`` into any markdown body before it
+  lands at a platform-native path.
 
 Why a registry, not free-form ``str.format``:
 
@@ -48,6 +48,7 @@ def render_project_state(content: str, platform_id: str) -> str:
 _PLACEHOLDER_RESOLVERS: dict[str, str] = {
     "{INSTRUCTION_FILE}": "_resolve_instruction_file",
     "{AGENTS_DIR}": "_resolve_agents_dir",
+    "{AGENTS_SRC_DIR}": "_resolve_agents_src_dir",
     "{RULES_DIR}": "_resolve_rules_dir",
     "{SKILLS_DIR}": "_resolve_skills_dir",
     "{COMMANDS_DIR}": "_resolve_commands_dir",
@@ -65,20 +66,40 @@ def _resolve_instruction_file(adapter: PlatformAdapter) -> str | None:
 
 
 def _resolve_agents_dir(adapter: PlatformAdapter) -> str | None:
-    """Platform-native deployed-agents directory.
+    """Platform-native deployed-agents directory (``scan_dirs[0]``).
 
-    Resolves to whatever ``agent_definition.scan_dirs[0]`` declares — so for
-    Claude/OpenCode this is the per-agent-subdir tree, and for Codex/Cursor
-    it's the flat ``.codex/agents`` / ``.cursor/agents`` tree. Cross-references
-    that include sibling filenames (``{AGENTS_DIR}/<name>/PROTOCOLS.md``)
-    only resolve to a real path on subdir-layout platforms; flat-layout
-    platforms deploy only the agent body, so the sibling path is a
-    documentation hint pointing at the source overlay.
+    Flat-layout platforms (Claude Code, OpenCode, Codex) deploy one file per
+    agent — ``<name>.md`` / ``<name>.toml`` directly under this dir — so the
+    source ``<name>/AGENT.md`` subdir and its sibling ``*PROTOCOLS*.md`` files
+    are NOT reproduced here. Subdir-layout platforms (Cursor) keep the
+    ``<name>/AGENT.md`` tree intact.
+
+    A cross-reference that reaches a file *inside* an agent dir (a sibling
+    protocol file, or another agent's ``AGENT.md``) must therefore use
+    :func:`_resolve_agents_src_dir`'s ``{AGENTS_SRC_DIR}`` token — which points
+    at the persistent ``.cataforge/agents`` source on every platform — not
+    this token, whose ``<name>/<file>`` subpath only exists on subdir
+    platforms and dangles everywhere else.
     """
     scan_dirs = adapter.get_agent_scan_dirs()
     if scan_dirs:
         return scan_dirs[0]
     return None
+
+
+def _resolve_agents_src_dir(adapter: PlatformAdapter) -> str | None:
+    """Source-overlay agents directory — ``.cataforge/agents`` on every platform.
+
+    Deploy never removes the source overlay (self-heal even refills it), so
+    ``.cataforge/agents/<name>/AGENT.md`` and its sibling ``*PROTOCOLS*.md``
+    are readable from any platform's deployed tree. This is the only stable
+    target for agent-internal cross-references on flat-layout platforms, where
+    :func:`_resolve_agents_dir` deploys the agent body alone. Mirrors the
+    lang-fragment links, which point at the same source overlay for the same
+    reason.
+    """
+    del adapter  # source overlay is platform-independent
+    return ".cataforge/agents"
 
 
 # Source-location fallbacks used when a platform doesn't materialise content
@@ -152,6 +173,7 @@ def _resolve_framework_version(_adapter: PlatformAdapter) -> str | None:
 _RESOLVER_FUNCS = {
     "_resolve_instruction_file": _resolve_instruction_file,
     "_resolve_agents_dir": _resolve_agents_dir,
+    "_resolve_agents_src_dir": _resolve_agents_src_dir,
     "_resolve_rules_dir": _resolve_rules_dir,
     "_resolve_skills_dir": _resolve_skills_dir,
     "_resolve_commands_dir": _resolve_commands_dir,
