@@ -255,3 +255,83 @@ class TestDoctorAsIntegrityGate:
 
         m = re.search(r"Summary:.*?(\d+)\s+failed", result.output)
         assert m and int(m.group(1)) >= 1, result.output
+
+
+class TestDoctorDeployDrift:
+    """Deploy drift surfaces as a non-gating WARN pointing at `cataforge deploy`."""
+
+    @staticmethod
+    def _clean_deployed(tmp_path: Path) -> Path:
+        root = _minimal_project(tmp_path)
+        _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
+        _link_skill(src_skill, root / ".claude" / "skills")
+        (root / ".claude").mkdir(exist_ok=True)
+        (root / ".claude" / "settings.json").write_text("{}\n", encoding="utf-8")
+        (root / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
+        (root / ".claude" / "rules").mkdir(parents=True, exist_ok=True)
+        (root / ".claude" / "commands").mkdir(parents=True, exist_ok=True)
+        _write_deploy_state(root, "claude-code")
+        return root
+
+    @staticmethod
+    def _write_baseline(root: Path, digest: str, version: str) -> None:
+        (root / ".cataforge" / ".deploy-manifest.json").write_text(
+            json.dumps(
+                {
+                    "manifest_version": 1,
+                    "platform": "claude-code",
+                    "owned_paths": [],
+                    "source_digest": digest,
+                    "package_version": version,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_in_sync_reports_no_drift(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cataforge import __version__
+        from cataforge.core.paths import ProjectPaths
+        from cataforge.runtime.deploy.drift import compute_source_digest
+
+        root = self._clean_deployed(tmp_path)
+        self._write_baseline(root, compute_source_digest(ProjectPaths(root)), __version__)
+        monkeypatch.chdir(root)
+
+        result = CliRunner().invoke(doctor_command, [])
+        assert "in sync" in result.output.lower(), result.output
+        assert result.exit_code == 0, result.output
+
+    def test_source_drift_warns_without_gating(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cataforge import __version__
+        from cataforge.core.paths import ProjectPaths
+        from cataforge.runtime.deploy.drift import compute_source_digest
+
+        root = self._clean_deployed(tmp_path)
+        self._write_baseline(root, compute_source_digest(ProjectPaths(root)), __version__)
+        # Mutate a source file after the baseline — drift, but non-gating.
+        (root / ".cataforge" / "rules" / "extra.md").write_text("# new\n", encoding="utf-8")
+        monkeypatch.chdir(root)
+
+        result = CliRunner().invoke(doctor_command, [])
+        assert "WARN" in result.output
+        assert "cataforge deploy" in result.output
+        assert result.exit_code == 0, result.output
+
+    def test_version_drift_warns(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from cataforge.core.paths import ProjectPaths
+        from cataforge.runtime.deploy.drift import compute_source_digest
+
+        root = self._clean_deployed(tmp_path)
+        self._write_baseline(root, compute_source_digest(ProjectPaths(root)), "0.0.1")
+        monkeypatch.chdir(root)
+
+        result = CliRunner().invoke(doctor_command, [])
+        assert "WARN" in result.output
+        assert "0.0.1" in result.output
+        assert result.exit_code == 0, result.output

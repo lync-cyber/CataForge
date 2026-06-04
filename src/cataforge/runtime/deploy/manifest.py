@@ -52,11 +52,14 @@ class DeployManifest:
     miss every Windows orphan otherwise.
     """
 
-    __slots__ = ("platform_id", "_paths")
+    __slots__ = ("platform_id", "_paths", "source_digest", "package_version")
 
     def __init__(self, platform_id: str) -> None:
         self.platform_id = platform_id
         self._paths: set[str] = set()
+        # Drift baselines, set by the deployer just before save_manifest.
+        self.source_digest: str | None = None
+        self.package_version: str | None = None
 
     def record(self, rel_path: str | Path) -> None:
         s = str(rel_path).replace("\\", "/").strip("/")
@@ -73,11 +76,16 @@ class DeployManifest:
         return set(self._paths)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        d: dict[str, object] = {
             "manifest_version": _MANIFEST_VERSION,
             "platform": self.platform_id,
             "owned_paths": sorted(self._paths),
         }
+        if self.source_digest is not None:
+            d["source_digest"] = self.source_digest
+        if self.package_version is not None:
+            d["package_version"] = self.package_version
+        return d
 
 
 def load_prior_manifest(project_root: Path) -> set[str]:
@@ -121,6 +129,31 @@ def load_prior_manifest_platform(project_root: Path) -> str | None:
         return None
     platform = data.get("platform")
     return str(platform) if isinstance(platform, str) else None
+
+
+def load_prior_baseline(project_root: Path) -> tuple[str | None, str | None]:
+    """Return ``(source_digest, package_version)`` from the prior manifest.
+
+    Both ``None`` when no manifest exists or the fields predate drift
+    tracking — callers treat that as "no baseline yet, don't report drift",
+    so existing projects never get a spurious drift warning before their
+    first redeploy under the drift-aware deployer.
+    """
+    path = project_root / DEPLOY_MANIFEST_REL
+    if not path.is_file():
+        return None, None
+    try:
+        data = read_json(path)
+    except ConfigError:
+        return None, None
+    if not isinstance(data, dict):
+        return None, None
+    digest = data.get("source_digest")
+    version = data.get("package_version")
+    return (
+        digest if isinstance(digest, str) else None,
+        version if isinstance(version, str) else None,
+    )
 
 
 def save_manifest(project_root: Path, manifest: DeployManifest) -> None:

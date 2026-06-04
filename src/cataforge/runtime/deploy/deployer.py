@@ -225,6 +225,11 @@ class Deployer:
 
         if not dry_run:
             self._write_deploy_state(root, platform_id)
+            from cataforge import __version__
+            from cataforge.runtime.deploy.drift import compute_source_digest
+
+            manifest.source_digest = compute_source_digest(self._cfg.paths)
+            manifest.package_version = __version__
             save_manifest(root, manifest)
         else:
             actions.append(

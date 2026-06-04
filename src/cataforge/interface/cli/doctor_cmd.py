@@ -17,6 +17,7 @@ from cataforge.interface.cli.main import cli
 
 from .doctor._helpers import check_dir, check_file, check_import
 from .doctor.deploy_integrity import (
+    check_deploy_drift,
     check_deploy_integrity,
     check_deploy_source_orphans,
 )
@@ -74,6 +75,10 @@ _DOCTOR_SECTIONS = [
     # prunes it. WARN-only (non-gating) so the self-healing artefact doesn't
     # fail doctor.
     ("Deploy source orphans:", check_deploy_source_orphans, False),
+    # Deploy drift — informational WARN: .cataforge/ source or the installed
+    # cataforge version moved since the last deploy, so IDE artefacts are
+    # stale. Non-gating (a nudge, not a failure); points the user at deploy.
+    ("Deploy drift:", check_deploy_drift, False),
     # Recent hook execution failures — informational; surfaces silent
     # observer-hook crashes logged by hook_main().
     ("Hook execution log:", report_hook_errors, False),

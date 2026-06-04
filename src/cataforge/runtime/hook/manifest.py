@@ -103,6 +103,14 @@ HOOKS_MANIFEST: tuple[dict[str, object], ...] = (
         "description": "会话初始化",
         "safety_critical": False,
     },
+    {
+        "name": "deploy_drift",
+        "events": ("SessionStart",),
+        "default_capability": None,
+        "default_type": "observe",
+        "description": "部署漂移提示",
+        "safety_critical": False,
+    },
 )
 
 
