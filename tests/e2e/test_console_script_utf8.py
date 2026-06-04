@@ -87,7 +87,7 @@ def test_console_script_non_ascii_renders(cataforge_venv: Path, tmp_path: Path) 
     """Chinese output must survive the relaunch + UTF-8 reconfigure without a
     UnicodeEncodeError traceback. ``hook list`` prints Chinese hook
     descriptions (e.g. 危险命令拦截) once the project is scaffolded."""
-    scaffold = _run_launcher(cataforge_venv, "setup", "--no-deploy", cwd=tmp_path)
+    scaffold = _run_launcher(cataforge_venv, "setup", cwd=tmp_path)
     assert scaffold.returncode == 0, _text(scaffold)
 
     proc = _run_launcher(cataforge_venv, "hook", "list", cwd=tmp_path)

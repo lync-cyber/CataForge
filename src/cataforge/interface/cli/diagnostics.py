@@ -104,20 +104,3 @@ DOCTOR_PATTERNS: list[DiagPattern] = [
     NPX_MISSING,
     DOCKER_MISSING,
 ]
-
-
-# ---------------------------------------------------------------------------
-# Upgrade — manifest drift / merge conflict patterns.
-# ---------------------------------------------------------------------------
-
-UPGRADE_LOCAL_MODS = DiagPattern(
-    needle=re.compile(r"user-modified|drift"),
-    diagnosis="检测到本地修改与新 scaffold 冲突",
-    fix_action=(
-        "选项: (a) `cataforge upgrade apply --dry-run` 预览; "
-        "(b) `cataforge upgrade rollback` 回退本地修改后重试; "
-        "(c) 手动 diff 后保留必要修改再 apply"
-    ),
-)
-
-UPGRADE_PATTERNS: list[DiagPattern] = [UPGRADE_LOCAL_MODS]

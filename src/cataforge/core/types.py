@@ -32,24 +32,6 @@ class Severity(Enum):
 
 
 @dataclass
-class DispatchRequest:
-    agent_id: str
-    task: str
-    task_type: str
-    input_docs: list[str]
-    expected_output: str
-    phase: str
-    project_name: str
-    background: bool = False
-    max_turns: int | None = None
-    review_path: str | None = None
-    answers: dict[str, str] | None = None
-    intermediate_outputs: list[str] | None = None
-    resume_guidance: str | None = None
-    change_analysis: str | None = None
-
-
-@dataclass
 class AgentResult:
     status: AgentStatus
     outputs: list[str]
