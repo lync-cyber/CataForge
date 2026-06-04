@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -140,7 +140,7 @@ def compile_to_markdown(
     }
 
     return CompileResult(
-        exported_at=datetime.now(timezone.utc),
+        exported_at=datetime.now(UTC),
         discovered_count=len(entities),
         output_dir=output_dir,
         file_records=sorted(file_records, key=lambda r: r.entity_id),

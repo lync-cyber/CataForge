@@ -7,7 +7,7 @@ threshold/skip behaviour is covered without depending on real git history.
 from __future__ import annotations
 
 import importlib.util
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
 
@@ -23,7 +23,7 @@ def _load() -> ModuleType:
     return mod
 
 
-NOW = datetime(2026, 6, 1, tzinfo=timezone.utc)
+NOW = datetime(2026, 6, 1, tzinfo=UTC)
 
 
 def test_find_stale_flags_only_old_profiles() -> None:

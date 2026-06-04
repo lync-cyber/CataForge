@@ -17,7 +17,7 @@ from __future__ import annotations
 import glob
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from cataforge.core.errors import ConfigError
@@ -111,7 +111,7 @@ def _is_stale(file_path: str, generated_at: str | None) -> bool:
     try:
         file_mtime = os.path.getmtime(file_path)
         gen_dt = datetime.fromisoformat(generated_at)
-        file_dt = datetime.fromtimestamp(file_mtime, tz=timezone.utc)
+        file_dt = datetime.fromtimestamp(file_mtime, tz=UTC)
         return file_dt > gen_dt
     except (ValueError, OSError):
         return True
@@ -122,7 +122,7 @@ def _index_age_days(generated_at: str | None) -> float | None:
         return None
     try:
         gen_dt = datetime.fromisoformat(generated_at)
-        return (datetime.now(timezone.utc) - gen_dt).total_seconds() / 86400.0
+        return (datetime.now(UTC) - gen_dt).total_seconds() / 86400.0
     except ValueError:
         return None
 

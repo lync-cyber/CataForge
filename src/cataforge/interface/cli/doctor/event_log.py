@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import UTC
 from typing import TYPE_CHECKING
 
 import click
@@ -111,7 +112,7 @@ def _ts_before(ts_value, cutoff) -> bool:  # cutoff: datetime
     they predate the cutoff are skipped, so malformed records (which the
     watermark shouldn't hide) still fail.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     if not isinstance(ts_value, str) or not ts_value:
         return False
@@ -121,9 +122,9 @@ def _ts_before(ts_value, cutoff) -> bool:  # cutoff: datetime
         return False
     # Make both sides timezone-aware to avoid naive-vs-aware comparison errors.
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
+        ts = ts.replace(tzinfo=UTC)
     if cutoff.tzinfo is None:
-        cutoff = cutoff.replace(tzinfo=timezone.utc)
+        cutoff = cutoff.replace(tzinfo=UTC)
     return ts < cutoff
 
 

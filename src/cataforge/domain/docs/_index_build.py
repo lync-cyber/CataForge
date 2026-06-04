@@ -13,7 +13,7 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from cataforge.core.io import read_json
@@ -292,7 +292,7 @@ def _make_index(documents: dict[str, Any]) -> dict[str, Any]:
     aliases, alias_conflicts = build_aliases(documents)
     index: dict[str, Any] = {
         "version": "1",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "documents": documents,
         "xref": build_xref(documents),
         "aliases": aliases,

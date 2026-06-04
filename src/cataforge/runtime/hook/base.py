@@ -238,7 +238,7 @@ def _record_hook_error(module: str, func_name: str, exc: BaseException) -> None:
         _rotate_if_too_large(log_path)
 
         record = {
-            "ts": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+            "ts": _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds"),
             "module": module,
             "func": func_name,
             "error_type": type(exc).__name__,

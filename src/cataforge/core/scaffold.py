@@ -19,7 +19,7 @@ import logging
 import shutil
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
@@ -472,7 +472,7 @@ def classify_scaffold_files(
 
 
 def _now_ts() -> str:
-    return datetime.now(timezone.utc).strftime(_BACKUP_TS_FMT)
+    return datetime.now(UTC).strftime(_BACKUP_TS_FMT)
 
 
 def _backups_root(cataforge_dir: Path) -> Path:

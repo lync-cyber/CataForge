@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -131,7 +131,7 @@ def test_extract_batch_reuses_per_file_cache(tmp_path: Path, monkeypatch) -> Non
 
 def test_stale_warning_emitted_for_old_index(tmp_path: Path, capsys) -> None:
     _make_project(tmp_path)
-    old_ts = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+    old_ts = (datetime.now(UTC) - timedelta(days=10)).isoformat()
     (tmp_path / "docs" / ".doc-index.json").write_text(
         json.dumps({"generated_at": old_ts, "documents": {}}),
         encoding="utf-8",
@@ -144,7 +144,7 @@ def test_stale_warning_emitted_for_old_index(tmp_path: Path, capsys) -> None:
 
 def test_no_stale_warning_for_fresh_index(tmp_path: Path, capsys) -> None:
     _make_project(tmp_path)
-    fresh_ts = datetime.now(timezone.utc).isoformat()
+    fresh_ts = datetime.now(UTC).isoformat()
     (tmp_path / "docs" / ".doc-index.json").write_text(
         json.dumps({"generated_at": fresh_ts, "documents": {}}),
         encoding="utf-8",
@@ -219,7 +219,7 @@ def test_loader_main_with_deps_expands_refs(tmp_path: Path, capsys) -> None:
     body = "# PRD\n\n## 1. Overview\nIntro\n\n## 2. Features\n\n### F-001 Login\nLogin\n"
     _write_doc(tmp_path, "prd", "prd-foo-v1.md", body)
     index = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "documents": {
             "prd": {
                 "file_path": "docs/prd/prd-foo-v1.md",

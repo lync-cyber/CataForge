@@ -9,7 +9,7 @@ import platform
 import re
 import sys
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -310,7 +310,7 @@ def _parse_since(since: str | None) -> datetime | None:
     try:
         # Accept date or full ISO timestamp.
         if len(since) == 10:
-            return datetime.fromisoformat(since).replace(tzinfo=timezone.utc)
+            return datetime.fromisoformat(since).replace(tzinfo=UTC)
         return datetime.fromisoformat(since.replace("Z", "+00:00"))
     except ValueError:
         return None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -140,9 +141,9 @@ def test_record_correction_date_uses_utc(tmp_path: Path) -> None:
     local-time was producing a one-day skew for evening corrections in
     CST etc — the markdown row and the paired EVENT-LOG entry then
     grep-by-date to different files."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    expected = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    expected = datetime.now(UTC).strftime("%Y-%m-%d")
     record_correction(
         tmp_path,
         trigger="option-override",

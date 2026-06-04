@@ -3,7 +3,7 @@ name = "cataforge"
 dynamic = ["version"]
 description = "AI Programming: Agent + Skill Workflow Framework — one .cataforge/ spec, many IDEs (Claude Code, Cursor, Codex, OpenCode)."
 readme = "README.md"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.11,<3.15"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -31,7 +31,6 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -137,7 +136,7 @@ include = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 src = ["src", "tests"]
 extend-exclude = [
@@ -177,7 +176,7 @@ exclude = [
     "build/**",
     "dist/**",
 ]
-pythonVersion = "3.10"
+pythonVersion = "3.11"
 typeCheckingMode = "off"
 
 reportUnusedVariable = "none"
@@ -214,7 +213,7 @@ filterwarnings = [
 # minimal (just type checking + cache hygiene); modules opt into strict
 # via [[tool.mypy.overrides]] as they get cleaned up. See
 # `docs/contributing.md` § Type checking for the convergence workflow.
-python_version = "3.10"
+python_version = "3.11"
 warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true

@@ -13,10 +13,9 @@ validation.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from typing_extensions import Self
 
 # Executables trusted as the first element of MCPServerSpec.command.
 # Relative paths (no leading /) are also accepted for project-local binaries.

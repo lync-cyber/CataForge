@@ -34,7 +34,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -311,7 +311,7 @@ class MCPLifecycleManager:
                     spec_id=server_id,
                     status="running",
                     pid=proc.pid,
-                    started_at=datetime.now(timezone.utc).isoformat(),
+                    started_at=datetime.now(UTC).isoformat(),
                 )
                 self._save_state(new_state)
             except Exception as e:
@@ -426,7 +426,7 @@ class MCPLifecycleManager:
 
     def _probe(self, spec: MCPServerSpec) -> HealthResult:
         """Run the configured probe and return a structured result."""
-        ts = datetime.now(timezone.utc).isoformat()
+        ts = datetime.now(UTC).isoformat()
         check = spec.health_check
         if check is None:
             state = self._load_state(spec.id)

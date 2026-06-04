@@ -9,7 +9,7 @@ goes through :func:`record_correction`, which dual-writes to
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -114,7 +114,7 @@ def _append_markdown(
     # UTC to match EVENT-LOG entries — naive local time would let a
     # CST-evening correction land on a different markdown date than the
     # paired EVENT-LOG row, breaking grep-by-date forensics.
-    date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    date = datetime.now(UTC).strftime("%Y-%m-%d")
     entry = (
         f"\n### {date} | {agent} | {phase}\n"
         f"- 触发信号: {trigger}\n"
