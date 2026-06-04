@@ -100,7 +100,6 @@ RED → GREEN → REFACTOR 三阶段流水线，每阶段由独立 SubAgent 在�
 | 在你的 IDE 中真实落地 | [平台适配指南](https://github.com/lync-cyber/CataForge/blob/main/docs/guide/platforms.md) |
 | 端到端验证四平台 | [手动验证](https://github.com/lync-cyber/CataForge/blob/main/docs/guide/manual-verification.md) |
 | 升级到新版本 | [升级指南](https://github.com/lync-cyber/CataForge/blob/main/docs/guide/upgrade.md) |
-| 迁到 0.5.0 KG 模式 | [0.5.0 KG 切换迁移指南](https://github.com/lync-cyber/CataForge/blob/main/docs/migration/kg-cutover-0.5.0.md) |
 | 查 CLI 命令参数 | [CLI 参考](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/cli.md) |
 | 改配置 | [配置参考](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/configuration.md) |
 | 定制 Agent / Skill | [Agent & Skill 清单](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/agents-and-skills.md) |
