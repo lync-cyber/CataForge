@@ -58,7 +58,7 @@ CataForge **不是**需要推倒重来的项目。它已具备同规模项目少
 | L-1 | `utils/common.py:44-68` | **utils(5) → interface(0)** | HIGH | `section/info/ok/warn/fail` 5 个包装函数延迟 import `interface.cli.ui`——最底层绑定最顶层，跨满栈倒置。任何用 `utils.common` 的 hook 脚本/集成都会拉入 Click+UI 渲染链，无法在无 CLI 环境独立运行 |
 | L-2 | `core/feedback/collectors.py:106,253` | **core(4) → application(1) / runtime(2)** | HIGH | `collect_doctor_summary()` 穿透 core→application→interface 三层（docstring 自承为规避 import 环）；`collect_framework_review()` → `runtime.skill.runner`。`core.feedback` 整包无法脱离完整 CLI 栈测试 |
 | L-3 | `adapter/integrations/penpot/__init__.py:340`、`mcp_process.py:177` | **adapter(3) → interface(0)** | HIGH | penpot 调用 `interface.cli.ui.ChoiceOption`/`ui` 做交互提示、引用 `interface.cli.diagnostics.PENPOT_PATTERNS` 做日志诊断——penpot 自己的诊断模式数据被放到了 interface 层 |
-| L-4 | `adapter/platform/_deploy_mixins/agents.py:138,277` | **adapter(3) → runtime(2)** | MEDIUM | deploy mixin 延迟 import `runtime.agent.translator`；叠加 9 处 `DeployManifest` 的 TYPE_CHECKING import，形成 `runtime.deploy.deployer → adapter → runtime.agent/deploy` 的设计循环（懒加载规避了静态死锁，但逻辑环真实存在） |
+| L-4 | `adapter/platform/_deploy_mixins/agents.py:138,277`、`adapter/platform/opencode.py:138` | **adapter(3) → runtime(2)** | MEDIUM | deploy mixin 延迟 import `runtime.agent.translator`、opencode adapter 延迟 import `runtime.hook.bridge`；叠加 9 处 `DeployManifest` 的 TYPE_CHECKING import，形成 `runtime.deploy.deployer → adapter → runtime.agent/hook/deploy` 的设计循环（懒加载规避了静态死锁，但逻辑环真实存在） |
 | L-5 | `application/services/bootstrap.py:140`、`doctor_summary.py:31` | **application(1) → interface(0)** | MEDIUM | `bootstrap` 借用 interface 的 `classify_tallies`（纯 Counter 聚合，与 CLI 无关）；`doctor_summary` 用 Click `CliRunner` 在 application 层内嵌 interface 执行机制反向驱动 CLI |
 | L-6 | `core/template.py:30` | **core(4) → adapter(3)** | MEDIUM | `render_runtime_content(adapter: PlatformAdapter)` 是 adapter 关注点（把平台 token 替换进 markdown），却住在 core；调用方全在 `adapter/_deploy_mixins/` |
 | L-7 | `runtime/mcp/lifecycle.py:165` | adapter 经 `allow-layer-dep` 借用 | MEDIUM | `pid_alive` OS 原语放在 runtime，被 `adapter/penpot/mcp_process.py:23` 跨层引用，已不得不挂 escape hatch |
@@ -90,6 +90,7 @@ CataForge **不是**需要推倒重来的项目。它已具备同规模项目少
 | T-7 | `interface/cli/helpers.py:34` | `get_config_manager()` 无返回类型注解，11 处 typed 调用方触发 `no-untyped-call` | MEDIUM | 类型断点向上游扩散 |
 | T-8 | 全局 | mypy **458 错 / 96 文件**（`_generated` 占 80 → 真实 ~378）；strict 与非 strict 错误数相同，说明大头在未进 strict 覆盖的包 | MEDIUM | 类型债集中：`doc_review`(83)/`doc_consistency`(51)/`domain.kg`(42)/`interface.cli.kg`(41) |
 | T-9 | `core/event_log.py:155` `build_record()`、`runtime/mcp/registry.py:186` `get_platform_config()` | 返回 `dict[str,Any]`，字段固定可升 TypedDict（event-log 已有运行时 `validate_record` 兜底） | LOW | 运行时有 guard，静态层缺位 |
+| T-10 | `domain/docs/kg_port.py:46` `KGReadPort.store: Any`、`domain/kg/_dispatch.py:42` `_read_framework_json() -> dict`（裸 dict 无泛型）、`_shared.py:95` `CheckReport.summary: dict[str,Any]` | 三处 `Any`/裸容器：`store: Any` 是为隔离 pyoxigraph 硬依赖的**合理权衡**；`-> dict` 触发 strict `type-arg`；`summary` 是有意开放扩展点 | LOW | 多为有意设计；`-> dict` 应补泛型参数，其余可在逐包 strict 时按需收口 |
 
 ### 1.5 Pythonic 与代码质量
 
@@ -97,7 +98,7 @@ CataForge **不是**需要推倒重来的项目。它已具备同规模项目少
 |----|------|------|--------|------|
 | Q-1 | `runtime/hook/base.py:120,129,252,369` 等 | 76 处 `except Exception` 中多处 `pass`/`return None`/`continue` 无任何日志（hook/base 与 kg/docs 降级路径尤甚） | MEDIUM | 静默吞异常损害可观测性；部分是有意降级（应至少 debug 日志 + 收窄异常类型） |
 | Q-2 | ~40 个函数 | 圈复杂度 >10（门禁阈值 20 偏松）：`check_docs_validate`/`build_document_entry`(20)、`check_deploy_integrity`(19)、`check_protocol_script_references`/`docs_validate`(17)、`deploy_instruction_files`/`check_event_log_schema`(16)… | LOW-MEDIUM | 集中在 CLI 命令与 doctor/framework-review checker；可读性与可测性下降 |
-| Q-3 | hook/base、docs/loader、kg/_dispatch、doc_review/template_registry | 4 处裸 `global` 模块级可变缓存，**仅** `adapter/platform/registry.py:22` 用了 `threading.Lock` | MEDIUM(测试隔离)/LOW(线程) | 当前单线程 CLI 安全，但测试间缓存不清除→污染；未来并行（pytest-xdist/并发加载）会触发 TOCTOU |
+| Q-3 | `hook/base.py:80`、`docs/loader.py:84`、`docs/index_ops.py:35`、`kg/_dispatch.py:26-28`（3 变量）、`doc_review/template_registry.py:89-90` | **5 处**裸 `global` 模块级可变缓存，**仅** `adapter/platform/registry.py:22` 用了 `threading.Lock` | MEDIUM(测试隔离)/LOW(线程) | 当前单线程 CLI 安全，但测试间缓存不清除→污染；未来并行（pytest-xdist/并发加载）会触发 TOCTOU |
 
 无裸 `except:`、无可变默认参数、无 `eval/exec`——基础卫生良好。
 
@@ -107,7 +108,7 @@ CataForge **不是**需要推倒重来的项目。它已具备同规模项目少
 
 ### 1.7 测试现状
 
-总体健康：1860 用例 collected 无 collection error，skip/xfail 全部带合法条件原因，无 `assert True`/空测试体/注释断言。缺口：
+总体健康：219 文件 / 1860 用例 collected 无 collection error，skip/xfail 全部带合法条件原因，无 `assert True`/空测试体/注释断言。但约 **152 个源文件无同名 `test_*.py`**（多有间接覆盖），且存在少量薄断言。缺口：
 
 | ID | 位置 | 问题 | 严重度 |
 |----|------|------|--------|
@@ -117,6 +118,8 @@ CataForge **不是**需要推倒重来的项目。它已具备同规模项目少
 | TE-4 | `tests/utils/test_docker_util_lazy.py:13,21,29` | 3 个仅输入不同的近似重复测试应 parametrize | MEDIUM |
 | TE-5 | `tests/cli/test_doctor_*.py` | `_minimal_project`/`_scaffold` 在 4 文件各自重复定义，未提 fixture | LOW |
 | TE-6 | 整体 | 估计覆盖率 55-60%（排除 `_generated`） | — |
+| TE-7 | `tests/kg/migration/test_group_a_dual_path.py:81-84`（4 条 `is not None`）、`tests/deploy/test_deploy_drift_integration.py:67` | 仅断言"存在"无字段级验证，回归价值偏弱 | MEDIUM |
+| TE-8 | `domain/kg/ingest/`、`adapter/platform/_deploy_mixins/`、`framework_review/checks/`、`application/context`（backends/read） | 无镜像测试子目录，仅集成路径间接覆盖，mixin/extract 边界分支缺单测 | MEDIUM |
 
 ---
 
@@ -270,6 +273,7 @@ src/cataforge/
 | `tests/utils/test_docker_util_lazy.py:13,21,29`（TE-4） | 合并为单个 `@pytest.mark.parametrize` |
 | `tests/cli/test_doctor_*.py`（TE-5） | `_minimal_project` 提为 `tests/cli/conftest.py` 工厂 fixture |
 | `tests/cli/conftest.py` | `populate_required_source_assets` 由直接 import 改 fixture 注入 |
+| `test_group_a_dual_path.py:81-84`、`test_deploy_drift_integration.py:67`（TE-7） | `is not None` 后补字段级断言（entity_id/title/digest 内容），提升回归价值 |
 
 ### 4.3 废弃
 
@@ -339,6 +343,8 @@ src/cataforge/
 | D-10 | framework-audit **R-006** `SparqlRegistry.has()` 恒返回 True | 渲染层早退守卫纯死代码（交叉引用，已在前序审计登记，应一并修） |
 | D-11 | `.cataforge/framework.json` 11 条 `deprecate_after:"0.2.0"` migration_checks | 运行时已自动跳过（0.8.0≫0.2.0），下次 scaffold 升级时全量覆盖清除（`upgrade.source` 声明安全） |
 | D-12 | `domain/docs/migrate_nav.py`、`migrate_review_frontmatter.py`、`event accept-legacy` | 一次性迁移工具，对老项目仍有用途；评估归档而非删除。**注**：`protocol_refs.py` 的 NAV-INDEX 废弃引用检测是**在用守卫**，保留 |
+| D-13 | `application/services/issue.py:255` 字符串 `_TODO:` | 非死代码，但该字面值会被 `doc_review/checker.py:125` 的 `TODO\|TBD\|FIXME` 正则匹配——若落入被 doc-review 扫描的 `docs/` 文件会**误报**。确认是否需改写为不触发正则的措辞 |
+| D-14 | `domain/kg/_generated/governance_pydantic.py` | src 从不直接 import（仅 `test_codegen.py:52` 断言存在）；若对应 governance schema 未投入使用，评估是否停止 codegen |
 
 ### 硬编码（技术债，非严格违规）
 
