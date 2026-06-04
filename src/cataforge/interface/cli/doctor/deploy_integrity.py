@@ -23,6 +23,44 @@ from cataforge.core.io import read_json
 from .provenance import _OWNED_DIRS_BY_PLATFORM
 
 
+def _check_path_integrity(
+    root: Path,
+    rel: str,
+    commands_optional: bool,
+    missing: list[str],
+    dangling: list[tuple[str, str]],
+) -> int:
+    """Check one owned deploy path; return the number of new failures."""
+    p = root / rel
+    if rel.endswith("/commands") and commands_optional and not p.exists():
+        return 0
+
+    is_link = p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction())
+    if is_link:
+        if not p.exists():
+            dangling.append((rel, _link_target(p)))
+            return 1
+        # Live link — fall through to per-child checks for skills dir.
+    elif not p.exists():
+        missing.append(rel)
+        return 1
+
+    failures = 0
+    if rel.endswith("/skills") and p.is_dir():
+        for child in p.iterdir():
+            child_is_link = child.is_symlink() or (
+                hasattr(child, "is_junction") and child.is_junction()
+            )
+            if child_is_link:
+                if not child.exists():
+                    dangling.append((f"{rel}/{child.name}", _link_target(child)))
+                    failures += 1
+            elif not child.exists():
+                missing.append(f"{rel}/{child.name}")
+                failures += 1
+    return failures
+
+
 def check_deploy_integrity(cfg) -> int:
     """Returns the number of failures contributing to doctor's exit code.
 
@@ -53,39 +91,7 @@ def check_deploy_integrity(cfg) -> int:
     dangling: list[tuple[str, str]] = []
 
     for rel in owned:
-        p = root / rel
-        # ``deploy_commands`` returns early (writes nothing, not even the
-        # target dir) when ``.cataforge/commands/`` is absent, so an absent
-        # ``<platform>/commands`` is correct when there are no command sources.
-        if rel.endswith("/commands") and commands_optional and not p.exists():
-            continue
-        # ``.exists()`` follows symlinks; ``.lexists()`` does not. A dangling
-        # link is the worst case — it looks present in ``ls`` but resolves to
-        # nothing — and is the exact failure mode introduced when the source
-        # under ``.cataforge/`` is deleted or moved.
-        if p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction()):
-            if not p.exists():
-                dangling.append((rel, _link_target(p)))
-                failures += 1
-                continue
-            # Live link — fall through to per-child checks for skills dir.
-        elif not p.exists():
-            missing.append(rel)
-            failures += 1
-            continue
-
-        # Deeper check for ``<platform>/skills/`` (currently only claude-code
-        # exposes per-skill subdirs to the IDE): every child must be a real
-        # dir or a link that resolves.
-        if rel.endswith("/skills") and p.is_dir():
-            for child in p.iterdir():
-                if child.is_symlink() or (hasattr(child, "is_junction") and child.is_junction()):
-                    if not child.exists():
-                        dangling.append((f"{rel}/{child.name}", _link_target(child)))
-                        failures += 1
-                elif not child.exists():
-                    missing.append(f"{rel}/{child.name}")
-                    failures += 1
+        failures += _check_path_integrity(root, rel, commands_optional, missing, dangling)
 
     if not failures:
         click.echo(f"  {len(owned)} owned path(s) verified for {platform_id} deploy")

@@ -252,6 +252,25 @@ class TypedDocChecksMixin:
 
     # ---- UI-SPEC ----
 
+    def _check_page_sections(self, content: str) -> None:
+        """Check P-NNN page sections (only in non-lite mode)."""
+        p_sections = re.findall(
+            r"^### P-\d+.*?(?=^### P-\d+|^## |\Z)",
+            content,
+            re.MULTILINE | re.DOTALL,
+        )
+        p_count = len(p_sections)
+        mr = sum(1 for s in p_sections if not re.search(r"路由|route|/\w+", s, re.IGNORECASE))
+        mc = sum(1 for s in p_sections if not re.search(r"C-\d+|组件", s, re.IGNORECASE))
+        sp_pat = r"空间构成|视觉重心|留白"
+        ms = sum(1 for s in p_sections if not re.search(sp_pat, s, re.IGNORECASE))
+        if mr > 0:
+            self.fail(f"{p_count}个页面中{mr}个缺少路由定义")
+        if mc > 0:
+            self.fail(f"{p_count}个页面中{mc}个缺少组件引用")
+        if ms > 0:
+            self.warn(f"{p_count}个页面中{ms}个缺少空间构成说明")
+
     def check_ui_spec(self) -> None:
         fm = parse_yaml_frontmatter(self.content)
         mode = fm.get("mode", "standard")
@@ -286,22 +305,7 @@ class TypedDocChecksMixin:
         if mvd > 0:
             self.warn(f"{c_count}个组件中{mvd}个缺少状态视觉差异描述")
         if not is_lite:
-            p_sections = re.findall(
-                r"^### P-\d+.*?(?=^### P-\d+|^## |\Z)",
-                self.content,
-                re.MULTILINE | re.DOTALL,
-            )
-            p_count = len(p_sections)
-            mr = sum(1 for s in p_sections if not re.search(r"路由|route|/\w+", s, re.IGNORECASE))
-            mc = sum(1 for s in p_sections if not re.search(r"C-\d+|组件", s, re.IGNORECASE))
-            sp_pat = r"空间构成|视觉重心|留白"
-            ms = sum(1 for s in p_sections if not re.search(sp_pat, s, re.IGNORECASE))
-            if mr > 0:
-                self.fail(f"{p_count}个页面中{mr}个缺少路由定义")
-            if mc > 0:
-                self.fail(f"{p_count}个页面中{mc}个缺少组件引用")
-            if ms > 0:
-                self.warn(f"{p_count}个页面中{ms}个缺少空间构成说明")
+            self._check_page_sections(self.content)
         if self.volume_type == "main":
             if not re.search(r"色彩|[Cc]olor", self.content):
                 self.warn("设计系统缺少色彩定义")

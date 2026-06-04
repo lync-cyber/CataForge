@@ -13,6 +13,8 @@ Two scans over ``.cataforge/`` markdown/YAML prose:
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
+from pathlib import Path
 
 import click
 
@@ -57,6 +59,40 @@ _DEPRECATED_REFS: tuple[dict[str, str], ...] = (
 )
 
 
+def _scan_for_script_refs(
+    scan_roots: Iterable[Path],
+    skip_subtrees: Iterable[Path],
+    root: Path,
+    pattern: re.Pattern[str],
+) -> dict[str, list[str]]:
+    """Collect ``{script_rel: [caller:lineno, ...]}`` from prose files."""
+    refs: dict[str, list[str]] = {}
+    suffixes = {".md", ".yaml", ".yml"}
+    for base in scan_roots:
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in suffixes:
+                continue
+            if any(is_relative_to(path, sub) for sub in skip_subtrees):
+                continue
+            try:
+                text = path.read_text()
+            except OSError:
+                continue
+            try:
+                display = path.relative_to(root).as_posix()
+            except ValueError:
+                display = str(path)
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                for match in pattern.finditer(line):
+                    rel = match.group(1)
+                    if "*" in rel or "..." in rel:
+                        continue
+                    refs.setdefault(rel, []).append(f"{display}:{lineno}")
+    return refs
+
+
 def check_protocol_script_references(cfg) -> int:
     """Scan ``.cataforge/`` protocol docs + hooks spec for ``python .cataforge/...``
     invocations and report any that point at a file that does not exist.
@@ -74,39 +110,9 @@ def check_protocol_script_references(cfg) -> int:
         cfg.paths.hooks_dir,
         cfg.paths.commands_dir,
     )
-
-    # Subtrees that legitimately reference example/placeholder paths in
-    # tutorial prose (``.cataforge/hooks/custom/`` is user-extension
-    # territory; its README walks readers through naming a hook script
-    # that doesn't exist yet).
     skip_subtrees = (cfg.paths.hooks_dir / "custom",)
 
-    suffixes = {".md", ".yaml", ".yml"}
-    refs: dict[str, list[str]] = {}
-    for base in scan_roots:
-        if not base.is_dir():
-            continue
-        for path in base.rglob("*"):
-            if not path.is_file() or path.suffix.lower() not in suffixes:
-                continue
-            if any(is_relative_to(path, sub) for sub in skip_subtrees):
-                continue
-            try:
-                text = path.read_text()
-            except OSError:
-                continue
-            for lineno, line in enumerate(text.splitlines(), start=1):
-                for match in pattern.finditer(line):
-                    rel = match.group(1)
-                    # Documentation placeholders, not real invocations:
-                    # ``*`` is a glob wildcard, ``...`` is an ellipsis.
-                    if "*" in rel or "..." in rel:
-                        continue
-                    try:
-                        display = path.relative_to(root).as_posix()
-                    except ValueError:
-                        display = str(path)
-                    refs.setdefault(rel, []).append(f"{display}:{lineno}")
+    refs = _scan_for_script_refs(scan_roots, skip_subtrees, root, pattern)
 
     if not refs:
         click.echo("  (no protocol script references found)")

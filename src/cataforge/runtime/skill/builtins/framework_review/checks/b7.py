@@ -15,32 +15,13 @@ from .._framework_data import agent_model_defaults, heavy_whitelist
 from .._types import Report
 
 
-def check_b7_model_tier(root: Path, report: Report) -> None:
-    """B7: model_tier audit across AGENT.md and platform tier_map.
-
-    Three sub-checks:
-
-    * ``B7_model_tier_value`` (FAIL on bad enum, WARN on default mismatch) —
-      every AGENT.md ``model_tier:`` value must be in
-      :data:`VALID_MODEL_TIERS`; if the agent has an entry in
-      ``constants.AGENT_MODEL_DEFAULTS`` and the declared tier diverges, WARN.
-      Agents with no ``model_tier:`` line at all are accepted.
-      ``heavy`` requires being listed in
-      ``constants.AGENT_MODEL_TIER_HEAVY_WHITELIST``.
-    * ``B7_legacy_model_field`` (FAIL) — source AGENT.md still uses
-      ``model: <id>`` instead of ``model_tier:``. Deploy drops legacy
-      ``model:`` lines, so leaving one in source makes the model selection
-      silently disappear at deploy time.
-    * ``B7_platform_tier_map`` (WARN) — every platform profile.yaml that
-      declares ``per_agent_model: true`` and ``user_resolved: false`` must
-      declare ``tier_map`` covering ``light``, ``standard``, and ``heavy``.
-      Provider-agnostic (``user_resolved: true``) and shared-model platforms
-      (``per_agent_model: false``) are skipped.
-    """
-    agents = discover_agents(root)
-    defaults = agent_model_defaults(root)
-    heavy_ok = heavy_whitelist(root)
-
+def _check_b7_agent_tiers(
+    agents: dict[str, Path],
+    defaults: dict[str, str],
+    heavy_ok: set[str],
+    report: Report,
+) -> None:
+    """Audit model_tier and legacy model fields in each AGENT.md."""
     for aid, path in sorted(agents.items()):
         try:
             content = path.read_text()
@@ -49,10 +30,8 @@ def check_b7_model_tier(root: Path, report: Report) -> None:
         fm, _body = split_yaml_frontmatter(content)
         if not fm:
             continue
-
         tier = fm.get("model_tier")
         legacy_model = fm.get("model")
-
         if tier is not None:
             tier_str = str(tier).strip()
             if tier_str not in VALID_MODEL_TIERS:
@@ -80,7 +59,6 @@ def check_b7_model_tier(root: Path, report: Report) -> None:
                     f"AGENT_MODEL_DEFAULTS[{aid!r}]={defaults[aid]!r}; "
                     "either update the constant or restore the default",
                 )
-
         if legacy_model is not None and tier is None:
             report.add(
                 "B7_legacy_model_field",
@@ -93,7 +71,9 @@ def check_b7_model_tier(root: Path, report: Report) -> None:
                 "'model_tier: light|standard|heavy'",
             )
 
-    platforms_dir = ProjectPaths(root).platforms_dir
+
+def _check_b7_platform_tier_maps(platforms_dir: Path, report: Report) -> None:
+    """Audit platform profile.yaml tier_map completeness."""
     if not platforms_dir.is_dir():
         return
     for plat_dir in sorted(platforms_dir.iterdir()):
@@ -111,9 +91,7 @@ def check_b7_model_tier(root: Path, report: Report) -> None:
         routing = profile.get("model_routing") or {}
         if not isinstance(routing, dict):
             continue
-        if not routing.get("per_agent_model"):
-            continue
-        if routing.get("user_resolved"):
+        if not routing.get("per_agent_model") or routing.get("user_resolved"):
             continue
         tier_map = routing.get("tier_map") or {}
         if not isinstance(tier_map, dict):
@@ -127,3 +105,32 @@ def check_b7_model_tier(root: Path, report: Report) -> None:
                 f"model_routing.tier_map missing tier(s) {missing}; deploy "
                 "will silently omit `model:` for agents requesting these tiers",
             )
+
+
+def check_b7_model_tier(root: Path, report: Report) -> None:
+    """B7: model_tier audit across AGENT.md and platform tier_map.
+
+    Three sub-checks:
+
+    * ``B7_model_tier_value`` (FAIL on bad enum, WARN on default mismatch) —
+      every AGENT.md ``model_tier:`` value must be in
+      :data:`VALID_MODEL_TIERS`; if the agent has an entry in
+      ``constants.AGENT_MODEL_DEFAULTS`` and the declared tier diverges, WARN.
+      Agents with no ``model_tier:`` line at all are accepted.
+      ``heavy`` requires being listed in
+      ``constants.AGENT_MODEL_TIER_HEAVY_WHITELIST``.
+    * ``B7_legacy_model_field`` (FAIL) — source AGENT.md still uses
+      ``model: <id>`` instead of ``model_tier:``. Deploy drops legacy
+      ``model:`` lines, so leaving one in source makes the model selection
+      silently disappear at deploy time.
+    * ``B7_platform_tier_map`` (WARN) — every platform profile.yaml that
+      declares ``per_agent_model: true`` and ``user_resolved: false`` must
+      declare ``tier_map`` covering ``light``, ``standard``, and ``heavy``.
+      Provider-agnostic (``user_resolved: true``) and shared-model platforms
+      (``per_agent_model: false``) are skipped.
+    """
+    agents = discover_agents(root)
+    defaults = agent_model_defaults(root)
+    heavy_ok = heavy_whitelist(root)
+    _check_b7_agent_tiers(agents, defaults, heavy_ok, report)
+    _check_b7_platform_tier_maps(ProjectPaths(root).platforms_dir, report)

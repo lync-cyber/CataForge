@@ -9,6 +9,55 @@ from cataforge.interface.cli.helpers import resolve_project_dir, resolve_root
 from cataforge.interface.cli.main import cli
 
 
+def _emit_validate_failures(
+    orphans: list[str],
+    stale: list[tuple[str, str]],
+    xref_errors: list[dict[str, str]],
+    alias_conflicts: list[dict[str, str]],
+    invalid_ids: list[dict[str, str]],
+) -> None:
+    """Echo per-category FAIL lines for docs_validate."""
+    if orphans:
+        click.echo(
+            f"FAIL · {len(orphans)} orphan(s) — missing YAML front matter:",
+            err=True,
+        )
+        for rel in orphans:
+            click.echo(f"  - {rel}", err=True)
+
+    if stale:
+        click.echo(f"FAIL · {len(stale)} stale index entry(ies):", err=True)
+        for doc_id, rel in stale:
+            click.echo(f"  - {doc_id} → {rel}", err=True)
+
+    if xref_errors:
+        click.echo(f"FAIL · {len(xref_errors)} cross-reference error(s):", err=True)
+        for e in xref_errors:
+            click.echo(
+                f"  - {e['doc_id']} ({e['file_path']}) → {e['ref']}: {e['reason']}",
+                err=True,
+            )
+
+    if alias_conflicts:
+        click.echo(f"FAIL · {len(alias_conflicts)} alias conflict(s):", err=True)
+        for c in alias_conflicts:
+            click.echo(
+                f"  - {c['alias']} (claimed by {c['claimed_by']}): {c['reason']}",
+                err=True,
+            )
+
+    if invalid_ids:
+        click.echo(
+            f"FAIL · {len(invalid_ids)} invalid id(s) — slug must match [A-Za-z0-9_-]+:",
+            err=True,
+        )
+        for e in invalid_ids:
+            click.echo(
+                f"  - [{e['kind']}] {e['value']!r} ({e['file_path']}): {e['reason']}",
+                err=True,
+            )
+
+
 def _raise_on_nonzero(code: int, command_label: str) -> None:
     """Translate a non-zero return code from a sub-CLI main() into a
     proper :class:`CataforgeError` so the user sees the unified
@@ -178,54 +227,7 @@ def docs_validate(project_root: str | None) -> None:
             click.echo(line, err=True)
         return
 
-    if orphans:
-        click.echo(
-            f"FAIL · {len(orphans)} orphan(s) — missing YAML front matter:",
-            err=True,
-        )
-        for rel in orphans:
-            click.echo(f"  - {rel}", err=True)
-
-    if stale:
-        click.echo(
-            f"FAIL · {len(stale)} stale index entry(ies):",
-            err=True,
-        )
-        for doc_id, rel in stale:
-            click.echo(f"  - {doc_id} → {rel}", err=True)
-
-    if xref_errors:
-        click.echo(
-            f"FAIL · {len(xref_errors)} cross-reference error(s):",
-            err=True,
-        )
-        for e in xref_errors:
-            click.echo(
-                f"  - {e['doc_id']} ({e['file_path']}) → {e['ref']}: {e['reason']}",
-                err=True,
-            )
-
-    if alias_conflicts:
-        click.echo(
-            f"FAIL · {len(alias_conflicts)} alias conflict(s):",
-            err=True,
-        )
-        for c in alias_conflicts:
-            click.echo(
-                f"  - {c['alias']} (claimed by {c['claimed_by']}): {c['reason']}",
-                err=True,
-            )
-
-    if invalid_ids:
-        click.echo(
-            f"FAIL · {len(invalid_ids)} invalid id(s) — slug must match [A-Za-z0-9_-]+:",
-            err=True,
-        )
-        for e in invalid_ids:
-            click.echo(
-                f"  - [{e['kind']}] {e['value']!r} ({e['file_path']}): {e['reason']}",
-                err=True,
-            )
+    _emit_validate_failures(orphans, stale, xref_errors, alias_conflicts, invalid_ids)
 
     for line in format_stale_deps_warning(stale_deps):
         click.echo(line, err=True)

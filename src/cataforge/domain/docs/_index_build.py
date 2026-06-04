@@ -79,6 +79,57 @@ def _extract_section_number(title: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _build_sections(
+    content: str,
+    lines: list[str],
+    total_lines: int,
+) -> dict[str, Any]:
+    """Extract the heading-based section map from *content*."""
+    sections: dict[str, Any] = {}
+    headings: list[tuple[int, int, str]] = []
+    for i, level, title in iter_markdown_headings(content):
+        headings.append((i, level, title.strip()))
+
+    for idx, (line_idx, level, title) in enumerate(headings):
+        line_end = total_lines
+        for j in range(idx + 1, len(headings)):
+            next_line_idx, next_level, _ = headings[j]
+            if next_level <= level:
+                line_end = next_line_idx
+                break
+        if level == 1:
+            continue
+
+        section_text = "\n".join(lines[line_idx:line_end])
+        est_tokens = _estimate_tokens(section_text)
+        meta = _parse_section_meta(lines, line_idx + 1, line_end)
+        if "est_tokens" in meta:
+            est_tokens = meta["est_tokens"]
+
+        sec_num = _extract_section_number(title)
+        item_id = _extract_item_id(title)
+        item_entry = {
+            "heading": lines[line_idx].rstrip(),
+            "line_start": line_idx + 1,
+            "line_end": line_end,
+            "est_tokens": est_tokens,
+            "deps": meta.get("deps", []),
+        }
+
+        if level == 2 and sec_num:
+            sections[sec_num] = {**item_entry, "level": level, "items": {}}
+        elif level >= 3 and item_id:
+            parent_sec = _find_parent_section(sections, line_idx)
+            if parent_sec:
+                parent_sec["items"][item_id] = item_entry
+        elif level >= 3 and sec_num:
+            parent_sec = _find_parent_section(sections, line_idx)
+            if parent_sec:
+                parent_sec["items"][sec_num] = item_entry
+
+    return sections
+
+
 def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dict[str, Any] | None]:
     try:
         with open(file_path) as f:
@@ -109,60 +160,7 @@ def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dic
         aliases_raw = []
     aliases_clean = [str(a).strip() for a in aliases_raw if str(a).strip()]
 
-    sections: dict[str, Any] = {}
-    headings: list[tuple[int, int, str]] = []
-    for i, level, title in iter_markdown_headings(content):
-        headings.append((i, level, title.strip()))
-
-    for idx, (line_idx, level, title) in enumerate(headings):
-        line_end = total_lines
-        for j in range(idx + 1, len(headings)):
-            next_line_idx, next_level, _ = headings[j]
-            if next_level <= level:
-                line_end = next_line_idx
-                break
-        if level == 1:
-            continue
-
-        section_text = "\n".join(lines[line_idx:line_end])
-        est_tokens = _estimate_tokens(section_text)
-        meta = _parse_section_meta(lines, line_idx + 1, line_end)
-        if "est_tokens" in meta:
-            est_tokens = meta["est_tokens"]
-
-        sec_num = _extract_section_number(title)
-        item_id = _extract_item_id(title)
-
-        if level == 2 and sec_num:
-            sections[sec_num] = {
-                "heading": lines[line_idx].rstrip(),
-                "level": level,
-                "line_start": line_idx + 1,
-                "line_end": line_end,
-                "est_tokens": est_tokens,
-                "deps": meta.get("deps", []),
-                "items": {},
-            }
-        elif level >= 3 and item_id:
-            parent_sec = _find_parent_section(sections, line_idx)
-            if parent_sec:
-                parent_sec["items"][item_id] = {
-                    "heading": lines[line_idx].rstrip(),
-                    "line_start": line_idx + 1,
-                    "line_end": line_end,
-                    "est_tokens": est_tokens,
-                    "deps": meta.get("deps", []),
-                }
-        elif level >= 3 and sec_num:
-            parent_sec = _find_parent_section(sections, line_idx)
-            if parent_sec:
-                parent_sec["items"][sec_num] = {
-                    "heading": lines[line_idx].rstrip(),
-                    "line_start": line_idx + 1,
-                    "line_end": line_end,
-                    "est_tokens": est_tokens,
-                    "deps": meta.get("deps", []),
-                }
+    sections = _build_sections(content, lines, total_lines)
 
     entry: dict[str, Any] = {
         "file_path": rel_path.replace("\\", "/"),

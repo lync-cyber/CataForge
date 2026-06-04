@@ -10,12 +10,17 @@ the same depth or more foundational (higher rank). An upward **static**
 (module-level) import (e.g. ``core`` importing ``interface``) inverts the
 dependency graph / creates an import cycle and is a FAIL.
 
-Scope: only module-level imports are checked — this is the invariant that
-keeps the static graph acyclic (no lower layer statically depends on an upper
-one). Function-local (lazy) imports are the sanctioned escape valve for
-occasional upward orchestration calls and are intentionally exempt;
-``if TYPE_CHECKING:`` imports are exempt for the same reason. Per-line
-``# allow-layer-dep: <reason>`` opts a specific module-level line out.
+Function-local (lazy) imports and ``if TYPE_CHECKING:`` imports used for
+upward orchestration are tracked against an explicit allowlist
+(``UPWARD_IMPORT_ALLOWLIST`` below). An allowlisted entry is emitted as a
+comment explaining the reason for the exception. Any *new* upward import that
+is not in the allowlist is a FAIL — this prevents silent regression back to
+the anti-patterns that were eliminated before this guard was tightened.
+
+Module-level upward imports always FAIL (unless ``# allow-layer-dep:`` is
+present), as they create static dependency cycles.
+
+Per-line ``# allow-layer-dep: <reason>`` opts a specific module-level line out.
 
 Wired into pre-commit, ``scripts/checks/run_local.py``, and per-PR CI.
 """
@@ -48,6 +53,37 @@ LAYER_RANK = {
 }
 
 ALLOW_MARKER = "# allow-layer-dep:"
+
+# Allowlist for upward imports that live in function bodies or TYPE_CHECKING
+# blocks.  Each entry is a (src_file_suffix, target_module) pair where
+# src_file_suffix is the path relative to PKG_ROOT using forward slashes.
+# Entries here are *approved* upward dependencies — they are not silently
+# ignored but explicitly acknowledged.  Any upward import NOT in this list
+# that appears in a function body or TYPE_CHECKING block is a FAIL.
+#
+# Format: (src_file relative to src/cataforge/, imported module prefix)
+# The module prefix is matched with str.startswith so both the exact module
+# and any sub-module of it are covered.
+UPWARD_IMPORT_ALLOWLIST: tuple[tuple[str, str], ...] = (
+    # adapter platform adapters use TYPE_CHECKING-only imports of
+    # runtime.deploy.manifest to type-annotate the DeployManifest parameter
+    # without creating a runtime circular import.
+    (
+        "adapter/platform/cursor.py",
+        "cataforge.runtime.deploy.manifest",
+    ),
+    (
+        "adapter/platform/opencode.py",
+        "cataforge.runtime.deploy.manifest",
+    ),
+    # runtime builtin uses lazy application-layer import to load feedback
+    # constants / functions inside CLI entry points, avoiding a module-level
+    # cycle between runtime.skill.builtins and application.
+    (
+        "runtime/skill/builtins/framework_feedback/framework_feedback.py",
+        "cataforge.application.feedback",
+    ),
+)
 
 
 def _target_layer(module: str) -> str | None:
@@ -100,6 +136,14 @@ def _imports(tree: ast.AST) -> list[tuple[int, str]]:
     return out
 
 
+def _is_allowlisted(src_rel: str, module: str) -> bool:
+    """Return True iff (src_rel, module) matches an allowlist entry."""
+    for allowed_src, allowed_mod in UPWARD_IMPORT_ALLOWLIST:
+        if src_rel == allowed_src and module.startswith(allowed_mod):
+            return True
+    return False
+
+
 def main() -> int:
     violations: list[str] = []
     for path in sorted(PKG_ROOT.rglob("*.py")):
@@ -108,6 +152,8 @@ def main() -> int:
             continue  # top-level __init__/__main__ etc. are not in a layer
         src_layer = rel.parts[0]
         src_rank = LAYER_RANK[src_layer]
+        # Normalise to forward-slash for cross-platform allowlist matching.
+        src_rel = rel.as_posix()
 
         try:
             text = path.read_text(encoding="utf-8")
@@ -115,17 +161,34 @@ def main() -> int:
         except (OSError, SyntaxError):
             continue
         lines = text.splitlines()
-        exempt = _typecheck_only_lines(tree) | _function_body_lines(tree)
+        tc_lines = _typecheck_only_lines(tree)
+        fn_lines = _function_body_lines(tree)
+        module_level_exempt = set[int]()  # only allow-marker can exempt module-level
 
         for lineno, module in _imports(tree):
-            if lineno in exempt:
-                continue
             tgt = _target_layer(module)
             if tgt is None or tgt == src_layer:
                 continue
-            if LAYER_RANK[tgt] < src_rank:
-                # Honor the marker on the import line or the line directly above
-                # it (long imports keep the rationale on its own comment line).
+            if LAYER_RANK[tgt] >= src_rank:
+                continue  # allowed direction
+
+            is_lazy = lineno in tc_lines or lineno in fn_lines
+
+            if is_lazy:
+                # Lazy / TYPE_CHECKING upward imports: check allowlist.
+                if _is_allowlisted(src_rel, module):
+                    continue
+                violations.append(
+                    f"{path.relative_to(REPO_ROOT)}:{lineno}: "
+                    f"{src_layer} (rank {src_rank}) lazy-imports {tgt} "
+                    f"(rank {LAYER_RANK[tgt]}) — not in upward allowlist: {module}\n"
+                    f"  Add to UPWARD_IMPORT_ALLOWLIST in "
+                    f"scripts/checks/check_layer_dependencies.py if intentional."
+                )
+            else:
+                # Module-level upward import: FAIL unless allow-marker present.
+                if lineno in module_level_exempt:
+                    continue
                 context = lines[max(0, lineno - 2) : lineno]
                 if any(ALLOW_MARKER in ln for ln in context):
                     continue
@@ -143,11 +206,17 @@ def main() -> int:
             "\nAllowed direction: interface → application → "
             "{runtime, domain} → adapter → core → utils.\n"
             "Move the shared code down, invert via a Protocol defined in the "
-            "consumer, or append `# allow-layer-dep: <reason>` if intentional."
+            "consumer, or append `# allow-layer-dep: <reason>` if intentional.\n"
+            "For function-body / TYPE_CHECKING upward imports add an entry to\n"
+            "UPWARD_IMPORT_ALLOWLIST in scripts/checks/check_layer_dependencies.py."
         )
         return 1
 
-    print(f"OK: layered dependency direction clean ({len(LAYER_RANK)} layers)")
+    allowlist_count = len(UPWARD_IMPORT_ALLOWLIST)
+    print(
+        f"OK: layered dependency direction clean ({len(LAYER_RANK)} layers, "
+        f"{allowlist_count} allowlisted lazy/TYPE_CHECKING upward import(s))"
+    )
     return 0
 
 

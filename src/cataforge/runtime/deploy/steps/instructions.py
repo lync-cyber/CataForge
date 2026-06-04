@@ -24,6 +24,25 @@ _VALID_ON_CONFLICT = {"overwrite", "preserve", "preserve_if_edited"}
 _VALID_UPDATE_STRATEGY = {"overwrite", "section-merge"}
 
 
+def _on_conflict_skip(
+    dst: Path,
+    target_rel: str,
+    on_conflict: str,
+    hashes: dict[str, str],
+) -> str | None:
+    """Return a SKIP action string if the on_conflict policy blocks writing, else None."""
+    if not dst.exists() or on_conflict == "overwrite":
+        return None
+    if on_conflict == "preserve":
+        return f"SKIP {target_rel} ← on_conflict=preserve (target exists)"
+    # preserve_if_edited: skip when the file has been edited since last deploy
+    cur_hash = hashlib.sha256(dst.read_bytes()).hexdigest()
+    last_hash = hashes.get(target_rel)
+    if last_hash is not None and cur_hash != last_hash:
+        return f"SKIP {target_rel} ← on_conflict=preserve_if_edited (user-edited since last deploy)"
+    return None
+
+
 def deploy_instruction_files(
     adapter: PlatformAdapter,
     project_state_path: Path,
@@ -100,19 +119,10 @@ def deploy_instruction_files(
             raise CataforgeError(f"target_rel escapes project root: {target_rel!r}") from exc
 
         # ---- on_conflict gate ----
-        if dst.exists() and on_conflict != "overwrite":
-            if on_conflict == "preserve":
-                actions.append(f"SKIP {target_rel} ← on_conflict=preserve (target exists)")
-                continue
-            # preserve_if_edited: compare sha256 with last-deployed hash
-            cur_hash = hashlib.sha256(dst.read_bytes()).hexdigest()
-            last_hash = hashes.get(target_rel)
-            if last_hash is not None and cur_hash != last_hash:
-                actions.append(
-                    f"SKIP {target_rel} ← on_conflict=preserve_if_edited "
-                    f"(user-edited since last deploy)"
-                )
-                continue
+        skip_action = _on_conflict_skip(dst, target_rel, on_conflict, hashes)
+        if skip_action:
+            actions.append(skip_action)
+            continue
 
         # ---- compute new content ----
         new_content = content
