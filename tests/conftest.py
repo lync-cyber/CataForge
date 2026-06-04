@@ -257,3 +257,42 @@ def run_utf8(
 def run_utf8_subprocess():
     """Pytest-fixture form of :func:`run_utf8` for tests that prefer DI."""
     return run_utf8
+
+
+@pytest.fixture(autouse=True)
+def _clear_module_caches() -> None:
+    """Clear all module-level mutable caches after each test to prevent cross-test pollution."""
+    yield
+    try:
+        from cataforge.runtime.hook.base import clear_spec_entry_cache, clear_tool_map_cache
+
+        clear_tool_map_cache()
+        clear_spec_entry_cache()
+    except Exception:
+        pass
+    try:
+        from cataforge.domain.docs.loader import clear_index_cache
+
+        clear_index_cache()
+    except Exception:
+        pass
+    try:
+        from cataforge.domain.docs.index_ops import clear_doc_type_map_cache
+
+        clear_doc_type_map_cache()
+    except Exception:
+        pass
+    try:
+        from cataforge.domain.kg._dispatch import invalidate_cache
+
+        invalidate_cache()
+    except Exception:
+        pass
+    try:
+        from cataforge.runtime.skill.builtins.doc_review.template_registry import (
+            clear_template_registry_cache,
+        )
+
+        clear_template_registry_cache()
+    except Exception:
+        pass

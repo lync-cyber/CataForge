@@ -17,6 +17,7 @@ from __future__ import annotations
 import glob
 import os
 import sys
+import threading
 from datetime import UTC, datetime
 from typing import Any
 
@@ -83,6 +84,7 @@ from cataforge.utils.patterns import HEADING_RE
 
 _INDEX_CACHE: dict[str, Any] | None = None
 _INDEX_CACHE_ROOT: str | None = None
+_INDEX_CACHE_LOCK = threading.Lock()
 _INDEX_FILENAME = ".doc-index.json"
 _STALE_DAYS_WARN = 7
 
@@ -90,19 +92,27 @@ _STALE_DAYS_WARN = 7
 def _load_index(project_root: str) -> dict[str, Any] | None:
     """Load the chapter index, per-root cached to avoid leakage between roots."""
     global _INDEX_CACHE, _INDEX_CACHE_ROOT
-    if _INDEX_CACHE is not None and project_root == _INDEX_CACHE_ROOT:
-        return _INDEX_CACHE
-    index_path = os.path.join(project_root, "docs", _INDEX_FILENAME)
-    if not os.path.isfile(index_path):
+    with _INDEX_CACHE_LOCK:
+        if _INDEX_CACHE is not None and project_root == _INDEX_CACHE_ROOT:
+            return _INDEX_CACHE
+        index_path = os.path.join(project_root, "docs", _INDEX_FILENAME)
+        if not os.path.isfile(index_path):
+            _INDEX_CACHE = None
+            _INDEX_CACHE_ROOT = project_root
+            return None
+        try:
+            _INDEX_CACHE = read_json(index_path)
+            _INDEX_CACHE_ROOT = project_root
+            return _INDEX_CACHE
+        except ConfigError:
+            return None
+
+
+def clear_index_cache() -> None:
+    global _INDEX_CACHE, _INDEX_CACHE_ROOT
+    with _INDEX_CACHE_LOCK:
         _INDEX_CACHE = None
-        _INDEX_CACHE_ROOT = project_root
-        return None
-    try:
-        _INDEX_CACHE = read_json(index_path)
-        _INDEX_CACHE_ROOT = project_root
-        return _INDEX_CACHE
-    except ConfigError:
-        return None
+        _INDEX_CACHE_ROOT = None
 
 
 def _is_stale(file_path: str, generated_at: str | None) -> bool:
