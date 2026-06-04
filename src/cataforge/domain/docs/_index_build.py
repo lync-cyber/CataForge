@@ -17,13 +17,13 @@ from datetime import UTC, datetime
 from typing import Any
 
 from cataforge.core.io import read_json
+from cataforge.utils.frontmatter import split_yaml_frontmatter as _split_fm
 from cataforge.utils.md_parse import iter_markdown_headings
 from cataforge.utils.patterns import (
     ITEM_ID_RE,
     SECTION_NUM_RE,
     SUBSECTION_NUM_RE,
 )
-from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
 SECTION_META_RE = re.compile(r"<!--\s*section_meta:\s*\{(.*?)\}\s*-->", re.DOTALL)
 INDEX_FILENAME = ".doc-index.json"
@@ -61,9 +61,7 @@ def _estimate_tokens(text: str) -> int:
 
 def _content_hash(content: str) -> str:
     """Compute short hash of document body (post-frontmatter)."""
-    from cataforge.utils.frontmatter import split_yaml_frontmatter
-
-    _, body = split_yaml_frontmatter(content)
+    _, body = _split_fm(content)
     text = body if body is not None else content
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
 
@@ -91,7 +89,7 @@ def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dic
     lines = content.splitlines()
     total_lines = len(lines)
 
-    fm = parse_yaml_frontmatter(content)
+    fm = _split_fm(content)[0] or {}
     doc_id = fm.get("id", "")
     if not doc_id or "{" in doc_id:
         return None, None

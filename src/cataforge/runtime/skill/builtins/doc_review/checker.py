@@ -13,7 +13,6 @@ from cataforge.runtime.skill.builtins._shared import CheckReport, IssueCollector
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.md_parse import strip_code_blocks
-from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
 from ._render import render_text
 from .constants import DOC_SPLIT_THRESHOLD_LINES, KNOWN_DOC_PREFIXES, VOLUME_TYPES
@@ -22,6 +21,12 @@ from .template_registry import (
     parse_required_sections_from_list,
 )
 from .typed_checks import TypedDocChecksMixin
+
+
+def _fm(content: str) -> dict:
+    """Extract frontmatter dict; empty dict when absent or malformed."""
+    meta, _ = split_yaml_frontmatter(content)
+    return meta if meta is not None else {}
 
 
 def read_file(path: str) -> str:
@@ -55,7 +60,7 @@ class DocChecker(TypedDocChecksMixin):
         return [i.message for i in self._issues.advisory]
 
     def _detect_volume_type(self) -> str:
-        fm = parse_yaml_frontmatter(self.content)
+        fm = _fm(self.content)
         vt = fm.get("volume_type", "")
         if vt and vt in VOLUME_TYPES:
             return vt
@@ -87,7 +92,7 @@ class DocChecker(TypedDocChecksMixin):
     # ---- Generic checks ----
 
     def check_meta(self) -> None:
-        fm = parse_yaml_frontmatter(self.content)
+        fm = _fm(self.content)
         if not fm:
             self.fail("缺少 YAML Front Matter (---...---)")
             return
@@ -192,7 +197,7 @@ class DocChecker(TypedDocChecksMixin):
                 self.fail(f"交叉引用目标 {doc_id} 未找到对应文件")
 
     def check_required_sections(self) -> None:
-        fm = parse_yaml_frontmatter(self.content)
+        fm = _fm(self.content)
         mode = fm.get("mode", "standard") if fm else "standard"
         sections = load_template_required_sections(self.doc_type, self.volume_type, mode)
         if sections is None:
@@ -242,7 +247,7 @@ class DocChecker(TypedDocChecksMixin):
 
     def check_split_header(self) -> None:
         if self.volume_type != "main":
-            fm = parse_yaml_frontmatter(self.content)
+            fm = _fm(self.content)
             if not fm.get("split_from"):
                 self.fail(f"分卷文档 (volume={self.volume_type}) 缺少 split_from 字段")
 
