@@ -337,8 +337,7 @@ def cmd_status(config: dict) -> int:
 
 def _prompt_mode(default: str = MODE_REMOTE) -> str:
     """Prompt the user to pick a Penpot integration mode."""
-    from cataforge.interface.cli.ui import ChoiceOption
-    from cataforge.interface.cli.ui import ui as _ui
+    from cataforge.utils.console import ChoiceOption, get_console
 
     options = [
         ChoiceOption(
@@ -360,7 +359,7 @@ def _prompt_mode(default: str = MODE_REMOTE) -> str:
             description="只起 MCP，自己接已有 Penpot 实例（自托管或他人共享）",
         ),
     ]
-    chosen = _ui.prompt_choice(
+    chosen = get_console().prompt_choice(
         "选择 Penpot 集成模式",
         options,
         default=_MODE_NAME_TO_KEY[default],

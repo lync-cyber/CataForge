@@ -15,6 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from cataforge.utils.console import get_console
 from cataforge.utils.run_subprocess import run as run_proc
 
 # ---------------------------------------------------------------------------
@@ -34,40 +35,31 @@ NC = "\033[0m"  # No Color / reset
 # ---------------------------------------------------------------------------
 
 
-# The five primitives below are now thin wrappers over :mod:`cataforge.interface.cli.ui`
-# so every caller (CLI subcommands, integrations, hook scripts) goes through
-# the same colour/Unicode/TTY detection. The signatures are preserved to keep
-# external callers source-compatible.
+# The five primitives below are thin wrappers over the active console
+# (``cataforge.utils.console.get_console()``) so every caller (CLI subcommands,
+# integrations, hook scripts) shares the same renderer. The interface layer
+# installs its rich renderer at CLI start-up; outside a CLI process the default
+# unstyled console handles output.
 
 
 def section(msg: str) -> None:
-    from cataforge.interface.cli.ui import ui as _ui
-
-    _ui.section(msg)
+    get_console().section(msg)
 
 
 def info(msg: str) -> None:
-    from cataforge.interface.cli.ui import ui as _ui
-
-    _ui.info(msg)
+    get_console().info(msg)
 
 
 def ok(msg: str) -> None:
-    from cataforge.interface.cli.ui import ui as _ui
-
-    _ui.ok(msg)
+    get_console().ok(msg)
 
 
 def warn(msg: str) -> None:
-    from cataforge.interface.cli.ui import ui as _ui
-
-    _ui.warn(msg)
+    get_console().warn(msg)
 
 
 def fail(msg: str) -> None:
-    from cataforge.interface.cli.ui import ui as _ui
-
-    _ui.fail(msg)
+    get_console().fail(msg)
 
 
 # ---------------------------------------------------------------------------
