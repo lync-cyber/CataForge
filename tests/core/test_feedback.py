@@ -1,4 +1,4 @@
-"""Tests for ``cataforge.core.feedback`` — assembler + redaction + parsers."""
+"""Tests for ``cataforge.application.feedback`` — assembler + redaction + parsers."""
 
 from __future__ import annotations
 
@@ -9,14 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from cataforge.core.corrections import record_correction
-from cataforge.core.event_log import (
-    EVENT_LOG_REL,
-    MAX_EVENTLOG_BYTES,
-    append_event,
-    build_record,
-)
-from cataforge.core.feedback import (
+from cataforge.application.feedback import (
     UPSTREAM_GAP,
     assemble_bug,
     assemble_correction_export,
@@ -28,36 +21,33 @@ from cataforge.core.feedback import (
     redact,
     upstream_gap_count,
 )
+from cataforge.core.corrections import record_correction
+from cataforge.core.event_log import (
+    EVENT_LOG_REL,
+    MAX_EVENTLOG_BYTES,
+    append_event,
+    build_record,
+)
 
 
 class TestLayering:
-    """``core/feedback`` must not statically import from ``cataforge.interface.cli``.
+    """``application/feedback`` must not statically import from ``cataforge.interface.cli``.
 
-    Regression guard: an earlier version of ``core/feedback`` imported
-    ``cataforge.interface.cli.main.cli`` at module top level so ``CliRunner`` could
-    invoke ``doctor``. That inverted the package dependency direction
-    (``core/`` should be importable without booting the CLI surface). The
-    fix delegates to ``cataforge.application.services.doctor_summary`` and lazy-imports
-    it inside the function body. This test makes the rule machine-checked.
+    ``interface`` sits above ``application`` in the layered graph, so a
+    module-level import would invert the dependency direction.
     """
 
     def test_no_static_cli_import(self) -> None:
-        from cataforge.core import feedback
+        from cataforge.application import feedback
 
-        # Scan every module in the feedback package — collectors/renderers/
-        # assemblers and __init__ — so the rule still holds after the split.
         pkg_dir = Path(feedback.__file__).parent
         for src_file in sorted(pkg_dir.glob("*.py")):
             source = src_file.read_text(encoding="utf-8")
-            # Only the lazy delegation inside function bodies should mention
-            # cli-flavoured names; module-level imports from ``cataforge.interface.cli``
-            # are forbidden.
             for line in source.splitlines():
                 stripped = line.lstrip()
                 if not (stripped.startswith("import ") or stripped.startswith("from ")):
                     continue
-                # The lazy-import lines live inside function bodies and are
-                # therefore indented — filter those out by indent check.
+                # Lazy imports inside function bodies are indented — skip them.
                 if line.startswith((" ", "\t")):
                     continue
                 assert "cataforge.interface.cli" not in line, (
@@ -66,7 +56,6 @@ class TestLayering:
                 )
 
     def test_doctor_summary_lives_in_services(self) -> None:
-        """The CliRunner-based implementation must live in services/, not core/."""
         from cataforge.application.services import doctor_summary
 
         assert hasattr(doctor_summary, "collect_doctor_summary")
@@ -162,7 +151,7 @@ class TestRecentEvents:
         log = project / EVENT_LOG_REL
         log.parent.mkdir(parents=True, exist_ok=True)
         log.write_bytes(b"x" * (MAX_EVENTLOG_BYTES + 1))
-        with patch("cataforge.core.feedback.collectors.logger") as mock_log:
+        with patch("cataforge.application.feedback.collectors.logger") as mock_log:
             events = collect_recent_events(project)
             assert mock_log.warning.called
         assert events == []
@@ -316,7 +305,7 @@ class TestCollectFrameworkReviewExceptionHandling:
         runtime-error branch's ``runner-failed:``."""
         import sys
 
-        from cataforge.core import feedback as feedback_mod
+        from cataforge.application import feedback as feedback_mod
 
         # Wipe any cached import so the first attempt actually re-runs.
         monkeypatch.delitem(sys.modules, "cataforge.runtime.skill.runner", raising=False)
@@ -345,7 +334,7 @@ class TestCollectFrameworkReviewExceptionHandling:
         """A real SkillRunner that raises at .run() time must surface
         as ``status=error`` with both a reason and a traceback the bug
         report can paste straight through."""
-        from cataforge.core import feedback as feedback_mod
+        from cataforge.application import feedback as feedback_mod
 
         (tmp_path / ".cataforge").mkdir()
 

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+import warnings
+from typing import Any, Literal
 
 import yaml
 
@@ -11,13 +12,29 @@ import yaml
 # (optional trailing whitespace), anchored at line start.
 _FENCE_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
+_PARSE_ERROR_KEY = "__parse_error__"
 
-def split_yaml_frontmatter(raw: str) -> tuple[dict[str, Any] | None, str]:
+
+def split_yaml_frontmatter(
+    raw: str,
+    on_error: Literal["empty", "marker", "raise"] = "empty",
+) -> tuple[dict[str, Any] | None, str]:
     """Split leading ``---`` / ``---`` YAML block from Markdown body.
 
+    Args:
+        raw: Raw Markdown string.
+        on_error: Controls behaviour when the YAML block is present but
+            malformed.
+            ``"empty"`` (default) — return ``{}`` silently.
+            ``"marker"`` — return ``{"__parse_error__": "<msg>"}`` and emit
+            a ``UserWarning``.
+            ``"raise"`` — re-raise the ``yaml.YAMLError``.
+
     Returns:
-        ``(None, raw)`` if the document does not start with a front matter fence.
-        ``(metadata_dict, body)`` if a block was parsed (empty dict on YAML parse edge cases).
+        ``(None, raw)`` if the document does not start with a front matter
+        fence.  ``(metadata_dict, body)`` when a block is found; the dict
+        is empty on YAML parse edge cases (behaviour governed by
+        ``on_error``).
     """
     if not raw.startswith("---"):
         return None, raw
@@ -39,7 +56,14 @@ def split_yaml_frontmatter(raw: str) -> tuple[dict[str, Any] | None, str]:
 
     try:
         data = yaml.safe_load(fm_text)
-    except yaml.YAMLError:
+    except yaml.YAMLError as exc:
+        if on_error == "raise":
+            raise
+        if on_error == "marker":
+            msg = f"YAML parse error in frontmatter: {exc}"
+            warnings.warn(msg, category=UserWarning, stacklevel=2)
+            return {_PARSE_ERROR_KEY: str(exc)}, body
+        # on_error == "empty"
         return {}, body
 
     if data is None:

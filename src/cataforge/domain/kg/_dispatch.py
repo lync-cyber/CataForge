@@ -18,6 +18,7 @@ The helpers also cache per-project decisions to avoid re-reading
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from cataforge.core.config import ConfigManager
@@ -26,6 +27,7 @@ from cataforge.domain.kg._config import KGConfig
 _ACTIVE_CACHE: dict[str, set[str]] = {}
 _CONFIG_CACHE: dict[str, KGConfig] = {}
 _STRATEGY_CACHE: dict[str, str] = {}
+_DISPATCH_LOCK = threading.Lock()
 
 # Context-IO backend topologies a project can select via
 # `framework.json` ``context.strategy``. ``kg-first`` (default) keeps the
@@ -54,17 +56,18 @@ def active_doc_types(project_root: str | Path) -> set[str]:
     absent or malformed value applies the dataclass default.
     """
     key = _project_root_key(project_root)
-    cached = _ACTIVE_CACHE.get(key)
-    if cached is not None:
-        return cached
+    with _DISPATCH_LOCK:
+        cached = _ACTIVE_CACHE.get(key)
+        if cached is not None:
+            return cached
 
-    data = _read_framework_json(Path(project_root))
-    declared = (data.get("context") or {}).get("kg_active_doc_types")
-    well_formed = isinstance(declared, list) and all(isinstance(d, str) for d in declared)
-    resolved = set(declared) if well_formed else set(KGConfig().kg_active_doc_types)
+        data = _read_framework_json(Path(project_root))
+        declared = (data.get("context") or {}).get("kg_active_doc_types")
+        well_formed = isinstance(declared, list) and all(isinstance(d, str) for d in declared)
+        resolved = set(declared) if well_formed else set(KGConfig().kg_active_doc_types)
 
-    _ACTIVE_CACHE[key] = resolved
-    return resolved
+        _ACTIVE_CACHE[key] = resolved
+        return resolved
 
 
 def context_strategy(project_root: str | Path) -> str:
@@ -74,16 +77,17 @@ def context_strategy(project_root: str | Path) -> str:
     value resolves to :data:`DEFAULT_CONTEXT_STRATEGY`.
     """
     key = _project_root_key(project_root)
-    cached = _STRATEGY_CACHE.get(key)
-    if cached is not None:
-        return cached
+    with _DISPATCH_LOCK:
+        cached = _STRATEGY_CACHE.get(key)
+        if cached is not None:
+            return cached
 
-    data = _read_framework_json(Path(project_root))
-    declared = (data.get("context") or {}).get("strategy")
-    resolved = declared if declared in CONTEXT_STRATEGIES else DEFAULT_CONTEXT_STRATEGY
+        data = _read_framework_json(Path(project_root))
+        declared = (data.get("context") or {}).get("strategy")
+        resolved = declared if declared in CONTEXT_STRATEGIES else DEFAULT_CONTEXT_STRATEGY
 
-    _STRATEGY_CACHE[key] = resolved
-    return resolved
+        _STRATEGY_CACHE[key] = resolved
+        return resolved
 
 
 def kg_enabled(project_root: str | Path) -> bool:
@@ -99,9 +103,10 @@ def kg_enabled(project_root: str | Path) -> bool:
 def kg_config_for(project_root: str | Path) -> KGConfig:
     """Return a `KGConfig` populated from `framework.json` + defaults."""
     key = _project_root_key(project_root)
-    cached = _CONFIG_CACHE.get(key)
-    if cached is not None:
-        return cached
+    with _DISPATCH_LOCK:
+        cached = _CONFIG_CACHE.get(key)
+        if cached is not None:
+            return cached
 
     project_root = Path(project_root)
     data = _read_framework_json(project_root)
@@ -123,7 +128,8 @@ def kg_config_for(project_root: str | Path) -> KGConfig:
         ontology_namespace=kg_section.get("ontology_namespace", defaults.ontology_namespace),
         kg_active_doc_types=active,
     )
-    _CONFIG_CACHE[key] = cfg
+    with _DISPATCH_LOCK:
+        _CONFIG_CACHE[key] = cfg
     return cfg
 
 
@@ -147,10 +153,11 @@ def is_active_for(doc_type: str, project_root: str | Path) -> bool:
 
 
 def invalidate_cache() -> None:
-    """Clear all dispatch caches. Test-only helper."""
-    _ACTIVE_CACHE.clear()
-    _CONFIG_CACHE.clear()
-    _STRATEGY_CACHE.clear()
+    """Clear all dispatch caches."""
+    with _DISPATCH_LOCK:
+        _ACTIVE_CACHE.clear()
+        _CONFIG_CACHE.clear()
+        _STRATEGY_CACHE.clear()
 
 
 __all__ = [

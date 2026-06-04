@@ -14,6 +14,31 @@ from .._discover import (
 from .._types import Report
 
 
+def _collect_referenced_skills(
+    agents: dict[str, Path],
+    skills: dict[str, Path],
+) -> dict[str, set[str]]:
+    """Build ``{skill_id: {caller_ref, ...}}`` from agent and skill prose."""
+    referenced: dict[str, set[str]] = {}
+    for aid, path in agents.items():
+        try:
+            content = path.read_text()
+        except OSError:
+            continue
+        for skill_id in parse_skills_field(content):
+            referenced.setdefault(skill_id, set()).add(f"agents/{aid}")
+    for sid, path in skills.items():
+        if not path.is_file():
+            continue
+        try:
+            content = path.read_text()
+        except OSError:
+            continue
+        for dep_id in parse_depends_field(content):
+            referenced.setdefault(dep_id, set()).add(f"skills/{sid}")
+    return referenced
+
+
 def check_b2_cross_references(root: Path, report: Report) -> None:
     """B2-α: skills referenced in AGENT.md / SKILL.md must resolve."""
     agents = discover_agents(root)
@@ -29,25 +54,7 @@ def check_b2_cross_references(root: Path, report: Report) -> None:
     except Exception:
         pass
 
-    referenced: dict[str, set[str]] = {}
-
-    for aid, path in agents.items():
-        try:
-            content = path.read_text()
-        except OSError:
-            continue
-        for skill_id in parse_skills_field(content):
-            referenced.setdefault(skill_id, set()).add(f"agents/{aid}")
-
-    for sid, path in skills.items():
-        if not path.is_file():
-            continue
-        try:
-            content = path.read_text()
-        except OSError:
-            continue
-        for dep_id in parse_depends_field(content):
-            referenced.setdefault(dep_id, set()).add(f"skills/{sid}")
+    referenced = _collect_referenced_skills(agents, skills)
 
     for skill_id, refs in sorted(referenced.items()):
         if skill_id not in skills:

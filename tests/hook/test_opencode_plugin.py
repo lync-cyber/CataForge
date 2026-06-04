@@ -15,24 +15,27 @@ from pathlib import Path
 import pytest
 
 from cataforge.adapter.platform.opencode import OpenCodeAdapter, _render_opencode_plugin
+from cataforge.adapter.platform.profile_schema import PlatformProfile
 
 _NODE = shutil.which("node")
 
 
 @pytest.fixture()
 def opencode_adapter() -> OpenCodeAdapter:
-    profile = {
-        "platform_id": "opencode",
-        "tool_map": {"shell_exec": "bash", "file_edit": "edit"},
-        "hooks": {
-            "config_format": "plugin",
-            "event_map": {
-                "PreToolUse": "tool.execute.before",
-                "PostToolUse": "tool.execute.after",
+    profile = PlatformProfile.model_validate(
+        {
+            "platform_id": "opencode",
+            "tool_map": {"shell_exec": "bash", "file_edit": "edit"},
+            "hooks": {
+                "config_format": "plugin",
+                "event_map": {
+                    "PreToolUse": "tool.execute.before",
+                    "PostToolUse": "tool.execute.after",
+                },
+                "degradation": {"guard_dangerous": "native", "lint_format": "native"},
             },
-            "degradation": {"guard_dangerous": "native", "lint_format": "native"},
-        },
-    }
+        }
+    )
     return OpenCodeAdapter(profile)
 
 
@@ -113,10 +116,11 @@ def test_real_plugin_passes_node_check(tmp_path: Path) -> None:
     """Deploy the real OpenCode plugin and assert node can parse it — the
     artifact behaviour-level check for the TS surface."""
     from cataforge.adapter.platform.registry import clear_cache, get_adapter
+    from cataforge.runtime.hook.bridge import load_hooks_spec
 
     clear_cache()
     adapter = get_adapter("opencode")
-    adapter.emit_plugin_hooks(tmp_path, dry_run=False)
+    adapter.emit_plugin_hooks(tmp_path, dry_run=False, hooks_spec=load_hooks_spec())
     plugin = tmp_path / ".opencode" / "plugins" / "cataforge-hooks.ts"
     assert plugin.is_file()
 
@@ -165,7 +169,9 @@ def test_emit_plugin_hooks_writes_file(
         },
     )
 
-    actions = opencode_adapter.emit_plugin_hooks(tmp_path, dry_run=False)
+    actions = opencode_adapter.emit_plugin_hooks(
+        tmp_path, dry_run=False, hooks_spec=bridge.load_hooks_spec()
+    )
 
     plugin_path = tmp_path / ".opencode" / "plugins" / "cataforge-hooks.ts"
     assert plugin_path.is_file()
@@ -199,7 +205,9 @@ def test_emit_plugin_hooks_dry_run_does_not_write(
         },
     )
 
-    actions = opencode_adapter.emit_plugin_hooks(tmp_path, dry_run=True)
+    actions = opencode_adapter.emit_plugin_hooks(
+        tmp_path, dry_run=True, hooks_spec=bridge.load_hooks_spec()
+    )
     assert any("would write" in a for a in actions)
     assert not (tmp_path / ".opencode" / "plugins" / "cataforge-hooks.ts").exists()
 

@@ -59,12 +59,6 @@ from cataforge.interface.cli.main import cli
     help="After scaffolding, also run `cataforge deploy` for the selected platform.",
 )
 @click.option(
-    "--no-deploy",
-    is_flag=True,
-    hidden=True,
-    help="Deprecated: --no-deploy is now the default. Retained for compatibility.",
-)
-@click.option(
     "--dry-run",
     is_flag=True,
     help="Report what setup would change without writing any files.",
@@ -82,7 +76,6 @@ def setup_command(
     check_only: bool,
     force_scaffold: bool,
     deploy_after: bool,
-    no_deploy: bool,
     dry_run: bool,
     show_diff: bool,
 ) -> None:
@@ -115,25 +108,11 @@ def setup_command(
     \b
       cataforge setup --check-prereqs
           Validate environment only — no writes.
-
-    \b
-    NOTES:
-      * ``--no-deploy`` is a deprecated no-op retained so older scripts
-        (and ``cataforge upgrade apply``, which passed it explicitly)
-        keep working. It will be removed in v0.3.
     """
     from cataforge.core.config import ConfigManager
     from cataforge.core.events import FRAMEWORK_SETUP, EventBus
     from cataforge.core.paths import find_project_root_or_none
     from cataforge.interface.cli.helpers import resolve_project_dir
-
-    if no_deploy:
-        click.secho(
-            "[deprecated] --no-deploy is the default behaviour and the flag "
-            "will be removed in v0.3. You can drop it from existing scripts.",
-            fg="yellow",
-            err=True,
-        )
 
     # Resolve the project root. `--project-dir` is the explicit opt-in to target
     # any directory (including a parent project). Without it, setup initialises
@@ -209,8 +188,7 @@ def setup_command(
     from cataforge.interface.cli.guidance import print_next_steps
     from cataforge.interface.cli.ui import ui
 
-    # --no-deploy and "neither --deploy nor --no-deploy" both mean: skip deploy.
-    if not deploy_after or no_deploy:
+    if not deploy_after:
         bus.emit(
             FRAMEWORK_SETUP,
             {"platform": platform, "with_penpot": with_penpot, "scaffold_only": True},

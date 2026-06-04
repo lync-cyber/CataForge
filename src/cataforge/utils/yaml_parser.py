@@ -17,12 +17,6 @@ def load_yaml(path: Path) -> dict[str, Any]:
         return dict(result) if result else {}
 
 
-def dump_yaml(data: dict[str, Any], path: Path) -> None:
-    """Write data to a YAML file."""
-    with open(path, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
-
-
 def parse_yaml_frontmatter(content: str) -> dict[str, Any]:
     """Extract YAML front matter from Markdown; empty dict if none or invalid."""
     meta, _body = split_yaml_frontmatter(content)

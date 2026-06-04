@@ -22,28 +22,21 @@ Crash recovery and cross-process correctness:
 from __future__ import annotations
 
 import contextlib
-import json
 import logging
 import os
 import signal
-import socket
 import subprocess
-import sys
 import threading
 import time
-import urllib.error
-import urllib.request
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
 
-from cataforge.core.errors import ConfigError
-from cataforge.core.io import read_json
 from cataforge.core.paths import ProjectPaths, find_project_root
-from cataforge.core.schema.mcp_spec import HealthCheckSpec, MCPServerSpec, MCPServerState
+from cataforge.core.schema.mcp_spec import MCPServerSpec, MCPServerState
+from cataforge.runtime.mcp.health_probe import probe as _health_probe
 from cataforge.runtime.mcp.registry import MCPRegistry
-from cataforge.utils.run_subprocess import run as run_proc
+from cataforge.runtime.mcp.state_store import delete_state, load_state, save_state
+from cataforge.utils.process import _wait_for_pid_dead, pid_alive
 
 logger = logging.getLogger("cataforge.runtime.mcp.lifecycle")
 
@@ -143,103 +136,6 @@ def _spawn_lock(lock_path: Path):
         inproc.release()
 
 
-HealthStatus = Literal["healthy", "unhealthy", "unknown"]
-
-
-@dataclass(frozen=True)
-class HealthResult:
-    """Outcome of a single ``health()`` probe.
-
-    ``status`` is the bottom-line verdict; ``detail`` carries the
-    human-readable reason (HTTP status code, socket error, command exit
-    line) so CLI output and EVENT-LOG entries can explain *why*. ``ts``
-    is the ISO-8601 UTC timestamp written back to
-    :attr:`MCPServerState.last_health_check`.
-    """
-
-    status: HealthStatus
-    detail: str
-    ts: str
-
-
-def pid_alive(pid: int | None) -> bool:
-    """Return True if *pid* identifies a live process on this host.
-
-    Cross-platform: on POSIX uses ``os.kill(pid, 0)`` (no signal sent, just
-    a permission/existence probe). On Windows uses ``OpenProcess`` via
-    ctypes — sending signal 0 with ``os.kill`` on Windows actually calls
-    ``TerminateProcess`` (Python docs), which would kill the very process
-    we're inspecting.
-
-    POSIX zombie handling: a child of *this* process that has exited but
-    not been ``wait()``-ed for is a zombie. Its PID stays valid to
-    ``kill(pid, 0)``, so a naïve probe would report "alive" indefinitely
-    and ``stop()`` would loop forever after SIGTERM took effect. Probe with
-    non-blocking ``waitpid`` first to reap the zombie if it's ours, so the
-    return value reflects whether the process is meaningfully running, not
-    just whether the PID-table entry survives. ``ChildProcessError`` (pid
-    is not our child / already reaped) falls through to the kill probe.
-    """
-    if pid is None or pid <= 0:
-        return False
-    if sys.platform == "win32":
-        return _pid_alive_windows(pid)
-    try:
-        reaped_pid, _status = os.waitpid(pid, os.WNOHANG)
-    except ChildProcessError:
-        # Not our child (orphan re-parented to init, or already reaped).
-        pass
-    except OSError:
-        return False
-    else:
-        # waitpid returned: 0 → child still running; pid → just-reaped zombie.
-        if reaped_pid == pid:
-            return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        # Process exists but is owned by another user — counts as alive.
-        return True
-    except OSError:
-        return False
-    return True
-
-
-# Win32 constants — uppercase to match the public Win32 API names; ruff
-# N806 would flag them as locals, so they're module-level.
-_WIN_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-_WIN_STILL_ACTIVE = 259
-
-
-def _pid_alive_windows(pid: int) -> bool:
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-    handle = kernel32.OpenProcess(_WIN_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return False
-    try:
-        exit_code = wintypes.DWORD()
-        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
-            return False
-        return exit_code.value == _WIN_STILL_ACTIVE
-    finally:
-        kernel32.CloseHandle(handle)
-
-
-def _wait_for_pid_dead(pid: int, timeout: float) -> bool:
-    """Poll until *pid* is gone or *timeout* elapses. Returns True if dead."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if not pid_alive(pid):
-            return True
-        time.sleep(_PID_POLL_INTERVAL_SECONDS)
-    return not pid_alive(pid)
-
-
 class MCPLifecycleManager:
     """Manage MCP server processes with persisted, cross-process-correct state."""
 
@@ -311,7 +207,7 @@ class MCPLifecycleManager:
                     spec_id=server_id,
                     status="running",
                     pid=proc.pid,
-                    started_at=datetime.now(timezone.utc).isoformat(),
+                    started_at=datetime.now(UTC).isoformat(),
                 )
                 self._save_state(new_state)
             except Exception as e:
@@ -404,9 +300,9 @@ class MCPLifecycleManager:
         if spec is None:
             return None
 
-        result = self._probe(spec)
-
         state = self._load_state(server_id) or MCPServerState(spec_id=server_id)
+        result = _health_probe(spec, state.pid)
+
         new_status = state.status
         if state.status == "running" and result.status == "unhealthy":
             new_status = "unhealthy"
@@ -424,113 +320,6 @@ class MCPLifecycleManager:
         self._save_state(refreshed)
         return refreshed
 
-    def _probe(self, spec: MCPServerSpec) -> HealthResult:
-        """Run the configured probe and return a structured result."""
-        ts = datetime.now(timezone.utc).isoformat()
-        check = spec.health_check
-        if check is None:
-            state = self._load_state(spec.id)
-            pid = state.pid if state else None
-            alive = pid_alive(pid)
-            return HealthResult(
-                status="healthy" if alive else "unhealthy",
-                detail=f"pid_alive={alive} (pid={pid})",
-                ts=ts,
-            )
-
-        if check.type == "http":
-            return self._probe_http(check, ts)
-        if check.type == "tcp":
-            return self._probe_tcp(check, ts)
-        if check.type == "command":
-            return self._probe_command(check, ts)
-        return HealthResult(
-            status="unknown",
-            detail=f"unsupported health_check.type={check.type!r}",
-            ts=ts,
-        )
-
-    @staticmethod
-    def _probe_http(check: HealthCheckSpec, ts: str) -> HealthResult:
-        target = check.target
-        if not target:
-            return HealthResult(status="unknown", detail="http: target is empty", ts=ts)
-        req = urllib.request.Request(target, method="GET")
-        try:
-            with urllib.request.urlopen(  # noqa: S310 — operator-configured URL
-                req, timeout=check.timeout_seconds
-            ) as resp:
-                code = int(resp.status)
-        except urllib.error.HTTPError as exc:
-            return HealthResult(
-                status="unhealthy",
-                detail=f"http: HTTP {exc.code}",
-                ts=ts,
-            )
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            return HealthResult(status="unhealthy", detail=f"http: {exc}", ts=ts)
-        return HealthResult(
-            status="healthy" if 200 <= code < 300 else "unhealthy",
-            detail=f"http: HTTP {code}",
-            ts=ts,
-        )
-
-    @staticmethod
-    def _probe_tcp(check: HealthCheckSpec, ts: str) -> HealthResult:
-        target = check.target
-        if ":" not in target:
-            return HealthResult(
-                status="unknown",
-                detail=f"tcp: target {target!r} must be 'host:port'",
-                ts=ts,
-            )
-        host, _, port_str = target.rpartition(":")
-        try:
-            port = int(port_str)
-        except ValueError:
-            return HealthResult(
-                status="unknown",
-                detail=f"tcp: port {port_str!r} is not an integer",
-                ts=ts,
-            )
-        try:
-            with socket.create_connection((host, port), timeout=check.timeout_seconds):
-                pass
-        except OSError as exc:
-            return HealthResult(status="unhealthy", detail=f"tcp: {exc}", ts=ts)
-        return HealthResult(status="healthy", detail=f"tcp: connected to {host}:{port}", ts=ts)
-
-    @staticmethod
-    def _probe_command(check: HealthCheckSpec, ts: str) -> HealthResult:
-        target = check.target
-        if not target:
-            return HealthResult(status="unknown", detail="command: target is empty", ts=ts)
-        if isinstance(target, str):
-            return HealthResult(
-                status="unknown",
-                detail=(
-                    f"command: health_check.target must be a list of args; got string {target!r}"
-                ),
-                ts=ts,
-            )
-        try:
-            proc = run_proc(target, timeout=check.timeout_seconds)
-        except subprocess.TimeoutExpired:
-            return HealthResult(
-                status="unhealthy",
-                detail=f"command: timed out after {check.timeout_seconds}s",
-                ts=ts,
-            )
-        except OSError as exc:
-            return HealthResult(status="unhealthy", detail=f"command: {exc}", ts=ts)
-        if proc.returncode == 0:
-            return HealthResult(status="healthy", detail="command: exit 0", ts=ts)
-        return HealthResult(
-            status="unhealthy",
-            detail=f"command: exit {proc.returncode}",
-            ts=ts,
-        )
-
     def _build_env(self, spec: MCPServerSpec) -> dict[str, str]:
         env = os.environ.copy()
         for k, v in spec.env.items():
@@ -542,56 +331,10 @@ class MCPLifecycleManager:
         return env
 
     def _save_state(self, state: MCPServerState) -> None:
-        """Write state atomically: dump to a sibling tmpfile, then rename.
-
-        Why atomic: a peer thread releasing the spawn-lock right after this
-        write would otherwise occasionally read a half-formed JSON file and
-        treat the server as "no state" → spawn a second process. The rename
-        is atomic on POSIX and on NTFS (replacement semantics), so any reader
-        sees either the previous content or the fully-written new content,
-        never a partial buffer.
-
-        Pin: the CI ``uv run --extra dev pytest`` step on Linux Py 3.13
-        was reliably triggering this race in
-        ``test_concurrent_start_produces_single_pid`` even after the
-        spawn-lock fix landed — same process, two threads, fast enough that
-        the writer's ``write_text`` flushed the open-and-write but not yet
-        the body when the peer reached ``json.loads`` inside ``_load_state``.
-        """
-        path = self._state_dir / f"{state.spec_id}.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = (
-            json.dumps(
-                {
-                    "spec_id": state.spec_id,
-                    "status": state.status,
-                    "pid": state.pid,
-                    "port": state.port,
-                    "started_at": state.started_at,
-                    "last_health_check": state.last_health_check,
-                    "error_message": state.error_message,
-                },
-                indent=2,
-            )
-            + "\n"
-        )
-        # Sibling tmpfile keyed by pid + thread id so concurrent writers from
-        # the same process never collide on the rename source.
-        tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}.{threading.get_ident()}")
-        tmp.write_text(payload)
-        os.replace(str(tmp), str(path))
+        save_state(self._state_dir, state)
 
     def _delete_state(self, server_id: str) -> None:
-        path = self._state_dir / f"{server_id}.json"
-        with contextlib.suppress(FileNotFoundError):
-            path.unlink()
+        delete_state(self._state_dir, server_id)
 
     def _load_state(self, server_id: str) -> MCPServerState | None:
-        path = self._state_dir / f"{server_id}.json"
-        if not path.is_file():
-            return None
-        try:
-            data = read_json(path)
-        except ConfigError:
-            return None
-        return MCPServerState.model_validate(data)
+        return load_state(self._state_dir, server_id)

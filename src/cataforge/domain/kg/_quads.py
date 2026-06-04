@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from cataforge.domain.kg._config import KGConfig
@@ -106,8 +106,8 @@ def build_entity_quads(
             )
         )
 
-    ts = mtime if mtime is not None else datetime.now(timezone.utc).timestamp()
-    updated_at = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+    ts = mtime if mtime is not None else datetime.now(UTC).timestamp()
+    updated_at = datetime.fromtimestamp(ts, tz=UTC).isoformat()
     quads.append(
         ox.Quad(
             subject,

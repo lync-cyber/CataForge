@@ -190,8 +190,8 @@ def _execute_plan(
         ui.info(f"[setup] delegating to `cataforge setup --platform {plan.target_platform}`")
         # Delegate to setup_command so any new side effect added there
         # (e.g. --emit-env-block, additional checks) is automatically
-        # picked up by bootstrap. We pass --no-deploy explicitly: bootstrap
-        # owns the deploy step and we don't want setup to chain it.
+        # picked up by bootstrap. deploy_after=False: bootstrap owns the
+        # deploy step and we don't want setup to chain it.
         from cataforge.interface.cli.setup_cmd import setup_command
 
         ctx.invoke(
@@ -201,11 +201,7 @@ def _execute_plan(
             context_strategy=context_strategy,
             check_only=False,
             force_scaffold=False,
-            # deploy_after=False so setup doesn't chain a deploy — bootstrap
-            # owns the deploy step. no_deploy=False to avoid setup's
-            # deprecation warning (the flag is a deprecated no-op).
             deploy_after=False,
-            no_deploy=False,
             dry_run=False,
             show_diff=False,
         )

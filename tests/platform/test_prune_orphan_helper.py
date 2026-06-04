@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.adapter.platform.helpers import _prune_orphan_flat_files
+from cataforge.adapter.platform.fileops import _prune_orphan_flat_files
 
 
 def _write(directory: Path, name: str, content: str) -> Path:

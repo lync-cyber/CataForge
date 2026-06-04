@@ -3,12 +3,47 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 import click
 
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
+
+
+def _validate_log_line(
+    line_no: int,
+    text: str,
+    cutoff: datetime | None,
+    validate_record: Callable[[dict[str, Any]], list[str]],
+) -> tuple[int, tuple[int, str, list[str]] | None]:
+    """Parse and validate one EVENT-LOG line.
+
+    Returns ``(skipped, bad_entry)`` where ``skipped`` is 1 if the line was
+    skipped due to the pre-cutoff watermark, and ``bad_entry`` is a failure
+    tuple or None when the line is valid.
+    """
+    import json
+
+    if not text:
+        return 0, None
+    try:
+        obj = json.loads(text)
+    except json.JSONDecodeError as e:
+        if cutoff is not None:
+            return 1, None
+        return 0, (line_no, text[:80], [f"invalid JSON: {e}"])
+    if not isinstance(obj, dict):
+        return 0, (line_no, text[:80], ["not a JSON object"])
+    if cutoff is not None and _ts_before(obj.get("ts"), cutoff):
+        return 1, None
+    errors = validate_record(obj)
+    if errors:
+        preview = obj.get("event") or obj.get("timestamp") or "?"
+        return 0, (line_no, str(preview)[:80], errors)
+    return 0, None
 
 
 def check_event_log_schema(cfg: ConfigManager, *, sample_size: int = 200) -> int:
@@ -20,7 +55,6 @@ def check_event_log_schema(cfg: ConfigManager, *, sample_size: int = 200) -> int
     the watermark are skipped — pre-v0.1.7 bypass-write residue must not
     hold doctor hostage forever.
     """
-    import json
     from datetime import datetime
 
     from cataforge.core.event_log import event_log_path, validate_record
@@ -53,30 +87,10 @@ def check_event_log_schema(cfg: ConfigManager, *, sample_size: int = 200) -> int
     skipped_pre_cutoff = 0
     for offset, raw in enumerate(sampled):
         line_no = start_idx + offset + 1
-        text = raw.strip()
-        if not text:
-            continue
-        try:
-            obj = json.loads(text)
-        except json.JSONDecodeError as e:
-            if cutoff is not None:
-                # Unparseable lines can't be timestamp-compared; treat as
-                # pre-cutoff iff the cutoff is set, to match the intent of
-                # "ignore historical rot".
-                skipped_pre_cutoff += 1
-                continue
-            bad.append((line_no, text[:80], [f"invalid JSON: {e}"]))
-            continue
-        if not isinstance(obj, dict):
-            bad.append((line_no, text[:80], ["not a JSON object"]))
-            continue
-        if cutoff is not None and _ts_before(obj.get("ts"), cutoff):
-            skipped_pre_cutoff += 1
-            continue
-        errors = validate_record(obj)
-        if errors:
-            preview = obj.get("event") or obj.get("timestamp") or "?"
-            bad.append((line_no, str(preview)[:80], errors))
+        skipped, bad_entry = _validate_log_line(line_no, raw.strip(), cutoff, validate_record)
+        skipped_pre_cutoff += skipped
+        if bad_entry is not None:
+            bad.append(bad_entry)
 
     sampled_count = sum(1 for ln in sampled if ln.strip())
     validated = sampled_count - skipped_pre_cutoff
@@ -111,7 +125,7 @@ def _ts_before(ts_value, cutoff) -> bool:  # cutoff: datetime
     they predate the cutoff are skipped, so malformed records (which the
     watermark shouldn't hide) still fail.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     if not isinstance(ts_value, str) or not ts_value:
         return False
@@ -121,9 +135,9 @@ def _ts_before(ts_value, cutoff) -> bool:  # cutoff: datetime
         return False
     # Make both sides timezone-aware to avoid naive-vs-aware comparison errors.
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
+        ts = ts.replace(tzinfo=UTC)
     if cutoff.tzinfo is None:
-        cutoff = cutoff.replace(tzinfo=timezone.utc)
+        cutoff = cutoff.replace(tzinfo=UTC)
     return ts < cutoff
 
 

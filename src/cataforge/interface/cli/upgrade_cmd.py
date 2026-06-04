@@ -107,7 +107,7 @@ def upgrade_apply(dry_run: bool) -> None:
     from cataforge.interface.cli.helpers import get_config_manager
 
     if dry_run:
-        from cataforge.interface.cli.helpers import classify_tallies
+        from cataforge.core.tallies import classify_tallies
 
         cfg = get_config_manager()
         dest = cfg.paths.cataforge_dir

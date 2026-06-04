@@ -9,6 +9,7 @@ old docs<->kg import cycle and the indexer->loader private-symbol crossing.
 from __future__ import annotations
 
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,12 @@ DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
 
 
 _DOC_TYPE_MAP_CACHE: dict[str, dict[str, str]] = {}
+_DOC_TYPE_MAP_LOCK = threading.Lock()
+
+
+def clear_doc_type_map_cache() -> None:
+    with _DOC_TYPE_MAP_LOCK:
+        _DOC_TYPE_MAP_CACHE.clear()
 
 
 def _load_doc_type_map(project_root: str) -> dict[str, str]:

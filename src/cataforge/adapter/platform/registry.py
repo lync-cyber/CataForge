@@ -6,9 +6,9 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
+from cataforge.adapter.platform.profile_schema import PlatformProfile
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
 
@@ -53,8 +53,13 @@ def detect_platform(framework_json_path: Path | None = None) -> str:
     return "claude-code"
 
 
-def load_profile(platform_id: str, platforms_dir: Path | None = None) -> dict[str, Any]:
-    """Load a platform's profile.yaml."""
+def load_profile(platform_id: str, platforms_dir: Path | None = None) -> PlatformProfile:
+    """Load and validate a platform's profile.yaml.
+
+    Malformed profiles fail here with a ``pydantic.ValidationError`` naming the
+    offending field rather than surfacing as an ``AttributeError`` deep in an
+    adapter property at deploy time.
+    """
     if platforms_dir is None:
         from cataforge.core.paths import find_project_root
 
@@ -66,12 +71,15 @@ def load_profile(platform_id: str, platforms_dir: Path | None = None) -> dict[st
         import yaml
 
         with open(profile_path) as f:
-            return dict(yaml.safe_load(f) or {})
+            raw = yaml.safe_load(f) or {}
     except ImportError:
         json_path = profile_path.with_suffix(".json")
         if json_path.is_file():
-            return dict(read_json(json_path))
-        raise ImportError(f"PyYAML not available and no JSON fallback at {json_path}") from None
+            raw = dict(read_json(json_path))
+        else:
+            raise ImportError(f"PyYAML not available and no JSON fallback at {json_path}") from None
+
+    return PlatformProfile.model_validate(raw)
 
 
 def get_adapter(platform_id: str, platforms_dir: Path | None = None) -> PlatformAdapter:
@@ -115,7 +123,7 @@ def clear_cache() -> None:
         _adapter_cache.clear()
 
 
-def _create_adapter(platform_id: str, profile: dict[str, Any]) -> PlatformAdapter:
+def _create_adapter(platform_id: str, profile: PlatformProfile) -> PlatformAdapter:
     """Instantiate the correct adapter class for a platform.
 
     Resolution order:

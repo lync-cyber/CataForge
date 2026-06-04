@@ -10,7 +10,9 @@ import json
 import logging
 import shutil
 import tempfile
+from collections.abc import Callable
 from contextlib import ExitStack
+from dataclasses import dataclass, field
 from importlib.resources import as_file
 from pathlib import Path
 
@@ -30,6 +32,37 @@ from cataforge.runtime.deploy.manifest import (
 from cataforge.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger("cataforge.runtime.deploy")
+
+
+@dataclass
+class DeployContext:
+    """Shared state threaded through every deploy step."""
+
+    root: Path
+    adapter: PlatformAdapter
+    manifest: DeployManifest
+    prior_owned: set[str]
+    platform_id: str
+    dry_run: bool
+    include_maintainer_only: bool
+    force_copy: bool
+    stack: ExitStack
+    cfg: ConfigManager
+    agents_src: Path = field(default_factory=Path)
+    skills_src: Path = field(default_factory=Path)
+    instruction_src: Path = field(default_factory=Path)
+
+
+# ---------------------------------------------------------------------------
+# Step type alias
+# ---------------------------------------------------------------------------
+
+_StepFn = Callable[["Deployer", DeployContext], list[str]]
+_GuardFn = Callable[[DeployContext], bool]
+
+
+def _always(_ctx: DeployContext) -> bool:
+    return True
 
 
 class Deployer:
@@ -110,6 +143,8 @@ class Deployer:
         prior_owned = load_prior_manifest(root)
         manifest = DeployManifest(platform_id)
 
+        # Pre-pipeline: rebuild purge (must run before self-heal so the prior
+        # manifest reflects reality at purge time).
         if rebuild:
             actions.extend(
                 self._rebuild_purge(
@@ -120,109 +155,40 @@ class Deployer:
                     dry_run=dry_run,
                 )
             )
-            # After a purge the prior manifest no longer reflects reality;
-            # treat downstream prune passes as a fresh start so nothing
-            # else gets second-guessed.
             prior_owned = set()
 
-        # P1 plan A — refill any source files the user deleted before we
-        # try to render IDE artefacts from them.
+        # Pre-pipeline: self-heal missing scaffold files.
         actions.extend(self._self_heal_scaffold(dry_run=dry_run))
 
-        # Resolve user/project override layers onto the scaffold. When no
-        # overrides exist this returns the original source dirs unchanged, so
-        # the common path stays byte-identical and allocation-free.
+        # Pre-pipeline: resolve override/plugin/language layers.
         agents_src, skills_src, stage_action = self._resolve_override_sources(stack)
         if stage_action:
             actions.append(stage_action)
 
-        if adapter.needs_agent_deploy:
-            actions.extend(
-                adapter.deploy_agents(
-                    agents_src,
-                    root,
-                    dry_run=dry_run,
-                    manifest=manifest,
-                    prior_manifest=prior_owned,
-                )
-            )
-
-        # Source the instruction file (CLAUDE.md / AGENTS.md) from the bundled
-        # PROJECT-STATE.md template, not a downstream copy — the scaffold no
-        # longer ships PROJECT-STATE.md into projects.
+        # Resolve instruction template source (consumes an ExitStack slot).
         instruction_src = stack.enter_context(as_file(packaged_instruction_template()))
-        actions.extend(
-            adapter.deploy_instruction_files(
-                instruction_src,
-                root,
-                platform_id=platform_id,
-                dry_run=dry_run,
-                manifest=manifest,
-                prior_manifest=prior_owned,
-            )
+
+        ctx = DeployContext(
+            root=root,
+            adapter=adapter,
+            manifest=manifest,
+            prior_owned=prior_owned,
+            platform_id=platform_id,
+            dry_run=dry_run,
+            include_maintainer_only=include_maintainer_only,
+            force_copy=force_copy,
+            stack=stack,
+            cfg=self._cfg,
+            agents_src=agents_src,
+            skills_src=skills_src,
+            instruction_src=instruction_src,
         )
 
-        if adapter.hook_config_format:
-            actions.extend(self._deploy_hooks(root, adapter, manifest=manifest, dry_run=dry_run))
+        for _name, guard, step in self._STEPS:
+            if guard(ctx):
+                actions.extend(step(self, ctx))
 
-        if adapter.additional_outputs:
-            actions.extend(
-                adapter.deploy_additional_outputs(
-                    self._cfg.paths.rules_dir,
-                    root,
-                    dry_run=dry_run,
-                    manifest=manifest,
-                    prior_manifest=prior_owned,
-                )
-            )
-
-        rules_dir = self._cfg.paths.rules_dir
-        if rules_dir.is_dir():
-            actions.extend(
-                adapter.deploy_rules(
-                    rules_dir,
-                    root,
-                    dry_run=dry_run,
-                    manifest=manifest,
-                    prior_manifest=prior_owned,
-                    force_copy=force_copy,
-                )
-            )
-
-        if adapter.needs_skill_deploy and skills_src.is_dir():
-            actions.extend(
-                adapter.deploy_skills(
-                    skills_src,
-                    root,
-                    dry_run=dry_run,
-                    include_maintainer_only=include_maintainer_only,
-                    manifest=manifest,
-                    prior_manifest=prior_owned,
-                    force_copy=force_copy,
-                )
-            )
-
-        commands_dir = self._cfg.paths.commands_dir
-        if adapter.needs_command_deploy and commands_dir.is_dir():
-            actions.extend(
-                adapter.deploy_commands(
-                    commands_dir,
-                    root,
-                    dry_run=dry_run,
-                    manifest=manifest,
-                    prior_manifest=prior_owned,
-                )
-            )
-
-        actions.extend(self._apply_degradation(root, adapter, dry_run=dry_run))
-        # Materialise platform override rules AFTER apply_degradation so any
-        # auto-*.md files the hook bridge just wrote land in the platform's
-        # native rule surface in the same deploy.
-        actions.extend(adapter.deploy_overrides_rules(root, dry_run=dry_run, manifest=manifest))
-        actions.extend(
-            self._deploy_mcp(root, platform_id, adapter, manifest=manifest, dry_run=dry_run)
-        )
-
+        # Tail: write state and manifest (or dry-run notes).
         if not dry_run:
             self._write_deploy_state(root, platform_id)
             from cataforge import __version__
@@ -244,6 +210,146 @@ class Deployer:
         )
         return actions
 
+    # ---- Step implementations ----
+
+    def _step_deploy_agents(self, ctx: DeployContext) -> list[str]:
+        from cataforge.runtime.deploy.steps import deploy_agents
+
+        return deploy_agents(
+            ctx.adapter,
+            ctx.agents_src,
+            ctx.root,
+            dry_run=ctx.dry_run,
+            manifest=ctx.manifest,
+            prior_manifest=ctx.prior_owned,
+        )
+
+    def _step_deploy_instruction_files(self, ctx: DeployContext) -> list[str]:
+        from cataforge.runtime.deploy.steps import deploy_instruction_files
+
+        return deploy_instruction_files(
+            ctx.adapter,
+            ctx.instruction_src,
+            ctx.root,
+            platform_id=ctx.platform_id,
+            dry_run=ctx.dry_run,
+            manifest=ctx.manifest,
+            prior_manifest=ctx.prior_owned,
+        )
+
+    def _step_deploy_hooks(self, ctx: DeployContext) -> list[str]:
+        return self._deploy_hooks(ctx.root, ctx.adapter, manifest=ctx.manifest, dry_run=ctx.dry_run)
+
+    def _step_deploy_additional_outputs(self, ctx: DeployContext) -> list[str]:
+        from cataforge.runtime.deploy.steps import deploy_additional_outputs
+
+        return deploy_additional_outputs(
+            ctx.adapter,
+            ctx.cfg.paths.rules_dir,
+            ctx.root,
+            dry_run=ctx.dry_run,
+            manifest=ctx.manifest,
+            prior_manifest=ctx.prior_owned,
+        )
+
+    def _step_deploy_rules(self, ctx: DeployContext) -> list[str]:
+        from cataforge.runtime.deploy.steps import deploy_rules
+
+        return deploy_rules(
+            ctx.adapter,
+            ctx.cfg.paths.rules_dir,
+            ctx.root,
+            dry_run=ctx.dry_run,
+            manifest=ctx.manifest,
+            prior_manifest=ctx.prior_owned,
+            force_copy=ctx.force_copy,
+        )
+
+    def _step_deploy_skills(self, ctx: DeployContext) -> list[str]:
+        from cataforge.runtime.deploy.steps import deploy_skills
+
+        return deploy_skills(
+            ctx.adapter,
+            ctx.skills_src,
+            ctx.root,
+            dry_run=ctx.dry_run,
+            include_maintainer_only=ctx.include_maintainer_only,
+            manifest=ctx.manifest,
+            prior_manifest=ctx.prior_owned,
+            force_copy=ctx.force_copy,
+        )
+
+    def _step_deploy_commands(self, ctx: DeployContext) -> list[str]:
+        from cataforge.runtime.deploy.steps import deploy_commands
+
+        return deploy_commands(
+            ctx.adapter,
+            ctx.cfg.paths.commands_dir,
+            ctx.root,
+            dry_run=ctx.dry_run,
+            manifest=ctx.manifest,
+            prior_manifest=ctx.prior_owned,
+        )
+
+    def _step_apply_degradation(self, ctx: DeployContext) -> list[str]:
+        return self._apply_degradation(ctx.root, ctx.adapter, dry_run=ctx.dry_run)
+
+    def _step_deploy_overrides_rules(self, ctx: DeployContext) -> list[str]:
+        from cataforge.runtime.deploy.steps import deploy_overrides_rules
+
+        return deploy_overrides_rules(
+            ctx.adapter, ctx.root, dry_run=ctx.dry_run, manifest=ctx.manifest
+        )
+
+    def _step_deploy_mcp(self, ctx: DeployContext) -> list[str]:
+        return self._deploy_mcp(
+            ctx.root, ctx.platform_id, ctx.adapter, manifest=ctx.manifest, dry_run=ctx.dry_run
+        )
+
+    # ---- Guard functions ----
+
+    @staticmethod
+    def _guard_agents(ctx: DeployContext) -> bool:
+        return ctx.adapter.needs_agent_deploy
+
+    @staticmethod
+    def _guard_hooks(ctx: DeployContext) -> bool:
+        return bool(ctx.adapter.hook_config_format)
+
+    @staticmethod
+    def _guard_additional_outputs(ctx: DeployContext) -> bool:
+        return bool(ctx.adapter.additional_outputs)
+
+    @staticmethod
+    def _guard_rules(ctx: DeployContext) -> bool:
+        return ctx.cfg.paths.rules_dir.is_dir()
+
+    @staticmethod
+    def _guard_skills(ctx: DeployContext) -> bool:
+        return ctx.adapter.needs_skill_deploy and ctx.skills_src.is_dir()
+
+    @staticmethod
+    def _guard_commands(ctx: DeployContext) -> bool:
+        return ctx.adapter.needs_command_deploy and ctx.cfg.paths.commands_dir.is_dir()
+
+    # ---- Ordered step pipeline ----
+    # Each entry: (name, guard, step_method)
+    # Order matches the original _deploy() sequence exactly.
+    # apply_degradation must precede deploy_overrides_rules.
+
+    _STEPS: list[tuple[str, _GuardFn, _StepFn]] = [
+        ("agents", _guard_agents.__func__, _step_deploy_agents),  # type: ignore[attr-defined]
+        ("instruction_files", _always, _step_deploy_instruction_files),
+        ("hooks", _guard_hooks.__func__, _step_deploy_hooks),  # type: ignore[attr-defined]
+        ("additional_outputs", _guard_additional_outputs.__func__, _step_deploy_additional_outputs),  # type: ignore[attr-defined]
+        ("rules", _guard_rules.__func__, _step_deploy_rules),  # type: ignore[attr-defined]
+        ("skills", _guard_skills.__func__, _step_deploy_skills),  # type: ignore[attr-defined]
+        ("commands", _guard_commands.__func__, _step_deploy_commands),  # type: ignore[attr-defined]
+        ("degradation", _always, _step_apply_degradation),
+        ("overrides_rules", _always, _step_deploy_overrides_rules),
+        ("mcp", _always, _step_deploy_mcp),
+    ]
+
     # ---- P1 plan A: self-heal .cataforge/ from bundled scaffold ----
 
     def _self_heal_scaffold(self, *, dry_run: bool = False) -> list[str]:
@@ -261,26 +367,18 @@ class Deployer:
 
         cataforge_dir = self._cfg.paths.cataforge_dir
         if not cataforge_dir.is_dir():
-            # Fresh project — ``cataforge setup`` is the right entry point;
-            # ``deploy`` should not silently scaffold from nothing.
             return []
 
         if dry_run:
-            # We don't probe the wheel during dry-run — it's expensive and
-            # the user has already been told it's a dry-run.
             return ["would self-heal missing .cataforge/ files (force=False)"]
 
         try:
             written = copy_scaffold_to(cataforge_dir, force=False, backup=False).written
         except FileNotFoundError as exc:
-            # Editable install with no bundled scaffold visible — log and
-            # carry on. ``setup`` will have already populated the dir.
             logger.debug("self-heal skipped: %s", exc)
             return []
         if not written:
             return []
-        # Reset the config cache so the rest of deploy sees the restored
-        # framework.json (if that was one of the files we just refilled).
         self._cfg.reload()
         return [f"self-heal: restored {len(written)} missing scaffold file(s) from bundled wheel"]
 
@@ -359,7 +457,7 @@ class Deployer:
         Switching platforms is a deliberate two-step: clean up the old
         target manually (``rm -rf .claude/`` etc.) then deploy fresh.
         """
-        from cataforge.adapter.platform.helpers import _remove_target
+        from cataforge.adapter.platform.fileops import _remove_target
 
         if not prior_owned:
             return ["rebuild: no prior manifest — nothing to purge"]
@@ -399,10 +497,6 @@ class Deployer:
         try:
             hooks_config, warnings = generate_platform_hooks(adapter)
         except (ImportError, AttributeError) as e:
-            # Almost always means a plugin's hook module fails to import
-            # (missing dep, syntax error) or the plugin's adapter class
-            # lost a method between versions. Both want re-install /
-            # version pinning, not a generic "generation failed" line.
             logger.exception("hook generation failed (likely plugin issue)")
             return [
                 f"hooks: generation failed — {type(e).__name__}: {e}. "
@@ -410,9 +504,6 @@ class Deployer:
                 f"compatible; full traceback in logs."
             ]
         except Exception as e:
-            # Any other failure: keep the message terse for the user-facing
-            # action log but persist the full traceback to the logger so
-            # CI / doctor can pick it up.
             logger.exception("hook generation failed")
             return [f"hooks: generation failed — {type(e).__name__}: {e}. Full traceback in logs."]
 
@@ -440,7 +531,7 @@ class Deployer:
         else:
             existing = {}
 
-        from cataforge.adapter.platform.helpers import merge_hooks_config
+        from cataforge.adapter.platform.hooks_config import merge_hooks_config
 
         template = adapter.get_hook_command_template()
         owned_prefixes = (template.split("{module}")[0], "python .cataforge/hooks/custom/")
@@ -479,6 +570,7 @@ class Deployer:
         manifest: DeployManifest | None = None,
         dry_run: bool = False,
     ) -> list[str]:
+        from cataforge.runtime.deploy.steps import inject_mcp_config
         from cataforge.runtime.mcp.registry import MCPRegistry
 
         registry = MCPRegistry(root)
@@ -488,7 +580,7 @@ class Deployer:
             if not payload:
                 actions.append(f"SKIP: mcp.{server.id} — empty platform payload")
                 continue
-            actions.extend(adapter.inject_mcp_config(server.id, payload, root, dry_run=dry_run))
+            actions.extend(inject_mcp_config(adapter, server.id, payload, root, dry_run=dry_run))
         return actions
 
     def _write_deploy_state(self, root: Path, platform_id: str) -> None:

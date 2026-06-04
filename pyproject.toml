@@ -3,7 +3,7 @@ name = "cataforge"
 dynamic = ["version"]
 description = "AI Programming: Agent + Skill Workflow Framework — one .cataforge/ spec, many IDEs (Claude Code, Cursor, Codex, OpenCode)."
 readme = "README.md"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.11,<3.15"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -31,7 +31,6 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -65,6 +64,7 @@ dev = [
     "twine>=5.0",
     "scriv[toml]>=1.5",
     "linkml>=1.11.1",
+    "import-linter>=2.0",
     # `.pre-commit-config.yaml` ships a ruff hook + other static checks;
     # they only fire if `pre-commit` itself is installed and `pre-commit
     # install` has been run once per clone. Bundling here means
@@ -137,7 +137,7 @@ include = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 src = ["src", "tests"]
 extend-exclude = [
@@ -152,7 +152,7 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "C901"]
 
 [tool.ruff.lint.mccabe]
 # Cyclomatic-complexity ceiling. Functions above this fail the lint gate.
-max-complexity = 20
+max-complexity = 15
 
 [tool.pyright]
 # Mypy is the primary type checker (see `[tool.mypy]` per-package
@@ -177,7 +177,7 @@ exclude = [
     "build/**",
     "dist/**",
 ]
-pythonVersion = "3.10"
+pythonVersion = "3.11"
 typeCheckingMode = "off"
 
 reportUnusedVariable = "none"
@@ -207,6 +207,16 @@ filterwarnings = [
     "ignore:urllib3 .*doesn't match a supported version:Warning",
 ]
 
+[tool.coverage.run]
+source = ["cataforge"]
+omit = [
+    "src/cataforge/domain/kg/_generated/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
 [tool.mypy]
 # Policy: opt-in strict per-package, not blanket strict. The historic
 # `strict = true` setting produced a ~200-error baseline that no CI gate
@@ -214,7 +224,7 @@ filterwarnings = [
 # minimal (just type checking + cache hygiene); modules opt into strict
 # via [[tool.mypy.overrides]] as they get cleaned up. See
 # `docs/contributing.md` § Type checking for the convergence workflow.
-python_version = "3.10"
+python_version = "3.11"
 warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
@@ -228,6 +238,8 @@ warn_unused_ignores = true
 [[tool.mypy.overrides]]
 module = [
     "cataforge.application.services.*",
+    "cataforge.application.feedback",
+    "cataforge.application.feedback.*",
 ]
 strict = true
 
@@ -251,3 +263,38 @@ entry_title_template = "[{{ version }}] — {{ date.strftime('%Y-%m-%d') }}"
 # scriv inserts new entries at the `<!-- scriv-insert-here -->` marker
 # in CHANGELOG.md (placed right after the file's intro block).
 insert_marker = "<!-- scriv-insert-here -->"
+
+[tool.importlinter]
+root_packages = ["cataforge"]
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture: interface → application → {runtime,domain} → adapter → core → utils"
+type = "layers"
+layers = [
+    "cataforge.interface",
+    "cataforge.application",
+    "cataforge.runtime | cataforge.domain",
+    "cataforge.adapter",
+    "cataforge.core",
+    "cataforge.utils",
+]
+ignore_imports = [
+    # adapter TYPE_CHECKING-only upward import of runtime type (mirrored in UPWARD_IMPORT_ALLOWLIST)
+    "cataforge.adapter.platform.cursor -> cataforge.runtime.deploy.manifest",
+    "cataforge.adapter.platform.opencode -> cataforge.runtime.deploy.manifest",
+    # runtime builtin lazy-imports application layer to avoid module-level cycle
+    "cataforge.runtime.skill.builtins.framework_feedback.framework_feedback -> cataforge.application.feedback",
+    # interface layer doctor commands lazy-import runtime/domain (function-body imports)
+    "cataforge.interface.cli.doctor.deploy_integrity -> cataforge.runtime.deploy.manifest",
+    "cataforge.interface.cli.doctor.deploy_integrity -> cataforge.runtime.skill.loader",
+    "cataforge.interface.cli.doctor.skill_health -> cataforge.runtime.skill.loader",
+    "cataforge.interface.cli.doctor.skill_health -> cataforge.domain.docs.indexer",
+    "cataforge.runtime.skill.builtins.framework_review.checks.b2 -> cataforge.runtime.skill.loader",
+    "cataforge.runtime.skill.builtins.doc_review.checker -> cataforge.runtime.skill.builtins.doc_review.typed_checks",
+    # runtime → domain peer imports (both rank-2 layers; allowed by the layer model)
+    "cataforge.runtime.skill.builtins.doc_consistency.checker -> cataforge.domain.kg",
+    "cataforge.runtime.skill.builtins.doc_consistency.checker -> cataforge.domain.kg._dispatch",
+    "cataforge.runtime.skill.builtins.doc_consistency.checker -> cataforge.domain.kg._sparql_utils",
+    "cataforge.runtime.skill.builtins.doc_review.checker -> cataforge.domain.kg",
+    "cataforge.runtime.skill.builtins.doc_review.checker -> cataforge.domain.kg._dispatch",
+]

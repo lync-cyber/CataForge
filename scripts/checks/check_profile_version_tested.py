@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -90,7 +90,7 @@ def main() -> int:
         rel = profile.relative_to(REPO_ROOT).as_posix()
         commit_dates[pid] = _git_commit_date(rel)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     stale = find_stale(commit_dates, now, MAX_AGE_DAYS)
 
     untracked = [pid for pid, iso in commit_dates.items() if iso is None]

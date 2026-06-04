@@ -6,6 +6,7 @@ import contextlib
 import importlib.resources
 import json
 import re
+import threading
 from pathlib import Path
 
 from cataforge.utils.yaml_parser import load_yaml
@@ -14,6 +15,7 @@ __all__ = [
     "load_template_required_sections",
     "build_template_path_map",
     "parse_required_sections_from_list",
+    "clear_template_registry_cache",
 ]
 
 
@@ -88,23 +90,33 @@ def build_template_path_map() -> dict[str, dict[str, dict[str, str]]]:
 
 _templates_dir: Path | None = None
 _template_map: dict[str, dict[str, dict[str, str]]] | None = None
+_registry_lock = threading.Lock()
+
+
+def clear_template_registry_cache() -> None:
+    global _templates_dir, _template_map
+    with _registry_lock:
+        _templates_dir = None
+        _template_map = None
 
 
 def _get_templates_dir() -> Path:
     global _templates_dir
-    if _templates_dir is not None:
-        return _templates_dir
-    from cataforge.core.paths import find_project_root
+    with _registry_lock:
+        if _templates_dir is not None:
+            return _templates_dir
+        from cataforge.core.paths import find_project_root
 
-    _templates_dir = find_project_root() / ".cataforge" / "skills" / "context" / "templates"
-    return _templates_dir
+        _templates_dir = find_project_root() / ".cataforge" / "skills" / "context" / "templates"
+        return _templates_dir
 
 
 def _get_template_map() -> dict[str, dict[str, dict[str, str]]]:
     global _template_map
-    if _template_map is None:
-        _template_map = build_template_path_map()
-    return _template_map
+    with _registry_lock:
+        if _template_map is None:
+            _template_map = build_template_path_map()
+        return _template_map
 
 
 def _parse_required_sections(headings: list[str]) -> list[tuple[str, str]]:

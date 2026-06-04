@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import sys
+import threading
 import traceback
 from collections.abc import Callable
 from pathlib import Path
@@ -78,23 +79,35 @@ def _detect_from_framework_json() -> str:
 
 
 _tool_map_cache: dict[str, str | None] | None = None
+_tool_map_lock = threading.Lock()
 
 
 def _load_tool_map() -> dict[str, str | None]:
     global _tool_map_cache
-    if _tool_map_cache is not None:
+    with _tool_map_lock:
+        if _tool_map_cache is not None:
+            return _tool_map_cache
+
+        platform_id = get_platform()
+        try:
+            from cataforge.adapter.platform.registry import get_adapter
+
+            adapter = get_adapter(platform_id)
+            _tool_map_cache = adapter.get_tool_map()
+        except Exception as e:
+            logger.debug("Failed to load tool_map from adapter, using profile fallback: %s", e)
+            _tool_map_cache = _load_tool_map_from_profile(platform_id)
         return _tool_map_cache
 
-    platform_id = get_platform()
-    try:
-        from cataforge.adapter.platform.registry import get_adapter
 
-        adapter = get_adapter(platform_id)
-        _tool_map_cache = adapter.get_tool_map()
-    except Exception as e:
-        logger.debug("Failed to load tool_map from adapter, using profile fallback: %s", e)
-        _tool_map_cache = _load_tool_map_from_profile(platform_id)
-    return _tool_map_cache
+def clear_tool_map_cache() -> None:
+    global _tool_map_cache
+    with _tool_map_lock:
+        _tool_map_cache = None
+
+
+def clear_spec_entry_cache() -> None:
+    _spec_entry_for_script.cache_clear()
 
 
 def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
@@ -116,8 +129,12 @@ def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
                 profile = yaml.safe_load(f)
             if isinstance(profile, dict) and "tool_map" in profile:
                 return dict(profile["tool_map"])
-        except Exception:
-            pass
+        except (OSError, ValueError, ImportError) as exc:
+            logger.debug("Failed to load profile.yaml for platform %r: %s", platform_id, exc)
+        except Exception as exc:
+            logger.debug(
+                "Unexpected error loading profile.yaml for platform %r: %s", platform_id, exc
+            )
 
         profile_json = profile_yaml.with_suffix(".json")
         if profile_json.is_file():
@@ -125,8 +142,12 @@ def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
                 raw = read_json(profile_json)
                 if isinstance(raw, dict) and "tool_map" in raw:
                     return dict(raw["tool_map"])
-            except Exception:
-                pass
+            except (OSError, ValueError) as exc:
+                logger.debug("Failed to load profile.json for platform %r: %s", platform_id, exc)
+            except Exception as exc:
+                logger.debug(
+                    "Unexpected error loading profile.json for platform %r: %s", platform_id, exc
+                )
 
     # Last-resort fallback: hardcoded Claude Code defaults
     logger.debug("Using hardcoded Claude Code tool_map defaults")
@@ -238,7 +259,7 @@ def _record_hook_error(module: str, func_name: str, exc: BaseException) -> None:
         _rotate_if_too_large(log_path)
 
         record = {
-            "ts": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+            "ts": _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds"),
             "module": module,
             "func": func_name,
             "error_type": type(exc).__name__,
@@ -288,7 +309,8 @@ def _spec_entry_for_script(script_name: str) -> dict[str, Any] | None:
         from cataforge.runtime.hook.bridge import load_hooks_spec
 
         spec = load_hooks_spec()
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to load hooks spec for script %r: %s", script_name, exc)
         return None
 
     for event_hooks in (spec.get("hooks") or {}).values():
@@ -365,6 +387,6 @@ def _calling_script_name() -> str | None:
         path = getattr(__main__, "__file__", None)
         if path:
             return Path(path).stem
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Could not determine calling script name: %s", exc)
     return None

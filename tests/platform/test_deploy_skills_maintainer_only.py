@@ -10,6 +10,8 @@ from typing import Any
 import pytest
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
+from cataforge.adapter.platform.profile_schema import PlatformProfile
+from cataforge.runtime.deploy import steps
 
 
 def _make_dir_link(target: Path, source: Path) -> bool:
@@ -39,7 +41,7 @@ def _is_dir_link(path: Path) -> bool:
     intent reads as ``"the post-deploy state is still a link"`` and the
     cross-version detail lives behind ``helpers._is_dir_link`` (see its
     docstring for the Py 3.10/3.11 ctypes fallback rationale)."""
-    from cataforge.adapter.platform.helpers import _is_dir_link as _impl
+    from cataforge.adapter.platform.fileops import _is_dir_link as _impl
 
     return _impl(path)
 
@@ -48,7 +50,7 @@ class _MinimalAdapter(PlatformAdapter):
     """Test adapter exercising default deploy_skills."""
 
     def __init__(self, profile: dict[str, Any]) -> None:
-        super().__init__(profile)
+        super().__init__(PlatformProfile.model_validate(profile))
 
     @property
     def platform_id(self) -> str:
@@ -69,9 +71,6 @@ class _MinimalAdapter(PlatformAdapter):
 
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"
-
-    def inject_mcp_config(self, server_id, server_config, project_root, *, dry_run=False):
-        return []
 
 
 @pytest.fixture()
@@ -112,7 +111,7 @@ def test_default_skips_maintainer_only_skill(tmp_path: Path, adapter: _MinimalAd
     _write_skill(source, "normal-skill")
     _write_skill(source, "maintainer-only-skill", maintainer_only=True)
 
-    actions = adapter.deploy_skills(source, tmp_path)
+    actions = steps.deploy_skills(adapter, source, tmp_path)
 
     target = tmp_path / ".test" / "skills"
     assert (target / "normal-skill" / "SKILL.md").is_file()
@@ -127,7 +126,7 @@ def test_include_maintainer_only_links_everything(tmp_path: Path, adapter: _Mini
     _write_skill(source, "normal-skill")
     _write_skill(source, "maintainer-only-skill", maintainer_only=True)
 
-    adapter.deploy_skills(source, tmp_path, include_maintainer_only=True)
+    steps.deploy_skills(adapter, source, tmp_path, include_maintainer_only=True)
 
     target = tmp_path / ".test" / "skills"
     assert (target / "normal-skill" / "SKILL.md").is_file()
@@ -143,7 +142,7 @@ def test_dirs_without_skill_md_are_silently_ignored(
     (source / "drafts").mkdir(parents=True)
     (source / "drafts" / "notes.md").write_text("wip\n", encoding="utf-8")
 
-    adapter.deploy_skills(source, tmp_path)
+    steps.deploy_skills(adapter, source, tmp_path)
 
     target = tmp_path / ".test" / "skills"
     assert (target / "good-skill" / "SKILL.md").is_file()
@@ -161,7 +160,7 @@ def test_prunes_orphan_per_skill_entries(tmp_path: Path, adapter: _MinimalAdapte
     orphan.mkdir(parents=True)
     (orphan / "SKILL.md").write_text("---\nname: removed-skill\n---\nstale\n", encoding="utf-8")
 
-    actions = adapter.deploy_skills(source, tmp_path)
+    actions = steps.deploy_skills(adapter, source, tmp_path)
     assert (target / "kept-skill" / "SKILL.md").is_file()
     assert not orphan.exists()
     assert any("pruned orphan" in a and "removed-skill" in a for a in actions)
@@ -186,7 +185,7 @@ def test_unwraps_legacy_whole_dir_link(tmp_path: Path, adapter: _MinimalAdapter)
 
     assert _is_dir_link(target)
 
-    actions = adapter.deploy_skills(source, tmp_path)
+    actions = steps.deploy_skills(adapter, source, tmp_path)
 
     # Link must be gone; in its place a real dir with a per-skill link.
     assert not _is_dir_link(target)
@@ -200,7 +199,7 @@ def test_dry_run_emits_actions_without_writing(tmp_path: Path, adapter: _Minimal
     _write_skill(source, "normal")
     _write_skill(source, "internal", maintainer_only=True)
 
-    actions = adapter.deploy_skills(source, tmp_path, dry_run=True)
+    actions = steps.deploy_skills(adapter, source, tmp_path, dry_run=True)
     target = tmp_path / ".test" / "skills"
 
     # Nothing should have been written.
@@ -233,7 +232,7 @@ def test_maintainer_only_phrase_in_body_does_not_trigger_skip(
         encoding="utf-8",
     )
 
-    adapter.deploy_skills(source, tmp_path)
+    steps.deploy_skills(adapter, source, tmp_path)
 
     target = tmp_path / ".test" / "skills"
     assert (target / "documented" / "SKILL.md").is_file()

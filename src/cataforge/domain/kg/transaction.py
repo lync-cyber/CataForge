@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from cataforge.domain.kg._ask import ask
@@ -174,7 +174,7 @@ class TransactionContext:
                 subject,
                 updated_at_pred,
                 ox.Literal(
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                     datatype=datetime_dt,
                 ),
             )

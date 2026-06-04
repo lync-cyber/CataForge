@@ -10,10 +10,13 @@ without the optional KG store keeps working on the legacy path.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.docs.index_ops import LoadSectionError, parse_ref
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cataforge.domain.docs.kg_port import KGReadPort
@@ -68,7 +71,8 @@ def _try_kg_extract(
             if not kg.query.exists(item_id):
                 return None
             rendered = render_entity(kg.store, item_id)
-    except Exception:
+    except Exception as exc:
+        logger.debug("KG extract fallback for %r/%r: %s", doc_id, item_id, exc)
         return None
     return rendered if rendered else None
 
@@ -126,7 +130,8 @@ def _try_kg_plan_load(
     try:
         with KnowledgeGraph.connect(cfg) as kg:
             result = kg.query.plan_load(item_ids, token_budget, include_related=False)
-    except Exception:
+    except Exception as exc:
+        logger.debug("KG plan_load fallback for %d items: %s", len(item_ids), exc)
         return None
 
     by_eid = {item_id: ref for ref, _doc_id, item_id in parsed}
@@ -179,7 +184,8 @@ def _try_kg_resolve_deps(ref: str, project_root: str, max_depth: int) -> list[st
 
             _walk(item_id, 0)
             return [_entity_id_to_ref(kg, eid) or eid for eid in ordered]
-    except Exception:
+    except Exception as exc:
+        logger.debug("KG resolve_deps fallback for %r: %s", item_id, exc)
         return None
 
 

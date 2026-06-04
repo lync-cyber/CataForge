@@ -13,8 +13,6 @@ relies on the static ``.doc-index.json`` rather than a graph).
 
 from __future__ import annotations
 
-from typing import Any
-
 from cataforge.application.context.ports import (
     OP_DEPS,
     OP_PLAN_LOAD,
@@ -36,7 +34,7 @@ class DocBackend:
     }
 
     def read_section(
-        self, ref: str, project_root: str, *, file_cache: dict[str, Any] | None = None
+        self, ref: str, project_root: str, *, file_cache: dict[str, list[str]] | None = None
     ) -> str | None:
         return loader.extract(ref, project_root, file_cache=file_cache)
 
@@ -60,7 +58,7 @@ class KgBackend:
     }
 
     def read_section(
-        self, ref: str, project_root: str, *, file_cache: dict[str, Any] | None = None
+        self, ref: str, project_root: str, *, file_cache: dict[str, list[str]] | None = None
     ) -> str | None:
         try:
             doc_id, section_path, item_id = parse_ref(ref)

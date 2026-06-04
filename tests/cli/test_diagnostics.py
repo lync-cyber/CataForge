@@ -8,7 +8,6 @@ from cataforge.interface.cli.diagnostics import (
     PENPOT_PATTERNS,
     PNPM_IGNORED_BUILDS,
     PORT_IN_USE,
-    UPGRADE_PATTERNS,
 )
 from cataforge.interface.cli.ui import UI, DiagPattern
 
@@ -58,15 +57,9 @@ def test_doctor_patterns_cover_missing_tools() -> None:
     assert any("docker" in n for n in needles)
 
 
-def test_upgrade_patterns_are_registered() -> None:
-    assert len(UPGRADE_PATTERNS) >= 1
-
-
 def test_all_patterns_have_diagnosis_and_fix_action() -> None:
     """Sanity invariant: every entry must give the user something actionable."""
-    all_patterns: list[DiagPattern] = (
-        list(PENPOT_PATTERNS) + list(DOCTOR_PATTERNS) + list(UPGRADE_PATTERNS)
-    )
+    all_patterns: list[DiagPattern] = list(PENPOT_PATTERNS) + list(DOCTOR_PATTERNS)
     for p in all_patterns:
         assert p.diagnosis, f"missing diagnosis on {p}"
         assert p.fix_action, f"missing fix_action on {p}"

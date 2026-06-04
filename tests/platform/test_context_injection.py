@@ -16,6 +16,7 @@ import pytest
 import yaml
 
 from cataforge.adapter.platform.registry import clear_cache, get_adapter
+from cataforge.runtime.deploy import steps
 
 
 @pytest.fixture(autouse=True)
@@ -172,8 +173,8 @@ class TestDeployInstructionFilesPreamble:
         )
 
         adapter = get_adapter("claude-code", platforms_dir)
-        adapter.deploy_instruction_files(
-            project_state, tmp_path, platform_id="claude-code", dry_run=False
+        steps.deploy_instruction_files(
+            adapter, project_state, tmp_path, platform_id="claude-code", dry_run=False
         )
 
         claude_md = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
@@ -210,8 +211,8 @@ class TestOpenCodeInstructionsDrivenByProfile:
             },
         )
         adapter = get_adapter("opencode", tmp_path / ".cataforge" / "platforms")
-        adapter.deploy_instruction_files(
-            project_state, tmp_path, platform_id="opencode", dry_run=False
+        steps.deploy_instruction_files(
+            adapter, project_state, tmp_path, platform_id="opencode", dry_run=False
         )
 
         cfg = json.loads((tmp_path / "opencode.json").read_text(encoding="utf-8"))
@@ -224,8 +225,8 @@ class TestOpenCodeInstructionsDrivenByProfile:
     def test_falls_back_when_context_injection_absent(self, tmp_path: Path) -> None:
         project_state = self._setup_project(tmp_path, ci=None)
         adapter = get_adapter("opencode", tmp_path / ".cataforge" / "platforms")
-        adapter.deploy_instruction_files(
-            project_state, tmp_path, platform_id="opencode", dry_run=False
+        steps.deploy_instruction_files(
+            adapter, project_state, tmp_path, platform_id="opencode", dry_run=False
         )
 
         cfg = json.loads((tmp_path / "opencode.json").read_text(encoding="utf-8"))

@@ -6,10 +6,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
-from cataforge.adapter.platform.helpers import (
-    merge_json_key,
-    merge_opencode_project_mcp,
-)
+from cataforge.adapter.platform.hooks_config import merge_json_key
+from cataforge.adapter.platform.mcp_config import merge_opencode_project_mcp
 from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:
@@ -29,57 +27,27 @@ class OpenCodeAdapter(PlatformAdapter):
         return None
 
     def get_agent_scan_dirs(self) -> list[str]:
-        return list(self._profile.get("agent_definition", {}).get("scan_dirs", [".claude/agents"]))
+        return list(self._profile.agent_definition.scan_dirs) or [".claude/agents"]
 
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"
 
-    def deploy_agents(
+    @property
+    def agent_layout(self) -> str:
+        return "flat"
+
+    def agent_target_rel(self) -> str | None:
+        # OpenCode doesn't surface its agents path through ``scan_dirs`` (those
+        # are read-scan dirs, not the write target).
+        return ".opencode/agents"
+
+    def post_instruction_deploy(
         self,
-        source_dir: Path,
         project_root: Path,
         *,
         dry_run: bool = False,
         manifest: DeployManifest | None = None,
-        prior_manifest: set[str] | None = None,
     ) -> list[str]:
-        """Deploy AGENT.md files to OpenCode native ``.opencode/agents/*.md``.
-
-        Shares the flat-write + flat-prune pipeline with Claude Code via
-        the base ``_deploy_flat_agents`` helper — only the hardcoded
-        target directory differs (OpenCode doesn't surface its agents
-        path through ``agent_definition.scan_dirs``).
-        """
-        return self._deploy_flat_agents(
-            source_dir,
-            project_root,
-            target_rel=".opencode/agents",
-            suffix=".md",
-            head_signature="name: {stem}",
-            formatter=lambda _name, translated: translated,
-            dry_run=dry_run,
-            manifest=manifest,
-            prior_manifest=prior_manifest,
-        )
-
-    def deploy_instruction_files(
-        self,
-        project_state_path: Path,
-        project_root: Path,
-        *,
-        platform_id: str,
-        dry_run: bool = False,
-        manifest: DeployManifest | None = None,
-        prior_manifest: set[str] | None = None,
-    ) -> list[str]:
-        actions = super().deploy_instruction_files(
-            project_state_path,
-            project_root,
-            platform_id=platform_id,
-            dry_run=dry_run,
-            manifest=manifest,
-            prior_manifest=prior_manifest,
-        )
         # The instructions list is declared in profile.context_injection so it
         # stays auditable alongside the rest of the platform surface.  Fall
         # back to the legacy literal if the profile omits the section so older
@@ -87,19 +55,17 @@ class OpenCodeAdapter(PlatformAdapter):
         ci = self.context_injection
         rd = ci.get("rules_distribution", {}) or {}
         instructions = list(rd.get("files") or ["AGENTS.md", ".cataforge/rules/*.md"])
-        actions.extend(
-            merge_json_key(
-                project_root / "opencode.json",
-                "instructions",
-                instructions,
-                dry_run=dry_run,
-            )
+        actions = merge_json_key(
+            project_root / "opencode.json",
+            "instructions",
+            instructions,
+            dry_run=dry_run,
         )
         if manifest is not None and not dry_run:
             manifest.record("opencode.json")
         return actions
 
-    def inject_mcp_config(
+    def write_mcp_config(
         self,
         server_id: str,
         server_config: dict[str, Any],
@@ -109,14 +75,14 @@ class OpenCodeAdapter(PlatformAdapter):
     ) -> list[str]:
         return merge_opencode_project_mcp(project_root, server_id, server_config, dry_run=dry_run)
 
-    def _wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
+    def wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
         """OpenCode registers rule paths via opencode.json#instructions.
 
         Override rules are referenced **in place** under
         ``.cataforge/platforms/opencode/overrides/rules/*.md`` (declared in
         profile.yaml#rules_distribution.files); no per-file write to a
-        platform-native directory is needed. Returning ``None`` suppresses
-        the base default which would otherwise write to ``opencode.json/<name>.md``
+        platform-native directory is needed. Returning ``None`` suppresses the
+        base default which would otherwise write to ``opencode.json/<name>.md``
         — opencode.json is a config file, not a directory.
         """
         del name, content  # signal intentional unused
@@ -124,23 +90,26 @@ class OpenCodeAdapter(PlatformAdapter):
 
     # ---- hooks (OpenCode plugin-based surface) -----------------------
 
-    def emit_plugin_hooks(self, project_root: Path, *, dry_run: bool = False) -> list[str]:
+    def emit_plugin_hooks(
+        self,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        hooks_spec: dict[str, Any] | None = None,
+    ) -> list[str]:
         """Generate a TypeScript plugin that bridges OpenCode events to the
         CataForge Python hook scripts.
 
         OpenCode doesn't accept JSON hook configs — it loads ``.ts`` plugins
         that subscribe to events like ``tool.execute.before``.  The generated
         plugin ``spawn``s each canonical hook's Python script with the event
-        payload on stdin, exactly matching how Claude Code / Cursor invoke
-        the same scripts.  The end result: the same ``guard_dangerous`` /
-        ``lint_format`` / etc. code runs on every supported platform.
+        payload on stdin, exactly matching how Claude Code / Cursor invoke the
+        same scripts.  The hook spec is supplied by the caller (the hook
+        bridge) so this adapter does not reach back up into the runtime layer.
         """
-        from cataforge.runtime.hook.bridge import load_hooks_spec
-
-        try:
-            spec = load_hooks_spec()
-        except (OSError, ValueError) as exc:
-            return [f"opencode plugin: load hooks.yaml failed — {exc}"]
+        if hooks_spec is None:
+            return ["opencode plugin: no hooks spec supplied — skipping"]
+        spec = hooks_spec
 
         event_map = self.hook_event_map
         active_events: dict[str, list[dict[str, Any]]] = {}

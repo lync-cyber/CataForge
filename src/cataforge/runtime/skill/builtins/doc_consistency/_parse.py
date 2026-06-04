@@ -8,7 +8,6 @@ from typing import Any
 
 from cataforge.utils.frontmatter import split_yaml_frontmatter as _split_fm
 from cataforge.utils.md_parse import strip_code_blocks
-from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
 _ITEM_ID_RE = re.compile(r"^### ([A-Z]+-\d+)", re.MULTILINE)
 _AC_ID_RE = re.compile(r"AC-(\d+)")
@@ -24,9 +23,8 @@ _E_ID_RE = re.compile(r"E-(\d+)")
 def _load_doc(path: Path) -> tuple[dict[str, Any], str]:
     """Return (frontmatter_dict, body_text) for a markdown doc."""
     content = path.read_text()
-    fm = parse_yaml_frontmatter(content) or {}
-    _, body = _split_fm(content)
-    return fm, body if body else content
+    fm, body = _split_fm(content)
+    return fm or {}, body if body else content
 
 
 def _find_docs(docs_dir: Path) -> dict[str, list[Path]]:

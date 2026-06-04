@@ -1,8 +1,6 @@
-"""Read-only SPARQL policy shared by `kg query` and the NL query surface.
+"""Read-only SPARQL policy for the `kg query` CLI surface.
 
-A single source for "is this SPARQL a safe read?" and "cap the result size",
-so the CLI and `nl_query` enforce the same SELECT/ASK-only policy instead of
-each re-deriving it.
+A single source for "is this SPARQL a safe read?" and "cap the result size".
 """
 
 from __future__ import annotations

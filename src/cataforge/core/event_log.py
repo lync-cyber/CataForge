@@ -24,7 +24,7 @@ import logging
 import os
 import tempfile
 from collections.abc import Iterable, Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -97,7 +97,7 @@ class EventLogError(ValueError):
 
 def now_iso() -> str:
     """UTC timestamp with second precision, matching schema ``date-time``."""
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 def validate_record(record: Mapping[str, Any]) -> list[str]:

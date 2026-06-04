@@ -13,17 +13,17 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from cataforge.core.io import read_json
+from cataforge.utils.frontmatter import split_yaml_frontmatter as _split_fm
 from cataforge.utils.md_parse import iter_markdown_headings
 from cataforge.utils.patterns import (
     ITEM_ID_RE,
     SECTION_NUM_RE,
     SUBSECTION_NUM_RE,
 )
-from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
 SECTION_META_RE = re.compile(r"<!--\s*section_meta:\s*\{(.*?)\}\s*-->", re.DOTALL)
 INDEX_FILENAME = ".doc-index.json"
@@ -61,9 +61,7 @@ def _estimate_tokens(text: str) -> int:
 
 def _content_hash(content: str) -> str:
     """Compute short hash of document body (post-frontmatter)."""
-    from cataforge.utils.frontmatter import split_yaml_frontmatter
-
-    _, body = split_yaml_frontmatter(content)
+    _, body = _split_fm(content)
     text = body if body is not None else content
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
 
@@ -81,36 +79,12 @@ def _extract_section_number(title: str) -> str | None:
     return m.group(1) if m else None
 
 
-def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dict[str, Any] | None]:
-    try:
-        with open(file_path) as f:
-            content = f.read()
-    except OSError:
-        return None, None
-
-    lines = content.splitlines()
-    total_lines = len(lines)
-
-    fm = parse_yaml_frontmatter(content)
-    doc_id = fm.get("id", "")
-    if not doc_id or "{" in doc_id:
-        return None, None
-
-    doc_type = fm.get("doc_type", "")
-    volume = fm.get("volume", "main")
-    status = fm.get("status", "draft")
-    split_from = fm.get("split_from", "")
-    deps_raw = fm.get("deps", [])
-    if isinstance(deps_raw, str):
-        deps_raw = [d.strip() for d in deps_raw.split(",") if d.strip()]
-
-    aliases_raw = fm.get("aliases", [])
-    if isinstance(aliases_raw, str):
-        aliases_raw = [a.strip() for a in aliases_raw.split(",") if a.strip()]
-    if not isinstance(aliases_raw, list):
-        aliases_raw = []
-    aliases_clean = [str(a).strip() for a in aliases_raw if str(a).strip()]
-
+def _build_sections(
+    content: str,
+    lines: list[str],
+    total_lines: int,
+) -> dict[str, Any]:
+    """Extract the heading-based section map from *content*."""
     sections: dict[str, Any] = {}
     headings: list[tuple[int, int, str]] = []
     for i, level, title in iter_markdown_headings(content):
@@ -134,37 +108,59 @@ def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dic
 
         sec_num = _extract_section_number(title)
         item_id = _extract_item_id(title)
+        item_entry = {
+            "heading": lines[line_idx].rstrip(),
+            "line_start": line_idx + 1,
+            "line_end": line_end,
+            "est_tokens": est_tokens,
+            "deps": meta.get("deps", []),
+        }
 
         if level == 2 and sec_num:
-            sections[sec_num] = {
-                "heading": lines[line_idx].rstrip(),
-                "level": level,
-                "line_start": line_idx + 1,
-                "line_end": line_end,
-                "est_tokens": est_tokens,
-                "deps": meta.get("deps", []),
-                "items": {},
-            }
+            sections[sec_num] = {**item_entry, "level": level, "items": {}}
         elif level >= 3 and item_id:
             parent_sec = _find_parent_section(sections, line_idx)
             if parent_sec:
-                parent_sec["items"][item_id] = {
-                    "heading": lines[line_idx].rstrip(),
-                    "line_start": line_idx + 1,
-                    "line_end": line_end,
-                    "est_tokens": est_tokens,
-                    "deps": meta.get("deps", []),
-                }
+                parent_sec["items"][item_id] = item_entry
         elif level >= 3 and sec_num:
             parent_sec = _find_parent_section(sections, line_idx)
             if parent_sec:
-                parent_sec["items"][sec_num] = {
-                    "heading": lines[line_idx].rstrip(),
-                    "line_start": line_idx + 1,
-                    "line_end": line_end,
-                    "est_tokens": est_tokens,
-                    "deps": meta.get("deps", []),
-                }
+                parent_sec["items"][sec_num] = item_entry
+
+    return sections
+
+
+def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dict[str, Any] | None]:
+    try:
+        with open(file_path) as f:
+            content = f.read()
+    except OSError:
+        return None, None
+
+    lines = content.splitlines()
+    total_lines = len(lines)
+
+    fm = _split_fm(content)[0] or {}
+    doc_id = fm.get("id", "")
+    if not doc_id or "{" in doc_id:
+        return None, None
+
+    doc_type = fm.get("doc_type", "")
+    volume = fm.get("volume", "main")
+    status = fm.get("status", "draft")
+    split_from = fm.get("split_from", "")
+    deps_raw = fm.get("deps", [])
+    if isinstance(deps_raw, str):
+        deps_raw = [d.strip() for d in deps_raw.split(",") if d.strip()]
+
+    aliases_raw = fm.get("aliases", [])
+    if isinstance(aliases_raw, str):
+        aliases_raw = [a.strip() for a in aliases_raw.split(",") if a.strip()]
+    if not isinstance(aliases_raw, list):
+        aliases_raw = []
+    aliases_clean = [str(a).strip() for a in aliases_raw if str(a).strip()]
+
+    sections = _build_sections(content, lines, total_lines)
 
     entry: dict[str, Any] = {
         "file_path": rel_path.replace("\\", "/"),
@@ -292,7 +288,7 @@ def _make_index(documents: dict[str, Any]) -> dict[str, Any]:
     aliases, alias_conflicts = build_aliases(documents)
     index: dict[str, Any] = {
         "version": "1",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "documents": documents,
         "xref": build_xref(documents),
         "aliases": aliases,

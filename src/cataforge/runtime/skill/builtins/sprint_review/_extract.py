@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from typing import Any
 
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
@@ -93,6 +94,76 @@ def _consume_acceptance(line: str, lines: list[str], i: int, current_task: dict)
     return i
 
 
+def _process_task_line(
+    line: str,
+    lines: list[str],
+    i: int,
+    current_task: dict[str, Any] | None,
+    tasks: list[dict[str, Any]],
+    in_sprint: bool,
+    sprint_volume: str | None,
+) -> tuple[int, dict[str, Any] | None]:
+    """Process one line inside the sprint task scan loop.
+
+    Returns the updated ``(i, current_task)`` pair; may append to *tasks*.
+    """
+    task_match = re.match(r"^#{2,4}\s+(T-\d+[a-z]?)", line)
+    if task_match:
+        if current_task:
+            tasks.append(current_task)
+        current_task = {
+            "id": task_match.group(1),
+            "status": "",
+            "deliverables": [],
+            "tdd_acceptance": [],
+        }
+        return i + 1, current_task
+
+    if current_task:
+        status_match = re.match(
+            r"^[-*]\s+\*?\*?(?:status|状态)\*?\*?\s*[:：]\s*(.+)", line, re.IGNORECASE
+        )
+        if status_match:
+            current_task["status"] = status_match.group(1).strip().lower()
+
+        deliv_match = re.match(
+            r"^[-*]\s+\*?\*?(?:deliverables|交付物)\*?\*?\s*(?:\([^)]*\)\s*)?[:：]",
+            line,
+            re.IGNORECASE,
+        )
+        if deliv_match:
+            return _consume_deliverables(lines, i, current_task), current_task
+
+        ac_match = re.match(
+            r"^[-*]\s+\*?\*?(?:tdd_acceptance|验收标准)\*?\*?\s*[:：]",
+            line,
+            re.IGNORECASE,
+        )
+        if ac_match:
+            return _consume_acceptance(line, lines, i, current_task), current_task
+
+        table_match = _TASK_TABLE_RE.match(line)
+        if (
+            table_match
+            and not current_task["status"]
+            and table_match.group(1) == current_task["id"]
+        ):
+            current_task["status"] = table_match.group(2).strip().lower()
+    else:
+        table_match = _TASK_TABLE_RE.match(line)
+        if table_match and (in_sprint or sprint_volume):
+            tasks.append(
+                {
+                    "id": table_match.group(1),
+                    "status": table_match.group(2).strip().lower(),
+                    "deliverables": [],
+                    "tdd_acceptance": [],
+                }
+            )
+
+    return i + 1, current_task
+
+
 def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[dict]:
     tasks: list[dict] = []
     in_sprint = False
@@ -113,74 +184,17 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
                 in_sprint = True
                 i += 1
                 continue
-            elif in_sprint and re.match(r"^###?\s+Sprint\s+\d+", line, re.IGNORECASE):
+            if in_sprint and re.match(r"^###?\s+Sprint\s+\d+", line, re.IGNORECASE):
                 in_sprint = False
                 i += 1
                 continue
-
             if not in_sprint and not sprint_volume:
                 i += 1
                 continue
 
-            task_match = re.match(r"^#{2,4}\s+(T-\d+[a-z]?)", line)
-            if task_match:
-                if current_task:
-                    tasks.append(current_task)
-                current_task = {
-                    "id": task_match.group(1),
-                    "status": "",
-                    "deliverables": [],
-                    "tdd_acceptance": [],
-                }
-                i += 1
-                continue
-
-            if current_task:
-                status_match = re.match(
-                    r"^[-*]\s+\*?\*?(?:status|状态)\*?\*?\s*[:：]\s*(.+)", line, re.IGNORECASE
-                )
-                if status_match:
-                    current_task["status"] = status_match.group(1).strip().lower()
-
-                deliv_match = re.match(
-                    r"^[-*]\s+\*?\*?(?:deliverables|交付物)\*?\*?\s*(?:\([^)]*\)\s*)?[:：]",
-                    line,
-                    re.IGNORECASE,
-                )
-                if deliv_match:
-                    i = _consume_deliverables(lines, i, current_task)
-                    continue
-
-                ac_match = re.match(
-                    r"^[-*]\s+\*?\*?(?:tdd_acceptance|验收标准)\*?\*?\s*[:：]",
-                    line,
-                    re.IGNORECASE,
-                )
-                if ac_match:
-                    i = _consume_acceptance(line, lines, i, current_task)
-                    continue
-
-                table_match = _TASK_TABLE_RE.match(line)
-                if (
-                    table_match
-                    and not current_task["status"]
-                    and table_match.group(1) == current_task["id"]
-                ):
-                    current_task["status"] = table_match.group(2).strip().lower()
-
-            if not current_task:
-                table_match = _TASK_TABLE_RE.match(line)
-                if table_match and (in_sprint or sprint_volume):
-                    tasks.append(
-                        {
-                            "id": table_match.group(1),
-                            "status": table_match.group(2).strip().lower(),
-                            "deliverables": [],
-                            "tdd_acceptance": [],
-                        }
-                    )
-
-            i += 1
+            i, current_task = _process_task_line(
+                line, lines, i, current_task, tasks, in_sprint, sprint_volume
+            )
 
         if current_task:
             tasks.append(current_task)

@@ -9,11 +9,14 @@ import platform
 import re
 import sys
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
 from cataforge import __version__ as _package_version
+from cataforge.application.services.doctor_summary import (
+    collect_doctor_summary as collect_doctor_summary,
+)
 from cataforge.core.config import ConfigManager
 from cataforge.core.corrections import CORRECTIONS_LOG_REL
 from cataforge.core.errors import ConfigError
@@ -92,22 +95,6 @@ def collect_environment(project_root: Path) -> dict[str, str]:
         "platform": platform.platform(),
         "runtime_platform": runtime_platform,
     }
-
-
-def collect_doctor_summary(project_root: Path) -> dict[str, Any]:
-    """Lazy shim over :func:`cataforge.application.services.doctor_summary.collect_doctor_summary`.
-
-    The actual implementation depends on ``cataforge.interface.cli.main`` (via Click's
-    ``CliRunner``) and therefore cannot live in ``core/`` — that would form
-    a ``core/`` → ``cli/`` import edge, inverting the package dependency
-    direction. The import is performed at call time so static analysis and
-    fresh imports of ``core/`` stay free of the cycle.
-    """
-    from cataforge.application.services.doctor_summary import (
-        collect_doctor_summary as _service_collect,
-    )
-
-    return _service_collect(project_root)
 
 
 def collect_recent_events(
@@ -310,7 +297,7 @@ def _parse_since(since: str | None) -> datetime | None:
     try:
         # Accept date or full ISO timestamp.
         if len(since) == 10:
-            return datetime.fromisoformat(since).replace(tzinfo=timezone.utc)
+            return datetime.fromisoformat(since).replace(tzinfo=UTC)
         return datetime.fromisoformat(since.replace("Z", "+00:00"))
     except ValueError:
         return None

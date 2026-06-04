@@ -1,9 +1,9 @@
 """CLI smoke / integration tests — invoke commands via click's CliRunner.
 
-Covers end-to-end wiring: `cataforge setup --no-deploy` scaffolds a fresh
-project, subcommands (`skill list`, `mcp list`, `plugin list`, `hook list`,
-`doctor`) run to completion, and stub commands (`upgrade`, `hook test`,
-`plugin install`) surface the friendly exit-code-2 message.
+Covers end-to-end wiring: `cataforge setup` scaffolds a fresh project,
+subcommands (`skill list`, `mcp list`, `plugin list`, `hook list`, `doctor`)
+run to completion, and stub commands (`upgrade`, `hook test`, `plugin install`)
+surface the friendly exit-code-2 message.
 """
 
 from __future__ import annotations
@@ -32,11 +32,9 @@ def _invoke(*args: str) -> object:
 
 
 class TestSetupCommand:
-    def test_setup_no_deploy_scaffolds_project(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_setup_scaffolds_project(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(tmp_path)
-        result = _invoke("setup", "--no-deploy")
+        result = _invoke("setup")
         assert result.exit_code == 0, result.output
         assert (tmp_path / ".cataforge" / "framework.json").is_file()
         assert (tmp_path / ".cataforge" / "hooks" / "hooks.yaml").is_file()
@@ -54,7 +52,7 @@ class TestSetupCommand:
         child.mkdir()
         monkeypatch.chdir(child)
 
-        result = _invoke("setup", "--no-deploy")
+        result = _invoke("setup")
         assert result.exit_code == 0, result.output
         # Initialised in the child, not the parent.
         assert (child / ".cataforge").is_dir()
@@ -357,15 +355,6 @@ class TestRemovedCheckAlias:
         for flag in ("--check-prereqs", "--check-only"):
             result = _invoke("setup", flag)
             assert result.exit_code == 0, result.output
-
-
-class TestDeprecationWarnings:
-    def test_setup_no_deploy_warns(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(tmp_path)
-        result = _invoke("setup", "--no-deploy")
-        assert result.exit_code == 0, result.output
-        assert "[deprecated]" in result.output
-        assert "--no-deploy" in result.output
 
 
 class TestStubExitCode:

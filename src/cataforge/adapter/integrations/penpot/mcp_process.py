@@ -19,9 +19,6 @@ from cataforge.adapter.integrations.penpot._constants import (
     PLATFORM,
 )
 from cataforge.core.errors import CataforgeError
-
-# allow-layer-dep: shared low-level process-liveness primitive, no mcp semantics
-from cataforge.runtime.mcp.lifecycle import pid_alive
 from cataforge.utils.common import (
     BOLD,
     DIM,
@@ -34,6 +31,7 @@ from cataforge.utils.common import (
     section,
     warn,
 )
+from cataforge.utils.process import pid_alive
 from cataforge.utils.run_subprocess import run as run_proc
 
 
@@ -168,18 +166,17 @@ def _tail_log(path: str, *, lines: int = 20) -> list[str]:
 def _diagnose_mcp_log(text: str) -> list[str]:
     """Return human-readable hints for known MCP startup failures.
 
-    Backed by :mod:`cataforge.interface.cli.diagnostics` so adding/editing a pattern
-    updates both ``penpot start`` failure reports and ``penpot doctor``
-    at the same time. Returns a flat list of strings to stay backward-
-    compatible with the prior signature (callers use ``"\\n".join`` for
-    log-style assertions).
+    Backed by :mod:`cataforge.adapter.integrations.penpot.patterns` so adding or
+    editing a pattern updates both ``penpot start`` failure reports and
+    ``penpot doctor`` at the same time. Returns a flat list of strings (callers
+    use ``"\\n".join`` for log-style assertions).
     """
-    from cataforge.interface.cli.diagnostics import PENPOT_PATTERNS
-    from cataforge.interface.cli.ui import _pattern_matches
+    from cataforge.adapter.integrations.penpot.patterns import PENPOT_PATTERNS
+    from cataforge.utils.console import pattern_matches
 
     hints: list[str] = []
     for p in PENPOT_PATTERNS:
-        if not _pattern_matches(p.needle, text):
+        if not pattern_matches(p.needle, text):
             continue
         hints.append(f"{YELLOW}诊断{NC}: {p.diagnosis}")
         fix_line = f"{YELLOW}修复{NC}: {p.fix_action}"

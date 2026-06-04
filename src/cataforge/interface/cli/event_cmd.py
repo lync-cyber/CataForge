@@ -8,6 +8,7 @@ just the Click surface + a small amount of argv juggling for the legacy
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from pathlib import Path
 
 import click
@@ -196,7 +197,7 @@ def event_accept_legacy(before: str | None, project_root: Path | None) -> None:
 
     Records written after the cutoff are still validated normally.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from cataforge.core.config import ConfigManager
     from cataforge.core.event_log import now_iso
@@ -231,7 +232,7 @@ def event_accept_legacy(before: str | None, project_root: Path | None) -> None:
     )
     # Make sure today's timestamp is timezone-aware in the message.
     if not cutoff.endswith("Z") and "+" not in cutoff[10:]:
-        cutoff = datetime.fromisoformat(cutoff).replace(tzinfo=timezone.utc).isoformat()
+        cutoff = datetime.fromisoformat(cutoff).replace(tzinfo=UTC).isoformat()
 
     if previous:
         click.echo(f"Updated event_log_validate_since: {previous} → {cutoff}")

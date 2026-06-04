@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Anti-rot guard: checked-in KG codegen output stays in sync with the schemas.
 
-`src/cataforge/domain/kg/_generated/{core,governance}_pydantic.py` and
+`src/cataforge/domain/kg/_generated/core_pydantic.py` and
 `subclass_axioms.ttl` are committed so the runtime imports them and the wheel
 ships them. Regenerating from `schemas/*.yaml` must produce no diff; a drift
 means a schema was edited without rerunning
@@ -34,7 +34,7 @@ GENERATED = REPO_ROOT / "src" / "cataforge" / "domain" / "kg" / "_generated"
 CODEGEN = REPO_ROOT / "scripts" / "codegen_kg_schema.py"
 
 # Deterministic, checked-in artifacts. `*_shapes.ttl` is excluded — see module docstring.
-GUARDED = ("core_pydantic.py", "governance_pydantic.py", "subclass_axioms.ttl")
+GUARDED = ("core_pydantic.py", "subclass_axioms.ttl")
 
 
 def main() -> int:

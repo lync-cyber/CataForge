@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from abc import abstractmethod
 
 from cataforge.runtime.skill.builtins.doc_consistency._parse import (
     _extract_all_ids,
@@ -14,6 +15,17 @@ from cataforge.utils.md_parse import strip_code_blocks
 class _CrossDocChecksMixin:
     """Per-relationship cross-doc checks. Mixed into :class:`CrossDocChecker`;
     relies on the host class for ``self.docs`` / ``self._issue`` / state."""
+
+    _content: dict[str, str]
+
+    @abstractmethod
+    def _has_content(self, doc_type: str) -> bool: ...
+
+    @abstractmethod
+    def _kg_uncovered_acs(self, downstream_doc_type: str) -> set[str] | None: ...
+
+    @abstractmethod
+    def _issue(self, severity: str, category: str, message: str) -> None: ...
 
     def check_prd_arch_ac_coverage(self) -> None:
         """PRD AC-NNN should be referenced or semantically covered in ARCH."""

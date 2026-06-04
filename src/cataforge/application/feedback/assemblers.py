@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from cataforge.core.feedback.collectors import (
+from cataforge.application.feedback.collectors import (
     DEFAULT_EVENT_LOG_TAIL,
     UPSTREAM_GAP,
     FeedbackPayload,
@@ -16,7 +16,7 @@ from cataforge.core.feedback.collectors import (
     collect_recent_events,
     redact,
 )
-from cataforge.core.feedback.renderers import (
+from cataforge.application.feedback.renderers import (
     render_bug_report,
     render_correction_export,
     render_suggestion,

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from cataforge.adapter.platform.registry import get_adapter
-from cataforge.core.template import (
+from cataforge.runtime.deploy.template_render import (
     known_placeholders,
     render_runtime_content,
     resolve_placeholder,

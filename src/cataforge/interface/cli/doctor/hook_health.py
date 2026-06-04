@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import TYPE_CHECKING
 
 import click
@@ -110,14 +111,14 @@ def report_hook_errors(cfg) -> None:
     user knows it exists.
     """
     import json as _json
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     log_path = cfg.paths.hook_error_log
     if not log_path.is_file():
         click.echo("  (no hook errors recorded)")
         return
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    cutoff = datetime.now(UTC) - timedelta(hours=24)
     recent: list[dict] = []
     try:
         with open(log_path) as f:

@@ -39,8 +39,8 @@
 
 **Deploy 期如何消费**：
 
-- `PlatformAdapter.deploy_instruction_files` 读取 `auto_injection.preamble_files`，按 `inline_file_syntax.template` 渲染为 `@.cataforge/rules/COMMON-RULES.md` 之类前缀，写入 `CLAUDE.md` / `AGENTS.md` 顶部。
-- `OpenCodeAdapter.deploy_instruction_files` 读取 `rules_distribution.files`，写入 `opencode.json.instructions`，LLM 启动时自动加载。
+- `runtime.deploy.steps.deploy_instruction_files` 经 `adapter.get_instruction_preamble()` 读取 `auto_injection.preamble_files`，按 `inline_file_syntax.template` 渲染为 `@.cataforge/rules/COMMON-RULES.md` 之类前缀，写入 `CLAUDE.md` / `AGENTS.md` 顶部。
+- `OpenCodeAdapter.post_instruction_deploy` 读取 `rules_distribution.files`，写入 `opencode.json.instructions`，LLM 启动时自动加载。
 - 未声明 `context_injection` 的旧 profile 走默认路径（完全向后兼容）。
 
 完整字段表与四平台实际声明对照见 [`../reference/configuration.md`](../reference/configuration.md) §context_injection 字段。

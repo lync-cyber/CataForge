@@ -1,39 +1,30 @@
 """PlatformAdapter abstract base class.
 
 All platform-specific differences are encapsulated here. The core runtime
-NEVER imports platform-specific modules directly. Deployment algorithms live
-in :mod:`cataforge.adapter.platform._deploy_mixins`; this class is the config /
-capability carrier composing those mixins.
+NEVER imports platform-specific modules directly. Deploy algorithms live in
+:mod:`cataforge.runtime.deploy.steps`; this class is the config / capability
+carrier and the home for per-platform strategy hooks the steps read.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
-from cataforge.adapter.platform._deploy_mixins import (
-    AgentDeployMixin,
-    CommandRulesDeployMixin,
-    InstructionDeployMixin,
-    McpDeployMixin,
-    SkillDeployMixin,
-)
-
-if TYPE_CHECKING:
-    from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
+from cataforge.adapter.platform.profile_schema import PlatformProfile
 
 
-class PlatformAdapter(
-    AgentDeployMixin,
-    InstructionDeployMixin,
-    SkillDeployMixin,
-    CommandRulesDeployMixin,
-    McpDeployMixin,
-    ABC,
-):
-    """Abstract base for all AI IDE platform adapters."""
+class PlatformAdapter(ABC):
+    """Abstract base for all AI IDE platform adapters.
 
-    def __init__(self, profile: dict[str, Any]) -> None:
+    A platform adapter is a config / capability carrier plus a set of
+    per-platform strategy hooks. Deploy algorithms live in
+    :mod:`cataforge.runtime.deploy.steps` and read these hooks; the adapter
+    owns no deploy iteration of its own.
+    """
+
+    def __init__(self, profile: PlatformProfile) -> None:
         self._profile = profile
 
     @property
@@ -50,7 +41,7 @@ class PlatformAdapter(
         Default: read ``tool_map`` from the platform profile.  Subclasses
         override only when they need to synthesize the mapping differently.
         """
-        return dict(self._profile.get("tool_map", {}))
+        return dict(self._profile.tool_map)
 
     def get_extended_tool_map(self) -> dict[str, str | None]:
         """Return extended capability → native tool name mapping.
@@ -58,7 +49,7 @@ class PlatformAdapter(
         Extended capabilities (notebook_edit, browser_preview, etc.) are
         declared in ``profile.yaml`` under ``extended_capabilities``.
         """
-        return dict(self._profile.get("extended_capabilities", {}))
+        return dict(self._profile.extended_capabilities)
 
     def get_full_tool_map(self) -> dict[str, str | None]:
         """Return combined core + extended capability mapping."""
@@ -97,15 +88,67 @@ class PlatformAdapter(
 
     @property
     def needs_agent_deploy(self) -> bool:
-        return bool(self._profile.get("agent_definition", {}).get("needs_deploy", True))
+        return bool(self._profile.agent_definition.needs_deploy)
+
+    @property
+    def agent_layout(self) -> str:
+        """Agent deploy layout: ``flat`` (one ``<name><suffix>`` per agent) or
+        ``subdir`` (reproduce the ``<name>/AGENT.md`` tree)."""
+        return str(self._profile.agent_definition.layout)
+
+    def agent_target_rel(self) -> str | None:
+        """Target dir (relative to project root) for flat-layout agent files.
+
+        Defaults to ``scan_dirs[0]``; the profile's ``agent_definition.target_rel``
+        overrides it for platforms that don't surface their agents path via
+        ``scan_dirs`` (e.g. OpenCode's ``.opencode/agents``)."""
+        declared = self._profile.agent_definition.target_rel
+        if declared:
+            return str(declared)
+        scan_dirs = self.get_agent_scan_dirs()
+        return scan_dirs[0] if scan_dirs else None
+
+    @property
+    def agent_file_suffix(self) -> str:
+        """File extension flat-layout agents are written with (``.md`` / ``.toml``)."""
+        return str(self._profile.agent_definition.file_suffix)
+
+    @property
+    def agent_head_signature(self) -> str:
+        """Orphan-prune ownership signature for flat-layout agent files.
+
+        The flat-prune helper removes a file only when its head bytes contain
+        ``head_signature.format(stem=<file_stem>)``, so a user-authored file
+        sharing the suffix survives."""
+        return str(self._profile.agent_definition.head_signature)
+
+    @property
+    def agent_head_read_size(self) -> int:
+        """Bytes scanned for :attr:`agent_head_signature` during orphan prune."""
+        return int(self._profile.agent_definition.head_read_size)
+
+    @property
+    def prune_legacy_agent_subdirs(self) -> bool:
+        """Whether flat-layout deploy also tears down leftover ``<name>/AGENT.md``
+        subdirs from a prior dual-layout deploy."""
+        return bool(self._profile.agent_definition.prune_legacy_subdirs)
+
+    def render_agent(self, agent_id: str, content: str) -> str:
+        """Produce the final flat-layout agent file body from translated content.
+
+        Default: identity (Claude Code / OpenCode write the translated
+        yaml-frontmatter verbatim). Subclasses override to wrap the body in a
+        platform-native envelope (e.g. Codex TOML)."""
+        del agent_id
+        return content
 
     @property
     def reads_claude_md(self) -> bool:
-        return bool(self._profile.get("instruction_file", {}).get("reads_claude_md", False))
+        return bool(self._profile.instruction_file.reads_claude_md)
 
     @property
     def additional_outputs(self) -> list[dict[str, Any]]:
-        return list(self._profile.get("instruction_file", {}).get("additional_outputs", []))
+        return list(self._profile.instruction_file.additional_outputs)
 
     @property
     def instruction_targets(self) -> list[dict[str, Any]]:
@@ -115,8 +158,8 @@ class PlatformAdapter(
         - ``type``: currently ``project_state_copy``
         - ``path``: relative output path (for example ``CLAUDE.md`` / ``AGENTS.md``)
         """
-        targets = self._profile.get("instruction_file", {}).get("targets")
-        if isinstance(targets, list) and targets:
+        targets = self._profile.instruction_file.targets
+        if targets:
             return [dict(t) for t in targets if isinstance(t, dict)]
         if self.reads_claude_md:
             return [{"type": "project_state_copy", "path": "CLAUDE.md"}]
@@ -124,23 +167,23 @@ class PlatformAdapter(
 
     @property
     def dispatch_info(self) -> dict[str, Any]:
-        return dict(self._profile.get("dispatch", {}))
+        return self._profile.dispatch.model_dump(exclude_unset=True)
 
     @property
     def hook_config_format(self) -> str | None:
-        return self._profile.get("hooks", {}).get("config_format")
+        return self._profile.hooks.config_format
 
     @property
     def hook_config_path(self) -> str | None:
-        return self._profile.get("hooks", {}).get("config_path")
+        return self._profile.hooks.config_path
 
     @property
     def hook_event_map(self) -> dict[str, str | None]:
-        return dict(self._profile.get("hooks", {}).get("event_map", {}))
+        return dict(self._profile.hooks.event_map)
 
     @property
     def hook_degradation(self) -> dict[str, str]:
-        return dict(self._profile.get("hooks", {}).get("degradation", {}))
+        return dict(self._profile.hooks.degradation)
 
     @property
     def hook_tool_overrides(self) -> dict[str, str]:
@@ -150,7 +193,7 @@ class PlatformAdapter(
         tool_map has ``shell_exec: shell`` but hook events use ``Bash``).
         When present, these override tool_map for hook matcher resolution only.
         """
-        return dict(self._profile.get("hooks", {}).get("tool_overrides", {}))
+        return dict(self._profile.hooks.tool_overrides)
 
     @property
     def hook_entry_type(self) -> str | None:
@@ -162,27 +205,27 @@ class PlatformAdapter(
         only by platforms that do not emit JSON hook configs (e.g. OpenCode
         which uses plugins).
         """
-        value = self._profile.get("hooks", {}).get("entry_type")
+        value = self._profile.hooks.entry_type
         return str(value) if value else None
 
     @property
     def needs_skill_deploy(self) -> bool:
         """Whether this platform wants skill definitions deployed to an IDE-visible path."""
-        return bool(self._profile.get("skill_definition", {}).get("needs_deploy", False))
+        return bool(self._profile.skill_definition.needs_deploy)
 
     def get_skill_target_dir(self) -> str | None:
         """Target directory (relative to project root) for IDE-visible skills."""
-        target = self._profile.get("skill_definition", {}).get("target_dir")
+        target = self._profile.skill_definition.target_dir
         return str(target) if target else None
 
     @property
     def needs_command_deploy(self) -> bool:
         """Whether this platform has a slash-command surface to deploy to."""
-        return bool(self._profile.get("command_definition", {}).get("needs_deploy", False))
+        return bool(self._profile.command_definition.needs_deploy)
 
     def get_command_target_dir(self) -> str | None:
         """Target directory (relative to project root) for IDE-visible slash commands."""
-        target = self._profile.get("command_definition", {}).get("target_dir")
+        target = self._profile.command_definition.target_dir
         return str(target) if target else None
 
     @property
@@ -192,7 +235,7 @@ class PlatformAdapter(
         Declared in ``profile.yaml`` under ``agent_config.supported_fields``.
         Used by the translator/deployer to decide which fields to pass through.
         """
-        return list(self._profile.get("agent_config", {}).get("supported_fields", []))
+        return list(self._profile.agent_config.supported_fields)
 
     @property
     def agent_memory_scopes(self) -> list[str]:
@@ -200,12 +243,12 @@ class PlatformAdapter(
 
         Typical values: ``user``, ``project``, ``local``.
         """
-        return list(self._profile.get("agent_config", {}).get("memory_scopes", []))
+        return list(self._profile.agent_config.memory_scopes)
 
     @property
     def agent_isolation_modes(self) -> list[str]:
         """Isolation modes the platform supports (e.g. ``worktree``)."""
-        return list(self._profile.get("agent_config", {}).get("isolation_modes", []))
+        return list(self._profile.agent_config.isolation_modes)
 
     def get_supported_features(self) -> dict[str, bool]:
         """Return platform feature flags.
@@ -214,11 +257,11 @@ class PlatformAdapter(
         higher-order platform behaviors (cloud agents, agent teams, etc.),
         not per-tool mappings.
         """
-        return dict(self._profile.get("features", {}))
+        return dict(self._profile.features)
 
     def supports_feature(self, feature: str) -> bool:
         """Check whether a specific feature is supported."""
-        return bool(self._profile.get("features", {}).get(feature, False))
+        return bool(self._profile.features.get(feature, False))
 
     @property
     def permission_modes(self) -> list[str]:
@@ -226,17 +269,17 @@ class PlatformAdapter(
 
         Declared in ``profile.yaml`` under ``permissions.modes``.
         """
-        return list(self._profile.get("permissions", {}).get("modes", []))
+        return list(self._profile.permissions.get("modes", []))
 
     @property
     def available_models(self) -> list[str]:
         """Models available on this platform for selection."""
-        return list(self._profile.get("model_routing", {}).get("available_models", []))
+        return list(self._profile.model_routing.available_models)
 
     @property
     def supports_per_agent_model(self) -> bool:
         """Whether the platform supports per-agent model selection."""
-        return bool(self._profile.get("model_routing", {}).get("per_agent_model", False))
+        return bool(self._profile.model_routing.per_agent_model)
 
     @property
     def user_resolved_model(self) -> bool:
@@ -247,7 +290,7 @@ class PlatformAdapter(
         not pin a specific model id. The deploy adapter omits ``model:`` for
         these platforms regardless of tier resolution.
         """
-        return bool(self._profile.get("model_routing", {}).get("user_resolved", False))
+        return bool(self._profile.model_routing.user_resolved)
 
     def get_model_tier_map(self) -> dict[str, str | None]:
         """Tier → native model id map (e.g. ``{"light": "haiku", ...}``).
@@ -259,9 +302,7 @@ class PlatformAdapter(
         Returns an empty dict when the platform omits the section — callers
         treat that as "no model can be resolved → omit ``model:``".
         """
-        raw = self._profile.get("model_routing", {}).get("tier_map", {}) or {}
-        if not isinstance(raw, dict):
-            return {}
+        raw = self._profile.model_routing.tier_map
         return {str(k): (str(v) if v is not None else None) for k, v in raw.items()}
 
     def resolve_agent_model(self, tier: str | None) -> str | None:
@@ -300,7 +341,52 @@ class PlatformAdapter(
         Returns an empty dict when the profile omits the section so adapters
         can gracefully fall back to legacy defaults.
         """
-        return dict(self._profile.get("context_injection", {}) or {})
+        return dict(self._profile.context_injection)
+
+    def _default_rules_target_dir(self) -> str | None:
+        """Return the platform's declared rule distribution directory, if any.
+
+        Looks at ``context_injection.rules_distribution.target`` in the
+        profile.  Used by the rules step and the runtime placeholder renderer
+        so subclasses that only want to change wrapping (not the target path)
+        share one source of truth."""
+        target = (self.context_injection.get("rules_distribution", {}) or {}).get("target")
+        return str(target) if target else None
+
+    def wrap_rule_for_platform(self, name: str, content: str) -> tuple[str, str] | None:
+        """Return ``(target_relpath, body)`` for an override rule, or ``None``.
+
+        Default: copy verbatim to
+        ``<context_injection.rules_distribution.target>/<name>.md`` when the
+        profile declares a rules target; otherwise return ``None`` (skip).
+
+        Subclasses override to:
+
+        * change the wrapping (e.g. Cursor wraps as MDC with ``alwaysApply``)
+        * change the target path
+        * return ``None`` to suppress writing entirely (e.g. when the rule is
+          surfaced through a different mechanism)
+        """
+        rules_target = self._default_rules_target_dir()
+        if not rules_target:
+            return None
+        return (f"{rules_target}/{name}.md", content)
+
+    def deploy_additional_outputs_hook(
+        self,
+        rules_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: Any = None,
+        prior_manifest: set[str] | None = None,
+    ) -> list[str]:
+        """Generate platform-specific additional outputs (e.g. Cursor MDC rules).
+
+        Default: no-op. Subclasses override to emit native artefacts whose
+        format is platform-specific. The runtime step routes to this hook."""
+        del rules_dir, project_root, dry_run, manifest, prior_manifest
+        return []
 
     def get_instruction_preamble(self) -> str:
         """Render the preamble block prepended to the instruction file body.
@@ -321,3 +407,73 @@ class PlatformAdapter(
             return ""
         lines = [template.format(path=p) for p in files]
         return "\n".join(lines) + "\n\n"
+
+    def post_instruction_deploy(
+        self,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: Any = None,
+    ) -> list[str]:
+        """Register platform-native instruction artefacts after the base copy.
+
+        Default: no-op. The instruction step writes the IDE's CLAUDE.md /
+        AGENTS.md, then calls this hook so platforms that surface their
+        instruction set through a config file (e.g. OpenCode's
+        ``opencode.json#instructions``) can append it."""
+        del project_root, dry_run, manifest
+        return []
+
+    def rules_target_relpath(self, platform_root: Path) -> str | None:
+        """Relative target for the rendered ``.cataforge/rules`` copy.
+
+        Default: ``<platform_root>/rules`` (where *platform_root* is the parent
+        of the first agent scan dir). Return ``None`` to skip the base
+        copy-render entirely — used by platforms that surface canonical rules
+        through a different mechanism (e.g. Cursor's ``.cursor/rules/*.mdc``)."""
+        return f"{platform_root.as_posix()}/rules"
+
+    def emit_extra_rules(
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: Any = None,
+        force_copy: bool = False,
+    ) -> list[str]:
+        """Emit any platform-specific rule artefacts alongside the base copy.
+
+        Default: no-op. Cursor uses this for the optional ``.claude/rules``
+        cross-platform Markdown mirror."""
+        del source_dir, project_root, dry_run, manifest, force_copy
+        return []
+
+    def mcp_json_path(self, project_root: Path) -> Path:
+        """JSON file the default :meth:`write_mcp_config` writes to.
+
+        Platforms that rely on the default JSON merge override this single
+        method; platforms with a fully custom MCP layout (e.g. Codex TOML,
+        OpenCode's per-repo merge) override :meth:`write_mcp_config` and can
+        leave this raising."""
+        raise NotImplementedError(
+            f"{type(self).__name__} must override either write_mcp_config() or mcp_json_path()"
+        )
+
+    def write_mcp_config(
+        self,
+        server_id: str,
+        server_config: dict[str, Any],
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+    ) -> list[str]:
+        """Write one MCP server config into the platform's configuration file.
+
+        Default: merge into a JSON file under ``mcpServers.<id>`` at
+        :meth:`mcp_json_path`. Platforms using a non-JSON or non-standard
+        layout override this hook directly."""
+        from cataforge.adapter.platform.hooks_config import merge_json_key
+
+        mcp_path = self.mcp_json_path(project_root)
+        return merge_json_key(mcp_path, f"mcpServers.{server_id}", server_config, dry_run=dry_run)

@@ -71,13 +71,84 @@ def _emit_doctor_stale_deps(stale_deps: list[dict[str, str]]) -> None:
 
 
 def _emit_docignored(ignored: list[str]) -> None:
-    """Print the docs/.docignore exclusion count under doctor's indentation.
-
-    Excluded docs are intentional published prose, not a gating failure —
-    surfaced for transparency so suppressed orphans are never silent.
-    """
+    """Print the docs/.docignore exclusion count under doctor's indentation."""
     if ignored:
         click.echo(f"  {len(ignored)} doc(s) excluded by docs/.docignore")
+
+
+def _emit_index_failures(
+    orphans: list[str],
+    stale: list[tuple[str, str]],
+    xref_errors: list[dict[str, str]],
+) -> None:
+    """Echo orphan, stale, and xref FAIL lines under doctor's indentation."""
+    if orphans:
+        click.echo(f"  {len(orphans)} orphan document(s) — missing YAML front matter (id field):")
+        for rel in orphans[:5]:
+            click.echo(f"    FAIL {rel}")
+        if len(orphans) > 5:
+            click.echo(f"    - ... and {len(orphans) - 5} more")
+        click.echo("  → add `id`/`doc_type` front matter and rerun `cataforge docs index`.")
+
+    if stale:
+        click.echo(f"  {len(stale)} stale index entry(ies) — file_path missing on disk:")
+        for doc_id, rel in stale[:5]:
+            click.echo(f"    FAIL {doc_id} → {rel}")
+        if len(stale) > 5:
+            click.echo(f"    - ... and {len(stale) - 5} more")
+        click.echo("  → run `cataforge docs index` (full rebuild) to drop stale entries.")
+
+    if xref_errors:
+        click.echo(
+            f"  {len(xref_errors)} cross-reference error(s) — frontmatter deps that don't resolve:"
+        )
+        for e in xref_errors[:5]:
+            click.echo(f"    FAIL {e['doc_id']} ({e['file_path']}) → {e['ref']}: {e['reason']}")
+        if len(xref_errors) > 5:
+            click.echo(f"    - ... and {len(xref_errors) - 5} more")
+        click.echo(
+            "  → use the registered full doc_id, or declare an `aliases:` "
+            "list in the source doc's frontmatter."
+        )
+
+
+def _emit_id_failures(
+    alias_conflicts: list[dict[str, str]],
+    invalid_ids: list[dict[str, str]],
+) -> None:
+    """Echo alias-conflict and invalid-id FAIL lines under doctor's indentation."""
+    if alias_conflicts:
+        click.echo(f"  {len(alias_conflicts)} alias conflict(s) — second claim silently ignored:")
+        for c in alias_conflicts[:5]:
+            click.echo(f"    FAIL {c['alias']} (claimed by {c['claimed_by']}): {c['reason']}")
+        if len(alias_conflicts) > 5:
+            click.echo(f"    - ... and {len(alias_conflicts) - 5} more")
+
+    if invalid_ids:
+        click.echo(
+            f"  {len(invalid_ids)} invalid id(s) — slug must match "
+            f"[A-Za-z0-9_-]+ (no dots / version strings):"
+        )
+        for e in invalid_ids[:5]:
+            click.echo(f"    FAIL [{e['kind']}] {e['value']!r} ({e['file_path']}): {e['reason']}")
+        if len(invalid_ids) > 5:
+            click.echo(f"    - ... and {len(invalid_ids) - 5} more")
+        click.echo(
+            "  → 别在 doc id/alias 里塞版本号或带 '.' 的串；版本归 frontmatter "
+            "`version:` 字段。doc-gen 已遵循该规则。"
+        )
+
+
+def _emit_doctor_validate_failures(
+    orphans: list[str],
+    stale: list[tuple[str, str]],
+    xref_errors: list[dict[str, str]],
+    alias_conflicts: list[dict[str, str]],
+    invalid_ids: list[dict[str, str]],
+) -> None:
+    """Echo per-category FAIL lines under doctor's indentation."""
+    _emit_index_failures(orphans, stale, xref_errors)
+    _emit_id_failures(alias_conflicts, invalid_ids)
 
 
 def check_docs_validate(cfg) -> int:
@@ -135,69 +206,7 @@ def check_docs_validate(cfg) -> int:
         _emit_doctor_stale_deps(stale_deps)
         return 0
 
-    if orphans:
-        click.echo(f"  {len(orphans)} orphan document(s) — missing YAML front matter (id field):")
-        shown = orphans[:5]
-        for rel in shown:
-            click.echo(f"    FAIL {rel}")
-        extra = len(orphans) - len(shown)
-        if extra > 0:
-            click.echo(f"    - ... and {extra} more")
-        click.echo("  → add `id`/`doc_type` front matter and rerun `cataforge docs index`.")
-
-    if stale:
-        click.echo(f"  {len(stale)} stale index entry(ies) — file_path missing on disk:")
-        shown_stale = stale[:5]
-        for doc_id, rel in shown_stale:
-            click.echo(f"    FAIL {doc_id} → {rel}")
-        extra = len(stale) - len(shown_stale)
-        if extra > 0:
-            click.echo(f"    - ... and {extra} more")
-        click.echo("  → run `cataforge docs index` (full rebuild) to drop stale entries.")
-
-    if xref_errors:
-        click.echo(
-            f"  {len(xref_errors)} cross-reference error(s) — frontmatter deps that don't resolve:"
-        )
-        shown_xref = xref_errors[:5]
-        for e in shown_xref:
-            click.echo(f"    FAIL {e['doc_id']} ({e['file_path']}) → {e['ref']}: {e['reason']}")
-        extra = len(xref_errors) - len(shown_xref)
-        if extra > 0:
-            click.echo(f"    - ... and {extra} more")
-        click.echo(
-            "  → use the registered full doc_id, or declare an `aliases:` "
-            "list in the source doc's frontmatter."
-        )
-
-    if alias_conflicts:
-        click.echo(
-            f"  {len(alias_conflicts)} alias conflict(s) — second claim "
-            f"silently ignored at index time:"
-        )
-        shown_alias = alias_conflicts[:5]
-        for c in shown_alias:
-            click.echo(f"    FAIL {c['alias']} (claimed by {c['claimed_by']}): {c['reason']}")
-        extra = len(alias_conflicts) - len(shown_alias)
-        if extra > 0:
-            click.echo(f"    - ... and {extra} more")
-
-    if invalid_ids:
-        click.echo(
-            f"  {len(invalid_ids)} invalid id(s) — slug must match "
-            f"[A-Za-z0-9_-]+ (no dots / version strings):"
-        )
-        shown_invalid = invalid_ids[:5]
-        for e in shown_invalid:
-            click.echo(f"    FAIL [{e['kind']}] {e['value']!r} ({e['file_path']}): {e['reason']}")
-        extra = len(invalid_ids) - len(shown_invalid)
-        if extra > 0:
-            click.echo(f"    - ... and {extra} more")
-        click.echo(
-            "  → 别在 doc id/alias 里塞版本号或带 '.' 的串；版本归 frontmatter "
-            "`version:` 字段。doc-gen 已遵循该规则。"
-        )
-
+    _emit_doctor_validate_failures(orphans, stale, xref_errors, alias_conflicts, invalid_ids)
     _emit_doctor_stale_deps(stale_deps)
 
     return len(orphans) + len(stale) + len(xref_errors) + len(alias_conflicts) + len(invalid_ids)

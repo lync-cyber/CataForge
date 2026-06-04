@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.adapter.platform.helpers import _remove_target, symlink_or_copy
+from cataforge.adapter.platform.fileops import _remove_target, symlink_or_copy
 
 
 def _make_source(tmp_path: Path) -> Path:

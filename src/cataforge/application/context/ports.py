@@ -16,7 +16,7 @@ fidelity for the requested operation and consults them highest-first.
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 class Fidelity(IntEnum):
@@ -40,7 +40,7 @@ class ContextReadPort(Protocol):
     """Read a section's content; ``None`` means 'this backend cannot serve'."""
 
     def read_section(
-        self, ref: str, project_root: str, *, file_cache: dict[str, Any] | None = None
+        self, ref: str, project_root: str, *, file_cache: dict[str, list[str]] | None = None
     ) -> str | None: ...
 
     def plan_load(

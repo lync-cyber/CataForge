@@ -6,7 +6,7 @@ import json
 import logging
 import sys
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +21,7 @@ class Event:
     __slots__ = ("timestamp", "name", "data")
 
     def __init__(self, name: str, data: dict[str, Any] | None = None) -> None:
-        self.timestamp = datetime.now(timezone.utc).isoformat()
+        self.timestamp = datetime.now(UTC).isoformat()
         self.name = name
         self.data = data or {}
 

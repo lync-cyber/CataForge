@@ -31,7 +31,7 @@ import argparse
 import re
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from cataforge.core.errors import ConfigError
@@ -79,7 +79,7 @@ def _parse_nav_table(nav_text: str) -> list[tuple[str, str]]:
 def _archive_legacy_nav(nav_path: Path, project_root: Path) -> Path:
     archive_dir = project_root / ".cataforge" / ".archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     archived = archive_dir / f"NAV-INDEX-{ts}.md"
     shutil.copy2(nav_path, archived)
     return archived

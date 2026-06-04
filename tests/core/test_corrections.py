@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -140,9 +141,9 @@ def test_record_correction_date_uses_utc(tmp_path: Path) -> None:
     local-time was producing a one-day skew for evening corrections in
     CST etc — the markdown row and the paired EVENT-LOG entry then
     grep-by-date to different files."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    expected = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    expected = datetime.now(UTC).strftime("%Y-%m-%d")
     record_correction(
         tmp_path,
         trigger="option-override",
@@ -270,7 +271,7 @@ def test_record_correction_accepts_upstream_gap_deviation(tmp_path: Path) -> Non
     text = (tmp_path / result["corrections_log"].relative_to(tmp_path)).read_text(encoding="utf-8")
     assert "偏差类型: upstream-gap" in text
     # And it should be visible to the downstream aggregator.
-    from cataforge.core.feedback import collect_corrections
+    from cataforge.application.feedback import collect_corrections
 
     entries = collect_corrections(tmp_path, deviation="upstream-gap")
     assert len(entries) == 1

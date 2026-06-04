@@ -49,9 +49,7 @@ def codegen_out(tmp_path_factory: pytest.TempPathFactory) -> Path:
 def test_codegen_produces_expected_artifacts(codegen_out: Path) -> None:
     for name in (
         "core_pydantic.py",
-        "governance_pydantic.py",
         "core_shapes.ttl",
-        "governance_shapes.ttl",
         "subclass_axioms.ttl",
     ):
         assert (codegen_out / name).is_file(), f"missing artifact: {name}"

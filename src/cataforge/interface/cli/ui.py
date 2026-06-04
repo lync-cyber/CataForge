@@ -25,6 +25,22 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from cataforge.utils.console import (
+    ChoiceOption,
+    DiagPattern,
+    pattern_matches,
+    set_console,
+)
+
+__all__ = [
+    "UI",
+    "ChoiceOption",
+    "DiagPattern",
+    "NextStep",
+    "CheckResult",
+    "ui",
+]
+
 _logger = logging.getLogger("cataforge.interface.cli.ui")
 
 # ---------------------------------------------------------------------------
@@ -78,38 +94,11 @@ _ANSI = {
 
 
 @dataclass(frozen=True)
-class ChoiceOption:
-    """One row in an interactive ``prompt_choice`` list."""
-
-    key: str
-    label: str
-    icon: str = ""
-    description: str = ""
-
-
-@dataclass(frozen=True)
 class NextStep:
     """A single follow-up command to suggest after a subcommand finishes."""
 
     command: str
     why: str = ""
-
-
-@dataclass(frozen=True)
-class DiagPattern:
-    """Match-and-explain entry for log/error diagnosis.
-
-    ``needle`` is either a literal substring or a compiled regex. When a
-    pattern matches, ``diagnosis`` is shown to the user along with
-    ``fix_action`` (free text) and the optional ``fix_command`` (rendered
-    in bold so it's copy-pasteable).
-    """
-
-    needle: str | re.Pattern[str]
-    diagnosis: str
-    fix_action: str
-    fix_command: str | None = None
-    severity: Literal["error", "warn"] = "error"
 
 
 @dataclass
@@ -354,7 +343,7 @@ class UI:
         """
         matched: list[DiagPattern] = []
         for p in patterns:
-            if _pattern_matches(p.needle, blob):
+            if pattern_matches(p.needle, blob):
                 matched.append(p)
         if not matched:
             return matched
@@ -440,12 +429,6 @@ def _visible_width(text: str) -> int:
     return len(_ANSI_RE.sub("", text))
 
 
-def _pattern_matches(needle: str | re.Pattern[str], blob: str) -> bool:
-    if isinstance(needle, str):
-        return needle in blob
-    return needle.search(blob) is not None
-
-
 # ---------------------------------------------------------------------------
 # Module-level singleton
 # ---------------------------------------------------------------------------
@@ -458,3 +441,8 @@ Reconfiguration at test time::
     from cataforge.interface.cli import ui as ui_mod
     ui_mod.ui = ui_mod.UI(color=False, unicode=True, stdout=io.StringIO())
 """
+
+# Lower layers (utils/adapter/application) reach this renderer through
+# ``cataforge.utils.console.get_console()`` rather than importing it; install
+# it as the active console so their output keeps the rich CLI styling.
+set_console(ui)

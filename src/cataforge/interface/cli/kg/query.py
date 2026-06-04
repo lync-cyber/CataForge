@@ -115,10 +115,10 @@ def _materialize_query_result(raw: object) -> object:
     if type_name == "QueryBoolean" or isinstance(raw, bool):
         return ("ask", bool(raw))
     if type_name == "QuerySolutions":
-        variables_terms = list(raw.variables)  # type: ignore[union-attr]
+        variables_terms = list(raw.variables)
         variables = [str(v).lstrip("?") for v in variables_terms]
         rows: list[dict[str, str]] = []
-        for row in raw:  # type: ignore[arg-type]
+        for row in raw:
             record: dict[str, str] = {}
             for raw_v, name in zip(variables_terms, variables, strict=True):
                 try:
@@ -135,7 +135,7 @@ def _materialize_query_result(raw: object) -> object:
                 "predicate": t.predicate,
                 "object": t.object,
             }
-            for t in raw  # type: ignore[arg-type]
+            for t in raw
         ]
         return ("construct", triples)
     return ("select", [], [])
@@ -235,12 +235,12 @@ def _ntriples_term(term: object) -> str:
         return '""'
     type_name = type(term).__name__
     if type_name == "NamedNode":
-        return f"<{term.value}>"  # type: ignore[union-attr]
+        return f"<{term.value}>"
     if type_name == "Literal":
-        escaped = term.value.replace("\\", "\\\\").replace('"', '\\"')  # type: ignore[union-attr]
+        escaped = term.value.replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
     if type_name == "BlankNode":
-        return f"_:{term.value}"  # type: ignore[union-attr]
+        return f"_:{term.value}"
     return f"<{term}>"
 
 
@@ -361,7 +361,7 @@ def _coverage_matrix(kg: KnowledgeGraph, fmt: str) -> None:
 def _trace_json(chain: object, coverage_detail: dict | None) -> None:
     import dataclasses
 
-    d = dataclasses.asdict(chain)  # type: ignore[arg-type]
+    d = dataclasses.asdict(chain)
     if coverage_detail is not None:
         d["coverage_detail"] = coverage_detail
     click.echo(json.dumps(d, indent=2, ensure_ascii=False))

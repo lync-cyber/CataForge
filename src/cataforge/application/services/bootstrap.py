@@ -137,7 +137,7 @@ def build_plan(cfg: ConfigManager, *, requested_platform: str | None) -> Plan:
     installed_newer = installed is not None and _semver_newer(installed, cfg.version)
 
     if drifted or installed_newer:
-        from cataforge.interface.cli.helpers import classify_tallies
+        from cataforge.core.tallies import classify_tallies
 
         tallies = classify_tallies(classified)
         parts = [

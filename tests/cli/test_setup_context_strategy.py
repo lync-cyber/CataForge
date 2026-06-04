@@ -78,7 +78,6 @@ def test_interactive_prompt_selects_doc_only(
         check_only=False,
         force_scaffold=False,
         deploy_after=False,
-        no_deploy=False,
         dry_run=False,
         show_diff=False,
     )
