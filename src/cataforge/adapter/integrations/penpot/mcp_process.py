@@ -19,9 +19,6 @@ from cataforge.adapter.integrations.penpot._constants import (
     PLATFORM,
 )
 from cataforge.core.errors import CataforgeError
-
-# allow-layer-dep: shared low-level process-liveness primitive, no mcp semantics
-from cataforge.runtime.mcp.lifecycle import pid_alive
 from cataforge.utils.common import (
     BOLD,
     DIM,
@@ -34,6 +31,7 @@ from cataforge.utils.common import (
     section,
     warn,
 )
+from cataforge.utils.process import pid_alive
 from cataforge.utils.run_subprocess import run as run_proc
 
 

@@ -48,7 +48,6 @@ from cataforge.adapter.integrations.penpot.mcp_process import (
     _report_mcp_failure,
     _tail_log,
     _write_mcp_pid,
-    pid_alive,
     start_mcp,
     stop_mcp,
 )
@@ -71,6 +70,7 @@ from cataforge.utils.common import (
     warn,
 )
 from cataforge.utils.docker_util import docker_compose_cmd, ensure_docker_running
+from cataforge.utils.process import pid_alive
 from cataforge.utils.run_subprocess import run as run_proc
 
 # Public surface re-exported from the split submodules. Listed so callers and

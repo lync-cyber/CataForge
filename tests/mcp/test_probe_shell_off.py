@@ -86,7 +86,7 @@ class TestProbeCommandShellOff:
             captured_calls.append({"args": args, "kwargs": kwargs})
             return original_run(args, **kwargs)
 
-        with patch("cataforge.runtime.mcp.lifecycle.run_proc", side_effect=capturing_run):
+        with patch("cataforge.runtime.mcp.health_probe.run_proc", side_effect=capturing_run):
             state = mgr.health("list-target")
 
         assert state is not None
