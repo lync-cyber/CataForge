@@ -20,6 +20,17 @@ CataForge **不是**需要推倒重来的项目。它已具备同规模项目少
 
 因此本次重构定性为：**定向技术债治理 + 收敛被绕过的分层契约**，而非架构 teardown。下面八节逐项展开。
 
+### 0.1 决策记录（2026-06，已拍板）
+
+§8 原"待澄清硬边界"已逐项决策，全文按此推进：
+
+| 决策项 | 结论 | 涟漪影响 |
+|--------|------|---------|
+| **向后兼容基线** | **全部可自由重构**——CLI 命令面、deploy 产物布局、`DeployManifest` 磁盘格式、内部 Python 模块（`core.*`/`domain.kg.nl_query` 等）**均视为非契约**，假设无 in-the-wild 已部署项目静默升级场景，追求最干净结构 | 模块迁移**无需 re-export shim**；`DeployManifest` 格式可有意变更；D-9（`nl_query`）由"需确认"转为**可删**；G2 不必保留旧 mixin 过渡版本 |
+| **profile/hooks 建模** | **pydantic**——`PlatformProfile`/`HookEntry` 用 pydantic BaseModel，profile.yaml 获**加载期强校验**，畸形配置从运行时错误前移到加载期 | G5 改动 1/2 落 pydantic；需为加载期校验新增容错回归测试（畸形 profile→清晰错误信息）；与既有 `core/schema/mcp_spec.py` 的 pydantic 用法一致 |
+| **最低 Python 版本** | **≥3.11**（`requires-python` `>=3.10` → `>=3.11`）——放弃 3.10 用户 | 可用 `tomllib` 读取 codex TOML 配置、`typing.Self` 简化链式返回、异常组等；CI matrix 去掉 3.10；classifiers 去 3.10 |
+| **阶段 5（deploy 收回 runtime）** | **全量迁移**——deploy 算法物理迁回 `runtime/deploy/steps/`，adapter 降为纯 config/capability carrier，彻底消除 adapter↔runtime 反向边（L-4/C-2/L-6） | 仍作为 `pre_dev` 检查点单独 go/no-go；验证以 e2e deploy→doctor 通过 + 四端 dry-run 结构对比为准（manifest 不再要求字节兼容） |
+
 ---
 
 ## 1. 现状评估
@@ -141,7 +152,7 @@ src/cataforge/
   adapter/
     platform/
       adapter.py            # 纯 config/capability carrier：PlatformProfile 类型化（T-1）
-      profile_schema.py     # ← 新增 PlatformProfile TypedDict/pydantic
+      profile_schema.py     # ← 新增 PlatformProfile pydantic 模型（加载期校验）
       claude_code.py …      # 各实现保留平台特定 override（strategy hooks）
       fileops.py            # ← helpers.py 的文件操作部分迁此或 utils（S-2）
       hooks_config.py mcp_config.py  # ← helpers.py 拆分（S-2）
@@ -166,7 +177,7 @@ src/cataforge/
 
 2. **deploy 算法收回 runtime（C-1/C-2/L-4/L-6）**：把 `adapter/platform/_deploy_mixins/*` 迁为 `runtime/deploy/steps/*`，由 deployer 编排，`adapter` 降为**纯 config/capability carrier + 平台特定 strategy hook**。`DeployManifest`/`translate_agent_md`/`render_runtime_content` 与调用方同层（runtime），反向边消失。`Deployer._deploy()` 拆成显式 pipeline step 列表（OCP）。
 
-3. **类型契约显式化（T-1/T-2/T-3/T-4）**：`PlatformProfile`/`HookEntry`（TypedDict 或 pydantic）替换裸 dict；两个 checker mixin 引入 `@abstractmethod`/Protocol 声明契约；统一 `file_cache` 类型。逐包推进 mypy strict。
+3. **类型契约显式化（T-1/T-2/T-3/T-4）**：`PlatformProfile`/`HookEntry` 用 pydantic 模型（加载期校验）替换裸 dict；两个 checker mixin 引入 `@abstractmethod`/Protocol 声明契约；统一 `file_cache` 类型。逐包推进 mypy strict。
 
 ---
 
@@ -185,7 +196,7 @@ src/cataforge/
   5. `application/services/bootstrap.py` 的 `classify_tallies` 下沉到 `core`（纯 Counter 聚合）。
 - **涉及**：`core/console.py`(新)、`interface/cli/ui.py`、`utils/common.py`、`utils/docker_util.py`、`adapter/integrations/penpot/*`、`interface/cli/diagnostics.py`、`application/services/bootstrap.py`、`core/`（新增 tallies）。
 - **收益**：utils/adapter 可在无 CLI 环境独立运行与单测；扇入异常（ui=28）消除；`check_layer_dependencies` 可收紧（见 §7）。
-- **风险**：中。`Console` 注入需穿透若干调用栈；对外 re-export 名保持不变以免破坏下游 import。
+- **风险**：中。`Console` 注入需穿透若干调用栈。兼容基线允许内部模块自由重构，故无需为下游保 re-export shim，直接更新所有内部调用点即可。
 
 ### G2 — deploy 算法收回 runtime（消除 C-1/C-2/L-4/L-6，HIGH）
 
@@ -197,7 +208,7 @@ src/cataforge/
   4. `Deployer._deploy()` 拆为显式 `STEPS: list[DeployStep]` pipeline，每个 step 一个小函数/类，`_deploy` 仅遍历+收集 actions（消除 C-1，OCP）。
 - **涉及**：`adapter/platform/adapter.py`、4 个平台实现、`adapter/platform/_deploy_mixins/*`（迁移）、`runtime/deploy/deployer.py`、`core/template.py`。
 - **收益**：adapter→runtime 反向边（L-4）与 core→adapter（L-6）归零；deploy 各 step 可独立单测（补 TE 缺口）；新增资产类型只加 step。
-- **风险**：⚠️ **高**。这是最大破坏性改动，触及部署核心路径。硬边界：`cataforge deploy` 的产物（CLAUDE.md/.claude 布局）、`DeployManifest` 磁盘格式、幂等/prune 语义**必须逐字节兼容**。回滚点：保留旧 mixin 一个过渡版本，step 实现先做 thin-delegate 再内联。
+- **风险**：⚠️ **高**。这是最大破坏性改动，触及部署核心路径。兼容基线允许 `DeployManifest` 磁盘格式有意变更，故不再要求字节兼容；但**功能正确性是硬边界**：deploy 产物布局须仍被各 IDE 识别、幂等/prune 语义须仍成立、`cataforge deploy` 重跑结果须稳定。回滚点：每个 step 一个 PR，先 thin-delegate 后内联（便于分次 squash-merge），无需保留旧 mixin 长期过渡版本。
 
 ### G3 — 模块归位与拆分（S-1/S-2/S-3/S-4/L-7，MEDIUM）
 
@@ -218,13 +229,13 @@ src/cataforge/
 ### G5 — 类型契约显式化（T-1~T-4/T-7，HIGH/MEDIUM）
 
 - **改动**：
-  1. 新增 `adapter/platform/profile_schema.py`：`PlatformProfile` TypedDict（或 pydantic）；`PlatformAdapter.__init__` 与属性返回类型替换裸 `dict[str,Any]`（T-1）。
-  2. `runtime/hook/bridge.py`：`HookEntry`/`HooksSpec` TypedDict（T-2）。
+  1. ⚠️ 新增 `adapter/platform/profile_schema.py`：`PlatformProfile` **pydantic BaseModel**（加载期校验）；`load_profile()` 返回校验后的模型实例；`PlatformAdapter.__init__` 与属性返回类型替换裸 `dict[str,Any]`（T-1）。畸形 profile.yaml 在加载期即报清晰错误（前移失败时机）。
+  2. ⚠️ `runtime/hook/bridge.py`：`HookEntry`/`HooksSpec` **pydantic 模型**（T-2），与既有 `core/schema/mcp_spec.py` 用法一致。
   3. `TypedDocChecksMixin`/`_CrossDocChecksMixin`：加 `@property @abstractmethod` 声明 `volume_type/content/lines` 等，或改 Protocol + `DocChecker` 标注实现（T-3，消 122 个 attr-defined）。
   4. 统一 `file_cache: dict[str,list[str]] | None`（T-4）；`get_config_manager()` 补返回注解（T-7）。
   5. 清理 `kg/query.py` 6 处失效 `type:ignore`（T-5）；修 `doctor_cmd.py:159` 退出码类型（T-6，拆 check/report 两类或显式标注 `_DOCTOR_SECTIONS`）。
-- **收益**：profile/hooks/checker 契约静态可查；mypy 错误显著下降；为逐包 strict 铺路。
-- **风险**：低-中。TypedDict 是渐进式（运行时零成本）；pydantic 会引入校验成本与对 profile.yaml 容错的回归风险——**倾向 TypedDict**（见 §8 待澄清）。
+- **收益**：profile/hooks/checker 契约静态可查 + 加载期强校验；mypy 错误显著下降；为逐包 strict 铺路。
+- **风险**：中。pydantic 校验改变对畸形 profile.yaml 的失败时机（运行时→加载期）与错误信息——**必须新增容错回归测试**：既有合法 profile 全部通过校验、畸形 profile 给出可定位的字段级错误，避免把"宽松 .get() 容错"回退成"加载即崩"。⚠️ 标注项为对外可观察行为变化（虽兼容基线允许，但需测试托底）。
 
 ### G6 — 代码质量收尾（Q-1/Q-2/Q-3，MEDIUM/LOW）
 
@@ -287,11 +298,11 @@ src/cataforge/
 | 阶段 | 内容 | 破坏性/风险 | 验证 | 回滚点 |
 |------|------|------------|------|--------|
 | **0. 安全网** | §4.1 P0 测试（typed_checks/b2/b8/deploy steps 现状行为快照）+ §6 高置信死代码删除 | 低（删死代码⚠️低） | pytest + run_local | 独立 PR，每类死代码一 PR |
-| **1. 类型契约（非破坏）** | G5：TypedDict（profile/hooks）、mixin 契约、清失效 ignore、修退出码类型、补返回注解 | 低（纯注解） | mypy 受影响包错误数下降 + pytest | 按 T-1/T-2/T-3… 拆 PR |
-| **2. 模块下沉（低破坏）** | G3：`pid_alive`→utils/process、helpers 拆分、lifecycle 拆分、scaffold_backup 拆分（均带 re-export 保名） | 低（搬迁+re-export） | run_local（含 layer 守卫）+ pytest | 每文件一 PR |
+| **1. 类型契约** | G5：profile/hooks 改 **pydantic**（加载期校验）、mixin 契约、清失效 ignore、修退出码类型、补返回注解 | 低（mixin/注解纯静态）；⚠️ 低-中（pydantic 改 profile.yaml 失败时机） | mypy 受影响包错误数下降 + pytest + **profile 容错回归测试** | 按 T-1/T-2/T-3… 拆 PR；pydantic 单独一 PR |
+| **2. 模块下沉（低破坏）** | G3：`pid_alive`→utils/process、helpers 拆分、lifecycle 拆分、scaffold_backup 拆分（直接更新调用点，无需 re-export shim） | 低（纯搬迁） | run_local（含 layer 守卫）+ pytest | 每文件一 PR |
 | **3. UI 反向边（中破坏）** | G1：`core/console` 端口 + 注入；删 utils.common ui 包装；PENPOT_PATTERNS 归位；classify_tallies 下沉 | ⚠️ 中 | layer 守卫 + pytest + 手测 `penpot`/`doctor` 交互 | G1 可拆 console 端口 / 各调用方注入两步 |
 | **4. feedback 上移（中破坏）** | G4：`core/feedback`→`application/feedback`，删 shim，改 import | ⚠️ 中 | layer 守卫 + `cataforge feedback bug/suggest` 端到端 | 单 PR（含全局 import 替换） |
-| **5. deploy 收回 runtime（高破坏）** | G2：mixin→`runtime/deploy/steps`、adapter 纯配置化、template_render 上移、`_deploy()` pipeline 化 | ⚠️⚠️ 高 | 全量 pytest + `tests/e2e/test_deploy_links_and_doctor.py`（真实 wheel→deploy→doctor）+ 四端 `deploy --dry-run` 结构对比 + manifest 字节对比 | step 先 thin-delegate 旧 mixin，分 PR 逐 step 内联；保留旧路径一版 |
+| **5. deploy 收回 runtime（高破坏，全量迁移）** | G2：mixin→`runtime/deploy/steps`、adapter 纯配置化、template_render 上移、`_deploy()` pipeline 化 | ⚠️⚠️ 高 | 全量 pytest + `tests/e2e/test_deploy_links_and_doctor.py`（真实 wheel→deploy→doctor）+ 四端 `deploy --dry-run` 结构对比（manifest 格式可有意变更，验功能正确而非字节一致） | step 先 thin-delegate 旧 mixin，分 PR 逐 step 内联 |
 | **6. 守卫收紧 + 收尾** | §7 守卫增强（函数内/TYPE_CHECKING 向上 import 纳入 ledger）、G6 质量收尾、覆盖率门禁基线 | 低 | run_local + CI | 守卫先 warn 后 fail |
 
 阶段 0/1/2 可并行推进（互不依赖）；3→4→5 有弱顺序（G1 的 console 注入便于 G2 的 step 测试，G4 先于 G5 的 feedback strict）。**阶段 5 是唯一高风险节点**，对应 COMMON-RULES 的 `pre_dev` 人工检查点，建议单独评审 go/no-go。
@@ -324,7 +335,7 @@ src/cataforge/
 
 | # | 位置 | 待确认 |
 |---|------|--------|
-| D-9 | `domain/kg/nl_query.py` 全部公共函数（`translate/query/answer`） | src 无入口，仅 `tests/kg/test_nl_query.py` 用。是否为面向下游的 planned public API？ |
+| D-9 | `domain/kg/nl_query.py` 全部公共函数（`translate/query/answer`） | 公共 API 顾虑已消除（兼容基线：内部模块非契约）。剩余唯一问题：是否为**待接线的功能**（NL→SPARQL，目前无 CLI 入口）？若非计划接线即可删（连带 `test_nl_query.py`）——这是产品取舍，非兼容问题 |
 | D-10 | framework-audit **R-006** `SparqlRegistry.has()` 恒返回 True | 渲染层早退守卫纯死代码（交叉引用，已在前序审计登记，应一并修） |
 | D-11 | `.cataforge/framework.json` 11 条 `deprecate_after:"0.2.0"` migration_checks | 运行时已自动跳过（0.8.0≫0.2.0），下次 scaffold 升级时全量覆盖清除（`upgrade.source` 声明安全） |
 | D-12 | `domain/docs/migrate_nav.py`、`migrate_review_frontmatter.py`、`event accept-legacy` | 一次性迁移工具，对老项目仍有用途；评估归档而非删除。**注**：`protocol_refs.py` 的 NAV-INDEX 废弃引用检测是**在用守卫**，保留 |
@@ -357,13 +368,19 @@ src/cataforge/
 - **三份相同的 `_clear_adapter_cache` autouse fixture**（`tests/{agent,hook,platform}/conftest.py`）：合并收益 < 跨目录 autouse 的清晰度损失，保留。
 - **framework_review 独立 `Finding/Report`（FAIL/WARN/INFO）vs 全局 `Issue/CheckReport`（四级 severity）**：语义轴不同，是有意分叉，不强行统一（但应在文档备注以防误用）。
 
-### 需确认的硬边界（信息不足，不凭假设动手）
+### 已决策（2026-06）
 
-1. **对外公共 API 面**：`pyproject.toml` 仅 entry-points 暴露 4 个平台 adapter 与 CLI；`cataforge.domain.kg.nl_query`（D-9）、`cataforge.core.*` 是否被下游业务项目直接 import？影响 D-9 删除与 §3 模块迁移时的 re-export 兼容承诺范围。
-2. **`DeployManifest` 磁盘格式与 `.deploy-state` 兼容性**（G2 硬边界）：现存已部署项目的 manifest 文件结构是否需向后兼容？G2 必须保证 deploy 产物字节级不变——需确认是否有"已部署项目静默升级"场景。
-3. **profile schema 建模选型**（G5）：`PlatformProfile` 用 **TypedDict**（零运行时成本、渐进、不改 .yaml 容错）还是 **pydantic**（强校验、但改变对畸形 profile.yaml 的失败时机/信息）？倾向 TypedDict，但若希望 profile.yaml 获得加载期校验则选 pydantic——取决于产品是否要把"畸形 profile"从运行时错误前移到加载期。
-4. **最低 Python 版本**：`requires-python = ">=3.10"`。本方案未引入 3.11+ 专属语法；若放宽到 3.11+ 可用 `Self`/`tomllib` 等简化（当前用第三方 toml 处理）。需确认是否维持 3.10 兼容。
-5. **阶段 5（G2）go/no-go**：作为唯一高破坏性节点，建议在阶段 0-4 完成、安全网就绪后单独评审是否执行，或仅止步于 §3 G2-4（`_deploy()` pipeline 化，不迁移 mixin 物理位置）这一较小增量。
+原"待澄清硬边界"已全部拍板，明细与涟漪见 §0.1。摘要：
+
+1. **兼容基线 = 全部可自由重构**：CLI 命令面、deploy 产物布局、`DeployManifest` 磁盘格式、内部 Python 模块均视为非契约（假设无 in-the-wild 静默升级）。⇒ 模块迁移免 re-export shim；manifest 格式可有意变更。
+2. **profile/hooks 建模 = pydantic**：加载期强校验，畸形配置失败前移；须补容错回归测试（G5）。
+3. **最低 Python = ≥3.11**：放弃 3.10。⇒ 可用 `tomllib`（替换 codex TOML 读取的手写处理）、`typing.Self`；执行杂项：`pyproject.toml` 的 `requires-python`/classifiers、`ruff target-version`/`mypy python_version`/`pyright pythonVersion`、CI matrix 同步去 3.10。
+4. **阶段 5 = 全量迁移**：deploy 算法物理收回 runtime，adapter 纯配置化；仍设为 `pre_dev` 检查点，安全网就绪后单独 go/no-go。
+
+### 剩余待确认（产品级，非兼容问题）
+
+- **D-9 `domain/kg/nl_query.py`**：NL→SPARQL 是否为待接线功能？若非计划接线即可整模块删除——这是产品取舍，需产品方一句确认。
+- **framework-audit R-006（`SparqlRegistry.has()` 恒 True）**：本方案在 §6 D-10 交叉登记为应一并修的死守卫，具体修法归前序 audit 的 remediation 轨道，避免两轮重复。
 
 ---
 
