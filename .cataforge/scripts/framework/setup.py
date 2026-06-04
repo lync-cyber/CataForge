@@ -1,7 +1,7 @@
 """Framework setup helper — called by the orchestrator during Bootstrap.
 
 This script is referenced from ``.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md``
-and from the ``/bootstrap`` slash command.  It provides three subcommands:
+and from the ``framework-update`` skill's ``apply`` operation.  It provides three subcommands:
 
 - ``--emit-env-block``: detect the project's package ecosystem (uv / pnpm /
   cargo / ...) and print a Markdown block that the orchestrator injects into

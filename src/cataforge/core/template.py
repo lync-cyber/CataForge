@@ -7,8 +7,9 @@ Two responsibilities, kept in one module so callers have a single import for
   PROJECT-STATE.md. Predates :func:`render_runtime_content` and is kept as a
   thin alias so PROJECT-STATE.md callers don't need to thread an adapter.
 * :func:`render_runtime_content` — substitutes ``{INSTRUCTION_FILE}``,
-  ``{AGENTS_DIR}``, ``{RULES_DIR}``, ``{SKILLS_DIR}``, ``{COMMANDS_DIR}``
-  into any markdown body before it lands at a platform-native path.
+  ``{AGENTS_DIR}``, ``{RULES_DIR}``, ``{SKILLS_DIR}``, ``{COMMANDS_DIR}``,
+  ``{FRAMEWORK_VERSION}`` into any markdown body before it lands at a
+  platform-native path.
 
 Why a registry, not free-form ``str.format``:
 
@@ -50,6 +51,7 @@ _PLACEHOLDER_RESOLVERS: dict[str, str] = {
     "{RULES_DIR}": "_resolve_rules_dir",
     "{SKILLS_DIR}": "_resolve_skills_dir",
     "{COMMANDS_DIR}": "_resolve_commands_dir",
+    "{FRAMEWORK_VERSION}": "_resolve_framework_version",
 }
 
 
@@ -139,12 +141,21 @@ def _resolve_commands_dir(adapter: PlatformAdapter) -> str | None:
 # ``dict[str, str]`` (importable without forward refs and easy to enumerate
 # in tests). The indirection costs nothing at runtime — one extra dict
 # lookup per placeholder per render call.
+def _resolve_framework_version(_adapter: PlatformAdapter) -> str | None:
+    """Installed cataforge package version — the single source of truth,
+    stamped into the 框架版本 field at every deploy (adapter-independent)."""
+    from cataforge import __version__
+
+    return __version__
+
+
 _RESOLVER_FUNCS = {
     "_resolve_instruction_file": _resolve_instruction_file,
     "_resolve_agents_dir": _resolve_agents_dir,
     "_resolve_rules_dir": _resolve_rules_dir,
     "_resolve_skills_dir": _resolve_skills_dir,
     "_resolve_commands_dir": _resolve_commands_dir,
+    "_resolve_framework_version": _resolve_framework_version,
 }
 
 

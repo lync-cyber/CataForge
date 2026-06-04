@@ -214,6 +214,40 @@ def test_deploy_instruction_files_renders_runtime_placeholders(tmp_path: Path) -
     assert "参见 AGENTS.md 和 .test/rules/COMMON-RULES.md" in out
 
 
+@pytest.mark.parametrize("platform_id", ["claude-code", "cursor", "codex", "opencode"])
+def test_deploy_stamps_and_advances_framework_version(
+    platform_id: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``框架版本: {FRAMEWORK_VERSION}`` is stamped from the package version at
+    deploy, and a re-deploy after a version bump advances it. Guards both
+    halves of the fix: the placeholder is substituted (no ``{FRAMEWORK_VERSION}``
+    leak), and the section-merge ``always_overwrite_fields`` policy force-writes
+    the field instead of preserving the now-stale on-disk value.
+    """
+    import cataforge
+
+    adapter = get_adapter(platform_id, _platforms_dir())
+    target_rel = str(adapter.instruction_targets[0]["path"])
+    project_state = tmp_path / ".cataforge" / "PROJECT-STATE.md"
+    project_state.parent.mkdir(parents=True)
+    project_state.write_text(
+        "# CataForge\n\n## 项目信息\n\n- 运行时: {platform}\n- 框架版本: {FRAMEWORK_VERSION}\n",
+        encoding="utf-8",
+    )
+
+    adapter.deploy_instruction_files(project_state, tmp_path, platform_id=platform_id)
+    out = (tmp_path / target_rel).read_text(encoding="utf-8")
+    assert "{FRAMEWORK_VERSION}" not in out
+    assert f"- 框架版本: {cataforge.__version__}" in out
+
+    # Simulate an upgrade: bump the package version and re-deploy. section-merge
+    # must advance the field (always_overwrite_fields), not preserve the stale value.
+    monkeypatch.setattr(cataforge, "__version__", "9.9.9-test")
+    adapter.deploy_instruction_files(project_state, tmp_path, platform_id=platform_id)
+    out2 = (tmp_path / target_rel).read_text(encoding="utf-8")
+    assert "- 框架版本: 9.9.9-test" in out2
+
+
 # ---- real adapter spot-check: claude-code renders to its own paths -----
 
 

@@ -67,9 +67,14 @@ def report_deployment_provenance(cfg) -> None:
         click.echo(f"  (no provenance map declared for platform {platform_id!r})")
         return
 
+    commands_optional = not (cfg.paths.cataforge_dir / "commands").is_dir()
     for rel in entries:
         p = root / rel
-        marker = "present" if (p.exists() or p.is_symlink()) else "absent"
+        present = p.exists() or p.is_symlink()
+        if rel.endswith("/commands") and commands_optional and not present:
+            click.echo(f"  [n/a] {rel}  (no command sources)")
+            continue
+        marker = "present" if present else "absent"
         click.echo(f"  [{marker}] {rel}  (CataForge-managed)")
 
     # Flag Cursor mirror state: .claude/rules present even though the mirror

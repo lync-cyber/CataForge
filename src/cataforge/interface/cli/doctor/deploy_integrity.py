@@ -47,12 +47,18 @@ def check_deploy_integrity(cfg) -> int:
         return 0
 
     root = cfg.paths.root
+    commands_optional = not (cfg.paths.cataforge_dir / "commands").is_dir()
     failures = 0
     missing: list[str] = []
     dangling: list[tuple[str, str]] = []
 
     for rel in owned:
         p = root / rel
+        # ``deploy_commands`` returns early (writes nothing, not even the
+        # target dir) when ``.cataforge/commands/`` is absent, so an absent
+        # ``<platform>/commands`` is correct when there are no command sources.
+        if rel.endswith("/commands") and commands_optional and not p.exists():
+            continue
         # ``.exists()`` follows symlinks; ``.lexists()`` does not. A dangling
         # link is the worst case — it looks present in ``ls`` but resolves to
         # nothing — and is the exact failure mode introduced when the source
