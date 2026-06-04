@@ -160,6 +160,30 @@ def check_deploy_source_orphans(cfg) -> int:
     return 0
 
 
+def check_deploy_drift(cfg) -> int:
+    """Nudge (never gate) when deployed IDE artefacts are stale.
+
+    Compares the current ``.cataforge/`` source digest + installed
+    ``cataforge`` version against the baselines the last deploy recorded in
+    ``.deploy-manifest.json``. Drift is a "run ``cataforge deploy``" reminder,
+    not a failure, so this always returns 0 and is wired with ``gating=False``.
+    Skipped silently when no drift-aware baseline exists yet (pre-deploy or a
+    manifest written before drift tracking).
+    """
+    from cataforge.runtime.deploy.drift import detect_drift, drift_hint_lines
+
+    report = detect_drift(cfg.paths)
+    if not report.deployed:
+        click.echo("  (no deploy baseline yet — skipping drift check)")
+        return 0
+    if not report.any_drift:
+        click.echo("  deployed artefacts are in sync with source + package version")
+        return 0
+    for line in drift_hint_lines(report):
+        click.echo(f"    WARN {line}")
+    return 0
+
+
 def _link_target(p: Path) -> str:
     """Best-effort readlink for a symlink or junction; '?' if unreadable."""
     import os

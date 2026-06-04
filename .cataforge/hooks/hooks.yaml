@@ -53,6 +53,9 @@ hooks:
     - script: session_context
       type: observe
       description: "记录 session_start 事件（不部署、不改 tracked 文件）"
+    - script: deploy_drift
+      type: observe
+      description: "检测 .cataforge 源/包版本漂移并提示 redeploy（不部署、不改 tracked 文件）"
 
 degradation_templates:
   guard_dangerous:
@@ -101,3 +104,7 @@ degradation_templates:
   session_context:
     strategy: skip
     reason: "会话上下文初始化可降级"
+
+  deploy_drift:
+    strategy: skip
+    reason: "部署漂移提示为非关键功能"
