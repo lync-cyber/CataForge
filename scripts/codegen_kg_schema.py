@@ -7,9 +7,7 @@ Reads:
 
 Writes (under src/cataforge/domain/kg/_generated/, gitignored):
   - core_pydantic.py            Pydantic v2 models for the business ontology
-  - governance_pydantic.py      Pydantic v2 models for governance sub-ontology
   - core_shapes.ttl             SHACL shapes for business ontology
-  - governance_shapes.ttl       SHACL shapes for governance sub-ontology
   - subclass_axioms.ttl         is_a chain materialized as rdfs:subClassOf triples;
                                 pyoxigraph 0.5.x has no RDFS entailment, so
                                 `cataforge kg init` (sub-PR 2) loads this at store
@@ -117,15 +115,11 @@ def codegen(target_dir: Path) -> list[Path]:
     target_dir.mkdir(parents=True, exist_ok=True)
     artifacts: list[Path] = []
 
-    for yaml_path, py_name, ttl_name in [
-        (CORE_YAML, "core_pydantic.py", "core_shapes.ttl"),
-        (GOVERNANCE_YAML, "governance_pydantic.py", "governance_shapes.ttl"),
-    ]:
-        py_out = target_dir / py_name
-        ttl_out = target_dir / ttl_name
-        gen_pydantic(yaml_path, py_out)
-        gen_shacl(yaml_path, ttl_out)
-        artifacts += [py_out, ttl_out]
+    py_out = target_dir / "core_pydantic.py"
+    ttl_out = target_dir / "core_shapes.ttl"
+    gen_pydantic(CORE_YAML, py_out)
+    gen_shacl(CORE_YAML, ttl_out)
+    artifacts += [py_out, ttl_out]
 
     subclass_out = target_dir / "subclass_axioms.ttl"
     gen_subclass_axioms([CORE_YAML, GOVERNANCE_YAML], subclass_out)
