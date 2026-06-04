@@ -54,7 +54,7 @@ class CodexAdapter(PlatformAdapter):
         passthrough = [f for f in self.agent_supported_fields if f not in _EXPLICIT_TOML_FIELDS]
         return _md_to_toml(agent_id, content, passthrough)
 
-    def inject_mcp_config(
+    def write_mcp_config(
         self,
         server_id: str,
         server_config: dict[str, Any],

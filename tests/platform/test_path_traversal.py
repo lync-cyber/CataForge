@@ -10,6 +10,7 @@ import yaml
 
 from cataforge.adapter.platform.registry import clear_cache, get_adapter
 from cataforge.core.errors import CataforgeError
+from cataforge.runtime.deploy import steps
 
 
 @pytest.fixture(autouse=True)
@@ -59,8 +60,8 @@ class TestPathTraversal:
         adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
 
         with pytest.raises(CataforgeError, match="escapes project root"):
-            adapter.deploy_instruction_files(
-                project_state, root, platform_id="claude-code", dry_run=False
+            steps.deploy_instruction_files(
+                adapter, project_state, root, platform_id="claude-code", dry_run=False
             )
 
     def test_traversal_error_contains_path(self, tmp_path: Path) -> None:
@@ -68,8 +69,8 @@ class TestPathTraversal:
         adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
 
         with pytest.raises(CataforgeError) as exc_info:
-            adapter.deploy_instruction_files(
-                project_state, root, platform_id="claude-code", dry_run=False
+            steps.deploy_instruction_files(
+                adapter, project_state, root, platform_id="claude-code", dry_run=False
             )
         assert "../../etc/passwd" in str(exc_info.value)
 
@@ -77,8 +78,8 @@ class TestPathTraversal:
         project_state, root = _setup(tmp_path, "docs/foo.md")
         adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
 
-        adapter.deploy_instruction_files(
-            project_state, root, platform_id="claude-code", dry_run=False
+        steps.deploy_instruction_files(
+            adapter, project_state, root, platform_id="claude-code", dry_run=False
         )
 
         assert (root / "docs" / "foo.md").is_file()
@@ -88,8 +89,8 @@ class TestPathTraversal:
         project_state, root = _setup(tmp_path, "CLAUDE.md")
         adapter = get_adapter("claude-code", root / ".cataforge" / "platforms")
 
-        adapter.deploy_instruction_files(
-            project_state, root, platform_id="claude-code", dry_run=False
+        steps.deploy_instruction_files(
+            adapter, project_state, root, platform_id="claude-code", dry_run=False
         )
 
         assert (root / "CLAUDE.md").is_file()

@@ -10,30 +10,19 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from cataforge.adapter.platform._deploy_mixins import (
-    AgentDeployMixin,
-    CommandRulesDeployMixin,
-    InstructionDeployMixin,
-    McpDeployMixin,
-    SkillDeployMixin,
-)
 from cataforge.adapter.platform.profile_schema import PlatformProfile
 
-if TYPE_CHECKING:
-    from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
 
+class PlatformAdapter(ABC):
+    """Abstract base for all AI IDE platform adapters.
 
-class PlatformAdapter(
-    AgentDeployMixin,
-    InstructionDeployMixin,
-    SkillDeployMixin,
-    CommandRulesDeployMixin,
-    McpDeployMixin,
-    ABC,
-):
-    """Abstract base for all AI IDE platform adapters."""
+    A platform adapter is a config / capability carrier plus a set of
+    per-platform strategy hooks. Deploy algorithms live in
+    :mod:`cataforge.runtime.deploy.steps` and read these hooks; the adapter
+    owns no deploy iteration of its own.
+    """
 
     def __init__(self, profile: PlatformProfile) -> None:
         self._profile = profile
@@ -418,3 +407,73 @@ class PlatformAdapter(
             return ""
         lines = [template.format(path=p) for p in files]
         return "\n".join(lines) + "\n\n"
+
+    def post_instruction_deploy(
+        self,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: Any = None,
+    ) -> list[str]:
+        """Register platform-native instruction artefacts after the base copy.
+
+        Default: no-op. The instruction step writes the IDE's CLAUDE.md /
+        AGENTS.md, then calls this hook so platforms that surface their
+        instruction set through a config file (e.g. OpenCode's
+        ``opencode.json#instructions``) can append it."""
+        del project_root, dry_run, manifest
+        return []
+
+    def rules_target_relpath(self, platform_root: Path) -> str | None:
+        """Relative target for the rendered ``.cataforge/rules`` copy.
+
+        Default: ``<platform_root>/rules`` (where *platform_root* is the parent
+        of the first agent scan dir). Return ``None`` to skip the base
+        copy-render entirely — used by platforms that surface canonical rules
+        through a different mechanism (e.g. Cursor's ``.cursor/rules/*.mdc``)."""
+        return f"{platform_root.as_posix()}/rules"
+
+    def emit_extra_rules(
+        self,
+        source_dir: Path,
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+        manifest: Any = None,
+        force_copy: bool = False,
+    ) -> list[str]:
+        """Emit any platform-specific rule artefacts alongside the base copy.
+
+        Default: no-op. Cursor uses this for the optional ``.claude/rules``
+        cross-platform Markdown mirror."""
+        del source_dir, project_root, dry_run, manifest, force_copy
+        return []
+
+    def mcp_json_path(self, project_root: Path) -> Path:
+        """JSON file the default :meth:`write_mcp_config` writes to.
+
+        Platforms that rely on the default JSON merge override this single
+        method; platforms with a fully custom MCP layout (e.g. Codex TOML,
+        OpenCode's per-repo merge) override :meth:`write_mcp_config` and can
+        leave this raising."""
+        raise NotImplementedError(
+            f"{type(self).__name__} must override either write_mcp_config() or mcp_json_path()"
+        )
+
+    def write_mcp_config(
+        self,
+        server_id: str,
+        server_config: dict[str, Any],
+        project_root: Path,
+        *,
+        dry_run: bool = False,
+    ) -> list[str]:
+        """Write one MCP server config into the platform's configuration file.
+
+        Default: merge into a JSON file under ``mcpServers.<id>`` at
+        :meth:`mcp_json_path`. Platforms using a non-JSON or non-standard
+        layout override this hook directly."""
+        from cataforge.adapter.platform.hooks_config import merge_json_key
+
+        mcp_path = self.mcp_json_path(project_root)
+        return merge_json_key(mcp_path, f"mcpServers.{server_id}", server_config, dry_run=dry_run)

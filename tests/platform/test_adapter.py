@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from cataforge.adapter.platform.registry import get_adapter
+from cataforge.runtime.deploy import steps
 
 
 @pytest.fixture()
@@ -424,7 +425,7 @@ class TestClaudeCodeAgentLayout:
     def test_claude_code_emits_flat_layout_only(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
         src = self._make_source(project_dir)
-        actions = adapter.deploy_agents(src, project_dir, dry_run=False)
+        actions = steps.deploy_agents(adapter, src, project_dir, dry_run=False)
 
         flat = project_dir / ".claude" / "agents" / "orchestrator.md"
         nested = project_dir / ".claude" / "agents" / "orchestrator" / "AGENT.md"
@@ -436,12 +437,12 @@ class TestClaudeCodeAgentLayout:
     def test_claude_code_prunes_flat_on_removal(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
         src = self._make_source(project_dir)
-        adapter.deploy_agents(src, project_dir, dry_run=False)
+        steps.deploy_agents(adapter, src, project_dir, dry_run=False)
 
         import shutil
 
         shutil.rmtree(src / "orchestrator")
-        adapter.deploy_agents(src, project_dir, dry_run=False)
+        steps.deploy_agents(adapter, src, project_dir, dry_run=False)
 
         assert not (project_dir / ".claude" / "agents" / "orchestrator.md").exists()
 
@@ -458,7 +459,7 @@ class TestClaudeCodeAgentLayout:
             "---\nname: orchestrator\n---\nstale\n", encoding="utf-8"
         )
 
-        adapter.deploy_agents(src, project_dir, dry_run=False)
+        steps.deploy_agents(adapter, src, project_dir, dry_run=False)
 
         assert not legacy_dir.exists()
         assert (project_dir / ".claude" / "agents" / "orchestrator.md").is_file()
@@ -550,7 +551,7 @@ class TestCodexDeployIntegration:
         adapter = get_adapter("codex", project_dir_with_tier_map / ".cataforge" / "platforms")
         src = self._make_source(project_dir_with_tier_map)
 
-        adapter.deploy_agents(src, project_dir_with_tier_map, dry_run=False)
+        steps.deploy_agents(adapter, src, project_dir_with_tier_map, dry_run=False)
 
         toml_path = project_dir_with_tier_map / ".codex" / "agents" / "implementer.toml"
         assert toml_path.is_file()
@@ -654,7 +655,7 @@ class TestSecuritySensitiveFieldDrop:
             "---\nname: guard\ndescription: d\npermissionMode: bypassPermissions\n---\n# body\n",
             encoding="utf-8",
         )
-        actions = adapter.deploy_agents(src, project_dir, dry_run=False)
+        actions = steps.deploy_agents(adapter, src, project_dir, dry_run=False)
         assert any("permissionMode" in a and "WARN" in a for a in actions), (
             f"deploy actions missing permissionMode drop WARN: {actions}"
         )

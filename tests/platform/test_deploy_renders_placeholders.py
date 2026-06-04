@@ -11,13 +11,13 @@ deployed copy is what the LLM reads at runtime, so any leak of a literal
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.profile_schema import PlatformProfile
 from cataforge.adapter.platform.registry import get_adapter
+from cataforge.runtime.deploy import steps
 
 
 def _platforms_dir() -> Path:
@@ -62,17 +62,6 @@ class _SubdirAgentAdapter(PlatformAdapter):
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"
 
-    def inject_mcp_config(
-        self,
-        server_id: str,
-        server_config: dict[str, Any],
-        project_root: Path,
-        *,
-        dry_run: bool = False,
-    ) -> list[str]:
-        del server_id, server_config, project_root, dry_run
-        return []
-
 
 def _write_agent(agents_dir: Path, name: str, body: str) -> None:
     agent_dir = agents_dir / name
@@ -89,7 +78,7 @@ def test_deploy_agents_renders_agent_md_body(tmp_path: Path) -> None:
     adapter = _SubdirAgentAdapter()
     src = tmp_path / ".cataforge" / "agents"
     _write_agent(src, "orchestrator", "see {INSTRUCTION_FILE} §状态")
-    adapter.deploy_agents(src, tmp_path)
+    steps.deploy_agents(adapter, src, tmp_path)
     deployed = (tmp_path / ".test" / "agents" / "orchestrator" / "AGENT.md").read_text(
         encoding="utf-8"
     )
@@ -109,7 +98,7 @@ def test_deploy_agents_preserves_and_renders_sibling_md(tmp_path: Path) -> None:
         "see {INSTRUCTION_FILE} §X 和 {RULES_DIR}/COMMON-RULES.md", encoding="utf-8"
     )
 
-    adapter.deploy_agents(src, tmp_path)
+    steps.deploy_agents(adapter, src, tmp_path)
 
     sibling = tmp_path / ".test" / "agents" / "orchestrator" / "ORCHESTRATOR-PROTOCOLS.md"
     assert sibling.is_file()
@@ -133,13 +122,13 @@ def test_deploy_agents_prunes_stale_sibling(tmp_path: Path) -> None:
     from cataforge.runtime.deploy.manifest import DeployManifest
 
     manifest = DeployManifest("test-subdir")
-    adapter.deploy_agents(src, tmp_path, manifest=manifest)
+    steps.deploy_agents(adapter, src, tmp_path, manifest=manifest)
     prior = set(manifest.owned)
     assert ".test/agents/orchestrator/STALE-PROTOCOL.md" in prior
 
     # Second deploy: source dropped the sibling
     (src / "orchestrator" / "STALE-PROTOCOL.md").unlink()
-    adapter.deploy_agents(src, tmp_path, prior_manifest=prior)
+    steps.deploy_agents(adapter, src, tmp_path, prior_manifest=prior)
 
     assert not (tmp_path / ".test" / "agents" / "orchestrator" / "STALE-PROTOCOL.md").exists()
 
@@ -156,7 +145,7 @@ def test_deploy_rules_renders_md_files_in_place(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    adapter.deploy_rules(src, tmp_path)
+    steps.deploy_rules(adapter, src, tmp_path)
 
     deployed = (tmp_path / ".test" / "rules" / "COMMON-RULES.md").read_text(encoding="utf-8")
     assert "{INSTRUCTION_FILE}" not in deployed
@@ -180,7 +169,7 @@ def test_deploy_skills_copy_renders_md_but_leaves_non_md(tmp_path: Path) -> None
     # Non-md sibling with literal braces that must survive verbatim.
     (skill / "fixture.json").write_text('{"placeholder": "{INSTRUCTION_FILE}"}', encoding="utf-8")
 
-    adapter.deploy_skills(src, tmp_path)
+    steps.deploy_skills(adapter, src, tmp_path)
 
     skill_md = (tmp_path / ".test" / "skills" / "research" / "SKILL.md").read_text(encoding="utf-8")
     fixture = (tmp_path / ".test" / "skills" / "research" / "fixture.json").read_text(
@@ -207,7 +196,7 @@ def test_deploy_instruction_files_renders_runtime_placeholders(tmp_path: Path) -
         encoding="utf-8",
     )
 
-    adapter.deploy_instruction_files(project_state, tmp_path, platform_id="test-subdir")
+    steps.deploy_instruction_files(adapter, project_state, tmp_path, platform_id="test-subdir")
 
     out = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert "{platform}" not in out
@@ -238,7 +227,7 @@ def test_deploy_stamps_and_advances_framework_version(
         encoding="utf-8",
     )
 
-    adapter.deploy_instruction_files(project_state, tmp_path, platform_id=platform_id)
+    steps.deploy_instruction_files(adapter, project_state, tmp_path, platform_id=platform_id)
     out = (tmp_path / target_rel).read_text(encoding="utf-8")
     assert "{FRAMEWORK_VERSION}" not in out
     assert f"- 框架版本: {cataforge.__version__}" in out
@@ -246,7 +235,7 @@ def test_deploy_stamps_and_advances_framework_version(
     # Simulate an upgrade: bump the package version and re-deploy. section-merge
     # must advance the field (always_overwrite_fields), not preserve the stale value.
     monkeypatch.setattr(cataforge, "__version__", "9.9.9-test")
-    adapter.deploy_instruction_files(project_state, tmp_path, platform_id=platform_id)
+    steps.deploy_instruction_files(adapter, project_state, tmp_path, platform_id=platform_id)
     out2 = (tmp_path / target_rel).read_text(encoding="utf-8")
     assert "- 框架版本: 9.9.9-test" in out2
 
@@ -263,7 +252,7 @@ def test_real_adapter_renders_instruction_file_token(platform_id: str, tmp_path:
     adapter = get_adapter(platform_id, _platforms_dir())
     src = tmp_path / ".cataforge" / "agents"
     _write_agent(src, "smoke", "ref to {INSTRUCTION_FILE}")
-    adapter.deploy_agents(src, tmp_path)
+    steps.deploy_agents(adapter, src, tmp_path)
 
     # Scan for the deployed artefact (subdir or flat) — source under
     # ``.cataforge/`` must be excluded from this assertion because it

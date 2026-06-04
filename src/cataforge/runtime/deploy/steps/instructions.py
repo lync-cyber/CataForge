@@ -150,4 +150,7 @@ def deploy_instruction_files(
     if hashes_dirty and not dry_run:
         save_instruction_hashes(project_root, hashes)
 
+    actions.extend(
+        adapter.post_instruction_deploy(project_root, dry_run=dry_run, manifest=manifest)
+    )
     return actions

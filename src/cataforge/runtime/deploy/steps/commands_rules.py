@@ -86,22 +86,36 @@ def deploy_rules(
     """Deploy rule files to the platform's rule directory.
 
     Copy + render so placeholders in ``COMMON-RULES.md`` /
-    ``SUB-AGENT-PROTOCOLS.md`` reach the IDE already substituted.
-    ``force_copy`` is accepted for API parity; deploy always copies (rendering
+    ``SUB-AGENT-PROTOCOLS.md`` reach the IDE already substituted (rendering
     forces independent copies — symlinks would point back at unrendered
-    source).
+    source). The base copy target comes from ``adapter.rules_target_relpath``;
+    platforms returning ``None`` skip it and rely on
+    ``adapter.emit_extra_rules`` for any native rule artefacts.
     """
-    del force_copy  # retained for API compat; always copy under render path
     del prior_manifest  # rules tree write is whole-dir; no per-file prune here
 
     scan_dirs = adapter.get_agent_scan_dirs()
     if not scan_dirs:
         return []
+
+    actions: list[str] = []
     platform_root = Path(scan_dirs[0]).parent
-    target = project_root / platform_root / "rules"
-    actions = copy_render_md_tree(adapter, source_dir, target, dry_run=dry_run)
-    if manifest is not None and not dry_run:
-        manifest.record(f"{platform_root.as_posix()}/rules")
+    target_rel = adapter.rules_target_relpath(platform_root)
+    if target_rel:
+        target = project_root / target_rel
+        actions.extend(copy_render_md_tree(adapter, source_dir, target, dry_run=dry_run))
+        if manifest is not None and not dry_run:
+            manifest.record(target_rel)
+
+    actions.extend(
+        adapter.emit_extra_rules(
+            source_dir,
+            project_root,
+            dry_run=dry_run,
+            manifest=manifest,
+            force_copy=force_copy,
+        )
+    )
     return actions
 
 

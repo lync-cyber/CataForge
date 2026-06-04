@@ -9,6 +9,7 @@ import pytest
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.profile_schema import PlatformProfile
+from cataforge.runtime.deploy import steps
 
 
 class _MinimalAdapter(PlatformAdapter):
@@ -37,9 +38,6 @@ class _MinimalAdapter(PlatformAdapter):
     def get_agent_format(self) -> str:
         return "yaml-frontmatter"
 
-    def inject_mcp_config(self, server_id, server_config, project_root, *, dry_run=False):
-        return []
-
 
 @pytest.fixture()
 def adapter() -> _MinimalAdapter:
@@ -67,7 +65,7 @@ def test_deploy_commands_prunes_orphans(tmp_path: Path, adapter: _MinimalAdapter
     target.mkdir(parents=True)
     (target / "legacy.md").write_text("stale\n", encoding="utf-8")
 
-    actions = adapter.deploy_commands(source, tmp_path)
+    actions = steps.deploy_commands(adapter, source, tmp_path)
     assert (target / "bootstrap.md").is_file()
     assert not (target / "legacy.md").exists()
     assert any("pruned orphan" in a and "legacy.md" in a for a in actions)
@@ -84,7 +82,7 @@ def test_deploy_commands_leaves_foreign_non_md_alone(
     target.mkdir(parents=True)
     (target / "README.txt").write_text("keep me\n", encoding="utf-8")
 
-    adapter.deploy_commands(source, tmp_path)
+    steps.deploy_commands(adapter, source, tmp_path)
     assert (target / "README.txt").is_file()
 
 
@@ -101,7 +99,7 @@ def test_deploy_agents_prunes_orphan_subdirs(tmp_path: Path, adapter: _MinimalAd
     orphan.mkdir(parents=True)
     (orphan / "AGENT.md").write_text("---\nname: retired-agent\n---\nold\n", encoding="utf-8")
 
-    adapter.deploy_agents(source, tmp_path)
+    steps.deploy_agents(adapter, source, tmp_path)
     assert (target / "orchestrator" / "AGENT.md").is_file()
     assert not orphan.exists()
 
@@ -120,7 +118,7 @@ def test_deploy_agents_prunes_sibling_reference_files(
     target.mkdir(parents=True)
     (target / "ORCHESTRATOR-PROTOCOLS.md").write_text("stale\n", encoding="utf-8")
 
-    adapter.deploy_agents(source, tmp_path)
+    steps.deploy_agents(adapter, source, tmp_path)
     assert (target / "AGENT.md").is_file()
     assert not (target / "ORCHESTRATOR-PROTOCOLS.md").exists()
 
@@ -140,6 +138,6 @@ def test_deploy_agents_does_not_prune_native_agents(
     native.mkdir(parents=True)
     (native / "config.yaml").write_text("native: true\n", encoding="utf-8")
 
-    adapter.deploy_agents(source, tmp_path)
+    steps.deploy_agents(adapter, source, tmp_path)
     assert native.is_dir()
     assert (native / "config.yaml").is_file()

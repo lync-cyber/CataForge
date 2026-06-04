@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from cataforge.adapter.platform.registry import get_adapter
+from cataforge.runtime.deploy import steps
 
 
 @pytest.fixture()
@@ -44,7 +45,7 @@ def _platforms_dir(repo_root: Path) -> Path:
 def test_cursor_wraps_override_rule_as_mdc(with_override_rule: Path) -> None:
     """Cursor's hook produces .cursor/rules/<name>.mdc with alwaysApply."""
     adapter = get_adapter("cursor", _platforms_dir(Path.cwd()))
-    actions = adapter.deploy_overrides_rules(with_override_rule, dry_run=False)
+    actions = steps.deploy_overrides_rules(adapter, with_override_rule, dry_run=False)
 
     out = with_override_rule / ".cursor" / "rules" / "sample-fallback.mdc"
     assert out.is_file(), actions
@@ -62,7 +63,7 @@ def test_codex_copies_override_rule_as_markdown(with_override_rule: Path) -> Non
     rule directory instead of orbiting unused under overrides/rules/.
     """
     adapter = get_adapter("codex", _platforms_dir(Path.cwd()))
-    actions = adapter.deploy_overrides_rules(with_override_rule, dry_run=False)
+    actions = steps.deploy_overrides_rules(adapter, with_override_rule, dry_run=False)
 
     out = with_override_rule / ".codex" / "rules" / "sample-fallback.md"
     assert out.is_file(), actions
@@ -72,7 +73,7 @@ def test_codex_copies_override_rule_as_markdown(with_override_rule: Path) -> Non
 def test_claude_code_copies_override_rule_as_markdown(with_override_rule: Path) -> None:
     """Claude Code uses base default — copies to .claude/rules/."""
     adapter = get_adapter("claude-code", _platforms_dir(Path.cwd()))
-    actions = adapter.deploy_overrides_rules(with_override_rule, dry_run=False)
+    actions = steps.deploy_overrides_rules(adapter, with_override_rule, dry_run=False)
 
     out = with_override_rule / ".claude" / "rules" / "sample-fallback.md"
     assert out.is_file(), actions
@@ -86,7 +87,7 @@ def test_opencode_skips_file_write(with_override_rule: Path) -> None:
     platform-native directory would duplicate the source.
     """
     adapter = get_adapter("opencode", _platforms_dir(Path.cwd()))
-    actions = adapter.deploy_overrides_rules(with_override_rule, dry_run=False)
+    actions = steps.deploy_overrides_rules(adapter, with_override_rule, dry_run=False)
 
     # No new file under any plausible target
     assert not (with_override_rule / ".opencode" / "rules").exists()
@@ -98,14 +99,14 @@ def test_opencode_skips_file_write(with_override_rule: Path) -> None:
 def test_missing_overrides_dir_returns_empty_actions(tmp_path: Path) -> None:
     """No directory → no work, no error."""
     adapter = get_adapter("cursor", _platforms_dir(Path.cwd()))
-    actions = adapter.deploy_overrides_rules(tmp_path, dry_run=False)
+    actions = steps.deploy_overrides_rules(adapter, tmp_path, dry_run=False)
     assert actions == []
 
 
 def test_dry_run_writes_no_files(with_override_rule: Path) -> None:
     """dry_run keeps deploy previewable."""
     adapter = get_adapter("cursor", _platforms_dir(Path.cwd()))
-    actions = adapter.deploy_overrides_rules(with_override_rule, dry_run=True)
+    actions = steps.deploy_overrides_rules(adapter, with_override_rule, dry_run=True)
     assert not (with_override_rule / ".cursor" / "rules").exists()
     assert any("would deploy" in a for a in actions)
 

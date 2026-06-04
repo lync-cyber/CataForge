@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 
 from cataforge.adapter.platform.registry import get_adapter
+from cataforge.runtime.deploy import steps
 
 
 def _platforms_dir() -> Path:
@@ -50,7 +51,7 @@ def test_flat_deploy_keeps_src_xref_resolvable(tmp_path: Path) -> None:
         "协议见 {AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md",
     )
 
-    adapter.deploy_agents(src, tmp_path)
+    steps.deploy_agents(adapter, src, tmp_path)
 
     body = (tmp_path / ".claude" / "agents" / "orchestrator.md").read_text(encoding="utf-8")
     assert "{AGENTS_SRC_DIR}" not in body

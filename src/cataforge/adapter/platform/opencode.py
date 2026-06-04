@@ -41,24 +41,13 @@ class OpenCodeAdapter(PlatformAdapter):
         # are read-scan dirs, not the write target).
         return ".opencode/agents"
 
-    def deploy_instruction_files(
+    def post_instruction_deploy(
         self,
-        project_state_path: Path,
         project_root: Path,
         *,
-        platform_id: str,
         dry_run: bool = False,
         manifest: DeployManifest | None = None,
-        prior_manifest: set[str] | None = None,
     ) -> list[str]:
-        actions = super().deploy_instruction_files(
-            project_state_path,
-            project_root,
-            platform_id=platform_id,
-            dry_run=dry_run,
-            manifest=manifest,
-            prior_manifest=prior_manifest,
-        )
         # The instructions list is declared in profile.context_injection so it
         # stays auditable alongside the rest of the platform surface.  Fall
         # back to the legacy literal if the profile omits the section so older
@@ -66,19 +55,17 @@ class OpenCodeAdapter(PlatformAdapter):
         ci = self.context_injection
         rd = ci.get("rules_distribution", {}) or {}
         instructions = list(rd.get("files") or ["AGENTS.md", ".cataforge/rules/*.md"])
-        actions.extend(
-            merge_json_key(
-                project_root / "opencode.json",
-                "instructions",
-                instructions,
-                dry_run=dry_run,
-            )
+        actions = merge_json_key(
+            project_root / "opencode.json",
+            "instructions",
+            instructions,
+            dry_run=dry_run,
         )
         if manifest is not None and not dry_run:
             manifest.record("opencode.json")
         return actions
 
-    def inject_mcp_config(
+    def write_mcp_config(
         self,
         server_id: str,
         server_config: dict[str, Any],

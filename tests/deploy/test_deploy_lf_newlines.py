@@ -128,10 +128,10 @@ def test_deployed_artefacts_use_lf_newlines(tmp_path: Path, monkeypatch) -> None
 # ``atomic_write_text``. A bare ``.write_text(`` here reintroduces the
 # Windows CRLF defect even when CI runs on an LF-only platform.
 _GUARDED_RELPATHS = (
-    "adapter/platform/_deploy_mixins/agents.py",
-    "adapter/platform/_deploy_mixins/commands_rules.py",
-    "adapter/platform/_deploy_mixins/instructions.py",
-    "adapter/platform/_deploy_mixins/skills.py",
+    "runtime/deploy/steps/agents.py",
+    "runtime/deploy/steps/commands_rules.py",
+    "runtime/deploy/steps/instructions.py",
+    "runtime/deploy/steps/skills.py",
     "adapter/platform/fileops.py",
     "adapter/platform/hooks_config.py",
     "adapter/platform/mcp_config.py",

@@ -225,7 +225,10 @@ class Deployer:
         )
 
     def _step_deploy_instruction_files(self, ctx: DeployContext) -> list[str]:
-        return ctx.adapter.deploy_instruction_files(
+        from cataforge.runtime.deploy.steps import deploy_instruction_files
+
+        return deploy_instruction_files(
+            ctx.adapter,
             ctx.instruction_src,
             ctx.root,
             platform_id=ctx.platform_id,
@@ -250,7 +253,10 @@ class Deployer:
         )
 
     def _step_deploy_rules(self, ctx: DeployContext) -> list[str]:
-        return ctx.adapter.deploy_rules(
+        from cataforge.runtime.deploy.steps import deploy_rules
+
+        return deploy_rules(
+            ctx.adapter,
             ctx.cfg.paths.rules_dir,
             ctx.root,
             dry_run=ctx.dry_run,
@@ -564,6 +570,7 @@ class Deployer:
         manifest: DeployManifest | None = None,
         dry_run: bool = False,
     ) -> list[str]:
+        from cataforge.runtime.deploy.steps import inject_mcp_config
         from cataforge.runtime.mcp.registry import MCPRegistry
 
         registry = MCPRegistry(root)
@@ -573,7 +580,7 @@ class Deployer:
             if not payload:
                 actions.append(f"SKIP: mcp.{server.id} — empty platform payload")
                 continue
-            actions.extend(adapter.inject_mcp_config(server.id, payload, root, dry_run=dry_run))
+            actions.extend(inject_mcp_config(adapter, server.id, payload, root, dry_run=dry_run))
         return actions
 
     def _write_deploy_state(self, root: Path, platform_id: str) -> None:

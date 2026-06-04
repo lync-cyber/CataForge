@@ -17,15 +17,11 @@ def inject_mcp_config(
     *,
     dry_run: bool = False,
 ) -> list[str]:
-    """Write MCP server config into the platform's configuration file.
+    """Write one MCP server config into the platform's configuration file.
 
-    Default: merge into a JSON file under the standard ``mcpServers.<id>`` key
-    via :func:`merge_json_key`.  The concrete path comes from
-    ``adapter.mcp_json_path``.  Platforms using a non-JSON or non-standard
-    layout (e.g. Codex TOML, OpenCode's per-repo merge) override
-    ``inject_mcp_config`` on the adapter itself instead.
+    Routes to the adapter's :meth:`write_mcp_config` strategy hook. The default
+    hook merges into a JSON file under ``mcpServers.<id>`` at
+    ``adapter.mcp_json_path``; Codex (TOML) and OpenCode (per-repo merge)
+    override the hook for their native layout.
     """
-    from cataforge.adapter.platform.hooks_config import merge_json_key
-
-    mcp_path = adapter.mcp_json_path(project_root)
-    return merge_json_key(mcp_path, f"mcpServers.{server_id}", server_config, dry_run=dry_run)
+    return adapter.write_mcp_config(server_id, server_config, project_root, dry_run=dry_run)
