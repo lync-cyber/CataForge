@@ -38,8 +38,8 @@ user-invocable: true
 - {INSTRUCTION_FILE} 存在 → 分支 B（已有项目）
 
 ### 分支 A: 新项目启动
-1. 读取 {AGENTS_DIR}/orchestrator/AGENT.md 的角色定义
-2. 执行 `{AGENTS_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap
+1. 读取 {AGENTS_SRC_DIR}/orchestrator/AGENT.md 的角色定义
+2. 执行 `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap
    - 其中 Step 2 会通过 AskUserQuestion 询问执行模式（standard / agile-lite / agile-prototype），选项语义见 COMMON-RULES §执行模式矩阵
 3. 进入初始阶段（由执行模式决定，见 Bootstrap Step 8）
 
@@ -57,5 +57,5 @@ user-invocable: true
    - 当前阶段=development 且存在未完成任务 → 定位到当前Sprint和具体任务，恢复TDD流程
    - 用户指定目标阶段（如"从架构设计开始"）→ 验证前置条件后跳转
    - 其他 → 正常恢复
-3. 读取 {AGENTS_DIR}/orchestrator/AGENT.md 的角色定义
+3. 读取 {AGENTS_SRC_DIR}/orchestrator/AGENT.md 的角色定义
 4. 执行 Startup Protocol 恢复推进

@@ -8,7 +8,7 @@
 <!-- OVERRIDE:startup_notes -->
     === 启动须知 ===
     - 请首先读取 {RULES_DIR}/COMMON-RULES.md（Codex 不自动注入规则文件）
-    - 你的角色定义见 {AGENTS_DIR}/{agent_id}/AGENT.md
+    - 你的角色定义见 {AGENTS_SRC_DIR}/{agent_id}/AGENT.md
 <!-- /OVERRIDE:startup_notes -->
 
 <!-- OVERRIDE:tool_usage -->

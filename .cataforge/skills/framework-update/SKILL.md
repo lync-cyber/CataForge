@@ -117,7 +117,7 @@ fresh install 报告缺平台时询问用户（`claude-code` 默认）并 `cataf
 
 依 `{INSTRUCTION_FILE}` 是否存在分流:
 
-- **缺 — from-scratch 项目**: 委托执行 `{AGENTS_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap（收集项目信息、选执行模式、建 `docs/` 结构、写 `{INSTRUCTION_FILE}`、装配 env + permissions、进入初始 phase）。目标平台已由 Step 3 确定，从 `framework.json` `runtime.platform` 读取，不重新选型/部署。
+- **缺 — from-scratch 项目**: 委托执行 `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap（收集项目信息、选执行模式、建 `docs/` 结构、写 `{INSTRUCTION_FILE}`、装配 env + permissions、进入初始 phase）。目标平台已由 Step 3 确定，从 `framework.json` `runtime.platform` 读取，不重新选型/部署。
 - **在 — 已初始化**: 不重跑 Project Bootstrap。若 `{INSTRUCTION_FILE}` §执行环境 仍是占位符或技术栈变化:
 
   ```bash
