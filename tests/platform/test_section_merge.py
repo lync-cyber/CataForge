@@ -294,3 +294,69 @@ class TestAGENTSMultiPlatform:
         # User-provided tech stack survived even through a different
         # platform's deploy.
         assert "技术栈: Python" in out
+
+
+class TestBlankLinePreservation:
+    """The blank line between a heading and its body must survive the merge.
+
+    Dropping it violates MD022 and makes section-merge non-idempotent: every
+    deploy strips the blank, producing a churn diff on an otherwise unchanged
+    instruction file. Covers all three body-bearing categories plus a
+    round-trip fixpoint check.
+    """
+
+    def test_framework_section_keeps_blank_line(self) -> None:
+        cur = "## Docs\n\nold\n"
+        tpl = "## Docs\n\nnew body\n"
+        out = merge_sections(cur, tpl, policy={"framework": ["Docs"]})
+        assert "## Docs\n\nnew body" in out
+
+    def test_runtime_section_keeps_blank_line(self) -> None:
+        cur = "## State\n\n- 当前阶段: development\n"
+        tpl = "## State\n\n- 当前阶段: {x}\n"
+        out = merge_sections(cur, tpl, policy={"runtime": ["State"]})
+        assert "## State\n\n- 当前阶段: development" in out
+
+    def test_schema_section_keeps_blank_line(self) -> None:
+        cur = "## Info\n\n- 技术栈: Python\n"
+        tpl = "## Info\n\n- 技术栈: {x}\n"
+        out = merge_sections(cur, tpl, policy={"schema": ["Info"]})
+        assert "## Info\n\n- 技术栈: Python" in out
+
+    def test_compact_section_stays_compact(self) -> None:
+        """A heading with no blank line is left as-is — the fix preserves the
+        author's spacing, it does not force a blank in."""
+        cur = "## Docs\nbody\n"
+        tpl = "## Docs\nbody\n"
+        out = merge_sections(cur, tpl, policy={"framework": ["Docs"]})
+        assert "## Docs\nbody" in out
+        assert "## Docs\n\nbody" not in out
+
+    def test_blank_lines_are_idempotent(self) -> None:
+        cur = (
+            "# CataForge\n\n"
+            "## 项目信息\n\n- 技术栈: Python\n\n"
+            "## 文档导航\n\n- 导航索引: docs/.doc-index.json\n\n"
+            "## My Ext\n\ncustom\n"
+        )
+        tpl = "## 项目信息\n\n- 技术栈: {x}\n\n## 文档导航\n\n- 导航索引: docs/.doc-index.json\n"
+        policy = {
+            "schema": ["项目信息"],
+            "framework": ["文档导航"],
+            "user_extensible": True,
+        }
+        once = merge_sections(cur, tpl, policy=policy)
+        assert "## 项目信息\n\n- 技术栈: Python" in once
+        assert "## 文档导航\n\n- 导航索引" in once
+        assert "## My Ext\n\ncustom" in once
+        twice = merge_sections(once, tpl, policy=policy)
+        assert once == twice
+
+    def test_sections_separated_by_blank_line(self) -> None:
+        """A blank line precedes every heading even when the prior section's
+        framework body carries no trailing blank (MD022)."""
+        cur = "## A\nbody-a\n## B\nbody-b\n"
+        tpl = "## A\nnew-a\n"  # framework body, no trailing blank line
+        out = merge_sections(cur, tpl, policy={"framework": ["A"], "user_extensible": True})
+        assert "new-a\n\n## B" in out
+        assert "new-a\n## B" not in out

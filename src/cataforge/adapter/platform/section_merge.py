@@ -35,7 +35,10 @@ import re
 from collections import OrderedDict
 from typing import Any
 
-_H2_RE = re.compile(r"^##\s+(?P<title>.+?)\s*$", re.MULTILINE)
+# Trailing match is ``[^\S\n]*`` (whitespace except newline), not ``\s*``:
+# ``\s`` includes ``\n``, so under MULTILINE it would swallow the heading's own
+# newline and consume the blank line that separates a heading from its body.
+_H2_RE = re.compile(r"^##\s+(?P<title>.+?)[^\S\n]*$", re.MULTILINE)
 _FIELD_RE = re.compile(r"^- (?P<key>[^:\n]+?):\s*(?P<value>.*)$")
 _PLACEHOLDER_RE = re.compile(r"^\{[^{}]*\}$")
 
@@ -172,15 +175,26 @@ def _normalize_whitespace(text: str) -> str:
 
 
 def _serialize(preamble: str, sections: OrderedDict[str, str]) -> str:
-    """Rebuild the markdown preserving trailing-newline discipline."""
+    """Rebuild the markdown.
+
+    Guarantees a blank line before every ``## `` heading (MD022: a heading must
+    be separated from preceding content) regardless of whether the prior
+    section's body carried a trailing blank. Heading-to-body spacing is left to
+    whatever the body carries. Section bodies always end in a newline.
+    """
     out = [preamble]
     for title, body in sections.items():
-        if out[-1] and not out[-1].endswith("\n"):
-            out.append("\n")
+        tail = out[-1]
+        if tail:
+            if not tail.endswith("\n"):
+                out.append("\n\n")
+            elif not tail.endswith("\n\n"):
+                out.append("\n")
         out.append(f"## {title}\n")
-        out.append(body)
-        if not body.endswith("\n"):
-            out.append("\n")
+        if body:
+            out.append(body)
+            if not body.endswith("\n"):
+                out.append("\n")
     return "".join(out)
 
 
@@ -222,6 +236,11 @@ def _merge_fields(
     - Nested structure (multi-line bullet bodies) is preserved verbatim from
       whichever side owns the field in the output.
     """
+    # A heading-to-body blank line surfaces as a leading newline on the split
+    # body; _parse_bullets treats it as header and drops it. Re-attach one when
+    # either side carries it so section-merge stays idempotent on MD022-spaced
+    # files instead of stripping the blank on every deploy.
+    lead = "\n" if cur_body.startswith("\n") or tpl_body.startswith("\n") else ""
     cur_parsed = _parse_bullets(cur_body)
     tpl_parsed = _parse_bullets(tpl_body)
 
@@ -256,7 +275,7 @@ def _merge_fields(
     tail = tpl_tail if tpl_tail.strip() else cur_tail
     if tail and not merged.endswith("\n"):
         merged += "\n"
-    return merged + tail
+    return lead + merged + tail
 
 
 class _BulletBlock:
