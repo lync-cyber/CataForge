@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import click
 
@@ -103,7 +103,7 @@ def _report_runtime_degradation(cfg: ConfigManager, declared: list[str]) -> None
         click.echo(f"    {statuses[name].upper()} {name}")
 
 
-def report_hook_errors(cfg) -> None:
+def report_hook_errors(cfg: ConfigManager) -> None:
     """Surface recent entries from ``.cataforge/.hook-errors.jsonl``.
 
     Doctor doesn't fail on these — a crashed observer hook is degraded
@@ -119,7 +119,7 @@ def report_hook_errors(cfg) -> None:
         return
 
     cutoff = datetime.now(UTC) - timedelta(hours=24)
-    recent: list[dict] = []
+    recent: list[dict[str, Any]] = []
     try:
         with open(log_path) as f:
             for raw in f:

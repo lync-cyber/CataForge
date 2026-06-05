@@ -249,6 +249,7 @@ module = [
     "cataforge.runtime.mcp.*",
     "cataforge.runtime.hook.*",
     "cataforge.domain.docs.*",
+    "cataforge.interface.cli.*",
 ]
 strict = true
 

@@ -151,7 +151,7 @@ def _emit_doctor_validate_failures(
     _emit_id_failures(alias_conflicts, invalid_ids)
 
 
-def check_docs_validate(cfg) -> int:
+def check_docs_validate(cfg: ConfigManager) -> int:
     """Run the same validation suite as ``cataforge docs validate``.
 
     Shares :func:`cataforge.domain.docs.indexer.validate_docs` with the CLI so any

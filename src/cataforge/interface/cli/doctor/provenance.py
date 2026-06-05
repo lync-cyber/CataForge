@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 # Single source of truth for "what does CataForge own under each platform?"
 # Shared with :mod:`deploy_integrity` so the informational report and the
@@ -32,7 +36,7 @@ _OWNED_DIRS_BY_PLATFORM: dict[str, list[str]] = {
 }
 
 
-def report_deployment_provenance(cfg) -> None:
+def report_deployment_provenance(cfg: ConfigManager) -> None:
     """Show which platform directories were created by the last deploy.
 
     Reads ``.cataforge/.deploy-state`` (written at the end of each

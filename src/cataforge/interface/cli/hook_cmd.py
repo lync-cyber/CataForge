@@ -201,7 +201,7 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
 
     # The wrapper only takes argv positionally; this site needs to pass args/shell
     # via **proc_kwargs (shell=True for unsafe_shell hooks).
-    proc = subprocess.run(  # allow-raw-subprocess: shell=True for unsafe_shell hooks
+    proc = subprocess.run(  # type: ignore[call-overload]  # allow-raw-subprocess: shell=True for unsafe_shell hooks
         input=payload,
         capture_output=True,
         text=True,

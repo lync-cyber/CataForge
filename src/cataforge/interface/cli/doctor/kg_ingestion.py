@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import click
 
@@ -41,7 +41,7 @@ def _get_entity_id_re() -> re.Pattern[str]:
     return _ENTITY_ID_RE
 
 
-def _load_framework_json(cfg: ConfigManager) -> dict | None:
+def _load_framework_json(cfg: ConfigManager) -> dict[str, Any] | None:
     """Return parsed framework.json for cfg, or None on any failure."""
     try:
         framework = cfg.paths.framework_json
@@ -50,9 +50,10 @@ def _load_framework_json(cfg: ConfigManager) -> dict | None:
     if not Path(framework).is_file():
         return None
     try:
-        return read_json(framework)
+        data = read_json(framework)
     except ConfigError:
         return None
+    return data if isinstance(data, dict) else None
 
 
 def _default_kg_active() -> set[str]:
@@ -124,7 +125,7 @@ def _kg_entity_ids(db_path: Path) -> set[str]:
         return kg.query.entity_ids()
 
 
-def _fs_entity_collisions(project_root: Path, doc_types: set[str]) -> list:
+def _fs_entity_collisions(project_root: Path, doc_types: set[str]) -> list[Any]:
     """Same-id-defined-across-docs collisions, parsed straight from markdown.
 
     Mirrors the import-time gate so a store ingested before the gate landed
@@ -137,7 +138,7 @@ def _fs_entity_collisions(project_root: Path, doc_types: set[str]) -> list:
     )
     from cataforge.domain.kg.ingest.scan import scan_business_docs  # noqa: PLC0415
 
-    all_entities: list = []
+    all_entities: list[Any] = []
     for doc in scan_business_docs(project_root, sorted(doc_types)):
         all_entities.extend(extract_entities(doc))
     return detect_entity_id_collisions(all_entities)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import click
 
@@ -115,10 +115,11 @@ def _materialize_query_result(raw: object) -> object:
     if type_name == "QueryBoolean" or isinstance(raw, bool):
         return ("ask", bool(raw))
     if type_name == "QuerySolutions":
-        variables_terms = list(raw.variables)
+        solutions: Any = raw
+        variables_terms = list(solutions.variables)
         variables = [str(v).lstrip("?") for v in variables_terms]
         rows: list[dict[str, str]] = []
-        for row in raw:
+        for row in solutions:
             record: dict[str, str] = {}
             for raw_v, name in zip(variables_terms, variables, strict=True):
                 try:
@@ -135,7 +136,7 @@ def _materialize_query_result(raw: object) -> object:
                 "predicate": t.predicate,
                 "object": t.object,
             }
-            for t in raw
+            for t in cast("Any", raw)
         ]
         return ("construct", triples)
     return ("select", [], [])
@@ -233,15 +234,16 @@ def _term_to_str(term: object) -> str:
 def _ntriples_term(term: object) -> str:
     if term is None:
         return '""'
-    type_name = type(term).__name__
+    node: Any = term
+    type_name = type(node).__name__
     if type_name == "NamedNode":
-        return f"<{term.value}>"
+        return f"<{node.value}>"
     if type_name == "Literal":
-        escaped = term.value.replace("\\", "\\\\").replace('"', '\\"')
+        escaped = node.value.replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
     if type_name == "BlankNode":
-        return f"_:{term.value}"
-    return f"<{term}>"
+        return f"_:{node.value}"
+    return f"<{node}>"
 
 
 # ------------------------------------------------------------------
@@ -358,10 +360,10 @@ def _coverage_matrix(kg: KnowledgeGraph, fmt: str) -> None:
         click.echo(f"{r.feature_id:<{id_w}}  {(r.title or ''):<{title_w}}  {impl:<5}  {test:<5}")
 
 
-def _trace_json(chain: object, coverage_detail: dict | None) -> None:
+def _trace_json(chain: object, coverage_detail: dict[str, Any] | None) -> None:
     import dataclasses
 
-    d = dataclasses.asdict(chain)
+    d = dataclasses.asdict(cast("Any", chain))
     if coverage_detail is not None:
         d["coverage_detail"] = coverage_detail
     click.echo(json.dumps(d, indent=2, ensure_ascii=False))
@@ -379,7 +381,9 @@ def _chain_buckets(chain: TraceChain) -> list[tuple[str, list[str]]]:
     ]
 
 
-def _trace_table(chain: TraceChain, kg: KnowledgeGraph, coverage_detail: dict | None) -> None:
+def _trace_table(
+    chain: TraceChain, kg: KnowledgeGraph, coverage_detail: dict[str, Any] | None
+) -> None:
     click.echo(f"Traceability chain from {chain.root_id} (coverage={chain.coverage_status})")
     click.echo()
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import click
 
@@ -117,7 +117,7 @@ def _semver_ge(a: str, b: str) -> bool:
     return ta >= tb
 
 
-def _evaluate_check(check: dict, root: Path) -> tuple[bool, str]:
+def _evaluate_check(check: dict[str, Any], root: Path) -> tuple[bool, str]:
     """Evaluate a single migration_check entry.  Returns (ok, reason)."""
     ctype = str(check.get("type", ""))
     rel = str(check.get("path", ""))
