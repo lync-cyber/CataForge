@@ -12,6 +12,7 @@ import sys
 import time
 from pathlib import Path
 
+from cataforge.adapter.platform.registry import read_current_phase
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.runtime.skill.loader import SkillLoader, SkillMeta
 from cataforge.utils.run_subprocess import run as run_proc
@@ -160,10 +161,9 @@ class SkillRunner:
         schema drift, etc.) is swallowed so the caller still sees the
         subprocess result.
 
-        The phase is taken from ``CATAFORGE_EVENT_PHASE`` when set (so
-        orchestrator-driven runs can attribute to the right lifecycle
-        phase); otherwise defaults to ``development``, which is where
-        Layer 1 scripts are actually executed.
+        The phase is resolved by :meth:`_event_phase` so a review run during
+        requirements/planning attributes to that lifecycle phase rather than
+        a hardcoded ``development``.
 
         Agent attribution: if the caller didn't pass ``agent=``, we read
         ``CATAFORGE_INVOKING_AGENT`` from the env so an upstream
@@ -179,7 +179,7 @@ class SkillRunner:
         except Exception:
             return
 
-        phase = os.environ.get("CATAFORGE_EVENT_PHASE") or "development"
+        phase = self._event_phase()
         attributed_agent = agent or os.environ.get("CATAFORGE_INVOKING_AGENT") or "reviewer"
         if returncode == 0:
             detail = f"skill-run: {skill_id} Layer 1 passed"
@@ -228,7 +228,7 @@ class SkillRunner:
         except Exception:
             return
 
-        phase = os.environ.get("CATAFORGE_EVENT_PHASE") or "development"
+        phase = self._event_phase()
         attributed_agent = agent or os.environ.get("CATAFORGE_INVOKING_AGENT") or "reviewer"
         try:
             record = build_record(
@@ -252,6 +252,19 @@ class SkillRunner:
             if s["name"] == script_name:
                 return s
         return None
+
+    def _event_phase(self) -> str:
+        """Lifecycle phase for an auto-emitted event.
+
+        ``CATAFORGE_EVENT_PHASE`` (orchestrator-driven runs) wins; otherwise
+        the instruction file's 当前阶段; ``development`` is the last resort
+        when neither resolves.
+        """
+        return (
+            os.environ.get("CATAFORGE_EVENT_PHASE")
+            or read_current_phase(self._paths.root)
+            or "development"
+        )
 
     def _build_env(self) -> dict[str, str]:
         """Build environment for skill script execution."""

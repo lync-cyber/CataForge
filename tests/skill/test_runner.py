@@ -323,6 +323,52 @@ class TestSkillRunnerEventLog:
         assert not (project / "docs" / "EVENT-LOG.jsonl").exists()
 
 
+class TestSkillRunnerEventPhase:
+    """Auto-emitted event phase: env override → instruction file 当前阶段 →
+    ``development``. Regression for the hardcoded ``development`` default that
+    misattributed every requirements/planning-stage review to development."""
+
+    def _last_record(self, project: Path) -> dict:
+        import json
+
+        log = project / "docs" / "EVENT-LOG.jsonl"
+        lines = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+        return lines[-1]
+
+    def _state(self, phase: str) -> str:
+        return f"# Proj\n## 项目状态\n- 当前阶段: {phase}\n"
+
+    def test_falls_back_to_instruction_file_phase(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CATAFORGE_EVENT_PHASE", raising=False)
+        (project / "CLAUDE.md").write_text(self._state("planning"), encoding="utf-8")
+        _write_skill(project, "doc-review", script_body="import sys; sys.exit(0)\n")
+
+        SkillRunner(project).run("doc-review")
+        assert self._last_record(project)["phase"] == "planning"
+
+    def test_env_phase_wins_over_instruction_file(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CATAFORGE_EVENT_PHASE", "testing")
+        (project / "CLAUDE.md").write_text(self._state("planning"), encoding="utf-8")
+        _write_skill(project, "doc-review", script_body="import sys; sys.exit(0)\n")
+
+        SkillRunner(project).run("doc-review")
+        assert self._last_record(project)["phase"] == "testing"
+
+    def test_defaults_to_development_without_phase_source(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CATAFORGE_EVENT_PHASE", raising=False)
+        # No CLAUDE.md → no resolvable 当前阶段.
+        _write_skill(project, "doc-review", script_body="import sys; sys.exit(0)\n")
+
+        SkillRunner(project).run("doc-review")
+        assert self._last_record(project)["phase"] == "development"
+
+
 class TestSkillRunnerAgentAttribution:
     """Agent attribution: caller may pass agent= explicitly, or set
     CATAFORGE_INVOKING_AGENT in the env, or accept the legacy

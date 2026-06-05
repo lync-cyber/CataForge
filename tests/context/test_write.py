@@ -118,6 +118,27 @@ def test_finalize_exports_authored_entity(tmp_path: Path) -> None:
     assert any("F-001" in str(rec.output_path) for rec in result.file_records)
 
 
+def test_finalize_seeds_empty_graph_from_markdown(tmp_path: Path) -> None:
+    """Markdown-first authoring leaves the graph empty; finalize must seed it
+    (md→KG) so the reconcile guard is clean, without re-exporting over the
+    authored Markdown (a lossy round-trip). ``_project`` initializes the store
+    without ingesting, so the graph starts empty by construction."""
+    proj = _project(tmp_path, with_fixture_docs=True)
+
+    result = cw.finalize(str(proj))
+    gc.collect()
+    assert not result.errors
+    # md-first 定稿 seeds the graph but does not re-export — the authored
+    # Markdown is canonical and stays untouched.
+    assert not result.file_records
+
+    # Reconcile is clean only because the graph was seeded from the markdown;
+    # an unseeded (empty) graph would report every authored doc as drift.
+    report = cw.reconcile_check(str(proj))
+    gc.collect()
+    assert report.ok, report.to_dict()
+
+
 # ---- ingest + reconcile (md -> KG round-trip on aggregated docs) ------------
 
 

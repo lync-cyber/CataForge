@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 from typing import cast
@@ -117,6 +118,31 @@ def resolve_instruction_file(root: Path) -> Path:
         pass
     # Profile unreachable — fall back to the platform's conventional file.
     return root / ("CLAUDE.md" if platform_id == "claude-code" else "AGENTS.md")
+
+
+_CURRENT_PHASE_RE = re.compile(r"^-\s*当前阶段:\s*(.+?)\s*$", re.MULTILINE)
+
+
+def parse_current_phase(state_text: str) -> str | None:
+    """Return the instruction file's ``当前阶段`` value, or None when absent."""
+    m = _CURRENT_PHASE_RE.search(state_text)
+    return m.group(1).strip() if m else None
+
+
+def read_current_phase(root: Path) -> str | None:
+    """Resolve *root*'s instruction file and return its ``当前阶段`` value.
+
+    Returns None when the file is unreadable or carries no phase line — the
+    caller decides the fallback. Lives here (rank-3 adapter) so both the
+    interface CLI and the runtime skill runner can read the lifecycle phase
+    without an upward layer import.
+    """
+    path = resolve_instruction_file(root)
+    try:
+        text = path.read_text()
+    except OSError:
+        return None
+    return parse_current_phase(text)
 
 
 def clear_cache() -> None:

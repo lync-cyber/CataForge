@@ -110,7 +110,7 @@ def bootstrap_command(
     from cataforge.interface.cli.helpers import get_config_manager
 
     cfg = get_config_manager()
-    plan = build_plan(cfg, requested_platform=platform)
+    plan = build_plan(cfg, requested_platform=platform, requested_strategy=context_strategy)
 
     _print_plan(plan, dry_run=dry_run)
 
@@ -268,6 +268,12 @@ def _execute_plan(
         except Exception as e:  # noqa: BLE001
             ui.warn(f"docs index crashed: {e} — bootstrap continuing.")
 
+    # kg-first projects need an initialized store before the first
+    # `context write` / `reconcile`; without it those commands crash on a
+    # missing store. Create it idempotently (only when absent) so re-bootstrap
+    # is a no-op; non-blocking on failure like the docs-index step above.
+    _maybe_init_kg_store(cfg)
+
     doctor_step = step_by_name.get("doctor")
     if skip_doctor:
         ui.print("")
@@ -279,3 +285,35 @@ def _execute_plan(
         from cataforge.interface.cli.doctor_cmd import doctor_command
 
         ctx.invoke(doctor_command)
+
+
+def _maybe_init_kg_store(cfg: ConfigManager) -> None:
+    """Create the KG store on a kg-first project that lacks one.
+
+    No-op under ``doc-only`` (the graph is not a backend) and when a store
+    already exists (idempotent re-bootstrap). Failure warns and continues —
+    bootstrap must not be stranded by a store-init hiccup.
+    """
+    from cataforge.interface.cli.ui import ui
+
+    store_dir = cfg.paths.kg_store_dir
+    if store_dir.exists():
+        return
+
+    from cataforge.domain.kg._dispatch import invalidate_cache, kg_enabled
+
+    invalidate_cache()  # setup may have rewritten context.strategy this run
+    if not kg_enabled(cfg.paths.root):
+        return
+
+    ui.print("")
+    ui.info("[kg-init] initializing KG store (kg-first strategy)")
+    try:
+        from cataforge.domain.kg import init_store
+        from cataforge.domain.kg._dispatch import kg_config_for
+
+        handle = init_store(kg_config_for(cfg.paths.root), force=False)
+        handle.close()
+        ui.ok(f"KG store ready at {store_dir}")
+    except Exception as e:  # noqa: BLE001
+        ui.warn(f"kg init failed: {e} — bootstrap continuing.")

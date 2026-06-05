@@ -66,7 +66,7 @@
     "EVENT_LOG_SCHEMA": ".cataforge/schemas/event-log.schema.json",
     "DOC_SPLIT_THRESHOLD_LINES": 300,
     "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
-    "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "prd-lite", "arch-lite", "dev-plan-lite", "changelog"],
+    "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "changelog"],
     "TDD_LIGHT_LOC_THRESHOLD": 150,
     "TDD_DEFAULT_MODE": "light",
     "TDD_REFACTOR_TRIGGER": ["complexity", "duplication", "coupling"],

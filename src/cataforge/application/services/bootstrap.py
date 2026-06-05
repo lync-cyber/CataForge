@@ -53,7 +53,12 @@ class Plan:
         return any(s.action == "run" for s in self.steps if s.name != "doctor")
 
 
-def build_plan(cfg: ConfigManager, *, requested_platform: str | None) -> Plan:
+def build_plan(
+    cfg: ConfigManager,
+    *,
+    requested_platform: str | None,
+    requested_strategy: str | None = None,
+) -> Plan:
     """Inspect on-disk state and decide what each step must do."""
     from cataforge.core.scaffold import classify_scaffold_files
 
@@ -91,6 +96,7 @@ def build_plan(cfg: ConfigManager, *, requested_platform: str | None) -> Plan:
         plan.target_platform = requested_platform
         plan.add("upgrade", "skip", "fresh scaffold already current")
         plan.add("deploy", "run", "fresh install — initial deploy required")
+        _append_kg_init(plan, cfg, requested_strategy, scaffold_exists=False)
         if requested_platform is not None:
             _append_doctor(plan)
         return plan
@@ -195,12 +201,38 @@ def build_plan(cfg: ConfigManager, *, requested_platform: str | None) -> Plan:
         else:
             plan.add("deploy", "skip", f"{deployed_platform} already deployed")
 
+    _append_kg_init(plan, cfg, requested_strategy, scaffold_exists=True)
     _append_doctor(plan)
     return plan
 
 
 def _append_doctor(plan: Plan) -> None:
     plan.add("doctor", "run", "verification gate")
+
+
+def _append_kg_init(
+    plan: Plan, cfg: ConfigManager, requested_strategy: str | None, *, scaffold_exists: bool
+) -> None:
+    """Preview the kg-init step for a kg-first project that lacks a store.
+
+    Mirrors ``bootstrap_cmd._maybe_init_kg_store`` so ``--dry-run`` surfaces
+    it; omitted under doc-only (no graph backend). Execution recomputes the
+    decision post-setup, so this is a preview, not the authority.
+    """
+    from cataforge.domain.kg._dispatch import DEFAULT_CONTEXT_STRATEGY
+
+    strategy = requested_strategy
+    if strategy is None:
+        strategy = DEFAULT_CONTEXT_STRATEGY
+        if scaffold_exists:
+            raw = cfg.load_raw()
+            strategy = (raw.get("context") or {}).get("strategy") or DEFAULT_CONTEXT_STRATEGY
+    if strategy != "kg-first":
+        return
+    if cfg.paths.kg_store_dir.exists():
+        plan.add("kg-init", "skip", "store present")
+    else:
+        plan.add("kg-init", "run", "kg-first strategy — store absent")
 
 
 def _semver_newer(a: str, b: str) -> bool:

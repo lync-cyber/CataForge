@@ -23,6 +23,7 @@ from cataforge.core.event_log import (
 )
 from cataforge.core.io import read_stdin_utf8
 from cataforge.core.paths import find_project_root
+from cataforge.interface.cli.helpers import resolve_project_dir
 from cataforge.interface.cli.main import cli
 from cataforge.utils.atomic_write import atomic_write_text
 
@@ -105,7 +106,7 @@ def event_log_cmd(
         {"event":"phase_start","phase":"development","detail":"..."}
         EOF
     """
-    root = project_root or find_project_root()
+    root = project_root or resolve_project_dir() or find_project_root()
 
     if batch:
         if event_name or phase or detail or data:
@@ -213,7 +214,7 @@ def event_accept_legacy(before: str | None, project_root: Path | None) -> None:
             ) from e
         cutoff = before
 
-    cfg = ConfigManager(project_root)
+    cfg = ConfigManager(project_root or resolve_project_dir())
     raw = cfg.load_raw()
     upgrade = raw.setdefault("upgrade", {})
     state = upgrade.setdefault("state", {})

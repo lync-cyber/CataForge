@@ -8,7 +8,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cataforge.adapter.platform.registry import clear_cache, resolve_instruction_file
+from cataforge.adapter.platform.registry import (
+    clear_cache,
+    parse_current_phase,
+    read_current_phase,
+    resolve_instruction_file,
+)
 
 
 def _make_project(tmp_path: Path, platform_id: str, profiles: dict) -> Path:
@@ -63,3 +68,36 @@ def test_resolves_agents_md_for_cursor(tmp_path: Path) -> None:
         },
     )
     assert resolve_instruction_file(root) == root / "AGENTS.md"
+
+
+_CLAUDE_PROFILE = {
+    "claude-code": {
+        "platform_id": "claude-code",
+        "instruction_file": {
+            "reads_claude_md": True,
+            "targets": [{"type": "project_state_copy", "path": "CLAUDE.md"}],
+        },
+    }
+}
+
+
+def test_parse_current_phase_reads_value() -> None:
+    assert parse_current_phase("## 项目状态\n- 当前阶段: planning\n") == "planning"
+    assert parse_current_phase("no phase line here") is None
+
+
+def test_read_current_phase_from_instruction(tmp_path: Path) -> None:
+    root = _make_project(tmp_path, "claude-code", _CLAUDE_PROFILE)
+    (root / "CLAUDE.md").write_text("# Proj\n## 项目状态\n- 当前阶段: planning\n", encoding="utf-8")
+    assert read_current_phase(root) == "planning"
+
+
+def test_read_current_phase_none_when_file_absent(tmp_path: Path) -> None:
+    root = _make_project(tmp_path, "claude-code", _CLAUDE_PROFILE)
+    assert read_current_phase(root) is None
+
+
+def test_read_current_phase_none_when_no_phase_line(tmp_path: Path) -> None:
+    root = _make_project(tmp_path, "claude-code", _CLAUDE_PROFILE)
+    (root / "CLAUDE.md").write_text("# Proj\nno state section\n", encoding="utf-8")
+    assert read_current_phase(root) is None
