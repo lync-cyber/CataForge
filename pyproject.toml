@@ -248,6 +248,7 @@ module = [
     "cataforge.runtime.agent.*",
     "cataforge.runtime.mcp.*",
     "cataforge.runtime.hook.*",
+    "cataforge.runtime.skill.*",
     "cataforge.domain.docs.*",
     "cataforge.interface.cli.*",
 ]

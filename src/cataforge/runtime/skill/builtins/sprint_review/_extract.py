@@ -17,7 +17,7 @@ _TASK_TABLE_RE = re.compile(
 
 
 def find_dev_plan_files(dev_plan_dir: str) -> list[str]:
-    files = []
+    files: list[str] = []
     if not os.path.isdir(dev_plan_dir):
         return files
     for f in sorted(os.listdir(dev_plan_dir)):
@@ -26,7 +26,7 @@ def find_dev_plan_files(dev_plan_dir: str) -> list[str]:
     return files
 
 
-def load_project_features(dev_plan_files: list[str]) -> dict:
+def load_project_features(dev_plan_files: list[str]) -> dict[str, Any]:
     """Load ``project_features`` block from the dev-plan main volume frontmatter.
 
     Sprint volumes (``-s{N}.md``) inherit from the main volume; the first
@@ -52,8 +52,9 @@ def load_project_features(dev_plan_files: list[str]) -> dict:
         except OSError:
             continue
         meta, _ = split_yaml_frontmatter(raw)
-        if meta and isinstance(meta.get("project_features"), dict):
-            return meta["project_features"]
+        pf = meta.get("project_features") if meta else None
+        if isinstance(pf, dict):
+            return pf
     return {}
 
 
@@ -65,7 +66,7 @@ def _find_sprint_volume(dev_plan_files: list[str], sprint_number: int) -> str | 
     return None
 
 
-def _consume_deliverables(lines: list[str], i: int, current_task: dict) -> int:
+def _consume_deliverables(lines: list[str], i: int, current_task: dict[str, Any]) -> int:
     """Absorb the indented bullet block after a ``deliverables:`` line.
 
     ``i`` points at the ``deliverables:`` line; returns the index of the first
@@ -83,7 +84,7 @@ def _consume_deliverables(lines: list[str], i: int, current_task: dict) -> int:
     return i
 
 
-def _consume_acceptance(line: str, lines: list[str], i: int, current_task: dict) -> int:
+def _consume_acceptance(line: str, lines: list[str], i: int, current_task: dict[str, Any]) -> int:
     """Absorb the ``tdd_acceptance:`` line plus its indented continuation."""
     rest = line + " "
     i += 1
@@ -164,10 +165,10 @@ def _process_task_line(
     return i + 1, current_task
 
 
-def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[dict]:
-    tasks: list[dict] = []
+def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[dict[str, Any]]:
+    tasks: list[dict[str, Any]] = []
     in_sprint = False
-    current_task: dict | None = None
+    current_task: dict[str, Any] | None = None
 
     sprint_volume = _find_sprint_volume(dev_plan_files, sprint_number)
     files_to_search = [sprint_volume] if sprint_volume else dev_plan_files
@@ -204,7 +205,7 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
     return tasks
 
 
-def _backfill_missing_status(tasks: list[dict], dev_plan_files: list[str]) -> None:
+def _backfill_missing_status(tasks: list[dict[str, Any]], dev_plan_files: list[str]) -> None:
     """Fill in status for tasks parsed without one from any status table row."""
     tasks_missing_status = {t["id"] for t in tasks if not t["status"]}
     if not tasks_missing_status:

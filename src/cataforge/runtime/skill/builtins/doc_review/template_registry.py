@@ -38,8 +38,10 @@ def build_template_path_map() -> dict[str, dict[str, dict[str, str]]]:
     """
     try:
         registry_dir = Path(
-            importlib.resources.files("cataforge").joinpath(
-                "..", "..", "..", ".cataforge", "skills", "context", "templates"
+            str(
+                importlib.resources.files("cataforge").joinpath(
+                    "..", "..", "..", ".cataforge", "skills", "context", "templates"
+                )
             )
         ).resolve()
     except Exception:

@@ -16,6 +16,7 @@ import argparse
 import json
 import sys
 from collections import defaultdict, deque
+from typing import Any
 
 from cataforge.utils.common import ensure_utf8
 
@@ -201,7 +202,7 @@ def main() -> None:
             print(format_mermaid(edges, cp))
         sys.exit(1 if cycles else 0)
 
-    result: dict = {
+    result: dict[str, Any] = {
         "cycle_detected": len(cycles) > 0,
         "cycles": list(cycles),
     }

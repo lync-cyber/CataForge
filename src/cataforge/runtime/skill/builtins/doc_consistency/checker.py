@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from cataforge.core.paths import project_root_from_docs_dir
 from cataforge.core.types import Severity
@@ -132,14 +133,14 @@ class CrossDocChecker(_CrossDocChecksMixin):
                     "}"
                 )
                 prd_acs = {
-                    str(row["eid"].value)  # type: ignore[union-attr]
-                    for row in kg.store.query(prd_q)
-                    if row["eid"] is not None  # type: ignore[index]
+                    str(row["eid"].value)
+                    for row in cast("Any", kg.store.query(prd_q))
+                    if row["eid"] is not None
                 }
                 referenced = {
-                    str(row["ac_id"].value)  # type: ignore[union-attr]
-                    for row in kg.store.query(downstream_q)
-                    if row["ac_id"] is not None  # type: ignore[index]
+                    str(row["ac_id"].value)
+                    for row in cast("Any", kg.store.query(downstream_q))
+                    if row["ac_id"] is not None
                 }
         except Exception:
             return None

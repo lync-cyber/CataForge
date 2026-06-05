@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from cataforge.core.config import ConfigManager
 from cataforge.core.event_log import EVENT_LOG_REL
@@ -11,7 +12,7 @@ from cataforge.core.event_log import EVENT_LOG_REL
 from ._constants import DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS
 
 
-def read_framework_data(root: Path) -> dict:
+def read_framework_data(root: Path) -> dict[str, Any]:
     """Return parsed ``framework.json`` content, or empty dict on failure."""
     try:
         data = ConfigManager(root).load_raw()

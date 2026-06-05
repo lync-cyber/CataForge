@@ -114,6 +114,7 @@ class SkillRunner:
                 timeout=effective_timeout,
             )
         except subprocess.TimeoutExpired:
+            assert effective_timeout is not None
             duration = time.monotonic() - t_start
             self._emit_timeout_event(meta, script_entry, effective_timeout, duration, agent=agent)
             raise SkillTimeoutError(skill_id, effective_timeout) from None
