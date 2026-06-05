@@ -9,8 +9,9 @@ returns ``None`` so callers fall back to the dict form they already handle.
 from __future__ import annotations
 
 import importlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
+_core: Any
 try:
     _core = importlib.import_module("cataforge.domain.kg._generated.core_pydantic")
     _MODELS_AVAILABLE = True
@@ -52,7 +53,7 @@ def to_model(record: dict[str, Any] | None) -> BaseModel | None:
     payload = {k: v for k, v in record.items() if k in known and v is not None}
     if "id" in known and record.get("uri"):
         payload["id"] = record["uri"]
-    return model_cls.model_construct(**payload)
+    return cast("BaseModel | None", model_cls.model_construct(**payload))
 
 
 __all__ = ["models_available", "to_model"]

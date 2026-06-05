@@ -20,11 +20,16 @@ Design notes:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import click
 
 from cataforge.adapter.platform.conformance import ALL_PLATFORMS
 from cataforge.application.services.bootstrap import Plan, build_plan
 from cataforge.interface.cli.main import cli
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 
 @cli.command("bootstrap")
@@ -160,7 +165,7 @@ def _confirm_plan(plan: Plan) -> bool:
 
 def _execute_plan(
     ctx: click.Context,
-    cfg,
+    cfg: ConfigManager,
     plan: Plan,
     *,
     context_strategy: str | None,

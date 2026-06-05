@@ -88,7 +88,7 @@ def _resolve_doc_entry(index: dict[str, Any], doc_id: str) -> dict[str, Any] | N
     nondeterministic resolution when projects had ``prd-v1`` and ``prd-v2``
     side by side.
     """
-    documents = index.get("documents", {})
+    documents: dict[str, dict[str, Any]] = index.get("documents", {})
     direct = documents.get(doc_id)
     if direct:
         return direct

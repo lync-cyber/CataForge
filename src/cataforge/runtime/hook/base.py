@@ -184,7 +184,7 @@ def matches_capability(data: dict[str, Any], capability: str) -> bool:
             edit_tools.add(write_name)
         return tool_name in edit_tools
 
-    return tool_name == expected
+    return bool(tool_name == expected)
 
 
 _DISPLAY_NAMES = {
@@ -378,12 +378,12 @@ def _calling_script_name() -> str | None:
     the ``__main__`` module.  Returns ``None`` when we cannot determine it,
     at which point filters default to "allow" (safe default)."""
     try:
-        import __main__  # type: ignore[import]
+        import __main__
 
         spec = getattr(__main__, "__spec__", None)
         if spec and spec.name:
             # e.g. "cataforge.runtime.hook.scripts.lint_format"
-            return spec.name.rsplit(".", 1)[-1]
+            return str(spec.name).rsplit(".", 1)[-1]
         path = getattr(__main__, "__file__", None)
         if path:
             return Path(path).stem

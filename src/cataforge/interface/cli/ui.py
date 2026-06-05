@@ -23,7 +23,7 @@ import re
 import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TextIO
 
 from cataforge.utils.console import (
     ChoiceOption,
@@ -147,8 +147,8 @@ class UI:
         *,
         color: bool | None = None,
         unicode: bool | None = None,
-        stdout=None,
-        stderr=None,
+        stdout: TextIO | None = None,
+        stderr: TextIO | None = None,
     ) -> None:
         self.color = color if color is not None else _detect_color()
         self.unicode = unicode if unicode is not None else _detect_unicode()

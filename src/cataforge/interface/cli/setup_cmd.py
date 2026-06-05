@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from cataforge.adapter.platform.conformance import ALL_PLATFORMS
 from cataforge.interface.cli.main import cli
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 
 @cli.command("setup")
@@ -229,7 +233,7 @@ def _scaffold(dest: Path, *, force: bool) -> None:
         click.secho(f"  {line}", fg="yellow", err=True)
 
 
-def _apply_languages(cfg, languages: tuple[str, ...]) -> None:
+def _apply_languages(cfg: ConfigManager, languages: tuple[str, ...]) -> None:
     """Write declared ``project.languages``, or hint at what auto-detect sees."""
     from cataforge.core.languages import active_languages, detect_languages, normalize
 
@@ -253,7 +257,7 @@ def _apply_languages(cfg, languages: tuple[str, ...]) -> None:
 
 
 def _report_dry_run(
-    cfg,
+    cfg: ConfigManager,
     *,
     scaffold_missing: bool,
     scaffold_dir: Path,
@@ -303,7 +307,9 @@ def _report_dry_run(
     click.echo("Dry-run complete. No changes made.")
 
 
-def _apply_context_strategy(cfg, strategy: str | None, *, scaffold_missing: bool) -> None:
+def _apply_context_strategy(
+    cfg: ConfigManager, strategy: str | None, *, scaffold_missing: bool
+) -> None:
     """Resolve and persist ``context.strategy``.
 
     An explicit ``--context-strategy`` always wins. On a fresh interactive
@@ -345,7 +351,7 @@ def _prompt_context_strategy() -> str:
     return "kg-first" if choice == "1" else "doc-only"
 
 
-def _run_checks(cfg) -> None:
+def _run_checks(cfg: ConfigManager) -> None:
     """Quick prerequisite checks."""
     import shutil
     import sys

@@ -26,6 +26,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from cataforge.core.paths import project_root_from_env
 from cataforge.runtime.skill.builtins.code_review.wiring_patterns import load_wiring_rules
@@ -46,7 +47,7 @@ EXCLUDE_DIRS = {
     "obj",
 }
 
-LINTERS = [
+LINTERS: list[dict[str, Any]] = [
     {
         "extensions": {".js", ".ts", ".jsx", ".tsx"},
         "tools": [
@@ -132,7 +133,7 @@ for _group in LINTERS:
 # COMMON-RULES §统一问题分类体系 category to a list of probe commands.
 # Probes that fail to launch (tool missing) emit WARN; non-zero exits
 # without crash count as findings.
-SCAN_PROBES: dict[str, list[dict]] = {
+SCAN_PROBES: dict[str, list[dict[str, Any]]] = {
     "duplication": [
         {
             "name": "jscpd",
@@ -233,7 +234,7 @@ class CodeLinter:
         self.tool_cache: dict[str, bool] = {}
         self.wiring_rules = load_wiring_rules(project_root_from_env())
 
-    def tool_available(self, tool: dict) -> bool:
+    def tool_available(self, tool: dict[str, Any]) -> bool:
         name = tool["name"]
         if name not in self.tool_cache:
             try:
@@ -255,7 +256,7 @@ class CodeLinter:
                 files.append(p)
         return sorted(files)
 
-    def run_tool(self, tool: dict, filepath: Path) -> None:
+    def run_tool(self, tool: dict[str, Any], filepath: Path) -> None:
         if not self.tool_available(tool):
             return
         cmd = (tool["fix"] if self.fix else tool["check"]) + [str(filepath)]
@@ -364,7 +365,7 @@ class CodeScanner:
                 seen.add(p.suffix.lower())
         return seen
 
-    def run_probe(self, probe: dict, present_exts: set[str]) -> None:
+    def run_probe(self, probe: dict[str, Any], present_exts: set[str]) -> None:
         name = probe["name"]
         if not (probe["extensions"] & present_exts):
             return

@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from cataforge.core.paths import project_root_from_docs_dir
 from cataforge.core.types import Severity
@@ -23,7 +25,7 @@ from .template_registry import (
 from .typed_checks import TypedDocChecksMixin
 
 
-def _fm(content: str) -> dict:
+def _fm(content: str) -> dict[str, Any]:
     """Extract frontmatter dict; empty dict when absent or malformed."""
     meta, _ = split_yaml_frontmatter(content)
     return meta if meta is not None else {}
@@ -63,10 +65,10 @@ class DocChecker(TypedDocChecksMixin):
         fm = _fm(self.content)
         vt = fm.get("volume_type", "")
         if vt and vt in VOLUME_TYPES:
-            return vt
+            return str(vt)
         vol = fm.get("volume", "")
         if vol and vol in VOLUME_TYPES:
-            return vol
+            return str(vol)
         stem = Path(self.doc_file).stem
         filename_patterns = [
             (r"-api$", "api"),
@@ -312,7 +314,7 @@ class DocChecker(TypedDocChecksMixin):
         """Resolve the project root from ``docs_dir`` (None when not a project)."""
         return project_root_from_docs_dir(self.docs_dir)
 
-    def _maybe_kg_xref_resolver(self):
+    def _maybe_kg_xref_resolver(self) -> Callable[[str], bool] | None:
         """Return a ``callable(entity_id) -> bool`` if KG is active.
 
         The resolver short-circuits the file-glob xref check when the

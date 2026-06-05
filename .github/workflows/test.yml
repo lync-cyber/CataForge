@@ -131,18 +131,10 @@ jobs:
         # surface to do that.
         run: uv run --extra dev pytest tests/cli tests/core -q -m "not slow" -n auto --dist loadscope
 
-      - name: "mypy (informational — strict-clean packages gate; rest reports count)"
-        # Full repo: informational (prints count, does not fail).
-        # Strict-clean packages (cataforge.application.services.*) MUST be
-        # zero-error. New strict-opt-in packages add rows here.
-        run: |
-          set -eu
-          echo "::group::Full-repo mypy (informational)"
-          python -m mypy src/cataforge --no-incremental || true
-          echo "::endgroup::"
-          echo "::group::Strict packages (must be clean)"
-          python -m mypy --strict --no-incremental src/cataforge/application/services
-          echo "::endgroup::"
+      - name: "mypy (strict — whole tree must be zero-error)"
+        # pyproject pins [tool.mypy] strict = true across cataforge.*, so this
+        # gates every package; a new type error fails the PR.
+        run: python -m mypy src/cataforge --no-incremental
 
       - name: "platform dry-run snapshots (cursor / codex / opencode)"
         # Exercises each adapter's `deploy --dry-run` code path so a refactor

@@ -18,6 +18,7 @@ project YAMLs without duplicating the parsing logic.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -204,7 +205,7 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
     )
 
 
-def _iter_package_rule_files(builtin_module: str):
+def _iter_package_rule_files(builtin_module: str) -> Iterator[tuple[str, str]]:
     """Yield ``(name, text)`` pairs from the package ``rules`` subdir.
 
     Returns nothing when the module doesn't ship a ``rules`` subdir (the
@@ -247,7 +248,9 @@ def _project_rule_dirs(project_root: Path, skill_id: str) -> list[Path]:
     return dirs
 
 
-def _iter_project_rule_files(project_root: Path | None, skill_id: str):
+def _iter_project_rule_files(
+    project_root: Path | None, skill_id: str
+) -> Iterator[tuple[Path, str]]:
     if project_root is None:
         return
     for rules_dir in _project_rule_dirs(project_root, skill_id):

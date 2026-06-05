@@ -9,6 +9,7 @@ and keeps its own ``Finding`` model.)
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -69,7 +70,7 @@ class IssueCollector:
     def advisory(self) -> list[Issue]:
         return [i for i in self.issues if not i.blocking]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Issue]:
         return iter(self.issues)
 
     def __len__(self) -> int:

@@ -11,7 +11,7 @@ from __future__ import annotations
 import contextlib
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._config import KGConfig
@@ -27,6 +27,7 @@ from cataforge.domain.kg._sparql_utils import (
     assert_safe_iri,
     cf_namespace,
     escape_sparql_literal,
+    select_rows,
 )
 from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity
 from cataforge.domain.kg.ingest.iri import (
@@ -53,7 +54,7 @@ class WriteStats:
     relations_written: int = 0
     relations_skipped: int = 0
     written_iris: list[str] = field(default_factory=list)
-    written_relation_quads: list = field(default_factory=list)
+    written_relation_quads: list[Any] = field(default_factory=list)
 
 
 @dataclass
@@ -181,7 +182,7 @@ def _lookup_node_iri(
         f'PREFIX cf: <{ns}> SELECT ?s WHERE {{ ?s cf:entity_id "{eid}" ; '
         f'cf:source_doc "{src}" }} ORDER BY STR(?s) LIMIT 1'
     )
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         node = _term_value(_row_lookup(row, "s"))
         if node is not None:
             return str(node)

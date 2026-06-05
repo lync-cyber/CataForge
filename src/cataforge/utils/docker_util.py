@@ -102,7 +102,9 @@ def docker_status() -> dict[str, Any]:
     try:
         r = run_proc(["docker", "info", "--format", "json"], timeout=10)
         if r.returncode == 0:
-            return json.loads(r.stdout)
+            data = json.loads(r.stdout)
+            if isinstance(data, dict):
+                return data
     except (
         FileNotFoundError,
         subprocess.TimeoutExpired,

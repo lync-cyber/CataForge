@@ -66,8 +66,8 @@ def _probe_http(check: HealthCheckSpec, ts: str) -> HealthResult:
     import urllib.request
 
     target = check.target
-    if not target:
-        return HealthResult(status="unknown", detail="http: target is empty", ts=ts)
+    if not isinstance(target, str) or not target:
+        return HealthResult(status="unknown", detail="http: target must be a URL string", ts=ts)
     req = urllib.request.Request(target, method="GET")
     try:
         with urllib.request.urlopen(  # noqa: S310 — operator-configured URL
@@ -91,7 +91,7 @@ def _probe_http(check: HealthCheckSpec, ts: str) -> HealthResult:
 
 def _probe_tcp(check: HealthCheckSpec, ts: str) -> HealthResult:
     target = check.target
-    if ":" not in target:
+    if not isinstance(target, str) or ":" not in target:
         return HealthResult(
             status="unknown",
             detail=f"tcp: target {target!r} must be 'host:port'",

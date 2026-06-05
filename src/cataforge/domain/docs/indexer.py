@@ -110,7 +110,7 @@ def find_orphan_docs(project_root: str) -> list[str]:
     return _scan_docs_orphans(project_root)[0]
 
 
-def validate_docs(project_root: str) -> dict[str, list]:
+def validate_docs(project_root: str) -> dict[str, list[Any]]:
     """Run all docs validations and return a unified result.
 
     Single source of truth for both ``cataforge docs validate`` and

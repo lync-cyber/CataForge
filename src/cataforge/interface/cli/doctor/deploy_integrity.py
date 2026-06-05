@@ -14,6 +14,7 @@ either be a real file/dir or, if it is a symlink/junction, must resolve.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
@@ -21,6 +22,9 @@ from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
 
 from .provenance import _OWNED_DIRS_BY_PLATFORM
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 
 def _check_path_integrity(
@@ -61,7 +65,7 @@ def _check_path_integrity(
     return failures
 
 
-def check_deploy_integrity(cfg) -> int:
+def check_deploy_integrity(cfg: ConfigManager) -> int:
     """Returns the number of failures contributing to doctor's exit code.
 
     Skipped (returns 0) when no deploy has ever run — pre-deploy state is
@@ -113,7 +117,7 @@ def check_deploy_integrity(cfg) -> int:
     return failures
 
 
-def check_deploy_source_orphans(cfg) -> int:
+def check_deploy_source_orphans(cfg: ConfigManager) -> int:
     """Warn when the deploy manifest owns a skill whose source was removed.
 
     A skill recorded under ``<platform>/skills/<name>`` whose source
@@ -166,7 +170,7 @@ def check_deploy_source_orphans(cfg) -> int:
     return 0
 
 
-def check_deploy_drift(cfg) -> int:
+def check_deploy_drift(cfg: ConfigManager) -> int:
     """Nudge (never gate) when deployed IDE artefacts are stale.
 
     Compares the current ``.cataforge/`` source digest + installed

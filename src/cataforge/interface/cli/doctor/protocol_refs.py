@@ -15,6 +15,10 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 import click
 
@@ -93,7 +97,7 @@ def _scan_for_script_refs(
     return refs
 
 
-def check_protocol_script_references(cfg) -> int:
+def check_protocol_script_references(cfg: ConfigManager) -> int:
     """Scan ``.cataforge/`` protocol docs + hooks spec for ``python .cataforge/...``
     invocations and report any that point at a file that does not exist.
 
@@ -141,7 +145,7 @@ def check_protocol_script_references(cfg) -> int:
     return len(missing)
 
 
-def check_deprecated_references(cfg) -> int:
+def check_deprecated_references(cfg: ConfigManager) -> int:
     """Scan agent/skill/rules/hook prose for deprecated script names + artifacts.
 
     Returns the number of distinct deprecated references found.

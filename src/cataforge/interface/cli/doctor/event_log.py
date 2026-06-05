@@ -118,7 +118,7 @@ def check_event_log_schema(cfg: ConfigManager, *, sample_size: int = 200) -> int
     return len(bad)
 
 
-def _ts_before(ts_value, cutoff) -> bool:  # cutoff: datetime
+def _ts_before(ts_value: object, cutoff: datetime) -> bool:
     """True iff ``ts_value`` parses and is strictly before *cutoff*.
 
     Unparseable or missing ``ts`` returns False — only records that *prove*

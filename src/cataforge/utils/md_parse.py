@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import re
 from functools import lru_cache
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from markdown_it import MarkdownIt
 
 
 @lru_cache(maxsize=1)
-def _md_parser():
+def _md_parser() -> MarkdownIt:
     from markdown_it import MarkdownIt
 
     return MarkdownIt("commonmark")

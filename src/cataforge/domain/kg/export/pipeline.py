@@ -27,6 +27,7 @@ from cataforge.domain.kg._sparql_utils import (
     _term_value,
     assert_safe_iri,
     escape_sparql_literal,
+    select_rows,
 )
 from cataforge.domain.kg.export._entity_meta import (
     _RELATION_GROUPS,
@@ -61,7 +62,7 @@ def _list_business_entities(store: ox.Store, namespace: str) -> list[tuple[str, 
         "} ORDER BY ?sort_key ?entity_id"
     )
     out: list[tuple[str, str, str]] = []
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         eid = _term_value(_row_lookup(row, "entity_id"))
         sk = _term_value(_row_lookup(row, "sort_key"))
         cls = _term_value(_row_lookup(row, "cls"))
@@ -105,7 +106,7 @@ def compile_to_markdown(
         try:
             sparql_template = registry.get(entity_type)
             sparql_query = sparql_template % {"entity_id": f'"{escape_sparql_literal(entity_id)}"'}
-            raw_rows = list(store.query(sparql_query))
+            raw_rows = list(select_rows(store, sparql_query))
             relation_groups = _RELATION_GROUPS.get(entity_type.lower(), {})
             context = hydrate_rows(raw_rows, relation_groups)
             if context is None:
@@ -113,7 +114,7 @@ def compile_to_markdown(
                 continue
 
             template = resolve_template(jinja_env, entity_type)
-            rendered = template.render(entity=context)
+            rendered = template.render(entity=context)  # type: ignore[attr-defined]
 
             doc_type = _entity_type_to_doc_type(entity_type)
             out_file = output_dir / doc_type / f"{entity_id}.md"

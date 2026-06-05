@@ -11,6 +11,7 @@ from cataforge.domain.kg._sparql_utils import (
     assert_safe_iri,
     cf_namespace,
     escape_sparql_literal,
+    select_rows,
 )
 from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity
 from cataforge.domain.kg.ingest.iri import resolve_entity_iri
@@ -51,7 +52,7 @@ def _count_typed_subjects(store: ox.Store, namespace: str) -> int:
         "FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
         "FILTER(?cls != cf:Project) }"
     )
-    rows = list(store.query(sparql))
+    rows = list(select_rows(store, sparql))
     if not rows:
         return 0
     n_value = rows[0]["n"]
@@ -83,7 +84,7 @@ def verify_after_write(
             f"{{ ?s <{namespace}{c.split(':', 1)[1]}> ?o }}" for c in traceability_predicates
         )
         sparql = f"SELECT (COUNT(*) AS ?n) WHERE {{ {union} }}"
-        rows = list(store.query(sparql))
+        rows = list(select_rows(store, sparql))
         result.relation_count_kg = (
             int(rows[0]["n"].value) if rows and rows[0]["n"] is not None else 0
         )

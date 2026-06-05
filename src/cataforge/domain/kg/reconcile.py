@@ -35,6 +35,7 @@ from cataforge.domain.kg._sparql_utils import (
     cf_namespace,
     curie_for_iri,
     escape_sparql_literal,
+    select_rows,
 )
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
 from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_CLASSES
@@ -158,7 +159,7 @@ def _kg_entities_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str
         "}"
     )
     out: set[str] = set()
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         eid = _strv(_row_lookup(row, "entity_id"))
         if eid is None:
             continue
@@ -196,7 +197,7 @@ def _kg_relations_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[st
         "}"
     )
     out: set[RelKey] = set()
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         s_id = _strv(_row_lookup(row, "s_id"))
         p_iri = _strv(_row_lookup(row, "p"))
         o_id = _strv(_row_lookup(row, "o_id"))
@@ -226,7 +227,7 @@ def _kg_sections_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str
         "}"
     )
     out: set[str] = set()
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         anchor = _strv(_row_lookup(row, "anchor"))
         if anchor is not None:
             out.add(anchor)
@@ -258,7 +259,7 @@ def reconcile(
     # merely *declares* the xref (arch declaring a Feature→Feature dependency)
     # would diverge. Bucketing FS relations by the subject's home doc keeps both
     # sides apples-to-apples.
-    parsed_by_type: dict[str, list] = {}
+    parsed_by_type: dict[str, list[Any]] = {}
     doc_ids_by_type: dict[str, set[str]] = {}
     entity_home: dict[str, set[str]] = {}
     raw_relations: list[tuple[RelKey, str]] = []  # (relation key, extraction doc_id)

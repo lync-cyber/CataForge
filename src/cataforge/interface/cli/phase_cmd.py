@@ -102,7 +102,9 @@ def indexed_doc_types(index_text: str) -> set[str]:
     docs = data.get("documents", {})
     if not isinstance(docs, dict):
         return set()
-    return {d.get("doc_type") for d in docs.values() if isinstance(d, dict) and d.get("doc_type")}
+    return {
+        str(d.get("doc_type")) for d in docs.values() if isinstance(d, dict) and d.get("doc_type")
+    }
 
 
 def _read(path: Path) -> str:

@@ -53,7 +53,7 @@ class E2ERuleSet:
         return frozenset(out)
 
 
-def _compile_flags(flags_raw) -> int:
+def _compile_flags(flags_raw: list[str] | None) -> int:
     from cataforge.runtime.skill.rules.loader import SUPPORTED_FLAGS
 
     if not flags_raw:

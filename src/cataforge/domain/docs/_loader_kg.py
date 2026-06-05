@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from cataforge.domain.docs.index_ops import LoadSectionError, parse_ref
 
@@ -183,7 +183,7 @@ def _try_kg_resolve_deps(ref: str, project_root: str, max_depth: int) -> list[st
                     ordered.append(dep_id)
 
             _walk(item_id, 0)
-            return [_entity_id_to_ref(kg, eid) or eid for eid in ordered]
+            return [_entity_id_to_ref(cast("KGReadPort", kg), eid) or eid for eid in ordered]
     except Exception as exc:
         logger.debug("KG resolve_deps fallback for %r: %s", item_id, exc)
         return None

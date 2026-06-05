@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from typing import Any
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_yaml
@@ -67,7 +68,7 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
     _check_degradation_parity(referenced_scripts, root, report)
 
 
-def _collect_references(hooks_data: dict) -> tuple[set[str], set[str]]:
+def _collect_references(hooks_data: dict[str, Any]) -> tuple[set[str], set[str]]:
     """Gather the ``script`` and ``matcher_capability`` values wired in hooks.yaml."""
     referenced_scripts: set[str] = set()
     referenced_caps: set[str] = set()

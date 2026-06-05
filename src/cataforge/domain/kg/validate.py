@@ -15,7 +15,7 @@ from __future__ import annotations
 import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._sparql_utils import (
@@ -23,6 +23,7 @@ from cataforge.domain.kg._sparql_utils import (
     _strv,
     assert_safe_iri,
     cf_namespace,
+    select_rows,
 )
 
 if TYPE_CHECKING:
@@ -70,7 +71,7 @@ def _check_orphans(store: ox.Store, namespace: str) -> list[ValidationViolation]
         "}"
     )
     violations: list[ValidationViolation] = []
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         s_iri = _strv(_row_lookup(row, "s"))
         if s_iri is None:
             continue
@@ -126,7 +127,7 @@ def _check_xref_targets(store: ox.Store, namespace: str) -> list[ValidationViola
         "}"
     )
     violations: list[ValidationViolation] = []
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         s_iri = _strv(_row_lookup(row, "s"))
         slot = _strv(_row_lookup(row, "slot"))
         target = _strv(_row_lookup(row, "o"))
@@ -148,7 +149,7 @@ def _check_xref_targets(store: ox.Store, namespace: str) -> list[ValidationViola
     return violations
 
 
-def _pyoxigraph_to_rdflib(store: ox.Store):
+def _pyoxigraph_to_rdflib(store: ox.Store) -> Any:
     """Bridge the store's default graph into an rdflib Graph.
 
     pyoxigraph serializes to N-Triples and rdflib parses it back; both are

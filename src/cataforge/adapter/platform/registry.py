@@ -6,6 +6,7 @@ import logging
 import os
 import threading
 from pathlib import Path
+from typing import cast
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.profile_schema import PlatformProfile
@@ -153,7 +154,7 @@ def _create_adapter(platform_id: str, profile: PlatformProfile) -> PlatformAdapt
         for ep in eps:
             if ep.name == platform_id:
                 adapter_cls = ep.load()
-                return adapter_cls(profile)
+                return cast(PlatformAdapter, adapter_cls(profile))
     except Exception as e:
         logger.debug("entry_point lookup failed for %s: %s", platform_id, e)
 

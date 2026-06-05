@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Any
 
 from cataforge.runtime.skill.builtins._shared import Issue
 from cataforge.runtime.skill.builtins.sprint_review._checks import _aggregate_unplanned
@@ -11,7 +12,7 @@ from cataforge.runtime.skill.builtins.sprint_review._checks import _aggregate_un
 
 def render_text(
     sprint_num: int,
-    tasks: list[dict],
+    tasks: list[dict[str, Any]],
     sections: list[tuple[str, list[Issue], str]],
     warn_cap: int,
     unplanned_log: str | None,
@@ -78,7 +79,7 @@ def render_text(
 
 def render_json(
     sprint_num: int,
-    tasks: list[dict],
+    tasks: list[dict[str, Any]],
     sections: list[tuple[str, list[Issue], str]],
     unplanned_log: str | None,
 ) -> bool:

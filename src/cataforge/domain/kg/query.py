@@ -21,6 +21,7 @@ from cataforge.domain.kg._sparql_utils import (
     cf_namespace,
     escape_sparql_literal,
     resolve_stored_entity_iri,
+    select_rows,
 )
 from cataforge.domain.kg.ingest.iri import class_iri
 from cataforge.utils.md_parse import slice_section
@@ -168,7 +169,7 @@ class QueryAPI:
             "ORDER BY ASC(?sort_key) ASC(?entity_id)"
         )
         out: list[dict[str, Any]] = []
-        for row in self._store.query(sparql):
+        for row in select_rows(self._store, sparql):
             uri = _term_value(_row_lookup(row, "s"))
             if uri is None:
                 continue
@@ -204,9 +205,9 @@ class QueryAPI:
             "}"
         )
         return {
-            _strv(_row_lookup(row, "entity_id"))
-            for row in self._store.query(sparql)
-            if _row_lookup(row, "entity_id") is not None
+            v
+            for row in select_rows(self._store, sparql)
+            if (v := _strv(_row_lookup(row, "entity_id"))) is not None
         }
 
     def source_section(self, doc_id: str, anchor: str) -> str | None:
@@ -227,7 +228,7 @@ class QueryAPI:
             f'  FILTER(STRSTARTS(STR(?src), "{doc_id_lit}")) '
             "} LIMIT 1"
         )
-        rows = list(self._store.query(sparql))
+        rows = list(select_rows(self._store, sparql))
         if not rows:
             return None
         from pathlib import Path  # noqa: PLC0415
@@ -309,9 +310,9 @@ class QueryAPI:
             "} ORDER BY ?dep_id"
         )
         return [
-            _strv(_row_lookup(row, "dep_id"))
-            for row in self._store.query(sparql)
-            if _row_lookup(row, "dep_id") is not None
+            v
+            for row in select_rows(self._store, sparql)
+            if (v := _strv(_row_lookup(row, "dep_id"))) is not None
         ]
 
     def _fetch_typed(self, class_name: str, entity_id: str) -> dict[str, Any] | None:
@@ -342,7 +343,7 @@ class QueryAPI:
             f"{slot_clauses}"
             "} LIMIT 1"
         )
-        rows = list(self._store.query(sparql))
+        rows = list(select_rows(self._store, sparql))
         if not rows:
             return None
         row = rows[0]

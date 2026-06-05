@@ -66,7 +66,8 @@ class ConfigManager:
         path = self._paths.framework_json
         if not path.is_file():
             return {}
-        return read_json(path)
+        data = read_json(path)
+        return data if isinstance(data, dict) else {}
 
     def reload(self) -> dict[str, Any]:
         """Force re-read from disk."""

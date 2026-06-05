@@ -5,6 +5,7 @@ from __future__ import annotations
 import collections
 import fnmatch
 import os
+from typing import Any
 
 from cataforge.core.types import Severity
 from cataforge.runtime.skill.builtins._shared import Issue
@@ -25,7 +26,7 @@ def _issue(
     return Issue(severity, category, message, task=task, path=path)
 
 
-def check_task_status(tasks: list[dict]) -> list[Issue]:
+def check_task_status(tasks: list[dict[str, Any]]) -> list[Issue]:
     issues: list[Issue] = []
     for task in tasks:
         if task["status"] != "done":
@@ -41,7 +42,7 @@ def check_task_status(tasks: list[dict]) -> list[Issue]:
 
 
 def check_deliverables(
-    tasks: list[dict],
+    tasks: list[dict[str, Any]],
     *,
     accept_alternation: bool = False,
 ) -> list[Issue]:
@@ -80,7 +81,7 @@ def check_deliverables(
     return issues
 
 
-def check_ac_coverage(tasks: list[dict], test_dir: str) -> list[Issue]:
+def check_ac_coverage(tasks: list[dict[str, Any]], test_dir: str) -> list[Issue]:
     issues: list[Issue] = []
     if not os.path.isdir(test_dir):
         issues.append(
@@ -116,7 +117,7 @@ def check_ac_coverage(tasks: list[dict], test_dir: str) -> list[Issue]:
 
 
 def check_unplanned_files(
-    tasks: list[dict],
+    tasks: list[dict[str, Any]],
     src_dirs: list[str],
     *,
     respect_gitignore: bool,
@@ -178,7 +179,7 @@ def check_unplanned_files(
 
 
 def check_code_reviews(
-    tasks: list[dict],
+    tasks: list[dict[str, Any]],
     reviews_dir: str,
     *,
     merged_review: bool = False,

@@ -146,7 +146,7 @@ def translate_agent_md(
         if dropped:
             local_dropped.setdefault(field_name, set()).update(dropped)
 
-        native_by_cap = {cap: tool_map[cap] for cap in caps if tool_map.get(cap) is not None}
+        native_by_cap = {cap: native for cap in caps if (native := tool_map.get(cap)) is not None}
         field_resolved = resolved_by_field.setdefault(field_name, {})
         for cap, native in native_by_cap.items():
             field_resolved.setdefault(native, set()).add(cap)
