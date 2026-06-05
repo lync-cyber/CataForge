@@ -11,7 +11,7 @@ authoritative.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from cataforge.application.context.backends import DocBackend, KgBackend
 from cataforge.application.context.ports import (
@@ -39,7 +39,7 @@ class FidelityRouter:
         for backend in self._ordered(OP_READ_SECTION):
             result = backend.read_section(ref, project_root, file_cache=file_cache)
             if result is not None:
-                return result
+                return cast("str", result)
         # No backend served it and none raised — surface a not-found error.
         from cataforge.domain.docs.index_ops import SectionNotFoundError
 
@@ -51,14 +51,14 @@ class FidelityRouter:
         for backend in self._ordered(OP_PLAN_LOAD):
             result = backend.plan_load(refs, project_root, token_budget)
             if result is not None:
-                return result
+                return cast("tuple[list[str], list[str]]", result)
         return [], []
 
     def deps(self, ref: str, project_root: str, max_depth: int) -> list[str]:
         for backend in self._ordered(OP_DEPS):
             result = backend.deps(ref, project_root, max_depth)
             if result is not None:
-                return result
+                return cast("list[str]", result)
         return []
 
 

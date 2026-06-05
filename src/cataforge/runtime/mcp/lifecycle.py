@@ -28,6 +28,7 @@ import signal
 import subprocess
 import threading
 import time
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -88,7 +89,7 @@ def _spawn_lock_timeout() -> float:
 
 
 @contextlib.contextmanager
-def _spawn_lock(lock_path: Path):
+def _spawn_lock(lock_path: Path) -> Iterator[None]:
     """Serialize MCP server spawn across threads and processes.
 
     Uses ``os.open(..., O_CREAT | O_EXCL)`` as a portable atomic flag —
