@@ -11,6 +11,7 @@ six in order.
 
 from __future__ import annotations
 
+from cataforge.domain.kg._config import BUSINESS_DOC_TYPES as DEFAULT_DOC_TYPES
 from cataforge.domain.kg.ingest.entity_extract import (
     ENTITY_PREFIX_RE,
     ExtractedEntity,
@@ -24,7 +25,7 @@ from cataforge.domain.kg.ingest.iri import (
     entity_iri,
     section_iri,
 )
-from cataforge.domain.kg.ingest.migrate import DEFAULT_DOC_TYPES, MigrationStats, run_migration
+from cataforge.domain.kg.ingest.migrate import MigrationStats, run_migration
 from cataforge.domain.kg.ingest.relation_extract import (
     ExtractedRelation,
     extract_relations,

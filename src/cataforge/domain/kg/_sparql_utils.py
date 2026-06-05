@@ -67,6 +67,16 @@ def _strv(term: Any) -> str | None:
     return None if v is None else str(v)
 
 
+def select_rows(store: Any, sparql: str) -> Any:
+    """Iterate a SELECT/CONSTRUCT query's rows.
+
+    Narrows pyoxigraph's ``Store.query`` union return
+    (``QuerySolutions | QueryBoolean | QueryTriples``) to the iterable form
+    SELECT/CONSTRUCT callers depend on, keeping call sites union-attr clean.
+    """
+    return store.query(sparql)
+
+
 def escape_sparql_literal(value: str) -> str:
     """Escape a Python string so it is safe inside a SPARQL ``"..."`` literal.
 
@@ -182,4 +192,5 @@ __all__ = [
     "escape_iri_component",
     "escape_sparql_literal",
     "resolve_stored_entity_iri",
+    "select_rows",
 ]

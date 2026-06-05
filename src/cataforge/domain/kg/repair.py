@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._quads import _slot_iri, quads_for_subject
@@ -13,6 +13,7 @@ from cataforge.domain.kg._sparql_utils import (
     _term_value,
     cf_namespace,
     escape_sparql_literal,
+    select_rows,
 )
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
 from cataforge.domain.kg.ingest.iri import entity_iri, subordinate_entity_iri
@@ -46,7 +47,7 @@ def _scope_key_to_iri(scope_key: str, config: KGConfig) -> str:
     return entity_iri(scope_key, base)
 
 
-def _entity_quads_by_scope_key(store: ox.Store, scope_key: str, config: KGConfig) -> list:
+def _entity_quads_by_scope_key(store: ox.Store, scope_key: str, config: KGConfig) -> list[Any]:
     return quads_for_subject(store, _scope_key_to_iri(scope_key, config))
 
 
@@ -56,7 +57,7 @@ def _ghost_relation_quads(
     predicate_curie: str,
     object_id: str,
     config: KGConfig,
-) -> list:
+) -> list[Any]:
     """Return the live edge quad(s) for a `(subject, predicate, object)` triple.
 
     Resolves endpoints by `cf:entity_id` rather than reconstructing flat IRIs,
@@ -76,8 +77,8 @@ def _ghost_relation_quads(
         "}"
     )
     pred_node = ox.NamedNode(pred_iri)
-    quads: list = []
-    for row in store.query(sparql):
+    quads: list[Any] = []
+    for row in select_rows(store, sparql):
         s_node = _term_value(_row_lookup(row, "s"))
         o_node = _term_value(_row_lookup(row, "o"))
         if s_node is not None and o_node is not None:
@@ -132,8 +133,8 @@ def repair(
     stats = RepairStats()
 
     for per in report.per_doc_type.values():
-        ghost_entity_snapshots: dict[str, list] = {}
-        ghost_relation_snapshots: list = []
+        ghost_entity_snapshots: dict[str, list[Any]] = {}
+        ghost_relation_snapshots: list[Any] = []
 
         for scope_key in per.ghost_entities:
             if not dry_run:
@@ -180,8 +181,8 @@ def repair(
 
 def _restore_ghosts(
     store: ox.Store,
-    entity_snapshots: dict[str, list],
-    relation_snapshots: list,
+    entity_snapshots: dict[str, list[Any]],
+    relation_snapshots: list[Any],
 ) -> list[str]:
     """Restore ghost quads after a failed reingest (best-effort).
 

@@ -17,6 +17,7 @@ from cataforge.domain.kg._sparql_utils import (
     _term_value,
     cf_namespace,
     resolve_stored_entity_iri,
+    select_rows,
 )
 
 if TYPE_CHECKING:
@@ -84,7 +85,7 @@ class TraceAPI:
             "} ORDER BY ?feature_id"
         )
         titles: dict[str, str | None] = {}
-        for row in self._store.query(impl_sparql):
+        for row in select_rows(self._store, impl_sparql):
             fid = _strv(_row_lookup(row, "feature_id"))
             if fid is not None:
                 titles[fid] = _strv(_row_lookup(row, "title"))
@@ -101,7 +102,7 @@ class TraceAPI:
             "}"
         )
         has_impl: set[str] = set()
-        for row in self._store.query(has_impl_sparql):
+        for row in select_rows(self._store, has_impl_sparql):
             fid = _strv(_row_lookup(row, "feature_id"))
             if fid is not None:
                 has_impl.add(fid)
@@ -114,7 +115,7 @@ class TraceAPI:
             "}"
         )
         has_test: set[str] = set()
-        for row in self._store.query(has_test_sparql):
+        for row in select_rows(self._store, has_test_sparql):
             fid = _strv(_row_lookup(row, "feature_id"))
             if fid is not None:
                 has_test.add(fid)
@@ -153,7 +154,7 @@ class TraceAPI:
             "  } "
             "}"
         )
-        rows = list(self._store.query(sparql))
+        rows = list(select_rows(self._store, sparql))
         if not rows:
             return {"has_impl": False, "has_test": False, "status": "none"}
         row = rows[0]
@@ -188,7 +189,8 @@ class TraceAPI:
 
         if direction in ("downstream", "both"):
             downstream_rows = list(
-                self._store.query(
+                select_rows(
+                    self._store,
                     f"PREFIX cf: <{ns}> "
                     "SELECT ?neighbour_id ?cls WHERE { "
                     "  { "
@@ -206,7 +208,7 @@ class TraceAPI:
                     "    ?n a ?cls ; cf:entity_id ?neighbour_id . "
                     "  } "
                     "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
-                    "}"
+                    "}",
                 )
             )
         else:
@@ -214,7 +216,8 @@ class TraceAPI:
 
         if direction in ("upstream", "both"):
             upstream_rows = list(
-                self._store.query(
+                select_rows(
+                    self._store,
                     f"PREFIX cf: <{ns}> "
                     "SELECT ?neighbour_id ?cls WHERE { "
                     "  { "
@@ -234,7 +237,7 @@ class TraceAPI:
                     "    ?n a ?cls ; cf:entity_id ?neighbour_id . "
                     "  } "
                     "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
-                    "}"
+                    "}",
                 )
             )
         else:
@@ -278,7 +281,7 @@ class TraceAPI:
             "} ORDER BY ?a_id ?b_id"
         )
         out: list[tuple[str, str]] = []
-        for row in self._store.query(sparql):
+        for row in select_rows(self._store, sparql):
             a = _strv(_row_lookup(row, "a_id"))
             b = _strv(_row_lookup(row, "b_id"))
             if a is not None and b is not None:

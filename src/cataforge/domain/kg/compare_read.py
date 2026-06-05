@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.kg._ask import ask
-from cataforge.domain.kg._sparql_utils import _row_lookup, _strv, cf_namespace
+from cataforge.domain.kg._sparql_utils import _row_lookup, _strv, cf_namespace, select_rows
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
 from cataforge.domain.kg.ingest.iri import resolve_entity_iri
 from cataforge.domain.kg.ingest.scan import scan_business_docs
@@ -78,7 +78,7 @@ def _kg_content_hash(kg: KnowledgeGraph, iri: str) -> str | None:
     """Read the `cf:content_hash` literal stored in KG for node `iri`."""
     ns = cf_namespace(kg.config)
     sparql = f"PREFIX cf: <{ns}> SELECT ?h WHERE {{ <{iri}> cf:content_hash ?h }} LIMIT 1"
-    for row in kg.store.query(sparql):
+    for row in select_rows(kg.store, sparql):
         return _strv(_row_lookup(row, "h"))
     return None
 

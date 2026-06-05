@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
+from typing import Any
 
 from cataforge.core.config import ConfigManager
 from cataforge.domain.kg._config import KGConfig
@@ -41,7 +42,7 @@ def _project_root_key(project_root: str | Path) -> str:
     return str(Path(project_root).resolve())
 
 
-def _read_framework_json(project_root: Path) -> dict:
+def _read_framework_json(project_root: Path) -> dict[str, Any]:
     try:
         return ConfigManager(project_root).load_raw()
     except (OSError, ValueError):
@@ -63,8 +64,10 @@ def active_doc_types(project_root: str | Path) -> set[str]:
 
         data = _read_framework_json(Path(project_root))
         declared = (data.get("context") or {}).get("kg_active_doc_types")
-        well_formed = isinstance(declared, list) and all(isinstance(d, str) for d in declared)
-        resolved = set(declared) if well_formed else set(KGConfig().kg_active_doc_types)
+        if isinstance(declared, list) and all(isinstance(d, str) for d in declared):
+            resolved = set(declared)
+        else:
+            resolved = set(KGConfig().kg_active_doc_types)
 
         _ACTIVE_CACHE[key] = resolved
         return resolved

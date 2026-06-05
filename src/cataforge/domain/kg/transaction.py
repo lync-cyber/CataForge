@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._config import KGConfig
@@ -259,7 +259,7 @@ class TransactionContext:
             raise RuntimeError("Cannot commit a transaction that has already been rolled back.")
         if self._committed:
             raise RuntimeError("Transaction has already been committed.")
-        removed: list = []
+        removed: list[Any] = []
         try:
             for q in self._staged_removes:
                 self._store.remove(q)

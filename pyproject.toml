@@ -250,6 +250,7 @@ module = [
     "cataforge.runtime.hook.*",
     "cataforge.runtime.skill.*",
     "cataforge.domain.docs.*",
+    "cataforge.domain.kg.*",
     "cataforge.interface.cli.*",
 ]
 strict = true

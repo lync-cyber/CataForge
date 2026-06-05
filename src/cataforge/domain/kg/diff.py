@@ -26,6 +26,7 @@ from cataforge.domain.kg._sparql_utils import (
     _strv,
     cf_namespace,
     curie_for_iri,
+    select_rows,
 )
 
 if TYPE_CHECKING:
@@ -98,7 +99,7 @@ def _entities_with_hash(store: ox.Store, namespace: str) -> dict[str, str]:
         "}"
     )
     out: dict[str, str] = {}
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         eid = _strv(_row_lookup(row, "id"))
         if eid is None:
             continue
@@ -122,7 +123,7 @@ def _relations(store: ox.Store, namespace: str) -> set[RelKey]:
         "}"
     )
     out: set[RelKey] = set()
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         s_id = _strv(_row_lookup(row, "s_id"))
         p_iri = _strv(_row_lookup(row, "p"))
         o_id = _strv(_row_lookup(row, "o_id"))

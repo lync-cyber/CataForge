@@ -13,7 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from cataforge.domain.kg._sparql_utils import _row_lookup, _term_value, escape_sparql_literal
+from cataforge.domain.kg._sparql_utils import (
+    _row_lookup,
+    _term_value,
+    escape_sparql_literal,
+    select_rows,
+)
 from cataforge.domain.kg.export._entity_meta import (
     _RELATION_GROUPS,
     _entity_type_to_doc_type,
@@ -37,7 +42,7 @@ def _resolve_entity_type(store: ox.Store, entity_id: str, namespace: str) -> str
         "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
         "} LIMIT 1"
     )
-    for row in store.query(sparql):
+    for row in select_rows(store, sparql):
         cls = _term_value(_row_lookup(row, "cls"))
         if cls is not None:
             return str(cls).rsplit("/", 1)[-1]
@@ -81,7 +86,7 @@ def render_entity(
     sparql_template = registry.get(entity_type)
     safe_id = escape_sparql_literal(entity_id)
     sparql_query = sparql_template % {"entity_id": f'"{safe_id}"'}
-    raw_rows = list(store.query(sparql_query))
+    raw_rows = list(select_rows(store, sparql_query))
     relation_groups = _RELATION_GROUPS.get(entity_type.lower(), {})
     context = hydrate_rows(raw_rows, relation_groups)
     if context is None:
@@ -90,7 +95,7 @@ def render_entity(
     if jinja_env is None:
         jinja_env = build_jinja_env()
     jinja_template = resolve_template(jinja_env, entity_type, override=template)
-    return jinja_template.render(entity=context)  # type: ignore[attr-defined]
+    return str(jinja_template.render(entity=context))  # type: ignore[attr-defined]
 
 
 def entity_doc_type(entity_type: str) -> str:

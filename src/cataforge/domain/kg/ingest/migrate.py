@@ -237,9 +237,9 @@ def _write_phase5(
 def _rollback_phase5(
     store: ox.Store,
     project_iri: str,
-    prior_project_quads: list,
+    prior_project_quads: list[Any],
     written_subject_iris: list[str],
-    written_relation_quads: list,
+    written_relation_quads: list[Any],
     config: KGConfig,
 ) -> None:
     """Best-effort compensating rollback for Phase 5 partial writes."""

@@ -6,7 +6,7 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cataforge.core.io import read_json
 from cataforge.domain.kg._config import KGConfig
@@ -25,7 +25,7 @@ class SnapshotMeta:
     active_doc_types: list[str]
     store_backend: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["path"] = str(self.path)
         return d
