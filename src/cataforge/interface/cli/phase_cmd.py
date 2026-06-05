@@ -15,14 +15,20 @@ from pathlib import Path
 
 import click
 
-from cataforge.adapter.platform.registry import resolve_instruction_file
+from cataforge.adapter.platform.registry import parse_current_phase, resolve_instruction_file
 from cataforge.core.errors import CataforgeError
 from cataforge.interface.cli.helpers import resolve_root
 from cataforge.interface.cli.main import cli
+from cataforge.utils.frontmatter import split_yaml_frontmatter
 
-# Canonical SDLC phase sequence — mirrors the instruction file's 当前阶段 enum
-# and event-log.schema.json's phase description.
+# Recognised 当前阶段 values across all execution modes — the union of the
+# standard 7-phase sequence with the agile merged phases (``planning`` for
+# agile-lite, fusing requirements+architecture; ``brief`` for agile-prototype,
+# fusing Phase 1–4). Membership is a recognition gate; ordering carries no
+# semantics.
 PHASES: tuple[str, ...] = (
+    "brief",
+    "planning",
     "requirements",
     "architecture",
     "ui_design",
@@ -33,10 +39,15 @@ PHASES: tuple[str, ...] = (
     "completed",
 )
 
-# Each gated phase's expected primary document (base doc_type; the ``-lite``
-# variant is accepted under agile modes). Phases absent here carry no document
-# gate (development is code-only; completed is terminal).
-PHASE_DOC_TYPE: dict[str, str] = {
+# Each gated phase's expected primary document(s) (base doc_type; the ``-lite``
+# variant is accepted under agile modes). A tuple gates on every listed
+# doc_type. Phases absent here carry no document gate (development is code-only;
+# completed is terminal). The agile merged ``planning`` phase fuses
+# requirements+architecture, so it gates on both prd and arch; ``brief``
+# produces the single agile-prototype doc.
+PHASE_DOC_TYPE: dict[str, str | tuple[str, ...]] = {
+    "brief": "brief",
+    "planning": ("prd", "arch"),
     "requirements": "prd",
     "architecture": "arch",
     "ui_design": "ui-spec",
@@ -46,12 +57,6 @@ PHASE_DOC_TYPE: dict[str, str] = {
 }
 
 _NOT_STARTED = "未开始"
-
-
-def parse_current_phase(state_text: str) -> str | None:
-    """Return the ``当前阶段`` value verbatim, or None when the line is absent."""
-    m = re.search(r"^-\s*当前阶段:\s*(.+?)\s*$", state_text, re.MULTILINE)
-    return m.group(1).strip() if m else None
 
 
 def is_placeholder(value: str | None) -> bool:
@@ -114,6 +119,32 @@ def _read(path: Path) -> str:
         return ""
 
 
+def _frontmatter_doc_type(path: Path) -> str | None:
+    """Return a Markdown file's frontmatter ``doc_type``, or None when absent."""
+    fm, _ = split_yaml_frontmatter(_read(path))
+    if not fm:
+        return None
+    value = fm.get("doc_type")
+    return value if isinstance(value, str) else None
+
+
+def _find_phase_doc(docs_dir: Path, doc_type: str) -> Path | None:
+    """Locate a phase's primary doc under ``docs/{doc_type}/``.
+
+    context generate writes ``docs/{doc_type}/{template_id}-{project}.md``; the
+    subdir name is the doc_type, so any ``*.md`` under it belongs to this family
+    (lite variants and split volumes included). A subdir file that *explicitly*
+    declares a different frontmatter doc_type is excluded so a misplaced doc
+    can't satisfy the gate; files with no declared type are trusted by location.
+    Flat ``docs/{doc_type}(-lite).md`` are a backward-compat fallback.
+    """
+    subdir = docs_dir / doc_type
+    subdir_mds = sorted(subdir.glob("*.md")) if subdir.is_dir() else []
+    candidates = [p for p in subdir_mds if _frontmatter_doc_type(p) in (None, doc_type)]
+    candidates += [docs_dir / f"{doc_type}.md", docs_dir / f"{doc_type}-lite.md"]
+    return next((c for c in candidates if c.is_file()), None)
+
+
 def evaluate_phase(root: Path) -> tuple[str | None, list[tuple[str, bool, str]]]:
     """Evaluate the current phase's expected artifacts.
 
@@ -153,38 +184,38 @@ def evaluate_phase(root: Path) -> tuple[str | None, list[tuple[str, bool, str]]]
         )
     )
 
-    doc_type = PHASE_DOC_TYPE.get(current)
-    if doc_type is None:
+    doc_types = PHASE_DOC_TYPE.get(current)
+    if doc_types is None:
         return current, checks
+    if isinstance(doc_types, str):
+        doc_types = (doc_types,)
 
-    status = parse_doc_status(state_text).get(doc_type, _NOT_STARTED)
-    checks.append(
-        (
-            f"{doc_type} doc status",
-            status != _NOT_STARTED,
-            status,
-        )
-    )
-
+    doc_status = parse_doc_status(state_text)
     docs_dir = root / "docs"
-    candidates = [docs_dir / f"{doc_type}.md", docs_dir / f"{doc_type}-lite.md"]
-    found = next((c for c in candidates if c.is_file()), None)
-    checks.append(
-        (
-            f"{doc_type} doc present",
-            found is not None,
-            found.relative_to(root).as_posix() if found else f"docs/{doc_type}(-lite).md missing",
-        )
-    )
+    indexed = indexed_doc_types(_read(docs_dir / ".doc-index.json"))
+    for doc_type in doc_types:
+        status = doc_status.get(doc_type, _NOT_STARTED)
+        checks.append((f"{doc_type} doc status", status != _NOT_STARTED, status))
 
-    indexed = doc_type in indexed_doc_types(_read(docs_dir / ".doc-index.json"))
-    checks.append(
-        (
-            f"{doc_type} indexed",
-            indexed,
-            "in .doc-index.json" if indexed else "absent (run cataforge docs index)",
+        found = _find_phase_doc(docs_dir, doc_type)
+        checks.append(
+            (
+                f"{doc_type} doc present",
+                found is not None,
+                found.relative_to(root).as_posix()
+                if found
+                else f"docs/{doc_type}/*.md or docs/{doc_type}(-lite).md missing",
+            )
         )
-    )
+
+        is_indexed = doc_type in indexed
+        checks.append(
+            (
+                f"{doc_type} indexed",
+                is_indexed,
+                "in .doc-index.json" if is_indexed else "absent (run cataforge docs index)",
+            )
+        )
     return current, checks
 
 

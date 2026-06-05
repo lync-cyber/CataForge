@@ -19,7 +19,7 @@ Layer 2 — AI 审查（可按文档类型跳过）：
 
 跳过条件（阈值位于 `.cataforge/framework.json → constants`）：
   - 文档行数 < DOC_REVIEW_L2_SKIP_THRESHOLD_LINES（默认 200）
-  - 文档类型 ∈ DOC_REVIEW_L2_SKIP_DOC_TYPES
+  - doc_type ∈ DOC_REVIEW_L2_SKIP_DOC_TYPES（基名匹配）或 frontmatter mode ∈ {agile-lite, agile-prototype}
 ```
 
 ## 2. 代码审查（code-review）

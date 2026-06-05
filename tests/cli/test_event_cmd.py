@@ -86,6 +86,40 @@ class TestEventLogSingle:
         assert record["task_type"] == "new_creation"
 
 
+class TestEventLogProjectDir:
+    def test_global_project_dir_routes_log(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`--project-dir` must win over cwd walk-up. Regression: `event log`
+        read only its own `--project-root` and ignored the global flag, so a
+        sandbox run silently wrote into the host project's EVENT-LOG."""
+        host = tmp_path / "host"
+        target = tmp_path / "target"
+        for d in (host, target):
+            (d / ".cataforge").mkdir(parents=True)
+        monkeypatch.chdir(host)
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "--project-dir",
+                str(target),
+                "event",
+                "log",
+                "--event",
+                "phase_start",
+                "--phase",
+                "planning",
+                "--detail",
+                "x",
+            ],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, result.output
+        assert (target / EVENT_LOG_REL).exists()
+        assert not (host / EVENT_LOG_REL).exists()
+
+
 class TestEventLogBatch:
     def test_atomic_all_or_nothing(self, project: Path) -> None:
         payload = (

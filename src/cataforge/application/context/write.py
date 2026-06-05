@@ -14,6 +14,7 @@ file tree is derived from them.
 from __future__ import annotations
 
 import hashlib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,7 @@ from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg._dispatch import kg_config_for
 from cataforge.domain.kg._errors import KGValidationError
 from cataforge.domain.kg.export import compile_to_markdown, entity_doc_type
+from cataforge.domain.kg.export.types import CompileResult
 from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, run_migration
 from cataforge.domain.kg.ingest.iri import id_prefix_to_type
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
@@ -30,7 +32,6 @@ from cataforge.domain.kg.reconcile import reconcile as _reconcile
 from cataforge.domain.kg.validate import validate
 
 if TYPE_CHECKING:
-    from cataforge.domain.kg.export.types import CompileResult
     from cataforge.domain.kg.ingest.migrate import MigrationStats
     from cataforge.domain.kg.reconcile import ReconcileReport
 
@@ -125,10 +126,24 @@ def write_narrative(
 
 
 def finalize(project_root: str, output_dir: str | None = None) -> CompileResult:
-    """Export the graph to Markdown for human review (KG → md)."""
+    """Persist authored content and return the export view (KG → md).
+
+    Two authoring modes converge here. ``context write`` authors into the
+    graph, so the graph is canonical and the Markdown is a derived view —
+    exported here. Markdown-first authoring edits the files directly, leaving
+    the graph empty; that Markdown is canonical, so it is seeded into the graph
+    (md → KG) and kept as-is. The empty-graph branch deliberately does NOT
+    re-export: ``compile_to_markdown`` is a lossy round-trip (it drops authored
+    relation/section content), so exporting over the source would degrade it.
+    Either way the ``定稿`` contract routes persistence without the caller
+    hand-running ``ingest``.
+    """
     cfg = kg_config_for(project_root)
     out = Path(output_dir) if output_dir else Path(project_root) / "docs"
     with KnowledgeGraph.connect(cfg) as kg:
+        if not kg.query.entity_ids():
+            run_migration(kg.store, Path(project_root), cfg, doc_types=DEFAULT_DOC_TYPES)
+            return CompileResult(exported_at=datetime.now(UTC), discovered_count=0, output_dir=out)
         return compile_to_markdown(kg.store, out)
 
 

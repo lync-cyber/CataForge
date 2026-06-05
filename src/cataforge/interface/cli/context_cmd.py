@@ -9,15 +9,39 @@ name the graph or the file store.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import TYPE_CHECKING
+
 import click
 
-from cataforge.core.errors import CataforgeError
+from cataforge.core.errors import CataforgeError, KGStoreError
 from cataforge.interface.cli.main import cli
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 @cli.group("context")
 def context_group() -> None:
     """Strategy-routed context I/O (read / relation / write lifecycle)."""
+
+
+@contextmanager
+def _kg_store_guard() -> Generator[None]:
+    """Turn a missing-store crash into a clean ``Error:`` with an init hint.
+
+    Under ``kg-first`` the authoring/lifecycle commands open the graph; on a
+    project that never ran ``cataforge kg init`` the connect raises
+    ``KGStoreNotInitializedError``, which would otherwise escape as an
+    uncaught traceback. The ``cataforge kg`` twin commands already convert it
+    to :class:`KGStoreError`; mirror that here.
+    """
+    from cataforge.domain.kg import KGStoreNotInitializedError
+
+    try:
+        yield
+    except KGStoreNotInitializedError as exc:
+        raise KGStoreError(f"{exc}\nHint: run `cataforge kg init` first.") from exc
 
 
 def _kv(pairs: tuple[str, ...]) -> dict[str, str]:
@@ -30,13 +54,28 @@ def _kv(pairs: tuple[str, ...]) -> dict[str, str]:
     return out
 
 
+def _rooted(ctx: click.Context, project_root: str | None) -> str | None:
+    """Re-root a defaulted ``--project-root`` under the global ``--project-dir``.
+
+    The context commands carry their own ``--project-root`` (defaulting to
+    cwd), so without this they ignore the global flag. An explicitly-passed
+    ``--project-root`` still wins.
+    """
+    from cataforge.interface.cli.helpers import root_relative_default
+
+    resolved = root_relative_default(ctx, "project_root", project_root)
+    return str(resolved) if resolved is not None else None
+
+
 @context_group.command("read")
 @click.argument("refs", nargs=-1, required=True)
 @click.option("--project-root", default=None)
 @click.option("--json", "json_output", is_flag=True)
 @click.option("--with-deps", is_flag=True)
 @click.option("--budget", type=int, default=None)
+@click.pass_context
 def context_read(
+    ctx: click.Context,
     refs: tuple[str, ...],
     project_root: str | None,
     json_output: bool,
@@ -46,6 +85,7 @@ def context_read(
     """Strategy-routed section read of ``doc_id#§N[.item]`` REFS."""
     from cataforge.application.context.read import main as read_main
 
+    project_root = _rooted(ctx, project_root)
     argv = list(refs)
     if project_root:
         argv += ["--project-root", project_root]
@@ -66,7 +106,9 @@ def context_read(
 @click.option("--section", "source_section", default="", help="Source section anchor.")
 @click.option("--project-id", default=None)
 @click.option("--project-root", default=".")
+@click.pass_context
 def context_write(
+    ctx: click.Context,
     entity_id: str,
     class_name: str,
     title: str,
@@ -78,15 +120,17 @@ def context_write(
     """KG-first authorized write of a single entity (validated at write time)."""
     from cataforge.application.context.write import author_entity
 
-    iri = author_entity(
-        project_root,
-        entity_id=entity_id,
-        class_name=class_name,
-        title=title,
-        slots=_kv(slots),
-        source_section=source_section,
-        project_id=project_id,
-    )
+    project_root = _rooted(ctx, project_root) or project_root
+    with _kg_store_guard():
+        iri = author_entity(
+            project_root,
+            entity_id=entity_id,
+            class_name=class_name,
+            title=title,
+            slots=_kv(slots),
+            source_section=source_section,
+            project_id=project_id,
+        )
     click.echo(f"authored {entity_id} -> {iri}")
 
 
@@ -95,25 +139,31 @@ def context_write(
 @click.option("--anchor", required=True, help="Section anchor, e.g. '§1 概览'.")
 @click.option("--narrative", default=None, help="Prose body; omit to read from stdin.")
 @click.option("--project-root", default=".")
+@click.pass_context
 def context_write_narrative(
-    doc_id: str, anchor: str, narrative: str | None, project_root: str
+    ctx: click.Context, doc_id: str, anchor: str, narrative: str | None, project_root: str
 ) -> None:
     """Author a Section's prose (``narrative_body``) into the graph."""
     from cataforge.application.context.write import write_narrative
 
+    project_root = _rooted(ctx, project_root) or project_root
     body = narrative if narrative is not None else click.get_text_stream("stdin").read()
-    write_narrative(project_root, doc_id=doc_id, anchor=anchor, narrative=body)
+    with _kg_store_guard():
+        write_narrative(project_root, doc_id=doc_id, anchor=anchor, narrative=body)
     click.echo(f"wrote narrative for {doc_id}#{anchor}")
 
 
 @context_group.command("finalize")
 @click.option("--project-root", default=".")
 @click.option("--output-dir", default=None, help="Export target (default docs/).")
-def context_finalize(project_root: str, output_dir: str | None) -> None:
+@click.pass_context
+def context_finalize(ctx: click.Context, project_root: str, output_dir: str | None) -> None:
     """Export the graph to Markdown for human review (KG → md)."""
     from cataforge.application.context.write import finalize
 
-    result = finalize(project_root, output_dir)
+    project_root = _rooted(ctx, project_root) or project_root
+    with _kg_store_guard():
+        result = finalize(project_root, output_dir)
     click.echo(f"exported {len(result.file_records)} file(s)")
     if result.errors:
         for err in result.errors:
@@ -126,11 +176,14 @@ def context_finalize(project_root: str, output_dir: str | None) -> None:
 @context_group.command("ingest")
 @click.option("--project-root", default=".")
 @click.option("--doc-type", "doc_types", multiple=True, help="Restrict scope; repeatable.")
-def context_ingest(project_root: str, doc_types: tuple[str, ...]) -> None:
+@click.pass_context
+def context_ingest(ctx: click.Context, project_root: str, doc_types: tuple[str, ...]) -> None:
     """Reflect human-edited Markdown back into the graph (md → KG)."""
     from cataforge.application.context.write import ingest
 
-    stats = ingest(project_root, list(doc_types) or None)
+    project_root = _rooted(ctx, project_root) or project_root
+    with _kg_store_guard():
+        stats = ingest(project_root, list(doc_types) or None)
     click.echo(
         f"ingested: {stats.write_stats.entities_written} entities, "
         f"{stats.structure_stats.sections_written} sections written"
@@ -139,11 +192,14 @@ def context_ingest(project_root: str, doc_types: tuple[str, ...]) -> None:
 
 @context_group.command("reconcile")
 @click.option("--project-root", default=".")
-def context_reconcile(project_root: str) -> None:
+@click.pass_context
+def context_reconcile(ctx: click.Context, project_root: str) -> None:
     """Drift guard between the graph and the exported Markdown."""
     from cataforge.application.context.write import reconcile_check
 
-    report = reconcile_check(project_root)
+    project_root = _rooted(ctx, project_root) or project_root
+    with _kg_store_guard():
+        report = reconcile_check(project_root)
     if report.ok:
         click.echo("reconcile OK (no drift)")
         return

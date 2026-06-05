@@ -33,7 +33,7 @@
 | DOC_SPLIT_THRESHOLD_LINES | 300 | 单文档触发拆分的行数 | context |
 | META_DOC_SPLIT_THRESHOLD_LINES | 500 | SKILL.md / AGENT.md / 协议文档拆分提示行数（协议天然偏长） | framework-review |
 | DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
-| DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, prd-lite, arch-lite, dev-plan-lite, changelog] | 可短路 Layer 2 的文档类型白名单 | doc-review |
+| DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, changelog] | 可短路 Layer 2 的 doc_type 白名单（匹配 frontmatter 基名 doc_type）；lite 变体 doc_type 是基名 prd/arch/dev-plan，其短路由 frontmatter `mode ∈ {agile-lite, agile-prototype}` 驱动，见 review.md | doc-review |
 | TDD_LIGHT_LOC_THRESHOLD | 150 | tech-lead 判定 `tdd_mode: standard` 的预估 LOC 上限阈值（LOC ≤ 阈值 → light；> 阈值 → standard） | tech-lead, tdd-engine |
 | TDD_DEFAULT_MODE | light | 任务卡 `tdd_mode` 缺省值。LOC > 阈值或带 `security_sensitive: true` / 跨模块时 tech-lead 显式标 standard | tech-lead, tdd-engine |
 | TDD_REFACTOR_TRIGGER | [complexity, duplication, coupling] | standard 模式下 REFACTOR 阶段的条件触发清单（GREEN 后 code-review Layer 1 命中任一 category 才调度 refactorer；任务卡显式 `tdd_refactor: required` 也强制触发） | tdd-engine |

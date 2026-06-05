@@ -43,9 +43,11 @@ def scaffolded_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.fixture
 def deployed_project(scaffolded_project: Path) -> Path:
-    """Scaffolded project that has also deployed to claude-code."""
+    """Scaffolded project that has also deployed to claude-code, with the
+    kg-first store already initialized (a genuinely fully-bootstrapped state)."""
     state = scaffolded_project / ".cataforge" / ".deploy-state"
     state.write_text(json.dumps({"platform": "claude-code"}) + "\n", encoding="utf-8")
+    (scaffolded_project / ".cataforge" / "kg" / "store").mkdir(parents=True, exist_ok=True)
     return scaffolded_project
 
 
@@ -98,7 +100,41 @@ class TestDryRunPlan:
         assert "setup    skip" in result.output
         assert "upgrade  skip" in result.output
         assert "deploy   skip" in result.output
+        assert "kg-init  skip" in result.output
         assert "doctor   run" in result.output
+
+    def test_fresh_kg_first_plan_shows_kg_init_run(
+        self, runner: CliRunner, fresh_project: Path
+    ) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "bootstrap",
+                "--platform",
+                "claude-code",
+                "--context-strategy",
+                "kg-first",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "kg-init  run" in result.output
+        assert not (fresh_project / ".cataforge").exists()  # dry-run writes nothing
+
+    def test_doc_only_plan_omits_kg_init(self, runner: CliRunner, fresh_project: Path) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "bootstrap",
+                "--platform",
+                "claude-code",
+                "--context-strategy",
+                "doc-only",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "kg-init" not in result.output
 
     def test_platform_mismatch_blocks(self, runner: CliRunner, deployed_project: Path) -> None:
         """Requesting a different platform than what's recorded must surface
@@ -232,3 +268,63 @@ class TestExecution:
         assert result.exit_code == 0, result.output
         after = list(fresh_project.iterdir())
         assert before == after
+
+
+class TestKgFirstStoreInit:
+    """kg-first bootstrap must leave an initialized store so the first
+    `context write` / `reconcile` doesn't crash on a missing store."""
+
+    def test_kg_first_bootstrap_initializes_store(
+        self, runner: CliRunner, fresh_project: Path
+    ) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "bootstrap",
+                "--platform",
+                "claude-code",
+                "--context-strategy",
+                "kg-first",
+                "--yes",
+                "--skip-doctor",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert (fresh_project / ".cataforge" / "kg" / "store").is_dir()
+
+    def test_doc_only_bootstrap_skips_store(self, runner: CliRunner, fresh_project: Path) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "bootstrap",
+                "--platform",
+                "claude-code",
+                "--context-strategy",
+                "doc-only",
+                "--yes",
+                "--skip-doctor",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert not (fresh_project / ".cataforge" / "kg" / "store").exists()
+
+    def test_re_bootstrap_with_existing_store_is_noop(
+        self, runner: CliRunner, fresh_project: Path
+    ) -> None:
+        args = [
+            "bootstrap",
+            "--platform",
+            "claude-code",
+            "--context-strategy",
+            "kg-first",
+            "--yes",
+            "--skip-doctor",
+        ]
+        first = runner.invoke(cli, args)
+        assert first.exit_code == 0, first.output
+        store = fresh_project / ".cataforge" / "kg" / "store"
+        assert store.is_dir()
+
+        second = runner.invoke(cli, ["bootstrap", "--yes", "--skip-doctor"])
+        assert second.exit_code == 0, second.output
+        assert store.is_dir()
