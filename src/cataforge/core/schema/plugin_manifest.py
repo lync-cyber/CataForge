@@ -42,7 +42,7 @@ class PluginManifest(BaseModel):
         requires = data.get("requires", {})
         return cls(
             id=data["id"],
-            name=data.get("name", data["id"]),
+            name=str(data.get("name", data["id"])),
             version=data.get("version", "0.0.0"),
             description=data.get("description", ""),
             cataforge_version=data.get("cataforge_version", ">=0.1.0"),

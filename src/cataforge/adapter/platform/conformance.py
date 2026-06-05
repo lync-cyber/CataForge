@@ -188,7 +188,7 @@ def _load_hook_degradation_strategies(platforms_dir: Path | None) -> dict[str, s
         return None
     templates = data.get("degradation_templates", {})
     return {
-        hook: spec.get("strategy")
+        hook: str(spec["strategy"])
         for hook, spec in templates.items()
         if isinstance(spec, dict) and spec.get("strategy")
     }

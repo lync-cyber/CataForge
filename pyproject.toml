@@ -239,6 +239,10 @@ module = [
     "cataforge.application.services.*",
     "cataforge.application.feedback",
     "cataforge.application.feedback.*",
+    "cataforge.utils.*",
+    "cataforge.core.*",
+    "cataforge.adapter.platform.*",
+    "cataforge.runtime.deploy.*",
 ]
 strict = true
 
