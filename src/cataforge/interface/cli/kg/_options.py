@@ -9,16 +9,18 @@ These factories give read-only commands (query, trace, validate, …) a single
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import click
+from click.decorators import FC
 
 from cataforge.core.paths import KG_STORE_REL
 
 _DB_PATH_HELP = "Filesystem path of the RocksDB-backed Oxigraph store."
 
 
-def db_path_option(*, exists: bool = False) -> click.Option:
+def db_path_option(*, exists: bool = False) -> Callable[[FC], FC]:
     """``--db-path`` for commands that may create the store (init, import).
 
     ``exists=False`` lets the path be materialized by the command itself.
@@ -32,7 +34,7 @@ def db_path_option(*, exists: bool = False) -> click.Option:
     )
 
 
-def db_path_ro_option() -> click.Option:
+def db_path_ro_option() -> Callable[[FC], FC]:
     """``--db-path`` for read-only commands (query, trace, validate, …).
 
     The store must already exist, so ``exists=True`` rejects a missing path

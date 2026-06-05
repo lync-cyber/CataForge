@@ -58,6 +58,7 @@ dev = [
     "pytest-xdist>=3.5",
     "ruff>=0.4",
     "mypy>=1.10",
+    "types-PyYAML>=6.0",
     "build>=1.2",
     "twine>=5.0",
     "scriv[toml]>=1.5",
@@ -247,6 +248,11 @@ strict = true
 # so errors here are silenced wholesale rather than counted against strict.
 module = ["cataforge.domain.kg._generated.*"]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+# Third-party runtime deps that ship no type stubs or py.typed marker.
+module = ["pyshacl.*", "linkml_runtime.*", "docker.*"]
+ignore_missing_imports = true
 
 [tool.scriv]
 # Markdown-native changelog fragments — see changelog.d/README.md for
