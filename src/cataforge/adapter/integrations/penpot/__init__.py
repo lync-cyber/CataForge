@@ -10,6 +10,7 @@ implementation is split into ``docker`` (compose stack), ``mcp_process``
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 from cataforge.adapter.integrations.penpot import mcp_process  # noqa: F401
 from cataforge.adapter.integrations.penpot._constants import (
@@ -168,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     return HANDLERS[args.command](config)
 
 
-HANDLERS: dict[str, Callable[[dict], int]] = {
+HANDLERS: dict[str, Callable[[dict[str, Any]], int]] = {
     "init": cmd_init,
     "deploy": cmd_deploy,
     "mcp-only": cmd_mcp_only,

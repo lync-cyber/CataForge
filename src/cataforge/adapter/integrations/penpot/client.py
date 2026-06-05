@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from typing import Any
 
 from cataforge.utils.common import (
     BOLD,
@@ -30,7 +31,7 @@ def _run_claude_mcp(args: list[str]) -> subprocess.CompletedProcess[str] | None:
         return None
 
 
-def register_claude_mcp(config: dict) -> None:
+def register_claude_mcp(config: dict[str, Any]) -> None:
     section("注册 MCP 到 Claude Code")
     mcp_url = f"http://localhost:{config['mcp_port']}/mcp"
     manual_hint = f"claude mcp add penpot -t http {mcp_url}"

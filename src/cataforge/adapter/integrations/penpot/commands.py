@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from typing import Any
 
 from cataforge.adapter.integrations.penpot.client import register_claude_mcp
 from cataforge.adapter.integrations.penpot.docker import (
@@ -52,7 +53,7 @@ def print_header(title: str, subtitle: str | None = None) -> None:
     print()
 
 
-def cmd_deploy(config: dict) -> int:
+def cmd_deploy(config: dict[str, Any]) -> int:
     print_header(
         "Penpot 完整部署",
         "Docker 自托管 (frontend + backend + exporter + postgres + valkey + mailcatch) + MCP",
@@ -68,7 +69,7 @@ def cmd_deploy(config: dict) -> int:
     return 0
 
 
-def cmd_mcp_only(config: dict) -> int:
+def cmd_mcp_only(config: dict[str, Any]) -> int:
     print_header("Penpot MCP Server 部署", "只起 MCP — 假定 Penpot 已运行")
     if not preflight_check("mcp"):
         return 1
@@ -84,7 +85,7 @@ def cmd_mcp_only(config: dict) -> int:
     return 0
 
 
-def print_remote_onboarding(config: dict) -> None:
+def print_remote_onboarding(config: dict[str, Any]) -> None:
     """Walk the user through loading the MCP plugin into design.penpot.app.
 
     The MCP server itself talks to Penpot via a WebSocket-connected browser
@@ -110,7 +111,7 @@ def print_remote_onboarding(config: dict) -> None:
     print(f"  {DIM}插件 UI 关闭后 WebSocket 会断开 — 让 Plugin 面板保持打开。{NC}\n")
 
 
-def cmd_remote(config: dict) -> int:
+def cmd_remote(config: dict[str, Any]) -> int:
     """Remote (SaaS) mode: only launch local MCP, point user at design.penpot.app."""
     print_header(
         "Penpot Remote (SaaS) + 本地 MCP",
@@ -125,7 +126,7 @@ def cmd_remote(config: dict) -> int:
     return 0
 
 
-def cmd_start(config: dict) -> int:
+def cmd_start(config: dict[str, Any]) -> int:
     print_header("启动 Penpot 服务")
     if not preflight_check("all"):
         return 1
@@ -143,7 +144,7 @@ def cmd_start(config: dict) -> int:
     return 0
 
 
-def cmd_stop(config: dict) -> int:
+def cmd_stop(config: dict[str, Any]) -> int:
     print_header("停止 Penpot 服务")
     section("停止 MCP Server")
     stop_mcp(config)
@@ -161,7 +162,7 @@ def cmd_stop(config: dict) -> int:
     return 0
 
 
-def _status_rows(config: dict) -> list[tuple[str, bool, str]]:
+def _status_rows(config: dict[str, Any]) -> list[tuple[str, bool, str]]:
     """Probe every Penpot-side service. Returned as (label, up, endpoint)."""
     return [
         (
@@ -193,7 +194,7 @@ def _print_status_table(rows: list[tuple[str, bool, str]]) -> None:
         print(f"  {label:<{label_w}}{state:<{state_w}}{DIM}{endpoint}{NC}")
 
 
-def cmd_status(config: dict) -> int:
+def cmd_status(config: dict[str, Any]) -> int:
     print_header("Penpot 服务状态")
     rows = _status_rows(config)
     _print_status_table(rows)
@@ -242,7 +243,7 @@ def _prompt_mode(default: str = MODE_REMOTE) -> str:
     return _MODE_KEY_TO_NAME[chosen]
 
 
-def cmd_init(config: dict) -> int:
+def cmd_init(config: dict[str, Any]) -> int:
     """Interactive setup wizard — picks Remote / Local / MCP-only and dispatches."""
     print_header(
         "Penpot 集成向导",
@@ -257,7 +258,7 @@ def cmd_init(config: dict) -> int:
     return cmd_mcp_only(config)
 
 
-def cmd_ensure(config: dict) -> int:
+def cmd_ensure(config: dict[str, Any]) -> int:
     if _is_mcp_running(config):
         print(f"Penpot MCP already running on port {config['mcp_port']}")
         return 0

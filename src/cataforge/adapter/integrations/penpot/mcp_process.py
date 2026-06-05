@@ -10,6 +10,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from typing import Any
 
 from cataforge.adapter.integrations.penpot._constants import (
     DEFAULT_MCP_PACKAGE_VERSION,
@@ -55,7 +56,7 @@ def _remove_mcp_pid() -> None:
         os.remove(MCP_PID_FILE)
 
 
-def _is_mcp_running(config: dict) -> bool:
+def _is_mcp_running(config: dict[str, Any]) -> bool:
     try:
         req = urllib.request.Request(f"http://localhost:{config['mcp_port']}/mcp", method="GET")
         # 2s is deliberate: this probe runs on every `penpot status` /
@@ -73,7 +74,7 @@ def _is_mcp_running(config: dict) -> bool:
         return False
 
 
-def _mcp_npx_env(config: dict) -> dict[str, str]:
+def _mcp_npx_env(config: dict[str, Any]) -> dict[str, str]:
     """Environment for the npx-spawned @penpot/mcp process.
 
     PNPM_CONFIG_STRICT_DEP_BUILDS=false demotes ERR_PNPM_IGNORED_BUILDS (raised
@@ -89,7 +90,7 @@ def _mcp_npx_env(config: dict) -> dict[str, str]:
     return env
 
 
-def start_mcp(config: dict) -> bool:
+def start_mcp(config: dict[str, Any]) -> bool:
     section("启动 MCP Server")
     if _is_mcp_running(config):
         ok(f"MCP Server 已在端口 {config['mcp_port']} 运行")
@@ -189,7 +190,7 @@ def _diagnose_mcp_log(text: str) -> list[str]:
     return hints
 
 
-def stop_mcp(config: dict) -> bool:
+def stop_mcp(config: dict[str, Any]) -> bool:
     pid = _read_mcp_pid()
     if pid and pid_alive(pid):
         info(f"停止 MCP Server (PID: {pid})...")
@@ -219,7 +220,7 @@ def stop_mcp(config: dict) -> bool:
                         break
                     time.sleep(0.5)
                 else:
-                    os.kill(pid, signal.SIGKILL)
+                    os.kill(pid, signal.SIGKILL)  # type: ignore[attr-defined,unused-ignore]
         except OSError:
             pass
         _remove_mcp_pid()

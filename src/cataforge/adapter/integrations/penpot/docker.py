@@ -6,6 +6,7 @@ import os
 import secrets
 import subprocess
 import time
+from typing import Any
 
 from cataforge.adapter.integrations.penpot._constants import (
     DOCKER_COMPOSE_TEMPLATE,
@@ -48,7 +49,7 @@ def _extract_secret_key(compose_file: str) -> str | None:
     return None
 
 
-def _generate_compose_file(config: dict, force: bool = False) -> str:
+def _generate_compose_file(config: dict[str, Any], force: bool = False) -> str:
     compose_dir = config["penpot_dir"]
     os.makedirs(compose_dir, exist_ok=True)
     compose_file = os.path.join(compose_dir, "docker-compose.yml")
@@ -79,7 +80,7 @@ def _is_penpot_container_running() -> bool:
         return False
 
 
-def _is_penpot_running(config: dict) -> bool:
+def _is_penpot_running(config: dict[str, Any]) -> bool:
     return _is_penpot_container_running() and is_port_listening(config["penpot_port"])
 
 
@@ -132,7 +133,7 @@ def preflight_check(scope: str = "all") -> bool:
     return passed
 
 
-def deploy_penpot(config: dict) -> bool:
+def deploy_penpot(config: dict[str, Any]) -> bool:
     section("部署 Penpot (Docker Compose)")
     if not ensure_docker_running():
         return False

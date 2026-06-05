@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from cataforge.adapter.integrations.penpot._constants import (
     MCP_LOG_FILE,
@@ -28,7 +29,7 @@ from cataforge.utils.common import (
 )
 
 
-def cmd_doctor(config: dict) -> int:
+def cmd_doctor(config: dict[str, Any]) -> int:
     """Inspect compose file, MCP log, and service ports; suggest fixes."""
     print_header("Penpot 服务诊断")
     problems: list[str] = []

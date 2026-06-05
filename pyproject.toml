@@ -243,6 +243,7 @@ module = [
     "cataforge.utils.*",
     "cataforge.core.*",
     "cataforge.adapter.platform.*",
+    "cataforge.adapter.integrations.*",
     "cataforge.runtime.deploy.*",
     "cataforge.runtime.agent.*",
     "cataforge.runtime.mcp.*",
