@@ -115,7 +115,7 @@ def _is_dir_link(path: Path) -> bool:
         try:
             import ctypes
 
-            attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+            attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))  # type: ignore[attr-defined,unused-ignore]
             file_attribute_reparse_point = 0x400
             return attrs != -1 and bool(attrs & file_attribute_reparse_point)
         except (AttributeError, OSError):

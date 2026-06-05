@@ -115,7 +115,7 @@ def start_mcp(config: dict[str, Any]) -> bool:
                 stdout=log_fh,
                 stderr=subprocess.STDOUT,
                 env=env,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,  # type: ignore[attr-defined,unused-ignore]
             )
         else:
             proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
