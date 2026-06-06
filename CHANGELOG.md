@@ -20,6 +20,102 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.8.0'></a>
+## [0.8.0] — 2026-06-06
+
+### Added
+
+- **agent 语言细则注入** —— architect / implementer / test-writer / reviewer / devops / debugger 六个核心 agent 声明 `lang_aware: true`，部署时按 `active_languages()` 在落地副本追加 `## 语言细则` 段，链接 `.cataforge/agents/<id>/rules/lang-<lang>.md`；内置 python / js-ts / go / rust / csharp / java 共 36 个片段，含面向 LLM 编码的协作要点（不臆造 API / 包、先复现再改、补异常路径等）。
+- **内置 wiring / e2e 规则扩展至 go / rust / csharp / java** —— code-review 与 testing 的 Layer 1 现覆盖这四种语言的占位实现、测试后门与真实输入模式（基于 chromedp / thirtyfour / Playwright / Selenium 等真实框架 API）。
+- **覆盖层骨架** —— `.cataforge/overrides/` 随框架附带 README + `project/` / `user/` 占位目录，作为 `cataforge override eject` 的起步说明。
+
+- **部署漂移检测** —— `cataforge deploy` 现在把 `.cataforge/` 源指纹（`source_digest`）+ 运行包版本（`package_version`）写入 `.deploy-manifest.json` 作为基线。`cataforge doctor` 新增非 gating 的「Deploy drift」段，新增 `deploy_drift` SessionStart hook（observe，stderr 提示）；当 `.cataforge/` 源或已安装的 `cataforge` 版本自上次部署后变更时，提示运行 `cataforge deploy`，避免改了源却忘记 redeploy 导致 IDE 产物静默过期。
+
+- **`cataforge agent list --skills`** —— 在 agent 列表后附带每个 agent 在 AGENT.md frontmatter 声明的 skills（`skills: []` 显示 `(none)`）。`AgentManager.skills_for()` 以结构化 frontmatter 解析替代 agent-dispatch 里脆弱的 `grep -h 'skills:' -A 20` 行窗启发式（字段顺序/长度变化会截断或串入无关内容）。
+
+- **`{AGENTS_SRC_DIR}` 运行时占位符** —— 恒解析为 `.cataforge/agents` 源目录（跨平台一致、结构完整、部署后仍可读），供 agent 跨引用 sibling `*PROTOCOLS*.md` 或其他 agent 的 `AGENT.md` 时使用，与 lang-fragment 链接的"指源"策略统一。
+
+- **`docs/.docignore`** —— 声明免于 doc-index orphan 检查的发布型文档子树，避免人工散文文档被误报为孤儿。
+
+`find_orphan_docs` 原先只排除 `.archive/`，把所有缺 `id` front matter 的 `docs/**.md` 一律判为 orphan —— 对 SDLC 管线产物正确，对框架自身的 architecture/guide/reference 等人工文档是误报。新增 `docs/.docignore`（gitignore 风格：目录尾 `/` 或相对 docs/ 的 fnmatch 行，`#` 注释）声明非 SDLC artefact 子树；`cataforge docs validate` / `cataforge doctor` 读取它，匹配的无 front matter 文档不计为 orphan，改打印 `N doc(s) excluded by docs/.docignore` 以防静默放行。
+
+- **自然语言 → SPARQL 只读查询面** —— `cataforge.domain.kg.nl_query` 新增 `translate()` / `query()` / `answer()`：用调用方注入的、仅需暴露 `.invoke(prompt)` 的 LLM（不引入任何 LLM 框架依赖）把自然语言问题翻译成 SPARQL，经 SELECT/ASK 白名单门控（`read_query.assert_read_only`）后走现有只读路径执行，杜绝幻觉写操作落库；`answer()` 复用 `query()` 取数后再一次 `.invoke()` 把结果行转述为自然语言，同样受只读门控保护。
+- **LinkML 生成的 Pydantic 模型可作运行时类型视图** —— `cataforge.domain.kg.models.to_model()` 把 `QueryAPI` 的标量 dict 提升为生成的 Pydantic 模型（`model_construct` 标量视图），生成产物缺失时优雅返回 `None`。生成的 `*_pydantic.py` + `subclass_axioms.ttl` 现纳入版本控制并随 wheel 分发，新增 `check_codegen_fresh` 守卫保证它们与 `schemas/*.yaml` 始终同步。
+
+### Changed
+
+- **`iter_scaffold_files` 排除 `overrides/`** —— 覆盖层不再进入 scaffold manifest，兑现 `overrides_dir` 的升级免疫承诺：`upgrade apply` 永不触碰用户定制层。
+
+- **最低 Python 版本提升至 3.11** —— `requires-python` 从 `>=3.10` 改为 `>=3.11`，CI matrix 与 classifiers 同步去除 3.10。放弃 3.10 用户以启用 `tomllib` / `typing.Self` 等现代特性。
+- **平台 profile / hooks 加载期强校验** —— `profile.yaml` 与 `hooks.yaml` 现由 pydantic 模型（`PlatformProfile` / `HooksSpec`）在加载期校验：字段类型错误、结构漂移、拼写错误会在加载期即报出可定位的字段级错误，而非延迟到运行时。缺失的可选节仍回退默认值，不会"加载即崩"。
+
+- **`context finalize` 对空图自动从 markdown 收敛** —— kg-first 下 markdown-first 授权的内容会被 seed 入图（md→KG，不做有损的反向 re-export），reconcile 不再把整棵文档树报为漂移，「持久化由框架路由」契约成立。
+- **`cataforge bootstrap` 为 kg-first 项目初始化 KG store** —— 幂等创建（`--dry-run` 显示为 `kg-init` 步骤），首个 `context write`/`reconcile` 不再撞上缺失的 store。
+- **`DOC_REVIEW_L2_SKIP_DOC_TYPES` 改用真实基名 `[brief, changelog]`** —— 移除永不命中的 `-lite` 死项；lite 变体的 Layer 2 短路改由 frontmatter `mode ∈ {agile-lite, agile-prototype}` 驱动。
+
+- **元资产边界与触发性打磨** —— implementer 断言强度自检改引 test-writer `行为断言强制` 单一事实来源（去重）；testing/arc-design/deploy-config 等补全 description 触发句与"不做"承接 skill 标注；多个 agent/skill 的 Anti-Patterns 补"做 A 而非 B + 具体反例"。
+
+- **全仓 enforce ruff-format** —— pre-commit 与 CI 新增 `ruff format --check src tests scripts`，源码树一次性规范化为 canonical 格式。
+
+此前 CI 只 enforce `ruff check`（lint）不 enforce format，而 `lint_format` PostToolUse hook 对 `.py` 编辑跑整文件 `ruff format`，导致编辑触碰的非 canonical 行被重排、在 diff 里产生无关 churn。现按与 lint 相同的范围（`src tests scripts`）enforce ruff-format，消除该漂移。
+
+- **修正 `lint_format` hook 的 `.cataforge/` 跳过** —— 原先只对 `.md` 生效，现对所有文件类型生效，与 docstring 及 ruff 作用域（`src tests scripts`，不含 `.cataforge/`）一致；框架资产不再被自动格式化。
+
+- **`/self-update` skill 与 `/bootstrap` command 合并为 `framework-update` skill** —— 单一 `/framework-update [check|apply|verify]` 覆盖整条框架生命周期。
+
+两个旧入口都是 `cataforge bootstrap` 脊柱的薄包装，对同一调用协议各写一遍。合并后脊柱只描述一处：`apply` 串起条件包升级（pip/uv）→ `cataforge bootstrap` 幂等刷新/部署/验证 → upgrade.state 与框架版本簿记 → 按项目指令文件存在与否分流项目初始化或恢复。在已部署项目上重跑 `apply` 等价于一次升级检查 + 刷新，再分流 from-scratch 初始化或环境补齐 + `/start-orchestrator continue` 恢复。`/bootstrap` command 作为纯重复包装移除；`framework-update` 既 user-invocable 又 model-invocable，直接 `/framework-update` 调用。CLI `cataforge bootstrap` / `cataforge upgrade` 不变。
+
+- **`cataforge kg query` 的 SPARQL 只读策略下沉到 `domain/kg/read_query`** —— 写操作白名单与 `LIMIT` 注入提取为共享原语，CLI 与新的 NL 查询面共用同一套 SELECT/ASK 策略，不再各自实现。
+- **SHACL 桥接改用序列化往返** —— `validate` 的 pyoxigraph→rdflib 桥接改为 `store.dump` + `rdflib.parse`，由两个 spec 实现负责 term 边界，移除手写的逐类型 term 映射。
+
+- **mypy 全局 strict 门禁** —— `[tool.mypy]` 改为全局 `strict = true`，覆盖整个 `cataforge.*`；新包默认就在 strict 下、无需 opt-in 登记，全树类型基线收敛到 0 error。CI `test.yml` 的 mypy step 从「全仓 informational + 单包 gate」改为单一阻塞的 `mypy src/cataforge`，任何新类型错误都会让 PR 失败。仅两处豁免：`_generated` codegen（`ignore_errors`，手改注解会被重新生成覆盖）与 3 个无 stub 第三方库 `pyshacl` / `linkml_runtime` / `docker`（`ignore_missing_imports`）。动态边界（pyoxigraph 查询结果、jinja render、entry-point 加载）统一经一个 `_sparql_utils.select_rows()` helper 或局部 `cast` 收窄。
+
+- **实体定义判定收紧为标题锚定** —— 非从属实体仅当 entity-id 是其所属 section 标题的主语（标题首个 entity-id token）才算定义；他处裸提及不再铸节点，仅 xref 提及经 `relation_extract` 成边。消除"提及即定义"导致的虚假跨文档碰撞。
+
+- **KG 读侧 facade 解析从属实体 IRI** —— `query.entity/exists/depends_on` 与 `trace.coverage/from_requirement` 在扁平 IRI 不存在时回退到按 `cf:entity_id` 字面量解析实际节点，使按裸 id 访问 `AC-NNN` 仍可命中父限定节点。
+
+### Fixed
+
+- **`cataforge kg import` 不再静默坍缩跨文档同名实体** —— 扁平 `cfprj:<entity_id>` IRI 让 entity_id 项目级全局唯一，同一 id 在多个 doc_type 中被定义且内容不同时会坍缩成单节点、last-writer-wins 丢数据，而 verify / `doctor` 仍假绿。现 import 在写库前检测"≥2 个不同 source_doc 且 ≥2 个不同 content_hash"的碰撞并以 `KGVerificationError`（exit 3）中止，信息提示跨文档语义漂移并要求先统一 markdown 再迁移；`doctor` 的 `kg_ingestion_completeness` 复用同一检测，从 markdown 侧暴露存量已导入 store 的坍缩。内容一致的跨文档复述仍正常去重，不受影响。
+
+- **`cataforge phase status` recognises the agile merged phases** —— `planning`（融合 requirements+architecture，同时校验 prd 与 arch）与 `brief` 现为已知阶段；此前被驱动的 agile-lite/agile-prototype 项目会在阶段门禁结构性失败。
+- **`phase status` 的 doc-present 检查遵循 `docs/{doc_type}/` 子目录约定** —— 扫描子目录（按 frontmatter `doc_type` 过滤，排除误放的他类文档）并保留扁平路径回退；按约定产出的文档不再被误判缺失。
+- **`cataforge event log` / `context *` 继承全局 `--project-dir`** —— 这些子命令此前只读自身 `--project-root`，在 `--project-dir` 隔离场景下会静默写入宿主项目。
+- **审查类 skill 的自动事件归属到真实生命周期阶段** —— `CATAFORGE_EVENT_PHASE` 未设时，skill runner 回退读取项目指令文件的「当前阶段」，而非硬编码 `development`。
+- **`cataforge context reconcile/finalize/ingest` 在 KG store 缺失时干净退出** —— CLI 边界捕获 `KGStoreNotInitializedError`，渲染为带 `kg init` 提示的 `Error:`，不再泄漏 traceback。
+
+- **生成器模板使下游 AGENT.md 通过 framework-review B1-α** —— `workflow-framework-generator` 的 `agent.md.tmpl` 原先输出合并段 `## Input/Output Contract`，匹配不到 B1-α 要求的独立 `Input Contract` / `Output Contract` 两条正则，导致每个生成框架"出生即不合规"；现拆为两个独立二级标题，并在生成器结构完整性检查中加入该自校验项。
+- **penpot-review 设计审查报告补全 front matter** —— 报告模板原以 `# 标题` + HTML 注释起始、无 YAML front matter 且无修订号，会被 `cataforge docs index` 跳过、被 `doctor` 计为 orphan 并 FAIL；现补 `id`/`doc_type: design-review`/`author`/`status`/`deps` front matter（元数据迁出注释）+ 路径加 `-r{N}` 编号，并在 COMMON-RULES 报告 front-matter 表登记 `design-review` 类别。
+- **`RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT` 纳入常量 SSOT** —— 该上游反馈触发阈值此前仅存在于代码与 docs/reference，未登记进 `framework.json#/constants` 与 COMMON-RULES 常量表，违反"表镜像 constants"的单一事实来源契约；现两处补登记（值 3），framework-feedback 同步删去内联裸值。
+- **`deploy_drift` hook 在四平台显式声明 `native`** —— 各 `profile.yaml` 的 `degradation` 段原缺该条目、靠隐式 `.get(..., "native")` 兜底，触发 framework-review B6-δ 覆盖告警；补显式声明后告警清零，行为不变。
+
+- **flat-layout 平台上 agent 协议跨引用悬空** —— Claude Code / OpenCode / Codex 按 `<name>.md` 扁平部署，不复刻源 `<name>/AGENT.md` 子目录及 sibling 协议文件。orchestrator 等用 `{AGENTS_DIR}/<name>/<file>` 写的跨引用会渲染成部署树里并不存在的子路径（如 `.claude/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`），运行时定位失败。全部此类跨引用改用 `{AGENTS_SRC_DIR}` 后落到真实源文件，所有平台一致。`_resolve_agents_dir` 的 docstring 同步修正（原先平台分类写反、且声称 flat 平台 sibling 引用"指向源覆盖层"与实现不符）。
+
+- **部署的 CLAUDE.md / AGENTS.md `框架版本` 字段现自动盖入已安装包版本** —— `cataforge deploy` 把指令文件模板里的 `{FRAMEWORK_VERSION}` 占位符渲染为 `cataforge.__version__`，并通过 section-merge `always_overwrite_fields` 在每次重新部署时刷新。
+
+此前 `框架版本` 是静态描述文本、没有任何确定性写入路径（唯一写入者是升级 skill 的 AI Edit，纯 CLI 升级路径拿不到），导致升级后版本号停留在占位文本或首次部署的旧值，与 `framework.json.version` 漂移。现与 `运行时` 字段、`framework.json.version` 盖版本同等确定性：占位符 `{FRAMEWORK_VERSION}` 注册进渲染器，四平台 profile 的 `always_overwrite_fields.项目信息` 追加 `框架版本`。
+
+- **`section-merge` 每次 deploy 删除 heading 后空行** —— `update_strategy: section-merge` 的 H2 解析正则 `\s*$`（`\s` 含换行）会连 heading 行尾换行一起吞掉,带走它与正文之间的空行;叠加 `_merge_fields` 丢弃空白 header、`_serialize` 不保证 section 之间有空行,使每次 `cataforge deploy` 都从 `CLAUDE.md` / `AGENTS.md` 删空行、产生 churn diff 并违反 MD022。正则收紧为 `[^\S\n]*$`、`_merge_fields` 保留 leading 空行、`_serialize` 在每个 `## ` heading 前强制空行,deploy 对规范 markdown 自此幂等。
+
+- **`cataforge kg import` 不再坍缩跨父 / 跨文档的同号从属实体** —— 从属实体按 `(parent_id, entity_id)` 去重并铸父限定 IRI，dev-plan 各任务卡的局部 `AC-001` 与 prd 各 Feature 的 `AC-001` 各自成节点；`kg reconcile` 按 scope key（普通实体 = `entity_id`，从属实体 = `parent/entity_id`）对账，跨父同号不再永久 divergence。父链经 `cf:part_of` 边记录，对账时排除该结构边。
+
+### Removed
+
+- **删除 `--no-deploy` 已废弃垫片** —— `cataforge setup` 不再接受 `--no-deploy`（自 0.2 起已是 no-op 默认行为）。
+- **移除未接线的 `nl_query`（NL→SPARQL）模块** —— 该实验性表面无任何 CLI 入口，连同其 codegen 的 `governance_pydantic` 产物一并移除。
+
+- **运行时依赖瘦身** —— `pytest` / `pytest-cov` 从 `[project.dependencies]` 移除（运行时零 import，仅测试用），保留在 `dev` extra；下游 `pip install cataforge` 不再拉入测试框架。
+
+### BREAKING
+
+- **从属实体改用父限定复合 IRI（KG 快照格式变更）** —— `AcceptanceCriteria`（`AC-NNN`）等从属实体的实例 IRI 由扁平 `instance/AC-001` 改为父限定 `instance/{parent_id}/AC-001`，使同号 AC 在不同 Feature/Task 下成为不同节点而非坍缩。既有 `.nq` 快照与新 IRI 不兼容，下游需重新导入。迁移：
+
+  | 如果你曾依赖 | 改为 |
+  |------------|------|
+  | 扁平 `instance/AC-001` 实例 IRI | 父限定 `instance/{parent_id}/AC-001`（普通实体 IRI 不变） |
+  | 旧 KG `.nq` 快照 | 删除后 `cataforge kg init && cataforge kg import` 重新导入 |
+  | 按裸 `entity_id` 查从属实体 | 仍可用（facade 回退到 `cf:entity_id` 字面量解析），但同号多父时取首个匹配 |
+
 ## [0.7.0] — 2026-06-01
 
 ### Changed
@@ -1337,7 +1433,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.8.0
 [0.7.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.7.0
 [0.6.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.6.1
 [0.6.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.6.0
