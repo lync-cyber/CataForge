@@ -32,7 +32,7 @@ user-invocable: false
 > **单一事实来源**: 各 AGENT.md 的 `skills:` 字段（由 subagent_type 自动加载）。
 > 本文件不维护映射副本。查询当前映射请运行:
 > ```
-> grep -h 'skills:' -A 20 .cataforge/agents/*/AGENT.md
+> cataforge agent list --skills
 > ```
 
 ## 平台调度实现
@@ -84,7 +84,7 @@ orchestrator 收到子代理返回后，按以下优先级解析:
 当前已配置: claude-code, cursor, codex, opencode。
 
 ## Anti-Patterns
-- 禁止: 在 light-inline / prototype-inline 档使用 agent_dispatch 调度子代理 — 内联档的设计前提是主线程直接执行，调度会撕裂上下文且违反 tdd-engine §Inline 触发条件
+- 禁止: 接受 light-inline / prototype-inline 档的调度请求 — 档位由 tdd-engine 判定，内联档前提是主线程直接执行，收到此类调度请求本身即上游错误，调度会撕裂上下文
 - 禁止: 跳过 §返回值解析与容错 Step 5 的 allowed_paths 写入范围校验 — `git diff` 检测的违规由本 skill 兜底，跳过会让 phase-bound agent 写入越权而无回滚
 - 禁止: 把任务上下文拆成多次 dispatch 增量传递 — 子代理无持久上下文，每次 dispatch 都是独立窗口；必须一次 prompt 内联全量信息，否则触发"上下文丢失型 blocked"
 - 避免: 在主线程读取子代理返回的全文再二次摘要 — 主线程上下文消耗翻倍，应让子代理在 `<agent-result>.summary` 内自摘要，主线程仅解析结构化字段

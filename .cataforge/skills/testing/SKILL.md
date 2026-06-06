@@ -1,6 +1,6 @@
 ---
 name: testing
-description: "测试 — 测试策略规划、测试编写与执行、覆盖率分析、缺陷记录。当需要规划测试策略、编写或执行测试套件、分析覆盖率或记录缺陷时使用。"
+description: "测试 — 测试策略规划、测试编写与执行、覆盖率分析、缺陷记录。当需要规划测试策略、编写或执行测试套件、分析覆盖率或记录缺陷时使用。本 skill 不改源码（缺陷修复由 debug 负责），单任务 RED/GREEN 单元测试由 tdd-engine 负责，testing 聚焦集成/E2E 与覆盖盲区补充。"
 argument-hint: "<操作: plan|write|execute|report> <测试类型: unit|integration|e2e|all>"
 suggested-tools: Read, Write, Edit, Bash, Glob, Grep
 depends: [context]
@@ -12,7 +12,7 @@ user-invocable: true
 
 ## 能力边界
 - 能做: 测试策略规划、测试用例矩阵编写、Unit/Integration/E2E测试编写与执行、覆盖率分析、缺陷记录
-- 不做: 源代码修改(仅编写测试)、架构变更
+- 不做: 源代码修改 / 缺陷修复(由 debug 负责，testing 仅编写测试)、架构变更
 
 ## 与tdd-engine的关系
 - **tdd-engine(Phase 5)**: 开发阶段，为每个任务卡编写RED测试+GREEN实现，产出单元测试
@@ -52,7 +52,7 @@ user-invocable: true
 
 **Unit测试**:
 - 输入: 任务卡验收标准 + 接口契约
-- 范围: 函数/方法级，隔离外部依赖
+- 范围: 仅补充 tdd-engine 未覆盖的函数/方法级盲区（边界条件 / 异常路径 / 未覆盖分支），隔离外部依赖，不重写已有单测
 - 工具: 按项目技术栈选择(pytest/jest/xunit等)
 - 定位: 补充 DEV 阶段覆盖盲区（见 §与tdd-engine的关系）
 

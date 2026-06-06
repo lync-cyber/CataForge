@@ -16,6 +16,7 @@ user-invocable: true
 ## 前置条件
 - {INSTRUCTION_FILE} `设计工具` 字段为 `penpot`
 - Penpot MCP Server 已配置并可用
+- tokens.css 须先由 penpot-sync 同步就绪（本 skill 只消费 Token 变量，不写 Token）
 - ui-spec 中对应的 C-{NNN} 规范已定义
 
 ## 输入规范

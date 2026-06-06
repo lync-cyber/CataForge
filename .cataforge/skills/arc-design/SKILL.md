@@ -1,6 +1,6 @@
 ---
 name: arc-design
-description: "架构设计 — 模块划分、接口定义、数据模型、系统架构建模。"
+description: "架构设计 — 模块划分、接口定义、数据模型、系统架构建模。当 PRD 完成、需要做架构风格选型、模块划分、接口契约或数据模型设计时使用此 skill。本 skill 不做需求分析（req-analysis）与 UI 设计（ui-design）。"
 argument-hint: "<PRD文档路径或功能需求描述>"
 suggested-tools: Read, Write, Edit, Glob, Grep
 depends: [context, tech-eval, research]
@@ -11,7 +11,7 @@ user-invocable: true
 # 架构设计 (arc-design)
 ## 能力边界
 - 能做: 架构风格选型、模块划分、接口契约定义、数据模型设计、系统上下文建模
-- 不做: 需求分析、UI设计、代码实现
+- 不做: 需求分析（req-analysis）、UI 设计（ui-design）、代码实现（implementer/TDD）
 
 ## 输入规范
 - PRD功能需求(F-{NNN}列表)

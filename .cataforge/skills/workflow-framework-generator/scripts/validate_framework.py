@@ -129,7 +129,7 @@ def validate_agent(agent_dir: Path, result: ValidationResult) -> dict | None:
     # Check required sections
     required_sections = ["Role", "Anti-Patterns"]
     for section in required_sections:
-        if f"# " not in body and f"## {section}" not in body:
+        if "# " not in body and f"## {section}" not in body:
             pass  # Only warn for truly missing main sections
         pattern = re.compile(rf"#{{1,3}}\s+.*{re.escape(section)}", re.IGNORECASE)
         if not pattern.search(body):
@@ -257,36 +257,27 @@ def validate_profile(profile_file: Path, result: ValidationResult) -> dict | Non
     return data
 
 
-def check_cross_references(
-    framework_dir: Path,
-    agents: dict[str, dict],
-    skills: dict[str, dict],
-    workflows: dict[str, dict],
-    result: ValidationResult,
-):
-    """Check that all cross-references between agents, skills, and workflows are valid."""
-    agent_ids = set(agents.keys())
-    skill_ids = set(skills.keys())
-
-    # Check agent → skill references
+def _check_agent_skill_refs(
+    agents: dict[str, dict], skill_ids: set[str], result: ValidationResult
+) -> None:
     for agent_id, fm in agents.items():
-        if fm and "skills" in fm:
-            agent_skills = fm["skills"]
-            if isinstance(agent_skills, list):
-                for sid in agent_skills:
-                    if sid not in skill_ids:
-                        result.error(
-                            f"Agent '{agent_id}' references skill '{sid}' which does not exist"
-                        )
+        if not (fm and isinstance(fm.get("skills"), list)):
+            continue
+        for sid in fm["skills"]:
+            if sid not in skill_ids:
+                result.error(f"Agent '{agent_id}' references skill '{sid}' which does not exist")
 
-    # Check workflow → agent references
+
+def _check_workflow_refs(
+    workflows: dict[str, dict],
+    agent_ids: set[str],
+    skill_ids: set[str],
+    result: ValidationResult,
+) -> None:
     for wf_name, wf_data in workflows.items():
-        if not wf_data or "phases" not in wf_data:
+        if not wf_data or not isinstance(wf_data.get("phases"), list):
             continue
-        phases = wf_data["phases"]
-        if not isinstance(phases, list):
-            continue
-        for phase in phases:
+        for phase in wf_data["phases"]:
             if not isinstance(phase, dict):
                 continue
             agent = phase.get("agent")
@@ -304,21 +295,41 @@ def check_cross_references(
                             f"skill '{sid}' which does not exist"
                         )
 
-    # Check for orphan skills (warning only)
-    referenced_skills: set[str] = set()
+
+def _check_orphan_skills(
+    agents: dict[str, dict],
+    skill_ids: set[str],
+    workflows: dict[str, dict],
+    result: ValidationResult,
+) -> None:
+    referenced: set[str] = set()
     for fm in agents.values():
-        if fm and "skills" in fm and isinstance(fm["skills"], list):
-            referenced_skills.update(fm["skills"])
+        if fm and isinstance(fm.get("skills"), list):
+            referenced.update(fm["skills"])
     for wf_data in workflows.values():
         if not wf_data or "phases" not in wf_data:
             continue
         for phase in wf_data.get("phases", []):
             if isinstance(phase, dict):
-                for sid in phase.get("skills", []):
-                    referenced_skills.add(sid)
+                referenced.update(phase.get("skills", []))
     for sid in skill_ids:
-        if sid not in referenced_skills:
+        if sid not in referenced:
             result.warn(f"Skill '{sid}' is not referenced by any agent or workflow")
+
+
+def check_cross_references(
+    framework_dir: Path,
+    agents: dict[str, dict],
+    skills: dict[str, dict],
+    workflows: dict[str, dict],
+    result: ValidationResult,
+):
+    """Check that all cross-references between agents, skills, and workflows are valid."""
+    agent_ids = set(agents.keys())
+    skill_ids = set(skills.keys())
+    _check_agent_skill_refs(agents, skill_ids, result)
+    _check_workflow_refs(workflows, agent_ids, skill_ids, result)
+    _check_orphan_skills(agents, skill_ids, workflows, result)
 
 
 def check_dag(agents: dict[str, dict], result: ValidationResult):
@@ -326,6 +337,73 @@ def check_dag(agents: dict[str, dict], result: ValidationResult):
     # Build adjacency from agent instructions (upstream/downstream)
     # This is a best-effort check based on frontmatter
     pass  # Agent dependencies are defined at workflow level, not in frontmatter
+
+
+def _collect_agents(cataforge: Path, result: ValidationResult) -> dict[str, dict]:
+    agents_dir = cataforge / "agents"
+    if not agents_dir.exists():
+        result.error("agents/ directory not found")
+        return {}
+    return {
+        d.name: validate_agent(d, result) for d in sorted(agents_dir.iterdir()) if d.is_dir()
+    }
+
+
+def _collect_skills(cataforge: Path, result: ValidationResult) -> dict[str, dict]:
+    skills_dir = cataforge / "skills"
+    if not skills_dir.exists():
+        result.warn("skills/ directory not found (may be intentional for simple workflows)")
+        return {}
+    return {
+        d.name: validate_skill(d, result) for d in sorted(skills_dir.iterdir()) if d.is_dir()
+    }
+
+
+def _collect_workflows(cataforge: Path, result: ValidationResult) -> dict[str, dict]:
+    workflows: dict[str, dict] = {}
+    workflows_dir = cataforge / "workflows"
+    if not workflows_dir.exists():
+        return workflows
+    for pattern in ("*.yaml", "*.yml"):
+        for wf_file in sorted(workflows_dir.glob(pattern)):
+            workflows[wf_file.stem] = validate_workflow(wf_file, result)
+    return workflows
+
+
+def _validate_platform_profile(
+    cataforge: Path,
+    fw_data: dict | None,
+    platform_id: str | None,
+    result: ValidationResult,
+) -> None:
+    if platform_id:
+        validate_profile(cataforge / "platforms" / platform_id / "profile.yaml", result)
+        return
+    pid = fw_data.get("runtime", {}).get("platform") if fw_data else None
+    if pid:
+        profile_path = cataforge / "platforms" / pid / "profile.yaml"
+        if profile_path.exists():
+            validate_profile(profile_path, result)
+
+
+def _validate_hooks_and_rules(cataforge: Path, result: ValidationResult) -> None:
+    hooks_file = cataforge / "hooks" / "hooks.yaml"
+    if hooks_file.exists():
+        import yaml
+
+        try:
+            yaml.safe_load(hooks_file.read_text(encoding="utf-8"))
+        except yaml.YAMLError as e:
+            result.error(f"hooks.yaml: invalid YAML: {e}")
+
+    rules_dir = cataforge / "rules"
+    if not rules_dir.exists():
+        return
+    for md_file in rules_dir.glob("*.md"):
+        placeholders = PLACEHOLDER_PATTERNS.findall(md_file.read_text(encoding="utf-8"))
+        if placeholders:
+            unique = sorted(set(placeholders))
+            result.error(f"Rules '{md_file.name}': contains placeholder(s): {', '.join(unique)}")
 
 
 def validate_framework(framework_dir: str, platform_id: str | None = None) -> ValidationResult:
@@ -338,75 +416,12 @@ def validate_framework(framework_dir: str, platform_id: str | None = None) -> Va
         result.error(f".cataforge/ directory not found in {framework_dir}")
         return result
 
-    # 1. Validate framework.json
     fw_data = validate_framework_json(cataforge / "framework.json", result)
-
-    # 2. Validate agents
-    agents_dir = cataforge / "agents"
-    agents: dict[str, dict] = {}
-    if agents_dir.exists():
-        for agent_dir in sorted(agents_dir.iterdir()):
-            if agent_dir.is_dir():
-                fm = validate_agent(agent_dir, result)
-                agents[agent_dir.name] = fm
-    else:
-        result.error("agents/ directory not found")
-
-    # 3. Validate skills
-    skills_dir = cataforge / "skills"
-    skills: dict[str, dict] = {}
-    if skills_dir.exists():
-        for skill_dir in sorted(skills_dir.iterdir()):
-            if skill_dir.is_dir():
-                fm = validate_skill(skill_dir, result)
-                skills[skill_dir.name] = fm
-    else:
-        result.warn("skills/ directory not found (may be intentional for simple workflows)")
-
-    # 4. Validate workflows
-    workflows_dir = cataforge / "workflows"
-    workflows: dict[str, dict] = {}
-    if workflows_dir.exists():
-        for wf_file in sorted(workflows_dir.glob("*.yaml")):
-            wf_data = validate_workflow(wf_file, result)
-            workflows[wf_file.stem] = wf_data
-        for wf_file in sorted(workflows_dir.glob("*.yml")):
-            wf_data = validate_workflow(wf_file, result)
-            workflows[wf_file.stem] = wf_data
-
-    # 5. Validate platform profile
-    if platform_id:
-        profile_path = cataforge / "platforms" / platform_id / "profile.yaml"
-        validate_profile(profile_path, result)
-    elif fw_data and "runtime" in fw_data:
-        pid = fw_data["runtime"].get("platform")
-        if pid:
-            profile_path = cataforge / "platforms" / pid / "profile.yaml"
-            if profile_path.exists():
-                validate_profile(profile_path, result)
-
-    # 6. Validate hooks.yaml
-    hooks_file = cataforge / "hooks" / "hooks.yaml"
-    if hooks_file.exists():
-        import yaml
-        try:
-            yaml.safe_load(hooks_file.read_text(encoding="utf-8"))
-        except yaml.YAMLError as e:
-            result.error(f"hooks.yaml: invalid YAML: {e}")
-
-    # 7. Validate rules
-    rules_dir = cataforge / "rules"
-    if rules_dir.exists():
-        for md_file in rules_dir.glob("*.md"):
-            text = md_file.read_text(encoding="utf-8")
-            placeholders = PLACEHOLDER_PATTERNS.findall(text)
-            if placeholders:
-                unique = sorted(set(placeholders))
-                result.error(
-                    f"Rules '{md_file.name}': contains placeholder(s): {', '.join(unique)}"
-                )
-
-    # 8. Cross-reference checks
+    agents = _collect_agents(cataforge, result)
+    skills = _collect_skills(cataforge, result)
+    workflows = _collect_workflows(cataforge, result)
+    _validate_platform_profile(cataforge, fw_data, platform_id, result)
+    _validate_hooks_and_rules(cataforge, result)
     check_cross_references(root, agents, skills, workflows, result)
 
     return result
@@ -439,7 +454,10 @@ def main():
         print(f"\n--- Errors ({len(result.errors)}) ---")
         for e in result.errors:
             print(f"  ERROR: {e}")
-        print(f"\nValidation FAILED: {len(result.errors)} error(s), {len(result.warnings)} warning(s)")
+        print(
+            f"\nValidation FAILED: {len(result.errors)} error(s), "
+            f"{len(result.warnings)} warning(s)"
+        )
         sys.exit(1)
     else:
         print(f"\nValidation PASSED: 0 errors, {len(result.warnings)} warning(s)")

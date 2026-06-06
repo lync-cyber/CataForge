@@ -1,7 +1,7 @@
 ---
 name: framework-feedback
 description: "框架反馈打包 — 把下游项目使用 CataForge 时发现的问题 / 改进建议 / 偏离上游基线的纠偏，打包成 upstream-ready 的 markdown bundle，回流到 CataForge 仓库。区别于下游项目自身的用户反馈渠道：本 skill 仅针对 CataForge 框架本体（CLI / scaffold / agents / skills / hooks / docs）。当用户提到反馈框架问题、提交 CataForge issue、上游 baseline 不准确、累积 upstream-gap 想批量回报时使用。"
-argument-hint: "<kind: bug|suggest|correction-export> [--summary TEXT] [--out PATH] [--since YYYY-MM-DD] [--threshold N]"
+argument-hint: "<kind: bug|suggest|correction-export> [--print | --out PATH | --clip | --gh] [--summary TEXT] [--since YYYY-MM-DD] [--threshold N]"
 suggested-tools: Read, Bash
 depends: [framework-review]
 disable-model-invocation: false
@@ -31,7 +31,7 @@ record-to-event-log: true
 framework-feedback 是按需触发的反馈打包 skill，**不进入业务流程主循环**。推荐的合规触发面：
 
 - **用户手动**: `cataforge feedback bug --gh`（或 `suggest` / `correction-export`）
-- **orchestrator 自动**: 当累计 `upstream-gap` 数 ≥ `RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT`（默认 3）时，orchestrator 调起 `cataforge skill run framework-feedback -- correction-export --out docs/feedback/<ts>.md`（reflector 只读，本 skill 需要 `shell_exec`，故由 orchestrator 持有）。落盘后由用户决定是否上报
+- **orchestrator 自动**: 当累计 `upstream-gap` 数 ≥ `RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT` 时，orchestrator 调起 `cataforge skill run framework-feedback -- correction-export --out docs/feedback/<ts>.md`（reflector 只读，本 skill 需要 `shell_exec`，故由 orchestrator 持有）。落盘后由用户决定是否上报
 - **doctor 报告 FAIL 后**: `cataforge feedback bug --print | tee docs/feedback/doctor-fail-<ts>.md`
 - **不要**: 让 reviewer / implementer 在业务流程内自动调起（与业务 review 报告不是同一资源）
 

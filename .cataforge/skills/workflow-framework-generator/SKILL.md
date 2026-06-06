@@ -241,12 +241,14 @@ phases:
 - `maxTurns` 根据任务复杂度设置（简单任务: 30, 中等: 80, 复杂: 150）
 - Agent 指令部分使用中文（与 CataForge 惯例一致），技术标识符使用英文
 
-每个 AGENT.md 必须包含以下章节：
+每个 AGENT.md 必须包含以下章节（`Identity` / `Input Contract` / `Output Contract` / `Anti-Patterns` 各为独立的 `## ` 二级标题）：
 1. **Role** — 角色定义与身份说明
-2. **Responsibilities** — 具体职责清单
-3. **Input/Output Contract** — 输入输出契约
-4. **Execution Protocol** — 执行协议（步骤、检查点）
-5. **Anti-Patterns** — 禁止行为
+2. **Identity** — 身份与协作边界
+3. **Responsibilities** — 具体职责清单
+4. **Input Contract** — 输入契约
+5. **Output Contract** — 输出契约
+6. **Execution Protocol** — 执行协议（步骤、检查点）
+7. **Anti-Patterns** — 禁止行为
 
 #### 3.3 生成 Skill 定义
 
@@ -339,6 +341,7 @@ phases:
 - [ ] framework.json 结构合法
 - [ ] profile.yaml 的 tool_map 覆盖所有使用到的能力标识符
 - [ ] hooks.yaml 的 matcher_capability 在目标平台有映射或有降级策略
+- [ ] 每个 AGENT.md 含独立的 `## Identity`、`## Input Contract`、`## Output Contract`、`## Anti-Patterns` 二级标题
 - [ ] 无未实现占位符（禁止出现待办标记或空壳逻辑）
 
 #### 4.2 平台兼容性检查

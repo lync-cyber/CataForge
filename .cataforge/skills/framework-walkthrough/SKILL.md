@@ -31,7 +31,7 @@ user-invocable: true
 - 禁止: 选过大的示例目标导致一轮收敛不了 — 如「做一个电商平台」；应小到单轮闭环（如温度转换 CLI），把验证重心放在工作流主干而非业务复杂度
 - 禁止: 把改进建议写回被走查的 `.cataforge/` 资产本体 — 会污染单一事实来源；只产报告到 `docs/reviews/framework/`，框架修复交由后续 framework-review / 维护流程闭环
 - 禁止: 只看「最终有没有产出文档」就结案 — 走查价值在过程中的门禁触发/降级是否静默/CLI 与 skill 是否报错等信号，事后无法补采；须按观察口径逐阶段记录
-- 避免: 把本 skill 当 framework-review 的替代 — 静态审元资产用 framework-review，端到端跑用本 skill；二者互补不互斥
+- 避免: 把本 skill 当 framework-review 的替代 — 静态审元资产用 framework-review，端到端跑用本 skill
 
 ## 执行步骤
 

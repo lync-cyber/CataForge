@@ -27,7 +27,7 @@ user-invocable: true
 - 本 skill 自身不写入 docs/ 任何子目录（实际文档产出由后续阶段 agent 完成）
 
 ## Anti-Patterns
-- 不通过 agent-dispatch 调度 orchestrator — 主线程直接扮演 orchestrator 角色，调度它会造成不必要的上下文嵌套和交互链路断裂
+- 不通过 agent-dispatch 调度 orchestrator — 主线程直接扮演 orchestrator 角色；若误派为子代理，orchestrator 失去跨会话主线程状态感知，§项目状态 写权限链路断裂，恢复会话时无法定位进度
 - 不跳过 §角色假设 直接进入步骤 — 角色声明是防止误用 agent-dispatch 的唯一显式约束
 - 不在分支 B 跳过框架版本检查 — 版本占位符 `0.0.0-template` 表示 scaffold 未初始化，直接恢复会让后续 agent 读到不一致状态
 

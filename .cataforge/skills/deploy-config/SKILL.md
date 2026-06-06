@@ -1,6 +1,6 @@
 ---
 name: deploy-config
-description: "部署配置 — CI/CD流水线、容器化、环境配置、基础设施即代码。"
+description: "部署配置 — CI/CD流水线、容器化、环境配置、基础设施即代码。当需要配置 CI/CD 流水线、编写 Dockerfile/compose、管理多环境配置或基础设施即代码时使用此 skill。库/SDK 项目可标 deployment N/A 跳过。"
 argument-hint: "<操作: pipeline|container|env|iac> <平台或环境类型>"
 suggested-tools: Read, Write, Edit, Bash
 depends: [context]
@@ -12,7 +12,7 @@ user-invocable: true
 
 ## 能力边界
 - 能做: CI/CD流水线配置、构建脚本编写、自动化测试集成、部署配置、容器化配置(Dockerfile/docker-compose)、环境配置管理、基础设施即代码(IaC)
-- 不做: 源代码修改、测试编写、架构变更
+- 不做: 源代码修改、测试编写、架构变更、CataForge 框架自身 CI/release 流水线（由仓库 .github/workflows 与 maintainer 维护）
 
 ## 输入规范
 - arch#§1.4技术栈
@@ -148,7 +148,7 @@ deploy-spec 文档中必须包含密钥清单节:
 - 禁止: 在 Dockerfile / compose / k8s 配置中硬编码 secret 字面量 —— 任何敏感值必须走 env 变量或 secret manager 注入，硬编码进镜像即长期泄露
 - 禁止: 单环境一份配置 —— deploy-spec 必须区分 dev / staging / prod 三档差异矩阵；不区分会让 staging 误用 prod 配置
 - 禁止: 部署步骤缺 rollback 路径 —— 上线方案必须明示回滚机制（蓝绿 / 灰度 / 版本 pin 等），缺失则故障无快速止血
-- 避免: 把 CI 配置与 deploy-spec 混写 —— CI 是构建产物契约，deploy-spec 是运行时契约，混写让审阅点错位
+- 避免: 把 CI 配置与 deploy-spec 混写 —— CI 是构建产物契约，deploy-spec 是运行时契约，混写让审阅点错位；如把 staging 的 replica 数 / 资源 limit 写进 .github/workflows/ci.yml，应拆到 deploy-spec 的环境差异矩阵
 
 ## 效率策略
 - 配置文件模板化，按项目技术栈适配
