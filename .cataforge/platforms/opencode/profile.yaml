@@ -96,6 +96,7 @@ hooks:
     notify_done: native
     notify_permission: degraded     # OpenCode has no Notification event
     session_context: native
+    deploy_drift: native
 
 features:
   cloud_agents: false

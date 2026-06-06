@@ -110,6 +110,7 @@ hooks:
     notify_done: native
     notify_permission: native
     session_context: native
+    deploy_drift: native
 
 features:
   cloud_agents: false

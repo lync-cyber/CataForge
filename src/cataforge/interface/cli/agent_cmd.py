@@ -28,8 +28,15 @@ def agent_group() -> None:
 
 
 @agent_group.command("list")
+@click.option(
+    "--skills",
+    "show_skills",
+    is_flag=True,
+    default=False,
+    help="Also show each agent's declared skills (from AGENT.md frontmatter).",
+)
 @require_initialized
-def agent_list() -> None:
+def agent_list(show_skills: bool) -> None:
     """List all registered agents (from ``.cataforge/agents/``)."""
     from cataforge.interface.cli.ui import ui
     from cataforge.runtime.agent.manager import AgentManager
@@ -43,7 +50,12 @@ def agent_list() -> None:
             "or add a new agent directory under .cataforge/agents/<id>/."
         )
         return
-    ui.bullets(agents)
+    if show_skills:
+        for aid in agents:
+            skills = mgr.skills_for(aid)
+            click.echo(f"  • {aid}: {', '.join(skills) if skills else '(none)'}")
+    else:
+        ui.bullets(agents)
     ui.info(f"{len(agents)} agent(s) registered")
 
 
@@ -160,13 +172,14 @@ def _render_invocation_prompt(agent_id: str, task_type: str, task_text: str, age
 
 def _try_copy_to_clipboard(text: str) -> bool:
     """Best-effort clipboard copy. Silently no-ops when no backend works."""
-    if sys.platform == "win32":
+    platform = sys.platform
+    if platform == "win32":
         try:
             proc = run_proc(["clip"], input=text)
             return proc.returncode == 0
         except (FileNotFoundError, OSError):
             return False
-    if sys.platform == "darwin":
+    if platform == "darwin":
         try:
             proc = run_proc(["pbcopy"], input=text)
             return proc.returncode == 0

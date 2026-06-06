@@ -26,7 +26,7 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 6. **模型路由** — 可用模型列表和 per-agent 模型选择支持
 7. **Hook 事件** — 5 个标准事件 + 降级策略
 
-每个平台通过 `profile.yaml` 声明它如何映射这些抽象。平台版本快速迭代（Cursor v3.x、Codex 2026.04、Claude Code 2.1、OpenCode 1.3），工具名称/hook 事件/agent 格式/功能特性随时可能变化。本 skill 将"检索 → 对比 → 更新 → 验证"的完整审计流程标准化，防止配置漂移。
+每个平台通过 `profile.yaml` 声明它如何映射这些抽象。平台版本快速迭代，工具名称/hook 事件/agent 格式/功能特性随时可能变化（各平台当前能力快照见 [`references/capability-matrix.md`](references/capability-matrix.md)）。本 skill 将"检索 → 对比 → 更新 → 验证"的完整审计流程标准化，防止配置漂移。
 
 ## 输入规范
 调用方提供:

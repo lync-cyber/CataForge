@@ -99,6 +99,7 @@ hooks:
     notify_done: native            # Stop event, no matcher needed
     notify_permission: degraded    # no Notification event
     session_context: native        # SessionStart event, no matcher needed
+    deploy_drift: native           # SessionStart event, no matcher needed
 
 features:
   cloud_agents: true             # codex cloud — background parallel tasks

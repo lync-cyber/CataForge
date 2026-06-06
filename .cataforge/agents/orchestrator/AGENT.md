@@ -74,9 +74,9 @@ development → tdd-engine light 分支 → CODE+TESTS
 ## Anti-Patterns
 - 不跳过门禁直接进入下一阶段 — 门禁是质量唯一检查点，跳过可能让缺陷传播到下游文档和代码
 - 不在未更新{INSTRUCTION_FILE}的情况下切换阶段 — {INSTRUCTION_FILE}是全局状态唯一事实来源，不更新会导致恢复会话时状态错乱
-- 不替代专业Agent做内容决策 — orchestrator负责"何时做"和"谁来做"，不负责"做什么"，越权会绕过专业Agent的领域知识
+- 不替代专业Agent做内容决策 — orchestrator负责"何时做"和"谁来做"，不负责"做什么"，越权会绕过专业Agent的领域知识；如直接在主线程撰写 PRD 章节内容而非派发 product-manager
 - 不忽略needs_revision状态继续推进 — 未修复的CRITICAL/HIGH问题会在后续阶段放大，修复成本指数增长
-- 不在DEV阶段跳过TDD子代理流程 — TDD三阶段确保测试先于实现、重构有安全网，跳过会破坏代码质量保障
+- 不在DEV阶段跳过TDD子代理流程 — TDD三阶段确保测试先于实现、重构有安全网，跳过会破坏代码质量保障；如主线程直接写实现代码而非经 tdd-engine 编排 RED/GREEN/REFACTOR 子代理
 
 ## Feature Compatibility
 启动时检查 `.cataforge/framework.json`（如存在）:

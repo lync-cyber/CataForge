@@ -113,11 +113,9 @@ def scaffold(output_dir: str, manifest: dict) -> int:
     """Create the full scaffold. Returns 0 on success."""
     root = Path(output_dir)
 
-    if root.exists() and any(root.iterdir()):
-        # Check if .cataforge already exists
-        if (root / ".cataforge").exists():
-            print(f"Warning: .cataforge/ already exists in {output_dir}, skipping scaffold")
-            return 0
+    if root.exists() and any(root.iterdir()) and (root / ".cataforge").exists():
+        print(f"Warning: .cataforge/ already exists in {output_dir}, skipping scaffold")
+        return 0
 
     print(f"Creating scaffold in: {root}")
 

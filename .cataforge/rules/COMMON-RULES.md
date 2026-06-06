@@ -42,6 +42,7 @@
 | CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC | 2 | light 模式下 AC 数 ≤ 此值且 Layer 1 通过时短路 code-review Layer 2（security/error-handling 关键字命中时不短路） | code-review |
 | ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS | 10 | 连续 N 个任务零 self-caused 问题时 Adaptive Review 反向降级（仅跑 Layer 1） | orchestrator |
 | RETRO_TRIGGER_SELF_CAUSED | 5 | CORRECTIONS-LOG 中 `hard`+`review` 条目累计达此值触发 retrospective（`soft` 不计） | orchestrator, reflector |
+| RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT | 3 | CORRECTIONS-LOG 中 `upstream-gap` 类纠偏累计达此值触发 framework-feedback 上游反馈打包 | orchestrator, framework-feedback, reflector |
 | EVENT_LOG_DRIFT_MIN_EVENTS | 10 | EVENT-LOG 漂移检测要求的最小事件数 | framework-review |
 | ANTI_PATTERN_MIN_COUNT_SKILL | 3 | SKILL.md Anti-Patterns 段最小条目数 | workflow-framework-generator, framework-review |
 | ANTI_PATTERN_MIN_COUNT_AGENT | 4 | AGENT.md Anti-Patterns 段最小条目数 | workflow-framework-generator, framework-review |
@@ -229,6 +230,7 @@ Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2�
 | 代码审查报告 | `docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md` | `code-review-{task_id}-r{N}` | `code-review` | `draft` / `approved` |
 | Sprint 审查报告 | `docs/reviews/sprint/SPRINT-REVIEW-*.md` | 见 [`utility/sprint-review.md`](../skills/context/templates/utility/sprint-review.md) | `sprint-review` | `draft` / `approved` |
 | 框架元资产审查 | `docs/reviews/framework/FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}-r{N}.md` | `framework-review-{scope}-{YYYYMMDD}-r{N}` | `framework-review` | `draft` / `approved` |
+| 设计一致性审查报告 | `docs/reviews/design/DESIGN-REVIEW-{component_id}-r{N}.md` | `design-review-{component_id}-r{N}` | `design-review` | `draft` / `approved` |
 | 项目级代码扫描 | `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md` | `code-scan-{YYYYMMDD}-r{N}` | `code-review` | `draft` / `approved` |
 | 运维订正日志 | `docs/reviews/CORRECTIONS-LOG.md` | `corrections-log` | `correction-log` | `approved` |
 

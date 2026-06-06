@@ -9,21 +9,29 @@ from cataforge.core.types import CAPABILITY_IDS
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 
-def _parse_tools_from_frontmatter(content: str) -> list[str] | None:
-    """Extract the ``tools`` list from YAML frontmatter, supporting both
-    block-style and flow-style (``tools: [a, b]``).
+def _parse_list_field(content: str, key: str) -> list[str] | None:
+    """Extract a list-valued field from YAML frontmatter, supporting
+    block-style, flow-style (``key: [a, b]``) and comma-string forms.
 
-    Returns ``None`` when no ``tools`` key is present.
+    Returns ``None`` when the key is absent.
     """
     fm, _body = split_yaml_frontmatter(content)
     if fm is None:
         return None
-    raw = fm.get("tools")
+    raw = fm.get(key)
     if raw is None:
         return None
     if isinstance(raw, list):
         return [str(t).strip() for t in raw if str(t).strip()]
     return [t.strip() for t in str(raw).split(",") if t.strip()]
+
+
+def _parse_tools_from_frontmatter(content: str) -> list[str] | None:
+    """Extract the ``tools`` list from YAML frontmatter.
+
+    Returns ``None`` when no ``tools`` key is present.
+    """
+    return _parse_list_field(content, "tools")
 
 
 class AgentManager:
@@ -81,3 +89,10 @@ class AgentManager:
         if agent_md.is_file():
             return agent_md.read_text()
         return None
+
+    def skills_for(self, agent_id: str) -> list[str]:
+        """Return the skills declared in an agent's frontmatter (empty when none)."""
+        content = self.get_agent_content(agent_id)
+        if content is None:
+            return []
+        return _parse_list_field(content, "skills") or []

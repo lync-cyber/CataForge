@@ -115,6 +115,7 @@ hooks:
     notify_done: native
     notify_permission: degraded
     session_context: native
+    deploy_drift: native
 
 features:
   cloud_agents: true             # Cursor Cloud Agents in isolated VMs
