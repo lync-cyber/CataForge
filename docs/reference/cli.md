@@ -98,6 +98,7 @@ cataforge deploy [--dry-run] [--platform <id>] [--include-maintainer-only]
 
 ```bash
 cataforge agent list                                    # 列出已发现的 Agent
+cataforge agent list --skills                           # 附带每个 Agent 声明的 skills（AGENT.md frontmatter）
 cataforge agent validate                                # 校验 Agent 定义合法性
 cataforge agent run <id> [--task-type <t>] [task...]    # On-demand 调起：渲染 AGENT.md + 任务框架并自动复制到剪贴板
 ```
