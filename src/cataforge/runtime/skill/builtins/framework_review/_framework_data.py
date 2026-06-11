@@ -158,7 +158,7 @@ def read_event_log_returns(
     returns: dict[str, int] = {}
     returns_with_ref: dict[str, int] = {}
     try:
-        with log_path.open() as fh:
+        with log_path.open(errors="replace") as fh:
             for line in fh:
                 line = line.strip()
                 if not line:

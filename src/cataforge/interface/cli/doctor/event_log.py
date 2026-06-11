@@ -18,6 +18,7 @@ def _validate_log_line(
     text: str,
     cutoff: datetime | None,
     validate_record: Callable[[dict[str, Any]], list[str]],
+    decode_error: str | None = None,
 ) -> tuple[int, tuple[int, str, list[str]] | None]:
     """Parse and validate one EVENT-LOG line.
 
@@ -27,6 +28,10 @@ def _validate_log_line(
     """
     import json
 
+    if decode_error is not None:
+        if cutoff is not None:
+            return 1, None
+        return 0, (line_no, text[:80], [decode_error])
     if not text:
         return 0, None
     try:
@@ -65,11 +70,26 @@ def check_event_log_schema(cfg: ConfigManager, *, sample_size: int = 200) -> int
         return 0
 
     try:
-        with open(log_path) as f:
-            lines = f.readlines()
+        raw_bytes = log_path.read_bytes()
     except OSError as e:
         click.echo(f"  (cannot read {log_path}: {e})")
         return 0
+
+    # Decode line-by-line so a single mis-encoded record (e.g. a console
+    # codepage write on Windows) degrades to a per-line failure instead of
+    # aborting the whole check with a UnicodeDecodeError.
+    lines: list[str] = []
+    decode_errors: list[str | None] = []
+    for raw_line in raw_bytes.splitlines():
+        try:
+            lines.append(raw_line.decode("utf-8"))
+            decode_errors.append(None)
+        except UnicodeDecodeError as e:
+            lines.append(raw_line.decode("utf-8", errors="replace"))
+            decode_errors.append(
+                f"not valid UTF-8 ({e.reason} at byte {e.start}) — "
+                f"rewrite this line as UTF-8 or run `cataforge event accept-legacy`"
+            )
 
     cutoff_raw = (cfg.load().get("upgrade") or {}).get("state", {}).get("event_log_validate_since")
     cutoff: datetime | None = None
@@ -82,12 +102,19 @@ def check_event_log_schema(cfg: ConfigManager, *, sample_size: int = 200) -> int
     total_lines = len(lines)
     start_idx = max(0, total_lines - sample_size)
     sampled = lines[start_idx:]
+    sampled_decode_errors = decode_errors[start_idx:]
 
     bad: list[tuple[int, str, list[str]]] = []
     skipped_pre_cutoff = 0
     for offset, raw in enumerate(sampled):
         line_no = start_idx + offset + 1
-        skipped, bad_entry = _validate_log_line(line_no, raw.strip(), cutoff, validate_record)
+        skipped, bad_entry = _validate_log_line(
+            line_no,
+            raw.strip(),
+            cutoff,
+            validate_record,
+            decode_error=sampled_decode_errors[offset],
+        )
         skipped_pre_cutoff += skipped
         if bad_entry is not None:
             bad.append(bad_entry)
@@ -166,7 +193,7 @@ def check_event_log_bypass_writes(cfg: ConfigManager) -> int:
             if not path.is_file() or path.suffix.lower() not in suffixes:
                 continue
             try:
-                text = path.read_text()
+                text = path.read_text(errors="replace")
             except OSError:
                 continue
             for lineno, line in enumerate(text.splitlines(), start=1):
