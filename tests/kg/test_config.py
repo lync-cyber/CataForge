@@ -19,6 +19,29 @@ def test_defaults_match_spec() -> None:
     assert cfg.plugins_dir is None
 
 
+def test_generator_template_namespaces_match_code_defaults() -> None:
+    """The scaffold template handed to generated frameworks must carry the
+    same namespaces as KGConfig — a divergent ontology_namespace makes every
+    `rdfs:subClassOf*` traversal come back empty downstream."""
+    import re
+
+    tmpl_path = (
+        Path(__file__).resolve().parents[2]
+        / ".cataforge"
+        / "skills"
+        / "workflow-framework-generator"
+        / "templates"
+        / "framework.json.tmpl"
+    )
+    tmpl = tmpl_path.read_text(encoding="utf-8")
+    cfg = KGConfig()
+
+    onto = re.search(r'"ontology_namespace":\s*"([^"]+)"', tmpl)
+    base = re.search(r'"base_namespace":\s*"([^"]+)"', tmpl)
+    assert onto is not None and onto.group(1) == cfg.ontology_namespace
+    assert base is not None and base.group(1) == cfg.base_namespace
+
+
 def test_kg_active_doc_types_default_is_full_business_set() -> None:
     """Default covers every business doc_type with a KG render path.
 

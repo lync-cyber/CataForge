@@ -125,7 +125,18 @@ def _kg_entity_ids(db_path: Path) -> set[str]:
         return kg.query.entity_ids()
 
 
-def _fs_entity_collisions(project_root: Path, doc_types: set[str]) -> list[Any]:
+def _fs_extracted_entities(project_root: Path, doc_types: set[str]) -> list[Any]:
+    """All entity definitions the import pipeline would extract from active docs."""
+    from cataforge.domain.kg.ingest.entity_extract import extract_entities  # noqa: PLC0415
+    from cataforge.domain.kg.ingest.scan import scan_business_docs  # noqa: PLC0415
+
+    all_entities: list[Any] = []
+    for doc in scan_business_docs(project_root, sorted(doc_types)):
+        all_entities.extend(extract_entities(doc))
+    return all_entities
+
+
+def _fs_entity_collisions(all_entities: list[Any]) -> list[Any]:
     """Same-id-defined-across-docs collisions, parsed straight from markdown.
 
     Mirrors the import-time gate so a store ingested before the gate landed
@@ -134,13 +145,8 @@ def _fs_entity_collisions(project_root: Path, doc_types: set[str]) -> list[Any]:
     """
     from cataforge.domain.kg.ingest.entity_extract import (  # noqa: PLC0415
         detect_entity_id_collisions,
-        extract_entities,
     )
-    from cataforge.domain.kg.ingest.scan import scan_business_docs  # noqa: PLC0415
 
-    all_entities: list[Any] = []
-    for doc in scan_business_docs(project_root, sorted(doc_types)):
-        all_entities.extend(extract_entities(doc))
     return detect_entity_id_collisions(all_entities)
 
 
@@ -160,7 +166,8 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
         click.echo("  (no active doc_types — skipping)")
         return 0
 
-    collisions = _fs_entity_collisions(project_root, active)
+    all_entities = _fs_extracted_entities(project_root, active)
+    collisions = _fs_entity_collisions(all_entities)
     if collisions:
         click.echo(
             f"  FAIL: {len(collisions)} entity_id(s) defined across multiple "
@@ -195,6 +202,13 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     missing = fs_ids - kg_ids
     stale = kg_ids - fs_ids
 
+    # A referenced id with no definition in any active doc_type source cannot
+    # be ingested by `kg repair` (it re-reads the same sources) — config
+    # guidance, not a repair loop.
+    defined_ids = {e.entity_id for e in all_entities}
+    dangling = {m for m in missing if m not in defined_ids}
+    missing -= dangling
+
     if not missing:
         click.echo(f"  OK ({len(fs_ids)} entity_ids reconciled across {sorted(active)})")
     else:
@@ -205,6 +219,16 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
             f"({preview}{ellipsis}); run "
             f"`cataforge kg repair --project-root .` to "
             f"reconcile."
+        )
+
+    if dangling:
+        preview = sorted(dangling)[:5]
+        ellipsis = "..." if len(dangling) > 5 else ""
+        click.echo(
+            f"  WARN: {len(dangling)} entity id(s) referenced in active docs but "
+            f"defined in no active doc_type source ({preview}{ellipsis}); "
+            f"register the defining doc_type in `context.kg_active_doc_types`, "
+            f"or mark the mention as inline code to exempt it."
         )
 
     if stale:

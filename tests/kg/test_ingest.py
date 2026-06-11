@@ -113,6 +113,43 @@ def test_dry_run_does_not_write(variant: str) -> None:
     assert len(stats.verify_result.missing_entities) == 9
 
 
+def test_verify_ok_after_manual_kg_add() -> None:
+    """Synthetic entities added via the kg-add path (empty source_doc) are
+    outside the import scope and must not fail later import verification."""
+    from cataforge.domain.kg import KnowledgeGraph
+    from cataforge.domain.kg.ingest import run_migration
+
+    handle, config = _open_memory_store()
+    root = FIXTURE_ROOT / "waterfall"
+    run_migration(handle.raw, root, config)
+
+    rows = list(
+        handle.raw.query(
+            "PREFIX cf: <https://cataforge.dev/ontology/> SELECT ?p WHERE { ?p a cf:Project }"
+        )
+    )
+    project_iri = rows[0]["p"].value
+    kg = KnowledgeGraph(handle.raw, config)
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="ADR-0001",
+            class_name="ArchitectureDecision",
+            title="扁平 IRI 方案",
+            source_doc="",
+            source_section="ADR-0001 扁平 IRI 方案",
+            content_hash="deadbeef",
+            project_iri=project_iri,
+        )
+
+    second, _, _ = run_migration(handle.raw, root, config)
+    assert second.verify_result is not None
+    assert second.verify_result.ok, (
+        f"manual kg-add entity poisoned verify: "
+        f"kg={second.verify_result.entity_count_kg} "
+        f"expected={second.verify_result.entity_count_expected}"
+    )
+
+
 def test_xref_inside_arch_does_not_pollute_arch_entity_set() -> None:
     """Regression: ENTITY_PREFIX_RE used to capture `F-001` from
     `prd#§2.F-001` inside arch, attributing the Feature to arch's
