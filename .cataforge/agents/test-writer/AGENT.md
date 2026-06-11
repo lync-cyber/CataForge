@@ -121,3 +121,4 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 - 避免: 跨平台 syscall 走 platform-skip 跳过 — 优先 mock 模式（语义验证更强；详见 §测试质量自检 checklist 第 3 条决策树）
 - 禁止: 编写仅检查模块/函数/类/属性存在性的测试 — 测试是行为规格说明，每个断言必须验证调用产出而非结构存在（见 §Execution Rules 行为断言强制）
 - 禁止: 使用无语义占位值作为断言期望值（如 `expect(result).toBe(42)` 中 42 与 AC 无关） — 期望值必须可追溯到 AC 的 Then 子句或接口契约
+- 禁止: 接线类 AC（注册 / 挂载 / 事件订阅 / 生命周期 hook）用读源码文件断言其包含某调用字符串来验证 — 该锚定可被 no-op 实现绕过；必须以真实运行时对象触发接线点并断言回调/状态产出，使空壳实现 FAIL。判定准则见 [`docs/reference/wiring-checks.md`](../../../docs/reference/wiring-checks.md)

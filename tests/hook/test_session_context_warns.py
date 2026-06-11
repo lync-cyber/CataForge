@@ -40,6 +40,21 @@ def test_session_start_appends_event(tmp_path, monkeypatch):
     assert '"event": "session_start"' in log.read_text(encoding="utf-8")
 
 
+def test_session_start_debounces_rapid_duplicates(tmp_path, monkeypatch):
+    """IDE multi-window / reconnect fires SessionStart in bursts — only the
+    first event within the debounce window lands in EVENT-LOG."""
+    (tmp_path / ".cataforge").mkdir()
+    monkeypatch.chdir(tmp_path)
+    for _ in range(3):
+        _log_session_start()
+
+    log = tmp_path / "docs" / "EVENT-LOG.jsonl"
+    lines = [
+        line for line in log.read_text(encoding="utf-8").splitlines() if '"session_start"' in line
+    ]
+    assert len(lines) == 1, lines
+
+
 def test_hook_does_not_deploy() -> None:
     """Regression: the SessionStart hook must not shell out to `cataforge
     deploy` — opening a session must not mutate tracked files."""

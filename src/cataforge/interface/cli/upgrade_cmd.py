@@ -148,6 +148,7 @@ def upgrade_apply(dry_run: bool) -> None:
     click.echo(
         f"  wrote {len(result.written)} file(s)"
         + (f", kept {len(result.skipped)} existing" if result.skipped else "")
+        + (f", pruned {len(result.removed)} obsolete" if result.removed else "")
     )
     for line in format_protected_warning(result.protected, dest):
         click.secho(f"  {line}", fg="yellow", err=True)

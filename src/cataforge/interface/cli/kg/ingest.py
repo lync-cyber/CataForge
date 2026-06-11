@@ -148,6 +148,11 @@ def kg_import(
             f"skipped={stats.write_stats.entities_skipped}"
             f"+{stats.write_stats.relations_skipped}"
         )
+        if stats.extracted_relations == 0 and stats.extracted_entities > 0:
+            click.echo(
+                "  (relations=0 — 追溯边仅从严格 `doc_id#§N.ITEM` 交叉引用提取；"
+                "裸提及实体 ID 不产边)"
+            )
         if stats.verify_result is not None:
             click.echo(
                 f"  verify: ok={stats.verify_result.ok} "
