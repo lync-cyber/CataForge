@@ -134,6 +134,56 @@ def test_check_prd_skipped_for_non_main_volume(tmp_path: Path) -> None:
     assert not any("非功能需求" in e for e in c.errors)
 
 
+_PRD_MAIN_DELEGATING = """\
+---
+id: prd-keel
+doc_type: prd
+volume: main
+---
+## 2. 功能需求
+功能定义见分卷 prd-keel-f001-f008。
+
+## 3. 非功能需求
+- 性能
+- 安全
+- 可用性
+"""
+
+_PRD_FEATURES_VOLUME = """\
+---
+id: prd-keel-f001-f008
+doc_type: prd
+volume: features
+split_from: prd-keel
+---
+### F-001 Login
+用户故事: As a user I want to login.
+- AC-001: Return token on success.
+优先级: P0
+"""
+
+
+def test_check_prd_main_volume_aggregates_split_volume_ac(tmp_path: Path) -> None:
+    """A delegating main volume passes when its split volumes carry the ACs."""
+    (tmp_path / "prd-keel-f001-f008.md").write_text(_PRD_FEATURES_VOLUME, encoding="utf-8")
+    f = tmp_path / "prd-keel.md"
+    f.write_text(_PRD_MAIN_DELEGATING, encoding="utf-8")
+    c = DocChecker("prd", str(f), docs_dir=str(tmp_path), volume_type="main")
+    c.check_prd()
+    assert c.errors == [], c.errors
+
+
+def test_check_prd_main_volume_without_matching_split_still_fails(tmp_path: Path) -> None:
+    """Sibling volumes that split from a different doc do not count."""
+    other = _PRD_FEATURES_VOLUME.replace("split_from: prd-keel", "split_from: prd-other")
+    (tmp_path / "prd-keel-f001-f008.md").write_text(other, encoding="utf-8")
+    f = tmp_path / "prd-keel.md"
+    f.write_text(_PRD_MAIN_DELEGATING, encoding="utf-8")
+    c = DocChecker("prd", str(f), docs_dir=str(tmp_path), volume_type="main")
+    c.check_prd()
+    assert any("AC" in e or "验收" in e for e in c.errors)
+
+
 # ---------------------------------------------------------------------------
 # check_arch
 # ---------------------------------------------------------------------------
