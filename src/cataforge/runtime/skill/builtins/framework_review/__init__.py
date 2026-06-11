@@ -88,8 +88,8 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "id": "B5_interactive_host",
         "title": (
             "framework.json#/workflow 中 interactive=true 的 phase 必须 "
-            "execution_host=inline（subagent 非交互；带 "
-            "interactive_subagent_ack 时降级为 INFO）"
+            "execution_host=inline（除非平台 features.subagent_interactive=true；"
+            "带 interactive_subagent_ack 时降级为 INFO）"
         ),
         "severity": "fail|info",
     },

@@ -20,6 +20,7 @@ from .._framework_data import (
     read_dispatcher_skills,
     read_event_log_returns,
     read_event_log_threshold,
+    read_framework_data,
     read_framework_features,
     read_workflow_modes,
 )
@@ -90,8 +91,9 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
       drift check silently passes.
     * ``B5_interactive_host`` — every ``framework.json#/workflow`` phase
       marked ``interactive: true`` must run ``execution_host: inline``
-      (a dispatched subagent is non-interactive). Runs independently of
-      the markdown/structured routing parse.
+      unless the current platform's subagents are interactive
+      (``profile.yaml#/features.subagent_interactive``). Runs independently
+      of the markdown/structured routing parse.
     """
     _check_interactive_host(root, report)
 
@@ -109,24 +111,61 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
     _check_b5_hook_installed(root, report)
 
 
+def _read_subagent_interactive(root: Path) -> bool:
+    """Whether the current platform's dispatched subagents can reach the user.
+
+    Reads ``framework.json#/runtime.platform`` then that platform's
+    ``profile.yaml#/features.subagent_interactive``. False (the safe default)
+    when unset — on such platforms a dispatched subagent has no interactive
+    channel back to the user, so interactive phases must run inline.
+    """
+    runtime = read_framework_data(root).get("runtime")
+    platform = runtime.get("platform") if isinstance(runtime, dict) else None
+    if not isinstance(platform, str) or not platform:
+        return False
+    profile_path = ProjectPaths(root).platform_profile(platform)
+    if not profile_path.is_file():
+        return False
+    try:
+        profile = read_yaml(profile_path)
+    except ConfigError:
+        return False
+    if not isinstance(profile, dict):
+        return False
+    features = profile.get("features")
+    return isinstance(features, dict) and features.get("subagent_interactive") is True
+
+
 def _check_interactive_host(root: Path, report: Report) -> None:
-    """B5-ζ: interactive phases must run inline; subagents are non-interactive.
+    """B5-ζ: interactive phases must run inline unless subagents can interact.
 
     A phase with ``interactive: true`` dispatched as a subagent cannot reach
     the user — ``AskUserQuestion`` inside a dispatched agent has no interactive
     channel back to a human, so requirement/design elicitation silently
     degrades to hallucinated interviews or blanket [ASSUMPTION]s. Such a phase
-    must declare ``execution_host: inline``. A phase that knowingly keeps
-    ``subagent`` despite interactivity must carry an
-    ``interactive_subagent_ack`` reason, which downgrades the FAIL to INFO
-    (an acknowledged, documented deferral rather than a latent bug).
+    must declare ``execution_host: inline``.
+
+    Two escapes, in priority order:
+
+    * **Platform capability** — when the current platform's
+      ``profile.yaml#/features.subagent_interactive`` is true, dispatched
+      subagents genuinely reach the user, so interactive subagent phases are
+      fine on that platform (no finding).
+    * **Acknowledged deferral** — a phase that knowingly keeps ``subagent``
+      on a non-interactive platform must carry an ``interactive_subagent_ack``
+      reason, which downgrades the FAIL to INFO (documented deferral rather
+      than a latent bug).
     """
+    subagent_interactive = _read_subagent_interactive(root)
     for mode, phases in sorted(read_workflow_modes(root).items()):
         for phase in phases:
             if phase.get("interactive") is not True:
                 continue
             host = phase.get("execution_host")
             if host == "inline":
+                continue
+            if subagent_interactive:
+                # Platform's dispatched subagents reach the user → no gap.
                 continue
             phase_name = str(phase.get("phase", "?"))
             location = f"workflow/{mode}/{phase_name}"
@@ -145,11 +184,13 @@ def _check_interactive_host(root: Path, report: Report) -> None:
                     "FAIL",
                     location,
                     f"phase {phase_name!r} declares interactive: true but "
-                    f"execution_host={host!r}; a dispatched subagent is "
-                    "non-interactive (AskUserQuestion can't reach the user), so "
+                    f"execution_host={host!r}; this platform's subagents are "
+                    "non-interactive (features.subagent_interactive is not "
+                    "true; AskUserQuestion can't reach the user), so "
                     "interactive phases must run execution_host: inline — "
-                    "convert it, or add interactive_subagent_ack with a "
-                    "deferral reason to downgrade this to INFO",
+                    "convert it, declare the platform's subagents interactive, "
+                    "or add interactive_subagent_ack with a deferral reason to "
+                    "downgrade this to INFO",
                 )
 
 

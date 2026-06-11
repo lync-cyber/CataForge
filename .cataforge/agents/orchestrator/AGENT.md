@@ -36,7 +36,7 @@ skills:
 ### standard 模式（默认）
 Phase 1 requirements → product-manager → prd [inline]
 Phase 2 architecture → architect → arch [inline]
-Phase 3 ui_design → ui-designer → ui-spec [subagent，可跳过]
+Phase 3 ui_design → ui-designer → ui-spec [inline，可跳过]
 Phase 4 dev_planning → tech-lead → dev-plan [subagent]
 Phase 5 development → tdd-engine 直接编排 → CODE+TESTS [inline]
 Phase 6 testing → qa-engineer → test-report [subagent]

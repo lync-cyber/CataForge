@@ -93,7 +93,7 @@
         "phases": [
           { "phase": "requirements", "role": "product-manager", "output_doc_type": "prd", "execution_host": "inline", "interactive": true },
           { "phase": "architecture", "role": "architect", "output_doc_type": "arch", "execution_host": "inline", "interactive": true },
-          { "phase": "ui_design", "role": "ui-designer", "output_doc_type": "ui-spec", "execution_host": "subagent", "interactive": true, "interactive_subagent_ack": "Phase 3 交互需求较轻（确认设计方向）；本轮聚焦 Phase 1/2，留待后续评估转 inline", "skippable": true },
+          { "phase": "ui_design", "role": "ui-designer", "output_doc_type": "ui-spec", "execution_host": "inline", "interactive": true, "skippable": true },
           { "phase": "dev_planning", "role": "tech-lead", "output_doc_type": "dev-plan", "execution_host": "subagent", "interactive": false },
           { "phase": "development", "role": "tdd-engine", "output_doc_type": "code", "execution_host": "inline", "interactive": false },
           { "phase": "testing", "role": "qa-engineer", "output_doc_type": "test-report", "execution_host": "subagent", "interactive": false, "skippable": true },

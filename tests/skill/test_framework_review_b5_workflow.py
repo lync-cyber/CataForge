@@ -75,6 +75,7 @@ def _write_framework_json(
     dispatcher_skills: list[str] | None = None,
     constants: dict | None = None,
     workflow: dict | None = None,
+    platform: str | None = None,
 ) -> None:
     fw_dir = tmp_path / ".cataforge"
     fw_dir.mkdir(parents=True, exist_ok=True)
@@ -87,8 +88,21 @@ def _write_framework_json(
         payload["constants"] = constants
     if workflow is not None:
         payload["workflow"] = workflow
+    if platform is not None:
+        payload["runtime"] = {"platform": platform}
     (fw_dir / "framework.json").write_text(
         json.dumps(payload),
+        encoding="utf-8",
+    )
+
+
+def _write_platform_profile(tmp_path: Path, platform: str, *, subagent_interactive: bool) -> None:
+    """Write a minimal platform profile.yaml with the subagent_interactive flag."""
+    prof_dir = tmp_path / ".cataforge" / "platforms" / platform
+    prof_dir.mkdir(parents=True, exist_ok=True)
+    (prof_dir / "profile.yaml").write_text(
+        f"platform_id: {platform}\nfeatures:\n"
+        f"  subagent_interactive: {'true' if subagent_interactive else 'false'}\n",
         encoding="utf-8",
     )
 
@@ -531,6 +545,60 @@ def test_b5_interactive_host_skipped_without_workflow(tmp_path: Path) -> None:
     report = Report()
     check_b5_workflow_coverage(tmp_path, report)
     assert [f for f in report.findings if f.check_id == "B5_interactive_host"] == []
+
+
+def test_b5_interactive_host_ok_when_platform_subagent_interactive(tmp_path: Path) -> None:
+    """interactive subagent phase passes when the platform's subagents can interact."""
+    _write_orchestrator(tmp_path, "Phase 3 ui_design → ui-designer → ui-spec")
+    _write_agent(tmp_path, "ui-designer", skills=["doc-nav"])
+    _write_skill(tmp_path, "doc-nav")
+    _write_framework_json(
+        tmp_path,
+        platform="fancy-platform",
+        workflow=_workflow(
+            [
+                {
+                    "phase": "ui_design",
+                    "role": "ui-designer",
+                    "execution_host": "subagent",
+                    "interactive": True,
+                }
+            ]
+        ),
+    )
+    _write_platform_profile(tmp_path, "fancy-platform", subagent_interactive=True)
+
+    report = Report()
+    check_b5_workflow_coverage(tmp_path, report)
+    assert [f for f in report.findings if f.check_id == "B5_interactive_host"] == []
+
+
+def test_b5_interactive_host_fails_when_platform_not_subagent_interactive(tmp_path: Path) -> None:
+    """interactive subagent phase still FAILs when the platform's subagents can't interact."""
+    _write_orchestrator(tmp_path, "Phase 3 ui_design → ui-designer → ui-spec")
+    _write_agent(tmp_path, "ui-designer", skills=["doc-nav"])
+    _write_skill(tmp_path, "doc-nav")
+    _write_framework_json(
+        tmp_path,
+        platform="claude-code",
+        workflow=_workflow(
+            [
+                {
+                    "phase": "ui_design",
+                    "role": "ui-designer",
+                    "execution_host": "subagent",
+                    "interactive": True,
+                }
+            ]
+        ),
+    )
+    _write_platform_profile(tmp_path, "claude-code", subagent_interactive=False)
+
+    report = Report()
+    check_b5_workflow_coverage(tmp_path, report)
+    findings = [f for f in report.findings if f.check_id == "B5_interactive_host"]
+    assert len(findings) == 1
+    assert findings[0].severity == "FAIL"
 
 
 def test_b5_phase_routing_prefers_workflow_over_markdown(tmp_path: Path) -> None:

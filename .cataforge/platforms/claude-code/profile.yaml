@@ -118,6 +118,7 @@ features:
   parallel_agents: true          # up to 10 concurrent subagents
   scheduled_tasks: true          # CronCreate, ScheduleWakeup, RemoteTrigger
   background_agents: true
+  subagent_interactive: false    # dispatched subagents run headless; AskUserQuestion has no channel to the user
   plan_mode: true                # EnterPlanMode / ExitPlanMode
   computer_use: false            # available via MCP only, not native
   realtime_voice: false
