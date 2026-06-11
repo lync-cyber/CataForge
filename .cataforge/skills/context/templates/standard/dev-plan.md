@@ -33,6 +33,9 @@ required_sections:
 | T-001 | {名称} | M-001 | — | AC-001, AC-002 | todo |
 | T-002 | {名称} | M-001 | T-001 | AC-003 | todo |
 
+<!-- 状态列是 sprint-review Layer 1 task_status_done 检查的事实源（todo|in_progress|done|blocked），任务完成时同步更新；状态由 EVENT-LOG / 项目指令文件外部追踪的项目在 frontmatter 设 project_features.task_status_external: true -->
+
+
 ## 2. 依赖图
 ```mermaid
 graph LR

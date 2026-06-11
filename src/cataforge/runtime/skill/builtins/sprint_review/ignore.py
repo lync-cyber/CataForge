@@ -61,6 +61,24 @@ DEFAULT_IGNORE_PATTERNS: tuple[str, ...] = (
     "*.lock",
 )
 
+# Default fnmatch whitelist for the unplanned-files (gold-plating) check:
+# test-support files are accepted unplanned territory. Project-specific
+# additions go in dev-plan `project_features.unplanned_glob_patterns`;
+# `--no-default-ignores` disables this list together with the ignore set.
+DEFAULT_UNPLANNED_GLOB_PATTERNS: tuple[str, ...] = (
+    "tests/**",
+    "test/**",
+    "**/tests/**",
+    "**/test/**",
+    "**/__tests__/**",
+    "**/__mocks__/**",
+    "**/fixtures/**",
+    "**/testdata/**",
+    "*.test.*",
+    "*.spec.*",
+    "*.stories.*",
+)
+
 
 class IgnoreSpec:
     """Minimal gitignore-style pattern matcher.

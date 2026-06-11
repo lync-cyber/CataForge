@@ -33,15 +33,20 @@ def load_project_features(dev_plan_files: list[str]) -> dict[str, Any]:
     file containing a ``project_features:`` key wins. Returns ``{}`` when no
     file declares the block — preserving existing checker behavior.
 
-    Recognised keys (all optional, all default off):
+    Recognised keys (all optional):
 
-    * ``merged_review`` (bool) — short-circuit ``code_review_present`` (the
-      sprint-review report itself carries per-task L2 instead of separate
-      CODE-REVIEW files).
-    * ``deliverables_accept_alternation`` (bool) — let ``deliverables`` lines
-      use ``A | B`` syntax (passes if **either** path exists).
-    * ``unplanned_glob_patterns`` (list[str]) — fnmatch patterns; matching
-      files are filtered out of the unplanned-files WARN set.
+    * ``merged_review`` (bool, default off) — short-circuit
+      ``code_review_present`` (the sprint-review report itself carries
+      per-task L2 instead of separate CODE-REVIEW files).
+    * ``deliverables_accept_alternation`` (bool, default **on**) — let
+      ``deliverables`` lines use ``A | B`` syntax (passes if **either**
+      path exists). Set false to treat the literal string as one path.
+    * ``task_status_external`` (bool, default off) — skip the
+      ``task_status_done`` check for projects whose task status truth lives
+      outside dev-plan (EVENT-LOG / project instructions).
+    * ``unplanned_glob_patterns`` (list[str]) — fnmatch patterns appended to
+      ``DEFAULT_UNPLANNED_GLOB_PATTERNS``; matching files are filtered out
+      of the unplanned-files WARN set.
     """
     for f in dev_plan_files:
         if re.search(r"-s\d+\.md$", f):
@@ -78,7 +83,12 @@ def _consume_deliverables(lines: list[str], i: int, current_task: dict[str, Any]
         path = re.sub(r"^\[[ x]\]\s*", "", path).strip()
         path = re.sub(r"[`*]", "", path).strip()
         path = re.sub(r"\s+[—\-]{1,2}\s+.*$", "", path).strip()
-        if path and not re.search(r"[一-鿿\s{]", path):
+        if path and "|" in path:
+            # `A | B` alternation entry — spaces around the pipe are syntax,
+            # not annotation text; keep it whole for check_deliverables.
+            if not re.search(r"[一-鿿{]", path):
+                current_task["deliverables"].append(path)
+        elif path and not re.search(r"[一-鿿\s{]", path):
             current_task["deliverables"].append(path)
         i += 1
     return i
