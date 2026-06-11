@@ -514,7 +514,25 @@ class TestDeriveDocId:
         for title in [
             "feedback: TDD light-mode threshold off",
             "Bug — hook fires twice (0.4.0)",
-            "建议：加 dry-run 模式",  # non-ASCII characters are allowed by \w
+            "建议：加 dry-run 模式",
         ]:
             slug = derive_doc_id(title, kind="suggest")
             assert DOC_ID_RE.match(slug), f"{slug!r} from {title!r} fails DOC_ID_RE"
+
+    def test_folds_non_ascii_to_ascii(self) -> None:
+        slug = derive_doc_id(
+            "bug: sprint-review Layer 1 builtins 与 dev-plan 模板格式失配", kind="bug"
+        )
+        assert slug.isascii(), slug
+        assert "sprint-review" in slug
+        assert "dev-plan" in slug
+
+    def test_all_non_ascii_title_falls_back_to_date(self) -> None:
+        slug = derive_doc_id("全中文标题没有任何拉丁字符", kind="bug")
+        assert slug.startswith("feedback-bug-")
+        assert len(slug.split("-")[-1]) == 8
+
+    def test_caps_length_at_hyphen_boundary(self) -> None:
+        slug = derive_doc_id("word " * 40, kind="bug")
+        assert len(slug) <= 100, f"slug too long ({len(slug)}): {slug!r}"
+        assert not slug.endswith("-")

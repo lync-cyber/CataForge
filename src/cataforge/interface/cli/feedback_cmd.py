@@ -190,11 +190,13 @@ def _emit(
         cfg = get_config_manager()
         labels = cfg.feedback_gh_labels(gh_kind) if gh_kind else []
         fallback = cfg.feedback_fallback_on_missing_label()
+        upstream_repo = (cfg.upgrade_source or {}).get("repo")
         url = _to_gh(
             body,
             title=title,
             labels=labels,
             fallback_on_missing_label=fallback,
+            repo=str(upstream_repo) if upstream_repo else None,
         )
         # Always print the URL to stdout so CI / pipelines can capture it
         # even with --quiet.
@@ -243,6 +245,7 @@ def _to_gh(
     labels: list[str] | None = None,
     fallback_on_missing_label: bool = True,
     label: str | None = None,  # deprecated, comma-separated form
+    repo: str | None = None,
 ) -> str:
     """Spawn `gh issue create --body-file - < body` and return the issue URL.
 
@@ -269,6 +272,10 @@ def _to_gh(
         label_list = [item.strip() for item in label.split(",") if item.strip()]
 
     base_cmd = ["gh", "issue", "create", "--title", title, "--body-file", "-"]
+    if repo:
+        # Explicit target: feedback always files against the upstream repo,
+        # not whatever git remote the project directory happens to have.
+        base_cmd.extend(["-R", repo])
 
     def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
         return run_proc(cmd, input=body)
