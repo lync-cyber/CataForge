@@ -115,6 +115,51 @@ def test_gate_warns_but_does_not_fail_on_stale_only(tmp_path, capsys) -> None:
     assert "WARN" in out
 
 
+def test_gate_warns_not_fails_on_reference_defined_nowhere(tmp_path, capsys) -> None:
+    """A bare reference to an entity defined in no active doc_type source
+    (e.g. ADR-NNNN with decision docs outside the KG corpus) cannot be fixed
+    by `kg repair` — it surfaces as WARN with config guidance, not FAIL."""
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    prd = project_root / "docs" / "prd" / "prd-vertical-slice.md"
+    prd.write_text(
+        prd.read_text(encoding="utf-8") + "\n\n依据决策 ADR-0001 采用扁平 IRI 方案。\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 0, out
+    assert "FAIL" not in out
+    assert "WARN" in out
+    assert "ADR-0001" in out
+    assert "kg_active_doc_types" in out
+
+
+def test_gate_still_fails_on_defined_but_uningested_alongside_dangling(tmp_path, capsys) -> None:
+    """Dangling references must not mask a genuine ingestion gap: an entity
+    defined in FS but absent from KG keeps the gate red."""
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    prd = project_root / "docs" / "prd" / "prd-vertical-slice.md"
+    prd.write_text(
+        prd.read_text(encoding="utf-8") + "\n\n### §2.3 F-999 New feature\n\n依据决策 ADR-0001。\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 1, out
+    assert "F-999" in out
+    assert "kg repair" in out
+
+
 def test_gate_passes_with_doc_level_frontmatter_id(tmp_path, capsys) -> None:
     """A document-level frontmatter ``id`` (the scaffold's ``id: prd-<x>``
     shape) must not be demanded of the graph.

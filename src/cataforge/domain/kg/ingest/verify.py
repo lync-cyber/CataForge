@@ -42,15 +42,26 @@ class VerifyResult:
         )
 
 
-def _count_typed_subjects(store: ox.Store, namespace: str) -> int:
+def _source_doc_filter(source_docs: set[str]) -> str:
+    values = ", ".join(f'"{escape_sparql_literal(d)}"' for d in sorted(source_docs))
+    return f"FILTER(?doc IN ({values}))"
+
+
+def _count_typed_subjects(store: ox.Store, namespace: str, source_docs: set[str]) -> int:
     # Business entities only — they carry a `cf:entity_id`. Project and the
     # structural container nodes (Document / Volume / Section) are identified
     # by their `id` IRI and are excluded by requiring the entity_id literal.
+    # Scoped to the docs covered by this run: entities written outside the
+    # import pipeline (`kg add` synthetics with their own source_doc) are not
+    # this verification's business.
+    if not source_docs:
+        return 0
     sparql = (
         f"PREFIX cf: <{namespace}> "
-        "SELECT (COUNT(DISTINCT ?s) AS ?n) WHERE { ?s a ?cls ; cf:entity_id ?eid "
+        "SELECT (COUNT(DISTINCT ?s) AS ?n) WHERE { ?s a ?cls ; cf:entity_id ?eid ; "
+        "cf:source_doc ?doc "
         "FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
-        "FILTER(?cls != cf:Project) }"
+        f"FILTER(?cls != cf:Project) {_source_doc_filter(source_docs)} }}"
     )
     rows = list(select_rows(store, sparql))
     if not rows:
@@ -74,16 +85,22 @@ def verify_after_write(
         ),
     )
 
-    result.entity_count_kg = _count_typed_subjects(store, namespace)
+    source_docs = {e.source_doc for e in entities}
+    result.entity_count_kg = _count_typed_subjects(store, namespace, source_docs)
 
     # Relation count: count distinct (s, p, o) triples whose predicate is
-    # a cf:* slot used for traceability. Filter out type / literal slots.
+    # a cf:* slot used for traceability, scoped to subjects from this run's
+    # docs. Filter out type / literal slots.
     traceability_predicates = sorted({r.predicate_curie for r in relations})
-    if traceability_predicates:
+    if traceability_predicates and source_docs:
         union = " UNION ".join(
             f"{{ ?s <{namespace}{c.split(':', 1)[1]}> ?o }}" for c in traceability_predicates
         )
-        sparql = f"SELECT (COUNT(*) AS ?n) WHERE {{ {union} }}"
+        sparql = (
+            f"PREFIX cf: <{namespace}> "
+            f"SELECT (COUNT(*) AS ?n) WHERE {{ {{ {union} }} "
+            f"?s cf:source_doc ?doc {_source_doc_filter(source_docs)} }}"
+        )
         rows = list(select_rows(store, sparql))
         result.relation_count_kg = (
             int(rows[0]["n"].value) if rows and rows[0]["n"] is not None else 0
