@@ -30,6 +30,7 @@ from cataforge.runtime.skill.builtins.sprint_review._extract import (
 )
 from cataforge.runtime.skill.builtins.sprint_review._render import render_json, render_text
 from cataforge.runtime.skill.builtins.sprint_review.ignore import (
+    DEFAULT_UNPLANNED_GLOB_PATTERNS,
     build_ignore_spec,
 )
 from cataforge.utils.common import ensure_utf8
@@ -169,13 +170,21 @@ def main() -> None:
         sys.exit(1)
 
     features = load_project_features(dev_plan_files)
-    accept_alternation = bool(features.get("deliverables_accept_alternation"))
+    accept_alternation = bool(features.get("deliverables_accept_alternation", True))
     merged_review = bool(features.get("merged_review"))
+    task_status_external = bool(features.get("task_status_external"))
     glob_whitelist_raw = features.get("unplanned_glob_patterns") or []
     glob_whitelist = [g for g in glob_whitelist_raw if isinstance(g, str)]
+    if not args.no_default_ignores:
+        glob_whitelist = list(DEFAULT_UNPLANNED_GLOB_PATTERNS) + glob_whitelist
 
     sections: list[tuple[str, list[Issue], str]] = [
-        ("任务状态检查", check_task_status(tasks), "所有任务状态为 done"),
+        (
+            "任务状态检查",
+            check_task_status(tasks, external_tracking=task_status_external),
+            "所有任务状态为 done"
+            + (" (跳过: project_features.task_status_external)" if task_status_external else ""),
+        ),
         (
             "交付物检查",
             check_deliverables(tasks, accept_alternation=accept_alternation),

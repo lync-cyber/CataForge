@@ -146,8 +146,9 @@ class TestCheckDeliverablesAlternation:
         assert len(issues) == 1
         assert "所有候选均缺失" in issues[0].message
 
-    def test_alternation_disabled_treats_pipe_as_literal(self, tmp_path: Path) -> None:
-        # Default behavior: literal "A | B" is one missing path.
+    def test_alternation_accepted_by_default(self, tmp_path: Path) -> None:
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "foo.tsx").write_text("", encoding="utf-8")
         tasks = [
             {
                 "id": "T-1",
@@ -156,9 +157,111 @@ class TestCheckDeliverablesAlternation:
                 ],
             }
         ]
-        issues = check_deliverables(tasks)
+        assert check_deliverables(tasks) == []
+
+    def test_alternation_opt_out_treats_pipe_as_literal(self, tmp_path: Path) -> None:
+        tasks = [
+            {
+                "id": "T-1",
+                "deliverables": [
+                    str(tmp_path / "src" / "foo.ts") + " | " + str(tmp_path / "src" / "foo.tsx"),
+                ],
+            }
+        ]
+        issues = check_deliverables(tasks, accept_alternation=False)
         assert len(issues) == 1
         assert "交付物缺失" in issues[0].message
+
+
+# ---------------------------------------------------------------------------
+# check_task_status — empty status + external tracking
+# ---------------------------------------------------------------------------
+
+
+class TestCheckTaskStatus:
+    def test_done_tasks_pass(self) -> None:
+        from cataforge.runtime.skill.builtins.sprint_review.sprint_check import check_task_status
+
+        assert check_task_status([{"id": "T-1", "status": "done"}]) == []
+
+    def test_undone_status_is_blocking(self) -> None:
+        from cataforge.core.types import Severity
+        from cataforge.runtime.skill.builtins.sprint_review.sprint_check import check_task_status
+
+        issues = check_task_status([{"id": "T-1", "status": "todo"}])
+        assert len(issues) == 1
+        assert issues[0].severity == Severity.HIGH
+
+    def test_undeclared_status_is_advisory_with_guidance(self) -> None:
+        """A dev-plan that never declares status (tracked in EVENT-LOG /
+        project instructions) must not produce a blocking finding per task."""
+        from cataforge.runtime.skill.builtins.sprint_review.sprint_check import check_task_status
+
+        issues = check_task_status([{"id": "T-1", "status": ""}])
+        assert len(issues) == 1
+        assert not issues[0].blocking, issues[0]
+        assert "task_status_external" in issues[0].message
+
+    def test_external_tracking_skips_check(self) -> None:
+        from cataforge.runtime.skill.builtins.sprint_review.sprint_check import check_task_status
+
+        tasks = [{"id": "T-1", "status": ""}, {"id": "T-2", "status": "todo"}]
+        assert check_task_status(tasks, external_tracking=True) == []
+
+
+# ---------------------------------------------------------------------------
+# extract — alternation deliverable lines survive parsing
+# ---------------------------------------------------------------------------
+
+
+class TestExtractAlternationDeliverables:
+    def test_pipe_entry_with_spaces_is_kept(self, tmp_path: Path) -> None:
+        from cataforge.runtime.skill.builtins.sprint_review.sprint_check import (
+            extract_sprint_tasks,
+        )
+
+        f = tmp_path / "dev-plan-foo-s1.md"
+        f.write_text(
+            "### T-011 Feature\n"
+            "- status: done\n"
+            "- deliverables:\n"
+            "  - src/foo.ts | src/foo.tsx\n"
+            "  - src/bar.py\n",
+            encoding="utf-8",
+        )
+        tasks = extract_sprint_tasks([str(f)], 1)
+        assert len(tasks) == 1
+        assert "src/foo.ts | src/foo.tsx" in tasks[0]["deliverables"]
+        assert "src/bar.py" in tasks[0]["deliverables"]
+
+
+# ---------------------------------------------------------------------------
+# default unplanned glob whitelist
+# ---------------------------------------------------------------------------
+
+
+class TestDefaultUnplannedGlobs:
+    def test_test_support_files_filtered_by_default(self, tmp_path: Path) -> None:
+        from cataforge.runtime.skill.builtins.sprint_review.ignore import (
+            DEFAULT_UNPLANNED_GLOB_PATTERNS,
+        )
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "feature.ts").write_text("", encoding="utf-8")
+        (src / "feature.test.ts").write_text("", encoding="utf-8")
+        fixtures = src / "fixtures"
+        fixtures.mkdir()
+        (fixtures / "sample.json").write_text("{}", encoding="utf-8")
+        ignore_spec = build_ignore_spec(use_defaults=True)
+        issues = check_unplanned_files(
+            [{"id": "T-1", "deliverables": [str(src / "feature.ts")]}],
+            [str(src)],
+            respect_gitignore=False,
+            ignore_spec=ignore_spec,
+            glob_whitelist=list(DEFAULT_UNPLANNED_GLOB_PATTERNS),
+        )
+        assert issues == [], [i.path for i in issues]
 
 
 # ---------------------------------------------------------------------------

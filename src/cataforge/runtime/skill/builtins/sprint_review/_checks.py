@@ -26,10 +26,34 @@ def _issue(
     return Issue(severity, category, message, task=task, path=path)
 
 
-def check_task_status(tasks: list[dict[str, Any]]) -> list[Issue]:
+def check_task_status(
+    tasks: list[dict[str, Any]],
+    *,
+    external_tracking: bool = False,
+) -> list[Issue]:
+    """Verify every sprint task is ``done``.
+
+    *external_tracking* (``project_features.task_status_external``) skips the
+    check for projects whose status truth lives outside dev-plan. A task with
+    no status declared anywhere in dev-plan degrades to an advisory finding —
+    there is nothing in-document to verify against.
+    """
+    if external_tracking:
+        return []
     issues: list[Issue] = []
     for task in tasks:
-        if task["status"] != "done":
+        if not task["status"]:
+            issues.append(
+                _issue(
+                    Severity.MEDIUM,
+                    "task_status_done",
+                    f"任务 {task['id']} 未在 dev-plan 中声明状态（任务卡 status 字段或状态表行）；"
+                    f"状态外部追踪时在 dev-plan frontmatter 设 "
+                    f"project_features.task_status_external: true",
+                    task=task["id"],
+                )
+            )
+        elif task["status"] != "done":
             issues.append(
                 _issue(
                     Severity.HIGH,
@@ -44,13 +68,13 @@ def check_task_status(tasks: list[dict[str, Any]]) -> list[Issue]:
 def check_deliverables(
     tasks: list[dict[str, Any]],
     *,
-    accept_alternation: bool = False,
+    accept_alternation: bool = True,
 ) -> list[Issue]:
     """Check each deliverable exists.
 
-    When *accept_alternation* is true, a ``A | B`` entry passes if any
-    candidate exists. Without the flag, the literal ``"A | B"`` string is
-    treated as a single (non-existent) path — preserving prior behavior.
+    With *accept_alternation* (default), a ``A | B`` entry passes if any
+    candidate exists. Pass ``False`` to treat the literal ``"A | B"`` string
+    as a single path.
     """
     issues: list[Issue] = []
     for task in tasks:
