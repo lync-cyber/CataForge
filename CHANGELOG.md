@@ -20,6 +20,40 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.9.0'></a>
+## [0.9.0] — 2026-06-11
+
+### Added
+
+- **approved 状态溯源校验** — 可审查的主卷文档 `status: approved` 时要求存在 `docs/reviews/doc/REVIEW-{doc_id}-r*.md` 审查报告，新建产物无法预标 approved 绕过 doc-review 门禁；审查报告类 doc_type 与分卷豁免。
+
+- **upgrade 残留清理** — scaffold force refresh 按 manifest 修剪包内已不存在且用户未改动的文件（清空目录一并移除；用户改过的保留并告警），升级不再留下触发 framework-review FAIL 的废弃 skill 目录。
+- **Bootstrap 存量项目归档引导** — 历史文档可移入根级 `archive/` 或经 `docs/.docignore` 豁免，避免 brownfield 项目初始化即 orphan FAIL。
+
+### Changed
+
+- **sprint-review 任务状态检查** — dev-plan 未声明状态降为 advisory；新增 `project_features.task_status_external` 显式跳过该检查；dev-plan 模板状态列标注为该检查的事实源。
+- **deliverables 二选一默认启用** — `A | B` 交付物条目端到端生效（解析器保留管道条目、检查默认 alternation 语义），`deliverables_accept_alternation: false` 可退出。
+- **gold-plating 默认豁免** — 新增测试辅助类默认 glob 白名单（tests/、fixtures/、`*.test.*`、`*.spec.*`、`*.stories.*` 等），项目 `unplanned_glob_patterns` 在其上追加，`--no-default-ignores` 一并关闭。
+
+- **session_start 去抖** — SessionStart hook 在 60 秒窗口内的重复事件不再落盘，消除 IDE 多窗口/重连的 EVENT-LOG 噪声。
+- **kg import 关系可观测性** — 实体数 >0 而关系数 =0 时输出提取语法提示（追溯边仅来自严格 `doc_id#§N.ITEM` 交叉引用）。
+- **dispatch-prompt 约束细化** — 审查报告类 new_creation 豁免用户确认轮（verdict 经 orchestrator 流转）；new_creation 产物必须以 `status: draft` 起始。
+- **test-writer 接线类 AC Anti-Pattern** — 禁止以读源码字符串锚定验证接线，必须经真实运行时对象断言回调/状态产出。
+
+### Fixed
+
+- **EVENT-LOG UTF-8 钉死与 doctor 容错** — `append_event` 显式按 UTF-8 写盘（未走 `ensure_utf8` 的宿主不再按 locale 写出 GBK 字节）；doctor 的 EVENT-LOG schema 检查逐行解码，非 UTF-8 行降级为该检查 FAIL 并报行号，不再以 UnicodeDecodeError 中断 doctor；feedback collectors / phase / framework-review 等读取方补 `errors="replace"` 容错。
+
+- **kg import verify 范围化** — 实体/关系计数限定在本次 import 覆盖的 source-doc 集合内，`kg add` 合法添加的 synthetic 实体不再使后续所有 `kg import` 永久 verify FAIL（exit 3）。
+- **doctor kg_ingestion 缺失分流** — 引用了无任何 active doc_type 定义来源的实体（如 ADR-XXXX）降为 WARN 并给出 `context.kg_active_doc_types` / inline-code 指引，不再统一指向对该场景无效的 `kg repair`；真实摄入缺口维持 FAIL。
+- **generator 模板 namespace 对齐** — workflow-framework-generator 的 `framework.json.tmpl` 与 `docs/reference/configuration.md` 改用规范 `ontology/` / `instance/` 命名空间，新生成框架不再出现 `rdfs:subClassOf*` 遍历为空。
+
+- **doc-review 多卷 PRD 兼容** — 主卷的 F/用户故事配比与 AC 计数聚合 `split_from` 指向它的分卷，委托式主卷不再因 AC 全在功能分卷而 FAIL。
+
+- **feedback --gh 仓库定向** — `gh issue create` 统一注入 `-R {framework.json#upgrade.source.repo}`，无 git remote 或 remote 指向业务仓库的下游项目可直接上报上游。
+- **doc-id slug ASCII 化** — `derive_doc_id` 折叠非 ASCII 字符并按连字符词边界封顶，中文摘要不再产出混合文字、任意截断的 frontmatter id。
+
 <a id='changelog-0.8.0'></a>
 ## [0.8.0] — 2026-06-06
 
@@ -1433,7 +1467,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.0
 [0.8.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.8.0
 [0.7.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.7.0
 [0.6.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.6.1
