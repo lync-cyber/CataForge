@@ -6,6 +6,7 @@ or shell out to other commands. The event is appended to the gitignored
 """
 
 import sys
+from pathlib import Path
 
 from cataforge.runtime.hook.base import hook_main, read_hook_input
 
@@ -15,7 +16,7 @@ _DEBOUNCE_SECONDS = 60
 _TAIL_BYTES = 8192
 
 
-def _recent_session_start(project_root) -> bool:  # noqa: ANN001 — Path, lazy import
+def _recent_session_start(project_root: Path) -> bool:
     """True when a session_start within the debounce window already exists."""
     import json
     from datetime import UTC, datetime
