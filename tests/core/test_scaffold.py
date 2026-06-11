@@ -67,6 +67,65 @@ def test_copy_scaffold_preserves_project_languages_on_force(tmp_path: Path) -> N
     assert refreshed["project"]["languages"] == ["python", "go"]
 
 
+def test_force_refresh_prunes_obsolete_unmodified_files(tmp_path: Path) -> None:
+    """A scaffold file recorded in the manifest but absent from the current
+    bundle (removed upstream) is deleted on refresh when the user never
+    touched it; its now-empty directory goes with it."""
+    from cataforge.core.scaffold_backup import _sha256, _write_manifest, read_manifest
+
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+
+    obsolete = dest / "skills" / "legacy-skill" / "SKILL.md"
+    obsolete.parent.mkdir(parents=True)
+    obsolete.write_bytes(b"legacy body")
+    manifest = read_manifest(dest)
+    manifest["skills/legacy-skill/SKILL.md"] = _sha256(b"legacy body")
+    _write_manifest(dest, manifest)
+
+    result = copy_scaffold_to(dest, force=True, backup=False)
+    assert not obsolete.exists()
+    assert not obsolete.parent.exists()
+    assert any("legacy-skill" in str(p) for p in result.removed)
+    # The pruned entry must not survive into the fresh manifest.
+    assert "skills/legacy-skill/SKILL.md" not in read_manifest(dest)
+
+
+def test_force_refresh_keeps_user_modified_obsolete_file(tmp_path: Path) -> None:
+    from cataforge.core.scaffold_backup import _sha256, _write_manifest, read_manifest
+
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+
+    obsolete = dest / "skills" / "legacy-skill" / "SKILL.md"
+    obsolete.parent.mkdir(parents=True)
+    obsolete.write_bytes(b"user edited body")
+    manifest = read_manifest(dest)
+    manifest["skills/legacy-skill/SKILL.md"] = _sha256(b"original body")
+    _write_manifest(dest, manifest)
+
+    result = copy_scaffold_to(dest, force=True, backup=False)
+    assert obsolete.exists(), "user-modified obsolete file must be kept"
+    assert all("legacy-skill" not in str(p) for p in result.removed)
+
+
+def test_non_force_copy_never_prunes(tmp_path: Path) -> None:
+    from cataforge.core.scaffold_backup import _sha256, _write_manifest, read_manifest
+
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+    obsolete = dest / "skills" / "legacy-skill" / "SKILL.md"
+    obsolete.parent.mkdir(parents=True)
+    obsolete.write_bytes(b"legacy body")
+    manifest = read_manifest(dest)
+    manifest["skills/legacy-skill/SKILL.md"] = _sha256(b"legacy body")
+    _write_manifest(dest, manifest)
+
+    result = copy_scaffold_to(dest, force=False)
+    assert obsolete.exists()
+    assert result.removed == []
+
+
 def test_scaffold_excludes_project_state_md(tmp_path: Path) -> None:
     """PROJECT-STATE.md is the instruction-file source template, packaged only;
     neither fresh copy nor force refresh emits it into the project."""

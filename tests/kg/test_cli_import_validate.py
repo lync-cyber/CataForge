@@ -62,6 +62,37 @@ def test_kg_reconcile_doc_only_is_noop_despite_store(tmp_path: Path) -> None:
     assert "doc-only" in result.output
 
 
+def test_kg_import_hints_on_zero_relations(tmp_path: Path) -> None:
+    """Relations come only from strict `doc_id#§N.ITEM` cross-references;
+    an import that extracts entities but zero relations must say so instead
+    of looking like a silent failure."""
+    import shutil
+
+    from cataforge.domain.kg._dispatch import invalidate_cache
+
+    invalidate_cache()
+    project = tmp_path / "proj"
+    shutil.copytree(FIXTURE_ROOT / "waterfall", project)
+    # Only the PRD: its F/AC definitions carry no xrefs, so relations == 0.
+    result = CliRunner().invoke(
+        _cli(),
+        [
+            "kg",
+            "import",
+            "--project-root",
+            str(project),
+            "--backend",
+            "memory",
+            "--doc-type",
+            "prd",
+        ],
+    )
+    invalidate_cache()
+    assert result.exit_code == 0, result.output
+    assert "relations=0" in result.output
+    assert "doc_id#§" in result.output, result.output
+
+
 def test_kg_import_doc_only_honors_explicit_doc_type(tmp_path: Path) -> None:
     """An explicit --doc-type overrides the doc-only default no-op gate."""
     from cataforge.domain.kg._dispatch import invalidate_cache

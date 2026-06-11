@@ -42,7 +42,8 @@ Agent tool:
 <!-- /OVERRIDE:tool_usage -->
 
     === 执行约束 ===
-    - 新建文档(task_type=new_creation)至少执行一轮用户确认
+    - 新建文档(task_type=new_creation)至少执行一轮用户确认；审查报告类产物（doc_type ∈ review / code-review / sprint-review / framework-review / design-review）豁免——verdict 经 orchestrator 流转，子代理仅在信息缺失时走 needs_input
+    - new_creation 产出文档的 frontmatter status 必须为 draft，门禁通过后由流程置 approved
 
 <!-- OVERRIDE:return_format -->
     === 返回格式(必须严格遵循) ===

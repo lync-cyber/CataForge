@@ -17,6 +17,7 @@
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
+    - 存量项目带历史文档时，向用户确认归档方案：移入根级 `archive/`（docs 索引不扫描），或保留在 `docs/` 内并写 `docs/.docignore`（一行一个 glob，`dir/` 匹配整个子树）——否则 `cataforge docs validate` / doctor 会对缺 front matter 的历史文件报 orphan FAIL
 4. **写入跨平台 `.gitattributes`** — 治理 Windows `core.autocrlf=true` + fixture/snapshot 字节哈希漂移。项目根无 `.gitattributes` 时写入下列最小集；已存在则**只读**判断（含 `eol=` 视为已归一化），不覆盖用户自定义：
 
     ```

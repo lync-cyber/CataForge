@@ -260,12 +260,15 @@ class ScaffoldCopyResult:
     * ``protected`` — user-modified/drift files preserved during a forced
       refresh; the framework version was written beside each as
       ``<file>`` + :data:`SIDECAR_SUFFIX` for manual merge.
+    * ``removed``   — obsolete manifest-recorded files pruned during a forced
+      refresh (absent from the current bundle, unmodified on disk).
     * ``backup``    — pre-refresh snapshot dir, or ``None``.
     """
 
     written: list[Path] = field(default_factory=list)
     skipped: list[Path] = field(default_factory=list)
     protected: list[Path] = field(default_factory=list)
+    removed: list[Path] = field(default_factory=list)
     backup: Path | None = None
 
 
@@ -350,8 +353,48 @@ def copy_scaffold_to(
         manifest_files[rel] = _sha256(new_bytes)
         written.append(target)
 
+    removed: list[Path] = []
+    if force:
+        removed = _prune_obsolete_files(dest, prior_manifest, manifest_files, protected)
+
     _write_manifest(dest, manifest_files)
-    return ScaffoldCopyResult(written, skipped, protected, backup_path)
+    return ScaffoldCopyResult(written, skipped, protected, removed, backup_path)
+
+
+def _prune_obsolete_files(
+    dest: Path,
+    prior_manifest: dict[str, str],
+    manifest_files: dict[str, str],
+    protected: list[Path],
+) -> list[Path]:
+    """Delete manifest-recorded files the current bundle no longer ships.
+
+    Only files whose on-disk bytes still match the recorded hash are removed
+    — anything the user edited is kept (and reported via *protected*).
+    Emptied parent directories are pruned up to *dest*.
+    """
+    removed: list[Path] = []
+    for rel, recorded_hash in prior_manifest.items():
+        if rel in manifest_files:
+            continue
+        target = dest / rel
+        if not target.is_file():
+            continue
+        try:
+            disk_hash = _sha256(target.read_bytes())
+        except OSError:
+            continue
+        if disk_hash != recorded_hash:
+            protected.append(target)
+            continue
+        with contextlib.suppress(OSError):
+            target.unlink()
+            removed.append(target)
+            parent = target.parent
+            while parent != dest and parent.is_dir() and not any(parent.iterdir()):
+                parent.rmdir()
+                parent = parent.parent
+    return removed
 
 
 def format_protected_warning(protected: list[Path], dest: Path) -> list[str]:
