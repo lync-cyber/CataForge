@@ -105,16 +105,22 @@ _DOC_ID_INVALID_CHARS_RE = re.compile(r"[^\w-]+")
 _DOC_ID_COLLAPSE_HYPHEN_RE = re.compile(r"-{2,}")
 
 
+_DOC_ID_MAX_BASE_LEN = 80
+
+
 def derive_doc_id(title: str, *, kind: str) -> str:
     """Slugify a feedback title into a ``DOC_ID_RE`` (``^[\\w-]+$``) compatible id.
 
     The CLI uses this when the caller does not pre-supply ``doc_id`` on the
-    payload. We strip diacritics-free non-word chars, collapse hyphen runs,
-    and prefix with ``feedback-<kind>-`` to keep the namespace flat — this
-    way two bundles with similar titles still differ by ``kind``. Falls back
-    to a date stamp when the title slugifies to nothing.
+    payload. The title is folded to ASCII (non-ASCII chars dropped — ids must
+    stay portable across filesystems and URL anchors), non-word chars become
+    hyphens, hyphen runs collapse, and the result is capped at a hyphen
+    boundary. Prefixed with ``feedback-<kind>-`` to keep the namespace flat —
+    this way two bundles with similar titles still differ by ``kind``. Falls
+    back to a date stamp when the title slugifies to nothing.
     """
-    base = _DOC_ID_INVALID_CHARS_RE.sub("-", title.strip().lower())
+    base = title.strip().lower().encode("ascii", "ignore").decode("ascii")
+    base = _DOC_ID_INVALID_CHARS_RE.sub("-", base)
     base = _DOC_ID_COLLAPSE_HYPHEN_RE.sub("-", base).strip("-")
     # Strip stray "feedback-" / "{kind}-" so titles like "feedback: bar" or
     # "bug: bar" don't end up double-prefixed when we re-prepend below.
@@ -122,6 +128,11 @@ def derive_doc_id(title: str, *, kind: str) -> str:
         base = base[len("feedback-") :]
     if base.startswith(f"{kind}-"):
         base = base[len(kind) + 1 :]
+    if len(base) > _DOC_ID_MAX_BASE_LEN:
+        base = base[:_DOC_ID_MAX_BASE_LEN]
+        if "-" in base:
+            base = base.rsplit("-", 1)[0]
+        base = base.strip("-")
     if not base:
         base = datetime.now(UTC).strftime("%Y%m%d")
     return f"feedback-{kind}-{base}"
