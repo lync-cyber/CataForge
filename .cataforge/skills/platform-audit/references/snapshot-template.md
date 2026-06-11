@@ -47,6 +47,7 @@ agent_teams: true/false
 parallel_agents: true/false
 scheduled_tasks: true/false
 background_agents: true/false
+subagent_interactive: true/false
 plan_mode: true/false
 computer_use: true/false
 realtime_voice: true/false

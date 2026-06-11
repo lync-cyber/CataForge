@@ -85,6 +85,15 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "severity": "fail",
     },
     {
+        "id": "B5_interactive_host",
+        "title": (
+            "framework.json#/workflow 中 interactive=true 的 phase 必须 "
+            "execution_host=inline（除非平台 features.subagent_interactive=true；"
+            "带 interactive_subagent_ack 时降级为 INFO）"
+        ),
+        "severity": "fail|info",
+    },
+    {
         "id": "B6_hook_script_reachability",
         "title": "hooks.yaml 引用的 script 必须解析到真实 .py 文件 (builtin / custom)",
         "severity": "fail",

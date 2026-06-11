@@ -109,7 +109,7 @@ Mode Routing Protocol 在以下时刻被调用:
 - `agile-lite` / `agile-prototype` 运行中若 orchestrator 检测到以下信号，应通过 AskUserQuestion 提示用户切换到更高档位模式: brief.md 实际产出超过 DOC_SPLIT_THRESHOLD_LINES；agile-lite 任务数 >25；或任何 lite 文档超过 150 行且仍无法表达核心决策。切换由用户手动编辑 {INSTRUCTION_FILE} §框架元信息.执行模式完成，orchestrator 不自动改写该字段。
 
 ## Interrupt-Resume Protocol
-注: 前台子代理(默认)可直接使用AskUserQuestion向用户提问。本协议仅在后台子代理返回 needs_input 时触发。
+注: 主线程内联承载的 phase 角色（`execution_host: inline`，见 §Inline Role Execution Protocol）直接用 AskUserQuestion 多轮澄清，不经本协议。派发的子代理（`execution_host: subagent`）为非交互执行体，无法直接向用户提问，其澄清须以 needs_input 回传由本协议代问。
 当Agent返回 needs_input 状态时（orchestrator 侧职责）:
 1. 从 `<agent-result>` 中提取 questions、intermediate-outputs、resume-guidance
 2. 使用 AskUserQuestion 展示问题（见 COMMON-RULES §MAX_QUESTIONS_PER_BATCH，选择题优先）
@@ -207,9 +207,21 @@ Mode Routing Protocol 在以下时刻被调用:
      2. 手动处理：暂停 Phase Transition，等待用户编辑 {INSTRUCTION_FILE} 后再次推进（再次推进时重新跑 Step 7）
    - 执行 compact 后追加 **[EVENT]** 记录：`cataforge event log --event state_change --phase {新阶段} --detail "claude-md compact applied at phase transition"`
    - 命令不存在时 WARN 跳过，不阻塞
-8. **进入下一阶段** — 通过 agent-dispatch 激活下一阶段 Agent
+8. **进入下一阶段** — 按 `framework.json#/workflow` 的 `execution_host` 分派：`subagent` → agent-dispatch 激活下一阶段 Agent；`inline` → 主线程承载该角色执行（见 §Inline Role Execution Protocol）
 
 > **关键**: 步骤 1-7 必须在步骤 8 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
+
+## Inline Role Execution Protocol
+`framework.json#/workflow` 中 `execution_host: inline` 的 phase（如发散性的 Phase 1/2），由 orchestrator 在主线程承载该角色执行而非派发子代理——发散阶段需多轮 user-interview / 头脑风暴 / 澄清，派发子代理为非交互执行体无法触达用户。Phase 5 development 经 tdd-engine 内联编排是同一模式的既有先例。
+
+执行步骤（orchestrator 侧）:
+1. **加载角色** — Read 目标 role 的 AGENT.md（角色定义 / Input·Output Contract / Anti-Patterns / skills）；承载期间以该角色身份决策、受其约束，不以 orchestrator 身份拍板内容
+2. **发散澄清** — 直接用 research(user-interview / web-search) + AskUserQuestion 在主线程做多轮调研与澄清（不走 needs_input 回传）；调研痕迹落 `docs/research/` research-note，澄清结论落产出文档「决策记录」段
+3. **产出文档** — 执行该角色核心 skill（如 req-analysis / arc-design），经 context finalize 定稿（status=draft）；落盘后主线程仅保留 doc_id + ≤3 句摘要，不滞留全文
+4. **写入边界自检** — 以该角色 AGENT.md `allowed_paths` 为基准跑 `git diff --name-only`，越界文件 `git checkout` 回滚并记录（同 agent-dispatch §写入范围校验，宿主由子代理返回改为内联段结束）
+5. **审查门禁仍派子代理** — 产出后照常派发 reviewer（`subagent`）执行门禁，保留审查独立性
+
+> inline 承载不调用 agent-dispatch；新建文档"至少一轮用户确认"在主线程直接 AskUserQuestion 即满足，不再走 needs_input。
 
 ## Manual Review Checkpoint Protocol
 阶段转换时，根据 MANUAL_REVIEW_CHECKPOINTS 常量（见 COMMON-RULES §框架配置常量）决定是否暂停等待用户确认。

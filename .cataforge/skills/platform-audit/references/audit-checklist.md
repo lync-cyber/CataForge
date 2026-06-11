@@ -106,6 +106,7 @@
 | 10 | `session_resume` | session 持久化和恢复？ | Codex (/resume), OpenCode (Git-backed) |
 | 11 | `worktree_isolation` | Git worktree 隔离？ | Claude Code, Cursor |
 | 12 | `autonomy_slider` | 可配置 agent 自治级别？ | Cursor |
+| 13 | `subagent_interactive` | 派发子代理能否直接向用户提问（AskUserQuestion 触达）？ | 当前各平台均否（交互密集 phase 须 inline） |
 | 13 | `ci_cd_integration` | 原生 CI/CD 集成？ | OpenCode (GitHub Actions) |
 | 14 | `multi_root` | 多项目工作区？ | Codex (--add-dir) |
 | 15 | `agent_memory` | Agent 级跨 session 持久化记忆？ | Claude Code |

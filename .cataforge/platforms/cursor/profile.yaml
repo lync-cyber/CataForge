@@ -123,6 +123,7 @@ features:
   parallel_agents: true          # up to 8 concurrent agents with worktrees
   scheduled_tasks: true          # Automations (event/schedule triggered)
   background_agents: true
+  subagent_interactive: false    # dispatched/background agents run headless, no user-question channel
   plan_mode: false
   computer_use: true             # Cloud agent can start apps, click, screenshot, record
   realtime_voice: false

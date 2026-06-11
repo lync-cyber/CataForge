@@ -41,7 +41,7 @@ maxTurns: 60
 
 ## Anti-Patterns
 - 禁止: Bash 执行除 `cataforge docs load` 之外的任何命令
-- 禁止: 跳过设计方向确认直接定义Token — Token值应从设计方向推导，而非凭LLM默认偏好填充
+- 禁止: 跳过设计方向确认直接定义Token — inline 承载时（Phase 3 默认）主线程直接 user-interview 确认产品调性 / 设计方向后再推导 Token；派发子代理执行时经 needs_input 回传，不凭 LLM 默认偏好填充
 - 禁止: 跳过设计系统直接定义页面 — 没有Token约束的组件定义会导致视觉不一致
 - 禁止: 组件缺少状态变体(default/hover/active/disabled/error) — 且各状态须有视觉差异描述，不是仅列出状态名
 - 禁止: 页面缺少状态流(loading/empty/populated/error) — 每种状态需有具体的视觉表现描述(骨架屏/空状态插图/错误提示样式)

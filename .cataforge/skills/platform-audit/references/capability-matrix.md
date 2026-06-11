@@ -105,6 +105,7 @@ Agent 定义支持的 frontmatter 字段超集:
 | 15 | `agent_memory` | Agent 级持久化记忆 | ✓ | - | - | - |
 | 16 | `plugin_marketplace` | Plugin 发现和安装 | ✓ | ✓ | ✓ | ✓ |
 | 17 | `context_management` | 上下文窗口管理 | ✓ | - | - | - |
+| 18 | `subagent_interactive` | 派发子代理可直接向用户提问 | - | - | - | - |
 
 > ✓* = experimental
 

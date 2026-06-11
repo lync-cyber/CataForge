@@ -80,6 +80,7 @@ optional_fields:
     parallel_agents: boolean
     scheduled_tasks: boolean
     background_agents: boolean
+    subagent_interactive: boolean   # 派发子代理能否直接向用户提问（AskUserQuestion 触达）；false 则交互密集 phase 须 inline
     plan_mode: boolean
     computer_use: boolean
     realtime_voice: boolean

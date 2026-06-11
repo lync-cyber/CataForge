@@ -107,6 +107,7 @@ features:
   parallel_agents: true          # cloud parallel with --attempts best-of-N
   scheduled_tasks: false
   background_agents: true
+  subagent_interactive: false    # spawned agents run async in background, no user-question channel
   plan_mode: false
   computer_use: true             # native computer use capability
   realtime_voice: true           # WebRTC v2 voice sessions

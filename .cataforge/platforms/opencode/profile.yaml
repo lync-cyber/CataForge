@@ -104,6 +104,7 @@ features:
   parallel_agents: false
   scheduled_tasks: false
   background_agents: false
+  subagent_interactive: false    # subagents block until complete and run non-interactively
   plan_mode: true                # Plan mode (suggest without changes)
   computer_use: false
   realtime_voice: false
