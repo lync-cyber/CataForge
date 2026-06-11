@@ -70,16 +70,22 @@ class TypedDocChecksMixin:
     @abstractmethod
     def warn(self, msg: str, category: str = "doc-structure") -> None: ...
 
+    @abstractmethod
+    def split_volume_contents(self) -> list[str]: ...
+
     # ---- PRD ----
 
     def check_prd(self) -> None:
         if self.volume_type == "main":
-            f_count = len(re.findall(r"^### F-\d+", self.content, re.MULTILINE))
-            us_count = len(re.findall(r"用户故事|User Story", self.content))
+            # A split doc set keeps only pointers in the main volume — the
+            # F/US and AC populations live in the volumes, so count over the
+            # whole corpus.
+            corpus = "\n".join([self.content, *self.split_volume_contents()])
+            f_count = len(re.findall(r"^### F-\d+", corpus, re.MULTILINE))
+            us_count = len(re.findall(r"用户故事|User Story", corpus))
             if f_count > us_count:
                 self.fail(f"{f_count}个功能仅{us_count}个有用户故事")
-        if self.volume_type == "main":
-            ac_count = len(re.findall(r"AC-\d+", self.content))
+            ac_count = len(re.findall(r"AC-\d+", corpus))
             if ac_count == 0:
                 self.fail("无验收标准 (AC-NNN)")
         if self.volume_type in ("main",):

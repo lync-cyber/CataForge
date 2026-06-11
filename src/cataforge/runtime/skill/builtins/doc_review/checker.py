@@ -253,6 +253,61 @@ class DocChecker(TypedDocChecksMixin):
             if not fm.get("split_from"):
                 self.fail(f"分卷文档 (volume={self.volume_type}) 缺少 split_from 字段")
 
+    def split_volume_contents(self) -> list[str]:
+        """Full texts of sibling volumes whose ``split_from`` points at this doc."""
+        doc_id = str(_fm(self.content).get("id") or "")
+        if not doc_id:
+            return []
+        doc_path = Path(self.doc_file)
+        out: list[str] = []
+        for sibling in doc_path.parent.glob("*.md"):
+            if sibling.name == doc_path.name:
+                continue
+            try:
+                text = sibling.read_text()
+            except OSError:
+                continue
+            if str(_fm(text).get("split_from") or "") == doc_id:
+                out.append(text)
+        return out
+
+    # Doc types that are themselves review artifacts (or never enter the
+    # doc-review verdict flow) — their status is not gated on a REVIEW report.
+    _STATUS_PROVENANCE_EXEMPT = frozenset(
+        {
+            "review",
+            "code-review",
+            "sprint-review",
+            "framework-review",
+            "design-review",
+            "correction-log",
+            "skill-improve",
+            "changelog",
+            "research",
+        }
+    )
+
+    def check_status_provenance(self) -> None:
+        """``status: approved`` requires a review-report trail.
+
+        A freshly created document cannot be born approved — that bypasses
+        the doc-review gate. Split volumes ride their main volume's review.
+        """
+        fm = _fm(self.content)
+        if fm.get("status") != "approved":
+            return
+        if self.doc_type in self._STATUS_PROVENANCE_EXEMPT or self.volume_type != "main":
+            return
+        doc_id = str(fm.get("id") or "")
+        if not doc_id:
+            return  # missing id is already a check_meta failure
+        reviews_dir = Path(self.docs_dir) / "reviews" / "doc"
+        if not list(reviews_dir.glob(f"REVIEW-{doc_id}-r*.md")):
+            self.fail(
+                f"status=approved 但缺少审查报告 docs/reviews/doc/REVIEW-{doc_id}-r*.md "
+                f"— 新建文档必须以 status: draft 起始，经 doc-review 通过后才置 approved"
+            )
+
     def check_bidirectional_coverage(self) -> None:
         """Verify downstream doc covers all items from its upstream doc.
 
@@ -406,6 +461,7 @@ class DocChecker(TypedDocChecksMixin):
         checks ran.
         """
         self.check_meta()
+        self.check_status_provenance()
         self.check_nav_block()
         self.check_no_todo()
         self.check_xref()
