@@ -135,6 +135,71 @@ def test_doctor_passes_with_clean_skill_templates(tmp_path: Path, monkeypatch) -
     assert "no heredoc/redirect writes" in result.output
 
 
+def test_doctor_degrades_undecodable_line_to_fail(tmp_path: Path, monkeypatch) -> None:
+    """A non-UTF-8 line must fail the schema check with a line number, not
+    crash doctor with a UnicodeDecodeError traceback."""
+    project = _project(tmp_path)
+    good = json.dumps(
+        {
+            "ts": "2026-06-11T10:00:00+00:00",
+            "event": "phase_start",
+            "phase": "requirements",
+            "detail": "OK",
+        }
+    )
+    gbk_line = json.dumps(
+        {
+            "ts": "2026-06-11T10:00:01+00:00",
+            "event": "state_change",
+            "phase": "development",
+            "detail": "中文参数",
+        },
+        ensure_ascii=False,
+    ).encode("gbk")
+    log = project / "docs" / "EVENT-LOG.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_bytes(good.encode("utf-8") + b"\n" + gbk_line + b"\n")
+    monkeypatch.chdir(project)
+
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code == 1, result.output
+    assert "FAIL line 2" in result.output
+    assert "not valid UTF-8" in result.output
+
+
+def test_doctor_skips_pre_cutoff_undecodable_line(tmp_path: Path, monkeypatch) -> None:
+    """With a legacy cutoff set, undecodable residue is skipped like any
+    other pre-cutoff bypass write."""
+    project = _project(tmp_path)
+    good = json.dumps(
+        {
+            "ts": "2026-06-11T10:00:00+00:00",
+            "event": "phase_start",
+            "phase": "requirements",
+            "detail": "OK",
+        }
+    )
+    gbk_line = json.dumps(
+        {
+            "ts": "2025-12-01T10:00:01+00:00",
+            "event": "state_change",
+            "phase": "development",
+            "detail": "中文参数",
+        },
+        ensure_ascii=False,
+    ).encode("gbk")
+    log = project / "docs" / "EVENT-LOG.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_bytes(gbk_line + b"\n" + good.encode("utf-8") + b"\n")
+    _set_cutoff(project, "2026-01-01T00:00:00+00:00")
+    monkeypatch.chdir(project)
+
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code == 0, result.output
+    assert "1 pre-cutoff skipped" in result.output
+    assert "1/1 sampled records valid" in result.output
+
+
 def _set_cutoff(project: Path, ts: str) -> None:
     """Patch framework.json with a validation cutoff."""
     fw = project / ".cataforge" / "framework.json"

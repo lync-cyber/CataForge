@@ -114,7 +114,7 @@ def indexed_doc_types(index_text: str) -> set[str]:
 
 def _read(path: Path) -> str:
     try:
-        return path.read_text()
+        return path.read_text(errors="replace")
     except OSError:
         return ""
 

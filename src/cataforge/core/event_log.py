@@ -196,7 +196,9 @@ def append_event(project_root: Path, record: Mapping[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     line = json.dumps(record, ensure_ascii=False, sort_keys=False)
-    with open(path, "a", newline="\n") as f:
+    # EVENT-LOG is a cross-process JSONL contract: pin UTF-8 even for hosts
+    # that never ran ensure_utf8 (locale-encoded writes corrupt the log).
+    with open(path, "a", newline="\n", encoding="utf-8") as f:  # allow-explicit-encoding: contract
         f.write(line + "\n")
     return path
 

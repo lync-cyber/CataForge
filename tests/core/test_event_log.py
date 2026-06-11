@@ -160,6 +160,13 @@ class TestAppendEvent:
             )
         assert not (tmp_path / EVENT_LOG_REL).exists()
 
+    def test_non_ascii_detail_lands_as_utf8_bytes(self, tmp_path: Path) -> None:
+        record = build_record(event="state_change", phase="development", detail="中文事件 ✓")
+        append_event(tmp_path, record)
+        raw = (tmp_path / EVENT_LOG_REL).read_bytes()
+        assert "中文事件 ✓".encode() in raw
+        raw.decode("utf-8")
+
 
 class TestAppendBatch:
     def test_all_or_nothing(self, tmp_path: Path) -> None:
