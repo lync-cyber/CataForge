@@ -21,16 +21,29 @@ from .._framework_data import (
     read_event_log_returns,
     read_event_log_threshold,
     read_framework_features,
+    read_workflow_modes,
 )
 from .._types import Report
 
 
 def _parse_phase_routing(root: Path) -> dict[str, str]:
-    """Return ``{phase_name: agent_id}`` parsed from orchestrator AGENT.md.
+    """Return ``{phase_name: role}`` for the standard mode.
 
-    Empty dict on missing file or unparseable content (callers treat as
-    "no routing data — skip checks" rather than FAIL).
+    Source of truth is ``framework.json#/workflow.modes.standard``; when that
+    section is absent, fall back to parsing the orchestrator AGENT.md markdown
+    routing table (the legacy view). Empty dict when neither is available —
+    callers treat that as "no routing data — skip checks" rather than FAIL.
     """
+    standard = read_workflow_modes(root).get("standard") or []
+    workflow_routing: dict[str, str] = {}
+    for phase in standard:
+        name = phase.get("phase")
+        role = phase.get("role")
+        if isinstance(name, str) and isinstance(role, str):
+            workflow_routing[name] = role
+    if workflow_routing:
+        return workflow_routing
+
     orch_path = ProjectPaths(root).agent_dir("orchestrator") / "AGENT.md"
     if not orch_path.is_file():
         return {}
@@ -75,7 +88,13 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
       must be wired in ``hooks.yaml`` under ``agent_dispatch``; without
       it, ``agent_return`` events never reach the EVENT-LOG and the
       drift check silently passes.
+    * ``B5_interactive_host`` — every ``framework.json#/workflow`` phase
+      marked ``interactive: true`` must run ``execution_host: inline``
+      (a dispatched subagent is non-interactive). Runs independently of
+      the markdown/structured routing parse.
     """
+    _check_interactive_host(root, report)
+
     phase_to_agent = _parse_phase_routing(root)
     if not phase_to_agent:
         return
@@ -88,6 +107,50 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
     _check_eventlog_drift(phase_to_agent, agents, dispatcher_skills, root, report)
     _check_feature_phase_alignment(phase_to_agent, root, report)
     _check_b5_hook_installed(root, report)
+
+
+def _check_interactive_host(root: Path, report: Report) -> None:
+    """B5-ζ: interactive phases must run inline; subagents are non-interactive.
+
+    A phase with ``interactive: true`` dispatched as a subagent cannot reach
+    the user — ``AskUserQuestion`` inside a dispatched agent has no interactive
+    channel back to a human, so requirement/design elicitation silently
+    degrades to hallucinated interviews or blanket [ASSUMPTION]s. Such a phase
+    must declare ``execution_host: inline``. A phase that knowingly keeps
+    ``subagent`` despite interactivity must carry an
+    ``interactive_subagent_ack`` reason, which downgrades the FAIL to INFO
+    (an acknowledged, documented deferral rather than a latent bug).
+    """
+    for mode, phases in sorted(read_workflow_modes(root).items()):
+        for phase in phases:
+            if phase.get("interactive") is not True:
+                continue
+            host = phase.get("execution_host")
+            if host == "inline":
+                continue
+            phase_name = str(phase.get("phase", "?"))
+            location = f"workflow/{mode}/{phase_name}"
+            ack = phase.get("interactive_subagent_ack")
+            if isinstance(ack, str) and ack.strip():
+                report.add(
+                    "B5_interactive_host",
+                    "INFO",
+                    location,
+                    f"phase {phase_name!r} is interactive but execution_host="
+                    f"{host!r}; acknowledged deferral: {ack}",
+                )
+            else:
+                report.add(
+                    "B5_interactive_host",
+                    "FAIL",
+                    location,
+                    f"phase {phase_name!r} declares interactive: true but "
+                    f"execution_host={host!r}; a dispatched subagent is "
+                    "non-interactive (AskUserQuestion can't reach the user), so "
+                    "interactive phases must run execution_host: inline — "
+                    "convert it, or add interactive_subagent_ack with a "
+                    "deferral reason to downgrade this to INFO",
+                )
 
 
 def _check_coverage_matrix(

@@ -74,7 +74,7 @@ orchestrator 收到子代理返回后，按以下优先级解析:
 实现: orchestrator 主循环按上述优先级处理子代理返回，无独立 runtime 模块。
 
 ## 注意事项
-- 每个Phase Agent作为独立子代理运行，拥有自己的上下文窗口
+- `execution_host: subagent` 的 Phase Agent 作为独立子代理运行，拥有自己的上下文窗口（`inline` phase 由 orchestrator 主线程承载，不经本 skill，见 ORCHESTRATOR-PROTOCOLS.md §Inline Role Execution Protocol）
 - 子代理无法直接访问调用方的上下文，所有必要信息通过prompt传入
 - **子代理无法使用调度工具** — TDD子代理由orchestrator直接通过tdd-engine skill启动
 - subagent_type 使子代理自动加载 AGENT.md 中的角色定义、工具权限和约束

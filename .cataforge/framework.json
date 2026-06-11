@@ -86,6 +86,35 @@
     "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 300
   },
   "dispatcher_skills": ["tdd-engine", "agent-dispatch", "start-orchestrator"],
+  "workflow": {
+    "description": "阶段路由骨架的单一事实源。orchestrator Phase Routing 与 framework-review B5 均以此为准；agents/orchestrator/*.md 的路由表为只读视图。execution_host=inline 表示主线程内联承载该角色（交互工具原生可用）；subagent 表示派发隔离子代理。interactive=true 的 phase 其 execution_host 必须为 inline，否则交互在非交互子代理上失效（B5 校验）；确需保留 subagent 时以 interactive_subagent_ack 显式声明降级理由。role 引用 agents/ 目录名或 dispatcher_skills 成员；各 phase 的 skills 以该角色 AGENT.md skills: 字段为准，本表不复制。",
+    "modes": {
+      "standard": {
+        "phases": [
+          { "phase": "requirements", "role": "product-manager", "output_doc_type": "prd", "execution_host": "inline", "interactive": true },
+          { "phase": "architecture", "role": "architect", "output_doc_type": "arch", "execution_host": "inline", "interactive": true },
+          { "phase": "ui_design", "role": "ui-designer", "output_doc_type": "ui-spec", "execution_host": "subagent", "interactive": true, "interactive_subagent_ack": "Phase 3 交互需求较轻（确认设计方向）；本轮聚焦 Phase 1/2，留待后续评估转 inline", "skippable": true },
+          { "phase": "dev_planning", "role": "tech-lead", "output_doc_type": "dev-plan", "execution_host": "subagent", "interactive": false },
+          { "phase": "development", "role": "tdd-engine", "output_doc_type": "code", "execution_host": "inline", "interactive": false },
+          { "phase": "testing", "role": "qa-engineer", "output_doc_type": "test-report", "execution_host": "subagent", "interactive": false, "skippable": true },
+          { "phase": "deployment", "role": "devops", "output_doc_type": "deploy-spec", "execution_host": "subagent", "interactive": false, "skippable": true }
+        ]
+      },
+      "agile-lite": {
+        "phases": [
+          { "phase": "planning", "role": "product-manager", "output_doc_type": "prd-lite", "execution_host": "inline", "interactive": true },
+          { "phase": "dev_planning", "role": "tech-lead", "output_doc_type": "dev-plan-lite", "execution_host": "subagent", "interactive": false },
+          { "phase": "development", "role": "tdd-engine", "output_doc_type": "code", "execution_host": "inline", "interactive": false }
+        ]
+      },
+      "agile-prototype": {
+        "phases": [
+          { "phase": "brief", "role": "product-manager", "output_doc_type": "brief", "execution_host": "inline", "interactive": true },
+          { "phase": "development", "role": "tdd-engine", "output_doc_type": "code", "execution_host": "inline", "interactive": false }
+        ]
+      }
+    }
+  },
   "features": {
     "tdd-engine": {
       "min_version": "0.1.0",

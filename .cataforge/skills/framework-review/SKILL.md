@@ -56,6 +56,7 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 | B5-β | phase→agent→skill 三跳 (每个 phase-routed agent ≥1 skill 且 skill 必须存在) | workflow, all | WARN |
 | B5-γ | EVENT-LOG.jsonl agent_return 事件 ↔ phase routing 对账 (≥`EVENT_LOG_DRIFT_MIN_EVENTS` 启用，否则 INFO) | workflow, all | WARN / INFO |
 | B5-δ | framework.json features[*].phase_guard ↔ Phase Routing 已知 phase 对账 | workflow, all | WARN |
+| B5-ζ | workflow interactive=true 的 phase 必须 execution_host=inline（subagent 非交互；带 ack 降级 INFO） | workflow, all | FAIL / INFO |
 | B6-α | hooks.yaml 引用的 script 必须解析到真实 .py 文件 (builtin / custom) | hooks, all | FAIL |
 | B6-β | 每个 hook script .py 必须 ast.parse 成功 | hooks, all | FAIL |
 | B6-γ | matcher_capability 必须是 CAPABILITY_IDS / EXTENDED_CAPABILITY_IDS 成员 | hooks, all | FAIL |
@@ -143,6 +144,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 - B5-γ: 读 `docs/EVENT-LOG.jsonl`，按 `event=agent_return` 聚合 → 总 returns ≥ `EVENT_LOG_DRIFT_MIN_EVENTS` 且 phase-routed agent 0 returns 时 **FAIL**（强 dead-routing 信号；阈值已替你过滤稀疏数据噪声）；未达阈值时输出一条 INFO（"drift check skipped"）；agent 有 returns 但全部缺 `ref` 字段 → WARN（output_path 追溯断链）<!-- check_id: B5_eventlog_agent_return_drift -->
 - B5-δ: 解析 framework.json `features` → 每个非 null `phase_guard` 必须命中 Phase Routing 已知 phase<!-- check_id: B5_feature_phase_alignment -->
 - B5-ε: 解析 `.cataforge/hooks/hooks.yaml` PostToolUse 段，必须有一条 `script: validate_agent_result` + `matcher_capability: agent_dispatch` 条目；缺失则 `agent_return` 事件永远不会写入 EVENT-LOG，B5-γ 会在 0 数据下静默放行 → FAIL<!-- check_id: B5_hook_installed -->
+- B5-ζ: 解析 `framework.json#/workflow`，每个 `interactive: true` 的 phase 必须 `execution_host: inline`；派发子代理为非交互执行体，AskUserQuestion 无法触达用户 → FAIL。带 `interactive_subagent_ack` 显式降级理由时降为 INFO<!-- check_id: B5_interactive_host -->
 - B6-α: 解析 .cataforge/hooks/hooks.yaml，每个 `script` 字段须解析到真实 .py（builtin: `cataforge.runtime.hook.scripts.<name>` 通过 `importlib.resources` 定位；custom: `.cataforge/hooks/custom/<name>.py`）→ FAIL on missing<!-- check_id: B6_hook_script_reachability -->
 - B6-β: 每个解析到的 hook script .py 必须 `ast.parse` 通过（不依赖 import 副作用）→ FAIL on SyntaxError<!-- check_id: B6_hook_script_syntax -->
 - B6-γ: 每个 `matcher_capability` 值必须是 `CAPABILITY_IDS` ∪ `EXTENDED_CAPABILITY_IDS` 成员（typo 会让 hook 静默永不触发）→ FAIL on unknown capability<!-- check_id: B6_hook_matcher_capability -->

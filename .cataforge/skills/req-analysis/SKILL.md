@@ -28,7 +28,7 @@ user-invocable: true
 
 ### Step 1: 需求收集与澄清
 - 解析用户输入，识别功能域和核心诉求
-- 执行至少一轮 user-interview 确认核心需求方向，模糊/冲突需求通过追加提问澄清
+- 执行至少一轮 user-interview 确认核心需求方向，模糊/冲突需求通过追加提问澄清（inline 承载时主线程直接提问；派发子代理执行时经 needs_input 回传，见 research 指令2b）
 - 产出: 原始需求清单(非正式，工作文档)
 
 ### Step 2: 概述编写 (对应PRD §1)

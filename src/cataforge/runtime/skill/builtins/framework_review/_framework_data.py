@@ -72,6 +72,31 @@ def read_framework_features(root: Path) -> dict[str, dict[str, object]]:
     return {str(k): v for k, v in features.items() if isinstance(v, dict)}
 
 
+def read_workflow_modes(root: Path) -> dict[str, list[dict[str, Any]]]:
+    """Return ``{mode: [phase_dict, ...]}`` from ``framework.json#/workflow.modes``.
+
+    Empty dict when the ``workflow`` section is absent — callers fall back
+    to parsing the orchestrator AGENT.md markdown routing table, so projects
+    predating the structured workflow skeleton keep working unchanged.
+    """
+    data = read_framework_data(root)
+    workflow = data.get("workflow")
+    if not isinstance(workflow, dict):
+        return {}
+    modes = workflow.get("modes")
+    if not isinstance(modes, dict):
+        return {}
+    out: dict[str, list[dict[str, Any]]] = {}
+    for mode, spec in modes.items():
+        if not isinstance(spec, dict):
+            continue
+        phases = spec.get("phases")
+        if not isinstance(phases, list):
+            continue
+        out[str(mode)] = [p for p in phases if isinstance(p, dict)]
+    return out
+
+
 def read_dispatcher_skills(root: Path) -> set[str]:
     """Return the set of skill ids that act as agent dispatchers.
 
