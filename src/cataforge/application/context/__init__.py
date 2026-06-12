@@ -23,6 +23,9 @@ from cataforge.application.context.read import (
 )
 from cataforge.application.context.router import FidelityRouter, build_router
 from cataforge.application.context.write import (
+    ContextStrategyError,
+    DocIndexResult,
+    DocValidationReport,
     author_entity,
     finalize,
     ingest,
@@ -32,6 +35,9 @@ from cataforge.application.context.write import (
 
 __all__ = [
     "ContextReadPort",
+    "ContextStrategyError",
+    "DocIndexResult",
+    "DocValidationReport",
     "Fidelity",
     "FidelityRouter",
     "RelationPort",
