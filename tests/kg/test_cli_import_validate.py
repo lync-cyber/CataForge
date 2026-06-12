@@ -257,6 +257,7 @@ def test_kg_export_end_to_end_oxigraph(tmp_path: Path) -> None:
             str(db),
             "--output-dir",
             str(out),
+            "--per-entity",
             "--json",
         ],
     )
@@ -274,4 +275,41 @@ def test_kg_export_end_to_end_oxigraph(tmp_path: Path) -> None:
         "arch/TS-001.md",
         "test-report/TC-001.md",
         "test-report/TC-002.md",
+    }
+
+
+def test_kg_export_whole_document_default(tmp_path: Path) -> None:
+    db = tmp_path / "store"
+    out = tmp_path / "exported"
+    runner = CliRunner()
+
+    init = runner.invoke(_cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"])
+    assert init.exit_code == 0, init.output
+    imp = runner.invoke(
+        _cli(),
+        [
+            "kg",
+            "import",
+            "--project-root",
+            str(FIXTURE_ROOT / "waterfall"),
+            "--db-path",
+            str(db),
+            "--backend",
+            "oxigraph",
+        ],
+    )
+    assert imp.exit_code == 0, imp.output
+
+    exp = runner.invoke(
+        _cli(),
+        ["kg", "export", "--db-path", str(db), "--output-dir", str(out), "--json"],
+    )
+    assert exp.exit_code == 0, exp.output
+    payload = json.loads(exp.output)
+    assert payload["errors"] == []
+    # Whole-document export rebuilds one file per source doc, not per entity.
+    assert set(payload["files"].keys()) == {
+        "prd/prd-vertical-slice.md",
+        "arch/arch-vertical-slice.md",
+        "test-report/test-report-vertical-slice.md",
     }

@@ -33,6 +33,8 @@ class ExtractedSection:
     narrative_body: str
     content_hash: str
     source_doc: str
+    position: int = 0  # document order, zero-based
+    level: int = 2  # heading depth; level-2 sections tile-cover the body
     contained_entity_ids: list[str] = field(default_factory=list)
 
 
@@ -48,6 +50,9 @@ class ExtractedDocument:
     section_anchors: list[str] = field(default_factory=list)
     version: str | None = None
     status: str | None = None
+    frontmatter_raw: str = ""
+    preamble_body: str = ""
+    source_path: str = ""
 
 
 def _section_body(doc: ParsedDoc, line_start: int, line_end: int) -> str:
@@ -57,6 +62,24 @@ def _section_body(doc: ParsedDoc, line_start: int, line_end: int) -> str:
     so a KG-served whole-section read matches the file-served one.
     """
     lines = doc.raw.splitlines()[line_start:line_end]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
+
+
+def _preamble_body(doc: ParsedDoc) -> str:
+    """Return the body slice before the first level-2 heading, blanks trimmed.
+
+    Spans from the start of `body` (H1 line and any lead prose) up to but
+    excluding the first `§`-level heading. When the document has no level-2
+    heading the whole body is the preamble.
+    """
+    raw_lines = doc.raw.splitlines()
+    first_section_start = next(
+        (span.line_start for span in doc.sections if span.level >= 2),
+        len(raw_lines),
+    )
+    lines = raw_lines[doc.body_offset : first_section_start]
     while lines and not lines[-1].strip():
         lines.pop()
     return "\n".join(lines)
@@ -95,10 +118,11 @@ def extract_structure(
                 narrative_body=body,
                 content_hash=hashlib.sha256(body.encode("utf-8")).hexdigest(),
                 source_doc=doc.doc_id,
+                position=len(sections),
+                level=span.level,
                 contained_entity_ids=sorted(owned.get(anchor, [])),
             )
         )
-    sections.sort(key=lambda s: s.anchor)
 
     fm = doc.frontmatter or {}
     title = fm.get("title")
@@ -116,5 +140,8 @@ def extract_structure(
         section_anchors=[s.anchor for s in sections],
         version=version,
         status=status,
+        frontmatter_raw=doc.frontmatter_raw,
+        preamble_body=_preamble_body(doc),
+        source_path=doc.source_path,
     )
     return document, sections

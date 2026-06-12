@@ -43,9 +43,20 @@ class ParsedDoc:
     raw: str
     body: str
     body_offset: int  # line index where `body` starts inside `raw`
+    source_path: str = ""  # project-root-relative posix path of the source file
     frontmatter: dict[str, Any] = field(default_factory=dict)
     sections: list[HeadingSpan] = field(default_factory=list)
     code_block_offsets: list[tuple[int, int]] = field(default_factory=list)
+
+    @property
+    def frontmatter_raw(self) -> str:
+        """The original frontmatter block (and trailing newline) verbatim.
+
+        The prefix of `raw` that precedes `body`; empty when the file has
+        no frontmatter. Preserves byte-exact field order and formatting for
+        whole-document reconstruction.
+        """
+        return self.raw[: len(self.raw) - len(self.body)] if self.body else ""
 
 
 def _build_line_offsets(text: str) -> list[int]:
@@ -165,6 +176,7 @@ def scan_business_docs(
             body_offset = raw.count("\n", 0, len(raw) - len(body)) if body else 0
             doc_id = frontmatter.get("doc_id") or _infer_doc_id(path.name, doc_type)
             ft_doc_type = frontmatter.get("doc_type") or doc_type
+            source_path = path.relative_to(project_root).as_posix()
             parsed.append(
                 ParsedDoc(
                     doc_id=doc_id,
@@ -174,6 +186,7 @@ def scan_business_docs(
                     raw=raw,
                     body=body,
                     body_offset=body_offset,
+                    source_path=source_path,
                     frontmatter=frontmatter,
                     sections=_heading_spans(body, body_offset),
                     code_block_offsets=_code_block_char_ranges(raw),

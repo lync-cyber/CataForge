@@ -295,6 +295,8 @@ def write_structure(
             section.content_hash,
             section.source_doc,
             config,
+            position=section.position,
+            level=section.level,
             contained_entity_ids=section.contained_entity_ids,
             document_iri_val=document_iri(section.doc_id, base_ns),
         )
@@ -317,6 +319,9 @@ def write_structure(
             section_anchors=document.section_anchors,
             version=document.version,
             status=document.status,
+            frontmatter_raw=document.frontmatter_raw,
+            preamble_body=document.preamble_body,
+            source_path=document.source_path,
         )
         _atomic_replace_entity(store, iri, quads)
         stats.documents_written += 1
