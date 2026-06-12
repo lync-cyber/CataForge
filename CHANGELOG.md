@@ -20,6 +20,28 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.10.0'></a>
+## [0.10.0] — 2026-06-13
+
+### Added
+
+- **整篇文档导出** —— kg-first 非空图下 `context finalize` 经 `compile_documents()` 从图谱按文档序重建整篇 markdown（frontmatter / 前导 / 章节原文切片），`finalize → ingest → finalize` 字节级幂等；不被任何 Document 覆盖的孤儿实体兜底导出 per-entity 卡片。
+- **ingest 结构保真度** —— Section 记录 `cf:position`（文档序）与 `cf:section_level`；Document 记录 `cf:frontmatter_raw` / `cf:preamble_body` / `cf:source_path`，章节顺序不再依赖 anchor 字典序。
+
+- **authoring API 完备化** —— `context write` 新增 `--parent`（part_of 层级 + parent-scoped IRI）、`--relation PREDICATE=OBJECT_ID`（repeatable）、`--narrative` / `--narrative-stdin`（多行叙事）；新命令 `context transact` 经 stdin / `--file` JSON 在单事务内提交多实体/关系/叙事操作，校验失败整批补偿、图状态零残留。
+
+### Changed
+
+- **Windows shell 统一走 Git Bash** —— `.claude/settings.json` 以 `env.CLAUDE_CODE_USE_POWERSHELL_TOOL=0` + `defaultShell: bash` 关闭 Claude Code 的 PowerShell 工具；`setup.py --apply-permissions` 在 Windows 上为下游项目写入同样配置（Bootstrap 与 framework-update 自动调用）。Shell 约束从 CLAUDE.md / PROJECT-STATE 模板文字下沉到配置层，模型不再看到 PowerShell 工具。
+
+- **`cataforge kg export`** 默认整篇导出，`--per-entity` flag 保留实体卡片形态。
+
+- **实体内容哈希统一** —— `context write` 与 `kg add` 默认哈希共用 `entity_content_hash(title, slots)`，跨路径写入幂等一致（`kg add --content-hash` 显式值行为不变）。
+
+### Fixed
+
+- **Windows 会话误用 PowerShell** —— harness 在 Git Bash 已安装时仍渐进暴露 PowerShell 工具并设为默认 shell，与项目 Git Bash 约定冲突；现由配置层物理消除该工具，而非依赖 prompt 文字约束。
+
 <a id='changelog-0.9.2'></a>
 ## [0.9.2] — 2026-06-12
 
@@ -1530,7 +1552,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.10.0
 [0.9.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.2
 [0.9.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.1
 [0.9.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.0
