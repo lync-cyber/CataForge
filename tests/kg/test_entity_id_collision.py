@@ -19,12 +19,14 @@ from cataforge.domain.kg.ingest.entity_extract import (
 )
 
 
-def _entity(entity_id: str, source_doc: str, content_hash: str) -> ExtractedEntity:
+def _entity(
+    entity_id: str, source_doc: str, content_hash: str, source_section: str | None = None
+) -> ExtractedEntity:
     return ExtractedEntity(
         entity_id=entity_id,
         class_name="AcceptanceCriteria",
         source_doc=source_doc,
-        source_section=f"{entity_id} title",
+        source_section=source_section or f"{entity_id} title",
         content_hash=content_hash,
         section_line_start=0,
         section_line_end=1,
@@ -42,7 +44,41 @@ def test_detect_flags_same_id_across_docs_with_diverging_content() -> None:
         ]
     )
     assert [c.entity_id for c in collisions] == ["AC-001"]
-    assert collisions[0].occurrences == [("dev-plan", "b" * 64), ("prd", "a" * 64)]
+    assert [(o.source_doc, o.content_hash) for o in collisions[0].occurrences] == [
+        ("dev-plan", "b" * 64),
+        ("prd", "a" * 64),
+    ]
+
+
+def test_collision_occurrences_carry_source_section() -> None:
+    collisions = detect_entity_id_collisions(
+        [
+            _entity("AC-001", "prd", "a" * 64, source_section="§2.1 AC-001 用户可登录"),
+            _entity("AC-001", "dev-plan", "b" * 64, source_section="§5.3 AC-001 任务验收"),
+        ]
+    )
+    sections = {o.source_doc: o.source_section for o in collisions[0].occurrences}
+    assert sections == {
+        "prd": "§2.1 AC-001 用户可登录",
+        "dev-plan": "§5.3 AC-001 任务验收",
+    }
+
+
+def test_format_lists_source_sections_and_migration_guidance() -> None:
+    from cataforge.domain.kg.ingest.entity_extract import format_entity_id_collisions
+
+    msg = format_entity_id_collisions(
+        detect_entity_id_collisions(
+            [
+                _entity("AC-001", "prd", "a" * 64, source_section="§2.1 AC-001 用户可登录"),
+                _entity("AC-001", "dev-plan", "b" * 64, source_section="§5.3 AC-001 任务验收"),
+            ]
+        )
+    )
+    assert "prd" in msg and "§2.1 AC-001 用户可登录" in msg
+    assert "dev-plan" in msg and "§5.3 AC-001 任务验收" in msg
+    assert "authoritative" in msg
+    assert "doc_id#§N.ENTITY-ID" in msg and "inline code" in msg
 
 
 def test_detect_ignores_identical_content_across_docs() -> None:
@@ -73,7 +109,7 @@ def _write(project_root: Path, doc_type: str, name: str, body: str) -> None:
     (d / name).write_text(body, encoding="utf-8")
 
 
-def test_run_migration_raises_on_cross_doc_collision(tmp_path: Path) -> None:
+def test_run_migration_raises_on_diverging_definitions_within_authority(tmp_path: Path) -> None:
     from cataforge.domain.kg import KGConfig, init_store
     from cataforge.domain.kg._errors import KGEntityCollisionError
     from cataforge.domain.kg.ingest import run_migration
@@ -81,25 +117,28 @@ def test_run_migration_raises_on_cross_doc_collision(tmp_path: Path) -> None:
     _write(
         tmp_path,
         "prd",
-        "prd-x.md",
-        "# PRD\n\n## §2 AC\n\n### AC-001 用户可登录\n\n登录成功返回 200。\n",
+        "prd-a.md",
+        "---\ndoc_id: prd-a\n---\n# PRD A\n\n## §2 AC\n\n"
+        "### AC-001 用户可登录\n\n登录成功返回 200。\n",
     )
     _write(
         tmp_path,
-        "dev-plan",
-        "dev-plan-x.md",
-        "# Dev Plan\n\n## §5 Tasks\n\n### AC-001 任务验收\n\n覆盖率不低于 80%。\n",
+        "prd",
+        "prd-b.md",
+        "---\ndoc_id: prd-b\n---\n# PRD B\n\n## §2 AC\n\n"
+        "### AC-001 锁定可解除\n\n三次失败后锁定。\n",
     )
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
 
     with pytest.raises(KGEntityCollisionError) as excinfo:
-        run_migration(handle.raw, tmp_path, config, doc_types=("prd", "dev-plan"))
+        run_migration(handle.raw, tmp_path, config, doc_types=("prd",))
 
     msg = str(excinfo.value)
     assert "AC-001" in msg
-    assert "prd" in msg and "dev-plan" in msg
+    assert "prd-a" in msg and "prd-b" in msg
+    assert "用户可登录" in msg and "锁定可解除" in msg
     # Nothing written — the gate fires before phase 5.
     rows = list(
         handle.raw.query(

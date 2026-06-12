@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from cataforge.domain.kg._config import DEFAULT_DEFINITION_AUTHORITY
 from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_CLASSES
 from cataforge.domain.kg.ingest.scan import HeadingSpan, ParsedDoc
 
@@ -181,6 +182,31 @@ def _section_narrative(lines: list[str], line_start: int, line_end: int) -> str:
     return "\n".join(body[start:end])
 
 
+def _authority_class_name(class_name: str, parent_id: str | None) -> str:
+    """Class whose definition authority governs this occurrence.
+
+    A subordinate's authority follows its parent's class (an AC under a Task
+    belongs to the Task's doc_type); without a parent the entity's own class
+    applies.
+    """
+    if parent_id is not None:
+        parent_class = ENTITY_PREFIX_TO_CLASS.get(parent_id.split("-", 1)[0])
+        if parent_class is not None:
+            return parent_class
+    return class_name
+
+
+def _is_authoritative(
+    doc_type: str,
+    class_name: str,
+    parent_id: str | None,
+    authority: Mapping[str, frozenset[str]],
+) -> bool:
+    """True when `doc_type` may define this occurrence (unknown classes pass)."""
+    allowed = authority.get(_authority_class_name(class_name, parent_id))
+    return allowed is None or doc_type in allowed
+
+
 def _resolve_parent_id(spans: list[HeadingSpan], line_idx: int) -> str | None:
     """Return the owning non-subordinate entity for a subordinate occurrence.
 
@@ -205,7 +231,11 @@ def _resolve_parent_id(spans: list[HeadingSpan], line_idx: int) -> str | None:
     return None
 
 
-def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
+def extract_entities(
+    doc: ParsedDoc,
+    *,
+    authority: Mapping[str, frozenset[str]] | None = None,
+) -> list[ExtractedEntity]:
     """Phase 3: scan `doc` for entity_id occurrences.
 
     A given `entity_id` is emitted at most once per document — at the
@@ -227,7 +257,16 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
     under two parents survives as two entities (dedup key is
     `(parent_id, entity_id)`). A subordinate id with neither a parent nor its
     own heading — `F-013 AC-001` in prose — is a reference, also ignored.
+
+    `authority` maps class name → doc_types allowed to define it
+    (:data:`DEFAULT_DEFINITION_AUTHORITY` when None; resolve a project's
+    extension via `cataforge.domain.kg._dispatch.definition_authority`). An
+    occurrence in a non-authoritative doc_type is a reference, never a
+    definition — a test-report section restating a Task heading does not
+    redefine the Task. A subordinate's authority follows its parent's class.
     """
+    if authority is None:
+        authority = DEFAULT_DEFINITION_AUTHORITY
     xref_spans = [(m.start(), m.end()) for m in XREF_RE.finditer(doc.raw)]
     code_ranges = doc.code_block_offsets
     lines = doc.raw.splitlines()
@@ -265,6 +304,8 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
             if not own_heading:
                 continue
             parent_id = None
+        if not _is_authoritative(doc.doc_type, class_name, parent_id, authority):
+            continue
         key = (parent_id, entity_id)
         if key in seen:
             continue
@@ -311,11 +352,20 @@ def _enrich_extra_slots(entity: ExtractedEntity, section_text: str, narrative: s
 
 
 @dataclass
+class CollisionOccurrence:
+    """One document's definition of a colliding entity_id."""
+
+    source_doc: str
+    source_section: str
+    content_hash: str
+
+
+@dataclass
 class EntityIdCollision:
     """One entity_id defined in multiple documents with diverging content."""
 
     entity_id: str
-    occurrences: list[tuple[str, str]]  # sorted (source_doc, content_hash) pairs
+    occurrences: list[CollisionOccurrence]  # sorted by source_doc
 
 
 def detect_entity_id_collisions(
@@ -331,14 +381,24 @@ def detect_entity_id_collisions(
     collision — only diverging content under the *same* scope is. Identical
     content across docs is a harmless duplicate the writer dedups, not flagged.
     """
-    by_key: dict[str, dict[str, str]] = {}
+    by_key: dict[str, dict[str, ExtractedEntity]] = {}
     for entity in entities:
-        by_key.setdefault(entity.scope_key, {}).setdefault(entity.source_doc, entity.content_hash)
+        by_key.setdefault(entity.scope_key, {}).setdefault(entity.source_doc, entity)
     collisions: list[EntityIdCollision] = []
     for scope_key, docs in by_key.items():
-        if len(docs) >= 2 and len(set(docs.values())) >= 2:
+        if len(docs) >= 2 and len({e.content_hash for e in docs.values()}) >= 2:
             collisions.append(
-                EntityIdCollision(entity_id=scope_key, occurrences=sorted(docs.items()))
+                EntityIdCollision(
+                    entity_id=scope_key,
+                    occurrences=[
+                        CollisionOccurrence(
+                            source_doc=doc,
+                            source_section=entity.source_section,
+                            content_hash=entity.content_hash,
+                        )
+                        for doc, entity in sorted(docs.items())
+                    ],
+                )
             )
     return sorted(collisions, key=lambda c: c.entity_id)
 
@@ -351,18 +411,17 @@ def format_entity_id_collisions(collisions: list[EntityIdCollision]) -> str:
         "one node and silently loses data.",
         "",
     ]
-    lines.extend(
-        f"  {c.entity_id}: {', '.join(doc for doc, _ in c.occurrences)}" for c in collisions
-    )
+    for c in collisions:
+        lines.append(f"  {c.entity_id}:")
+        lines.extend(f"    - {o.source_doc} :: {o.source_section}" for o in c.occurrences)
     lines.extend(
         [
             "",
-            "entity_ids must be project-globally unique. This usually means the "
-            "same logical entity was described differently across documents "
-            "(cross-document drift). Define each entity in one document and "
-            "reference it elsewhere via the xref form `doc_id#§N.ENTITY-ID`. "
-            "Unify the source markdown so each entity_id is defined once, then "
-            "re-run `cataforge kg import`.",
+            "entity_ids must be project-globally unique. Keep each entity "
+            "defined once in its authoritative doc_type and turn every other "
+            "occurrence into a reference: use the xref form "
+            "`doc_id#§N.ENTITY-ID` or wrap the mention in inline code. Unify "
+            "the source markdown, then re-run `cataforge kg import`.",
         ]
     )
     return "\n".join(lines)

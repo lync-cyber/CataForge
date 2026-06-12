@@ -1,10 +1,10 @@
-"""Heading-anchored definition detection (PR-1 / issue #210 fix A).
+"""Heading-anchored definition detection.
 
 A non-subordinate entity is a *definition* only at the occurrence whose
-owning section heading names it as its subject. A bare mention in another
-entity's section body is ignored, so it no longer mints a spurious node
-(and no longer triggers a cross-document collision). Subordinate classes
-(AcceptanceCriteria) are exempt and keep first-occurrence semantics.
+owning section heading names it as its subject; a bare mention in another
+entity's section body mints no node and triggers no cross-document
+collision. Subordinate classes (AcceptanceCriteria) keep
+first-occurrence semantics.
 """
 
 from __future__ import annotations
@@ -32,10 +32,10 @@ def _parsed_doc(doc_id: str, doc_type: str, body: str):
     )
 
 
-def _ids(body: str) -> set[str]:
+def _ids(body: str, doc_type: str = "prd") -> set[str]:
     from cataforge.domain.kg.ingest.entity_extract import extract_entities
 
-    return {e.entity_id for e in extract_entities(_parsed_doc("prd", "prd", body))}
+    return {e.entity_id for e in extract_entities(_parsed_doc(doc_type, doc_type, body))}
 
 
 def test_numbered_heading_still_defines_its_subject() -> None:
@@ -50,7 +50,7 @@ def test_bare_mention_in_another_section_is_not_a_definition() -> None:
         "### E-008 DiagnosticReport\n\n"
         "该报告依赖 F-002 的视觉一致性约束。\n"
     )
-    ids = _ids(body)
+    ids = _ids(body, doc_type="arch")
     assert "E-008" in ids
     assert "F-002" not in ids, "a bare mention in E-008's body must not define F-002"
 
@@ -59,14 +59,13 @@ def test_only_heading_subject_defined_not_listed_components() -> None:
     # A task card whose title lists component ids defines only the task; the
     # trailing component ids are mentions (the genuine_multi case).
     body = "# Dev Plan\n\n## §5 Tasks\n\n### T-097 设计 — C-001/C-002/C-003\n\n正文。\n"
-    ids = _ids(body)
+    ids = _ids(body, doc_type="dev-plan")
     assert ids == {"T-097"}
 
 
 def test_acceptance_criteria_in_parent_body_stays_exempt() -> None:
     # AC lives in its owning Feature's bullet list with no heading of its own;
-    # it must still be extracted (first-occurrence) — subordinate scoping is
-    # PR-2, this PR only keeps AC from vanishing under heading anchoring.
+    # it must still be extracted despite heading anchoring.
     body = "# PRD\n\n## §2 Features\n\n### F-001 用户登录\n\n- AC-001: 邮箱密码可登录\n"
     ids = _ids(body)
     assert {"F-001", "AC-001"} <= ids

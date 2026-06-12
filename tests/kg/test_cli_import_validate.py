@@ -165,16 +165,17 @@ def test_kg_import_dry_run_exits_zero(tmp_path: Path) -> None:
 
 
 def test_kg_import_aborts_on_cross_doc_collision(tmp_path: Path) -> None:
-    """A diverging same-id definition across doc_types exits 3 (content gate)
-    with an actionable unify-the-markdown message — not a silent overwrite."""
+    """A diverging same-id definition within the authoritative doc_type exits 3
+    (content gate) with an actionable unify-the-markdown message — not a
+    silent overwrite."""
     project = tmp_path / "proj"
-    for doc_type, body in (
-        ("prd", "# PRD\n\n## §2 AC\n\n### AC-001 用户可登录\n\n登录成功返回 200。\n"),
-        ("dev-plan", "# Dev\n\n## §5 Tasks\n\n### AC-001 任务验收\n\n覆盖率不低于 80%。\n"),
+    d = project / "docs" / "prd"
+    d.mkdir(parents=True)
+    for doc_id, body in (
+        ("prd-a", "# PRD A\n\n## §2 AC\n\n### AC-001 用户可登录\n\n登录成功返回 200。\n"),
+        ("prd-b", "# PRD B\n\n## §2 AC\n\n### AC-001 锁定可解除\n\n三次失败后锁定。\n"),
     ):
-        d = project / "docs" / doc_type
-        d.mkdir(parents=True)
-        (d / f"{doc_type}-x.md").write_text(body, encoding="utf-8")
+        (d / f"{doc_id}.md").write_text(f"---\ndoc_id: {doc_id}\n---\n{body}", encoding="utf-8")
 
     result = CliRunner().invoke(
         _cli(),
@@ -187,12 +188,11 @@ def test_kg_import_aborts_on_cross_doc_collision(tmp_path: Path) -> None:
             "memory",
             "--doc-type",
             "prd",
-            "--doc-type",
-            "dev-plan",
         ],
     )
     assert result.exit_code == 3, result.output
     assert "AC-001" in result.output
+    assert "prd-a" in result.output and "prd-b" in result.output
     assert "kg import" in result.output
 
 

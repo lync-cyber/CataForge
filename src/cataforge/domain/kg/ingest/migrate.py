@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from cataforge.core.config import ConfigManager
 from cataforge.domain.kg._config import BUSINESS_DOC_TYPES as DEFAULT_DOC_TYPES
 from cataforge.domain.kg._config import KGConfig
+from cataforge.domain.kg._dispatch import definition_authority
 from cataforge.domain.kg._errors import KGEntityCollisionError
 from cataforge.domain.kg.ingest.entity_extract import (
     ExtractedEntity,
@@ -125,12 +126,13 @@ def run_migration(
     # First occurrence wins — `doc_types` ordering puts the document that
     # *defines* an entity (prd for Feature / AC, arch for Module, …) ahead
     # of documents that merely reference it.
+    authority = definition_authority(project_root)
     deduped_entities: dict[tuple[str | None, str], ExtractedEntity] = {}
     all_doc_entities: list[ExtractedEntity] = []
     documents: list[ExtractedDocument] = []
     sections: list[ExtractedSection] = []
     for doc in parsed_docs:
-        doc_entities = extract_entities(doc)
+        doc_entities = extract_entities(doc, authority=authority)
         all_doc_entities.extend(doc_entities)
         for entity in doc_entities:
             deduped_entities.setdefault((entity.parent_id, entity.entity_id), entity)
