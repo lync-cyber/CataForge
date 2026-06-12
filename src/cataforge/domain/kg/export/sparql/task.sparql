@@ -24,13 +24,15 @@ WHERE {
   OPTIONAL { ?task cf:authored_by    ?authored_by }
   OPTIONAL { ?task cf:task_status    ?task_status }
 
+  OPTIONAL { ?task cf:narrative_body ?own_narrative }
   OPTIONAL {
     ?task cf:source_doc ?nb_doc ; cf:source_section ?nb_anchor .
     ?nb_section a cf:Section ;
                 cf:source_doc     ?nb_doc ;
                 cf:section_anchor ?nb_anchor ;
-                cf:narrative_body ?narrative_body .
+                cf:narrative_body ?section_narrative .
   }
+  BIND(COALESCE(?own_narrative, ?section_narrative) AS ?narrative_body)
 
   OPTIONAL {
     ?task cf:realizes ?real .
