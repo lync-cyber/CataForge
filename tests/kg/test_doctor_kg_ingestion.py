@@ -1,9 +1,7 @@
 """Doctor `kg_ingestion_completeness` gate tests.
 
-Per Task 7 §7.1 sub-PR 5 (and the explicit user decision in
-[README §User decisions]), the gate ships at ERROR severity without a
-WARN-to-ERROR promotion period: missing entities contribute to the
-doctor exit code from the moment cutover lands.
+The gate runs at ERROR severity: missing entities contribute directly to
+the doctor exit code.
 """
 
 from __future__ import annotations
@@ -137,6 +135,49 @@ def test_gate_warns_not_fails_on_reference_defined_nowhere(tmp_path, capsys) -> 
     assert "WARN" in out
     assert "ADR-0001" in out
     assert "kg_active_doc_types" in out
+    assert "1 ADR- id(s) referenced, none defined in active sources" in out
+
+
+def test_gate_aggregates_dangling_prefix_with_no_definitions(tmp_path, capsys) -> None:
+    """References whose prefix has zero definitions anywhere in active sources
+    collapse to a one-line per-prefix summary instead of an id-by-id list."""
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    prd = project_root / "docs" / "prd" / "prd-vertical-slice.md"
+    prd.write_text(
+        prd.read_text(encoding="utf-8") + "\n\n覆盖矩阵涉及 UC-101, UC-102, UC-103。\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 0, out
+    assert "3 UC- id(s) referenced, none defined in active sources" in out
+    assert "['UC-101'" not in out, "wholly-undefined prefixes must not get an id-by-id list"
+
+
+def test_gate_lists_dangling_ids_when_prefix_has_definitions(tmp_path, capsys) -> None:
+    """A stale reference under a prefix that does have definitions stays an
+    individually listed id — it is a real fix-me, not doc_type-activation debt."""
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    tr = project_root / "docs" / "test-report" / "test-report-vertical-slice.md"
+    tr.write_text(
+        tr.read_text(encoding="utf-8") + "\n\n回归引用 TC-099 见附录。\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 0, out
+    assert "TC-099" in out
+    assert "TC- id(s) referenced, none defined" not in out
 
 
 def test_gate_still_fails_on_defined_but_uningested_alongside_dangling(tmp_path, capsys) -> None:
@@ -188,17 +229,39 @@ def test_gate_passes_with_doc_level_frontmatter_id(tmp_path, capsys) -> None:
     assert "prd-vertical-slice" not in out
 
 
-def test_gate_fails_on_cross_doc_entity_id_collision(tmp_path, capsys) -> None:
-    """A non-subordinate entity defined in two doc_types with diverging content
-    collapses onto one flat IRI; the gate must FAIL rather than stay falsely
-    green on the set-vs-set comparison the collapsed node satisfies.
-
-    (Subordinate entities like AC are parent-scoped and do NOT collapse across
-    parents, so this exercises a Feature, which is project-global.)"""
+def test_gate_fails_on_diverging_definitions_within_authority(tmp_path, capsys) -> None:
+    """Two files of the authoritative doc_type defining the same entity with
+    diverging content collapse onto one flat IRI; the gate must FAIL with
+    per-occurrence source guidance rather than stay falsely green on the
+    set-vs-set comparison the collapsed node satisfies."""
     from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
     project_root = _setup_project_with_kg(tmp_path)
-    # PRD already defines F-001; redefine it (different content) in arch.
+    extra = project_root / "docs" / "prd" / "prd-extra.md"
+    extra.write_text(
+        "---\ndoc_id: prd-extra\ndoc_type: prd\n---\n# PRD Extra\n\n## §2 Features\n\n"
+        "### §2.9 F-001 另一种登录叙述\n\n与主卷分叉的描述。\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 1, out
+    assert "FAIL" in out
+    assert "F-001" in out
+    assert "prd-extra" in out
+    assert "另一种登录叙述" in out, "FAIL output must point at the diverging source section"
+    assert "authoritative" in out
+
+
+def test_gate_treats_non_authoritative_redefinition_as_reference(tmp_path, capsys) -> None:
+    """A Feature heading inside arch is not a definition (Feature authority is
+    prd), so it neither collides nor fails the gate."""
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
     arch = project_root / "docs" / "arch" / "arch-vertical-slice.md"
     arch.write_text(
         arch.read_text(encoding="utf-8")
@@ -210,9 +273,8 @@ def test_gate_fails_on_cross_doc_entity_id_collision(tmp_path, capsys) -> None:
     failures = check_kg_ingestion_completeness(cfg)
     out = capsys.readouterr().out
 
-    assert failures == 1, out
-    assert "FAIL" in out
-    assert "F-001" in out
+    assert failures == 0, out
+    assert "FAIL" not in out
 
 
 def test_gate_skips_when_no_store(tmp_path, capsys) -> None:

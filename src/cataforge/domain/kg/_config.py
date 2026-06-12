@@ -36,6 +36,57 @@ BUSINESS_DOC_TYPES: tuple[str, ...] = (
 # `framework.json`.
 DEFAULT_KG_ACTIVE_DOC_TYPES: frozenset[str] = frozenset(BUSINESS_DOC_TYPES)
 
+# Single source of truth for class → owning doc_type. The export pipeline
+# uses it to route entities to their rendering template directory; the ingest
+# pipeline derives the default definition authority from it. Cross-phase
+# tracking entities are routed to the nearest owning doc_type rather than
+# falling silently to misc/.
+ENTITY_CLASS_TO_DOC_TYPE: dict[str, str] = {
+    "Feature": "prd",
+    "AcceptanceCriteria": "prd",
+    "UserStory": "prd",
+    "Epic": "prd",
+    "Glossary": "prd",
+    "Risk": "prd",
+    "Module": "arch",
+    "Component": "arch",
+    "API": "arch",
+    "DataModel": "arch",
+    "ArchitectureDecision": "arch",
+    "TechStack": "arch",
+    "Interface": "arch",
+    "Page": "ui-spec",
+    "Wireframe": "ui-spec",
+    "UIComponent": "ui-spec",
+    "UserFlow": "ui-spec",
+    "Task": "dev-plan",
+    "Subtask": "dev-plan",
+    "Sprint": "dev-plan",
+    "Iteration": "dev-plan",
+    "Milestone": "dev-plan",
+    "TestCase": "test-report",
+    "TestSuite": "test-report",
+    "TestPlan": "test-report",
+    "TestRun": "test-report",
+    "CoverageRule": "test-report",
+    "Deployment": "deploy-spec",
+    "Pipeline": "deploy-spec",
+    "Environment": "deploy-spec",
+    "Release": "deploy-spec",
+    "ChangeRequest": "prd",
+    "Phase": "arch",
+    "SprintReviewIssue": "dev-plan",
+    "ReviewReport": "test-report",
+}
+
+# Default definition authority: an entity class's definition is recognized
+# only in its owning doc_type — a heading-subject or subordinate occurrence
+# in any other doc_type is a reference. Projects extend (never narrow) the
+# per-class set via framework.json `context.kg_definition_authority`.
+DEFAULT_DEFINITION_AUTHORITY: dict[str, frozenset[str]] = {
+    class_name: frozenset({doc_type}) for class_name, doc_type in ENTITY_CLASS_TO_DOC_TYPE.items()
+}
+
 
 @dataclass
 class KGConfig:

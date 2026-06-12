@@ -1,55 +1,17 @@
 """Shared metadata for the KG → Markdown export path.
 
-Two related pipeline files (`pipeline.py` for full-store export,
-`render.py` for single-entity rendering used by the shim) both need
-the same entity-type → doc-type mapping, the same relation-group
-projection (used to fold multi-row SPARQL results back into Jinja
-context lists), and the same template-name resolution. They lived
-in `pipeline.py` originally; moving them here lets `render.py` import
-without a sibling-private-symbol detour.
+`pipeline.py` (full-store export) and `render.py` (single-entity rendering
+used by the shim) share the entity-type → doc-type mapping (sourced from
+`cataforge.domain.kg._config`), the relation-group projection (used to fold
+multi-row SPARQL results back into Jinja context lists), and template-name
+resolution.
 """
 
 from __future__ import annotations
 
-_ENTITY_TYPE_TO_DOC_TYPE: dict[str, str] = {
-    "Feature": "prd",
-    "AcceptanceCriteria": "prd",
-    "UserStory": "prd",
-    "Epic": "prd",
-    "Glossary": "prd",
-    "Risk": "prd",
-    "Module": "arch",
-    "Component": "arch",
-    "API": "arch",
-    "DataModel": "arch",
-    "ArchitectureDecision": "arch",
-    "TechStack": "arch",
-    "Interface": "arch",
-    "Page": "ui-spec",
-    "Wireframe": "ui-spec",
-    "UIComponent": "ui-spec",
-    "UserFlow": "ui-spec",
-    "Task": "dev-plan",
-    "Subtask": "dev-plan",
-    "Sprint": "dev-plan",
-    "Iteration": "dev-plan",
-    "Milestone": "dev-plan",
-    "TestCase": "test-report",
-    "TestSuite": "test-report",
-    "TestPlan": "test-report",
-    "TestRun": "test-report",
-    "CoverageRule": "test-report",
-    "Deployment": "deploy-spec",
-    "Pipeline": "deploy-spec",
-    "Environment": "deploy-spec",
-    "Release": "deploy-spec",
-    # Cross-phase tracking entities (ingest-registered in ENTITY_PREFIX_TO_CLASS)
-    # routed to the nearest owning doc_type rather than falling silently to misc/.
-    "ChangeRequest": "prd",
-    "Phase": "arch",
-    "SprintReviewIssue": "dev-plan",
-    "ReviewReport": "test-report",
-}
+from cataforge.domain.kg._config import ENTITY_CLASS_TO_DOC_TYPE
+
+_ENTITY_TYPE_TO_DOC_TYPE: dict[str, str] = ENTITY_CLASS_TO_DOC_TYPE
 
 # Generic template + SPARQL registry key used when an entity class has no
 # bespoke template. The generic Jinja template extends the same artifact

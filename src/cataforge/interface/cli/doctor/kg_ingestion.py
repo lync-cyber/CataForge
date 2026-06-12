@@ -127,12 +127,14 @@ def _kg_entity_ids(db_path: Path) -> set[str]:
 
 def _fs_extracted_entities(project_root: Path, doc_types: set[str]) -> list[Any]:
     """All entity definitions the import pipeline would extract from active docs."""
+    from cataforge.domain.kg._dispatch import definition_authority  # noqa: PLC0415
     from cataforge.domain.kg.ingest.entity_extract import extract_entities  # noqa: PLC0415
     from cataforge.domain.kg.ingest.scan import scan_business_docs  # noqa: PLC0415
 
+    authority = definition_authority(project_root)
     all_entities: list[Any] = []
     for doc in scan_business_docs(project_root, sorted(doc_types)):
-        all_entities.extend(extract_entities(doc))
+        all_entities.extend(extract_entities(doc, authority=authority))
     return all_entities
 
 
@@ -148,6 +150,37 @@ def _fs_entity_collisions(all_entities: list[Any]) -> list[Any]:
     )
 
     return detect_entity_id_collisions(all_entities)
+
+
+def _dangling_lines(dangling: set[str], defined_ids: set[str]) -> list[str]:
+    """Render dangling references grouped by id prefix.
+
+    A prefix with zero definitions anywhere in the active sources is
+    doc_type-activation debt — one summary line per prefix. A prefix that does
+    have definitions points at genuinely stale references — those ids stay
+    individually listed.
+    """
+    defined_prefixes = {entity_id.split("-", 1)[0] for entity_id in defined_ids}
+    by_prefix: dict[str, list[str]] = {}
+    for entity_id in sorted(dangling):
+        by_prefix.setdefault(entity_id.split("-", 1)[0], []).append(entity_id)
+
+    lines: list[str] = []
+    listed: list[str] = []
+    for prefix, ids in sorted(by_prefix.items()):
+        if prefix in defined_prefixes:
+            listed.extend(ids)
+        else:
+            sample = ", ".join(ids[:3])
+            lines.append(
+                f"{len(ids)} {prefix}- id(s) referenced, none defined in "
+                f"active sources (e.g. {sample})"
+            )
+    if listed:
+        preview = listed[:5]
+        ellipsis = "..." if len(listed) > 5 else ""
+        lines.append(f"stale reference(s): {preview}{ellipsis}")
+    return lines
 
 
 def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
@@ -175,13 +208,16 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
             "data loss):"
         )
         for c in collisions[:5]:
-            docs = ", ".join(doc for doc, _ in c.occurrences)
-            click.echo(f"    {c.entity_id}: {docs}")
+            click.echo(f"    {c.entity_id}:")
+            for o in c.occurrences:
+                click.echo(f"      {o.source_doc} :: {o.source_section}")
         if len(collisions) > 5:
             click.echo("    ...")
         click.echo(
-            "  Define each entity once and reference it via `doc_id#§N.ENTITY-ID`; "
-            "unify the source markdown, then re-run `cataforge kg import`."
+            "  Keep each entity defined once in its authoritative doc_type and "
+            "turn every other occurrence into a reference (xref "
+            "`doc_id#§N.ENTITY-ID` or inline code); then re-run "
+            "`cataforge kg import`."
         )
         return 1
 
@@ -222,14 +258,14 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
         )
 
     if dangling:
-        preview = sorted(dangling)[:5]
-        ellipsis = "..." if len(dangling) > 5 else ""
         click.echo(
             f"  WARN: {len(dangling)} entity id(s) referenced in active docs but "
-            f"defined in no active doc_type source ({preview}{ellipsis}); "
+            f"defined in no active doc_type source; "
             f"register the defining doc_type in `context.kg_active_doc_types`, "
             f"or mark the mention as inline code to exempt it."
         )
+        for line in _dangling_lines(dangling, defined_ids):
+            click.echo(f"    {line}")
 
     if stale:
         preview = sorted(stale)[:5]

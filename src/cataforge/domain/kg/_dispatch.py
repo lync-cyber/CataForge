@@ -23,9 +23,10 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.core.config import ConfigManager
-from cataforge.domain.kg._config import KGConfig
+from cataforge.domain.kg._config import DEFAULT_DEFINITION_AUTHORITY, KGConfig
 
 _ACTIVE_CACHE: dict[str, set[str]] = {}
+_AUTHORITY_CACHE: dict[str, dict[str, frozenset[str]]] = {}
 _CONFIG_CACHE: dict[str, KGConfig] = {}
 _STRATEGY_CACHE: dict[str, str] = {}
 _DISPATCH_LOCK = threading.Lock()
@@ -70,6 +71,38 @@ def active_doc_types(project_root: str | Path) -> set[str]:
             resolved = set(KGConfig().kg_active_doc_types)
 
         _ACTIVE_CACHE[key] = resolved
+        return resolved
+
+
+def definition_authority(project_root: str | Path) -> dict[str, frozenset[str]]:
+    """Resolve class-name → authoritative doc_types for `project_root` (cached).
+
+    Defaults come from :data:`DEFAULT_DEFINITION_AUTHORITY`. A well-formed
+    ``context.kg_definition_authority`` mapping (``{class_name: [doc_type,
+    ...]}``) extends the per-class default — merge is additive, an extension
+    never narrows. Malformed entries are ignored.
+    """
+    key = _project_root_key(project_root)
+    with _DISPATCH_LOCK:
+        cached = _AUTHORITY_CACHE.get(key)
+        if cached is not None:
+            return cached
+
+        data = _read_framework_json(Path(project_root))
+        declared = (data.get("context") or {}).get("kg_definition_authority")
+        resolved = dict(DEFAULT_DEFINITION_AUTHORITY)
+        if isinstance(declared, dict):
+            for class_name, doc_types in declared.items():
+                if (
+                    isinstance(class_name, str)
+                    and isinstance(doc_types, list)
+                    and all(isinstance(d, str) for d in doc_types)
+                ):
+                    resolved[class_name] = resolved.get(class_name, frozenset()) | frozenset(
+                        doc_types
+                    )
+
+        _AUTHORITY_CACHE[key] = resolved
         return resolved
 
 
@@ -159,6 +192,7 @@ def invalidate_cache() -> None:
     """Clear all dispatch caches."""
     with _DISPATCH_LOCK:
         _ACTIVE_CACHE.clear()
+        _AUTHORITY_CACHE.clear()
         _CONFIG_CACHE.clear()
         _STRATEGY_CACHE.clear()
 
@@ -168,6 +202,7 @@ __all__ = [
     "DEFAULT_CONTEXT_STRATEGY",
     "active_doc_types",
     "context_strategy",
+    "definition_authority",
     "invalidate_cache",
     "is_active_for",
     "kg_config_for",
