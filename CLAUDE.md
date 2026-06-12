@@ -52,6 +52,7 @@
 - 人工审查检查点: [pre_dev, pre_deploy]
   <!-- 详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
 - 文档类型命名: 小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数和产出文件名
+- Shell 约定: Windows 环境优先使用 Git Bash 执行 shell 命令（POSIX 语法与引号/转义行为跨平台一致，多行参数无 heredoc 陷阱）；PowerShell 仅用于 Windows 专属操作（注册表 / 服务 / 计划任务等）
 - 效率原则:
   - 最小传递: Agent间传递doc_id#section引用，非全文
   - 不确定时调研: 调用research skill，不猜测
