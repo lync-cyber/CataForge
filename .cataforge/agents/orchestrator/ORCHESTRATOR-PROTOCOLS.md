@@ -130,7 +130,7 @@ Mode Routing Protocol 在以下时刻被调用:
    ```
 2. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 3. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
-4. 修复完成后重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
+4. 修复完成后先按 §Phase Transition Protocol Step 5.3 执行 reconcile 收口（漂移时 ingest 回灌），再重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
 5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入（收紧自 N≥3，避免低效 revision 循环）
 
 > 子代理收到 `task_type=revision` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
@@ -175,7 +175,7 @@ Mode Routing Protocol 在以下时刻被调用:
 5.3. **一致性最终守门** — 运行 `cataforge context reconcile`（上下文方案未启用图后端时为 no-op，WARN 跳过）:
    - 无漂移 → 通过，继续 Step 5.5
    - 有漂移（missing / ghost 实体或关系）→ 向用户展示漂移报告摘要并提供选项：
-     1. 自动修复后重跑守门，PASS 后继续 Step 5.5
+     1. 自动修复：跑 `cataforge context ingest`（以 markdown 为准回灌权威存储）后复跑 `cataforge context reconcile`，漂移归零后继续 Step 5.5
      2. 进入 cascade_amendment 修订上游文档以匹配权威存储
      3. 暂停，手动审查
    - 其它错误（store 未初始化等）→ WARN 跳过（记录到 EVENT-LOG 供 reflector 复盘），不阻塞
@@ -398,7 +398,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
    - "回滚所有修订": `git checkout -- docs/{affected_dirs}` 恢复所有本轮修订的文档
 4. 回滚后变更请求状态重置，用户可调整范围后重新提交
 
-变更完成后回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
+变更完成后先按 §Phase Transition Protocol Step 5.3 执行 reconcile 收口（漂移时 ingest 回灌），再回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
 
 > 子代理收到 `task_type=amendment` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=amendment 变更修订流程`。
 
