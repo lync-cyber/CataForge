@@ -52,7 +52,7 @@ kg-first 的声明设计意图是**图谱为唯一事实源**：LLM 把结构化
 | P-1 | whole-document 导出器 | 按 Document→Volume→Section 树 + Section narrative + 实体正文重建整篇 markdown（人审版式）；finalize 以此替代 per-entity 卡片形态（卡片渲染保留为实体级读取面）；导出→ingest→导出 字节级幂等 | 无（数据基底已就绪） |
 | P-2 | authoring API 完备化 | `add_entity` 增 `parent_id`；`context write` 支持 part_of 归属与关系边声明；narrative 经 stdin / 文件写入；`context transact` 多实体原子事务（amendment 单事务提交，失败整体回滚） | 无 |
 | P-3 | 结构 authoring | 从模板实例化 Document / Volume / Section 图骨架（替代 Write md 骨架文件）；章节叙事经 write-narrative 填充 | P-2 |
-| P-4 | 工作流资产反转 | context skill generate 在 kg-first 下改为 "authoring 序列 → finalize 导出 → 返回导出路径"；产文档 Agent（product-manager / architect / tech-lead 等）Output Contract 改为图写入；Step 5.3 权威方向翻转（ingest 仅人改回流，Agent 侧漂移按图重导出） | P-1 + P-2 + P-3 |
+| P-4 | 工作流资产反转 | context skill generate 在 kg-first 下改为 "authoring 序列 → finalize 导出 → 返回导出路径"；产文档 Agent（product-manager / architect / tech-lead 等）Output Contract 改为图写入；Step 5.3 权威方向翻转（ingest 仅人改回流，Agent 侧漂移按图重导出）；CLI 读写动词收敛到 `context` 单族（`docs load` / `context read` 双门面整理，旧入口保留别名期）；项目指令模板"加载原则"措辞对齐为"章节/条目"粒度 | P-1 + P-2 + P-3 |
 | P-5 | 审查面适配 | doc-review 消费导出视图（只读）；revision 修复经 authoring API 落图后重新 finalize，而非 Edit 导出文件 | P-1 |
 | P-6 | 迁移与门禁收尾 | 下游 md-first 项目切换路径（ingest 种子灌入 → 切权威 → 首次全量重导出）；reconcile 权威方向随 strategy 收敛；doctor / walkthrough 适配；执行模式矩阵与 COMMON-RULES 契约措辞终态化 | P-1~P-5 |
 
@@ -63,7 +63,7 @@ kg-first 的声明设计意图是**图谱为唯一事实源**：LLM 把结构化
 - **P-1**：对既有 fixture 项目执行 `ingest → finalize`，导出文件与源 markdown 在规范化（标题锚点、空行折叠）后语义等价；`finalize → ingest → finalize` 字节级幂等；golden 基线覆盖 waterfall / agile 两套 fixture。
 - **P-2**：经 CLI 写入 Feature + 10 个 AC + implements 边，SPARQL 验证 part_of / implements 边与 narrative 槽齐备；事务中途校验失败时图状态零残留。
 - **P-3**：从 prd 模板实例化图骨架后 `finalize`，导出文件结构与文件后端模板实例化结果一致（占位符语义保留）。
-- **P-4**：§2 的端到端验收标准整体通过；`docs load` 实体级 / 章节级读取在反转前后返回内容一致。
+- **P-4**：§2 的端到端验收标准整体通过；`docs load` 实体级 / 章节级读取在反转前后返回内容一致；CLI 动词收敛后全部 prompt 资产指引与 CLI 实际命令面零漂移（grep 校验），旧读取入口在别名期内行为不变。
 - **P-5**：doc-review 对导出视图的 Layer 1 检查项全部可执行；revision 闭环不产生 md↔KG 漂移。
 - **P-6**：`cataforge framework-walkthrough` 在 kg-first authoring 模式下整链路 GO；md-first 存量项目按迁移文档切换后 doctor 全绿。
 
