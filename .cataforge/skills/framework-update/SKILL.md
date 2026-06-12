@@ -121,8 +121,8 @@ fresh install 报告缺平台时询问用户（`claude-code` 默认）并 `cataf
 - **在 — 已初始化**: 不重跑 Project Bootstrap。若 `{INSTRUCTION_FILE}` §执行环境 仍是占位符或技术栈变化:
 
   ```bash
-  cataforge setup --emit-env-block      # 注入 §执行环境；exit 2 = 无已知技术栈
-  cataforge setup --apply-permissions   # 收紧 permissions.allow 到技术栈
+  python .cataforge/scripts/framework/setup.py --emit-env-block      # 注入 §执行环境；exit 2 = 无已知技术栈
+  python .cataforge/scripts/framework/setup.py --apply-permissions   # 收紧 permissions.allow 到技术栈
   ```
 
   exit 2 时写 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）` 并询问用户包管理器 + 测试命令。随后交接 `/start-orchestrator continue` 做 phase 恢复。

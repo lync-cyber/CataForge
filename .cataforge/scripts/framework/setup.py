@@ -16,7 +16,7 @@ and from the ``framework-update`` skill's ``apply`` operation.  It provides thre
   kept here so the protocol documentation stays stable across CLI changes.
 
 The module name ``setup.py`` and the flag names are load-bearing: they are
-referenced by ``framework.json`` migration check ``mc-0.7.0-setup-emit-env``
+referenced by ``framework.json`` migration check ``mc-0.9.2-setup-emit-env``
 (path + patterns ``--emit-env-block`` + ``build_env_block``).
 """
 
