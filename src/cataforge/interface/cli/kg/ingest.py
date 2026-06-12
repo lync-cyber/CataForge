@@ -243,6 +243,12 @@ def kg_validate(ctx: click.Context, db_path: Path, shacl: bool, json_output: boo
     help="Root directory for the exported Markdown tree.",
 )
 @click.option(
+    "--per-entity",
+    is_flag=True,
+    default=False,
+    help="Export one Markdown card per entity instead of reconstructing whole documents.",
+)
+@click.option(
     "--json",
     "json_output",
     is_flag=True,
@@ -250,21 +256,32 @@ def kg_validate(ctx: click.Context, db_path: Path, shacl: bool, json_output: boo
     help="Emit a JSON result blob (per-file sha256 included) instead of the table.",
 )
 @click.pass_context
-def kg_export(ctx: click.Context, db_path: Path, output_dir: Path, json_output: bool) -> None:
-    """Export the KG to per-entity Markdown files."""
+def kg_export(
+    ctx: click.Context,
+    db_path: Path,
+    output_dir: Path,
+    per_entity: bool,
+    json_output: bool,
+) -> None:
+    """Reconstruct whole Markdown documents from the KG (``--per-entity`` for cards)."""
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
     output_dir = root_relative_default(ctx, "output_dir", output_dir, rel=Path("docs"))
 
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.domain.kg.export import compile_to_markdown
+    from cataforge.domain.kg.export.document_pipeline import compile_documents
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
         with KnowledgeGraph.connect(config) as kg:
-            result = compile_to_markdown(kg.store, output_dir)
+            if per_entity:
+                result = compile_to_markdown(kg.store, output_dir)
+            else:
+                result = compile_documents(kg.store, output_dir)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
 
+    unit = "entities" if per_entity else "documents"
     if json_output:
         click.echo(
             json.dumps(
@@ -280,7 +297,7 @@ def kg_export(ctx: click.Context, db_path: Path, output_dir: Path, json_output: 
         )
     else:
         click.echo(
-            f"OK: rendered {len(result.file_records)}/{result.discovered_count} entities "
+            f"OK: rendered {len(result.file_records)}/{result.discovered_count} {unit} "
             f"→ {result.output_dir}"
         )
         if result.errors:

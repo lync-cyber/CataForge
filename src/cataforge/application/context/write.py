@@ -23,7 +23,8 @@ from cataforge.core.errors import CataforgeError
 from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg._dispatch import kg_config_for, kg_enabled
 from cataforge.domain.kg._errors import KGValidationError
-from cataforge.domain.kg.export import compile_to_markdown, entity_doc_type
+from cataforge.domain.kg.export import entity_doc_type
+from cataforge.domain.kg.export.document_pipeline import compile_documents
 from cataforge.domain.kg.export.types import CompileResult
 from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, run_migration
 from cataforge.domain.kg.ingest.iri import id_prefix_to_type
@@ -211,14 +212,14 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
     docs-index rebuild (``output_dir`` does not apply — the index lives in
     ``docs/``). Under ``kg-first`` two authoring modes converge here.
     ``context write`` authors into the graph, so the graph is canonical and
-    the Markdown is a derived view — exported here. Markdown-first authoring
-    edits the files directly, leaving the graph empty; that Markdown is
-    canonical, so it is seeded into the graph (md → KG) and kept as-is. The
-    empty-graph branch deliberately does NOT re-export:
-    ``compile_to_markdown`` is a lossy round-trip (it drops authored
-    relation/section content), so exporting over the source would degrade it.
-    Either way the ``定稿`` contract routes persistence without the caller
-    hand-running ``ingest``.
+    the Markdown is a derived view — reconstructed whole-document via
+    ``compile_documents`` (frontmatter + preamble + section slices in
+    document order, with orphan entities falling back to per-entity cards).
+    Markdown-first authoring edits the files directly, leaving the graph
+    empty; that Markdown is canonical, so it is seeded into the graph
+    (md → KG) and kept as-is — the empty-graph branch seeds without
+    re-exporting over the source. Either way the ``定稿`` contract routes
+    persistence without the caller hand-running ``ingest``.
     """
     if not kg_enabled(project_root):
         return _rebuild_doc_index(project_root)
@@ -228,7 +229,7 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
         if not kg.query.entity_ids():
             run_migration(kg.store, Path(project_root), cfg, doc_types=DEFAULT_DOC_TYPES)
             return CompileResult(exported_at=datetime.now(UTC), discovered_count=0, output_dir=out)
-        return compile_to_markdown(kg.store, out)
+        return compile_documents(kg.store, out)
 
 
 def ingest(
