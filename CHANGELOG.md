@@ -20,6 +20,43 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.9.2'></a>
+## [0.9.2] — 2026-06-12
+
+### Added
+
+- **实体正文进图** —— `narrative_body` 槽上移到 `SoftwareArtifact` 基类，ingest 为每个业务实体写入自身正文（heading 实体 = 节正文去 heading 行；正文行 subordinate = 自身切片，与 content_hash 同口径）。
+- **存量 store 迁移指引** —— 0.9.x 已导入的 KG 因 hash 幂等跳过无法经普通 ingest 自愈，需重建：`cataforge kg init --force && cataforge context ingest && cataforge kg reconcile && cataforge doctor`（markdown 为事实源，重建无损；曾用 `context write` 直写过图的项目先 `cataforge kg snapshot`）。
+
+- **Shell 约定（Windows）** —— 项目指令模板 §全局约定 新增：Windows 环境优先使用 Git Bash 执行 shell 命令（POSIX 语法与引号/转义行为跨平台一致），PowerShell 仅用于 Windows 专属操作；下游项目 deploy 时随指令文件模板继承。
+
+- **实体定义 doc_type 权威表** —— 实体类的定义仅在其权威 doc_type 中成立（Feature/AC→prd、Task→dev-plan、TestCase→test-report 等，单一事实源为 `ENTITY_CLASS_TO_DOC_TYPE`）；非权威 doc_type 中的 heading-subject 与 subordinate 命中降级为引用，不产出定义——test-report 按任务分节复述 T-xxx 不再触发 collision 中止导入。subordinate（AC）的权威跟随其 parent 实体类。项目可经 `framework.json#context.kg_definition_authority`（`{class_name: [doc_type, ...]}`）合并扩展缺省权威（只增不减）。
+
+### Changed
+
+- **`cataforge context` 写入/生命周期命令按 `context.strategy` 路由** —— `finalize` / `ingest` 在 doc-only 项目下路由到文档索引重建（等价 `cataforge docs index`，输出 `indexed N doc(s)`）；`reconcile` 路由到索引完整性校验（orphan / stale / xref / alias / invalid-id），有问题时与 kg-first 漂移同语义 exit 3，索引缺失时 exit 2 并提示 `cataforge docs index`。`write` / `write-narrative` 在 doc-only 下抛出 `ContextStrategyError` 配置错误（说明需要 `context.strategy = "kg-first"`），不再误导性提示 `cataforge kg init`。路由在 application 层（`cataforge.application.context.write`）实现，编程调用方同样生效；kg-first 路径返回契约不变。
+
+- **collision 迁移引导** —— `KGEntityCollisionError` 消息与 doctor `kg_ingestion_completeness` FAIL 输出逐条列出 `source_doc :: source_section`，并给出动作建议：统一到权威定义，其余出现改 xref（`doc_id#§N.ENTITY-ID`）或行内 code。
+- **dangling WARN 降噪** —— doctor 悬挂引用按前缀聚合：全库无任何定义的前缀输出单行汇总（`N TC- id(s) referenced, none defined in active sources (e.g. …)`），有定义的前缀仍逐 id 列出（上限 5 + 省略号）。
+
+### Fixed
+
+- **context 定稿指引指向真实命令面** —— `generate.md` 定稿步骤按 `context.strategy` 显式分支（`kg-first`: `cataforge context finalize` / Edit 直写后 `cataforge context ingest`；`doc-only`: `cataforge docs index`）；COMMON-RULES §Agent 文档 I/O 契约同步为"定稿与回灌"；ORCHESTRATOR-PROTOCOLS 在 Phase Transition / Revision / Change Request 收口处补全 `ingest → reconcile` 漂移闭环锚点。
+
+- **Bootstrap setup 调用形式** —— ORCHESTRATOR-PROTOCOLS §Project Bootstrap Step 8、framework-update SKILL、PROJECT-STATE 模板与 CLAUDE.md §执行环境占位符统一指向 `python .cataforge/scripts/framework/setup.py --emit-env-block` / `--apply-permissions`；包 CLI `cataforge setup` 不提供这两个选项，原指引按包 CLI 形式调用会直接报错。
+- **emit-env 迁移守护复活** —— 新增 `mc-0.9.2-setup-emit-env`（file_must_contain，守护 setup.py 的 `--emit-env-block` / `build_env_block`），接替因 `deprecate_after: 0.2.0` 永久 SKIP 的 `mc-0.1.5-setup-emit-env`；setup.py docstring 中的迁移检查引用同步指向新 id。
+
+- **`kg repair` 闭环 Section 级漂移** —— repair 现消费 reconcile 报出的 `ghost_sections` / `missing_sections`：ghost Section 节点连同入向 `cf:has_section` 边按 `source_doc` 域内删除（其他文档中同名 anchor 的 Section 不受影响）；missing Section 触发该 doc_type 的 `write_structure` 重灌（实体级 reingest 同步补灌结构节点）。`RepairStats` 与 `kg repair` 的 JSON / 文本输出新增 `ghost_sections_removed` / `missing_sections_ingested` 计数。
+- **`kg delete` 按节点形态解析 id** —— `F-001`（扁平实体）、`F-001/AC-002`（父域从属）、`doc/{doc_id}`（Document）、`doc/{doc_id}/sec/{anchor}`（Section，`doc/` 前缀可省略）、完整 http(s) IRI 分流到对应 IRI 解析；完整 IRI 不再被二次 percent-encode 导致 `KGEntityNotFoundError`；not-found 报错列出解析出的形态与目标 IRI，CLI help 同步说明可接受的 id 形态。
+
+- **KG 实体级 title 保真度** —— title 切分剥除前导分隔符；subordinate（AC 等）title 从自身正文行派生，不再复用父节标题。
+- **per-entity content_hash** —— 正文行 subordinate 按自身切片计算 hash，父子不再共享整节 hash，实体级内容漂移对幂等跳过与 collision 检测可见。
+
+- **kg-first 实体级读取不再产出空壳卡片** —— 实体 SPARQL 经 `source_doc` + `source_section` JOIN 源 Section 节点绑定 `narrative_body`，`cataforge docs load "prd#§N.F-XXX"` 渲染的实体卡现包含源章节正文；Feature 卡经 `cf:part_of` 入边列出其 AcceptanceCriteria 子实体（不再依赖显式 xref 的 `cf:satisfies`），AC 卡新增 Part Of 段列出父实体。KG 渲染产物既无正文也无子实体内容时，loader 自动回退文件后端抽取，保证调用方拿到的信息量不低于文件后端。
+- **`cataforge kg trace` 沿 `cf:part_of` 聚合** —— downstream 收集 part_of 入边子实体（AC 进入 `acceptance_criteria` 桶），upstream 沿 part_of 出边回到父实体；`coverage_status` 仍仅由 impl / test 桶决定，AC 桶不参与。
+
+- **MCP 并发 start 双 spawn 竞态** —— `load_state` 区分"文件不存在"与"撞上 `os.replace` 替换窗口的瞬时读错"（后者重试而非误报无状态），并发 `start()` 不再各拉起一个进程；`start()` 对 `unhealthy` 但进程存活的服务附着重探而非重复 spawn。
+
 <a id='changelog-0.9.1'></a>
 
 ## [0.9.1] — 2026-06-11
@@ -1493,7 +1530,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.2
 [0.9.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.1
 [0.9.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.0
 [0.8.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.8.0
