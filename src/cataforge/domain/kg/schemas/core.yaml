@@ -408,6 +408,7 @@ classes:
       - content_hash
       - source_doc
       - source_section
+      - narrative_body
       - tags
       - authored_by
       - belongs_to_project
@@ -623,7 +624,6 @@ classes:
     class_uri: cf:TechStack
     is_a: SoftwareArtifact
     slots:
-      - narrative_body
       - stack_layers
       - affects
     slot_usage:

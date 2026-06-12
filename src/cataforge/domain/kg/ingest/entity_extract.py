@@ -28,7 +28,6 @@ _LAYER_BULLET_RE = re.compile(r"^\s*[-*]\s+(.+)", re.MULTILINE)
 
 
 def _extract_techstack_slots(entity: ExtractedEntity, section_text: str) -> None:
-    entity.extra_slots["cf:narrative_body"] = section_text
     layers = [m.group(1).strip() for m in _LAYER_BULLET_RE.finditer(section_text)]
     if layers:
         entity.extra_slots["cf:stack_layers"] = layers
@@ -171,6 +170,17 @@ def _subordinate_body_slice(lines: list[str], line_idx: int, section_line_end: i
     return "\n".join(out)
 
 
+def _section_narrative(lines: list[str], line_start: int, line_end: int) -> str:
+    """Section body minus its heading line, trimmed of blank edge lines."""
+    body = lines[line_start + 1 : line_end]
+    start, end = 0, len(body)
+    while start < end and not body[start].strip():
+        start += 1
+    while end > start and not body[end - 1].strip():
+        end -= 1
+    return "\n".join(body[start:end])
+
+
 def _resolve_parent_id(spans: list[HeadingSpan], line_idx: int) -> str | None:
     """Return the owning non-subordinate entity for a subordinate occurrence.
 
@@ -261,13 +271,18 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
         # Hash the entity's own text so re-imports detect content drift even
         # when the entity_id stayed the same: a subordinate defined on a body
         # line hashes its line slice; everything else hashes the section body.
+        # The entity also carries its own narrative text: the body-line slice
+        # for a body-line subordinate (same window as its hash), otherwise the
+        # owning section's body without the heading line.
         section_text = "\n".join(lines[section.line_start : section.line_end])
         if subordinate and not own_heading:
             source_line = lines[line_idx]
             hash_text = _subordinate_body_slice(lines, line_idx, section.line_end)
+            narrative = hash_text
         else:
             source_line = ""
             hash_text = section_text
+            narrative = _section_narrative(lines, section.line_start, section.line_end)
         entity = ExtractedEntity(
             entity_id=entity_id,
             class_name=class_name,
@@ -281,12 +296,14 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
             parent_id=parent_id,
             source_line=source_line,
         )
-        _enrich_extra_slots(entity, section_text)
+        _enrich_extra_slots(entity, section_text, narrative)
         seen[key] = entity
     return list(seen.values())
 
 
-def _enrich_extra_slots(entity: ExtractedEntity, section_text: str) -> None:
+def _enrich_extra_slots(entity: ExtractedEntity, section_text: str, narrative: str) -> None:
+    if narrative:
+        entity.extra_slots["cf:narrative_body"] = narrative
     fn = _EXTRA_SLOT_EXTRACTORS.get(entity.class_name)
     if fn is None:
         return
