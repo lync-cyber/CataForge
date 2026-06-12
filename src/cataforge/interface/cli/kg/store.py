@@ -225,6 +225,8 @@ def kg_repair(
                     "dry_run": dry_run,
                     "ghosts_removed": stats.ghosts_removed,
                     "missing_ingested": stats.missing_ingested,
+                    "ghost_sections_removed": stats.ghost_sections_removed,
+                    "missing_sections_ingested": stats.missing_sections_ingested,
                     "errors": stats.errors,
                 },
                 indent=2,
@@ -234,7 +236,9 @@ def kg_repair(
         prefix = "[dry-run] " if dry_run else ""
         click.echo(
             f"{prefix}ghosts_removed={stats.ghosts_removed} "
-            f"missing_ingested={stats.missing_ingested}"
+            f"missing_ingested={stats.missing_ingested} "
+            f"ghost_sections_removed={stats.ghost_sections_removed} "
+            f"missing_sections_ingested={stats.missing_sections_ingested}"
         )
         for err in stats.errors:
             click.echo(f"  ERROR: {err}", err=True)

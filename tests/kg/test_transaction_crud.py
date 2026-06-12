@@ -201,6 +201,133 @@ def test_delete_entity_not_found_raises() -> None:
         txn.delete_entity("F-999")
 
 
+def _ask_subject_gone(kg, iri: str) -> bool:
+    from cataforge.domain.kg._ask import ask
+
+    return not ask(kg.store, f"ASK {{ <{iri}> ?p ?o }}")
+
+
+def _add_section_node(kg, config, doc_id: str = "prd", anchor: str = "§1 概览") -> str:
+    from cataforge.domain.kg._quads import build_section_quads
+    from cataforge.domain.kg.ingest.iri import document_iri, section_iri
+
+    for q in build_section_quads(
+        doc_id,
+        anchor,
+        anchor,
+        "正文",
+        "a" * 64,
+        doc_id,
+        config,
+        document_iri_val=document_iri(doc_id, config.base_namespace),
+    ):
+        kg.store.add(q)
+    return section_iri(doc_id, anchor, config.base_namespace)
+
+
+def test_delete_section_by_relative_id_with_doc_prefix() -> None:
+    kg, config, _project_iri = _make_kg()
+    iri = _add_section_node(kg, config)
+
+    with kg.transaction() as txn:
+        txn.delete_entity("doc/prd/sec/§1 概览")
+
+    assert _ask_subject_gone(kg, iri)
+
+
+def test_delete_section_by_relative_id_without_doc_prefix() -> None:
+    kg, config, _project_iri = _make_kg()
+    iri = _add_section_node(kg, config)
+
+    with kg.transaction() as txn:
+        txn.delete_entity("prd/sec/§1 概览")
+
+    assert _ask_subject_gone(kg, iri)
+
+
+def test_delete_section_by_full_iri() -> None:
+    kg, config, _project_iri = _make_kg()
+    iri = _add_section_node(kg, config)
+
+    with kg.transaction() as txn:
+        txn.delete_entity(iri)
+
+    assert _ask_subject_gone(kg, iri)
+
+
+def test_delete_document_by_relative_id() -> None:
+    from cataforge.domain.kg._quads import build_document_quads
+    from cataforge.domain.kg.ingest.iri import document_iri
+
+    kg, config, _project_iri = _make_kg()
+    for q in build_document_quads("prd", "prd", "PRD", "prd", "b" * 64, config):
+        kg.store.add(q)
+    iri = document_iri("prd", config.base_namespace)
+
+    with kg.transaction() as txn:
+        txn.delete_entity("doc/prd")
+
+    assert _ask_subject_gone(kg, iri)
+
+
+def test_delete_flat_entity_by_full_iri() -> None:
+    kg, config, _project_iri = _make_kg_with_entity()
+
+    with kg.transaction() as txn:
+        txn.delete_entity("https://cataforge.dev/instance/F-001")
+
+    assert not kg.query.exists("F-001")
+
+
+def test_delete_subordinate_by_scoped_id() -> None:
+    from cataforge.domain.kg._quads import build_entity_quads
+    from cataforge.domain.kg.ingest.iri import subordinate_entity_iri
+
+    kg, config, project_iri = _make_kg_with_entity()
+    for q in build_entity_quads(
+        "AC-001",
+        "AcceptanceCriteria",
+        "登录验收",
+        "prd",
+        "AC-001 登录验收",
+        "c" * 64,
+        project_iri,
+        config,
+        parent_id="F-001",
+    ):
+        kg.store.add(q)
+
+    with kg.transaction() as txn:
+        txn.delete_entity("F-001/AC-001")
+
+    iri = subordinate_entity_iri("F-001", "AC-001", config.base_namespace)
+    assert _ask_subject_gone(kg, iri)
+    assert kg.query.exists("F-001")
+
+
+def test_delete_unknown_section_reports_resolved_form() -> None:
+    kg, config, _project_iri = _make_kg()
+
+    from cataforge.domain.kg import KGEntityNotFoundError
+
+    with pytest.raises(KGEntityNotFoundError) as excinfo, kg.transaction() as txn:
+        txn.delete_entity("doc/nope/sec/missing")
+
+    message = str(excinfo.value)
+    assert "not found" in message
+    assert "section" in message
+    assert "/doc/nope/sec/missing" in message
+
+
+def test_delete_malformed_structural_id_raises_validation_error() -> None:
+    kg, config, _project_iri = _make_kg()
+
+    from cataforge.domain.kg import KGValidationError
+
+    with pytest.raises(KGValidationError), kg.transaction() as txn:
+        txn.delete_entity("doc/")
+
+
 def test_delete_entity_without_cascade_rejects_incoming_edges() -> None:
     kg, config, project_iri = _make_kg_with_entity()
 

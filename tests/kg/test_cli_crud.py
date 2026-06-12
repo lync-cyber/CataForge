@@ -29,6 +29,21 @@ def _init_store(tmp_path: Path) -> Path:
     return db
 
 
+def _seed_section(db: Path) -> None:
+    import gc
+
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg._quads import build_section_quads
+
+    config = KGConfig(store_backend="oxigraph", db_path=db)
+    with KnowledgeGraphStore.connect(config) as handle:
+        for q in build_section_quads("prd", "§1 概览", "§1 概览", "正文", "a" * 64, "prd", config):
+            handle.raw.add(q)
+    gc.collect()
+    invalidate_cache()
+
+
 def _seed_project_with_entity(tmp_path: Path) -> Path:
     db = _init_store(tmp_path)
     result = CliRunner().invoke(
@@ -451,6 +466,56 @@ class TestDelete:
             ],
         )
         assert ask.output.strip() == "true"
+
+    def test_delete_section_by_structural_id(self, tmp_path: Path) -> None:
+        db = _init_store(tmp_path)
+        _seed_section(db)
+        result = CliRunner().invoke(
+            _cli(),
+            ["kg", "delete", "doc/prd/sec/§1 概览", "--yes", "--db-path", str(db), "--json"],
+        )
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["pending_deletes"] >= 1
+
+        ask = CliRunner().invoke(
+            _cli(),
+            [
+                "kg",
+                "query",
+                "--db-path",
+                str(db),
+                "PREFIX cf: <https://cataforge.dev/ontology/> ASK { ?s a cf:Section }",
+            ],
+        )
+        assert ask.exit_code == 0, ask.output
+        assert ask.output.strip() == "false"
+
+    def test_delete_missing_section_reports_resolution(self, tmp_path: Path) -> None:
+        db = _init_store(tmp_path)
+        result = CliRunner().invoke(
+            _cli(),
+            ["kg", "delete", "doc/none/sec/missing", "--yes", "--db-path", str(db)],
+        )
+        assert result.exit_code != 0
+        assert "not found" in result.output.lower()
+        assert "section" in result.output.lower()
+
+    def test_delete_malformed_structural_id_has_no_cascade_hint(self, tmp_path: Path) -> None:
+        db = _init_store(tmp_path)
+        result = CliRunner().invoke(
+            _cli(),
+            ["kg", "delete", "doc/", "--yes", "--db-path", str(db)],
+        )
+        assert result.exit_code != 0
+        assert "--cascade" not in result.output
+
+    def test_delete_help_documents_id_forms(self) -> None:
+        result = CliRunner().invoke(_cli(), ["kg", "delete", "--help"])
+        assert result.exit_code == 0
+        assert "doc/" in result.output
+        assert "/sec/" in result.output
+        assert "IRI" in result.output
 
     def test_delete_json_without_yes_still_prompts(self, tmp_path: Path) -> None:
         """--json must not bypass the confirmation prompt (A4)."""
