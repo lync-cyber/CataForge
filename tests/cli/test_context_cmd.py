@@ -8,9 +8,11 @@ and finalize collided with Click's usage exit code 2. They now raise a
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from click.testing import CliRunner
 
 import cataforge.application.context.write as write_app
@@ -18,6 +20,8 @@ from cataforge.interface.cli.context_cmd import (
     context_finalize,
     context_ingest,
     context_reconcile,
+    context_write,
+    context_write_narrative,
 )
 from cataforge.interface.cli.main import cli
 from tests.cli.conftest import invoke_under_group
@@ -119,3 +123,120 @@ def test_explicit_project_root_wins_over_global(tmp_path: Path, monkeypatch) -> 
 
     assert result.exit_code == 0, result.output
     assert captured["root"] == str(explicit)
+
+
+# ---- doc-only strategy routing ----------------------------------------------
+
+
+@pytest.fixture
+def _clear_dispatch_cache():
+    from cataforge.domain.kg._dispatch import invalidate_cache
+
+    invalidate_cache()
+    yield
+    invalidate_cache()
+
+
+def _doc_only_project(tmp_path: Path) -> Path:
+    proj = tmp_path / "p"
+    (proj / ".cataforge").mkdir(parents=True)
+    (proj / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"strategy": "doc-only"}}), encoding="utf-8"
+    )
+    doc = proj / "docs" / "prd" / "prd.md"
+    doc.parent.mkdir(parents=True)
+    doc.write_text("---\nid: prd\ndoc_type: prd\n---\n# PRD\n", encoding="utf-8")
+    return proj
+
+
+def test_finalize_doc_only_reports_indexed_docs(tmp_path: Path, _clear_dispatch_cache) -> None:
+    proj = _doc_only_project(tmp_path)
+
+    result = invoke_under_group(context_finalize, ["--project-root", str(proj)])
+
+    assert result.exit_code == 0, result.output
+    assert "indexed 1 doc(s)" in result.output
+    assert (proj / "docs" / ".doc-index.json").is_file()
+
+
+def test_ingest_doc_only_reports_indexed_docs(tmp_path: Path, _clear_dispatch_cache) -> None:
+    proj = _doc_only_project(tmp_path)
+
+    result = invoke_under_group(context_ingest, ["--project-root", str(proj)])
+
+    assert result.exit_code == 0, result.output
+    assert "indexed 1 doc(s)" in result.output
+    assert (proj / "docs" / ".doc-index.json").is_file()
+
+
+def test_reconcile_doc_only_clean_index_exits_0(tmp_path: Path, _clear_dispatch_cache) -> None:
+    proj = _doc_only_project(tmp_path)
+    invoke_under_group(context_finalize, ["--project-root", str(proj)])
+
+    result = invoke_under_group(context_reconcile, ["--project-root", str(proj)])
+
+    assert result.exit_code == 0, result.output
+    assert "reconcile OK" in result.output
+
+
+def test_reconcile_doc_only_orphan_exits_3(tmp_path: Path, _clear_dispatch_cache) -> None:
+    proj = _doc_only_project(tmp_path)
+    invoke_under_group(context_finalize, ["--project-root", str(proj)])
+    orphan = proj / "docs" / "research" / "orphan.md"
+    orphan.parent.mkdir(parents=True)
+    orphan.write_text("# no front matter\n", encoding="utf-8")
+
+    result = invoke_under_group(context_reconcile, ["--project-root", str(proj)])
+
+    assert result.exit_code == 3, result.output
+    assert "Error:" in result.output
+
+
+def test_write_doc_only_rejected_without_kg_init_hint(
+    tmp_path: Path, _clear_dispatch_cache
+) -> None:
+    proj = _doc_only_project(tmp_path)
+
+    result = invoke_under_group(
+        context_write,
+        [
+            "--entity-id",
+            "F-001",
+            "--class",
+            "Feature",
+            "--title",
+            "登录",
+            "--project-root",
+            str(proj),
+        ],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert "Error:" in result.output
+    assert "kg-first" in result.output
+    assert "kg init" not in result.output
+
+
+def test_write_narrative_doc_only_rejected_without_kg_init_hint(
+    tmp_path: Path, _clear_dispatch_cache
+) -> None:
+    proj = _doc_only_project(tmp_path)
+
+    result = invoke_under_group(
+        context_write_narrative,
+        [
+            "--doc-id",
+            "prd",
+            "--anchor",
+            "§1 概览",
+            "--narrative",
+            "文本",
+            "--project-root",
+            str(proj),
+        ],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert "Error:" in result.output
+    assert "kg-first" in result.output
+    assert "kg init" not in result.output

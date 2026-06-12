@@ -1,8 +1,8 @@
 """``cataforge context`` — the unified context-IO facade.
 
-One command family over the capability ports: read/relation (routed by
-``context.strategy``) and the KG-first authoring lifecycle
-(write → write-narrative → finalize → ingest → reconcile). This is the
+One command family over the capability ports: read/relation and the
+authoring lifecycle (write → write-narrative → finalize → ingest →
+reconcile), all routed by ``context.strategy``. This is the
 backend-routing door the single ``context`` skill targets; callers never
 name the graph or the file store.
 """
@@ -117,7 +117,7 @@ def context_write(
     project_id: str | None,
     project_root: str,
 ) -> None:
-    """KG-first authorized write of a single entity (validated at write time)."""
+    """Authorized write of a single entity into the graph (kg-first strategy only)."""
     from cataforge.application.context.write import author_entity
 
     project_root = _rooted(ctx, project_root) or project_root
@@ -143,7 +143,7 @@ def context_write(
 def context_write_narrative(
     ctx: click.Context, doc_id: str, anchor: str, narrative: str | None, project_root: str
 ) -> None:
-    """Author a Section's prose (``narrative_body``) into the graph."""
+    """Author a Section's prose into the graph (kg-first strategy only)."""
     from cataforge.application.context.write import write_narrative
 
     project_root = _rooted(ctx, project_root) or project_root
@@ -158,12 +158,15 @@ def context_write_narrative(
 @click.option("--output-dir", default=None, help="Export target (default docs/).")
 @click.pass_context
 def context_finalize(ctx: click.Context, project_root: str, output_dir: str | None) -> None:
-    """Export the graph to Markdown for human review (KG → md)."""
-    from cataforge.application.context.write import finalize
+    """Persist authored content (graph export under kg-first, docs-index rebuild under doc-only)."""
+    from cataforge.application.context.write import DocIndexResult, finalize
 
     project_root = _rooted(ctx, project_root) or project_root
     with _kg_store_guard():
         result = finalize(project_root, output_dir)
+    if isinstance(result, DocIndexResult):
+        click.echo(f"indexed {result.indexed_count} doc(s)")
+        return
     click.echo(f"exported {len(result.file_records)} file(s)")
     if result.errors:
         for err in result.errors:
@@ -178,12 +181,15 @@ def context_finalize(ctx: click.Context, project_root: str, output_dir: str | No
 @click.option("--doc-type", "doc_types", multiple=True, help="Restrict scope; repeatable.")
 @click.pass_context
 def context_ingest(ctx: click.Context, project_root: str, doc_types: tuple[str, ...]) -> None:
-    """Reflect human-edited Markdown back into the graph (md → KG)."""
-    from cataforge.application.context.write import ingest
+    """Reflect human-edited Markdown into the active backend (graph or docs index)."""
+    from cataforge.application.context.write import DocIndexResult, ingest
 
     project_root = _rooted(ctx, project_root) or project_root
     with _kg_store_guard():
         stats = ingest(project_root, list(doc_types) or None)
+    if isinstance(stats, DocIndexResult):
+        click.echo(f"indexed {stats.indexed_count} doc(s)")
+        return
     click.echo(
         f"ingested: {stats.write_stats.entities_written} entities, "
         f"{stats.structure_stats.sections_written} sections written"
@@ -194,7 +200,7 @@ def context_ingest(ctx: click.Context, project_root: str, doc_types: tuple[str, 
 @click.option("--project-root", default=".")
 @click.pass_context
 def context_reconcile(ctx: click.Context, project_root: str) -> None:
-    """Drift guard between the graph and the exported Markdown."""
+    """Drift guard between the Markdown tree and the active backend."""
     from cataforge.application.context.write import reconcile_check
 
     project_root = _rooted(ctx, project_root) or project_root
