@@ -36,7 +36,7 @@ def test_doctor_flags_load_section_py_in_agent_md(tmp_path: Path, monkeypatch) -
     result = CliRunner().invoke(doctor_command, [])
     assert result.exit_code != 0, "doctor should fail when load_section.py reference is present"
     assert "load_section.py" in result.output
-    assert "cataforge docs load" in result.output
+    assert "cataforge context read" in result.output
     assert "agents/demo/AGENT.md:3" in result.output
 
 
@@ -61,7 +61,7 @@ def test_doctor_passes_when_no_deprecated_refs(tmp_path: Path, monkeypatch) -> N
     agent_dir = root / ".cataforge" / "agents" / "clean"
     agent_dir.mkdir()
     (agent_dir / "AGENT.md").write_text(
-        "# Clean agent\n\n通过 `cataforge docs load prd#§2.F-001` 加载章节\n",
+        "# Clean agent\n\n通过 `cataforge context read prd#§2.F-001` 加载章节\n",
         encoding="utf-8",
     )
     monkeypatch.chdir(root)
@@ -164,7 +164,7 @@ def test_doctor_orphan_check_skips_archive(tmp_path: Path, monkeypatch) -> None:
 
 def test_doctor_warns_when_docs_present_but_no_index(tmp_path: Path, monkeypatch) -> None:
     """Projects whose docs/ holds markdown but never built an index get a
-    non-blocking WARN pointing at `cataforge docs index`. Pre-PR-#75 this
+    non-blocking WARN pointing at `cataforge context index`. Pre-PR-#75 this
     was a silent skip, so first-time bootstraps had no signal that opting
     into section-level loading was even an option."""
     root = _scaffold(tmp_path)
@@ -178,7 +178,7 @@ def test_doctor_warns_when_docs_present_but_no_index(tmp_path: Path, monkeypatch
     result = CliRunner().invoke(doctor_command, [])
     section_block = result.output.split("Docs validation:", 1)[1].split("\n\n", 1)[0]
     assert "WARN" in section_block, section_block
-    assert "cataforge docs index" in section_block, section_block
+    assert "cataforge context index" in section_block, section_block
     # The orphan check itself must not contribute to the failed_count
     # gate — assert the WARN body returned 0 rather than the doctor
     # process exit code (other migration checks in this fixture may
@@ -199,7 +199,7 @@ def test_doctor_silent_when_docs_dir_has_no_markdown(tmp_path: Path, monkeypatch
 
 
 def test_doctor_anti_rot_table_contains_expected_entries() -> None:
-    """The deprecation registry must keep the four canonical entries we ship.
+    """The deprecation registry must keep the canonical entries we ship.
 
     If we ever rename/remove one of these, this test will force the author to
     confirm it is intentional rather than silently dropping CI coverage.
@@ -213,10 +213,35 @@ def test_doctor_anti_rot_table_contains_expected_entries() -> None:
         "docs/NAV-INDEX.md",
         "docs/.nav/",
         "python .cataforge/scripts/framework/event_logger.py",
+        "cataforge docs load",
+        "cataforge docs index",
+        "cataforge docs validate",
     }
     for entry in _DEPRECATED_REFS:
         assert entry["replacement"], entry
         assert entry["since"], entry
+
+
+def test_doctor_flags_deprecated_docs_verb_in_agent_md(tmp_path: Path, monkeypatch) -> None:
+    """The ``cataforge docs load`` alias is deprecated in prose; the ``docs/``
+    path spelling and other ``docs`` subcommands stay untouched."""
+    root = _scaffold(tmp_path)
+    agent_dir = root / ".cataforge" / "agents" / "demo"
+    agent_dir.mkdir()
+    (agent_dir / "AGENT.md").write_text(
+        "# Demo agent\n\n通过 `cataforge docs load prd#§2.F-001` 加载章节\n"
+        "索引位置 docs/.doc-index.json；迁移用 `cataforge docs migrate-nav`\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code != 0
+    assert "cataforge docs load" in result.output
+    assert "cataforge context read" in result.output
+    # The docs/ path and migrate-nav subcommand must not be misflagged.
+    section = result.output.split("Deprecated protocol references:", 1)[1]
+    assert "migrate-nav" not in section.split("FAIL", 1)[0]
 
 
 def test_doctor_flags_relative_event_logger_script_call(tmp_path: Path, monkeypatch) -> None:

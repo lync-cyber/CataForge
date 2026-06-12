@@ -88,7 +88,7 @@ def _emit_index_failures(
             click.echo(f"    FAIL {rel}")
         if len(orphans) > 5:
             click.echo(f"    - ... and {len(orphans) - 5} more")
-        click.echo("  → add `id`/`doc_type` front matter and rerun `cataforge docs index`.")
+        click.echo("  → add `id`/`doc_type` front matter and rerun `cataforge context index`.")
 
     if stale:
         click.echo(f"  {len(stale)} stale index entry(ies) — file_path missing on disk:")
@@ -96,7 +96,7 @@ def _emit_index_failures(
             click.echo(f"    FAIL {doc_id} → {rel}")
         if len(stale) > 5:
             click.echo(f"    - ... and {len(stale) - 5} more")
-        click.echo("  → run `cataforge docs index` (full rebuild) to drop stale entries.")
+        click.echo("  → run `cataforge context index` (full rebuild) to drop stale entries.")
 
     if xref_errors:
         click.echo(
@@ -152,14 +152,14 @@ def _emit_doctor_validate_failures(
 
 
 def check_docs_validate(cfg: ConfigManager) -> int:
-    """Run the same validation suite as ``cataforge docs validate``.
+    """Run the same validation suite as ``cataforge context validate``.
 
     Shares :func:`cataforge.domain.docs.indexer.validate_docs` with the CLI so any
     new validator (orphans, stale entries, broken cross-refs, ...) flows
     into both gates without duplication.
 
     When ``docs/.doc-index.json`` is missing but ``docs/`` contains markdown
-    files, emits a non-blocking WARN pointing at ``cataforge docs index``;
+    files, emits a non-blocking WARN pointing at ``cataforge context index``;
     empty / absent ``docs/`` directories are skipped silently.
     """
     import glob
@@ -182,8 +182,8 @@ def check_docs_validate(cfg: ConfigManager) -> int:
             fg="yellow",
         )
         click.echo(
-            "  → run `cataforge docs index` to enable section-level loading "
-            "via `cataforge docs load <doc_id>#§N`."
+            "  → run `cataforge context index` to enable section-level loading "
+            "via `cataforge context read <doc_id>#§N`."
         )
         return 0
 
