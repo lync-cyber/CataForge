@@ -351,6 +351,14 @@
       "type": "file_must_contain",
       "path": ".cataforge/framework.json",
       "patterns": ["kg_active_doc_types"]
+    },
+    {
+      "id": "mc-0.9.2-setup-emit-env",
+      "release_version": "0.9.2",
+      "description": "setup.py 必须提供 --emit-env-block 子命令（实现 build_env_block）供 orchestrator Bootstrap 与 framework-update 填入项目指令文件 §执行环境",
+      "type": "file_must_contain",
+      "path": ".cataforge/scripts/framework/setup.py",
+      "patterns": ["--emit-env-block", "build_env_block"]
     }
   ]
 }
