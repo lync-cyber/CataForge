@@ -2,8 +2,10 @@
 
 Each entity is uniquely identified by its `entity_id` (e.g. `F-001`).
 The codemod records the first occurrence inside the first owning section
-plus a SHA-256 content hash of that section's body — re-imports compare
-the hash to detect content drift.
+plus a SHA-256 content hash — the owning section's body for
+heading-anchored entities, or the entity's own line slice for a
+subordinate defined on a body line — re-imports compare the hash to
+detect content drift.
 
 The patterns `ENTITY_PREFIX_RE` and `XREF_RE` live here so phase 3 can
 exclude xref occurrences from entity detection without a circular
@@ -106,6 +108,9 @@ class ExtractedEntity:
     file_path: Path
     mtime: float
     parent_id: str | None = None
+    # Raw text of the defining line for a subordinate without its own
+    # heading; empty for heading-anchored entities.
+    source_line: str = ""
     extra_slots: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -145,6 +150,25 @@ def _title_defines(title: str, entity_id: str) -> bool:
     """
     m = ENTITY_PREFIX_RE.search(title)
     return m is not None and m.group(0) == entity_id
+
+
+def _subordinate_body_slice(lines: list[str], line_idx: int, section_line_end: int) -> str:
+    """Return the entity's own text: its line plus deeper-indented continuations.
+
+    The slice ends at the first blank line, heading, line indented no deeper
+    than the entity's own line, or the section boundary.
+    """
+    first = lines[line_idx]
+    indent = len(first) - len(first.lstrip())
+    out = [first]
+    for line in lines[line_idx + 1 : section_line_end]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            break
+        if len(line) - len(line.lstrip()) <= indent:
+            break
+        out.append(line)
+    return "\n".join(out)
 
 
 def _resolve_parent_id(spans: list[HeadingSpan], line_idx: int) -> str | None:
@@ -196,6 +220,7 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
     """
     xref_spans = [(m.start(), m.end()) for m in XREF_RE.finditer(doc.raw)]
     code_ranges = doc.code_block_offsets
+    lines = doc.raw.splitlines()
 
     def _inside_xref(offset: int) -> bool:
         return any(start <= offset < end for start, end in xref_spans)
@@ -216,36 +241,45 @@ def extract_entities(doc: ParsedDoc) -> list[ExtractedEntity]:
         if section is None:
             continue
         subordinate = class_name in SUBORDINATE_CLASSES
+        own_heading = _title_defines(section.title, entity_id)
         if subordinate:
             parent_id = _resolve_parent_id(doc.sections, line_idx)
             # No owning parent and not its own heading subject → a bare prose
             # reference (`F-013 AC-001` in a table), not a definition; skip.
-            if parent_id is None and not _title_defines(section.title, entity_id):
+            if parent_id is None and not own_heading:
                 continue
         else:
             # Heading-anchored definition: skip this occurrence when the entity
             # is not the subject of its owning heading. A later occurrence in
             # the entity's own heading still qualifies (not yet recorded).
-            if not _title_defines(section.title, entity_id):
+            if not own_heading:
                 continue
             parent_id = None
         key = (parent_id, entity_id)
         if key in seen:
             continue
-        # Compute the hash on the section body so re-imports detect content
-        # drift even when the entity_id stayed the same.
-        section_text = "\n".join(doc.raw.splitlines()[section.line_start : section.line_end])
+        # Hash the entity's own text so re-imports detect content drift even
+        # when the entity_id stayed the same: a subordinate defined on a body
+        # line hashes its line slice; everything else hashes the section body.
+        section_text = "\n".join(lines[section.line_start : section.line_end])
+        if subordinate and not own_heading:
+            source_line = lines[line_idx]
+            hash_text = _subordinate_body_slice(lines, line_idx, section.line_end)
+        else:
+            source_line = ""
+            hash_text = section_text
         entity = ExtractedEntity(
             entity_id=entity_id,
             class_name=class_name,
             source_doc=doc.doc_id,
             source_section=section.title,
-            content_hash=hashlib.sha256(section_text.encode("utf-8")).hexdigest(),
+            content_hash=hashlib.sha256(hash_text.encode("utf-8")).hexdigest(),
             section_line_start=section.line_start,
             section_line_end=section.line_end,
             file_path=doc.file_path,
             mtime=doc.mtime,
             parent_id=parent_id,
+            source_line=source_line,
         )
         _enrich_extra_slots(entity, section_text)
         seen[key] = entity
