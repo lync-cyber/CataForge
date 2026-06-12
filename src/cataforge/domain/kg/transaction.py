@@ -27,10 +27,40 @@ from cataforge.domain.kg._sparql_utils import (
     cf_namespace,
     escape_sparql_literal,
 )
-from cataforge.domain.kg.ingest.iri import entity_iri
+from cataforge.domain.kg.ingest.iri import (
+    document_iri,
+    entity_iri,
+    section_iri,
+    subordinate_entity_iri,
+)
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
+
+
+def _delete_target_iri(entity_id: str, base_namespace: str) -> tuple[str, str]:
+    """Resolve a delete-target id to ``(form, iri)`` by its shape.
+
+    ``http(s)://…`` → used verbatim; ``doc/{doc_id}/sec/{anchor}`` or
+    ``{doc_id}/sec/{anchor}`` → Section IRI; ``doc/{doc_id}`` → Document
+    IRI; ``{parent_id}/{entity_id}`` → parent-scoped subordinate IRI;
+    anything else → flat entity IRI.
+    """
+    try:
+        if entity_id.startswith(("http://", "https://")):
+            return "absolute", assert_safe_iri(entity_id)
+        if entity_id.startswith("doc/") or "/sec/" in entity_id:
+            structural = entity_id.removeprefix("doc/")
+            if "/sec/" in structural:
+                doc_id, anchor = structural.split("/sec/", 1)
+                return "section", section_iri(doc_id, anchor, base_namespace)
+            return "document", document_iri(structural, base_namespace)
+        if "/" in entity_id:
+            parent_id, child_id = entity_id.split("/", 1)
+            return "subordinate", subordinate_entity_iri(parent_id, child_id, base_namespace)
+        return "entity", entity_iri(entity_id, base_namespace)
+    except ValueError as exc:
+        raise KGValidationError(f"Cannot resolve id {entity_id!r}: {exc}") from exc
 
 
 class TransactionContext:
@@ -186,17 +216,21 @@ class TransactionContext:
         *,
         cascade: bool = False,
     ) -> None:
-        """Stage removal of all quads for an entity.
+        """Stage removal of all quads for a node.
 
-        With ``cascade=True``, also removes quads where this entity is the
-        object (incoming edges). Without cascade, raises
+        ``entity_id`` accepts a flat entity id, a ``parent/sub`` subordinate
+        id, a structural id (``doc/{doc_id}`` / ``doc/{doc_id}/sec/{anchor}``),
+        or a full http(s) IRI. With ``cascade=True``, also removes quads where
+        this node is the object (incoming edges). Without cascade, raises
         ``KGValidationError`` if incoming edges exist.
         """
         self._guard_open()
-        iri = entity_iri(entity_id, self._config.base_namespace)
+        form, iri = _delete_target_iri(entity_id, self._config.base_namespace)
 
         if not self._entity_exists(iri):
-            raise KGEntityNotFoundError(f"Entity {entity_id} not found in store.")
+            raise KGEntityNotFoundError(
+                f"Entity {entity_id} not found in store (resolved as {form} IRI <{iri}>)."
+            )
 
         incoming = quads_targeting(self._store, iri)
         if incoming and not cascade:

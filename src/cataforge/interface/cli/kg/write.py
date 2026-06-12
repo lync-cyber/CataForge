@@ -359,7 +359,13 @@ def kg_delete(
     db_path: Path,
     json_output: bool,
 ) -> None:
-    """Remove an entity (and optionally its incoming edges) from the KG."""
+    """Remove a node (and optionally its incoming edges) from the KG.
+
+    ENTITY_ID accepts four forms: a flat entity id (F-001), a
+    parent-scoped subordinate id (F-001/AC-002), a structural id
+    (doc/{doc_id} for a Document, doc/{doc_id}/sec/{anchor} for a
+    Section), or a full http(s) IRI.
+    """
     from cataforge.domain.kg import (
         KGConfig,
         KGEntityNotFoundError,
@@ -382,9 +388,12 @@ def kg_delete(
             except KGEntityNotFoundError as exc:
                 raise KGStoreError(str(exc)) from exc
             except KGValidationError as exc:
-                raise KGStoreError(
-                    f"{exc}\nHint: pass --cascade to remove incoming edges too."
-                ) from exc
+                hint = (
+                    "\nHint: pass --cascade to remove incoming edges too."
+                    if "incoming edge" in str(exc)
+                    else ""
+                )
+                raise KGStoreError(f"{exc}{hint}") from exc
             deletes = txn.pending_deletes
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc

@@ -439,15 +439,16 @@ cataforge kg update F-010 --title "Profile edit (v2)" --slot cf:priority=critica
 
 ### kg delete
 
-删除一个实体（默认禁止删除有入向边的实体；`--cascade` 同时移除入向边）。默认走 stdin 交互确认；脚本场景用 `--yes`。
+删除一个节点（默认禁止删除有入向边的节点；`--cascade` 同时移除入向边）。默认走 stdin 交互确认；脚本场景用 `--yes`。
 
 ```bash
 cataforge kg delete F-010 --cascade --yes
+cataforge kg delete "doc/arch/sec/§2 Modules" --cascade --yes
 ```
 
 | 参数 | 作用 |
 |------|------|
-| `ENTITY_ID` | 必填 |
+| `ENTITY_ID` | 必填，按形态解析：扁平实体 id（`F-001`）/ 父域从属 id（`F-001/AC-002`）/ 结构节点 id（`doc/{doc_id}` 为 Document、`doc/{doc_id}/sec/{anchor}` 为 Section）/ 完整 http(s) IRI |
 | `--cascade` | 同时移除入向边（无此 flag 且存在入向边时 exit 1） |
 | `--yes` | 跳过交互确认 |
 | `--json` | 输出 JSON status blob |

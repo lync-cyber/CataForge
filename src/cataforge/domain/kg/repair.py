@@ -6,8 +6,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from cataforge.domain.docs.index_ops import _load_doc_type_map
 from cataforge.domain.kg._config import KGConfig
-from cataforge.domain.kg._quads import _slot_iri, quads_for_subject
+from cataforge.domain.kg._quads import _slot_iri, quads_for_subject, quads_targeting
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _term_value,
@@ -20,17 +21,27 @@ from cataforge.domain.kg.ingest.iri import entity_iri, subordinate_entity_iri
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.scan import scan_business_docs
-from cataforge.domain.kg.ingest.writer import write_entities, write_project, write_relations
+from cataforge.domain.kg.ingest.structure_extract import extract_structure
+from cataforge.domain.kg.ingest.writer import (
+    write_entities,
+    write_project,
+    write_relations,
+    write_structure,
+)
 from cataforge.domain.kg.reconcile import reconcile
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
+
+    from cataforge.domain.kg.reconcile import PerDocTypeReport
 
 
 @dataclass
 class RepairStats:
     ghosts_removed: int = 0
     missing_ingested: int = 0
+    ghost_sections_removed: int = 0
+    missing_sections_ingested: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -86,30 +97,80 @@ def _ghost_relation_quads(
     return quads
 
 
+def _doc_ids_for_doc_type(project_root: Path, doc_type: str) -> set[str]:
+    """Doc ids attributed to a doc_type — same derivation as reconcile."""
+    type_map = _load_doc_type_map(str(project_root))
+    subdir = type_map.get(doc_type, doc_type)
+    directory = Path(project_root) / "docs" / subdir
+    parsed = scan_business_docs(project_root, [doc_type]) if directory.is_dir() else []
+    doc_ids = {doc.doc_id for doc in parsed}
+    return doc_ids or {subdir, doc_type}
+
+
+def _ghost_section_quads(
+    store: ox.Store,
+    anchor: str,
+    doc_ids: set[str],
+    config: KGConfig,
+) -> list[Any]:
+    """Live quads for the Section node(s) with `anchor` sourced from `doc_ids`.
+
+    Returns the node's own quads plus incoming edges (the Document's
+    `cf:has_section`), so removal leaves no dangling reference. Scoping by
+    `cf:source_doc` keeps a same-anchor Section in another document intact.
+    """
+    ns = cf_namespace(config)
+    values_clause = " ".join(f'"{escape_sparql_literal(d)}"' for d in sorted(doc_ids))
+    anchor_lit = escape_sparql_literal(anchor)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        "SELECT DISTINCT ?s WHERE { "
+        f"  VALUES ?src {{ {values_clause} }} "
+        f'  ?s a cf:Section ; cf:section_anchor "{anchor_lit}" ; cf:source_doc ?src . '
+        "}"
+    )
+    quads: list[Any] = []
+    for row in select_rows(store, sparql):
+        node = _term_value(_row_lookup(row, "s"))
+        if node is None:
+            continue
+        iri = str(node)
+        quads.extend(quads_for_subject(store, iri))
+        quads.extend(quads_targeting(store, iri))
+    return quads
+
+
 def _reingest_doc_type(
     store: ox.Store,
     project_root: Path,
     doc_type: str,
     config: KGConfig,
-) -> int:
-    """Re-run the ingest pipeline for a single doc_type. Returns entities written."""
+) -> tuple[int, int]:
+    """Re-run the ingest pipeline for a single doc_type.
+
+    Returns ``(entities_written, sections_written)``.
+    """
     parsed = scan_business_docs(project_root, [doc_type])
     if not parsed:
-        return 0
+        return 0, 0
 
     meta = _read_project_metadata(project_root)
     project_iri = write_project(
         store, meta["project_id"], meta["title"], meta["process_model"], config
     )
 
-    total = 0
+    entities_total = 0
+    sections_total = 0
     for doc in parsed:
         entities = extract_entities(doc)
         relations = extract_relations(doc)
         ws = write_entities(store, entities, project_iri, config)
         write_relations(store, relations, config)
-        total += ws.entities_written
-    return total
+        document, doc_sections = extract_structure(doc, entities)
+        ss = write_structure(store, [document], doc_sections, config)
+        entities_total += ws.entities_written
+        sections_total += ss.sections_written
+    return entities_total, sections_total
 
 
 def repair(
@@ -133,56 +194,138 @@ def repair(
     stats = RepairStats()
 
     for per in report.per_doc_type.values():
-        ghost_entity_snapshots: dict[str, list[Any]] = {}
-        ghost_relation_snapshots: list[Any] = []
-
-        for scope_key in per.ghost_entities:
-            if not dry_run:
-                try:
-                    snapshot = _entity_quads_by_scope_key(store, scope_key, config)
-                    ghost_entity_snapshots[scope_key] = list(snapshot)
-                    for q in snapshot:
-                        store.remove(q)
-                except Exception as exc:  # noqa: BLE001
-                    stats.errors.append(f"ghost entity {scope_key}: {exc}")
-                    continue
-            stats.ghosts_removed += 1
-
-        for s_id, pred, o_id in per.ghost_relations:
-            if not dry_run:
-                try:
-                    edge_quads = _ghost_relation_quads(store, s_id, pred, o_id, config)
-                    ghost_relation_snapshots.extend(edge_quads)
-                    for q in edge_quads:
-                        store.remove(q)
-                except Exception as exc:  # noqa: BLE001
-                    stats.errors.append(f"ghost relation ({s_id},{pred},{o_id}): {exc}")
-                    continue
-            stats.ghosts_removed += 1
-
-        if per.missing_entities or per.missing_relations:
-            if not dry_run:
-                try:
-                    written = _reingest_doc_type(store, project_root, per.doc_type, config)
-                    stats.missing_ingested += written
-                except Exception as exc:  # noqa: BLE001
-                    stats.errors.append(f"reingest {per.doc_type}: {exc}")
-                    stats.errors.extend(
-                        _restore_ghosts(store, ghost_entity_snapshots, ghost_relation_snapshots)
-                    )
-                    stats.ghosts_removed -= len(ghost_entity_snapshots) + len(
-                        ghost_relation_snapshots
-                    )
-            else:
-                stats.missing_ingested += len(per.missing_entities) + len(per.missing_relations)
+        entity_snaps = _remove_ghost_entities(store, per, config, stats, dry_run=dry_run)
+        relation_snaps = _remove_ghost_relations(store, per, config, stats, dry_run=dry_run)
+        section_snaps = _remove_ghost_sections(
+            store, project_root, per, config, stats, dry_run=dry_run
+        )
+        _ingest_missing(
+            store,
+            project_root,
+            per,
+            config,
+            stats,
+            entity_snaps,
+            relation_snaps,
+            section_snaps,
+            dry_run=dry_run,
+        )
 
     return stats
+
+
+def _remove_ghost_entities(
+    store: ox.Store,
+    per: PerDocTypeReport,
+    config: KGConfig,
+    stats: RepairStats,
+    *,
+    dry_run: bool,
+) -> dict[str, list[Any]]:
+    snapshots: dict[str, list[Any]] = {}
+    for scope_key in per.ghost_entities:
+        if not dry_run:
+            try:
+                snapshot = _entity_quads_by_scope_key(store, scope_key, config)
+                snapshots[scope_key] = list(snapshot)
+                for q in snapshot:
+                    store.remove(q)
+            except Exception as exc:  # noqa: BLE001
+                stats.errors.append(f"ghost entity {scope_key}: {exc}")
+                continue
+        stats.ghosts_removed += 1
+    return snapshots
+
+
+def _remove_ghost_relations(
+    store: ox.Store,
+    per: PerDocTypeReport,
+    config: KGConfig,
+    stats: RepairStats,
+    *,
+    dry_run: bool,
+) -> list[Any]:
+    snapshots: list[Any] = []
+    for s_id, pred, o_id in per.ghost_relations:
+        if not dry_run:
+            try:
+                edge_quads = _ghost_relation_quads(store, s_id, pred, o_id, config)
+                snapshots.extend(edge_quads)
+                for q in edge_quads:
+                    store.remove(q)
+            except Exception as exc:  # noqa: BLE001
+                stats.errors.append(f"ghost relation ({s_id},{pred},{o_id}): {exc}")
+                continue
+        stats.ghosts_removed += 1
+    return snapshots
+
+
+def _remove_ghost_sections(
+    store: ox.Store,
+    project_root: Path,
+    per: PerDocTypeReport,
+    config: KGConfig,
+    stats: RepairStats,
+    *,
+    dry_run: bool,
+) -> dict[str, list[Any]]:
+    snapshots: dict[str, list[Any]] = {}
+    if not per.ghost_sections:
+        return snapshots
+    doc_ids = _doc_ids_for_doc_type(project_root, per.doc_type)
+    for anchor in per.ghost_sections:
+        if not dry_run:
+            try:
+                snapshot = _ghost_section_quads(store, anchor, doc_ids, config)
+                snapshots[anchor] = list(snapshot)
+                for q in snapshot:
+                    store.remove(q)
+            except Exception as exc:  # noqa: BLE001
+                stats.errors.append(f"ghost section {anchor}: {exc}")
+                continue
+        stats.ghost_sections_removed += 1
+    return snapshots
+
+
+def _ingest_missing(
+    store: ox.Store,
+    project_root: Path,
+    per: PerDocTypeReport,
+    config: KGConfig,
+    stats: RepairStats,
+    entity_snapshots: dict[str, list[Any]],
+    relation_snapshots: list[Any],
+    section_snapshots: dict[str, list[Any]],
+    *,
+    dry_run: bool,
+) -> None:
+    """Reingest a doc_type's missing items; restore its ghosts on failure."""
+    if not (per.missing_entities or per.missing_relations or per.missing_sections):
+        return
+    if dry_run:
+        stats.missing_ingested += len(per.missing_entities) + len(per.missing_relations)
+        stats.missing_sections_ingested += len(per.missing_sections)
+        return
+    try:
+        entities_written, sections_written = _reingest_doc_type(
+            store, project_root, per.doc_type, config
+        )
+        stats.missing_ingested += entities_written
+        stats.missing_sections_ingested += sections_written
+    except Exception as exc:  # noqa: BLE001
+        stats.errors.append(f"reingest {per.doc_type}: {exc}")
+        stats.errors.extend(
+            _restore_ghosts(store, entity_snapshots, relation_snapshots, section_snapshots)
+        )
+        stats.ghosts_removed -= len(entity_snapshots) + len(relation_snapshots)
+        stats.ghost_sections_removed -= len(section_snapshots)
 
 
 def _restore_ghosts(
     store: ox.Store,
     entity_snapshots: dict[str, list[Any]],
     relation_snapshots: list[Any],
+    section_snapshots: dict[str, list[Any]] | None = None,
 ) -> list[str]:
     """Restore ghost quads after a failed reingest (best-effort).
 
@@ -202,6 +345,12 @@ def _restore_ghosts(
             store.add(q)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"restore ghost relation: {exc}")
+    for anchor, quads in (section_snapshots or {}).items():
+        for q in quads:
+            try:
+                store.add(q)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"restore ghost section {anchor}: {exc}")
     return errors
 
 
