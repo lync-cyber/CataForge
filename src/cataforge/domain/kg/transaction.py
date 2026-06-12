@@ -19,6 +19,7 @@ from cataforge.domain.kg._errors import KGEntityNotFoundError, KGValidationError
 from cataforge.domain.kg._quads import (
     build_entity_quads,
     build_relation_quad,
+    build_section_quads,
     quads_for_subject,
     quads_targeting,
 )
@@ -30,6 +31,7 @@ from cataforge.domain.kg._sparql_utils import (
 from cataforge.domain.kg.ingest.iri import (
     document_iri,
     entity_iri,
+    resolve_entity_iri,
     section_iri,
     subordinate_entity_iri,
 )
@@ -114,16 +116,18 @@ class TransactionContext:
         content_hash: str,
         project_iri: str,
         *,
+        parent_id: str | None = None,
         extra_slots: dict[str, str] | None = None,
         mtime: float | None = None,
     ) -> str:
         """Stage quads for a new entity. Returns the entity IRI.
 
-        Idempotent: if the entity already exists with the same
-        content_hash, nothing is staged.
+        A subordinate-class entity with ``parent_id`` set gets a parent-scoped
+        IRI and a ``cf:part_of`` edge. Idempotent: if the entity already exists
+        with the same content_hash, nothing is staged.
         """
         self._guard_open()
-        iri = entity_iri(entity_id, self._config.base_namespace)
+        iri = resolve_entity_iri(entity_id, class_name, parent_id, self._config.base_namespace)
         ns = cf_namespace(self._config)
 
         if self._content_hash_matches(iri, content_hash, ns):
@@ -141,6 +145,7 @@ class TransactionContext:
             content_hash,
             project_iri,
             self._config,
+            parent_id=parent_id,
             extra_slots=extra_slots,
             mtime=mtime,
         ):
@@ -250,12 +255,26 @@ class TransactionContext:
         subject_id: str,
         predicate_curie: str,
         object_id: str,
+        *,
+        subject_iri: str | None = None,
+        object_iri: str | None = None,
     ) -> None:
-        """Stage a traceability edge. Idempotent: skips if already present."""
+        """Stage a traceability edge. Idempotent: skips if already present.
+
+        ``subject_iri`` / ``object_iri`` override the flat-IRI derivation so an
+        edge can point at a parent-scoped subordinate node.
+        """
         self._guard_open()
-        quad = build_relation_quad(subject_id, predicate_curie, object_id, self._config)
-        s_iri = entity_iri(subject_id, self._config.base_namespace)
-        o_iri = entity_iri(object_id, self._config.base_namespace)
+        quad = build_relation_quad(
+            subject_id,
+            predicate_curie,
+            object_id,
+            self._config,
+            subject_iri=subject_iri,
+            object_iri=object_iri,
+        )
+        s_iri = subject_iri or entity_iri(subject_id, self._config.base_namespace)
+        o_iri = object_iri or entity_iri(object_id, self._config.base_namespace)
         p_iri = quad.predicate.value
         if ask(
             self._store,
@@ -276,6 +295,41 @@ class TransactionContext:
         self._guard_open()
         quad = build_relation_quad(subject_id, predicate_curie, object_id, self._config)
         self._staged_removes.append(quad)
+
+    def add_section(
+        self,
+        doc_id: str,
+        anchor: str,
+        narrative_body: str,
+        content_hash: str,
+        *,
+        title: str | None = None,
+        contained_entity_ids: list[str] | None = None,
+    ) -> str:
+        """Stage a Section node carrying ``narrative_body``. Returns its IRI.
+
+        Idempotent on ``content_hash``; replaces the node's quads otherwise.
+        """
+        self._guard_open()
+        iri = section_iri(doc_id, anchor, self._config.base_namespace)
+        ns = cf_namespace(self._config)
+        if self._content_hash_matches(iri, content_hash, ns):
+            return iri
+        for q in quads_for_subject(self._store, iri):
+            self._staged_removes.append(q)
+        for q in build_section_quads(
+            doc_id,
+            anchor,
+            title or anchor,
+            narrative_body,
+            content_hash,
+            doc_id,
+            self._config,
+            contained_entity_ids=sorted(contained_entity_ids or []),
+            document_iri_val=document_iri(doc_id, self._config.base_namespace),
+        ):
+            self._staged_adds.append(q)
+        return iri
 
     # ------------------------------------------------------------------
     # Lifecycle

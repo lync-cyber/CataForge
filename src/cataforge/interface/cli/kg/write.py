@@ -112,9 +112,7 @@ def _resolve_project_iri(
 @click.option(
     "--content-hash",
     default=None,
-    help=(
-        "Content hash for idempotency. Default: sha256 of '{source_doc}|{source_section}|{title}'."
-    ),
+    help="Content hash for idempotency. Default: derived from title + slots.",
 )
 @click.option(
     "--project-id",
@@ -171,22 +169,21 @@ def kg_add(
     db_path: Path,
     json_output: bool,
 ) -> None:
-    """Add a new entity (and optional outgoing edges) to the KG.
+    """Low-level direct write of one entity (and optional edges) to the KG.
 
-    Idempotent: re-running with an unchanged --content-hash is a no-op.
-    Re-running with a changed hash replaces the entity's quads atomically.
+    Operational twin of ``context write``: no schema validation, explicit
+    ``--db-path``. Idempotent: re-running with an unchanged content hash is a
+    no-op; a changed hash replaces the entity's quads atomically.
     """
-    import hashlib
-
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
+    from cataforge.domain.kg._content_hash import entity_content_hash
 
     slot_dict = _parse_kv_pairs(slots, "--slot")
     relation_dict = _parse_kv_pairs(relations, "--relation")
 
     effective_section = source_section or f"{entity_id} {title}"
     if content_hash is None:
-        payload = f"{source_doc}|{effective_section}|{title}".encode()
-        content_hash = hashlib.sha256(payload).hexdigest()
+        content_hash = entity_content_hash(title, slot_dict)
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:

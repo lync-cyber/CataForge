@@ -54,6 +54,16 @@ def _kv(pairs: tuple[str, ...]) -> dict[str, str]:
     return out
 
 
+def _relations(pairs: tuple[str, ...]) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    for raw in pairs:
+        if "=" not in raw:
+            raise click.ClickException(f"--relation expects PREDICATE=OBJECT_ID, got: {raw}")
+        predicate, object_id = raw.split("=", 1)
+        out.append((predicate.strip(), object_id.strip()))
+    return out
+
+
 def _rooted(ctx: click.Context, project_root: str | None) -> str | None:
     """Re-root a defaulted ``--project-root`` under the global ``--project-dir``.
 
@@ -103,6 +113,21 @@ def context_read(
 @click.option("--class", "class_name", required=True, help="Ontology class, e.g. Feature.")
 @click.option("--title", required=True)
 @click.option("--slot", "slots", multiple=True, metavar="KEY=VALUE", help="Repeatable scalar slot.")
+@click.option("--parent", "parent_id", default=None, help="Owning entity id for a subordinate.")
+@click.option(
+    "--relation",
+    "relations",
+    multiple=True,
+    metavar="PREDICATE=OBJECT_ID",
+    help="Repeatable outgoing edge.",
+)
+@click.option("--narrative", default=None, help="Inline prose body for cf:narrative_body.")
+@click.option(
+    "--narrative-stdin",
+    is_flag=True,
+    default=False,
+    help="Read the prose body from stdin (multi-line). Mutually exclusive with --narrative.",
+)
 @click.option("--section", "source_section", default="", help="Source section anchor.")
 @click.option("--project-id", default=None)
 @click.option("--project-root", default=".")
@@ -113,12 +138,26 @@ def context_write(
     class_name: str,
     title: str,
     slots: tuple[str, ...],
+    parent_id: str | None,
+    relations: tuple[str, ...],
+    narrative: str | None,
+    narrative_stdin: bool,
     source_section: str,
     project_id: str | None,
     project_root: str,
 ) -> None:
-    """Authorized write of a single entity into the graph (kg-first strategy only)."""
+    """Business authoring door: strategy-routed, write-time-validated single
+    entity write into the graph (kg-first strategy only).
+
+    Supports layered authoring: ``--parent`` scopes a subordinate under its
+    owner (part_of edge), ``--relation`` adds outgoing traceability edges, and
+    a narrative body comes from ``--narrative`` or ``--narrative-stdin``.
+    """
     from cataforge.application.context.write import author_entity
+
+    if narrative_stdin and narrative is not None:
+        raise click.ClickException("--narrative and --narrative-stdin are mutually exclusive.")
+    body = click.get_text_stream("stdin").read() if narrative_stdin else narrative
 
     project_root = _rooted(ctx, project_root) or project_root
     with _kg_store_guard():
@@ -130,6 +169,9 @@ def context_write(
             slots=_kv(slots),
             source_section=source_section,
             project_id=project_id,
+            parent_id=parent_id,
+            relations=_relations(relations),
+            narrative=body,
         )
     click.echo(f"authored {entity_id} -> {iri}")
 
@@ -151,6 +193,42 @@ def context_write_narrative(
     with _kg_store_guard():
         write_narrative(project_root, doc_id=doc_id, anchor=anchor, narrative=body)
     click.echo(f"wrote narrative for {doc_id}#{anchor}")
+
+
+@context_group.command("transact")
+@click.option("--file", "spec_file", default=None, help="JSON spec path; omit to read stdin.")
+@click.option("--project-root", default=".")
+@click.pass_context
+def context_transact(ctx: click.Context, spec_file: str | None, project_root: str) -> None:
+    """Apply a batch of authoring ops in one atomic transaction (kg-first only).
+
+    Reads a JSON spec ``{"operations": [op, ...]}`` from --file or stdin. Each
+    op carries an ``op`` discriminator: ``add_entity`` (entity_id / class /
+    title; optional parent / slots / narrative / relations), ``add_relation``
+    (subject / predicate / object), or ``write_narrative`` (doc_id / anchor /
+    narrative). All ops commit together; any validation violation rolls the
+    whole batch back to zero graph residue.
+    """
+    import json
+    from pathlib import Path
+
+    from cataforge.application.context.write import transact
+
+    raw = Path(spec_file).read_text() if spec_file else (click.get_text_stream("stdin").read())
+    try:
+        spec = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        failure = CataforgeError(f"transact: invalid JSON spec — {exc}")
+        failure.exit_code = 2
+        raise failure from exc
+
+    project_root = _rooted(ctx, project_root) or project_root
+    with _kg_store_guard():
+        result = transact(project_root, spec)
+    click.echo(
+        f"transacted {result.entities_written} entities, "
+        f"{result.relations_written} relations, {result.sections_written} sections"
+    )
 
 
 @context_group.command("finalize")
