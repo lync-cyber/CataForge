@@ -6,11 +6,15 @@ import contextlib
 import json
 import os
 import threading
+import time
 from pathlib import Path
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
 from cataforge.core.schema.mcp_spec import MCPServerState
+
+_LOAD_RETRY_ATTEMPTS = 10
+_LOAD_RETRY_INTERVAL_SECONDS = 0.02
 
 
 def save_state(state_dir: Path, state: MCPServerState) -> None:
@@ -49,11 +53,31 @@ def delete_state(state_dir: Path, server_id: str) -> None:
 
 
 def load_state(state_dir: Path, server_id: str) -> MCPServerState | None:
+    """Load persisted state; ``None`` means *no state exists*.
+
+    A reader can collide with the microsecond window of a concurrent
+    ``os.replace`` in :func:`save_state` (Windows raises a sharing
+    violation on the destination). The file still being present
+    distinguishes that transient condition from a genuinely absent
+    state, so retry instead of reporting ``None`` — a false ``None``
+    here makes ``MCPLifecycleManager.start()`` spawn a duplicate
+    server. Malformed JSON is not retried (it cannot self-repair) and
+    heals as "no state"; a read error that persists past the retry
+    budget is raised so callers see the I/O problem instead of acting
+    on a wrong answer.
+    """
     path = state_dir / f"{server_id}.json"
-    if not path.is_file():
-        return None
-    try:
-        data = read_json(path)
-    except ConfigError:
-        return None
-    return MCPServerState.model_validate(data)
+    last_error: ConfigError | None = None
+    for _ in range(_LOAD_RETRY_ATTEMPTS):
+        if not path.is_file():
+            return None
+        try:
+            data = read_json(path)
+        except ConfigError as e:
+            if not isinstance(e.__cause__, OSError):
+                return None
+            last_error = e
+            time.sleep(_LOAD_RETRY_INTERVAL_SECONDS)
+            continue
+        return MCPServerState.model_validate(data)
+    raise last_error if last_error is not None else ConfigError(f"Cannot read {path}")
