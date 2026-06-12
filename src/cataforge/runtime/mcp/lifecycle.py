@@ -175,63 +175,73 @@ class MCPLifecycleManager:
         with _spawn_lock(lock_path):
             # Re-check after acquiring the lock — a peer caller may have
             # spawned while we were waiting, and the persisted state
-            # below is the only proof we have.
+            # below is the only proof we have. "unhealthy" with a live
+            # PID is an existing server too (a failed probe, not a dead
+            # process): attach and re-probe below instead of spawning a
+            # duplicate.
             persisted = self._load_state(server_id)
-            if persisted and persisted.status == "running":
+            if persisted and persisted.status in ("running", "unhealthy"):
                 if pid_alive(persisted.pid):
-                    return persisted
-                logger.info(
-                    "MCP %s: stale 'running' state (pid=%s) — process gone, restarting",
-                    server_id,
-                    persisted.pid,
-                )
-                self._delete_state(server_id)
-
-            try:
-                cmd = [spec.command] + spec.args
-                env = self._build_env(spec)
-
-                if os.environ.get("CATAFORGE_MCP_DEBUG") == "1":
-                    stderr_target: int | None = None
+                    if persisted.status == "running":
+                        return persisted
+                    new_state = persisted
                 else:
-                    stderr_target = subprocess.DEVNULL
+                    logger.info(
+                        "MCP %s: stale '%s' state (pid=%s) — process gone, restarting",
+                        server_id,
+                        persisted.status,
+                        persisted.pid,
+                    )
+                    self._delete_state(server_id)
 
-                proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
-                    cmd,
-                    env=env,
-                    stdout=subprocess.DEVNULL,
-                    stderr=stderr_target,
-                    cwd=str(self._paths.root),
-                )
-
-                new_state = MCPServerState(
-                    spec_id=server_id,
-                    status="running",
-                    pid=proc.pid,
-                    started_at=datetime.now(UTC).isoformat(),
-                )
-                self._save_state(new_state)
-            except Exception as e:
-                error_state = MCPServerState(
-                    spec_id=server_id,
-                    status="error",
-                    error_message=str(e),
-                )
-                self._save_state(error_state)
-                return error_state
+            if new_state is None:
+                new_state = self._spawn(server_id, spec)
+                if new_state.status == "error":
+                    return new_state
 
         # Lock released. Readiness probe outside so peer callers waiting
         # for the lock can proceed (and will short-circuit on the live
         # persisted state we just wrote).
-        if new_state is None:  # defensive — should never happen
-            return MCPServerState(
-                spec_id=server_id, status="error", error_message="spawn produced no state"
-            )
-
         with contextlib.suppress(Exception):
             refreshed = self.health(server_id)
             if refreshed is not None:
                 return refreshed
+        return new_state
+
+    def _spawn(self, server_id: str, spec: MCPServerSpec) -> MCPServerState:
+        """Spawn the server process and persist the resulting state."""
+        try:
+            cmd = [spec.command] + spec.args
+            env = self._build_env(spec)
+
+            if os.environ.get("CATAFORGE_MCP_DEBUG") == "1":
+                stderr_target: int | None = None
+            else:
+                stderr_target = subprocess.DEVNULL
+
+            proc = subprocess.Popen(  # allow-raw-subprocess: long-running MCP server
+                cmd,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=stderr_target,
+                cwd=str(self._paths.root),
+            )
+
+            new_state = MCPServerState(
+                spec_id=server_id,
+                status="running",
+                pid=proc.pid,
+                started_at=datetime.now(UTC).isoformat(),
+            )
+            self._save_state(new_state)
+        except Exception as e:
+            error_state = MCPServerState(
+                spec_id=server_id,
+                status="error",
+                error_message=str(e),
+            )
+            self._save_state(error_state)
+            return error_state
         return new_state
 
     def stop(self, server_id: str) -> MCPServerState:
