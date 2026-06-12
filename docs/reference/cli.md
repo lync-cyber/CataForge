@@ -18,7 +18,8 @@
 | [`cataforge plugin`](#plugin) | 插件发现 / 安装 / 卸载 |
 | [`cataforge override`](#override) | 覆盖层定制 agent/skill |
 | [`cataforge upgrade`](#upgrade) | 脚手架升级与校验 |
-| [`cataforge docs`](#docs) | 文档索引与段落加载 |
+| [`cataforge context`](#context) | 文档与上下文 I/O：段落加载、索引、校验、写入生命周期 |
+| [`cataforge docs`](#docs) | 文档列举与迁移；`load`/`index`/`validate` 为 context 的废弃别名 |
 | [`cataforge kg`](#kg) | 知识图谱 store 生命周期、导入/导出、SPARQL 查询、追溯 |
 | [`cataforge event`](#event) | 写事件日志 |
 | [`cataforge correction`](#correction) | 写 On-Correction Learning 日志 |
@@ -279,29 +280,43 @@ cataforge upgrade rollback --from 20260424-150030 --yes
 
 ---
 
-## docs
+## context
+
+文档与上下文 I/O 的统一入口，后端（知识图谱 / 文件）由 `context.strategy` 透明路由。
 
 ```bash
-cataforge docs list         # 列出已发现的文档
-cataforge docs load <ref>   # 按 {doc_id}#§{section} 精准加载段落
+cataforge context read <ref>   # 按 {doc_id}#§{section} 精准加载段落/条目
+cataforge context index        # 构建 / 刷新 docs/.doc-index.json
+cataforge context validate     # 只读校验索引完整性（CI gate；exit 0=干净，3=有问题）
 ```
 
 文档引用格式详见 [`status-codes.md`](./status-codes.md) §文档引用格式。
 
-<!-- 变更原因：补具体命令示例，diagnostic #14 -->
 例：
 
 ```bash
-cataforge docs load 'arch#§3.M-auth'        # 加载架构文档第 3 节 Module auth
-cataforge docs load 'prd#§2.F-003'          # 加载 PRD 第 2 节 Feature F-003
-cataforge docs load 'dev-plan#§1.T-005'     # 加载开发计划第 1 节 Task T-005
+cataforge context read 'arch#§3.M-auth'        # 加载架构文档第 3 节 Module auth
+cataforge context read 'prd#§2.F-003'          # 加载 PRD 第 2 节 Feature F-003
+cataforge context read 'dev-plan#§1.T-005'     # 加载开发计划第 1 节 Task T-005
 ```
+
+写入生命周期（`write` / `write-narrative` / `transact` / `finalize` / `ingest` / `reconcile`）见 `cataforge context --help`。
+
+## docs
+
+```bash
+cataforge docs list             # 列出已发现的文档
+cataforge docs migrate-nav      # 迁移 legacy docs/NAV-INDEX.md → docs/.doc-index.json
+cataforge docs migrate-reviews  # 回填历史审查报告的 YAML front matter
+```
+
+`load` / `index` / `validate` 是 `context read` / `index` / `validate` 的废弃别名（stderr 打印废弃提示，行为不变）。
 
 ---
 
 ## kg
 
-**何时用它**：管理 RocksDB-backed Oxigraph 知识图谱 — 业务文档（PRD / ARCH / TEST-REPORT）实体与追溯关系的权威存储。`kg_active_doc_types` 中的 doc_type 走图查询路径，未列入的 doc_type 仍走 [`cataforge docs load`](#docs) legacy 路径。
+**何时用它**：管理 RocksDB-backed Oxigraph 知识图谱 — 业务文档（PRD / ARCH / TEST-REPORT）实体与追溯关系的权威存储。`kg_active_doc_types` 中的 doc_type 走图查询路径，未列入的 doc_type 仍走 [`cataforge context read`](#context) legacy 路径。
 
 ```bash
 cataforge kg init                                # 初始化 store + bootstrap rdfs:subClassOf

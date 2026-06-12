@@ -80,7 +80,7 @@ user-invocable: true
 报告编号按 COMMON-RULES §报告编号规则，前缀 CODE-REVIEW-{task_id}，目录 docs/reviews/code/。
 
 ### Step 4: 产出审查报告
-产出 `CODE-REVIEW-{task_id}-r{N}.md`，**首行必须为 YAML front matter**（按 COMMON-RULES §报告 Front Matter 约定），缺失会导致 `cataforge docs index` 跳过该文件并被 `cataforge doctor` 计为 orphan。最小模板：
+产出 `CODE-REVIEW-{task_id}-r{N}.md`，**首行必须为 YAML front matter**（按 COMMON-RULES §报告 Front Matter 约定），缺失会导致 `cataforge context index` 跳过该文件并被 `cataforge doctor` 计为 orphan。最小模板：
 
 ```yaml
 ---

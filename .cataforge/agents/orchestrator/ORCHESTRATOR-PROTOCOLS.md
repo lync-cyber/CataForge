@@ -17,7 +17,7 @@
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
-    - 存量项目带历史文档时，向用户确认归档方案：移入根级 `archive/`（docs 索引不扫描），或保留在 `docs/` 内并写 `docs/.docignore`（一行一个 glob，`dir/` 匹配整个子树）——否则 `cataforge docs validate` / doctor 会对缺 front matter 的历史文件报 orphan FAIL
+    - 存量项目带历史文档时，向用户确认归档方案：移入根级 `archive/`（docs 索引不扫描），或保留在 `docs/` 内并写 `docs/.docignore`（一行一个 glob，`dir/` 匹配整个子树）——否则 `cataforge context validate` / doctor 会对缺 front matter 的历史文件报 orphan FAIL
 4. **写入跨平台 `.gitattributes`** — 治理 Windows `core.autocrlf=true` + fixture/snapshot 字节哈希漂移。项目根无 `.gitattributes` 时写入下列最小集；已存在则**只读**判断（含 `eol=` 视为已归一化），不覆盖用户自定义：
 
     ```
@@ -64,7 +64,7 @@
    本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 {INSTRUCTION_FILE}，并收紧运行时权限以符合最小权限原则。
 9. **初始化文档索引与知识图谱** —
    - `cataforge kg init`（幂等；首次创建图谱 store 并加载本体闭包，上下文方案未启用图后端或命令缺失时 WARN 跳过）
-   - `cataforge docs index`（生成空的 `docs/.doc-index.json` 文档索引缓存，首个文档落盘后由生成定稿增量刷新）
+   - `cataforge context index`（生成空的 `docs/.doc-index.json` 文档索引缓存，首个文档落盘后由生成定稿增量刷新）
 10. **进入初始阶段** — 通过 agent-dispatch 激活:
     - `standard` → product-manager（Phase 1 requirements）
     - `agile-lite` → product-manager（planning 阶段，按 §Mode Routing Protocol 产出 prd-lite 后链式激活 architect 产出 arch-lite）
@@ -164,7 +164,7 @@ Mode Routing Protocol 在以下时刻被调用:
 2. **更新 {INSTRUCTION_FILE} 文档状态** — 对应文档状态字段标记为 approved
 3. **更新 {INSTRUCTION_FILE} 阶段信息** — 按 {INSTRUCTION_FILE} Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
 4. **一致性验证** — 确认文档头 status 与 {INSTRUCTION_FILE} 字段一致
-5. **依赖新鲜度检查** — 运行 `cataforge docs validate`，检查 `stale_deps` 输出：
+5. **依赖新鲜度检查** — 运行 `cataforge context validate`，检查 `stale_deps` 输出：
    - 无 stale deps → 通过，继续 Step 5.5
    - 存在 stale deps → 向用户展示过期依赖清单并提供选项：
      1. 进入 cascade_amendment 更新受影响文档

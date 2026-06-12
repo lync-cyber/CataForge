@@ -22,10 +22,10 @@ maxTurns: 50
 - 你不负责需求定义、架构设计、UI设计或编码实现
 
 ## Input Contract
-- 必须加载: 通过 `cataforge docs load` 加载 arch 主卷: `arch#§1.4`, `arch#§6`, `arch#§7`（技术栈/目录结构/构建命名环境约定）
-- 接口/数据模型部署侧约束按 `arch#§3.API-xxx` / `arch#§4.E-xxx` 通过 `cataforge docs load` 补充加载
-- 可选参考: test-report（按关注的缺陷和覆盖率章节通过 `cataforge docs load` 加载）
-- 加载示例: `cataforge docs load arch#§1.4 arch#§6 arch#§7`
+- 必须加载: 通过 `cataforge context read` 加载 arch 主卷: `arch#§1.4`, `arch#§6`, `arch#§7`（技术栈/目录结构/构建命名环境约定）
+- 接口/数据模型部署侧约束按 `arch#§3.API-xxx` / `arch#§4.E-xxx` 通过 `cataforge context read` 补充加载
+- 可选参考: test-report（按关注的缺陷和覆盖率章节通过 `cataforge context read` 加载）
+- 加载示例: `cataforge context read arch#§1.4 arch#§6 arch#§7`
 
 ## Output Contract
 - 必须产出: deploy-spec-{project}.md + changelog-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
@@ -35,4 +35,4 @@ maxTurns: 50
 - 禁止: 构建步骤含硬编码路径或密钥
 - 禁止: 跳过 SBOM / 容器镜像漏洞扫描或在 CI 中临时屏蔽红灯 —— 上线前任何 HIGH/CRITICAL CVE 未确认即合并都属 release blocker；CVE 放行须经 orchestrator pre_deploy checkpoint，devops 无 user_question，遇需人工裁决项返回 needs_input 而非自行放行
 - 禁止: 修改源代码或测试
-- 禁止: Bash 执行除 `cataforge docs load` 以及实际部署/构建命令之外的无关命令
+- 禁止: Bash 执行除 `cataforge context read` 以及实际部署/构建命令之外的无关命令

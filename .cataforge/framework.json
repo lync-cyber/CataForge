@@ -347,7 +347,7 @@
     {
       "id": "mc-0.5.0-kg-config",
       "release_version": "0.5.0",
-      "description": "framework.json 必须声明 context.kg_active_doc_types — context finalize / cataforge docs load / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走旧路径，掩盖 KG 覆盖率门。",
+      "description": "framework.json 必须声明 context.kg_active_doc_types — context finalize / cataforge context read / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走旧路径，掩盖 KG 覆盖率门。",
       "type": "file_must_contain",
       "path": ".cataforge/framework.json",
       "patterns": ["kg_active_doc_types"]

@@ -104,7 +104,7 @@ def create_framework_json(output_dir: Path, manifest: dict):
 
 
 # NAV-INDEX.md generation removed — the chapter index is now machine-only at
-# docs/.doc-index.json, produced by `cataforge docs index` once the first
+# docs/.doc-index.json, produced by `cataforge context index` once the first
 # document lands. Scaffolding an empty markdown file confused agents into
 # treating it as the source of truth.
 
@@ -127,7 +127,7 @@ def scaffold(output_dir: str, manifest: dict) -> int:
     create_framework_json(root, manifest)
     print("  Created framework.json")
 
-    # 3. (NAV-INDEX.md no longer generated — `cataforge docs index` now owns
+    # 3. (NAV-INDEX.md no longer generated — `cataforge context index` now owns
     #    the chapter index at docs/.doc-index.json once docs land.)
 
     # 4. Create empty hooks.yaml

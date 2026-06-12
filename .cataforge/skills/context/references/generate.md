@@ -8,10 +8,10 @@
 3. `Write docs/{doc_type}/{template_id}-{project}.md`
 4. 返回目标路径 + 必填章节清单(从 [NAV] 块提取)
 
-> `id` 与文件名只允许 slug;版本号、点号、空格塞进 id 会被 `cataforge docs validate` FAIL 并阻塞 doctor/CI。
+> `id` 与文件名只允许 slug;版本号、点号、空格塞进 id 会被 `cataforge context validate` FAIL 并阻塞 doctor/CI。
 
 ## 写入章节
-用 `cataforge docs load` 取目标章节定位,`Edit` 写入;引用其他文档条目时检查目标存在。
+用 `cataforge context read` 取目标章节定位,`Edit` 写入;引用其他文档条目时检查目标存在。
 
 ## 定稿
 1. 结构完整性检查(必填章节非空、文档头齐全);不通过则返回缺失项清单,不继续
