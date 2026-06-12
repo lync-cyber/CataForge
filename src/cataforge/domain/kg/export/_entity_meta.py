@@ -66,6 +66,7 @@ _RELATION_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {
         "verifications": ("tc_id", "tc_sort_key", "tc_title"),
     },
     "acceptancecriteria": {
+        "parents": ("parent_id", "parent_sort_key", "parent_title"),
         "features": ("feature_id", "feature_sort_key", "feature_title"),
         "verifications": ("tc_id", "tc_sort_key", "tc_title"),
     },
@@ -90,6 +91,15 @@ _RELATION_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {
         "satisfies": ("ac_id", "ac_sort_key", "ac_title"),
         "verifications": ("tc_id", "tc_sort_key", "tc_title"),
     },
+}
+
+
+# Relation groups whose entries are the entity's own sub-entities (reached
+# via `cf:part_of` in-edges or the equivalent explicit edge). They count as
+# substantive card content when judging whether a rendered card carries a
+# usable body — cross-cutting traceability links do not.
+_CHILD_CONTENT_GROUPS: dict[str, tuple[str, ...]] = {
+    "feature": ("acceptance_criteria",),
 }
 
 
@@ -119,6 +129,7 @@ def resolve_template(jinja_env: object, entity_type: str, override: str | None =
 __all__ = [
     "GENERIC_SPARQL_KEY",
     "GENERIC_TEMPLATE_NAME",
+    "_CHILD_CONTENT_GROUPS",
     "_ENTITY_TYPE_TO_DOC_TYPE",
     "_RELATION_GROUPS",
     "_entity_type_to_doc_type",

@@ -181,8 +181,9 @@ class TraceAPI:
         """Build a flat TraceChain rooted at ``entity_id``.
 
         Downstream traverses: ``cf:implements`` / ``cf:realizes`` /
-        ``cf:verifies`` / ``cf:satisfies``.  Upstream walks the inverses
-        plus ``cf:reviewed_by``.  Single-hop fan-out only.
+        ``cf:verifies`` / ``cf:satisfies`` / ``cf:part_of`` (in-edges —
+        sub-entities such as AcceptanceCriteria).  Upstream walks the
+        inverses plus ``cf:reviewed_by``.  Single-hop fan-out only.
         """
         ns = self._cf_ns()
         uri = resolve_stored_entity_iri(self._store, self._config, entity_id)
@@ -205,6 +206,9 @@ class TraceAPI:
                     "    ?n a ?cls ; cf:entity_id ?neighbour_id . "
                     "  } UNION { "
                     f"    ?n cf:realizes <{uri}> . "
+                    "    ?n a ?cls ; cf:entity_id ?neighbour_id . "
+                    "  } UNION { "
+                    f"    ?n cf:part_of <{uri}> . "
                     "    ?n a ?cls ; cf:entity_id ?neighbour_id . "
                     "  } "
                     "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
@@ -234,6 +238,9 @@ class TraceAPI:
                     "    ?n a ?cls ; cf:entity_id ?neighbour_id . "
                     "  } UNION { "
                     f"    <{uri}> cf:reviewed_by ?n . "
+                    "    ?n a ?cls ; cf:entity_id ?neighbour_id . "
+                    "  } UNION { "
+                    f"    <{uri}> cf:part_of ?n . "
                     "    ?n a ?cls ; cf:entity_id ?neighbour_id . "
                     "  } "
                     "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "

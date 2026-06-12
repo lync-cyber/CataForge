@@ -11,6 +11,7 @@ import directly: `from cataforge.domain.kg.export import render_entity`.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from cataforge.domain.kg._sparql_utils import (
@@ -20,6 +21,7 @@ from cataforge.domain.kg._sparql_utils import (
     select_rows,
 )
 from cataforge.domain.kg.export._entity_meta import (
+    _CHILD_CONTENT_GROUPS,
     _RELATION_GROUPS,
     _entity_type_to_doc_type,
     resolve_template,
@@ -49,7 +51,22 @@ def _resolve_entity_type(store: ox.Store, entity_id: str, namespace: str) -> str
     return None
 
 
-def render_entity(
+@dataclass(frozen=True)
+class EntityCard:
+    """Rendered entity Markdown plus content-presence flags.
+
+    ``has_narrative`` — the card carries the source section's prose body.
+    ``has_children`` — the card lists the entity's own sub-entities (see
+    ``_CHILD_CONTENT_GROUPS``). Callers with a richer fallback source can
+    decline a card that has neither.
+    """
+
+    markdown: str
+    has_narrative: bool
+    has_children: bool
+
+
+def render_entity_card(
     store: ox.Store,
     entity_id: str,
     *,
@@ -57,8 +74,8 @@ def render_entity(
     namespace: str = "https://cataforge.dev/ontology/",
     registry: SparqlRegistry | None = None,
     jinja_env: object | None = None,
-) -> str | None:
-    """Render ``entity_id`` to Markdown using the registered Jinja template.
+) -> EntityCard | None:
+    """Render ``entity_id`` to an :class:`EntityCard`, or ``None`` when absent.
 
     Parameters
     ----------
@@ -87,7 +104,8 @@ def render_entity(
     safe_id = escape_sparql_literal(entity_id)
     sparql_query = sparql_template % {"entity_id": f'"{safe_id}"'}
     raw_rows = list(select_rows(store, sparql_query))
-    relation_groups = _RELATION_GROUPS.get(entity_type.lower(), {})
+    type_key = entity_type.lower()
+    relation_groups = _RELATION_GROUPS.get(type_key, {})
     context = hydrate_rows(raw_rows, relation_groups)
     if context is None:
         return None
@@ -95,7 +113,38 @@ def render_entity(
     if jinja_env is None:
         jinja_env = build_jinja_env()
     jinja_template = resolve_template(jinja_env, entity_type, override=template)
-    return str(jinja_template.render(entity=context))  # type: ignore[attr-defined]
+    markdown = str(jinja_template.render(entity=context))  # type: ignore[attr-defined]
+    child_groups = _CHILD_CONTENT_GROUPS.get(type_key, ())
+    return EntityCard(
+        markdown=markdown,
+        has_narrative=bool(context.get("narrative_body")),
+        has_children=any(context.get(group) for group in child_groups),
+    )
+
+
+def render_entity(
+    store: ox.Store,
+    entity_id: str,
+    *,
+    template: str | None = None,
+    namespace: str = "https://cataforge.dev/ontology/",
+    registry: SparqlRegistry | None = None,
+    jinja_env: object | None = None,
+) -> str | None:
+    """Render ``entity_id`` to Markdown using the registered Jinja template.
+
+    Same parameters as :func:`render_entity_card`; returns the Markdown
+    alone for callers that need no content-presence flags.
+    """
+    card = render_entity_card(
+        store,
+        entity_id,
+        template=template,
+        namespace=namespace,
+        registry=registry,
+        jinja_env=jinja_env,
+    )
+    return card.markdown if card is not None else None
 
 
 def entity_doc_type(entity_type: str) -> str:
@@ -107,4 +156,4 @@ def entity_doc_type(entity_type: str) -> str:
     return _entity_type_to_doc_type(entity_type)
 
 
-__all__ = ["entity_doc_type", "render_entity"]
+__all__ = ["EntityCard", "entity_doc_type", "render_entity", "render_entity_card"]
