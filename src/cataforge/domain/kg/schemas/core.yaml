@@ -358,6 +358,11 @@ slots:
   doc_type:         { range: string, description: "doc_type of a Document, e.g. prd / arch." }
   volume_type:      { range: string, description: "Split-volume kind, e.g. features / modules / sprint." }
   section_anchor:   { range: string, description: "Section anchor inside its document, e.g. §2.M-001." }
+  position:         { range: string, description: "Zero-padded document-order index of a Section for whole-document reconstruction." }
+  section_level:    { range: string, description: "Heading depth of a Section; level-2 sections tile-cover the document body." }
+  frontmatter_raw:  { range: string, description: "Verbatim frontmatter block of a Document's source file." }
+  preamble_body:    { range: string, description: "Document body before the first §-level heading (H1 line and lead prose)." }
+  source_path:      { range: string, description: "Project-root-relative posix path of a Document's source file." }
   has_volume:
     range: Volume
     multivalued: true
@@ -862,6 +867,9 @@ classes:
       - version
       - status
       - source_doc
+      - source_path
+      - frontmatter_raw
+      - preamble_body
       - authored_by
       - created_at
       - updated_at
@@ -897,6 +905,8 @@ classes:
       - section_anchor
       - narrative_body
       - sort_key
+      - position
+      - section_level
       - content_hash
       - source_doc
       - part_of_document

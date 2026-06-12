@@ -92,3 +92,41 @@ def test_structure_survives_both_variants(variant: str) -> None:
     _handle, _config, stats = _build_store(variant)
     assert stats.structure_stats.documents_written >= 1
     assert stats.structure_stats.sections_written >= 1
+
+
+def test_document_carries_reconstruction_slots() -> None:
+    handle, config, _stats = _build_store()
+    ns = config.ontology_namespace.rstrip("/") + "/"
+    rows = list(
+        handle.raw.query(
+            f"PREFIX cf: <{ns}> "
+            "SELECT ?src ?fm ?pre WHERE { "
+            '  ?d a cf:Document ; cf:source_doc "prd" ; '
+            "     cf:source_path ?src ; cf:frontmatter_raw ?fm ; cf:preamble_body ?pre . }"
+        )
+    )
+    assert rows, "Document must carry source_path / frontmatter_raw / preamble_body"
+    assert rows[0]["src"].value == "docs/prd/prd-vertical-slice.md"
+    assert rows[0]["fm"].value.startswith("---")
+    assert "PRD — vertical slice fixture" in rows[0]["pre"].value
+
+
+def test_sections_carry_position_and_level() -> None:
+    handle, config, _stats = _build_store()
+    ns = config.ontology_namespace.rstrip("/") + "/"
+    rows = list(
+        handle.raw.query(
+            f"PREFIX cf: <{ns}> "
+            "SELECT ?anchor ?pos ?level WHERE { "
+            '  ?s a cf:Section ; cf:source_doc "prd" ; cf:section_anchor ?anchor ; '
+            "     cf:position ?pos ; cf:section_level ?level . } ORDER BY ?pos"
+        )
+    )
+    assert rows, "sections must carry position + section_level"
+    positions = [r["pos"].value for r in rows]
+    assert positions == sorted(positions), "positions are zero-padded for lexical sort"
+    levels = {r["anchor"].value: r["level"].value for r in rows}
+    # The top-level "§2 Features" heading is level-2; its nested feature
+    # subsections are level-3.
+    assert levels["§2 Features"] == "2"
+    assert any(v == "3" for v in levels.values())

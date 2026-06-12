@@ -139,6 +139,14 @@ def build_entity_quads(
     return quads
 
 
+_POSITION_PADDING = 6
+
+
+def _position_key(position: int) -> str:
+    """Zero-pad a section's document-order index for lexical SPARQL sorting."""
+    return f"{position:0{_POSITION_PADDING}d}"
+
+
 def build_section_quads(
     doc_id: str,
     anchor: str,
@@ -148,6 +156,8 @@ def build_section_quads(
     source_doc: str,
     config: KGConfig,
     *,
+    position: int = 0,
+    level: int = 2,
     contained_entity_ids: list[str] | None = None,
     document_iri_val: str | None = None,
 ) -> list[ox.Quad]:
@@ -173,6 +183,8 @@ def build_section_quads(
         ("content_hash", content_hash),
         ("source_doc", source_doc),
         ("sort_key", anchor),
+        ("position", _position_key(position)),
+        ("section_level", str(level)),
     ):
         quads.append(
             ox.Quad(
@@ -211,6 +223,9 @@ def build_document_quads(
     section_anchors: list[str] | None = None,
     version: str | None = None,
     status: str | None = None,
+    frontmatter_raw: str = "",
+    preamble_body: str = "",
+    source_path: str = "",
 ) -> list[ox.Quad]:
     """Return the quads describing one Document structural node."""
     import pyoxigraph as ox  # noqa: PLC0415
@@ -235,6 +250,12 @@ def build_document_quads(
         literal_slots.append(("version", version))
     if status:
         literal_slots.append(("status", status))
+    if frontmatter_raw:
+        literal_slots.append(("frontmatter_raw", frontmatter_raw))
+    if preamble_body:
+        literal_slots.append(("preamble_body", preamble_body))
+    if source_path:
+        literal_slots.append(("source_path", source_path))
     for slot, value in literal_slots:
         quads.append(
             ox.Quad(
