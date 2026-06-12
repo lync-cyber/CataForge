@@ -1,6 +1,6 @@
 # context · generate(生成与写入)
 
-模板实例化、章节填充、定稿持久化、超长拆分。持久化按 `framework.json#context.strategy` 分支执行(命令见 §定稿),不绕过 `cataforge context` / `cataforge docs` 能力面直写后端。
+模板实例化、章节填充、定稿持久化、超长拆分。持久化经 `cataforge context` 能力面执行(命令见 §定稿),后端由 `framework.json#context.strategy` 路由,不直写后端。
 
 ## 创建骨架
 1. 查注册表 `Read .cataforge/skills/context/templates/_registry.yaml`,据 `{template_id}` 取 `path`,读模板
@@ -16,7 +16,7 @@
 ## 定稿
 1. 结构完整性检查(必填章节非空、文档头齐全);不通过则返回缺失项清单,不继续
 2. 拆分判断: 超过 `DOC_SPLIT_THRESHOLD_LINES` 按下方拆分
-3. 持久化: 按 `framework.json#context.strategy` 分支——`kg-first`: 调 `cataforge context finalize` 生成定稿;章节经 `Edit` 直写 markdown 时调 `cataforge context ingest` 回灌权威存储;`doc-only`: 调 `cataforge docs index` 刷新索引
+3. 持久化: 调 `cataforge context finalize` 生成定稿;章节经 `Edit` 直写 markdown 时调 `cataforge context ingest` 回灌权威存储——后端由框架按 `context.strategy` 路由,Agent 无需分支
 4. 返回最终路径 + 持久化确认
 
 ## 拆分
