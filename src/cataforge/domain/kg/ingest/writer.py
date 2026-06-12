@@ -85,10 +85,32 @@ def _content_hash_matches(
     return ask(store, sparql)
 
 
+_TITLE_LEADING_SEPARATORS = ":：-—– \t"
+_BULLET_MARKER_RE = re.compile(r"^[-*+]\s+")
+
+
+def _strip_entity_id(text: str, entity_id: str) -> str:
+    candidate = text.replace(entity_id, "", 1).strip()
+    return candidate.lstrip(_TITLE_LEADING_SEPARATORS).strip()
+
+
 def _title_from_section(section_title: str, entity_id: str) -> str:
-    """Section heading often reads `F-001 用户登录`; strip the entity_id."""
-    candidate = section_title.replace(entity_id, "", 1).strip()
-    return candidate or entity_id
+    """Section heading often reads `F-001: 用户登录`; strip the id and separator."""
+    return _strip_entity_id(section_title, entity_id) or entity_id
+
+
+def _title_from_line(source_line: str, entity_id: str) -> str:
+    """Body line reads `- AC-001: 文本` or a table row; strip markers and the id."""
+    text = _BULLET_MARKER_RE.sub("", source_line.strip())
+    if text.startswith("|"):
+        text = " ".join(cell.strip() for cell in text.strip("|").split("|") if cell.strip())
+    return _strip_entity_id(text, entity_id) or entity_id
+
+
+def _entity_title(entity: ExtractedEntity) -> str:
+    if entity.source_line:
+        return _title_from_line(entity.source_line, entity.entity_id)
+    return _title_from_section(entity.source_section, entity.entity_id)
 
 
 def _atomic_replace_entity(
@@ -137,7 +159,7 @@ def write_entities(
         new_quads = build_entity_quads(
             entity.entity_id,
             entity.class_name,
-            _title_from_section(entity.source_section, entity.entity_id),
+            _entity_title(entity),
             entity.source_doc,
             entity.source_section,
             entity.content_hash,

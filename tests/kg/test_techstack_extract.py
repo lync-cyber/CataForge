@@ -60,12 +60,13 @@ def test_techstack_stack_layers_in_extra_slots() -> None:
     assert any("JWT" in layer for layer in layers)
 
 
-def test_non_techstack_entities_have_empty_extra_slots() -> None:
+def test_non_techstack_entities_carry_only_narrative_slot() -> None:
     from cataforge.domain.kg.ingest.entity_extract import extract_entities
 
     entities = extract_entities(_parse_arch())
     non_ts = [e for e in entities if e.class_name != "TechStack"]
-    assert all(e.extra_slots == {} for e in non_ts)
+    assert non_ts
+    assert all(set(e.extra_slots) <= {"cf:narrative_body"} for e in non_ts)
 
 
 # -- integration: TechStack in the full migration pipeline -------------------
