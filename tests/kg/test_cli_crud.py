@@ -259,11 +259,10 @@ class TestUpdate:
         assert rows[0]["title"] == "Login flow v2"
 
     def test_update_content_hash_match_is_noop(self, tmp_path: Path) -> None:
-        import hashlib
+        from cataforge.domain.kg._content_hash import entity_content_hash
 
         db = _seed_project_with_entity(tmp_path)
-        payload = b"prd|F-001 Login flow|Login flow"
-        original_hash = hashlib.sha256(payload).hexdigest()
+        original_hash = entity_content_hash("Login flow", {})
 
         result = CliRunner().invoke(
             _cli(),

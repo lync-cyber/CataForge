@@ -144,6 +144,63 @@ def test_add_entity_with_extra_slots() -> None:
     )
 
 
+def test_add_entity_with_parent_scopes_iri_and_part_of() -> None:
+    kg, config, project_iri = _make_kg_with_entity()
+
+    with kg.transaction() as txn:
+        iri = txn.add_entity(
+            entity_id="AC-001",
+            class_name="AcceptanceCriteria",
+            title="登录验收",
+            source_doc="prd",
+            source_section="AC-001 登录验收",
+            content_hash="acc1",
+            project_iri=project_iri,
+            parent_id="F-001",
+        )
+
+    assert iri == "https://cataforge.dev/instance/F-001/AC-001"
+
+    from cataforge.domain.kg._ask import ask
+
+    ns = config.ontology_namespace.rstrip("/") + "/"
+    assert ask(
+        kg.store,
+        f"ASK {{ <{iri}> <{ns}part_of> <https://cataforge.dev/instance/F-001> }}",
+    )
+
+
+def test_add_entity_with_parent_idempotent_on_same_hash() -> None:
+    kg, config, project_iri = _make_kg_with_entity()
+
+    for _ in range(2):
+        with kg.transaction() as txn:
+            txn.add_entity(
+                entity_id="AC-001",
+                class_name="AcceptanceCriteria",
+                title="登录验收",
+                source_doc="prd",
+                source_section="AC-001 登录验收",
+                content_hash="acc1",
+                project_iri=project_iri,
+                parent_id="F-001",
+            )
+
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="AC-001",
+            class_name="AcceptanceCriteria",
+            title="登录验收",
+            source_doc="prd",
+            source_section="AC-001 登录验收",
+            content_hash="acc1",
+            project_iri=project_iri,
+            parent_id="F-001",
+        )
+        assert txn.pending_inserts == 0
+        assert txn.pending_deletes == 0
+
+
 # ------------------------------------------------------------------
 # update_entity
 # ------------------------------------------------------------------

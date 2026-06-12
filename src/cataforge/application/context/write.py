@@ -17,10 +17,11 @@ import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cataforge.core.errors import CataforgeError
 from cataforge.domain.kg import KnowledgeGraph
+from cataforge.domain.kg._content_hash import entity_content_hash
 from cataforge.domain.kg._dispatch import kg_config_for, kg_enabled
 from cataforge.domain.kg._errors import KGValidationError
 from cataforge.domain.kg.export import compile_to_markdown, entity_doc_type
@@ -36,6 +37,8 @@ from cataforge.domain.kg.validate import validate
 if TYPE_CHECKING:
     from cataforge.domain.kg.ingest.migrate import MigrationStats
     from cataforge.domain.kg.reconcile import ReconcileReport
+    from cataforge.domain.kg.transaction import TransactionContext
+    from cataforge.domain.kg.validate import ValidationViolation
 
 
 class ContextStrategyError(CataforgeError):
@@ -49,6 +52,15 @@ class DocIndexResult:
 
     indexed_count: int
     index_path: Path
+
+
+@dataclass(frozen=True)
+class TransactResult:
+    """Outcome of a multi-op ``transact`` commit."""
+
+    entities_written: int
+    relations_written: int
+    sections_written: int
 
 
 @dataclass(frozen=True)
@@ -127,6 +139,56 @@ def _check_entity_class(entity_id: str, class_name: str) -> None:
         raise KGValidationError(f"entity_id {entity_id!r} maps to {expected}, not {class_name!r}")
 
 
+def _scoped_delete_id(entity_id: str, parent_id: str | None) -> str:
+    """The delete-target id for an entity, parent-scoped when subordinate."""
+    return f"{parent_id}/{entity_id}" if parent_id else entity_id
+
+
+def _stage_entity(
+    txn: TransactionContext,
+    *,
+    project_iri: str,
+    entity_id: str,
+    class_name: str,
+    title: str,
+    slots: dict[str, str] | None,
+    parent_id: str | None,
+    narrative: str | None,
+    relations: list[tuple[str, str]] | None,
+    source_section: str,
+) -> str:
+    """Stage one entity (with slots / narrative / outgoing edges) into ``txn``.
+
+    Returns the entity IRI. The entity_id↔class gate runs first.
+    """
+    _check_entity_class(entity_id, class_name)
+    merged: dict[str, str] = dict(slots or {})
+    if narrative is not None:
+        merged["narrative_body"] = narrative
+    extra = {f"cf:{k}": v for k, v in merged.items()} or None
+    content_hash = entity_content_hash(title, slots)
+    iri = txn.add_entity(
+        entity_id,
+        class_name,
+        title,
+        entity_doc_type(class_name),
+        source_section,
+        content_hash,
+        project_iri,
+        parent_id=parent_id,
+        extra_slots=extra,
+    )
+    for predicate, object_id in relations or []:
+        txn.add_relation(entity_id, predicate, object_id, subject_iri=iri)
+    return iri
+
+
+def _offends(
+    report_violations: list[ValidationViolation], ids: set[str]
+) -> list[ValidationViolation]:
+    return [v for v in report_violations if v.entity_id in ids]
+
+
 def author_entity(
     project_root: str,
     *,
@@ -136,42 +198,44 @@ def author_entity(
     slots: dict[str, str] | None = None,
     source_section: str = "",
     project_id: str | None = None,
+    parent_id: str | None = None,
+    relations: list[tuple[str, str]] | None = None,
+    narrative: str | None = None,
 ) -> str:
     """Authorize-and-write one entity to the graph; return its IRI.
 
-    Requires the ``kg-first`` strategy. Validates before and after the
-    write: the entity_id↔class gate runs up front, and a post-commit
-    ``validate`` pass compensates (deletes the just-written entity) and
-    raises if it introduced any violation.
+    Requires the ``kg-first`` strategy. A subordinate ``parent_id`` yields a
+    parent-scoped IRI plus a ``cf:part_of`` edge; ``relations`` add outgoing
+    traceability edges; ``narrative`` is stored as the ``cf:narrative_body``
+    slot — all in one transaction. The entity_id↔class gate runs up front, and
+    a post-commit ``validate`` pass compensates (deletes the just-written
+    entity and its edges) and raises if it introduced any violation.
     """
     _require_kg_first(project_root, "entity authoring (`context write`)")
-    _check_entity_class(entity_id, class_name)
     cfg = kg_config_for(project_root)
     meta = _read_project_metadata(Path(project_root))
     pid = project_id or meta["project_id"]
-    extra = {f"cf:{k}": v for k, v in (slots or {}).items()} or None
-    slot_digest = "\x1f".join(f"{k}={v}" for k, v in sorted((slots or {}).items()))
-    content_hash = _sha256(f"{title}\x1f{slot_digest}")
-    source_doc = entity_doc_type(class_name)
 
     with KnowledgeGraph.connect(cfg) as kg:
         project_iri = write_project(kg.store, pid, meta["title"], meta["process_model"], cfg)
         with kg.transaction() as txn:
-            iri = txn.add_entity(
-                entity_id,
-                class_name,
-                title,
-                source_doc,
-                source_section,
-                content_hash,
-                project_iri,
-                extra_slots=extra,
+            iri = _stage_entity(
+                txn,
+                project_iri=project_iri,
+                entity_id=entity_id,
+                class_name=class_name,
+                title=title,
+                slots=slots,
+                parent_id=parent_id,
+                narrative=narrative,
+                relations=relations,
+                source_section=source_section,
             )
         report = validate(kg.store, cfg)
-        offending = [v for v in report.violations if v.entity_id in (entity_id, iri)]
+        offending = _offends(report.violations, {entity_id, iri})
         if offending:
             with kg.transaction() as undo:
-                undo.delete_entity(entity_id, cascade=True)
+                undo.delete_entity(_scoped_delete_id(entity_id, parent_id), cascade=True)
             detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
             raise KGValidationError(f"authored entity {entity_id} failed validation: {detail}")
     return iri
@@ -202,6 +266,110 @@ def write_narrative(
     )
     with KnowledgeGraph.connect(cfg) as kg:
         write_structure(kg.store, [], [section], cfg)
+
+
+_TRANSACT_OPS = ("add_entity", "add_relation", "write_narrative")
+
+
+def _require_keys(op: dict[str, Any], keys: tuple[str, ...], op_name: str) -> None:
+    missing = [k for k in keys if k not in op]
+    if missing:
+        raise KGValidationError(f"{op_name} op missing required key(s): {', '.join(missing)}")
+
+
+def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
+    """Apply a batch of authoring operations in a single atomic transaction.
+
+    ``spec`` is ``{"operations": [op, ...]}`` where each op carries an ``op``
+    discriminator: ``add_entity`` (entity_id / class / title, optional parent /
+    slots / narrative / relations), ``add_relation`` (subject / predicate /
+    object), or ``write_narrative`` (doc_id / anchor / narrative). Requires the
+    ``kg-first`` strategy. All ops stage into one ``TransactionContext`` and
+    commit together; a post-commit ``validate`` over the written entities
+    compensates the whole batch on any violation — zero graph residue.
+    """
+    _require_kg_first(project_root, "batch authoring (`context transact`)")
+    operations = spec.get("operations")
+    if not isinstance(operations, list):
+        raise KGValidationError("transact spec must carry an 'operations' list")
+
+    cfg = kg_config_for(project_root)
+    meta = _read_project_metadata(Path(project_root))
+    written_ids: set[str] = set()
+    delete_ids: list[str] = []
+    counts = {"entities": 0, "relations": 0, "sections": 0}
+
+    with KnowledgeGraph.connect(cfg) as kg:
+        project_iri = write_project(
+            kg.store, meta["project_id"], meta["title"], meta["process_model"], cfg
+        )
+        with kg.transaction() as txn:
+            for raw in operations:
+                _apply_transact_op(txn, raw, project_iri, written_ids, delete_ids, counts)
+        report = validate(kg.store, cfg)
+        offending = _offends(report.violations, written_ids)
+        if offending:
+            with kg.transaction() as undo:
+                for did in delete_ids:
+                    undo.delete_entity(did, cascade=True)
+            detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
+            raise KGValidationError(f"transact failed validation: {detail}")
+
+    return TransactResult(
+        entities_written=counts["entities"],
+        relations_written=counts["relations"],
+        sections_written=counts["sections"],
+    )
+
+
+def _apply_transact_op(
+    txn: TransactionContext,
+    raw: dict[str, Any],
+    project_iri: str,
+    written_ids: set[str],
+    delete_ids: list[str],
+    counts: dict[str, int],
+) -> None:
+    op = raw.get("op")
+    if op == "add_entity":
+        _require_keys(raw, ("entity_id", "class", "title"), "add_entity")
+        relations = [tuple(r) for r in raw.get("relations") or []]
+        entity_id = raw["entity_id"]
+        parent_id = raw.get("parent")
+        iri = _stage_entity(
+            txn,
+            project_iri=project_iri,
+            entity_id=entity_id,
+            class_name=raw["class"],
+            title=raw["title"],
+            slots=raw.get("slots"),
+            parent_id=parent_id,
+            narrative=raw.get("narrative"),
+            relations=relations,
+            source_section=raw.get("section", ""),
+        )
+        written_ids.update({entity_id, iri})
+        delete_ids.append(_scoped_delete_id(entity_id, parent_id))
+        counts["entities"] += 1
+        counts["relations"] += len(relations)
+    elif op == "add_relation":
+        _require_keys(raw, ("subject", "predicate", "object"), "add_relation")
+        txn.add_relation(raw["subject"], raw["predicate"], raw["object"])
+        counts["relations"] += 1
+    elif op == "write_narrative":
+        _require_keys(raw, ("doc_id", "anchor", "narrative"), "write_narrative")
+        txn.add_section(
+            raw["doc_id"],
+            raw["anchor"],
+            raw["narrative"],
+            _sha256(raw["narrative"]),
+            contained_entity_ids=raw.get("contained_entity_ids"),
+        )
+        counts["sections"] += 1
+    else:
+        raise KGValidationError(
+            f"unknown transact op {op!r}; expected one of {', '.join(_TRANSACT_OPS)}"
+        )
 
 
 def finalize(project_root: str, output_dir: str | None = None) -> CompileResult | DocIndexResult:
