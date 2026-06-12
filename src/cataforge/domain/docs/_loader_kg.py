@@ -46,9 +46,12 @@ def _try_kg_extract(
     Entity refs (`item_id` present) render through the entity template;
     whole-section refs (`item_id is None`) resolve the matching Section
     node and return its `narrative_body`. Either way a `None` return
-    signals "fall through to the legacy file path". Never raises — KG
-    failures during a read always degrade to legacy behavior so the
-    cutover gate stays a soft fence at the read layer (the doctor
+    signals "fall through to the legacy file path". An entity card that
+    carries neither a source narrative nor child-entity content is
+    declined the same way — the raw file slice is strictly more
+    informative than a links-only card. Never raises — KG failures
+    during a read always degrade to legacy behavior so the cutover gate
+    stays a soft fence at the read layer (the doctor
     `kg_ingestion_completeness` gate enforces hard completeness at
     deploy time).
     """
@@ -60,7 +63,7 @@ def _try_kg_extract(
         return None
     try:
         from cataforge.domain.kg import KnowledgeGraph
-        from cataforge.domain.kg.export import render_entity
+        from cataforge.domain.kg.export import render_entity_card
     except ImportError:
         return None
     cfg = kg_config_for(project_root)
@@ -70,11 +73,13 @@ def _try_kg_extract(
                 return _kg_section_body(kg.store, cfg, doc_id, section_path)
             if not kg.query.exists(item_id):
                 return None
-            rendered = render_entity(kg.store, item_id)
+            card = render_entity_card(kg.store, item_id)
     except Exception as exc:
         logger.debug("KG extract fallback for %r/%r: %s", doc_id, item_id, exc)
         return None
-    return rendered if rendered else None
+    if card is None or not (card.has_narrative or card.has_children):
+        return None
+    return card.markdown if card.markdown else None
 
 
 def _kg_section_body(store: Any, cfg: Any, doc_id: str, section_path: str) -> str | None:

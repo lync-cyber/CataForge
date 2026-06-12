@@ -3,6 +3,7 @@ PREFIX cf: <https://cataforge.dev/ontology/>
 SELECT
   ?entity_id ?sort_key ?title ?description ?status ?priority
   ?content_hash ?source_doc ?source_section ?authored_by
+  ?narrative_body
   ?ac_id ?ac_sort_key ?ac_title
   ?impl_id ?impl_sort_key ?impl_title
   ?tc_id ?tc_sort_key ?tc_title
@@ -22,11 +23,19 @@ WHERE {
   OPTIONAL { ?feature cf:authored_by    ?authored_by }
 
   OPTIONAL {
+    ?feature cf:source_doc ?nb_doc ; cf:source_section ?nb_anchor .
+    ?nb_section a cf:Section ;
+                cf:source_doc     ?nb_doc ;
+                cf:section_anchor ?nb_anchor ;
+                cf:narrative_body ?narrative_body .
+  }
+
+  OPTIONAL {
     ?ac a cf:AcceptanceCriteria ;
-        cf:satisfies ?feature ;
         cf:entity_id ?ac_id ;
         cf:sort_key  ?ac_sort_key ;
         cf:title     ?ac_title .
+    { ?ac cf:satisfies ?feature } UNION { ?ac cf:part_of ?feature }
   }
 
   OPTIONAL {

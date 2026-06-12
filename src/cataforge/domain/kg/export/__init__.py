@@ -10,14 +10,21 @@ from __future__ import annotations
 
 from cataforge.domain.kg.export.pipeline import compile_to_markdown
 from cataforge.domain.kg.export.registry import SparqlRegistry
-from cataforge.domain.kg.export.render import entity_doc_type, render_entity
+from cataforge.domain.kg.export.render import (
+    EntityCard,
+    entity_doc_type,
+    render_entity,
+    render_entity_card,
+)
 from cataforge.domain.kg.export.types import CompileResult, FileExportRecord
 
 __all__ = [
     "CompileResult",
+    "EntityCard",
     "FileExportRecord",
     "SparqlRegistry",
     "compile_to_markdown",
     "entity_doc_type",
     "render_entity",
+    "render_entity_card",
 ]

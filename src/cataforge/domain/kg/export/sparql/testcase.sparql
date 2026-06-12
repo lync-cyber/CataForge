@@ -3,6 +3,7 @@ PREFIX cf: <https://cataforge.dev/ontology/>
 SELECT
   ?entity_id ?sort_key ?title ?description ?status
   ?content_hash ?source_doc ?source_section ?authored_by
+  ?narrative_body
   ?expected_result ?test_result
   ?target_id ?target_sort_key ?target_title
 WHERE {
@@ -20,6 +21,14 @@ WHERE {
   OPTIONAL { ?tc cf:authored_by     ?authored_by }
   OPTIONAL { ?tc cf:expected_result ?expected_result }
   OPTIONAL { ?tc cf:test_result     ?test_result }
+
+  OPTIONAL {
+    ?tc cf:source_doc ?nb_doc ; cf:source_section ?nb_anchor .
+    ?nb_section a cf:Section ;
+                cf:source_doc     ?nb_doc ;
+                cf:section_anchor ?nb_anchor ;
+                cf:narrative_body ?narrative_body .
+  }
 
   OPTIONAL {
     ?tc cf:verifies ?target .

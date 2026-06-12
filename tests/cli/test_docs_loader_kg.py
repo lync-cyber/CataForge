@@ -170,6 +170,70 @@ def test_extract_whole_section_entity_section_from_kg(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# extract — entity read from the KG
+# ---------------------------------------------------------------------------
+
+
+def test_extract_entity_ref_renders_narrative_and_children(tmp_path: Path) -> None:
+    project = _project_with_kg(tmp_path, active=["prd", "arch", "test-report"])
+
+    body = context_read.extract("prd#§2.F-001", str(project))
+    assert "允许已注册用户用邮箱 + 密码完成身份认证" in body
+    assert "AC-001" in body
+
+
+def test_extract_entity_ref_falls_back_to_file_when_kg_card_lacks_body(
+    tmp_path: Path,
+) -> None:
+    """An entity known to the KG but without a Section narrative or part_of
+    children must be served from the file backend, not as a hollow card."""
+    import gc
+
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
+    from cataforge.domain.kg.ingest.writer import write_project
+
+    project = tmp_path / "project"
+    (project / ".cataforge").mkdir(parents=True)
+    prd_dir = project / "docs" / "prd"
+    prd_dir.mkdir(parents=True)
+    (prd_dir / "prd-app.md").write_text(
+        "# PRD\n\n## 2 Features\n\n### F-001 登录\n\n允许已注册用户登录。\n",
+        encoding="utf-8",
+    )
+
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=project / ".cataforge" / "kg" / "store",
+        kg_active_doc_types={"prd"},
+    )
+    handle = init_store(config, force=True)
+    project_iri = write_project(handle.raw, "proj-app", "App", "waterfall", config)
+    kg = KnowledgeGraph(handle.raw, config)
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="F-001",
+            class_name="Feature",
+            title="登录",
+            source_doc="prd",
+            source_section="F-001 登录",
+            content_hash="h-f1",
+            project_iri=project_iri,
+        )
+    handle.raw.flush()
+    handle.close()
+    del kg, handle, txn
+    gc.collect()
+
+    (project / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"kg_active_doc_types": ["prd"]}}), encoding="utf-8"
+    )
+
+    body = context_read.extract("prd#§2.F-001", str(project))
+    assert "允许已注册用户登录" in body
+    assert body.startswith("### F-001 登录")
+
+
+# ---------------------------------------------------------------------------
 # resolve_deps — KG dispatch
 # ---------------------------------------------------------------------------
 

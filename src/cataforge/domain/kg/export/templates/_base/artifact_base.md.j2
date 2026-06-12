@@ -16,5 +16,10 @@ sort_key: {{ entity.sort_key }}
 
 {{ entity.description }}
 {% endif %}
-{% block body %}{% endblock %}
+{% block body %}{% if entity.narrative_body %}
+
+## Narrative
+
+{{ entity.narrative_body }}
+{% endif %}{% endblock %}
 {% block relations %}{% endblock %}

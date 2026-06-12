@@ -1,6 +1,14 @@
 {% extends "_base/artifact_base.md.j2" %}
 
 {% block relations %}
+{% if entity.parents %}
+
+## Part Of
+
+{% for parent in entity.parents %}
+- [{{ parent.entity_id }}](./{{ parent.entity_id }}.md) — {{ parent.parent_title }}
+{% endfor %}
+{% endif %}
 {% if entity.features %}
 
 ## Satisfies

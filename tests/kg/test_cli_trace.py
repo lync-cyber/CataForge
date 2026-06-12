@@ -97,6 +97,21 @@ class TestDownstream:
         assert chain["root_id"] == "F-002"
         assert "M-002" in chain["modules"]
 
+    def test_downstream_collects_part_of_acceptance_criteria(self, tmp_path: Path) -> None:
+        from click.testing import CliRunner
+
+        db = _init_and_ingest(tmp_path)
+        result = CliRunner().invoke(
+            _cli(),
+            ["kg", "trace", "--db-path", str(db), "--output", "json", "F-001"],
+        )
+        assert result.exit_code == 0, result.output
+        chain = json.loads(result.output)
+        assert "AC-001" in chain["acceptance_criteria"]
+        # ACs are requirement decomposition, not implementation or
+        # verification — their presence must not change coverage_status.
+        assert chain["coverage_status"] == "partial"
+
 
 # ------------------------------------------------------------------
 # Upstream trace
@@ -104,6 +119,28 @@ class TestDownstream:
 
 
 class TestUpstream:
+    def test_upstream_from_acceptance_criteria_finds_parent(self, tmp_path: Path) -> None:
+        from click.testing import CliRunner
+
+        db = _init_and_ingest(tmp_path)
+        result = CliRunner().invoke(
+            _cli(),
+            [
+                "kg",
+                "trace",
+                "--db-path",
+                str(db),
+                "--direction",
+                "upstream",
+                "--output",
+                "json",
+                "AC-001",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        chain = json.loads(result.output)
+        assert "F-001" in chain["requirements"]
+
     def test_upstream_from_module_finds_feature(self, tmp_path: Path) -> None:
         from click.testing import CliRunner
 
