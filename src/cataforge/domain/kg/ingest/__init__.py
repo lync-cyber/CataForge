@@ -30,7 +30,7 @@ from cataforge.domain.kg.ingest.relation_extract import (
     ExtractedRelation,
     extract_relations,
 )
-from cataforge.domain.kg.ingest.scan import ParsedDoc, scan_business_docs
+from cataforge.domain.kg.ingest.scan import ParsedDoc, parse_doc_text, scan_business_docs
 from cataforge.domain.kg.ingest.structure_extract import (
     ExtractedDocument,
     ExtractedSection,
@@ -56,6 +56,7 @@ __all__ = [
     "extract_entities",
     "extract_relations",
     "extract_structure",
+    "parse_doc_text",
     "parse_frontmatter",
     "run_migration",
     "scan_business_docs",

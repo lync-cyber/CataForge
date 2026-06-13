@@ -253,3 +253,72 @@ def test_context_transact_registered_in_help() -> None:
     r = CliRunner().invoke(_cli(), ["context", "--help"])
     assert r.exit_code == 0
     assert "transact" in r.output
+
+
+_DOC_MD = (
+    "---\nid: prd\ndoc_type: prd\nstatus: draft\n---\n\n"
+    "# PRD\n\nIntro.\n\n## §1 Features\n\n### F-001 登录\n\n说明文本。\n"
+)
+
+
+def test_context_write_doc_from_stdin(tmp_path: Path) -> None:
+    proj = _project(tmp_path)
+    r = CliRunner().invoke(
+        _cli(),
+        ["context", "write-doc", "--project-root", str(proj)],
+        input=_DOC_MD,
+    )
+    assert r.exit_code == 0, r.output
+    assert "authored prd" in r.output
+    gc.collect()
+    cfg = _connect(proj)
+    with KnowledgeGraph.connect(cfg) as kg:
+        assert kg.query.exists("F-001")
+    gc.collect()
+
+
+def test_context_write_doc_from_file(tmp_path: Path) -> None:
+    proj = _project(tmp_path)
+    doc = tmp_path / "prd.md"
+    doc.write_text(_DOC_MD, encoding="utf-8")
+    r = CliRunner().invoke(
+        _cli(),
+        ["context", "write-doc", "--file", str(doc), "--project-root", str(proj)],
+    )
+    assert r.exit_code == 0, r.output
+    gc.collect()
+
+
+def test_context_write_doc_registered_in_help() -> None:
+    r = CliRunner().invoke(_cli(), ["context", "--help"])
+    assert r.exit_code == 0
+    assert "write-doc" in r.output
+    assert "write-meta" in r.output
+
+
+def test_context_write_meta_updates_status(tmp_path: Path) -> None:
+    proj = _project(tmp_path)
+    r = CliRunner().invoke(
+        _cli(),
+        ["context", "write-doc", "--project-root", str(proj)],
+        input=_DOC_MD,
+    )
+    assert r.exit_code == 0, r.output
+    gc.collect()
+    r = CliRunner().invoke(
+        _cli(),
+        ["context", "write-meta", "prd", "--status", "approved", "--project-root", str(proj)],
+    )
+    assert r.exit_code == 0, r.output
+    assert "status=approved" in r.output
+    gc.collect()
+
+
+def test_context_write_meta_requires_an_option(tmp_path: Path) -> None:
+    proj = _project(tmp_path)
+    r = CliRunner().invoke(
+        _cli(),
+        ["context", "write-meta", "prd", "--project-root", str(proj)],
+    )
+    assert r.exit_code != 0
+    assert "at least one" in r.output

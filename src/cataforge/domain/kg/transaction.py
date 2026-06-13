@@ -17,6 +17,7 @@ from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._errors import KGEntityNotFoundError, KGValidationError
 from cataforge.domain.kg._quads import (
+    build_document_quads,
     build_entity_quads,
     build_relation_quad,
     build_section_quads,
@@ -24,9 +25,12 @@ from cataforge.domain.kg._quads import (
     quads_targeting,
 )
 from cataforge.domain.kg._sparql_utils import (
+    _row_lookup,
+    _strv,
     assert_safe_iri,
     cf_namespace,
     escape_sparql_literal,
+    select_rows,
 )
 from cataforge.domain.kg.ingest.iri import (
     document_iri,
@@ -38,6 +42,8 @@ from cataforge.domain.kg.ingest.iri import (
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
+
+    from cataforge.domain.kg.ingest.structure_extract import ExtractedDocument
 
 
 def _delete_target_iri(entity_id: str, base_namespace: str) -> tuple[str, str]:
@@ -296,6 +302,39 @@ class TransactionContext:
         quad = build_relation_quad(subject_id, predicate_curie, object_id, self._config)
         self._staged_removes.append(quad)
 
+    def add_document(
+        self,
+        document: ExtractedDocument,
+    ) -> str:
+        """Stage a Document structural node from an ``ExtractedDocument``.
+
+        Idempotent on ``content_hash``; replaces the node's quads otherwise.
+        Returns the Document IRI.
+        """
+        self._guard_open()
+        iri = document_iri(document.doc_id, self._config.base_namespace)
+        ns = cf_namespace(self._config)
+        if self._content_hash_matches(iri, document.content_hash, ns):
+            return iri
+        for q in quads_for_subject(self._store, iri):
+            self._staged_removes.append(q)
+        for q in build_document_quads(
+            document.doc_id,
+            document.doc_type,
+            document.title,
+            document.source_doc,
+            document.content_hash,
+            self._config,
+            section_anchors=document.section_anchors,
+            version=document.version,
+            status=document.status,
+            frontmatter_raw=document.frontmatter_raw,
+            preamble_body=document.preamble_body,
+            source_path=document.source_path,
+        ):
+            self._staged_adds.append(q)
+        return iri
+
     def add_section(
         self,
         doc_id: str,
@@ -303,18 +342,29 @@ class TransactionContext:
         narrative_body: str,
         content_hash: str,
         *,
+        position: int | None = None,
+        level: int | None = None,
         title: str | None = None,
         contained_entity_ids: list[str] | None = None,
     ) -> str:
         """Stage a Section node carrying ``narrative_body``. Returns its IRI.
 
         Idempotent on ``content_hash``; replaces the node's quads otherwise.
+        When ``position`` / ``level`` are omitted the document order is
+        preserved: an existing Section keeps its stored ``cf:position`` /
+        ``cf:section_level``; a new Section appends after the document's
+        current last section (``max(position) + 1``, or 0 when none exist).
         """
         self._guard_open()
-        iri = section_iri(doc_id, anchor, self._config.base_namespace)
+        base_ns = self._config.base_namespace
+        iri = section_iri(doc_id, anchor, base_ns)
         ns = cf_namespace(self._config)
         if self._content_hash_matches(iri, content_hash, ns):
             return iri
+        doc_iri = document_iri(doc_id, base_ns)
+        resolved_position, resolved_level = self._resolve_section_order(
+            iri, doc_iri, ns, position, level
+        )
         for q in quads_for_subject(self._store, iri):
             self._staged_removes.append(q)
         for q in build_section_quads(
@@ -325,11 +375,64 @@ class TransactionContext:
             content_hash,
             doc_id,
             self._config,
+            position=resolved_position,
+            level=resolved_level,
             contained_entity_ids=sorted(contained_entity_ids or []),
-            document_iri_val=document_iri(doc_id, self._config.base_namespace),
+            document_iri_val=doc_iri,
         ):
             self._staged_adds.append(q)
         return iri
+
+    def _resolve_section_order(
+        self,
+        section_iri_val: str,
+        doc_iri: str,
+        namespace: str,
+        position: int | None,
+        level: int | None,
+    ) -> tuple[int, int]:
+        """Fill in ``position`` / ``level`` so document order survives an update."""
+        existing_pos, existing_level = self._section_position_level(section_iri_val, namespace)
+        if position is None:
+            position = (
+                existing_pos
+                if existing_pos is not None
+                else self._next_section_position(doc_iri, namespace)
+            )
+        if level is None:
+            level = existing_level if existing_level is not None else 2
+        return position, level
+
+    def _section_position_level(self, iri: str, namespace: str) -> tuple[int | None, int | None]:
+        """Read back a Section's stored ``cf:position`` / ``cf:section_level``."""
+        sparql = (
+            f"PREFIX cf: <{namespace}> "
+            f"SELECT ?pos ?level WHERE {{ <{assert_safe_iri(iri)}> "
+            "cf:position ?pos . OPTIONAL { <"
+            f"{assert_safe_iri(iri)}> cf:section_level ?level }} }}"
+        )
+        for row in select_rows(self._store, sparql):
+            pos = _strv(_row_lookup(row, "pos"))
+            level = _strv(_row_lookup(row, "level"))
+            return (
+                int(pos) if pos is not None else None,
+                int(level) if level is not None else None,
+            )
+        return None, None
+
+    def _next_section_position(self, doc_iri: str, namespace: str) -> int:
+        """Return ``max(cf:position) + 1`` for the document, or 0 when empty."""
+        sparql = (
+            f"PREFIX cf: <{namespace}> "
+            "SELECT (MAX(?pos) AS ?m) WHERE { "
+            f"?s a cf:Section ; cf:part_of_document <{assert_safe_iri(doc_iri)}> ; "
+            "cf:position ?pos }"
+        )
+        for row in select_rows(self._store, sparql):
+            m = _strv(_row_lookup(row, "m"))
+            if m is not None:
+                return int(m) + 1
+        return 0
 
     # ------------------------------------------------------------------
     # Lifecycle

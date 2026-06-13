@@ -14,6 +14,7 @@ configuration error.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,20 +24,35 @@ from cataforge.core.errors import CataforgeError
 from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg._content_hash import entity_content_hash
 from cataforge.domain.kg._dispatch import kg_config_for, kg_enabled
-from cataforge.domain.kg._errors import KGValidationError
+from cataforge.domain.kg._errors import KGEntityNotFoundError, KGValidationError
+from cataforge.domain.kg._sparql_utils import (
+    _row_lookup,
+    _strv,
+    assert_safe_iri,
+    cf_namespace,
+    select_rows,
+)
 from cataforge.domain.kg.export import entity_doc_type
 from cataforge.domain.kg.export.document_pipeline import compile_documents
 from cataforge.domain.kg.export.types import CompileResult
-from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, run_migration
-from cataforge.domain.kg.ingest.iri import id_prefix_to_type
+from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, parse_doc_text, run_migration
+from cataforge.domain.kg.ingest.entity_extract import extract_entities
+from cataforge.domain.kg.ingest.frontmatter import _PARSE_ERROR_KEY
+from cataforge.domain.kg.ingest.iri import document_iri, id_prefix_to_type, section_iri
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
-from cataforge.domain.kg.ingest.structure_extract import ExtractedSection
-from cataforge.domain.kg.ingest.writer import write_project, write_structure
+from cataforge.domain.kg.ingest.relation_extract import extract_relations
+from cataforge.domain.kg.ingest.structure_extract import extract_structure
+from cataforge.domain.kg.ingest.writer import _entity_title, write_project
 from cataforge.domain.kg.reconcile import reconcile as _reconcile
 from cataforge.domain.kg.validate import validate
 
 if TYPE_CHECKING:
+    import pyoxigraph as ox
+
+    from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity
     from cataforge.domain.kg.ingest.migrate import MigrationStats
+    from cataforge.domain.kg.ingest.relation_extract import ExtractedRelation
+    from cataforge.domain.kg.ingest.structure_extract import ExtractedSection
     from cataforge.domain.kg.reconcile import ReconcileReport
     from cataforge.domain.kg.transaction import TransactionContext
     from cataforge.domain.kg.validate import ValidationViolation
@@ -62,6 +78,27 @@ class TransactResult:
     entities_written: int
     relations_written: int
     sections_written: int
+
+
+@dataclass(frozen=True)
+class AuthorDocumentResult:
+    """Outcome of an ``author_document`` whole-file write into the graph."""
+
+    doc_id: str
+    document_iri: str
+    sections_written: int
+    entities_written: int
+    relations_written: int
+
+
+@dataclass(frozen=True)
+class UpdateDocumentMetaResult:
+    """Outcome of an ``update_document_meta`` frontmatter status/version patch."""
+
+    doc_id: str
+    document_iri: str
+    status: str | None
+    version: str | None
 
 
 @dataclass(frozen=True)
@@ -124,6 +161,53 @@ def _validate_doc_index(project_root: str) -> DocValidationReport:
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+_HEADING_RE = re.compile(r"^(#{2,6})\s+(.*\S)\s*$")
+
+
+def _existing_section_level(store: ox.Store, cfg: Any, doc_id: str, anchor: str) -> int | None:
+    """Read back a Section's stored ``cf:section_level``, or ``None``."""
+    ns = cf_namespace(cfg)
+    iri = section_iri(doc_id, anchor, cfg.base_namespace)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        f"SELECT ?level WHERE {{ <{assert_safe_iri(iri)}> cf:section_level ?level }}"
+    )
+    for row in select_rows(store, sparql):
+        level = _strv(_row_lookup(row, "level"))
+        if level is not None:
+            return int(level)
+    return None
+
+
+def _normalize_narrative(
+    narrative: str, anchor: str, *, existing_level: int | None
+) -> tuple[str, int]:
+    """Return ``(narrative_body, level)`` with a leading heading guaranteed.
+
+    The export pipeline concatenates each Section's ``narrative_body``
+    verbatim, so the body must carry its own heading line. If the first
+    non-blank line is a level-2..6 heading, its text must equal ``anchor``
+    (a mismatch produces ghost/missing sections on export) and its depth
+    sets the level. Otherwise a ``{'#' * level} {anchor}`` line is prepended,
+    with ``level`` taken from the existing section (default 2).
+    """
+    lines = narrative.split("\n")
+    first_idx = next((i for i, ln in enumerate(lines) if ln.strip()), None)
+    if first_idx is not None:
+        m = _HEADING_RE.match(lines[first_idx])
+        if m is not None:
+            heading_text = m.group(2).strip()
+            if heading_text != anchor:
+                raise KGValidationError(
+                    f"section heading {heading_text!r} does not match anchor {anchor!r}; "
+                    "a heading/anchor mismatch produces a ghost or missing section on export — "
+                    "make the first heading line read exactly the anchor text."
+                )
+            return narrative, len(m.group(1))
+    level = existing_level if existing_level is not None else 2
+    return f"{'#' * level} {anchor}\n{narrative}", level
 
 
 def _check_entity_class(entity_id: str, class_name: str) -> None:
@@ -252,21 +336,26 @@ def write_narrative(
 ) -> None:
     """Author a Section's prose (``narrative_body``) directly into the graph.
 
-    Requires the ``kg-first`` strategy.
+    Requires the ``kg-first`` strategy. The body is normalized to carry its
+    heading line (see :func:`_normalize_narrative`) so the export pipeline
+    reconstructs the section verbatim, and stored through the transaction
+    face so an updated section keeps its ``cf:position`` document order.
     """
     _require_kg_first(project_root, "narrative authoring (`context write-narrative`)")
     cfg = kg_config_for(project_root)
-    section = ExtractedSection(
-        doc_id=doc_id,
-        anchor=anchor,
-        title=anchor,
-        narrative_body=narrative,
-        content_hash=_sha256(narrative),
-        source_doc=doc_id,
-        contained_entity_ids=sorted(contained_entity_ids or []),
-    )
     with KnowledgeGraph.connect(cfg) as kg:
-        write_structure(kg.store, [], [section], cfg)
+        level = _existing_section_level(kg.store, cfg, doc_id, anchor)
+        body, resolved_level = _normalize_narrative(narrative, anchor, existing_level=level)
+        with kg.transaction() as txn:
+            txn.add_section(
+                doc_id,
+                anchor,
+                body,
+                _sha256(body),
+                level=resolved_level,
+                title=anchor,
+                contained_entity_ids=contained_entity_ids,
+            )
 
 
 _TRANSACT_OPS = ("add_entity", "add_relation", "write_narrative")
@@ -359,11 +448,16 @@ def _apply_transact_op(
         counts["relations"] += 1
     elif op == "write_narrative":
         _require_keys(raw, ("doc_id", "anchor", "narrative"), "write_narrative")
+        doc_id, anchor = raw["doc_id"], raw["anchor"]
+        level = _existing_section_level(txn._store, txn._config, doc_id, anchor)
+        body, resolved_level = _normalize_narrative(raw["narrative"], anchor, existing_level=level)
         txn.add_section(
-            raw["doc_id"],
-            raw["anchor"],
-            raw["narrative"],
-            _sha256(raw["narrative"]),
+            doc_id,
+            anchor,
+            body,
+            _sha256(body),
+            level=resolved_level,
+            title=anchor,
             contained_entity_ids=raw.get("contained_entity_ids"),
         )
         counts["sections"] += 1
@@ -371,6 +465,316 @@ def _apply_transact_op(
         raise KGValidationError(
             f"unknown transact op {op!r}; expected one of {', '.join(_TRANSACT_OPS)}"
         )
+
+
+_PLACEHOLDER_RE = re.compile(r"\{[^}]*\}")
+
+
+def _document_source_path(project_root: str, doc_type: str, doc_id: str) -> str:
+    """Derive the project-root-relative source path ``docs/{subdir}/{id}.md``."""
+    from cataforge.domain.docs.index_ops import _load_doc_type_map
+
+    subdir = _load_doc_type_map(project_root).get(doc_type, doc_type)
+    return f"docs/{subdir}/{doc_id}.md"
+
+
+def author_document(
+    project_root: str,
+    markdown_text: str,
+    *,
+    source_path: str | None = None,
+) -> AuthorDocumentResult:
+    """Author a whole document (structure + entities + relations) into the graph.
+
+    Requires the ``kg-first`` strategy. The frontmatter must carry ``doc_type``
+    and ``id``; ``source_path`` defaults to ``docs/{subdir}/{id}.md`` (subdir
+    resolved via the project's doc-type map). Structure, entities, and relations
+    are extracted and staged into one transaction — the Document node, each
+    Section (with its document-order ``position`` / heading ``level``), each
+    entity (carrying its extracted ``content_hash`` / slots / parent scope), and
+    each traceability edge. Any extracted entity title containing a ``{...}``
+    placeholder is rejected (a template example must not pollute the graph);
+    placeholders inside section bodies are allowed. A post-commit ``validate``
+    pass compensates the whole write — document, sections, entities — to zero
+    graph residue on any violation.
+    """
+    _require_kg_first(project_root, "document authoring (`context write-doc`)")
+    cfg = kg_config_for(project_root)
+    meta = _read_project_metadata(Path(project_root))
+
+    doc = parse_doc_text(
+        markdown_text,
+        doc_type="",
+        file_name="authored.md",
+        source_path=source_path or "authored.md",
+        mtime=datetime.now(UTC).timestamp(),
+    )
+    if _PARSE_ERROR_KEY in doc.frontmatter:
+        raise KGValidationError(
+            f"document frontmatter YAML parse error: {doc.frontmatter[_PARSE_ERROR_KEY]}"
+        )
+    doc_type = doc.frontmatter.get("doc_type")
+    if not isinstance(doc_type, str) or not doc_type:
+        raise KGValidationError("document frontmatter must carry a non-empty 'doc_type'")
+    doc_id = doc.frontmatter.get("id")
+    if not isinstance(doc_id, str) or not doc_id:
+        raise KGValidationError("document frontmatter must carry a non-empty 'id'")
+
+    resolved_source_path = source_path or _document_source_path(project_root, doc_type, doc_id)
+    doc.doc_id = doc_id
+    doc.doc_type = doc_type
+    doc.source_path = resolved_source_path
+
+    entities = extract_entities(doc)
+    _guard_no_placeholder_titles(entities)
+    document, sections = extract_structure(doc, entities)
+    relations = extract_relations(doc)
+
+    delete_ids = _author_document_delete_ids(doc_id, sections, entities)
+    written_ids = {document_iri(doc_id, cfg.base_namespace)}
+
+    with KnowledgeGraph.connect(cfg) as kg:
+        project_iri = write_project(
+            kg.store, meta["project_id"], meta["title"], meta["process_model"], cfg
+        )
+        with kg.transaction() as txn:
+            txn.add_document(document)
+            for section in sections:
+                txn.add_section(
+                    section.doc_id,
+                    section.anchor,
+                    section.narrative_body,
+                    section.content_hash,
+                    position=section.position,
+                    level=section.level,
+                    title=section.title,
+                    contained_entity_ids=section.contained_entity_ids,
+                )
+            staged_iris = _stage_authored_entities(txn, entities, project_iri, written_ids)
+            _stage_authored_relations(txn, relations, cfg, staged_iris)
+
+        report = validate(kg.store, cfg)
+        offending = _offends(report.violations, written_ids)
+        if offending:
+            with kg.transaction() as undo:
+                for did in delete_ids:
+                    undo.delete_entity(did, cascade=True)
+            detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
+            raise KGValidationError(f"authored document {doc_id} failed validation: {detail}")
+
+    return AuthorDocumentResult(
+        doc_id=doc_id,
+        document_iri=document_iri(doc_id, cfg.base_namespace),
+        sections_written=len(sections),
+        entities_written=len(entities),
+        relations_written=len(relations),
+    )
+
+
+def _guard_no_placeholder_titles(entities: list[ExtractedEntity]) -> None:
+    offenders = [e.entity_id for e in entities if _PLACEHOLDER_RE.search(_entity_title(e))]
+    if offenders:
+        raise KGValidationError(
+            "authored document carries placeholder entity title(s): "
+            f"{', '.join(sorted(offenders))} — a template example entity must not be "
+            "persisted into the graph."
+        )
+
+
+def _author_document_delete_ids(
+    doc_id: str,
+    sections: list[ExtractedSection],
+    entities: list[ExtractedEntity],
+) -> list[str]:
+    """Compensating delete-target ids for a whole-document author write."""
+    ids = [f"doc/{doc_id}/sec/{s.anchor}" for s in sections]
+    ids.extend(_scoped_delete_id(e.entity_id, e.parent_id) for e in entities)
+    ids.append(f"doc/{doc_id}")
+    return ids
+
+
+def _stage_authored_entities(
+    txn: TransactionContext,
+    entities: list[ExtractedEntity],
+    project_iri: str,
+    written_ids: set[str],
+) -> dict[str, str]:
+    """Stage each extracted entity; return a ``entity_id → staged IRI`` map."""
+    staged_iris: dict[str, str] = {}
+    for entity in entities:
+        iri = txn.add_entity(
+            entity.entity_id,
+            entity.class_name,
+            _entity_title(entity),
+            entity.source_doc,
+            entity.source_section,
+            entity.content_hash,
+            project_iri,
+            parent_id=entity.parent_id,
+            extra_slots=entity.extra_slots or None,
+            mtime=entity.mtime,
+        )
+        staged_iris[entity.entity_id] = iri
+        written_ids.add(entity.entity_id)
+        written_ids.add(iri)
+    return staged_iris
+
+
+def _stage_authored_relations(
+    txn: TransactionContext,
+    relations: list[ExtractedRelation],
+    cfg: Any,
+    staged_iris: dict[str, str],
+) -> None:
+    """Stage each relation, resolving endpoints against the in-flight IRI map.
+
+    Subordinate endpoints are not yet committed, so ``writer``'s store-querying
+    resolution would miss them; the staged-IRI map is consulted first and the
+    flat entity IRI is the fallback.
+    """
+    from cataforge.domain.kg.ingest.iri import entity_iri
+
+    for relation in relations:
+        subject_iri = staged_iris.get(relation.subject_entity_id) or entity_iri(
+            relation.subject_entity_id, cfg.base_namespace
+        )
+        object_iri = staged_iris.get(relation.object_entity_id) or entity_iri(
+            relation.object_entity_id, cfg.base_namespace
+        )
+        txn.add_relation(
+            relation.subject_entity_id,
+            relation.predicate_curie,
+            relation.object_entity_id,
+            subject_iri=subject_iri,
+            object_iri=object_iri,
+        )
+
+
+def update_document_meta(
+    project_root: str,
+    doc_id: str,
+    *,
+    status: str | None = None,
+    version: str | None = None,
+) -> UpdateDocumentMetaResult:
+    """Patch a Document's frontmatter ``status`` / ``version`` in the graph.
+
+    Requires the ``kg-first`` strategy. The Document node must already exist.
+    ``status`` is constrained to the doc-review whitelist. The stored
+    ``frontmatter_raw`` is rewritten in place (preserving each line's original
+    quote style; missing lines are inserted before the closing ``---``), the
+    ``cf:status`` / ``cf:version`` slots are updated, and ``cf:content_hash`` is
+    recomputed — all through one transaction.
+    """
+    _require_kg_first(project_root, "document meta authoring (`context write-meta`)")
+    if status is not None and status not in _DOC_STATUS_WHITELIST:
+        raise KGValidationError(f"status {status!r} is not one of {sorted(_DOC_STATUS_WHITELIST)}")
+    cfg = kg_config_for(project_root)
+    with KnowledgeGraph.connect(cfg) as kg:
+        current = _read_document_meta(kg.store, cfg, doc_id)
+        if current is None:
+            raise KGEntityNotFoundError(f"Document {doc_id!r} not found in store.")
+        new_frontmatter = _patch_frontmatter(current["frontmatter_raw"], status, version)
+        new_hash = _sha256(new_frontmatter + "\x1f" + current["preamble_body"])
+        with kg.transaction() as txn:
+            _stage_document_meta(
+                txn,
+                cfg,
+                doc_id,
+                frontmatter_raw=new_frontmatter,
+                status=status,
+                version=version,
+                content_hash=new_hash,
+            )
+    return UpdateDocumentMetaResult(
+        doc_id=doc_id,
+        document_iri=document_iri(doc_id, cfg.base_namespace),
+        status=status,
+        version=version,
+    )
+
+
+_DOC_STATUS_WHITELIST = frozenset({"draft", "review", "approved"})
+
+
+def _read_document_meta(store: ox.Store, cfg: Any, doc_id: str) -> dict[str, str] | None:
+    """Read a Document's ``frontmatter_raw`` / ``preamble_body``, or ``None``."""
+    ns = cf_namespace(cfg)
+    iri = document_iri(doc_id, cfg.base_namespace)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        f"SELECT ?fm ?pre WHERE {{ <{assert_safe_iri(iri)}> a cf:Document . "
+        f"OPTIONAL {{ <{assert_safe_iri(iri)}> cf:frontmatter_raw ?fm }} "
+        f"OPTIONAL {{ <{assert_safe_iri(iri)}> cf:preamble_body ?pre }} }}"
+    )
+    for row in select_rows(store, sparql):
+        return {
+            "frontmatter_raw": _strv(_row_lookup(row, "fm")) or "",
+            "preamble_body": _strv(_row_lookup(row, "pre")) or "",
+        }
+    return None
+
+
+def _patch_frontmatter_line(frontmatter: str, key: str, value: str) -> str:
+    """Replace ``key:``'s value (preserving quote style) or insert before ``---``."""
+    line_re = re.compile(rf"^(?P<key>{re.escape(key)}:\s*)(?P<q>\"?)(?P<val>.*?)(?P=q)\s*$", re.M)
+    match = line_re.search(frontmatter)
+    if match is not None:
+        quote = match.group("q")
+        return line_re.sub(lambda _m: f"{match.group('key')}{quote}{value}{quote}", frontmatter, 1)
+    return _insert_frontmatter_line(frontmatter, f"{key}: {value}")
+
+
+def _insert_frontmatter_line(frontmatter: str, new_line: str) -> str:
+    """Insert ``new_line`` just before the frontmatter's closing ``---`` fence."""
+    lines = frontmatter.split("\n")
+    fence_idxs = [i for i, ln in enumerate(lines) if ln.strip() == "---"]
+    if len(fence_idxs) >= 2:
+        lines.insert(fence_idxs[1], new_line)
+        return "\n".join(lines)
+    return frontmatter
+
+
+def _patch_frontmatter(frontmatter: str, status: str | None, version: str | None) -> str:
+    out = frontmatter
+    if status is not None:
+        out = _patch_frontmatter_line(out, "status", status)
+    if version is not None:
+        out = _patch_frontmatter_line(out, "version", version)
+    return out
+
+
+def _stage_document_meta(
+    txn: TransactionContext,
+    cfg: Any,
+    doc_id: str,
+    *,
+    frontmatter_raw: str,
+    status: str | None,
+    version: str | None,
+    content_hash: str,
+) -> None:
+    """Stage the slot rewrites for a Document meta patch."""
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    ns = cf_namespace(cfg)
+    iri = document_iri(doc_id, cfg.base_namespace)
+    subject = ox.NamedNode(iri)
+    string_dt = ox.NamedNode("http://www.w3.org/2001/XMLSchema#string")
+
+    updates: list[tuple[str, str]] = [
+        ("frontmatter_raw", frontmatter_raw),
+        ("content_hash", content_hash),
+    ]
+    if status is not None:
+        updates.append(("status", status))
+    if version is not None:
+        updates.append(("version", version))
+    for slot, value in updates:
+        pred = ox.NamedNode(f"{ns}{slot}")
+        for q in list(txn._store.quads_for_pattern(subject, pred, None, None)):
+            txn.remove(q)
+        txn.add(ox.Quad(subject, pred, ox.Literal(value, datatype=string_dt)))
 
 
 def finalize(project_root: str, output_dir: str | None = None) -> CompileResult | DocIndexResult:
