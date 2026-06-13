@@ -193,6 +193,60 @@ def test_byte_exact_on_normalized_source(tmp_path: Path) -> None:
     assert rebuilt == prd_text
 
 
+# --- entity-less authored documents ------------------------------------------
+
+
+_ALL_DOC_TYPES = ("prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec")
+
+_ALL_TYPES_FRAMEWORK_JSON = """{
+  "docs": {"doc_types": {"prd": "prd", "arch": "arch", "ui-spec": "ui-spec",
+    "dev-plan": "dev-plan", "test-report": "test-report", "deploy-spec": "deploy-spec"}},
+  "context": {"strategy": "kg-first"},
+  "kg": {"project_id": "proj-test", "title": "Test", "process_model": "waterfall"}
+}
+"""
+
+
+def _prose_doc(doc_type: str) -> str:
+    return (
+        f"---\nid: {doc_type}\ndoc_type: {doc_type}\nstatus: draft\n---\n\n"
+        f"# {doc_type} title\n\nPreamble prose for {doc_type}.\n\n"
+        f"## §1 概览\n\nOverview prose for {doc_type}.\n\n"
+        f"## §2 详情\n\nDetail prose for {doc_type}.\n"
+    )
+
+
+def test_finalize_exports_entityless_authored_documents(tmp_path: Path) -> None:
+    """Authored Documents with zero business entities must still export.
+
+    finalize must not mistake an entity-less graph for an empty (md-first)
+    one and skip the kg-first export — that would silently drop authored
+    structure for prose-only or early-draft documents of any doc_type.
+    """
+    from cataforge.application.context import write as ctx_write
+
+    src_root = tmp_path / "proj"
+    (src_root / ".cataforge").mkdir(parents=True)
+    (src_root / ".cataforge" / "framework.json").write_text(
+        _ALL_TYPES_FRAMEWORK_JSON, encoding="utf-8"
+    )
+    _init_on_disk_store(src_root)
+
+    for doc_type in _ALL_DOC_TYPES:
+        ctx_write.author_document(
+            str(src_root),
+            _prose_doc(doc_type),
+            source_path=f"docs/{doc_type}/{doc_type}-proj.md",
+        )
+
+    ctx_write.finalize(str(src_root))
+
+    for doc_type in _ALL_DOC_TYPES:
+        exported = src_root / "docs" / doc_type / f"{doc_type}-proj.md"
+        assert exported.is_file(), f"entity-less {doc_type} Document must be exported"
+        assert exported.read_text(encoding="utf-8") == _prose_doc(doc_type), doc_type
+
+
 # --- orphan fallback ---------------------------------------------------------
 
 

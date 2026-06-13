@@ -210,6 +210,16 @@ class QueryAPI:
             if (v := _strv(_row_lookup(row, "entity_id"))) is not None
         }
 
+    def has_documents(self) -> bool:
+        """Return whether any `cf:Document` node exists in the store.
+
+        finalize uses this to tell an authored-but-entity-less graph (which
+        must still export) from a truly empty md-first graph (which seeds).
+        """
+        ns = self._cf_ns()
+        sparql = f"PREFIX cf: <{ns}> SELECT ?doc WHERE {{ ?doc a cf:Document }} LIMIT 1"
+        return any(True for _ in select_rows(self._store, sparql))
+
     def source_section(self, doc_id: str, anchor: str) -> str | None:
         """Materialize raw Markdown for a section that is not modeled as
         an entity (e.g. PRD §1 intro, arch §1.4 tech-stack narrative).
