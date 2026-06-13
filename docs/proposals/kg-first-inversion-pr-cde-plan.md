@@ -9,9 +9,16 @@
 > - PR-C：审查/修订经 authoring 落图 + finalize（review.md / Revision / inline-fix）；幽灵命令 `write-section` 清除 —— 已落地。
 > - PR-D：generate.md 反转、六个产文档 Agent Output Contract 改图写入、product-manager 授 shell_exec、Step 5.3 方向感知、CLI 别名 hidden、read.py 关注点分离 + doc-io 共享（消除逆向依赖）、finalize 空图感知 authoring_mode（C2）、prompt↔CLI 漂移守卫（含自测）—— 已落地。
 > - PR-E：`AuthorityPolicy` 单一决策点 + reconcile 输出 `documents[].remediation`（C4）、doctor strategy↔authoring 有效性门禁（C9）、Step 5.3 引用 remediation 字段 —— 已落地。
-> - PR-E 待续（独立 follow-up）：下游迁移工具链（`ingest --source seed` / `finalize --init-export-baseline` / framework-update 引导 / 回退开关，§5.2）；framework-walkthrough 的 kg-first authoring 端到端演练（§5.3）；执行模式矩阵与 COMMON-RULES 措辞终态化（§5.4）；导出器 `link_to` filter 与死字段退役（C8，§5.5）。
+> - PR-E 收尾：迁移指南 `docs/guide/kg-first-migration.md`（§5.2，`ingest → finalize → 切 authoring` + 回退，均由现有命令承载）；framework-walkthrough 观察口径纳入 authoring→finalize→reconcile 回环（§5.3）；COMMON-RULES I/O 契约措辞终态化（§5.4）—— 已落地。
 >
-> 工程判断调整：`AuthorityPolicy` 在 PR-E（其消费方 reconcile 落地处）引入而非 PR-D，避免未被消费的死脚手架；C7（`requires_kg_first` 装饰器）因 finalize/ingest/reconcile 三处 fallback 各异、强行抽象反损可读性，不实施。
+> 工程判断调整：
+>
+> - `AuthorityPolicy` 在 PR-E（其消费方 reconcile 落地处）引入而非 PR-D，避免未被消费的死脚手架。
+> - C7（`requires_kg_first` 装饰器）因 finalize/ingest/reconcile 三处 fallback 各异、强行抽象反损可读性，不实施。
+> - 5.2 经核实**无需新代码**：迁移机制（`ingest → finalize` 建 in_sync 基线，既有测试 `test_all_documents_in_sync_after_finalize` 证）、回退（改 `context.authoring`/`strategy` 配置）、门禁（C9）均已就位；`--init-export-baseline` / `ingest --source` 属冗余/投机，不加。交付为操作指南。
+> - C8（导出器 `link_to` filter / 死字段退役）**撤销**：`layout_spec`/`ui_route` 经核实在 `ui-spec/page.md.j2` 实际使用（非死字段）；硬编码交叉引用路径类型正确且受字节幂等测试保护，`link_to` 重构属投机、有回归风险无实际缺陷。
+>
+> 端到端实证（write-doc 路径）：author_document（4 节/3 实体/1 关系）→ finalize 导出 → reconcile `in_sync`/`none` → 人改导出文件 → reconcile `human_edit`/`ingest` → ingest+finalize → `in_sync`，闭环通过（对应 §2 验收）。
 
 ---
 
