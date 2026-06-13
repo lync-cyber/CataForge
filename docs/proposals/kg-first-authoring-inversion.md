@@ -1,8 +1,8 @@
 # 提案：kg-first 权威反转 — LLM 直写知识图谱，markdown 降级为导出审查视图
 
-> 状态：draft（待 maintainer 审定后立项实施）
+> 状态：实施中。已落地：P-1 / P-2、P-3 结构 authoring、P-4 的 CLI 动词收敛子项、P-6 前置的权威 triage（reconcile 文档级三方哈希 + `context.authoring` 开关 + `context status` 探针）。剩余：P-5 审查/修订面 → P-4 工作流资产反转 → P-6 迁移与门禁收尾，按依赖链计划在 cloud 远程会话实施。
 > 范围：context 能力面（authoring / finalize / ingest / reconcile）、KG 导出器、context skill 与产文档 Agent 的工作流资产、Phase Transition 门禁方向
-> 交付边界：本文仅出方案与 PR 序列，不改动代码与 prompt 资产本体
+> 交付边界：方案 + PR 序列为本文职责；已落地代码以 git 历史为准，剩余子项的拆分与验收标准见 §3。
 
 ---
 
