@@ -10,6 +10,7 @@ name the graph or the file store.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
@@ -345,3 +346,36 @@ def context_reconcile(ctx: click.Context, project_root: str) -> None:
     failure = CataforgeError(f"reconcile: {report.overall_divergence_count} divergence(s)")
     failure.exit_code = 3
     raise failure
+
+
+@context_group.command("status")
+@click.option("--project-root", default=".")
+@click.pass_context
+def context_status(ctx: click.Context, project_root: str) -> None:
+    """Print a read-only JSON probe of the project's context backend.
+
+    Reports the resolved ``strategy`` / ``authoring`` mode and, when a graph
+    store is already on disk, its entity count. Probing never creates the
+    store: an uninitialized project reads ``store_initialized: false`` with a
+    zero count, leaving disk untouched.
+    """
+    import json
+
+    from cataforge.domain.kg._dispatch import authoring_mode, context_strategy
+
+    project_root = _rooted(ctx, project_root) or project_root
+    store_dir = Path(project_root) / ".cataforge" / "kg" / "store"
+    payload: dict[str, object] = {
+        "strategy": context_strategy(project_root),
+        "authoring": authoring_mode(project_root),
+        "store_initialized": store_dir.exists(),
+        "entity_count": 0,
+    }
+    if store_dir.exists():
+        from cataforge.domain.kg import KnowledgeGraph
+        from cataforge.domain.kg._dispatch import kg_config_for
+
+        cfg = kg_config_for(project_root)
+        with _kg_store_guard(), KnowledgeGraph.connect(cfg) as kg:
+            payload["entity_count"] = len(kg.query.entity_ids())
+    click.echo(json.dumps(payload))

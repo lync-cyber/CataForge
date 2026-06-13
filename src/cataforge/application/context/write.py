@@ -397,7 +397,9 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
         if not kg.query.entity_ids():
             run_migration(kg.store, Path(project_root), cfg, doc_types=DEFAULT_DOC_TYPES)
             return CompileResult(exported_at=datetime.now(UTC), discovered_count=0, output_dir=out)
-        return compile_documents(kg.store, out)
+        result = compile_documents(kg.store, out)
+    _rebuild_doc_index(project_root)
+    return result
 
 
 def ingest(

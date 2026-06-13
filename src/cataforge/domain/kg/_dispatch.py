@@ -29,7 +29,17 @@ _ACTIVE_CACHE: dict[str, set[str]] = {}
 _AUTHORITY_CACHE: dict[str, dict[str, frozenset[str]]] = {}
 _CONFIG_CACHE: dict[str, KGConfig] = {}
 _STRATEGY_CACHE: dict[str, str] = {}
+_AUTHORING_CACHE: dict[str, str] = {}
 _DISPATCH_LOCK = threading.Lock()
+
+# Authoring surfaces a project can drive entity content through, declared via
+# `framework.json` ``context.authoring``. ``md`` (default) treats the exported
+# Markdown as where humans edit; ``graph`` treats the graph as where entity
+# content is authored, with Markdown a pure export view. ``graph`` only takes
+# effect under the ``kg-first`` strategy — a doc-only project has no graph
+# authority to author into.
+AUTHORING_MODES: frozenset[str] = frozenset({"md", "graph"})
+DEFAULT_AUTHORING_MODE = "md"
 
 # Context-IO backend topologies a project can select via
 # `framework.json` ``context.strategy``. ``kg-first`` (default) keeps the
@@ -126,6 +136,33 @@ def context_strategy(project_root: str | Path) -> str:
         return resolved
 
 
+def authoring_mode(project_root: str | Path) -> str:
+    """Resolve the entity-authoring surface for `project_root` (cached).
+
+    Returns ``"graph"`` only when the project is ``kg-first`` and declares
+    ``context.authoring == "graph"``; every other case — a non-``kg-first``
+    strategy, an absent value, or an unrecognized one — resolves to
+    :data:`DEFAULT_AUTHORING_MODE` (``"md"``). A doc-only project has no graph
+    authority, so ``graph`` is never honoured there.
+    """
+    key = _project_root_key(project_root)
+    with _DISPATCH_LOCK:
+        cached = _AUTHORING_CACHE.get(key)
+        if cached is not None:
+            return cached
+
+    if context_strategy(project_root) != "kg-first":
+        resolved = DEFAULT_AUTHORING_MODE
+    else:
+        data = _read_framework_json(Path(project_root))
+        declared = (data.get("context") or {}).get("authoring")
+        resolved = declared if declared in AUTHORING_MODES else DEFAULT_AUTHORING_MODE
+
+    with _DISPATCH_LOCK:
+        _AUTHORING_CACHE[key] = resolved
+    return resolved
+
+
 def kg_enabled(project_root: str | Path) -> bool:
     """True iff the project drives documents through the KG (``kg-first``).
 
@@ -195,12 +232,16 @@ def invalidate_cache() -> None:
         _AUTHORITY_CACHE.clear()
         _CONFIG_CACHE.clear()
         _STRATEGY_CACHE.clear()
+        _AUTHORING_CACHE.clear()
 
 
 __all__ = [
+    "AUTHORING_MODES",
     "CONTEXT_STRATEGIES",
+    "DEFAULT_AUTHORING_MODE",
     "DEFAULT_CONTEXT_STRATEGY",
     "active_doc_types",
+    "authoring_mode",
     "context_strategy",
     "definition_authority",
     "invalidate_cache",

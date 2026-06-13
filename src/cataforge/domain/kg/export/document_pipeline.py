@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from cataforge.domain.kg._quads import XSD_STRING_IRI, _slot_iri
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _strv,
@@ -41,6 +42,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SECTION_JOINER = "\n\n"
+
+# Literal slot recording the byte sha256 of the file most recently exported for
+# a Document — the "last export baseline" reconcile triages on-disk and
+# freshly-rendered bytes against.
+EXPORTED_CONTENT_HASH_SLOT = "cf:exported_content_hash"
 
 
 def _list_documents(store: ox.Store, namespace: str) -> list[dict[str, str]]:
@@ -112,6 +118,35 @@ def _assemble(frontmatter_raw: str, preamble_body: str, section_bodies: list[str
     blocks = [b for b in (preamble_body, *section_bodies) if b]
     content = _SECTION_JOINER.join(blocks)
     return f"{frontmatter_raw}{content}\n" if content else frontmatter_raw
+
+
+def render_document(store: ox.Store, namespace: str, doc: dict[str, str]) -> str:
+    """Reconstruct one Document's canonical Markdown text from the graph.
+
+    ``doc`` is a record from :func:`_list_documents`. The text is the same
+    string :func:`compile_documents` writes to disk, so callers that only need
+    the rendered bytes (drift triage) can compare against it without writing a
+    file.
+    """
+    sections = _section_bodies(store, namespace, doc["doc_iri"])
+    return _assemble(doc["frontmatter_raw"], doc["preamble_body"], sections)
+
+
+def _set_exported_hash(store: ox.Store, namespace: str, doc_iri: str, content_hash: str) -> None:
+    """Record `content_hash` as the Document's `cf:exported_content_hash` baseline.
+
+    Old quads for the predicate are removed first so the literal stays
+    single-valued across re-exports.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    subject = ox.NamedNode(doc_iri)
+    predicate = ox.NamedNode(_slot_iri(EXPORTED_CONTENT_HASH_SLOT, namespace))
+    for quad in list(store.quads_for_pattern(subject, predicate, None, None)):
+        store.remove(quad)
+    store.add(
+        ox.Quad(subject, predicate, ox.Literal(content_hash, datatype=ox.NamedNode(XSD_STRING_IRI)))
+    )
 
 
 def _covered_source_docs(store: ox.Store, namespace: str) -> set[str]:
@@ -188,18 +223,19 @@ def compile_documents(
     documents = _list_documents(store, namespace)
     for doc in documents:
         try:
-            sections = _section_bodies(store, namespace, doc["doc_iri"])
-            content = _assemble(doc["frontmatter_raw"], doc["preamble_body"], sections)
+            content = render_document(store, namespace, doc)
             out_file = output_dir / _relative_output(doc["source_path"])
             out_file.parent.mkdir(parents=True, exist_ok=True)
             content_bytes = content.encode("utf-8")
             out_file.write_bytes(content_bytes)
+            digest = hashlib.sha256(content_bytes).hexdigest()
+            _set_exported_hash(store, namespace, doc["doc_iri"], digest)
             file_records.append(
                 FileExportRecord(
                     entity_id=doc["source_path"],
                     entity_type="Document",
                     output_path=out_file,
-                    sha256=hashlib.sha256(content_bytes).hexdigest(),
+                    sha256=digest,
                 )
             )
         except Exception as exc:  # noqa: BLE001 — collected per-document
