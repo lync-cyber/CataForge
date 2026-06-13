@@ -85,6 +85,33 @@ REQUIRED_DEV_MODULES: tuple[tuple[str, str], ...] = (
 )
 
 
+def _set_default_timeout(config: pytest.Config) -> None:
+    """Apply a per-test timeout when ``pytest-timeout`` is installed.
+
+    Set on ``config.option`` programmatically rather than via ``addopts`` /
+    an ini key, so the default-extras collection smoke — which installs
+    ``pytest`` but not ``pytest-timeout`` — neither errors on an unknown
+    ``--timeout`` arg nor trips ``--strict-config`` on an unknown ini key.
+    Presence is detected by the ``timeout`` option attribute (plugin-name
+    agnostic); absent the plugin, this is a no-op. An explicit ``--timeout`` /
+    ``--timeout-method`` from the caller is preserved.
+
+    A deadlocked or runaway test then fails with a thread-dump in minutes
+    instead of hanging until the job's wall-clock ceiling. ``thread`` method
+    is the cross-platform choice (``signal`` is Unix-only). An explicit
+    ``--timeout`` or a ``PYTEST_TIMEOUT`` env var (the e2e job sets the latter
+    higher to cover a cold wheel-build + PyPI-install window) is left for the
+    plugin to resolve.
+    """
+    if not hasattr(config.option, "timeout"):
+        return
+    if config.option.timeout is not None or os.environ.get("PYTEST_TIMEOUT"):
+        return
+    config.option.timeout = 300
+    if getattr(config.option, "timeout_method", None) is None:
+        config.option.timeout_method = "thread"
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config: pytest.Config) -> None:
     """Relaunch the session in UTF-8 Mode if needed, then verify dev deps.
@@ -96,6 +123,7 @@ def pytest_configure(config: pytest.Config) -> None:
     deps are *declared*; this hook is where their *absence* is surfaced.
     """
     _ensure_utf8_test_session(config)
+    _set_default_timeout(config)
 
     missing: list[tuple[str, str]] = []
     for mod, hint in REQUIRED_DEV_MODULES:
@@ -203,6 +231,31 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
 
+# Top-level test subdirectories whose suites exercise cross-component behaviour
+# (real CLI invocation, filesystem deploy, platform adapters, MCP server) rather
+# than a single unit in isolation. Tests collected under these get an automatic
+# ``integration`` marker so a fast inner loop can run `pytest -m "not integration
+# and not slow"`. Pure-unit dirs (core, utils, kg, skill, hook, …) stay unmarked.
+# e2e lives in its own layer via the explicit ``slow`` marker.
+_INTEGRATION_DIRS = frozenset({"cli", "deploy", "platform", "mcp", "integrations"})
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Auto-apply the ``integration`` marker by top-level test subdirectory.
+
+    Path-based so no per-file ``pytestmark`` churn is needed; the dir set above
+    is the single place to retune the unit/integration split.
+    """
+    tests_root = _REPO_ROOT / "tests"
+    for item in items:
+        try:
+            rel = Path(str(item.fspath)).resolve().relative_to(tests_root)
+        except ValueError:
+            continue
+        if rel.parts and rel.parts[0] in _INTEGRATION_DIRS:
+            item.add_marker("integration")
+
+
 # ---------------------------------------------------------------------------
 # UTF-8 subprocess helper
 # ---------------------------------------------------------------------------
@@ -263,6 +316,12 @@ def run_utf8_subprocess():
 def _clear_module_caches() -> None:
     """Clear all module-level mutable caches after each test to prevent cross-test pollution."""
     yield
+    try:
+        from cataforge.adapter.platform.registry import clear_cache
+
+        clear_cache()
+    except Exception:
+        pass
     try:
         from cataforge.runtime.hook.base import clear_spec_entry_cache, clear_tool_map_cache
 

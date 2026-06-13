@@ -14,6 +14,7 @@ each duplicating the same six-line boilerplate.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -51,3 +52,30 @@ def populate_required_source_assets(cataforge_dir: Path) -> None:
     hooks_yaml = cataforge_dir / "hooks" / "hooks.yaml"
     if not hooks_yaml.is_file():
         hooks_yaml.write_text("version: 1\n", encoding="utf-8")
+
+
+def make_minimal_project(tmp_path: Path, *, framework_json: dict | None = None) -> Path:
+    """Create a doctor-clean ``.cataforge/`` skeleton at *tmp_path*; return *tmp_path*.
+
+    ``framework.json`` defaults to the minimal valid ``version`` /
+    ``runtime_api_version`` pair. Pass ``framework_json`` to merge extra keys
+    (e.g. ``{"migration_checks": [...]}``) over that base. Required source-asset
+    directories are populated so ``doctor`` doesn't fail the project for an
+    unrelated setup gap.
+    """
+    cf = tmp_path / ".cataforge"
+    cf.mkdir()
+    payload: dict = {"version": "0.1.0", "runtime_api_version": "1.0"}
+    if framework_json:
+        payload.update(framework_json)
+    (cf / "framework.json").write_text(json.dumps(payload), encoding="utf-8")
+    populate_required_source_assets(cf)
+    return tmp_path
+
+
+def write_doc(root: Path, rel: str, body: str) -> Path:
+    """Write *body* to ``root/rel``, creating parent directories; return the path."""
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(body, encoding="utf-8")
+    return p

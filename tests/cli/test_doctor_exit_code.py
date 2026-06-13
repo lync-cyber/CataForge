@@ -2,31 +2,16 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from cataforge.interface.cli.doctor_cmd import doctor_command
+from tests.cli.conftest import make_minimal_project
 
 
 def _minimal_project(tmp_path: Path, checks: list[dict]) -> Path:
-    from tests.cli.conftest import populate_required_source_assets
-
-    cf = tmp_path / ".cataforge"
-    cf.mkdir()
-    (cf / "framework.json").write_text(
-        json.dumps(
-            {
-                "version": "0.1.0",
-                "runtime_api_version": "1.0",
-                "migration_checks": checks,
-            }
-        ),
-        encoding="utf-8",
-    )
-    populate_required_source_assets(cf)
-    return tmp_path
+    return make_minimal_project(tmp_path, framework_json={"migration_checks": checks})
 
 
 def test_doctor_passes_with_no_checks(tmp_path: Path, monkeypatch) -> None:
