@@ -12,7 +12,7 @@
 | 门禁触发 | doc-review / code-review / sprint-review 是否如期触发、Layer 1↔2 短路判定是否正确 | 该审却没审、该短路却全跑（反之亦然） |
 | 降级行为 | 缺能力时降级是否显式、是否有日志 | 静默丢能力、未提示降级即继续 |
 | CLI / skill / hook | `cataforge` 子命令、`skill run`、hook 是否报错或退出码异常 | 命令不存在、参数不符、Layer 1 返回 2/127 |
-| 文档加载 / KG | `cataforge context read` 按 KG-active / legacy 分流是否正常、reconcile 是否通过 | 实体级引用解析失败、drift 未被 reconcile 捕获 |
+| 文档加载 / KG | `cataforge context read` 按 KG-active / legacy 分流是否正常；kg-first authoring 模式下 authoring 落图 → `finalize` 导出 → `reconcile` 归零的回环是否成立 | 实体级引用解析失败、drift 未被 reconcile 捕获、authoring 后 finalize 未重导出或 reconcile 残留 drift |
 | 交互负担 | 多少处需要人工代答、提问是否选择题优先、是否重复提问 | 同一问题反复问、开放式提问过多 |
 | 状态一致 | PROJECT-STATE / EVENT-LOG 与实际推进是否一致 | 阶段标记与产物不符、事件漏写 |
 
