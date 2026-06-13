@@ -21,6 +21,7 @@ sweep that additionally covers relations.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -29,13 +30,20 @@ from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.docs.index_ops import _load_doc_type_map
 from cataforge.domain.kg._config import KGConfig
+from cataforge.domain.kg._dispatch import authoring_mode
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _strv,
+    assert_safe_iri,
     cf_namespace,
     curie_for_iri,
     escape_sparql_literal,
     select_rows,
+)
+from cataforge.domain.kg.export.document_pipeline import (
+    EXPORTED_CONTENT_HASH_SLOT,
+    _list_documents,
+    render_document,
 )
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
 from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_CLASSES
@@ -94,6 +102,80 @@ class PerDocTypeReport:
         }
 
 
+# Document-level drift states, decided by a three-way hash comparison between
+# the on-disk file, the last-export baseline, and a fresh in-memory render.
+DRIFT_NEVER_EXPORTED = "never_exported"
+DRIFT_IN_SYNC = "in_sync"
+DRIFT_HUMAN_EDIT = "human_edit"
+DRIFT_GRAPH_AHEAD = "graph_ahead"
+DRIFT_CONFLICT = "conflict"
+
+
+@dataclass
+class DocumentDriftRecord:
+    """Drift verdict for one Document node, keyed by its source path."""
+
+    source_path: str
+    doc_id: str
+    state: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {"source_path": self.source_path, "doc_id": self.doc_id, "state": self.state}
+
+
+def _classify_document_drift(file_hash: str | None, baseline: str | None, render_hash: str) -> str:
+    """Decide a Document's drift state from its three content hashes.
+
+    ``baseline`` absent → the graph never exported this document. A deleted
+    file (``file_hash`` None) with a known baseline reads as graph-ahead: the
+    graph still holds content the disk no longer reflects.
+    """
+    if baseline is None:
+        return DRIFT_NEVER_EXPORTED
+    if file_hash is None:
+        return DRIFT_GRAPH_AHEAD
+    file_matches = file_hash == baseline
+    render_matches = render_hash == baseline
+    if file_matches and render_matches:
+        return DRIFT_IN_SYNC
+    if not file_matches and render_matches:
+        return DRIFT_HUMAN_EDIT
+    if file_matches and not render_matches:
+        return DRIFT_GRAPH_AHEAD
+    return DRIFT_CONFLICT
+
+
+def _document_baseline(store: ox.Store, config: KGConfig, doc_iri: str) -> str | None:
+    """Return a Document's `cf:exported_content_hash`, or None when unset."""
+    ns = cf_namespace(config)
+    safe = assert_safe_iri(doc_iri)
+    slot = EXPORTED_CONTENT_HASH_SLOT.split(":", 1)[1]
+    sparql = f"PREFIX cf: <{ns}> SELECT ?h WHERE {{ <{safe}> cf:{slot} ?h }} LIMIT 1"
+    for row in select_rows(store, sparql):
+        return _strv(_row_lookup(row, "h"))
+    return None
+
+
+def _triage_documents(
+    store: ox.Store, project_root: Path, config: KGConfig
+) -> list[DocumentDriftRecord]:
+    """Triage every `cf:source_path`-bearing Document for content drift."""
+    ns = cf_namespace(config)
+    records: list[DocumentDriftRecord] = []
+    for doc in _list_documents(store, ns):
+        source_path = doc["source_path"]
+        on_disk = project_root / source_path
+        file_hash = hashlib.sha256(on_disk.read_bytes()).hexdigest() if on_disk.is_file() else None
+        baseline = _document_baseline(store, config, doc["doc_iri"])
+        render_hash = hashlib.sha256(render_document(store, ns, doc).encode("utf-8")).hexdigest()
+        state = _classify_document_drift(file_hash, baseline, render_hash)
+        records.append(
+            DocumentDriftRecord(source_path=source_path, doc_id=doc["doc_iri"], state=state)
+        )
+    records.sort(key=lambda r: r.source_path)
+    return records
+
+
 @dataclass
 class ReconcileReport:
     """Aggregate reconciliation outcome across every active doc_type."""
@@ -101,10 +183,21 @@ class ReconcileReport:
     timestamp: str
     active_doc_types: list[str]
     per_doc_type: dict[str, PerDocTypeReport] = field(default_factory=dict)
+    authoring: str = "md"
+    documents: list[DocumentDriftRecord] = field(default_factory=list)
 
     @property
     def overall_divergence_count(self) -> int:
         return sum(r.divergence_count for r in self.per_doc_type.values())
+
+    @property
+    def document_drift_count(self) -> int:
+        """Documents whose three-way triage is anything but ``in_sync``.
+
+        Independent of ``overall_divergence_count`` — the id-set diff and the
+        content triage are orthogonal drift signals.
+        """
+        return sum(1 for d in self.documents if d.state != DRIFT_IN_SYNC)
 
     @property
     def ok(self) -> bool:
@@ -117,6 +210,9 @@ class ReconcileReport:
             "per_doc_type": {k: v.to_dict() for k, v in sorted(self.per_doc_type.items())},
             "overall_divergence_count": self.overall_divergence_count,
             "ok": self.ok,
+            "authoring": self.authoring,
+            "documents": [d.to_dict() for d in self.documents],
+            "document_drift_count": self.document_drift_count,
         }
 
 
@@ -250,7 +346,12 @@ def reconcile(
     type_map = _load_doc_type_map(str(project_root))
     active = sorted(config.kg_active_doc_types)
 
-    report = ReconcileReport(timestamp=_utc_now_iso(), active_doc_types=active)
+    report = ReconcileReport(
+        timestamp=_utc_now_iso(),
+        active_doc_types=active,
+        authoring=authoring_mode(project_root),
+        documents=_triage_documents(store, project_root, config),
+    )
 
     # Pre-pass: scan every active doc_type once, recording the doc_id(s) that
     # *define* each entity and collecting every FS relation. A relation is a
@@ -341,6 +442,7 @@ def write_report(report: ReconcileReport, output_path: Path) -> None:
 
 
 __all__ = [
+    "DocumentDriftRecord",
     "PerDocTypeReport",
     "ReconcileReport",
     "RelKey",
