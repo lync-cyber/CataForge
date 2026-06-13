@@ -145,6 +145,54 @@ def _infer_doc_id(file_name: str, doc_type: str) -> str:
     return stem
 
 
+def parse_doc_text(
+    raw: str,
+    *,
+    doc_type: str,
+    file_name: str,
+    source_path: str,
+    mtime: float,
+    file_path: Path | None = None,
+) -> ParsedDoc:
+    """Parse one Markdown document's raw text into a ``ParsedDoc``.
+
+    A malformed frontmatter block yields a ``ParsedDoc`` whose ``frontmatter``
+    carries ``__parse_error__``; the caller decides whether to skip or raise.
+    ``doc_id`` / ``doc_type`` derive from the frontmatter when present, else
+    from ``file_name`` and the passed ``doc_type``.
+    """
+    raw = raw.replace("\r\n", "\n").replace("\r", "\n")
+    frontmatter, body = parse_frontmatter(raw)
+    if _PARSE_ERROR_KEY in frontmatter:
+        return ParsedDoc(
+            doc_id=_infer_doc_id(file_name, doc_type),
+            doc_type=doc_type,
+            file_path=file_path or Path(source_path),
+            mtime=mtime,
+            raw=raw,
+            body=body,
+            body_offset=0,
+            source_path=source_path,
+            frontmatter=frontmatter,
+        )
+    body_offset = raw.count("\n", 0, len(raw) - len(body)) if body else 0
+    doc_id = frontmatter.get("doc_id") or _infer_doc_id(file_name, doc_type)
+    ft_doc_type = frontmatter.get("doc_type") or doc_type
+    return ParsedDoc(
+        doc_id=doc_id,
+        doc_type=ft_doc_type,
+        file_path=file_path or Path(source_path),
+        mtime=mtime,
+        raw=raw,
+        body=body,
+        body_offset=body_offset,
+        source_path=source_path,
+        frontmatter=frontmatter,
+        sections=_heading_spans(body, body_offset),
+        code_block_offsets=_code_block_char_ranges(raw),
+    )
+
+
 def scan_business_docs(
     project_root: Path,
     doc_types: list[str],
@@ -164,32 +212,21 @@ def scan_business_docs(
         if not directory.is_dir():
             continue
         for path in sorted(directory.glob("*.md")):
-            raw = path.read_text().replace("\r\n", "\n").replace("\r", "\n")
-            frontmatter, body = parse_frontmatter(raw)
-            if _PARSE_ERROR_KEY in frontmatter:
+            raw = path.read_text()
+            doc = parse_doc_text(
+                raw,
+                doc_type=doc_type,
+                file_name=path.name,
+                source_path=path.relative_to(project_root).as_posix(),
+                mtime=path.stat().st_mtime,
+                file_path=path,
+            )
+            if _PARSE_ERROR_KEY in doc.frontmatter:
                 warnings.warn(
                     f"Skipping {path} due to frontmatter YAML parse error",
                     category=UserWarning,
                     stacklevel=2,
                 )
                 continue
-            body_offset = raw.count("\n", 0, len(raw) - len(body)) if body else 0
-            doc_id = frontmatter.get("doc_id") or _infer_doc_id(path.name, doc_type)
-            ft_doc_type = frontmatter.get("doc_type") or doc_type
-            source_path = path.relative_to(project_root).as_posix()
-            parsed.append(
-                ParsedDoc(
-                    doc_id=doc_id,
-                    doc_type=ft_doc_type,
-                    file_path=path,
-                    mtime=path.stat().st_mtime,
-                    raw=raw,
-                    body=body,
-                    body_offset=body_offset,
-                    source_path=source_path,
-                    frontmatter=frontmatter,
-                    sections=_heading_spans(body, body_offset),
-                    code_block_offsets=_code_block_char_ranges(raw),
-                )
-            )
+            parsed.append(doc)
     return parsed
