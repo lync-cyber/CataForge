@@ -30,6 +30,7 @@
 - 项目性质: CataForge 是成熟、持续迭代的 AI SDLC 框架本体（meta 项目），自身按框架工程流程演进 —— feature branch + PR + Squash merge + TDD + `run_local.py`/CI 门禁；**不运行 orchestrator 的 7 阶段 SDLC 文档管线**
 - SDLC 文档管线对本仓 N/A: PRD / ARCH / UI-SPEC / DEV-PLAN / TEST-REPORT / DEPLOY-SPEC 是框架**交付给下游业务项目**的产物，对元项目本身**不需要（非"未开始"）**
 - 进度事实源: git 历史 / PR / CHANGELOG / `docs/proposals/`，不在本文件维护阶段或文档状态字段
+- kg-first 反转 backlog: 提案 `docs/proposals/kg-first-authoring-inversion.md` 定义 P-1~P-6；剩余 PR-C（P-5 审查/修订面）→ PR-D（P-4 工作流资产反转）→ PR-E（P-6 收尾）按依赖链待实施，计划在 cloud 远程会话执行
 - Learnings Registry: (compacted; archive in .cataforge/learnings/registry-archive.md)
   <!-- 上限：framework.json#claude_md_limits.learnings_registry_max_entries；超限运行 `cataforge claude-md compact` -->
 
