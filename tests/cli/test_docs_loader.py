@@ -8,8 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.application.context import read as context_read
 from cataforge.domain.docs import loader
+from cataforge.interface.cli.context_cmd import context_read as context_read_cmd
+from tests.cli.conftest import invoke_under_group
 
 
 @pytest.fixture(autouse=True)
@@ -180,10 +181,11 @@ def _build_indexed_project(tmp_path: Path, capsys=None) -> None:
 
 def test_loader_main_json_output(tmp_path: Path, capsys) -> None:
     _build_indexed_project(tmp_path, capsys=capsys)
-    rc = context_read.main(["--project-root", str(tmp_path), "--json", "prd#§1"])
-    assert rc == 0
-    captured = capsys.readouterr()
-    payload = json.loads(captured.out)
+    result = invoke_under_group(
+        context_read_cmd, ["--project-root", str(tmp_path), "--json", "prd#§1"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
     assert isinstance(payload, list) and len(payload) == 1
     assert payload[0]["status"] == "ok"
     assert payload[0]["ref"] == "prd#§1"
@@ -195,21 +197,14 @@ def test_loader_main_json_output(tmp_path: Path, capsys) -> None:
 def test_loader_main_budget_defers(tmp_path: Path, capsys) -> None:
     _build_indexed_project(tmp_path, capsys=capsys)
     # Tiny budget → every ref defers
-    rc = context_read.main(
-        [
-            "--project-root",
-            str(tmp_path),
-            "--budget",
-            "1",
-            "prd#§1",
-            "prd#§2.F-001",
-        ]
+    result = invoke_under_group(
+        context_read_cmd,
+        ["--project-root", str(tmp_path), "--budget", "1", "prd#§1", "prd#§2.F-001"],
     )
-    assert rc == 0
-    captured = capsys.readouterr()
-    assert "[DEFERRED]" in captured.err
-    assert "prd#§1" in captured.err
-    assert "prd#§2.F-001" in captured.err
+    assert result.exit_code == 0, result.output
+    assert "[DEFERRED]" in result.stderr
+    assert "prd#§1" in result.stderr
+    assert "prd#§2.F-001" in result.stderr
 
 
 def test_loader_main_with_deps_expands_refs(tmp_path: Path, capsys) -> None:
@@ -244,18 +239,13 @@ def test_loader_main_with_deps_expands_refs(tmp_path: Path, capsys) -> None:
     }
     (tmp_path / "docs" / ".doc-index.json").write_text(json.dumps(index), encoding="utf-8")
 
-    rc = context_read.main(
-        [
-            "--project-root",
-            str(tmp_path),
-            "--with-deps",
-            "prd#§2.F-001",
-        ]
+    result = invoke_under_group(
+        context_read_cmd,
+        ["--project-root", str(tmp_path), "--with-deps", "prd#§2.F-001"],
     )
-    assert rc == 0
-    captured = capsys.readouterr()
+    assert result.exit_code == 0, result.output
     # The dep should have been auto-loaded
-    assert "[DEPS]" in captured.err
-    assert "prd#§1" in captured.err
-    assert "=== prd#§1 ===" in captured.out
-    assert "=== prd#§2.F-001 ===" in captured.out
+    assert "[DEPS]" in result.stderr
+    assert "prd#§1" in result.stderr
+    assert "=== prd#§1 ===" in result.output
+    assert "=== prd#§2.F-001 ===" in result.output
