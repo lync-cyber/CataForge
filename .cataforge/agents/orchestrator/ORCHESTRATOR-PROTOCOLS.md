@@ -175,7 +175,7 @@ Mode Routing Protocol 在以下时刻被调用:
 5.3. **一致性最终守门** — 运行 `cataforge context reconcile`（上下文方案未启用图后端时为 no-op，WARN 跳过）:
    - 无漂移 → 通过，继续 Step 5.5
    - 有漂移 → 向用户展示漂移报告摘要并提供选项：
-     1. 自动修复（按 reconcile 报告的漂移方向）：graph_ahead（图谱领先、导出视图陈旧）跑 `cataforge context finalize` 重导出；human_edit（人改导出文件）跑 `cataforge context ingest` 回灌；conflict（两侧均变更）转选项 3。修复后复跑 `cataforge context reconcile`，漂移归零后继续 Step 5.5
+     1. 自动修复（按 reconcile 报告 `documents[].remediation`）：`export`（图谱领先/未导出）→ `cataforge context finalize` 重导出；`ingest`（人改导出文件或 md 权威）→ `cataforge context ingest` 回灌；`manual`（conflict，两侧均变更）→ 转选项 3。修复后复跑 `cataforge context reconcile`，漂移归零后继续 Step 5.5
      2. 进入 cascade_amendment 修订上游文档以匹配图谱
      3. 暂停，手动审查
    - 其它错误（store 未初始化等）→ WARN 跳过（记录到 EVENT-LOG 供 reflector 复盘），不阻塞

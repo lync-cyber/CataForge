@@ -1,8 +1,17 @@
 # 实施计划：kg-first 反转剩余序列 PR-C / PR-D / PR-E
 
-> 状态：计划。本文是 `kg-first-authoring-inversion.md` §3 剩余子项（P-5 / P-4 / P-6）的落地拆分，由代码与提示词联合审查驱动。
+> 状态：实施中。本文是 `kg-first-authoring-inversion.md` §3 剩余子项（P-5 / P-4 / P-6）的落地拆分，由代码与提示词联合审查驱动。
 > 映射：**PR-C = P-5**（审查/修订面）→ **PR-D = P-4**（工作流资产反转）→ **PR-E = P-6**（迁移与门禁收尾）。
 > 交付边界：本文给出文件级改动清单、横切架构、验收标准与排序；实现以各 PR 的 git 历史为准。
+>
+> 落地进度：
+>
+> - PR-C：审查/修订经 authoring 落图 + finalize（review.md / Revision / inline-fix）；幽灵命令 `write-section` 清除 —— 已落地。
+> - PR-D：generate.md 反转、六个产文档 Agent Output Contract 改图写入、product-manager 授 shell_exec、Step 5.3 方向感知、CLI 别名 hidden、read.py 关注点分离 + doc-io 共享（消除逆向依赖）、finalize 空图感知 authoring_mode（C2）、prompt↔CLI 漂移守卫（含自测）—— 已落地。
+> - PR-E：`AuthorityPolicy` 单一决策点 + reconcile 输出 `documents[].remediation`（C4）、doctor strategy↔authoring 有效性门禁（C9）、Step 5.3 引用 remediation 字段 —— 已落地。
+> - PR-E 待续（独立 follow-up）：下游迁移工具链（`ingest --source seed` / `finalize --init-export-baseline` / framework-update 引导 / 回退开关，§5.2）；framework-walkthrough 的 kg-first authoring 端到端演练（§5.3）；执行模式矩阵与 COMMON-RULES 措辞终态化（§5.4）；导出器 `link_to` filter 与死字段退役（C8，§5.5）。
+>
+> 工程判断调整：`AuthorityPolicy` 在 PR-E（其消费方 reconcile 落地处）引入而非 PR-D，避免未被消费的死脚手架；C7（`requires_kg_first` 装饰器）因 finalize/ingest/reconcile 三处 fallback 各异、强行抽象反损可读性，不实施。
 
 ---
 
@@ -86,14 +95,17 @@
 ### 改动清单
 
 **提示词**
+
 - `context/references/review.md`：声明 Layer 1/2 审查对象为 `context finalize` 导出的**只读视图**；审查前若 reconcile 报 `graph_ahead`，先 finalize 再审，杜绝审陈旧 md。
 - `context/references/review.md` + ORCHESTRATOR-PROTOCOLS Revision Protocol(`:133`)：revision 修复**经 authoring API 落图 → re-finalize**，不 Edit 导出文件；收口 reconcile 期望 `graph_ahead → finalize → in_sync`（修复 P4 的修订侧）。
 - ORCHESTRATOR-PROTOCOLS Approved-with-Notes inline-fix(`:149`)：kg-first 下 LOW 批量修复改为 `context write` / `context write-narrative` 落图后 finalize，移除"Edit 导出文件"措辞（修复 P4 的 inline-fix 侧）。
 
 **代码**
+
 - doc-review checker（`runtime/skill/builtins/doc_review/checker.py`）：已文本友好，无需重构；补一处守卫——kg-first 项目运行 doc-review 前确保审查的是最新导出（reconcile 非 `graph_ahead`），否则提示先 finalize。
 
 ### 验收
+
 - doc-review Layer 1 全检查项在导出视图上可执行（沿用既有 fixture）。
 - revision 闭环：authoring 修复 → finalize → `context reconcile` 归零，无 `conflict`。
 - 过渡兼容性说明：PR-D 未落地时初始生成仍 Edit→ingest，graph 经 ingest 同步，PR-C 的"修订走 authoring"与之共存（两者都使 finalize 可重导出）。
@@ -108,27 +120,32 @@
 ### 改动清单
 
 **4.1 context skill generate 流程反转**（P1）
+
 - `context/references/generate.md`：
   - 创建骨架：`Write ...md` → 从模板实例化 **Document/Volume/Section 图骨架**（`context write-doc` / `context transact`）。
   - 写入章节：`context read` + `Edit` → authoring API（实体 `context write`、节叙事 `context write-narrative`、整章批量 `context transact`）。
   - 定稿：`context finalize` 导出视图；**ingest 仅吸收人改**（不再作主写入路径）。
 
 **4.2 Agent Output Contract 改图写入**（P2 + P2b）
+
 - PM / architect / tech-lead（及 ui-designer / qa-engineer / devops 产文档面）Output Contract：
   "通过 context authoring API 落图，`context finalize` 导出 `docs/{doc_type}/...md` 供审查"。
 - **P2b 硬阻塞解除**：`product-manager/AGENT.md` frontmatter 补 `shell_exec`（authoring 经 CLI 必需）。架构决策记录：authoring 入口走 `cataforge context` shell 命令（SKILL `suggested-tools` 已含 Bash），不引入新原生工具——保持单一调用面。
 - frontmatter `tools` 保留 file_read（读模板）/ file_write（research-note 等非文档产物）；文档正文不再经 file_edit 直写。
 
 **4.3 权威方向门禁翻转**（P0 的提示词侧，与 PR-E 的 C4 代码侧呼应；若 PR-D 先落则先放条件分支）
+
 - ORCHESTRATOR-PROTOCOLS Step 5.3(`:178`)：漂移补救按 AuthorityPolicy——kg-first `graph_ahead → context finalize 重导出`；`human_edit → context ingest`；移除"以 markdown 为准"绝对化措辞。
 
 **4.4 CLI 动词收敛收尾**（P-4 剩余子项）
+
 - C5：将 `run_index`/`run_validate` 共享实现归位（移到 `interface/cli` 共享 helper 或 context 侧），`docs_cmd` 别名反向 import，消除逆向依赖。
 - 别名期管理：`docs load/index/validate` 加 Click `hidden=True` + stderr 弃用提示已有；明确别名期窗口。
 - C6：`kg reconcile` 与 `context reconcile` 的 `--help` 消歧（低层工程 vs 高层策略守卫），或重命名低层为 `kg drift-check`。
 - grep 守卫：新增 check，校验提示词资产引用的 CLI 命令面与实际命令零漂移。
 
 **4.5 代码收口**
+
 - C1：read.py 关注点分离（见 §2.2）。
 - C2：finalize 空图分支感知 `authoring_mode`，加显式分支 + 注释。
 - C3：ingest 增 `IngestSource` 接口（行为初期等价，意图分离）。
@@ -136,6 +153,7 @@
 - C2/C3/C7 共用 §2.1 的 AuthorityPolicy。
 
 ### 验收
+
 - 提案 §2 端到端：product-manager 不经任何 `Edit docs/*.md`，仅经 authoring API 产出含 Feature/AC/叙事的完整 PRD；finalize 导出通过 doc-review L1+L2；人改一处叙事后 ingest 回流、reconcile 归零、再 finalize 字节幂等。
 - `docs load` 实体级/章节级读取在反转前后内容一致；旧读取入口别名期行为不变。
 - grep 守卫：全部 prompt 资产 ↔ CLI 命令面零漂移。
@@ -149,25 +167,31 @@
 ### 改动清单
 
 **5.1 reconcile 权威方向随 strategy 收敛**（C4，P0 代码侧闭环）
+
 - `reconcile.py`：引入并消费 §2.1 的 AuthorityPolicy，使 `authoring_mode` 真正驱动补救默认方向，而非仅写报告。reconcile / finalize / ingest / Step 5.3 同源。
 
 **5.2 下游迁移路径**（md-first → kg-first）
+
 - 迁移流：`context ingest --source seed`（种子灌入）→ `context finalize --init-export-baseline`（首次全量重导出 + 写基线哈希）→ 切权威。
 - `migrate.py` 补 `--init-export-baseline` 阶段（首次导出基线初始化）。
 - framework-update 提示迁移路径；提供 md-first 过渡回退开关，保留 ≥1 minor 周期。
 
 **5.3 doctor / walkthrough 适配**（C9）
+
 - doctor：`check_context_strategy_validity()` 校验 `strategy=doc-only ⇒ authoring=md`、`authoring=graph ⇒ strategy=kg-first`；orphan 实体（无 Document 覆盖）门禁报告。
 - framework-walkthrough：扩展 kg-first authoring 模式端到端演练（图写入 → finalize → reconcile 归零）。
 
 **5.4 契约措辞终态化**
+
 - 执行模式矩阵 / COMMON-RULES 的 context I/O 契约措辞对齐图权威终态。
 - 开放问题决策：per-doc_type 权威粒度（如 prd 图权威、test-report 保持 md 权威）与运维类文档（deploy-spec/changelog）是否纳入反转——按 P-1 实测结论定稿并写入提案。
 
 **5.5 导出器增量**（C8，可独立）
+
 - `link_to(entity)` Jinja filter；退役/实现 `layout_spec`/`ui_route` 死字段。
 
 ### 验收
+
 - `cataforge framework-walkthrough` 在 kg-first authoring 模式整链路 GO。
 - md-first 存量项目按迁移文档切换后 `cataforge doctor` 全绿。
 - reconcile 补救方向在 kg-first / md-first 两策略下均符合 AuthorityPolicy。

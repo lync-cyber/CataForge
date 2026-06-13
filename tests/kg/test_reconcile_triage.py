@@ -208,7 +208,9 @@ def test_to_dict_carries_triage_fields(tmp_path: Path) -> None:
     assert payload["document_drift_count"] == 0
     assert isinstance(payload["documents"], list) and payload["documents"]
     for record in payload["documents"]:
-        assert set(record) == {"source_path", "doc_id", "state"}
+        assert set(record) == {"source_path", "doc_id", "state", "remediation"}
+        # md authority: an in-sync document needs no remediation.
+        assert record["remediation"] == "none"
 
 
 # --- docs index rebuild on finalize ------------------------------------------

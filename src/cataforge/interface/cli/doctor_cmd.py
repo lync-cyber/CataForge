@@ -16,6 +16,7 @@ import click
 from cataforge.interface.cli.main import cli
 
 from .doctor._helpers import check_dir, check_file, check_import
+from .doctor.context_authority import check_context_authority_config
 from .doctor.deploy_integrity import (
     check_deploy_drift,
     check_deploy_integrity,
@@ -55,6 +56,10 @@ _DOCTOR_SECTIONS = [
     ("Protocol script references:", check_protocol_script_references, True),
     ("Deprecated protocol references:", check_deprecated_references, True),
     ("Docs validation:", check_docs_validate, True),
+    # context strategy/authoring pair — graph authoring without the kg-first
+    # backend is a config contradiction that authoring_mode would silently
+    # coerce; gate it here so the author fixes framework.json.
+    ("Context authority config:", check_context_authority_config, True),
     # KG ingestion completeness — hard ERROR gate ensuring the KG is the single
     # source of truth for active doc_types (ERROR when an FS entity_id is
     # missing from the graph; skipped when no store exists).
