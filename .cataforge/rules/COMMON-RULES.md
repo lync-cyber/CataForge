@@ -117,18 +117,18 @@ Agent 间统一格式：
 适用：所有 sub-agent 加载 `docs/` 下指定章节时（architect / tech-lead / qa-engineer / devops / ui-designer 等读 PRD/ARCH/UI-SPEC/DEV-PLAN 的角色，及任何用 doc_id#§N 做输入契约的下游）。
 
 - 禁止：用 Read 工具一次性读取 `docs/{doc_type}/*.md` 整篇 — 几千行整篇会瞬间稀释焦点并浪费 token。
-- 强制：通过 `cataforge docs load <doc_id>#§N[.item]` 按章节 / 条目维度按需分批加载；同文件多 ref 共享 per-file 缓存，批量调用优于循环。
-- 各 agent 自己的 Input Contract 段落保留**该角色实际需要的 doc_id 白名单**，但不重复"禁止 Read 全文"这条通用规则。
-- `cataforge docs load` 失败（exit 2 = 至少一个 ref 失败）按 stderr 提示修正；索引漂移时 `cataforge docs validate` 校验、`cataforge docs index` 重建。
+- 强制：通过 `cataforge context read <doc_id>#§N[.item]` 按章节 / 条目维度按需分批加载；同文件多 ref 共享 per-file 缓存，批量调用优于循环。
+- 各 agent 自己的 Input Contract 章节保留**该角色实际需要的 doc_id 白名单**，但不重复"禁止 Read 全文"这条通用规则。
+- `cataforge context read` 失败（exit 2 = 至少一个 ref 失败）按 stderr 提示修正；索引漂移时 `cataforge context validate` 校验、`cataforge context index` 重建。
 
 ## Agent 文档 I/O 契约（通用约定）
 适用：所有产文档的 Agent（product-manager / architect / ui-designer / tech-lead / qa-engineer / devops）以及读文档的 sub-agent（test-writer / implementer / reviewer / debugger 等）。
 
 下列约定对所有 Agent 一次性生效，**各 Agent 的 Input/Output Contract 不再重复**（操作细节见 context skill）：
 
-- **统一经 context 能力入口** — 读取、依赖展开、生成定稿、校验都经 `cataforge docs` / `cataforge context`。后端与保真度由框架按项目上下文方案路由，**调用方不在 prompt 里判断走哪个后端**；后端选择复述会随实现漂移。
+- **统一经 context 能力入口** — 读取、依赖展开、生成定稿、校验都经 `cataforge context`。后端与保真度由框架按项目上下文方案路由，**调用方不在 prompt 里判断走哪个后端**；后端选择复述会随实现漂移。
 - **定稿与回灌** — Agent 完成章节填充后调 `cataforge context finalize` 定稿；`Edit` 直写 markdown 的场景由 orchestrator 在收口点跑 `cataforge context ingest` 同步权威存储；后端由 `context.strategy` 路由，调用方不分支。
-- **读取与依赖展开后端无关** — `cataforge docs load <ref>` / `--with-deps` 返回相同 markdown 形式；后端不可达时框架自动降级到文件路径，Agent 调用契约不变。
+- **读取与依赖展开后端无关** — `cataforge context read <ref>` / `--with-deps` 返回相同 markdown 形式；后端不可达时框架自动降级到文件路径，Agent 调用契约不变。
 - **drift 检查由 orchestrator 负责** — Phase Transition 自动跑一致性守门；Agent 无需在 Output Contract 中声明。
 
 ## 输出质量原则
@@ -222,7 +222,7 @@ Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2�
 - 最新版本 = 编号最大的文件，无需归档重命名。
 
 ### 报告 Front Matter 约定
-所有系统生成的报告（含审查报告与运维日志）必须以 YAML front matter 起始；缺失会被 `cataforge docs index` 跳过、被 `cataforge doctor` 计为 orphan 并 FAIL。
+所有系统生成的报告（含审查报告与运维日志）必须以 YAML front matter 起始；缺失会被 `cataforge context index` 跳过、被 `cataforge doctor` 计为 orphan 并 FAIL。
 
 | 报告类别 | 路径 | `id` 格式 | `doc_type` | 允许 `status` |
 |---------|------|----------|-----------|--------------|

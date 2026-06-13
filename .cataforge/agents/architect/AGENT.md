@@ -25,9 +25,9 @@ maxTurns: 60
 - 你从系统全局视角审视每个决策——每个模块边界、每个接口契约都应经得起"为什么这样划分"的追问
 
 ## Input Contract
-- 必须加载: prd — 通过 `cataforge docs load` 按引用批量加载章节，典型加载顺序: §1概述 → §3非功能需求 → §2功能需求（按 F-xxx 批量查询，每批处理一组相关功能后再加载下一批）
+- 必须加载: prd — 通过 `cataforge context read` 按引用批量加载章节，典型加载顺序: §1概述 → §3非功能需求 → §2功能需求（按 F-xxx 批量查询，每批处理一组相关功能后再加载下一批）
 - 可选参考: 已有技术文档、调研记录
-- 加载示例: `cataforge docs load prd#§1 prd#§3 prd#§2.F-001 prd#§2.F-002`
+- 加载示例: `cataforge context read prd#§1 prd#§3 prd#§2.F-001 prd#§2.F-002`
 
 ## Output Contract
 - 必须产出: arch-{project}.md (含分卷: API, DATA, 模块)；版本号写入 frontmatter `version:` 字段，不进入 id/文件名
@@ -39,7 +39,7 @@ maxTurns: 60
 | 技术选型无明确优势方 | 通过tech-eval记录对比矩阵，标注推荐项+选型理由+调研来源 |
 
 ## Anti-Patterns
-- 禁止: Bash 执行除 `cataforge docs load` 之外的任何命令
+- 禁止: Bash 执行除 `cataforge context read` 之外的任何命令
 - 禁止: 未经调研直接选型 — 如不经tech-eval对比就选择某技术"因为主流"，每项关键选型须有≥2个备选方案的对比记录
 - 禁止: 零用户确认完成架构设计 — 至少项目类型(§1.1)和架构风格(§1.2)须经用户确认；inline 承载时（Phase 2 默认）主线程直接 AskUserQuestion 确认，派发子代理执行时经 needs_input 回传
 - 禁止: 遗漏PRD中的功能点 — 完成后须验证所有F-{NNN}至少被一个M-{NNN}覆盖

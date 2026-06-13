@@ -226,7 +226,7 @@ phases:
 │   │       └── profile.yaml
 │   └── schemas/                    # 数据模型
 │       └── agent-result.schema.json
-├── docs/                           # 工作产出目录（空，由 context 在生成首份文档时调用 `cataforge docs index` 创建 .doc-index.json）
+├── docs/                           # 工作产出目录（空，由 context 在生成首份文档时调用 `cataforge context index` 创建 .doc-index.json）
 └── README.md                       # 框架说明
 ```
 

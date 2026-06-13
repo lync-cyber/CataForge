@@ -69,12 +69,141 @@ def _raise_on_nonzero(code: int, command_label: str) -> None:
     raise err
 
 
+def run_load(
+    refs: tuple[str, ...],
+    project_root: str | None,
+    json_output: bool,
+    with_deps: bool,
+    budget: int | None,
+    *,
+    command_label: str,
+) -> None:
+    """Load Markdown sections by ``doc_id#§N`` references.
+
+    Shared body behind ``context read`` and the ``docs load`` deprecated alias.
+    """
+    from cataforge.application.context.read import main as context_load_main
+
+    argv = list(refs)
+    if project_root:
+        argv.extend(["--project-root", str(project_root)])
+    if json_output:
+        argv.append("--json")
+    if with_deps:
+        argv.append("--with-deps")
+    if budget is not None:
+        argv.extend(["--budget", str(budget)])
+    _raise_on_nonzero(context_load_main(argv), command_label)
+
+
+def run_index(
+    project_root: str | None,
+    doc_file: str | None,
+    strict: bool,
+    *,
+    command_label: str,
+) -> None:
+    """Build or update the chapter-level JSON index ``docs/.doc-index.json``.
+
+    Shared body behind ``context index`` and the ``docs index`` deprecated alias.
+    """
+    from cataforge.domain.docs.indexer import main as indexer_main
+
+    argv: list[str] = []
+    if project_root:
+        argv.extend(["--project-root", str(project_root)])
+    if doc_file:
+        argv.extend(["--doc-file", doc_file])
+    if strict:
+        argv.append("--strict")
+    _raise_on_nonzero(indexer_main(argv), command_label)
+
+
+def run_validate(project_root: str | None) -> None:
+    """Validate ``docs/.doc-index.json`` integrity without writing to disk.
+
+    Shared body behind ``context validate`` and the ``docs validate`` alias.
+    """
+    import os
+
+    from cataforge.domain.docs.indexer import (
+        INDEX_FILENAME,
+        format_stale_deps_warning,
+        validate_docs,
+    )
+
+    root = project_root or str(resolve_root())
+    index_path = os.path.join(root, "docs", INDEX_FILENAME)
+    if not os.path.isfile(index_path):
+        click.echo(
+            f"docs/{INDEX_FILENAME} not found — nothing to validate. "
+            "Run `cataforge context index` first if you intend to opt into "
+            "CataForge-managed docs.",
+            err=True,
+        )
+        err = CataforgeError(
+            f"docs/{INDEX_FILENAME} not found at {root}",
+        )
+        err.exit_code = 2
+        raise err
+
+    result = validate_docs(root)
+    orphans = result["orphans"]
+    ignored = result.get("ignored", [])
+    stale = result["stale"]
+    xref_errors = result["xref_errors"]
+    alias_conflicts = result["alias_conflicts"]
+    invalid_ids = result.get("invalid_ids", [])
+    stale_deps = result.get("stale_deps", [])
+
+    if ignored:
+        click.echo(f"{len(ignored)} doc(s) excluded by docs/.docignore")
+
+    if not orphans and not stale and not xref_errors and not alias_conflicts and not invalid_ids:
+        summary = (
+            "OK · 0 orphans · 0 stale entries · 0 xref errors · 0 alias conflicts · 0 invalid ids"
+        )
+        if stale_deps:
+            summary += f" · {len(stale_deps)} stale dep(s)"
+        click.echo(summary)
+        for line in format_stale_deps_warning(stale_deps):
+            click.echo(line, err=True)
+        return
+
+    _emit_validate_failures(orphans, stale, xref_errors, alias_conflicts, invalid_ids)
+
+    for line in format_stale_deps_warning(stale_deps):
+        click.echo(line, err=True)
+
+    err = CataforgeError(
+        f"docs validate failed ({len(orphans)} orphan, {len(stale)} stale, "
+        f"{len(xref_errors)} xref, {len(alias_conflicts)} alias, "
+        f"{len(invalid_ids)} invalid-id)",
+    )
+    err.exit_code = 3
+    raise err
+
+
+_DEPRECATION_HINTS = {
+    "docs load": "deprecated: use 'cataforge context read' instead",
+    "docs index": "deprecated: use 'cataforge context index' instead",
+    "docs validate": "deprecated: use 'cataforge context validate' instead",
+}
+
+
+def _emit_deprecation(command_label: str) -> None:
+    """Append a one-line deprecation hint on stderr; stdout is untouched."""
+    click.echo(_DEPRECATION_HINTS[command_label], err=True)
+
+
 @cli.group("docs")
 def docs_group() -> None:
-    """Document section loader and chapter-level index builder.
+    """Deprecated aliases for the ``context`` read/index family.
 
-    These are thin wrappers over ``cataforge.domain.docs.loader`` /
-    ``cataforge.domain.docs.indexer``; exit codes are preserved verbatim.
+    ``load`` / ``index`` / ``validate`` forward to ``cataforge context``
+    verbatim (exit codes preserved) and print a deprecation hint on stderr.
+    ``migrate-nav`` / ``migrate-reviews`` remain the canonical migration entry
+    points.
     """
 
 
@@ -120,19 +249,16 @@ def docs_load(
     ``doc_id#§N`` (top section), ``doc_id#§N.M`` (subsection), or
     ``doc_id#§N.ITEM-xxx`` (item, e.g. ``prd#§2.F-001``).
     """
-    from cataforge.application.context.read import main as context_load_main
-
-    argv = list(refs)
+    _emit_deprecation("docs load")
     effective_root = project_root or resolve_project_dir()
-    if effective_root:
-        argv.extend(["--project-root", str(effective_root)])
-    if json_output:
-        argv.append("--json")
-    if with_deps:
-        argv.append("--with-deps")
-    if budget is not None:
-        argv.extend(["--budget", str(budget)])
-    _raise_on_nonzero(context_load_main(argv), "docs load")
+    run_load(
+        refs,
+        str(effective_root) if effective_root else None,
+        json_output,
+        with_deps,
+        budget,
+        command_label="docs load",
+    )
 
 
 @docs_group.command("index")
@@ -151,17 +277,14 @@ def docs_load(
 )
 def docs_index(project_root: str | None, doc_file: str | None, strict: bool) -> None:
     """Build or update the chapter-level JSON index ``docs/.doc-index.json``."""
-    from cataforge.domain.docs.indexer import main as indexer_main
-
-    argv: list[str] = []
+    _emit_deprecation("docs index")
     effective_root = project_root or resolve_project_dir()
-    if effective_root:
-        argv.extend(["--project-root", str(effective_root)])
-    if doc_file:
-        argv.extend(["--doc-file", doc_file])
-    if strict:
-        argv.append("--strict")
-    _raise_on_nonzero(indexer_main(argv), "docs index")
+    run_index(
+        str(effective_root) if effective_root else None,
+        doc_file,
+        strict,
+        command_label="docs index",
+    )
 
 
 @docs_group.command("validate")
@@ -181,64 +304,8 @@ def docs_validate(project_root: str | None) -> None:
 
     Exits 0 when clean, 3 when any failure is found.
     """
-    import os
-
-    from cataforge.domain.docs.indexer import (
-        INDEX_FILENAME,
-        format_stale_deps_warning,
-        validate_docs,
-    )
-
-    root = project_root or str(resolve_root())
-    index_path = os.path.join(root, "docs", INDEX_FILENAME)
-    if not os.path.isfile(index_path):
-        click.echo(
-            f"docs/{INDEX_FILENAME} not found — nothing to validate. "
-            "Run `cataforge docs index` first if you intend to opt into "
-            "CataForge-managed docs.",
-            err=True,
-        )
-        err = CataforgeError(
-            f"docs/{INDEX_FILENAME} not found at {root}",
-        )
-        err.exit_code = 2
-        raise err
-
-    result = validate_docs(root)
-    orphans = result["orphans"]
-    ignored = result.get("ignored", [])
-    stale = result["stale"]
-    xref_errors = result["xref_errors"]
-    alias_conflicts = result["alias_conflicts"]
-    invalid_ids = result.get("invalid_ids", [])
-    stale_deps = result.get("stale_deps", [])
-
-    if ignored:
-        click.echo(f"{len(ignored)} doc(s) excluded by docs/.docignore")
-
-    if not orphans and not stale and not xref_errors and not alias_conflicts and not invalid_ids:
-        summary = (
-            "OK · 0 orphans · 0 stale entries · 0 xref errors · 0 alias conflicts · 0 invalid ids"
-        )
-        if stale_deps:
-            summary += f" · {len(stale_deps)} stale dep(s)"
-        click.echo(summary)
-        for line in format_stale_deps_warning(stale_deps):
-            click.echo(line, err=True)
-        return
-
-    _emit_validate_failures(orphans, stale, xref_errors, alias_conflicts, invalid_ids)
-
-    for line in format_stale_deps_warning(stale_deps):
-        click.echo(line, err=True)
-
-    err = CataforgeError(
-        f"docs validate failed ({len(orphans)} orphan, {len(stale)} stale, "
-        f"{len(xref_errors)} xref, {len(alias_conflicts)} alias, "
-        f"{len(invalid_ids)} invalid-id)",
-    )
-    err.exit_code = 3
-    raise err
+    _emit_deprecation("docs validate")
+    run_validate(project_root or str(resolve_root()))
 
 
 @docs_group.command("migrate-nav")

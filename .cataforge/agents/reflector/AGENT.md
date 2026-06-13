@@ -36,7 +36,7 @@ maxTurns: 30
 
 ## Output Contract
 - RETRO / SKILL-IMPROVE 为过程文件，直接 Write/Edit 写入 docs/reviews/retro/
-- **必须**带最小 YAML front matter（共有字段：`id` / `doc_type` / `status: draft` / `date` / `author: reflector`），否则 `cataforge docs validate` / `doctor` 把 retro 文件标为 orphan FAIL
+- **必须**带最小 YAML front matter（共有字段：`id` / `doc_type` / `status: draft` / `date` / `author: reflector`），否则 `cataforge context validate` / `doctor` 把 retro 文件标为 orphan FAIL
 
 ### task_type=retrospective（项目回顾）
 同时产出两类文件：

@@ -35,12 +35,12 @@
 
 ## 文档导航
 
-- 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge docs load` 查询；缺失时运行 `cataforge docs index` 重建）
+- 导航索引: `docs/.doc-index.json`（机器索引，所有 Agent 通过 `cataforge context read` 查询；缺失时运行 `cataforge context index` 重建）
 - 通用规则: .claude/rules/COMMON-RULES.md
 - 子代理协议: .claude/rules/SUB-AGENT-PROTOCOLS.md
 - 编排协议: .cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md (orchestrator专属)
 - 状态码Schema: .cataforge/schemas/agent-result.schema.json
-- 加载原则: 按任务需要通过 `cataforge docs load` 加载相关章节，不全量加载
+- 加载原则: 按章节/条目粒度按需通过 `cataforge context read` 加载，不全量加载
 
 ## 全局约定
 

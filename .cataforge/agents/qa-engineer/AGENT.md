@@ -21,9 +21,9 @@ maxTurns: 50
 - 你不负责需求定义、架构设计、UI设计或编码实现
 
 ## Input Contract
-- 必须加载: 通过 `cataforge docs load` 按 T-xxx 加载 dev-plan 中已完成的任务卡（含 tdd_acceptance 和 deliverables），按任务定位对应的 src/ 和 tests/ 文件
-- 可选参考: `arch#§3.API-xxx`, `ui-spec#§3.P-xxx`（同样通过 `cataforge docs load` 按需加载）
-- 加载示例: `cataforge docs load dev-plan#§2.T-001 dev-plan#§2.T-002 arch#§3.API-001`
+- 必须加载: 通过 `cataforge context read` 按 T-xxx 加载 dev-plan 中已完成的任务卡（含 tdd_acceptance 和 deliverables），按任务定位对应的 src/ 和 tests/ 文件
+- 可选参考: `arch#§3.API-xxx`, `ui-spec#§3.P-xxx`（同样通过 `cataforge context read` 按需加载）
+- 加载示例: `cataforge context read dev-plan#§2.T-001 dev-plan#§2.T-002 arch#§3.API-001`
 
 ## Output Contract
 - 必须产出: test-report-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）

@@ -87,7 +87,7 @@ def test_doctor_warns_when_index_missing_but_docs_present(tmp_path: Path, monkey
     result = invoke_under_group(doctor_command, [])
     assert result.exit_code == 0  # WARN is non-blocking
     assert "WARN" in result.output
-    assert "cataforge docs index" in result.output
+    assert "cataforge context index" in result.output
 
 
 def test_doctor_silent_when_docs_dir_empty(tmp_path: Path, monkeypatch) -> None:

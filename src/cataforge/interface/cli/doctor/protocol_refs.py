@@ -30,13 +30,13 @@ _DEPRECATED_REFS: tuple[dict[str, str], ...] = (
         # Word-boundary catches ``load_section.py``, ``load_section.py:``, etc.,
         # but not ``cataforge_load_section_py`` (unlikely but cheap).
         "pattern": r"\bload_section\.py\b",
-        "replacement": "`cataforge docs load`",
+        "replacement": "`cataforge context read`",
         "since": "v0.1.10",
     },
     {
         "name": "build_doc_index.py",
         "pattern": r"\bbuild_doc_index\.py\b",
-        "replacement": "`cataforge docs index`",
+        "replacement": "`cataforge context index`",
         "since": "v0.1.10",
     },
     {
@@ -59,6 +59,26 @@ _DEPRECATED_REFS: tuple[dict[str, str], ...] = (
         "pattern": r"python\s+\.cataforge/scripts/framework/event_logger\.py",
         "replacement": "`cataforge event log` (CLI walks up to find .cataforge/)",
         "since": "v0.1.14",
+    },
+    {
+        "name": "cataforge docs load",
+        # Anchored on the ``cataforge docs`` prefix so the ``docs/`` path
+        # spelling and other ``docs`` subcommands are untouched.
+        "pattern": r"\bcataforge\s+docs\s+load\b",
+        "replacement": "`cataforge context read`",
+        "since": "v0.11.0",
+    },
+    {
+        "name": "cataforge docs index",
+        "pattern": r"\bcataforge\s+docs\s+index\b",
+        "replacement": "`cataforge context index`",
+        "since": "v0.11.0",
+    },
+    {
+        "name": "cataforge docs validate",
+        "pattern": r"\bcataforge\s+docs\s+validate\b",
+        "replacement": "`cataforge context validate`",
+        "since": "v0.11.0",
     },
 )
 

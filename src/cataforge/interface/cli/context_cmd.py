@@ -23,7 +23,14 @@ if TYPE_CHECKING:
 
 @cli.group("context")
 def context_group() -> None:
-    """Strategy-routed context I/O (read / relation / write lifecycle)."""
+    """Strategy-routed context I/O — the single document/context entry point.
+
+    Read & index: ``read`` (section load), ``index`` (build .doc-index.json),
+    ``validate`` (read-only index integrity gate). Authoring lifecycle:
+    ``write`` / ``write-narrative`` / ``transact`` / ``finalize`` / ``ingest``
+    / ``reconcile``. The ``docs`` group's ``load`` / ``index`` / ``validate``
+    are deprecated aliases of ``read`` / ``index`` / ``validate``.
+    """
 
 
 @contextmanager
@@ -106,6 +113,53 @@ def context_read(
     if budget is not None:
         argv += ["--budget", str(budget)]
     raise SystemExit(read_main(argv))
+
+
+@context_group.command("index")
+@click.option("--project-root", default=None)
+@click.option(
+    "--doc-file",
+    default=None,
+    help="Incremental update for a single file (otherwise rebuild the full index).",
+)
+@click.option(
+    "--strict",
+    is_flag=True,
+    default=False,
+    help="Exit non-zero (3) if any docs/**/*.md is skipped for missing YAML "
+    "front matter — useful as a CI gate.",
+)
+@click.pass_context
+def context_index(
+    ctx: click.Context, project_root: str | None, doc_file: str | None, strict: bool
+) -> None:
+    """Build or update the chapter-level JSON index ``docs/.doc-index.json``."""
+    from cataforge.interface.cli.docs_cmd import run_index
+
+    run_index(_rooted(ctx, project_root), doc_file, strict, command_label="context index")
+
+
+@context_group.command("validate")
+@click.option("--project-root", default=None)
+@click.pass_context
+def context_validate(ctx: click.Context, project_root: str | None) -> None:
+    """Validate ``docs/.doc-index.json`` integrity without writing to disk.
+
+    Equivalent to ``context index --strict`` but read-only — useful as a
+    pre-commit / CI gate that fails fast on:
+
+    \b
+    - orphan docs (markdown files missing YAML front matter)
+    - stale index entries (file_path no longer on disk)
+    - cross-reference errors (frontmatter ``deps`` that don't resolve)
+    - alias conflicts (duplicate / shadowed alias claims)
+    - invalid ids (doc_id / alias containing '.' or other non-slug chars)
+
+    Exits 0 when clean, 3 when any failure is found.
+    """
+    from cataforge.interface.cli.docs_cmd import run_validate
+
+    run_validate(_rooted(ctx, project_root))
 
 
 @context_group.command("write")
