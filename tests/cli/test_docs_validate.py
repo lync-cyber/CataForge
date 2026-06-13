@@ -2,33 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from cataforge.domain.docs import indexer
 from cataforge.interface.cli.docs_cmd import docs_validate
 from cataforge.interface.cli.doctor_cmd import doctor_command
 from tests.cli.conftest import invoke_under_group
-
-
-def _minimal_project(tmp_path: Path) -> Path:
-    from tests.cli.conftest import populate_required_source_assets
-
-    cf = tmp_path / ".cataforge"
-    cf.mkdir()
-    (cf / "framework.json").write_text(
-        json.dumps({"version": "0.1.0", "runtime_api_version": "1.0"}),
-        encoding="utf-8",
-    )
-    populate_required_source_assets(cf)
-    return tmp_path
-
-
-def _write_doc(root: Path, rel: str, body: str) -> Path:
-    p = root / rel
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(body, encoding="utf-8")
-    return p
+from tests.cli.conftest import make_minimal_project as _minimal_project
+from tests.cli.conftest import write_doc as _write_doc
 
 
 def test_docs_validate_clean_index_exits_zero(tmp_path: Path, monkeypatch) -> None:

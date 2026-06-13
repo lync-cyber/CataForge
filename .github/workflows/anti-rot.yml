@@ -24,6 +24,7 @@ jobs:
   sweep:
     name: Sweep main for documentation rot
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
         with:

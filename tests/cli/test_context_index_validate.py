@@ -14,26 +14,9 @@ from pathlib import Path
 from cataforge.domain.docs import indexer
 from cataforge.interface.cli.context_cmd import context_index, context_validate
 from cataforge.interface.cli.docs_cmd import docs_index, docs_validate
-from tests.cli.conftest import invoke_under_group, populate_required_source_assets
-
-
-def _minimal_project(tmp_path: Path) -> Path:
-    cf = tmp_path / ".cataforge"
-    cf.mkdir()
-    (cf / "framework.json").write_text(
-        json.dumps({"version": "0.1.0", "runtime_api_version": "1.0"}),
-        encoding="utf-8",
-    )
-    populate_required_source_assets(cf)
-    return tmp_path
-
-
-def _write_doc(root: Path, rel: str, body: str) -> Path:
-    p = root / rel
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(body, encoding="utf-8")
-    return p
-
+from tests.cli.conftest import invoke_under_group
+from tests.cli.conftest import make_minimal_project as _minimal_project
+from tests.cli.conftest import write_doc as _write_doc
 
 # ---- context index parity ---------------------------------------------------
 
