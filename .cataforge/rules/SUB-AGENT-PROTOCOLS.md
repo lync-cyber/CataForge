@@ -11,7 +11,7 @@
 1. **加载中间产出** — 从 continuation 参数的 `上次中间产出` 文件路径列表中读取已完成的工作
 2. **应用用户回答** — 将 `用户回答` 中的决策作为后续内容的依据，不再对已回答的问题重复提问
 3. **定位恢复点** — 根据 `恢复指引` 确定应从 Skill Toolkit 的哪个步骤继续执行
-4. **从恢复点继续** — 在已有中间产出基础上继续执行剩余步骤，使用 context write-section 就地编辑已有文档
+4. **从恢复点继续** — 在已有中间产出基础上继续执行剩余步骤，经 context authoring(`write-narrative` 写节叙事 / `write` 写实体)就地修订已有文档
 5. **正常返回** — 完成后返回与 new_creation 相同格式的产出路径列表 + 执行摘要
 
 注意: Continuation 是在中间产出基础上的恢复执行，文档已存在(status=draft)，直接编辑即可。
@@ -24,7 +24,7 @@
 1. **加载REVIEW报告** — 从 `docs/reviews/doc/` 找到编号最大的 `REVIEW-{doc_id}-r{N}.md`，或从 `docs/reviews/code/` 找到编号最大的 `CODE-REVIEW-{task_id}-r{N}.md` 加载审查报告
 2. **分析问题列表** — 按严重等级排序 (CRITICAL > HIGH > MEDIUM > LOW)
 3. **增量修复** — 仅修复 CRITICAL 和 HIGH 级别问题:
-   - 使用 context write-section 修改相关章节
+   - 经 context authoring(`write-narrative` / `write`)修改相关章节
    - 不重新执行完整 Skill Toolkit 流程，除非 REVIEW 明确要求整章重写
 4. **重新finalize** — 修复完成后调用 context finalize 更新文档
 5. **返回产出路径** — 与新建任务相同的返回格式

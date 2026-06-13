@@ -130,7 +130,7 @@ Mode Routing Protocol 在以下时刻被调用:
    ```
 2. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 3. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
-4. 修复完成后先按 §Phase Transition Protocol Step 5.3 执行 reconcile 收口（漂移时 ingest 回灌），再重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
+4. 修复完成后先按 §Phase Transition Protocol Step 5.3 执行 reconcile 收口（漂移按 Step 5.3 处置），再重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
 5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入（收紧自 N≥3，避免低效 revision 循环）
 
 > 子代理收到 `task_type=revision` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
@@ -146,7 +146,7 @@ Mode Routing Protocol 在以下时刻被调用:
    - **(1) 接受并继续**: 文档状态 → approved，进入下一 Phase
    - **(2) 要求修复选中的问题**: 选中问题 → needs_revision，进入 Revision Protocol
    - **(3) 暂停等待人工**: 不动文档状态，§当前阶段 标 hold
-   - **(4) 全量 inline-fix 后继续**（仅在下列条件**全部**成立时展示）: orchestrator/reviewer 主线程逐条扫 LOW 并 Edit / context write-section 直接修复（同会话），verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
+   - **(4) 全量 inline-fix 后继续**（仅在下列条件**全部**成立时展示）: orchestrator/reviewer 主线程逐条扫 LOW 并经 context `write-narrative` / `write` 落图、`context finalize` 重导出（同会话），verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
      - MEDIUM+LOW 问题数 ≥ 8（少量手修更直接）
      - 全部为表述漂移 / 格式 / 引用对齐 / 完整性补充（非设计缺陷）
      - 单次修改 ≤ 50 行（超过走 (2)）
