@@ -216,6 +216,67 @@ def _prose_doc(doc_type: str) -> str:
     )
 
 
+_REPRESENTATIVE_ENTITIES: dict[str, tuple[tuple[str, str], ...]] = {
+    "prd": (("F-001", "Login"),),
+    "arch": (("M-001", "Auth module"),),
+    "ui-spec": (("P-001", "Login page"), ("UC-001", "Login form")),
+    "dev-plan": (("T-001", "Implement auth"),),
+    "test-report": (("TC-001", "Login smoke"),),
+    "deploy-spec": (
+        ("ENV-001", "Production"),
+        ("REL-001", "Release v1"),
+        ("DP-001", "Deploy v1"),
+        ("PL-001", "CI pipeline"),
+    ),
+}
+
+
+def _entity_doc(doc_type: str, entities: tuple[tuple[str, str], ...]) -> str:
+    head = (
+        f"---\nid: {doc_type}\ndoc_type: {doc_type}\nstatus: draft\n---\n\n"
+        f"# {doc_type} title\n\nPreamble.\n\n## §2 Entities\n"
+    )
+    blocks = [
+        f"\n### §2.{i} {eid} {title}\n\nBody for {eid}.\n"
+        for i, (eid, title) in enumerate(entities, 1)
+    ]
+    return head + "".join(blocks)
+
+
+def test_per_entity_cards_render_for_all_doc_types(tmp_path: Path) -> None:
+    """Every doc_type's entities render a per-entity card on the read surface.
+
+    Bespoke-templated classes (Feature/Module/Page/UIComponent/Task/TestCase)
+    and generic-fallback classes (Deployment/Pipeline/Environment/Release)
+    must all surface a card so no doc_type is silently prd-only.
+    """
+    from cataforge.domain.kg.export import compile_to_markdown
+
+    src_root = tmp_path / "proj"
+    (src_root / ".cataforge").mkdir(parents=True)
+    (src_root / ".cataforge" / "framework.json").write_text(
+        _ALL_TYPES_FRAMEWORK_JSON, encoding="utf-8"
+    )
+    for doc_type, entities in _REPRESENTATIVE_ENTITIES.items():
+        doc_dir = src_root / "docs" / doc_type
+        doc_dir.mkdir(parents=True)
+        (doc_dir / f"{doc_type}-proj.md").write_text(
+            _entity_doc(doc_type, entities), encoding="utf-8"
+        )
+
+    handle, _config = _connect_kg_first(src_root)
+    out = tmp_path / "cards"
+    result = compile_to_markdown(handle.raw, out)
+    assert not result.errors, result.errors
+
+    rendered = {p.name for p in out.rglob("*.md")}
+    for doc_type, entities in _REPRESENTATIVE_ENTITIES.items():
+        for entity_id, _title in entities:
+            assert f"{entity_id}.md" in rendered, (
+                f"{doc_type} entity {entity_id} must render a per-entity card"
+            )
+
+
 def test_finalize_exports_entityless_authored_documents(tmp_path: Path) -> None:
     """Authored Documents with zero business entities must still export.
 
