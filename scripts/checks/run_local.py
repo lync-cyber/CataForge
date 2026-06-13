@@ -50,6 +50,10 @@ CHECKS: list[tuple[str, list[str]]] = [
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_doc_structure.py")],
     ),
     (
+        "prompt ↔ CLI verb drift",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_prompt_cli_drift.py")],
+    ),
+    (
         "layered dependency direction",
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_layer_dependencies.py")],
     ),

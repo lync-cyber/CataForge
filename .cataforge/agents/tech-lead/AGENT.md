@@ -27,7 +27,7 @@ maxTurns: 60
 - 加载示例: `cataforge context read arch#§2.M-001 arch#§3.API-001 ui-spec#§2.C-001 ui-spec#§3.P-001`
 
 ## Output Contract
-- 必须产出: dev-plan-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
+- 必须产出: dev-plan-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）；经 context authoring 落图后 `cataforge context finalize` 导出此视图，不直接 Edit 导出文件
 - 使用模板: 通过context调用 dev-plan 模板
 
 ## Execution Rules

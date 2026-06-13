@@ -1,8 +1,8 @@
 ---
 name: product-manager
 description: "产品经理 — 负责需求分析与PRD编写。当需要将用户原始需求转化为结构化的产品需求文档时激活。"
-tools: file_read, file_write, file_edit, file_glob, file_grep, web_search, web_fetch, user_question
-disallowedTools: shell_exec, agent_dispatch
+tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
+disallowedTools: agent_dispatch
 allowed_paths:
   - docs/prd/
   - docs/research/
@@ -27,7 +27,7 @@ maxTurns: 60
 - 可选参考: 已有项目文档 (通过context按需加载)
 
 ## Output Contract
-- 必须产出: prd-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
+- 必须产出: prd-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）；经 context authoring 落图后 `cataforge context finalize` 导出此视图，不直接 Edit 导出文件
 - 使用模板: 通过context调用 prd 模板
 
 ## Anti-Patterns

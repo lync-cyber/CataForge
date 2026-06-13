@@ -112,6 +112,7 @@ jobs:
           python scripts/checks/check_no_design_residue.py
           python scripts/checks/check_no_language_coupling.py
           python scripts/checks/check_doc_structure.py
+          python scripts/checks/check_prompt_cli_drift.py
           python scripts/checks/check_no_query_boolean_eq_true.py
 
       - name: "uv lockfile freshness (uv.lock ↔ pyproject.toml in sync)"

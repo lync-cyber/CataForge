@@ -36,7 +36,7 @@ def docs_group() -> None:
     """
 
 
-@docs_group.command("load")
+@docs_group.command("load", hidden=True)
 @click.argument("refs", nargs=-1, required=True)
 @click.option("--project-root", default=None, help="Project root directory.")
 @click.option(
@@ -90,7 +90,7 @@ def docs_load(
     )
 
 
-@docs_group.command("index")
+@docs_group.command("index", hidden=True)
 @click.option("--project-root", default=None, help="Project root directory.")
 @click.option(
     "--doc-file",
@@ -116,7 +116,7 @@ def docs_index(project_root: str | None, doc_file: str | None, strict: bool) -> 
     )
 
 
-@docs_group.command("validate")
+@docs_group.command("validate", hidden=True)
 @click.option("--project-root", default=None, help="Project root directory.")
 def docs_validate(project_root: str | None) -> None:
     """Validate ``docs/.doc-index.json`` integrity without writing to disk.

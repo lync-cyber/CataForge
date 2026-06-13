@@ -82,7 +82,7 @@ graph LR
 - 有环 → 报告环路径，建议打破方式，status=blocked
 - 无环 → 执行以下操作:
   1. 使用 `--format mermaid` 获取 Mermaid 依赖图
-  2. 通过 context write-section 将 Mermaid 图自动写入 dev-plan#§2（包裹在 ` ```mermaid ` 代码块中）
+  2. 通过 `cataforge context write-narrative` 将 Mermaid 图写入 dev-plan §2（包裹在 ` ```mermaid ` 代码块中）
   3. 使用 `--format json` 获取关键路径和Sprint分组数据
   4. 将关键路径信息写入 dev-plan#§4
 
