@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 from cataforge.core.errors import CataforgeError
 from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg._content_hash import entity_content_hash
-from cataforge.domain.kg._dispatch import kg_config_for, kg_enabled
+from cataforge.domain.kg._dispatch import authoring_mode, kg_config_for, kg_enabled
 from cataforge.domain.kg._errors import KGEntityNotFoundError, KGValidationError
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
@@ -787,13 +787,14 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
     the Markdown is a derived view — reconstructed whole-document via
     ``compile_documents`` (frontmatter + preamble + section slices in
     document order, with orphan entities falling back to per-entity cards).
-    Markdown-first authoring edits the files directly, leaving the graph
-    empty; that Markdown is canonical, so it is seeded into the graph
-    (md → KG) and kept as-is. The seed branch fires only when the graph
-    holds neither entities nor ``cf:Document`` nodes — an authored but
-    entity-less Document (prose-only or early draft) still exports rather
-    than being mistaken for an empty md-first graph. Either way the ``定稿``
-    contract routes persistence without the caller hand-running ``ingest``.
+    An empty graph (no entities, no ``cf:Document`` nodes) is read through
+    the authoring mode: under ``authoring = "md"`` the Markdown is canonical,
+    so it is seeded into the graph (md → KG) and kept as-is; under
+    ``authoring = "graph"`` an empty graph means nothing has been authored
+    yet, so there is nothing to seed or export. An authored but entity-less
+    Document (prose-only or early draft) is not empty and still exports.
+    Either way the ``定稿`` contract routes persistence without the caller
+    hand-running ``ingest``.
     """
     if not kg_enabled(project_root):
         return _rebuild_doc_index(project_root)
@@ -801,7 +802,8 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
     out = Path(output_dir) if output_dir else Path(project_root) / "docs"
     with KnowledgeGraph.connect(cfg) as kg:
         if not kg.query.entity_ids() and not kg.query.has_documents():
-            run_migration(kg.store, Path(project_root), cfg, doc_types=DEFAULT_DOC_TYPES)
+            if authoring_mode(project_root) == "md":
+                run_migration(kg.store, Path(project_root), cfg, doc_types=DEFAULT_DOC_TYPES)
             return CompileResult(exported_at=datetime.now(UTC), discovered_count=0, output_dir=out)
         result = compile_documents(kg.store, out)
     _rebuild_doc_index(project_root)

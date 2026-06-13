@@ -101,19 +101,16 @@ def context_read(
     budget: int | None,
 ) -> None:
     """Strategy-routed section read of ``doc_id#§N[.item]`` REFS."""
-    from cataforge.application.context.read import main as read_main
+    from cataforge.interface.cli.doc_io import run_load
 
-    project_root = _rooted(ctx, project_root)
-    argv = list(refs)
-    if project_root:
-        argv += ["--project-root", project_root]
-    if json_output:
-        argv.append("--json")
-    if with_deps:
-        argv.append("--with-deps")
-    if budget is not None:
-        argv += ["--budget", str(budget)]
-    raise SystemExit(read_main(argv))
+    run_load(
+        refs,
+        _rooted(ctx, project_root),
+        json_output,
+        with_deps,
+        budget,
+        command_label="context read",
+    )
 
 
 @context_group.command("index")
@@ -135,7 +132,7 @@ def context_index(
     ctx: click.Context, project_root: str | None, doc_file: str | None, strict: bool
 ) -> None:
     """Build or update the chapter-level JSON index ``docs/.doc-index.json``."""
-    from cataforge.interface.cli.docs_cmd import run_index
+    from cataforge.interface.cli.doc_io import run_index
 
     run_index(_rooted(ctx, project_root), doc_file, strict, command_label="context index")
 
@@ -158,7 +155,7 @@ def context_validate(ctx: click.Context, project_root: str | None) -> None:
 
     Exits 0 when clean, 3 when any failure is found.
     """
-    from cataforge.interface.cli.docs_cmd import run_validate
+    from cataforge.interface.cli.doc_io import run_validate
 
     run_validate(_rooted(ctx, project_root))
 

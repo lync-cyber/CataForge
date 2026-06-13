@@ -40,6 +40,15 @@ from cataforge.domain.kg._sparql_utils import (
     escape_sparql_literal,
     select_rows,
 )
+from cataforge.domain.kg.authority import (
+    DRIFT_CONFLICT,
+    DRIFT_GRAPH_AHEAD,
+    DRIFT_HUMAN_EDIT,
+    DRIFT_IN_SYNC,
+    DRIFT_NEVER_EXPORTED,
+    REMEDIATE_NONE,
+    AuthorityPolicy,
+)
 from cataforge.domain.kg.export.document_pipeline import (
     EXPORTED_CONTENT_HASH_SLOT,
     _list_documents,
@@ -102,15 +111,6 @@ class PerDocTypeReport:
         }
 
 
-# Document-level drift states, decided by a three-way hash comparison between
-# the on-disk file, the last-export baseline, and a fresh in-memory render.
-DRIFT_NEVER_EXPORTED = "never_exported"
-DRIFT_IN_SYNC = "in_sync"
-DRIFT_HUMAN_EDIT = "human_edit"
-DRIFT_GRAPH_AHEAD = "graph_ahead"
-DRIFT_CONFLICT = "conflict"
-
-
 @dataclass
 class DocumentDriftRecord:
     """Drift verdict for one Document node, keyed by its source path."""
@@ -118,9 +118,15 @@ class DocumentDriftRecord:
     source_path: str
     doc_id: str
     state: str
+    remediation: str = REMEDIATE_NONE
 
     def to_dict(self) -> dict[str, str]:
-        return {"source_path": self.source_path, "doc_id": self.doc_id, "state": self.state}
+        return {
+            "source_path": self.source_path,
+            "doc_id": self.doc_id,
+            "state": self.state,
+            "remediation": self.remediation,
+        }
 
 
 def _classify_document_drift(file_hash: str | None, baseline: str | None, render_hash: str) -> str:
@@ -161,6 +167,7 @@ def _triage_documents(
 ) -> list[DocumentDriftRecord]:
     """Triage every `cf:source_path`-bearing Document for content drift."""
     ns = cf_namespace(config)
+    policy = AuthorityPolicy.for_project(project_root)
     records: list[DocumentDriftRecord] = []
     for doc in _list_documents(store, ns):
         source_path = doc["source_path"]
@@ -170,7 +177,12 @@ def _triage_documents(
         render_hash = hashlib.sha256(render_document(store, ns, doc).encode("utf-8")).hexdigest()
         state = _classify_document_drift(file_hash, baseline, render_hash)
         records.append(
-            DocumentDriftRecord(source_path=source_path, doc_id=doc["doc_iri"], state=state)
+            DocumentDriftRecord(
+                source_path=source_path,
+                doc_id=doc["doc_iri"],
+                state=state,
+                remediation=policy.remediation_for(state),
+            )
         )
     records.sort(key=lambda r: r.source_path)
     return records

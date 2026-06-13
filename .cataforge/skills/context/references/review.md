@@ -16,3 +16,6 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{doc_file} --docs-d
 
 ## 报告
 产出 `docs/reviews/doc/REVIEW-{doc_id}-r{N}.md`,首行 YAML front matter(id/doc_type=review/author/status/deps),问题列表含严重等级 CRITICAL/HIGH/MEDIUM/LOW;结论 approved / approved_with_notes / needs_revision。Layer 1 权威检查清单见 doc-review 的 `CHECKS_MANIFEST`。
+
+## 修订
+needs_revision / inline-fix 的修复经 context authoring(`write-narrative` 写节叙事 / `write` 写实体)落图后 `context finalize` 重导出,不 `Edit` `docs/` 导出文件——图后端就绪时 `docs/` 是图的只读导出视图,直接 Edit 会被 `context reconcile` 判为 human_edit 漂移。

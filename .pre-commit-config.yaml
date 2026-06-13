@@ -105,6 +105,18 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.cataforge/(agents|skills|rules)/.*\.md$
+      - id: prompt-cli-drift
+        name: prompt assets reference real CLI verbs
+        description: |
+          .cataforge/{agents,skills,rules}/**/*.md invoke
+          `cataforge context|docs|kg <verb>`. A reference to a verb the CLI
+          does not register (a phantom command) silently breaks the workflow
+          at runtime. The guard introspects the real Click groups and fails
+          on any command-styled reference to an unknown verb.
+        entry: python scripts/checks/check_prompt_cli_drift.py
+        language: system
+        pass_filenames: false
+        files: ^\.cataforge/(agents|skills|rules)/.*\.md$
       - id: layer-dependencies
         name: layered dependency direction (interface→…→core→utils)
         description: |

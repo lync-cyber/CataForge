@@ -351,7 +351,7 @@ orchestrator完成以下收尾:
    - **即时 per-task code-review**（reviewer dispatch）: 仅对满足以下任一条件的任务触发：`security_sensitive: true`、`user_facing_critical_path: true`、`consumer_components` 非空。审查范围包含 impl_files 和 test_files
    - **延迟到 sprint-review 批量审查**: 其余任务不触发 per-task code-review，由 sprint-review 的 §Batch Code-Review 覆盖（见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）
    - **prototype-inline**: 跳过 per-task code-review（不变）
-4. 通过context(write-section)将dev-plan#§1对应任务行状态更新为done
+4. 通过 `cataforge context write` 将 dev-plan 对应任务实体的 status slot 更新为 done
 5. 如 blocked 且含 questions → 按 ORCHESTRATOR-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
 6. 如 blocked 且无 questions → 记录原因并请求人工介入
 

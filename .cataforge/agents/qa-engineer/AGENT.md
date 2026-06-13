@@ -26,7 +26,7 @@ maxTurns: 50
 - 加载示例: `cataforge context read dev-plan#§2.T-001 dev-plan#§2.T-002 arch#§3.API-001`
 
 ## Output Contract
-- 必须产出: test-report-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）
+- 必须产出: test-report-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）；经 context authoring 落图后 `cataforge context finalize` 导出此视图，不直接 Edit 导出文件
 - 使用模板: 通过context调用 test-report 模板
 
 ## Verdict 判定语义
