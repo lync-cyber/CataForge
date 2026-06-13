@@ -139,6 +139,33 @@ def test_finalize_seeds_empty_graph_from_markdown(tmp_path: Path) -> None:
     assert report.ok, report.to_dict()
 
 
+def test_finalize_does_not_seed_empty_graph_under_graph_authoring(tmp_path: Path) -> None:
+    """Under ``authoring = "graph"`` an empty graph means nothing authored yet;
+    finalize must not seed from the Markdown on disk."""
+    proj = _project(tmp_path, with_fixture_docs=True)
+    ctx = {
+        "strategy": "kg-first",
+        "authoring": "graph",
+        "kg_active_doc_types": ["prd", "arch", "test-report"],
+    }
+    (proj / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": ctx}), encoding="utf-8"
+    )
+    invalidate_cache()
+
+    result = cw.finalize(str(proj))
+    gc.collect()
+    assert not result.errors
+    assert not result.file_records
+    assert result.discovered_count == 0
+
+    # No seed happened — the graph stays empty.
+    with KnowledgeGraph.connect(_connect(proj)) as kg:
+        assert not kg.query.entity_ids()
+        assert not kg.query.has_documents()
+    gc.collect()
+
+
 # ---- ingest + reconcile (md -> KG round-trip on aggregated docs) ------------
 
 
