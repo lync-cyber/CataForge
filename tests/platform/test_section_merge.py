@@ -132,6 +132,51 @@ class TestSectionAnnotationStripping:
         assert "user-data" in out
         assert "template-default" not in out
 
+    def test_cross_version_heading_rename_updates_in_place(self) -> None:
+        """A runtime heading's embedded command hint changed across versions.
+        The merger matches the existing filled section by canonical name, adopts
+        the new heading, and does NOT duplicate it with a placeholder body."""
+        cur = (
+            "## 执行环境 (Bootstrap 时由 `cataforge setup --emit-env-block` 填入)\n"
+            "- OS: Windows\n- Python: 3.12\n"
+        )
+        tpl = (
+            "## 执行环境 (Bootstrap 时由 `cataforge setup env-block` 填入)\n"
+            "{执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:\n"
+            " cataforge setup env-block}\n"
+        )
+        out = merge_sections(cur, tpl, policy={"runtime": ["执行环境"]})
+        assert out.count("## 执行环境") == 1
+        assert "cataforge setup env-block" in out  # new heading hint adopted
+        assert "OS: Windows" in out  # user-filled body preserved
+        assert "{执行环境检测结果" not in out  # placeholder not injected
+
+    def test_collapses_preexisting_duplicate_sections(self) -> None:
+        """A file already corrupted with a placeholder + a filled duplicate
+        heals to a single filled section on the next deploy, regardless of which
+        duplicate appears first."""
+        cur = (
+            "## 执行环境 (Bootstrap 时由 `cataforge setup env-block` 填入)\n"
+            "{执行环境检测结果}\n"
+            "## 执行环境 (Bootstrap 时由 `old-cmd` 填入)\n"
+            "- OS: Windows\n"
+        )
+        tpl = "## 执行环境 (Bootstrap 时由 `cataforge setup env-block` 填入)\n{执行环境检测结果}\n"
+        out = merge_sections(cur, tpl, policy={"runtime": ["执行环境"]})
+        assert out.count("## 执行环境") == 1
+        assert "OS: Windows" in out
+        assert "{执行环境检测结果}" not in out
+
+    def test_cross_version_rename_is_idempotent(self) -> None:
+        """After the in-place update, re-deploying the same template is a fixpoint."""
+        cur = "## 执行环境 (Bootstrap 时由 `old-cmd` 填入)\n- OS: Windows\n"
+        tpl = "## 执行环境 (Bootstrap 时由 `new-cmd` 填入)\n{执行环境检测结果}\n"
+        once = merge_sections(cur, tpl, policy={"runtime": ["执行环境"]})
+        twice = merge_sections(once, tpl, policy={"runtime": ["执行环境"]})
+        assert once == twice
+        assert once.count("## 执行环境") == 1
+        assert "OS: Windows" in once
+
 
 class TestPreamble:
     """Preamble = everything before first ## heading (at-mentions, H1, banners).
