@@ -1,0 +1,20 @@
+# CataForge-managed local state under .cataforge/ — regenerated per
+# deploy/upgrade and never committed. Without this rule a downstream project
+# running `git add -A` would commit rollback snapshots and deploy bookkeeping.
+.backups/
+.deploy-state
+.deploy-manifest.json
+.scaffold-manifest.json
+.instruction-hashes.json
+.mcp-state/
+**/__pycache__/
+
+# Knowledge-graph RocksDB store: ignore only pure-runtime logs and locks.
+# Under kg-first the store is the committed source of truth, so structural
+# files (CURRENT / MANIFEST-* / OPTIONS-* / *.sst / *.log WAL) MUST stay
+# tracked — ignoring them leaves a fresh clone with an unopenable store.
+# A file-first project may instead ignore the whole kg/store/ directory.
+kg/store/LOG
+kg/store/LOG.old.*
+kg/store/LOCK
+kg/store/IDENTITY
