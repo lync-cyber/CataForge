@@ -114,9 +114,24 @@ def test_connect_raises_when_db_path_missing(tmp_path: Path) -> None:
         pass
 
 
+# RocksDB bookkeeping files that .cataforge/.gitignore excludes from VCS and
+# that the OS may hold an exclusive lock on (LOCK is unreadable on Windows
+# while the store is open). They are irrelevant to the working-tree-dirty
+# concern, so the fingerprint skips them.
+_UNTRACKED_STORE_FILES = {"LOCK", "LOG", "IDENTITY"}
+
+
+def _is_tracked_store_file(name: str) -> bool:
+    return name not in _UNTRACKED_STORE_FILES and not name.startswith("LOG.old.")
+
+
 def _store_fingerprint(db: Path) -> dict[str, bytes]:
-    """Map of relative-path -> file bytes for every file under *db*."""
-    return {str(p.relative_to(db)): p.read_bytes() for p in sorted(db.rglob("*")) if p.is_file()}
+    """Map of relative-path -> bytes for every VCS-tracked file under *db*."""
+    return {
+        str(p.relative_to(db)): p.read_bytes()
+        for p in sorted(db.rglob("*"))
+        if p.is_file() and _is_tracked_store_file(p.name)
+    }
 
 
 def test_read_only_connect_leaves_store_dir_byte_identical(tmp_path: Path) -> None:
