@@ -23,7 +23,12 @@ from typing import TYPE_CHECKING, Any
 from cataforge.core.errors import CataforgeError
 from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg._content_hash import entity_content_hash
-from cataforge.domain.kg._dispatch import authoring_mode, kg_config_for, kg_enabled
+from cataforge.domain.kg._dispatch import (
+    authoring_mode,
+    definition_authority,
+    kg_config_for,
+    kg_enabled,
+)
 from cataforge.domain.kg._errors import KGEntityNotFoundError, KGValidationError
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
@@ -525,7 +530,7 @@ def author_document(
     doc.doc_type = doc_type
     doc.source_path = resolved_source_path
 
-    entities = extract_entities(doc)
+    entities = extract_entities(doc, authority=definition_authority(project_root))
     _guard_no_placeholder_titles(entities)
     document, sections = extract_structure(doc, entities)
     relations = extract_relations(doc)

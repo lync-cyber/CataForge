@@ -107,6 +107,13 @@ opencode = "cataforge.adapter.platform.opencode:OpenCodeAdapter"
 requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+# linkml-runtime → prefixcommons 0.1.12 declares pytest-logging (a test-only
+# tool, never imported at runtime) as a runtime dependency. pytest-logging
+# ships only a 2015 sdist that fails to build on modern setuptools. The
+# never-satisfiable marker drops it from the resolved tree.
+override-dependencies = ["pytest-logging ; sys_platform == 'cataforge-never'"]
+
 [tool.hatch.version]
 path = "src/cataforge/__init__.py"
 
