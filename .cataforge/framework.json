@@ -269,15 +269,6 @@
       "patterns": ["500 行", "500行"]
     },
     {
-      "id": "mc-0.1.5-setup-emit-env",
-      "release_version": "0.1.5",
-      "deprecate_after": "0.2.0",
-      "description": "setup.py 必须提供 --emit-env-block 子命令供 orchestrator Bootstrap 填入 CLAUDE.md §执行环境",
-      "type": "file_must_contain",
-      "path": ".cataforge/scripts/framework/setup.py",
-      "patterns": ["--emit-env-block", "build_env_block"]
-    },
-    {
       "id": "mc-0.1.5-detect-correction-registered",
       "release_version": "0.1.5",
       "deprecate_after": "0.2.0",
@@ -355,10 +346,10 @@
     {
       "id": "mc-0.9.2-setup-emit-env",
       "release_version": "0.9.2",
-      "description": "setup.py 必须提供 --emit-env-block 子命令（实现 build_env_block）供 orchestrator Bootstrap 与 framework-update 填入项目指令文件 §执行环境",
+      "description": "setup.py shim 必须转发到 cataforge setup 子命令（env-block / permissions）供 orchestrator Bootstrap 与 framework-update 填入项目指令文件 §执行环境",
       "type": "file_must_contain",
       "path": ".cataforge/scripts/framework/setup.py",
-      "patterns": ["--emit-env-block", "build_env_block"]
+      "patterns": ["cataforge setup", "env-block"]
     }
   ]
 }

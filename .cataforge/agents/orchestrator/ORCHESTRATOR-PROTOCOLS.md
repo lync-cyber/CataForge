@@ -59,8 +59,8 @@
     - `opencode` — OpenCode CLI
     确认后执行: `cataforge setup --platform {选定值}`，该命令将写入 `framework.json` 的 `runtime.platform` 字段并自动执行 deploy，生成对应平台的部署产物。若用户跳过选择则默认 `claude-code`。
 8. **填入 §执行环境 + 最小 permissions** — 按顺序运行两条命令:
-   - `python .cataforge/scripts/framework/setup.py --emit-env-block`：将输出注入 {INSTRUCTION_FILE} §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
-   - `python .cataforge/scripts/framework/setup.py --apply-permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
+   - `cataforge setup env-block`：将输出注入 {INSTRUCTION_FILE} §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
+   - `cataforge setup permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
    本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 {INSTRUCTION_FILE}，并收紧运行时权限以符合最小权限原则。
 9. **初始化文档索引与知识图谱** —
    - `cataforge kg init`（幂等；首次创建图谱 store 并加载本体闭包，上下文方案未启用图后端或命令缺失时 WARN 跳过）
