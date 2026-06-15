@@ -3,7 +3,7 @@
 A project carried across many upgrades can keep a removed skill's source under
 ``.cataforge/skills/<id>/`` (see :mod:`cataforge.core.retired_assets`). The
 manifest-scoped prune misses it when the files were untracked or edited, so it
-survives and trips other guards. ``cataforge upgrade apply`` now removes these
+survives and trips other guards. ``cataforge upgrade apply`` removes these
 directories; this WARN surfaces any that remain with the one-step fix, and is
 wired into doctor with ``gating=False`` so a leftover is a nudge, not a gate.
 """

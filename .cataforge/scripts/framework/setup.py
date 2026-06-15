@@ -1,4 +1,4 @@
-"""setup.py — back-compat shim forwarding to ``cataforge setup``.
+"""setup.py — path-stable shim forwarding to ``cataforge setup``.
 
 The canonical invocations are::
 
@@ -7,16 +7,15 @@ The canonical invocations are::
     cataforge setup permissions         # narrow Bash allowlist to the stack
 
 which work from any subdirectory inside a CataForge project (the CLI walks up
-to find ``.cataforge/``). This file is kept as a stable entry point so any
-external integration or older protocol copy still calling the legacy path
-keeps working — its legacy flags map straight onto the CLI subcommands.
+to find ``.cataforge/``). Kept as a stable entry point for callers that pass
+the flag form below; each flag maps straight onto the CLI subcommand.
 """
 
 from __future__ import annotations
 
 import sys
 
-# Legacy flag → `cataforge setup` argv tail.
+# Flag form → `cataforge setup` argv tail.
 _FLAG_TO_ARGS = {
     "--emit-env-block": ["env-block"],
     "--apply-permissions": ["permissions"],
@@ -24,7 +23,7 @@ _FLAG_TO_ARGS = {
 
 
 def _translate(argv: list[str]) -> list[str] | None:
-    """Map legacy argv onto a ``setup`` subcommand call, or ``None`` if unknown."""
+    """Map flag-form argv onto a ``setup`` subcommand call, or ``None`` if unknown."""
     project_dir: list[str] = []
     rest = list(argv)
     if "--root" in rest:

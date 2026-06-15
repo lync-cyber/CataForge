@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 
 import click
 
+from cataforge.core.retired_assets import retired_skill_dirs
+
 from ._helpers import is_relative_to
 
 _DEPRECATED_REFS: tuple[dict[str, str], ...] = (
@@ -183,8 +185,6 @@ def check_deprecated_references(cfg: ConfigManager) -> int:
     # ``check_retired_skill_assets``); their old CLI calls are real but the fix
     # is "remove the dir", not "edit the prose". Skip them here so a leftover
     # surfaces only as the actionable retired-asset WARN, not a misleading FAIL.
-    from cataforge.core.retired_assets import retired_skill_dirs
-
     skip_subtrees = (
         cfg.paths.hooks_dir / "custom",
         root / ".cataforge" / ".archive",
