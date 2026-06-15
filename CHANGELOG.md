@@ -20,6 +20,39 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.11.1'></a>
+## [0.11.1] — 2026-06-15
+
+### Added
+
+- **`cataforge setup env-block` / `cataforge setup permissions`** —— 把技术栈探测注入项目指令文件 §执行环境、按技术栈收紧 `permissions.allow` 两项能力收编进 `cataforge setup` 子命令。`env-block` 无识别技术栈时 exit 2；`permissions` 无技术栈 exit 2、无平台配置文件 exit 1。
+- **`cataforge.core.stack`** —— 主技术栈探测（包管理器 + install/test/lint 命令 + Bash 白名单前缀）单一实现，复用 `core.languages` 的 marker 注册表，不再各自硬编码 marker 表。
+
+- **scaffold 随附 `.cataforge/.gitignore`** —— bootstrap / `upgrade apply` 现在把一份 `.cataforge/.gitignore` 下发到下游项目，忽略框架自生成的本地状态：回滚快照 `.backups/`、deploy 簿记（`.deploy-state` / `.deploy-manifest.json` / `.scaffold-manifest.json` / `.instruction-hashes.json`）、`.mcp-state/`、`__pycache__/`，以及 KG RocksDB 纯运行时文件（`kg/store/LOG*` / `LOCK` / `IDENTITY`）。此前 scaffold 不下发任何忽略规则，用 `git add -A` 的项目会把整份快照与 RocksDB 运行时文件提交进 git。kg-first 下 store 结构文件（`CURRENT` / `MANIFEST-*` / `OPTIONS-*` / `*.sst` / WAL）是入库真相源，刻意**不**忽略，以免 fresh clone 拿到打不开的 store。
+
+- **退役框架 skill 自清 + doctor 重定向** —— 新增退役 skill 注册表 `cataforge.core.retired_assets`（`doc-gen` / `doc-nav` / `doc-consistency` / `doc-review` / `framework-issue-triage` / `kg-ask` / `self-update`）。这些 skill 的源目录在历史升级中被 manifest-scoped prune 漏掉（未跟踪或被本地改动 → protected）后会残留在 `.cataforge/skills/<id>/`，其中的旧 `cataforge docs ...` 调用让 0.11.0 的 Deprecated protocol references 检查 out-of-the-box 报红，误导下游以为部署损坏。
+  - `cataforge upgrade apply` 现在显式 prune 这些退役目录（即便未跟踪/被保护；预刷新备份可回滚）。
+  - `cataforge doctor` 新增 **Retired skill assets** 段（非 gating WARN），命名残留目录并给出 `cataforge upgrade apply` 一步修复。
+  - Deprecated protocol references 扫描现在**跳过**退役 skill 目录 —— 残留只作为可操作的 WARN 出现，不再误判为 FAIL 把 doctor 卡红。
+
+- **code-review `scan` 的死代码 / 重复探针落地** —— vulture（dead-code）进 dev 依赖并以 `[tool.vulture]` 配置（排除 codegen、屏蔽 Click/pydantic 装饰器假阳性）；jscpd（duplication）经 `.jscpd.json` 配置并通过 npx 运行。complexity 维度仍由既有 ruff `C901` 门禁承担，未引入 radon（radon 6.x 把整个 `pyproject [tool]` 表喂进 configparser，会被 scriv 模板里的 `%` 卡住）。
+
+### Changed
+
+- **`cataforge setup` 改为命令组** —— 保留全部既有 flag（`--platform` / `--language` / `--context-strategy` / `--deploy` / `--dry-run` …），裸 `cataforge setup` 行为不变。
+- **`.cataforge/scripts/framework/setup.py` 降级为转发 shim** —— 旧 flag `--emit-env-block` / `--apply-permissions` / `--platform` 透传到对应 `cataforge setup` 子命令，删除脚本内重复的技术栈探测实现。
+
+### Fixed
+
+- **section-merge 跨版本标题漂移不再重复 §段并注入占位符** —— `## 执行环境 (Bootstrap 时由 \`<cmd>\` 填入)` 这类标题内嵌的命令提示跨版本变更时，`merge_sections` 此前按完整标题行匹配，认不出已填充的旧段 → 在 canonical 位置注入模板占位符段、又把旧段当用户扩展追加，致活动指令文件出现两个同名段 + 残留 `{...}` 占位符。改为按 canonical（剥离括注）名匹配并消费整组，跨版本就地更新标题、保留用户填充 body；已损坏出现重复段的文件在下次 deploy 时自愈为单段。
+
+- **`cataforge doctor` 不再永久误报 Deploy drift** —— deploy 清单的 `source_digest` 此前把整个 `framework.json` 字节纳入哈希，而 framework-update 在 deploy **之后**才盖入 `framework.json#upgrade.state`（`last_version` / `last_upgrade_date` / `last_commit` 等纯本地簿记，从不渲染进 IDE 产物）→ 哈希与清单永久不一致 → 每次 doctor 都 WARN `.cataforge/ source changed since last deploy`。`compute_source_digest` 改为对 `framework.json` 走 canonical JSON 并剥离 `upgrade.state`（空 `upgrade` 一并移除），其余 deploy-affecting 字段照常入哈希；升级后跑一次 `cataforge deploy` 即重建基线、误报消除。
+
+- **全新 0.11.0 部署 out-of-the-box doctor 干净** —— 退役 skill 残留导致的 Deprecated protocol references FAIL 被重定向为非阻塞 WARN 并由 upgrade 自愈（注：fresh scaffold 本就 0 FAIL；本项针对长升级链遗留物）。
+
+- **scan 探针在 Windows 可启动** —— 探针 / linter 的 `argv[0]` 现经 `shutil.which` 解析为 PATHEXT 感知的完整路径，`npx` / `eslint` 等 `.cmd` shim 不再因 `subprocess` 只补 `.exe` 而 `FileNotFoundError` 被静默跳过。
+- **scan lint 段不再因 codegen 假阳性 FAIL** —— ruff 启用 `force-exclude`，逐文件 `ruff check` 对显式传入的 `_generated` 路径也尊重 `extend-exclude`，与目录扫描行为一致。
+
 <a id='changelog-0.11.0'></a>
 
 ## [0.11.0] — 2026-06-13
@@ -1598,7 +1631,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.1
 [0.11.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.0
 [0.10.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.10.0
 [0.9.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.2
