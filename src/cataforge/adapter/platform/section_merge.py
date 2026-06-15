@@ -99,34 +99,93 @@ def merge_sections(
 
     result: OrderedDict[str, str] = OrderedDict()
 
+    # Index current sections by canonical (annotation-stripped) title. A heading
+    # often carries a volatile parenthetical hint — e.g.
+    # "执行环境 (Bootstrap 时由 `<cmd>` 填入)" — whose embedded command changes
+    # across versions. Matching on the full heading would fail to recognise the
+    # user's existing section after such a rename, inject the template's
+    # placeholder body at the canonical position, and append the old filled
+    # section as a user extension — duplicating the section. Canonical keys match
+    # on the stable name so the section is updated in place instead.
+    cur_by_canon = _index_by_canon(cur_sections)
+    consumed: set[str] = set()
+
     # 1) Walk the template in its declared order so the framework can reorder.
     for title, tpl_body in tpl_sections.items():
-        cur_body = cur_sections.get(title)
-        category = _classify(title, framework, schema, runtime)
-        if category == "framework":
-            result[title] = tpl_body
-        elif category == "schema":
-            overwrite_fields = always_overwrite_fields_map.get(title, set())
-            result[title] = (
-                _merge_fields(cur_body, tpl_body, overwrite_fields=overwrite_fields)
-                if cur_body is not None
-                else tpl_body
-            )
-        elif category == "runtime":
-            # Preserve what's already there; only use template when the section
-            # is absent or is still the literal template body (first deploy).
-            result[title] = cur_body if cur_body is not None and cur_body.strip() else tpl_body
-        else:
-            # Unclassified template section = framework-owned by default.
-            result[title] = tpl_body
+        cur_body = _match_current_section(title, cur_sections, cur_by_canon, consumed)
+        result[title] = _resolve_section_body(
+            tpl_body,
+            cur_body,
+            category=_classify(title, framework, schema, runtime),
+            overwrite_fields=always_overwrite_fields_map.get(title, set()),
+        )
 
-    # 2) Append user-added sections (present in current but not in template).
+    # 2) Append user-added sections (present in current, unmatched by template).
     if user_extensible:
         for title, body in cur_sections.items():
-            if title not in result:
-                result[title] = body
+            if title in consumed or title in result:
+                continue
+            result[title] = body
 
     return _serialize(result_preamble, result)
+
+
+def _index_by_canon(sections: OrderedDict[str, str]) -> OrderedDict[str, list[str]]:
+    """Group section titles by their canonical (annotation-stripped) name."""
+    index: OrderedDict[str, list[str]] = OrderedDict()
+    for title in sections:
+        index.setdefault(_strip_section_annotations(title), []).append(title)
+    return index
+
+
+def _match_current_section(
+    template_title: str,
+    cur_sections: OrderedDict[str, str],
+    cur_by_canon: OrderedDict[str, list[str]],
+    consumed: set[str],
+) -> str | None:
+    """Body of the current section a template section maps to, or ``None``.
+
+    Matches on the canonical name and consumes *all* current sections sharing
+    it, so a file already corrupted with a filled + placeholder duplicate
+    collapses to one on the next deploy. A real (non-placeholder, non-empty)
+    body is preferred so the user's filled section beats a placeholder duplicate
+    regardless of which appears first.
+    """
+    group = cur_by_canon.get(_strip_section_annotations(template_title))
+    if not group:
+        return None
+    consumed.update(group)
+    bodies = [cur_sections[t] for t in group]
+    for body in bodies:
+        if body.strip() and not _PLACEHOLDER_RE.match(body.strip()):
+            return body
+    for body in bodies:
+        if body.strip():
+            return body
+    return bodies[0]
+
+
+def _resolve_section_body(
+    tpl_body: str,
+    cur_body: str | None,
+    *,
+    category: str,
+    overwrite_fields: set[str],
+) -> str:
+    """Per-category body for a template section in the merged output."""
+    if category == "schema":
+        return (
+            _merge_fields(cur_body, tpl_body, overwrite_fields=overwrite_fields)
+            if cur_body is not None
+            else tpl_body
+        )
+    if category == "runtime":
+        # Preserve what's already there; only use template when the section is
+        # absent or is still the literal template body (first deploy).
+        return cur_body if cur_body is not None and cur_body.strip() else tpl_body
+    # framework or unclassified (framework-owned by default).
+    return tpl_body
 
 
 def _split(text: str) -> tuple[str, OrderedDict[str, str]]:
