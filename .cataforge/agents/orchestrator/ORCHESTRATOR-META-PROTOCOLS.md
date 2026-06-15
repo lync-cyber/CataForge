@@ -13,7 +13,7 @@
 - .cataforge/rules/ — COMMON-RULES.md, SUB-AGENT-PROTOCOLS.md
 - .cataforge/agents/orchestrator/ — ORCHESTRATOR-PROTOCOLS.md, ORCHESTRATOR-META-PROTOCOLS.md
 - .cataforge/hooks/ — 所有 Hook 脚本 (.py)
-- .cataforge/scripts/framework/ — `setup.py`（环境探测/平台配置）、`event_logger.py`（`cataforge event log` 的路径稳定 shim，供 markdown 协议调用）；其他框架能力（upgrade、docs load/index 等）已上收为 `cataforge` CLI 子命令；Penpot 集成无需 scaffold 落盘脚本，全部通过 `cataforge penpot {deploy|mcp-only|start|stop|status|ensure}` 子命令暴露（实现位于 `cataforge.adapter.integrations.penpot`）
+- .cataforge/scripts/framework/ — `setup.py`（`cataforge setup` 子命令的路径稳定 shim，供 Bootstrap 调用）、`event_logger.py`（`cataforge event log` 的路径稳定 shim，供 markdown 协议调用）；其他框架能力（upgrade、docs load/index 等）已上收为 `cataforge` CLI 子命令；Penpot 集成无需 scaffold 落盘脚本，全部通过 `cataforge penpot {deploy|mcp-only|start|stop|status|ensure}` 子命令暴露（实现位于 `cataforge.adapter.integrations.penpot`）
 - .cataforge/framework.json
 - pyproject.toml
 

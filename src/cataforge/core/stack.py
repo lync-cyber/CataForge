@@ -73,7 +73,6 @@ def _build_stack(root: Path, lang_id: str) -> Stack:
     if lang_id == "python":
         is_uv = (root / "uv.lock").is_file()
         pm = "uv" if is_uv else "pip"
-        allow = ([pm + " "]) + ["python ", "pytest", "ruff "]
         return Stack(
             language="python",
             display=_DISPLAY["python"],
@@ -81,7 +80,7 @@ def _build_stack(root: Path, lang_id: str) -> Stack:
             install_cmd="uv sync" if is_uv else "pip install -e .",
             test_cmd="uv run pytest" if is_uv else "pytest",
             lint_cmd="uv run ruff check" if is_uv else "ruff check",
-            bash_allow=tuple(allow),
+            bash_allow=(pm + " ", "python ", "pytest", "ruff "),
         )
 
     if lang_id == "js-ts":

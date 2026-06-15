@@ -35,7 +35,7 @@ class HealthCheckSpec(BaseModel):
 
     @field_validator("target", mode="before")
     @classmethod
-    def _reject_str_command_target(cls, v: Any, info: Any) -> Any:
+    def _reject_str_command_target(cls, v: Any) -> Any:
         return v  # type-enforcement happens at _probe_command call site
 
 

@@ -23,6 +23,7 @@ Usage:
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -224,6 +225,18 @@ SCAN_PROBES: dict[str, list[dict[str, Any]]] = {
 VALID_FOCUS = set(SCAN_PROBES.keys())
 
 
+def _resolved(argv: list[str]) -> list[str]:
+    """Resolve argv[0] to its PATHEXT-aware absolute path.
+
+    Windows ``subprocess`` only appends ``.exe`` to a bare launcher name, so
+    ``.cmd`` / ``.bat`` shims (npx, eslint) raise ``FileNotFoundError`` unless
+    given their resolved path. A name ``shutil.which`` can't find is returned
+    unchanged, preserving the caller's FileNotFoundError "未安装" skip path.
+    """
+    exe = shutil.which(argv[0])
+    return [exe, *argv[1:]] if exe else list(argv)
+
+
 class CodeLinter:
     def __init__(self, target: str, fix: bool = False) -> None:
         self.target = Path(target)
@@ -238,7 +251,7 @@ class CodeLinter:
         name = tool["name"]
         if name not in self.tool_cache:
             try:
-                run_proc(tool["detect"], timeout=15)
+                run_proc(_resolved(tool["detect"]), timeout=15)
                 self.tool_cache[name] = True
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 self.tool_cache[name] = False
@@ -261,7 +274,7 @@ class CodeLinter:
             return
         cmd = (tool["fix"] if self.fix else tool["check"]) + [str(filepath)]
         try:
-            result = run_proc(cmd, timeout=60)
+            result = run_proc(_resolved(cmd), timeout=60)
             if result.returncode != 0:
                 output = (result.stdout + result.stderr).strip()
                 err_lines = [line for line in output.splitlines() if line.strip()]
@@ -370,14 +383,14 @@ class CodeScanner:
         if not (probe["extensions"] & present_exts):
             return
         try:
-            run_proc(probe["detect"], timeout=15)
+            run_proc(_resolved(probe["detect"]), timeout=15)
         except (FileNotFoundError, subprocess.TimeoutExpired):
             print(f"WARN: probe '{name}' 未安装，跳过")
             self.skipped += 1
             return
         cmd = probe["build_cmd"](self.target)
         try:
-            result = run_proc(cmd, timeout=180)
+            result = run_proc(_resolved(cmd), timeout=180)
         except subprocess.TimeoutExpired:
             print(f"WARN: probe '{name}' 超时")
             self.skipped += 1

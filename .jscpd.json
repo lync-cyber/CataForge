@@ -1,0 +1,15 @@
+{
+  "minTokens": 50,
+  "gitignore": true,
+  "absolute": true,
+  "reporters": ["console"],
+  "ignore": [
+    "**/_generated/**",
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/__pycache__/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/*.min.js"
+  ]
+}
