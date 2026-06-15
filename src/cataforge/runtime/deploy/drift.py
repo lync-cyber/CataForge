@@ -16,11 +16,14 @@ Runtime state under ``.cataforge/`` (``.deploy-state``,
 ``.deploy-manifest.json``, ``.mcp-state``, ``kg/``, ``.backups`` …) is
 excluded from the digest via a source-dir whitelist — it is written by the
 framework itself and would otherwise make every deploy self-trigger drift.
+``framework.json`` is a source file but carries the same kind of post-deploy
+bookkeeping under ``upgrade.state`` — see :func:`_hashable_bytes`.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +63,33 @@ def _iter_source_files(paths: ProjectPaths) -> Iterator[Path]:
                 yield p
 
 
+def _hashable_bytes(rel: str, path: Path) -> bytes:
+    """Bytes fed to the source digest for one file.
+
+    ``framework.json`` is a deploy input, but carries local-only bookkeeping
+    under ``upgrade.state`` (last applied version / date / commit, event-log
+    watermark) that is written *after* deploy and never renders into an IDE
+    artefact. Hashing the raw file would let every post-deploy state write flip
+    the digest and report a perpetual false "Deploy drift". Hash a canonical
+    JSON form with ``upgrade.state`` removed instead; fall back to raw bytes
+    when the file is not valid JSON.
+    """
+    raw = path.read_bytes()
+    if rel != "framework.json":
+        return raw
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return raw
+    if isinstance(data, dict) and isinstance(data.get("upgrade"), dict):
+        data["upgrade"].pop("state", None)
+        # Drop a now-empty ``upgrade`` so "upgrade had only state" hashes the
+        # same as "no upgrade key" — the baseline may predate the first stamp.
+        if not data["upgrade"]:
+            data.pop("upgrade", None)
+    return json.dumps(data, sort_keys=True, ensure_ascii=False).encode("utf-8")
+
+
 def compute_source_digest(paths: ProjectPaths) -> str:
     """Deterministic sha256 over all deploy-input source files.
 
@@ -73,7 +103,7 @@ def compute_source_digest(paths: ProjectPaths) -> str:
         rel = p.relative_to(cf).as_posix()
         h.update(rel.encode("utf-8"))
         h.update(b"\0")
-        h.update(p.read_bytes())
+        h.update(_hashable_bytes(rel, p))
         h.update(b"\0")
     return h.hexdigest()
 

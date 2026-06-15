@@ -61,6 +61,37 @@ class TestComputeSourceDigest:
         (cf / "agents" / "architect" / "__pycache__" / "x.pyc").write_text("x", encoding="utf-8")
         assert compute_source_digest(paths) == before
 
+    def test_upgrade_state_excluded_from_framework_json_digest(self, tmp_path: Path) -> None:
+        """``framework.json#upgrade.state`` is post-deploy bookkeeping; writing
+        it must NOT shift the digest, else doctor reports perpetual false drift."""
+        _seed_source(tmp_path)
+        cf = tmp_path / ".cataforge"
+        (cf / "framework.json").write_text(
+            '{"version": "0.8.0", "upgrade": {"source": {"repo": "o/r"}}}\n',
+            encoding="utf-8",
+        )
+        paths = ProjectPaths(tmp_path)
+        before = compute_source_digest(paths)
+        # framework-update Step 4 stamps upgrade.state after deploy.
+        (cf / "framework.json").write_text(
+            '{"version": "0.8.0", "upgrade": {"source": {"repo": "o/r"}, '
+            '"state": {"last_version": "0.8.0", "last_upgrade_date": "2026-06-15"}}}\n',
+            encoding="utf-8",
+        )
+        assert compute_source_digest(paths) == before
+
+    def test_non_state_framework_json_change_still_shifts_digest(self, tmp_path: Path) -> None:
+        """Real deploy-affecting framework.json edits must still register."""
+        _seed_source(tmp_path)
+        cf = tmp_path / ".cataforge"
+        (cf / "framework.json").write_text('{"version": "0.8.0"}\n', encoding="utf-8")
+        paths = ProjectPaths(tmp_path)
+        before = compute_source_digest(paths)
+        (cf / "framework.json").write_text(
+            '{"version": "0.8.0", "features": {"x": true}}\n', encoding="utf-8"
+        )
+        assert compute_source_digest(paths) != before
+
 
 class TestDetectDrift:
     def _deploy_baseline(self, root: Path, paths: ProjectPaths, version: str) -> None:
@@ -95,6 +126,22 @@ class TestDetectDrift:
         report = detect_drift(paths, current_version="0.8.0")
         assert report.source_drift is True
         assert report.version_drift is False
+
+    def test_upgrade_state_stamp_after_deploy_is_not_drift(self, tmp_path: Path) -> None:
+        """End-to-end: deploy, then framework-update Step 4 stamps upgrade.state.
+        doctor must not report a false Deploy drift."""
+        _seed_source(tmp_path)
+        cf = tmp_path / ".cataforge"
+        (cf / "framework.json").write_text('{"version": "0.8.0"}\n', encoding="utf-8")
+        paths = ProjectPaths(tmp_path)
+        self._deploy_baseline(tmp_path, paths, "0.8.0")
+        (cf / "framework.json").write_text(
+            '{"version": "0.8.0", "upgrade": {"state": {"last_version": "0.8.0"}}}\n',
+            encoding="utf-8",
+        )
+        report = detect_drift(paths, current_version="0.8.0")
+        assert report.source_drift is False
+        assert report.any_drift is False
 
     def test_package_upgraded_after_deploy_is_version_drift(self, tmp_path: Path) -> None:
         _seed_source(tmp_path)
