@@ -20,6 +20,33 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.11.0'></a>
+## [0.11.0] — 2026-06-15
+
+### Added
+
+- **`context index` / `context validate`** —— 与 `context read` 组成完整的 context 读取/校验命令族，行为与原 docs 族动词一致（共用同一实现体）。
+- **`context write-doc`** —— 把整篇 markdown 文本（frontmatter + preamble + 章节 + 实体 + 关系）经一个原子事务写进知识图谱（kg-first 策略），post-commit 校验失败整体补偿、零图残留；实体 title 含 `{...}` 占位符则拒绝，防模板示例污染图。
+- **`context write-meta <doc_id>`** —— 图侧改写 Document 的 `status` / `version`（保留原 frontmatter 引号风格），同步图槽与 content_hash。
+- **`TransactionContext.add_document`** —— Document 结构节点的图侧 authoring 入口，content_hash 幂等。
+- **`context status`** —— 输出 `{strategy, authoring, store_initialized, entity_count}` JSON 探针，零副作用（store 不存在时不创建）。
+- **`context.authoring` 配置开关**（`md` 缺省 / `graph`）—— kg-first 项目声明 authoring 权威方向；doc-only 项目恒 `md`。
+- **reconcile 文档级漂移 triage** —— 对每个导出文档比较磁盘字节 / 导出基线（新 `cf:exported_content_hash`）/ 图侧重渲染三方哈希，判定 `in_sync` / `human_edit` / `graph_ahead` / `conflict` / `never_exported`；`ReconcileReport` 新增 `authoring` / `documents` / `document_drift_count`。
+
+### Changed
+
+- **prompt 资产与文档全量换用 context 动词** —— `.cataforge/` 规则/agent/skill、`CLAUDE.md`、`docs/reference/cli.md`、`docs/architecture/runtime-workflow.md` 的命令指引收敛到 `context read/index/validate`；「加载原则」措辞统一为「按章节/条目粒度按需加载」。
+- **`context write-narrative` 正文规范化** —— 收敛到事务面并校验：正文首行标题须与 anchor 一致（否则拒绝，避免 ghost/missing section），无标题行则自动补标题；修正 `--anchor` help 中误导性示例（anchor 为 heading 文本如 `1. 概览`）。
+- **`context finalize`（kg-first）导出后重建 `docs/.doc-index.json`** —— 消除导出后索引过期；每个文档的导出字节 sha256 写回图作为后续漂移检测基线。既有 id 集合 diff 的 `overall_divergence_count` / `ok` 语义不变。
+
+### Deprecated
+
+- **`docs load` / `docs index` / `docs validate`** —— 转为废弃别名：stdout 与 exit code 不变，stderr 追加一行指向 `cataforge context <verb>` 的提示；doctor 的 deprecated-reference 扫描会标记 prose 中对旧动词的引用。`docs migrate-nav` / `docs migrate-reviews` 不受影响。
+
+### Fixed
+
+- **章节顺序在更新时丢失** —— `add_section` 更新既有 Section 时会整体替换 quads、把 `cf:position` 重置为 0，导致下次 `context finalize` 章节顺序错乱；现沿用图中既有 position / level，新建章节按同文档 `max(position)+1` 追加。
+
 <a id='changelog-0.10.0'></a>
 ## [0.10.0] — 2026-06-13
 
@@ -1552,7 +1579,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.0
 [0.10.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.10.0
 [0.9.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.2
 [0.9.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.9.1
