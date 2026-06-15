@@ -121,7 +121,7 @@ def _kg_entity_ids(db_path: Path) -> set[str]:
     from cataforge.domain.kg import KGConfig, KnowledgeGraph  # noqa: PLC0415
 
     config = KGConfig(db_path=db_path)
-    with KnowledgeGraph.connect(config) as kg:
+    with KnowledgeGraph.connect(config, read_only=True) as kg:
         return kg.query.entity_ids()
 
 

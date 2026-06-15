@@ -434,6 +434,6 @@ def context_status(ctx: click.Context, project_root: str) -> None:
         from cataforge.domain.kg._dispatch import kg_config_for
 
         cfg = kg_config_for(project_root)
-        with _kg_store_guard(), KnowledgeGraph.connect(cfg) as kg:
+        with _kg_store_guard(), KnowledgeGraph.connect(cfg, read_only=True) as kg:
             payload["entity_count"] = len(kg.query.entity_ids())
     click.echo(json.dumps(payload))

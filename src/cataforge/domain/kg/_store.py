@@ -34,12 +34,22 @@ if TYPE_CHECKING:
     import pyoxigraph as ox
 
 
-def _open_pyoxigraph(config: KGConfig, *, create: bool = False) -> ox.Store:
+def _open_pyoxigraph(
+    config: KGConfig, *, create: bool = False, read_only: bool = False
+) -> ox.Store:
     """Open the underlying pyoxigraph store per `config.store_backend`.
 
     `pyoxigraph` is imported lazily so callers who only need :class:`KGConfig`
     (the dataclass shipped in the base wheel) can use this package without
     the `kg` extra installed.
+
+    With `read_only=True` an existing on-disk store is opened via
+    `Store.read_only`, which performs no manifest/WAL/CURRENT rotation and
+    so leaves the (VCS-tracked) store directory byte-for-byte unchanged.
+    `read_only` is ignored for the memory backend and incompatible with
+    `create` (a fresh store must be opened read-write to bootstrap).
+    Opening read-only while another process writes the same store is
+    undefined behavior; this is safe for single-process CLI invocations.
     """
     import pyoxigraph as ox  # noqa: PLC0415
 
@@ -48,6 +58,8 @@ def _open_pyoxigraph(config: KGConfig, *, create: bool = False) -> ox.Store:
 
     db_path = config.db_path
     if db_path.exists():
+        if read_only and not create:
+            return ox.Store.read_only(str(db_path))
         return ox.Store(str(db_path))
 
     if not create:
@@ -122,9 +134,11 @@ class KnowledgeGraphStore:
 
     @classmethod
     @contextmanager
-    def connect(cls, config: KGConfig) -> Generator[KnowledgeGraphStore, None, None]:
+    def connect(
+        cls, config: KGConfig, *, read_only: bool = False
+    ) -> Generator[KnowledgeGraphStore, None, None]:
         """Open an existing store; raise if the on-disk path is missing."""
-        store = _open_pyoxigraph(config, create=False)
+        store = _open_pyoxigraph(config, create=False, read_only=read_only)
         handle = cls(store, config)
         try:
             yield handle
