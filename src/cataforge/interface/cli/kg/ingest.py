@@ -191,7 +191,7 @@ def kg_validate(ctx: click.Context, db_path: Path, shacl: bool, json_output: boo
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
-        with KnowledgeGraph.connect(config) as kg:
+        with KnowledgeGraph.connect(config, read_only=True) as kg:
             report = validate(kg.store, config, run_shacl=shacl)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
@@ -392,7 +392,7 @@ def kg_reconcile(
     )
 
     try:
-        with KnowledgeGraph.connect(config) as kg:
+        with KnowledgeGraph.connect(config, read_only=True) as kg:
             report = reconcile(kg.store, project_root, config)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc
@@ -518,7 +518,7 @@ def kg_compare_read(
     )
 
     try:
-        with KnowledgeGraph.connect(config) as kg:
+        with KnowledgeGraph.connect(config, read_only=True) as kg:
             report = compare_read(
                 kg,
                 project_root,

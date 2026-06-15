@@ -68,7 +68,7 @@ def _try_kg_extract(
         return None
     cfg = kg_config_for(project_root)
     try:
-        with KnowledgeGraph.connect(cfg) as kg:
+        with KnowledgeGraph.connect(cfg, read_only=True) as kg:
             if item_id is None:
                 return _kg_section_body(kg.store, cfg, doc_id, section_path)
             if not kg.query.exists(item_id):
@@ -133,7 +133,7 @@ def _try_kg_plan_load(
     item_ids = [item_id for _ref, _doc_id, item_id in parsed]
     cfg = kg_config_for(project_root)
     try:
-        with KnowledgeGraph.connect(cfg) as kg:
+        with KnowledgeGraph.connect(cfg, read_only=True) as kg:
             result = kg.query.plan_load(item_ids, token_budget, include_related=False)
     except Exception as exc:
         logger.debug("KG plan_load fallback for %d items: %s", len(item_ids), exc)
@@ -173,7 +173,7 @@ def _try_kg_resolve_deps(ref: str, project_root: str, max_depth: int) -> list[st
 
     cfg = kg_config_for(project_root)
     try:
-        with KnowledgeGraph.connect(cfg) as kg:
+        with KnowledgeGraph.connect(cfg, read_only=True) as kg:
             visited: set[str] = {item_id}
             ordered: list[str] = []
 

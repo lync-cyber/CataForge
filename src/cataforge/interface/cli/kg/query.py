@@ -73,7 +73,7 @@ def kg_query(
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
-        with KnowledgeGraph.connect(config) as kg:
+        with KnowledgeGraph.connect(config, read_only=True) as kg:
             result_box: list[object] = []
             error_box: list[Exception] = []
 
@@ -300,7 +300,7 @@ def kg_trace(
 
     if coverage and entity_id is None:
         try:
-            with KnowledgeGraph.connect(config) as kg:
+            with KnowledgeGraph.connect(config, read_only=True) as kg:
                 _coverage_matrix(kg, output_fmt)
         except KGStoreNotInitializedError as exc:
             raise KGStoreError(str(exc)) from exc
@@ -310,7 +310,7 @@ def kg_trace(
         raise CataforgeError("ENTITY_ID is required (or use --coverage for global matrix).")
 
     try:
-        with KnowledgeGraph.connect(config) as kg:
+        with KnowledgeGraph.connect(config, read_only=True) as kg:
             if not kg.query.exists(entity_id):
                 raise CataforgeError(f"Entity not found: {entity_id}")
 

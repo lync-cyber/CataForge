@@ -111,7 +111,7 @@ class CrossDocChecker(_CrossDocChecksMixin):
         try:
             from cataforge.domain.kg._sparql_utils import cf_namespace  # noqa: PLC0415
 
-            with KnowledgeGraph.connect(cfg) as kg:
+            with KnowledgeGraph.connect(cfg, read_only=True) as kg:
                 ns = cf_namespace(cfg)
                 prd_q = (
                     f"PREFIX cf: <{ns}> "

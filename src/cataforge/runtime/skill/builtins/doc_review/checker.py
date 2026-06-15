@@ -388,7 +388,7 @@ class DocChecker(TypedDocChecksMixin):
             return None
         try:
             cfg = kg_config_for(project_root)
-            kg = KnowledgeGraph.connect(cfg).__enter__()
+            kg = KnowledgeGraph.connect(cfg, read_only=True).__enter__()
         except Exception:
             return None
 
@@ -420,7 +420,7 @@ class DocChecker(TypedDocChecksMixin):
             return False
         try:
             cfg = kg_config_for(project_root)
-            with KnowledgeGraph.connect(cfg) as kg:
+            with KnowledgeGraph.connect(cfg, read_only=True) as kg:
                 rows = kg.trace.bidirectional_coverage()
         except Exception:
             return False

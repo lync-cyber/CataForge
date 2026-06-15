@@ -118,7 +118,7 @@ def kg_snapshot(ctx: click.Context, db_path: Path, output_dir: Path, label: str 
 
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
-        with KnowledgeGraph.connect(config) as kg:
+        with KnowledgeGraph.connect(config, read_only=True) as kg:
             meta = create_snapshot(kg.store, config, output_dir, label=label)
     except KGStoreNotInitializedError as exc:
         raise KGStoreError(str(exc)) from exc

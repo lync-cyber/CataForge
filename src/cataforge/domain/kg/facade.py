@@ -26,11 +26,12 @@ if TYPE_CHECKING:
 def open_store(path: Path, *, read_only: bool = False) -> ox.Store:
     """Open an existing on-disk pyoxigraph store at *path*.
 
-    *read_only* is accepted for forward compatibility; pyoxigraph 0.5.x
-    does not enforce read-only at the store level.
+    With *read_only* the store is opened via `Store.read_only`, which
+    performs no manifest/WAL rotation and leaves the store directory
+    unchanged on disk.
     """
     cfg = KGConfig(db_path=Path(path))
-    return _open_pyoxigraph(cfg, create=False)
+    return _open_pyoxigraph(cfg, create=False, read_only=read_only)
 
 
 class KnowledgeGraph:
@@ -70,15 +71,17 @@ class KnowledgeGraph:
 
     @classmethod
     @contextmanager
-    def connect(cls, config: KGConfig) -> Generator[KnowledgeGraph, None, None]:
+    def connect(
+        cls, config: KGConfig, *, read_only: bool = False
+    ) -> Generator[KnowledgeGraph, None, None]:
         """Open an existing store on `config.db_path` and return a facade.
 
-        The store is opened read-only-by-convention; writes still work
-        but should always go through :meth:`transaction`. Lifecycle
-        guarantees match :class:`cataforge.domain.kg._store.KnowledgeGraphStore`
-        (no explicit close in pyoxigraph 0.5.x).
+        Pass `read_only=True` for query-only callers: the store opens via
+        `Store.read_only` and the on-disk directory is left untouched, so a
+        VCS-tracked store does not show spurious diffs after a read. Writes
+        require `read_only=False` and must go through :meth:`transaction`.
         """
-        store = _open_pyoxigraph(config, create=False)
+        store = _open_pyoxigraph(config, create=False, read_only=read_only)
         try:
             yield cls(store, config)
         except Exception:

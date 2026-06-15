@@ -112,3 +112,51 @@ def test_connect_raises_when_db_path_missing(tmp_path: Path) -> None:
         KnowledgeGraphStore.connect(KGConfig(store_backend="oxigraph", db_path=db)),
     ):
         pass
+
+
+def _store_fingerprint(db: Path) -> dict[str, bytes]:
+    """Map of relative-path -> file bytes for every file under *db*."""
+    return {str(p.relative_to(db)): p.read_bytes() for p in sorted(db.rglob("*")) if p.is_file()}
+
+
+def test_read_only_connect_leaves_store_dir_byte_identical(tmp_path: Path) -> None:
+    """A read-only open performs no manifest/WAL/CURRENT rotation.
+
+    The on-disk store directory is VCS-tracked under kg-first, so any
+    bookkeeping rotation on open would surface as a spurious git diff.
+    """
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
+
+    db = tmp_path / "kg-store"
+    config = KGConfig(store_backend="oxigraph", db_path=db)
+    handle = init_store(config)
+    handle.raw.flush()
+    handle.raw.optimize()
+    handle.close()
+
+    before = _store_fingerprint(db)
+    with KnowledgeGraph.connect(config, read_only=True) as kg:
+        kg.query.entity_ids()  # exercise a real read through the store
+
+    assert _store_fingerprint(db) == before
+
+
+def test_read_only_open_returns_persisted_data(tmp_path: Path) -> None:
+    import pyoxigraph as ox
+
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore, init_store
+
+    db = tmp_path / "kg-store"
+    config = KGConfig(store_backend="oxigraph", db_path=db)
+    handle = init_store(config)
+    quad = ox.Quad(
+        ox.NamedNode("https://cataforge.dev/instance/F-001"),
+        ox.NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+        ox.NamedNode("https://cataforge.dev/ontology/Feature"),
+    )
+    handle.raw.add(quad)
+    handle.raw.flush()
+    handle.close()
+
+    with KnowledgeGraphStore.connect(config, read_only=True) as ro:
+        assert quad in set(ro.raw.quads_for_pattern(None, None, None, None))
