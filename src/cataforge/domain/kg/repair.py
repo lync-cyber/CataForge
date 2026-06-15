@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.docs.index_ops import _load_doc_type_map
 from cataforge.domain.kg._config import KGConfig
+from cataforge.domain.kg._dispatch import definition_authority
 from cataforge.domain.kg._quads import _slot_iri, quads_for_subject, quads_targeting
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
@@ -159,10 +160,11 @@ def _reingest_doc_type(
         store, meta["project_id"], meta["title"], meta["process_model"], config
     )
 
+    authority = definition_authority(project_root)
     entities_total = 0
     sections_total = 0
     for doc in parsed:
-        entities = extract_entities(doc)
+        entities = extract_entities(doc, authority=authority)
         relations = extract_relations(doc)
         ws = write_entities(store, entities, project_iri, config)
         write_relations(store, relations, config)

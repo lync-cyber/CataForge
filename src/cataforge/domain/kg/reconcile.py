@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.docs.index_ops import _load_doc_type_map
 from cataforge.domain.kg._config import KGConfig
-from cataforge.domain.kg._dispatch import authoring_mode
+from cataforge.domain.kg._dispatch import authoring_mode, definition_authority
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _strv,
@@ -357,6 +357,7 @@ def reconcile(
     project_root = Path(project_root)
     type_map = _load_doc_type_map(str(project_root))
     active = sorted(config.kg_active_doc_types)
+    authority = definition_authority(project_root)
 
     report = ReconcileReport(
         timestamp=_utc_now_iso(),
@@ -386,7 +387,7 @@ def reconcile(
         doc_ids: set[str] = set()
         for doc in parsed:
             doc_ids.add(doc.doc_id)
-            for entity in extract_entities(doc):
+            for entity in extract_entities(doc, authority=authority):
                 entity_home.setdefault(entity.entity_id, set()).add(doc.doc_id)
             for relation in extract_relations(doc):
                 key = (
@@ -421,7 +422,7 @@ def reconcile(
         fs_entities: set[str] = set()
         fs_sections: set[str] = set()
         for doc in parsed:
-            doc_entities = extract_entities(doc)
+            doc_entities = extract_entities(doc, authority=authority)
             for entity in doc_entities:
                 fs_entities.add(entity.scope_key)
             _document, doc_sections = extract_structure(doc, doc_entities)

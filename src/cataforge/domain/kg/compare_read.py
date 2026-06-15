@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.kg._ask import ask
+from cataforge.domain.kg._dispatch import definition_authority
 from cataforge.domain.kg._sparql_utils import _row_lookup, _strv, cf_namespace, select_rows
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
 from cataforge.domain.kg.ingest.iri import resolve_entity_iri
@@ -110,6 +111,7 @@ def compare_read(
     for reproducibility with ``seed``.
     """
     project_root = Path(project_root)
+    authority = definition_authority(project_root)
 
     # FS-side pool: rerun the ingest extraction phase to get authoritative
     # current-content hashes.
@@ -120,7 +122,7 @@ def compare_read(
         parsed = scan_business_docs(project_root, [doc_type])
         seen: set[str] = set()
         for doc in parsed:
-            for entity in extract_entities(doc):
+            for entity in extract_entities(doc, authority=authority):
                 if entity.scope_key in seen:
                     continue
                 seen.add(entity.scope_key)
