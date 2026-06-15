@@ -94,6 +94,27 @@ def test_doctor_skips_archive_subtree(tmp_path: Path, monkeypatch) -> None:
     )
 
 
+def test_doctor_retired_skill_leftover_warns_not_fails(tmp_path: Path, monkeypatch) -> None:
+    """A retired skill's stale source dir (the reporter's scenario) must surface
+    as the actionable Retired-skill WARN, not a misleading deprecated-ref FAIL."""
+    root = _scaffold(tmp_path)
+    stale = root / ".cataforge" / "skills" / "doc-gen"
+    stale.mkdir()
+    (stale / "SKILL.md").write_text(
+        "# doc-gen\n\n运行 `cataforge docs index` 重建索引\n", encoding="utf-8"
+    )
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    # The deprecated-ref scan skips the retired dir → 0 hits there.
+    dep = result.output.split("Deprecated protocol references:", 1)[1].splitlines()[1]
+    assert "0 deprecated references" in dep, dep
+    # The retired-asset WARN names the dir and the fix.
+    assert "Retired skill assets:" in result.output
+    assert "skills/doc-gen" in result.output
+    assert "upgrade apply" in result.output
+
+
 def _empty_doc_index(root: Path) -> None:
     """Mark the project as having opted into CataForge-managed docs.
 

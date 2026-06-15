@@ -179,9 +179,16 @@ def check_deprecated_references(cfg: ConfigManager) -> int:
         cfg.paths.commands_dir,
     )
 
+    # Retired skill source dirs are stale upgrade leftovers (see
+    # ``check_retired_skill_assets``); their old CLI calls are real but the fix
+    # is "remove the dir", not "edit the prose". Skip them here so a leftover
+    # surfaces only as the actionable retired-asset WARN, not a misleading FAIL.
+    from cataforge.core.retired_assets import retired_skill_dirs
+
     skip_subtrees = (
         cfg.paths.hooks_dir / "custom",
         root / ".cataforge" / ".archive",
+        *retired_skill_dirs(cfg.paths.skills_dir),
     )
 
     patterns = [(entry, re.compile(entry["pattern"])) for entry in _DEPRECATED_REFS]

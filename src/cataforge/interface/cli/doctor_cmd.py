@@ -33,6 +33,7 @@ from .doctor.protocol_refs import (
     check_protocol_script_references,
 )
 from .doctor.provenance import report_deployment_provenance
+from .doctor.retired_assets import check_retired_skill_assets
 from .doctor.skill_health import check_builtin_skill_reachability, check_docs_validate
 
 __all__ = ["doctor_command", "_DEPRECATED_REFS"]
@@ -55,6 +56,11 @@ _DOCTOR_SECTIONS = [
     # runtime, so a static scan catches the rot at diagnostic time.
     ("Protocol script references:", check_protocol_script_references, True),
     ("Deprecated protocol references:", check_deprecated_references, True),
+    # Retired skill leftovers — informational WARN: a removed framework skill's
+    # source dir survived an upgrade (untracked/edited, so manifest prune missed
+    # it). Non-gating; `upgrade apply` removes it. Reframes the deprecated-refs
+    # scan, which skips these dirs so they surface here, not as a stale FAIL.
+    ("Retired skill assets:", check_retired_skill_assets, False),
     ("Docs validation:", check_docs_validate, True),
     # context strategy/authoring pair — graph authoring without the kg-first
     # backend is a config contradiction that authoring_mode would silently
