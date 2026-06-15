@@ -161,6 +161,24 @@ def test_scaffold_ships_cataforge_gitignore(tmp_path: Path) -> None:
     assert not any("MANIFEST" in r or ".sst" in r or "CURRENT" in r for r in rules)
 
 
+def test_force_refresh_prunes_retired_skill_dir(tmp_path: Path) -> None:
+    """A retired framework skill's source dir is removed on upgrade even when
+    it is untracked and locally edited (which would otherwise protect it)."""
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+
+    # Stale leftover from an old scaffold, never manifest-tracked, user-edited.
+    stale = dest / "skills" / "doc-gen"
+    stale.mkdir(parents=True)
+    (stale / "SKILL.md").write_text("# doc-gen\n运行 cataforge docs index\n", encoding="utf-8")
+
+    result = copy_scaffold_to(dest, force=True, backup=False)
+    assert not stale.exists()
+    assert any("doc-gen" in str(p) for p in result.removed)
+    # A live skill dir is untouched.
+    assert (dest / "skills" / "context").is_dir()
+
+
 def test_scaffold_stamps_runtime_package_version(tmp_path: Path) -> None:
     """framework.json version must match the installed cataforge package."""
     from cataforge import __version__

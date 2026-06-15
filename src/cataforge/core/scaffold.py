@@ -15,6 +15,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import shutil
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from importlib.resources import as_file, files
@@ -23,6 +24,7 @@ from typing import Any
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
+from cataforge.core.retired_assets import retired_skill_dirs
 from cataforge.core.scaffold_backup import (
     BACKUPS_DIRNAME,
     MANIFEST_REL,
@@ -356,9 +358,27 @@ def copy_scaffold_to(
     removed: list[Path] = []
     if force:
         removed = _prune_obsolete_files(dest, prior_manifest, manifest_files, protected)
+        removed += _prune_retired_skills(dest)
 
     _write_manifest(dest, manifest_files)
     return ScaffoldCopyResult(written, skipped, protected, removed, backup_path)
+
+
+def _prune_retired_skills(dest: Path) -> list[Path]:
+    """Remove framework skill source dirs retired from the scaffold.
+
+    The manifest-scoped prune misses these when they were never tracked or were
+    edited (held back as ``protected``). They are framework leftovers — project
+    and user overrides live under ``.cataforge/overrides/`` — so a forced
+    refresh removes the whole ``skills/<id>/`` tree. The pre-refresh backup
+    makes it recoverable.
+    """
+    removed: list[Path] = []
+    for stale in retired_skill_dirs(dest / "skills"):
+        with contextlib.suppress(OSError):
+            shutil.rmtree(stale)
+            removed.append(stale)
+    return removed
 
 
 def _prune_obsolete_files(
