@@ -66,19 +66,25 @@ def test_interactive_prompt_selects_doc_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A fresh interactive install with no flag prompts; choosing markdown → doc-only."""
+    import click
+
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True, raising=False)
     monkeypatch.setattr(setup_cmd, "_prompt_context_strategy", lambda: "doc-only")
 
-    setup_command.callback(
-        platform=None,
-        with_penpot=False,
-        context_strategy=None,
-        languages=(),
-        check_only=False,
-        force_scaffold=False,
-        deploy_after=False,
-        dry_run=False,
-        show_diff=False,
-    )
+    # The setup group callback reads the active context's invoked_subcommand;
+    # drive it under a real context (no subcommand → init path runs).
+    ctx = click.Context(setup_command)
+    with ctx:
+        setup_command.callback(
+            platform=None,
+            with_penpot=False,
+            context_strategy=None,
+            languages=(),
+            check_only=False,
+            force_scaffold=False,
+            deploy_after=False,
+            dry_run=False,
+            show_diff=False,
+        )
     assert _strategy(tmp_path) == "doc-only"
