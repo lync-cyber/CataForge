@@ -137,6 +137,30 @@ def test_scaffold_excludes_project_state_md(tmp_path: Path) -> None:
     assert not (dest / "PROJECT-STATE.md").exists()
 
 
+def test_scaffold_ships_cataforge_gitignore(tmp_path: Path) -> None:
+    """A bundled .cataforge/.gitignore keeps downstream projects from committing
+    framework-generated local state (rollback snapshots, deploy bookkeeping,
+    RocksDB runtime logs/locks)."""
+    rels = {rel for rel, _ in iter_scaffold_files()}
+    assert ".gitignore" in rels
+
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+    gitignore = dest / ".gitignore"
+    assert gitignore.is_file()
+    # Active rules = non-blank, non-comment lines.
+    rules = {
+        ln.strip()
+        for ln in gitignore.read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    }
+    assert ".backups/" in rules
+    assert "kg/store/LOCK" in rules
+    # kg-first: structural RocksDB files are the committed source of truth and
+    # must NOT be ignored, or a fresh clone gets an unopenable store.
+    assert not any("MANIFEST" in r or ".sst" in r or "CURRENT" in r for r in rules)
+
+
 def test_scaffold_stamps_runtime_package_version(tmp_path: Path) -> None:
     """framework.json version must match the installed cataforge package."""
     from cataforge import __version__
