@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -117,57 +118,79 @@ def _semver_ge(a: str, b: str) -> bool:
     return ta >= tb
 
 
+def _check_file_must_exist(
+    target: Path, rel: str, patterns: list[str], check: dict[str, Any]
+) -> tuple[bool, str]:
+    return (target.is_file(), "" if target.is_file() else f"{rel} does not exist")
+
+
+def _check_file_must_contain(
+    target: Path, rel: str, patterns: list[str], check: dict[str, Any]
+) -> tuple[bool, str]:
+    if not target.is_file():
+        return False, f"{rel} does not exist"
+    try:
+        text = target.read_text()
+    except OSError as e:
+        return False, f"cannot read {rel}: {e}"
+    missing = [p for p in patterns if p not in text]
+    if missing:
+        return False, f"{rel} missing patterns: {missing}"
+    return True, ""
+
+
+def _check_file_must_not_contain(
+    target: Path, rel: str, patterns: list[str], check: dict[str, Any]
+) -> tuple[bool, str]:
+    if not target.is_file():
+        # A non-existent file trivially satisfies "must not contain". An
+        # ``allow_missing`` opt-out is required so guards against
+        # framework-source-only paths (e.g. dogfood-only checks against
+        # ``src/cataforge/...``) don't quietly turn into vacuous PASS for
+        # end users where the path doesn't exist.
+        if check.get("allow_missing", False):
+            return True, ""
+        return False, (
+            f"{rel} does not exist — `file_must_not_contain` cannot be "
+            "vacuously asserted; either fix the path, mark the check "
+            "`allow_missing: true`, or set `deprecate_after` for it"
+        )
+    try:
+        text = target.read_text()
+    except OSError as e:
+        return False, f"cannot read {rel}: {e}"
+    present = [p for p in patterns if p in text]
+    if present:
+        return False, f"{rel} contains forbidden patterns: {present}"
+    return True, ""
+
+
+def _check_dir_must_contain_files(
+    target: Path, rel: str, patterns: list[str], check: dict[str, Any]
+) -> tuple[bool, str]:
+    if not target.is_dir():
+        return False, f"{rel} is not a directory"
+    missing = [p for p in patterns if not (target / p).is_file()]
+    if missing:
+        return False, f"{rel} missing files: {missing}"
+    return True, ""
+
+
+_CHECK_HANDLERS: dict[str, Callable[[Path, str, list[str], dict[str, Any]], tuple[bool, str]]] = {
+    "file_must_exist": _check_file_must_exist,
+    "file_must_contain": _check_file_must_contain,
+    "file_must_not_contain": _check_file_must_not_contain,
+    "dir_must_contain_files": _check_dir_must_contain_files,
+}
+
+
 def _evaluate_check(check: dict[str, Any], root: Path) -> tuple[bool, str]:
     """Evaluate a single migration_check entry.  Returns (ok, reason)."""
     ctype = str(check.get("type", ""))
+    handler = _CHECK_HANDLERS.get(ctype)
+    if handler is None:
+        return False, f"unknown check type: {ctype}"
     rel = str(check.get("path", ""))
     target = root / rel
     patterns = list(check.get("patterns") or [])
-
-    if ctype == "file_must_exist":
-        return (target.is_file(), "" if target.is_file() else f"{rel} does not exist")
-
-    if ctype == "file_must_contain":
-        if not target.is_file():
-            return False, f"{rel} does not exist"
-        try:
-            text = target.read_text()
-        except OSError as e:
-            return False, f"cannot read {rel}: {e}"
-        missing = [p for p in patterns if p not in text]
-        if missing:
-            return False, f"{rel} missing patterns: {missing}"
-        return True, ""
-
-    if ctype == "file_must_not_contain":
-        if not target.is_file():
-            # A non-existent file trivially satisfies "must not contain". An
-            # ``allow_missing`` opt-out is required so guards against
-            # framework-source-only paths (e.g. dogfood-only checks against
-            # ``src/cataforge/...``) don't quietly turn into vacuous PASS for
-            # end users where the path doesn't exist.
-            if check.get("allow_missing", False):
-                return True, ""
-            return False, (
-                f"{rel} does not exist — `file_must_not_contain` cannot be "
-                "vacuously asserted; either fix the path, mark the check "
-                "`allow_missing: true`, or set `deprecate_after` for it"
-            )
-        try:
-            text = target.read_text()
-        except OSError as e:
-            return False, f"cannot read {rel}: {e}"
-        present = [p for p in patterns if p in text]
-        if present:
-            return False, f"{rel} contains forbidden patterns: {present}"
-        return True, ""
-
-    if ctype == "dir_must_contain_files":
-        if not target.is_dir():
-            return False, f"{rel} is not a directory"
-        missing = [p for p in patterns if not (target / p).is_file()]
-        if missing:
-            return False, f"{rel} missing files: {missing}"
-        return True, ""
-
-    return False, f"unknown check type: {ctype}"
+    return handler(target, rel, patterns, check)

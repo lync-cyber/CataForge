@@ -35,6 +35,49 @@ def _peek_maintainer_only(skill_md: Path) -> bool:
     return bool(_MAINTAINER_ONLY_RE.search(fm))
 
 
+def _unwrap_legacy_link(target_dir: Path, target_rel: str, dry_run: bool) -> list[str]:
+    """Tear down a pre-existing whole-dir symlink/junction so per-skill copies
+    can be rebuilt. ``_is_dir_link`` covers Py 3.10/3.11 junctions via ctypes."""
+    if not _is_dir_link(target_dir):
+        return []
+    if dry_run:
+        return [f"would unwrap whole-dir link {target_rel}/"]
+    _remove_target(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    return [f"unwrapped whole-dir link {target_rel}/"]
+
+
+def _prune_orphan_skills(
+    target_dir: Path,
+    target_rel: str,
+    source_names: set[str],
+    prior_manifest: set[str] | None,
+    dry_run: bool,
+) -> list[str]:
+    """Prune target entries we previously owned but that no longer have a source.
+
+    ``prior_manifest is None`` → legacy caller (no manifest threaded in): fall
+    back to pruning anything missing from source. Otherwise a target entry is
+    pruned only when it also appears in ``prior_manifest`` — user-authored or
+    pre-manifest legacy dirs are left alone.
+    """
+    actions: list[str] = []
+    if not target_dir.is_dir():
+        return actions
+    for existing in target_dir.iterdir():
+        if existing.name in source_names:
+            continue
+        existing_rel = f"{target_rel}/{existing.name}"
+        if prior_manifest is not None and existing_rel not in prior_manifest:
+            continue
+        if dry_run:
+            actions.append(f"would prune orphan {target_rel}/{existing.name}")
+        else:
+            _remove_target(existing)
+            actions.append(f"pruned orphan {target_rel}/{existing.name}")
+    return actions
+
+
 def deploy_skills(
     adapter: PlatformAdapter,
     source_dir: Path,
@@ -74,34 +117,10 @@ def deploy_skills(
 
     source_names = {p.name for p in source_dir.iterdir() if p.is_dir()}
     actions: list[str] = []
-
-    # Migrate from a pre-existing whole-dir symlink/junction: tear it down so
-    # we can rebuild per-skill copies. ``_is_dir_link`` covers Py 3.10/3.11
-    # junctions via ctypes.
-    if _is_dir_link(target_dir):
-        if dry_run:
-            actions.append(f"would unwrap whole-dir link {target_rel}/")
-        else:
-            _remove_target(target_dir)
-            target_dir.mkdir(parents=True, exist_ok=True)
-            actions.append(f"unwrapped whole-dir link {target_rel}/")
-
-    # Prune entries we previously owned but that no longer have a source.
-    # ``prior_manifest is None`` → legacy caller (no manifest threaded in):
-    # fall back to the old behaviour of pruning anything missing from source.
-    if target_dir.is_dir():
-        for existing in target_dir.iterdir():
-            if existing.name in source_names:
-                continue
-            existing_rel = f"{target_rel}/{existing.name}"
-            if prior_manifest is not None and existing_rel not in prior_manifest:
-                # User-authored or pre-manifest legacy — leave alone.
-                continue
-            if dry_run:
-                actions.append(f"would prune orphan {target_rel}/{existing.name}")
-            else:
-                _remove_target(existing)
-                actions.append(f"pruned orphan {target_rel}/{existing.name}")
+    actions.extend(_unwrap_legacy_link(target_dir, target_rel, dry_run))
+    actions.extend(
+        _prune_orphan_skills(target_dir, target_rel, source_names, prior_manifest, dry_run)
+    )
 
     for skill_dir in sorted(source_dir.iterdir()):
         if not skill_dir.is_dir():

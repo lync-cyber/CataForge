@@ -165,11 +165,20 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "C901"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "C901", "PLR0911", "PLR0912", "PLR0915"]
 
 [tool.ruff.lint.mccabe]
 # Cyclomatic-complexity ceiling. Functions above this fail the lint gate.
 max-complexity = 15
+
+[tool.ruff.lint.pylint]
+# Branch / statement / return ceilings complementing the C901 cyclomatic gate.
+# branches track the mccabe ceiling; returns stay lenient because guard-clause
+# early returns are idiomatic here. PLR0913 (too-many-args) is deliberately
+# not selected — keyword-heavy signatures are a deliberate style in this code.
+max-branches = 15
+max-statements = 60
+max-returns = 9
 
 [tool.vulture]
 # code-review `scan` dead-code probe, invoked as `vulture <target>
