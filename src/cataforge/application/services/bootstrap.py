@@ -159,51 +159,52 @@ def build_plan(
         plan.add("upgrade", "skip", "scaffold manifest matches bundled package")
 
     # Step 3: deploy.
-    deploy_state_file = cfg.paths.deploy_state
-    upgrade_running = plan.steps[-1].action == "run"  # upgrade step just above
-    if not deploy_state_file.is_file():
-        plan.add("deploy", "run", "never deployed (.deploy-state missing)")
-    else:
-        import json as _json
-
-        # Distinguish "missing" (legitimate first-deploy signal) from
-        # "corrupted" (likely a crash during a prior deploy that left
-        # a truncated JSON). Pre-fix, both flowed into ``state = {}``
-        # and the user silently re-deployed instead of being told the
-        # state file is busted.
-        try:
-            text = deploy_state_file.read_text()
-        except OSError as exc:
-            raise ConfigError(
-                f"deploy state at {deploy_state_file} is unreadable: {exc}. "
-                f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
-            ) from exc
-        try:
-            state = _json.loads(text)
-        except _json.JSONDecodeError as exc:
-            raise ConfigError(
-                f"deploy state at {deploy_state_file} is corrupted ({exc}). "
-                f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
-            ) from exc
-        deployed_platform = state.get("platform")
-        if deployed_platform != plan.target_platform:
-            plan.add(
-                "deploy",
-                "run",
-                f"platform changed: deployed={deployed_platform} → target={plan.target_platform}",
-            )
-        elif upgrade_running:
-            plan.add(
-                "deploy",
-                "run",
-                "scaffold refreshed — IDE artefacts must be re-rendered",
-            )
-        else:
-            plan.add("deploy", "skip", f"{deployed_platform} already deployed")
+    _plan_deploy(plan, cfg)
 
     _append_kg_init(plan, cfg, requested_strategy, scaffold_exists=True)
     _append_doctor(plan)
     return plan
+
+
+def _plan_deploy(plan: Plan, cfg: ConfigManager) -> None:
+    """Decide the deploy step from the recorded ``.deploy-state``."""
+    deploy_state_file = cfg.paths.deploy_state
+    upgrade_running = plan.steps[-1].action == "run"  # upgrade step just above
+    if not deploy_state_file.is_file():
+        plan.add("deploy", "run", "never deployed (.deploy-state missing)")
+        return
+
+    import json as _json
+
+    # Distinguish "missing" (legitimate first-deploy signal) from "corrupted"
+    # (a crash during a prior deploy that left truncated JSON). Both would
+    # otherwise flow into ``state = {}`` and silently re-deploy instead of
+    # telling the user the state file is busted.
+    try:
+        text = deploy_state_file.read_text()
+    except OSError as exc:
+        raise ConfigError(
+            f"deploy state at {deploy_state_file} is unreadable: {exc}. "
+            f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
+        ) from exc
+    try:
+        state = _json.loads(text)
+    except _json.JSONDecodeError as exc:
+        raise ConfigError(
+            f"deploy state at {deploy_state_file} is corrupted ({exc}). "
+            f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
+        ) from exc
+    deployed_platform = state.get("platform")
+    if deployed_platform != plan.target_platform:
+        plan.add(
+            "deploy",
+            "run",
+            f"platform changed: deployed={deployed_platform} → target={plan.target_platform}",
+        )
+    elif upgrade_running:
+        plan.add("deploy", "run", "scaffold refreshed — IDE artefacts must be re-rendered")
+    else:
+        plan.add("deploy", "skip", f"{deployed_platform} already deployed")
 
 
 def _append_doctor(plan: Plan) -> None:
