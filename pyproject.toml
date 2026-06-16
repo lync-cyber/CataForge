@@ -261,6 +261,11 @@ omit = [
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
+# Ratchet floor below the measured fast-suite coverage — guards against a
+# large regression without flaking on environment-dependent optional-extra
+# code paths (rdflib / pyshacl / docker absent from [dev]). Raise as coverage
+# climbs; never above the lowest-environment measurement.
+fail_under = 75
 
 [tool.mypy]
 # Blanket strict across cataforge.*. New packages are strict by default —

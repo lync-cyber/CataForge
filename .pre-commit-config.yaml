@@ -21,6 +21,17 @@ repos:
         language: system
         pass_filenames: false
         types_or: [python]
+      - id: mypy
+        name: mypy (strict, src/cataforge)
+        description: |
+          Shift the [tool.mypy] strict gate left to commit time. Runs
+          incrementally (no --no-incremental) so the local loop stays fast;
+          CI re-runs it with --no-incremental as the authoritative gate.
+        entry: python -m mypy src/cataforge
+        language: system
+        pass_filenames: false
+        types_or: [python]
+        files: ^src/cataforge/.*\.py$
       - id: stdio-utf8-guard
         name: scripts/*.py call ensure_utf8() (Windows cp1252 guard)
         description: |

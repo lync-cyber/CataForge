@@ -1,5 +1,6 @@
 {
   "minTokens": 50,
+  "threshold": 1,
   "gitignore": true,
   "absolute": true,
   "reporters": ["console"],
