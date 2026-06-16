@@ -180,6 +180,54 @@ def test_gate_lists_dangling_ids_when_prefix_has_definitions(tmp_path, capsys) -
     assert "TC- id(s) referenced, none defined" not in out
 
 
+def test_gate_exempts_reference_only_relation_participants(tmp_path, capsys) -> None:
+    """A matrix id whose class is defined nowhere active, whose home doc_type is
+    active, and which participates in a relation (a coverage rule verifying an
+    existing AC) is a graph endpoint, not dangling debt — demoted to an info
+    line, never a WARN."""
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    tr = project_root / "docs" / "test-report" / "test-report-vertical-slice.md"
+    tr.write_text(
+        tr.read_text(encoding="utf-8") + "\n\n## §3 覆盖规则\n\n- CR-001 覆盖 prd#§2.AC-001\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 0, out
+    assert "CR-001" not in out, "reference-only relation participant must not be flagged"
+    assert "CR- id(s) referenced, none defined" not in out
+    assert "reference-only" in out
+    assert "CR×1" in out
+
+
+def test_gate_warns_on_bare_reference_to_active_home_class(tmp_path, capsys) -> None:
+    """A bare prose mention of a definable class (not a relation endpoint) whose
+    home doc_type is active is NOT exempted — it stays a WARN, so the
+    reference-only demotion never silences a genuine stray/stale reference."""
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    prd = project_root / "docs" / "prd" / "prd-vertical-slice.md"
+    prd.write_text(
+        prd.read_text(encoding="utf-8") + "\n\n覆盖矩阵涉及 UC-101, UC-102。\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 0, out
+    assert "WARN" in out
+    assert "2 UC- id(s) referenced, none defined in active sources" in out
+    assert "reference-only" not in out
+
+
 def test_gate_still_fails_on_defined_but_uningested_alongside_dangling(tmp_path, capsys) -> None:
     """Dangling references must not mask a genuine ingestion gap: an entity
     defined in FS but absent from KG keeps the gate red."""
