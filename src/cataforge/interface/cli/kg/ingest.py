@@ -429,9 +429,9 @@ def kg_reconcile(
                 ellipsis = "..." if len(per.ghost_entities) > 5 else ""
                 click.echo(f"        ghost_entities: {preview}{ellipsis}")
             if per.orphan_relations:
-                preview = per.orphan_relations[:5]
+                orphan_preview = per.orphan_relations[:5]
                 ellipsis = "..." if len(per.orphan_relations) > 5 else ""
-                click.echo(f"        orphan_relations (target missing): {preview}{ellipsis}")
+                click.echo(f"        orphan_relations (target missing): {orphan_preview}{ellipsis}")
         click.echo(f"  report: {output_path}")
 
     if not report.ok:
