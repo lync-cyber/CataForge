@@ -143,6 +143,26 @@ jobs:
         # gates every package; a new type error fails the PR.
         run: python -m mypy src/cataforge --no-incremental
 
+      - name: "import-linter (declarative layer contract)"
+        # Belt-and-braces architecture gate alongside the custom
+        # check_layer_dependencies.py (run via the pre-commit parity step).
+        # Enforces the [tool.importlinter] layered contract in pyproject.
+        run: lint-imports
+
+      - name: "Duplication scan (jscpd ≤1% of src)"
+        # Language-agnostic copy-paste gate. Reads .jscpd.json (threshold: 1);
+        # non-zero exit when src duplication exceeds the ceiling.
+        run: npx --yes jscpd@4 src
+
+      - name: "Coverage (fast suite, gate ≥75%)"
+        # Single deterministic coverage gate — fail_under lives in
+        # [tool.coverage.report]. Runs the fast suite once here so the
+        # threshold isn't measured per matrix leg; the unit matrix owns
+        # cross-platform correctness.
+        run: >-
+          python -m pytest tests/ -m "not slow" -n auto --dist loadscope
+          --cov=cataforge --cov-report=term-missing:skip-covered
+
       - name: "platform dry-run snapshots (cursor / codex / opencode)"
         # Exercises each adapter's `deploy --dry-run` code path so a refactor
         # that breaks one surfaces without the real IDE installed.

@@ -79,6 +79,15 @@ CHECKS: list[tuple[str, list[str], str | None]] = [
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_layer_dependencies.py")],
         None,
     ),
+    # import-linter's declarative layer contract ([tool.importlinter] in
+    # pyproject) as a second, belt-and-braces architecture gate alongside the
+    # custom check above. CI runs the same `lint-imports`; skipped gracefully
+    # when import-linter isn't installed (clone without [dev] extras).
+    (
+        "import-linter contract",
+        [sys.executable, "-m", "importlinter.cli", "lint-imports"],
+        "importlinter",
+    ),
     (
         "no QueryBoolean == True",
         [
