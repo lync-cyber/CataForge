@@ -89,6 +89,38 @@ def test_repair_removes_ghost_entity() -> None:
     assert report_after.ok
 
 
+def test_repair_prunes_orphan_target_edge() -> None:
+    import pyoxigraph as ox
+
+    from cataforge.domain.kg._quads import _slot_iri
+    from cataforge.domain.kg._sparql_utils import cf_namespace
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.reconcile import reconcile
+    from cataforge.domain.kg.repair import repair
+
+    handle, config = _make_populated_store()
+    store = handle.raw
+    ns = cf_namespace(config)
+    store.add(
+        ox.Quad(
+            ox.NamedNode(entity_iri("M-001", config.base_namespace)),
+            ox.NamedNode(_slot_iri("cf:implements", ns)),
+            ox.NamedNode(entity_iri("F-404", config.base_namespace)),
+        )
+    )
+
+    report_before = reconcile(store, FIXTURE_ROOT / "waterfall", config)
+    assert not report_before.ok
+    assert any(per.orphan_relations for per in report_before.per_doc_type.values())
+
+    stats = repair(store, FIXTURE_ROOT / "waterfall", config)
+    assert stats.orphan_relations_removed >= 1
+    assert not stats.errors
+
+    report_after = reconcile(store, FIXTURE_ROOT / "waterfall", config)
+    assert report_after.ok
+
+
 def test_repair_ingests_missing_entity() -> None:
     from cataforge.domain.kg._quads import quads_for_subject
     from cataforge.domain.kg.ingest.iri import entity_iri

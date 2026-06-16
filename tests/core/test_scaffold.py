@@ -67,6 +67,30 @@ def test_copy_scaffold_preserves_project_languages_on_force(tmp_path: Path) -> N
     assert refreshed["project"]["languages"] == ["python", "go"]
 
 
+def test_copy_scaffold_preserves_context_overrides_on_force(tmp_path: Path) -> None:
+    """--force-scaffold must preserve every user-owned context key, not just
+    kg_active_doc_types — kg_definition_authority, strategy, authoring are also
+    project routing config the upgrade must not stomp."""
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+
+    fw_path = dest / "framework.json"
+    fw = json.loads(fw_path.read_text(encoding="utf-8"))
+    ctx = fw.setdefault("context", {})
+    ctx["kg_active_doc_types"] = ["prd", "arch"]
+    ctx["kg_definition_authority"] = {"UIComponent": ["ui-spec", "prd"]}
+    ctx["strategy"] = "file-first"
+    fw_path.write_text(json.dumps(fw), encoding="utf-8")
+
+    copy_scaffold_to(dest, force=True)
+
+    refreshed = json.loads(fw_path.read_text(encoding="utf-8"))
+    rctx = refreshed["context"]
+    assert rctx["kg_active_doc_types"] == ["prd", "arch"]
+    assert rctx["kg_definition_authority"] == {"UIComponent": ["ui-spec", "prd"]}
+    assert rctx["strategy"] == "file-first"
+
+
 def test_force_refresh_prunes_obsolete_unmodified_files(tmp_path: Path) -> None:
     """A scaffold file recorded in the manifest but absent from the current
     bundle (removed upstream) is deleted on refresh when the user never

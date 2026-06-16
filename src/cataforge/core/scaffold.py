@@ -230,14 +230,17 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
     if isinstance(existing_upgrade, dict) and "state" in existing_upgrade:
         merged.setdefault("upgrade", {})["state"] = existing_upgrade["state"]
 
-    # context.kg_active_doc_types is the per-project rolling-cutover toggle —
-    # users add doc_types one at a time as they validate the migration,
-    # so the scaffold default must not stomp on local progress.
-    existing_ctx = existing.get("context") or {}
-    if isinstance(existing_ctx, dict) and "kg_active_doc_types" in existing_ctx:
-        merged.setdefault("context", {})["kg_active_doc_types"] = existing_ctx[
-            "kg_active_doc_types"
-        ]
+    # The context block holds per-project routing config — kg_active_doc_types
+    # (rolling-cutover toggle), kg_definition_authority (additive authority
+    # extension), strategy, authoring. All are user-owned, so existing keys win
+    # over the scaffold default while still introducing any new scaffold keys.
+    existing_ctx = existing.get("context")
+    if isinstance(existing_ctx, dict):
+        scaffold_ctx = merged.get("context")
+        merged["context"] = {
+            **(scaffold_ctx if isinstance(scaffold_ctx, dict) else {}),
+            **existing_ctx,
+        }
 
     # project.languages is the per-project language declaration — user-owned,
     # so an upgrade must not reset it to the scaffold default.

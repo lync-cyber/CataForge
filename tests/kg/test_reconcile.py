@@ -152,6 +152,44 @@ def test_reconcile_detects_missing_relation(tmp_path: Path) -> None:
     assert ("M-001", "cf:implements", "F-001") in arch.ghost_relations
 
 
+def test_reconcile_detects_orphan_target_edge(tmp_path: Path) -> None:
+    """A traceability edge whose target entity node no longer exists surfaces as
+    an orphan relation. The entity_id-keyed relation diff inner-joins the
+    object's cf:entity_id and silently drops such an edge, so reconcile would
+    otherwise report divergence=0 on a broken reference."""
+    import pyoxigraph as ox
+
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore
+    from cataforge.domain.kg._quads import _slot_iri
+    from cataforge.domain.kg._sparql_utils import cf_namespace
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.reconcile import reconcile
+
+    project_root = _setup_project_with_kg(tmp_path)
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=project_root / ".cataforge" / "kg" / "store",
+        kg_active_doc_types={"prd", "arch", "test"},
+    )
+    ns = cf_namespace(config)
+    with KnowledgeGraphStore.connect(config) as handle:
+        handle.raw.add(
+            ox.Quad(
+                ox.NamedNode(entity_iri("M-001", config.base_namespace)),
+                ox.NamedNode(_slot_iri("cf:implements", ns)),
+                ox.NamedNode(entity_iri("F-404", config.base_namespace)),
+            )
+        )
+        report = reconcile(handle.raw, project_root, config)
+
+    assert not report.ok
+    arch = report.per_doc_type["arch"]
+    assert ("M-001", "cf:implements", "F-404") in arch.orphan_relations
+    # The dangling-target edge must not also masquerade as missing/ghost.
+    assert ("M-001", "cf:implements", "F-404") not in arch.ghost_relations
+    assert ("M-001", "cf:implements", "F-404") not in arch.missing_relations
+
+
 def test_reconcile_cross_doc_relation_attributed_by_subject_home(tmp_path: Path) -> None:
     """A relation whose subject is defined in one doc but *declared* in another
     must reconcile cleanly. Here arch holds 'F-001 … 映射功能: prd#§2.F-002', so the

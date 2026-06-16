@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import unquote
 
 from cataforge.domain.docs.index_ops import _load_doc_type_map
 from cataforge.domain.kg._config import KGConfig
@@ -74,6 +75,20 @@ RelKey = tuple[str, str, str]  # (subject_entity_id, predicate_curie, object_ent
 # ingest writer, never extracted from xref prose).
 _NON_TRACEABILITY_PREDICATES: frozenset[str] = frozenset({"cf:belongs_to_project", "cf:part_of"})
 
+# Object-property slots an xref can produce; mirrors validate's
+# `cf:*-target-exists` shapes. An edge on one of these whose object resolves to
+# no typed entity node is a dangling-target ghost (a renamed/deleted target
+# leaves the edge behind), invisible to the entity_id-keyed relation diff.
+_TRACEABILITY_SLOTS: tuple[str, ...] = (
+    "implements",
+    "satisfies",
+    "verifies",
+    "realizes",
+    "delivers",
+    "affects",
+    "depends_on",
+)
+
 
 @dataclass
 class PerDocTypeReport:
@@ -84,6 +99,7 @@ class PerDocTypeReport:
     ghost_entities: list[str] = field(default_factory=list)
     missing_relations: list[RelKey] = field(default_factory=list)
     ghost_relations: list[RelKey] = field(default_factory=list)
+    orphan_relations: list[RelKey] = field(default_factory=list)
     missing_sections: list[str] = field(default_factory=list)
     ghost_sections: list[str] = field(default_factory=list)
 
@@ -94,6 +110,7 @@ class PerDocTypeReport:
             + len(self.ghost_entities)
             + len(self.missing_relations)
             + len(self.ghost_relations)
+            + len(self.orphan_relations)
             + len(self.missing_sections)
             + len(self.ghost_sections)
         )
@@ -105,6 +122,7 @@ class PerDocTypeReport:
             "ghost_entities": sorted(self.ghost_entities),
             "missing_relations": [list(t) for t in sorted(self.missing_relations)],
             "ghost_relations": [list(t) for t in sorted(self.ghost_relations)],
+            "orphan_relations": [list(t) for t in sorted(self.orphan_relations)],
             "missing_sections": sorted(self.missing_sections),
             "ghost_sections": sorted(self.ghost_sections),
             "divergence_count": self.divergence_count,
@@ -318,6 +336,54 @@ def _kg_relations_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[st
     return out
 
 
+def _kg_orphan_relations_for_doc_ids(
+    store: ox.Store, config: KGConfig, doc_ids: set[str]
+) -> set[RelKey]:
+    """Traceability edges whose subject is in `doc_ids` but whose object
+    resolves to no typed entity node.
+
+    `_kg_relations_for_doc_ids` inner-joins the object's `cf:entity_id`, so an
+    edge to a renamed/deleted target silently drops out of the relation diff
+    and never surfaces as a ghost. This mirrors validate's `cf:*-target-exists`
+    detection (object has no `rdf:type`) keyed by the subject's `cf:source_doc`
+    so the dangling-target edge counts toward divergence. The object id is
+    recovered from its instance IRI for a printable, repair-resolvable key.
+    """
+    if not doc_ids:
+        return set()
+    ns = cf_namespace(config)
+    values_clause = " ".join(f'"{escape_sparql_literal(d)}"' for d in sorted(doc_ids))
+    slot_clause = " ".join(f"cf:{slot}" for slot in _TRACEABILITY_SLOTS)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        "SELECT ?s_id ?p ?o WHERE { "
+        f"  VALUES ?src {{ {values_clause} }} "
+        f"  VALUES ?p {{ {slot_clause} }} "
+        "  ?s cf:entity_id ?s_id ; "
+        "     cf:source_doc ?src ; "
+        "     ?p ?o . "
+        "  FILTER(isIRI(?o)) "
+        "  FILTER NOT EXISTS { ?o a ?o_cls } "
+        "}"
+    )
+    out: set[RelKey] = set()
+    for row in select_rows(store, sparql):
+        s_id = _strv(_row_lookup(row, "s_id"))
+        p_iri = _strv(_row_lookup(row, "p"))
+        o_iri = _strv(_row_lookup(row, "o"))
+        if s_id is None or p_iri is None or o_iri is None:
+            continue
+        out.add((s_id, curie_for_iri(p_iri, ns), _entity_id_from_iri(o_iri, config.base_namespace)))
+    return out
+
+
+def _entity_id_from_iri(iri: str, base_namespace: str) -> str:
+    """Recover an entity_id (or `parent/entity_id`) from its instance IRI."""
+    base = base_namespace if base_namespace.endswith("/") else base_namespace + "/"
+    tail = iri[len(base) :] if iri.startswith(base) else iri
+    return unquote(tail)
+
+
 def _kg_sections_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[str]:
     """Return `cf:section_anchor` values of Section nodes whose
     `cf:source_doc` is one of `doc_ids`."""
@@ -437,6 +503,7 @@ def reconcile(
         kg_relations = _kg_relations_for_doc_ids(store, config, doc_ids)
         kg_sections = _kg_sections_for_doc_ids(store, config, doc_ids)
 
+        per.orphan_relations = sorted(_kg_orphan_relations_for_doc_ids(store, config, doc_ids))
         per.missing_entities = sorted(fs_entities - kg_entities)
         per.ghost_entities = sorted(kg_entities - fs_entities)
         per.missing_relations = sorted(fs_relations - kg_relations)
