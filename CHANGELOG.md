@@ -20,6 +20,16 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.11.2'></a>
+## [0.11.2] — 2026-06-16
+
+### Fixed
+
+- **只读 KG 命令不再污染工作树** —— `context status`、`kg query/validate/reconcile/compare-read/snapshot`、`doctor`、doc-review/doc-consistency Layer 1 与 section loader 等只读路径此前以读写模式打开 RocksDB store，触发 `MANIFEST-*` / `OPTIONS-*` / `CURRENT` / `*.log` 轮转，使 VCS 跟踪的 `.cataforge/kg/store/` 在 kg-first 下每次只读操作后即变脏。现经 `read_only` 标志走 `Store.read_only` 打开，存储目录字节级不变；写路径（import / repair / export 重建 / authoring-finalize）保持读写。
+
+- **KG entity authority override now resolves consistently across the read/repair surface** —— `reconcile` / `repair` / `compare-read` / `context write-doc` 此前忽略 `context.kg_definition_authority`，只在 `import` 链路生效，导致项目把某类实体（如 `Component`）定义到非默认 doc_type 时被 `reconcile` 全数判为 ghost、`repair` 无法重导、`compare-read` 静默漏审、`write-doc` 不写实体。四处现统一经 `definition_authority(project_root)` 解析并下传 `extract_entities`，authority 解析有单一事实来源。
+- **`pip` / `uv` 解析不再尝试构建废弃的 `pytest-logging`** —— `linkml-runtime → prefixcommons` 误把测试工具 `pytest-logging`（仅存 2015 sdist，在现代 setuptools 上构建失败）列为运行时依赖。新增 `[tool.uv] override-dependencies` 用永假 marker 将其从解析树剔除。
+
 <a id='changelog-0.11.1'></a>
 ## [0.11.1] — 2026-06-15
 
@@ -1631,7 +1641,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.11.2...HEAD
+[0.11.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.2
 [0.11.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.1
 [0.11.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.0
 [0.10.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.10.0
