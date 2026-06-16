@@ -116,6 +116,44 @@ def _scan_fs_entity_ids(
     return found
 
 
+def _fs_relation_endpoint_ids(project_root: Path, doc_types: set[str]) -> set[str]:
+    """entity_ids appearing as the subject or object of any extracted relation.
+
+    A relation participant is a graph fact even with no entity node of its own
+    (a coverage matrix's TC-id verifies an existing Task), so it is not a
+    dangling reference.
+    """
+    from cataforge.domain.kg.ingest.relation_extract import extract_relations  # noqa: PLC0415
+    from cataforge.domain.kg.ingest.scan import scan_business_docs  # noqa: PLC0415
+
+    endpoints: set[str] = set()
+    for doc in scan_business_docs(project_root, sorted(doc_types)):
+        for rel in extract_relations(doc):
+            endpoints.add(rel.subject_entity_id)
+            endpoints.add(rel.object_entity_id)
+    return endpoints
+
+
+def _home_doc_type(entity_id: str) -> str | None:
+    """Owning doc_type for an entity_id's class, or None for unknown prefixes."""
+    from cataforge.domain.kg._config import ENTITY_CLASS_TO_DOC_TYPE  # noqa: PLC0415
+    from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS  # noqa: PLC0415
+
+    class_name = ENTITY_PREFIX_TO_CLASS.get(entity_id.split("-", 1)[0])
+    if class_name is None:
+        return None
+    return ENTITY_CLASS_TO_DOC_TYPE.get(class_name)
+
+
+def _reference_only_summary(ids: set[str]) -> str:
+    """Per-prefix count summary like ``TC×71, CR×4, SR×1``."""
+    by_prefix: dict[str, int] = {}
+    for entity_id in ids:
+        prefix = entity_id.split("-", 1)[0]
+        by_prefix[prefix] = by_prefix.get(prefix, 0) + 1
+    return ", ".join(f"{prefix}×{count}" for prefix, count in sorted(by_prefix.items()))
+
+
 def _kg_entity_ids(db_path: Path) -> set[str]:
     """Open the store read-only and pull every `cf:entity_id` literal."""
     from cataforge.domain.kg import KGConfig, KnowledgeGraph  # noqa: PLC0415
@@ -245,6 +283,24 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     dangling = {m for m in missing if m not in defined_ids}
     missing -= dangling
 
+    # Reference-only-by-convention: a dangling id whose prefix is defined
+    # nowhere active, whose owning doc_type is already active, and which
+    # participates in a relation is a graph endpoint (a coverage matrix's TC
+    # verifying an existing Task), not actionable dangling debt — "register the
+    # doc_type" is moot and the class is authored as a relation matrix, never
+    # heading-defined. Demote to info. Bare prose mentions (not relation
+    # endpoints) of a definable class stay flagged.
+    defined_prefixes = {e.split("-", 1)[0] for e in defined_ids}
+    rel_endpoints = _fs_relation_endpoint_ids(project_root, active)
+    reference_only = {
+        d
+        for d in dangling
+        if d.split("-", 1)[0] not in defined_prefixes
+        and _home_doc_type(d) in active
+        and d in rel_endpoints
+    }
+    dangling -= reference_only
+
     if not missing:
         click.echo(f"  OK ({len(fs_ids)} entity_ids reconciled across {sorted(active)})")
     else:
@@ -266,6 +322,13 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
         )
         for line in _dangling_lines(dangling, defined_ids):
             click.echo(f"    {line}")
+
+    if reference_only:
+        click.echo(
+            f"  (info: {len(reference_only)} reference-only id(s) participate in "
+            f"relations with an active home doc_type — not flagged: "
+            f"{_reference_only_summary(reference_only)})"
+        )
 
     if stale:
         preview = sorted(stale)[:5]
