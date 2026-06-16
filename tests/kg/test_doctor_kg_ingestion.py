@@ -364,3 +364,54 @@ def test_gate_skips_when_no_active_doc_types(tmp_path, capsys) -> None:
 
     assert failures == 0
     assert "skipping" in out
+
+
+def test_xref_target_gate_passes_on_clean_store(tmp_path, capsys) -> None:
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_xref_target_integrity
+
+    project_root = _setup_project_with_kg(tmp_path)
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_xref_target_integrity(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 0, out
+    assert "OK" in out
+
+
+def test_xref_target_gate_fails_on_orphan_edge(tmp_path, capsys) -> None:
+    """An edge whose target entity node was removed (a renamed/deleted entity)
+    fails the gate, so doctor-clean implies edge-target integrity even though
+    the entity_id-keyed reconcile diff drops the dangling edge."""
+    import pyoxigraph as ox
+
+    from cataforge.domain.kg import KGConfig, KnowledgeGraphStore
+    from cataforge.domain.kg._quads import _slot_iri
+    from cataforge.domain.kg._sparql_utils import cf_namespace
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_xref_target_integrity
+
+    project_root = _setup_project_with_kg(tmp_path)
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=project_root / ".cataforge" / "kg" / "store",
+        kg_active_doc_types={"prd", "arch", "test"},
+    )
+    ns = cf_namespace(config)
+    with KnowledgeGraphStore.connect(config) as handle:
+        handle.raw.add(
+            ox.Quad(
+                ox.NamedNode(entity_iri("M-001", config.base_namespace)),
+                ox.NamedNode(_slot_iri("cf:implements", ns)),
+                ox.NamedNode(entity_iri("F-404", config.base_namespace)),
+            )
+        )
+    gc.collect()
+
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+    failures = check_kg_xref_target_integrity(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 1, out
+    assert "FAIL" in out
+    assert "kg repair" in out

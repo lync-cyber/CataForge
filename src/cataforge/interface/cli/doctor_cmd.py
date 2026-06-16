@@ -25,7 +25,10 @@ from .doctor.deploy_integrity import (
 from .doctor.event_log import check_event_log_bypass_writes, check_event_log_schema
 from .doctor.hook_health import check_hook_script_importability, report_hook_errors
 from .doctor.hygiene import check_claude_md_hygiene
-from .doctor.kg_ingestion import check_kg_ingestion_completeness
+from .doctor.kg_ingestion import (
+    check_kg_ingestion_completeness,
+    check_kg_xref_target_integrity,
+)
 from .doctor.migration import check_runtime_api_version, run_migration_checks
 from .doctor.protocol_refs import (
     _DEPRECATED_REFS,
@@ -70,6 +73,11 @@ _DOCTOR_SECTIONS = [
     # source of truth for active doc_types (ERROR when an FS entity_id is
     # missing from the graph; skipped when no store exists).
     ("KG ingestion completeness:", check_kg_ingestion_completeness, True),
+    # KG xref target integrity — hard gate mirroring `kg validate`'s
+    # cf:*-target-exists shapes: a renamed/deleted entity leaves dangling edges
+    # the entity_id-keyed reconcile diff misses, so reconcile=0 could hide
+    # broken references. Gating so doctor-clean implies edge-target integrity.
+    ("KG xref target integrity:", check_kg_xref_target_integrity, True),
     ("Hook script importability:", check_hook_script_importability, True),
     ("Built-in skill reachability:", check_builtin_skill_reachability, True),
     ("EVENT-LOG schema sample:", check_event_log_schema, True),

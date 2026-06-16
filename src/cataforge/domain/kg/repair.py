@@ -43,6 +43,7 @@ class RepairStats:
     missing_ingested: int = 0
     ghost_sections_removed: int = 0
     missing_sections_ingested: int = 0
+    orphan_relations_removed: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -198,6 +199,7 @@ def repair(
     for per in report.per_doc_type.values():
         entity_snaps = _remove_ghost_entities(store, per, config, stats, dry_run=dry_run)
         relation_snaps = _remove_ghost_relations(store, per, config, stats, dry_run=dry_run)
+        _remove_orphan_relations(store, per, config, stats, dry_run=dry_run)
         section_snaps = _remove_ghost_sections(
             store, project_root, per, config, stats, dry_run=dry_run
         )
@@ -260,6 +262,66 @@ def _remove_ghost_relations(
                 continue
         stats.ghosts_removed += 1
     return snapshots
+
+
+def _orphan_relation_quads(
+    store: ox.Store,
+    subject_id: str,
+    predicate_curie: str,
+    object_id: str,
+    config: KGConfig,
+) -> list[Any]:
+    """Return the dangling edge quad(s) whose object resolves to no entity node.
+
+    The subject is resolved by `cf:entity_id`; the object is reconstructed from
+    its `entity_id` (or `parent/entity_id`) since a dangling target carries no
+    `cf:entity_id` literal to match on.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    ns = cf_namespace(config)
+    pred_iri = _slot_iri(predicate_curie, ns)
+    obj_iri = _scope_key_to_iri(object_id, config)
+    s_lit = escape_sparql_literal(subject_id)
+    sparql = (
+        f"PREFIX cf: <{ns}> SELECT ?s WHERE {{ "
+        f'  ?s cf:entity_id "{s_lit}" . '
+        f"  ?s <{pred_iri}> <{obj_iri}> . "
+        "}"
+    )
+    pred_node = ox.NamedNode(pred_iri)
+    obj_node = ox.NamedNode(obj_iri)
+    quads: list[Any] = []
+    for row in select_rows(store, sparql):
+        s_node = _term_value(_row_lookup(row, "s"))
+        if s_node is not None:
+            quads.append(ox.Quad(ox.NamedNode(str(s_node)), pred_node, obj_node))
+    return quads
+
+
+def _remove_orphan_relations(
+    store: ox.Store,
+    per: PerDocTypeReport,
+    config: KGConfig,
+    stats: RepairStats,
+    *,
+    dry_run: bool,
+) -> None:
+    """Prune traceability edges whose target entity no longer exists.
+
+    A pure deletion with no reingest counterpart — the FS source no longer
+    declares the edge (its target was renamed/deleted), so it is unconditionally
+    stale and not threaded into the reingest rollback.
+    """
+    for s_id, pred, o_id in per.orphan_relations:
+        if not dry_run:
+            try:
+                for q in _orphan_relation_quads(store, s_id, pred, o_id, config):
+                    store.remove(q)
+            except Exception as exc:  # noqa: BLE001
+                stats.errors.append(f"orphan relation ({s_id},{pred},{o_id}): {exc}")
+                continue
+        stats.orphan_relations_removed += 1
 
 
 def _remove_ghost_sections(

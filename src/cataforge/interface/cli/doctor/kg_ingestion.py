@@ -342,4 +342,45 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     return 1 if missing else 0
 
 
-__all__ = ["check_kg_ingestion_completeness"]
+def check_kg_xref_target_integrity(cfg: ConfigManager) -> int:
+    """Doctor gate — traceability edges whose target resolves to no entity node.
+
+    Mirrors `kg validate`'s `cf:*-target-exists` shapes. A renamed/deleted
+    entity leaves dangling edges that the entity_id-keyed reconcile diff never
+    surfaced; this gate makes `kg reconcile`-clean and `doctor`-clean agree.
+    """
+    project_root = Path(cfg.paths.root)
+    db_path = project_root / KG_STORE_REL
+
+    if not db_path.exists():
+        click.echo("  (no KG store at .cataforge/kg/store — skipping)")
+        return 0
+
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph  # noqa: PLC0415
+    from cataforge.domain.kg._sparql_utils import cf_namespace  # noqa: PLC0415
+    from cataforge.domain.kg.validate import _check_xref_targets  # noqa: PLC0415
+
+    config = KGConfig(db_path=db_path)
+    try:
+        with KnowledgeGraph.connect(config, read_only=True) as kg:
+            violations = _check_xref_targets(kg.store, cf_namespace(config))
+    except Exception as exc:  # noqa: BLE001 — opening fail surfaces here
+        click.echo(f"  FAIL (could not open KG store at {db_path}: {exc})")
+        return 1
+
+    if not violations:
+        click.echo("  OK (no dangling traceability edge targets)")
+        return 0
+
+    click.echo(
+        f"  FAIL: {len(violations)} traceability edge(s) point at a target missing "
+        f"from the graph; run `cataforge kg repair --project-root .` to prune."
+    )
+    for v in violations[:5]:
+        click.echo(f"    {v.entity_id} {v.shape}: {v.message}")
+    if len(violations) > 5:
+        click.echo("    ...")
+    return 1
+
+
+__all__ = ["check_kg_ingestion_completeness", "check_kg_xref_target_integrity"]

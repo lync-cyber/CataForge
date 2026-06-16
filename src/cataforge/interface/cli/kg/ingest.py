@@ -417,7 +417,8 @@ def kg_reconcile(
                 f"missing_entities={len(per.missing_entities)} "
                 f"ghost_entities={len(per.ghost_entities)} "
                 f"missing_relations={len(per.missing_relations)} "
-                f"ghost_relations={len(per.ghost_relations)}"
+                f"ghost_relations={len(per.ghost_relations)} "
+                f"orphan_relations={len(per.orphan_relations)}"
             )
             if per.missing_entities:
                 preview = per.missing_entities[:5]
@@ -427,6 +428,10 @@ def kg_reconcile(
                 preview = per.ghost_entities[:5]
                 ellipsis = "..." if len(per.ghost_entities) > 5 else ""
                 click.echo(f"        ghost_entities: {preview}{ellipsis}")
+            if per.orphan_relations:
+                orphan_preview = per.orphan_relations[:5]
+                ellipsis = "..." if len(per.orphan_relations) > 5 else ""
+                click.echo(f"        orphan_relations (target missing): {orphan_preview}{ellipsis}")
         click.echo(f"  report: {output_path}")
 
     if not report.ok:

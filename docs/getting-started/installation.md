@@ -8,7 +8,7 @@
 |------|-------------|
 | 操作系统 | Windows 10+ / macOS 12+ / Linux（主流发行版） |
 | Python | `>=3.10`（已验证 3.10 / 3.11 / 3.12 / 3.13 / 3.14） |
-| 包管理器 | `pip>=23` 或 `uv>=0.4`（推荐 `uv`） |
+| 包管理器 | `uv>=0.4`（**推荐**）；纯 `pip` 见下方告警 |
 | Git | 近期版本（CataForge 依赖 git 元信息） |
 | 可选工具 | `ruff`、`docker`、`npx`（`doctor` 会检测但不强制） |
 
@@ -39,6 +39,8 @@ uv pip install -e ".[dev]"
 ```
 
 ### C. 纯 pip（无 uv）
+
+> ⚠️ **推荐用 uv（方式 A/B）安装。** 传递依赖链 `linkml-runtime → prefixcommons 0.1.12` 把测试期工具 `pytest-logging`（运行时从不导入）误声明为运行时依赖，新版 setuptools 下其 wheel 构建会报 `install_layout AttributeError` 而失败。CataForge 用 `pyproject.toml` 的 `[tool.uv] override-dependencies` 中和了它——但该 override **仅对 uv 生效**，pip 没有等价的传递依赖覆盖机制，故纯 pip 安装可能在此处构建失败。upstream `prefixcommons` 0.1.12 已是最新、无更高版本可绕，因此这是 pip 的结构性限制；遇到该报错请改用 uv。
 
 ```bash
 python -m venv .venv
