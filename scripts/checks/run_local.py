@@ -142,6 +142,37 @@ CHECKS: list[tuple[str, list[str], str | None]] = [
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_codegen_fresh.py")],
         None,
     ),
+    # Repo-content anti-rot guards CI runs in its guards bash block but
+    # pre-commit's no-arg hooks don't: deterministic, env-independent reads of
+    # checked-in files. Omitting them let release-time CHANGELOG / version drift
+    # (link table, doc versions) pass local and fail CI. The git-diff guards
+    # (changelog fragments, dev-branch refs) stay CI-only — they depend on
+    # BASE_REF and behave differently outside a PR context.
+    (
+        "skill count parity",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_skill_count.py")],
+        None,
+    ),
+    (
+        "CHANGELOG link table",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_changelog_link_table.py")],
+        None,
+    ),
+    (
+        "doc version stamps",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_doc_versions.py")],
+        None,
+    ),
+    (
+        "profile.yaml keys",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_profile_yaml_keys.py")],
+        None,
+    ),
+    (
+        "hooks.yaml schema",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_hooks_yaml_schema.py")],
+        None,
+    ),
     # mypy --strict over the whole tree: CI gates it (`[tool.mypy] strict`),
     # pre-commit does not, so without it here a type error passes local but
     # fails CI. `--no-incremental` matches the CI invocation exactly.
