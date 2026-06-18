@@ -51,8 +51,21 @@ class _CrossDocChecksMixin:
         if not prd_acs:
             return
 
-        arch_acs = set(re.findall(r"AC-\d+", arch_content))
-        missing = prd_acs - arch_acs
+        # arch traces to Features, not ACs directly: an AC is covered when its
+        # parent PRD Feature is referenced in ARCH, or (legacy) the AC id itself
+        # appears. Falls back to direct AC presence for ACs outside any F section.
+        ac_parent: dict[str, str] = {}
+        for f_id, section in _extract_sections(prd_content, "F").items():
+            for ac in re.findall(r"AC-\d+", section):
+                ac_parent[ac] = f_id
+
+        covered = {
+            ac
+            for ac in prd_acs
+            if ac in arch_content
+            or (ac_parent.get(ac) is not None and ac_parent[ac] in arch_content)
+        }
+        missing = prd_acs - covered
         if missing:
             display = ", ".join(sorted(missing)[:8])
             suffix = f" (共 {len(missing)} 项)" if len(missing) > 8 else ""

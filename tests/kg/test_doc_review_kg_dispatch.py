@@ -159,6 +159,42 @@ def test_bidirectional_coverage_uses_kg_when_active(tmp_path: Path) -> None:
     assert ran_kg, "should have used KG path for bidirectional coverage"
 
 
+def test_coverage_row_uncovered_predicate() -> None:
+    """The per-row coverage predicate: an implementing artifact alone covers a
+    Feature unless the gate explicitly demands a verifying TestCase."""
+    from cataforge.runtime.skill.builtins.doc_review.checker import (
+        _coverage_row_uncovered,
+    )
+
+    # impl present, no test, gate does not require test → covered
+    assert _coverage_row_uncovered(has_impl=True, has_test=False, require_test=False) is False
+    # impl present, no test, gate requires test → uncovered
+    assert _coverage_row_uncovered(has_impl=True, has_test=False, require_test=True) is True
+    # no impl → uncovered regardless of require_test
+    assert _coverage_row_uncovered(has_impl=False, has_test=True, require_test=False) is True
+    assert _coverage_row_uncovered(has_impl=False, has_test=False, require_test=True) is True
+    # impl + test, gate requires test → covered
+    assert _coverage_row_uncovered(has_impl=True, has_test=True, require_test=True) is False
+
+
+def test_bidirectional_coverage_passes_arch_without_testcases(tmp_path: Path) -> None:
+    """arch with every upstream Feature implemented but zero TestCase reaching a
+    Feature must PASS L1. TestCases are a later-phase artifact, so a coverage
+    gate that demands has_test is structurally unsatisfiable at the arch phase.
+    """
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
+
+    project = _setup_project(tmp_path)
+    doc_file = _write_doc(project, "arch", _ARCH_CONTENT)
+    invalidate_cache()
+
+    checker = DocChecker("arch", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
+    ran_kg = checker._kg_bidirectional_coverage("F")
+    assert ran_kg
+    assert not checker.errors, f"arch coverage must not demand TestCases: {checker.errors}"
+
+
 def test_bidirectional_coverage_falls_back_when_inactive(
     tmp_path: Path,
 ) -> None:
