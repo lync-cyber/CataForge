@@ -36,7 +36,7 @@ user-invocable: false
 
 1. **PRD**: 搜索相关功能 (F-NNN)、用户故事、验收标准 (AC-NNN)
 2. **ARCH**: 搜索相关模块 (M-NNN)、接口 (API-NNN)、数据模型 (E-NNN)
-3. **UI-SPEC** (如存在): 搜索相关组件 (C-NNN)、页面 (P-NNN)
+3. **UI-SPEC** (如存在): 搜索相关组件 (UC-NNN)、页面 (P-NNN)
 4. **DEV-PLAN** (如存在): 搜索相关任务 (T-NNN)
 
 记录每级文档的匹配结果:
@@ -85,7 +85,7 @@ user-invocable: false
 <coverage>
   <prd status="covered|partial|missing|conflicting">匹配的F-NNN/AC-NNN列表</prd>
   <arch status="covered|partial|missing|conflicting">匹配的M-NNN/API-NNN列表</arch>
-  <ui_spec status="covered|partial|missing|conflicting|n/a">匹配的C-NNN/P-NNN列表</ui_spec>
+  <ui_spec status="covered|partial|missing|conflicting|n/a">匹配的UC-NNN/P-NNN列表</ui_spec>
   <dev_plan status="covered|partial|missing|conflicting|n/a">匹配的T-NNN列表</dev_plan>
 </coverage>
 <affected_docs>doc_id#section, ...</affected_docs>

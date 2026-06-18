@@ -364,14 +364,14 @@ mode: standard
 ## 0. 设计方向
 调性: modern, clean
 
-### C-001 Button
+### UC-001 Button
 variant: primary
 props: size, color
 视觉差异: hover state changes background
 
 ### P-001 Home
 route: /home
-C-001 used here
+UC-001 used here
 空间构成: centered layout
 
 色彩: primary blue #0055ff
@@ -390,7 +390,7 @@ _UI_SPEC_LITE = """\
 ---
 mode: agile-lite
 ---
-### C-001 Button
+### UC-001 Button
 变体: primary
 Props: size
 视觉差异: hover
@@ -422,7 +422,7 @@ def test_check_ui_spec_pass_lite(tmp_path: Path) -> None:
 
 def test_check_ui_spec_component_missing_variant_fails(tmp_path: Path) -> None:
     """Component section without variant/变体 fails."""
-    content = "### C-001 Btn\nprops: size\n视觉差异: hover\n"
+    content = "### UC-001 Btn\nprops: size\n视觉差异: hover\n"
     c = _checker(tmp_path, "ui-spec", content)
     c.check_ui_spec()
     assert any("变体" in e or "variant" in e.lower() for e in c.errors)
@@ -430,7 +430,7 @@ def test_check_ui_spec_component_missing_variant_fails(tmp_path: Path) -> None:
 
 def test_check_ui_spec_component_missing_props_fails(tmp_path: Path) -> None:
     """Component section without Props/props/属性 fails."""
-    content = "### C-001 Btn\n变体: primary\n视觉差异: hover\n"
+    content = "### UC-001 Btn\n变体: primary\n视觉差异: hover\n"
     c = _checker(tmp_path, "ui-spec", content)
     c.check_ui_spec()
     assert any("Props" in e or "props" in e or "属性" in e for e in c.errors)
@@ -439,7 +439,7 @@ def test_check_ui_spec_component_missing_props_fails(tmp_path: Path) -> None:
 def test_check_ui_spec_missing_design_dir_fails_standard(tmp_path: Path) -> None:
     """Standard-mode spec without §0 设计方向 section fails."""
     content = (
-        "---\nmode: standard\n---\n### C-001 Btn\n变体: primary\nprops: size\n视觉差异: hover\n"
+        "---\nmode: standard\n---\n### UC-001 Btn\n变体: primary\nprops: size\n视觉差异: hover\n"
     )
     c = _checker(tmp_path, "ui-spec", content)
     c.check_ui_spec()
@@ -448,7 +448,7 @@ def test_check_ui_spec_missing_design_dir_fails_standard(tmp_path: Path) -> None
 
 def test_check_ui_spec_no_color_tokens_fails(tmp_path: Path) -> None:
     """Main volume with no color token table fails."""
-    content = "### C-001 Btn\n变体: x\nProps: y\n视觉差异: z\n色彩: blue\ntypography: yes\n"
+    content = "### UC-001 Btn\n变体: x\nProps: y\n视觉差异: z\n色彩: blue\ntypography: yes\n"
     c = _checker(tmp_path, "ui-spec", content, volume_type="main")
     c.check_ui_spec()
     assert any("色彩Token" in e or "Token" in e for e in c.errors)
@@ -456,7 +456,7 @@ def test_check_ui_spec_no_color_tokens_fails(tmp_path: Path) -> None:
 
 def test_check_ui_spec_missing_color_warns(tmp_path: Path) -> None:
     """Main volume without any color keyword produces a warning."""
-    content = "### C-001 Btn\n变体: x\nProps: y\n视觉差异: z\n"
+    content = "### UC-001 Btn\n变体: x\nProps: y\n视觉差异: z\n"
     c = _checker(tmp_path, "ui-spec", content, volume_type="main")
     c.check_ui_spec()
     assert any("色彩" in w for w in c.warnings)

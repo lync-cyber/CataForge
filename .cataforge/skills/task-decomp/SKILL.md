@@ -15,7 +15,7 @@ user-invocable: true
 
 ## 输入规范
 - ARCH模块划分(M-{NNN}) + 接口契约(API-{NNN})
-- UI-SPEC组件(C-{NNN}) + 页面(P-{NNN})
+- UI-SPEC组件(UC-{NNN}) + 页面(P-{NNN})
 
 ## 输出规范
 - 任务卡(T-{NNN})，每个包含:

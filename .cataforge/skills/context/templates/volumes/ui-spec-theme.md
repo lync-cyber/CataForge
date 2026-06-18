@@ -26,7 +26,7 @@ required_sections:
 - **间距与节奏**: {栅格、行高、留白比例}
 
 ### 4.2 适配组件
-- 引用 [`ui-spec-{project}-c{start}-c{end}`] 中的 C-XXX，列出主题覆写规则。
+- 引用 [`ui-spec-{project}-uc{start}-uc{end}`] 中的 UC-XXX，列出主题覆写规则。
 
 ### 4.3 关键页面应用
 - 引用 [`ui-spec-{project}-p{start}-p{end}`] 中的 P-XXX，标注主题在该页的视觉表现。

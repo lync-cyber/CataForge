@@ -77,6 +77,7 @@ class DocChecker(TypedDocChecksMixin):
             (r"-s\d+$", "sprint"),
             (r"-f\d+-f\d+$", "features"),
             (r"-p\d+-p\d+$", "pages"),
+            (r"-uc\d+-uc\d+$", "components"),
             (r"-c\d+-c\d+$", "components"),
             (r"-theme-\d+(?:-[\w-]+)?$", "theme"),
         ]
@@ -233,7 +234,7 @@ class DocChecker(TypedDocChecksMixin):
             "prd": [("F", r"F-(\d+)"), ("AC", r"AC-(\d+)")],
             "arch": [("M", r"M-(\d+)"), ("API", r"API-(\d+)"), ("E", r"E-(\d+)")],
             "dev-plan": [("T", r"T-(\d+)")],
-            "ui-spec": [("C", r"C-(\d+)"), ("P", r"P-(\d+)")],
+            "ui-spec": [("UC", r"UC-(\d+)"), ("P", r"P-(\d+)")],
         }
         patterns = id_patterns.get(self.doc_type, [])
         for prefix, pattern in patterns:

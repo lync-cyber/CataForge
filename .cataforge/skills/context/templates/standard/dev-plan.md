@@ -70,7 +70,7 @@ graph LR
   - arch#§2.M-001
   - arch-api#API-001
   - arch-data#E-001
-  - ui-spec#C-003
+  - ui-spec#UC-003
 - **实现提示**: {关键技术点, 仅在必要时}
 
 ### T-{NNN}: [VALIDATION] {功能流程名称}
