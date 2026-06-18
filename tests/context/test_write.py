@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from cataforge.application.context import write as cw
+from cataforge.application.context.write import CompileResult, DocIndexResult
 from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
 from cataforge.domain.kg._dispatch import invalidate_cache
 from cataforge.domain.kg._errors import KGValidationError
@@ -26,7 +27,9 @@ def _clear_caches():
     gc.collect()
 
 
-def _project(tmp_path: Path, *, with_fixture_docs: bool = False) -> Path:
+def _project(
+    tmp_path: Path, *, with_fixture_docs: bool = False, authoring: str | None = None
+) -> Path:
     proj = tmp_path / "p"
     (proj / ".cataforge").mkdir(parents=True)
     if with_fixture_docs:
@@ -41,7 +44,12 @@ def _project(tmp_path: Path, *, with_fixture_docs: bool = False) -> Path:
     handle = init_store(cfg, force=True)
     handle.raw.flush()
     handle.close()
-    ctx = {"strategy": "kg-first", "kg_active_doc_types": ["prd", "arch", "test-report"]}
+    ctx: dict[str, object] = {
+        "strategy": "kg-first",
+        "kg_active_doc_types": ["prd", "arch", "test-report"],
+    }
+    if authoring is not None:
+        ctx["authoring"] = authoring
     (proj / ".cataforge" / "framework.json").write_text(
         json.dumps({"context": ctx}), encoding="utf-8"
     )
@@ -109,11 +117,13 @@ def test_write_narrative_creates_section(tmp_path: Path) -> None:
 
 
 def test_finalize_exports_authored_entity(tmp_path: Path) -> None:
-    proj = _project(tmp_path)
+    # Graph authoring: the graph is canonical, so 定稿 exports the md view.
+    proj = _project(tmp_path, authoring="graph")
     cw.author_entity(str(proj), entity_id="F-001", class_name="Feature", title="用户登录")
     gc.collect()
     result = cw.finalize(str(proj), output_dir=str(tmp_path / "out"))
     gc.collect()
+    assert isinstance(result, CompileResult)
     assert not result.errors
     assert any("F-001" in str(rec.output_path) for rec in result.file_records)
 
@@ -124,13 +134,15 @@ def test_finalize_seeds_empty_graph_from_markdown(tmp_path: Path) -> None:
     authored Markdown (a lossy round-trip). ``_project`` initializes the store
     without ingesting, so the graph starts empty by construction."""
     proj = _project(tmp_path, with_fixture_docs=True)
+    before = {p: p.read_text(encoding="utf-8") for p in (proj / "docs").rglob("*.md")}
 
     result = cw.finalize(str(proj))
     gc.collect()
-    assert not result.errors
-    # md-first 定稿 seeds the graph but does not re-export — the authored
-    # Markdown is canonical and stays untouched.
-    assert not result.file_records
+    # md-first 定稿 reflects md → KG and rebuilds the index; it does not export
+    # — the authored Markdown is canonical and stays untouched.
+    assert isinstance(result, DocIndexResult)
+    for path, text in before.items():
+        assert path.read_text(encoding="utf-8") == text
 
     # Reconcile is clean only because the graph was seeded from the markdown;
     # an unseeded (empty) graph would report every authored doc as drift.

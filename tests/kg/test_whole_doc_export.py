@@ -145,6 +145,7 @@ def test_finalize_ingest_finalize_is_byte_idempotent(tmp_path: Path) -> None:
 
     src_root = _copy_fixture(FIXTURE_ROOT / "waterfall", tmp_path)
     _init_on_disk_store(src_root)
+    _set_graph_authoring(src_root)
 
     ctx_write.ingest(str(src_root))
     ctx_write.finalize(str(src_root))
@@ -201,7 +202,7 @@ _ALL_DOC_TYPES = ("prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-s
 _ALL_TYPES_FRAMEWORK_JSON = """{
   "docs": {"doc_types": {"prd": "prd", "arch": "arch", "ui-spec": "ui-spec",
     "dev-plan": "dev-plan", "test-report": "test-report", "deploy-spec": "deploy-spec"}},
-  "context": {"strategy": "kg-first"},
+  "context": {"strategy": "kg-first", "authoring": "graph"},
   "kg": {"project_id": "proj-test", "title": "Test", "process_model": "waterfall"}
 }
 """
@@ -375,6 +376,7 @@ def test_finalize_uses_whole_doc_export(tmp_path: Path) -> None:
 
     src_root = _copy_fixture(FIXTURE_ROOT / "waterfall", tmp_path)
     _init_on_disk_store(src_root)
+    _set_graph_authoring(src_root)
     ctx_write.ingest(str(src_root))
     result = ctx_write.finalize(str(src_root))
     # Whole-doc export writes back to source paths, not per-entity F-xxx.md files.
@@ -403,6 +405,19 @@ def _copy_fixture(fixture_root: Path, dest_parent: Path) -> Path:
     dest = dest_parent / "project"
     shutil.copytree(fixture_root, dest)
     return dest
+
+
+def _set_graph_authoring(project_root: Path) -> None:
+    """Declare graph authoring so finalize exports the md view (graph → md)."""
+    import json
+
+    from cataforge.domain.kg._dispatch import invalidate_cache
+
+    fw = project_root / ".cataforge" / "framework.json"
+    data = json.loads(fw.read_text(encoding="utf-8"))
+    data.setdefault("context", {}).update({"strategy": "kg-first", "authoring": "graph"})
+    fw.write_text(json.dumps(data), encoding="utf-8")
+    invalidate_cache()
 
 
 def _init_on_disk_store(project_root: Path) -> None:

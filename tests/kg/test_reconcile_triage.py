@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import gc
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -55,10 +56,20 @@ def _ingest_only_project(tmp_path: Path) -> Path:
 
 
 def _finalized_project(tmp_path: Path) -> Path:
-    """An ingest-only project that has also had one finalize (export) pass."""
+    """An ingest-only project that has also had one finalize (export) pass.
+
+    finalize only exports (graph → md) under graph authoring, so the fixture's
+    framework.json declares it before 定稿; the export then writes the
+    ``cf:exported_content_hash`` baseline the triage states key off.
+    """
     from cataforge.application.context import write as ctx_write
 
     proj = _ingest_only_project(tmp_path)
+    fw = proj / ".cataforge" / "framework.json"
+    data = json.loads(fw.read_text(encoding="utf-8"))
+    data.setdefault("context", {}).update({"strategy": "kg-first", "authoring": "graph"})
+    fw.write_text(json.dumps(data), encoding="utf-8")
+    invalidate_cache()
     ctx_write.finalize(str(proj))
     gc.collect()
     invalidate_cache()
@@ -204,12 +215,12 @@ def test_triage_does_not_perturb_id_diff_counts(tmp_path: Path) -> None:
 
 def test_to_dict_carries_triage_fields(tmp_path: Path) -> None:
     payload = _reconcile(_finalized_project(tmp_path)).to_dict()
-    assert payload["authoring"] == "md"
+    assert payload["authoring"] == "graph"
     assert payload["document_drift_count"] == 0
     assert isinstance(payload["documents"], list) and payload["documents"]
     for record in payload["documents"]:
         assert set(record) == {"source_path", "doc_id", "state", "remediation"}
-        # md authority: an in-sync document needs no remediation.
+        # An in-sync document needs no remediation, whatever the authority.
         assert record["remediation"] == "none"
 
 
