@@ -21,6 +21,7 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 <!-- scriv-insert-here -->
 
 <a id='changelog-0.12.0'></a>
+
 ## [0.12.0] — 2026-06-18
 
 ### Added
@@ -53,6 +54,7 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 - **doc-consistency 的 PRD→ARCH AC 溯源改为传递式覆盖** —— `check_prd_arch_ac_coverage` 原先要求 ARCH 直接引用每个 `AC-NNN`，但 arch 的溯源语义是 arch→Feature（`cf:implements`），AC 由 PRD 承载、经 `cf:part_of` 归属 Feature，arch 不建 arch→AC 直接边属设计常规，导致每个 kg-first 项目在架构阶段被误报 HIGH「N 个 AC 未在 ARCH 中引用」。现 KG 与 regex 两条路径一致认可 arch→Feature→AC 的传递覆盖：AC 的父 Feature 被 arch 实现/引用即视为覆盖。
 
 <a id='changelog-0.11.2'></a>
+
 ## [0.11.2] — 2026-06-16
 
 ### Fixed
@@ -63,6 +65,7 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 - **`pip` / `uv` 解析不再尝试构建废弃的 `pytest-logging`** —— `linkml-runtime → prefixcommons` 误把测试工具 `pytest-logging`（仅存 2015 sdist，在现代 setuptools 上构建失败）列为运行时依赖。新增 `[tool.uv] override-dependencies` 用永假 marker 将其从解析树剔除。
 
 <a id='changelog-0.11.1'></a>
+
 ## [0.11.1] — 2026-06-15
 
 ### Added
@@ -86,7 +89,7 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 ### Fixed
 
-- **section-merge 跨版本标题漂移不再重复 §段并注入占位符** —— `## 执行环境 (Bootstrap 时由 \`<cmd>\` 填入)` 这类标题内嵌的命令提示跨版本变更时，`merge_sections` 此前按完整标题行匹配，认不出已填充的旧段 → 在 canonical 位置注入模板占位符段、又把旧段当用户扩展追加，致活动指令文件出现两个同名段 + 残留 `{...}` 占位符。改为按 canonical（剥离括注）名匹配并消费整组，跨版本就地更新标题、保留用户填充 body；已损坏出现重复段的文件在下次 deploy 时自愈为单段。
+- **section-merge 跨版本标题漂移不再重复 §段并注入占位符** —— `## 执行环境 (Bootstrap 时由 \`<cmd>\` 填入)`这类标题内嵌的命令提示跨版本变更时，`merge_sections` 此前按完整标题行匹配，认不出已填充的旧段 → 在 canonical 位置注入模板占位符段、又把旧段当用户扩展追加，致活动指令文件出现两个同名段 + 残留 `{...}` 占位符。改为按 canonical（剥离括注）名匹配并消费整组，跨版本就地更新标题、保留用户填充 body；已损坏出现重复段的文件在下次 deploy 时自愈为单段。
 
 - **`cataforge doctor` 不再永久误报 Deploy drift** —— deploy 清单的 `source_digest` 此前把整个 `framework.json` 字节纳入哈希，而 framework-update 在 deploy **之后**才盖入 `framework.json#upgrade.state`（`last_version` / `last_upgrade_date` / `last_commit` 等纯本地簿记，从不渲染进 IDE 产物）→ 哈希与清单永久不一致 → 每次 doctor 都 WARN `.cataforge/ source changed since last deploy`。`compute_source_digest` 改为对 `framework.json` 走 canonical JSON 并剥离 `upgrade.state`（空 `upgrade` 一并移除），其余 deploy-affecting 字段照常入哈希；升级后跑一次 `cataforge deploy` 即重建基线、误报消除。
 
@@ -345,7 +348,7 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 - **从属实体改用父限定复合 IRI（KG 快照格式变更）** —— `AcceptanceCriteria`（`AC-NNN`）等从属实体的实例 IRI 由扁平 `instance/AC-001` 改为父限定 `instance/{parent_id}/AC-001`，使同号 AC 在不同 Feature/Task 下成为不同节点而非坍缩。既有 `.nq` 快照与新 IRI 不兼容，下游需重新导入。迁移：
 
   | 如果你曾依赖 | 改为 |
-  |------------|------|
+  | ------------ | ------ |
   | 扁平 `instance/AC-001` 实例 IRI | 父限定 `instance/{parent_id}/AC-001`（普通实体 IRI 不变） |
   | 旧 KG `.nq` 快照 | 删除后 `cataforge kg init && cataforge kg import` 重新导入 |
   | 按裸 `entity_id` 查从属实体 | 仍可用（facade 回退到 `cf:entity_id` 字面量解析），但同号多父时取首个匹配 |
@@ -569,7 +572,7 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 0.5.0 替换了 0.4.x 业务文档（PRD / Arch / Test）的索引与跨文档关系层。下表列清哪些旧路径被取代、新路径长什么样、对终端用户的可见差异。
 
 | 旧路径（0.4.x） | 新路径（0.5.0） | 范围 |
-|----------------|----------------|------|
+| ---------------- | ---------------- | ------ |
 | `docs/.doc-index.json` 作为权威索引 | RocksDB-backed Oxigraph store at `.cataforge/kg/store/`，`.doc-index.json` 降级为派生缓存 | `kg_active_doc_types ⊇ {prd, arch, test}` 内 |
 | `loader.extract()` 文件切片读 PRD/Arch/Test 段 | `cataforge.domain.kg.export.render_entity` 经 SPARQL hydrate 出 canonical Markdown | 同上 |
 | `check_xref` 用 file-glob 解析 entity_id（URL-fragment / cross-volume 误报） | SPARQL 实体解析 | 同上 |
@@ -585,7 +588,7 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破坏点 + 缓解迁移路径如下。
 
 | 影响项 | 0.4.x 行为 | 0.5.0 行为 | 如果你曾依赖 X，改为 Y |
-|--------|-----------|-----------|----------------------|
+| -------- | ----------- | ----------- | ---------------------- |
 | Optional `[kg]` extra 必装 | 无 KG 概念，`pip install cataforge` 即够用 | 启用 KG 模式的项目必须 `pip install cataforge[kg]`；不装则 `cataforge kg *` 子命令退出码 1 提示安装 | 升级时执行 `pip install --upgrade "cataforge[kg]"`（uv: `uv tool install --upgrade "cataforge[kg]"`） |
 | `cataforge kg init` 是先决条件 | N/A | `.cataforge/kg/store/` 不存在时 `kg_active_doc_types` 配了也按 SKIP 处理，doctor 不阻断；但黄金路径不再连通 | 升级后跑一次 `cataforge kg init` |
 | `kg_ingestion_completeness` ERROR-gate | N/A | `cataforge doctor` 在某 active doc_type 的 Markdown 实体缺失于 KG 时 ERROR 阻断，无 WARN 过渡期 | 翻 flag 前先 `cataforge kg import` + `cataforge kg reconcile`，确认零 missing |
@@ -972,7 +975,7 @@ KG-first 模型不再提供运行时 markdown-loader fallback。三条主要破�
 KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落地，但决定推进节奏与故障兜底面。
 
 | 项 | 状态 | 处置 |
-|---|------|------|
+| --- | ------ | ------ |
 | `kg_active_doc_types` Alpha 范围 = `{prd, arch, test}` | 设计选择 | 其它 doc_type 在 0.6.0+ 评估扩展；当前对它们读路径不变 |
 | SHACL `sh:closed true` 运行期校验 | `--shacl` flag 已留，pyoxigraph↔rdflib 桥未实现 | LinkML schema-level write-time 检查兜底；GA 重审 |
 | 自然语言查询 LLM 接口 | 0.6.0+ 候选 | 现有 `QueryAPI` / `TraceAPI` 提供编程接口 |
@@ -1160,7 +1163,7 @@ KG-first 模型下，operator 应知悉以下边界。它们不阻塞 0.5.0 落�
 迁移路径表（"如果你曾依赖 X，改为 Y"）：
 
 | 你曾依赖 | 改为 | 自检 |
-|---|---|---|
+| --- | --- | --- |
 | AGENT.md `model: inherit\|sonnet\|opus\|haiku` | `model_tier: inherit\|light\|standard\|heavy\|none` | `framework-review --focus B7` (B7-β FAIL) |
 | 自定义 SKILL.md "## Layer 1 检查项" 段 token 复述 | 加 `<!-- check_id: <id> -->` 锚点 或 `权威清单见 ...CHECKS_MANIFEST` 委托句 | `framework-review --focus B3` |
 | `framework.json` 隐式 `endswith("-engine")` skill router 识别 | 顶层显式声明 `dispatcher_skills: [tdd-engine, ...]` | `cataforge doctor` (mc-0.2.0-dispatcher-skills) |
@@ -1673,7 +1676,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.11.2...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.12.0
 [0.11.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.2
 [0.11.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.1
 [0.11.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.0
