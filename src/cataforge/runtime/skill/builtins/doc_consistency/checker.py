@@ -87,13 +87,15 @@ class CrossDocChecker(_CrossDocChecksMixin):
         return self._kg_active
 
     def _kg_uncovered_acs(self, downstream_doc_type: str) -> set[str] | None:
-        """Return PRD ACs not referenced from ``downstream_doc_type`` via KG.
+        """Return PRD ACs not covered from ``downstream_doc_type`` via KG.
 
-        Uses the ingested ``cf:source_doc`` slot to enumerate ACs sourced
-        in PRD docs, then queries for any AC entity whose IRI appears in
-        a triple originating from an entity sourced in the downstream
-        doc_type. Returns ``None`` to signal "fall through to regex" when
-        either doc_type is not in the active set or the KG query fails.
+        Enumerates ACs sourced in PRD docs, then computes the covered set.
+        For ``dev-plan`` an AC is covered when a dev-plan-sourced entity
+        references it directly (tdd_acceptance lists AC ids). For ``arch`` an
+        AC is covered transitively: arch asserts ``cf:implements`` on Features,
+        never on ACs, so an AC counts when its parent Feature (``cf:part_of``)
+        is implemented by an arch-sourced artifact. Returns ``None`` to signal
+        "fall through to regex" when a doc_type is inactive or the query fails.
         """
         active = self._active_doc_types()
         if "prd" not in active or downstream_doc_type not in active:
@@ -122,16 +124,28 @@ class CrossDocChecker(_CrossDocChecksMixin):
                     '  FILTER(CONTAINS(STR(?src), "prd")) '
                     "}"
                 )
-                downstream_q = (
-                    f"PREFIX cf: <{ns}> "
-                    "SELECT DISTINCT ?ac_id WHERE { "
-                    "  ?src cf:source_doc ?src_doc . "
-                    f'  FILTER(CONTAINS(STR(?src_doc), "{downstream_doc_type}")) '
-                    "  ?src ?p ?ac . "
-                    "  ?ac cf:entity_id ?ac_id . "
-                    '  FILTER(STRSTARTS(STR(?ac_id), "AC-")) '
-                    "}"
-                )
+                if downstream_doc_type == "arch":
+                    downstream_q = (
+                        f"PREFIX cf: <{ns}> "
+                        "SELECT DISTINCT ?ac_id WHERE { "
+                        "  ?impl cf:source_doc ?src_doc . "
+                        '  FILTER(CONTAINS(STR(?src_doc), "arch")) '
+                        "  ?impl cf:implements ?feature . "
+                        "  ?ac cf:part_of ?feature ; cf:entity_id ?ac_id . "
+                        '  FILTER(STRSTARTS(STR(?ac_id), "AC-")) '
+                        "}"
+                    )
+                else:
+                    downstream_q = (
+                        f"PREFIX cf: <{ns}> "
+                        "SELECT DISTINCT ?ac_id WHERE { "
+                        "  ?src cf:source_doc ?src_doc . "
+                        f'  FILTER(CONTAINS(STR(?src_doc), "{downstream_doc_type}")) '
+                        "  ?src ?p ?ac . "
+                        "  ?ac cf:entity_id ?ac_id . "
+                        '  FILTER(STRSTARTS(STR(?ac_id), "AC-")) '
+                        "}"
+                    )
                 prd_acs = {
                     str(row["eid"].value)
                     for row in cast("Any", kg.store.query(prd_q))

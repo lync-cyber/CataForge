@@ -6,6 +6,7 @@ import json
 import re
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,27 @@ from .template_registry import (
     parse_required_sections_from_list,
 )
 from .typed_checks import TypedDocChecksMixin
+
+
+@dataclass(frozen=True)
+class _CoverageRule:
+    """One upstream→downstream coverage relation for ``check_bidirectional_coverage``.
+
+    ``require_test`` gates whether a verifying TestCase is demanded in addition
+    to an implementing artifact. Authoring-phase gates (arch / ui-spec / dev-plan)
+    leave it False — TestCases are a later-phase artifact, so demanding one here
+    is structurally unsatisfiable. A future testing-phase gate can set it True.
+    """
+
+    upstream_type: str
+    upstream_prefix: str
+    require_test: bool = False
+
+
+def _coverage_row_uncovered(*, has_impl: bool, has_test: bool, require_test: bool) -> bool:
+    """A Feature row is uncovered when it lacks an implementing artifact, or
+    (only when the gate demands it) lacks a verifying TestCase."""
+    return not (has_impl and (has_test or not require_test))
 
 
 def _fm(content: str) -> dict[str, Any]:
@@ -319,19 +341,19 @@ class DocChecker(TypedDocChecksMixin):
         from Task 1 §1.4 case A — a mention in a comment block no
         longer counts as coverage.
         """
-        coverage_rules: dict[str, dict[str, str]] = {
-            "arch": {"upstream_type": "prd", "upstream_prefix": "F"},
-            "dev-plan": {"upstream_type": "arch", "upstream_prefix": "M"},
-            "ui-spec": {"upstream_type": "prd", "upstream_prefix": "F"},
+        coverage_rules: dict[str, _CoverageRule] = {
+            "arch": _CoverageRule("prd", "F"),
+            "dev-plan": _CoverageRule("arch", "M"),
+            "ui-spec": _CoverageRule("prd", "F"),
         }
         rule = coverage_rules.get(self.doc_type)
         if not rule or self.volume_type != "main":
             return
 
-        upstream_prefix = rule["upstream_prefix"]
-        upstream_type = rule["upstream_type"]
+        upstream_prefix = rule.upstream_prefix
+        upstream_type = rule.upstream_type
 
-        if self._kg_bidirectional_coverage(upstream_prefix):
+        if self._kg_bidirectional_coverage(upstream_prefix, rule.require_test):
             return  # KG-based check ran and reported its own failures
 
         docs_path = Path(self.docs_dir)
@@ -401,7 +423,7 @@ class DocChecker(TypedDocChecksMixin):
 
         return _exists
 
-    def _kg_bidirectional_coverage(self, upstream_prefix: str) -> bool:
+    def _kg_bidirectional_coverage(self, upstream_prefix: str, require_test: bool = False) -> bool:
         """Run the SPARQL coverage check when KG is active.
 
         Returns True iff the KG path ran (callers should skip the
@@ -429,7 +451,10 @@ class DocChecker(TypedDocChecksMixin):
         uncovered = [
             r.feature_id
             for r in rows
-            if r.feature_id.startswith(upstream_prefix + "-") and not (r.has_impl and r.has_test)
+            if r.feature_id.startswith(upstream_prefix + "-")
+            and _coverage_row_uncovered(
+                has_impl=r.has_impl, has_test=r.has_test, require_test=require_test
+            )
         ]
         if uncovered:
             display = ", ".join(sorted(uncovered)[:5])

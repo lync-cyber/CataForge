@@ -40,10 +40,13 @@ def test_prd_arch_ac_coverage_missing(docs_dir: Path) -> None:
         ## 2. Features
         ### F-001: Login
         AC-001: User can login with email
-        AC-002: User can login with phone
-        AC-003: Rate limit after 5 failures
+        ### F-002: Reporting
+        AC-002: Export report as CSV
+        AC-003: Schedule recurring report
         """,
     )
+    # ARCH references F-001 (covering AC-001 transitively) but never F-002,
+    # so F-002's ACs are genuinely uncovered.
     _write(
         docs_dir / "arch" / "arch-test.md",
         """\
@@ -56,13 +59,15 @@ def test_prd_arch_ac_coverage_missing(docs_dir: Path) -> None:
         ---
         ## 2. Modules
         ### M-001: Auth
-        Maps F-001, AC-001
+        Maps F-001
         """,
     )
     checker = CrossDocChecker(str(docs_dir), quiet=True)
     checker.check_prd_arch_ac_coverage()
     assert len(checker.errors) == 1
-    assert "AC-002" in checker.errors[0].message or "AC-003" in checker.errors[0].message
+    message = checker.errors[0].message
+    assert "AC-002" in message and "AC-003" in message
+    assert "AC-001" not in message
 
 
 def test_prd_arch_ac_coverage_full(docs_dir: Path) -> None:
