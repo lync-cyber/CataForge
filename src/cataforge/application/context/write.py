@@ -783,21 +783,24 @@ def _stage_document_meta(
 
 
 def finalize(project_root: str, output_dir: str | None = None) -> CompileResult | DocIndexResult:
-    """Persist authored content via the strategy-selected backend.
+    """Propagate authored content from its canonical source to derived views.
 
-    Under ``doc-only`` the Markdown is the source of truth, so 定稿 is a
-    docs-index rebuild (``output_dir`` does not apply — the index lives in
-    ``docs/``). Under ``kg-first`` two authoring modes converge here.
-    ``context write`` authors into the graph, so the graph is canonical and
-    the Markdown is a derived view — reconstructed whole-document via
-    ``compile_documents`` (frontmatter + preamble + section slices in
-    document order, with orphan entities falling back to per-entity cards).
-    An empty graph (no entities, no ``cf:Document`` nodes) is read through
-    the authoring mode: under ``authoring = "md"`` the Markdown is canonical,
-    so it is seeded into the graph (md → KG) and kept as-is; under
-    ``authoring = "graph"`` an empty graph means nothing has been authored
-    yet, so there is nothing to seed or export. An authored but entity-less
-    Document (prose-only or early draft) is not empty and still exports.
+    Under ``doc-only`` the Markdown is canonical, so 定稿 is a docs-index
+    rebuild (``output_dir`` does not apply — the index lives in ``docs/``).
+    Under ``kg-first`` the authoring mode names the canonical side, mirroring
+    :class:`~cataforge.domain.kg.authority.AuthorityPolicy`:
+
+    - ``authoring = "md"`` — the Markdown is canonical. 定稿 reflects it into
+      the graph (md → KG) and rebuilds the docs index; it never re-exports
+      graph → md, so hand edits to the authored Markdown are preserved.
+    - ``authoring = "graph"`` — the graph is canonical and the Markdown is a
+      derived view, reconstructed whole-document via ``compile_documents``
+      (frontmatter + preamble + section slices in document order, with orphan
+      entities falling back to per-entity cards). An empty graph (no entities,
+      no ``cf:Document`` nodes) means nothing has been authored yet, so there
+      is nothing to export; an authored but entity-less Document (prose-only
+      or early draft) is not empty and still exports.
+
     Either way the ``定稿`` contract routes persistence without the caller
     hand-running ``ingest``.
     """
@@ -805,10 +808,12 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
         return _rebuild_doc_index(project_root)
     cfg = kg_config_for(project_root)
     out = Path(output_dir) if output_dir else Path(project_root) / "docs"
+    if authoring_mode(project_root) == "md":
+        with KnowledgeGraph.connect(cfg) as kg:
+            run_migration(kg.store, Path(project_root), cfg, doc_types=DEFAULT_DOC_TYPES)
+        return _rebuild_doc_index(project_root)
     with KnowledgeGraph.connect(cfg) as kg:
         if not kg.query.entity_ids() and not kg.query.has_documents():
-            if authoring_mode(project_root) == "md":
-                run_migration(kg.store, Path(project_root), cfg, doc_types=DEFAULT_DOC_TYPES)
             return CompileResult(exported_at=datetime.now(UTC), discovered_count=0, output_dir=out)
         result = compile_documents(kg.store, out)
     _rebuild_doc_index(project_root)
