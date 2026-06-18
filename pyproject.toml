@@ -65,6 +65,12 @@ dev = [
     "scriv[toml]>=1.5",
     "linkml>=1.11.1",
     "import-linter>=2.0",
+    # The SHACL bridge (`cataforge.domain.kg.validate` pyoxigraph → rdflib →
+    # pyshacl) is an optional runtime feature (the `shacl` / `all` extras), but
+    # its tests (tests/kg/test_shacl_bridge.py) must execute in CI rather than
+    # skip, so the deps are bundled into [dev] too.
+    "pyshacl>=0.27",
+    "rdflib>=7.0",
     # code-review `scan` dead-code probe. The duplication probe jscpd is a
     # Node tool run via npx (configured in .jscpd.json); the complexity
     # dimension is the ruff C901 mccabe gate below. Neither needs a Python
@@ -263,8 +269,8 @@ show_missing = true
 skip_covered = false
 # Ratchet floor below the measured fast-suite coverage — guards against a
 # large regression without flaking on environment-dependent optional-extra
-# code paths (rdflib / pyshacl / docker absent from [dev]). Raise as coverage
-# climbs; never above the lowest-environment measurement.
+# code paths (docker absent from [dev]). Raise as coverage climbs; never
+# above the lowest-environment measurement.
 fail_under = 75
 
 [tool.mypy]
