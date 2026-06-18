@@ -20,6 +20,38 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.12.0'></a>
+## [0.12.0] — 2026-06-18
+
+### Added
+
+- **新增 opt-in 人工审查检查点 `post_doc_freeze`** —— 只门禁冻结类文档转换（PRD 冻结的 Phase 1→2、ARCH 冻结的 Phase 2→3），作为「只门禁冻结文档」与 `phase_transition`「门禁每次转换」之间的中间档，适合 ARCH 返工成本高的大型项目。默认检查点 `[pre_dev, post_sprint, pre_deploy]` 不变（`pre_dev` 已在开发前 consolidate 全部上游冻结文档审查）。
+
+### Changed
+
+- **安装文档明确 pip 的结构性限制** —— 上游 `prefixcommons` 把测试期工具 `pytest-logging` 误声明为运行时依赖、新版 setuptools 下构建失败；该问题仅能由 uv 的 `override-dependencies` 中和，pip 无等价机制。`installation.md` 标注推荐 uv，并在纯 pip 方式加结构性限制告警。
+
+- **ui-spec 组件前缀 `C-` → `UC-`（不兼容变更）** —— standard / lite / 分卷模板、dev-plan 跨文档引用、ui-design / task-decomp / change-guard / penpot-implement / penpot-review / tech-lead 的组件引用、组件分卷文件名范围标签（`-c{start}-c{end}` → `-uc{start}-uc{end}`）统一迁移到 `UC-`。doc-review 新增 convention 守卫：ui-spec 文档使用 `### C-NNN` 组件 heading 时报错并引导改用 `UC-`；id 连续性按 `UC-` 校验。已有下游 ui-spec 文档须将组件 `C-NNN` 改写为 `UC-NNN` 并重新 ingest（arch 文档的 `C-`/`Component` 不受影响）。
+
+- **`context finalize` 在 authoring=md 模式下返回 `DocIndexResult`（md→KG 回灌 + 索引重建），不再返回导出用的 `CompileResult`** —— CLI 相应显示 `indexed N doc(s)` 而非 `exported N file(s)`，准确反映 md 模式下 finalize 不导出的语义。authoring=graph 模式不变（仍导出，返回 `CompileResult`）。
+
+- **reviewer 三态判定加反向自检** —— 交付标准明确为「verdict 由严重等级唯一决定」的双向判据：结论为 needs_revision 但无 CRITICAL/HIGH 时必须回落 approved_with_notes，且审查报告 frontmatter `status` 与正文 Verdict 必须同源一致。
+
+### Fixed
+
+- **`kg reconcile` 不再漏判悬空目标关系** —— 目标实体被重命名/删除后残留的 traceability 边（`X cf:depends_on <已删实体>`）原先因 object 无 `cf:entity_id` 在比对时被丢弃，使 reconcile 报 `divergence=0`。新增 `orphan_relations` 分类（镜像 `kg validate` 的 `cf:*-target-exists`，按 subject `cf:source_doc` 归属）计入 divergence，`kg repair` 自动清理，并新增 doctor `KG xref target integrity` 门禁，使 reconcile-clean 与 doctor-clean 一致。
+- **`framework.json#context` 的项目级 override 升级后不再丢失** —— `cataforge upgrade` / `--force-scaffold` 重写 `framework.json` 时只保留了 `context.kg_active_doc_types`，会静默覆盖文档化为 additive 的 `context.kg_definition_authority`（及 `strategy` / `authoring`）。现改为 context 块 existing-wins 深合并，保留全部用户键的同时仍引入新 scaffold 键。
+
+- **ui-spec 组件现在能被抽取进知识图谱** —— ui-spec 模板以 `### C-NNN` 形式定义组件，而 `C-` 前缀映射到 arch 专属的 `Component` 类（definition authority 仅 `arch`），导致 ui-spec 里的组件在 ingest 时被 authority 层整体丢弃：`depends_on C-*` 关系无法落图、reconcile 永久残留漂移、doctor 报 `C- id referenced, defined in no active source`。现 ui-spec 组件统一改用 `UC-` 前缀（`UIComponent`，authority `ui-spec`），与 arch 的 `C-`/`Component` 彻底分开。
+
+- **`context finalize` 不再静默覆盖人工编辑的 Markdown（kg-first + authoring=md 数据丢失）** —— 此前 finalize 只在图为空时按 authoring 模式分流（md→seed），图非空时无条件 `compile_documents` 图→md 导出、无视 authoring 模式，导致 authoring=md 下手工编辑导出 md 再 finalize 时人工修订被图谱重生成静默 reset。现 finalize 顶层按 authoring 模式统一分流，与 `AuthorityPolicy` 的权威方向一致：`md` 模式下 Markdown 为权威源，finalize 只回灌 md→KG + 重建索引、绝不导出覆盖；`graph` 模式下图为权威源，finalize 才导出 Markdown 派生视图。
+
+- **`context read` 拆分卷整节读取不再被 git 分支操作打断** —— 索引新鲜度此前按 markdown 文件 mtime vs `.doc-index.json` 的 `generated_at` 判定，`git checkout` / `merge` / `pull` 刷新工作树 mtime 即把内容未变的文件误判过期，读路径回退到只认 doc_type 名的 `resolve_file`，对拆分卷 frontmatter id（如 `prd-keel`）报「未知的 doc_id」。现 `_is_stale` 改用索引已存的逐文档 `content_hash` 比对（对 mtime 抖动免疫）；且索引项确实过期时按索引记录的 `file_path` 重扫 heading，不再退回 doc_type 解析，使拆分卷整节引用在 git 操作后乃至内容真改后均稳定可读。
+- **子代理在外部工作目录运行 Layer 1 不再报 `no executable scripts`** —— `SkillRunner` 构造时改为优先读 orchestrator 导出的 `CATAFORGE_PROJECT_ROOT`，再退回 cwd 上溯，避免子代理 cwd 不在项目内时绑定错误根、内置 skill 脚本不可达。
+
+- **arch / ui-spec 阶段 doc-review L1 KG 覆盖检查不再结构性必失败** —— `check_bidirectional_coverage` 的 KG 路径原先对所有 doc_type 统一要求 `has_impl AND has_test`，但 `has_test`（`?tc cf:verifies+ ?feature`）在 Feature 粒度上结构性恒 False（TestCase 验证的是 AC，AC 经 `cf:part_of`（非 `verifies`）挂到 Feature），且架构阶段尚无 TestCase。即便 arch 对全部上游 Feature 建立正确 `cf:implements` 边，主卷 L1 仍报「N 项缺少实现或验证」并阻塞 Layer 2。现 coverage 规则按 `_CoverageRule.require_test` 声明是否要求验证用例，arch / ui-spec / dev-plan 均只验 `has_impl`，把测试溯源留给后续测试阶段门。
+- **doc-consistency 的 PRD→ARCH AC 溯源改为传递式覆盖** —— `check_prd_arch_ac_coverage` 原先要求 ARCH 直接引用每个 `AC-NNN`，但 arch 的溯源语义是 arch→Feature（`cf:implements`），AC 由 PRD 承载、经 `cf:part_of` 归属 Feature，arch 不建 arch→AC 直接边属设计常规，导致每个 kg-first 项目在架构阶段被误报 HIGH「N 个 AC 未在 ARCH 中引用」。现 KG 与 regex 两条路径一致认可 arch→Feature→AC 的传递覆盖：AC 的父 Feature 被 arch 实现/引用即视为覆盖。
+
 <a id='changelog-0.11.2'></a>
 ## [0.11.2] — 2026-06-16
 
