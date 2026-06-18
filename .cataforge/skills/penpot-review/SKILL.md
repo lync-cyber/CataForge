@@ -1,7 +1,7 @@
 ---
 name: penpot-review
 description: "Penpot 设计 ↔ 代码一致性验证 — 比对 Penpot 设计与已实现代码的视觉一致性，产出差异报告与修复建议。当组件代码已实现且需要核对是否还原设计稿时使用此 skill。本 skill 专注 verification；代码骨架生成由 penpot-implement 负责，Token 同步由 penpot-sync 负责。"
-argument-hint: "<component-id: C-NNN 或代码文件路径>"
+argument-hint: "<component-id: UC-NNN 或代码文件路径>"
 suggested-tools: Read, Glob, Grep
 depends: [context]
 disable-model-invocation: false
@@ -21,7 +21,7 @@ user-invocable: true
 ## 输入规范
 - Penpot 组件设计数据（通过 MCP 读取）
 - 已实现的组件代码文件路径
-- ui-spec#§2 中对应的 C-{NNN} 规范（作为参考）
+- ui-spec#§2 中对应的 UC-{NNN} 规范（作为参考）
 
 ## 输出规范
 - 设计一致性审查报告 `docs/reviews/design/DESIGN-REVIEW-{component_id}-r{N}.md`

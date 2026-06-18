@@ -1,7 +1,7 @@
 ---
 name: penpot-implement
-description: "Penpot 组件代码生成 — 从 Penpot 设计组件读取结构/样式/属性，生成前端组件代码骨架。当 ui-spec 已定义 C-{NNN} 组件且需要从设计稿落地代码骨架时使用此 skill。本 skill 专注 generation；设计 ↔ 代码一致性验证由 penpot-review 负责，Token 双向同步由 penpot-sync 负责。"
-argument-hint: "<component-id: C-NNN 或 Penpot组件名>"
+description: "Penpot 组件代码生成 — 从 Penpot 设计组件读取结构/样式/属性，生成前端组件代码骨架。当 ui-spec 已定义 UC-{NNN} 组件且需要从设计稿落地代码骨架时使用此 skill。本 skill 专注 generation；设计 ↔ 代码一致性验证由 penpot-review 负责，Token 双向同步由 penpot-sync 负责。"
+argument-hint: "<component-id: UC-NNN 或 Penpot组件名>"
 suggested-tools: Read, Write, Edit, Glob, Grep
 depends: [context, penpot-sync]
 disable-model-invocation: false
@@ -17,10 +17,10 @@ user-invocable: true
 - {INSTRUCTION_FILE} `设计工具` 字段为 `penpot`
 - Penpot MCP Server 已配置并可用
 - tokens.css 须先由 penpot-sync 同步就绪（本 skill 只消费 Token 变量，不写 Token）
-- ui-spec 中对应的 C-{NNN} 规范已定义
+- ui-spec 中对应的 UC-{NNN} 规范已定义
 
 ## 输入规范
-- ui-spec#§2 组件目录中的 C-{NNN}（Props/变体/交互描述）
+- ui-spec#§2 组件目录中的 UC-{NNN}（Props/变体/交互描述）
 - arch#§1.4 技术栈（确定生成 React/Vue/HTML 格式）
 - Penpot 中对应组件的设计数据（通过 MCP 读取）
 
@@ -33,7 +33,7 @@ user-invocable: true
 ## 执行流程
 
 ### Step 1: 加载上下文
-- 通过 context 加载 ui-spec 中目标 C-{NNN} 的完整规范
+- 通过 context 加载 ui-spec 中目标 UC-{NNN} 的完整规范
 - 通过 context 加载 arch#§1.4 确定技术栈
 - 通过 Penpot MCP 读取对应组件的设计数据（结构/CSS/SVG）
 
@@ -47,7 +47,7 @@ user-invocable: true
 
 生成内容包含:
 - 组件结构（基于Penpot层级）
-- Props接口（基于ui-spec C-{NNN} Props定义）
+- Props接口（基于ui-spec UC-{NNN} Props定义）
 - 变体支持（default/hover/active/disabled/error）
 - 样式（引用 tokens.css 变量）
 - 预留交互钩子（onClick等，基于 ui-spec 交互描述）

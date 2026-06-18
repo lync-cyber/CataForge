@@ -22,7 +22,7 @@ required_sections:
 
 [NAV]
 - §1 设计系统 → §1.1 色彩, §1.2 排版, §1.3 间距与圆角
-- §2 组件清单 → C-001..C-{NNN}
+- §2 组件清单 → UC-001..UC-{NNN}
 [/NAV]
 
 ## 1. 设计系统
@@ -51,13 +51,13 @@ required_sections:
 
 ## 2. 组件清单
 
-### C-001: {组件名}
+### UC-001: {组件名}
 - **变体**: default, hover, disabled
 - **视觉差异**: {各状态的关键视觉变化，如 hover 背景加深 8%、disabled opacity 0.5}
 - **Props**: { label: string, onClick: fn, disabled?: bool }
 - **映射功能**: F-001 (引用 prd-lite)
 
-### C-002: {组件名}
+### UC-002: {组件名}
 - **变体**: ...
 - **视觉差异**: ...
 - **Props**: ...

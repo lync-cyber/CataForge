@@ -267,7 +267,7 @@ class TypedDocChecksMixin:
         )
         p_count = len(p_sections)
         mr = sum(1 for s in p_sections if not re.search(r"路由|route|/\w+", s, re.IGNORECASE))
-        mc = sum(1 for s in p_sections if not re.search(r"C-\d+|组件", s, re.IGNORECASE))
+        mc = sum(1 for s in p_sections if not re.search(r"UC-\d+|组件", s, re.IGNORECASE))
         sp_pat = r"空间构成|视觉重心|留白"
         ms = sum(1 for s in p_sections if not re.search(sp_pat, s, re.IGNORECASE))
         if mr > 0:
@@ -294,22 +294,29 @@ class TypedDocChecksMixin:
                 )
                 if dir_match and re.search(r"\{.*调性.*\}|\{.*关键词.*\}", dir_match.group(1)):
                     self.fail("§0设计方向仍为占位符，未填写实际内容")
-        c_sections = re.findall(
-            r"^### C-\d+.*?(?=^### C-\d+|^### P-\d+|^## |\Z)",
+        legacy_c = re.findall(r"^### C-\d+", self.content, re.MULTILINE)
+        if legacy_c:
+            self.fail(
+                f"ui-spec 组件须用 UC- 前缀 (UIComponent)；发现 {len(legacy_c)} 个 C- 组件 "
+                "heading (C-=arch Component，在 ui-spec 中不会被抽取为实体)",
+                category="convention",
+            )
+        uc_sections = re.findall(
+            r"^### UC-\d+.*?(?=^### UC-\d+|^### P-\d+|^## |\Z)",
             self.content,
             re.MULTILINE | re.DOTALL,
         )
-        c_count = len(c_sections)
-        mv = sum(1 for s in c_sections if not re.search(r"变体|variant", s, re.IGNORECASE))
-        mp = sum(1 for s in c_sections if not re.search(r"Props|props|属性", s, re.IGNORECASE))
+        uc_count = len(uc_sections)
+        mv = sum(1 for s in uc_sections if not re.search(r"变体|variant", s, re.IGNORECASE))
+        mp = sum(1 for s in uc_sections if not re.search(r"Props|props|属性", s, re.IGNORECASE))
         vd_pat = r"视觉差异|视觉变化|visual diff"
-        mvd = sum(1 for s in c_sections if not re.search(vd_pat, s, re.IGNORECASE))
+        mvd = sum(1 for s in uc_sections if not re.search(vd_pat, s, re.IGNORECASE))
         if mv > 0:
-            self.fail(f"{c_count}个组件中{mv}个缺少变体定义")
+            self.fail(f"{uc_count}个组件中{mv}个缺少变体定义")
         if mp > 0:
-            self.fail(f"{c_count}个组件中{mp}个缺少Props定义")
+            self.fail(f"{uc_count}个组件中{mp}个缺少Props定义")
         if mvd > 0:
-            self.warn(f"{c_count}个组件中{mvd}个缺少状态视觉差异描述")
+            self.warn(f"{uc_count}个组件中{mvd}个缺少状态视觉差异描述")
         if not is_lite:
             self._check_page_sections(self.content)
         if self.volume_type == "main":

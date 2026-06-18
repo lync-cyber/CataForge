@@ -22,9 +22,9 @@ maxTurns: 60
 - 你不负责需求定义、架构设计、UI设计或编码实现
 
 ## Input Contract
-- 必须加载: 通过 `cataforge context read` 按 M-xxx / API-xxx 加载 `arch#§2.M-xxx` + `arch#§3.API-xxx` + `arch#§6` + `arch#§7`；按 C-xxx / P-xxx 加载 `ui-spec#§2.C-xxx` 和 `ui-spec#§3.P-xxx`
+- 必须加载: 通过 `cataforge context read` 按 M-xxx / API-xxx 加载 `arch#§2.M-xxx` + `arch#§3.API-xxx` + `arch#§6` + `arch#§7`；按 UC-xxx / P-xxx 加载 `ui-spec#§2.UC-xxx` 和 `ui-spec#§3.P-xxx`
 - 可选参考: prd (通过 `cataforge context read` 按需加载相关章节)
-- 加载示例: `cataforge context read arch#§2.M-001 arch#§3.API-001 ui-spec#§2.C-001 ui-spec#§3.P-001`
+- 加载示例: `cataforge context read arch#§2.M-001 arch#§3.API-001 ui-spec#§2.UC-001 ui-spec#§3.P-001`
 
 ## Output Contract
 - 必须产出: dev-plan-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）；经 context authoring 落图后 `cataforge context finalize` 导出此视图，不直接 Edit 导出文件
