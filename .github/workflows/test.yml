@@ -9,7 +9,10 @@ name: Tests
 #             OS/version state, so the matrix must not duplicate them.
 #   - `unit`  cross-platform / cross-Python pytest matrix (no slow marker).
 #             Pure test execution — the only thing that actually varies by
-#             OS and Python version. Any regression here blocks the PR.
+#             OS and Python version. Any regression here blocks the PR. One
+#             designated leg additionally measures coverage (gate ≥75%), so
+#             the threshold is a single deterministic run folded into the
+#             matrix rather than a separate full-suite execution.
 #   - `e2e`   single ubuntu + py3.12 job that builds a wheel, spawns venvs
 #             and exercises `cataforge setup` / `upgrade` via subprocess.
 #             Linux-only — venv creation plus subprocess encoding on Windows
@@ -154,15 +157,6 @@ jobs:
         # non-zero exit when src duplication exceeds the ceiling.
         run: npx --yes jscpd@4 src
 
-      - name: "Coverage (fast suite, gate ≥75%)"
-        # Single deterministic coverage gate — fail_under lives in
-        # [tool.coverage.report]. Runs the fast suite once here so the
-        # threshold isn't measured per matrix leg; the unit matrix owns
-        # cross-platform correctness.
-        run: >-
-          python -m pytest tests/ -m "not slow" -n auto --dist loadscope
-          --cov=cataforge --cov-report=term-missing:skip-covered
-
       - name: "platform dry-run snapshots (cursor / codex / opencode)"
         # Exercises each adapter's `deploy --dry-run` code path so a refactor
         # that breaks one surfaces without the real IDE installed.
@@ -208,8 +202,12 @@ jobs:
         include:
           - os: ubuntu-latest
             python-version: "3.11"
+          # Coverage rides this leg (newest ubuntu Python) — a single
+          # deterministic measurement; fail_under (≥75%) lives in
+          # [tool.coverage.report].
           - os: ubuntu-latest
             python-version: "3.13"
+            coverage: true
           - os: windows-latest
             python-version: "3.13"
     steps:
@@ -231,8 +229,12 @@ jobs:
         # `-n auto` parallelizes across cores; `--dist loadscope` keeps a
         # module's/class's tests on one worker so cwd-mutating
         # (monkeypatch.chdir) and socket-binding tests never interleave
-        # across processes.
-        run: python -m pytest tests/ -q -m "not slow" -n auto --dist loadscope
+        # across processes. The coverage leg adds --cov so the ≥75% gate is a
+        # single deterministic run; other legs skip it (coverage is OS/Python
+        # independent for line reporting).
+        run: >-
+          python -m pytest tests/ -q -m "not slow" -n auto --dist loadscope
+          ${{ matrix.coverage && '--cov=cataforge --cov-report=term-missing:skip-covered' || '' }}
 
   e2e:
     name: E2E install + upgrade (ubuntu, py3.12)
