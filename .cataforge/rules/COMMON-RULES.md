@@ -53,13 +53,14 @@
 ### MANUAL_REVIEW_CHECKPOINTS 可选值
 | 值 | 触发时机 | 说明 |
 |----|---------|------|
-| phase_transition | 每次阶段转换 | 所有 Phase N→N+1 暂停（最严格，隐含 pre_dev / pre_deploy） |
+| phase_transition | 每次阶段转换 | 所有 Phase N→N+1 暂停（最严格，隐含 pre_dev / pre_deploy / post_doc_freeze） |
+| post_doc_freeze | PRD 冻结后（Phase 1→2）、ARCH 冻结后（Phase 2→3） | 只门禁冻结类文档转换，不门禁全部；适合 ARCH 返工成本高的大型项目 |
 | pre_dev | Phase 4→5 前 | 开发阶段成本最高，确认开发计划与资源 |
 | pre_deploy | Phase 6→7 前 | 部署 go/no-go |
 | post_sprint | Sprint Review 通过后 | 是否继续下一 Sprint |
 | none | — | 完全自动推进，仅保留失败驱动门禁 |
 
-规则：默认 `[pre_dev, post_sprint, pre_deploy]` 覆盖最高风险节点；用户在 Bootstrap 时或运行中通过 项目指令文件 §全局约定 覆盖；`none` 与其他值互斥。
+规则：默认 `[pre_dev, post_sprint, pre_deploy]` 覆盖最高风险节点（`pre_dev` 已在最贵阶段前 consolidate 全部上游冻结文档审查，故 PRD/ARCH 冻结点默认不单独设确认，仅 doc-review 质量门禁）；需要早期冻结门禁的项目显式加 `post_doc_freeze`（中间档），需要门禁每次转换则用 `phase_transition`；用户在 Bootstrap 时或运行中通过 项目指令文件 §全局约定 覆盖；`none` 与其他值互斥。
 
 ## 执行模式矩阵
 框架支持三种执行模式，写入 项目指令文件 §框架元信息.执行模式，未填默认 `standard`。

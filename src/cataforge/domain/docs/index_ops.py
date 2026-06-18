@@ -127,12 +127,14 @@ def _lookup_in_index(
         return None
 
     file_path = doc_entry["file_path"]
+    content_hash = doc_entry.get("content_hash")
 
     if item_id:
         item_data = sec_data.get("items", {}).get(item_id)
         if item_data:
             return {
                 "file_path": file_path,
+                "content_hash": content_hash,
                 "line_start": item_data["line_start"],
                 "line_end": item_data["line_end"],
                 "est_tokens": item_data.get("est_tokens", 0),
@@ -151,6 +153,7 @@ def _lookup_in_index(
                     if other_item:
                         return {
                             "file_path": ref_entry["file_path"],
+                            "content_hash": other_doc.get("content_hash"),
                             "line_start": other_item["line_start"],
                             "line_end": other_item["line_end"],
                             "est_tokens": other_item.get("est_tokens", 0),
@@ -163,6 +166,7 @@ def _lookup_in_index(
         if sub_data:
             return {
                 "file_path": file_path,
+                "content_hash": content_hash,
                 "line_start": sub_data["line_start"],
                 "line_end": sub_data["line_end"],
                 "est_tokens": sub_data.get("est_tokens", 0),
@@ -172,6 +176,7 @@ def _lookup_in_index(
 
     return {
         "file_path": file_path,
+        "content_hash": content_hash,
         "line_start": sec_data["line_start"],
         "line_end": sec_data["line_end"],
         "est_tokens": sec_data.get("est_tokens", 0),

@@ -95,6 +95,23 @@ class TestSkillDiscovery:
         assert meta.scripts == [{"name": "main", "entry": "scripts/main.py"}]
 
 
+class TestRunnerRootResolution:
+    def test_runner_binds_to_env_root_from_foreign_cwd(self, tmp_path: Path, monkeypatch) -> None:
+        """A runner constructed from a cwd outside the project must bind to
+        ``CATAFORGE_PROJECT_ROOT`` (exported by the orchestrator), not fall back
+        to the foreign cwd — otherwise a subagent resolves builtin skills against
+        the wrong root and Layer 1 reports ``no executable scripts``."""
+        project = tmp_path / "proj"
+        (project / ".cataforge").mkdir(parents=True)
+        foreign = tmp_path / "foreign"
+        foreign.mkdir()
+        monkeypatch.chdir(foreign)
+        monkeypatch.setenv("CATAFORGE_PROJECT_ROOT", str(project))
+
+        runner = SkillRunner()
+        assert runner._paths.root == project
+
+
 def _write_override_skill(project_root: Path, layer: str, skill_id: str, description: str) -> Path:
     skill_dir = project_root / ".cataforge" / "overrides" / layer / "skills" / skill_id
     skill_dir.mkdir(parents=True)

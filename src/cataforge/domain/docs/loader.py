@@ -23,6 +23,7 @@ from typing import Any
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
+from cataforge.domain.docs._index_build import _content_hash
 from cataforge.domain.docs._loader_kg import (
     _entity_id_to_ref as _entity_id_to_ref,
 )
@@ -115,7 +116,21 @@ def clear_index_cache() -> None:
         _INDEX_CACHE_ROOT = None
 
 
-def _is_stale(file_path: str, generated_at: str | None) -> bool:
+def _is_stale(file_path: str, content_hash: str | None, generated_at: str | None) -> bool:
+    """Decide whether the indexed slice for ``file_path`` can still be trusted.
+
+    Prefers a content-hash comparison: git checkout/merge/pull rewrites
+    working-tree mtimes without changing bytes, so an mtime heuristic flags a
+    byte-identical file as stale on every branch operation. Falls back to the
+    mtime-vs-``generated_at`` comparison only for indexes built before
+    per-document ``content_hash`` was recorded.
+    """
+    if content_hash:
+        try:
+            with open(file_path) as f:
+                return _content_hash(f.read()) != content_hash
+        except OSError:
+            return True
     if not generated_at:
         return True
     try:
@@ -240,13 +255,23 @@ def extract(
         entry = _lookup_in_index(index, doc_id, section_path, item_id)
         if entry:
             abs_path = os.path.join(project_root, entry["file_path"])
-            if os.path.isfile(abs_path) and not _is_stale(abs_path, index.get("generated_at")):
-                lines = _read_lines_cached(abs_path, file_cache)
-                start = entry["line_start"] - 1
-                end = entry["line_end"]
-                result = "".join(lines[start:end]).rstrip()
-                if result:
-                    return result
+            if os.path.isfile(abs_path):
+                if not _is_stale(abs_path, entry.get("content_hash"), index.get("generated_at")):
+                    lines = _read_lines_cached(abs_path, file_cache)
+                    start = entry["line_start"] - 1
+                    end = entry["line_end"]
+                    result = "".join(lines[start:end]).rstrip()
+                    if result:
+                        return result
+                # Stale slice: the file changed, but the index already named the
+                # backing file. Re-scan it by heading rather than re-deriving the
+                # path from the doc_type map, which cannot resolve a frontmatter
+                # id (e.g. a split volume's ``prd-keel``).
+                rescanned = _read_splitlines_cached(abs_path, file_cache)
+                found = _find_heading_line_in_lines(rescanned, section_path, item_id)
+                if found is not None:
+                    start_idx, level = found
+                    return _extract_section_from_lines(rescanned, start_idx, level)
 
     file_path = resolve_file(doc_id, project_root, section_path, item_id)
     splitlines = _read_splitlines_cached(file_path, file_cache)
