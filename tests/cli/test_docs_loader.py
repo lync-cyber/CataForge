@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -154,6 +155,64 @@ def test_no_stale_warning_for_fresh_index(tmp_path: Path, capsys) -> None:
     loader._emit_stale_warning(str(tmp_path))
     captured = capsys.readouterr()
     assert "天未更新" not in captured.err
+
+
+# ---------------------------------------------------------------------------
+# Split-volume / frontmatter-id reads survive git-induced staleness (#301)
+# ---------------------------------------------------------------------------
+
+
+def _build_split_volume_project(tmp_path: Path) -> Path:
+    """Index a doc whose frontmatter id (``prd-keel``) is not a doc_type name."""
+    _make_project(tmp_path)
+    body = (
+        "---\nid: prd-keel\ndoc_type: prd\n---\n\n"
+        "# PRD Keel\n\n"
+        "## 1. Overview\nKeel overview narrative text.\n\n"
+        "## 2. Features\n\n"
+        "### F-001 Login\nLogin desc spanning multiple words.\n"
+    )
+    target = _write_doc(tmp_path, "prd", "prd-keel.md", body)
+    from cataforge.domain.docs.indexer import main as indexer_main
+
+    rc = indexer_main(["--project-root", str(tmp_path)])
+    assert rc == 0
+    return target
+
+
+def test_split_volume_read_survives_mtime_bump(tmp_path: Path, capsys) -> None:
+    """A git checkout/merge bumps the working-tree mtime without changing content.
+
+    Staleness must be judged by content_hash, not mtime, so the indexed slice
+    stays trusted and the read does not fall back to the doc_type-only resolver
+    (which cannot resolve the frontmatter id ``prd-keel``).
+    """
+    target = _build_split_volume_project(tmp_path)
+    capsys.readouterr()
+    loader.clear_index_cache()
+    future = datetime.now(UTC) + timedelta(days=1)
+    os.utime(target, (future.timestamp(), future.timestamp()))
+
+    content = loader.extract("prd-keel#§1", str(tmp_path))
+    assert "Keel overview narrative text." in content
+
+
+def test_split_volume_read_survives_content_change(tmp_path: Path, capsys) -> None:
+    """When the indexed file genuinely changes, a stale read re-scans the
+    indexed file path rather than the doc_type resolver (which cannot resolve a
+    frontmatter id like ``prd-keel``)."""
+    target = _build_split_volume_project(tmp_path)
+    capsys.readouterr()
+    loader.clear_index_cache()
+    target.write_text(
+        target.read_text(encoding="utf-8") + "\n## 3. Extra\nNew tail section.\n",
+        encoding="utf-8",
+    )
+    future = datetime.now(UTC) + timedelta(days=1)
+    os.utime(target, (future.timestamp(), future.timestamp()))
+
+    content = loader.extract("prd-keel#§1", str(tmp_path))
+    assert "Keel overview narrative text." in content
 
 
 # ---------------------------------------------------------------------------

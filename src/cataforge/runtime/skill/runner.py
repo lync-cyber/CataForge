@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from cataforge.adapter.platform.registry import read_current_phase
-from cataforge.core.paths import ProjectPaths, find_project_root
+from cataforge.core.paths import ProjectPaths, find_project_root, project_root_from_env
 from cataforge.runtime.skill.loader import SkillLoader, SkillMeta
 from cataforge.utils.run_subprocess import run as run_proc
 
@@ -33,7 +33,12 @@ class SkillRunner:
     """Execute skill scripts with proper environment setup."""
 
     def __init__(self, project_root: Path | None = None) -> None:
-        self._paths = ProjectPaths(project_root or find_project_root())
+        # ``CATAFORGE_PROJECT_ROOT`` (exported by the orchestrator) wins over a
+        # cwd walk so a subagent spawned in a foreign directory still binds to
+        # the invoking project; otherwise builtin skills resolve against the
+        # wrong root and Layer 1 reports "no executable scripts".
+        resolved = project_root or project_root_from_env() or find_project_root()
+        self._paths = ProjectPaths(resolved)
         self._loader = SkillLoader(self._paths.root)
 
     def run(

@@ -232,6 +232,7 @@ Mode Routing Protocol 在以下时刻被调用:
 1. 读取 {INSTRUCTION_FILE} §全局约定 中的 `人工审查检查点` 字段（未配置则使用 COMMON-RULES 默认值 `[pre_dev, post_sprint, pre_deploy]`）
 2. 判断当前转换是否命中检查点:
    - `phase_transition` → 所有 Phase 转换均命中
+   - `post_doc_freeze` → 仅 Phase 1→2（requirements → architecture，PRD 冻结）与 Phase 2→3（architecture → 下游，ARCH 冻结）命中
    - `pre_dev` → 仅 Phase 4→5（dev_planning → development）命中
    - `pre_deploy` → 仅 Phase 6→7（testing → deployment）命中
    - `post_sprint` → Sprint Review approved 后、进入下一 Sprint 或 Phase 6 前命中
