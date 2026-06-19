@@ -181,6 +181,34 @@ def test_deploy_skills_copy_renders_md_but_leaves_non_md(tmp_path: Path) -> None
     assert fixture == '{"placeholder": "{INSTRUCTION_FILE}"}'
 
 
+def test_deploy_skills_excludes_upgrade_sidecar_and_pycache(tmp_path: Path) -> None:
+    """Upgrade sidecars (``*.cataforge-new``) and bytecode caches
+    (``__pycache__``) live in the project ``.cataforge/`` tree but must never
+    ride the copy into the IDE skill tree — a real drift sidecar would land as
+    dead weight and the bytecode cache would pollute the deployed surface."""
+    adapter = _SubdirAgentAdapter()
+    src = tmp_path / ".cataforge" / "skills"
+    skill = src / "research"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\nname: research\ndescription: test\n---\n\nbody",
+        encoding="utf-8",
+    )
+    # A real user-modified scaffold file leaves a sidecar beside it on upgrade.
+    (skill / "SKILL.md.cataforge-new").write_text("framework version", encoding="utf-8")
+    # Skills can ship .py helpers; running them seeds a bytecode cache.
+    pycache = skill / "scripts" / "__pycache__"
+    pycache.mkdir(parents=True)
+    (pycache / "helper.cpython-313.pyc").write_bytes(b"\x00bytecode")
+
+    steps.deploy_skills(adapter, src, tmp_path)
+
+    deployed = tmp_path / ".test" / "skills" / "research"
+    assert (deployed / "SKILL.md").is_file()
+    assert not (deployed / "SKILL.md.cataforge-new").exists()
+    assert not (deployed / "scripts" / "__pycache__").exists()
+
+
 # ---- deploy_instruction_files: PROJECT-STATE.md → CLAUDE.md/AGENTS.md ---
 
 
