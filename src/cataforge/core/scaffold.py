@@ -141,9 +141,18 @@ _SCAFFOLD_LOCAL_STATE_FILES: frozenset[str] = frozenset(
         ".scaffold-manifest.json",
     }
 )
+# Top-level dirs holding framework-managed runtime/local state — written per
+# deploy/upgrade or by a subsystem, never framework scaffold. The
+# editable-install fallback walks the live repo-root ``.cataforge/`` (which
+# dogfoods these) and a dirty wheel build can pack them; either way they must
+# not classify as scaffold and surface as new/drift in every downstream
+# project. ``kg`` is the per-project KG RocksDB store, ``.mcp-state`` the MCP
+# runtime cache, ``.backups`` the upgrade rollback snapshots.
 _SCAFFOLD_LOCAL_STATE_DIRS: frozenset[str] = frozenset(
     {
         ".backups",
+        ".mcp-state",
+        "kg",
     }
 )
 # Override layers are upgrade-immune, project-local customisation — never part
@@ -170,6 +179,10 @@ def iter_scaffold_files() -> Iterator[tuple[str, Traversable]]:
         for child in node.iterdir():
             rel = f"{prefix}{child.name}"
             if child.is_dir():
+                # Python bytecode cache can appear at any depth (the scaffold
+                # ships ``.py`` helpers) — never part of the source surface.
+                if child.name == "__pycache__":
+                    continue
                 if not prefix and (
                     child.name in _SCAFFOLD_LOCAL_STATE_DIRS
                     or child.name in _SCAFFOLD_OVERRIDE_DIRS
