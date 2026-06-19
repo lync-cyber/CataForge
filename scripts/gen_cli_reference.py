@@ -121,7 +121,7 @@ def main() -> int:
         return 2
 
     if args.out:
-        args.out.write_text(text, encoding="utf-8")
+        args.out.write_text(text, encoding="utf-8", newline="\n")
         print(f"Wrote {args.out}")
     else:
         sys.stdout.write(text)

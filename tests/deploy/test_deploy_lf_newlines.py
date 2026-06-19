@@ -138,6 +138,7 @@ _GUARDED_RELPATHS = (
     "adapter/platform/cursor.py",
     "adapter/platform/opencode.py",
     "adapter/platform/instruction_cache.py",
+    "interface/cli/setup_cmd.py",
     "core/scaffold.py",
     "core/scaffold_backup.py",
     "runtime/deploy/deployer.py",

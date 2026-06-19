@@ -11,6 +11,7 @@ import click
 from cataforge.adapter.platform.conformance import ALL_PLATFORMS
 from cataforge.interface.cli.errors import CataforgeGroup
 from cataforge.interface.cli.main import cli
+from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
@@ -432,7 +433,7 @@ def setup_permissions() -> None:
         if sys.platform == "win32":
             data.setdefault("env", {})["CLAUDE_CODE_USE_POWERSHELL_TOOL"] = "0"
             data.setdefault("defaultShell", "bash")
-        settings.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        atomic_write_text(settings, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
         click.echo(f"updated {settings} — {len(allow_prefixes)} allow prefixes")
         return
 

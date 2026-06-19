@@ -67,13 +67,18 @@ def test_bundled_scaffold_source_uses_lf() -> None:
     )
 
 
-def test_scaffold_excludes_kg_runtime_store() -> None:
-    """The per-project KG RocksDB store is runtime state, never scaffold.
+def test_scaffold_excludes_runtime_state() -> None:
+    """Framework-managed runtime/local state is never scaffold.
 
-    Packing it into the wheel (a dirty build that walked a live ``.cataforge/kg/``)
-    makes ``upgrade apply`` report the store's CURRENT/LOG/*.sst files as
-    new/drift in every downstream project.
+    Packing any of it into the wheel (a dirty build that walked a live
+    ``.cataforge/``) makes ``upgrade apply`` report the KG store
+    (CURRENT/LOG/*.sst), the MCP cache, rollback snapshots, or stray
+    ``__pycache__`` bytecode as new/drift in every downstream project.
     """
     rels = [rel for rel, _ in iter_scaffold_files()]
-    kg_rels = [rel for rel in rels if rel == "kg" or rel.startswith("kg/")]
-    assert not kg_rels, "KG runtime store leaked into the scaffold:\n  " + "\n  ".join(kg_rels)
+    leaked = [
+        rel
+        for rel in rels
+        if rel.split("/")[0] in {"kg", ".mcp-state", ".backups"} or "__pycache__" in rel.split("/")
+    ]
+    assert not leaked, "runtime state leaked into the scaffold:\n  " + "\n  ".join(leaked)
