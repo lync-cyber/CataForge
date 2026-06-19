@@ -20,6 +20,17 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.12.1'></a>
+## [0.12.1] — 2026-06-20
+
+### Fixed
+
+- **CRLF 行尾不再让 `upgrade apply` 误报漫天 drift** —— 仓库新增 `.gitattributes`（`* text=auto eol=lf`），任何克隆（含 Windows `core.autocrlf=true`）检出与本地 wheel 构建都把 force-include 的 `.cataforge/` scaffold 落成 LF；下游 LF 项目运行 `cataforge upgrade apply` 不再把仅行尾差异的文件逐字节误判为 `drift`（此前可达数十个，足以淹没真实 drift）。
+- **运行态不再被当作 scaffold** —— `iter_scaffold_files` 排除顶层 `kg/`（KG RocksDB store）、`.mcp-state/`（MCP 缓存）与任意层级的 `__pycache__/`，editable 回退遍历本仓 `.cataforge/` 及脏 wheel 构建打入的运行态文件不再在每个下游项目报 new/drift。
+- **`cataforge setup` 在 Windows 写出 LF 平台设置** —— 收窄 Bash 允许前缀时改走 `atomic_write_text` 写 `.claude/settings.json`，不再产出 CRLF 触发 `safecrlf` 警告与无谓 git churn。
+
+- **deploy 不再把 upgrade sidecar 与 bytecode cache 拷进 IDE 树** —— 部署的 copytree 路径（skills/rules 的 `copy_render_md_tree`、cursor 跨平台镜像的 `symlink_or_copy` copy 回退）此前逐字节复制 `.cataforge/`，把真实 drift 旁写的 `*.cataforge-new` sidecar 与 skill `.py` 助手的 `__pycache__/` 一并带进 `.claude/skills/` 污染部署树。新增共享的 `deploy_copy_ignore()`，让 project→IDE 复制与 `iter_scaffold_files` 的 package→project 排除对齐。
+
 <a id='changelog-0.12.0'></a>
 
 ## [0.12.0] — 2026-06-18
@@ -1676,7 +1687,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.12.1...HEAD
+[0.12.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.12.1
 [0.12.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.12.0
 [0.11.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.2
 [0.11.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.1
