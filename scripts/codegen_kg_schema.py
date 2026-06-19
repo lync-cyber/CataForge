@@ -15,8 +15,9 @@ Writes (under src/cataforge/domain/kg/_generated/, gitignored):
 
 Encoding: forces PYTHONIOENCODING=utf-8 in os.environ so any linkml internals
 that shell out do not hit the Windows GBK UnicodeEncodeError from spike-1 §1.4.
-This script itself writes via Path.write_text(..., encoding="utf-8") and never
-relies on stdout encoding.
+This script itself writes via Path.write_text(..., encoding="utf-8",
+newline="\n") so generated artifacts are LF on every OS and never relies on
+stdout encoding.
 
 Idempotency: subclass_axioms.ttl is byte-identical across runs (sorted triples,
 no timestamps). The Pydantic / SHACL outputs are deterministic-modulo-LinkML;
@@ -78,14 +79,14 @@ def gen_pydantic(yaml_path: Path, out_path: Path) -> None:
     from linkml.generators.pydanticgen import PydanticGenerator
 
     gen = PydanticGenerator(str(yaml_path))
-    out_path.write_text(_normalize(gen.serialize(), yaml_path), encoding="utf-8")
+    out_path.write_text(_normalize(gen.serialize(), yaml_path), encoding="utf-8", newline="\n")
 
 
 def gen_shacl(yaml_path: Path, out_path: Path) -> None:
     from linkml.generators.shaclgen import ShaclGenerator
 
     gen = ShaclGenerator(str(yaml_path))
-    out_path.write_text(_normalize(gen.serialize(), yaml_path), encoding="utf-8")
+    out_path.write_text(_normalize(gen.serialize(), yaml_path), encoding="utf-8", newline="\n")
 
 
 def gen_subclass_axioms(yaml_paths: list[Path], out_path: Path) -> None:
@@ -108,7 +109,7 @@ def gen_subclass_axioms(yaml_paths: list[Path], out_path: Path) -> None:
     for child, parent in pairs:
         lines.append(f"{child} rdfs:subClassOf {parent} .")
     lines.append("")
-    out_path.write_text("\n".join(lines), encoding="utf-8")
+    out_path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
 
 
 def codegen(target_dir: Path) -> list[Path]:

@@ -125,6 +125,10 @@ opencode.json
 .cataforge/.instruction-hashes.json
 .cataforge/.backups/
 .cataforge/**/__pycache__/
+# This meta-repo does not run the SDLC doc pipeline, so its `.cataforge/kg/`
+# store is only local runtime cruft — never committed and never packed into a
+# (dirty) local wheel build.
+.cataforge/kg/
 .ruff_cache/
 
 # KG codegen output — `python scripts/codegen_kg_schema.py` regenerates these

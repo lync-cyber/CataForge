@@ -1,0 +1,23 @@
+# Normalize all text files to LF in the repo and on checkout — Windows
+# included. The wheel force-includes repo-root `.cataforge/` verbatim from the
+# working tree (see pyproject `[tool.hatch.build.targets.wheel.force-include]`),
+# so a CRLF checkout would pack CRLF scaffold and make every downstream
+# `cataforge upgrade apply` report false drift against its LF files.
+* text=auto eol=lf
+
+# Binary types: never apply line-ending conversion (also auto-detected by
+# `text=auto`, listed for intent).
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+# RocksDB store artefacts (KG): under kg-first a downstream project commits
+# these as the source of truth — they must round-trip byte-for-byte.
+*.sst  binary
+*.ldb  binary

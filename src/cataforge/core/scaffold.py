@@ -144,6 +144,12 @@ _SCAFFOLD_LOCAL_STATE_FILES: frozenset[str] = frozenset(
 _SCAFFOLD_LOCAL_STATE_DIRS: frozenset[str] = frozenset(
     {
         ".backups",
+        # Per-project KG RocksDB store — runtime/document state written by the
+        # KG subsystem, never framework scaffold. The editable-install fallback
+        # walks the live repo-root ``.cataforge/`` (which dogfoods a store), and
+        # a dirty wheel build can pack one too; either way it must not classify
+        # as scaffold and surface as new/drift in every downstream project.
+        "kg",
     }
 )
 # Override layers are upgrade-immune, project-local customisation — never part
