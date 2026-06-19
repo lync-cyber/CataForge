@@ -6,7 +6,7 @@
 
 - 技术栈: Python ≥3.10 · Click(CLI) · pyoxigraph/RDF/SHACL(知识图谱) · linkml(schema) · pytest + ruff + pre-commit
 - 运行时: claude-code
-- 框架版本: 0.11.2
+- 框架版本: 0.12.0
   <!-- 由 cataforge deploy 自动盖入已安装包版本。SemVer: MAJOR=不兼容变更, MINOR=新功能, PATCH=修复 -->
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
@@ -22,8 +22,11 @@
 
 <!-- 本节在 Bootstrap 步骤中生成。每次会话都会作为项目指令加载，
      权重高于 hook 注入的 additionalContext。项目生命周期内保持稳定。 -->
-{执行环境检测结果 — 未填入时 orchestrator 应在 Bootstrap 时调用:
- cataforge setup env-block}
+- 技术栈: python
+- 包管理器: uv
+- 安装命令: `uv sync`
+- 测试命令: `uv run pytest`
+- Lint 命令: `uv run ruff check`
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
 
