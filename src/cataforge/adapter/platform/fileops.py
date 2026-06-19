@@ -4,7 +4,24 @@ from __future__ import annotations
 
 import os
 import shutil
+from collections.abc import Callable
 from pathlib import Path
+
+from cataforge.core.scaffold import SIDECAR_SUFFIX
+
+
+def deploy_copy_ignore() -> Callable[[str, list[str]], set[str]]:
+    """``copytree`` ignore-fn shared by every deploy copy path.
+
+    Project-local transients must not cross from ``.cataforge/`` into the
+    IDE tree: upgrade sidecars (``*`` + :data:`SIDECAR_SUFFIX`, written
+    beside user-modified scaffold files) and bytecode caches
+    (``__pycache__``, from skill ``.py`` helpers). ``iter_scaffold_files``
+    drops both on the package→project copy; this keeps the project→IDE copy
+    in step so a real drift sidecar never lands as dead weight in the
+    deployed tree.
+    """
+    return shutil.ignore_patterns(f"*{SIDECAR_SUFFIX}", "__pycache__")
 
 
 def _prune_orphan_flat_files(
@@ -278,7 +295,7 @@ def _do_copy(source: Path, target: Path, removed: list[bool]) -> list[str]:
     """Strategy 3 (terminal): full ``copytree``. Cannot fail-soft — any
     error propagates."""
     _remove_target_once(target, removed)
-    shutil.copytree(source, target)
+    shutil.copytree(source, target, ignore=deploy_copy_ignore())
     return [f"{target} ← {source} (copy)"]
 
 
@@ -326,7 +343,7 @@ def symlink_or_copy(
 
     if force_copy:
         _remove_target_once(target, removed)
-        shutil.copytree(source, target)
+        shutil.copytree(source, target, ignore=deploy_copy_ignore())
         return [f"{target} ← {source} (copy, forced)"]
 
     for attempt in (_try_symlink, _try_junction):

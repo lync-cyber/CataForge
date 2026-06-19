@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from cataforge.adapter.platform.fileops import _is_dir_link, _remove_target
+from cataforge.adapter.platform.fileops import _is_dir_link, _remove_target, deploy_copy_ignore
 from cataforge.runtime.deploy.template_render import render_runtime_content
 from cataforge.utils.atomic_write import atomic_write_text
 
@@ -169,7 +169,7 @@ def copy_render_md_tree(
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists() or target.is_symlink():
         _remove_target(target)
-    shutil.copytree(source, target)
+    shutil.copytree(source, target, ignore=deploy_copy_ignore())
 
     actions = [f"{target} ← {source} (copy+render)"]
     for md_file in target.rglob("*.md"):

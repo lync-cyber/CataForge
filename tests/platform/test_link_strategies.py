@@ -190,3 +190,22 @@ class TestRemoveTargetIdempotency:
         assert len(spy.calls) == 1, (
             f"force_copy removal must run exactly once; got {len(spy.calls)} call(s): {spy.calls!r}"
         )
+
+
+class TestCopyExcludesTransients:
+    """The copytree fallback (and ``force_copy``) drop upgrade sidecars and
+    bytecode caches so they never materialise in the deployed tree."""
+
+    def test_force_copy_drops_sidecar_and_pycache(self, tmp_path: Path) -> None:
+        src = _make_source(tmp_path)
+        (src / "SKILL.md.cataforge-new").write_text("framework version", encoding="utf-8")
+        cache = src / "__pycache__"
+        cache.mkdir()
+        (cache / "x.cpython-313.pyc").write_bytes(b"\x00")
+
+        target = tmp_path / "out" / "x"
+        symlink_or_copy(src, target, force_copy=True)
+
+        assert (target / "SKILL.md").is_file()
+        assert not (target / "SKILL.md.cataforge-new").exists()
+        assert not (target / "__pycache__").exists()
