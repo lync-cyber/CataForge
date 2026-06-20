@@ -330,9 +330,6 @@ def test_cmd_status_returns_zero(capsys):
             "cataforge.adapter.integrations.penpot.commands._is_penpot_running", return_value=False
         ),
         patch("cataforge.adapter.integrations.penpot.commands._is_mcp_running", return_value=False),
-        patch(
-            "cataforge.adapter.integrations.penpot.commands.is_port_listening", return_value=False
-        ),
     ):
         rc = penpot.cmd_status(config)
     assert rc == 0
@@ -357,25 +354,30 @@ def test_mcp_pid_roundtrip(tmp_path, monkeypatch: pytest.MonkeyPatch):
 
 
 # ---------------------------------------------------------------------------
-# Wave 1 — compose template fix (Bug 1: nginx penpot-mcp upstream)
+# compose template — penpot-mcp container wired via enable-mcp
 # ---------------------------------------------------------------------------
 
 
-def test_compose_template_disables_mcp_routing(tmp_path) -> None:
+def test_compose_template_wires_mcp_container(tmp_path) -> None:
     config = {
         "penpot_dir": str(tmp_path),
         "penpot_port": 9001,
+        "penpot_version": "2.16",
         "penpot_flags": "enable-login-with-password",
     }
     compose_path = penpot._generate_compose_file(config, force=True)
     content = (tmp_path / "docker-compose.yml").read_text(encoding="utf-8")
 
     assert str(compose_path) == str(tmp_path / "docker-compose.yml")
-    # disable-mcp is appended so frontend nginx skips the MCP upstream entirely
-    assert "disable-mcp" in content
-    # Placeholder URIs prevent nginx from hard-resolving penpot-mcp at startup
-    assert "PENPOT_MCP_URI=http://127.0.0.1" in content
-    assert "PENPOT_MCP_URI_WS=http://127.0.0.1" in content
+    # The MCP server is a compose service brought up with the stack.
+    assert "penpot-mcp:" in content
+    assert "image: penpotapp/mcp:2.16" in content
+    # frontend nginx proxies /mcp/* to the container via enable-mcp.
+    assert "enable-mcp" in content
+    assert "disable-mcp" not in content
+    # All Penpot images share the single version tag (no floating :latest).
+    assert "image: penpotapp/frontend:2.16" in content
+    assert "penpotapp/frontend:latest" not in content
 
 
 # ---------------------------------------------------------------------------
@@ -526,7 +528,7 @@ def test_register_survives_claude_list_timeout() -> None:
         patch("cataforge.adapter.integrations.penpot.client.run_cmd", side_effect=fake_run_cmd),
     ):
         # Must not raise; list-timeout falls through to the idempotent add.
-        penpot.register_claude_mcp({"mcp_port": 4401})
+        penpot.register_claude_mcp("http://localhost:4401/mcp")
 
 
 def test_register_warns_when_claude_fully_unresponsive(capsys) -> None:
@@ -537,7 +539,7 @@ def test_register_warns_when_claude_fully_unresponsive(capsys) -> None:
             side_effect=subprocess.TimeoutExpired(["claude"], 30),
         ),
     ):
-        penpot.register_claude_mcp({"mcp_port": 4401})
+        penpot.register_claude_mcp("http://localhost:4401/mcp")
     captured = capsys.readouterr()
     assert "claude mcp add penpot" in (captured.out + captured.err)
 
@@ -679,26 +681,35 @@ def test_cmd_init_handles_eof_gracefully(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_status_rows_probes_all_three_services() -> None:
-    config = {"penpot_port": 9001, "mcp_port": 4401, "plugin_port": 4400}
+def test_status_rows_npx_mode_probes_mcp_port(tmp_path) -> None:
+    # No compose file present → remote / mcp-only mode → npx endpoint.
+    config = {"penpot_port": 9001, "mcp_port": 4401, "penpot_dir": str(tmp_path)}
     with (
         patch(
             "cataforge.adapter.integrations.penpot.commands._is_penpot_running", return_value=True
         ),
         patch("cataforge.adapter.integrations.penpot.commands._is_mcp_running", return_value=False),
-        patch(
-            "cataforge.adapter.integrations.penpot.commands.is_port_listening", return_value=True
-        ),
     ):
         rows = penpot._status_rows(config)
-    assert len(rows) == 3
-    labels = [r[0] for r in rows]
-    assert labels == ["Penpot Frontend", "MCP Server", "Plugin Server"]
-    assert rows[0][1] is True  # frontend
-    assert rows[1][1] is False  # mcp
-    assert rows[2][1] is True  # plugin
+    assert [r[0] for r in rows] == ["Penpot Frontend", "MCP Server"]
+    assert rows[0][1] is True
+    assert rows[1][1] is False
     assert rows[0][2] == "http://localhost:9001"
     assert rows[1][2] == "http://localhost:4401/mcp"
+
+
+def test_status_rows_self_hosted_probes_frontend_proxy(tmp_path) -> None:
+    # A generated compose file present → self-hosted → MCP behind frontend nginx.
+    (tmp_path / "docker-compose.yml").write_text("x", encoding="utf-8")
+    config = {"penpot_port": 9001, "mcp_port": 4401, "penpot_dir": str(tmp_path)}
+    with (
+        patch(
+            "cataforge.adapter.integrations.penpot.commands._is_penpot_running", return_value=True
+        ),
+        patch("cataforge.adapter.integrations.penpot.commands._is_mcp_running", return_value=True),
+    ):
+        rows = penpot._status_rows(config)
+    assert rows[1][2] == "http://localhost:9001/mcp/stream"
 
 
 def test_cmd_status_table_prints_next_step_when_mcp_down(capsys) -> None:
@@ -708,9 +719,6 @@ def test_cmd_status_table_prints_next_step_when_mcp_down(capsys) -> None:
             "cataforge.adapter.integrations.penpot.commands._is_penpot_running", return_value=False
         ),
         patch("cataforge.adapter.integrations.penpot.commands._is_mcp_running", return_value=False),
-        patch(
-            "cataforge.adapter.integrations.penpot.commands.is_port_listening", return_value=False
-        ),
     ):
         rc = penpot.cmd_status(config)
     out = capsys.readouterr().out
@@ -725,8 +733,8 @@ def test_cmd_status_table_prints_next_step_when_mcp_down(capsys) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cmd_doctor_flags_missing_compose_fix(tmp_path, capsys) -> None:
-    """Compose without disable-mcp triggers Bug 1 problem."""
+def test_cmd_doctor_flags_stale_compose(tmp_path, capsys) -> None:
+    """A compose without the penpot-mcp container / enable-mcp is flagged stale."""
     compose = tmp_path / "docker-compose.yml"
     compose.write_text(
         "services:\n  penpot-frontend:\n    image: penpotapp/frontend:latest\n",
@@ -736,58 +744,39 @@ def test_cmd_doctor_flags_missing_compose_fix(tmp_path, capsys) -> None:
         "penpot_dir": str(tmp_path),
         "penpot_port": 9001,
         "mcp_port": 4401,
-        "plugin_port": 4400,
     }
     with (
-        patch("cataforge.adapter.integrations.penpot.doctor.has_command", return_value=True),
-        patch(
-            "cataforge.adapter.integrations.penpot.doctor.get_command_version",
-            return_value="v22.11.0",
-        ),
         patch(
             "cataforge.adapter.integrations.penpot.commands._is_penpot_running", return_value=False
         ),
         patch("cataforge.adapter.integrations.penpot.commands._is_mcp_running", return_value=False),
-        patch(
-            "cataforge.adapter.integrations.penpot.commands.is_port_listening", return_value=False
-        ),
         patch("os.path.isfile", side_effect=lambda p: p == str(compose)),
     ):
         rc = penpot.cmd_doctor(config)
     out = capsys.readouterr().out
     assert rc == 1
-    assert "disable-mcp" in out or "force-recreate" in out
+    assert "penpot-mcp" in out
 
 
-def test_cmd_doctor_passes_on_fixed_compose(tmp_path, capsys) -> None:
-    """Compose with the fix applied + healthy env should not report problems."""
+def test_cmd_doctor_passes_on_container_compose(tmp_path, capsys) -> None:
+    """A compose with the penpot-mcp container + enable-mcp reports no problems."""
     compose = tmp_path / "docker-compose.yml"
     compose.write_text(
         "services:\n  penpot-frontend:\n    environment:\n"
-        "      - PENPOT_FLAGS=foo disable-mcp\n"
-        "      - PENPOT_MCP_URI=http://127.0.0.1\n",
+        "      - PENPOT_FLAGS=foo enable-mcp\n"
+        "  penpot-mcp:\n    image: penpotapp/mcp:2.16\n",
         encoding="utf-8",
     )
     config = {
         "penpot_dir": str(tmp_path),
         "penpot_port": 9001,
         "mcp_port": 4401,
-        "plugin_port": 4400,
     }
     with (
-        patch("cataforge.adapter.integrations.penpot.doctor.has_command", return_value=True),
-        patch(
-            "cataforge.adapter.integrations.penpot.doctor.get_command_version",
-            return_value="v22.11.0",
-        ),
         patch(
             "cataforge.adapter.integrations.penpot.commands._is_penpot_running", return_value=True
         ),
         patch("cataforge.adapter.integrations.penpot.commands._is_mcp_running", return_value=True),
-        patch(
-            "cataforge.adapter.integrations.penpot.commands.is_port_listening", return_value=True
-        ),
-        # MCP log absent → "MCP 可能从未启动" info, not a problem
         patch("os.path.isfile", side_effect=lambda p: p == str(compose)),
     ):
         rc = penpot.cmd_doctor(config)

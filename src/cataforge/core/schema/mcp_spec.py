@@ -55,6 +55,9 @@ class MCPServerSpec(BaseModel):
     command: str = ""
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
+    # Remote (http/sse/streamable_http) endpoint. Mutually exclusive with
+    # command/args; each platform adapter renders it into its native shape.
+    url: str = ""
 
     @field_validator("env", mode="before")
     @classmethod

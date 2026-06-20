@@ -12,6 +12,28 @@ from cataforge.core.io import read_json
 from cataforge.utils.atomic_write import atomic_write_text
 
 
+def neutral_remote_payload(payload: dict[str, Any], *, type_key: bool) -> dict[str, Any]:
+    """Render a neutral ``{transport, url}`` MCP payload into a JSON-native remote
+    entry; pass stdio payloads through unchanged.
+
+    ``type_key=True`` emits a ``type`` field (Claude Code's ``.mcp.json``);
+    ``type_key=False`` omits it (Cursor infers transport from ``url``).
+    """
+    if not payload.get("url") or payload.get("command"):
+        return payload
+    transport = str(payload.get("transport") or "http").lower()
+    if transport == "streamable_http":
+        transport = "http"
+    out: dict[str, Any] = {}
+    if type_key:
+        out["type"] = transport
+    out["url"] = str(payload["url"])
+    headers = payload.get("headers")
+    if isinstance(headers, dict) and headers:
+        out["headers"] = headers
+    return out
+
+
 def cataforge_mcp_payload_to_opencode_entry(server_config: dict[str, Any]) -> dict[str, Any]:
     """Map CataForge MCP payload (command/args/env, optional url) to OpenCode ``mcp`` entry."""
     transport = str(server_config.get("transport", "stdio")).lower()

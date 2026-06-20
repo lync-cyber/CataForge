@@ -67,6 +67,22 @@ def test_copy_scaffold_preserves_project_languages_on_force(tmp_path: Path) -> N
     assert refreshed["project"]["languages"] == ["python", "go"]
 
 
+def test_copy_scaffold_preserves_project_design_tool_on_force(tmp_path: Path) -> None:
+    """--force-scaffold must not reset a user-enabled project.design_tool."""
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+
+    fw_path = dest / "framework.json"
+    fw = json.loads(fw_path.read_text(encoding="utf-8"))
+    fw.setdefault("project", {})["design_tool"] = "penpot"
+    fw_path.write_text(json.dumps(fw), encoding="utf-8")
+
+    copy_scaffold_to(dest, force=True)
+
+    refreshed = json.loads(fw_path.read_text(encoding="utf-8"))
+    assert refreshed["project"]["design_tool"] == "penpot"
+
+
 def test_copy_scaffold_preserves_context_overrides_on_force(tmp_path: Path) -> None:
     """--force-scaffold must preserve every user-owned context key, not just
     kg_active_doc_types — kg_definition_authority, strategy, authoring are also

@@ -56,9 +56,10 @@ def _remove_mcp_pid() -> None:
         os.remove(MCP_PID_FILE)
 
 
-def _is_mcp_running(config: dict[str, Any]) -> bool:
+def _is_mcp_running(config: dict[str, Any], url: str | None = None) -> bool:
+    probe = url or f"http://localhost:{config['mcp_port']}/mcp"
     try:
-        req = urllib.request.Request(f"http://localhost:{config['mcp_port']}/mcp", method="GET")
+        req = urllib.request.Request(probe, method="GET")
         # 2s is deliberate: this probe runs on every `penpot status` /
         # `penpot ensure` / Penpot skill warm-up and must fail-fast on
         # "server not up" without making the user wait. A higher

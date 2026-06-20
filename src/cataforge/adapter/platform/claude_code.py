@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
+from cataforge.adapter.platform.mcp_config import neutral_remote_payload
 
 
 class ClaudeCodeAdapter(PlatformAdapter):
@@ -38,3 +40,7 @@ class ClaudeCodeAdapter(PlatformAdapter):
 
     def mcp_json_path(self, project_root: Path) -> Path:
         return project_root / ".mcp.json"
+
+    def _native_mcp_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # .mcp.json remote servers use {"type": "http"|"sse", "url": ...}.
+        return neutral_remote_payload(payload, type_key=True)

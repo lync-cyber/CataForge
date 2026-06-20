@@ -58,12 +58,15 @@ def _check_compose(config: dict[str, Any], problems: list[str], actions: list[st
             content = fh.read()
     except OSError:
         content = ""
-    if "disable-mcp" in content and "PENPOT_MCP_URI" in content:
-        ok("compose 已应用 nginx upstream 修复 (Bug 1)")
+    if "enable-mcp" in content and "penpot-mcp" in content:
+        ok("compose 含 penpot-mcp 容器且 frontend enable-mcp")
     else:
-        warn("compose 文件未包含 disable-mcp / PENPOT_MCP_URI 占位（Bug 1 未修）")
+        warn("compose 缺 penpot-mcp 服务或未启用 enable-mcp")
         problems.append("compose-stale")
-        actions.append("运行 `cataforge penpot deploy --force-recreate` 重写 compose 文件")
+        actions.append(
+            f"compose 缺 penpot-mcp 容器：删除 {compose_file} 后重新 "
+            "`cataforge penpot deploy` 重生成"
+        )
 
 
 def _check_mcp_log(problems: list[str]) -> None:
@@ -82,14 +85,19 @@ def _check_mcp_log(problems: list[str]) -> None:
 
 
 def cmd_doctor(config: dict[str, Any]) -> int:
-    """Inspect compose file, MCP log, and service ports; suggest fixes."""
+    """Inspect the active mode's toolchain, MCP wiring, and service ports."""
     print_header("Penpot 服务诊断")
     problems: list[str] = []
     actions: list[str] = []
 
-    _check_node_env(problems, actions)
-    _check_compose(config, problems, actions)
-    _check_mcp_log(problems)
+    compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
+    if os.path.isfile(compose_file):
+        # Self-hosted: MCP is the penpot-mcp container — no host Node needed.
+        _check_compose(config, problems, actions)
+    else:
+        # remote / mcp-only: MCP runs via host npx.
+        _check_node_env(problems, actions)
+        _check_mcp_log(problems)
 
     section("运行状态")
     rows = _status_rows(config)

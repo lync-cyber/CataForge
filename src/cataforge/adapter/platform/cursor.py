@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.fileops import symlink_or_copy
+from cataforge.adapter.platform.mcp_config import neutral_remote_payload
 from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:
@@ -134,6 +135,10 @@ class CursorAdapter(PlatformAdapter):
 
     def mcp_json_path(self, project_root: Path) -> Path:
         return project_root / ".cursor" / "mcp.json"
+
+    def _native_mcp_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # Cursor remote servers use {"url": ...} (transport inferred); no type.
+        return neutral_remote_payload(payload, type_key=False)
 
 
 def _wrap_as_mdc(name: str, content: str) -> str:

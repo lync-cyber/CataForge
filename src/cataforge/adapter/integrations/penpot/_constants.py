@@ -14,10 +14,13 @@ DEFAULT_PENPOT_PORT = 9001
 DEFAULT_MCP_PORT = 4401
 DEFAULT_PLUGIN_PORT = 4400
 
-# Pin to a Penpot release whose frontend image and MCP server are known to
-# agree. ``latest`` floats and has burned users when the upstream monorepo
-# adds new build-script-bearing dependencies that pnpm 10+ refuses by default.
-# Override with PENPOT_MCP_VERSION to track a newer release.
+# Single version knob for the self-hosted Docker stack: frontend, backend,
+# exporter and the penpot-mcp container all share this tag so the frontend
+# image and its MCP sidecar can never drift apart. Override with PENPOT_VERSION.
+DEFAULT_PENPOT_VERSION = "2.16"
+
+# npm @penpot/mcp version for the host-side npx MCP used by `remote` / `mcp-only`
+# (those modes have no Docker stack). Override with PENPOT_MCP_VERSION.
 DEFAULT_MCP_PACKAGE_VERSION = "2.15.0"
 
 # Node major versions @penpot/mcp upstream tests against. Outside this range
@@ -49,7 +52,7 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
       penpot_assets:
     services:
       penpot-frontend:
-        image: penpotapp/frontend:latest
+        image: penpotapp/frontend:{penpot_version}
         restart: always
         ports:
           - "{penpot_port}:8080"
@@ -58,18 +61,22 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
         depends_on:
           - penpot-backend
           - penpot-exporter
+          - penpot-mcp
         networks:
           - penpot
         environment:
-          # Frontend nginx hard-resolves `penpot-mcp` at startup unless these
-          # URIs are overridden; placeholder localhost + disable-mcp keep
-          # nginx happy while the real MCP runs on the host via npx.
-          - PENPOT_FLAGS={penpot_flags} disable-mcp
-          - PENPOT_MCP_URI=http://127.0.0.1
-          - PENPOT_MCP_URI_WS=http://127.0.0.1
+          # enable-mcp wires frontend nginx /mcp/{{stream,sse,ws}} to the
+          # penpot-mcp container (PENPOT_MCP_URI defaults to
+          # http://penpot-mcp:4401 and :4402 inside the compose network).
+          - PENPOT_FLAGS={penpot_flags} enable-mcp
           - PENPOT_HTTP_SERVER_MAX_BODY_SIZE=367001600
+      penpot-mcp:
+        image: penpotapp/mcp:{penpot_version}
+        restart: always
+        networks:
+          - penpot
       penpot-backend:
-        image: penpotapp/backend:latest
+        image: penpotapp/backend:{penpot_version}
         restart: always
         volumes:
           - penpot_assets:/opt/data/assets
@@ -81,7 +88,7 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
         networks:
           - penpot
         environment:
-          - PENPOT_FLAGS={penpot_flags}
+          - PENPOT_FLAGS={penpot_flags} enable-mcp
           - PENPOT_SECRET_KEY={secret_key}
           - PENPOT_PUBLIC_URI=http://localhost:{penpot_port}
           - PENPOT_HTTP_SERVER_MAX_BODY_SIZE=367001600
@@ -99,7 +106,7 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
           - PENPOT_SMTP_TLS=false
           - PENPOT_SMTP_SSL=false
       penpot-exporter:
-        image: penpotapp/exporter:latest
+        image: penpotapp/exporter:{penpot_version}
         restart: always
         depends_on:
           penpot-valkey:

@@ -65,11 +65,15 @@ class FrameworkProject(BaseModel):
 
     ``languages`` is the project's declared language set (canonical ids from
     :mod:`cataforge.core.languages`); empty means "auto-detect from markers".
+    ``design_tool`` gates the design integration (``none`` | ``penpot``); when
+    ``penpot`` a ``.cataforge/mcp/penpot.yaml`` spec is present and `deploy`
+    injects the Penpot MCP server into the platform config.
     """
 
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
     languages: list[str] = Field(default_factory=list)
+    design_tool: str = Field(default="none")
 
 
 class FrameworkFile(BaseModel):

@@ -460,6 +460,15 @@ class PlatformAdapter(ABC):
             f"{type(self).__name__} must override either write_mcp_config() or mcp_json_path()"
         )
 
+    def _native_mcp_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Translate a neutral registry MCP payload to this platform's shape.
+
+        Default passthrough: stdio servers (``command``/``args``/``env``) and any
+        payload the platform's config schema already accepts verbatim. Platforms
+        whose remote (HTTP/SSE) server entry differs from the neutral
+        ``{transport, url}`` form override this to emit their native spelling."""
+        return payload
+
     def write_mcp_config(
         self,
         server_id: str,
@@ -470,10 +479,11 @@ class PlatformAdapter(ABC):
     ) -> list[str]:
         """Write one MCP server config into the platform's configuration file.
 
-        Default: merge into a JSON file under ``mcpServers.<id>`` at
-        :meth:`mcp_json_path`. Platforms using a non-JSON or non-standard
-        layout override this hook directly."""
+        Default: render via :meth:`_native_mcp_payload`, then merge into a JSON
+        file under ``mcpServers.<id>`` at :meth:`mcp_json_path`. Platforms using a
+        non-JSON or non-standard layout override this hook directly."""
         from cataforge.adapter.platform.hooks_config import merge_json_key
 
+        native = self._native_mcp_payload(server_config)
         mcp_path = self.mcp_json_path(project_root)
-        return merge_json_key(mcp_path, f"mcpServers.{server_id}", server_config, dry_run=dry_run)
+        return merge_json_key(mcp_path, f"mcpServers.{server_id}", native, dry_run=dry_run)
