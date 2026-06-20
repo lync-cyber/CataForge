@@ -5,7 +5,6 @@ tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec, user_
 disallowedTools: agent_dispatch, web_search, web_fetch
 allowed_paths:
   - docs/dev-plan/
-  - docs/research/
 skills:
   - task-decomp
   - task-dep-analysis
@@ -66,4 +65,4 @@ maxTurns: 60
 - 禁止: 缺少deliverables或context_load字段
 - 禁止: dev-plan 任务依赖图存在循环（task-dep-analysis 检测到环必须先打散）—— 循环依赖让 TDD 无法选起点，implementer 进入阻塞链
 - 禁止: 修改ARCH中的技术决策
-- 禁止: Bash 仅用于运行 `cataforge skill run task-dep-analysis -- ...` 或 `cataforge context read`，禁止执行其他命令
+- 禁止: 用 Bash 执行 `cataforge skill run task-dep-analysis -- ...` / `cataforge context read` 以外的任何命令
