@@ -128,7 +128,7 @@ cataforge issue close <issue-id> --verdict fixed --pr <pr-number> --dry-run
 
 - **跳过 maintainer checkpoint 直接 close**：实施 PR 没合就 `cataforge issue close --verdict fixed` —— 会让下游收到错误的 "fixed in vX.Y.Z" 通知。close 必须在 PR merge **之后**。
 - **wontfix 不写 evidence 就 close**：仅靠 `--reason` 一行不足以让下游理解为什么。先用 triage 草稿写完 evidence + 设计意图引用，close comment 链回草稿。
-- **跳过 dry-run 直接写草稿到一个 PR 拉拉拉**：草稿数量大时 spam。先 `--dry-run` 检查噪声。
+- **不先 `--dry-run` 确认 verdict 分布就批量写草稿**：issue 数量多时大量 `triage-draft` 文件涌入 `docs/reviews/triage/`；应先 `cataforge issue triage --dry-run` 检查 needs-repro / unrelated 噪声比，再决定是否全量写草稿。
 - **把 `triage-draft` 当 `reflector approved` 用**：它只是 Layer 1 事实核查产出，没经过 reflector evidence ≥2 校验，不能直接当 EXP 经验落地。需走 reflector → docs/reviews/retro/ → `learn: apply EXP-{NNN}` 路径。
 
 ## 与下游 framework-feedback 的回路

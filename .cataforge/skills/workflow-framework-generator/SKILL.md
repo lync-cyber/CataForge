@@ -412,7 +412,7 @@ phases:
 ## Anti-Patterns
 
 - 禁止: 生成的 SKILL.md / AGENT.md 含硬约束违规（版本里程碑 / PR 编号 / 特定语言关键字）— 下游项目会继承腐化，应在 Phase 3 模板填充后跑 check_no_design_residue / check_no_language_coupling 守卫
-- 禁止: 生成的 Anti-Patterns 段少于 ANTI_PATTERN_MIN_COUNT_SKILL（默认 3）/ AGENT 默认 4 — B8-β 检查会 FAIL，下游 framework-review 阻塞
+- 禁止: 生成的 Anti-Patterns 段少于 ANTI_PATTERN_MIN_COUNT_SKILL（默认 3）/ AGENT 默认 4 — framework-review Layer 1 的 Anti-Patterns 数量下限检查会 FAIL，下游 framework-review 阻塞
 - 禁止: 生成的 agent `allowed_paths` 与 Anti-Patterns 行为约束矛盾 — 机制层放行 vs 行为层禁止的矛盾会让 reviewer 兜底失效（同 qa-engineer 历史问题模式）
 - 避免: 生成框架时跳过 Phase 4 验证 — 结构完整性 + 平台兼容性 + 架构质量三层检查是防止半成品产出的关键
 

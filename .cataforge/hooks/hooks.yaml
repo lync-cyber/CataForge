@@ -76,7 +76,7 @@ degradation_templates:
 
   detect_correction:
     strategy: skip
-    reason: "原生 PostToolUse 不可用时降级为 alwaysApply 规则提醒；见 .cataforge/platforms/{platform}/overrides/rules/correction-record.md"
+    reason: "原生 PostToolUse 不可用；hook 本身 skip，纠正捕获由平台 alwaysApply 规则 .cataforge/platforms/{platform}/overrides/rules/correction-record.md 覆盖（非关键功能）"
 
   detect_review_flag:
     strategy: skip
