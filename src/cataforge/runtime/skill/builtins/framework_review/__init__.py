@@ -29,6 +29,14 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "severity": "fail|warn",
     },
     {
+        "id": "B2_suggested_tools_valid",
+        "title": (
+            "SKILL.md suggested-tools ∈ CAPABILITY_IDS ∪ EXTENDED_CAPABILITY_IDS "
+            "(capability_id 规范, deploy 翻译为平台原生名; 原生名如 Read/Bash 不可移植)"
+        ),
+        "severity": "fail",
+    },
+    {
         "id": "B3_manifest_drift",
         "title": "SKILL.md '## Layer 1 检查项' 段与 builtin CHECKS_MANIFEST 对账",
         "severity": "fail",

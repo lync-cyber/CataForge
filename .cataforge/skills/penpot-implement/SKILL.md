@@ -2,7 +2,7 @@
 name: penpot-implement
 description: "Penpot 组件代码生成 — 从 Penpot 设计组件读取结构/样式/属性，生成前端组件代码骨架。当 ui-spec 已定义 UC-{NNN} 组件且需要从设计稿落地代码骨架时使用此 skill。本 skill 专注 generation；设计 ↔ 代码一致性验证由 penpot-review 负责，Token 双向同步由 penpot-sync 负责。"
 argument-hint: "<component-id: UC-NNN 或 Penpot组件名>"
-suggested-tools: Read, Write, Edit, Glob, Grep
+suggested-tools: file_read, file_write, file_edit, file_glob, file_grep
 depends: [context, penpot-sync]
 disable-model-invocation: false
 user-invocable: true

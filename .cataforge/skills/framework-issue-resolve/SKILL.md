@@ -2,7 +2,7 @@
 name: framework-issue-resolve
 description: "上游 GitHub issue 全闭环 — 拉取 → 审查分析 → 给修复意见 → 实施 → 关闭 issue。覆盖 framework-feedback bundle 的整段消化路径，把下游反馈打通到上游 SKILL-IMPROVE 应用 + close。本 skill 仅供 maintainer / fork owner 使用，不是下游业务流程的一部分。"
 argument-hint: "[--repo OWNER/NAME] [--label LBL]... [--since YYYY-MM-DD] [--limit N] [--dry-run]"
-suggested-tools: Read, Bash
+suggested-tools: file_read, shell_exec
 depends: [framework-feedback]
 disable-model-invocation: false
 user-invocable: true

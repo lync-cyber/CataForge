@@ -2,7 +2,7 @@
 name: tech-eval
 description: "技术评估 — 技术方案对比、选型决策、调研记录。当需要做技术选型、框架/库对比、数据库或 API 风格决策、技术栈权衡时使用。"
 argument-hint: "<评估领域如'前端框架'或'数据库选型'>"
-suggested-tools: Read, Write, Edit
+suggested-tools: file_read, file_write, file_edit
 depends: [context, research]
 disable-model-invocation: false
 user-invocable: true

@@ -2,7 +2,7 @@
 name: research
 description: "调查研究 — 网络检索 (web-search)、用户访谈 (user-interview)、资料查阅 (doc-lookup)，解决不确定性。当 agent 遇到信息缺失 / 用户输入模糊 / 技术选型需对比 / 不确定不应猜测时使用此 skill。本 skill 仅产出调研记录与选项，不替 agent 做决策（由调用方决策），不生成正式文档（由 context 负责）。"
 argument-hint: "<调研模式: web-search|user-interview|doc-lookup> <问题描述>"
-suggested-tools: Read, Glob, Grep, WebSearch, WebFetch, AskUserQuestion
+suggested-tools: file_read, file_glob, file_grep, web_search, web_fetch, user_question
 depends: [context]
 disable-model-invocation: false
 user-invocable: true

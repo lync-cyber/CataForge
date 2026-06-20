@@ -2,7 +2,7 @@
 name: req-analysis
 description: "需求分析 — 需求拆解、用户故事编写、验收标准定义。当用户提出新需求、需要编写 PRD、拆解功能点或定义优先级与验收标准时使用。"
 argument-hint: "<用户需求描述或已有PRD路径>"
-suggested-tools: Read, Write, Edit
+suggested-tools: file_read, file_write, file_edit
 depends: [context, research]
 disable-model-invocation: false
 user-invocable: true

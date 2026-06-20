@@ -15,6 +15,7 @@ from pathlib import Path
 from cataforge.runtime.skill.builtins.framework_review.framework_check import (
     Report,
     check_b2_cross_references,
+    check_b2_suggested_tools,
 )
 
 # ---------------------------------------------------------------------------
@@ -191,3 +192,54 @@ def test_b2_referenced_and_present_skill_no_fail_no_orphan_for_skill(tmp_path: P
         if f.check_id == "B2_cross_reference_graph" and "doc-nav" in f.location
     ]
     assert relevant == []
+
+
+# ---------------------------------------------------------------------------
+# B2-β: suggested-tools capability_id validity
+# ---------------------------------------------------------------------------
+
+
+def _write_skill_with_tools(tmp_path: Path, skill_id: str, tools_csv: str) -> None:
+    """Write a minimal SKILL.md with a suggested-tools frontmatter line."""
+    skill_dir = tmp_path / ".cataforge" / "skills" / skill_id
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: {skill_id}\ndescription: test\nsuggested-tools: {tools_csv}\n---\n"
+        f"# {skill_id}\n",
+        encoding="utf-8",
+    )
+
+
+def test_b2_suggested_tools_capability_ids_no_fail(tmp_path: Path) -> None:
+    """All-capability_id suggested-tools → no B2_suggested_tools_valid FAIL."""
+    _write_skill_with_tools(tmp_path, "my-skill", "file_read, shell_exec, agent_dispatch")
+
+    report = Report()
+    check_b2_suggested_tools(tmp_path, report)
+
+    fails = [f for f in report.findings if f.check_id == "B2_suggested_tools_valid"]
+    assert fails == [], [f.render() for f in fails]
+
+
+def test_b2_suggested_tools_native_name_fails(tmp_path: Path) -> None:
+    """A platform-native tool name (Read / Bash) → FAIL with the offending token."""
+    _write_skill_with_tools(tmp_path, "my-skill", "Read, Glob, Bash")
+
+    report = Report()
+    check_b2_suggested_tools(tmp_path, report)
+
+    fails = [f for f in report.findings if f.check_id == "B2_suggested_tools_valid"]
+    offenders = {tok for f in fails for tok in ("Read", "Glob", "Bash") if tok in f.message}
+    assert offenders == {"Read", "Glob", "Bash"}, [f.render() for f in fails]
+    assert all("skills/my-skill" in f.location for f in fails)
+
+
+def test_b2_suggested_tools_absent_field_no_fail(tmp_path: Path) -> None:
+    """A skill with no suggested-tools field → no FAIL (field is optional)."""
+    _write_skill(tmp_path, "no-tools-skill")
+
+    report = Report()
+    check_b2_suggested_tools(tmp_path, report)
+
+    fails = [f for f in report.findings if f.check_id == "B2_suggested_tools_valid"]
+    assert fails == []

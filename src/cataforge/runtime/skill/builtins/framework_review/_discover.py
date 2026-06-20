@@ -76,3 +76,22 @@ def parse_depends_field(content: str) -> list[str]:
     if not isinstance(raw, list):
         return []
     return [str(x).strip() for x in raw if str(x).strip()]
+
+
+def parse_suggested_tools_field(content: str) -> list[str]:
+    """Extract the ``suggested-tools:`` list from a YAML frontmatter block."""
+    fm, _ = split_yaml_frontmatter(content)
+    if not fm:
+        return []
+    raw = fm.get("suggested-tools") or []
+    if isinstance(raw, str):
+        raw = [s.strip() for s in raw.split(",") if s.strip()]
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    for item in raw:
+        if isinstance(item, str):
+            item = item.split("#", 1)[0].strip()
+            if item:
+                out.append(item)
+    return out

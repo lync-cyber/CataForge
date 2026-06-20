@@ -2,7 +2,7 @@
 name: context
 description: "统一上下文 I/O — 按需读取章节/实体、查询追溯关系、生成与写入、门禁校验。文档生命周期的单一入口；后端(知识图谱/文件)由框架按配置方案透明路由,调用方只表达意图。按操作分支见 references/。"
 argument-hint: "<操作: navigate|generate|review|consistency|query>"
-suggested-tools: Bash, Read, Glob, Grep
+suggested-tools: shell_exec, file_read, file_glob, file_grep
 depends: []
 disable-model-invocation: false
 user-invocable: true

@@ -47,7 +47,7 @@ from ._discover import (
 )
 from ._types import Finding, Report
 from .checks.b1 import check_b1_required_sections, check_b1_size
-from .checks.b2 import check_b2_cross_references
+from .checks.b2 import check_b2_cross_references, check_b2_suggested_tools
 from .checks.b3 import check_b3_manifest_drift, check_b3_rules_schema
 from .checks.b4 import check_b4_hardcoded_constants
 from .checks.b5 import check_b5_workflow_coverage
@@ -81,6 +81,7 @@ __all__ = [
     "check_b1_required_sections",
     "check_b1_size",
     "check_b2_cross_references",
+    "check_b2_suggested_tools",
     "check_b3_manifest_drift",
     "check_b3_rules_schema",
     "check_b4_hardcoded_constants",
@@ -110,6 +111,8 @@ def run(
         check_b1_size(root, scope, meta_size_threshold, report)
     if "B2" in enabled and scope in ("agents", "skills", "all"):
         check_b2_cross_references(root, report)
+        if scope in ("skills", "all"):
+            check_b2_suggested_tools(root, report)
     if "B3" in enabled and scope in ("skills", "all"):
         check_b3_manifest_drift(root, report)
         check_b3_rules_schema(root, report)
