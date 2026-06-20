@@ -9,6 +9,7 @@ from cataforge.adapter.integrations.penpot._constants import (
     DEFAULT_MCP_PACKAGE_VERSION,
     DEFAULT_MCP_PORT,
     DEFAULT_PENPOT_PORT,
+    DEFAULT_PENPOT_VERSION,
     DEFAULT_PLUGIN_PORT,
 )
 
@@ -26,6 +27,7 @@ def get_config() -> dict[str, Any]:
             os.path.join(os.path.expanduser("~"), "penpot-docker"),
         ),
         "penpot_port": _env_int("PENPOT_PORT", DEFAULT_PENPOT_PORT),
+        "penpot_version": os.environ.get("PENPOT_VERSION", DEFAULT_PENPOT_VERSION),
         "mcp_port": _env_int("PENPOT_MCP_SERVER_PORT", DEFAULT_MCP_PORT),
         "plugin_port": _env_int("PENPOT_MCP_PLUGIN_PORT", DEFAULT_PLUGIN_PORT),
         "penpot_flags": os.environ.get(

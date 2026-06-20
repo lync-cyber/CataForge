@@ -184,18 +184,31 @@ class MCPRegistry:
         return self._states.get(server_id)
 
     def get_platform_config(self, server_id: str, platform_id: str) -> dict[str, Any]:
-        """Get the MCP config payload for a specific platform."""
+        """Get the MCP config payload for a specific platform.
+
+        The payload is *neutral*: stdio servers carry ``command``/``args``/``env``;
+        remote servers (``transport`` http/sse/streamable_http or a ``url``)
+        carry ``{transport, url}`` only. Each platform adapter renders the neutral
+        payload into its native config shape (see ``_native_mcp_payload``), so the
+        per-platform HTTP key spelling lives with the platform, not the spec.
+        """
         spec = self._servers.get(server_id)
         if spec is None:
             return {}
 
-        base: dict[str, Any] = {
-            "command": spec.command,
-            "args": spec.args,
-        }
-        if spec.env:
-            base["env"] = spec.env
+        override = spec.platform_config.get(platform_id, {})
+        declared = str(override.get("transport") or spec.transport or "stdio").lower()
+        url = override.get("url") or spec.url
 
-        platform_override = spec.platform_config.get(platform_id, {})
-        base.update(platform_override)
+        if declared in ("http", "sse", "streamable_http") or url:
+            transport = declared if declared in ("http", "sse", "streamable_http") else "http"
+            base: dict[str, Any] = {"transport": transport}
+            if url:
+                base["url"] = url
+        else:
+            base = {"command": spec.command, "args": spec.args}
+            if spec.env:
+                base["env"] = spec.env
+
+        base.update(override)
         return base

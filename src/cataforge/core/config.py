@@ -141,6 +141,12 @@ class ConfigManager:
         langs = project.get("languages")
         return [str(x) for x in langs] if isinstance(langs, list) else []
 
+    @property
+    def design_tool(self) -> str:
+        """Declared ``project.design_tool`` (``none`` | ``penpot``)."""
+        project = self.load().get("project") or {}
+        return str(project.get("design_tool") or "none")
+
     # ---- feedback / hygiene config ----
 
     @property
@@ -220,6 +226,17 @@ class ConfigManager:
         """
         raw = self.load_raw()
         raw.setdefault("project", {})["languages"] = list(languages)
+        self._write_raw(raw)
+        self._cache = None
+
+    def set_design_tool(self, design_tool: str) -> None:
+        """Write ``project.design_tool``, preserving every other field.
+
+        Same verbatim-read / single-key-patch / atomic-write discipline as
+        :meth:`set_runtime_platform`, so unrelated keys keep their order.
+        """
+        raw = self.load_raw()
+        raw.setdefault("project", {})["design_tool"] = design_tool
         self._write_raw(raw)
         self._cache = None
 

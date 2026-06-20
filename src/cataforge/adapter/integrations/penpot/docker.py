@@ -60,6 +60,7 @@ def _generate_compose_file(config: dict[str, Any], force: bool = False) -> str:
     secret_key = existing or secrets.token_hex(32)
     content = DOCKER_COMPOSE_TEMPLATE.format(
         penpot_port=config["penpot_port"],
+        penpot_version=config["penpot_version"],
         penpot_flags=config["penpot_flags"],
         secret_key=secret_key,
     )
@@ -95,6 +96,13 @@ def _node_major(version_str: str) -> int | None:
 
 
 def preflight_check(scope: str = "all") -> bool:
+    """Validate the toolchain a given mode needs.
+
+    ``scope="all"`` (self-hosted): the MCP runs as the ``penpot-mcp`` compose
+    container, so only Docker / Compose are required — no host Node. ``scope="mcp"``
+    (``remote`` / ``mcp-only``): the MCP runs via host ``npx @penpot/mcp``, so
+    only Node / npx are required — no Docker.
+    """
     section("依赖预检")
     passed = True
     if scope == "all":
@@ -109,25 +117,26 @@ def preflight_check(scope: str = "all") -> bool:
             passed = False
         else:
             ok(f"Docker Compose {DIM}({get_command_version(dc_cmd + ['version'])}){NC}")
-    if not has_command("node"):
-        fail("Node.js 未安装。请安装: https://nodejs.org (推荐 v22 LTS)")
-        passed = False
     else:
-        node_ver = get_command_version(["node", "--version"])
-        major = _node_major(node_ver)
-        lo, hi = SUPPORTED_NODE_MAJORS[0], SUPPORTED_NODE_MAJORS[-1]
-        if major is None or not (lo <= major <= hi):
-            warn(
-                f"Node.js {node_ver} 不在 @penpot/mcp 兼容范围 "
-                f"(v{lo}–v{hi})；如启动失败请改用 v22 LTS"
-            )
+        if not has_command("node"):
+            fail("Node.js 未安装。请安装: https://nodejs.org (推荐 v22 LTS)")
+            passed = False
         else:
-            ok(f"Node.js {DIM}({node_ver}){NC}")
-    if not has_command("npx"):
-        fail("npx 未找到")
-        passed = False
-    else:
-        ok("npx")
+            node_ver = get_command_version(["node", "--version"])
+            major = _node_major(node_ver)
+            lo, hi = SUPPORTED_NODE_MAJORS[0], SUPPORTED_NODE_MAJORS[-1]
+            if major is None or not (lo <= major <= hi):
+                warn(
+                    f"Node.js {node_ver} 不在 @penpot/mcp 兼容范围 "
+                    f"(v{lo}–v{hi})；如启动失败请改用 v22 LTS"
+                )
+            else:
+                ok(f"Node.js {DIM}({node_ver}){NC}")
+        if not has_command("npx"):
+            fail("npx 未找到")
+            passed = False
+        else:
+            ok("npx")
     if not passed:
         fail("依赖预检未通过")
     return passed

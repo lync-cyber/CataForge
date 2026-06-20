@@ -167,6 +167,7 @@ def setup_command(
             platform=platform,
             languages=languages,
             context_strategy=context_strategy,
+            with_penpot=with_penpot,
             deploy_after=deploy_after,
         )
         return
@@ -201,6 +202,7 @@ def setup_command(
 
     _apply_languages(cfg, languages)
     _apply_context_strategy(cfg, context_strategy, scaffold_missing=scaffold_missing)
+    _apply_penpot(cfg, with_penpot)
 
     from cataforge.interface.cli.guidance import print_next_steps
     from cataforge.interface.cli.ui import ui
@@ -269,6 +271,22 @@ def _apply_languages(cfg: ConfigManager, languages: tuple[str, ...]) -> None:
         )
 
 
+def _apply_penpot(cfg: ConfigManager, with_penpot: bool) -> None:
+    """Enable the Penpot design integration: set ``design_tool`` + drop the spec.
+
+    Writing ``.cataforge/mcp/penpot.yaml`` is what makes a later ``cataforge
+    deploy`` inject the Penpot MCP server; ``design_tool`` records the choice
+    durably so upgrades and tooling can see it.
+    """
+    if not with_penpot:
+        return
+    from cataforge.adapter.integrations.penpot.mcp_spec import write_penpot_mcp_spec
+
+    cfg.set_design_tool("penpot")
+    spec = write_penpot_mcp_spec(cfg.paths.root)
+    click.echo(f"Penpot 设计集成已启用: design_tool=penpot, {spec}")
+
+
 def _report_dry_run(
     cfg: ConfigManager,
     *,
@@ -278,6 +296,7 @@ def _report_dry_run(
     platform: str | None,
     languages: tuple[str, ...],
     context_strategy: str | None,
+    with_penpot: bool,
     deploy_after: bool,
 ) -> None:
     """Print what a real `setup` run would change, writing nothing."""
@@ -314,6 +333,12 @@ def _report_dry_run(
 
     if context_strategy:
         click.echo(f"  would set framework.json: context.strategy = {context_strategy}")
+
+    if with_penpot:
+        click.echo(
+            "  would set framework.json: project.design_tool = penpot "
+            "and write .cataforge/mcp/penpot.yaml"
+        )
 
     if deploy_after:
         click.echo("  would chain `cataforge deploy` (run `cataforge deploy --dry-run` to preview)")

@@ -659,3 +659,32 @@ class TestSecuritySensitiveFieldDrop:
         assert any("permissionMode" in a and "WARN" in a for a in actions), (
             f"deploy actions missing permissionMode drop WARN: {actions}"
         )
+
+
+class TestNativeMcpPayload:
+    """Adapters render the neutral {transport, url} MCP payload into their own
+    native shape; the per-platform spelling lives here, not in the spec."""
+
+    NEUTRAL = {"transport": "http", "url": "http://localhost:9001/mcp/stream"}
+
+    def test_claude_code_emits_type_http(self, project_dir: Path) -> None:
+        adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
+        adapter.write_mcp_config("penpot", dict(self.NEUTRAL), project_dir)
+        entry = json.loads((project_dir / ".mcp.json").read_text(encoding="utf-8"))
+        assert entry["mcpServers"]["penpot"] == {
+            "type": "http",
+            "url": "http://localhost:9001/mcp/stream",
+        }
+
+    def test_cursor_emits_url_only(self, project_dir: Path) -> None:
+        adapter = get_adapter("cursor", project_dir / ".cataforge" / "platforms")
+        adapter.write_mcp_config("penpot", dict(self.NEUTRAL), project_dir)
+        entry = json.loads((project_dir / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
+        assert entry["mcpServers"]["penpot"] == {"url": "http://localhost:9001/mcp/stream"}
+
+    def test_stdio_payload_passes_through(self, project_dir: Path) -> None:
+        adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
+        stdio = {"command": "python", "args": ["-m", "srv"]}
+        adapter.write_mcp_config("local", dict(stdio), project_dir)
+        entry = json.loads((project_dir / ".mcp.json").read_text(encoding="utf-8"))
+        assert entry["mcpServers"]["local"] == stdio

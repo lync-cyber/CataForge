@@ -77,6 +77,36 @@ class TestRegistryDiscovery:
         reg = MCPRegistry(project)
         assert reg.get_platform_config("nope", "cursor") == {}
 
+    def test_http_url_yields_neutral_payload(self, project: Path) -> None:
+        # A remote spec resolves to a neutral {transport, url} payload for every
+        # platform — no command/args, no per-platform key spelling.
+        _write_spec(
+            project,
+            "remote-srv",
+            transport="http",
+            command="",
+            args=[],
+            url="http://localhost:9001/mcp",
+        )
+        reg = MCPRegistry(project)
+        for plat in ("claude-code", "cursor", "codex", "opencode"):
+            cfg = reg.get_platform_config("remote-srv", plat)
+            assert cfg == {"transport": "http", "url": "http://localhost:9001/mcp"}
+            assert "command" not in cfg and "args" not in cfg
+
+    def test_url_alone_defaults_transport_http(self, project: Path) -> None:
+        # A url with no explicit remote transport still marks the server remote.
+        _write_spec(project, "url-srv", command="", url="http://localhost:9001/mcp/stream")
+        reg = MCPRegistry(project)
+        cfg = reg.get_platform_config("url-srv", "cursor")
+        assert cfg == {"transport": "http", "url": "http://localhost:9001/mcp/stream"}
+
+    def test_non_ascii_spec_parsed_utf8(self, project: Path) -> None:
+        # A spec with non-ASCII text must parse regardless of platform locale.
+        _write_spec(project, "zh-srv", description="设计工具 MCP")
+        reg = MCPRegistry(project)
+        assert reg.get_server("zh-srv") is not None
+
 
 class TestLifecycle:
     def test_start_unknown_server_raises(self, project: Path) -> None:

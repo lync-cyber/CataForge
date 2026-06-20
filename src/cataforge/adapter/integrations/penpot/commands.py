@@ -6,6 +6,7 @@ import os
 import time
 from typing import Any
 
+from cataforge.adapter.integrations.penpot._constants import MCP_HEALTH_TIMEOUT
 from cataforge.adapter.integrations.penpot.client import register_claude_mcp
 from cataforge.adapter.integrations.penpot.docker import (
     _is_penpot_running,
@@ -27,7 +28,6 @@ from cataforge.utils.common import (
     fail,
     has_command,
     info,
-    is_port_listening,
     section,
     warn,
 )
@@ -44,6 +44,39 @@ _MODE_KEY_TO_NAME = {"1": MODE_REMOTE, "2": MODE_LOCAL, "3": MODE_MCP_ONLY}
 _MODE_NAME_TO_KEY = {v: k for k, v in _MODE_KEY_TO_NAME.items()}
 
 
+def _compose_file(config: dict[str, Any]) -> str:
+    return os.path.join(config["penpot_dir"], "docker-compose.yml")
+
+
+def _container_mcp_url(config: dict[str, Any]) -> str:
+    """Self-hosted endpoint: penpot-mcp container reached through frontend nginx."""
+    return f"http://localhost:{config['penpot_port']}/mcp/stream"
+
+
+def _npx_mcp_url(config: dict[str, Any]) -> str:
+    """Host npx endpoint used by `remote` / `mcp-only` (no compose stack)."""
+    return f"http://localhost:{config['mcp_port']}/mcp"
+
+
+def _mcp_url(config: dict[str, Any]) -> str:
+    """Resolve the MCP endpoint for mode-agnostic callers (status / ensure).
+
+    A generated compose file means self-hosted (container behind the frontend);
+    otherwise the host npx server.
+    """
+    if os.path.isfile(_compose_file(config)):
+        return _container_mcp_url(config)
+    return _npx_mcp_url(config)
+
+
+def _wait_for_mcp(config: dict[str, Any], url: str, timeout: int = MCP_HEALTH_TIMEOUT) -> bool:
+    for _ in range(timeout):
+        if _is_mcp_running(config, url):
+            return True
+        time.sleep(1)
+    return False
+
+
 def print_header(title: str, subtitle: str | None = None) -> None:
     """Render a consistent two-line banner above each sub-command's output."""
     bar = "━" * max(len(title) + 4, 50)
@@ -56,16 +89,18 @@ def print_header(title: str, subtitle: str | None = None) -> None:
 def cmd_deploy(config: dict[str, Any]) -> int:
     print_header(
         "Penpot 完整部署",
-        "Docker 自托管 (frontend + backend + exporter + postgres + valkey + mailcatch) + MCP",
+        "Docker 自托管 (frontend + backend + exporter + mcp + postgres + valkey + mailcatch)",
     )
     if not preflight_check("all"):
         return 1
     if not deploy_penpot(config):
         fail("Penpot 部署失败")
         return 1
-    if not start_mcp(config):
-        warn("MCP Server 启动异常")
-    register_claude_mcp(config)
+    section("等待 MCP 容器就绪")
+    url = _container_mcp_url(config)
+    if not _wait_for_mcp(config, url):
+        warn("penpot-mcp 容器未就绪（可能仍在拉镜像）；稍后 `cataforge penpot status` 复查")
+    register_claude_mcp(url)
     return 0
 
 
@@ -81,7 +116,7 @@ def cmd_mcp_only(config: dict[str, Any]) -> int:
         warn(f"Penpot 未在端口 {config['penpot_port']} 运行")
     if not start_mcp(config):
         return 1
-    register_claude_mcp(config)
+    register_claude_mcp(_npx_mcp_url(config))
     return 0
 
 
@@ -121,7 +156,7 @@ def cmd_remote(config: dict[str, Any]) -> int:
         return 1
     if not start_mcp(config):
         return 1
-    register_claude_mcp(config)
+    register_claude_mcp(_npx_mcp_url(config))
     print_remote_onboarding(config)
     return 0
 
@@ -130,7 +165,7 @@ def cmd_start(config: dict[str, Any]) -> int:
     print_header("启动 Penpot 服务")
     if not preflight_check("all"):
         return 1
-    compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
+    compose_file = _compose_file(config)
     if os.path.isfile(compose_file):
         dc_cmd = docker_compose_cmd()
         if dc_cmd and ensure_docker_running():
@@ -140,15 +175,16 @@ def cmd_start(config: dict[str, Any]) -> int:
                 timeout=120,
                 capture_output=False,
             )
-    start_mcp(config)
+    register_claude_mcp(_container_mcp_url(config))
     return 0
 
 
 def cmd_stop(config: dict[str, Any]) -> int:
     print_header("停止 Penpot 服务")
+    # Host npx MCP (remote / mcp-only); no-op when only the container stack runs.
     section("停止 MCP Server")
     stop_mcp(config)
-    compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
+    compose_file = _compose_file(config)
     if os.path.isfile(compose_file):
         dc_cmd = docker_compose_cmd()
         if dc_cmd:
@@ -164,6 +200,7 @@ def cmd_stop(config: dict[str, Any]) -> int:
 
 def _status_rows(config: dict[str, Any]) -> list[tuple[str, bool, str]]:
     """Probe every Penpot-side service. Returned as (label, up, endpoint)."""
+    mcp = _mcp_url(config)
     return [
         (
             "Penpot Frontend",
@@ -172,13 +209,8 @@ def _status_rows(config: dict[str, Any]) -> list[tuple[str, bool, str]]:
         ),
         (
             "MCP Server",
-            _is_mcp_running(config),
-            f"http://localhost:{config['mcp_port']}/mcp",
-        ),
-        (
-            "Plugin Server",
-            is_port_listening(config["plugin_port"]),
-            f"http://localhost:{config['plugin_port']}",
+            _is_mcp_running(config, mcp),
+            mcp,
         ),
     ]
 
@@ -259,25 +291,28 @@ def cmd_init(config: dict[str, Any]) -> int:
 
 
 def cmd_ensure(config: dict[str, Any]) -> int:
-    if _is_mcp_running(config):
-        print(f"Penpot MCP already running on port {config['mcp_port']}")
+    url = _mcp_url(config)
+    if _is_mcp_running(config, url):
+        print(f"Penpot MCP already running ({url})")
         return 0
-    compose_file = os.path.join(config["penpot_dir"], "docker-compose.yml")
+    compose_file = _compose_file(config)
     if os.path.isfile(compose_file):
+        # Self-hosted: `up -d` brings the penpot-mcp container up with the stack.
         if has_command("docker") and not ensure_docker_running():
             fail("Docker daemon 无法启动")
             return 1
         dc_cmd = docker_compose_cmd()
-        if dc_cmd and not _is_penpot_running(config):
+        if dc_cmd:
             run_proc(
                 dc_cmd + ["-f", compose_file, "up", "-d"],
                 cwd=config["penpot_dir"],
                 timeout=120,
             )
-            for _ in range(30):
-                if _is_penpot_running(config):
-                    break
-                time.sleep(1)
+            if _wait_for_mcp(config, url):
+                return 0
+        fail("Penpot MCP 容器未就绪。诊断: cataforge penpot doctor")
+        return 1
+    # No compose stack → host npx (remote / mcp-only).
     if start_mcp(config):
         return 0
     fail("Penpot MCP not installed. Run: cataforge penpot deploy")
