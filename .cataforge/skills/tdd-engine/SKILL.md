@@ -13,7 +13,7 @@ user-invocable: true
 ## 能力边界
 
 - 能做: 指导orchestrator编排TDD三阶段子代理(RED/GREEN/REFACTOR)、light-dispatch/light-inline/standard 档位路由、prototype 主线程内联实现、同 sprint_group 独立任务并行调度、定义子代理prompt模板
-- 不做: 需求分析、架构设计、文档生成
+- 不做: 需求分析、架构设计、文档生成、集成测试 / E2E 测试（由 testing skill 负责，本 skill 限单元测试粒度的 RED/GREEN/REFACTOR）
 
 ## 架构说明
 

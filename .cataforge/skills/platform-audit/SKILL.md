@@ -307,7 +307,7 @@ cataforge skill run platform-audit -- --offline
 
 ## Anti-Patterns
 - 禁止: 修改 adapter 代码而不先更新 profile.yaml —— profile 是 single source of truth；倒序修改让代码与配置漂移
-- 禁止: 审计单一平台 —— 平台对比矩阵价值在横向；至少 claude-code / codex / cursor 同审才能暴露能力差异
+- 禁止: 在 full 模式下只审单一平台 —— 平台对比矩阵价值在横向，full 模式至少 claude-code / codex / cursor 同审才能暴露能力差异；针对单平台的深度审计应走 `deep <platform_id>` 模式
 - 禁止: 把 audit 报告写入 docs/reviews/code/ 或 doc/ —— 与业务审查混淆会污染 sprint-review 聚合
 - 避免: 在 capability 表里用主观语义（"良好支持" / "基本可用"）—— 必须用 yes / no / partial 三态枚举，否则 deploy-time 选不出能力差异
 

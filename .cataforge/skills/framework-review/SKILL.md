@@ -57,6 +57,7 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 | B5-β | phase→agent→skill 三跳 (每个 phase-routed agent ≥1 skill 且 skill 必须存在) | workflow, all | WARN |
 | B5-γ | EVENT-LOG.jsonl agent_return 事件 ↔ phase routing 对账 (≥`EVENT_LOG_DRIFT_MIN_EVENTS` 启用，否则 INFO) | workflow, all | WARN / INFO |
 | B5-δ | framework.json features[*].phase_guard ↔ Phase Routing 已知 phase 对账 | workflow, all | WARN |
+| B5-ε | validate_agent_result PostToolUse hook 必须在 hooks.yaml 以 matcher_capability=agent_dispatch 注册 | workflow, all | FAIL |
 | B5-ζ | workflow interactive=true 的 phase 须 inline（除非平台 features.subagent_interactive=true；带 ack 降级 INFO） | workflow, all | FAIL / INFO |
 | B6-α | hooks.yaml 引用的 script 必须解析到真实 .py 文件 (builtin / custom) | hooks, all | FAIL |
 | B6-β | 每个 hook script .py 必须 ast.parse 成功 | hooks, all | FAIL |
@@ -66,6 +67,9 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 | B7-α | AGENT.md `model_tier` 合规 + 与 AGENT_MODEL_DEFAULTS 一致；heavy 需进白名单 | agents, all | FAIL / WARN |
 | B7-β | AGENT.md 仍含 legacy `model:` 字段（deprecated） | agents, all | WARN |
 | B7-γ | platform profile.yaml `model_routing.tier_map` 覆盖 light/standard/heavy | agents, all | WARN |
+| B8-α | 每个非豁免 skill / agent 应有 `## Anti-Patterns` 段 | agents, skills, all | WARN |
+| B8-β | Anti-Patterns bullet 数 ≥ ANTI_PATTERN_MIN_COUNT_SKILL (skill) / ANTI_PATTERN_MIN_COUNT_AGENT (agent) | agents, skills, all | FAIL |
+| B8-γ | Anti-Patterns 每条 bullet 正文 ≥ 12 字符（过滤 placeholder 占位条目） | agents, skills, all | WARN |
 | B9-α | migration_checks 活跃条目: editable 树下 src/ 路径存在性 + allow_missing 类型适配 | workflow, all | WARN |
 | B9-β | migration_checks `deprecate_after` 必须 > `release_version` | workflow, all | WARN |
 | B9-γ | migration_checks 已废弃且路径缺失的死条目提示 | workflow, all | INFO |

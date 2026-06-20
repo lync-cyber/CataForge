@@ -3,7 +3,7 @@ name: framework-feedback
 description: "框架反馈打包 — 把下游项目使用 CataForge 时发现的问题 / 改进建议 / 偏离上游基线的纠偏，打包成 upstream-ready 的 markdown bundle，回流到 CataForge 仓库。区别于下游项目自身的用户反馈渠道：本 skill 仅针对 CataForge 框架本体（CLI / scaffold / agents / skills / hooks / docs）。当用户提到反馈框架问题、提交 CataForge issue、上游 baseline 不准确、累积 upstream-gap 想批量回报时使用。"
 argument-hint: "<kind: bug|suggest|correction-export> [--print | --out PATH | --clip | --gh] [--summary TEXT] [--since YYYY-MM-DD] [--threshold N]"
 suggested-tools: file_read, shell_exec
-depends: [framework-review]
+depends: []
 disable-model-invocation: false
 user-invocable: true
 record-to-event-log: true

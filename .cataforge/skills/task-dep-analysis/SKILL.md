@@ -24,6 +24,7 @@ user-invocable: true
 - 拓扑排序(有效执行顺序)
 - 关键路径(基于复杂度权重)
 - Sprint分组建议(按拓扑层级和并行度)
+- 落盘: 上述产物经 §执行流程写入 dev-plan 文档对应章节（依赖图 Mermaid → dev-plan#§2、关键路径与 Sprint 分组 → dev-plan#§4）
 
 ## 执行流程
 

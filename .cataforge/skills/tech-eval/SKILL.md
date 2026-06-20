@@ -35,6 +35,7 @@ user-invocable: true
 
 ## Anti-Patterns
 - 禁止: 用训练数据中的默认版本号做"最新版"评估 —— 必须实际检索 release notes 验证；否则推荐过期版本
+- 避免: 以训练集热门度做选型依据 —— 如不经评估直接推荐 "React + PostgreSQL + Redis" 组合；须用对比矩阵展示 ≥2 个备选并按 PRD 非功能需求打分，生态热度仅作其中一维、不得是唯一理由
 - 禁止: 单一维度比较（"X 比 Y 快"）—— 性能 / 生态 / 学习成本 / EOL 风险 / license 至少四维并列才能产出可决策矩阵
 - 禁止: 输出"看情况"等无承诺结论 —— tech-eval 的产出必须是带理由的明确推荐；含糊收尾让 architect 无法定稿 ARCH
 - 避免: 把候选方案矩阵塞进 ARCH 主卷 —— 选型理由进 research-note 或 decision-log，ARCH 只承载终态决策
