@@ -58,6 +58,7 @@
     "TDD_LIGHT_LOC_THRESHOLD": 150,
     "TDD_DEFAULT_MODE": "light",
     "TDD_REFACTOR_TRIGGER": ["complexity", "duplication", "coupling"],
+    "TDD_INLINE_ELIGIBLE_MODES": ["agile-lite", "agile-prototype"],
     "SPRINT_REVIEW_MICRO_TASK_COUNT": 3,
     "CODE_REVIEW_L2_SKIP_TASK_KINDS": ["chore", "config", "docs"],
     "CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC": 2,
