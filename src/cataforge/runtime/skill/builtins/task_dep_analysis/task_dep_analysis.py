@@ -18,9 +18,14 @@ import sys
 from collections import defaultdict, deque
 from typing import Any
 
+from cataforge.core.viz.model import Edge, Graph, Node
+from cataforge.core.viz.render.mermaid import render as render_mermaid
 from cataforge.utils.common import ensure_utf8
 
 WEIGHT_MAP = {"S": 1, "M": 2, "L": 3, "XL": 5}
+
+_CP_STYLE = "fill:#f96,stroke:#333,stroke-width:2px"
+_CYCLE_STYLE = "fill:#f00,stroke:#333,stroke-width:2px"
 
 
 def parse_edges(edges_str: str) -> list[tuple[str, str]]:
@@ -147,15 +152,18 @@ def sprint_groups(graph: dict[str, list[str]], all_nodes: set[str]) -> list[list
     return groups
 
 
+def _mermaid(edges: list[tuple[str, str]], styled: set[str], style: str) -> str:
+    return render_mermaid(
+        Graph(
+            direction="LR",
+            edges=tuple(Edge(u, v) for u, v in edges),
+            nodes=tuple(Node(n, style=style) for n in styled),
+        )
+    )
+
+
 def format_mermaid(edges: list[tuple[str, str]], cp: list[str]) -> str:
-    lines = ["graph LR"]
-    cp_set = set(cp)
-    for u, v in edges:
-        lines.append(f"    {u} --> {v}")
-    if cp_set:
-        cp_nodes = ",".join(sorted(cp_set))
-        lines.append(f"    style {cp_nodes} fill:#f96,stroke:#333,stroke-width:2px")
-    return "\n".join(lines)
+    return _mermaid(edges, set(cp), _CP_STYLE)
 
 
 def main() -> None:
@@ -178,7 +186,7 @@ def main() -> None:
 
     if not all_nodes:
         if args.format == "mermaid":
-            print("graph LR\n    empty[无有效边]")
+            print(render_mermaid(Graph(direction="LR", nodes=(Node("empty", label="无有效边"),))))
         else:
             print(json.dumps({"error": "无有效边"}, ensure_ascii=False))
         sys.exit(2)
@@ -187,16 +195,10 @@ def main() -> None:
 
     if args.format == "mermaid":
         if cycles:
-            lines = ["graph LR"]
-            for u, v in edges:
-                lines.append(f"    {u} --> {v}")
             cycle_nodes: set[str] = set()
             for c in cycles:
                 cycle_nodes.update(c)
-            if cycle_nodes:
-                cn = ",".join(sorted(cycle_nodes))
-                lines.append(f"    style {cn} fill:#f00,stroke:#333,stroke-width:2px")
-            print("\n".join(lines))
+            print(_mermaid(edges, cycle_nodes, _CYCLE_STYLE))
         else:
             cp, _ = critical_path(graph, all_nodes, weights, topological_sort(graph, all_nodes))
             print(format_mermaid(edges, cp))

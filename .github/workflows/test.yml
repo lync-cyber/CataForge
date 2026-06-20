@@ -75,10 +75,10 @@ jobs:
           python -m pip install -e ".[dev]"
 
       - name: Ruff
-        run: python -m ruff check src tests scripts
+        run: python -m ruff check src tests scripts .cataforge
 
       - name: "Ruff format (check)"
-        run: python -m ruff format --check src tests scripts
+        run: python -m ruff format --check src tests scripts .cataforge
 
       - name: "pre-commit parity (catches local hooks ↔ CI drift)"
         # Runs the full .pre-commit-config.yaml hook set so a contributor

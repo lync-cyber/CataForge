@@ -48,10 +48,24 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # importable the check is skipped gracefully instead of failing with a
 # ModuleNotFoundError, mirroring the FileNotFoundError skip for missing binaries.
 CHECKS: list[tuple[str, list[str], str | None]] = [
-    ("ruff (lint)", [sys.executable, "-m", "ruff", "check", "src", "tests", "scripts"], "ruff"),
+    (
+        "ruff (lint)",
+        [sys.executable, "-m", "ruff", "check", "src", "tests", "scripts", ".cataforge"],
+        "ruff",
+    ),
     (
         "ruff (format check)",
-        [sys.executable, "-m", "ruff", "format", "--check", "src", "tests", "scripts"],
+        [
+            sys.executable,
+            "-m",
+            "ruff",
+            "format",
+            "--check",
+            "src",
+            "tests",
+            "scripts",
+            ".cataforge",
+        ],
         "ruff",
     ),
     (

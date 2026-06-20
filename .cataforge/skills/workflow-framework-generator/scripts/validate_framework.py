@@ -29,25 +29,56 @@ def split_yaml_frontmatter(text: str) -> tuple[dict | None, str]:
     if end < 0:
         return None, text
     import yaml
+
     try:
         fm = yaml.safe_load(text[3:end])
     except yaml.YAMLError:
         fm = None
-    body = text[end + 4:].lstrip("\n")
+    body = text[end + 4 :].lstrip("\n")
     return fm, body
 
 
 CAPABILITY_IDS = {
-    "file_read", "file_write", "file_edit", "file_glob", "file_grep",
-    "shell_exec", "web_search", "web_fetch", "user_question", "agent_dispatch",
+    "file_read",
+    "file_write",
+    "file_edit",
+    "file_glob",
+    "file_grep",
+    "shell_exec",
+    "web_search",
+    "web_fetch",
+    "user_question",
+    "agent_dispatch",
 }
 
 PLATFORM_NATIVE_NAMES = {
-    "Read", "Write", "Edit", "Glob", "Grep", "Bash", "Shell",
-    "WebSearch", "WebFetch", "AskUserQuestion", "Agent", "Task",
-    "apply_patch", "shell", "spawn_agent", "read", "write", "edit",
-    "glob", "grep", "bash", "websearch", "webfetch", "question", "task",
-    "web_search", "NotebookEdit",
+    "Read",
+    "Write",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Bash",
+    "Shell",
+    "WebSearch",
+    "WebFetch",
+    "AskUserQuestion",
+    "Agent",
+    "Task",
+    "apply_patch",
+    "shell",
+    "spawn_agent",
+    "read",
+    "write",
+    "edit",
+    "glob",
+    "grep",
+    "bash",
+    "websearch",
+    "webfetch",
+    "question",
+    "task",
+    "web_search",
+    "NotebookEdit",
 }
 
 VALID_STATUSES = {"completed", "needs_input", "needs_revision", "blocked"}
@@ -122,9 +153,7 @@ def validate_agent(agent_dir: Path, result: ValidationResult) -> dict | None:
     placeholders = PLACEHOLDER_PATTERNS.findall(body)
     if placeholders:
         unique = sorted(set(placeholders))
-        result.error(
-            f"Agent '{agent_id}': contains placeholder(s): {', '.join(unique)}"
-        )
+        result.error(f"Agent '{agent_id}': contains placeholder(s): {', '.join(unique)}")
 
     # Check required sections
     required_sections = ["Role", "Anti-Patterns"]
@@ -169,9 +198,7 @@ def validate_skill(skill_dir: Path, result: ValidationResult) -> dict | None:
     placeholders = PLACEHOLDER_PATTERNS.findall(body)
     if placeholders:
         unique = sorted(set(placeholders))
-        result.error(
-            f"Skill '{skill_id}': contains placeholder(s): {', '.join(unique)}"
-        )
+        result.error(f"Skill '{skill_id}': contains placeholder(s): {', '.join(unique)}")
 
     return fm
 
@@ -344,9 +371,7 @@ def _collect_agents(cataforge: Path, result: ValidationResult) -> dict[str, dict
     if not agents_dir.exists():
         result.error("agents/ directory not found")
         return {}
-    return {
-        d.name: validate_agent(d, result) for d in sorted(agents_dir.iterdir()) if d.is_dir()
-    }
+    return {d.name: validate_agent(d, result) for d in sorted(agents_dir.iterdir()) if d.is_dir()}
 
 
 def _collect_skills(cataforge: Path, result: ValidationResult) -> dict[str, dict]:
@@ -354,9 +379,7 @@ def _collect_skills(cataforge: Path, result: ValidationResult) -> dict[str, dict
     if not skills_dir.exists():
         result.warn("skills/ directory not found (may be intentional for simple workflows)")
         return {}
-    return {
-        d.name: validate_skill(d, result) for d in sorted(skills_dir.iterdir()) if d.is_dir()
-    }
+    return {d.name: validate_skill(d, result) for d in sorted(skills_dir.iterdir()) if d.is_dir()}
 
 
 def _collect_workflows(cataforge: Path, result: ValidationResult) -> dict[str, dict]:
@@ -455,8 +478,7 @@ def main():
         for e in result.errors:
             print(f"  ERROR: {e}")
         print(
-            f"\nValidation FAILED: {len(result.errors)} error(s), "
-            f"{len(result.warnings)} warning(s)"
+            f"\nValidation FAILED: {len(result.errors)} error(s), {len(result.warnings)} warning(s)"
         )
         sys.exit(1)
     else:

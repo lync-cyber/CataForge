@@ -19,6 +19,8 @@ from cataforge.core.errors import (
     KGStoreError,
 )
 from cataforge.core.paths import KG_STORE_REL
+from cataforge.core.viz.model import Edge, Graph, Node
+from cataforge.core.viz.render.mermaid import render as render_mermaid
 from cataforge.interface.cli.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
 from cataforge.interface.cli.kg._options import db_path_ro_option
@@ -414,8 +416,6 @@ def _trace_table(
 
 
 def _trace_mermaid(chain: TraceChain, kg: KnowledgeGraph) -> None:
-    click.echo("graph TD")
-
     buckets = _chain_buckets(chain)
 
     all_ids: list[str] = [chain.root_id]
@@ -426,12 +426,13 @@ def _trace_mermaid(chain: TraceChain, kg: KnowledgeGraph) -> None:
                 all_ids.append(eid)
                 seen.add(eid)
 
+    nodes: list[Node] = []
     for eid in all_ids:
         entity = kg.query.entity(eid)
         title = entity.get("title", "") if entity else ""
-        safe_label = title.replace('"', "'")
-        click.echo(f'    {eid}["{eid}: {safe_label}"]')
+        nodes.append(Node(id=eid, label=f"{eid}: {title}"))
 
+    edges: list[Edge] = []
     bucket_map = {name: ids for name, ids in buckets}
     for src_layer, dst_layer, rel in _MERMAID_EDGE_MAP:
         src_ids = bucket_map.get(src_layer, [])
@@ -439,14 +440,15 @@ def _trace_mermaid(chain: TraceChain, kg: KnowledgeGraph) -> None:
         if src_ids and dst_ids:
             for s in src_ids:
                 for d in dst_ids:
-                    click.echo(f"    {s} -->|{rel}| {d}")
+                    edges.append(Edge(s, d, label=rel))
 
     downstream_ids = [eid for eid in all_ids if eid != chain.root_id]
     if downstream_ids and not any(
         bucket_map.get(src) and bucket_map.get(dst) for src, dst, _ in _MERMAID_EDGE_MAP
     ):
-        for d in downstream_ids:
-            click.echo(f"    {chain.root_id} --> {d}")
+        edges.extend(Edge(chain.root_id, d) for d in downstream_ids)
+
+    click.echo(render_mermaid(Graph(nodes=tuple(nodes), edges=tuple(edges), direction="TD")))
 
 
 _MERMAID_EDGE_MAP = [

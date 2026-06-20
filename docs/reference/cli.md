@@ -24,6 +24,7 @@
 | [`cataforge event`](#event) | 写事件日志 |
 | [`cataforge correction`](#correction) | 写 On-Correction Learning 日志 |
 | [`cataforge feedback`](#feedback) | 把下游信号打包为上游可消费的 markdown 反馈 |
+| [`cataforge viz`](#viz) | 框架 / 项目结构图渲染（Mermaid / DOT / JSON 文本） |
 
 ---
 
@@ -577,6 +578,37 @@ cataforge feedback correction-export --threshold 3 --out docs/feedback/$(date +%
 **隐私与脱敏**：默认对 `<project>` / `~` 做替换，`--include-paths` 仅在内部反馈或自托管 GitHub 时启用。`--gh` 通过 stdin 把 body 喂给 `gh`，不落临时文件。
 
 **配套 issue 模板**：上游仓库 `.github/ISSUE_TEMPLATE/feedback-from-cli.yml` 字段与 CLI 输出 1:1 对齐。
+
+---
+
+## viz
+
+**何时用它**：想把框架编排结构或项目结构导出为可被版本化、可内联进文档的图。复用既有数据源（framework.json 路由 + agent/skill 资产），输出确定性文本，无运行时依赖。
+
+```bash
+# 编排图 orchestrator → phase → agent → skill（Mermaid，默认 stdout）
+cataforge viz framework
+
+# 切换输出格式
+cataforge viz framework --format dot
+cataforge viz framework --format json
+
+# 写文件而非 stdout
+cataforge viz framework -o docs/viz/framework.mmd
+```
+
+| 参数 | 作用 |
+|------|------|
+| `--format <mermaid\|dot\|json>` | 文本渲染器，默认 `mermaid`。`mermaid` 在 GitHub / IDE / 文档站原生渲染；`dot` 交给本地 graphviz；`json` 为稳定外部契约 |
+| `-o, --output <path>` | 写到 PATH（自动建父目录）而非 stdout |
+
+视图说明：
+
+| view | 内容 | 数据源 |
+|------|------|--------|
+| `framework` | orchestrator → phase → agent → skill 编排图 | framework.json `workflow.modes.standard` + agent frontmatter `skills` |
+
+产物默认写 `docs/viz/`（已在 `docs/.docignore` 中豁免 orphan 检查）。输出 stdout 时 pipe 友好，可直接喂 mermaid.live / `dot`。
 
 ---
 

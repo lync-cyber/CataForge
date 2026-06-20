@@ -92,10 +92,13 @@ def create_framework_json(output_dir: Path, manifest: dict):
                 "last_upgrade_date": "",
             },
         },
-        "constants": manifest.get("constants", {
-            "MAX_QUESTIONS_PER_BATCH": 3,
-            "MAX_REVISION_CYCLES": 3,
-        }),
+        "constants": manifest.get(
+            "constants",
+            {
+                "MAX_QUESTIONS_PER_BATCH": 3,
+                "MAX_REVISION_CYCLES": 3,
+            },
+        ),
         "features": manifest.get("features", {}),
     }
 
@@ -167,6 +170,7 @@ def main():
         sys.exit(2)
 
     import yaml
+
     with open(manifest_path, encoding="utf-8") as f:
         manifest = yaml.safe_load(f)
 

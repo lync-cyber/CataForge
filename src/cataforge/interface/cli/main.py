@@ -83,6 +83,10 @@ CTX_PROJECT_DIR = "project_dir"
         "  penpot       Penpot design-tool Docker + MCP integration.\n"
         "\n"
         "\b\n"
+        "VISUALISATION:\n"
+        "  viz          Render framework / project structure as diagrams.\n"
+        "\n"
+        "\b\n"
         "MAINTENANCE:\n"
         "  sync-main    Fast-forward local default branch from origin (post-PR).\n"
         "  claude-md    CLAUDE.md hygiene (size check, Learnings Registry compact).\n"
@@ -165,6 +169,7 @@ def _register_commands() -> None:
         skill_cmd,
         sync_cmd,
         upgrade_cmd,
+        viz_cmd,
     )
 
 

@@ -40,6 +40,7 @@
 | **docs** | `src/cataforge/domain/docs/` | 文档索引（`.doc-index.json`）、context navigate 段落精准加载、legacy NAV-INDEX 迁移 |
 | **integrations** | `src/cataforge/adapter/integrations/` | 外部工具集成（Penpot 设计工具 API 对接） |
 | **schema** | `src/cataforge/core/schema/` | 数据模型校验（插件 manifest 等） |
+| **viz** | `src/cataforge/core/viz/` · `src/cataforge/application/viz/` | 可视化：`core.viz` 持 IR（Graph/Timeline/MetricSeries）与文本渲染核（Mermaid/DOT/JSON），被 runtime/interface 共享；`application.viz` 持 collectors（数据源 → IR）与渲染分发 |
 | **utils** | `src/cataforge/utils/` | YAML frontmatter 解析、Markdown 处理、Docker 工具、通用模式匹配 |
 | **cli** | `src/cataforge/interface/cli/` | 统一命令行入口 |
 
@@ -53,6 +54,7 @@ src/cataforge/
     cli/          # setup/deploy/doctor/skill/mcp/hook/agent/... 命令（薄层：解析→调用→渲染）
   application/
     services/     # 业务逻辑下沉层（bootstrap/issue/upgrade/doctor_summary…）
+    viz/          # 可视化命令面：collectors（数据源→IR）+ 渲染分发
   runtime/
     deploy/       # Deployer（统一发布编排）+ 模板渲染
     agent/        # agent 发现/校验/格式翻译/结果解析
@@ -66,7 +68,7 @@ src/cataforge/
   adapter/
     platform/     # PlatformAdapter + registry + conformance + 各平台实现
     integrations/ # Penpot 设计工具集成
-  core/           # ConfigManager, ProjectPaths, EventBus, 核心类型, schema/ 数据模型校验
+  core/           # ConfigManager, ProjectPaths, EventBus, 核心类型, schema/ 数据模型校验, viz/ IR + 文本渲染核
   utils/          # frontmatter/markdown/yaml/docker 等通用工具
 ```
 

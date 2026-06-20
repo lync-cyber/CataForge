@@ -48,6 +48,7 @@
 | `cataforge event log` | 写事件日志 | [cli.md](./cli.md) |
 | `cataforge correction record --deviation <type>` | 写 On-Correction Learning 偏离日志 | [cli#correction](./cli.md#correction) |
 | `cataforge feedback bug \| suggest \| correction-export` | 把下游信号打包为上游可消费的 markdown 反馈（`--print` / `--out` / `--clip` / `--gh`） | [cli#feedback](./cli.md#feedback) |
+| `cataforge viz framework [--format json\|dot]` | 框架编排图（orchestrator→phase→agent→skill）文本渲染 | [cli#viz](./cli.md#viz) |
 
 ## 配置速查
 
