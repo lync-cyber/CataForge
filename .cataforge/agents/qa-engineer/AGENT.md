@@ -40,7 +40,7 @@ maxTurns: 50
 
 ## E2E 真实性最低要求
 
-- 至少一条 happy path 通过 `keyboard.type` / `page.fill` / `page.click` 触发（见 testing/SKILL.md §Anti-Patterns）；纯 fixture/store 注入不计
+- 至少一条 happy path 通过真实用户输入原语（键入 / 填充 / 点击，各框架 API 见 [`docs/reference/test-and-e2e-apis.md`](../../../docs/reference/test-and-e2e-apis.md)）触发；纯 fixture/store 注入不计
 - 编辑器/表单/路由类核心组件必须照过真实用户输入链路，不允许仅断言组件存在于 DOM
 - testing skill `cataforge skill run testing -- scan-e2e tests/e2e/` 命中 `e2e_backdoor_scan` WARN 时必须在 test-report §QA 评注 中显式回应
 
@@ -51,4 +51,4 @@ maxTurns: 50
 - 禁止: e2e 测试使用后门参数 / `window.__*__` / store action 注入预构造数据绕过真实用户输入路径（详见 testing/SKILL.md §Anti-Patterns）
 - 禁止: 仅验证组件存在于 DOM 而不验证其可达性（路由 / 挂载 / wiring 终点是否真实落地）—— 与 code-review §integration-wiring 维度配套
 - 禁止: 用 `[ENV-LIMITATION]` / `[ASSUMPTION]` 让缺陷豁免 needs_revision；环境受限时落 `conditional_release` + `blocking_conditions`，不是 approved_with_notes
-- 避免: 集成测试仅 `vi.mock` / `jest.mock` 全 stub 替换被测包顶层导出，导致接口契约无法验证
+- 避免: 集成测试仅用测试框架的 module-mock 全 stub 替换被测包顶层导出，导致接口契约无法验证（各框架 API 见 [`docs/reference/test-and-e2e-apis.md`](../../../docs/reference/test-and-e2e-apis.md)）

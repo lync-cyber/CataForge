@@ -92,7 +92,7 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 | 反义 API 调用 | test "should reject" + `expect(...).not.rejects` |
 | AC 语义 ↔ 断言 token 不符 | AC "return error object" + `expect(...).toContain('stub:')` |
 | 测试数据 ↔ 名称反向 | test "with invalid input" + `send({ valid: true })` |
-| Mock 缺失而测试名完整 | test "calls MCP server" + 没有 `vi.mock()` / `MagicMock` |
+| Mock 缺失而测试名完整 | test "calls MCP server" + 无任何 mock 装置（module-mock / mock 对象） |
 
 ### 3. 跨平台 syscall 测试模式
 
