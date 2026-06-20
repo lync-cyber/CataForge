@@ -19,8 +19,6 @@ from cataforge.core.errors import (
     KGStoreError,
 )
 from cataforge.core.paths import KG_STORE_REL
-from cataforge.core.viz.model import Edge, Graph, Node
-from cataforge.core.viz.render.mermaid import render as render_mermaid
 from cataforge.interface.cli.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
 from cataforge.interface.cli.kg._options import db_path_ro_option
@@ -275,7 +273,7 @@ def _ntriples_term(term: object) -> str:
 @click.option(
     "--output",
     "output_fmt",
-    type=click.Choice(["table", "json", "mermaid"]),
+    type=click.Choice(["table", "json"]),
     default="table",
     show_default=True,
     help="Output format.",
@@ -324,8 +322,6 @@ def kg_trace(
 
             if output_fmt == "json":
                 _trace_json(chain, coverage_detail)
-            elif output_fmt == "mermaid":
-                _trace_mermaid(chain, kg)
             else:
                 _trace_table(chain, kg, coverage_detail)
     except KGStoreNotInitializedError as exc:
@@ -413,48 +409,3 @@ def _trace_table(
         impl = "yes" if coverage_detail.get("has_impl") else "no"
         test = "yes" if coverage_detail.get("has_test") else "no"
         click.echo(f"Coverage: status={status} impl={impl} test={test}")
-
-
-def _trace_mermaid(chain: TraceChain, kg: KnowledgeGraph) -> None:
-    buckets = _chain_buckets(chain)
-
-    all_ids: list[str] = [chain.root_id]
-    seen = {chain.root_id}
-    for _, ids in buckets:
-        for eid in ids:
-            if eid not in seen:
-                all_ids.append(eid)
-                seen.add(eid)
-
-    nodes: list[Node] = []
-    for eid in all_ids:
-        entity = kg.query.entity(eid)
-        title = entity.get("title", "") if entity else ""
-        nodes.append(Node(id=eid, label=f"{eid}: {title}"))
-
-    edges: list[Edge] = []
-    bucket_map = {name: ids for name, ids in buckets}
-    for src_layer, dst_layer, rel in _MERMAID_EDGE_MAP:
-        src_ids = bucket_map.get(src_layer, [])
-        dst_ids = bucket_map.get(dst_layer, [])
-        if src_ids and dst_ids:
-            for s in src_ids:
-                for d in dst_ids:
-                    edges.append(Edge(s, d, label=rel))
-
-    downstream_ids = [eid for eid in all_ids if eid != chain.root_id]
-    if downstream_ids and not any(
-        bucket_map.get(src) and bucket_map.get(dst) for src, dst, _ in _MERMAID_EDGE_MAP
-    ):
-        edges.extend(Edge(chain.root_id, d) for d in downstream_ids)
-
-    click.echo(render_mermaid(Graph(nodes=tuple(nodes), edges=tuple(edges), direction="TD")))
-
-
-_MERMAID_EDGE_MAP = [
-    ("requirements", "modules", "implements"),
-    ("requirements", "components", "implements"),
-    ("modules", "tasks", "decomposes"),
-    ("acceptance_criteria", "test_cases", "verifies"),
-    ("requirements", "acceptance_criteria", "validates"),
-]

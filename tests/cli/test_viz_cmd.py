@@ -183,3 +183,99 @@ class TestVizCli:
         )
         assert result.exit_code == 0, result.output
         assert "graph TD" in out.read_text()
+
+
+# ------------------------------------------------------------------
+# KG views — trace / coverage / arch over the vertical-slice fixture
+# ------------------------------------------------------------------
+
+_KG_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice" / "waterfall"
+
+
+def _make_kg_project(tmp_path: Path) -> Path:
+    """Project dir with an ingested KG store at the canonical location."""
+    db = tmp_path / ".cataforge" / "kg" / "store"
+    runner = CliRunner()
+    init = runner.invoke(cli, ["kg", "init", "--db-path", str(db)])
+    assert init.exit_code == 0, init.output
+    imp = runner.invoke(
+        cli, ["kg", "import", "--project-root", str(_KG_FIXTURE), "--db-path", str(db)]
+    )
+    assert imp.exit_code == 0, imp.output
+    return tmp_path
+
+
+def _viz(tmp_path: Path, *args: str):
+    return CliRunner().invoke(cli, ["--project-dir", str(tmp_path), "viz", *args])
+
+
+class TestVizTrace:
+    def test_single_entity_reaches_module(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "trace", "F-001")
+        assert result.exit_code == 0, result.output
+        assert "graph TD" in result.output
+        assert "F-001" in result.output
+        assert "M-001" in result.output
+        assert "-->" in result.output
+
+    def test_aggregate_covers_all_features(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "trace")
+        assert result.exit_code == 0, result.output
+        assert "F-001" in result.output
+        assert "F-002" in result.output
+
+    def test_json_kind_graph(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "trace", "F-001", "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["kind"] == "graph"
+        assert any(n["id"] == "F-001" for n in data["nodes"])
+
+    def test_nonexistent_entity_fails(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "trace", "NOPE-999")
+        assert result.exit_code != 0
+        assert "not found" in result.output.lower()
+
+    def test_uninitialised_store_degrades(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)  # project root without a KG store
+        result = _viz(tmp_path, "trace", "F-001")
+        assert result.exit_code != 0
+        assert "kg init" in result.output.lower()
+
+
+class TestVizCoverage:
+    def test_node_count_equals_feature_count(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "coverage", "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        ids = {n["id"] for n in data["nodes"]}
+        assert ids == {"F-001", "F-002"}
+
+    def test_mermaid_styles_by_status(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "coverage")
+        assert result.exit_code == 0, result.output
+        assert "style" in result.output
+
+
+class TestVizArch:
+    def test_lists_modules(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "arch")
+        assert result.exit_code == 0, result.output
+        assert "M-001" in result.output
+        assert "M-002" in result.output
+
+    def test_json_kind_graph(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "arch", "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["kind"] == "graph"
+        labels = {n.get("label") for n in data["nodes"]}
+        assert any(label and label.startswith("M-001") for label in labels)
