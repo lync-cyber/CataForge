@@ -82,9 +82,27 @@ class TestMermaidRenderer:
         g = Graph(nodes=(Node("a", label="has space"),))
         assert mermaid.render(g) == 'graph TD\n    a["has space"]'
 
-    def test_rejects_non_graph(self) -> None:
+    def test_timeline_groups_events_by_date(self) -> None:
+        t = Timeline(
+            title="evt",
+            events=(
+                TimelineEvent("2026-01-01T08:00:00", "phase_start requirements", "phase_start"),
+                TimelineEvent("2026-01-01T09:00:00", "agent_dispatch architect", "agent_dispatch"),
+                TimelineEvent("2026-01-02T00:00:00", "phase_end", "phase_end"),
+            ),
+        )
+        assert mermaid.render(t) == (
+            "timeline\n    title evt\n"
+            "    2026-01-01 : phase_start requirements : agent_dispatch architect\n"
+            "    2026-01-02 : phase_end"
+        )
+
+    def test_empty_timeline_placeholder(self) -> None:
+        assert mermaid.render(Timeline()) == "timeline\n    title timeline\n    n/a : no events"
+
+    def test_rejects_metric_series(self) -> None:
         with pytest.raises(CataforgeError):
-            mermaid.render(Timeline())
+            mermaid.render(MetricSeries())
 
 
 class TestDotRenderer:
@@ -448,3 +466,156 @@ class TestVizTasksFromKg:
         result = _viz(tmp_path, "tasks")  # no --edges, no KG store
         assert result.exit_code != 0
         assert "kg init" in result.output.lower()
+
+
+# ------------------------------------------------------------------
+# process views — phase / timeline / decay
+# ------------------------------------------------------------------
+
+
+def _make_phase_project(tmp_path: Path, phase: str, *, phase_start: str | None = None) -> Path:
+    """Project with framework.json (standard phases) + an instruction file
+    declaring 当前阶段; optionally a phase_start EVENT-LOG record."""
+    cf = tmp_path / ".cataforge"
+    cf.mkdir()
+    framework = {
+        "workflow": {
+            "modes": {
+                "standard": {
+                    "phases": [
+                        {"phase": "requirements", "role": "product-manager"},
+                        {"phase": "architecture", "role": "architect"},
+                        {"phase": "development", "role": "tdd-engine"},
+                    ]
+                }
+            }
+        }
+    }
+    (cf / "framework.json").write_text(json.dumps(framework))
+    (tmp_path / "CLAUDE.md").write_text(
+        f"# Proj\n## 项目状态\n- 当前阶段: {phase}\n- 文档状态:\n", encoding="utf-8"
+    )
+    if phase_start:
+        docs = tmp_path / "docs"
+        docs.mkdir(exist_ok=True)
+        rec = {"ts": "2026-01-01T00:00:00+00:00", "event": "phase_start", "phase": phase_start}
+        (docs / "EVENT-LOG.jsonl").write_text(json.dumps(rec) + "\n", encoding="utf-8")
+    return tmp_path
+
+
+class TestVizPhase:
+    def test_blocked_phase_styled_red(self, tmp_path: Path) -> None:
+        _make_phase_project(tmp_path, "requirements")  # no prd doc/index/event → blocked
+        result = _viz(tmp_path, "phase")
+        assert result.exit_code == 0, result.output
+        assert "graph LR" in result.output
+        assert "style requirements fill:#f96" in result.output
+
+    def test_ok_phase_styled_green(self, tmp_path: Path) -> None:
+        # development carries no doc gate; with its phase_start it passes all checks
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        result = _viz(tmp_path, "phase")
+        assert result.exit_code == 0, result.output
+        assert "style development fill:#9f6" in result.output
+
+    def test_styling_tracks_phase_status_conclusion(self, tmp_path: Path) -> None:
+        from cataforge.application.phase import evaluate_phase
+
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        _, checks = evaluate_phase(tmp_path)
+        blocked = any(not ok for _, ok, _ in checks)
+        result = _viz(tmp_path, "phase")
+        # green (ok) appears iff the gate is not blocked — same conclusion that
+        # drives `cataforge phase status` exit code.
+        assert ("#9f6" in result.output) == (not blocked)
+
+    def test_not_driven_degrades(self, tmp_path: Path) -> None:
+        result = _viz(tmp_path, "phase")  # no instruction file
+        assert result.exit_code != 0
+        assert "claude.md" in result.output.lower()
+
+
+class TestVizTimeline:
+    def _write_log(self, tmp_path: Path, lines: list[str]) -> None:
+        docs = tmp_path / "docs"
+        docs.mkdir(exist_ok=True)
+        (docs / "EVENT-LOG.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_events_rendered_malformed_skipped(self, tmp_path: Path) -> None:
+        self._write_log(
+            tmp_path,
+            [
+                json.dumps(
+                    {
+                        "ts": "2026-01-01T08:00:00+00:00",
+                        "event": "phase_start",
+                        "phase": "requirements",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "ts": "2026-01-01T09:00:00+00:00",
+                        "event": "agent_dispatch",
+                        "agent": "architect",
+                    }
+                ),
+                "{ not valid json",  # skipped, must not drop the valid neighbours
+                json.dumps(
+                    {
+                        "ts": "2026-01-02T00:00:00+00:00",
+                        "event": "phase_end",
+                        "phase": "requirements",
+                    }
+                ),
+            ],
+        )
+        result = _viz(tmp_path, "timeline")
+        assert result.exit_code == 0, result.output
+        assert result.output.startswith("timeline")
+        assert "phase_start requirements" in result.output
+        assert "agent_dispatch architect" in result.output
+        assert "phase_end requirements" in result.output
+
+    def test_json_keeps_all_valid_events(self, tmp_path: Path) -> None:
+        self._write_log(
+            tmp_path,
+            [
+                json.dumps(
+                    {"ts": "2026-01-01T08:00:00+00:00", "event": "phase_start", "phase": "x"}
+                ),
+                "garbage",
+                json.dumps({"ts": "2026-01-02T00:00:00+00:00", "event": "phase_end"}),
+            ],
+        )
+        result = _viz(tmp_path, "timeline", "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["kind"] == "timeline"
+        assert len(data["events"]) == 2
+
+    def test_empty_when_no_log(self, tmp_path: Path) -> None:
+        result = _viz(tmp_path, "timeline")
+        assert result.exit_code == 0, result.output
+        assert "no events" in result.output
+
+
+class TestVizDecay:
+    def test_corrections_become_timeline(self, tmp_path: Path) -> None:
+        log_dir = tmp_path / "docs" / "reviews"
+        log_dir.mkdir(parents=True)
+        (log_dir / "CORRECTIONS-LOG.md").write_text(
+            "# Corrections\n\n"
+            "### 2026-01-01 | reviewer | development\n- 偏差类型: preference\n\n"
+            "### 2026-01-02 | architect | architecture\n- 偏差类型: upstream-gap\n",
+            encoding="utf-8",
+        )
+        result = _viz(tmp_path, "decay")
+        assert result.exit_code == 0, result.output
+        assert result.output.startswith("timeline")
+        assert "preference" in result.output
+        assert "upstream-gap" in result.output
+
+    def test_empty_when_no_log(self, tmp_path: Path) -> None:
+        result = _viz(tmp_path, "decay")
+        assert result.exit_code == 0, result.output
+        assert "no events" in result.output

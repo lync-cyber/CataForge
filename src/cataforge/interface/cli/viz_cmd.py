@@ -121,3 +121,27 @@ def viz_tasks(edges: str, weights: str, fmt: str, output: Path | None) -> None:
     """
     content = service.generate("tasks", fmt, resolve_root(), edges=edges, weights=weights)
     _emit(content, output)
+
+
+@viz_group.command("phase")
+@_format_option
+@_output_option
+def viz_phase(fmt: str, output: Path | None) -> None:
+    """SDLC phase backbone; current phase green (gate ok) or red (blocked)."""
+    _emit(service.generate("phase", fmt, resolve_root()), output)
+
+
+@viz_group.command("timeline")
+@_format_option
+@_output_option
+def viz_timeline(fmt: str, output: Path | None) -> None:
+    """EVENT-LOG timeline: events grouped by date."""
+    _emit(service.generate("timeline", fmt, resolve_root()), output)
+
+
+@viz_group.command("decay")
+@_format_option
+@_output_option
+def viz_decay(fmt: str, output: Path | None) -> None:
+    """CORRECTIONS-LOG decay timeline: one event per correction."""
+    _emit(service.generate("decay", fmt, resolve_root()), output)
