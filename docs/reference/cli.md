@@ -398,7 +398,7 @@ per-doc_type 漂移检测：Markdown 与 KG 的对称差。任一 `missing` / `g
 ```bash
 cataforge kg trace F-001 --direction both --coverage
 cataforge kg trace --coverage                       # 全局 Feature 覆盖矩阵（不带 ENTITY_ID）
-cataforge kg trace F-001 --output mermaid > trace.mmd
+cataforge kg trace F-001 --output json > trace.json
 ```
 
 | 参数 | 作用 |
@@ -406,7 +406,7 @@ cataforge kg trace F-001 --output mermaid > trace.mmd
 | `ENTITY_ID` | 业务实体（缺省时配合 `--coverage` 输出全局矩阵） |
 | `--direction downstream\|upstream\|both` | 链方向 |
 | `--coverage` | 追加覆盖矩阵（has_impl / has_test） |
-| `--output table\|json\|mermaid` | 输出格式 |
+| `--output table\|json` | 输出格式（追溯图的 mermaid 已迁移到 [`cataforge viz trace`](#viz)） |
 
 ### kg add
 
@@ -589,24 +589,38 @@ cataforge feedback correction-export --threshold 3 --out docs/feedback/$(date +%
 # 编排图 orchestrator → phase → agent → skill（Mermaid，默认 stdout）
 cataforge viz framework
 
-# 切换输出格式
-cataforge viz framework --format dot
-cataforge viz framework --format json
+# 追溯图：单实体或省略 ID 聚合全部 Feature
+cataforge viz trace F-001
+cataforge viz trace --direction both
+cataforge viz trace                       # 聚合全部 Feature 的下游链
 
-# 写文件而非 stdout
-cataforge viz framework -o docs/viz/framework.mmd
+# Feature 覆盖矩阵（节点按 impl/test 状态着色）
+cataforge viz coverage
+
+# arch 依赖图（Module/Component/API/DataModel + depends_on）
+cataforge viz arch
+
+# 切换输出格式 / 写文件
+cataforge viz framework --format dot
+cataforge viz coverage --format json -o docs/viz/coverage.json
 ```
 
-| 参数 | 作用 |
-|------|------|
-| `--format <mermaid\|dot\|json>` | 文本渲染器，默认 `mermaid`。`mermaid` 在 GitHub / IDE / 文档站原生渲染；`dot` 交给本地 graphviz；`json` 为稳定外部契约 |
-| `-o, --output <path>` | 写到 PATH（自动建父目录）而非 stdout |
+| 参数 | 作用 | 适用 view |
+|------|------|----------|
+| `--format <mermaid\|dot\|json>` | 文本渲染器，默认 `mermaid`。`mermaid` 在 GitHub / IDE / 文档站原生渲染；`dot` 交给本地 graphviz；`json` 为稳定外部契约 | 全部 |
+| `-o, --output <path>` | 写到 PATH（自动建父目录）而非 stdout | 全部 |
+| `--direction <downstream\|upstream\|both>` | 追溯方向，默认 `downstream` | `trace` |
 
 视图说明：
 
 | view | 内容 | 数据源 |
 |------|------|--------|
 | `framework` | orchestrator → phase → agent → skill 编排图 | framework.json `workflow.modes.standard` + agent frontmatter `skills` |
+| `trace` | 追溯链图（需求→模块→任务→测试）；省略 ENTITY_ID 聚合全部 Feature | KG `TraceAPI`（需先 `cataforge kg init` + `kg import`） |
+| `coverage` | Feature 覆盖矩阵，每个 Feature 一个节点，按 impl/test 状态着色 | KG `bidirectional_coverage()` |
+| `arch` | arch 层实体（Module/Component/API/DataModel）+ 层内 `depends_on` 边 | KG `QueryAPI` |
+
+`trace` / `coverage` / `arch` 读 KG store；store 未初始化时优雅退出并提示 `cataforge kg init`。**mermaid 收编**：追溯图的 mermaid 表面已从 `kg trace --output mermaid` 迁移到 `cataforge viz trace`；`kg trace` 保留 `table` / `json` 分析输出。
 
 产物默认写 `docs/viz/`（已在 `docs/.docignore` 中豁免 orphan 检查）。输出 stdout 时 pipe 友好，可直接喂 mermaid.live / `dot`。
 

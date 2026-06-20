@@ -237,6 +237,7 @@ def test_doctor_anti_rot_table_contains_expected_entries() -> None:
         "cataforge docs load",
         "cataforge docs index",
         "cataforge docs validate",
+        "kg trace --output mermaid",
     }
     for entry in _DEPRECATED_REFS:
         assert entry["replacement"], entry

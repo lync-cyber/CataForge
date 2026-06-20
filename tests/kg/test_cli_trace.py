@@ -7,8 +7,9 @@ pre-loaded with the waterfall vertical-slice fixture. The fixture has:
   - M-001 implements F-001, M-002 implements F-002 (Module)
   - TC-001 verifies AC-001, TC-002 verifies AC-002 (TestCase)
 
-Tests cover: downstream/upstream trace, table/json/mermaid output,
-global --coverage matrix, and error paths.
+Tests cover: downstream/upstream trace, table/json output,
+global --coverage matrix, and error paths. The mermaid surface moved to
+`cataforge viz trace` (see tests/cli/test_viz_cmd.py).
 """
 
 from __future__ import annotations
@@ -194,8 +195,8 @@ class TestBothDirections:
 # ------------------------------------------------------------------
 
 
-class TestMermaid:
-    def test_mermaid_contains_graph_syntax(self, tmp_path: Path) -> None:
+class TestMermaidRemoved:
+    def test_mermaid_output_is_rejected(self, tmp_path: Path) -> None:
         from click.testing import CliRunner
 
         db = _init_and_ingest(tmp_path)
@@ -203,22 +204,8 @@ class TestMermaid:
             _cli(),
             ["kg", "trace", "--db-path", str(db), "--output", "mermaid", "F-001"],
         )
-        assert result.exit_code == 0, result.output
-        assert "graph TD" in result.output
-        assert "F-001" in result.output
-        assert "M-001" in result.output
-        assert "-->" in result.output
-
-    def test_mermaid_node_labels_include_title(self, tmp_path: Path) -> None:
-        from click.testing import CliRunner
-
-        db = _init_and_ingest(tmp_path)
-        result = CliRunner().invoke(
-            _cli(),
-            ["kg", "trace", "--db-path", str(db), "--output", "mermaid", "F-001"],
-        )
-        assert result.exit_code == 0, result.output
-        assert "F-001" in result.output
+        assert result.exit_code == 2, result.output
+        assert "mermaid" in result.output
 
 
 # ------------------------------------------------------------------

@@ -82,6 +82,15 @@ _DEPRECATED_REFS: tuple[dict[str, str], ...] = (
         "replacement": "`cataforge context validate`",
         "since": "v0.11.0",
     },
+    {
+        "name": "kg trace --output mermaid",
+        # `kg trace` keeps table/json analysis output; the mermaid surface
+        # moved to `cataforge viz trace`. Matches either argument order on a
+        # single line (`kg trace F-001 --output mermaid` / `--output=mermaid`).
+        "pattern": r"\bkg\s+trace\b[^\n]*--output[=\s]+mermaid\b",
+        "replacement": "`cataforge viz trace`",
+        "since": "v0.13.0",
+    },
 )
 
 
