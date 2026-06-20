@@ -37,7 +37,7 @@ maxTurns: 50
 - 代码审查: docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md (问题列表 + 严重等级)
 - 交付标准: 三态判定（双向，verdict 由严重等级唯一决定）— CRITICAL/HIGH存在 ⇔ needs_revision; 仅MEDIUM/LOW ⇔ approved_with_notes; 无问题 ⇔ approved
 - 出 verdict 前自检: 若结论为 needs_revision 但 0 个 CRITICAL/HIGH，必须回落为 approved_with_notes（反向）；报告 frontmatter `status` 与正文 Verdict 必须同源一致，禁止 frontmatter 写 approved 而正文写 needs_revision
-- 注: 审查报告为过程文件，不进入 `docs/.doc-index.json`（无 YAML front matter，indexer 自动跳过）
+- 注: 审查报告须含 YAML front matter（见 COMMON-RULES §报告 Front Matter 约定）；但 doc_type review / code-review 不进入 `docs/.doc-index.json`（indexer 按 doc_type 过滤）
 
 ## Mid-Progress 落盘契约
 长审查（多文件 / 大文档 / 多维度）易在末尾集中产出 REVIEW 报告时被 task-notification truncation 打断（征兆：大量 tool-use / token 后 `<agent-result>` 未返回但报告未落盘）。命中长审查时强制：

@@ -103,7 +103,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 1. `tdd_mode = light`
 2. `loc_estimate ≤ TDD_LIGHT_LOC_THRESHOLD`（任务卡缺该字段时取 LOC=AC 数 × 30 的粗估）
 3. `security_sensitive ≠ true`
-4. 执行模式 ∈ `{agile-lite, agile-prototype, agile-standard}`（审计粒度通过 EVENT-LOG 事件保持，不依赖子代理隔离）
+4. 执行模式 ∈ `TDD_INLINE_ELIGIBLE_MODES`（审计粒度通过 EVENT-LOG 事件保持，不依赖子代理隔离）
 
 **REFACTOR 条件触发**: 任务卡显式 `tdd_refactor: required` 强制触发；否则 implementer 在 GREEN/Light 完成后通过 `<agent-result>.refactor_needed` 自报告（true 时 orchestrator 调度 refactorer），不再为每个任务跑一次 code-review Layer 1。可在 sprint-review 阶段对累积 impl_files 跑批量 code-review L1 复核（见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）。
 
