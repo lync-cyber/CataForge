@@ -2,7 +2,7 @@
 name: task-decomp
 description: "任务拆分 — 功能到任务的分解，确保粒度单一可控。当 ARCH 完成、需要拆解任务卡、划分 Sprint 或定义 TDD 验收标准时使用。"
 argument-hint: "<ARCH文档路径或模块列表>"
-suggested-tools: Read, Write, Edit, Grep
+suggested-tools: file_read, file_write, file_edit, file_grep
 depends: [context, task-dep-analysis]
 disable-model-invocation: false
 user-invocable: true

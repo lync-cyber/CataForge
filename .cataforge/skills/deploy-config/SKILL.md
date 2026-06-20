@@ -2,7 +2,7 @@
 name: deploy-config
 description: "部署配置 — CI/CD流水线、容器化、环境配置、基础设施即代码。当需要配置 CI/CD 流水线、编写 Dockerfile/compose、管理多环境配置或基础设施即代码时使用此 skill。库/SDK 项目可标 deployment N/A 跳过。"
 argument-hint: "<操作: pipeline|container|env|iac> <平台或环境类型>"
-suggested-tools: Read, Write, Edit, Bash
+suggested-tools: file_read, file_write, file_edit, shell_exec
 depends: [context]
 disable-model-invocation: false
 user-invocable: true

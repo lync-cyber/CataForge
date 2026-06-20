@@ -2,7 +2,7 @@
 name: change-guard
 description: "变更守卫 — 分析用户变更请求与现有文档的一致性，决定处理路径。"
 argument-hint: "<change_description: 用户变更描述>"
-suggested-tools: Read, Glob, Grep
+suggested-tools: file_read, file_glob, file_grep
 depends: [context]
 disable-model-invocation: false
 user-invocable: false

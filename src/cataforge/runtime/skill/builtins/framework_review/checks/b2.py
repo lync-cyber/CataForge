@@ -10,7 +10,9 @@ from .._discover import (
     discover_skills,
     parse_depends_field,
     parse_skills_field,
+    parse_suggested_tools_field,
 )
+from .._hook_resolution import load_capability_ids
 from .._types import Report
 
 
@@ -76,3 +78,34 @@ def check_b2_cross_references(root: Path, report: Report) -> None:
                 f"skills/{skill_id}",
                 "orphan skill: not referenced by any AGENT.md.skills or SKILL.md.depends",
             )
+
+
+def check_b2_suggested_tools(root: Path, report: Report) -> None:
+    """B2-β: SKILL.md ``suggested-tools`` must be capability_ids.
+
+    The deployer translates capability_ids (file_read, shell_exec, …) to each
+    platform's native tool names. Native names (Read, Bash, …) bypass the
+    registry and aren't portable. Validate against the live
+    CAPABILITY_IDS ∪ EXTENDED_CAPABILITY_IDS; skip when the registry can't be
+    imported (older wheel) so the check degrades to a no-op rather than crash.
+    """
+    valid = load_capability_ids()
+    if not valid:
+        return
+    for skill_id, path in sorted(discover_skills(root).items()):
+        if not path.is_file():
+            continue
+        try:
+            content = path.read_text()
+        except OSError:
+            continue
+        for tool in parse_suggested_tools_field(content):
+            if tool not in valid:
+                report.add(
+                    "B2_suggested_tools_valid",
+                    "FAIL",
+                    f"skills/{skill_id}",
+                    f"suggested-tools 含非 capability_id {tool!r} — 应 ∈ "
+                    "CAPABILITY_IDS ∪ EXTENDED_CAPABILITY_IDS（如 Read→file_read / "
+                    "Bash→shell_exec / Agent→agent_dispatch）",
+                )

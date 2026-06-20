@@ -2,7 +2,7 @@
 name: framework-update
 description: "CataForge 框架同步 — 把已安装包、.cataforge/ scaffold、IDE 产物、项目初始化四层对齐到当前已验证状态。幂等、升级感知：检测包↔scaffold 版本差异，升级包并刷新 scaffold，部署 IDE 产物，运行 doctor 验证；项目未初始化时进入 Project Bootstrap，已初始化时装配执行环境并交接 start-orchestrator。当用户提到 CataForge 升级、scaffold 过期、框架版本不一致、bootstrap 或刷新项目脚手架、初始化/恢复项目时，使用此 skill。"
 argument-hint: "[check | apply [--dry-run] [--upgrade-package] | verify]"
-suggested-tools: Bash, Read, Edit
+suggested-tools: shell_exec, file_read, file_edit
 depends: []
 disable-model-invocation: false
 user-invocable: true

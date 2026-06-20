@@ -2,7 +2,7 @@
 name: framework-review
 description: "框架元资产审查 — 对 .cataforge/ 下的 agents/skills/hooks/rules + workflow 拓扑做内容质量与一致性审查。与 platform-audit 形成内审/外审对偶；与 code-review/doc-review 服务于业务产物不同，本 skill 专审框架自身配置。当用户提到框架腐化、SKILL.md/AGENT.md 质量、agent 引用孤立、SKILL/MANIFEST 漂移、Workflow 完整性、model_tier 合规时使用。"
 argument-hint: "<scope: agents|skills|hooks|rules|workflow|all> [--focus <category[,...]>] [--target <asset_id>]"
-suggested-tools: Read, Glob, Grep, Bash
+suggested-tools: file_read, file_glob, file_grep, shell_exec
 depends: [context]
 disable-model-invocation: false
 user-invocable: true
@@ -16,7 +16,7 @@ user-invocable: true
 
 ## 输入规范
 - scope: agents | skills | hooks | rules | workflow | all
-- 可选 `--focus`: 限定子检查（B1-α/β、B2-α、B3-α、B4-α、B5-α/β/γ/δ、B6-α/β/γ/δ/ε、B7-α/β/γ）
+- 可选 `--focus`: 限定子检查（B1-α/β、B2-α/β、B3-α、B4-α、B5-α/β/γ/δ、B6-α/β/γ/δ/ε、B7-α/β/γ）
 - 可选 `--target <asset_id>`: 仅审单个 agent / skill 名（Layer 2 节省 token；Layer 1 仍按 scope 全跑）
 - 项目根下的 `.cataforge/` 目录（必读）
 - `cataforge.runtime.skill.builtins.*.CHECKS_MANIFEST`（B3 对账数据源，从已安装的 cataforge 包导入）
@@ -50,6 +50,7 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 | B1-α | 必填段存在 (能力边界 / 输入规范 / 输出规范 / Anti-Patterns / 操作指令) | agents, skills | FAIL |
 | B1-β | 元资产行数 ≤ META_DOC_SPLIT_THRESHOLD_LINES (含 agents `*PROTOCOL*.md` 伴生文档) | agents, skills, rules | WARN |
 | B2-α | 交叉引用图完整 (AGENT.md.skills + SKILL.md.depends + framework.json.features) | agents, skills, all | FAIL (引用不存在) / WARN (孤立) |
+| B2-β | SKILL.md suggested-tools ∈ capability registry (capability_id 规范, 非平台原生工具名) | skills, all | FAIL |
 | B3-α | SKILL.md "## Layer 1 检查项" 段与 builtin CHECKS_MANIFEST 对账 | skills | FAIL |
 | B4-α | SKILL.md / AGENT.md / 协议文档不得出现常量名对应的裸数值 | agents, skills, rules | WARN |
 | B5-α | Workflow 覆盖矩阵 phase→agent 单跳 (dispatch 表 vs agents/, dispatcher_skills 豁免) | workflow, all | WARN |
@@ -136,6 +137,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 - B1-α: AGENT.md / SKILL.md 必填段（能力边界 / 输入规范 / 输出规范 / Anti-Patterns / 操作指令 任选其一作为入口段）<!-- check_id: B1_required_sections -->
 - B1-β: 单文件行数 ≤ META_DOC_SPLIT_THRESHOLD_LINES (WARN 提示拆分)；覆盖 AGENT.md / SKILL.md / `agents/<id>/*PROTOCOL*.md` 伴生文档 / `rules/*.md` 四类 prompt-context 文件，与 {INSTRUCTION_FILE} §硬约束 1 对齐<!-- check_id: B1_size_threshold -->
 - B2-α: 解析所有 AGENT.md `skills:` + SKILL.md `depends:` + framework.json `features` → 引用不存在的 skill/agent FAIL；无任何 AGENT.md 引用的 skill WARN（白名单豁免：基础设施类 skill 如 agent-dispatch / tdd-engine / change-guard / start-orchestrator / context / research / debug / framework-update / workflow-framework-generator / platform-audit / framework-review / framework-issue-resolve / framework-feedback）<!-- check_id: B2_cross_reference_graph -->
+- B2-β: 解析 skill SKILL.md frontmatter `suggested-tools:` → 每个值必须 ∈ `CAPABILITY_IDS` ∪ `EXTENDED_CAPABILITY_IDS`（capability_id 规范，由 deploy 翻译为各平台原生工具名；平台原生名如 Read / Bash / Agent 不可移植且绕过注册表）→ FAIL<!-- check_id: B2_suggested_tools_valid -->
 - B3-α: skill SKILL.md 的 "## Layer 1 检查项" 段与对应 builtin 的 `CHECKS_MANIFEST` 对账。两种识别策略二者必居其一：(1) **anchor 模式** — 段内若出现 `<!-- check_id: <id> -->` HTML 注释锚点，按 ID 双向校验（孤儿锚点 / 缺失锚点 → FAIL）；(2) **delegation 模式** — 段内出现 `权威清单见 ...CHECKS_MANIFEST` 短语，跳过逐条对照（manifest 存在性即契约）。缺该段、或既无锚点又无 delegation 句 → FAIL<!-- check_id: B3_manifest_drift -->
 - B3-β: 项目级 `.cataforge/skills/<skill>/rules/*.yaml` plugin 覆写文件按 `cataforge.runtime.skill.rules.loader.validate_yaml_text` schema 校验（`schema_version` / `rule_type` / `language` / `extensions` / 正则可编译 / `flags` 已知 / e2e backdoor entry 必填 `label`）→ 不合规 FAIL<!-- check_id: B3_rules_schema_compliance -->
 - B4-α: 在 .cataforge/{agents,skills,rules}/**/*.md 中 grep 框架常量对应的裸数值（如 `≤3 问` / `300 行` / `>200 行`），未引用常量名 → WARN（豁免：代码块、版本号、ID 编号）<!-- check_id: B4_hardcoded_constants -->

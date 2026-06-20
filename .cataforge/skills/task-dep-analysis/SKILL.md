@@ -2,7 +2,7 @@
 name: task-dep-analysis
 description: "任务依赖分析 — dev-plan 任务表的依赖关系建模、关键路径计算、环检测、Sprint 分组。**仅处理任务依赖**；代码模块依赖图由 code-review scan 的 coupling 维度负责，请勿混淆。"
 argument-hint: "<DEV-PLAN文档路径>"
-suggested-tools: Read, Grep, Bash
+suggested-tools: file_read, file_grep, shell_exec
 depends: []
 disable-model-invocation: false
 user-invocable: true

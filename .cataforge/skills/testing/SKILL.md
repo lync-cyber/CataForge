@@ -2,7 +2,7 @@
 name: testing
 description: "测试 — 测试策略规划、测试编写与执行、覆盖率分析、缺陷记录。当需要规划测试策略、编写或执行测试套件、分析覆盖率或记录缺陷时使用。本 skill 不改源码（缺陷修复由 debug 负责），单任务 RED/GREEN 单元测试由 tdd-engine 负责，testing 聚焦集成/E2E 与覆盖盲区补充。"
 argument-hint: "<操作: plan|write|execute|report> <测试类型: unit|integration|e2e|all>"
-suggested-tools: Read, Write, Edit, Bash, Glob, Grep
+suggested-tools: file_read, file_write, file_edit, shell_exec, file_glob, file_grep
 depends: [context]
 disable-model-invocation: false
 user-invocable: true

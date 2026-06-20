@@ -2,7 +2,7 @@
 name: ui-design
 description: "UI设计 — 页面布局、组件规范、交互流程、组件目录维护。当需要做 UI 设计、定义设计 token、规划页面与组件、设计交互流程或维护组件目录时使用。"
 argument-hint: "<prd文档路径或功能需求ID>"
-suggested-tools: Read, Write, Edit
+suggested-tools: file_read, file_write, file_edit
 depends: [context, research]
 disable-model-invocation: false
 user-invocable: true
