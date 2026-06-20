@@ -600,6 +600,13 @@ cataforge viz coverage
 # arch 依赖图（Module/Component/API/DataModel + depends_on）
 cataforge viz arch
 
+# 文档依赖图（doc-index deps；stale 上游 / 断裂 xref 高亮）
+cataforge viz docs
+
+# 任务依赖图（关键路径 / 环高亮）
+cataforge viz tasks --edges "T-001→T-002,T-002→T-003" --weights "T-001:S,T-003:L"
+cataforge viz tasks                       # 省略 --edges 时从 KG Task.depends_on 取数
+
 # 切换输出格式 / 写文件
 cataforge viz framework --format dot
 cataforge viz coverage --format json -o docs/viz/coverage.json
@@ -610,6 +617,8 @@ cataforge viz coverage --format json -o docs/viz/coverage.json
 | `--format <mermaid\|dot\|json>` | 文本渲染器，默认 `mermaid`。`mermaid` 在 GitHub / IDE / 文档站原生渲染；`dot` 交给本地 graphviz；`json` 为稳定外部契约 | 全部 |
 | `-o, --output <path>` | 写到 PATH（自动建父目录）而非 stdout | 全部 |
 | `--direction <downstream\|upstream\|both>` | 追溯方向，默认 `downstream` | `trace` |
+| `--edges "A→B,B→C"` | 任务依赖边列表 | `tasks` |
+| `--weights "A:S,B:M"` | 任务复杂度权重（S/M/L/XL），驱动关键路径长度 | `tasks` |
 
 视图说明：
 
@@ -619,8 +628,10 @@ cataforge viz coverage --format json -o docs/viz/coverage.json
 | `trace` | 追溯链图（需求→模块→任务→测试）；省略 ENTITY_ID 聚合全部 Feature | KG `TraceAPI`（需先 `cataforge kg init` + `kg import`） |
 | `coverage` | Feature 覆盖矩阵，每个 Feature 一个节点，按 impl/test 状态着色 | KG `bidirectional_coverage()` |
 | `arch` | arch 层实体（Module/Component/API/DataModel）+ 层内 `depends_on` 边 | KG `QueryAPI` |
+| `docs` | 文档依赖有向图；stale 上游标节点样式 + `stale` 边、断裂 xref 标 `xref-error` 边 | `docs/.doc-index.json`（需先 `cataforge context index`） |
+| `tasks` | 任务 DAG，关键路径或环节点高亮 | `--edges` / `--weights`（authoring 时刻）；省略时读 KG `Task.depends_on`（同 `task-dep-analysis` 图算法） |
 
-`trace` / `coverage` / `arch` 读 KG store；store 未初始化时优雅退出并提示 `cataforge kg init`。**mermaid 收编**：追溯图的 mermaid 表面已从 `kg trace --output mermaid` 迁移到 `cataforge viz trace`；`kg trace` 保留 `table` / `json` 分析输出。
+`trace` / `coverage` / `arch` 读 KG store；store 未初始化时优雅退出并提示 `cataforge kg init`。`docs` 读 doc-index；未建索引时提示 `cataforge context index`。**mermaid 收编**：追溯图的 mermaid 表面从 `kg trace --output mermaid` 迁移到 `cataforge viz trace`（`kg trace` 保留 `table` / `json` 分析）；任务依赖图的 mermaid 从 `task-dep-analysis --format mermaid` 迁移到 `cataforge viz tasks --format mermaid`（`task-dep-analysis` 保留 `--format json` 分析）。
 
 产物默认写 `docs/viz/`（已在 `docs/.docignore` 中豁免 orphan 检查）。输出 stdout 时 pipe 友好，可直接喂 mermaid.live / `dot`。
 

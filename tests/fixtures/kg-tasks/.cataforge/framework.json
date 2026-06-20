@@ -1,0 +1,12 @@
+{
+  "docs": {
+    "doc_types": {
+      "dev-plan": "dev-plan"
+    }
+  },
+  "kg": {
+    "project_id": "proj-kg-tasks",
+    "title": "Task DAG fixture",
+    "process_model": "waterfall"
+  }
+}

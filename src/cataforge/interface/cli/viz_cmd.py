@@ -99,3 +99,25 @@ def viz_coverage(fmt: str, output: Path | None) -> None:
 def viz_arch(fmt: str, output: Path | None) -> None:
     """Architecture graph: Module/Component/API/DataModel + depends_on edges."""
     _emit(service.generate("arch", fmt, resolve_root()), output)
+
+
+@viz_group.command("docs")
+@_format_option
+@_output_option
+def viz_docs(fmt: str, output: Path | None) -> None:
+    """Document dependency graph: stale / broken upstreams highlighted."""
+    _emit(service.generate("docs", fmt, resolve_root()), output)
+
+
+@viz_group.command("tasks")
+@click.option("--edges", default="", help='Task edges: "T-001→T-002,T-002→T-003".')
+@click.option("--weights", default="", help='Task weights: "T-001:S,T-002:M".')
+@_format_option
+@_output_option
+def viz_tasks(edges: str, weights: str, fmt: str, output: Path | None) -> None:
+    """Task dependency graph: critical path / cycle nodes highlighted.
+
+    With --edges, renders that DAG; without it, reads Task.depends_on from the KG.
+    """
+    content = service.generate("tasks", fmt, resolve_root(), edges=edges, weights=weights)
+    _emit(content, output)

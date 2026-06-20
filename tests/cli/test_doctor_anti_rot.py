@@ -238,6 +238,7 @@ def test_doctor_anti_rot_table_contains_expected_entries() -> None:
         "cataforge docs index",
         "cataforge docs validate",
         "kg trace --output mermaid",
+        "task-dep-analysis --format mermaid",
     }
     for entry in _DEPRECATED_REFS:
         assert entry["replacement"], entry
@@ -285,3 +286,40 @@ def test_doctor_flags_relative_event_logger_script_call(tmp_path: Path, monkeypa
     assert result.exit_code != 0
     assert "event_logger.py" in result.output
     assert "cataforge event log" in result.output
+
+
+def test_doctor_flags_task_dep_mermaid_invocation(tmp_path: Path, monkeypatch) -> None:
+    """The retired `task-dep-analysis -- --format mermaid` surface must be
+    flagged so prose can't keep routing dev-plan mermaid through the skill."""
+    root = _scaffold(tmp_path)
+    skill_dir = root / ".cataforge" / "skills" / "demo"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "# Demo\n\n依赖图: `cataforge skill run task-dep-analysis -- --edges x --format mermaid`\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    assert result.exit_code != 0
+    assert "task-dep-analysis --format mermaid" in result.output
+    assert "cataforge viz tasks" in result.output
+
+
+def test_doctor_allows_viz_tasks_mermaid_beside_skill(tmp_path: Path, monkeypatch) -> None:
+    """The annex reference (`cataforge viz tasks --format mermaid`) may share a
+    line with the skill id — the tempered pattern binds `--format mermaid` to
+    task-dep-analysis itself, not to viz tasks."""
+    root = _scaffold(tmp_path)
+    skill_dir = root / ".cataforge" / "skills" / "demo"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "# Demo\n\n调用 task-dep-analysis 算依赖，再用 "
+        "`cataforge viz tasks --format mermaid` 产出图\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+
+    result = CliRunner().invoke(doctor_command, [])
+    dep = result.output.split("Deprecated protocol references:", 1)[1].splitlines()[1]
+    assert "0 deprecated references" in dep, dep

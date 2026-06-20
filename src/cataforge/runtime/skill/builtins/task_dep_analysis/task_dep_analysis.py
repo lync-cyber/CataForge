@@ -18,14 +18,9 @@ import sys
 from collections import defaultdict, deque
 from typing import Any
 
-from cataforge.core.viz.model import Edge, Graph, Node
-from cataforge.core.viz.render.mermaid import render as render_mermaid
 from cataforge.utils.common import ensure_utf8
 
 WEIGHT_MAP = {"S": 1, "M": 2, "L": 3, "XL": 5}
-
-_CP_STYLE = "fill:#f96,stroke:#333,stroke-width:2px"
-_CYCLE_STYLE = "fill:#f00,stroke:#333,stroke-width:2px"
 
 
 def parse_edges(edges_str: str) -> list[tuple[str, str]]:
@@ -152,26 +147,12 @@ def sprint_groups(graph: dict[str, list[str]], all_nodes: set[str]) -> list[list
     return groups
 
 
-def _mermaid(edges: list[tuple[str, str]], styled: set[str], style: str) -> str:
-    return render_mermaid(
-        Graph(
-            direction="LR",
-            edges=tuple(Edge(u, v) for u, v in edges),
-            nodes=tuple(Node(n, style=style) for n in styled),
-        )
-    )
-
-
-def format_mermaid(edges: list[tuple[str, str]], cp: list[str]) -> str:
-    return _mermaid(edges, set(cp), _CP_STYLE)
-
-
 def main() -> None:
     ensure_utf8()
     parser = argparse.ArgumentParser(description="任务依赖分析工具")
     parser.add_argument("--edges", required=True, help='边列表: "T-001→T-002,T-002→T-003"')
     parser.add_argument("--weights", default="", help='权重: "T-001:S,T-002:M,T-003:L"')
-    parser.add_argument("--format", default="json", choices=["json", "mermaid"])
+    parser.add_argument("--format", default="json", choices=["json"])
     args = parser.parse_args()
 
     edges = parse_edges(args.edges)
@@ -185,24 +166,10 @@ def main() -> None:
         all_nodes.add(v)
 
     if not all_nodes:
-        if args.format == "mermaid":
-            print(render_mermaid(Graph(direction="LR", nodes=(Node("empty", label="无有效边"),))))
-        else:
-            print(json.dumps({"error": "无有效边"}, ensure_ascii=False))
+        print(json.dumps({"error": "无有效边"}, ensure_ascii=False))
         sys.exit(2)
 
     cycles = detect_cycles(graph, all_nodes)
-
-    if args.format == "mermaid":
-        if cycles:
-            cycle_nodes: set[str] = set()
-            for c in cycles:
-                cycle_nodes.update(c)
-            print(_mermaid(edges, cycle_nodes, _CYCLE_STYLE))
-        else:
-            cp, _ = critical_path(graph, all_nodes, weights, topological_sort(graph, all_nodes))
-            print(format_mermaid(edges, cp))
-        sys.exit(1 if cycles else 0)
 
     result: dict[str, Any] = {
         "cycle_detected": len(cycles) > 0,

@@ -352,6 +352,16 @@
       "type": "file_must_contain",
       "path": ".cataforge/scripts/framework/setup.py",
       "patterns": ["cataforge setup", "env-block"]
+    },
+    {
+      "id": "mc-0.13.0-task-dep-mermaid",
+      "release_version": "0.13.0",
+      "deprecate_after": "0.15.0",
+      "description": "task-dep-analysis 的 mermaid 表面已收编进 cataforge viz tasks；下游 task-dep-analysis/SKILL.md 须把依赖图 mermaid 产出改走 cataforge viz tasks --format mermaid，task-dep-analysis 仅保留 --format json 分析职责",
+      "type": "file_must_not_contain",
+      "path": ".cataforge/skills/task-dep-analysis/SKILL.md",
+      "allow_missing": true,
+      "patterns": ["--format json|mermaid"]
     }
   ]
 }
