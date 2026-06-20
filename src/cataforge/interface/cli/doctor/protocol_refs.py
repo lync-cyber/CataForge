@@ -91,6 +91,17 @@ _DEPRECATED_REFS: tuple[dict[str, str], ...] = (
         "replacement": "`cataforge viz trace`",
         "since": "v0.13.0",
     },
+    {
+        "name": "task-dep-analysis --format mermaid",
+        # task-dep-analysis keeps --format json analysis; the mermaid surface
+        # moved to `cataforge viz tasks`. The tempered `(?!viz)` gap binds the
+        # `--format mermaid` to task-dep-analysis itself, so prose that names
+        # both commands on one line (`task-dep-analysis ... cataforge viz tasks
+        # --format mermaid`) is not a false positive.
+        "pattern": r"\btask-dep-analysis\b(?:(?!viz).)*--format[=\s]+(?:json\|)?mermaid\b",
+        "replacement": "`cataforge viz tasks --format mermaid`",
+        "since": "v0.13.0",
+    },
 )
 
 

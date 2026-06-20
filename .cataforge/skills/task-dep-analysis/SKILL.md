@@ -45,7 +45,7 @@ user-invocable: true
 cataforge skill run task-dep-analysis -- \
   --edges "T-001→T-002,T-002→T-003,..." \
   [--weights "T-001:S,T-002:M,T-003:L,..."] \
-  [--format json|mermaid]
+  [--format json]
 ```
 
 脚本功能:
@@ -54,9 +54,7 @@ cataforge skill run task-dep-analysis -- \
 - 关键路径计算: 基于复杂度权重(S=1,M=2,L=3,XL=5)
 - Sprint分组建议: 按拓扑层级和并行度分组
 
-输出格式:
-- `--format json` (默认): JSON结构化数据
-- `--format mermaid`: Mermaid `graph LR` 格式，关键路径节点高亮标注
+输出: `--format json`（默认且唯一）输出 JSON 结构化分析数据。依赖图的 Mermaid 可视化由 `cataforge viz tasks --format mermaid --edges "..."` 产出（同一图算法、同一关键路径高亮）。
 
 JSON输出示例:
 ```json
@@ -70,7 +68,7 @@ JSON输出示例:
 }
 ```
 
-Mermaid输出示例:
+`cataforge viz tasks --format mermaid` 输出示例:
 ```mermaid
 graph LR
     T-001 --> T-002
@@ -82,9 +80,9 @@ graph LR
 ### Step 3: 应用分析结果
 - 有环 → 报告环路径，建议打破方式，status=blocked
 - 无环 → 执行以下操作:
-  1. 使用 `--format mermaid` 获取 Mermaid 依赖图
+  1. 使用 `cataforge viz tasks --format mermaid --edges "..."` 获取 Mermaid 依赖图
   2. 通过 `cataforge context write-narrative` 将 Mermaid 图写入 dev-plan §2（包裹在 ` ```mermaid ` 代码块中）
-  3. 使用 `--format json` 获取关键路径和Sprint分组数据
+  3. 使用 `cataforge skill run task-dep-analysis -- --format json` 获取关键路径和 Sprint 分组数据
   4. 将关键路径信息写入 dev-plan#§4
 
 ## Anti-Patterns

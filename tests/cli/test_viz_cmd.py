@@ -279,3 +279,172 @@ class TestVizArch:
         assert data["kind"] == "graph"
         labels = {n.get("label") for n in data["nodes"]}
         assert any(label and label.startswith("M-001") for label in labels)
+
+
+# ------------------------------------------------------------------
+# docs view — doc-index dependency graph with stale / xref styling
+# ------------------------------------------------------------------
+
+
+def _make_docs_project(tmp_path: Path) -> Path:
+    """Project dir with a hand-built doc-index: one stale dep + one broken xref."""
+    index = {
+        "version": "1",
+        "documents": {
+            "prd-x": {
+                "file_path": "docs/prd/prd-x.md",
+                "doc_type": "prd",
+                "content_hash": "h_prd",
+                "deps": [],
+                "dep_hashes": {},
+            },
+            "arch-x": {
+                "file_path": "docs/arch/arch-x.md",
+                "doc_type": "arch",
+                "content_hash": "h_arch",
+                "deps": ["ghost#§2"],
+                "dep_hashes": {},
+            },
+            "dev-x": {
+                "file_path": "docs/dev-plan/dev-x.md",
+                "doc_type": "dev-plan",
+                "content_hash": "h_dev",
+                "deps": ["arch-x"],
+                "dep_hashes": {"arch-x": "OLD_HASH"},
+            },
+        },
+        "xref": {},
+    }
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / ".doc-index.json").write_text(json.dumps(index), encoding="utf-8")
+    return tmp_path
+
+
+class TestVizDocs:
+    def test_stale_dep_styled_and_labelled(self, tmp_path: Path) -> None:
+        _make_docs_project(tmp_path)
+        result = _viz(tmp_path, "docs")
+        assert result.exit_code == 0, result.output
+        assert "graph LR" in result.output
+        # stale: dev-x pinned an old arch-x hash → coloured node + labelled edge
+        assert "dev-x -->|stale| arch-x" in result.output
+        assert "style dev-x" in result.output
+
+    def test_broken_xref_marked(self, tmp_path: Path) -> None:
+        _make_docs_project(tmp_path)
+        result = _viz(tmp_path, "docs")
+        assert result.exit_code == 0, result.output
+        # arch-x depends on a doc absent from the index → xref-error edge
+        assert "arch-x -->|xref-error| ghost" in result.output
+
+    def test_json_kind_graph(self, tmp_path: Path) -> None:
+        _make_docs_project(tmp_path)
+        result = _viz(tmp_path, "docs", "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["kind"] == "graph"
+        labels = {(e["src"], e["dst"]): e.get("label") for e in data["edges"]}
+        assert labels[("dev-x", "arch-x")] == "stale"
+        assert labels[("arch-x", "ghost")] == "xref-error"
+
+    def test_missing_index_degrades(self, tmp_path: Path) -> None:
+        result = _viz(tmp_path, "docs")
+        assert result.exit_code != 0
+        assert "context index" in result.output.lower()
+
+
+# ------------------------------------------------------------------
+# tasks view — DAG with critical-path / cycle styling (task-dep-analysis annex)
+# ------------------------------------------------------------------
+
+_TASK_EDGES = "T-001→T-002,T-002→T-003,T-001→T-004"
+_KG_TASKS_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "kg-tasks"
+
+
+def _make_kg_tasks_project(tmp_path: Path) -> Path:
+    """Project dir with a KG store holding Task entities + depends_on edges."""
+    db = tmp_path / ".cataforge" / "kg" / "store"
+    runner = CliRunner()
+    init = runner.invoke(cli, ["kg", "init", "--db-path", str(db)])
+    assert init.exit_code == 0, init.output
+    imp = runner.invoke(
+        cli, ["kg", "import", "--project-root", str(_KG_TASKS_FIXTURE), "--db-path", str(db)]
+    )
+    assert imp.exit_code == 0, imp.output
+    return tmp_path
+
+
+class TestVizTasksFromEdges:
+    def test_critical_path_highlighted(self, tmp_path: Path) -> None:
+        result = _viz(tmp_path, "tasks", "--edges", _TASK_EDGES)
+        assert result.exit_code == 0, result.output
+        assert "graph LR" in result.output
+        assert "T-001 --> T-002" in result.output
+        assert "style" in result.output  # critical-path nodes highlighted
+
+    def test_nodes_edges_match_task_dep_analysis(self, tmp_path: Path) -> None:
+        from collections import defaultdict
+
+        from cataforge.runtime.skill.builtins.task_dep_analysis.task_dep_analysis import (
+            parse_edges,
+            topological_sort,
+        )
+
+        parsed = parse_edges(_TASK_EDGES)
+        graph: dict[str, list[str]] = defaultdict(list)
+        all_nodes: set[str] = set()
+        for u, v in parsed:
+            graph[u].append(v)
+            all_nodes.add(u)
+            all_nodes.add(v)
+        topo = topological_sort(graph, all_nodes)
+
+        result = _viz(tmp_path, "tasks", "--edges", _TASK_EDGES, "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["kind"] == "graph"
+        seen = {n["id"] for n in data["nodes"]}
+        seen |= {e["src"] for e in data["edges"]} | {e["dst"] for e in data["edges"]}
+        assert seen == set(topo)
+        assert {(e["src"], e["dst"]) for e in data["edges"]} == set(parsed)
+
+    def test_cycle_nodes_flagged_red(self, tmp_path: Path) -> None:
+        result = _viz(tmp_path, "tasks", "--edges", "T-001→T-002,T-002→T-001")
+        assert result.exit_code == 0, result.output
+        assert "#f00" in result.output  # cycle style
+
+    def test_invalid_edges_placeholder(self, tmp_path: Path) -> None:
+        # non-empty edges that parse to nothing → empty-graph placeholder
+        result = _viz(tmp_path, "tasks", "--edges", "garbage-no-arrow")
+        assert result.exit_code == 0, result.output
+        assert "无有效边" in result.output
+
+
+class TestVizTasksFromKg:
+    def test_reads_depends_on_chain(self, tmp_path: Path) -> None:
+        _make_kg_tasks_project(tmp_path)
+        result = _viz(tmp_path, "tasks")  # no --edges → KG source
+        assert result.exit_code == 0, result.output
+        assert "graph LR" in result.output
+        assert "T-001 --> T-002" in result.output
+        assert "T-002 --> T-003" in result.output
+
+    def test_json_nodes_match_kg_tasks(self, tmp_path: Path) -> None:
+        _make_kg_tasks_project(tmp_path)
+        result = _viz(tmp_path, "tasks", "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        edges = {(e["src"], e["dst"]) for e in data["edges"]}
+        assert edges == {("T-001", "T-002"), ("T-002", "T-003")}
+
+    def test_no_tasks_placeholder(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)  # KG with Features/Modules but no Tasks
+        result = _viz(tmp_path, "tasks")
+        assert result.exit_code == 0, result.output
+        assert "无有效边" in result.output
+
+    def test_uninitialised_store_degrades(self, tmp_path: Path) -> None:
+        result = _viz(tmp_path, "tasks")  # no --edges, no KG store
+        assert result.exit_code != 0
+        assert "kg init" in result.output.lower()

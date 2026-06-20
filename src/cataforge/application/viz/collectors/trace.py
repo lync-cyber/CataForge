@@ -6,15 +6,13 @@ degrades to a `CataforgeError` carrying the facade's own ``kg init`` hint.
 
 from __future__ import annotations
 
-from collections.abc import Generator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
+from cataforge.application.viz.collectors._kg import open_kg
 from cataforge.core.errors import CataforgeError
-from cataforge.core.paths import KG_STORE_REL
 from cataforge.core.viz.model import Edge, Graph, Node, View
-from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
+from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg.trace import TraceChain
 
 # coverage status → Mermaid style body
@@ -33,16 +31,6 @@ _CHAIN_EDGES = [
 ]
 
 _ARCH_TYPES = ["Module", "Component", "API", "DataModel"]
-
-
-@contextmanager
-def _open_kg(root: Path) -> Generator[KnowledgeGraph, None, None]:
-    config = KGConfig(store_backend="oxigraph", db_path=root / KG_STORE_REL)
-    try:
-        with KnowledgeGraph.connect(config, read_only=True) as kg:
-            yield kg
-    except KGStoreNotInitializedError as exc:
-        raise CataforgeError(str(exc)) from exc
 
 
 def _buckets(chain: TraceChain) -> list[tuple[str, list[str]]]:
@@ -97,7 +85,7 @@ def collect_trace(root: Path, /, **opts: Any) -> View:
     direction = opts.get("direction", "downstream")
     nodes: dict[str, Node] = {}
     edges: set[tuple[str, str, str]] = set()
-    with _open_kg(root) as kg:
+    with open_kg(root) as kg:
         if entity_id:
             if not kg.query.exists(entity_id):
                 raise CataforgeError(f"Entity not found: {entity_id}")
@@ -119,7 +107,7 @@ def collect_trace(root: Path, /, **opts: Any) -> View:
 
 def collect_coverage(root: Path, /, **_opts: Any) -> View:
     """One styled node per Feature: green=impl+test, yellow=partial, red=none."""
-    with _open_kg(root) as kg:
+    with open_kg(root) as kg:
         rows = kg.trace.bidirectional_coverage()
     nodes = []
     for r in rows:
@@ -137,7 +125,7 @@ def collect_arch(root: Path, /, **_opts: Any) -> View:
     """Arch-layer entities with intra-layer ``depends_on`` edges."""
     nodes: list[Node] = []
     edges: list[Edge] = []
-    with _open_kg(root) as kg:
+    with open_kg(root) as kg:
         entities = kg.query.all_entities(types=_ARCH_TYPES)
         ids = {eid for e in entities if (eid := e.get("entity_id"))}
         for e in entities:
