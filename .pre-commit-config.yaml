@@ -27,7 +27,11 @@ repos:
           Shift the [tool.mypy] strict gate left to commit time. Runs
           incrementally (no --no-incremental) so the local loop stays fast;
           CI re-runs it with --no-incremental as the authoritative gate.
-        entry: python -m mypy src/cataforge
+          Runs through `uv run --extra dev` so the dev venv (with type stubs
+          such as types-PyYAML) is used regardless of which Python is on PATH
+          at commit time — a bare `python -m mypy` would miss the stubs and
+          report spurious import-untyped errors.
+        entry: uv run --extra dev mypy src/cataforge
         language: system
         pass_filenames: false
         types_or: [python]
