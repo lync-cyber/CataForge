@@ -10,6 +10,7 @@ Checks:
      integers only; sub-steps belong inline or as nested bullets.
   2. Orphaned numbered list gaps (e.g. 1, 2, 4 — missing 3).
   3. Duplicate step numbers within the same section.
+  4. Indented letter sub-lists (e.g. `a.`, `b)`) — use nested bullets.
 
 Whitelist: append `<!-- allow-doc-structure: <reason> -->` to the
 offending line if you have a deliberate reason.
@@ -43,6 +44,9 @@ NON_STD_STEP = re.compile(r"^(\d+[a-z])[.)]\s")
 
 # Standard numbered list item: "N. " at line start (markdown ordered list)
 NUMBERED_STEP = re.compile(r"^(\d+)\.\s")
+
+# Indented letter sub-list: "  a. ", "  b) " — use nested bullets instead
+LETTER_SUBLIST = re.compile(r"^\s+([a-z])[.)]\s")
 
 
 def is_whitelisted(line: str) -> bool:
@@ -84,6 +88,33 @@ def check_non_standard_numbering(
                     "non-standard-step",
                     f"'{m.group(1)}' — use sequential integers; "
                     f"merge sub-steps inline or as nested bullets",
+                )
+            )
+    return issues
+
+
+def check_letter_sublist(
+    lines: list[str],
+) -> list[tuple[int, str, str]]:
+    """Return (lineno, label, line) for indented letter sub-lists (a. b. c.)."""
+    issues: list[tuple[int, str, str]] = []
+    in_code_fence = False
+    for lineno, line in enumerate(lines, 1):
+        if CODE_FENCE.match(line):
+            in_code_fence = not in_code_fence
+            continue
+        if in_code_fence:
+            continue
+        if is_whitelisted(line):
+            continue
+        m = LETTER_SUBLIST.match(line)
+        if m:
+            issues.append(
+                (
+                    lineno,
+                    "letter-sublist",
+                    f"'{m.group(1)}.' — use nested bullets (-) for sub-steps, "
+                    f"not letter enumeration",
                 )
             )
     return issues
@@ -170,6 +201,9 @@ def main() -> int:
         for lineno, label, msg in check_non_standard_numbering(lines):
             fails.append(f"{rel}:{lineno}: [{label}] {msg}")
 
+        for lineno, label, msg in check_letter_sublist(lines):
+            fails.append(f"{rel}:{lineno}: [{label}] {msg}")
+
         for lineno, label, msg in check_step_gaps(lines):
             fails.append(f"{rel}:{lineno}: [{label}] {msg}")
 
@@ -182,8 +216,9 @@ def main() -> int:
             print(f"  {f}", file=sys.stderr)
         print(
             "\nFix: use sequential integers (1. 2. 3.) for numbered steps. "
-            "Merge sub-steps inline or as nested bullets — never use 3a. / 4b. "
-            "suffixes. Close numbering gaps by renumbering.",
+            "Merge sub-steps inline or as nested bullets (-) — never use 3a. / "
+            "4b. suffixes or a. / b. letter sub-lists. Close numbering gaps by "
+            "renumbering.",
             file=sys.stderr,
         )
         return 1

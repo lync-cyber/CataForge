@@ -121,6 +121,19 @@ FORBIDDEN: list[tuple[str, re.Pattern[str], str]] = [
         re.compile(r"\btokio::spawn\b|#\[tokio::main\]"),
         "docs/reference/wiring-checks.md §Rust (or a new docs/reference/rust-*.md)",
     ),
+    (
+        "test-mock-module",
+        re.compile(r"\b(?:vi|jest)\.mock\b|\bunittest\.mock\b"),
+        "docs/reference/test-and-e2e-apis.md §module-mock API",
+    ),
+    (
+        "e2e-driver-input",
+        re.compile(
+            r"\bpage\.(?:fill|click|type|goto|press)\b|\bcy\.[a-z]|"
+            r"\bkeyboard\.(?:type|press)\b|\bsend_keys\b"
+        ),
+        "docs/reference/test-and-e2e-apis.md §e2e 真实用户输入原语",
+    ),
 ]
 
 ALLOW_MARKER = re.compile(r"<!--\s*allow-language-coupling")
