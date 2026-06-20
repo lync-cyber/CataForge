@@ -589,6 +589,9 @@ cataforge feedback correction-export --threshold 3 --out docs/feedback/$(date +%
 # 编排图 orchestrator → phase → agent → skill（Mermaid，默认 stdout）
 cataforge viz framework
 
+# 资产图：全部 agent + skill 目录与依赖（agent→skill / skill→skill）
+cataforge viz assets
+
 # 追溯图：单实体或省略 ID 聚合全部 Feature
 cataforge viz trace F-001
 cataforge viz trace --direction both
@@ -617,11 +620,20 @@ cataforge viz decay
 # 切换输出格式 / 写文件
 cataforge viz framework --format dot
 cataforge viz coverage --format json -o docs/viz/coverage.json
+
+# 自包含离线 HTML（Graph→Cytoscape.js / 时间线·指标→ECharts，覆盖 --format）
+cataforge viz framework --html -o docs/viz/framework.html
+cataforge viz assets --html -o docs/viz/assets.html      # 带节点搜索框
+cataforge viz timeline --html -o docs/viz/timeline.html
+
+# dashboard：把全部可用视图聚合进单文件多标签离线页（恒为 HTML）
+cataforge viz dashboard -o docs/viz/index.html
 ```
 
 | 参数 | 作用 | 适用 view |
 |------|------|----------|
-| `--format <mermaid\|dot\|json>` | 文本渲染器，默认 `mermaid`。`mermaid` 在 GitHub / IDE / 文档站原生渲染；`dot` 交给本地 graphviz；`json` 为稳定外部契约 | 全部 |
+| `--format <mermaid\|dot\|json>` | 文本渲染器，默认 `mermaid`。`mermaid` 在 GitHub / IDE / 文档站原生渲染；`dot` 交给本地 graphviz；`json` 为稳定外部契约 | 全部（`dashboard` 除外） |
+| `--html` | 输出自包含离线 HTML（内联 vendored JS，零外链）：Graph 走 Cytoscape.js（zoom/pan/搜索），Timeline/MetricSeries 走 ECharts。覆盖 `--format` | 全部单视图 |
 | `-o, --output <path>` | 写到 PATH（自动建父目录）而非 stdout | 全部 |
 | `--direction <downstream\|upstream\|both>` | 追溯方向，默认 `downstream` | `trace` |
 | `--edges "A→B,B→C"` | 任务依赖边列表 | `tasks` |
@@ -631,7 +643,8 @@ cataforge viz coverage --format json -o docs/viz/coverage.json
 
 | view | 内容 | 数据源 |
 |------|------|--------|
-| `framework` | orchestrator → phase → agent → skill 编排图 | framework.json `workflow.modes.standard` + agent frontmatter `skills` |
+| `framework` | orchestrator → phase → agent → skill 编排图（仅 standard 路由的 agent） | framework.json `workflow.modes.standard` + agent frontmatter `skills` |
+| `assets` | 全量 agent + skill 目录图：agent→skill 与 skill→skill 依赖边（`--html` 下带搜索框） | `AgentManager` + `SkillLoader`（builtins + 项目覆写） |
 | `trace` | 追溯链图（需求→模块→任务→测试）；省略 ENTITY_ID 聚合全部 Feature | KG `TraceAPI`（需先 `cataforge kg init` + `kg import`） |
 | `coverage` | Feature 覆盖矩阵，每个 Feature 一个节点，按 impl/test 状态着色 | KG `bidirectional_coverage()` |
 | `arch` | arch 层实体（Module/Component/API/DataModel）+ 层内 `depends_on` 边 | KG `QueryAPI` |
@@ -640,10 +653,13 @@ cataforge viz coverage --format json -o docs/viz/coverage.json
 | `phase` | SDLC 阶段骨架，当前阶段按门禁结论着色（绿=通过 / 红=受阻），结论与 `cataforge phase status` 一致 | `evaluate_phase()` + framework.json `workflow.modes.standard` |
 | `timeline` | EVENT-LOG 事件时间线（按日期分组的 mermaid `timeline`） | `docs/EVENT-LOG.jsonl`（容错解析，跳过坏行） |
 | `decay` | CORRECTIONS-LOG 腐化时间线，每条纠偏一个事件 | `docs/reviews/CORRECTIONS-LOG.md` |
+| `dashboard` | 把上述全部视图聚合进单文件多标签离线页（恒为 HTML；取不到数据的视图降级为错误面板，不中断） | 上述全部 collector |
 
 `trace` / `coverage` / `arch` 读 KG store；store 未初始化时优雅退出并提示 `cataforge kg init`。`docs` 读 doc-index；未建索引时提示 `cataforge context index`。`phase` 读项目指令文件；非 CataForge 驱动项目优雅退出。`timeline` / `decay` 渲染为 mermaid `timeline`（`dot` 仅支持 Graph 视图，对时间线视图会报错，用 `mermaid` 或 `json`）。**mermaid 收编**：追溯图的 mermaid 表面从 `kg trace --output mermaid` 迁移到 `cataforge viz trace`（`kg trace` 保留 `table` / `json` 分析）；任务依赖图的 mermaid 从 `task-dep-analysis --format mermaid` 迁移到 `cataforge viz tasks --format mermaid`（`task-dep-analysis` 保留 `--format json` 分析）。
 
-产物默认写 `docs/viz/`（已在 `docs/.docignore` 中豁免 orphan 检查）。输出 stdout 时 pipe 友好，可直接喂 mermaid.live / `dot`。
+**自包含 HTML（`--html`）**：输出单文件离线页，vendored `cytoscape.min.js` / `echarts.min.js` 经 `importlib.resources` 内联，零外链——断网双击即开。渲染器纯按 IR 形态分发：Graph → Cytoscape.js（zoom / pan / 节点搜索），Timeline / MetricSeries → ECharts。`dashboard` 共享两库一次内联、各视图分标签页。`--html` 与 `--format` 互斥，同时给出时 `--html` 生效。
+
+产物默认写 `docs/viz/`（已在 `docs/.docignore` 中豁免 orphan 检查；HTML 产物另由 `.gitignore` `docs/**/*.html` 保持临时）。文本输出 stdout 时 pipe 友好，可直接喂 mermaid.live / `dot`。
 
 ---
 

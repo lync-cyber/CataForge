@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
-from cataforge.application.viz import service
+from cataforge.application.viz import html, service
 from cataforge.core.errors import CataforgeError
 from cataforge.core.viz.model import (
     Edge,
@@ -149,6 +150,10 @@ class TestService:
     def test_unknown_format(self, tmp_path: Path) -> None:
         with pytest.raises(CataforgeError):
             service.generate("framework", "nope", tmp_path)
+
+    def test_dashboard_requires_html(self, tmp_path: Path) -> None:
+        with pytest.raises(CataforgeError, match="HTML-only"):
+            service.generate("dashboard", "mermaid", tmp_path)
 
 
 # ------------------------------------------------------------------
@@ -619,3 +624,154 @@ class TestVizDecay:
         result = _viz(tmp_path, "decay")
         assert result.exit_code == 0, result.output
         assert "no events" in result.output
+
+
+# ------------------------------------------------------------------
+# assets view — agent / skill catalogue graph
+# ------------------------------------------------------------------
+
+
+class TestVizAssets:
+    def test_agent_skill_graph_text(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "assets")
+        assert result.exit_code == 0, result.output
+        assert "graph LR" in result.output
+        assert "product-manager" in result.output
+        assert "research" in result.output
+
+    def test_json_has_agent_skill_edge(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "assets", "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert data["kind"] == "graph"
+        labels = {n.get("label") for n in data["nodes"]}
+        assert {"product-manager", "research"} <= labels
+        edges = {(e["src"], e["dst"]) for e in data["edges"]}
+        assert ("agent_product_manager", "skill_research") in edges
+
+
+# ------------------------------------------------------------------
+# HTML renderer (tier 2) — self-contained offline output
+# ------------------------------------------------------------------
+
+
+def _assert_offline(html_text: str) -> None:
+    """No external resource references — the page must open with no network."""
+    assert "<script src" not in html_text
+    assert "<link " not in html_text
+    assert not re.search(r'(?:src|href)\s*=\s*["\']https?://', html_text)
+
+
+_HTML_GRAPH = Graph(
+    title="g",
+    nodes=(Node("a", label="Alpha"), Node("b", label="Beta", style="fill:#f96,stroke:#333")),
+    edges=(Edge("a", "b", label="rel"),),
+)
+_HTML_TL = Timeline(title="t", events=(TimelineEvent("2026-01-01T00:00:00", "ev", "cat"),))
+_HTML_MS = MetricSeries(title="m", points=(MetricPoint("F-001", 1.0, "impl"),))
+
+
+class TestHtmlRenderer:
+    def test_vendored_assets_resolve(self) -> None:
+        cy = html._read_asset("cytoscape.min.js")
+        ec = html._read_asset("echarts.min.js")
+        assert "Cytoscape Consortium" in cy and len(cy) > 100_000
+        assert "Apache Software Foundation" in ec and len(ec) > 500_000
+
+    def test_graph_inlines_cytoscape_only(self) -> None:
+        out = html.render(_HTML_GRAPH)
+        assert "Cytoscape Consortium" in out
+        assert "Apache Software Foundation" not in out
+        assert "initGraph('view0'" in out
+        _assert_offline(out)
+
+    def test_graph_node_style_maps_to_data(self) -> None:
+        out = html.render(_HTML_GRAPH)
+        assert '"bg": "#f96"' in out
+        assert '"border": "#333"' in out
+
+    def test_graph_has_search_box(self) -> None:
+        assert 'class="search"' in html.render(_HTML_GRAPH)
+
+    def test_timeline_inlines_echarts_only(self) -> None:
+        out = html.render(_HTML_TL)
+        assert "Apache Software Foundation" in out
+        assert "Cytoscape Consortium" not in out
+        assert "initChart('view0'" in out
+        _assert_offline(out)
+
+    def test_metrics_inlines_echarts(self) -> None:
+        out = html.render(_HTML_MS)
+        assert "Apache Software Foundation" in out
+        assert "initChart('view0'" in out
+        _assert_offline(out)
+
+
+def _make_dashboard_project(tmp_path: Path) -> Path:
+    """Framework + agent (graphs) plus EVENT-LOG / CORRECTIONS (charts); KG,
+    doc-index, instruction file all absent so several views degrade."""
+    _make_project(tmp_path)
+    docs = tmp_path / "docs"
+    docs.mkdir(exist_ok=True)
+    rec = {"ts": "2026-01-01T00:00:00+00:00", "event": "phase_start", "phase": "requirements"}
+    (docs / "EVENT-LOG.jsonl").write_text(json.dumps(rec) + "\n", encoding="utf-8")
+    reviews = docs / "reviews"
+    reviews.mkdir()
+    (reviews / "CORRECTIONS-LOG.md").write_text(
+        "# C\n\n### 2026-01-01 | reviewer | development\n- 偏差类型: preference\n",
+        encoding="utf-8",
+    )
+    return tmp_path
+
+
+class TestDashboard:
+    def test_aggregates_graph_and_chart_libs(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "Cytoscape Consortium" in out  # framework / assets graphs
+        assert "Apache Software Foundation" in out  # timeline / decay charts
+        _assert_offline(out)
+
+    def test_one_tab_per_view(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        for label in ("Framework", "Assets", "Timeline", "Decay"):
+            assert f">{label}<" in out
+        assert out.count('<button class="tab') == 10
+
+    def test_failed_views_degrade_to_error_panel(self, tmp_path: Path) -> None:
+        # no KG / doc-index / instruction file → trace/coverage/arch/docs/tasks/phase fail
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'class="error"' in out
+
+    def test_cli_dashboard_writes_html(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out_file = tmp_path / "db.html"
+        result = _viz(tmp_path, "dashboard", "-o", str(out_file))
+        assert result.exit_code == 0, result.output
+        assert "<!DOCTYPE html>" in out_file.read_text(encoding="utf-8")
+
+
+class TestVizHtmlCli:
+    def test_framework_html_inlines_cytoscape(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "framework", "--html")
+        assert result.exit_code == 0, result.output
+        assert "Cytoscape Consortium" in result.output
+        _assert_offline(result.output)
+
+    def test_html_overrides_format(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "framework", "--format", "dot", "--html")
+        assert result.exit_code == 0, result.output
+        assert "<!DOCTYPE html>" in result.output
+        assert "digraph G" not in result.output
+
+    def test_assets_html_inlines_cytoscape(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "assets", "--html")
+        assert result.exit_code == 0, result.output
+        assert "Cytoscape Consortium" in result.output

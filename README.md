@@ -89,6 +89,19 @@ RED → GREEN → REFACTOR 三阶段流水线，每阶段由独立 SubAgent 在�
 
 > **验证状态**：Claude Code 上经过充分验证；Cursor、CodeX、OpenCode 的适配逻辑已实现，但尚未经过等同程度的端到端验证，实际使用中可能遇到边界问题。
 
+### 可视化洞察：一条命令把框架与项目结构画成图
+
+`cataforge viz` 复用既有数据源（知识图谱 / 文档索引 / 事件日志 / 纠偏日志 / agent·skill 资产），把结构关系渲染为可版本化的图，零运行时依赖：
+
+```bash
+cataforge viz framework                       # orchestrator → phase → agent → skill 编排图（Mermaid）
+cataforge viz trace F-001                      # 需求→模块→任务→测试 追溯链，断链高亮
+cataforge viz coverage                         # Feature 覆盖矩阵，暴露测试盲区
+cataforge viz dashboard -o docs/viz/index.html # 全部视图聚合成单文件离线 HTML 看板
+```
+
+视图覆盖编排图、追溯链、覆盖矩阵、arch 依赖、文档依赖（stale 高亮）、任务 DAG、SDLC 阶段、事件时间线、腐化趋势与 agent/skill 资产图。文本格式（Mermaid / DOT / JSON）在 GitHub / IDE / 文档站原生渲染；`--html` 产出内联 Cytoscape.js / ECharts 的单文件离线页（zoom / pan / 搜索），断网即开。
+
 ---
 
 ## 下一步看哪里
@@ -104,6 +117,7 @@ RED → GREEN → REFACTOR 三阶段流水线，每阶段由独立 SubAgent 在�
 | 改配置 | [配置参考](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/configuration.md) |
 | 定制 Agent / Skill | [Agent & Skill 清单](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/agents-and-skills.md) |
 | 理解内部如何工作 | [架构概览](https://github.com/lync-cyber/CataForge/blob/main/docs/architecture/overview.md) |
+| 把框架 / 项目结构画成图 | [`viz` CLI](https://github.com/lync-cyber/CataForge/blob/main/docs/reference/cli.md) · [可视化架构](https://github.com/lync-cyber/CataForge/blob/main/docs/architecture/visualization.md) |
 | 解决报错 | [故障排查](https://github.com/lync-cyber/CataForge/blob/main/docs/getting-started/troubleshooting.md) · [FAQ](https://github.com/lync-cyber/CataForge/blob/main/docs/faq.md) |
 
 [完整文档索引 →](https://github.com/lync-cyber/CataForge/blob/main/docs/README.md)

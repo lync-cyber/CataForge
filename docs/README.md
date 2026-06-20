@@ -43,6 +43,7 @@
 | [运行时工作流](./architecture/runtime-workflow.md) | Bootstrap、阶段执行、中断恢复、修订协议 |
 | [平台适配机制](./architecture/platform-adaptation.md) | Adapter 抽象、能力矩阵、降级策略 |
 | [质量闸与学习系统](./architecture/quality-and-learning.md) | context review/consistency 分支 / code-review / Reflector / On-Correction Learning / 上游反馈通道（`cataforge feedback`） |
+| [可视化架构](./architecture/visualization.md) | `cataforge viz` 的 IR / collector-renderer 正交 / 层级映射 / vendored 打包 / mermaid 收编 |
 
 ## Reference · 查阅
 
