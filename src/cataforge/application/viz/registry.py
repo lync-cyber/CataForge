@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from cataforge.application.viz.collectors import docs, framework, tasks, trace
+from cataforge.application.viz.collectors import decay, docs, framework, process, tasks, trace
 from cataforge.application.viz.collectors.base import Collector
 from cataforge.core.viz.model import View
 from cataforge.core.viz.render import dot, json_, mermaid
@@ -16,6 +16,9 @@ COLLECTORS: dict[str, Collector] = {
     "arch": trace.collect_arch,
     "docs": docs.collect_docs,
     "tasks": tasks.collect_tasks,
+    "phase": process.collect_phase,
+    "timeline": process.collect_timeline,
+    "decay": decay.collect_decay,
 }
 
 RENDERERS: dict[str, Callable[[View], str]] = {

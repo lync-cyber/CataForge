@@ -607,6 +607,13 @@ cataforge viz docs
 cataforge viz tasks --edges "T-001→T-002,T-002→T-003" --weights "T-001:S,T-003:L"
 cataforge viz tasks                       # 省略 --edges 时从 KG Task.depends_on 取数
 
+# SDLC 阶段进度（当前阶段着色：门禁通过=绿 / 受阻=红）
+cataforge viz phase
+
+# EVENT-LOG 时间线 / CORRECTIONS-LOG 腐化时间线（mermaid timeline）
+cataforge viz timeline
+cataforge viz decay
+
 # 切换输出格式 / 写文件
 cataforge viz framework --format dot
 cataforge viz coverage --format json -o docs/viz/coverage.json
@@ -630,8 +637,11 @@ cataforge viz coverage --format json -o docs/viz/coverage.json
 | `arch` | arch 层实体（Module/Component/API/DataModel）+ 层内 `depends_on` 边 | KG `QueryAPI` |
 | `docs` | 文档依赖有向图；stale 上游标节点样式 + `stale` 边、断裂 xref 标 `xref-error` 边 | `docs/.doc-index.json`（需先 `cataforge context index`） |
 | `tasks` | 任务 DAG，关键路径或环节点高亮 | `--edges` / `--weights`（authoring 时刻）；省略时读 KG `Task.depends_on`（同 `task-dep-analysis` 图算法） |
+| `phase` | SDLC 阶段骨架，当前阶段按门禁结论着色（绿=通过 / 红=受阻），结论与 `cataforge phase status` 一致 | `evaluate_phase()` + framework.json `workflow.modes.standard` |
+| `timeline` | EVENT-LOG 事件时间线（按日期分组的 mermaid `timeline`） | `docs/EVENT-LOG.jsonl`（容错解析，跳过坏行） |
+| `decay` | CORRECTIONS-LOG 腐化时间线，每条纠偏一个事件 | `docs/reviews/CORRECTIONS-LOG.md` |
 
-`trace` / `coverage` / `arch` 读 KG store；store 未初始化时优雅退出并提示 `cataforge kg init`。`docs` 读 doc-index；未建索引时提示 `cataforge context index`。**mermaid 收编**：追溯图的 mermaid 表面从 `kg trace --output mermaid` 迁移到 `cataforge viz trace`（`kg trace` 保留 `table` / `json` 分析）；任务依赖图的 mermaid 从 `task-dep-analysis --format mermaid` 迁移到 `cataforge viz tasks --format mermaid`（`task-dep-analysis` 保留 `--format json` 分析）。
+`trace` / `coverage` / `arch` 读 KG store；store 未初始化时优雅退出并提示 `cataforge kg init`。`docs` 读 doc-index；未建索引时提示 `cataforge context index`。`phase` 读项目指令文件；非 CataForge 驱动项目优雅退出。`timeline` / `decay` 渲染为 mermaid `timeline`（`dot` 仅支持 Graph 视图，对时间线视图会报错，用 `mermaid` 或 `json`）。**mermaid 收编**：追溯图的 mermaid 表面从 `kg trace --output mermaid` 迁移到 `cataforge viz trace`（`kg trace` 保留 `table` / `json` 分析）；任务依赖图的 mermaid 从 `task-dep-analysis --format mermaid` 迁移到 `cataforge viz tasks --format mermaid`（`task-dep-analysis` 保留 `--format json` 分析）。
 
 产物默认写 `docs/viz/`（已在 `docs/.docignore` 中豁免 orphan 检查）。输出 stdout 时 pipe 友好，可直接喂 mermaid.live / `dot`。
 

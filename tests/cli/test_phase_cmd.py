@@ -7,15 +7,15 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from cataforge.interface.cli.main import cli
-from cataforge.interface.cli.phase_cmd import (
+from cataforge.adapter.platform.registry import parse_current_phase
+from cataforge.application.phase import (
     evaluate_phase,
     indexed_doc_types,
     is_placeholder,
-    parse_current_phase,
     parse_doc_status,
     parse_phase_starts,
 )
+from cataforge.interface.cli.main import cli
 
 PLACEHOLDER = (
     "{requirements|architecture|ui_design|dev_planning|development|testing|deployment|completed}"
@@ -200,7 +200,7 @@ def _make_multi_doc_project(
 
 class TestAgileModePhases:
     def test_planning_is_recognised(self) -> None:
-        from cataforge.interface.cli.phase_cmd import PHASES
+        from cataforge.application.phase import PHASES
 
         assert "planning" in PHASES
         assert "brief" in PHASES
