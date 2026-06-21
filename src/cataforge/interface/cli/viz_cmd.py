@@ -5,10 +5,16 @@ sites with zero runtime dependencies. ``--html`` instead emits a single
 self-contained offline page (Cytoscape.js for graphs, ECharts for charts);
 it overrides ``--format``. Output goes to stdout by default (pipe-friendly)
 or to ``-o PATH``.
+
+``viz status`` reports which views have data right now; ``viz quickstart`` is
+the one-command path to a live local dashboard.
 """
 
 from __future__ import annotations
 
+import contextlib
+import re
+import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
@@ -19,9 +25,17 @@ from cataforge.application.viz import service
 from cataforge.application.viz.registry import RENDERERS
 from cataforge.interface.cli.helpers import resolve_root
 from cataforge.interface.cli.main import cli
+from cataforge.interface.cli.ui import NextStep, ui
 
 _FORMATS = sorted(RENDERERS)
 _HTML = "html"
+_QUICKSTART = NextStep(
+    "cataforge viz quickstart", "一键起本地实时 dashboard（生成+服务+开浏览器+刷新）"
+)
+_EPILOG = (
+    "Quickstart: `cataforge viz quickstart` 一键起实时 dashboard · "
+    "`cataforge viz status` 看哪些视图现在有数据。"
+)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -68,6 +82,9 @@ def _emit(content: str, output: Path | None) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(content + "\n")
     click.echo(f"wrote {output}", err=True)
+    # The file is written; nudge toward the interactive view (stderr-only, so
+    # piped stdout output stays clean).
+    ui.next_steps([_QUICKSTART])
 
 
 def _run(view: str, fmt: str, as_html: bool, output: Path | None, **opts: Any) -> None:
@@ -75,7 +92,32 @@ def _run(view: str, fmt: str, as_html: bool, output: Path | None, **opts: Any) -
     _emit(content, output)
 
 
-@cli.group("viz")
+def _browser_opener(host: str) -> Callable[[Any], None]:
+    """An ``on_ready`` callback that opens the served page once bound. Binds to
+    127.0.0.1 in the URL when the server listens on a wildcard address."""
+    open_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+
+    def _open(httpd: Any) -> None:
+        url = f"http://{open_host}:{httpd.server_address[1]}/"
+        with contextlib.suppress(Exception):  # opening a browser is best-effort
+            webbrowser.open(url)
+
+    return _open
+
+
+def _serve(directory: Path | None, host: str, port: int, watch: bool, open_browser: bool) -> None:
+    service.serve(
+        resolve_root(),
+        directory=directory,
+        host=host,
+        port=port,
+        watch=watch,
+        on_ready=_browser_opener(host) if open_browser else None,
+        log=lambda msg: click.echo(msg, err=True),
+    )
+
+
+@cli.group("viz", epilog=_EPILOG)
 def viz_group() -> None:
     """Render framework / project structure as diagrams (text or HTML)."""
 
@@ -167,38 +209,87 @@ def viz_decay(fmt: str, as_html: bool, output: Path | None) -> None:
 
 @viz_group.command("dashboard")
 @_output_option
-def viz_dashboard(output: Path | None) -> None:
+@click.option(
+    "--open/--no-open",
+    "open_browser",
+    default=False,
+    help="Open the written page in a browser (defaults output to docs/viz/dashboard.html).",
+)
+def viz_dashboard(output: Path | None, open_browser: bool) -> None:
     """Aggregate every viable view into one tabbed offline HTML page."""
+    if open_browser and output is None:
+        output = resolve_root() / "docs" / "viz" / "dashboard.html"
     _emit(service.generate("dashboard", _HTML, resolve_root()), output)
+    if open_browser and output is not None:
+        with contextlib.suppress(Exception):  # best-effort
+            webbrowser.open(output.resolve().as_uri())
+
+
+def _serve_options(fn: F) -> F:
+    fn = click.option(
+        "--port", type=int, default=8000, show_default=True, help="Port to listen on."
+    )(fn)
+    fn = click.option("--host", default="127.0.0.1", show_default=True, help="Host to bind.")(fn)
+    return click.option(
+        "--dir",
+        "directory",
+        type=click.Path(file_okay=False, path_type=Path),
+        default=None,
+        help="Directory to serve (default: docs/viz/).",
+    )(fn)
 
 
 @viz_group.command("serve")
-@click.option(
-    "--dir",
-    "directory",
-    type=click.Path(file_okay=False, path_type=Path),
-    default=None,
-    help="Directory to serve (default: docs/viz/).",
-)
-@click.option("--host", default="127.0.0.1", show_default=True, help="Host to bind.")
-@click.option("--port", type=int, default=8000, show_default=True, help="Port to listen on.")
+@_serve_options
 @click.option(
     "--watch",
     is_flag=True,
     default=False,
     help="Regenerate the dashboard when KG / doc-index / EVENT-LOG / CORRECTIONS change.",
 )
-def viz_serve(directory: Path | None, host: str, port: int, watch: bool) -> None:
+@click.option(
+    "--open/--no-open", "open_browser", default=False, help="Open the served page in a browser."
+)
+def viz_serve(
+    directory: Path | None, host: str, port: int, watch: bool, open_browser: bool
+) -> None:
     """Serve the product directory over a local static server (Ctrl-C to stop).
 
     Writes a dashboard ``index.html`` up front, then hosts the directory with the
     standard library only. With --watch, source-data changes trigger a rebuild.
     """
-    service.serve(
-        resolve_root(),
-        directory=directory,
-        host=host,
-        port=port,
-        watch=watch,
-        log=lambda msg: click.echo(msg, err=True),
-    )
+    _serve(directory, host, port, watch, open_browser)
+
+
+@viz_group.command("quickstart")
+@_serve_options
+def viz_quickstart(directory: Path | None, host: str, port: int) -> None:
+    """One command to a live dashboard: build + serve + open browser + watch.
+
+    Equivalent to ``viz serve --watch --open`` (Ctrl-C to stop).
+    """
+    _serve(directory, host, port, watch=True, open_browser=True)
+
+
+_STATE_LABEL = {service.READY: "ready", service.EMPTY: "empty", service.NEEDS_SETUP: "needs setup"}
+
+
+def _short_hint(detail: str) -> str:
+    """Collapse a collector's error to its actionable command, when it has one."""
+    match = re.search(r"`([^`]+)`", detail)
+    return f"run: {match.group(1)}" if match else detail
+
+
+@viz_group.command("status")
+def viz_status() -> None:
+    """Show which views have data right now and what each one still needs."""
+    rows = [
+        [
+            st.name,
+            _STATE_LABEL.get(st.state, st.state),
+            _short_hint(st.detail) if st.state == service.NEEDS_SETUP else st.detail,
+        ]
+        for st in service.probe_all(resolve_root())
+    ]
+    ui.table(["view", "state", "detail"], rows)
+    ui.next_steps([_QUICKSTART])

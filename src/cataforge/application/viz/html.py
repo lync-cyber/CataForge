@@ -159,17 +159,13 @@ def render(view: View) -> str:
 def _dashboard_panel(root: Path, name: str, index: int) -> tuple[str, str | None, str | None]:
     """Render one dashboard tab. Returns ``(panel_html, init_js, lib)``;
     ``init_js`` / ``lib`` are ``None`` for empty or failed views."""
-    from cataforge.application.viz.registry import COLLECTORS
+    from cataforge.application.viz.registry import collect_safe
 
     active = " active" if index == 0 else ""
     pid = f"panel{index}"
-    collector = COLLECTORS.get(name)
-    if collector is None:
-        return f'<section id="{pid}" class="panel{active}"></section>', None, None
-    try:
-        view = collector(root)
-    except CataforgeError as exc:
-        inner = f'<p class="error">{_html.escape(str(exc))}</p>'
+    view, error = collect_safe(root, name)
+    if view is None:
+        inner = f'<p class="error">{_html.escape(error or "")}</p>'
         return f'<section id="{pid}" class="panel{active}">{inner}</section>', None, None
     if isinstance(view, Graph) and not view.nodes:
         inner = '<p class="empty">no data</p>'

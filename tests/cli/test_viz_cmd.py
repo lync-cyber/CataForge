@@ -914,3 +914,111 @@ class TestVizServe:
             stop.set()
             worker.join(timeout=5)
         assert not worker.is_alive()  # clean shutdown via stop event
+
+
+# ------------------------------------------------------------------
+# UX: status readiness probe + quickstart / --open / help
+# ------------------------------------------------------------------
+
+
+class TestVizStatus:
+    def test_probe_all_classifies_states(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)  # framework/assets only — no KG / index / log
+        by_name = {s.name: s for s in service.probe_all(tmp_path)}
+        assert by_name["framework"].state == service.READY
+        assert by_name["assets"].state == service.READY
+        assert by_name["trace"].state == service.NEEDS_SETUP
+        assert "kg init" in by_name["trace"].detail  # raw hint preserved
+        assert by_name["docs"].state == service.NEEDS_SETUP
+        assert by_name["timeline"].state == service.EMPTY
+
+    def test_status_table_surfaces_setup_commands(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "status")
+        assert result.exit_code == 0, result.output
+        assert "framework" in result.output
+        assert "needs setup" in result.output
+        # the actionable command is extracted from the collector's own hint
+        assert "cataforge kg init" in result.output
+        assert "cataforge context index" in result.output
+
+    def test_status_marks_kg_views_ready(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        by_name = {s.name: s for s in service.probe_all(tmp_path)}
+        assert by_name["trace"].state == service.READY
+        assert by_name["coverage"].state == service.READY
+        assert by_name["arch"].state == service.READY
+
+
+class TestVizDiscovery:
+    def test_group_help_has_quickstart_epilog(self) -> None:
+        result = CliRunner().invoke(cli, ["viz", "--help"])
+        assert result.exit_code == 0, result.output
+        assert "quickstart" in result.output.lower()
+        assert "status" in result.output.lower()
+
+    def test_file_write_nudges_quickstart(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        out = tmp_path / "fw.mmd"
+        result = _viz(tmp_path, "framework", "-o", str(out))
+        assert result.exit_code == 0, result.output
+        assert "quickstart" in result.output  # next_steps nudge after -o write
+
+    def test_piped_stdout_stays_clean(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "framework")  # no -o → raw diagram on stdout
+        assert result.exit_code == 0, result.output
+        assert "下一步" not in result.output  # no guidance polluting the diagram
+
+
+class TestVizOpenAndQuickstart:
+    def test_browser_opener_maps_wildcard_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from cataforge.interface.cli import viz_cmd
+
+        captured: list[str] = []
+        monkeypatch.setattr(viz_cmd.webbrowser, "open", lambda url: captured.append(url) or True)
+
+        class _FakeServer:
+            server_address = ("0.0.0.0", 9999)
+
+        viz_cmd._browser_opener("0.0.0.0")(_FakeServer())
+        assert captured == ["http://127.0.0.1:9999/"]
+
+    def test_serve_cli_wires_open_and_watch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cataforge.interface.cli import viz_cmd
+
+        captured: dict[str, object] = {}
+        monkeypatch.setattr(viz_cmd.service, "serve", lambda root, /, **kw: captured.update(kw))
+        result = _viz(tmp_path, "serve", "--watch", "--open", "--port", "0")
+        assert result.exit_code == 0, result.output
+        assert captured["watch"] is True
+        assert captured["on_ready"] is not None
+
+    def test_quickstart_forces_watch_and_open(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cataforge.interface.cli import viz_cmd
+
+        captured: dict[str, object] = {}
+        monkeypatch.setattr(viz_cmd.service, "serve", lambda root, /, **kw: captured.update(kw))
+        result = _viz(tmp_path, "quickstart", "--port", "0")
+        assert result.exit_code == 0, result.output
+        assert captured["watch"] is True
+        assert captured["on_ready"] is not None
+
+    def test_dashboard_open_writes_default_and_opens(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _make_project(tmp_path)
+        from cataforge.interface.cli import viz_cmd
+
+        opened: list[str] = []
+        monkeypatch.setattr(viz_cmd.webbrowser, "open", lambda url: opened.append(url) or True)
+        result = _viz(tmp_path, "dashboard", "--open")
+        assert result.exit_code == 0, result.output
+        default = tmp_path / "docs" / "viz" / "dashboard.html"
+        assert default.is_file()
+        assert opened and opened[0].startswith("file:")
+        assert "dashboard.html" in opened[0]

@@ -16,20 +16,27 @@ from __future__ import annotations
 import functools
 import threading
 from collections.abc import Callable
+from dataclasses import dataclass
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 from cataforge.application.viz import html
-from cataforge.application.viz.registry import COLLECTORS, RENDERERS
+from cataforge.application.viz.registry import COLLECTORS, RENDERERS, collect_safe
 from cataforge.core.corrections import CORRECTIONS_LOG_REL
 from cataforge.core.errors import CataforgeError
 from cataforge.core.event_log import EVENT_LOG_REL
 from cataforge.core.paths import KG_STORE_REL
+from cataforge.core.viz.model import Graph, MetricSeries, Timeline, is_empty
 from cataforge.domain.docs.indexer import INDEX_FILENAME
 
 _HTML = "html"
 _INDEX = "index.html"
+
+# viz status readiness states.
+READY = "ready"
+EMPTY = "empty"
+NEEDS_SETUP = "needs-setup"
 
 
 def generate(view: str, fmt: str, root: Path, /, **opts: Any) -> str:
@@ -49,6 +56,43 @@ def generate(view: str, fmt: str, root: Path, /, **opts: Any) -> str:
     if renderer is None:
         raise CataforgeError(f"unknown viz format: {fmt!r} (known: {sorted(RENDERERS)})")
     return renderer(ir)
+
+
+# --------------------------------------------------------------------------- #
+# readiness probe — what can be visualised right now, and what each view needs
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class ViewStatus:
+    """One ``viz status`` row: a view's data-source readiness."""
+
+    name: str
+    state: str  # READY | EMPTY | NEEDS_SETUP
+    detail: str
+
+
+def _summary(view: Graph | Timeline | MetricSeries) -> str:
+    if isinstance(view, Graph):
+        return f"{len(view.nodes)} nodes · {len(view.edges)} edges"
+    if isinstance(view, Timeline):
+        return f"{len(view.events)} events"
+    return f"{len(view.points)} points"
+
+
+def probe_all(root: Path) -> list[ViewStatus]:
+    """Probe every registered view's readiness in registry order. A view is
+    ``NEEDS_SETUP`` when its collector cannot reach its data source (the detail
+    carries the collector's own ``run …`` hint), ``EMPTY`` when it renders but
+    holds no data yet, else ``READY`` with a node/event count."""
+    out: list[ViewStatus] = []
+    for name in COLLECTORS:
+        view, error = collect_safe(root, name)
+        if view is None:
+            out.append(ViewStatus(name, NEEDS_SETUP, " ".join((error or "").split())))
+        elif is_empty(view):
+            out.append(ViewStatus(name, EMPTY, view.title or "no data yet"))
+        else:
+            out.append(ViewStatus(name, READY, _summary(view)))
+    return out
 
 
 # --------------------------------------------------------------------------- #

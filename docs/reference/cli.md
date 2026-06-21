@@ -586,6 +586,10 @@ cataforge feedback correction-export --threshold 3 --out docs/feedback/$(date +%
 **何时用它**：想把框架编排结构或项目结构导出为可被版本化、可内联进文档的图。复用既有数据源（framework.json 路由 + agent/skill 资产），输出确定性文本，无运行时依赖。
 
 ```bash
+# 一键上手：先看哪些视图现在有数据，再一条命令起本地实时 dashboard
+cataforge viz status                       # 视图就绪体检：ready / empty / needs setup + 缺啥补啥
+cataforge viz quickstart                   # 生成 + 本地服务 + 自动开浏览器 + 监听源数据变更
+
 # 编排图 orchestrator → phase → agent → skill（Mermaid，默认 stdout）
 cataforge viz framework
 
@@ -628,10 +632,11 @@ cataforge viz timeline --html -o docs/viz/timeline.html
 
 # dashboard：把全部可用视图聚合进单文件多标签离线页（恒为 HTML）
 cataforge viz dashboard -o docs/viz/index.html
+cataforge viz dashboard --open                       # 无 -o 时写 docs/viz/dashboard.html 并开浏览器
 
 # 本地静态服务：托管产物目录（默认 docs/viz/，Ctrl-C 停止）
 cataforge viz serve
-cataforge viz serve --watch                          # 源数据变更时自动重生成 dashboard
+cataforge viz serve --watch --open                   # 源数据变更自动重生成 + 就绪后开浏览器
 cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 ```
 
@@ -648,6 +653,8 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 
 | view | 内容 | 数据源 |
 |------|------|--------|
+| `status` | 视图就绪体检：逐视图标 `ready` / `empty` / `needs setup`，并给出缺啥补啥的命令（如 `run: cataforge kg init`） | 探测全部 collector（不渲染） |
+| `quickstart` | 一键起本地实时 dashboard，等价 `viz serve --watch --open` | 同 `serve` |
 | `framework` | orchestrator → phase → agent → skill 编排图（仅 standard 路由的 agent） | framework.json `workflow.modes.standard` + agent frontmatter `skills` |
 | `assets` | 全量 agent + skill 目录图：agent→skill 与 skill→skill 依赖边（`--html` 下带搜索框） | `AgentManager` + `SkillLoader`（builtins + 项目覆写） |
 | `trace` | 追溯链图（需求→模块→任务→测试）；省略 ENTITY_ID 聚合全部 Feature | KG `TraceAPI`（需先 `cataforge kg init` + `kg import`） |
@@ -664,7 +671,9 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 
 **自包含 HTML（`--html`）**：输出单文件离线页，vendored `cytoscape.min.js` / `echarts.min.js` 经 `importlib.resources` 内联，零外链——断网双击即开。渲染器纯按 IR 形态分发：Graph → Cytoscape.js（zoom / pan / 节点搜索），Timeline / MetricSeries → ECharts。`dashboard` 共享两库一次内联、各视图分标签页。`--html` 与 `--format` 互斥，同时给出时 `--html` 生效。
 
-**本地静态服务（`viz serve`）**：用标准库 `http.server` 托管产物目录（默认 `docs/viz/`），启动时先写一份 dashboard `index.html`，再持续提供 HTTP 访问，仅依赖标准库——不引入任何服务框架。`--watch` 启动后台线程轮询 KG store / doc-index / EVENT-LOG / CORRECTIONS-LOG 的 mtime，任一变更即重生成 `index.html`，浏览器刷新即见最新。`Ctrl-C` 干净退出。
+**就绪体检与一键（`viz status` / `viz quickstart`）**：新用户先跑 `viz status` —— 它逐视图探测数据源，输出 `ready`（已有数据，带节点/事件计数）/ `empty`（能渲染但暂无数据）/ `needs setup`（数据源缺失，并从 collector 自带提示里抽出 `run: cataforge kg init` 这类可直接照抄的命令）三态，让你按需补齐想看的视图。`viz quickstart` 是到实时 dashboard 的单命令路径，等价 `viz serve --watch --open`。
+
+**本地静态服务（`viz serve`）**：用标准库 `http.server` 托管产物目录（默认 `docs/viz/`），启动时先写一份 dashboard `index.html`，再持续提供 HTTP 访问，仅依赖标准库——不引入任何服务框架。`--watch` 启动后台线程轮询 KG store / doc-index / EVENT-LOG / CORRECTIONS-LOG 的 mtime，任一变更即重生成 `index.html`，浏览器刷新即见最新。`--open` 就绪后用默认浏览器打开（监听 `0.0.0.0` 时按 `127.0.0.1` 打开）。`Ctrl-C` 干净退出。`viz dashboard --open` 在无 `-o` 时写 `docs/viz/dashboard.html` 并打开（`file://`，无服务一次性快照）。
 
 | 参数 | 作用 | 默认 |
 |------|------|------|
@@ -672,6 +681,7 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 | `--host <addr>` | 监听地址 | `127.0.0.1` |
 | `--port <n>` | 监听端口 | `8000` |
 | `--watch` | 源数据变更时重生成 dashboard | 关 |
+| `--open` | 就绪后用浏览器打开（`serve` / `dashboard`） | 关 |
 
 产物默认写 `docs/viz/`（已在 `docs/.docignore` 中豁免 orphan 检查；HTML 产物另由 `.gitignore` `docs/**/*.html` 保持临时）。文本输出 stdout 时 pipe 友好，可直接喂 mermaid.live / `dot`。
 
