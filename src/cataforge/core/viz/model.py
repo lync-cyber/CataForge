@@ -67,3 +67,13 @@ class MetricSeries:
 
 
 View = Graph | Timeline | MetricSeries
+
+
+def is_empty(view: View) -> bool:
+    """Whether *view* carries no data — an empty graph, timeline, or series.
+    Renders fine but shows nothing; callers surface this as a distinct state."""
+    if isinstance(view, Graph):
+        return not view.nodes
+    if isinstance(view, Timeline):
+        return not view.events
+    return not view.points

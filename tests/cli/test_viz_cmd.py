@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
+import sys
+import threading
+import time
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -775,3 +780,245 @@ class TestVizHtmlCli:
         result = _viz(tmp_path, "assets", "--html")
         assert result.exit_code == 0, result.output
         assert "Cytoscape Consortium" in result.output
+
+
+# ------------------------------------------------------------------
+# serve (tier 3) — stdlib static server + watch, no third-party deps
+# ------------------------------------------------------------------
+
+
+# A date that cannot appear in the vendored JS — the decay timeline exposes it
+# as an ECharts x-axis category, so its presence in index.html proves a rebuild.
+_SENTINEL_DATE = "2099-12-31"
+
+
+def _write_correction(root: Path, date: str = _SENTINEL_DATE) -> None:
+    reviews = root / "docs" / "reviews"
+    reviews.mkdir(parents=True, exist_ok=True)
+    (reviews / "CORRECTIONS-LOG.md").write_text(
+        f"# C\n\n### {date} | reviewer | development\n- 偏差类型: preference\n",
+        encoding="utf-8",
+    )
+
+
+class TestVizServe:
+    def test_serve_help(self) -> None:
+        result = CliRunner().invoke(cli, ["viz", "serve", "--help"])
+        assert result.exit_code == 0, result.output
+        assert "--watch" in result.output
+
+    def test_service_imports_no_third_party(self) -> None:
+        """serve must not pull in any non-stdlib runtime dependency."""
+        source = Path(service.__file__).read_text(encoding="utf-8")
+        roots: set[str] = set()
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import):
+                roots.update(n.name.split(".")[0] for n in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                roots.add(node.module.split(".")[0])
+        third_party = [r for r in roots if r != "cataforge" and r not in sys.stdlib_module_names]
+        assert not third_party, third_party
+
+    def test_regenerate_writes_dashboard_index(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        serve_dir = tmp_path / "out"
+        index = service.regenerate(tmp_path, serve_dir)
+        assert index == serve_dir / "index.html"
+        text = index.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in text
+        _assert_offline(text)
+
+    def test_fingerprint_changes_on_source_write(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        before = service._fingerprint(tmp_path)
+        docs = tmp_path / "docs"
+        docs.mkdir(exist_ok=True)
+        (docs / "EVENT-LOG.jsonl").write_text(
+            '{"ts":"2026-01-01T00:00:00+00:00","event":"phase_start"}\n', encoding="utf-8"
+        )
+        assert service._fingerprint(tmp_path) != before
+
+    def test_regenerate_if_changed_only_on_change(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        serve_dir = tmp_path / "out"
+        fp = service._fingerprint(tmp_path)
+        # unchanged sources → nothing written
+        assert service._regenerate_if_changed(tmp_path, serve_dir, fp) == fp
+        assert not (serve_dir / "index.html").exists()
+        # a watched source changes → index written, fingerprint advances
+        _write_correction(tmp_path)
+        advanced = service._regenerate_if_changed(tmp_path, serve_dir, fp)
+        assert advanced != fp
+        assert (serve_dir / "index.html").is_file()
+
+    def test_build_server_serves_file_and_shuts_down(self, tmp_path: Path) -> None:
+        serve_dir = tmp_path / "viz"
+        serve_dir.mkdir()
+        (serve_dir / "index.html").write_text("<html>hello-viz</html>", encoding="utf-8")
+        httpd = service._build_server(serve_dir, "127.0.0.1", 0)
+        port = httpd.server_address[1]
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/index.html", timeout=5) as resp:
+                assert b"hello-viz" in resp.read()
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            thread.join(timeout=5)
+        assert not thread.is_alive()  # clean interruption
+
+    def test_serve_watch_regenerates_and_stops(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        serve_dir = tmp_path / "out"
+        ready = threading.Event()
+        stop = threading.Event()
+        captured: dict[str, int] = {}
+
+        def on_ready(httpd: object) -> None:
+            captured["port"] = httpd.server_address[1]  # type: ignore[attr-defined]
+            ready.set()
+
+        worker = threading.Thread(
+            target=service.serve,
+            args=(tmp_path,),
+            kwargs={
+                "directory": serve_dir,
+                "port": 0,
+                "watch": True,
+                "poll_interval": 0.05,
+                "stop": stop,
+                "on_ready": on_ready,
+            },
+            daemon=True,
+        )
+        worker.start()
+        try:
+            assert ready.wait(5)
+            index = serve_dir / "index.html"
+            assert index.is_file()  # initial render present before any change
+            assert _SENTINEL_DATE not in index.read_text(encoding="utf-8")
+            # serve the freshly-written index over HTTP
+            port = captured["port"]
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/index.html", timeout=5) as resp:
+                assert b"<!DOCTYPE html>" in resp.read()
+            # mutate a watched source → watcher must regenerate the dashboard
+            _write_correction(tmp_path)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if _SENTINEL_DATE in index.read_text(encoding="utf-8"):
+                    break
+                time.sleep(0.05)
+            assert _SENTINEL_DATE in index.read_text(encoding="utf-8")
+        finally:
+            stop.set()
+            worker.join(timeout=5)
+        assert not worker.is_alive()  # clean shutdown via stop event
+
+
+# ------------------------------------------------------------------
+# UX: status readiness probe + quickstart / --open / help
+# ------------------------------------------------------------------
+
+
+class TestVizStatus:
+    def test_probe_all_classifies_states(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)  # framework/assets only — no KG / index / log
+        by_name = {s.name: s for s in service.probe_all(tmp_path)}
+        assert by_name["framework"].state == service.READY
+        assert by_name["assets"].state == service.READY
+        assert by_name["trace"].state == service.NEEDS_SETUP
+        assert "kg init" in by_name["trace"].detail  # raw hint preserved
+        assert by_name["docs"].state == service.NEEDS_SETUP
+        assert by_name["timeline"].state == service.EMPTY
+
+    def test_status_table_surfaces_setup_commands(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "status")
+        assert result.exit_code == 0, result.output
+        assert "framework" in result.output
+        assert "needs setup" in result.output
+        # the actionable command is extracted from the collector's own hint
+        assert "cataforge kg init" in result.output
+        assert "cataforge context index" in result.output
+
+    def test_status_marks_kg_views_ready(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        by_name = {s.name: s for s in service.probe_all(tmp_path)}
+        assert by_name["trace"].state == service.READY
+        assert by_name["coverage"].state == service.READY
+        assert by_name["arch"].state == service.READY
+
+
+class TestVizDiscovery:
+    def test_group_help_has_quickstart_epilog(self) -> None:
+        result = CliRunner().invoke(cli, ["viz", "--help"])
+        assert result.exit_code == 0, result.output
+        assert "quickstart" in result.output.lower()
+        assert "status" in result.output.lower()
+
+    def test_file_write_nudges_quickstart(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        out = tmp_path / "fw.mmd"
+        result = _viz(tmp_path, "framework", "-o", str(out))
+        assert result.exit_code == 0, result.output
+        assert "quickstart" in result.output  # next_steps nudge after -o write
+
+    def test_piped_stdout_stays_clean(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "framework")  # no -o → raw diagram on stdout
+        assert result.exit_code == 0, result.output
+        assert "下一步" not in result.output  # no guidance polluting the diagram
+
+
+class TestVizOpenAndQuickstart:
+    def test_browser_opener_maps_wildcard_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from cataforge.interface.cli import viz_cmd
+
+        captured: list[str] = []
+        monkeypatch.setattr(viz_cmd.webbrowser, "open", lambda url: captured.append(url) or True)
+
+        class _FakeServer:
+            server_address = ("0.0.0.0", 9999)
+
+        viz_cmd._browser_opener("0.0.0.0")(_FakeServer())
+        assert captured == ["http://127.0.0.1:9999/"]
+
+    def test_serve_cli_wires_open_and_watch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cataforge.interface.cli import viz_cmd
+
+        captured: dict[str, object] = {}
+        monkeypatch.setattr(viz_cmd.service, "serve", lambda root, /, **kw: captured.update(kw))
+        result = _viz(tmp_path, "serve", "--watch", "--open", "--port", "0")
+        assert result.exit_code == 0, result.output
+        assert captured["watch"] is True
+        assert captured["on_ready"] is not None
+
+    def test_quickstart_forces_watch_and_open(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cataforge.interface.cli import viz_cmd
+
+        captured: dict[str, object] = {}
+        monkeypatch.setattr(viz_cmd.service, "serve", lambda root, /, **kw: captured.update(kw))
+        result = _viz(tmp_path, "quickstart", "--port", "0")
+        assert result.exit_code == 0, result.output
+        assert captured["watch"] is True
+        assert captured["on_ready"] is not None
+
+    def test_dashboard_open_writes_default_and_opens(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _make_project(tmp_path)
+        from cataforge.interface.cli import viz_cmd
+
+        opened: list[str] = []
+        monkeypatch.setattr(viz_cmd.webbrowser, "open", lambda url: opened.append(url) or True)
+        result = _viz(tmp_path, "dashboard", "--open")
+        assert result.exit_code == 0, result.output
+        default = tmp_path / "docs" / "viz" / "dashboard.html"
+        assert default.is_file()
+        assert opened and opened[0].startswith("file:")
+        assert "dashboard.html" in opened[0]

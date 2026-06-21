@@ -65,6 +65,7 @@
 9. **初始化文档索引与知识图谱** —
    - `cataforge kg init`（幂等；首次创建图谱 store 并加载本体闭包，上下文方案未启用图后端或命令缺失时 WARN 跳过）
    - `cataforge context index`（生成空的 `docs/.doc-index.json` 文档索引缓存，首个文档落盘后由生成定稿增量刷新）
+   - 可选向用户提示 `cataforge viz framework` 渲染编排图，帮助快速建立流程心智模型
 10. **进入初始阶段** — 通过 agent-dispatch 激活:
     - `standard` → product-manager（Phase 1 requirements）
     - `agile-lite` → product-manager（planning 阶段，按 §Mode Routing Protocol 产出 prd-lite 后链式激活 architect 产出 arch-lite）

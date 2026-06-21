@@ -36,6 +36,7 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 - **用户手动**: `cataforge skill run framework-review -- all`（或具体 scope）
 - **CI 守卫**: 在 PR pipeline 增加一步 `cataforge skill run framework-review -- all --focus B1,B2,B3,B7`，仅 FAIL 时阻塞合并
 - **doctor 深扫**: `cataforge doctor --deep` 可选附带 framework-review 全量
+- **可配合**: `cataforge viz framework` 渲染编排图，与本 skill 的结构发现对照核验
 - **不要**: 让 reviewer agent 在业务流程内自动调起（reviewer.allowed_paths 不覆盖此报告路径，会污染审查独立性）
 
 ## 操作指令: 框架审查 (review)
