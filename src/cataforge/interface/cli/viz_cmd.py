@@ -170,3 +170,35 @@ def viz_decay(fmt: str, as_html: bool, output: Path | None) -> None:
 def viz_dashboard(output: Path | None) -> None:
     """Aggregate every viable view into one tabbed offline HTML page."""
     _emit(service.generate("dashboard", _HTML, resolve_root()), output)
+
+
+@viz_group.command("serve")
+@click.option(
+    "--dir",
+    "directory",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="Directory to serve (default: docs/viz/).",
+)
+@click.option("--host", default="127.0.0.1", show_default=True, help="Host to bind.")
+@click.option("--port", type=int, default=8000, show_default=True, help="Port to listen on.")
+@click.option(
+    "--watch",
+    is_flag=True,
+    default=False,
+    help="Regenerate the dashboard when KG / doc-index / EVENT-LOG / CORRECTIONS change.",
+)
+def viz_serve(directory: Path | None, host: str, port: int, watch: bool) -> None:
+    """Serve the product directory over a local static server (Ctrl-C to stop).
+
+    Writes a dashboard ``index.html`` up front, then hosts the directory with the
+    standard library only. With --watch, source-data changes trigger a rebuild.
+    """
+    service.serve(
+        resolve_root(),
+        directory=directory,
+        host=host,
+        port=port,
+        watch=watch,
+        log=lambda msg: click.echo(msg, err=True),
+    )

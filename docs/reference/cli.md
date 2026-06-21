@@ -628,6 +628,11 @@ cataforge viz timeline --html -o docs/viz/timeline.html
 
 # dashboard：把全部可用视图聚合进单文件多标签离线页（恒为 HTML）
 cataforge viz dashboard -o docs/viz/index.html
+
+# 本地静态服务：托管产物目录（默认 docs/viz/，Ctrl-C 停止）
+cataforge viz serve
+cataforge viz serve --watch                          # 源数据变更时自动重生成 dashboard
+cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 ```
 
 | 参数 | 作用 | 适用 view |
@@ -658,6 +663,15 @@ cataforge viz dashboard -o docs/viz/index.html
 `trace` / `coverage` / `arch` 读 KG store；store 未初始化时优雅退出并提示 `cataforge kg init`。`docs` 读 doc-index；未建索引时提示 `cataforge context index`。`phase` 读项目指令文件；非 CataForge 驱动项目优雅退出。`timeline` / `decay` 渲染为 mermaid `timeline`（`dot` 仅支持 Graph 视图，对时间线视图会报错，用 `mermaid` 或 `json`）。**mermaid 收编**：追溯图的 mermaid 表面从 `kg trace --output mermaid` 迁移到 `cataforge viz trace`（`kg trace` 保留 `table` / `json` 分析）；任务依赖图的 mermaid 从 `task-dep-analysis --format mermaid` 迁移到 `cataforge viz tasks --format mermaid`（`task-dep-analysis` 保留 `--format json` 分析）。
 
 **自包含 HTML（`--html`）**：输出单文件离线页，vendored `cytoscape.min.js` / `echarts.min.js` 经 `importlib.resources` 内联，零外链——断网双击即开。渲染器纯按 IR 形态分发：Graph → Cytoscape.js（zoom / pan / 节点搜索），Timeline / MetricSeries → ECharts。`dashboard` 共享两库一次内联、各视图分标签页。`--html` 与 `--format` 互斥，同时给出时 `--html` 生效。
+
+**本地静态服务（`viz serve`）**：用标准库 `http.server` 托管产物目录（默认 `docs/viz/`），启动时先写一份 dashboard `index.html`，再持续提供 HTTP 访问，仅依赖标准库——不引入任何服务框架。`--watch` 启动后台线程轮询 KG store / doc-index / EVENT-LOG / CORRECTIONS-LOG 的 mtime，任一变更即重生成 `index.html`，浏览器刷新即见最新。`Ctrl-C` 干净退出。
+
+| 参数 | 作用 | 默认 |
+|------|------|------|
+| `--dir <path>` | 托管的产物目录 | `docs/viz/` |
+| `--host <addr>` | 监听地址 | `127.0.0.1` |
+| `--port <n>` | 监听端口 | `8000` |
+| `--watch` | 源数据变更时重生成 dashboard | 关 |
 
 产物默认写 `docs/viz/`（已在 `docs/.docignore` 中豁免 orphan 检查；HTML 产物另由 `.gitignore` `docs/**/*.html` 保持临时）。文本输出 stdout 时 pipe 友好，可直接喂 mermaid.live / `dot`。
 
