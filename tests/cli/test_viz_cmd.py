@@ -625,6 +625,7 @@ class TestVizDecay:
         assert result.exit_code == 0, result.output
         assert "no events" in result.output
 
+
 # ------------------------------------------------------------------
 # assets view — agent / skill catalogue graph
 # ------------------------------------------------------------------
