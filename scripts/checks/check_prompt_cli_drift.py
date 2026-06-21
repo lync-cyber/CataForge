@@ -32,6 +32,11 @@ for _stream_name in ("stdout", "stderr"):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# Resolve cataforge from the source tree so introspection works under any Python
+# with the deps installed, not only one where the package is pip-installed —
+# matching the sibling check_*.py scripts (the CLI import in real_verbs() is
+# function-local, hence no module-top E402).
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 SCAN_GLOBS: list[tuple[Path, str]] = [
     (REPO_ROOT / ".cataforge" / "agents", "**/AGENT.md"),
