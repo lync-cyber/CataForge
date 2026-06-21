@@ -64,3 +64,19 @@
 ### 为何选它
 
 纯函数 + 表驱动 AC，让 TDD 阶段有真实而不繁的断言面；C-001/C-002 两组件让架构与 dev-plan 阶段有可拆分的实质内容；错误路径覆盖边界条件评审；全程无 I/O 与外部依赖，沙盒内可即时验证、单轮收敛。
+
+## 探针扰动（`--depth full`）
+
+`--depth full` 要触发分支/异常路径时，对本示例做下列最小扰动即可确定性命中目标路径（路径 id 见 [`runtime-flow-map.md`](runtime-flow-map.md)，探针表见 [`walkthrough-protocol.md`](walkthrough-protocol.md) §6）。每个探针触发一条路径就够，记录行为后恢复主干。
+
+| 目标路径 | 扰动 | 触发点 |
+|---------|------|--------|
+| B-3 Approved-with-Notes | arch-lite 里 C-001 不写「先归一化到开尔文」这条非功能约束，留作 MEDIUM | doc-review arch-lite |
+| B-4 Sprint Review 短路 | 不扰动——T-001/T-002/T-003 共 3 个任务，恰 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT`，主干即命中 | development 收口 |
+| B-5 Parallel Dispatch | dev-plan-lite 把 T-002、T-003 都只依赖 T-001、互不依赖、归同一 sprint_group | dev_planning |
+| B-6 Change Request | development 开始前提交一句「F-003 输出改保留 1 位小数」 | development 前 |
+| B-7 模式回退 | 让 prd-lite 写到 >150 行（如把每个错误码展开成段） | planning |
+| E-1 Interrupt-Resume | 起 architect inline 时不预先给定「归一化中转单位选开尔文还是摄氏」 | architecture/planning |
+| E-2 Revision | arch-lite 首版漏掉 API-001 的「归一化后开尔文 < 0 抛领域错误」契约（CRITICAL） | doc-review arch-lite |
+
+不在表内的异常路径（E-3 rolled-back / E-4 TDD blocked / E-5 crash / E-6 truncation / E-7 cascade 中断）**不做破坏注入**：人为制造崩溃会偏离真实行为、污染归因，按机会观察处理，未触发则账本标 not-reached。
