@@ -23,6 +23,9 @@ from cataforge.domain.kg.reconcile import (
     DRIFT_HUMAN_EDIT,
     DRIFT_IN_SYNC,
     DRIFT_NEVER_EXPORTED,
+    DocumentDriftRecord,
+    PerDocTypeReport,
+    ReconcileReport,
     reconcile,
 )
 
@@ -67,7 +70,7 @@ def _finalized_project(tmp_path: Path) -> Path:
     proj = _ingest_only_project(tmp_path)
     fw = proj / ".cataforge" / "framework.json"
     data = json.loads(fw.read_text(encoding="utf-8"))
-    data.setdefault("context", {}).update({"strategy": "kg-first", "authoring": "graph"})
+    data.setdefault("context", {})["mode"] = "graph"
     fw.write_text(json.dumps(data), encoding="utf-8")
     invalidate_cache()
     ctx_write.finalize(str(proj))
@@ -197,31 +200,67 @@ def test_never_exported_on_ingest_only_project(tmp_path: Path) -> None:
 
 
 def test_triage_does_not_perturb_id_diff_counts(tmp_path: Path) -> None:
-    """Content drift must leave overall_divergence_count / ok untouched."""
+    """Content drift leaves the id-set diff untouched but gates ok in graph mode."""
     proj = _finalized_project(tmp_path)
     clean = _reconcile(proj)
     assert clean.overall_divergence_count == 0
     assert clean.ok is True
 
     # A human edit to the file's prose changes content triage but adds no new
-    # entity/relation/section id, so the id-set diff stays clean.
+    # entity/relation/section id, so the id-set diff stays clean. Under graph
+    # mode ok follows the document triage, so the human edit flips ok to False
+    # (it needs an ingest to absorb the out-of-band change).
     prd = proj.joinpath(*PRD)
     prd.write_text(prd.read_text(encoding="utf-8") + "\n<!-- comment -->\n", encoding="utf-8")
     drifted = _reconcile(proj)
     assert drifted.document_drift_count >= 1
     assert drifted.overall_divergence_count == 0
-    assert drifted.ok is True
+    assert drifted.ok is False
 
 
 def test_to_dict_carries_triage_fields(tmp_path: Path) -> None:
     payload = _reconcile(_finalized_project(tmp_path)).to_dict()
-    assert payload["authoring"] == "graph"
+    assert payload["mode"] == "graph"
     assert payload["document_drift_count"] == 0
     assert isinstance(payload["documents"], list) and payload["documents"]
     for record in payload["documents"]:
         assert set(record) == {"source_path", "doc_id", "state", "remediation"}
         # An in-sync document needs no remediation, whatever the authority.
         assert record["remediation"] == "none"
+
+
+def test_reconcile_ok_gate_is_mode_aware() -> None:
+    """The ok gate picks its authoritative signal by mode (R-003).
+
+    graph: ok follows the document triage, so a per-doc_type symmetric-diff
+    divergence (the lossy export→rescan false positive) is diagnostics only.
+    hybrid: the symmetric diff is exact (Markdown was ingested directly) and
+    gates ok.
+    """
+    per = {"prd": PerDocTypeReport(doc_type="prd", missing_entities=["F-001"])}
+    in_sync = [
+        DocumentDriftRecord(source_path="docs/prd/prd.md", doc_id="prd", state=DRIFT_IN_SYNC)
+    ]
+
+    graph = ReconcileReport(
+        timestamp="t",
+        active_doc_types=["prd"],
+        per_doc_type=per,
+        mode="graph",
+        documents=in_sync,
+    )
+    assert graph.overall_divergence_count == 1  # symmetric diff flags a divergence
+    assert graph.document_drift_count == 0
+    assert graph.ok is True  # ... but graph gates on triage, so it is demoted
+
+    hybrid = ReconcileReport(
+        timestamp="t",
+        active_doc_types=["prd"],
+        per_doc_type=per,
+        mode="hybrid",
+        documents=in_sync,
+    )
+    assert hybrid.ok is False  # hybrid gates on the exact symmetric diff
 
 
 # --- docs index rebuild on finalize ------------------------------------------

@@ -27,9 +27,7 @@ def _clear_caches():
     gc.collect()
 
 
-def _project(
-    tmp_path: Path, *, with_fixture_docs: bool = False, authoring: str | None = None
-) -> Path:
+def _project(tmp_path: Path, *, with_fixture_docs: bool = False, mode: str | None = None) -> Path:
     proj = tmp_path / "p"
     (proj / ".cataforge").mkdir(parents=True)
     if with_fixture_docs:
@@ -45,11 +43,11 @@ def _project(
     handle.raw.flush()
     handle.close()
     ctx: dict[str, object] = {
-        "strategy": "kg-first",
+        "mode": "hybrid",
         "kg_active_doc_types": ["prd", "arch", "test-report"],
     }
-    if authoring is not None:
-        ctx["authoring"] = authoring
+    if mode is not None:
+        ctx["mode"] = mode
     (proj / ".cataforge" / "framework.json").write_text(
         json.dumps({"context": ctx}), encoding="utf-8"
     )
@@ -70,7 +68,7 @@ def _connect(proj: Path) -> KGConfig:
 
 
 def test_author_valid_entity_persists(tmp_path: Path) -> None:
-    proj = _project(tmp_path)
+    proj = _project(tmp_path, mode="graph")
     iri = cw.author_entity(str(proj), entity_id="F-001", class_name="Feature", title="用户登录")
     assert iri.endswith("F-001")
     gc.collect()
@@ -80,7 +78,7 @@ def test_author_valid_entity_persists(tmp_path: Path) -> None:
 
 
 def test_author_wrong_class_rejected(tmp_path: Path) -> None:
-    proj = _project(tmp_path)
+    proj = _project(tmp_path, mode="graph")
     with pytest.raises(KGValidationError, match="maps to Feature"):
         cw.author_entity(str(proj), entity_id="F-001", class_name="Module", title="x")
     gc.collect()
@@ -90,14 +88,14 @@ def test_author_wrong_class_rejected(tmp_path: Path) -> None:
 
 
 def test_author_unknown_prefix_rejected(tmp_path: Path) -> None:
-    proj = _project(tmp_path)
+    proj = _project(tmp_path, mode="graph")
     with pytest.raises(KGValidationError, match="no schema-known prefix"):
         cw.author_entity(str(proj), entity_id="ZZZ-001", class_name="Feature", title="x")
     gc.collect()
 
 
 def test_write_narrative_creates_section(tmp_path: Path) -> None:
-    proj = _project(tmp_path)
+    proj = _project(tmp_path, mode="graph")
     cw.write_narrative(str(proj), doc_id="arch", anchor="§1 概览", narrative="架构概览文本")
     gc.collect()
     cfg = _connect(proj)
@@ -118,7 +116,7 @@ def test_write_narrative_creates_section(tmp_path: Path) -> None:
 
 def test_finalize_exports_authored_entity(tmp_path: Path) -> None:
     # Graph authoring: the graph is canonical, so 定稿 exports the md view.
-    proj = _project(tmp_path, authoring="graph")
+    proj = _project(tmp_path, mode="graph")
     cw.author_entity(str(proj), entity_id="F-001", class_name="Feature", title="用户登录")
     gc.collect()
     result = cw.finalize(str(proj), output_dir=str(tmp_path / "out"))
@@ -152,12 +150,11 @@ def test_finalize_seeds_empty_graph_from_markdown(tmp_path: Path) -> None:
 
 
 def test_finalize_does_not_seed_empty_graph_under_graph_authoring(tmp_path: Path) -> None:
-    """Under ``authoring = "graph"`` an empty graph means nothing authored yet;
+    """Under ``mode = "graph"`` an empty graph means nothing authored yet;
     finalize must not seed from the Markdown on disk."""
     proj = _project(tmp_path, with_fixture_docs=True)
     ctx = {
-        "strategy": "kg-first",
-        "authoring": "graph",
+        "mode": "graph",
         "kg_active_doc_types": ["prd", "arch", "test-report"],
     }
     (proj / ".cataforge" / "framework.json").write_text(

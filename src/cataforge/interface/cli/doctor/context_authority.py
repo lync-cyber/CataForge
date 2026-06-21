@@ -1,9 +1,11 @@
-"""Doctor gate — context.strategy / context.authoring config validity.
+"""Doctor gate — ``context.mode`` config validity.
 
-``authoring_mode`` silently coerces an out-of-range authoring value (and
-honours ``graph`` only under ``kg-first``), so a mis-declared framework.json
-would otherwise run as Markdown-first without the author noticing. This gate
-surfaces the contradiction at diagnostic time.
+A project declares its single source-of-truth axis via ``context.mode``
+(``markdown`` / ``hybrid`` / ``graph``). This gate fails an invalid value and
+fails the retired ``context.strategy`` / ``context.authoring`` pair so a
+project carrying the old two-axis schema is told to migrate to ``context.mode``
+(``cataforge framework-update`` rewrites it) rather than running silently on
+the ``hybrid`` default.
 """
 
 from __future__ import annotations
@@ -13,14 +15,16 @@ from typing import TYPE_CHECKING
 
 import click
 
-from cataforge.domain.kg._dispatch import AUTHORING_MODES, CONTEXT_STRATEGIES
+from cataforge.domain.kg._dispatch import MODES
 
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
 
+_RETIRED_KEYS = ("strategy", "authoring")
 
-def check_context_authority_config(cfg: ConfigManager) -> int:
-    """Validate the context strategy/authoring pair. Returns the failure count."""
+
+def check_context_mode_validity(cfg: ConfigManager) -> int:
+    """Validate ``context.mode`` and reject the retired schema. Returns failures."""
     path = cfg.paths.framework_json
     if not path.is_file():
         click.echo("  (no framework.json — skipped)")
@@ -32,31 +36,24 @@ def check_context_authority_config(cfg: ConfigManager) -> int:
         return 0
 
     context = data.get("context") or {}
-    strategy = context.get("strategy")
-    authoring = context.get("authoring")
 
-    if strategy is not None and strategy not in CONTEXT_STRATEGIES:
+    retired = [k for k in _RETIRED_KEYS if k in context]
+    if retired:
         click.echo(
-            f"  WARN: context.strategy {strategy!r} is unrecognized — "
-            f"falls back to kg-first. Expected one of {sorted(CONTEXT_STRATEGIES)}.",
-            err=True,
-        )
-    if authoring is not None and authoring not in AUTHORING_MODES:
-        click.echo(
-            f"  WARN: context.authoring {authoring!r} is unrecognized — "
-            f"falls back to md. Expected one of {sorted(AUTHORING_MODES)}.",
-            err=True,
-        )
-
-    if authoring == "graph" and strategy != "kg-first":
-        click.echo(
-            f'  FAIL: context.authoring = "graph" requires context.strategy = '
-            f'"kg-first", but strategy resolves to {strategy or "kg-first"!r}. '
-            "Graph authoring has no authority without the kg-first backend — "
-            'set strategy to "kg-first" or authoring to "md".',
+            f"  FAIL: framework.json carries retired context.{{{', '.join(retired)}}} — "
+            "the strategy/authoring pair is replaced by a single context.mode "
+            "(markdown | hybrid | graph). Run `cataforge framework-update` to migrate.",
             err=True,
         )
         return 1
 
-    click.echo("  OK: context strategy/authoring pair is consistent")
+    mode = context.get("mode")
+    if mode is not None and mode not in MODES:
+        click.echo(
+            f"  FAIL: context.mode {mode!r} is invalid — expected one of {sorted(MODES)}.",
+            err=True,
+        )
+        return 1
+
+    click.echo("  OK: context.mode is valid")
     return 0

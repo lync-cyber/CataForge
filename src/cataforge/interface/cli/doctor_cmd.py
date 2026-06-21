@@ -16,7 +16,7 @@ import click
 from cataforge.interface.cli.main import cli
 
 from .doctor._helpers import check_dir, check_file, check_import
-from .doctor.context_authority import check_context_authority_config
+from .doctor.context_authority import check_context_mode_validity
 from .doctor.deploy_integrity import (
     check_deploy_drift,
     check_deploy_integrity,
@@ -65,10 +65,9 @@ _DOCTOR_SECTIONS = [
     # scan, which skips these dirs so they surface here, not as a stale FAIL.
     ("Retired skill assets:", check_retired_skill_assets, False),
     ("Docs validation:", check_docs_validate, True),
-    # context strategy/authoring pair — graph authoring without the kg-first
-    # backend is a config contradiction that authoring_mode would silently
-    # coerce; gate it here so the author fixes framework.json.
-    ("Context authority config:", check_context_authority_config, True),
+    # context.mode validity — an invalid mode or the retired strategy/authoring
+    # pair is a config error; gate it here so the author migrates framework.json.
+    ("Context mode config:", check_context_mode_validity, True),
     # KG ingestion completeness — hard ERROR gate ensuring the KG is the single
     # source of truth for active doc_types (ERROR when an FS entity_id is
     # missing from the graph; skipped when no store exists).

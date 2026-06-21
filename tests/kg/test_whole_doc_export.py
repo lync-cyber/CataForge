@@ -202,7 +202,7 @@ _ALL_DOC_TYPES = ("prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-s
 _ALL_TYPES_FRAMEWORK_JSON = """{
   "docs": {"doc_types": {"prd": "prd", "arch": "arch", "ui-spec": "ui-spec",
     "dev-plan": "dev-plan", "test-report": "test-report", "deploy-spec": "deploy-spec"}},
-  "context": {"strategy": "kg-first", "authoring": "graph"},
+  "context": {"mode": "graph"},
   "kg": {"project_id": "proj-test", "title": "Test", "process_model": "waterfall"}
 }
 """
@@ -389,7 +389,7 @@ def test_finalize_uses_whole_doc_export(tmp_path: Path) -> None:
 
 _FRAMEWORK_JSON = """{
   "docs": {"doc_types": {"prd": "prd", "arch": "arch", "test-report": "test-report"}},
-  "context": {"strategy": "kg-first"},
+  "context": {"mode": "hybrid"},
   "kg": {
     "project_id": "proj-test",
     "title": "Test",
@@ -408,14 +408,14 @@ def _copy_fixture(fixture_root: Path, dest_parent: Path) -> Path:
 
 
 def _set_graph_authoring(project_root: Path) -> None:
-    """Declare graph authoring so finalize exports the md view (graph → md)."""
+    """Declare graph mode so finalize exports the md view (graph → md)."""
     import json
 
     from cataforge.domain.kg._dispatch import invalidate_cache
 
     fw = project_root / ".cataforge" / "framework.json"
     data = json.loads(fw.read_text(encoding="utf-8"))
-    data.setdefault("context", {}).update({"strategy": "kg-first", "authoring": "graph"})
+    data.setdefault("context", {})["mode"] = "graph"
     fw.write_text(json.dumps(data), encoding="utf-8")
     invalidate_cache()
 

@@ -35,7 +35,7 @@ def _project(tmp_path: Path) -> Path:
     handle = init_store(cfg, force=True)
     handle.raw.flush()
     handle.close()
-    ctx = {"strategy": "kg-first", "kg_active_doc_types": ["prd", "arch", "test-report"]}
+    ctx = {"mode": "graph", "kg_active_doc_types": ["prd", "arch", "test-report"]}
     (proj / ".cataforge" / "framework.json").write_text(
         json.dumps({"context": ctx}), encoding="utf-8"
     )
@@ -73,6 +73,40 @@ def _edge_count(kg: KnowledgeGraph, ns: str) -> int:
 
 
 # ---- author_entity: parent + relations + narrative --------------------------
+
+
+def test_context_write_on_existing_entity_preserves_source_doc(tmp_path: Path) -> None:
+    """Re-authoring an entity must preserve its document membership.
+
+    `context write` to add a slot/relation to an entity that already belongs to
+    a document must not relocate its ``cf:source_doc`` to the bare doc_type and
+    orphan it (R-004). The arch doc_id (``arch-temp``) deliberately differs from
+    ``entity_doc_type("Module")`` (``arch``) so the relocation would show.
+    """
+    proj = _project(tmp_path)
+    md = (
+        "---\n"
+        "id: arch-temp\n"
+        "doc_type: arch\n"
+        "---\n"
+        "# Arch\n\n"
+        "## 1. 模块\n\n"
+        "### M-001: core\n"
+        "- **职责**: 核心模块\n"
+    )
+    cw.author_document(str(proj), md)
+    gc.collect()
+    cw.author_entity(
+        str(proj), entity_id="M-001", class_name="Module", title="core", slots={"note": "x"}
+    )
+    gc.collect()
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    with KnowledgeGraph.connect(cfg) as kg:
+        assert _ask(kg, f'ASK {{ ?s <{ns}entity_id> "M-001" ; <{ns}source_doc> "arch-temp" }}'), (
+            "M-001 must keep its arch-temp document membership"
+        )
+    gc.collect()
 
 
 def test_author_entity_with_parent_scopes_iri_and_part_of(tmp_path: Path) -> None:
@@ -301,11 +335,11 @@ def test_transact_requires_kg_first(tmp_path: Path) -> None:
     proj = tmp_path / "p"
     (proj / ".cataforge").mkdir(parents=True)
     (proj / ".cataforge" / "framework.json").write_text(
-        json.dumps({"context": {"strategy": "doc-only"}}), encoding="utf-8"
+        json.dumps({"context": {"mode": "markdown"}}), encoding="utf-8"
     )
     (proj / "docs").mkdir()
     invalidate_cache()
     gc.collect()
-    with pytest.raises(cw.ContextStrategyError):
+    with pytest.raises(cw.ContextModeError):
         cw.transact(str(proj), {"operations": []})
     gc.collect()

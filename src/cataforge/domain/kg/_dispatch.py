@@ -28,25 +28,18 @@ from cataforge.domain.kg._config import DEFAULT_DEFINITION_AUTHORITY, KGConfig
 _ACTIVE_CACHE: dict[str, set[str]] = {}
 _AUTHORITY_CACHE: dict[str, dict[str, frozenset[str]]] = {}
 _CONFIG_CACHE: dict[str, KGConfig] = {}
-_STRATEGY_CACHE: dict[str, str] = {}
-_AUTHORING_CACHE: dict[str, str] = {}
+_MODE_CACHE: dict[str, str] = {}
 _DISPATCH_LOCK = threading.Lock()
 
-# Authoring surfaces a project can drive entity content through, declared via
-# `framework.json` ``context.authoring``. ``md`` (default) treats the exported
-# Markdown as where humans edit; ``graph`` treats the graph as where entity
-# content is authored, with Markdown a pure export view. ``graph`` only takes
-# effect under the ``kg-first`` strategy — a doc-only project has no graph
-# authority to author into.
-AUTHORING_MODES: frozenset[str] = frozenset({"md", "graph"})
-DEFAULT_AUTHORING_MODE = "md"
-
-# Context-IO backend topologies a project can select via
-# `framework.json` ``context.strategy``. ``kg-first`` (default) keeps the
-# graph as source-of-truth with Markdown as the exported review view;
-# ``doc-only`` keeps Markdown as the source with no graph backend.
-CONTEXT_STRATEGIES: frozenset[str] = frozenset({"kg-first", "doc-only"})
-DEFAULT_CONTEXT_STRATEGY = "kg-first"
+# The single source-of-truth axis a project selects via `framework.json`
+# ``context.mode``:
+#   ``markdown`` — Markdown is canonical; no graph backend at all.
+#   ``hybrid``   — Markdown is canonical; the graph is a derived, read-only
+#                  index that powers the coverage / trace / read gates.
+#   ``graph``    — the graph is canonical; Markdown is an exported view that
+#                  agents author through ``context write*``.
+MODES: frozenset[str] = frozenset({"markdown", "hybrid", "graph"})
+DEFAULT_MODE = "hybrid"
 
 
 def _project_root_key(project_root: str | Path) -> str:
@@ -116,61 +109,36 @@ def definition_authority(project_root: str | Path) -> dict[str, frozenset[str]]:
         return resolved
 
 
-def context_strategy(project_root: str | Path) -> str:
-    """Resolve the context-IO strategy for `project_root` (cached).
+def context_mode(project_root: str | Path) -> str:
+    """Resolve the context source-of-truth mode for `project_root` (cached).
 
-    Returns one of :data:`CONTEXT_STRATEGIES`; an absent or unrecognized
-    value resolves to :data:`DEFAULT_CONTEXT_STRATEGY`.
+    Returns one of :data:`MODES`; an absent or unrecognized value resolves to
+    :data:`DEFAULT_MODE` (``hybrid``). Legacy ``context.strategy`` /
+    ``context.authoring`` are not read — the doctor flags them and
+    ``framework-update`` rewrites them to ``context.mode``.
     """
     key = _project_root_key(project_root)
     with _DISPATCH_LOCK:
-        cached = _STRATEGY_CACHE.get(key)
+        cached = _MODE_CACHE.get(key)
         if cached is not None:
             return cached
 
         data = _read_framework_json(Path(project_root))
-        declared = (data.get("context") or {}).get("strategy")
-        resolved = declared if declared in CONTEXT_STRATEGIES else DEFAULT_CONTEXT_STRATEGY
+        declared = (data.get("context") or {}).get("mode")
+        resolved = declared if declared in MODES else DEFAULT_MODE
 
-        _STRATEGY_CACHE[key] = resolved
+        _MODE_CACHE[key] = resolved
         return resolved
 
 
-def authoring_mode(project_root: str | Path) -> str:
-    """Resolve the entity-authoring surface for `project_root` (cached).
-
-    Returns ``"graph"`` only when the project is ``kg-first`` and declares
-    ``context.authoring == "graph"``; every other case — a non-``kg-first``
-    strategy, an absent value, or an unrecognized one — resolves to
-    :data:`DEFAULT_AUTHORING_MODE` (``"md"``). A doc-only project has no graph
-    authority, so ``graph`` is never honoured there.
-    """
-    key = _project_root_key(project_root)
-    with _DISPATCH_LOCK:
-        cached = _AUTHORING_CACHE.get(key)
-        if cached is not None:
-            return cached
-
-    if context_strategy(project_root) != "kg-first":
-        resolved = DEFAULT_AUTHORING_MODE
-    else:
-        data = _read_framework_json(Path(project_root))
-        declared = (data.get("context") or {}).get("authoring")
-        resolved = declared if declared in AUTHORING_MODES else DEFAULT_AUTHORING_MODE
-
-    with _DISPATCH_LOCK:
-        _AUTHORING_CACHE[key] = resolved
-    return resolved
-
-
 def kg_enabled(project_root: str | Path) -> bool:
-    """True iff the project drives documents through the KG (``kg-first``).
+    """True iff the project has a graph backend (``hybrid`` or ``graph``).
 
-    Under ``doc-only`` the graph is not a backend at all: every KG gate
-    (read resolution, doc-review coverage, ingest scope) must bypass to the
+    Under ``markdown`` the graph is not a backend at all: every KG gate
+    (read resolution, doc-review coverage, ingest scope) bypasses to the
     Markdown/file path regardless of which doc_types are listed active.
     """
-    return context_strategy(project_root) == "kg-first"
+    return context_mode(project_root) != "markdown"
 
 
 def kg_config_for(project_root: str | Path) -> KGConfig:
@@ -209,7 +177,7 @@ def kg_config_for(project_root: str | Path) -> KGConfig:
 def is_active_for(doc_type: str, project_root: str | Path) -> bool:
     """True iff KG is enabled, `doc_type` is active, AND a KG store exists.
 
-    Under `doc-only` strategy this is always False — the graph is not a
+    Under `markdown` mode this is always False — the graph is not a
     backend, so a stray store on disk never reactivates KG gates. A
     non-existent store is likewise treated as "not active": callers fall
     back to the legacy path even if framework.json lists the doc_type,
@@ -231,18 +199,14 @@ def invalidate_cache() -> None:
         _ACTIVE_CACHE.clear()
         _AUTHORITY_CACHE.clear()
         _CONFIG_CACHE.clear()
-        _STRATEGY_CACHE.clear()
-        _AUTHORING_CACHE.clear()
+        _MODE_CACHE.clear()
 
 
 __all__ = [
-    "AUTHORING_MODES",
-    "CONTEXT_STRATEGIES",
-    "DEFAULT_AUTHORING_MODE",
-    "DEFAULT_CONTEXT_STRATEGY",
+    "DEFAULT_MODE",
+    "MODES",
     "active_doc_types",
-    "authoring_mode",
-    "context_strategy",
+    "context_mode",
     "definition_authority",
     "invalidate_cache",
     "is_active_for",

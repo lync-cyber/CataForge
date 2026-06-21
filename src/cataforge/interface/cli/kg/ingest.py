@@ -98,7 +98,7 @@ def kg_import(
         types: tuple[str, ...] = doc_types
     elif not kg_enabled(project_root):
         click.echo(
-            "doc-only strategy (context.strategy): KG disabled — nothing to import. "
+            "markdown mode (context.mode): KG disabled — nothing to import. "
             "Pass --doc-type to override."
         )
         return
@@ -369,7 +369,7 @@ def kg_reconcile(
     project_root = project_root.resolve()
 
     if not doc_types and not kg_enabled(project_root):
-        click.echo("doc-only strategy (context.strategy): KG disabled — nothing to reconcile.")
+        click.echo("markdown mode (context.mode): KG disabled — nothing to reconcile.")
         return
 
     base_config = kg_config_for(project_root)

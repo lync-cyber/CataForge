@@ -1,14 +1,16 @@
-"""Strategy-routed authoring — the write side of the context lifecycle.
+"""Mode-routed authoring — the write side of the context lifecycle.
 
-Each lifecycle operation routes on the project's ``context.strategy``.
-Under ``kg-first`` the knowledge graph is the source of truth: authoring
-writes go to the graph under write-time schema validation, then Markdown
-is *exported* as a human-review view (``finalize``); human edits to the
-exported Markdown are reflected back with ``ingest``, and ``reconcile``
-guards the two against drift. Under ``doc-only`` Markdown is the source:
-``finalize`` / ``ingest`` rebuild the docs index, ``reconcile`` validates
-its integrity, and entity/narrative authoring is rejected as a
-configuration error.
+Each lifecycle operation routes on the project's ``context.mode`` via
+:class:`~cataforge.domain.kg.authority.ModePolicy`. Under ``graph`` the
+knowledge graph is the source of truth: authoring writes go to the graph under
+write-time schema validation, then Markdown is *exported* as a human-review
+view (``finalize``); human edits to the exported Markdown are reflected back
+with ``ingest``, and ``reconcile`` guards the two against drift. Under
+``hybrid`` Markdown is canonical and the graph is a derived index: ``finalize``
+/ ``ingest`` sync md → KG and rebuild the docs index, and direct graph
+authoring is rejected (edit Markdown, then ingest). Under ``markdown`` there is
+no graph at all: ``finalize`` / ``ingest`` rebuild the docs index, ``reconcile``
+validates its integrity, and graph authoring is rejected.
 """
 
 from __future__ import annotations
@@ -24,7 +26,6 @@ from cataforge.core.errors import CataforgeError
 from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg._content_hash import entity_content_hash
 from cataforge.domain.kg._dispatch import (
-    authoring_mode,
     definition_authority,
     kg_config_for,
     kg_enabled,
@@ -35,8 +36,10 @@ from cataforge.domain.kg._sparql_utils import (
     _strv,
     assert_safe_iri,
     cf_namespace,
+    escape_sparql_literal,
     select_rows,
 )
+from cataforge.domain.kg.authority import ModePolicy
 from cataforge.domain.kg.export import entity_doc_type
 from cataforge.domain.kg.export.document_pipeline import compile_documents
 from cataforge.domain.kg.export.types import CompileResult
@@ -63,9 +66,9 @@ if TYPE_CHECKING:
     from cataforge.domain.kg.validate import ValidationViolation
 
 
-class ContextStrategyError(CataforgeError):
+class ContextModeError(CataforgeError):
     """Raised when an operation needs a backend the project's
-    ``context.strategy`` does not enable."""
+    ``context.mode`` does not enable."""
 
 
 @dataclass(frozen=True)
@@ -128,14 +131,28 @@ class DocValidationReport:
 _DOC_VALIDATION_GATES = ("orphans", "stale", "xref_errors", "alias_conflicts", "invalid_ids")
 
 
-def _require_kg_first(project_root: str, capability: str) -> None:
-    if kg_enabled(project_root):
+def _require_graph_mode(project_root: str, capability: str) -> None:
+    """Gate a direct-graph-authoring op to ``context.mode = graph``.
+
+    The graph is canonical only under ``graph`` mode, so a direct write is
+    meaningful only there. ``hybrid`` keeps Markdown canonical (a direct graph
+    write would be clobbered by the next md → KG sync), and ``markdown`` has no
+    graph at all — both reject with the path back to the supported flow.
+    """
+    policy = ModePolicy.for_project(project_root)
+    if policy.graph_authoring_allowed:
         return
-    raise ContextStrategyError(
-        f"{capability} authors into the knowledge graph and requires "
-        'context.strategy = "kg-first" in .cataforge/framework.json; '
-        "this project resolves to a Markdown-only strategy — "
-        "edit the documents under docs/ directly instead."
+    if policy.graph_enabled:  # hybrid
+        raise ContextModeError(
+            f"{capability} authors directly into the knowledge graph, which is "
+            'canonical only under context.mode = "graph". This project is '
+            '"hybrid" (Markdown is canonical) — edit the documents under docs/ '
+            "and run `cataforge context ingest`, or switch context.mode to graph."
+        )
+    raise ContextModeError(
+        f"{capability} authors into the knowledge graph, but this project is "
+        'context.mode = "markdown" (no graph backend) — edit the documents '
+        "under docs/ directly instead."
     )
 
 
@@ -169,6 +186,24 @@ def _sha256(text: str) -> str:
 
 
 _HEADING_RE = re.compile(r"^(#{2,6})\s+(.*\S)\s*$")
+
+
+def _existing_source_doc(store: ox.Store, cfg: Any, entity_id: str) -> str | None:
+    """Return an entity's stored ``cf:source_doc``, or ``None`` when it is new.
+
+    Re-authoring an existing entity must keep its document membership; the
+    ``entity_doc_type`` default would relocate it to the bare doc_type and
+    orphan it (a Module from ``arch-temp`` would collapse onto ``arch``).
+    """
+    ns = cf_namespace(cfg)
+    eid = escape_sparql_literal(entity_id)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        f'SELECT ?d WHERE {{ ?s cf:entity_id "{eid}" ; cf:source_doc ?d }} LIMIT 1'
+    )
+    for row in select_rows(store, sparql):
+        return _strv(_row_lookup(row, "d"))
+    return None
 
 
 def _existing_section_level(store: ox.Store, cfg: Any, doc_id: str, anchor: str) -> int | None:
@@ -246,10 +281,13 @@ def _stage_entity(
     narrative: str | None,
     relations: list[tuple[str, str]] | None,
     source_section: str,
+    source_doc: str | None = None,
 ) -> str:
     """Stage one entity (with slots / narrative / outgoing edges) into ``txn``.
 
-    Returns the entity IRI. The entity_id↔class gate runs first.
+    Returns the entity IRI. The entity_id↔class gate runs first. ``source_doc``
+    overrides the ``entity_doc_type`` default so a re-authored entity keeps its
+    existing document membership instead of collapsing onto the bare doc_type.
     """
     _check_entity_class(entity_id, class_name)
     merged: dict[str, str] = dict(slots or {})
@@ -261,7 +299,7 @@ def _stage_entity(
         entity_id,
         class_name,
         title,
-        entity_doc_type(class_name),
+        source_doc or entity_doc_type(class_name),
         source_section,
         content_hash,
         project_iri,
@@ -294,20 +332,21 @@ def author_entity(
 ) -> str:
     """Authorize-and-write one entity to the graph; return its IRI.
 
-    Requires the ``kg-first`` strategy. A subordinate ``parent_id`` yields a
+    Requires ``context.mode = graph``. A subordinate ``parent_id`` yields a
     parent-scoped IRI plus a ``cf:part_of`` edge; ``relations`` add outgoing
     traceability edges; ``narrative`` is stored as the ``cf:narrative_body``
     slot — all in one transaction. The entity_id↔class gate runs up front, and
     a post-commit ``validate`` pass compensates (deletes the just-written
     entity and its edges) and raises if it introduced any violation.
     """
-    _require_kg_first(project_root, "entity authoring (`context write`)")
+    _require_graph_mode(project_root, "entity authoring (`context write`)")
     cfg = kg_config_for(project_root)
     meta = _read_project_metadata(Path(project_root))
     pid = project_id or meta["project_id"]
 
     with KnowledgeGraph.connect(cfg) as kg:
         project_iri = write_project(kg.store, pid, meta["title"], meta["process_model"], cfg)
+        existing_source_doc = _existing_source_doc(kg.store, cfg, entity_id)
         with kg.transaction() as txn:
             iri = _stage_entity(
                 txn,
@@ -320,6 +359,7 @@ def author_entity(
                 narrative=narrative,
                 relations=relations,
                 source_section=source_section,
+                source_doc=existing_source_doc,
             )
         report = validate(kg.store, cfg)
         offending = _offends(report.violations, {entity_id, iri})
@@ -341,12 +381,12 @@ def write_narrative(
 ) -> None:
     """Author a Section's prose (``narrative_body``) directly into the graph.
 
-    Requires the ``kg-first`` strategy. The body is normalized to carry its
+    Requires ``context.mode = graph``. The body is normalized to carry its
     heading line (see :func:`_normalize_narrative`) so the export pipeline
     reconstructs the section verbatim, and stored through the transaction
     face so an updated section keeps its ``cf:position`` document order.
     """
-    _require_kg_first(project_root, "narrative authoring (`context write-narrative`)")
+    _require_graph_mode(project_root, "narrative authoring (`context write-narrative`)")
     cfg = kg_config_for(project_root)
     with KnowledgeGraph.connect(cfg) as kg:
         level = _existing_section_level(kg.store, cfg, doc_id, anchor)
@@ -378,12 +418,12 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
     ``spec`` is ``{"operations": [op, ...]}`` where each op carries an ``op``
     discriminator: ``add_entity`` (entity_id / class / title, optional parent /
     slots / narrative / relations), ``add_relation`` (subject / predicate /
-    object), or ``write_narrative`` (doc_id / anchor / narrative). Requires the
-    ``kg-first`` strategy. All ops stage into one ``TransactionContext`` and
+    object), or ``write_narrative`` (doc_id / anchor / narrative). Requires
+    ``context.mode = graph``. All ops stage into one ``TransactionContext`` and
     commit together; a post-commit ``validate`` over the written entities
     compensates the whole batch on any violation — zero graph residue.
     """
-    _require_kg_first(project_root, "batch authoring (`context transact`)")
+    _require_graph_mode(project_root, "batch authoring (`context transact`)")
     operations = spec.get("operations")
     if not isinstance(operations, list):
         raise KGValidationError("transact spec must carry an 'operations' list")
@@ -491,7 +531,7 @@ def author_document(
 ) -> AuthorDocumentResult:
     """Author a whole document (structure + entities + relations) into the graph.
 
-    Requires the ``kg-first`` strategy. The frontmatter must carry ``doc_type``
+    Requires ``context.mode = graph``. The frontmatter must carry ``doc_type``
     and ``id``; ``source_path`` defaults to ``docs/{subdir}/{id}.md`` (subdir
     resolved via the project's doc-type map). Structure, entities, and relations
     are extracted and staged into one transaction — the Document node, each
@@ -503,7 +543,7 @@ def author_document(
     pass compensates the whole write — document, sections, entities — to zero
     graph residue on any violation.
     """
-    _require_kg_first(project_root, "document authoring (`context write-doc`)")
+    _require_graph_mode(project_root, "document authoring (`context write-doc`)")
     cfg = kg_config_for(project_root)
     meta = _read_project_metadata(Path(project_root))
 
@@ -664,14 +704,14 @@ def update_document_meta(
 ) -> UpdateDocumentMetaResult:
     """Patch a Document's frontmatter ``status`` / ``version`` in the graph.
 
-    Requires the ``kg-first`` strategy. The Document node must already exist.
+    Requires ``context.mode = graph``. The Document node must already exist.
     ``status`` is constrained to the doc-review whitelist. The stored
     ``frontmatter_raw`` is rewritten in place (preserving each line's original
     quote style; missing lines are inserted before the closing ``---``), the
     ``cf:status`` / ``cf:version`` slots are updated, and ``cf:content_hash`` is
     recomputed — all through one transaction.
     """
-    _require_kg_first(project_root, "document meta authoring (`context write-meta`)")
+    _require_graph_mode(project_root, "document meta authoring (`context write-meta`)")
     if status is not None and status not in _DOC_STATUS_WHITELIST:
         raise KGValidationError(f"status {status!r} is not one of {sorted(_DOC_STATUS_WHITELIST)}")
     cfg = kg_config_for(project_root)
@@ -785,34 +825,35 @@ def _stage_document_meta(
 def finalize(project_root: str, output_dir: str | None = None) -> CompileResult | DocIndexResult:
     """Propagate authored content from its canonical source to derived views.
 
-    Under ``doc-only`` the Markdown is canonical, so 定稿 is a docs-index
-    rebuild (``output_dir`` does not apply — the index lives in ``docs/``).
-    Under ``kg-first`` the authoring mode names the canonical side, mirroring
-    :class:`~cataforge.domain.kg.authority.AuthorityPolicy`:
+    Routed by :class:`~cataforge.domain.kg.authority.ModePolicy`:
 
-    - ``authoring = "md"`` — the Markdown is canonical. 定稿 reflects it into
-      the graph (md → KG) and rebuilds the docs index; it never re-exports
-      graph → md, so hand edits to the authored Markdown are preserved.
-    - ``authoring = "graph"`` — the graph is canonical and the Markdown is a
-      derived view, reconstructed whole-document via ``compile_documents``
-      (frontmatter + preamble + section slices in document order, with orphan
-      entities falling back to per-entity cards). An empty graph (no entities,
-      no ``cf:Document`` nodes) means nothing has been authored yet, so there
-      is nothing to export; an authored but entity-less Document (prose-only
-      or early draft) is not empty and still exports.
+    - ``markdown`` — the Markdown is canonical and there is no graph, so 定稿
+      is a docs-index rebuild (``output_dir`` does not apply — the index lives
+      in ``docs/``).
+    - ``hybrid`` — the Markdown is canonical. 定稿 reflects it into the graph
+      (md → KG) and rebuilds the docs index; it never re-exports graph → md,
+      so hand edits to the authored Markdown are preserved.
+    - ``graph`` — the graph is canonical and the Markdown is a derived view,
+      reconstructed whole-document via ``compile_documents`` (frontmatter +
+      preamble + section slices in document order, with orphan entities falling
+      back to per-entity cards). An empty graph (no entities, no
+      ``cf:Document`` nodes) means nothing has been authored yet, so there is
+      nothing to export; an authored but entity-less Document (prose-only or
+      early draft) is not empty and still exports.
 
     Either way the ``定稿`` contract routes persistence without the caller
     hand-running ``ingest``.
     """
-    if not kg_enabled(project_root):
+    policy = ModePolicy.for_project(project_root)
+    if not policy.graph_enabled:
         return _rebuild_doc_index(project_root)
     cfg = kg_config_for(project_root)
     out = Path(output_dir) if output_dir else Path(project_root) / "docs"
-    if authoring_mode(project_root) == "md":
+    if not policy.graph_is_source:  # hybrid — md is canonical, sync md → KG
         with KnowledgeGraph.connect(cfg) as kg:
             run_migration(kg.store, Path(project_root), cfg, doc_types=DEFAULT_DOC_TYPES)
         return _rebuild_doc_index(project_root)
-    with KnowledgeGraph.connect(cfg) as kg:
+    with KnowledgeGraph.connect(cfg) as kg:  # graph — KG is canonical, export → md
         if not kg.query.entity_ids() and not kg.query.has_documents():
             return CompileResult(exported_at=datetime.now(UTC), discovered_count=0, output_dir=out)
         result = compile_documents(kg.store, out)
@@ -823,11 +864,11 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
 def ingest(
     project_root: str, doc_types: list[str] | None = None
 ) -> MigrationStats | DocIndexResult:
-    """Reflect human-edited Markdown into the strategy-selected backend.
+    """Reflect human-edited Markdown into the mode-selected backend.
 
-    Under ``kg-first`` this is the md → KG migration. Under ``doc-only``
-    the Markdown already is the source of truth, so the equivalent is a
-    full docs-index rebuild (``doc_types`` does not restrict it).
+    Under ``hybrid`` / ``graph`` this is the md → KG migration. Under
+    ``markdown`` the Markdown already is the source of truth, so the equivalent
+    is a full docs-index rebuild (``doc_types`` does not restrict it).
     """
     if not kg_enabled(project_root):
         return _rebuild_doc_index(project_root)
@@ -841,10 +882,10 @@ def ingest(
 
 
 def reconcile_check(project_root: str) -> ReconcileReport | DocValidationReport:
-    """Drift guard between the Markdown tree and the strategy-selected backend.
+    """Drift guard between the Markdown tree and the mode-selected backend.
 
-    Under ``kg-first`` this reconciles the graph against the exported
-    Markdown; under ``doc-only`` it validates docs-index integrity
+    Under ``hybrid`` / ``graph`` this reconciles the graph against the
+    Markdown; under ``markdown`` it validates docs-index integrity
     (orphans / stale entries / xrefs / aliases / invalid ids).
     """
     if not kg_enabled(project_root):

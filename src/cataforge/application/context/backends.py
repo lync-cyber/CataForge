@@ -24,7 +24,7 @@ from cataforge.domain.docs.index_ops import LoadSectionError, parse_ref
 
 
 class DocBackend:
-    """Markdown/file + ``.doc-index.json`` backend (doc-only loader primitives)."""
+    """Markdown/file + ``.doc-index.json`` backend (Markdown/file loader primitives)."""
 
     name = "doc"
     fidelity = {

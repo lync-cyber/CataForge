@@ -57,7 +57,7 @@ def build_plan(
     cfg: ConfigManager,
     *,
     requested_platform: str | None,
-    requested_strategy: str | None = None,
+    requested_mode: str | None = None,
 ) -> Plan:
     """Inspect on-disk state and decide what each step must do."""
     from cataforge.core.scaffold import classify_scaffold_files
@@ -96,7 +96,7 @@ def build_plan(
         plan.target_platform = requested_platform
         plan.add("upgrade", "skip", "fresh scaffold already current")
         plan.add("deploy", "run", "fresh install — initial deploy required")
-        _append_kg_init(plan, cfg, requested_strategy, scaffold_exists=False)
+        _append_kg_init(plan, cfg, requested_mode, scaffold_exists=False)
         if requested_platform is not None:
             _append_doctor(plan)
         return plan
@@ -161,7 +161,7 @@ def build_plan(
     # Step 3: deploy.
     _plan_deploy(plan, cfg)
 
-    _append_kg_init(plan, cfg, requested_strategy, scaffold_exists=True)
+    _append_kg_init(plan, cfg, requested_mode, scaffold_exists=True)
     _append_doctor(plan)
     return plan
 
@@ -212,28 +212,28 @@ def _append_doctor(plan: Plan) -> None:
 
 
 def _append_kg_init(
-    plan: Plan, cfg: ConfigManager, requested_strategy: str | None, *, scaffold_exists: bool
+    plan: Plan, cfg: ConfigManager, requested_mode: str | None, *, scaffold_exists: bool
 ) -> None:
-    """Preview the kg-init step for a kg-first project that lacks a store.
+    """Preview the kg-init step for a graph-backed project that lacks a store.
 
     Mirrors ``bootstrap_cmd._maybe_init_kg_store`` so ``--dry-run`` surfaces
-    it; omitted under doc-only (no graph backend). Execution recomputes the
+    it; omitted under ``markdown`` (no graph backend). Execution recomputes the
     decision post-setup, so this is a preview, not the authority.
     """
-    from cataforge.domain.kg._dispatch import DEFAULT_CONTEXT_STRATEGY
+    from cataforge.domain.kg._dispatch import DEFAULT_MODE
 
-    strategy = requested_strategy
-    if strategy is None:
-        strategy = DEFAULT_CONTEXT_STRATEGY
+    mode = requested_mode
+    if mode is None:
+        mode = DEFAULT_MODE
         if scaffold_exists:
             raw = cfg.load_raw()
-            strategy = (raw.get("context") or {}).get("strategy") or DEFAULT_CONTEXT_STRATEGY
-    if strategy != "kg-first":
+            mode = (raw.get("context") or {}).get("mode") or DEFAULT_MODE
+    if mode == "markdown":
         return
     if cfg.paths.kg_store_dir.exists():
         plan.add("kg-init", "skip", "store present")
     else:
-        plan.add("kg-init", "run", "kg-first strategy — store absent")
+        plan.add("kg-init", "run", "graph-backed mode — store absent")
 
 
 def _semver_newer(a: str, b: str) -> bool:

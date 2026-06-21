@@ -26,14 +26,15 @@ if TYPE_CHECKING:
 )
 @click.option("--with-penpot", is_flag=True, help="Include Penpot design integration.")
 @click.option(
-    "--context-strategy",
-    type=click.Choice(["kg-first", "doc-only"]),
+    "--context-mode",
+    type=click.Choice(["markdown", "hybrid", "graph"]),
     default=None,
     help=(
-        "Document-driving backend. kg-first: the graph is the source of truth, "
-        "`cataforge kg export` renders markdown for human review. doc-only: "
-        "markdown is the source and the graph is bypassed. Prompted on a fresh "
-        "install when omitted; defaults to kg-first non-interactively."
+        "Context source-of-truth mode. markdown: Markdown is the source, no "
+        "graph. hybrid (default): Markdown is the source, a derived graph "
+        "index powers coverage/trace gates. graph: the graph is the source and "
+        "`cataforge context finalize` exports Markdown for review. Prompted on "
+        "a fresh install when omitted; defaults to hybrid non-interactively."
     ),
 )
 @click.option(
@@ -77,7 +78,7 @@ if TYPE_CHECKING:
 def setup_command(
     platform: str | None,
     with_penpot: bool,
-    context_strategy: str | None,
+    context_mode: str | None,
     languages: tuple[str, ...],
     check_only: bool,
     force_scaffold: bool,
@@ -166,7 +167,7 @@ def setup_command(
             force_scaffold=force_scaffold,
             platform=platform,
             languages=languages,
-            context_strategy=context_strategy,
+            context_mode=context_mode,
             with_penpot=with_penpot,
             deploy_after=deploy_after,
         )
@@ -201,7 +202,7 @@ def setup_command(
         click.echo("  (framework.json modified only at runtime.platform)")
 
     _apply_languages(cfg, languages)
-    _apply_context_strategy(cfg, context_strategy, scaffold_missing=scaffold_missing)
+    _apply_context_mode(cfg, context_mode, scaffold_missing=scaffold_missing)
     _apply_penpot(cfg, with_penpot)
 
     from cataforge.interface.cli.guidance import print_next_steps
@@ -295,7 +296,7 @@ def _report_dry_run(
     force_scaffold: bool,
     platform: str | None,
     languages: tuple[str, ...],
-    context_strategy: str | None,
+    context_mode: str | None,
     with_penpot: bool,
     deploy_after: bool,
 ) -> None:
@@ -331,8 +332,8 @@ def _report_dry_run(
 
         click.echo(f"  would set framework.json: project.languages = {normalize(list(languages))}")
 
-    if context_strategy:
-        click.echo(f"  would set framework.json: context.strategy = {context_strategy}")
+    if context_mode:
+        click.echo(f"  would set framework.json: context.mode = {context_mode}")
 
     if with_penpot:
         click.echo(
@@ -345,48 +346,51 @@ def _report_dry_run(
     click.echo("Dry-run complete. No changes made.")
 
 
-def _apply_context_strategy(
-    cfg: ConfigManager, strategy: str | None, *, scaffold_missing: bool
-) -> None:
-    """Resolve and persist ``context.strategy``.
+def _apply_context_mode(cfg: ConfigManager, mode: str | None, *, scaffold_missing: bool) -> None:
+    """Resolve and persist ``context.mode``.
 
-    An explicit ``--context-strategy`` always wins. On a fresh interactive
+    An explicit ``--context-mode`` always wins. On a fresh interactive
     install with no flag, prompt the user. Otherwise leave the scaffold
-    default (kg-first) untouched — orthogonal to the execution-mode choice.
+    default (hybrid) untouched — orthogonal to the execution-mode choice.
     """
-    resolved = strategy
+    resolved = mode
     if resolved is None and scaffold_missing and sys.stdin.isatty():
-        resolved = _prompt_context_strategy()
+        resolved = _prompt_context_mode()
     if resolved is None:
         return
-    current = (cfg.load_raw().get("context") or {}).get("strategy")
+    current = (cfg.load_raw().get("context") or {}).get("mode")
     if resolved == current:
-        click.echo(f"Document-driving strategy: {resolved} (no change)")
+        click.echo(f"Context mode: {resolved} (no change)")
         return
-    cfg.set_context_strategy(resolved)
-    click.echo(f"Document-driving strategy set to: {resolved}")
+    cfg.set_context_mode(resolved)
+    click.echo(f"Context mode set to: {resolved}")
 
 
-def _prompt_context_strategy() -> str:
+def _prompt_context_mode() -> str:
     from cataforge.interface.cli.ui import ChoiceOption, ui
 
     choice = ui.prompt_choice(
-        "文档驱动方式",
+        "上下文事实源模式",
         [
             ChoiceOption(
                 "1",
-                "KG 驱动",
-                description="图为源，cataforge kg export 导出 markdown 供人工审查",
+                "hybrid（推荐）",
+                description="markdown 为源，派生图索引驱动覆盖/追溯门禁",
             ),
             ChoiceOption(
                 "2",
-                "markdown + doc CLI 驱动",
-                description="markdown 为源，默认旁路 KG",
+                "markdown",
+                description="markdown 为源，无图后端",
+            ),
+            ChoiceOption(
+                "3",
+                "graph",
+                description="图为源，cataforge context finalize 导出 markdown 供人工审查",
             ),
         ],
         default="1",
     )
-    return "kg-first" if choice == "1" else "doc-only"
+    return {"1": "hybrid", "2": "markdown", "3": "graph"}[choice]
 
 
 def _run_checks(cfg: ConfigManager) -> None:

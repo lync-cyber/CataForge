@@ -24,7 +24,7 @@ from cataforge.domain.kg._dispatch import invalidate_cache
 _FRAMEWORK_JSON = {
     "docs": {"doc_types": {"ui-spec": "ui-spec"}},
     "context": {
-        "strategy": "kg-first",
+        "mode": "hybrid",
         "kg_active_doc_types": ["ui-spec"],
         "kg_definition_authority": {"Component": ["ui-spec"]},
     },
@@ -46,12 +46,13 @@ def _clear_caches():
     gc.collect()
 
 
-def _project(tmp_path: Path) -> Path:
+def _project(tmp_path: Path, *, mode: str | None = None) -> Path:
     proj = tmp_path / "proj"
     (proj / ".cataforge").mkdir(parents=True)
-    (proj / ".cataforge" / "framework.json").write_text(
-        json.dumps(_FRAMEWORK_JSON), encoding="utf-8"
-    )
+    cfg = _FRAMEWORK_JSON
+    if mode is not None:
+        cfg = {**_FRAMEWORK_JSON, "context": {**_FRAMEWORK_JSON["context"], "mode": mode}}
+    (proj / ".cataforge" / "framework.json").write_text(json.dumps(cfg), encoding="utf-8")
     doc_dir = proj / "docs" / "ui-spec"
     doc_dir.mkdir(parents=True)
     (doc_dir / "ui-spec.md").write_text(_UI_SPEC_DOC, encoding="utf-8")
@@ -137,7 +138,7 @@ def test_author_document_honours_authority_extension(tmp_path: Path) -> None:
     from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
     from cataforge.domain.kg._dispatch import kg_config_for
 
-    proj = _project(tmp_path)
+    proj = _project(tmp_path, mode="graph")
     cfg = kg_config_for(proj)
     handle = init_store(cfg, force=True)
     handle.raw.flush()

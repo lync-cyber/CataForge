@@ -31,7 +31,7 @@ from urllib.parse import unquote
 
 from cataforge.domain.docs.index_ops import _load_doc_type_map
 from cataforge.domain.kg._config import KGConfig
-from cataforge.domain.kg._dispatch import authoring_mode, definition_authority
+from cataforge.domain.kg._dispatch import context_mode, definition_authority
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _strv,
@@ -48,7 +48,7 @@ from cataforge.domain.kg.authority import (
     DRIFT_IN_SYNC,
     DRIFT_NEVER_EXPORTED,
     REMEDIATE_NONE,
-    AuthorityPolicy,
+    ModePolicy,
 )
 from cataforge.domain.kg.export.document_pipeline import (
     EXPORTED_CONTENT_HASH_SLOT,
@@ -185,7 +185,7 @@ def _triage_documents(
 ) -> list[DocumentDriftRecord]:
     """Triage every `cf:source_path`-bearing Document for content drift."""
     ns = cf_namespace(config)
-    policy = AuthorityPolicy.for_project(project_root)
+    policy = ModePolicy.for_project(project_root)
     records: list[DocumentDriftRecord] = []
     for doc in _list_documents(store, ns):
         source_path = doc["source_path"]
@@ -213,7 +213,7 @@ class ReconcileReport:
     timestamp: str
     active_doc_types: list[str]
     per_doc_type: dict[str, PerDocTypeReport] = field(default_factory=dict)
-    authoring: str = "md"
+    mode: str = "hybrid"
     documents: list[DocumentDriftRecord] = field(default_factory=list)
 
     @property
@@ -231,6 +231,16 @@ class ReconcileReport:
 
     @property
     def ok(self) -> bool:
+        """Authoritative pass/fail, by mode.
+
+        ``graph`` is canonical with Markdown as a lossy export, so the
+        document-level three-way triage is the truth and the per-doc_type
+        symmetric diff is demoted to diagnostics (its FS re-extraction
+        round-trip yields false positives). ``hybrid`` ingests hand-authored
+        Markdown directly, so the symmetric diff is exact and is the gate.
+        """
+        if self.mode == "graph":
+            return self.document_drift_count == 0
         return self.overall_divergence_count == 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -240,7 +250,7 @@ class ReconcileReport:
             "per_doc_type": {k: v.to_dict() for k, v in sorted(self.per_doc_type.items())},
             "overall_divergence_count": self.overall_divergence_count,
             "ok": self.ok,
-            "authoring": self.authoring,
+            "mode": self.mode,
             "documents": [d.to_dict() for d in self.documents],
             "document_drift_count": self.document_drift_count,
         }
@@ -428,7 +438,7 @@ def reconcile(
     report = ReconcileReport(
         timestamp=_utc_now_iso(),
         active_doc_types=active,
-        authoring=authoring_mode(project_root),
+        mode=context_mode(project_root),
         documents=_triage_documents(store, project_root, config),
     )
 

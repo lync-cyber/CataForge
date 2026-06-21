@@ -32,8 +32,7 @@ def _project(tmp_path: Path) -> Path:
             {
                 "docs": {"doc_types": {"prd": "prd", "arch": "arch"}},
                 "context": {
-                    "strategy": "kg-first",
-                    "authoring": "graph",
+                    "mode": "graph",
                     "kg_active_doc_types": ["prd", "arch", "test-report"],
                 },
                 "kg": {

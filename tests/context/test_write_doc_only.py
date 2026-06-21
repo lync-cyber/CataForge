@@ -1,4 +1,4 @@
-"""Write-lifecycle routing under ``context.strategy = doc-only``."""
+"""Write-lifecycle routing under ``context.mode = markdown``."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def _doc_only_project(tmp_path: Path) -> Path:
     proj = tmp_path / "p"
     (proj / ".cataforge").mkdir(parents=True)
     (proj / ".cataforge" / "framework.json").write_text(
-        json.dumps({"context": {"strategy": "doc-only"}}), encoding="utf-8"
+        json.dumps({"context": {"mode": "markdown"}}), encoding="utf-8"
     )
     _doc(
         proj,
@@ -114,7 +114,7 @@ def test_reconcile_missing_index_raises_with_index_hint(tmp_path: Path) -> None:
 
 def test_author_entity_rejected_with_strategy_message(tmp_path: Path) -> None:
     proj = _doc_only_project(tmp_path)
-    with pytest.raises(cw.ContextStrategyError, match="kg-first") as exc_info:
+    with pytest.raises(cw.ContextModeError, match="context.mode") as exc_info:
         cw.author_entity(str(proj), entity_id="F-001", class_name="Feature", title="登录")
     assert "kg init" not in str(exc_info.value)
     assert not (proj / ".cataforge" / "kg").exists()
@@ -122,7 +122,7 @@ def test_author_entity_rejected_with_strategy_message(tmp_path: Path) -> None:
 
 def test_write_narrative_rejected_with_strategy_message(tmp_path: Path) -> None:
     proj = _doc_only_project(tmp_path)
-    with pytest.raises(cw.ContextStrategyError, match="kg-first") as exc_info:
+    with pytest.raises(cw.ContextModeError, match="context.mode") as exc_info:
         cw.write_narrative(str(proj), doc_id="arch", anchor="§1 概览", narrative="文本")
     assert "kg init" not in str(exc_info.value)
     assert not (proj / ".cataforge" / "kg").exists()

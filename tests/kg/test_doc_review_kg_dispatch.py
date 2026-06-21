@@ -14,11 +14,11 @@ from pathlib import Path
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
 
-def _setup_project(tmp_path: Path, variant: str = "waterfall", strategy: str | None = None) -> Path:
+def _setup_project(tmp_path: Path, variant: str = "waterfall", mode: str | None = None) -> Path:
     """Create a minimal CataForge project with an ingested KG store.
 
-    `strategy` writes ``context.strategy`` (e.g. ``doc-only``) so tests can
-    assert the KG gates bypass even when a store exists on disk.
+    `mode` writes ``context.mode`` (e.g. ``markdown``) so tests can assert the
+    KG gates bypass even when a store exists on disk.
     """
     from cataforge.domain.kg import KGConfig, init_store
     from cataforge.domain.kg.ingest import run_migration
@@ -37,8 +37,8 @@ def _setup_project(tmp_path: Path, variant: str = "waterfall", strategy: str | N
     handle.raw.flush()
 
     context: dict = {"kg_active_doc_types": ["prd", "arch", "test"]}
-    if strategy is not None:
-        context["strategy"] = strategy
+    if mode is not None:
+        context["mode"] = mode
     (project / ".cataforge" / "framework.json").write_text(
         json.dumps({"context": context}), encoding="utf-8"
     )
@@ -216,11 +216,11 @@ def test_bidirectional_coverage_falls_back_when_inactive(
 
 
 def test_xref_bypasses_kg_under_doc_only_despite_store(tmp_path: Path) -> None:
-    """doc-only strategy must ignore an on-disk store and use the file path."""
+    """markdown mode must ignore an on-disk store and use the file path."""
     from cataforge.domain.kg._dispatch import invalidate_cache
     from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
-    project = _setup_project(tmp_path, strategy="doc-only")
+    project = _setup_project(tmp_path, mode="markdown")
     doc_file = _write_doc(project, "prd", _PRD_WITH_XREF)
     invalidate_cache()
 
@@ -234,10 +234,10 @@ def test_bidirectional_coverage_bypasses_kg_under_doc_only_despite_store(
     from cataforge.domain.kg._dispatch import invalidate_cache
     from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
-    project = _setup_project(tmp_path, strategy="doc-only")
+    project = _setup_project(tmp_path, mode="markdown")
     doc_file = _write_doc(project, "arch", _ARCH_CONTENT)
     invalidate_cache()
 
     checker = DocChecker("arch", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
     ran_kg = checker._kg_bidirectional_coverage("F")
-    assert not ran_kg, "doc-only must not enter the KG coverage path"
+    assert not ran_kg, "markdown mode must not enter the KG coverage path"
