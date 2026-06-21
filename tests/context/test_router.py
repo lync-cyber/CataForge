@@ -77,10 +77,10 @@ def test_deps_returns_empty_when_all_decline() -> None:
 # ---- build_router topology by strategy --------------------------------------
 
 
-def _write_strategy(root: Path, strategy: str) -> None:
+def _write_mode(root: Path, mode: str) -> None:
     (root / ".cataforge").mkdir(parents=True, exist_ok=True)
     (root / ".cataforge" / "framework.json").write_text(
-        json.dumps({"context": {"strategy": strategy}}), encoding="utf-8"
+        json.dumps({"context": {"mode": mode}}), encoding="utf-8"
     )
 
 
@@ -94,13 +94,13 @@ def _clear_dispatch_cache():
 
 
 def test_build_router_kg_first_enables_both(tmp_path: Path) -> None:
-    _write_strategy(tmp_path, "kg-first")
+    _write_mode(tmp_path, "hybrid")
     names = [b.name for b in build_router(str(tmp_path))._backends]
     assert names == ["kg", "doc"]
 
 
 def test_build_router_doc_only_enables_file_alone(tmp_path: Path) -> None:
-    _write_strategy(tmp_path, "doc-only")
+    _write_mode(tmp_path, "markdown")
     names = [b.name for b in build_router(str(tmp_path))._backends]
     assert names == ["doc"]
 
@@ -126,7 +126,7 @@ def _kg_project(tmp_path: Path, strategy: str) -> Path:
     run_migration(handle.raw, project, config)
     handle.raw.flush()
     handle.close()
-    ctx = {"strategy": strategy, "kg_active_doc_types": ["prd", "arch", "test-report"]}
+    ctx = {"mode": strategy, "kg_active_doc_types": ["prd", "arch", "test-report"]}
     (project / ".cataforge" / "framework.json").write_text(
         json.dumps({"context": ctx}), encoding="utf-8"
     )
@@ -134,21 +134,21 @@ def _kg_project(tmp_path: Path, strategy: str) -> Path:
 
 
 def test_doc_only_never_serves_pure_prose_from_kg(tmp_path: Path) -> None:
-    """arch#§1 (no entity) only resolves via the graph; doc-only must NOT
-    serve it from KG — proving the strategy gates the backend topology."""
+    """arch#§1 (no entity) only resolves via the graph; markdown mode must NOT
+    serve it from KG — proving the mode gates the backend topology."""
     from cataforge.application.context import read as context_read
     from cataforge.domain.docs import loader
     from cataforge.domain.docs.index_ops import SectionNotFoundError
 
-    project = _kg_project(tmp_path, "kg-first")
+    project = _kg_project(tmp_path, "hybrid")
     loader._INDEX_CACHE = None
     loader._INDEX_CACHE_ROOT = None
     loader._DOC_TYPE_MAP_CACHE.clear()
-    assert "概览" in context_read.extract("arch#§1", str(project))  # kg-first serves it
+    assert "概览" in context_read.extract("arch#§1", str(project))  # hybrid serves it
 
     from cataforge.domain.kg._dispatch import invalidate_cache
 
-    project2 = _kg_project(tmp_path / "b", "doc-only")
+    project2 = _kg_project(tmp_path / "b", "markdown")
     invalidate_cache()
     loader._INDEX_CACHE = None
     loader._INDEX_CACHE_ROOT = None

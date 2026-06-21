@@ -1,4 +1,4 @@
-"""AuthorityPolicy maps drift states to remediation directions per authoring mode."""
+"""ModePolicy maps drift states to remediation directions per context mode."""
 
 from __future__ import annotations
 
@@ -14,11 +14,30 @@ from cataforge.domain.kg.authority import (
     REMEDIATE_INGEST,
     REMEDIATE_MANUAL,
     REMEDIATE_NONE,
-    AuthorityPolicy,
+    ModePolicy,
 )
 
-GRAPH = AuthorityPolicy(strategy="kg-first", authoring="graph")
-MD = AuthorityPolicy(strategy="kg-first", authoring="md")
+GRAPH = ModePolicy(mode="graph")
+HYBRID = ModePolicy(mode="hybrid")
+MARKDOWN = ModePolicy(mode="markdown")
+
+
+def test_graph_properties() -> None:
+    assert GRAPH.graph_enabled is True
+    assert GRAPH.graph_is_source is True
+    assert GRAPH.graph_authoring_allowed is True
+
+
+def test_hybrid_properties() -> None:
+    assert HYBRID.graph_enabled is True
+    assert HYBRID.graph_is_source is False
+    assert HYBRID.graph_authoring_allowed is False
+
+
+def test_markdown_properties() -> None:
+    assert MARKDOWN.graph_enabled is False
+    assert MARKDOWN.graph_is_source is False
+    assert MARKDOWN.graph_authoring_allowed is False
 
 
 @pytest.mark.parametrize(
@@ -32,7 +51,6 @@ MD = AuthorityPolicy(strategy="kg-first", authoring="md")
     ],
 )
 def test_graph_authority_directions(state: str, expected: str) -> None:
-    assert GRAPH.graph_is_source is True
     assert GRAPH.remediation_for(state) == expected
 
 
@@ -41,12 +59,12 @@ def test_graph_authority_directions(state: str, expected: str) -> None:
     [
         (DRIFT_IN_SYNC, REMEDIATE_NONE),
         (DRIFT_CONFLICT, REMEDIATE_MANUAL),
-        # Markdown is canonical: any one-sided divergence re-syncs the graph.
+        # Markdown is canonical under hybrid: any one-sided divergence re-syncs
+        # the graph from Markdown.
         (DRIFT_GRAPH_AHEAD, REMEDIATE_INGEST),
         (DRIFT_HUMAN_EDIT, REMEDIATE_INGEST),
         (DRIFT_NEVER_EXPORTED, REMEDIATE_INGEST),
     ],
 )
-def test_md_authority_directions(state: str, expected: str) -> None:
-    assert MD.graph_is_source is False
-    assert MD.remediation_for(state) == expected
+def test_hybrid_authority_directions(state: str, expected: str) -> None:
+    assert HYBRID.remediation_for(state) == expected

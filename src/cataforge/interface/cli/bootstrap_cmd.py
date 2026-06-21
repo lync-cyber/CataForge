@@ -41,13 +41,14 @@ if TYPE_CHECKING:
     "on an existing project defaults to framework.json's runtime.platform.",
 )
 @click.option(
-    "--context-strategy",
-    type=click.Choice(["kg-first", "doc-only"]),
+    "--context-mode",
+    type=click.Choice(["markdown", "hybrid", "graph"]),
     default=None,
     help=(
-        "Document-driving backend forwarded to `setup`. kg-first (graph is "
-        "source, export markdown for review) or doc-only (markdown is source, "
-        "bypass the graph). Prompted on a fresh install when omitted."
+        "Context source-of-truth mode forwarded to `setup`. markdown (no "
+        "graph), hybrid (markdown source + derived graph index, default), or "
+        "graph (graph source, export markdown for review). Prompted on a fresh "
+        "install when omitted."
     ),
 )
 @click.option(
@@ -71,7 +72,7 @@ if TYPE_CHECKING:
 def bootstrap_command(
     ctx: click.Context,
     platform: str | None,
-    context_strategy: str | None,
+    context_mode: str | None,
     dry_run: bool,
     yes: bool,
     skip_doctor: bool,
@@ -110,7 +111,7 @@ def bootstrap_command(
     from cataforge.interface.cli.helpers import get_config_manager
 
     cfg = get_config_manager()
-    plan = build_plan(cfg, requested_platform=platform, requested_strategy=context_strategy)
+    plan = build_plan(cfg, requested_platform=platform, requested_mode=context_mode)
 
     _print_plan(plan, dry_run=dry_run)
 
@@ -127,7 +128,7 @@ def bootstrap_command(
         ui.warn("Aborted.")
         raise click.exceptions.Exit(1)
 
-    _execute_plan(ctx, cfg, plan, context_strategy=context_strategy, skip_doctor=skip_doctor)
+    _execute_plan(ctx, cfg, plan, context_mode=context_mode, skip_doctor=skip_doctor)
 
 
 # ---- presentation ----
@@ -168,7 +169,7 @@ def _execute_plan(
     cfg: ConfigManager,
     plan: Plan,
     *,
-    context_strategy: str | None,
+    context_mode: str | None,
     skip_doctor: bool,
 ) -> None:
     """Run each planned step in order. Halt on first failure.
@@ -203,7 +204,7 @@ def _execute_plan(
             setup_command,
             platform=plan.target_platform,
             with_penpot=False,
-            context_strategy=context_strategy,
+            context_mode=context_mode,
             check_only=False,
             force_scaffold=False,
             deploy_after=False,
@@ -268,10 +269,10 @@ def _execute_plan(
         except Exception as e:  # noqa: BLE001
             ui.warn(f"docs index crashed: {e} — bootstrap continuing.")
 
-    # kg-first projects need an initialized store before the first
-    # `context write` / `reconcile`; without it those commands crash on a
-    # missing store. Create it idempotently (only when absent) so re-bootstrap
-    # is a no-op; non-blocking on failure like the docs-index step above.
+    # Graph-backed projects (hybrid / graph) need an initialized store before
+    # the first `context write` / `reconcile`; without it those commands crash
+    # on a missing store. Create it idempotently (only when absent) so
+    # re-bootstrap is a no-op; non-blocking on failure like docs-index above.
     _maybe_init_kg_store(cfg)
 
     doctor_step = step_by_name.get("doctor")
@@ -288,9 +289,9 @@ def _execute_plan(
 
 
 def _maybe_init_kg_store(cfg: ConfigManager) -> None:
-    """Create the KG store on a kg-first project that lacks one.
+    """Create the KG store on a graph-backed project that lacks one.
 
-    No-op under ``doc-only`` (the graph is not a backend) and when a store
+    No-op under ``markdown`` (the graph is not a backend) and when a store
     already exists (idempotent re-bootstrap). Failure warns and continues —
     bootstrap must not be stranded by a store-init hiccup.
     """
@@ -302,12 +303,12 @@ def _maybe_init_kg_store(cfg: ConfigManager) -> None:
 
     from cataforge.domain.kg._dispatch import invalidate_cache, kg_enabled
 
-    invalidate_cache()  # setup may have rewritten context.strategy this run
+    invalidate_cache()  # setup may have rewritten context.mode this run
     if not kg_enabled(cfg.paths.root):
         return
 
     ui.print("")
-    ui.info("[kg-init] initializing KG store (kg-first strategy)")
+    ui.info("[kg-init] initializing KG store (graph-backed mode)")
     try:
         from cataforge.domain.kg import init_store
         from cataforge.domain.kg._dispatch import kg_config_for

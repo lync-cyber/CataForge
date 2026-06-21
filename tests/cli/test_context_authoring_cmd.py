@@ -42,7 +42,7 @@ def _project(tmp_path: Path) -> Path:
     handle = init_store(cfg, force=True)
     handle.raw.flush()
     handle.close()
-    ctx = {"strategy": "kg-first", "kg_active_doc_types": ["prd", "arch", "test-report"]}
+    ctx = {"mode": "graph", "kg_active_doc_types": ["prd", "arch", "test-report"]}
     (proj / ".cataforge" / "framework.json").write_text(
         json.dumps({"context": ctx}), encoding="utf-8"
     )

@@ -28,7 +28,7 @@ def _kg_first_project(tmp_path: Path) -> Path:
     proj = tmp_path / "p"
     (proj / ".cataforge").mkdir(parents=True)
     (proj / ".cataforge" / "framework.json").write_text(
-        json.dumps({"context": {"strategy": "kg-first"}}), encoding="utf-8"
+        json.dumps({"context": {"mode": "hybrid"}}), encoding="utf-8"
     )
     return proj
 
@@ -43,8 +43,7 @@ def test_status_uninitialized_store_reports_false_without_creating(tmp_path: Pat
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload == {
-        "strategy": "kg-first",
-        "authoring": "md",
+        "mode": "hybrid",
         "store_initialized": False,
         "entity_count": 0,
     }
@@ -61,7 +60,7 @@ def test_status_initialized_store_reports_entity_count(tmp_path: Path) -> None:
     shutil.copytree(FIXTURE_ROOT / "waterfall", proj)
     (proj / ".cataforge").mkdir(exist_ok=True)
     (proj / ".cataforge" / "framework.json").write_text(
-        json.dumps({"context": {"strategy": "kg-first"}}), encoding="utf-8"
+        json.dumps({"context": {"mode": "hybrid"}}), encoding="utf-8"
     )
     cfg = kg_config_for(proj)
     handle = init_store(cfg, force=True)
@@ -74,8 +73,7 @@ def test_status_initialized_store_reports_entity_count(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["strategy"] == "kg-first"
-    assert payload["authoring"] == "md"
+    assert payload["mode"] == "hybrid"
     assert payload["store_initialized"] is True
     assert payload["entity_count"] > 0
 
@@ -84,11 +82,11 @@ def test_status_reports_graph_authoring(tmp_path: Path) -> None:
     proj = tmp_path / "p"
     (proj / ".cataforge").mkdir(parents=True)
     (proj / ".cataforge" / "framework.json").write_text(
-        json.dumps({"context": {"strategy": "kg-first", "authoring": "graph"}}),
+        json.dumps({"context": {"mode": "graph"}}),
         encoding="utf-8",
     )
 
     result = invoke_under_group(context_status, ["--project-root", str(proj)])
 
     assert result.exit_code == 0, result.output
-    assert json.loads(result.output)["authoring"] == "graph"
+    assert json.loads(result.output)["mode"] == "graph"

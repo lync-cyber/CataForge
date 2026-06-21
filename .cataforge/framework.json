@@ -35,7 +35,7 @@
     "base_namespace": "https://cataforge.dev/instance/"
   },
   "context": {
-    "strategy": "kg-first",
+    "mode": "hybrid",
     "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"]
   },
   "project": {

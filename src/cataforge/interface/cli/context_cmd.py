@@ -2,7 +2,7 @@
 
 One command family over the capability ports: read/relation and the
 authoring lifecycle (write → write-narrative → finalize → ingest →
-reconcile), all routed by ``context.strategy``. This is the
+reconcile), all routed by ``context.mode``. This is the
 backend-routing door the single ``context`` skill targets; callers never
 name the graph or the file store.
 """
@@ -38,7 +38,7 @@ def context_group() -> None:
 def _kg_store_guard() -> Generator[None]:
     """Turn a missing-store crash into a clean ``Error:`` with an init hint.
 
-    Under ``kg-first`` the authoring/lifecycle commands open the graph; on a
+    Under ``hybrid`` / ``graph`` the lifecycle commands open the graph; on a
     project that never ran ``cataforge kg init`` the connect raises
     ``KGStoreNotInitializedError``, which would otherwise escape as an
     uncaught traceback. The ``cataforge kg`` twin commands already convert it
@@ -199,7 +199,7 @@ def context_write(
     project_root: str,
 ) -> None:
     """Business authoring door: strategy-routed, write-time-validated single
-    entity write into the graph (kg-first strategy only).
+    entity write into the graph (graph mode only).
 
     Supports layered authoring: ``--parent`` scopes a subordinate under its
     owner (part_of edge), ``--relation`` adds outgoing traceability edges, and
@@ -237,7 +237,7 @@ def context_write(
 def context_write_narrative(
     ctx: click.Context, doc_id: str, anchor: str, narrative: str | None, project_root: str
 ) -> None:
-    """Author a Section's prose into the graph (kg-first strategy only)."""
+    """Author a Section's prose into the graph (graph mode only)."""
     from cataforge.application.context.write import write_narrative
 
     project_root = _rooted(ctx, project_root) or project_root
@@ -263,7 +263,7 @@ def context_write_doc(
 
     Reads Markdown with frontmatter (``doc_type`` + ``id`` required) from
     --file or stdin and stages the Document node, its Sections (in document
-    order), entities, and traceability edges in one transaction (kg-first only).
+    order), entities, and traceability edges in one transaction (graph mode only).
     """
     from pathlib import Path
 
@@ -294,7 +294,7 @@ def context_write_meta(
     version: str | None,
     project_root: str,
 ) -> None:
-    """Patch a Document's frontmatter status / version in the graph (kg-first only)."""
+    """Patch a Document's frontmatter status / version in the graph (graph mode only)."""
     from cataforge.application.context.write import update_document_meta
 
     if status is None and version is None:
@@ -313,7 +313,7 @@ def context_write_meta(
 @click.option("--project-root", default=".")
 @click.pass_context
 def context_transact(ctx: click.Context, spec_file: str | None, project_root: str) -> None:
-    """Apply a batch of authoring ops in one atomic transaction (kg-first only).
+    """Apply a batch of authoring ops in one atomic transaction (graph mode only).
 
     Reads a JSON spec ``{"operations": [op, ...]}`` from --file or stdin. Each
     op carries an ``op`` discriminator: ``add_entity`` (entity_id / class /
@@ -349,7 +349,7 @@ def context_transact(ctx: click.Context, spec_file: str | None, project_root: st
 @click.option("--output-dir", default=None, help="Export target (default docs/).")
 @click.pass_context
 def context_finalize(ctx: click.Context, project_root: str, output_dir: str | None) -> None:
-    """Persist authored content (graph export under kg-first, docs-index rebuild under doc-only)."""
+    """Persist authored content per mode (graph exports md; else rebuilds the docs index)."""
     from cataforge.application.context.write import DocIndexResult, finalize
 
     project_root = _rooted(ctx, project_root) or project_root
@@ -412,20 +412,19 @@ def context_reconcile(ctx: click.Context, project_root: str) -> None:
 def context_status(ctx: click.Context, project_root: str) -> None:
     """Print a read-only JSON probe of the project's context backend.
 
-    Reports the resolved ``strategy`` / ``authoring`` mode and, when a graph
-    store is already on disk, its entity count. Probing never creates the
-    store: an uninitialized project reads ``store_initialized: false`` with a
-    zero count, leaving disk untouched.
+    Reports the resolved ``context.mode`` and, when a graph store is already on
+    disk, its entity count. Probing never creates the store: an uninitialized
+    project reads ``store_initialized: false`` with a zero count, leaving disk
+    untouched.
     """
     import json
 
-    from cataforge.domain.kg._dispatch import authoring_mode, context_strategy
+    from cataforge.domain.kg._dispatch import context_mode
 
     project_root = _rooted(ctx, project_root) or project_root
     store_dir = Path(project_root) / ".cataforge" / "kg" / "store"
     payload: dict[str, object] = {
-        "strategy": context_strategy(project_root),
-        "authoring": authoring_mode(project_root),
+        "mode": context_mode(project_root),
         "store_initialized": store_dir.exists(),
         "entity_count": 0,
     }

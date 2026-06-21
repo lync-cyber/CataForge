@@ -1,8 +1,8 @@
-"""finalize routes by authoring mode: the canonical side drives 定稿.
+"""finalize routes by context mode: the canonical side drives 定稿.
 
-Under ``authoring = "md"`` the Markdown is canonical, so finalize reflects it
+Under ``mode = "hybrid"`` the Markdown is canonical, so finalize reflects it
 into the graph (md → KG) and never re-exports over the authored files. Under
-``authoring = "graph"`` the graph is canonical, so finalize exports the
+``mode = "graph"`` the graph is canonical, so finalize exports the
 Markdown view and the export round-trip stays drift-free.
 """
 
@@ -32,7 +32,7 @@ def _clear_caches():
     gc.collect()
 
 
-def _project(tmp_path: Path, *, authoring: str, with_fixture_docs: bool = False) -> Path:
+def _project(tmp_path: Path, *, mode: str, with_fixture_docs: bool = False) -> Path:
     proj = tmp_path / "p"
     (proj / ".cataforge").mkdir(parents=True)
     if with_fixture_docs:
@@ -48,8 +48,7 @@ def _project(tmp_path: Path, *, authoring: str, with_fixture_docs: bool = False)
     handle.raw.flush()
     handle.close()
     ctx = {
-        "strategy": "kg-first",
-        "authoring": authoring,
+        "mode": mode,
         "kg_active_doc_types": ["prd", "arch", "test-report"],
     }
     (proj / ".cataforge" / "framework.json").write_text(
@@ -74,7 +73,7 @@ _GRAPH_DOC = (
 def test_finalize_md_preserves_human_edits_on_nonempty_graph(tmp_path: Path) -> None:
     """The core data-loss regression: edit the Markdown, then finalize over a
     non-empty graph — the hand edit must survive byte-for-byte."""
-    proj = _project(tmp_path, authoring="md", with_fixture_docs=True)
+    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
     cw.ingest(str(proj))  # graph is now non-empty
     gc.collect()
 
@@ -91,7 +90,7 @@ def test_finalize_md_preserves_human_edits_on_nonempty_graph(tmp_path: Path) -> 
 def test_finalize_md_returns_index_result_and_reconciles_clean(tmp_path: Path) -> None:
     """md 定稿 is a md → KG reflect + index rebuild (a DocIndexResult), not an
     export; the graph absorbs the Markdown so reconcile is clean."""
-    proj = _project(tmp_path, authoring="md", with_fixture_docs=True)
+    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
     cw.ingest(str(proj))
     gc.collect()
 
@@ -107,7 +106,7 @@ def test_finalize_md_returns_index_result_and_reconciles_clean(tmp_path: Path) -
 def test_finalize_md_empty_graph_seeds_without_re_export(tmp_path: Path) -> None:
     """md-first authoring leaves the graph empty until 定稿 seeds it (md → KG);
     the authored Markdown is canonical and is not rewritten."""
-    proj = _project(tmp_path, authoring="md", with_fixture_docs=True)
+    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
     before = {p: p.read_text(encoding="utf-8") for p in (proj / "docs").rglob("*.md")}
 
     result = cw.finalize(str(proj))
@@ -125,7 +124,7 @@ def test_finalize_md_empty_graph_seeds_without_re_export(tmp_path: Path) -> None
 
 
 def test_finalize_graph_exports_and_reconciles_clean(tmp_path: Path) -> None:
-    proj = _project(tmp_path, authoring="graph")
+    proj = _project(tmp_path, mode="graph")
     cw.author_document(str(proj), _GRAPH_DOC, source_path="docs/prd/prd.md")
     gc.collect()
 
@@ -142,7 +141,7 @@ def test_finalize_graph_exports_and_reconciles_clean(tmp_path: Path) -> None:
 def test_finalize_graph_export_is_byte_stable_across_runs(tmp_path: Path) -> None:
     """BUG-3 guard: the section/anchor round-trip is idempotent — re-finalize
     produces identical bytes, so reconcile never sees representational drift."""
-    proj = _project(tmp_path, authoring="graph")
+    proj = _project(tmp_path, mode="graph")
     cw.author_document(str(proj), _GRAPH_DOC, source_path="docs/prd/prd.md")
     gc.collect()
 

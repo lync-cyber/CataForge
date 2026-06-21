@@ -47,16 +47,16 @@ class FrameworkKG(BaseModel):
 class FrameworkContext(BaseModel):
     """Validated shape for the ``context`` section of ``framework.json``.
 
-    ``strategy`` selects the context-IO backend topology: ``kg-first``
-    (graph is the source-of-truth, Markdown is the exported review view)
-    or ``doc-only`` (Markdown is the source, no graph backend).
-    ``kg_active_doc_types`` is the canonical set of doc_types whose
-    context I/O routes through the graph.
+    ``mode`` is the single source-of-truth axis: ``markdown`` (Markdown is the
+    source, no graph), ``hybrid`` (Markdown is the source, a derived graph
+    index powers the coverage / trace gates), or ``graph`` (the graph is the
+    source, Markdown is an exported review view). ``kg_active_doc_types`` is the
+    canonical set of doc_types whose context I/O routes through the graph.
     """
 
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
-    strategy: str = "kg-first"
+    mode: str = "hybrid"
     kg_active_doc_types: list[str] = Field(default_factory=list)
 
 

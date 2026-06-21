@@ -240,14 +240,14 @@ class ConfigManager:
         self._write_raw(raw)
         self._cache = None
 
-    def set_context_strategy(self, strategy: str) -> None:
-        """Write ``context.strategy``, preserving every other field.
+    def set_context_mode(self, mode: str) -> None:
+        """Write ``context.mode``, preserving every other field.
 
         Same verbatim-read / single-key-patch / atomic-write discipline as
         :meth:`set_runtime_platform`, so unrelated keys keep their order.
         """
         raw = self.load_raw()
-        raw.setdefault("context", {})["strategy"] = strategy
+        raw.setdefault("context", {})["mode"] = mode
         self._write_raw(raw)
         self._cache = None
 

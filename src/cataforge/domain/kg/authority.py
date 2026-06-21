@@ -26,25 +26,42 @@ REMEDIATE_MANUAL = "manual"  # both sides changed — needs a human decision
 
 
 @dataclass(frozen=True)
-class AuthorityPolicy:
-    """Maps a drift state to a remediation direction given the authoring mode."""
+class ModePolicy:
+    """The single decision point for every mode-dependent behaviour.
 
-    strategy: str
-    authoring: str
+    ``mode`` is the project's :data:`~cataforge.domain.kg._dispatch.context_mode`
+    (``markdown`` / ``hybrid`` / ``graph``). Authorization gates, finalize /
+    ingest / reconcile direction, and drift remediation all route through this
+    one object so no gate re-encodes md-vs-graph authority on its own.
+    """
+
+    mode: str
 
     @classmethod
-    def for_project(cls, project_root: str | Path) -> AuthorityPolicy:
-        from cataforge.domain.kg._dispatch import authoring_mode, context_strategy
+    def for_project(cls, project_root: str | Path) -> ModePolicy:
+        from cataforge.domain.kg._dispatch import context_mode
 
-        return cls(
-            strategy=context_strategy(project_root),
-            authoring=authoring_mode(project_root),
-        )
+        return cls(mode=context_mode(project_root))
+
+    @property
+    def graph_enabled(self) -> bool:
+        """True when a graph backend exists (``hybrid`` or ``graph``)."""
+        return self.mode != "markdown"
 
     @property
     def graph_is_source(self) -> bool:
         """True when the graph is canonical and Markdown is a derived view."""
-        return self.authoring == "graph"
+        return self.mode == "graph"
+
+    @property
+    def graph_authoring_allowed(self) -> bool:
+        """True when ``context write*`` may author into the graph.
+
+        Only ``graph`` mode authors through the graph; under ``hybrid`` /
+        ``markdown`` the Markdown is canonical, so a direct graph write would
+        be silently overwritten by the next md→KG sync.
+        """
+        return self.mode == "graph"
 
     def remediation_for(self, drift_state: str) -> str:
         """Recommend how to close a document's drift under this authority.

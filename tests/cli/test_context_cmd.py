@@ -141,7 +141,7 @@ def _doc_only_project(tmp_path: Path) -> Path:
     proj = tmp_path / "p"
     (proj / ".cataforge").mkdir(parents=True)
     (proj / ".cataforge" / "framework.json").write_text(
-        json.dumps({"context": {"strategy": "doc-only"}}), encoding="utf-8"
+        json.dumps({"context": {"mode": "markdown"}}), encoding="utf-8"
     )
     doc = proj / "docs" / "prd" / "prd.md"
     doc.parent.mkdir(parents=True)
@@ -213,7 +213,7 @@ def test_write_doc_only_rejected_without_kg_init_hint(
 
     assert result.exit_code == 1, result.output
     assert "Error:" in result.output
-    assert "kg-first" in result.output
+    assert "context.mode" in result.output
     assert "kg init" not in result.output
 
 
@@ -238,5 +238,5 @@ def test_write_narrative_doc_only_rejected_without_kg_init_hint(
 
     assert result.exit_code == 1, result.output
     assert "Error:" in result.output
-    assert "kg-first" in result.output
+    assert "context.mode" in result.output
     assert "kg init" not in result.output
