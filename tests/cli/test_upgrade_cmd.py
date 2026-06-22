@@ -151,3 +151,61 @@ def test_breaking_detection_skips_out_of_range(tmp_path: Path, monkeypatch) -> N
 def test_breaking_detection_no_changelog_returns_empty(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     assert find_breaking_entries("0.1.0", "0.2.0") == []
+
+
+# ---- design_tool SSOT lift on upgrade apply -------------------------------
+
+
+def _design_tool(root: Path) -> str:
+    import json
+
+    data = json.loads((root / ".cataforge" / "framework.json").read_text(encoding="utf-8"))
+    return (data.get("project") or {}).get("design_tool") or "none"
+
+
+def test_upgrade_apply_lifts_penpot_intent_from_instruction_file(
+    runner: CliRunner, project: Path
+) -> None:
+    """A penpot choice recorded only in CLAUDE.md is promoted into
+    framework.json (the single source of truth) on upgrade, so the next
+    deploy's force-overwrite doesn't silently clear it."""
+    assert _design_tool(project) == "none"
+    (project / "CLAUDE.md").write_text(
+        "# Proj\n\n## 全局约定\n\n- 设计工具: penpot\n", encoding="utf-8"
+    )
+
+    result = runner.invoke(cli, ["upgrade", "apply"])
+    assert result.exit_code == 0, result.output
+    assert _design_tool(project) == "penpot"
+    assert "design-tool" in result.output
+
+
+def test_upgrade_apply_no_lift_when_instruction_file_says_none(
+    runner: CliRunner, project: Path
+) -> None:
+    (project / "CLAUDE.md").write_text(
+        "# Proj\n\n## 全局约定\n\n- 设计工具: none\n", encoding="utf-8"
+    )
+
+    result = runner.invoke(cli, ["upgrade", "apply"])
+    assert result.exit_code == 0, result.output
+    assert _design_tool(project) == "none"
+    assert "design-tool" not in result.output
+
+
+def test_upgrade_apply_does_not_override_existing_design_tool(
+    runner: CliRunner, project: Path
+) -> None:
+    """When framework.json already records a choice it is the source of truth;
+    the lift is a no-op even if the instruction file disagrees."""
+    from cataforge.interface.cli.helpers import get_config_manager
+
+    get_config_manager().set_design_tool("penpot")
+    (project / "CLAUDE.md").write_text(
+        "# Proj\n\n## 全局约定\n\n- 设计工具: none\n", encoding="utf-8"
+    )
+
+    result = runner.invoke(cli, ["upgrade", "apply"])
+    assert result.exit_code == 0, result.output
+    assert _design_tool(project) == "penpot"
+    assert "design-tool" not in result.output

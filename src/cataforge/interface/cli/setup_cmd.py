@@ -286,6 +286,10 @@ def _apply_penpot(cfg: ConfigManager, with_penpot: bool) -> None:
     cfg.set_design_tool("penpot")
     spec = write_penpot_mcp_spec(cfg.paths.root)
     click.echo(f"Penpot 设计集成已启用: design_tool=penpot, {spec}")
+    click.echo(
+        "  Tip: 运行 `cataforge deploy` 让 CLAUDE.md / AGENTS.md 的「设计工具」"
+        "字段从 framework.json 重新渲染。"
+    )
 
 
 def _report_dry_run(

@@ -268,6 +268,39 @@ def test_deploy_stamps_and_advances_framework_version(
     assert "- 框架版本: 9.9.9-test" in out2
 
 
+@pytest.mark.parametrize("platform_id", ["claude-code", "cursor", "codex", "opencode"])
+def test_deploy_renders_and_overwrites_design_tool(platform_id: str, tmp_path: Path) -> None:
+    """设计工具 is rendered from framework.json#project.design_tool and
+    force-overwritten on every deploy (always_overwrite_fields: 全局约定:[设计工具]),
+    so a stale value in a previously-deployed instruction file can't drift —
+    making framework.json the single source of truth for the field.
+    """
+    adapter = get_adapter(platform_id, _platforms_dir())
+    target_rel = str(adapter.instruction_targets[0]["path"])
+    project_state = tmp_path / ".cataforge" / "PROJECT-STATE.md"
+    project_state.parent.mkdir(parents=True)
+    project_state.write_text(
+        "# CataForge\n\n## 全局约定\n\n- 设计工具: {DESIGN_TOOL}\n",
+        encoding="utf-8",
+    )
+
+    steps.deploy_instruction_files(
+        adapter, project_state, tmp_path, platform_id=platform_id, design_tool="penpot"
+    )
+    out = (tmp_path / target_rel).read_text(encoding="utf-8")
+    assert "{DESIGN_TOOL}" not in out
+    assert "- 设计工具: penpot" in out
+
+    # Re-deploy with framework.json back to none: force-overwrite must win over
+    # the now-stale 'penpot' the previous deploy left in the instruction file.
+    steps.deploy_instruction_files(
+        adapter, project_state, tmp_path, platform_id=platform_id, design_tool="none"
+    )
+    out2 = (tmp_path / target_rel).read_text(encoding="utf-8")
+    assert "- 设计工具: none" in out2
+    assert "- 设计工具: penpot" not in out2
+
+
 # ---- real adapter spot-check: claude-code renders to its own paths -----
 
 

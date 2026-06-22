@@ -251,6 +251,7 @@ class Deployer:
             ctx.instruction_src,
             ctx.root,
             platform_id=ctx.platform_id,
+            design_tool=ctx.cfg.design_tool,
             dry_run=ctx.dry_run,
             manifest=ctx.manifest,
             prior_manifest=ctx.prior_owned,
