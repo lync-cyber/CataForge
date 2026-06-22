@@ -15,7 +15,11 @@ from pydantic import ValidationError
 
 from cataforge.core.io import read_json
 from cataforge.core.paths import ProjectPaths, find_project_root
-from cataforge.core.schema.framework import FrameworkFile
+from cataforge.core.schema.framework import (
+    FrameworkFile,
+    FrameworkGitRemotePolicy,
+    FrameworkGitSessionSync,
+)
 from cataforge.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger("cataforge.config")
@@ -146,6 +150,20 @@ class ConfigManager:
         """Declared ``project.design_tool`` (``none`` | ``penpot``)."""
         project = self.load().get("project") or {}
         return str(project.get("design_tool") or "none")
+
+    # ---- git config ----
+
+    @property
+    def git_session_sync(self) -> FrameworkGitSessionSync:
+        """Return the validated ``git.session_sync`` block (defaults when unset)."""
+        git = self.load().get("git") or {}
+        return FrameworkGitSessionSync.model_validate(git.get("session_sync") or {})
+
+    @property
+    def git_remote_policy(self) -> FrameworkGitRemotePolicy:
+        """Return the validated ``git.remote_policy`` block (defaults when unset)."""
+        git = self.load().get("git") or {}
+        return FrameworkGitRemotePolicy.model_validate(git.get("remote_policy") or {})
 
     # ---- feedback / hygiene config ----
 

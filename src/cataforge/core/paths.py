@@ -171,6 +171,11 @@ class ProjectPaths:
         return self.root / HOOK_ERROR_LOG_REL
 
     @property
+    def git_sync_stamp(self) -> Path:
+        """Debounce marker for the SessionStart ``git_sync`` hook (gitignored)."""
+        return self.cataforge_dir / ".git-sync-stamp"
+
+    @property
     def docs_dir(self) -> Path:
         return self.root / "docs"
 

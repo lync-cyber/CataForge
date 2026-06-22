@@ -91,6 +91,14 @@ UPWARD_IMPORT_ALLOWLIST: tuple[tuple[str, str], ...] = (
         "runtime/skill/runner.py",
         "cataforge.application.phase",
     ),
+    # SessionStart git_sync hook is a thin runtime entry that delegates the
+    # whole fetch/fast-forward/prune sweep to the application-layer
+    # git-hygiene service (the same SSOT the CLI uses), lazily imported inside
+    # the hook body to keep git decisions out of the runtime layer.
+    (
+        "runtime/hook/scripts/git_sync.py",
+        "cataforge.application.services.git_hygiene",
+    ),
 )
 
 

@@ -124,6 +124,7 @@ opencode.json
 .cataforge/.mcp-state/
 .cataforge/.instruction-hashes.json
 .cataforge/.backups/
+.cataforge/.git-sync-stamp
 .cataforge/**/__pycache__/
 # This meta-repo does not run the SDLC doc pipeline, so its `.cataforge/kg/`
 # store is only local runtime cruft — never committed and never packed into a

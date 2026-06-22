@@ -56,6 +56,9 @@ hooks:
     - script: deploy_drift
       type: observe
       description: "检测 .cataforge 源/包版本漂移并提示 redeploy（不部署、不改 tracked 文件）"
+    - script: git_sync
+      type: observe
+      description: "fetch + 快进干净的默认分支 + 清理 squash 合并的本地分支（不改 tracked 文件、永不切分支）"
 
 degradation_templates:
   guard_dangerous:
@@ -108,3 +111,7 @@ degradation_templates:
   deploy_drift:
     strategy: skip
     reason: "部署漂移提示为非关键功能"
+
+  git_sync:
+    strategy: skip
+    reason: "会话启动 git 同步为非关键功能；无 SessionStart hook 的平台用户手动跑 cataforge git sync"

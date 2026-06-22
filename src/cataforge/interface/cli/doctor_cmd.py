@@ -23,6 +23,7 @@ from .doctor.deploy_integrity import (
     check_deploy_source_orphans,
 )
 from .doctor.event_log import check_event_log_bypass_writes, check_event_log_schema
+from .doctor.git_hygiene import check_git_hygiene
 from .doctor.hook_health import check_hook_script_importability, report_hook_errors
 from .doctor.hygiene import check_claude_md_hygiene
 from .doctor.kg_ingestion import (
@@ -87,6 +88,10 @@ _DOCTOR_SECTIONS = [
     ("EVENT-LOG schema sample:", check_event_log_schema, True),
     ("EVENT-LOG bypass guard:", check_event_log_bypass_writes, True),
     ("CLAUDE.md hygiene:", check_claude_md_hygiene, True),
+    # Git hygiene — informational: local branches whose upstream is gone
+    # (squash-merged). Non-gating (branch cleanup is never a CI failure);
+    # points the user at `cataforge git prune`.
+    ("Git hygiene:", check_git_hygiene, False),
     # Deployment provenance — informational: shows which platform dirs the last
     # deploy would have written so users see what is CataForge-managed.
     ("Deployment provenance:", report_deployment_provenance, False),

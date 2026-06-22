@@ -139,6 +139,48 @@ class TestConfigManager:
             _ = cfg.claude_md_limits
 
 
+class TestGitSessionSync:
+    def test_defaults(self, tmp_path: Path) -> None:
+        (tmp_path / ".cataforge").mkdir()
+        (tmp_path / ".cataforge" / "framework.json").write_text(
+            json.dumps({"version": "0.1.0"}), encoding="utf-8"
+        )
+        ss = ConfigManager(tmp_path).git_session_sync
+        assert ss.enabled is True
+        assert ss.fast_forward_clean is True
+        assert ss.prune_gone is True
+        assert ss.confirm_via_gh is True
+        assert ss.debounce_seconds == 60
+        assert ss.fetch_timeout_seconds == 10
+
+    def test_reads_overrides(self, project_dir: Path) -> None:
+        fw_path = project_dir / ".cataforge" / "framework.json"
+        data = json.loads(fw_path.read_text(encoding="utf-8"))
+        data["git"] = {"session_sync": {"enabled": False, "fetch_timeout_seconds": 5}}
+        fw_path.write_text(json.dumps(data), encoding="utf-8")
+        ss = ConfigManager(project_dir).git_session_sync
+        assert ss.enabled is False
+        assert ss.fetch_timeout_seconds == 5
+        # unset sub-fields still fall back to their defaults
+        assert ss.prune_gone is True
+
+    def test_git_section_survives_platform_write(self, project_dir: Path) -> None:
+        fw_path = project_dir / ".cataforge" / "framework.json"
+        data = json.loads(fw_path.read_text(encoding="utf-8"))
+        data["git"] = {"session_sync": {"enabled": False}}
+        data["my_custom_key"] = {"keep": 1}
+        fw_path.write_text(json.dumps(data), encoding="utf-8")
+
+        cfg = ConfigManager(project_dir)
+        cfg.set_runtime_platform("codex")
+
+        reread = ConfigManager(project_dir)
+        assert reread.git_session_sync.enabled is False
+        assert reread.runtime_platform == "codex"
+        # The verbatim writer must not drop an unknown top-level key.
+        assert reread.load_raw()["my_custom_key"] == {"keep": 1}
+
+
 class TestProjectPaths:
     def test_paths_from_root(self, project_dir: Path) -> None:
         paths = ProjectPaths(project_dir)
@@ -148,6 +190,7 @@ class TestProjectPaths:
         assert paths.skills_dir == project_dir / ".cataforge" / "skills"
         assert paths.hooks_spec == project_dir / ".cataforge" / "hooks" / "hooks.yaml"
         assert paths.mcp_dir == project_dir / ".cataforge" / "mcp"
+        assert paths.git_sync_stamp == project_dir / ".cataforge" / ".git-sync-stamp"
 
     def test_platform_profile(self, project_dir: Path) -> None:
         paths = ProjectPaths(project_dir)

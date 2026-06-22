@@ -335,6 +335,8 @@ ignore_imports = [
     "cataforge.adapter.platform.opencode -> cataforge.runtime.deploy.manifest",
     # runtime builtin lazy-imports application layer to avoid module-level cycle
     "cataforge.runtime.skill.builtins.framework_feedback.framework_feedback -> cataforge.application.feedback",
+    # SessionStart git_sync hook lazy-imports the application git-hygiene service (the SSOT the CLI uses)
+    "cataforge.runtime.hook.scripts.git_sync -> cataforge.application.services.git_hygiene",
     # interface layer doctor commands lazy-import runtime/domain (function-body imports)
     "cataforge.interface.cli.doctor.deploy_integrity -> cataforge.runtime.deploy.manifest",
     "cataforge.interface.cli.doctor.deploy_integrity -> cataforge.runtime.skill.loader",

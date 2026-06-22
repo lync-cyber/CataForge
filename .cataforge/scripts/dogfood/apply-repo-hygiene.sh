@@ -51,15 +51,15 @@ for entry in "${RENAMES[@]}"; do
 done
 
 # ---- 2. 仓库 merge 策略 ----
+# delete_branch_on_merge + squash-only 由 `cataforge git ensure-policy` 幂等设置
+# （读 framework.json#git.remote_policy，仅在漂移时 PATCH）。
 echo ""
-echo "=== 仓库 merge 策略: 只允许 squash，默认用 PR title ==="
-run gh api --method PATCH "repos/$REPO" \
-    -f allow_merge_commit=false \
-    -f allow_squash_merge=true \
-    -f allow_rebase_merge=false \
-    -f squash_merge_commit_title=PR_TITLE \
-    -f squash_merge_commit_message=PR_BODY \
-    -f delete_branch_on_merge=true
+echo "=== 仓库 merge 策略: delete-branch-on-merge + squash-only ==="
+if [[ $DRY_RUN -eq 1 ]]; then
+    run cataforge git ensure-policy --dry-run
+else
+    run cataforge git ensure-policy
+fi
 
 echo ""
 echo "OK — 仓库卫生修复完成。"

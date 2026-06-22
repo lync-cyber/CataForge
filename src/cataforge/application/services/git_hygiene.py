@@ -3,8 +3,8 @@
 Holds every git invocation and the sync/prune decision logic so the CLI,
 the SessionStart hook, and bootstrap share one implementation instead of
 each shelling out to git on their own. Lives in ``services/`` (not
-``core/``) because it shells out to ``git`` and is consumed by interface
-adapters only.
+``core/``) because it shells out to ``git`` / ``gh`` and is consumed by the
+interface and runtime adapters.
 
 Two seams keep this testable and free of god-objects:
 
@@ -17,13 +17,21 @@ Two seams keep this testable and free of god-objects:
 
 from __future__ import annotations
 
+import json
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from cataforge.core.errors import CataforgeError, ExternalToolError
 from cataforge.utils.run_subprocess import DEFAULT_TIMEOUT_SECONDS
 from cataforge.utils.run_subprocess import run as run_proc
+
+if TYPE_CHECKING:
+    from cataforge.core.schema.framework import FrameworkGitRemotePolicy
+
+_REPO_SLUG_RE = re.compile(r"github\.com[:/]([^/:]+/[^/:]+?)(?:\.git)?/?$")
 
 
 @dataclass(frozen=True)
@@ -46,10 +54,13 @@ class SyncOutcome:
 class GitWorkTree:
     """Typed git operations rooted at one work-tree — the only git I/O point.
 
-    Read operations always execute. Mutating / network operations
-    (``fetch_prune`` / ``switch`` / ``merge_ff_only`` / ``delete_branch``)
-    become no-ops that append their argv to :attr:`planned` when
-    ``dry_run`` is set, so a caller can preview the side effects.
+    Read operations always execute. Branch-state mutations (``switch`` /
+    ``merge_ff_only`` / ``delete_branch``) become no-ops that append their
+    argv to :attr:`planned` when ``dry_run`` is set, so a caller can preview
+    the side effects. ``fetch_prune`` is exempt: it always runs because it
+    only refreshes / prunes remote-tracking refs (never a local branch or the
+    working tree), and an accurate ``[gone]`` view is what a prune preview
+    needs.
     """
 
     def __init__(self, root: Path, *, dry_run: bool = False) -> None:
@@ -127,29 +138,50 @@ class GitWorkTree:
                 f"{local} vs {remote}: {raw!r}"
             ) from None
 
-    def merged_branches(self, target: str) -> set[str]:
-        """Local branch names fully merged into ``target`` (ancestor-reachable)."""
-        out = self._run("branch", "--merged", target).stdout or ""
-        names: set[str] = set()
+    def gone_branches(self) -> list[str]:
+        """Local branches whose upstream is gone (``[gone]`` in ``upstream:track``).
+
+        This is the squash-merge signal: GitHub deletes the head branch on
+        squash-merge, so after ``fetch --prune`` the local branch's upstream
+        reads ``[gone]`` even though its commit is not an ancestor of the
+        default branch (which is why ``git branch --merged`` misses it).
+        """
+        out = (
+            self._run(
+                "for-each-ref", "--format=%(refname:short) %(upstream:track)", "refs/heads/"
+            ).stdout
+            or ""
+        )
+        gone: list[str] = []
         for line in out.splitlines():
-            name = line.strip().lstrip("*").strip()
-            if name and not name.startswith("("):
-                names.add(name)
-        return names
+            name, _, track = line.rstrip().partition(" ")
+            if name and "[gone]" in track:
+                gone.append(name)
+        return gone
 
     def local_branches(self) -> list[str]:
         out = self._run("for-each-ref", "--format=%(refname:short)", "refs/heads/").stdout or ""
         return [line.strip() for line in out.splitlines() if line.strip()]
+
+    def remote_url(self, remote: str = "origin") -> str | None:
+        """Return the configured URL of ``remote``, or ``None`` when unset."""
+        result = self._run("remote", "get-url", remote, check=False)
+        if result.returncode != 0:
+            return None
+        return (result.stdout or "").strip() or None
 
     # ---- mutating / network operations ----
 
     def fetch_prune(
         self, branch: str | None = None, *, timeout: float | None = DEFAULT_TIMEOUT_SECONDS
     ) -> None:
+        """Fetch from origin and prune stale remote-tracking refs.
+
+        Always executes (even under ``dry_run``): it never mutates a local
+        branch or the working tree, and pruning deleted remote-tracking refs
+        is exactly what makes ``gone_branches`` accurate before a prune.
+        """
         args = ["fetch", "origin", *([branch] if branch else []), "--prune"]
-        if self.dry_run:
-            self.planned.append(["git", *args])
-            return
         result = run_proc(["git", *args], cwd=self.root, timeout=timeout)
         if result.returncode != 0:
             msg = result.stderr or result.stdout
@@ -169,6 +201,7 @@ def sync_default_branch(
     git: GitWorkTree,
     *,
     branch: str | None = None,
+    fetch: bool = True,
     fetch_timeout: float | None = DEFAULT_TIMEOUT_SECONDS,
 ) -> SyncOutcome:
     """Fetch + fast-forward the default branch from origin.
@@ -177,6 +210,9 @@ def sync_default_branch(
     merge commit. When the caller is on a different branch, switches to the
     target first (refusing on a dirty tree so local edits are never
     overwritten) and reports the origin branch via ``switched_from``.
+
+    ``fetch=False`` skips the network fetch when the caller already fetched
+    (the session sweep does one full ``fetch --prune`` up front).
     """
     target = branch or git.detect_default_branch()
     starting = git.current_branch()
@@ -185,7 +221,8 @@ def sync_default_branch(
             "Detached HEAD — checkout a branch first, then re-run `cataforge git sync`."
         )
 
-    git.fetch_prune(target, timeout=fetch_timeout)
+    if fetch:
+        git.fetch_prune(target, timeout=fetch_timeout)
 
     switched_from: str | None = None
     if starting != target:
@@ -218,24 +255,214 @@ def sync_default_branch(
     )
 
 
-def find_merged_branches(git: GitWorkTree, target: str) -> list[str]:
-    """Local branches fully merged into ``target``, excluding it and ``HEAD``."""
-    merged = git.merged_branches(target)
-    return sorted(b for b in git.local_branches() if b in merged and b != target and b != "HEAD")
+@dataclass(frozen=True)
+class GitHubRepo:
+    """A GitHub ``owner/repo`` slug plus the ``gh`` probes prune needs."""
+
+    slug: str
+
+    @classmethod
+    def from_remote(cls, git: GitWorkTree, *, remote: str = "origin") -> GitHubRepo | None:
+        """Build from ``git remote get-url``; ``None`` when the URL is unparseable."""
+        url = git.remote_url(remote)
+        if not url:
+            return None
+        match = _REPO_SLUG_RE.search(url.strip())
+        return cls(match.group(1)) if match else None
+
+    def pr_is_merged(self, head: str) -> bool:
+        """True when a merged PR exists for the ``head`` branch.
+
+        The guard against deleting a branch whose remote vanished for some
+        reason *other* than a merge (manual delete, force-push cleanup).
+        """
+        result = run_proc(
+            [
+                "gh",
+                "pr",
+                "list",
+                "--repo",
+                self.slug,
+                "--head",
+                head,
+                "--state",
+                "merged",
+                "--json",
+                "number",
+            ]
+        )
+        if result.returncode != 0:
+            raise ExternalToolError(
+                f"gh pr list failed (exit {result.returncode}):\n"
+                f"{result.stderr or result.stdout}".rstrip()
+            )
+        return bool(json.loads(result.stdout or "[]"))
+
+    def ensure_merge_policy(
+        self, policy: FrameworkGitRemotePolicy, *, dry_run: bool = False
+    ) -> PolicyChange:
+        """Make the repo's merge settings match ``policy`` (idempotent).
+
+        ``--dry-run`` reports the intended settings without any ``gh`` call.
+        Otherwise reads the current settings first and only issues a PATCH when
+        something actually drifts, so a re-run on a compliant repo is a no-op.
+        """
+        desired = self._desired_policy(policy)
+        fields = {k: ("true" if v else "false") for k, v in desired.items()}
+        if dry_run:
+            return PolicyChange(slug=self.slug, changed=True, fields=fields, dry_run=True)
+
+        current = self._get_repo_settings()
+        if all(current.get(k) == v for k, v in desired.items()):
+            return PolicyChange(slug=self.slug, changed=False, fields={})
+
+        args = ["gh", "api", "--method", "PATCH", f"repos/{self.slug}"]
+        for key, value in fields.items():
+            args += ["-f", f"{key}={value}"]
+        result = run_proc(args)
+        if result.returncode != 0:
+            raise ExternalToolError(
+                f"gh api PATCH failed (exit {result.returncode}):\n"
+                f"{result.stderr or result.stdout}".rstrip()
+            )
+        return PolicyChange(slug=self.slug, changed=True, fields=fields)
+
+    @staticmethod
+    def _desired_policy(policy: FrameworkGitRemotePolicy) -> dict[str, bool]:
+        desired: dict[str, bool] = {"delete_branch_on_merge": policy.delete_branch_on_merge}
+        if policy.squash_only:
+            desired["allow_squash_merge"] = True
+            desired["allow_merge_commit"] = False
+            desired["allow_rebase_merge"] = False
+        return desired
+
+    def _get_repo_settings(self) -> dict[str, Any]:
+        result = run_proc(["gh", "api", f"repos/{self.slug}"])
+        if result.returncode != 0:
+            raise ExternalToolError(
+                f"gh api GET failed (exit {result.returncode}):\n"
+                f"{result.stderr or result.stdout}".rstrip()
+            )
+        data = json.loads(result.stdout or "{}")
+        return data if isinstance(data, dict) else {}
+
+
+@dataclass(frozen=True)
+class PolicyChange:
+    """The outcome of :meth:`GitHubRepo.ensure_merge_policy`.
+
+    ``changed`` is False when the repo already complied (no PATCH issued);
+    ``fields`` carries the settings applied (or that would be, under dry-run).
+    """
+
+    slug: str
+    changed: bool
+    fields: dict[str, str]
+    dry_run: bool = False
+
+
+@dataclass(frozen=True)
+class BranchVerdict:
+    """Whether one local branch may be pruned, and the evidence behind it."""
+
+    branch: str
+    deletable: bool
+    upstream_gone: bool
+    pr_merged: bool | None = None
+
+
+def find_prunable_branches(
+    git: GitWorkTree,
+    gh: GitHubRepo | None,
+    *,
+    default_branch: str,
+    confirm_via_gh: bool,
+) -> list[BranchVerdict]:
+    """Decide which local branches are safe to delete after a squash-merge.
+
+    A branch is deletable when its upstream is gone — and, when
+    ``confirm_via_gh`` and a ``gh`` port are available, only after gh
+    confirms a merged PR (so a branch whose remote vanished without a merge
+    is kept). The current and default branches are never candidates.
+    """
+    current = git.current_branch()
+    gone = set(git.gone_branches())
+    skip = {default_branch, current, "HEAD"}
+    verdicts: list[BranchVerdict] = []
+    for name in sorted(git.local_branches()):
+        if name in skip:
+            continue
+        if name not in gone:
+            verdicts.append(BranchVerdict(name, deletable=False, upstream_gone=False))
+            continue
+        if confirm_via_gh and gh is not None:
+            merged = gh.pr_is_merged(name)
+            verdicts.append(
+                BranchVerdict(name, deletable=merged, upstream_gone=True, pr_merged=merged)
+            )
+        else:
+            verdicts.append(BranchVerdict(name, deletable=True, upstream_gone=True))
+    return verdicts
 
 
 def prune_branches(git: GitWorkTree, names: list[str]) -> tuple[list[str], list[tuple[str, str]]]:
-    """Delete each branch with ``git branch -d``; return ``(deleted, failed)``.
+    """Force-delete each branch with ``git branch -D``; return ``(deleted, failed)``.
 
-    ``-d`` (not ``-D``) so git itself refuses to drop an unmerged branch;
+    ``-D`` (not ``-d``) because a squash-merged branch's commit is not an
+    ancestor of the default branch, so git's own merge check (``-d``) would
+    refuse exactly the branches prune targets. The merge safety lives upstream
+    in :func:`find_prunable_branches` (the ``[gone]`` + merged-PR vetting);
     a per-branch failure is collected rather than aborting the batch.
     """
     deleted: list[str] = []
     failed: list[tuple[str, str]] = []
     for name in names:
         try:
-            git.delete_branch(name, force=False)
+            git.delete_branch(name, force=True)
             deleted.append(name)
         except ExternalToolError as exc:
             failed.append((name, str(exc)))
     return deleted, failed
+
+
+@dataclass(frozen=True)
+class SessionSyncReport:
+    """What :func:`run_session_sync` did in one best-effort sweep."""
+
+    synced: SyncOutcome | None
+    pruned: list[str]
+
+
+def run_session_sync(
+    git: GitWorkTree,
+    gh: GitHubRepo | None,
+    *,
+    fast_forward_clean: bool,
+    prune_gone: bool,
+    confirm_via_gh: bool,
+    fetch_timeout: float | None,
+) -> SessionSyncReport:
+    """Fetch, fast-forward a clean default branch, and prune gone branches.
+
+    Pure orchestration over the existing decision functions — it never prints
+    and never switches branches. The fast-forward runs only when the caller is
+    already on the default branch with a clean tree, so a session opened on a
+    feature branch is never disturbed. One full ``fetch --prune`` up front keeps
+    the ``[gone]`` view accurate before pruning.
+    """
+    target = git.detect_default_branch()
+    git.fetch_prune(timeout=fetch_timeout)
+
+    synced: SyncOutcome | None = None
+    if fast_forward_clean and git.current_branch() == target and git.is_clean():
+        synced = sync_default_branch(git, branch=target, fetch=False)
+
+    pruned: list[str] = []
+    if prune_gone:
+        verdicts = find_prunable_branches(
+            git, gh, default_branch=target, confirm_via_gh=confirm_via_gh
+        )
+        deleted, _failed = prune_branches(git, [v.branch for v in verdicts if v.deletable])
+        pruned = deleted
+
+    return SessionSyncReport(synced=synced, pruned=pruned)

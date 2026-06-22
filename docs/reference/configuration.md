@@ -172,6 +172,14 @@
 | `kg.db_path` | ❌ | overwrite | KG store 路径（默认 `.cataforge/kg/store`） |
 | `kg.ontology_namespace` | ❌ | overwrite | 本体 IRI 命名空间（默认 `https://cataforge.dev/ontology/`） |
 | `kg.base_namespace` | ❌ | overwrite | 实例 IRI 命名空间（默认 `https://cataforge.dev/instance/`） |
+| `git.session_sync.enabled` | ✅ | **preserve** | SessionStart `git_sync` hook 总开关（默认 `true`）。关闭后会话启动不再自动同步/清理 |
+| `git.session_sync.fast_forward_clean` | ✅ | **preserve** | 仅当会话在干净的默认分支上启动时快进（默认 `true`）。永不切分支 |
+| `git.session_sync.prune_gone` | ✅ | **preserve** | 清理 upstream 已消失的本地分支（默认 `true`） |
+| `git.session_sync.confirm_via_gh` | ✅ | **preserve** | 删除 `[gone]` 分支前经 gh 确认 PR 已合并（默认 `true`）；gh 不可用时降级为信任 `[gone]` |
+| `git.session_sync.debounce_seconds` | ✅ | **preserve** | 两次自动同步的最小间隔秒数，抑制频繁重启刷屏（默认 `60`） |
+| `git.session_sync.fetch_timeout_seconds` | ✅ | **preserve** | 自动 fetch 的超时秒数，慢网/离线时快速降级（默认 `10`） |
+| `git.remote_policy.delete_branch_on_merge` | ✅ | **preserve** | `cataforge git ensure-policy` / bootstrap 设置的 GitHub「合并后删除 head 分支」（默认 `true`） |
+| `git.remote_policy.squash_only` | ✅ | **preserve** | 同上，仅允许 squash 合并、禁用 merge-commit / rebase（默认 `true`） |
 
 > **常见误解**：示例中的 `upgrade.source` 子树**不是 preserve 字段**。如果你 fork 了 CataForge 并希望从私有镜像拉 scaffold，目前只能在每次 `upgrade apply` 后重新写入这些字段；持久化用户自定义 source 的能力跟踪在 `upgrade.source preserve mode` issue。
 

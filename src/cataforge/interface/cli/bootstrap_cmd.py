@@ -275,6 +275,11 @@ def _execute_plan(
     # re-bootstrap is a no-op; non-blocking on failure like docs-index above.
     _maybe_init_kg_store(cfg)
 
+    # Set the GitHub merge policy once (delete-branch-on-merge + squash-only) so
+    # PR head branches are auto-deleted server-side. Idempotent + best-effort:
+    # no-op without gh/auth/GitHub remote, never blocks bootstrap.
+    _maybe_ensure_merge_policy(cfg)
+
     doctor_step = step_by_name.get("doctor")
     if skip_doctor:
         ui.print("")
@@ -286,6 +291,41 @@ def _execute_plan(
         from cataforge.interface.cli.doctor_cmd import doctor_command
 
         ctx.invoke(doctor_command)
+
+
+def _maybe_ensure_merge_policy(cfg: ConfigManager) -> None:
+    """Apply the GitHub merge policy once during bootstrap (best-effort).
+
+    No-op unless ``gh`` is installed + authenticated and origin is a GitHub
+    remote. Idempotent (only PATCHes a drifted setting). Any failure warns and
+    continues — bootstrap must not hinge on a network/permission hiccup.
+    """
+    import shutil
+
+    from cataforge.interface.cli.ui import ui
+
+    if shutil.which("gh") is None:
+        return
+    try:
+        from cataforge.application.services.git_hygiene import GitHubRepo, GitWorkTree
+        from cataforge.utils.run_subprocess import run as run_proc
+
+        if run_proc(["gh", "auth", "status"]).returncode != 0:
+            return
+        git = GitWorkTree(cfg.paths.root)
+        if not git.is_inside_work_tree():
+            return
+        gh = GitHubRepo.from_remote(git)
+        if gh is None:
+            return
+        change = gh.ensure_merge_policy(cfg.git_remote_policy)
+    except Exception as e:  # noqa: BLE001
+        ui.warn(f"merge-policy setup skipped: {e} — bootstrap continuing.")
+        return
+
+    if change.changed:
+        ui.print("")
+        ui.ok(f"[merge-policy] set on {change.slug}: {', '.join(change.fields)}")
 
 
 def _maybe_init_kg_store(cfg: ConfigManager) -> None:
