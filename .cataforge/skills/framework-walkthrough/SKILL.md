@@ -50,7 +50,7 @@ user-invocable: true
 
 ### Step 3: 驱动初始化路径（Bootstrap → 路径图 §2）
 1. 在沙盒 cwd 按 start-orchestrator 角色假设起流程：主线程扮演 orchestrator，按 `ORCHESTRATOR-PROTOCOLS §Project Bootstrap` 逐步推进
-2. 逐步观察 Bootstrap 各产物落地（路径图 I-1~I-9：目录结构 / .gitattributes / {INSTRUCTION_FILE} 初版 / 框架版本 / runtime.platform / env-block / permissions / kg init / context index），口径见 observation-rubric §1
+2. 逐步观察 Bootstrap 各产物落地（路径图 I-1~I-9：目录结构 / .gitattributes / {INSTRUCTION_FILE} 初版 / 框架版本 / runtime.platform / env-block / permissions / kg store 水合 / context index），口径见 observation-rubric §1
 3. Bootstrap 完成后跑 `cataforge phase status`，确认进入初始阶段且非占位符
 
 ### Step 4: 驱动核心链路 + 分支/异常路径（路径图 §3–§5）

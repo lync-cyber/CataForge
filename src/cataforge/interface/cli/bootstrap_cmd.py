@@ -289,32 +289,27 @@ def _execute_plan(
 
 
 def _maybe_init_kg_store(cfg: ConfigManager) -> None:
-    """Create the KG store on a graph-backed project that lacks one.
+    """Hydrate the KG store on a graph-backed project that lacks one.
 
-    No-op under ``markdown`` (the graph is not a backend) and when a store
-    already exists (idempotent re-bootstrap). Failure warns and continues —
-    bootstrap must not be stranded by a store-init hiccup.
+    No-op under ``markdown`` (the graph is not a backend) and when a populated
+    store already exists (idempotent re-bootstrap). The physical store is
+    gitignored, so a fresh clone rebuilds it here: ``hybrid`` from the Markdown,
+    ``graph`` from the latest NQuads snapshot. Failure warns and continues —
+    bootstrap must not be stranded by a hydration hiccup.
     """
+    from cataforge.domain.kg._dispatch import invalidate_cache
     from cataforge.interface.cli.ui import ui
 
-    store_dir = cfg.paths.kg_store_dir
-    if store_dir.exists():
-        return
-
-    from cataforge.domain.kg._dispatch import invalidate_cache, kg_enabled
-
     invalidate_cache()  # setup may have rewritten context.mode this run
-    if not kg_enabled(cfg.paths.root):
+    try:
+        from cataforge.application.context.write import ensure_store
+
+        result = ensure_store(str(cfg.paths.root))
+    except Exception as e:  # noqa: BLE001
+        ui.warn(f"kg store hydration failed: {e} — bootstrap continuing.")
         return
 
+    if result.action == "noop":
+        return
     ui.print("")
-    ui.info("[kg-init] initializing KG store (graph-backed mode)")
-    try:
-        from cataforge.domain.kg import init_store
-        from cataforge.domain.kg._dispatch import kg_config_for
-
-        handle = init_store(kg_config_for(cfg.paths.root), force=False)
-        handle.close()
-        ui.ok(f"KG store ready at {store_dir}")
-    except Exception as e:  # noqa: BLE001
-        ui.warn(f"kg init failed: {e} — bootstrap continuing.")
+    ui.ok(f"[kg-store] {result.action}: {result.detail}")

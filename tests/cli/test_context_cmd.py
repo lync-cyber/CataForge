@@ -18,6 +18,7 @@ from click.testing import CliRunner
 import cataforge.application.context.write as write_app
 from cataforge.interface.cli.context_cmd import (
     context_delete,
+    context_ensure_store,
     context_finalize,
     context_ingest,
     context_reconcile,
@@ -40,6 +41,20 @@ def test_finalize_export_error_renders_banner_exit_1(monkeypatch) -> None:
 
     assert result.exit_code == 1, result.output
     assert "Error:" in result.output
+
+
+def test_ensure_store_echoes_action_detail(monkeypatch) -> None:
+    monkeypatch.setattr(
+        write_app,
+        "ensure_store",
+        lambda *a, **k: SimpleNamespace(action="ingested", detail="rebuilt graph from Markdown"),
+    )
+
+    result = invoke_under_group(context_ensure_store, ["--project-root", "."])
+
+    assert result.exit_code == 0, result.output
+    assert "ingested" in result.output
+    assert "rebuilt graph from Markdown" in result.output
 
 
 def test_reconcile_drift_renders_banner_exit_3(monkeypatch) -> None:
