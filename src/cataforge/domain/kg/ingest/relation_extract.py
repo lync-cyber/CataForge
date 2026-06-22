@@ -1,8 +1,10 @@
 """Phase 4: extract cross-document traceability edges.
 
 A traceability edge appears in source Markdown as `doc_id#§N.ITEM`
-(strict coverage mode). The codemod locates the nearest enclosing
-entity_id (the subject) and infers a predicate from the
+(strict coverage mode). The subject is the entity defined by the xref's
+enclosing section heading (the section subject), so body layout never
+reassigns it; only a section with no entity-defining heading falls back to
+the nearest preceding entity token. The predicate is inferred from the
 (source_class, target_prefix) pair, falling back to the generic
 `cf:depends_on` when no specific predicate is known.
 
@@ -43,6 +45,13 @@ PREDICATE_MAP: dict[tuple[str, str], str] = {
 }
 DEFAULT_PREDICATE = "cf:depends_on"
 
+# Every predicate the extractor can mint. Callers that atomically replace a
+# document's edges clear exactly these before writing the fresh set, leaving
+# structural predicates (`cf:part_of`, …) untouched.
+TRACEABILITY_PREDICATE_CURIES: frozenset[str] = frozenset(PREDICATE_MAP.values()) | {
+    DEFAULT_PREDICATE
+}
+
 
 @dataclass
 class ExtractedRelation:
@@ -70,6 +79,31 @@ def _section_for_offset(doc: ParsedDoc, offset: int) -> HeadingSpan | None:
     if not candidates:
         return None
     return max(candidates, key=lambda s: s.level)
+
+
+def _section_subject_entity(doc: ParsedDoc, offset: int) -> tuple[str, str] | None:
+    """Return (entity_id, class) defined by the heading owning ``offset``.
+
+    Walks the enclosing headings from deepest to shallowest and returns the
+    first whose title names an entity-id — the section's defining subject. This
+    anchors a traceability edge to the section subject rather than the nearest
+    body token, so layout changes inside the section cannot reassign it.
+    """
+    line_idx = _line_index_for_offset(doc.raw, offset)
+    containing = sorted(
+        (s for s in doc.sections if s.line_start <= line_idx < s.line_end),
+        key=lambda s: s.level,
+        reverse=True,
+    )
+    for span in containing:
+        match = ENTITY_PREFIX_RE.search(span.title)
+        if match is None:
+            continue
+        entity_id = match.group(0)
+        class_name = ENTITY_PREFIX_TO_CLASS.get(entity_id.split("-", 1)[0])
+        if class_name is not None:
+            return entity_id, class_name
+    return None
 
 
 def _enclosing_entity(
@@ -130,13 +164,15 @@ def extract_relations(doc: ParsedDoc) -> list[ExtractedRelation]:
         target_class = ENTITY_PREFIX_TO_CLASS.get(target_prefix)
         if target_class is None:
             continue
-        xref_section = _section_for_offset(doc, match.start())
-        enclosing = _enclosing_entity(
-            doc, match.start(), xref_section=xref_section, xref_spans=xref_spans
-        )
-        if enclosing is None:
+        subject = _section_subject_entity(doc, match.start())
+        if subject is None:
+            xref_section = _section_for_offset(doc, match.start())
+            subject = _enclosing_entity(
+                doc, match.start(), xref_section=xref_section, xref_spans=xref_spans
+            )
+        if subject is None:
             continue
-        subject_entity_id, subject_class = enclosing
+        subject_entity_id, subject_class = subject
         if subject_entity_id == target_entity_id:
             # Self-reference inside a section header — skip.
             continue

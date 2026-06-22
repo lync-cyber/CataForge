@@ -18,7 +18,12 @@ from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.md_parse import strip_code_blocks
 
 from ._render import render_text
-from .constants import DOC_SPLIT_THRESHOLD_LINES, KNOWN_DOC_PREFIXES, VOLUME_TYPES
+from .constants import (
+    DOC_SPLIT_THRESHOLD_LINES,
+    KNOWN_DOC_PREFIXES,
+    VOLUME_OWNED_ID_PREFIXES,
+    VOLUME_TYPES,
+)
 from .template_registry import (
     load_template_required_sections,
     parse_required_sections_from_list,
@@ -259,6 +264,9 @@ class DocChecker(TypedDocChecksMixin):
             "ui-spec": [("UC", r"UC-(\d+)"), ("P", r"P-(\d+)")],
         }
         patterns = id_patterns.get(self.doc_type, [])
+        owned = VOLUME_OWNED_ID_PREFIXES.get(self.volume_type)
+        if owned is not None:
+            patterns = [(p, rx) for p, rx in patterns if p in owned]
         for prefix, pattern in patterns:
             ids = [int(m) for m in re.findall(pattern, self.content)]
             if not ids:
@@ -535,17 +543,44 @@ class DocChecker(TypedDocChecksMixin):
         return 1 if report.issues.blocking else 0
 
 
+VALID_DOC_TYPES = (
+    "prd",
+    "arch",
+    "dev-plan",
+    "ui-spec",
+    "test-report",
+    "deploy-spec",
+    "research",
+    "changelog",
+)
+
+
+def _usage() -> str:
+    return (
+        "用法: cataforge skill run doc-review -- <doc-type> <doc-file> "
+        "[--docs-dir docs/] [--volume-type <type>]\n"
+        f"  doc-type ∈ {{{', '.join(VALID_DOC_TYPES)}}}"
+    )
+
+
+def _looks_like_path(value: str) -> bool:
+    return value.endswith(".md") or "/" in value or "\\" in value
+
+
 def main() -> None:
     ensure_utf8()
-    if len(sys.argv) < 3:
-        print(
-            "用法: python -m cataforge.runtime.skill.builtins.doc_review.doc_check "
-            "<doc-type> <doc-file> [--docs-dir docs/] [--volume-type <type>]"
-        )
+    if len(sys.argv) < 3 or sys.argv[1].startswith("--"):
+        print(f"错误: 缺少 doc-type / doc-file 参数。\n{_usage()}")
         sys.exit(2)
 
     doc_type = sys.argv[1]
     doc_file = sys.argv[2]
+    if _looks_like_path(doc_type):
+        print(f"错误: 第一个参数 {doc_type!r} 像文件路径，doc-type 缺失或顺序颠倒。\n{_usage()}")
+        sys.exit(2)
+    if not Path(doc_file).is_file():
+        print(f"错误: 找不到文档文件 {doc_file!r} (cwd={Path.cwd()})。\n{_usage()}")
+        sys.exit(2)
     docs_dir = "docs/"
     volume_type = None
     fmt = "text"

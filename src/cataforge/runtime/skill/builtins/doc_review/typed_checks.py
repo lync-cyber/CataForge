@@ -118,10 +118,14 @@ class TypedDocChecksMixin:
                 1
                 for section in api_sections
                 if not re.search(r"type:\s*event-stream", section)
-                and not re.search(r"request:", section)
+                and not re.search(r"(?:request|input)\s*[:：]", section)
+                and "参数" not in section
             )
             if missing_request > 0:
-                self.fail(f"{len(api_sections)}个API中{missing_request}个缺少request定义")
+                self.fail(
+                    f"{len(api_sections)}个API中{missing_request}个缺少入参定义 "
+                    "(request/input/参数)"
+                )
         if self.volume_type in ("main", "modules"):
             m_sections = re.findall(
                 r"^### M-\d+.*?(?=^### M-\d+|^## |\Z)",
