@@ -241,3 +241,119 @@ def test_bidirectional_coverage_bypasses_kg_under_doc_only_despite_store(
     checker = DocChecker("arch", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
     ran_kg = checker._kg_bidirectional_coverage("F")
     assert not ran_kg, "markdown mode must not enter the KG coverage path"
+
+
+# ---- R-011: dev-plan M-level coverage enforced via cf:realizes -------------
+
+_ARCH_MODULES = """\
+---
+doc_id: arch
+doc_type: arch
+---
+# Arch
+
+## §2 Modules
+
+### §2.1 M-001 认证模块
+
+认证。
+
+### §2.2 M-002 会话模块
+
+会话。
+"""
+
+_DEVPLAN_REALIZES_M1 = """\
+---
+doc_id: dev-plan
+doc_type: dev-plan
+---
+# Dev Plan
+
+## §1 Tasks
+
+### §1.1 T-001 登录任务
+
+- **模块**: arch#§2.M-001
+
+### §1.2 T-002 数据任务
+
+无模块映射。
+"""
+
+_DEVPLAN_REALIZES_BOTH = """\
+---
+doc_id: dev-plan
+doc_type: dev-plan
+---
+# Dev Plan
+
+## §1 Tasks
+
+### §1.1 T-001 登录任务
+
+- **模块**: arch#§2.M-001
+
+### §1.2 T-002 会话任务
+
+- **模块**: arch#§2.M-002
+"""
+
+
+def _setup_devplan_project(tmp_path: Path, devplan_md: str) -> Path:
+    """Ingest a custom arch + dev-plan pair under a KG-active project."""
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
+
+    project = tmp_path / "project"
+    (project / ".cataforge").mkdir(parents=True)
+    (project / "docs" / "arch").mkdir(parents=True)
+    (project / "docs" / "dev-plan").mkdir(parents=True)
+    (project / "docs" / "arch" / "arch.md").write_text(_ARCH_MODULES, encoding="utf-8")
+    (project / "docs" / "dev-plan" / "dev-plan.md").write_text(devplan_md, encoding="utf-8")
+
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=project / ".cataforge" / "kg" / "store",
+        kg_active_doc_types={"arch", "dev-plan"},
+    )
+    handle = init_store(config, force=True)
+    run_migration(handle.raw, project, config, doc_types=("arch", "dev-plan"))
+    handle.raw.flush()
+
+    (project / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"kg_active_doc_types": ["arch", "dev-plan"]}}),
+        encoding="utf-8",
+    )
+    return project
+
+
+def test_devplan_coverage_fails_when_module_unimplemented(tmp_path: Path) -> None:
+    """A Module with no realizing Task fails dev-plan coverage (not a vacuous
+    pass): the KG path resolves M-level coverage via `cf:realizes`."""
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
+
+    project = _setup_devplan_project(tmp_path, _DEVPLAN_REALIZES_M1)
+    invalidate_cache()
+
+    doc_file = project / "docs" / "dev-plan" / "dev-plan.md"
+    checker = DocChecker("dev-plan", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
+    checker.check_bidirectional_coverage()
+
+    assert any("M-002" in e for e in checker.errors), checker.errors
+    assert not any("M-001" in e for e in checker.errors), checker.errors
+
+
+def test_devplan_coverage_passes_when_all_modules_realized(tmp_path: Path) -> None:
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
+
+    project = _setup_devplan_project(tmp_path, _DEVPLAN_REALIZES_BOTH)
+    invalidate_cache()
+
+    doc_file = project / "docs" / "dev-plan" / "dev-plan.md"
+    checker = DocChecker("dev-plan", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
+    checker.check_bidirectional_coverage()
+
+    assert not checker.errors, checker.errors

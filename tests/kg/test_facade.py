@@ -78,7 +78,7 @@ def test_query_exists(variant: str) -> None:
 def test_trace_bidirectional_coverage_detects_impl(variant: str) -> None:
     kg, _ = _open_and_ingest(variant)
     rows = kg.trace.bidirectional_coverage()
-    by_id = {r.feature_id: r for r in rows}
+    by_id = {r.entity_id: r for r in rows}
     assert "F-001" in by_id and "F-002" in by_id
     # Fixture has Module cf:implements F-001 and F-002, so has_impl=True.
     assert by_id["F-001"].has_impl is True

@@ -289,6 +289,25 @@ def test_context_write_doc_from_file(tmp_path: Path) -> None:
     gc.collect()
 
 
+def test_writedoc_warns_when_coverage_prose_yields_zero_relations(tmp_path: Path) -> None:
+    """A whole-doc write whose coverage field is bare prose (no strict xref)
+    extracts zero relations — write-doc warns on stderr, mirroring kg import."""
+    proj = _project(tmp_path)
+    md = (
+        "---\nid: arch\ndoc_type: arch\nstatus: draft\n---\n\n"
+        "# ARCH\n\n## §2 模块\n\n### M-001 认证模块\n\n- 对应功能: F-001\n"
+    )
+    r = CliRunner().invoke(
+        _cli(),
+        ["context", "write-doc", "--project-root", str(proj)],
+        input=md,
+    )
+    assert r.exit_code == 0, r.output
+    assert "0 relations" in r.output
+    assert "relations=0" in r.stderr
+    gc.collect()
+
+
 def test_context_write_doc_registered_in_help() -> None:
     r = CliRunner().invoke(_cli(), ["context", "--help"])
     assert r.exit_code == 0

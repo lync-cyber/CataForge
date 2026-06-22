@@ -334,7 +334,7 @@ def _coverage_matrix(kg: KnowledgeGraph, fmt: str) -> None:
     if fmt == "json":
         out = [
             {
-                "feature_id": r.feature_id,
+                "feature_id": r.entity_id,
                 "title": r.title,
                 "has_impl": r.has_impl,
                 "has_test": r.has_test,
@@ -348,14 +348,14 @@ def _coverage_matrix(kg: KnowledgeGraph, fmt: str) -> None:
         click.echo("(no features found)")
         return
 
-    id_w = max(len("Feature"), max(len(r.feature_id) for r in rows))
+    id_w = max(len("Feature"), max(len(r.entity_id) for r in rows))
     title_w = max(len("Title"), max(len(r.title or "") for r in rows))
     click.echo(f"{'Feature':<{id_w}}  {'Title':<{title_w}}  Impl?  Test?")
     click.echo(f"{'-' * id_w}  {'-' * title_w}  -----  -----")
     for r in rows:
         impl = "yes" if r.has_impl else "no"
         test = "yes" if r.has_test else "no"
-        click.echo(f"{r.feature_id:<{id_w}}  {(r.title or ''):<{title_w}}  {impl:<5}  {test:<5}")
+        click.echo(f"{r.entity_id:<{id_w}}  {(r.title or ''):<{title_w}}  {impl:<5}  {test:<5}")
 
 
 def _trace_json(chain: object, coverage_detail: dict[str, Any] | None) -> None:

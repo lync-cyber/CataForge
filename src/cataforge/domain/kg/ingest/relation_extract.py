@@ -77,13 +77,16 @@ def _enclosing_entity(
     offset: int,
     *,
     xref_section: HeadingSpan | None,
+    xref_spans: list[tuple[int, int]],
 ) -> tuple[str, str] | None:
     """Return (entity_id, class) of the nearest entity_id before ``offset``.
 
     Search is restricted to the same HeadingSpan as the xref when
     ``xref_section`` is provided, preventing cross-section pollution.
     Candidates inside fenced code blocks, inline code, or HTML blocks are
-    skipped.
+    skipped, as are entity_ids that are themselves the target of another xref
+    (so a second xref on the same line binds to the section's subject, not to
+    the first xref's ``.ITEM`` component).
     """
     if xref_section is not None:
         # Convert section line bounds back to char offsets for the search window.
@@ -102,6 +105,8 @@ def _enclosing_entity(
     for match in ENTITY_PREFIX_RE.finditer(doc.raw, search_start, offset):
         if _inside_code_block(match.start(), doc.code_block_offsets):
             continue
+        if any(start <= match.start() < end for start, end in xref_spans):
+            continue
         if best is None or match.start() > best[0]:
             best = (match.start(), match.group(0))
 
@@ -118,6 +123,7 @@ def _enclosing_entity(
 def extract_relations(doc: ParsedDoc) -> list[ExtractedRelation]:
     """Phase 4: scan `doc` for `doc_id#§N.ITEM` xref pairs."""
     relations: list[ExtractedRelation] = []
+    xref_spans = [(m.start(), m.end()) for m in XREF_RE.finditer(doc.raw)]
     for match in XREF_RE.finditer(doc.raw):
         target_entity_id = match.group("entity")
         target_prefix = target_entity_id.split("-", 1)[0]
@@ -125,7 +131,9 @@ def extract_relations(doc: ParsedDoc) -> list[ExtractedRelation]:
         if target_class is None:
             continue
         xref_section = _section_for_offset(doc, match.start())
-        enclosing = _enclosing_entity(doc, match.start(), xref_section=xref_section)
+        enclosing = _enclosing_entity(
+            doc, match.start(), xref_section=xref_section, xref_spans=xref_spans
+        )
         if enclosing is None:
             continue
         subject_entity_id, subject_class = enclosing

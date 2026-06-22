@@ -1,6 +1,6 @@
 # 提案：context / kg 子系统整体修复 —— 收敛配置轴、统一分派、命令分层
 
-> 状态：支柱一（mode 收敛）+ 支柱二（ModePolicy / R-003 reconcile 门禁 / R-004 授权门 + source_doc 保持）已实现并通过全量测试；支柱三（命令分层）与卫生项（Track A/B/C/D、prompt 资产、framework-update 迁移）待续。
+> 状态：支柱一（mode 收敛）+ 支柱二（ModePolicy / R-003 reconcile 门禁 / R-004 授权门 + source_doc 保持）+ Track C（R-010 模板 xref + 多 xref 主语绑定修复 / M4 write-doc relations=0 告警 / R-011 M 级覆盖经 `cf:realizes` 真正生效 / 对称 diff card 假阳性收敛）已实现并通过全量测试；支柱三（命令分层）与卫生项（Track A/B/D、prompt 资产、framework-update 迁移）待续。
 > 范围：`context` 与 `kg` 两个 CLI 模块的配置模型、能力分派、命令面，以及由其驱动的模板 / 覆盖门禁 / 走查 skill。
 > 证据源：`docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260621-r1.md`（本轮走查 + 命令设计审查的全部 finding 与可复现命令）。
 > 与既有提案的关系：本提案**取代** `kg-first-authoring-inversion.md` / `kg-first-inversion-pr-cde-plan.md` 中「strategy 与 authoring 两条正交配置轴」的设计决策；**保留并复用**其已落地的原语（`AuthorityPolicy`、`document_pipeline` 整篇导出器、三方哈希 drift triage、`context status` 探针）。详见 §8。
