@@ -38,7 +38,7 @@ def test_status_uninitialized_store_reports_false_without_creating(tmp_path: Pat
     store_dir = proj / ".cataforge" / "kg" / "store"
     assert not store_dir.exists()
 
-    result = invoke_under_group(context_status, ["--project-root", str(proj)])
+    result = invoke_under_group(context_status, ["--project-root", str(proj), "--json"])
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
@@ -49,6 +49,21 @@ def test_status_uninitialized_store_reports_false_without_creating(tmp_path: Pat
     }
     # Probing must not create the store directory.
     assert not store_dir.exists()
+
+
+def test_status_human_default_and_json_flag(tmp_path: Path) -> None:
+    proj = _kg_first_project(tmp_path)
+
+    human = invoke_under_group(context_status, ["--project-root", str(proj)])
+    assert human.exit_code == 0, human.output
+    # Default output is human-readable, not raw JSON.
+    assert "mode: hybrid" in human.output
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(human.output)
+
+    machine = invoke_under_group(context_status, ["--project-root", str(proj), "--json"])
+    assert machine.exit_code == 0, machine.output
+    assert json.loads(machine.output)["mode"] == "hybrid"
 
 
 def test_status_initialized_store_reports_entity_count(tmp_path: Path) -> None:
@@ -69,7 +84,7 @@ def test_status_initialized_store_reports_entity_count(tmp_path: Path) -> None:
     gc.collect()
     invalidate_cache()
 
-    result = invoke_under_group(context_status, ["--project-root", str(proj)])
+    result = invoke_under_group(context_status, ["--project-root", str(proj), "--json"])
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
@@ -86,7 +101,7 @@ def test_status_reports_graph_authoring(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    result = invoke_under_group(context_status, ["--project-root", str(proj)])
+    result = invoke_under_group(context_status, ["--project-root", str(proj), "--json"])
 
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["mode"] == "graph"

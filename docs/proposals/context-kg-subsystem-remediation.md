@@ -1,6 +1,6 @@
 # 提案：context / kg 子系统整体修复 —— 收敛配置轴、统一分派、命令分层
 
-> 状态：支柱一（mode 收敛）+ 支柱二（ModePolicy / R-003 reconcile 门禁 / R-004 授权门 + source_doc 保持）+ Track C（R-010 模板 xref + 多 xref 主语绑定修复 / M4 write-doc relations=0 告警 / R-011 M 级覆盖经 `cf:realizes` 真正生效 / 对称 diff card 假阳性收敛）已实现并通过全量测试；支柱三（命令分层）与卫生项（Track A/B/D、prompt 资产、framework-update 迁移）待续。
+> 状态：支柱一（mode 收敛）+ 支柱二（ModePolicy / R-003 reconcile 门禁 / R-004 授权门 + source_doc 保持）+ Track C（R-010 模板 xref + 多 xref 主语绑定修复 / M4 write-doc relations=0 告警 / R-011 M 级覆盖经 `cf:realizes` 真正生效 / 对称 diff card 假阳性收敛）+ Track B（R-007 phase status --project-root / R-008 节名 / U2 status 输出 / M3+R-006 reconcile --json / C5 flag 命名 / C3 --project-root 统一 / D6 validate=index --strict --dry-run 单实现 / R-005 事件 phase 取被审 doc_type）+ Track D（走查协议 P-001~P-004）+ prompt 资产收敛 + §7 迁移（context.strategy/authoring→mode）已实现并通过全量测试；仅剩支柱三（命令分层 / Track A：context delete/update、kg 分层去重、纯函数化）待续。
 > 范围：`context` 与 `kg` 两个 CLI 模块的配置模型、能力分派、命令面，以及由其驱动的模板 / 覆盖门禁 / 走查 skill。
 > 证据源：`docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260621-r1.md`（本轮走查 + 命令设计审查的全部 finding 与可复现命令）。
 > 与既有提案的关系：本提案**取代** `kg-first-authoring-inversion.md` / `kg-first-inversion-pr-cde-plan.md` 中「strategy 与 authoring 两条正交配置轴」的设计决策；**保留并复用**其已落地的原语（`AuthorityPolicy`、`document_pipeline` 整篇导出器、三方哈希 drift triage、`context status` 探针）。详见 §8。
@@ -25,13 +25,14 @@
 两轴相乘出四个格子，其中**三个有意义、一个无意义**，且默认格子最反直觉：
 
 | strategy × authoring | 含义 | 状态 |
-|----------------------|------|------|
+| ---------------------- | ------ | ------ |
 | doc-only × md | 纯 markdown，无图 | 合理 |
-| kg-first × md（**默认**）| markdown 是事实源、图是派生镜像 | 合理但**名实不符**：名曰 kg-first 却 md 权威 |
+| kg-first × md（**默认**） | markdown 是事实源、图是派生镜像 | 合理但**名实不符**：名曰 kg-first 却 md 权威 |
 | kg-first × graph | 图是事实源、markdown 是导出视图 | 合理（文档化授权门的目标态） |
 | doc-only × graph | 无图却声明图权威 | **无意义组合** |
 
 腐化由此而生：
+
 - **C1**：默认 `kg-first × md`，但 `generate.md` / COMMON-RULES I/O 契约 / 全部 `context write*` 授权门假设的是 `graph` 权威 → 默认配置与文档化工作流互斥。
 - **R-001**：`finalize` 在 `authoring=md` 下做 md→KG 同步（不导出图→md）；走查实测「`exported 6 file(s)`（graph 模式）vs `indexed 0`（md 模式）」证明这是**配置门控的正确行为**，但因默认落在反直觉格子而表现为「静默 no-op」。
 - **R-004**：graph 授权门只受 `_require_kg_first`（[`write.py:131`](../../src/cataforge/application/context/write.py) 只查 strategy、不查 authoring）守卫 → 在 `authoring=md` 下**被允许**写图，产出却被 finalize 忽略；`context write` 还会把已属文档的实体孤立成独立 doc，触发 doctor「跨文档实体坍缩 — 静默数据丢失」。
@@ -49,6 +50,7 @@
 ### 1.3 模式无关的独立正确性缺陷
 
 与上面两条结构问题无关、可独立修：
+
 - **R-003**：`context reconcile` 用 per-doc-type 实体级对称 diff 的 `overall_divergence_count` 当门禁结论，而该 diff 有 FS 重抽取**假阳性**（干净 graph 项目实测：文档级 triage `in_sync/none` ✓，对称 diff 却报 5 处「missing」）。权威结论与门禁结论脱节。
 - **R-010**：lite 模板覆盖字段用裸 prose（`对应功能: F-001`），而关系抽取器 [`relation_extract.py`](../../src/cataforge/domain/kg/ingest/relation_extract.py) 只认 `doc_id#§N.ITEM` xref → write-doc 抽 0 边；`context write-doc` 还缺 `kg import` 已有的 `relations=0` 告警（M4）。
 - **R-011**：dev-plan（M 级）覆盖门禁因 `bidirectional_coverage()` 只产 Feature(F) 行而空泛通过。
@@ -66,9 +68,9 @@
 废除 `strategy` × `authoring` 双轴，收敛为**单一三值枚举**，每个值是一个内部自洽、不可与他者矛盾的模式：
 
 | `context.mode` | 事实源 | 图后端 | 取代的旧组合 |
-|----------------|--------|--------|-------------|
+| ---------------- | -------- | -------- | ------------- |
 | `markdown` | markdown | 无 | doc-only |
-| `hybrid`（建议默认）| markdown | 派生只读索引（供 read / coverage / trace 门禁）| kg-first × md |
+| `hybrid`（建议默认） | markdown | 派生只读索引（供 read / coverage / trace 门禁） | kg-first × md |
 | `graph` | 图 | 事实源 | kg-first × graph |
 
 - **无意义组合在结构上消失**（`doc-only × graph` 不可表达）。
@@ -81,14 +83,15 @@
 把所有「随模式而变」的行为收敛到**一个策略对象**（在现有 `AuthorityPolicy` 上演进，键从双轴改为单一 `mode`），任何门都不得自行写分支：
 
 | 行为 | `markdown` | `hybrid` | `graph` |
-|------|-----------|----------|---------|
-| 授权门（write/write-doc/transact）| 不可用（提示编辑 docs/）| 不可用或自动「stage md→ingest」| 可用（写图）|
+| ------ | ----------- | ---------- | --------- |
+| 授权门（write/write-doc/transact） | 不可用（提示编辑 docs/） | 不可用或自动「stage md→ingest」 | 可用（写图） |
 | `finalize` | 重建索引 | md→KG 同步 + 索引 | KG→md 导出 + 索引 |
-| `reconcile` 权威方向 | 索引完整性 | md 权威（drift→ingest）| 图权威（drift→export）|
+| `reconcile` 权威方向 | 索引完整性 | md 权威（drift→ingest） | 图权威（drift→export） |
 | `reconcile` 门禁结论 | 索引有效性 | 文档级 triage state | 文档级 triage state |
 | coverage 门禁数据源 | 文件串扫描 | KG SPARQL | KG SPARQL |
 
 要点：
+
 - **消解 C2/C4「记录但不消费」**：`finalize`/`ingest`/`reconcile`/Phase Transition Step 5.3 全部引用同一 `ModePolicy.remediation_for(state)`，不各自编码方向。
 - **消解 R-003**：门禁结论统一取**文档级三方哈希 triage state**（`in_sync`/`human_edit`/`graph_ahead`/`conflict`），per-doc-type 对称 diff **降级为诊断明细**（`--json` 里输出，不作 exit 判据）。对称 diff 的 FS 重抽取假阳性作为独立正确性项另行收敛（见 Track C），但即便未修也不再阻塞门禁。
 - **消解 R-004**：授权门可用性由 `ModePolicy` 单点裁定——`hybrid`/`markdown` 下 graph 授权门直接拒绝（清晰报错指向正确流程）或自动路由，不再出现「写了图却被忽略」。
@@ -109,20 +112,20 @@
 ## 3. findings → remediation 全映射
 
 | finding | 严重度 | 归属支柱/轨 | remediation 要点 |
-|---------|--------|------------|-----------------|
+| --------- | -------- | ------------ | ----------------- |
 | C1 默认组合矛盾 | HIGH | 支柱一 | `mode` 单枚举，默认 `hybrid`，消除矛盾格子 |
 | R-001 finalize 静默 no-op | HIGH | 支柱一+二 | 模式收敛后 finalize 行为由 ModePolicy 单点定义；不可能再「写图却 indexed 0」 |
 | R-004 graph 门孤立/无守卫 | HIGH | 支柱二 | ModePolicy 裁定门可用性；`context write` 对已属文档实体就地更新保 part_of |
 | R-003 reconcile 假阳性门禁 | HIGH | 支柱二 | 门禁取文档级 triage state；对称 diff 降级诊断 |
-| R-010 模板 prose 非 xref / 无告警 | HIGH | Track C | 模板覆盖字段改 `#§` xref；write-doc 补 `relations=0` 告警（M4）|
+| R-010 模板 prose 非 xref / 无告警 | HIGH | Track C | 模板覆盖字段改 `#§` xref；write-doc 补 `relations=0` 告警（M4） |
 | R-011 M 级覆盖空泛通过 | MEDIUM | Track C | `bidirectional_coverage()` 产 M 行，或 checker 在无法覆盖某 prefix 时显式 SKIP+告警 |
 | D1 ingest⟷import | — | 支柱三 | import 降底层/隐藏，ingest 为唯一门面 |
 | D2 finalize⟷export | — | 支柱三 | export 降底层，finalize 为唯一门面 |
 | D3 reconcile⟷reconcile | — | 支柱三 | kg reconcile→`kg drift-check` 低层诊断 |
-| D4 write⟷add | — | 支柱三 | 文档化 twin 边界（校验门面 vs 无校验底层）|
+| D4 write⟷add | — | 支柱三 | 文档化 twin 边界（校验门面 vs 无校验底层） |
 | D6 validate⟷index --strict | LOW | Track B | validate 实现为 `index --strict --dry-run` 别名，单实现 |
-| M1 无 context delete | MEDIUM | 支柱三 | 增 `context delete`（ModePolicy 路由）|
-| M2 无 context 实体更新 | MEDIUM | 支柱三 | 增 `context update`（就地合并，保 part_of）|
+| M1 无 context delete | MEDIUM | 支柱三 | 增 `context delete`（ModePolicy 路由） |
+| M2 无 context 实体更新 | MEDIUM | 支柱三 | 增 `context update`（就地合并，保 part_of） |
 | M3 context 缺 --json | MEDIUM | 支柱三 | 状态/门禁命令补 `--json` |
 | M4 write-doc 无 relations=0 告警 | MEDIUM | Track C | 复用 `kg import` 同款告警 |
 | C2 finalize 空图不感知模式 | LOW | 支柱二 | 由 ModePolicy 单点分派 |
@@ -143,7 +146,7 @@
 | P-001 子代理 host cwd | HIGH(process) | Track D | walkthrough 协议明示主线程内联驱动 |
 | P-002 协议依赖 finalize 导出 | MEDIUM(process) | Track D | 协议标注模式相关的导出命令 |
 | P-003 env-block exit 2 预期 | LOW(process) | Track D | rubric 列为 non-finding |
-| P-004 reconcile 明细获取 | LOW(process) | Track D | rubric 指明 `--json`/报告（R-006 落地后自然解决）|
+| P-004 reconcile 明细获取 | LOW(process) | Track D | rubric 指明 `--json`/报告（R-006 落地后自然解决） |
 
 ---
 
@@ -220,10 +223,10 @@ R0 基座（支柱一+二）──┬─ Track A 门面收敛（支柱三）
 ## 6. 去重 / 删除清单（防腐）
 
 | 动作 | 对象 | 理由 |
-|------|------|------|
+| ------ | ------ | ------ |
 | 收敛配置 | `context.strategy` + `context.authoring` → `context.mode` | 双轴正交是组合腐化根源 |
 | 降为底层/隐藏 | `kg import` / `kg export` | 与 `context ingest` / `context finalize` 重复用户面 |
-| 重命名+降级 | `kg reconcile` → `kg drift-check`（低层诊断）| 与 `context reconcile` 命名冲突、职责重叠 |
+| 重命名+降级 | `kg reconcile` → `kg drift-check`（低层诊断） | 与 `context reconcile` 命名冲突、职责重叠 |
 | 提炼 | finalize/ingest/reconcile 三处 `if not kg_enabled()` → `@requires_mode` | 重复门控 |
 | 别名归一 | `context validate` = `index --strict --dry-run` | 实现重复 |
 | 归位 | `docs_cmd` ↔ `context` 逆向依赖；共享 helper 下沉 | 依赖方向错误 |

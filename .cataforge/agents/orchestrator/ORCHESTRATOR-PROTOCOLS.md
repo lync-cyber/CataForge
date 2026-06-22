@@ -13,7 +13,7 @@
     - `standard`（默认/推荐）— 中大型正式交付项目，7 阶段全流程
     - `agile-lite` — 5-20 feature 的轻量工具或小型 Web 项目（产出 prd-lite / arch-lite / dev-plan-lite 各目标 ≤100 行）
     - `agile-prototype` — 原型 / PoC / 单文件脚本（单一 brief.md 目标 ≤200 行，合并 Phase 1~4）
-    完整差异矩阵见 COMMON-RULES §执行模式矩阵。选择结果写入 {INSTRUCTION_FILE} §框架元信息.执行模式
+    完整差异矩阵见 COMMON-RULES §执行模式矩阵。选择结果写入 {INSTRUCTION_FILE} §项目信息.执行模式
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
@@ -47,7 +47,7 @@
     ```
 
     > 适用：Node / Python / 含 fixture 的多平台项目。纯 Linux/macOS 服务端项目可裁剪至首行 `* text=auto eol=lf`。
-5. **创建 {INSTRUCTION_FILE}** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§框架元信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
+5. **创建 {INSTRUCTION_FILE}** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§项目信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
     - `standard` → `requirements`
     - `agile-lite` → `planning`（Phase 1+2 合并）
     - `agile-prototype` → `brief`（Phase 1~4 合并）
@@ -72,10 +72,10 @@
     - `agile-prototype` → product-manager（brief 阶段，产出单一 brief.md）
 
 ## Mode Routing Protocol
-orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪份文档"时，先读取 {INSTRUCTION_FILE} §框架元信息.执行模式（字段缺失或占位符未填 → 按 `standard` 处理），然后按下列矩阵路由。模式完整差异见 COMMON-RULES §执行模式矩阵。
+orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪份文档"时，先读取 {INSTRUCTION_FILE} §项目信息.执行模式（字段缺失或占位符未填 → 按 `standard` 处理），然后按下列矩阵路由。模式完整差异见 COMMON-RULES §执行模式矩阵。
 
 ### standard 模式
-按 7 阶段顺序推进: requirements → architecture → ui_design → dev_planning → development → testing → deployment。阶段可被 {INSTRUCTION_FILE} §框架元信息.阶段配置 标记为 N/A 跳过（ui_design / testing / deployment）。所有 Agent 产出 standard 文档（prd / arch / ui-spec / dev-plan / test-report / deploy-spec）。
+按 7 阶段顺序推进: requirements → architecture → ui_design → dev_planning → development → testing → deployment。阶段可被 {INSTRUCTION_FILE} §项目信息.阶段配置 标记为 N/A 跳过（ui_design / testing / deployment）。所有 Agent 产出 standard 文档（prd / arch / ui-spec / dev-plan / test-report / deploy-spec）。
 
 ### agile-lite 模式
 合并 Phase 1+2 为 `planning`，跳过 Phase 3，Phase 4 使用 lite 模板。阶段序列: planning → dev_planning → development → (testing) → (deployment)。
@@ -107,7 +107,7 @@ Mode Routing Protocol 在以下时刻被调用:
 - 会话恢复时（Startup Protocol 读取 {INSTRUCTION_FILE} 后）
 
 ### 模式回退
-- `agile-lite` / `agile-prototype` 运行中若 orchestrator 检测到以下信号，应通过 AskUserQuestion 提示用户切换到更高档位模式: brief.md 实际产出超过 DOC_SPLIT_THRESHOLD_LINES；agile-lite 任务数 >25；或任何 lite 文档超过 150 行且仍无法表达核心决策。切换由用户手动编辑 {INSTRUCTION_FILE} §框架元信息.执行模式完成，orchestrator 不自动改写该字段。
+- `agile-lite` / `agile-prototype` 运行中若 orchestrator 检测到以下信号，应通过 AskUserQuestion 提示用户切换到更高档位模式: brief.md 实际产出超过 DOC_SPLIT_THRESHOLD_LINES；agile-lite 任务数 >25；或任何 lite 文档超过 150 行且仍无法表达核心决策。切换由用户手动编辑 {INSTRUCTION_FILE} §项目信息.执行模式完成，orchestrator 不自动改写该字段。
 
 ## Interrupt-Resume Protocol
 注: 主线程内联承载的 phase 角色（`execution_host: inline`，见 §Inline Role Execution Protocol）直接用 AskUserQuestion 多轮澄清，不经本协议。派发的子代理（`execution_host: subagent`）为非交互执行体，无法直接向用户提问，其澄清须以 needs_input 回传由本协议代问。

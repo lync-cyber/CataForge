@@ -309,3 +309,19 @@ class TestPhaseStatusCli:
         (tmp_path / ".cataforge").mkdir()
         result = CliRunner().invoke(cli, ["--project-dir", str(tmp_path), "phase", "status"])
         assert result.exit_code == 2
+
+    def test_phase_status_accepts_project_root(self, tmp_path: Path) -> None:
+        # The per-command --project-root must target the given project even when
+        # the process cwd is elsewhere — mirrors the context command surface.
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+        target = _make_project(
+            target_dir,
+            "requirements",
+            doc_status={"prd": "draft"},
+            prd_file=True,
+            indexed=True,
+            phase_start="requirements",
+        )
+        result = CliRunner().invoke(cli, ["phase", "status", "--project-root", str(target)])
+        assert result.exit_code == 0, result.output

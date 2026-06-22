@@ -122,10 +122,12 @@ class SkillRunner:
         except subprocess.TimeoutExpired:
             assert effective_timeout is not None
             duration = time.monotonic() - t_start
-            self._emit_timeout_event(meta, script_entry, effective_timeout, duration, agent=agent)
+            self._emit_timeout_event(
+                meta, script_entry, effective_timeout, duration, args=args, agent=agent
+            )
             raise SkillTimeoutError(skill_id, effective_timeout) from None
 
-        self._emit_run_event(meta, script_entry, result.returncode, agent=agent)
+        self._emit_run_event(meta, script_entry, result.returncode, args=args, agent=agent)
         return result
 
     def _default_timeout_secs(self) -> float:
@@ -153,6 +155,7 @@ class SkillRunner:
         script_entry: dict[str, str],
         returncode: int,
         *,
+        args: list[str] | None = None,
         agent: str | None = None,
     ) -> None:
         """Best-effort: append a ``state_change`` record to EVENT-LOG.jsonl.
@@ -184,7 +187,7 @@ class SkillRunner:
         except Exception:
             return
 
-        phase = self._event_phase()
+        phase = self._event_phase(args)
         attributed_agent = agent or os.environ.get("CATAFORGE_INVOKING_AGENT") or "reviewer"
         if returncode == 0:
             detail = f"skill-run: {skill_id} Layer 1 passed"
@@ -224,6 +227,7 @@ class SkillRunner:
         timeout_secs: float,
         duration: float,
         *,
+        args: list[str] | None = None,
         agent: str | None = None,
     ) -> None:
         """Best-effort: append a ``state_change`` record for a timed-out skill run."""
@@ -233,7 +237,7 @@ class SkillRunner:
         except Exception:
             return
 
-        phase = self._event_phase()
+        phase = self._event_phase(args)
         attributed_agent = agent or os.environ.get("CATAFORGE_INVOKING_AGENT") or "reviewer"
         try:
             record = build_record(
@@ -258,18 +262,34 @@ class SkillRunner:
                 return s
         return None
 
-    def _event_phase(self) -> str:
+    def _event_phase(self, args: list[str] | None = None) -> str:
         """Lifecycle phase for an auto-emitted event.
 
-        ``CATAFORGE_EVENT_PHASE`` (orchestrator-driven runs) wins; otherwise
-        the instruction file's 当前阶段; ``development`` is the last resort
-        when neither resolves.
+        ``CATAFORGE_EVENT_PHASE`` (orchestrator-driven runs) wins; otherwise the
+        reviewed artifact's phase inferred from a doc_type argument (review
+        skills pass the reviewed doc_type), so a review attributes to the
+        artifact's phase rather than the instruction file's possibly-stale
+        当前阶段; that file is the next fallback, then ``development``.
         """
         return (
             os.environ.get("CATAFORGE_EVENT_PHASE")
+            or self._phase_from_args(args)
             or read_current_phase(self._paths.root)
             or "development"
         )
+
+    @staticmethod
+    def _phase_from_args(args: list[str] | None) -> str | None:
+        """Infer the lifecycle phase from the first doc_type-shaped argument."""
+        if not args:
+            return None
+        from cataforge.application.phase import phase_for_doc_type
+
+        for token in args:
+            phase = phase_for_doc_type(token)
+            if phase:
+                return phase
+        return None
 
     def _build_env(self) -> dict[str, str]:
         """Build environment for skill script execution."""

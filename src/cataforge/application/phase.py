@@ -53,6 +53,28 @@ PHASE_DOC_TYPE: dict[str, str | tuple[str, ...]] = {
 
 _NOT_STARTED = "未开始"
 
+# Agile-merged phases gate on multiple doc_types (``planning`` fuses
+# requirements+architecture). They are excluded from the doc_type→phase
+# inverse so each base doc_type resolves to its single standard phase.
+_MERGED_PHASES = frozenset({"planning"})
+
+
+def phase_for_doc_type(doc_type: str) -> str | None:
+    """Return the standard lifecycle phase that owns *doc_type*, or None.
+
+    Inverse of :data:`PHASE_DOC_TYPE`. Used to attribute a review run to the
+    reviewed artifact's phase instead of the instruction file's (possibly
+    stale) 当前阶段. The ``-lite`` suffix resolves to its base doc_type.
+    """
+    base = doc_type[:-5] if doc_type.endswith("-lite") else doc_type
+    for phase, dts in PHASE_DOC_TYPE.items():
+        if phase in _MERGED_PHASES:
+            continue
+        types = (dts,) if isinstance(dts, str) else dts
+        if base in types:
+            return phase
+    return None
+
 
 def is_placeholder(value: str | None) -> bool:
     """True when 当前阶段 is unfilled (the ``{a|b|c}`` template token)."""

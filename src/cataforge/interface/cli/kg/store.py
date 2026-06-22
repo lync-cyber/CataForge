@@ -133,13 +133,13 @@ def kg_snapshot(ctx: click.Context, db_path: Path, output_dir: Path, label: str 
 )
 @db_path_option()
 @click.option(
-    "--force",
+    "--yes",
     is_flag=True,
     default=False,
-    help="Overwrite the existing store without confirmation.",
+    help="Skip the interactive confirmation prompt.",
 )
 @click.pass_context
-def kg_rollback(ctx: click.Context, snapshot_path: Path, db_path: Path, force: bool) -> None:
+def kg_rollback(ctx: click.Context, snapshot_path: Path, db_path: Path, yes: bool) -> None:
     """Restore the KG store from a snapshot file.
 
     SNAPSHOT_PATH is the path to the .nq file created by `cataforge kg snapshot`.
@@ -149,7 +149,7 @@ def kg_rollback(ctx: click.Context, snapshot_path: Path, db_path: Path, force: b
     from cataforge.domain.kg import KGConfig, KGStoreAlreadyExistsError
     from cataforge.domain.kg.snapshot import restore_snapshot
 
-    if not force:
+    if not yes:
         click.confirm(
             f"This will replace the store at {db_path}. Continue?",
             abort=True,

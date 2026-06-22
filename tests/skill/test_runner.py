@@ -385,6 +385,29 @@ class TestSkillRunnerEventPhase:
         SkillRunner(project).run("doc-review")
         assert self._last_record(project)["phase"] == "development"
 
+    def test_reviewed_doc_type_overrides_stale_instruction_phase(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The instruction file lags at ``planning`` but the run reviews a
+        # dev-plan; the event phase must reflect the reviewed artifact's
+        # lifecycle phase, not the stale 当前阶段.
+        monkeypatch.delenv("CATAFORGE_EVENT_PHASE", raising=False)
+        (project / "CLAUDE.md").write_text(self._state("planning"), encoding="utf-8")
+        _write_skill(project, "doc-review", script_body="import sys; sys.exit(0)\n")
+
+        SkillRunner(project).run("doc-review", args=["dev-plan", "docs/dev-plan/x.md"])
+        assert self._last_record(project)["phase"] == "dev_planning"
+
+    def test_env_phase_still_wins_over_reviewed_doc_type(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CATAFORGE_EVENT_PHASE", "testing")
+        (project / "CLAUDE.md").write_text(self._state("planning"), encoding="utf-8")
+        _write_skill(project, "doc-review", script_body="import sys; sys.exit(0)\n")
+
+        SkillRunner(project).run("doc-review", args=["prd", "docs/prd/x.md"])
+        assert self._last_record(project)["phase"] == "testing"
+
 
 class TestSkillRunnerAgentAttribution:
     """Agent attribution: caller may pass agent= explicitly, or set

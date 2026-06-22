@@ -81,6 +81,50 @@ def test_context_validate_no_index_exits_2(tmp_path: Path, monkeypatch) -> None:
     assert result.exit_code == 2
 
 
+# ---- D6: validate == index --strict --dry-run -------------------------------
+
+
+def test_validate_equals_index_strict_dryrun_clean(tmp_path: Path, monkeypatch) -> None:
+    root = _minimal_project(tmp_path)
+    _write_doc(root, "docs/prd/good.md", "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n")
+    indexer.main(["--project-root", str(root)])
+
+    monkeypatch.chdir(root)
+    via_validate = invoke_under_group(context_validate, [])
+    via_index = invoke_under_group(context_index, ["--strict", "--dry-run"])
+
+    assert via_validate.exit_code == via_index.exit_code == 0
+
+
+def test_validate_equals_index_strict_dryrun_orphan(tmp_path: Path, monkeypatch) -> None:
+    root = _minimal_project(tmp_path)
+    _write_doc(root, "docs/prd/good.md", "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n")
+    indexer.main(["--project-root", str(root)])
+    _write_doc(root, "docs/research/orphan.md", "# No front matter\n")
+
+    monkeypatch.chdir(root)
+    via_validate = invoke_under_group(context_validate, [])
+    via_index = invoke_under_group(context_index, ["--strict", "--dry-run"])
+
+    assert via_validate.exit_code == via_index.exit_code == 3
+
+
+def test_index_dry_run_does_not_rebuild_index(tmp_path: Path, monkeypatch) -> None:
+    """``--dry-run`` is a read-only gate: a doc added after the last build must
+    not appear in the on-disk index after a dry-run."""
+    root = _minimal_project(tmp_path)
+    _write_doc(root, "docs/prd/good.md", "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n")
+    indexer.main(["--project-root", str(root)])
+    _write_doc(root, "docs/prd/later.md", "---\nid: prd-later\ndoc_type: prd\n---\n# Later\n")
+
+    monkeypatch.chdir(root)
+    result = invoke_under_group(context_index, ["--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    index = json.loads((root / "docs" / ".doc-index.json").read_text())
+    assert "prd-later" not in index.get("documents", {})
+
+
 # ---- alias equivalence + stderr deprecation hint ----------------------------
 
 

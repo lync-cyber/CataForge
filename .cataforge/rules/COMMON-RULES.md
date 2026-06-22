@@ -64,7 +64,7 @@
 规则：默认 `[pre_dev, post_sprint, pre_deploy]` 覆盖最高风险节点（`pre_dev` 已在最贵阶段前 consolidate 全部上游冻结文档审查，故 PRD/ARCH 冻结点默认不单独设确认，仅 doc-review 质量门禁）；需要早期冻结门禁的项目显式加 `post_doc_freeze`（中间档），需要门禁每次转换则用 `phase_transition`；用户在 Bootstrap 时或运行中通过 项目指令文件 §全局约定 覆盖；`none` 与其他值互斥。
 
 ## 执行模式矩阵
-框架支持三种执行模式，写入 项目指令文件 §框架元信息.执行模式，未填默认 `standard`。
+框架支持三种执行模式，写入 项目指令文件 §项目信息.执行模式，未填默认 `standard`。
 
 | 维度 | standard（默认） | agile-lite | agile-prototype |
 |------|-----------------|-----------|-----------------|
@@ -129,7 +129,7 @@ Agent 间统一格式：
 下列约定对所有 Agent 一次性生效，**各 Agent 的 Input/Output Contract 不再重复**（操作细节见 context skill）：
 
 - **统一经 context 能力入口** — 读取、依赖展开、生成定稿、校验都经 `cataforge context`。后端与保真度由框架按项目上下文方案路由，**调用方不在 prompt 里判断走哪个后端**；后端选择复述会随实现漂移。
-- **定稿与回灌** — Agent 完成 authoring 落图后调 `cataforge context finalize` 导出人审视图；人改导出文件的场景由 orchestrator 在收口点按 reconcile 的 `remediation` 跑 `cataforge context ingest` 回流；后端由 `context.strategy` 路由，调用方不分支。
+- **定稿与回灌** — Agent 完成 authoring 落图后调 `cataforge context finalize` 导出人审视图；人改导出文件的场景由 orchestrator 在收口点按 reconcile 的 `remediation` 跑 `cataforge context ingest` 回流；后端由 `context.mode` 路由，调用方不分支。
 - **读取与依赖展开后端无关** — `cataforge context read <ref>` / `--with-deps` 返回相同 markdown 形式；后端不可达时框架自动降级到文件路径，Agent 调用契约不变。
 - **drift 检查由 orchestrator 负责** — Phase Transition 自动跑一致性守门；Agent 无需在 Output Contract 中声明。
 

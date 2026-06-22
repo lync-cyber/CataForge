@@ -32,14 +32,14 @@
 
 | id | 路径 / 步骤 | 期望行为 | 处置 | 观察重点 |
 |----|------------|---------|------|---------|
-| I-1 | 收集项目信息 + 选执行模式 | AskUserQuestion 单独提问，写入 §框架元信息.执行模式 | D | 提问是否选择题优先、是否一次问全 |
+| I-1 | 收集项目信息 + 选执行模式 | AskUserQuestion 单独提问，写入 §项目信息.执行模式 | D | 提问是否选择题优先、是否一次问全 |
 | I-2 | 创建目录结构 | 按模式建 `docs/{...}`（standard/agile-lite vs agile-prototype 不同集合） | D | 目录集合与模式是否匹配 |
 | I-3 | 写 `.gitattributes` | 项目根缺失时写跨平台行尾最小集；已存在只读判断不覆盖 | D | 是否误覆盖用户自定义 |
 | I-4 | 创建 {INSTRUCTION_FILE} | 按 Update Template 生成，文档状态全 `未开始`，当前阶段按模式（requirements/planning/brief） | D | 初始阶段与模式是否一致 |
 | I-5 | 写框架版本 | 取 `pyproject.toml [project].version`；缺失标「未追踪」 | D | 版本是否为占位符 `0.0.0-template` |
 | I-6 | 选平台 + 部署 | `cataforge setup --platform <p>`（写 `runtime.platform` 并 deploy；命令形态见 walkthrough-protocol §1.1） | D | 部署产物是否对应平台、`doctor` 是否通过 |
 | I-7 | env-block + permissions | `cataforge setup env-block` 注入 §执行环境；`cataforge setup permissions` 收紧白名单 | D | env-block exit 2（未检测技术栈）是否被正确兜底 |
-| I-8 | 文档索引 + 知识图谱 | `cataforge kg init`（幂等；doc-only 策略 WARN 跳过）+ `cataforge context index`（空索引） | D | kg init 跳过是否显式 WARN、context strategy 分流是否正常 |
+| I-8 | 文档索引 + 知识图谱 | `cataforge kg init`（幂等；`context.mode = markdown` 时 WARN 跳过）+ `cataforge context index`（空索引） | D | kg init 跳过是否显式 WARN、context mode 分流是否正常 |
 | I-9 | 进入初始阶段 | 按 Mode Routing 激活初始角色 | D | `cataforge phase status` 是否非占位符、有 `phase_start` 事件 |
 
 ## 3. 核心执行链路（happy path 主干）
@@ -48,7 +48,7 @@
 
 | id | 路径 | 期望行为 | 处置 | 观察重点 |
 |----|------|---------|------|---------|
-| C-1 | Mode Routing | 按 §框架元信息.执行模式 路由出本模式的阶段序列与文档类型 | D | 路由结果与 COMMON-RULES §执行模式矩阵一致 |
+| C-1 | Mode Routing | 按 §项目信息.执行模式 路由出本模式的阶段序列与文档类型 | D | 路由结果与 COMMON-RULES §执行模式矩阵一致 |
 | C-2 | execution_host 分派 | `inline` 阶段主线程承载（交互角色）；`subagent` 阶段派隔离子代理 | D | interactive=true 的阶段是否走 inline、子代理是否真被派发而非空转 |
 | C-3 | 文档产出 + 定稿 | 角色经 context authoring 产文档、`context finalize` 落 status=draft | D | 产物路径/命名/front matter 合规、是否注册索引 |
 | C-4 | doc-review 门禁 | Layer 1 强制；按 `DOC_REVIEW_L2_SKIP_*` 判断 Layer 2 短路 | D | 该审却没审 / 该短路却全跑；Layer 1 退出码 |

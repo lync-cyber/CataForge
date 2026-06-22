@@ -103,12 +103,20 @@ def run_index(
     doc_file: str | None,
     strict: bool,
     *,
+    dry_run: bool = False,
     command_label: str,
 ) -> None:
     """Build or update the chapter-level JSON index ``docs/.doc-index.json``.
 
     Shared body behind ``context index`` and the ``docs index`` deprecated alias.
+    With ``dry_run`` the build/write is skipped and the call becomes the
+    read-only integrity gate — the single implementation behind
+    ``context validate`` — so the two verdicts can never diverge.
     """
+    if dry_run:
+        run_validate(project_root)
+        return
+
     from cataforge.domain.docs.indexer import main as indexer_main
 
     argv: list[str] = []

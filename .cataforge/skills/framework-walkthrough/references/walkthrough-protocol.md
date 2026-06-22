@@ -19,6 +19,8 @@
 
 沙盒搭建与驱动协议对四端**完全一致**；平台差异由 deployer 与降级策略吸收。`--platform` 只改变部署出的原生产物形态（命令/agent/hook 配置），不改变走查步骤。在非 Claude-Code 平台上，「主线程扮演 orchestrator」由该平台的等价会话承担，子代理调度走该平台 `agent_dispatch` 的降级路径。
 
+走查驱动**必须由主线程内联承载**：所有 `cataforge` 命令在主线程当前 cwd（= 沙盒目录）执行。不得把驱动整体委派给一个子代理——子代理在宿主 cwd 运行，会绕开沙盒、写进真实项目根。子代理仅用于框架要求的 agent 角色调度（如 TDD 子代理），其工作目录须显式指向沙盒。
+
 ## 2. 按执行模式驱动
 
 三种模式的阶段集合、文档产出、TDD 档位、门禁差异以 COMMON-RULES §执行模式矩阵 为准；本节只给走查驱动顺序。
@@ -46,7 +48,7 @@ Phase 1~4 合并为单一 `brief.md`（≤200 行），implementer 主线程一�
 每次 reviewer approved 后进入下一阶段，都会跑 `ORCHESTRATOR-PROTOCOLS §Phase Transition Protocol` 的 8 步（路径图 C-5a~C-5g）。这是走查最易漏看的过程信号——文档「最终产出了」不代表一致性门「跑过了」。逐子步盯：
 
 - `cataforge context validate`（C-5b 依赖新鲜度）：上游 approved 后下游是否被标 stale_deps。
-- `cataforge context reconcile`（C-5c 一致性守门）：图后端启用时漂移是否被捕获、remediation 方向（export/ingest/manual）是否匹配；`context.strategy: doc-only` 下应为 no-op WARN 跳过，记为正常而非缺陷。
+- `cataforge context reconcile`（C-5c 一致性守门）：图后端启用时漂移是否被捕获、remediation 方向（export/ingest/manual）是否匹配；逐文档 triage state 与 per-doc_type 对称 diff 明细经 `cataforge context reconcile --json` 取得（门禁结论取文档级 triage，对称 diff 为诊断）。`context.mode = markdown` 下退化为 docs-index 完整性校验（无图后端），其结论按索引有效性读，记为正常而非缺陷。
 - `cataforge skill run doc-consistency`（C-5d）：**至少 2 个业务文档 approved 后**（即 Phase 2+ 转换）才触发；agile-lite 在 arch-lite approved 进 dev_planning 时首次满足。exit 0/2 继续、exit 1 给分支选项。
 - EVENT BATCH（C-5e）：`docs/EVENT-LOG.jsonl` 是否一次性出现 phase_end→review_verdict→state_change→phase_start 四条，无半截状态。
 - `cataforge claude-md check`（C-5f hygiene 门）：阈值越界须**阻塞**转换并给 compact 选项，不能 WARN 放行。
