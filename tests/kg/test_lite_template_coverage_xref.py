@@ -90,3 +90,44 @@ def test_relation_subject_binds_to_entity_not_trailing_ac() -> None:
     triples = _triples(_relations("dev-plan-lite-demo", "dev-plan", body))
     assert ("T-001", "cf:realizes", "M-001") in triples
     assert not any(s.startswith("AC-") for s, _p, _o in triples)
+
+
+def test_relation_subject_is_section_subject_not_nearest_mention() -> None:
+    """An entity mention in the body before the xref must not steal the subject.
+
+    The edge belongs to M-001 (the section's defining heading), even though
+    C-003 is the nearest entity token preceding the xref."""
+    body = (
+        "# Arch\n\n## §2 模块\n\n"
+        "### M-001 认证模块\n\n"
+        "本模块依赖 C-003 组件协作。\n\n"
+        "- 映射功能: prd#§2.F-001\n"
+    )
+    triples = _triples(_relations("arch", "arch", body))
+    assert ("M-001", "cf:implements", "F-001") in triples
+    assert not any(s == "C-003" for s, _p, _o in triples)
+
+
+def test_relation_subject_walks_up_to_nearest_entity_heading() -> None:
+    """An xref under a sub-heading with no entity id binds to the nearest
+    ancestor heading that defines an entity."""
+    body = (
+        "# Arch\n\n## §2 模块\n\n"
+        "### M-001 认证模块\n\n"
+        "#### 子能力 描述\n\n"
+        "- 映射功能: prd#§2.F-002\n"
+    )
+    triples = _triples(_relations("arch", "arch", body))
+    assert ("M-001", "cf:implements", "F-002") in triples
+
+
+def test_relation_subject_stable_across_body_layout() -> None:
+    """The subject does not change when an unrelated entity mention is added
+    to the section body — coverage must be layout-insensitive."""
+    base = "# Arch\n\n## §2 模块\n\n### M-001 认证模块\n\n- 映射功能: prd#§2.F-001\n"
+    shuffled = (
+        "# Arch\n\n## §2 模块\n\n### M-001 认证模块\n\n"
+        "参见 M-002 与 C-001。\n\n- 映射功能: prd#§2.F-001\n"
+    )
+    assert ("M-001", "cf:implements", "F-001") in _triples(_relations("arch", "arch", base))
+    assert ("M-001", "cf:implements", "F-001") in _triples(_relations("arch", "arch", shuffled))

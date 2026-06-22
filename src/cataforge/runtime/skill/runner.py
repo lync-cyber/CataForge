@@ -283,7 +283,7 @@ class SkillRunner:
         """Infer the lifecycle phase from the first doc_type-shaped argument."""
         if not args:
             return None
-        from cataforge.application.phase import phase_for_doc_type
+        from cataforge.core.phases import phase_for_doc_type
 
         for token in args:
             phase = phase_for_doc_type(token)

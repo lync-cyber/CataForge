@@ -133,6 +133,48 @@ def test_author_document_writes_entities_and_relation(tmp_path: Path) -> None:
     gc.collect()
 
 
+def test_reauthor_clears_stale_relation_edge(tmp_path: Path) -> None:
+    """Re-authoring a document atomically replaces its traceability edges.
+
+    A stale edge whose subject entity is unchanged across the re-author (so
+    its content hash matches and the entity write is skipped) must still be
+    removed — relation edges are not gated by the entity content hash."""
+    proj = _project(tmp_path)
+    cw.author_document(str(proj), _PRD)
+    gc.collect()
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    inst = "https://cataforge.dev/instance"
+    phantom = f"ASK {{ <{inst}/F-001> <{ns}depends_on> <{inst}/F-002> }}"
+    real = f"ASK {{ <{inst}/F-002> <{ns}depends_on> <{inst}/F-001> }}"
+
+    # Inject a phantom edge F-001 -> F-002 the source never declares. F-001's
+    # body is unchanged, so the next author run skips its entity write. The
+    # write handle holds a RocksDB lock; a nested scope drops every reference
+    # (facade + transaction) so the lock releases before re-authoring.
+    def _inject_phantom() -> None:
+        with KnowledgeGraph.connect(cfg) as kg:
+            with kg.transaction() as txn:
+                txn.add_relation("F-001", "cf:depends_on", "F-002")
+            assert kg.store.query(phantom)
+
+    _inject_phantom()
+    gc.collect()
+
+    # Re-author the identical source.
+    cw.author_document(str(proj), _PRD)
+    gc.collect()
+
+    def _read() -> tuple[bool, bool]:
+        with KnowledgeGraph.connect(cfg, read_only=True) as kg:
+            return bool(kg.store.query(phantom)), bool(kg.store.query(real))
+
+    phantom_present, real_present = _read()
+    gc.collect()
+    assert not phantom_present, "stale edge must be cleared on re-author"
+    assert real_present, "the declared edge must survive"
+
+
 def test_author_document_placeholder_title_fails(tmp_path: Path) -> None:
     proj = _project(tmp_path)
     md = (

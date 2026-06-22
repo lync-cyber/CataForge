@@ -242,6 +242,68 @@ def test_check_arch_event_stream_api_passes(tmp_path: Path) -> None:
     assert c.errors == []
 
 
+def test_check_arch_api_input_field_passes(tmp_path: Path) -> None:
+    """A capability contract declares inputs as `input:`, not HTTP `request:`."""
+    content = "### API-001 解析\ninput:\n  text: str\noutput:\n  tokens: list\n"
+    c = _checker(tmp_path, "arch", content)
+    c.check_arch()
+    assert c.errors == []
+
+
+def test_check_arch_api_param_table_passes(tmp_path: Path) -> None:
+    """A 参数 table satisfies the input-definition requirement."""
+    content = "### API-001 解析\n| 参数 | 类型 |\n|------|------|\n| text | str |\n"
+    c = _checker(tmp_path, "arch", content)
+    c.check_arch()
+    assert c.errors == []
+
+
+def test_check_arch_api_no_input_at_all_still_fails(tmp_path: Path) -> None:
+    """An API with neither request/input/参数 nor event-stream still fails."""
+    content = "### API-001 Login\nno input definition here\n"
+    c = _checker(tmp_path, "arch", content)
+    c.check_arch()
+    assert any("入参" in e or "request" in e for e in c.errors)
+
+
+# ---------------------------------------------------------------------------
+# check_id_continuity volume scoping
+# ---------------------------------------------------------------------------
+
+
+def test_id_continuity_api_volume_ignores_cross_volume_e_refs(tmp_path: Path) -> None:
+    """An api volume references E-005/E-008 from data — those are not its
+    entities, so a missing E gap must not warn."""
+    content = "### API-001 A\nref: E-005\n\n### API-002 B\nref: E-008\n"
+    c = _checker(tmp_path, "arch", content, volume_type="api")
+    c.check_id_continuity()
+    assert not any("E-" in w for w in c.warnings), c.warnings
+
+
+def test_id_continuity_api_volume_flags_own_gap(tmp_path: Path) -> None:
+    """An api volume still flags a genuine gap in its own API- numbering."""
+    content = "### API-001 A\n\n### API-003 C\n"
+    c = _checker(tmp_path, "arch", content, volume_type="api")
+    c.check_id_continuity()
+    assert any("API-002" in w for w in c.warnings), c.warnings
+
+
+def test_id_continuity_data_volume_ignores_api_refs(tmp_path: Path) -> None:
+    """A data volume mentioning API-001/API-009 must not warn about API gaps."""
+    content = "### E-001 A\nmodule: API-001\n\n### E-002 B\nsee API-009\n"
+    c = _checker(tmp_path, "arch", content, volume_type="data")
+    c.check_id_continuity()
+    assert not any("API-" in w for w in c.warnings), c.warnings
+
+
+def test_id_continuity_main_volume_unrestricted(tmp_path: Path) -> None:
+    """The main volume keeps checking every arch prefix."""
+    content = "### M-001 A\n\n### M-003 C\n"
+    c = _checker(tmp_path, "arch", content, volume_type="main")
+    c.check_id_continuity()
+    assert any("M-002" in w for w in c.warnings), c.warnings
+
+
 # ---------------------------------------------------------------------------
 # check_dev_plan
 # ---------------------------------------------------------------------------

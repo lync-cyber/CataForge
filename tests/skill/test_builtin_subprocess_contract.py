@@ -70,6 +70,36 @@ def test_doc_review_failures_exit_one_text_and_json_agree(tmp_path: Path) -> Non
     assert (text.returncode == 1) == has_blocking
 
 
+_DOC_CHECK = "cataforge.runtime.skill.builtins.doc_review.doc_check"
+
+
+def test_doc_check_missing_doctype_exits_two_with_help() -> None:
+    """Passing only a file (forgot doc-type) yields an actionable error that
+    lists the valid doc-types and uses the public `cataforge skill run` form."""
+    res = _run(_DOC_CHECK, "docs/arch/x.md")
+    assert res.returncode == 2
+    out = res.stdout + res.stderr
+    assert "python -m" not in out  # never tell users to call the module path
+    assert "arch" in out and "prd" in out
+    assert "cataforge skill run doc-review" in out
+
+
+def test_doc_check_doctype_looking_like_path_detected(tmp_path: Path) -> None:
+    doc = tmp_path / "arch.md"
+    doc.write_text("# x\n", encoding="utf-8")
+    res = _run(_DOC_CHECK, "docs/arch/x.md", str(doc))
+    assert res.returncode == 2
+    assert "doc-type" in (res.stdout + res.stderr)
+
+
+def test_doc_check_missing_file_exits_two_no_traceback(tmp_path: Path) -> None:
+    res = _run(_DOC_CHECK, "arch", str(tmp_path / "nope.md"))
+    assert res.returncode == 2
+    out = res.stdout + res.stderr
+    assert "Traceback" not in out
+    assert "nope.md" in out
+
+
 def test_e2e_scan_warnings_only_exits_zero(tmp_path: Path) -> None:
     e2e = tmp_path / "e2e"
     e2e.mkdir()
