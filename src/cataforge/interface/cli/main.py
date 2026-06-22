@@ -88,7 +88,7 @@ CTX_PROJECT_DIR = "project_dir"
         "\n"
         "\b\n"
         "MAINTENANCE:\n"
-        "  sync-main    Fast-forward local default branch from origin (post-PR).\n"
+        "  git          Sync / prune local branches against origin (post-PR).\n"
         "  claude-md    CLAUDE.md hygiene (size check, Learnings Registry compact).\n"
         "\n"
         "Run `cataforge COMMAND --help` for command-specific options."
@@ -157,6 +157,7 @@ def _register_commands() -> None:
         doctor_cmd,
         event_cmd,
         feedback_cmd,
+        git_cmd,
         hook_cmd,
         issue_cmd,
         kg,
@@ -167,7 +168,6 @@ def _register_commands() -> None:
         plugin_cmd,
         setup_cmd,
         skill_cmd,
-        sync_cmd,
         upgrade_cmd,
         viz_cmd,
     )
