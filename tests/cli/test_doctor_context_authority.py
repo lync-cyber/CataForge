@@ -47,7 +47,7 @@ def test_fails_on_invalid_mode(tmp_path: Path, capsys) -> None:
 def test_fails_on_retired_strategy_key(tmp_path: Path, capsys) -> None:
     cfg = _cfg(tmp_path, {"strategy": "kg-first"})
     assert check_context_mode_validity(cfg) == 1
-    assert "framework-update" in capsys.readouterr().err
+    assert "upgrade apply" in capsys.readouterr().err
 
 
 def test_fails_on_retired_authoring_key(tmp_path: Path, capsys) -> None:

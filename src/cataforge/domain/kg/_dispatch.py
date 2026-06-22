@@ -115,7 +115,7 @@ def context_mode(project_root: str | Path) -> str:
     Returns one of :data:`MODES`; an absent or unrecognized value resolves to
     :data:`DEFAULT_MODE` (``hybrid``). Legacy ``context.strategy`` /
     ``context.authoring`` are not read — the doctor flags them and
-    ``framework-update`` rewrites them to ``context.mode``.
+    ``cataforge upgrade apply`` rewrites them to ``context.mode``.
     """
     key = _project_root_key(project_root)
     with _DISPATCH_LOCK:

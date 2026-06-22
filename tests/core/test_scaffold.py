@@ -84,9 +84,9 @@ def test_copy_scaffold_preserves_project_design_tool_on_force(tmp_path: Path) ->
 
 
 def test_copy_scaffold_preserves_context_overrides_on_force(tmp_path: Path) -> None:
-    """--force-scaffold must preserve every user-owned context key, not just
-    kg_active_doc_types — kg_definition_authority, strategy, authoring are also
-    project routing config the upgrade must not stomp."""
+    """--force-scaffold must preserve user-owned context routing config —
+    kg_active_doc_types, kg_definition_authority and an explicit mode the
+    upgrade must not stomp back to the scaffold default."""
     dest = tmp_path / ".cataforge"
     copy_scaffold_to(dest, force=False)
 
@@ -95,7 +95,7 @@ def test_copy_scaffold_preserves_context_overrides_on_force(tmp_path: Path) -> N
     ctx = fw.setdefault("context", {})
     ctx["kg_active_doc_types"] = ["prd", "arch"]
     ctx["kg_definition_authority"] = {"UIComponent": ["ui-spec", "prd"]}
-    ctx["strategy"] = "file-first"
+    ctx["mode"] = "graph"
     fw_path.write_text(json.dumps(fw), encoding="utf-8")
 
     copy_scaffold_to(dest, force=True)
@@ -104,7 +104,45 @@ def test_copy_scaffold_preserves_context_overrides_on_force(tmp_path: Path) -> N
     rctx = refreshed["context"]
     assert rctx["kg_active_doc_types"] == ["prd", "arch"]
     assert rctx["kg_definition_authority"] == {"UIComponent": ["ui-spec", "prd"]}
-    assert rctx["strategy"] == "file-first"
+    assert rctx["mode"] == "graph"
+
+
+def test_merge_framework_json_migrates_legacy_strategy_authoring_to_mode(tmp_path: Path) -> None:
+    """A project carrying the retired strategy × authoring axes is collapsed to
+    a single context.mode on merge; the legacy keys are dropped so the doctor's
+    validity gate stops failing, and the derived mode wins over the scaffold
+    default."""
+    from cataforge.core.scaffold import _merge_framework_json
+
+    scaffold = json.dumps({"context": {"mode": "hybrid", "kg_active_doc_types": ["prd"]}}).encode()
+
+    for strategy, authoring, expected in (
+        ("doc-only", "md", "markdown"),
+        ("kg-first", "md", "hybrid"),
+        ("kg-first", "graph", "graph"),
+    ):
+        target = tmp_path / f"{strategy}-{authoring}.json"
+        target.write_text(
+            json.dumps(
+                {
+                    "context": {
+                        "strategy": strategy,
+                        "authoring": authoring,
+                        "kg_active_doc_types": ["arch"],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        merged = json.loads(_merge_framework_json(scaffold, target).decode("utf-8"))
+        rctx = merged["context"]
+
+        assert rctx["mode"] == expected, (strategy, authoring)
+        assert "strategy" not in rctx
+        assert "authoring" not in rctx
+        # User routing config still wins over the scaffold default.
+        assert rctx["kg_active_doc_types"] == ["arch"]
 
 
 def test_force_refresh_prunes_obsolete_unmodified_files(tmp_path: Path) -> None:

@@ -220,6 +220,25 @@ def packaged_instruction_template() -> Traversable:
 MergeFn = Callable[[bytes, Path], bytes]
 
 
+def _migrate_context_mode(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Collapse the retired ``strategy`` × ``authoring`` axes into ``mode``.
+
+    Mapping: ``doc-only`` → ``markdown``; ``kg-first`` + ``authoring=graph`` →
+    ``graph``; ``kg-first`` otherwise → ``hybrid``. An explicit ``mode`` wins; the
+    legacy keys are always dropped so the doctor's validity gate stops failing.
+    """
+    out = dict(ctx)
+    strategy = out.pop("strategy", None)
+    authoring = out.pop("authoring", None)
+    if "mode" in out:
+        return out
+    if strategy == "doc-only":
+        out["mode"] = "markdown"
+    elif strategy == "kg-first":
+        out["mode"] = "graph" if authoring == "graph" else "hybrid"
+    return out
+
+
 def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
     """Overwrite scaffold-owned keys while preserving user-owned state."""
     try:
@@ -245,10 +264,13 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
 
     # The context block holds per-project routing config — kg_active_doc_types
     # (rolling-cutover toggle), kg_definition_authority (additive authority
-    # extension), strategy, authoring. All are user-owned, so existing keys win
-    # over the scaffold default while still introducing any new scaffold keys.
+    # extension), mode. All are user-owned, so existing keys win over the
+    # scaffold default while still introducing any new scaffold keys. The
+    # retired strategy × authoring axes are collapsed into mode here so the
+    # derived mode wins over the scaffold default.
     existing_ctx = existing.get("context")
     if isinstance(existing_ctx, dict):
+        existing_ctx = _migrate_context_mode(existing_ctx)
         scaffold_ctx = merged.get("context")
         merged["context"] = {
             **(scaffold_ctx if isinstance(scaffold_ctx, dict) else {}),

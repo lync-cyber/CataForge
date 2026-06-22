@@ -4,7 +4,7 @@ A project declares its single source-of-truth axis via ``context.mode``
 (``markdown`` / ``hybrid`` / ``graph``). This gate fails an invalid value and
 fails the retired ``context.strategy`` / ``context.authoring`` pair so a
 project carrying the old two-axis schema is told to migrate to ``context.mode``
-(``cataforge framework-update`` rewrites it) rather than running silently on
+(``cataforge upgrade apply`` rewrites it) rather than running silently on
 the ``hybrid`` default.
 """
 
@@ -42,7 +42,7 @@ def check_context_mode_validity(cfg: ConfigManager) -> int:
         click.echo(
             f"  FAIL: framework.json carries retired context.{{{', '.join(retired)}}} — "
             "the strategy/authoring pair is replaced by a single context.mode "
-            "(markdown | hybrid | graph). Run `cataforge framework-update` to migrate.",
+            "(markdown | hybrid | graph). Run `cataforge upgrade apply` to migrate.",
             err=True,
         )
         return 1
