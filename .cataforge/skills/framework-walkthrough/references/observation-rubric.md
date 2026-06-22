@@ -8,20 +8,20 @@
 
 | 维度 | 对应路径 | 观察什么 | 异常信号示例 |
 |------|---------|---------|------------|
-| 初始化产物 | I-1~I-9 | Bootstrap 各步产物是否落地：目录集合/`.gitattributes`/{INSTRUCTION_FILE} 初版/框架版本/`runtime.platform`/env-block/permissions/kg init/context index | 版本仍 `0.0.0-template`、目录集合与模式不符、env-block exit 2 未兜底、kg init 静默失败 |
+| 初始化产物 | I-1~I-9 | Bootstrap 各步产物是否落地：目录集合/`.gitattributes`/{INSTRUCTION_FILE} 初版/框架版本/`runtime.platform`/env-block/permissions/kg init/context index | 版本仍 `0.0.0-template`、目录集合与模式不符、kg init 静默失败（注：`cataforge setup env-block` 在未配置技术栈时 exit 2 是预期占位行为，非缺陷） |
 | 产物生成 | C-3, C-8 | 该阶段应产出的文档/代码是否生成、路径与命名是否合规；跨完阶段跑 `cataforge phase status` 作硬校验 | 文档缺 front matter、落错目录、未注册索引、`phase status` 退出非 0 |
 | 门禁触发 | C-4, C-7, B-4 | doc-review / code-review / sprint-review 是否如期触发、Layer 1↔2 短路判定是否正确 | 该审却没审、该短路却全跑（反之亦然） |
 | 一致性门 | C-5b~C-5f | Phase Transition 的 validate / reconcile / doc-consistency / claude-md check 是否逐步执行、阻塞类门是否真阻塞 | hygiene 越界却 WARN 放行、doc-consistency 在 Phase 2+ 未触发、EVENT BATCH 出现半截状态 |
 | 降级行为 | B-8~B-11, E-9 | 缺能力 / 探针未装时降级是否显式、是否有日志 | 静默丢能力、未提示降级即继续、探针跳过被读作通过 |
 | 恢复路径 | E-1~E-7 | 触发的恢复协议是否按 ORCHESTRATOR-PROTOCOLS 行为：轮次上限、人工介入触发、回滚是否干净 | 超轮次仍自动重试、rolled-back 静默、truncation 未评估完成度就接管 |
 | CLI / skill / hook | C-*, E-8 | `cataforge` 子命令、`skill run`、hook 是否报错或退出码异常 | 命令不存在、参数不符、Layer 1 返回 2/127 |
-| 文档加载 / KG | C-3, C-5c | `cataforge context read` 按 KG-active / legacy 分流是否正常；kg-first authoring 模式下 authoring 落图 → `finalize` 导出 → `reconcile` 归零的回环是否成立 | 实体级引用解析失败、drift 未被 reconcile 捕获、authoring 后 finalize 未重导出或 reconcile 残留 drift |
+| 文档加载 / KG | C-3, C-5c | `cataforge context read` 按 KG-active / legacy 分流是否正常；`graph` 模式下 authoring 落图 → `finalize` 导出 md → `reconcile` 归零的回环是否成立 | 实体级引用解析失败、drift 未被 reconcile 捕获、authoring 后 finalize 未重导出或 reconcile 残留 drift |
 | 交互负担 | B-2, E-1 | 多少处需要人工代答、提问是否选择题优先、是否重复提问 | 同一问题反复问、开放式提问过多 |
 | 状态一致 | T-2, T-3 | {INSTRUCTION_FILE} 项目状态 / EVENT-LOG 与实际推进是否一致 | 阶段标记与产物不符、事件漏写 |
 
 **判定指引（易误判处）**：
 
-- **KG 覆盖类 FAIL ≠ 自身漏写**：KG 覆盖 / 实体级交叉引用类 FAIL 多源于作者路径未把模块/功能/覆盖关系 ingest 进 KG，而非文档内容缺失（`context.strategy: doc-only` 模式 KG 被旁路，此类 FAIL 不出现）。归类前先确认是「KG 关系缺失」还是「文档真漏写」，前者归 `framework`/upstream，后者才是走查者漏填。
+- **KG 覆盖类 FAIL ≠ 自身漏写**：KG 覆盖 / 实体级交叉引用类 FAIL 多源于作者路径未把模块/功能/覆盖关系 ingest 进 KG，而非文档内容缺失（`context.mode = markdown` 无图后端，KG 被旁路，此类 FAIL 不出现）。归类前先确认是「KG 关系缺失」还是「文档真漏写」，前者归 `framework`/upstream，后者才是走查者漏填。
 - **探针跳过（环境）≠ 真实通过**：`code-review scan` 等在裸环境因外部探针工具未装而跳过部分检查，仍可能报 `PASS / 0 findings`；须显式记录「N 个探针因工具未装跳过」，不可读作「代码无任何问题」。
 
 ## 2. 两类 findings

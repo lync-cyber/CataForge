@@ -1,6 +1,6 @@
 # context · generate(生成与写入)
 
-取模板结构、authoring 落图、定稿导出、超长拆分。图后端就绪时图谱是事实源,`docs/` 由 `cataforge context finalize` 导出供人审;调用方只表达意图,后端由 `framework.json#context.strategy` 路由,不直写后端、不 `Write`/`Edit` `docs/` 文件。doc-only 项目无图后端,authoring 命令会提示直接编辑 `docs/`。
+取模板结构、authoring 落图、定稿导出、超长拆分。图后端就绪时图谱是事实源,`docs/` 由 `cataforge context finalize` 导出供人审;调用方只表达意图,后端由 `framework.json#context.mode` 路由,不直写后端、不 `Write`/`Edit` `docs/` 文件。doc-only 项目无图后端,authoring 命令会提示直接编辑 `docs/`。
 
 ## 取模板
 查注册表 `Read .cataforge/skills/context/templates/_registry.yaml`,据 `{template_id}` 取 `path` 读模板,得必填章节([NAV] 块)、实体类型与占位符语义。
@@ -18,7 +18,7 @@
 
 ## 定稿
 1. 结构完整性自检(必填章节非空、文档头齐全);不通过则补全 authoring,不继续
-2. 持久化导出: 调 `cataforge context finalize` 从图导出 `docs/` 人审视图;人改导出文件后经 `cataforge context ingest` 回流——后端由框架按 `context.strategy` 路由,Agent 无需分支
+2. 持久化导出: 调 `cataforge context finalize` 从图导出 `docs/` 人审视图;人改导出文件后经 `cataforge context ingest` 回流——后端由框架按 `context.mode` 路由,Agent 无需分支
 3. 返回导出路径 + 必填章节清单(从 [NAV] 块提取)
 
 ## 拆分

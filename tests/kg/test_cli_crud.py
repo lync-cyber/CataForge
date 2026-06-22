@@ -29,6 +29,28 @@ def _init_store(tmp_path: Path) -> Path:
     return db
 
 
+def _flag_names(command_name: str) -> set[str]:
+    from cataforge.interface.cli.main import _register_commands, cli
+
+    _register_commands()
+    kg_group = cli.commands["kg"]
+    cmd = kg_group.commands[command_name]  # type: ignore[attr-defined]
+    names: set[str] = set()
+    for param in cmd.params:
+        names.update(getattr(param, "opts", []))
+    return names
+
+
+def test_kg_destructive_commands_confirm_flag_consistent() -> None:
+    # Both destructive commands skip their confirmation prompt with --yes;
+    # neither overloads --force for that (--force is reserved for bypassing a
+    # safety check, not for non-interactive confirmation).
+    for command_name in ("delete", "rollback"):
+        flags = _flag_names(command_name)
+        assert "--yes" in flags, f"kg {command_name} missing --yes skip-confirm flag"
+        assert "--force" not in flags, f"kg {command_name} should not use --force to skip confirm"
+
+
 def _seed_section(db: Path) -> None:
     import gc
 
