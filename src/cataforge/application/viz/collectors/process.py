@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.application.feedback.collectors import collect_recent_events
-from cataforge.application.phase import PHASES, evaluate_phase
+from cataforge.application.phase import evaluate_phase
+from cataforge.core.phases import PHASES
 from cataforge.core.viz.model import Edge, Graph, Node, Timeline, TimelineEvent, View
 from cataforge.runtime.skill.builtins.framework_review._framework_data import read_workflow_modes
 

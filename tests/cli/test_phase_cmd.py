@@ -200,7 +200,7 @@ def _make_multi_doc_project(
 
 class TestAgileModePhases:
     def test_planning_is_recognised(self) -> None:
-        from cataforge.application.phase import PHASES
+        from cataforge.core.phases import PHASES
 
         assert "planning" in PHASES
         assert "brief" in PHASES
