@@ -248,3 +248,78 @@ def test_deploy_preserves_foreign_settings_and_hook_entries(tmp_path: Path) -> N
     assert len(pre) == 1
     assert pre[0]["matcher"] == "Bash"
     assert pre[0]["hooks"][0]["command"] == _GUARD_CMD
+
+
+_REBUILD_STATE_TPL = (
+    "## 项目信息\n- 技术栈: {框架/语言/工具}\n\n"
+    "## 项目状态\n- 当前阶段: {x}\n\n"
+    "## 文档导航\n- 导航索引: docs/.doc-index.json\n"
+)
+
+
+def test_rebuild_preserves_section_merge_instruction_target(tmp_path: Path) -> None:
+    """--rebuild must not purge a section-merge target. If it does, the
+    instruction step finds no existing file to merge into and silently writes
+    the placeholder template, wiping orchestrator-owned sections."""
+    root = _init_project(tmp_path)
+    (root / ".cataforge" / "PROJECT-STATE.md").write_text(_REBUILD_STATE_TPL, encoding="utf-8")
+    (root / ".cataforge" / "framework.json").write_text(
+        json.dumps({"version": "0.1.0", "runtime": {"platform": "claude-code"}}),
+        encoding="utf-8",
+    )
+    _write_profile(
+        root,
+        "claude-code",
+        {
+            "platform_id": "claude-code",
+            "display_name": "Claude Code",
+            "tool_map": {"file_read": "Read"},
+            "agent_definition": {
+                "format": "yaml-frontmatter",
+                "scan_dirs": [".claude/agents"],
+                "needs_deploy": False,
+            },
+            "instruction_file": {
+                "reads_claude_md": False,
+                "targets": [
+                    {
+                        "type": "project_state_copy",
+                        "path": "CLAUDE.md",
+                        "update_strategy": "section-merge",
+                        "section_policy": {
+                            "schema": ["项目信息"],
+                            "runtime": ["项目状态"],
+                            "framework": ["文档导航"],
+                            "user_extensible": True,
+                        },
+                    }
+                ],
+            },
+            "dispatch": {"tool_name": "Agent", "is_async": False},
+            "hooks": {
+                "config_format": None,
+                "config_path": None,
+                "event_map": {},
+                "degradation": {},
+            },
+        },
+    )
+    clear_cache()
+    cfg = ConfigManager(root)
+    Deployer(cfg).deploy("claude-code")
+
+    claude_md = root / "CLAUDE.md"
+    assert claude_md.is_file()
+    # Orchestrator adds a user-extensible section section-merge must preserve.
+    # It survives a redeploy only when the existing file is the merge source;
+    # a purged target falls back to the placeholder template, which has no
+    # such section.
+    claude_md.write_text(
+        claude_md.read_text(encoding="utf-8") + "\n## 我的自定义\nSENTINEL-KEEP\n",
+        encoding="utf-8",
+    )
+
+    Deployer(cfg).deploy("claude-code", rebuild=True)
+
+    after = claude_md.read_text(encoding="utf-8")
+    assert "SENTINEL-KEEP" in after, "rebuild purged the section-merge target → state lost"
