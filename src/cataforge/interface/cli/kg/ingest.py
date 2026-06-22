@@ -16,6 +16,7 @@ from cataforge.core.errors import (
     KGVerificationError,
 )
 from cataforge.core.paths import KG_STORE_REL
+from cataforge.interface.cli._hints import NO_RELATIONS_HINT
 from cataforge.interface.cli.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
 from cataforge.interface.cli.kg._options import db_path_option, db_path_ro_option
@@ -149,10 +150,7 @@ def kg_import(
             f"+{stats.write_stats.relations_skipped}"
         )
         if stats.extracted_relations == 0 and stats.extracted_entities > 0:
-            click.echo(
-                "  (relations=0 — 追溯边仅从严格 `doc_id#§N.ITEM` 交叉引用提取；"
-                "裸提及实体 ID 不产边)"
-            )
+            click.echo(f"  ({NO_RELATIONS_HINT})")
         if stats.verify_result is not None:
             click.echo(
                 f"  verify: ok={stats.verify_result.ok} "

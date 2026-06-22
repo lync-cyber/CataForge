@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import click
 
 from cataforge.core.errors import CataforgeError, KGStoreError
+from cataforge.interface.cli._hints import NO_RELATIONS_HINT
 from cataforge.interface.cli.main import cli
 
 if TYPE_CHECKING:
@@ -279,6 +280,8 @@ def context_write_doc(
         f"authored {result.doc_id}: {result.sections_written} sections, "
         f"{result.entities_written} entities, {result.relations_written} relations"
     )
+    if result.relations_written == 0 and result.entities_written > 0:
+        click.echo(f"  ({NO_RELATIONS_HINT})", err=True)
 
 
 @context_group.command("write-meta")

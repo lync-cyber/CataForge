@@ -444,14 +444,19 @@ class DocChecker(TypedDocChecksMixin):
         try:
             cfg = kg_config_for(project_root)
             with KnowledgeGraph.connect(cfg, read_only=True) as kg:
-                rows = kg.trace.bidirectional_coverage()
+                # Module coverage (dev-plan→arch) gates on `cf:realizes`; every
+                # other upstream prefix is Feature impl/test coverage.
+                if upstream_prefix == "M":
+                    rows = kg.trace.module_coverage()
+                else:
+                    rows = kg.trace.bidirectional_coverage()
         except Exception:
             return False
 
         uncovered = [
-            r.feature_id
+            r.entity_id
             for r in rows
-            if r.feature_id.startswith(upstream_prefix + "-")
+            if r.entity_id.startswith(upstream_prefix + "-")
             and _coverage_row_uncovered(
                 has_impl=r.has_impl, has_test=r.has_test, require_test=require_test
             )

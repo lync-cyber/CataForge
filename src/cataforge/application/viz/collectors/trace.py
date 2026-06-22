@@ -117,7 +117,7 @@ def collect_coverage(root: Path, /, **_opts: Any) -> View:
             style = _PARTIAL_STYLE
         else:
             style = _NONE_STYLE
-        nodes.append(Node(id=r.feature_id, label=f"{r.feature_id}: {r.title or ''}", style=style))
+        nodes.append(Node(id=r.entity_id, label=f"{r.entity_id}: {r.title or ''}", style=style))
     return Graph(nodes=tuple(nodes), direction="TD", title="feature coverage")
 
 

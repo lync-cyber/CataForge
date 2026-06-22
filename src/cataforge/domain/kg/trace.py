@@ -26,9 +26,15 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class CoverageRow:
-    """One row of :meth:`TraceAPI.bidirectional_coverage`."""
+    """One coverage row for an upstream entity (Feature, Module, …).
 
-    feature_id: str
+    ``has_impl`` means the entity has at least one downstream artifact pointing
+    at it via the layer's coverage predicate; ``has_test`` means a verifying
+    TestCase reaches it. Module-level rows leave ``has_test`` False — modules
+    carry no direct verification, their Features do.
+    """
+
+    entity_id: str
     title: str | None
     has_impl: bool
     has_test: bool
@@ -61,74 +67,88 @@ class TraceAPI:
     # Bidirectional coverage
     # ------------------------------------------------------------------
 
+    def _coverage_rows(
+        self,
+        class_local: str,
+        impl_exists: str,
+        test_exists: str | None,
+    ) -> list[CoverageRow]:
+        """Generic coverage scan for one upstream entity class.
+
+        ``impl_exists`` / ``test_exists`` are SPARQL graph patterns binding the
+        entity to var ``?e``; each is wrapped in ``FILTER EXISTS``. Three
+        separate SELECTs are merged Python-side to avoid the SPARQL 1.1
+        cartesian-product that parallel OPTIONAL blocks produce.
+        """
+        ns = self._cf_ns()
+        prefix = f"PREFIX cf:   <{ns}> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
+
+        title_sparql = (
+            prefix + "SELECT DISTINCT ?e_id ?title WHERE { "
+            f"  ?e a cf:{class_local} ; cf:entity_id ?e_id ; cf:title ?title . "
+            "} ORDER BY ?e_id"
+        )
+        titles: dict[str, str | None] = {}
+        for row in select_rows(self._store, title_sparql):
+            eid = _strv(_row_lookup(row, "e_id"))
+            if eid is not None:
+                titles[eid] = _strv(_row_lookup(row, "title"))
+
+        def _present(exists_body: str) -> set[str]:
+            sparql = (
+                prefix + "SELECT DISTINCT ?e_id WHERE { "
+                f"  ?e a cf:{class_local} ; cf:entity_id ?e_id . "
+                f"  FILTER EXISTS {{ {exists_body} }} "
+                "}"
+            )
+            found: set[str] = set()
+            for row in select_rows(self._store, sparql):
+                eid = _strv(_row_lookup(row, "e_id"))
+                if eid is not None:
+                    found.add(eid)
+            return found
+
+        has_impl = _present(impl_exists)
+        has_test = _present(test_exists) if test_exists is not None else set()
+
+        return [
+            CoverageRow(
+                entity_id=eid,
+                title=titles[eid],
+                has_impl=eid in has_impl,
+                has_test=eid in has_test,
+            )
+            for eid in sorted(titles)
+        ]
+
     def bidirectional_coverage(self) -> list[CoverageRow]:
         """Return one row per Feature with implementation + test status.
 
         A Feature is covered iff some artifact asserts `cf:implements` on it
         AND some TestCase reaches it via `cf:verifies+` (transitive).
         Mention-in-prose does not count.
-
-        Two separate SELECT queries are merged on the Python side to avoid
-        the SPARQL 1.1 cartesian-product semantics that parallel OPTIONAL
-        blocks produce when N impl-nodes x M test-cases both bind.
         """
-        ns = self._cf_ns()
-        prefix = f"PREFIX cf:   <{ns}> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> "
-
-        # Pass 1: feature metadata + impl presence
-        impl_sparql = (
-            prefix + "SELECT DISTINCT ?feature_id ?title "
-            "WHERE { "
-            "  ?feature a cf:Feature ; "
-            "           cf:entity_id ?feature_id ; "
-            "           cf:title     ?title . "
-            "} ORDER BY ?feature_id"
+        return self._coverage_rows(
+            "Feature",
+            impl_exists=(
+                "?impl_node cf:implements ?e . "
+                "?impl_node a ?impl_class . "
+                "?impl_class rdfs:subClassOf* cf:SoftwareArtifact ."
+            ),
+            test_exists="?tc a cf:TestCase ; cf:verifies+ ?e .",
         )
-        titles: dict[str, str | None] = {}
-        for row in select_rows(self._store, impl_sparql):
-            fid = _strv(_row_lookup(row, "feature_id"))
-            if fid is not None:
-                titles[fid] = _strv(_row_lookup(row, "title"))
 
-        # Pass 2: which features have at least one impl artifact
-        has_impl_sparql = (
-            prefix + "SELECT DISTINCT ?feature_id WHERE { "
-            "  ?feature a cf:Feature ; cf:entity_id ?feature_id . "
-            "  FILTER EXISTS { "
-            "    ?impl_node cf:implements ?feature . "
-            "    ?impl_node a ?impl_class . "
-            "    ?impl_class rdfs:subClassOf* cf:SoftwareArtifact . "
-            "  } "
-            "}"
+    def module_coverage(self) -> list[CoverageRow]:
+        """Return one row per Module with realization status.
+
+        A Module is covered iff some Task asserts `cf:realizes` on it. Modules
+        carry no direct test verification, so ``has_test`` is always False.
+        """
+        return self._coverage_rows(
+            "Module",
+            impl_exists="?task cf:realizes ?e .",
+            test_exists=None,
         )
-        has_impl: set[str] = set()
-        for row in select_rows(self._store, has_impl_sparql):
-            fid = _strv(_row_lookup(row, "feature_id"))
-            if fid is not None:
-                has_impl.add(fid)
-
-        # Pass 3: which features have at least one verifying TestCase
-        has_test_sparql = (
-            prefix + "SELECT DISTINCT ?feature_id WHERE { "
-            "  ?feature a cf:Feature ; cf:entity_id ?feature_id . "
-            "  FILTER EXISTS { ?tc a cf:TestCase ; cf:verifies+ ?feature } "
-            "}"
-        )
-        has_test: set[str] = set()
-        for row in select_rows(self._store, has_test_sparql):
-            fid = _strv(_row_lookup(row, "feature_id"))
-            if fid is not None:
-                has_test.add(fid)
-
-        return [
-            CoverageRow(
-                feature_id=fid,
-                title=titles[fid],
-                has_impl=fid in has_impl,
-                has_test=fid in has_test,
-            )
-            for fid in sorted(titles)
-        ]
 
     def coverage(self, feature_id: str) -> dict[str, Any]:
         """Coverage status for a single Feature.

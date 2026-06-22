@@ -55,10 +55,10 @@ required_sections:
 - **变体**: default, hover, disabled
 - **视觉差异**: {各状态的关键视觉变化，如 hover 背景加深 8%、disabled opacity 0.5}
 - **Props**: { label: string, onClick: fn, disabled?: bool }
-- **映射功能**: F-001 (引用 prd-lite)
+- **映射功能**: prd-lite-{project}#§2.F-001
 
 ### UC-002: {组件名}
 - **变体**: ...
 - **视觉差异**: ...
 - **Props**: ...
-- **映射功能**: F-002
+- **映射功能**: prd-lite-{project}#§2.F-002

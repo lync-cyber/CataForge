@@ -91,6 +91,6 @@ def test_bidirectional_coverage_report_segregates_features() -> None:
     f_iri = _add_feature(kg.store, "F-002", "covered feature")
     _add_module(kg.store, "M-020", "ResetService", implements_iri=f_iri)
 
-    rows = {r.feature_id: r for r in kg.trace.bidirectional_coverage()}
+    rows = {r.entity_id: r for r in kg.trace.bidirectional_coverage()}
     assert rows["F-001"].has_impl is False
     assert rows["F-002"].has_impl is True

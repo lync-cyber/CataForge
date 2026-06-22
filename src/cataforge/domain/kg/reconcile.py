@@ -52,6 +52,7 @@ from cataforge.domain.kg.authority import (
 )
 from cataforge.domain.kg.export.document_pipeline import (
     EXPORTED_CONTENT_HASH_SLOT,
+    _covered_source_docs,
     _list_documents,
     render_document,
 )
@@ -272,6 +273,16 @@ def _is_subordinate_id(entity_id: str) -> bool:
     return ENTITY_PREFIX_TO_CLASS.get(entity_id.split("-", 1)[0]) in SUBORDINATE_CLASSES
 
 
+def _is_entity_card(doc: Any) -> bool:
+    """True for a per-entity card export (frontmatter carries ``entity_id``).
+
+    Cards are a derived KG→Markdown rendering for orphan entities, not a
+    Document-backed source file; their link-style refs and render-only sections
+    cannot round-trip back through the ingest scanner.
+    """
+    return "entity_id" in getattr(doc, "frontmatter", {})
+
+
 def _kg_entities_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[str]:
     """Return scope keys in KG whose `cf:source_doc` is one of `doc_ids`.
 
@@ -435,6 +446,16 @@ def reconcile(
     active = sorted(config.kg_active_doc_types)
     authority = definition_authority(project_root)
 
+    # The symmetric diff only spans Document-backed content. Orphan entities
+    # (authored without a Document, e.g. via `context write`) export as
+    # per-entity cards whose Markdown form — link-style `[F-001](…)` instead of
+    # strict xref, render-only `## Implements` sections — cannot round-trip back
+    # through the ingest scanner, so re-scanning them yields phantom divergence.
+    # The FS side drops card files (below); the KG side is restricted to
+    # source_docs that own a `cf:Document` node. A no-op for hybrid (every doc
+    # is Document-backed); orphan cards drift-triage by their own content hash.
+    covered_source_docs = _covered_source_docs(store, cf_namespace(config))
+
     report = ReconcileReport(
         timestamp=_utc_now_iso(),
         active_doc_types=active,
@@ -459,6 +480,9 @@ def reconcile(
         subdir = type_map.get(doc_type, doc_type)
         directory = project_root / "docs" / subdir
         parsed = scan_business_docs(project_root, [doc_type]) if directory.is_dir() else []
+        # Drop per-entity card files; only Document-backed whole docs are
+        # authoritative source for the diff (cards can't round-trip).
+        parsed = [d for d in parsed if not _is_entity_card(d)]
         parsed_by_type[doc_type] = parsed
         doc_ids: set[str] = set()
         for doc in parsed:
@@ -509,11 +533,18 @@ def reconcile(
         for did in doc_ids:
             fs_relations |= fs_rel_by_doc.get(did, set())
 
-        kg_entities = _kg_entities_for_doc_ids(store, config, doc_ids)
-        kg_relations = _kg_relations_for_doc_ids(store, config, doc_ids)
-        kg_sections = _kg_sections_for_doc_ids(store, config, doc_ids)
+        # The KG side spans only Document-backed source_docs: orphan entities
+        # (exported as cards, excluded from the FS side above) are out of scope
+        # for the symmetric diff. On an empty graph (initial ingest / repair)
+        # covered is empty, so the KG side is empty and FS-only entities still
+        # surface as missing to drive reingest.
+        kg_doc_ids = doc_ids & covered_source_docs
 
-        per.orphan_relations = sorted(_kg_orphan_relations_for_doc_ids(store, config, doc_ids))
+        kg_entities = _kg_entities_for_doc_ids(store, config, kg_doc_ids)
+        kg_relations = _kg_relations_for_doc_ids(store, config, kg_doc_ids)
+        kg_sections = _kg_sections_for_doc_ids(store, config, kg_doc_ids)
+
+        per.orphan_relations = sorted(_kg_orphan_relations_for_doc_ids(store, config, kg_doc_ids))
         per.missing_entities = sorted(fs_entities - kg_entities)
         per.ghost_entities = sorted(kg_entities - fs_entities)
         per.missing_relations = sorted(fs_relations - kg_relations)

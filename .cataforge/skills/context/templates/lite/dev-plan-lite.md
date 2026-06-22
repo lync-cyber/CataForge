@@ -28,7 +28,7 @@ required_sections:
 
 ### T-001: {任务名}
 - **目标**: {一句话}
-- **模块**: M-001
+- **模块**: arch-lite-{project}#§2.M-001
 - **task_kind**: feature  <!-- feature | fix | chore | config | docs；非 feature/fix 跳过 TDD -->
 - **tdd_mode**: light
   <!-- agile-lite 默认 light；任务预估 LOC > TDD_LIGHT_LOC_THRESHOLD 或 security_sensitive 时升 standard -->
@@ -47,7 +47,7 @@ required_sections:
 
 ### T-002: {任务名}
 - **目标**: ...
-- **模块**: M-002
+- **模块**: arch-lite-{project}#§2.M-002
 - **task_kind**: feature
 - **tdd_mode**: light
 - **tdd_refactor**: auto

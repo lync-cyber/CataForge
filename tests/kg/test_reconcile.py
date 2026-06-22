@@ -253,6 +253,103 @@ def test_reconcile_agile_variant_is_clean(tmp_path: Path) -> None:
     assert report.ok, report.to_dict()
 
 
+def _graph_project(tmp_path: Path) -> tuple[Path, object]:
+    """A fresh graph-mode project with an empty store; returns (root, config)."""
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._dispatch import invalidate_cache
+
+    proj = tmp_path / "g"
+    (proj / ".cataforge").mkdir(parents=True)
+    (proj / "docs").mkdir()
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=proj / ".cataforge" / "kg" / "store",
+        kg_active_doc_types={"prd", "arch"},
+    )
+    handle = init_store(config, force=True)
+    handle.raw.flush()
+    handle.close()
+    del handle
+    gc.collect()
+    (proj / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"mode": "graph", "kg_active_doc_types": ["prd", "arch"]}}),
+        encoding="utf-8",
+    )
+    invalidate_cache()
+    gc.collect()
+    return proj, config
+
+
+def test_reconcile_graph_orphan_entity_cards_have_no_phantom_divergence(tmp_path: Path) -> None:
+    """Entities authored straight into the graph (no Document) export as
+    per-entity cards. Re-scanning those cards must NOT surface phantom
+    missing/ghost — the symmetric diff spans Document-backed content only."""
+    from cataforge.application.context import write as cw
+    from cataforge.domain.kg import KnowledgeGraphStore
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg.reconcile import reconcile
+
+    proj, config = _graph_project(tmp_path)
+    cw.author_entity(str(proj), entity_id="F-001", class_name="Feature", title="登录")
+    gc.collect()
+    cw.author_entity(str(proj), entity_id="F-002", class_name="Feature", title="登出")
+    gc.collect()
+    cw.author_entity(
+        str(proj),
+        entity_id="M-001",
+        class_name="Module",
+        title="认证模块",
+        relations=[("implements", "F-001")],
+    )
+    gc.collect()
+    cw.finalize(str(proj), None)
+    gc.collect()
+    invalidate_cache()
+    gc.collect()
+
+    with KnowledgeGraphStore.connect(config) as handle:
+        report = reconcile(handle.raw, proj, config)
+
+    assert report.overall_divergence_count == 0, report.to_dict()
+    assert report.ok is True
+
+
+def test_reconcile_graph_whole_doc_roundtrip_is_clean(tmp_path: Path) -> None:
+    """A whole document authored into the graph then exported reconciles with
+    zero divergence (the Document round-trip is faithful)."""
+    from cataforge.application.context import write as cw
+    from cataforge.domain.kg import KnowledgeGraphStore
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg.reconcile import reconcile
+
+    proj, config = _graph_project(tmp_path)
+    prd_md = (
+        "---\nid: prd\ndoc_type: prd\nstatus: draft\n---\n\n"
+        "# PRD\n\n## §2 功能列表\n\n"
+        "### F-001 登录\n\n- **验收标准**:\n  - AC-001: 可登录\n\n"
+        "### F-002 登出\n\n说明。\n"
+    )
+    arch_md = (
+        "---\nid: arch\ndoc_type: arch\nstatus: draft\n---\n\n"
+        "# ARCH\n\n## §2 模块\n\n"
+        "### M-001 认证模块\n\n- 对应功能: prd#§2.F-001\n"
+    )
+    cw.author_document(str(proj), prd_md)
+    gc.collect()
+    cw.author_document(str(proj), arch_md)
+    gc.collect()
+    cw.finalize(str(proj), None)
+    gc.collect()
+    invalidate_cache()
+    gc.collect()
+
+    with KnowledgeGraphStore.connect(config) as handle:
+        report = reconcile(handle.raw, proj, config)
+
+    assert report.overall_divergence_count == 0, report.to_dict()
+    assert report.ok is True
+
+
 def test_reconcile_cli_clean_exits_zero_and_writes_report(tmp_path: Path) -> None:
     project_root = _setup_project_with_kg(tmp_path)
     runner = CliRunner()

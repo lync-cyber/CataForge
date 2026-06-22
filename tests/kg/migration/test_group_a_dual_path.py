@@ -103,7 +103,7 @@ def test_bidirectional_coverage_reflects_graph_edges(variant: str) -> None:
     kg, _ = _ingest_into_memory(project_root)
 
     rows = kg.trace.bidirectional_coverage()
-    by_id = {r.feature_id: r for r in rows}
+    by_id = {r.entity_id: r for r in rows}
 
     assert {"F-001", "F-002"} <= set(by_id)
     for fid in ("F-001", "F-002"):
