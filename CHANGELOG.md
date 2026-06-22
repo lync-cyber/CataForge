@@ -20,6 +20,34 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.13.1'></a>
+## [0.13.1] — 2026-06-22
+
+### Added
+
+- **`cataforge context ensure-store` —— 按 context.mode 水合 KG store** —— store 整目录 gitignore 后，clone 缺 store；本命令幂等重建：`hybrid` 从 Markdown 重建派生索引，`graph` 从最新 NQuads 快照恢复（无快照则 seed 空库），`markdown` no-op，已有非空 store 原样保留。bootstrap 在 graph-backed 项目自动调用。
+- **doctor 新增 graph-only 快照新鲜度门禁（WARN）** —— 耐久快照落后于 live store（clone 会丢失的未提交图状态）时提示运行 `cataforge context finalize`；非门禁。
+
+### Changed
+
+- **KG 物理 store 不再入库，整目录 gitignore** —— RocksDB store 此前是「条件追踪」（只忽略 `LOG`/`LOCK`/`IDENTITY`，结构文件被当 committed SoT）。现降为一次性派生缓存，`.cataforge/.gitignore` 整目录忽略 `kg/store/`：markdown/hybrid 由 `cataforge context ingest` 从文档重建，graph 由 `cataforge kg rollback` 从 NQuads 快照重建。耐久工件是文本——`kg/snapshots/*.nq` + `*.meta.json` 保持 tracked。消除二进制 churn、stale-MANIFEST 不可开 clone，以及 store 文件混入框架资产管理面的一整类脆弱性。
+
+- **graph 模式 `cataforge context finalize` 自动刷新耐久 NQuads 快照** —— 写固定名 `latest.nq` 就地覆盖，git 承载版本历史，快照目录不随 finalize 次数增长。`graph` 模式的 clone 重建源由此自动维护。
+- **doctor 缺 store 提示改指向 `cataforge context ensure-store`**（mode-aware 水合）而非低层 `kg init`；orchestrator Bootstrap 与 framework-walkthrough 同步对齐到该 context facade。
+
+- **`setup --with-penpot` 提示运行 `cataforge deploy`** 以从 framework.json 重新渲染指令文件「设计工具」字段。
+- **订正 framework.json `description` 的 preserve 说明** —— `upgrade apply` 实际整体保留 `context` 与 `project` 两个块（含 `design_tool`），此前描述只列了 `project.languages`；`docs/reference/configuration.md` preserve 表同步补 `project.design_tool` 行。
+
+### Fixed
+
+- **`deploy --rebuild` 不再静默抹掉 CLAUDE.md / AGENTS.md 的 §项目状态** —— `--rebuild` 的清场阶段过去会把 deploy-manifest 拥有的 instruction 文件一并删除，随后 section-merge 因失去"已存在文件"这个合并源而回退到 PROJECT-STATE.md 占位模板，静默覆盖 orchestrator 独占的章节。现按 `update_strategy == "section-merge"` 豁免这类有状态合并目标（`overwrite` 目标仍可清场），purge 后该文件保留、section-merge 正常保留用户/orchestrator 章节。
+
+- **scaffold force-refresh 不再误删运行时状态目录** —— `upgrade apply` / `bootstrap` 的清场阶段过去会把 `.scaffold-manifest.json` 里残留的 `kg/store/*`（旧版本记录、当前已排除出 bundle）当 obsolete 文件删除——典型是只读未 churn 的 RocksDB `CURRENT`——使 KG store 无法打开、doctor 两项 KG 检查 FAIL；gitignored 派生 store 还无法用 git 找回。现把"哪些顶层名不属于 scaffold"（`kg` / `.backups` / `.mcp-state` / `overrides` / 本地记账文件 / 包内模板）收敛为单一谓词，bundle 遍历与 obsolete 清场共用它，stale manifest 条目永不触发删除。
+
+- **`cataforge penpot status` 不再把仅端口可达的 MCP 误报为 ✔ Up** —— MCP 健康判定过去是裸 `GET` 探测且把任何 `HTTPError` 当「up」，于是 stale compose 下 nginx 对 `/mcp/stream` 的 `301→/404`、`405` 也被判为运行中，与 `penpot doctor` 自相矛盾、把排查带偏。现改为 POST 一次 JSON-RPC `initialize` 握手，要求返回 `result.serverInfo` 才判 Up，并接受 Streamable-HTTP 两种帧（`application/json` 直接 body 与 `text/event-stream` 的 `data:` 行）；stale 反代的 404/405/502 一并正确读作 down。`status` / `ensure` / `start` / `stop` 共用同一探活收口点，2s 快失败语义不变。
+
+- **`framework.json#project.design_tool` 成为设计集成的单一事实源，不再与项目指令文件双向漂移** —— 该字段与 CLAUDE.md / AGENTS.md §全局约定「设计工具」此前各自维护（`setup --with-penpot` 只写 framework.json，指令文件靠手改），无 reconcile 致静默失配（典型：CLAUDE.md=penpot 而 framework.json=none）。现把该字段当 `运行时` / `框架版本` 同等处理：deploy 从 framework.json 渲染指令文件「设计工具」行，并经 `always_overwrite_fields: 全局约定:[设计工具]` 每次强制盖入；`upgrade apply` 一次性把仅存于指令文件的 penpot 意图回灌进 framework.json（幂等），避免切换 SSOT 时静默清掉既有选择。
+
 <a id='changelog-0.13.0'></a>
 ## [0.13.0] — 2026-06-22
 
@@ -1775,7 +1803,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.13.1
 [0.13.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.13.0
 [0.12.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.12.1
 [0.12.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.12.0
