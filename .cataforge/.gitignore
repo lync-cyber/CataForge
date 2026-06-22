@@ -9,12 +9,9 @@
 .mcp-state/
 **/__pycache__/
 
-# Knowledge-graph RocksDB store: ignore only pure-runtime logs and locks.
-# Under graph mode the store is the committed source of truth, so structural
-# files (CURRENT / MANIFEST-* / OPTIONS-* / *.sst / *.log WAL) MUST stay
-# tracked — ignoring them leaves a fresh clone with an unopenable store.
-# A markdown-mode project may instead ignore the whole kg/store/ directory.
-kg/store/LOG
-kg/store/LOG.old.*
-kg/store/LOCK
-kg/store/IDENTITY
+# KG physical store is a disposable per-clone cache (binary RocksDB), ignored
+# wholesale under every context.mode. The durable artifact is text: markdown /
+# hybrid rebuild the store from documents (`cataforge context ingest`); graph
+# mode rebuilds from an NQuads snapshot (`cataforge kg rollback`). Snapshots
+# (kg/snapshots/*.nq + *.meta.json) are text, diffable, and stay tracked.
+kg/store/

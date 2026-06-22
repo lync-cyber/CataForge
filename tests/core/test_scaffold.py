@@ -252,8 +252,8 @@ def test_scaffold_excludes_project_state_md(tmp_path: Path) -> None:
 
 def test_scaffold_ships_cataforge_gitignore(tmp_path: Path) -> None:
     """A bundled .cataforge/.gitignore keeps downstream projects from committing
-    framework-generated local state (rollback snapshots, deploy bookkeeping,
-    RocksDB runtime logs/locks)."""
+    framework-generated local state — deploy bookkeeping, rollback snapshots,
+    and the binary RocksDB store (a disposable per-clone cache)."""
     rels = {rel for rel, _ in iter_scaffold_files()}
     assert ".gitignore" in rels
 
@@ -268,10 +268,40 @@ def test_scaffold_ships_cataforge_gitignore(tmp_path: Path) -> None:
         if ln.strip() and not ln.lstrip().startswith("#")
     }
     assert ".backups/" in rules
-    assert "kg/store/LOCK" in rules
-    # kg-first: structural RocksDB files are the committed source of truth and
-    # must NOT be ignored, or a fresh clone gets an unopenable store.
-    assert not any("MANIFEST" in r or ".sst" in r or "CURRENT" in r for r in rules)
+    # The RocksDB store is a disposable cache — ignored wholesale (binary churn,
+    # and a stale MANIFEST relative to the *.sst set yields an unopenable store).
+    assert "kg/store/" in rules
+    # Consolidated: no per-file store rule survives beside the directory rule.
+    assert not any(r.startswith("kg/store/") and r != "kg/store/" for r in rules)
+    # The durable text artifact — NQuads snapshots — stays trackable, not ignored.
+    assert not any(r.startswith("kg/snapshots") for r in rules)
+
+
+def test_cataforge_gitignore_store_ignored_snapshots_tracked(tmp_path: Path) -> None:
+    """End-to-end: git ignores the whole kg/store/ tree yet tracks kg/snapshots/."""
+    import subprocess
+
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+
+    store = dest / "kg" / "store"
+    store.mkdir(parents=True)
+    for name in ("CURRENT", "MANIFEST-000005", "OPTIONS-000007", "000009.sst", "000008.log"):
+        (store / name).write_bytes(b"x")
+    snaps = dest / "kg" / "snapshots"
+    snaps.mkdir(parents=True)
+    (snaps / "20260101T000000Z.nq").write_bytes(b"x")
+    (snaps / "20260101T000000Z.meta.json").write_text("{}", encoding="utf-8")
+
+    def ignored(rel: str) -> bool:
+        return subprocess.run(["git", "check-ignore", "-q", rel], cwd=tmp_path).returncode == 0
+
+    assert ignored(".cataforge/kg/store/000009.sst")
+    assert ignored(".cataforge/kg/store/MANIFEST-000005")
+    assert ignored(".cataforge/kg/store/CURRENT")
+    assert not ignored(".cataforge/kg/snapshots/20260101T000000Z.nq")
+    assert not ignored(".cataforge/kg/snapshots/20260101T000000Z.meta.json")
 
 
 def test_force_refresh_prunes_retired_skill_dir(tmp_path: Path) -> None:

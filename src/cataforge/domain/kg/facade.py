@@ -78,8 +78,9 @@ class KnowledgeGraph:
 
         Pass `read_only=True` for query-only callers: the store opens via
         `Store.read_only` and the on-disk directory is left untouched, so a
-        VCS-tracked store does not show spurious diffs after a read. Writes
-        require `read_only=False` and must go through :meth:`transaction`.
+        read performs no manifest/WAL rotation (deterministic snapshots, no
+        churn). Writes require `read_only=False` and go through
+        :meth:`transaction`.
         """
         store = _open_pyoxigraph(config, create=False, read_only=read_only)
         try:
