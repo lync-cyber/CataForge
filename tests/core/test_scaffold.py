@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from cataforge.core.scaffold import (
     BACKUPS_DIRNAME,
     SIDECAR_SUFFIX,
@@ -202,6 +204,39 @@ def test_non_force_copy_never_prunes(tmp_path: Path) -> None:
     result = copy_scaffold_to(dest, force=False)
     assert obsolete.exists()
     assert result.removed == []
+
+
+@pytest.mark.parametrize(
+    ("rel", "blob"),
+    [
+        ("kg/store/CURRENT", b"MANIFEST-000152\n"),
+        (".mcp-state/cache.json", b"{}"),
+        ("overrides/agents/orchestrator/AGENT.md", b"custom override body"),
+    ],
+)
+def test_force_refresh_never_prunes_runtime_state(tmp_path: Path, rel: str, blob: bytes) -> None:
+    """A stale manifest written before these dirs were excluded from the
+    scaffold must not let the obsolete-file prune delete live runtime state
+    (KG store), local caches, or upgrade-immune override layers."""
+    from cataforge.core.scaffold_backup import _sha256, _write_manifest, read_manifest
+
+    dest = tmp_path / ".cataforge"
+    copy_scaffold_to(dest, force=False)
+
+    runtime_file = dest / rel
+    runtime_file.parent.mkdir(parents=True, exist_ok=True)
+    runtime_file.write_bytes(blob)
+    manifest = read_manifest(dest)
+    manifest[rel] = _sha256(blob)  # disk == recorded → meets prune's delete condition
+    _write_manifest(dest, manifest)
+
+    result = copy_scaffold_to(dest, force=True, backup=False)
+
+    assert runtime_file.exists(), f"{rel} must survive a forced refresh"
+    top = rel.split("/", 1)[0]
+    assert all(top not in str(p) for p in result.removed)
+    # The stale entry must not linger in the fresh manifest either.
+    assert rel not in read_manifest(dest)
 
 
 def test_scaffold_excludes_project_state_md(tmp_path: Path) -> None:

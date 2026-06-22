@@ -166,6 +166,24 @@ _SCAFFOLD_OVERRIDE_DIRS: frozenset[str] = frozenset({"overrides"})
 _SCAFFOLD_EXCLUDED_FILES: frozenset[str] = frozenset({"PROJECT-STATE.md"})
 
 
+def _is_non_scaffold_toplevel(name: str) -> bool:
+    """Top-level names that are never part of the bundled scaffold.
+
+    Runtime/local state (KG store, MCP cache, upgrade backups), upgrade-immune
+    override layers, per-deploy bookkeeping files, and the packaged-only
+    instruction template. The bundle walk and the obsolete-file prune both key
+    off this single predicate, so they can never disagree on membership — a
+    path missing from the walk but recorded by a stale manifest is still
+    recognised as non-scaffold and left untouched.
+    """
+    return (
+        name in _SCAFFOLD_LOCAL_STATE_DIRS
+        or name in _SCAFFOLD_OVERRIDE_DIRS
+        or name in _SCAFFOLD_LOCAL_STATE_FILES
+        or name in _SCAFFOLD_EXCLUDED_FILES
+    )
+
+
 def iter_scaffold_files() -> Iterator[tuple[str, Traversable]]:
     """Yield ``(relative_posix_path, traversable)`` for every bundled file.
 
@@ -183,16 +201,11 @@ def iter_scaffold_files() -> Iterator[tuple[str, Traversable]]:
                 # ships ``.py`` helpers) — never part of the source surface.
                 if child.name == "__pycache__":
                     continue
-                if not prefix and (
-                    child.name in _SCAFFOLD_LOCAL_STATE_DIRS
-                    or child.name in _SCAFFOLD_OVERRIDE_DIRS
-                ):
+                if not prefix and _is_non_scaffold_toplevel(child.name):
                     continue
                 yield from walk(child, rel + "/")
             else:
-                if not prefix and child.name in _SCAFFOLD_LOCAL_STATE_FILES:
-                    continue
-                if not prefix and child.name in _SCAFFOLD_EXCLUDED_FILES:
+                if not prefix and _is_non_scaffold_toplevel(child.name):
                     continue
                 yield rel, child
 
@@ -439,6 +452,10 @@ def _prune_obsolete_files(
     removed: list[Path] = []
     for rel, recorded_hash in prior_manifest.items():
         if rel in manifest_files:
+            continue
+        if _is_non_scaffold_toplevel(rel.split("/", 1)[0]):
+            # Runtime state / overrides / local bookkeeping recorded by a stale
+            # manifest — never the scaffold's to delete.
             continue
         target = dest / rel
         if not target.is_file():
