@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import urllib.error
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -316,6 +317,87 @@ def test_pid_file_round_trip_uses_utf8(monkeypatch: pytest.MonkeyPatch, tmp_path
     # changes and matches the repo-wide consistency rule.
     assert pid_file.read_bytes() == b"98765"
     assert penpot._read_mcp_pid() == 98765
+
+
+# ---------------------------------------------------------------------------
+# _is_mcp_running — MCP initialize handshake, not a bare port/GET probe
+# ---------------------------------------------------------------------------
+
+
+class _FakeResp:
+    """Minimal stand-in for the object urlopen returns (context manager)."""
+
+    def __init__(self, *, content_type: str = "application/json", body: bytes = b"", lines=None):
+        self.headers = {"Content-Type": content_type}
+        self._body = body
+        self._lines = lines or []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def read(self, _n: int = -1) -> bytes:
+        return self._body
+
+    def __iter__(self):
+        return iter(self._lines)
+
+
+_INIT_RESULT = (
+    b'{"jsonrpc":"2.0","id":1,"result":'
+    b'{"protocolVersion":"2025-06-18","serverInfo":{"name":"penpot","version":"1.0"}}}'
+)
+
+
+def _patch_urlopen(monkeypatch: pytest.MonkeyPatch, handler) -> None:
+    monkeypatch.setattr(penpot.mcp_process.urllib.request, "urlopen", handler)
+
+
+def test_is_mcp_running_true_on_json_initialize(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_urlopen(monkeypatch, lambda *_a, **_k: _FakeResp(body=_INIT_RESULT))
+    assert penpot.mcp_process._is_mcp_running({"mcp_port": 4401}) is True
+
+
+def test_is_mcp_running_true_on_sse_initialize(monkeypatch: pytest.MonkeyPatch) -> None:
+    lines = [b"event: message\n", b"data: " + _INIT_RESULT + b"\n", b"\n"]
+    _patch_urlopen(
+        monkeypatch,
+        lambda *_a, **_k: _FakeResp(content_type="text/event-stream", lines=lines),
+    )
+    assert penpot.mcp_process._is_mcp_running({"mcp_port": 4401}) is True
+
+
+def test_is_mcp_running_false_on_stale_proxy_404(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise(*_a, **_k):
+        raise urllib.error.HTTPError("http://localhost:9001/mcp/stream", 404, "Not Found", {}, None)
+
+    _patch_urlopen(monkeypatch, _raise)
+    assert penpot.mcp_process._is_mcp_running({"mcp_port": 4401}) is False
+
+
+def test_is_mcp_running_false_on_stale_proxy_405(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise(*_a, **_k):
+        raise urllib.error.HTTPError(
+            "http://localhost:9001/mcp/stream", 405, "Method Not Allowed", {}, None
+        )
+
+    _patch_urlopen(monkeypatch, _raise)
+    assert penpot.mcp_process._is_mcp_running({"mcp_port": 4401}) is False
+
+
+def test_is_mcp_running_false_on_non_mcp_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_urlopen(monkeypatch, lambda *_a, **_k: _FakeResp(body=b'{"status":"ok"}'))
+    assert penpot.mcp_process._is_mcp_running({"mcp_port": 4401}) is False
+
+
+def test_is_mcp_running_false_on_connection_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise(*_a, **_k):
+        raise urllib.error.URLError("connection refused")
+
+    _patch_urlopen(monkeypatch, _raise)
+    assert penpot.mcp_process._is_mcp_running({"mcp_port": 4401}) is False
 
 
 # ---------------------------------------------------------------------------
