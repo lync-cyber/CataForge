@@ -114,31 +114,31 @@ def test_connect_raises_when_db_path_missing(tmp_path: Path) -> None:
         pass
 
 
-# RocksDB bookkeeping files that .cataforge/.gitignore excludes from VCS and
-# that the OS may hold an exclusive lock on (LOCK is unreadable on Windows
-# while the store is open). They are irrelevant to the working-tree-dirty
-# concern, so the fingerprint skips them.
-_UNTRACKED_STORE_FILES = {"LOCK", "LOG", "IDENTITY"}
+# RocksDB files the OS mutates independently of store content (LOCK is even
+# unreadable on Windows while the store is open). They carry no graph state, so
+# the content fingerprint skips them.
+_VOLATILE_STORE_FILES = {"LOCK", "LOG", "IDENTITY"}
 
 
-def _is_tracked_store_file(name: str) -> bool:
-    return name not in _UNTRACKED_STORE_FILES and not name.startswith("LOG.old.")
+def _is_stable_store_file(name: str) -> bool:
+    return name not in _VOLATILE_STORE_FILES and not name.startswith("LOG.old.")
 
 
 def _store_fingerprint(db: Path) -> dict[str, bytes]:
-    """Map of relative-path -> bytes for every VCS-tracked file under *db*."""
+    """Map of relative-path -> bytes for every content-bearing file under *db*."""
     return {
         str(p.relative_to(db)): p.read_bytes()
         for p in sorted(db.rglob("*"))
-        if p.is_file() and _is_tracked_store_file(p.name)
+        if p.is_file() and _is_stable_store_file(p.name)
     }
 
 
 def test_read_only_connect_leaves_store_dir_byte_identical(tmp_path: Path) -> None:
     """A read-only open performs no manifest/WAL/CURRENT rotation.
 
-    The on-disk store directory is VCS-tracked under kg-first, so any
-    bookkeeping rotation on open would surface as a spurious git diff.
+    Query-only callers (`context read`, snapshot creation) must not mutate the
+    store: rotation on open would make snapshots non-deterministic and churn
+    the on-disk cache for no reason.
     """
     from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
 

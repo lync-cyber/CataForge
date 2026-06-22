@@ -45,7 +45,8 @@ def _open_pyoxigraph(
 
     With `read_only=True` an existing on-disk store is opened via
     `Store.read_only`, which performs no manifest/WAL/CURRENT rotation and
-    so leaves the (VCS-tracked) store directory byte-for-byte unchanged.
+    so leaves the store directory byte-for-byte unchanged (deterministic
+    snapshots, no churn from query-only callers).
     `read_only` is ignored for the memory backend and incompatible with
     `create` (a fresh store must be opened read-write to bootstrap).
     Opening read-only while another process writes the same store is
