@@ -269,3 +269,45 @@ def test_write_narrative_doc_only_rejected_without_kg_init_hint(
     assert "Error:" in result.output
     assert "context.mode" in result.output
     assert "kg init" not in result.output
+
+
+def _project_root_param(command):
+    for param in command.params:
+        if param.name == "project_root":
+            return param
+    return None
+
+
+def test_context_commands_project_root_consistent() -> None:
+    """Every context command's ``--project-root`` shares one type + default.
+
+    The facade previously mixed ``default=None`` (read/index/validate) with
+    ``default="."`` (the authoring verbs), so callers couldn't reason about a
+    single contract. They now agree, and all route the global ``--project-dir``.
+    """
+    from cataforge.interface.cli.context_cmd import context_group
+
+    rooted = {
+        name: _project_root_param(cmd)
+        for name, cmd in context_group.commands.items()
+        if _project_root_param(cmd) is not None
+    }
+    assert rooted, "expected context commands to carry --project-root"
+
+    defaults = {name: p.default for name, p in rooted.items()}
+    assert set(defaults.values()) == {None}, f"inconsistent defaults: {defaults}"
+
+    types = {name: type(p.type).__name__ for name, p in rooted.items()}
+    assert len(set(types.values())) == 1, f"inconsistent types: {types}"
+
+
+def test_context_status_honours_global_project_dir(tmp_path: Path, _clear_dispatch_cache) -> None:
+    """A defaulted ``--project-root`` re-roots under the global ``--project-dir``."""
+    (tmp_path / ".cataforge").mkdir()
+    (tmp_path / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"mode": "markdown"}}), encoding="utf-8"
+    )
+
+    result = CliRunner().invoke(cli, ["--project-dir", str(tmp_path), "context", "status"])
+    assert result.exit_code == 0, result.output
+    assert "mode: markdown" in result.output

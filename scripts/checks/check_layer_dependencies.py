@@ -83,6 +83,14 @@ UPWARD_IMPORT_ALLOWLIST: tuple[tuple[str, str], ...] = (
         "runtime/skill/builtins/framework_feedback/framework_feedback.py",
         "cataforge.application.feedback",
     ),
+    # skill runner lazily reads the application-layer doc_type→phase map to
+    # attribute an auto-emitted event to the reviewed artifact's phase; the
+    # SDLC phase policy stays cohesive in application.phase rather than being
+    # duplicated down a layer.
+    (
+        "runtime/skill/runner.py",
+        "cataforge.application.phase",
+    ),
 )
 
 

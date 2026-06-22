@@ -73,17 +73,18 @@ def _relations(pairs: tuple[str, ...]) -> list[tuple[str, str]]:
     return out
 
 
-def _rooted(ctx: click.Context, project_root: str | None) -> str | None:
-    """Re-root a defaulted ``--project-root`` under the global ``--project-dir``.
+def _rooted(ctx: click.Context, project_root: str | None) -> str:
+    """Resolve ``--project-root`` to a concrete path, honouring ``--project-dir``.
 
-    The context commands carry their own ``--project-root`` (defaulting to
-    cwd), so without this they ignore the global flag. An explicitly-passed
-    ``--project-root`` still wins.
+    Every context command carries its own ``--project-root`` (default ``None``);
+    an explicitly-passed value wins, a defaulted one re-roots under the global
+    ``--project-dir``, and absent both it falls back to the discovered project
+    root. The single return type lets callers drop per-command fallbacks.
     """
-    from cataforge.interface.cli.helpers import root_relative_default
+    from cataforge.interface.cli.helpers import resolve_root, root_relative_default
 
     resolved = root_relative_default(ctx, "project_root", project_root)
-    return str(resolved) if resolved is not None else None
+    return str(resolved) if resolved is not None else str(resolve_root())
 
 
 @context_group.command("read")
@@ -128,14 +129,31 @@ def context_read(
     help="Exit non-zero (3) if any docs/**/*.md is skipped for missing YAML "
     "front matter — useful as a CI gate.",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Read-only integrity gate: validate the existing index without "
+    "rebuilding or writing. Equivalent to `context validate`.",
+)
 @click.pass_context
 def context_index(
-    ctx: click.Context, project_root: str | None, doc_file: str | None, strict: bool
+    ctx: click.Context,
+    project_root: str | None,
+    doc_file: str | None,
+    strict: bool,
+    dry_run: bool,
 ) -> None:
     """Build or update the chapter-level JSON index ``docs/.doc-index.json``."""
     from cataforge.interface.cli.doc_io import run_index
 
-    run_index(_rooted(ctx, project_root), doc_file, strict, command_label="context index")
+    run_index(
+        _rooted(ctx, project_root),
+        doc_file,
+        strict,
+        dry_run=dry_run,
+        command_label="context index",
+    )
 
 
 @context_group.command("validate")
@@ -183,7 +201,7 @@ def context_validate(ctx: click.Context, project_root: str | None) -> None:
 )
 @click.option("--section", "source_section", default="", help="Source section anchor.")
 @click.option("--project-id", default=None)
-@click.option("--project-root", default=".")
+@click.option("--project-root", default=None)
 @click.pass_context
 def context_write(
     ctx: click.Context,
@@ -212,7 +230,7 @@ def context_write(
         raise click.ClickException("--narrative and --narrative-stdin are mutually exclusive.")
     body = click.get_text_stream("stdin").read() if narrative_stdin else narrative
 
-    project_root = _rooted(ctx, project_root) or project_root
+    project_root = _rooted(ctx, project_root)
     with _kg_store_guard():
         iri = author_entity(
             project_root,
@@ -233,7 +251,7 @@ def context_write(
 @click.option("--doc-id", required=True)
 @click.option("--anchor", required=True, help="Section anchor (the heading text, e.g. '1. 概览').")
 @click.option("--narrative", default=None, help="Prose body; omit to read from stdin.")
-@click.option("--project-root", default=".")
+@click.option("--project-root", default=None)
 @click.pass_context
 def context_write_narrative(
     ctx: click.Context, doc_id: str, anchor: str, narrative: str | None, project_root: str
@@ -241,7 +259,7 @@ def context_write_narrative(
     """Author a Section's prose into the graph (graph mode only)."""
     from cataforge.application.context.write import write_narrative
 
-    project_root = _rooted(ctx, project_root) or project_root
+    project_root = _rooted(ctx, project_root)
     body = narrative if narrative is not None else click.get_text_stream("stdin").read()
     with _kg_store_guard():
         write_narrative(project_root, doc_id=doc_id, anchor=anchor, narrative=body)
@@ -255,7 +273,7 @@ def context_write_narrative(
     default=None,
     help="Override the derived docs/{subdir}/{id}.md source path.",
 )
-@click.option("--project-root", default=".")
+@click.option("--project-root", default=None)
 @click.pass_context
 def context_write_doc(
     ctx: click.Context, doc_file: str | None, source_path: str | None, project_root: str
@@ -273,7 +291,7 @@ def context_write_doc(
     markdown_text = (
         Path(doc_file).read_text() if doc_file else click.get_text_stream("stdin").read()
     )
-    project_root = _rooted(ctx, project_root) or project_root
+    project_root = _rooted(ctx, project_root)
     with _kg_store_guard():
         result = author_document(project_root, markdown_text, source_path=source_path)
     click.echo(
@@ -288,7 +306,7 @@ def context_write_doc(
 @click.argument("doc_id")
 @click.option("--status", default=None, help="Document status: draft / review / approved.")
 @click.option("--version", default=None, help="Document version string.")
-@click.option("--project-root", default=".")
+@click.option("--project-root", default=None)
 @click.pass_context
 def context_write_meta(
     ctx: click.Context,
@@ -302,7 +320,7 @@ def context_write_meta(
 
     if status is None and version is None:
         raise click.ClickException("write-meta requires at least one of --status / --version.")
-    project_root = _rooted(ctx, project_root) or project_root
+    project_root = _rooted(ctx, project_root)
     with _kg_store_guard():
         update_document_meta(project_root, doc_id, status=status, version=version)
     fields = ", ".join(
@@ -313,7 +331,7 @@ def context_write_meta(
 
 @context_group.command("transact")
 @click.option("--file", "spec_file", default=None, help="JSON spec path; omit to read stdin.")
-@click.option("--project-root", default=".")
+@click.option("--project-root", default=None)
 @click.pass_context
 def context_transact(ctx: click.Context, spec_file: str | None, project_root: str) -> None:
     """Apply a batch of authoring ops in one atomic transaction (graph mode only).
@@ -338,7 +356,7 @@ def context_transact(ctx: click.Context, spec_file: str | None, project_root: st
         failure.exit_code = 2
         raise failure from exc
 
-    project_root = _rooted(ctx, project_root) or project_root
+    project_root = _rooted(ctx, project_root)
     with _kg_store_guard():
         result = transact(project_root, spec)
     click.echo(
@@ -348,14 +366,14 @@ def context_transact(ctx: click.Context, spec_file: str | None, project_root: st
 
 
 @context_group.command("finalize")
-@click.option("--project-root", default=".")
+@click.option("--project-root", default=None)
 @click.option("--output-dir", default=None, help="Export target (default docs/).")
 @click.pass_context
 def context_finalize(ctx: click.Context, project_root: str, output_dir: str | None) -> None:
     """Persist authored content per mode (graph exports md; else rebuilds the docs index)."""
     from cataforge.application.context.write import DocIndexResult, finalize
 
-    project_root = _rooted(ctx, project_root) or project_root
+    project_root = _rooted(ctx, project_root)
     with _kg_store_guard():
         result = finalize(project_root, output_dir)
     if isinstance(result, DocIndexResult):
@@ -371,14 +389,14 @@ def context_finalize(ctx: click.Context, project_root: str, output_dir: str | No
 
 
 @context_group.command("ingest")
-@click.option("--project-root", default=".")
+@click.option("--project-root", default=None)
 @click.option("--doc-type", "doc_types", multiple=True, help="Restrict scope; repeatable.")
 @click.pass_context
 def context_ingest(ctx: click.Context, project_root: str, doc_types: tuple[str, ...]) -> None:
     """Reflect human-edited Markdown into the active backend (graph or docs index)."""
     from cataforge.application.context.write import DocIndexResult, ingest
 
-    project_root = _rooted(ctx, project_root) or project_root
+    project_root = _rooted(ctx, project_root)
     with _kg_store_guard():
         stats = ingest(project_root, list(doc_types) or None)
     if isinstance(stats, DocIndexResult):
@@ -391,7 +409,7 @@ def context_ingest(ctx: click.Context, project_root: str, doc_types: tuple[str, 
 
 
 @context_group.command("reconcile")
-@click.option("--project-root", default=".")
+@click.option("--project-root", default=None)
 @click.option("--json", "json_output", is_flag=True, help="Emit the full drift report as JSON.")
 @click.pass_context
 def context_reconcile(ctx: click.Context, project_root: str, json_output: bool) -> None:
@@ -405,7 +423,7 @@ def context_reconcile(ctx: click.Context, project_root: str, json_output: bool) 
 
     from cataforge.application.context.write import DocValidationReport, reconcile_check
 
-    project_root = _rooted(ctx, project_root) or project_root
+    project_root = _rooted(ctx, project_root)
     with _kg_store_guard():
         report = reconcile_check(project_root)
     if json_output:
@@ -433,7 +451,7 @@ def context_reconcile(ctx: click.Context, project_root: str, json_output: bool) 
 
 
 @context_group.command("status")
-@click.option("--project-root", default=".")
+@click.option("--project-root", default=None)
 @click.option("--json", "json_output", is_flag=True, help="Emit a JSON probe instead of text.")
 @click.pass_context
 def context_status(ctx: click.Context, project_root: str, json_output: bool) -> None:
@@ -449,7 +467,7 @@ def context_status(ctx: click.Context, project_root: str, json_output: bool) -> 
 
     from cataforge.domain.kg._dispatch import context_mode
 
-    project_root = _rooted(ctx, project_root) or project_root
+    project_root = _rooted(ctx, project_root)
     store_dir = Path(project_root) / ".cataforge" / "kg" / "store"
     payload: dict[str, object] = {
         "mode": context_mode(project_root),
