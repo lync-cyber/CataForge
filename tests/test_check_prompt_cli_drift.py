@@ -74,3 +74,30 @@ def test_skips_fenced_code_blocks(tmp_path: Path) -> None:
     _write(tmp_path, "```\n`context write-section`\n```\n")
     result = _run_against(tmp_path)
     assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_flags_superseded_kg_import(tmp_path: Path) -> None:
+    _write(tmp_path, "业务流程用 `kg import` 导入文档。\n")
+    result = _run_against(tmp_path)
+    assert result.returncode == 1
+    assert "context ingest" in result.stderr
+
+
+def test_flags_superseded_kg_export(tmp_path: Path) -> None:
+    _write(tmp_path, "跑 cataforge kg export 导出 markdown。\n")
+    result = _run_against(tmp_path)
+    assert result.returncode == 1
+    assert "context finalize" in result.stderr
+
+
+def test_superseded_silenced_by_allow_marker(tmp_path: Path) -> None:
+    _write(tmp_path, "`kg import` 仅运维用 <!-- allow-cli-verb: low-level ops -->\n")
+    result = _run_against(tmp_path)
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_drift_check_not_flagged(tmp_path: Path) -> None:
+    """`kg drift-check` is a legitimate low-level diagnostic, not superseded."""
+    _write(tmp_path, "诊断漂移用 `kg drift-check --json`。\n")
+    result = _run_against(tmp_path)
+    assert result.returncode == 0, result.stderr + result.stdout

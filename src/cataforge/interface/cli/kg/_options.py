@@ -17,7 +17,10 @@ from click.decorators import FC
 
 from cataforge.core.paths import KG_STORE_REL
 
-_DB_PATH_HELP = "Filesystem path of the RocksDB-backed Oxigraph store."
+_DB_PATH_HELP = (
+    "Filesystem path of the RocksDB-backed Oxigraph store (advanced; "
+    "routine flows resolve the store from --project-root)."
+)
 
 
 def db_path_option(*, exists: bool = False) -> Callable[[FC], FC]:

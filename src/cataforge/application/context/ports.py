@@ -9,7 +9,7 @@ it can serve that operation:
   dependency fields vs a graph closure).
 * ``UNSUPPORTED`` — structurally cannot serve; the router skips it.
 
-The router orders the strategy's enabled backends by their declared
+The router orders the mode's enabled backends by their declared
 fidelity for the requested operation and consults them highest-first.
 """
 

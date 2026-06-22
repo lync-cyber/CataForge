@@ -110,6 +110,24 @@ class UpdateDocumentMetaResult:
 
 
 @dataclass(frozen=True)
+class UpdateEntityResult:
+    """Outcome of an ``update_entity`` in-place slot merge."""
+
+    entity_id: str
+    slots_updated: list[str]
+    changed: bool
+
+
+@dataclass(frozen=True)
+class DeleteEntityResult:
+    """Outcome of a ``delete_entity`` node removal."""
+
+    entity_id: str
+    cascade: bool
+    quads_removed: int
+
+
+@dataclass(frozen=True)
 class DocValidationReport:
     """Reconcile outcome when the docs index is the backend under guard.
 
@@ -820,6 +838,58 @@ def _stage_document_meta(
         for q in list(txn._store.quads_for_pattern(subject, pred, None, None)):
             txn.remove(q)
         txn.add(ox.Quad(subject, pred, ox.Literal(value, datatype=string_dt)))
+
+
+def update_entity(
+    project_root: str,
+    entity_id: str,
+    *,
+    title: str | None = None,
+    source_section: str | None = None,
+    slots: dict[str, str] | None = None,
+    content_hash: str | None = None,
+) -> UpdateEntityResult:
+    """Merge slot / title updates into an existing graph entity in place.
+
+    Requires ``context.mode = graph``. Only the named slots are rewritten; the
+    entity's ``cf:part_of`` membership and ``cf:source_doc`` are left untouched,
+    so a re-edited entity keeps its document and owner. Raises
+    ``KGEntityNotFoundError`` when the entity is absent.
+    """
+    _require_graph_mode(project_root, "entity update (`context update`)")
+    merged: dict[str, str] = dict(slots or {})
+    if title is not None:
+        merged.setdefault("title", title)
+    if source_section is not None:
+        merged.setdefault("source_section", source_section)
+    if not merged and content_hash is None:
+        raise KGValidationError(
+            "update needs at least one of: title, source_section, slot, content_hash."
+        )
+    cfg = kg_config_for(project_root)
+    with KnowledgeGraph.connect(cfg) as kg, kg.transaction() as txn:
+        txn.update_entity(entity_id, content_hash=content_hash, **merged)
+        changed = txn.pending_inserts > 0 or txn.pending_deletes > 0
+    return UpdateEntityResult(entity_id=entity_id, slots_updated=sorted(merged), changed=changed)
+
+
+def delete_entity(
+    project_root: str, entity_id: str, *, cascade: bool = False
+) -> DeleteEntityResult:
+    """Remove an entity (and optionally its incoming edges) from the graph.
+
+    Requires ``context.mode = graph`` — the graph is canonical only there, so a
+    deletion is meaningful only there. Under ``hybrid`` / ``markdown`` the
+    Markdown is canonical (a graph delete would be re-created by the next
+    md → KG sync), so the door rejects with the path back to editing docs/.
+    Raises ``KGEntityNotFoundError`` when the entity is absent.
+    """
+    _require_graph_mode(project_root, "entity deletion (`context delete`)")
+    cfg = kg_config_for(project_root)
+    with KnowledgeGraph.connect(cfg) as kg, kg.transaction() as txn:
+        txn.delete_entity(entity_id, cascade=cascade)
+        removed = txn.pending_deletes
+    return DeleteEntityResult(entity_id=entity_id, cascade=cascade, quads_removed=removed)
 
 
 def finalize(project_root: str, output_dir: str | None = None) -> CompileResult | DocIndexResult:

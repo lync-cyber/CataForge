@@ -17,9 +17,11 @@ from click.testing import CliRunner
 
 import cataforge.application.context.write as write_app
 from cataforge.interface.cli.context_cmd import (
+    context_delete,
     context_finalize,
     context_ingest,
     context_reconcile,
+    context_update,
     context_write,
     context_write_narrative,
 )
@@ -299,6 +301,204 @@ def test_context_commands_project_root_consistent() -> None:
 
     types = {name: type(p.type).__name__ for name, p in rooted.items()}
     assert len(set(types.values())) == 1, f"inconsistent types: {types}"
+
+
+# ---- update / delete facade (M1 / M2) ---------------------------------------
+
+
+def test_update_doc_only_rejected_without_kg_init_hint(
+    tmp_path: Path, _clear_dispatch_cache
+) -> None:
+    proj = _doc_only_project(tmp_path)
+
+    result = invoke_under_group(
+        context_update,
+        ["F-001", "--title", "x", "--project-root", str(proj)],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert "Error:" in result.output
+    assert "context.mode" in result.output
+    assert "kg init" not in result.output
+
+
+def test_delete_doc_only_rejected_without_kg_init_hint(
+    tmp_path: Path, _clear_dispatch_cache
+) -> None:
+    proj = _doc_only_project(tmp_path)
+
+    result = invoke_under_group(
+        context_delete,
+        ["F-001", "--yes", "--project-root", str(proj)],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert "Error:" in result.output
+    assert "context.mode" in result.output
+    assert "kg init" not in result.output
+
+
+def test_update_requires_at_least_one_field(tmp_path: Path, _clear_dispatch_cache) -> None:
+    proj = _doc_only_project(tmp_path)
+
+    result = invoke_under_group(context_update, ["F-001", "--project-root", str(proj)])
+
+    assert result.exit_code != 0, result.output
+    assert "at least one" in result.output
+
+
+def _graph_project(tmp_path: Path) -> Path:
+    """A graph-mode project with an initialized store, built via `kg init` only."""
+    proj = tmp_path / "p"
+    (proj / ".cataforge").mkdir(parents=True)
+    (proj / "docs").mkdir()
+    (proj / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"mode": "graph", "kg_active_doc_types": ["prd"]}}),
+        encoding="utf-8",
+    )
+    db = proj / ".cataforge" / "kg" / "store"
+    init = CliRunner().invoke(cli, ["kg", "init", "--db-path", str(db)])
+    assert init.exit_code == 0, init.output
+    return proj
+
+
+def test_context_facade_covers_lifecycle_without_kg_business_verbs(
+    tmp_path: Path, _clear_dispatch_cache
+) -> None:
+    """U3 regression: write → finalize → reconcile → update → delete all run
+    through `context *`; only `kg init` (store mechanic) is needed, never a kg
+    *business* verb."""
+    proj = _graph_project(tmp_path)
+    runner = CliRunner()
+    root = ["--project-root", str(proj)]
+
+    written = runner.invoke(
+        cli,
+        [
+            "context",
+            "write",
+            "--entity-id",
+            "F-001",
+            "--class",
+            "Feature",
+            "--title",
+            "登录",
+            *root,
+        ],
+    )
+    assert written.exit_code == 0, written.output
+
+    finalized = runner.invoke(cli, ["context", "finalize", *root])
+    assert finalized.exit_code == 0, finalized.output
+
+    reconciled = runner.invoke(cli, ["context", "reconcile", *root])
+    assert reconciled.exit_code == 0, reconciled.output
+
+    updated = runner.invoke(cli, ["context", "update", "F-001", "--title", "登录v2", *root])
+    assert updated.exit_code == 0, updated.output
+    assert "updated F-001" in updated.output
+
+    deleted = runner.invoke(cli, ["context", "delete", "F-001", "--yes", *root])
+    assert deleted.exit_code == 0, deleted.output
+    assert "deleted F-001" in deleted.output
+
+
+def test_context_delete_json_round_trip(tmp_path: Path, _clear_dispatch_cache) -> None:
+    proj = _graph_project(tmp_path)
+    runner = CliRunner()
+    root = ["--project-root", str(proj)]
+    assert (
+        runner.invoke(
+            cli,
+            [
+                "context",
+                "write",
+                "--entity-id",
+                "F-001",
+                "--class",
+                "Feature",
+                "--title",
+                "登录",
+                *root,
+            ],
+        ).exit_code
+        == 0
+    )
+
+    result = runner.invoke(cli, ["context", "delete", "F-001", "--json", *root])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["entity_id"] == "F-001"
+    assert payload["quads_removed"] > 0
+
+
+def _write_feature_with_incoming_edge(runner: CliRunner, root: list[str]) -> None:
+    """Author F-001 plus an M-001 that ``implements`` it (an edge into F-001)."""
+    runner.invoke(
+        cli,
+        [
+            "context",
+            "write",
+            "--entity-id",
+            "F-001",
+            "--class",
+            "Feature",
+            "--title",
+            "登录",
+            *root,
+        ],
+    )
+    added = runner.invoke(
+        cli,
+        [
+            "context",
+            "write",
+            "--entity-id",
+            "M-001",
+            "--class",
+            "Module",
+            "--title",
+            "Auth",
+            "--relation",
+            "cf:implements=F-001",
+            *root,
+        ],
+    )
+    assert added.exit_code == 0, added.output
+
+
+def test_context_delete_rejects_incoming_edges_without_cascade(
+    tmp_path: Path, _clear_dispatch_cache
+) -> None:
+    proj = _graph_project(tmp_path)
+    runner = CliRunner()
+    root = ["--project-root", str(proj)]
+    _write_feature_with_incoming_edge(runner, root)
+
+    result = runner.invoke(cli, ["context", "delete", "F-001", "--yes", *root])
+
+    assert result.exit_code != 0, result.output
+    assert "incoming edge" in result.output  # txn rejection透传到 facade
+    assert "--cascade" in result.output  # facade 包装的 cascade hint
+
+
+def test_context_delete_cascade_removes_incoming_edges(
+    tmp_path: Path, _clear_dispatch_cache
+) -> None:
+    proj = _graph_project(tmp_path)
+    runner = CliRunner()
+    root = ["--project-root", str(proj)]
+    _write_feature_with_incoming_edge(runner, root)
+
+    result = runner.invoke(cli, ["context", "delete", "F-001", "--yes", "--cascade", *root])
+    assert result.exit_code == 0, result.output
+    assert "cascade" in result.output
+
+    # F-001 is gone — a second facade delete now reports it absent.
+    again = runner.invoke(cli, ["context", "delete", "F-001", "--yes", *root])
+    assert again.exit_code != 0
+    assert "not found" in again.output.lower()
 
 
 def test_context_status_honours_global_project_dir(tmp_path: Path, _clear_dispatch_cache) -> None:

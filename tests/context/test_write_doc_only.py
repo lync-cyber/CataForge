@@ -112,7 +112,7 @@ def test_reconcile_missing_index_raises_with_index_hint(tmp_path: Path) -> None:
 # ---- entity / narrative authoring → configuration error ---------------------
 
 
-def test_author_entity_rejected_with_strategy_message(tmp_path: Path) -> None:
+def test_author_entity_rejected_with_mode_message(tmp_path: Path) -> None:
     proj = _doc_only_project(tmp_path)
     with pytest.raises(cw.ContextModeError, match="context.mode") as exc_info:
         cw.author_entity(str(proj), entity_id="F-001", class_name="Feature", title="登录")
@@ -120,7 +120,7 @@ def test_author_entity_rejected_with_strategy_message(tmp_path: Path) -> None:
     assert not (proj / ".cataforge" / "kg").exists()
 
 
-def test_write_narrative_rejected_with_strategy_message(tmp_path: Path) -> None:
+def test_write_narrative_rejected_with_mode_message(tmp_path: Path) -> None:
     proj = _doc_only_project(tmp_path)
     with pytest.raises(cw.ContextModeError, match="context.mode") as exc_info:
         cw.write_narrative(str(proj), doc_id="arch", anchor="§1 概览", narrative="文本")

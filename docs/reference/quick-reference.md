@@ -68,5 +68,5 @@
 | `0`  | 成功 |
 | `1`  | 业务失败 |
 | `2`  | Click 用法错误 |
-| `3`  | KG 内容校验门失败（`kg import` / `kg validate` / `kg export` / `kg reconcile` 漂移） |
+| `3`  | KG 内容校验门失败（`kg import` / `kg validate` / `kg export` / `kg drift-check` 漂移） |
 | `70` | 路线图 stub（未实现） |

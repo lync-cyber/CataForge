@@ -1,4 +1,4 @@
-"""cataforge kg ingestion & consistency — import, export, validate, reconcile, compare-read."""
+"""cataforge kg ingestion & consistency — import, export, validate, drift-check, compare-read."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from cataforge.interface.cli.kg import kg_group
 from cataforge.interface.cli.kg._options import db_path_option, db_path_ro_option
 
 
-@kg_group.command("import")
+@kg_group.command("import", hidden=True)
 @click.option(
     "--project-root",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
@@ -72,7 +72,7 @@ def kg_import(
     dry_run: bool,
     json_output: bool,
 ) -> None:
-    """Ingest business documents into the KG (six-phase pipeline)."""
+    """Low-level KG ingest (six-phase pipeline). Business flows use ``context ingest``."""
     project_root = root_relative_default(ctx, "project_root", project_root)
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
 
@@ -231,7 +231,7 @@ def kg_validate(ctx: click.Context, db_path: Path, shacl: bool, json_output: boo
         raise KGVerificationError("validation reported violations.")
 
 
-@kg_group.command("export")
+@kg_group.command("export", hidden=True)
 @db_path_ro_option()
 @click.option(
     "--output-dir",
@@ -261,7 +261,10 @@ def kg_export(
     per_entity: bool,
     json_output: bool,
 ) -> None:
-    """Reconstruct whole Markdown documents from the KG (``--per-entity`` for cards)."""
+    """Low-level KG → Markdown export (``--per-entity`` for cards).
+
+    Business flows use ``context finalize``.
+    """
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
     output_dir = root_relative_default(ctx, "output_dir", output_dir, rel=Path("docs"))
 
@@ -307,7 +310,7 @@ def kg_export(
         raise KGVerificationError(f"{len(result.errors)} export errors")
 
 
-@kg_group.command("reconcile")
+@kg_group.command("drift-check")
 @click.option(
     "--project-root",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
@@ -342,7 +345,7 @@ def kg_export(
     help="Also emit the report to stdout as JSON.",
 )
 @click.pass_context
-def kg_reconcile(
+def kg_drift_check(
     ctx: click.Context,
     project_root: Path,
     db_path: Path,
@@ -350,13 +353,13 @@ def kg_reconcile(
     report_output: Path | None,
     json_output: bool,
 ) -> None:
-    """Detect drift between Markdown sources and the KG store (per doc_type).
+    """Low-level symmetric-diff diagnostic between Markdown and the KG store.
 
-    For each active doc_type, compares FS-extracted entities and
-    traceability triples against what is in the KG. Writes the diff to
-    `docs/.kg-reconcile-report.json` and exits non-zero if any
-    `missing` or `ghost` entry exists. Operationally used to spot
-    drift after every `cataforge kg import`.
+    For each active doc_type, compares FS-extracted entities and traceability
+    triples against the KG. Writes the diff to `docs/.kg-reconcile-report.json`
+    and exits non-zero if any `missing` or `ghost` entry exists. This is a
+    store-mechanics diagnostic; the business drift gate is `context reconcile`,
+    which decides pass/fail by document-level triage.
     """
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.domain.kg._dispatch import kg_config_for, kg_enabled

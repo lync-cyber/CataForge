@@ -10,10 +10,10 @@
 **/__pycache__/
 
 # Knowledge-graph RocksDB store: ignore only pure-runtime logs and locks.
-# Under kg-first the store is the committed source of truth, so structural
+# Under graph mode the store is the committed source of truth, so structural
 # files (CURRENT / MANIFEST-* / OPTIONS-* / *.sst / *.log WAL) MUST stay
 # tracked — ignoring them leaves a fresh clone with an unopenable store.
-# A file-first project may instead ignore the whole kg/store/ directory.
+# A markdown-mode project may instead ignore the whole kg/store/ directory.
 kg/store/LOG
 kg/store/LOG.old.*
 kg/store/LOCK

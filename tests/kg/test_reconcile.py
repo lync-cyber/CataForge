@@ -1,4 +1,4 @@
-"""`cataforge kg reconcile` unit + CLI smoke tests.
+"""`cataforge kg drift-check` unit + CLI smoke tests.
 
 Sub-PR 6 — closes the loop on Alpha exit condition 2 (doctor gate
 ERROR-enforced for one full reconcile cycle): without a working
@@ -357,7 +357,7 @@ def test_reconcile_cli_clean_exits_zero_and_writes_report(tmp_path: Path) -> Non
         _cli(),
         [
             "kg",
-            "reconcile",
+            "drift-check",
             "--project-root",
             str(project_root),
             "--db-path",
@@ -391,7 +391,7 @@ def test_reconcile_cli_drift_exits_nonzero(tmp_path: Path) -> None:
         _cli(),
         [
             "kg",
-            "reconcile",
+            "drift-check",
             "--project-root",
             str(project_root),
             "--db-path",

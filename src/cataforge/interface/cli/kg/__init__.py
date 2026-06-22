@@ -2,7 +2,7 @@
 
 Command families (one module each):
 - store:  init, snapshot, rollback, repair
-- ingest: import, export, validate, reconcile, compare-read
+- ingest: import, export, validate, drift-check, compare-read
 - query:  query, trace
 - schema: schema-context
 - write:  add, update, delete

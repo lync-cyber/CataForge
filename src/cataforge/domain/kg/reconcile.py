@@ -1,6 +1,6 @@
 """Per-doc_type drift detector between Markdown sources and the KG store.
 
-Implements `cataforge kg reconcile`. For every doc_type in
+Implements `cataforge kg drift-check`. For every doc_type in
 `KGConfig.kg_active_doc_types`, the reconciler:
 
 1. Scans `docs/{subdir}/*.md` using the same ingest pipeline as

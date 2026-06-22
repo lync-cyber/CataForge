@@ -13,7 +13,7 @@ from cataforge.application.context import write as cw
 from cataforge.application.context.write import CompileResult, DocIndexResult
 from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
 from cataforge.domain.kg._dispatch import invalidate_cache
-from cataforge.domain.kg._errors import KGValidationError
+from cataforge.domain.kg._errors import KGEntityNotFoundError, KGValidationError
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
@@ -199,5 +199,118 @@ def test_context_cli_registers_lifecycle_commands() -> None:
     _register_commands()
     result = CliRunner().invoke(cli, ["context", "--help"])
     assert result.exit_code == 0
-    for sub in ("read", "write", "write-narrative", "finalize", "ingest", "reconcile"):
+    for sub in (
+        "read",
+        "write",
+        "write-narrative",
+        "finalize",
+        "ingest",
+        "reconcile",
+        "update",
+        "delete",
+    ):
         assert sub in result.output, f"missing context subcommand: {sub}"
+
+
+# ---- update_entity (in-place slot merge, M2) --------------------------------
+
+
+def test_update_entity_changes_slot_in_place(tmp_path: Path) -> None:
+    proj = _project(tmp_path, mode="graph")
+    cw.author_entity(
+        str(proj),
+        entity_id="F-001",
+        class_name="Feature",
+        title="登录",
+        slots={"priority": "P0"},
+    )
+    gc.collect()
+
+    result = cw.update_entity(str(proj), "F-001", slots={"priority": "P1"})
+    assert result.changed is True
+    assert result.slots_updated == ["priority"]
+    gc.collect()
+
+    cfg = _connect(proj)
+    ns = cfg.ontology_namespace.rstrip("/") + "/"
+    with KnowledgeGraph.connect(cfg) as kg:
+        rows = list(
+            kg.store.query(
+                f'PREFIX cf: <{ns}> SELECT ?p WHERE {{ ?s cf:entity_id "F-001" ; cf:priority ?p }}'
+            )
+        )
+        assert [str(r["p"].value) for r in rows] == ["P1"]
+    gc.collect()
+
+
+def test_update_entity_preserves_source_doc(tmp_path: Path) -> None:
+    # An in-place slot edit must not relocate the entity's document membership.
+    proj = _project(tmp_path, mode="graph")
+    cw.author_entity(str(proj), entity_id="F-001", class_name="Feature", title="登录")
+    gc.collect()
+    cfg = _connect(proj)
+    ns = cfg.ontology_namespace.rstrip("/") + "/"
+
+    def _source_doc() -> list[str]:
+        with KnowledgeGraph.connect(cfg) as kg:
+            rows = list(
+                kg.store.query(
+                    f"PREFIX cf: <{ns}> "
+                    'SELECT ?d WHERE { ?s cf:entity_id "F-001" ; cf:source_doc ?d }'
+                )
+            )
+        gc.collect()
+        return [str(r["d"].value) for r in rows]
+
+    before = _source_doc()
+    assert before, "authored entity should carry a source_doc"
+
+    cw.update_entity(str(proj), "F-001", title="登录v2")
+    gc.collect()
+
+    assert _source_doc() == before
+
+
+def test_update_entity_absent_raises(tmp_path: Path) -> None:
+    proj = _project(tmp_path, mode="graph")
+    with pytest.raises(KGEntityNotFoundError):
+        cw.update_entity(str(proj), "F-404", title="x")
+    gc.collect()
+
+
+def test_update_rejected_in_hybrid_mode(tmp_path: Path) -> None:
+    proj = _project(tmp_path, mode="hybrid")
+    with pytest.raises(cw.ContextModeError, match="hybrid"):
+        cw.update_entity(str(proj), "F-001", title="x")
+    gc.collect()
+
+
+# ---- delete_entity (M1) -----------------------------------------------------
+
+
+def test_delete_entity_removes_node(tmp_path: Path) -> None:
+    proj = _project(tmp_path, mode="graph")
+    cw.author_entity(str(proj), entity_id="F-001", class_name="Feature", title="登录")
+    gc.collect()
+
+    result = cw.delete_entity(str(proj), "F-001")
+    assert result.quads_removed > 0
+    gc.collect()
+
+    with KnowledgeGraph.connect(_connect(proj)) as kg:
+        assert not kg.query.exists("F-001")
+    gc.collect()
+
+
+def test_delete_entity_absent_raises(tmp_path: Path) -> None:
+    proj = _project(tmp_path, mode="graph")
+    with pytest.raises(KGEntityNotFoundError):
+        cw.delete_entity(str(proj), "F-404")
+    gc.collect()
+
+
+def test_delete_rejected_in_markdown_mode(tmp_path: Path) -> None:
+    proj = _project(tmp_path, mode="markdown")
+    with pytest.raises(cw.ContextModeError, match="markdown"):
+        cw.delete_entity(str(proj), "F-001")
+    gc.collect()

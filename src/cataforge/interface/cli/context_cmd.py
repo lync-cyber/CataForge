@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 @cli.group("context")
 def context_group() -> None:
-    """Strategy-routed context I/O — the single document/context entry point.
+    """Mode-routed context I/O — the single document/context entry point.
 
     Read & index: ``read`` (section load), ``index`` (build .doc-index.json),
     ``validate`` (read-only index integrity gate). Authoring lifecycle:
@@ -102,7 +102,7 @@ def context_read(
     with_deps: bool,
     budget: int | None,
 ) -> None:
-    """Strategy-routed section read of ``doc_id#§N[.item]`` REFS."""
+    """Mode-routed section read of ``doc_id#§N[.item]`` REFS."""
     from cataforge.interface.cli.doc_io import run_load
 
     run_load(
@@ -217,7 +217,7 @@ def context_write(
     project_id: str | None,
     project_root: str,
 ) -> None:
-    """Business authoring door: strategy-routed, write-time-validated single
+    """Business authoring door: mode-routed, write-time-validated single
     entity write into the graph (graph mode only).
 
     Supports layered authoring: ``--parent`` scopes a subordinate under its
@@ -487,3 +487,121 @@ def context_status(ctx: click.Context, project_root: str, json_output: bool) -> 
     click.echo(f"mode: {payload['mode']}")
     click.echo(f"store_initialized: {str(payload['store_initialized']).lower()}")
     click.echo(f"entity_count: {payload['entity_count']}")
+
+
+@context_group.command("update")
+@click.argument("entity_id")
+@click.option("--title", default=None, help="New title.")
+@click.option("--section", "source_section", default=None, help="New source section anchor.")
+@click.option("--slot", "slots", multiple=True, metavar="KEY=VALUE", help="Repeatable scalar slot.")
+@click.option("--content-hash", default=None, help="New content hash (idempotent if unchanged).")
+@click.option("--project-root", default=None)
+@click.option("--json", "json_output", is_flag=True)
+@click.pass_context
+def context_update(
+    ctx: click.Context,
+    entity_id: str,
+    title: str | None,
+    source_section: str | None,
+    slots: tuple[str, ...],
+    content_hash: str | None,
+    project_root: str | None,
+    json_output: bool,
+) -> None:
+    """Business authoring door: in-place slot/title merge on an existing entity
+    (graph mode only). Membership (part_of / source_doc) is preserved."""
+    import json
+
+    from cataforge.application.context.write import update_entity
+    from cataforge.domain.kg import KGEntityNotFoundError
+
+    if not slots and title is None and source_section is None and content_hash is None:
+        raise click.ClickException(
+            "update requires at least one of: --title, --section, --slot, --content-hash."
+        )
+    project_root = _rooted(ctx, project_root)
+    with _kg_store_guard():
+        try:
+            result = update_entity(
+                project_root,
+                entity_id,
+                title=title,
+                source_section=source_section,
+                slots=_kv(slots),
+                content_hash=content_hash,
+            )
+        except KGEntityNotFoundError as exc:
+            raise KGStoreError(str(exc)) from exc
+    if json_output:
+        click.echo(
+            json.dumps(
+                {
+                    "entity_id": result.entity_id,
+                    "slots_updated": result.slots_updated,
+                    "changed": result.changed,
+                }
+            )
+        )
+        return
+    verb = "updated" if result.changed else "unchanged"
+    click.echo(f"{verb} {result.entity_id} ({', '.join(result.slots_updated) or 'no slots'})")
+
+
+@context_group.command("delete")
+@click.argument("entity_id")
+@click.option(
+    "--cascade",
+    is_flag=True,
+    default=False,
+    help="Also remove incoming edges; without it, refuses if any exist.",
+)
+@click.option("--yes", is_flag=True, default=False, help="Skip the confirmation prompt.")
+@click.option("--project-root", default=None)
+@click.option("--json", "json_output", is_flag=True)
+@click.pass_context
+def context_delete(
+    ctx: click.Context,
+    entity_id: str,
+    cascade: bool,
+    yes: bool,
+    project_root: str | None,
+    json_output: bool,
+) -> None:
+    """Business authoring door: delete an entity (and optionally its incoming
+    edges) from the graph (graph mode only)."""
+    import json
+
+    from cataforge.application.context.write import delete_entity
+    from cataforge.domain.kg import KGEntityNotFoundError, KGValidationError
+
+    if not yes and not json_output:
+        suffix = " (and incoming edges)" if cascade else ""
+        if not click.confirm(f"Delete {entity_id}{suffix}?", default=False):
+            click.echo("Aborted.")
+            return
+    project_root = _rooted(ctx, project_root)
+    with _kg_store_guard():
+        try:
+            result = delete_entity(project_root, entity_id, cascade=cascade)
+        except KGEntityNotFoundError as exc:
+            raise KGStoreError(str(exc)) from exc
+        except KGValidationError as exc:
+            hint = (
+                "\nHint: pass --cascade to remove incoming edges too."
+                if "incoming edge" in str(exc)
+                else ""
+            )
+            raise KGStoreError(f"{exc}{hint}") from exc
+    if json_output:
+        click.echo(
+            json.dumps(
+                {
+                    "entity_id": result.entity_id,
+                    "cascade": result.cascade,
+                    "quads_removed": result.quads_removed,
+                }
+            )
+        )
+        return
+    tail = ", cascade" if result.cascade else ""
+    click.echo(f"deleted {result.entity_id} ({result.quads_removed} quads removed{tail})")
