@@ -64,7 +64,7 @@
 规则：默认 `[pre_dev, post_sprint, pre_deploy]` 覆盖最高风险节点（`pre_dev` 已在最贵阶段前 consolidate 全部上游冻结文档审查，故 PRD/ARCH 冻结点默认不单独设确认，仅 doc-review 质量门禁）；需要早期冻结门禁的项目显式加 `post_doc_freeze`（中间档），需要门禁每次转换则用 `phase_transition`；用户在 Bootstrap 时或运行中通过 项目指令文件 §全局约定 覆盖；`none` 与其他值互斥。
 
 ## 执行模式矩阵
-框架支持三种执行模式，写入 项目指令文件 §框架元信息.执行模式，未填默认 `standard`。
+框架支持三种执行模式，写入 项目指令文件 §项目信息.执行模式，未填默认 `standard`。
 
 | 维度 | standard（默认） | agile-lite | agile-prototype |
 |------|-----------------|-----------|-----------------|

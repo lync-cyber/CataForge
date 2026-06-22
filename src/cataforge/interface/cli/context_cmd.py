@@ -392,14 +392,37 @@ def context_ingest(ctx: click.Context, project_root: str, doc_types: tuple[str, 
 
 @context_group.command("reconcile")
 @click.option("--project-root", default=".")
+@click.option("--json", "json_output", is_flag=True, help="Emit the full drift report as JSON.")
 @click.pass_context
-def context_reconcile(ctx: click.Context, project_root: str) -> None:
-    """Drift guard between the Markdown tree and the active backend."""
-    from cataforge.application.context.write import reconcile_check
+def context_reconcile(ctx: click.Context, project_root: str, json_output: bool) -> None:
+    """Drift guard between the Markdown tree and the active backend.
+
+    The pass/fail verdict is the authoritative document-level three-way triage;
+    ``--json`` additionally surfaces the per-doc_type symmetric diff (demoted to
+    diagnostics) and every drifted document's state for inspection.
+    """
+    import json
+
+    from cataforge.application.context.write import DocValidationReport, reconcile_check
 
     project_root = _rooted(ctx, project_root) or project_root
     with _kg_store_guard():
         report = reconcile_check(project_root)
+    if json_output:
+        if isinstance(report, DocValidationReport):
+            payload: dict[str, object] = {
+                "ok": report.ok,
+                "overall_divergence_count": report.overall_divergence_count,
+                "issue_counts": report.issue_counts,
+            }
+        else:
+            payload = report.to_dict()
+        click.echo(json.dumps(payload))
+        if report.ok:
+            return
+        failure = CataforgeError(f"reconcile: {report.overall_divergence_count} divergence(s)")
+        failure.exit_code = 3
+        raise failure
     if report.ok:
         click.echo("reconcile OK (no drift)")
         return
@@ -411,14 +434,16 @@ def context_reconcile(ctx: click.Context, project_root: str) -> None:
 
 @context_group.command("status")
 @click.option("--project-root", default=".")
+@click.option("--json", "json_output", is_flag=True, help="Emit a JSON probe instead of text.")
 @click.pass_context
-def context_status(ctx: click.Context, project_root: str) -> None:
-    """Print a read-only JSON probe of the project's context backend.
+def context_status(ctx: click.Context, project_root: str, json_output: bool) -> None:
+    """Print a read-only probe of the project's context backend.
 
     Reports the resolved ``context.mode`` and, when a graph store is already on
-    disk, its entity count. Probing never creates the store: an uninitialized
-    project reads ``store_initialized: false`` with a zero count, leaving disk
-    untouched.
+    disk, its entity count. Defaults to a human-readable summary; ``--json``
+    emits the machine-readable blob. Probing never creates the store: an
+    uninitialized project reads ``store_initialized: false`` with a zero count,
+    leaving disk untouched.
     """
     import json
 
@@ -438,4 +463,9 @@ def context_status(ctx: click.Context, project_root: str) -> None:
         cfg = kg_config_for(project_root)
         with _kg_store_guard(), KnowledgeGraph.connect(cfg, read_only=True) as kg:
             payload["entity_count"] = len(kg.query.entity_ids())
-    click.echo(json.dumps(payload))
+    if json_output:
+        click.echo(json.dumps(payload))
+        return
+    click.echo(f"mode: {payload['mode']}")
+    click.echo(f"store_initialized: {str(payload['store_initialized']).lower()}")
+    click.echo(f"entity_count: {payload['entity_count']}")

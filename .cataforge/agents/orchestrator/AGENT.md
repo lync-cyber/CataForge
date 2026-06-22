@@ -31,7 +31,7 @@ skills:
 5. 根据 Phase Routing 判断当前应进入哪个阶段
 
 ## Phase Routing
-阶段路由骨架（phase → role → execution_host）的**权威源是 `framework.json#/workflow`**；下表为只读视图。阶段路由细节、文档生命周期、执行流程详见 ORCHESTRATOR-PROTOCOLS.md。**每次阶段决策前必须先执行 §Mode Routing Protocol**（读取 {INSTRUCTION_FILE} §框架元信息.执行模式），按 workflow 的 `execution_host` 分派：`inline` → §Inline Role Execution Protocol（主线程承载角色）；`subagent` → agent-dispatch 派发。
+阶段路由骨架（phase → role → execution_host）的**权威源是 `framework.json#/workflow`**；下表为只读视图。阶段路由细节、文档生命周期、执行流程详见 ORCHESTRATOR-PROTOCOLS.md。**每次阶段决策前必须先执行 §Mode Routing Protocol**（读取 {INSTRUCTION_FILE} §项目信息.执行模式），按 workflow 的 `execution_host` 分派：`inline` → §Inline Role Execution Protocol（主线程承载角色）；`subagent` → agent-dispatch 派发。
 
 ### standard 模式（默认）
 Phase 1 requirements → product-manager → prd [inline]
@@ -54,7 +54,7 @@ development → tdd-engine light 分支 → CODE+TESTS
 （testing / deployment 默认 N/A）
 
 每个阶段: 调度Agent → Agent执行 → reviewer门禁 → **Phase Transition Protocol** → **Manual Review Checkpoint** → 下一阶段。
-前置条件: 上游文档 approved 后，先执行 Phase Transition Protocol（状态持久化），再检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint / §Phase Transition Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 {INSTRUCTION_FILE} §框架元信息。完整模式差异矩阵见 COMMON-RULES §执行模式矩阵。
+前置条件: 上游文档 approved 后，先执行 Phase Transition Protocol（状态持久化），再检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint / §Phase Transition Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 {INSTRUCTION_FILE} §项目信息。完整模式差异矩阵见 COMMON-RULES §执行模式矩阵。
 
 ## DEV Phase Special Handling (Phase 5)
 开发阶段由 orchestrator 通过 tdd-engine skill 直接编排。详见 tdd-engine SKILL.md 和 ORCHESTRATOR-PROTOCOLS.md §Sprint Review Protocol。

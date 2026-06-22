@@ -10,11 +10,13 @@ machine-checkable phase boundary. The evaluation logic lives in
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import click
 
 from cataforge.application.phase import evaluate_phase
 from cataforge.core.errors import CataforgeError
-from cataforge.interface.cli.helpers import resolve_root
+from cataforge.interface.cli.helpers import resolve_root, root_relative_default
 from cataforge.interface.cli.main import cli
 
 
@@ -24,14 +26,17 @@ def phase_group() -> None:
 
 
 @phase_group.command("status")
-def phase_status() -> None:
+@click.option("--project-root", default=None)
+@click.pass_context
+def phase_status(ctx: click.Context, project_root: str | None) -> None:
     """Verify the current phase's expected artifacts exist.
 
     Exit 0 when every check for the current phase passes; exit 1 when an
     expected artifact is missing (phase not driven, doc absent/unindexed, no
     phase_start); exit 2 when the project has no instruction file.
     """
-    root = resolve_root()
+    resolved = root_relative_default(ctx, "project_root", project_root)
+    root = Path(resolved) if resolved is not None else resolve_root()
     current, checks = evaluate_phase(root)
 
     click.echo(f"Phase: {current}")

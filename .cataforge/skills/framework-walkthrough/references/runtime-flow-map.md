@@ -32,7 +32,7 @@
 
 | id | 路径 / 步骤 | 期望行为 | 处置 | 观察重点 |
 |----|------------|---------|------|---------|
-| I-1 | 收集项目信息 + 选执行模式 | AskUserQuestion 单独提问，写入 §框架元信息.执行模式 | D | 提问是否选择题优先、是否一次问全 |
+| I-1 | 收集项目信息 + 选执行模式 | AskUserQuestion 单独提问，写入 §项目信息.执行模式 | D | 提问是否选择题优先、是否一次问全 |
 | I-2 | 创建目录结构 | 按模式建 `docs/{...}`（standard/agile-lite vs agile-prototype 不同集合） | D | 目录集合与模式是否匹配 |
 | I-3 | 写 `.gitattributes` | 项目根缺失时写跨平台行尾最小集；已存在只读判断不覆盖 | D | 是否误覆盖用户自定义 |
 | I-4 | 创建 {INSTRUCTION_FILE} | 按 Update Template 生成，文档状态全 `未开始`，当前阶段按模式（requirements/planning/brief） | D | 初始阶段与模式是否一致 |
@@ -48,7 +48,7 @@
 
 | id | 路径 | 期望行为 | 处置 | 观察重点 |
 |----|------|---------|------|---------|
-| C-1 | Mode Routing | 按 §框架元信息.执行模式 路由出本模式的阶段序列与文档类型 | D | 路由结果与 COMMON-RULES §执行模式矩阵一致 |
+| C-1 | Mode Routing | 按 §项目信息.执行模式 路由出本模式的阶段序列与文档类型 | D | 路由结果与 COMMON-RULES §执行模式矩阵一致 |
 | C-2 | execution_host 分派 | `inline` 阶段主线程承载（交互角色）；`subagent` 阶段派隔离子代理 | D | interactive=true 的阶段是否走 inline、子代理是否真被派发而非空转 |
 | C-3 | 文档产出 + 定稿 | 角色经 context authoring 产文档、`context finalize` 落 status=draft | D | 产物路径/命名/front matter 合规、是否注册索引 |
 | C-4 | doc-review 门禁 | Layer 1 强制；按 `DOC_REVIEW_L2_SKIP_*` 判断 Layer 2 短路 | D | 该审却没审 / 该短路却全跑；Layer 1 退出码 |

@@ -192,6 +192,35 @@ def test_reconcile_doc_only_orphan_exits_3(tmp_path: Path, _clear_dispatch_cache
     assert "Error:" in result.output
 
 
+def test_context_reconcile_json_clean_index(tmp_path: Path, _clear_dispatch_cache) -> None:
+    # --json surfaces the full report and exits 0 on a clean docs index.
+    proj = _doc_only_project(tmp_path)
+    invoke_under_group(context_finalize, ["--project-root", str(proj)])
+
+    result = invoke_under_group(context_reconcile, ["--project-root", str(proj), "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["ok"] is True
+    assert payload["overall_divergence_count"] == 0
+
+
+def test_context_reconcile_json_drift_exit_3(tmp_path: Path, _clear_dispatch_cache) -> None:
+    # On drift, --json still emits the report but exits 3 (gate semantics intact).
+    proj = _doc_only_project(tmp_path)
+    invoke_under_group(context_finalize, ["--project-root", str(proj)])
+    orphan = proj / "docs" / "research" / "orphan.md"
+    orphan.parent.mkdir(parents=True)
+    orphan.write_text("# no front matter\n", encoding="utf-8")
+
+    result = invoke_under_group(context_reconcile, ["--project-root", str(proj), "--json"])
+
+    assert result.exit_code == 3, result.output
+    # The JSON body precedes the error banner.
+    first_line = result.output.splitlines()[0]
+    assert json.loads(first_line)["ok"] is False
+
+
 def test_write_doc_only_rejected_without_kg_init_hint(
     tmp_path: Path, _clear_dispatch_cache
 ) -> None:
