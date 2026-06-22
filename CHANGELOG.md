@@ -20,6 +20,94 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.13.0'></a>
+## [0.13.0] — 2026-06-22
+
+### Added
+
+- **`TDD_INLINE_ELIGIBLE_MODES` 常量** —— 单点声明 TDD inline 执行（无 RED/GREEN 子代理 dispatch）的执行模式集 `[agile-lite, agile-prototype]`（framework.json + COMMON-RULES 双向同步）；tdd-engine inline 触发条件引用常量名替代硬编码模式集。
+
+- **anti-rot 守卫扩展** —— `check_no_language_coupling` 纳入测试框架 module-mock API（`vi.mock` / `jest.mock` / `unittest.mock`）与 e2e-driver 输入原语（`page.*` / `cy.*` / `keyboard.*` / `send_keys`）；`check_doc_structure` 纳入缩进字母子列表（`a.` / `b)`）检测。新增 `docs/reference/test-and-e2e-apis.md` 收纳按生态分类的 API 清单。
+
+- **framework-review B2-β check** —— 校验 SKILL.md `suggested-tools` 值 ∈ `CAPABILITY_IDS ∪ EXTENDED_CAPABILITY_IDS`，捕获平台原生工具名（Read / Bash 等）等不可移植、绕过注册表的写法；注册表不可导入时降级为 no-op。
+
+- **下游声明式 Penpot MCP 注入** —— `cataforge setup --with-penpot` 现写入 `project.design_tool=penpot` 并生成 `.cataforge/mcp/penpot.yaml`，使后续 `cataforge deploy` 把 Penpot MCP 注入各平台配置（`.mcp.json` / `.cursor/mcp.json` / codex toml / `opencode.json`）；spec 存在即启用，未启用项目不受影响。
+- **MCP 注册表支持远程（HTTP/SSE）server** —— `MCPServerSpec` 新增 `url` 字段；`MCPRegistry.get_platform_config` 对远程 server 输出中性 `{transport, url}` payload（不含空 `command`/`args`），由各平台 adapter 的 `_native_mcp_payload` 渲染成原生 shape（Claude `{type,url}` / Cursor `{url}` / Codex toml `url` / OpenCode remote）。每平台的 HTTP key 拼写归属 adapter，不再泄漏进 server spec。
+
+- **`cataforge viz` 可视化命令面（档位 1：文本渲染）** —— 新增 `cataforge viz framework` 把 orchestrator → phase → agent → skill 编排图渲染为 Mermaid / DOT / JSON 文本（`--format`，默认 mermaid；`-o` 写文件，否则 stdout）。数据复用 framework.json 路由与 agent frontmatter，零运行时依赖。底层引入共享 IR（Graph/Timeline/MetricSeries）与文本渲染核（`core.viz`），`kg trace --output mermaid` 与 `task-dep-analysis --format mermaid` 内部改用同一渲染核去重（CLI 表面与输出不变）。
+
+- **`cataforge viz` KG 视图：trace / coverage / arch** —— 在 viz 命令面新增三个读知识图谱的视图：`viz trace [ENTITY_ID]`（追溯链图，省略 ID 聚合全部 Feature，`--direction downstream|upstream|both`）、`viz coverage`（Feature 覆盖矩阵，节点按 impl/test 状态着色）、`viz arch`（Module/Component/API/DataModel + 层内 `depends_on` 依赖图）。均支持 `--format mermaid|dot|json` 与 `-o`；KG store 未初始化时优雅退出并提示 `cataforge kg init`。
+
+- **`cataforge viz` 结构视图：docs / tasks** —— 在 viz 命令面新增两个项目结构视图：`viz docs`（文档依赖有向图，读 `docs/.doc-index.json` 的 `deps`；stale 上游标节点样式 + `stale` 边、断裂 xref 标 `xref-error` 边，复用 indexer 的 `find_stale_deps` / `find_xref_errors`）、`viz tasks`（任务 DAG，双数据源：给 `--edges "A→B,B→C"`（+ 可选 `--weights`）走 authoring 路径，省略时从 KG `Task.depends_on` 自动取数；复用 `task-dep-analysis` 的拓扑 / 关键路径 / 环检测算法，关键路径或环节点高亮）。均支持 `--format mermaid|dot|json` 与 `-o`。
+
+- **`cataforge viz` 过程视图：phase / timeline / decay** —— 在 viz 命令面新增三个过程视图：`viz phase`（SDLC 阶段骨架，当前阶段按门禁结论着色，绿=通过/红=受阻，结论与 `cataforge phase status` 退出码语义一致，复用 `evaluate_phase`）、`viz timeline`（EVENT-LOG 事件时间线，容错解析跳过坏行）、`viz decay`（CORRECTIONS-LOG 腐化时间线，每条纠偏一个事件，复用 `collect_corrections`）。mermaid 渲染器扩展支持 Timeline IR → mermaid `timeline` 图，三视图在 档位 1 均原生渲染；MetricSeries 的图表形态留待 档位 2（ECharts）。
+
+- **`cataforge viz --html`：自包含离线 HTML 渲染器 + dashboard + 资产浏览器** —— 全部单视图新增 `--html`，产出单文件离线页：`Graph` 走 Cytoscape.js（zoom / pan / 节点搜索），`Timeline` / `MetricSeries` 走 ECharts；vendored `cytoscape.min.js` / `echarts.min.js` 经 `importlib.resources` 内联，零外链、断网即开。新增 `viz dashboard`（全部可用视图聚合进单文件多标签页，取不到数据的视图降级为错误面板）与 `viz assets`（全量 agent + skill 目录与依赖图，`--html` 下带搜索框）。`--html` 与 `--format` 互斥，同时给出时 `--html` 生效。
+
+- **framework-walkthrough 完整运行流程覆盖** —— 新增 `references/runtime-flow-map.md` 作为走查覆盖面单一事实源，枚举框架五类运行路径（初始化 / 核心链路含 Phase Transition 子路径 / 分支 / 异常 / 终止清理），每条标处置 `driven` / `probed` / `observed` 与观察重点。
+- **`--depth smoke|full` 输入** —— `smoke`（缺省）只确定性驱动 happy path 主干；`full` 按探针清单逐个触发可达的分支/异常路径（`needs_input` / `needs_revision` / `approved_with_notes` / change-request / 并行调度等），不可强制的真实失败路径只机会观察。
+- **路径覆盖账本** —— 走查报告对每条路径标 `driven` / `probed` / `observed` / `not-reached(原因)`，杜绝「跑通 happy path 就声称全流程正常」。
+
+- **`cataforge viz serve` 本地静态服务（档位 3）** —— 用标准库 `http.server` 托管 viz 产物目录（默认 `docs/viz/`），启动时先写一份 dashboard `index.html` 再持续提供 HTTP 访问，仅依赖标准库、不引入任何服务框架。`--watch` 启动后台线程轮询 KG store / doc-index / EVENT-LOG / CORRECTIONS-LOG 的 mtime，任一变更即重生成 dashboard，浏览器刷新即见最新；`Ctrl-C` 干净退出。`--dir` / `--host` / `--port` 控制托管目录与监听地址。
+- **`cataforge viz status` 视图就绪体检** —— 逐视图探测数据源，输出 `ready`（带节点/事件计数）/ `empty`（能渲染但暂无数据）/ `needs setup`（数据源缺失，并从 collector 自带提示抽出 `run: cataforge kg init` 这类可照抄的命令）三态，让新用户先看清哪些视图现在可用、按需补齐。
+- **`cataforge viz quickstart` 一键起实时 dashboard** —— 单命令完成「生成 + 本地服务 + 自动开浏览器 + 监听源数据变更」，等价 `viz serve --watch --open`。`viz serve` 与 `viz dashboard` 同步新增 `--open`（就绪后用默认浏览器打开；`dashboard --open` 无 `-o` 时写 `docs/viz/dashboard.html` 再打开）。`viz` 组帮助加 Quickstart 提示，写文件后提示下一步。
+
+- **`context update` / `context delete`** —— context 门面补全实体生命周期：`update` 就地合并实体 slot（保 `cf:part_of` / `cf:source_doc` 归属），`delete` 删除实体（`--cascade` 连带入向边、`--yes` 跳确认、`--json` 机读）。二者经授权门，仅 `context.mode = graph` 可用，`hybrid` / `markdown` 下拒绝并指向编辑 docs/。
+
+### Changed
+
+- **agent 契约订正** —— tech-lead 移除无职责支撑的 `docs/research/` 写权限并修正 Bash anti-pattern 语义倒置；refactorer anti-pattern "一次提交"→"单次变更批次"（refactorer 无 git 权限）；architect 去除易腐化的 Node/React 具体版本号示例。
+
+- **测试 / e2e API 引用语言无关化** —— qa-engineer / sprint-review / testing / test-writer 正文移除具体框架 API 字面量，改抽象表述 + markdown 链接引用；tech-eval 执行流程的 `a./b./c./d.` 子步骤改嵌套 bullet。
+
+- **skill `suggested-tools` 统一为 capability_id** —— 23 个 skill 的 `suggested-tools` 从平台原生名（Read / Bash / Agent）规范化为 capability_id（file_read / shell_exec / agent_dispatch），与 deploy 翻译层及 4 个基础设施 skill 的既有写法一致、跨平台可移植。字段当前仅被 loader 解析，codemod 零行为变更。
+
+- **framework-review r1 剩余发现订正（边界 / 触发 / 文档完整性）** —— arc-design 改按章节加载 PRD（对齐 §文档加载纪律）；ui-design ↔ penpot-review 调用时序、penpot-sync 单向约束、req-analysis ↔ task-decomp 边界、tdd-engine ↔ testing 边界均显式声明；start-orchestrator 增"框架未部署先 framework-update"反模式 + Phase Transition 前置校验指针；platform-audit 单平台反模式限定到 full 模式（不与 `deep` 模式冲突）；framework-review Step1 速查表补全 B5-ε / B8-α/β/γ 行；task-dep-analysis 补落盘声明；framework-feedback `depends` 改为 `[]`（framework-review 为 best-effort 软依赖）。
+- **Anti-Pattern 质量与具名倾向补全** —— framework-issue-resolve dry-run 反模式措辞规范化；tech-eval / arc-design 补"避免按训练集热门度选型 / 套微服务全家桶"具名默认倾向；workflow-framework-generator 去除内部 check 编号引用；hooks detect_correction 降级 reason 澄清（hook skip + 平台 alwaysApply 规则兜底）。
+
+- **Penpot 自托管 MCP 改为 compose 容器** —— `cataforge penpot deploy` 现把 MCP 作为 `penpot-mcp` 服务（`penpotapp/mcp`）随 `docker compose up` 一并拉起，frontend 用 `enable-mcp` 经 nginx 反代到 `http://localhost:${PENPOT_PORT}/mcp/stream`；自托管不再需要宿主机 Node / npx，`mcp-only` 不再是必经步骤。全部 Penpot 镜像由单一 `PENPOT_VERSION`（默认 2.16）统一固定。`remote` / `mcp-only` 仍走宿主机 npx 以保留零-Docker 路径。
+
+- **BREAKING：`kg trace --output mermaid` 迁移到 `cataforge viz trace`** —— `kg trace` 的 `--output` 选项收窄为 `table|json`（保留追溯分析输出），追溯图的 mermaid 渲染统一由 `cataforge viz trace` 承担。残留对旧表面的引用由 `cataforge doctor` 弃用扫描标记，替换为 `cataforge viz trace`。
+
+- **BREAKING：`task-dep-analysis --format mermaid` 迁移到 `cataforge viz tasks --format mermaid`** —— `task-dep-analysis` 的 `--format` 收窄为 `json`（保留拓扑 / 关键路径 / 环检测的结构化分析职责），依赖图的 mermaid 渲染统一由 `cataforge viz tasks` 承担（同一图算法、同一关键路径高亮）。dev-plan 依赖图授权工作流（task-decomp / tech-lead 路径）已改走新入口；残留对旧表面的引用由 `cataforge doctor` 弃用扫描与 `migration_checks` 标记。
+
+- **phase 评估逻辑下沉到 `application` 层** —— `evaluate_phase` 及配套解析器从 `interface.cli.phase_cmd` 迁至 `cataforge.application.phase`，使 `viz phase` collector 能在不违反分层契约的前提下复用同一评估；`cataforge phase status` 行为不变。
+
+- **framework-walkthrough 执行步骤按五类路径重构** —— 驱动流程从「happy path 主干」扩为「初始化→核心链路+分支/异常→终止清理」；walkthrough-protocol 补 Phase Transition 一致性门观察（validate / reconcile / doc-consistency / claude-md check）与 `--depth full` 探针程序；observation-rubric 补初始化产物 / 一致性门 / 恢复路径观察维度；example-project 补探针扰动绑定表。
+
+- **`context.mode` 取代 `context.strategy` × `context.authoring` 双轴** —— framework.json 的上下文事实源收敛为单一 `context.mode ∈ {markdown, hybrid, graph}`；`hybrid`（默认）等价旧 `kg-first × md`，`graph` 等价 `kg-first × graph`，`markdown` 等价 `doc-only`。`cataforge setup` / `bootstrap` 的 `--context-strategy` 改名为 `--context-mode`。
+- **finalize / ingest / reconcile / 授权门统一经 `ModePolicy` 单点分派** —— 不再各自判定 md-vs-graph 权威。
+- **图授权命令收紧为 `graph` 模式专属** —— `context write` / `write-narrative` / `transact` / `write-doc` / `write-meta` 在 `hybrid` / `markdown` 下被显式拒绝并指向"编辑 docs/ 后 ingest，或切 `context.mode = graph`"。
+- **`cataforge doctor` 校验 `context.mode`** —— 残留的旧 `context.strategy` / `context.authoring` 字段会被判 FAIL 并提示运行 `framework-update` 迁移。
+
+- **agile-lite 模板覆盖字段改用严格 `doc_id#§N.ITEM` xref** —— `arch-lite` 的 `对应功能`、`ui-spec-lite` 的 `映射功能`、`dev-plan-lite` 的 `模块` 由裸 prose（`F-001`）改为 xref（`prd-lite-{project}#§2.F-001`），write-doc / ingest 据此抽出 `implements` / `satisfies` / `realizes` 追溯边，覆盖门禁不再因抽 0 边而空泛通过。
+- **dev-plan M 级覆盖门禁经 `cf:realizes` 真正生效** —— `TraceAPI` 新增 `module_coverage()`，doc-review 对 dev-plan 按 Module 前缀分派到该查询；未被任何 Task 实现的 Module 现判 FAIL（此前 KG active 时静默通过）。`CoverageRow.feature_id` 泛化为 `entity_id`。
+
+- **`kg import` / `kg export` 降为底层命令** —— 标 hidden，从 `kg --help` 隐去；业务流程改用 `context ingest` / `context finalize`。命令本身仍可调用（运维 / 调试）。
+- **`kg reconcile` 重命名为 `kg drift-check`** —— 标注为低层对称 diff 诊断；业务漂移门禁恒用 `context reconcile`（按文档级三方哈希 triage 判定）。
+- **prompt↔CLI 防腐守卫拦截已降级命令** —— `check_prompt_cli_drift` 新增 superseded-verb 黑名单：业务 prompt 资产引用 `kg import` / `kg export` 即报错并给出门面替代，可经 `<!-- allow-cli-verb -->` 豁免。
+
+- **ARCH Layer1 入参判定接受能力契约形态** —— `### API-NNN` 不再硬要 HTTP `request:`，含 `input:` 或 `参数` 表亦过门；文件化 harness / CLI / 库类项目的能力契约、schema 契约无需把 input/output 改名成 request/response。
+- **`doc_check` 缺参 / 错 doc-type / 缺文件给可操作报错** —— 缺 doc-type 时列出合法 doc-type 并用 `cataforge skill run doc-review --` 形式提示（不再露内部 `python -m` 模块路径）；首参像文件路径或文件不存在时友好报错 + exit 2，不再抛 Python traceback。
+
+### Fixed
+
+- **reviewer 审查报告 front matter 矛盾** —— reviewer AGENT.md 原文误称审查报告"无 YAML front matter"，与 COMMON-RULES §报告 Front Matter 约定（报告必须带 front matter，否则 doctor 计 orphan 并 FAIL）冲突；改为"须含 front matter；doc_type review/code-review 不进 `.doc-index.json`（indexer 按 doc_type 过滤）"。
+- **tdd-engine inline 触发条件含无效执行模式** —— 删除不存在的 `agile-standard` 枚举（合法仅 standard/agile-lite/agile-prototype）。
+
+- **`cataforge setup --with-penpot` 不再是空操作** —— 此前该 flag 仅发一个无订阅者的事件，既不设 `design_tool` 也不落任何 MCP 配置。
+
+- **reconcile 假阳性门禁** —— `graph` 模式 reconcile 现按文档级三方哈希 triage 判定通过/失败；有损的 export→rescan 对称 diff 降级为诊断明细，不再误报阻塞门禁。
+- **`context write` 重新授权实体时丢失文档归属** —— `author_entity` 现保持已存在实体的 `cf:source_doc`，不再把它坍缩到裸 doc_type 而静默孤立成跨文档实体。
+
+- **`context write-doc` 补 `relations=0` 告警** —— 文档抽出实体但 0 追溯边时在 stderr 提示（与 `kg import` 同款），点出覆盖字段未用 xref。
+- **关系抽取器：同行多个 xref 的主语绑定** —— `对应功能: …F-001, …F-002` 第二个 xref 不再错绑到第一个 xref 内部的 `F-001`，而是绑定到所在节的主语实体（排除 xref 内部 entity_id 作为主语候选）。
+- **graph 模式 reconcile 对称 diff 的 card 往返假阳性** —— 无 Document 节点的图直写实体导出为 per-entity card，其 link 式引用与渲染节无法回扫还原；对称 diff 现仅覆盖有 `cf:Document` 节点的整篇文档，orphan card 由各自 content-hash triage，不再误报 missing/ghost。
+
+- **追溯边主语锚定到段定义实体，覆盖不再随排版漂移** —— `relation_extract` 的 xref 主语改取所在节的定义实体（heading `### X-NNN` 锚定），段正文中先出现的实体 mention 不再抢主语；消除"调 md 排版按下葫芦浮起瓢"式的 Layer1 假性 FAIL（无定义实体的段回退到最近实体 token）。
+- **`context write-doc` 增量 upsert 不再残留陈旧 / 伪追溯边** —— 关系边无 source-doc provenance 且按 add-if-absent 写入，主语实体 content_hash 未变时旧边不被清，多次 upsert 后累积伪边、覆盖检查非确定性。write-doc 现按 authored 实体原子替换其追溯边（结构谓词 `cf:part_of` 不受影响），消除图谱腐坏，无需 `kg init --force` 全量重建。
+- **分卷 ID 连续性按 volume_type 限定前缀** —— `check_id_continuity` 不再对分卷扫全 doc_type 前缀；api 卷只查 API、data 卷只查 E、modules 卷只查 M、components 卷只查 UC、pages 卷只查 P，跨卷引用（api 卷的 `ref: E-005`）不再误报缺号 WARN。
+
 <a id='changelog-0.12.1'></a>
 ## [0.12.1] — 2026-06-20
 
@@ -1687,7 +1775,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.12.1...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.13.0
 [0.12.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.12.1
 [0.12.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.12.0
 [0.11.2]: https://github.com/lync-cyber/CataForge/releases/tag/v0.11.2

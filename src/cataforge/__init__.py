@@ -1,3 +1,3 @@
 """CataForge — AI Programming: Agent + Skill Workflow Framework."""
 
-__version__ = "0.12.1"
+__version__ = "0.13.0"
