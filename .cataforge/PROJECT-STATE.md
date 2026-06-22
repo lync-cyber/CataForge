@@ -56,8 +56,10 @@
 - 命名: {规范}
 - Commit: {格式}
 - 分支: {策略}
-- 设计工具: none
-  <!-- 可选值: none | penpot。设为 penpot 时启用 Penpot MCP 集成 -->
+- 设计工具: {DESIGN_TOOL}
+  <!-- 由 cataforge deploy 从 framework.json#project.design_tool 盖入。切换用 `cataforge setup --with-penpot`，勿手改本行 -->
+  <!-- 可选值: none | penpot。penpot 时启用 Penpot MCP 集成 -->
+
 - 人工审查检查点: [pre_dev, pre_deploy]
   <!-- 详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
 - 文档类型命名: 小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数和产出文件名

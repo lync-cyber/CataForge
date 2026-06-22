@@ -49,6 +49,7 @@ def deploy_instruction_files(
     project_root: Path,
     *,
     platform_id: str,
+    design_tool: str = "none",
     dry_run: bool = False,
     manifest: DeployManifest | None = None,
     prior_manifest: set[str] | None = None,
@@ -67,7 +68,7 @@ def deploy_instruction_files(
         return ["SKIP: PROJECT-STATE.md not found"]
 
     content = project_state_path.read_text()
-    content = render_project_state(content, platform_id)
+    content = render_project_state(content, platform_id, design_tool=design_tool)
     # Apply runtime placeholders ({INSTRUCTION_FILE}, {RULES_DIR}, …) so
     # the user's CLAUDE.md / AGENTS.md ships with platform-native paths
     # baked in. ``render_project_state`` only handles the legacy
