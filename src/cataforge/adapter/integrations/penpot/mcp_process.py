@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import shutil
 import signal
@@ -17,6 +18,9 @@ from cataforge.adapter.integrations.penpot._constants import (
     MCP_HEALTH_TIMEOUT,
     MCP_LOG_FILE,
     MCP_PID_FILE,
+    MCP_PROBE_MAX_BYTES,
+    MCP_PROBE_TIMEOUT,
+    MCP_PROTOCOL_VERSION,
     PLATFORM,
 )
 from cataforge.core.errors import CataforgeError
@@ -57,22 +61,73 @@ def _remove_mcp_pid() -> None:
 
 
 def _is_mcp_running(config: dict[str, Any], url: str | None = None) -> bool:
+    """True only when the endpoint answers an MCP ``initialize`` handshake.
+
+    A bare GET / port probe can't tell a live MCP endpoint from a stale reverse
+    proxy that 301/404/405s every path, so we POST a JSON-RPC ``initialize`` and
+    require a result carrying ``serverInfo``. Both Streamable-HTTP framings are
+    accepted: a direct ``application/json`` body or an SSE ``data:`` line. The
+    timeout is short on purpose — this runs on every ``penpot status`` /
+    ``ensure`` / skill warm-up and must fail fast; keep ``cmd_status`` /
+    ``cmd_ensure`` UX in sync if it changes.
+    """
+    from cataforge import __version__
+
     probe = url or f"http://localhost:{config['mcp_port']}/mcp"
+    payload = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": MCP_PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "cataforge", "version": __version__},
+            },
+        }
+    ).encode()
+    req = urllib.request.Request(
+        probe,
+        data=payload,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        },
+    )
     try:
-        req = urllib.request.Request(probe, method="GET")
-        # 2s is deliberate: this probe runs on every `penpot status` /
-        # `penpot ensure` / Penpot skill warm-up and must fail-fast on
-        # "server not up" without making the user wait. A higher
-        # timeout would make those entry points feel hung when MCP
-        # isn't installed yet — the failure mode we're checking for.
-        # Do NOT raise without a corresponding adjustment in
-        # ``cmd_ensure`` / ``cmd_status`` UX.
-        urllib.request.urlopen(req, timeout=2)
-        return True
-    except urllib.error.HTTPError:
-        return True
+        with urllib.request.urlopen(req, timeout=MCP_PROBE_TIMEOUT) as resp:
+            return _response_has_mcp_result(resp)
     except (urllib.error.URLError, OSError, TimeoutError):
+        # HTTPError ⊂ URLError, so a stale proxy's 404/405/502 falls through here
+        # as "down" — exactly the false-positive this probe exists to reject.
         return False
+
+
+def _response_has_mcp_result(resp: Any) -> bool:
+    """Scan a handshake response for a JSON-RPC result with ``serverInfo``."""
+    ctype = (resp.headers.get("Content-Type") or "").lower()
+    if "text/event-stream" in ctype:
+        for raw in resp:  # line-by-line; stop at the first event that proves MCP
+            line = raw.decode("utf-8", "replace").strip()
+            if line.startswith("data:") and _json_is_mcp_result(line[len("data:") :].strip()):
+                return True
+        return False
+    body = resp.read(MCP_PROBE_MAX_BYTES).decode("utf-8", "replace")
+    return _json_is_mcp_result(body)
+
+
+def _json_is_mcp_result(text: str) -> bool:
+    try:
+        obj = json.loads(text)
+    except (ValueError, TypeError):
+        return False
+    return (
+        isinstance(obj, dict)
+        and obj.get("jsonrpc") == "2.0"
+        and isinstance(obj.get("result"), dict)
+        and "serverInfo" in obj["result"]
+    )
 
 
 def _mcp_npx_env(config: dict[str, Any]) -> dict[str, str]:

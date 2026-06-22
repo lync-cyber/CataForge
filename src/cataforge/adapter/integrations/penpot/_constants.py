@@ -31,6 +31,17 @@ SUPPORTED_NODE_MAJORS = (20, 22)
 HEALTH_TIMEOUT = 60
 MCP_HEALTH_TIMEOUT = 120
 
+# Per-probe socket timeout for the MCP `initialize` handshake. Short on purpose:
+# the probe runs on every `penpot status` / `ensure` / skill warm-up and must
+# fail fast when MCP is not up instead of making those entry points feel hung.
+MCP_PROBE_TIMEOUT = 2
+# protocolVersion sent in the handshake; the server negotiates its own and still
+# returns serverInfo regardless, so the exact value only needs to be a valid tag.
+MCP_PROTOCOL_VERSION = "2025-06-18"
+# Cap on bytes read from a direct JSON handshake response — an initialize result
+# is small; the cap guards against an endpoint that streams unbounded output.
+MCP_PROBE_MAX_BYTES = 65536
+
 DOCKER_REGISTRY_MIRRORS = [
     "",
     "docker.xuanyuan.me",
