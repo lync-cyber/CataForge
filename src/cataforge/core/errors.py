@@ -96,7 +96,7 @@ class KGStoreError(KGCLIError):
 class KGVerificationError(KGCLIError):
     """Raised when a kg verification gate fails on graph *content*:
     import-time triple verification, ``kg validate`` violations,
-    ``kg export`` render errors, ``kg reconcile`` divergence."""
+    ``kg export`` render errors, ``kg drift-check`` divergence."""
 
     exit_code = EXIT_KG_VERIFICATION_FAILED
 

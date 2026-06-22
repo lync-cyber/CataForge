@@ -43,7 +43,7 @@ def test_kg_import_doc_only_is_noop(tmp_path: Path) -> None:
     assert not (project / ".cataforge" / "kg" / "store").exists()
 
 
-def test_kg_reconcile_doc_only_is_noop_despite_store(tmp_path: Path) -> None:
+def test_kg_drift_check_doc_only_is_noop_despite_store(tmp_path: Path) -> None:
     """A stray store on a markdown-mode project must not be reconciled."""
     from cataforge.domain.kg._dispatch import invalidate_cache
 
@@ -55,7 +55,7 @@ def test_kg_reconcile_doc_only_is_noop_despite_store(tmp_path: Path) -> None:
 
     result = CliRunner().invoke(
         _cli(),
-        ["kg", "reconcile", "--project-root", str(project), "--db-path", str(db)],
+        ["kg", "drift-check", "--project-root", str(project), "--db-path", str(db)],
     )
     invalidate_cache()
     assert result.exit_code == 0, result.output

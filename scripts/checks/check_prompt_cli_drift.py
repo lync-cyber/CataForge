@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Anti-rot guard: prompt assets must not reference non-existent CLI verbs.
+"""Anti-rot guard: prompt assets must not reference phantom or superseded CLI verbs.
 
 Agent / skill / protocol prompts invoke ``cataforge context|docs|kg <verb>``.
 When a prompt names a verb the CLI does not register (a phantom command, e.g.
 a ``write-section`` that was never implemented), the workflow silently breaks
 at runtime. This guard introspects the real Click command groups and fails if
 any command-styled reference in the prompts names an unknown verb.
+
+It also fails on *superseded* low-level verbs: ``kg import`` / ``kg export``
+still exist as store mechanics but business prompts must route through the
+``context`` facade (``context ingest`` / ``context finalize``), so naming the
+low-level verb in a prompt is a layering regression (see ``SUPERSEDED_KG``).
 
 Scope of matching — to avoid flagging prose that merely contains the word
 "context" (e.g. "context authoring", "the context backend"), a reference only
@@ -54,6 +59,11 @@ _BACKTICK = re.compile(rf"`({'|'.join(GROUPS)})\s+([a-z][a-z-]+)")
 
 ALLOW_MARKER = re.compile(r"<!--\s*allow-cli-verb")
 CODE_FENCE = re.compile(r"^\s*```")
+
+# kg verbs that still exist (store mechanics) but are superseded for *business*
+# prompts by a context-facade verb. `kg drift-check` is intentionally absent —
+# it is a low-level diagnostic with no business-facade equivalent.
+SUPERSEDED_KG = {"import": "context ingest", "export": "context finalize"}
 
 
 def real_verbs() -> dict[str, set[str]]:
@@ -105,12 +115,17 @@ def main() -> int:
                 continue
             for pattern in (_CATAFORGE, _BACKTICK):
                 for group, verb in pattern.findall(line):
+                    rel = path.relative_to(REPO_ROOT)
                     if verb not in verbs[group]:
-                        rel = path.relative_to(REPO_ROOT)
                         fails.append(f"{rel}:{lineno}: `{group} {verb}` is not a real CLI verb")
+                    elif group == "kg" and verb in SUPERSEDED_KG:
+                        fails.append(
+                            f"{rel}:{lineno}: `kg {verb}` is low-level; "
+                            f"business prompts use `{SUPERSEDED_KG[verb]}`"
+                        )
 
     if fails:
-        print("Anti-rot: prompt assets reference non-existent CLI verbs", file=sys.stderr)
+        print("Anti-rot: prompt assets reference phantom or superseded CLI verbs", file=sys.stderr)
         for f in sorted(set(fails)):
             print(f"  {f}", file=sys.stderr)
         print(

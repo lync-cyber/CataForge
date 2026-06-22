@@ -301,7 +301,7 @@ cataforge context read 'prd#§2.F-003'          # 加载 PRD 第 2 节 Feature F
 cataforge context read 'dev-plan#§1.T-005'     # 加载开发计划第 1 节 Task T-005
 ```
 
-写入生命周期（`write` / `write-narrative` / `transact` / `finalize` / `ingest` / `reconcile`）见 `cataforge context --help`。
+写入生命周期（`write` / `write-narrative` / `transact` / `update` / `delete` / `finalize` / `ingest` / `reconcile`）见 `cataforge context --help`。`update` 就地合并实体 slot（保 part_of / source_doc），`delete` 删除实体（可级联入向边）；二者仅 `context.mode = graph` 可用。
 
 ## docs
 
@@ -321,10 +321,10 @@ cataforge docs migrate-reviews  # 回填历史审查报告的 YAML front matter
 
 ```bash
 cataforge kg init                                # 初始化 store + bootstrap rdfs:subClassOf
-cataforge kg import [--doc-type prd ...]         # 六阶段管道：scan/parse/extract/relation/write/verify
+cataforge kg import [--doc-type prd ...]         # 底层六阶段管道（业务用 context ingest）
 cataforge kg validate [--shacl]                  # 孤儿节点、断裂追溯边、可选 SHACL 校验
-cataforge kg export [--output-dir docs]          # KG → 每实体一份 Markdown
-cataforge kg reconcile [--doc-type ...]          # 漂移检测：md ⊕ kg → missing / ghost
+cataforge kg export [--output-dir docs]          # 底层 KG → Markdown（业务用 context finalize）
+cataforge kg drift-check [--doc-type ...]        # 底层漂移诊断：md ⊕ kg → missing / ghost（业务门禁用 context reconcile）
 cataforge kg repair [--dry-run]                  # 自动修复 reconcile 发现的漂移
 cataforge kg compare-read [--sample-size 20]     # 抽样审计：KG 渲染 vs 源文件 slice
 cataforge kg snapshot [--label ...]              # 写完整 NQuads 快照到 .cataforge/kg/snapshots/
@@ -374,9 +374,9 @@ KG → 每实体一份 Markdown，幂等：两次连续 export 字节相同。
 | `--output-dir <path>` | 输出根（默认 `docs/`） |
 | `--json` | 输出每文件 sha256 的 JSON |
 
-### kg reconcile
+### kg drift-check
 
-per-doc_type 漂移检测：Markdown 与 KG 的对称差。任一 `missing` / `ghost` 条目存在则 exit 3（见 §退出码）。
+底层 per-doc_type 对称差诊断：Markdown 与 KG 的对称差。任一 `missing` / `ghost` 条目存在则 exit 3（见 §退出码）。这是 store 机械诊断；业务漂移门禁用 [`context reconcile`](#context)，按文档级 triage 判定通过/失败。
 
 | 参数 | 作用 |
 |------|------|
@@ -708,7 +708,7 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 | `0`  | 成功 | 正常完成 |
 | `1`  | 通用失败 | `doctor` 发现 FAIL；验证不通过；缺少前置条件（如 `.cataforge/` 未初始化）；配置错误 |
 | `2`  | Click 用法错误 | 未知选项、缺少必需参数、参数类型不符（由 Click 自动使用） |
-| `3`  | KG 内容校验门失败 | `kg import` 校验失败、`kg validate` 报违例、`kg export` 渲染错误、`kg reconcile` 检测到 doc↔store 漂移；由 `CataforgeError` 子类 `KGVerificationError` 抛出。与 `1` 分开是为了让 CI 能在 "数据真有问题" 与 "环境没准备好" 之间分别动作 |
+| `3`  | KG 内容校验门失败 | `kg import` 校验失败、`kg validate` 报违例、`kg export` 渲染错误、`kg drift-check` 检测到 doc↔store 漂移；由 `CataforgeError` 子类 `KGVerificationError` 抛出。与 `1` 分开是为了让 CI 能在 "数据真有问题" 与 "环境没准备好" 之间分别动作 |
 | `70` | 功能未实现（stub） | `plugin install` / `plugin remove` 等路线图占位命令；由 `CataforgeError` 子类 `NotImplementedFeature` 抛出 |
 
 > `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`，让 CI 脚本能区分"未实现"与"命令用错"。常量定义在 [`cataforge.interface.cli.errors.EXIT_NOT_IMPLEMENTED`](../../src/cataforge/interface/cli/errors.py)，自 v0.1.0 起就是此值。

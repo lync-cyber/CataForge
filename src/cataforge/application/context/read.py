@@ -1,6 +1,6 @@
 """Routed context-read facade (application layer).
 
-Wraps the :class:`FidelityRouter` so callers get strategy-aware reads
+Wraps the :class:`FidelityRouter` so callers get mode-aware reads
 without knowing which backend served them. The Markdown/file primitives live
 in ``domain.docs.loader``; here they are composed with the graph backend.
 CLI argument parsing and output formatting live in the interface layer.

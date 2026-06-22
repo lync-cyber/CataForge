@@ -347,7 +347,7 @@ def check_kg_xref_target_integrity(cfg: ConfigManager) -> int:
 
     Mirrors `kg validate`'s `cf:*-target-exists` shapes. A renamed/deleted
     entity leaves dangling edges that the entity_id-keyed reconcile diff never
-    surfaced; this gate makes `kg reconcile`-clean and `doctor`-clean agree.
+    surfaced; this gate makes `kg drift-check`-clean and `doctor`-clean agree.
     """
     project_root = Path(cfg.paths.root)
     db_path = project_root / KG_STORE_REL
