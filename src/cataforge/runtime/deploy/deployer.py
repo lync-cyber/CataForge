@@ -65,6 +65,24 @@ def _always(_ctx: DeployContext) -> bool:
     return True
 
 
+def _section_merge_target_rels(adapter: PlatformAdapter) -> set[str]:
+    """Instruction-file targets whose state lives in the file itself.
+
+    ``section-merge`` reads the existing target as its own merge source, so
+    purging it drops the orchestrator-owned sections the next deploy can only
+    recover from that file. ``overwrite`` targets hold no such state and stay
+    purgeable.
+    """
+    rels: set[str] = set()
+    for target in adapter.instruction_targets:
+        if str(target.get("update_strategy", "overwrite")) != "section-merge":
+            continue
+        rel = str(target.get("path", ""))
+        if rel:
+            rels.add(rel)
+    return rels
+
+
 class Deployer:
     """Orchestrate deployment for a given platform."""
 
@@ -153,6 +171,7 @@ class Deployer:
                     platform_id=platform_id,
                     prior_platform=load_prior_manifest_platform(root),
                     dry_run=dry_run,
+                    protect=_section_merge_target_rels(adapter),
                 )
             )
             prior_owned = set()
@@ -440,13 +459,16 @@ class Deployer:
         platform_id: str,
         prior_platform: str | None,
         dry_run: bool = False,
+        protect: set[str] | None = None,
     ) -> list[str]:
         """Remove every path the prior manifest claimed.
 
         Symmetric to a normal prune pass but applied wholesale: we use
         ``_remove_target`` so symlinks, junctions, files and real dirs all
         wash out the same way. User-authored paths that were never in the
-        manifest are not touched.
+        manifest are not touched. Paths in *protect* (section-merge instruction
+        targets) are kept too — their state lives in the file the next deploy
+        merges back into, so purging them is silent data loss.
 
         Refuses to purge when the prior manifest belongs to a *different*
         platform than the one we're about to deploy: rebuilding cursor
@@ -469,8 +491,15 @@ class Deployer:
                 f"manually before switching, otherwise this purge would "
                 f"erase files the new platform never owned."
             ]
+        protect = protect or set()
         actions: list[str] = []
         for rel in sorted(prior_owned):
+            if rel in protect:
+                actions.append(
+                    f"rebuild: preserved {rel} (section-merge target — "
+                    f"purge would drop merged state)"
+                )
+                continue
             target = root / rel
             if not target.exists() and not target.is_symlink():
                 continue
