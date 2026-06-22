@@ -23,9 +23,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from cataforge.core.errors import CataforgeError
+from cataforge.core.paths import KG_SNAPSHOTS_REL
 from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg._content_hash import entity_content_hash
 from cataforge.domain.kg._dispatch import (
+    context_mode,
     definition_authority,
     kg_config_for,
     kg_enabled,
@@ -973,6 +975,16 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
         if not kg.query.entity_ids() and not kg.query.has_documents():
             return CompileResult(exported_at=datetime.now(UTC), discovered_count=0, output_dir=out)
         result = compile_documents(kg.store, out)
+        # The binary store is gitignored, so the graph's durable SoT is the
+        # NQuads snapshot — refresh it whenever the canonical graph is finalized.
+        from cataforge.domain.kg.snapshot import (  # noqa: PLC0415
+            FINALIZE_SNAPSHOT_STEM,
+            create_snapshot,
+        )
+
+        create_snapshot(
+            kg.store, cfg, Path(project_root) / KG_SNAPSHOTS_REL, stem=FINALIZE_SNAPSHOT_STEM
+        )
     _rebuild_doc_index(project_root)
     return result
 
@@ -1009,3 +1021,51 @@ def reconcile_check(project_root: str) -> ReconcileReport | DocValidationReport:
     cfg = kg_config_for(project_root)
     with KnowledgeGraph.connect(cfg) as kg:
         return _reconcile(kg.store, Path(project_root), cfg)
+
+
+@dataclass
+class EnsureStoreResult:
+    """Outcome of a mode-aware store hydration."""
+
+    action: str  # "noop" | "ingested" | "restored" | "initialized"
+    detail: str
+
+
+def ensure_store(project_root: str) -> EnsureStoreResult:
+    """Idempotently hydrate the KG store for `project_root` per context.mode.
+
+    The physical store is a disposable, gitignored cache, so a fresh clone has
+    none. Rebuild it from the durable text artifact for the active mode:
+
+    - ``markdown`` — no graph backend; nothing to hydrate.
+    - ``hybrid`` — the store is a derived index; init it empty, then reflect the
+      Markdown into it (``ingest``).
+    - ``graph`` — the store is the working copy of the NQuads snapshot SoT;
+      restore the latest snapshot, or seed an empty store when none exists yet.
+
+    A populated store on disk is left untouched (idempotent re-bootstrap /
+    repeated doctor hint); drift against the canonical side is the reconcile
+    gate's concern, not hydration's.
+    """
+    from cataforge.domain.kg import init_store  # noqa: PLC0415
+    from cataforge.domain.kg.snapshot import list_snapshots, restore_snapshot  # noqa: PLC0415
+
+    root = Path(project_root)
+    if context_mode(root) == "markdown":
+        return EnsureStoreResult("noop", "markdown mode — no graph backend")
+
+    cfg = kg_config_for(root)
+    if cfg.db_path.exists() and any(cfg.db_path.iterdir()):
+        return EnsureStoreResult("noop", "store already present")
+
+    if context_mode(root) == "graph":
+        snapshots = list_snapshots(root / KG_SNAPSHOTS_REL)
+        if snapshots:
+            count = restore_snapshot(snapshots[0].path, cfg, force=True)
+            return EnsureStoreResult("restored", f"{count} quads from {snapshots[0].path.name}")
+        init_store(cfg, force=False).close()
+        return EnsureStoreResult("initialized", "graph mode — no snapshot yet, seeded empty store")
+
+    init_store(cfg, force=False).close()
+    ingest(project_root)
+    return EnsureStoreResult("ingested", "hybrid mode — rebuilt graph from Markdown")

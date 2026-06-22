@@ -408,6 +408,23 @@ def context_ingest(ctx: click.Context, project_root: str, doc_types: tuple[str, 
     )
 
 
+@context_group.command("ensure-store")
+@click.option("--project-root", default=None)
+@click.pass_context
+def context_ensure_store(ctx: click.Context, project_root: str) -> None:
+    """Rebuild the KG store per context.mode after a clone (it is gitignored).
+
+    hybrid rebuilds from the Markdown; graph restores the latest NQuads
+    snapshot; markdown is a no-op. Idempotent — a populated store is left as-is.
+    """
+    from cataforge.application.context.write import ensure_store
+
+    project_root = _rooted(ctx, project_root)
+    with _kg_store_guard():
+        result = ensure_store(project_root)
+    click.echo(f"{result.action}: {result.detail}")
+
+
 @context_group.command("reconcile")
 @click.option("--project-root", default=None)
 @click.option("--json", "json_output", is_flag=True, help="Emit the full drift report as JSON.")

@@ -63,7 +63,7 @@
    - `cataforge setup permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
    本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 {INSTRUCTION_FILE}，并收紧运行时权限以符合最小权限原则。
 9. **初始化文档索引与知识图谱** —
-   - `cataforge kg init`（幂等；首次创建图谱 store 并加载本体闭包，上下文方案未启用图后端或命令缺失时 WARN 跳过）
+   - `cataforge context ensure-store`（幂等，按 context.mode 水合图谱 store：hybrid 从 Markdown 重建、graph 从最新 NQuads 快照恢复、markdown 跳过；store 已存在则原样保留）
    - `cataforge context index`（生成空的 `docs/.doc-index.json` 文档索引缓存，首个文档落盘后由生成定稿增量刷新）
    - 可选向用户提示 `cataforge viz framework` 渲染编排图，帮助快速建立流程心智模型
 10. **进入初始阶段** — 通过 agent-dispatch 激活:

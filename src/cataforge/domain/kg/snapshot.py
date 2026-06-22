@@ -16,6 +16,10 @@ from cataforge.domain.kg._store import init_store
 if TYPE_CHECKING:
     import pyoxigraph as ox
 
+# Fixed stem for the graph mode's durable snapshot that finalize overwrites in
+# place — one git-diffable file, no accumulation.
+FINALIZE_SNAPSHOT_STEM = "latest"
+
 
 @dataclass
 class SnapshotMeta:
@@ -47,16 +51,23 @@ def create_snapshot(
     output_dir: Path,
     *,
     label: str | None = None,
+    stem: str | None = None,
 ) -> SnapshotMeta:
-    """Serialize all quads in the store to an NQuads file + metadata sidecar."""
+    """Serialize all quads in the store to an NQuads file + metadata sidecar.
+
+    A timestamped filename builds an ad-hoc history (``cataforge kg snapshot``).
+    Pass ``stem`` for a fixed filename that overwrites in place — finalize uses
+    this so the graph's durable snapshot is a single git-diffable file rather
+    than an ever-growing pile; git carries the version history.
+    """
     import pyoxigraph as ox  # noqa: PLC0415
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     ts = _utc_now_iso()
-    suffix = _sanitize_label(label)
-    nq_path = output_dir / f"{ts}{suffix}.nq"
+    name = stem if stem else f"{ts}{_sanitize_label(label)}"
+    nq_path = output_dir / f"{name}.nq"
 
     with nq_path.open("wb") as f:
         store.dump(f, ox.RdfFormat.N_QUADS)
@@ -130,7 +141,7 @@ def list_snapshots(snapshot_dir: Path) -> list[SnapshotMeta]:
         return []
 
     metas: list[SnapshotMeta] = []
-    for meta_file in sorted(snapshot_dir.glob("*.meta.json"), reverse=True):
+    for meta_file in snapshot_dir.glob("*.meta.json"):
         nq_file = meta_file.with_suffix("").with_suffix(".nq")
         if not nq_file.exists():
             continue
@@ -144,10 +155,15 @@ def list_snapshots(snapshot_dir: Path) -> list[SnapshotMeta]:
                 store_backend=raw.get("store_backend", ""),
             )
         )
+    # Most recent first by creation time, so callers restoring "the latest"
+    # pick the freshest regardless of a fixed vs timestamped filename. The
+    # file name breaks same-second ties deterministically.
+    metas.sort(key=lambda m: (m.timestamp, m.path.name), reverse=True)
     return metas
 
 
 __all__ = [
+    "FINALIZE_SNAPSHOT_STEM",
     "SnapshotMeta",
     "create_snapshot",
     "list_snapshots",

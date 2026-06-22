@@ -15,7 +15,7 @@ import click
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
-from cataforge.core.paths import KG_STORE_REL
+from cataforge.core.paths import KG_SNAPSHOTS_REL, KG_STORE_REL
 from cataforge.domain.docs.loader import DEFAULT_DOC_TYPE_MAP
 
 if TYPE_CHECKING:
@@ -228,7 +228,8 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
 
     if not db_path.exists():
         click.echo(
-            "  (no KG store at .cataforge/kg/store — skipping; run `cataforge kg init` to enable)"
+            "  (no KG store at .cataforge/kg/store — skipping; run "
+            "`cataforge context ensure-store` to hydrate it)"
         )
         return 0
 
@@ -383,4 +384,62 @@ def check_kg_xref_target_integrity(cfg: ConfigManager) -> int:
     return 1
 
 
-__all__ = ["check_kg_ingestion_completeness", "check_kg_xref_target_integrity"]
+def check_kg_snapshot_freshness(cfg: ConfigManager) -> int:
+    """Doctor gate (graph mode only, WARN) — the durable snapshot must not lag.
+
+    The gitignored store rebuilds from the latest NQuads snapshot on clone
+    (`cataforge context ensure-store`), so a snapshot older than the live store
+    means uncommitted graph state would be lost. Non-gating (returns 0): it
+    nudges the author to `cataforge context finalize`, which refreshes the
+    snapshot. Skipped outside graph mode (no snapshot SoT) and when no store
+    exists yet (a fresh clone before hydration).
+    """
+    from cataforge.domain.kg._dispatch import context_mode  # noqa: PLC0415
+
+    project_root = Path(cfg.paths.root)
+    if context_mode(project_root) != "graph":
+        click.echo("  (not graph mode — skipping)")
+        return 0
+
+    db_path = project_root / KG_STORE_REL
+    if not db_path.exists():
+        click.echo("  (no KG store — skipping; run `cataforge context ensure-store`)")
+        return 0
+
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph  # noqa: PLC0415
+    from cataforge.domain.kg.snapshot import list_snapshots  # noqa: PLC0415
+
+    config = KGConfig(db_path=db_path)
+    try:
+        with KnowledgeGraph.connect(config, read_only=True) as kg:
+            store_quads = sum(1 for _ in kg.store.quads_for_pattern(None, None, None, None))
+    except Exception as exc:  # noqa: BLE001 — opening fail surfaces here
+        click.echo(f"  (could not open KG store at {db_path}: {exc} — skipping)")
+        return 0
+
+    snapshots = list_snapshots(project_root / KG_SNAPSHOTS_REL)
+    if not snapshots:
+        click.echo(
+            "  WARN: graph store has no NQuads snapshot; a fresh clone cannot "
+            "rebuild it — run `cataforge context finalize` to write one."
+        )
+        return 0
+
+    latest = snapshots[0]
+    if latest.quad_count != store_quads:
+        click.echo(
+            f"  WARN: snapshot stale (store has {store_quads} quads, latest "
+            f"snapshot {latest.path.name} has {latest.quad_count}); run "
+            f"`cataforge context finalize` to refresh the durable snapshot."
+        )
+        return 0
+
+    click.echo(f"  OK (snapshot {latest.path.name} matches store: {store_quads} quads)")
+    return 0
+
+
+__all__ = [
+    "check_kg_ingestion_completeness",
+    "check_kg_snapshot_freshness",
+    "check_kg_xref_target_integrity",
+]

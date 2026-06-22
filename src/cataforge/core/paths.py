@@ -14,6 +14,7 @@ logger = logging.getLogger("cataforge.paths")
 # Project-relative locations (SSOT). CLI defaults, doctor gates, and the
 # hook/deploy runtimes derive from these rather than re-spelling the literals.
 KG_STORE_REL = Path(".cataforge") / "kg" / "store"
+KG_SNAPSHOTS_REL = Path(".cataforge") / "kg" / "snapshots"
 HOOK_ERROR_LOG_REL = Path(".cataforge") / ".hook-errors.jsonl"
 DEPLOY_MANIFEST_REL = Path(".cataforge") / ".deploy-manifest.json"
 
@@ -186,6 +187,10 @@ class ProjectPaths:
     @property
     def kg_store_dir(self) -> Path:
         return self.root / KG_STORE_REL
+
+    @property
+    def kg_snapshots_dir(self) -> Path:
+        return self.root / KG_SNAPSHOTS_REL
 
     # ---- helpers ----
 

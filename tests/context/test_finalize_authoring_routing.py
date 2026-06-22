@@ -138,6 +138,50 @@ def test_finalize_graph_exports_and_reconciles_clean(tmp_path: Path) -> None:
     assert report.ok, report.to_dict()
 
 
+def test_finalize_graph_writes_snapshot(tmp_path: Path) -> None:
+    """graph 定稿 refreshes the durable NQuads snapshot — the SoT artifact a
+    fresh clone restores from (the binary store is gitignored)."""
+    proj = _project(tmp_path, mode="graph")
+    cw.author_document(str(proj), _GRAPH_DOC, source_path="docs/prd/prd.md")
+    gc.collect()
+
+    cw.finalize(str(proj))
+    gc.collect()
+
+    snaps = list((proj / ".cataforge" / "kg" / "snapshots").glob("*.nq"))
+    assert snaps, "graph finalize must write an NQuads snapshot"
+
+
+def test_finalize_hybrid_writes_no_snapshot(tmp_path: Path) -> None:
+    """hybrid 定稿 keeps the Markdown as SoT — the store is a derived index that
+    rebuilds from docs, so no snapshot is written."""
+    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
+    cw.ingest(str(proj))
+    gc.collect()
+
+    cw.finalize(str(proj))
+    gc.collect()
+
+    snap_dir = proj / ".cataforge" / "kg" / "snapshots"
+    assert not snap_dir.exists() or not list(snap_dir.glob("*.nq"))
+
+
+def test_finalize_graph_snapshot_overwrites_not_accumulates(tmp_path: Path) -> None:
+    """Repeated graph 定稿 keeps a single durable snapshot file — git carries
+    the history, so the snapshot dir never grows per finalize."""
+    proj = _project(tmp_path, mode="graph")
+    cw.author_document(str(proj), _GRAPH_DOC, source_path="docs/prd/prd.md")
+    gc.collect()
+
+    cw.finalize(str(proj))
+    gc.collect()
+    cw.finalize(str(proj))
+    gc.collect()
+
+    snaps = list((proj / ".cataforge" / "kg" / "snapshots").glob("*.nq"))
+    assert len(snaps) == 1, snaps
+
+
 def test_finalize_graph_export_is_byte_stable_across_runs(tmp_path: Path) -> None:
     """BUG-3 guard: the section/anchor round-trip is idempotent — re-finalize
     produces identical bytes, so reconcile never sees representational drift."""
