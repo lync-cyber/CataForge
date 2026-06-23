@@ -30,7 +30,7 @@ maxTurns: 60
 - 使用模板: 通过context调用 dev-plan 模板
 
 ## Execution Rules
-- **task_kind 标注**: 每个 T-xxx 标注 `task_kind ∈ {feature, fix, chore, config, docs}`。`chore`/`config`/`docs` 跳过 TDD（直接由 implementer 单次产出 + lint hook 兜底），仅 `feature`/`fix` 走 RED/GREEN/REFACTOR
+- **task_kind 标注**: 每个 T-xxx 标注 `task_kind ∈ {feature, fix, chore, config, docs, validation}`。`chore`/`config`/`docs` 跳过 TDD（直接由 implementer 单次产出 + lint hook 兜底），仅 `feature`/`fix` 走 RED/GREEN/REFACTOR；`validation` 不产代码也不进 TDD —— orchestrator 在其前置任务完成后经 AskUserQuestion 展示走查清单（调度见 ORCHESTRATOR-PROTOCOLS §validation 任务调度），按 task-decomp 拆分规则在含 `user_facing_critical_path` 的 Sprint 末追加
 - **tdd_mode 判定**（默认 = `TDD_DEFAULT_MODE` = `light`）: 任务卡缺省字段视为 light。仅在以下任一条件成立时显式标 `standard`:
   - 预估 LOC > `TDD_LIGHT_LOC_THRESHOLD`（默认 150）
   - `security_sensitive: true`（涉及鉴权 / 加密 / 输入校验 / 数据脱敏）
