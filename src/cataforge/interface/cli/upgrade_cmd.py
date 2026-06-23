@@ -13,19 +13,17 @@ simply refreshes the scaffold against the currently-installed package.
 
 from __future__ import annotations
 
-import re
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import click
 
-from cataforge.application.services.upgrade import find_breaking_entries
+from cataforge.application.services.upgrade import (
+    find_breaking_entries,
+    lift_design_tool_intent,
+)
 from cataforge.interface.cli.main import cli
-
-if TYPE_CHECKING:
-    from cataforge.core.config import ConfigManager
 
 
 @cli.group("upgrade")
@@ -93,33 +91,6 @@ def upgrade_check() -> None:
         "\nTip: inside Claude Code / Cursor, the `/framework-update` skill automates "
         "the whole flow (check → confirm → apply → verify)."
     )
-
-
-_DESIGN_TOOL_FIELD_RE = re.compile(r"(?m)^- 设计工具:\s*(\S+)")
-_INSTRUCTION_FILES = ("CLAUDE.md", "AGENTS.md")
-
-
-def _lift_design_tool_intent(cfg: ConfigManager) -> str | None:
-    """Promote a penpot design-tool choice from the instruction file into framework.json.
-
-    ``framework.json#project.design_tool`` is the single source of truth: deploy
-    renders the instruction file's 设计工具 field from it and force-overwrites that
-    field every run. A project that recorded penpot only in CLAUDE.md / AGENTS.md
-    would have the choice silently cleared by the first such deploy, so on upgrade
-    we lift it into framework.json once. Idempotent — a no-op once design_tool is
-    anything other than the default ``none``.
-    """
-    if cfg.design_tool != "none":
-        return None
-    for name in _INSTRUCTION_FILES:
-        path = cfg.paths.root / name
-        if not path.is_file():
-            continue
-        match = _DESIGN_TOOL_FIELD_RE.search(path.read_text())
-        if match and match.group(1) == "penpot":
-            cfg.set_design_tool("penpot")
-            return "penpot"
-    return None
 
 
 @upgrade_group.command("apply")
@@ -192,7 +163,7 @@ def upgrade_apply(dry_run: bool) -> None:
     # from it and force-overwritten on every deploy. Lift a penpot choice that
     # previously lived only in CLAUDE.md / AGENTS.md so that force-overwrite
     # doesn't silently disable it.
-    lifted = _lift_design_tool_intent(cfg)
+    lifted = lift_design_tool_intent(cfg)
     if lifted:
         click.echo(
             f"\n[design-tool] recorded project.design_tool = {lifted} from the "

@@ -9,11 +9,42 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cataforge.core.version import parse_semver
 
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
+
 _CHANGELOG_HEADER_RE = re.compile(r"^## \[(?P<version>[^\]]+)\]")
 _BREAKING_HEADER_RE = re.compile(r"^#{2,4}\s*(?:BREAKING|breaking)(?:\s|$)")
+
+_DESIGN_TOOL_FIELD_RE = re.compile(r"(?m)^- 设计工具:\s*(\S+)")
+_INSTRUCTION_FILES = ("CLAUDE.md", "AGENTS.md")
+
+
+def lift_design_tool_intent(cfg: ConfigManager) -> str | None:
+    """Promote a penpot design-tool choice from the instruction file into framework.json.
+
+    ``framework.json#project.design_tool`` is the single source of truth: deploy
+    renders the instruction file's 设计工具 field from it and force-overwrites that
+    field every run. A project that recorded penpot only in CLAUDE.md / AGENTS.md
+    would have the choice silently cleared by the first such deploy, so before any
+    deploy-bearing refresh (``upgrade apply`` or ``bootstrap``) we lift it into
+    framework.json once. Idempotent — a no-op once design_tool is anything other
+    than the default ``none``.
+    """
+    if cfg.design_tool != "none":
+        return None
+    for name in _INSTRUCTION_FILES:
+        path = cfg.paths.root / name
+        if not path.is_file():
+            continue
+        match = _DESIGN_TOOL_FIELD_RE.search(path.read_text())
+        if match and match.group(1) == "penpot":
+            cfg.set_design_tool("penpot")
+            return "penpot"
+    return None
 
 
 def find_breaking_entries(

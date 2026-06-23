@@ -235,6 +235,10 @@ def _execute_plan(
         for line in format_protected_warning(result.protected, cfg.paths.cataforge_dir):
             ui.warn(line)
 
+        # Heal a penpot design-tool choice into framework.json (the SSOT) before
+        # the deploy step below force-overwrites the instruction file from it.
+        _lift_design_tool(cfg)
+
     deploy_step = step_by_name.get("deploy")
     if deploy_step is not None and deploy_step.action == "run":
         target = plan.target_platform or cfg.runtime_platform
@@ -291,6 +295,25 @@ def _execute_plan(
         from cataforge.interface.cli.doctor_cmd import doctor_command
 
         ctx.invoke(doctor_command)
+
+
+def _lift_design_tool(cfg: ConfigManager) -> None:
+    """Heal a penpot design-tool choice into framework.json before deploy.
+
+    deploy force-overwrites the instruction file's 设计工具 field from
+    framework.json#project.design_tool (the SSOT); lift a choice that lived only
+    in CLAUDE.md / AGENTS.md so the bootstrap path runs the same heal as
+    `upgrade apply`. Idempotent — a no-op once design_tool is non-default.
+    """
+    from cataforge.application.services.upgrade import lift_design_tool_intent
+    from cataforge.interface.cli.ui import ui
+
+    lifted = lift_design_tool_intent(cfg)
+    if lifted:
+        ui.ok(
+            f"[design-tool] recorded project.design_tool = {lifted} from the "
+            "instruction file (now the single source of truth)"
+        )
 
 
 def _maybe_ensure_merge_policy(cfg: ConfigManager) -> None:
