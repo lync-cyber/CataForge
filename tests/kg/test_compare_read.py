@@ -7,38 +7,12 @@ Content-hash compare semantics (see compare_read.py docstring).
 
 from __future__ import annotations
 
-import gc
 import json
 from pathlib import Path
 
 from click.testing import CliRunner
 
-FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
-
-
-def _setup_project_with_kg(tmp_path: Path) -> Path:
-    import shutil
-
-    from cataforge.domain.kg import KGConfig, init_store
-    from cataforge.domain.kg._dispatch import invalidate_cache
-    from cataforge.domain.kg.ingest import run_migration
-
-    source = FIXTURE_ROOT / "waterfall"
-    project_root = tmp_path / "proj"
-    shutil.copytree(source, project_root)
-
-    db_path = project_root / ".cataforge" / "kg" / "store"
-    config = KGConfig(
-        store_backend="oxigraph",
-        db_path=db_path,
-        kg_active_doc_types={"prd", "arch", "test"},
-    )
-    handle = init_store(config, force=True)
-    run_migration(handle.raw, project_root, config)
-    del handle
-    gc.collect()
-    invalidate_cache()
-    return project_root
+from tests.kg._kg_fixtures import setup_project_with_kg as _setup_project_with_kg
 
 
 def _cli():
