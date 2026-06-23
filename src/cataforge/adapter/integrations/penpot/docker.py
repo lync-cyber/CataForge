@@ -58,11 +58,17 @@ def _generate_compose_file(config: dict[str, Any], force: bool = False) -> str:
         return compose_file
     existing = _extract_secret_key(compose_file) if os.path.isfile(compose_file) else None
     secret_key = existing or secrets.token_hex(32)
+    mcp_command = (
+        '["node", "index.js", "--multi-user"]'
+        if config.get("mcp_multi_user")
+        else '["node", "index.js"]'
+    )
     content = DOCKER_COMPOSE_TEMPLATE.format(
         penpot_port=config["penpot_port"],
         penpot_version=config["penpot_version"],
         penpot_flags=config["penpot_flags"],
         secret_key=secret_key,
+        mcp_command=mcp_command,
     )
     with open(compose_file, "w") as f:
         f.write(content)

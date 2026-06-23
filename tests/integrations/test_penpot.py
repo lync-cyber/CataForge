@@ -464,12 +464,39 @@ def test_compose_template_wires_mcp_container(tmp_path) -> None:
     # The MCP server is a compose service brought up with the stack.
     assert "penpot-mcp:" in content
     assert "image: penpotapp/mcp:2.16" in content
+    # Default single-user: plugin authenticates via the live Penpot session,
+    # so the container must not run the image's --multi-user default CMD.
+    assert 'command: ["node", "index.js"]\n' in content
+    assert '"--multi-user"' not in content
     # frontend nginx proxies /mcp/* to the container via enable-mcp.
     assert "enable-mcp" in content
     assert "disable-mcp" not in content
     # All Penpot images share the single version tag (no floating :latest).
     assert "image: penpotapp/frontend:2.16" in content
     assert "penpotapp/frontend:latest" not in content
+
+
+def test_compose_template_multi_user_when_enabled(tmp_path) -> None:
+    config = {
+        "penpot_dir": str(tmp_path),
+        "penpot_port": 9001,
+        "penpot_version": "2.16",
+        "penpot_flags": "enable-login-with-password",
+        "mcp_multi_user": True,
+    }
+    penpot._generate_compose_file(config, force=True)
+    content = (tmp_path / "docker-compose.yml").read_text(encoding="utf-8")
+    assert 'command: ["node", "index.js", "--multi-user"]' in content
+
+
+def test_get_config_mcp_multi_user_defaults_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PENPOT_MCP_MULTI_USER", raising=False)
+    assert penpot.get_config()["mcp_multi_user"] is False
+
+
+def test_get_config_mcp_multi_user_env_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PENPOT_MCP_MULTI_USER", "true")
+    assert penpot.get_config()["mcp_multi_user"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -877,7 +904,8 @@ def test_cmd_doctor_passes_on_container_compose(tmp_path, capsys) -> None:
     compose.write_text(
         "services:\n  penpot-frontend:\n    environment:\n"
         "      - PENPOT_FLAGS=foo enable-mcp\n"
-        "  penpot-mcp:\n    image: penpotapp/mcp:2.16\n",
+        "  penpot-mcp:\n    image: penpotapp/mcp:2.16\n"
+        '    command: ["node", "index.js"]\n',
         encoding="utf-8",
     )
     config = {
@@ -896,6 +924,56 @@ def test_cmd_doctor_passes_on_container_compose(tmp_path, capsys) -> None:
     out = capsys.readouterr().out
     assert rc == 0
     assert "未发现已知问题" in out
+
+
+def test_cmd_doctor_flags_implicit_multi_user_compose(tmp_path, capsys) -> None:
+    """A penpot-mcp service with no explicit command runs the image's
+    --multi-user default CMD, which rejects token-less plugins — flag it."""
+    compose = tmp_path / "docker-compose.yml"
+    compose.write_text(
+        "services:\n  penpot-frontend:\n    environment:\n"
+        "      - PENPOT_FLAGS=foo enable-mcp\n"
+        "  penpot-mcp:\n    image: penpotapp/mcp:2.16\n",
+        encoding="utf-8",
+    )
+    config = {"penpot_dir": str(tmp_path), "penpot_port": 9001, "mcp_port": 4401}
+    with (
+        patch(
+            "cataforge.adapter.integrations.penpot.commands._is_penpot_running", return_value=True
+        ),
+        patch("cataforge.adapter.integrations.penpot.commands._is_mcp_running", return_value=True),
+        patch("os.path.isfile", side_effect=lambda p: p == str(compose)),
+    ):
+        rc = penpot.cmd_doctor(config)
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "userToken" in out
+    assert "single-user" in out
+
+
+def test_cmd_doctor_accepts_explicit_multi_user_compose(tmp_path, capsys) -> None:
+    """An explicit --multi-user compose is a valid opt-in: no problem, but
+    doctor reminds that plugin connections then need a userToken."""
+    compose = tmp_path / "docker-compose.yml"
+    compose.write_text(
+        "services:\n  penpot-frontend:\n    environment:\n"
+        "      - PENPOT_FLAGS=foo enable-mcp\n"
+        "  penpot-mcp:\n    image: penpotapp/mcp:2.16\n"
+        '    command: ["node", "index.js", "--multi-user"]\n',
+        encoding="utf-8",
+    )
+    config = {"penpot_dir": str(tmp_path), "penpot_port": 9001, "mcp_port": 4401}
+    with (
+        patch(
+            "cataforge.adapter.integrations.penpot.commands._is_penpot_running", return_value=True
+        ),
+        patch("cataforge.adapter.integrations.penpot.commands._is_mcp_running", return_value=True),
+        patch("os.path.isfile", side_effect=lambda p: p == str(compose)),
+    ):
+        rc = penpot.cmd_doctor(config)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "userToken" in out
 
 
 def test_doctor_argparse_subcommand_dispatches() -> None:
