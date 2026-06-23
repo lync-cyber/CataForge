@@ -330,6 +330,47 @@ class TestKgFirstStoreInit:
         assert store.is_dir()
 
 
+class TestBootstrapDesignToolLift:
+    """The design_tool SSOT lift must run in the bootstrap upgrade path too,
+    not only in `upgrade apply` — otherwise the `framework-update` flow (which
+    drives `cataforge bootstrap`) silently clears a penpot choice recorded only
+    in the instruction file when the deploy step force-overwrites it."""
+
+    @staticmethod
+    def _design_tool(root: Path) -> str:
+        data = json.loads((root / ".cataforge" / "framework.json").read_text(encoding="utf-8"))
+        return (data.get("project") or {}).get("design_tool") or "none"
+
+    def test_bootstrap_lifts_penpot_intent_before_deploy(
+        self, runner: CliRunner, fresh_project: Path
+    ) -> None:
+        first = runner.invoke(
+            cli, ["bootstrap", "--platform", "claude-code", "--yes", "--skip-doctor"]
+        )
+        assert first.exit_code == 0, first.output
+
+        claude_md = fresh_project / "CLAUDE.md"
+        assert "设计工具: none" in claude_md.read_text(encoding="utf-8")
+        # Simulate a pre-existing manual penpot choice that lives only in the
+        # instruction file (framework.json still records the default none).
+        claude_md.write_text(
+            claude_md.read_text(encoding="utf-8").replace("设计工具: none", "设计工具: penpot"),
+            encoding="utf-8",
+        )
+        assert self._design_tool(fresh_project) == "none"
+
+        # Drift a scaffold file so the upgrade step runs (and deploy with it).
+        agent = next((fresh_project / ".cataforge" / "agents").rglob("AGENT.md"))
+        agent.write_text("user edit\n", encoding="utf-8")
+
+        second = runner.invoke(cli, ["bootstrap", "--yes", "--skip-doctor"])
+        assert second.exit_code == 0, second.output
+        assert "design-tool" in second.output
+        # Healed into the SSOT before deploy, so deploy re-stamps penpot.
+        assert self._design_tool(fresh_project) == "penpot"
+        assert "设计工具: penpot" in claude_md.read_text(encoding="utf-8")
+
+
 class TestBootstrapMergePolicy:
     """The best-effort GitHub merge-policy step bootstrap runs near the end."""
 
