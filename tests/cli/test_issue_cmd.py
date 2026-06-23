@@ -501,6 +501,49 @@ class TestClose:
         assert "Fixed in v" in result.output
         assert "Triage: docs/reviews/triage/foo.md" in result.output
 
+    def test_release_flag_pins_version_in_comment(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        result = invoke_under_group(
+            close_command,
+            ["104", "--verdict", "fixed", "--pr", "108", "--release", "v9.9.9", "--dry-run"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Fixed in v9.9.9 (PR #108)" in result.output
+
+
+class TestResolveReleaseTag:
+    def test_explicit_release_wins_and_normalizes(self) -> None:
+        assert issue_svc.resolve_release_tag("v0.14.0") == "v0.14.0"
+        assert issue_svc.resolve_release_tag("0.14.0") == "v0.14.0"
+
+    def test_resolves_latest_git_tag_when_no_explicit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_run(cmd, **kwargs):  # noqa: ANN001
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout="v0.14.0\n", stderr=""
+            )
+
+        monkeypatch.setattr(issue_svc, "run_proc", fake_run)
+        assert issue_svc.resolve_release_tag() == "v0.14.0"
+
+    def test_falls_back_to_installed_when_git_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_run(cmd, **kwargs):  # noqa: ANN001
+            return subprocess.CompletedProcess(args=cmd, returncode=128, stdout="", stderr="fatal")
+
+        monkeypatch.setattr(issue_svc, "run_proc", fake_run)
+        assert issue_svc.resolve_release_tag() == f"v{issue_svc.INSTALLED_VERSION}"
+
+    def test_falls_back_to_installed_when_git_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_run(cmd, **kwargs):  # noqa: ANN001
+            raise FileNotFoundError("git")
+
+        monkeypatch.setattr(issue_svc, "run_proc", fake_run)
+        assert issue_svc.resolve_release_tag() == f"v{issue_svc.INSTALLED_VERSION}"
+
 
 class TestGhFailurePaths:
     def test_triage_surfaces_gh_rate_limit_error(

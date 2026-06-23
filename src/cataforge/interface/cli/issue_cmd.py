@@ -47,6 +47,7 @@ from cataforge.application.services.issue import (
     list_local_skills,
     parse_issue_body,
     render_close_comment,
+    resolve_release_tag,
     write_skill_improve_draft,
 )
 from cataforge.core.errors import CataforgeError, ExternalToolError
@@ -233,6 +234,13 @@ def triage_command(
     help="Extra trailing line appended to the templated comment (optional).",
 )
 @click.option(
+    "--release",
+    "release",
+    default=None,
+    help="Release tag the fix ships in (e.g. v0.14.0). "
+    "Defaults to the latest git tag, then the installed version.",
+)
+@click.option(
     "--dry-run",
     "dry_run",
     is_flag=True,
@@ -246,6 +254,7 @@ def close_command(
     reason: str | None,
     repo: str | None,
     extra_message: str | None,
+    release: str | None,
     dry_run: bool,
 ) -> None:
     """Close an issue with a templated comment.
@@ -281,6 +290,7 @@ def close_command(
         pr_number=pr_number,
         reason=reason,
         extra_message=extra_message,
+        release=resolve_release_tag(release),
     )
 
     click.echo(f"Repo:    {repo}")

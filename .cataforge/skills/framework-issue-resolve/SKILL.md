@@ -110,6 +110,7 @@ gh pr create --title "<type>(<scope>): <subject>" --body "..."
 # 修复后
 cataforge issue close <issue-id> --verdict fixed --pr <pr-number>
 # → comment: "Fixed in <release-tag> (PR #<pr-number>). Triage: docs/reviews/triage/SKILL-IMPROVE-<target-id>-issue-<issue-id>.md"
+# <release-tag> 默认取最新 git tag（无则回退已安装版本）；发版 tag 未打时用 --release vX.Y.Z 显式指定即将发布的版本
 
 # wontfix
 cataforge issue close <issue-id> --verdict wontfix --reason "<design intent statement>"
