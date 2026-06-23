@@ -453,9 +453,12 @@ class TestClose:
         assert result.exit_code != 0
         assert "--reason" in result.output
 
-    def test_invokes_gh_with_close_and_comment(
+    def test_comments_then_closes_as_two_calls(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """The comment is posted via ``gh issue comment`` (not folded into
+        ``gh issue close --comment``), so it survives an already-closed issue
+        where ``gh issue close --comment`` silently drops it."""
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
         captured: list[list[str]] = []
@@ -472,14 +475,38 @@ class TestClose:
             ["104", "--verdict", "fixed", "--pr", "108", "--repo", "fake/repo"],
         )
         assert result.exit_code == 0, result.output
-        assert len(captured) == 1
-        cmd = captured[0]
-        assert cmd[:5] == ["gh", "issue", "close", "104", "-R"]
-        assert "fake/repo" in cmd
-        assert "--comment" in cmd
-        comment = cmd[cmd.index("--comment") + 1]
-        assert "Fixed in v" in comment
-        assert "(PR #108)" in comment
+        assert len(captured) == 2
+        comment_cmd, close_cmd = captured
+        # Comment first, as its own gh call carrying --body.
+        assert comment_cmd[:5] == ["gh", "issue", "comment", "104", "-R"]
+        assert "fake/repo" in comment_cmd
+        body = comment_cmd[comment_cmd.index("--body") + 1]
+        assert "Fixed in v" in body
+        assert "(PR #108)" in body
+        # Close second, with no --comment (it would drop on an already-closed issue).
+        assert close_cmd[:5] == ["gh", "issue", "close", "104", "-R"]
+        assert "--comment" not in close_cmd
+
+    def test_surfaces_gh_comment_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+
+        def fake_run(cmd, **kwargs):  # noqa: ANN001
+            if cmd[:3] == ["gh", "issue", "comment"]:
+                return subprocess.CompletedProcess(args=cmd, returncode=1, stdout="", stderr="boom")
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(issue_cmd, "run_proc", fake_run)
+        monkeypatch.setattr(issue_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
+
+        result = invoke_under_group(
+            close_command,
+            ["104", "--verdict", "fixed", "--pr", "108", "--repo", "fake/repo"],
+        )
+        assert result.exit_code != 0
+        assert "gh issue comment failed" in result.output
 
     def test_extra_message_appended(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project = _bootstrap(tmp_path)
