@@ -328,3 +328,61 @@ class TestKgFirstStoreInit:
         second = runner.invoke(cli, ["bootstrap", "--yes", "--skip-doctor"])
         assert second.exit_code == 0, second.output
         assert store.is_dir()
+
+
+class TestBootstrapMergePolicy:
+    """The best-effort GitHub merge-policy step bootstrap runs near the end."""
+
+    def _cfg(self, tmp_path: Path):
+        from cataforge.core.config import ConfigManager
+        from tests.cli.conftest import make_minimal_project
+
+        return ConfigManager(make_minimal_project(tmp_path))
+
+    def test_ensure_policy_runs_when_gh_available(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import shutil
+        import subprocess
+
+        from cataforge.application.services.git_hygiene import GitHubRepo, GitWorkTree, PolicyChange
+        from cataforge.interface.cli.bootstrap_cmd import _maybe_ensure_merge_policy
+        from cataforge.utils import run_subprocess
+
+        monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/gh")
+        monkeypatch.setattr(
+            run_subprocess,
+            "run",
+            lambda argv, **kw: subprocess.CompletedProcess(argv, 0, "Logged in", ""),
+        )
+        monkeypatch.setattr(GitWorkTree, "is_inside_work_tree", lambda self: True)
+        monkeypatch.setattr(
+            GitHubRepo, "from_remote", classmethod(lambda cls, git, **kw: cls("owner/repo"))
+        )
+        calls: list[str] = []
+
+        def fake_ensure(self: GitHubRepo, policy: object, *, dry_run: bool = False) -> PolicyChange:
+            calls.append(self.slug)
+            return PolicyChange(slug=self.slug, changed=False, fields={})
+
+        monkeypatch.setattr(GitHubRepo, "ensure_merge_policy", fake_ensure)
+
+        _maybe_ensure_merge_policy(self._cfg(tmp_path))
+        assert calls == ["owner/repo"]
+
+    def test_ensure_policy_skipped_without_gh(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import shutil
+
+        from cataforge.application.services.git_hygiene import GitHubRepo
+        from cataforge.interface.cli.bootstrap_cmd import _maybe_ensure_merge_policy
+
+        monkeypatch.setattr(shutil, "which", lambda name: None)
+        calls: list[int] = []
+        monkeypatch.setattr(
+            GitHubRepo, "ensure_merge_policy", lambda self, *a, **k: calls.append(1)
+        )
+
+        _maybe_ensure_merge_policy(self._cfg(tmp_path))  # must not raise
+        assert calls == []

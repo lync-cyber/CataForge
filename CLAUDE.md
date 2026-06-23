@@ -100,7 +100,10 @@
 1. feature branch 上完成变更并 commit
 2. `git push -u origin <branch>`
 3. `gh pr create --title '<type>(<scope>): <subject>'`（必须显式 `--title`，否则 gh 用分支名）
-4. 合入后在 main 打 tag：`git tag vX.Y.Z && git push origin vX.Y.Z`
+4. 合并用 `gh pr merge --squash --delete-branch`（删远端 head；本地分支由下次会话启动的 `git_sync` hook 或 `cataforge git prune` 清理）
+5. 合入后在 main 打 tag：`git tag vX.Y.Z && git push origin vX.Y.Z`
+
+仓库 merge 策略（delete-branch-on-merge + squash-only）由 `cataforge git ensure-policy` 幂等设置，bootstrap 时自动跑一次。
 
 **dogfood 分支 → main**：在 feature 分支跑 `.cataforge/scripts/dogfood/prepare-pr.sh`（按 `product-paths.txt` 白名单还原 dev-only 产物，交互式提示合规标题并调 `gh pr create`）。
 

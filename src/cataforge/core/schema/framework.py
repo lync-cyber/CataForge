@@ -76,6 +76,46 @@ class FrameworkProject(BaseModel):
     design_tool: str = Field(default="none")
 
 
+class FrameworkGitSessionSync(BaseModel):
+    """Validated shape for ``git.session_sync`` — consumed by the SessionStart
+    ``git_sync`` hook.
+
+    ``enabled`` gates the whole hook. ``fast_forward_clean`` only fast-forwards
+    when the session opened on the default branch with a clean tree.
+    ``prune_gone`` deletes local branches whose upstream is gone (squash-merged).
+    ``confirm_via_gh`` double-checks a merged PR before pruning. ``debounce_seconds``
+    suppresses repeat fetches across rapid session restarts.
+    """
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    enabled: bool = True
+    fast_forward_clean: bool = True
+    prune_gone: bool = True
+    confirm_via_gh: bool = True
+    debounce_seconds: int = 60
+    fetch_timeout_seconds: int = 10
+
+
+class FrameworkGitRemotePolicy(BaseModel):
+    """Validated shape for ``git.remote_policy`` — the GitHub merge settings
+    ``cataforge git ensure-policy`` (and bootstrap) keep idempotent."""
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    delete_branch_on_merge: bool = True
+    squash_only: bool = True
+
+
+class FrameworkGit(BaseModel):
+    """Validated shape for the ``git`` section of ``framework.json``."""
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    session_sync: FrameworkGitSessionSync = Field(default_factory=FrameworkGitSessionSync)
+    remote_policy: FrameworkGitRemotePolicy = Field(default_factory=FrameworkGitRemotePolicy)
+
+
 class FrameworkFile(BaseModel):
     """Top-level framework.json — unknown keys preserved via ``extra='allow'``."""
 
@@ -90,3 +130,4 @@ class FrameworkFile(BaseModel):
     kg: FrameworkKG = Field(default_factory=FrameworkKG)
     context: FrameworkContext = Field(default_factory=FrameworkContext)
     project: FrameworkProject = Field(default_factory=FrameworkProject)
+    git: FrameworkGit = Field(default_factory=FrameworkGit)

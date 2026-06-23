@@ -111,6 +111,14 @@ HOOKS_MANIFEST: tuple[dict[str, object], ...] = (
         "description": "部署漂移提示",
         "safety_critical": False,
     },
+    {
+        "name": "git_sync",
+        "events": ("SessionStart",),
+        "default_capability": None,
+        "default_type": "observe",
+        "description": "会话启动 git 同步与分支清理",
+        "safety_critical": False,
+    },
 )
 
 

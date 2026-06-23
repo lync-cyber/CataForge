@@ -9,11 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from cataforge.application.services.git_hygiene import (
-    find_merged_branches,
-    prune_branches,
-    sync_default_branch,
-)
+from cataforge.application.services.git_hygiene import sync_default_branch
 from cataforge.core.errors import CataforgeError
 from tests.support.gitrepo import FakeGitWorkTree
 
@@ -67,26 +63,3 @@ class TestSyncDecision:
         with pytest.raises(CataforgeError, match="[Dd]etached"):
             sync_default_branch(fake)
         assert "fetch_prune" not in fake.method_names
-
-
-class TestPruneService:
-    def test_find_merged_excludes_target_and_head(self) -> None:
-        fake = FakeGitWorkTree(
-            locals_=["main", "feat/done", "feat/wip"],
-            merged={"main", "feat/done", "HEAD"},
-        )
-        assert find_merged_branches(fake, "main") == ["feat/done"]
-
-    def test_prune_deletes_each_with_safe_flag(self) -> None:
-        fake = FakeGitWorkTree()
-        deleted, failed = prune_branches(fake, ["a", "b"])
-        assert deleted == ["a", "b"]
-        assert failed == []
-        assert ("delete_branch", "a", False) in fake.calls
-        assert ("delete_branch", "b", False) in fake.calls
-
-    def test_prune_collects_failures_without_aborting_batch(self) -> None:
-        fake = FakeGitWorkTree(fail_delete={"b"})
-        deleted, failed = prune_branches(fake, ["a", "b", "c"])
-        assert deleted == ["a", "c"]
-        assert [name for name, _ in failed] == ["b"]

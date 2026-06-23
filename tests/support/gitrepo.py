@@ -61,6 +61,28 @@ def advance_origin(work: Path, bare: Path, *, filename: str = "two.txt") -> None
     _git(sibling, "push")
 
 
+def squash_merge_and_delete_remote(work: Path, bare: Path, *, branch: str) -> None:
+    """Reproduce a squash-merge + head-branch deletion.
+
+    Creates ``branch`` with its own commit, pushes it (so it has an upstream),
+    switches back to main, then deletes the remote branch from a *sibling*
+    clone so ``work``'s remote-tracking ref stays stale until it runs
+    ``fetch --prune``. After that prune the local ``branch`` reads
+    ``[gone]`` — the squash-blind state ``git branch --merged`` never sees,
+    because the squashed commit is not an ancestor of the local branch.
+    """
+    slug = branch.replace("/", "_")
+    _git(work, "switch", "-c", branch)
+    (work / f"{slug}.txt").write_text("feature\n", encoding="utf-8")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-m", f"work on {branch}")
+    _git(work, "push", "-u", "origin", branch)
+    _git(work, "switch", "main")
+    sibling = work.parent / f"sibling-del-{slug}"
+    _git(work.parent, "clone", str(bare), sibling.name)
+    _git(sibling, "push", "origin", "--delete", branch)
+
+
 class FakeGitWorkTree:
     """Scriptable :class:`GitWorkTree` stand-in that records mutating calls.
 
@@ -77,7 +99,7 @@ class FakeGitWorkTree:
         clean: bool = True,
         ahead: int = 0,
         behind: int = 0,
-        merged: set[str] | None = None,
+        gone: set[str] | None = None,
         locals_: list[str] | None = None,
         fail_delete: set[str] | None = None,
     ) -> None:
@@ -86,7 +108,7 @@ class FakeGitWorkTree:
         self._clean = clean
         self._ahead = ahead
         self._behind = behind
-        self._merged = set(merged or set())
+        self._gone = set(gone or set())
         self._locals = list(locals_ or [])
         self._fail_delete = set(fail_delete or set())
         self.calls: list[tuple] = []
@@ -121,8 +143,8 @@ class FakeGitWorkTree:
     def merge_ff_only(self, ref: str) -> None:
         self.calls.append(("merge_ff_only", ref))
 
-    def merged_branches(self, target: str) -> set[str]:
-        return set(self._merged)
+    def gone_branches(self) -> list[str]:
+        return [b for b in self._locals if b in self._gone]
 
     def local_branches(self) -> list[str]:
         return list(self._locals)
@@ -131,3 +153,21 @@ class FakeGitWorkTree:
         self.calls.append(("delete_branch", name, force))
         if name in self._fail_delete:
             raise ExternalToolError(f"cannot delete {name}")
+
+
+class FakeGitHubRepo:
+    """Scriptable :class:`GitHubRepo` stand-in for prune-decision tests.
+
+    ``merged`` is the set of branch names whose PR is merged; every
+    ``pr_is_merged`` call is recorded so a test can assert the gh port was
+    (or was not) consulted.
+    """
+
+    def __init__(self, *, slug: str = "owner/repo", merged: set[str] | None = None) -> None:
+        self.slug = slug
+        self._merged = set(merged or set())
+        self.calls: list[str] = []
+
+    def pr_is_merged(self, head: str) -> bool:
+        self.calls.append(head)
+        return head in self._merged

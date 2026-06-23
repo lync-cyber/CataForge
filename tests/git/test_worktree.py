@@ -16,7 +16,11 @@ import pytest
 
 from cataforge.application.services.git_hygiene import GitWorkTree
 from cataforge.core.errors import ExternalToolError
-from tests.support.gitrepo import advance_origin, build_linked_repos
+from tests.support.gitrepo import (
+    advance_origin,
+    build_linked_repos,
+    squash_merge_and_delete_remote,
+)
 
 
 @pytest.fixture
@@ -56,6 +60,19 @@ class TestGitWorkTreeReads:
         git = GitWorkTree(repo)
         git.fetch_prune("main")
         assert git.ahead_behind("main", "origin/main") == (0, 1)
+
+
+class TestGoneBranchDetection:
+    def test_gone_branches_detects_squash_merged(self, repo: Path, tmp_path: Path) -> None:
+        squash_merge_and_delete_remote(repo, tmp_path / "origin.git", branch="feat/squashed")
+        git = GitWorkTree(repo)
+        # Stale remote-tracking ref still present — not gone until prune.
+        assert git.gone_branches() == []
+        git.fetch_prune()
+        assert git.gone_branches() == ["feat/squashed"]
+
+    def test_gone_branches_empty_when_upstream_present(self, repo: Path) -> None:
+        assert GitWorkTree(repo).gone_branches() == []
 
 
 class _MalformedRevList(GitWorkTree):

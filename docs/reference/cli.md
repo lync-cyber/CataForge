@@ -25,6 +25,7 @@
 | [`cataforge correction`](#correction) | 写 On-Correction Learning 日志 |
 | [`cataforge feedback`](#feedback) | 把下游信号打包为上游可消费的 markdown 反馈 |
 | [`cataforge viz`](#viz) | 框架 / 项目结构图渲染（Mermaid / DOT / JSON 文本） |
+| [`cataforge git`](#git) | 本地分支卫生：同步默认分支、清理 squash 合并分支、设置仓库 merge 策略 |
 
 ---
 
@@ -684,6 +685,36 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 | `--open` | 就绪后用浏览器打开（`serve` / `dashboard`） | 关 |
 
 产物默认写 `docs/viz/`（已在 `docs/.docignore` 中豁免 orphan 检查；HTML 产物另由 `.gitignore` `docs/**/*.html` 保持临时）。文本输出 stdout 时 pipe 友好，可直接喂 mermaid.live / `dot`。
+
+---
+
+## git
+
+**何时用它**：PR 合并（squash）后同步本地 `main` 并清理已合并的 feature 分支；或一次性把仓库的 GitHub merge 策略设为 delete-branch-on-merge + squash-only。SessionStart `git_sync` hook 会在会话启动时自动跑同步+清理（见 [configuration.md](configuration.md#gitsession_sync)）。
+
+```bash
+cataforge git sync [--prune-gone] [--branch <name>] [--no-confirm-gh] [--yes] [--dry-run]
+cataforge git prune [--branch <name>] [--no-confirm-gh] [--yes] [--dry-run]
+cataforge git ensure-policy [--dry-run]
+```
+
+| 子命令 | 说明 |
+|--------|------|
+| `git sync` | fetch 并快进本地默认分支；`--prune-gone` 同时清理 squash 合并分支。脏树 / 分叉 / detached HEAD 时拒绝并给出补救。 |
+| `git prune` | 仅清理 upstream 已消失（`[gone]`）的本地分支 —— 即 squash 合并后远端 head 被删的分支，`git branch -d` 因 commit 非 ancestor 而漏判。 |
+| `git ensure-policy` | 幂等设置 origin 的 GitHub merge 策略（读 `framework.json#git.remote_policy`，仅在漂移时 PATCH）。 |
+
+| 参数 | 作用 | 默认 |
+|------|------|------|
+| `--prune-gone` | `git sync` 后清理 `[gone]` 分支（`--prune-merged` 为隐藏别名） | 关 |
+| `--branch <name>` | 指定默认分支（缺省从 `origin/HEAD` 探测） | 自动 |
+| `--no-confirm-gh` | 信任 `[gone]` 信号，不经 gh 二次确认 PR 是否已合并 | 关（默认确认） |
+| `--yes` | 跳过删除确认提示 | 关 |
+| `--dry-run` | 仅打印将执行的操作，不落盘 | 关 |
+
+**安全语义**：默认在删除 `[gone]` 分支前经 `gh pr list --state merged` 确认其 PR 已合并（远端 head 因非合并原因消失时保留分支）；origin 非 GitHub 远程或 gh 不可用时降级为信任 `[gone]`。
+
+合并后推荐配 `gh pr merge --squash --delete-branch`（见 [git 工作流](../../CLAUDE.md)），让远端 head 即时删除、下次 `git prune` / SessionStart hook 自动清理本地。
 
 ---
 
