@@ -20,6 +20,14 @@ def _env_int(name: str, default: int) -> int:
     return int(raw) if raw else default
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    """Read a boolean env var; unset/empty falls back to *default*."""
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 def get_config() -> dict[str, Any]:
     return {
         "penpot_dir": os.environ.get(
@@ -40,4 +48,9 @@ def get_config() -> dict[str, Any]:
         # source of truth for the downstream-distributed URL. Empty means
         # "fall back to the self-hosted local default" at spec-build time.
         "mcp_url": os.environ.get("PENPOT_MCP_URL", ""),
+        # Self-hosted penpot-mcp container mode. Default single-user: the
+        # browser plugin authenticates via the live Penpot session, so no
+        # per-connection userToken is needed. Set true only for a shared remote
+        # self-hosted stack (each connection must then carry ?userToken=).
+        "mcp_multi_user": _env_bool("PENPOT_MCP_MULTI_USER", False),
     }

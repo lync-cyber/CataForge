@@ -58,14 +58,31 @@ def _check_compose(config: dict[str, Any], problems: list[str], actions: list[st
             content = fh.read()
     except OSError:
         content = ""
-    if "enable-mcp" in content and "penpot-mcp" in content:
-        ok("compose 含 penpot-mcp 容器且 frontend enable-mcp")
-    else:
+    if not ("enable-mcp" in content and "penpot-mcp" in content):
         warn("compose 缺 penpot-mcp 服务或未启用 enable-mcp")
         problems.append("compose-stale")
         actions.append(
             f"compose 缺 penpot-mcp 容器：删除 {compose_file} 后重新 "
             "`cataforge penpot deploy` 重生成"
+        )
+        return
+    if "--multi-user" in content:
+        ok("compose 含 penpot-mcp 容器且 frontend enable-mcp")
+        info(
+            "penpot-mcp 以 multi-user 启动：插件连接 URL 须带 ?userToken="
+            "（PENPOT_MCP_MULTI_USER 开关）"
+        )
+    elif '["node", "index.js"]' in content:
+        ok("compose 含 penpot-mcp 容器（single-user，插件免 userToken）且 frontend enable-mcp")
+    else:
+        warn(
+            "penpot-mcp 缺 single-user command：走镜像默认 multi-user，"
+            "插件连接会因缺 userToken 被拒"
+        )
+        problems.append("mcp-implicit-multi-user")
+        actions.append(
+            f"删除 {compose_file} 后重新 `cataforge penpot deploy` 重生成"
+            "（默认 single-user，插件免 userToken）"
         )
 
 

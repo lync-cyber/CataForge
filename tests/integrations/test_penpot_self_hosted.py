@@ -71,7 +71,8 @@ def test_cmd_doctor_explains_endpoint_and_plugin(
     compose.write_text(
         "services:\n  penpot-frontend:\n    environment:\n"
         "      - PENPOT_FLAGS=foo enable-mcp\n"
-        "  penpot-mcp:\n    image: penpotapp/mcp:2.16\n",
+        "  penpot-mcp:\n    image: penpotapp/mcp:2.16\n"
+        '    command: ["node", "index.js"]\n',
         encoding="utf-8",
     )
     config = {"penpot_dir": str(tmp_path), "penpot_port": 9001, "mcp_port": 4401}

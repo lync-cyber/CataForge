@@ -60,6 +60,7 @@ def penpot_group() -> None:
     \b
     环境变量覆盖：
       PENPOT_MCP_URL       托管 MCP endpoint（remote 模式；下游分发亦取此值）
+      PENPOT_MCP_MULTI_USER  自托管 MCP 多用户模式（默认 false=single-user，插件免 userToken）
       PENPOT_PORT, PENPOT_MCP_SERVER_PORT, PENPOT_MCP_PLUGIN_PORT
       PENPOT_MCP_VERSION   pin @penpot/mcp 包版本（默认 latest）
       PENPOT_INSTALL_DIR   docker-compose.yml 落盘位置

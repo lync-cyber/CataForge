@@ -84,6 +84,10 @@ DOCKER_COMPOSE_TEMPLATE = textwrap.dedent("""\
       penpot-mcp:
         image: penpotapp/mcp:{penpot_version}
         restart: always
+        # single-user: the browser plugin authenticates via the live Penpot
+        # session, so no per-connection userToken is required. Overrides the
+        # image's --multi-user default CMD, which rejects token-less plugins.
+        command: {mcp_command}
         networks:
           - penpot
       penpot-backend:
