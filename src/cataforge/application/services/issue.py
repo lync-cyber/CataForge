@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from dataclasses import dataclass, field
 from datetime import date as date_cls
 from datetime import datetime
@@ -180,17 +181,41 @@ def _semver_lt(a: str, b: str) -> bool:
     return _key(a) < _key(b)
 
 
+def resolve_release_tag(explicit: str | None = None, *, project_root: Path | None = None) -> str:
+    """Resolve the release tag the close comment names.
+
+    The comment tells a downstream reporter which released version ships
+    the fix, so the value must be the release that contains the merged PR —
+    not whatever cataforge build happens to be installed in the maintainer's
+    shell. Precedence: an explicit ``--release`` wins; otherwise the latest
+    git tag reachable from HEAD (the release just cut); falling back to the
+    installed ``v{__version__}`` only when git or tags are unavailable.
+    """
+    if explicit and explicit.strip():
+        v = explicit.strip()
+        return v if v.startswith("v") else f"v{v}"
+    try:
+        result = run_proc(["git", "describe", "--tags", "--abbrev=0"], cwd=project_root)
+    except (OSError, subprocess.SubprocessError):
+        return f"v{INSTALLED_VERSION}"
+    tag = result.stdout.strip()
+    if result.returncode != 0 or not tag:
+        return f"v{INSTALLED_VERSION}"
+    return tag
+
+
 def render_close_comment(
     *,
     verdict: str,
     pr_number: int | None,
     reason: str | None,
     extra_message: str | None,
+    release: str,
 ) -> str:
     if verdict == "fixed":
-        body = f"Fixed in v{INSTALLED_VERSION} (PR #{pr_number})."
+        body = f"Fixed in {release} (PR #{pr_number})."
     elif verdict == "already-fixed":
-        body = f"Already fixed in v{INSTALLED_VERSION} (PR #{pr_number})."
+        body = f"Already fixed in {release} (PR #{pr_number})."
     elif verdict == "wontfix":
         body = f"Wontfix — by design: {reason}"
     else:
