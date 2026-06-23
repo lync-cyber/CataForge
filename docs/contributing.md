@@ -77,11 +77,19 @@ uv run pytest -q
 - 回归测试基线：`pytest -q` 全量通过后再提 PR
 
 ```bash
-uv run pytest -q                            # 全量
-uv run pytest tests/platform/ -v            # 平台适配
-uv run pytest tests/deploy/ -v              # 部署编排
+uv run pytest -n auto -q                              # 全量并行（默认开发用法）
+uv run pytest -m "not integration and not slow" -q   # 最快内循环：纯单元
+uv run pytest -m "not slow" -q                        # 跳过 e2e（wheel/venv/PyPI 构建）
+uv run pytest -q                                      # 全量串行（仅 --pdb / 单文件调试需要）
+uv run pytest tests/platform/ -v                      # 平台适配
 uv run pytest --cov=cataforge --cov-report=term-missing
 ```
+
+测试分层与提速：
+
+- **并行**：`pytest-xdist` 已是 dev 依赖，`-n auto` 按核数并行（CI 每个 job 也这么跑）。**全量串行约 10 分钟，`-n auto` 通常压到 2-3 分钟**。`-n auto` 刻意不入全局 `addopts`——会破坏 `--pdb` 与单文件调试，按需显式加。
+- **marker 分层**：`slow`（e2e：构建 wheel / venv / 拉 PyPI）与 `integration`（真实 CLI / 部署 / 平台适配 / MCP，由 `tests/conftest.py` 按目录自动标）。内循环用 `-m "not integration and not slow"` 只跑纯单元。
+- 重 fixture（构建产物 / 容器 / 已 ingest 的 KG store）走 session/module 级一次性构建并跨用例复用，不要每测重建。
 
 ---
 
