@@ -46,6 +46,16 @@ def testget_config_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg["penpot_dir"] == "/tmp/my-penpot"
 
 
+def test_get_config_reads_penpot_mcp_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PENPOT_MCP_URL", "https://design.penpot.app/mcp/stream?userToken=k")
+    assert penpot.get_config()["mcp_url"] == "https://design.penpot.app/mcp/stream?userToken=k"
+
+
+def test_get_config_mcp_url_empty_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PENPOT_MCP_URL", raising=False)
+    assert penpot.get_config()["mcp_url"] == ""
+
+
 # ---------------------------------------------------------------------------
 # _extract_secret_key
 # ---------------------------------------------------------------------------
@@ -638,7 +648,7 @@ def test_tail_log_missing_file_returns_empty(tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Wave 2 — remote (SaaS) onboarding
+# remote (hosted MCP) + mcp-only (npx) + URL secret masking
 # ---------------------------------------------------------------------------
 
 
@@ -652,37 +662,58 @@ def test_print_remote_onboarding_includes_manifest_and_endpoint(capsys) -> None:
     assert "Connect to MCP server" in out
 
 
-def test_cmd_remote_skips_docker_preflight() -> None:
-    config = penpot.get_config()
-    captured: list[str] = []
-
-    def fake_preflight(scope: str = "all") -> bool:
-        captured.append(scope)
-        return True
-
-    with (
-        patch(
-            "cataforge.adapter.integrations.penpot.commands.preflight_check",
-            side_effect=fake_preflight,
-        ),
-        patch("cataforge.adapter.integrations.penpot.commands.start_mcp", return_value=True),
-        patch("cataforge.adapter.integrations.penpot.commands.register_claude_mcp"),
-        patch("cataforge.adapter.integrations.penpot.commands.print_remote_onboarding"),
-    ):
+def test_cmd_remote_registers_hosted_url() -> None:
+    url = "https://design.penpot.app/mcp/stream?userToken=k"
+    config = {**penpot.get_config(), "mcp_url": url}
+    with patch("cataforge.adapter.integrations.penpot.commands.register_claude_mcp") as reg:
         rc = penpot.cmd_remote(config)
-
     assert rc == 0
-    assert captured == ["mcp"]  # NOT "all" — remote mode never touches Docker
+    reg.assert_called_once_with(url)  # hosted: no local process started
 
 
-def test_cmd_remote_fails_when_mcp_cannot_start() -> None:
-    config = penpot.get_config()
-    with (
-        patch("cataforge.adapter.integrations.penpot.commands.preflight_check", return_value=True),
-        patch("cataforge.adapter.integrations.penpot.commands.start_mcp", return_value=False),
-    ):
+def test_cmd_remote_masks_token_in_output(capsys) -> None:
+    config = {
+        **penpot.get_config(),
+        "mcp_url": "https://design.penpot.app/mcp/stream?userToken=SECRET123",
+    }
+    with patch("cataforge.adapter.integrations.penpot.commands.register_claude_mcp"):
         rc = penpot.cmd_remote(config)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "SECRET123" not in out
+    assert "userToken=***" in out
+
+
+def test_cmd_remote_fails_without_mcp_url(capsys) -> None:
+    config = {**penpot.get_config(), "mcp_url": ""}
+    rc = penpot.cmd_remote(config)
+    out = capsys.readouterr().out
     assert rc == 1
+    assert "PENPOT_MCP_URL" in out
+
+
+def test_cmd_mcp_only_warns_deprecated(capsys) -> None:
+    config = penpot.get_config()
+    with patch(
+        "cataforge.adapter.integrations.penpot.commands.preflight_check", return_value=False
+    ):
+        rc = penpot.cmd_mcp_only(config)
+    captured = capsys.readouterr()
+    out = captured.out + captured.err  # warn() writes to stderr
+    assert rc == 1  # preflight gate returns early; the deprecation warning still printed
+    assert "不推荐" in out
+
+
+def test_mask_url_secrets_redacts_token() -> None:
+    from cataforge.adapter.integrations.penpot.client import mask_url_secrets
+
+    assert (
+        mask_url_secrets("https://x/mcp/stream?userToken=abc123")
+        == "https://x/mcp/stream?userToken=***"
+    )
+    assert (
+        mask_url_secrets("http://localhost:9001/mcp/stream") == "http://localhost:9001/mcp/stream"
+    )
 
 
 def test_remote_argparse_subcommand_dispatches() -> None:

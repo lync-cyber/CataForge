@@ -47,6 +47,7 @@ from cataforge.adapter.integrations.penpot.commands import (
     cmd_stop,
     print_header,
     print_remote_onboarding,
+    print_self_hosted_onboarding,
 )
 from cataforge.adapter.integrations.penpot.config import get_config
 from cataforge.adapter.integrations.penpot.docker import (
@@ -122,6 +123,7 @@ __all__ = [
     "get_config",
     "print_header",
     "print_remote_onboarding",
+    "print_self_hosted_onboarding",
     "_print_status_table",
     "_prompt_mode",
     "_status_rows",

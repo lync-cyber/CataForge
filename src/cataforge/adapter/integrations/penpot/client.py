@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 
 from cataforge.utils.common import (
@@ -14,6 +15,18 @@ from cataforge.utils.common import (
     section,
     warn,
 )
+
+_SECRET_QUERY_PARAM = re.compile(r"((?:userToken|token|api[_-]?key)=)[^&\s]+", re.IGNORECASE)
+
+
+def mask_url_secrets(url: str) -> str:
+    """Mask token-like query params so a URL is safe to print to a terminal/log.
+
+    Penpot's hosted Remote MCP carries its auth as ``?userToken=…`` in the URL,
+    so display surfaces must redact it; the value passed to ``claude mcp add``
+    keeps the real token.
+    """
+    return _SECRET_QUERY_PARAM.sub(r"\1***", url)
 
 
 def _run_claude_mcp(args: list[str]) -> subprocess.CompletedProcess[str] | None:
