@@ -157,6 +157,20 @@ _FIELD_KEYS = {
 }
 
 
+_DEVIATION_TOKEN_RE = re.compile(r"[\s(（]")
+
+
+def _deviation_token(raw: str) -> str:
+    """Leading token of a 偏差类型 value, before any inline annotation.
+
+    Hand-written / historical entries annotate the deviation inline, e.g.
+    ``upstream-gap (dev-plan 漏 M-002↔M-003 集成点)``. Enum values never
+    contain whitespace or parentheses, so the leading token is the
+    canonical deviation that filtering and counting compare against.
+    """
+    return _DEVIATION_TOKEN_RE.split(raw.strip(), maxsplit=1)[0]
+
+
 def collect_corrections(
     project_root: Path,
     *,
@@ -189,7 +203,7 @@ def collect_corrections(
                 return
             if d < cutoff:
                 return
-        entry_dev = current.get("deviation", "preference")
+        entry_dev = _deviation_token(current.get("deviation", "preference"))
         if deviation is not None and entry_dev != deviation:
             return
         out.append(
