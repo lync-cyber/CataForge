@@ -33,9 +33,10 @@ def test_with_penpot_sets_design_tool_and_writes_spec(
     assert spec.is_file()
     body = spec.read_text(encoding="utf-8")
     assert "id: penpot" in body
-    # endpoint is an env-expansion placeholder so any token stays in .env,
+    # spec carries a literal default + url_env; the token (if any) stays in env,
     # never in this git-tracked spec
-    assert "${PENPOT_MCP_URL:-http://localhost:9001/mcp/stream}" in body
+    assert "url_env: PENPOT_MCP_URL" in body
+    assert "http://localhost:9001/mcp/stream" in body
 
 
 def test_without_penpot_leaves_design_tool_none(

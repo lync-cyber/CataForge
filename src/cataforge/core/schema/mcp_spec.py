@@ -58,6 +58,13 @@ class MCPServerSpec(BaseModel):
     # Remote (http/sse/streamable_http) endpoint. Mutually exclusive with
     # command/args; each platform adapter renders it into its native shape.
     url: str = ""
+    # Env var consulted at deploy time to override ``url`` with a real endpoint
+    # (e.g. a hosted URL carrying an auth token). Keeps secrets out of the
+    # git-tracked spec: only the var *name* and a safe default url live here; the
+    # resolved value lands in the platform's (gitignored) MCP config. Unset env
+    # → the ``url`` default is used, so every platform works without relying on
+    # platform-specific ${VAR} expansion.
+    url_env: str = ""
 
     @field_validator("env", mode="before")
     @classmethod

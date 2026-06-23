@@ -688,3 +688,49 @@ class TestNativeMcpPayload:
         adapter.write_mcp_config("local", dict(stdio), project_dir)
         entry = json.loads((project_dir / ".mcp.json").read_text(encoding="utf-8"))
         assert entry["mcpServers"]["local"] == stdio
+
+
+class TestPenpotCrossPlatformEndpoint:
+    """End-to-end: the Penpot spec's url_env resolves to a LITERAL url in every
+    platform's config — no ${VAR} placeholder that non-Claude platforms (Codex
+    TOML, OpenCode) cannot expand."""
+
+    _TARGETS = [
+        ("claude-code", ".mcp.json"),
+        ("cursor", ".cursor/mcp.json"),
+        ("codex", ".codex/config.toml"),
+        ("opencode", "opencode.json"),
+    ]
+
+    def _deploy(self, project_dir: Path, plat: str, rel: str) -> str:
+        from cataforge.runtime.mcp.registry import MCPRegistry
+
+        adapter = get_adapter(plat, project_dir / ".cataforge" / "platforms")
+        payload = MCPRegistry(project_dir).get_platform_config("penpot", plat)
+        adapter.write_mcp_config("penpot", payload, project_dir)
+        return (project_dir / rel).read_text(encoding="utf-8")
+
+    def test_self_hosted_default_is_literal_on_every_platform(
+        self, project_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cataforge.adapter.integrations.penpot.mcp_spec import write_penpot_mcp_spec
+
+        write_penpot_mcp_spec(project_dir)
+        monkeypatch.delenv("PENPOT_MCP_URL", raising=False)
+        for plat, rel in self._TARGETS:
+            text = self._deploy(project_dir, plat, rel)
+            assert "${" not in text, f"{plat} config carries an unexpanded placeholder: {text}"
+            assert "http://localhost:9001/mcp/stream" in text
+
+    def test_env_override_writes_literal_token_url_on_every_platform(
+        self, project_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from cataforge.adapter.integrations.penpot.mcp_spec import write_penpot_mcp_spec
+
+        write_penpot_mcp_spec(project_dir)
+        hosted = "https://design.penpot.app/mcp/stream?userToken=k"
+        monkeypatch.setenv("PENPOT_MCP_URL", hosted)
+        for plat, rel in self._TARGETS:
+            text = self._deploy(project_dir, plat, rel)
+            assert hosted in text, f"{plat} config missing resolved hosted url: {text}"
+            assert "${" not in text

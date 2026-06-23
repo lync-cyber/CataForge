@@ -101,6 +101,56 @@ class TestRegistryDiscovery:
         cfg = reg.get_platform_config("url-srv", "cursor")
         assert cfg == {"transport": "http", "url": "http://localhost:9001/mcp/stream"}
 
+    def test_url_env_overrides_url_when_set(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A spec naming url_env: deploy reads that env var and its value replaces
+        # the default url, resolving to a literal endpoint for EVERY platform
+        # (no reliance on platform-specific ${VAR} expansion).
+        _write_spec(
+            project,
+            "env-srv",
+            command="",
+            url="http://localhost:9001/mcp/stream",
+            url_env="PENPOT_MCP_URL",
+        )
+        monkeypatch.setenv("PENPOT_MCP_URL", "https://design.penpot.app/mcp/stream?userToken=k")
+        reg = MCPRegistry(project)
+        for plat in ("claude-code", "cursor", "codex", "opencode"):
+            cfg = reg.get_platform_config("env-srv", plat)
+            assert cfg["url"] == "https://design.penpot.app/mcp/stream?userToken=k"
+
+    def test_url_env_falls_back_to_default_when_unset(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_spec(
+            project,
+            "env-srv",
+            command="",
+            url="http://localhost:9001/mcp/stream",
+            url_env="PENPOT_MCP_URL",
+        )
+        monkeypatch.delenv("PENPOT_MCP_URL", raising=False)
+        reg = MCPRegistry(project)
+        cfg = reg.get_platform_config("env-srv", "codex")
+        assert cfg["url"] == "http://localhost:9001/mcp/stream"
+
+    def test_explicit_platform_url_override_beats_url_env(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_spec(
+            project,
+            "env-srv",
+            command="",
+            url="http://localhost:9001/mcp/stream",
+            url_env="PENPOT_MCP_URL",
+            platform_config={"cursor": {"url": "http://override/mcp"}},
+        )
+        monkeypatch.setenv("PENPOT_MCP_URL", "https://env/mcp?userToken=k")
+        reg = MCPRegistry(project)
+        cfg = reg.get_platform_config("env-srv", "cursor")
+        assert cfg["url"] == "http://override/mcp"
+
     def test_non_ascii_spec_parsed_utf8(self, project: Path) -> None:
         # A spec with non-ASCII text must parse regardless of platform locale.
         _write_spec(project, "zh-srv", description="设计工具 MCP")
