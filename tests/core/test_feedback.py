@@ -21,7 +21,7 @@ from cataforge.application.feedback import (
     redact,
     upstream_gap_count,
 )
-from cataforge.core.corrections import record_correction
+from cataforge.core.corrections import CORRECTIONS_LOG_REL, record_correction
 from cataforge.core.event_log import (
     EVENT_LOG_REL,
     MAX_EVENTLOG_BYTES,
@@ -192,6 +192,37 @@ class TestCorrectionsAggregator:
         assert len(upstream_only) == 1
         assert upstream_only[0].deviation == UPSTREAM_GAP
         assert "TDD" in upstream_only[0].baseline
+
+    def test_annotated_deviation_still_classifies(self, tmp_path: Path) -> None:
+        """A 偏差类型 value with an inline parenthetical annotation must still
+        classify by its leading token. ``record_correction`` rejects such
+        values, so the historical / hand-written form is written raw here."""
+        project = _bootstrap(tmp_path)
+        log = project / CORRECTIONS_LOG_REL
+        log.parent.mkdir(parents=True, exist_ok=True)
+
+        def _entry(d: str, deviation: str) -> str:
+            return (
+                f"### {d} | tech-lead | development\n"
+                "- 触发信号: review-flag\n"
+                "- 问题/假设: q\n"
+                "- 基线/推荐: b\n"
+                "- 实际/选择: a\n"
+                f"- 偏差类型: {deviation}\n"
+            )
+
+        log.write_text(
+            "---\nid: corrections-log\n---\n# Corrections Log\n"
+            + _entry("2026-06-10", "upstream-gap")
+            + _entry("2026-06-11", "upstream-gap (dev-plan 漏 M-002↔M-003 集成点)")
+            + _entry("2026-06-12", "upstream-gap（全角注释）"),
+            encoding="utf-8",
+        )
+
+        entries = collect_corrections(project, deviation=UPSTREAM_GAP)
+        assert len(entries) == 3
+        assert all(e.deviation == UPSTREAM_GAP for e in entries)
+        assert upstream_gap_count(project) == 3
 
     def test_upstream_gap_count_helper(self, tmp_path: Path) -> None:
         project = _bootstrap(tmp_path)
