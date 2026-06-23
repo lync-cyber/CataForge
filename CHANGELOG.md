@@ -20,6 +20,61 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.14.0'></a>
+## [0.14.0] — 2026-06-23
+
+### Added
+
+- **`cataforge git sync` / `git sync --prune-merged`** —— 本地分支卫生命令组,fast-forward 本地默认分支并可选清理已合并的 feature 分支。git 机制下沉到 `application/services/git_hygiene.py`(`GitWorkTree` port + 决策函数),供后续 SessionStart hook 与 bootstrap 共享同一实现。
+
+- **`cataforge git prune`** —— 清理 upstream 已消失（`[gone]`）的本地分支，即 squash 合并后远端 head 被删、`git branch -d` 因 commit 非 ancestor 而漏判的分支。默认经 `gh pr list --state merged` 二次确认 PR 已合并（`--no-confirm-gh` 信任 `[gone]`）。
+- **SessionStart `git_sync` hook** —— 会话启动时确定性 fetch + 快进干净的默认分支 + 清理 squash 合并分支；永不切分支、脏树/离线静默降级、带 `git.session_sync.debounce_seconds` 防抖。受 `framework.json#git.session_sync` 控制。
+- **`cataforge git ensure-policy`** —— 幂等设置 origin 的 GitHub merge 策略（delete-branch-on-merge + squash-only），读 `framework.json#git.remote_policy`，仅在漂移时 PATCH。bootstrap 在 gh 可用时自动跑一次。
+- **`cataforge doctor` 新增 Git hygiene 报告项** —— 列出 upstream 已消失的本地分支并建议 `cataforge git prune`；纯报告，恒返回 0（不作 CI gate）。
+
+- **`PENPOT_MCP_URL` 统一 MCP endpoint 事实源** —— 下游分发的 `.cataforge/mcp/penpot.yaml` 与 `cataforge penpot remote` 共用此变量；spec 以 `${PENPOT_MCP_URL:-http://localhost:9001/mcp/stream}` 占位符落盘，token 随 env 留在 `.env`（gitignored），不写入 git-tracked spec，运行时由平台（Claude Code / Cursor）展开。
+- **自托管插件连接引导** —— `cataforge penpot deploy` 部署后打印浏览器侧步骤（加载 `/plugins/mcp/manifest.json` → Connect）；`status` / `doctor` 澄清「MCP 握手就绪 ≠ 浏览器插件已连」及自托管入口端口（`:9001/mcp/stream`，npx 的 `4400/4401` 不适用于自托管）。
+
+- **`MCPServerSpec.url_env`** —— 通用字段:命名一个环境变量,deploy 时其值(若设)覆盖 spec 的默认 url(平台显式 override 仍优先)。敏感值(如带 token 的托管 endpoint)留在环境、落各平台 gitignored 的 MCP 配置,不写入 git-tracked 的 spec。
+
+- **framework-issue-resolve 新增「审查与修复纪律」** —— skill 此前只编码机械闭环,缺诊断质量护栏;补一节 Step 2–4 自检,以「做 A 而非 B」点名 LLM 常见误区:先在当前代码复现(verdict≠根因)、先查是否已实现、修根因而非症状、验证 reporter 建议前提、核全部入口、可复现缺陷先写失败测试。
+
+- **task-decomp / tech-lead 强制 AC 覆盖被引用的 arch API 契约** —— dev-plan 任务卡 AC 此前系统性欠拟合所引用的 `arch#§N.API-xxx` 契约，契约声明的错误码 / 安全路径 / 集成点拿不到对应 AC，缺口仅在下游 code-review（HIGH）或 pre-wiring 审计才暴露。在 AC 派生处引入契约完整性对账纪律：task-decomp §执行流程 step 3 + 对比式 Anti-Pattern，及 tech-lead 与 `AC literal-reference` 同族的 `AC contract-completeness` 执行规则。每项响应码 / 安全路径 / 集成点须有对应 AC 或显式 `[ASSUMPTION]` 豁免。
+
+- **测试套件性能纪律入框架交付物** —— `testing` SKILL 新增 `§测试套件性能纪律`、`test-writer` AGENT 新增两条 Anti-Pattern：慢测/集成测分层标签隔离以保住纯单元快循环、昂贵且确定的 setup 跨用例复用而非每测重建、可进程内验证的逻辑不 spawn 子进程。补此前"教写对的测试但不教写快的测试"的缺口。
+
+### Changed
+
+- **`cataforge sync-main` 改为 `cataforge git sync` 的隐藏别名** —— 原命令行为不变,仍可调用;新入口为 `cataforge git sync`。
+
+- **`cataforge git sync --prune-gone` 取代 `--prune-merged`** —— prune 检测从 `git branch --merged`（squash-blind）改为 upstream `[gone]` 主信号；`--prune-merged` 保留为隐藏别名。
+
+- **`cataforge penpot remote` 重定义为托管 MCP** —— 直接注册 `PENPOT_MCP_URL` 指向的托管 endpoint，零本地进程 / Docker / 浏览器插件；终端输出对 URL 中的 `userToken` 做脱敏。
+
+- **自托管 penpot-mcp 默认 single-user** —— `cataforge penpot deploy` 生成的 compose 现以 `command: ["node", "index.js"]` 启动 penpot-mcp 容器，覆盖镜像默认的 `--multi-user` CMD。single-user 下浏览器插件用当前 Penpot 会话认证，不再要求每个连接携带 `?userToken=`（multi-user 模式插件连接报 `Disconnected: Missing userToken parameter` 的根因）。需多用户共享同一自托管栈时设 `PENPOT_MCP_MULTI_USER=true` 切回。
+
+- **本仓测试套件提速** —— `tests/kg/_kg_fixtures.py` 把每测重跑的 KG ingest（copy fixture → init oxigraph store → run_migration，~1s）改为按进程缓存的 ingested 模板 + 每测 copytree 预建 store（~30× 更快、仍隔离），三处重复 helper 收敛为一个共享 import；`docs/contributing.md` 文档化 `-n auto`（xdist 并行，~10min→~2-3min）与 `-m "not integration and not slow"` 纯单元内循环。
+
+### Fixed
+
+- **Penpot MCP endpoint 跨平台分发** —— 下发用的 `${PENPOT_MCP_URL:-...}` 占位符只有 Claude Code 能在运行时展开;Cursor 用 `${env:VAR}`、Codex 的 TOML `url` 不插值、OpenCode 用 `{env:VAR}`,会把占位符当字面 URL,导致连自托管默认场景都失效。改为 **deploy-time 解析**:spec 存字面默认 url,deploy 读 `PENPOT_MCP_URL` 写入各平台 MCP 配置的字面值,不依赖任何平台的 `${VAR}` 展开能力。
+
+- **tech-lead `task_kind` 枚举补 `validation`** —— ORCHESTRATOR-PROTOCOLS / task-decomp / standard dev-plan 模板都已产 `task_kind: validation` 走查任务,但 tech-lead 的生成枚举漏列,导致它不会生成走查任务、协议定义的能力在标准流程中不可达。补全枚举并标注其行为(不产代码、不进 TDD、orchestrator 经 AskUserQuestion 调度)。
+
+- **bootstrap 路径回填 design_tool intent** —— `framework.json#project.design_tool` 是设计工具行的单一事实源,deploy 每次强制盖入;此前只有 `cataforge upgrade apply` 会把仅写在 CLAUDE.md 的 penpot 回填进 framework.json,而 `framework-update apply` 实际驱动的 `cataforge bootstrap` 的 upgrade 步未做此 heal,导致紧随的 deploy 静默把 penpot 抹回 none(doctor 全绿,无告警)。把 `lift_design_tool_intent` 下沉到 `application/services/upgrade`,bootstrap 在 deploy 前与 `upgrade apply` 调用同一 heal。
+
+- **跨卷 AC xref 解析到嵌套节点** —— dev-plan 任务卡 `满足 AC: prd#§2.AC-NNN` 的 `cf:satisfies` 边在 PRD 分卷时落到顶层裸占位节点 `instance/AC-NNN`(无 entity_id),而非真实的 `instance/F-NNN/AC-NNN`,导致 doc-consistency ac-traceability 误判全部 PRD AC 未覆盖、doctor 报 dangling edges。根因是 `writer._lookup_node_iri` 用 `cf:source_doc` 精确匹配,而 xref 写基名 `prd`、分卷实体存卷 id `prd-core`。改为精确匹配优先 + volume-tolerant `CONTAINS` 回退,与跨文档一致性 checker 的 source_doc 解析对称。
+
+- **`cataforge penpot doctor` 检测隐式 multi-user compose** —— 旧 compose（penpot-mcp 无显式 command，落到镜像默认 `--multi-user`）会被标记为问题并提示删除后重新 `deploy` 重生成；显式 `--multi-user` 的 opt-in compose 放行但提醒插件连接需 `userToken`。
+
+- **feedback aggregator 计入带内联注释的 `upstream-gap` 条目** —— `collect_corrections` 原按 `偏差类型` 精确值匹配，手写 / 历史条目把 deviation 注释成 `upstream-gap (dev-plan 漏 M-002↔M-003 集成点)` 后落到过滤集外，导致 `upstream_gap_count` 与 threshold 门禁低估、本应触发的上游反馈被漏判。比较与存储前归一化到首 token（按空白 / 半角 / 全角括号分割），枚举值从不含空白或括号故首 token 即规范值。
+
+- **`cataforge issue close` 的发版标签从 git tag 解析，不再用已安装包版本** —— `render_close_comment` 原硬编码 `v{__version__}`，下游收到的 "Fixed in vX.Y.Z" 仅当 maintainer 已安装版本恰好等于刚切的 release 时才正确，全局工具滞后时静默错写升级目标。改为 `resolve_release_tag`：`--release` 显式值优先 → 否则 `git describe --tags --abbrev=0` → 仅 git/tag 不可用时回退 `v{__version__}`。`issue close` 新增 `--release` option。
+
+### Deprecated
+
+- **`cataforge penpot mcp-only`（宿主机 npx MCP）** —— 链路脆弱且需浏览器插件常驻，调用时打印迁移提示，引导改用 `remote`（托管）或 `deploy`（自托管）。
+
 <a id='changelog-0.13.1'></a>
 ## [0.13.1] — 2026-06-22
 
@@ -1803,7 +1858,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.14.0
 [0.13.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.13.1
 [0.13.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.13.0
 [0.12.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.12.1
