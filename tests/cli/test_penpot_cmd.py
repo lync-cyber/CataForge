@@ -29,12 +29,12 @@ def test_penpot_cmd_uses_public_get_config() -> None:
 
 
 def test_penpot_remote_subcommand_registered() -> None:
-    """Wave 2: `cataforge penpot remote` must be a click subcommand."""
+    """`cataforge penpot remote` must be a registered click subcommand."""
     from cataforge.interface.cli import penpot_cmd
 
     cmd = penpot_cmd.penpot_group.get_command(None, "remote")
     assert cmd is not None, "`cataforge penpot remote` is not registered"
-    assert cmd.help and "design.penpot.app" in cmd.help
+    assert cmd.help and "PENPOT_MCP_URL" in cmd.help
 
 
 def test_penpot_init_and_doctor_registered() -> None:
@@ -48,9 +48,9 @@ def test_penpot_init_and_doctor_registered() -> None:
 
 
 def test_penpot_group_help_lists_new_subcommands() -> None:
-    """Wave 3: group help should advertise the new entry points."""
+    """Group help should advertise the primary entry points."""
     from cataforge.interface.cli import penpot_cmd
 
     help_text = penpot_cmd.penpot_group.help or ""
-    for needle in ("init", "remote", "doctor", "design.penpot.app"):
+    for needle in ("init", "remote", "doctor", "PENPOT_MCP_URL"):
         assert needle in help_text, f"group help missing {needle!r}"

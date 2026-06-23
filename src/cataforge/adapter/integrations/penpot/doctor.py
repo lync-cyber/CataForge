@@ -84,6 +84,25 @@ def _check_mcp_log(problems: list[str]) -> None:
         ok("MCP 日志未发现已知错误模式")
 
 
+def _explain_self_hosted_endpoint(config: dict[str, Any]) -> None:
+    """Clear up the two recurring self-hosted confusions: wrong ports + plugin.
+
+    The npx ports (4400/4401) are never exposed by the container stack, and a
+    healthy handshake still needs a connected browser plugin to read designs.
+    """
+    port = config["penpot_port"]
+    section("插件连接")
+    info(
+        f"自托管 MCP 入口: http://localhost:{port}/mcp/stream"
+        "（4400/4401 是 npx 模式端口，自托管不暴露）"
+    )
+    info(
+        "MCP 工具需浏览器插件 Connected 才能读写设计: "
+        f"在 http://localhost:{port} 打开设计 → Plugins → "
+        f"粘贴 http://localhost:{port}/plugins/mcp/manifest.json → Connect"
+    )
+
+
 def cmd_doctor(config: dict[str, Any]) -> int:
     """Inspect the active mode's toolchain, MCP wiring, and service ports."""
     print_header("Penpot 服务诊断")
@@ -94,6 +113,7 @@ def cmd_doctor(config: dict[str, Any]) -> int:
     if os.path.isfile(compose_file):
         # Self-hosted: MCP is the penpot-mcp container — no host Node needed.
         _check_compose(config, problems, actions)
+        _explain_self_hosted_endpoint(config)
     else:
         # remote / mcp-only: MCP runs via host npx.
         _check_node_env(problems, actions)

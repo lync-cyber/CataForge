@@ -45,9 +45,9 @@ def penpot_group() -> None:
     \b
     三种模式（选一个）：
       cataforge penpot init       交互式向导（推荐首次使用）
-      cataforge penpot remote     SaaS：design.penpot.app + 本地 MCP（零 Docker）
-      cataforge penpot deploy     自托管：6 容器 + MCP（需 Docker）
-      cataforge penpot mcp-only   只起 MCP，自己接已有 Penpot
+      cataforge penpot remote     托管 MCP：PENPOT_MCP_URL 指向托管 endpoint（零本地进程）
+      cataforge penpot deploy     自托管：6 容器 + MCP（需 Docker + 浏览器插件）
+      cataforge penpot mcp-only   [不推荐] 宿主机 npx MCP，接已有 Penpot
 
     \b
     日常管理：
@@ -59,6 +59,7 @@ def penpot_group() -> None:
 
     \b
     环境变量覆盖：
+      PENPOT_MCP_URL       托管 MCP endpoint（remote 模式；下游分发亦取此值）
       PENPOT_PORT, PENPOT_MCP_SERVER_PORT, PENPOT_MCP_PLUGIN_PORT
       PENPOT_MCP_VERSION   pin @penpot/mcp 包版本（默认 latest）
       PENPOT_INSTALL_DIR   docker-compose.yml 落盘位置
@@ -85,11 +86,11 @@ def penpot_mcp_only() -> None:
 
 @penpot_group.command("remote")
 def penpot_remote() -> None:
-    """SaaS mode: use design.penpot.app + a local MCP server (no Docker).
+    """Hosted mode: register the MCP endpoint from PENPOT_MCP_URL (no Docker/npx).
 
-    Spins up the MCP server on localhost and prints browser-side steps to
-    load the MCP plugin into design.penpot.app. The fastest path for users
-    who don't need a self-hosted Penpot instance.
+    Points the LLM client at a Penpot-hosted (or self-hosted remote-mode) MCP
+    server authenticating via the token carried in the URL. Zero local process —
+    the fastest path when you don't run the self-hosted stack.
     """
     _run_penpot("remote")
 

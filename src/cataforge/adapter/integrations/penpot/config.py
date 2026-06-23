@@ -36,4 +36,8 @@ def get_config() -> dict[str, Any]:
             "enable-smtp enable-prepl-server disable-secure-session-cookies",
         ),
         "mcp_version": os.environ.get("PENPOT_MCP_VERSION", DEFAULT_MCP_PACKAGE_VERSION),
+        # Hosted/explicit MCP endpoint for the `remote` mode and the single
+        # source of truth for the downstream-distributed URL. Empty means
+        # "fall back to the self-hosted local default" at spec-build time.
+        "mcp_url": os.environ.get("PENPOT_MCP_URL", ""),
     }

@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 from cataforge.adapter.integrations.penpot._constants import MCP_HEALTH_TIMEOUT
-from cataforge.adapter.integrations.penpot.client import register_claude_mcp
+from cataforge.adapter.integrations.penpot.client import mask_url_secrets, register_claude_mcp
 from cataforge.adapter.integrations.penpot.docker import (
     _is_penpot_running,
     deploy_penpot,
@@ -28,6 +28,7 @@ from cataforge.utils.common import (
     fail,
     has_command,
     info,
+    ok,
     section,
     warn,
 )
@@ -101,11 +102,16 @@ def cmd_deploy(config: dict[str, Any]) -> int:
     if not _wait_for_mcp(config, url):
         warn("penpot-mcp 容器未就绪（可能仍在拉镜像）；稍后 `cataforge penpot status` 复查")
     register_claude_mcp(url)
+    print_self_hosted_onboarding(config)
     return 0
 
 
 def cmd_mcp_only(config: dict[str, Any]) -> int:
-    print_header("Penpot MCP Server 部署", "只起 MCP — 假定 Penpot 已运行")
+    print_header("Penpot MCP Server (npx)", "只起本地 npx MCP — 假定 Penpot 已运行")
+    warn(
+        "mcp-only（宿主机 npx MCP）已不推荐：依赖 Node/npx 源码构建且需浏览器插件常驻。"
+        "优先 cataforge penpot remote（托管）或 cataforge penpot deploy（自托管）。"
+    )
     if not preflight_check("mcp"):
         return 1
     penpot_base = os.environ.get("PENPOT_BASE_URL", "")
@@ -117,6 +123,7 @@ def cmd_mcp_only(config: dict[str, Any]) -> int:
     if not start_mcp(config):
         return 1
     register_claude_mcp(_npx_mcp_url(config))
+    print_remote_onboarding(config)
     return 0
 
 
@@ -146,18 +153,54 @@ def print_remote_onboarding(config: dict[str, Any]) -> None:
     print(f"  {DIM}插件 UI 关闭后 WebSocket 会断开 — 让 Plugin 面板保持打开。{NC}\n")
 
 
-def cmd_remote(config: dict[str, Any]) -> int:
-    """Remote (SaaS) mode: only launch local MCP, point user at design.penpot.app."""
-    print_header(
-        "Penpot Remote (SaaS) + 本地 MCP",
-        f"使用 {PENPOT_SAAS_URL} 作为 Penpot 后端 — 无需 Docker 自托管",
+def print_self_hosted_onboarding(config: dict[str, Any]) -> None:
+    """Walk the user through connecting the MCP plugin in the self-hosted UI.
+
+    The penpot-mcp container reaches designs only through a WebSocket-connected
+    browser plugin, so even with the whole stack up the user must load the
+    plugin manifest into their local Penpot once per browser session — the
+    self-hosted frontend serves it at ``/plugins/mcp/manifest.json``.
+    """
+    base = f"http://localhost:{config['penpot_port']}"
+    plugin_manifest = f"{base}/plugins/mcp/manifest.json"
+    mcp_endpoint = f"{base}/mcp/stream"
+    section("浏览器侧设置（必须完成才能让 LLM 看到设计）")
+    steps = [
+        f"在浏览器打开 {BOLD}{base}{NC} 并登录自托管 Penpot",
+        "打开任意设计文件 → 点击右上角 Plugins 图标",
+        f"在 'Plugin manager' 粘贴: {BOLD}{plugin_manifest}{NC}",
+        "点击 Install，再点 Open，最后点 Connect to MCP server",
+        f"状态变 Connected 即可在 LLM 端使用 MCP 工具 ({DIM}{mcp_endpoint}{NC})",
+    ]
+    for n, msg in enumerate(steps, start=1):
+        print(f"  {CYAN}{n}.{NC} {msg}")
+    print(
+        f"\n  {DIM}注意: {mcp_endpoint} 握手就绪 ≠ 插件已连 —— "
+        f"只有插件面板 Connected 且保持打开，LLM 才能读写设计。{NC}\n"
     )
-    if not preflight_check("mcp"):
+
+
+def cmd_remote(config: dict[str, Any]) -> int:
+    """Remote mode: register a hosted Penpot MCP endpoint from PENPOT_MCP_URL.
+
+    No local process, Docker, or browser plugin — the URL points at a
+    Penpot-hosted (or self-hosted remote-mode) MCP server authenticating via the
+    token carried in the URL. PENPOT_MCP_URL is the single source of truth.
+    """
+    print_header(
+        "Penpot Remote (托管 MCP)",
+        "指向 PENPOT_MCP_URL 的托管 endpoint — 零本地进程 / 零 Docker / 零插件",
+    )
+    url = config.get("mcp_url", "")
+    if not url:
+        fail(
+            "未设置 PENPOT_MCP_URL。在 .env 配置托管 MCP endpoint，例如:\n"
+            f"    PENPOT_MCP_URL={PENPOT_SAAS_URL}/mcp/stream?userToken=<MCP_KEY>\n"
+            "  (MCP key 在 Penpot 账户设置生成。) 或改用自托管: cataforge penpot deploy"
+        )
         return 1
-    if not start_mcp(config):
-        return 1
-    register_claude_mcp(_npx_mcp_url(config))
-    print_remote_onboarding(config)
+    register_claude_mcp(url)
+    ok(f"已注册托管 Penpot MCP endpoint: {mask_url_secrets(url)}")
     return 0
 
 
@@ -238,6 +281,13 @@ def cmd_status(config: dict[str, Any]) -> int:
             f"{BOLD}cataforge penpot remote{NC} / "
             f"{BOLD}cataforge penpot deploy{NC}\n"
         )
+    elif os.path.isfile(_compose_file(config)):
+        # Self-hosted handshake being up does not mean the browser plugin is
+        # connected — the most common "MCP shows Up but LLM sees no designs".
+        print(
+            f"\n  {DIM}MCP 握手就绪。若 LLM 看不到设计，多半是浏览器插件未连 —— "
+            f"在 http://localhost:{config['penpot_port']} 打开设计并 Connect MCP 插件。{NC}\n"
+        )
     else:
         print()
     return 0
@@ -252,19 +302,19 @@ def _prompt_mode(default: str = MODE_REMOTE) -> str:
             key="1",
             label="Remote",
             icon="☁",
-            description="design.penpot.app + 本地 MCP — 最快上手，零 Docker，需 Penpot 账号",
+            description="托管 MCP (PENPOT_MCP_URL) — 零本地进程/Docker/插件，需 MCP key",
         ),
         ChoiceOption(
             key="2",
-            label="Local",
+            label="Self-hosted",
             icon="⚙",
-            description="全量自托管 (6 容器 + MCP) — 数据自己管，需 Docker + ~3GB 镜像",
+            description="全量自托管 (6 容器 + MCP) — 数据自管，需 Docker + 浏览器插件连接",
         ),
         ChoiceOption(
             key="3",
             label="MCP only",
             icon="🔌",
-            description="只起 MCP，自己接已有 Penpot 实例（自托管或他人共享）",
+            description="[不推荐] 宿主机 npx MCP，接已有 Penpot 实例（需 Node + 插件）",
         ),
     ]
     chosen = get_console().prompt_choice(
