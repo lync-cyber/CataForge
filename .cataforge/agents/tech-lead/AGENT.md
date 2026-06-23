@@ -53,6 +53,7 @@ maxTurns: 60
   - AC 写"主题词"代替 `topic`
   - AC 写"摘要哈希"代替 `digest`
   违反时实现层与契约层语义错位会逃过 RED→GREEN 主循环，需 orchestrator 在 RED 前人工拦截
+- **AC contract-completeness**: 任务 AC 引用某 `arch#§N.API-NNN` 契约时，契约声明的每个响应码 / 安全路径 / 集成点都须有对应 AC，缺项须显式标 `[ASSUMPTION]` 豁免并附理由。反例：契约定义 `401 E_AUTH` + `403 E_PERMISSION_DENIED` 两条安全路径，AC 只覆盖正常返回 —— 缺口逃过 dev_planning 门禁，仅在 GREEN 后 code-review 才被 reviewer 标 HIGH 补齐
 
 ## Error Handling
 | 场景 | 处理策略 |

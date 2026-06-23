@@ -36,6 +36,7 @@ user-invocable: true
    - When: 触发动作（调用方法、发送请求、用户操作）
    - Then: 可观测结果（具体返回值/字段、状态变化、错误类型+消息）
    - Then 子句必须包含可断言的具体值或约束，禁止"实现 X"、"支持 Y"等无行为描述
+   - 契约完整性对账: AC 引用某 `arch#§N.API-xxx` 契约时，把契约声明的全部响应码 / 安全路径 / 集成点逐一与派生 AC 交叉核验；每项须有对应 AC，无对应的须显式标 `[ASSUMPTION]` 豁免并附理由
 4. 定义deliverables(明确交付文件)
 5. 定义context_load(context引用)
 6. 建立依赖图: 调用 task-dep-analysis skill 计算拓扑/关键路径/环检测，再用 `cataforge viz tasks --format mermaid` 产出 Mermaid 依赖图并写入 dev-plan#§2
@@ -52,6 +53,7 @@ user-invocable: true
 - 禁止: deliverables 仅写 "实现 X 功能" 而不具体到文件路径 —— sprint-review 无法验证 AC 是否落到声明文件，验收形同虚设
 - 避免: 任务横跨 ≥3 个 `arch#§2.M-xxx` —— 跨模块任务在 task-dep-analysis 输出中容易触发环依赖
 - 禁止: AC 仅描述"实现 X 功能"/"支持 Y 格式"而无 Given-When-Then 行为描述 —— 模糊 AC 导致 test-writer 退化为存在性检查，无法推导断言期望值
+- 禁止: AC 只覆盖被引用 `arch#§N.API-xxx` 契约的正常路径而漏其声明的错误码 / 安全路径 / 集成点 —— 如契约声明 `401 E_AUTH` + `403 E_PERMISSION_DENIED` 两条安全路径，AC 只测正常返回，缺口要到下游 code-review 标 HIGH 或 pre-wiring 审计才暴露；每项响应码 / 安全路径 / 集成点须有对应 AC 或显式 `[ASSUMPTION]` 豁免
 - 禁止: Sprint 内全部为后端任务而无任何用户可感知的功能交付（Sprint 1 例外），除非项目为纯后端服务
 
 ## 效率策略
