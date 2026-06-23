@@ -143,3 +143,52 @@ def test_cross_doc_same_ac_id_imports_and_reconciles(tmp_path: Path) -> None:
 
     report = reconcile(handle.raw, tmp_path, config)
     assert report.ok, report.to_dict()
+
+
+def test_cross_doc_ac_xref_resolves_to_volume_nested_node(tmp_path: Path) -> None:
+    # A split PRD volume stores its AC under a volume doc_id (prd-core) while the
+    # dev-plan xref carries the base doc id (prd#§2.AC-001). The satisfies edge
+    # must still resolve to the nested AC node `{base}/F-001/AC-001`, not a bare
+    # flat placeholder `{base}/AC-001` (which has no entity_id and gets filtered
+    # out of the AC-traceability check, the symptom of the reported bug).
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
+
+    _write(
+        tmp_path,
+        "prd",
+        "prd-core.md",
+        "---\ndoc_id: prd-core\ndoc_type: prd\n---\n# PRD core\n\n## §2\n\n"
+        "### F-001 登录\n\n- AC-001: 邮箱密码可登录\n",
+    )
+    _write(
+        tmp_path,
+        "dev-plan",
+        "dev-plan.md",
+        "---\ndoc_id: dev-plan\n---\n# Dev Plan\n\n## §5\n\n"
+        "### T-001 骨架\n\n满足 AC: prd#§2.AC-001\n",
+    )
+
+    config = KGConfig(store_backend="memory", kg_active_doc_types={"prd", "dev-plan"})
+    handle = init_store(config, force=True)
+    stats, _, _ = run_migration(handle.raw, tmp_path, config, doc_types=("prd", "dev-plan"))
+    assert stats.verify_result is not None and stats.verify_result.ok, stats.to_dict()
+
+    rows = list(
+        handle.raw.query(
+            "PREFIX cf: <https://cataforge.dev/ontology/> "
+            'SELECT ?obj WHERE { ?t cf:entity_id "T-001" . ?t cf:satisfies ?obj }'
+        )
+    )
+    obj_iris = sorted(str(r["obj"].value) for r in rows)
+    assert obj_iris == ["https://cataforge.dev/instance/F-001/AC-001"], obj_iris
+
+    # The resolved endpoint must be the real AC node — i.e. it carries entity_id.
+    eid_rows = list(
+        handle.raw.query(
+            "PREFIX cf: <https://cataforge.dev/ontology/> "
+            "SELECT ?eid WHERE { "
+            "<https://cataforge.dev/instance/F-001/AC-001> cf:entity_id ?eid }"
+        )
+    )
+    assert [str(r["eid"].value) for r in eid_rows] == ["AC-001"]
