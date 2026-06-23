@@ -5,11 +5,15 @@
 through the unified MCP registry. The spec's presence is the gate — projects
 without Penpot never carry it, so deploy never wires Penpot for them.
 
-The MCP endpoint is a ``${PENPOT_MCP_URL:-<default>}`` placeholder: a single
-``PENPOT_MCP_URL`` drives both this downstream spec and the ``remote`` mode, and
-any auth token rides in the env rather than the git-tracked spec. Unset, it
-falls back to the streamable-HTTP path served by the self-hosted stack's
-frontend nginx (``cataforge penpot deploy``), which must be running to respond.
+The MCP endpoint resolves at deploy time: the spec carries a literal self-hosted
+default url plus ``url_env: PENPOT_MCP_URL``; when that env var is set, deploy
+writes its value (which may carry an auth token) into the platform's gitignored
+MCP config, otherwise the literal default is used. A single ``PENPOT_MCP_URL``
+thus drives both this downstream wiring and the ``remote`` mode, no token ever
+lands in the git-tracked spec, and the literal default works on every platform
+without relying on platform-specific ``${VAR}`` expansion. The default points at
+the streamable-HTTP path served by the self-hosted stack's frontend nginx
+(``cataforge penpot deploy``), which must be running to respond.
 """
 
 from __future__ import annotations
@@ -34,20 +38,21 @@ def build_penpot_mcp_spec(
     The endpoint is declared neutrally (``transport`` + ``url``); each platform
     adapter renders it into its native config shape at deploy time.
 
-    The url is an env-expansion placeholder ``${PENPOT_MCP_URL:-<default>}`` so
-    the URL stays configurable from a single source (``PENPOT_MCP_URL``) and any
-    auth token rides in the env, never in the git-tracked spec. Platforms that
-    expand ``${VAR}`` in their MCP config (Claude Code, Cursor) resolve it at
-    runtime; the default keeps self-hosted users working with no env set. An
-    explicit *mcp_url* freezes a literal URL instead of the placeholder.
+    ``url`` is a literal self-hosted default and ``url_env`` names the env var
+    (``PENPOT_MCP_URL``) deploy reads to override it. The resolved value (which
+    may carry an auth token) lands only in the platform's gitignored MCP config,
+    never in this git-tracked spec; the literal default keeps every platform
+    working with no env set, regardless of whether it expands ``${VAR}`` at
+    runtime. An explicit *mcp_url* changes the default url (env still wins).
     """
-    url = mcp_url or f"${{PENPOT_MCP_URL:-http://localhost:{penpot_port}/mcp/stream}}"
+    url = mcp_url or f"http://localhost:{penpot_port}/mcp/stream"
     return {
         "id": SPEC_ID,
         "name": "Penpot",
         "description": "Penpot 设计工具 MCP — 读写设计稿（endpoint 经 PENPOT_MCP_URL 配置）",
         "transport": "http",
         "url": url,
+        "url_env": "PENPOT_MCP_URL",
         "category": "design",
         "optional": True,
     }

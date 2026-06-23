@@ -9,6 +9,7 @@ Supports three registration methods (priority descending):
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -199,6 +200,16 @@ class MCPRegistry:
         override = spec.platform_config.get(platform_id, {})
         declared = str(override.get("transport") or spec.transport or "stdio").lower()
         url = override.get("url") or spec.url
+        # Deploy-time url override: a spec may name an env var whose value (when
+        # set) replaces the default url. This resolves to a literal endpoint in
+        # the platform config, so it works uniformly regardless of whether the
+        # platform expands ${VAR} at runtime. An explicit platform override url
+        # still wins. The resolved value (which may carry a token) lands only in
+        # the platform's gitignored MCP config, never in the git-tracked spec.
+        if spec.url_env and not override.get("url"):
+            env_url = os.environ.get(spec.url_env)
+            if env_url:
+                url = env_url
 
         if declared in ("http", "sse", "streamable_http") or url:
             transport = declared if declared in ("http", "sse", "streamable_http") else "http"
