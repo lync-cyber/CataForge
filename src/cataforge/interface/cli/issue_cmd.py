@@ -304,13 +304,27 @@ def close_command(
         click.echo("(dry-run; pass without --dry-run to call gh issue close)")
         return
 
-    cmd = ["gh", "issue", "close", str(number), "-R", repo, "--comment", comment]
-    result = run_proc(cmd)
-    if result.returncode != 0:
+    # Post the comment and close as two steps. `gh issue close --comment`
+    # drops the comment when the issue is already closed (a fix PR whose body
+    # says "Closes #N" auto-closes it on merge, before this runs) — so the
+    # downstream "Fixed in vX.Y.Z" notice would vanish silently. `gh issue
+    # comment` posts regardless of state; the close then no-ops idempotently.
+    comment_result = run_proc(
+        ["gh", "issue", "comment", str(number), "-R", repo, "--body", comment]
+    )
+    if comment_result.returncode != 0:
         raise ExternalToolError(
-            f"gh issue close failed (exit {result.returncode}):\n{result.stderr or result.stdout}"
+            "gh issue comment failed "
+            f"(exit {comment_result.returncode}):\n"
+            f"{comment_result.stderr or comment_result.stdout}"
         )
-    click.secho(f"\nClosed #{number}.", fg="green")
+    close_result = run_proc(["gh", "issue", "close", str(number), "-R", repo])
+    if close_result.returncode != 0:
+        raise ExternalToolError(
+            f"gh issue close failed (exit {close_result.returncode}):\n"
+            f"{close_result.stderr or close_result.stdout}"
+        )
+    click.secho(f"\nClosed #{number} (comment posted).", fg="green")
 
 
 def _format_verdict_row(issue: dict[str, Any], parsed: ParsedIssue) -> str:
