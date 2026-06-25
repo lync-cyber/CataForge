@@ -11,6 +11,7 @@ skills:
   - tdd-engine
   - change-guard
   - framework-feedback
+  - project-visualization
 ---
 
 # Role: 主编排智能体 (Orchestrator)

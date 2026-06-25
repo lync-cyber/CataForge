@@ -379,6 +379,8 @@ batch_dispatch([
    - **needs_revision** → 从SPRINT-REVIEW报告中提取标记为CRITICAL/HIGH的任务ID，仅这些任务重新进入TDD（已通过的任务保持done状态不变）
 5. Sprint Review的needs_revision不计入Phase级needs_revision计数（独立跟踪）
 
+**Sprint 收口可视化保底焊点**（短路与正常路径均适用）: Sprint 视为 approved 后，运行 `cataforge viz dashboard -o docs/viz/dashboard.html` 产出聚合健康度看板（覆盖矩阵 / 追溯链 / 腐化趋势）并向用户提示产物路径。全部 Sprint 完成、进入 Phase 6 前同样产出，作为开发收口的保底可视化。该步骤是确定性 CLI 调用，不阻塞推进；数据源未就绪时 `cataforge viz status` 自陈空视图，跳过不报错。
+
 ## Change Request Protocol
 当orchestrator检测到用户输入为变更请求（而非流程推进指令）时:
 1. 通过 change-guard skill 分析变更（orchestrator直接执行，无需agent-dispatch）；`<change-analysis>` XML 格式定义见 change-guard SKILL.md §Step 5

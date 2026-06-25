@@ -4,7 +4,7 @@
 
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
 >
-> **适用版本**：v0.4.x。计数 13 Agent + 27 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
+> **适用版本**：v0.4.x。计数 13 Agent + 28 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
 >
 > **平台差异**：Agent 通过 `tools.allow` 声明的 capability 在各平台的原生工具映射见 [platform-capability-matrix.md](platform-capability-matrix.md)；`null` 映射的 capability 在 deploy 时被过滤并发 WARN。
 
@@ -12,7 +12,7 @@
 
 - [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
-- [Skill 清单（27 个）](#skill-清单27-个) — 总览表 + 按类别折叠
+- [Skill 清单（28 个）](#skill-清单28-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
 
 ---
@@ -206,7 +206,7 @@ tools:
 
 ---
 
-## Skill 清单（27 个）
+## Skill 清单（28 个）
 
 ### 总览
 
@@ -239,13 +239,14 @@ tools:
 | 25 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
 | 26 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
 | 27 | framework-walkthrough | 测试质量 | 元自测 | 隔离沙盒内端到端跑通小型示例项目的完整 SDLC 工作流，观察各阶段/门禁/降级行为，产出框架本身与走查流程两类改进建议；framework-review 的动态对偶 |
+| 28 | project-visualization | 核心框架 | 可视化 | 把既有 KG / doc-index / EVENT-LOG / CORRECTIONS / agent-skill 资产渲染为图 / 时间线 / 指标看板；薄发现型 skill 引导工作流按情境调 `cataforge viz <视图>`，orchestrator 在 Sprint 收口产出健康度看板 |
 
 ### 详细说明
 
 > 按类别分组，点击展开查看详细说明。
 
 <details>
-<summary><b>核心框架 Skill</b>（agent-dispatch · context · code-review · tdd-engine · change-guard）</summary>
+<summary><b>核心框架 Skill</b>（agent-dispatch · context · code-review · tdd-engine · change-guard · project-visualization）</summary>
 
 **agent-dispatch** — 子代理调度与运行时翻译
 - 负责将编排器的 agent 调度请求翻译为目标平台的原生调度格式
@@ -272,6 +273,11 @@ tools:
 **change-guard** — 变更守卫
 - 分析变更请求与现有文档的一致性
 - 路由变更到适当的处理路径（文档修订 / 代码修改 / 新功能）
+
+**project-visualization** — 项目可视化（薄发现型 skill，驱动 `cataforge viz` CLI）
+- 把既有 KG / doc-index / EVENT-LOG / CORRECTIONS / agent-skill 资产渲染为图 / 时间线 / 指标看板，经 `cataforge viz <视图>` CLI 调用
+- 情境→视图映射承载「定向」：覆盖盲区→`coverage`、追溯断链→`trace`、架构核对→`arch`、健康度总览→`dashboard`
+- `user-invocable: false`（不经 `skill run`）；orchestrator 在 Sprint 收口确定性产出 `docs/viz/dashboard.html` 作保底
 
 </details>
 

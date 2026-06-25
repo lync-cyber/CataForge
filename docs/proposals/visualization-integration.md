@@ -18,7 +18,7 @@ CataForge 是 CLI / 文件驱动框架，可视化能力须服从同一定位：
 
 三档共享同一套 IR 与 collectors，仅渲染器/服务包装不同。**可写编辑器（拖拽回写数据）与常驻多人实时服务**因需要服务端与数据回写语义、并与 kg-first authoring 反转交叉，列为远期潜在特性（§H），通过既有扩展缝接入，不进核心、不影响零依赖基线。
 
-`viz` 是确定性 CLI 工具（取数 + 渲染无 LLM 决策分支），与 `doctor` / `event` / `phase` 同类，**不新建 SKILL.md**，不进 features / capability 注册表，守提示词上下文最小化硬约束。框架内一切 mermaid 可视化收编为 viz 单一入口（见 §I 决策 4）。
+`viz` 命令本身是确定性 CLI 工具（取数 + 渲染无 LLM 决策分支）；定位为 agentic 能力，经一个薄发现型 SKILL.md（`.cataforge/skills/project-visualization/`，instructional、`user-invocable: false`）暴露给工作流按情境自主选视图，并由 orchestrator 在 Sprint 收口确定性产出健康度看板作保底（见 §I 决策 2），不进 features / capability 注册表。框架内一切 mermaid 可视化收编为 viz 单一入口（见 §I 决策 4）。
 
 ---
 
@@ -115,7 +115,7 @@ IR 只有三种闭合形态：**Graph**（节点+边）、**Timeline**（时序�
 
 - **IR 解耦**：collectors（数据→IR）与 renderers（IR→输出）通过三种闭合 IR 形态正交。新增数据源只写 collector，新增格式只写 renderer，互不影响。
 - **按复用范围分层**：纯文本渲染器被 runtime（task_dep_analysis）与 interface（kg trace）复用，须落在 `core`（最低层，全栈可向下 import）；HTML 渲染器、collectors、服务仅服务 viz 命令面，落在 `application`。此切分同时满足零冗余与 import-linter 分层契约。
-- **不污染 prompt 资产**：viz 为纯 CLI / Python 能力，不写入任何 SKILL.md / AGENT.md 主体（提示词侧仅限发现钩子与受收编决策牵动的契约修订，见 §F.2）。
+- **prompt 资产最小化**：viz 的发现面收敛为单一薄 SKILL.md（`.cataforge/skills/project-visualization/`，instructional、`user-invocable: false`）+ orchestrator Sprint 收口焊点，不向 §F.2 黑名单中的 agent / skill 主体散加引用（见 §I 决策 2）。
 - **小函数**：渲染器/collector 遵循仓库复杂度门（max-complexity 15 / max-statements 60），单一职责、易测。
 
 ### E.2 模块布局与层级映射
@@ -294,7 +294,7 @@ cataforge viz serve [--dir docs/viz] [--port N] [--watch]
 | # | 决策 | 选项与取舍 | 重评条件 |
 |---|------|-----------|---------|
 | 1 | 起步顺序：PR-A → **PR-B（KG 视图）** 优先，C/D 随后 | 候选 PR-B（KG，复用度最高、下游核心价值）/ PR-C（结构）/ PR-D（过程）/ 并行；取 PR-B 因成本最低杠杆最高 | 若下游对文档一致性或进度审计的诉求高于追溯，可改先 C/D |
-| 2 | 提示词发现：启用 **Bootstrap + framework-review** 两处钩子 | 候选「仅 Bootstrap」/「Bootstrap+framework-review」/「完全不动」；取两处因 framework-review 数据源与 viz framework 重叠、交叉引用自然且仅维护者路径加载 | 若发现 token 成本敏感或钩子未被使用，回退到仅 Bootstrap 或移除 |
+| 2 | 提示词发现：**薄发现型 SKILL.md（broad discovery）+ orchestrator Sprint 收口保底焊点** | 候选「完全不动」/「仅 optional 钩子」/「薄 SKILL.md + 焊点」/「散加到各 agent 主体」；定位为 agentic 能力后取「SKILL.md + 焊点」——单一 SKILL.md 即覆盖全 agent 发现、其情境→视图映射承载「定向」语义，焊点保证 Sprint 收口确定性产出，无需触碰 §F.2 黑名单的 agent 主体；optional Bootstrap / framework-review 钩子作为补充保留 | 若 SKILL 描述触发率仍低，再在确有价值的单个 agent（如 reviewer→coverage）定向加引用 |
 | 3 | 产物入库：**选定稳定图提交** | 候选「默认 stdout+.docignore」/「选定稳定图提交」/「全部提交」；取折中——framework/assets 等稳定文本图（mermaid `.md/.mmd`）提交供文档站，HTML 由既有 gitignore 保持临时，其余按需生成 | 若文档站需要更多视图常驻，扩大提交集 |
 | 4 | mermaid 命令：**收编进 viz 统一入口**（破坏性） | 候选「保留双入口+共享核」/「收编进 viz」；取收编以单一入口、消除歧义。**代价**：移除 `kg trace --output mermaid` / `task-dep-analysis --format mermaid`，牵动 task-dep-analysis SKILL 契约 + dev-plan mermaid 授权工作流 + 弃用守卫 + 下游 migration_check + 测试迁移；分阶段实施（PR-A 去重 → PR-B/PR-C 迁表面）降低单 PR 风险 | 若下游迁移成本过高，可临时保留旧入口为薄 shim 转发到 viz |
 | 5 | 超大图阈值：默认中图 vis-network、节点超阈值切 Cytoscape.js，**经验调参** | 阈值不硬编码、不入 COMMON-RULES 常量表，留渲染器内部常量；待 PR-E 用真实图规模标定 | PR-E 实测后若默认阈值不当则调整 |

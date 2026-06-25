@@ -1,6 +1,6 @@
 # 可视化架构
 
-> `cataforge viz` 把框架编排与项目结构数据渲染为可版本化的图。它是确定性 CLI（取数 + 渲染、无 LLM 决策分支），与 `doctor` / `event` / `phase` 同类——不建 SKILL.md、不进 features / capability 注册表。
+> `cataforge viz` 把框架编排与项目结构数据渲染为可版本化的图。命令本身是确定性 CLI（取数 + 渲染、无 LLM 决策分支）。它经一个薄发现型 SKILL.md（`.cataforge/skills/project-visualization/`，instructional、`user-invocable: false`）暴露给 agentic 工作流按情境自主选视图，并由 orchestrator 在 Sprint 收口确定性产出健康度看板作保底；不进 features / capability 注册表（经 `shell_exec` 调用，非 phase-gated / skill-routed）。
 
 设计基线：**单命令产出、可被版本化的产物、零或极少运行时依赖、复用既有数据**。框架内已有结构化数据（知识图谱、文档索引、事件日志、纠偏日志、agent/skill 资产）都有程序化取数入口，viz 只在其上做薄适配与渲染，不重复造数据层。
 
