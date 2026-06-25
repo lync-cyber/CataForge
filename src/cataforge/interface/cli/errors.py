@@ -19,12 +19,11 @@ from cataforge.core.errors import CataforgeError
 class _RenderedError(click.ClickException):
     """A :class:`click.ClickException` carrying a caller-chosen ``exit_code``.
 
-    Declaring ``exit_code`` as an instance attribute here keeps the assignment
-    off Click's class-level attribute, which some Click versions type as a
-    class variable (assigning to that via an instance is a type error).
+    ``exit_code`` is assigned per-instance in ``__init__``; Click's base
+    declares it as a plain class attribute (default 1). No class-body
+    annotation — ``exit_code: int`` would redeclare the inherited class
+    attribute as an instance variable, which strict type checking rejects.
     """
-
-    exit_code: int
 
     def __init__(self, message: str, exit_code: int) -> None:
         super().__init__(message)
