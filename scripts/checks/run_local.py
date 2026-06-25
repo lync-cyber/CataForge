@@ -89,6 +89,14 @@ CHECKS: list[tuple[str, list[str], str | None]] = [
         None,
     ),
     (
+        "orphan CLI capabilities",
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "checks" / "check_orphan_cli_capabilities.py"),
+        ],
+        None,
+    ),
+    (
         "layered dependency direction",
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_layer_dependencies.py")],
         None,

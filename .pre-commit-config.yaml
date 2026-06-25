@@ -132,6 +132,18 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.cataforge/(agents|skills|rules)/.*\.md$
+      - id: orphan-cli-capabilities
+        name: every CLI capability has an invocation surface
+        description: |
+          Inverse of prompt-cli-drift: a top-level `cataforge <command>` that
+          no agent/skill/protocol references and that is not declared
+          infra/human-only in EXEMPT is an orphan capability — built but never
+          reachable from the agentic workflow. The CLI-level counterpart to
+          framework-review B2 (orphan skill).
+        entry: python scripts/checks/check_orphan_cli_capabilities.py
+        language: system
+        pass_filenames: false
+        files: ^(\.cataforge/(agents|skills|rules)/.*\.md|src/cataforge/interface/cli/.*\.py)$
       - id: layer-dependencies
         name: layered dependency direction (interface→…→core→utils)
         description: |
