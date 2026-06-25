@@ -83,6 +83,16 @@ dispatch:
   is_async: false
   params: [subagent_type, prompt, description]
 
+settings_defaults:
+  # Seeded set-if-absent into .claude/settings.json at deploy time. On Windows
+  # this keeps the Bash tool on Git Bash instead of the native PowerShell tool;
+  # both keys are no-ops on macOS/Linux. Requires Git for Windows downstream
+  # (cataforge doctor warns when it is absent). defaultShell governs the `!`
+  # input-box shell.
+  env:
+    CLAUDE_CODE_USE_POWERSHELL_TOOL: "0"
+  defaultShell: bash
+
 hooks:
   config_format: json
   config_path: .claude/settings.json

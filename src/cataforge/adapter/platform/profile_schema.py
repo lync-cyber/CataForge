@@ -137,6 +137,12 @@ class PlatformProfile(BaseModel):
     features: dict[str, bool] = Field(default_factory=dict)
     permissions: dict[str, Any] = Field(default_factory=dict)
 
+    # Framework-owned default keys seeded into the platform settings file at
+    # deploy time (set-if-absent, so a user override survives redeploy). Shape
+    # is the platform's own settings schema — e.g. Claude Code seeds
+    # ``env``/``defaultShell`` to prefer Git Bash over the PowerShell tool.
+    settings_defaults: dict[str, Any] = Field(default_factory=dict)
+
     model_routing: ModelRouting = Field(default_factory=ModelRouting)
 
     # ``context_injection`` is a deep, per-platform tree (auto_injection /

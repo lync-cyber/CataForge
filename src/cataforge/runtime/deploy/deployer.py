@@ -548,6 +548,8 @@ class Deployer:
             actions.append(
                 f"would merge hooks into {config_path_str} ({len(hooks_config)} event(s))"
             )
+            if adapter.settings_defaults:
+                actions.append(f"would seed settings defaults into {config_path_str}")
             return actions
 
         config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -561,17 +563,23 @@ class Deployer:
         else:
             existing = {}
 
-        from cataforge.adapter.platform.hooks_config import merge_hooks_config
+        from cataforge.adapter.platform.hooks_config import (
+            merge_hooks_config,
+            seed_settings_defaults,
+        )
 
         template = adapter.get_hook_command_template()
         owned_prefixes = (template.split("{module}")[0], "python .cataforge/hooks/custom/")
         existing["hooks"] = merge_hooks_config(
             existing.get("hooks", {}), hooks_config, owned_prefixes
         )
+        seed_settings_defaults(existing, adapter.settings_defaults)
         atomic_write_text(config_path, json.dumps(existing, indent=2, ensure_ascii=False) + "\n")
         if manifest is not None:
             manifest.record(config_path_str)
         actions.append(f"hooks → {config_path_str}")
+        if adapter.settings_defaults:
+            actions.append(f"settings defaults → {config_path_str}")
         return actions
 
     def _apply_degradation(

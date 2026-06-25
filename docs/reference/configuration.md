@@ -325,6 +325,7 @@ rules:                               # 可选：跨平台镜像
 | `instruction_file` | ✅ | PROJECT-STATE.md → 平台指令文件的写入规则 |
 | `dispatch` | ✅ | 子代理调度工具的描述 |
 | `hooks` | ✅ | hooks.yaml 翻译为平台原生 hook 配置的规则 |
+| `settings_defaults` | ❌ | deploy 时 set-if-absent 注入平台设置文件的框架默认键（用户已设的值不被覆盖）。claude-code 用它把 `env.CLAUDE_CODE_USE_POWERSHELL_TOOL=0` + `defaultShell=bash` 落进 `.claude/settings.json`，Windows 上保持 Bash 工具走 Git Bash；要求下游装 Git for Windows（缺失时 `cataforge doctor` 的「Shell preference」段 WARN） |
 | `features` | ❌ | 平台级 boolean 特性矩阵 |
 | `permissions` | ❌ | 审批模式列表 |
 | `model_routing` | ❌ | 模型路由能力 |

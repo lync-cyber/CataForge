@@ -62,6 +62,10 @@ required_fields:
     degradation: map[string, enum[native, degraded, unsupported]]
 
 optional_fields:
+  settings_defaults: map       # deploy 时 set-if-absent 注入平台设置文件的框架默认键
+    # 形状即平台自身设置文件 schema；用户已设的值不被覆盖。
+    # 例: claude-code 用 env.CLAUDE_CODE_USE_POWERSHELL_TOOL + defaultShell 偏好 Git Bash。
+
   extended_capabilities:       # 扩展能力 → 平台原生工具名/标识（核心 10 项之外）
     notebook_edit: string | null     # Jupyter notebook 编辑
     browser_preview: string | null   # 浏览器自动化/预览

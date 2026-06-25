@@ -445,7 +445,6 @@ def setup_permissions() -> None:
     Exit 2 when no stack is detected, 1 when no platform settings file exists.
     """
     import json
-    import sys
 
     from cataforge.core.stack import detect_primary_stack
 
@@ -463,9 +462,6 @@ def setup_permissions() -> None:
         data = json.loads(settings.read_text())
         perms = data.setdefault("permissions", {})
         perms["allow"] = [f"Bash({p}*)" for p in allow_prefixes]
-        if sys.platform == "win32":
-            data.setdefault("env", {})["CLAUDE_CODE_USE_POWERSHELL_TOOL"] = "0"
-            data.setdefault("defaultShell", "bash")
         atomic_write_text(settings, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
         click.echo(f"updated {settings} — {len(allow_prefixes)} allow prefixes")
         return

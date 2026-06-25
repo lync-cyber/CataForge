@@ -178,6 +178,15 @@ class PlatformAdapter(ABC):
         return self._profile.hooks.config_path
 
     @property
+    def settings_defaults(self) -> dict[str, Any]:
+        """Framework-owned default keys seeded into the platform settings file.
+
+        Declared in ``profile.yaml`` under ``settings_defaults``; merged
+        set-if-absent at deploy time so a user override is never clobbered.
+        """
+        return dict(self._profile.settings_defaults)
+
+    @property
     def hook_event_map(self) -> dict[str, str | None]:
         return dict(self._profile.hooks.event_map)
 
