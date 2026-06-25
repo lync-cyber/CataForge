@@ -78,6 +78,7 @@ orchestrator 收到子代理返回后，按以下优先级解析:
 - 子代理无法直接访问调用方的上下文，所有必要信息通过prompt传入
 - **子代理无法使用调度工具** — TDD子代理由orchestrator直接通过tdd-engine skill启动
 - subagent_type 使子代理自动加载 AGENT.md 中的角色定义、工具权限和约束
+- 续接（continuation）一律 file-based 重派发：独立上下文窗口 + 从中间产出文件 reload，禁止依赖任何平台「带上下文续接已派发子代理」的原生原语
 
 ## 运行时支持
 支持的运行时平台由 `.cataforge/platforms/` 下的 profile.yaml 声明。
