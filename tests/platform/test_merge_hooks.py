@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cataforge.adapter.platform.hooks_config import merge_hooks_config
+from cataforge.adapter.platform.hooks_config import merge_hooks_config, seed_settings_defaults
 
 _OWNED = ("python -m cataforge.runtime.hook.scripts.", "python .cataforge/hooks/custom/")
 _GUARD = "python -m cataforge.runtime.hook.scripts.guard_dangerous"
@@ -86,3 +86,30 @@ def test_empty_event_is_dropped() -> None:
     merged = merge_hooks_config(existing, {}, _OWNED)
 
     assert "PreToolUse" not in merged
+
+
+def test_seed_settings_defaults_adds_missing_keys() -> None:
+    data: dict = {"language": "chinese"}
+    seed_settings_defaults(
+        data, {"env": {"CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"}, "defaultShell": "bash"}
+    )
+
+    assert data["env"]["CLAUDE_CODE_USE_POWERSHELL_TOOL"] == "0"
+    assert data["defaultShell"] == "bash"
+    assert data["language"] == "chinese"
+
+
+def test_seed_settings_defaults_is_set_if_absent() -> None:
+    data: dict = {"env": {"CLAUDE_CODE_USE_POWERSHELL_TOOL": "1", "OTHER": "x"}}
+    seed_settings_defaults(data, {"env": {"CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"}})
+
+    # Existing leaf is preserved; sibling foreign leaf untouched.
+    assert data["env"]["CLAUDE_CODE_USE_POWERSHELL_TOOL"] == "1"
+    assert data["env"]["OTHER"] == "x"
+
+
+def test_seed_settings_defaults_empty_is_noop() -> None:
+    data: dict = {"a": 1}
+    seed_settings_defaults(data, {})
+
+    assert data == {"a": 1}

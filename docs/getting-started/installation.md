@@ -105,6 +105,7 @@ pip install -e ".[dev,mcp]"
 - `py -3.12 -m venv` 优于 `python -m venv`：绕过 Windows Store 的 `python.exe` 别名。
 - PowerShell 激活被策略拦：`Set-ExecutionPolicy -Scope Process RemoteSigned` 一次性放行当前 shell。
 - `mklink /J` 需要管理员或 "开发者模式"：Windows 部署优先使用 junction，失败自动回退为目录拷贝。
+- **Git Bash 是 Windows 前置条件**：`cataforge deploy` 会把 `CLAUDE_CODE_USE_POWERSHELL_TOOL=0` 写进 `.claude/settings.json`，让 Claude Code 的 Bash 工具走 Git Bash 而非原生 PowerShell 工具（CataForge 的 SKILL / AGENT 命令均为 POSIX 写法）。未装 Git for Windows 时 `cataforge doctor` 的「Shell preference」段会 WARN；装 Git for Windows，或设 `CLAUDE_CODE_GIT_BASH_PATH` 指向 `bash.exe`，或删掉该 env 键回退到 PowerShell 工具。
 - **uv tool 安装后提示 PATH 警告**：`uv tool install / upgrade` 完成后出现 `` warning: `C:\Users\<you>\.local\bin` is not on your PATH ``，执行一次 `uv tool update-shell` 并重启终端即可永久消除，无需手动编辑环境变量。
 
 ---

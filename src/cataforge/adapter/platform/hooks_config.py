@@ -41,6 +41,23 @@ def merge_json_key(path: Path, dotted_key: str, value: Any, *, dry_run: bool = F
     return [f"merged {dotted_key} → {path}"]
 
 
+def seed_settings_defaults(data: dict[str, Any], defaults: dict[str, Any]) -> None:
+    """Set-if-absent seed of framework default settings into a settings dict.
+
+    Top-level ``dict`` values merge per leaf key (only missing keys are added);
+    scalar values use ``setdefault``. A key the user already set is never
+    overwritten, so a deliberate override survives every redeploy.
+    """
+    for key, value in defaults.items():
+        if isinstance(value, dict):
+            target = data.setdefault(key, {})
+            if isinstance(target, dict):
+                for leaf, leaf_value in value.items():
+                    target.setdefault(leaf, leaf_value)
+        else:
+            data.setdefault(key, value)
+
+
 def _is_owned_hook_entry(entry: Any, owned_prefixes: tuple[str, ...]) -> bool:
     """True iff every command in *entry* starts with a CataForge-owned prefix."""
     if not isinstance(entry, dict):

@@ -250,6 +250,59 @@ def test_deploy_preserves_foreign_settings_and_hook_entries(tmp_path: Path) -> N
     assert pre[0]["hooks"][0]["command"] == _GUARD_CMD
 
 
+def _claude_profile_with_settings_defaults() -> dict:
+    profile = _claude_hooks_profile()
+    profile["settings_defaults"] = {
+        "env": {"CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"},
+        "defaultShell": "bash",
+    }
+    return profile
+
+
+def test_deploy_seeds_settings_defaults(tmp_path: Path) -> None:
+    root = _init_project(tmp_path)
+    _write_profile(root, "claude-code", _claude_profile_with_settings_defaults())
+
+    clear_cache()
+    Deployer(ConfigManager(root)).deploy("claude-code")
+
+    settings = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert settings["env"]["CLAUDE_CODE_USE_POWERSHELL_TOOL"] == "0"
+    assert settings["defaultShell"] == "bash"
+
+
+def test_deploy_settings_defaults_preserve_user_override(tmp_path: Path) -> None:
+    root = _init_project(tmp_path)
+    _write_profile(root, "claude-code", _claude_profile_with_settings_defaults())
+
+    settings_path = root / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        json.dumps({"env": {"CLAUDE_CODE_USE_POWERSHELL_TOOL": "1"}, "defaultShell": "powershell"}),
+        encoding="utf-8",
+    )
+
+    clear_cache()
+    Deployer(ConfigManager(root)).deploy("claude-code")
+
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    # Set-if-absent: a deliberate user override survives redeploy.
+    assert settings["env"]["CLAUDE_CODE_USE_POWERSHELL_TOOL"] == "1"
+    assert settings["defaultShell"] == "powershell"
+
+
+def test_deploy_without_settings_defaults_seeds_nothing(tmp_path: Path) -> None:
+    root = _init_project(tmp_path)
+    _write_profile(root, "claude-code", _claude_hooks_profile())
+
+    clear_cache()
+    Deployer(ConfigManager(root)).deploy("claude-code")
+
+    settings = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert "env" not in settings
+    assert "defaultShell" not in settings
+
+
 _REBUILD_STATE_TPL = (
     "## 项目信息\n- 技术栈: {框架/语言/工具}\n\n"
     "## 项目状态\n- 当前阶段: {x}\n\n"

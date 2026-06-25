@@ -39,6 +39,7 @@ from .doctor.protocol_refs import (
 )
 from .doctor.provenance import report_deployment_provenance
 from .doctor.retired_assets import check_retired_skill_assets
+from .doctor.shell_preference import check_shell_preference
 from .doctor.skill_health import check_builtin_skill_reachability, check_docs_validate
 
 __all__ = ["doctor_command", "_DEPRECATED_REFS"]
@@ -88,6 +89,10 @@ _DOCTOR_SECTIONS = [
     ("EVENT-LOG schema sample:", check_event_log_schema, True),
     ("EVENT-LOG bypass guard:", check_event_log_bypass_writes, True),
     ("CLAUDE.md hygiene:", check_claude_md_hygiene, True),
+    # Shell preference — Windows-only WARN: deployed settings prefer Git Bash
+    # (CLAUDE_CODE_USE_POWERSHELL_TOOL=0) but no Git Bash is resolvable, so the
+    # Bash tool would be unusable. Non-gating; points at install / env remedy.
+    ("Shell preference:", check_shell_preference, False),
     # Git hygiene — informational: local branches whose upstream is gone
     # (squash-merged). Non-gating (branch cleanup is never a CI failure);
     # points the user at `cataforge git prune`.

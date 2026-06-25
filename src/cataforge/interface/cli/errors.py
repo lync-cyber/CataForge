@@ -16,6 +16,21 @@ import click
 from cataforge.core.errors import CataforgeError
 
 
+class _RenderedError(click.ClickException):
+    """A :class:`click.ClickException` carrying a caller-chosen ``exit_code``.
+
+    Declaring ``exit_code`` as an instance attribute here keeps the assignment
+    off Click's class-level attribute, which some Click versions type as a
+    class variable (assigning to that via an instance is a type error).
+    """
+
+    exit_code: int
+
+    def __init__(self, message: str, exit_code: int) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
 class CataforgeGroup(click.Group):
     """Top-level group that renders :class:`CataforgeError` like Click does."""
 
@@ -23,6 +38,4 @@ class CataforgeGroup(click.Group):
         try:
             return super().invoke(ctx)
         except CataforgeError as err:
-            rendered = click.ClickException(str(err))
-            rendered.exit_code = err.exit_code
-            raise rendered from err
+            raise _RenderedError(str(err), err.exit_code) from err
