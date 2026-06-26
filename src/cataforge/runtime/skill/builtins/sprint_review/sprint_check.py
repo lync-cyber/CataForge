@@ -25,6 +25,7 @@ from cataforge.runtime.skill.builtins.sprint_review._checks import (
     resolve_task_status_external,
 )
 from cataforge.runtime.skill.builtins.sprint_review._extract import (
+    classify_empty_extraction,
     extract_sprint_tasks,
     find_dev_plan_files,
     load_project_features,
@@ -35,6 +36,19 @@ from cataforge.runtime.skill.builtins.sprint_review.ignore import (
     build_ignore_spec,
 )
 from cataforge.utils.common import ensure_utf8
+
+# Actionable text per classify_empty_extraction code — turns the blanket
+# "未找到任务" into a parse-failure vs genuinely-empty distinction.
+_EMPTY_EXTRACTION_MESSAGES = {
+    "no_tasks": "Sprint {sprint} 中未找到任务：dev-plan 未定义任何 T-NNN 任务",
+    "no_anchor": (
+        "Sprint {sprint} 中未找到任务：无 `### Sprint {sprint}` 标题或 `-s{sprint}.md` 分卷锚定该 "
+        "Sprint（检查 Sprint 编号是否越界 / 详情卷命名是否为 -s{sprint}.md）"
+    ),
+    "anchored_empty": (
+        "Sprint {sprint} 已锚定但未解析出任务（检查 §1 总览表任务行首列是否为 `| T-NNN | ... |`）"
+    ),
+}
 
 # Re-export the check/extract/render surface so callers and tests keep
 # importing them from this entry module after the helper split.
@@ -150,6 +164,8 @@ def main() -> None:
 
     tasks = extract_sprint_tasks(dev_plan_files, sprint_num)
     if not tasks:
+        reason = classify_empty_extraction(dev_plan_files, sprint_num)
+        message = _EMPTY_EXTRACTION_MESSAGES[reason].format(sprint=sprint_num)
         if args.format == "json":
             print(
                 json.dumps(
@@ -160,7 +176,8 @@ def main() -> None:
                             {
                                 "severity": "CRITICAL",
                                 "category": "sprint_tasks_missing",
-                                "message": f"Sprint {sprint_num} 中未找到任务",
+                                "reason": reason,
+                                "message": message,
                             }
                         ],
                     },
@@ -168,7 +185,7 @@ def main() -> None:
                 )
             )
         else:
-            print(f"[CRITICAL] Sprint {sprint_num} 中未找到任务")
+            print(f"[CRITICAL] {message}")
         sys.exit(1)
 
     features = load_project_features(dev_plan_files)
