@@ -41,7 +41,7 @@ orchestrator (主线程)
 避免子代理在末尾 finalize 集中产出导致 task-notification truncation（征兆：100+ tools / 100K+ tokens / 5min+ 被打断；`<agent-result>` 不返回但 artifact 已部分落地）。**触发**（任一命中）：`loc_estimate > 200`（缺字段取 `len(AC) × 30`）或 `len(tdd_acceptance) > 6`。命中时 implementer dispatch prompt 强制注入：
 
 > **Mid-progress 落盘**：
-> 1. 先 `Write` 全部目标文件的**空骨架**（import + export stub + `describe(...)` / 函数签名占位）
+> 1. 先 `Write` 全部目标文件的**空骨架**（import + export stub + `describe(...)` / 函数签名占位），按**依赖序**落盘——被导入文件先于引用它的文件（写盘纪律见 SUB-AGENT-PROTOCOLS §并行/多文件写盘纪律）
 > 2. 逐 AC 迭代填充实现 + 测试
 > 3. 每完成一条 AC 立刻运行 `{test_command}`（按需附 file 过滤）验证
 > 4. **禁止**末尾一次 `Edit` 堆所有 AC 实现 + 全套断言
@@ -91,7 +91,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 **任务路由分支**: 读取任务卡 `task_kind` 和 `tdd_mode` 字段:
 
-- `task_kind` ∈ `CODE_REVIEW_L2_SKIP_TASK_KINDS`（默认 `[chore, config, docs]`）→ **跳过 TDD**，由 implementer 单次调用直接产出 + lint hook 兜底，进入 Step 5
+- `task_kind` ∈ `CODE_REVIEW_L2_SKIP_TASK_KINDS`（默认 `[chore, config, docs]`）→ **跳过 TDD**，由 implementer 单次调用直接产出，进入 Step 5。**产代码的 chore 任务**（deliverables 含源码而非纯配置/文档）标 done 前须跑一次 changed-scope 类型检查 + lint 门（同 §Post-GREEN Validation standard 档），命中即 continuation 修复，不寄托于 self-report 或尚不存在的 lint hook
 - `tdd_mode` 缺省（缺省视为 `TDD_DEFAULT_MODE` = `light`）:
   - `light` + 满足 §Inline 触发条件 → 走 §Light Inline 模式（主线程内联，零 dispatch）
   - `light` + 不满足 inline 条件 → 走 §Light Dispatch 模式（implementer 一次 dispatch 合并 RED+GREEN）
