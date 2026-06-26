@@ -62,6 +62,7 @@ def project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
                 "config_path": ".claude/settings.json",
                 "entry_type": "command",
                 "event_map": {"PreToolUse": "PreToolUse", "PostToolUse": "PostToolUse"},
+                "tool_overrides": {"file_edit": "Edit|Write"},
                 "degradation": {"guard_dangerous": "native", "lint_format": "native"},
             },
         },
@@ -111,6 +112,25 @@ class TestHookBridge:
         assert pre[0]["matcher"] == "Bash"
         cmd = pre[0]["hooks"][0]["command"]
         assert "python -m cataforge.runtime.hook.scripts.guard_dangerous" in cmd
+
+    def test_claude_code_lint_format_matches_edit_and_write(self, project_dir: Path) -> None:
+        """The file_edit hook must fire after both Edit and Write — a TDD GREEN
+        sub-agent's primary output is a freshly `Write`-created file, which a
+        bare `Edit` matcher would skip, so lint/format is deferred to the gate."""
+        platforms_dir = project_dir / ".cataforge" / "platforms"
+        adapter = get_adapter("claude-code", platforms_dir)
+
+        hooks, _warnings = generate_platform_hooks(adapter)
+
+        post = hooks["PostToolUse"]
+        assert post[0]["matcher"] == "Edit|Write"
+
+    def test_real_claude_code_profile_overrides_file_edit_to_edit_write(self) -> None:
+        """Guard the shipped profile value, not just the bridge mechanism."""
+        repo_root = Path(__file__).resolve().parents[2]
+        adapter = get_adapter("claude-code", repo_root / ".cataforge" / "platforms")
+
+        assert adapter.hook_tool_overrides.get("file_edit") == "Edit|Write"
 
     def test_cursor_hooks_use_module_invocation(self, project_dir: Path) -> None:
         """Hooks are invoked via python -m cataforge.runtime.hook.scripts.<module>."""
