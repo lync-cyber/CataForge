@@ -22,7 +22,7 @@ user-invocable: true
 
 ## 输入规范
 - read: UC-{NNN} 或 Penpot 组件名
-- sync: ui-spec#§1 设计系统 Token + sync-direction ∈ {penpot-to-code, code-to-penpot, bidirectional}
+- sync: ui-spec#§1 设计系统 Token + sync-direction ∈ {emit, mirror, ingest}（tokens.css 为 ui-spec §1 的单向派生）
 - generate: ui-spec#§2 UC-{NNN}（Props/变体/交互——语义）+ arch#§1.4 技术栈 + Penpot 组件设计数据（视觉，经 read）
 - verify: Penpot 组件设计数据（视觉权威源，经 read）+ 已实现组件代码路径 + ui-spec#§2 UC-{NNN}（语义参照）
 
@@ -44,11 +44,10 @@ user-invocable: true
 3. 映射到 tokens.css 设计变量（优先变量而非硬编码值）
 
 ### sync
-Token 双向同步。
-1. read 三方 Token（ui-spec#§1 / Penpot / tokens.css）
-2. 对齐：命名与设计意图恒以 ui-spec 为权威源；Token 实值 doc-first 默认 ui-spec 权威，仅同步差异项不全量覆盖
-3. 按 sync-direction 写出（penpot-to-code → tokens.css；code-to-penpot → Penpot；bidirectional → 以 ui-spec 为权威源做两次受控单向写出，不反向读回，避免覆盖循环）
-4. 产出 tokens.css（W3C Design Tokens）+ 差异报告（新增/冲突/一致）
+ui-spec §1 Token 与 Penpot / tokens.css 对齐。tokens.css 是 ui-spec §1 的单向派生（非独立权威源）；ui-spec 自身的 graph 回流由 `cataforge context ingest` 负责，本操作只跨 ui-spec ↔ Penpot 一条边。按 sync-direction：
+1. emit（doc-first 缺省）：从 ui-spec §1 Token 表确定性生成 `src/styles/tokens.css`（单向投影，不读回 tokens.css 改 ui-spec）+ 差异报告
+2. mirror（可选）：把 ui-spec §1 Token 单向推 Penpot 作镜像；无自动化消费者，可跳过
+3. ingest（Penpot-first）：read Penpot Token 实值 → 写入 ui-spec §1 md → 由 orchestrator 在收口点跑 `cataforge context ingest` 回流图后端；仅同步差异项，不全量覆盖
 
 ### generate
 从 Penpot 设计生成组件代码骨架。
@@ -68,6 +67,7 @@ Token 双向同步。
 - 禁止: 在 Penpot 未启动时静默返回 success —— `cataforge penpot ensure` 失败必须返回 blocked，否则 generate 在空数据上施工、sync 写空 Token
 - 禁止: generate 越界产业务逻辑 —— 只产骨架/样式/静态资源；业务逻辑由 TDD GREEN 补充，越界会让 RED 测试无法约束实现
 - 禁止: verify 由非 reviewer 触发或自动回写 ui-spec —— verify 只产差异报告供 reviewer 把关；生成者给自己打分会失去审查独立性
+- 禁止: sync 把 tokens.css 当独立权威源参与 reconcile —— tokens.css 是 ui-spec §1 的单向派生；反向读 tokens.css 改 ui-spec 会制造伪三方 reconcile
 - 禁止: sync 全量覆盖远端 Token —— 局部增量同步保留 Penpot 端手动微调，全量覆盖丢失未提交回 ui-spec 的中间状态
 - 避免: 组件样式硬编码而不引 tokens.css 变量 —— 全局风格调整需全文件搜索替换
 

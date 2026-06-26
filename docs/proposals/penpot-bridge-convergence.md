@@ -99,14 +99,16 @@ MCP 可用性探测 / 工具发现 / blocked 降级在能力层**统一声明一
 
 ### PR-C1 · Token reconcile 归一【P2 · 依赖 PR-B · 可与 PR-D 并行】 — 解 R-003、R-006（skill 层）
 
+> 校正：`context finalize`/`ingest` 操作 `docs/` 图谱视图（ui-spec md ↔ graph），**不产** `src/styles/tokens.css`。tokens.css 是 ui-spec §1 的确定性派生（LLM emit，无 CLI）。故 C1 不是"把 tokens.css 路由进 context"，而是消除自造三方 reconcile + 复用 context ingest 做 ui-spec 这个 doc 的回流。
+
 **改动**
-- `penpot-bridge/SKILL.md` token 操作：移除自造"ui-spec/Penpot/tokens.css 三方优先级"reconcile 逻辑；改为 ui-spec §1 经 `cataforge context finalize`/`ingest` 产 tokens.css。
-- 去掉无消费者的"单向推 Penpot"主路径；保留为可选"人审镜像导出"（非同步主路径）。
-- 移除"禁止双向回写"钝规则，替换为引用 context finalize/ingest 的冲突消解语义。
+- `penpot-bridge/SKILL.md` sync 操作：移除自造"ui-spec/Penpot/tokens.css 三方优先级"reconcile；sync-direction 改为 `emit`（ui-spec §1 → tokens.css 单向派生）/ `mirror`（→ Penpot 可选镜像）/ `ingest`（Penpot-first：Penpot → ui-spec §1 md → `cataforge context ingest` 回流图）。
+- tokens.css 降为 ui-spec §1 的单向派生，不再作独立权威源参与 reconcile。
+- ui-spec §1 自身的人改回流复用 context `ingest`（ui-spec 是 doc，已归 context），penpot-bridge 不重复造。
 
 **验收**
-- penpot-bridge token 段不再出现三方手搓优先级表。
-- 推 Penpot 降为可选项，缺省路径 ui-spec→tokens.css 经 context 命令。
+- penpot-bridge sync 段不再出现三方手搓优先级。
+- tokens.css 明确为单向派生；Penpot push 降为可选 `mirror`。
 
 ---
 

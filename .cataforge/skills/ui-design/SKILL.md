@@ -57,7 +57,7 @@ user-invocable: true
 - 圆角程度与产品调性一致(企业工具偏小圆角2-4px，消费产品可用较大圆角8-16px)
 
 ### Step 3: [Penpot可选] Token同步
-若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，调用 penpot-bridge sync 将token同步到Penpot项目和 tokens.css
+若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，调用 penpot-bridge sync emit 生成 tokens.css（doc-first），可选 mirror 同步到 Penpot
 
 ### Step 4: 页面与组件规划
 从PRD功能需求推导页面和组件需求:
