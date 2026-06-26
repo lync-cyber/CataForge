@@ -54,6 +54,7 @@ maxTurns: 60
   - AC 写"摘要哈希"代替 `digest`
   违反时实现层与契约层语义错位会逃过 RED→GREEN 主循环，需 orchestrator 在 RED 前人工拦截
 - **AC contract-completeness**: 任务 AC 引用某 `arch#§N.API-NNN` 契约时，契约声明的每个响应码 / 安全路径 / 集成点都须有对应 AC，缺项须显式标 `[ASSUMPTION]` 豁免并附理由。反例：契约定义 `401 E_AUTH` + `403 E_PERMISSION_DENIED` 两条安全路径，AC 只覆盖正常返回 —— 缺口逃过 dev_planning 门禁，仅在 GREEN 后 code-review 才被 reviewer 标 HIGH 补齐
+- **pipeline-stage coverage**: arch 模块定义为有序管线（`arch#§N.M-NNN` 的 stage 序列）时，每个 stage 的运行时接线都须有任务卡 deliverables 承载；某 stage 仅以占位 / 空返回满足字面 AC 而无接线任务，是拆分缺口 —— 运行时管线在该 stage 静默断裂，逃过 dev_planning 门禁。反例：模块管线含 A→B→C 三 stage，dev-plan 仅为 A、C 建任务卡，B 接线无任务承载、以空对象满足下游字面 AC，集成时管线在 B 断裂
 
 ## Error Handling
 | 场景 | 处理策略 |
