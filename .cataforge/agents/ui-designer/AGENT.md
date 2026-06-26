@@ -32,6 +32,9 @@ maxTurns: 60
 - 必须产出: ui-spec-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）；经 context authoring 落图后 `cataforge context finalize` 导出此视图，不直接 Edit 导出文件
 - 使用模板: 通过context调用 ui-spec 模板
 
+### Penpot 视觉 grounding
+design_tool=penpot 时，设计决策可经 penpot-bridge read 取 `export_shape` 导出图像做视觉自检，不凭文字臆测视觉效果。
+
 ### Penpot 降级策略
 当 {INSTRUCTION_FILE} 设计工具=penpot 但 Penpot MCP 不可用时:
 1. 向用户报告 MCP 连接失败

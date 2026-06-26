@@ -27,13 +27,13 @@ user-invocable: true
 - verify: Penpot 组件设计数据（视觉权威源，经 read）+ 已实现组件代码路径 + ui-spec#§2 UC-{NNN}（语义参照）
 
 ## 输出规范
-- read: 组件层级结构 / CSS 属性 / Token 实值（供其他操作复用）
+- read: 组件层级结构 / CSS 属性 / Token 实值 + 组件导出图像（供其他操作复用）
 - sync: `src/styles/tokens.css`（W3C Design Tokens 格式）+ 同步差异报告
 - generate: 组件骨架文件（按 arch 技术栈）+ 样式文件（引 tokens.css 变量）
 - verify: 设计一致性审查报告 `docs/reviews/design/DESIGN-REVIEW-{component_id}-r{N}.md`（差异列表 + 修复建议）
 
 ## Penpot MCP 接入
-具体 MCP 工具名以平台 MCP 配置为准（Claude: `.mcp.json` / `.claude/settings.json`；Cursor: `.cursor/mcp.json`；OpenCode: `opencode.json`），运行时按可用工具列表自动发现。典型操作：读项目信息、读组件结构/样式/SVG、读写设计 Token。工具列表中无 Penpot 工具时先 `cataforge penpot ensure`（若未部署则 `cataforge penpot deploy`），仍不可用返回 blocked。
+具体 MCP 工具名以平台 MCP 配置为准（Claude: `.mcp.json` / `.claude/settings.json`；Cursor: `.cursor/mcp.json`；OpenCode: `opencode.json`），运行时按可用工具列表自动发现。典型操作：读项目信息、读组件结构/样式/SVG、读写设计 Token、导出组件图像（export_shape）。工具列表中无 Penpot 工具时先 `cataforge penpot ensure`（若未部署则 `cataforge penpot deploy`），仍不可用返回 blocked。
 
 ## 操作指令
 
@@ -42,6 +42,7 @@ user-invocable: true
 1. 经 MCP 读取组件层级结构（容器/子元素/文本/图标）
 2. 提取 CSS 属性（尺寸/颜色/字体/间距/边框）与 Token 实值
 3. 映射到 tokens.css 设计变量（优先变量而非硬编码值）
+4. 经 MCP `export_shape` 导出目标组件图像，供调用方做视觉自检（设计决策 / 还原度核对）
 
 ### sync
 ui-spec §1 Token 与 Penpot / tokens.css 对齐。tokens.css 是 ui-spec §1 的单向派生（非独立权威源）；ui-spec 自身的 graph 回流由 `cataforge context ingest` 负责，本操作只跨 ui-spec ↔ Penpot 一条边。按 sync-direction：
@@ -60,7 +61,8 @@ ui-spec §1 Token 与 Penpot / tokens.css 对齐。tokens.css 是 ui-spec §1 �
 1. read 目标组件视觉属性（颜色/排版/间距/尺寸/布局——视觉权威源）
 2. 从组件代码提取实际样式值，识别 tokens.css 变量引用
 3. 逐属性比对：完全匹配 / Token 间接匹配 → PASS；值不匹配 → DIFF（记设计值 vs 代码值 vs 偏差）；设计有代码缺 → MISSING；代码有设计无 → EXTRA（仅记录）；<1px 偏差标 WARN 非 DIFF
-4. 产出 DESIGN-REVIEW 报告（front matter 见 COMMON-RULES §报告 Front Matter 约定）
+4. 经 `export_shape` 导出设计图像与已实现组件渲染对照，捕获逐属性比对漏掉的整体视觉偏差（布局错位 / 视觉层次失真），归入 DIFF / WARN；仅静态视觉，忽略交互/动画
+5. 产出 DESIGN-REVIEW 报告（front matter 见 COMMON-RULES §报告 Front Matter 约定）
 
 ## Anti-Patterns
 - 禁止: 用 Penpot 覆盖 ui-spec 的语义契约 —— 组件身份/Props/状态枚举/AC 绑定恒以 ui-spec 为权威源，仅视觉实值随 authoring surface；否则语义漂移绕过 reviewer 校对
