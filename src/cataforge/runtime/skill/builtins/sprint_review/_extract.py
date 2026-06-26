@@ -15,6 +15,15 @@ _TASK_TABLE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# A ``### Sprint N`` overview row whose first cell is a task id, regardless of
+# whether the table carries a status column: ``| T-12 | … |``. The first cell
+# is the sprint-membership signal; status backfills from a status table or is
+# treated as externally tracked.
+_TASK_ROW_RE = re.compile(r"^\|\s*(T-\d+[a-z]?)\s*\|", re.IGNORECASE)
+
+# A ``### Sprint N`` section heading.
+_SPRINT_HEADING_RE = re.compile(r"^###?\s+Sprint\s+(\d+)\b", re.IGNORECASE)
+
 
 def find_dev_plan_files(dev_plan_dir: str) -> list[str]:
     files: list[str] = []
@@ -175,13 +184,23 @@ def _process_task_line(
                     "tdd_acceptance": [],
                 }
             )
+        elif in_sprint:
+            row_match = _TASK_ROW_RE.match(line)
+            if row_match:
+                tasks.append(
+                    {
+                        "id": row_match.group(1),
+                        "status": "",
+                        "deliverables": [],
+                        "tdd_acceptance": [],
+                    }
+                )
 
     return i + 1, current_task
 
 
 def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[dict[str, Any]]:
     tasks: list[dict[str, Any]] = []
-    in_sprint = False
     current_task: dict[str, Any] | None = None
 
     sprint_volume = _find_sprint_volume(dev_plan_files, sprint_number)
@@ -191,6 +210,9 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
         with open(filepath) as f:
             content = f.read()
 
+        # in_sprint is reset per file so a heading in one file never attributes
+        # a card living in another file with no heading of its own.
+        in_sprint = False
         lines = content.split("\n")
         i = 0
         while i < len(lines):
@@ -215,8 +237,68 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
             tasks.append(current_task)
             current_task = None
 
+    tasks = _dedup_tasks(tasks)
     _backfill_missing_status(tasks, dev_plan_files)
     return tasks
+
+
+def _dedup_tasks(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse entries sharing a task id (an overview row plus its detail
+    card) into one, preferring a concrete status and unioning the lists."""
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for t in tasks:
+        tid = t["id"]
+        existing = merged.get(tid)
+        if existing is None:
+            merged[tid] = {
+                "id": tid,
+                "status": t["status"],
+                "deliverables": list(t["deliverables"]),
+                "tdd_acceptance": list(t["tdd_acceptance"]),
+            }
+            order.append(tid)
+            continue
+        if not existing["status"] and t["status"]:
+            existing["status"] = t["status"]
+        for d in t["deliverables"]:
+            if d not in existing["deliverables"]:
+                existing["deliverables"].append(d)
+        for ac in t["tdd_acceptance"]:
+            if ac not in existing["tdd_acceptance"]:
+                existing["tdd_acceptance"].append(ac)
+    return [merged[tid] for tid in order]
+
+
+def classify_empty_extraction(dev_plan_files: list[str], sprint_number: int) -> str:
+    """Diagnose why a sprint extracted no tasks, separating a layout/anchor
+    miss from a genuinely empty sprint.
+
+    * ``no_tasks`` — the dev-plan declares no ``T-NNN`` task ids anywhere.
+    * ``no_anchor`` — tasks exist, but this sprint has no ``### Sprint N``
+      heading and no ``-s{N}.md`` volume to scope them (likely an out-of-range
+      number or a detail-volume naming mismatch).
+    * ``anchored_empty`` — the sprint is anchored yet yields nothing (genuinely
+      empty, or an overview table the parser can't read).
+    """
+    has_any_task = False
+    anchored = _find_sprint_volume(dev_plan_files, sprint_number) is not None
+
+    for filepath in dev_plan_files:
+        with open(filepath) as f:
+            lines = f.read().split("\n")
+        for line in lines:
+            if re.search(r"\bT-\d+", line):
+                has_any_task = True
+            heading = _SPRINT_HEADING_RE.match(line)
+            if heading and int(heading.group(1)) == sprint_number:
+                anchored = True
+
+    if not has_any_task:
+        return "no_tasks"
+    if not anchored:
+        return "no_anchor"
+    return "anchored_empty"
 
 
 def _backfill_missing_status(tasks: list[dict[str, Any]], dev_plan_files: list[str]) -> None:
