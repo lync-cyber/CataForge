@@ -77,14 +77,14 @@ GREEN/Light 完成后，对刚写的 impl_files 做一次轻量自检：
 
 GREEN/Light 完成后按 tdd-engine 四档执行收尾验证：
 
-| 执行模式 | 修改文件 lint | 全量回归 | git diff 报告 |
+| 执行模式 | 修改文件静态门 (lint + 类型检查) | 全量回归 | git diff 报告 |
 |---------|--------------|---------|--------------|
 | standard | 必须 PASS | 必须（完整 §test_command） | `git diff --name-only` 入 summary |
 | light-dispatch | 必须 PASS | 必须 | `git diff --name-only` 入 summary |
 | light-inline | 必须 PASS | 豁免（仅跑覆盖到的 test_files） | 建议入 summary |
 | prototype-inline | 豁免（lint hook 兜底） | 豁免 | 不要求 |
 
-lint 失败 → 自修复后重试；3 次未通过返回 blocked。lint 工具选取与 code-review Layer 1 工具集合对齐（ESLint / Ruff / golangci-lint / dotnet format / clippy 等）。
+静态门失败 → 自修复后重试；3 次未通过返回 blocked。工具随语言对齐 code-review Layer 1 集合（lint：ESLint / Ruff / golangci-lint / dotnet format / clippy；类型检查：项目有静态类型门时跑其收敛点检查）。**scoped / 单测自报不坐实 GREEN**——测试 runner 的转译执行常旁路类型检查，上表静态门须独立对 changed-scope 全跑。
 
 ## Execution Rules
 - 只写使测试通过的最小代码，不做超出测试要求的设计
