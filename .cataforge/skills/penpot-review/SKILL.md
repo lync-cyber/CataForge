@@ -21,7 +21,7 @@ user-invocable: true
 ## 输入规范
 - Penpot 组件设计数据（通过 MCP 读取）
 - 已实现的组件代码文件路径
-- ui-spec#§2 中对应的 UC-{NNN} 规范（作为参考）
+- ui-spec#§2 中对应的 UC-{NNN} 语义规范（Props/状态，作为语义参照；视觉一致性的权威源为 Penpot）
 
 ## 输出规范
 - 设计一致性审查报告 `docs/reviews/design/DESIGN-REVIEW-{component_id}-r{N}.md`
@@ -86,7 +86,7 @@ penpot: "{penpot_component_id}"
 - 禁止: 因 ≤1px 偏差直接判 DIFF —— 视觉对齐有亚像素噪声；<1px 标 WARN 而非 DIFF，否则审查噪音淹没真正偏差
 - 禁止: 比对动画 / 交互 / 过渡属性 —— ui-spec 不承载交互契约；penpot-review 只对静态视觉，越界会引入大量假阳
 - 禁止: 把 review 报告写到 docs/reviews/code/ 或 docs/reviews/doc/ —— 设计审查报告应入 docs/reviews/design/，混写让 sprint-review 聚合失真
-- 避免: 把 Penpot 设计差异自动回写到 ui-spec —— 设计漂移修正必须经 ui-designer 显式判断，自动同步会让契约失去 reviewer 把关
+- 避免: 由 verify 把 Penpot 差异自动回写 ui-spec —— verify 只产差异报告；语义修正经 ui-designer 判断、视觉实值快照的回灌走受控 ingest，均不在 verify 职责内
 
 ## 效率策略
 - 仅比对视觉相关属性，忽略交互/动画属性

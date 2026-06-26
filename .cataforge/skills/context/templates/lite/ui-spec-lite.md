@@ -25,6 +25,8 @@ required_sections:
 - §2 组件清单 → UC-001..UC-{NNN}
 [/NAV]
 
+<!-- 权威源（design_tool=penpot 时）：Token 命名与设计意图、组件身份/Props/状态枚举/功能映射恒以本 ui-spec 为权威源；Token 实值与组件视觉值随 authoring surface（doc-first 默认本 ui-spec 权威、Penpot 镜像；Penpot-first 取 Penpot、此处存派生快照）。design_tool=none 时本卷即权威源。 -->
+
 ## 1. 设计系统
 
 ### 1.1 色彩

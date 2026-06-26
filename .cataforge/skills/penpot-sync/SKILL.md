@@ -11,7 +11,7 @@ user-invocable: true
 # 设计Token双向同步 (penpot-sync)
 ## 能力边界
 - 能做: 从Penpot读取设计Token、将Token写入CSS变量文件、从ui-spec同步Token到Penpot、Token一致性检查
-- 不做: 组件设计、页面布局、代码实现、以 Penpot 为权威源反写 ui-spec（Step 4 bidirectional 仅以 ui-spec 为权威源，从 Penpot 读取 Token 仅用于比对）
+- 不做: 组件设计、页面布局、代码实现、以 Penpot 覆盖 ui-spec 的 Token 命名与设计意图（命名/意图恒以 ui-spec 为权威源；Token 实值的权威源随 authoring surface —— doc-first 默认 ui-spec 权威、Penpot 为下游镜像）
 
 ## 前置条件
 - {INSTRUCTION_FILE} `设计工具` 字段为 `penpot`
@@ -39,7 +39,7 @@ user-invocable: true
 
 ### Step 3: 三方对齐
 - 对比三个来源的Token差异
-- 冲突优先级: ui-spec（权威源）> Penpot > tokens.css
+- 冲突优先级（doc-first 默认，Token 实值）: ui-spec > Penpot > tokens.css；命名与设计意图恒以 ui-spec 为权威源
 - 生成差异报告:
   - 新增: 仅在一方存在的Token
   - 冲突: 同名Token不同值

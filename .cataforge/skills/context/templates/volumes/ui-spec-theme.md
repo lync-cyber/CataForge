@@ -18,6 +18,8 @@ required_sections:
 - §4 主题方案 → THEME-{NN}
 [/NAV]
 
+<!-- 权威源（design_tool=penpot 时）：Token 命名与设计意图以 ui-spec 主卷为权威源；Token/色彩/字体/间距实值随 authoring surface（doc-first 默认 ui-spec 权威、Penpot 镜像；Penpot-first 取 Penpot、本卷存派生快照）。design_tool=none 时本卷即权威源。 -->
+
 ## 4. 主题方案
 
 ### 4.1 视觉语言
