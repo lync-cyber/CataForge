@@ -438,8 +438,52 @@ def check_kg_snapshot_freshness(cfg: ConfigManager) -> int:
     return 0
 
 
+def check_kg_snapshot_gitignore(cfg: ConfigManager) -> int:
+    """Doctor check (graph mode only, WARN) — NQuads snapshots must stay tracked.
+
+    In graph mode the gitignored store rebuilds from the committed snapshot on
+    clone, so a project-root .gitignore that also excludes the snapshots dir
+    silently drops the graph's only durable artifact. ``.cataforge/.gitignore``
+    keeps snapshots tracked; this catches a root rule that overrides it.
+    Advisory (returns 0); skipped outside graph mode and off a git work-tree.
+    """
+    import shutil  # noqa: PLC0415
+
+    from cataforge.domain.kg._dispatch import context_mode  # noqa: PLC0415
+
+    project_root = Path(cfg.paths.root)
+    if context_mode(project_root) != "graph":
+        click.echo("  (not graph mode — skipping)")
+        return 0
+    if shutil.which("git") is None:
+        click.echo("  git not on PATH — skipped.")
+        return 0
+
+    from cataforge.application.services.git_hygiene import GitWorkTree  # noqa: PLC0415
+
+    git = GitWorkTree(project_root)
+    if not git.is_inside_work_tree():
+        click.echo("  not a git work-tree — skipped.")
+        return 0
+
+    probe = (KG_SNAPSHOTS_REL / "latest.nq").as_posix()
+    if git.path_is_ignored(probe):
+        click.echo(
+            f"  WARN: {KG_SNAPSHOTS_REL.as_posix()} is git-ignored, but graph mode "
+            f"rebuilds the store from the committed NQuads snapshot on clone — the "
+            f"graph's only durable artifact would be lost. Drop the .cataforge/kg "
+            f"(or kg/snapshots) rule from the project-root .gitignore; "
+            f".cataforge/.gitignore already tracks snapshots and ignores only the store."
+        )
+        return 0
+
+    click.echo("  OK — NQuads snapshots are tracked.")
+    return 0
+
+
 __all__ = [
     "check_kg_ingestion_completeness",
     "check_kg_snapshot_freshness",
+    "check_kg_snapshot_gitignore",
     "check_kg_xref_target_integrity",
 ]

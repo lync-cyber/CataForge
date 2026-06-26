@@ -87,6 +87,10 @@ class GitWorkTree:
     def is_inside_work_tree(self) -> bool:
         return self._run("rev-parse", "--is-inside-work-tree", check=False).returncode == 0
 
+    def path_is_ignored(self, rel_path: str) -> bool:
+        """True when *rel_path* is excluded by some gitignore rule (path need not exist)."""
+        return self._run("check-ignore", "-q", rel_path, check=False).returncode == 0
+
     def current_branch(self) -> str:
         return (self._run("rev-parse", "--abbrev-ref", "HEAD").stdout or "").strip()
 
