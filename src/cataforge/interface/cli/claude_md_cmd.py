@@ -83,6 +83,17 @@ def check_command() -> None:
         )
         failed += 1
 
+    click.echo(
+        f"  longest §项目状态 bullet: {measurement.max_state_bullet_chars:>6} chars "
+        f"(limit: {limits['max_state_bullet_chars']})"
+    )
+    if measurement.max_state_bullet_chars > limits["max_state_bullet_chars"]:
+        click.secho(
+            "    WARN: a status bullet is accumulating history into one run-on line "
+            "— keep it a live delta and move history to docs/ or EVENT-LOG.",
+            fg="yellow",
+        )
+
     if failed:
         raise CataforgeError(
             f"CLAUDE.md limits exceeded ({failed} check(s) failed — see output above)."
