@@ -214,6 +214,79 @@ class TestCheckTaskStatus:
 # ---------------------------------------------------------------------------
 
 
+class TestResolveTaskStatusExternal:
+    """Auto-detect external status tracking when dev-plan declares no statuses."""
+
+    def test_declared_flag_is_external_not_auto(self) -> None:
+        from cataforge.runtime.skill.builtins.sprint_review.sprint_check import (
+            resolve_task_status_external,
+        )
+
+        ext, auto = resolve_task_status_external({"task_status_external": True}, [{"status": ""}])
+        assert ext is True
+        assert auto is False
+
+    def test_auto_detected_when_all_tasks_lack_status(self) -> None:
+        from cataforge.runtime.skill.builtins.sprint_review.sprint_check import (
+            resolve_task_status_external,
+        )
+
+        ext, auto = resolve_task_status_external({}, [{"status": ""}, {"status": ""}])
+        assert ext is True
+        assert auto is True
+
+    def test_not_external_when_any_task_has_status(self) -> None:
+        from cataforge.runtime.skill.builtins.sprint_review.sprint_check import (
+            resolve_task_status_external,
+        )
+
+        ext, auto = resolve_task_status_external({}, [{"status": ""}, {"status": "done"}])
+        assert ext is False
+        assert auto is False
+
+    def test_not_auto_when_no_tasks(self) -> None:
+        from cataforge.runtime.skill.builtins.sprint_review.sprint_check import (
+            resolve_task_status_external,
+        )
+
+        ext, auto = resolve_task_status_external({}, [])
+        assert ext is False
+        assert auto is False
+
+
+class TestRepresentativeDeliverables:
+    """``deliverables_representative`` suppresses the unplanned-files WARN set."""
+
+    def test_representative_skips_unplanned(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "planned.ts").write_text("", encoding="utf-8")
+        (src / "extra.ts").write_text("", encoding="utf-8")
+        ignore_spec = build_ignore_spec(use_defaults=True)
+        issues = check_unplanned_files(
+            [{"id": "T-1", "deliverables": [str(src / "planned.ts")]}],
+            [str(src)],
+            respect_gitignore=False,
+            ignore_spec=ignore_spec,
+            representative=True,
+        )
+        assert issues == []
+
+    def test_non_representative_still_flags(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "planned.ts").write_text("", encoding="utf-8")
+        (src / "extra.ts").write_text("", encoding="utf-8")
+        ignore_spec = build_ignore_spec(use_defaults=True)
+        issues = check_unplanned_files(
+            [{"id": "T-1", "deliverables": [str(src / "planned.ts")]}],
+            [str(src)],
+            respect_gitignore=False,
+            ignore_spec=ignore_spec,
+        )
+        assert any("extra.ts" in i.path for i in issues)
+
+
 class TestExtractAlternationDeliverables:
     def test_pipe_entry_with_spaces_is_kept(self, tmp_path: Path) -> None:
         from cataforge.runtime.skill.builtins.sprint_review.sprint_check import (

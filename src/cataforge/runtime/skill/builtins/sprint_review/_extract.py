@@ -43,7 +43,11 @@ def load_project_features(dev_plan_files: list[str]) -> dict[str, Any]:
       path exists). Set false to treat the literal string as one path.
     * ``task_status_external`` (bool, default off) — skip the
       ``task_status_done`` check for projects whose task status truth lives
-      outside dev-plan (EVENT-LOG / project instructions).
+      outside dev-plan (EVENT-LOG / project instructions). Auto-detected when
+      every sprint task lacks an in-document status even if unset.
+    * ``deliverables_representative`` (bool, default off) — skip the
+      unplanned-files (gold-plating) check for projects whose deliverables
+      lists are representative rather than exhaustive.
     * ``unplanned_glob_patterns`` (list[str]) — fnmatch patterns appended to
       ``DEFAULT_UNPLANNED_GLOB_PATTERNS``; matching files are filtered out
       of the unplanned-files WARN set.
