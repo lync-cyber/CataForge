@@ -129,9 +129,8 @@ def penpot_doctor() -> None:
 def penpot_ensure() -> None:
     """Idempotent: bring the Penpot MCP server up if it isn't already.
 
-    Used by the Penpot skills (penpot-sync / penpot-implement /
-    penpot-review) when they detect no Penpot MCP tools in the runtime
-    tool list — they call ``cataforge penpot ensure`` to attempt a
-    start-up before falling back to ``blocked``.
+    Used by the penpot-bridge skill when it detects no Penpot MCP tools
+    in the runtime tool list — it calls ``cataforge penpot ensure`` to
+    attempt a start-up before falling back to ``blocked``.
     """
     _run_penpot("ensure")

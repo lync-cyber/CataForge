@@ -18,6 +18,8 @@ required_sections:
 - §3 页面布局 → P-{start}..P-{end}
 [/NAV]
 
+<!-- 权威源（design_tool=penpot 时）：页面语义结构/状态流/路由以 ui-spec 为权威源；精确几何与 flex-grid 实参随 authoring surface（doc-first 默认 ui-spec 权威；Penpot-first 取 Penpot、本卷存派生快照）。design_tool=none 时本卷即权威源。 -->
+
 ## 3. 页面布局
 
 ### P-{start}: {页面名}

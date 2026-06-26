@@ -11,7 +11,7 @@ user-invocable: true
 # UI设计 (ui-design)
 ## 能力边界
 - 能做: 设计方向决策、设计系统token定义、页面布局决策、组件规范定义、交互流程、响应式策略、组件目录维护(UC-NNN注册/去重/合并)、设计token一致性检查
-- 不做: 需求分析、架构设计、代码实现、从 Penpot 设计稿生成代码骨架（由 penpot-implement 负责）
+- 不做: 需求分析、架构设计、代码实现、从 Penpot 设计稿生成代码骨架（由 penpot-bridge generate 负责）
 
 ## 输入规范
 - prd#§2功能需求(F-{NNN})
@@ -57,7 +57,7 @@ user-invocable: true
 - 圆角程度与产品调性一致(企业工具偏小圆角2-4px，消费产品可用较大圆角8-16px)
 
 ### Step 3: [Penpot可选] Token同步
-若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，调用 penpot-sync 将token同步到Penpot项目和 tokens.css
+若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，调用 penpot-bridge sync emit 生成 tokens.css（doc-first），可选 mirror 同步到 Penpot
 
 ### Step 4: 页面与组件规划
 从PRD功能需求推导页面和组件需求:
@@ -88,7 +88,7 @@ user-invocable: true
 4. Token变量化，确保全局一致
 
 ### Step 9: [Penpot可选] 设计一致性验证
-若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，在 penpot-implement 产出代码骨架后由 orchestrator 调度 penpot-review 验证设计与实现的一致性（penpot-review 前置要求组件已实现，故不在本设计阶段直接调用）
+若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，在 penpot-bridge generate 产出代码骨架后由 orchestrator 调度 penpot-bridge verify 验证设计与实现的一致性（verify 前置要求组件已实现，故不在本设计阶段直接调用）
 
 ## Anti-Patterns
 - 禁止: 跳过 Token 阶段直接画组件 —— Token 是设计系统基础，未先确立会让组件层风格漂移，后期返工成本高

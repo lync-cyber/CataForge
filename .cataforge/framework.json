@@ -136,11 +136,11 @@
       "phase_guard": "development",
       "description": "代码双层审计 (Layer 1 lint + Layer 2 AI)"
     },
-    "penpot-sync": {
+    "penpot-bridge": {
       "min_version": "0.1.0",
       "auto_enable": false,
       "phase_guard": "ui_design",
-      "description": "Penpot设计工具集成 (需设置 design-tool: penpot)"
+      "description": "Penpot 设计↔代码桥 (read/sync/generate/verify，需设置 design-tool: penpot)"
     },
     "sprint-review": {
       "min_version": "0.1.0",

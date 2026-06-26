@@ -13,7 +13,7 @@ skills:
   - context
   - code-review
   - sprint-review
-  - penpot-review
+  - penpot-bridge
 model_tier: standard
 maxTurns: 50
 ---
