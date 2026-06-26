@@ -53,6 +53,26 @@ class TestMeasureClaudeMd:
         assert m.learnings_entries == 3
         assert m.state_section_lines > 0
 
+    def test_measures_longest_state_bullet_chars(self, tmp_path: Path) -> None:
+        path = tmp_path / "CLAUDE.md"
+        long_bullet = "上次完成: " + "x" * 600
+        path.write_text(
+            "# Test\n\n## 项目状态\n\n"
+            "- 当前阶段: development\n"
+            f"- {long_bullet}\n"
+            "- Learnings Registry: (empty)\n"
+            "\n## 项目信息\n\n- 这条在状态段外，超长也不计: " + "y" * 900 + "\n",
+            encoding="utf-8",
+        )
+        m = measure_claude_md(path)
+        # Only the §项目状态 bullet counts; the longer §项目信息 line is outside.
+        assert 600 <= m.max_state_bullet_chars < 900
+
+    def test_longest_bullet_zero_when_no_state_bullets(self, tmp_path: Path) -> None:
+        path = tmp_path / "CLAUDE.md"
+        path.write_text("# Test\n\n## 项目状态\n\n正文无 bullet。\n", encoding="utf-8")
+        assert measure_claude_md(path).max_state_bullet_chars == 0
+
     def test_counts_bullet_children_registry(self, tmp_path: Path) -> None:
         path = tmp_path / "CLAUDE.md"
         _write_claude_md(path, learnings=["one", "two", "three", "four"])

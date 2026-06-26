@@ -208,6 +208,7 @@ class ConfigManager:
             "max_bytes": 30000,
             "max_state_section_lines": 80,
             "learnings_registry_max_entries": 10,
+            "max_state_bullet_chars": 500,
         }
         cfg = self.load().get("claude_md_limits") or {}
         result: dict[str, int] = {}

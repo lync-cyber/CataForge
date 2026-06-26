@@ -54,6 +54,7 @@ class ClaudeMdMeasurement:
     total_lines: int
     state_section_lines: int
     learnings_entries: int
+    max_state_bullet_chars: int
 
 
 def measure_claude_md(claude_md_path: Path) -> ClaudeMdMeasurement:
@@ -70,12 +71,13 @@ def measure_claude_md(claude_md_path: Path) -> ClaudeMdMeasurement:
             total_lines=0,
             state_section_lines=0,
             learnings_entries=0,
+            max_state_bullet_chars=0,
         )
     text = claude_md_path.read_text()
     total_bytes = len(text.encode("utf-8"))
     total_lines = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
 
-    state_lines, registry_inline, registry_children = _extract_state_section(text)
+    state_lines, longest_bullet, registry_inline, registry_children = _extract_state_section(text)
 
     learnings_entries = _count_registry_entries(registry_inline, registry_children)
 
@@ -86,6 +88,7 @@ def measure_claude_md(claude_md_path: Path) -> ClaudeMdMeasurement:
         total_lines=total_lines,
         state_section_lines=state_lines,
         learnings_entries=learnings_entries,
+        max_state_bullet_chars=longest_bullet,
     )
 
 
@@ -177,21 +180,42 @@ def compact_learnings_registry(
 # ─── internals ────────────────────────────────────────────────────────────────
 
 
-def _extract_state_section(text: str) -> tuple[int, str, str]:
-    """Return (state_section_line_count, registry_inline, registry_children)."""
+def _extract_state_section(text: str) -> tuple[int, int, str, str]:
+    """Return (state_lines, longest_bullet_chars, registry_inline, registry_children)."""
     head_match = _PROJECT_STATE_H2_RE.search(text)
     if not head_match:
-        return 0, "", ""
+        return 0, 0, "", ""
     section_start = head_match.end()
     next_h2 = _NEXT_H2_RE.search(text, pos=section_start)
     section_end = next_h2.start() if next_h2 else len(text)
     section_body = text[section_start:section_end]
     state_lines = section_body.count("\n")
+    longest_bullet = _longest_bullet_chars(section_body)
 
     field = _LEARNINGS_FIELD_RE.search(section_body)
     if field is None:
-        return state_lines, "", ""
-    return state_lines, (field.group("inline") or ""), (field.group("children") or "")
+        return state_lines, longest_bullet, "", ""
+    return (
+        state_lines,
+        longest_bullet,
+        (field.group("inline") or ""),
+        (field.group("children") or ""),
+    )
+
+
+def _longest_bullet_chars(section_body: str) -> int:
+    """Longest bullet line in a section, measured by stripped length (0 if none).
+
+    Catches the single-bullet run-on bloat the line-count limit misses: a status
+    field that accumulates closed-PR history into one ever-growing line keeps the
+    line count flat while the character count explodes.
+    """
+    lengths = [
+        len(stripped)
+        for line in section_body.splitlines()
+        if (stripped := line.strip()).startswith("-")
+    ]
+    return max(lengths, default=0)
 
 
 def _split_registry_entries(inline: str, children_block: str) -> list[str]:
