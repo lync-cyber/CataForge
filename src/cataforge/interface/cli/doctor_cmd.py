@@ -29,6 +29,7 @@ from .doctor.hygiene import check_claude_md_hygiene
 from .doctor.kg_ingestion import (
     check_kg_ingestion_completeness,
     check_kg_snapshot_freshness,
+    check_kg_snapshot_gitignore,
     check_kg_xref_target_integrity,
 )
 from .doctor.migration import check_runtime_api_version, run_migration_checks
@@ -84,6 +85,10 @@ _DOCTOR_SECTIONS = [
     # from the latest NQuads snapshot on clone, so a snapshot lagging the live
     # store risks losing uncommitted graph state. Non-gating; nudges finalize.
     ("KG snapshot freshness:", check_kg_snapshot_freshness, False),
+    # KG snapshot gitignore — graph-mode WARN: a project-root .gitignore that
+    # excludes the snapshots dir drops the graph's only durable artifact on
+    # clone. Non-gating; points at the conflicting root rule.
+    ("KG snapshot gitignore:", check_kg_snapshot_gitignore, False),
     ("Hook script importability:", check_hook_script_importability, True),
     ("Built-in skill reachability:", check_builtin_skill_reachability, True),
     ("EVENT-LOG schema sample:", check_event_log_schema, True),
