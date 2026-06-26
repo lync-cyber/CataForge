@@ -27,14 +27,13 @@ if TYPE_CHECKING:
 @click.option("--with-penpot", is_flag=True, help="Include Penpot design integration.")
 @click.option(
     "--context-mode",
-    type=click.Choice(["markdown", "hybrid", "graph"]),
+    type=click.Choice(["markdown", "graph"]),
     default=None,
     help=(
-        "Context source-of-truth mode. markdown: Markdown is the source, no "
-        "graph. hybrid (default): Markdown is the source, a derived graph "
-        "index powers coverage/trace gates. graph: the graph is the source and "
-        "`cataforge context finalize` exports Markdown for review. Prompted on "
-        "a fresh install when omitted; defaults to hybrid non-interactively."
+        "Context source-of-truth mode. graph (default): the graph is the source "
+        "and `cataforge context finalize` exports Markdown for review. markdown: "
+        "Markdown is the source, no graph backend. Prompted on a fresh install "
+        "when omitted; defaults to graph non-interactively."
     ),
 )
 @click.option(
@@ -355,7 +354,7 @@ def _apply_context_mode(cfg: ConfigManager, mode: str | None, *, scaffold_missin
 
     An explicit ``--context-mode`` always wins. On a fresh interactive
     install with no flag, prompt the user. Otherwise leave the scaffold
-    default (hybrid) untouched — orthogonal to the execution-mode choice.
+    default (graph) untouched — orthogonal to the execution-mode choice.
     """
     resolved = mode
     if resolved is None and scaffold_missing and sys.stdin.isatty():
@@ -378,23 +377,18 @@ def _prompt_context_mode() -> str:
         [
             ChoiceOption(
                 "1",
-                "hybrid（推荐）",
-                description="markdown 为源，派生图索引驱动覆盖/追溯门禁",
+                "graph（推荐）",
+                description="图为源，cataforge context finalize 导出 markdown 供人工审查",
             ),
             ChoiceOption(
                 "2",
                 "markdown",
                 description="markdown 为源，无图后端",
             ),
-            ChoiceOption(
-                "3",
-                "graph",
-                description="图为源，cataforge context finalize 导出 markdown 供人工审查",
-            ),
         ],
         default="1",
     )
-    return {"1": "hybrid", "2": "markdown", "3": "graph"}[choice]
+    return {"1": "graph", "2": "markdown"}[choice]
 
 
 def _run_checks(cfg: ConfigManager) -> None:

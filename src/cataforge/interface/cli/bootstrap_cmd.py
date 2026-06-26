@@ -42,13 +42,12 @@ if TYPE_CHECKING:
 )
 @click.option(
     "--context-mode",
-    type=click.Choice(["markdown", "hybrid", "graph"]),
+    type=click.Choice(["markdown", "graph"]),
     default=None,
     help=(
-        "Context source-of-truth mode forwarded to `setup`. markdown (no "
-        "graph), hybrid (markdown source + derived graph index, default), or "
-        "graph (graph source, export markdown for review). Prompted on a fresh "
-        "install when omitted."
+        "Context source-of-truth mode forwarded to `setup`. graph (graph "
+        "source, export markdown for review, default) or markdown (no graph "
+        "backend). Prompted on a fresh install when omitted."
     ),
 )
 @click.option(
@@ -273,7 +272,7 @@ def _execute_plan(
         except Exception as e:  # noqa: BLE001
             ui.warn(f"docs index crashed: {e} — bootstrap continuing.")
 
-    # Graph-backed projects (hybrid / graph) need an initialized store before
+    # Graph-backed projects (graph mode) need an initialized store before
     # the first `context write` / `reconcile`; without it those commands crash
     # on a missing store. Create it idempotently (only when absent) so
     # re-bootstrap is a no-op; non-blocking on failure like docs-index above.
@@ -356,8 +355,8 @@ def _maybe_init_kg_store(cfg: ConfigManager) -> None:
 
     No-op under ``markdown`` (the graph is not a backend) and when a populated
     store already exists (idempotent re-bootstrap). The physical store is
-    gitignored, so a fresh clone rebuilds it here: ``hybrid`` from the Markdown,
-    ``graph`` from the latest NQuads snapshot. Failure warns and continues —
+    gitignored, so a fresh clone rebuilds it here: ``graph`` from the latest
+    NQuads snapshot. Failure warns and continues —
     bootstrap must not be stranded by a hydration hiccup.
     """
     from cataforge.domain.kg._dispatch import invalidate_cache

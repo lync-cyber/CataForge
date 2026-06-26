@@ -116,11 +116,11 @@ def test_merge_framework_json_migrates_legacy_strategy_authoring_to_mode(tmp_pat
     default."""
     from cataforge.core.scaffold import _merge_framework_json
 
-    scaffold = json.dumps({"context": {"mode": "hybrid", "kg_active_doc_types": ["prd"]}}).encode()
+    scaffold = json.dumps({"context": {"mode": "graph", "kg_active_doc_types": ["prd"]}}).encode()
 
     for strategy, authoring, expected in (
         ("doc-only", "md", "markdown"),
-        ("kg-first", "md", "hybrid"),
+        ("kg-first", "md", "graph"),
         ("kg-first", "graph", "graph"),
     ):
         target = tmp_path / f"{strategy}-{authoring}.json"

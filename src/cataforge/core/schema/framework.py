@@ -48,15 +48,14 @@ class FrameworkContext(BaseModel):
     """Validated shape for the ``context`` section of ``framework.json``.
 
     ``mode`` is the single source-of-truth axis: ``markdown`` (Markdown is the
-    source, no graph), ``hybrid`` (Markdown is the source, a derived graph
-    index powers the coverage / trace gates), or ``graph`` (the graph is the
-    source, Markdown is an exported review view). ``kg_active_doc_types`` is the
-    canonical set of doc_types whose context I/O routes through the graph.
+    source, no graph) or ``graph`` (the graph is the source, Markdown is an
+    exported review view). ``kg_active_doc_types`` is the canonical set of
+    doc_types whose context I/O routes through the graph.
     """
 
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
-    mode: str = "hybrid"
+    mode: str = "graph"
     kg_active_doc_types: list[str] = Field(default_factory=list)
 
 

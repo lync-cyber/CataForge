@@ -6,11 +6,9 @@ knowledge graph is the source of truth: authoring writes go to the graph under
 write-time schema validation, then Markdown is *exported* as a human-review
 view (``finalize``); human edits to the exported Markdown are reflected back
 with ``ingest``, and ``reconcile`` guards the two against drift. Under
-``hybrid`` Markdown is canonical and the graph is a derived index: ``finalize``
-/ ``ingest`` sync md → KG and rebuild the docs index, and direct graph
-authoring is rejected (edit Markdown, then ingest). Under ``markdown`` there is
-no graph at all: ``finalize`` / ``ingest`` rebuild the docs index, ``reconcile``
-validates its integrity, and graph authoring is rejected.
+``markdown`` there is no graph at all: ``finalize`` / ``ingest`` rebuild the
+docs index, ``reconcile`` validates its integrity, and graph authoring is
+rejected.
 """
 
 from __future__ import annotations
@@ -154,21 +152,12 @@ _DOC_VALIDATION_GATES = ("orphans", "stale", "xref_errors", "alias_conflicts", "
 def _require_graph_mode(project_root: str, capability: str) -> None:
     """Gate a direct-graph-authoring op to ``context.mode = graph``.
 
-    The graph is canonical only under ``graph`` mode, so a direct write is
-    meaningful only there. ``hybrid`` keeps Markdown canonical (a direct graph
-    write would be clobbered by the next md → KG sync), and ``markdown`` has no
-    graph at all — both reject with the path back to the supported flow.
+    The graph is canonical only under ``graph`` mode. ``markdown`` has no graph
+    backend, so the op rejects with the path back to the supported flow.
     """
     policy = ModePolicy.for_project(project_root)
-    if policy.graph_authoring_allowed:
+    if policy.graph_enabled:
         return
-    if policy.graph_enabled:  # hybrid
-        raise ContextModeError(
-            f"{capability} authors directly into the knowledge graph, which is "
-            'canonical only under context.mode = "graph". This project is '
-            '"hybrid" (Markdown is canonical) — edit the documents under docs/ '
-            "and run `cataforge context ingest`, or switch context.mode to graph."
-        )
     raise ContextModeError(
         f"{capability} authors into the knowledge graph, but this project is "
         'context.mode = "markdown" (no graph backend) — edit the documents '
@@ -927,10 +916,9 @@ def delete_entity(
     """Remove an entity (and optionally its incoming edges) from the graph.
 
     Requires ``context.mode = graph`` — the graph is canonical only there, so a
-    deletion is meaningful only there. Under ``hybrid`` / ``markdown`` the
-    Markdown is canonical (a graph delete would be re-created by the next
-    md → KG sync), so the door rejects with the path back to editing docs/.
-    Raises ``KGEntityNotFoundError`` when the entity is absent.
+    deletion is meaningful only there. Under ``markdown`` the Markdown is
+    canonical (no graph backend), so the door rejects with the path back to
+    editing docs/. Raises ``KGEntityNotFoundError`` when the entity is absent.
     """
     _require_graph_mode(project_root, "entity deletion (`context delete`)")
     cfg = kg_config_for(project_root)
@@ -948,9 +936,6 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
     - ``markdown`` — the Markdown is canonical and there is no graph, so 定稿
       is a docs-index rebuild (``output_dir`` does not apply — the index lives
       in ``docs/``).
-    - ``hybrid`` — the Markdown is canonical. 定稿 reflects it into the graph
-      (md → KG) and rebuilds the docs index; it never re-exports graph → md,
-      so hand edits to the authored Markdown are preserved.
     - ``graph`` — the graph is canonical and the Markdown is a derived view,
       reconstructed whole-document via ``compile_documents`` (frontmatter +
       preamble + section slices in document order, with orphan entities falling
@@ -967,10 +952,6 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
         return _rebuild_doc_index(project_root)
     cfg = kg_config_for(project_root)
     out = Path(output_dir) if output_dir else Path(project_root) / "docs"
-    if not policy.graph_is_source:  # hybrid — md is canonical, sync md → KG
-        with KnowledgeGraph.connect(cfg) as kg:
-            run_migration(kg.store, Path(project_root), cfg, doc_types=DEFAULT_DOC_TYPES)
-        return _rebuild_doc_index(project_root)
     with KnowledgeGraph.connect(cfg) as kg:  # graph — KG is canonical, export → md
         if not kg.query.entity_ids() and not kg.query.has_documents():
             return CompileResult(exported_at=datetime.now(UTC), discovered_count=0, output_dir=out)
@@ -994,9 +975,9 @@ def ingest(
 ) -> MigrationStats | DocIndexResult:
     """Reflect human-edited Markdown into the mode-selected backend.
 
-    Under ``hybrid`` / ``graph`` this is the md → KG migration. Under
-    ``markdown`` the Markdown already is the source of truth, so the equivalent
-    is a full docs-index rebuild (``doc_types`` does not restrict it).
+    Under ``graph`` this is the md → KG migration. Under ``markdown`` the
+    Markdown already is the source of truth, so the equivalent is a full
+    docs-index rebuild (``doc_types`` does not restrict it).
     """
     if not kg_enabled(project_root):
         return _rebuild_doc_index(project_root)
@@ -1012,9 +993,9 @@ def ingest(
 def reconcile_check(project_root: str) -> ReconcileReport | DocValidationReport:
     """Drift guard between the Markdown tree and the mode-selected backend.
 
-    Under ``hybrid`` / ``graph`` this reconciles the graph against the
-    Markdown; under ``markdown`` it validates docs-index integrity
-    (orphans / stale entries / xrefs / aliases / invalid ids).
+    Under ``graph`` this reconciles the graph against the Markdown; under
+    ``markdown`` it validates docs-index integrity (orphans / stale entries /
+    xrefs / aliases / invalid ids).
     """
     if not kg_enabled(project_root):
         return _validate_doc_index(project_root)
@@ -1038,8 +1019,6 @@ def ensure_store(project_root: str) -> EnsureStoreResult:
     none. Rebuild it from the durable text artifact for the active mode:
 
     - ``markdown`` — no graph backend; nothing to hydrate.
-    - ``hybrid`` — the store is a derived index; init it empty, then reflect the
-      Markdown into it (``ingest``).
     - ``graph`` — the store is the working copy of the NQuads snapshot SoT;
       restore the latest snapshot, or seed an empty store when none exists yet.
 
@@ -1058,14 +1037,10 @@ def ensure_store(project_root: str) -> EnsureStoreResult:
     if cfg.db_path.exists() and any(cfg.db_path.iterdir()):
         return EnsureStoreResult("noop", "store already present")
 
-    if context_mode(root) == "graph":
-        snapshots = list_snapshots(root / KG_SNAPSHOTS_REL)
-        if snapshots:
-            count = restore_snapshot(snapshots[0].path, cfg, force=True)
-            return EnsureStoreResult("restored", f"{count} quads from {snapshots[0].path.name}")
-        init_store(cfg, force=False).close()
-        return EnsureStoreResult("initialized", "graph mode — no snapshot yet, seeded empty store")
-
+    # graph mode — the store is the working copy of the NQuads snapshot SoT.
+    snapshots = list_snapshots(root / KG_SNAPSHOTS_REL)
+    if snapshots:
+        count = restore_snapshot(snapshots[0].path, cfg, force=True)
+        return EnsureStoreResult("restored", f"{count} quads from {snapshots[0].path.name}")
     init_store(cfg, force=False).close()
-    ingest(project_root)
-    return EnsureStoreResult("ingested", "hybrid mode — rebuilt graph from Markdown")
+    return EnsureStoreResult("initialized", "graph mode — no snapshot yet, seeded empty store")

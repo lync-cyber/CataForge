@@ -10,8 +10,8 @@
 **/__pycache__/
 
 # KG physical store is a disposable per-clone cache (binary RocksDB), ignored
-# wholesale under every context.mode. The durable artifact is text: markdown /
-# hybrid rebuild the store from documents (`cataforge context ingest`); graph
-# mode rebuilds from an NQuads snapshot (`cataforge kg rollback`). Snapshots
-# (kg/snapshots/*.nq + *.meta.json) are text, diffable, and stay tracked.
+# wholesale under every context.mode. The durable artifact is text: graph mode
+# rebuilds the store from an NQuads snapshot (`cataforge kg rollback`); markdown
+# mode has no graph backend. Snapshots (kg/snapshots/*.nq + *.meta.json) are
+# text, diffable, and stay tracked.
 kg/store/

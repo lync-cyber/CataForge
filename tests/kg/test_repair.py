@@ -86,7 +86,7 @@ def test_repair_removes_ghost_entity() -> None:
     assert not stats.errors
 
     report_after = reconcile(store, FIXTURE_ROOT / "waterfall", config)
-    assert report_after.ok
+    assert report_after.overall_divergence_count == 0
 
 
 def test_repair_prunes_orphan_target_edge() -> None:
@@ -118,7 +118,7 @@ def test_repair_prunes_orphan_target_edge() -> None:
     assert not stats.errors
 
     report_after = reconcile(store, FIXTURE_ROOT / "waterfall", config)
-    assert report_after.ok
+    assert report_after.overall_divergence_count == 0
 
 
 def test_repair_ingests_missing_entity() -> None:
@@ -142,7 +142,7 @@ def test_repair_ingests_missing_entity() -> None:
     assert not stats.errors
 
     report_after = reconcile(store, FIXTURE_ROOT / "waterfall", config)
-    assert report_after.ok
+    assert report_after.overall_divergence_count == 0
 
 
 def test_repair_dry_run_no_mutation() -> None:
@@ -304,7 +304,7 @@ def test_repair_removes_ghost_section_scoped_to_its_doc(tmp_path: Path) -> None:
         store, config, '?s a cf:Section ; cf:section_anchor "§1 概览" ; cf:source_doc "arch"'
     )
 
-    assert reconcile(store, project_root, config).ok
+    assert reconcile(store, project_root, config).overall_divergence_count == 0
 
     stats2 = repair(store, project_root, config)
     assert stats2.ghost_sections_removed == 0
@@ -333,7 +333,7 @@ def test_repair_ingests_missing_section_without_entity_drift(tmp_path: Path) -> 
     stats = repair(store, project_root, config)
     assert stats.missing_sections_ingested >= 1
     assert not stats.errors
-    assert reconcile(store, project_root, config).ok
+    assert reconcile(store, project_root, config).overall_divergence_count == 0
 
 
 def test_repair_dry_run_counts_sections_without_mutation(tmp_path: Path) -> None:

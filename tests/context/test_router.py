@@ -94,7 +94,7 @@ def _clear_dispatch_cache():
 
 
 def test_build_router_kg_first_enables_both(tmp_path: Path) -> None:
-    _write_mode(tmp_path, "hybrid")
+    _write_mode(tmp_path, "graph")
     names = [b.name for b in build_router(str(tmp_path))._backends]
     assert names == ["kg", "doc"]
 
@@ -140,11 +140,11 @@ def test_doc_only_never_serves_pure_prose_from_kg(tmp_path: Path) -> None:
     from cataforge.domain.docs import loader
     from cataforge.domain.docs.index_ops import SectionNotFoundError
 
-    project = _kg_project(tmp_path, "hybrid")
+    project = _kg_project(tmp_path, "graph")
     loader._INDEX_CACHE = None
     loader._INDEX_CACHE_ROOT = None
     loader._DOC_TYPE_MAP_CACHE.clear()
-    assert "概览" in context_read.extract("arch#§1", str(project))  # hybrid serves it
+    assert "概览" in context_read.extract("arch#§1", str(project))  # graph serves it
 
     from cataforge.domain.kg._dispatch import invalidate_cache
 

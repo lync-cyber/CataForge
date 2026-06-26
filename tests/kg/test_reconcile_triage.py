@@ -234,8 +234,8 @@ def test_reconcile_ok_gate_is_mode_aware() -> None:
 
     graph: ok follows the document triage, so a per-doc_type symmetric-diff
     divergence (the lossy export→rescan false positive) is diagnostics only.
-    hybrid: the symmetric diff is exact (Markdown was ingested directly) and
-    gates ok.
+    markdown: there is no graph, so the symmetric diff is the only signal and
+    gates ok directly.
     """
     per = {"prd": PerDocTypeReport(doc_type="prd", missing_entities=["F-001"])}
     in_sync = [
@@ -253,14 +253,14 @@ def test_reconcile_ok_gate_is_mode_aware() -> None:
     assert graph.document_drift_count == 0
     assert graph.ok is True  # ... but graph gates on triage, so it is demoted
 
-    hybrid = ReconcileReport(
+    markdown = ReconcileReport(
         timestamp="t",
         active_doc_types=["prd"],
         per_doc_type=per,
-        mode="hybrid",
+        mode="markdown",
         documents=in_sync,
     )
-    assert hybrid.ok is False  # hybrid gates on the exact symmetric diff
+    assert markdown.ok is False  # markdown gates on the exact symmetric diff
 
 
 # --- docs index rebuild on finalize ------------------------------------------

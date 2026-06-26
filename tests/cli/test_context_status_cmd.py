@@ -28,7 +28,7 @@ def _kg_first_project(tmp_path: Path) -> Path:
     proj = tmp_path / "p"
     (proj / ".cataforge").mkdir(parents=True)
     (proj / ".cataforge" / "framework.json").write_text(
-        json.dumps({"context": {"mode": "hybrid"}}), encoding="utf-8"
+        json.dumps({"context": {"mode": "graph"}}), encoding="utf-8"
     )
     return proj
 
@@ -43,7 +43,7 @@ def test_status_uninitialized_store_reports_false_without_creating(tmp_path: Pat
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload == {
-        "mode": "hybrid",
+        "mode": "graph",
         "store_initialized": False,
         "entity_count": 0,
     }
@@ -57,13 +57,13 @@ def test_status_human_default_and_json_flag(tmp_path: Path) -> None:
     human = invoke_under_group(context_status, ["--project-root", str(proj)])
     assert human.exit_code == 0, human.output
     # Default output is human-readable, not raw JSON.
-    assert "mode: hybrid" in human.output
+    assert "mode: graph" in human.output
     with pytest.raises(json.JSONDecodeError):
         json.loads(human.output)
 
     machine = invoke_under_group(context_status, ["--project-root", str(proj), "--json"])
     assert machine.exit_code == 0, machine.output
-    assert json.loads(machine.output)["mode"] == "hybrid"
+    assert json.loads(machine.output)["mode"] == "graph"
 
 
 def test_status_initialized_store_reports_entity_count(tmp_path: Path) -> None:
@@ -75,7 +75,7 @@ def test_status_initialized_store_reports_entity_count(tmp_path: Path) -> None:
     shutil.copytree(FIXTURE_ROOT / "waterfall", proj)
     (proj / ".cataforge").mkdir(exist_ok=True)
     (proj / ".cataforge" / "framework.json").write_text(
-        json.dumps({"context": {"mode": "hybrid"}}), encoding="utf-8"
+        json.dumps({"context": {"mode": "graph"}}), encoding="utf-8"
     )
     cfg = kg_config_for(proj)
     handle = init_store(cfg, force=True)
@@ -88,7 +88,7 @@ def test_status_initialized_store_reports_entity_count(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["mode"] == "hybrid"
+    assert payload["mode"] == "graph"
     assert payload["store_initialized"] is True
     assert payload["entity_count"] > 0
 

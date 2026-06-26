@@ -1,9 +1,9 @@
 """finalize routes by context mode: the canonical side drives 定稿.
 
-Under ``mode = "hybrid"`` the Markdown is canonical, so finalize reflects it
-into the graph (md → KG) and never re-exports over the authored files. Under
-``mode = "graph"`` the graph is canonical, so finalize exports the
-Markdown view and the export round-trip stays drift-free.
+Under ``mode = "markdown"`` the Markdown is canonical and there is no graph, so
+finalize is a docs-index rebuild that never rewrites the authored files. Under
+``mode = "graph"`` the graph is canonical, so finalize exports the Markdown view
+and the export round-trip stays drift-free.
 """
 
 from __future__ import annotations
@@ -67,46 +67,14 @@ _GRAPH_DOC = (
 )
 
 
-# ---- BUG-1: md authoring — finalize must not overwrite human-edited md -------
+# ---- markdown authoring — finalize is an index rebuild, never an export ------
 
 
-def test_finalize_md_preserves_human_edits_on_nonempty_graph(tmp_path: Path) -> None:
-    """The core data-loss regression: edit the Markdown, then finalize over a
-    non-empty graph — the hand edit must survive byte-for-byte."""
-    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
-    cw.ingest(str(proj))  # graph is now non-empty
-    gc.collect()
-
-    target = next((proj / "docs" / "arch").rglob("*.md"))
-    edited = target.read_text(encoding="utf-8") + "\n\n## 99. 人工补充\n\n手写内容必须留存。\n"
-    target.write_text(edited, encoding="utf-8")
-
-    cw.finalize(str(proj))
-    gc.collect()
-
-    assert target.read_text(encoding="utf-8") == edited
-
-
-def test_finalize_md_returns_index_result_and_reconciles_clean(tmp_path: Path) -> None:
-    """md 定稿 is a md → KG reflect + index rebuild (a DocIndexResult), not an
-    export; the graph absorbs the Markdown so reconcile is clean."""
-    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
-    cw.ingest(str(proj))
-    gc.collect()
-
-    result = cw.finalize(str(proj))
-    gc.collect()
-
-    assert isinstance(result, DocIndexResult)
-    report = cw.reconcile_check(str(proj))
-    gc.collect()
-    assert report.ok, report.to_dict()
-
-
-def test_finalize_md_empty_graph_seeds_without_re_export(tmp_path: Path) -> None:
-    """md-first authoring leaves the graph empty until 定稿 seeds it (md → KG);
-    the authored Markdown is canonical and is not rewritten."""
-    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
+def test_finalize_markdown_does_not_rewrite_documents(tmp_path: Path) -> None:
+    """Under markdown mode the documents are canonical and there is no graph;
+    finalize is a docs-index rebuild (a DocIndexResult) that leaves every
+    authored file byte-for-byte intact."""
+    proj = _project(tmp_path, mode="markdown", with_fixture_docs=True)
     before = {p: p.read_text(encoding="utf-8") for p in (proj / "docs").rglob("*.md")}
 
     result = cw.finalize(str(proj))
@@ -115,9 +83,6 @@ def test_finalize_md_empty_graph_seeds_without_re_export(tmp_path: Path) -> None
     assert isinstance(result, DocIndexResult)
     for path, text in before.items():
         assert path.read_text(encoding="utf-8") == text  # nothing re-exported
-    report = cw.reconcile_check(str(proj))
-    gc.collect()
-    assert report.ok, report.to_dict()
 
 
 # ---- graph authoring — finalize exports; round-trip stays drift-free ---------
@@ -152,12 +117,9 @@ def test_finalize_graph_writes_snapshot(tmp_path: Path) -> None:
     assert snaps, "graph finalize must write an NQuads snapshot"
 
 
-def test_finalize_hybrid_writes_no_snapshot(tmp_path: Path) -> None:
-    """hybrid 定稿 keeps the Markdown as SoT — the store is a derived index that
-    rebuilds from docs, so no snapshot is written."""
-    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
-    cw.ingest(str(proj))
-    gc.collect()
+def test_finalize_markdown_writes_no_snapshot(tmp_path: Path) -> None:
+    """markdown 定稿 has no graph backend, so no NQuads snapshot is written."""
+    proj = _project(tmp_path, mode="markdown", with_fixture_docs=True)
 
     cw.finalize(str(proj))
     gc.collect()

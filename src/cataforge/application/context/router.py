@@ -1,8 +1,8 @@
 """Fidelity router — dispatch a context operation to the best backend.
 
 For each operation the router considers only the backends the project's
-``context.mode`` enables (``hybrid`` / ``graph`` → graph + file; ``markdown``
-→ file only), orders them by their declared fidelity for that operation
+``context.mode`` enables (``graph`` → graph + file; ``markdown`` → file
+only), orders them by their declared fidelity for that operation
 (skipping ``UNSUPPORTED``), and consults them highest-first. A backend
 that returns ``None`` "cannot serve this request" and the router falls
 through to the next; the last backend's result — or raised error — is
@@ -65,8 +65,8 @@ class FidelityRouter:
 def build_router(project_root: str) -> FidelityRouter:
     """Build a router for ``project_root`` per its ``context.mode``.
 
-    ``markdown`` enables the file backend alone; ``hybrid`` / ``graph``
-    enable the graph backend ahead of the file backend.
+    ``markdown`` enables the file backend alone; ``graph`` enables the graph
+    backend ahead of the file backend.
     """
     if context_mode(project_root) == "markdown":
         backends: list[Any] = [DocBackend()]

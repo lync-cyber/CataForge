@@ -115,7 +115,7 @@ def test_freshness_warns_when_no_snapshot(tmp_path: Path, capsys) -> None:
 
 
 def test_freshness_skips_non_graph_mode(tmp_path: Path, capsys) -> None:
-    proj = _project(tmp_path, mode="hybrid")
+    proj = _project(tmp_path, mode="markdown")
     rc, out = _check(proj, capsys)
     assert rc == 0
     assert "skipping" in out

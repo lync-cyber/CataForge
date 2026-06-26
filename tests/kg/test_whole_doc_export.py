@@ -389,7 +389,7 @@ def test_finalize_uses_whole_doc_export(tmp_path: Path) -> None:
 
 _FRAMEWORK_JSON = """{
   "docs": {"doc_types": {"prd": "prd", "arch": "arch", "test-report": "test-report"}},
-  "context": {"mode": "hybrid"},
+  "context": {"mode": "graph"},
   "kg": {
     "project_id": "proj-test",
     "title": "Test",

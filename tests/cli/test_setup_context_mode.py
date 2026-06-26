@@ -52,14 +52,12 @@ def test_flag_graph_persists_and_enables_kg(
     invalidate_cache()
 
 
-def test_non_interactive_defaults_to_hybrid(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """No flag + no TTY → scaffold default (hybrid) is untouched, no prompt."""
+def test_non_interactive_defaults_to_graph(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """No flag + no TTY → scaffold default (graph) is untouched, no prompt."""
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(setup_command, [])
     assert result.exit_code == 0, result.output
-    assert _mode(tmp_path) == "hybrid"
+    assert _mode(tmp_path) == "graph"
 
 
 def test_interactive_prompt_selects_markdown(

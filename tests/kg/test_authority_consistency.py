@@ -24,7 +24,7 @@ from cataforge.domain.kg._dispatch import invalidate_cache
 _FRAMEWORK_JSON = {
     "docs": {"doc_types": {"ui-spec": "ui-spec"}},
     "context": {
-        "mode": "hybrid",
+        "mode": "graph",
         "kg_active_doc_types": ["ui-spec"],
         "kg_definition_authority": {"Component": ["ui-spec"]},
     },
@@ -85,7 +85,10 @@ def test_repair_reingest_honours_authority_extension(tmp_path: Path) -> None:
     from cataforge.domain.kg.reconcile import reconcile
     from cataforge.domain.kg.repair import repair
 
-    proj = _project(tmp_path)
+    # markdown mode: repair's empty-graph reingest is driven by the symmetric
+    # diff. Under graph the diff is demoted to diagnostics, so an empty graph
+    # reads as in-sync and repair (correctly) no-ops — recovery there is ingest.
+    proj = _project(tmp_path, mode="markdown")
     config = KGConfig(store_backend="memory", kg_active_doc_types={"ui-spec"})
     handle = init_store(config, force=True)
 

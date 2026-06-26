@@ -1,7 +1,6 @@
 """ensure_store hydrates the KG store per context.mode, idempotently.
 
 markdown — no graph backend, nothing to do.
-hybrid   — the store is a derived index; rebuild it from the Markdown.
 graph    — the store is the working copy of the .nq snapshot SoT; restore the
            latest snapshot, or seed an empty store when none was authored yet.
 """
@@ -71,17 +70,6 @@ def test_ensure_store_markdown_is_noop(tmp_path: Path) -> None:
     assert not _store_dir(proj).exists()
 
 
-def test_ensure_store_hybrid_rebuilds_from_docs(tmp_path: Path) -> None:
-    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
-    assert not _store_dir(proj).exists()  # fresh clone: gitignored store is gone
-
-    result = cw.ensure_store(str(proj))
-    gc.collect()
-
-    assert result.action == "ingested"
-    assert _store_entity_ids(proj)  # graph repopulated from the Markdown
-
-
 def test_ensure_store_graph_restores_latest_snapshot(tmp_path: Path) -> None:
     proj = _project(tmp_path, mode="graph")
     cw.ensure_store(str(proj))  # bootstrap seeds an empty store
@@ -113,8 +101,8 @@ def test_ensure_store_graph_no_snapshot_seeds_empty(tmp_path: Path) -> None:
 
 
 def test_ensure_store_idempotent_when_store_present(tmp_path: Path) -> None:
-    proj = _project(tmp_path, mode="hybrid", with_fixture_docs=True)
-    cw.ensure_store(str(proj))
+    proj = _project(tmp_path, mode="graph")
+    cw.ensure_store(str(proj))  # seeds an empty store
     gc.collect()
     result = cw.ensure_store(str(proj))  # store already present
     gc.collect()

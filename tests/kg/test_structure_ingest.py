@@ -73,7 +73,7 @@ def test_reconcile_clean_after_structure_ingest() -> None:
     for per in report.per_doc_type.values():
         assert per.missing_sections == [], per.to_dict()
         assert per.ghost_sections == [], per.to_dict()
-    assert report.ok, report.to_dict()
+    assert report.overall_divergence_count == 0, report.to_dict()
 
 
 def test_structural_nodes_excluded_from_entity_export(tmp_path: Path) -> None:

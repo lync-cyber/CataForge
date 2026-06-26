@@ -142,7 +142,7 @@ def test_cross_doc_same_ac_id_imports_and_reconciles(tmp_path: Path) -> None:
     assert int(rows[0]["n"].value) == 3, "three parent-scoped AC-001 nodes expected"
 
     report = reconcile(handle.raw, tmp_path, config)
-    assert report.ok, report.to_dict()
+    assert report.overall_divergence_count == 0, report.to_dict()
 
 
 def test_cross_doc_ac_xref_resolves_to_volume_nested_node(tmp_path: Path) -> None:
