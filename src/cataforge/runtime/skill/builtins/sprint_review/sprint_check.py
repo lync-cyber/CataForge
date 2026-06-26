@@ -22,6 +22,7 @@ from cataforge.runtime.skill.builtins.sprint_review._checks import (
     check_deliverables,
     check_task_status,
     check_unplanned_files,
+    resolve_task_status_external,
 )
 from cataforge.runtime.skill.builtins.sprint_review._extract import (
     extract_sprint_tasks,
@@ -47,6 +48,7 @@ __all__ = [
     "check_ac_coverage",
     "check_unplanned_files",
     "check_code_reviews",
+    "resolve_task_status_external",
     "_aggregate_unplanned",
     "render_text",
     "render_json",
@@ -172,7 +174,8 @@ def main() -> None:
     features = load_project_features(dev_plan_files)
     accept_alternation = bool(features.get("deliverables_accept_alternation", True))
     merged_review = bool(features.get("merged_review"))
-    task_status_external = bool(features.get("task_status_external"))
+    task_status_external, status_external_auto = resolve_task_status_external(features, tasks)
+    representative = bool(features.get("deliverables_representative"))
     glob_whitelist_raw = features.get("unplanned_glob_patterns") or []
     glob_whitelist = [g for g in glob_whitelist_raw if isinstance(g, str)]
     if not args.no_default_ignores:
@@ -183,7 +186,13 @@ def main() -> None:
             "任务状态检查",
             check_task_status(tasks, external_tracking=task_status_external),
             "所有任务状态为 done"
-            + (" (跳过: project_features.task_status_external)" if task_status_external else ""),
+            + (
+                " (跳过: 自动检测全部任务无 dev-plan 状态 → 视为外部追踪)"
+                if status_external_auto
+                else " (跳过: project_features.task_status_external)"
+                if task_status_external
+                else ""
+            ),
         ),
         (
             "交付物检查",
@@ -203,8 +212,10 @@ def main() -> None:
                 respect_gitignore=not args.no_respect_gitignore,
                 ignore_spec=ignore_spec,
                 glob_whitelist=glob_whitelist,
+                representative=representative,
             ),
-            "未发现计划外文件",
+            "未发现计划外文件"
+            + (" (跳过: project_features.deliverables_representative)" if representative else ""),
         ),
         (
             "CODE-REVIEW报告检查",

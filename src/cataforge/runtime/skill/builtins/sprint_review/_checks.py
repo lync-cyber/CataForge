@@ -26,6 +26,23 @@ def _issue(
     return Issue(severity, category, message, task=task, path=path)
 
 
+def resolve_task_status_external(
+    features: dict[str, Any], tasks: list[dict[str, Any]]
+) -> tuple[bool, bool]:
+    """Resolve whether task status is tracked outside dev-plan.
+
+    Returns ``(external, auto_detected)``. ``task_status_external: true`` in
+    ``project_features`` forces it. Otherwise it is auto-detected: when every
+    sprint task lacks an in-document status (the truth lives in graph /
+    EVENT-LOG), the per-task ``task_status_done`` advisory would fire on all of
+    them — pure noise — so treat status as external instead.
+    """
+    if bool(features.get("task_status_external")):
+        return True, False
+    auto = bool(tasks) and all(not t.get("status") for t in tasks)
+    return auto, auto
+
+
 def check_task_status(
     tasks: list[dict[str, Any]],
     *,
@@ -147,6 +164,7 @@ def check_unplanned_files(
     respect_gitignore: bool,
     ignore_spec: IgnoreSpec,
     glob_whitelist: list[str] | None = None,
+    representative: bool = False,
 ) -> list[Issue]:
     """Detect gold-plating: files under ``src_dirs`` not in any deliverable.
 
@@ -160,8 +178,13 @@ def check_unplanned_files(
     pattern. Use for project-wide test/helper conventions like
     ``**/*.test.ts`` or ``**/helpers/*.py`` that the team accepts as
     permanent unplanned territory.
+
+    *representative* (from ``project_features.deliverables_representative``)
+    short-circuits the whole check: when a dev-plan lists deliverables as
+    representative rather than exhaustive, every unlisted file is a false
+    positive, so the gold-plating heuristic does not apply.
     """
-    if not src_dirs:
+    if representative or not src_dirs:
         return []
     planned_norm: set[str] = set()
     planned_dirs: list[str] = []
