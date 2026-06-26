@@ -12,7 +12,7 @@
 
 - [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
-- [Skill 清单（28 个）](#skill-清单28-个) — 总览表 + 按类别折叠
+- [Skill 清单（26 个）](#skill-清单26-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
 
 ---
@@ -101,7 +101,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, web_search, web_fetch, user_question
 - **禁用工具（deny）**：agent_dispatch
 - **写入路径**：docs/ui-spec/, docs/research/
-- **关联 Skill**：ui-design, context, research, penpot-sync（条件启用）
+- **关联 Skill**：ui-design, context, research, penpot-bridge（条件启用）
 
 </details>
 
@@ -134,7 +134,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 - **禁用工具（deny）**：agent_dispatch, web_search, web_fetch, user_question
 - **写入路径**：src/, tests/
-- **关联 Skill**：penpot-implement（条件启用）
+- **关联 Skill**：penpot-bridge（条件启用）
 
 </details>
 
@@ -156,7 +156,7 @@ tools:
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 - **禁用工具（deny）**：agent_dispatch
 - **写入路径**：docs/reviews/doc/, docs/reviews/code/, docs/reviews/sprint/（严格限制）
-- **关联 Skill**：context, code-review, sprint-review, penpot-review（条件启用）
+- **关联 Skill**：context, code-review, sprint-review, penpot-bridge（条件启用）
 
 </details>
 
@@ -206,7 +206,7 @@ tools:
 
 ---
 
-## Skill 清单（28 个）
+## Skill 清单（26 个）
 
 ### 总览
 
@@ -228,18 +228,16 @@ tools:
 | 14 | sprint-review | 测试质量 | 回顾 | Sprint 完成度审查、AC 覆盖、范围偏移检测 |
 | 15 | deploy-config | 部署运维 | 部署 | CI/CD 流水线、容器化、基础设施即代码 |
 | 16 | debug | 部署运维 | 调试 | 结构化错误定位、根因分析、最小修复 |
-| 17 | penpot-sync | 设计集成 | 设计 | Design Token 双向同步（条件启用） |
-| 18 | penpot-implement | 设计集成 | 设计 | 从 Penpot 生成组件代码骨架（条件启用） |
-| 19 | penpot-review | 设计集成 | 设计 | 设计-代码一致性验证（条件启用） |
-| 20 | platform-audit | 管理技能 | 平台 | 平台能力审计、profile.yaml 更新 |
-| 21 | start-orchestrator | 管理技能 | 启动 | CataForge 工作流初始化与恢复 |
-| 22 | workflow-framework-generator | 管理技能 | 生成 | 根据工作流类型与目标平台生成完整框架 |
-| 23 | framework-update | 管理技能 | 同步 | 包↔scaffold 版本检测 + pip/uv 升级 + scaffold 刷新/部署/doctor + 项目初始化/恢复分流 |
-| 24 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
-| 25 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
-| 26 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
-| 27 | framework-walkthrough | 测试质量 | 元自测 | 隔离沙盒内端到端跑通小型示例项目的完整 SDLC 工作流，观察各阶段/门禁/降级行为，产出框架本身与走查流程两类改进建议；framework-review 的动态对偶 |
-| 28 | project-visualization | 核心框架 | 可视化 | 把既有 KG / doc-index / EVENT-LOG / CORRECTIONS / agent-skill 资产渲染为图 / 时间线 / 指标看板；薄发现型 skill 引导工作流按情境调 `cataforge viz <视图>`，orchestrator 在 Sprint 收口产出健康度看板 |
+| 17 | penpot-bridge | 设计集成 | 设计 | Penpot 设计↔代码桥：read/sync/generate/verify（条件启用） |
+| 18 | platform-audit | 管理技能 | 平台 | 平台能力审计、profile.yaml 更新 |
+| 19 | start-orchestrator | 管理技能 | 启动 | CataForge 工作流初始化与恢复 |
+| 20 | workflow-framework-generator | 管理技能 | 生成 | 根据工作流类型与目标平台生成完整框架 |
+| 21 | framework-update | 管理技能 | 同步 | 包↔scaffold 版本检测 + pip/uv 升级 + scaffold 刷新/部署/doctor + 项目初始化/恢复分流 |
+| 22 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
+| 23 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
+| 24 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
+| 25 | framework-walkthrough | 测试质量 | 元自测 | 隔离沙盒内端到端跑通小型示例项目的完整 SDLC 工作流，观察各阶段/门禁/降级行为，产出框架本身与走查流程两类改进建议；framework-review 的动态对偶 |
+| 26 | project-visualization | 核心框架 | 可视化 | 把既有 KG / doc-index / EVENT-LOG / CORRECTIONS / agent-skill 资产渲染为图 / 时间线 / 指标看板；薄发现型 skill 引导工作流按情境调 `cataforge viz <视图>`，orchestrator 在 Sprint 收口产出健康度看板 |
 
 ### 详细说明
 
@@ -321,13 +319,9 @@ tools:
 </details>
 
 <details>
-<summary><b>设计工具集成 Skill</b>（penpot-sync · penpot-implement · penpot-review，条件启用，需设置 <code>design-tool: penpot</code>）</summary>
+<summary><b>设计工具集成 Skill</b>（penpot-bridge，条件启用，需设置 <code>design-tool: penpot</code>）</summary>
 
-**penpot-sync** — Design Token 双向同步，在 Penpot 设计工具和代码间同步设计令牌。
-
-**penpot-implement** — 从 Penpot 设计稿生成组件代码骨架。
-
-**penpot-review** — 验证代码实现与 Penpot 设计稿的一致性。
+**penpot-bridge** — Penpot 设计↔代码桥，四操作：`read`（读结构/样式/Token 实值）、`sync`（Token 双向同步）、`generate`（从设计生成组件骨架）、`verify`（设计↔代码一致性校验，reviewer 独占）。
 
 </details>
 
@@ -357,18 +351,18 @@ tools:
 | **orchestrator** | `agent-dispatch` · `context` · `tdd-engine` · `change-guard` · `framework-feedback` | — |
 | **product-manager** | `req-analysis` · `context` · `research` | — |
 | **architect** | `arc-design` · `tech-eval` · `context` · `research` | — |
-| **ui-designer** | `ui-design` · `context` · `research` | `penpot-sync` |
+| **ui-designer** | `ui-design` · `context` · `research` | `penpot-bridge` |
 | **tech-lead** | `task-decomp` · `task-dep-analysis` · `context` | — |
 | **test-writer** | — | — |
-| **implementer** | — | `penpot-implement` |
+| **implementer** | — | `penpot-bridge` |
 | **refactorer** | — | — |
-| **reviewer** | `context` · `code-review` · `sprint-review` | `penpot-review` |
+| **reviewer** | `context` · `code-review` · `sprint-review` | `penpot-bridge` |
 | **qa-engineer** | `testing` · `context` | — |
 | **devops** | `deploy-config` · `context` | — |
 | **debugger** | `debug` · `context` | — |
 | **reflector** | `context` | — |
 
-> **条件启用**由 `design-tool` 配置触发（如 `design-tool: penpot` 时启用 `penpot-*` 系列）。
+> **条件启用**由 `design-tool` 配置触发（如 `design-tool: penpot` 时启用 `penpot-bridge`）。
 
 ### 独立 Skill（不绑定 Agent）
 

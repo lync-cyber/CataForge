@@ -24,7 +24,7 @@ def project_dir(tmp_path: Path) -> Path:
         "constants": {"MAX_QUESTIONS_PER_BATCH": 3, "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl"},
         "features": {
             "tdd-engine": {"min_version": "0.1.0", "auto_enable": True},
-            "penpot-sync": {"min_version": "0.1.0", "auto_enable": False},
+            "penpot-bridge": {"min_version": "0.1.0", "auto_enable": False},
         },
         "upgrade": {"source": {"type": "github", "repo": "test/repo"}},
     }
@@ -54,7 +54,7 @@ class TestConfigManager:
     def test_features(self, project_dir: Path) -> None:
         cfg = ConfigManager(project_dir)
         assert cfg.is_feature_enabled("tdd-engine") is True
-        assert cfg.is_feature_enabled("penpot-sync") is False
+        assert cfg.is_feature_enabled("penpot-bridge") is False
         assert cfg.is_feature_enabled("nonexistent") is False
 
     def test_set_runtime_platform(self, project_dir: Path) -> None:

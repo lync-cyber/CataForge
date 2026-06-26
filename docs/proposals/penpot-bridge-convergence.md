@@ -17,11 +17,12 @@
 
 | 操作 | 取代 | 输入 | 输出 | 触发方 |
 |------|------|------|------|--------|
-| `read` | penpot-sync 读取腿 | Penpot 组件/Token（MCP） | 结构/真实 CSS/Token 实值/导出图像 | 任意需视觉数据的 agent |
+| `read` | penpot-sync/implement 读取腿 | Penpot 组件/Token（MCP） | 结构/真实 CSS/Token 实值（PR-D 加导出图像） | 任意需视觉数据的 agent |
+| `sync` | penpot-sync 写入腿 | ui-spec#§1 Token + sync-direction | `tokens.css` + 差异报告 | ui-designer（PR-C1 改走 context finalize/ingest） |
 | `generate` | penpot-implement | 语义←ui-spec；样式/几何←Penpot | 组件代码骨架 + 样式（引 tokens.css） | implementer |
 | `verify` | penpot-review | 代码 ↔ Penpot（像素权威源） | `docs/reviews/design/DESIGN-REVIEW-*.md` | **reviewer 独占** |
 
-MCP 可用性探测 / 工具发现 / blocked 降级在能力层**统一声明一次**，不再三复制。
+MCP 可用性探测 / 工具发现 / blocked 降级在能力层**统一声明一次**，不再三复制。`sync` 在 PR-B 保留 penpot-sync 现有机制，其内部 reconcile 由 PR-C1 改走 context finalize/ingest。
 
 ### 1.2 权威划分（贯穿全提案的不变量）
 

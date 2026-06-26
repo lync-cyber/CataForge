@@ -8,7 +8,7 @@ allowed_paths:
   - src/
   - tests/
 skills:
-  - penpot-implement  # 仅当 {INSTRUCTION_FILE} 设计工具=penpot 时使用；GREEN 主体上下文由 tdd-engine inline 传入，不经 sub-agent skill 加载 context
+  - penpot-bridge  # 仅当 {INSTRUCTION_FILE} 设计工具=penpot 时用 generate 操作；GREEN 主体上下文由 tdd-engine inline 传入，不经 sub-agent skill 加载 context
 model_tier: standard
 maxTurns: 80
 ---
@@ -107,7 +107,7 @@ lint 失败 → 自修复后重试；3 次未通过返回 blocked。lint 工具�
 
 ## Penpot 集成 (可选)
 当 {INSTRUCTION_FILE} `设计工具` 为 `penpot` 且任务涉及前端组件时:
-- 可调用 penpot-implement skill 从 Penpot 设计生成组件代码骨架
+- 可调用 penpot-bridge generate 从 Penpot 设计生成组件代码骨架
 - 这是辅助手段，不替代基于测试的最小实现原则
 
 ## Anti-Patterns
