@@ -113,7 +113,7 @@ class TestDryRunPlan:
                 "--platform",
                 "claude-code",
                 "--context-mode",
-                "hybrid",
+                "graph",
                 "--dry-run",
             ],
         )
@@ -284,7 +284,7 @@ class TestKgFirstStoreInit:
                 "--platform",
                 "claude-code",
                 "--context-mode",
-                "hybrid",
+                "graph",
                 "--yes",
                 "--skip-doctor",
             ],
@@ -316,7 +316,7 @@ class TestKgFirstStoreInit:
             "--platform",
             "claude-code",
             "--context-mode",
-            "hybrid",
+            "graph",
             "--yes",
             "--skip-doctor",
         ]

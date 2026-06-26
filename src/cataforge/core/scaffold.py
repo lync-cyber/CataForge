@@ -234,21 +234,25 @@ MergeFn = Callable[[bytes, Path], bytes]
 
 
 def _migrate_context_mode(ctx: dict[str, Any]) -> dict[str, Any]:
-    """Collapse the retired ``strategy`` × ``authoring`` axes into ``mode``.
+    """Collapse the retired ``strategy`` × ``authoring`` axes into ``mode`` and
+    fold the removed ``hybrid`` mode into ``graph``.
 
-    Mapping: ``doc-only`` → ``markdown``; ``kg-first`` + ``authoring=graph`` →
-    ``graph``; ``kg-first`` otherwise → ``hybrid``. An explicit ``mode`` wins; the
-    legacy keys are always dropped so the doctor's validity gate stops failing.
+    Mapping: ``doc-only`` → ``markdown``; ``kg-first`` → ``graph``. The removed
+    ``hybrid`` value (Markdown-canonical + derived graph) migrates to ``graph``
+    (graph-canonical). An explicit non-hybrid ``mode`` wins; the legacy keys are
+    always dropped so the doctor's validity gate stops failing.
     """
     out = dict(ctx)
     strategy = out.pop("strategy", None)
-    authoring = out.pop("authoring", None)
+    out.pop("authoring", None)
+    if out.get("mode") == "hybrid":
+        out["mode"] = "graph"
     if "mode" in out:
         return out
     if strategy == "doc-only":
         out["mode"] = "markdown"
     elif strategy == "kg-first":
-        out["mode"] = "graph" if authoring == "graph" else "hybrid"
+        out["mode"] = "graph"
     return out
 
 

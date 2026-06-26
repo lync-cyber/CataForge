@@ -34,7 +34,7 @@ def _cfg(tmp_path: Path, context: dict | None) -> _Cfg:
 
 
 def test_passes_on_valid_mode(tmp_path: Path) -> None:
-    for mode in ("markdown", "hybrid", "graph"):
+    for mode in ("markdown", "graph"):
         assert check_context_mode_validity(_cfg(tmp_path, {"mode": mode})) == 0
 
 
@@ -57,7 +57,7 @@ def test_fails_on_retired_authoring_key(tmp_path: Path, capsys) -> None:
 
 
 def test_passes_when_mode_absent(tmp_path: Path) -> None:
-    # No context.mode and no retired keys → relies on the hybrid default.
+    # No context.mode and no retired keys → relies on the graph default.
     assert check_context_mode_validity(_cfg(tmp_path, {})) == 0
 
 

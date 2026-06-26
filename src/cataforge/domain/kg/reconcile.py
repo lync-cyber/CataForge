@@ -214,7 +214,7 @@ class ReconcileReport:
     timestamp: str
     active_doc_types: list[str]
     per_doc_type: dict[str, PerDocTypeReport] = field(default_factory=dict)
-    mode: str = "hybrid"
+    mode: str = "graph"
     documents: list[DocumentDriftRecord] = field(default_factory=list)
 
     @property
@@ -237,8 +237,8 @@ class ReconcileReport:
         ``graph`` is canonical with Markdown as a lossy export, so the
         document-level three-way triage is the truth and the per-doc_type
         symmetric diff is demoted to diagnostics (its FS re-extraction
-        round-trip yields false positives). ``hybrid`` ingests hand-authored
-        Markdown directly, so the symmetric diff is exact and is the gate.
+        round-trip yields false positives). The non-graph fallback uses the
+        symmetric diff directly.
         """
         if self.mode == "graph":
             return self.document_drift_count == 0
@@ -452,8 +452,8 @@ def reconcile(
     # strict xref, render-only `## Implements` sections — cannot round-trip back
     # through the ingest scanner, so re-scanning them yields phantom divergence.
     # The FS side drops card files (below); the KG side is restricted to
-    # source_docs that own a `cf:Document` node. A no-op for hybrid (every doc
-    # is Document-backed); orphan cards drift-triage by their own content hash.
+    # source_docs that own a `cf:Document` node. A no-op when every doc is
+    # Document-backed; orphan cards drift-triage by their own content hash.
     covered_source_docs = _covered_source_docs(store, cf_namespace(config))
 
     report = ReconcileReport(

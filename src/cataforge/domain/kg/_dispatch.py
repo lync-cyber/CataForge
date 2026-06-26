@@ -34,12 +34,10 @@ _DISPATCH_LOCK = threading.Lock()
 # The single source-of-truth axis a project selects via `framework.json`
 # ``context.mode``:
 #   ``markdown`` — Markdown is canonical; no graph backend at all.
-#   ``hybrid``   — Markdown is canonical; the graph is a derived, read-only
-#                  index that powers the coverage / trace / read gates.
 #   ``graph``    — the graph is canonical; Markdown is an exported view that
 #                  agents author through ``context write*``.
-MODES: frozenset[str] = frozenset({"markdown", "hybrid", "graph"})
-DEFAULT_MODE = "hybrid"
+MODES: frozenset[str] = frozenset({"markdown", "graph"})
+DEFAULT_MODE = "graph"
 
 
 def _project_root_key(project_root: str | Path) -> str:
@@ -113,7 +111,7 @@ def context_mode(project_root: str | Path) -> str:
     """Resolve the context source-of-truth mode for `project_root` (cached).
 
     Returns one of :data:`MODES`; an absent or unrecognized value resolves to
-    :data:`DEFAULT_MODE` (``hybrid``). Legacy ``context.strategy`` /
+    :data:`DEFAULT_MODE` (``graph``). Legacy ``context.strategy`` /
     ``context.authoring`` are not read — the doctor flags them and
     ``cataforge upgrade apply`` rewrites them to ``context.mode``.
     """
@@ -132,7 +130,7 @@ def context_mode(project_root: str | Path) -> str:
 
 
 def kg_enabled(project_root: str | Path) -> bool:
-    """True iff the project has a graph backend (``hybrid`` or ``graph``).
+    """True iff the project has a graph backend (``graph`` mode).
 
     Under ``markdown`` the graph is not a backend at all: every KG gate
     (read resolution, doc-review coverage, ingest scope) bypasses to the

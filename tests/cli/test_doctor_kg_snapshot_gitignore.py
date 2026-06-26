@@ -75,7 +75,7 @@ def test_ok_when_snapshots_tracked(tmp_path, capsys) -> None:
 def test_skips_outside_graph_mode(tmp_path, capsys) -> None:
     from cataforge.interface.cli.doctor.kg_ingestion import check_kg_snapshot_gitignore
 
-    proj = _graph_project(tmp_path, ".cataforge/kg/\n", mode="hybrid")
+    proj = _graph_project(tmp_path, ".cataforge/kg/\n", mode="markdown")
     cfg = FakeConfig(paths=FakePaths(root=proj))
 
     failures = check_kg_snapshot_gitignore(cfg)

@@ -39,7 +39,7 @@ def context_group() -> None:
 def _kg_store_guard() -> Generator[None]:
     """Turn a missing-store crash into a clean ``Error:`` with an init hint.
 
-    Under ``hybrid`` / ``graph`` the lifecycle commands open the graph; on a
+    Under ``graph`` the lifecycle commands open the graph; on a
     project that never ran ``cataforge kg init`` the connect raises
     ``KGStoreNotInitializedError``, which would otherwise escape as an
     uncaught traceback. The ``cataforge kg`` twin commands already convert it
@@ -414,8 +414,8 @@ def context_ingest(ctx: click.Context, project_root: str, doc_types: tuple[str, 
 def context_ensure_store(ctx: click.Context, project_root: str) -> None:
     """Rebuild the KG store per context.mode after a clone (it is gitignored).
 
-    hybrid rebuilds from the Markdown; graph restores the latest NQuads
-    snapshot; markdown is a no-op. Idempotent — a populated store is left as-is.
+    graph restores the latest NQuads snapshot; markdown is a no-op.
+    Idempotent — a populated store is left as-is.
     """
     from cataforge.application.context.write import ensure_store
 

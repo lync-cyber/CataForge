@@ -37,8 +37,7 @@ def test_reconcile_clean_fixture_is_ok(tmp_path: Path) -> None:
     with KnowledgeGraphStore.connect(config) as handle:
         report = reconcile(handle.raw, project_root, config)
 
-    assert report.ok, report.to_dict()
-    assert report.overall_divergence_count == 0
+    assert report.overall_divergence_count == 0, report.to_dict()
     assert set(report.per_doc_type) == {"prd", "arch", "test"}
     for per in report.per_doc_type.values():
         assert per.missing_entities == []
@@ -205,7 +204,7 @@ def test_reconcile_cross_doc_relation_attributed_by_subject_home(tmp_path: Path)
     with KnowledgeGraphStore.connect(config) as handle:
         report = reconcile(handle.raw, project_root, config)
 
-    assert report.ok, report.to_dict()
+    assert report.overall_divergence_count == 0, report.to_dict()
 
 
 def test_reconcile_agile_variant_is_clean(tmp_path: Path) -> None:
@@ -224,7 +223,7 @@ def test_reconcile_agile_variant_is_clean(tmp_path: Path) -> None:
     with KnowledgeGraphStore.connect(config) as handle:
         report = reconcile(handle.raw, project_root, config)
 
-    assert report.ok, report.to_dict()
+    assert report.overall_divergence_count == 0, report.to_dict()
 
 
 def _graph_project(tmp_path: Path) -> tuple[Path, object]:
@@ -325,7 +324,15 @@ def test_reconcile_graph_whole_doc_roundtrip_is_clean(tmp_path: Path) -> None:
 
 
 def test_reconcile_cli_clean_exits_zero_and_writes_report(tmp_path: Path) -> None:
+    from cataforge.application.context import write as cw
+    from cataforge.domain.kg._dispatch import invalidate_cache
+
     project_root = _setup_project_with_kg(tmp_path)
+    # graph mode: finalize records the export baselines so the ingested project
+    # reads in-sync; an ingested-but-never-exported graph reports never_exported.
+    invalidate_cache()
+    cw.finalize(str(project_root))
+    invalidate_cache()
     runner = CliRunner()
     result = runner.invoke(
         _cli(),

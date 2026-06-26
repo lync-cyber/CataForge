@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from cataforge.application.context import write as cw
-from cataforge.application.context.write import CompileResult, DocIndexResult
+from cataforge.application.context.write import CompileResult
 from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
 from cataforge.domain.kg._dispatch import invalidate_cache
 from cataforge.domain.kg._errors import KGEntityNotFoundError, KGValidationError
@@ -43,7 +43,7 @@ def _project(tmp_path: Path, *, with_fixture_docs: bool = False, mode: str | Non
     handle.raw.flush()
     handle.close()
     ctx: dict[str, object] = {
-        "mode": "hybrid",
+        "mode": "graph",
         "kg_active_doc_types": ["prd", "arch", "test-report"],
     }
     if mode is not None:
@@ -126,29 +126,6 @@ def test_finalize_exports_authored_entity(tmp_path: Path) -> None:
     assert any("F-001" in str(rec.output_path) for rec in result.file_records)
 
 
-def test_finalize_seeds_empty_graph_from_markdown(tmp_path: Path) -> None:
-    """Markdown-first authoring leaves the graph empty; finalize must seed it
-    (md→KG) so the reconcile guard is clean, without re-exporting over the
-    authored Markdown (a lossy round-trip). ``_project`` initializes the store
-    without ingesting, so the graph starts empty by construction."""
-    proj = _project(tmp_path, with_fixture_docs=True)
-    before = {p: p.read_text(encoding="utf-8") for p in (proj / "docs").rglob("*.md")}
-
-    result = cw.finalize(str(proj))
-    gc.collect()
-    # md-first 定稿 reflects md → KG and rebuilds the index; it does not export
-    # — the authored Markdown is canonical and stays untouched.
-    assert isinstance(result, DocIndexResult)
-    for path, text in before.items():
-        assert path.read_text(encoding="utf-8") == text
-
-    # Reconcile is clean only because the graph was seeded from the markdown;
-    # an unseeded (empty) graph would report every authored doc as drift.
-    report = cw.reconcile_check(str(proj))
-    gc.collect()
-    assert report.ok, report.to_dict()
-
-
 def test_finalize_does_not_seed_empty_graph_under_graph_authoring(tmp_path: Path) -> None:
     """Under ``mode = "graph"`` an empty graph means nothing authored yet;
     finalize must not seed from the Markdown on disk."""
@@ -178,11 +155,16 @@ def test_finalize_does_not_seed_empty_graph_under_graph_authoring(tmp_path: Path
 # ---- ingest + reconcile (md -> KG round-trip on aggregated docs) ------------
 
 
-def test_ingest_then_reconcile_clean(tmp_path: Path) -> None:
+def test_ingest_then_finalize_then_reconcile_clean(tmp_path: Path) -> None:
+    """Graph round-trip: ingest seeds the graph from Markdown, finalize exports
+    it back and records the export baseline, so the drift triage is in-sync.
+    Ingest alone leaves the documents never-exported (no baseline)."""
     proj = _project(tmp_path, with_fixture_docs=True)
     stats = cw.ingest(str(proj))
     gc.collect()
     assert stats.write_stats.entities_written > 0
+    cw.finalize(str(proj))
+    gc.collect()
     report = cw.reconcile_check(str(proj))
     gc.collect()
     assert report.ok, report.to_dict()
@@ -278,9 +260,9 @@ def test_update_entity_absent_raises(tmp_path: Path) -> None:
     gc.collect()
 
 
-def test_update_rejected_in_hybrid_mode(tmp_path: Path) -> None:
-    proj = _project(tmp_path, mode="hybrid")
-    with pytest.raises(cw.ContextModeError, match="hybrid"):
+def test_update_rejected_in_markdown_mode(tmp_path: Path) -> None:
+    proj = _project(tmp_path, mode="markdown")
+    with pytest.raises(cw.ContextModeError, match="markdown"):
         cw.update_entity(str(proj), "F-001", title="x")
     gc.collect()
 

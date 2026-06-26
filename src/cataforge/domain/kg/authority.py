@@ -30,9 +30,9 @@ class ModePolicy:
     """The single decision point for every mode-dependent behaviour.
 
     ``mode`` is the project's :data:`~cataforge.domain.kg._dispatch.context_mode`
-    (``markdown`` / ``hybrid`` / ``graph``). Authorization gates, finalize /
-    ingest / reconcile direction, and drift remediation all route through this
-    one object so no gate re-encodes md-vs-graph authority on its own.
+    (``markdown`` / ``graph``). Authorization gates, finalize / ingest /
+    reconcile direction, and drift remediation all route through this one
+    object so no gate re-encodes md-vs-graph authority on its own.
     """
 
     mode: str
@@ -45,21 +45,9 @@ class ModePolicy:
 
     @property
     def graph_enabled(self) -> bool:
-        """True when a graph backend exists (``hybrid`` or ``graph``)."""
-        return self.mode != "markdown"
-
-    @property
-    def graph_is_source(self) -> bool:
-        """True when the graph is canonical and Markdown is a derived view."""
-        return self.mode == "graph"
-
-    @property
-    def graph_authoring_allowed(self) -> bool:
-        """True when ``context write*`` may author into the graph.
-
-        Only ``graph`` mode authors through the graph; under ``hybrid`` /
-        ``markdown`` the Markdown is canonical, so a direct graph write would
-        be silently overwritten by the next md→KG sync.
+        """True under ``graph`` mode: the graph is the canonical backend that
+        ``context write*`` authors into and finalize exports from. ``markdown``
+        has no graph at all.
         """
         return self.mode == "graph"
 
@@ -75,7 +63,7 @@ class ModePolicy:
             return REMEDIATE_NONE
         if drift_state == DRIFT_CONFLICT:
             return REMEDIATE_MANUAL
-        if self.graph_is_source:
+        if self.graph_enabled:
             if drift_state in (DRIFT_GRAPH_AHEAD, DRIFT_NEVER_EXPORTED):
                 return REMEDIATE_EXPORT
             if drift_state == DRIFT_HUMAN_EDIT:

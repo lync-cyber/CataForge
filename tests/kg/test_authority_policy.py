@@ -18,26 +18,12 @@ from cataforge.domain.kg.authority import (
 )
 
 GRAPH = ModePolicy(mode="graph")
-HYBRID = ModePolicy(mode="hybrid")
 MARKDOWN = ModePolicy(mode="markdown")
 
 
-def test_graph_properties() -> None:
+def test_graph_enabled_by_mode() -> None:
     assert GRAPH.graph_enabled is True
-    assert GRAPH.graph_is_source is True
-    assert GRAPH.graph_authoring_allowed is True
-
-
-def test_hybrid_properties() -> None:
-    assert HYBRID.graph_enabled is True
-    assert HYBRID.graph_is_source is False
-    assert HYBRID.graph_authoring_allowed is False
-
-
-def test_markdown_properties() -> None:
     assert MARKDOWN.graph_enabled is False
-    assert MARKDOWN.graph_is_source is False
-    assert MARKDOWN.graph_authoring_allowed is False
 
 
 @pytest.mark.parametrize(
@@ -59,12 +45,12 @@ def test_graph_authority_directions(state: str, expected: str) -> None:
     [
         (DRIFT_IN_SYNC, REMEDIATE_NONE),
         (DRIFT_CONFLICT, REMEDIATE_MANUAL),
-        # Markdown is canonical under hybrid: any one-sided divergence re-syncs
-        # the graph from Markdown.
+        # Markdown is canonical: any one-sided divergence re-syncs the graph
+        # from Markdown.
         (DRIFT_GRAPH_AHEAD, REMEDIATE_INGEST),
         (DRIFT_HUMAN_EDIT, REMEDIATE_INGEST),
         (DRIFT_NEVER_EXPORTED, REMEDIATE_INGEST),
     ],
 )
-def test_hybrid_authority_directions(state: str, expected: str) -> None:
-    assert HYBRID.remediation_for(state) == expected
+def test_markdown_authority_directions(state: str, expected: str) -> None:
+    assert MARKDOWN.remediation_for(state) == expected
