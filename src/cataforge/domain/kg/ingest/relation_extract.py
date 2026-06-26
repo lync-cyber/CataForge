@@ -14,6 +14,7 @@ namespace (`cf:`); phase 5 expands them to full IRIs at write time.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from cataforge.domain.kg.ingest.entity_extract import (
@@ -44,6 +45,11 @@ PREDICATE_MAP: dict[tuple[str, str], str] = {
     ("AcceptanceCriteria", "F"): "cf:satisfies",
 }
 DEFAULT_PREDICATE = "cf:depends_on"
+
+# An entity-id wrapped in inline code (`T-010`) annotates a heading without
+# defining its subject; strip such spans before matching so a coverage-matrix
+# heading cannot hijack the section subject.
+_INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
 
 # Every predicate the extractor can mint. Callers that atomically replace a
 # document's edges clear exactly these before writing the fresh set, leaving
@@ -96,7 +102,7 @@ def _section_subject_entity(doc: ParsedDoc, offset: int) -> tuple[str, str] | No
         reverse=True,
     )
     for span in containing:
-        match = ENTITY_PREFIX_RE.search(span.title)
+        match = ENTITY_PREFIX_RE.search(_INLINE_CODE_RE.sub("", span.title))
         if match is None:
             continue
         entity_id = match.group(0)
