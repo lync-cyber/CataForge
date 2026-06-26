@@ -221,6 +221,38 @@ def _dangling_lines(dangling: set[str], defined_ids: set[str]) -> list[str]:
     return lines
 
 
+def _emit_dangling_warnings(dangling: set[str], defined_ids: set[str], active: set[str]) -> None:
+    """Echo dangling references, split by whether their home doc_type is active.
+
+    When the home doc_type is already active, "register the doc_type" is moot —
+    the id is defined nowhere despite an active home, so the fix is to make it a
+    relation endpoint (a strict-xref demotes it) or exempt it. When the home is
+    inactive, registering it is the actionable fix.
+    """
+    if not dangling:
+        return
+    home_active = {d for d in dangling if _home_doc_type(d) in active}
+    home_inactive = dangling - home_active
+    if home_inactive:
+        click.echo(
+            f"  WARN: {len(home_inactive)} entity id(s) referenced in active docs but "
+            f"defined in no active doc_type source; "
+            f"register the defining doc_type in `context.kg_active_doc_types`, "
+            f"or mark the mention as inline code to exempt it."
+        )
+        for line in _dangling_lines(home_inactive, defined_ids):
+            click.echo(f"    {line}")
+    if home_active:
+        click.echo(
+            f"  WARN: {len(home_active)} entity id(s) whose home doc_type is already "
+            f"active but defined nowhere; make each a relation endpoint (a strict-xref "
+            f"demotes it to an info line), wrap the mention in inline code to exempt it, "
+            f"or fix the stale reference."
+        )
+        for line in _dangling_lines(home_active, defined_ids):
+            click.echo(f"    {line}")
+
+
 def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     """Doctor gate — returns failure count for missing KG entity IDs."""
     project_root = Path(cfg.paths.root)
@@ -314,15 +346,7 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
             f"reconcile."
         )
 
-    if dangling:
-        click.echo(
-            f"  WARN: {len(dangling)} entity id(s) referenced in active docs but "
-            f"defined in no active doc_type source; "
-            f"register the defining doc_type in `context.kg_active_doc_types`, "
-            f"or mark the mention as inline code to exempt it."
-        )
-        for line in _dangling_lines(dangling, defined_ids):
-            click.echo(f"    {line}")
+    _emit_dangling_warnings(dangling, defined_ids, active)
 
     if reference_only:
         click.echo(

@@ -91,8 +91,10 @@ def test_gate_warns_but_does_not_fail_on_stale_only(tmp_path, capsys) -> None:
 
 def test_gate_warns_not_fails_on_reference_defined_nowhere(tmp_path, capsys) -> None:
     """A bare reference to an entity defined in no active doc_type source
-    (e.g. ADR-NNNN with decision docs outside the KG corpus) cannot be fixed
-    by `kg repair` — it surfaces as WARN with config guidance, not FAIL."""
+    (e.g. ADR-NNNN whose decision record never lands as a heading) cannot be
+    fixed by `kg repair` — it surfaces as WARN with actionable guidance, not
+    FAIL. ADR's home doc_type (arch) is active, so the guidance is the
+    relation-endpoint/exempt variant, not the moot ``register`` advice."""
     from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
 
     project_root = _setup_project_with_kg(tmp_path)
@@ -110,7 +112,7 @@ def test_gate_warns_not_fails_on_reference_defined_nowhere(tmp_path, capsys) -> 
     assert "FAIL" not in out
     assert "WARN" in out
     assert "ADR-0001" in out
-    assert "kg_active_doc_types" in out
+    assert "relation endpoint" in out
     assert "1 ADR- id(s) referenced, none defined in active sources" in out
 
 
@@ -202,6 +204,61 @@ def test_gate_warns_on_bare_reference_to_active_home_class(tmp_path, capsys) -> 
     assert "WARN" in out
     assert "2 UC- id(s) referenced, none defined in active sources" in out
     assert "reference-only" not in out
+
+
+def test_gate_dangling_with_active_home_gets_relation_or_exempt_guidance(tmp_path, capsys) -> None:
+    """A dangling id whose home doc_type is already active but which is defined
+    nowhere and is no relation endpoint cannot be fixed by registering the
+    doc_type (it is already active). The WARN must point at making it a relation
+    endpoint or exempting it, not the moot ``kg_active_doc_types`` advice."""
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    tr = project_root / "docs" / "test-report" / "test-report-vertical-slice.md"
+    tr.write_text(
+        tr.read_text(encoding="utf-8") + "\n\n附注：CR-099 覆盖规则待补充。\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 0, out
+    assert "WARN" in out
+    assert "CR-099" in out
+    assert "relation endpoint" in out, "active-home dangling must get relation-endpoint guidance"
+    assert "register" not in out, "register-the-doc_type advice is moot when the home is active"
+
+
+def test_gate_dangling_with_inactive_home_keeps_register_guidance(tmp_path, capsys) -> None:
+    """When a dangling id's home doc_type is genuinely inactive, registering it
+    in ``kg_active_doc_types`` is the actionable fix — that guidance must stay."""
+    from cataforge.domain.kg._config import DEFAULT_KG_ACTIVE_DOC_TYPES
+    from cataforge.interface.cli.doctor.kg_ingestion import check_kg_ingestion_completeness
+
+    project_root = _setup_project_with_kg(tmp_path)
+    fjson = project_root / ".cataforge" / "framework.json"
+    data = json.loads(fjson.read_text(encoding="utf-8"))
+    # Drop ui-spec (no ingested entities in this fixture) so a UC reference has
+    # a home doc_type that is genuinely inactive.
+    data.setdefault("context", {})["kg_active_doc_types"] = [
+        d for d in sorted(DEFAULT_KG_ACTIVE_DOC_TYPES) if d != "ui-spec"
+    ]
+    fjson.write_text(json.dumps(data), encoding="utf-8")
+    prd = project_root / "docs" / "prd" / "prd-vertical-slice.md"
+    prd.write_text(
+        prd.read_text(encoding="utf-8") + "\n\n参见界面用例 UC-101。\n",
+        encoding="utf-8",
+    )
+    cfg = FakeConfig(paths=FakePaths(root=project_root))
+
+    failures = check_kg_ingestion_completeness(cfg)
+    out = capsys.readouterr().out
+
+    assert failures == 0, out
+    assert "UC-101" in out
+    assert "register the defining doc_type in `context.kg_active_doc_types`" in out
 
 
 def test_gate_still_fails_on_defined_but_uningested_alongside_dangling(tmp_path, capsys) -> None:

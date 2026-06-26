@@ -91,6 +91,38 @@ def test_cross_doc_mention_no_longer_collides() -> None:
     assert {e.source_doc for e in entities if e.entity_id == "F-002"} == {"prd"}
 
 
+def test_inline_code_entity_in_heading_is_not_section_subject() -> None:
+    # A coverage-matrix heading annotates a Task id in inline code; the
+    # backtick-wrapped T-010 must not be taken as the section subject — that
+    # would make a matrix xref's subject equal its target and drop the edge.
+    from cataforge.domain.kg.ingest.relation_extract import _section_subject_entity
+
+    body = "# Test Report\n\n## §4 覆盖矩阵 `T-010`\n\n正文。\n"
+    doc = _parsed_doc("test-report", "test-report", body)
+    offset = body.index("正文")
+    assert _section_subject_entity(doc, offset) is None
+
+
+def test_coverage_matrix_xref_not_collapsed_by_inline_code_heading() -> None:
+    # A matrix row maps TC-071 → T-010; the heading's inline-code `T-010` must
+    # not hijack the subject, else subject == target collapses the edge and the
+    # TestCase never becomes a relation endpoint.
+    from cataforge.domain.kg.ingest.relation_extract import extract_relations
+
+    body = (
+        "# Test Report\n\n"
+        "## §4 覆盖矩阵 `T-010`\n\n"
+        "| 用例 | 任务 |\n"
+        "| --- | --- |\n"
+        "| TC-071 | dev-plan#§5.T-010 |\n"
+    )
+    relations = extract_relations(_parsed_doc("test-report", "test-report", body))
+    edge = [r for r in relations if r.object_entity_id == "T-010"]
+    assert edge, "matrix xref to T-010 must produce an edge"
+    assert edge[0].subject_entity_id == "TC-071"
+    assert edge[0].predicate_curie == "cf:verifies"
+
+
 def test_xref_mention_still_becomes_a_relation_edge() -> None:
     # D3: tightening definition detection must not drop the xref edge — the
     # mention `prd#§2.F-001` inside M-001's body still yields an implements edge.
