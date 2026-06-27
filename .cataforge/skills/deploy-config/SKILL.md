@@ -29,6 +29,8 @@ user-invocable: true
 
 ## 操作指令
 
+> **语言细则**: 根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），获取对应语言的构建部署细则（构建/打包工具、依赖锁定、CI 缓存策略、容器基镜像、产物发布）。
+
 ### 指令1: CI/CD流水线 (pipeline)
 
 #### Step 1: 平台选型

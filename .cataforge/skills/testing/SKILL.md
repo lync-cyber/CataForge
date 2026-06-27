@@ -48,6 +48,9 @@ user-invocable: true
 5. 确定测试环境和工具链配置
 
 ### 指令2: 编写测试 (write)
+
+> **语言细则**: 根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），获取对应语言的测试编写细则（框架与工具栈、断言风格、fixture/setup、参数化、mock/stub、命名分层）。
+
 按测试类型编写:
 
 **Unit测试**:

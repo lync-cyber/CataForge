@@ -36,18 +36,24 @@ cataforge setup --language typescript --language go   # 写入 project.languages
 
 synonyms 自动归一化为 canonical id。不带 `--language` 时 setup 会提示当前探测到的语言，并说明读取时按 marker 兜底。`project.languages` 是 `upgrade apply` 的 preserve 字段（见 [`configuration.md`](./configuration.md)），升级不会重置。
 
-## agent 语言细则注入
+## agent / skill 语言细则
 
-agent prompt 主体保持语言无关（`check_no_language_coupling` 守卫强制 `AGENT.md` 主体不含语言业务关键字）。语言特定内容放进**片段文件** `.cataforge/agents/<id>/rules/lang-<lang>.md`（在守卫扫描范围之外）。
+agent / skill prompt 主体保持语言无关（`check_no_language_coupling` 守卫强制 `AGENT.md` / `SKILL.md` 主体不含语言业务关键字）。语言特定内容放进 owning skill 的**参考文件** `.cataforge/skills/<id>/references/lang-<lang>.md`（在守卫扫描范围之外）。
 
-声明 `lang_aware: true` 的 agent，部署时按 `active_languages()` 在**落地副本**末尾追加一段 `## 语言细则`，链接当前激活语言对应的片段文件：
+部署时 `deploy_skills` 整目录拷贝，`references/` 子目录随 skill 自包含落地到 `.claude/skills/<id>/references/` —— 主对话直用 skill 与子代理执行 skill 走同一份。各 owning SKILL.md 指示按 `project.languages` 只载入 active 语言对应的 `references/lang-<lang>.md`（逐个 Read；6 种语言全落地，按需读取）。
 
-```markdown
-## 语言细则
-- 见 `.cataforge/agents/architect/rules/lang-python.md`
-```
+归属映射：
 
-仓库源文件不变（守卫照过），只有部署产物带语言链接。无匹配片段则不注入。
+| 语言细则 | owning skill |
+|---------|-------------|
+| 技术选型 | `arc-design` |
+| 代码评审 | `code-review` |
+| 测试编写 | `testing` |
+| 实现编码 | `tdd-engine` |
+| 调试诊断 | `debug` |
+| 构建部署 | `deploy-config` |
+
+TDD 子代理（test-writer / implementer）无 owning skill，由 `tdd-engine` 在组装 RED / GREEN 派发 prompt 时注入对应 `references/lang-<lang>.md` 路径。
 
 ## 自定义 rule_type
 

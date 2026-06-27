@@ -17,7 +17,6 @@ from cataforge.core.languages import (
     normalize,
 )
 from cataforge.runtime.skill.rules.loader import discover_rules
-from cataforge.utils.frontmatter import split_yaml_frontmatter
 
 
 def test_known_languages_include_rule_ids() -> None:
@@ -133,19 +132,19 @@ def test_builtin_rule_languages_match_registry(skill_id: str, module: str) -> No
         )
 
 
-# ---- lang-aware agents ship language fragments (anti-empty-shell) ----------
+# ---- lang-ref skills ship language references (anti-empty-shell) -----------
 
-# Core agents whose responsibility is language-shaped — deploy injects a
-# ``## 语言细则`` section linking their per-language fragments.
-_LANG_AWARE_AGENTS = (
-    "architect",
-    "implementer",
-    "test-writer",
-    "reviewer",
-    "devops",
-    "debugger",
+# Skills whose responsibility is language-shaped — each ships per-language
+# ``references/lang-<lang>.md`` that its SKILL.md loads for the active language.
+_LANG_REF_SKILLS = (
+    "arc-design",
+    "code-review",
+    "testing",
+    "tdd-engine",
+    "debug",
+    "deploy-config",
 )
-# Languages with shipped builtin fragments. Must stay a subset of the registry.
+# Languages with shipped builtin references. Must stay a subset of the registry.
 _BUILTIN_FRAGMENT_LANGS = ("python", "js-ts", "go", "rust", "csharp", "java")
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -154,17 +153,10 @@ def test_builtin_fragment_langs_are_registry_ids() -> None:
     assert set(_BUILTIN_FRAGMENT_LANGS) <= set(known_languages())
 
 
-@pytest.mark.parametrize("agent_id", _LANG_AWARE_AGENTS)
-def test_core_agent_declares_lang_aware(agent_id: str) -> None:
-    agent_md = _REPO_ROOT / ".cataforge" / "agents" / agent_id / "AGENT.md"
-    fm, _ = split_yaml_frontmatter(agent_md.read_text(encoding="utf-8"))
-    assert fm and fm.get("lang_aware") is True, f"{agent_id} must declare lang_aware: true"
-
-
-@pytest.mark.parametrize("agent_id", _LANG_AWARE_AGENTS)
-def test_core_agent_ships_all_builtin_fragments(agent_id: str) -> None:
-    rules_dir = _REPO_ROOT / ".cataforge" / "agents" / agent_id / "rules"
+@pytest.mark.parametrize("skill_id", _LANG_REF_SKILLS)
+def test_lang_ref_skill_ships_all_builtin_references(skill_id: str) -> None:
+    refs_dir = _REPO_ROOT / ".cataforge" / "skills" / skill_id / "references"
     for lang in _BUILTIN_FRAGMENT_LANGS:
-        frag = rules_dir / f"lang-{lang}.md"
-        assert frag.is_file(), f"missing fragment {frag}"
-        assert frag.read_text(encoding="utf-8").strip(), f"empty fragment {frag}"
+        ref = refs_dir / f"lang-{lang}.md"
+        assert ref.is_file(), f"missing reference {ref}"
+        assert ref.read_text(encoding="utf-8").strip(), f"empty reference {ref}"

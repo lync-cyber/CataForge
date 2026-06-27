@@ -408,15 +408,12 @@ class Deployer:
         """Return the (agents, skills) source dirs deploy should read from.
 
         Stages a layered, section-patched, plugin-merged tree into a temp dir
-        (cleaned up via *stack*) when overrides, plugin contributions, or
-        language-aware agents need it; otherwise returns the scaffold dirs
-        unchanged so the common path stays byte-identical to the pre-overrides
-        flow.
+        (cleaned up via *stack*) when overrides or plugin contributions need
+        it; otherwise returns the scaffold dirs unchanged so the common path
+        stays byte-identical to the pre-overrides flow.
         """
-        from cataforge.core.languages import active_languages
         from cataforge.core.layers import has_overrides
         from cataforge.runtime.assets.resolver import resolve_kind
-        from cataforge.runtime.deploy.lang_fragments import inject_into_staged_agents
         from cataforge.runtime.plugin.loader import PluginLoader
 
         paths = self._cfg.paths
@@ -424,9 +421,8 @@ class Deployer:
         plugin_agents = plugins.provided_agent_dirs()
         plugin_skills = plugins.provided_skill_dirs()
         overrides = has_overrides(paths)
-        langs = active_languages(self._cfg)
 
-        need_agents = overrides or bool(plugin_agents) or bool(langs)
+        need_agents = overrides or bool(plugin_agents)
         need_skills = overrides or bool(plugin_skills)
         if not need_agents and not need_skills:
             return paths.agents_dir, paths.skills_dir, None
@@ -437,7 +433,6 @@ class Deployer:
         bits: list[str] = []
         if need_agents:
             resolve_kind(paths, "agents", staging / "agents", plugin_dirs=plugin_agents)
-            inject_into_staged_agents(staging / "agents", langs, paths)
             agents_src = staging / "agents"
             bits.append("agents")
         if need_skills:
@@ -447,7 +442,7 @@ class Deployer:
         return (
             agents_src,
             skills_src,
-            f"resolved override/plugin/language layers for {' + '.join(bits)}",
+            f"resolved override/plugin layers for {' + '.join(bits)}",
         )
 
     # ---- P3: --rebuild prunes prior-owned paths before deploy ----

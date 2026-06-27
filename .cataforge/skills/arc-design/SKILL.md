@@ -27,6 +27,8 @@ user-invocable: true
 
 ## 执行流程
 
+> **语言细则**: 根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），获取对应语言的技术选型细则（包/依赖管理、框架选项、并发模型、构建产物形态）。
+
 ### Step 1: 需求分析与架构决策 (对应ARCH §1)
 - 通过 `cataforge context read prd#§2`（功能需求）/ `prd#§3`（非功能需求）按需分章节加载，不一次性读取 PRD 整篇（见 COMMON-RULES §文档加载纪律）
 - §1.1 确定项目类型: fullstack | backend-only | CLI | API-only

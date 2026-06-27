@@ -113,34 +113,6 @@ def test_project_override_section_patch_reaches_deploy(tmp_path: Path) -> None:
     assert "name: architect" in deployed
 
 
-def test_lang_aware_agent_gets_language_section(tmp_path: Path) -> None:
-    import json
-
-    _init_project(tmp_path)
-    # Mark the agent lang_aware and ship a Python fragment.
-    arch = tmp_path / ".cataforge" / "agents" / "architect" / "AGENT.md"
-    arch.write_text(
-        "---\nname: architect\ntools: file_read\nlang_aware: true\n---\n\n"
-        "# Role\n\n## Identity\n- base identity\n",
-        encoding="utf-8",
-    )
-    (arch.parent / "rules").mkdir()
-    (arch.parent / "rules" / "lang-python.md").write_text(
-        "# python wiring guidance\n", encoding="utf-8"
-    )
-    # Declare the project language so active_languages resolves to python.
-    fw = tmp_path / ".cataforge" / "framework.json"
-    data = json.loads(fw.read_text(encoding="utf-8"))
-    data["project"] = {"languages": ["python"]}
-    fw.write_text(json.dumps(data), encoding="utf-8")
-
-    _deploy(tmp_path)
-
-    deployed = (tmp_path / ".claude" / "agents" / "architect.md").read_text(encoding="utf-8")
-    assert "## 语言细则" in deployed
-    assert ".cataforge/agents/architect/rules/lang-python.md" in deployed
-
-
 def test_plugin_agent_materialises_in_deploy(tmp_path: Path) -> None:
     _init_project(tmp_path)
     # A local plugin provides a brand-new agent.
