@@ -30,6 +30,9 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.core.paths import project_root_from_env
+from cataforge.runtime.skill.builtins.code_review.ui_fidelity import (
+    scan_ui_fidelity as _scan_ui_fidelity,
+)
 from cataforge.runtime.skill.builtins.code_review.wiring_patterns import load_wiring_rules
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.run_subprocess import run as run_proc
@@ -312,6 +315,22 @@ class CodeLinter:
                     print(f"WARN: [{filepath}:{lineno}] wiring_empty_handler: {line.strip()[:80]}")
                     break
 
+    def scan_ui_fidelity(self) -> None:
+        """Cross-file UI defect scan (dead token / unloaded font / ghost class).
+
+        ``dead_token`` is FAIL (deterministic, a declared design token nobody
+        consumes); fonts and ghost classes are WARN (loader / utility-framework
+        edge cases keep them off the hard gate). Consumers resolve over the
+        whole project so a usage in an unchanged file is not a false positive.
+        """
+        for finding in _scan_ui_fidelity(self.target, project_root_from_env() or self.target):
+            if finding.severity == "fail":
+                self.errors += 1
+                print(f"FAIL: ui_fidelity {finding.code}: {finding.detail}")
+            else:
+                self.warnings += 1
+                print(f"WARN: ui_fidelity {finding.code}: {finding.detail}")
+
     def run(self) -> int:
         if not self.target.exists():
             print(f"ERROR: 目标路径不存在: {self.target}")
@@ -335,6 +354,9 @@ class CodeLinter:
                         self.run_tool(tool, f)
             if ext in wiring_exts and not self.fix:
                 self.scan_wiring(f)
+
+        if not self.fix:
+            self.scan_ui_fidelity()
 
         print()
         print("=========================================")

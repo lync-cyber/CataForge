@@ -52,4 +52,14 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         ),
         "severity": "warn",
     },
+    {
+        "id": "code_lint.ui_fidelity",
+        "title": (
+            "UI 保真跨文件扫描 (.css/.scss/markup) — 死 token（声明的 CSS "
+            "自定义属性零 var() 消费）FAIL；未加载字体（引用的 font-family "
+            "无 @font-face/fontsource 加载）与幽灵类（markup 引用零定义 class，"
+            "检测到 utility 框架则跳过）WARN；豁免 cataforge-allow-ui-fidelity"
+        ),
+        "severity": "fail-on-error",
+    },
 )
