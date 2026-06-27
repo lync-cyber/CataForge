@@ -142,7 +142,6 @@ _GUARDED_RELPATHS = (
     "core/scaffold.py",
     "core/scaffold_backup.py",
     "runtime/deploy/deployer.py",
-    "runtime/deploy/lang_fragments.py",
     "runtime/hook/bridge.py",
 )
 

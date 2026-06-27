@@ -37,6 +37,8 @@ user-invocable: true
 
 ### Step 2: Layer 2 — AI语义审查
 
+> **语言细则**: 进入语义审查前，根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），作为该语言的评审细则（坏味道、安全陷阱、缺陷模式、性能反模式、评审 checklist）。这是散文评审参考，与 §Plugin-style rules 的 `rules/*.yaml`（Layer 1 机检 wiring）互补、不重复。
+
 **Layer 2 短路条件**（降低轻量任务的审查开销，类比 doc-review §Layer 2 短路）:
 
 满足以下任一条件且 Layer 1 exit 0 时**跳过 Layer 2** 直接判定为 `approved`:

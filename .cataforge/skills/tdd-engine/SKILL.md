@@ -136,6 +136,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     - tdd_mode: standard
     - security_sensitive: {true|false}
 
+    ## lang_rules
+    按 framework.json project.languages 载入 `testing` skill 的 `references/lang-<active>.md`，遵循其语言测试细则。
+
     ## user_story
     {prd#§2.F-xxx 的功能描述，含用户角色/使用动机/业务价值}
 
@@ -183,6 +186,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     - task_kind: {task_kind}
     - tdd_mode: standard
     - security_sensitive: {true|false}
+
+    ## lang_rules
+    按 framework.json project.languages 载入 `tdd-engine` skill 的 `references/lang-<active>.md`，遵循其语言实现细则。
 
     ## interface_contract
     {arch 接口定义片段}
@@ -283,6 +289,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     - task_kind: {task_kind}
     - security_sensitive: {true|false}
 
+    ## lang_rules
+    按 framework.json project.languages 载入 `testing` skill `references/lang-<active>.md`（测试细则）+ `tdd-engine` skill `references/lang-<active>.md`（实现细则）。
+
     ## user_story
     {prd#§2.F-xxx 的功能描述，含用户角色/使用动机/业务价值}
 
@@ -325,6 +334,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 orchestrator 自身在主线程使用 Step 1 已提取的上下文，按 light 模式的"先测试后实现"步骤直接产出 test_files + impl_files，**不调用 agent_dispatch capability**：
 
 - 主线程内联时同样参考 Step 1 已提取的 user_story 上下文编写测试（禁止存在性断言）
+- 按 framework.json project.languages 载入 `testing` + `tdd-engine` 两 skill 的 `references/lang-<active>.md`（测试细则 + 实现细则）
 - 步骤等同 light-dispatch 的 implementer 内部行为
 - self-report `refactor_needed` / `refactor_reasons` 作为 orchestrator 自身的判断（写入 EVENT-LOG 而非通过 agent_return）
 - REFACTOR 处理：同 light-dispatch

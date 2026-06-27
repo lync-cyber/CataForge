@@ -27,6 +27,8 @@ user-invocable: true
 
 ## 操作指令
 
+> **语言细则**: 根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），获取对应语言的调试诊断细则（调试器使用、traceback 解读、日志实践、运行时问题定位）。与 `docs/reference/debug-patterns.md`（scan-similar 的特征模式范例）分工：references 为完整调试细则，debug-patterns 为同类扫描的模式库。
+
 ### 指令1: 完整调试流程 (full)
 
 适用于: 收到错误报告，需要从零开始诊断和修复。
