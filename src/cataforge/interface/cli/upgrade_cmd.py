@@ -158,6 +158,18 @@ def upgrade_apply(dry_run: bool) -> None:
     cfg.reload()
     click.echo(f"CataForge v{cfg.version} — scaffold up to date.")
 
+    # A scaffold refresh may have config-flipped a legacy hybrid (or mode-less)
+    # project to context.mode=graph. The Markdown survives but the graph store is
+    # empty, so seed it from docs/ (ingest → finalize) to avoid a first-read
+    # NEVER_EXPORTED drift. Idempotent: a no-op once the graph is populated.
+    from cataforge.application.context.seed import seed_graph_from_docs
+
+    seed = seed_graph_from_docs(str(cfg.paths.root))
+    if seed.action == "seeded":
+        click.echo(f"\n[graph-seed] {seed.detail}")
+    elif seed.action == "blocked":
+        click.secho(f"\n[graph-seed] {seed.detail}", fg="yellow", err=True)
+
     # framework.json#project.design_tool is the single source of truth for the
     # design integration; the instruction file's 设计工具 field is now rendered
     # from it and force-overwritten on every deploy. Lift a penpot choice that
