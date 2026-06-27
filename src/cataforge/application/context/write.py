@@ -588,6 +588,13 @@ def author_document(
     written_ids = {document_iri(doc_id, cfg.base_namespace)}
 
     with KnowledgeGraph.connect(cfg) as kg:
+        existing_status = _read_document_status(kg.store, cfg, doc_id)
+        if existing_status == "approved" and document.status != "approved":
+            raise KGValidationError(
+                f"Document {doc_id!r} is approved — transition its status via "
+                "`context write-meta` before re-authoring content; re-authoring would "
+                f"silently downgrade it to {document.status or 'draft'!r}."
+            )
         project_iri = write_project(
             kg.store, meta["project_id"], meta["title"], meta["process_model"], cfg
         )
@@ -795,6 +802,19 @@ def update_document_meta(
 
 
 _DOC_STATUS_WHITELIST = frozenset({"draft", "review", "approved"})
+
+
+def _read_document_status(store: ox.Store, cfg: Any, doc_id: str) -> str | None:
+    """Return a Document's stored ``cf:status``, or ``None`` when absent."""
+    ns = cf_namespace(cfg)
+    iri = document_iri(doc_id, cfg.base_namespace)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        f"SELECT ?st WHERE {{ <{assert_safe_iri(iri)}> a cf:Document ; cf:status ?st }}"
+    )
+    for row in select_rows(store, sparql):
+        return _strv(_row_lookup(row, "st"))
+    return None
 
 
 def _read_document_meta(store: ox.Store, cfg: Any, doc_id: str) -> dict[str, str] | None:
