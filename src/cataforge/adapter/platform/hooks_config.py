@@ -41,6 +41,46 @@ def merge_json_key(path: Path, dotted_key: str, value: Any, *, dry_run: bool = F
     return [f"merged {dotted_key} → {path}"]
 
 
+def merge_json_list(
+    path: Path, dotted_key: str, items: list[str], *, dry_run: bool = False
+) -> list[str]:
+    """Union-merge string *items* into a JSON list at *dotted_key* (order-preserving).
+
+    Existing entries the user added are kept; only genuinely new items are
+    appended. The file/key is created when absent. A no-op (every item already
+    present) writes nothing.
+    """
+    if dry_run:
+        return [f"would enable {','.join(items)} in {path}"]
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file():
+        try:
+            data = read_json(path)
+        except ConfigError as exc:
+            raise CataforgeError(
+                f"existing config corrupted (cannot merge): {path} ({exc}). "
+                f"Fix or remove the file and retry."
+            ) from exc
+    else:
+        data = {}
+
+    keys = dotted_key.split(".")
+    obj = data
+    for k in keys[:-1]:
+        obj = obj.setdefault(k, {})
+    current = obj.get(keys[-1])
+    merged = list(current) if isinstance(current, list) else []
+    added = [it for it in items if it not in merged]
+    if not added:
+        return []
+    merged.extend(added)
+    obj[keys[-1]] = merged
+
+    atomic_write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    return [f"enabled {','.join(added)} in {path}"]
+
+
 def seed_settings_defaults(data: dict[str, Any], defaults: dict[str, Any]) -> None:
     """Set-if-absent seed of framework default settings into a settings dict.
 

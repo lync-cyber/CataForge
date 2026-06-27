@@ -496,3 +496,11 @@ class PlatformAdapter(ABC):
         native = self._native_mcp_payload(server_config)
         mcp_path = self.mcp_json_path(project_root)
         return merge_json_key(mcp_path, f"mcpServers.{server_id}", native, dry_run=dry_run)
+
+    def enable_project_mcp_server(
+        self, server_id: str, project_root: Path, *, dry_run: bool = False
+    ) -> list[str]:
+        """Pre-approve a project MCP server so it connects without a per-session
+        prompt. No-op for platforms with no such enablement gate; overridden by
+        those that have one (e.g. Claude Code's ``enabledMcpjsonServers``)."""
+        return []

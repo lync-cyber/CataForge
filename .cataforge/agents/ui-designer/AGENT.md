@@ -36,10 +36,10 @@ maxTurns: 60
 design_tool=penpot 时，设计决策可经 penpot-bridge read 取 `export_shape` 导出图像做视觉自检，不凭文字臆测视觉效果。
 
 ### Penpot 降级策略
-当 {INSTRUCTION_FILE} 设计工具=penpot 但 Penpot MCP 不可用时:
-1. 向用户报告 MCP 连接失败
-2. 提供选项: "退化为手动模式（跳过 Penpot 步骤）" / "排查 MCP 连接后重试"
-3. 用户选择退化时，将 {INSTRUCTION_FILE} 设计工具临时标记为 none，跳过所有 penpot-bridge 操作
+设计工具=penpot 时，MCP 可用性（含「工具未注册」与「连接失败 / 插件未连」两类）由 orchestrator 在 ui_design 进入时门禁并落降级决策（见 ORCHESTRATOR-PROTOCOLS §Design-Tool Capability Gate）——派发到本角色时已确认可用。执行期 penpot-bridge 操作仍失败（运行期插件掉线）时:
+1. 向用户报告失败形态（连接失败 / 插件未连）
+2. 提供选项: "退化为手动模式（跳过 Penpot 步骤）" / "排查后重试"
+3. 用户选退化时由 orchestrator 将设计工具落为 none 并记 state_change，跳过所有 penpot-bridge 操作
 4. 设计 Token 通过手动编辑 CSS 变量文件替代 Penpot 同步
 
 ## Anti-Patterns

@@ -17,11 +17,16 @@ def inject_mcp_config(
     *,
     dry_run: bool = False,
 ) -> list[str]:
-    """Write one MCP server config into the platform's configuration file.
+    """Write one MCP server config into the platform's configuration file and
+    pre-approve it so it connects without a per-session prompt.
 
     Routes to the adapter's :meth:`write_mcp_config` strategy hook. The default
     hook merges into a JSON file under ``mcpServers.<id>`` at
     ``adapter.mcp_json_path``; Codex (TOML) and OpenCode (per-repo merge)
-    override the hook for their native layout.
+    override the hook for their native layout. :meth:`enable_project_mcp_server`
+    then records the server in the platform's enablement gate (no-op where the
+    platform has none).
     """
-    return adapter.write_mcp_config(server_id, server_config, project_root, dry_run=dry_run)
+    actions = adapter.write_mcp_config(server_id, server_config, project_root, dry_run=dry_run)
+    actions.extend(adapter.enable_project_mcp_server(server_id, project_root, dry_run=dry_run))
+    return actions

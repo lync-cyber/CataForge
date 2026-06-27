@@ -208,9 +208,18 @@ Mode Routing Protocol 在以下时刻被调用:
      2. 手动处理：暂停 Phase Transition，等待用户编辑 {INSTRUCTION_FILE} 后再次推进（再次推进时重新跑 Step 7）
    - 执行 compact 后追加 **[EVENT]** 记录：`cataforge event log --event state_change --phase {新阶段} --detail "claude-md compact applied at phase transition"`
    - 命令不存在时 WARN 跳过，不阻塞
-8. **进入下一阶段** — 按 `framework.json#/workflow` 的 `execution_host` 分派：`subagent` → agent-dispatch 激活下一阶段 Agent；`inline` → 主线程承载该角色执行（见 §Inline Role Execution Protocol）
+8. **进入下一阶段** — 按 `framework.json#/workflow` 的 `execution_host` 分派：`subagent` → agent-dispatch 激活下一阶段 Agent；`inline` → 主线程承载该角色执行（见 §Inline Role Execution Protocol）。进入 ui_design 且 {INSTRUCTION_FILE} §项目信息.设计工具=penpot 时，派发 ui-designer 前先执行 §Design-Tool Capability Gate。
 
 > **关键**: 步骤 1-7 必须在步骤 8 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
+
+## Design-Tool Capability Gate
+进入 ui_design 且设计工具=penpot 时，派发 ui-designer 前由 orchestrator 主线程门禁 MCP 可用性——子代理对「penpot 工具从未注册」无失败信号可捕获，会静默走纯文本路径并使设计工具长期是假信号，故探测前移到派发方：
+
+1. **探测** — 检查主线程工具表是否含 `mcp__penpot__*`。在表 → 再跑 `cataforge penpot status` 确认握手与插件连接（握手 Up ≠ 插件已连）；不在表 → 记为「工具未注册」。
+2. **区分形态** — 「工具未注册」（MCP server 已声明但工具不在表，多为未预启用 / 未部署）与「连接失败 / 插件未连」是两类，分别向用户报告，不混为一谈。
+3. **不静默降级** — 不可用时报告形态并给选项：「排查 MCP 后重试」/「降级为纯文本手工 ui-spec」。
+4. **降级落真值** — 用户选降级时把设计工具落为 none（消除假信号），记 **[EVENT]**：`cataforge event log --event state_change --phase ui_design --detail "design_tool penpot→none: {未注册|连接失败}，降级纯文本流"`，再派发 ui-designer。
+5. **可用即继续** — 工具在表且 status 健康 → 正常派发 ui-designer，penpot-bridge 操作生效。
 
 ## Inline Role Execution Protocol
 `framework.json#/workflow` 中 `execution_host: inline` 的 phase（如发散性的 Phase 1/2），由 orchestrator 在主线程承载该角色执行而非派发子代理——发散阶段需多轮 user-interview / 头脑风暴 / 澄清，派发子代理为非交互执行体无法触达用户。Phase 5 development 经 tdd-engine 内联编排是同一模式的既有先例。

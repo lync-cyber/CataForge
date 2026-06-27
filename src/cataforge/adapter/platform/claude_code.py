@@ -44,3 +44,16 @@ class ClaudeCodeAdapter(PlatformAdapter):
     def _native_mcp_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         # .mcp.json remote servers use {"type": "http"|"sse", "url": ...}.
         return neutral_remote_payload(payload, type_key=True)
+
+    def enable_project_mcp_server(
+        self, server_id: str, project_root: Path, *, dry_run: bool = False
+    ) -> list[str]:
+        # A project ``.mcp.json`` server stays unapproved (prompting every
+        # session) until listed here; settings.local.json is per-user/gitignored,
+        # the right home for "I trust this project's server on my machine".
+        from cataforge.adapter.platform.hooks_config import merge_json_list
+
+        settings_local = project_root / ".claude" / "settings.local.json"
+        return merge_json_list(
+            settings_local, "enabledMcpjsonServers", [server_id], dry_run=dry_run
+        )

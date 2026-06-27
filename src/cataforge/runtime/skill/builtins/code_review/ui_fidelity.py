@@ -1,0 +1,210 @@
+"""UI fidelity static checks — code-review Layer 1 (cross-file).
+
+Three set-difference checks over a project's style + markup corpus,
+catching defects that a green unit suite renders broken:
+
+* ``dead_token`` (FAIL) — a declared CSS custom property with zero
+  ``var()`` consumers anywhere in the corpus.
+* ``unloaded_font`` (WARN) — a referenced named ``font-family`` with no
+  ``@font-face`` / fontsource / Google-Fonts loader.
+* ``ghost_class`` (WARN) — a class referenced in markup with no matching
+  CSS selector; suppressed entirely when a utility-CSS framework is in
+  use (Tailwind ``@apply`` / ``@tailwind`` generate classes off-corpus).
+
+Consumers, loaders and class definitions resolve over the whole corpus
+so a usage in another file is never a false positive; declarations are
+checked only in the target files so a per-task review flags what the
+reviewed change introduces, not pre-existing debt elsewhere. A file
+carrying the ``cataforge-allow-ui-fidelity`` pragma is skipped.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+ALLOW_PRAGMA = re.compile(r"cataforge-allow-ui-fidelity")
+
+CSS_EXTS = frozenset({".css", ".scss", ".sass", ".less"})
+MARKUP_EXTS = frozenset({".tsx", ".jsx", ".vue", ".svelte", ".html", ".htm", ".astro"})
+JS_EXTS = frozenset({".ts", ".js", ".tsx", ".jsx", ".mjs", ".cjs"})
+UI_EXTS = CSS_EXTS | MARKUP_EXTS | JS_EXTS
+
+# font-family keywords that name no real face and so are never "unloaded".
+GENERIC_FAMILIES = frozenset(
+    {
+        "serif",
+        "sans-serif",
+        "monospace",
+        "cursive",
+        "fantasy",
+        "system-ui",
+        "ui-serif",
+        "ui-sans-serif",
+        "ui-monospace",
+        "ui-rounded",
+        "math",
+        "emoji",
+        "fangsong",
+        "inherit",
+        "initial",
+        "unset",
+        "revert",
+        "revert-layer",
+        "-apple-system",
+        "blinkmacsystemfont",
+    }
+)
+
+_DECL_TOKEN = re.compile(r"(?<![\w-])(--[A-Za-z0-9_-]+)\s*:")
+_USE_TOKEN = re.compile(r"var\(\s*(--[A-Za-z0-9_-]+)")
+_FONT_FAMILY = re.compile(r"font-family\s*:\s*([^;}{]+)", re.IGNORECASE)
+_FONT_FACE = re.compile(r"@font-face\s*\{[^}]*\}", re.IGNORECASE | re.DOTALL)
+_FONTSOURCE = re.compile(r"@fontsource(?:-variable)?/([a-z0-9-]+)", re.IGNORECASE)
+_GFONT_FAMILY = re.compile(r"family=([^&:'\"\)]+)", re.IGNORECASE)
+_CLASS_REF = re.compile(r"class(?:Name)?\s*=\s*[\"']([^\"']+)[\"']")
+_CLASS_DEF = re.compile(r"\.(-?[A-Za-z_][A-Za-z0-9_-]*)")
+_STYLE_BLOCK = re.compile(r"<style[^>]*>(.*?)</style>", re.IGNORECASE | re.DOTALL)
+_UTILITY_MARKER = re.compile(r"@tailwind\b|@apply\b|tailwindcss", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class Finding:
+    """One UI-fidelity defect. ``token`` is set only for ``dead_token``."""
+
+    severity: str  # "fail" | "warn"
+    code: str  # "dead_token" | "unloaded_font" | "ghost_class"
+    detail: str
+    token: str = ""
+
+
+def _ext(path: str) -> str:
+    return os.path.splitext(path)[1].lower()
+
+
+def _css_text(path: str, text: str) -> str:
+    """CSS-bearing portion of a file: whole text for stylesheets, ``<style>``
+    blocks for markup, empty for plain JS/TS (no CSS selectors there)."""
+    ext = _ext(path)
+    if ext in CSS_EXTS:
+        return text
+    if ext in MARKUP_EXTS:
+        return "\n".join(_STYLE_BLOCK.findall(text))
+    return ""
+
+
+def _norm_font(name: str) -> str:
+    return re.sub(r"\s+", " ", name.strip().strip("\"'").replace("-", " ")).lower()
+
+
+def declared_tokens(text: str) -> set[str]:
+    return set(_DECL_TOKEN.findall(text))
+
+
+def consumed_tokens(text: str) -> set[str]:
+    return set(_USE_TOKEN.findall(text))
+
+
+def font_refs(text: str) -> set[str]:
+    """Named font families referenced in ``font-family`` declarations."""
+    out: set[str] = set()
+    for decl in _FONT_FAMILY.findall(text):
+        for raw in decl.split(","):
+            name = raw.strip()
+            if not name or "var(" in name or name.lower() in GENERIC_FAMILIES:
+                continue
+            out.add(name.strip("\"'"))
+    return out
+
+
+def font_loaders(text: str) -> set[str]:
+    """Normalised font names loaded via @font-face / fontsource / Google Fonts."""
+    out: set[str] = set()
+    for block in _FONT_FACE.findall(text):
+        for decl in _FONT_FAMILY.findall(block):
+            out.add(_norm_font(decl))
+    for pkg in _FONTSOURCE.findall(text):
+        out.add(_norm_font(pkg))
+    for fam in _GFONT_FAMILY.findall(text):
+        out.add(_norm_font(fam.replace("+", " ")))
+    return {n for n in out if n}
+
+
+def class_refs(text: str) -> set[str]:
+    out: set[str] = set()
+    for group in _CLASS_REF.findall(text):
+        if "{" in group or "$" in group:
+            continue
+        out.update(tok for tok in group.split() if tok)
+    return out
+
+
+def class_defs(css_text: str) -> set[str]:
+    return set(_CLASS_DEF.findall(css_text))
+
+
+def has_utility_framework(text: str) -> bool:
+    return bool(_UTILITY_MARKER.search(text))
+
+
+def analyze(target_files: dict[str, str], corpus_files: dict[str, str]) -> list[Finding]:
+    """Return UI-fidelity findings.
+
+    ``target_files`` are the files under review (declarations checked here);
+    ``corpus_files`` is the resolution scope for consumers/loaders/defs.
+    """
+    consumed: set[str] = set()
+    loaders: set[str] = set()
+    defined_classes: set[str] = set()
+    utility = False
+    for path, text in corpus_files.items():
+        consumed |= consumed_tokens(text)
+        loaders |= font_loaders(text)
+        defined_classes |= class_defs(_css_text(path, text))
+        utility = utility or has_utility_framework(text)
+
+    findings: list[Finding] = []
+    for path, text in target_files.items():
+        if ALLOW_PRAGMA.search(text):
+            continue
+        for tok in sorted(declared_tokens(text) - consumed):
+            findings.append(
+                Finding("fail", "dead_token", f"{tok} declared in {path}, 0 var() consumers", tok)
+            )
+        for fam in sorted(font_refs(text)):
+            if _norm_font(fam) not in loaders:
+                detail = f"{fam} referenced in {path}, no @font-face/import"
+                findings.append(Finding("warn", "unloaded_font", detail))
+        if not utility and _ext(path) in MARKUP_EXTS:
+            for cls in sorted(class_refs(text) - defined_classes):
+                findings.append(Finding("warn", "ghost_class", cls))
+    return findings
+
+
+def _collect(root: Path, exts: frozenset[str]) -> dict[str, str]:
+    from cataforge.runtime.skill.builtins.code_review.code_lint import EXCLUDE_DIRS
+
+    root = Path(root)
+    files: dict[str, str] = {}
+    candidates = [root] if root.is_file() else root.rglob("*")
+    for p in candidates:
+        if any(part in EXCLUDE_DIRS for part in p.parts):
+            continue
+        if p.is_file() and p.suffix.lower() in exts:
+            try:
+                files[str(p)] = p.read_text(errors="replace")
+            except OSError:
+                continue
+    return files
+
+
+def scan_ui_fidelity(target: Path, corpus_root: Path) -> list[Finding]:
+    """File-IO entry: collect UI files under *target* and *corpus_root*, analyze."""
+    target_files = _collect(target, UI_EXTS)
+    if not target_files:
+        return []
+    corpus_files = _collect(corpus_root, UI_EXTS)
+    corpus_files.update(target_files)
+    return analyze(target_files, corpus_files)
