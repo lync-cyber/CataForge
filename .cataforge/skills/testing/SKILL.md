@@ -56,7 +56,7 @@ user-invocable: true
 **Unit测试**:
 - 输入: 任务卡验收标准 + 接口契约
 - 范围: 仅补充 tdd-engine 未覆盖的函数/方法级盲区（边界条件 / 异常路径 / 未覆盖分支），隔离外部依赖，不重写已有单测
-- 工具: 按项目技术栈选择(pytest/jest/xunit等)
+- 工具: 按项目技术栈选择单测框架
 - 定位: 补充 DEV 阶段覆盖盲区（见 §与tdd-engine的关系）
 
 **Integration测试**:
@@ -67,7 +67,7 @@ user-invocable: true
 **E2E测试**:
 - 输入: ui-spec交互流程 + 核心用户路径
 - 范围: 完整用户场景，端到端验证
-- 工具: 按项目选择(Playwright/Cypress/Selenium等)
+- 工具: 按项目选择 e2e 框架（各框架真实输入 API 见 [`test-and-e2e-apis.md`](../../references/test-and-e2e-apis.md)）
 
 ### 指令3: 执行测试 (execute)
 1. 运行全部测试套件(或指定类型)
@@ -86,8 +86,8 @@ user-invocable: true
 
 > 权威清单见 `cataforge.runtime.skill.builtins.testing.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
 
-- e2e 后门正则扫描 (tests/e2e/**) — 默认覆盖 .js/.ts/.jsx/.tsx + .py；命中 `window\.__\w+__\s*=` / `\?e2e=1` / `setStore\(.*JSON\.parse` 等模式即 WARN
-- 真实输入路径声明 — e2e 套件至少含一处真实交互调用（键入 / 填充 / 点击，各框架 API 见 [`docs/reference/test-and-e2e-apis.md`](../../../docs/reference/test-and-e2e-apis.md)），无任何 → WARN（提示套件可能纯 fixture 注入）
+- e2e 后门正则扫描 (tests/e2e/**) — 默认覆盖 .js/.ts/.jsx/.tsx + .py；命中后门注入模式（预构造状态直注入 / 测试专用查询参数 / store 直灌等，按语言正则见 e2e-{lang}.yaml）即 WARN
+- 真实输入路径声明 — e2e 套件至少含一处真实交互调用（键入 / 填充 / 点击，各框架 API 见 [`test-and-e2e-apis.md`](../../references/test-and-e2e-apis.md)），无任何 → WARN（提示套件可能纯 fixture 注入）
 
 调用：`cataforge skill run testing -- scan-e2e tests/e2e/`，返回码语义按 §Layer 1 调用协议。
 
@@ -103,7 +103,7 @@ user-invocable: true
 ## Anti-Patterns
 
 - 禁止：e2e 通过 `window.__*__` / `?e2e=1` / `?test=1` 后门或守门绕过真实用户输入路径；e2e 必须 ≥1 次真实浏览器交互（键入 / 点击等真实输入原语）作为 verdict=approved 前置条件
-- 禁止：直接调用 store action / `setState` / `setAst(JSON.parse(...))` 等注入预构造数据替代真实输入路径 — 编辑器/表单/路由的 wiring 链路必须由测试照过
+- 禁止：直接注入预构造数据（store action / 组件状态 setter / AST 直灌等）替代真实输入路径 — 编辑器/表单/路由的 wiring 链路必须由测试照过
 - 禁止：把"沙盒不可达 → CI 兜底"作为 verdict=conditional_release 的放行理由 —— `conditional_release` 必须显式声明 `blocking_conditions: []`，未消除前 Phase Transition 不能推进（详见 §Verdict 判定语义对应 qa-engineer/AGENT.md）
 - 避免：单元测试用测试框架的 module-mock 全 stub 替换被测包的顶层导出，导致接口契约未真实验证（sprint-review `ac-coverage` 维度会复核）
 

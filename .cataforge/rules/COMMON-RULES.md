@@ -220,7 +220,7 @@ closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已
 | coupling | 代码 | 模块间引用过密、依赖图循环或扇出过大 |
 
 ## Layer 1 调用协议
-三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过 `cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner` 路由到内置实现（`python -m cataforge.runtime.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md / Agent / Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。完整规约见 [`docs/architecture/quality-and-learning.md §2.1`](../../docs/architecture/quality-and-learning.md)。
+三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过 `cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner` 路由到内置实现（`python -m cataforge.runtime.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md / Agent / Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。完整规约见框架仓 `docs/architecture/quality-and-learning.md` §2.1。
 
 Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2；`2` / `127` / `CataforgeError("no executable scripts")` → **FAIL**（先 `cataforge doctor`）；运行时异常 / 超时 → 降级进入 Layer 2。
 
