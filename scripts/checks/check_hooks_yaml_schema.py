@@ -52,8 +52,22 @@ def extract_doc_example() -> dict | None:
     return loaded if isinstance(loaded, dict) else None
 
 
+def load_real_hooks() -> dict | None:
+    try:
+        real = yaml.safe_load(REAL_HOOKS.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as e:
+        print(f"FAIL: cannot load real hooks file {REAL_HOOKS}: {e}", file=sys.stderr)
+        return None
+    if not isinstance(real, dict):
+        print(f"FAIL: real hooks file {REAL_HOOKS} is not a mapping", file=sys.stderr)
+        return None
+    return real
+
+
 def main() -> int:
-    real = yaml.safe_load(REAL_HOOKS.read_text(encoding="utf-8"))
+    real = load_real_hooks()
+    if real is None:
+        return 1
     doc = extract_doc_example()
     if doc is None:
         print(

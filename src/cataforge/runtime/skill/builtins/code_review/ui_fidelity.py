@@ -184,15 +184,13 @@ def analyze(target_files: dict[str, str], corpus_files: dict[str, str]) -> list[
 
 
 def _collect(root: Path, exts: frozenset[str]) -> dict[str, str]:
-    from cataforge.runtime.skill.builtins.code_review.code_lint import EXCLUDE_DIRS
+    from cataforge.runtime.skill.builtins.code_review.code_lint import _iter_files
 
     root = Path(root)
     files: dict[str, str] = {}
-    candidates = [root] if root.is_file() else root.rglob("*")
+    candidates = [root] if root.is_file() else _iter_files(root)
     for p in candidates:
-        if any(part in EXCLUDE_DIRS for part in p.parts):
-            continue
-        if p.is_file() and p.suffix.lower() in exts:
+        if p.suffix.lower() in exts:
             try:
                 files[str(p)] = p.read_text(errors="replace")
             except OSError:

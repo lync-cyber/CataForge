@@ -64,3 +64,17 @@ def test_run_probe_launches_resolved_executable(
     # Both the detect probe and the build_cmd run go through the resolved path.
     assert launched, "run_probe never launched the probe"
     assert all(call[0] == "/resolved/vulture" for call in launched)
+
+
+def test_iter_files_prunes_excluded_dirs(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "node_modules" / "pkg").mkdir(parents=True)
+    (tmp_path / "node_modules" / "pkg" / "b.py").write_text("y = 2\n", encoding="utf-8")
+    (tmp_path / "__pycache__").mkdir()
+    (tmp_path / "__pycache__" / "c.py").write_text("z = 3\n", encoding="utf-8")
+
+    found = {p.name for p in code_lint._iter_files(tmp_path)}
+    assert "a.py" in found
+    assert "b.py" not in found  # node_modules pruned
+    assert "c.py" not in found  # __pycache__ pruned

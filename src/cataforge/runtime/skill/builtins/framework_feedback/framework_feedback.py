@@ -3,16 +3,8 @@
 Layer 1 entry point for the ``framework-feedback`` builtin skill.
 Thin wrapper over ``cataforge.application.feedback.assemble_*`` so the skill
 runner gets a deterministic ``python -m`` target that mirrors the
-``cataforge feedback`` CLI surface.
-
-Why a skill *and* a CLI? Two non-overlapping audiences:
-
-* Humans / shell pipelines use ``cataforge feedback bug --gh`` directly.
-* Orchestrator / agents call ``cataforge skill run framework-feedback``
-  so the run gets recorded in EVENT-LOG via the standard skill runner
-  instrumentation (``record_to_event_log=True``), giving a durable
-  signal that "we drafted upstream feedback at this point in the
-  workflow".
+``cataforge feedback`` CLI surface and records the run to EVENT-LOG via the
+standard skill-runner instrumentation.
 
 Usage::
 

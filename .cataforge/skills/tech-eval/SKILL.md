@@ -39,6 +39,7 @@ user-invocable: true
 - 禁止: 单一维度比较（"X 比 Y 快"）—— 性能 / 生态 / 学习成本 / EOL 风险 / license 至少四维并列才能产出可决策矩阵
 - 禁止: 输出"看情况"等无承诺结论 —— tech-eval 的产出必须是带理由的明确推荐；含糊收尾让 architect 无法定稿 ARCH
 - 避免: 把候选方案矩阵塞进 ARCH 主卷 —— 选型理由进 research-note 或 decision-log，ARCH 只承载终态决策
+- 禁止: release notes / 版本检索不可达时退回训练数据默认值充当结论 —— 按 COMMON-RULES §通用 Error Handling 标 [ASSUMPTION] 注明未在线验证的版本假设与影响，不伪装成已验证推荐
 
 ## 效率策略
 - 评估维度与PRD非功能需求对齐

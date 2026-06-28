@@ -55,7 +55,7 @@ user-invocable: false
 | 存在 conflicting，或 PRD 级 missing | `new_requirement` | 变更引入新功能或与现有设计矛盾，需从PRD开始cascade |
 
 ### Step 4: 影响分析
-对 `enhancement` 和 `new_requirement` 类型，进一步分析:
+`clarification` 类型直接 drift_level = `n/a`、action = `proceed`，跳过下方深度分析。对 `enhancement` 和 `new_requirement` 类型，进一步分析:
 
 **Drift Level (偏移等级)**:
 | Level | 条件 | 示例 |
@@ -65,6 +65,7 @@ user-invocable: false
 | L3 | 涉及架构变更，需多级cascade | 新增模块、改变数据模型、修改系统边界 |
 
 ### drift_level 判定锚点
+- **n/a (proceed)**: `clarification` 类型，所有相关文档均 covered，无任何 ID 增删改
 - **L1 (proceed)**: 仅修改文档措辞，不新增/删除/修改任何 F-xxx/M-xxx/API-xxx/E-xxx/T-xxx ID
 - **L2 (amend_then_proceed)**: 修改现有 ID 的定义或新增 ID，但不涉及 arch#§1 架构概览中的系统边界
 - **L3 (cascade_amendment)**: 涉及 arch#§1 系统边界变更、新增/删除顶层模块、或技术栈变更
@@ -81,7 +82,7 @@ user-invocable: false
 ```xml
 <change-analysis>
 <type>clarification|enhancement|new_requirement</type>
-<drift_level>L1|L2|L3</drift_level>
+<drift_level>n/a|L1|L2|L3</drift_level>
 <coverage>
   <prd status="covered|partial|missing|conflicting">匹配的F-NNN/AC-NNN列表</prd>
   <arch status="covered|partial|missing|conflicting">匹配的M-NNN/API-NNN列表</arch>

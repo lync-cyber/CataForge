@@ -56,6 +56,7 @@ user-invocable: true
 - 禁止: AC 只覆盖被引用 `arch#§N.API-xxx` 契约的正常路径而漏其声明的错误码 / 安全路径 / 集成点 —— 如契约声明 `401 E_AUTH` + `403 E_PERMISSION_DENIED` 两条安全路径，AC 只测正常返回，缺口要到下游 code-review 标 HIGH 或 pre-wiring 审计才暴露；每项响应码 / 安全路径 / 集成点须有对应 AC 或显式 `[ASSUMPTION]` 豁免
 - 禁止: arch 模块为有序管线（stage 序列）时遗漏某 stage 的承载任务 —— 模块管线含 A→B→C 三 stage 而只为 A、C 建任务卡，B 接线无任务、以空返回满足下游字面 AC，运行时管线在 B 静默断裂；每个 stage 的接线须有任务卡 deliverables 承载
 - 禁止: Sprint 内全部为后端任务而无任何用户可感知的功能交付（Sprint 1 例外），除非项目为纯后端服务
+- 禁止: task-dep-analysis 报环依赖或无法计算拓扑序时仍输出任务计划 —— 环路使 Sprint 排期失真，应返回 blocked 附环路 task_id 链请人工拆环（COMMON-RULES §通用 Error Handling），不静默降级为无序计划
 
 ## 效率策略
 - 先拆后排: 先拆任务再排依赖

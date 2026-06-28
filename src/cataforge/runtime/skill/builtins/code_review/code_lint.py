@@ -23,9 +23,11 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +52,17 @@ EXCLUDE_DIRS = {
     "bin",
     "obj",
 }
+
+
+def _iter_files(root: Path) -> Iterator[Path]:
+    """Yield files under *root*, pruning ``EXCLUDE_DIRS`` in place so os.walk
+    never descends into them (rglob would walk the whole tree then filter)."""
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+        base = Path(dirpath)
+        for fn in filenames:
+            yield base / fn
+
 
 LINTERS: list[dict[str, Any]] = [
     {
@@ -264,12 +277,7 @@ class CodeLinter:
     def collect_files(self) -> list[Path]:
         if self.target.is_file():
             return [self.target]
-        files = []
-        for p in self.target.rglob("*"):
-            if any(part in EXCLUDE_DIRS for part in p.parts):
-                continue
-            if p.is_file() and p.suffix.lower() in ALL_EXTENSIONS:
-                files.append(p)
+        files = [p for p in _iter_files(self.target) if p.suffix.lower() in ALL_EXTENSIONS]
         return sorted(files)
 
     def run_tool(self, tool: dict[str, Any], filepath: Path) -> None:
@@ -392,13 +400,7 @@ class CodeScanner:
     def collect_extensions(self) -> set[str]:
         if self.target.is_file():
             return {self.target.suffix.lower()}
-        seen: set[str] = set()
-        for p in self.target.rglob("*"):
-            if any(part in EXCLUDE_DIRS for part in p.parts):
-                continue
-            if p.is_file():
-                seen.add(p.suffix.lower())
-        return seen
+        return {p.suffix.lower() for p in _iter_files(self.target)}
 
     def run_probe(self, probe: dict[str, Any], present_exts: set[str]) -> None:
         name = probe["name"]
