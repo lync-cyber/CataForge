@@ -250,11 +250,11 @@ class TestSkillRunnerEventLog:
         statuses = [r.get("status") for r in records]
         assert "needs_revision" in statuses
 
-    def test_review_skill_exit2_distinct_from_unreachable(self, project: Path) -> None:
-        """Exit 2 is a Layer-1 bad-arguments signal, not "scripts
-        unreachable". Its event must not borrow the generic
-        unreachable/blocked labelling reserved for non-business exit codes
-        like 127."""
+    def test_review_skill_exit2_is_fail_blocked(self, project: Path) -> None:
+        """Exit 2 is a Layer-1 FAIL (bad arguments / not executable). Per
+        COMMON-RULES §Layer 1 调用协议 it shares the FAIL→blocked status with
+        127, while its detail stays distinct from the unreachable/runtime
+        branch so doctor triage can tell the two apart."""
         _write_skill(
             project,
             "code-review",
@@ -268,12 +268,33 @@ class TestSkillRunnerEventLog:
 
         records = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
         rec = records[-1]
+        assert rec["status"] == "blocked", (
+            "exit 2 is a Layer 1 FAIL and must map to the blocked status"
+        )
         assert "unreachable" not in rec["detail"], (
-            "exit 2 must not be conflated with the unreachable label"
+            "exit 2 detail stays distinct from the unreachable/runtime branch"
         )
-        assert rec["status"] != "blocked", (
-            "exit 2 must not share the generic unreachable/blocked status"
+        assert "doctor" in rec["detail"]
+
+    def test_review_skill_unreachable_exit_blocked(self, project: Path) -> None:
+        """A non-business exit (127 / runtime error) is the other FAIL face.
+        Per COMMON-RULES §Layer 1 it joins exit 2 under blocked, but keeps the
+        unreachable/runtime detail so it is not confused with bad-args."""
+        _write_skill(
+            project,
+            "code-review",
+            script_body="import sys; sys.exit(127)\n",
         )
+        runner = SkillRunner(project)
+        runner.run("code-review")
+
+        log = project / "docs" / "EVENT-LOG.jsonl"
+        import json
+
+        records = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+        rec = records[-1]
+        assert rec["status"] == "blocked"
+        assert "unreachable" in rec["detail"]
 
     def test_event_log_flag_propagated_to_override(self, project: Path) -> None:
         """A project-level override that ships its own scripts must still

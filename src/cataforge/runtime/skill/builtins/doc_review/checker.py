@@ -59,7 +59,7 @@ def _fm(content: str) -> dict[str, Any]:
 
 
 def read_file(path: str) -> str:
-    return Path(path).read_text()
+    return Path(path).read_text(errors="replace")
 
 
 class DocChecker(TypedDocChecksMixin):
@@ -295,7 +295,7 @@ class DocChecker(TypedDocChecksMixin):
             if sibling.name == doc_path.name:
                 continue
             try:
-                text = sibling.read_text()
+                text = sibling.read_text(errors="replace")
             except OSError:
                 continue
             if str(_fm(text).get("split_from") or "") == doc_id:
@@ -373,7 +373,7 @@ class DocChecker(TypedDocChecksMixin):
         upstream_items: set[str] = set()
         for up_file in docs_path.glob(f"**/{upstream_type}*.md"):
             try:
-                up_content = up_file.read_text()
+                up_content = up_file.read_text(errors="replace")
             except OSError:
                 continue
             for m in re.finditer(rf"^### ({upstream_prefix}-\d+)", up_content, re.MULTILINE):

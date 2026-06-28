@@ -25,9 +25,10 @@ def test_exit_code_blocking_takes_precedence() -> None:
     assert report.exit_code == 1
 
 
-def test_exit_code_advisory_only() -> None:
+def test_exit_code_advisory_only_proceeds() -> None:
+    # Advisory-only findings (no CRITICAL/HIGH) don't block: 0 → proceed to Layer 2.
     report = CheckReport(_collector(Severity.MEDIUM, Severity.LOW))
-    assert report.exit_code == 2
+    assert report.exit_code == 0
 
 
 def test_to_dict_serializes_issues_and_exit_code() -> None:

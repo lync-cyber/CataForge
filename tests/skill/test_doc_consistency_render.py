@@ -96,10 +96,17 @@ def test_to_dict_round_trips_through_json() -> None:
     ("severities", "expected"),
     [
         ((), 0),
-        ((Severity.LOW,), 2),
+        ((Severity.LOW,), 0),
+        ((Severity.MEDIUM,), 0),
         ((Severity.LOW, Severity.CRITICAL), 1),
+        ((Severity.HIGH,), 1),
     ],
 )
-def test_exit_code_matches_legacy_contract(severities, expected) -> None:
+def test_exit_code_gates_on_blocking_only(severities, expected) -> None:
+    """Per COMMON-RULES §Layer 1: 0 = proceed to Layer 2 (clean or
+    advisory-only findings), 1 = blocking findings. The graded report never
+    emits 2 — that code is reserved for bad-args FAIL at the CLI boundary,
+    so an advisory-only (MEDIUM/LOW) run must not escalate to a block."""
     report = _report(headline="h", summary={"matrix": []}, severities=severities)
     assert report.exit_code == expected
+    assert report.exit_code in (0, 1)

@@ -83,9 +83,11 @@ class CheckReport:
 
     Separates *what was found* (``issues`` + ``summary``) from *how it
     prints*, so a checker's ``collect()`` can stay free of I/O and a single
-    rendering layer can target text or JSON. ``exit_code`` is the single
-    source of truth for the 0/1/2 subprocess contract shared by these
-    builtins: 0 = clean, 1 = blocking findings, 2 = advisory only.
+    rendering layer can target text or JSON. ``exit_code`` follows the
+    Layer 1 gating contract (COMMON-RULES §Layer 1 调用协议): 0 = proceed
+    to Layer 2 (clean or advisory-only findings), 1 = blocking findings.
+    Exit 2 is reserved for bad-args / not-executable FAIL at the CLI
+    boundary and is never produced from findings.
 
     ``summary`` carries non-issue render data (traceability matrices,
     coverage counts) keyed by the producing checker; ``headline`` is the
@@ -98,11 +100,7 @@ class CheckReport:
 
     @property
     def exit_code(self) -> int:
-        if self.issues.blocking:
-            return 1
-        if self.issues.advisory:
-            return 2
-        return 0
+        return 1 if self.issues.blocking else 0
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
