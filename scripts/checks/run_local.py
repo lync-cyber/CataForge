@@ -12,12 +12,12 @@ to be installed**. Useful in two cases:
 Returns 0 iff every check exits 0; otherwise returns 1.
 
 The set of checks mirrors the no-arg / repo-wide hooks declared in
-`.pre-commit-config.yaml`, plus the two whole-tree static gates CI runs
-outside pre-commit — `ruff format --check` and `mypy --strict` — so a
-green local run matches CI for static analysis (only the pytest matrices
-and per-file hooks remain CI-only). Per-file hooks like `workflow-yaml-parse`
-(needs file args) are skipped — they're cheap on the affected commit
-but expensive on the whole repo, so CI keeps them.
+`.pre-commit-config.yaml`, plus whole-tree gates that should have one static
+owner (`ruff format --check`, `mypy --strict`, import-linter, uv lock). CI's
+guards job calls this wrapper directly, so a green local run matches CI for
+static analysis without running the same repo-wide scan twice. Per-file hooks
+like `workflow-yaml-parse` (needs file args) are skipped here and kept as small
+CI/pre-commit checks on the affected files.
 
 Checks invoked as `python -m <module>` (ruff, mypy) skip gracefully when
 the module is absent — e.g. a clone without `[dev]` extras installed — so
