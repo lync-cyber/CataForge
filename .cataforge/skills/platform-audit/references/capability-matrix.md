@@ -82,9 +82,9 @@ Agent 定义支持的 frontmatter 字段超集:
 
 ---
 
-## Platform Features (17)
+## Platform Features
 
-平台级功能特性 boolean flags:
+平台级功能特性 boolean flags（完整集与计数以 `PLATFORM_FEATURES` 为准）:
 
 | # | Feature | 语义 | Claude Code | Cursor | Codex | OpenCode |
 |---|---------|------|------------|--------|-------|----------|
@@ -120,10 +120,10 @@ Agent 定义支持的 frontmatter 字段超集:
 | # | Mode | 语义 | Claude Code | Cursor | Codex | OpenCode |
 |---|------|------|------------|--------|-------|----------|
 | 1 | `default` | 标准权限提示 | ✓ | ✓ | - | ✓ |
-| 2 | `accept_edits` | 自动接受文件编辑 | ✓ | - | - | - |
+| 2 | `acceptEdits` | 自动接受文件编辑 | ✓ | - | - | - |
 | 3 | `auto` | 分类器自动审批 | ✓ | ✓ | ✓ | - |
-| 4 | `dont_ask` | 自动拒绝提示 | ✓ | - | - | - |
-| 5 | `bypass` | 跳过所有权限提示 | ✓ | - | - | - |
+| 4 | `dontAsk` | 自动拒绝提示 | ✓ | - | - | - |
+| 5 | `bypassPermissions` | 跳过所有权限提示 | ✓ | - | - | - |
 | 6 | `plan` | 只读探索 | ✓ | - | - | - |
 | 7 | `read_only` | 顾问模式 | - | - | ✓ | - |
 | 8 | `full_access` | 无限制 | - | - | ✓ | - |
@@ -251,8 +251,8 @@ CataForge 定义 5 个标准 hook 事件:
 
 | 等级 | 覆盖率 | 判定 |
 |------|--------|------|
-| A+ | 10/10 core + 4/4 ext + 5/5 hooks + 15+/17 features | 完全兼容 |
-| A | 10/10 core + 5/5 hooks + 10+/17 features | 高度兼容 |
-| B | 8+/10 core + 3+/5 hooks + 5+/17 features | 推荐接入 |
-| C | 6+/10 core + 1+/5 hooks + 1+/17 features | 有条件接入（需降级方案） |
+| A+ | 10/10 core + 4/4 ext + 5/5 hooks + 15+/18 features | 完全兼容 |
+| A | 10/10 core + 5/5 hooks + 10+/18 features | 高度兼容 |
+| B | 8+/10 core + 3+/5 hooks + 5+/18 features | 推荐接入 |
+| C | 6+/10 core + 1+/5 hooks + 1+/18 features | 有条件接入（需降级方案） |
 | D | <6/10 core 或 0 hooks | 不建议接入 |

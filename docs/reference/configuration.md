@@ -2,7 +2,7 @@
 
 > `.cataforge/` 目录下的配置文件清单与字段说明。所有文件以 **单一来源** 原则组织：平台相关的内容封装在 `platforms/<id>/profile.yaml`，其余文件平台无关。
 >
-> **适用版本**：v0.1.15。Schema 字段以 [`src/cataforge/core/`](../../src/cataforge/core/) 实际实现为权威。
+> **适用版本**：以 `cataforge --version` 为准（= `cataforge.__version__`）。Schema 字段以 [`src/cataforge/core/`](../../src/cataforge/core/) 实际实现为权威。
 
 ## 目录
 
@@ -45,7 +45,7 @@
   "runtime": {
     "platform": "claude-code"
   },
-  "description": "CataForge 统一框架配置。upgrade.state 为本地升级状态（始终保留）；version、runtime_api_version、constants、features、migration_checks、upgrade.source 与 description 等其余字段均由 scaffold 管理，每次 upgrade apply 会被覆盖。runtime.platform 由用户在 setup 时选择，upgrade 期间保留。",
+  "description": "CataForge 统一框架配置。upgrade apply 的 preserve：runtime.platform、upgrade.state，以及 context 与 project 两个块整体（块内 existing key 保留、新 scaffold key 补充）；其余字段（version、runtime_api_version、constants、features、migration_checks、upgrade.source 与 description 自身）均被最新 scaffold 全量覆盖。",
   "upgrade": {
     "source": {
       "type": "github",
@@ -61,27 +61,40 @@
   },
   "constants": {
     "MAX_QUESTIONS_PER_BATCH": 3,
-    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "pre_deploy"],
+    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "post_sprint", "pre_deploy"],
     "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl",
     "EVENT_LOG_SCHEMA": ".cataforge/schemas/event-log.schema.json",
     "DOC_SPLIT_THRESHOLD_LINES": 300,
+    "META_DOC_SPLIT_THRESHOLD_LINES": 500,
     "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
     "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "changelog"],
     "TDD_LIGHT_LOC_THRESHOLD": 150,
+    "TASK_SPLIT_LOC": 250,
+    "MID_PROGRESS_LOC": 200,
     "TDD_DEFAULT_MODE": "light",
     "TDD_REFACTOR_TRIGGER": ["complexity", "duplication", "coupling"],
+    "TDD_INLINE_ELIGIBLE_MODES": ["agile-lite", "agile-prototype"],
     "SPRINT_REVIEW_MICRO_TASK_COUNT": 3,
     "CODE_REVIEW_L2_SKIP_TASK_KINDS": ["chore", "config", "docs"],
     "CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC": 2,
     "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
-    "RETRO_TRIGGER_SELF_CAUSED": 5
+    "RETRO_TRIGGER_SELF_CAUSED": 5,
+    "RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT": 3,
+    "EVENT_LOG_DRIFT_MIN_EVENTS": 10,
+    "ANTI_PATTERN_MIN_COUNT_SKILL": 3,
+    "ANTI_PATTERN_MIN_COUNT_AGENT": 4,
+    "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"],
+    "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 300
   },
   "kg": {
-    "kg_active_doc_types": ["prd", "arch", "test"],
     "store_backend": "oxigraph",
     "db_path": ".cataforge/kg/store",
     "ontology_namespace": "https://cataforge.dev/ontology/",
     "base_namespace": "https://cataforge.dev/instance/"
+  },
+  "context": {
+    "mode": "graph",
+    "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"]
   },
   "project": {
     "languages": []
@@ -131,20 +144,30 @@
 | `runtime.platform` | ✅ | **preserve** | 目标 IDE：`claude-code` / `cursor` / `codex` / `opencode`；由 `cataforge setup --platform` 写入，`set_runtime_platform()` 也会更新此字段 |
 | `runtime.*`（其它） | ✅ | overwrite | `extra='allow'`，但目前无其它 scaffold 已知字段 |
 | `description` | ❌ | overwrite | 框架自述文案 |
-| `constants.MANUAL_REVIEW_CHECKPOINTS` | ❌ | overwrite | 手动审查检查点列表（如 `["pre_dev", "pre_deploy"]`） |
+| `constants.MANUAL_REVIEW_CHECKPOINTS` | ❌ | overwrite | 手动审查检查点列表（默认 `["pre_dev", "post_sprint", "pre_deploy"]`） |
 | `constants.MAX_QUESTIONS_PER_BATCH` | ❌ | overwrite | `AskUserQuestion` 单批最大问题数 |
 | `constants.EVENT_LOG_PATH` / `EVENT_LOG_SCHEMA` | ❌ | overwrite | 事件日志路径与 JSON Schema 位置 |
-| `constants.DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | `context` generate 分支自动分卷阈值 |
-| `constants.DOC_REVIEW_L2_SKIP_THRESHOLD_LINES` | ❌ | overwrite | `context` review 分支 Layer 2 跳过阈值 |
+| `constants.DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | `context` generate 分支自动分卷阈值（默认 300） |
+| `constants.META_DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | SKILL.md / AGENT.md / 协议文档拆分提示阈值（默认 500） |
+| `constants.DOC_REVIEW_L2_SKIP_THRESHOLD_LINES` | ❌ | overwrite | `context` review 分支 Layer 2 跳过阈值（默认 200） |
 | `constants.DOC_REVIEW_L2_SKIP_DOC_TYPES` | ❌ | overwrite | Layer 2 跳过的文档类型 |
 | `constants.TDD_LIGHT_LOC_THRESHOLD` | ❌ | overwrite | tdd_mode 升 standard 的 LOC 上限阈值（默认 150；≤ 阈值 → light） |
+| `constants.TASK_SPLIT_LOC` | ❌ | overwrite | 单任务预估 LOC 超此值时 tech-lead 拆分任务（默认 250） |
+| `constants.MID_PROGRESS_LOC` | ❌ | overwrite | 实现过程中达此 LOC 触发中途进度检查点（默认 200） |
 | `constants.TDD_DEFAULT_MODE` | ❌ | overwrite | 任务卡 `tdd_mode` 缺省值（默认 light） |
 | `constants.TDD_REFACTOR_TRIGGER` | ❌ | overwrite | REFACTOR 阶段条件触发的 category 清单（默认 `[complexity, duplication, coupling]`） |
+| `constants.TDD_INLINE_ELIGIBLE_MODES` | ❌ | overwrite | TDD inline 执行（无 RED/GREEN 子代理）的执行模式集（默认 `[agile-lite, agile-prototype]`） |
 | `constants.SPRINT_REVIEW_MICRO_TASK_COUNT` | ❌ | overwrite | sprint-review 跳过的 micro sprint 任务数阈值（默认 3） |
 | `constants.CODE_REVIEW_L2_SKIP_TASK_KINDS` | ❌ | overwrite | 短路 code-review Layer 2 的 task_kind 清单（默认 `[chore, config, docs]`） |
 | `constants.CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC` | ❌ | overwrite | light 模式短路 Layer 2 的 AC 数上限（默认 2） |
 | `constants.ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS` | ❌ | overwrite | Adaptive Review 反向降级所需的连续 clean 任务数（默认 10） |
-| `constants.RETRO_TRIGGER_SELF_CAUSED` | ❌ | overwrite | reflector 触发的累积自致问题数 |
+| `constants.RETRO_TRIGGER_SELF_CAUSED` | ❌ | overwrite | reflector 触发的累积自致问题数（默认 5） |
+| `constants.RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT` | ❌ | overwrite | `upstream-gap` 纠偏触发 framework-feedback 打包的累积阈值（默认 3） |
+| `constants.EVENT_LOG_DRIFT_MIN_EVENTS` | ❌ | overwrite | framework-review EVENT-LOG 漂移检测要求的最小事件数（默认 10） |
+| `constants.ANTI_PATTERN_MIN_COUNT_SKILL` | ❌ | overwrite | SKILL.md Anti-Patterns 段最小条目数（默认 3） |
+| `constants.ANTI_PATTERN_MIN_COUNT_AGENT` | ❌ | overwrite | AGENT.md Anti-Patterns 段最小条目数（默认 4） |
+| `constants.AGENT_MODEL_DEFAULTS` | ❌ | overwrite | 各 agent 缺省 model tier 映射（heavy: architect/debugger；inherit: orchestrator；余 standard） |
+| `constants.AGENT_MODEL_TIER_HEAVY_WHITELIST` | ❌ | overwrite | 允许 heavy tier 的 agent 白名单（默认 `[architect, debugger]`） |
 | `constants.SKILL_RUNNER_TIMEOUT_DEFAULT_SECS` | ❌ | overwrite | `SkillRunner` 默认 subprocess 超时秒数（默认 300） |
 | `features.<id>.min_version` | ❌ | overwrite | feature 引入的版本号（语义版本） |
 | `features.<id>.auto_enable` | ❌ | overwrite | 是否在符合 `phase_guard` 时自动启用 |
@@ -165,7 +188,8 @@
 | `upgrade.state.last_commit` | ✅ | **preserve** | 上次 apply 拉取的 commit SHA |
 | `upgrade.state.last_version` | ✅ | **preserve** | 上次 apply 时的包版本 |
 | `upgrade.state.last_upgrade_date` | ✅ | **preserve** | 上次 apply 时间戳（ISO 8601） |
-| `kg.kg_active_doc_types` | ✅ | **preserve** | 走 KG 路径的 doc_type 集合（per-doc_type rolling cutover）。空数组 = 全部走 legacy file-loader；scaffold 默认 `["prd","arch","test"]` |
+| `context.mode` | ✅ | **preserve（块级）** | 上下文后端：`graph`（知识图谱）/ `file`（文件加载器）。整个 `context` 块按块级 preserve（块内 existing key 保留、新 scaffold key 补充） |
+| `context.kg_active_doc_types` | ✅ | **preserve（块级）** | 走 KG 路径的 doc_type 集合（per-doc_type rolling cutover）。空数组 = 全部走 legacy file-loader；scaffold 默认 `["prd","arch","ui-spec","dev-plan","test-report","deploy-spec"]` |
 | `project.languages` | ✅ | **preserve** | 项目语言声明（canonical id，见 [`languages.md`](./languages.md)）；由 `cataforge setup --language <id>` 写入，`set_languages()` 也更新此字段。空数组 = 读取时按 marker 文件自动探测 |
 | `project.design_tool` | ✅ | **preserve** | 设计集成开关（`none` / `penpot`）。framework.json 是该字段的单一事实源 —— 由 `cataforge setup --with-penpot` 写入；deploy 据此渲染并强制盖入项目指令文件 §全局约定 「设计工具」字段（`always_overwrite_fields: 全局约定:[设计工具]`） |
 | `kg.store_backend` | ❌ | overwrite | KG 存储后端：`oxigraph`（默认，RocksDB 持久化）/ `memory`（仅测试） |

@@ -120,6 +120,7 @@ PLATFORM_FEATURES: list[str] = [
     "parallel_agents",  # Concurrent agent execution (Cursor, Claude Code)
     "scheduled_tasks",  # Cron/scheduled agent execution (Claude Code, Cursor)
     "background_agents",  # Background agent execution within a session
+    "subagent_interactive",  # Dispatched subagents can prompt the user directly
     "plan_mode",  # Read-only planning mode
     "computer_use",  # Native UI/browser automation capability
     "realtime_voice",  # Voice input/output (Codex WebRTC)

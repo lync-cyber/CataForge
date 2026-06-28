@@ -285,19 +285,19 @@ def test_orphaned_ui_components(docs_dir: Path) -> None:
         consumers: [tech-lead]
         ---
         ## 2. Components
-        ### C-001: LoginForm
+        ### UC-001: LoginForm
         Props: email, password
-        ### C-002: OrphanWidget
+        ### UC-002: OrphanWidget
         Props: data
         ## 3. Pages
         ### P-001: LoginPage
-        Uses C-001
+        Uses UC-001
         """,
     )
     checker = CrossDocChecker(str(docs_dir), quiet=True)
     checker.check_orphaned_components()
     assert len(checker.warnings) == 1
-    assert "C-002" in checker.warnings[0].message
+    assert "UC-002" in checker.warnings[0].message
 
 
 # ---- Traceability matrix ----

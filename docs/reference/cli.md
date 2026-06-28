@@ -2,12 +2,13 @@
 
 > `cataforge` 命令的全部子命令与关键参数。完整帮助请用 `cataforge <cmd> --help`。
 >
-> **适用版本**：v0.3.0（与 [`pyproject.toml`](../../pyproject.toml) 同步；行为以 `cataforge --version` 输出为准）。
+> **适用版本**：以 `cataforge --version` 为准（= `cataforge.__version__`，与 [`pyproject.toml`](../../pyproject.toml) 同步）。
 
 ## 命令总览
 
 | 命令 | 说明 |
 |------|------|
+| [`cataforge bootstrap`](#bootstrap) | 一键 setup → upgrade → deploy → doctor（幂等） |
 | [`cataforge doctor`](#doctor) | 健康诊断，可作 CI gate |
 | [`cataforge setup`](#setup) | 初始化项目、设定运行时平台 |
 | [`cataforge deploy`](#deploy) | 投放资产到目标平台 |
@@ -24,8 +25,31 @@
 | [`cataforge event`](#event) | 写事件日志 |
 | [`cataforge correction`](#correction) | 写 On-Correction Learning 日志 |
 | [`cataforge feedback`](#feedback) | 把下游信号打包为上游可消费的 markdown 反馈 |
+| [`cataforge issue`](#issue) | 上游 GitHub issue 全闭环：triage 拉取分诊 / close 模板化关闭 |
+| [`cataforge penpot`](#penpot) | Penpot 设计工具集成：Docker 栈 + MCP 服务部署与生命周期 |
+| [`cataforge phase`](#phase) | 只读巡检当前 SDLC 工作流阶段及预期产物 |
+| [`cataforge claude-md`](#claude-md) | 项目指令文件卫生：体积诊断 + Learnings Registry 压缩 |
 | [`cataforge viz`](#viz) | 框架 / 项目结构图渲染（Mermaid / DOT / JSON 文本） |
 | [`cataforge git`](#git) | 本地分支卫生：同步默认分支、清理 squash 合并分支、设置仓库 merge 策略 |
+
+---
+
+## bootstrap
+
+**何时用它**：0→1 拉起项目或机器重装后，一条命令把 setup → upgrade → deploy → doctor 串起来；幂等，可反复跑。
+
+```bash
+cataforge bootstrap --platform <id> [--dry-run] [--yes] [--skip-doctor]
+```
+
+按依赖顺序逐步执行，遇首个失败即停。
+
+| 参数 | 作用 |
+|------|------|
+| `--platform <id>` | 目标平台（首次安装必填）：`claude-code` / `cursor` / `codex` / `opencode` |
+| `--dry-run` | 仅打印计划，逐步显示 skip / run 决策，不写盘 |
+| `--yes` | 跳过写盘前的交互确认 |
+| `--skip-doctor` | 跳过末尾 `doctor` 门禁（不推荐 —— doctor 是完整性兜底） |
 
 ---
 
@@ -65,11 +89,10 @@ cataforge setup --platform <id> [--force-scaffold] [--deploy]
 | `--force-scaffold` | 强制刷新 scaffold（保留用户字段），等价于 `upgrade apply` |
 | `--deploy` | 初始化后立即部署（默认不部署） |
 | `--dry-run` | 预演将要做的变更，不写盘 |
-| `--check` / `--check-only` | 仅检查前置条件，不安装（互为别名） |
+| `--check-prereqs` / `--check-only` | 仅检查前置条件，不安装（互为别名） |
 | `--show-diff` | 打印 framework.json 将变更的字段 |
-| `--no-deploy` | `[已废弃 · v0.3 移除]` 不部署已是默认行为，无需显式传入 |
 
-> 自 v0.1.2 起，`setup` 默认**只** 初始化 `.cataforge/` 脚手架与记录目标平台，**不再**自动写入 IDE 产物。
+> `setup` 默认**只** 初始化 `.cataforge/` 脚手架与记录目标平台，**不**自动写入 IDE 产物（产物投放走 `cataforge deploy`，或在 `setup` 上加 `--deploy` 链式触发）。
 
 ---
 
@@ -89,7 +112,6 @@ cataforge deploy [--dry-run] [--platform <id>] [--include-maintainer-only]
 | `--platform <id>` | 临时覆盖 `framework.json` 中的平台设置（可选 `all` 部署到所有平台） |
 | `--conformance` | 仅执行平台 conformance 检查 |
 | `--include-maintainer-only` | 一并部署 SKILL.md 标注 `maintainer-only: true` 的 skill（默认跳过；上游 CataForge 仓库 dogfood 才打开） |
-| `--check` | `[已废弃 · v0.3 移除]` `--dry-run` 的别名，运行时会提示 |
 
 多次 `deploy` 幂等；会自动清理孤儿产物。
 
@@ -147,7 +169,6 @@ cataforge hook test <name>  # 测试指定 hook（接受 --fixture 文件或 --i
 
 Hook 按事件分组：`PreToolUse` / `PostToolUse` / `Stop` / `Notification` / `SessionStart`。
 
-<!-- 变更原因：补具体命令示例，diagnostic #14 -->
 例：
 
 ```bash
@@ -476,7 +497,7 @@ cataforge kg delete "doc/arch/sec/§2 Modules" --cascade --yes
 
 ## event
 
-**何时用它**：编排器或自定义脚本需要向 `docs/EVENT-LOG.jsonl` 追加一条审计事件。协议里长期引用的 `event_logger.py` 在 v0.1.7 起改由本命令实现（shim 保留兼容）。
+**何时用它**：编排器或自定义脚本需要向 `docs/EVENT-LOG.jsonl` 追加一条审计事件。
 
 ```bash
 # 单条写入
@@ -718,6 +739,69 @@ cataforge git ensure-policy [--dry-run]
 
 ---
 
+## issue
+
+**何时用它**：维护者侧把上游仓库的 GitHub issue 拉进来分诊为 SKILL-IMPROVE 草稿，或修复落地后用模板化评论关闭。
+
+```bash
+cataforge issue triage [--repo owner/name] [--label <l>...] [--since YYYY-MM-DD] [--limit N] [--out <dir>] [--dry-run]
+cataforge issue close <N> --verdict <fixed|already-fixed|wontfix> [--pr <N>] [--reason <text>] [--release-tag <tag>] [--dry-run]
+```
+
+| 子命令 | 说明 |
+|--------|------|
+| `issue triage` | Layer 1 分诊：从 `gh` 拉取 issue，按标签 / 状态 / 日期过滤，写出 `docs/reviews/triage/` 下的 SKILL-IMPROVE 草稿（`--dry-run` 仅打印 verdict 表）。 |
+| `issue close` | 用模板化评论关闭 issue：`fixed` / `already-fixed` 需 `--pr`，`wontfix` 需 `--reason`；`--dry-run` 仅打印将发的评论。 |
+
+`--repo` 缺省取 `framework.json#upgrade.source.repo`。完整闭环（含人工 go/no-go）见 `framework-issue-resolve` skill。
+
+---
+
+## penpot
+
+**何时用它**：`design-tool: penpot` 项目需要部署 Penpot 设计稿读写能力 —— 本地 Docker 栈或托管端点 + MCP 服务。
+
+```bash
+cataforge penpot init          # 交互向导：选 Remote / Local / MCP-only 并配置
+cataforge penpot deploy        # 完整部署：Penpot（Docker 栈）+ MCP 服务
+cataforge penpot mcp-only      # 仅启动 MCP 服务（假定 Penpot 已在运行）
+cataforge penpot remote        # 托管模式：从 PENPOT_MCP_URL 注册 MCP 端点（无 Docker/npx）
+cataforge penpot start         # 启动已部署的 Penpot 服务
+cataforge penpot stop          # 停止全部 Penpot 服务
+cataforge penpot status        # 显示 Penpot 服务与 MCP 服务状态
+cataforge penpot doctor        # 诊断 Penpot 集成故障并给修复建议
+```
+
+---
+
+## phase
+
+**何时用它**：只读核对当前 SDLC 阶段是否产齐预期产物（不推进、不写盘）。
+
+```bash
+cataforge phase status         # 校验当前阶段预期产物是否齐备
+```
+
+`phase status` 的门禁结论与 [`cataforge viz phase`](#viz) 着色一致；非 CataForge 驱动的项目优雅退出。
+
+---
+
+## claude-md
+
+**何时用它**：项目指令文件（`CLAUDE.md` / `AGENTS.md`）体积逼近上限，或 Learnings Registry 条目超阈值需压缩归档。
+
+```bash
+cataforge claude-md check                  # 报告体积 + Learnings Registry 条目数
+cataforge claude-md compact [--max N] [--dry-run]   # 裁剪 Learnings Registry，溢出条目归档
+```
+
+| 参数 | 作用 |
+|------|------|
+| `--max <N>` | 覆盖 `framework.json` 的 `claude_md_limits.learnings_registry_max_entries` |
+| `--dry-run` | 打印压缩计划，不改文件 |
+
+---
+
 ## 全局参数
 
 以下参数可置于任何子命令之前，例如 `cataforge -v deploy --platform claude-code`。
@@ -740,9 +824,10 @@ cataforge git ensure-policy [--dry-run]
 | `1`  | 通用失败 | `doctor` 发现 FAIL；验证不通过；缺少前置条件（如 `.cataforge/` 未初始化）；配置错误 |
 | `2`  | Click 用法错误 | 未知选项、缺少必需参数、参数类型不符（由 Click 自动使用） |
 | `3`  | KG 内容校验门失败 | `kg import` 校验失败、`kg validate` 报违例、`kg export` 渲染错误、`kg drift-check` 检测到 doc↔store 漂移；由 `CataforgeError` 子类 `KGVerificationError` 抛出。与 `1` 分开是为了让 CI 能在 "数据真有问题" 与 "环境没准备好" 之间分别动作 |
+| `6`  | SPARQL 查询超时 | `kg query` 超出配置的查询超时；由 `CataforgeError` 子类 `KGQueryTimeoutError` 抛出 |
 | `70` | 功能未实现（stub） | `plugin install` / `plugin remove` 等路线图占位命令；由 `CataforgeError` 子类 `NotImplementedFeature` 抛出 |
 
-> `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`，让 CI 脚本能区分"未实现"与"命令用错"。常量定义在 [`cataforge.interface.cli.errors.EXIT_NOT_IMPLEMENTED`](../../src/cataforge/interface/cli/errors.py)，自 v0.1.0 起就是此值。
+> `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`，让 CI 脚本能区分"未实现"与"命令用错"。常量定义在 [`cataforge.interface.cli.errors.EXIT_NOT_IMPLEMENTED`](../../src/cataforge/interface/cli/errors.py)。
 
 所有非零退出均以统一的 stderr 前缀 `Error: …` 输出（`click.ClickException` 渲染），便于 CI/脚本捕获。
 

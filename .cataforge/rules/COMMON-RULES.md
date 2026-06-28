@@ -35,6 +35,8 @@
 | DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
 | DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, changelog] | 可短路 Layer 2 的 doc_type 白名单（匹配 frontmatter 基名 doc_type）；lite 变体 doc_type 是基名 prd/arch/dev-plan，其短路由 frontmatter `mode ∈ {agile-lite, agile-prototype}` 驱动，见 review.md | doc-review |
 | TDD_LIGHT_LOC_THRESHOLD | 150 | tech-lead 判定 `tdd_mode: standard` 的预估 LOC 上限阈值（LOC ≤ 阈值 → light；> 阈值 → standard） | tech-lead, tdd-engine |
+| TASK_SPLIT_LOC | 250 | task-decomp 拆分阈值：单任务预估 LOC > 此值（或 AC > 6）则在拆分阶段先拆，保任务粒度单一 | task-decomp |
+| MID_PROGRESS_LOC | 200 | tdd-engine mid-progress 增量落盘触发阈值：预估 LOC > 此值（或 AC > 6）时强制 skeleton-first 分批落盘防 truncation；与 `TASK_SPLIT_LOC` 职责不重叠（`MID_PROGRESS_LOC`–`TASK_SPLIT_LOC` 区间由本机制处理，非拆分） | tdd-engine |
 | TDD_DEFAULT_MODE | light | 任务卡 `tdd_mode` 缺省值。LOC > 阈值或带 `security_sensitive: true` / 跨模块时 tech-lead 显式标 standard | tech-lead, tdd-engine |
 | TDD_REFACTOR_TRIGGER | [complexity, duplication, coupling] | standard 模式下 REFACTOR 阶段的条件触发清单（GREEN 后 code-review Layer 1 命中任一 category 才调度 refactorer；任务卡显式 `tdd_refactor: required` 也强制触发） | tdd-engine |
 | TDD_INLINE_ELIGIBLE_MODES | [agile-lite, agile-prototype] | TDD inline 执行（无 RED/GREEN 子代理 dispatch）的执行模式集；standard 走 dispatch 保留子代理审计隔离 | tdd-engine |
@@ -47,7 +49,7 @@
 | EVENT_LOG_DRIFT_MIN_EVENTS | 10 | EVENT-LOG 漂移检测要求的最小事件数 | framework-review |
 | ANTI_PATTERN_MIN_COUNT_SKILL | 3 | SKILL.md Anti-Patterns 段最小条目数 | workflow-framework-generator, framework-review |
 | ANTI_PATTERN_MIN_COUNT_AGENT | 4 | AGENT.md Anti-Patterns 段最小条目数 | workflow-framework-generator, framework-review |
-| AGENT_MODEL_DEFAULTS | per-agent 默认 tier（heavy: architect/debugger；light: reflector；inherit: orchestrator；余 standard） | 各 agent 缺省 model tier | framework-review |
+| AGENT_MODEL_DEFAULTS | per-agent 默认 tier（heavy: architect/debugger；inherit: orchestrator；余 standard） | 各 agent 缺省 model tier | framework-review |
 | AGENT_MODEL_TIER_HEAVY_WHITELIST | [architect, debugger] | 允许 heavy tier 的 agent 白名单 | framework-review |
 | SKILL_RUNNER_TIMEOUT_DEFAULT_SECS | 300 | skill runner 单次执行缺省超时秒数 | skill runner |
 
@@ -243,9 +245,10 @@ Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2�
 | 框架元资产审查 | `docs/reviews/framework/FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}-r{N}.md` | `framework-review-{scope}-{YYYYMMDD}-r{N}` | `framework-review` | `draft` / `approved` |
 | 设计一致性审查报告 | `docs/reviews/design/DESIGN-REVIEW-{component_id}-r{N}.md` | `design-review-{component_id}-r{N}` | `design-review` | `draft` / `approved` |
 | 项目级代码扫描 | `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md` | `code-scan-{YYYYMMDD}-r{N}` | `code-review` | `draft` / `approved` |
+| 上游 issue triage 草稿 | `docs/reviews/triage/SKILL-IMPROVE-{target_id}-issue-{N}.md` | `skill-improve-{target_id}-issue-{N}` | `skill-improve` | `draft` / `approved` |
 | 运维订正日志 | `docs/reviews/CORRECTIONS-LOG.md` | `corrections-log` | `correction-log` | `approved` |
 
-最小字段集（doc-review checker 强制 id / author / status / deps）：
+最小字段集（doc-review checker 强制 id / author / status / deps / consumers；`consumers` 仅 doc_type ∈ {research, changelog} 豁免）：
 
 ```yaml
 ---
@@ -254,6 +257,7 @@ doc_type: review                  # 或 code-review / sprint-review / correction
 author: reviewer                  # 审查报告：reviewer；CORRECTIONS-LOG：cataforge
 status: draft                     # 出 verdict 后改 approved；CORRECTIONS-LOG 恒为 approved
 deps: ["{被审 doc_id 或 task_id}"] # CORRECTIONS-LOG 用 []
+consumers: ["{下游消费 agent/skill}"] # doc_type ∈ {research, changelog} 可省
 ---
 ```
 

@@ -72,9 +72,9 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "title": (
             "EVENT-LOG.jsonl agent_return 事件与 phase routing 对账 "
             "(总事件 ≥ 阈值时 phase-routed agent 0 returns → FAIL，"
-            "ref 字段缺失 → WARN)"
+            "ref 字段缺失 → WARN，未达阈值 → INFO)"
         ),
-        "severity": "fail|warn",
+        "severity": "fail|warn|info",
     },
     {
         "id": "B5_feature_phase_alignment",

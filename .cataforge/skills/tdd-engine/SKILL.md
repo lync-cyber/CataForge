@@ -38,7 +38,7 @@ orchestrator (主线程)
 
 ## Mid-Progress Drop Contract
 
-避免子代理在末尾 finalize 集中产出导致 task-notification truncation（征兆：100+ tools / 100K+ tokens / 5min+ 被打断；`<agent-result>` 不返回但 artifact 已部分落地）。**触发**（任一命中）：`loc_estimate > 200`（缺字段取 `len(AC) × 30`）或 `len(tdd_acceptance) > 6`。命中时 implementer dispatch prompt 强制注入：
+避免子代理在末尾 finalize 集中产出导致 task-notification truncation（征兆：100+ tools / 100K+ tokens / 5min+ 被打断；`<agent-result>` 不返回但 artifact 已部分落地）。**触发**（任一命中）：`loc_estimate > MID_PROGRESS_LOC`（缺字段取 `len(AC) × 30`）或 `len(tdd_acceptance) > 6`。命中时 implementer dispatch prompt 强制注入：
 
 > **Mid-progress 落盘**：
 > 1. 先 `Write` 全部目标文件的**空骨架**（import + export stub + `describe(...)` / 函数签名占位），按**依赖序**落盘——被导入文件先于引用它的文件（写盘纪律见 SUB-AGENT-PROTOCOLS §并行/多文件写盘纪律）
@@ -206,7 +206,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
     任务: 编写最小代码使所有测试通过。在 <agent-result> 中报告 refactor_needed (true/false) 与 refactor_reasons（命中 complexity/duplication/coupling 的具体说明）。
 
-    {{ 当 loc_estimate > 200 或 len(tdd_acceptance) > 6 时附加 }}
+    {{ 当 loc_estimate > MID_PROGRESS_LOC 或 len(tdd_acceptance) > 6 时附加 }}
     见 §Mid-Progress Drop Contract，必须按 4 步契约推进（先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit）。
 ```
 
@@ -319,7 +319,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     summary 中标注: "light mode — RED+GREEN 合并，最终测试全部 PASSED"
     必须报告 refactor_needed / refactor_reasons。
 
-    {{ 当 loc_estimate > 200 或 len(tdd_acceptance) > 6 时附加 }}
+    {{ 当 loc_estimate > MID_PROGRESS_LOC 或 len(tdd_acceptance) > 6 时附加 }}
     见 §Mid-Progress Drop Contract，必须按 4 步契约推进（先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit）。
 ```
 
@@ -370,7 +370,7 @@ orchestrator完成以下收尾:
 ## Anti-Patterns
 
 - 禁止: 在 agile-prototype 模式跑 standard TDD — prototype 设计是快速试错，跑完整三阶段会让重构延迟到正式化时丢失上下文
-- 禁止: 绕过 Mid-Progress Drop Contract 让 implementer 末尾批量 Edit — 触发条件命中（loc_estimate > 200 或 AC > 6）时必须按 4 步契约执行，否则大概率触发子代理 truncation
+- 禁止: 绕过 Mid-Progress Drop Contract 让 implementer 末尾批量 Edit — 触发条件命中（loc_estimate > MID_PROGRESS_LOC 或 AC > 6）时必须按 4 步契约执行，否则大概率触发子代理 truncation
 - 禁止: 在 light-inline / prototype-inline 档调用 agent_dispatch — 内联档核心收益是省 boot token，调度子代理会让 inline 失效且违反 §Inline 触发条件
 - 禁止: REFACTOR 阶段修改测试 assertion 让 GREEN 通过 — refactorer 必须在不动行为契约前提下保持测试 PASS，触发后 orchestrator §Rolled-back Recovery Protocol 接管
 - 避免: REFACTOR 跨 sprint_group 并行 — 同 sprint_group 内 REFACTOR 必须串行（按 task_id 字典序），避免源文件并发改写冲突

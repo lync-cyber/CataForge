@@ -93,6 +93,6 @@ The following live in this branch and back the dispositions above:
   alarms on mutated source body and on FS-only entities, and stays silent on a
   freshly-ingested fixture.
 * `_DEFAULT_DOC_TYPE_MAP` in [`docs/loader.py`](../../src/cataforge/domain/docs/loader.py)
-  now carries the canonical `test → test-report` alias, matching the
-  `KGConfig.kg_active_doc_types` default and the doctor module's internal map.
-  This removes the per-module fork that previously diverged.
+  carries the canonical `test → test-report` alias, matching the
+  `KGConfig.kg_active_doc_types` default and the doctor module's internal map —
+  a single shared mapping, no per-module fork.
