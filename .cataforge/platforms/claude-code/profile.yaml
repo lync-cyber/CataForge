@@ -160,14 +160,14 @@ model_routing:
     heavy: opus
 
 context_injection:
-  # Claude Code 自动注入 CLAUDE.md 到每次会话；@-mention 也是 eager（启动即入上下
-  # 文），因此 preamble 仅放必读且短的 COMMON-RULES，避免常驻 token 膨胀。
+  # 规则单一注入路径：rules_distribution 把 .cataforge/rules/ 镜像到 .claude/rules/，
+  # Claude Code 原生自动注入该目录。preamble_files 留空，使 COMMON-RULES 只经镜像注入
+  # 一次（同一文件经 @import preamble + 目录镜像两路会在上下文出现两份）。
   auto_injection:
     mechanism: claude_md
     eager: true
     size_limit_bytes: null
-    preamble_files:
-      - .cataforge/rules/COMMON-RULES.md
+    preamble_files: []
   inline_file_syntax:
     kind: at_mention
     template: "@{path}"

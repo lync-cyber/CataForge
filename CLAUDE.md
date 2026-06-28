@@ -1,12 +1,10 @@
-@.cataforge/rules/COMMON-RULES.md
-
 # CataForge — Claude Code 项目指令
 
 ## 项目信息
 
 - 技术栈: Python ≥3.10 · Click(CLI) · pyoxigraph/RDF/SHACL(知识图谱) · linkml(schema) · pytest + ruff + pre-commit
 - 运行时: claude-code
-- 框架版本: 0.12.0
+- 框架版本: 0.14.0
   <!-- 由 cataforge deploy 自动盖入已安装包版本。SemVer: MAJOR=不兼容变更, MINOR=新功能, PATCH=修复 -->
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
@@ -52,7 +50,9 @@
 - Commit: conventional-commits `<type>(<scope>): <subject>`（详见 §Git 工作流）
 - 分支: `main` 受保护，feature branch + PR，仅 Squash merge（详见 §Git 工作流）
 - 设计工具: none
-  <!-- 可选值: none | penpot。设为 penpot 时启用 Penpot MCP 集成 -->
+  <!-- 由 cataforge deploy 从 framework.json#project.design_tool 盖入。切换用 `cataforge setup --with-penpot`，勿手改本行 -->
+  <!-- 可选值: none | penpot。penpot 时启用 Penpot MCP 集成 -->
+
 - 人工审查检查点: [pre_dev, pre_deploy]
   <!-- 详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
 - 文档类型命名: 小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数和产出文件名
@@ -148,7 +148,9 @@ cataforge deploy --include-maintainer-only
 
 per-skill junction (Windows) / symlink (Unix) 把 `.cataforge/skills/` 每个子目录暴露到 `.claude/skills/`。`--include-maintainer-only` 让 SKILL.md 标 `maintainer-only: true` 的 skill（目前仅 `framework-issue-resolve`）也链进来。下游业务项目部署不应传这个 flag —— 那些 skill 操作 CataForge 自身的 `.cataforge/` 元资产，对下游只会占用 prompt 上下文。
 
-`.claude/skills/` / `.claude/agents/` 与 `.claude/commands/` 下其他文件都在 [.gitignore](.gitignore)；只有 wrapper 单文件例外。
+`.claude/skills/` / `.claude/agents/` / `.claude/rules/` 与 `.claude/commands/` 下其他文件都在 [.gitignore](.gitignore)；只有 wrapper 单文件例外。
+
+框架规则（COMMON-RULES / SUB-AGENT-PROTOCOLS）经 `cataforge deploy` 由 `.cataforge/rules/` 镜像到 `.claude/rules/` 单路注入（CLAUDE.md 无 @import preamble，使同一规则不经 @import + 目录镜像两路在上下文出现两份）。orchestrator 与子代理的完整工作流依赖该镜像，故 face 1 的 slash command 之外、完整框架运行前需先 deploy。
 
 ## Agent / Skill 撰写约定
 
