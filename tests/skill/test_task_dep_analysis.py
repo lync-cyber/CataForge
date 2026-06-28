@@ -11,6 +11,10 @@ import json
 import subprocess
 import sys
 
+from cataforge.runtime.skill.builtins.task_dep_analysis.task_dep_analysis import (
+    detect_cycles,
+)
+
 _MODULE = "cataforge.runtime.skill.builtins.task_dep_analysis.task_dep_analysis"
 
 
@@ -42,3 +46,20 @@ def test_cycle_exits_one() -> None:
     result = _run("--edges", "T-001->T-002,T-002->T-001")
     assert result.returncode == 1, result.stderr
     assert json.loads(result.stdout)["cycle_detected"] is True
+
+
+def test_deep_chain_does_not_overflow() -> None:
+    # A chain longer than the interpreter recursion limit must traverse
+    # without raising RecursionError (iterative DFS) and report no cycle.
+    depth = sys.getrecursionlimit() * 3
+    nodes = [f"T-{i:05d}" for i in range(depth)]
+    graph = {nodes[i]: [nodes[i + 1]] for i in range(depth - 1)}
+    assert detect_cycles(graph, set(nodes)) == []
+
+
+def test_deep_chain_back_edge_is_detected() -> None:
+    depth = sys.getrecursionlimit() * 3
+    nodes = [f"T-{i:05d}" for i in range(depth)]
+    graph = {nodes[i]: [nodes[i + 1]] for i in range(depth - 1)}
+    graph[nodes[-1]] = [nodes[0]]
+    assert detect_cycles(graph, set(nodes))

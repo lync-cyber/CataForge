@@ -144,7 +144,7 @@ class TestTriage:
         )
         assert draft_path.is_file()
         text = draft_path.read_text(encoding="utf-8")
-        assert "status: triage-draft" in text
+        assert "status: draft" in text
         assert "tdd-engine" in text
 
     def test_unrelated_issue_skipped(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

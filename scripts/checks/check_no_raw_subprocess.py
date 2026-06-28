@@ -48,8 +48,6 @@ EXEMPT_PATHS = (
 RAW_RE = re.compile(r"\bsubprocess\.(run|Popen|call|check_output|check_call)\s*\(")
 ALLOW_MARKER = "# allow-raw-subprocess"
 
-ADVISORY_MODE = False
-
 
 def main() -> int:
     if not SCAN_DIR.is_dir():
@@ -74,23 +72,6 @@ def main() -> int:
 
     if not offenders:
         print("OK: no raw subprocess calls outside the wrapper")
-        return 0
-
-    if ADVISORY_MODE:
-        print(
-            f"ADVISORY: {len(offenders)} raw subprocess call(s) remain under "
-            f"src/cataforge/. Migration to "
-            f"cataforge.utils.run_subprocess.run is gradual — see the helper's "
-            f"docstring for the per-site pattern. Add `{ALLOW_MARKER}: <reason>` "
-            f"on the same line to silence individual exempt sites."
-        )
-        for offender in offenders[:10]:
-            print(f"  {offender}")
-        if len(offenders) > 10:
-            print(f"  ... and {len(offenders) - 10} more (full list with --verbose).")
-        if "--verbose" in sys.argv[1:]:
-            for offender in offenders[10:]:
-                print(f"  {offender}")
         return 0
 
     print(

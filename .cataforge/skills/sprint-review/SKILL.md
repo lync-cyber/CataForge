@@ -13,12 +13,11 @@ user-invocable: true
 - 能做: Sprint交付完成度审查、AC覆盖验证、范围偏移检测(gold-plating/drift/缺失)、质量聚合
 - 不做: 修改代码或文档(仅报告问题)、单个任务的code-review(由code-review skill负责)
 
-## 审查档位（standard / lite / merged-review）
+## 审查档位（standard / merged-review）
 
 | 档位 | 触发 | per-task code-review | 适用 |
 |------|------|---------------------|------|
 | **standard** | 默认 | 每任务一份 `docs/reviews/code/CODE-REVIEW-T-NNN-*.md` | 大多数 sprint，任务异质（feature / fix / docs / config 混合） |
-| **lite** | `SPRINT_REVIEW_MICRO_TASK_COUNT` 触发（详见 COMMON-RULES） | 每任务一份，但 sprint-review 只跑 Layer 1 | 任务数 ≤ 阈值的小型 sprint |
 | **merged-review** | dev-plan frontmatter `project_features.merged_review: true` | **跳过** per-task CODE-REVIEW；sprint-review 报告承担 per-task Layer 2 职责 | 任务同质（如同模块批量路由 / 同 adapter 系列），N 个任务的 N 份 CODE-REVIEW 冗余 |
 
 ### merged-review 模式行为

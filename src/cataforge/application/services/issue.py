@@ -250,7 +250,7 @@ def write_skill_improve_draft(
         f"---\n"
         f"author: framework-issue-resolve\n"
         f"date: {today}\n"
-        f"status: triage-draft\n"
+        f"status: draft\n"
         f"source_issue: {issue_url}\n"
         f"target_id: {target_id}\n"
         f"target_kind: {target_kind}\n"
