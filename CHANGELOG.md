@@ -20,6 +20,99 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.15.0'></a>
+## [0.15.0] — 2026-06-28
+
+### Added
+
+- **平台 profile 新增 `settings_defaults`，deploy 时 set-if-absent 注入平台设置文件** —— claude-code profile 借此把 `env.CLAUDE_CODE_USE_POWERSHELL_TOOL=0` + `defaultShell=bash` 落进 `.claude/settings.json`，Windows 上让 Claude Code 的 Bash 工具走 Git Bash 而非原生 PowerShell 工具。每次 `cataforge deploy` 都注入、与执行 deploy 的机器 OS 无关；用户手动设过的值不被覆盖。
+- **`cataforge doctor` 新增「Shell preference」段** —— Windows 上当 settings 偏好 Git Bash（`CLAUDE_CODE_USE_POWERSHELL_TOOL=0`）但机器上找不到 Git Bash 时 WARN（非门禁），提示装 Git for Windows 或设 `CLAUDE_CODE_GIT_BASH_PATH`。
+
+- **viz 接入 agentic 工作流** —— 新增薄发现型 skill `.cataforge/skills/project-visualization/`（instructional、`user-invocable: false`），让 orchestrator 与各 agent 按情境（看覆盖盲区 / 追溯断链 / 核对架构 / 项目健康度总览…）自主发现并调用 `cataforge viz <视图>`；其情境→视图映射承载「定向」语义。orchestrator 在每个 Sprint 收口（短路与正常路径均适用）确定性产出 `docs/viz/dashboard.html` 健康度看板作保底。此前 viz 命令面虽已实现，但工作流缺发现面与触发点，富视图从不被自动调用。
+
+- **penpot-bridge 视觉 grounding** —— `read` / `verify` 接入 Penpot MCP `export_shape` 导出组件图像，使设计决策与一致性校验基于渲染像素而非散文描述。
+
+- **`cataforge doctor` 新增「KG snapshot gitignore」检查** —— graph 模式下被忽略的 store 靠 clone 时从 committed NQuads 快照重建，若项目根 `.gitignore` 同时忽略了 `.cataforge/kg/snapshots/`，图谱唯一的持久化产物会静默丢失、clone 后图谱为空却 doctor 全绿。新检查经 `git check-ignore` 权威判定快照目录是否被忽略，命中给 advisory WARN（非 gating）；非 graph 模式与非 git work-tree 跳过。
+
+- **CLAUDE.md hygiene 新增「§项目状态 单 bullet 字符长度」维度** —— 既有维度（总字节 / §项目状态 行数 / Learnings 条目数）漏掉单 bullet run-on 膨胀形态：一条状态 bullet 把闭环 PR / 调试历史堆成数千字符单行时行数恒定、字节未触限，治理却全绿。新增 `max_state_bullet_chars`（默认 500，可经 `framework.json#claude_md_limits` 配置），`cataforge doctor` 与 `cataforge claude-md check` 在超限时给 advisory WARN（非 gating）。
+
+- **`project_features.deliverables_representative` 标志** —— 设为 true 时短路 unplanned-files（gold-plating）检测；当交付物清单是代表性而非穷举时，每个未列出的文件都是误报（实测数百条淹没信号）。
+
+- **graph 迁移数据种子** —— `cataforge upgrade apply` 在 scaffold 把存量 hybrid / 无 mode 项目 config-flip 到 `context.mode=graph` 后，新增 `seed_graph_from_docs`：当 graph 模式下 store 为空且无快照时，从 `docs/` ingest（md→KG）→ finalize（KG→md，写导出基线 + 快照），令 reconcile 归零，避免首次读即 NEVER_EXPORTED 漂移。幂等（快照存在即跳过），reconcile 非零时报阻塞点而非静默放行。
+
+- **code-review Layer 1 UI 保真检查** (`ui_fidelity`) —— 跨文件静态扫描设计系统三类「门禁全绿却渲染坏掉」缺陷：死 token（声明的 CSS 自定义属性零 `var()` 消费）判 FAIL，未加载字体（引用的 `font-family` 无 `@font-face`/fontsource 加载）与幽灵类（markup 引用零定义 class，检测到 utility 框架则整体跳过）判 WARN。消费/加载/定义跨整个项目解析、声明只查受审文件，文件级豁免 `cataforge-allow-ui-fidelity`。([#385](https://github.com/lync-cyber/CataForge/issues/385))
+- **项目 MCP server 部署即预启用** —— Claude Code deploy 注入 `.mcp.json` 时同步把 server 写入 `.claude/settings.local.json#enabledMcpjsonServers`，消除每新会话手动重批漏批导致 DESIGN 轨静默无 penpot 工具；其余平台无此门则 no-op。([#375](https://github.com/lync-cyber/CataForge/issues/375))
+
+- **部署态 markdown 链接解析守卫** —— 新增 doctor 检查，校验分发资产（SKILL / AGENT）内每条 markdown 链接在部署布局下都能解析到 `.cataforge/` 树内的存在文件，悬空链接 FAIL，防止"可部署边界 ≠ 引用位置边界"类回归。([#402](https://github.com/lync-cyber/CataForge/pull/402))
+
+### Changed
+
+- **shell 偏好从 `cataforge setup permissions` 的 win32 旁路移到 deploy 主路径** —— 原逻辑按「执行 setup 的机器是否 Windows」门控、且只在可选的 permissions 收窄步骤里写入，跨平台提交与下游分发都不可靠；现由 profile 声明、deploy 标准产出，单一事实源在 `settings_defaults`。`setup permissions` 回归到只收窄 Bash allowlist。
+
+- **orchestrator 启动不再复述角色身份/调度宿主** —— `/start-orchestrator` 的 §角色假设 由第一人称身份断言改为调度行为指令，并新增首条输出规范（分支 A 确认理解+询问执行模式、分支 B 报告恢复阶段），消除「我是 orchestrator（主线程直接扮演该角色，不派发子代理）」类无意义开场白。
+- **续接固定为 file-based 重派发** —— agent-dispatch §注意事项 与 SUB-AGENT-PROTOCOLS §task_type=continuation 显式声明 continuation 禁止依赖平台原生「带上下文续接子代理」原语（跨平台不可移植），四平台佐证矩阵见 `docs/reference/continuation-portability.md`。
+
+- **Penpot 集成收敛为单一 `penpot-bridge` skill** —— 原 penpot-sync / penpot-implement / penpot-review 三 skill 合并为 `penpot-bridge`（`read` / `sync` / `generate` / `verify` 四操作），MCP 可用性探测 / 工具发现 / blocked 降级统一声明一次，`verify` 仍由 reviewer 独占；skill 总数 28 → 26，`framework.json` feature `penpot-sync` 改名 `penpot-bridge`。
+- **ui-spec 权威划分明确化** —— 语义（Token 命名/意图、组件身份/Props/状态/AC、页面结构/状态流/路由）恒以 ui-spec 为权威源；视觉实值随 authoring surface（doc-first ui-spec、Penpot-first Penpot）。ui-spec 模板族补「权威源约定」，解三 skill 的权威源自相矛盾。
+- **Token 同步去三方自造 reconcile** —— `penpot-bridge sync` 的 sync-direction 改为 `emit`（ui-spec §1 → tokens.css 单向派生）/ `mirror`（→ Penpot 可选镜像）/ `ingest`（Penpot-first 经 `cataforge context ingest` 回流）；tokens.css 不再作独立权威源参与 reconcile。
+
+- **context.mode 收敛为两态** —— 移除 `hybrid`，仅保留 `graph`（默认，kg-first：KG 为单一事实源、markdown 为 `finalize` 导出的人审视图、`context write/update` 直写图）与 `markdown`（opt-out，无 KG、直接编辑 `docs/`）。`DEFAULT_MODE` 由 `hybrid` 改为 `graph`；`ModePolicy` 收敛为单一 `graph_enabled` 判定，`remediation_for` 仅剩 graph（export/ingest/manual）与 markdown（ingest）两支；`_require_graph_mode` 仅放行 graph、markdown 拒并指向「编辑 docs/」。`setup` / `bootstrap` 的 `--context-mode` Choice、`framework.json` schema 默认、doctor `context.mode` 有效性门同步两态。存量 `hybrid`（及缺失 mode 回退旧默认）项目在 `cataforge upgrade apply` 时由 `_migrate_context_mode` 自动改写为 `graph`，doctor 拒绝手编 `hybrid` 并指向 `upgrade apply`。实施提案 `docs/proposals/remove-hybrid-context-mode.md`；数据种子迁移（ingest→导出 baseline）与 graph 模式加固（finalize 保卷 / amendment 定位 / write-doc 关系幂等）为配对后续。
+
+- **sprint-review 空 Sprint 诊断分级** —— 零任务时不再一律 `[CRITICAL] Sprint N 中未找到任务`，改由 `classify_empty_extraction` 区分 `no_tasks`（dev-plan 无任何 T-NNN）/ `no_anchor`（无 `### Sprint N` 标题或 `-sN.md` 分卷锚定）/ `anchored_empty`（已锚定但未解析出任务），JSON 输出带 `reason` 字段，文本输出附可执行修复提示。
+
+- **dev-plan AC 拟合上游契约纪律扩展** —— tech-lead AGENT.md + task-decomp SKILL.md 新增 `pipeline-stage coverage`：arch 模块定义为有序管线（stage 序列）时，每个 stage 的运行时接线须有任务卡 deliverables 承载，禁止某 stage 仅以占位 / 空返回满足字面 AC 而无接线任务（运行时管线在该 stage 静默断裂）。补齐既有 `AC contract-completeness`（响应码 / 安全路径覆盖）未涵盖的管线分解完整性维度。
+- **COMMON-RULES §输出质量原则 增「保真类 AC 断言渲染效果」** —— UI / 视觉 / 设计系统保真类 tdd_acceptance 必须断言渲染 / 计算后的可观测值（实际生效字号 / 颜色 / 字体族、token 是否被真实消费、字体是否实际加载），而非源码中变量名 / 类名 / token 名的字面存在；附「死 token / 幽灵类字面存在即过关」对比式反例。
+
+- **ui_design 进入设 Design-Tool Capability Gate** —— design_tool=penpot 时 orchestrator 派发 ui-designer 前于主线程门禁 MCP 可用性，区分「工具未注册」与「连接失败 / 插件未连」两类形态，不可用即 surface 显式降级决策、把 design_tool 落 none 并记 `state_change`，消除静默降级与 design_tool 假信号。([#384](https://github.com/lync-cyber/CataForge/issues/384))
+- **code-review 增 visual-fidelity 审查维度** —— `user_facing_critical_path` 的 UI 任务收口须有渲染证据（截图 / 计算样式），覆盖 `ui_fidelity` 静态抓不到的渲染缺陷（内容/图标渲染成字面文本、状态视觉缺失）；无头 / 沙盒环境出 `conditional_release` + 非空 `blocking_conditions` 驱动闭环，不以 `[ENV-LIMITATION]` / `[ASSUMPTION]` 豁免。([#385](https://github.com/lync-cyber/CataForge/issues/385))
+
+- **语言细则改由 owning skill 携带为 `references/lang-<lang>.md`** —— 原先挂在 6 个 agent 的 `rules/lang-<lang>.md`，靠 deploy 期向落地 agent 注入 `## 语言细则` 跨树链接回 `.cataforge/`；现迁入对应 skill（arc-design / code-review / testing / tdd-engine / debug / deploy-config）的 `references/`，随 `deploy_skills` 整目录自包含落地到 `.claude/skills/<id>/references/`。主对话直用 skill（如 `/code-review`）与子代理执行 skill 走同一份；各 SKILL.md 按 `project.languages` 只载入 active 语言对应的 `references/lang-<lang>.md`。TDD 子代理（test-writer / implementer）的语言细则由 tdd-engine 在 RED / GREEN 派发 prompt 时注入。
+
+- **框架常量与提示词资产收敛为单一事实源** —— 新增 `TASK_SPLIT_LOC` (250) / `MID_PROGRESS_LOC` (200) 常量，在 `framework.json` 与 COMMON-RULES 双向注册并加 migration check；`task-decomp` / `tdd-engine` 改为引用常量名而非裸值。reflector `model_tier` 由 light 调为 standard（与跨报告综合职责匹配）。`PLATFORM_FEATURES` 补 `subagent_interactive`（共 18 项）。orchestrator Bootstrap 默认值改引用 `MANUAL_REVIEW_CHECKPOINTS`，Phase Transition 步骤重编号为连续 1–10，Phase Routing 表降为只读骨架并以 `framework.json#/workflow` 为权威。维护者文档（`docs/reference/`）SSOT 订正：版本横幅指向 `cataforge --version`、cli 补全 5 命令、status-codes 退出码/分类/事件枚举对齐、configuration 将 `kg_active_doc_types` 归位到 `context` 块。([#403](https://github.com/lync-cyber/CataForge/pull/403))
+
+- **死路径消除（AD-7）** —— 清除「声明了但永不可达」的幽灵能力，使枚举 / 档位 / 退出码取值与实际可达路径一一对应。agent-dispatch 的 `task_type` 枚举删去 `retrospective` / `skill-improvement` / `apply-learnings`（reflector 家族现走 orchestrator inline 或 CLI `cataforge agent run --task-type`，CLI / event-log 面保留）；sprint-review 删去不可达的 `lite` 档（任务数 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT` 时整轮 sprint-review 已被 orchestrator 短路跳过，该档触发条件下根本不运行）。([#405](https://github.com/lync-cyber/CataForge/pull/405))
+
+- **方法论与 reference 副本收敛到单一定义（AD-2）** —— Mid-Progress 落盘契约从 reviewer / debugger / test-writer 三个 AGENT 的逐字复制段抽到 SUB-AGENT-PROTOCOLS §Mid-Progress 落盘契约单点定义，三 AGENT 仅留引用 + 各自落盘单元一句特化。platform-audit 的 `capability-matrix.md` 删去「跨平台映射基线」8 张逐平台原始值表（profile.yaml 的 `tool_map` / `extended_capabilities` / `hooks` / `agent_config` / `dispatch` / `model_routing` 复述副本），改为指向 profile.yaml 的指针；workflow-generator 的 maxTurns 档位统一为单一三档 30 / 80 / 150（`architecture-guidelines.md` 四档范围收敛为三点值，example workflows 5 处越档值归档）。([#406](https://github.com/lync-cyber/CataForge/pull/406))
+
+- **指导/边界补齐 + Layer 1 builtin 健壮性（P5 收尾）** —— devops 补具名默认倾向 Anti-Pattern（重型部署全家桶）+ 决策视角，product-manager 补 shell_exec 收紧 Anti-Pattern，change-guard 为 `clarification` 分支定义 `drift_level = n/a`，ui-design 统一页面/组件 id 为 `P-{NNN}`/`UC-{NNN}` 并把实现后才做的 Penpot 一致性验证移出设计步骤；research / tech-eval / task-decomp / arc-design 各补一条 blocked 降级 / 空 languages 分支（路由 COMMON-RULES §通用 Error Handling）。([#407](https://github.com/lync-cyber/CataForge/pull/407))
+
+- **规则单路注入：消除 COMMON-RULES 双份注入（J1）** —— claude-code 的 `profile.yaml` 原同时经 `auto_injection.preamble_files`（CLAUDE.md `@import` preamble）与 `rules_distribution`（`.claude/rules/` 镜像）两路注入同一 COMMON-RULES，上下文出现两份。现把 `preamble_files` 置空并删去 CLAUDE.md 的 `@import` 行，`.claude/rules/` 镜像成为唯一注入源；`cataforge deploy` 由 canonical `.cataforge/rules/` 重生镜像（COMMON-RULES byte-for-byte 一致，SUB-AGENT-PROTOCOLS 仅 `{AGENTS_SRC_DIR}` 占位符替换并含 P5 的 Mid-Progress 契约）。CLAUDE.md §Dogfood 注明完整框架运行前需 deploy。([#408](https://github.com/lync-cyber/CataForge/pull/408))
+
+- **anti-rot 守卫补强：统一扫描覆盖 + 对账探针 + 共享基建（K1–K6）** —— 抽出 `scripts/checks/_common.py` 单源化三条元守卫的 stdio 重配置、资产遍历、code-fence/frontmatter 跳过与大小写无关 escape-hatch；`check_no_design_residue` / `check_doc_structure` 扫描集扩到 `docs/reference/` 及 skill `references/`+`templates/`，residue 新增中文对比叙事锚点（`原方案`/`收紧自`/`不再使用`/`重命名为`，裸 `改为` 不计避免误报），doc-structure 新增 heading（`### 3a.`）与表格单元格（`| 3a. |`）非标准编号检测（存量 `audit-checklist.md` 子节重编号为 `3.1/3.2/3.3`）。新增 `check_markdown_link_resolution`（部署态 SKILL/AGENT/references 相对链接须解析到 `.cataforge/` 树内文件）、`check_ssot_reconciliation`（`PLATFORM_FEATURES` ↔ `_schema.yaml`/各 `profile.yaml` features；framework-review 每个 `report.add` id ∈ `CHECKS_MANIFEST`）、`check_run_local_coverage`（每个确定性 `check_*.py` 都接入 `run_local.py` 或在 CI-only 白名单）。守卫质量四修：`check_skill_count` 按 `SKILL.md` 存在性计数、`check_schema_python_parity` OK 文案改为动态基数、`framework_review/checks/b6.py` 解析失败分支孤儿 id `B6_hook_consistency` → `B6_hook_script_reachability`、`check_orphan_cli_capabilities` 纳入 `hooks/hooks.yaml` 作为调用面。三处新守卫同步接入 `run_local.py` / `.pre-commit-config.yaml` / CI。([#409](https://github.com/lync-cyber/CataForge/pull/409))
+
+### Fixed
+
+- **`cataforge issue close` 不再在已关闭 issue 上丢评论** —— 原 `gh issue close --comment` 在 issue 已 CLOSED 时（fix PR 的 "Closes #N" 在 merge 时自动关闭，早于 Step 5 的 close）静默丢弃模板化评论却仍报成功，下游 reporter 收不到 "Fixed in vX.Y.Z (PR #P)" 通知。改为先 `gh issue comment`（无视开/关都发）再 `gh issue close`（幂等），通知不再依赖 issue 仍 open。
+
+- **KG 关系抽取不再把 heading 里 inline-code 的 entity-id 当 section subject** —— 覆盖矩阵 heading 注解里被反引号包裹的 entity-id（如 `` `T-010` ``）原被 `_section_subject_entity` 取作 section subject，致矩阵行 xref 的 subject 与 target 相同被 skip、TestCase 无法成为 relation endpoint。现在与 body 抽取一致地先剥离 title 的 inline-code 再匹配。
+- **doctor dangling 引用 WARN 按 home doc_type 是否 active 分流** —— home 已 active 的 dangling（如 TC/CR/SR）原被一律提示「register the defining doc_type」，而该 doc_type 早已 active，建议是死路。现拆分：home 未 active → register 建议；home 已 active 但定义缺失 → 提示改为 relation endpoint（strict-xref 降级）/ inline-code 豁免 / 修正陈旧引用。
+
+- **claude-code 的 `lint_format` 钩子在 `Write` 新建文件后也触发** —— 原 matcher 仅 `Edit`，TDD GREEN 子代理以 `Write` 新建的文件跳过实时 lint/format，问题延迟到 Sprint gate 才暴露。claude-code profile 新增 `hooks.tool_overrides: {file_edit: "Edit|Write"}`（仅作用于 hook matcher 解析，不动别处的 capability 映射）。
+
+- **sprint-review Layer 1 自动检测外部状态追踪** —— 当某 Sprint 全部任务在 dev-plan 中均无状态（状态真值在 graph / EVENT-LOG）时，原会对每个任务报 `task_status_done` advisory，淹没真实信号。新增 `resolve_task_status_external(features, tasks)` 在该情形自动视为外部追踪（仍可经显式 `task_status_external` 覆盖），报告标注自动检测。
+
+- **子代理写盘纪律** —— 新增 `SUB-AGENT-PROTOCOLS §并行/多文件写盘纪律`（依赖序写盘、编辑边界合法态、收敛点门禁为真值、不绕过静态边界守卫），并在 tdd-engine / implementer 操作面接线：implementer §Post-GREEN Validation 静态门加类型检查列并明确 scoped 自测不坐实 GREEN；tdd-engine §Mid-Progress 空骨架按依赖序落盘；产代码的 chore 任务标 done 前强制 changed-scope 类型检查 + lint 门。关闭下游 dogfood 报告的 #373.2 / #374.2 / #374.3 / #378.3 / #379 五项 upstream-gap。
+
+- **sprint-review 任务解析确定性** —— `extract_sprint_tasks` 此前对「`### Sprint N` 总览表无 status 列 + 多 Sprint 区间详情卷（`-sIsJ.md`，非 `-sN.md`）」布局结构性报「未找到任务」，迫使每 Sprint 走人工兜底。现 `### Sprint N` 区段内首列为 `T-NNN` 的总览行即视为该 Sprint 任务（status 经 `_backfill_missing_status` / 外部追踪回填）；`in_sprint` 改为逐文件重置，消除某文件的 Sprint 标题误把另一文件无标题卡片归入该 Sprint 的文件序依赖；同 id 的总览行与详情卡片合并去重。
+
+- **approved 文档 status 冻结守卫** —— `context write-doc` 重写一个已 `approved` 的 Document 时，若新 markdown frontmatter 的 status 非 approved（即降级），现拒绝并要求先经 `context write-meta` 显式转换；此前内容重写会随 frontmatter 把 approved 静默降级为 draft。
+
+- **可部署资产卸载的承重 reference 不再悬空** —— `wiring-checks` / `debug-patterns` / `test-and-e2e-apis` 三份承重 reference 原放在不随 `cataforge deploy` 落地的仓库级 `docs/reference/`，下游部署后消费 skill / agent 内的链接全部指向不存在路径。现迁入各消费 skill 的 `references/`，随 per-skill scaffold 自包含落地；消费方链接改写为 skill-local 相对路径，正文内嵌的语言标识符一并卸载至 references。([#402](https://github.com/lync-cyber/CataForge/pull/402))
+
+- **doc-consistency 孤儿 UI 组件检测从不触发** —— 检查器原抽 `C-` 前缀，而 ui-spec 组件 SSOT 前缀为 `UC-`，导致孤儿检测恒为空；改为 `UC-` 后在合规 ui-spec 上真正生效。([#403](https://github.com/lync-cyber/CataForge/pull/403))
+
+- **Layer 1 退出码契约统一为单一权威** —— Layer 1 审查 builtin 原把 advisory-only（仅 MEDIUM/LOW）映射为退出码 `2`，而 `2` 在 COMMON-RULES §Layer 1 协议中表 FAIL（bad-args / 不可执行），`_shared` / `runner` / 协议三方互斥，导致 doc-consistency 仅含 MEDIUM 时被误升为阻塞。现以协议为唯一源：advisory-only → `0`（进 Layer 2），`2` 仅留 FAIL 并经 runner 映射为 `blocked`（与 `127` 同列 FAIL、保留区分 detail 供 doctor 分诊）；`doc_review` / `doc_consistency` / `sprint_review` 的文档读取统一 `errors="replace"`，BOM 或非法字节不再使 Layer 1 崩溃。([#404](https://github.com/lync-cyber/CataForge/pull/404))
+
+- **issue triage 草稿状态合规 + 守卫代码死块清理** —— `cataforge issue` triage 草稿生成器原写 `status: triage-draft`，不在 doc-review 合法状态枚举（`draft` / `review` / `approved`）内，现改 `draft`。同时清除三处死代码：`check_no_raw_subprocess` 恒假的 `ADVISORY_MODE` 分支、`check_layer_dependencies` 永不填充的 `module_level_exempt` 空集分支、`doc_consistency/_parse` 9 个零引用 id 正则；`detect_cycles` 由递归 DFS 改迭代 DFS，深依赖链不再触发 `RecursionError`。([#405](https://github.com/lync-cyber/CataForge/pull/405))
+
+- **Layer 1 builtin 边界与措辞** —— `check_no_todo` 改逐行判定（无关 `[ASSUMPTION]` 不再抵消未标注 TODO）；code-review 的 `collect_files` / `collect_extensions` / `_collect` 共享 `os.walk` 剪枝 helper，不再 rglob 全树后过滤；`check_hooks_yaml_schema` 经守卫 helper 加载 real-hooks（缺失/非法 YAML → clean FAIL）；e2e-scan render 对零 WARN 零验证运行如实标 `(no real-input verified)`。([#407](https://github.com/lync-cyber/CataForge/pull/407))
+
+### Removed
+
+- **penpot-sync / penpot-implement / penpot-review skill** —— 收敛进 `penpot-bridge`，不留 alias。
+
+- **退役 agent `lang_aware` 注入机制** —— 删除 `lang_fragments.py`、6 个 agent 的 `lang_aware: true` frontmatter 与 `rules/` 目录；deploy 不再因 active language 触发 agent staging。
+
 <a id='changelog-0.14.0'></a>
 ## [0.14.0] — 2026-06-23
 
@@ -1858,7 +1951,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.15.0
 [0.14.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.14.0
 [0.13.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.13.1
 [0.13.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.13.0
