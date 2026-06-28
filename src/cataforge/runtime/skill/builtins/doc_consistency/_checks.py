@@ -294,7 +294,7 @@ class _CrossDocChecksMixin:
         if not self._has_content("ui-spec"):
             return
         content = self._content["ui-spec"]
-        c_ids = _extract_all_ids(content, "C")
+        c_ids = _extract_all_ids(content, "UC")
         p_sections_text = "\n".join(_extract_sections(content, "P").values())
 
         if not c_ids or not p_sections_text:

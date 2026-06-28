@@ -2,7 +2,7 @@
 
 > 一页纸速查：平台能力 + CLI 命令 + 产物路径。详细说明见各深链。
 >
-> **适用版本**：v0.1.15。
+> **适用版本**：以 `cataforge --version` 为准（= `cataforge.__version__`）。
 
 ## 平台能力速览
 
@@ -54,7 +54,7 @@
 
 | 文件 | 位置 | 用户可编辑字段 |
 |------|------|---------------|
-| `framework.json` | `.cataforge/framework.json` | `runtime.platform` · `runtime.mode` · `runtime.checkpoints` · `upgrade.state` · `kg.kg_active_doc_types` |
+| `framework.json` | `.cataforge/framework.json` | `runtime.platform` · `upgrade.state` · `context.mode` · `context.kg_active_doc_types` · `project.languages` · `project.design_tool` |
 | `PROJECT-STATE.md` | `.cataforge/PROJECT-STATE.md` | 整个文件 |
 | `profile.yaml` | `.cataforge/platforms/<id>/profile.yaml` | 能力声明、降级策略、`context_injection` |
 | `hooks.yaml` | `.cataforge/hooks/hooks.yaml` | hook 规范（平台无关） |

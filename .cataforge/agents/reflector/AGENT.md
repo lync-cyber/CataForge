@@ -8,7 +8,7 @@ allowed_paths:
   - .cataforge/learnings/
 skills:
   - context
-model_tier: light
+model_tier: standard
 inline_dispatch: true
 maxTurns: 30
 ---
@@ -22,16 +22,17 @@ maxTurns: 30
 - 你只读 docs/reviews/ 各子目录，只写 docs/reviews/retro/RETRO-*.md 和 docs/reviews/retro/SKILL-IMPROVE-*.md
 
 ## Input Contract
-- docs/reviews/doc/ 下的 REVIEW-*.md（含 -r{N}）、docs/reviews/code/ 下的 CODE-REVIEW-*.md 与 CODE-SCAN-*.md、docs/reviews/framework/ 下的 FRAMEWORK-REVIEW-*.md、docs/reviews/CORRECTIONS-LOG.md
+- docs/reviews/doc/ 下的 REVIEW-*.md（含 -r{N}）、docs/reviews/code/ 下的 CODE-REVIEW-*.md 与 CODE-SCAN-*.md、docs/reviews/framework/ 下的 FRAMEWORK-REVIEW-*.md、docs/reviews/triage/ 下的 SKILL-IMPROVE-*-issue-*.md、docs/reviews/CORRECTIONS-LOG.md
 - CORRECTIONS-LOG.md 格式:
   ```
   ### {date} | {agent_id} | {phase}
   - 原假设: {assumption content}
   - 用户决策: {user answer}
-  - 偏差类型: {preference|constraint|domain-knowledge}
+  - 偏差类型: {deviation ∈ VALID_DEVIATIONS}
   ```
+- 偏差类型 `deviation` 合法值见 `core/corrections.py` `VALID_DEVIATIONS`（preference / self-caused / external / framework-bug / upstream-gap）；与 review 报告的 `root_cause`（self-caused / upstream-caused / input-caused / reviewer-calibration，见 COMMON-RULES §归因分类）是两套独立枚举，`self-caused` 在两套中含义不同，勿混用
 - 触发门槛: 由 orchestrator 按 `RETRO_TRIGGER_SELF_CAUSED` 常量判定（CORRECTIONS-LOG self-caused 条目数达到阈值，或存在 CRITICAL 问题），不满足时 orchestrator 直接跳过本 Agent
-- **执行模式: inline**：orchestrator 直接执行本协议（共享主会话模型），与 change-guard / Adaptive Review 一致；frontmatter `inline_dispatch: true` 即 deploy 时给 orchestrator 的 hint。`model_tier: light` 仅在 on-demand fallback 把 reflector 当 subagent 跑时生效。
+- **执行模式: inline**：orchestrator 直接执行本协议（共享主会话模型），与 change-guard / Adaptive Review 一致；frontmatter `inline_dispatch: true` 即 deploy 时给 orchestrator 的 hint。`model_tier: standard` 仅在 on-demand fallback 把 reflector 当 subagent 跑时生效。
 - **手动触发（on-demand）**: `cataforge agent run reflector --task-type retrospective <ad-hoc 描述>` 渲染 AGENT.md + 任务框架（已自动复制到剪贴板），粘贴到 IDE 会话即可激活；适用场景：阶段性 retro、framework-review 报告积累后的二次提炼、跨项目经验汇总
 
 ## Output Contract
@@ -97,6 +98,7 @@ version: "{x.y.z}"      # 可选
    - docs/reviews/code/ 下 CODE-REVIEW-*.md — 任务粒度代码评审
    - docs/reviews/code/ 下 CODE-SCAN-*.md — 项目级腐化扫描（duplication / dead-code / complexity / coupling category）
    - docs/reviews/framework/ 下 FRAMEWORK-REVIEW-*.md — 框架元资产审查（structure / consistency / convention 等元层 category 推 SKILL-IMPROVE 建议）
+   - docs/reviews/triage/ 下 SKILL-IMPROVE-*-issue-*.md — 上游 issue triage 草稿（framework-issue-resolve 产出的 Layer 1 事实核查，作为改进候选种子；须经本 Agent evidence≥2 校验后才能落 EXP）
    - docs/reviews/CORRECTIONS-LOG.md — 纠正日志
    - docs/EVENT-LOG.jsonl — 运行时事件流，过滤 `event ∈ {correction, incident, review_verdict, revision_start, agent_return}` 的尾部记录，用于与 review 报告交叉验证（同一 phase 是否反复 needs_revision、同一 agent 是否反复 incident、agent_dispatch 后超时未返回的 dangling subagent）；`ref` 字段可直接当 evidence 引用
 2. 提取每条 issue 的 category 和 root_cause 字段；EVENT-LOG 记录提取 (event, phase, agent, status) 四元组

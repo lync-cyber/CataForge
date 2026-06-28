@@ -32,7 +32,7 @@
 
 deploy 读取 [.cataforge/hooks/hooks.yaml](../../.cataforge/hooks/hooks.yaml) 后按 `profile.yaml#hooks.degradation` 解析；`native` 表示直接生成平台 hook 配置，`degraded` 表示走 `degradation_templates` 中的降级策略。当前实装策略集合（`rules_injection` / `prompt_instruction` / `prompt_checklist` / `skip`）与各自输出文件的语义见 [hook-degradation-strategies.md](hook-degradation-strategies.md)。
 
-下表仅列出"至少有一个平台 degraded"的 hook；未列出的 hook（`guard_dangerous` / `notify_done` / `session_context`）在四端 `profile.yaml#hooks.degradation` 均**声明**为 `native`（即不在降级表中；属声明默认值，非逐项行为实测）。
+下表仅列出"至少有一个平台 degraded"的 hook；未列出的 hook（`guard_dangerous` / `notify_done` / `session_context` / `deploy_drift` / `git_sync`）在四端 `profile.yaml#hooks.degradation` 均**声明**为 `native`（即不在降级表中；属声明默认值，非逐项行为实测）。其中 `deploy_drift` / `git_sync` / `session_context` 是 SessionStart 事件 hook（无 matcher，全事件触发）：`deploy_drift` 比对 `.cataforge/` 源摘要 + 已装包版本与上次 deploy 记录的基线（`.deploy-manifest.json`），漂移时打印"重跑 `cataforge deploy`"提示（observe 型，永不阻断），同名 `cataforge doctor` 检查（`Deploy drift:`，gating=False）走同一逻辑。
 
 | hook | strategy | claude-code | cursor | codex | opencode |
 |---|---|---|---|---|---|

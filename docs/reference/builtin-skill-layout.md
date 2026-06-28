@@ -70,4 +70,4 @@ src/cataforge/runtime/skill/builtins/<skill_id>/
 | `task_dep_analysis` | `task_dep_analysis/task_dep_analysis.py` |
 | `testing` | `testing/e2e_scan.py` |
 
-`code_lint` / `e2e_scan` / `task_dep_analysis` / `framework_feedback` 与 `<skill_id>_check.py` 后缀不一致，作为独立窄 PR 渐进迁移以避免 SKILL.md anchor 重链 + CHECKS_MANIFEST id 命名空间漂移同时发生。新增 builtin 一律按本规范命名。
+`code_lint` / `e2e_scan` / `task_dep_analysis` / `framework_feedback` 入口模块与 `<skill_id>_check.py` 后缀不一致，按现状保留；新增 builtin 一律按本规范命名。

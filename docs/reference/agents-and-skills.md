@@ -4,7 +4,7 @@
 
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
 >
-> **适用版本**：v0.4.x。计数 13 Agent + 28 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
+> **适用版本**：以 `cataforge --version` 为准（= `cataforge.__version__`）。计数 13 Agent + 26 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
 >
 > **平台差异**：Agent 通过 `tools.allow` 声明的 capability 在各平台的原生工具映射见 [platform-capability-matrix.md](platform-capability-matrix.md)；`null` 映射的 capability 在 deploy 时被过滤并发 WARN。
 
@@ -67,7 +67,7 @@ tools:
 - **职责**：协调整个软件开发生命周期，负责项目引导（Bootstrap）、阶段路由、手动审查检查点、中断恢复协议、TDD 编排。
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec, agent_dispatch, user_question
 - **写入路径**：无限制
-- **关联 Skill**：agent-dispatch, context, tdd-engine, change-guard, framework-feedback
+- **关联 Skill**：agent-dispatch, context, tdd-engine, change-guard, framework-feedback, project-visualization
 - **特殊协议**：拥有专属编排协议（ORCHESTRATOR-PROTOCOLS.md），管理阶段转换、修订流程、Sprint 回顾触发等。
 
 </details>
@@ -155,7 +155,7 @@ tools:
 - **职责**：跨阶段质量审查，覆盖文档审查与代码审查。
 - **允许工具（allow）**：file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 - **禁用工具（deny）**：agent_dispatch
-- **写入路径**：docs/reviews/doc/, docs/reviews/code/, docs/reviews/sprint/（严格限制）
+- **写入路径**：docs/reviews/doc/, docs/reviews/code/, docs/reviews/sprint/, docs/reviews/design/（严格限制）
 - **关联 Skill**：context, code-review, sprint-review, penpot-bridge（条件启用）
 
 </details>
@@ -233,7 +233,7 @@ tools:
 | 19 | start-orchestrator | 管理技能 | 启动 | CataForge 工作流初始化与恢复 |
 | 20 | workflow-framework-generator | 管理技能 | 生成 | 根据工作流类型与目标平台生成完整框架 |
 | 21 | framework-update | 管理技能 | 同步 | 包↔scaffold 版本检测 + pip/uv 升级 + scaffold 刷新/部署/doctor + 项目初始化/恢复分流 |
-| 22 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent 覆盖 |
+| 22 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 子检查族 B1–B9：必备段落、跨引用图、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent × skill 覆盖、hook 完整性、model_tier 合规、Anti-Patterns 规模、migration_checks 健康 |
 | 23 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
 | 24 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
 | 25 | framework-walkthrough | 测试质量 | 元自测 | 隔离沙盒内端到端跑通小型示例项目的完整 SDLC 工作流，观察各阶段/门禁/降级行为，产出框架本身与走查流程两类改进建议；framework-review 的动态对偶 |
@@ -305,7 +305,7 @@ tools:
 
 **sprint-review** — Sprint 回顾技能，审查 Sprint 完成度、AC 覆盖率、范围偏移检测。
 
-**framework-review** — 元资产质量审计（v0.1.15 引入）。`scope=agents|skills|hooks|rules|workflow|all`，6 个子检查 B1-α/β、B2-α、B3-α、B4-α、B5-α — 必备段落、跨引用、SKILL.md ↔ CHECKS_MANIFEST 漂移检测、常量字面量替换、phase × agent 覆盖。报告写入 `docs/reviews/framework/`。CI 必备 gate（同 doctor）。
+**framework-review** — 元资产质量审计。`scope=agents|skills|hooks|rules|workflow|all`，子检查族 B1–B9（可用 `--focus` 限定）：B1 必备段落 + 行数阈值、B2 跨引用图 + suggested-tools 合法性、B3 SKILL.md ↔ CHECKS_MANIFEST 漂移、B4 常量字面量替换、B5 phase × agent × skill 覆盖 + EVENT-LOG 漂移、B6 hook 脚本可达性 + matcher capability + 降级覆盖、B7 model_tier 合规 + 平台 tier_map、B8 Anti-Patterns 段存在 + 规模下限、B9 migration_checks 健康。报告写入 `docs/reviews/framework/`。CI 必备 gate（同 doctor）。
 
 </details>
 
@@ -336,7 +336,7 @@ tools:
 
 **framework-update** — CataForge 框架同步。三个指令：`check`（检测已安装包与项目 scaffold 的版本差异 + 项目初始化状态）、`apply`（条件包升级 → `cataforge bootstrap` 刷新 scaffold / 部署 / doctor → upgrade.state 与框架版本簿记 → 按项目指令文件存在与否分流项目初始化或恢复）、`verify`（运行迁移检查验证一致性）。支持 pip 与 uv 两种包管理器；保留 `runtime.platform`、`upgrade.state` 等用户可编辑状态。
 
-**framework-feedback** — 下游 → 上游反馈打包（v0.3.0 引入）。聚合 `cataforge doctor` + 最近 `EVENT-LOG` + `CORRECTIONS-LOG` 中 `deviation=upstream-gap` 的纠偏 + `framework-review` Layer 1 FAIL 摘要为单个 markdown body，通过等价 CLI `cataforge feedback bug|suggest|correction-export` 经四选一互斥 sink 发出（`--print` / `--out PATH` / `--clip` / `--gh`）。命名上与 `framework-review` 平行（都针对 `.cataforge/` 框架本体），与下游产品自身的用户反馈渠道无关。`record-to-event-log: true`，每次运行写一条 `state_change` 事件（`ref=skill:framework-feedback/...`）。挂在 `orchestrator.skills`（持有 `shell_exec`）；reflector 因为是只读 Agent，不直接持有此 skill。详细参数见 [`cli.md` §feedback](./cli.md#feedback)。
+**framework-feedback** — 下游 → 上游反馈打包。聚合 `cataforge doctor` + 最近 `EVENT-LOG` + `CORRECTIONS-LOG` 中 `deviation=upstream-gap` 的纠偏 + `framework-review` Layer 1 FAIL 摘要为单个 markdown body，通过等价 CLI `cataforge feedback bug|suggest|correction-export` 经四选一互斥 sink 发出（`--print` / `--out PATH` / `--clip` / `--gh`）。命名上与 `framework-review` 平行（都针对 `.cataforge/` 框架本体），与下游产品自身的用户反馈渠道无关。`record-to-event-log: true`，每次运行写一条 `state_change` 事件（`ref=skill:framework-feedback/...`）。挂在 `orchestrator.skills`（持有 `shell_exec`）；reflector 因为是只读 Agent，不直接持有此 skill。详细参数见 [`cli.md` §feedback](./cli.md#feedback)。
 
 </details>
 
@@ -348,7 +348,7 @@ tools:
 
 | Agent | 默认启用 Skill | 条件启用 |
 |-------|---------------|---------|
-| **orchestrator** | `agent-dispatch` · `context` · `tdd-engine` · `change-guard` · `framework-feedback` | — |
+| **orchestrator** | `agent-dispatch` · `context` · `tdd-engine` · `change-guard` · `framework-feedback` · `project-visualization` | — |
 | **product-manager** | `req-analysis` · `context` · `research` | — |
 | **architect** | `arc-design` · `tech-eval` · `context` · `research` | — |
 | **ui-designer** | `ui-design` · `context` · `research` | `penpot-bridge` |

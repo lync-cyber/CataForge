@@ -8,7 +8,7 @@
 > 本协议是 from-scratch 项目 SDLC 初始化路径。框架包/脚手架的部署与**升级**不在此处——由 `framework-update apply` 的脊柱 `cataforge bootstrap` / `cataforge upgrade apply` 幂等负责；本协议由 `framework-update apply` 在 `{INSTRUCTION_FILE}` 缺失时委托进入，已存在时不重跑（走 Startup/Resume）。经 `framework-update apply` 进入时目标平台已由该脊柱确定，Step 7 直接取 framework.json `runtime.platform`，不重复选型/部署。
 
 当项目从零开始 ({INSTRUCTION_FILE} 不存在) 时:
-1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认 `[pre_dev, pre_deploy]`）
+1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认值见 COMMON-RULES §框架配置常量 MANUAL_REVIEW_CHECKPOINTS）
 2. **选择执行模式** — 通过 AskUserQuestion 单独提问，选项:
     - `standard`（默认/推荐）— 中大型正式交付项目，7 阶段全流程
     - `agile-lite` — 5-20 feature 的轻量工具或小型 Web 项目（产出 prd-lite / arch-lite / dev-plan-lite 各目标 ≤100 行）
@@ -103,7 +103,7 @@ orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪�
 ### 路由时机
 Mode Routing Protocol 在以下时刻被调用:
 - Bootstrap 完成后首次进入初始阶段
-- 每次 Phase Transition Protocol Step 6（激活下一阶段 Agent）前，用于确定"下一阶段"的具体含义
+- 每次 Phase Transition Protocol Step 10（激活下一阶段 Agent）前，用于确定"下一阶段"的具体含义
 - 会话恢复时（Startup Protocol 读取 {INSTRUCTION_FILE} 后）
 
 ### 模式回退
@@ -131,8 +131,8 @@ Mode Routing Protocol 在以下时刻被调用:
    ```
 2. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 3. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
-4. 修复完成后先按 §Phase Transition Protocol Step 5.3 执行 reconcile 收口（漂移按 Step 5.3 处置），再重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
-5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入（收紧自 N≥3，避免低效 revision 循环）
+4. 修复完成后先按 §Phase Transition Protocol Step 6 执行 reconcile 收口（漂移按 Step 5.3 处置），再重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
+5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入，避免低效 revision 循环
 
 > 子代理收到 `task_type=revision` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
 
@@ -166,30 +166,28 @@ Mode Routing Protocol 在以下时刻被调用:
 3. **更新 {INSTRUCTION_FILE} 阶段信息** — 按 {INSTRUCTION_FILE} Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
 4. **一致性验证** — 确认文档头 status 与 {INSTRUCTION_FILE} 字段一致
 5. **依赖新鲜度检查** — 运行 `cataforge context validate`，检查 `stale_deps` 输出：
-   - 无 stale deps → 通过，继续 Step 5.5
+   - 无 stale deps → 通过，继续 Step 7
    - 存在 stale deps → 向用户展示过期依赖清单并提供选项：
      1. 进入 cascade_amendment 更新受影响文档
      2. 确认变更不影响下游、继续推进（stale deps 降级为 WARN 记录到 EVENT-LOG）
      3. 暂停，手动审查
    - 用户选"确认不影响"时记录 **[EVENT]**: `cataforge event log --event state_change --phase {当前阶段} --detail "stale deps acknowledged: {upstream_ids}"`
-    <!-- allow-doc-structure: sub-step of Phase Transition, not an independent numbered list -->
-5.3. **一致性最终守门** — 运行 `cataforge context reconcile`（上下文方案未启用图后端时为 no-op，WARN 跳过）:
-   - 无漂移 → 通过，继续 Step 5.5
+6. **一致性最终守门** — 运行 `cataforge context reconcile`（上下文方案未启用图后端时为 no-op，WARN 跳过）:
+   - 无漂移 → 通过，继续 Step 7
    - 有漂移 → 向用户展示漂移报告摘要并提供选项：
-     1. 自动修复（按 reconcile 报告 `documents[].remediation`）：`export`（图谱领先/未导出）→ `cataforge context finalize` 重导出；`ingest`（人改导出文件或 md 权威）→ `cataforge context ingest` 回灌；`manual`（conflict，两侧均变更）→ 转选项 3。修复后复跑 `cataforge context reconcile`，漂移归零后继续 Step 5.5
+     1. 自动修复（按 reconcile 报告 `documents[].remediation`）：`export`（图谱领先/未导出）→ `cataforge context finalize` 重导出；`ingest`（人改导出文件或 md 权威）→ `cataforge context ingest` 回灌；`manual`（conflict，两侧均变更）→ 转选项 3。修复后复跑 `cataforge context reconcile`，漂移归零后继续 Step 7
      2. 进入 cascade_amendment 修订上游文档以匹配图谱
      3. 暂停，手动审查
    - 其它错误（store 未初始化等）→ WARN 跳过（记录到 EVENT-LOG 供 reflector 复盘），不阻塞
-    <!-- allow-doc-structure: sub-step of Phase Transition, not an independent numbered list -->
-5.5. **跨文档一致性校验** — 当至少 2 个业务文档已 approved 时（即 Phase 2+ 的转换），运行 `cataforge skill run doc-consistency -- docs/`:
-   - exit 0（consistent）→ 通过，继续 Step 6
+7. **跨文档一致性校验** — 当至少 2 个业务文档已 approved 时（即 Phase 2+ 的转换），运行 `cataforge skill run doc-consistency -- docs/`:
+   - exit 0（consistent）→ 通过，继续 Step 8
    - exit 1（inconsistent，存在 CRITICAL/HIGH）→ 向用户展示一致性报告摘要并提供选项：
      1. 进入 cascade_amendment 修复不一致
      2. 降级为 WARN 继续推进（记录到 EVENT-LOG）
      3. 暂停，手动审查
-   - exit 2（consistent_with_notes，仅 MEDIUM/LOW）→ 记录 WARN 到 EVENT-LOG，继续 Step 6
+   - exit 2（consistent_with_notes，仅 MEDIUM/LOW）→ 记录 WARN 到 EVENT-LOG，继续 Step 8
    - 命令不存在时 WARN 跳过，不阻塞
-6. **[EVENT BATCH]** 通过 `--batch` 单次 stdin 管道一次性记录 4 条事件（phase_end → review_verdict → state_change → phase_start）:
+8. **[EVENT BATCH]** 通过 `--batch` 单次 stdin 管道一次性记录 4 条事件（phase_end → review_verdict → state_change → phase_start）:
    ```bash
    cataforge event log --batch <<'EOF'
    {"event":"phase_end","phase":"{当前阶段}","status":"approved","detail":"reviewer 通过"}
@@ -198,19 +196,19 @@ Mode Routing Protocol 在以下时刻被调用:
    {"event":"phase_start","phase":"{新阶段}","detail":"进入{新阶段名}阶段"}
    EOF
    ```
-7. **{INSTRUCTION_FILE} hygiene 强制门** — 在派发下一阶段 Agent 之前执行：
+9. **{INSTRUCTION_FILE} hygiene 强制门** — 在派发下一阶段 Agent 之前执行：
    ```bash
    cataforge claude-md check
    ```
-   - exit 0 → 通过，继续 Step 8
+   - exit 0 → 通过，继续 Step 10
    - exit 1（任一 `claude_md_limits` 阈值越界）→ **阻塞 Phase Transition**，向用户展示 stdout 的问题摘要并提供选项：
-     1. 自动 compact：执行 `cataforge claude-md compact`，重新跑 `check`，PASS 后继续 Step 8
-     2. 手动处理：暂停 Phase Transition，等待用户编辑 {INSTRUCTION_FILE} 后再次推进（再次推进时重新跑 Step 7）
+     1. 自动 compact：执行 `cataforge claude-md compact`，重新跑 `check`，PASS 后继续 Step 10
+     2. 手动处理：暂停 Phase Transition，等待用户编辑 {INSTRUCTION_FILE} 后再次推进（再次推进时重新跑 Step 9）
    - 执行 compact 后追加 **[EVENT]** 记录：`cataforge event log --event state_change --phase {新阶段} --detail "claude-md compact applied at phase transition"`
    - 命令不存在时 WARN 跳过，不阻塞
-8. **进入下一阶段** — 按 `framework.json#/workflow` 的 `execution_host` 分派：`subagent` → agent-dispatch 激活下一阶段 Agent；`inline` → 主线程承载该角色执行（见 §Inline Role Execution Protocol）。进入 ui_design 且 {INSTRUCTION_FILE} §项目信息.设计工具=penpot 时，派发 ui-designer 前先执行 §Design-Tool Capability Gate。
+10. **进入下一阶段** — 按 `framework.json#/workflow` 的 `execution_host` 分派：`subagent` → agent-dispatch 激活下一阶段 Agent；`inline` → 主线程承载该角色执行（见 §Inline Role Execution Protocol）。进入 ui_design 且 {INSTRUCTION_FILE} §项目信息.设计工具=penpot 时，派发 ui-designer 前先执行 §Design-Tool Capability Gate。
 
-> **关键**: 步骤 1-7 必须在步骤 8 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
+> **关键**: 步骤 1-9 必须在步骤 10 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
 
 ## Design-Tool Capability Gate
 进入 ui_design 且设计工具=penpot 时，派发 ui-designer 前由 orchestrator 主线程门禁 MCP 可用性——子代理对「penpot 工具从未注册」无失败信号可捕获，会静默走纯文本路径并使设计工具长期是假信号，故探测前移到派发方：
@@ -403,7 +401,7 @@ batch_dispatch([
    - **cascade_amendment** → 从最上游affected doc开始逐级修订: PRD → ARCH → UI-SPEC(如适用) → DEV-PLAN，每级修订+审核后才进入下级
 
 ### cascade_amendment 中断规则
-cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
+cascade_amendment 中任一文档修订触发人工介入阈值（needs_revision 计数 N≥2，见 §Revision Protocol）:
 1. 暂停后续文档修订，不继续下游文档
 2. 已修订的上游文档保持 draft 状态（不标记 approved）
 3. 向用户报告失败点和已完成的修订范围，提供选项:
@@ -411,7 +409,7 @@ cascade_amendment 中任一文档修订失败(needs_revision ≥ 3):
    - "回滚所有修订": `git checkout -- docs/{affected_dirs}` 恢复所有本轮修订的文档
 4. 回滚后变更请求状态重置，用户可调整范围后重新提交
 
-变更完成后先按 §Phase Transition Protocol Step 5.3 执行 reconcile 收口（漂移时 ingest 回灌），再回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
+变更完成后先按 §Phase Transition Protocol Step 6 执行 reconcile 收口（漂移时 ingest 回灌），再回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
 
 > 子代理收到 `task_type=amendment` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=amendment 变更修订流程`。
 

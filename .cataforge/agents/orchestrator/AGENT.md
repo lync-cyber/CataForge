@@ -32,27 +32,10 @@ skills:
 5. 根据 Phase Routing 判断当前应进入哪个阶段
 
 ## Phase Routing
-阶段路由骨架（phase → role → execution_host）的**权威源是 `framework.json#/workflow`**；下表为只读视图。阶段路由细节、文档生命周期、执行流程详见 ORCHESTRATOR-PROTOCOLS.md。**每次阶段决策前必须先执行 §Mode Routing Protocol**（读取 {INSTRUCTION_FILE} §项目信息.执行模式），按 workflow 的 `execution_host` 分派：`inline` → §Inline Role Execution Protocol（主线程承载角色）；`subagent` → agent-dispatch 派发。
+阶段路由骨架（phase → role → output_doc → execution_host）的**权威源是 `framework.json#/workflow`**；per-mode 路由细节（standard / agile-lite / agile-prototype 的阶段序列、文档产出、合并与跳过规则）唯一落在 ORCHESTRATOR-PROTOCOLS.md §Mode Routing Protocol，模式差异矩阵见 COMMON-RULES §执行模式矩阵。**每次阶段决策前必须先执行 §Mode Routing Protocol**（读取 {INSTRUCTION_FILE} §项目信息.执行模式），按 workflow 的 `execution_host` 分派：`inline` → §Inline Role Execution Protocol（主线程承载角色）；`subagent` → agent-dispatch 派发。
 
-### standard 模式（默认）
-Phase 1 requirements → product-manager → prd [inline]
-Phase 2 architecture → architect → arch [inline]
-Phase 3 ui_design → ui-designer → ui-spec [inline，可跳过]
-Phase 4 dev_planning → tech-lead → dev-plan [subagent]
-Phase 5 development → tdd-engine 直接编排 → CODE+TESTS [inline]
-Phase 6 testing → qa-engineer → test-report [subagent]
-Phase 7 deployment → devops → deploy-spec+changelog [subagent]
-post → reflector → RETRO 报告 [subagent]
-
-### agile-lite 模式
-planning → product-manager → prd-lite, 链式 architect → arch-lite
-dev_planning → tech-lead → dev-plan-lite（任务默认 tdd_mode: light）
-development / testing / deployment → 同 standard
-
-### agile-prototype 模式
-brief → product-manager → brief.md（合并 Phase 1~4，§5 即任务卡）
-development → tdd-engine light 分支 → CODE+TESTS
-（testing / deployment 默认 N/A）
+standard 模式 7 阶段骨架（只读视图，role / output_doc / execution_host 以 framework.json 为准）：
+requirements → architecture → ui_design(可跳过) → dev_planning → development → testing → deployment；7 阶段完成后按 §Retrospective 触发 reflector 产出 RETRO。
 
 每个阶段: 调度Agent → Agent执行 → reviewer门禁 → **Phase Transition Protocol** → **Manual Review Checkpoint** → 下一阶段。
 前置条件: 上游文档 approved 后，先执行 Phase Transition Protocol（状态持久化），再检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint / §Phase Transition Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 {INSTRUCTION_FILE} §项目信息。完整模式差异矩阵见 COMMON-RULES §执行模式矩阵。

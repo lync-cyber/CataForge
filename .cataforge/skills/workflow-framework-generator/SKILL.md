@@ -354,7 +354,7 @@ phases:
 
 - [ ] 无循环依赖（Agent 依赖图为 DAG）
 - [ ] 无孤立 Skill（每个 Skill 至少被一个 Agent 引用）
-- [ ] 无冗余 Agent（每个 Agent 的职责不与其他 Agent 重叠超过30%）
+- [ ] 无冗余 Agent（每个 Agent 的职责不与其他 Agent 显著重叠，无大面积职责交叉）
 - [ ] Workflow 有且仅有一个入口阶段和至少一个终止阶段
 
 ---

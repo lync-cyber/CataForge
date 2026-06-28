@@ -58,6 +58,8 @@
     "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
     "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "changelog"],
     "TDD_LIGHT_LOC_THRESHOLD": 150,
+    "TASK_SPLIT_LOC": 250,
+    "MID_PROGRESS_LOC": 200,
     "TDD_DEFAULT_MODE": "light",
     "TDD_REFACTOR_TRIGGER": ["complexity", "duplication", "coupling"],
     "TDD_INLINE_ELIGIBLE_MODES": ["agile-lite", "agile-prototype"],
@@ -83,7 +85,7 @@
       "devops": "standard",
       "debugger": "heavy",
       "reviewer": "standard",
-      "reflector": "light"
+      "reflector": "standard"
     },
     "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"],
     "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 300
@@ -363,6 +365,18 @@
       "path": ".cataforge/skills/task-dep-analysis/SKILL.md",
       "allow_missing": true,
       "patterns": ["--format json|mermaid"]
+    },
+    {
+      "id": "mc-0.15.0-loc-thresholds",
+      "release_version": "0.15.0",
+      "deprecate_after": "0.17.0",
+      "description": "COMMON-RULES.md 须声明 TASK_SPLIT_LOC=250（task-decomp 拆分阈值）与 MID_PROGRESS_LOC=200（tdd-engine mid-progress 增量落盘阈值）两常量，二者职责互不重叠",
+      "type": "file_must_contain",
+      "path": ".cataforge/rules/COMMON-RULES.md",
+      "patterns": [
+        "TASK_SPLIT_LOC | 250",
+        "MID_PROGRESS_LOC | 200"
+      ]
     }
   ]
 }

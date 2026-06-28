@@ -56,8 +56,8 @@ cataforge skill run framework-feedback -- suggest \
     --summary "希望支持 --dry-run 预览" \
     --out docs/feedback/suggest-$(date +%Y%m%d).md
 
-# 上游反馈聚合 (仅当 upstream-gap 数 ≥ threshold)
-cataforge skill run framework-feedback -- correction-export --threshold 3
+# 上游反馈聚合 (仅当 upstream-gap 数 ≥ threshold；缺省 threshold = RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT)
+cataforge skill run framework-feedback -- correction-export
 ```
 
 ### Step 3: 上游通道选择

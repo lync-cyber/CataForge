@@ -19,7 +19,7 @@ user-invocable: true
 
 ## 输出规范
 - 任务卡(T-{NNN})，每个包含:
-  - 目标、模块、接口、复杂度(S/M/L)
+  - 目标、模块、接口、复杂度(S/M/L/XL)
   - tdd_acceptance: 验收标准映射（每条 AC 采用 Given-When-Then 格式，Then 子句必须包含可断言的具体值或约束）
   - deliverables: 交付物文件清单
   - context_load: context加载清单
@@ -40,7 +40,7 @@ user-invocable: true
 4. 定义deliverables(明确交付文件)
 5. 定义context_load(context引用)
 6. 建立依赖图: 调用 task-dep-analysis skill 计算拓扑/关键路径/环检测，再用 `cataforge viz tasks --format mermaid` 产出 Mermaid 依赖图并写入 dev-plan#§2
-7. 按依赖关系划分Sprint(参考 task-dep-analysis 输出的 sprint_groups)，遵循 MVP 切分原则:
+7. 按依赖关系划分Sprint(参考 task-dep-analysis 输出的 sprint_groups)，遵循 Sprint 切分原则:
    - 每个 Sprint 的产出应包含至少一个用户可感知的完整功能
    - 优先安排用户核心路径（`user_facing_critical_path: true`）的任务到前几个 Sprint
    - Sprint 1 例外: 基础设施任务允许集中在首个 Sprint，不要求用户可感知功能
@@ -48,7 +48,7 @@ user-invocable: true
 8. 插入验证任务: 每个包含 `user_facing_critical_path: true` 任务的 Sprint 末尾，追加一个 `task_kind: validation` 的验证任务。验证任务不产出代码，orchestrator 遇到时暂停并向用户展示验证清单
 
 ## Anti-Patterns
-- 禁止: 单任务预估 LOC > 250 或 AC > 6 条而不拆 —— 超此尺寸 implementer / test-writer 大概率触发 mid-progress drop，应在 task-decomp 阶段先拆
+- 禁止: 单任务预估 LOC > `TASK_SPLIT_LOC` 或 AC > 6 条而不拆 —— 超此尺寸任务粒度不再单一，应在 task-decomp 阶段先拆（`MID_PROGRESS_LOC`–`TASK_SPLIT_LOC` 区间由 tdd-engine mid-progress 增量落盘处理，非拆分职责）
 - 禁止: 把"重构 X"作为独立任务 —— 重构是 TDD REFACTOR 阶段的自然产物，独立 T-xxx 会让重构脱离测试安全网
 - 禁止: deliverables 仅写 "实现 X 功能" 而不具体到文件路径 —— sprint-review 无法验证 AC 是否落到声明文件，验收形同虚设
 - 避免: 任务横跨 ≥3 个 `arch#§2.M-xxx` —— 跨模块任务在 task-dep-analysis 输出中容易触发环依赖
