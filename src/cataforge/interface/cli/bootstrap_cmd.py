@@ -238,6 +238,8 @@ def _execute_plan(
         # the deploy step below force-overwrites the instruction file from it.
         _lift_design_tool(cfg)
 
+    _ensure_gitattributes(cfg)
+
     deploy_step = step_by_name.get("deploy")
     if deploy_step is not None and deploy_step.action == "run":
         target = plan.target_platform or cfg.runtime_platform
@@ -294,6 +296,18 @@ def _execute_plan(
         from cataforge.interface.cli.doctor_cmd import doctor_command
 
         ctx.invoke(doctor_command)
+
+
+def _ensure_gitattributes(cfg: ConfigManager) -> None:
+    """Ensure line-ending policy exists during bootstrap without overwriting custom files."""
+    from cataforge.application.services.git_hygiene import ensure_gitattributes
+    from cataforge.interface.cli.ui import ui
+
+    status = ensure_gitattributes(cfg.paths.root)
+    if status.wrote_file:
+        ui.ok("wrote .gitattributes")
+    elif not status.ok:
+        ui.warn(".gitattributes lacks line-ending rules; run `cataforge setup gitattributes`.")
 
 
 def _lift_design_tool(cfg: ConfigManager) -> None:

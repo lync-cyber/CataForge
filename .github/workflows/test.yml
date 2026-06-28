@@ -2,21 +2,21 @@ name: Tests
 
 # Three jobs run in parallel:
 #
-#   - `guards` single ubuntu + py3.12. All repo-content checks that are
-#             independent of OS / Python version: ruff, pre-commit parity,
-#             anti-rot guards, uv smokes, mypy, platform dry-runs, doctor,
-#             framework-review. Runs ONCE — these read repo files, not
-#             OS/version state, so the matrix must not duplicate them.
+#   - `guards` single ubuntu + py3.12. Repo-wide static gates run once
+#             through scripts/checks/run_local.py, the local/CI SSOT.
+#             PR-context changelog diffing, workflow YAML parsing, uv install
+#             smokes, platform dry-runs, doctor and framework audits stay
+#             separate because they need distinct context or attribution.
 #   - `unit`  cross-platform / cross-Python pytest matrix (no slow marker).
-#             Pure test execution — the only thing that actually varies by
+#             Pure test execution - the only thing that actually varies by
 #             OS and Python version. Any regression here blocks the PR. One
-#             designated leg additionally measures coverage (gate ≥75%), so
+#             designated leg additionally measures coverage (gate >= 75%), so
 #             the threshold is a single deterministic run folded into the
 #             matrix rather than a separate full-suite execution.
 #   - `e2e`   single ubuntu + py3.12 job that builds a wheel, spawns venvs
 #             and exercises `cataforge setup` / `upgrade` via subprocess.
-#             Linux-only — venv creation plus subprocess encoding on Windows
-#             add flakiness without testing anything unit doesn't cover.
+#             Linux-only - venv creation plus subprocess encoding on Windows
+#             add flakiness without testing anything unit does not cover.
 
 on:
   pull_request:
@@ -30,8 +30,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # CI has no use for the local pre-commit hook (the guards job runs the same
-# checks directly). Opt out so conftest's auto-install never runs — it would
-# otherwise print a banner into pytest output on every fresh runner.
+# repo-wide static checks through scripts/checks/run_local.py). Opt out so
+# conftest's auto-install never runs - it would otherwise print a banner into
+# pytest output on every fresh runner.
 #
 # PYTHONUTF8=1 puts every job in Python UTF-8 Mode, matching how the CLI runs
 # in production (ensure_utf8 re-execs under it). Internal code reads/writes
@@ -74,59 +75,27 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
-      - name: Ruff
-        run: python -m ruff check src tests scripts .cataforge
+      - name: "Static gates (run_local SSOT)"
+        # One repo-wide static gate owns ruff, format, mypy --no-incremental,
+        # import-linter, uv lock freshness, codegen freshness, and the
+        # deterministic anti-rot checks. Keep those checks in run_local.py so
+        # local and CI static validation cannot drift or run the same scan twice.
+        run: python scripts/checks/run_local.py
 
-      - name: "Ruff format (check)"
-        run: python -m ruff format --check src tests scripts .cataforge
-
-      - name: "pre-commit parity (catches local hooks ↔ CI drift)"
-        # Runs the full .pre-commit-config.yaml hook set so a contributor
-        # without `pre-commit install` can't ship a change that local hooks
-        # would have caught. If this red-lights but Ruff above is green,
-        # somebody changed .pre-commit-config.yaml in a way CI doesn't yet
-        # mirror — fix the divergence rather than relaxing the hook.
-        run: |
-          python -m pip install pre-commit
-          pre-commit run --all-files --show-diff-on-failure
-
-      - name: "KG injection regression (P0–P3 named gate)"
-        # Named step so a re-introduced SPARQL literal or IRI percent-encoding
-        # bug surfaces with clear attribution. The unit matrix re-runs these
-        # via the full suite; this gate just pins the attribution.
-        run: python -m pytest tests/kg/test_sparql_escape.py tests/kg/test_injection_regression.py tests/kg/test_ingest_writer_atomicity.py tests/cli/test_cli_query.py -q
-
-      - name: "Anti-rot guards (skill count, dev branch, changelog links, changelog fragments, doc versions, profile schema, hooks schema, schema-Python parity, SSOT reconciliation, design residue, language coupling, doc structure, markdown links, run_local coverage, prompt-CLI drift, QueryBoolean-eq-True)"
+      - name: "PR-context changelog fragments"
+        # This guard diffs HEAD against BASE_REF, so it legitimately stays
+        # outside run_local.py, which must also work outside pull requests.
         env:
-          # check_changelog_fragments.py diffs HEAD against this base.
-          # PR runs use the actual base branch; push-to-main runs default
-          # to origin/main (script no-ops when no files differ).
           BASE_REF: origin/${{ github.base_ref || 'main' }}
-        run: |
-          set -euo pipefail
-          python scripts/checks/check_skill_count.py
-          python scripts/checks/check_no_dev_branch_refs.py
-          python scripts/checks/check_changelog_link_table.py
-          python scripts/checks/check_changelog_fragments.py
-          python scripts/checks/check_doc_versions.py
-          python scripts/checks/check_profile_yaml_keys.py
-          python scripts/checks/check_hooks_yaml_schema.py
-          python scripts/checks/check_schema_python_parity.py
-          python scripts/checks/check_ssot_reconciliation.py
-          python scripts/checks/check_no_design_residue.py
-          python scripts/checks/check_no_language_coupling.py
-          python scripts/checks/check_doc_structure.py
-          python scripts/checks/check_markdown_link_resolution.py
-          python scripts/checks/check_run_local_coverage.py
-          python scripts/checks/check_prompt_cli_drift.py
-          python scripts/checks/check_no_query_boolean_eq_true.py
+        run: python scripts/checks/check_changelog_fragments.py
 
-      - name: "uv lockfile freshness (uv.lock ↔ pyproject.toml in sync)"
-        # Catches "edited deps but forgot to refresh uv.lock" before it
-        # silently rots downstream uv-based installs.
-        run: uv lock --check
+      - name: "Workflow YAML parse"
+        # Keep the fast workflow parser as a direct CI step; it is file-arg
+        # shaped in pre-commit and GitHub can otherwise reject a workflow before
+        # useful logs are available.
+        run: python -c "import sys, yaml; [yaml.safe_load(open(f, encoding='utf-8').read()) for f in sys.argv[1:]]" .github/workflows/*.yml
 
-      - name: "uv smoke — default-extras pytest collection (catches runtime-dep gaps)"
+      - name: "uv smoke - default-extras pytest collection"
         # `pip install -e ".[dev]"` above hides runtime/dev dep mix-ups: if a
         # runtime module imports a [dev]-only transitive, the dev-extras
         # install masks it and downstream users hit ImportError on first run.
@@ -136,24 +105,11 @@ jobs:
           uv pip install --python .venv-smoke -e . pytest
           uv run --python .venv-smoke pytest --collect-only -q
 
-      - name: "uv run --extra dev pytest smoke (covers the uv code path)"
-        # A representative subset via uv so a uv-only regression (resolver
-        # edge case, lockfile-induced pin, .venv layout drift) surfaces. The
-        # pip-editable matrix gates correctness; this only exercises the uv
-        # resolve+run path — tests/cli + tests/core touch the broadest import
-        # surface to do that.
-        run: uv run --extra dev pytest tests/cli tests/core -q -m "not slow" -n auto --dist loadscope
-
-      - name: "mypy (strict — whole tree must be zero-error)"
-        # pyproject pins [tool.mypy] strict = true across cataforge.*, so this
-        # gates every package; a new type error fails the PR.
-        run: python -m mypy src/cataforge --no-incremental
-
-      - name: "import-linter (declarative layer contract)"
-        # Belt-and-braces architecture gate alongside the custom
-        # check_layer_dependencies.py (run via the pre-commit parity step).
-        # Enforces the [tool.importlinter] layered contract in pyproject.
-        run: lint-imports
+      - name: "uv run --extra dev smoke"
+        # Exercise the uv resolve+run path without duplicating the full unit
+        # matrix. The matrix gates correctness; this step only needs enough
+        # CLI/core coverage to prove the locked dev environment can execute.
+        run: uv run --extra dev pytest tests/cli/test_cli_smoke.py tests/core/test_config.py -q -m "not slow"
 
       - name: "Duplication scan (jscpd ≤1% of src)"
         # Language-agnostic copy-paste gate. Reads .jscpd.json (threshold: 1);

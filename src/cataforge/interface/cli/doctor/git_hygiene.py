@@ -1,8 +1,7 @@
-"""Git-hygiene doctor check — report stale (squash-merged) local branches.
+"""Git-hygiene doctor checks.
 
-Advisory only: branch hygiene is never a CI failure, so this always returns 0.
-It reuses :meth:`GitWorkTree.gone_branches` and does no network I/O — the count
-reflects what the last fetch already knows; the remedy refreshes and prunes.
+Advisory only: branch cleanup and downstream line-ending policy are never CI
+failures here, so this module always returns 0.
 """
 
 from __future__ import annotations
@@ -17,8 +16,8 @@ if TYPE_CHECKING:
 
 
 def check_git_hygiene(cfg: ConfigManager) -> int:
-    """Report local branches whose upstream is gone; always returns 0."""
-    from cataforge.application.services.git_hygiene import GitWorkTree
+    """Report stale branches and .gitattributes line-ending hygiene."""
+    from cataforge.application.services.git_hygiene import GitWorkTree, inspect_gitattributes
 
     if shutil.which("git") is None:
         click.echo("  git not on PATH — skipped.")
@@ -29,11 +28,28 @@ def check_git_hygiene(cfg: ConfigManager) -> int:
         click.echo("  not a git work-tree — skipped.")
         return 0
 
+    attr = inspect_gitattributes(cfg.paths.root)
+    if attr.ok:
+        click.echo("  .gitattributes: OK")
+    elif not attr.exists:
+        click.echo("  .gitattributes: WARN missing; run `cataforge setup gitattributes`.")
+    else:
+        missing: list[str] = []
+        if not attr.has_text_auto:
+            missing.append("text=auto")
+        if not attr.has_eol_rule:
+            missing.append("eol=")
+        click.echo(
+            "  .gitattributes: WARN missing "
+            + ", ".join(missing)
+            + "; preserve custom file and add line-ending rules manually."
+        )
+
     gone = git.gone_branches()
     if not gone:
-        click.echo("  OK — no stale local branches.")
+        click.echo("  branches: OK — no stale local branches.")
         return 0
 
-    click.echo(f"  {len(gone)} local branch(es) with a gone upstream: {', '.join(gone)}")
+    click.echo(f"  branches: {len(gone)} local branch(es) with a gone upstream: {', '.join(gone)}")
     click.echo("  remedy: `cataforge git prune` (squash-merged branches git's -d would miss).")
     return 0

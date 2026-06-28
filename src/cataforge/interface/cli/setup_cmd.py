@@ -185,6 +185,8 @@ def setup_command(
         _run_checks(cfg)
         return
 
+    _ensure_gitattributes(cfg.paths.root)
+
     if platform:
         diff = cfg.describe_platform_change(platform)
         if show_diff:
@@ -246,6 +248,23 @@ def _scaffold(dest: Path, *, force: bool) -> None:
     )
     for line in format_protected_warning(result.protected, dest):
         click.secho(f"  {line}", fg="yellow", err=True)
+
+
+def _ensure_gitattributes(root: Path) -> None:
+    """Create a default .gitattributes when missing; never overwrite."""
+    from cataforge.application.services.git_hygiene import ensure_gitattributes
+
+    status = ensure_gitattributes(root)
+    if status.wrote_file:
+        click.echo("  wrote .gitattributes (line-ending defaults)")
+    elif status.ok:
+        click.echo("  .gitattributes: OK")
+    else:
+        click.secho(
+            "  .gitattributes: WARN — add `text=auto` and at least one `eol=` rule "
+            "or run `cataforge setup gitattributes` after manual cleanup.",
+            fg="yellow",
+        )
 
 
 def _apply_languages(cfg: ConfigManager, languages: tuple[str, ...]) -> None:
@@ -343,6 +362,8 @@ def _report_dry_run(
             "  would set framework.json: project.design_tool = penpot "
             "and write .cataforge/mcp/penpot.yaml"
         )
+
+    click.echo("  would ensure .gitattributes line-ending hygiene (write only if missing)")
 
     if deploy_after:
         click.echo("  would chain `cataforge deploy` (run `cataforge deploy --dry-run` to preview)")
@@ -469,4 +490,25 @@ def setup_permissions() -> None:
         return
 
     click.echo("no platform settings file found — nothing to update", err=True)
+    raise SystemExit(1)
+
+
+@setup_command.command("gitattributes")
+def setup_gitattributes() -> None:
+    """Ensure project-root .gitattributes line-ending defaults."""
+    from cataforge.application.services.git_hygiene import ensure_gitattributes
+
+    root = _setup_root()
+    status = ensure_gitattributes(root)
+    if status.wrote_file:
+        click.echo("wrote .gitattributes")
+        return
+    if status.ok:
+        click.echo("ok: .gitattributes already normalizes line endings")
+        return
+    click.echo(
+        ".gitattributes exists but lacks `text=auto` or `eol=`; "
+        "preserving user-owned file. Add line-ending rules manually.",
+        err=True,
+    )
     raise SystemExit(1)

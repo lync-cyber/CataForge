@@ -33,6 +33,77 @@ if TYPE_CHECKING:
 
 _REPO_SLUG_RE = re.compile(r"github\.com[:/]([^/:]+/[^/:]+?)(?:\.git)?/?$")
 
+DEFAULT_GITATTRIBUTES = """# cataforge default: cross-platform line endings
+* text=auto eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.snap text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+"""
+
+
+@dataclass(frozen=True)
+class GitattributesStatus:
+    """Line-ending hygiene state for the project-root ``.gitattributes``."""
+
+    exists: bool
+    has_text_auto: bool
+    has_eol_rule: bool
+    wrote_file: bool = False
+
+    @property
+    def ok(self) -> bool:
+        return self.exists and self.has_text_auto and self.has_eol_rule
+
+
+def inspect_gitattributes(project_root: Path) -> GitattributesStatus:
+    """Inspect project-root ``.gitattributes`` without modifying it."""
+    path = project_root / ".gitattributes"
+    if not path.is_file():
+        return GitattributesStatus(exists=False, has_text_auto=False, has_eol_rule=False)
+    text = path.read_text()
+    return GitattributesStatus(
+        exists=True,
+        has_text_auto="text=auto" in text,
+        has_eol_rule="eol=" in text,
+    )
+
+
+def ensure_gitattributes(project_root: Path) -> GitattributesStatus:
+    """Write CataForge's default ``.gitattributes`` only when missing.
+
+    Existing files are never overwritten because they may contain project-owned
+    Git policy. In that case this returns the same inspection status doctor
+    reports, leaving remediation to the user.
+    """
+    path = project_root / ".gitattributes"
+    if path.exists():
+        return inspect_gitattributes(project_root)
+    path.write_text(DEFAULT_GITATTRIBUTES, newline="\n")
+    return GitattributesStatus(
+        exists=True,
+        has_text_auto=True,
+        has_eol_rule=True,
+        wrote_file=True,
+    )
+
 
 @dataclass(frozen=True)
 class SyncOutcome:

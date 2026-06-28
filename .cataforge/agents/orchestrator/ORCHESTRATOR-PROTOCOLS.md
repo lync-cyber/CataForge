@@ -18,35 +18,7 @@
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
     - 存量项目带历史文档时，向用户确认归档方案：移入根级 `archive/`（docs 索引不扫描），或保留在 `docs/` 内并写 `docs/.docignore`（一行一个 glob，`dir/` 匹配整个子树）——否则 `cataforge context validate` / doctor 会对缺 front matter 的历史文件报 orphan FAIL
-4. **写入跨平台 `.gitattributes`** — 治理 Windows `core.autocrlf=true` + fixture/snapshot 字节哈希漂移。项目根无 `.gitattributes` 时写入下列最小集；已存在则**只读**判断（含 `eol=` 视为已归一化），不覆盖用户自定义：
-
-    ```
-    # cataforge default — 跨平台行尾归一化
-    * text=auto eol=lf
-    *.md text eol=lf
-    *.json text eol=lf
-    *.yaml text eol=lf
-    *.yml text eol=lf
-    *.ts text eol=lf
-    *.tsx text eol=lf
-    *.js text eol=lf
-    *.mjs text eol=lf
-    *.py text eol=lf
-    *.sh text eol=lf
-    *.snap text eol=lf
-    *.bat text eol=crlf
-    *.cmd text eol=crlf
-    *.png binary
-    *.jpg binary
-    *.jpeg binary
-    *.gif binary
-    *.ico binary
-    *.pdf binary
-    *.zip binary
-    *.tar.gz binary
-    ```
-
-    > 适用：Node / Python / 含 fixture 的多平台项目。纯 Linux/macOS 服务端项目可裁剪至首行 `* text=auto eol=lf`。
+4. **行尾归一化门** — 由 `cataforge setup` / `cataforge bootstrap` 自动执行 `.gitattributes` 治理；必要时可手动运行 `cataforge setup gitattributes`。`cataforge doctor` 负责静态复核。
 5. **创建 {INSTRUCTION_FILE}** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§项目信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
     - `standard` → `requirements`
     - `agile-lite` → `planning`（Phase 1+2 合并）
@@ -163,7 +135,7 @@ Mode Routing Protocol 在以下时刻被调用:
 
 1. **更新文档头状态** — 将文档内部 `status: draft` / `status: review` 更新为 `status: approved`
 2. **更新 {INSTRUCTION_FILE} 文档状态** — 对应文档状态字段标记为 approved
-3. **更新 {INSTRUCTION_FILE} 阶段信息** — 按 {INSTRUCTION_FILE} Update Template 更新当前阶段、上次完成、下一步行动、已完成阶段
+3. **更新 {INSTRUCTION_FILE} 阶段信息** — 按 {INSTRUCTION_FILE} Update Template 与 §{INSTRUCTION_FILE} 项目状态写入纪律 更新；状态只留实时摘要，历史写入持久记录
 4. **一致性验证** — 确认文档头 status 与 {INSTRUCTION_FILE} 字段一致
 5. **依赖新鲜度检查** — 运行 `cataforge context validate`，检查 `stale_deps` 输出：
    - 无 stale deps → 通过，继续 Step 7
@@ -209,6 +181,15 @@ Mode Routing Protocol 在以下时刻被调用:
 10. **进入下一阶段** — 按 `framework.json#/workflow` 的 `execution_host` 分派：`subagent` → agent-dispatch 激活下一阶段 Agent；`inline` → 主线程承载该角色执行（见 §Inline Role Execution Protocol）。进入 ui_design 且 {INSTRUCTION_FILE} §项目信息.设计工具=penpot 时，派发 ui-designer 前先执行 §Design-Tool Capability Gate。
 
 > **关键**: 步骤 1-9 必须在步骤 10 之前全部完成，防止会话恢复时因状态未更新而误判阶段未完成。批量写入保证 4 条事件要么全部落盘要么全部失败，避免审计日志出现半截状态。
+
+## {INSTRUCTION_FILE} 项目状态写入纪律
+`{INSTRUCTION_FILE}` `§项目状态` 只承载恢复推进所需的实时状态。
+
+- `当前阶段` / `下一步行动` / `当前Sprint`: 当前可执行状态。
+- `上次完成`: 最近收口一句话，不列 PR、调试、升级链、已关闭问题。
+- `已完成阶段`: 阶段枚举；`文档状态`: doc_type → status。
+- 历史与证据写入 `docs/EVENT-LOG.jsonl`、`docs/reviews/`、`docs/changelog/`；需引用时只放短路径。
+- `claude-md check` 报状态条目超长警告时，先外迁历史再继续推进。
 
 ## Design-Tool Capability Gate
 进入 ui_design 且设计工具=penpot 时，派发 ui-designer 前由 orchestrator 主线程门禁 MCP 可用性——子代理对「penpot 工具从未注册」无失败信号可捕获，会静默走纯文本路径并使设计工具长期是假信号，故探测前移到派发方：

@@ -34,7 +34,7 @@
 |----|------------|---------|------|---------|
 | I-1 | 收集项目信息 + 选执行模式 | AskUserQuestion 单独提问，写入 §项目信息.执行模式 | D | 提问是否选择题优先、是否一次问全 |
 | I-2 | 创建目录结构 | 按模式建 `docs/{...}`（standard/agile-lite vs agile-prototype 不同集合） | D | 目录集合与模式是否匹配 |
-| I-3 | 写 `.gitattributes` | 项目根缺失时写跨平台行尾最小集；已存在只读判断不覆盖 | D | 是否误覆盖用户自定义 |
+| I-3 | 行尾归一化门 | `cataforge setup gitattributes` + doctor 复核 | D | 缺失/不合格由静态门提示 |
 | I-4 | 创建 {INSTRUCTION_FILE} | 按 Update Template 生成，文档状态全 `未开始`，当前阶段按模式（requirements/planning/brief） | D | 初始阶段与模式是否一致 |
 | I-5 | 写框架版本 | 取 `pyproject.toml [project].version`；缺失标「未追踪」 | D | 版本是否为占位符 `0.0.0-template` |
 | I-6 | 选平台 + 部署 | `cataforge setup --platform <p>`（写 `runtime.platform` 并 deploy；命令形态见 walkthrough-protocol §1.1） | D | 部署产物是否对应平台、`doctor` 是否通过 |

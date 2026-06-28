@@ -1,25 +1,17 @@
-"""CLAUDE.md hygiene — Learnings Registry compaction + size diagnostics.
+"""CLAUDE.md hygiene — Learnings Registry compaction + state bloat diagnostics.
 
-CLAUDE.md is the per-project instruction file deploy emits / merges. Two
-runtime sections grow unbounded if left alone:
+CLAUDE.md is the per-project instruction file deploy emits / merges. Runtime
+state can bloat in two different ways:
 
 * **§项目状态 → Learnings Registry** is a free-form bullet list orchestrator
-  appends to (e.g. ``adaptive-review downgraded for development: layer1-only``,
-  ``retro skipped (below threshold)``). Without compaction it grows linearly
-  with project age and pollutes the always-loaded instructions.
-* **§项目状态 → 已完成阶段** is similarly append-only.
+  appends to. This module can compact it safely because entries are list-shaped.
+* **§项目状态 schema bullets** such as ``上次完成`` / ``下一步行动`` can also grow
+  into run-on history lines. They are live state, so this module measures and
+  warns about overlong bullets but does not rewrite them automatically.
 
-This module provides:
-
-* :func:`compact_learnings_registry` — keep the latest ``max_entries`` entries
-  in CLAUDE.md and append archived entries to
-  ``.cataforge/learnings/registry-archive.md`` (idempotent, append-only).
-* :func:`measure_claude_md` — return size / state-section line count for
-  ``cataforge doctor`` so the user gets a WARN before things get bad.
-
-We deliberately do **not** rewrite the §项目状态 schema fields like
-``当前阶段`` / ``文档状态`` — orchestrator owns those and they're bounded
-by design. Only the unbounded list-shaped fields are touched.
+State history belongs in durable records such as ``docs/EVENT-LOG.jsonl``,
+``docs/reviews/`` or ``docs/changelog/``; the instruction file keeps only the
+short live handoff.
 """
 
 from __future__ import annotations
