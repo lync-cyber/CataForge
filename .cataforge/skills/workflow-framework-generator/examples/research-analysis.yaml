@@ -36,7 +36,7 @@ agents:
     name: "报告撰写"
     role: "综合分析结果，生成结构化研究报告"
     capabilities: [file_read, file_write, file_edit]
-    max_turns: 100
+    max_turns: 150
 
 skills:
   - id: literature-search

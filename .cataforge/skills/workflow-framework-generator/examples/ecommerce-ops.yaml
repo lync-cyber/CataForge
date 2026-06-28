@@ -30,7 +30,7 @@ agents:
     name: "选品专员"
     role: "基于市场数据评估商品潜力，生成选品推荐"
     capabilities: [file_read, file_write, file_edit]
-    max_turns: 60
+    max_turns: 80
 
   - id: copywriter
     name: "营销文案"

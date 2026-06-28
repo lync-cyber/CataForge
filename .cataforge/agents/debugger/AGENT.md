@@ -37,12 +37,7 @@ maxTurns: 40
 - summary: "根因: {一句话根因}。修复: {修复措施}。验证: {验证结果}"
 
 ## Mid-Progress 落盘契约
-长定位（大量探索 / 多假设 / 跨文件修补）易在末尾集中产出时被 task-notification truncation 打断（征兆：大量 tool-use / token 后 `<agent-result>` 未返回）。命中长定位时强制：
-
-1. 边定位边在 summary 草稿记录已验证 / 已排除的假设，不囤积到末尾
-2. 定位即做最小修补并运行验证，逐处落盘，不攒到末尾一次性改
-3. 修补涉及多文件时逐文件改 + 逐步验证，每步即一个 checkpoint
-4. 被打断或超 maxTurns 前若仍未定位，返回 blocked 并附已排除假设 + 当前最佳线索（见 §Exception Handling），**禁止**零产出静默返回
+见 SUB-AGENT-PROTOCOLS §Mid-Progress 落盘契约。落盘单元 = 每处最小修补 + 运行验证即一个 checkpoint，假设的已验证 / 已排除随手记入 summary 草稿；超 maxTurns 仍未定位时返回 blocked 附已排除假设 + 当前最佳线索（见 §Exception Handling）。
 
 ## Exception Handling
 | 场景 | 处理 |
