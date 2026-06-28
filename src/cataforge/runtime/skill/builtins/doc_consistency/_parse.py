@@ -9,16 +9,6 @@ from typing import Any
 from cataforge.utils.frontmatter import split_yaml_frontmatter as _split_fm
 from cataforge.utils.md_parse import strip_code_blocks
 
-_ITEM_ID_RE = re.compile(r"^### ([A-Z]+-\d+)", re.MULTILINE)
-_AC_ID_RE = re.compile(r"AC-(\d+)")
-_F_ID_RE = re.compile(r"F-(\d+)")
-_M_ID_RE = re.compile(r"M-(\d+)")
-_API_ID_RE = re.compile(r"API-(\d+)")
-_T_ID_RE = re.compile(r"T-(\d+)")
-_C_ID_RE = re.compile(r"C-(\d+)")
-_P_ID_RE = re.compile(r"P-(\d+)")
-_E_ID_RE = re.compile(r"E-(\d+)")
-
 
 def _load_doc(path: Path) -> tuple[dict[str, Any], str]:
     """Return (frontmatter_dict, body_text) for a markdown doc."""

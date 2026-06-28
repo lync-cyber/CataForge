@@ -16,6 +16,7 @@ import argparse
 import json
 import sys
 from collections import defaultdict, deque
+from collections.abc import Iterator
 from typing import Any
 
 from cataforge.utils.common import ensure_utf8
@@ -57,26 +58,36 @@ def detect_cycles(graph: dict[str, list[str]], all_nodes: set[str]) -> list[list
     parent: dict[str, str] = {}
     cycles: list[list[str]] = []
 
-    def dfs(u: str) -> None:
-        color[u] = gray
-        for v in graph.get(u, []):
-            if color[v] == gray:
-                cycle = [v]
-                node = u
-                while node != v:
-                    cycle.append(node)
-                    node = parent.get(node, v)
-                cycle.append(v)
-                cycle.reverse()
-                cycles.append(cycle)
-            elif color[v] == white:
-                parent[v] = u
-                dfs(v)
-        color[u] = black
-
-    for n in sorted(all_nodes):
-        if color[n] == white:
-            dfs(n)
+    # Iterative DFS: an explicit stack keeps recursion depth off the Python
+    # call stack so a pathologically deep dependency chain can't raise
+    # RecursionError.
+    for root in sorted(all_nodes):
+        if color[root] != white:
+            continue
+        color[root] = gray
+        stack: list[tuple[str, Iterator[str]]] = [(root, iter(graph.get(root, [])))]
+        while stack:
+            u, neighbors = stack[-1]
+            descended = False
+            for v in neighbors:
+                if color[v] == gray:
+                    cycle = [v]
+                    node = u
+                    while node != v:
+                        cycle.append(node)
+                        node = parent.get(node, v)
+                    cycle.append(v)
+                    cycle.reverse()
+                    cycles.append(cycle)
+                elif color[v] == white:
+                    parent[v] = u
+                    color[v] = gray
+                    stack.append((v, iter(graph.get(v, []))))
+                    descended = True
+                    break
+            if not descended:
+                color[u] = black
+                stack.pop()
     return cycles
 
 

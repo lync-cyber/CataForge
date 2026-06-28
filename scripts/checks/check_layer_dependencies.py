@@ -179,7 +179,6 @@ def main() -> int:
         lines = text.splitlines()
         tc_lines = _typecheck_only_lines(tree)
         fn_lines = _function_body_lines(tree)
-        module_level_exempt = set[int]()  # only allow-marker can exempt module-level
 
         for lineno, module in _imports(tree):
             tgt = _target_layer(module)
@@ -203,8 +202,6 @@ def main() -> int:
                 )
             else:
                 # Module-level upward import: FAIL unless allow-marker present.
-                if lineno in module_level_exempt:
-                    continue
                 context = lines[max(0, lineno - 2) : lineno]
                 if any(ALLOW_MARKER in ln for ln in context):
                     continue

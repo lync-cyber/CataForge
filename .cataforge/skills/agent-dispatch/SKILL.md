@@ -18,15 +18,14 @@ user-invocable: false
 调用方(orchestrator)提供:
 - **agent_id**: 目标Agent目录名 (如 "architect", "reviewer")
 - **task**: 任务描述
-- **task_type**: new_creation | revision | continuation | retrospective | skill-improvement | apply-learnings | amendment
+- **task_type**: new_creation | revision | continuation | amendment（恢复协议见 SUB-AGENT-PROTOCOLS）
 - **input_docs**: 输入文档路径列表
 - **expected_output**: 期望产出类型
 - 仅revision: REVIEW报告路径
 - 仅continuation: 用户回答、中间产出路径、恢复指引
-- 仅retrospective: input_docs 为 [docs/reviews/doc/, docs/reviews/code/, docs/reviews/sprint/, docs/reviews/retro/, docs/reviews/CORRECTIONS-LOG.md]，expected_output 为 RETRO 报告
-- 仅skill-improvement: input_docs 为满足内化条件的 EXP 条目列表，expected_output 为 SKILL-IMPROVE 报告
-- 仅apply-learnings: input_docs 为 RETRO 报告路径 + 用户审批的 EXP 编号列表，expected_output 为 learnings 文件路径列表
 - 仅amendment: change-analysis 结果(XML格式)、用户变更描述
+
+> reflector 家族任务（retrospective / skill-improvement / apply-learnings）经 orchestrator inline 或 CLI `cataforge agent run --task-type` 触发，不走本调度枚举。
 
 ## Agent-Skill 依赖映射
 > **单一事实来源**: 各 AGENT.md 的 `skills:` 字段（由 subagent_type 自动加载）。
