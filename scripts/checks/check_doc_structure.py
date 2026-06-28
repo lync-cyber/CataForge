@@ -20,27 +20,37 @@ from __future__ import annotations
 
 import re
 import sys
-from pathlib import Path
 
-for _stream_name in ("stdout", "stderr"):
-    _stream = getattr(sys, _stream_name)
-    if hasattr(_stream, "reconfigure"):
-        _stream.reconfigure(encoding="utf-8", errors="replace")
+from _common import (
+    CODE_FENCE,
+    REPO_ROOT,
+    ensure_utf8,
+    is_whitelisted_for,
+    iter_asset_files,
+    make_escape_hatch,
+)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+ensure_utf8()
 
-SCAN_GLOBS: list[tuple[Path, str]] = [
+SCAN_GLOBS = [
     (REPO_ROOT / ".cataforge" / "agents", "**/*.md"),
     (REPO_ROOT / ".cataforge" / "skills", "**/*.md"),
     (REPO_ROOT / ".cataforge" / "rules", "**/*.md"),
+    (REPO_ROOT / "docs" / "reference", "**/*.md"),
 ]
 
-ALLOW_MARKER = re.compile(r"<!--\s*allow-doc-structure")
-CODE_FENCE = re.compile(r"^\s*```")
+ALLOW = make_escape_hatch("allow-doc-structure")
 
-# Non-standard step numbering: digits followed by a letter then a dot/closing-paren
-# e.g. "3a.", "4b)", "2a. **foo**"
+# Non-standard step numbering at line start: digits + a letter then a
+# dot/closing-paren, e.g. "3a.", "4b)", "2a. **foo**".
 NON_STD_STEP = re.compile(r"^(\d+[a-z])[.)]\s")
+
+# Same anti-pattern hiding in a heading (`### 3a. …`) or a table cell
+# (`| 3a. … |`) — the `^`-anchored NON_STD_STEP misses both, so detect them
+# explicitly. A hierarchical dotted heading (`### 3.1 …`) has a digit, not a
+# letter, after the number and is intentionally not matched.
+NON_STD_HEADING = re.compile(r"^#{1,6}\s+(\d+[a-z])[.)]")
+NON_STD_TABLE_CELL = re.compile(r"\|\s*(\d+[a-z])[.)]\s")
 
 # Standard numbered list item: "N. " at line start (markdown ordered list)
 NUMBERED_STEP = re.compile(r"^(\d+)\.\s")
@@ -50,20 +60,11 @@ LETTER_SUBLIST = re.compile(r"^\s+([a-z])[.)]\s")
 
 
 def is_whitelisted(line: str) -> bool:
-    return bool(ALLOW_MARKER.search(line))
+    return is_whitelisted_for(line, ALLOW)
 
 
-def iter_files() -> list[Path]:
-    files: list[Path] = []
-    seen: set[Path] = set()
-    for root, pattern in SCAN_GLOBS:
-        if not root.exists():
-            continue
-        for p in root.glob(pattern):
-            if p.is_file() and p not in seen:
-                seen.add(p)
-                files.append(p)
-    return files
+def iter_files() -> list:
+    return list(iter_asset_files(SCAN_GLOBS))
 
 
 def check_non_standard_numbering(
@@ -80,7 +81,7 @@ def check_non_standard_numbering(
             continue
         if is_whitelisted(line):
             continue
-        m = NON_STD_STEP.match(line)
+        m = NON_STD_STEP.match(line) or NON_STD_HEADING.match(line)
         if m:
             issues.append(
                 (
@@ -88,6 +89,17 @@ def check_non_standard_numbering(
                     "non-standard-step",
                     f"'{m.group(1)}' — use sequential integers; "
                     f"merge sub-steps inline or as nested bullets",
+                )
+            )
+            continue
+        cell = NON_STD_TABLE_CELL.search(line)
+        if cell:
+            issues.append(
+                (
+                    lineno,
+                    "non-standard-step-in-table",
+                    f"'{cell.group(1)}' in a table cell — use sequential "
+                    f"integers; never letter-suffixed sub-steps",
                 )
             )
     return issues

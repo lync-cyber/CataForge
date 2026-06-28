@@ -14,16 +14,20 @@ importing ``cataforge.interface``, which the runtime layer (where
 framework-review sits) may not do under the import-linter layer contract;
 ``scripts/`` is outside the package and free to import any layer.
 
-Each top-level command must resolve one of two ways:
+Each top-level command must resolve one of three ways:
 
   - **referenced** — some prompt asset writes ``cataforge <group>`` (or a
     backticked ``<group> <subcommand>``). It has an agentic surface.
+  - **hook-wired** — invoked from ``hooks/hooks.yaml``. A legitimate
+    automation surface, just not an agentic one.
   - **exempt** — listed in EXEMPT with a reason: infrastructure / operator
-    / maintainer tooling invoked by humans, hooks, or CI, not by an agent.
+    / maintainer tooling invoked by humans, deploy, or CI.
 
-A command in neither bucket fails the guard: wire a prompt surface, or add
-it to EXEMPT with a one-line reason. Stale EXEMPT entries (command gone, or
-now referenced) also fail so the registry stays honest.
+A command in none of these fails the guard: wire a surface, or add it to
+EXEMPT with a one-line reason. Stale EXEMPT entries (command gone) and
+exemptions that gained a real *agentic* surface also fail so the registry
+stays honest; a mere hook surface does not invalidate an exemption, since
+exemptions cover broader human / bootstrap reasons than the hook alone.
 """
 
 from __future__ import annotations
@@ -122,7 +126,20 @@ def main() -> int:
 
     referenced = referenced_commands(commands, texts)
 
-    orphans = sorted(c for c in commands if c not in referenced and c not in EXEMPT)
+    hooks_yaml = REPO_ROOT / ".cataforge" / "hooks" / "hooks.yaml"
+    hook_referenced: set[str] = set()
+    if hooks_yaml.is_file():
+        try:
+            hook_referenced = referenced_commands(
+                commands, [hooks_yaml.read_text(encoding="utf-8")]
+            )
+        except (UnicodeDecodeError, OSError):
+            hook_referenced = set()
+
+    has_surface = referenced | hook_referenced
+    orphans = sorted(c for c in commands if c not in has_surface and c not in EXEMPT)
+    # Only an *agentic* surface invalidates an exemption — a hook surface
+    # does not, since exemptions cover broader human / bootstrap reasons.
     redundant = sorted(c for c in EXEMPT if c in commands and c in referenced)
     stale = sorted(c for c in EXEMPT if c not in commands)
 
@@ -153,9 +170,13 @@ def main() -> int:
         )
         return 1
 
+    # Disjoint buckets so the counts sum to len(commands): a command exempt
+    # for broader reasons is reported as exempt even when also hook-wired.
+    hook_only = sorted(c for c in hook_referenced if c not in referenced and c not in EXEMPT)
     print(
         f"OK: {len(commands)} CLI commands, "
-        f"{len(referenced)} referenced + {len(EXEMPT)} exempt, no orphans"
+        f"{len(referenced)} referenced + {len(hook_only)} hook-wired "
+        f"+ {len(EXEMPT)} exempt, no orphans"
     )
     return 0
 

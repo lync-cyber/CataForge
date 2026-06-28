@@ -84,6 +84,14 @@ CHECKS: list[tuple[str, list[str], str | None]] = [
         None,
     ),
     (
+        "markdown link resolution",
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "checks" / "check_markdown_link_resolution.py"),
+        ],
+        None,
+    ),
+    (
         "prompt ↔ CLI verb drift",
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_prompt_cli_drift.py")],
         None,
@@ -123,6 +131,14 @@ CHECKS: list[tuple[str, list[str], str | None]] = [
         [
             sys.executable,
             str(REPO_ROOT / "scripts" / "checks" / "check_schema_python_parity.py"),
+        ],
+        None,
+    ),
+    (
+        "cross-asset SSOT reconciliation",
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "checks" / "check_ssot_reconciliation.py"),
         ],
         None,
     ),
@@ -167,12 +183,24 @@ CHECKS: list[tuple[str, list[str], str | None]] = [
     # Repo-content anti-rot guards CI runs in its guards bash block but
     # pre-commit's no-arg hooks don't: deterministic, env-independent reads of
     # checked-in files. Omitting them let release-time CHANGELOG / version drift
-    # (link table, doc versions) pass local and fail CI. The git-diff guards
-    # (changelog fragments, dev-branch refs) stay CI-only — they depend on
-    # BASE_REF and behave differently outside a PR context.
+    # (link table, doc versions) pass local and fail CI. Only the changelog
+    # fragments guard stays CI-only — it diffs the PR against BASE_REF and
+    # behaves differently outside a PR context; the rest are static full scans.
     (
         "skill count parity",
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_skill_count.py")],
+        None,
+    ),
+    (
+        "no dev-branch refs",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_no_dev_branch_refs.py")],
+        None,
+    ),
+    # Meta-guard: every deterministic check_*.py is wired here (or documented
+    # CI-only). Keeps "green local == green CI" honest as checks are added.
+    (
+        "run_local coverage",
+        [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_run_local_coverage.py")],
         None,
     ),
     (

@@ -35,7 +35,10 @@ WATCHED: list[tuple[Path, re.Pattern[str]]] = [
 
 
 def actual_count() -> int:
-    return sum(1 for p in SKILLS_DIR.iterdir() if p.is_dir())
+    # Count skill directories by the presence of a SKILL.md, not bare dirs —
+    # a stray non-skill subdir (templates fixture, scratch) must not inflate
+    # the count that the docs headers are checked against.
+    return sum(1 for p in SKILLS_DIR.iterdir() if p.is_dir() and (p / "SKILL.md").is_file())
 
 
 def main() -> int:

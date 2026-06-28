@@ -48,7 +48,7 @@
 
 ## 3. Agent Configuration (agent_config)
 
-### 3a. Supported Frontmatter Fields
+### 3.1 Supported Frontmatter Fields
 
 17 个标准 agent frontmatter 字段:
 
@@ -72,7 +72,7 @@
 | 16 | `initialPrompt` | 是否新增支持？ | 自动提交首条消息 |
 | 17 | `prompt` | CLI --agents JSON 用 | 等价于 body |
 
-### 3b. Memory Scopes
+### 3.2 Memory Scopes
 
 | scope | 说明 | 检查项 |
 |-------|------|--------|
@@ -80,7 +80,7 @@
 | `project` | 项目级（可 git 追踪） | 目录路径？`.claude/agent-memory/<name>/` |
 | `local` | 项目级（不追踪） | 目录路径？`.claude/agent-memory-local/<name>/` |
 
-### 3c. Isolation Modes
+### 3.3 Isolation Modes
 
 | mode | 说明 | 检查项 |
 |------|------|--------|

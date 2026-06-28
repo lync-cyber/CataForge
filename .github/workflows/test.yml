@@ -96,7 +96,7 @@ jobs:
         # via the full suite; this gate just pins the attribution.
         run: python -m pytest tests/kg/test_sparql_escape.py tests/kg/test_injection_regression.py tests/kg/test_ingest_writer_atomicity.py tests/cli/test_cli_query.py -q
 
-      - name: "Anti-rot guards (12: skill count, dev branch, changelog links, changelog fragments, doc versions, profile schema, hooks schema, schema-Python parity, design residue, language coupling, doc structure, QueryBoolean-eq-True)"
+      - name: "Anti-rot guards (skill count, dev branch, changelog links, changelog fragments, doc versions, profile schema, hooks schema, schema-Python parity, SSOT reconciliation, design residue, language coupling, doc structure, markdown links, run_local coverage, prompt-CLI drift, QueryBoolean-eq-True)"
         env:
           # check_changelog_fragments.py diffs HEAD against this base.
           # PR runs use the actual base branch; push-to-main runs default
@@ -112,9 +112,12 @@ jobs:
           python scripts/checks/check_profile_yaml_keys.py
           python scripts/checks/check_hooks_yaml_schema.py
           python scripts/checks/check_schema_python_parity.py
+          python scripts/checks/check_ssot_reconciliation.py
           python scripts/checks/check_no_design_residue.py
           python scripts/checks/check_no_language_coupling.py
           python scripts/checks/check_doc_structure.py
+          python scripts/checks/check_markdown_link_resolution.py
+          python scripts/checks/check_run_local_coverage.py
           python scripts/checks/check_prompt_cli_drift.py
           python scripts/checks/check_no_query_boolean_eq_true.py
 
