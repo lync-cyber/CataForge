@@ -24,6 +24,7 @@
  cataforge setup env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
+<!-- 只写实时状态；历史和证据写入 docs/EVENT-LOG.jsonl / docs/reviews/ / docs/changelog/。 -->
 
 - 当前阶段: {requirements|architecture|ui_design|dev_planning|development|testing|deployment|completed}
 - 上次完成: {agent目录名} — {简要描述完成的工作}

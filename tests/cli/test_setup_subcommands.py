@@ -81,3 +81,49 @@ def test_bare_setup_still_scaffolds(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     result = _invoke("setup")
     assert result.exit_code == 0, result.output
     assert (tmp_path / ".cataforge").is_dir()
+
+
+def test_setup_check_prereqs_does_not_write_gitattributes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = _invoke("setup", "--check-prereqs")
+
+    assert result.exit_code == 0, result.output
+    assert not (tmp_path / ".gitattributes").exists()
+
+
+def test_setup_gitattributes_writes_default_when_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = _invoke("setup", "gitattributes")
+
+    assert result.exit_code == 0, result.output
+    assert "wrote .gitattributes" in result.output
+    assert "* text=auto eol=lf" in (tmp_path / ".gitattributes").read_text(encoding="utf-8")
+
+
+def test_setup_gitattributes_preserves_existing_and_fails_when_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = "*.txt text\n"
+    (tmp_path / ".gitattributes").write_text(original, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    result = _invoke("setup", "gitattributes")
+
+    assert result.exit_code == 1
+    assert "preserving user-owned file" in result.output
+    assert (tmp_path / ".gitattributes").read_text(encoding="utf-8") == original
+
+
+def test_bare_setup_writes_gitattributes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = _invoke("setup")
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / ".gitattributes").is_file()
