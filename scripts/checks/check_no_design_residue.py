@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Anti-rot guard: no design-phase residue in runtime agent/skill assets.
+"""Anti-rot guard: no design-phase residue in long-term prompt assets.
 
-`.cataforge/agents/**/AGENT.md` and `.cataforge/skills/**/SKILL.md` are
-loaded into the LLM context at runtime. Comments like `<!-- 变更原因：... -->`
-or `<!-- diagnostic #N -->` are useful in user docs (`docs/**`) where humans
-review changes, but in runtime assets they bloat context and degrade
-workflow performance.
+`.cataforge/agents/**`, `.cataforge/skills/**` (bodies, references and
+templates), `.cataforge/rules/**` and `docs/reference/**` are markdown that
+either loads into the LLM context at runtime or stands as long-term repo
+reference. Change-narrative — `<!-- 变更原因：... -->`, `issue #NNN`,
+`v1.2.3 起`, `原方案 X 改为 Y` — belongs in PR descriptions / commit
+messages / CHANGELOG, not these assets, where it bloats context and rots.
 
-This guard blocks the regression. It scans agent / skill markdown for
-known design-phase comment markers and fails CI if any are found.
+This guard blocks the regression: it scans those trees for known
+design-phase markers and fails CI if any are found.
 
 Whitelist: append `<!-- allow-design-residue: <reason> -->` to the
 offending line if you have a deliberate reason (e.g. a template placeholder
@@ -19,95 +20,70 @@ from __future__ import annotations
 
 import re
 import sys
-from pathlib import Path
 
-# Reconfigure stdio to UTF-8 so Chinese characters in error messages don't
-# crash on Windows cp1252 terminals. Inline (rather than importing
-# cataforge.utils.common.ensure_utf8) so this script works in CI
-# before the editable install runs.
-for _stream_name in ("stdout", "stderr"):
-    _stream = getattr(sys, _stream_name)
-    if hasattr(_stream, "reconfigure"):
-        _stream.reconfigure(encoding="utf-8", errors="replace")
+from _common import (
+    REPO_ROOT,
+    ensure_utf8,
+    is_whitelisted_for,
+    iter_asset_files,
+    iter_scannable_lines,
+    make_escape_hatch,
+)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+ensure_utf8()
 
-SCAN_GLOBS: list[tuple[Path, str]] = [
-    (REPO_ROOT / ".cataforge" / "agents", "**/AGENT.md"),
-    (REPO_ROOT / ".cataforge" / "skills", "**/SKILL.md"),
-    (REPO_ROOT / ".cataforge" / "agents", "**/*PROTOCOLS*.md"),
+SCAN_GLOBS = [
+    (REPO_ROOT / ".cataforge" / "agents", "**/*.md"),
+    (REPO_ROOT / ".cataforge" / "skills", "**/*.md"),
     (REPO_ROOT / ".cataforge" / "rules", "**/*.md"),
+    (REPO_ROOT / "docs" / "reference", "**/*.md"),
 ]
 
 # Markers that almost always indicate design-phase residue carried over
-# into runtime assets. Tight by design — if you need to add another
+# into long-term assets. Tight by design — if you need to add another
 # pattern, write a test case first.
 #
-# Two groups:
+# Three groups:
 #   - HTML-comment markers (the original tight scope)
-#   - Inline narrative markers mirroring COMMON-RULES.md self-check regex
-#     (溯源引用 / 版本里程碑 / 过程标签)
+#   - Inline citation / version-milestone markers anchored on hard tokens
+#     (`#NNN`, `vX.Y.Z 起`, …) so they skip state-machine narration
+#   - Chinese 对比叙事 anchors — residue-specific phrasings ("原方案 X 改
+#     为 Y", "收紧自 N", "不再使用 X") that never legitimately describe
+#     current state; the bare verb 改为 is intentionally absent (it fires
+#     on "由 draft 改为 approved" and teaching examples)
 FORBIDDEN: list[tuple[str, re.Pattern[str]]] = [
-    # HTML-comment residue
     ("变更原因", re.compile(r"<!--\s*变更原因[：:]")),
     ("diagnostic-id", re.compile(r"<!--\s*diagnostic\s*#\d+", re.IGNORECASE)),
     ("TODO-marker", re.compile(r"<!--\s*TODO\s*[:：]")),
     ("FIXME-marker", re.compile(r"<!--\s*FIXME\s*[:：]")),
     ("prompt-version", re.compile(r"<!--\s*prompt-version", re.IGNORECASE)),
     ("last-regenerated", re.compile(r"<!--\s*last-regenerated", re.IGNORECASE)),
-    # Inline narrative residue — mirrors COMMON-RULES.md §禁止设计阶段与变更说明残留
-    # self-check regex. Anchored on hard tokens (`#NNN`, `vX.Y.Z 起`, …)
-    # so they don't catch state-machine narration like "由 draft 改为
-    # approved" or anti-pattern examples that quote forbidden words.
     ("issue-citation", re.compile(r"\bissue\s*#\s*\d+", re.IGNORECASE)),
     ("PR-citation", re.compile(r"(?:^|[\s（(])PR\s*#\s*\d+")),
     ("closes-fixes", re.compile(r"\b(?:closes|fixes|closeout)\s*#?\s*\d+", re.IGNORECASE)),
     ("landed-in", re.compile(r"\blanded\s+in\b", re.IGNORECASE)),
     ("version-milestone", re.compile(r"v\d+\.\d+\.\d+\s*(?:起|新增|前后)")),
     ("pre-version", re.compile(r"\bpre-v\d+\.\d+\.\d+")),
+    ("narrative-原方案", re.compile(r"原方案")),
+    ("narrative-收紧自", re.compile(r"收紧自")),
+    ("narrative-不再使用", re.compile(r"不再[使采](?:用)")),
+    ("narrative-重命名为", re.compile(r"重命名为")),
 ]
 
-ALLOW_MARKER = re.compile(r"<!--\s*allow-design-residue")
-# Fenced code blocks (```...```) hold literal examples — regex strings in
-# rule docs, sample JSON / YAML / shell. Treat them as exempt so the
-# checker isn't its own false-positive generator.
-CODE_FENCE = re.compile(r"^\s*```")
-
-
-def is_whitelisted(line: str) -> bool:
-    return bool(ALLOW_MARKER.search(line))
-
-
-def iter_files() -> list[Path]:
-    files: list[Path] = []
-    seen: set[Path] = set()
-    for root, pattern in SCAN_GLOBS:
-        if not root.exists():
-            continue
-        for p in root.glob(pattern):
-            if p.is_file() and p not in seen:
-                seen.add(p)
-                files.append(p)
-    return files
+ALLOW = make_escape_hatch("allow-design-residue")
 
 
 def main() -> int:
     fails: list[str] = []
     scanned = 0
-    for path in iter_files():
+    for path in iter_asset_files(SCAN_GLOBS):
         scanned += 1
         try:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        in_code_fence = False
-        for lineno, line in enumerate(text.splitlines(), 1):
-            if CODE_FENCE.match(line):
-                in_code_fence = not in_code_fence
-                continue
-            if in_code_fence:
-                continue
-            if is_whitelisted(line):
+        for lineno, line in iter_scannable_lines(text):
+            if is_whitelisted_for(line, ALLOW):
                 continue
             for label, pattern in FORBIDDEN:
                 if pattern.search(line):
@@ -116,15 +92,15 @@ def main() -> int:
 
     if fails:
         print(
-            "Anti-rot: design-phase residue in runtime agent/skill assets",
+            "Anti-rot: design-phase residue in long-term prompt assets",
             file=sys.stderr,
         )
         for f in fails:
             print(f"  {f}", file=sys.stderr)
         print(
-            "\nFix: these comments are loaded into LLM context at runtime "
-            "and bloat the workflow. Move design rationale to PR description "
-            "or commit message; remove the comment from the runtime asset.",
+            "\nFix: this narrative is loaded into LLM context at runtime or "
+            "stands as long-term reference. Move design rationale to the PR "
+            "description or commit message; remove it from the asset.",
             file=sys.stderr,
         )
         return 1

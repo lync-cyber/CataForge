@@ -51,7 +51,7 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
         hooks_data = read_yaml(hooks_yaml)
     except ConfigError as e:
         report.add(
-            "B6_hook_consistency",
+            "B6_hook_script_reachability",
             "FAIL",
             "hooks/hooks.yaml",
             f"failed to parse hooks.yaml: {e}",

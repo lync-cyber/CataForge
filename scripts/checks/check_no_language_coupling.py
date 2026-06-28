@@ -32,18 +32,25 @@ from __future__ import annotations
 
 import re
 import sys
-from pathlib import Path
 
-# Reconfigure stdio to UTF-8 so Chinese characters in error messages don't
-# crash on Windows cp1252 terminals.
-for _stream_name in ("stdout", "stderr"):
-    _stream = getattr(sys, _stream_name)
-    if hasattr(_stream, "reconfigure"):
-        _stream.reconfigure(encoding="utf-8", errors="replace")
+from _common import (
+    REPO_ROOT,
+    ensure_utf8,
+    is_whitelisted_for,
+    iter_asset_files,
+    iter_scannable_lines,
+    make_escape_hatch,
+)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+ensure_utf8()
 
-SCAN_GLOBS: list[tuple[Path, str]] = [
+# Scope is intentionally the role-prompt *bodies* only. Skill `references/`
+# (especially `lang-*.md`) are the sanctioned home for language keywords —
+# the whole point of this guard is to push keywords out of the body into
+# those files, so scanning them would flag the very content they exist to
+# hold. docs/reference/ likewise documents the framework (which is Python)
+# and is out of scope for the same reason.
+SCAN_GLOBS = [
     (REPO_ROOT / ".cataforge" / "agents", "**/AGENT.md"),
     (REPO_ROOT / ".cataforge" / "skills", "**/SKILL.md"),
     (REPO_ROOT / ".cataforge" / "agents", "**/*PROTOCOLS*.md"),
@@ -136,16 +143,11 @@ FORBIDDEN: list[tuple[str, re.Pattern[str], str]] = [
     ),
 ]
 
-ALLOW_MARKER = re.compile(r"<!--\s*allow-language-coupling")
-CODE_FENCE = re.compile(r"^\s*```")
+ALLOW = make_escape_hatch("allow-language-coupling")
 # Markdown reference link to .cataforge/references/ — when the only language
 # mention on a line is inside such a link, treat the line as a legitimate
 # reference jump rather than a coupling.
 REFERENCE_LINK = re.compile(r"\[([^\]]+)\]\([^)]*references/[^)]+\)")
-
-
-def is_whitelisted(line: str) -> bool:
-    return bool(ALLOW_MARKER.search(line))
 
 
 def strip_reference_links(line: str) -> str:
@@ -156,36 +158,17 @@ def strip_reference_links(line: str) -> str:
     return REFERENCE_LINK.sub("", line)
 
 
-def iter_files() -> list[Path]:
-    files: list[Path] = []
-    seen: set[Path] = set()
-    for root, pattern in SCAN_GLOBS:
-        if not root.exists():
-            continue
-        for p in root.glob(pattern):
-            if p.is_file() and p not in seen:
-                seen.add(p)
-                files.append(p)
-    return files
-
-
 def main() -> int:
     fails: list[tuple[str, str]] = []
     scanned = 0
-    for path in iter_files():
+    for path in iter_asset_files(SCAN_GLOBS):
         scanned += 1
         try:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        in_code_fence = False
-        for lineno, line in enumerate(text.splitlines(), 1):
-            if CODE_FENCE.match(line):
-                in_code_fence = not in_code_fence
-                continue
-            if in_code_fence:
-                continue
-            if is_whitelisted(line):
+        for lineno, line in iter_scannable_lines(text):
+            if is_whitelisted_for(line, ALLOW):
                 continue
             stripped = strip_reference_links(line)
             for label, pattern, hint in FORBIDDEN:

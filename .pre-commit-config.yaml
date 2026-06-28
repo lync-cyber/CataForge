@@ -82,17 +82,18 @@ repos:
         language: system
         files: ^\.github/workflows/.*\.ya?ml$
       - id: no-design-residue
-        name: no design-phase residue in runtime agent/skill assets
+        name: no design-phase residue in long-term prompt assets
         description: |
-          .cataforge/agents/**/AGENT.md and .cataforge/skills/**/SKILL.md
-          are loaded into the LLM context at runtime. Block design-phase
-          comments (<!-- 变更原因 -->, <!-- diagnostic # -->) plus inline
-          narrative residue (issue #N citations, PR #N citations, version
-          milestones like `v0.1.10 起`, `pre-v0.4.0`, `landed in …`).
+          .cataforge/{agents,skills,rules}/** and docs/reference/** are loaded
+          into the LLM context at runtime or stand as long-term reference.
+          Block design-phase comments (<!-- 变更原因 -->, <!-- diagnostic # -->)
+          plus inline narrative residue (issue #N / PR #N citations, version
+          milestones like `v0.1.10 起`, `pre-v0.4.0`, `landed in …`, and
+          Chinese 对比叙事 anchors like 原方案 / 收紧自 / 不再使用 / 重命名为).
         entry: python scripts/checks/check_no_design_residue.py
         language: system
         pass_filenames: false
-        files: ^\.cataforge/(agents|skills|rules)/.*\.md$
+        files: ^(\.cataforge/(agents|skills|rules)|docs/reference)/.*\.md$
       - id: no-language-coupling
         name: agent / skill body language-agnostic
         description: |
@@ -110,16 +111,47 @@ repos:
       - id: doc-structure
         name: document structure hygiene (step numbering)
         description: |
-          .cataforge/{agents,skills,rules}/**/*.md are loaded into the LLM
-          context at runtime. Non-standard step numbering (3a., 4b.),
-          gaps in numbered sequences, and duplicate step numbers cause
+          .cataforge/{agents,skills,rules}/** and docs/reference/** are loaded
+          into the LLM context at runtime. Non-standard step numbering (3a.,
+          4b. — including the heading `### 3a.` and table-cell `| 3a. |`
+          forms), gaps in numbered sequences, and duplicate step numbers cause
           silent ambiguity in agent execution and rot over time. Use
           sequential integers only; merge sub-steps inline or as nested
           bullets.
         entry: python scripts/checks/check_doc_structure.py
         language: system
         pass_filenames: false
-        files: ^\.cataforge/(agents|skills|rules)/.*\.md$
+        files: ^(\.cataforge/(agents|skills|rules)|docs/reference)/.*\.md$
+      - id: markdown-link-resolution
+        name: deployed prompt-asset markdown links resolve
+        description: |
+          Relative [text](path) links in deployed AGENT.md / SKILL.md /
+          PROTOCOLS / references resolve to a file that exists in the
+          .cataforge/ tree under the deployed layout. Catches dangling
+          back-links left after offloading reference content.
+        entry: python scripts/checks/check_markdown_link_resolution.py
+        language: system
+        pass_filenames: false
+        files: ^\.cataforge/(agents|skills)/.*\.md$
+      - id: ssot-reconciliation
+        name: cross-asset SSOT reconciliation
+        description: |
+          PLATFORM_FEATURES (core.types) stays in lockstep with the features
+          keys in platforms/_schema.yaml and every profile.yaml; every
+          framework-review report.add id is registered in CHECKS_MANIFEST.
+        entry: python scripts/checks/check_ssot_reconciliation.py
+        language: system
+        pass_filenames: false
+        files: ^(src/cataforge/core/types\.py|\.cataforge/platforms/.*|src/cataforge/runtime/skill/builtins/framework_review/.*)$
+      - id: run-local-coverage
+        name: every deterministic check is wired into run_local
+        description: |
+          A new scripts/checks/check_*.py must be referenced by run_local.py
+          (or documented CI-only) so "green local == green CI" stays honest.
+        entry: python scripts/checks/check_run_local_coverage.py
+        language: system
+        pass_filenames: false
+        files: ^scripts/checks/.*\.py$
       - id: prompt-cli-drift
         name: prompt assets reference real CLI verbs
         description: |

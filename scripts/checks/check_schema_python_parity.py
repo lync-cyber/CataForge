@@ -45,7 +45,7 @@ def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _check_event_log() -> list[str]:
+def _check_event_log() -> tuple[list[str], dict[str, int]]:
     schema = _load(SCHEMA_DIR / "event-log.schema.json")
     props = schema["properties"]
     errs: list[str] = []
@@ -92,10 +92,17 @@ def _check_event_log() -> list[str]:
             f"  only in Python: {sorted(event_log.ALLOWED_FIELDS - expected_allowed)}"
         )
 
-    return errs
+    reconciled = {
+        "events": len(event_log.VALID_EVENTS),
+        "statuses": len(event_log.VALID_STATUSES),
+        "task_types": len(event_log.VALID_TASK_TYPES),
+        "required": len(event_log.REQUIRED_FIELDS),
+        "allowed": len(event_log.ALLOWED_FIELDS),
+    }
+    return errs, reconciled
 
 
-def _check_agent_result() -> list[str]:
+def _check_agent_result() -> tuple[list[str], int]:
     schema = _load(SCHEMA_DIR / "agent-result.schema.json")
     expected = set(schema["properties"]["status"]["enum"])
     fallback = {s.value for s in AgentStatus}
@@ -104,12 +111,14 @@ def _check_agent_result() -> list[str]:
             "agent-result: VALID_STATUSES fallback drift\n"
             f"  only in schema: {sorted(expected - fallback)}\n"
             f"  only in Python: {sorted(fallback - expected)}"
-        ]
-    return []
+        ], len(fallback)
+    return [], len(fallback)
 
 
 def main() -> int:
-    errs = _check_event_log() + _check_agent_result()
+    el_errs, el_counts = _check_event_log()
+    ar_errs, ar_status_count = _check_agent_result()
+    errs = el_errs + ar_errs
     if errs:
         print("FAIL: schema vs Python mirror parity\n", file=sys.stderr)
         for e in errs:
@@ -120,7 +129,11 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    print("OK: schema vs Python mirror parity (event-log: 5 fields/enums; agent-result: 1 enum)")
+    el_desc = ", ".join(f"{count} {name}" for name, count in el_counts.items())
+    print(
+        f"OK: schema vs Python mirror parity "
+        f"(event-log: {el_desc}; agent-result: {ar_status_count} statuses)"
+    )
     return 0
 
 
