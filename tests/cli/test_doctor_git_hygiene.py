@@ -45,12 +45,9 @@ def test_outside_repo_is_informational(tmp_path: Path, capsys: pytest.CaptureFix
 
 
 def test_reports_missing_gitattributes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    (tmp_path / ".cataforge").mkdir()
-    (tmp_path / ".cataforge" / "framework.json").write_text(
-        '{"version": "0.1.0"}', encoding="utf-8"
-    )
+    work, _bare = build_linked_repos(tmp_path)
 
-    rc = check_git_hygiene(ConfigManager(tmp_path))
+    rc = check_git_hygiene(ConfigManager(work))
     out = capsys.readouterr().out
 
     assert rc == 0
@@ -60,13 +57,10 @@ def test_reports_missing_gitattributes(tmp_path: Path, capsys: pytest.CaptureFix
 def test_reports_incomplete_gitattributes(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (tmp_path / ".cataforge").mkdir()
-    (tmp_path / ".cataforge" / "framework.json").write_text(
-        '{"version": "0.1.0"}', encoding="utf-8"
-    )
-    (tmp_path / ".gitattributes").write_text("* text=auto\n", encoding="utf-8")
+    work, _bare = build_linked_repos(tmp_path)
+    (work / ".gitattributes").write_text("* text=auto\n", encoding="utf-8")
 
-    rc = check_git_hygiene(ConfigManager(tmp_path))
+    rc = check_git_hygiene(ConfigManager(work))
     out = capsys.readouterr().out
 
     assert rc == 0

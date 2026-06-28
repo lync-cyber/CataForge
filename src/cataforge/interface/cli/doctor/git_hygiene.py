@@ -19,6 +19,15 @@ def check_git_hygiene(cfg: ConfigManager) -> int:
     """Report stale branches and .gitattributes line-ending hygiene."""
     from cataforge.application.services.git_hygiene import GitWorkTree, inspect_gitattributes
 
+    if shutil.which("git") is None:
+        click.echo("  git not on PATH — skipped.")
+        return 0
+
+    git = GitWorkTree(cfg.paths.root)
+    if not git.is_inside_work_tree():
+        click.echo("  not a git work-tree — skipped.")
+        return 0
+
     attr = inspect_gitattributes(cfg.paths.root)
     if attr.ok:
         click.echo("  .gitattributes: OK")
@@ -35,15 +44,6 @@ def check_git_hygiene(cfg: ConfigManager) -> int:
             + ", ".join(missing)
             + "; preserve custom file and add line-ending rules manually."
         )
-
-    if shutil.which("git") is None:
-        click.echo("  git not on PATH — branch check skipped.")
-        return 0
-
-    git = GitWorkTree(cfg.paths.root)
-    if not git.is_inside_work_tree():
-        click.echo("  not a git work-tree — branch check skipped.")
-        return 0
 
     gone = git.gone_branches()
     if not gone:
