@@ -24,7 +24,7 @@ agents:
     name: "选题策划"
     role: "分析目标受众，确定选题方向和内容策略"
     capabilities: [file_read, file_write, web_search, user_question]
-    max_turns: 50
+    max_turns: 80
 
   - id: researcher
     name: "素材调研"
@@ -36,13 +36,13 @@ agents:
     name: "内容撰写"
     role: "根据大纲和素材撰写文章正文"
     capabilities: [file_read, file_write, file_edit]
-    max_turns: 100
+    max_turns: 150
 
   - id: editor
     name: "内容编辑"
     role: "审核和修改文章的结构、逻辑、文风"
     capabilities: [file_read, file_write, file_edit]
-    max_turns: 60
+    max_turns: 80
 
   - id: publisher
     name: "排版发布"
