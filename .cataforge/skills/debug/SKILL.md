@@ -27,7 +27,7 @@ user-invocable: true
 
 ## 操作指令
 
-> **语言细则**: 根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），获取对应语言的调试诊断细则（调试器使用、traceback 解读、日志实践、运行时问题定位）。与 `docs/reference/debug-patterns.md`（scan-similar 的特征模式范例）分工：references 为完整调试细则，debug-patterns 为同类扫描的模式库。
+> **语言细则**: 根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），获取对应语言的调试诊断细则（调试器使用、traceback 解读、日志实践、运行时问题定位）。与本 skill `references/debug-patterns.md`（scan-similar 的特征模式范例）分工：lang-<lang>.md 为完整调试细则，debug-patterns 为同类扫描的模式库。
 
 ### 指令1: 完整调试流程 (full)
 
@@ -75,14 +75,14 @@ user-invocable: true
 
 适用于: 已修复一个问题，需要检查整个项目中是否存在同类问题。
 
-**Step 1**: 从已修复的问题中提取特征模式（如未显式声明编码的文件读写、未转义的正则元字符；语言特定示例见 [debug-patterns.md](../../../docs/reference/debug-patterns.md)）
+**Step 1**: 从已修复的问题中提取特征模式（如未显式声明编码的文件读写、未转义的正则元字符；语言特定示例见 [debug-patterns.md](references/debug-patterns.md)）
 **Step 2**: 使用 Grep 在项目范围内搜索该模式
 **Step 3**: 逐一检查匹配项，判断是否存在同类问题
 **Step 4**: 对确认存在问题的文件应用修复
 **Step 5**: 汇总扫描结果: 检查了 N 个文件，修复了 M 个
 
 ## 常见问题模式库
-语言/平台特定的症状—修复对照（Python/Windows 等）见 [debug-patterns.md](../../../docs/reference/debug-patterns.md)，新增语言在该文档增条。
+语言/平台特定的症状—修复对照（Python/Windows 等）见 [debug-patterns.md](references/debug-patterns.md)，新增语言在该文档增条。
 
 ## Anti-Patterns
 - 禁止: 修复表面 symptom 而不查 root cause —— 让最近一次报错消失不等于修了 bug，root_cause 可能在两层调用栈以上

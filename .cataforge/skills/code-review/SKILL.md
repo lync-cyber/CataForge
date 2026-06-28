@@ -60,7 +60,7 @@ user-invocable: true
 - 代码结构(structure): 模块组织、职责划分是否合理
 - 安全漏洞(security): OWASP Top 10 检查(注入/XSS/认证/敏感数据暴露等)
 - 接口一致性(consistency): 实现是否与arch接口契约匹配
-- 集成连线(integration-wiring): 接线对象在生产路径有真实调用点、不是空 stub / 占位返回 / 仅满足类型契约的形式。仅 tests/ 内构造调用不算落地。各语言反例与正则候选见 [`docs/reference/wiring-checks.md`](../../../docs/reference/wiring-checks.md)；CHECKS_MANIFEST `wiring_empty_handler` 与 plugin-style YAML (`wiring-{lang}.yaml`) 承载具体识别规则。下游声明 `wiring_placeholder: true` + 关联 backlog ID 则豁免
+- 集成连线(integration-wiring): 接线对象在生产路径有真实调用点、不是空 stub / 占位返回 / 仅满足类型契约的形式。仅 tests/ 内构造调用不算落地。各语言反例与正则候选见 [`wiring-checks.md`](../../references/wiring-checks.md)；CHECKS_MANIFEST `wiring_empty_handler` 与 plugin-style YAML (`wiring-{lang}.yaml`) 承载具体识别规则。下游声明 `wiring_placeholder: true` + 关联 backlog ID 则豁免
 - 视觉保真(visual-fidelity, 仅 `user_facing_critical_path: true` 且含样式/标记的 UI 任务): Layer 1 `ui_fidelity` 已机械抓死 token / 未加载字体 / 幽灵类；此处补静态抓不到的渲染缺陷——内容/图标是否被渲染成字面文本、激活与状态视觉是否真出现、计算样式（computed-style）是否等于设计值。收口须有**渲染证据**（截图或运行期计算样式读数），不以绿单测代替。无头 / 沙盒环境取不到渲染证据时**不**以 `[ENV-LIMITATION]` / `[ASSUMPTION]` 豁免，按 COMMON-RULES §verdict_blocking_semantics 出 `conditional_release` + 非空 `blocking_conditions`（条件=补一次真实渲染核验）驱动闭环
 - 错误处理(error-handling): 是否符合arch§5.3错误处理策略
 - 测试质量(test-quality, 仅当审查范围包含 tests/ 目录时; AC 覆盖完整度由 sprint-review 负责，此处不重复):

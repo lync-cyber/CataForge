@@ -13,7 +13,7 @@ Two scans over ``.cataforge/`` markdown/YAML prose:
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -258,3 +258,124 @@ def check_deprecated_references(cfg: ConfigManager) -> int:
             click.echo(f"    - ... and {extra} more call site(s)")
 
     return len(findings)
+
+
+# Markdown inline link: ``[text](target)``. Reference-style and image links
+# are out of scope — prompt assets use inline links for cross-references.
+_MD_LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+
+
+def _deployable_md_files(
+    scan_roots: Iterable[Path],
+    skip_subtrees: Iterable[Path],
+) -> Iterator[Path]:
+    """Yield deployable ``.md`` files under *scan_roots*.
+
+    ``templates/`` is excluded: a template's links resolve against the
+    generated ``docs/`` tree it produces, not against ``.cataforge/``.
+    """
+    skips = tuple(skip_subtrees)
+    for base in scan_roots:
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*.md"):
+            if not path.is_file():
+                continue
+            if "templates" in path.parts:
+                continue
+            if any(is_relative_to(path, sub) for sub in skips):
+                continue
+            yield path
+
+
+def _unresolved_link_key(target: str, base_dir: Path, cataforge_root: Path) -> str | None:
+    """Classify one markdown link target.
+
+    Returns a violation label when the target escapes ``cataforge_root`` (not
+    deployed downstream) or is missing; ``None`` when it resolves cleanly or is
+    not a deploy-relevant file link (external URL, anchor, glob/placeholder).
+    """
+    if target.startswith(("http://", "https://", "#", "mailto:")):
+        return None
+    target_path = target.split("#", 1)[0].split(" ", 1)[0].strip()
+    if not target_path or any(c in target_path for c in "*<>{"):
+        return None
+    if not Path(target_path).suffix:
+        return None
+    resolved = (base_dir / target_path).resolve()
+    if not is_relative_to(resolved, cataforge_root):
+        return f"{target_path} (escapes .cataforge/ — not deployed downstream)"
+    if not resolved.exists():
+        return f"{target_path} (target missing)"
+    return None
+
+
+def check_markdown_link_resolution(cfg: ConfigManager) -> int:
+    """Scan deployable ``.cataforge/`` prompt assets for markdown links whose
+    relative target resolves *outside* the ``.cataforge/`` tree or to a missing
+    file.
+
+    ``cataforge deploy`` materializes only ``.cataforge/**`` into a downstream
+    project; ``docs/`` is never copied. A SKILL/AGENT link to repo-root
+    ``docs/reference/...`` therefore resolves to a path that does not exist
+    downstream — the agent follows a dead link. This gate keeps the
+    deployable-asset boundary closed: every link an agent can follow must land
+    on a file that ships with it.
+
+    Returns the number of distinct unresolvable targets (gates the exit code).
+    """
+    root = cfg.paths.root
+    # Unresolved for scan/skip (shares the rglob path prefix); resolved only for
+    # the link-boundary check, where the target's ``../`` must be normalized.
+    cataforge_root = root / ".cataforge"
+    cataforge_root_resolved = cataforge_root.resolve()
+    # Prompt-asset surfaces whose links an agent follows from the asset's own
+    # deployed location.
+    scan_roots = (
+        cfg.paths.agents_dir,
+        cfg.paths.skills_dir,
+        cfg.paths.rules_dir,
+        cataforge_root / "references",
+        cataforge_root / "platforms",
+    )
+    # Top-level ``overrides/`` and ``.archive/`` never deploy; retired skill
+    # dirs are stale upgrade leftovers (surfaced by the retired-asset scan).
+    skip_subtrees = (
+        cataforge_root / "overrides",
+        cataforge_root / ".archive",
+        *retired_skill_dirs(cfg.paths.skills_dir),
+    )
+
+    violations: dict[str, list[str]] = {}
+    for path in _deployable_md_files(scan_roots, skip_subtrees):
+        try:
+            text = path.read_text()
+        except OSError:
+            continue
+        try:
+            display = path.relative_to(root).as_posix()
+        except ValueError:
+            display = str(path)
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            for match in _MD_LINK.finditer(line):
+                key = _unresolved_link_key(
+                    match.group(1).strip(), path.parent, cataforge_root_resolved
+                )
+                if key is not None:
+                    violations.setdefault(key, []).append(f"{display}:{lineno}")
+
+    if not violations:
+        click.echo("  (all .cataforge/ markdown links resolve within the deployed tree)")
+        return 0
+
+    click.echo(f"  {len(violations)} unresolvable markdown link target(s):")
+    for key in sorted(violations):
+        callers = sorted(set(violations[key]))
+        click.echo(f"  FAIL {key}")
+        for caller in callers[:5]:
+            click.echo(f"    - {caller}")
+        extra = len(callers) - 5
+        if extra > 0:
+            click.echo(f"    - ... and {extra} more call site(s)")
+
+    return len(violations)

@@ -76,7 +76,7 @@ cataforge override eject agents architect --layer user --patch --section "Execut
 .cataforge/overrides/{project,user}/skills/<id>/rules/wiring-<lang>.yaml
 ```
 
-运行期 `discover_rules` 按同样的高层胜出顺序合并，覆盖 YAML 改完即被 Layer 1 grep 采纳（详见 [`wiring-checks.md`](wiring-checks.md)）。
+运行期 `discover_rules` 按同样的高层胜出顺序合并，覆盖 YAML 改完即被 Layer 1 grep 采纳（详见 [`wiring-checks.md`](../../.cataforge/references/wiring-checks.md)）。
 
 ## 与升级的关系
 

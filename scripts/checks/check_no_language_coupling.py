@@ -10,7 +10,7 @@ main body, every project that doesn't use that language still pays the
 token cost on every load.
 
 The fix is structural: keep the skill / agent body language-agnostic, and
-move language-specific identification patterns into `docs/reference/`
+move language-specific identification patterns into `.cataforge/references/`
 (one topic per file, e.g. `wiring-checks.md`). The body links to the
 reference; the reference grows as new languages are added without
 re-touching skill prompts.
@@ -20,7 +20,7 @@ Whitelist:
       (escape hatch for cases where the term is unavoidable in the body).
     - Lines inside fenced code blocks (```...```) — code examples and
       YAML rule snippets legitimately contain language-specific tokens.
-    - Lines that are pure markdown links pointing at docs/reference/
+    - Lines that are pure markdown links pointing at .cataforge/references/
       (the link text may legitimately mention the language).
 
 Exit:
@@ -54,77 +54,77 @@ SCAN_GLOBS: list[tuple[Path, str]] = [
 # fire on incidental mentions. Tool-adapter lists (ESLint / Ruff / golangci-lint)
 # are deliberately NOT here — those are legitimate capability declarations.
 #
-# To add a language family, ship a `docs/reference/<topic>-<lang>.md`
+# To add a language family, ship a `.cataforge/references/<topic>-<lang>.md`
 # first, then add the keyword here with a hint pointing at it.
 FORBIDDEN: list[tuple[str, re.Pattern[str], str]] = [
     (
         "python-web-framework",
         re.compile(r"\b(?:FastAPI|Starlette|Django|Flask|Pyramid|Tornado)\b"),
-        "docs/reference/wiring-checks.md §Python (or a new docs/reference/python-*.md)",
+        ".cataforge/references/wiring-checks.md §Python (or a new per-language file)",
     ),
     (
         "python-async-runtime",
         re.compile(r"\basyncio[.:]\w"),
-        "docs/reference/python-runtime.md (create as needed)",
+        ".cataforge/references/python-runtime.md (create as needed)",
     ),
     (
         "python-orm",
         re.compile(r"\b(?:SQLAlchemy|Tortoise|Peewee|PonyORM)\b"),
-        "docs/reference/python-persistence.md (create as needed)",
+        ".cataforge/references/python-persistence.md (create as needed)",
     ),
     (
         "python-signal-binding",
         re.compile(r"\bsignal\.connect\s*\(|@\w*receiver\b|\bblinker\b", re.IGNORECASE),
-        "docs/reference/wiring-checks.md §Python.signal",
+        ".cataforge/references/wiring-checks.md §Python.signal",
     ),
     (
         "python-lifespan-hook",
         re.compile(r"\blifespan_context\b|\badd_event_handler\s*\(", re.IGNORECASE),
-        "docs/reference/wiring-checks.md §Python.lifespan",
+        ".cataforge/references/wiring-checks.md §Python.lifespan",
     ),
     (
         "python-di-container",
         re.compile(
             r"\bdependency_injector\b|\binject\.Binder\b|providers\.(?:Singleton|Factory|Resource)\b",
         ),
-        "docs/reference/wiring-checks.md §Python.DI",
+        ".cataforge/references/wiring-checks.md §Python.DI",
     ),
     (
         "react-hook",
         re.compile(r"\buse(?:Effect|State|Memo|Callback|Ref|Context)\s*\("),
-        "docs/reference/wiring-checks.md §JS-TS (or a new docs/reference/react-*.md)",
+        ".cataforge/references/wiring-checks.md §JS-TS (or a new per-language file)",
     ),
     (
         "redux-store-action",
         re.compile(r"\b(?:Redux|Zustand|Vuex|Pinia)\b|\bstore\.dispatch\s*\("),
-        "docs/reference/wiring-checks.md §JS-TS.store-action",
+        ".cataforge/references/wiring-checks.md §JS-TS.store-action",
     ),
     (
         "spring-stereotype",
         re.compile(
             r"@(?:Autowired|Component|Service|Bean|SpringBootApplication)\b|\bSpring\s+Boot\b"
         ),
-        "docs/reference/wiring-checks.md §Java (or a new docs/reference/spring-*.md)",
+        ".cataforge/references/wiring-checks.md §Java (or a new per-language file)",
     ),
     (
         "node-web-framework",
         re.compile(r"\b(?:Express|Koa|Fastify|NestJS)\b"),
-        "docs/reference/wiring-checks.md §JS-TS (or a new docs/reference/node-*.md)",
+        ".cataforge/references/wiring-checks.md §JS-TS (or a new per-language file)",
     ),
     (
         "go-concurrency",
         re.compile(r"\bgoroutine\b|\bsync\.WaitGroup\b"),
-        "docs/reference/wiring-checks.md §Go (or a new docs/reference/go-*.md)",
+        ".cataforge/references/wiring-checks.md §Go (or a new per-language file)",
     ),
     (
         "rust-tokio",
         re.compile(r"\btokio::spawn\b|#\[tokio::main\]"),
-        "docs/reference/wiring-checks.md §Rust (or a new docs/reference/rust-*.md)",
+        ".cataforge/references/wiring-checks.md §Rust (or a new per-language file)",
     ),
     (
         "test-mock-module",
         re.compile(r"\b(?:vi|jest)\.mock\b|\bunittest\.mock\b"),
-        "docs/reference/test-and-e2e-apis.md §module-mock API",
+        ".cataforge/references/test-and-e2e-apis.md §module-mock API",
     ),
     (
         "e2e-driver-input",
@@ -132,16 +132,16 @@ FORBIDDEN: list[tuple[str, re.Pattern[str], str]] = [
             r"\bpage\.(?:fill|click|type|goto|press)\b|\bcy\.[a-z]|"
             r"\bkeyboard\.(?:type|press)\b|\bsend_keys\b"
         ),
-        "docs/reference/test-and-e2e-apis.md §e2e 真实用户输入原语",
+        ".cataforge/references/test-and-e2e-apis.md §e2e 真实用户输入原语",
     ),
 ]
 
 ALLOW_MARKER = re.compile(r"<!--\s*allow-language-coupling")
 CODE_FENCE = re.compile(r"^\s*```")
-# Markdown reference link to docs/reference/ — when the only language
+# Markdown reference link to .cataforge/references/ — when the only language
 # mention on a line is inside such a link, treat the line as a legitimate
 # reference jump rather than a coupling.
-REFERENCE_LINK = re.compile(r"\[([^\]]+)\]\([^)]*docs/reference/[^)]+\)")
+REFERENCE_LINK = re.compile(r"\[([^\]]+)\]\([^)]*references/[^)]+\)")
 
 
 def is_whitelisted(line: str) -> bool:
@@ -149,7 +149,7 @@ def is_whitelisted(line: str) -> bool:
 
 
 def strip_reference_links(line: str) -> str:
-    """Remove `[…](docs/reference/…)` link bodies so the link text
+    """Remove `[…](.cataforge/references/…)` link bodies so the link text
     (which may legitimately mention a language to label the jump target)
     doesn't trigger the scanner.
     """
@@ -205,7 +205,7 @@ def main() -> int:
         print(
             "\nFix: agent / skill subject is the responsibility, not a "
             "language. Move language-specific identification rules to "
-            "docs/reference/, link from the body. CLAUDE.md §Agent / Skill "
+            ".cataforge/references/, link from the body. CLAUDE.md §Agent / Skill "
             "撰写约定 has the full rule. If unavoidable, append "
             "`<!-- allow-language-coupling: <reason> -->` to the line.",
             file=sys.stderr,

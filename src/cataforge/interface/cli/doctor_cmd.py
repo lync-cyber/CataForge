@@ -36,6 +36,7 @@ from .doctor.migration import check_runtime_api_version, run_migration_checks
 from .doctor.protocol_refs import (
     _DEPRECATED_REFS,
     check_deprecated_references,
+    check_markdown_link_resolution,
     check_protocol_script_references,
 )
 from .doctor.provenance import report_deployment_provenance
@@ -63,6 +64,10 @@ _DOCTOR_SECTIONS = [
     # runtime, so a static scan catches the rot at diagnostic time.
     ("Protocol script references:", check_protocol_script_references, True),
     ("Deprecated protocol references:", check_deprecated_references, True),
+    # Markdown link resolution — a SKILL/AGENT link to repo-root docs/ resolves
+    # downstream to a path deploy never copied (only .cataforge/** ships), so the
+    # agent follows a dead link. Gate keeps the deployable-asset boundary closed.
+    ("Markdown link resolution:", check_markdown_link_resolution, True),
     # Retired skill leftovers — informational WARN: a removed framework skill's
     # source dir survived an upgrade (untracked/edited, so manifest prune missed
     # it). Non-gating; `upgrade apply` removes it. Reframes the deprecated-refs

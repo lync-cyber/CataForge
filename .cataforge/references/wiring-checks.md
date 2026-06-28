@@ -6,7 +6,7 @@
 >
 > project override 在运行期生效：扫描器按 `cataforge skill run` 注入的项目根逐次解析规则，覆盖 YAML 改完即被 Layer 1 grep 采纳，无需重装包。
 >
-> 新增语言的 `language:` id 必须在语言注册表 [`languages.md`](languages.md) 登记（parity 测试强制一致），其 `extensions` 须是注册表中该语言扩展名的子集。
+> 新增语言的 `language:` id 必须在语言注册表 `languages.md` 登记（parity 测试强制一致），其 `extensions` 须是注册表中该语言扩展名的子集。
 
 ## 1. 通用判定
 
@@ -62,13 +62,39 @@ FastAPI / Starlette — hook 函数必须挂到 `app.router.lifespan_context` �
 
 `@cli.command(...)` / `@app.command(...)` 装饰的函数必须挂到顶层 `cli` / `app` group，子 group 须被父 group `add_command` 引入。仅在 tests 里 `runner.invoke(<cmd>)` 不算落地。
 
-## 4. Go / Rust / Java（占位）
+## 4. Go / Rust / Java / C#
 
-按 §2-3 风格逐步补：
+### 4.1 Go
 
-- **Go**：goroutine 启动点 / channel 消费侧 / `http.HandleFunc` 路由注册
-- **Rust**：`tokio::spawn(...)` 接线点 / `axum::Router.route(...)` 注册 / trait impl 在生产路径被实例化
-- **Java**：`@Bean` / `@Component` / `@Autowired` 在 Spring context scan path 内 / `EventBus.register(...)` 落地
+- goroutine：`go fn(...)` 的启动点必须在生产路径，且若用 channel 协调则有消费侧 `<-ch` 取值
+- HTTP 路由：handler 函数必须经 `http.HandleFunc("/path", handler)` 或路由库（chi/gin/echo）`router.Get("/path", handler)` 注册
+- CLI 子命令（cobra）：`cmd.AddCommand(subCmd)` 把子命令挂到 root；仅定义 `&cobra.Command{...}` 不算落地
+
+反例：定义 `func handleWebhook(w, r)` 但全仓无 `http.HandleFunc`/router 注册引用它。
+
+### 4.2 Rust
+
+- 异步任务：`tokio::spawn(<future>)` 的接线点在生产路径；`#[tokio::main]` 仅标注 runtime，不构成 handler 落地
+- HTTP 路由：handler 经 `axum::Router::new().route("/path", get(handler))` 或 actix `App::route(...)` 注册
+- trait impl：实现某 trait 的类型必须在生产路径被构造并经 trait object / 泛型约束实际调用，仅 `impl Trait for T {}` 不算落地
+
+反例：`impl Handler for Webhook` 但无任何 `Router::route` 把它挂上。
+
+### 4.3 Java
+
+- Spring 装配：`@Component` / `@Service` / `@Bean` 声明的 bean 必须在 component-scan 路径内并被注入消费（`@Autowired` 字段 / 构造参数有实际调用点）
+- HTTP 路由：`@RestController` + `@GetMapping("/path")` 注册端点；仅定义方法不挂注解不算落地
+- 事件：`EventBus.register(listener)` / 实现 `ApplicationListener<E>` 被 Spring 发现
+
+反例：`@Service class IngestService` 定义但无任何注入点取用（无 `@Autowired IngestService` / 构造参数）。
+
+### 4.4 C#
+
+- ASP.NET 路由：`app.MapControllers()` 启用控制器路由，或 minimal API `app.MapGet("/path", handler)` 注册端点
+- DI 注册：`services.AddScoped<IFoo, Foo>()` 注册后必须有构造注入消费点（某类构造参数为 `IFoo`）
+- 后台服务：`IHostedService` 实现经 `services.AddHostedService<T>()` 注册
+
+反例：`services.AddScoped<IReportBuilder, ReportBuilder>()` 注册但无任何类把 `IReportBuilder` 作为构造依赖取用。
 
 ## 5. 引用关系
 

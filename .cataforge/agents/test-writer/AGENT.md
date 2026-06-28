@@ -73,14 +73,7 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 
 ### 1. lint 白名单合规
 
-测试文件 lint 例外**必须 inline 注释 root_cause**（如 `// biome-ignore lint/...: <为什么这里非用不可>`）；不允许全文件 disable。常见项目禁用规则与替代 pattern：
-
-| 反模式 | 替代 |
-|-------|------|
-| `value!` (non-null assertion) | `value ?? (() => { throw new Error("expected ...") })()` 或 `if (!value) throw ...; value` |
-| `.not.toBeNull()` 配 `.find()` | `.toBeTruthy()` 或 `.toMatchObject({ ... })` |
-| `isNaN(x)` | `Number.isNaN(x)` |
-| `delete obj.key` | `obj.key = undefined` 或 `const { key, ...rest } = obj` |
+测试文件 lint 例外**必须 inline 注释 root_cause**（如 `// biome-ignore lint/...: <为什么这里非用不可>`）；不允许全文件 disable。按语言的常见禁用规则 → 替代 pattern 见 [`test-and-e2e-apis.md`](../../references/test-and-e2e-apis.md) §测试代码 lint 例外。
 
 ### 2. 测试名 ↔ 断言意图一致性
 
@@ -88,10 +81,10 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 
 | anti-pattern | 例 |
 |-------------|-----|
-| 反义 API 调用 | test "should reject" + `expect(...).not.rejects` |
-| AC 语义 ↔ 断言 token 不符 | AC "return error object" + `expect(...).toContain('stub:')` |
-| 测试数据 ↔ 名称反向 | test "with invalid input" + `send({ valid: true })` |
-| Mock 缺失而测试名完整 | test "calls MCP server" + 无任何 mock 装置（module-mock / mock 对象） |
+| 反义 API 调用 | 测试名声明 "should reject"，断言却走成功 / 不拒绝分支 |
+| AC 语义 ↔ 断言 token 不符 | AC 要求返回 error 对象，断言却匹配占位 / stub 字符串 |
+| 测试数据 ↔ 名称反向 | 测试名声明 "invalid input"，构造的却是合法数据 |
+| Mock 缺失而测试名完整 | 测试名 "calls X server" 却无任何 mock 装置（module-mock / mock 对象） |
 
 ### 3. 跨平台 syscall 测试模式
 
@@ -120,6 +113,6 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 - 避免: 跨平台 syscall 走 platform-skip 跳过 — 优先 mock 模式（语义验证更强；详见 §测试质量自检 checklist 第 3 条决策树）
 - 禁止: 编写仅检查模块/函数/类/属性存在性的测试 — 测试是行为规格说明，每个断言必须验证调用产出而非结构存在（见 §Execution Rules 行为断言强制）
 - 禁止: 使用无语义占位值作为断言期望值（如 `expect(result).toBe(42)` 中 42 与 AC 无关） — 期望值必须可追溯到 AC 的 Then 子句或接口契约
-- 禁止: 接线类 AC（注册 / 挂载 / 事件订阅 / 生命周期 hook）用读源码文件断言其包含某调用字符串来验证 — 该锚定可被 no-op 实现绕过；必须以真实运行时对象触发接线点并断言回调/状态产出，使空壳实现 FAIL。判定准则见 [`docs/reference/wiring-checks.md`](../../../docs/reference/wiring-checks.md)
+- 禁止: 接线类 AC（注册 / 挂载 / 事件订阅 / 生命周期 hook）用读源码文件断言其包含某调用字符串来验证 — 该锚定可被 no-op 实现绕过；必须以真实运行时对象触发接线点并断言回调/状态产出，使空壳实现 FAIL。判定准则见 [`wiring-checks.md`](../../references/wiring-checks.md)
 - 避免: 单元测试 spawn 子进程 / 起服务 / 连真实外部依赖来验证可进程内验证的逻辑 — 进程启动 + import 开销让单测退化为集成测速度，套件随测试数线性变慢；仅在验证真实安装 / CLI / 跨进程边界时才 spawn，且该测应归入集成/慢测标签
 - 避免: 每个测试各自重建一次即确定的昂贵 setup（已构建环境 / 已初始化数据存储 / 预置 fixture 数据）— 改用 session/module 级 fixture 构建一次跨用例复用，各测仅取隔离副本

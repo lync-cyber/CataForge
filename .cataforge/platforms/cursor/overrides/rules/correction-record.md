@@ -24,7 +24,7 @@ cataforge correction record \
   --prevention "<规避建议>"
 ```
 
-`<type>` 枚举与选型示例见 [docs/reference/corrections.md](../../../../../docs/reference/corrections.md)：
+`<type>` 枚举与选型示例见框架仓 `docs/reference/corrections.md`：
 
 | 类型 | 何时选 |
 |------|--------|
