@@ -65,7 +65,7 @@ def load_project_features(dev_plan_files: list[str]) -> dict[str, Any]:
         if re.search(r"-s\d+\.md$", f):
             continue
         try:
-            with open(f) as fh:
+            with open(f, errors="replace") as fh:
                 raw = fh.read()
         except OSError:
             continue
@@ -207,7 +207,7 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
     files_to_search = [sprint_volume] if sprint_volume else dev_plan_files
 
     for filepath in files_to_search:
-        with open(filepath) as f:
+        with open(filepath, errors="replace") as f:
             content = f.read()
 
         # in_sprint is reset per file so a heading in one file never attributes

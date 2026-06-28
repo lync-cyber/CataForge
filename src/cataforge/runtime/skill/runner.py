@@ -196,8 +196,11 @@ class SkillRunner:
             detail = f"skill-run: {skill_id} Layer 1 reported issues"
             status = "needs_revision"
         elif returncode == 2:
-            detail = f"skill-run: {skill_id} Layer 1 bad arguments (exit 2)"
-            status = "needs_revision"
+            detail = (
+                f"skill-run: {skill_id} Layer 1 FAIL: bad arguments / not executable "
+                "(exit 2) — run cataforge doctor"
+            )
+            status = "blocked"
         else:
             detail = (
                 f"skill-run: {skill_id} Layer 1 exit={returncode} (unreachable or runtime error)"

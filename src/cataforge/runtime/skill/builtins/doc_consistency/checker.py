@@ -194,7 +194,8 @@ class CrossDocChecker(_CrossDocChecksMixin):
         )
 
     def run(self) -> int:
-        """Run checks, print the text report (unless quiet), return 0/1/2."""
+        """Run checks, print the text report (unless quiet), return 0 (clean
+        or advisory-only → proceed to Layer 2) / 1 (blocking findings)."""
         report = self.collect()
         if not self._quiet:
             print(render_text(report))
