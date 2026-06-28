@@ -27,6 +27,13 @@ def render_text(report: CheckReport) -> str:
         f"Summary: {s['backdoor_total']} backdoor WARN, "
         f"{s['real_input_total']} real-input call(s) across {s['file_count']} file(s)"
     )
-    warnings_only = s["backdoor_total"] or not s["real_input_total"]
-    lines.append("RESULT: PASS" + (" (warnings only)" if warnings_only else ""))
+    if s["backdoor_total"]:
+        note = " (warnings only)"
+    elif not s["real_input_total"]:
+        # Clean of backdoors but nothing positively verified — say so plainly
+        # rather than mislabel a zero-warning run as "warnings only".
+        note = " (no real-input verified)"
+    else:
+        note = ""
+    lines.append("RESULT: PASS" + note)
     return "\n".join(lines)

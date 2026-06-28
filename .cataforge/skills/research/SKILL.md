@@ -62,6 +62,7 @@ Agent遇到不确定性时:
 - 禁止: 不写 research-note 就把调研结论作为下游决策依据 — evidence 链断裂后 reflector / sprint-review 无法追溯结论合理性
 - 禁止: 把推测当 evidence 引用 — 未标 [ASSUMPTION] 的假设进入正式文档会让 reviewer 无法识别"已确认事实"和"待验证猜测"
 - 避免: 一次 user-interview 提问超过 MAX_QUESTIONS_PER_BATCH — 用户决策成本陡升、回答完整度下降，应按 batch 拆分
+- 禁止: web-search / web-fetch 不可达或被拒时静默返回空结论 —— 按 COMMON-RULES §通用 Error Handling 标 [ASSUMPTION] 给出基于已有上下文的合理默认并记录待验证缺口，仅在结论完全无法支撑时返回 blocked
 
 ## 效率策略
 - 选择题优先，降低用户回答成本

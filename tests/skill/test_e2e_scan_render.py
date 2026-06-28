@@ -58,6 +58,8 @@ def test_render_backdoor_findings_tagged_warnings_only() -> None:
     )
 
 
-def test_render_zero_real_input_is_warnings_only() -> None:
+def test_render_zero_real_input_flags_unverified() -> None:
     report = _report(file_count=2, backdoor_total=0, real_input_total=0)
-    assert render_text(report).endswith("RESULT: PASS (warnings only)")
+    # No backdoor warnings AND nothing verified: honest wording, not the
+    # contradictory "(warnings only)" on a zero-warning run.
+    assert render_text(report).endswith("RESULT: PASS (no real-input verified)")

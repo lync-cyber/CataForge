@@ -157,11 +157,16 @@ class DocChecker(TypedDocChecksMixin):
             )
 
     def check_no_todo(self) -> None:
-        todo_count = len(re.findall(r"TODO|TBD|FIXME", self.content))
-        assumption_count = len(re.findall(r"\[ASSUMPTION\]", self.content))
-        remaining = todo_count - assumption_count
-        if remaining > 0:
-            self.fail(f"{remaining}个未处理TODO/TBD/FIXME")
+        # Per-line determination: a TODO/TBD/FIXME is exempt only when its own
+        # line carries the [ASSUMPTION] marker. A global count subtraction would
+        # let an [ASSUMPTION] elsewhere in the doc cancel an unrelated TODO.
+        unannotated = 0
+        for line in self.content.splitlines():
+            if "[ASSUMPTION]" in line:
+                continue
+            unannotated += len(re.findall(r"TODO|TBD|FIXME", line))
+        if unannotated > 0:
+            self.fail(f"{unannotated}个未处理TODO/TBD/FIXME")
 
     def _split_threshold(self) -> int:
         """Resolve ``DOC_SPLIT_THRESHOLD_LINES`` from framework.json.

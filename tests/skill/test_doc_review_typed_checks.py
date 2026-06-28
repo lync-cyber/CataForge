@@ -703,3 +703,29 @@ def test_check_changelog_missing_category_warns(tmp_path: Path) -> None:
     c = _checker(tmp_path, "changelog", content)
     c.check_changelog()
     assert any("Added" in w or "Changed" in w or "Fixed" in w for w in c.warnings)
+
+
+# ---------------------------------------------------------------------------
+# check_no_todo — per-line [ASSUMPTION] exemption
+# ---------------------------------------------------------------------------
+
+
+def test_check_no_todo_unannotated_fails(tmp_path: Path) -> None:
+    c = _checker(tmp_path, "prd", "## 1\n- TODO: wire this up\n")
+    c.check_no_todo()
+    assert any("TODO" in e for e in c.errors)
+
+
+def test_check_no_todo_same_line_assumption_is_exempt(tmp_path: Path) -> None:
+    c = _checker(tmp_path, "prd", "## 1\n- TODO: pick a default [ASSUMPTION] use 30s\n")
+    c.check_no_todo()
+    assert c.errors == []
+
+
+def test_check_no_todo_unrelated_assumption_does_not_cancel(tmp_path: Path) -> None:
+    # A global count subtraction would cancel the TODO against the unrelated
+    # [ASSUMPTION] on another line; per-line determination still fails.
+    content = "## 1\n- TODO: wire this up\n- 默认超时 [ASSUMPTION] 30s\n"
+    c = _checker(tmp_path, "prd", content)
+    c.check_no_todo()
+    assert any("TODO" in e for e in c.errors)
