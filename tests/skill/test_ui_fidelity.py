@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.runtime.skill.builtins.code_review import ui_fidelity as uf
+from cataforge.runtime.skill.builtins.code_review.checks import ui_fidelity as uf
 
 
 def _codes(findings: list[uf.Finding]) -> set[str]:

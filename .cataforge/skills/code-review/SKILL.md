@@ -1,7 +1,7 @@
 ---
 name: code-review
 description: "代码评审 — 任务粒度评审 (review) 与项目级健康度扫描 (scan) 双入口；代码质量检查、规范合规验证、安全漏洞检测、腐化指标扫描。当任务卡 GREEN 完成 / Sprint 发布前 / 用户要求扫描代码腐化时使用此 skill。审查范围限 src/ 业务代码：文档审查由 doc-review 负责；框架元资产 (.cataforge/) 审查由 framework-review 负责；Sprint 完成度由 sprint-review 负责。"
-argument-hint: "<代码文件路径或目录> | scan <path> [--focus <category[,...]>]"
+argument-hint: "review <path> [--fix] [--focus <category[,...]>] | scan <path> [--focus <category[,...]>]"
 suggested-tools: file_read, file_glob, file_grep, shell_exec
 depends: [context]
 disable-model-invocation: false
@@ -28,9 +28,9 @@ user-invocable: true
 ### Step 1: Layer 1 — Lint脚本自动检查
 **前置判断**: 读取当前平台 Hook 配置（Claude: `.claude/settings.json`；Cursor: `.cursor/hooks.json`），检查是否存在 matcher 为 `Edit|Write`（Cursor 可为 `Write`/`StrReplace`）且 command 包含 `lint_format.py` 的条目:
 - **已配置 lint hook** → 编码阶段已通过 hook 以 `--fix` 模式实时修复格式/lint问题，跳过 Layer 1，直接进入 Step 2 Layer 2，并在审查报告标题下标注 `Layer 1 delegated to hook`
-- **未配置 lint hook** → 执行: `cataforge skill run code-review -- {file_or_dir}`
+- **未配置 lint hook** → 执行: `cataforge skill run code-review -- review {file_or_dir}`
 
-**调用约定（单一入口）**: Layer 1 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。返回码语义按 §Layer 1 调用协议处理（exit 1 时可追加 `--fix` 自动修复后重新检查）。
+**调用约定（单一入口）**: Layer 1 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。返回码语义按 §Layer 1 调用协议处理（exit 1 时可追加 `--fix` 自动修复后重新检查）；未知参数与非法 `--focus` 值为用法错误（exit 2）。两个模式均支持 `--format json` 输出结构化 finding（Layer 2 与报告聚合的机读输入）。
 
 支持语言: JavaScript/TypeScript(ESLint+Prettier), Python(Ruff), C#(dotnet format), Go(golangci-lint), Rust(clippy)
 工具不存在时自动跳过并WARN，不阻断检查流程。
@@ -69,7 +69,7 @@ user-invocable: true
   - 测试逻辑: 断言的期望值是否与接口契约一致，测试是否验证了声称的行为
   - 边界覆盖: 是否覆盖关键边界条件（空值、异常输入等）
 
-**维度收敛**: 调用方可传 `--focus <category[,...]>`（值取自 COMMON-RULES §统一问题分类体系），仅审查指定维度。不传时跑全维度。例如：`cataforge skill run code-review -- {path} --focus security,error-handling`。
+**维度收敛**: 调用方可传 `--focus <category[,...]>`（值取自 COMMON-RULES §统一问题分类体系），仅审查指定维度。不传时跑全维度。例如：`cataforge skill run code-review -- review {path} --focus security,error-handling`。review 模式下 Layer 1 同步收敛：只执行 category 命中的检查（无命中维度的 Layer 1 检查跳过），Layer 2 按同一 focus 收敛散文维度。
 
 **增量审查模式（revision re-review）**:
 
@@ -110,8 +110,8 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 执行: `cataforge skill run code-review -- scan {path} [--focus duplication,dead-code,complexity]`
 
 脚本内部按以下顺序执行:
-1. 通用 lint pass（同 review 模式）
-2. 按 `--focus` 指定的腐化维度调用对应 probe（jscpd / vulture / ts-prune / radon / gocyclo 等）
+1. 门禁检查恒跑（lint / wiring / ui-fidelity，同 review 模式；scan 的 `--focus` 不筛门禁检查）
+2. 按 `--focus` 指定的腐化维度调用对应 informational probe（jscpd / vulture / ts-prune / radon / gocyclo 等）
 3. 工具不存在 → WARN 跳过，不 FAIL
 
 返回码语义按 §Layer 1 调用协议；scan 默认不因腐化 finding 而 FAIL（仅 lint error 时 FAIL），rot 信号视作 informational，由 Layer 2 做严重度判定。
@@ -141,7 +141,7 @@ deps: []
 ### Step 4: 判定结论
 三态判定按 COMMON-RULES §三态判定逻辑。scan 模式默认不阻塞流程（不进 needs_revision 自动重试），仅产出报告供后续重构决策。
 
-## Layer 1 检查项 (code_lint.py)
+## Layer 1 检查项
 
 > 权威清单见 `cataforge.runtime.skill.builtins.code_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
 

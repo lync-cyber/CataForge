@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.runtime.skill.builtins.code_review import wiring_patterns as wp
+from cataforge.runtime.skill.builtins.code_review.checks import wiring as wp
 from cataforge.runtime.skill.builtins.testing import e2e_patterns as ep
 from cataforge.runtime.skill.rules.loader import (
     CURRENT_SCHEMA_VERSION,
@@ -299,31 +299,33 @@ def test_e2e_python_real_input_matches_send_keys() -> None:
     assert any(p.search(sample) for p in rule.real_input_patterns)
 
 
-def test_code_linter_loads_project_wiring_override(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A project override YAML is honored at CodeLinter construction.
+def test_wiring_check_loads_project_override_at_runtime(tmp_path: Path) -> None:
+    """A project override YAML is honored when the wiring check runs.
 
     Regression: the wrapper previously froze rules at import time, so a
-    project's override never reached the runtime scan. The scanner now
-    resolves rules from CATAFORGE_PROJECT_ROOT (injected by the runner).
+    project's override never reached the runtime scan. The check now
+    resolves rules from the pipeline's project_root (injected by the
+    runner via CATAFORGE_PROJECT_ROOT) on every run.
     """
-    from cataforge.runtime.skill.builtins.code_review.code_lint import CodeLinter
+    from cataforge.runtime.skill.builtins.code_review.checks import wiring
+    from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
 
     body = """
 schema_version: 1
 rule_type: wiring
-language: go
-extensions: [".go"]
+language: kotlin
+extensions: [".kt"]
 empty_handler_patterns:
-  - regex: 'func\\(\\)\\s*\\{\\s*\\}'
+  - regex: 'setOnClickListener\\s*\\{\\s*\\}'
 """
-    _write_project_rule(tmp_path, "code-review", "wiring-go.yaml", body)
-    monkeypatch.setenv("CATAFORGE_PROJECT_ROOT", str(tmp_path))
+    _write_project_rule(tmp_path, "code-review", "wiring-kotlin.yaml", body)
+    src = tmp_path / "Main.kt"
+    src.write_text("button.setOnClickListener {}\n", encoding="utf-8")
 
-    linter = CodeLinter(str(tmp_path))
-    assert ".go" in linter.wiring_rules.scanned_extensions()
-    assert linter.wiring_rules.rule_for_extension(".go") is not None
+    ctx = CheckContext(target=tmp_path, project_root=tmp_path, mode="review")
+    findings = wiring.run(ctx)
+    assert [f.line for f in findings] == [1]
+    assert all(f.severity == "warn" for f in findings)
 
 
 def test_e2e_collect_loads_project_override(

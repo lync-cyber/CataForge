@@ -25,6 +25,16 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
+from cataforge.runtime.skill.builtins.code_review.engine.findings import Finding as EngineFinding
+from cataforge.runtime.skill.builtins.code_review.engine.fs import iter_files
+from cataforge.runtime.skill.builtins.code_review.engine.registry import (
+    CheckSpec,
+    register_check,
+)
+
+CHECK_ID = "code_review.ui_fidelity"
+
 ALLOW_PRAGMA = re.compile(r"cataforge-allow-ui-fidelity")
 
 CSS_EXTS = frozenset({".css", ".scss", ".sass", ".less"})
@@ -184,11 +194,9 @@ def analyze(target_files: dict[str, str], corpus_files: dict[str, str]) -> list[
 
 
 def _collect(root: Path, exts: frozenset[str]) -> dict[str, str]:
-    from cataforge.runtime.skill.builtins.code_review.code_lint import _iter_files
-
     root = Path(root)
     files: dict[str, str] = {}
-    candidates = [root] if root.is_file() else _iter_files(root)
+    candidates = [root] if root.is_file() else iter_files(root)
     for p in candidates:
         if p.suffix.lower() in exts:
             try:
@@ -206,3 +214,36 @@ def scan_ui_fidelity(target: Path, corpus_root: Path) -> list[Finding]:
     corpus_files = _collect(corpus_root, UI_EXTS)
     corpus_files.update(target_files)
     return analyze(target_files, corpus_files)
+
+
+def _run_check(ctx: CheckContext) -> list[EngineFinding]:
+    """Engine adapter: cross-file scan, ``dead_token`` gates, the rest WARN."""
+    if ctx.fix:
+        return []
+    corpus_root = ctx.project_root or ctx.target
+    return [
+        EngineFinding(
+            check_id=CHECK_ID,
+            severity="fail" if f.severity == "fail" else "warn",
+            category="visual-fidelity",
+            detail=f"{f.code}: {f.detail}",
+        )
+        for f in scan_ui_fidelity(ctx.target, corpus_root)
+    ]
+
+
+register_check(
+    CheckSpec(
+        id=CHECK_ID,
+        title=(
+            "UI 保真跨文件扫描 (.css/.scss/markup) — 死 token（声明的 CSS "
+            "自定义属性零 var() 消费）FAIL；未加载字体（引用的 font-family "
+            "无 @font-face/fontsource 加载）与幽灵类（markup 引用零定义 class，"
+            "检测到 utility 框架则跳过）WARN；豁免 cataforge-allow-ui-fidelity"
+        ),
+        severity="fail-on-error",
+        category="visual-fidelity",
+        modes=frozenset({"review", "scan"}),
+        run=_run_check,
+    )
+)

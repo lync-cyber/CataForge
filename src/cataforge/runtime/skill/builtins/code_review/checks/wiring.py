@@ -1,14 +1,12 @@
-"""Per-language wiring rules for code-review Layer 1 grep.
+"""Per-language wiring rules + the empty-handler scan (Layer 1 grep).
 
 Thin wrapper over :mod:`cataforge.runtime.skill.rules.loader`: discovers the
 shipped YAML files in ``cataforge.runtime.skill.builtins.code_review.rules``
 plus any project overrides in ``.cataforge/skills/code-review/rules/``,
-compiles their regexes, and exposes a per-extension lookup the linter
-calls for each scanned file.
-
-Rules are resolved per *project_root* at scanner construction time (the
-runner injects ``CATAFORGE_PROJECT_ROOT``), so a project's override YAML
-takes effect at runtime rather than only the package defaults.
+compiles their regexes, and scans every file whose extension has at least
+one pattern. Rules are resolved per project root at run time (the runner
+injects ``CATAFORGE_PROJECT_ROOT``), so a project's override YAML takes
+effect at runtime rather than only the package defaults.
 
 To extend coverage to a new language, drop a YAML file into either
 location (see ``cataforge.runtime.skill.builtins.code_review.rules`` for
@@ -21,10 +19,19 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from cataforge.runtime.skill.rules.loader import RuleSpec, discover_rules
+from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
+from cataforge.runtime.skill.builtins.code_review.engine.findings import Finding
+from cataforge.runtime.skill.builtins.code_review.engine.registry import (
+    CheckSpec,
+    register_check,
+)
+from cataforge.runtime.skill.rules.loader import SUPPORTED_FLAGS, RuleSpec, discover_rules
 
 _BUILTIN_MODULE = "cataforge.runtime.skill.builtins.code_review"
 _SKILL_ID = "code-review"
+_LINE_HEAD_CHARS = 80
+
+CHECK_ID = "code_review.wiring_empty_handler"
 
 
 @dataclass(frozen=True)
@@ -57,8 +64,6 @@ class WiringRuleSet:
 
 
 def _compile_flags(flags_raw: list[str] | None) -> int:
-    from cataforge.runtime.skill.rules.loader import SUPPORTED_FLAGS
-
     if not flags_raw:
         return 0
     out = 0
@@ -94,3 +99,65 @@ def load_wiring_rules(project_root: Path | None = None) -> WiringRuleSet:
         if rule_type == "wiring":
             by_language[language] = _compile_lang_rule(spec)
     return WiringRuleSet(by_language)
+
+
+def _scan_file(path: Path, rule: LangRule) -> list[Finding]:
+    try:
+        text = path.read_text(errors="replace")
+    except OSError:
+        return []
+    if rule.placeholder_pragma is not None and rule.placeholder_pragma.search(text):
+        return []
+    findings: list[Finding] = []
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        for pattern in rule.empty_handler_patterns:
+            if pattern.search(line):
+                findings.append(
+                    Finding(
+                        check_id=CHECK_ID,
+                        severity="warn",
+                        category="integration-wiring",
+                        detail=line.strip()[:_LINE_HEAD_CHARS],
+                        file=str(path),
+                        line=lineno,
+                    )
+                )
+                break
+    return findings
+
+
+def run(ctx: CheckContext) -> list[Finding]:
+    """Flag empty-handler prop wiring as WARN (never gates).
+
+    Skipped in fix mode (nothing to fix mechanically) and for files
+    declaring the placeholder pragma (whole-file opt-out for tasks
+    legitimately stubbing handlers).
+    """
+    if ctx.fix:
+        return []
+    rules = load_wiring_rules(ctx.project_root)
+    exts = rules.scanned_extensions()
+    if not exts:
+        return []
+    findings: list[Finding] = []
+    for path in ctx.files(exts):
+        rule = rules.rule_for_extension(path.suffix)
+        if rule is None or not rule.empty_handler_patterns:
+            continue
+        findings.extend(_scan_file(path, rule))
+    return findings
+
+
+register_check(
+    CheckSpec(
+        id=CHECK_ID,
+        title=(
+            "wiring 空 handler 正则扫描（rules/wiring-{lang}.yaml 驱动）— 空函数 prop "
+            "命中即 WARN（豁免：任务卡 wiring_placeholder: true / 文件级 pragma）"
+        ),
+        severity="warn",
+        category="integration-wiring",
+        modes=frozenset({"review", "scan"}),
+        run=run,
+    )
+)

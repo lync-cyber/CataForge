@@ -16,7 +16,7 @@ CataForge 在 Development 阶段用 TDD 引擎按微任务推进 RED → GREEN �
 ## 三阶段做什么
 
 | 阶段 | 负责 Agent | 目标 | 写入 |
-|------|-----------|------|------|
+| ------ | ----------- | ------ | ------ |
 | **RED** | `test-writer`（Sonnet） | 编写失败的测试用例（必须 FAIL） | `tests/` |
 | **GREEN** | `implementer`（Sonnet） | 编写最小实现让测试转绿 | `src/`、`tests/` |
 | **REFACTOR** | `refactorer`（Opus，条件触发） | 在测试全绿前提下优化代码 | `src/`、`tests/` |
@@ -26,7 +26,7 @@ REFACTOR 失败时状态回滚为 `rolled-back`，保留 GREEN 阶段产出，RE
 ## 模式档位
 
 | 模式 | 阶段顺序 | 触发 |
-|------|---------|------|
+| ------ | --------- | ------ |
 | **light**（默认） | implementer 一次写测试+实现 → REFACTOR 按条件触发 | `tdd_mode` 缺省 / LOC ≤ `TDD_LIGHT_LOC_THRESHOLD` |
 | **standard** | RED → GREEN → REFACTOR（条件触发） | LOC > 阈值 / `security_sensitive: true` / 跨模块（context_load 引用 ≥2 个 M-xxx） |
 | **prototype-inline** | implementer 主线程内联，无子代理调度 | 执行模式 = `agile-prototype` |
@@ -38,7 +38,7 @@ standard / light 模式下 REFACTOR 不再无条件运行。判定顺序：
 
 1. 任务卡 `tdd_refactor: required` → 强制触发
 2. `tdd_refactor: skip` → 直接跳过
-3. 缺省 `auto` → GREEN 后跑一次 `cataforge skill run code-review -- {impl_files} --focus complexity,duplication,coupling`，命中任一 finding 才触发
+3. 缺省 `auto` → GREEN 后跑一次 `cataforge skill run code-review -- scan {impl_files} --focus complexity,duplication,coupling`，命中任一 finding 才触发
 
 ## 端到端示例 · 一个微任务
 
