@@ -10,8 +10,6 @@ CI-only allowlist, and when an allowlist entry goes stale.
 
 CI-only checks (legitimately absent from run_local because they are not a
 static read of checked-in files):
-  - check_changelog_fragments.py — diffs the PR against BASE_REF; behaves
-    differently outside a PR context.
   - check_profile_version_tested.py — reads profile git-history age (>180
     days); a time-dependent weekly sweep, not a per-commit static gate.
 """
@@ -29,7 +27,6 @@ RUN_LOCAL = CHECKS_DIR / "run_local.py"
 
 # name -> reason it is legitimately CI-only (not a static checked-in-file scan).
 CI_ONLY: dict[str, str] = {
-    "check_changelog_fragments.py": "diffs the PR against BASE_REF — PR-context dependent",
     "check_profile_version_tested.py": "git-history age (>180d) — time-dependent weekly sweep",
 }
 

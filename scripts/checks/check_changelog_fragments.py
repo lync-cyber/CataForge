@@ -19,6 +19,13 @@ Local invocation:
 
 CI invocation: same; ``BASE_REF`` defaults to ``origin/main``. Run from
 the repo root.
+
+The diff is taken from the merge-base to the *working tree* (plus
+untracked fragments), so the check gives the same verdict before and
+after committing — run_local can gate a session before the commit
+exists. ``--soft-missing-base`` downgrades an unresolvable base ref to
+a skip (exit 0) for clones that never fetched the default branch; CI
+omits the flag so a broken fetch still fails loudly.
 """
 
 from __future__ import annotations
@@ -88,16 +95,23 @@ def _git(*args: str) -> str:
     return result.stdout.strip()
 
 
-def _changed_files(base_ref: str) -> list[str]:
-    """Return relative posix paths changed in the PR diff vs *base_ref*."""
-    raw = _git("diff", "--name-only", f"{base_ref}...HEAD")
+def _changed_files(merge_base: str) -> list[str]:
+    """Return relative posix paths changed from *merge_base* to the working
+    tree — committed, staged and unstaged alike, so the verdict is the same
+    before and after ``git commit``."""
+    raw = _git("diff", "--name-only", merge_base)
     return [line for line in raw.splitlines() if line]
 
 
-def _added_files(base_ref: str) -> list[str]:
-    """Return relative posix paths newly added in the PR diff vs *base_ref*."""
-    raw = _git("diff", "--name-only", "--diff-filter=A", f"{base_ref}...HEAD")
-    return [line for line in raw.splitlines() if line]
+def _added_files(merge_base: str) -> list[str]:
+    """Return relative posix paths newly added from *merge_base* to the
+    working tree, plus untracked files under ``changelog.d/`` — a fragment
+    written but not yet ``git add``-ed still counts."""
+    raw = _git("diff", "--name-only", "--diff-filter=A", merge_base)
+    added = [line for line in raw.splitlines() if line]
+    untracked = _git("ls-files", "--others", "--exclude-standard", "--", "changelog.d")
+    added.extend(line for line in untracked.splitlines() if line)
+    return added
 
 
 def _commit_messages(base_ref: str) -> list[str]:
@@ -124,13 +138,18 @@ def _is_real_fragment(path: str) -> bool:
 
 def main() -> int:
     base_ref = os.environ.get("BASE_REF", "origin/main")
+    soft_missing_base = "--soft-missing-base" in sys.argv[1:]
 
     # Tolerate detached / shallow CI checkouts where the base ref is
     # missing — surface the failure clearly rather than letting `git
     # diff` crash with a confusing error.
     try:
         _git("rev-parse", "--verify", base_ref)
+        merge_base = _git("merge-base", base_ref, "HEAD")
     except subprocess.CalledProcessError:
+        if soft_missing_base:
+            print(f"SKIP: base ref {base_ref!r} not resolvable locally — CI will cover this check.")
+            return 0
         print(
             f"ERROR: base ref {base_ref!r} not resolvable; "
             f"in CI ensure `git fetch origin {base_ref}` ran first.",
@@ -139,7 +158,7 @@ def main() -> int:
         return 1
 
     try:
-        changed = _changed_files(base_ref)
+        changed = _changed_files(merge_base)
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: git diff failed: {exc.stderr}", file=sys.stderr)
         return 1
@@ -164,7 +183,7 @@ def main() -> int:
         )
         return 0
 
-    added_fragments = [f for f in _added_files(base_ref) if _is_real_fragment(f)]
+    added_fragments = [f for f in _added_files(merge_base) if _is_real_fragment(f)]
     if added_fragments:
         print(
             f"OK: {len(added_fragments)} changelog fragment(s) added: " + ", ".join(added_fragments)
