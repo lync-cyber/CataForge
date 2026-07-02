@@ -26,6 +26,7 @@ from cataforge.domain.docs._index_build import build_aliases as build_aliases
 from cataforge.domain.docs._index_build import build_document_entry as build_document_entry
 from cataforge.domain.docs._index_build import build_full_index as build_full_index
 from cataforge.domain.docs._index_build import build_xref as build_xref
+from cataforge.domain.docs._index_build import estimate_tokens as estimate_tokens
 from cataforge.domain.docs._index_build import update_single_doc as update_single_doc
 from cataforge.domain.docs._index_build import write_index as write_index
 from cataforge.utils.common import ensure_utf8

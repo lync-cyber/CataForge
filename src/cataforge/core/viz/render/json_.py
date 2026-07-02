@@ -19,7 +19,13 @@ def _kind(view: View) -> str:
     raise CataforgeError(f"unrenderable view type: {type(view).__name__}")
 
 
+def _drop_empty_data(items: list[tuple[str, object]]) -> dict[str, object]:
+    """A node's ``data`` bag is optional metadata — omit the key entirely when
+    unset, keeping data-less graphs' JSON byte-stable."""
+    return {k: v for k, v in items if not (k == "data" and v is None)}
+
+
 def render(view: View) -> str:
     payload: dict[str, object] = {"kind": _kind(view)}
-    payload.update(asdict(view))
+    payload.update(asdict(view, dict_factory=_drop_empty_data))
     return json.dumps(payload, ensure_ascii=False, indent=2)

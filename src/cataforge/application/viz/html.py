@@ -51,7 +51,10 @@ def _read_asset(name: str) -> str:
 def _node_data(graph: Graph) -> list[dict[str, Any]]:
     elements: list[dict[str, Any]] = []
     for node in graph.nodes:
-        data: dict[str, Any] = {"id": node.id, "label": node.label or node.id}
+        # An implicit node (label=None) may still carry a display name in its
+        # data bag — catalogue entries invisible to the text renderers.
+        label = node.label or str((node.data or {}).get("name") or node.id)
+        data: dict[str, Any] = {"id": node.id, "label": label}
         for chunk in (node.style or "").split(","):
             key, sep, val = chunk.partition(":")
             attr = _STYLE_MAP.get(key.strip())
@@ -67,6 +70,8 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
 
 
 def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
+    if any(node.data for node in graph.nodes):
+        return _catalogue_fragment(graph, dom_id)
     elements = json.dumps(_node_data(graph), ensure_ascii=False)
     body = (
         '<div class="view">'
@@ -75,6 +80,75 @@ def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
         f'<div id="{dom_id}" class="cy"></div></div>'
     )
     return body, f"initGraph('{dom_id}', {elements});"
+
+
+# --------------------------------------------------------------------------- #
+# Graph with node metadata → catalogue: filterable table + linked graph
+# --------------------------------------------------------------------------- #
+_CAT_COLUMNS = ("name", "type", "description", "depends", "tools", "model")
+
+
+def _cat_cell(value: object) -> str:
+    return _html.escape(str(value)) if value not in (None, "") else "—"
+
+
+def _cat_row(node_id: str, data: dict[str, Any]) -> str:
+    kind = str(data.get("type") or "")
+    maint = "1" if data.get("maintainer_only") else "0"
+    cells = [
+        f"<td>{_cat_cell(data.get('name'))}</td>",
+        f'<td><span class="chip t-{_html.escape(kind)}">{_cat_cell(kind)}</span></td>',
+    ]
+    cells.extend(f'<td class="desc">{_cat_cell(data.get(col))}</td>' for col in _CAT_COLUMNS[2:])
+    cells.append(f'<td class="num">{_cat_cell(data.get("lines"))}</td>')
+    cells.append(f'<td class="num">{_cat_cell(data.get("est_tokens"))}</td>')
+    path = str(data.get("path") or "")
+    path_cell = (
+        f'<code class="path" title="点击复制路径">{_html.escape(path)}</code>' if path else "—"
+    )
+    cells.append(f"<td>{path_cell}</td>")
+    return (
+        f'<tr data-node="{_html.escape(node_id)}" data-type="{_html.escape(kind)}" '
+        f'data-maint="{maint}">{"".join(cells)}</tr>'
+    )
+
+
+def _catalogue_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
+    """Asset catalogue: toolbar (search / type chips / maintainer toggle) +
+    metadata table + the dependency graph, cross-linked by node id."""
+    entries = [(node.id, dict(node.data)) for node in graph.nodes if node.data]
+    kinds = sorted({str(d.get("type") or "") for _, d in entries})
+    has_maint = any(d.get("maintainer_only") for _, d in entries)
+
+    chips = "".join(
+        f'<button class="fchip on" data-type="{_html.escape(k)}">{_html.escape(k)}</button>'
+        for k in kinds
+    )
+    maint_toggle = (
+        f'<label class="maint"><input type="checkbox" id="{dom_id}_maint">含 maintainer-only'
+        "</label>"
+        if has_maint
+        else ""
+    )
+    toolbar = (
+        '<div class="toolbar">'
+        f'<input class="csearch" id="{dom_id}_q" placeholder="搜索名称 / 描述 / 依赖 / 工具…">'
+        f"{chips}{maint_toggle}</div>"
+    )
+    head = (
+        "<tr><th>name</th><th>type</th><th>描述</th><th>depends</th><th>tools</th>"
+        f'<th>model</th><th class="num">行数</th>'
+        f'<th class="num sortable" id="{dom_id}_tok" title="点击按体量排序">est_tokens</th>'
+        "<th>path</th></tr>"
+    )
+    rows = "".join(_cat_row(node_id, data) for node_id, data in entries)
+    table = (
+        f'<div class="cat-wrap"><table class="cat" id="{dom_id}_tbl">'
+        f"<thead>{head}</thead><tbody>{rows}</tbody></table></div>"
+    )
+    body = f'<div class="view cat-view">{toolbar}{table}<div id="{dom_id}" class="cy"></div></div>'
+    elements = json.dumps(_node_data(graph), ensure_ascii=False)
+    return body, f"initCatalogue('{dom_id}', {elements});"
 
 
 # --------------------------------------------------------------------------- #
@@ -307,6 +381,17 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
 # Tile accent colours track the legend's semantic order: ok / partial / missing.
 _OK_HEX, _WARN_HEX, _BAD_HEX = (hexv for hexv, _ in palette.LEGEND)
 
+
+def _fill_of(style: str) -> str:
+    """The ``fill`` value of a Mermaid style body — keeps CSS accents on the
+    same palette constants the collectors use."""
+    for chunk in style.split(","):
+        key, _, value = chunk.partition(":")
+        if key.strip() == "fill":
+            return value.strip()
+    return "#ccd2da"
+
+
 _CSS = (
     "body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;color:#222;background:#fff}"
     "header{padding:8px 14px;border-bottom:1px solid #e3e6ea;font-size:15px}"
@@ -334,6 +419,27 @@ _CSS = (
     ".legend .lg{display:inline-flex;align-items:center;gap:4px}"
     ".legend i{width:10px;height:10px;border:1px solid #333;border-radius:2px;"
     "display:inline-block}"
+    ".cat-view .cy{height:44vh}"
+    ".cat-wrap{max-height:34vh;overflow:auto;border:1px solid #eef1f4;margin-bottom:8px}"
+    ".cat{width:100%;border-collapse:collapse;font-size:12px}"
+    ".cat th{position:sticky;top:0;background:#f7f8fa;text-align:left;padding:5px 8px;"
+    "border-bottom:1px solid #e3e6ea;white-space:nowrap}"
+    ".cat td{padding:4px 8px;border-bottom:1px solid #f0f2f5;vertical-align:top}"
+    ".cat td.desc{max-width:340px}"
+    ".cat td.num,.cat th.num{text-align:right}"
+    ".cat tbody tr{cursor:pointer}.cat tr.focus{background:#eef4fb}"
+    ".chip{padding:1px 7px;border-radius:9px;font-size:11px;border:1px solid #ccd2da}"
+    f".chip.t-agent{{background:{_fill_of(palette.AGENT_STYLE)}}}"
+    f".chip.t-skill{{background:{_fill_of(palette.SKILL_STYLE)}}}"
+    ".chip.t-rules{background:#f0f1f3}"
+    ".fchip{padding:3px 9px;border:1px solid #ccd2da;border-radius:12px;background:#fff;"
+    "cursor:pointer;font-size:12px;margin-left:6px;color:#8a9099}"
+    ".fchip.on{background:#36648b;color:#fff;border-color:#36648b}"
+    ".csearch{width:260px;padding:4px 8px;border:1px solid #ccd2da;border-radius:4px;"
+    "font-size:13px}"
+    ".maint{margin-left:10px;font-size:12px;color:#66758c}"
+    ".sortable{cursor:pointer;text-decoration:underline dotted}"
+    "code.path{cursor:copy;font-size:11px;background:#f5f6f8;padding:1px 4px;border-radius:3px}"
 )
 
 _GRAPH_STYLE = (
@@ -346,7 +452,8 @@ _GRAPH_STYLE = (
     "{selector:'edge',style:{'width':1,'line-color':'#aab2bd','target-arrow-color':'#aab2bd',"
     "'target-arrow-shape':'triangle','curve-style':'bezier','label':'data(label)',"
     "'font-size':8,'color':'#66758c','text-background-color':'#fff','text-background-opacity':1}},"
-    "{selector:'.dim',style:{'opacity':0.12}}]"
+    "{selector:'.dim',style:{'opacity':0.12}},"
+    "{selector:'.focus',style:{'border-width':3,'border-color':'#36648b'}}]"
 )
 
 _BOOTSTRAP_JS = (
@@ -373,6 +480,76 @@ _BOOTSTRAP_JS = (
     "function initChart(id,option){\n"
     "  var c=echarts.init(document.getElementById(id));\n"
     "  c.setOption(option);window.__viz.ec[id]=c;return c;\n"
+    "}\n"
+    "function initCatalogue(id,elements){\n"
+    "  var cy=initGraph(id,elements);\n"
+    "  var q=document.getElementById(id+'_q');\n"
+    "  var tbl=document.getElementById(id+'_tbl');\n"
+    "  var maint=document.getElementById(id+'_maint');\n"
+    "  var view=tbl?tbl.parentNode.parentNode:null;\n"
+    "  var chips=view?view.querySelectorAll('.fchip'):[];\n"
+    "  function rowVisible(r,needle,types){\n"
+    "    if(r.getAttribute('data-maint')==='1'&&(!maint||!maint.checked))return false;\n"
+    "    if(types.length&&types.indexOf(r.getAttribute('data-type'))<0)return false;\n"
+    "    return !needle||r.textContent.toLowerCase().indexOf(needle)>=0;\n"
+    "  }\n"
+    "  function apply(){\n"
+    "    var needle=q?q.value.trim().toLowerCase():'';\n"
+    "    var types=[];\n"
+    "    for(var i=0;i<chips.length;i++){if(chips[i].classList.contains('on'))"
+    "types.push(chips[i].getAttribute('data-type'));}\n"
+    "    var rows=tbl?tbl.tBodies[0].rows:[],visible={};\n"
+    "    for(var j=0;j<rows.length;j++){\n"
+    "      var ok=rowVisible(rows[j],needle,types);\n"
+    "      rows[j].style.display=ok?'':'none';\n"
+    "      visible[rows[j].getAttribute('data-node')]=ok;\n"
+    "    }\n"
+    "    cy.nodes().forEach(function(n){n.toggleClass('dim',visible[n.id()]===false);});\n"
+    "    cy.edges().forEach(function(e){\n"
+    "      var keep=!e.source().hasClass('dim')&&!e.target().hasClass('dim');\n"
+    "      e.toggleClass('dim',!keep);});\n"
+    "  }\n"
+    "  if(q)q.addEventListener('input',apply);\n"
+    "  if(maint)maint.addEventListener('change',apply);\n"
+    "  for(var c=0;c<chips.length;c++){chips[c].addEventListener('click',function(){\n"
+    "    this.classList.toggle('on');apply();});}\n"
+    "  function focusRow(target){\n"
+    "    var rows=tbl.tBodies[0].rows;\n"
+    "    for(var i=0;i<rows.length;i++){rows[i].classList.toggle('focus',rows[i]===target);}\n"
+    "  }\n"
+    "  if(tbl){tbl.addEventListener('click',function(ev){\n"
+    "    var t=ev.target;\n"
+    "    if(t.className==='path'){\n"
+    "      if(navigator.clipboard&&navigator.clipboard.writeText)"
+    "navigator.clipboard.writeText(t.textContent);\n"
+    "      t.setAttribute('title','已复制');\n"
+    "      return;\n"
+    "    }\n"
+    "    while(t&&t!==tbl&&!t.getAttribute('data-node'))t=t.parentNode;\n"
+    "    if(!t||t===tbl)return;\n"
+    "    focusRow(t);\n"
+    "    var n=cy.getElementById(t.getAttribute('data-node'));\n"
+    "    if(n.length){cy.elements().removeClass('focus');n.addClass('focus');cy.center(n);}\n"
+    "  });}\n"
+    "  cy.on('tap','node',function(ev){\n"
+    "    cy.elements().removeClass('focus');ev.target.addClass('focus');\n"
+    "    if(!tbl)return;\n"
+    "    var rows=tbl.tBodies[0].rows;\n"
+    "    for(var i=0;i<rows.length;i++){\n"
+    "      if(rows[i].getAttribute('data-node')===ev.target.id()){\n"
+    "        focusRow(rows[i]);rows[i].scrollIntoView({block:'nearest'});break;}}\n"
+    "  });\n"
+    "  var tok=document.getElementById(id+'_tok'),asc=false;\n"
+    "  if(tok&&tbl){tok.addEventListener('click',function(){\n"
+    "    var body=tbl.tBodies[0],rows=Array.prototype.slice.call(body.rows);\n"
+    "    rows.sort(function(a,b){/* cell 7 = est_tokens */\n"
+    "      var av=parseInt(a.cells[7].textContent)||0,bv=parseInt(b.cells[7].textContent)||0;\n"
+    "      return asc?av-bv:bv-av;});\n"
+    "    asc=!asc;\n"
+    "    for(var i=0;i<rows.length;i++){body.appendChild(rows[i]);}\n"
+    "  });}\n"
+    "  apply();\n"
+    "  return cy;\n"
     "}\n"
     "function showPanel(pid){\n"
     "  var ps=document.querySelectorAll('.panel');\n"

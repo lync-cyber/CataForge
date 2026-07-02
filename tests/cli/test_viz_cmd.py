@@ -141,6 +141,12 @@ class TestJsonRenderer:
         m = MetricSeries(points=(MetricPoint("F-001", 1.0, "coverage"),))
         assert json.loads(json_.render(m))["kind"] == "metrics"
 
+    def test_node_data_passthrough_and_omission(self) -> None:
+        g = Graph(nodes=(Node("a", label="A", data={"type": "skill", "lines": 3}), Node("b")))
+        nodes = json.loads(json_.render(g))["nodes"]
+        assert nodes[0]["data"] == {"type": "skill", "lines": 3}
+        assert "data" not in nodes[1]  # unset bag omitted — data-less JSON stays stable
+
 
 # ------------------------------------------------------------------
 # service dispatch guards
@@ -636,6 +642,41 @@ class TestVizDecay:
 # ------------------------------------------------------------------
 
 
+def _make_assets_project(tmp_path: Path) -> Path:
+    """_make_project plus a project skill (maintainer-only, full frontmatter)
+    and a rules file — the catalogue-metadata fixture."""
+    _make_project(tmp_path)
+    cf = tmp_path / ".cataforge"
+    (cf / "agents" / "product-manager" / "AGENT.md").write_text(
+        "---\n"
+        "description: 产品经理 — 需求分析\n"
+        "tools: file_read, shell_exec\n"
+        "skills: [research]\n"
+        "---\nbody\n"
+    )
+    skill = cf / "skills" / "demo-skill"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\n"
+        "name: demo-skill\n"
+        'description: "演示 skill — 什么都不做"\n'
+        "depends: [research]\n"
+        "suggested-tools: shell_exec\n"
+        "maintainer-only: true\n"
+        "---\n\n# demo\n\nbody line\n"
+    )
+    rules = cf / "rules"
+    rules.mkdir()
+    (rules / "COMMON-RULES.md").write_text("# 通用规则\n\n- 一条规则\n")
+    return tmp_path
+
+
+def _assets_json_nodes(tmp_path: Path) -> dict[str, dict]:
+    result = _viz(tmp_path, "assets", "--format", "json")
+    assert result.exit_code == 0, result.output
+    return {n["id"]: n for n in json.loads(result.output)["nodes"]}
+
+
 class TestVizAssets:
     def test_agent_skill_graph_text(self, tmp_path: Path) -> None:
         _make_project(tmp_path)
@@ -655,6 +696,59 @@ class TestVizAssets:
         assert {"product-manager", "research"} <= labels
         edges = {(e["src"], e["dst"]) for e in data["edges"]}
         assert ("agent_product_manager", "skill_research") in edges
+
+    def test_text_formats_unchanged_by_metadata_and_rules(self, tmp_path: Path) -> None:
+        """Metadata rides in ``data`` only and rules are implicit nodes — the
+        Mermaid/DOT output must not mention them."""
+        _make_assets_project(tmp_path)
+        for fmt in ("mermaid", "dot"):
+            result = _viz(tmp_path, "assets", "--format", fmt)
+            assert result.exit_code == 0, result.output
+            assert "COMMON-RULES" not in result.output
+            assert "描述" not in result.output and "演示" not in result.output
+            assert "demo-skill" in result.output  # the skill node itself still renders
+
+    def test_skill_node_carries_catalogue_metadata(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        data = _assets_json_nodes(tmp_path)["skill_demo_skill"]["data"]
+        assert data["type"] == "skill"
+        assert data["description"] == "演示 skill — 什么都不做"
+        assert data["depends"] == "research"
+        assert data["tools"] == "shell_exec"
+        assert data["maintainer_only"] is True
+        assert data["path"].replace("\\", "/") == ".cataforge/skills/demo-skill/SKILL.md"
+        assert data["lines"] > 0
+        assert data["est_tokens"] > 0
+
+    def test_agent_node_carries_catalogue_metadata(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        data = _assets_json_nodes(tmp_path)["agent_product_manager"]["data"]
+        assert data["type"] == "agent"
+        assert data["description"] == "产品经理 — 需求分析"
+        assert data["tools"] == "file_read, shell_exec"
+        assert data["depends"] == "research"  # an agent depends on its skills
+        assert data["path"].replace("\\", "/") == ".cataforge/agents/product-manager/AGENT.md"
+
+    def test_rules_listed_as_implicit_nodes(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        node = _assets_json_nodes(tmp_path)["rules_COMMON_RULES"]
+        assert node["label"] is None  # invisible to text renderers
+        assert node["style"] is None
+        assert node["data"]["type"] == "rules"
+        assert node["data"]["name"] == "COMMON-RULES"
+        assert node["data"]["lines"] > 0
+
+    def test_assets_html_renders_catalogue(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        result = _viz(tmp_path, "assets", "--html")
+        assert result.exit_code == 0, result.output
+        out = result.output
+        assert 'class="cat"' in out and "initCatalogue(" in out
+        assert 'class="csearch"' in out
+        assert 'data-type="rules"' in out  # chips + rules row present
+        assert 'data-maint="1"' in out  # demo-skill row flagged maintainer-only
+        assert '<code class="path"' in out
+        assert "_maint" in out  # the maintainer toggle renders when relevant
 
 
 # ------------------------------------------------------------------
@@ -1153,3 +1247,21 @@ class TestVizConsistency:
 
     def test_single_view_has_legend(self) -> None:
         assert 'class="legend"' in html.render(_HTML_GRAPH)
+
+    def test_plain_graph_keeps_simple_search_layout(self) -> None:
+        out = html.render(_HTML_GRAPH)  # no node data → no catalogue table
+        assert 'class="cat"' not in out
+        assert 'class="search"' in out
+
+    def test_catalogue_offline_and_implicit_label_fallback(self) -> None:
+        g = Graph(
+            title="assets",
+            nodes=(
+                Node("skill_x", label="x", data={"type": "skill", "name": "x", "path": "p"}),
+                Node("rules_r", data={"type": "rules", "name": "R-RULES"}),
+            ),
+        )
+        out = html.render(g)
+        assert 'class="cat"' in out and "initCatalogue(" in out
+        assert '"label": "R-RULES"' in out or '"label":"R-RULES"' in out  # data.name fallback
+        assert "<script src" not in out and "<link " not in out
