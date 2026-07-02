@@ -1,4 +1,5 @@
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: csharp
 extensions: [".cs"]
@@ -11,7 +12,3 @@ empty_handler_patterns:
     regex: 'throw\s+new\s+NotImplementedException'
   - label: "empty event handler body"
     regex: 'void\s+\w+_(?:Click|Changed|Load|Closing|Closed)\s*\([^)]*\)\s*\{\s*\}'
-
-placeholder_pragma:
-  regex: '(?://|#|--|/\*)\s*cataforge:\s*wiring-placeholder'
-  flags: ["IGNORECASE"]

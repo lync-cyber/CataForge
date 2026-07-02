@@ -15,7 +15,7 @@ Consumers, loaders and class definitions resolve over the whole corpus
 so a usage in another file is never a false positive; declarations are
 checked only in the target files so a per-task review flags what the
 reviewed change introduces, not pre-existing debt elsewhere. A file
-carrying the ``cataforge-allow-ui-fidelity`` pragma is skipped.
+carrying ``cataforge: allow(ui_fidelity, reason="...")`` is skipped.
 """
 
 from __future__ import annotations
@@ -28,14 +28,13 @@ from pathlib import Path
 from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
 from cataforge.runtime.skill.builtins.code_review.engine.findings import Finding as EngineFinding
 from cataforge.runtime.skill.builtins.code_review.engine.fs import iter_files
+from cataforge.runtime.skill.builtins.code_review.engine.pragmas import file_allowance
 from cataforge.runtime.skill.builtins.code_review.engine.registry import (
     CheckSpec,
     register_check,
 )
 
 CHECK_ID = "code_review.ui_fidelity"
-
-ALLOW_PRAGMA = re.compile(r"cataforge-allow-ui-fidelity")
 
 CSS_EXTS = frozenset({".css", ".scss", ".sass", ".less"})
 MARKUP_EXTS = frozenset({".tsx", ".jsx", ".vue", ".svelte", ".html", ".htm", ".astro"})
@@ -177,7 +176,16 @@ def analyze(target_files: dict[str, str], corpus_files: dict[str, str]) -> list[
 
     findings: list[Finding] = []
     for path, text in target_files.items():
-        if ALLOW_PRAGMA.search(text):
+        allowance = file_allowance(text, CHECK_ID)
+        if allowance is not None:
+            if not allowance.reason:
+                findings.append(
+                    Finding(
+                        "warn",
+                        "allow_missing_reason",
+                        f"allow(ui_fidelity) in {path} 缺 reason — 豁免生效但须补充理由",
+                    )
+                )
             continue
         for tok in sorted(declared_tokens(text) - consumed):
             findings.append(
@@ -239,7 +247,8 @@ register_check(
             "UI 保真跨文件扫描 (.css/.scss/markup) — 死 token（声明的 CSS "
             "自定义属性零 var() 消费）FAIL；未加载字体（引用的 font-family "
             "无 @font-face/fontsource 加载）与幽灵类（markup 引用零定义 class，"
-            "检测到 utility 框架则跳过）WARN；豁免 cataforge-allow-ui-fidelity"
+            "检测到 utility 框架则跳过）WARN；豁免文件级 "
+            'cataforge: allow(ui_fidelity, reason="...")'
         ),
         severity="fail-on-error",
         category="visual-fidelity",

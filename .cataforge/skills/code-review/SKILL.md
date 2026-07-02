@@ -153,8 +153,10 @@ review 模式（按文件类型自动选择工具）:
 - golangci-lint run (.go)
 - cargo clippy -D warnings (.rs)
 - 工具未安装时跳过并 WARN，不阻断检查流程
-- wiring 空 handler 正则扫描 — 默认覆盖 .js/.ts/.jsx/.tsx；空函数 prop 命中 → WARN（与 §Step 2 integration-wiring 维度配套；豁免见任务卡 `wiring_placeholder: true` 或文件级 `// cataforge: wiring-placeholder`）
-- UI 保真跨文件扫描 (.css/.scss + markup) — 死 token（声明的 CSS 自定义属性零 `var()` 消费）→ FAIL；未加载字体（引用的 `font-family` 无 `@font-face`/fontsource 加载）、幽灵类（markup 引用零定义 class，检测到 utility 框架则整体跳过）→ WARN。消费/加载/定义跨整个项目解析，声明只在受审文件检查；文件级豁免 `cataforge-allow-ui-fidelity`
+- wiring 空 handler 正则扫描 — 覆盖各 `wiring-{lang}.yaml` 声明的扩展名；空函数 prop 命中 → WARN（与 §Step 2 integration-wiring 维度配套；豁免见任务卡 `wiring_placeholder: true` 或文件级 `cataforge: allow(wiring_empty_handler, reason="...")`）
+- UI 保真跨文件扫描 (.css/.scss + markup) — 死 token（声明的 CSS 自定义属性零 `var()` 消费）→ FAIL；未加载字体（引用的 `font-family` 无 `@font-face`/fontsource 加载）、幽灵类（markup 引用零定义 class，检测到 utility 框架则整体跳过）→ WARN。消费/加载/定义跨整个项目解析，声明只在受审文件检查；文件级豁免 `cataforge: allow(ui_fidelity, reason="...")`
+
+文件级豁免统一语法（reason 必填，缺失时豁免生效但记 WARN）见 [`pragma-grammar.md`](../../references/pragma-grammar.md)。
 
 ### Plugin-style rules (per-language extension)
 
@@ -163,7 +165,7 @@ review 模式（按文件类型自动选择工具）:
 - 默认（cataforge package）：`cataforge.runtime.skill.builtins.code_review.rules.wiring-{lang}.yaml`
 - 项目 override（opt-in）：`<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`
 
-加新语言：在项目 `rules/` 放 `wiring-rust.yaml` 等；schema 见 `cataforge.runtime.skill.rules.loader.CURRENT_SCHEMA_VERSION`，必填字段 `schema_version: 1` / `rule_type: wiring` / `language` / `extensions`。framework-review B3-β `rules_schema_compliance` 自动校验项目 YAML。
+加新语言：在项目 `rules/` 放 `wiring-rust.yaml` 等；schema 见 `cataforge.runtime.skill.rules.loader.CURRENT_SCHEMA_VERSION`，必填字段 `schema_version: 2` / `rule_type: wiring` / `scope: language` / `language` / `extensions`（`scope: project` 供语言无关的项目级模型 rule_type 使用，此时不写 `language`/`extensions`）。未知顶层键报错（防拼写失效）。framework-review B3-β `rules_schema_compliance` 自动校验项目 YAML。
 
 scan 模式额外的腐化 probe（按 --focus 选择性执行）:
 - duplication: jscpd（多语言：JS/TS/Py/Go/C#/Rust/Java/Kotlin/Swift）/ pmd-cpd (.java)

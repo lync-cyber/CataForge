@@ -22,9 +22,9 @@ def test_package_defaults_load_for_code_review() -> None:
         builtin_module="cataforge.runtime.skill.builtins.code_review",
     )
     assert ("wiring", "js-ts") in rules
-    assert ("wiring", "python") in rules
     js = rules[("wiring", "js-ts")]
     assert js.schema_version == CURRENT_SCHEMA_VERSION
+    assert js.scope == "language"
     assert ".tsx" in js.extensions
     assert js.raw["empty_handler_patterns"]
 
@@ -51,7 +51,8 @@ def test_rule_type_registry_has_builtins() -> None:
 
 def test_validate_doc_terms_requires_label() -> None:
     bad = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: doc_terms
 language: zh
 extensions: []
@@ -64,7 +65,8 @@ forbidden_terms:
 
 def test_validate_doc_terms_ok() -> None:
     good = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: doc_terms
 language: zh
 extensions: []
@@ -87,7 +89,8 @@ def test_register_custom_rule_type_roundtrip() -> None:
     try:
         spec = validate_yaml_text(
             """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: custom_x
 language: any
 extensions: []
@@ -103,7 +106,8 @@ foo_patterns:
 
 def test_validate_yaml_rejects_unknown_rule_type() -> None:
     bad = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: bogus
 language: js-ts
 extensions: [".js"]
@@ -125,7 +129,8 @@ extensions: [".js"]
 
 def test_validate_yaml_rejects_invalid_regex() -> None:
     bad = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: js-ts
 extensions: [".js"]
@@ -138,7 +143,8 @@ empty_handler_patterns:
 
 def test_validate_yaml_e2e_requires_label() -> None:
     bad = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: e2e
 language: js-ts
 extensions: [".js"]
@@ -151,7 +157,8 @@ backdoor_patterns:
 
 def test_validate_yaml_unknown_flag() -> None:
     bad = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: js-ts
 extensions: [".js"]
@@ -174,7 +181,8 @@ def _write_project_rule(project_root: Path, skill_id: str, filename: str, body: 
 def test_project_override_replaces_package_default(tmp_path: Path) -> None:
     """A project YAML for the same (rule_type, language) replaces the default."""
     body = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: js-ts
 extensions: [".js", ".ts"]
@@ -190,7 +198,7 @@ empty_handler_patterns:
     js = rules[("wiring", "js-ts")]
     assert "projectOnly" in js.raw["empty_handler_patterns"][0]["regex"]
     # Project override does NOT remove other-language defaults
-    assert ("wiring", "python") in rules
+    assert ("wiring", "go") in rules
 
 
 def _write_override_rule(
@@ -206,7 +214,8 @@ def _write_override_rule(
 def test_override_layer_replaces_scaffold_rule(tmp_path: Path) -> None:
     """A project-override YAML beats the scaffold skills/<id>/rules YAML."""
     scaffold_body = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: js-ts
 extensions: [".js"]
@@ -214,7 +223,8 @@ empty_handler_patterns:
   - regex: 'scaffoldOnly'
 """
     override_body = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: js-ts
 extensions: [".js"]
@@ -241,7 +251,8 @@ def test_user_override_layer_beats_project(tmp_path: Path) -> None:
             "code-review",
             "wiring-js-ts.yaml",
             f"""
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: js-ts
 extensions: [".js"]
@@ -260,7 +271,8 @@ empty_handler_patterns:
 
 def test_project_can_add_new_language(tmp_path: Path) -> None:
     body = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: rust
 extensions: [".rs"]
@@ -277,10 +289,8 @@ empty_handler_patterns:
 
 
 def test_wiring_patterns_module_exposes_languages() -> None:
-    # Default (no project_root) compiles both shipped languages.
     rules = wp.load_wiring_rules()
     assert "js-ts" in rules.by_language
-    assert "python" in rules.by_language
     assert rules.rule_for_extension(".tsx") is not None
     assert rules.rule_for_extension(".unknown") is None
 
@@ -311,7 +321,8 @@ def test_wiring_check_loads_project_override_at_runtime(tmp_path: Path) -> None:
     from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
 
     body = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: kotlin
 extensions: [".kt"]
@@ -335,7 +346,8 @@ def test_e2e_collect_loads_project_override(
     from cataforge.runtime.skill.builtins.testing import e2e_scan
 
     body = """
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: e2e
 language: go
 extensions: [".go"]
@@ -353,3 +365,115 @@ real_input_patterns:
     report = e2e_scan.collect(tmp_path, e2e_scan.project_root_from_env())
     assert report.summary["file_count"] == 1
     assert report.summary["backdoor_total"] == 1
+
+
+# ---- schema v2 semantics ---------------------------------------------------
+
+
+def test_v1_yaml_rejected_with_migration_hint() -> None:
+    v1 = """
+schema_version: 1
+rule_type: wiring
+language: js-ts
+extensions: [".js"]
+empty_handler_patterns: []
+"""
+    with pytest.raises(RuleLoadError, match="迁移到 2"):
+        validate_yaml_text(v1, "test")
+
+
+def test_scope_required() -> None:
+    body = """
+schema_version: 2
+rule_type: wiring
+language: js-ts
+extensions: [".js"]
+empty_handler_patterns: []
+"""
+    with pytest.raises(RuleLoadError, match="'scope' required"):
+        validate_yaml_text(body, "test")
+
+
+def test_project_scope_forbids_language_and_extensions() -> None:
+    from cataforge.runtime.skill.rules.loader import RULE_TYPE_SCHEMAS, register_rule_type
+
+    register_rule_type(
+        "model_x",
+        list_pattern_keys=[],
+        extra_validator=lambda raw, source: None,
+    )
+    try:
+        bad = """
+schema_version: 2
+scope: project
+rule_type: model_x
+language: js-ts
+"""
+        with pytest.raises(RuleLoadError, match="scope 'project' forbids 'language'"):
+            validate_yaml_text(bad, "test")
+
+        good = """
+schema_version: 2
+scope: project
+rule_type: model_x
+layers:
+  - name: core
+"""
+        spec = validate_yaml_text(good, "test")
+        assert spec.scope == "project"
+        assert spec.language == ""
+        assert spec.extensions == frozenset()
+        assert spec.raw["layers"][0]["name"] == "core"
+    finally:
+        RULE_TYPE_SCHEMAS.pop("model_x", None)
+
+
+def test_unknown_key_rejected_without_extra_validator() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: wiring
+language: js-ts
+extensions: [".js"]
+empty_handler_pattens:
+  - regex: 'typo'
+"""
+    with pytest.raises(RuleLoadError, match="unknown key"):
+        validate_yaml_text(body, "test")
+
+
+def test_placeholder_pragma_key_no_longer_accepted() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: wiring
+language: js-ts
+extensions: [".js"]
+empty_handler_patterns: []
+placeholder_pragma:
+  regex: 'x'
+"""
+    with pytest.raises(RuleLoadError, match="unknown key"):
+        validate_yaml_text(body, "test")
+
+
+def test_extra_validator_failures_surface_as_load_errors() -> None:
+    from cataforge.runtime.skill.rules.loader import RULE_TYPE_SCHEMAS, register_rule_type
+
+    def _validator(raw: dict, source: str) -> None:
+        if "layers" not in raw:
+            raise RuleLoadError(f"{source}: 'layers' required")
+
+    register_rule_type("model_y", list_pattern_keys=[], extra_validator=_validator)
+    try:
+        with pytest.raises(RuleLoadError, match="'layers' required"):
+            validate_yaml_text(
+                """
+schema_version: 2
+scope: project
+rule_type: model_y
+""",
+                "test",
+            )
+    finally:
+        RULE_TYPE_SCHEMAS.pop("model_y", None)

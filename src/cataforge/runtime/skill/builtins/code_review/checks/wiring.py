@@ -21,6 +21,7 @@ from pathlib import Path
 
 from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
 from cataforge.runtime.skill.builtins.code_review.engine.findings import Finding
+from cataforge.runtime.skill.builtins.code_review.engine.pragmas import file_allowance
 from cataforge.runtime.skill.builtins.code_review.engine.registry import (
     CheckSpec,
     register_check,
@@ -38,7 +39,6 @@ CHECK_ID = "code_review.wiring_empty_handler"
 class LangRule:
     extensions: frozenset[str]
     empty_handler_patterns: tuple[re.Pattern[str], ...]
-    placeholder_pragma: re.Pattern[str] | None
 
 
 @dataclass(frozen=True)
@@ -73,22 +73,11 @@ def _compile_flags(flags_raw: list[str] | None) -> int:
 
 
 def _compile_lang_rule(spec: RuleSpec) -> LangRule:
-    raw = spec.raw
     handlers = tuple(
         re.compile(p["regex"], _compile_flags(p.get("flags")))
-        for p in (raw.get("empty_handler_patterns") or [])
+        for p in (spec.raw.get("empty_handler_patterns") or [])
     )
-    pragma_raw = raw.get("placeholder_pragma")
-    pragma = (
-        re.compile(pragma_raw["regex"], _compile_flags(pragma_raw.get("flags")))
-        if isinstance(pragma_raw, dict) and pragma_raw.get("regex")
-        else None
-    )
-    return LangRule(
-        extensions=spec.extensions,
-        empty_handler_patterns=handlers,
-        placeholder_pragma=pragma,
-    )
+    return LangRule(extensions=spec.extensions, empty_handler_patterns=handlers)
 
 
 def load_wiring_rules(project_root: Path | None = None) -> WiringRuleSet:
@@ -106,8 +95,20 @@ def _scan_file(path: Path, rule: LangRule) -> list[Finding]:
         text = path.read_text(errors="replace")
     except OSError:
         return []
-    if rule.placeholder_pragma is not None and rule.placeholder_pragma.search(text):
-        return []
+    allowance = file_allowance(text, CHECK_ID)
+    if allowance is not None:
+        if allowance.reason:
+            return []
+        return [
+            Finding(
+                check_id=CHECK_ID,
+                severity="warn",
+                category="integration-wiring",
+                detail="allow(wiring_empty_handler) 缺 reason — 豁免生效但须补充理由",
+                file=str(path),
+                line=allowance.line,
+            )
+        ]
     findings: list[Finding] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
         for pattern in rule.empty_handler_patterns:
@@ -130,8 +131,8 @@ def run(ctx: CheckContext) -> list[Finding]:
     """Flag empty-handler prop wiring as WARN (never gates).
 
     Skipped in fix mode (nothing to fix mechanically) and for files
-    declaring the placeholder pragma (whole-file opt-out for tasks
-    legitimately stubbing handlers).
+    carrying ``cataforge: allow(wiring_empty_handler, reason="...")``
+    (whole-file opt-out for tasks legitimately stubbing handlers).
     """
     if ctx.fix:
         return []
@@ -153,7 +154,8 @@ register_check(
         id=CHECK_ID,
         title=(
             "wiring 空 handler 正则扫描（rules/wiring-{lang}.yaml 驱动）— 空函数 prop "
-            "命中即 WARN（豁免：任务卡 wiring_placeholder: true / 文件级 pragma）"
+            "命中即 WARN（豁免：任务卡 wiring_placeholder: true / 文件级 "
+            'cataforge: allow(wiring_empty_handler, reason="...")）'
         ),
         severity="warn",
         category="integration-wiring",
