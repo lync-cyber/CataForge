@@ -13,15 +13,16 @@ from typing import Any
 
 from cataforge.application.feedback.collectors import collect_recent_events
 from cataforge.application.phase import evaluate_phase
+from cataforge.application.viz import palette
 from cataforge.core.phases import PHASES
 from cataforge.core.viz.model import Edge, Graph, Node, Timeline, TimelineEvent, View
 from cataforge.runtime.skill.builtins.framework_review._framework_data import read_workflow_modes
 
-_OK_STYLE = "fill:#9f6,stroke:#333"
-_BLOCKED_STYLE = "fill:#f96,stroke:#333"
+_OK_STYLE = palette.GREEN_OK
+_BLOCKED_STYLE = palette.RED_MISSING
 
 
-def _phase_sequence(root: Path) -> list[str]:
+def phase_sequence(root: Path) -> list[str]:
     """Ordered phase backbone from the standard mode's workflow config; falls
     back to the recognised-phase union when no config is present."""
     phases = [
@@ -38,7 +39,7 @@ def collect_phase(root: Path, /, **_opts: Any) -> View:
     current, checks = evaluate_phase(root)
     blocked = any(not ok for _, ok, _ in checks)
     highlight = current if current in PHASES else None
-    sequence = _phase_sequence(root)
+    sequence = phase_sequence(root)
     if highlight and highlight not in sequence:
         sequence = [*sequence, highlight]
     nodes = tuple(

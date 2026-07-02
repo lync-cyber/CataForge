@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, cast
 
+from cataforge.application.viz import palette
 from cataforge.application.viz.collectors._kg import open_kg
 from cataforge.core.errors import CataforgeError
 from cataforge.core.viz.model import Edge, Graph, Node, View
@@ -16,9 +17,9 @@ from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg.trace import TraceChain
 
 # coverage status → Mermaid style body
-_FULL_STYLE = "fill:#9f6,stroke:#333"
-_PARTIAL_STYLE = "fill:#ff6,stroke:#333"
-_NONE_STYLE = "fill:#f96,stroke:#333"
+_FULL_STYLE = palette.GREEN_OK
+_PARTIAL_STYLE = palette.YELLOW_PARTIAL
+_NONE_STYLE = palette.RED_MISSING
 
 # (src_layer, dst_layer, relation) — trace-chain edge topology, shared with the
 # table/json analysis outputs that `kg trace` still serves.

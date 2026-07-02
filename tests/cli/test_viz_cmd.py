@@ -141,6 +141,12 @@ class TestJsonRenderer:
         m = MetricSeries(points=(MetricPoint("F-001", 1.0, "coverage"),))
         assert json.loads(json_.render(m))["kind"] == "metrics"
 
+    def test_node_data_passthrough_and_omission(self) -> None:
+        g = Graph(nodes=(Node("a", label="A", data={"type": "skill", "lines": 3}), Node("b")))
+        nodes = json.loads(json_.render(g))["nodes"]
+        assert nodes[0]["data"] == {"type": "skill", "lines": 3}
+        assert "data" not in nodes[1]  # unset bag omitted — data-less JSON stays stable
+
 
 # ------------------------------------------------------------------
 # service dispatch guards
@@ -636,6 +642,41 @@ class TestVizDecay:
 # ------------------------------------------------------------------
 
 
+def _make_assets_project(tmp_path: Path) -> Path:
+    """_make_project plus a project skill (maintainer-only, full frontmatter)
+    and a rules file — the catalogue-metadata fixture."""
+    _make_project(tmp_path)
+    cf = tmp_path / ".cataforge"
+    (cf / "agents" / "product-manager" / "AGENT.md").write_text(
+        "---\n"
+        "description: 产品经理 — 需求分析\n"
+        "tools: file_read, shell_exec\n"
+        "skills: [research]\n"
+        "---\nbody\n"
+    )
+    skill = cf / "skills" / "demo-skill"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\n"
+        "name: demo-skill\n"
+        'description: "演示 skill — 什么都不做"\n'
+        "depends: [research]\n"
+        "suggested-tools: shell_exec\n"
+        "maintainer-only: true\n"
+        "---\n\n# demo\n\nbody line\n"
+    )
+    rules = cf / "rules"
+    rules.mkdir()
+    (rules / "COMMON-RULES.md").write_text("# 通用规则\n\n- 一条规则\n")
+    return tmp_path
+
+
+def _assets_json_nodes(tmp_path: Path) -> dict[str, dict]:
+    result = _viz(tmp_path, "assets", "--format", "json")
+    assert result.exit_code == 0, result.output
+    return {n["id"]: n for n in json.loads(result.output)["nodes"]}
+
+
 class TestVizAssets:
     def test_agent_skill_graph_text(self, tmp_path: Path) -> None:
         _make_project(tmp_path)
@@ -655,6 +696,68 @@ class TestVizAssets:
         assert {"product-manager", "research"} <= labels
         edges = {(e["src"], e["dst"]) for e in data["edges"]}
         assert ("agent_product_manager", "skill_research") in edges
+
+    def test_text_formats_unchanged_by_metadata_and_rules(self, tmp_path: Path) -> None:
+        """Metadata rides in ``data`` only and rules are implicit nodes — the
+        Mermaid/DOT output must not mention them."""
+        _make_assets_project(tmp_path)
+        for fmt in ("mermaid", "dot"):
+            result = _viz(tmp_path, "assets", "--format", fmt)
+            assert result.exit_code == 0, result.output
+            assert "COMMON-RULES" not in result.output
+            assert "描述" not in result.output and "演示" not in result.output
+            assert "demo-skill" in result.output  # the skill node itself still renders
+
+    def test_skill_node_carries_catalogue_metadata(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        data = _assets_json_nodes(tmp_path)["skill_demo_skill"]["data"]
+        assert data["type"] == "skill"
+        assert data["description"] == "演示 skill — 什么都不做"
+        assert data["depends"] == "research"
+        assert data["tools"] == "shell_exec"
+        assert data["maintainer_only"] is True
+        assert data["path"].replace("\\", "/") == ".cataforge/skills/demo-skill/SKILL.md"
+        assert data["lines"] > 0
+        assert data["est_tokens"] > 0
+
+    def test_agent_node_carries_catalogue_metadata(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        data = _assets_json_nodes(tmp_path)["agent_product_manager"]["data"]
+        assert data["type"] == "agent"
+        assert data["description"] == "产品经理 — 需求分析"
+        assert data["tools"] == "file_read, shell_exec"
+        assert data["depends"] == "research"  # an agent depends on its skills
+        assert data["path"].replace("\\", "/") == ".cataforge/agents/product-manager/AGENT.md"
+
+    def test_rules_listed_as_implicit_nodes(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        node = _assets_json_nodes(tmp_path)["rules_COMMON_RULES"]
+        assert node["label"] is None  # invisible to text renderers
+        assert node["style"] is None
+        assert node["data"]["type"] == "rules"
+        assert node["data"]["name"] == "COMMON-RULES"
+        assert node["data"]["lines"] > 0
+
+    def test_unreadable_asset_file_degrades_to_placeholder(self, tmp_path: Path) -> None:
+        """One undecodable file must not sink the view — volume keys go None."""
+        _make_assets_project(tmp_path)
+        (tmp_path / ".cataforge" / "rules" / "BAD.md").write_bytes(b"\xff\xfe\x00 broken")
+        node = _assets_json_nodes(tmp_path)["rules_BAD"]
+        assert node["data"]["lines"] is None
+        assert node["data"]["est_tokens"] is None
+        assert node["data"]["path"].endswith("BAD.md")
+
+    def test_assets_html_renders_catalogue(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        result = _viz(tmp_path, "assets", "--html")
+        assert result.exit_code == 0, result.output
+        out = result.output
+        assert 'class="cat"' in out and "initCatalogue(" in out
+        assert 'class="csearch"' in out
+        assert 'data-type="rules"' in out  # chips + rules row present
+        assert 'data-maint="1"' in out  # demo-skill row flagged maintainer-only
+        assert '<code class="path"' in out
+        assert "_maint" in out  # the maintainer toggle renders when relevant
 
 
 # ------------------------------------------------------------------
@@ -758,6 +861,55 @@ class TestDashboard:
         result = _viz(tmp_path, "dashboard", "-o", str(out_file))
         assert result.exit_code == 0, result.output
         assert "<!DOCTYPE html>" in out_file.read_text(encoding="utf-8")
+
+    def test_kpi_strip_first_with_degraded_hints(self, tmp_path: Path) -> None:
+        # no KG / doc-index → the coverage & docs tiles degrade to run-hints
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert out.index('class="kpis"') < out.index('class="tabs"')
+        assert "run: cataforge kg init" in out
+        assert "run: cataforge context index" in out
+        assert out.count('<button class="kpi ') == 5
+        assert out.count('<button class="tab') == 10  # the strip adds no tab
+
+    def test_kpi_strip_shows_phase_and_gate(self, tmp_path: Path) -> None:
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        out = html.render_dashboard(tmp_path)
+        assert "development 3/3" in out
+        assert "门禁通过" in out
+
+    def test_legend_present(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'class="legend"' in out
+        assert "#9f6" in out
+
+    def _panel_id(self, name: str) -> str:
+        return f"panel{[n for n, _ in html._DASHBOARD_VIEWS].index(name)}"
+
+    def test_coverage_to_trace_link_wired_when_ready(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        cov, trace = self._panel_id("coverage"), self._panel_id("trace")
+        assert f"linkGraph('{cov}_v', '{trace}');" in out
+        assert "window.__viz.focus=function" in out
+
+    def test_cross_view_link_absent_when_coverage_degraded(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)  # no KG → coverage panel degrades
+        assert "linkGraph('" not in html.render_dashboard(tmp_path)  # no wiring call
+
+    def test_degraded_panel_reuses_status_guidance(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "此视图需要的数据还未生成" in out
+        assert "run: <code>cataforge kg init</code>" in out
+        assert "run: <code>cataforge context index</code>" in out
+
+    def test_empty_views_show_guidance(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)  # no EVENT-LOG / CORRECTIONS → both views empty
+        out = html.render_dashboard(tmp_path)
+        assert "暂无事件" in out
+        assert "暂无纠偏记录" in out
 
 
 class TestVizHtmlCli:
@@ -1022,3 +1174,153 @@ class TestVizOpenAndQuickstart:
         assert default.is_file()
         assert opened and opened[0].startswith("file:")
         assert "dashboard.html" in opened[0]
+
+
+# ------------------------------------------------------------------
+# overview view — project-health KPI series
+# ------------------------------------------------------------------
+
+
+def _overview_groups(tmp_path: Path) -> dict[str, dict[str, float]]:
+    """Run ``viz overview`` (json is the default) and index points by
+    series → label → value."""
+    result = _viz(tmp_path, "overview")
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["kind"] == "metrics"
+    groups: dict[str, dict[str, float]] = {}
+    for point in data["points"]:
+        groups.setdefault(point["series"], {})[point["label"]] = point["value"]
+    return groups
+
+
+class TestVizOverview:
+    def test_phase_group_tracks_sequence_and_gate(self, tmp_path: Path) -> None:
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        groups = _overview_groups(tmp_path)
+        assert groups["phase"] == {"current:development": 3.0, "gate_ok": 1.0, "total": 3.0}
+
+    def test_phase_name_cannot_collide_with_reserved_labels(self, tmp_path: Path) -> None:
+        # a free-text 当前阶段 equal to a reserved label must not overwrite it
+        _make_phase_project(tmp_path, "total")
+        groups = _overview_groups(tmp_path)
+        assert groups["phase"]["current:total"] == 0.0  # unrecognised → no index
+        assert groups["phase"]["total"] == 3.0  # sequence length survives
+
+    def test_blocked_gate_reported(self, tmp_path: Path) -> None:
+        _make_phase_project(tmp_path, "requirements")  # no prd doc/index → blocked
+        groups = _overview_groups(tmp_path)
+        assert groups["phase"]["gate_ok"] == 0.0
+
+    def test_docs_and_links_groups(self, tmp_path: Path) -> None:
+        # doc-index has prd/arch/dev-plan drafts, one stale dep, one broken xref
+        _make_docs_project(tmp_path)
+        cf = tmp_path / ".cataforge"
+        cf.mkdir()
+        framework = {
+            "workflow": {
+                "modes": {
+                    "standard": {
+                        "phases": [
+                            {"phase": "requirements", "role": "product-manager"},
+                            {"phase": "architecture", "role": "architect"},
+                        ]
+                    }
+                }
+            }
+        }
+        (cf / "framework.json").write_text(json.dumps(framework))
+        groups = _overview_groups(tmp_path)
+        assert groups["docs"] == {"prd": 0.5, "arch": 0.5}  # present, not approved
+        assert groups["links"] == {"stale": 1.0, "xref_error": 1.0}
+
+    def test_coverage_group_matches_kg(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        cov = _overview_groups(tmp_path)["coverage"]
+        result = _viz(tmp_path, "coverage", "--format", "json")
+        n_features = len(json.loads(result.output)["nodes"])
+        assert cov["full"] + cov["partial"] + cov["none"] == n_features
+
+    def test_decay_group_recent_and_monthly(self, tmp_path: Path) -> None:
+        log_dir = tmp_path / "docs" / "reviews"
+        log_dir.mkdir(parents=True)
+        (log_dir / "CORRECTIONS-LOG.md").write_text(
+            "# C\n\n"
+            "### 2026-01-01 | reviewer | development\n- 偏差类型: preference\n\n"
+            "### 2026-01-02 | architect | architecture\n- 偏差类型: upstream-gap\n",
+            encoding="utf-8",
+        )
+        groups = _overview_groups(tmp_path)
+        assert groups["decay"]["2026-01"] == 2.0
+        assert groups["decay"]["recent_30d"] == 0.0  # entries far in the past
+
+    def test_empty_project_is_empty_not_error(self, tmp_path: Path) -> None:
+        # every source unreachable → EMPTY, never NEEDS_SETUP; listed first
+        first = service.probe_all(tmp_path)[0]
+        assert first.name == "overview"
+        assert first.state == service.EMPTY
+
+    def test_structurally_damaged_doc_index_tolerated(self, tmp_path: Path) -> None:
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / ".doc-index.json").write_text(
+            json.dumps({"documents": {"x": None}}), encoding="utf-8"
+        )
+        result = _viz(tmp_path, "overview")
+        assert result.exit_code == 0, result.output  # damaged entry skipped, no traceback
+
+    def test_help_notes_json_default(self) -> None:
+        result = CliRunner().invoke(cli, ["viz", "overview", "--help"])
+        assert result.exit_code == 0, result.output
+        assert "json" in result.output
+
+
+# ------------------------------------------------------------------
+# consistency — palette SSOT + dashboard/registry sync + legend
+# ------------------------------------------------------------------
+
+
+class TestVizConsistency:
+    def test_collectors_carry_no_inline_hex(self) -> None:
+        """Semantic colours live in palette.py only — a collector hardcoding a
+        hex drifts out of the shared legend."""
+        import cataforge.application.viz.collectors as pkg
+
+        for py in Path(pkg.__file__).parent.glob("*.py"):
+            assert "fill:#" not in py.read_text(encoding="utf-8"), py.name
+
+    def test_dashboard_tabs_stay_in_sync_with_collectors(self) -> None:
+        """Every registered view is on the dashboard — as a tab, except
+        overview which renders as the KPI strip."""
+        from cataforge.application.viz.registry import COLLECTORS
+
+        tab_names = {name for name, _ in html._DASHBOARD_VIEWS}
+        assert tab_names == set(COLLECTORS) - {"overview"}
+
+    def test_single_view_has_legend(self) -> None:
+        assert 'class="legend"' in html.render(_HTML_GRAPH)
+
+    def test_plain_graph_keeps_simple_search_layout(self) -> None:
+        out = html.render(_HTML_GRAPH)  # no node data → no catalogue table
+        assert 'class="cat"' not in out
+        assert 'class="search"' in out
+
+    def test_script_embedded_json_escapes_closing_tag(self) -> None:
+        """A label containing </script> must not terminate the init block."""
+        t = Timeline(title="t", events=(TimelineEvent("2026-01-01", "</script><script>x", "c"),))
+        out = html.render(t)
+        assert "<\\/script>" in out
+        assert "</script><script>x" not in out
+
+    def test_catalogue_offline_and_implicit_label_fallback(self) -> None:
+        g = Graph(
+            title="assets",
+            nodes=(
+                Node("skill_x", label="x", data={"type": "skill", "name": "x", "path": "p"}),
+                Node("rules_r", data={"type": "rules", "name": "R-RULES"}),
+            ),
+        )
+        out = html.render(g)
+        assert 'class="cat"' in out and "initCatalogue(" in out
+        assert '"label": "R-RULES"' in out or '"label":"R-RULES"' in out  # data.name fallback
+        assert "<script src" not in out and "<link " not in out

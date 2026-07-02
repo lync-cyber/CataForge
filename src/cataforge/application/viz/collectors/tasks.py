@@ -21,6 +21,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from cataforge.application.viz import palette
 from cataforge.application.viz.collectors._kg import open_kg
 from cataforge.core.viz.model import Edge, Graph, Node, View
 from cataforge.runtime.skill.builtins.task_dep_analysis.task_dep_analysis import (
@@ -31,8 +32,8 @@ from cataforge.runtime.skill.builtins.task_dep_analysis.task_dep_analysis import
     topological_sort,
 )
 
-_CP_STYLE = "fill:#f96,stroke:#333,stroke-width:2px"
-_CYCLE_STYLE = "fill:#f00,stroke:#333,stroke-width:2px"
+_CP_STYLE = palette.RED_CRITICAL_PATH
+_CYCLE_STYLE = palette.RED_CYCLE
 
 
 def _edges_from_kg(root: Path) -> list[tuple[str, str]]:

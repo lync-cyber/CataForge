@@ -11,6 +11,7 @@ produced it.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 
@@ -18,11 +19,15 @@ from dataclasses import dataclass
 class Node:
     """A graph node. ``label`` ``None`` ⇒ implicit node (no declaration line,
     referenced only by edges). ``style`` is renderer-specific styling (e.g. a
-    Mermaid ``style`` directive body like ``fill:#f96,stroke:#333``)."""
+    Mermaid ``style`` directive body like ``fill:#f96,stroke:#333``).
+    ``data`` is an optional metadata bag: text renderers ignore it, the JSON
+    renderer passes it through, and rich renderers may project it (e.g. the
+    HTML asset catalogue table)."""
 
     id: str
     label: str | None = None
     style: str | None = None
+    data: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True)

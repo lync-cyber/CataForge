@@ -13,7 +13,6 @@ the one-command path to a live local dashboard.
 from __future__ import annotations
 
 import contextlib
-import re
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
@@ -22,7 +21,7 @@ from typing import Any, TypeVar
 import click
 
 from cataforge.application.viz import service
-from cataforge.application.viz.registry import RENDERERS
+from cataforge.application.viz.registry import RENDERERS, short_hint
 from cataforge.interface.cli.helpers import resolve_root
 from cataforge.interface.cli.main import cli
 from cataforge.interface.cli.ui import NextStep, ui
@@ -120,6 +119,22 @@ def _serve(directory: Path | None, host: str, port: int, watch: bool, open_brows
 @cli.group("viz", epilog=_EPILOG)
 def viz_group() -> None:
     """Render framework / project structure as diagrams (text or HTML)."""
+
+
+@viz_group.command("overview")
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(_FORMATS),
+    default="json",
+    show_default=True,
+    help="Text output format (metric points have no Mermaid form, so json is the default).",
+)
+@_html_option
+@_output_option
+def viz_overview(fmt: str, as_html: bool, output: Path | None) -> None:
+    """Project health KPIs: phase/gate, core docs, coverage, links, decay."""
+    _run("overview", fmt, as_html, output)
 
 
 @viz_group.command("framework")
@@ -274,12 +289,6 @@ def viz_quickstart(directory: Path | None, host: str, port: int) -> None:
 _STATE_LABEL = {service.READY: "ready", service.EMPTY: "empty", service.NEEDS_SETUP: "needs setup"}
 
 
-def _short_hint(detail: str) -> str:
-    """Collapse a collector's error to its actionable command, when it has one."""
-    match = re.search(r"`([^`]+)`", detail)
-    return f"run: {match.group(1)}" if match else detail
-
-
 @viz_group.command("status")
 def viz_status() -> None:
     """Show which views have data right now and what each one still needs."""
@@ -287,7 +296,7 @@ def viz_status() -> None:
         [
             st.name,
             _STATE_LABEL.get(st.state, st.state),
-            _short_hint(st.detail) if st.state == service.NEEDS_SETUP else st.detail,
+            short_hint(st.detail) if st.state == service.NEEDS_SETUP else st.detail,
         ]
         for st in service.probe_all(resolve_root())
     ]

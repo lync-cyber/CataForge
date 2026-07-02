@@ -1,7 +1,7 @@
 ---
 name: project-visualization
 description: "项目可视化 — 把既有知识图谱/文档索引/事件日志/纠偏日志/agent-skill 资产渲染为图、时间线、指标看板(经 cataforge viz CLI)。当需要看编排拓扑、需求→模块→任务→测试追溯链、Feature 覆盖盲区、架构模块依赖、文档依赖(stale 高亮)、任务 DAG 关键路径、SDLC 阶段进度、腐化趋势,或想要一张项目健康度总览看板时使用。文本(mermaid/dot/json)可内联文档,--html 出单文件离线交互页。"
-argument-hint: "<视图: framework|trace|coverage|arch|docs|tasks|phase|timeline|decay|dashboard>"
+argument-hint: "<视图: overview|framework|assets|trace|coverage|arch|docs|tasks|phase|timeline|decay|dashboard>"
 suggested-tools: shell_exec
 depends: []
 disable-model-invocation: false
@@ -21,8 +21,9 @@ user-invocable: false
 
 | 想看什么 | 命令 |
 |---------|------|
+| 项目健康 KPI(阶段/文档/覆盖/断链/腐化,默认 json) | `cataforge viz overview` |
 | 编排拓扑 orchestrator→phase→agent→skill | `cataforge viz framework` |
-| agent / skill 资产图 + 搜索 | `cataforge viz assets` |
+| agent / skill / rules 资产目录(元数据+体量+依赖图,--html 出可搜索面板) | `cataforge viz assets` |
 | 需求→模块→任务→测试追溯链 / 断链 | `cataforge viz trace [实体ID]` |
 | Feature 实现 / 测试覆盖盲区 | `cataforge viz coverage` |
 | 架构模块依赖图 | `cataforge viz arch` |

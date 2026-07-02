@@ -53,7 +53,7 @@ def _parse_section_meta(lines: list[str], start: int, end: int) -> dict[str, Any
     return {}
 
 
-def _estimate_tokens(text: str) -> int:
+def estimate_tokens(text: str) -> int:
     if not text:
         return 0
     return max(1, len(text) // 3)
@@ -101,7 +101,7 @@ def _build_sections(
             continue
 
         section_text = "\n".join(lines[line_idx:line_end])
-        est_tokens = _estimate_tokens(section_text)
+        est_tokens = estimate_tokens(section_text)
         meta = _parse_section_meta(lines, line_idx + 1, line_end)
         if "est_tokens" in meta:
             est_tokens = meta["est_tokens"]
@@ -168,7 +168,7 @@ def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dic
         "volume": volume,
         "status": status,
         "total_lines": total_lines,
-        "est_tokens": _estimate_tokens(content),
+        "est_tokens": estimate_tokens(content),
         "content_hash": _content_hash(content),
         "sections": sections,
     }

@@ -16,6 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from cataforge.application.viz import palette
 from cataforge.core.errors import CataforgeError
 from cataforge.core.io import read_json
 from cataforge.core.viz.model import Edge, Graph, Node, View
@@ -25,8 +26,8 @@ from cataforge.domain.docs.indexer import (
     find_xref_errors,
 )
 
-_STALE_STYLE = "fill:#ff6,stroke:#333"
-_BROKEN_STYLE = "fill:#f96,stroke:#900"
+_STALE_STYLE = palette.YELLOW_PARTIAL
+_BROKEN_STYLE = palette.RED_BROKEN
 
 # higher = takes precedence when a (doc, upstream) pair has more than one signal
 _SEVERITY = {"xref-error": 2, "stale": 1, "depends_on": 0}
