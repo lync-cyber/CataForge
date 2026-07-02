@@ -258,6 +258,72 @@ def _validate_arch(data: dict[str, Any], source: str) -> None:
     _validate_arch_rules(data.get("rules"), names, source)
 
 
+_COMPLEXITY_METRICS = ("cyclomatic", "cognitive", "function_lines", "nesting")
+_COMPLEXITY_PROJECT_KEYS = frozenset({"thresholds"})
+_COMPLEXITY_LANGUAGE_KEYS = frozenset({"function_patterns", "branch_patterns"})
+
+
+def _validate_complexity_thresholds(raw: Any, source: str) -> None:
+    """Every metric declared, each as ``{warn: int, fail: int}``, warn <= fail."""
+    if not isinstance(raw, dict):
+        raise RuleLoadError(f"{source}: 'thresholds' must be a mapping")
+    unknown = set(raw) - set(_COMPLEXITY_METRICS)
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown metric(s) {sorted(unknown)}; supported: {list(_COMPLEXITY_METRICS)}"
+        )
+    missing = [m for m in _COMPLEXITY_METRICS if m not in raw]
+    if missing:
+        raise RuleLoadError(
+            f"{source}: 'thresholds' missing metric(s) {missing} "
+            "(a project override replaces the whole file, so every metric is explicit)"
+        )
+    for metric, pair in raw.items():
+        where = f"{source}:thresholds[{metric}]"
+        if not isinstance(pair, dict) or set(pair) != {"warn", "fail"}:
+            raise RuleLoadError(f"{where}: must be a mapping with exactly 'warn' and 'fail'")
+        warn, fail = pair["warn"], pair["fail"]
+        for label, value in (("warn", warn), ("fail", fail)):
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise RuleLoadError(f"{where}: {label!r} must be a positive integer")
+        if warn > fail:
+            raise RuleLoadError(f"{where}: 'warn' must be <= 'fail'")
+
+
+def _validate_complexity(data: dict[str, Any], source: str) -> None:
+    """complexity structural contract, branched by scope.
+
+    ``scope: project`` carries the ``thresholds`` model; ``scope:
+    language`` carries the proxy-measurement patterns (``function_patterns``
+    capture group 1 = function name, ``branch_patterns`` counted per line).
+    """
+    if data.get("scope") == "language":
+        unknown = set(data) - _BASE_KEYS - _COMPLEXITY_LANGUAGE_KEYS
+        if unknown:
+            raise RuleLoadError(
+                f"{source}: unknown key(s) {sorted(unknown)} "
+                "for rule_type 'complexity' (scope language)"
+            )
+        patterns = data.get("function_patterns")
+        if not isinstance(patterns, list) or not patterns:
+            raise RuleLoadError(
+                f"{source}: scope 'language' requires non-empty 'function_patterns'"
+            )
+        for idx, entry in enumerate(patterns):
+            where = f"{source}:function_patterns[{idx}]"
+            if re.compile(entry["regex"], _compile_flags(entry.get("flags"), where)).groups < 1:
+                raise RuleLoadError(f"{where}: regex needs capture group 1 = function name")
+        if not data.get("branch_patterns"):
+            raise RuleLoadError(f"{source}: scope 'language' requires non-empty 'branch_patterns'")
+        return
+    unknown = set(data) - _BASE_KEYS - _COMPLEXITY_PROJECT_KEYS
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'complexity' (scope project)"
+        )
+    _validate_complexity_thresholds(data.get("thresholds"), source)
+
+
 register_rule_type(
     "wiring",
     list_pattern_keys=[("empty_handler_patterns", False)],
@@ -266,6 +332,11 @@ register_rule_type(
     "arch",
     list_pattern_keys=[("import_patterns", True)],  # require label
     extra_validator=_validate_arch,
+)
+register_rule_type(
+    "complexity",
+    list_pattern_keys=[("function_patterns", True), ("branch_patterns", True)],  # require label
+    extra_validator=_validate_complexity,
 )
 register_rule_type(
     "e2e",
@@ -375,7 +446,7 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
     )
 
 
-def _is_placeholder_yaml(text: str) -> bool:
+def is_placeholder_yaml(text: str) -> bool:
     """Comment-only / empty YAML — a shipped template, not a rule file.
 
     Skipped by :func:`discover_rules` so a fully commented-out model
@@ -470,13 +541,13 @@ def discover_rules(
     found: dict[tuple[str, str], RuleSpec] = {}
 
     for name, text in _iter_package_rule_files(builtin_module):
-        if _is_placeholder_yaml(text):
+        if is_placeholder_yaml(text):
             continue
         spec = validate_yaml_text(text, f"package:{name}")
         found[(spec.rule_type, spec.language)] = spec
 
     for path, text in _iter_project_rule_files(project_root, skill_id):
-        if _is_placeholder_yaml(text):
+        if is_placeholder_yaml(text):
             continue
         spec = validate_yaml_text(text, str(path))
         found[(spec.rule_type, spec.language)] = spec

@@ -120,7 +120,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 读取 Step 1 的 finding 列表，按 category 聚合并打严重等级:
 - 同一文件的重复块跨阈值 → MEDIUM/HIGH（按重复行数判定）
 - vulture 报死码 + 该文件未被任何引用 → HIGH
-- 圈复杂度 ≥20 → HIGH，≥15 → MEDIUM
+- 复杂度严重等级委托项目级 `complexity.yaml` 阈值（`complexity_gate` finding 已按 warn/fail 标注：超 fail → HIGH，超 warn → MEDIUM），不在此处另设数值
 - ts-prune 未引用导出 → LOW（可能是公共 API）
 
 ### Step 3: 产出扫描报告
@@ -156,6 +156,7 @@ review 模式（按文件类型自动选择工具）:
 - wiring 空 handler 正则扫描 — 覆盖各 `wiring-{lang}.yaml` 声明的扩展名；空函数 prop 命中 → WARN（与 §Step 2 integration-wiring 维度配套；豁免见任务卡 `wiring_placeholder: true` 或文件级 `cataforge: allow(wiring_empty_handler, reason="...")`）
 - UI 保真跨文件扫描 (.css/.scss + markup) — 死 token（声明的 CSS 自定义属性零 `var()` 消费）→ FAIL；未加载字体（引用的 `font-family` 无 `@font-face`/fontsource 加载）、幽灵类（markup 引用零定义 class，检测到 utility 框架则整体跳过）→ WARN。消费/加载/定义跨整个项目解析，声明只在受审文件检查；文件级豁免 `cataforge: allow(ui_fidelity, reason="...")`
 - 架构分层守护 (arch) — 项目在 `arch.yaml`（`scope: project`）声明 `layers`/`rules`/`enforce` 后激活；`arch-{lang}.yaml` 的 `import_patterns` 提取依赖边，违反方向矩阵按 `enforce: warn|fail`（默认 fail）出 WARN/FAIL；未声明模型静默不激活（scan 输出一条 INFO）；行级豁免 `cataforge: allow(arch_guard, reason="...")`。判定语义、各语言 import 形态与已知盲区见 [`arch-checks.md`](../../references/arch-checks.md)
+- 复杂度门禁 (complexity) — 阈值取项目级 `complexity.yaml`（builtin 发运保守默认，四指标 cyclomatic / cognitive / function_lines / nesting 各配 warn/fail）；度量优先取已装工具的圈复杂度（radon / gocyclo / lizard），全缺时用 `complexity-{lang}.yaml` pattern 驱动的代理度量（函数边界 + 缩进嵌套），finding 标注度量来源；review 只对 git diff 涉及函数按 `max(fail 阈值, 基线值)` 施门禁（棘轮基线 `.cataforge/baselines/complexity.json`：scan 刷新、review 只读，防篡改由 framework-review B3-γ 对账）；函数定义行豁免 `cataforge: allow(complexity_gate, reason="...")`。度量算法与权重见 [`complexity-checks.md`](../../references/complexity-checks.md)
 
 豁免统一语法（reason 必填，缺失时豁免生效但记 WARN；文件级/行级生效范围随消费方）见 [`pragma-grammar.md`](../../references/pragma-grammar.md)。
 
@@ -170,11 +171,14 @@ review 模式（按文件类型自动选择工具）:
 
 arch 规则同路径：`arch-{lang}.yaml`（`scope: language`，仅 `import_patterns`）随包发运六语言；项目级 `arch.yaml`（`scope: project`，`layers`/`rules`/`enforce`）声明即激活，包内 `rules/arch.yaml` 为注释模板（全注释 YAML 视为未声明）。
 
+complexity 规则同理：项目级 `complexity.yaml`（`scope: project`，`thresholds` 四指标全显式）+ `complexity-{lang}.yaml`（`scope: language`，`function_patterns`/`branch_patterns` 代理度量）；builtin 发运即激活，项目 override 整文件替换以收紧/放宽阈值。
+
 scan 模式额外的腐化 probe（按 --focus 选择性执行）:
 - duplication: jscpd（多语言：JS/TS/Py/Go/C#/Rust/Java/Kotlin/Swift）/ pmd-cpd (.java)
 - dead-code: vulture (.py) / ts-prune (.ts/.tsx) / cargo-machete (.rs, 检测未使用 Cargo 依赖)
-- complexity: radon cc (.py) / gocyclo (.go)
+- complexity: radon cc (.py) / gocyclo (.go) / eslint complexity 规则 (.js/.ts) — 探针命令阈值取项目级 `complexity.yaml`（不再各自硬编码）
 - probe 工具未安装 → WARN 跳过；scan 不会因 probe 缺失而 FAIL
+- `complexity_gate` 在 scan 中刷新 `.cataforge/baselines/complexity.json` 并把超 warn 函数输出为 informational finding（scan 不因复杂度 FAIL）
 
 ## Anti-Patterns
 

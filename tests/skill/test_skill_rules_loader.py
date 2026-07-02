@@ -619,6 +619,93 @@ layers:
         validate_yaml_text(body, "test")
 
 
+# ---- complexity rule_type structural validation ------------------------------
+
+_COMPLEXITY_HEAD = """
+schema_version: 2
+scope: project
+rule_type: complexity
+"""
+
+_FULL_THRESHOLDS = """
+thresholds:
+  cyclomatic: { warn: 10, fail: 15 }
+  cognitive: { warn: 15, fail: 25 }
+  function_lines: { warn: 60, fail: 120 }
+  nesting: { warn: 4, fail: 6 }
+"""
+
+
+def test_complexity_project_scope_roundtrip() -> None:
+    spec = validate_yaml_text(_COMPLEXITY_HEAD + _FULL_THRESHOLDS, "test")
+    assert spec.scope == "project"
+    assert spec.raw["thresholds"]["nesting"] == {"warn": 4, "fail": 6}
+
+
+def test_complexity_missing_metric_rejected() -> None:
+    body = (
+        _COMPLEXITY_HEAD
+        + """
+thresholds:
+  cyclomatic: { warn: 10, fail: 15 }
+"""
+    )
+    with pytest.raises(RuleLoadError, match="missing metric"):
+        validate_yaml_text(body, "test")
+
+
+def test_complexity_warn_above_fail_rejected() -> None:
+    body = _COMPLEXITY_HEAD + _FULL_THRESHOLDS.replace(
+        "cyclomatic: { warn: 10, fail: 15 }", "cyclomatic: { warn: 16, fail: 15 }"
+    )
+    with pytest.raises(RuleLoadError, match="'warn' must be <= 'fail'"):
+        validate_yaml_text(body, "test")
+
+
+def test_complexity_unknown_metric_rejected() -> None:
+    body = _COMPLEXITY_HEAD + _FULL_THRESHOLDS + "  halstead: { warn: 1, fail: 2 }\n"
+    with pytest.raises(RuleLoadError, match="unknown metric"):
+        validate_yaml_text(body, "test")
+
+
+def test_complexity_language_scope_requires_capture_group() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: complexity
+language: python
+extensions: [".py"]
+function_patterns:
+  - label: "no group"
+    regex: 'def \\w+'
+branch_patterns:
+  - label: ok
+    regex: 'if'
+"""
+    with pytest.raises(RuleLoadError, match="capture group 1"):
+        validate_yaml_text(body, "test")
+
+
+def test_complexity_language_scope_rejects_thresholds() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: complexity
+language: python
+extensions: [".py"]
+function_patterns:
+  - label: def
+    regex: 'def (\\w+)'
+branch_patterns:
+  - label: ok
+    regex: 'if'
+thresholds:
+  cyclomatic: { warn: 10, fail: 15 }
+"""
+    with pytest.raises(RuleLoadError, match="unknown key"):
+        validate_yaml_text(body, "test")
+
+
 def test_comment_only_yaml_is_skipped_as_template(tmp_path: Path) -> None:
     """A fully commented-out YAML (the shipped arch.yaml template) is not loaded."""
     _write_project_rule(tmp_path, "code-review", "arch.yaml", "# scope: project\n# rules: {}\n")

@@ -20,6 +20,7 @@ cataforge: allow(<check-id>, reason="<非空理由>")
 | `wiring_empty_handler` | 文件级 | 跳过该文件的空 handler 扫描（分阶段实现配任务卡 `wiring_placeholder: true`） |
 | `ui_fidelity` | 文件级 | 跳过该文件的死 token / 未加载字体 / 幽灵类扫描 |
 | `arch_guard` | 行级 | 豁免同一行 import 的分层方向违规判定 |
+| `complexity_gate` | 行级（函数定义行） | 豁免该函数的复杂度门禁判定 |
 
 ## 示例
 

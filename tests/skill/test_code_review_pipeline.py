@@ -33,6 +33,7 @@ _NO_TOOLS = {
     "radon (cc)": False,
     "gocyclo": False,
     "eslint (complexity)": False,
+    "lizard": False,
 }
 
 

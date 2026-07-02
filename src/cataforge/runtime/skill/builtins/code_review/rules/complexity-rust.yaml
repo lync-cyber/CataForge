@@ -1,0 +1,16 @@
+schema_version: 2
+scope: language
+rule_type: complexity
+language: rust
+extensions: [".rs"]
+
+function_patterns:
+  - label: "fn"
+    regex: '^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?(?:extern\s+"[^"]*"\s+)?fn\s+(\w+)'
+branch_patterns:
+  - label: "branch keyword"
+    regex: '^\s*(?:if|while|for|loop|match)\b'
+  - label: "match arm"
+    regex: '=>'
+  - label: "logical operator"
+    regex: '&&|\|\|'

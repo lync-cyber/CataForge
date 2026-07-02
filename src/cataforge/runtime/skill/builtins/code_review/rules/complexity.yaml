@@ -1,0 +1,12 @@
+schema_version: 2
+scope: project
+rule_type: complexity
+
+# 复杂度门禁阈值（保守默认，下游 override 整文件替换、四指标全显式）。
+# warn 报告不阻塞；fail 在 review 模式对 git diff 涉及函数按
+# max(fail, 基线值) 施门禁（棘轮基线 .cataforge/baselines/complexity.json）。
+thresholds:
+  cyclomatic: { warn: 10, fail: 15 }
+  cognitive: { warn: 15, fail: 25 }
+  function_lines: { warn: 60, fail: 120 }
+  nesting: { warn: 4, fail: 6 }

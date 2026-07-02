@@ -15,6 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from cataforge.runtime.skill.builtins.code_review.checks import complexity
 from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
 from cataforge.runtime.skill.builtins.code_review.engine.findings import Finding
 from cataforge.runtime.skill.builtins.code_review.engine.fs import (
@@ -39,8 +40,14 @@ class Probe:
     category: str
     extensions: frozenset[str]
     detect: tuple[str, ...]
-    build_cmd: Callable[[Path], list[str]]
+    build_cmd: Callable[[Path, Path | None], list[str]]
     fail_on_nonzero: bool
+
+
+def _warn_cyclomatic(project_root: Path | None) -> int:
+    """warn-level cyclomatic threshold from the project complexity.yaml."""
+    thresholds = complexity.thresholds_for(project_root)
+    return thresholds["cyclomatic"]["warn"] if thresholds else 10
 
 
 PROBES: tuple[Probe, ...] = (
@@ -53,7 +60,7 @@ PROBES: tuple[Probe, ...] = (
             {".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".cs", ".rs", ".java", ".kt", ".swift"}
         ),
         detect=("npx", "jscpd", "--version"),
-        build_cmd=lambda target: [
+        build_cmd=lambda target, project_root: [
             "npx",
             "jscpd",
             "--silent",
@@ -73,7 +80,7 @@ PROBES: tuple[Probe, ...] = (
         category="duplication",
         extensions=frozenset({".java"}),
         detect=("pmd", "cpd", "--help"),
-        build_cmd=lambda target: [
+        build_cmd=lambda target, project_root: [
             "pmd",
             "cpd",
             "--minimum-tokens",
@@ -92,7 +99,7 @@ PROBES: tuple[Probe, ...] = (
         category="dead-code",
         extensions=frozenset({".py"}),
         detect=("vulture", "--version"),
-        build_cmd=lambda target: ["vulture", str(target), "--min-confidence", "70"],
+        build_cmd=lambda target, project_root: ["vulture", str(target), "--min-confidence", "70"],
         fail_on_nonzero=True,
     ),
     Probe(
@@ -102,7 +109,7 @@ PROBES: tuple[Probe, ...] = (
         category="dead-code",
         extensions=frozenset({".ts", ".tsx"}),
         detect=("npx", "ts-prune", "--version"),
-        build_cmd=lambda target: ["npx", "ts-prune", "--project", str(target)],
+        build_cmd=lambda target, project_root: ["npx", "ts-prune", "--project", str(target)],
         fail_on_nonzero=False,
     ),
     Probe(
@@ -115,7 +122,7 @@ PROBES: tuple[Probe, ...] = (
         category="dead-code",
         extensions=frozenset({".ts", ".tsx", ".svelte"}),
         detect=("npx", "knip", "--version"),
-        build_cmd=lambda target: ["npx", "knip", "--directory", str(target)],
+        build_cmd=lambda target, project_root: ["npx", "knip", "--directory", str(target)],
         fail_on_nonzero=False,
     ),
     Probe(
@@ -128,7 +135,7 @@ PROBES: tuple[Probe, ...] = (
         category="dead-code",
         extensions=frozenset({".rs"}),
         detect=("cargo", "machete", "--help"),
-        build_cmd=lambda target: ["cargo", "machete", str(target)],
+        build_cmd=lambda target, project_root: ["cargo", "machete", str(target)],
         fail_on_nonzero=True,
     ),
     Probe(
@@ -138,7 +145,14 @@ PROBES: tuple[Probe, ...] = (
         category="complexity",
         extensions=frozenset({".py"}),
         detect=("radon", "--version"),
-        build_cmd=lambda target: ["radon", "cc", "-n", "C", "-a", str(target)],
+        build_cmd=lambda target, project_root: [
+            "radon",
+            "cc",
+            "-n",
+            complexity.radon_rank(_warn_cyclomatic(project_root)),
+            "-a",
+            str(target),
+        ],
         fail_on_nonzero=False,
     ),
     Probe(
@@ -148,7 +162,12 @@ PROBES: tuple[Probe, ...] = (
         category="complexity",
         extensions=frozenset({".go"}),
         detect=("gocyclo", "-?"),
-        build_cmd=lambda target: ["gocyclo", "-over", "15", str(target)],
+        build_cmd=lambda target, project_root: [
+            "gocyclo",
+            "-over",
+            str(_warn_cyclomatic(project_root)),
+            str(target),
+        ],
         fail_on_nonzero=False,
     ),
     Probe(
@@ -161,11 +180,11 @@ PROBES: tuple[Probe, ...] = (
         category="complexity",
         extensions=frozenset({".js", ".jsx", ".ts", ".tsx", ".svelte"}),
         detect=("npx", "eslint", "--version"),
-        build_cmd=lambda target: [
+        build_cmd=lambda target, project_root: [
             "npx",
             "eslint",
             "--rule",
-            '{"complexity": ["warn", 10]}',
+            f'{{"complexity": ["warn", {_warn_cyclomatic(project_root)}]}}',
             str(target),
         ],
         fail_on_nonzero=False,
@@ -188,7 +207,7 @@ def _make_runner(probe: Probe) -> Callable[[CheckContext], list[Finding]]:
                     )
                 ]
             return []
-        cmd = probe.build_cmd(ctx.target)
+        cmd = probe.build_cmd(ctx.target, ctx.project_root)
         try:
             result = run_proc(resolved(cmd), timeout=PROBE_TIMEOUT_SECS)
         except subprocess.TimeoutExpired:

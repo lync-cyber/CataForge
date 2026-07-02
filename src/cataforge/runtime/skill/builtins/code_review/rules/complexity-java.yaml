@@ -1,0 +1,16 @@
+schema_version: 2
+scope: language
+rule_type: complexity
+language: java
+extensions: [".java"]
+
+function_patterns:
+  - label: "method declaration"
+    regex: '^\s+(?:(?:public|private|protected|static|final|abstract|synchronized|native)\s+)+[\w<>\[\],\s.?]+?\s+(\w+)\s*\([^;]*\)\s*(?:throws\b[^{]*)?\{'
+branch_patterns:
+  - label: "branch keyword"
+    regex: '\b(?:if|for|while|switch|catch|do)\s*[({]'
+  - label: "case arm"
+    regex: '^\s*(?:case\s|default\s*:)'
+  - label: "logical operator"
+    regex: '&&|\|\|'

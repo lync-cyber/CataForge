@@ -48,7 +48,11 @@ from ._discover import (
 from ._types import Finding, Report
 from .checks.b1 import check_b1_required_sections, check_b1_size
 from .checks.b2 import check_b2_cross_references, check_b2_suggested_tools
-from .checks.b3 import check_b3_manifest_drift, check_b3_rules_schema
+from .checks.b3 import (
+    check_b3_baseline_provenance,
+    check_b3_manifest_drift,
+    check_b3_rules_schema,
+)
 from .checks.b4 import check_b4_hardcoded_constants
 from .checks.b5 import check_b5_workflow_coverage
 from .checks.b6 import check_b6_hook_consistency
@@ -82,6 +86,7 @@ __all__ = [
     "check_b1_size",
     "check_b2_cross_references",
     "check_b2_suggested_tools",
+    "check_b3_baseline_provenance",
     "check_b3_manifest_drift",
     "check_b3_rules_schema",
     "check_b4_hardcoded_constants",
@@ -116,6 +121,7 @@ def run(
     if "B3" in enabled and scope in ("skills", "all"):
         check_b3_manifest_drift(root, report)
         check_b3_rules_schema(root, report)
+        check_b3_baseline_provenance(root, report)
     if "B4" in enabled and scope in ("agents", "skills", "rules", "all"):
         check_b4_hardcoded_constants(root, report)
     if "B5" in enabled and scope in ("workflow", "all"):

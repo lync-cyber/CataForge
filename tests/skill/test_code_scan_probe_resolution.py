@@ -77,7 +77,7 @@ def test_jscpd_build_cmd_ignores_excluded_dirs() -> None:
     # jscpd walks the target tree itself, so EXCLUDE_DIRS pruning in
     # iter_files never reaches it — without an explicit --ignore a
     # workspace package's node_modules blows the probe timeout.
-    cmd = _probe("jscpd").build_cmd(Path("pkg"))
+    cmd = _probe("jscpd").build_cmd(Path("pkg"), None)
     assert "--ignore" in cmd
     globs = cmd[cmd.index("--ignore") + 1]
     for excluded in fs.EXCLUDE_DIRS:

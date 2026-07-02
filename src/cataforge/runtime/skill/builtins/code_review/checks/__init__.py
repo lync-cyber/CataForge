@@ -6,6 +6,7 @@ wiring / UI-fidelity pattern checks, then the informational scan probes.
 
 from cataforge.runtime.skill.builtins.code_review.checks import (  # noqa: F401
     arch_guard,
+    complexity,
     external_tools,
     probes,
     ui_fidelity,

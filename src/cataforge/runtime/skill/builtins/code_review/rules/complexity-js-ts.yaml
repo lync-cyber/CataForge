@@ -1,0 +1,20 @@
+schema_version: 2
+scope: language
+rule_type: complexity
+language: js-ts
+extensions: [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"]
+
+function_patterns:
+  - label: "function declaration"
+    regex: '^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*(\w+)'
+  - label: "arrow/function assignment"
+    regex: '^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)(?::[^=\n]+)?\s*=\s*(?:async\b)?[^;\n]*=>'
+  - label: "class method"
+    regex: '^\s+(?:(?:public|private|protected|static|async|override)\s+)*(?!if\b|for\b|while\b|switch\b|catch\b|return\b|new\b|else\b|do\b|try\b)(\w+)\s*\([^;{}]*\)\s*(?::[^;{}=]*)?\{\s*$'
+branch_patterns:
+  - label: "branch keyword"
+    regex: '\b(?:if|for|while|switch|catch)\s*\('
+  - label: "case arm"
+    regex: '^\s*(?:case\s|default\s*:)'
+  - label: "logical operator"
+    regex: '&&|\|\|'
