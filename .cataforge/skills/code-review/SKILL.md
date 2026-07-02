@@ -122,6 +122,9 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 - vulture 报死码 + 该文件未被任何引用 → HIGH
 - 复杂度严重等级委托项目级 `complexity.yaml` 阈值（`complexity_gate` finding 已按 warn/fail 标注：超 fail → HIGH，超 warn → MEDIUM），不在此处另设数值
 - ts-prune 未引用导出 → LOW（可能是公共 API）
+- config 死键（`config_dead_key`）→ MEDIUM；结合业务判断是否由部署基础设施等外部消费（是则建议声明文件加豁免）
+- API 导出移除（`api_surface`）→ HIGH（潜在破坏性变更）；新增导出 → LOW（面扩张提示）
+- 豁免盘点（`pragma_inventory`）：unknown-pragma 残留 / 缺 reason → MEDIUM；高龄豁免（长期未清理）→ LOW 并列入重构建议
 
 ### Step 3: 产出扫描报告
 报告路径: `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md`（编号规则：当日同前缀已存在 r1 则递增到 r2）。Front matter 模板:
@@ -136,7 +139,7 @@ deps: []
 ---
 ```
 
-问题列表按 COMMON-RULES §问题格式；可用 category: structure / duplication / dead-code / complexity / coupling / performance / error-handling / security。
+问题列表按 COMMON-RULES §问题格式；可用 category: structure / duplication / dead-code / complexity / coupling / performance / error-handling / security / consistency / convention / arch。
 
 ### Step 4: 判定结论
 三态判定按 COMMON-RULES §三态判定逻辑。scan 模式默认不阻塞流程（不进 needs_revision 自动重试），仅产出报告供后续重构决策。
@@ -179,6 +182,9 @@ scan 模式额外的腐化 probe（按 --focus 选择性执行）:
 - complexity: radon cc (.py) / gocyclo (.go) / eslint complexity 规则 (.js/.ts) — 探针命令阈值取项目级 `complexity.yaml`（不再各自硬编码）
 - probe 工具未安装 → WARN 跳过；scan 不会因 probe 缺失而 FAIL
 - `complexity_gate` 在 scan 中刷新 `.cataforge/baselines/complexity.json` 并把超 warn 函数输出为 informational finding（scan 不因复杂度 FAIL）
+- dead-code: config 死键探针（`config_dead_key`，内部 xref 集合差）— 项目级 `config-keys.yaml`（`scope: project`，语言无关声明侧如 dotenv）× `config-keys-{lang}.yaml`（消费 pattern），声明后全库零消费的 config key / feature flag 记 INFO；声明文件可用文件级 `cataforge: allow(config_dead_key, reason="...")` 豁免
+- consistency: API 面快照探针（`api_surface`）— `api-surface-{lang}.yaml` 的 `export_patterns` 提取导出面，对比 `.cataforge/baselines/api-surface.json` 报告新增/移除（INFO）并刷新快照；项目级 `api-surface.yaml` 声明 `gating: true` 时 review 对快照内消失的导出 FAIL（review 不刷新快照）
+- convention: 豁免盘点探针（`pragma_inventory`）— 枚举全部 `cataforge: allow(...)`（check / reason / 引入天数）记 INFO；非统一语法的 `cataforge` 标记残留报 unknown-pragma
 
 ## Anti-Patterns
 

@@ -5,9 +5,12 @@ wiring / UI-fidelity pattern checks, then the informational scan probes.
 """
 
 from cataforge.runtime.skill.builtins.code_review.checks import (  # noqa: F401
+    api_surface,
     arch_guard,
     complexity,
+    config_keys,
     external_tools,
+    pragma_inventory,
     probes,
     ui_fidelity,
     wiring,

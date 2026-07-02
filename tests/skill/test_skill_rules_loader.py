@@ -619,6 +619,112 @@ layers:
         validate_yaml_text(body, "test")
 
 
+# ---- config_keys / api_surface structural validation --------------------------
+
+
+def test_config_keys_project_scope_declares_via_filenames() -> None:
+    body = """
+schema_version: 2
+scope: project
+rule_type: config_keys
+filenames: [".env", ".env.*"]
+declare_patterns:
+  - label: x
+    regex: '^([A-Z]+)='
+"""
+    spec = validate_yaml_text(body, "test")
+    assert spec.scope == "project" and spec.language == ""
+
+    no_selector = """
+schema_version: 2
+scope: project
+rule_type: config_keys
+declare_patterns:
+  - label: x
+    regex: '^([A-Z]+)='
+"""
+    with pytest.raises(RuleLoadError, match="'filenames' to select files"):
+        validate_yaml_text(no_selector, "test")
+
+
+def test_config_keys_requires_some_pattern_list() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: config_keys
+language: dotenv
+extensions: []
+filenames: [".env"]
+"""
+    with pytest.raises(RuleLoadError, match="at least one of"):
+        validate_yaml_text(body, "test")
+
+
+def test_config_keys_requires_file_selector() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: config_keys
+language: dotenv
+extensions: []
+declare_patterns:
+  - label: x
+    regex: '^([A-Z]+)='
+"""
+    with pytest.raises(RuleLoadError, match="'extensions' or 'filenames'"):
+        validate_yaml_text(body, "test")
+
+
+def test_config_keys_requires_capture_group() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: config_keys
+language: dotenv
+extensions: []
+filenames: [".env"]
+declare_patterns:
+  - label: x
+    regex: '^[A-Z]+='
+"""
+    with pytest.raises(RuleLoadError, match="capture group 1"):
+        validate_yaml_text(body, "test")
+
+
+def test_api_surface_project_gating_must_be_bool() -> None:
+    body = """
+schema_version: 2
+scope: project
+rule_type: api_surface
+gating: "yes"
+"""
+    with pytest.raises(RuleLoadError, match="'gating' must be a boolean"):
+        validate_yaml_text(body, "test")
+
+
+def test_api_surface_language_requires_export_patterns() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: api_surface
+language: python
+extensions: [".py"]
+"""
+    with pytest.raises(RuleLoadError, match="non-empty 'export_patterns'"):
+        validate_yaml_text(body, "test")
+
+
+def test_api_surface_project_roundtrip() -> None:
+    body = """
+schema_version: 2
+scope: project
+rule_type: api_surface
+gating: true
+"""
+    spec = validate_yaml_text(body, "test")
+    assert spec.raw["gating"] is True
+
+
 # ---- complexity rule_type structural validation ------------------------------
 
 _COMPLEXITY_HEAD = """

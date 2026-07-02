@@ -51,7 +51,7 @@ from cataforge.runtime.skill.builtins.code_review.engine.registry import (
     CheckSpec,
     register_check,
 )
-from cataforge.runtime.skill.rules.loader import SUPPORTED_FLAGS, discover_rules
+from cataforge.runtime.skill.rules.loader import compile_flags, discover_rules
 from cataforge.utils.run_subprocess import run as run_proc
 
 _BUILTIN_MODULE = "cataforge.runtime.skill.builtins.code_review"
@@ -88,17 +88,8 @@ class FunctionMetrics:
     allowance: Allowance | None
 
 
-def _compile_flags(flags_raw: list[str] | None) -> int:
-    if not flags_raw:
-        return 0
-    out = 0
-    for f in flags_raw:
-        out |= SUPPORTED_FLAGS.get(f, 0)
-    return out
-
-
 def _compile_patterns(entries: list[dict[str, Any]] | None) -> tuple[re.Pattern[str], ...]:
-    return tuple(re.compile(p["regex"], _compile_flags(p.get("flags"))) for p in (entries or []))
+    return tuple(re.compile(p["regex"], compile_flags(p.get("flags"))) for p in (entries or []))
 
 
 def load_complexity_rules(

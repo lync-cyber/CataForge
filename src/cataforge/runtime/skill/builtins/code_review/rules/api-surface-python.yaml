@@ -1,0 +1,11 @@
+schema_version: 2
+scope: language
+rule_type: api_surface
+language: python
+extensions: [".py"]
+
+# Export-surface extraction: capture group 1 = exported symbol.
+# Python proxy: top-level (column 0) public def/class definitions.
+export_patterns:
+  - label: "top-level public def/class"
+    regex: '^(?:async\s+)?(?:def|class)\s+([A-Za-z]\w*)'

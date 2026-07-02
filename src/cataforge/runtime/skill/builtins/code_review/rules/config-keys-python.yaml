@@ -1,0 +1,14 @@
+schema_version: 2
+scope: language
+rule_type: config_keys
+language: python
+extensions: [".py"]
+
+# Consumption side of the config-key xref: capture group 1 = the key.
+consume_patterns:
+  - label: "os.environ subscript"
+    regex: 'environ\[\s*[''"]([A-Z][A-Z0-9_]*)[''"]'
+  - label: "os.environ.get"
+    regex: 'environ\.get\(\s*[''"]([A-Z][A-Z0-9_]*)[''"]'
+  - label: "os.getenv"
+    regex: '\bgetenv\(\s*[''"]([A-Z][A-Z0-9_]*)[''"]'

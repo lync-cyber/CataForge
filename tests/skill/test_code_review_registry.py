@@ -62,7 +62,10 @@ def test_mode_selection_orders_gating_before_informational() -> None:
     ranks = [registry._SEVERITY_RANK[c.severity] for c in scan_checks]
     assert ranks == sorted(ranks)
     review_checks = checks_for_mode("review")
-    assert all(c.severity != "informational" for c in review_checks)
+    info_ids = [c.id for c in review_checks if c.severity == "informational"]
+    # api_surface joins review for its opt-in gating path; no other
+    # informational check runs outside scan.
+    assert info_ids == ["code_review.api_surface"]
 
 
 def test_register_check_rejects_duplicates_and_bad_fields() -> None:

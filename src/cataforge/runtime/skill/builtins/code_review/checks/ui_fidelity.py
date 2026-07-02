@@ -33,6 +33,7 @@ from cataforge.runtime.skill.builtins.code_review.engine.registry import (
     CheckSpec,
     register_check,
 )
+from cataforge.runtime.skill.builtins.code_review.engine.xref import collect_keys
 
 CHECK_ID = "code_review.ui_fidelity"
 
@@ -108,50 +109,54 @@ def _norm_font(name: str) -> str:
     return re.sub(r"\s+", " ", name.strip().strip("\"'").replace("-", " ")).lower()
 
 
+def _family_names(decl: str) -> list[str]:
+    """Concrete family names in one ``font-family`` value list."""
+    out: list[str] = []
+    for raw in decl.split(","):
+        name = raw.strip()
+        if not name or "var(" in name or name.lower() in GENERIC_FAMILIES:
+            continue
+        out.append(name.strip("\"'"))
+    return out
+
+
+def _split_class_group(group: str) -> list[str]:
+    if "{" in group or "$" in group:
+        return []
+    return [tok for tok in group.split() if tok]
+
+
 def declared_tokens(text: str) -> set[str]:
-    return set(_DECL_TOKEN.findall(text))
+    return collect_keys(text, (_DECL_TOKEN,))
 
 
 def consumed_tokens(text: str) -> set[str]:
-    return set(_USE_TOKEN.findall(text))
+    return collect_keys(text, (_USE_TOKEN,))
 
 
 def font_refs(text: str) -> set[str]:
     """Named font families referenced in ``font-family`` declarations."""
-    out: set[str] = set()
-    for decl in _FONT_FAMILY.findall(text):
-        for raw in decl.split(","):
-            name = raw.strip()
-            if not name or "var(" in name or name.lower() in GENERIC_FAMILIES:
-                continue
-            out.add(name.strip("\"'"))
-    return out
+    return collect_keys(text, (_FONT_FAMILY,), normalize=_family_names)
 
 
 def font_loaders(text: str) -> set[str]:
     """Normalised font names loaded via @font-face / fontsource / Google Fonts."""
     out: set[str] = set()
     for block in _FONT_FACE.findall(text):
-        for decl in _FONT_FAMILY.findall(block):
-            out.add(_norm_font(decl))
-    for pkg in _FONTSOURCE.findall(text):
-        out.add(_norm_font(pkg))
-    for fam in _GFONT_FAMILY.findall(text):
-        out.add(_norm_font(fam.replace("+", " ")))
+        out |= collect_keys(block, (_FONT_FAMILY,), normalize=lambda d: [_norm_font(d)])
+    out |= collect_keys(text, (_FONTSOURCE,), normalize=lambda p: [_norm_font(p)])
+    out |= collect_keys(
+        text, (_GFONT_FAMILY,), normalize=lambda f: [_norm_font(f.replace("+", " "))]
+    )
     return {n for n in out if n}
 
 
 def class_refs(text: str) -> set[str]:
-    out: set[str] = set()
-    for group in _CLASS_REF.findall(text):
-        if "{" in group or "$" in group:
-            continue
-        out.update(tok for tok in group.split() if tok)
-    return out
+    return collect_keys(text, (_CLASS_REF,), normalize=_split_class_group)
 
 
 def class_defs(css_text: str) -> set[str]:
-    return set(_CLASS_DEF.findall(css_text))
+    return collect_keys(css_text, (_CLASS_DEF,))
 
 
 def has_utility_framework(text: str) -> bool:

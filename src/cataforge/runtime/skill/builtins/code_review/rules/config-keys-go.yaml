@@ -1,0 +1,11 @@
+schema_version: 2
+scope: language
+rule_type: config_keys
+language: go
+extensions: [".go"]
+
+consume_patterns:
+  - label: "os.Getenv"
+    regex: 'os\.Getenv\(\s*"([A-Z][A-Z0-9_]*)"'
+  - label: "os.LookupEnv"
+    regex: 'os\.LookupEnv\(\s*"([A-Z][A-Z0-9_]*)"'

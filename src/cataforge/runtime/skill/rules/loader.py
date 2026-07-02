@@ -102,6 +102,19 @@ def _compile_flags(flags_raw: Any, where: str) -> int:
     return out
 
 
+def compile_flags(flags_raw: list[str] | None) -> int:
+    """Flag bitmask for already-validated rule patterns.
+
+    The lenient counterpart to the validating ``_compile_flags`` — rule
+    consumers compile patterns from YAMLs that passed
+    :func:`validate_yaml_text`, so unknown names cannot occur here.
+    """
+    out = 0
+    for f in flags_raw or []:
+        out |= SUPPORTED_FLAGS.get(f, 0)
+    return out
+
+
 def _validate_pattern_entry(entry: Any, where: str, *, require_label: bool = False) -> None:
     if not isinstance(entry, dict):
         raise RuleLoadError(f"{where}: pattern entry must be a mapping")
@@ -162,6 +175,14 @@ def register_rule_type(
         tuple(single_pattern_keys or ()),
         extra_validator,
     )
+
+
+def _require_capture_group(data: dict[str, Any], key: str, source: str, what: str) -> None:
+    """Every pattern under *key* must expose capture group 1 = *what*."""
+    for idx, entry in enumerate(data.get(key) or []):
+        where = f"{source}:{key}[{idx}]"
+        if re.compile(entry["regex"], _compile_flags(entry.get("flags"), where)).groups < 1:
+            raise RuleLoadError(f"{where}: regex needs capture group 1 = {what}")
 
 
 _ARCH_PROJECT_KEYS = frozenset({"enforce", "layers", "rules"})
@@ -239,10 +260,7 @@ def _validate_arch(data: dict[str, Any], source: str) -> None:
         patterns = data.get("import_patterns")
         if not isinstance(patterns, list) or not patterns:
             raise RuleLoadError(f"{source}: scope 'language' requires non-empty 'import_patterns'")
-        for idx, entry in enumerate(patterns):
-            where = f"{source}:import_patterns[{idx}]"
-            if re.compile(entry["regex"], _compile_flags(entry.get("flags"), where)).groups < 1:
-                raise RuleLoadError(f"{where}: regex needs capture group 1 = imported module")
+        _require_capture_group(data, "import_patterns", source, "imported module")
         return
     unknown = set(data) - _BASE_KEYS - _ARCH_PROJECT_KEYS
     if unknown:
@@ -309,10 +327,7 @@ def _validate_complexity(data: dict[str, Any], source: str) -> None:
             raise RuleLoadError(
                 f"{source}: scope 'language' requires non-empty 'function_patterns'"
             )
-        for idx, entry in enumerate(patterns):
-            where = f"{source}:function_patterns[{idx}]"
-            if re.compile(entry["regex"], _compile_flags(entry.get("flags"), where)).groups < 1:
-                raise RuleLoadError(f"{where}: regex needs capture group 1 = function name")
+        _require_capture_group(data, "function_patterns", source, "function name")
         if not data.get("branch_patterns"):
             raise RuleLoadError(f"{source}: scope 'language' requires non-empty 'branch_patterns'")
         return
@@ -333,10 +348,85 @@ register_rule_type(
     list_pattern_keys=[("import_patterns", True)],  # require label
     extra_validator=_validate_arch,
 )
+_CONFIG_KEYS_KEYS = frozenset({"filenames", "declare_patterns", "consume_patterns"})
+
+
+def _validate_config_keys(data: dict[str, Any], source: str) -> None:
+    """config_keys structural contract, branched by scope.
+
+    ``scope: project`` carries the language-agnostic declaration side
+    (extension-less config conventions like ``.env`` — files selected by
+    ``filenames`` globs); ``scope: language`` carries language-bound
+    entries (typically the consumption side) selecting files by
+    ``extensions`` and/or ``filenames``. Both need at least one of
+    ``declare_patterns`` / ``consume_patterns`` (capture group 1 = key).
+    """
+    unknown = set(data) - _BASE_KEYS - _CONFIG_KEYS_KEYS
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'config_keys'"
+        )
+    filenames = data.get("filenames") or []
+    if not isinstance(filenames, list) or not all(isinstance(f, str) and f for f in filenames):
+        raise RuleLoadError(f"{source}: 'filenames' must be a list of glob strings")
+    if not (data.get("declare_patterns") or data.get("consume_patterns")):
+        raise RuleLoadError(
+            f"{source}: at least one of 'declare_patterns'/'consume_patterns' required"
+        )
+    if data.get("scope") == "project" and not filenames:
+        raise RuleLoadError(f"{source}: scope 'project' needs 'filenames' to select files")
+    if data.get("scope") == "language" and not (data.get("extensions") or filenames):
+        raise RuleLoadError(f"{source}: needs 'extensions' or 'filenames' to select files")
+    _require_capture_group(data, "declare_patterns", source, "config key")
+    _require_capture_group(data, "consume_patterns", source, "config key")
+
+
+_API_SURFACE_PROJECT_KEYS = frozenset({"gating"})
+
+
+def _validate_api_surface(data: dict[str, Any], source: str) -> None:
+    """api_surface structural contract, branched by scope.
+
+    ``scope: language`` carries ``export_patterns`` (capture group 1 =
+    exported symbol); ``scope: project`` carries the optional ``gating``
+    switch that turns snapshot shrinkage into a review gate.
+    """
+    if data.get("scope") == "project":
+        unknown = set(data) - _BASE_KEYS - _API_SURFACE_PROJECT_KEYS
+        if unknown:
+            raise RuleLoadError(
+                f"{source}: unknown key(s) {sorted(unknown)} "
+                "for rule_type 'api_surface' (scope project)"
+            )
+        if not isinstance(data.get("gating", False), bool):
+            raise RuleLoadError(f"{source}: 'gating' must be a boolean")
+        return
+    unknown = set(data) - _BASE_KEYS - {"export_patterns"}
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'api_surface' "
+            "(scope language)"
+        )
+    patterns = data.get("export_patterns")
+    if not isinstance(patterns, list) or not patterns:
+        raise RuleLoadError(f"{source}: scope 'language' requires non-empty 'export_patterns'")
+    _require_capture_group(data, "export_patterns", source, "exported symbol")
+
+
 register_rule_type(
     "complexity",
     list_pattern_keys=[("function_patterns", True), ("branch_patterns", True)],  # require label
     extra_validator=_validate_complexity,
+)
+register_rule_type(
+    "config_keys",
+    list_pattern_keys=[("declare_patterns", True), ("consume_patterns", True)],  # require label
+    extra_validator=_validate_config_keys,
+)
+register_rule_type(
+    "api_surface",
+    list_pattern_keys=[("export_patterns", True)],  # require label
+    extra_validator=_validate_api_surface,
 )
 register_rule_type(
     "e2e",

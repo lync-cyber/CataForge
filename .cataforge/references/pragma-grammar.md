@@ -21,6 +21,9 @@ cataforge: allow(<check-id>, reason="<非空理由>")
 | `ui_fidelity` | 文件级 | 跳过该文件的死 token / 未加载字体 / 幽灵类扫描 |
 | `arch_guard` | 行级 | 豁免同一行 import 的分层方向违规判定 |
 | `complexity_gate` | 行级（函数定义行） | 豁免该函数的复杂度门禁判定 |
+| `config_dead_key` | 文件级（声明文件） | 跳过该文件声明的 config key 的死键判定（外部基础设施消费场景） |
+
+scan 的 `pragma_inventory` 探针会枚举全部豁免（check / reason / git blame 引入天数）并把非本语法的 `cataforge` 标记残留报为 unknown-pragma——豁免只增不减时在 CODE-SCAN 报告可见。
 
 ## 示例
 

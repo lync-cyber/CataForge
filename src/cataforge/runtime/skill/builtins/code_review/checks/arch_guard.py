@@ -37,7 +37,7 @@ from cataforge.runtime.skill.builtins.code_review.engine.registry import (
     CheckSpec,
     register_check,
 )
-from cataforge.runtime.skill.rules.loader import SUPPORTED_FLAGS, RuleSpec, discover_rules
+from cataforge.runtime.skill.rules.loader import RuleSpec, compile_flags, discover_rules
 
 _BUILTIN_MODULE = "cataforge.runtime.skill.builtins.code_review"
 _SKILL_ID = "code-review"
@@ -123,15 +123,6 @@ class LangImports:
     patterns: tuple[re.Pattern[str], ...]
 
 
-def _compile_flags(flags_raw: list[str] | None) -> int:
-    if not flags_raw:
-        return 0
-    out = 0
-    for f in flags_raw:
-        out |= SUPPORTED_FLAGS.get(f, 0)
-    return out
-
-
 def _compile_model(spec: RuleSpec) -> ArchModel:
     layers = tuple(
         Layer(
@@ -161,7 +152,7 @@ def load_arch_rules(
             langs[language] = LangImports(
                 extensions=spec.extensions,
                 patterns=tuple(
-                    re.compile(p["regex"], _compile_flags(p.get("flags")))
+                    re.compile(p["regex"], compile_flags(p.get("flags")))
                     for p in spec.raw["import_patterns"]
                 ),
             )
