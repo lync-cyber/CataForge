@@ -1,6 +1,6 @@
 # Orchestrator Protocols
 
-> 阶段调度热路径协议 — Bootstrap, **Mode Routing**, Interrupt-Resume, Revision, Approved-with-Notes, **Phase Transition**, **Manual Review Checkpoint**, Rolled-back Recovery, TDD Blocked Recovery, **Parallel Task Dispatch**, Sprint Review, Change Request, Agent Crash Recovery, **Sub-Agent Truncation Recovery**, needs_revision 计数 | 模板: {INSTRUCTION_FILE} Update Template
+> 阶段调度热路径协议——协议清单以下方各 H2 节为准。
 >
 > 元运维与学习协议（低频触发、reference 性质）见 [`ORCHESTRATOR-META-PROTOCOLS.md`](ORCHESTRATOR-META-PROTOCOLS.md)：Framework Upgrade, Event Log 规范, On-Correction Learning, Adaptive Review (含反向降级), Retrospective & Improvement.
 
@@ -10,9 +10,9 @@
 当项目从零开始 ({INSTRUCTION_FILE} 不存在) 时:
 1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认值见 COMMON-RULES §框架配置常量 MANUAL_REVIEW_CHECKPOINTS）
 2. **选择执行模式** — 通过 AskUserQuestion 单独提问，选项:
-    - `standard`（默认/推荐）— 中大型正式交付项目，7 阶段全流程
-    - `agile-lite` — 5-20 feature 的轻量工具或小型 Web 项目（产出 prd-lite / arch-lite / dev-plan-lite 各目标 ≤100 行）
-    - `agile-prototype` — 原型 / PoC / 单文件脚本（单一 brief.md 目标 ≤200 行，合并 Phase 1~4）
+    - `standard`（默认/推荐）— 中大型正式交付项目
+    - `agile-lite` — 轻量工具或小型 Web 项目
+    - `agile-prototype` — 原型 / PoC / 单文件脚本
     完整差异矩阵见 COMMON-RULES §执行模式矩阵。选择结果写入 {INSTRUCTION_FILE} §项目信息.执行模式
 3. **创建目录结构**: 根据执行模式:
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
@@ -38,10 +38,10 @@
    - `cataforge context ensure-store`（幂等，按 context.mode 水合图谱 store：graph 从最新 NQuads 快照恢复、markdown 跳过；store 已存在则原样保留）
    - `cataforge context index`（生成空的 `docs/.doc-index.json` 文档索引缓存，首个文档落盘后由生成定稿增量刷新）
    - 可选向用户提示 `cataforge viz framework` 渲染编排图，帮助快速建立流程心智模型
-10. **进入初始阶段** — 通过 agent-dispatch 激活:
-    - `standard` → product-manager（Phase 1 requirements）
-    - `agile-lite` → product-manager（planning 阶段，按 §Mode Routing Protocol 产出 prd-lite 后链式激活 architect 产出 arch-lite）
-    - `agile-prototype` → product-manager（brief 阶段，产出单一 brief.md）
+10. **进入初始阶段** — 按 `framework.json#/workflow` 的 `execution_host` 分派（同 §Phase Transition Protocol Step 10）进入 product-manager 角色:
+    - `standard` → Phase 1 requirements
+    - `agile-lite` → planning 阶段（按 §Mode Routing Protocol 产出 prd-lite 后链式进入 architect 产出 arch-lite）
+    - `agile-prototype` → brief 阶段（产出单一 brief.md）
 
 ## Mode Routing Protocol
 orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪份文档"时，先读取 {INSTRUCTION_FILE} §项目信息.执行模式（字段缺失或占位符未填 → 按 `standard` 处理），然后按下列矩阵路由。模式完整差异见 COMMON-RULES §执行模式矩阵。
@@ -53,13 +53,13 @@ orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪�
 合并 Phase 1+2 为 `planning`，跳过 Phase 3，Phase 4 使用 lite 模板。阶段序列: planning → dev_planning → development → (testing) → (deployment)。
 
 1. **planning 阶段**（合并 Phase 1+2）:
-   - 激活 product-manager，传入 `template_id=prd-lite`，产出 `docs/prd/prd-lite-{project}.md`（≤50 行；版本号写入 frontmatter `version:`）
-   - prd-lite 通过 doc-review（Layer 1 强制；Layer 2 按 `DOC_REVIEW_L2_SKIP_*` 短路）
+   - 激活 product-manager，传入 `template_id=prd-lite`，产出 `docs/prd/prd-lite-{project}.md`
+   - prd-lite 通过 doc-review
    - approved 后**链式**激活 architect（无需额外用户交互窗口），传入 `template_id=arch-lite` + `deps=[prd-lite]`，产出 `docs/arch/arch-lite-{project}.md`
    - arch-lite 通过 doc-review 后 planning 阶段结束
 2. **跳过 Phase 3 ui_design** — {INSTRUCTION_FILE} §阶段配置.ui_design 默认标记 N/A；若项目显式需要 UI 设计（Bootstrap 时由用户标注），则 fallback 到 standard ui-designer + ui-spec 流程
 3. **dev_planning 阶段**: 激活 tech-lead，传入 `template_id=dev-plan-lite`，任务卡默认 `tdd_mode: light`（tech-lead 按 `TDD_LIGHT_LOC_THRESHOLD` 判定）
-4. **development / testing / deployment**: 按 standard 流程推进；Sprint-review 按 `SPRINT_REVIEW_MICRO_TASK_COUNT` 判定；人工检查点仅 `pre_dev`
+4. **development / testing / deployment**: 按 standard 流程推进（模式差异见 COMMON-RULES §执行模式矩阵）
 
 ### agile-prototype 模式
 合并 Phase 1~4 为 `brief`，跳过 Phase 3，直接进入 development。阶段序列: brief → development。
@@ -67,9 +67,9 @@ orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪�
 1. **brief 阶段**（合并 Phase 1~4）:
    - 激活 product-manager，传入 `template_id=brief`，产出 `docs/brief/brief-{project}.md`（目标 ≤200 行）
    - brief.md §5 即任务卡清单（T-xxx），任务卡默认 `tdd_mode: light`，REFACTOR 跳过
-   - brief.md 仅跑 doc-review Layer 1（`DOC_REVIEW_L2_SKIP_DOC_TYPES` 含 brief，Layer 2 直接短路）
+   - brief.md 通过 doc-review
 2. **跳过 Phase 3 ui_design** — 原型默认无 UI 设计阶段
-3. **development 阶段**: orchestrator 直接从 brief.md §5 读取任务卡，按 tdd-engine §Prototype Inline 模式（implementer 主线程内联，不 dispatch 子代理）执行；Sprint-review 跳过；Retrospective 跳过；人工检查点 `none`
+3. **development 阶段**: orchestrator 直接从 brief.md §5 读取任务卡，按 tdd-engine §Prototype Inline 模式（implementer 主线程内联，不 dispatch 子代理）执行
 4. **testing / deployment**: 默认跳过（{INSTRUCTION_FILE} §阶段配置 标记 N/A）；若用户显式启用，fallback 到 standard 流程
 
 ### 路由时机
@@ -103,7 +103,7 @@ Mode Routing Protocol 在以下时刻被调用:
    ```
 2. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 3. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
-4. 修复完成后先按 §Phase Transition Protocol Step 6 执行 reconcile 收口（漂移按 Step 5.3 处置），再重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
+4. 修复完成后先按 §Phase Transition Protocol Step 6 执行 reconcile 收口（漂移按 Step 6 选项处置），再重新激活 reviewer 执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
 5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入，避免低效 revision 循环
 
 > 子代理收到 `task_type=revision` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
@@ -197,16 +197,16 @@ Mode Routing Protocol 在以下时刻被调用:
 - Backlog 为无序候选池，随手增删，非有序待办清单。
 
 ## Design-Tool Capability Gate
-进入 ui_design 且设计工具=penpot 时，派发 ui-designer 前由 orchestrator 主线程门禁 MCP 可用性——子代理对「penpot 工具从未注册」无失败信号可捕获，会静默走纯文本路径并使设计工具长期是假信号，故探测前移到派发方：
+进入 ui_design 且设计工具=penpot 时，进入 ui-designer 角色前由 orchestrator 主线程门禁 MCP 可用性：
 
 1. **探测** — 检查主线程工具表是否含 `mcp__penpot__*`。在表 → 再跑 `cataforge penpot status` 确认握手与插件连接（握手 Up ≠ 插件已连）；不在表 → 记为「工具未注册」。
 2. **区分形态** — 「工具未注册」（MCP server 已声明但工具不在表，多为未预启用 / 未部署）与「连接失败 / 插件未连」是两类，分别向用户报告，不混为一谈。
 3. **不静默降级** — 不可用时报告形态并给选项：「排查 MCP 后重试」/「降级为纯文本手工 ui-spec」。
-4. **降级落真值** — 用户选降级时把设计工具落为 none（消除假信号），记 **[EVENT]**：`cataforge event log --event state_change --phase ui_design --detail "design_tool penpot→none: {未注册|连接失败}，降级纯文本流"`，再派发 ui-designer。
-5. **可用即继续** — 工具在表且 status 健康 → 正常派发 ui-designer，penpot-bridge 操作生效。
+4. **降级落真值** — 用户选降级时把设计工具落为 none（消除假信号），记 **[EVENT]**：`cataforge event log --event state_change --phase ui_design --detail "design_tool penpot→none: {未注册|连接失败}，降级纯文本流"`，再进入 ui-designer 角色。
+5. **可用即继续** — 工具在表且 status 健康 → 正常进入 ui-designer 角色，penpot-bridge 操作生效。
 
 ## Inline Role Execution Protocol
-`framework.json#/workflow` 中 `execution_host: inline` 的 phase（如发散性的 Phase 1/2），由 orchestrator 在主线程承载该角色执行而非派发子代理——发散阶段需多轮 user-interview / 头脑风暴 / 澄清，派发子代理为非交互执行体无法触达用户。Phase 5 development 经 tdd-engine 内联编排是同一模式的既有先例。
+`framework.json#/workflow` 中 `execution_host: inline` 的 phase（如发散性的 Phase 1/2），由 orchestrator 在主线程承载该角色执行而非派发子代理——发散阶段需多轮 user-interview / 头脑风暴 / 澄清，派发子代理为非交互执行体无法触达用户。
 
 执行步骤（orchestrator 侧）:
 1. **加载角色** — Read 目标 role 的 AGENT.md（角色定义 / Input·Output Contract / Anti-Patterns / skills）；承载期间以该角色身份决策、受其约束，不以 orchestrator 身份拍板内容
@@ -223,14 +223,8 @@ Mode Routing Protocol 在以下时刻被调用:
 **触发时机**: 文档状态变为 approved 且 orchestrator 即将进入下一 Phase 时。
 
 **执行步骤**:
-1. 读取 {INSTRUCTION_FILE} §全局约定 中的 `人工审查检查点` 字段（未配置则使用 COMMON-RULES 默认值 `[pre_dev, post_sprint, pre_deploy]`）
-2. 判断当前转换是否命中检查点:
-   - `phase_transition` → 所有 Phase 转换均命中
-   - `post_doc_freeze` → 仅 Phase 1→2（requirements → architecture，PRD 冻结）与 Phase 2→3（architecture → 下游，ARCH 冻结）命中
-   - `pre_dev` → 仅 Phase 4→5（dev_planning → development）命中
-   - `pre_deploy` → 仅 Phase 6→7（testing → deployment）命中
-   - `post_sprint` → Sprint Review approved 后、进入下一 Sprint 或 Phase 6 前命中
-   - `none` → 不命中，直接推进
+1. 读取 {INSTRUCTION_FILE} §全局约定 中的 `人工审查检查点` 字段（未配置则使用 MANUAL_REVIEW_CHECKPOINTS 默认值）
+2. 判断当前转换是否命中检查点（各值触发时机见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS 可选值）
 3. 命中时，使用 AskUserQuestion 向用户展示阶段摘要并确认。**当 checkpoint = `pre_deploy` 且 framework.json `pre_deploy_demo_required: true`**（UI/web 类项目默认 true，纯后端服务默认 false）时，选项追加 demo 验证项；其它 checkpoint 用基础选项即可：
 
    基础选项（所有 checkpoint）:
@@ -270,8 +264,6 @@ Mode Routing Protocol 在以下时刻被调用:
 4. 用户选择"确认继续"（或 pre_deploy demo_required=true 时选项 4）→ 正常推进
 5. 用户选择"暂停" → orchestrator 等待用户后续指令（不自动推进）
 6. 用户选择"调整方向" → 进入 Change Request Protocol
-
-> **设计意图**：纯"摘要确认"选项 1 在 user-facing critical path 项目里等同放行。pre_deploy demo gate 把"是否真的跑过"显式问出来；自动启动 dev server / 跑 e2e UI 套件作为后续单独 enhancement，不在本协议范围。
 
 **不命中时**: 直接按现有逻辑自动推进，无额外交互。
 
@@ -313,7 +305,7 @@ Mode Routing Protocol 在以下时刻被调用:
 **并行规则**:
 1. **同 sprint_group 任务并行 RED/GREEN/LIGHT**：在**单条主线程消息内**通过 agent_dispatch 工具发出多个调度调用，并发上限 = `min(sprint_group 任务数, 3)`。批次完成后才进入下一阶段，避免阶段交叉
 2. **批次内禁止并行 REFACTOR**：refactor 改动源码冲突大；REFACTOR 必须串行（按 sprint_group 内的字典序）
-3. **同模块批量化（C2）优先于并行调度**：当 sprint_group 内 ≥2 个任务共享同一 arch#§2.M-xxx 时，先尝试合并为一次 test-writer 调用（见 tdd-engine §RED 批量化），剩余任务再走并行调度
+3. **同模块批量化优先于并行调度**：当 sprint_group 内 ≥2 个任务共享同一 arch#§2.M-xxx 时，先尝试合并为一次 test-writer 调用（见 tdd-engine §RED 批量化），剩余任务再走并行调度
 4. **回退条件**：若并行调度任一子代理返回 blocked / needs_input → 取消同批次未启动的调度（已启动的等待返回），降级为串行模式重跑该批次
 
 **事件记录**:
@@ -323,28 +315,6 @@ Mode Routing Protocol 在以下时刻被调用:
 **安全护栏**:
 - 文件系统竞态：同 sprint_group 任务的 deliverables 必须无路径重叠（已由 task-decomp 在 Phase 4 保证），orchestrator 在派发前再做一次 deliverables 路径并集 vs 单任务路径集合大小校验，命中冲突立即降级串行
 - maxTurns 截断：每个并行子代理独立计数，互不影响
-
-**示例（伪代码）**:
-```
-sprint_group_1 = ["T-001", "T-004"]   # 共享 M-002，可批量化
-sprint_group_2 = ["T-002", "T-003"]   # 互独立，可并行
-
-# group 1：单次 test-writer 批量 RED（内联各任务 AC + 共享接口契约）+ 各自 GREEN 并行
-batch_dispatch([
-  Agent(test-writer, prompt=inline_context[T-001, T-004]),
-])
-# RED 完成后
-batch_dispatch([
-  Agent(implementer, T-001, prompt=inline_context+test_files),
-  Agent(implementer, T-004, prompt=inline_context+test_files),
-])
-
-# group 2：直接并行 LIGHT（各自内联上下文）
-batch_dispatch([
-  Agent(implementer, T-002, prompt=inline_context+light_mode),
-  Agent(implementer, T-003, prompt=inline_context+light_mode),
-])
-```
 
 ## Sprint Review Protocol
 当Sprint所有任务完成（dev-plan§1 Sprint表中所有任务状态=done）时:
@@ -423,7 +393,7 @@ cascade_amendment 中任一文档修订触发人工介入阈值（needs_revision
 3. **每任务最多 1 次**；第 2 次截断说明 prompt 设计有问题，blocked + 标 backlog 给下次 retrospective
 4. 事件记录：`event=state_change` + `agent={truncated_agent_id}` + `detail="truncation recovery: <70%|≥70%>"`，供 reflector 检测频次（≥5 次/月触发 SKILL-IMPROVE）
 
-**与 tdd-engine §Mid-Progress Drop Contract 的关系**：mid-progress 是**预防**（边推进边落盘，降低末尾批量 finalize 的截断概率）；本协议是**事后兜底**。两者协同：契约把 truncation 后的完成度从 0% 抬到 70%+，让本协议阈值可达。
+**与 tdd-engine §Mid-Progress Drop Contract 的关系**：mid-progress 是**预防**（边推进边落盘）；本协议是**事后兜底**。
 
 ## needs_revision 计数规范
 `needs_revision(N)` 中的 N 为本阶段累计返工次数，格式为 `needs_revision(2)` 而非独立字段。
@@ -450,15 +420,3 @@ cascade_amendment 中任一文档修订触发人工介入阈值（needs_revision
 ```
 
 > 状态值合法集: 未开始 | draft | review | approved | needs_revision | needs_revision(N) | N/A
-
----
-# Appendix: 框架开发约定
----
-
-## Skill depends 字段语义
-SKILL.md frontmatter 中的 `depends` 字段含义:
-- 列出本 Skill 执行过程中**会调用**的其他 Skill（调用链依赖）
-- 也包含前置条件型依赖（需先完成的 Skill）
-- 不包含运行环境依赖（如 Python、Node.js）
-- 不用于运行时自动校验，仅供开发者参考和 Agent-Skill 匹配审查
-- `suggested-tools` 必须包含本 Skill 所有执行路径中**直接使用**的工具（通过 depends 间接使用的工具不重复列出）

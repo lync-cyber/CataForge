@@ -8,12 +8,11 @@
 框架升级时保持项目状态不变:
 
 ### 可安全覆盖（框架文件）
-- .cataforge/agents/ — 所有 AGENT.md
+- .cataforge/agents/ — 所有 AGENT.md 与 orchestrator 协议文档
 - .cataforge/skills/ — 所有 SKILL.md + templates/ + scripts/
 - .cataforge/rules/ — COMMON-RULES.md, SUB-AGENT-PROTOCOLS.md
-- .cataforge/agents/orchestrator/ — ORCHESTRATOR-PROTOCOLS.md, ORCHESTRATOR-META-PROTOCOLS.md
-- .cataforge/hooks/ — 所有 Hook 脚本 (.py)
-- .cataforge/scripts/framework/ — `setup.py`（`cataforge setup` 子命令的路径稳定 shim，供 Bootstrap 调用）、`event_logger.py`（`cataforge event log` 的路径稳定 shim，供 markdown 协议调用）；其他框架能力（upgrade、docs load/index 等）已上收为 `cataforge` CLI 子命令；Penpot 集成无需 scaffold 落盘脚本，全部通过 `cataforge penpot {deploy|mcp-only|start|stop|status|ensure}` 子命令暴露（实现位于 `cataforge.adapter.integrations.penpot`）
+- .cataforge/hooks/ — hooks.yaml（hook 规范；脚本实现随包分发）
+- .cataforge/scripts/framework/ — `setup.py` / `event_logger.py`（`cataforge setup` / `cataforge event log` 的路径稳定 shim）
 - .cataforge/framework.json
 - pyproject.toml
 
@@ -28,31 +27,8 @@
 - .cataforge/framework.json — upgrade.source 保留用户已配置的 repo/url，仅补充新字段；upgrade.state 为项目本地升级状态，始终保留；features 和 migration_checks 为框架出厂配置，全量覆盖
 - {INSTRUCTION_FILE} 全局约定 — 保留用户已填写的值，新增框架默认字段
 
-### 初始化安装
-- 运行: `cataforge setup` 检测环境并安装依赖
-- 可选 Penpot: `cataforge setup --with-penpot`
-- 仅检测: `cataforge setup --check-prereqs`
-
-### 升级步骤（本地路径方式）
-适用场景：想用一个本地 CataForge 仓库的 checkout 升级，而不是从 PyPI/远程安装。
-1. 安装目标版本到当前环境: `pip install <新版CataForge路径>`（或 `uv tool install <路径>`）
-2. 运行: `cataforge upgrade apply --dry-run` 预览变更
-3. 确认变更列表无异常
-4. 运行: `cataforge upgrade apply` 执行升级（scaffold 刷新；用户状态保留）
-5. 运行: `cataforge upgrade verify` 执行升级后验证（= `cataforge doctor`）
-6. 检查: `git diff .cataforge/` 确认变更合理
-7. 提交: `git commit -m "chore: upgrade CataForge framework to vX.Y.Z"`
-
-### 升级步骤（PyPI/远程方式）
-1. 升级包: `pip install --upgrade cataforge`（或 `uv tool upgrade cataforge`）
-2. 运行: `cataforge upgrade check` 对比已安装包版本与 scaffold 版本
-3. 运行: `cataforge upgrade apply --dry-run` 预览变更
-4. 运行: `cataforge upgrade apply` 执行 scaffold 刷新
-5. 检查: `git diff .cataforge/` 确认变更合理
-6. 提交: `git commit -m "chore: upgrade CataForge framework to vX.Y.Z"`
-
-### 独立验证
-- 运行: `cataforge upgrade verify` 可随时检查框架文件完整性
+### 升级与安装操作
+安装 / 升级 / 验证的操作链路由 framework-update skill 承载（`cataforge setup`、`cataforge upgrade check / apply / verify`），见 `.cataforge/skills/framework-update/SKILL.md`。
 
 ---
 
@@ -69,7 +45,7 @@ orchestrator 在关键节点向 `docs/EVENT-LOG.jsonl` 追加事件记录，用�
 | session_start | 会话启动 | **Hook 自动** (session_context.py，含 60 秒 compact 去重；仅此一个事件由 hook 写入，orchestrator 不再手动补写以节省 token) |
 | agent_dispatch | 调度子代理前 | **Hook 自动** (log_agent_dispatch.py, PreToolUse Agent) |
 | agent_return | 子代理返回结果后 | **Hook 自动** (validate_agent_result.py, PostToolUse Agent) |
-| phase_start | Phase Transition Protocol 步骤 5 | **[EVENT]** orchestrator 手动 |
+| phase_start | Phase Transition Protocol 的 EVENT BATCH 步骤 | **[EVENT]** orchestrator 手动 |
 | phase_end | reviewer 返回 approved | **[EVENT]** orchestrator 手动 |
 | review_verdict | reviewer 返回审查结论 | **[EVENT]** orchestrator 手动 |
 | user_decision | 用户在 Approved-with-Notes / Change Request 中做出选择 | **[EVENT]** orchestrator 手动 |
@@ -85,7 +61,7 @@ orchestrator 在关键节点向 `docs/EVENT-LOG.jsonl` 追加事件记录，用�
 - **[EVENT] 手动**: 使用 `cataforge event log` CLI，已嵌入各协议步骤中（标记为 **[EVENT]**）
 
 **禁止旁路** ⚠️：
-- 严禁直接 `echo '{...}' >> docs/EVENT-LOG.jsonl` 或 `cat <<EOF >> ...` 等 shell 重定向写入。`cataforge event log` 是唯一会跑 schema 校验的入口；旁路写入会导致 `unknown field`（如 `timestamp` ≠ `ts`）或 `non-enum event`（如 `doc_revision_completed` ≠ `revision_completed`）滑过门禁，被 reflector 消费时才暴露。
+- 严禁直接 `echo '{...}' >> docs/EVENT-LOG.jsonl` 或 `cat <<EOF >> ...` 等 shell 重定向写入。`cataforge event log` 是唯一会跑 schema 校验的入口；旁路写入不经 schema 校验。
 - 若发现某个事件类型在枚举中缺失，应该向 `.cataforge/schemas/event-log.schema.json` + `cataforge.core.event_log.VALID_EVENTS` 同时添加（见 §schema 同步），而不是临时绕开 CLI。
 - `cataforge doctor` 的 "EVENT-LOG schema sample" 与 "EVENT-LOG bypass guard" 段会捕获这两类违规并在 CI 中失败。
 
@@ -137,7 +113,7 @@ cataforge event log --event phase_start --phase architecture --detail "进入架
    ```
 
 ### 反向降级分支
-触发条件: 连续 `ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS` 个 TDD 任务（默认 10）满足以下全部条件，视为项目质量已稳态：
+触发条件: 连续 `ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS` 个 TDD 任务满足以下全部条件，视为项目质量已稳态：
 - code-review verdict 为 approved（无 MEDIUM/HIGH/CRITICAL）
 - 对应任务 CORRECTIONS-LOG.md 无新增 hard / review 条目
 - 该 Agent 在该阶段近期无 needs_revision
