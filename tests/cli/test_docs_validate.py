@@ -35,6 +35,21 @@ def test_docs_validate_orphan_exits_3(tmp_path: Path, monkeypatch) -> None:
     assert "orphan" in result.output.lower()
 
 
+def test_docs_validate_orphan_failure_hints_docignore(tmp_path: Path, monkeypatch) -> None:
+    # The FAIL message must surface the exemption path — reader-facing prose
+    # that is not an SDLC artefact belongs in docs/.docignore, and users who
+    # only see "missing YAML front matter" conclude no exemption exists.
+    root = _minimal_project(tmp_path)
+    _write_doc(root, "docs/prd/good.md", "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n")
+    indexer.main(["--project-root", str(root)])
+    _write_doc(root, "docs/guide/quickstart.md", "# 快速上手\n")
+
+    monkeypatch.chdir(root)
+    result = invoke_under_group(docs_validate, [])
+    assert result.exit_code == 3
+    assert "docs/.docignore" in result.output
+
+
 def test_docs_validate_stale_entry_exits_3(tmp_path: Path, monkeypatch) -> None:
     root = _minimal_project(tmp_path)
     good = _write_doc(root, "docs/prd/good.md", "---\nid: prd-good\ndoc_type: prd\n---\n# Good\n")

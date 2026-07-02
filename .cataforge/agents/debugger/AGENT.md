@@ -12,7 +12,7 @@ skills:
   - debug
   - context
 model_tier: heavy
-maxTurns: 40
+maxTurns: 150
 ---
 
 # Role: 调试工程师 (Debugger)

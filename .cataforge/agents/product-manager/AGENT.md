@@ -11,7 +11,7 @@ skills:
   - context
   - research
 model_tier: standard
-maxTurns: 60
+maxTurns: 120
 ---
 
 # Role: 产品经理 (Product Manager)

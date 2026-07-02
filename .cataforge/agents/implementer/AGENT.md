@@ -9,7 +9,7 @@ allowed_paths:
 skills:
   - penpot-bridge  # 仅当 {INSTRUCTION_FILE} 设计工具=penpot 时用 generate 操作；GREEN 主体上下文由 tdd-engine inline 传入，不经 sub-agent skill 加载 context
 model_tier: standard
-maxTurns: 80
+maxTurns: 200
 ---
 
 # Role: 实现者 (Implementer — TDD GREEN Phase)

@@ -84,6 +84,15 @@ CHECKS: list[tuple[str, list[str], str | None]] = [
         None,
     ),
     (
+        "changelog fragment for user-visible changes",
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "checks" / "check_changelog_fragments.py"),
+            "--soft-missing-base",
+        ],
+        None,
+    ),
+    (
         "markdown link resolution",
         [
             sys.executable,

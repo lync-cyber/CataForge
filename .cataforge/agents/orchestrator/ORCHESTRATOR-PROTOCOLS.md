@@ -190,6 +190,11 @@ Mode Routing Protocol 在以下时刻被调用:
 - `已完成阶段`: 阶段枚举；`文档状态`: doc_type → status。
 - 历史与证据写入 `docs/EVENT-LOG.jsonl`、`docs/reviews/`、`docs/changelog/`；需引用时只放短路径。
 - `claude-md check` 报状态条目超长警告时，先外迁历史再继续推进。
+- 状态表述必须 merge 后仍成立：不写「待 PR / 待 push / 待合并」等交付时态措辞；PR 号由 merge commit 承载，正文不追记。
+- merge 后仅当状态块实质丢失或内容错误才补状态修正 PR；纯措辞过时不单独开 PR。
+- 每槽位滚动覆盖：完成「当前」即用其替换「上次完成」旧值，再从「下一步」提一项补进「当前」；不追加历史。
+- 每项一行，尽量指向 dev-plan 里程碑 / 任务编号。
+- Backlog 为无序候选池，随手增删，非有序待办清单。
 
 ## Design-Tool Capability Gate
 进入 ui_design 且设计工具=penpot 时，派发 ui-designer 前由 orchestrator 主线程门禁 MCP 可用性——子代理对「penpot 工具从未注册」无失败信号可捕获，会静默走纯文本路径并使设计工具长期是假信号，故探测前移到派发方：

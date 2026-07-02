@@ -12,7 +12,7 @@
 
 - [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
-- [Skill 清单（26 个）](#skill-清单26-个) — 总览表 + 按类别折叠
+- [Skill 清单（27 个）](#skill-清单27-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
 
 ---
@@ -42,7 +42,7 @@ tools:
 ### 总览
 
 | # | Agent | 中文角色 | 职责概要 | MaxTurns |
-|---|-------|---------|---------|----------|
+| --- | ------- | --------- | --------- | ---------- |
 | 1 | orchestrator | 主编排智能体 | 协调整个 SDLC 生命周期 | 200 |
 | 2 | product-manager | 产品经理 | 需求分析与 PRD 撰写 | 60 |
 | 3 | architect | 架构师 | 架构设计与技术选型 | 60 |
@@ -206,12 +206,12 @@ tools:
 
 ---
 
-## Skill 清单（26 个）
+## Skill 清单（27 个）
 
 ### 总览
 
 | # | Skill ID | 类型 | 领域 | 简要说明 |
-|---|----------|------|------|---------|
+| --- | ---------- | ------ | ------ | --------- |
 | 1 | agent-dispatch | 核心框架 | 编排 | 子代理调度与运行时翻译 |
 | 2 | context | 核心框架 | 上下文 | 统一上下文 I/O：navigate（段落精准加载）/ generate（文档生成、模板实例化、拆分）/ review（文档双层审计）/ consistency（跨文档语义一致性校验）/ query（知识图谱只读 SPARQL 问答）五个分支；review / consistency 分支由内置 Layer-1 引擎支撑 |
 | 3 | code-review | 核心框架 | 质量 | 代码质量、合规性、安全性审查 |
@@ -235,9 +235,10 @@ tools:
 | 21 | framework-update | 管理技能 | 同步 | 包↔scaffold 版本检测 + pip/uv 升级 + scaffold 刷新/部署/doctor + 项目初始化/恢复分流 |
 | 22 | framework-review | 测试质量 | 元审计 | 元资产 (agents/skills/hooks/rules/workflow) 质量审计 — 子检查族 B1–B9：必备段落、跨引用图、SKILL.md ↔ CHECKS_MANIFEST 漂移、常量字面量、phase × agent × skill 覆盖、hook 完整性、model_tier 合规、Anti-Patterns 规模、migration_checks 健康 |
 | 23 | framework-feedback | 管理技能 | 反馈 | 下游 → 上游反馈打包：聚合 doctor + EVENT-LOG + `upstream-gap` corrections + framework-review FAIL → 渲染为 markdown，通过 `cataforge feedback` CLI 或本 skill 发出（`--print` / `--out` / `--clip` / `--gh`） |
-| 24 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed|wontfix|already-fixed} ...`)；3↔4 步是人工 go/no-go |
+| 24 | framework-issue-resolve | 管理技能 | 反馈 | 上游 maintainer 侧 GitHub issue 全闭环：拉取 (`cataforge issue triage`) → 审查分析（写 `docs/reviews/triage/SKILL-IMPROVE-<id>-issue-<N>.md` 草稿，verdict ∈ `confirmed` / `wontfix-by-design` / `already-fixed` / `needs-repro` / `unrelated`）→ 给修复意见 → 实施（feature branch + PR）→ 关闭 (`cataforge issue close <N> --verdict {fixed | wontfix | already-fixed} ...`)；3↔4 步是人工 go/no-go |
 | 25 | framework-walkthrough | 测试质量 | 元自测 | 隔离沙盒内端到端跑通小型示例项目的完整 SDLC 工作流，观察各阶段/门禁/降级行为，产出框架本身与走查流程两类改进建议；framework-review 的动态对偶 |
 | 26 | project-visualization | 核心框架 | 可视化 | 把既有 KG / doc-index / EVENT-LOG / CORRECTIONS / agent-skill 资产渲染为图 / 时间线 / 指标看板；薄发现型 skill 引导工作流按情境调 `cataforge viz <视图>`，orchestrator 在 Sprint 收口产出健康度看板 |
+| 27 | feature-walkthrough | 测试质量 | 验收 | 对交付项目功能实现做验收式动态走查：两层正交判定（功能 vs spec 符合性 `missing/drift/bug/pass` + 代码健康度复用统一问题分类体系）+ 五步走查法 + 真实数据动态复现纪律；framework-walkthrough 的交付侧对偶 |
 
 ### 详细说明
 
@@ -247,10 +248,12 @@ tools:
 <summary><b>核心框架 Skill</b>（agent-dispatch · context · code-review · tdd-engine · change-guard · project-visualization）</summary>
 
 **agent-dispatch** — 子代理调度与运行时翻译
+
 - 负责将编排器的 agent 调度请求翻译为目标平台的原生调度格式
 - 包含调度 prompt 模板（支持平台覆盖：Cursor / Codex）
 
 **context** — 统一上下文 I/O，分五个 reference 分支：
+
 - **navigate** — 提供 `load_section` 能力，按 `{doc_id}#§{section}` 格式精准加载文档段落，避免全文读取，降低 agent 上下文占用
 - **generate** — 统一文档生成，支持 standard（完整）/ lite（轻量）/ prototype（原型简报）三套模板体系；内置文档拆分，超过 DOC_SPLIT_THRESHOLD_LINES 自动分卷；模板目录 `.cataforge/skills/context/templates/`
 - **review** — 文档双层审计，Layer 1 脚本化检查（结构完整性、格式合规性）+ Layer 2 AI 审查（语义一致性、业务逻辑正确性）；轻量文档类型（brief、prd-lite 等）可跳过 Layer 2；Layer 1 由内置引擎 `cataforge skill run doc-review` 支撑
@@ -258,21 +261,25 @@ tools:
 - **query** — 知识图谱自然语言查询，把问题翻译为只读 SPARQL 检索项目追溯关系并作答；schema card 由 `cataforge kg schema-context` 提供，执行与写守卫复用 `cataforge kg query`
 
 **code-review** — 代码双层审查
+
 - Layer 1：lint 工具检查（ruff 等）
 - Layer 2：AI 审查（架构合规性、安全性、业务逻辑）
 - 输出标准化评审报告
 
 **tdd-engine** — TDD 三阶段引擎
+
 - 编排 RED（test-writer）→ GREEN（implementer）→ REFACTOR（refactorer，条件触发）
 - 默认 light 模式（RED+GREEN 合并）；LOC > `TDD_LIGHT_LOC_THRESHOLD`（默认 150）/ `security_sensitive` / 跨模块时升 standard
 - agile-prototype 走 implementer 主线程内联，无子代理调度
 - `task_kind ∈ {chore, config, docs}` 跳过 TDD，仅 implementer 单次实现 + lint hook
 
 **change-guard** — 变更守卫
+
 - 分析变更请求与现有文档的一致性
 - 路由变更到适当的处理路径（文档修订 / 代码修改 / 新功能）
 
 **project-visualization** — 项目可视化（薄发现型 skill，驱动 `cataforge viz` CLI）
+
 - 把既有 KG / doc-index / EVENT-LOG / CORRECTIONS / agent-skill 资产渲染为图 / 时间线 / 指标看板，经 `cataforge viz <视图>` CLI 调用
 - 情境→视图映射承载「定向」：覆盖盲区→`coverage`、追溯断链→`trace`、架构核对→`arch`、健康度总览→`dashboard`
 - `user-invocable: false`（不经 `skill run`）；orchestrator 在 Sprint 收口确定性产出 `docs/viz/dashboard.html` 作保底
@@ -299,13 +306,15 @@ tools:
 </details>
 
 <details>
-<summary><b>测试与质量 Skill</b>（testing · sprint-review · framework-review）</summary>
+<summary><b>测试与质量 Skill</b>（testing · sprint-review · framework-review · feature-walkthrough）</summary>
 
 **testing** — 测试技能，制定测试策略、编写测试用例、分析覆盖率、记录缺陷。
 
 **sprint-review** — Sprint 回顾技能，审查 Sprint 完成度、AC 覆盖率、范围偏移检测。
 
 **framework-review** — 元资产质量审计。`scope=agents|skills|hooks|rules|workflow|all`，子检查族 B1–B9（可用 `--focus` 限定）：B1 必备段落 + 行数阈值、B2 跨引用图 + suggested-tools 合法性、B3 SKILL.md ↔ CHECKS_MANIFEST 漂移、B4 常量字面量替换、B5 phase × agent × skill 覆盖 + EVENT-LOG 漂移、B6 hook 脚本可达性 + matcher capability + 降级覆盖、B7 model_tier 合规 + 平台 tier_map、B8 Anti-Patterns 段存在 + 规模下限、B9 migration_checks 健康。报告写入 `docs/reviews/framework/`。CI 必备 gate（同 doctor）。
+
+**feature-walkthrough** — 功能走查，对交付项目功能实现做验收式动态走查。两层正交判定（第一层符合性 `missing/drift/bug/pass`，第二层代码健康度复用 COMMON-RULES 统一问题分类体系）+ 五步走查法（读意图 → 对设计 → 查实现 → 跑符合性 → 扫质量）；符合性判定强制真实数据路径起真实服务复现，专捞门禁全绿仍漏的跨模块集成缝隙。报告写入 `docs/reviews/walkthrough/`。
 
 </details>
 
@@ -347,7 +356,7 @@ tools:
 每个 Agent 的默认装配与条件启用技能如下：
 
 | Agent | 默认启用 Skill | 条件启用 |
-|-------|---------------|---------|
+| ------- | --------------- | --------- |
 | **orchestrator** | `agent-dispatch` · `context` · `tdd-engine` · `change-guard` · `framework-feedback` · `project-visualization` | — |
 | **product-manager** | `req-analysis` · `context` · `research` | — |
 | **architect** | `arc-design` · `tech-eval` · `context` · `research` | — |
@@ -366,11 +375,12 @@ tools:
 
 ### 独立 Skill（不绑定 Agent）
 
-这四个 Skill 由用户直接调用，不归属某个 Agent：
+这五个 Skill 由用户直接调用，不归属某个 Agent：
 
 | Skill | 类型 | 典型触发 |
-|-------|------|---------|
+| ------- | ------ | --------- |
 | `platform-audit` | 管理 | 审计 `profile.yaml` 与平台实际能力匹配度 |
 | `start-orchestrator` | 管理 | 初始化 / 恢复 CataForge 工作流 |
 | `workflow-framework-generator` | 管理 | 按工作流类型 + 目标平台生成完整框架 |
 | `framework-update` | 管理 | 升级 CataForge 包 + 刷新 scaffold + 跑迁移检查 + 项目初始化/恢复 |
+| `feature-walkthrough` | 测试质量 | 功能交付后验收走查 / Sprint 发布前功能级复核 |

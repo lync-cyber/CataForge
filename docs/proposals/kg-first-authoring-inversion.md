@@ -49,7 +49,7 @@ kg-first 的声明设计意图是**图谱为唯一事实源**：LLM 把结构化
 ## 3. 缺口分解与 PR 序列
 
 | 序号 | 主题 | 核心内容 | 依赖 |
-|------|------|---------|------|
+| ------ | ------ | --------- | ------ |
 | P-1 | whole-document 导出器 | 按 Document→Volume→Section 树 + Section narrative + 实体正文重建整篇 markdown（人审版式）；finalize 以此替代 per-entity 卡片形态（卡片渲染保留为实体级读取面）；导出→ingest→导出 字节级幂等 | 无（数据基底已就绪） |
 | P-2 | authoring API 完备化 | `add_entity` 增 `parent_id`；`context write` 支持 part_of 归属与关系边声明；narrative 经 stdin / 文件写入；`context transact` 多实体原子事务（amendment 单事务提交，失败整体回滚） | 无 |
 | P-3 | 结构 authoring | 从模板实例化 Document / Volume / Section 图骨架（替代 Write md 骨架文件）；章节叙事经 write-narrative 填充 | P-2 |
@@ -65,7 +65,7 @@ kg-first 的声明设计意图是**图谱为唯一事实源**：LLM 把结构化
 - **P-2**：经 CLI 写入 Feature + 10 个 AC + implements 边，SPARQL 验证 part_of / implements 边与 narrative 槽齐备；事务中途校验失败时图状态零残留。
 - **P-3**：从 prd 模板实例化图骨架后 `finalize`，导出文件结构与文件后端模板实例化结果一致（占位符语义保留）。
 - **P-4**：§2 的端到端验收标准整体通过；`docs load` 实体级 / 章节级读取在反转前后返回内容一致；CLI 动词收敛后全部 prompt 资产指引与 CLI 实际命令面零漂移（grep 校验），旧读取入口在别名期内行为不变。
-- **P-5**：doc-review 对导出视图的 Layer 1 检查项全部可执行；revision 闭环不产生 md↔KG 漂移。
+- **P-5**：doc-review 对导出视图的 Layer 1 检查项全部可执行；revision 闭环不产生 md↔KG 漂移。下游实证回归用例（graph 模式修订静默丢失，Ink-Source deploy-spec 复盘）：对单卷节叙事文档经 `write-narrative` 修订 ≥5 处分散章节正文后 `context finalize`，全部修订必须出现在导出 markdown（git diff 非空、content_hash 变化）；任一修订未导出时 finalize / reconcile 必须显式报错，不得静默通过。
 - **P-6**：`cataforge framework-walkthrough` 在 kg-first authoring 模式下整链路 GO；md-first 存量项目按迁移文档切换后 doctor 全绿。
 
 ## 4. 迁移与兼容
