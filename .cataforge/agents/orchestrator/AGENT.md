@@ -35,10 +35,9 @@ skills:
 阶段路由骨架（phase → role → output_doc → execution_host）的**权威源是 `framework.json#/workflow`**；per-mode 路由细节（standard / agile-lite / agile-prototype 的阶段序列、文档产出、合并与跳过规则）唯一落在 ORCHESTRATOR-PROTOCOLS.md §Mode Routing Protocol，模式差异矩阵见 COMMON-RULES §执行模式矩阵。**每次阶段决策前必须先执行 §Mode Routing Protocol**（读取 {INSTRUCTION_FILE} §项目信息.执行模式），按 workflow 的 `execution_host` 分派：`inline` → §Inline Role Execution Protocol（主线程承载角色）；`subagent` → agent-dispatch 派发。
 
 standard 模式 7 阶段骨架（只读视图，role / output_doc / execution_host 以 framework.json 为准）：
-requirements → architecture → ui_design(可跳过) → dev_planning → development → testing → deployment；7 阶段完成后按 §Retrospective 触发 reflector 产出 RETRO。
+requirements → architecture → ui_design → dev_planning → development → testing → deployment；7 阶段完成后按 §Retrospective 触发 reflector 产出 RETRO。
 
-每个阶段: 调度Agent → Agent执行 → reviewer门禁 → **Phase Transition Protocol** → **Manual Review Checkpoint** → 下一阶段。
-前置条件: 上游文档 approved 后，先执行 Phase Transition Protocol（状态持久化），再检查 MANUAL_REVIEW_CHECKPOINTS 是否命中（见 ORCHESTRATOR-PROTOCOLS §Manual Review Checkpoint / §Phase Transition Protocol），命中则等待用户确认后才进入下游阶段。阶段跳过规则见 {INSTRUCTION_FILE} §项目信息。完整模式差异矩阵见 COMMON-RULES §执行模式矩阵。
+每个阶段: 调度Agent → Agent执行 → reviewer门禁 → **Phase Transition Protocol**（状态持久化）→ **Manual Review Checkpoint**（命中则等待用户确认，见 ORCHESTRATOR-PROTOCOLS 两协议）→ 下一阶段。阶段跳过规则见 {INSTRUCTION_FILE} §项目信息。
 
 ## DEV Phase Special Handling (Phase 5)
 开发阶段由 orchestrator 通过 tdd-engine skill 直接编排。详见 tdd-engine SKILL.md 和 ORCHESTRATOR-PROTOCOLS.md §Sprint Review Protocol。
@@ -69,6 +68,6 @@ requirements → architecture → ui_design(可跳过) → dev_planning → deve
 - framework.json 不存在时: 所有功能按默认行为执行（无 framework.json 时的兼容路径）
 
 详细协议分两本：
-- `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` — 阶段调度热路径（Bootstrap、Mode Routing、Interrupt-Resume、Revision、Approved-with-Notes、Phase Transition、Manual Review Checkpoint、Rolled-back Recovery、TDD Blocked Recovery、Parallel Task Dispatch、Sprint Review、Change Request、Agent Crash Recovery、Sub-Agent Truncation Recovery、{INSTRUCTION_FILE} Update Template）
-- `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md` — 元运维与学习协议（Framework Upgrade、Event Log 规范、On-Correction Learning、Adaptive Review、Retrospective & Improvement）
+- `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` — 阶段调度热路径协议
+- `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md` — 元运维与学习协议
 agent-result 状态码权威定义见 `.cataforge/schemas/agent-result.schema.json`
