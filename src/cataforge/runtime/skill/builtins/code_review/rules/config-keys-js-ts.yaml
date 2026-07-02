@@ -1,0 +1,13 @@
+schema_version: 2
+scope: language
+rule_type: config_keys
+language: js-ts
+extensions: [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"]
+
+consume_patterns:
+  - label: "process.env dot access"
+    regex: 'process\.env\.([A-Z][A-Z0-9_]*)'
+  - label: "process.env subscript"
+    regex: 'process\.env\[\s*[''"]([A-Z][A-Z0-9_]*)[''"]'
+  - label: "import.meta.env"
+    regex: 'import\.meta\.env\.([A-Z][A-Z0-9_]*)'

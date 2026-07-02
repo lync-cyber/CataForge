@@ -1,0 +1,9 @@
+schema_version: 2
+scope: language
+rule_type: api_surface
+language: java
+extensions: [".java"]
+
+export_patterns:
+  - label: "public type declaration"
+    regex: '^\s*public\s+(?:(?:static|final|abstract|sealed)\s+)*(?:class|interface|enum|record)\s+(\w+)'

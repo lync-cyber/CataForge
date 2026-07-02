@@ -1,0 +1,12 @@
+schema_version: 2
+scope: language
+rule_type: api_surface
+language: go
+extensions: [".go"]
+
+# Exported = capitalized top-level identifier.
+export_patterns:
+  - label: "exported func/method"
+    regex: '^func\s+(?:\([^)]*\)\s+)?([A-Z]\w*)'
+  - label: "exported type/var/const"
+    regex: '^(?:type|var|const)\s+([A-Z]\w*)'

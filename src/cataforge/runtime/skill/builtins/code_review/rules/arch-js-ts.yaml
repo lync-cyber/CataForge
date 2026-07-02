@@ -1,0 +1,24 @@
+schema_version: 2
+scope: language
+rule_type: arch
+language: js-ts
+extensions: [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"]
+
+# Import-edge extraction: capture group 1 = the imported module specifier.
+# `./`- / `../`-relative specifiers resolve against the importing file's
+# directory; bare specifiers (packages, path aliases) match layer
+# `modules` prefixes.
+import_patterns:
+  - label: "es import-from"
+    regex: '^\s*import\b[^;]*?\bfrom\s+[''"]([^''"]+)[''"]'
+    flags: ["MULTILINE"]
+  - label: "side-effect import"
+    regex: '^\s*import\s+[''"]([^''"]+)[''"]'
+    flags: ["MULTILINE"]
+  - label: "re-export from"
+    regex: '^\s*export\b[^;]*?\bfrom\s+[''"]([^''"]+)[''"]'
+    flags: ["MULTILINE"]
+  - label: "commonjs require"
+    regex: '\brequire\(\s*[''"]([^''"]+)[''"]\s*\)'
+  - label: "dynamic import (literal specifier)"
+    regex: '\bimport\(\s*[''"]([^''"]+)[''"]\s*\)'

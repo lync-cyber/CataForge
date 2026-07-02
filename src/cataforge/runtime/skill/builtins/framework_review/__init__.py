@@ -50,6 +50,14 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "severity": "fail",
     },
     {
+        "id": "B3_baseline_provenance",
+        "title": (
+            ".cataforge/baselines/*.json 变更必须与 docs/reviews/code/CODE-SCAN-*.md "
+            "报告同变更集（工作区与最近 commit 两级对账，防篡改基线过门禁）"
+        ),
+        "severity": "fail",
+    },
+    {
         "id": "B4_hardcoded_constants",
         "title": "SKILL.md / AGENT.md / 协议文档不得出现常量名对应的裸数值",
         "severity": "warn",

@@ -1,0 +1,9 @@
+schema_version: 2
+scope: language
+rule_type: config_keys
+language: rust
+extensions: [".rs"]
+
+consume_patterns:
+  - label: "env::var"
+    regex: 'env::var(?:_os)?\(\s*"([A-Z][A-Z0-9_]*)"'

@@ -120,6 +120,8 @@ def test_builtin_rule_languages_match_registry(skill_id: str, module: str) -> No
     rules = discover_rules(skill_id, builtin_module=module)
     assert rules, f"expected builtin rules for {skill_id}"
     for (rule_type, language), spec in rules.items():
+        if spec.scope == "project":
+            continue  # project-scope specs are language-agnostic by contract
         assert language in LANGUAGES, (
             f"{skill_id}/{rule_type}: rule language {language!r} is not in the "
             f"registry (cataforge.core.languages.LANGUAGES) — add it there"

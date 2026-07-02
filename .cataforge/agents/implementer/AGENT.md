@@ -112,6 +112,6 @@ GREEN/Light 完成后按 tdd-engine 四档执行收尾验证：
 ## Anti-Patterns
 - 禁止: 修改测试文件 — 测试是需求规格，实现必须适配测试而非反过来
 - 禁止: 过度设计 — 如测试只要求返回列表却实现了分页+缓存+排序，只写使测试通过的最小代码
-- 禁止: 用 `() => {}` / `async () => {}` / `return null` / 空 lambda 等占位 handler 满足 prop / event 类型契约 —— 形式契约对但语义留白会被 code-review §integration-wiring 抓出；分阶段实现必须任务卡显式 `wiring_placeholder: true` + 关联 backlog ID（或文件级 `// cataforge: wiring-placeholder` 文件级豁免）
+- 禁止: 用 `() => {}` / `async () => {}` / `return null` / 空 lambda 等占位 handler 满足 prop / event 类型契约 —— 形式契约对但语义留白会被 code-review §integration-wiring 抓出；分阶段实现必须任务卡显式 `wiring_placeholder: true` + 关联 backlog ID（或文件级豁免注释 `cataforge: allow(wiring_empty_handler, reason="...")`）
 - 避免: 仅交付组件/handler 而不挂载到消费点 —— `wiring_complete=true` 至少需要一个 `wiring_evidence` 条目证明 deliverable 真实落地（至少 grep 仓库可命中）
 - 避免: 忽略arch§7命名规范而使用自己的命名风格 — 文件名、变量名、函数签名严格遵循架构约定

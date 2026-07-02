@@ -17,6 +17,8 @@ src/cataforge/runtime/skill/builtins/<skill_id>/
 ├── __init__.py            # CHECKS_MANIFEST + 公共导出
 ├── <skill_id>_check.py    # CLI 入口 + main() + run()
 ├── _<helper>.py           # 私有 helper（前缀下划线，不外露）
+├── engine/                # check 无关的内核（注册表/管线/渲染，可选）
+│   └── <concept>.py
 ├── checks/                # 多 check 时按家族拆分（可选）
 │   ├── __init__.py
 │   └── <family>.py
@@ -32,11 +34,11 @@ src/cataforge/runtime/skill/builtins/<skill_id>/
 - **check 家族**: 大于 5 个独立 check 时拆 `checks/<family>.py`，每个家族独立 import dataclasses，主入口 `__init__.py` 维护 `CHECKS_MANIFEST` 单一事实源。
 - **rules YAML**: `rules/<concept>-<lang>.yaml`（语言相关）或 `rules/<concept>.yaml`（语言无关）。
 
-## __init__.py 契约
+## **init**.py 契约
 
-- 必须导出 `CHECKS_MANIFEST: tuple[dict[str, str], ...]`，每项含 `id` / `title` / `severity`。
-- `id` 命名: `<skill_namespace>.<check_specifier>`（如 `code_lint.ruff` / `B1_required_sections` / `e2e_scan.empty_token`）。命名空间在同一 builtin 内保持一致。
-- 不在 `__init__.py` 写实现 — 仅 manifest 和 re-export。
+- 必须导出 `CHECKS_MANIFEST: tuple[dict[str, str], ...]`，每项含 `id` / `title` / `severity`（可选 `modes`）。有检查注册表的 builtin（如 `code_review.engine.registry`）以注册表派生投影导出，禁止手写条目与实现并存双源。
+- `id` 命名: `<skill_namespace>.<check_specifier>`（如 `code_review.ruff` / `B1_required_sections` / `e2e_scan.empty_token`）。命名空间在同一 builtin 内保持一致。
+- 不在 `__init__.py` 写实现 — 仅 manifest（手写或派生投影）和 re-export。
 
 ## 入口模块契约
 
@@ -61,8 +63,8 @@ src/cataforge/runtime/skill/builtins/<skill_id>/
 按本规范 `<skill_id>_check.py` 入口形态：
 
 | Skill | 入口模块 |
-|-------|----------|
-| `code_review` | `code_review/code_lint.py` |
+| ------- | ---------- |
+| `code_review` | `code_review/code_check.py` |
 | `doc_review` | `doc_review/doc_check.py` |
 | `framework_review` | `framework_review/framework_check.py` |
 | `sprint_review` | `sprint_review/sprint_check.py` |
@@ -70,4 +72,4 @@ src/cataforge/runtime/skill/builtins/<skill_id>/
 | `task_dep_analysis` | `task_dep_analysis/task_dep_analysis.py` |
 | `testing` | `testing/e2e_scan.py` |
 
-`code_lint` / `e2e_scan` / `task_dep_analysis` / `framework_feedback` 入口模块与 `<skill_id>_check.py` 后缀不一致，按现状保留；新增 builtin 一律按本规范命名。
+`e2e_scan` / `task_dep_analysis` / `framework_feedback` 入口模块与 `<skill_id>_check.py` 后缀不一致，按现状保留；新增 builtin 一律按本规范命名。

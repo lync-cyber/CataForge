@@ -1,65 +1,20 @@
 """Built-in code-review skill.
 
-Layer 1 (lint) + Layer 2 (semantic, in SKILL.md prose) + scan operation.
+Layer 1 (engine + checks packages) + Layer 2 (semantic, in SKILL.md
+prose) + review/scan operation modes behind ``code_check.py``.
+
 ``CHECKS_MANIFEST`` is the contract for `framework-review` to verify that
 the skill's prose ``## Layer 1 检查项`` section stays in lockstep with
-what the script actually runs.
+what the script actually runs. It is derived from the check registry —
+never add hand-written entries here; register a :class:`CheckSpec` in the
+``checks`` package instead.
 """
 
 from __future__ import annotations
 
-CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
-    {
-        "id": "code_lint.eslint",
-        "title": "ESLint (.js/.ts/.jsx/.tsx)",
-        "severity": "fail-on-error",
-    },
-    {
-        "id": "code_lint.prettier",
-        "title": "Prettier 格式化检查 (.js/.ts/.jsx/.tsx)",
-        "severity": "fail-on-error",
-    },
-    {
-        "id": "code_lint.ruff",
-        "title": "Ruff check + format (.py)",
-        "severity": "fail-on-error",
-    },
-    {
-        "id": "code_lint.dotnet_format",
-        "title": "dotnet format --verify-no-changes (.cs)",
-        "severity": "fail-on-error",
-    },
-    {
-        "id": "code_lint.golangci",
-        "title": "golangci-lint run (.go)",
-        "severity": "fail-on-error",
-    },
-    {
-        "id": "code_lint.clippy",
-        "title": "cargo clippy -D warnings (.rs)",
-        "severity": "fail-on-error",
-    },
-    {
-        "id": "code_lint.tool_missing",
-        "title": "工具未安装时跳过并 WARN，不阻断检查流程",
-        "severity": "warn",
-    },
-    {
-        "id": "code_lint.wiring_empty_handler",
-        "title": (
-            "wiring 空 handler 正则扫描 (.js/.ts/.jsx/.tsx) — 空函数 prop "
-            "命中即 WARN（豁免：任务卡 wiring_placeholder: true）"
-        ),
-        "severity": "warn",
-    },
-    {
-        "id": "code_lint.ui_fidelity",
-        "title": (
-            "UI 保真跨文件扫描 (.css/.scss/markup) — 死 token（声明的 CSS "
-            "自定义属性零 var() 消费）FAIL；未加载字体（引用的 font-family "
-            "无 @font-face/fontsource 加载）与幽灵类（markup 引用零定义 class，"
-            "检测到 utility 框架则跳过）WARN；豁免 cataforge-allow-ui-fidelity"
-        ),
-        "severity": "fail-on-error",
-    },
-)
+from cataforge.runtime.skill.builtins.code_review import checks as _checks  # noqa: F401
+from cataforge.runtime.skill.builtins.code_review.engine.registry import derive_manifest
+
+CHECKS_MANIFEST: tuple[dict[str, str], ...] = derive_manifest()
+
+__all__ = ["CHECKS_MANIFEST"]

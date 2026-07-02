@@ -232,7 +232,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
    - true → 触发，`refactor_reasons` 作为 prompt §触发原因 内联
    - false / 缺失 → 跳过
 
-> **审计兜底**：sprint-review 阶段对该 sprint 的所有 impl_files 跑一次批量 `code-review --focus complexity,duplication,coupling`（Layer 1），覆盖 implementer 漏判的情况。
+> **审计兜底**：sprint-review 阶段对该 sprint 的 impl_files 范围跑一次 `cataforge skill run code-review -- scan <scope> --focus complexity,duplication,coupling`（Layer 1），覆盖 implementer 漏判的情况。
 
 ```
 调度请求:

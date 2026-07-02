@@ -98,7 +98,7 @@ user-invocable: true
 - 默认（cataforge package）：`cataforge.runtime.skill.builtins.testing.rules.e2e-{lang}.yaml`
 - 项目 override（opt-in）：`<project>/.cataforge/skills/testing/rules/e2e-{lang}.yaml`
 
-加新语言：在项目 `rules/` 放 `e2e-csharp.yaml` 等；schema 必填 `schema_version: 1` / `rule_type: e2e` / `language` / `extensions` + `backdoor_patterns`（每条需 `label`）/ `real_input_patterns`。framework-review B3-β 自动校验。
+加新语言：在项目 `rules/` 放 `e2e-csharp.yaml` 等；schema 必填 `schema_version: 2` / `rule_type: e2e` / `scope: language` / `language` / `extensions` + `backdoor_patterns`（每条需 `label`）/ `real_input_patterns`。framework-review B3-β 自动校验。
 
 ## Anti-Patterns
 

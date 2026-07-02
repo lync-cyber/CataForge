@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cataforge.runtime.skill.builtins.code_review import ui_fidelity as uf
+from cataforge.runtime.skill.builtins.code_review.checks import ui_fidelity as uf
 
 
 def _codes(findings: list[uf.Finding]) -> set[str]:
@@ -93,9 +93,26 @@ def test_ghost_class_suppressed_under_utility_framework() -> None:
     assert "ghost_class" not in _codes(uf.analyze(files, files))
 
 
-def test_pragma_opts_file_out() -> None:
-    target = {"tokens.css": "/* cataforge-allow-ui-fidelity: dynamic */\n--text-x: 1px;\n"}
-    assert "dead_token" not in _codes(uf.analyze(target, target))
+def test_allow_pragma_with_reason_opts_file_out() -> None:
+    target = {
+        "tokens.css": '/* cataforge: allow(ui_fidelity, reason="dynamic tokens") */\n'
+        "--text-x: 1px;\n"
+    }
+    findings = uf.analyze(target, target)
+    assert findings == []
+
+
+def test_allow_pragma_without_reason_suppresses_but_warns() -> None:
+    target = {"tokens.css": "/* cataforge: allow(ui_fidelity) */\n--text-x: 1px;\n"}
+    findings = uf.analyze(target, target)
+    assert "dead_token" not in _codes(findings)
+    warns = [f for f in findings if f.code == "allow_missing_reason"]
+    assert warns and all(f.severity == "warn" for f in warns)
+
+
+def test_legacy_pragma_string_no_longer_recognized() -> None:
+    target = {"tokens.css": "/* cataforge-allow-ui-fidelity */\n--text-x: 1px;\n"}
+    assert "dead_token" in _codes(uf.analyze(target, target))
 
 
 def test_class_def_not_harvested_from_js_member_access() -> None:

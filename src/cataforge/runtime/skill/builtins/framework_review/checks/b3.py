@@ -203,9 +203,17 @@ def _check_b3_anchors(
 
 
 def check_b3_rules_schema(root: Path, report: Report) -> None:
-    """B3-β: project-local skill rules YAMLs validate against the schema."""
+    """B3-β: project-local skill rules YAMLs validate against the schema.
+
+    Comment-only YAMLs are skipped — they are model templates the rules
+    loader also ignores (equivalent to "no model declared").
+    """
     try:
-        from cataforge.runtime.skill.rules.loader import RuleLoadError, validate_yaml_text
+        from cataforge.runtime.skill.rules.loader import (
+            RuleLoadError,
+            is_placeholder_yaml,
+            validate_yaml_text,
+        )
     except ImportError:
         return
 
@@ -237,6 +245,8 @@ def check_b3_rules_schema(root: Path, report: Report) -> None:
                     f"cannot read rules YAML: {exc}",
                 )
                 continue
+            if is_placeholder_yaml(text):
+                continue
             try:
                 validate_yaml_text(text, rel)
             except RuleLoadError as exc:
@@ -246,3 +256,69 @@ def check_b3_rules_schema(root: Path, report: Report) -> None:
                     rel,
                     f"rules YAML validation failed: {exc}",
                 )
+
+
+def _git_lines(root: Path, *args: str) -> list[str] | None:
+    """git stdout lines, or None when git/repo/HEAD is unavailable."""
+    import subprocess
+
+    from cataforge.utils.run_subprocess import run as run_proc
+
+    try:
+        result = run_proc(["git", *args], cwd=root, timeout=30)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.splitlines()
+
+
+_SCAN_REPORT_PREFIX = "docs/reviews/code/CODE-SCAN-"
+
+
+def check_b3_baseline_provenance(root: Path, report: Report) -> None:
+    """B3-γ: ``.cataforge/baselines/*.json`` changes ship with a CODE-SCAN report.
+
+    Baselines are refreshed only by ``code-review scan``; a baseline edit
+    without the accompanying report in the same change set means someone
+    (or some LLM) raised the ratchet to slip a gate. Checked at two
+    granularities: uncommitted working-tree changes, and the last commit
+    that touched each baseline file. Not a git repo → skipped.
+    """
+    baselines_dir = root / ".cataforge" / "baselines"
+    if not baselines_dir.is_dir():
+        return
+
+    status = _git_lines(root, "status", "--porcelain", "--untracked-files=all")
+    if status is None:
+        return
+    dirty_paths = [line[3:].strip() for line in status if line[3:].strip()]
+    dirty_baselines = [p for p in dirty_paths if p.startswith(".cataforge/baselines/")]
+    if dirty_baselines and not any(p.startswith(_SCAN_REPORT_PREFIX) for p in dirty_paths):
+        for rel in dirty_baselines:
+            report.add(
+                "B3_baseline_provenance",
+                "FAIL",
+                rel,
+                "基线文件在工作区被修改但没有伴随的 CODE-SCAN 报告变更 — "
+                "基线只能由 code-review scan 刷新并与报告一起提交",
+            )
+
+    for path in sorted(baselines_dir.glob("*.json")):
+        rel = path.relative_to(root).as_posix()
+        if rel in dirty_baselines:
+            continue  # already judged at working-tree granularity
+        commits = _git_lines(root, "log", "-1", "--format=%H", "--", rel)
+        if not commits or not commits[0].strip():
+            continue  # never committed
+        commit = commits[0].strip()
+        files = _git_lines(root, "show", "--name-only", "--format=", commit) or []
+        if not any(f.strip().startswith(_SCAN_REPORT_PREFIX) for f in files):
+            report.add(
+                "B3_baseline_provenance",
+                "FAIL",
+                rel,
+                f"最近一次修改基线的 commit {commit[:12]} 未同时变更 "
+                "docs/reviews/code/CODE-SCAN-*.md 报告 — 基线只能由 "
+                "code-review scan 刷新并与报告同 commit 提交",
+            )

@@ -7,7 +7,7 @@
 ## 平台能力速览
 
 | 能力 | Claude Code | Cursor | CodeX | OpenCode |
-|------|:---:|:---:|:---:|:---:|
+| ------ | :---: | :---: | :---: | :---: |
 | Agent | 原生 | 原生 | TOML | 规则注入 |
 | Hook | 原生 | 原生 | 仅 Bash | rules_injection 降级 |
 | MCP | 原生 | 原生 | 原生 | 原生 |
@@ -21,7 +21,7 @@
 ## 产物落盘路径
 
 | 平台 | 指令文件 | Agent | Hook | Rules | MCP |
-|------|---------|-------|------|-------|-----|
+| ------ | --------- | ------- | ------ | ------- | ----- |
 | claude-code | `CLAUDE.md` | `.claude/agents/*.md` | `.claude/settings.json` | `.claude/rules/` | `.mcp.json` |
 | cursor | `AGENTS.md` | `.cursor/agents/*/AGENT.md` | `.cursor/hooks.json` | `.cursor/rules/*.mdc` | `.cursor/mcp.json` |
 | codex | `AGENTS.md` | `.codex/agents/*.toml` | `.codex/hooks.json`（仅 Bash） | — | `.codex/config.toml`（`[mcp_servers.<id>]`） |
@@ -30,12 +30,13 @@
 ## CLI 速查
 
 | 命令 | 用途 | 详见 |
-|------|-----|------|
+| ------ | ----- | ------ |
 | `cataforge doctor` | 环境健康诊断 / CI gate | [cli#doctor](./cli.md#doctor) |
 | `cataforge setup --platform <id>` | 初始化 `.cataforge/`、定平台 | [cli#setup](./cli.md#setup) |
 | `cataforge deploy [--dry-run]` | 投放 IDE 产物 | [cli#deploy](./cli.md#deploy) |
 | `cataforge agent list / validate` | Agent 发现与校验 | [cli#agent](./cli.md#agent) |
 | `cataforge skill list / run <id>` | Skill 发现与执行 | [cli#skill](./cli.md#skill) |
+| `cataforge skill run code-review -- review\|scan <path>` | 代码 Layer 1 门禁 / 项目级腐化扫描 | [cli#skill](./cli.md#skill) |
 | `cataforge hook list / test <n>` | Hook 列表 / 单项测试 | [cli#hook](./cli.md#hook) |
 | `cataforge mcp list / start / stop` | MCP 生命周期 | [cli#mcp](./cli.md#mcp) |
 | `cataforge plugin list` | 插件发现 | [cli#plugin](./cli.md#plugin) |
@@ -53,7 +54,7 @@
 ## 配置速查
 
 | 文件 | 位置 | 用户可编辑字段 |
-|------|------|---------------|
+| ------ | ------ | --------------- |
 | `framework.json` | `.cataforge/framework.json` | `runtime.platform` · `upgrade.state` · `context.mode` · `context.kg_active_doc_types` · `project.languages` · `project.design_tool` |
 | `PROJECT-STATE.md` | `.cataforge/PROJECT-STATE.md` | 整个文件 |
 | `profile.yaml` | `.cataforge/platforms/<id>/profile.yaml` | 能力声明、降级策略、`context_injection` |
@@ -64,9 +65,9 @@
 ## 退出码
 
 | 码 | 含义 |
-|---|------|
-| `0`  | 成功 |
-| `1`  | 业务失败 |
-| `2`  | Click 用法错误 |
-| `3`  | KG 内容校验门失败（`kg import` / `kg validate` / `kg export` / `kg drift-check` 漂移） |
+| --- | ------ |
+| `0` | 成功 |
+| `1` | 业务失败 |
+| `2` | Click 用法错误 |
+| `3` | KG 内容校验门失败（`kg import` / `kg validate` / `kg export` / `kg drift-check` 漂移） |
 | `70` | 路线图 stub（未实现） |

@@ -1,0 +1,11 @@
+schema_version: 2
+scope: project
+rule_type: config_keys
+
+# Language-agnostic declaration side of the config-key xref: dotenv-style
+# files belong to no programming language. Capture group 1 = the key;
+# consumption is declared per language in config-keys-{lang}.yaml.
+filenames: [".env", ".env.*"]
+declare_patterns:
+  - label: "env assignment"
+    regex: '^([A-Z][A-Z0-9_]*)\s*='

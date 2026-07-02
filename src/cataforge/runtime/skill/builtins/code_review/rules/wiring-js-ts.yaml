@@ -1,4 +1,5 @@
-schema_version: 1
+schema_version: 2
+scope: language
 rule_type: wiring
 language: js-ts
 extensions: [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"]
@@ -12,10 +13,3 @@ empty_handler_patterns:
     regex: 'on[A-Z]\w+=\{\s*(?:async\s+)?\(\s*[^)]*\)\s*=>\s*null\s*\}'
   - label: "arrow returns undefined"
     regex: 'on[A-Z]\w+=\{\s*(?:async\s+)?\(\s*[^)]*\)\s*=>\s*undefined\s*\}'
-
-# File-level opt-out comment: when present anywhere in the file, the
-# wiring scan skips the file entirely. Pair with task-card
-# `wiring_placeholder: true` so reviewer knows the gap is tracked.
-placeholder_pragma:
-  regex: '(?://|#|--|/\*)\s*cataforge:\s*wiring-placeholder'
-  flags: ["IGNORECASE"]

@@ -82,7 +82,7 @@ class TestSkillDiscovery:
         # Builtin scripts were merged in so runner can dispatch.
         assert meta.scripts, "builtin scripts should be merged"
         assert meta.builtin is True
-        assert any(s["name"] == "code_lint" for s in meta.scripts)
+        assert any(s["name"] == "code_check" for s in meta.scripts)
 
     def test_project_skill_with_scripts_keeps_its_own(self, project: Path) -> None:
         """A project-level SKILL.md that ships its own scripts/ directory
@@ -149,7 +149,7 @@ class TestSkillOverrideLayers:
         _write_override_skill(project, "user", "code-review", "user prose override")
         meta = SkillLoader(project).get_skill("code-review")
         assert meta.description == "user prose override"
-        assert any(s["name"] == "code_lint" for s in meta.scripts)
+        assert any(s["name"] == "code_check" for s in meta.scripts)
         assert meta.builtin is True
 
 

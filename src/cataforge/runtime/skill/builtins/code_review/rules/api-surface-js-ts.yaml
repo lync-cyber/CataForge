@@ -1,0 +1,9 @@
+schema_version: 2
+scope: language
+rule_type: api_surface
+language: js-ts
+extensions: [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"]
+
+export_patterns:
+  - label: "named export declaration"
+    regex: '^export\s+(?:default\s+)?(?:async\s+)?(?:function\s*\*?|class|const|let|var|type|interface|enum)\s+(\w+)'

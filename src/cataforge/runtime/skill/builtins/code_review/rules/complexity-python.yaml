@@ -1,0 +1,15 @@
+schema_version: 2
+scope: language
+rule_type: complexity
+language: python
+extensions: [".py"]
+
+# 代理度量（radon/lizard 全缺时的兜底路径）：
+# function_patterns 捕获组 1 = 函数名（逐行匹配定位函数边界）；
+# branch_patterns 逐行计数（cyclomatic +1/命中，cognitive +1+嵌套深度/命中）。
+function_patterns:
+  - label: "def"
+    regex: '^[ \t]*(?:async\s+)?def\s+(\w+)\s*\('
+branch_patterns:
+  - label: "branch statement"
+    regex: '^\s*(?:if|elif|for|while|except|case)\b'

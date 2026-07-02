@@ -1,0 +1,9 @@
+schema_version: 2
+scope: language
+rule_type: config_keys
+language: csharp
+extensions: [".cs"]
+
+consume_patterns:
+  - label: "Environment.GetEnvironmentVariable"
+    regex: 'GetEnvironmentVariable\(\s*"([A-Z][A-Z0-9_]*)"'

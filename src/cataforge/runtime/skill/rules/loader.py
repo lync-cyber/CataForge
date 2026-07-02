@@ -1,4 +1,4 @@
-"""Loader for skill-level rules YAML files.
+"""Loader for skill-level rules YAML files (schema v2).
 
 Resolution order, highest priority first:
 
@@ -8,17 +8,28 @@ Resolution order, highest priority first:
 2. ``cataforge.runtime.skill.builtins.{skill_dir}.rules.*.yaml`` — the
    default rule set shipped with the framework.
 
-The loader returns a flat list of :class:`RuleSpec`; downstream callers
+Every rules YAML declares a ``scope``:
+
+* ``scope: language`` — language-bound patterns; ``language`` required,
+  ``extensions`` lists the file suffixes the rules apply to.
+* ``scope: project`` — one language-agnostic model per rule_type (e.g.
+  an architecture layer model); ``language`` / ``extensions`` are
+  forbidden. Keyed as ``(rule_type, "")``.
+
+The loader returns :class:`RuleSpec` entries; downstream callers
 (code-review wiring scan, testing e2e scan) translate each spec into
 their internal compiled-pattern form. Schema validation lives here so
 ``framework-review`` can re-use :func:`validate_yaml_text` to gate
-project YAMLs without duplicating the parsing logic.
+project YAMLs without duplicating the parsing logic. A rule_type may
+register an ``extra_validator`` for structural keys beyond the pattern
+lists; rule_types without one reject unknown top-level keys (typo
+guard).
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -26,7 +37,16 @@ from typing import Any
 
 import yaml
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
+
+SCOPES = ("language", "project")
+
+_V1_MIGRATION_HINT = (
+    "schema_version 1 已废弃，迁移到 2: 添加 scope: language（语言绑定规则）或 "
+    "scope: project（项目级模型，language/extensions 移除）；wiring 规则删除 "
+    "placeholder_pragma 键，文件级豁免改用统一注释 "
+    'cataforge: allow(<check-id>, reason="...")（见 .cataforge/references/pragma-grammar.md）'
+)
 
 SUPPORTED_FLAGS = {
     "IGNORECASE": re.IGNORECASE,
@@ -37,6 +57,8 @@ SUPPORTED_FLAGS = {
 }
 
 YAML_SUFFIXES = (".yaml", ".yml")
+
+_BASE_KEYS = frozenset({"schema_version", "rule_type", "scope", "language", "extensions"})
 
 
 class RuleLoadError(ValueError):
@@ -50,11 +72,13 @@ class RuleSpec:
     ``raw`` carries the original mapping so each rule_type's downstream
     consumer can read the type-specific keys (``empty_handler_patterns``,
     ``backdoor_patterns``, etc.) without the loader needing to know
-    every rule_type schema upfront.
+    every rule_type schema upfront. ``language`` is ``""`` for
+    project-scope specs.
     """
 
     schema_version: int
     rule_type: str
+    scope: str
     language: str
     extensions: frozenset[str]
     source: str
@@ -78,6 +102,19 @@ def _compile_flags(flags_raw: Any, where: str) -> int:
     return out
 
 
+def compile_flags(flags_raw: list[str] | None) -> int:
+    """Flag bitmask for already-validated rule patterns.
+
+    The lenient counterpart to the validating ``_compile_flags`` — rule
+    consumers compile patterns from YAMLs that passed
+    :func:`validate_yaml_text`, so unknown names cannot occur here.
+    """
+    out = 0
+    for f in flags_raw or []:
+        out |= SUPPORTED_FLAGS.get(f, 0)
+    return out
+
+
 def _validate_pattern_entry(entry: Any, where: str, *, require_label: bool = False) -> None:
     if not isinstance(entry, dict):
         raise RuleLoadError(f"{where}: pattern entry must be a mapping")
@@ -95,18 +132,27 @@ def _validate_pattern_entry(entry: Any, where: str, *, require_label: bool = Fal
             raise RuleLoadError(f"{where}: 'label' field required and must be non-empty")
 
 
+ExtraValidator = Callable[[dict[str, Any], str], None]
+
+
 @dataclass(frozen=True)
 class RuleTypeSchema:
-    """Per-rule_type pattern-key contract.
+    """Per-rule_type contract.
 
     ``list_pattern_keys`` / ``single_pattern_keys`` are ``(key, require_label)``
     tuples naming the YAML keys whose entries are validated as pattern objects
-    (``{regex, flags?, label?}``). ``require_label`` forces a non-empty
-    ``label`` (used where downstream consumers need a human tag per pattern).
+    (``{regex, flags?, label?}``). ``extra_validator`` (optional) validates
+    the rule_type's structural keys beyond the pattern lists; when absent,
+    unknown top-level keys are rejected so a typo'd key fails loudly instead
+    of silently deactivating a rule.
     """
 
     list_pattern_keys: tuple[tuple[str, bool], ...]
     single_pattern_keys: tuple[tuple[str, bool], ...] = ()
+    extra_validator: ExtraValidator | None = None
+
+    def pattern_keys(self) -> frozenset[str]:
+        return frozenset(k for k, _ in self.list_pattern_keys + self.single_pattern_keys)
 
 
 RULE_TYPE_SCHEMAS: dict[str, RuleTypeSchema] = {}
@@ -117,6 +163,7 @@ def register_rule_type(
     *,
     list_pattern_keys: list[tuple[str, bool]],
     single_pattern_keys: list[tuple[str, bool]] | None = None,
+    extra_validator: ExtraValidator | None = None,
 ) -> None:
     """Register a rule_type so :func:`validate_yaml_text` accepts its YAMLs.
 
@@ -124,14 +171,262 @@ def register_rule_type(
     plugin overrides) plug into the same loader without editing it.
     """
     RULE_TYPE_SCHEMAS[name] = RuleTypeSchema(
-        tuple(list_pattern_keys), tuple(single_pattern_keys or ())
+        tuple(list_pattern_keys),
+        tuple(single_pattern_keys or ()),
+        extra_validator,
     )
+
+
+def _require_capture_group(data: dict[str, Any], key: str, source: str, what: str) -> None:
+    """Every pattern under *key* must expose capture group 1 = *what*."""
+    for idx, entry in enumerate(data.get(key) or []):
+        where = f"{source}:{key}[{idx}]"
+        if re.compile(entry["regex"], _compile_flags(entry.get("flags"), where)).groups < 1:
+            raise RuleLoadError(f"{where}: regex needs capture group 1 = {what}")
+
+
+_ARCH_PROJECT_KEYS = frozenset({"enforce", "layers", "rules"})
+_ARCH_LAYER_KEYS = frozenset({"name", "paths", "modules"})
+_ARCH_ENFORCE_VALUES = ("warn", "fail")
+
+
+def _validate_arch_layers(layers_raw: Any, source: str) -> list[str]:
+    """Validate the project-scope ``layers`` list; return declared names."""
+    if not isinstance(layers_raw, list) or not layers_raw:
+        raise RuleLoadError(f"{source}: 'layers' must be a non-empty list")
+    names: list[str] = []
+    for idx, layer in enumerate(layers_raw):
+        where = f"{source}:layers[{idx}]"
+        if not isinstance(layer, dict):
+            raise RuleLoadError(f"{where}: layer entry must be a mapping")
+        unknown = set(layer) - _ARCH_LAYER_KEYS
+        if unknown:
+            raise RuleLoadError(f"{where}: unknown key(s) {sorted(unknown)}")
+        name = layer.get("name")
+        if not isinstance(name, str) or not name:
+            raise RuleLoadError(f"{where}: 'name' required and must be non-empty")
+        if name in names:
+            raise RuleLoadError(f"{where}: duplicate layer name {name!r}")
+        paths = layer.get("paths")
+        if (
+            not isinstance(paths, list)
+            or not paths
+            or not all(isinstance(p, str) and p for p in paths)
+        ):
+            raise RuleLoadError(f"{where}: 'paths' must be a non-empty list of glob strings")
+        modules = layer.get("modules") or []
+        if not isinstance(modules, list) or not all(isinstance(m, str) and m for m in modules):
+            raise RuleLoadError(f"{where}: 'modules' must be a list of module-prefix strings")
+        names.append(name)
+    return names
+
+
+def _validate_arch_rules(rules_raw: Any, names: list[str], source: str) -> None:
+    """Validate the direction matrix against the declared layer names."""
+    if not isinstance(rules_raw, dict):
+        raise RuleLoadError(f"{source}: 'rules' must be a mapping of layer -> allowed layers")
+    unknown = set(rules_raw) - set(names)
+    if unknown:
+        raise RuleLoadError(f"{source}: 'rules' references undeclared layer(s) {sorted(unknown)}")
+    missing = [n for n in names if n not in rules_raw]
+    if missing:
+        raise RuleLoadError(
+            f"{source}: 'rules' missing direction entry for layer(s) {missing} "
+            "(empty list = the layer may depend on itself only)"
+        )
+    for layer_name, allowed in rules_raw.items():
+        where = f"{source}:rules[{layer_name}]"
+        if not isinstance(allowed, list) or not all(isinstance(t, str) for t in allowed):
+            raise RuleLoadError(f"{where}: must be a list of layer names")
+        bad = [t for t in allowed if t not in names]
+        if bad:
+            raise RuleLoadError(f"{where}: undeclared layer(s) {bad}")
+
+
+def _validate_arch(data: dict[str, Any], source: str) -> None:
+    """arch structural contract, branched by scope.
+
+    ``scope: language`` files carry only ``import_patterns`` (capture group
+    1 = the imported module specifier). ``scope: project`` files carry the
+    layer model: ``layers`` + ``rules`` direction matrix + optional
+    ``enforce``.
+    """
+    if data.get("scope") == "language":
+        unknown = set(data) - _BASE_KEYS - {"import_patterns"}
+        if unknown:
+            raise RuleLoadError(
+                f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'arch' (scope language)"
+            )
+        patterns = data.get("import_patterns")
+        if not isinstance(patterns, list) or not patterns:
+            raise RuleLoadError(f"{source}: scope 'language' requires non-empty 'import_patterns'")
+        _require_capture_group(data, "import_patterns", source, "imported module")
+        return
+    unknown = set(data) - _BASE_KEYS - _ARCH_PROJECT_KEYS
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'arch' (scope project)"
+        )
+    enforce = data.get("enforce", "fail")
+    if enforce not in _ARCH_ENFORCE_VALUES:
+        raise RuleLoadError(
+            f"{source}: 'enforce' must be one of {list(_ARCH_ENFORCE_VALUES)} (got {enforce!r})"
+        )
+    names = _validate_arch_layers(data.get("layers"), source)
+    _validate_arch_rules(data.get("rules"), names, source)
+
+
+_COMPLEXITY_METRICS = ("cyclomatic", "cognitive", "function_lines", "nesting")
+_COMPLEXITY_PROJECT_KEYS = frozenset({"thresholds"})
+_COMPLEXITY_LANGUAGE_KEYS = frozenset({"function_patterns", "branch_patterns"})
+
+
+def _validate_complexity_thresholds(raw: Any, source: str) -> None:
+    """Every metric declared, each as ``{warn: int, fail: int}``, warn <= fail."""
+    if not isinstance(raw, dict):
+        raise RuleLoadError(f"{source}: 'thresholds' must be a mapping")
+    unknown = set(raw) - set(_COMPLEXITY_METRICS)
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown metric(s) {sorted(unknown)}; supported: {list(_COMPLEXITY_METRICS)}"
+        )
+    missing = [m for m in _COMPLEXITY_METRICS if m not in raw]
+    if missing:
+        raise RuleLoadError(
+            f"{source}: 'thresholds' missing metric(s) {missing} "
+            "(a project override replaces the whole file, so every metric is explicit)"
+        )
+    for metric, pair in raw.items():
+        where = f"{source}:thresholds[{metric}]"
+        if not isinstance(pair, dict) or set(pair) != {"warn", "fail"}:
+            raise RuleLoadError(f"{where}: must be a mapping with exactly 'warn' and 'fail'")
+        warn, fail = pair["warn"], pair["fail"]
+        for label, value in (("warn", warn), ("fail", fail)):
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise RuleLoadError(f"{where}: {label!r} must be a positive integer")
+        if warn > fail:
+            raise RuleLoadError(f"{where}: 'warn' must be <= 'fail'")
+
+
+def _validate_complexity(data: dict[str, Any], source: str) -> None:
+    """complexity structural contract, branched by scope.
+
+    ``scope: project`` carries the ``thresholds`` model; ``scope:
+    language`` carries the proxy-measurement patterns (``function_patterns``
+    capture group 1 = function name, ``branch_patterns`` counted per line).
+    """
+    if data.get("scope") == "language":
+        unknown = set(data) - _BASE_KEYS - _COMPLEXITY_LANGUAGE_KEYS
+        if unknown:
+            raise RuleLoadError(
+                f"{source}: unknown key(s) {sorted(unknown)} "
+                "for rule_type 'complexity' (scope language)"
+            )
+        patterns = data.get("function_patterns")
+        if not isinstance(patterns, list) or not patterns:
+            raise RuleLoadError(
+                f"{source}: scope 'language' requires non-empty 'function_patterns'"
+            )
+        _require_capture_group(data, "function_patterns", source, "function name")
+        if not data.get("branch_patterns"):
+            raise RuleLoadError(f"{source}: scope 'language' requires non-empty 'branch_patterns'")
+        return
+    unknown = set(data) - _BASE_KEYS - _COMPLEXITY_PROJECT_KEYS
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'complexity' (scope project)"
+        )
+    _validate_complexity_thresholds(data.get("thresholds"), source)
 
 
 register_rule_type(
     "wiring",
     list_pattern_keys=[("empty_handler_patterns", False)],
-    single_pattern_keys=[("placeholder_pragma", False)],
+)
+register_rule_type(
+    "arch",
+    list_pattern_keys=[("import_patterns", True)],  # require label
+    extra_validator=_validate_arch,
+)
+_CONFIG_KEYS_KEYS = frozenset({"filenames", "declare_patterns", "consume_patterns"})
+
+
+def _validate_config_keys(data: dict[str, Any], source: str) -> None:
+    """config_keys structural contract, branched by scope.
+
+    ``scope: project`` carries the language-agnostic declaration side
+    (extension-less config conventions like ``.env`` — files selected by
+    ``filenames`` globs); ``scope: language`` carries language-bound
+    entries (typically the consumption side) selecting files by
+    ``extensions`` and/or ``filenames``. Both need at least one of
+    ``declare_patterns`` / ``consume_patterns`` (capture group 1 = key).
+    """
+    unknown = set(data) - _BASE_KEYS - _CONFIG_KEYS_KEYS
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'config_keys'"
+        )
+    filenames = data.get("filenames") or []
+    if not isinstance(filenames, list) or not all(isinstance(f, str) and f for f in filenames):
+        raise RuleLoadError(f"{source}: 'filenames' must be a list of glob strings")
+    if not (data.get("declare_patterns") or data.get("consume_patterns")):
+        raise RuleLoadError(
+            f"{source}: at least one of 'declare_patterns'/'consume_patterns' required"
+        )
+    if data.get("scope") == "project" and not filenames:
+        raise RuleLoadError(f"{source}: scope 'project' needs 'filenames' to select files")
+    if data.get("scope") == "language" and not (data.get("extensions") or filenames):
+        raise RuleLoadError(f"{source}: needs 'extensions' or 'filenames' to select files")
+    _require_capture_group(data, "declare_patterns", source, "config key")
+    _require_capture_group(data, "consume_patterns", source, "config key")
+
+
+_API_SURFACE_PROJECT_KEYS = frozenset({"gating"})
+
+
+def _validate_api_surface(data: dict[str, Any], source: str) -> None:
+    """api_surface structural contract, branched by scope.
+
+    ``scope: language`` carries ``export_patterns`` (capture group 1 =
+    exported symbol); ``scope: project`` carries the optional ``gating``
+    switch that turns snapshot shrinkage into a review gate.
+    """
+    if data.get("scope") == "project":
+        unknown = set(data) - _BASE_KEYS - _API_SURFACE_PROJECT_KEYS
+        if unknown:
+            raise RuleLoadError(
+                f"{source}: unknown key(s) {sorted(unknown)} "
+                "for rule_type 'api_surface' (scope project)"
+            )
+        if not isinstance(data.get("gating", False), bool):
+            raise RuleLoadError(f"{source}: 'gating' must be a boolean")
+        return
+    unknown = set(data) - _BASE_KEYS - {"export_patterns"}
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'api_surface' "
+            "(scope language)"
+        )
+    patterns = data.get("export_patterns")
+    if not isinstance(patterns, list) or not patterns:
+        raise RuleLoadError(f"{source}: scope 'language' requires non-empty 'export_patterns'")
+    _require_capture_group(data, "export_patterns", source, "exported symbol")
+
+
+register_rule_type(
+    "complexity",
+    list_pattern_keys=[("function_patterns", True), ("branch_patterns", True)],  # require label
+    extra_validator=_validate_complexity,
+)
+register_rule_type(
+    "config_keys",
+    list_pattern_keys=[("declare_patterns", True), ("consume_patterns", True)],  # require label
+    extra_validator=_validate_config_keys,
+)
+register_rule_type(
+    "api_surface",
+    list_pattern_keys=[("export_patterns", True)],  # require label
+    extra_validator=_validate_api_surface,
 )
 register_rule_type(
     "e2e",
@@ -146,16 +441,38 @@ register_rule_type(
 )
 
 
-def validate_yaml_text(text: str, source: str) -> RuleSpec:
-    """Parse + schema-validate a rules YAML body. Raises :class:`RuleLoadError`."""
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
-        raise RuleLoadError(f"{source}: invalid YAML: {exc}") from exc
-    if not isinstance(data, dict):
-        raise RuleLoadError(f"{source}: top-level must be a mapping")
+def _validate_scope_fields(
+    data: dict[str, Any], scope: str, source: str
+) -> tuple[str, frozenset[str]]:
+    """Return ``(language, extensions)`` per the scope contract."""
+    if scope == "project":
+        for forbidden in ("language", "extensions"):
+            if forbidden in data:
+                raise RuleLoadError(
+                    f"{source}: scope 'project' forbids {forbidden!r} "
+                    "(project-scope specs are language-agnostic)"
+                )
+        return "", frozenset()
 
+    language = data.get("language")
+    if not isinstance(language, str) or not language:
+        raise RuleLoadError(f"{source}: 'language' required for scope 'language'")
+    exts_raw = data.get("extensions") or []
+    if not isinstance(exts_raw, list):
+        raise RuleLoadError(f"{source}: 'extensions' must be a list")
+    exts: set[str] = set()
+    for e in exts_raw:
+        if not isinstance(e, str):
+            raise RuleLoadError(f"{source}: extension entries must be strings")
+        exts.add(e.lower())
+    return language, frozenset(exts)
+
+
+def _validate_header(data: dict[str, Any], source: str) -> tuple[int, str, str]:
+    """Validate schema_version / rule_type / scope; return them."""
     sv = data.get("schema_version")
+    if sv == 1:
+        raise RuleLoadError(f"{source}: {_V1_MIGRATION_HINT}")
     if sv != CURRENT_SCHEMA_VERSION:
         raise RuleLoadError(
             f"{source}: unsupported schema_version {sv!r}; expected {CURRENT_SCHEMA_VERSION}"
@@ -169,20 +486,31 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
             f"{source}: unknown rule_type {rule_type!r}; supported: {sorted(RULE_TYPE_SCHEMAS)}"
         )
 
-    language = data.get("language")
-    if not isinstance(language, str) or not language:
-        raise RuleLoadError(f"{source}: 'language' required (got {language!r})")
+    scope = data.get("scope")
+    if scope not in SCOPES:
+        raise RuleLoadError(f"{source}: 'scope' required, one of {list(SCOPES)} (got {scope!r})")
+    return sv, rule_type, scope
 
-    exts_raw = data.get("extensions") or []
-    if not isinstance(exts_raw, list):
-        raise RuleLoadError(f"{source}: 'extensions' must be a list")
-    exts: set[str] = set()
-    for e in exts_raw:
-        if not isinstance(e, str):
-            raise RuleLoadError(f"{source}: extension entries must be strings")
-        exts.add(e.lower())
+
+def validate_yaml_text(text: str, source: str) -> RuleSpec:
+    """Parse + schema-validate a rules YAML body. Raises :class:`RuleLoadError`."""
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise RuleLoadError(f"{source}: invalid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise RuleLoadError(f"{source}: top-level must be a mapping")
+
+    sv, rule_type, scope = _validate_header(data, source)
+    language, exts = _validate_scope_fields(data, scope, source)
 
     schema = RULE_TYPE_SCHEMAS[rule_type]
+    if schema.extra_validator is None:
+        unknown = set(data) - _BASE_KEYS - schema.pattern_keys()
+        if unknown:
+            raise RuleLoadError(
+                f"{source}: unknown key(s) {sorted(unknown)} for rule_type {rule_type!r}"
+            )
     for key, require_label in schema.list_pattern_keys:
         items = data.get(key) or []
         if not isinstance(items, list):
@@ -194,15 +522,30 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
         if entry is None:
             continue
         _validate_pattern_entry(entry, f"{source}:{key}", require_label=require_label)
+    if schema.extra_validator is not None:
+        schema.extra_validator(data, source)
 
     return RuleSpec(
         schema_version=sv,
         rule_type=rule_type,
+        scope=scope,
         language=language,
-        extensions=frozenset(exts),
+        extensions=exts,
         source=source,
         raw=data,
     )
+
+
+def is_placeholder_yaml(text: str) -> bool:
+    """Comment-only / empty YAML — a shipped template, not a rule file.
+
+    Skipped by :func:`discover_rules` so a fully commented-out model
+    template (e.g. the builtin ``arch.yaml``) equals "no model declared".
+    """
+    try:
+        return yaml.safe_load(text) is None
+    except yaml.YAMLError:
+        return False  # let validate_yaml_text raise a proper error
 
 
 def _iter_package_rule_files(builtin_module: str) -> Iterator[tuple[str, str]]:
@@ -276,7 +619,8 @@ def discover_rules(
 ) -> dict[tuple[str, str], RuleSpec]:
     """Resolve rules for one skill: package defaults + project overrides.
 
-    Returns ``{(rule_type, language): RuleSpec}``. Project entries
+    Returns ``{(rule_type, language): RuleSpec}`` (project-scope specs use
+    ``""`` as the language key — one model per rule_type). Project entries
     replace package entries with the same key. A malformed default
     raises immediately (the framework ships broken rules); a malformed
     project file also raises so the user notices instead of silently
@@ -287,10 +631,14 @@ def discover_rules(
     found: dict[tuple[str, str], RuleSpec] = {}
 
     for name, text in _iter_package_rule_files(builtin_module):
+        if is_placeholder_yaml(text):
+            continue
         spec = validate_yaml_text(text, f"package:{name}")
         found[(spec.rule_type, spec.language)] = spec
 
     for path, text in _iter_project_rule_files(project_root, skill_id):
+        if is_placeholder_yaml(text):
+            continue
         spec = validate_yaml_text(text, str(path))
         found[(spec.rule_type, spec.language)] = spec
 

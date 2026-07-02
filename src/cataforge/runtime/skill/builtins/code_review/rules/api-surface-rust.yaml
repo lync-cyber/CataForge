@@ -1,0 +1,9 @@
+schema_version: 2
+scope: language
+rule_type: api_surface
+language: rust
+extensions: [".rs"]
+
+export_patterns:
+  - label: "pub item"
+    regex: '^\s*pub\s+(?:(?:async|unsafe|const|extern\s+"[^"]*")\s+)*(?:fn|struct|enum|trait|type|mod|static|const)\s+(\w+)'

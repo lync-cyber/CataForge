@@ -16,7 +16,7 @@ user-invocable: true
 
 ## 输入规范
 - scope: agents | skills | hooks | rules | workflow | all
-- 可选 `--focus`: 限定子检查（B1-α/β、B2-α/β、B3-α/β、B4-α、B5-α/β/γ/δ/ε/ζ、B6-α/β/γ/δ/ε、B7-α/β/γ、B8-α/β/γ、B9-α/β/γ）
+- 可选 `--focus`: 限定子检查（B1-α/β、B2-α/β、B3-α/β/γ、B4-α、B5-α/β/γ/δ/ε/ζ、B6-α/β/γ/δ/ε、B7-α/β/γ、B8-α/β/γ、B9-α/β/γ）
 - 可选 `--target <asset_id>`: 仅审单个 agent / skill 名（Layer 2 节省 token；Layer 1 仍按 scope 全跑）
 - 项目根下的 `.cataforge/` 目录（必读）
 - `cataforge.runtime.skill.builtins.*.CHECKS_MANIFEST`（B3 对账数据源，从已安装的 cataforge 包导入）
@@ -54,6 +54,7 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 | B2-β | SKILL.md suggested-tools ∈ capability registry (capability_id 规范, 非平台原生工具名) | skills, all | FAIL |
 | B3-α | SKILL.md "## Layer 1 检查项" 段与 builtin CHECKS_MANIFEST 对账 | skills | FAIL |
 | B3-β | 项目级 `skills/<skill>/rules/*.yaml` plugin 覆写文件按 rules loader schema 校验 | skills | FAIL |
+| B3-γ | `.cataforge/baselines/*.json` 变更与 CODE-SCAN 报告同变更集对账（工作区 + 最近 commit 两级） | skills | FAIL |
 | B4-α | SKILL.md / AGENT.md / 协议文档不得出现常量名对应的裸数值 | agents, skills, rules | WARN |
 | B5-α | Workflow 覆盖矩阵 phase→agent 单跳 (dispatch 表 vs agents/, dispatcher_skills 豁免) | workflow, all | WARN |
 | B5-β | phase→agent→skill 三跳 (每个 phase-routed agent ≥1 skill 且 skill 必须存在) | workflow, all | WARN |
@@ -145,7 +146,8 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 - B2-α: 解析所有 AGENT.md `skills:` + SKILL.md `depends:` + framework.json `features` → 引用不存在的 skill/agent FAIL；无任何 AGENT.md 引用的 skill WARN（白名单豁免：基础设施类 skill 如 agent-dispatch / tdd-engine / change-guard / start-orchestrator / context / research / debug / framework-update / workflow-framework-generator / platform-audit / framework-review / framework-issue-resolve / framework-feedback）<!-- check_id: B2_cross_reference_graph -->
 - B2-β: 解析 skill SKILL.md frontmatter `suggested-tools:` → 每个值必须 ∈ `CAPABILITY_IDS` ∪ `EXTENDED_CAPABILITY_IDS`（capability_id 规范，由 deploy 翻译为各平台原生工具名；平台原生名如 Read / Bash / Agent 不可移植且绕过注册表）→ FAIL<!-- check_id: B2_suggested_tools_valid -->
 - B3-α: skill SKILL.md 的 "## Layer 1 检查项" 段与对应 builtin 的 `CHECKS_MANIFEST` 对账。两种识别策略二者必居其一：(1) **anchor 模式** — 段内若出现 `<!-- check_id: <id> -->` HTML 注释锚点，按 ID 双向校验（孤儿锚点 / 缺失锚点 → FAIL）；(2) **delegation 模式** — 段内出现 `权威清单见 ...CHECKS_MANIFEST` 短语，跳过逐条对照（manifest 存在性即契约）。缺该段、或既无锚点又无 delegation 句 → FAIL<!-- check_id: B3_manifest_drift -->
-- B3-β: 项目级 `.cataforge/skills/<skill>/rules/*.yaml` plugin 覆写文件按 `cataforge.runtime.skill.rules.loader.validate_yaml_text` schema 校验（`schema_version` / `rule_type` / `language` / `extensions` / 正则可编译 / `flags` 已知 / e2e backdoor entry 必填 `label`）→ 不合规 FAIL<!-- check_id: B3_rules_schema_compliance -->
+- B3-β: 项目级 `.cataforge/skills/<skill>/rules/*.yaml` plugin 覆写文件按 `cataforge.runtime.skill.rules.loader.validate_yaml_text` schema 校验（`schema_version` / `rule_type` / `scope` 及其 language/project 字段约束 / 正则可编译 / `flags` 已知 / e2e backdoor entry 必填 `label` / 无 extra_validator 的 rule_type 拒绝未知顶层键）→ 不合规 FAIL；comment-only YAML 视为模板跳过（与 loader 语义一致）<!-- check_id: B3_rules_schema_compliance -->
+- B3-γ: `.cataforge/baselines/*.json` 只能由 code-review scan 刷新并与 `docs/reviews/code/CODE-SCAN-*.md` 报告同变更集提交。两级对账：工作区未提交的基线修改必须伴随未提交的 CODE-SCAN 报告变更；已提交基线的最近一次 touch commit 必须同时变更某个 CODE-SCAN 报告 → 违规 FAIL（封堵改基线绕过复杂度门禁）。非 git 仓库跳过<!-- check_id: B3_baseline_provenance -->
 - B4-α: 在 .cataforge/{agents,skills,rules}/**/*.md 中 grep 框架常量对应的裸数值（如 `≤3 问` / `300 行` / `>200 行`），未引用常量名 → WARN（豁免：代码块、版本号、ID 编号）<!-- check_id: B4_hardcoded_constants -->
 - B5-α: 解析 orchestrator AGENT.md Phase Routing → 输出 phase × agent 覆盖矩阵；空位标 WARN（phase 路由到既不在 .cataforge/agents/ 又不在 framework.json#/dispatcher_skills 的目标 / agent 定义但未被任何 phase 引用）<!-- check_id: B5_workflow_coverage_matrix -->
 - B5-β: 对每个 phase-routed agent 解析 AGENT.md `skills:` 字段 → 三跳验证（agent 必须 ≥1 skill；引用的 skill 必须存在于 `.cataforge/skills/` 或 builtin）<!-- check_id: B5_phase_skill_coverage -->

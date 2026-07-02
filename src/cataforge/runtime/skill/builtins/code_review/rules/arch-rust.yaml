@@ -1,0 +1,13 @@
+schema_version: 2
+scope: language
+rule_type: arch
+language: rust
+extensions: [".rs"]
+
+# Import-edge extraction: capture group 1 = the used path. Rust paths are
+# absolute (crate::/module-rooted) — layers match via `modules` prefixes
+# with `::` separators (e.g. "crate::infra").
+import_patterns:
+  - label: "use declaration"
+    regex: '^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([A-Za-z_][\w:]*)'
+    flags: ["MULTILINE"]

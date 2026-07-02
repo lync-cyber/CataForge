@@ -7,7 +7,7 @@
 ## 命令总览
 
 | 命令 | 说明 |
-|------|------|
+| ------ | ------ |
 | [`cataforge bootstrap`](#bootstrap) | 一键 setup → upgrade → deploy → doctor（幂等） |
 | [`cataforge doctor`](#doctor) | 健康诊断，可作 CI gate |
 | [`cataforge setup`](#setup) | 初始化项目、设定运行时平台 |
@@ -45,7 +45,7 @@ cataforge bootstrap --platform <id> [--dry-run] [--yes] [--skip-doctor]
 按依赖顺序逐步执行，遇首个失败即停。
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--platform <id>` | 目标平台（首次安装必填）：`claude-code` / `cursor` / `codex` / `opencode` |
 | `--dry-run` | 仅打印计划，逐步显示 skip / run 决策，不写盘 |
 | `--yes` | 跳过写盘前的交互确认 |
@@ -84,7 +84,7 @@ cataforge setup --platform <id> [--force-scaffold] [--deploy]
 初始化项目脚手架、设定目标平台。
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--platform <id>` | 目标平台：`claude-code` / `cursor` / `codex` / `opencode` |
 | `--force-scaffold` | 强制刷新 scaffold（保留用户字段），等价于 `upgrade apply` |
 | `--deploy` | 初始化后立即部署（默认不部署） |
@@ -107,7 +107,7 @@ cataforge deploy [--dry-run] [--platform <id>] [--include-maintainer-only]
 投放资产到目标平台（Agent / 规则 / Hook / MCP）。
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--dry-run` | 预演，输出预期动作但不实际写盘 |
 | `--platform <id>` | 临时覆盖 `framework.json` 中的平台设置（可选 `all` 部署到所有平台） |
 | `--conformance` | 仅执行平台 conformance 检查 |
@@ -158,6 +158,15 @@ cataforge skill run <id> [--agent <name>] -- ...  # 执行指定 Skill 并转发
 
 `--agent` 标识本次调用方，会作为 `agent` 字段写入 EVENT-LOG（仅当 skill 为 review-class、即 `record_to_event_log: true` 时；目前是 `code-review` / `doc-review` / `sprint-review` 三个内置 + 任何 `record-to-event-log: true` 的项目自定义 skill）。也可以一次性 `export CATAFORGE_INVOKING_AGENT=<name>` 让多次调用统一归因。两者都缺省时回退为 `reviewer`（保持历史行为）。
 
+`--` 之后的参数原样转发给 skill 脚本。code-review 的 Layer 1 是显式双子命令：
+
+```bash
+cataforge skill run code-review -- review <path> [--fix] [--focus <category[,...]>] [--format text|json]
+cataforge skill run code-review -- scan <path> [--focus <category[,...]>] [--format text|json]
+```
+
+退出码 0=PASS / 1=有 gating finding / 2=用法错误（未知参数与非法 `--focus` 值不静默忽略）。项目 override 脚本须实现同一契约，见 [`overrides.md`](./overrides.md#项目-override-脚本的-cli-契约)。
+
 ---
 
 ## hook
@@ -179,7 +188,7 @@ cataforge hook test PostToolUse --inline '{"tool_name":"Edit","file_path":"src/c
 cataforge hook test PreToolUse --fixture tests/fixtures/pretool-edit.json
 ```
 
-**自定义 hook 命令的 `shell=True` 边界**：内置 `python -m ...` hook 命令走 argv 列表（`shell=False`），不受 shell 元字符影响。但 `hooks.yaml` 里**自定义命令字符串**（不以 `python ` 开头的那种）会走 `shell=True`，以保留管道 / 重定向 / 环境变量展开等常见用法。威胁模型：hook 命令字符串由仓库维护者直接写入 `hooks.yaml`，**不接收任何来自工具调用结果的外部输入**——payload 通过 stdin 传给子进程，而非拼到命令行——所以 `shell=True` 在这条调用面上不构成命令注入风险。如果你的自定义命令需要消费 payload，请让子进程从 stdin 读取，**不要**把 payload 字段拼进 `hooks.yaml` 的命令字符串。
+**自定义 hook 命令的 `shell=True` 边界**：内置 `python -m ...` hook 命令走 argv 列表（`shell=False`），不受 shell 元字符影响。但 `hooks.yaml` 里**自定义命令字符串**（不以 `python` 开头的那种）会走 `shell=True`，以保留管道 / 重定向 / 环境变量展开等常见用法。威胁模型：hook 命令字符串由仓库维护者直接写入 `hooks.yaml`，**不接收任何来自工具调用结果的外部输入**——payload 通过 stdin 传给子进程，而非拼到命令行——所以 `shell=True` 在这条调用面上不构成命令注入风险。如果你的自定义命令需要消费 payload，请让子进程从 stdin 读取，**不要**把 payload 字段拼进 `hooks.yaml` 的命令字符串。
 
 ---
 
@@ -247,7 +256,7 @@ cataforge override eject agents architect --layer user --patch --section "Execut
 ```
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--layer project\|user` | 写入哪一层（默认 `project`；`user` 优先级更高） |
 | `--patch` | 生成 `<name>.patch.md` section 补丁骨架，而非整文件拷贝 |
 | `--section <标题>` | 配合 `--patch`，把该 section 的当前正文塞进骨架 |
@@ -285,7 +294,7 @@ cataforge upgrade rollback   # 回滚到上一次 apply 前的快照
 从 `.backups/` 下的快照恢复 `.cataforge/`。回滚前会把当前状态再次快照到 `.backups/pre-rollback-<ts>/`，所以 rollback 本身也可再 rollback。
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--list` | 列出所有快照，最新在前，然后退出 |
 | `--from <TS_OR_PATH>` | 指定快照：时间戳目录名（如 `20260424-150030`）或绝对路径；默认恢复最新 |
 | `--yes` / `-y` | 跳过交互式确认 |
@@ -363,7 +372,7 @@ cataforge kg delete <entity_id> [--cascade]      # 删除实体（可级联入�
 初始化空 store 并加载 `rdfs:subClassOf` 闭包三元组 — pyoxigraph 无 RDFS entailment，没有这层三元组 `?s a/rdfs:subClassOf* cf:Screen` 这类子类枚举会返回零行。
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--db-path <path>` | RocksDB store 目录（默认 `.cataforge/kg/store`） |
 | `--backend oxigraph\|memory` | 后端选择（`memory` 仅测试） |
 | `--governance` | 同时 bootstrap 治理子本体的类层级 |
@@ -374,7 +383,7 @@ cataforge kg delete <entity_id> [--cascade]      # 删除实体（可级联入�
 按六阶段管道导入业务文档：scan → parse → entity extraction → relation extraction → write → verify。幂等设计（IRI 由 entity ID 确定性派生，mtime 守卫跳过未变更实体）。
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--project-root <path>` | 项目根（含 `docs/` 与 `.cataforge/`，默认 CWD） |
 | `--doc-type <id>` | 限定 doc_type（可重复，默认 `prd / arch / test-report`） |
 | `--dry-run` | 跑阶段 1–4 + 6，跳过 phase 5 写入 |
@@ -401,7 +410,7 @@ KG → 每实体一份 Markdown，幂等：两次连续 export 字节相同。
 底层 per-doc_type 对称差诊断：Markdown 与 KG 的对称差。任一 `missing` / `ghost` 条目存在则 exit 3（见 §退出码）。这是 store 机械诊断；业务漂移门禁用 [`context reconcile`](#context)，按文档级 triage 判定通过/失败。
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--doc-type <id>` | 限定 doc_type（默认 `framework.json.kg.kg_active_doc_types`） |
 | `--report-output <path>` | JSON 报告路径（默认 `docs/.kg-reconcile-report.json`） |
 | `--json` | 同时把报告打到 stdout |
@@ -409,7 +418,7 @@ KG → 每实体一份 Markdown，幂等：两次连续 export 字节相同。
 ### kg query
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `query_or_file` | SPARQL 字符串或 `.sparql` 文件路径 |
 | `--output table\|json\|turtle` | 输出格式 |
 | `--limit <N>` | SELECT 行上限（默认 100，自动注入） |
@@ -424,7 +433,7 @@ cataforge kg trace F-001 --output json > trace.json
 ```
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `ENTITY_ID` | 业务实体（缺省时配合 `--coverage` 输出全局矩阵） |
 | `--direction downstream\|upstream\|both` | 链方向 |
 | `--coverage` | 追加覆盖矩阵（has_impl / has_test） |
@@ -442,7 +451,7 @@ cataforge kg add F-010 --class Feature --title "Profile edit" \
 ```
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `ENTITY_ID` | 实体 ID（如 `F-001` / `TC-042`） |
 | `--class <name>` | 必填 schema class（`Feature` / `Module` / `TestCase` 等） |
 | `--title <text>` | 必填可读标题 |
@@ -465,7 +474,7 @@ cataforge kg update F-010 --title "Profile edit (v2)" --slot cf:priority=critica
 ```
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `ENTITY_ID` | 必填 |
 | `--title <text>` | 新 title |
 | `--source-section <text>` | 新 source_section |
@@ -485,7 +494,7 @@ cataforge kg delete "doc/arch/sec/§2 Modules" --cascade --yes
 ```
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `ENTITY_ID` | 必填，按形态解析：扁平实体 id（`F-001`）/ 父域从属 id（`F-001/AC-002`）/ 结构节点 id（`doc/{doc_id}` 为 Document、`doc/{doc_id}/sec/{anchor}` 为 Section）/ 完整 http(s) IRI |
 | `--cascade` | 同时移除入向边（无此 flag 且存在入向边时 exit 1） |
 | `--yes` | 跳过交互确认 |
@@ -509,7 +518,7 @@ cat events.jsonl | cataforge event log --batch
 ```
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--event <type>` | 事件类型（`phase_start` / `phase_end` / `agent_dispatch` / `review_verdict` / `state_change` / `correction` …） |
 | `--phase <name>` | 阶段名 |
 | `--agent <id>` | Agent ID |
@@ -540,7 +549,7 @@ cataforge correction record \
 ```
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--trigger` | 触发信号 (`option-override` / `interrupt-override` / `review-flag`) |
 | `--agent` | 发起 Agent ID |
 | `--phase` | 协议阶段（`architecture` / `implementation` / `review` …） |
@@ -553,7 +562,7 @@ cataforge correction record \
 `deviation` 五个值的语义边界：
 
 | 值 | 含义 | 触发后续 |
-|----|------|----------|
+| ---- | ------ | ---------- |
 | `preference` | 纯偏好，不算缺陷 | 仅留存档 |
 | `self-caused` | 下游自身造成的偏离 | 累计 ≥ `RETRO_TRIGGER_SELF_CAUSED` (默认 5) → reflector 回顾 |
 | `external` | 外部约束（依赖、政策） | 仅留存档 |
@@ -578,7 +587,7 @@ cataforge feedback correction-export --threshold 3 --out docs/feedback/$(date +%
 ```
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--summary <text>` | 一句话摘要（省略时从 stdin 读，主用于 pipeline） |
 | `--title <text>` | issue 标题（省略时由 kind + summary 合成） |
 | `--notes <text>` | 自由文本，附在 `## Additional notes` 段 |
@@ -663,7 +672,7 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 ```
 
 | 参数 | 作用 | 适用 view |
-|------|------|----------|
+| ------ | ------ | ---------- |
 | `--format <mermaid\|dot\|json>` | 文本渲染器，默认 `mermaid`。`mermaid` 在 GitHub / IDE / 文档站原生渲染；`dot` 交给本地 graphviz；`json` 为稳定外部契约 | 全部（`dashboard` 除外） |
 | `--html` | 输出自包含离线 HTML（内联 vendored JS，零外链）：Graph 走 Cytoscape.js（zoom/pan/搜索），Timeline/MetricSeries 走 ECharts。覆盖 `--format` | 全部单视图 |
 | `-o, --output <path>` | 写到 PATH（自动建父目录）而非 stdout | 全部 |
@@ -674,7 +683,7 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 视图说明：
 
 | view | 内容 | 数据源 |
-|------|------|--------|
+| ------ | ------ | -------- |
 | `status` | 视图就绪体检：逐视图标 `ready` / `empty` / `needs setup`，并给出缺啥补啥的命令（如 `run: cataforge kg init`） | 探测全部 collector（不渲染） |
 | `quickstart` | 一键起本地实时 dashboard，等价 `viz serve --watch --open` | 同 `serve` |
 | `framework` | orchestrator → phase → agent → skill 编排图（仅 standard 路由的 agent） | framework.json `workflow.modes.standard` + agent frontmatter `skills` |
@@ -698,7 +707,7 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 **本地静态服务（`viz serve`）**：用标准库 `http.server` 托管产物目录（默认 `docs/viz/`），启动时先写一份 dashboard `index.html`，再持续提供 HTTP 访问，仅依赖标准库——不引入任何服务框架。`--watch` 启动后台线程轮询 KG store / doc-index / EVENT-LOG / CORRECTIONS-LOG 的 mtime，任一变更即重生成 `index.html`，浏览器刷新即见最新。`--open` 就绪后用默认浏览器打开（监听 `0.0.0.0` 时按 `127.0.0.1` 打开）。`Ctrl-C` 干净退出。`viz dashboard --open` 在无 `-o` 时写 `docs/viz/dashboard.html` 并打开（`file://`，无服务一次性快照）。
 
 | 参数 | 作用 | 默认 |
-|------|------|------|
+| ------ | ------ | ------ |
 | `--dir <path>` | 托管的产物目录 | `docs/viz/` |
 | `--host <addr>` | 监听地址 | `127.0.0.1` |
 | `--port <n>` | 监听端口 | `8000` |
@@ -720,13 +729,13 @@ cataforge git ensure-policy [--dry-run]
 ```
 
 | 子命令 | 说明 |
-|--------|------|
+| -------- | ------ |
 | `git sync` | fetch 并快进本地默认分支；`--prune-gone` 同时清理 squash 合并分支。脏树 / 分叉 / detached HEAD 时拒绝并给出补救。 |
 | `git prune` | 仅清理 upstream 已消失（`[gone]`）的本地分支 —— 即 squash 合并后远端 head 被删的分支，`git branch -d` 因 commit 非 ancestor 而漏判。 |
 | `git ensure-policy` | 幂等设置 origin 的 GitHub merge 策略（读 `framework.json#git.remote_policy`，仅在漂移时 PATCH）。 |
 
 | 参数 | 作用 | 默认 |
-|------|------|------|
+| ------ | ------ | ------ |
 | `--prune-gone` | `git sync` 后清理 `[gone]` 分支（`--prune-merged` 为隐藏别名） | 关 |
 | `--branch <name>` | 指定默认分支（缺省从 `origin/HEAD` 探测） | 自动 |
 | `--no-confirm-gh` | 信任 `[gone]` 信号，不经 gh 二次确认 PR 是否已合并 | 关（默认确认） |
@@ -807,7 +816,7 @@ cataforge claude-md compact [--max N] [--dry-run]   # 裁剪 Learnings Registry�
 以下参数可置于任何子命令之前，例如 `cataforge -v deploy --platform claude-code`。
 
 | 参数 | 作用 |
-|------|------|
+| ------ | ------ |
 | `--version` | 打印包版本 |
 | `--help`, `-h` | 打印帮助（支持短选项） |
 | `-v`, `--verbose` | 启用 `cataforge.*` logger 的 DEBUG 级别日志 |
@@ -819,12 +828,12 @@ cataforge claude-md compact [--max N] [--dry-run]   # 裁剪 Learnings Registry�
 ## 退出码
 
 | 退出码 | 含义 | 典型场景 |
-|-------|------|----------|
-| `0`  | 成功 | 正常完成 |
-| `1`  | 通用失败 | `doctor` 发现 FAIL；验证不通过；缺少前置条件（如 `.cataforge/` 未初始化）；配置错误 |
-| `2`  | Click 用法错误 | 未知选项、缺少必需参数、参数类型不符（由 Click 自动使用） |
-| `3`  | KG 内容校验门失败 | `kg import` 校验失败、`kg validate` 报违例、`kg export` 渲染错误、`kg drift-check` 检测到 doc↔store 漂移；由 `CataforgeError` 子类 `KGVerificationError` 抛出。与 `1` 分开是为了让 CI 能在 "数据真有问题" 与 "环境没准备好" 之间分别动作 |
-| `6`  | SPARQL 查询超时 | `kg query` 超出配置的查询超时；由 `CataforgeError` 子类 `KGQueryTimeoutError` 抛出 |
+| ------- | ------ | ---------- |
+| `0` | 成功 | 正常完成 |
+| `1` | 通用失败 | `doctor` 发现 FAIL；验证不通过；缺少前置条件（如 `.cataforge/` 未初始化）；配置错误 |
+| `2` | Click 用法错误 | 未知选项、缺少必需参数、参数类型不符（由 Click 自动使用） |
+| `3` | KG 内容校验门失败 | `kg import` 校验失败、`kg validate` 报违例、`kg export` 渲染错误、`kg drift-check` 检测到 doc↔store 漂移；由 `CataforgeError` 子类 `KGVerificationError` 抛出。与 `1` 分开是为了让 CI 能在 "数据真有问题" 与 "环境没准备好" 之间分别动作 |
+| `6` | SPARQL 查询超时 | `kg query` 超出配置的查询超时；由 `CataforgeError` 子类 `KGQueryTimeoutError` 抛出 |
 | `70` | 功能未实现（stub） | `plugin install` / `plugin remove` 等路线图占位命令；由 `CataforgeError` 子类 `NotImplementedFeature` 抛出 |
 
 > `70` 选自 BSD sysexits.h `EX_SOFTWARE`，刻意避开 Click 自动使用的用法错误码 `2`，让 CI 脚本能区分"未实现"与"命令用错"。常量定义在 [`cataforge.interface.cli.errors.EXIT_NOT_IMPLEMENTED`](../../src/cataforge/interface/cli/errors.py)。
