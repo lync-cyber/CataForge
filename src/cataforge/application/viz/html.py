@@ -12,13 +12,14 @@ from __future__ import annotations
 import html as _html
 import importlib.resources
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from cataforge.application.viz import palette
 from cataforge.application.viz.collectors.overview import RECENT_LABEL
 from cataforge.core.errors import CataforgeError
-from cataforge.core.viz.model import Graph, MetricSeries, Timeline, View
+from cataforge.core.viz.model import Graph, MetricSeries, Timeline, View, is_empty
 
 _PKG = "cataforge.application.viz"
 _CYTOSCAPE = "cytoscape.min.js"
@@ -332,19 +333,49 @@ def _kpi_strip(overview: View | None, results: _Results, panel_ids: dict[str, st
     return f'<section class="kpis">{"".join(tiles)}</section>'
 
 
+# Per-view guidance for a view that renders but holds no data yet.
+_EMPTY_HINTS = {
+    "timeline": "暂无事件 — EVENT-LOG 随工作流推进自动记录",
+    "decay": "暂无纠偏记录 — 这是健康信号",
+}
+
+# Cross-view focus links: tapping a node in the source view's dashboard graph
+# jumps to the target tab and focuses the same entity node.
+_CROSS_LINKS: tuple[tuple[str, str], ...] = (("coverage", "trace"),)
+
+
+def _inline_code(text: str) -> str:
+    """Escape *text* and render its backtick spans as ``<code>``."""
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", _html.escape(text))
+
+
+def _degraded_inner(name: str, view: View | None, error: str | None) -> str:
+    """The panel body for a failed or empty view: the same actionable guidance
+    ``viz status`` gives, instead of a raw error / blank chart."""
+    from cataforge.application.viz.registry import short_hint
+
+    if view is None:
+        hinted = short_hint(error or "")
+        if hinted.startswith("run: "):
+            return (
+                '<div class="empty">此视图需要的数据还未生成'
+                f'<div class="hint">run: <code>{_html.escape(hinted[5:])}</code></div>'
+                f'<p class="raw">{_html.escape(error or "")}</p></div>'
+            )
+        return f'<p class="error">{_html.escape(error or "")}</p>'
+    return f'<div class="empty">{_inline_code(_EMPTY_HINTS.get(name, "no data yet"))}</div>'
+
+
 def _dashboard_panel(
-    result: tuple[View | None, str | None], index: int
+    name: str, result: tuple[View | None, str | None], index: int
 ) -> tuple[str, str | None, str | None]:
     """Render one dashboard tab. Returns ``(panel_html, init_js, lib)``;
     ``init_js`` / ``lib`` are ``None`` for empty or failed views."""
     active = " active" if index == 0 else ""
     pid = f"panel{index}"
     view, error = result
-    if view is None:
-        inner = f'<p class="error">{_html.escape(error or "")}</p>'
-        return f'<section id="{pid}" class="panel{active}">{inner}</section>', None, None
-    if isinstance(view, Graph) and not view.nodes:
-        inner = '<p class="empty">no data</p>'
+    if view is None or is_empty(view):
+        inner = _degraded_inner(name, view, error)
         return f'<section id="{pid}" class="panel{active}">{inner}</section>', None, None
     body, init, lib = _fragment(view, f"{pid}_v")
     return f'<section id="{pid}" class="panel{active}">{body}</section>', init, lib
@@ -360,8 +391,9 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     panels: list[str] = []
     inits: list[str] = []
     libs: list[str] = []
+    graph_views: set[str] = set()
     for index, (name, label) in enumerate(_DASHBOARD_VIEWS):
-        panel, init, lib = _dashboard_panel(results[name], index)
+        panel, init, lib = _dashboard_panel(name, results[name], index)
         sel = " sel" if index == 0 else ""
         tabs.append(
             f'<button class="tab{sel}" data-panel="panel{index}">{_html.escape(label)}</button>'
@@ -369,8 +401,13 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
         panels.append(panel)
         if init is not None:
             inits.append(init)
+            if isinstance(results[name][0], Graph):
+                graph_views.add(name)
         if lib is not None and lib not in libs:
             libs.append(lib)
+    for src, dst in _CROSS_LINKS:
+        if src in graph_views:
+            inits.append(f"linkGraph('{panel_ids[src]}_v', '{panel_ids[dst]}');")
     header = "<header><strong>CataForge viz dashboard</strong></header>"
     kpis = _kpi_strip(overview, results, panel_ids)
     nav = f'<nav class="tabs">{"".join(tabs)}</nav>'
@@ -405,6 +442,9 @@ _CSS = (
     ".cy,.chart{width:100%;height:78vh;border:1px solid #eef1f4}"
     ".panel{display:none}.panel.active{display:block}"
     ".empty{padding:28px;color:#8a9099}.error{padding:28px;color:#b00020;white-space:pre-wrap}"
+    ".empty code{background:#f5f6f8;padding:2px 8px;border-radius:4px;color:#36648b}"
+    ".empty .hint{margin-top:10px}"
+    ".empty .raw{margin-top:12px;font-size:11px;color:#c3c9d1}"
     ".kpis{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;background:#fbfcfd;"
     "border-bottom:1px solid #e3e6ea}"
     ".kpi{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 12px;"
@@ -550,6 +590,20 @@ _BOOTSTRAP_JS = (
     "  });}\n"
     "  apply();\n"
     "  return cy;\n"
+    "}\n"
+    "window.__viz.focus=function(pid,nid){\n"
+    "  showPanel(pid);\n"
+    "  var active=document.getElementById(pid);if(!active)return;\n"
+    "  for(var a in window.__viz.cy){var g=window.__viz.cy[a];\n"
+    "    if(active.contains(g.container())){\n"
+    "      g.elements().removeClass('focus');\n"
+    "      var n=g.getElementById(nid);\n"
+    "      if(n.length){n.addClass('focus');g.center(n);}\n"
+    "      break;}}\n"
+    "};\n"
+    "function linkGraph(id,targetPid){\n"
+    "  var cy=window.__viz.cy[id];if(!cy)return;\n"
+    "  cy.on('tap','node',function(ev){window.__viz.focus(targetPid,ev.target.id());});\n"
     "}\n"
     "function showPanel(pid){\n"
     "  var ps=document.querySelectorAll('.panel');\n"

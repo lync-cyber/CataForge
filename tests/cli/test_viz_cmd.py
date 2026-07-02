@@ -875,6 +875,33 @@ class TestDashboard:
         assert 'class="legend"' in out
         assert "#9f6" in out
 
+    def _panel_id(self, name: str) -> str:
+        return f"panel{[n for n, _ in html._DASHBOARD_VIEWS].index(name)}"
+
+    def test_coverage_to_trace_link_wired_when_ready(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        cov, trace = self._panel_id("coverage"), self._panel_id("trace")
+        assert f"linkGraph('{cov}_v', '{trace}');" in out
+        assert "window.__viz.focus=function" in out
+
+    def test_cross_view_link_absent_when_coverage_degraded(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)  # no KG → coverage panel degrades
+        assert "linkGraph('" not in html.render_dashboard(tmp_path)  # no wiring call
+
+    def test_degraded_panel_reuses_status_guidance(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "此视图需要的数据还未生成" in out
+        assert "run: <code>cataforge kg init</code>" in out
+        assert "run: <code>cataforge context index</code>" in out
+
+    def test_empty_views_show_guidance(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)  # no EVENT-LOG / CORRECTIONS → both views empty
+        out = html.render_dashboard(tmp_path)
+        assert "暂无事件" in out
+        assert "暂无纠偏记录" in out
+
 
 class TestVizHtmlCli:
     def test_framework_html_inlines_cytoscape(self, tmp_path: Path) -> None:
