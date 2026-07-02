@@ -245,6 +245,7 @@ Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2�
 | 框架元资产审查 | `docs/reviews/framework/FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}-r{N}.md` | `framework-review-{scope}-{YYYYMMDD}-r{N}` | `framework-review` | `draft` / `approved` |
 | 设计一致性审查报告 | `docs/reviews/design/DESIGN-REVIEW-{component_id}-r{N}.md` | `design-review-{component_id}-r{N}` | `design-review` | `draft` / `approved` |
 | 项目级代码扫描 | `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md` | `code-scan-{YYYYMMDD}-r{N}` | `code-review` | `draft` / `approved` |
+| 功能走查报告 | `docs/reviews/walkthrough/WALKTHROUGH-{scope}-{YYYYMMDD}-r{N}.md` | `walkthrough-{scope}-{YYYYMMDD}-r{N}` | `walkthrough` | `draft` / `approved` |
 | 上游 issue triage 草稿 | `docs/reviews/triage/SKILL-IMPROVE-{target_id}-issue-{N}.md` | `skill-improve-{target_id}-issue-{N}` | `skill-improve` | `draft` / `approved` |
 | 运维订正日志 | `docs/reviews/CORRECTIONS-LOG.md` | `corrections-log` | `correction-log` | `approved` |
 

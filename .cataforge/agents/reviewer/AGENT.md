@@ -8,10 +8,12 @@ allowed_paths:
   - docs/reviews/code/
   - docs/reviews/sprint/
   - docs/reviews/design/
+  - docs/reviews/walkthrough/
 skills:
   - context
   - code-review
   - sprint-review
+  - feature-walkthrough
   - penpot-bridge
 model_tier: standard
 maxTurns: 50

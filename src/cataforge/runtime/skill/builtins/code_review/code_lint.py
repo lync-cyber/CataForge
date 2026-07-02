@@ -48,10 +48,22 @@ EXCLUDE_DIRS = {
     ".venv",
     "venv",
     ".next",
+    ".svelte-kit",
     "coverage",
     "bin",
     "obj",
 }
+
+
+def _probe_ignore_globs() -> str:
+    """Comma-joined glob form of ``EXCLUDE_DIRS`` for probes that walk the
+    target tree themselves (jscpd) — ``_iter_files`` pruning never reaches
+    them, so without an explicit ignore a workspace package's node_modules
+    blows the probe timeout. Rendered from ``EXCLUDE_DIRS`` so the two
+    exclusion surfaces cannot drift."""
+    globs = [f"**/{d}/**" for d in sorted(EXCLUDE_DIRS)]
+    globs.append("**/*.d.ts")
+    return ",".join(globs)
 
 
 def _iter_files(root: Path) -> Iterator[Path]:
@@ -168,7 +180,14 @@ SCAN_PROBES: dict[str, list[dict[str, Any]]] = {
                 ".swift",
             },
             "detect": ["npx", "jscpd", "--version"],
-            "build_cmd": lambda target: ["npx", "jscpd", "--silent", str(target)],
+            "build_cmd": lambda target: [
+                "npx",
+                "jscpd",
+                "--silent",
+                "--ignore",
+                _probe_ignore_globs(),
+                str(target),
+            ],
             "fail_on_nonzero": False,
         },
         {
@@ -209,6 +228,16 @@ SCAN_PROBES: dict[str, list[dict[str, Any]]] = {
             "fail_on_nonzero": False,
         },
         {
+            # knip covers unused exports / files / dependencies across TS
+            # and Svelte projects — the dimensions ts-prune leaves dark when
+            # it is absent or the project has no single tsconfig entry point.
+            "name": "knip",
+            "extensions": {".ts", ".tsx", ".svelte"},
+            "detect": ["npx", "knip", "--version"],
+            "build_cmd": lambda target: ["npx", "knip", "--directory", str(target)],
+            "fail_on_nonzero": False,
+        },
+        {
             # cargo-machete detects unused dependencies declared in
             # Cargo.toml — the closest "dead-code" signal that Rust's
             # type-and-borrow checker doesn't already catch. Triggered
@@ -233,6 +262,22 @@ SCAN_PROBES: dict[str, list[dict[str, Any]]] = {
             "extensions": {".go"},
             "detect": ["gocyclo", "-?"],
             "build_cmd": lambda target: ["gocyclo", "-over", "15", str(target)],
+            "fail_on_nonzero": False,
+        },
+        {
+            # Rides the project's own eslint setup (parser/plugins resolve
+            # from its config) and layers the core complexity rule on top —
+            # the only cyclomatic-complexity signal for JS/TS/Svelte here.
+            "name": "eslint (complexity)",
+            "extensions": {".js", ".jsx", ".ts", ".tsx", ".svelte"},
+            "detect": ["npx", "eslint", "--version"],
+            "build_cmd": lambda target: [
+                "npx",
+                "eslint",
+                "--rule",
+                '{"complexity": ["warn", 10]}',
+                str(target),
+            ],
             "fail_on_nonzero": False,
         },
     ],

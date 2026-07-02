@@ -66,6 +66,34 @@ def test_run_probe_launches_resolved_executable(
     assert all(call[0] == "/resolved/vulture" for call in launched)
 
 
+def test_jscpd_build_cmd_ignores_excluded_dirs() -> None:
+    # jscpd walks the target tree itself, so EXCLUDE_DIRS pruning in
+    # _iter_files never reaches it — without an explicit --ignore a
+    # workspace package's node_modules blows the probe timeout.
+    probe = next(p for p in code_lint.SCAN_PROBES["duplication"] if p["name"] == "jscpd")
+    cmd = probe["build_cmd"]("pkg")
+    assert "--ignore" in cmd
+    globs = cmd[cmd.index("--ignore") + 1]
+    for excluded in code_lint.EXCLUDE_DIRS:
+        assert f"**/{excluded}/**" in globs
+    assert "**/*.d.ts" in globs
+
+
+def test_exclude_dirs_cover_svelte_kit_build_output() -> None:
+    assert ".svelte-kit" in code_lint.EXCLUDE_DIRS
+
+
+def test_dead_code_probes_cover_svelte_via_knip() -> None:
+    knip = [p for p in code_lint.SCAN_PROBES["dead-code"] if p["name"] == "knip"]
+    assert knip, "dead-code category has no knip probe"
+    assert {".ts", ".svelte"} <= knip[0]["extensions"]
+
+
+def test_complexity_probes_cover_typescript() -> None:
+    ts_probes = [p for p in code_lint.SCAN_PROBES["complexity"] if ".ts" in p["extensions"]]
+    assert ts_probes, "complexity category has no TypeScript-capable probe"
+
+
 def test_iter_files_prunes_excluded_dirs(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")

@@ -141,6 +141,10 @@ def _emit_validate_failures(
         click.echo(f"FAIL · {len(orphans)} orphan(s) — missing YAML front matter:", err=True)
         for rel in orphans:
             click.echo(f"  - {rel}", err=True)
+        click.echo(
+            "  hint: 面向读者的非 SDLC 文档可在 docs/.docignore 声明豁免 glob（一行一个）",
+            err=True,
+        )
 
     if stale:
         click.echo(f"FAIL · {len(stale)} stale index entry(ies):", err=True)
