@@ -1,0 +1,16 @@
+schema_version: 2
+scope: language
+rule_type: arch
+language: csharp
+extensions: [".cs"]
+
+# Import-edge extraction: capture group 1 = the imported namespace.
+# C# usings are absolute — layers match via `modules` prefixes
+# (e.g. "MyApp.Infra").
+import_patterns:
+  - label: "using directive"
+    regex: '^\s*(?:global\s+)?using\s+(?:static\s+)?([A-Z][\w.]*)\s*;'
+    flags: ["MULTILINE"]
+  - label: "using alias"
+    regex: '^\s*(?:global\s+)?using\s+\w+\s*=\s*([\w.]+)\s*;'
+    flags: ["MULTILINE"]

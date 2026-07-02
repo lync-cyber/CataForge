@@ -1,0 +1,16 @@
+schema_version: 2
+scope: language
+rule_type: arch
+language: go
+extensions: [".go"]
+
+# Import-edge extraction: capture group 1 = the imported package path.
+# Go import paths are absolute (module-path prefixed) — layers match via
+# `modules` prefixes (e.g. "example.com/app/infra").
+import_patterns:
+  - label: "single import"
+    regex: '^\s*import\s+(?:[\w.]+\s+)?"([^"]+)"'
+    flags: ["MULTILINE"]
+  - label: "import block entry"
+    regex: '^\s*(?:[\w.]+\s+)?"([\w./~-]+)"\s*$'
+    flags: ["MULTILINE"]

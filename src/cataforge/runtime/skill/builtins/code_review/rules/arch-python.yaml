@@ -1,0 +1,19 @@
+schema_version: 2
+scope: language
+rule_type: arch
+language: python
+extensions: [".py"]
+
+# Import-edge extraction: capture group 1 = the imported module specifier.
+# Relative specifiers (leading dots) resolve against the importing file's
+# directory; absolute specifiers match layer `modules` prefixes.
+import_patterns:
+  - label: "import statement"
+    regex: '^\s*import\s+([\w.]+)'
+    flags: ["MULTILINE"]
+  - label: "from-import"
+    regex: '^\s*from\s+(\.*[\w.]*[\w])\s+import\b'
+    flags: ["MULTILINE"]
+  - label: "from-dot-import"
+    regex: '^\s*from\s+(\.+)\s+import\b'
+    flags: ["MULTILINE"]

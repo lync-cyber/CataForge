@@ -8,6 +8,7 @@ from cataforge.runtime.skill.builtins.code_review.checks import wiring
 from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
 from cataforge.runtime.skill.builtins.code_review.engine.pragmas import (
     file_allowance,
+    line_allowances,
     parse_allowances,
 )
 
@@ -32,6 +33,19 @@ def test_file_allowance_matches_full_id_and_specifier() -> None:
     assert file_allowance(by_specifier, "code_review.ui_fidelity") is not None
     assert file_allowance(by_full_id, "code_review.ui_fidelity") is not None
     assert file_allowance(by_specifier, "code_review.wiring_empty_handler") is None
+
+
+def test_line_allowances_keyed_by_line() -> None:
+    text = (
+        'import a  # cataforge: allow(arch_guard, reason="x")\n'
+        "import b\n"
+        "import c  # cataforge: allow(code_review.arch_guard)\n"
+        'import d  # cataforge: allow(ui_fidelity, reason="other check")\n'
+    )
+    allowances = line_allowances(text, "code_review.arch_guard")
+    assert sorted(allowances) == [1, 3]
+    assert allowances[1].reason == "x"
+    assert allowances[3].reason == ""
 
 
 def _write_tsx(tmp_path: Path, header: str) -> Path:

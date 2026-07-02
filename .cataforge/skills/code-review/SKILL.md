@@ -57,7 +57,7 @@ user-invocable: true
 
 通过context加载 arch#§7开发约定 和 arch#§5非功能架构，按以下维度审查（括号内为对应的 category 枚举值）:
 - 命名规范(convention): 文件/变量/接口命名是否符合arch约定
-- 代码结构(structure): 模块组织、职责划分是否合理
+- 代码结构(structure): 模块组织、职责划分是否合理。项目声明 arch 层模型时以 Layer 1 `arch_guard` 报告为输入，聚焦无 import 信号的语义越层（职责错置、接口层内嵌业务规则），不复查已机械判定的 import 方向违规
 - 安全漏洞(security): OWASP Top 10 检查(注入/XSS/认证/敏感数据暴露等)
 - 接口一致性(consistency): 实现是否与arch接口契约匹配
 - 集成连线(integration-wiring): 接线对象在生产路径有真实调用点、不是空 stub / 占位返回 / 仅满足类型契约的形式。仅 tests/ 内构造调用不算落地。各语言反例与正则候选见 [`wiring-checks.md`](../../references/wiring-checks.md)；CHECKS_MANIFEST `wiring_empty_handler` 与 plugin-style YAML (`wiring-{lang}.yaml`) 承载具体识别规则。下游声明 `wiring_placeholder: true` + 关联 backlog ID 则豁免
@@ -69,7 +69,7 @@ user-invocable: true
   - 测试逻辑: 断言的期望值是否与接口契约一致，测试是否验证了声称的行为
   - 边界覆盖: 是否覆盖关键边界条件（空值、异常输入等）
 
-**维度收敛**: 调用方可传 `--focus <category[,...]>`（值取自 COMMON-RULES §统一问题分类体系），仅审查指定维度。不传时跑全维度。例如：`cataforge skill run code-review -- review {path} --focus security,error-handling`。review 模式下 Layer 1 同步收敛：只执行 category 命中的检查（无命中维度的 Layer 1 检查跳过），Layer 2 按同一 focus 收敛散文维度。
+**维度收敛**: 调用方可传 `--focus <category[,...]>`（值取自 COMMON-RULES §统一问题分类体系，另含 Layer 1 专属维度 integration-wiring / visual-fidelity / arch），仅审查指定维度。不传时跑全维度。例如：`cataforge skill run code-review -- review {path} --focus security,error-handling`。review 模式下 Layer 1 同步收敛：只执行 category 命中的检查（无命中维度的 Layer 1 检查跳过），Layer 2 按同一 focus 收敛散文维度。
 
 **增量审查模式（revision re-review）**:
 
@@ -155,8 +155,9 @@ review 模式（按文件类型自动选择工具）:
 - 工具未安装时跳过并 WARN，不阻断检查流程
 - wiring 空 handler 正则扫描 — 覆盖各 `wiring-{lang}.yaml` 声明的扩展名；空函数 prop 命中 → WARN（与 §Step 2 integration-wiring 维度配套；豁免见任务卡 `wiring_placeholder: true` 或文件级 `cataforge: allow(wiring_empty_handler, reason="...")`）
 - UI 保真跨文件扫描 (.css/.scss + markup) — 死 token（声明的 CSS 自定义属性零 `var()` 消费）→ FAIL；未加载字体（引用的 `font-family` 无 `@font-face`/fontsource 加载）、幽灵类（markup 引用零定义 class，检测到 utility 框架则整体跳过）→ WARN。消费/加载/定义跨整个项目解析，声明只在受审文件检查；文件级豁免 `cataforge: allow(ui_fidelity, reason="...")`
+- 架构分层守护 (arch) — 项目在 `arch.yaml`（`scope: project`）声明 `layers`/`rules`/`enforce` 后激活；`arch-{lang}.yaml` 的 `import_patterns` 提取依赖边，违反方向矩阵按 `enforce: warn|fail`（默认 fail）出 WARN/FAIL；未声明模型静默不激活（scan 输出一条 INFO）；行级豁免 `cataforge: allow(arch_guard, reason="...")`。判定语义、各语言 import 形态与已知盲区见 [`arch-checks.md`](../../references/arch-checks.md)
 
-文件级豁免统一语法（reason 必填，缺失时豁免生效但记 WARN）见 [`pragma-grammar.md`](../../references/pragma-grammar.md)。
+豁免统一语法（reason 必填，缺失时豁免生效但记 WARN；文件级/行级生效范围随消费方）见 [`pragma-grammar.md`](../../references/pragma-grammar.md)。
 
 ### Plugin-style rules (per-language extension)
 
@@ -166,6 +167,8 @@ review 模式（按文件类型自动选择工具）:
 - 项目 override（opt-in）：`<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`
 
 加新语言：在项目 `rules/` 放 `wiring-rust.yaml` 等；schema 见 `cataforge.runtime.skill.rules.loader.CURRENT_SCHEMA_VERSION`，必填字段 `schema_version: 2` / `rule_type: wiring` / `scope: language` / `language` / `extensions`（`scope: project` 供语言无关的项目级模型 rule_type 使用，此时不写 `language`/`extensions`）。未知顶层键报错（防拼写失效）。framework-review B3-β `rules_schema_compliance` 自动校验项目 YAML。
+
+arch 规则同路径：`arch-{lang}.yaml`（`scope: language`，仅 `import_patterns`）随包发运六语言；项目级 `arch.yaml`（`scope: project`，`layers`/`rules`/`enforce`）声明即激活，包内 `rules/arch.yaml` 为注释模板（全注释 YAML 视为未声明）。
 
 scan 模式额外的腐化 probe（按 --focus 选择性执行）:
 - duplication: jscpd（多语言：JS/TS/Py/Go/C#/Rust/Java/Kotlin/Swift）/ pmd-cpd (.java)

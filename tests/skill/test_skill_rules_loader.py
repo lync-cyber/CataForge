@@ -457,6 +457,181 @@ placeholder_pragma:
         validate_yaml_text(body, "test")
 
 
+# ---- arch rule_type structural validation -----------------------------------
+
+_ARCH_PROJECT_HEAD = """
+schema_version: 2
+scope: project
+rule_type: arch
+"""
+
+
+def test_arch_project_scope_roundtrip() -> None:
+    body = (
+        _ARCH_PROJECT_HEAD
+        + """
+enforce: warn
+layers:
+  - name: api
+    paths: ["src/app/api/**"]
+    modules: ["app.api"]
+  - name: domain
+    paths: ["src/app/domain/**"]
+rules:
+  api: [domain]
+  domain: []
+"""
+    )
+    spec = validate_yaml_text(body, "test")
+    assert spec.scope == "project" and spec.language == ""
+    assert spec.raw["enforce"] == "warn"
+
+
+def test_arch_rules_reference_undeclared_layer() -> None:
+    body = (
+        _ARCH_PROJECT_HEAD
+        + """
+layers:
+  - name: api
+    paths: ["src/app/api/**"]
+rules:
+  api: [ghost]
+"""
+    )
+    with pytest.raises(RuleLoadError, match="undeclared layer"):
+        validate_yaml_text(body, "test")
+
+
+def test_arch_rules_unknown_layer_key() -> None:
+    body = (
+        _ARCH_PROJECT_HEAD
+        + """
+layers:
+  - name: api
+    paths: ["src/app/api/**"]
+rules:
+  api: []
+  ghost: []
+"""
+    )
+    with pytest.raises(RuleLoadError, match="undeclared layer"):
+        validate_yaml_text(body, "test")
+
+
+def test_arch_rules_must_cover_every_layer() -> None:
+    body = (
+        _ARCH_PROJECT_HEAD
+        + """
+layers:
+  - name: api
+    paths: ["src/app/api/**"]
+  - name: domain
+    paths: ["src/app/domain/**"]
+rules:
+  api: [domain]
+"""
+    )
+    with pytest.raises(RuleLoadError, match="missing direction entry"):
+        validate_yaml_text(body, "test")
+
+
+def test_arch_duplicate_layer_name() -> None:
+    body = (
+        _ARCH_PROJECT_HEAD
+        + """
+layers:
+  - name: api
+    paths: ["a/**"]
+  - name: api
+    paths: ["b/**"]
+rules:
+  api: []
+"""
+    )
+    with pytest.raises(RuleLoadError, match="duplicate layer name"):
+        validate_yaml_text(body, "test")
+
+
+def test_arch_enforce_invalid_value() -> None:
+    body = (
+        _ARCH_PROJECT_HEAD
+        + """
+enforce: shadow
+layers:
+  - name: api
+    paths: ["a/**"]
+rules:
+  api: []
+"""
+    )
+    with pytest.raises(RuleLoadError, match="'enforce' must be one of"):
+        validate_yaml_text(body, "test")
+
+
+def test_arch_project_scope_rejects_import_patterns() -> None:
+    body = (
+        _ARCH_PROJECT_HEAD
+        + """
+layers:
+  - name: api
+    paths: ["a/**"]
+rules:
+  api: []
+import_patterns:
+  - label: x
+    regex: '(y)'
+"""
+    )
+    with pytest.raises(RuleLoadError, match="unknown key"):
+        validate_yaml_text(body, "test")
+
+
+def test_arch_language_scope_requires_capture_group() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: arch
+language: python
+extensions: [".py"]
+import_patterns:
+  - label: "no group"
+    regex: 'import \\w+'
+"""
+    with pytest.raises(RuleLoadError, match="capture group 1"):
+        validate_yaml_text(body, "test")
+
+
+def test_arch_language_scope_rejects_layers() -> None:
+    body = """
+schema_version: 2
+scope: language
+rule_type: arch
+language: python
+extensions: [".py"]
+import_patterns:
+  - label: ok
+    regex: 'import (\\w+)'
+layers:
+  - name: api
+    paths: ["a/**"]
+"""
+    with pytest.raises(RuleLoadError, match="unknown key"):
+        validate_yaml_text(body, "test")
+
+
+def test_comment_only_yaml_is_skipped_as_template(tmp_path: Path) -> None:
+    """A fully commented-out YAML (the shipped arch.yaml template) is not loaded."""
+    _write_project_rule(tmp_path, "code-review", "arch.yaml", "# scope: project\n# rules: {}\n")
+    rules = discover_rules(
+        "code-review",
+        builtin_module="cataforge.runtime.skill.builtins.code_review",
+        project_root=tmp_path,
+    )
+    assert ("arch", "") not in rules
+    # builtin per-language arch import patterns still load
+    assert ("arch", "python") in rules
+
+
 def test_extra_validator_failures_surface_as_load_errors() -> None:
     from cataforge.runtime.skill.rules.loader import RULE_TYPE_SCHEMAS, register_rule_type
 

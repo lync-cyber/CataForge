@@ -1,0 +1,32 @@
+# 架构分层守护 · 项目级模型模板（scope: project）
+#
+# 全部注释 = 未声明模型，arch_guard 静默不激活（scan 输出一条 INFO）。
+# 启用：取消注释、按项目分层填写，放到
+# <project>/.cataforge/skills/code-review/rules/arch.yaml。
+# 语义细则与各语言 import 形态见 .cataforge/references/arch-checks.md。
+#
+# schema_version: 2
+# scope: project
+# rule_type: arch
+#
+# enforce: fail            # fail = 违规即门禁；warn = 影子运行（违规仅 WARN）
+#
+# layers:                  # 声明顺序 = 归层匹配优先级
+#   - name: interface
+#     paths: ["src/myapp/api/**", "src/myapp/cli/**"]   # 项目根相对的文件 glob
+#     modules: ["myapp.api", "myapp.cli"]               # import 语句里的模块前缀（绝对导入匹配用）
+#   - name: service
+#     paths: ["src/myapp/services/**"]
+#     modules: ["myapp.services"]
+#   - name: domain
+#     paths: ["src/myapp/domain/**"]
+#     modules: ["myapp.domain"]
+#   - name: infra
+#     paths: ["src/myapp/infra/**"]
+#     modules: ["myapp.infra"]
+#
+# rules:                   # 方向矩阵：每个已声明层必须显式给出可依赖层列表（自身恒可，不必列出）
+#   interface: [service, domain]
+#   service: [domain, infra]
+#   domain: []
+#   infra: []

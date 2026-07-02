@@ -1,0 +1,13 @@
+schema_version: 2
+scope: language
+rule_type: arch
+language: java
+extensions: [".java"]
+
+# Import-edge extraction: capture group 1 = the imported type/package.
+# Java imports are absolute — layers match via `modules` prefixes
+# (e.g. "com.example.app.infra").
+import_patterns:
+  - label: "import declaration"
+    regex: '^\s*import\s+(?:static\s+)?([\w.]+)'
+    flags: ["MULTILINE"]

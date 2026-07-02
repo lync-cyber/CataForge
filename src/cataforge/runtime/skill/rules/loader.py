@@ -164,9 +164,108 @@ def register_rule_type(
     )
 
 
+_ARCH_PROJECT_KEYS = frozenset({"enforce", "layers", "rules"})
+_ARCH_LAYER_KEYS = frozenset({"name", "paths", "modules"})
+_ARCH_ENFORCE_VALUES = ("warn", "fail")
+
+
+def _validate_arch_layers(layers_raw: Any, source: str) -> list[str]:
+    """Validate the project-scope ``layers`` list; return declared names."""
+    if not isinstance(layers_raw, list) or not layers_raw:
+        raise RuleLoadError(f"{source}: 'layers' must be a non-empty list")
+    names: list[str] = []
+    for idx, layer in enumerate(layers_raw):
+        where = f"{source}:layers[{idx}]"
+        if not isinstance(layer, dict):
+            raise RuleLoadError(f"{where}: layer entry must be a mapping")
+        unknown = set(layer) - _ARCH_LAYER_KEYS
+        if unknown:
+            raise RuleLoadError(f"{where}: unknown key(s) {sorted(unknown)}")
+        name = layer.get("name")
+        if not isinstance(name, str) or not name:
+            raise RuleLoadError(f"{where}: 'name' required and must be non-empty")
+        if name in names:
+            raise RuleLoadError(f"{where}: duplicate layer name {name!r}")
+        paths = layer.get("paths")
+        if (
+            not isinstance(paths, list)
+            or not paths
+            or not all(isinstance(p, str) and p for p in paths)
+        ):
+            raise RuleLoadError(f"{where}: 'paths' must be a non-empty list of glob strings")
+        modules = layer.get("modules") or []
+        if not isinstance(modules, list) or not all(isinstance(m, str) and m for m in modules):
+            raise RuleLoadError(f"{where}: 'modules' must be a list of module-prefix strings")
+        names.append(name)
+    return names
+
+
+def _validate_arch_rules(rules_raw: Any, names: list[str], source: str) -> None:
+    """Validate the direction matrix against the declared layer names."""
+    if not isinstance(rules_raw, dict):
+        raise RuleLoadError(f"{source}: 'rules' must be a mapping of layer -> allowed layers")
+    unknown = set(rules_raw) - set(names)
+    if unknown:
+        raise RuleLoadError(f"{source}: 'rules' references undeclared layer(s) {sorted(unknown)}")
+    missing = [n for n in names if n not in rules_raw]
+    if missing:
+        raise RuleLoadError(
+            f"{source}: 'rules' missing direction entry for layer(s) {missing} "
+            "(empty list = the layer may depend on itself only)"
+        )
+    for layer_name, allowed in rules_raw.items():
+        where = f"{source}:rules[{layer_name}]"
+        if not isinstance(allowed, list) or not all(isinstance(t, str) for t in allowed):
+            raise RuleLoadError(f"{where}: must be a list of layer names")
+        bad = [t for t in allowed if t not in names]
+        if bad:
+            raise RuleLoadError(f"{where}: undeclared layer(s) {bad}")
+
+
+def _validate_arch(data: dict[str, Any], source: str) -> None:
+    """arch structural contract, branched by scope.
+
+    ``scope: language`` files carry only ``import_patterns`` (capture group
+    1 = the imported module specifier). ``scope: project`` files carry the
+    layer model: ``layers`` + ``rules`` direction matrix + optional
+    ``enforce``.
+    """
+    if data.get("scope") == "language":
+        unknown = set(data) - _BASE_KEYS - {"import_patterns"}
+        if unknown:
+            raise RuleLoadError(
+                f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'arch' (scope language)"
+            )
+        patterns = data.get("import_patterns")
+        if not isinstance(patterns, list) or not patterns:
+            raise RuleLoadError(f"{source}: scope 'language' requires non-empty 'import_patterns'")
+        for idx, entry in enumerate(patterns):
+            where = f"{source}:import_patterns[{idx}]"
+            if re.compile(entry["regex"], _compile_flags(entry.get("flags"), where)).groups < 1:
+                raise RuleLoadError(f"{where}: regex needs capture group 1 = imported module")
+        return
+    unknown = set(data) - _BASE_KEYS - _ARCH_PROJECT_KEYS
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'arch' (scope project)"
+        )
+    enforce = data.get("enforce", "fail")
+    if enforce not in _ARCH_ENFORCE_VALUES:
+        raise RuleLoadError(
+            f"{source}: 'enforce' must be one of {list(_ARCH_ENFORCE_VALUES)} (got {enforce!r})"
+        )
+    names = _validate_arch_layers(data.get("layers"), source)
+    _validate_arch_rules(data.get("rules"), names, source)
+
+
 register_rule_type(
     "wiring",
     list_pattern_keys=[("empty_handler_patterns", False)],
+)
+register_rule_type(
+    "arch",
+    list_pattern_keys=[("import_patterns", True)],  # require label
+    extra_validator=_validate_arch,
 )
 register_rule_type(
     "e2e",
@@ -276,6 +375,18 @@ def validate_yaml_text(text: str, source: str) -> RuleSpec:
     )
 
 
+def _is_placeholder_yaml(text: str) -> bool:
+    """Comment-only / empty YAML — a shipped template, not a rule file.
+
+    Skipped by :func:`discover_rules` so a fully commented-out model
+    template (e.g. the builtin ``arch.yaml``) equals "no model declared".
+    """
+    try:
+        return yaml.safe_load(text) is None
+    except yaml.YAMLError:
+        return False  # let validate_yaml_text raise a proper error
+
+
 def _iter_package_rule_files(builtin_module: str) -> Iterator[tuple[str, str]]:
     """Yield ``(name, text)`` pairs from the package ``rules`` subdir.
 
@@ -359,10 +470,14 @@ def discover_rules(
     found: dict[tuple[str, str], RuleSpec] = {}
 
     for name, text in _iter_package_rule_files(builtin_module):
+        if _is_placeholder_yaml(text):
+            continue
         spec = validate_yaml_text(text, f"package:{name}")
         found[(spec.rule_type, spec.language)] = spec
 
     for path, text in _iter_project_rule_files(project_root, skill_id):
+        if _is_placeholder_yaml(text):
+            continue
         spec = validate_yaml_text(text, str(path))
         found[(spec.rule_type, spec.language)] = spec
 

@@ -45,3 +45,10 @@ def file_allowance(text: str, check_id: str) -> Allowance | None:
         if allowance.check in (check_id, specifier):
             return allowance
     return None
+
+
+def line_allowances(text: str, check_id: str) -> dict[int, Allowance]:
+    """Allowances for *check_id* keyed by line — for line-scoped consumers
+    (the pragma must sit on the offending line and exempts only it)."""
+    specifier = check_id.rsplit(".", 1)[-1]
+    return {a.line: a for a in parse_allowances(text) if a.check in (check_id, specifier)}

@@ -14,8 +14,8 @@ from dataclasses import dataclass
 from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
 from cataforge.runtime.skill.builtins.code_review.engine.findings import Finding
 
-# COMMON-RULES §统一问题分类体系 (14) plus the two code-review SKILL.md
-# Layer 2 dimensions that have Layer 1 counterparts.
+# COMMON-RULES §统一问题分类体系 (14) plus the code-review dimensions that
+# have dedicated Layer 1 checks (integration-wiring / visual-fidelity / arch).
 CATEGORIES = frozenset(
     {
         "completeness",
@@ -34,6 +34,7 @@ CATEGORIES = frozenset(
         "coupling",
         "integration-wiring",
         "visual-fidelity",
+        "arch",
     }
 )
 
