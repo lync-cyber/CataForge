@@ -15,6 +15,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from cataforge.application.viz import palette
+from cataforge.application.viz.collectors.overview import RECENT_LABEL
 from cataforge.core.errors import CataforgeError
 from cataforge.core.viz.model import Graph, MetricSeries, Timeline, View
 
@@ -149,21 +151,121 @@ def _document(title: str, body: str, inits: list[str], libs: list[str]) -> str:
     return f"{head}{body}\n{lib_blocks}\n{scripts}\n</body>\n</html>\n"
 
 
+def _legend() -> str:
+    """One shared legend strip: what green / yellow / red mean everywhere."""
+    items = "".join(
+        f'<span class="lg"><i style="background:{hexv}"></i>{_html.escape(label)}</span>'
+        for hexv, label in palette.LEGEND
+    )
+    return f'<div class="legend">{items}</div>'
+
+
 def render(view: View) -> str:
     body, init, lib = _fragment(view, "view0")
     title = getattr(view, "title", "") or "viz"
     header = f"<header><strong>{_html.escape(title)}</strong></header>"
-    return _document(title, header + body, [init], [lib])
+    return _document(title, header + _legend() + body, [init], [lib])
 
 
-def _dashboard_panel(root: Path, name: str, index: int) -> tuple[str, str | None, str | None]:
+# --------------------------------------------------------------------------- #
+# Dashboard KPI strip — the overview series as clickable stat tiles
+# --------------------------------------------------------------------------- #
+_Results = dict[str, tuple[View | None, str | None]]
+
+
+def _tile(value: str, label: str, cls: str, panel_id: str) -> str:
+    return (
+        f'<button class="kpi {cls}" data-panel="{panel_id}">'
+        f'<span class="kpi-v">{_html.escape(value)}</span>'
+        f'<span class="kpi-l">{_html.escape(label)}</span></button>'
+    )
+
+
+def _missing_hint(results: _Results, name: str, label: str) -> str:
+    """Degraded-tile caption: reuse the detail view's own ``run …`` guidance."""
+    from cataforge.application.viz.registry import short_hint
+
+    _, error = results.get(name, (None, None))
+    if error:
+        hinted = short_hint(error)
+        if hinted.startswith("run: "):
+            return f"{label} · {hinted}"
+    return f"{label} · 数据未就绪"
+
+
+def _phase_tile(group: dict[str, float] | None, results: _Results, pid: str) -> str:
+    if not group:
+        return _tile("—", _missing_hint(results, "phase", "阶段"), "na", pid)
+    total = int(group.get("total", 0))
+    gate_ok = group.get("gate_ok", 0.0) >= 1.0
+    name, index = next(
+        ((lb, v) for lb, v in group.items() if lb not in ("total", "gate_ok")), ("?", 0.0)
+    )
+    value = f"{name} {int(index)}/{total}" if index else name
+    label = "阶段 · 门禁通过" if gate_ok else "阶段 · 门禁受阻"
+    return _tile(value, label, "ok" if gate_ok else "bad", pid)
+
+
+def _docs_tile(group: dict[str, float] | None, results: _Results, pid: str) -> str:
+    if not group:
+        return _tile("—", _missing_hint(results, "docs", "核心文档"), "na", pid)
+    total = len(group)
+    present = sum(1 for v in group.values() if v >= 0.5)
+    approved = sum(1 for v in group.values() if v >= 1.0)
+    cls = "ok" if present == total else "warn" if present else "bad"
+    return _tile(f"{present}/{total}", f"核心文档 · {approved} 已批", cls, pid)
+
+
+def _coverage_tile(group: dict[str, float] | None, results: _Results, pid: str) -> str:
+    if not group:
+        return _tile("—", _missing_hint(results, "coverage", "Feature 覆盖"), "na", pid)
+    full, partial, none = (int(group.get(k, 0)) for k in ("full", "partial", "none"))
+    total = full + partial + none
+    if not total:
+        return _tile("—", "Feature 覆盖 · 无 Feature", "na", pid)
+    cls = "ok" if full == total else "bad" if full == 0 else "warn"
+    pct = round(full * 100 / total)
+    return _tile(f"{pct}%", f"Feature 覆盖 · partial {partial} · none {none}", cls, pid)
+
+
+def _links_tile(group: dict[str, float] | None, results: _Results, pid: str) -> str:
+    if not group:
+        return _tile("—", _missing_hint(results, "docs", "断链 / stale"), "na", pid)
+    stale, xref = int(group.get("stale", 0)), int(group.get("xref_error", 0))
+    count = stale + xref
+    cls = "ok" if count == 0 else "bad" if xref else "warn"
+    return _tile(str(count), f"断链 / stale · stale {stale} · xref {xref}", cls, pid)
+
+
+def _decay_tile(group: dict[str, float] | None, pid: str) -> str:
+    recent = int((group or {}).get(RECENT_LABEL, 0))
+    total = int(sum(v for lb, v in (group or {}).items() if lb != RECENT_LABEL))
+    return _tile(str(recent), f"近30天纠偏 · 累计 {total}", "ok" if recent == 0 else "warn", pid)
+
+
+def _kpi_strip(overview: View | None, results: _Results, panel_ids: dict[str, str]) -> str:
+    groups: dict[str, dict[str, float]] = {}
+    if isinstance(overview, MetricSeries):
+        for point in overview.points:
+            groups.setdefault(point.series, {})[point.label] = point.value
+    tiles = (
+        _phase_tile(groups.get("phase"), results, panel_ids["phase"]),
+        _docs_tile(groups.get("docs"), results, panel_ids["docs"]),
+        _coverage_tile(groups.get("coverage"), results, panel_ids["coverage"]),
+        _links_tile(groups.get("links"), results, panel_ids["docs"]),
+        _decay_tile(groups.get("decay"), panel_ids["decay"]),
+    )
+    return f'<section class="kpis">{"".join(tiles)}</section>'
+
+
+def _dashboard_panel(
+    result: tuple[View | None, str | None], index: int
+) -> tuple[str, str | None, str | None]:
     """Render one dashboard tab. Returns ``(panel_html, init_js, lib)``;
     ``init_js`` / ``lib`` are ``None`` for empty or failed views."""
-    from cataforge.application.viz.registry import collect_safe
-
     active = " active" if index == 0 else ""
     pid = f"panel{index}"
-    view, error = collect_safe(root, name)
+    view, error = result
     if view is None:
         inner = f'<p class="error">{_html.escape(error or "")}</p>'
         return f'<section id="{pid}" class="panel{active}">{inner}</section>', None, None
@@ -175,12 +277,17 @@ def _dashboard_panel(root: Path, name: str, index: int) -> tuple[str, str | None
 
 
 def render_dashboard(root: Path, /, **_opts: Any) -> str:
+    from cataforge.application.viz.registry import collect_safe
+
+    results: _Results = {name: collect_safe(root, name) for name, _ in _DASHBOARD_VIEWS}
+    panel_ids = {name: f"panel{index}" for index, (name, _) in enumerate(_DASHBOARD_VIEWS)}
+    overview, _ = collect_safe(root, "overview")
     tabs: list[str] = []
     panels: list[str] = []
     inits: list[str] = []
     libs: list[str] = []
     for index, (name, label) in enumerate(_DASHBOARD_VIEWS):
-        panel, init, lib = _dashboard_panel(root, name, index)
+        panel, init, lib = _dashboard_panel(results[name], index)
         sel = " sel" if index == 0 else ""
         tabs.append(
             f'<button class="tab{sel}" data-panel="panel{index}">{_html.escape(label)}</button>'
@@ -191,10 +298,14 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
         if lib is not None and lib not in libs:
             libs.append(lib)
     header = "<header><strong>CataForge viz dashboard</strong></header>"
+    kpis = _kpi_strip(overview, results, panel_ids)
     nav = f'<nav class="tabs">{"".join(tabs)}</nav>'
-    body = header + nav + "\n".join(panels)
+    body = header + kpis + _legend() + nav + "\n".join(panels)
     return _document("CataForge viz dashboard", body, inits, libs or [_CYTOSCAPE])
 
+
+# Tile accent colours track the legend's semantic order: ok / partial / missing.
+_OK_HEX, _WARN_HEX, _BAD_HEX = (hexv for hexv, _ in palette.LEGEND)
 
 _CSS = (
     "body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;color:#222;background:#fff}"
@@ -209,6 +320,20 @@ _CSS = (
     ".cy,.chart{width:100%;height:78vh;border:1px solid #eef1f4}"
     ".panel{display:none}.panel.active{display:block}"
     ".empty{padding:28px;color:#8a9099}.error{padding:28px;color:#b00020;white-space:pre-wrap}"
+    ".kpis{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;background:#fbfcfd;"
+    "border-bottom:1px solid #e3e6ea}"
+    ".kpi{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 12px;"
+    "min-width:130px;border:1px solid #ccd2da;border-left-width:4px;border-radius:6px;"
+    "background:#fff;cursor:pointer;text-align:left}"
+    ".kpi-v{font-size:18px;font-weight:600;color:#1f2d3d}"
+    ".kpi-l{font-size:11px;color:#66758c}"
+    f".kpi.ok{{border-left-color:{_OK_HEX}}}.kpi.warn{{border-left-color:{_WARN_HEX}}}"
+    f".kpi.bad{{border-left-color:{_BAD_HEX}}}.kpi.na{{border-left-color:#ccd2da}}"
+    ".legend{display:flex;flex-wrap:wrap;gap:14px;padding:6px 14px;font-size:11px;"
+    "color:#66758c;border-bottom:1px solid #eef1f4}"
+    ".legend .lg{display:inline-flex;align-items:center;gap:4px}"
+    ".legend i{width:10px;height:10px;border:1px solid #333;border-radius:2px;"
+    "display:inline-block}"
 )
 
 _GRAPH_STYLE = (
@@ -262,7 +387,7 @@ _BOOTSTRAP_JS = (
     "    if(el&&active.contains(el)){window.__viz.ec[b].resize();}}\n"
     "}\n"
     "document.addEventListener('DOMContentLoaded',function(){\n"
-    "  var ts=document.querySelectorAll('.tab');\n"
+    "  var ts=document.querySelectorAll('[data-panel]');\n"
     "  for(var i=0;i<ts.length;i++){ts[i].addEventListener('click',function(){\n"
     "    showPanel(this.getAttribute('data-panel'));});}\n"
     "});\n"

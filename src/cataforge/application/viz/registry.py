@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from cataforge.application.viz.collectors import (
     decay,
     docs,
     framework,
+    overview,
     process,
     tasks,
     trace,
@@ -20,6 +22,7 @@ from cataforge.core.viz.model import View
 from cataforge.core.viz.render import dot, json_, mermaid
 
 COLLECTORS: dict[str, Collector] = {
+    "overview": overview.collect,
     "framework": framework.collect,
     "assets": assets.collect,
     "trace": trace.collect_trace,
@@ -37,6 +40,17 @@ RENDERERS: dict[str, Callable[[View], str]] = {
     "dot": dot.render,
     "json": json_.render,
 }
+
+
+_HINT_RE = re.compile(r"`([^`]+)`")
+
+
+def short_hint(detail: str) -> str:
+    """Collapse a collector's error to its actionable command, when it has one.
+    Shared by ``viz status`` and the dashboard's degraded KPI tiles, so both
+    surfaces guide with the same ``run: <命令>`` line."""
+    match = _HINT_RE.search(detail)
+    return f"run: {match.group(1)}" if match else detail
 
 
 def collect_safe(root: Path, name: str) -> tuple[View | None, str | None]:

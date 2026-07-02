@@ -12,12 +12,13 @@ import re
 from pathlib import Path
 from typing import Any
 
+from cataforge.application.viz import palette
 from cataforge.core.viz.model import Edge, Graph, Node, View
 from cataforge.runtime.agent.manager import AgentManager
 from cataforge.runtime.skill.loader import SkillLoader
 
-_AGENT_STYLE = "fill:#cde,stroke:#369"
-_SKILL_STYLE = "fill:#efe,stroke:#393"
+_AGENT_STYLE = palette.AGENT_STYLE
+_SKILL_STYLE = palette.SKILL_STYLE
 
 
 def _sid(prefix: str, name: str) -> str:

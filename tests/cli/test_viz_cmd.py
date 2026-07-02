@@ -759,6 +759,28 @@ class TestDashboard:
         assert result.exit_code == 0, result.output
         assert "<!DOCTYPE html>" in out_file.read_text(encoding="utf-8")
 
+    def test_kpi_strip_first_with_degraded_hints(self, tmp_path: Path) -> None:
+        # no KG / doc-index → the coverage & docs tiles degrade to run-hints
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert out.index('class="kpis"') < out.index('class="tabs"')
+        assert "run: cataforge kg init" in out
+        assert "run: cataforge context index" in out
+        assert out.count('<button class="kpi ') == 5
+        assert out.count('<button class="tab') == 10  # the strip adds no tab
+
+    def test_kpi_strip_shows_phase_and_gate(self, tmp_path: Path) -> None:
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        out = html.render_dashboard(tmp_path)
+        assert "development 3/3" in out
+        assert "门禁通过" in out
+
+    def test_legend_present(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'class="legend"' in out
+        assert "#9f6" in out
+
 
 class TestVizHtmlCli:
     def test_framework_html_inlines_cytoscape(self, tmp_path: Path) -> None:
@@ -1022,3 +1044,112 @@ class TestVizOpenAndQuickstart:
         assert default.is_file()
         assert opened and opened[0].startswith("file:")
         assert "dashboard.html" in opened[0]
+
+
+# ------------------------------------------------------------------
+# overview view — project-health KPI series
+# ------------------------------------------------------------------
+
+
+def _overview_groups(tmp_path: Path) -> dict[str, dict[str, float]]:
+    """Run ``viz overview`` (json is the default) and index points by
+    series → label → value."""
+    result = _viz(tmp_path, "overview")
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["kind"] == "metrics"
+    groups: dict[str, dict[str, float]] = {}
+    for point in data["points"]:
+        groups.setdefault(point["series"], {})[point["label"]] = point["value"]
+    return groups
+
+
+class TestVizOverview:
+    def test_phase_group_tracks_sequence_and_gate(self, tmp_path: Path) -> None:
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        groups = _overview_groups(tmp_path)
+        assert groups["phase"] == {"development": 3.0, "gate_ok": 1.0, "total": 3.0}
+
+    def test_blocked_gate_reported(self, tmp_path: Path) -> None:
+        _make_phase_project(tmp_path, "requirements")  # no prd doc/index → blocked
+        groups = _overview_groups(tmp_path)
+        assert groups["phase"]["gate_ok"] == 0.0
+
+    def test_docs_and_links_groups(self, tmp_path: Path) -> None:
+        # doc-index has prd/arch/dev-plan drafts, one stale dep, one broken xref
+        _make_docs_project(tmp_path)
+        cf = tmp_path / ".cataforge"
+        cf.mkdir()
+        framework = {
+            "workflow": {
+                "modes": {
+                    "standard": {
+                        "phases": [
+                            {"phase": "requirements", "role": "product-manager"},
+                            {"phase": "architecture", "role": "architect"},
+                        ]
+                    }
+                }
+            }
+        }
+        (cf / "framework.json").write_text(json.dumps(framework))
+        groups = _overview_groups(tmp_path)
+        assert groups["docs"] == {"prd": 0.5, "arch": 0.5}  # present, not approved
+        assert groups["links"] == {"stale": 1.0, "xref_error": 1.0}
+
+    def test_coverage_group_matches_kg(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)
+        cov = _overview_groups(tmp_path)["coverage"]
+        result = _viz(tmp_path, "coverage", "--format", "json")
+        n_features = len(json.loads(result.output)["nodes"])
+        assert cov["full"] + cov["partial"] + cov["none"] == n_features
+
+    def test_decay_group_recent_and_monthly(self, tmp_path: Path) -> None:
+        log_dir = tmp_path / "docs" / "reviews"
+        log_dir.mkdir(parents=True)
+        (log_dir / "CORRECTIONS-LOG.md").write_text(
+            "# C\n\n"
+            "### 2026-01-01 | reviewer | development\n- 偏差类型: preference\n\n"
+            "### 2026-01-02 | architect | architecture\n- 偏差类型: upstream-gap\n",
+            encoding="utf-8",
+        )
+        groups = _overview_groups(tmp_path)
+        assert groups["decay"]["2026-01"] == 2.0
+        assert groups["decay"]["recent_30d"] == 0.0  # entries far in the past
+
+    def test_empty_project_is_empty_not_error(self, tmp_path: Path) -> None:
+        # every source unreachable → EMPTY, never NEEDS_SETUP; listed first
+        first = service.probe_all(tmp_path)[0]
+        assert first.name == "overview"
+        assert first.state == service.EMPTY
+
+    def test_help_notes_json_default(self) -> None:
+        result = CliRunner().invoke(cli, ["viz", "overview", "--help"])
+        assert result.exit_code == 0, result.output
+        assert "json" in result.output
+
+
+# ------------------------------------------------------------------
+# consistency — palette SSOT + dashboard/registry sync + legend
+# ------------------------------------------------------------------
+
+
+class TestVizConsistency:
+    def test_collectors_carry_no_inline_hex(self) -> None:
+        """Semantic colours live in palette.py only — a collector hardcoding a
+        hex drifts out of the shared legend."""
+        import cataforge.application.viz.collectors as pkg
+
+        for py in Path(pkg.__file__).parent.glob("*.py"):
+            assert "fill:#" not in py.read_text(encoding="utf-8"), py.name
+
+    def test_dashboard_tabs_stay_in_sync_with_collectors(self) -> None:
+        """Every registered view is on the dashboard — as a tab, except
+        overview which renders as the KPI strip."""
+        from cataforge.application.viz.registry import COLLECTORS
+
+        tab_names = {name for name, _ in html._DASHBOARD_VIEWS}
+        assert tab_names == set(COLLECTORS) - {"overview"}
+
+    def test_single_view_has_legend(self) -> None:
+        assert 'class="legend"' in html.render(_HTML_GRAPH)
