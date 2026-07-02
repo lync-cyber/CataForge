@@ -48,12 +48,14 @@ cataforge skill run <skill-id> -- <args...>
 
 由 `SkillRunner` 解析 SKILL.md 元数据后派发——对内置脚本走 `python -m cataforge.runtime.skill.builtins.<pkg>.<script>`，对项目覆写脚本走 `python <project-script-path>`。**不得**直接 `python .cataforge/skills/<id>/scripts/*.py`：该路径为框架内部实现细节，在仅发放 SKILL.md（无 `scripts/` 目录）的默认 scaffold 中不存在。
 
+code-review 的 `<args...>` 为显式双子命令 `review <path> [--fix]` / `scan <path>`（均支持 `--focus` / `--format text|json`）；未知参数与非法 `--focus` 值报用法错误 exit 2。项目覆写脚本必须实现同一 CLI 契约，见 [`../reference/overrides.md`](../reference/overrides.md#项目-override-脚本的-cli-契约)。
+
 当项目仅覆写了 SKILL.md 文本（`scripts=[]`）而未提供自己的脚本时，`SkillLoader` 自动回落到内置脚本（参见 `SkillLoader._merge_builtin_fallback`），无需手动桥接。
 
 失败分类（SKILL.md 必须按以下四态处理 Layer 1 返回）：
 
 | 退出码 / 异常 | 语义 | 动作 |
-|---|---|---|
+| --- | --- | --- |
 | `0` | 通过 | 进入 Layer 2 |
 | `1` | 发现问题 | 报告问题，不进 Layer 2 |
 | `2` / `127` / `CataforgeError("no executable scripts")` | 脚本不可达 | **FAIL**（先 `cataforge doctor`） |
@@ -97,7 +99,7 @@ cataforge skill run <skill-id> -- <args...>
 `cataforge correction record --deviation <type>` 把每一条偏离归入五个互斥类别，决定后续路径：
 
 | 值 | 含义 | 触发后续 |
-|----|------|----------|
+| ---- | ------ | ---------- |
 | `preference` | 纯偏好，不算缺陷 | 仅留存档 |
 | `self-caused` | 下游自身造成的偏离 | 累计 ≥ `RETRO_TRIGGER_SELF_CAUSED`（默认 5）→ §6 Reflector 回顾 |
 | `external` | 外部约束（依赖、政策） | 仅留存档 |
@@ -148,7 +150,7 @@ Reflector 聚合（阈值触发）
 ### 8.1 触发面
 
 | 来源 | 类型 | 推荐入口 |
-|------|------|----------|
+| ------ | ------ | ---------- |
 | 用户人工发现框架 bug | `bug` | `cataforge feedback bug --gh` |
 | 用户人工提建议 | `suggest` | `cataforge feedback suggest --clip` |
 | 累计 `upstream-gap` 纠偏 ≥ 阈值 | `correction-export` | orchestrator 自动调起 `framework-feedback` skill 落盘到 `docs/feedback/` 后由用户决定是否上报 |
@@ -172,15 +174,15 @@ Reflector 聚合（阈值触发）
 
 ### 8.3 等价入口
 
-* **CLI**：`cataforge feedback <bug|suggest|correction-export>`，给人 / pipeline 用
-* **Skill**：`cataforge skill run framework-feedback -- <kind>`，给 orchestrator / agent 用；`record-to-event-log: true`，每次运行写一条 `state_change` 到 `EVENT-LOG`，便于跟踪下游反馈频次
+- **CLI**：`cataforge feedback <bug|suggest|correction-export>`，给人 / pipeline 用
+- **Skill**：`cataforge skill run framework-feedback -- <kind>`，给 orchestrator / agent 用；`record-to-event-log: true`，每次运行写一条 `state_change` 到 `EVENT-LOG`，便于跟踪下游反馈频次
 
 两者共用 `cataforge.core.feedback` 同一份 assembler，差别仅在 skill 路径会触发 EVENT-LOG instrumentation。
 
 ### 8.4 命名边界
 
-* `framework-feedback` 与 `framework-review` 平行：都针对 `.cataforge/` 框架本体，与下游产品自身的用户反馈渠道无关
-* `framework-bug` deviation 表"框架坏了"；`upstream-gap` deviation 表"框架建议不到位"。前者通常一次就上报，后者按阈值聚合上报
+- `framework-feedback` 与 `framework-review` 平行：都针对 `.cataforge/` 框架本体，与下游产品自身的用户反馈渠道无关
+- `framework-bug` deviation 表"框架坏了"；`upstream-gap` deviation 表"框架建议不到位"。前者通常一次就上报，后者按阈值聚合上报
 
 详细参数见 [`../reference/cli.md` §feedback](../reference/cli.md#feedback) 与 [`../reference/agents-and-skills.md`](../reference/agents-and-skills.md) §管理 Skill。
 

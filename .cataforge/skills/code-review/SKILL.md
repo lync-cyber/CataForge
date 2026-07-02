@@ -32,8 +32,7 @@ user-invocable: true
 
 **调用约定（单一入口）**: Layer 1 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。返回码语义按 §Layer 1 调用协议处理（exit 1 时可追加 `--fix` 自动修复后重新检查）；未知参数与非法 `--focus` 值为用法错误（exit 2）。两个模式均支持 `--format json` 输出结构化 finding（Layer 2 与报告聚合的机读输入）。
 
-支持语言: JavaScript/TypeScript(ESLint+Prettier), Python(Ruff), C#(dotnet format), Go(golangci-lint), Rust(clippy)
-工具不存在时自动跳过并WARN，不阻断检查流程。
+工具适配与检查清单见 §Layer 1 检查项；工具不存在时自动跳过并 WARN，不阻断检查流程。
 
 ### Step 2: Layer 2 — AI语义审查
 
@@ -45,7 +44,7 @@ user-invocable: true
 
 1. 任务卡 `task_kind ∈ CODE_REVIEW_L2_SKIP_TASK_KINDS`（默认 `[chore, config, docs]`）
 2. 任务卡 `tdd_mode: light` + AC 数 ≤ `CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC`（默认 2） + Layer 1 输出无 security/error-handling 类 finding
-3. 调用方传入 `--layer1-only` 标志（由 ORCHESTRATOR-META-PROTOCOLS §Adaptive Review 反向降级触发）
+3. 调度方声明 layer1-only 降级（由 ORCHESTRATOR-META-PROTOCOLS §Adaptive Review 反向降级触发；这是 Layer 2 编排参数，不传入 Layer 1 CLI——CLI 只认 `review|scan` 子命令与 `--fix`/`--focus`/`--format`，未知参数报 exit 2）
 
 **短路豁免**（即使命中上述条件也强制跑 Layer 2）:
 - 任务卡 `security_sensitive: true`
@@ -74,7 +73,7 @@ user-invocable: true
 **增量审查模式（revision re-review）**:
 
 当 `task_type=revision` 且存在上一轮 CODE-REVIEW 报告时，审查范围收窄为：
-- 仅审查 `git diff` 涉及的文件和函数（与上次审查的 commit baseline 比较）
+- 仅审查 `git diff` 涉及的文件和函数（与上次审查的 commit baseline 比较）。Layer 1 调用无需增量参数——把收窄后的文件/目录作为 `review <path>` 目标即可；`complexity_gate` 本就只对 git diff 涉及的函数施门禁
 - 上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]`，不重复审查
 - 上轮报告中 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度 → 正常审查
 - report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
@@ -146,51 +145,30 @@ deps: []
 
 ## Layer 1 检查项
 
-> 权威清单见 `cataforge.runtime.skill.builtins.code_review.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
+> 权威清单见 `cataforge.runtime.skill.builtins.code_review.CHECKS_MANIFEST`（framework-review 自动对账）。每项检查的 id / 严重度 / 适用模式 / 豁免语法以 manifest 条目自述为准，本段不逐条复述。
 
-review 模式（按文件类型自动选择工具）:
-- ESLint (.js/.ts/.jsx/.tsx)
-- Prettier 格式化检查 (.js/.ts/.jsx/.tsx)
-- Ruff check + format (.py)
-- dotnet format --verify-no-changes (.cs)
-- golangci-lint run (.go)
-- cargo clippy -D warnings (.rs)
-- 工具未安装时跳过并 WARN，不阻断检查流程
-- wiring 空 handler 正则扫描 — 覆盖各 `wiring-{lang}.yaml` 声明的扩展名；空函数 prop 命中 → WARN（与 §Step 2 integration-wiring 维度配套；豁免见任务卡 `wiring_placeholder: true` 或文件级 `cataforge: allow(wiring_empty_handler, reason="...")`）
-- UI 保真跨文件扫描 (.css/.scss + markup) — 死 token（声明的 CSS 自定义属性零 `var()` 消费）→ FAIL；未加载字体（引用的 `font-family` 无 `@font-face`/fontsource 加载）、幽灵类（markup 引用零定义 class，检测到 utility 框架则整体跳过）→ WARN。消费/加载/定义跨整个项目解析，声明只在受审文件检查；文件级豁免 `cataforge: allow(ui_fidelity, reason="...")`
-- 架构分层守护 (arch) — 项目在 `arch.yaml`（`scope: project`）声明 `layers`/`rules`/`enforce` 后激活；`arch-{lang}.yaml` 的 `import_patterns` 提取依赖边，违反方向矩阵按 `enforce: warn|fail`（默认 fail）出 WARN/FAIL；未声明模型静默不激活（scan 输出一条 INFO）；行级豁免 `cataforge: allow(arch_guard, reason="...")`。判定语义、各语言 import 形态与已知盲区见 [`arch-checks.md`](../../references/arch-checks.md)
-- 复杂度门禁 (complexity) — 阈值取项目级 `complexity.yaml`（builtin 发运保守默认，四指标 cyclomatic / cognitive / function_lines / nesting 各配 warn/fail）；度量优先取已装工具的圈复杂度（radon / gocyclo / lizard），全缺时用 `complexity-{lang}.yaml` pattern 驱动的代理度量（函数边界 + 缩进嵌套），finding 标注度量来源；review 只对 git diff 涉及函数按 `max(fail 阈值, 基线值)` 施门禁（棘轮基线 `.cataforge/baselines/complexity.json`：scan 刷新、review 只读，防篡改由 framework-review B3-γ 对账）；函数定义行豁免 `cataforge: allow(complexity_gate, reason="...")`。度量算法与权重见 [`complexity-checks.md`](../../references/complexity-checks.md)
+- linter / formatter 工具适配（review + scan 门禁，按文件类型自动选择）：ESLint + Prettier (.js/.ts/.jsx/.tsx)、Ruff (.py)、dotnet format (.cs)、golangci-lint (.go)、cargo clippy (.rs)；工具未安装时跳过并 WARN，不阻断
+- 声明式检查的语义细则按维度分文档承载：wiring 空 handler 见 [`wiring-checks.md`](../../references/wiring-checks.md)；架构分层守护（`arch_guard`，项目声明 `arch.yaml` 方向矩阵即激活）见 [`arch-checks.md`](../../references/arch-checks.md)；复杂度门禁与棘轮基线（`complexity_gate`）见 [`complexity-checks.md`](../../references/complexity-checks.md)
+- scan 腐化 probe（informational，按 `--focus` 选择性执行）：duplication（jscpd / pmd-cpd）、dead-code（vulture / ts-prune / cargo-machete / config 死键 xref）、complexity（radon / gocyclo / eslint，探针阈值统一取项目级 `complexity.yaml`）、consistency（API 面快照 diff）、convention（豁免盘点）；probe 工具缺失 WARN 跳过，scan 不因此 FAIL
 
-豁免统一语法（reason 必填，缺失时豁免生效但记 WARN；文件级/行级生效范围随消费方）见 [`pragma-grammar.md`](../../references/pragma-grammar.md)。
+豁免统一语法 `cataforge: allow(<check-id>, reason="...")`（reason 必填，缺失时豁免生效但记 WARN；文件级/行级生效范围随消费方）见 [`pragma-grammar.md`](../../references/pragma-grammar.md)。
 
 ### Plugin-style rules (per-language extension)
 
-正则规则按语言拆到 YAML：
+Layer 1 的声明式规则全部走 rules YAML（schema v2：`schema_version: 2` + `rule_type` + `scope: language|project`；`scope: language` 必填 `language`/`extensions`，`scope: project` 供语言无关的项目级模型且不写这两键；未知顶层键报错，防拼写失效）：
 
-- 默认（cataforge package）：`cataforge.runtime.skill.builtins.code_review.rules.wiring-{lang}.yaml`
-- 项目 override（opt-in）：`<project>/.cataforge/skills/code-review/rules/wiring-{lang}.yaml`
+- 默认（cataforge package）：`cataforge.runtime.skill.builtins.code_review.rules/*.yaml`
+- 项目 override（opt-in）：`<project>/.cataforge/skills/code-review/rules/*.yaml`，整文件替换、改完即生效；framework-review B3-β 自动校验；全注释 YAML 视为未声明（发运模板语义）
 
-加新语言：在项目 `rules/` 放 `wiring-rust.yaml` 等；schema 见 `cataforge.runtime.skill.rules.loader.CURRENT_SCHEMA_VERSION`，必填字段 `schema_version: 2` / `rule_type: wiring` / `scope: language` / `language` / `extensions`（`scope: project` 供语言无关的项目级模型 rule_type 使用，此时不写 `language`/`extensions`）。未知顶层键报错（防拼写失效）。framework-review B3-β `rules_schema_compliance` 自动校验项目 YAML。
-
-arch 规则同路径：`arch-{lang}.yaml`（`scope: language`，仅 `import_patterns`）随包发运六语言；项目级 `arch.yaml`（`scope: project`，`layers`/`rules`/`enforce`）声明即激活，包内 `rules/arch.yaml` 为注释模板（全注释 YAML 视为未声明）。
-
-complexity 规则同理：项目级 `complexity.yaml`（`scope: project`，`thresholds` 四指标全显式）+ `complexity-{lang}.yaml`（`scope: language`，`function_patterns`/`branch_patterns` 代理度量）；builtin 发运即激活，项目 override 整文件替换以收紧/放宽阈值。
-
-scan 模式额外的腐化 probe（按 --focus 选择性执行）:
-- duplication: jscpd（多语言：JS/TS/Py/Go/C#/Rust/Java/Kotlin/Swift）/ pmd-cpd (.java)
-- dead-code: vulture (.py) / ts-prune (.ts/.tsx) / cargo-machete (.rs, 检测未使用 Cargo 依赖)
-- complexity: radon cc (.py) / gocyclo (.go) / eslint complexity 规则 (.js/.ts) — 探针命令阈值取项目级 `complexity.yaml`（不再各自硬编码）
-- probe 工具未安装 → WARN 跳过；scan 不会因 probe 缺失而 FAIL
-- `complexity_gate` 在 scan 中刷新 `.cataforge/baselines/complexity.json` 并把超 warn 函数输出为 informational finding（scan 不因复杂度 FAIL）
-- dead-code: config 死键探针（`config_dead_key`，内部 xref 集合差）— 项目级 `config-keys.yaml`（`scope: project`，语言无关声明侧如 dotenv）× `config-keys-{lang}.yaml`（消费 pattern），声明后全库零消费的 config key / feature flag 记 INFO；声明文件可用文件级 `cataforge: allow(config_dead_key, reason="...")` 豁免
-- consistency: API 面快照探针（`api_surface`）— `api-surface-{lang}.yaml` 的 `export_patterns` 提取导出面，对比 `.cataforge/baselines/api-surface.json` 报告新增/移除（INFO）并刷新快照；项目级 `api-surface.yaml` 声明 `gating: true` 时 review 对快照内消失的导出 FAIL（review 不刷新快照）
-- convention: 豁免盘点探针（`pragma_inventory`）— 枚举全部 `cataforge: allow(...)`（check / reason / 引入天数）记 INFO；非统一语法的 `cataforge` 标记残留报 unknown-pragma
+rule_type 一览：`wiring`（空 handler pattern）、`arch`（项目级 `arch.yaml` 方向矩阵 + `arch-{lang}.yaml` import pattern）、`complexity`（项目级 `complexity.yaml` 四指标阈值 + `complexity-{lang}.yaml` 代理度量 pattern）、`config_keys`（声明 × 消费 pattern）、`api_surface`（导出面 pattern + 项目级 `gating` 开关）。
 
 ## Anti-Patterns
 
 - 禁止: 把 user-facing critical path 任务（页面/路由/UI 可达性、`consumer_components` 非空）走 Layer 2 短路 —— 形式契约对但 wiring 留白只能由 §integration-wiring 维度抓出，短路会放走 false-positive
 - 禁止: 让 reviewer 直接下场写补丁 —— code-review 仅产出审查报告（problem list + 严重等级），任何修改必须由 implementer / debug skill 在独立调度中完成
 - 禁止: scan 模式因为腐化 finding 直接判 needs_revision —— scan 默认不阻塞流程；rot 信号转化为重构决策的输入，是 informational 而非 gating
+- 禁止: 手写或复制 CHECKS_MANIFEST 条目到本文档 —— manifest 由 `register_check()` 注册表派生，新增检查在 `checks/` 注册即自动进入 manifest 与 framework-review 对账面；散文复述必然漂移
+- 禁止: 在 review 路径写 `.cataforge/baselines/` —— 基线（复杂度棘轮 / API 面快照）只能由 scan 刷新，review 只读判定；孤立的基线变更会被 framework-review B3-γ 判 FAIL
 - 避免: 报告写入 `docs/reviews/doc/` 或其它非 `docs/reviews/code/` 目录 —— 与 doc-review / framework-review 报告混淆会污染 sprint-review 聚合
 
 ## 效率策略

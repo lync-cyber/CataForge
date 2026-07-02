@@ -144,7 +144,7 @@ cataforge event log --event phase_start --phase architecture --detail "进入架
 
 降级动作（持续到下一次任一上述条件失败时取消）:
 1. 在 {INSTRUCTION_FILE} `Learnings Registry` 字段写入 `adaptive-review downgraded for {phase}: layer1-only`
-2. 后续该阶段 code-review 调用追加 `--layer1-only` 标记，跳过 Layer 2 AI 语义审查（仅 lint + 腐化探针），sprint-review 仍按原规则执行作为兜底
+2. 后续该阶段 code-review 调度声明 layer1-only 降级（Layer 2 编排参数，写入 reviewer 调度指令，不传入 Layer 1 CLI），跳过 Layer 2 AI 语义审查（仅 lint + 腐化探针），sprint-review 仍按原规则执行作为兜底
 3. **[EVENT]** 记录降级事件:
    ```bash
    cataforge event log --event review_verdict --phase {当前阶段} --agent orchestrator --status approved --detail "adaptive-review downgraded — {N} consecutive clean tasks"
