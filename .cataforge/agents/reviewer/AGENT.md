@@ -16,7 +16,7 @@ skills:
   - feature-walkthrough
   - penpot-bridge
 model_tier: standard
-maxTurns: 50
+maxTurns: 150
 ---
 
 # Role: 评审员 (Reviewer)

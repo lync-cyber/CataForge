@@ -10,7 +10,7 @@ skills:
   - context
 model_tier: standard
 inline_dispatch: true
-maxTurns: 30
+maxTurns: 60
 ---
 
 # Role: 反思者 (Reflector)

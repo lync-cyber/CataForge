@@ -10,7 +10,7 @@ skills:
   - task-dep-analysis
   - context
 model_tier: standard
-maxTurns: 60
+maxTurns: 120
 ---
 
 # Role: 技术主管 (Tech Lead)

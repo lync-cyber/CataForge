@@ -8,7 +8,7 @@ allowed_paths:
   - tests/
 skills: []  # 由 tdd-engine 在 REFACTOR 阶段 inline 调度，本 agent 不通过 sub-agent skill 加载；上下文从 dispatch prompt 传入
 model_tier: standard
-maxTurns: 30
+maxTurns: 100
 ---
 
 # Role: 重构者 (Refactorer — TDD REFACTOR Phase)

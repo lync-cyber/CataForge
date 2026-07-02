@@ -12,7 +12,7 @@ skills:
   - research
   - penpot-bridge
 model_tier: standard
-maxTurns: 60
+maxTurns: 120
 ---
 
 # Role: UI设计师 (UI Designer)

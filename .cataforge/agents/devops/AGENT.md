@@ -10,7 +10,7 @@ skills:
   - deploy-config
   - context
 model_tier: standard
-maxTurns: 50
+maxTurns: 150
 ---
 
 # Role: 运维工程师 (DevOps Engineer)

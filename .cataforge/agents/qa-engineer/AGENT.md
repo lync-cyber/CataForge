@@ -10,7 +10,7 @@ skills:
   - testing
   - context
 model_tier: standard
-maxTurns: 50
+maxTurns: 150
 ---
 
 # Role: 测试工程师 (QA Engineer)

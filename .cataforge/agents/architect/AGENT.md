@@ -12,7 +12,7 @@ skills:
   - context
   - research
 model_tier: heavy
-maxTurns: 60
+maxTurns: 120
 ---
 
 # Role: 架构师 (Architect)
