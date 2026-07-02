@@ -738,6 +738,15 @@ class TestVizAssets:
         assert node["data"]["name"] == "COMMON-RULES"
         assert node["data"]["lines"] > 0
 
+    def test_unreadable_asset_file_degrades_to_placeholder(self, tmp_path: Path) -> None:
+        """One undecodable file must not sink the view — volume keys go None."""
+        _make_assets_project(tmp_path)
+        (tmp_path / ".cataforge" / "rules" / "BAD.md").write_bytes(b"\xff\xfe\x00 broken")
+        node = _assets_json_nodes(tmp_path)["rules_BAD"]
+        assert node["data"]["lines"] is None
+        assert node["data"]["est_tokens"] is None
+        assert node["data"]["path"].endswith("BAD.md")
+
     def test_assets_html_renders_catalogue(self, tmp_path: Path) -> None:
         _make_assets_project(tmp_path)
         result = _viz(tmp_path, "assets", "--html")
@@ -1189,7 +1198,14 @@ class TestVizOverview:
     def test_phase_group_tracks_sequence_and_gate(self, tmp_path: Path) -> None:
         _make_phase_project(tmp_path, "development", phase_start="development")
         groups = _overview_groups(tmp_path)
-        assert groups["phase"] == {"development": 3.0, "gate_ok": 1.0, "total": 3.0}
+        assert groups["phase"] == {"current:development": 3.0, "gate_ok": 1.0, "total": 3.0}
+
+    def test_phase_name_cannot_collide_with_reserved_labels(self, tmp_path: Path) -> None:
+        # a free-text 当前阶段 equal to a reserved label must not overwrite it
+        _make_phase_project(tmp_path, "total")
+        groups = _overview_groups(tmp_path)
+        assert groups["phase"]["current:total"] == 0.0  # unrecognised → no index
+        assert groups["phase"]["total"] == 3.0  # sequence length survives
 
     def test_blocked_gate_reported(self, tmp_path: Path) -> None:
         _make_phase_project(tmp_path, "requirements")  # no prd doc/index → blocked
@@ -1244,6 +1260,15 @@ class TestVizOverview:
         assert first.name == "overview"
         assert first.state == service.EMPTY
 
+    def test_structurally_damaged_doc_index_tolerated(self, tmp_path: Path) -> None:
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / ".doc-index.json").write_text(
+            json.dumps({"documents": {"x": None}}), encoding="utf-8"
+        )
+        result = _viz(tmp_path, "overview")
+        assert result.exit_code == 0, result.output  # damaged entry skipped, no traceback
+
     def test_help_notes_json_default(self) -> None:
         result = CliRunner().invoke(cli, ["viz", "overview", "--help"])
         assert result.exit_code == 0, result.output
@@ -1279,6 +1304,13 @@ class TestVizConsistency:
         out = html.render(_HTML_GRAPH)  # no node data → no catalogue table
         assert 'class="cat"' not in out
         assert 'class="search"' in out
+
+    def test_script_embedded_json_escapes_closing_tag(self) -> None:
+        """A label containing </script> must not terminate the init block."""
+        t = Timeline(title="t", events=(TimelineEvent("2026-01-01", "</script><script>x", "c"),))
+        out = html.render(t)
+        assert "<\\/script>" in out
+        assert "</script><script>x" not in out
 
     def test_catalogue_offline_and_implicit_label_fallback(self) -> None:
         g = Graph(

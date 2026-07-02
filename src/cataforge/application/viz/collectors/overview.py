@@ -11,8 +11,9 @@ reports it EMPTY, never an error).
 
 Point vocabulary (series / label / value):
 
-* ``phase`` — ``<当前阶段名>``/1-based sequence index, ``gate_ok``/0|1,
-  ``total``/sequence length.
+* ``phase`` — ``current:<当前阶段名>``/1-based sequence index (the prefix
+  keeps a free-text phase name from colliding with the reserved labels),
+  ``gate_ok``/0|1, ``total``/sequence length.
 * ``docs`` — one point per core doc_type (from the workflow sequence's
   :data:`~cataforge.core.phases.PHASE_DOC_TYPE`): 0 missing, 0.5 present,
   1 approved.
@@ -39,6 +40,7 @@ from cataforge.core.viz.model import MetricPoint, MetricSeries, View
 from cataforge.domain.docs.indexer import INDEX_FILENAME, find_stale_deps, find_xref_errors
 
 RECENT_LABEL = "recent_30d"
+CURRENT_PREFIX = "current:"
 _RECENT_DAYS = 30
 
 
@@ -48,7 +50,9 @@ def _phase_points(root: Path) -> list[MetricPoint]:
     index = sequence.index(current) + 1 if current in sequence else 0
     gate_ok = 0.0 if any(not ok for _, ok, _ in checks) else 1.0
     return [
-        MetricPoint(label=current or "unknown", value=float(index), series="phase"),
+        MetricPoint(
+            label=f"{CURRENT_PREFIX}{current or 'unknown'}", value=float(index), series="phase"
+        ),
         MetricPoint(label="gate_ok", value=gate_ok, series="phase"),
         MetricPoint(label="total", value=float(len(sequence)), series="phase"),
     ]
@@ -74,7 +78,9 @@ def _doc_points(root: Path) -> list[MetricPoint]:
         return []
     documents = read_json(str(index_path)).get("documents") or {}
     statuses: dict[str, list[str]] = {}
-    for entry in documents.values():
+    for entry in documents.values() if isinstance(documents, dict) else ():
+        if not isinstance(entry, dict):  # tolerate a structurally damaged index
+            continue
         doc_type = str(entry.get("doc_type") or "")
         statuses.setdefault(doc_type, []).append(str(entry.get("status") or "draft"))
 
@@ -91,14 +97,12 @@ def _doc_points(root: Path) -> list[MetricPoint]:
         points.append(MetricPoint(label=doc_type, value=value, series="docs"))
 
     root_str = str(root)
-    points.append(
-        MetricPoint(label="stale", value=float(len(find_stale_deps(root_str))), series="links")
-    )
-    points.append(
-        MetricPoint(
-            label="xref_error", value=float(len(find_xref_errors(root_str))), series="links"
-        )
-    )
+    try:  # the indexer's validators assume structurally sound entries
+        stale, xref = len(find_stale_deps(root_str)), len(find_xref_errors(root_str))
+    except (AttributeError, TypeError, KeyError):
+        return points  # damaged index: keep the docs group, drop the links group
+    points.append(MetricPoint(label="stale", value=float(stale), series="links"))
+    points.append(MetricPoint(label="xref_error", value=float(xref), series="links"))
     return points
 
 

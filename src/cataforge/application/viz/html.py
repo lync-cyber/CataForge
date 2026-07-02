@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.application.viz import palette
-from cataforge.application.viz.collectors.overview import RECENT_LABEL
+from cataforge.application.viz.collectors.overview import CURRENT_PREFIX, RECENT_LABEL
 from cataforge.core.errors import CataforgeError
 from cataforge.core.viz.model import Graph, MetricSeries, Timeline, View, is_empty
 
@@ -44,6 +44,13 @@ _DASHBOARD_VIEWS: tuple[tuple[str, str], ...] = (
 
 def _read_asset(name: str) -> str:
     return (importlib.resources.files(_PKG) / "assets" / name).read_text()
+
+
+def _script_json(value: Any) -> str:
+    """``json.dumps`` for embedding inside a ``<script>`` block: ``</`` is
+    escaped so data text containing ``</script>`` cannot terminate the block
+    (labels may carry arbitrary project text, e.g. the 当前阶段 value)."""
+    return json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
 
 
 # --------------------------------------------------------------------------- #
@@ -73,7 +80,7 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
 def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
     if any(node.data for node in graph.nodes):
         return _catalogue_fragment(graph, dom_id)
-    elements = json.dumps(_node_data(graph), ensure_ascii=False)
+    elements = _script_json(_node_data(graph))
     body = (
         '<div class="view">'
         f'<div class="toolbar"><input class="search" data-target="{dom_id}" '
@@ -148,7 +155,7 @@ def _catalogue_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
         f"<thead>{head}</thead><tbody>{rows}</tbody></table></div>"
     )
     body = f'<div class="view cat-view">{toolbar}{table}<div id="{dom_id}" class="cy"></div></div>'
-    elements = json.dumps(_node_data(graph), ensure_ascii=False)
+    elements = _script_json(_node_data(graph))
     return body, f"initCatalogue('{dom_id}', {elements});"
 
 
@@ -198,7 +205,7 @@ def _metric_option(view: MetricSeries) -> dict[str, Any]:
 def _chart_fragment(view: Timeline | MetricSeries, dom_id: str) -> tuple[str, str]:
     option = _timeline_option(view) if isinstance(view, Timeline) else _metric_option(view)
     body = f'<div class="view"><div id="{dom_id}" class="chart"></div></div>'
-    return body, f"initChart('{dom_id}', {json.dumps(option, ensure_ascii=False)});"
+    return body, f"initChart('{dom_id}', {_script_json(option)});"
 
 
 def _fragment(view: View, dom_id: str) -> tuple[str, str, str]:
@@ -274,7 +281,12 @@ def _phase_tile(group: dict[str, float] | None, results: _Results, pid: str) -> 
     total = int(group.get("total", 0))
     gate_ok = group.get("gate_ok", 0.0) >= 1.0
     name, index = next(
-        ((lb, v) for lb, v in group.items() if lb not in ("total", "gate_ok")), ("?", 0.0)
+        (
+            (lb[len(CURRENT_PREFIX) :], v)
+            for lb, v in group.items()
+            if lb.startswith(CURRENT_PREFIX)
+        ),
+        ("?", 0.0),
     )
     value = f"{name} {int(index)}/{total}" if index else name
     label = "阶段 · 门禁通过" if gate_ok else "阶段 · 门禁受阻"
@@ -363,7 +375,7 @@ def _degraded_inner(name: str, view: View | None, error: str | None) -> str:
                 f'<p class="raw">{_html.escape(error or "")}</p></div>'
             )
         return f'<p class="error">{_html.escape(error or "")}</p>'
-    return f'<div class="empty">{_inline_code(_EMPTY_HINTS.get(name, "no data yet"))}</div>'
+    return f'<div class="empty">{_inline_code(_EMPTY_HINTS.get(name, "暂无数据"))}</div>'
 
 
 def _dashboard_panel(
@@ -530,7 +542,7 @@ _BOOTSTRAP_JS = (
     "  var chips=view?view.querySelectorAll('.fchip'):[];\n"
     "  function rowVisible(r,needle,types){\n"
     "    if(r.getAttribute('data-maint')==='1'&&(!maint||!maint.checked))return false;\n"
-    "    if(types.length&&types.indexOf(r.getAttribute('data-type'))<0)return false;\n"
+    "    if(types.indexOf(r.getAttribute('data-type'))<0)return false;\n"
     "    return !needle||r.textContent.toLowerCase().indexOf(needle)>=0;\n"
     "  }\n"
     "  function apply(){\n"

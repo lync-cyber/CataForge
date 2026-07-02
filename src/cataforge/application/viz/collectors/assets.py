@@ -44,15 +44,19 @@ def _join(value: object) -> str:
 
 def _volume(path: Path | None, root: Path) -> dict[str, object]:
     """``lines`` / ``est_tokens`` / repo-relative ``path`` for a source file.
-    A missing file (e.g. a script-only builtin skill) keeps the keys with
-    ``None`` so consumers render a uniform placeholder."""
+    A missing or unreadable file (e.g. a script-only builtin skill, or a
+    stray non-UTF-8 file) keeps the keys with ``None`` so consumers render a
+    uniform placeholder — one bad file must not sink the whole view."""
     if path is None or not path.is_file():
         return {"lines": None, "est_tokens": None, "path": ""}
-    text = path.read_text()
     try:
         rel = str(path.relative_to(root))
     except ValueError:  # outside the project tree (package builtin / user layer)
         rel = str(path)
+    try:
+        text = path.read_text()
+    except (OSError, UnicodeDecodeError):
+        return {"lines": None, "est_tokens": None, "path": rel}
     return {"lines": len(text.splitlines()), "est_tokens": estimate_tokens(text), "path": rel}
 
 
