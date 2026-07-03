@@ -28,6 +28,13 @@ from cataforge.domain.docs.indexer import (
 # higher = takes precedence when a (doc, upstream) pair has more than one signal
 _SEVERITY = {"xref-error": 2, "stale": 1, "depends_on": 0}
 
+# Remediation outlet per failure mode: the actionable command a reader runs to
+# clear it, in the shared ``run: <命令>`` convention rich renderers project as
+# a node tooltip. Missing-data views already guide this way; a data-*present*
+# view whose data is wrong must guide too.
+_STALE_HINT = {"issue": "stale", "hint": "run: cataforge context reconcile"}
+_XREF_HINT = {"issue": "xref-error", "hint": "run: cataforge context validate"}
+
 
 def collect_docs(root: Path, /, **_opts: Any) -> View:
     """Doc dependency graph from ``docs/.doc-index.json``; stale / broken deps
@@ -48,10 +55,12 @@ def collect_docs(root: Path, /, **_opts: Any) -> View:
     nodes: dict[str, Node] = {}
     for doc_id, entry in documents.items():
         doc_type = entry.get("doc_type") or ""
+        stale = doc_id in stale_downstream
         nodes[doc_id] = Node(
             doc_id,
             label=f"{doc_id}: {doc_type}" if doc_type else doc_id,
-            status=Status.PARTIAL if doc_id in stale_downstream else None,
+            status=Status.PARTIAL if stale else None,
+            data=dict(_STALE_HINT) if stale else None,
         )
 
     labels: dict[tuple[str, str], str] = {}
@@ -74,10 +83,12 @@ def collect_docs(root: Path, /, **_opts: Any) -> View:
 
     for (_, upstream), label in labels.items():
         if upstream not in nodes:
+            broken = label == "xref-error"
             nodes[upstream] = Node(
                 upstream,
                 label=upstream,
-                status=Status.BROKEN if label == "xref-error" else None,
+                status=Status.BROKEN if broken else None,
+                data=dict(_XREF_HINT) if broken else None,
             )
 
     return Graph(

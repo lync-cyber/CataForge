@@ -42,6 +42,7 @@ from cataforge.core.viz.model import MetricPoint, MetricSeries, View
 from cataforge.domain.docs.indexer import INDEX_FILENAME, find_stale_deps, find_xref_errors
 
 RECENT_LABEL = "recent_30d"
+SELF_CAUSED_LABEL = "self_caused"
 CURRENT_PREFIX = "current:"
 _RECENT_DAYS = 30
 
@@ -151,8 +152,15 @@ def _decay_points(root: Path) -> list[MetricPoint]:
         return []
     cutoff = (datetime.now() - timedelta(days=_RECENT_DAYS)).strftime("%Y-%m-%d")
     recent = sum(1 for e in entries if e.ts >= cutoff)
+    # self-caused is the cohort the retrospective gate counts (deviation axis,
+    # per the Retrospective Protocol's trigger); preference / upstream-gap /
+    # external corrections don't push toward a retro.
+    self_caused = sum(1 for e in entries if e.deviation == "self-caused")
     monthly = Counter(e.ts[:7] for e in entries)
-    points = [MetricPoint(label=RECENT_LABEL, value=float(recent), series="decay")]
+    points = [
+        MetricPoint(label=RECENT_LABEL, value=float(recent), series="decay"),
+        MetricPoint(label=SELF_CAUSED_LABEL, value=float(self_caused), series="decay"),
+    ]
     points.extend(
         MetricPoint(label=month, value=float(count), series="decay")
         for month, count in sorted(monthly.items())

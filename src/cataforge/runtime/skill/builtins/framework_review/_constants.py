@@ -4,6 +4,7 @@ from __future__ import annotations
 
 DEFAULT_META_SIZE = 500
 DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS = 10
+DEFAULT_RETRO_SELF_CAUSED = 5
 
 VALID_MODEL_TIERS = frozenset({"light", "standard", "heavy", "inherit", "none"})
 
