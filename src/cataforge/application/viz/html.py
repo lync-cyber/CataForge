@@ -13,13 +13,14 @@ import html as _html
 import importlib.resources
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 from cataforge.application.viz.collectors.overview import CURRENT_PREFIX, RECENT_LABEL
 from cataforge.core.errors import CataforgeError
 from cataforge.core.viz import palette
-from cataforge.core.viz.model import Graph, MetricSeries, Status, Timeline, View, is_empty
+from cataforge.core.viz.model import Graph, MetricSeries, Node, Status, Timeline, View, is_empty
 
 _PKG = "cataforge.application.viz"
 _CYTOSCAPE = "cytoscape.min.js"
@@ -73,9 +74,16 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
     return elements
 
 
-def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
+def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str, bool]:
+    """Pick a Graph's HTML form. Returns ``(body, init, needs_cytoscape)``:
+    an asset catalogue (metadata table + linked graph), an edgeless graph's
+    status table (position carries no information without edges), or the plain
+    zoomable graph."""
     if any(node.data for node in graph.nodes):
-        return _catalogue_fragment(graph, dom_id)
+        body, init = _catalogue_fragment(graph, dom_id)
+        return body, init, True
+    if graph.nodes and not graph.edges:
+        return (*_status_table_fragment(graph, dom_id), False)
     elements = _script_json(_node_data(graph))
     body = (
         '<div class="view">'
@@ -83,7 +91,76 @@ def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
         'placeholder="filter nodes…"></div>'
         f'<div id="{dom_id}" class="cy"></div></div>'
     )
-    return body, f"initGraph('{dom_id}', {elements});"
+    return body, f"initGraph('{dom_id}', {elements});", True
+
+
+# --------------------------------------------------------------------------- #
+# Edgeless status graph → sorted table + constituency bar
+# --------------------------------------------------------------------------- #
+# Anomaly-first ordering: the states a reader must act on come first.
+_STATUS_ORDER: dict[Status, int] = {
+    Status.CYCLE: 0,
+    Status.BROKEN: 1,
+    Status.MISSING: 2,
+    Status.PARTIAL: 3,
+    Status.CRITICAL_PATH: 4,
+    Status.OK: 5,
+    Status.AGENT: 6,
+    Status.SKILL: 7,
+}
+
+
+def _status_rank(status: Status | None) -> int:
+    return _STATUS_ORDER.get(status, 99) if status else 99
+
+
+def _status_badge(status: Status | None) -> str:
+    if status is None:
+        return '<span class="sbadge none">—</span>'
+    enc = palette.encoding(status)
+    return (
+        f'<span class="sbadge" style="background:{enc.fill};border-color:{enc.stroke}">'
+        f"{enc.marker} {_html.escape(status.value)}</span>"
+    )
+
+
+def _status_row(node: Node) -> str:
+    label = node.label or str((node.data or {}).get("name") or node.id)
+    sval = node.status.value if node.status else ""
+    return (
+        f'<tr data-node="{_html.escape(node.id)}" data-status="{_html.escape(sval)}">'
+        f"<td>{_status_badge(node.status)}</td><td>{_html.escape(label)}</td></tr>"
+    )
+
+
+def _constituency_bar(graph: Graph) -> str:
+    counts = Counter(n.status for n in graph.nodes if n.status)
+    if not counts:
+        return ""
+    segments = "".join(
+        f'<span class="seg" style="background:{palette.encoding(status).fill};flex:{count}" '
+        f'title="{_html.escape(status.value)}: {count}">{count}</span>'
+        for status, count in sorted(counts.items(), key=lambda kv: _status_rank(kv[0]))
+    )
+    return f'<div class="cbar">{segments}</div>'
+
+
+def _status_table_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
+    """An edgeless graph as an anomaly-first table + constituency bar. Static
+    (no init JS); cross-view linking is wired separately via ``linkTable``."""
+    rows = "".join(
+        _status_row(node)
+        for node in sorted(graph.nodes, key=lambda n: (_status_rank(n.status), n.label or n.id))
+    )
+    table = (
+        f'<table class="stat" id="{dom_id}_tbl"><thead><tr><th>状态</th><th>节点</th></tr>'
+        f"</thead><tbody>{rows}</tbody></table>"
+    )
+    body = (
+        f'<div class="view stat-view">{_constituency_bar(graph)}'
+        f'<div class="stat-wrap">{table}</div></div>'
+    )
+    return body, ""
 
 
 # --------------------------------------------------------------------------- #
@@ -211,11 +288,12 @@ def _chart_fragment(view: Timeline | MetricSeries, dom_id: str) -> tuple[str, st
     return body, f"initChart('{dom_id}', {_script_json(option)});"
 
 
-def _fragment(view: View, dom_id: str) -> tuple[str, str, str]:
-    """Return ``(body_html, init_js, lib_name)`` for any IR form."""
+def _fragment(view: View, dom_id: str) -> tuple[str, str, str | None]:
+    """Return ``(body_html, init_js, lib_name)`` for any IR form. ``lib_name``
+    is ``None`` when the fragment needs no library (an edgeless status table)."""
     if isinstance(view, Graph):
-        body, init = _graph_fragment(view, dom_id)
-        return body, init, _CYTOSCAPE
+        body, init, needs_cy = _graph_fragment(view, dom_id)
+        return body, init, (_CYTOSCAPE if needs_cy else None)
     if isinstance(view, (Timeline, MetricSeries)):
         body, init = _chart_fragment(view, dom_id)
         return body, init, _ECHARTS
@@ -249,7 +327,7 @@ def render(view: View) -> str:
     body, init, lib = _fragment(view, "view0")
     title = getattr(view, "title", "") or "viz"
     header = f"<header><strong>{_html.escape(title)}</strong></header>"
-    return _document(title, header + _legend() + body, [init], [lib])
+    return _document(title, header + _legend() + body, [init], [lib] if lib else [])
 
 
 # --------------------------------------------------------------------------- #
@@ -413,6 +491,7 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     inits: list[str] = []
     libs: list[str] = []
     graph_views: set[str] = set()
+    table_views: set[str] = set()
     for index, (name, label) in enumerate(_DASHBOARD_VIEWS):
         panel, init, lib = _dashboard_panel(name, results[name], index)
         sel = " sel" if index == 0 else ""
@@ -423,12 +502,15 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
         if init is not None:
             inits.append(init)
             if isinstance(results[name][0], Graph):
-                graph_views.add(name)
+                # a Graph with no library is one rendered as a status table
+                (graph_views if lib == _CYTOSCAPE else table_views).add(name)
         if lib is not None and lib not in libs:
             libs.append(lib)
     for src, dst in _CROSS_LINKS:
         if src in graph_views:
             inits.append(f"linkGraph('{panel_ids[src]}_v', '{panel_ids[dst]}');")
+        elif src in table_views:
+            inits.append(f"linkTable('{panel_ids[src]}_v', '{panel_ids[dst]}');")
     header = "<header><strong>CataForge viz dashboard</strong></header>"
     kpis = _kpi_strip(overview, results, panel_ids)
     nav = f'<nav class="tabs">{"".join(tabs)}</nav>'
@@ -494,6 +576,20 @@ _CSS = (
     ".maint{margin-left:10px;font-size:12px;color:#66758c}"
     ".sortable{cursor:pointer;text-decoration:underline dotted}"
     "code.path{cursor:copy;font-size:11px;background:#f5f6f8;padding:1px 4px;border-radius:3px}"
+    ".cbar{display:flex;height:16px;border-radius:4px;overflow:hidden;margin-bottom:10px;"
+    "border:1px solid #e3e6ea}"
+    ".cbar .seg{display:flex;align-items:center;justify-content:center;font-size:10px;"
+    "color:#1f2d3d;min-width:16px}"
+    ".stat-wrap{max-height:74vh;overflow:auto;border:1px solid #eef1f4}"
+    ".stat{width:100%;border-collapse:collapse;font-size:13px}"
+    ".stat th{position:sticky;top:0;background:#f7f8fa;text-align:left;padding:6px 10px;"
+    "border-bottom:1px solid #e3e6ea}"
+    ".stat td{padding:5px 10px;border-bottom:1px solid #f0f2f5}"
+    ".stat tr.focus{background:#eef4fb}"
+    ".sbadge{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;"
+    "border:1px solid #ccd2da;white-space:nowrap}"
+    ".sbadge.none{background:#f0f1f3;color:#8a9099}"
+    ".stat tbody tr{cursor:pointer}"
 )
 
 _GRAPH_STYLE = (
@@ -618,6 +714,17 @@ _BOOTSTRAP_JS = (
     "function linkGraph(id,targetPid){\n"
     "  var cy=window.__viz.cy[id];if(!cy)return;\n"
     "  cy.on('tap','node',function(ev){window.__viz.focus(targetPid,ev.target.id());});\n"
+    "}\n"
+    "function linkTable(id,targetPid){\n"
+    "  var tbl=document.getElementById(id+'_tbl');if(!tbl)return;\n"
+    "  tbl.addEventListener('click',function(ev){\n"
+    "    var t=ev.target;\n"
+    "    while(t&&t!==tbl&&!t.getAttribute('data-node'))t=t.parentNode;\n"
+    "    if(!t||t===tbl)return;\n"
+    "    var rows=tbl.tBodies[0].rows;\n"
+    "    for(var i=0;i<rows.length;i++){rows[i].classList.toggle('focus',rows[i]===t);}\n"
+    "    window.__viz.focus(targetPid,t.getAttribute('data-node'));\n"
+    "  });\n"
     "}\n"
     "function showPanel(pid){\n"
     "  var ps=document.querySelectorAll('.panel');\n"
