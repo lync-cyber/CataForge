@@ -33,7 +33,7 @@ orchestrator (主线程)
 |---|---------|---------|
 | **standard** | `tdd_mode=standard` | RED + GREEN + REFACTOR(条件) 三次 dispatch |
 | **light-dispatch** | `tdd_mode=light` 且不满足 inline 条件 | implementer 一次 dispatch（合并 RED+GREEN） |
-| **light-inline** | `tdd_mode=light` 且 LOC≤`TDD_LIGHT_LOC_THRESHOLD` 且 `security_sensitive=false` 且执行模式 ∈ {agile-lite, agile-prototype} | orchestrator 主线程内联 implementer 行为，零子代理 boot |
+| **light-inline** | `tdd_mode=light` 且 LOC≤`TDD_LIGHT_LOC_THRESHOLD` 且 `security_sensitive=false` 且执行模式 ∈ `TDD_INLINE_ELIGIBLE_MODES` | orchestrator 主线程内联 implementer 行为，零子代理 boot |
 | **prototype-inline** | 执行模式 = `agile-prototype` | 同 light-inline，强制跳过 REFACTOR |
 
 ## Mid-Progress Drop Contract
@@ -56,7 +56,6 @@ orchestrator (主线程)
 - AskUserQuestion 不可用。如需用户输入，返回 blocked 并在 `<questions>` 描述问题，orchestrator 以 continuation 重启
 - 返回 `<agent-result>` 格式（详见 dispatch-prompt.md §COMMON-SECTIONS）
 - blocked 时可追加 `<questions>` 字段
-- implementer 在 GREEN/Light 完成后必须 self-report `refactor_needed: bool` + `refactor_reasons: [category]`（详见 implementer AGENT.md §Output Contract），orchestrator 以此判定是否调度 refactorer
 
 ## 输入规范
 
@@ -65,25 +64,11 @@ orchestrator (主线程)
 
 ## 阶段间传递格式
 
-子代理间通过文件系统传递状态；orchestrator 保留 Step 1 提取的上下文，按阶段按需内联进各 dispatch prompt：
+子代理间通过文件系统传递状态；orchestrator 保留 Step 1 提取的上下文，按阶段按需内联进各 dispatch prompt。各阶段从上一阶段 `<agent-result>` 提取（字段定义 SSOT=各 AGENT.md §Output Contract）：
 
-```
-RED → GREEN:
-  从RED的<agent-result>提取:
-  - outputs → test_files路径列表
-  - summary → 测试结果(N FAILED, M PASSED)
-
-GREEN → REFACTOR:
-  从GREEN的<agent-result>提取:
-  - outputs → impl_files路径列表
-  - refactor_needed / refactor_reasons → 触发判定
-  合并RED阶段的test_files一并传入
-
-REFACTOR → orchestrator:
-  从REFACTOR的<agent-result>提取:
-  - outputs → 最终文件路径列表
-  - summary → 测试结果 + 重构变更摘要
-```
+- RED → GREEN: outputs（test_files 路径列表）+ summary（测试结果 N FAILED, M PASSED）
+- GREEN → REFACTOR: outputs（impl_files 路径列表）+ refactor_needed / refactor_reasons（触发判定）；合并 RED 阶段的 test_files 一并传入
+- REFACTOR → orchestrator: outputs（最终文件路径列表）+ summary（测试结果 + 重构变更摘要）
 
 ## 执行流程
 
@@ -91,8 +76,8 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 **任务路由分支**: 读取任务卡 `task_kind` 和 `tdd_mode` 字段:
 
-- `task_kind` ∈ `CODE_REVIEW_L2_SKIP_TASK_KINDS`（默认 `[chore, config, docs]`）→ **跳过 TDD**，由 implementer 单次调用直接产出，进入 Step 5。**产代码的 chore 任务**（deliverables 含源码而非纯配置/文档）标 done 前须跑一次 changed-scope 类型检查 + lint 门（同 §Post-GREEN Validation standard 档），命中即 continuation 修复，不寄托于 self-report 或尚不存在的 lint hook
-- `tdd_mode` 缺省（缺省视为 `TDD_DEFAULT_MODE` = `light`）:
+- `task_kind` ∈ `CODE_REVIEW_L2_SKIP_TASK_KINDS` → **跳过 TDD**，由 implementer 单次调用直接产出，进入 Step 5。**产代码的 chore 任务**（deliverables 含源码而非纯配置/文档）标 done 前须跑一次 changed-scope 类型检查 + lint 门（同 §Post-GREEN Validation standard 档），命中即 continuation 修复，不寄托于 self-report 或 lint hook 兜底
+- `tdd_mode` 缺省（缺省视为 `TDD_DEFAULT_MODE`）:
   - `light` + 满足 §Inline 触发条件 → 走 §Light Inline 模式（主线程内联，零 dispatch）
   - `light` + 不满足 inline 条件 → 走 §Light Dispatch 模式（implementer 一次 dispatch 合并 RED+GREEN）
   - `standard` → Step 1 → Step 2 (RED) → Step 3 (GREEN) → Step 4 按条件 → Step 5
@@ -105,7 +90,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 3. `security_sensitive ≠ true`
 4. 执行模式 ∈ `TDD_INLINE_ELIGIBLE_MODES`（审计粒度通过 EVENT-LOG 事件保持，不依赖子代理隔离）
 
-**REFACTOR 条件触发**: 任务卡显式 `tdd_refactor: required` 强制触发；否则 implementer 在 GREEN/Light 完成后通过 `<agent-result>.refactor_needed` 自报告（true 时 orchestrator 调度 refactorer），不再为每个任务跑一次 code-review Layer 1。可在 sprint-review 阶段对累积 impl_files 跑批量 code-review L1 复核（见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）。
+**REFACTOR 条件触发**: 任务卡显式 `tdd_refactor: required` 强制触发；否则 implementer 在 GREEN/Light 完成后通过 `<agent-result>.refactor_needed` 自报告（true 时 orchestrator 调度 refactorer）；审计兜底见 §Step 4。
 
 ### Step 1: 准备任务上下文
 
@@ -160,7 +145,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     任务: 基于 §user_story 的业务场景，为 §tdd_acceptance 的所有 AC 编写验证行为的测试用例（禁止存在性断言），确保所有新增测试 FAIL。
 ```
 
-> **同模块 RED 批量化** (§C2): 当 orchestrator 一次性派发同 sprint_group 内同模块（context_load 共享 ≥1 个 arch#§2.M-xxx）的 N 个任务时，可合并为**一次 test-writer 调用**，prompt 内联各任务的 §tdd_acceptance（按 task_id 分块）和共享的接口契约，summary 中按 task_id 分块返回。仅适用于任务数 ≤ 4 且共享同一模块；否则回退到逐任务调度。
+> **同模块 RED 批量化**: 当 orchestrator 一次性派发同 sprint_group 内同模块（context_load 共享 ≥1 个 arch#§2.M-xxx）的 N 个任务时，可合并为**一次 test-writer 调用**，prompt 内联各任务的 §tdd_acceptance（按 task_id 分块）和共享的接口契约，summary 中按 task_id 分块返回。仅适用于任务数 ≤ 4 且共享同一模块；否则回退到逐任务调度。
 
 验证（orchestrator 执行）:
 
@@ -169,7 +154,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
    - **机械错** (SyntaxError / ImportError / 配置错 / 路径错) → 允许 continuation 至多 3 次，每次都明确告知具体错误信息
    - **语义错** (AC 含糊 / 测试断言不匹配契约 / 测试与 AC 不对应) → 至多 1 次 continuation，再失败则 blocked 请求人工介入
 
-  > 失败原因验证和断言有效性已由 test-writer 的 Execution Rules 完成；orchestrator 不再做 summary 字段级二次核验，避免主线程上下文重复消费 test-writer 详细输出。
+  > 失败原因验证和断言有效性已由 test-writer 的 Execution Rules 完成；orchestrator 不做 summary 字段级二次核验，避免主线程上下文重复消费 test-writer 详细输出。
 
 ### Step 3: GREEN Phase — 启动implementer子代理
 
@@ -204,10 +189,10 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
     RED 阶段产出 test_files: {RED 阶段返回的路径列表}
 
-    任务: 编写最小代码使所有测试通过。在 <agent-result> 中报告 refactor_needed (true/false) 与 refactor_reasons（命中 complexity/duplication/coupling 的具体说明）。
+    任务: 编写最小代码使所有测试通过。
 
     {{ 当 loc_estimate > MID_PROGRESS_LOC 或 len(tdd_acceptance) > 6 时附加 }}
-    见 §Mid-Progress Drop Contract，必须按 4 步契约推进（先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit）。
+    按你的 AGENT.md §Mid-Progress 落盘契约推进，禁止末尾堆批 Edit。
 ```
 
 验证（orchestrator 执行）:
@@ -312,15 +297,8 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
     任务: 基于 §user_story 的业务场景，先为 §tdd_acceptance 的每条 AC 写一份验证行为的失败测试（禁止存在性断言），确认 FAIL 后再补最小实现使测试通过。
 
-    === 输出要求 ===
-    在 <agent-result>.outputs 中同时返回:
-      - test_files: [...]
-      - impl_files: [...]
-    summary 中标注: "light mode — RED+GREEN 合并，最终测试全部 PASSED"
-    必须报告 refactor_needed / refactor_reasons。
-
     {{ 当 loc_estimate > MID_PROGRESS_LOC 或 len(tdd_acceptance) > 6 时附加 }}
-    见 §Mid-Progress Drop Contract，必须按 4 步契约推进（先骨架 → 逐 AC 填充 → 每 AC 后跑测试 → 禁止末尾堆批 Edit）。
+    按你的 AGENT.md §Mid-Progress 落盘契约推进，禁止末尾堆批 Edit。
 ```
 
 验证（orchestrator 执行）:
@@ -340,8 +318,6 @@ orchestrator 自身在主线程使用 Step 1 已提取的上下文，按 light �
 - REFACTOR 处理：同 light-dispatch
 - **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD LIGHT-INLINE: {T-xxx}"`
 
-收益：节省一次子代理 boot（AGENT.md + COMMON-RULES + dispatch-prompt 模板加载约 3-5K token）。
-
 ### Prototype Inline 模式 (执行模式 = agile-prototype)
 
 agile-prototype 项目的任务全部走 implementer **主线程内联**（即 light-inline 的特化），并强制跳过 REFACTOR：
@@ -359,29 +335,18 @@ orchestrator完成以下收尾:
 2. 核对deliverables清单(所有文件已创建)
 3. 代码审查分级触发:
    - **即时 per-task code-review**（reviewer dispatch）: 仅对满足以下任一条件的任务触发：`security_sensitive: true`、`user_facing_critical_path: true`、`consumer_components` 非空。审查范围包含 impl_files 和 test_files
-   - **延迟到 sprint-review 批量审查**: 其余任务不触发 per-task code-review，由 sprint-review 的 §Batch Code-Review 覆盖（见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）
-   - **prototype-inline**: 跳过 per-task code-review（不变）
+   - **延迟到 sprint-review 批量审查**: 其余任务不触发 per-task code-review，由 sprint-review 的批量 code-review 覆盖（见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）
+   - **prototype-inline**: 跳过 per-task code-review
 4. 通过 `cataforge context write` 将 dev-plan 对应任务实体的 status slot 更新为 done
 5. 如 blocked 且含 questions → 按 ORCHESTRATOR-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
 6. 如 blocked 且无 questions → 记录原因并请求人工介入
 
-> **Sprint级审查**: 当Sprint内所有任务完成Step 5后，orchestrator触发sprint-review skill。Sprint审查承担双重职责：(1) 对未经 per-task code-review 的延迟任务执行批量 code-review（Layer 1 + Layer 2），(2) 对所有任务执行完成度 / AC覆盖 / 范围偏移审查。sprint-review 在下一Sprint开始之前执行。
+> **Sprint级审查**: 当 Sprint 内所有任务完成 Step 5 后、下一 Sprint 开始之前，orchestrator 触发 sprint-review skill（批量 code-review 与完成度 / AC 覆盖 / 范围偏移的双重职责见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）。
 
 ## Anti-Patterns
 
 - 禁止: 在 agile-prototype 模式跑 standard TDD — prototype 设计是快速试错，跑完整三阶段会让重构延迟到正式化时丢失上下文
-- 禁止: 绕过 Mid-Progress Drop Contract 让 implementer 末尾批量 Edit — 触发条件命中（loc_estimate > MID_PROGRESS_LOC 或 AC > 6）时必须按 4 步契约执行，否则大概率触发子代理 truncation
+- 禁止: 绕过 Mid-Progress Drop Contract 让 implementer 末尾批量 Edit — 触发条件命中时必须按 4 步契约执行，否则大概率触发子代理 truncation
 - 禁止: 在 light-inline / prototype-inline 档调用 agent_dispatch — 内联档核心收益是省 boot token，调度子代理会让 inline 失效且违反 §Inline 触发条件
 - 禁止: REFACTOR 阶段修改测试 assertion 让 GREEN 通过 — refactorer 必须在不动行为契约前提下保持测试 PASS，触发后 orchestrator §Rolled-back Recovery Protocol 接管
 - 避免: REFACTOR 跨 sprint_group 并行 — 同 sprint_group 内 REFACTOR 必须串行（按 task_id 字典序），避免源文件并发改写冲突
-
-## 效率策略
-
-- 每个子代理拥有独立上下文，避免阶段间污染
-- 子代理间仅传递文件路径，非代码全文
-- 按context_load加载最小必要上下文
-- **light-inline 默认（agile-lite/prototype）**：典型小任务从 3 次子代理调度收敛到 0 次，主线程直接产出
-- **light-dispatch（inline 条件不满足时的 fallback）**：当 light 任务的 LOC 超过 `TDD_LIGHT_LOC_THRESHOLD` 或 `security_sensitive=true` 时 fallback 到 dispatch，保持子代理隔离
-- **REFACTOR 由 implementer self-report 触发**：消除每任务一次 code-review L1 的固定开销；sprint-review 阶段批量复核兜底
-- **同模块 RED 批量化**：sprint_group 内任务共享模块时，test-writer 一次写完多任务测试，减少子代理 boot 次数
-- **code-review 分级触发**：仅 `security_sensitive` / `user_facing_critical_path` / `consumer_components` 非空的高风险任务走即时 per-task code-review；其余延迟到 sprint-review 批量覆盖，单任务省去一次 reviewer dispatch

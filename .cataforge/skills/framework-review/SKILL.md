@@ -12,11 +12,11 @@ user-invocable: true
 
 ## 能力边界
 - 能做: 审查 `.cataforge/` 下的 agents / skills / hooks / rules 元资产；对账 SKILL.md ↔ CHECKS_MANIFEST；交叉引用图完整性；裸常量数值检测；workflow phase × agent × skill 覆盖矩阵；agent model_tier 合规
-- 不做: 修改被审元资产（仅产报告）；审查 src/ 下的业务代码（由 code-review scan 负责）；审查 IDE 厂商 profile 漂移（由 platform-audit 负责）
+- 不做: 修改被审元资产（仅产报告）；审查 src/ 下的业务代码；审查 IDE 厂商 profile 漂移
 
 ## 输入规范
 - scope: agents | skills | hooks | rules | workflow | all
-- 可选 `--focus`: 限定子检查（B1-α/β、B2-α/β、B3-α/β/γ、B4-α、B5-α/β/γ/δ/ε/ζ、B6-α/β/γ/δ/ε、B7-α/β/γ、B8-α/β/γ、B9-α/β/γ）
+- 可选 `--focus`: 限定子检查组（组级 ID B1…B9，逗号分隔；不支持 `B1-α` 子粒度写法——CLI 只按组匹配，子粒度值会静默匹配不到任何检查）
 - 可选 `--target <asset_id>`: 仅审单个 agent / skill 名（Layer 2 节省 token；Layer 1 仍按 scope 全跑）
 - 项目根下的 `.cataforge/` 目录（必读）
 - `cataforge.runtime.skill.builtins.*.CHECKS_MANIFEST`（B3 对账数据源，从已安装的 cataforge 包导入）
@@ -44,38 +44,16 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 ### Step 1: Layer 1 — 静态结构检查
 执行: `cataforge skill run framework-review -- {scope} [--focus B1,B2,B3,B4,B5,B6,B7,B8,B9]`
 
-返回码语义按 §Layer 1 调用协议。Layer 1 的子检查映射:
+返回码语义按 §Layer 1 调用协议。各子检查的判定语义与失败级别见 §Layer 1 检查项；scope → 子检查组映射:
 
-| 子检查 ID | 对应能力 | scope | 失败级别 |
-|----------|---------|-------|---------|
-| B1-α | 必填段存在 (能力边界 / 输入规范 / 输出规范 / Anti-Patterns / 操作指令) | agents, skills | FAIL |
-| B1-β | 元资产行数 ≤ META_DOC_SPLIT_THRESHOLD_LINES (含 agents `*PROTOCOL*.md` 伴生文档) | agents, skills, rules | WARN |
-| B2-α | 交叉引用图完整 (AGENT.md.skills + SKILL.md.depends + framework.json.features) | agents, skills, all | FAIL (引用不存在) / WARN (孤立) |
-| B2-β | SKILL.md suggested-tools ∈ capability registry (capability_id 规范, 非平台原生工具名) | skills, all | FAIL |
-| B3-α | SKILL.md "## Layer 1 检查项" 段与 builtin CHECKS_MANIFEST 对账 | skills | FAIL |
-| B3-β | 项目级 `skills/<skill>/rules/*.yaml` plugin 覆写文件按 rules loader schema 校验 | skills | FAIL |
-| B3-γ | `.cataforge/baselines/*.json` 变更与 CODE-SCAN 报告同变更集对账（工作区 + 最近 commit 两级） | skills | FAIL |
-| B4-α | SKILL.md / AGENT.md / 协议文档不得出现常量名对应的裸数值 | agents, skills, rules | WARN |
-| B5-α | Workflow 覆盖矩阵 phase→agent 单跳 (dispatch 表 vs agents/, dispatcher_skills 豁免) | workflow, all | WARN |
-| B5-β | phase→agent→skill 三跳 (每个 phase-routed agent ≥1 skill 且 skill 必须存在) | workflow, all | WARN |
-| B5-γ | EVENT-LOG.jsonl agent_return 事件 ↔ phase routing 对账 (≥`EVENT_LOG_DRIFT_MIN_EVENTS` 启用，否则 INFO) | workflow, all | FAIL / WARN / INFO |
-| B5-δ | framework.json features[*].phase_guard ↔ Phase Routing 已知 phase 对账 | workflow, all | WARN |
-| B5-ε | validate_agent_result PostToolUse hook 必须在 hooks.yaml 以 matcher_capability=agent_dispatch 注册 | workflow, all | FAIL |
-| B5-ζ | workflow interactive=true 的 phase 须 inline（除非平台 features.subagent_interactive=true；带 ack 降级 INFO） | workflow, all | FAIL / INFO |
-| B6-α | hooks.yaml 引用的 script 必须解析到真实 .py 文件 (builtin / custom) | hooks, all | FAIL |
-| B6-β | 每个 hook script .py 必须 ast.parse 成功 | hooks, all | FAIL |
-| B6-γ | matcher_capability 必须是 CAPABILITY_IDS / EXTENDED_CAPABILITY_IDS 成员 | hooks, all | FAIL |
-| B6-δ | 每 platform profile.yaml 的 hooks.degradation 与 hooks.yaml 脚本集对账 | hooks, all | WARN (缺) / WARN (孤儿) |
-| B6-ε | hooks.yaml 非 custom: 脚本 ∈ cataforge.runtime.hook.manifest.HOOKS_MANIFEST | hooks, all | FAIL (孤儿引用) / WARN (未挂的 manifest 条目) |
-| B7-α | AGENT.md `model_tier` 合规 + 与 AGENT_MODEL_DEFAULTS 一致；heavy 需进白名单 | agents, all | FAIL / WARN |
-| B7-β | AGENT.md 仍含 legacy `model:` 字段 | agents, all | FAIL |
-| B7-γ | platform profile.yaml `model_routing.tier_map` 覆盖 light/standard/heavy | agents, all | WARN |
-| B8-α | 每个非豁免 skill / agent 应有 `## Anti-Patterns` 段 | agents, skills, all | WARN |
-| B8-β | Anti-Patterns bullet 数 ≥ ANTI_PATTERN_MIN_COUNT_SKILL (skill) / ANTI_PATTERN_MIN_COUNT_AGENT (agent) | agents, skills, all | FAIL |
-| B8-γ | Anti-Patterns 每条 bullet 正文 ≥ 12 字符（过滤 placeholder 占位条目） | agents, skills, all | WARN |
-| B9-α | migration_checks 活跃条目: editable 树下 src/ 路径存在性 + allow_missing 类型适配 | workflow, all | WARN |
-| B9-β | migration_checks `deprecate_after` 必须 > `release_version` | workflow, all | WARN |
-| B9-γ | migration_checks 已废弃且路径缺失的死条目提示 | workflow, all | INFO |
+| scope | 子检查 |
+|-------|--------|
+| agents | B1-α/β, B2-α, B4-α, B7-α/β/γ, B8-α/β/γ |
+| skills | B1-α/β, B2-α/β, B3-α/β/γ, B4-α, B8-α/β/γ |
+| rules | B1-β, B4-α |
+| hooks | B6-α…ε |
+| workflow | B5-α…ζ, B9-α/β/γ |
+| all | B2, B5, B6, B7, B8, B9 |
 
 `--focus` 缺省时执行 scope 对应的全部子检查。
 
@@ -139,7 +117,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 > 权威清单见 `cataforge.runtime.skill.builtins.framework_review.CHECKS_MANIFEST`。
 <!-- requires: cataforge>=0.4.1 -->
 
-下方锚点列表会跟随 main 分支推进 —— 若运行时 cataforge 版本低于 `requires` 声明，B3-α 会把"锚点找不到 manifest 条目"从 FAIL 降级为 INFO 并提示升级 cataforge。
+运行时 cataforge 版本低于 `requires` 声明时，B3-α 把锚点缺失从 FAIL 降级为 INFO 并提示升级。
 
 - B1-α: AGENT.md / SKILL.md 必填段（能力边界 / 输入规范 / 输出规范 / Anti-Patterns / 操作指令 任选其一作为入口段）<!-- check_id: B1_required_sections -->
 - B1-β: 单文件行数 ≤ META_DOC_SPLIT_THRESHOLD_LINES (WARN 提示拆分)；覆盖 AGENT.md / SKILL.md / `agents/<id>/*PROTOCOL*.md` 伴生文档 / `rules/*.md` 四类 prompt-context 文件，与 {INSTRUCTION_FILE} §硬约束 1 对齐<!-- check_id: B1_size_threshold -->
@@ -164,7 +142,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 categor
 - B7-β: AGENT.md 仍含 legacy `model: <id>` 字段（无 `model_tier:`）→ FAIL，必须迁移；deploy 直接丢弃 legacy `model:` 行（无过渡期）<!-- check_id: B7_legacy_model_field -->
 - B7-γ: platform `profile.yaml#/model_routing` 在 `per_agent_model: true` 且 `user_resolved: false` 时，`tier_map` 必须同时声明 `light` / `standard` / `heavy` 三档；缺哪档则该档 deploy 时静默不写 `model:` → WARN<!-- check_id: B7_platform_tier_map -->
 - B8-α: 每个非豁免 skill / agent 应有 `## Anti-Patterns` 段；缺失 WARN（留作 backlog 渐进补齐，不阻塞流程）<!-- check_id: B8_anti_pattern_section_present -->
-- B8-β: skill bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_SKILL`（默认 3），agent bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_AGENT`（默认 4）；不足 FAIL<!-- check_id: B8_anti_pattern_floor -->
+- B8-β: skill bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_SKILL`，agent bullet 数 ≥ `ANTI_PATTERN_MIN_COUNT_AGENT`；不足 FAIL<!-- check_id: B8_anti_pattern_floor -->
 - B8-γ: 每条 bullet 正文 ≥ 12 字符（过滤 placeholder 占位条目，如 `- 禁止: x`）；命中 WARN<!-- check_id: B8_anti_pattern_substantive -->
 - B9-α: 解析 framework.json `migration_checks` → 活跃（未废弃）条目: editable 树（`src/cataforge/` 存在）下 `path` 以 `src/` 开头却缺失 → WARN（检查对空内容静默放行）；`allow_missing` 挂在非 `file_must_not_contain` type 上 → WARN（该 flag 仅此 type 消费）<!-- check_id: B9_migration_path_validity -->
 - B9-β: `deprecate_after` 语义版本 ≤ `release_version` → WARN（条目发布即废弃，任何已发布版本都不会执行它）<!-- check_id: B9_migration_deprecate_order -->

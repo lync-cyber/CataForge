@@ -10,7 +10,7 @@ user-invocable: true
 
 # 统一上下文 I/O (context)
 
-文档生命周期的单一能力入口。读取、关系查询、生成/写入、校验都经 `cataforge context` / `cataforge docs` 表达**意图**;由哪个后端服务、用何种保真度,由框架按项目配置的上下文方案路由,调用方无需感知。后端能力**非对称**:读取/生成/校验按方案路由且在后端不可达时降级;关系追溯(query 分支)是图原生能力,需图后端就绪(无对等文件回退)。
+文档生命周期的单一能力入口(`cataforge context`,其文件后端引擎为 `cataforge docs`),后端路由纪律见 COMMON-RULES §Agent 文档 I/O 契约。后端能力**非对称**:读取/生成/校验按方案路由且在后端不可达时降级;关系追溯(query 分支)是图原生能力,需图后端就绪(无对等文件回退)。
 
 ## 能力边界
 - 能做: 按需加载章节/实体、依赖与追溯查询、文档生成与写入、单文档与跨文档门禁校验
@@ -18,7 +18,7 @@ user-invocable: true
 
 ## 输入规范
 - 操作分支: `navigate` | `generate` | `review` | `consistency` | `query`
-- 引用: `doc_id#§N[.item]`(如 `prd#§2.F-001`、`arch#§1`)
+- 引用: `doc_id#§N[.item]`(格式见 COMMON-RULES §文档引用格式)
 - 各分支的参数与命令见对应 reference 文件
 
 ## 输出规范

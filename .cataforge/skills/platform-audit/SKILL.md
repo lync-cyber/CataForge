@@ -18,10 +18,10 @@ user-invocable: true
 
 CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
-1. **核心能力 ID** (`CAPABILITY_IDS`) — 10 个必需的工具级映射（file_read, shell_exec, agent_dispatch 等）
+1. **核心能力 ID** (`CAPABILITY_IDS`) — 工具级映射（file_read, shell_exec, agent_dispatch 等；其中 `OPTIONAL_CAPABILITY_IDS` 所列项可选）
 2. **扩展能力 ID** (`EXTENDED_CAPABILITY_IDS`) — 部分平台独有的工具（notebook_edit, browser_preview, image_input, code_review）
-3. **Agent 配置** (`AGENT_FRONTMATTER_FIELDS`) — 17 个 agent 定义 frontmatter 字段的跨平台超集
-4. **平台特性** (`PLATFORM_FEATURES`) — 17 个 boolean 功能标志（cloud_agents, agent_teams, scheduled_tasks 等）
+3. **Agent 配置** (`AGENT_FRONTMATTER_FIELDS`) — agent 定义 frontmatter 字段的跨平台超集
+4. **平台特性** (`PLATFORM_FEATURES`) — boolean 功能标志（cloud_agents, agent_teams, scheduled_tasks 等；清单与计数以 `types.py` 为准）
 5. **权限模型** — 审批模式集，各平台在 `profile.yaml` 的 `permissions.modes` 声明所支持的子集
 6. **模型路由** — 可用模型列表和 per-agent 模型选择支持
 7. **Hook 事件** — 5 个标准事件 + 降级策略
@@ -50,8 +50,8 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 | **full** | 定期对齐（建议每月一次）或已知某平台有重大版本更新 | 指令 1 |
 | **quick-check** | 只想知道当前配置是否过期，不执行修改 | 指令 2 |
 | **deep `<platform_id>`** | 某平台刚发布重大更新，需深度审计 | 指令 3 |
-| **evaluate `<platform_name>`** | 评估新 AI IDE 是否可接入 | `references/evaluate-new-platform.md` |
-| **offline** | CI / 本地静态门禁：不联网、不需 LLM，只跑可执行的合规子集 | 指令 5 |
+| **evaluate `<platform_name>`** | 评估新 AI IDE 是否可接入（不修改仓库内任何文件，输出可行性报告供决策） | `references/evaluate-new-platform.md` |
+| **offline** | CI / 本地静态门禁：不联网、不需 LLM，只跑可执行的合规子集 | 指令 4 |
 
 ---
 
@@ -119,18 +119,7 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
 **Step 5: 影响范围评估**
 
-对每个差异项，评估波及的文件:
-
-- `profile.yaml` — 几乎所有差异都需要更新
-- `src/cataforge/core/types.py` — CAPABILITY_IDS / OPTIONAL / EXTENDED / AGENT_FRONTMATTER_FIELDS / PLATFORM_FEATURES
-- `profile.yaml` 的 `permissions.modes` — 各平台支持的审批模式集
-- `src/cataforge/adapter/platform/<id>.py` — adapter 代码（tool_overrides / deploy_agents / inject_mcp_config）
-- `src/cataforge/adapter/platform/base.py` — 基类属性（仅当新增通用属性时）
-- `src/cataforge/runtime/hook/bridge.py` — hook 生成逻辑
-- `src/cataforge/adapter/platform/conformance.py` — 合规检查逻辑
-- `.cataforge/platforms/<id>/overrides/dispatch-prompt.md` — 调度提示模板
-- `.cataforge/platforms/_schema.yaml` — profile 字段定义
-- `tests/test_platform.py` / `test_hook_bridge.py` / `test_translator.py` / `test_conformance.py` / `test_deployer_refactor.py`
+对每个差异项，按 [`references/audit-checklist.md`](references/audit-checklist.md) §16 源码影响矩阵定位波及文件；`profile.yaml` 几乎全部差异都涉及。
 
 **Step 6: 输出差异报告**
 
@@ -197,17 +186,13 @@ python -c "from cataforge.adapter.platform.conformance import check_all_extended
 
 **Step 13: 运行完整测试套件**
 
-```bash
-python -m pytest tests/ -v
-```
+按项目指令文件 §执行环境 的测试命令（本仓为 `uv run pytest`）跑全量 tests/。
 
 所有测试必须通过。如有失败: 分析（通常是 fixture 数据未同步更新）→ 修复 → 重跑。特别注意 `test_deployer_refactor.py` — 它使用内联 profile，不受 profile.yaml 变更影响，但 deployer 代码变更可能影响它。
 
 **Step 14: 运行 linter**
 
-```bash
-python -m ruff check src/ tests/
-```
+按项目指令文件 §执行环境 的 lint 命令（本仓为 `uv run ruff check`）。
 
 确保修改的文件无 lint 错误。预先存在的非相关文件的 lint 错误无需修复。
 
@@ -248,13 +233,7 @@ python -m ruff check src/ tests/
 
 ---
 
-### 指令4: 新平台接入评估 (evaluate `<platform_name>`)
-
-完整流程见 `references/evaluate-new-platform.md`。**不修改仓库内任何文件**，输出可行性报告供决策。
-
----
-
-### 指令5: 离线子集 (offline)
+### 指令4: 离线子集 (offline)
 
 CI 与本地预检用的无网络子集，由 builtin 执行、不需要 LLM：
 
@@ -274,36 +253,12 @@ cataforge skill run platform-audit -- --offline
 
 ## 关键检查维度详解
 
-审计需要覆盖的维度见 `references/audit-checklist.md`。以下是最容易出问题的点:
+审计需要覆盖的维度与各维度判定规则见 `references/audit-checklist.md`。以下仅列 checklist 之外的易错点:
 
-### tool_map 映射陷阱
 - **名称大小写**: Claude Code 用 `Bash`，Codex 用 `shell`，OpenCode 用 `bash` — 大小写敏感
 - **合并工具**: Cursor v3 将 `file_edit` 和 `file_write` 合并为同一个 `Write` 工具
 - **null 语义**: `null` 表示平台不提供该能力，不是"未知" — 需确认是真的不支持还是名称未查到
-- **hook matcher vs tool_map**: 有些平台的 hook 事件使用不同于 tool_map 的工具名称（如 Codex tool_map 用 `shell` 但 hook 用 `Bash`），此时需配置 `hooks.tool_overrides`
-
-### extended_capabilities 扩展原则
-- 新增扩展能力 key 的两步: (1) 在 `types.py` 的 `EXTENDED_CAPABILITY_IDS` 添加 (2) 在各 `profile.yaml` 的 `extended_capabilities` 添加
-- 无需修改 adapter 代码 — `get_extended_tool_map()` 自动读取 profile
-- 当某个扩展能力被 3+ 平台支持时，考虑提升为核心能力
-
-### agent_config 字段管理
-- `supported_fields` 列出该平台的 agent frontmatter 支持哪些字段
-- 新增跨平台字段时: (1) 添加到 `types.py` 的 `AGENT_FRONTMATTER_FIELDS` (2) 在支持该字段的平台 profile 的 `supported_fields` 中添加
-- 平台特有字段（如 Codex 的 `sandbox_mode`）也列在该平台的 `supported_fields` 中
-
-### features 特性管理
-- `features` 中的 key 可自由扩展，无需修改 adapter 代码
-- 新增 key 时: (1) 添加到 `types.py` 的 `PLATFORM_FEATURES` (2) 在各 `profile.yaml` 添加
-- 特性 flag 为 `false` 不等于"不知道"，它表示"审计时确认不支持"
-
-### hooks.degradation 判定标准
-- **native**: 平台原生支持该 hook 的事件类型 + 对应的 matcher/工具
-- **degraded**: 平台不支持某环节（如无 Notification 事件、无 agent matcher），需降级为规则注入/prompt 指令/跳过
-
-### 版本号约定
-- `version_tested` 记录的是 **审计时的平台版本**，不是 CataForge 版本
-- 格式跟随各平台自己的版本号格式（如 Cursor 用语义化版本 "3.1"，Codex 用日期版本 "2026.04"）
+- **版本号约定**: `version_tested` 记录的是**审计时的平台版本**（非 CataForge 版本），格式跟随各平台自己的版本号格式
 
 ## Anti-Patterns
 - 禁止: 修改 adapter 代码而不先更新 profile.yaml —— profile 是 single source of truth；倒序修改让代码与配置漂移

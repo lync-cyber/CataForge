@@ -30,7 +30,7 @@ user-invocable: true
 - **已配置 lint hook** → 编码阶段已通过 hook 以 `--fix` 模式实时修复格式/lint问题，跳过 Layer 1，直接进入 Step 2 Layer 2，并在审查报告标题下标注 `Layer 1 delegated to hook`
 - **未配置 lint hook** → 执行: `cataforge skill run code-review -- review {file_or_dir}`
 
-**调用约定（单一入口）**: Layer 1 一律通过 `cataforge skill run <skill-id> -- <args>` 触发，由框架解析 SKILL.md 元数据并派发到内置脚本或项目覆写脚本。**不得**直接 `python .cataforge/skills/.../scripts/*.py`——该路径为框架内部实现细节，不保证存在。返回码语义按 §Layer 1 调用协议处理（exit 1 时可追加 `--fix` 自动修复后重新检查）；未知参数与非法 `--focus` 值为用法错误（exit 2）。两个模式均支持 `--format json` 输出结构化 finding（Layer 2 与报告聚合的机读输入）。
+**调用约定**: 入口与返回码语义按 COMMON-RULES §Layer 1 调用协议。本 skill 增量：exit 1 时可追加 `--fix` 自动修复后重新检查；未知参数与非法 `--focus` 值为用法错误（exit 2）；两个模式均支持 `--format json` 输出结构化 finding（Layer 2 与报告聚合的机读输入）。
 
 工具适配与检查清单见 §Layer 1 检查项；工具不存在时自动跳过并 WARN，不阻断检查流程。
 
@@ -43,7 +43,7 @@ user-invocable: true
 满足以下任一条件且 Layer 1 exit 0 时**跳过 Layer 2** 直接判定为 `approved`:
 
 1. 任务卡 `task_kind ∈ CODE_REVIEW_L2_SKIP_TASK_KINDS`（默认 `[chore, config, docs]`）
-2. 任务卡 `tdd_mode: light` + AC 数 ≤ `CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC`（默认 2） + Layer 1 输出无 security/error-handling 类 finding
+2. 任务卡 `tdd_mode: light` + AC 数 ≤ `CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC` + Layer 1 输出无 security/error-handling 类 finding
 3. 调度方声明 layer1-only 降级（由 ORCHESTRATOR-META-PROTOCOLS §Adaptive Review 反向降级触发；这是 Layer 2 编排参数，不传入 Layer 1 CLI——CLI 只认 `review|scan` 子命令与 `--fix`/`--focus`/`--format`，未知参数报 exit 2）
 
 **短路豁免**（即使命中上述条件也强制跑 Layer 2）:
@@ -82,17 +82,7 @@ user-invocable: true
 报告编号按 COMMON-RULES §报告编号规则，前缀 CODE-REVIEW-{task_id}，目录 docs/reviews/code/。
 
 ### Step 4: 产出审查报告
-产出 `CODE-REVIEW-{task_id}-r{N}.md`，**首行必须为 YAML front matter**（按 COMMON-RULES §报告 Front Matter 约定），缺失会导致 `cataforge context index` 跳过该文件并被 `cataforge doctor` 计为 orphan。最小模板：
-
-```yaml
----
-id: "code-review-{task_id}-r{N}"
-doc_type: code-review
-author: reviewer
-status: draft               # 出 verdict 后改 approved
-deps: ["{task_id}"]
----
-```
+产出 `CODE-REVIEW-{task_id}-r{N}.md`，**首行必须为 YAML front matter**，字段按 COMMON-RULES §报告 Front Matter 约定（本模式 delta：`id: "code-review-{task_id}-r{N}"`、`deps: ["{task_id}"]`）；缺失会导致 `cataforge context index` 跳过该文件并被 `cataforge doctor` 计为 orphan。
 
 front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类 / §统一问题分类体系 提供 root_cause / category 枚举。
 
@@ -126,17 +116,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 - 豁免盘点（`pragma_inventory`）：unknown-pragma 残留 / 缺 reason → MEDIUM；高龄豁免（长期未清理）→ LOW 并列入重构建议
 
 ### Step 3: 产出扫描报告
-报告路径: `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md`（编号规则：当日同前缀已存在 r1 则递增到 r2）。Front matter 模板:
-
-```yaml
----
-id: "code-scan-{YYYYMMDD}-r{N}"
-doc_type: code-review
-author: reviewer
-status: draft
-deps: []
----
-```
+报告路径: `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md`（编号规则：当日同前缀已存在 r1 则递增到 r2）。Front matter 字段按 COMMON-RULES §报告 Front Matter 约定（本模式 delta：`id: "code-scan-{YYYYMMDD}-r{N}"`、`deps: []`）。
 
 问题列表按 COMMON-RULES §问题格式；可用 category: structure / duplication / dead-code / complexity / coupling / performance / error-handling / security / consistency / convention / arch。
 

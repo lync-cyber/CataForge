@@ -43,8 +43,7 @@ user-invocable: true
 ### 分支 A: 新项目启动
 1. 读取 {AGENTS_SRC_DIR}/orchestrator/AGENT.md 的角色定义
 2. 执行 `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap
-   - 其中 Step 2 会通过 AskUserQuestion 询问执行模式（standard / agile-lite / agile-prototype），选项语义见 COMMON-RULES §执行模式矩阵
-3. 进入初始阶段（由执行模式决定，见 Bootstrap Step 8）
+3. 进入初始阶段（由执行模式决定，见 Bootstrap 末步「进入初始阶段」）
 
 ### 分支 B: 继续已有项目
 
@@ -54,11 +53,7 @@ user-invocable: true
 3. 版本检查仅提示，不阻断流程，继续 B.2
 
 #### B.2: 恢复推进
-1. 读取 {INSTRUCTION_FILE} 获取当前阶段和项目状态
-2. 分支处理:
+1. 读取 {AGENTS_SRC_DIR}/orchestrator/AGENT.md 的角色定义，执行其 §Startup Protocol 恢复推进（读状态 / 读索引 / 路由由该协议承担）
+2. 本入口独有分支:
    - 当前阶段=completed → 提示项目已完成，询问用户意图(新版本/新需求/重新审查)
-   - 当前阶段=development 且存在未完成任务 → 定位到当前Sprint和具体任务，恢复TDD流程
-   - 用户指定目标阶段（如"从架构设计开始"）→ 验证前置条件后跳转（前置条件校验规则见 ORCHESTRATOR-PROTOCOLS §Phase Transition Protocol，如上游文档须已 approved）
-   - 其他 → 正常恢复
-3. 读取 {AGENTS_SRC_DIR}/orchestrator/AGENT.md 的角色定义
-4. 执行 Startup Protocol 恢复推进
+   - 用户指定目标阶段（如"从架构设计开始"）→ 验证前置条件后跳转（前置条件见 orchestrator AGENT.md §Phase Routing，如上游文档须已 approved）

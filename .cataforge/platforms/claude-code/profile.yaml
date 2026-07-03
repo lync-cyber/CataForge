@@ -124,6 +124,7 @@ hooks:
     notify_permission: native
     session_context: native
     deploy_drift: native
+    git_sync: native
 
 features:
   cloud_agents: false

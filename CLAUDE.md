@@ -23,7 +23,7 @@
 - 技术栈: python
 - 包管理器: uv
 - 安装命令: `uv sync`
-- 测试命令: `uv run pytest`
+- 测试命令: `uv run pytest -n auto --dist loadscope`（全量并行；快速迭代档加 `-m "not slow"`，与 CI 同口径。裸 `uv run pytest` 串行全量含 slow e2e，仅调试单文件时使用）
 - Lint 命令: `uv run ruff check`
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)

@@ -12,9 +12,9 @@ user-invocable: true
 
 ## 能力边界
 - 能做: 读 Penpot 组件结构/样式/Token 实值；Token 双向同步（ui-spec ↔ Penpot ↔ tokens.css）；从 Penpot 设计生成组件代码骨架；设计↔代码视觉一致性校验
-- 不做: 需求/架构/页面信息设计（由 ui-design 负责）；业务逻辑/状态管理/API 对接（由 TDD GREEN 负责）；修改 ui-spec 语义契约（语义恒以 ui-spec 为权威源）
+- 不做: 需求/架构/页面信息设计（由 ui-design 负责）；业务逻辑/状态管理/API 对接（由 TDD GREEN 负责）；修改 ui-spec 语义契约
 
-> 权威划分：语义（Token 命名/意图、组件身份/Props/状态/AC、页面结构/状态流/路由）恒以 ui-spec 为权威源；视觉实值（Token 值/精确几何/真实 CSS）随 authoring surface（doc-first 默认 ui-spec、Penpot-first 取 Penpot）。详见 ui-spec 模板「权威源约定」。
+> 权威划分（语义 vs 视觉实值）见 ui-spec 模板「权威源约定」。
 
 ## 前置条件（所有操作共用）
 - {INSTRUCTION_FILE} `设计工具` 字段为 `penpot`
@@ -22,7 +22,7 @@ user-invocable: true
 
 ## 输入规范
 - read: UC-{NNN} 或 Penpot 组件名
-- sync: ui-spec#§1 设计系统 Token + sync-direction ∈ {emit, mirror, ingest}（tokens.css 为 ui-spec §1 的单向派生）
+- sync: ui-spec#§1 设计系统 Token + sync-direction ∈ {emit, mirror, ingest}
 - generate: ui-spec#§2 UC-{NNN}（Props/变体/交互——语义）+ arch#§1.4 技术栈 + Penpot 组件设计数据（视觉，经 read）
 - verify: Penpot 组件设计数据（视觉权威源，经 read）+ 已实现组件代码路径 + ui-spec#§2 UC-{NNN}（语义参照）
 

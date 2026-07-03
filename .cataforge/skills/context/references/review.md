@@ -7,7 +7,7 @@ Layer 1 脚本自动检查 + Layer 2 AI 语义审查双审。审查范围限 `do
 ```bash
 cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{doc_file} --docs-dir docs/{doc_type}/
 ```
-分卷加 `--volume-type {type}`。所有分卷必须全部通过 Layer 1 才进入 Layer 2。xref / 双向覆盖等检查由框架按当前可用的最高保真后端执行,Agent 无需感知后端。
+分卷加 `--volume-type {type}`。所有分卷必须全部通过 Layer 1 才进入 Layer 2。xref / 双向覆盖等检查由框架按当前可用的最高保真后端执行。
 
 **Layer 2 短路**: Layer 1 exit 0、行数 < `DOC_REVIEW_L2_SKIP_THRESHOLD_LINES`、且（`doc_type ∈ DOC_REVIEW_L2_SKIP_DOC_TYPES` 或 frontmatter `mode ∈ {agile-lite, agile-prototype}`）→ 跳过 Layer 2 判 `approved`(仍出报告并标注短路)。lite 文档 doc_type 是基名 prd/arch/dev-plan，靠 `mode` 而非 doc_type 命中短路。
 

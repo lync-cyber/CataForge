@@ -21,9 +21,9 @@ user-invocable: true
 - testing不重写tdd-engine已有测试，仅补充覆盖盲区(边界条件、异常路径、未覆盖分支)
 
 ## 与debug的关系
-- testing 输出"缺陷清单"后，由 orchestrator 调度 debug skill 接管根因定位与最小修复（testing 本身不改源码）
+- testing 输出"缺陷清单"后，由 orchestrator 调度 debug skill 接管根因定位与最小修复
 - debug 修复完成后由 testing 重跑相关用例验证；debug 内部已含回归验证步骤，testing 在缺陷清单上标 closed
-- testing 仅记录现象 / 复现步骤 / 关联任务 ID，不替代 debug 的根因分析
+- testing 仅记录现象 / 复现步骤 / 关联任务 ID
 
 ## 输入规范
 - dev-plan 任务列表和验收标准
@@ -57,7 +57,6 @@ user-invocable: true
 - 输入: 任务卡验收标准 + 接口契约
 - 范围: 仅补充 tdd-engine 未覆盖的函数/方法级盲区（边界条件 / 异常路径 / 未覆盖分支），隔离外部依赖，不重写已有单测
 - 工具: 按项目技术栈选择单测框架
-- 定位: 补充 DEV 阶段覆盖盲区（见 §与tdd-engine的关系）
 
 **Integration测试**:
 - 输入: arch接口契约 + 模块间依赖关系
@@ -82,11 +81,11 @@ user-invocable: true
 4. 结论与建议(是否达到发布标准)
 5. 通过context填充test-report模板
 
-## Layer 1 检查项 (e2e_backdoor_scan)
+## Layer 1 检查项
 
 > 权威清单见 `cataforge.runtime.skill.builtins.testing.CHECKS_MANIFEST`（framework-review 自动对账，本段与 manifest 不一致即 FAIL）。
 
-- e2e 后门正则扫描 (tests/e2e/**) — 默认覆盖 .js/.ts/.jsx/.tsx + .py；命中后门注入模式（预构造状态直注入 / 测试专用查询参数 / store 直灌等，按语言正则见 e2e-{lang}.yaml）即 WARN
+- e2e 后门正则扫描 (tests/e2e/**) — 覆盖语言/扩展名由 e2e-{lang}.yaml 声明；命中后门注入模式（预构造状态直注入 / 测试专用查询参数 / store 直灌等，按语言正则见 e2e-{lang}.yaml）即 WARN
 - 真实输入路径声明 — e2e 套件至少含一处真实交互调用（键入 / 填充 / 点击，各框架 API 见 [`test-and-e2e-apis.md`](../../references/test-and-e2e-apis.md)），无任何 → WARN（提示套件可能纯 fixture 注入）
 
 调用：`cataforge skill run testing -- scan-e2e tests/e2e/`，返回码语义按 §Layer 1 调用协议。
@@ -104,7 +103,7 @@ user-invocable: true
 
 - 禁止：e2e 通过 `window.__*__` / `?e2e=1` / `?test=1` 后门或守门绕过真实用户输入路径；e2e 必须 ≥1 次真实浏览器交互（键入 / 点击等真实输入原语）作为 verdict=approved 前置条件
 - 禁止：直接注入预构造数据（store action / 组件状态 setter / AST 直灌等）替代真实输入路径 — 编辑器/表单/路由的 wiring 链路必须由测试照过
-- 禁止：把"沙盒不可达 → CI 兜底"作为 verdict=conditional_release 的放行理由 —— `conditional_release` 必须显式声明 `blocking_conditions: []`，未消除前 Phase Transition 不能推进（详见 §Verdict 判定语义对应 qa-engineer/AGENT.md）
+- 禁止：以"沙盒不可达 → CI 兜底"放行 conditional_release —— 阻塞语义见 COMMON-RULES §verdict_blocking_semantics
 - 避免：单元测试用测试框架的 module-mock 全 stub 替换被测包的顶层导出，导致接口契约未真实验证（sprint-review `ac-coverage` 维度会复核）
 
 ## 效率策略

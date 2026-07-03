@@ -35,7 +35,7 @@ Agent遇到不确定性时:
 触发场景: 需求模糊/缺失/存在多个合理选项
 工具: AskUserQuestion (主线程 / 内联承载的角色可直接使用；派发子代理为非交互执行体，须经指令2b 以 needs_input 回传由 orchestrator 代问)
 执行步骤:
-1. 组织问题: 一次最多3个问题，每问题最多4个选项
+1. 组织问题: 一次最多 MAX_QUESTIONS_PER_BATCH 个问题，每问题最多4个选项
 2. 每个选项包含简短说明帮助决策
 3. 通过AskUserQuestion向用户展示并等待回答
 4. 收集完信息后写入当前文档相关章节
@@ -53,7 +53,7 @@ Agent遇到不确定性时:
 ### 指令3: 资料查阅 (doc-lookup)
 触发场景: 需要参考已有项目文档/技术规范
 执行步骤:
-1. 通过context的load-section指令加载相关章节
+1. 通过 context navigate 分支（`cataforge context read`）按章节加载相关内容
 2. 提取并汇总相关信息
 3. 将摘要返回给调用Agent
 
@@ -63,8 +63,3 @@ Agent遇到不确定性时:
 - 禁止: 把推测当 evidence 引用 — 未标 [ASSUMPTION] 的假设进入正式文档会让 reviewer 无法识别"已确认事实"和"待验证猜测"
 - 避免: 一次 user-interview 提问超过 MAX_QUESTIONS_PER_BATCH — 用户决策成本陡升、回答完整度下降，应按 batch 拆分
 - 禁止: web-search / web-fetch 不可达或被拒时静默返回空结论 —— 按 COMMON-RULES §通用 Error Handling 标 [ASSUMPTION] 给出基于已有上下文的合理默认并记录待验证缺口，仅在结论完全无法支撑时返回 blocked
-
-## 效率策略
-- 选择题优先，降低用户回答成本
-- 调研结果直接写入文档，避免二次整理
-- 所有假设标注[ASSUMPTION]，可追溯

@@ -41,7 +41,7 @@ Supported fields: <list>
 Memory scopes: <list or none>
 Isolation modes: <list or none>
 
-=== Features (17) ===
+=== Features ===
 cloud_agents: true/false
 agent_teams: true/false
 parallel_agents: true/false
@@ -75,4 +75,4 @@ Sandbox: <mode>
 MCP: <support level>
 ```
 
-> 17 个 features 的语义见 `src/cataforge/core/types.py::PLATFORM_FEATURES`；17 个 agent frontmatter 字段见同文件 `AGENT_FRONTMATTER_FIELDS`。
+> features 的语义见 `src/cataforge/core/types.py::PLATFORM_FEATURES`；agent frontmatter 字段见同文件 `AGENT_FRONTMATTER_FIELDS`。

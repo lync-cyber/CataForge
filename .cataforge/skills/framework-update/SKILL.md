@@ -19,7 +19,7 @@ user-invocable: true
 - 无参数时默认执行完整流程（check → 确认 → apply）
 - `--dry-run`: 仅在 apply 中有效，预览 plan 不写盘
 - `--upgrade-package`: 在 apply 中强制执行 pip/uv 包升级（缺省仅在 check 探测到包落后时升级）
-- 脊柱命令 `cataforge bootstrap` 幂等自决每步 skip/run；本 skill 是其薄编排层
+- 本 skill 是脊柱命令 `cataforge bootstrap` 的薄编排层
 
 ## 输出规范
 - 版本对比（scaffold 版本 vs 已安装版本）与初始化状态（{INSTRUCTION_FILE} 是否存在）
@@ -36,15 +36,12 @@ user-invocable: true
 
 **Step 1: 读取当前状态**
 
-并行执行:
+执行:
 ```bash
 cataforge upgrade check
 ```
-```bash
-python3 -c "import cataforge; print(cataforge.__version__)"
-```
 
-记录 `installed_version`（已安装包）、`scaffold_version`（`framework.json` 的 `version`）、二者是否一致，以及 `{INSTRUCTION_FILE}` 是否存在（→ 需 init / 已初始化）。
+从输出记录 `installed_version`（Installed package 行）、`scaffold_version`（Scaffold version 行）、二者是否一致，以及 `{INSTRUCTION_FILE}` 是否存在（→ 需 init / 已初始化）。
 
 **Step 2: 报告**
 
@@ -177,14 +174,8 @@ FAIL 时输出具体原因并建议修复（通常重跑 `framework-update apply
 
 ## 字段保留规则
 
-`upgrade apply` 刷新时的保留策略（由 `cataforge` 包内部实现，本 skill 不额外干预）:
+`upgrade apply` 刷新时的保留策略（由 `cataforge` 包内部实现，本 skill 不额外干预）: `framework.json` 仅保留 `runtime.platform` 与 `upgrade.state`（后者由本 skill Step 4 手动写入，升级日期与版本记录持久保留），其余字段与其它 `.cataforge/` 文件**全量覆盖**；apply 前自动快照到 `.cataforge/.backups/<ts>/`。
 
-| 文件 | 保留项 | 覆盖项 |
-|------|--------|--------|
-| `framework.json` | `runtime.platform`、`upgrade.state` | `version`、`constants`、`features`、`migration_checks`、`upgrade.source` |
-| 其它 `.cataforge/` 文件 | — | **整个文件**；apply 前自动快照到 `.cataforge/.backups/<ts>/`，用 `cataforge upgrade rollback` 恢复 |
-
-> `upgrade.state` 由本 skill Step 4 手动写入，不被 `upgrade apply` 覆盖，因此升级日期与版本记录持久保留。
 > 用户在 apply 后发现自定义改动丢失时，告知运行 `cataforge upgrade rollback --list` 查快照并 `rollback --from <ts>` 回滚。
 
 ## Anti-Patterns
@@ -198,5 +189,4 @@ FAIL 时输出具体原因并建议修复（通常重跑 `framework-update apply
 - 先探测包管理器再升级，避免升级命令错误
 - `--dry-run` 安全预览 plan，不动任何文件
 - 版本已一致且已初始化时跳过升级与 init，仅在用户要求时强制刷新
-- `cataforge bootstrap` 幂等自决 skip/run，无需本 skill 重复判断每步是否需要
 - init/resume 分支只在 Step 5 委托一次，权限边界与协议主体留在 orchestrator

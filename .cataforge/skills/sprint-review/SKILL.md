@@ -11,7 +11,7 @@ user-invocable: true
 # Sprint完成度审查 (sprint-review)
 ## 能力边界
 - 能做: Sprint交付完成度审查、AC覆盖验证、范围偏移检测(gold-plating/drift/缺失)、质量聚合
-- 不做: 修改代码或文档(仅报告问题)、单个任务的code-review(由code-review skill负责)
+- 不做: 修改代码或文档(仅报告问题)、单个任务的code-review
 
 ## 审查档位（standard / merged-review）
 
@@ -45,7 +45,7 @@ cataforge skill run sprint-review -- {N} \
   --test-dir tests/ --reviews-dir docs/reviews/code/
 ```
 
-入口必须走 `cataforge skill run`（不得直接 `python .../scripts/*.py`，路径不稳定）；返回码语义见 §Layer 1 调用协议。`--src-dir` 可重复用于 monorepo 缩范围。
+入口与返回码语义按 COMMON-RULES §Layer 1 调用协议；`--src-dir` 可重复用于 monorepo 缩范围。
 
 可选参数（gold-plating 噪声治理）：
 
@@ -62,7 +62,7 @@ cataforge skill run sprint-review -- {N} \
 通过context加载dev-plan Sprint任务详情、arch接口契约、CODE-REVIEW报告，审查:
 - 完成度(completeness): 所有计划交付物是否存在且功能完整，非空壳文件
 - AC覆盖(ac-coverage): 每个AC-NNN是否有对应测试且测试逻辑有效（非仅grep匹配）；至少一个关联测试**不**使用测试框架的 module-mock 全 stub 替换被测包顶层导出（避免接口契约虚假绿色，各框架 API 见 [`test-and-e2e-apis.md`](../../references/test-and-e2e-apis.md)）
-- Wiring 完成度(wiring-completeness): 任务卡 `user_facing_critical_path: true` 或 `consumer_components` 非空时，验证 deliverable 真实挂载到至少一个消费点（路由 / app shell / 父组件 prop），而非仅"组件存在"。读取 implementer self-report 的 `wiring_complete` / `wiring_evidence` 字段（agent-result.schema 0.2.0+）做交叉核对；缺失 evidence 但任务声称 wiring_complete=true 时升 HIGH
+- Wiring 完成度(wiring-completeness): 任务卡 `user_facing_critical_path: true` 或 `consumer_components` 非空时，验证 deliverable 真实挂载到至少一个消费点（路由 / app shell / 父组件 prop），而非仅"组件存在"。读取 implementer self-report 的 `wiring_complete` / `wiring_evidence` 字段（定义见 agent-result.schema）做交叉核对；缺失 evidence 但任务声称 wiring_complete=true 时升 HIGH
 - 范围偏移(scope-drift): 实现是否偏离arch接口契约、数据模型、模块边界
 - Gold-plating(gold-plating): 是否存在计划外的额外功能、接口、文件
 - 缺失交付物(missing-deliverable): 任务卡中声明的deliverables是否全部产出
@@ -75,15 +75,7 @@ cataforge skill run sprint-review -- {N} \
 ### Step 4: 产出审查报告
 产出 `SPRINT-REVIEW-s{N}-r{M}.md`，问题前缀使用 `[SR-{NNN}]`，category和root_cause枚举见COMMON-RULES §审查报告规范。
 
-Sprint审查额外category:
-| category | 说明 |
-|----------|------|
-| ac-coverage | AC覆盖不足或测试用 mock 替换被测包导致接口契约未真实验证 |
-| wiring-completeness | user-facing critical path 任务的 deliverable 未挂载到消费点（详见 §Step 2 wiring-completeness 维度） |
-| scope-drift | 实现偏离设计 |
-| gold-plating | 计划外额外功能 |
-| missing-deliverable | 缺失交付物 |
-| drift-rate | AC 偏移率超过阈值（延期 + 计划外 / 总计划），建议重新评估 |
+Sprint审查额外 category（各维度定义以 §Step 2 为准）: ac-coverage / wiring-completeness / scope-drift / gold-plating / missing-deliverable / drift-rate。
 
 ### Step 5: 判定结论
 三态判定按 COMMON-RULES §三态判定逻辑。Sprint needs_revision 标记具体任务 ID 以便重入 TDD。
@@ -95,18 +87,18 @@ Sprint审查额外category:
 - <!-- check_id: task_status_done --> Sprint任务表中所有任务状态=done
 - <!-- check_id: deliverables_exist --> 每个任务的deliverables文件路径全部存在于磁盘
 - <!-- check_id: ac_coverage --> 每个任务的tdd_acceptance中AC-NNN在tests/目录下有对应引用
-- <!-- check_id: unplanned_files --> 检测计划外文件 (LOW)：src 范围内、未被 `.gitignore` 与默认 ignore 列表 (`node_modules/`, `dist/`, `*.tsbuildinfo` 等) 过滤、且不在任何任务 deliverables 中的文件视为 gold-plating 信号；候选集合默认通过 `git ls-files -co --exclude-standard` 取得，monorepo 友好
+- <!-- check_id: unplanned_files --> 检测计划外文件 (LOW)：src 范围内、未被 `.gitignore` 与默认 ignore 列表（见 §Step 1 可选参数表）过滤、且不在任何任务 deliverables 中的文件视为 gold-plating 信号；候选集合默认通过 `git ls-files -co --exclude-standard` 取得，monorepo 友好
 - <!-- check_id: code_review_present --> 每个任务有对应的CODE-REVIEW报告(docs/reviews/code/CODE-REVIEW-{task_id}-*.md)（MEDIUM：低风险任务可由sprint-review批量审查覆盖，缺少独立报告不阻塞）
 
 ## project_features schema
 
-dev-plan 主卷（非 sprint 分卷）frontmatter 可选 `project_features` 块，按项目特征声明 Layer 1 行为开关。所有键默认关闭（向后兼容；旧项目零迁移）：
+dev-plan 主卷（非 sprint 分卷）frontmatter 可选 `project_features` 块，按项目特征声明 Layer 1 行为开关。所有键默认关闭：
 
 ```yaml
 ---
 id: dev-plan-{project}
 project_features:
-  merged_review: true                    # 短路 code_review_present；启用 §合并审查模式
+  merged_review: true                    # 启用 §审查档位 的 merged-review 档
   deliverables_accept_alternation: true  # deliverables 行支持 "A | B" 语法（任一存在即过）
   unplanned_glob_patterns:               # fnmatch 模式列表，匹配的文件不算 gold-plating
     - "**/*.test.ts"
@@ -120,7 +112,7 @@ project_features:
 
 | 字段 | 类型 | 默认 | 行为 |
 |------|------|------|------|
-| `merged_review` | bool | false | true 时 `check_code_reviews` 直接 return；详见 §合并审查模式 |
+| `merged_review` | bool | false | true 时启用 merged-review 档（见 §审查档位） |
 | `deliverables_accept_alternation` | bool | false | true 时 `check_deliverables` 把 `A \| B` 视为或关系（任一存在即过），同时 `check_unplanned_files` 把两候选都标为 planned（避免 gold-plating 误报） |
 | `unplanned_glob_patterns` | list[str] | `[]` | 每条 fnmatch 模式应用于 `check_unplanned_files` 输出；匹配的文件被滤掉。典型用途：项目级测试/fixture/helper 命名约定 |
 
@@ -136,4 +128,3 @@ project_features:
 ## 效率策略
 - Layer 1 先行（脚本结构检查不通过即跳过 AI 审查）；Layer 2 聚焦脚本不可覆盖的行为偏移和质量模式
 - 通过 context 按需加载，不全量读 dev-plan
-- **merged-review**：任务同质 sprint 单份 sprint-review 替代 N 份 CODE-REVIEW，跨任务模式更易识别

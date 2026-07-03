@@ -39,7 +39,7 @@ user-invocable: true
 本流程把「框架完整运行流程」拆为五类路径驱动；每条路径的触发条件、期望行为、走查处置（driven/probed/observed）见 [`references/runtime-flow-map.md`](references/runtime-flow-map.md)。
 
 ### Step 1: 准备隔离沙盒（初始化前置）
-1. 在 gitignored 沙盒目录（缺省 `walkthrough-sandbox/<run-id>/`，`<run-id>` = `<platform>-<mode>-<时间戳>`，时间戳取 `Get-Date -Format yyyyMMdd-HHmmss` / `date +%Y%m%d-%H%M%S`，保证并发/重跑各占独立目录）新建空项目目录；目标目录非空时另起新 run-id 或先 `--clean` 清空，非空目录直接复用会让两次走查互相写入对方产物、归因困难
+1. 新建 gitignored 独立 run-id 沙盒目录（缺省 `walkthrough-sandbox/<run-id>/`；命名规则与非空目录处置见 walkthrough-protocol §1.1）
 2. 在沙盒 cwd 内部署目标平台资产（命令形态见 walkthrough-protocol §1.1）；确认 `framework.json#/version` 非占位符 `0.0.0-template`、`cataforge doctor` 通过
 3. 校验沙盒与宿主隔离：沙盒有独立的 `.cataforge/` 与空 `docs/`，后续所有写入均在沙盒 cwd 内
 

@@ -124,17 +124,15 @@ cataforge issue close <issue-id> --verdict already-fixed --pr <pr-number>
 cataforge issue close <issue-id> --verdict fixed --pr <pr-number> --dry-run
 ```
 
-## Layer 1 检查项
+## CLI 行为要点
 
-| ID | 标题 | 严重等级 |
-|----|------|---------|
-| triage_fetch | gh issue list 拉取 | info |
-| triage_version_check | reported_version vs installed | info |
-| triage_skill_ref_check | skill/agent id 是否仍存在 | info |
-| triage_upstream_gap_count | upstream-gap 信号统计 | info |
-| triage_draft_render | confirmed 写草稿 | fail |
-| close_pr_required | fixed/already-fixed 必须 --pr | fail |
-| close_reason_required | wontfix 必须 --reason | fail |
+实现于 `cataforge issue` CLI（非 skill-run Layer 1）：
+
+| 行为 | 严重等级 |
+|------|---------|
+| gh issue list 拉取 / reported_version vs installed / skill·agent id 存在性 / upstream-gap 信号统计 | info |
+| confirmed 写草稿 | fail |
+| fixed / already-fixed 必须 `--pr`；wontfix 必须 `--reason` | fail |
 
 ## Anti-Patterns
 
