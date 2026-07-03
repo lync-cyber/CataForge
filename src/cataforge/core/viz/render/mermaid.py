@@ -64,7 +64,10 @@ def _render_timeline(view: Timeline) -> str:
     grouped: dict[str, list[str]] = {}
     for ev in view.events:
         period = _clean(ev.ts.split("T", 1)[0]) or "n/a"
-        grouped.setdefault(period, []).append(_clean(ev.label) or "event")
+        label = _clean(ev.label) or "event"
+        if ev.count > 1:
+            label += f" ×{ev.count}"
+        grouped.setdefault(period, []).append(label)
     if not grouped:
         lines.append("    n/a : no events")
         return "\n".join(lines)

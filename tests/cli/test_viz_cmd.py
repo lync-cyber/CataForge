@@ -122,6 +122,18 @@ class TestMermaidRenderer:
     def test_empty_timeline_placeholder(self) -> None:
         assert mermaid.render(Timeline()) == "timeline\n    title timeline\n    n/a : no events"
 
+    def test_timeline_aggregated_count_suffix(self) -> None:
+        t = Timeline(
+            title="evt",
+            events=(
+                TimelineEvent("2026-01-01", "session_start", "session_start", count=9),
+                TimelineEvent("2026-01-01", "correction", "correction"),
+            ),
+        )
+        assert mermaid.render(t) == (
+            "timeline\n    title evt\n    2026-01-01 : session_start ×9 : correction"
+        )
+
     def test_rejects_metric_series(self) -> None:
         with pytest.raises(CataforgeError):
             mermaid.render(MetricSeries())
@@ -630,6 +642,40 @@ class TestVizTimeline:
         assert data["kind"] == "timeline"
         assert len(data["events"]) == 2
 
+    def test_same_day_same_label_events_aggregate(self, tmp_path: Path) -> None:
+        rec = {"ts": "2026-01-01T0{}:00:00+00:00", "event": "session_start", "status": "session"}
+        self._write_log(
+            tmp_path,
+            [json.dumps(rec).replace("0{}", f"0{h}") for h in range(3)]
+            + [json.dumps({"ts": "2026-01-01T09:00:00+00:00", "event": "correction"})],
+        )
+        result = _viz(tmp_path, "timeline", "--format", "json")
+        assert result.exit_code == 0, result.output
+        events = {e["label"]: e for e in json.loads(result.output)["events"]}
+        assert len(events) == 2
+        assert events["session_start"]["count"] == 3
+        assert events["session_start"]["ts"] == "2026-01-01"  # day-precision after fold
+        assert events["correction"]["count"] == 1
+
+    def test_low_information_ctx_omitted_from_label(self, tmp_path: Path) -> None:
+        # ctx contained in the event name ("session" ⊂ "session_start") adds
+        # nothing — the label stays the bare event name.
+        self._write_log(
+            tmp_path,
+            [
+                json.dumps(
+                    {
+                        "ts": "2026-01-01T08:00:00+00:00",
+                        "event": "session_start",
+                        "status": "session",
+                    }
+                )
+            ],
+        )
+        result = _viz(tmp_path, "timeline", "--format", "json")
+        events = json.loads(result.output)["events"]
+        assert events[0]["label"] == "session_start"
+
     def test_empty_when_no_log(self, tmp_path: Path) -> None:
         result = _viz(tmp_path, "timeline")
         assert result.exit_code == 0, result.output
@@ -651,6 +697,20 @@ class TestVizDecay:
         assert result.output.startswith("timeline")
         assert "preference" in result.output
         assert "upstream-gap" in result.output
+
+    def test_same_day_same_deviation_corrections_aggregate(self, tmp_path: Path) -> None:
+        log_dir = tmp_path / "docs" / "reviews"
+        log_dir.mkdir(parents=True)
+        (log_dir / "CORRECTIONS-LOG.md").write_text(
+            "# C\n\n"
+            "### 2026-01-01 | reviewer | development\n- 偏差类型: preference\n\n"
+            "### 2026-01-01 | reviewer | development\n- 偏差类型: preference\n",
+            encoding="utf-8",
+        )
+        result = _viz(tmp_path, "decay", "--format", "json")
+        events = json.loads(result.output)["events"]
+        assert len(events) == 1
+        assert events[0]["count"] == 2
 
     def test_empty_when_no_log(self, tmp_path: Path) -> None:
         result = _viz(tmp_path, "decay")
@@ -832,6 +892,21 @@ class TestHtmlRenderer:
         assert "Cytoscape Consortium" not in out
         assert "initChart('view0'" in out
         _assert_offline(out)
+
+    def test_timeline_count_scales_symbol_and_names_point(self) -> None:
+        t = Timeline(
+            title="t",
+            events=(
+                TimelineEvent("2026-01-01", "burst", "cat", count=9),
+                TimelineEvent("2026-01-02", "single", "cat"),
+            ),
+        )
+        out = html.render(t)
+        assert '"name": "burst ×9"' in out
+        assert '"name": "single"' in out
+        sizes = [int(m) for m in re.findall(r'"symbolSize": (\d+)', out)]
+        assert len(sizes) == 2
+        assert max(sizes) > min(sizes)  # count drives point size
 
     def test_metrics_inlines_echarts(self) -> None:
         out = html.render(_HTML_MS)
