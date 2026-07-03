@@ -62,9 +62,14 @@ class Graph:
 
 @dataclass(frozen=True)
 class TimelineEvent:
+    """``count`` folds identical events (same ts/label/category) into one
+    entry — collectors aggregate; renderers encode it (``×N`` suffix, point
+    size) instead of repeating the event."""
+
     ts: str
     label: str
     category: str = ""
+    count: int = 1
 
 
 @dataclass(frozen=True)

@@ -51,15 +51,25 @@ def collect_phase(root: Path, /, **_opts: Any) -> View:
 
 
 def collect_timeline(root: Path, /, **_opts: Any) -> View:
-    """EVENT-LOG events as a timeline; malformed lines are skipped, every valid
-    event is kept."""
-    events: list[TimelineEvent] = []
+    """EVENT-LOG events folded to day precision: identical (date, label)
+    entries aggregate into one event with a ``count``. Malformed lines are
+    skipped, every valid event is kept (as a count contribution)."""
+    counts: dict[tuple[str, str, str], int] = {}
     for rec in collect_recent_events(root, limit=0):
         ts = rec.get("ts")
         if not isinstance(ts, str):
             continue
         event = str(rec.get("event") or "event")
         ctx = rec.get("phase") or rec.get("status") or rec.get("agent") or rec.get("detail")
-        label = f"{event} {ctx}" if isinstance(ctx, str) and ctx else event
-        events.append(TimelineEvent(ts=ts, label=label, category=event))
-    return Timeline(events=tuple(events), title="event log")
+        # A ctx already contained in the event name adds no information
+        # (e.g. session_start + "session") — keep the bare event name.
+        label = event
+        if isinstance(ctx, str) and ctx and ctx not in event:
+            label = f"{event} {ctx}"
+        key = (ts.split("T", 1)[0], event, label)
+        counts[key] = counts.get(key, 0) + 1
+    events = tuple(
+        TimelineEvent(ts=date, label=label, category=event, count=n)
+        for (date, event, label), n in counts.items()
+    )
+    return Timeline(events=events, title="event log")

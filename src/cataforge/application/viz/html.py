@@ -163,14 +163,21 @@ def _timeline_option(view: Timeline) -> dict[str, Any]:
     lanes = sorted({e.category for e in view.events}) or [""]
     ti = {t: i for i, t in enumerate(times)}
     li = {c: i for i, c in enumerate(lanes)}
-    data = [{"value": [ti[e.ts], li[e.category]], "name": e.label} for e in view.events]
+    data = [
+        {
+            "value": [ti[e.ts], li[e.category]],
+            "name": f"{e.label} ×{e.count}" if e.count > 1 else e.label,
+            "symbolSize": min(32, 9 + 3 * e.count),
+        }
+        for e in view.events
+    ]
     return {
         "title": {"text": view.title or "timeline"},
         "tooltip": {"trigger": "item", "formatter": "{b}"},
         "grid": {"containLabel": True},
         "xAxis": {"type": "category", "data": times, "axisLabel": {"rotate": 45}},
         "yAxis": {"type": "category", "data": lanes},
-        "series": [{"type": "scatter", "symbolSize": 12, "data": data}],
+        "series": [{"type": "scatter", "data": data}],
     }
 
 

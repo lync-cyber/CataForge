@@ -15,13 +15,15 @@ from cataforge.core.viz.model import Timeline, TimelineEvent, View
 
 
 def collect_decay(root: Path, /, **_opts: Any) -> View:
-    """Correction-log entries as a timeline, one event per correction."""
+    """Correction-log entries as a timeline; identical (date, label) entries
+    fold into one event with a ``count``."""
+    counts: dict[tuple[str, str, str], int] = {}
+    for e in collect_corrections(root):
+        label = f"{e.deviation} · {e.phase}".strip(" ·") or e.deviation
+        key = (e.ts, e.deviation, label)
+        counts[key] = counts.get(key, 0) + 1
     events = tuple(
-        TimelineEvent(
-            ts=e.ts,
-            label=f"{e.deviation} · {e.phase}".strip(" ·") or e.deviation,
-            category=e.deviation,
-        )
-        for e in collect_corrections(root)
+        TimelineEvent(ts=ts, label=label, category=deviation, count=n)
+        for (ts, deviation, label), n in counts.items()
     )
     return Timeline(events=events, title="correction decay")
