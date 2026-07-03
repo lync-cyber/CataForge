@@ -121,12 +121,37 @@ def resolve_instruction_file(root: Path) -> Path:
 
 
 _CURRENT_PHASE_RE = re.compile(r"^-\s*当前阶段:\s*(.+?)\s*$", re.MULTILINE)
+_EXECUTION_MODE_RE = re.compile(r"^-\s*执行模式:\s*(.+?)\s*$", re.MULTILINE)
 
 
 def parse_current_phase(state_text: str) -> str | None:
     """Return the instruction file's ``当前阶段`` value, or None when absent."""
     m = _CURRENT_PHASE_RE.search(state_text)
     return m.group(1).strip() if m else None
+
+
+def parse_execution_mode(state_text: str) -> str | None:
+    """Return the instruction file's ``执行模式`` value, or None when absent or
+    still the unfilled ``{a|b|c}`` template token."""
+    m = _EXECUTION_MODE_RE.search(state_text)
+    if not m:
+        return None
+    value = m.group(1).strip()
+    return value if value and "{" not in value and "|" not in value else None
+
+
+def read_execution_mode(root: Path) -> str | None:
+    """Resolve *root*'s instruction file and return its ``执行模式`` value.
+
+    Returns None when the file is unreadable or carries no mode line — the
+    caller decides the fallback (typically ``standard``).
+    """
+    path = resolve_instruction_file(root)
+    try:
+        text = path.read_text()
+    except OSError:
+        return None
+    return parse_execution_mode(text)
 
 
 def read_current_phase(root: Path) -> str | None:

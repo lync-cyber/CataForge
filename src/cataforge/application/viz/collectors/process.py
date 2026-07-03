@@ -1,9 +1,10 @@
 """Process views: SDLC phase progression + EVENT-LOG timeline.
 
 ``phase`` reuses :func:`evaluate_phase` so the graph's blocked/ok styling tracks
-``cataforge phase status`` exactly; the phase backbone comes from the standard
-mode's workflow config. ``timeline`` reuses the fault-tolerant EVENT-LOG reader
-(malformed lines are skipped, never dropped silently from valid ones).
+``cataforge phase status`` exactly; the phase backbone comes from the project's
+execution mode (falling back to standard). ``timeline`` reuses the
+fault-tolerant EVENT-LOG reader (malformed lines are skipped, never dropped
+silently from valid ones).
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from cataforge.adapter.platform.registry import read_execution_mode
 from cataforge.application.feedback.collectors import collect_recent_events
 from cataforge.application.phase import evaluate_phase
 from cataforge.core.phases import PHASES
@@ -19,11 +21,14 @@ from cataforge.runtime.skill.builtins.framework_review._framework_data import re
 
 
 def phase_sequence(root: Path) -> list[str]:
-    """Ordered phase backbone from the standard mode's workflow config; falls
-    back to the recognised-phase union when no config is present."""
+    """Ordered phase backbone for the project's execution mode; falls back to
+    the standard mode, then to the recognised-phase union when no config is
+    present."""
+    modes = read_workflow_modes(root)
+    mode = read_execution_mode(root) or "standard"
     phases = [
         name
-        for p in read_workflow_modes(root).get("standard") or []
+        for p in modes.get(mode) or modes.get("standard") or []
         if isinstance(name := p.get("phase"), str) and name
     ]
     return phases or list(PHASES)

@@ -522,9 +522,12 @@ class TestVizTasksFromKg:
 # ------------------------------------------------------------------
 
 
-def _make_phase_project(tmp_path: Path, phase: str, *, phase_start: str | None = None) -> Path:
-    """Project with framework.json (standard phases) + an instruction file
-    declaring 当前阶段; optionally a phase_start EVENT-LOG record."""
+def _make_phase_project(
+    tmp_path: Path, phase: str, *, phase_start: str | None = None, mode: str | None = None
+) -> Path:
+    """Project with framework.json (all three execution modes) + an instruction
+    file declaring 当前阶段 (and 执行模式 when *mode* is given); optionally a
+    phase_start EVENT-LOG record."""
     cf = tmp_path / ".cataforge"
     cf.mkdir()
     framework = {
@@ -536,13 +539,26 @@ def _make_phase_project(tmp_path: Path, phase: str, *, phase_start: str | None =
                         {"phase": "architecture", "role": "architect"},
                         {"phase": "development", "role": "tdd-engine"},
                     ]
-                }
+                },
+                "agile-lite": {
+                    "phases": [
+                        {"phase": "planning", "role": "product-manager"},
+                        {"phase": "development", "role": "tdd-engine"},
+                    ]
+                },
+                "agile-prototype": {
+                    "phases": [
+                        {"phase": "brief", "role": "product-manager"},
+                        {"phase": "development", "role": "tdd-engine"},
+                    ]
+                },
             }
         }
     }
     (cf / "framework.json").write_text(json.dumps(framework))
+    mode_line = f"- 执行模式: {mode}\n" if mode else ""
     (tmp_path / "CLAUDE.md").write_text(
-        f"# Proj\n## 项目状态\n- 当前阶段: {phase}\n- 文档状态:\n", encoding="utf-8"
+        f"# Proj\n## 项目状态\n- 当前阶段: {phase}\n{mode_line}- 文档状态:\n", encoding="utf-8"
     )
     if phase_start:
         docs = tmp_path / "docs"
@@ -976,6 +992,15 @@ class TestDashboard:
         assert "development 3/3" in out
         assert "门禁通过" in out
 
+    def test_kpi_phase_tile_shows_na_for_non_driven_project(self, tmp_path: Path) -> None:
+        # instruction file present but 当前阶段 unfilled → N/A tile, not a red
+        # 门禁受阻 false alarm
+        _make_phase_project(tmp_path, "{a|b|c}")
+        out = html.render_dashboard(tmp_path)
+        assert "门禁受阻" not in out
+        assert "不适用" in out
+        assert '<button class="kpi na"' in out
+
     def test_legend_present(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
@@ -1307,19 +1332,43 @@ class TestVizOverview:
     def test_phase_group_tracks_sequence_and_gate(self, tmp_path: Path) -> None:
         _make_phase_project(tmp_path, "development", phase_start="development")
         groups = _overview_groups(tmp_path)
-        assert groups["phase"] == {"current:development": 3.0, "gate_ok": 1.0, "total": 3.0}
+        assert groups["phase"] == {
+            "applicable": 1.0,
+            "current:development": 3.0,
+            "gate_ok": 1.0,
+            "total": 3.0,
+        }
 
-    def test_phase_name_cannot_collide_with_reserved_labels(self, tmp_path: Path) -> None:
-        # a free-text 当前阶段 equal to a reserved label must not overwrite it
+    def test_unrecognised_phase_marked_not_applicable(self, tmp_path: Path) -> None:
+        # a 当前阶段 that is not a known phase → the project isn't workflow-driven
         _make_phase_project(tmp_path, "total")
         groups = _overview_groups(tmp_path)
-        assert groups["phase"]["current:total"] == 0.0  # unrecognised → no index
-        assert groups["phase"]["total"] == 3.0  # sequence length survives
+        assert groups["phase"] == {"applicable": 0.0}
+
+    def test_placeholder_phase_marks_pipeline_not_applicable(self, tmp_path: Path) -> None:
+        # instruction file present but 当前阶段 unfilled (a meta project) → N/A,
+        # not a blocked-gate false alarm; core-doc completion group is dropped
+        _make_phase_project(tmp_path, "{a|b|c}")
+        (tmp_path / "docs").mkdir(exist_ok=True)
+        (tmp_path / "docs" / ".doc-index.json").write_text(
+            json.dumps({"documents": {}}), encoding="utf-8"
+        )
+        groups = _overview_groups(tmp_path)
+        assert groups["phase"] == {"applicable": 0.0}
+        assert "docs" not in groups  # SDLC core docs N/A for a non-driven project
+
+    def test_mode_aware_phase_sequence_and_docs(self, tmp_path: Path) -> None:
+        # an agile-lite project gates on its own 2-phase sequence, not standard's
+        _make_phase_project(tmp_path, "planning", mode="agile-lite")
+        groups = _overview_groups(tmp_path)
+        assert groups["phase"]["total"] == 2.0  # agile-lite has 2 phases
+        assert groups["phase"]["current:planning"] == 1.0
 
     def test_blocked_gate_reported(self, tmp_path: Path) -> None:
         _make_phase_project(tmp_path, "requirements")  # no prd doc/index → blocked
         groups = _overview_groups(tmp_path)
         assert groups["phase"]["gate_ok"] == 0.0
+        assert groups["phase"]["applicable"] == 1.0
 
     def test_docs_and_links_groups(self, tmp_path: Path) -> None:
         # doc-index has prd/arch/dev-plan drafts, one stale dep, one broken xref
