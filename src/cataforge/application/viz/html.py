@@ -281,6 +281,8 @@ def _missing_hint(results: _Results, name: str, label: str) -> str:
 def _phase_tile(group: dict[str, float] | None, results: _Results, pid: str) -> str:
     if not group:
         return _tile("—", _missing_hint(results, "phase", "阶段"), "na", pid)
+    if group.get("applicable", 1.0) < 1.0:
+        return _tile("N/A", "SDLC 阶段 · 本项目不适用", "na", pid)
     total = int(group.get("total", 0))
     gate_ok = group.get("gate_ok", 0.0) >= 1.0
     name, index = next(

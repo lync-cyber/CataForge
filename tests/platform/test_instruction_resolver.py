@@ -11,7 +11,9 @@ import yaml
 from cataforge.adapter.platform.registry import (
     clear_cache,
     parse_current_phase,
+    parse_execution_mode,
     read_current_phase,
+    read_execution_mode,
     resolve_instruction_file,
 )
 
@@ -84,6 +86,24 @@ _CLAUDE_PROFILE = {
 def test_parse_current_phase_reads_value() -> None:
     assert parse_current_phase("## 项目状态\n- 当前阶段: planning\n") == "planning"
     assert parse_current_phase("no phase line here") is None
+
+
+def test_parse_execution_mode_reads_value() -> None:
+    assert parse_execution_mode("## 项目信息\n- 执行模式: agile-lite\n") == "agile-lite"
+    assert parse_execution_mode("no mode line here") is None
+    # unfilled template token → None (caller falls back to standard)
+    assert parse_execution_mode("- 执行模式: {standard|agile-lite}\n") is None
+
+
+def test_read_execution_mode_from_instruction(tmp_path: Path) -> None:
+    root = _make_project(tmp_path, "claude-code", _CLAUDE_PROFILE)
+    (root / "CLAUDE.md").write_text("# Proj\n- 执行模式: agile-prototype\n", encoding="utf-8")
+    assert read_execution_mode(root) == "agile-prototype"
+
+
+def test_read_execution_mode_none_when_file_absent(tmp_path: Path) -> None:
+    root = _make_project(tmp_path, "claude-code", _CLAUDE_PROFILE)
+    assert read_execution_mode(root) is None
 
 
 def test_read_current_phase_from_instruction(tmp_path: Path) -> None:

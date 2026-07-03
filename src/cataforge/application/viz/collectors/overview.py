@@ -11,12 +11,14 @@ reports it EMPTY, never an error).
 
 Point vocabulary (series / label / value):
 
-* ``phase`` — ``current:<当前阶段名>``/1-based sequence index (the prefix
-  keeps a free-text phase name from colliding with the reserved labels),
-  ``gate_ok``/0|1, ``total``/sequence length.
+* ``phase`` — ``applicable``/0|1 (0 when the instruction file is present but
+  the project isn't workflow-driven, e.g. a meta project tracking progress
+  outside the SDLC pipeline; the remaining points are then omitted),
+  ``current:<当前阶段名>``/1-based sequence index, ``gate_ok``/0|1,
+  ``total``/sequence length.
 * ``docs`` — one point per core doc_type (from the workflow sequence's
   :data:`~cataforge.core.phases.PHASE_DOC_TYPE`): 0 missing, 0.5 present,
-  1 approved.
+  1 approved. Omitted entirely for a non-driven project (SDLC docs N/A).
 * ``coverage`` — ``full`` / ``partial`` / ``none`` Feature counts.
 * ``links`` — ``stale`` / ``xref_error`` counts.
 * ``decay`` — ``recent_30d`` count plus one point per ``YYYY-MM`` month.
@@ -30,12 +32,12 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.application.feedback.collectors import collect_corrections
-from cataforge.application.phase import evaluate_phase
+from cataforge.application.phase import evaluate_phase, is_placeholder
 from cataforge.application.viz.collectors._kg import open_kg
 from cataforge.application.viz.collectors.process import phase_sequence
 from cataforge.core.errors import CataforgeError
 from cataforge.core.io import read_json
-from cataforge.core.phases import PHASE_DOC_TYPE
+from cataforge.core.phases import PHASE_DOC_TYPE, PHASES
 from cataforge.core.viz.model import MetricPoint, MetricSeries, View
 from cataforge.domain.docs.indexer import INDEX_FILENAME, find_stale_deps, find_xref_errors
 
@@ -44,15 +46,24 @@ CURRENT_PREFIX = "current:"
 _RECENT_DAYS = 30
 
 
+def _is_driven(current: str | None) -> bool:
+    """Whether *current* names a real workflow phase (vs an unfilled template
+    token or an unrecognised value → the project isn't SDLC-driven)."""
+    return not is_placeholder(current) and current in PHASES
+
+
 def _phase_points(root: Path) -> list[MetricPoint]:
     current, checks = evaluate_phase(root)
+    if not _is_driven(current):
+        # instruction file present but no workflow phase → SDLC N/A, not a
+        # blocked-gate false alarm. The single flag lets the tile show N/A.
+        return [MetricPoint(label="applicable", value=0.0, series="phase")]
     sequence = phase_sequence(root)
     index = sequence.index(current) + 1 if current in sequence else 0
     gate_ok = 0.0 if any(not ok for _, ok, _ in checks) else 1.0
     return [
-        MetricPoint(
-            label=f"{CURRENT_PREFIX}{current or 'unknown'}", value=float(index), series="phase"
-        ),
+        MetricPoint(label="applicable", value=1.0, series="phase"),
+        MetricPoint(label=f"{CURRENT_PREFIX}{current}", value=float(index), series="phase"),
         MetricPoint(label="gate_ok", value=gate_ok, series="phase"),
         MetricPoint(label="total", value=float(len(sequence)), series="phase"),
     ]
@@ -71,8 +82,22 @@ def _core_doc_types(sequence: list[str]) -> list[str]:
     return out
 
 
+def _sdlc_applicable(root: Path) -> bool:
+    """Whether the SDLC core-doc completion metric applies. False only when the
+    project explicitly declares itself non-driven (instruction file present but
+    没有 workflow phase); a project without an instruction file is treated as
+    applicable — it may simply be mid-setup."""
+    try:
+        current, _ = evaluate_phase(root)
+    except CataforgeError:
+        return True
+    return _is_driven(current)
+
+
 def _doc_points(root: Path) -> list[MetricPoint]:
-    """docs + links groups; both read the doc-index, absent ⇒ neither."""
+    """docs + links groups; both read the doc-index, absent ⇒ neither. The
+    core-doc completion (docs) group is dropped for a non-driven project, whose
+    SDLC docs are N/A; the links group stays (any indexed docs can go stale)."""
     index_path = root / "docs" / INDEX_FILENAME
     if not index_path.is_file():
         return []
@@ -85,16 +110,17 @@ def _doc_points(root: Path) -> list[MetricPoint]:
         statuses.setdefault(doc_type, []).append(str(entry.get("status") or "draft"))
 
     points: list[MetricPoint] = []
-    for doc_type in _core_doc_types(phase_sequence(root)):
-        # agile modes gate on the -lite variant of the same doc_type
-        found = statuses.get(doc_type, []) + statuses.get(f"{doc_type}-lite", [])
-        if not found:
-            value = 0.0
-        elif "approved" in found:
-            value = 1.0
-        else:
-            value = 0.5
-        points.append(MetricPoint(label=doc_type, value=value, series="docs"))
+    if _sdlc_applicable(root):
+        for doc_type in _core_doc_types(phase_sequence(root)):
+            # agile modes gate on the -lite variant of the same doc_type
+            found = statuses.get(doc_type, []) + statuses.get(f"{doc_type}-lite", [])
+            if not found:
+                value = 0.0
+            elif "approved" in found:
+                value = 1.0
+            else:
+                value = 0.5
+            points.append(MetricPoint(label=doc_type, value=value, series="docs"))
 
     root_str = str(root)
     try:  # the indexer's validators assume structurally sound entries
