@@ -16,18 +16,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from cataforge.application.viz import palette
 from cataforge.core.errors import CataforgeError
 from cataforge.core.io import read_json
-from cataforge.core.viz.model import Edge, Graph, Node, View
+from cataforge.core.viz.model import Edge, Graph, Node, Status, View
 from cataforge.domain.docs.indexer import (
     INDEX_FILENAME,
     find_stale_deps,
     find_xref_errors,
 )
-
-_STALE_STYLE = palette.YELLOW_PARTIAL
-_BROKEN_STYLE = palette.RED_BROKEN
 
 # higher = takes precedence when a (doc, upstream) pair has more than one signal
 _SEVERITY = {"xref-error": 2, "stale": 1, "depends_on": 0}
@@ -55,7 +51,7 @@ def collect_docs(root: Path, /, **_opts: Any) -> View:
         nodes[doc_id] = Node(
             doc_id,
             label=f"{doc_id}: {doc_type}" if doc_type else doc_id,
-            style=_STALE_STYLE if doc_id in stale_downstream else None,
+            status=Status.PARTIAL if doc_id in stale_downstream else None,
         )
 
     labels: dict[tuple[str, str], str] = {}
@@ -81,7 +77,7 @@ def collect_docs(root: Path, /, **_opts: Any) -> View:
             nodes[upstream] = Node(
                 upstream,
                 label=upstream,
-                style=_BROKEN_STYLE if label == "xref-error" else None,
+                status=Status.BROKEN if label == "xref-error" else None,
             )
 
     return Graph(

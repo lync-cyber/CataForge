@@ -16,17 +16,14 @@ import re
 from pathlib import Path
 from typing import Any
 
-from cataforge.application.viz import palette
 from cataforge.application.viz.collectors.overview import CURRENT_PREFIX, RECENT_LABEL
 from cataforge.core.errors import CataforgeError
-from cataforge.core.viz.model import Graph, MetricSeries, Timeline, View, is_empty
+from cataforge.core.viz import palette
+from cataforge.core.viz.model import Graph, MetricSeries, Status, Timeline, View, is_empty
 
 _PKG = "cataforge.application.viz"
 _CYTOSCAPE = "cytoscape.min.js"
 _ECHARTS = "echarts.min.js"
-
-# Mermaid-style style-body keys → the data attribute the stylesheet reads.
-_STYLE_MAP = {"fill": "bg", "stroke": "border"}
 
 _DASHBOARD_VIEWS: tuple[tuple[str, str], ...] = (
     ("framework", "Framework"),
@@ -62,12 +59,11 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
         # An implicit node (label=None) may still carry a display name in its
         # data bag — catalogue entries invisible to the text renderers.
         label = node.label or str((node.data or {}).get("name") or node.id)
-        data: dict[str, Any] = {"id": node.id, "label": label}
-        for chunk in (node.style or "").split(","):
-            key, sep, val = chunk.partition(":")
-            attr = _STYLE_MAP.get(key.strip())
-            if sep and attr:
-                data[attr] = val.strip()
+        data: dict[str, Any] = {"id": node.id, "label": palette.marked_label(node.status, label)}
+        if node.status:
+            enc = palette.encoding(node.status)
+            data["bg"] = enc.fill
+            data["border"] = enc.stroke
         elements.append({"data": data})
     for edge in graph.edges:
         data = {"source": edge.src, "target": edge.dst, "id": f"{edge.src}__{edge.dst}"}
@@ -431,18 +427,11 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     return _document("CataForge viz dashboard", body, inits, libs or [_CYTOSCAPE])
 
 
-# Tile accent colours track the legend's semantic order: ok / partial / missing.
-_OK_HEX, _WARN_HEX, _BAD_HEX = (hexv for hexv, _ in palette.LEGEND)
-
-
-def _fill_of(style: str) -> str:
-    """The ``fill`` value of a Mermaid style body — keeps CSS accents on the
-    same palette constants the collectors use."""
-    for chunk in style.split(","):
-        key, _, value = chunk.partition(":")
-        if key.strip() == "fill":
-            return value.strip()
-    return "#ccd2da"
+# Tile accent colours share the status palette, so KPI tiles and node fills
+# tell one colour story.
+_OK_HEX = palette.encoding(Status.OK).fill
+_WARN_HEX = palette.encoding(Status.PARTIAL).fill
+_BAD_HEX = palette.encoding(Status.MISSING).fill
 
 
 _CSS = (
@@ -485,8 +474,8 @@ _CSS = (
     ".cat td.num,.cat th.num{text-align:right}"
     ".cat tbody tr{cursor:pointer}.cat tr.focus{background:#eef4fb}"
     ".chip{padding:1px 7px;border-radius:9px;font-size:11px;border:1px solid #ccd2da}"
-    f".chip.t-agent{{background:{_fill_of(palette.AGENT_STYLE)}}}"
-    f".chip.t-skill{{background:{_fill_of(palette.SKILL_STYLE)}}}"
+    f".chip.t-agent{{background:{palette.encoding(Status.AGENT).fill}}}"
+    f".chip.t-skill{{background:{palette.encoding(Status.SKILL).fill}}}"
     ".chip.t-rules{background:#f0f1f3}"
     ".fchip{padding:3px 9px;border:1px solid #ccd2da;border-radius:12px;background:#fff;"
     "cursor:pointer;font-size:12px;margin-left:6px;color:#8a9099}"
