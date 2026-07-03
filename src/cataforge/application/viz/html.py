@@ -349,6 +349,10 @@ def _kpi_strip(overview: View | None, results: _Results, panel_ids: dict[str, st
 _EMPTY_HINTS = {
     "timeline": "暂无事件 — EVENT-LOG 随工作流推进自动记录",
     "decay": "暂无纠偏记录 — 这是健康信号",
+    "tasks": "暂无任务依赖 — dev-plan 任务入图或 `--edges` 传入后出现",
+    "trace": "暂无可追溯实体 — `cataforge kg import` 摄取文档后出现",
+    "coverage": "暂无 Feature — `cataforge kg import` 摄取 PRD 后出现",
+    "arch": "暂无架构实体 — `cataforge kg import` 摄取 ARCH 后出现",
 }
 
 # Cross-view focus links: tapping a node in the source view's dashboard graph

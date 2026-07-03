@@ -69,11 +69,7 @@ def collect_tasks(root: Path, /, **opts: Any) -> View:
         all_nodes.add(v)
 
     if not all_nodes:
-        return Graph(
-            direction="LR",
-            nodes=(Node("empty", label="无有效边"),),
-            title="task dependencies",
-        )
+        return Graph(direction="LR", title="task dependencies")
 
     cycles = detect_cycles(graph, all_nodes)
     if cycles:
