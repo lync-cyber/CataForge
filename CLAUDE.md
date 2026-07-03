@@ -46,7 +46,7 @@
 
 ## 全局约定
 
-- 命名: Python 用 snake_case；CLI 参数 / 文档类型 / 产出文件名用 kebab-case
+- 命名: Python 用 snake_case；CLI 参数 / 文档类型 / 产出文件名用小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数
 - Commit: conventional-commits `<type>(<scope>): <subject>`（详见 §Git 工作流）
 - 分支: `main` 受保护，feature branch + PR，仅 Squash merge（详见 §Git 工作流）
 - 设计工具: none
@@ -55,12 +55,7 @@
 
 - 人工审查检查点: [pre_dev, pre_deploy]
   <!-- 详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
-- 文档类型命名: 小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数和产出文件名
-- 效率原则:
-  - 最小传递: Agent间传递doc_id#section引用，非全文
-  - 不确定时调研: 调用research skill，不猜测
-  - 选择题优先: 需要用户输入时优先提供选项
-  - 长文拆分: 文档超 `DOC_SPLIT_THRESHOLD_LINES` 行时按doc-gen拆分策略分卷
+- 效率原则: 见 COMMON-RULES §全局约定（最小传递 / 不确定时调研 / 选择题优先）；长文拆分阈值 `DOC_SPLIT_THRESHOLD_LINES`
 
 ## 框架机制
 
@@ -132,7 +127,7 @@ uv run --extra dev python scripts/checks/run_local.py
 
 [`run_local.py`](scripts/checks/run_local.py) 顺序调用全部 repo-wide 静态守卫 —— 与 `.pre-commit-config.yaml` 的 no-arg 钩子同源（ruff lint + `scripts/checks/check_*.py` 系列），外加 `uv lock --check` lockfile 新鲜度校验，权威清单以脚本内 `CHECKS` 为准；任一非零即非零退出。CI 跑的是同一组脚本，本地通过本地这条命令 ≈ CI 不会因这些 class 报错。
 
-不能省的原因：CI 已经多次把"本地没跑过这条命令"才漏掉的错误拦下来 —— ruff F401 / SIM108 都在最近的 PR 上出现过。一次性把所有 repo-wide 守卫塞进一条命令，意味着没有"我以为只改了文档不用跑 ruff"的借口。
+这条命令不能省：一次性把所有 repo-wide 守卫塞进一条命令，意味着没有"我以为只改了文档不用跑 ruff"的借口。
 
 ## Dogfood：本仓的 Claude Code 调用面
 
@@ -160,15 +155,7 @@ per-skill junction (Windows) / symlink (Unix) 把 `.cataforge/skills/` 每个子
 
 agent / skill 的任何修改都必须是**删到不能再删**的最小可行形式。新增一条规则只写规则本身——不写为什么加、不写来自哪里、不写跟过去对比。
 
-禁止项：
-
-- **溯源引用**：`(issue #NNN)` / `PR #NNN` / `(参 #NNN)` / `closeout` / `closes #N` / `fixes #N` / `landed in`
-- **版本里程碑**：`v0.4.0+ 新增` / `自 vX.Y.Z 起` / `pre-v0.4.0` / `MVP 阶段`
-- **过程标签**：`本次新增` / `本轮加入` / `现已支持` / `已废弃` / `为防 X 类问题再发` / `对照 PR #N 增量`
-- **对比叙事**：`原方案 X 改为 Y` / `不再使用 X` / `重命名为 Y`
-- **HTML 注释残留**：`<!-- 变更原因：... -->` / `<!-- diagnostic #N -->` / `<!-- prompt-version ... -->`
-
-变更说明的合法去处是 PR 描述、commit message、CHANGELOG，**不能溢出**到 SKILL/AGENT 主体。完整自检 regex 见 [`.cataforge/rules/COMMON-RULES.md` §禁止设计阶段与变更说明残留](.cataforge/rules/COMMON-RULES.md)。
+禁止项（溯源引用 / 版本里程碑 / 过程标签 / 对比叙事 / HTML 注释残留）的完整枚举与自检 regex 见 [`.cataforge/rules/COMMON-RULES.md` §禁止设计阶段与变更说明残留](.cataforge/rules/COMMON-RULES.md)。变更说明的合法去处是 PR 描述、commit message、CHANGELOG，**不能溢出**到 SKILL/AGENT 主体。
 
 守卫：[`scripts/checks/check_no_design_residue.py`](scripts/checks/check_no_design_residue.py)（pre-commit + per-PR test.yml + anti-rot weekly sweep）。需要例外时同行附 `<!-- allow-design-residue: <reason> -->`。
 
@@ -181,7 +168,7 @@ agent / skill 的主题是**职责**（评审、TDD、文档生成、装配 hook
 - Java：`@Autowired` / `@Component` / `@Bean` / `Spring Boot` 等
 - Go / Rust：`goroutine` / `tokio::spawn` 等
 
-具体语言识别模式、反例清单、正则候选写入 `docs/reference/`（一文件一主题，例：[`wiring-checks.md`](docs/reference/wiring-checks.md)），SKILL / AGENT 主体以 markdown 链接引用。
+具体语言识别模式、反例清单、正则候选写入 `.cataforge/references/`（一文件一主题，例：[`wiring-checks.md`](.cataforge/references/wiring-checks.md)），SKILL / AGENT 主体以 markdown 链接引用。
 
 合法例外（无需 escape hatch）：
 

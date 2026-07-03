@@ -54,6 +54,9 @@
 | [配置参考](./reference/configuration.md) | framework.json / profile.yaml / hooks.yaml 字段 |
 | [Agent & Skill 清单](./reference/agents-and-skills.md) | 13 个 Agent + 27 个 Skill 详细说明 |
 | [状态码与引用格式](./reference/status-codes.md) | 状态码、文档引用、事件日志 |
+| [KG 已验证行为](./reference/kg-verified-behaviors.md) | 知识图谱后端经测试钉住的行为清单 |
+| [Continuation 可移植性](./reference/continuation-portability.md) | 四平台续接原语差异与 file-based 续接依据 |
+| [Builtin Skill 布局](./reference/builtin-skill-layout.md) | `cataforge.runtime.skill.builtins` 包结构约定 |
 
 ## 其它
 

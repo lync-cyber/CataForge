@@ -13,7 +13,6 @@ templates:
     role: main
     author_agent: product-manager
     upstream_deps: []
-    volumes: [prd-volume]
 
   arch:
     path: standard/arch.md
@@ -22,7 +21,6 @@ templates:
     role: main
     author_agent: architect
     upstream_deps: [prd]
-    volumes: [arch-modules, arch-api, arch-data]
 
   ui-spec:
     path: standard/ui-spec.md
@@ -31,7 +29,6 @@ templates:
     role: main
     author_agent: ui-designer
     upstream_deps: [prd, arch]
-    volumes: [ui-spec-components, ui-spec-pages]
 
   dev-plan:
     path: standard/dev-plan.md
@@ -40,7 +37,6 @@ templates:
     role: main
     author_agent: tech-lead
     upstream_deps: [arch, ui-spec]
-    volumes: [dev-plan-sprint]
 
   test-report:
     path: standard/test-report.md
@@ -49,7 +45,6 @@ templates:
     role: main
     author_agent: qa-engineer
     upstream_deps: [dev-plan]
-    volumes: []
 
   deploy-spec:
     path: standard/deploy-spec.md
@@ -58,7 +53,6 @@ templates:
     role: main
     author_agent: devops
     upstream_deps: [arch]
-    volumes: []
 
   # ============================================================
   # standard 模式 — 分卷

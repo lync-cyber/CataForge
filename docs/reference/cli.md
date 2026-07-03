@@ -329,7 +329,7 @@ cataforge context validate     # 只读校验索引完整性（CI gate；exit 0=
 ```bash
 cataforge context read 'arch#§3.M-auth'        # 加载架构文档第 3 节 Module auth
 cataforge context read 'prd#§2.F-003'          # 加载 PRD 第 2 节 Feature F-003
-cataforge context read 'dev-plan#§1.T-005'     # 加载开发计划第 1 节 Task T-005
+cataforge context read 'dev-plan#§3.T-005'     # 加载开发计划第 3 节 Task T-005
 ```
 
 写入生命周期（`write` / `write-narrative` / `transact` / `update` / `delete` / `finalize` / `ingest` / `reconcile`）见 `cataforge context --help`。`update` 就地合并实体 slot（保 part_of / source_doc），`delete` 删除实体（可级联入向边）；二者仅 `context.mode = graph` 可用。
@@ -511,7 +511,7 @@ cataforge kg delete "doc/arch/sec/§2 Modules" --cascade --yes
 ```bash
 # 单条写入
 cataforge event log --event phase_start --phase development --agent implementer \
-  --status started --ref "dev-plan#§1.T-005"
+  --status started --ref "dev-plan#§3.T-005"
 
 # 从 stdin 批量原子写入 JSONL
 cat events.jsonl | cataforge event log --batch
