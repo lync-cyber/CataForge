@@ -26,13 +26,13 @@ maxTurns: 120
 - 加载示例: `cataforge context read arch#§2.M-001 arch#§3.API-001 ui-spec#§2.UC-001 ui-spec#§3.P-001`
 
 ## Output Contract
-- 必须产出: dev-plan-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）；经 context authoring 落图后 `cataforge context finalize` 导出此视图，不直接 Edit 导出文件
+- 必须产出: dev-plan-{project}.md
 - 使用模板: 通过context调用 dev-plan 模板
 
 ## Execution Rules
-- **task_kind 标注**: 每个 T-xxx 标注 `task_kind ∈ {feature, fix, chore, config, docs, validation}`。`chore`/`config`/`docs` 跳过 TDD（直接由 implementer 单次产出 + lint hook 兜底），仅 `feature`/`fix` 走 RED/GREEN/REFACTOR；`validation` 不产代码也不进 TDD —— orchestrator 在其前置任务完成后经 AskUserQuestion 展示走查清单（调度见 ORCHESTRATOR-PROTOCOLS §validation 任务调度），按 task-decomp 拆分规则在含 `user_facing_critical_path` 的 Sprint 末追加
-- **tdd_mode 判定**（默认 = `TDD_DEFAULT_MODE` = `light`）: 任务卡缺省字段视为 light。仅在以下任一条件成立时显式标 `standard`:
-  - 预估 LOC > `TDD_LIGHT_LOC_THRESHOLD`（默认 150）
+- **task_kind 标注**: 每个 T-xxx 标注 `task_kind ∈ {feature, fix, chore, config, docs, validation}`。`chore`/`config`/`docs` 跳过 TDD（直接由 implementer 单次产出 + lint hook 兜底），仅 `feature`/`fix` 走 RED/GREEN/REFACTOR；`validation` 不产代码也不进 TDD —— orchestrator 在其前置任务完成后经 AskUserQuestion 展示走查清单（调度见 ORCHESTRATOR-PROTOCOLS §Parallel Task Dispatch Protocol 的 validation 任务调度），按 task-decomp 拆分规则在含 `user_facing_critical_path` 的 Sprint 末追加
+- **tdd_mode 判定**（默认 = `TDD_DEFAULT_MODE`）: 任务卡缺省字段视为 light。仅在以下任一条件成立时显式标 `standard`:
+  - 预估 LOC > `TDD_LIGHT_LOC_THRESHOLD`
   - `security_sensitive: true`（涉及鉴权 / 加密 / 输入校验 / 数据脱敏）
   - 跨 ≥2 个 arch 模块（context_load 引用 ≥2 个 `arch#§2.M-xxx`）
 - **tdd_refactor 判定**: 缺省 `auto`（GREEN 后 code-review Layer 1 命中 `TDD_REFACTOR_TRIGGER` 才触发）；跨模块抽象/引入新设计模式的任务可标 `required`；纯 bug 修复或单点改动可标 `skip`
@@ -40,10 +40,10 @@ maxTurns: 120
 
   | LOC | AC | Modules | tdd_mode 推荐 |
   |-----|----|---------|--------------|
-  | ≤150 | ≤4 | 1 | light（主线程内联或 light-dispatch 一次完成） |
-  | ≤150 | 5-6 | 1 | light（边界，试水） |
-  | 150-250 | ≤6 | 1-2 | light 拆分（RED + GREEN-A/B + REFACTOR 三次 dispatch，每次 ≤80 tools） |
-  | >250 | any | any | standard + 强制 §Mid-Progress Drop Contract（tdd-engine SKILL.md） |
+  | ≤ `TDD_LIGHT_LOC_THRESHOLD` | ≤4 | 1 | light（主线程内联或 light-dispatch 一次完成） |
+  | ≤ `TDD_LIGHT_LOC_THRESHOLD` | 5-6 | 1 | light（边界，试水） |
+  | `TDD_LIGHT_LOC_THRESHOLD`–`TASK_SPLIT_LOC` | ≤6 | 1-2 | light 拆分（RED + GREEN-A/B + REFACTOR 三次 dispatch，每次 ≤80 tools） |
+  | > `TASK_SPLIT_LOC` | any | any | standard + 强制 §Mid-Progress Drop Contract（tdd-engine SKILL.md） |
 
   `expected_tool_budget > 100` 且 `tdd_mode: standard` → tech-lead 评审是否拆 light 序列；维持 standard 必须命中 mid-progress 触发条件。orchestrator dispatch 时按本字段 sanity check：>150 警告，>200 阻断改建议拆分。
 - 预估 LOC = 任务 deliverables 的新增/修改代码总行数，范围判断即可
@@ -52,9 +52,8 @@ maxTurns: 120
   - AC 写"返回内容数"代替 `content_count`
   - AC 写"主题词"代替 `topic`
   - AC 写"摘要哈希"代替 `digest`
-  违反时实现层与契约层语义错位会逃过 RED→GREEN 主循环，需 orchestrator 在 RED 前人工拦截
-- **AC contract-completeness**: 任务 AC 引用某 `arch#§N.API-NNN` 契约时，契约声明的每个响应码 / 安全路径 / 集成点都须有对应 AC，缺项须显式标 `[ASSUMPTION]` 豁免并附理由。反例：契约定义 `401 E_AUTH` + `403 E_PERMISSION_DENIED` 两条安全路径，AC 只覆盖正常返回 —— 缺口逃过 dev_planning 门禁，仅在 GREEN 后 code-review 才被 reviewer 标 HIGH 补齐
-- **pipeline-stage coverage**: arch 模块定义为有序管线（`arch#§N.M-NNN` 的 stage 序列）时，每个 stage 的运行时接线都须有任务卡 deliverables 承载；某 stage 仅以占位 / 空返回满足字面 AC 而无接线任务，是拆分缺口 —— 运行时管线在该 stage 静默断裂，逃过 dev_planning 门禁。反例：模块管线含 A→B→C 三 stage，dev-plan 仅为 A、C 建任务卡，B 接线无任务承载、以空对象满足下游字面 AC，集成时管线在 B 断裂
+- **AC contract-completeness**: 任务 AC 引用某 `arch#§N.API-NNN` 契约时，契约声明的每个响应码 / 安全路径 / 集成点都须有对应 AC，缺项须显式标 `[ASSUMPTION]` 豁免并附理由。反例：契约定义 `401 E_AUTH` + `403 E_PERMISSION_DENIED` 两条安全路径，AC 只覆盖正常返回
+- **pipeline-stage coverage**: arch 模块定义为有序管线（`arch#§N.M-NNN` 的 stage 序列）时，每个 stage 的运行时接线都须有任务卡 deliverables 承载。反例：模块管线含 A→B→C 三 stage，dev-plan 仅为 A、C 建任务卡，B 接线无任务承载、以空对象满足下游字面 AC，集成时管线在 B 断裂
 
 ## Error Handling
 | 场景 | 处理策略 |

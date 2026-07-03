@@ -64,4 +64,4 @@
 3. 每完成一个落盘单元立即落盘，不攒到末尾
 4. **禁止**末尾一次 `Write` 堆全部产出 —— 增量落盘是防 truncation 零产出的唯一手段；仍无法完成时返回 blocked 附已完成部分，禁止静默零产出
 
-落盘单元的角色特化见 test-writer / reviewer / debugger 的 AGENT.md §Mid-Progress 落盘契约；其余角色按上述 4 步执行。
+落盘单元的角色特化见 test-writer / implementer / reviewer / debugger 的 AGENT.md §Mid-Progress 落盘契约；其余角色按上述 4 步执行。
