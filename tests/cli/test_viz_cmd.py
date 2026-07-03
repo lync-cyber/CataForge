@@ -324,6 +324,16 @@ class TestVizCoverage:
         assert result.exit_code == 0, result.output
         assert "style" in result.output
 
+    def test_under_covered_node_carries_remediation_hint(self, tmp_path: Path) -> None:
+        # a Feature missing impl and/or test gets a data bag naming the gap plus
+        # a ``run:`` drill-in — an action outlet, not just a red colour.
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "coverage", "--format", "json")
+        nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
+        gap = nodes["F-001"]["data"]
+        assert gap["issue"] in {"缺测试", "缺实现", "缺实现与测试"}
+        assert gap["hint"] == "run: cataforge viz trace F-001"
+
 
 class TestVizArch:
     def test_lists_modules(self, tmp_path: Path) -> None:
@@ -409,6 +419,28 @@ class TestVizDocs:
         labels = {(e["src"], e["dst"]): e.get("label") for e in data["edges"]}
         assert labels[("dev-x", "arch-x")] == "stale"
         assert labels[("arch-x", "ghost")] == "xref-error"
+
+    def test_stale_and_xref_nodes_carry_remediation_hints(self, tmp_path: Path) -> None:
+        # a data-present-but-wrong node guides like a missing-data one: the stale
+        # downstream and the dangling xref target each carry a ``run:`` outlet.
+        _make_docs_project(tmp_path)
+        result = _viz(tmp_path, "docs", "--format", "json")
+        nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
+        assert nodes["dev-x"]["data"] == {
+            "issue": "stale",
+            "hint": "run: cataforge context reconcile",
+        }
+        assert nodes["ghost"]["data"] == {
+            "issue": "xref-error",
+            "hint": "run: cataforge context validate",
+        }
+
+    def test_healthy_node_has_no_data_bag(self, tmp_path: Path) -> None:
+        # prd-x has no stale/xref problem → no hint bag (JSON stays lean)
+        _make_docs_project(tmp_path)
+        result = _viz(tmp_path, "docs", "--format", "json")
+        nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
+        assert "data" not in nodes["prd-x"]
 
     def test_missing_index_degrades(self, tmp_path: Path) -> None:
         result = _viz(tmp_path, "docs")
@@ -856,6 +888,38 @@ class TestVizAssets:
         assert '<code class="path"' in out
         assert "_maint" in out  # the maintainer toggle renders when relevant
 
+    def test_catalogue_graph_clusters_by_type(self, tmp_path: Path) -> None:
+        # agents / skills / rules each fold into a compound parent so the graph
+        # reads as grouped boxes instead of one flat node cloud
+        _make_assets_project(tmp_path)
+        out = _viz(tmp_path, "assets", "--html").output
+        assert '"parent": "cluster_skill"' in out
+        assert '"id": "cluster_skill"' in out  # the compound parent node itself
+        assert '"id": "cluster_agent"' in out
+
+    def _shrink_meta_threshold(self, tmp_path: Path, value: int) -> None:
+        cf = tmp_path / ".cataforge" / "framework.json"
+        data = json.loads(cf.read_text(encoding="utf-8"))
+        data.setdefault("constants", {})["META_DOC_SPLIT_THRESHOLD_LINES"] = value
+        cf.write_text(json.dumps(data), encoding="utf-8")
+
+    def test_oversized_asset_flagged_in_data(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        self._shrink_meta_threshold(tmp_path, 3)  # fixture files exceed 3 lines
+        data = _assets_json_nodes(tmp_path)["skill_demo_skill"]["data"]
+        assert data["lines_warn"] is True
+
+    def test_within_threshold_asset_not_flagged(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)  # default threshold 500 → fixtures are small
+        data = _assets_json_nodes(tmp_path)["skill_demo_skill"]["data"]
+        assert data["lines_warn"] is False
+
+    def test_oversized_asset_warn_column_in_html(self, tmp_path: Path) -> None:
+        _make_assets_project(tmp_path)
+        self._shrink_meta_threshold(tmp_path, 3)
+        out = _viz(tmp_path, "assets", "--html").output
+        assert 'class="num vwarn"' in out  # the oversized lines cell carries the flag
+
 
 # ------------------------------------------------------------------
 # HTML renderer (tier 2) — self-contained offline output
@@ -873,6 +937,19 @@ _HTML_GRAPH = Graph(
     title="g",
     nodes=(Node("a", label="Alpha"), Node("b", label="Beta", status=Status.MISSING)),
     edges=(Edge("a", "b", label="rel"),),
+)
+_HINT_GRAPH = Graph(
+    title="docs",
+    nodes=(
+        Node("a", label="Alpha"),
+        Node(
+            "b",
+            label="Beta",
+            status=Status.PARTIAL,
+            data={"issue": "stale", "hint": "run: cataforge context reconcile"},
+        ),
+    ),
+    edges=(Edge("a", "b", label="stale"),),
 )
 _HTML_TL = Timeline(title="t", events=(TimelineEvent("2026-01-01T00:00:00", "ev", "cat"),))
 _HTML_MS = MetricSeries(title="m", points=(MetricPoint("F-001", 1.0, "impl"),))
@@ -902,6 +979,20 @@ class TestHtmlRenderer:
     def test_graph_has_search_box(self) -> None:
         assert 'class="search"' in html.render(_HTML_GRAPH)
 
+    def test_edged_graph_projects_node_tooltip(self) -> None:
+        # a data-bearing (but non-catalogue) node hovers a details-on-demand
+        # card: status + gap + the ``run:`` remediation, wired via the tip field
+        out = html.render(_HINT_GRAPH)
+        assert "initGraph('view0'" in out  # plain zoomable graph, not a catalogue
+        assert 'class="cat"' not in out
+        assert '"tip":' in out
+        assert "run: cataforge context reconcile" in out
+        assert "d.className='viztip'" in out  # hover-card element wired into initGraph
+
+    def test_node_without_data_or_status_has_no_tip(self) -> None:
+        plain = Graph(nodes=(Node("a", label="A"), Node("b", label="B")), edges=(Edge("a", "b"),))
+        assert '"tip":' not in html.render(plain)
+
     def test_timeline_inlines_echarts_only(self) -> None:
         out = html.render(_HTML_TL)
         assert "Apache Software Foundation" in out
@@ -929,6 +1020,12 @@ class TestHtmlRenderer:
         assert "Apache Software Foundation" in out
         assert "initChart('view0'" in out
         _assert_offline(out)
+
+    def test_timeline_has_datazoom(self) -> None:
+        # a long event log is scannable: a brushable x-axis window
+        out = html.render(_HTML_TL)
+        assert '"dataZoom"' in out
+        assert '"slider"' in out
 
 
 _EDGELESS_STATUS_GRAPH = Graph(
@@ -969,6 +1066,29 @@ class TestStatusTableFallback:
         out = html.render(_HTML_GRAPH)  # has an a→b edge
         assert 'class="stat"' not in out
         assert "initGraph('view0'" in out
+
+    def test_hint_bearing_edgeless_graph_is_table_not_catalogue(self) -> None:
+        # a coverage/docs node's data bag holds only a remediation hint (no
+        # ``type``) → it must not be mistaken for the asset catalogue
+        g = Graph(
+            title="coverage",
+            nodes=(
+                Node("F-001", label="F-001: done", status=Status.OK),
+                Node(
+                    "F-002",
+                    label="F-002: gap",
+                    status=Status.MISSING,
+                    data={"issue": "缺实现与测试", "hint": "run: cataforge viz trace F-002"},
+                ),
+            ),
+        )
+        out = html.render(g)
+        assert 'class="stat"' in out  # status table
+        assert "initCatalogue('view0'" not in out  # not rendered as the asset catalogue
+        assert 'class="cat-view"' not in out
+        # the remediation outlet rides into the table row
+        assert 'class="rhint"' in out
+        assert "run: cataforge viz trace F-002" in out
 
 
 def _make_dashboard_project(tmp_path: Path) -> Path:
@@ -1065,6 +1185,14 @@ class TestDashboard:
         out = html.render_dashboard(tmp_path)
         assert "linkTable('" not in out and "linkGraph('" not in out  # no wiring call
 
+    def test_tasks_to_trace_link_wired_when_ready(self, tmp_path: Path) -> None:
+        # a task id reappears in the traceability chain → tapping a task node
+        # focuses it in the trace tab; tasks has edges so it wires via linkGraph
+        _make_kg_tasks_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        tasks, trace = self._panel_id("tasks"), self._panel_id("trace")
+        assert f"linkGraph('{tasks}_v', '{trace}');" in out
+
     def test_degraded_panel_reuses_status_guidance(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
@@ -1082,6 +1210,89 @@ class TestDashboard:
         _make_kg_project(tmp_path)  # KG present, no Task entities → tasks EMPTY
         out = html.render_dashboard(tmp_path)
         assert "暂无任务依赖" in out
+
+    def _write_corrections(self, tmp_path: Path, body: str) -> None:
+        reviews = tmp_path / "docs" / "reviews"
+        reviews.mkdir(parents=True, exist_ok=True)
+        (reviews / "CORRECTIONS-LOG.md").write_text(f"# C\n\n{body}", encoding="utf-8")
+
+    def _set_constant(self, tmp_path: Path, name: str, value: int) -> None:
+        cf = tmp_path / ".cataforge" / "framework.json"
+        data = json.loads(cf.read_text(encoding="utf-8"))
+        data.setdefault("constants", {})[name] = value
+        cf.write_text(json.dumps(data), encoding="utf-8")
+
+    def test_decay_tile_threshold_read_from_framework_json(self, tmp_path: Path) -> None:
+        # the retro line is not hardcoded: overriding the framework.json constant
+        # moves the denominator the decay tile shows
+        _make_project(tmp_path)
+        self._set_constant(tmp_path, "RETRO_TRIGGER_SELF_CAUSED", 2)
+        self._write_corrections(
+            tmp_path, "### 2026-01-01 | reviewer | development\n- 偏差类型: self-caused\n"
+        )
+        out = html.render_dashboard(tmp_path)
+        assert "1/2" in out  # 1 self-caused over the overridden threshold 2
+        assert "self-caused → retro" in out
+
+    def test_decay_tile_default_threshold_is_five(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)  # no constants override → framework default 5
+        self._write_corrections(
+            tmp_path, "### 2026-01-01 | reviewer | development\n- 偏差类型: self-caused\n"
+        )
+        out = html.render_dashboard(tmp_path)
+        assert "1/5" in out
+
+    def test_decay_tile_goes_bad_at_threshold(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        self._set_constant(tmp_path, "RETRO_TRIGGER_SELF_CAUSED", 2)
+        self._write_corrections(
+            tmp_path,
+            "### 2026-01-01 | reviewer | development\n- 偏差类型: self-caused\n\n"
+            "### 2026-01-02 | reviewer | development\n- 偏差类型: self-caused\n",
+        )
+        out = html.render_dashboard(tmp_path)
+        assert "2/2" in out
+        # the decay tile (last of the 5) carries the bad accent once the line is hit
+        assert out.rindex('<button class="kpi bad"') > out.index('class="kpis"')
+
+    def test_decay_tile_month_over_month_arrow(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        self._write_corrections(
+            tmp_path,
+            "### 2026-01-01 | reviewer | development\n- 偏差类型: preference\n\n"
+            "### 2026-02-01 | reviewer | development\n- 偏差类型: preference\n\n"
+            "### 2026-02-02 | reviewer | development\n- 偏差类型: preference\n",
+        )
+        out = html.render_dashboard(tmp_path)
+        assert "环比↑" in out  # Feb (2) exceeds Jan (1)
+
+    def test_coverage_tile_shows_gap_to_target(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)  # both Features partial → full 0 / total 2
+        out = html.render_dashboard(tmp_path)
+        assert "缺口 2 → 100%" in out
+
+    def test_tabs_grouped_by_domain(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'class="tabgroup"' in out
+        assert "项目健康" in out and "框架资产" in out
+        assert out.count('<button class="tab') == 10  # every view still has a tab
+
+    def test_default_tab_follows_worst_kpi(self, tmp_path: Path) -> None:
+        # a stale + xref doc-index makes the links KPI red → the docs tab opens
+        # first, instead of the (index-0) framework tab
+        _make_docs_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert f'id="{self._panel_id("docs")}" class="panel active"' in out
+        assert 'id="panel0" class="panel active"' not in out  # framework not default
+
+    def test_default_tab_first_health_view_when_all_ok(self, tmp_path: Path) -> None:
+        # no red/amber KPI, but a health view (timeline) has data → open it, never
+        # leaving the framework tab as an arbitrary default
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert f'id="{self._panel_id("timeline")}" class="panel active"' in out
+        assert 'id="panel0" class="panel active"' not in out
 
 
 class TestVizHtmlCli:
@@ -1454,6 +1665,21 @@ class TestVizOverview:
         groups = _overview_groups(tmp_path)
         assert groups["decay"]["2026-01"] == 2.0
         assert groups["decay"]["recent_30d"] == 0.0  # entries far in the past
+
+    def test_decay_group_counts_self_caused_only(self, tmp_path: Path) -> None:
+        # the retro gate counts self-caused corrections; preference / upstream-gap
+        # entries live in the log but do not push toward a retrospective
+        log_dir = tmp_path / "docs" / "reviews"
+        log_dir.mkdir(parents=True)
+        (log_dir / "CORRECTIONS-LOG.md").write_text(
+            "# C\n\n"
+            "### 2026-01-01 | reviewer | development\n- 偏差类型: self-caused\n\n"
+            "### 2026-01-02 | reviewer | development\n- 偏差类型: self-caused\n\n"
+            "### 2026-01-03 | architect | architecture\n- 偏差类型: preference\n",
+            encoding="utf-8",
+        )
+        groups = _overview_groups(tmp_path)
+        assert groups["decay"]["self_caused"] == 2.0  # not 3 — preference excluded
 
     def test_empty_project_is_empty_not_error(self, tmp_path: Path) -> None:
         # every source unreachable → EMPTY, never NEEDS_SETUP; listed first

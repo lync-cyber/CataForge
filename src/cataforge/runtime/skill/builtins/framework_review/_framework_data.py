@@ -9,7 +9,11 @@ from typing import Any
 from cataforge.core.config import ConfigManager
 from cataforge.core.event_log import EVENT_LOG_REL
 
-from ._constants import DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS
+from ._constants import (
+    DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS,
+    DEFAULT_META_SIZE,
+    DEFAULT_RETRO_SELF_CAUSED,
+)
 
 
 def read_framework_data(root: Path) -> dict[str, Any]:
@@ -123,6 +127,30 @@ def read_event_log_threshold(root: Path) -> int:
         if isinstance(v, int) and v >= 0:
             return v
     return DEFAULT_EVENT_LOG_DRIFT_MIN_EVENTS
+
+
+def _int_constant(root: Path, name: str, default: int) -> int:
+    """Read a non-negative integer ``constants.<name>`` from framework.json,
+    falling back to *default* when absent / malformed. The framework.json value
+    is the single source of truth; downstream projects may override it."""
+    consts = read_framework_data(root).get("constants") or {}
+    if isinstance(consts, dict):
+        v = consts.get(name)
+        if isinstance(v, int) and v >= 0:
+            return v
+    return default
+
+
+def read_retro_self_caused_threshold(root: Path) -> int:
+    """Return ``constants.RETRO_TRIGGER_SELF_CAUSED`` (self-caused correction
+    count that triggers a retrospective)."""
+    return _int_constant(root, "RETRO_TRIGGER_SELF_CAUSED", DEFAULT_RETRO_SELF_CAUSED)
+
+
+def read_meta_doc_split_threshold(root: Path) -> int:
+    """Return ``constants.META_DOC_SPLIT_THRESHOLD_LINES`` (line count past which
+    a SKILL/AGENT/protocol doc is flagged oversized)."""
+    return _int_constant(root, "META_DOC_SPLIT_THRESHOLD_LINES", DEFAULT_META_SIZE)
 
 
 def read_anti_pattern_floor(root: Path, kind: str) -> int:

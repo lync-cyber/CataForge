@@ -23,6 +23,9 @@ from cataforge.core.paths import ProjectPaths
 from cataforge.core.viz.model import Edge, Graph, Node, Status, View
 from cataforge.domain.docs.indexer import estimate_tokens
 from cataforge.runtime.agent.manager import AgentManager
+from cataforge.runtime.skill.builtins.framework_review._framework_data import (
+    read_meta_doc_split_threshold,
+)
 from cataforge.runtime.skill.loader import SkillLoader, SkillMeta
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 
@@ -38,13 +41,15 @@ def _join(value: object) -> str:
     return str(value).strip() if value else ""
 
 
-def _volume(path: Path | None, root: Path) -> dict[str, object]:
-    """``lines`` / ``est_tokens`` / repo-relative ``path`` for a source file.
-    A missing or unreadable file (e.g. a script-only builtin skill, or a
-    stray non-UTF-8 file) keeps the keys with ``None`` so consumers render a
-    uniform placeholder — one bad file must not sink the whole view."""
+def _volume(path: Path | None, root: Path, oversize: int) -> dict[str, object]:
+    """``lines`` / ``est_tokens`` / repo-relative ``path`` for a source file,
+    plus ``lines_warn`` when the file exceeds *oversize* (the meta-doc split
+    threshold — a prompt asset that long is a maintenance smell). A missing or
+    unreadable file (e.g. a script-only builtin skill, or a stray non-UTF-8
+    file) keeps the keys with ``None`` so consumers render a uniform
+    placeholder — one bad file must not sink the whole view."""
     if path is None or not path.is_file():
-        return {"lines": None, "est_tokens": None, "path": ""}
+        return {"lines": None, "est_tokens": None, "path": "", "lines_warn": False}
     try:
         rel = str(path.relative_to(root))
     except ValueError:  # outside the project tree (package builtin / user layer)
@@ -52,12 +57,18 @@ def _volume(path: Path | None, root: Path) -> dict[str, object]:
     try:
         text = path.read_text()
     except (OSError, UnicodeDecodeError):
-        return {"lines": None, "est_tokens": None, "path": rel}
-    return {"lines": len(text.splitlines()), "est_tokens": estimate_tokens(text), "path": rel}
+        return {"lines": None, "est_tokens": None, "path": rel, "lines_warn": False}
+    lines = len(text.splitlines())
+    return {
+        "lines": lines,
+        "est_tokens": estimate_tokens(text),
+        "path": rel,
+        "lines_warn": lines > oversize,
+    }
 
 
 def _agent_data(
-    root: Path, agent_id: str, content: str | None, skills: list[str]
+    root: Path, agent_id: str, content: str | None, skills: list[str], oversize: int
 ) -> dict[str, object]:
     fm = split_yaml_frontmatter(content)[0] if content else None
     fm = fm or {}
@@ -70,11 +81,11 @@ def _agent_data(
         "tools": _join(fm.get("tools")),
         "model": str(fm.get("model", "")),
         "maintainer_only": False,
-        **_volume(agent_md if agent_md.is_file() else None, root),
+        **_volume(agent_md if agent_md.is_file() else None, root, oversize),
     }
 
 
-def _skill_data(meta: SkillMeta, root: Path) -> dict[str, object]:
+def _skill_data(meta: SkillMeta, root: Path, oversize: int) -> dict[str, object]:
     return {
         "type": "skill",
         "name": meta.id,
@@ -83,11 +94,11 @@ def _skill_data(meta: SkillMeta, root: Path) -> dict[str, object]:
         "tools": _join(meta.suggested_tools),
         "model": "",
         "maintainer_only": meta.maintainer_only,
-        **_volume(meta.path, root),
+        **_volume(meta.path, root, oversize),
     }
 
 
-def _rules_data(rules_md: Path, root: Path) -> dict[str, object]:
+def _rules_data(rules_md: Path, root: Path, oversize: int) -> dict[str, object]:
     return {
         "type": "rules",
         "name": rules_md.stem,
@@ -96,7 +107,7 @@ def _rules_data(rules_md: Path, root: Path) -> dict[str, object]:
         "tools": "",
         "model": "",
         "maintainer_only": False,
-        **_volume(rules_md, root),
+        **_volume(rules_md, root, oversize),
     }
 
 
@@ -105,6 +116,7 @@ def collect(root: Path, /, **_opts: Any) -> View:
     skills = SkillLoader(root).discover()
     skill_ids = {s.id for s in skills}
     skill_meta = {s.id: s for s in skills}
+    oversize = read_meta_doc_split_threshold(root)
 
     nodes: list[Node] = []
     edges: list[Edge] = []
@@ -123,7 +135,7 @@ def collect(root: Path, /, **_opts: Any) -> View:
 
     def skill_node(skill_id: str) -> Node:
         meta = skill_meta.get(skill_id)
-        data = _skill_data(meta, root) if meta else None
+        data = _skill_data(meta, root, oversize) if meta else None
         return Node(id=_sid("skill", skill_id), label=skill_id, status=Status.SKILL, data=data)
 
     for aid in agents.list_agents():
@@ -134,7 +146,7 @@ def collect(root: Path, /, **_opts: Any) -> View:
                 id=anode,
                 label=aid,
                 status=Status.AGENT,
-                data=_agent_data(root, aid, agents.get_agent_content(aid), agent_skills),
+                data=_agent_data(root, aid, agents.get_agent_content(aid), agent_skills, oversize),
             )
         )
         for skill in agent_skills:
@@ -152,7 +164,9 @@ def collect(root: Path, /, **_opts: Any) -> View:
     rules_dir = ProjectPaths(root).rules_dir
     if rules_dir.is_dir():
         for rules_md in sorted(rules_dir.glob("*.md")):
-            add_node(Node(id=_sid("rules", rules_md.stem), data=_rules_data(rules_md, root)))
+            add_node(
+                Node(id=_sid("rules", rules_md.stem), data=_rules_data(rules_md, root, oversize))
+            )
 
     return Graph(
         nodes=tuple(nodes),

@@ -17,7 +17,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from cataforge.application.viz.collectors.overview import CURRENT_PREFIX, RECENT_LABEL
+from cataforge.application.viz.collectors.overview import CURRENT_PREFIX, SELF_CAUSED_LABEL
 from cataforge.core.errors import CataforgeError
 from cataforge.core.viz import palette
 from cataforge.core.viz.model import Graph, MetricSeries, Node, Status, Timeline, View, is_empty
@@ -54,8 +54,27 @@ def _script_json(value: Any) -> str:
 # --------------------------------------------------------------------------- #
 # Graph → Cytoscape
 # --------------------------------------------------------------------------- #
+# data-bag keys the tooltip projects, in display order — a stable subset so a
+# catalogue's full metadata bag doesn't dump every field into the hover card.
+_TIP_KEYS = ("issue", "description", "hint", "path")
+
+
+def _node_tip(node: Node) -> str | None:
+    """Details-on-demand text for a node: its semantic status plus the acted-on
+    fields of its data bag (the gap, the ``run:`` remediation, the source path).
+    ``None`` when the node carries nothing worth a hover card."""
+    lines: list[str] = []
+    if node.status:
+        enc = palette.encoding(node.status)
+        lines.append(f"{enc.marker} {node.status.value}".strip())
+    data = node.data or {}
+    lines.extend(str(data[k]) for k in _TIP_KEYS if data.get(k))
+    return "\n".join(lines) or None
+
+
 def _node_data(graph: Graph) -> list[dict[str, Any]]:
     elements: list[dict[str, Any]] = []
+    clusters: set[str] = set()
     for node in graph.nodes:
         # An implicit node (label=None) may still carry a display name in its
         # data bag — catalogue entries invisible to the text renderers.
@@ -65,13 +84,35 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
             enc = palette.encoding(node.status)
             data["bg"] = enc.fill
             data["border"] = enc.stroke
+        tip = _node_tip(node)
+        if tip:
+            data["tip"] = tip
+        # Catalogue nodes (those carrying a type) cluster into a compound parent
+        # per type, so agents / skills / rules read as three grouped boxes.
+        ntype = (node.data or {}).get("type")
+        if ntype:
+            data["parent"] = f"cluster_{ntype}"
+            clusters.add(str(ntype))
         elements.append({"data": data})
     for edge in graph.edges:
-        data = {"source": edge.src, "target": edge.dst, "id": f"{edge.src}__{edge.dst}"}
+        edata: dict[str, Any] = {
+            "source": edge.src,
+            "target": edge.dst,
+            "id": f"{edge.src}__{edge.dst}",
+        }
         if edge.label:
-            data["label"] = edge.label
-        elements.append({"data": data})
-    return elements
+            edata["label"] = edge.label
+        elements.append({"data": edata})
+    parents = [{"data": {"id": f"cluster_{c}", "label": c}} for c in sorted(clusters)]
+    return parents + elements
+
+
+def _is_catalogue(graph: Graph) -> bool:
+    """A graph is an asset catalogue only when a node's data bag carries a
+    ``type`` (agent/skill/rules) — the shape ``_cat_row`` expects. A data bag
+    holding only a remediation ``hint`` (docs / coverage) is *not* a catalogue,
+    so it renders as a normal graph / status table with the hint projected."""
+    return any((node.data or {}).get("type") for node in graph.nodes)
 
 
 def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str, bool]:
@@ -79,7 +120,7 @@ def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str, bool]:
     an asset catalogue (metadata table + linked graph), an edgeless graph's
     status table (position carries no information without edges), or the plain
     zoomable graph."""
-    if any(node.data for node in graph.nodes):
+    if _is_catalogue(graph):
         body, init = _catalogue_fragment(graph, dom_id)
         return body, init, True
     if graph.nodes and not graph.edges:
@@ -124,12 +165,24 @@ def _status_badge(status: Status | None) -> str:
     )
 
 
+def _row_hint(node: Node) -> str:
+    """Inline remediation suffix for a status-table row: the same ``run:`` outlet
+    the graph tooltip shows, so the table fallback keeps the action affordance."""
+    data = node.data or {}
+    hint = str(data.get("hint") or "")
+    if not hint:
+        return ""
+    issue = _html.escape(str(data.get("issue") or ""))
+    return f' <span class="rhint" title="{issue}">{_html.escape(hint)}</span>'
+
+
 def _status_row(node: Node) -> str:
     label = node.label or str((node.data or {}).get("name") or node.id)
     sval = node.status.value if node.status else ""
     return (
         f'<tr data-node="{_html.escape(node.id)}" data-status="{_html.escape(sval)}">'
-        f"<td>{_status_badge(node.status)}</td><td>{_html.escape(label)}</td></tr>"
+        f"<td>{_status_badge(node.status)}</td>"
+        f"<td>{_html.escape(label)}{_row_hint(node)}</td></tr>"
     )
 
 
@@ -181,7 +234,8 @@ def _cat_row(node_id: str, data: dict[str, Any]) -> str:
         f'<td><span class="chip t-{_html.escape(kind)}">{_cat_cell(kind)}</span></td>',
     ]
     cells.extend(f'<td class="desc">{_cat_cell(data.get(col))}</td>' for col in _CAT_COLUMNS[2:])
-    cells.append(f'<td class="num">{_cat_cell(data.get("lines"))}</td>')
+    lines_cls = "num vwarn" if data.get("lines_warn") else "num"
+    cells.append(f'<td class="{lines_cls}">{_cat_cell(data.get("lines"))}</td>')
     cells.append(f'<td class="num">{_cat_cell(data.get("est_tokens"))}</td>')
     path = str(data.get("path") or "")
     path_cell = (
@@ -251,9 +305,14 @@ def _timeline_option(view: Timeline) -> dict[str, Any]:
     return {
         "title": {"text": view.title or "timeline"},
         "tooltip": {"trigger": "item", "formatter": "{b}"},
-        "grid": {"containLabel": True},
+        "grid": {"containLabel": True, "bottom": 64},
         "xAxis": {"type": "category", "data": times, "axisLabel": {"rotate": 45}},
         "yAxis": {"type": "category", "data": lanes},
+        # a long log is scannable: brush a window on the x-axis, scroll inside it
+        "dataZoom": [
+            {"type": "slider", "xAxisIndex": 0, "bottom": 8},
+            {"type": "inside", "xAxisIndex": 0},
+        ],
         "series": [{"type": "scatter", "data": data}],
     }
 
@@ -336,12 +395,19 @@ def render(view: View) -> str:
 _Results = dict[str, tuple[View | None, str | None]]
 
 
-def _tile(value: str, label: str, cls: str, panel_id: str) -> str:
-    return (
+# cls → severity rank; the highest-ranked tile decides which tab opens first.
+_CLS_RANK = {"na": 0, "ok": 0, "warn": 1, "bad": 2}
+
+
+def _tile(value: str, label: str, cls: str, panel_id: str) -> tuple[str, int]:
+    """A KPI tile plus its severity rank, so the strip can point the default
+    tab at the worst signal instead of always opening the first view."""
+    html_ = (
         f'<button class="kpi {cls}" data-panel="{panel_id}">'
         f'<span class="kpi-v">{_html.escape(value)}</span>'
         f'<span class="kpi-l">{_html.escape(label)}</span></button>'
     )
+    return html_, _CLS_RANK.get(cls, 0)
 
 
 def _missing_hint(results: _Results, name: str, label: str) -> str:
@@ -356,7 +422,7 @@ def _missing_hint(results: _Results, name: str, label: str) -> str:
     return f"{label} · 数据未就绪"
 
 
-def _phase_tile(group: dict[str, float] | None, results: _Results, pid: str) -> str:
+def _phase_tile(group: dict[str, float] | None, results: _Results, pid: str) -> tuple[str, int]:
     if not group:
         return _tile("—", _missing_hint(results, "phase", "阶段"), "na", pid)
     if group.get("applicable", 1.0) < 1.0:
@@ -376,7 +442,7 @@ def _phase_tile(group: dict[str, float] | None, results: _Results, pid: str) -> 
     return _tile(value, label, "ok" if gate_ok else "bad", pid)
 
 
-def _docs_tile(group: dict[str, float] | None, results: _Results, pid: str) -> str:
+def _docs_tile(group: dict[str, float] | None, results: _Results, pid: str) -> tuple[str, int]:
     if not group:
         return _tile("—", _missing_hint(results, "docs", "核心文档"), "na", pid)
     total = len(group)
@@ -386,7 +452,7 @@ def _docs_tile(group: dict[str, float] | None, results: _Results, pid: str) -> s
     return _tile(f"{present}/{total}", f"核心文档 · {approved} 已批", cls, pid)
 
 
-def _coverage_tile(group: dict[str, float] | None, results: _Results, pid: str) -> str:
+def _coverage_tile(group: dict[str, float] | None, results: _Results, pid: str) -> tuple[str, int]:
     if not group:
         return _tile("—", _missing_hint(results, "coverage", "Feature 覆盖"), "na", pid)
     full, partial, none = (int(group.get(k, 0)) for k in ("full", "partial", "none"))
@@ -395,10 +461,11 @@ def _coverage_tile(group: dict[str, float] | None, results: _Results, pid: str) 
         return _tile("—", "Feature 覆盖 · 无 Feature", "na", pid)
     cls = "ok" if full == total else "bad" if full == 0 else "warn"
     pct = round(full * 100 / total)
-    return _tile(f"{pct}%", f"Feature 覆盖 · partial {partial} · none {none}", cls, pid)
+    gap = total - full  # Features short of the 100% target line
+    return _tile(f"{pct}%", f"Feature 覆盖 · 缺口 {gap} → 100%", cls, pid)
 
 
-def _links_tile(group: dict[str, float] | None, results: _Results, pid: str) -> str:
+def _links_tile(group: dict[str, float] | None, results: _Results, pid: str) -> tuple[str, int]:
     if not group:
         return _tile("—", _missing_hint(results, "docs", "断链 / stale"), "na", pid)
     stale, xref = int(group.get("stale", 0)), int(group.get("xref_error", 0))
@@ -407,25 +474,53 @@ def _links_tile(group: dict[str, float] | None, results: _Results, pid: str) -> 
     return _tile(str(count), f"断链 / stale · stale {stale} · xref {xref}", cls, pid)
 
 
-def _decay_tile(group: dict[str, float] | None, pid: str) -> str:
-    recent = int((group or {}).get(RECENT_LABEL, 0))
-    total = int(sum(v for lb, v in (group or {}).items() if lb != RECENT_LABEL))
-    return _tile(str(recent), f"近30天纠偏 · 累计 {total}", "ok" if recent == 0 else "warn", pid)
+_MONTH_RE = re.compile(r"\d{4}-\d{2}")
 
 
-def _kpi_strip(overview: View | None, results: _Results, panel_ids: dict[str, str]) -> str:
+def _month_over_month(group: dict[str, float]) -> str:
+    """↑ / ↓ / → for the two most recent monthly correction counts — direction,
+    not just a running total, so a spike or a cooldown is visible at a glance."""
+    months = sorted(k for k in group if _MONTH_RE.fullmatch(k))
+    if len(months) < 2:
+        return "→"
+    cur, prev = group[months[-1]], group[months[-2]]
+    return "↑" if cur > prev else "↓" if cur < prev else "→"
+
+
+def _decay_tile(group: dict[str, float] | None, pid: str, threshold: int) -> tuple[str, int]:
+    """Self-caused corrections against the retrospective trigger line: ``N/阈值``
+    plus month-over-month direction. Red once the retro line is reached."""
+    g = group or {}
+    self_caused = int(g.get(SELF_CAUSED_LABEL, 0))
+    cls = "bad" if self_caused >= threshold else "warn" if self_caused else "ok"
+    arrow = _month_over_month(g)
+    return _tile(f"{self_caused}/{threshold}", f"self-caused → retro · 环比{arrow}", cls, pid)
+
+
+def _kpi_strip(
+    overview: View | None, results: _Results, panel_ids: dict[str, str], retro_threshold: int
+) -> tuple[str, str | None]:
+    """Return ``(strip_html, worst_view)``. ``worst_view`` is the view name of
+    the highest-severity tile (``None`` when every tile is ok/na), so the caller
+    can open the tab that most needs attention."""
     groups: dict[str, dict[str, float]] = {}
     if isinstance(overview, MetricSeries):
         for point in overview.points:
             groups.setdefault(point.series, {})[point.label] = point.value
-    tiles = (
-        _phase_tile(groups.get("phase"), results, panel_ids["phase"]),
-        _docs_tile(groups.get("docs"), results, panel_ids["docs"]),
-        _coverage_tile(groups.get("coverage"), results, panel_ids["coverage"]),
-        _links_tile(groups.get("links"), results, panel_ids["docs"]),
-        _decay_tile(groups.get("decay"), panel_ids["decay"]),
+    # (tile, the view its worst state should open)
+    tiles = [
+        (_phase_tile(groups.get("phase"), results, panel_ids["phase"]), "phase"),
+        (_docs_tile(groups.get("docs"), results, panel_ids["docs"]), "docs"),
+        (_coverage_tile(groups.get("coverage"), results, panel_ids["coverage"]), "coverage"),
+        (_links_tile(groups.get("links"), results, panel_ids["docs"]), "docs"),
+        (_decay_tile(groups.get("decay"), panel_ids["decay"], retro_threshold), "decay"),
+    ]
+    html_ = "".join(tile for (tile, _rank), _view in tiles)
+    worst_rank = max((rank for (_tile_html, rank), _view in tiles), default=0)
+    worst_view = next(
+        (view for (_tile_html, rank), view in tiles if rank == worst_rank and rank > 0), None
     )
-    return f'<section class="kpis">{"".join(tiles)}</section>'
+    return f'<section class="kpis">{html_}</section>', worst_view
 
 
 # Per-view guidance for a view that renders but holds no data yet.
@@ -439,8 +534,10 @@ _EMPTY_HINTS = {
 }
 
 # Cross-view focus links: tapping a node in the source view's dashboard graph
-# jumps to the target tab and focuses the same entity node.
-_CROSS_LINKS: tuple[tuple[str, str], ...] = (("coverage", "trace"),)
+# jumps to the target tab and focuses the same entity node. Both pairs share
+# entity ids across views — a Feature id in coverage / a task id in tasks both
+# reappear in the traceability chain.
+_CROSS_LINKS: tuple[tuple[str, str], ...] = (("coverage", "trace"), ("tasks", "trace"))
 
 
 def _inline_code(text: str) -> str:
@@ -465,37 +562,79 @@ def _degraded_inner(name: str, view: View | None, error: str | None) -> str:
     return f'<div class="empty">{_inline_code(_EMPTY_HINTS.get(name, "暂无数据"))}</div>'
 
 
+# Two tab clusters: what's the project's health vs what the framework is made of.
+_HEALTH_VIEWS = frozenset({"phase", "docs", "coverage", "trace", "timeline", "decay"})
+_TAB_GROUPS: tuple[tuple[str, str], ...] = (("项目健康", "health"), ("框架资产", "framework"))
+
+
+def _view_group(name: str) -> str:
+    return "health" if name in _HEALTH_VIEWS else "framework"
+
+
+def _default_index(results: _Results, worst_view: str | None) -> int:
+    """Which tab opens first: the worst KPI's view, else the first health view
+    that actually has data, else the first tab."""
+    order = [name for name, _ in _DASHBOARD_VIEWS]
+    if worst_view and worst_view in order:
+        return order.index(worst_view)
+    for i, name in enumerate(order):
+        if name in _HEALTH_VIEWS:
+            view = results[name][0]
+            if view is not None and not is_empty(view):
+                return i
+    return 0
+
+
 def _dashboard_panel(
-    name: str, result: tuple[View | None, str | None], index: int
+    name: str, result: tuple[View | None, str | None], index: int, active: bool
 ) -> tuple[str, str | None, str | None]:
     """Render one dashboard tab. Returns ``(panel_html, init_js, lib)``;
     ``init_js`` / ``lib`` are ``None`` for empty or failed views."""
-    active = " active" if index == 0 else ""
+    cls = " active" if active else ""
     pid = f"panel{index}"
     view, error = result
     if view is None or is_empty(view):
         inner = _degraded_inner(name, view, error)
-        return f'<section id="{pid}" class="panel{active}">{inner}</section>', None, None
+        return f'<section id="{pid}" class="panel{cls}">{inner}</section>', None, None
     body, init, lib = _fragment(view, f"{pid}_v")
-    return f'<section id="{pid}" class="panel{active}">{body}</section>', init, lib
+    return f'<section id="{pid}" class="panel{cls}">{body}</section>', init, lib
+
+
+def _grouped_nav(tabs_by_name: dict[str, str]) -> str:
+    """Tabs rendered in two labelled clusters (health / framework), so a wide
+    row of ten tabs reads as two scannable groups."""
+    order = [name for name, _ in _DASHBOARD_VIEWS]
+    blocks: list[str] = []
+    for title, key in _TAB_GROUPS:
+        btns = "".join(tabs_by_name[n] for n in order if _view_group(n) == key)
+        blocks.append(f'<div class="tabgroup"><span class="tglabel">{title}</span>{btns}</div>')
+    return f'<nav class="tabs">{"".join(blocks)}</nav>'
 
 
 def render_dashboard(root: Path, /, **_opts: Any) -> str:
     from cataforge.application.viz.registry import collect_safe
+    from cataforge.runtime.skill.builtins.framework_review._framework_data import (
+        read_retro_self_caused_threshold,
+    )
 
     results: _Results = {name: collect_safe(root, name) for name, _ in _DASHBOARD_VIEWS}
     panel_ids = {name: f"panel{index}" for index, (name, _) in enumerate(_DASHBOARD_VIEWS)}
     overview, _ = collect_safe(root, "overview")
-    tabs: list[str] = []
+    kpis, worst_view = _kpi_strip(
+        overview, results, panel_ids, read_retro_self_caused_threshold(root)
+    )
+    default_index = _default_index(results, worst_view)
+
+    tabs_by_name: dict[str, str] = {}
     panels: list[str] = []
     inits: list[str] = []
     libs: list[str] = []
     graph_views: set[str] = set()
     table_views: set[str] = set()
     for index, (name, label) in enumerate(_DASHBOARD_VIEWS):
-        panel, init, lib = _dashboard_panel(name, results[name], index)
-        sel = " sel" if index == 0 else ""
-        tabs.append(
+        panel, init, lib = _dashboard_panel(name, results[name], index, index == default_index)
+        sel = " sel" if index == default_index else ""
+        tabs_by_name[name] = (
             f'<button class="tab{sel}" data-panel="panel{index}">{_html.escape(label)}</button>'
         )
         panels.append(panel)
@@ -511,10 +650,9 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
             inits.append(f"linkGraph('{panel_ids[src]}_v', '{panel_ids[dst]}');")
         elif src in table_views:
             inits.append(f"linkTable('{panel_ids[src]}_v', '{panel_ids[dst]}');")
+
     header = "<header><strong>CataForge viz dashboard</strong></header>"
-    kpis = _kpi_strip(overview, results, panel_ids)
-    nav = f'<nav class="tabs">{"".join(tabs)}</nav>'
-    body = header + kpis + _legend() + nav + "\n".join(panels)
+    body = header + kpis + _legend() + _grouped_nav(tabs_by_name) + "\n".join(panels)
     return _document("CataForge viz dashboard", body, inits, libs or [_CYTOSCAPE])
 
 
@@ -528,8 +666,10 @@ _BAD_HEX = palette.encoding(Status.MISSING).fill
 _CSS = (
     "body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;color:#222;background:#fff}"
     "header{padding:8px 14px;border-bottom:1px solid #e3e6ea;font-size:15px}"
-    ".tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px 14px;background:#f7f8fa;"
+    ".tabs{display:flex;flex-wrap:wrap;gap:14px;padding:8px 14px;background:#f7f8fa;"
     "border-bottom:1px solid #e3e6ea}"
+    ".tabgroup{display:flex;flex-wrap:wrap;align-items:center;gap:4px}"
+    ".tglabel{font-size:11px;color:#8a9099;margin-right:2px;font-weight:600}"
     ".tab{padding:4px 10px;border:1px solid #ccd2da;border-radius:4px;background:#fff;"
     "cursor:pointer;font-size:13px}"
     ".tab.sel{background:#36648b;color:#fff;border-color:#36648b}"
@@ -563,6 +703,7 @@ _CSS = (
     ".cat td{padding:4px 8px;border-bottom:1px solid #f0f2f5;vertical-align:top}"
     ".cat td.desc{max-width:340px}"
     ".cat td.num,.cat th.num{text-align:right}"
+    ".cat td.vwarn{color:#b4690e;font-weight:600}"
     ".cat tbody tr{cursor:pointer}.cat tr.focus{background:#eef4fb}"
     ".chip{padding:1px 7px;border-radius:9px;font-size:11px;border:1px solid #ccd2da}"
     f".chip.t-agent{{background:{palette.encoding(Status.AGENT).fill}}}"
@@ -590,6 +731,11 @@ _CSS = (
     "border:1px solid #ccd2da;white-space:nowrap}"
     ".sbadge.none{background:#f0f1f3;color:#8a9099}"
     ".stat tbody tr{cursor:pointer}"
+    ".rhint{margin-left:8px;font-size:11px;color:#36648b;background:#f5f6f8;"
+    "padding:1px 6px;border-radius:3px;font-family:ui-monospace,Menlo,Consolas,monospace}"
+    ".viztip{position:absolute;z-index:50;max-width:320px;padding:6px 9px;"
+    "background:#1f2d3d;color:#f7f8fa;font-size:11px;line-height:1.5;border-radius:5px;"
+    "pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.25)}"
 )
 
 _GRAPH_STYLE = (
@@ -602,6 +748,10 @@ _GRAPH_STYLE = (
     "{selector:'edge',style:{'width':1,'line-color':'#aab2bd','target-arrow-color':'#aab2bd',"
     "'target-arrow-shape':'triangle','curve-style':'bezier','label':'data(label)',"
     "'font-size':8,'color':'#66758c','text-background-color':'#fff','text-background-opacity':1}},"
+    "{selector:':parent',style:{'background-opacity':0.06,'background-color':'#36648b',"
+    "'border-color':'#c3ccd6','border-width':1,'label':'data(label)','font-size':11,"
+    "'color':'#66758c','text-valign':'top','text-halign':'center','padding':'10px',"
+    "'shape':'round-rectangle'}},"
     "{selector:'.dim',style:{'opacity':0.12}},"
     "{selector:'.focus',style:{'border-width':3,'border-color':'#36648b'}}]"
 )
@@ -609,11 +759,29 @@ _GRAPH_STYLE = (
 _BOOTSTRAP_JS = (
     "window.__viz=window.__viz||{cy:{},ec:{}};\n"
     "function initGraph(id,elements){\n"
+    "  var compound=elements.some(function(e){return e.data&&e.data.parent;});\n"
+    "  var layout=compound\n"
+    "    ?{name:'cose',padding:14,fit:true,nodeDimensionsIncludeLabels:true,idealEdgeLength:60}\n"
+    "    :{name:'breadthfirst',directed:true,spacingFactor:1.1,padding:12,fit:true};\n"
     "  var cy=cytoscape({container:document.getElementById(id),elements:elements,\n"
     f"    style:{_GRAPH_STYLE},\n"
-    "    layout:{name:'breadthfirst',directed:true,spacingFactor:1.1,padding:12,fit:true},\n"
+    "    layout:layout,\n"
     "    wheelSensitivity:0.2});\n"
     "  window.__viz.cy[id]=cy;\n"
+    "  var tip=window.__viz.tip||(window.__viz.tip=(function(){\n"
+    "    var d=document.createElement('div');d.className='viztip';d.style.display='none';\n"
+    "    document.body.appendChild(d);return d;})());\n"
+    "  cy.on('mouseover','node',function(ev){\n"
+    "    var t=ev.target.data('tip');if(!t){return;}\n"
+    "    tip.innerHTML=t.split('\\n').map(function(s){\n"
+    "      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}).join('<br>');\n"
+    "    tip.style.display='block';\n"
+    "  });\n"
+    "  cy.on('mousemove','node',function(ev){\n"
+    "    tip.style.left=(ev.originalEvent.pageX+12)+'px';\n"
+    "    tip.style.top=(ev.originalEvent.pageY+12)+'px';\n"
+    "  });\n"
+    "  cy.on('mouseout','node',function(){tip.style.display='none';});\n"
     "  var box=document.querySelector('.search[data-target=\"'+id+'\"]');\n"
     "  if(box){box.addEventListener('input',function(){\n"
     "    var q=this.value.trim().toLowerCase();\n"

@@ -100,19 +100,32 @@ def collect_trace(root: Path, /, **opts: Any) -> View:
     )
 
 
+def _coverage_gap(has_impl: bool, has_test: bool) -> str:
+    """Which side of a Feature's chain is missing — the gap a reader must close."""
+    if not has_impl and not has_test:
+        return "缺实现与测试"
+    return "缺测试" if has_impl else "缺实现"
+
+
 def collect_coverage(root: Path, /, **_opts: Any) -> View:
-    """One styled node per Feature: green=impl+test, yellow=partial, red=none."""
+    """One styled node per Feature: green=impl+test, yellow=partial, red=none.
+    Under-covered Features carry a ``data`` bag naming the gap + a drill-in
+    command, so a reader lands on the actionable next step, not just a colour."""
     with open_kg(root) as kg:
         rows = kg.trace.bidirectional_coverage()
     nodes = []
     for r in rows:
         if r.has_impl and r.has_test:
-            status = Status.OK
-        elif r.has_impl or r.has_test:
-            status = Status.PARTIAL
+            status, data = Status.OK, None
         else:
-            status = Status.MISSING
-        nodes.append(Node(id=r.entity_id, label=f"{r.entity_id}: {r.title or ''}", status=status))
+            status = Status.PARTIAL if (r.has_impl or r.has_test) else Status.MISSING
+            data = {
+                "issue": _coverage_gap(r.has_impl, r.has_test),
+                "hint": f"run: cataforge viz trace {r.entity_id}",
+            }
+        nodes.append(
+            Node(id=r.entity_id, label=f"{r.entity_id}: {r.title or ''}", status=status, data=data)
+        )
     return Graph(nodes=tuple(nodes), direction="TD", title="feature coverage")
 
 
