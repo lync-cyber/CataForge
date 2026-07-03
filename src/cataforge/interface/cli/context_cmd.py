@@ -368,18 +368,62 @@ def context_transact(ctx: click.Context, spec_file: str | None, project_root: st
 @context_group.command("finalize")
 @click.option("--project-root", default=None)
 @click.option("--output-dir", default=None, help="Export target (default docs/).")
+@click.option("--doc-type", "doc_types", multiple=True, help="Restrict scope; repeatable.")
+@click.option(
+    "--dry-run", is_flag=True, help="Preview the per-document export plan without writing."
+)
+@click.option(
+    "--force", is_flag=True, help="Overwrite files whose Markdown is ahead of the export baseline."
+)
 @click.pass_context
-def context_finalize(ctx: click.Context, project_root: str, output_dir: str | None) -> None:
-    """Persist authored content per mode (graph exports md; else rebuilds the docs index)."""
+def context_finalize(
+    ctx: click.Context,
+    project_root: str,
+    output_dir: str | None,
+    doc_types: tuple[str, ...],
+    dry_run: bool,
+    force: bool,
+) -> None:
+    """Persist authored content per mode (graph exports md; else rebuilds the docs index).
+
+    A document whose on-disk Markdown holds changes the graph has not absorbed
+    is left untouched and reported; run `cataforge context ingest` first, or
+    pass --force to overwrite (the prior file is backed up under
+    .cataforge/.backups/).
+    """
+    from collections import Counter
+
     from cataforge.application.context.write import DocIndexResult, finalize
 
     project_root = _rooted(ctx, project_root)
     with _kg_store_guard():
-        result = finalize(project_root, output_dir)
+        result = finalize(
+            project_root,
+            output_dir,
+            doc_types=list(doc_types) or None,
+            dry_run=dry_run,
+            force=force,
+        )
     if isinstance(result, DocIndexResult):
         click.echo(f"indexed {result.indexed_count} doc(s)")
         return
+    if dry_run:
+        for source_path, status in result.plan:
+            click.echo(f"{status:9} {source_path}")
+        counts = Counter(status for _, status in result.plan)
+        summary = " · ".join(f"{counts[s]} {s}" for s in ("new", "update", "unchanged", "blocked"))
+        click.echo(f"plan: {summary} (dry-run; nothing written)")
+        return
     click.echo(f"exported {len(result.file_records)} file(s)")
+    if result.blocked:
+        for source_path in result.blocked:
+            click.echo(f"[BLOCKED] {source_path}", err=True)
+        failure = CataforgeError(
+            f"finalize: {len(result.blocked)} file(s) hold Markdown changes the graph has not "
+            "absorbed — run `cataforge context ingest` first, or pass --force to overwrite."
+        )
+        failure.exit_code = 1
+        raise failure
     if result.errors:
         for err in result.errors:
             click.echo(f"[ERROR] {err}", err=True)
@@ -455,14 +499,14 @@ def context_reconcile(ctx: click.Context, project_root: str, json_output: bool) 
         click.echo(json.dumps(payload))
         if report.ok:
             return
-        failure = CataforgeError(f"reconcile: {report.overall_divergence_count} divergence(s)")
+        failure = CataforgeError(f"reconcile: {report.gate_summary}")
         failure.exit_code = 3
         raise failure
     if report.ok:
         click.echo("reconcile OK (no drift)")
         return
-    click.echo(f"DRIFT: {report.overall_divergence_count} divergence(s)", err=True)
-    failure = CataforgeError(f"reconcile: {report.overall_divergence_count} divergence(s)")
+    click.echo(f"DRIFT: {report.gate_summary}", err=True)
+    failure = CataforgeError(f"reconcile: {report.gate_summary}")
     failure.exit_code = 3
     raise failure
 

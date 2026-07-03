@@ -145,6 +145,10 @@ class DocValidationReport:
     def ok(self) -> bool:
         return self.overall_divergence_count == 0
 
+    @property
+    def gate_summary(self) -> str:
+        return f"{self.overall_divergence_count} divergence(s)"
+
 
 _DOC_VALIDATION_GATES = ("orphans", "stale", "xref_errors", "alias_conflicts", "invalid_ids")
 
@@ -410,6 +414,7 @@ def write_narrative(
                 title=anchor,
                 contained_entity_ids=contained_entity_ids,
             )
+        _stamp_absorbed_baseline(kg.store, cfg, project_root, doc_id)
 
 
 _TRANSACT_OPS = ("add_entity", "add_relation", "write_narrative")
@@ -458,6 +463,13 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
                     undo.delete_entity(did, cascade=True)
             detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
             raise KGValidationError(f"transact failed validation: {detail}")
+        narrated_doc_ids = {
+            raw["doc_id"]
+            for raw in operations
+            if isinstance(raw, dict) and raw.get("op") == "write_narrative" and raw.get("doc_id")
+        }
+        for narrated in sorted(narrated_doc_ids):
+            _stamp_absorbed_baseline(kg.store, cfg, project_root, narrated)
 
     return TransactResult(
         entities_written=counts["entities"],
@@ -522,6 +534,45 @@ def _apply_transact_op(
 
 
 _PLACEHOLDER_RE = re.compile(r"\{[^}]*\}")
+
+
+def _stamp_absorbed_baseline(
+    store: ox.Store,
+    cfg: Any,
+    project_root: str,
+    doc_id: str,
+    source_path: str | None = None,
+) -> None:
+    """Record the Document's current on-disk bytes as its sync baseline.
+
+    A graph-side authoring write supersedes the file as of this moment:
+    finalize may overwrite exactly this disk state without ``--force``, and
+    reconcile triages the pending export as ``graph_ahead`` instead of
+    ``never_exported``. A later out-of-band file edit breaks the match and
+    re-arms the overwrite guard. No-op when the Document has no on-disk file
+    yet.
+    """
+    from cataforge.domain.kg.export.document_pipeline import (  # noqa: PLC0415
+        set_exported_hash,
+    )
+
+    ns = cf_namespace(cfg)
+    doc_iri = document_iri(doc_id, cfg.base_namespace)
+    if source_path is None:
+        sparql = (
+            f"PREFIX cf: <{ns}> "
+            f"SELECT ?sp WHERE {{ <{assert_safe_iri(doc_iri)}> cf:source_path ?sp }}"
+        )
+        for row in select_rows(store, sparql):
+            source_path = _strv(_row_lookup(row, "sp"))
+            break
+    if not source_path:
+        return
+    on_disk = Path(project_root) / source_path
+    if not on_disk.is_file():
+        return
+    digest = hashlib.sha256(on_disk.read_bytes()).hexdigest()
+    set_exported_hash(store, ns, doc_iri, digest)
 
 
 def _document_source_path(project_root: str, doc_type: str, doc_id: str) -> str:
@@ -623,6 +674,9 @@ def author_document(
                     undo.delete_entity(did, cascade=True)
             detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
             raise KGValidationError(f"authored document {doc_id} failed validation: {detail}")
+        _stamp_absorbed_baseline(
+            kg.store, cfg, project_root, doc_id, source_path=resolved_source_path
+        )
 
     return AuthorDocumentResult(
         doc_id=doc_id,
@@ -793,6 +847,7 @@ def update_document_meta(
                 version=version,
                 content_hash=new_hash,
             )
+        _stamp_absorbed_baseline(kg.store, cfg, project_root, doc_id)
     return UpdateDocumentMetaResult(
         doc_id=doc_id,
         document_iri=document_iri(doc_id, cfg.base_namespace),
@@ -948,7 +1003,14 @@ def delete_entity(
     return DeleteEntityResult(entity_id=entity_id, cascade=cascade, quads_removed=removed)
 
 
-def finalize(project_root: str, output_dir: str | None = None) -> CompileResult | DocIndexResult:
+def finalize(
+    project_root: str,
+    output_dir: str | None = None,
+    *,
+    doc_types: list[str] | None = None,
+    dry_run: bool = False,
+    force: bool = False,
+) -> CompileResult | DocIndexResult:
     """Propagate authored content from its canonical source to derived views.
 
     Routed by :class:`~cataforge.domain.kg.authority.ModePolicy`:
@@ -964,18 +1026,41 @@ def finalize(project_root: str, output_dir: str | None = None) -> CompileResult 
       nothing to export; an authored but entity-less Document (prose-only or
       early draft) is not empty and still exports.
 
+    ``doc_types`` restricts the export scope; ``dry_run`` previews the
+    per-file plan without writing; a file carrying Markdown-side changes the
+    graph has not absorbed is left untouched (``blocked``) unless ``force``,
+    and every overwritten file is first copied under
+    ``.cataforge/.backups/finalize-<ts>/``.
+
     Either way the ``定稿`` contract routes persistence without the caller
     hand-running ``ingest``.
     """
     policy = ModePolicy.for_project(project_root)
     if not policy.graph_enabled:
+        if dry_run:
+            return DocIndexResult(indexed_count=0, index_path=Path(project_root) / "docs")
         return _rebuild_doc_index(project_root)
     cfg = kg_config_for(project_root)
     out = Path(output_dir) if output_dir else Path(project_root) / "docs"
     with KnowledgeGraph.connect(cfg) as kg:  # graph — KG is canonical, export → md
         if not kg.query.entity_ids() and not kg.query.has_documents():
             return CompileResult(exported_at=datetime.now(UTC), discovered_count=0, output_dir=out)
-        result = compile_documents(kg.store, out)
+        backup_dir = (
+            Path(project_root)
+            / ".cataforge"
+            / ".backups"
+            / f"finalize-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
+        )
+        result = compile_documents(
+            kg.store,
+            out,
+            doc_types=doc_types,
+            dry_run=dry_run,
+            force=force,
+            backup_dir=backup_dir,
+        )
+        if dry_run:
+            return result
         # The binary store is gitignored, so the graph's durable SoT is the
         # NQuads snapshot — refresh it whenever the canonical graph is finalized.
         from cataforge.domain.kg.snapshot import (  # noqa: PLC0415

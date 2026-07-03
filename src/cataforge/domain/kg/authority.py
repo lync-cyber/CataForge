@@ -51,20 +51,27 @@ class ModePolicy:
         """
         return self.mode == "graph"
 
-    def remediation_for(self, drift_state: str) -> str:
+    def remediation_for(self, drift_state: str, *, md_ahead: bool = False) -> str:
         """Recommend how to close a document's drift under this authority.
 
         Graph authority regenerates the view (``export``) or absorbs a human
         edit (``ingest``); a two-sided ``conflict`` needs a human. Markdown
         authority treats the files as canonical, so any divergence re-syncs
         the graph from Markdown (``ingest``).
+
+        ``md_ahead`` carries the content-direction signal for a document the
+        graph never exported: when the symmetric diff shows the Markdown holds
+        entities/relations/sections the graph lacks, exporting would overwrite
+        the richer side, so the recommendation flips to ``ingest``.
         """
         if drift_state == DRIFT_IN_SYNC:
             return REMEDIATE_NONE
         if drift_state == DRIFT_CONFLICT:
             return REMEDIATE_MANUAL
         if self.graph_enabled:
-            if drift_state in (DRIFT_GRAPH_AHEAD, DRIFT_NEVER_EXPORTED):
+            if drift_state == DRIFT_NEVER_EXPORTED:
+                return REMEDIATE_INGEST if md_ahead else REMEDIATE_EXPORT
+            if drift_state == DRIFT_GRAPH_AHEAD:
                 return REMEDIATE_EXPORT
             if drift_state == DRIFT_HUMAN_EDIT:
                 return REMEDIATE_INGEST

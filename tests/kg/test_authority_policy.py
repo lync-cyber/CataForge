@@ -54,3 +54,24 @@ def test_graph_authority_directions(state: str, expected: str) -> None:
 )
 def test_markdown_authority_directions(state: str, expected: str) -> None:
     assert MARKDOWN.remediation_for(state) == expected
+
+
+@pytest.mark.parametrize(
+    "state,expected",
+    [
+        # A never-exported document whose Markdown holds content the graph
+        # lacks must not be overwritten from the poorer side.
+        (DRIFT_NEVER_EXPORTED, REMEDIATE_INGEST),
+        # The signal only redirects the never-exported case.
+        (DRIFT_GRAPH_AHEAD, REMEDIATE_EXPORT),
+        (DRIFT_HUMAN_EDIT, REMEDIATE_INGEST),
+        (DRIFT_IN_SYNC, REMEDIATE_NONE),
+        (DRIFT_CONFLICT, REMEDIATE_MANUAL),
+    ],
+)
+def test_graph_authority_md_ahead_directions(state: str, expected: str) -> None:
+    assert GRAPH.remediation_for(state, md_ahead=True) == expected
+
+
+def test_markdown_authority_ignores_md_ahead() -> None:
+    assert MARKDOWN.remediation_for(DRIFT_NEVER_EXPORTED, md_ahead=True) == REMEDIATE_INGEST

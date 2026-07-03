@@ -30,6 +30,11 @@ class CompileResult:
     surfaced by the source scan; `len(file_records)` is the rendered
     subset — anything filtered or errored stays in `errors` and is not
     counted as rendered.
+
+    `plan` records one `(source_path, status)` verdict per considered
+    document (`new` / `update` / `unchanged` / `blocked`); `blocked` lists
+    the source_paths whose on-disk content diverged from the export
+    baseline and was left untouched.
     """
 
     exported_at: datetime
@@ -38,3 +43,5 @@ class CompileResult:
     file_records: list[FileExportRecord] = field(default_factory=list)
     file_hashes: dict[str, str] = field(default_factory=dict)
     errors: list[tuple[str, str]] = field(default_factory=list)
+    plan: list[tuple[str, str]] = field(default_factory=list)
+    blocked: list[str] = field(default_factory=list)

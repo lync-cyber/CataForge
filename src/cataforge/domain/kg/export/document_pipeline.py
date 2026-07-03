@@ -43,9 +43,11 @@ logger = logging.getLogger(__name__)
 
 _SECTION_JOINER = "\n\n"
 
-# Literal slot recording the byte sha256 of the file most recently exported for
-# a Document — the "last export baseline" reconcile triages on-disk and
-# freshly-rendered bytes against.
+# Literal slot recording a Document's last-sync baseline: the byte sha256 of
+# the file most recently exported, or of the disk state a graph-side authoring
+# write absorbed/superseded. reconcile triages on-disk and freshly-rendered
+# bytes against it; finalize overwrites a file freely only while its disk
+# bytes still match this baseline.
 EXPORTED_CONTENT_HASH_SLOT = "cf:exported_content_hash"
 
 
@@ -57,9 +59,10 @@ def _list_documents(store: ox.Store, namespace: str) -> list[dict[str, str]]:
     """
     sparql = (
         f"PREFIX cf: <{namespace}> "
-        "SELECT ?doc ?source_path ?doc_type ?frontmatter ?preamble WHERE { "
+        "SELECT ?doc ?source_path ?doc_type ?source_doc ?frontmatter ?preamble WHERE { "
         "  ?doc a cf:Document ; cf:source_path ?source_path . "
         "  OPTIONAL { ?doc cf:doc_type ?doc_type } "
+        "  OPTIONAL { ?doc cf:source_doc ?source_doc } "
         "  OPTIONAL { ?doc cf:frontmatter_raw ?frontmatter } "
         "  OPTIONAL { ?doc cf:preamble_body ?preamble } "
         "} ORDER BY ?source_path"
@@ -75,6 +78,7 @@ def _list_documents(store: ox.Store, namespace: str) -> list[dict[str, str]]:
                 "doc_iri": doc_iri,
                 "source_path": source_path,
                 "doc_type": _strv(_row_lookup(row, "doc_type")) or "",
+                "source_doc": _strv(_row_lookup(row, "source_doc")) or "",
                 "frontmatter_raw": _strv(_row_lookup(row, "frontmatter")) or "",
                 "preamble_body": _strv(_row_lookup(row, "preamble")) or "",
             }
@@ -132,7 +136,49 @@ def render_document(store: ox.Store, namespace: str, doc: dict[str, str]) -> str
     return _assemble(doc["frontmatter_raw"], doc["preamble_body"], sections)
 
 
-def _set_exported_hash(store: ox.Store, namespace: str, doc_iri: str, content_hash: str) -> None:
+def _get_exported_hash(store: ox.Store, namespace: str, doc_iri: str) -> str | None:
+    """Return the Document's `cf:exported_content_hash` baseline, or None."""
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    subject = ox.NamedNode(doc_iri)
+    predicate = ox.NamedNode(_slot_iri(EXPORTED_CONTENT_HASH_SLOT, namespace))
+    for quad in store.quads_for_pattern(subject, predicate, None, None):
+        obj = quad.object
+        if isinstance(obj, ox.Literal):
+            return str(obj.value)
+    return None
+
+
+def content_equivalent(a: str, b: str) -> bool:
+    """Whether two Markdown texts differ only in canonical whitespace form.
+
+    The export emits canonical form (blank-line runs collapsed to one, single
+    trailing newline), so a just-ingested source compares equal here even when
+    the bytes differ. A semantic difference — the graph holding stale or
+    missing content — never normalizes away.
+    """
+
+    def _canon(text: str) -> str:
+        lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        out: list[str] = []
+        blank = False
+        for line in lines:
+            stripped = line.rstrip()
+            if stripped == "":
+                if not blank:
+                    out.append("")
+                blank = True
+            else:
+                blank = False
+                out.append(stripped)
+        while out and out[-1] == "":
+            out.pop()
+        return "\n".join(out)
+
+    return _canon(a) == _canon(b)
+
+
+def set_exported_hash(store: ox.Store, namespace: str, doc_iri: str, content_hash: str) -> None:
     """Record `content_hash` as the Document's `cf:exported_content_hash` baseline.
 
     Old quads for the predicate are removed first so the literal stays
@@ -206,30 +252,73 @@ def compile_documents(
     output_dir: Path,
     *,
     namespace: str = "https://cataforge.dev/ontology/",
+    doc_types: list[str] | None = None,
+    dry_run: bool = False,
+    force: bool = False,
+    backup_dir: Path | None = None,
 ) -> CompileResult:
-    """Reconstruct every source Markdown file from the graph.
+    """Reconstruct source Markdown files from the graph.
 
     Files land at ``output_dir/<source_path without leading "docs/">``.
     Business entities not covered by any Document fall back to per-entity
     cards via :func:`compile_to_markdown` restricted to the orphan subset.
+
+    ``doc_types`` restricts the export to matching Documents (orphan cards
+    are skipped under a restricted export). ``dry_run`` computes the per-file
+    plan without touching disk or baselines. A file whose on-disk content
+    differs from the render, from the last export baseline, *and* is not
+    whitespace-equivalent to the render carries changes the graph has not
+    absorbed — it is ``blocked`` unless ``force``. Overwritten files are
+    copied into ``backup_dir`` first when one is given.
     """
     output_dir = Path(output_dir).resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if not dry_run:
+        output_dir.mkdir(parents=True, exist_ok=True)
     namespace = namespace.rstrip("/") + "/"
 
     file_records: list[FileExportRecord] = []
     errors: list[tuple[str, str]] = []
+    plan: list[tuple[str, str]] = []
+    blocked: list[str] = []
 
     documents = _list_documents(store, namespace)
+    if doc_types is not None:
+        wanted = set(doc_types)
+        documents = [d for d in documents if d["doc_type"] in wanted]
     for doc in documents:
         try:
             content = render_document(store, namespace, doc)
             out_file = output_dir / _relative_output(doc["source_path"])
-            out_file.parent.mkdir(parents=True, exist_ok=True)
             content_bytes = content.encode("utf-8")
-            out_file.write_bytes(content_bytes)
+            disk_bytes = out_file.read_bytes() if out_file.is_file() else None
+            if disk_bytes is None:
+                status = "new"
+            elif disk_bytes == content_bytes:
+                status = "unchanged"
+            else:
+                baseline = _get_exported_hash(store, namespace, doc["doc_iri"])
+                disk_hash = hashlib.sha256(disk_bytes).hexdigest()
+                safe = (
+                    force
+                    or (baseline is not None and disk_hash == baseline)
+                    or content_equivalent(disk_bytes.decode("utf-8", errors="replace"), content)
+                )
+                status = "update" if safe else "blocked"
+            plan.append((doc["source_path"], status))
+            if dry_run:
+                continue
+            if status == "blocked":
+                blocked.append(doc["source_path"])
+                continue
+            if status == "update" and backup_dir is not None:
+                backup_file = backup_dir / _relative_output(doc["source_path"])
+                backup_file.parent.mkdir(parents=True, exist_ok=True)
+                backup_file.write_bytes(disk_bytes or b"")
+            if status != "unchanged":
+                out_file.parent.mkdir(parents=True, exist_ok=True)
+                out_file.write_bytes(content_bytes)
             digest = hashlib.sha256(content_bytes).hexdigest()
-            _set_exported_hash(store, namespace, doc["doc_iri"], digest)
+            set_exported_hash(store, namespace, doc["doc_iri"], digest)
             file_records.append(
                 FileExportRecord(
                     entity_id=doc["source_path"],
@@ -243,9 +332,9 @@ def compile_documents(
             errors.append((doc["source_path"], str(exc)))
 
     covered = _covered_source_docs(store, namespace)
-    orphans = _orphan_entity_ids(store, namespace, covered)
+    orphans = _orphan_entity_ids(store, namespace, covered) if doc_types is None else set()
     discovered = len(documents)
-    if orphans:
+    if orphans and not dry_run:
         orphan_result = _export_orphans(store, output_dir, orphans, namespace)
         file_records.extend(orphan_result.file_records)
         errors.extend(orphan_result.errors)
@@ -262,6 +351,8 @@ def compile_documents(
         file_records=sorted(file_records, key=lambda r: r.entity_id),
         file_hashes=file_hashes,
         errors=errors,
+        plan=sorted(plan),
+        blocked=sorted(blocked),
     )
 
 

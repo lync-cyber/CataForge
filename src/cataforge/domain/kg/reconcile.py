@@ -100,12 +100,18 @@ class PerDocTypeReport:
     ghost_entities: list[str] = field(default_factory=list)
     missing_relations: list[RelKey] = field(default_factory=list)
     ghost_relations: list[RelKey] = field(default_factory=list)
+    enrichment_relations: list[RelKey] = field(default_factory=list)
     orphan_relations: list[RelKey] = field(default_factory=list)
     missing_sections: list[str] = field(default_factory=list)
     ghost_sections: list[str] = field(default_factory=list)
 
     @property
     def divergence_count(self) -> int:
+        """True-drift count. ``enrichment_relations`` — KG-only edges whose
+        home document is content-synced with its render, i.e. graph
+        enrichment with no Markdown serialization — are acknowledge-only and
+        excluded.
+        """
         return (
             len(self.missing_entities)
             + len(self.ghost_entities)
@@ -116,6 +122,14 @@ class PerDocTypeReport:
             + len(self.ghost_sections)
         )
 
+    @property
+    def missing_count(self) -> int:
+        return len(self.missing_entities) + len(self.missing_relations) + len(self.missing_sections)
+
+    @property
+    def ghost_count(self) -> int:
+        return len(self.ghost_entities) + len(self.ghost_relations) + len(self.ghost_sections)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "doc_type": self.doc_type,
@@ -123,6 +137,7 @@ class PerDocTypeReport:
             "ghost_entities": sorted(self.ghost_entities),
             "missing_relations": [list(t) for t in sorted(self.missing_relations)],
             "ghost_relations": [list(t) for t in sorted(self.ghost_relations)],
+            "enrichment_relations": [list(t) for t in sorted(self.enrichment_relations)],
             "orphan_relations": [list(t) for t in sorted(self.orphan_relations)],
             "missing_sections": sorted(self.missing_sections),
             "ghost_sections": sorted(self.ghost_sections),
@@ -181,30 +196,45 @@ def _document_baseline(store: ox.Store, config: KGConfig, doc_iri: str) -> str |
     return None
 
 
-def _triage_documents(
-    store: ox.Store, project_root: Path, config: KGConfig
-) -> list[DocumentDriftRecord]:
-    """Triage every `cf:source_path`-bearing Document for content drift."""
+@dataclass
+class _DocTriage:
+    """One Document's hash triage before remediation is assigned."""
+
+    source_path: str
+    doc_iri: str
+    doc_type: str
+    source_doc: str
+    state: str
+    synced: bool
+
+
+def _hash_triage(store: ox.Store, project_root: Path, config: KGConfig) -> list[_DocTriage]:
+    """Three-way hash triage for every `cf:source_path`-bearing Document.
+
+    ``synced`` is true when the on-disk bytes equal the fresh render — the
+    Markdown carries nothing the graph's serialization lacks, so KG-only
+    edges homed in that document are enrichment, not drift.
+    """
     ns = cf_namespace(config)
-    policy = ModePolicy.for_project(project_root)
-    records: list[DocumentDriftRecord] = []
+    out: list[_DocTriage] = []
     for doc in _list_documents(store, ns):
         source_path = doc["source_path"]
         on_disk = project_root / source_path
         file_hash = hashlib.sha256(on_disk.read_bytes()).hexdigest() if on_disk.is_file() else None
         baseline = _document_baseline(store, config, doc["doc_iri"])
         render_hash = hashlib.sha256(render_document(store, ns, doc).encode("utf-8")).hexdigest()
-        state = _classify_document_drift(file_hash, baseline, render_hash)
-        records.append(
-            DocumentDriftRecord(
+        out.append(
+            _DocTriage(
                 source_path=source_path,
-                doc_id=doc["doc_iri"],
-                state=state,
-                remediation=policy.remediation_for(state),
+                doc_iri=doc["doc_iri"],
+                doc_type=doc["doc_type"],
+                source_doc=doc["source_doc"],
+                state=_classify_document_drift(file_hash, baseline, render_hash),
+                synced=file_hash is not None and file_hash == render_hash,
             )
         )
-    records.sort(key=lambda r: r.source_path)
-    return records
+    out.sort(key=lambda t: t.source_path)
+    return out
 
 
 @dataclass
@@ -231,6 +261,10 @@ class ReconcileReport:
         return sum(1 for d in self.documents if d.state != DRIFT_IN_SYNC)
 
     @property
+    def enrichment_count(self) -> int:
+        return sum(len(r.enrichment_relations) for r in self.per_doc_type.values())
+
+    @property
     def ok(self) -> bool:
         """Authoritative pass/fail, by mode.
 
@@ -244,12 +278,20 @@ class ReconcileReport:
             return self.document_drift_count == 0
         return self.overall_divergence_count == 0
 
+    @property
+    def gate_summary(self) -> str:
+        """Human-facing failure detail naming the count ``ok`` was decided on."""
+        if self.mode == "graph":
+            return f"{self.document_drift_count} document(s) drifted"
+        return f"{self.overall_divergence_count} divergence(s)"
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
             "active_doc_types": self.active_doc_types,
             "per_doc_type": {k: v.to_dict() for k, v in sorted(self.per_doc_type.items())},
             "overall_divergence_count": self.overall_divergence_count,
+            "enrichment_count": self.enrichment_count,
             "ok": self.ok,
             "mode": self.mode,
             "documents": [d.to_dict() for d in self.documents],
@@ -317,9 +359,11 @@ def _kg_entities_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str
     return out
 
 
-def _kg_relations_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[RelKey]:
-    """Return `(s_id, predicate_curie, o_id)` triples where the subject's
-    `cf:source_doc` is one of `doc_ids`.
+def _kg_relations_with_homes(
+    store: ox.Store, config: KGConfig, doc_ids: set[str]
+) -> dict[RelKey, set[str]]:
+    """Return `(s_id, predicate_curie, o_id)` triples mapped to the subject's
+    home `cf:source_doc` values, restricted to subjects homed in `doc_ids`.
 
     Both subject and object are returned as entity_id strings so the
     diff against FS-extracted relations is direct. Edges to objects
@@ -327,12 +371,12 @@ def _kg_relations_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[st
     caught by `kg validate` xref-target shape).
     """
     if not doc_ids:
-        return set()
+        return {}
     ns = cf_namespace(config)
     values_clause = " ".join(f'"{escape_sparql_literal(d)}"' for d in sorted(doc_ids))
     sparql = (
         f"PREFIX cf: <{ns}> "
-        "SELECT ?s_id ?p ?o_id WHERE { "
+        "SELECT ?s_id ?p ?o_id ?src WHERE { "
         f"  VALUES ?src {{ {values_clause} }} "
         "  ?s cf:entity_id ?s_id ; "
         "     cf:source_doc ?src ; "
@@ -343,17 +387,20 @@ def _kg_relations_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[st
         # edges, so this branch only sees traceability predicates.
         "}"
     )
-    out: set[RelKey] = set()
+    out: dict[RelKey, set[str]] = {}
     for row in select_rows(store, sparql):
         s_id = _strv(_row_lookup(row, "s_id"))
         p_iri = _strv(_row_lookup(row, "p"))
         o_id = _strv(_row_lookup(row, "o_id"))
+        src = _strv(_row_lookup(row, "src"))
         if s_id is None or p_iri is None or o_id is None:
             continue
         curie = curie_for_iri(p_iri, ns)
         if curie in _NON_TRACEABILITY_PREDICATES:
             continue
-        out.add((s_id, curie, o_id))
+        homes = out.setdefault((s_id, curie, o_id), set())
+        if src is not None:
+            homes.add(src)
     return out
 
 
@@ -429,6 +476,27 @@ def _kg_sections_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str
     return out
 
 
+def _split_ghost_relations(
+    ghost_keys: set[RelKey],
+    rel_homes: dict[RelKey, set[str]],
+    synced_src_docs: set[str],
+) -> tuple[list[RelKey], list[RelKey]]:
+    """Split KG-only edges into (true ghosts, enrichment).
+
+    An edge homed exclusively in content-synced documents has no Markdown
+    serialization by construction — graph enrichment, not drift.
+    """
+    ghosts: list[RelKey] = []
+    enrichment: list[RelKey] = []
+    for key in ghost_keys:
+        homes = rel_homes.get(key, set())
+        if homes and homes <= synced_src_docs:
+            enrichment.append(key)
+        else:
+            ghosts.append(key)
+    return sorted(ghosts), sorted(enrichment)
+
+
 def reconcile(
     store: ox.Store,
     project_root: Path,
@@ -456,17 +524,19 @@ def reconcile(
     # Document-backed; orphan cards drift-triage by their own content hash.
     covered_source_docs = _covered_source_docs(store, cf_namespace(config))
 
+    triage = _hash_triage(store, project_root, config)
+    synced_src_docs = {t.source_doc for t in triage if t.synced and t.source_doc}
+
     report = ReconcileReport(
         timestamp=_utc_now_iso(),
         active_doc_types=active,
         mode=context_mode(project_root),
-        documents=_triage_documents(store, project_root, config),
     )
 
     # Pre-pass: scan every active doc_type once, recording the doc_id(s) that
     # *define* each entity and collecting every FS relation. A relation is a
     # project-global fact; the KG keys it by its subject's `cf:source_doc`
-    # (`_kg_relations_for_doc_ids`), so attributing the FS side by the doc that
+    # (`_kg_relations_with_homes`), so attributing the FS side by the doc that
     # merely *declares* the xref (arch declaring a Feature→Feature dependency)
     # would diverge. Bucketing FS relations by the subject's home doc keeps both
     # sides apples-to-apples.
@@ -541,16 +611,38 @@ def reconcile(
         kg_doc_ids = doc_ids & covered_source_docs
 
         kg_entities = _kg_entities_for_doc_ids(store, config, kg_doc_ids)
-        kg_relations = _kg_relations_for_doc_ids(store, config, kg_doc_ids)
+        kg_rel_homes = _kg_relations_with_homes(store, config, kg_doc_ids)
+        kg_relations = set(kg_rel_homes)
         kg_sections = _kg_sections_for_doc_ids(store, config, kg_doc_ids)
 
         per.orphan_relations = sorted(_kg_orphan_relations_for_doc_ids(store, config, kg_doc_ids))
         per.missing_entities = sorted(fs_entities - kg_entities)
         per.ghost_entities = sorted(kg_entities - fs_entities)
         per.missing_relations = sorted(fs_relations - kg_relations)
-        per.ghost_relations = sorted(kg_relations - fs_relations)
+        per.ghost_relations, per.enrichment_relations = _split_ghost_relations(
+            kg_relations - fs_relations, kg_rel_homes, synced_src_docs
+        )
         per.missing_sections = sorted(fs_sections - kg_sections)
         per.ghost_sections = sorted(kg_sections - fs_sections)
+
+    # Remediation direction needs the symmetric diff: a never-exported
+    # document whose doc_type shows the Markdown ahead of the graph
+    # (missing > ghost) must ingest, not export.
+    policy = ModePolicy.for_project(project_root)
+    md_ahead_types = {
+        doc_type
+        for doc_type, per in report.per_doc_type.items()
+        if per.missing_count > per.ghost_count
+    }
+    report.documents = [
+        DocumentDriftRecord(
+            source_path=t.source_path,
+            doc_id=t.doc_iri,
+            state=t.state,
+            remediation=policy.remediation_for(t.state, md_ahead=t.doc_type in md_ahead_types),
+        )
+        for t in triage
+    ]
 
     return report
 

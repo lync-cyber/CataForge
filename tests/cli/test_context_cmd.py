@@ -34,6 +34,8 @@ def test_finalize_export_error_renders_banner_exit_1(monkeypatch) -> None:
     fake = SimpleNamespace(
         file_records=[],
         errors=[("E-001", "render failed")],
+        blocked=[],
+        plan=[],
     )
     monkeypatch.setattr(write_app, "finalize", lambda *a, **k: fake)
 
@@ -41,6 +43,38 @@ def test_finalize_export_error_renders_banner_exit_1(monkeypatch) -> None:
 
     assert result.exit_code == 1, result.output
     assert "Error:" in result.output
+
+
+def test_finalize_blocked_files_render_banner_exit_1(monkeypatch) -> None:
+    fake = SimpleNamespace(
+        file_records=[],
+        errors=[],
+        blocked=["docs/prd/prd-x.md"],
+        plan=[("docs/prd/prd-x.md", "blocked")],
+    )
+    monkeypatch.setattr(write_app, "finalize", lambda *a, **k: fake)
+
+    result = invoke_under_group(context_finalize, ["--project-root", "."])
+
+    assert result.exit_code == 1, result.output
+    assert "[BLOCKED] docs/prd/prd-x.md" in result.output
+    assert "cataforge context ingest" in result.output
+
+
+def test_finalize_dry_run_prints_plan_exit_0(monkeypatch) -> None:
+    fake = SimpleNamespace(
+        file_records=[],
+        errors=[],
+        blocked=[],
+        plan=[("docs/arch/arch-x.md", "unchanged"), ("docs/prd/prd-x.md", "blocked")],
+    )
+    monkeypatch.setattr(write_app, "finalize", lambda *a, **k: fake)
+
+    result = invoke_under_group(context_finalize, ["--project-root", ".", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "blocked   docs/prd/prd-x.md" in result.output
+    assert "dry-run; nothing written" in result.output
 
 
 def test_ensure_store_echoes_action_detail(monkeypatch) -> None:
@@ -58,13 +92,16 @@ def test_ensure_store_echoes_action_detail(monkeypatch) -> None:
 
 
 def test_reconcile_drift_renders_banner_exit_3(monkeypatch) -> None:
-    report = SimpleNamespace(ok=False, overall_divergence_count=2)
+    report = SimpleNamespace(
+        ok=False, overall_divergence_count=2, gate_summary="2 document(s) drifted"
+    )
     monkeypatch.setattr(write_app, "reconcile_check", lambda *a, **k: report)
 
     result = invoke_under_group(context_reconcile, ["--project-root", "."])
 
     assert result.exit_code == 3, result.output
     assert "Error:" in result.output
+    assert "2 document(s) drifted" in result.output
 
 
 def test_reconcile_missing_store_renders_init_hint_exit_1(monkeypatch) -> None:
