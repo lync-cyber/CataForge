@@ -390,6 +390,152 @@ class TestTriage:
         assert result.exit_code == 0, result.output
         assert "confirmed" in result.output, result.output
 
+    def test_version_regex_matches_plain_scaffold_env_line(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`- CataForge scaffold X.Y.Z（…）` parses as reported_version=X.Y.Z."""
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        from cataforge import __version__
+
+        body = (
+            "## 环境\n\n"
+            f"- CataForge scaffold {__version__}（`context.mode: graph`，KG 后端启用）\n"
+            "- Windows 11，editable 安装\n\n"
+            "## 现象\n\n"
+            "`cataforge skill run tdd-engine` 产出丢失\n"
+        )
+        _patch_gh(
+            monkeypatch,
+            issues=[
+                {
+                    "number": 130,
+                    "title": "bug: 手写环境块",
+                    "body": body,
+                    "createdAt": "2026-06-01T00:00:00Z",
+                    "url": "https://example/130",
+                    "labels": [{"name": "bug"}],
+                }
+            ],
+        )
+        result = invoke_under_group(triage_command, [])
+        assert result.exit_code == 0, result.output
+        assert "confirmed" in result.output, result.output
+        assert "unrelated" not in result.output
+        # The capability mention resolves the draft target.
+        draft = project / "docs" / "reviews" / "triage" / "SKILL-IMPROVE-tdd-engine-issue-130.md"
+        assert draft.is_file(), result.output
+
+    def test_scaffold_env_line_semver_gate_still_applies(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An older scaffold version reads already-fixed even with capability mentions."""
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        body = (
+            "## 环境\n\n"
+            "- CataForge scaffold 0.0.1（`context.mode: hybrid`）\n\n"
+            "## 现象\n\n"
+            "tdd-engine 在 GREEN 阶段丢失产出，`cataforge doctor` 无异常\n"
+        )
+        _patch_gh(
+            monkeypatch,
+            issues=[
+                {
+                    "number": 131,
+                    "title": "bug: 旧版本手写报告",
+                    "body": body,
+                    "createdAt": "2026-06-01T00:00:00Z",
+                    "url": "https://example/131",
+                    "labels": [{"name": "bug"}],
+                }
+            ],
+        )
+        result = invoke_under_group(triage_command, ["--dry-run"])
+        assert result.exit_code == 0, result.output
+        assert "already-fixed" in result.output, result.output
+
+    def test_hyphenated_skill_mention_reads_needs_repro_without_version(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A bare hyphenated skill id in prose counts as a framework citation."""
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        _patch_gh(
+            monkeypatch,
+            issues=[
+                {
+                    "number": 132,
+                    "title": "bug: 无版本行",
+                    "body": "tdd-engine 在 GREEN 阶段静默丢失产出，复现步骤如下……\n",
+                    "createdAt": "2026-06-02T00:00:00Z",
+                    "url": "https://example/132",
+                    "labels": [{"name": "bug"}],
+                }
+            ],
+        )
+        result = invoke_under_group(triage_command, [])
+        assert result.exit_code == 0, result.output
+        assert "needs-repro" in result.output, result.output
+
+    def test_single_word_skill_id_requires_cataforge_adjacency(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A single-word skill id in plain prose does not count as a citation."""
+        project = _bootstrap(tmp_path)
+        skill = project / ".cataforge" / "skills" / "testing"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("---\nname: testing\n---\n", encoding="utf-8")
+        monkeypatch.chdir(project)
+        _patch_gh(
+            monkeypatch,
+            issues=[
+                {
+                    "number": 133,
+                    "title": "Question about QA",
+                    "body": "We have been testing the app for a while and have a question.\n",
+                    "createdAt": "2026-06-03T00:00:00Z",
+                    "url": "https://example/133",
+                    "labels": [],
+                },
+                {
+                    "number": 134,
+                    "title": "bug: testing skill",
+                    "body": "跑 `cataforge testing` 时崩溃，无版本信息\n",
+                    "createdAt": "2026-06-03T01:00:00Z",
+                    "url": "https://example/134",
+                    "labels": [{"name": "bug"}],
+                },
+            ],
+        )
+        result = invoke_under_group(triage_command, [])
+        assert result.exit_code == 0, result.output
+        assert "unrelated" in result.output, result.output
+        assert "needs-repro" in result.output, result.output
+
+    def test_cli_invocation_mention_reads_needs_repro(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Quoting any `cataforge <subcommand>` invocation marks the body framework-related."""
+        project = _bootstrap(tmp_path)
+        monkeypatch.chdir(project)
+        _patch_gh(
+            monkeypatch,
+            issues=[
+                {
+                    "number": 135,
+                    "title": "bug: doctor 崩溃",
+                    "body": "运行 `cataforge doctor` 后直接 traceback，见截图\n",
+                    "createdAt": "2026-06-04T00:00:00Z",
+                    "url": "https://example/135",
+                    "labels": [{"name": "bug"}],
+                }
+            ],
+        )
+        result = invoke_under_group(triage_command, [])
+        assert result.exit_code == 0, result.output
+        assert "needs-repro" in result.output, result.output
+
 
 class TestClose:
     def test_fixed_dry_run_renders_template(

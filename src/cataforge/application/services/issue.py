@@ -62,11 +62,41 @@ _VERSION_TEMPLATE_RE = re.compile(
     r"###\s+CataForge\s+version\s*\n+\s*v?(\d+\.\d+\.\d+(?:[A-Za-z0-9.\-+]*)?)",
     re.IGNORECASE,
 )
+# Hand-written env-block form: `- CataForge scaffold 0.14.0（…）` /
+# `CataForge package 0.4.0` / `CataForge v0.4.0`.
+_VERSION_ENV_RE = re.compile(
+    r"\bcataforge\s+(?:(?:scaffold|package)\s+v?|v)(\d+\.\d+\.\d+(?:[A-Za-z0-9.\-+]*)?)",
+    re.IGNORECASE,
+)
 _FRAMEWORK_REVIEW_FAIL_RE = re.compile(
     r"FAIL\s+(?:in\s+)?(?:skill|agent)?[:\s]+(?P<id>[a-z0-9][a-z0-9\-]+)",
     re.IGNORECASE,
 )
 _UPSTREAM_GAP_RE = re.compile(r"deviation:\s*upstream[-_]gap", re.IGNORECASE)
+# Any quoted CLI invocation marks the body framework-related even when no
+# installed id resolves — enough to keep a hand-written report out of
+# `unrelated`, never enough to skip the semver fact-check.
+_CLI_MENTION_RE = re.compile(r"\bcataforge\s+[a-z][a-z0-9-]+", re.IGNORECASE)
+
+
+def _capability_mentions(body: str, ids: set[str]) -> list[str]:
+    """Installed ids the body names in prose, in order of first occurrence.
+
+    A hyphenated id is distinctive enough to match as a bare word; a
+    single-word id (`context`, `debug`, …) collides with plain English, so it
+    only counts right after a `cataforge` / `cataforge skill run` invocation.
+    """
+    low = body.lower()
+    hits: list[tuple[int, str]] = []
+    for ident in ids:
+        escaped = re.escape(ident)
+        pattern = (
+            rf"\b{escaped}\b" if "-" in ident else rf"\bcataforge\s+(?:skill\s+run\s+)?{escaped}\b"
+        )
+        m = re.search(pattern, low)
+        if m:
+            hits.append((m.start(), ident))
+    return [ident for _, ident in sorted(hits)]
 
 
 def parse_issue_body(
@@ -85,6 +115,7 @@ def parse_issue_body(
     for pattern in (
         _VERSION_TEMPLATE_RE,
         _VERSION_BOLD_RE,
+        _VERSION_ENV_RE,
         _VERSION_HEADER_RE,
         _VERSION_LINE_RE,
     ):
@@ -93,7 +124,8 @@ def parse_issue_body(
             reported = m.group(1)
             break
 
-    # Skill / agent IDs cited in framework-review FAIL lines.
+    # Skill / agent IDs cited in framework-review FAIL lines take precedence
+    # (they pick the draft's target_id); prose mentions append after.
     cited_skills: list[str] = []
     cited_agents: list[str] = []
     for fm in _FRAMEWORK_REVIEW_FAIL_RE.finditer(body):
@@ -102,6 +134,13 @@ def parse_issue_body(
             cited_skills.append(ident)
         elif ident in agent_ids and ident not in cited_agents:
             cited_agents.append(ident)
+    for ident in _capability_mentions(body, skill_ids):
+        if ident not in cited_skills:
+            cited_skills.append(ident)
+    for ident in _capability_mentions(body, agent_ids):
+        if ident not in cited_agents:
+            cited_agents.append(ident)
+    cli_mention = bool(_CLI_MENTION_RE.search(body))
 
     # Upstream-gap mentions.
     gaps = len(_UPSTREAM_GAP_RE.findall(body))
@@ -121,12 +160,12 @@ def parse_issue_body(
             ),
         )
 
-    # No version + no skill/agent reference + no gap signals = not a
+    # No version + no citation + no gap signals + no CLI mention = not a
     # parseable feedback bundle.
-    if not reported and not cited_skills and not cited_agents and gaps == 0:
+    if not reported and not cited_skills and not cited_agents and gaps == 0 and not cli_mention:
         return ParsedIssue(
             verdict="unrelated",
-            rationale="No env block or framework-review citation found.",
+            rationale="No env block, framework citation, or capability mention found.",
         )
 
     # No version block at all → can't fact-check, but the citations are
