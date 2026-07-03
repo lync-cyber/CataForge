@@ -26,6 +26,7 @@ required_sections:
   - [ ] AC-001: {可验证的条件}
   - [ ] AC-002: {可验证的条件}
 - **优先级**: P0/P1/P2
+- **delivery**: ui/api/dev-tooling（交付面；非 ui 的 feature 免 UI-SPEC 覆盖门禁）
 - **备注**: {约束/边界条件/[ASSUMPTION]标注}
 
 ### F-{start+1}: {功能名称}

@@ -282,3 +282,69 @@ def test_regex_arch_ac_coverage_accepts_parent_feature_mention(tmp_path: Path) -
     checker.check_prd_arch_ac_coverage()
 
     assert not any("AC-001" in e.message for e in checker.errors)
+
+
+def test_devplan_local_numbering_reads_feature_level_coverage(tmp_path: Path) -> None:
+    """Same bare AC id under two Features → per-feature coverage: only the
+    feature no task references is flagged, not every colliding token."""
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
+
+    project = tmp_path / "local-num"
+    project.mkdir()
+    (project / ".cataforge").mkdir()
+    docs = project / "docs"
+    _write(
+        docs / "prd" / "prd-p.md",
+        """\
+        ---
+        doc_id: prd
+        doc_type: prd
+        ---
+        # PRD
+        ## §2 Features
+        ### §2.1 F-001 登录
+        允许用户登录。
+        #### AC-001 可登录
+        输入合法对返回 200。
+        ### §2.2 F-002 登出
+        允许用户登出。
+        #### AC-001 可登出
+        调用 logout 返回 204。
+        """,
+    )
+    _write(
+        docs / "dev-plan" / "dev-plan-p.md",
+        """\
+        ---
+        doc_id: dev-plan
+        doc_type: dev-plan
+        ---
+        # Dev Plan
+        ## §3 Tasks
+        ### §3.1 T-001 实现登录
+        - 映射功能: prd#§2.F-001
+        写登录端点。
+        """,
+    )
+
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=project / ".cataforge" / "kg" / "store",
+        kg_active_doc_types={"prd", "dev-plan"},
+    )
+    handle = init_store(config, force=True)
+    run_migration(handle.raw, project, config)
+    handle.raw.flush()
+    handle.close()
+    (project / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"kg_active_doc_types": ["prd", "dev-plan"]}}),
+        encoding="utf-8",
+    )
+
+    checker = CrossDocChecker(docs_dir=str(docs), quiet=True)
+    checker.check_prd_devplan_ac_traceability()
+
+    messages = " ".join(e.message for e in checker.errors)
+    assert "F-002" in messages, f"unreferenced F-002 must be flagged: {messages}"
+    assert "F-001" not in messages, f"referenced F-001 must not be flagged: {messages}"

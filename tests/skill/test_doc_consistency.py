@@ -439,3 +439,206 @@ def test_run_skips_with_single_doc(docs_dir: Path) -> None:
     checker = CrossDocChecker(str(docs_dir), quiet=True)
     result = checker.run()
     assert result == 0
+
+
+# ---- AC traceability under per-feature local numbering ----
+
+
+_PRD_LOCAL_NUMBERING = """\
+---
+id: prd-test
+author: pm
+status: approved
+deps: []
+consumers: [architect]
+---
+## 2. Features
+### F-001: Login
+- AC-001: User can login
+- AC-002: Session persists
+### F-002: Reporting
+- AC-001: Export report as CSV
+- AC-002: Schedule recurring report
+- AC-003: Email digest
+"""
+
+
+def test_ac_traceability_local_numbering_covered_by_feature_refs(docs_dir: Path) -> None:
+    """Per-feature AC sequences collide as bare tokens; coverage reads at
+    feature level instead of flagging every same-numbered AC."""
+    _write(docs_dir / "prd" / "prd-test.md", _PRD_LOCAL_NUMBERING)
+    _write(
+        docs_dir / "dev-plan" / "dev-plan-test.md",
+        """\
+        ---
+        id: dev-plan-test
+        author: tech-lead
+        status: approved
+        deps: [prd-test]
+        consumers: [implementer]
+        ---
+        ## 3. Tasks
+        ### T-001: Build login
+        Maps F-001; tdd_acceptance: AC-001, AC-002
+        ### T-002: Build reporting
+        Maps F-002; tdd_acceptance: AC-001
+        """,
+    )
+    checker = CrossDocChecker(str(docs_dir), quiet=True)
+    checker.check_prd_devplan_ac_traceability()
+    assert checker.errors == [], [e.message for e in checker.errors]
+
+
+def test_ac_traceability_local_numbering_flags_unreferenced_feature(docs_dir: Path) -> None:
+    _write(docs_dir / "prd" / "prd-test.md", _PRD_LOCAL_NUMBERING)
+    _write(
+        docs_dir / "dev-plan" / "dev-plan-test.md",
+        """\
+        ---
+        id: dev-plan-test
+        author: tech-lead
+        status: approved
+        deps: [prd-test]
+        consumers: [implementer]
+        ---
+        ## 3. Tasks
+        ### T-001: Build login
+        Maps F-001; tdd_acceptance: AC-001, AC-002
+        """,
+    )
+    checker = CrossDocChecker(str(docs_dir), quiet=True)
+    checker.check_prd_devplan_ac_traceability()
+    assert len(checker.errors) == 1
+    assert "F-002" in checker.errors[0].message
+    assert "F-001" not in checker.errors[0].message
+
+
+# ---- Orphaned components: credit references outside page sections ----
+
+
+def test_component_referenced_from_other_component_section(docs_dir: Path) -> None:
+    _write(
+        docs_dir / "ui-spec" / "ui-spec-test.md",
+        """\
+        ---
+        id: ui-spec-test
+        author: ui-designer
+        status: approved
+        deps: [prd-test]
+        consumers: [tech-lead]
+        ---
+        ## 2. 组件清单
+        | id | 名称 |
+        |----|------|
+        | UC-016 | StatusBar |
+        ## 3. Components
+        ### UC-001: Toolbar
+        点击「+」插入按钮，触发 UC-015 抽屉。
+        ### UC-015: InsertDrawer
+        Props: items
+        ### UC-016: StatusBar
+        Props: state
+        ### UC-017: NeverUsed
+        Props: none
+        ## 4. Pages
+        ### P-001: EditorPage
+        Uses UC-001
+        """,
+    )
+    checker = CrossDocChecker(str(docs_dir), quiet=True)
+    checker.check_orphaned_components()
+    messages = " ".join(w.message for w in checker.warnings)
+    assert "UC-015" not in messages, messages
+    assert "UC-016" not in messages, messages
+    assert "UC-017" in messages, messages
+
+
+# ---- UI coverage: delivery-surface annotation ----
+
+
+def test_ui_coverage_delivery_annotation(docs_dir: Path) -> None:
+    _write(
+        docs_dir / "prd" / "prd-test.md",
+        """\
+        ---
+        id: prd-test
+        author: pm
+        status: approved
+        deps: []
+        consumers: [architect]
+        ---
+        ## 2. Features
+        ### F-010: 插件系统
+        - delivery: dev-tooling
+        - 开发者可注册渲染扩展，页面输出经插件管线处理。
+        ### F-011: 设置页
+        - delivery: ui
+        - 提供偏好配置。
+        """,
+    )
+    _write(
+        docs_dir / "ui-spec" / "ui-spec-test.md",
+        """\
+        ---
+        id: ui-spec-test
+        author: ui-designer
+        status: approved
+        deps: [prd-test]
+        consumers: [tech-lead]
+        ---
+        ## 3. Pages
+        ### P-001: HomePage
+        Nothing about those features.
+        """,
+    )
+    checker = CrossDocChecker(str(docs_dir), quiet=True)
+    checker.check_prd_uispec_user_facing_coverage()
+    messages = " ".join(w.message for w in checker.warnings)
+    assert "F-010" not in messages, messages
+    assert "F-011" in messages, messages
+
+
+# ---- Entity propagation: indirect credit via owning module ----
+
+
+def test_entity_propagation_credited_via_module_reference(docs_dir: Path) -> None:
+    _write(
+        docs_dir / "arch" / "arch-test.md",
+        """\
+        ---
+        id: arch-test
+        author: architect
+        status: approved
+        deps: [prd-test]
+        consumers: [tech-lead]
+        ---
+        ## 2. Modules
+        ### M-001: Storage
+        管理 E-001 文档实体的持久化。
+        ### M-002: Sync
+        管理 E-002 同步游标。
+        ## 4. Entities
+        ### E-001: Document
+        ### E-002: SyncCursor
+        """,
+    )
+    _write(
+        docs_dir / "dev-plan" / "dev-plan-test.md",
+        """\
+        ---
+        id: dev-plan-test
+        author: tech-lead
+        status: approved
+        deps: [arch-test]
+        consumers: [implementer]
+        ---
+        ## 3. Tasks
+        ### T-001: Build storage
+        实现 M-001 的读写路径。
+        """,
+    )
+    checker = CrossDocChecker(str(docs_dir), quiet=True)
+    checker.check_arch_devplan_entity_propagation()
+    messages = " ".join(w.message for w in checker.warnings)
+    assert "E-001" not in messages, messages
+    assert "E-002" in messages, messages

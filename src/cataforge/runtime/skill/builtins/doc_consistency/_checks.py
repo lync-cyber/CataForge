@@ -25,6 +25,9 @@ class _CrossDocChecksMixin:
     def _kg_uncovered_acs(self, downstream_doc_type: str) -> set[str] | None: ...
 
     @abstractmethod
+    def _kg_devplan_ac_coverage(self) -> tuple[dict[str, set[str]], set[str], set[str]] | None: ...
+
+    @abstractmethod
     def _issue(self, severity: str, category: str, message: str) -> None: ...
 
     def check_prd_arch_ac_coverage(self) -> None:
@@ -177,7 +180,9 @@ class _CrossDocChecksMixin:
                     )
 
     def check_arch_devplan_entity_propagation(self) -> None:
-        """ARCH entity IDs should be referenced in DEV-PLAN tasks."""
+        """ARCH entity IDs should reach DEV-PLAN tasks, directly or via the
+        owning module: a task that references M-xxx covers every entity that
+        module's ARCH section manages."""
         if not self._has_content("arch") or not self._has_content("dev-plan"):
             return
         arch_content = self._content["arch"]
@@ -187,7 +192,15 @@ class _CrossDocChecksMixin:
         if not arch_entities:
             return
 
-        missing = {e for e in arch_entities if e not in devplan_content}
+        m_sections = _extract_sections(arch_content, "M")
+        missing = set()
+        for e in arch_entities:
+            if e in devplan_content:
+                continue
+            owning_modules = {m_id for m_id, text in m_sections.items() if e in text}
+            if any(m_id in devplan_content for m_id in owning_modules):
+                continue
+            missing.add(e)
         if missing:
             display = ", ".join(sorted(missing)[:5])
             self._issue(
@@ -197,31 +210,61 @@ class _CrossDocChecksMixin:
             )
 
     def check_prd_devplan_ac_traceability(self) -> None:
-        """Every PRD AC-NNN should appear in DEV-PLAN tdd_acceptance."""
+        """Every PRD AC should reach DEV-PLAN.
+
+        A bare ``AC-NNN`` id is only comparable across documents when the PRD
+        numbers ACs in one global sequence. When the same id recurs under
+        multiple features (per-feature local numbering), the token diff is
+        meaningless, so coverage reads at feature level: every feature that
+        carries ACs must be referenced by the DEV-PLAN (per-AC depth is
+        covered by :meth:`check_prd_devplan_ac_granularity`).
+        """
         if not self._has_content("prd") or not self._has_content("dev-plan"):
             return
 
-        kg_missing = self._kg_uncovered_acs("dev-plan")
-        if kg_missing is not None:
-            if kg_missing:
-                display = ", ".join(sorted(kg_missing)[:8])
-                suffix = f" (共 {len(kg_missing)} 项)" if len(kg_missing) > 8 else ""
-                self._issue(
-                    "HIGH",
-                    "ac-traceability",
-                    f"PRD 中 {len(kg_missing)} 个 AC 未传播到 DEV-PLAN: {display}{suffix}",
-                )
+        kg_cov = self._kg_devplan_ac_coverage()
+        if kg_cov is not None:
+            self._report_devplan_ac_gap(*kg_cov)
             return
 
         prd_content = strip_code_blocks(self._content["prd"])
         devplan_content = strip_code_blocks(self._content["dev-plan"])
 
-        prd_acs = set(re.findall(r"AC-\d+", prd_content))
-        if not prd_acs:
+        ac_parents: dict[str, set[str]] = {ac: set() for ac in re.findall(r"AC-\d+", prd_content)}
+        if not ac_parents:
             return
+        for f_id, section in _extract_sections(prd_content, "F").items():
+            for ac in re.findall(r"AC-\d+", section):
+                ac_parents.setdefault(ac, set()).add(f_id)
 
-        devplan_acs = set(re.findall(r"AC-\d+", devplan_content))
-        missing = prd_acs - devplan_acs
+        referenced_acs = set(re.findall(r"AC-\d+", devplan_content))
+        features_with_acs = set().union(*ac_parents.values()) if ac_parents else set()
+        referenced_features = {f for f in features_with_acs if f in devplan_content}
+        self._report_devplan_ac_gap(ac_parents, referenced_acs, referenced_features)
+
+    def _report_devplan_ac_gap(
+        self,
+        ac_parents: dict[str, set[str]],
+        referenced_acs: set[str],
+        referenced_features: set[str],
+    ) -> None:
+        if not ac_parents:
+            return
+        local_numbering = any(len(parents) > 1 for parents in ac_parents.values())
+        if local_numbering:
+            features_with_acs: set[str] = set().union(*ac_parents.values())
+            uncovered = sorted(features_with_acs - referenced_features)
+            if uncovered:
+                display = ", ".join(uncovered[:8])
+                suffix = f" (共 {len(uncovered)} 项)" if len(uncovered) > 8 else ""
+                self._issue(
+                    "HIGH",
+                    "ac-traceability",
+                    f"PRD 中 {len(uncovered)} 个 feature 的 AC 未传播到 DEV-PLAN: "
+                    f"{display}{suffix}",
+                )
+            return
+        missing = set(ac_parents) - referenced_acs
         if missing:
             display = ", ".join(sorted(missing)[:8])
             suffix = f" (共 {len(missing)} 项)" if len(missing) > 8 else ""
@@ -266,7 +309,14 @@ class _CrossDocChecksMixin:
                 )
 
     def check_prd_uispec_user_facing_coverage(self) -> None:
-        """User-facing PRD features should have UI-SPEC page/component."""
+        """User-facing PRD features should have UI-SPEC page/component.
+
+        A feature section may declare its delivery surface with a
+        ``delivery: ui | api | dev-tooling`` field line — a non-``ui`` surface
+        is exempt from UI coverage regardless of verb heuristics; ``ui``
+        requires coverage even without them. Without the field, the verb
+        heuristic decides.
+        """
         if not self._has_content("prd") or not self._has_content("ui-spec"):
             return
         prd_content = self._content["prd"]
@@ -277,10 +327,18 @@ class _CrossDocChecksMixin:
             r"|display|render|show|input|click|navigate|page|form|list|modal|dialog",
             re.IGNORECASE,
         )
+        delivery_field = re.compile(
+            r"^\s*[-*]?\s*\**(?:delivery|交付面)\**\s*[:：]\s*([a-z-]+)",
+            re.IGNORECASE | re.MULTILINE,
+        )
 
         f_sections = _extract_sections(prd_content, "F")
         for f_id, section in f_sections.items():
-            if not ui_verbs.search(section):
+            declared = delivery_field.search(section)
+            if declared is not None:
+                if declared.group(1).lower() != "ui":
+                    continue
+            elif not ui_verbs.search(section):
                 continue
             if f_id not in uispec_content:
                 self._issue(
@@ -290,23 +348,28 @@ class _CrossDocChecksMixin:
                 )
 
     def check_orphaned_components(self) -> None:
-        """UI-SPEC components should be referenced by at least one page."""
+        """UI-SPEC components should be referenced somewhere beyond their own
+        section — a page, another component's trigger declaration, or the
+        prose/tables outside any UC section (e.g. the master component list)."""
         if not self._has_content("ui-spec"):
             return
         content = self._content["ui-spec"]
         c_ids = _extract_all_ids(content, "UC")
-        p_sections_text = "\n".join(_extract_sections(content, "P").values())
-
-        if not c_ids or not p_sections_text:
+        if not c_ids:
             return
 
-        orphaned = {c for c in c_ids if c not in p_sections_text}
+        uc_sections = _extract_sections(content, "UC")
+        orphaned = set()
+        for c in c_ids:
+            own = uc_sections.get(c, "")
+            if content.count(c) - own.count(c) <= 0:
+                orphaned.add(c)
         if orphaned:
             display = ", ".join(sorted(orphaned)[:5])
             self._issue(
                 "MEDIUM",
                 "orphaned-component",
-                f"UI-SPEC 组件 {display} 未被任何页面引用",
+                f"UI-SPEC 组件 {display} 未被任何页面或组件引用",
             )
 
     def build_traceability_matrix(self) -> list[dict[str, str]]:
