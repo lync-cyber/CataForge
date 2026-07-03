@@ -86,33 +86,33 @@ class CrossDocChecker(_CrossDocChecksMixin):
             self._kg_active = set()
         return self._kg_active
 
-    def _kg_uncovered_acs(self, downstream_doc_type: str) -> set[str] | None:
-        """Return PRD ACs not covered from ``downstream_doc_type`` via KG.
-
-        Enumerates ACs sourced in PRD docs, then computes the covered set.
-        For ``dev-plan`` an AC is covered when a dev-plan-sourced entity
-        references it directly (tdd_acceptance lists AC ids). For ``arch`` an
-        AC is covered transitively: arch asserts ``cf:implements`` on Features,
-        never on ACs, so an AC counts when its parent Feature (``cf:part_of``)
-        is implemented by an arch-sourced artifact. Returns ``None`` to signal
-        "fall through to regex" when a doc_type is inactive or the query fails.
-        """
+    def _kg_gate(self, downstream_doc_type: str) -> Path | None:
+        """Project root when both prd and the downstream doc_type are KG-active."""
         active = self._active_doc_types()
         if "prd" not in active or downstream_doc_type not in active:
             return None
-        project_root = self._project_root()
+        return self._project_root()
+
+    def _kg_uncovered_acs(self, downstream_doc_type: str) -> set[str] | None:
+        """Return PRD ACs not covered from ``downstream_doc_type`` via KG.
+
+        arch asserts ``cf:implements`` on Features, never on ACs, so an AC is
+        covered transitively when its parent Feature (``cf:part_of``) is
+        implemented by an arch-sourced artifact. Returns ``None`` to signal
+        "fall through to regex" when a doc_type is inactive or the query fails.
+        """
+        project_root = self._kg_gate(downstream_doc_type)
         if project_root is None:
             return None
         try:
             from cataforge.domain.kg import KnowledgeGraph  # noqa: PLC0415
             from cataforge.domain.kg._dispatch import kg_config_for  # noqa: PLC0415
+            from cataforge.domain.kg._sparql_utils import cf_namespace  # noqa: PLC0415
         except ImportError:
             return None
 
         cfg = kg_config_for(project_root)
         try:
-            from cataforge.domain.kg._sparql_utils import cf_namespace  # noqa: PLC0415
-
             with KnowledgeGraph.connect(cfg, read_only=True) as kg:
                 ns = cf_namespace(cfg)
                 prd_q = (
@@ -124,28 +124,16 @@ class CrossDocChecker(_CrossDocChecksMixin):
                     '  FILTER(CONTAINS(STR(?src), "prd")) '
                     "}"
                 )
-                if downstream_doc_type == "arch":
-                    downstream_q = (
-                        f"PREFIX cf: <{ns}> "
-                        "SELECT DISTINCT ?ac_id WHERE { "
-                        "  ?impl cf:source_doc ?src_doc . "
-                        '  FILTER(CONTAINS(STR(?src_doc), "arch")) '
-                        "  ?impl cf:implements ?feature . "
-                        "  ?ac cf:part_of ?feature ; cf:entity_id ?ac_id . "
-                        '  FILTER(STRSTARTS(STR(?ac_id), "AC-")) '
-                        "}"
-                    )
-                else:
-                    downstream_q = (
-                        f"PREFIX cf: <{ns}> "
-                        "SELECT DISTINCT ?ac_id WHERE { "
-                        "  ?src cf:source_doc ?src_doc . "
-                        f'  FILTER(CONTAINS(STR(?src_doc), "{downstream_doc_type}")) '
-                        "  ?src ?p ?ac . "
-                        "  ?ac cf:entity_id ?ac_id . "
-                        '  FILTER(STRSTARTS(STR(?ac_id), "AC-")) '
-                        "}"
-                    )
+                downstream_q = (
+                    f"PREFIX cf: <{ns}> "
+                    "SELECT DISTINCT ?ac_id WHERE { "
+                    "  ?impl cf:source_doc ?src_doc . "
+                    f'  FILTER(CONTAINS(STR(?src_doc), "{downstream_doc_type}")) '
+                    "  ?impl cf:implements ?feature . "
+                    "  ?ac cf:part_of ?feature ; cf:entity_id ?ac_id . "
+                    '  FILTER(STRSTARTS(STR(?ac_id), "AC-")) '
+                    "}"
+                )
                 prd_acs = {
                     str(row["eid"].value)
                     for row in cast("Any", kg.store.query(prd_q))
@@ -161,6 +149,69 @@ class CrossDocChecker(_CrossDocChecksMixin):
         if not prd_acs:
             return None  # no ACs ingested; let regex handle
         return prd_acs - referenced
+
+    def _kg_devplan_ac_coverage(self) -> tuple[dict[str, set[str]], set[str], set[str]] | None:
+        """PRD AC coverage signals from the dev-plan side of the graph.
+
+        Returns ``(ac_parents, referenced_acs, referenced_features)``:
+        each PRD AC id mapped to its parent Feature ids (``cf:part_of``),
+        the AC ids referenced by any dev-plan-sourced entity, and the Feature
+        ids referenced by any dev-plan-sourced entity. ``None`` falls through
+        to the regex path.
+        """
+        project_root = self._kg_gate("dev-plan")
+        if project_root is None:
+            return None
+        try:
+            from cataforge.domain.kg import KnowledgeGraph  # noqa: PLC0415
+            from cataforge.domain.kg._dispatch import kg_config_for  # noqa: PLC0415
+            from cataforge.domain.kg._sparql_utils import cf_namespace  # noqa: PLC0415
+        except ImportError:
+            return None
+
+        cfg = kg_config_for(project_root)
+        try:
+            with KnowledgeGraph.connect(cfg, read_only=True) as kg:
+                ns = cf_namespace(cfg)
+                prd_q = (
+                    f"PREFIX cf: <{ns}> "
+                    "SELECT ?eid ?fid WHERE { "
+                    "  ?s cf:entity_id ?eid ; "
+                    "     cf:source_doc ?src . "
+                    '  FILTER(STRSTARTS(STR(?eid), "AC-")) '
+                    '  FILTER(CONTAINS(STR(?src), "prd")) '
+                    "  OPTIONAL { ?s cf:part_of ?f . ?f cf:entity_id ?fid } "
+                    "}"
+                )
+                referenced_q = (
+                    f"PREFIX cf: <{ns}> "
+                    "SELECT DISTINCT ?rid WHERE { "
+                    "  ?src cf:source_doc ?src_doc . "
+                    '  FILTER(CONTAINS(STR(?src_doc), "dev-plan")) '
+                    "  ?src ?p ?o . "
+                    "  ?o cf:entity_id ?rid . "
+                    '  FILTER(STRSTARTS(STR(?rid), "AC-") || STRSTARTS(STR(?rid), "F-")) '
+                    "}"
+                )
+                ac_parents: dict[str, set[str]] = {}
+                for row in cast("Any", kg.store.query(prd_q)):
+                    if row["eid"] is None:
+                        continue
+                    parents = ac_parents.setdefault(str(row["eid"].value), set())
+                    if row["fid"] is not None:
+                        parents.add(str(row["fid"].value))
+                referenced_acs: set[str] = set()
+                referenced_features: set[str] = set()
+                for row in cast("Any", kg.store.query(referenced_q)):
+                    if row["rid"] is None:
+                        continue
+                    rid = str(row["rid"].value)
+                    (referenced_acs if rid.startswith("AC-") else referenced_features).add(rid)
+        except Exception:
+            return None
+        if not ac_parents:
+            return None  # no ACs ingested; let regex handle
+        return ac_parents, referenced_acs, referenced_features
 
     def collect(self) -> CheckReport:
         """Run all cross-document checks and return a structured report.
