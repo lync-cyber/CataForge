@@ -68,7 +68,7 @@ Agent 间通过标准化引用格式传递信息，避免全文复制：
 示例：
   prd#§2.F-003      → PRD 文档第 2 节 Feature F-003
   arch#§3.M-auth    → 架构文档第 3 节 Module auth
-  dev-plan#§1.T-005 → 开发计划第 1 节 Task T-005
+  dev-plan#§3.T-005 → 开发计划第 3 节 Task T-005
 ```
 
 `context` 的 navigate 分支负责按引用格式精准加载对应段落，降低 Agent 上下文占用。
@@ -97,7 +97,7 @@ Agent 间通过标准化引用格式传递信息，避免全文复制：
 
 ```json
 {"ts": "2026-04-16T08:00:00Z", "event": "phase_start", "phase": "development", "detail": "standard mode"}
-{"ts": "2026-04-16T08:05:00Z", "event": "agent_dispatch", "phase": "development", "agent": "implementer", "ref": "dev-plan#§1.T-005", "detail": "GREEN"}
+{"ts": "2026-04-16T08:05:00Z", "event": "agent_dispatch", "phase": "development", "agent": "implementer", "ref": "dev-plan#§3.T-005", "detail": "GREEN"}
 {"ts": "2026-04-16T08:30:00Z", "event": "review_verdict", "phase": "development", "status": "approved_with_notes", "detail": "2 notes"}
 ```
 
