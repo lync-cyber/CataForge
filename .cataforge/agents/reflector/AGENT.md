@@ -22,18 +22,12 @@ maxTurns: 60
 - 你只读 docs/reviews/ 各子目录，只写 docs/reviews/retro/RETRO-*.md 和 docs/reviews/retro/SKILL-IMPROVE-*.md
 
 ## Input Contract
-- docs/reviews/doc/ 下的 REVIEW-*.md（含 -r{N}）、docs/reviews/code/ 下的 CODE-REVIEW-*.md 与 CODE-SCAN-*.md、docs/reviews/framework/ 下的 FRAMEWORK-REVIEW-*.md、docs/reviews/triage/ 下的 SKILL-IMPROVE-*-issue-*.md、docs/reviews/CORRECTIONS-LOG.md
-- CORRECTIONS-LOG.md 格式:
-  ```
-  ### {date} | {agent_id} | {phase}
-  - 原假设: {assumption content}
-  - 用户决策: {user answer}
-  - 偏差类型: {deviation ∈ VALID_DEVIATIONS}
-  ```
-- 偏差类型 `deviation` 合法值见 `core/corrections.py` `VALID_DEVIATIONS`（preference / self-caused / external / framework-bug / upstream-gap）；与 review 报告的 `root_cause`（self-caused / upstream-caused / input-caused / reviewer-calibration，见 COMMON-RULES §归因分类）是两套独立枚举，`self-caused` 在两套中含义不同，勿混用
-- 触发门槛: 由 orchestrator 按 `RETRO_TRIGGER_SELF_CAUSED` 常量判定（CORRECTIONS-LOG self-caused 条目数达到阈值，或存在 CRITICAL 问题），不满足时 orchestrator 直接跳过本 Agent
-- **执行模式: inline**：orchestrator 直接执行本协议（共享主会话模型），与 change-guard / Adaptive Review 一致；frontmatter `inline_dispatch: true` 即 deploy 时给 orchestrator 的 hint。`model_tier: standard` 仅在 on-demand fallback 把 reflector 当 subagent 跑时生效。
-- **手动触发（on-demand）**: `cataforge agent run reflector --task-type retrospective <ad-hoc 描述>` 渲染 AGENT.md + 任务框架（已自动复制到剪贴板），粘贴到 IDE 会话即可激活；适用场景：阶段性 retro、framework-review 报告积累后的二次提炼、跨项目经验汇总
+- 输入源清单见 §Retrospective Protocol step 1
+- CORRECTIONS-LOG.md 条目字段: `### {date} | {agent_id} | {phase}` + 触发信号 / 问题/假设 / 基线/推荐 / 实际/选择 / 偏差类型（写入实现见 `src/cataforge/core/corrections.py`）
+- 偏差类型 `deviation` 合法值见 `src/cataforge/core/corrections.py` `VALID_DEVIATIONS`（preference / self-caused / external / framework-bug / upstream-gap）；与 review 报告的 `root_cause`（self-caused / upstream-caused / input-caused / reviewer-calibration，见 COMMON-RULES §归因分类）是两套独立枚举，`self-caused` 在两套中含义不同，勿混用
+- 触发门槛: 由 orchestrator 判定（见 ORCHESTRATOR-META-PROTOCOLS §Retrospective & Improvement Protocol），不满足时 orchestrator 直接跳过本 Agent
+- **执行模式: inline**：frontmatter `inline_dispatch: true` 即 deploy 时给 orchestrator 的 hint（路由见 ORCHESTRATOR-META-PROTOCOLS）；`model_tier: standard` 仅在 on-demand fallback 把 reflector 当 subagent 跑时生效。
+- **手动触发（on-demand）**: `cataforge agent run reflector --task-type retrospective <ad-hoc 描述>` 渲染 AGENT.md + 任务框架（TTY 下自动复制到剪贴板），粘贴到 IDE 会话即可激活；适用场景：阶段性 retro、framework-review 报告积累后的二次提炼、跨项目经验汇总
 
 ## Output Contract
 - RETRO / SKILL-IMPROVE 为过程文件，直接 Write/Edit 写入 docs/reviews/retro/
@@ -83,15 +77,13 @@ version: "{x.y.z}"      # 可选
 - rationale: {修改理由，引用 evidence}
 ```
 
-交付标准: 每条经验 ≥2 条 evidence，instruction 一句话可操作。
-
 ## 返回状态码
 - **completed**: 正常完成（含样本不足时的空报告，summary 中说明原因）
 - **needs_input**: 需要用户确认（如多条经验归属不明确时）
 - **blocked**: 不可恢复错误（如 docs/reviews/ 子目录不存在或文件格式无法解析）
 
 ## Retrospective Protocol
-> 注意：以下扫描是 glob-based，**不经过** `docs/.doc-index.json`。即使存量 reviews 文件缺 front matter（旧版 reflector 产出），也仍能进入回顾分析；新产出按 §Output Contract 必须带 front matter，避免 doctor orphan 噪声。
+> 注意：以下扫描是 glob-based，**不经过** `docs/.doc-index.json`。即使存量 reviews 文件缺 front matter，也仍能进入回顾分析；新产出按 §Output Contract 必须带 front matter，避免 doctor orphan 噪声。
 
 1. 扫描以下目录的 review/scan 报告:
    - docs/reviews/doc/ 下所有 REVIEW-*.md（含 -r{N}）— 业务文档审查

@@ -27,7 +27,7 @@ maxTurns: 120
 - 可选参考: 已有项目文档 (通过context按需加载)
 
 ## Output Contract
-- 必须产出: prd-{project}.md（版本号写入 frontmatter `version:` 字段，不进入 id/文件名）；经 context authoring 落图后 `cataforge context finalize` 导出此视图，不直接 Edit 导出文件
+- 必须产出: prd-{project}.md
 - 使用模板: 通过context调用 prd 模板
 
 ## Anti-Patterns

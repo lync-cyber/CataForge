@@ -34,10 +34,13 @@ Light 模式额外传入：`模式: tdd_mode=light（合并 RED+GREEN）`，prom
 - status: `completed` | `blocked`
 - outputs: 实现文件路径列表(逗号+空格分隔)；Light 模式同时返回 `test_files` + `impl_files` 两个清单
 - summary: "N PASSED。{执行摘要}"
-- `refactor_needed`: `true` | `false` —— 自检 impl_files 是否命中 `TDD_REFACTOR_TRIGGER` 任一类别（complexity / duplication / coupling）。判断标准见 §Self-Refactor Reporting
+- `refactor_needed`: `true` | `false` —— 自检 impl_files 是否命中 `TDD_REFACTOR_TRIGGER` 任一类别。判断标准见 §Self-Refactor Reporting
 - `refactor_reasons`: `[category, ...]` —— 仅在 `refactor_needed=true` 时给出，列出命中的类别 + 一句话证据（如 `complexity: foo() 圈复杂度 ≥ 12`）
 - `wiring_complete`: `true` | `false` | `n/a` —— 见 §Wiring Completeness Reporting
 - `wiring_evidence`: `[{consumer_file, consumer_line?, deliverable_symbol}, ...]` —— 仅 `wiring_complete=true` 时建议提供
+
+## Mid-Progress 落盘契约
+见 SUB-AGENT-PROTOCOLS §Mid-Progress 落盘契约。落盘单元 = 逐 AC 填充实现，每完成一个 AC 即落盘并跑其对应测试。
 
 ## Wiring Completeness Reporting
 
@@ -47,9 +50,9 @@ GREEN/Light 完成后，对涉及 user-facing critical path（页面 / 路由 / 
 |------------------------|---------|
 | `true` | 所有 AC 关联的可执行交付符号（组件 / handler / store action）都已挂载到至少一个消费点（路由表 / 父组件 prop / app shell）；建议在 `wiring_evidence` 列出 `{consumer_file, deliverable_symbol}` 至少一对 |
 | `false` | 任一 AC 关联组件存在但**未挂载**（grep 全仓 0 命中 `<Component` / `import Component`）；或 prop 链路终点是 `() => {}` / `return null` 等空函数（与 code-review §integration-wiring 维度同步） |
-| `n/a` | 任务 `task_kind ∈ {chore, config, docs}` 或纯后端逻辑（无 UI 消费点）；缺省视为 `n/a`（向后兼容） |
+| `n/a` | 任务 `task_kind ∈ {chore, config, docs}` 或纯后端逻辑（无 UI 消费点）；缺省视为 `n/a` |
 
-`wiring_complete=false` 触发 orchestrator 在 sprint-review 阶段标 MEDIUM；不阻塞 GREEN 完成（避免和 RED→GREEN 主循环冲突），但任务卡 `user_facing_critical_path: true` 时升 HIGH 并要求修复后才能 done。
+`wiring_complete=false` 的处置（标级 / 升级 / continuation 上限）由 orchestrator 按 tdd-engine §Step 3 执行，不阻塞 GREEN 完成。
 
 > 这是自检自报，不是替代 code-review §integration-wiring 维度的 Layer 2 兜底。漏判会在 sprint-review `wiring-completeness` 时被批量复核捕获。
 
@@ -93,16 +96,15 @@ GREEN/Light 完成后按 tdd-engine 四档执行收尾验证：
 当 tdd-engine prompt 中标注 `模式: tdd_mode=light` 时（合并 RED+GREEN）:
 1. 先按 prompt 中的"验收标准"为每条 AC 写一份失败测试（等价于 test-writer 行为，遵循 test-writer §Execution Rules 行为断言强制 — 禁止存在性断言，期望值从 AC 的 Then 子句推导），运行一次确认测试均 FAIL
 2. 再补最小实现代码使全部测试 PASSED
-3. `<agent-result>.outputs` 同时返回 `test_files` 和 `impl_files` 两个路径列表
-4. summary 必须包含 "light mode — RED+GREEN 合并"，说明合并阶段的最终测试结果
-5. 失败场景: 写测试时即发现 AC 无法测（如 AC 不可验证）→ 返回 blocked 并在 `<questions>` 说明具体 AC 编号
+3. summary 必须包含 "light mode — RED+GREEN 合并"，说明合并阶段的最终测试结果
+4. 失败场景: 写测试时即发现 AC 无法测（如 AC 不可验证）→ 返回 blocked 并在 `<questions>` 说明具体 AC 编号
 
 ## Exception Handling
 | 场景 | 处理 |
 |------|------|
 | 3次尝试仍有测试 FAIL | 报告 blocked（失败测试名 + 错误信息） |
 | 编译/语法错误 | 修复后重试，不计入尝试次数 |
-| 依赖缺失 | 检查 arch§6 并安装 |
+| 依赖缺失 | 检查 arch#§6 并安装 |
 
 ## Penpot 集成 (可选)
 当 {INSTRUCTION_FILE} `设计工具` 为 `penpot` 且任务涉及前端组件时:
@@ -114,4 +116,4 @@ GREEN/Light 完成后按 tdd-engine 四档执行收尾验证：
 - 禁止: 过度设计 — 如测试只要求返回列表却实现了分页+缓存+排序，只写使测试通过的最小代码
 - 禁止: 用 `() => {}` / `async () => {}` / `return null` / 空 lambda 等占位 handler 满足 prop / event 类型契约 —— 形式契约对但语义留白会被 code-review §integration-wiring 抓出；分阶段实现必须任务卡显式 `wiring_placeholder: true` + 关联 backlog ID（或文件级豁免注释 `cataforge: allow(wiring_empty_handler, reason="...")`）
 - 避免: 仅交付组件/handler 而不挂载到消费点 —— `wiring_complete=true` 至少需要一个 `wiring_evidence` 条目证明 deliverable 真实落地（至少 grep 仓库可命中）
-- 避免: 忽略arch§7命名规范而使用自己的命名风格 — 文件名、变量名、函数签名严格遵循架构约定
+- 避免: 忽略arch#§7命名规范而使用自己的命名风格 — 文件名、变量名、函数签名严格遵循架构约定

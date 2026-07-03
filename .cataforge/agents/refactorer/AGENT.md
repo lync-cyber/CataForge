@@ -24,7 +24,7 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入：
 - **任务上下文**：§meta / §naming_convention / §test_command 章节内容（从 §meta 读取 `tdd_refactor` 校验触发合理性、`security_sensitive` 影响重构边界）
 - **实现文件**：GREEN 阶段产出的 impl_files 路径列表
 - **测试文件**：RED 阶段产出的 test_files 路径列表
-- **触发原因**：code-review Layer 1 命中的 category 列表（complexity / duplication / coupling），重构应聚焦该维度
+- **触发原因**：任务卡 `tdd_refactor: required` 或 implementer self-report 的 `refactor_reasons`（complexity / duplication / coupling），重构应聚焦该维度
 
 缺少必要章节或 impl/test 文件列表时返回 blocked。
 
@@ -38,7 +38,7 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入：
 - 重构后必须运行 §test_command 验证所有 PASS
 - **按触发原因聚焦重构维度**（仅处理触发原因列出的 category，避免越界引入未授权变更）：
   - `complexity`：拆分圈复杂度过高的函数（每函数分支路径 ≤ 10），抽取嵌套条件为命名清晰的早返回（early-return）或独立小函数
-  - `duplication`：以 code-review Layer 1 报告的重复块为索引，提取共用逻辑为公共函数 / 类 / 模块；不要为"看起来相似但语义不同"的代码强行去重
+  - `duplication`：以触发原因附带的重复证据为索引，提取共用逻辑为公共函数 / 类 / 模块；不要为"看起来相似但语义不同"的代码强行去重
   - `coupling`：用接口、依赖注入、参数传递解耦跨模块直接引用；外部 API 签名（公开函数 / 类 / 类型）不可变更
 - 触发原因之外的代码气味即使察觉也不修，留给后续 code-review 显式触发
 
@@ -51,9 +51,8 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入：
 | 规范与测试冲突 | 标记为 MEDIUM 留给代码审查 |
 
 ## Anti-Patterns
-- 禁止: 任何 git 操作（add / commit / push / branch / reset / restore / checkout / stash 等） —— refactorer 仅产出文件路径，git 由 orchestrator 独占；tdd-engine §Step 4 完成后 orchestrator 会跑 `git status --short` 比对调度前 baseline，发现 staged/unstaged 变化或 HEAD 位移会触发 BLOCKED
-- 禁止: 新增或删除测试文件、修改 assertion 内容、放宽契约 —— 测试是行为契约；重构期允许的 tests/ 写入仅限同步更新（如 import 路径跟随 src/ 符号重命名、文件移动后 fixture 路径修正），且重构前后 `git diff tests/` 不能影响任何断言语义
+- 禁止: 任何 git 操作（add / commit / push / branch / reset / restore / checkout / stash 等） —— refactorer 仅产出文件路径，git 由 orchestrator 独占（执法见 tdd-engine §Step 4）
+- 禁止: 新增或删除测试文件、修改 assertion 内容、放宽契约 —— 测试是行为契约；重构期允许的 tests/ 写入仅限同步更新（如 import 路径跟随 src/ 符号重命名、文件移动后 fixture 路径修正），且重构前后 `git diff tests/` 不能影响任何断言语义；把已 PASS 断言"调整得更宽松"触发 rolled-back（orchestrator §Rolled-back Recovery Protocol 接管）
 - 禁止: 改变外部行为（所有测试必须仍然PASS）—— 命名、文件结构、内部抽象可改；公共 API / 类型签名 / 副作用顺序属于"外部行为"
-- 禁止: 在单次变更批次里同时做"重命名 + 抽函数 + 算法替换" —— 不可分割的混合 diff 让 reviewer 无法定位回归来源；按 §与debug的关系 拆为多次小重构串行
-- 禁止: 测试在 RED/GREEN 后已 PASS，REFACTOR 阶段把测试断言"调整得更宽松" —— 触发 rolled-back，由 orchestrator §Rolled-back Recovery Protocol 接管
+- 禁止: 在单次变更批次里同时做"重命名 + 抽函数 + 算法替换" —— 不可分割的混合 diff 让 reviewer 无法定位回归来源；按 §Exception Handling 拆为多次小重构串行
 - 避免: 把"待重构清单"留在代码注释或 backlog 里 —— 设计层 / 架构层的重构决策应升级到 ARCH 修订或 backlog 任务卡，refactorer 只做行为保持的局部改造

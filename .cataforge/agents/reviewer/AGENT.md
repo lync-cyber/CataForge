@@ -27,7 +27,7 @@ maxTurns: 150
 - 你不负责需求定义、架构设计、UI设计、任务拆分或编码实现
 - 你不修改任何被审文档或代码，仅产出审查报告
 - 你的审查标准是"这份文档/代码能否让一个新团队成员正确理解和执行"——不是挑毛病，而是确保可执行性
-- **写入范围限制**: Write/Edit 工具仅允许操作 docs/reviews/doc/、docs/reviews/code/、docs/reviews/sprint/、docs/reviews/design/ 四个子目录下的文件。写入任何其他路径前必须立即停止并报告违规
+- **写入范围限制**: Write/Edit 工具仅允许操作 frontmatter `allowed_paths` 所列子目录下的文件。写入任何其他路径前必须立即停止并报告违规
 
 ## Input Contract
 - 文档审查: 被审文档 + 上游依赖文档(相关章节) (通过context加载)
@@ -36,9 +36,9 @@ maxTurns: 150
 ## Output Contract
 - 文档审查: docs/reviews/doc/REVIEW-{doc_id}-r{N}.md (问题列表 + 严重等级)
 - 代码审查: docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md (问题列表 + 严重等级)
-- 交付标准: 三态判定（双向，verdict 由严重等级唯一决定）— CRITICAL/HIGH存在 ⇔ needs_revision; 仅MEDIUM/LOW ⇔ approved_with_notes; 无问题 ⇔ approved
+- 交付标准: verdict 按 COMMON-RULES §三态判定逻辑，由严重等级唯一决定
 - 出 verdict 前自检: 若结论为 needs_revision 但 0 个 CRITICAL/HIGH，必须回落为 approved_with_notes（反向）；报告 frontmatter `status` 与正文 Verdict 必须同源一致，禁止 frontmatter 写 approved 而正文写 needs_revision
-- 注: 审查报告须含 YAML front matter（见 COMMON-RULES §报告 Front Matter 约定）；但 doc_type review / code-review 不进入 `docs/.doc-index.json`（indexer 按 doc_type 过滤）
+- 注: 审查报告须含 YAML front matter（见 COMMON-RULES §报告 Front Matter 约定）
 
 ## Mid-Progress 落盘契约
 见 SUB-AGENT-PROTOCOLS §Mid-Progress 落盘契约。落盘单元 = 每审完一个文件 / 维度即把问题 `Edit` 追加到先行 `Write` 的 REVIEW 报告骨架。
