@@ -11,7 +11,7 @@ user-invocable: true
 # UI设计 (ui-design)
 ## 能力边界
 - 能做: 设计方向决策、设计系统token定义、页面布局决策、组件规范定义、交互流程、响应式策略、组件目录维护(UC-NNN注册/去重/合并)、设计token一致性检查
-- 不做: 需求分析、架构设计、代码实现、从 Penpot 设计稿生成代码骨架（由 penpot-bridge generate 负责）、设计与实现一致性验证（penpot-bridge verify 前置要求组件已实现，由 orchestrator 在实现后调度，不在本设计阶段）
+- 不做: 需求分析、架构设计、代码实现、Penpot 代码骨架生成与设计一致性验证（generate / verify 的调用方分工见 penpot-bridge description）
 
 ## 输入规范
 - prd#§2功能需求(F-{NNN})
@@ -31,7 +31,7 @@ user-invocable: true
 ### Step 1: 设计方向决策（产出任何Token前必须完成）
 理解产品上下文，确立设计方向:
 - **用户与场景**: 产品服务什么人？在什么环境使用？(办公桌前/通勤中/嘈杂车间)
-- **产品调性**: 通过 user-interview 向用户确认调性方向（inline 承载时主线程直接提问，派发子代理时经 needs_input 回传），提供具体选项而非开放提问。示例选项:
+- **产品调性**: 通过 user-interview 向用户确认调性方向，提供具体选项而非开放提问。示例选项:
   - 专业克制(企业工具/数据平台) vs 活泼亲和(消费端/社交)
   - 信息密集(仪表盘/管理后台) vs 内容聚焦(阅读/展示)
   - 科技感(深色/渐变/动效) vs 朴素实用(浅色/清晰/快速)
@@ -57,7 +57,7 @@ user-invocable: true
 - 圆角程度与产品调性一致(企业工具偏小圆角2-4px，消费产品可用较大圆角8-16px)
 
 ### Step 3: [Penpot可选] Token同步
-若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，调用 penpot-bridge sync emit 生成 tokens.css（doc-first），可选 mirror 同步到 Penpot
+若 {INSTRUCTION_FILE} `设计工具` 为 `penpot`，调用 penpot-bridge sync（emit / mirror 语义见其 §sync）
 
 ### Step 4: 页面与组件规划
 从PRD功能需求推导页面和组件需求:

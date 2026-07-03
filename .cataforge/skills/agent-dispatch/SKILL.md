@@ -64,13 +64,15 @@ orchestrator 收到子代理返回后，按以下优先级解析:
    - 有新增/修改文件 → 检查文件内容是否含非空章节（至少一个 ## 标题下有实际内容），有则以 continuation 模式重新调度同一Agent
    - 无新增/修改文件或文件仅含空骨架 → 标记 blocked 并请求人工介入
 
-5. **写入范围校验（通用）**: 子代理返回后，orchestrator 通过 `git diff --name-only` 检查本次调度期间修改的文件:
-   - 读取目标 Agent 的 AGENT.md frontmatter 中 `allowed_paths` 字段
-   - `allowed_paths` 为空数组 `[]` 时跳过校验（orchestrator 等无限制 Agent）
-   - 所有修改文件均在 allowed_paths 列表的目录下 → 正常
-   - 存在 allowed_paths 以外的修改文件 → 使用 `git checkout -- {违规文件}` 回滚，在 summary 中标注"Agent 写入违规已回滚"，记录违规文件路径
-
 实现: orchestrator 主循环按上述优先级处理子代理返回，无独立 runtime 模块。
+
+## 写入范围校验
+
+子代理返回后，orchestrator 通过 `git diff --name-only` 检查本次调度期间修改的文件:
+- 读取目标 Agent 的 AGENT.md frontmatter 中 `allowed_paths` 字段
+- `allowed_paths` 为空数组 `[]` 时跳过校验（orchestrator 等无限制 Agent）
+- 所有修改文件均在 allowed_paths 列表的目录下 → 正常
+- 存在 allowed_paths 以外的修改文件 → 使用 `git checkout -- {违规文件}` 回滚，在 summary 中标注"Agent 写入违规已回滚"，记录违规文件路径
 
 ## 注意事项
 - `execution_host: subagent` 的 Phase Agent 作为独立子代理运行，拥有自己的上下文窗口（`inline` phase 由 orchestrator 主线程承载，不经本 skill，见 ORCHESTRATOR-PROTOCOLS.md §Inline Role Execution Protocol）
@@ -79,13 +81,9 @@ orchestrator 收到子代理返回后，按以下优先级解析:
 - subagent_type 使子代理自动加载 AGENT.md 中的角色定义、工具权限和约束
 - 续接（continuation）一律 file-based 重派发：独立上下文窗口 + 从中间产出文件 reload，禁止依赖任何平台「带上下文续接已派发子代理」的原生原语
 
-## 运行时支持
-支持的运行时平台由 `.cataforge/platforms/` 下的 profile.yaml 声明。
-当前已配置: claude-code, cursor, codex, opencode。
-
 ## Anti-Patterns
 - 禁止: 接受 light-inline / prototype-inline 档的调度请求 — 档位由 tdd-engine 判定，内联档前提是主线程直接执行，收到此类调度请求本身即上游错误，调度会撕裂上下文
-- 禁止: 跳过 §返回值解析与容错 Step 5 的 allowed_paths 写入范围校验 — `git diff` 检测的违规由本 skill 兜底，跳过会让 phase-bound agent 写入越权而无回滚
+- 禁止: 跳过 §写入范围校验 的 allowed_paths 检查 — `git diff` 检测的违规由本 skill 兜底，跳过会让 phase-bound agent 写入越权而无回滚
 - 禁止: 把任务上下文拆成多次 dispatch 增量传递 — 子代理无持久上下文，每次 dispatch 都是独立窗口；必须一次 prompt 内联全量信息，否则触发"上下文丢失型 blocked"
 - 避免: 在主线程读取子代理返回的全文再二次摘要 — 主线程上下文消耗翻倍，应让子代理在 `<agent-result>.summary` 内自摘要，主线程仅解析结构化字段
 

@@ -62,7 +62,7 @@ output_dir: <string>           # 输出目录 (可选，默认: ./generated-fram
 
 #### 1.3 需求澄清（条件触发）
 
-当以下条件满足时，**必须**向用户提出澄清问题（最多3个，遵循 CataForge MAX_QUESTIONS_PER_BATCH 约束）：
+当以下条件满足时，**必须**向用户提出澄清问题（每批 ≤ MAX_QUESTIONS_PER_BATCH）：
 
 | 条件 | 澄清问题方向 |
 |------|-------------|
@@ -179,16 +179,7 @@ phases:
 
 #### 2.5 平台适配决策
 
-根据平台能力矩阵，做出以下适配决策并记录理由：
-
-| 决策点 | Claude Code | Cursor | CodeX | OpenCode |
-|--------|------------|--------|-------|----------|
-| 多代理调度 | Agent 原生 | Task 原生 | spawn_agent 异步 | task 同步 |
-| Hook 机制 | JSON settings | hooks.json | hooks.json (受限) | JS/TS 插件 |
-| 缺失工具降级 | — | web_fetch→shell curl | user_question→注释提示 | 按 profile 降级 |
-| 代理配置格式 | YAML frontmatter | YAML frontmatter | TOML | YAML frontmatter |
-
-对每个不支持的能力，选择降级策略：
+按 `references/platform-capabilities.md` 中目标平台的能力矩阵做出适配决策并记录理由。对每个不支持的能力，选择降级策略：
 - **替代实现**: 用可用工具组合实现等效功能
 - **规则注入**: 将逻辑嵌入 Agent 指令中
 - **跳过**: 标记为不可用并说明影响
@@ -241,55 +232,15 @@ phases:
 - `maxTurns` 根据任务复杂度设置（简单任务: 30, 中等: 80, 复杂: 150）
 - Agent 指令部分使用中文（与 CataForge 惯例一致），技术标识符使用英文
 
-每个 AGENT.md 必须包含以下章节（`Identity` / `Input Contract` / `Output Contract` / `Anti-Patterns` 各为独立的 `## ` 二级标题）：
-1. **Role** — 角色定义与身份说明
-2. **Identity** — 身份与协作边界
-3. **Responsibilities** — 具体职责清单
-4. **Input Contract** — 输入契约
-5. **Output Contract** — 输出契约
-6. **Execution Protocol** — 执行协议（步骤、检查点）
-7. **Anti-Patterns** — 禁止行为
+章节骨架以 `templates/agent.md.tmpl` 为准；其中 `Identity` / `Input Contract` / `Output Contract` / `Anti-Patterns` 必须各为独立的 `## ` 二级标题（validate_framework.py 强制）。
 
 #### 3.3 生成 Skill 定义
 
-读取 `templates/skill.md.tmpl`，为每个 Skill 生成 SKILL.md。
-
-每个 SKILL.md 必须包含：
-1. YAML frontmatter（name, description, type, suggested-tools, depends）
-2. 能力边界说明
-3. 输入输出规范
-4. 执行步骤
-5. 质量检查点
+读取 `templates/skill.md.tmpl`，为每个 Skill 生成 SKILL.md（章节骨架与 frontmatter 字段以 tmpl 为准）。
 
 #### 3.4 生成 Workflow 定义
 
-读取 `templates/workflow.yaml.tmpl`，生成工作流编排文件。
-
-workflow YAML 结构：
-```yaml
-id: <workflow_id>
-name: <display_name>
-description: <purpose>
-version: "1.0"
-phases:
-  - id: <phase_id>
-    agent: <agent_id>
-    skills: [<skill_ids>]
-    inputs:
-      - type: user_input | file | previous_phase
-        source: <path_or_phase_id>
-    outputs:
-      - type: file
-        path: <output_path>
-        format: <markdown | json | yaml>
-    gate:
-      type: review | automated | manual
-      criteria: <description>
-    transitions:
-      on_success: <next_phase_id>
-      on_revision: <current_phase_id>  # 自循环修订
-      on_blocked: halt
-```
+读取 `templates/workflow.yaml.tmpl`，生成工作流编排文件（phase 字段结构以 tmpl 内注释为准）。
 
 #### 3.5 生成框架配置
 
@@ -303,16 +254,11 @@ phases:
 
 **profile.yaml** — 读取 `templates/platform-profiles/<target_ide>.yaml.tmpl`，生成目标平台的能力映射。
 
-**COMMON-RULES.md** — 生成工作流通用规则，包括：
-- 文件命名规范
-- Agent 间通信协议
-- 质量标准
-- 产出物格式要求
+**COMMON-RULES.md** — 读取 `templates/common-rules.md.tmpl` 生成工作流通用规则。
 
-**SUB-AGENT-PROTOCOLS.md** — 生成子代理协议，包括：
-- 返回值格式（agent-result XML 标签）
-- 状态码定义
-- 错误恢复流程
+**SUB-AGENT-PROTOCOLS.md** — 读取 `templates/sub-agent-protocols.md.tmpl` 生成子代理协议。
+
+**PROJECT-STATE.md** — 读取 `templates/project-state.md.tmpl` 生成项目状态文档。
 
 #### 3.6 生成 README.md
 
@@ -331,58 +277,22 @@ phases:
 
 生成完成后，执行以下验证：
 
-#### 4.1 结构完整性检查
+#### 4.1 自动化检查
 
-运行 `scripts/validate_framework.py`，检查：
+运行 `scripts/validate_framework.py`（覆盖：frontmatter 合法性、必填章节、framework.json / profile.yaml / hooks.yaml 结构、交叉引用、孤立 Skill、Agent 依赖 DAG）。
 
-- [ ] 所有 Agent 的 AGENT.md 存在且 frontmatter 合法
-- [ ] 所有 Skill 的 SKILL.md 存在且 frontmatter 合法
-- [ ] Workflow 引用的 agent_id 和 skill_id 全部存在
-- [ ] framework.json 结构合法
-- [ ] profile.yaml 的 tool_map 覆盖所有使用到的能力标识符
-- [ ] hooks.yaml 的 matcher_capability 在目标平台有映射或有降级策略
-- [ ] 每个 AGENT.md 含独立的 `## Identity`、`## Input Contract`、`## Output Contract`、`## Anti-Patterns` 二级标题
+#### 4.2 LLM 独有检查（脚本无法判定）
+
 - [ ] 无未实现占位符（禁止出现待办标记或空壳逻辑）
-
-#### 4.2 平台兼容性检查
-
-- [ ] Agent tools 字段仅使用 CataForge 能力标识符（不含平台原生名称）
-- [ ] 不使用目标平台不支持的特性（如 OpenCode 无 parallel_agents）
-- [ ] 降级策略覆盖所有不支持的能力
-
-#### 4.3 架构质量检查
-
-- [ ] 无循环依赖（Agent 依赖图为 DAG）
-- [ ] 无孤立 Skill（每个 Skill 至少被一个 Agent 引用）
 - [ ] 无冗余 Agent（每个 Agent 的职责不与其他 Agent 显著重叠，无大面积职责交叉）
+- [ ] 降级策略覆盖所有不支持的能力
 - [ ] Workflow 有且仅有一个入口阶段和至少一个终止阶段
 
 ---
 
 ## 设计决策输出
 
-生成完成后，输出以下设计决策说明：
-
-```markdown
-## 设计决策记录
-
-### 1. Agent 角色划分
-- 为什么选择 N 个 Agent: [理由]
-- 为什么 [agent_id] 独立而不合并: [理由]
-
-### 2. Skill 提取策略
-- 哪些逻辑提取为 Skill: [清单及理由]
-- 哪些逻辑保留在 Agent 中: [清单及理由]
-
-### 3. 工作流编排模式
-- 选择 [线性/分支/并行] 的理由: [理由]
-- 质量门禁设置在 [阶段] 的理由: [理由]
-
-### 4. 平台适配
-- 目标平台: [platform_id]
-- 降级处理: [具体降级项及策略]
-- 不可用能力: [清单及影响评估]
-```
+生成完成后，按 `templates/design-decisions.md.tmpl` 输出四节设计决策说明（Agent 角色划分 / Skill 提取策略 / 工作流编排模式 / 平台适配）。
 
 ---
 
@@ -397,12 +307,6 @@ phases:
 
 ---
 
-## 领域模式快速参考
-
-常见领域（软件开发 / 内容创作 / 电商运营 / 研究分析等）的 Agent / Skill / Workflow 模式见 `references/domain-patterns.md`。
-
----
-
 ## 扩展机制
 
 生成的框架遵循开闭原则：新增 Agent / Skill / Workflow / 平台 / Hook 均在 §3.1 目录树对应子目录下新建文件（`agents/` / `skills/` / `workflows/` / `platforms/` / `hooks/hooks.yaml`），不需修改已有文件。
@@ -412,9 +316,9 @@ phases:
 ## Anti-Patterns
 
 - 禁止: 生成的 SKILL.md / AGENT.md 含硬约束违规（版本里程碑 / PR 编号 / 特定语言关键字）— 下游项目会继承腐化，应在 Phase 3 模板填充后跑 check_no_design_residue / check_no_language_coupling 守卫
-- 禁止: 生成的 Anti-Patterns 段少于 ANTI_PATTERN_MIN_COUNT_SKILL（默认 3）/ AGENT 默认 4 — framework-review Layer 1 的 Anti-Patterns 数量下限检查会 FAIL，下游 framework-review 阻塞
-- 禁止: 生成的 agent `allowed_paths` 与 Anti-Patterns 行为约束矛盾 — 机制层放行 vs 行为层禁止的矛盾会让 reviewer 兜底失效（同 qa-engineer 历史问题模式）
-- 避免: 生成框架时跳过 Phase 4 验证 — 结构完整性 + 平台兼容性 + 架构质量三层检查是防止半成品产出的关键
+- 禁止: 生成的 Anti-Patterns 段少于 ANTI_PATTERN_MIN_COUNT_SKILL / ANTI_PATTERN_MIN_COUNT_AGENT — framework-review Layer 1 的 Anti-Patterns 数量下限检查会 FAIL，下游 framework-review 阻塞
+- 禁止: 生成的 agent `allowed_paths` 与 Anti-Patterns 行为约束矛盾 — 机制层放行 vs 行为层禁止的矛盾会让 reviewer 兜底失效
+- 避免: 生成框架时跳过 Phase 4 验证 — 自动化检查 + LLM 独有检查是防止半成品产出的关键
 
 ---
 

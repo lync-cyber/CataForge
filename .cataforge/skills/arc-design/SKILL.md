@@ -30,13 +30,13 @@ user-invocable: true
 > **语言细则**: 根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），获取对应语言的技术选型细则（包/依赖管理、框架选项、并发模型、构建产物形态）。`project.languages` 为空或未配置时跳过 lang-detail 载入，按语言无关原则做架构决策。
 
 ### Step 1: 需求分析与架构决策 (对应ARCH §1)
-- 通过 `cataforge context read prd#§2`（功能需求）/ `prd#§3`（非功能需求）按需分章节加载，不一次性读取 PRD 整篇（见 COMMON-RULES §文档加载纪律）
+- 通过 `cataforge context read prd#§2`（功能需求）/ `prd#§3`（非功能需求）按需分章节加载
 - §1.1 确定项目类型: fullstack | backend-only | CLI | API-only
   (此决定影响orchestrator是否跳过Phase 3 UI设计)
 - §1.2 架构风格选型: 结合tech-eval调研结果
   决策标准: 团队规模 / 性能要求 / 部署环境 / 可维护性
   不确定时**必须**通过research skill的user-interview指令向用户确认，不得直接标注[ASSUMPTION]跳过
-  决策记录: 选型结果须包含"考虑了X和Y，选择X因为{理由}，当{条件}时应重新评估"
+  决策记录: 三要素见 COMMON-RULES §决策记录要求
 - §1.3 系统上下文图: Mermaid C4Context 格式(系统边界、外部依赖、用户交互)
 - §1.4 技术栈: 每项技术填写(层次 | 技术 | 版本 | 选型理由 | 调研来源)表
 
@@ -94,7 +94,6 @@ user-invocable: true
 - 禁止: 跳过 §5.4 配置管理章节 —— 没有配置形态决策（环境变量清单 / 加载策略 / secrets 处理）的 ARCH 让 deploy-config 与 devops 无据可依，下游断链
 - 禁止: 模块划分循环依赖 —— ARCH 阶段的依赖图必须是 DAG；循环会让 tech-lead 任务拆解无起点
 - 避免: 把多个候选方案并列写在 ARCH 正文 —— 终态决策入 ARCH，候选讨论进 research-note 或 decision-log
-- 避免: 不假思索套用"微服务 + PostgreSQL + Redis + Docker + Nginx"全家桶 —— 小型项目单体架构通常更易维护，架构复杂度须匹配 PRD§3 非功能需求的实际约束
 
 ## 效率策略
 - 功能→模块映射确保无遗漏

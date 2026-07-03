@@ -57,18 +57,13 @@ user-invocable: false
 ### Step 4: 影响分析
 `clarification` 类型直接 drift_level = `n/a`、action = `proceed`，跳过下方深度分析。对 `enhancement` 和 `new_requirement` 类型，进一步分析:
 
-**Drift Level (偏移等级)**:
-| Level | 条件 | 示例 |
-|-------|------|------|
-| L1 | 仅涉及文档表述优化，不改变行为 | 修改字段描述、补充注释 |
-| L2 | 改变行为但不涉及架构，需更新AC | 增加API参数、修改验证规则、调整UI交互 |
-| L3 | 涉及架构变更，需多级cascade | 新增模块、改变数据模型、修改系统边界 |
-
-### drift_level 判定锚点
-- **n/a (proceed)**: `clarification` 类型，所有相关文档均 covered，无任何 ID 增删改
-- **L1 (proceed)**: 仅修改文档措辞，不新增/删除/修改任何 F-xxx/M-xxx/API-xxx/E-xxx/T-xxx ID
-- **L2 (amend_then_proceed)**: 修改现有 ID 的定义或新增 ID，但不涉及 arch#§1 架构概览中的系统边界
-- **L3 (cascade_amendment)**: 涉及 arch#§1 系统边界变更、新增/删除顶层模块、或技术栈变更
+**Drift Level (偏移等级) 判定锚点**:
+| Level (action) | 判定锚点 | 示例 |
+|----------------|---------|------|
+| n/a (proceed) | `clarification` 类型，所有相关文档均 covered，无任何 ID 增删改 | 澄清措辞 |
+| L1 (proceed) | 仅修改文档措辞，不新增/删除/修改任何 F-xxx/M-xxx/API-xxx/E-xxx/T-xxx ID | 修改字段描述、补充注释 |
+| L2 (amend_then_proceed) | 修改现有 ID 的定义或新增 ID，但不涉及 arch#§1 架构概览中的系统边界 | 增加API参数、修改验证规则、调整UI交互 |
+| L3 (cascade_amendment) | 涉及 arch#§1 系统边界变更、新增/删除顶层模块、或技术栈变更 | 新增模块、改变数据模型 |
 
 **受影响文档** (affected_docs):
 - 列出需要修订的文档 `doc_id#section` 引用
@@ -97,11 +92,6 @@ user-invocable: false
 
 ## Anti-Patterns
 - 禁止: 跳过 change-guard 直接进入 implementer —— 文档先行原则要求所有变更先经 PRD/ARCH 覆盖度对账；跳过会让下游 reviewer 在错误的契约上做评审
-- 禁止: 把 cascade_amendment 的中断恢复跳过 —— 变更级联到下游文档若未传播，REVIEW 阶段才发现契约错位，返工范围更大
+- 禁止: 未按 Step 2 逐级扫描覆盖度就给出 action —— 跳过 PRD 级判定直接看下游会把 new_requirement 误判为 enhancement，级联修订漏传播到 REVIEW 阶段才暴露，返工范围更大
 - 禁止: 把 new_requirement 等同 clarification —— clarification 不开新 Phase 1，new_requirement 必须从 PRD 重启；混淆会让 PRD/ARCH 与代码脱节
 - 避免: 让 reviewer 替代 change-guard 做影响分析 —— reviewer 审产物质量，change-guard 决定流程走向，两者职责正交不可互替
-
-## 效率策略
-- 通过context按需加载，不全量读取所有文档
-- 优先检查PRD级覆盖度（决定是否为new_requirement），再检查下游
-- 对clarification类型快速返回，不做深度影响分析

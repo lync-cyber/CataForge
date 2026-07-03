@@ -57,11 +57,7 @@ lint → unit-test → integration-test → build → deploy-staging → e2e-tes
 - 覆盖率报告: 集成到PR检查中
 
 #### Step 4: 环境变量与密钥管理
-- secrets通过平台机制注入:
-  - GitHub: Repository Secrets / Environment Secrets
-  - GitLab: CI/CD Variables (masked + protected)
-  - Jenkins: Credentials Store
-- 禁止硬编码任何密钥或敏感信息
+- secrets 注入见 §密钥管理规范
 - 环境差异通过环境变量控制(dev/staging/prod)
 
 #### Step 5: 缓存策略
@@ -154,7 +150,5 @@ deploy-spec 文档中必须包含密钥清单节:
 
 ## 效率策略
 - 配置文件模板化，按项目技术栈适配
-- 密钥通过环境变量注入，不硬编码
 - Dockerfile层顺序优化，最大化构建缓存命中
 - 环境差异最小化，通过变量控制
-- 利用缓存减少重复构建时间

@@ -50,7 +50,7 @@ WebSearch + WebFetch 调研目标平台:
 
 ## Step 5: 平台特性评估
 
-逐一评估 17 个 platform features（清单见 `src/cataforge/core/types.py::PLATFORM_FEATURES`）:
+逐一评估 platform features（清单见 `src/cataforge/core/types.py::PLATFORM_FEATURES`）:
 
 | 特性 | 支持 | 备注 |
 |------|------|------|

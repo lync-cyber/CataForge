@@ -90,7 +90,7 @@
 
 ## 4. Platform Features (features)
 
-17 个平台级功能特性:
+平台级功能特性（清单与计数以 `src/cataforge/core/types.py::PLATFORM_FEATURES` 为准）:
 
 | # | Feature | 检查项 | 典型平台 |
 |---|---------|--------|---------|
@@ -107,11 +107,11 @@
 | 11 | `worktree_isolation` | Git worktree 隔离？ | Claude Code, Cursor |
 | 12 | `autonomy_slider` | 可配置 agent 自治级别？ | Cursor |
 | 13 | `subagent_interactive` | 派发子代理能否直接向用户提问（AskUserQuestion 触达）？ | 当前各平台均否（交互密集 phase 须 inline） |
-| 13 | `ci_cd_integration` | 原生 CI/CD 集成？ | OpenCode (GitHub Actions) |
-| 14 | `multi_root` | 多项目工作区？ | Codex (--add-dir) |
-| 15 | `agent_memory` | Agent 级跨 session 持久化记忆？ | Claude Code |
-| 16 | `plugin_marketplace` | Plugin 发现和安装？ | 多数平台支持 |
-| 17 | `context_management` | 上下文窗口管理（章节、压缩）？ | Claude Code |
+| 14 | `ci_cd_integration` | 原生 CI/CD 集成？ | OpenCode (GitHub Actions) |
+| 15 | `multi_root` | 多项目工作区？ | Codex (--add-dir) |
+| 16 | `agent_memory` | Agent 级跨 session 持久化记忆？ | Claude Code |
+| 17 | `plugin_marketplace` | Plugin 发现和安装？ | 多数平台支持 |
+| 18 | `context_management` | 上下文窗口管理（章节、压缩）？ | Claude Code |
 
 ### 检查方法
 1. 查阅平台最新版本的 changelog 和功能文档

@@ -35,7 +35,7 @@ record-to-event-log: true
 - spec 事实源：经 `cataforge context read` 按条目粒度加载 prd / arch / ui-spec / dev-plan 相关章节，不整篇加载
 - 第二层机检入口：`cataforge skill run code-review -- scan <scope> [--focus <category,...>]`
 
-## 五步走查法（每个功能条目）
+## 执行步骤（五步走查法，每个功能条目）
 
 1. **读意图** — 加载该条目的 spec 原文（功能描述 + AC + 关联 UI/接口契约）
 2. **对设计** — 找到承接该条目的模块/组件/入口，核对架构映射（traceability 边或代码引用）
