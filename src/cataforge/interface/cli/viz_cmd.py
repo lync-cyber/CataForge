@@ -22,6 +22,7 @@ import click
 
 from cataforge.application.viz import service
 from cataforge.application.viz.registry import RENDERERS, short_hint
+from cataforge.core.viz.model import is_empty
 from cataforge.interface.cli.helpers import resolve_root
 from cataforge.interface.cli.main import cli
 from cataforge.interface.cli.ui import NextStep, ui
@@ -87,8 +88,10 @@ def _emit(content: str, output: Path | None) -> None:
 
 
 def _run(view: str, fmt: str, as_html: bool, output: Path | None, **opts: Any) -> None:
-    content = service.generate(view, _HTML if as_html else fmt, resolve_root(), **opts)
-    _emit(content, output)
+    ir = service.collect(view, resolve_root(), **opts)
+    if is_empty(ir):
+        click.echo(f"({view} 视图暂无数据 — `cataforge viz status` 查看各视图就绪状态)", err=True)
+    _emit(service.render_view(ir, _HTML if as_html else fmt), output)
 
 
 def _browser_opener(host: str) -> Callable[[Any], None]:

@@ -81,8 +81,11 @@ class TestMermaidRenderer:
         )
 
     def test_cjk_label_stays_unquoted(self) -> None:
-        g = Graph(direction="LR", nodes=(Node("empty", label="无有效边"),))
-        assert mermaid.render(g) == "graph LR\n    empty[无有效边]"
+        g = Graph(direction="LR", nodes=(Node("n1", label="中文标签"),))
+        assert mermaid.render(g) == "graph LR\n    n1[中文标签]"
+
+    def test_empty_graph_renders_header_only(self) -> None:
+        assert mermaid.render(Graph(direction="LR")) == "graph LR"
 
     def test_special_char_label_gets_quoted(self) -> None:
         g = Graph(nodes=(Node("a", label="has space"),))
@@ -448,11 +451,13 @@ class TestVizTasksFromEdges:
         assert result.exit_code == 0, result.output
         assert "#f00" in result.output  # cycle style
 
-    def test_invalid_edges_placeholder(self, tmp_path: Path) -> None:
-        # non-empty edges that parse to nothing → empty-graph placeholder
+    def test_invalid_edges_render_empty_graph(self, tmp_path: Path) -> None:
+        # non-empty edges that parse to nothing → empty graph + status nudge
         result = _viz(tmp_path, "tasks", "--edges", "garbage-no-arrow")
         assert result.exit_code == 0, result.output
-        assert "无有效边" in result.output
+        assert "graph LR" in result.output
+        assert "无有效边" not in result.output
+        assert "viz status" in result.output  # empty-view nudge (stderr)
 
 
 class TestVizTasksFromKg:
@@ -472,11 +477,12 @@ class TestVizTasksFromKg:
         edges = {(e["src"], e["dst"]) for e in data["edges"]}
         assert edges == {("T-001", "T-002"), ("T-002", "T-003")}
 
-    def test_no_tasks_placeholder(self, tmp_path: Path) -> None:
+    def test_no_tasks_empty_graph(self, tmp_path: Path) -> None:
         _make_kg_project(tmp_path)  # KG with Features/Modules but no Tasks
         result = _viz(tmp_path, "tasks")
         assert result.exit_code == 0, result.output
-        assert "无有效边" in result.output
+        assert "无有效边" not in result.output
+        assert "viz status" in result.output  # empty-view nudge (stderr)
 
     def test_uninitialised_store_degrades(self, tmp_path: Path) -> None:
         result = _viz(tmp_path, "tasks")  # no --edges, no KG store
@@ -911,6 +917,11 @@ class TestDashboard:
         assert "暂无事件" in out
         assert "暂无纠偏记录" in out
 
+    def test_empty_tasks_panel_shows_guidance(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)  # KG present, no Task entities → tasks EMPTY
+        out = html.render_dashboard(tmp_path)
+        assert "暂无任务依赖" in out
+
 
 class TestVizHtmlCli:
     def test_framework_html_inlines_cytoscape(self, tmp_path: Path) -> None:
@@ -1100,6 +1111,11 @@ class TestVizStatus:
         assert by_name["trace"].state == service.READY
         assert by_name["coverage"].state == service.READY
         assert by_name["arch"].state == service.READY
+
+    def test_status_marks_edgeless_task_graph_empty(self, tmp_path: Path) -> None:
+        _make_kg_project(tmp_path)  # Features present, no Task entities
+        by_name = {s.name: s for s in service.probe_all(tmp_path)}
+        assert by_name["tasks"].state == service.EMPTY
 
 
 class TestVizDiscovery:

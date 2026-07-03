@@ -27,7 +27,7 @@ from cataforge.core.corrections import CORRECTIONS_LOG_REL
 from cataforge.core.errors import CataforgeError
 from cataforge.core.event_log import EVENT_LOG_REL
 from cataforge.core.paths import KG_STORE_REL
-from cataforge.core.viz.model import Graph, MetricSeries, Timeline, is_empty
+from cataforge.core.viz.model import Graph, MetricSeries, Timeline, View, is_empty
 from cataforge.domain.docs.indexer import INDEX_FILENAME
 
 _HTML = "html"
@@ -39,23 +39,30 @@ EMPTY = "empty"
 NEEDS_SETUP = "needs-setup"
 
 
-def generate(view: str, fmt: str, root: Path, /, **opts: Any) -> str:
-    if view == "dashboard":
-        if fmt != _HTML:
-            raise CataforgeError("dashboard view is HTML-only; pass --html")
-        return html.render_dashboard(root, **opts)
-
+def collect(view: str, root: Path, /, **opts: Any) -> View:
+    """Collect view *view*'s IR, raising on an unknown view name."""
     collector = COLLECTORS.get(view)
     if collector is None:
         raise CataforgeError(f"unknown viz view: {view!r} (known: {sorted(COLLECTORS)})")
-    ir = collector(root, **opts)
+    return collector(root, **opts)
 
+
+def render_view(ir: View, fmt: str) -> str:
+    """Render an already-collected IR; ``"html"`` routes to the HTML renderer."""
     if fmt == _HTML:
         return html.render(ir)
     renderer = RENDERERS.get(fmt)
     if renderer is None:
         raise CataforgeError(f"unknown viz format: {fmt!r} (known: {sorted(RENDERERS)})")
     return renderer(ir)
+
+
+def generate(view: str, fmt: str, root: Path, /, **opts: Any) -> str:
+    if view == "dashboard":
+        if fmt != _HTML:
+            raise CataforgeError("dashboard view is HTML-only; pass --html")
+        return html.render_dashboard(root, **opts)
+    return render_view(collect(view, root, **opts), fmt)
 
 
 # --------------------------------------------------------------------------- #
