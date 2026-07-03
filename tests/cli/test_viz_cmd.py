@@ -931,6 +931,46 @@ class TestHtmlRenderer:
         _assert_offline(out)
 
 
+_EDGELESS_STATUS_GRAPH = Graph(
+    title="coverage",
+    nodes=(
+        Node("F-001", label="F-001: done", status=Status.OK),
+        Node("F-002", label="F-002: gap", status=Status.MISSING),
+        Node("F-003", label="F-003: partial", status=Status.PARTIAL),
+    ),
+)
+
+
+class TestStatusTableFallback:
+    def test_edgeless_status_graph_renders_table_not_graph(self) -> None:
+        out = html.render(_EDGELESS_STATUS_GRAPH)
+        assert 'class="stat"' in out  # status table present
+        assert "initGraph('view0'" not in out  # no node-rain graph init call
+        assert 'class="cy"' not in out
+
+    def test_edgeless_status_graph_needs_no_cytoscape(self) -> None:
+        # a table-only page must not inline the graph library
+        out = html.render(_EDGELESS_STATUS_GRAPH)
+        assert "Cytoscape Consortium" not in out
+        _assert_offline(out)
+
+    def test_status_table_sorts_anomalies_first(self) -> None:
+        out = html.render(_EDGELESS_STATUS_GRAPH)
+        # MISSING row precedes PARTIAL precedes OK
+        assert out.index("F-002") < out.index("F-003") < out.index("F-001")
+
+    def test_status_table_has_constituency_bar(self) -> None:
+        out = html.render(_EDGELESS_STATUS_GRAPH)
+        assert 'class="cbar"' in out
+        # one segment per present status, coloured from the palette
+        assert palette.encoding(Status.MISSING).fill in out
+
+    def test_edged_graph_still_renders_cytoscape(self) -> None:
+        out = html.render(_HTML_GRAPH)  # has an a→b edge
+        assert 'class="stat"' not in out
+        assert "initGraph('view0'" in out
+
+
 def _make_dashboard_project(tmp_path: Path) -> Path:
     """Framework + agent (graphs) plus EVENT-LOG / CORRECTIONS (charts); KG,
     doc-index, instruction file all absent so several views degrade."""
@@ -1012,15 +1052,18 @@ class TestDashboard:
         return f"panel{[n for n, _ in html._DASHBOARD_VIEWS].index(name)}"
 
     def test_coverage_to_trace_link_wired_when_ready(self, tmp_path: Path) -> None:
+        # coverage is edgeless → renders as a status table, so its row clicks
+        # wire to trace via linkTable (not linkGraph)
         _make_kg_project(tmp_path)
         out = html.render_dashboard(tmp_path)
         cov, trace = self._panel_id("coverage"), self._panel_id("trace")
-        assert f"linkGraph('{cov}_v', '{trace}');" in out
+        assert f"linkTable('{cov}_v', '{trace}');" in out
         assert "window.__viz.focus=function" in out
 
     def test_cross_view_link_absent_when_coverage_degraded(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)  # no KG → coverage panel degrades
-        assert "linkGraph('" not in html.render_dashboard(tmp_path)  # no wiring call
+        out = html.render_dashboard(tmp_path)
+        assert "linkTable('" not in out and "linkGraph('" not in out  # no wiring call
 
     def test_degraded_panel_reuses_status_guidance(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)
