@@ -9,17 +9,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, cast
 
-from cataforge.application.viz import palette
 from cataforge.application.viz.collectors._kg import open_kg
 from cataforge.core.errors import CataforgeError
-from cataforge.core.viz.model import Edge, Graph, Node, View
+from cataforge.core.viz.model import Edge, Graph, Node, Status, View
 from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg.trace import TraceChain
-
-# coverage status → Mermaid style body
-_FULL_STYLE = palette.GREEN_OK
-_PARTIAL_STYLE = palette.YELLOW_PARTIAL
-_NONE_STYLE = palette.RED_MISSING
 
 # (src_layer, dst_layer, relation) — trace-chain edge topology, shared with the
 # table/json analysis outputs that `kg trace` still serves.
@@ -113,12 +107,12 @@ def collect_coverage(root: Path, /, **_opts: Any) -> View:
     nodes = []
     for r in rows:
         if r.has_impl and r.has_test:
-            style = _FULL_STYLE
+            status = Status.OK
         elif r.has_impl or r.has_test:
-            style = _PARTIAL_STYLE
+            status = Status.PARTIAL
         else:
-            style = _NONE_STYLE
-        nodes.append(Node(id=r.entity_id, label=f"{r.entity_id}: {r.title or ''}", style=style))
+            status = Status.MISSING
+        nodes.append(Node(id=r.entity_id, label=f"{r.entity_id}: {r.title or ''}", status=status))
     return Graph(nodes=tuple(nodes), direction="TD", title="feature coverage")
 
 

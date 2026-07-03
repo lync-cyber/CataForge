@@ -21,9 +21,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from cataforge.application.viz import palette
 from cataforge.application.viz.collectors._kg import open_kg
-from cataforge.core.viz.model import Edge, Graph, Node, View
+from cataforge.core.viz.model import Edge, Graph, Node, Status, View
 from cataforge.runtime.skill.builtins.task_dep_analysis.task_dep_analysis import (
     critical_path,
     detect_cycles,
@@ -31,9 +30,6 @@ from cataforge.runtime.skill.builtins.task_dep_analysis.task_dep_analysis import
     parse_weights,
     topological_sort,
 )
-
-_CP_STYLE = palette.RED_CRITICAL_PATH
-_CYCLE_STYLE = palette.RED_CYCLE
 
 
 def _edges_from_kg(root: Path) -> list[tuple[str, str]]:
@@ -76,15 +72,17 @@ def collect_tasks(root: Path, /, **opts: Any) -> View:
         styled: set[str] = set()
         for cycle in cycles:
             styled.update(cycle)
-        style = _CYCLE_STYLE
+        status = Status.CYCLE
     else:
         cp, _ = critical_path(graph, all_nodes, weights, topological_sort(graph, all_nodes))
         styled = set(cp)
-        style = _CP_STYLE
+        status = Status.CRITICAL_PATH
 
+    # Styled nodes carry their id as label so the textual status marker has a
+    # declaration line to attach to (an implicit node renders colour only).
     return Graph(
         direction="LR",
         edges=tuple(Edge(u, v) for u, v in edges),
-        nodes=tuple(Node(n, style=style) for n in styled),
+        nodes=tuple(Node(n, label=n, status=status) for n in styled),
         title="task dependencies",
     )

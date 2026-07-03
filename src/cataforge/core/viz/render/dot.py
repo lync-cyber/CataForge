@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 from cataforge.core.errors import CataforgeError
-from cataforge.core.viz.model import Graph, View
+from cataforge.core.viz import palette
+from cataforge.core.viz.model import Graph, Node, View
 
 
 def _quote(text: str) -> str:
     return text.replace(chr(34), chr(39))
+
+
+def _node_attrs(node: Node) -> str:
+    label = _quote(palette.marked_label(node.status, node.label or ""))
+    attrs = [f'label="{label}"']
+    if node.status:
+        enc = palette.encoding(node.status)
+        attrs.append(f'style=filled, fillcolor="{enc.fill}", color="{enc.stroke}"')
+    return ", ".join(attrs)
 
 
 def render(view: View) -> str:
@@ -17,7 +27,7 @@ def render(view: View) -> str:
     lines = ["digraph G {", f"  rankdir={rankdir};"]
     for node in view.nodes:
         if node.label is not None:
-            lines.append(f'  "{node.id}" [label="{_quote(node.label)}"];')
+            lines.append(f'  "{node.id}" [{_node_attrs(node)}];')
     for edge in view.edges:
         if edge.label:
             lines.append(f'  "{edge.src}" -> "{edge.dst}" [label="{_quote(edge.label)}"];')

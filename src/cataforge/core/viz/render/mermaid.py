@@ -8,7 +8,8 @@ and ECharts in tier 2.
 from __future__ import annotations
 
 from cataforge.core.errors import CataforgeError
-from cataforge.core.viz.model import Graph, Node, Timeline, View
+from cataforge.core.viz import palette
+from cataforge.core.viz.model import Graph, Node, Status, Timeline, View
 
 # Characters that make a node label ambiguous to Mermaid's parser; a label
 # containing any of them is wrapped in quotes. CJK and plain identifiers pass
@@ -21,18 +22,21 @@ def _needs_quote(label: str) -> bool:
 
 
 def _node_decl(node: Node) -> str:
-    label = node.label or ""
+    label = palette.marked_label(node.status, node.label or "")
     if _needs_quote(label):
         return f'{node.id}["{label.replace(chr(34), chr(39))}"]'
     return f"{node.id}[{label}]"
 
 
 def _style_lines(nodes: tuple[Node, ...]) -> list[str]:
-    groups: dict[str, list[str]] = {}
+    groups: dict[Status, list[str]] = {}
     for node in nodes:
-        if node.style:
-            groups.setdefault(node.style, []).append(node.id)
-    return [f"    style {','.join(sorted(set(ids)))} {css}" for css, ids in groups.items()]
+        if node.status:
+            groups.setdefault(node.status, []).append(node.id)
+    return [
+        f"    style {','.join(sorted(set(ids)))} {palette.mermaid_style(status)}"
+        for status, ids in groups.items()
+    ]
 
 
 def _render_graph(view: Graph) -> str:

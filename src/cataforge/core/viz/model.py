@@ -13,20 +13,35 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+class Status(StrEnum):
+    """Semantic node status. Collectors attach it; each renderer maps it to
+    its own visual encoding (colour + textual marker) via
+    :mod:`cataforge.core.viz.palette`, so hue is never the only channel."""
+
+    OK = "ok"
+    PARTIAL = "partial"
+    MISSING = "missing"
+    BROKEN = "broken"
+    CYCLE = "cycle"
+    CRITICAL_PATH = "critical-path"
+    AGENT = "agent"
+    SKILL = "skill"
 
 
 @dataclass(frozen=True)
 class Node:
     """A graph node. ``label`` ``None`` ⇒ implicit node (no declaration line,
-    referenced only by edges). ``style`` is renderer-specific styling (e.g. a
-    Mermaid ``style`` directive body like ``fill:#f96,stroke:#333``).
-    ``data`` is an optional metadata bag: text renderers ignore it, the JSON
-    renderer passes it through, and rich renderers may project it (e.g. the
-    HTML asset catalogue table)."""
+    referenced only by edges). ``status`` is the semantic state renderers
+    encode visually. ``data`` is an optional metadata bag: text renderers
+    ignore it, the JSON renderer passes it through, and rich renderers may
+    project it (e.g. the HTML asset catalogue table)."""
 
     id: str
     label: str | None = None
-    style: str | None = None
+    status: Status | None = None
     data: Mapping[str, object] | None = None
 
 

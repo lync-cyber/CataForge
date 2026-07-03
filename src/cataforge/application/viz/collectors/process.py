@@ -13,13 +13,9 @@ from typing import Any
 
 from cataforge.application.feedback.collectors import collect_recent_events
 from cataforge.application.phase import evaluate_phase
-from cataforge.application.viz import palette
 from cataforge.core.phases import PHASES
-from cataforge.core.viz.model import Edge, Graph, Node, Timeline, TimelineEvent, View
+from cataforge.core.viz.model import Edge, Graph, Node, Status, Timeline, TimelineEvent, View
 from cataforge.runtime.skill.builtins.framework_review._framework_data import read_workflow_modes
-
-_OK_STYLE = palette.GREEN_OK
-_BLOCKED_STYLE = palette.RED_MISSING
 
 
 def phase_sequence(root: Path) -> list[str]:
@@ -46,7 +42,7 @@ def collect_phase(root: Path, /, **_opts: Any) -> View:
         Node(
             p,
             label=p,
-            style=(_BLOCKED_STYLE if blocked else _OK_STYLE) if p == highlight else None,
+            status=(Status.MISSING if blocked else Status.OK) if p == highlight else None,
         )
         for p in sequence
     )

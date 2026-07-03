@@ -19,16 +19,12 @@ import re
 from pathlib import Path
 from typing import Any
 
-from cataforge.application.viz import palette
 from cataforge.core.paths import ProjectPaths
-from cataforge.core.viz.model import Edge, Graph, Node, View
+from cataforge.core.viz.model import Edge, Graph, Node, Status, View
 from cataforge.domain.docs.indexer import estimate_tokens
 from cataforge.runtime.agent.manager import AgentManager
 from cataforge.runtime.skill.loader import SkillLoader, SkillMeta
 from cataforge.utils.frontmatter import split_yaml_frontmatter
-
-_AGENT_STYLE = palette.AGENT_STYLE
-_SKILL_STYLE = palette.SKILL_STYLE
 
 
 def _sid(prefix: str, name: str) -> str:
@@ -128,7 +124,7 @@ def collect(root: Path, /, **_opts: Any) -> View:
     def skill_node(skill_id: str) -> Node:
         meta = skill_meta.get(skill_id)
         data = _skill_data(meta, root) if meta else None
-        return Node(id=_sid("skill", skill_id), label=skill_id, style=_SKILL_STYLE, data=data)
+        return Node(id=_sid("skill", skill_id), label=skill_id, status=Status.SKILL, data=data)
 
     for aid in agents.list_agents():
         anode = _sid("agent", aid)
@@ -137,7 +133,7 @@ def collect(root: Path, /, **_opts: Any) -> View:
             Node(
                 id=anode,
                 label=aid,
-                style=_AGENT_STYLE,
+                status=Status.AGENT,
                 data=_agent_data(root, aid, agents.get_agent_content(aid), agent_skills),
             )
         )

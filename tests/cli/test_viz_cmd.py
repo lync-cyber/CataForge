@@ -16,19 +16,21 @@ from click.testing import CliRunner
 
 from cataforge.application.viz import html, service
 from cataforge.core.errors import CataforgeError
+from cataforge.core.viz import palette
 from cataforge.core.viz.model import (
     Edge,
     Graph,
     MetricPoint,
     MetricSeries,
     Node,
+    Status,
     Timeline,
     TimelineEvent,
 )
 from cataforge.core.viz.render import dot, json_, mermaid
 from cataforge.interface.cli.main import cli
 
-_CP_STYLE = "fill:#f96,stroke:#333,stroke-width:2px"
+_CP_STYLE = palette.mermaid_style(Status.CRITICAL_PATH)
 
 
 def _make_project(tmp_path: Path) -> Path:
@@ -74,10 +76,21 @@ class TestMermaidRenderer:
         g = Graph(
             direction="LR",
             edges=(Edge("T-001", "T-002"), Edge("T-002", "T-003")),
-            nodes=(Node("T-001", style=_CP_STYLE), Node("T-003", style=_CP_STYLE)),
+            nodes=(
+                Node("T-001", status=Status.CRITICAL_PATH),
+                Node("T-003", status=Status.CRITICAL_PATH),
+            ),
         )
         assert mermaid.render(g) == (
             f"graph LR\n    T-001 --> T-002\n    T-002 --> T-003\n    style T-001,T-003 {_CP_STYLE}"
+        )
+
+    def test_status_marker_prefixes_declared_label(self) -> None:
+        g = Graph(direction="LR", nodes=(Node("F-001", label="F-001", status=Status.OK),))
+        marker = palette.encoding(Status.OK).marker
+        assert mermaid.render(g) == (
+            f'graph LR\n    F-001["{marker} F-001"]\n'
+            f"    style F-001 {palette.mermaid_style(Status.OK)}"
         )
 
     def test_cjk_label_stays_unquoted(self) -> None:
@@ -418,7 +431,8 @@ class TestVizTasksFromEdges:
         assert result.exit_code == 0, result.output
         assert "graph LR" in result.output
         assert "T-001 --> T-002" in result.output
-        assert "style" in result.output  # critical-path nodes highlighted
+        assert _CP_STYLE in result.output  # critical-path nodes highlighted
+        assert palette.encoding(Status.CRITICAL_PATH).marker in result.output
 
     def test_nodes_edges_match_task_dep_analysis(self, tmp_path: Path) -> None:
         from collections import defaultdict
@@ -446,10 +460,11 @@ class TestVizTasksFromEdges:
         assert seen == set(topo)
         assert {(e["src"], e["dst"]) for e in data["edges"]} == set(parsed)
 
-    def test_cycle_nodes_flagged_red(self, tmp_path: Path) -> None:
+    def test_cycle_nodes_flagged(self, tmp_path: Path) -> None:
         result = _viz(tmp_path, "tasks", "--edges", "T-001→T-002,T-002→T-001")
         assert result.exit_code == 0, result.output
-        assert "#f00" in result.output  # cycle style
+        assert palette.mermaid_style(Status.CYCLE) in result.output
+        assert palette.encoding(Status.CYCLE).marker in result.output  # textual channel
 
     def test_invalid_edges_render_empty_graph(self, tmp_path: Path) -> None:
         # non-empty edges that parse to nothing → empty graph + status nudge
@@ -526,19 +541,19 @@ def _make_phase_project(tmp_path: Path, phase: str, *, phase_start: str | None =
 
 
 class TestVizPhase:
-    def test_blocked_phase_styled_red(self, tmp_path: Path) -> None:
+    def test_blocked_phase_styled_missing(self, tmp_path: Path) -> None:
         _make_phase_project(tmp_path, "requirements")  # no prd doc/index/event → blocked
         result = _viz(tmp_path, "phase")
         assert result.exit_code == 0, result.output
         assert "graph LR" in result.output
-        assert "style requirements fill:#f96" in result.output
+        assert f"style requirements {palette.mermaid_style(Status.MISSING)}" in result.output
 
-    def test_ok_phase_styled_green(self, tmp_path: Path) -> None:
+    def test_ok_phase_styled_ok(self, tmp_path: Path) -> None:
         # development carries no doc gate; with its phase_start it passes all checks
         _make_phase_project(tmp_path, "development", phase_start="development")
         result = _viz(tmp_path, "phase")
         assert result.exit_code == 0, result.output
-        assert "style development fill:#9f6" in result.output
+        assert f"style development {palette.mermaid_style(Status.OK)}" in result.output
 
     def test_styling_tracks_phase_status_conclusion(self, tmp_path: Path) -> None:
         from cataforge.application.phase import evaluate_phase
@@ -547,9 +562,9 @@ class TestVizPhase:
         _, checks = evaluate_phase(tmp_path)
         blocked = any(not ok for _, ok, _ in checks)
         result = _viz(tmp_path, "phase")
-        # green (ok) appears iff the gate is not blocked — same conclusion that
-        # drives `cataforge phase status` exit code.
-        assert ("#9f6" in result.output) == (not blocked)
+        # the ok fill appears iff the gate is not blocked — same conclusion
+        # that drives `cataforge phase status` exit code.
+        assert (palette.encoding(Status.OK).fill in result.output) == (not blocked)
 
     def test_not_driven_degrades(self, tmp_path: Path) -> None:
         result = _viz(tmp_path, "phase")  # no instruction file
@@ -739,7 +754,7 @@ class TestVizAssets:
         _make_assets_project(tmp_path)
         node = _assets_json_nodes(tmp_path)["rules_COMMON_RULES"]
         assert node["label"] is None  # invisible to text renderers
-        assert node["style"] is None
+        assert node["status"] is None
         assert node["data"]["type"] == "rules"
         assert node["data"]["name"] == "COMMON-RULES"
         assert node["data"]["lines"] > 0
@@ -780,7 +795,7 @@ def _assert_offline(html_text: str) -> None:
 
 _HTML_GRAPH = Graph(
     title="g",
-    nodes=(Node("a", label="Alpha"), Node("b", label="Beta", style="fill:#f96,stroke:#333")),
+    nodes=(Node("a", label="Alpha"), Node("b", label="Beta", status=Status.MISSING)),
     edges=(Edge("a", "b", label="rel"),),
 )
 _HTML_TL = Timeline(title="t", events=(TimelineEvent("2026-01-01T00:00:00", "ev", "cat"),))
@@ -801,10 +816,12 @@ class TestHtmlRenderer:
         assert "initGraph('view0'" in out
         _assert_offline(out)
 
-    def test_graph_node_style_maps_to_data(self) -> None:
+    def test_graph_node_status_maps_to_data(self) -> None:
         out = html.render(_HTML_GRAPH)
-        assert '"bg": "#f96"' in out
-        assert '"border": "#333"' in out
+        enc = palette.encoding(Status.MISSING)
+        assert f'"bg": "{enc.fill}"' in out
+        assert f'"border": "{enc.stroke}"' in out
+        assert f'"label": "{enc.marker} Beta"' in out  # textual channel
 
     def test_graph_has_search_box(self) -> None:
         assert 'class="search"' in html.render(_HTML_GRAPH)
@@ -888,7 +905,8 @@ class TestDashboard:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
         assert 'class="legend"' in out
-        assert "#9f6" in out
+        for hexv, label in palette.LEGEND:
+            assert hexv in out and label in out
 
     def _panel_id(self, name: str) -> str:
         return f"panel{[n for n, _ in html._DASHBOARD_VIEWS].index(name)}"
@@ -1303,7 +1321,19 @@ class TestVizConsistency:
         import cataforge.application.viz.collectors as pkg
 
         for py in Path(pkg.__file__).parent.glob("*.py"):
-            assert "fill:#" not in py.read_text(encoding="utf-8"), py.name
+            text = py.read_text(encoding="utf-8")
+            assert "fill:#" not in text and "#f96" not in text and "#9f6" not in text, py.name
+
+    def test_every_status_has_an_encoding(self) -> None:
+        assert set(palette.ENCODINGS) == set(Status)
+
+    def test_status_fill_consistent_across_formats(self) -> None:
+        """One status renders as one colour in every output format."""
+        g = Graph(nodes=(Node("x", label="X", status=Status.PARTIAL),))
+        enc = palette.encoding(Status.PARTIAL)
+        assert enc.fill in mermaid.render(g)
+        assert enc.fill in dot.render(g)
+        assert enc.fill in html.render(g)
 
     def test_dashboard_tabs_stay_in_sync_with_collectors(self) -> None:
         """Every registered view is on the dashboard — as a tab, except
