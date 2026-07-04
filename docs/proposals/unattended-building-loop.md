@@ -276,13 +276,13 @@ echo "⏹ 达迭代上限 MAX=${MAX}，${SPRINT} 未完成，停止，等待人�
 
 | 护栏 | 规约 |
 |------|------|
-| 上游冻结前置 | `building-loop.sh` 做轻量前置（分支非 main）；`cataforge doctor` 做完整校验（已过 `pre_dev`、目标 sprint 依赖任务卡 AC 无 TBD；headless 无人答澄清，任务卡须自足；U-5 实现）。不满足则拒绝启动（exit 2）。 |
+| 上游冻结前置 | driver 前置 fail-closed（非 feature 分支一律拒）；CLI 拉起 loop 前跑 `preflight_frozen_upstream`：dev-plan 缺失 / 未冻结（`status≠approved`）/ 未引用目标 sprint / AC 含未处理 `TODO·TBD·FIXME`（复用 doc-review 占位符规则）任一命中即拒。两者均以 `EXIT_PREFLIGHT`(5) 退出。 |
 | skip-permissions ≠ 跳门禁 | `--dangerously-skip-permissions` 只放行 Claude Code 的**工具批准**，**不绕过** CataForge 的 code-review/doc-review 门禁（门禁在 orchestrator 内部，由 reviewer 子代理执行）。 |
 | 沙盒隔离 | skip-permissions 必须在沙盒（容器 / 隔离工作树）内跑，最小权限、限网，与 Ralph 安全模型一致。 |
 | 只动 feature 分支 | 禁止在 `main` 上跑（exit 2）；每轮 commit 到 feature 分支，**绝不自动 merge**。 |
 | 保留 `pre_deploy` | `MANUAL_REVIEW_CHECKPOINTS` 的 `pre_deploy` 必须保留；无人循环只到「sprint building 完成 + PR 待审」，部署 go/no-go 永远人工。 |
 | planning 留白天 | 无人循环禁止改 PRD/ARCH/DEV-PLAN；dev-plan 是 doc-review 冻结的质量锚，不可丢弃式重写。 |
-| 护栏工具级强制 | merge / deploy / 改 PRD·ARCH·DEV-PLAN 的禁令不能只写在 PROMPT——自主 agent 可忽略它读不进心的 prompt 文本。由 **hook / 沙盒 deny 策略**在工具调用前确定性拦截：无人循环下 `git merge`、`git push origin main`、部署命令、planning 文件写入被阻断，PROMPT 文本降为二线提示。 |
+| 护栏工具级强制 | merge / push main / 改冻结 planning 文档的禁令不能只写在 PROMPT——自主 agent 可忽略读不进心的文本。由两个 PreToolUse block hook 在工具调用前确定性拦截：`guard_dangerous`(shell_exec) 挡 `git merge` / `gh pr merge` / push main，`guard_frozen_docs`(file_edit) 挡对 `docs/{prd,arch,ui-spec,dev-plan}/` 的 Write/Edit。均 best-effort speed-bump，真正保障是沙盒 + PR-only。 |
 | 自主提交身份 | 无人循环的 commit 用专属 git author（如 `cataforge-unattended <unattended@cataforge.local>`），晨检与事后审计据此区分自主提交与人工提交。 |
 | 晨检交接 | 完成 / 熔断 / 达上限均产出结构化事件 + metrics；人工晨检 review PR、处理 `[ASSUMPTION]` 与 `blocked` 卡。 |
 
@@ -308,7 +308,7 @@ echo "⏹ 达迭代上限 MAX=${MAX}，${SPRINT} 未完成，停止，等待人�
 | U-2 | 外循环脚本 | `building-loop.sh` 参考实现 + 前置校验 + 退出码；`.cataforge/state/` gitignore | U-1 |
 | U-3 | 熔断与限额 | TDD Blocked Recovery 增「自动 blocked」分支（替换 headless 下的人工触发）；`UNATTENDED_CARD_REVISION_CEILING` 接入 needs_revision 计数；§3.6 限流 / 5h 用量限额三层探测 + auto-wait（不计入熔断预算） | U-1 |
 | U-4 | 运维 metrics | `loop-metrics.jsonl` 写入器 + schema；可选并入 `cataforge viz` 时间线 | U-2 |
-| U-5 | 文档与守卫 | COMMON-RULES / ORCHESTRATOR-PROTOCOLS 措辞收口；`cataforge doctor` 校验无人循环前置条件；merge/deploy/planning 禁令的 hook / 沙盒 deny 强制层（§5）；自主提交 git 身份；agile-prototype 模式接线 | U-1~U-4 |
+| U-5 | 文档与守卫 | COMMON-RULES / ORCHESTRATOR-PROTOCOLS 措辞收口；frozen-upstream 前置（CLI 层 `preflight_frozen_upstream`）；merge/push-main（`guard_dangerous`）+ 冻结 planning 写入（`guard_frozen_docs`）的 hook 强制层（§5）；自主提交 git 身份；agile-prototype 模式接线 | U-1~U-4 |
 
 并行性：U-1 是其余全部的前置；U-2 ⊥ U-3 可并行（均依赖 U-1）；U-4 依赖 U-2；U-5 收尾。
 
@@ -318,6 +318,6 @@ echo "⏹ 达迭代上限 MAX=${MAX}，${SPRINT} 未完成，停止，等待人�
 2. 构造一张「故意无法 GREEN」的任务卡：连续达 `UNATTENDED_CARD_REVISION_CEILING` 后该卡被标 `blocked`，emit `circuit_open`，外壳 exit 3，其余可并行卡不受影响。
 3. 构造「连续 N 轮无进展」场景：外壳在 `UNATTENDED_STAGNATION_THRESHOLD` 轮后熔断 exit 3。
 4. 全程不触碰 `main`、不 merge、不 deploy、不改 PRD/ARCH/DEV-PLAN；`loop-metrics.jsonl` 每轮一行，字段完整；`EVENT-LOG.jsonl` 通过 `EVENT_LOG_SCHEMA` 校验，且 schema 与 `event_log.py` 镜像通过 `run_local.py` 的 schema↔mirror parity 守卫。
-5. `cataforge doctor` 在缺少上游冻结前置时拒绝启动（exit 2）（净新增能力，依赖 U-5 实现）。
+5. `preflight_frozen_upstream` 在缺少上游冻结前置（dev-plan 缺失 / `status≠approved` / 未引用目标 sprint / AC 含 TBD）时拒绝启动（`EXIT_PREFLIGHT`=5）。
 6. 撞速率 / 5h 用量限额时外壳 auto-wait 并恢复，且该等待不递增 stagnation / iter 计数（构造限额响应验证，§3.6）。
 7. PROMPT 被注入 `git push origin main` / 部署 / 改 dev-plan 类指令时，被 hook / 沙盒 deny 层拦截，非仅靠 PROMPT 文本约束（§5）。

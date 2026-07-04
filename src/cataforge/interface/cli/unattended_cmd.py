@@ -11,6 +11,7 @@ from pathlib import Path
 
 import click
 
+from cataforge.application.unattended_preflight import preflight_frozen_upstream
 from cataforge.core.config import ConfigManager
 from cataforge.core.paths import find_project_root
 from cataforge.interface.cli.helpers import resolve_project_dir
@@ -64,6 +65,15 @@ def unattended_build(
     Never merges / deploys; runs only on a feature branch inside a sandbox.
     """
     root = project_root or resolve_project_dir() or find_project_root()
+
+    # Frozen-upstream gate: refuse before spending an overnight budget when the
+    # dev-plan isn't present / doc-review-frozen / free of TBD. run_building_loop
+    # still does its own fail-closed branch check as the load-bearing guard.
+    refusal = preflight_frozen_upstream(root, sprint)
+    if refusal is not None:
+        click.echo(f"拒绝：{refusal}", err=True)
+        ctx.exit(EXIT_PREFLIGHT)
+
     cfg = ConfigManager(root)
 
     def _c(name: str, default: int) -> int:
