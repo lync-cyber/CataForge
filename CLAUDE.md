@@ -31,7 +31,11 @@
 - 项目性质: CataForge 是成熟、持续迭代的 AI SDLC 框架本体（meta 项目），自身按框架工程流程演进 —— feature branch + PR + Squash merge + TDD + `run_local.py`/CI 门禁；**不运行 orchestrator 的 7 阶段 SDLC 文档管线**
 - SDLC 文档管线对本仓 N/A: PRD / ARCH / UI-SPEC / DEV-PLAN / TEST-REPORT / DEPLOY-SPEC 是框架**交付给下游业务项目**的产物，对元项目本身**不需要（非"未开始"）**
 - 进度事实源: git 历史 / PR / CHANGELOG / `docs/proposals/`，不在本文件维护阶段或文档状态字段
-- kg-first 反转 backlog: P-1~P-6 全链已落地完成（PR-C/D/E = 审查修订面 / 工作流资产反转 / 迁移门禁收尾，落地进度逐条见 `docs/proposals/kg-first-inversion-pr-cde-plan.md`）；仅表格 / 动态交叉引用导出保真留作非阻塞增量
+- 剩余 backlog（真实状态以各提案头部为准，本行仅防遗忘指针）:
+  - code-review arch-guard + 复杂度门控 —— `docs/proposals/code-review-arch-guard-complexity-gating.md`（设计已出，实现未启动）
+  - 无人值守构建循环 —— `docs/proposals/unattended-building-loop.md`（设计草稿，待实施授权）
+  - penpot-bridge C2 + E —— `docs/proposals/penpot-bridge-convergence.md`（核心已落，C2/E 子项延期）
+- 已结·勿再追: kg-first 反转 P-1~P-6 全链已完成（直读源码 + 表格保真实证核对，落地进度见 `docs/proposals/kg-first-inversion-pr-cde-plan.md`）；表格 / 动态交叉引用导出保真增量与 C7（`@requires_kg_first` 装饰器）/ C8（`link_to` filter）/ 5.2 投机 flag 经核实非缺陷或冗余、已否决
 - Learnings Registry: (compacted; archive in .cataforge/learnings/registry-archive.md)
   <!-- 上限：framework.json#claude_md_limits.learnings_registry_max_entries；超限运行 `cataforge claude-md compact` -->
 
