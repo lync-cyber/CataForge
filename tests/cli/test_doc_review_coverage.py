@@ -104,6 +104,55 @@ def test_ui_spec_missing_feature_coverage(tmp_path: Path) -> None:
     assert any("F-002" in e for e in checker.errors)
 
 
+# ---- Split-volume main: --docs-dir is the volume subdir, upstream is project-global ----
+
+
+def _split_project(tmp_path: Path) -> Path:
+    """Project whose arch main volume is invoked with --docs-dir=docs/arch/.
+
+    Upstream PRD lives at the project-global docs/prd/ — the coverage scan
+    must not be scoped to the volume subdir passed as docs_dir.
+    """
+    (tmp_path / ".cataforge").mkdir()
+    _write(
+        tmp_path,
+        "docs/prd/prd-foo.md",
+        "---\nid: prd-foo\ndoc_type: prd\n---\n# PRD\n"
+        "### F-001: Login\n### F-002: Signup\n### F-003: Export\n",
+    )
+    return tmp_path
+
+
+def test_arch_split_volume_missing_coverage_via_volume_docs_dir(tmp_path: Path) -> None:
+    root = _split_project(tmp_path)
+    arch_path = _write(
+        root,
+        "docs/arch/arch-foo.md",
+        "---\nid: arch-foo\ndoc_type: arch\ndeps: [prd-foo]\nvolume: main\n---\n"
+        "# ARCH\n## 2. Modules\n### M-001: Auth\nCovers F-001, F-002\n",
+    )
+    checker = DocChecker(
+        "arch", str(arch_path), str(root / "docs" / "arch"), volume_type="main", quiet=True
+    )
+    checker.check_bidirectional_coverage()
+    assert any("F-003" in e for e in checker.errors), checker.errors
+
+
+def test_arch_split_volume_full_coverage_via_volume_docs_dir(tmp_path: Path) -> None:
+    root = _split_project(tmp_path)
+    arch_path = _write(
+        root,
+        "docs/arch/arch-foo.md",
+        "---\nid: arch-foo\ndoc_type: arch\ndeps: [prd-foo]\nvolume: main\n---\n"
+        "# ARCH\n## 2. Modules\n### M-001\nCovers F-001, F-002, F-003\n",
+    )
+    checker = DocChecker(
+        "arch", str(arch_path), str(root / "docs" / "arch"), volume_type="main", quiet=True
+    )
+    checker.check_bidirectional_coverage()
+    assert not checker.errors, checker.errors
+
+
 # ---- Skipped for non-main volumes ----
 
 

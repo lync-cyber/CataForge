@@ -70,3 +70,48 @@ def test_split_volume_exempt(tmp_path: Path) -> None:
     c = DocChecker("prd", str(f), docs_dir=str(tmp_path), volume_type="features")
     c.check_status_provenance()
     assert c.errors == []
+
+
+def _split_project(tmp_path: Path, doc_id: str = "arch-x") -> Path:
+    """A project whose main volume lives at ``docs/arch/`` — the doc-review
+    invocation passes ``--docs-dir docs/arch/`` for sibling-volume resolution,
+    but review reports stay at the project-global ``docs/reviews/doc/``."""
+    (tmp_path / ".cataforge").mkdir()
+    volume = tmp_path / "docs" / "arch"
+    volume.mkdir(parents=True)
+    (tmp_path / "docs" / "reviews" / "doc").mkdir(parents=True)
+    (volume / f"{doc_id}.md").write_text(
+        f"---\nid: {doc_id}\nauthor: architect\nstatus: approved\n"
+        f"deps: []\nconsumers: []\nvolume: main\n---\n# arch\n",
+        encoding="utf-8",
+    )
+    return tmp_path
+
+
+def test_split_main_finds_project_global_review(tmp_path: Path) -> None:
+    root = _split_project(tmp_path)
+    (root / "docs" / "reviews" / "doc" / "REVIEW-arch-x-r1.md").write_text(
+        "---\nid: review-arch-x-r1\ndoc_type: review\nauthor: reviewer\n"
+        'status: approved\ndeps: ["arch-x"]\n---\n# 审查\n',
+        encoding="utf-8",
+    )
+    c = DocChecker(
+        "arch",
+        str(root / "docs" / "arch" / "arch-x.md"),
+        docs_dir=str(root / "docs" / "arch"),
+        volume_type="main",
+    )
+    c.check_status_provenance()
+    assert c.errors == [], c.errors
+
+
+def test_split_main_missing_review_still_fails(tmp_path: Path) -> None:
+    root = _split_project(tmp_path)
+    c = DocChecker(
+        "arch",
+        str(root / "docs" / "arch" / "arch-x.md"),
+        docs_dir=str(root / "docs" / "arch"),
+        volume_type="main",
+    )
+    c.check_status_provenance()
+    assert any("审查报告" in e for e in c.errors), c.errors
