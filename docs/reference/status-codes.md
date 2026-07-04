@@ -77,7 +77,7 @@ Agent 间通过标准化引用格式传递信息，避免全文复制：
 
 ## 5. 事件日志
 
-所有关键事件记录到 `docs/EVENT-LOG.jsonl`（JSON Lines 格式）。`event` 枚举的权威来源是 [`.cataforge/schemas/event-log.schema.json`](../../.cataforge/schemas/event-log.schema.json)，共 14 个：
+所有关键事件记录到 `docs/EVENT-LOG.jsonl`（JSON Lines 格式）。`event` 枚举的权威来源是 [`.cataforge/schemas/event-log.schema.json`](../../.cataforge/schemas/event-log.schema.json)，共 16 个：
 
 | 事件类型 | 含义 |
 |---------|------|
@@ -92,6 +92,8 @@ Agent 间通过标准化引用格式传递信息，避免全文复制：
 | `state_change` | 状态变更 |
 | `correction` | 用户纠正（触发 On-Correction Learning） |
 | `doc_finalize` | 文档定稿落盘 |
+| `sprint_complete` | sprint 全部任务卡审查通过（building 完成契约，`ref=dev-plan#sprint-N`） |
+| `circuit_open` | 熔断信号（无进展 / 反复失败 / 达上限） |
 
 示例事件（字段名 `event` 与 schema 对齐）：
 

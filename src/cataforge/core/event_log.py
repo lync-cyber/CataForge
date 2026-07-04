@@ -54,6 +54,8 @@ VALID_EVENTS: frozenset[str] = frozenset(
         "state_change",
         "correction",
         "doc_finalize",
+        "sprint_complete",
+        "circuit_open",
     }
 )
 
