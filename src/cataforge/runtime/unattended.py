@@ -71,14 +71,28 @@ _TIMEOUT_RC = 124
 # trigger a wait: rate_limited is consulted only on a non-zero exit, so a healthy
 # run that merely mentions a limit is real progress, not a wait.
 _RATE_LIMIT_RE = re.compile(
-    r"rate[ _]limit(?:_error)?|overloaded_error|usage[ _]limit|limit reached",
+    r"rate[ _]limit(?:_error)?"
+    r"|overloaded_error"
+    r"|usage[ _]limit"
+    r"|(?:\d+-hour|\d+-day|hourly|daily|weekly|monthly)\s+limit reached",
     re.IGNORECASE,
 )
-# A genuine exception line (``SomethingError:`` / ``SomethingException:``), not
-# any prose containing "error"/"fail" — the stream-json transcript is full of
-# category names and prose that would otherwise fold unrelated rounds together
-# or latch the signature onto a stable non-error line forever.
-_ERROR_LINE_RE = re.compile(r"[A-Za-z_][\w.]*(?:Error|Exception)\b\s*:")
+# Genuine failure tokens, not bare prose containing "error"/"fail": pytest's
+# ``FAILED <nodeid> - <msg>`` summary, a raised ``SomethingError: msg``, the
+# ``<path>:<lineno>: SomethingError`` location, or a pytest ``E   …`` detail
+# line. Extracting the *token* (not the whole line) keeps the signature stable
+# when the transcript is stream-json — pytest output is embedded + escaped in a
+# single JSON record, so ``[^\n"\\]`` bounds each token at a real newline or a
+# JSON string / escape boundary. FAILED intentionally has no leading \b: over
+# stream-json it abuts the escaped-newline's ``n`` (``…\nFAILED``), which would
+# otherwise kill the word boundary.
+_ERROR_TOKEN_RE = re.compile(
+    r'FAILED\s+\S+[^\n"\\]*'
+    r'|[A-Za-z_][\w.]*(?:Error|Exception):\s*[^\n"\\]*'
+    r"|:\s*[A-Za-z_]\w*(?:Error|Exception)\b"
+    r'|^E\s{2,}\S[^\n"\\]*',
+    re.MULTILINE,
+)
 _PATHISH_RE = re.compile(r'[A-Za-z]:?[\\/][^\s"]*')
 _LINENO_RE = re.compile(r"\bline \d+|:\d+")
 # Volatile per-run tokens (durations, hex addresses, uuids / session-ids, ISO
@@ -231,15 +245,16 @@ def rate_limited(output: str) -> bool:
 
 
 def error_signature(output: str) -> str:
-    """Fingerprint of the last genuine exception line, volatile tokens (paths,
-    line numbers, durations, uuids, timestamps) stripped but operands kept, so
-    the same root cause folds while distinct failures stay distinct. Empty when
-    no real exception line is present — the same-error breaker then stays idle
-    (max-iterations still bounds the loop) rather than latching onto prose."""
-    matches = [ln for ln in output.splitlines() if _ERROR_LINE_RE.search(ln)]
-    if not matches:
+    """Fingerprint of the last genuine failure token (pytest FAILED summary /
+    raised exception / failure location), volatile tokens (paths, line numbers,
+    durations, uuids, timestamps) stripped but operands kept, so the same root
+    cause folds while distinct failures stay distinct. Empty when no failure
+    token is present — the same-error breaker then stays idle (max-iterations
+    still bounds the loop) rather than latching onto prose."""
+    tokens = _ERROR_TOKEN_RE.findall(output)
+    if not tokens:
         return ""
-    sig = _PATHISH_RE.sub("", matches[-1])
+    sig = _PATHISH_RE.sub("", tokens[-1])
     sig = _VOLATILE_RE.sub("", sig)
     sig = _LINENO_RE.sub("", sig)
     return _WS_RE.sub(" ", sig).strip()

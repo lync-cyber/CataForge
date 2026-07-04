@@ -288,6 +288,10 @@ def test_rate_limited_matches_subscription_cap_phrasings() -> None:
     assert rate_limited("weekly limit reached")
     # Still no false positive on hyphenated prose (no space/underscore form).
     assert not rate_limited("tuned the rate-limiting middleware")
+    # A bare "limit reached" without a rate/usage qualifier is an unrelated hard
+    # failure, not a rate-limit wait — must not burn a 300s auto-wait on it.
+    assert not rate_limited("max retries limit reached, giving up")
+    assert not rate_limited("connection pool limit reached")
 
 
 def test_refuses_on_unborn_main(tmp_path: Path) -> None:
@@ -313,6 +317,42 @@ def test_error_signature_ignores_prose_and_summary_lines() -> None:
         "===== 1 failed in 9.87s ====="
     )
     assert a == b != ""
+
+
+def test_error_signature_folds_real_pytest_bare_assert() -> None:
+    # Real pytest output for a bare `assert` failure carries no "AssertionError:"
+    # token — only `E   assert …`, `path:lineno: AssertionError` (colon *before*
+    # the type), and the `FAILED <nodeid> - <msg>` summary. The signature must
+    # still be non-empty and fold across a changing run duration.
+    r1 = (
+        "    def test_x():\n"
+        ">       assert 1 == 2\n"
+        "E       assert 1 == 2\n"
+        "test_demo.py:2: AssertionError\n"
+        "FAILED test_demo.py::test_x - assert 1 == 2\n"
+        "1 failed in 0.09s"
+    )
+    r2 = r1.replace("0.09s", "4.55s")
+    assert error_signature(r1) == error_signature(r2) != ""
+    # A different assertion must NOT fold into the same signature.
+    r3 = r1.replace("1 == 2", "3 == 9")
+    assert error_signature(r1) != error_signature(r3)
+
+
+def test_error_signature_folds_over_stream_json_records() -> None:
+    # The live runner captures `--output-format stream-json`: pytest output is
+    # embedded + newline-escaped inside one JSON record with a per-run session
+    # id. The same failure across two such records must fold to one signature.
+    out = "E       assert 1 == 2\nFAILED test_demo.py::test_x - assert 1 == 2\n1 failed in 0.09s"
+    rec1 = json.dumps({"type": "user", "session_id": "s-111", "message": {"content": out}})
+    rec2 = json.dumps(
+        {
+            "type": "user",
+            "session_id": "s-999",
+            "message": {"content": out.replace("0.09s", "2.30s")},
+        }
+    )
+    assert error_signature(rec1) == error_signature(rec2) != ""
 
 
 def test_churn_events_do_not_reset_stagnation(tmp_path: Path) -> None:
