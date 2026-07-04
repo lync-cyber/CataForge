@@ -483,6 +483,87 @@ class DocChecker(TypedDocChecksMixin):
             )
         return True
 
+    def check_export_freshness(self) -> None:
+        """Graph mode: the file under review must be a fresh, consistent export.
+
+        A ``graph_ahead`` / ``conflict`` document means the graph holds content
+        the exported view lacks — reviewing the stale file burns a full review
+        cycle on superseded text. Desynced tile sections likewise mean
+        revisions that never reached the export. Markdown mode, an unreachable
+        graph, or a file with no Document node all skip silently.
+        """
+        project_root = self._project_root()
+        if project_root is None:
+            return
+        try:
+            from cataforge.domain.kg import KnowledgeGraph
+            from cataforge.domain.kg._dispatch import (
+                context_mode,
+                is_active_for,
+                kg_config_for,
+            )
+        except ImportError:
+            return
+        try:
+            if context_mode(project_root) != "graph" or not is_active_for(
+                self.doc_type, project_root
+            ):
+                return
+        except Exception:
+            return
+        try:
+            import hashlib
+
+            from cataforge.domain.kg._sparql_utils import cf_namespace
+            from cataforge.domain.kg.authority import DRIFT_CONFLICT, DRIFT_GRAPH_AHEAD
+            from cataforge.domain.kg.export.document_pipeline import (
+                _list_documents,
+                render_document,
+            )
+            from cataforge.domain.kg.reconcile import (
+                _classify_document_drift,
+                _document_baseline,
+            )
+            from cataforge.domain.kg.section_sync import desynced_tile_sections
+
+            cfg = kg_config_for(project_root)
+            target = Path(self.doc_file).resolve()
+            with KnowledgeGraph.connect(cfg, read_only=True) as kg:
+                ns = cf_namespace(cfg)
+                doc = next(
+                    (
+                        d
+                        for d in _list_documents(kg.store, ns)
+                        if (project_root / d["source_path"]).resolve() == target
+                    ),
+                    None,
+                )
+                if doc is None:
+                    return
+                baseline = _document_baseline(kg.store, cfg, doc["doc_iri"])
+                render_hash = hashlib.sha256(
+                    render_document(kg.store, ns, doc).encode("utf-8")
+                ).hexdigest()
+                file_hash = hashlib.sha256(target.read_bytes()).hexdigest()
+                state = _classify_document_drift(file_hash, baseline, render_hash)
+                desynced = desynced_tile_sections(kg.store, cfg, doc["doc_iri"])
+        except Exception:
+            return  # transient KG errors must not block a text review
+        if state in (DRIFT_GRAPH_AHEAD, DRIFT_CONFLICT):
+            self.fail(
+                f"导出视图陈旧 (drift={state}): 图侧内容尚未导出，"
+                "先运行 `cataforge context finalize` 重导出后再审查",
+                category="consistency",
+            )
+        if desynced:
+            display = ", ".join(desynced[:3])
+            self.fail(
+                f"图内 {len(desynced)} 个章节与其 level-2 tile 不一致 ({display}): "
+                "修订未到达导出视图，经 `context write-narrative` 重写该节"
+                "或 `cataforge context ingest` 重建一致性",
+                category="consistency",
+            )
+
     def check_split_consistency(self) -> None:
         if self.volume_type != "main":
             return
@@ -504,6 +585,7 @@ class DocChecker(TypedDocChecksMixin):
         flagged in ``summary`` so the renderer can note that only the generic
         checks ran.
         """
+        self.check_export_freshness()
         self.check_meta()
         self.check_status_provenance()
         self.check_nav_block()

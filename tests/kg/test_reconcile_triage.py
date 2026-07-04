@@ -224,9 +224,17 @@ def test_to_dict_carries_triage_fields(tmp_path: Path) -> None:
     assert payload["document_drift_count"] == 0
     assert isinstance(payload["documents"], list) and payload["documents"]
     for record in payload["documents"]:
-        assert set(record) == {"source_path", "doc_id", "state", "remediation"}
-        # An in-sync document needs no remediation, whatever the authority.
+        assert set(record) == {
+            "source_path",
+            "doc_id",
+            "state",
+            "remediation",
+            "desynced_sections",
+        }
+        # An in-sync document needs no remediation and carries no tile-cover
+        # violation, whatever the authority.
         assert record["remediation"] == "none"
+        assert record["desynced_sections"] == []
 
 
 def test_reconcile_ok_gate_is_mode_aware() -> None:

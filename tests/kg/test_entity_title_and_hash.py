@@ -20,7 +20,7 @@ def _parsed_doc(doc_id: str, doc_type: str, body: str):
     from cataforge.domain.kg.ingest.scan import (
         ParsedDoc,
         _code_block_char_ranges,
-        _heading_spans,
+        heading_spans,
     )
 
     return ParsedDoc(
@@ -31,7 +31,7 @@ def _parsed_doc(doc_id: str, doc_type: str, body: str):
         raw=body,
         body=body,
         body_offset=0,
-        sections=_heading_spans(body, 0),
+        sections=heading_spans(body, 0),
         code_block_offsets=_code_block_char_ranges(body),
     )
 

@@ -47,6 +47,7 @@ from cataforge.domain.kg.authority import (
     DRIFT_HUMAN_EDIT,
     DRIFT_IN_SYNC,
     DRIFT_NEVER_EXPORTED,
+    REMEDIATE_MANUAL,
     REMEDIATE_NONE,
     ModePolicy,
 )
@@ -61,6 +62,7 @@ from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_C
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.scan import scan_business_docs
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
+from cataforge.domain.kg.section_sync import desynced_tile_sections
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -147,19 +149,28 @@ class PerDocTypeReport:
 
 @dataclass
 class DocumentDriftRecord:
-    """Drift verdict for one Document node, keyed by its source path."""
+    """Drift verdict for one Document node, keyed by its source path.
+
+    ``desynced_sections`` flags graph-internal tile-cover violations: Section
+    nodes whose body disagrees with the level-2 tile that embeds them. The
+    export renders the tile while section reads serve the node, so such a
+    document can triage ``in_sync`` yet hold revisions that never export —
+    it fails the gate and needs manual re-authoring or a re-ingest.
+    """
 
     source_path: str
     doc_id: str
     state: str
     remediation: str = REMEDIATE_NONE
+    desynced_sections: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "source_path": self.source_path,
             "doc_id": self.doc_id,
             "state": self.state,
             "remediation": self.remediation,
+            "desynced_sections": list(self.desynced_sections),
         }
 
 
@@ -261,6 +272,11 @@ class ReconcileReport:
         return sum(1 for d in self.documents if d.state != DRIFT_IN_SYNC)
 
     @property
+    def section_desync_count(self) -> int:
+        """Documents holding graph-internal tile-cover violations."""
+        return sum(1 for d in self.documents if d.desynced_sections)
+
+    @property
     def enrichment_count(self) -> int:
         return sum(len(r.enrichment_relations) for r in self.per_doc_type.values())
 
@@ -275,14 +291,17 @@ class ReconcileReport:
         symmetric diff directly.
         """
         if self.mode == "graph":
-            return self.document_drift_count == 0
+            return self.document_drift_count == 0 and self.section_desync_count == 0
         return self.overall_divergence_count == 0
 
     @property
     def gate_summary(self) -> str:
         """Human-facing failure detail naming the count ``ok`` was decided on."""
         if self.mode == "graph":
-            return f"{self.document_drift_count} document(s) drifted"
+            return (
+                f"{self.document_drift_count} document(s) drifted, "
+                f"{self.section_desync_count} with desynced sections"
+            )
         return f"{self.overall_divergence_count} divergence(s)"
 
     def to_dict(self) -> dict[str, Any]:
@@ -634,15 +653,20 @@ def reconcile(
         for doc_type, per in report.per_doc_type.items()
         if per.missing_count > per.ghost_count
     }
-    report.documents = [
-        DocumentDriftRecord(
-            source_path=t.source_path,
-            doc_id=t.doc_iri,
-            state=t.state,
-            remediation=policy.remediation_for(t.state, md_ahead=t.doc_type in md_ahead_types),
+    for t in triage:
+        desynced = desynced_tile_sections(store, config, t.doc_iri)
+        remediation = policy.remediation_for(t.state, md_ahead=t.doc_type in md_ahead_types)
+        if desynced and remediation == REMEDIATE_NONE:
+            remediation = REMEDIATE_MANUAL
+        report.documents.append(
+            DocumentDriftRecord(
+                source_path=t.source_path,
+                doc_id=t.doc_iri,
+                state=t.state,
+                remediation=remediation,
+                desynced_sections=desynced,
+            )
         )
-        for t in triage
-    ]
 
     return report
 

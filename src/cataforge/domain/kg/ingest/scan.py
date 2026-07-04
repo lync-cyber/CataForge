@@ -114,7 +114,7 @@ def _code_block_char_ranges(raw: str) -> list[tuple[int, int]]:
     return ranges
 
 
-def _heading_spans(body: str, body_offset: int) -> list[HeadingSpan]:
+def heading_spans(body: str, body_offset: int) -> list[HeadingSpan]:
     headings = iter_markdown_headings(body)
     if not headings:
         return []
@@ -188,7 +188,7 @@ def parse_doc_text(
         body_offset=body_offset,
         source_path=source_path,
         frontmatter=frontmatter,
-        sections=_heading_spans(body, body_offset),
+        sections=heading_spans(body, body_offset),
         code_block_offsets=_code_block_char_ranges(raw),
     )
 
