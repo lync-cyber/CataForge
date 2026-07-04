@@ -1,6 +1,6 @@
 # 提案：code-review 框架侧静态检查审计 — 架构守护与复杂度门禁的插件式扩展
 
-> 状态：设计提案（仅分析与设计，无代码改动）
+> 状态：已落地。§3~§5 的 M1–M5 全部实现并测试通过（engine 插件架构 + arch_guard / complexity_gate / api_surface / config_dead_key / pragma_inventory + B3-α/β/γ 自洽守卫）；本文为设计与审计记录，落地细节以 git 历史为准。仅 §6.4「豁免数量阈值 audit」为可选项未做。
 > 范围：框架交付给下游的代码静态检查（`cataforge skill run code-review`），不含本仓自用守卫（`scripts/checks/` / `run_local.py` / CI workflow）
 > 证据约定：所有结论标注到具体文件与行为；无法从源码直接证实的推断显式标注 `[推断]`
 
