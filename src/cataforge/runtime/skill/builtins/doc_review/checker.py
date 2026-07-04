@@ -16,6 +16,7 @@ from cataforge.runtime.skill.builtins._shared import CheckReport, IssueCollector
 from cataforge.utils.common import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.md_parse import strip_code_blocks
+from cataforge.utils.placeholders import count_unresolved_placeholders
 
 from ._render import render_text
 from .constants import (
@@ -157,14 +158,7 @@ class DocChecker(TypedDocChecksMixin):
             )
 
     def check_no_todo(self) -> None:
-        # Per-line determination: a TODO/TBD/FIXME is exempt only when its own
-        # line carries the [ASSUMPTION] marker. A global count subtraction would
-        # let an [ASSUMPTION] elsewhere in the doc cancel an unrelated TODO.
-        unannotated = 0
-        for line in self.content.splitlines():
-            if "[ASSUMPTION]" in line:
-                continue
-            unannotated += len(re.findall(r"TODO|TBD|FIXME", line))
+        unannotated = count_unresolved_placeholders(self.content)
         if unannotated > 0:
             self.fail(f"{unannotated}个未处理TODO/TBD/FIXME")
 

@@ -40,6 +40,14 @@ HOOKS_MANIFEST: tuple[dict[str, object], ...] = (
         "safety_critical": True,
     },
     {
+        "name": "guard_frozen_docs",
+        "events": ("PreToolUse",),
+        "default_capability": "file_edit",
+        "default_type": "block",
+        "description": "无人值守下冻结上游文档写入拦截",
+        "safety_critical": True,
+    },
+    {
         "name": "log_agent_dispatch",
         "events": ("PreToolUse",),
         "default_capability": "agent_dispatch",

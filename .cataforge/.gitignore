@@ -15,3 +15,8 @@
 # mode has no graph backend. Snapshots (kg/snapshots/*.nq + *.meta.json) are
 # text, diffable, and stay tracked.
 kg/store/
+
+# Runtime state written by the unattended building-loop. Disposable per-run;
+# the durable audit trail is the tracked docs/EVENT-LOG.jsonl. Leading slash
+# anchors to this .cataforge/ dir so only .cataforge/state/ is ignored.
+/state/

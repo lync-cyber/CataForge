@@ -15,6 +15,11 @@ hooks:
       type: block
       description: "危险命令拦截"
       safety_critical: true
+    - matcher_capability: file_edit
+      script: guard_frozen_docs
+      type: block
+      description: "无人值守下冻结上游文档 (PRD/ARCH/UI-SPEC/DEV-PLAN) 写入拦截"
+      safety_critical: true
     - matcher_capability: agent_dispatch
       script: log_agent_dispatch
       type: observe
@@ -67,6 +72,14 @@ degradation_templates:
       SAFETY RULES (auto-generated — platform lacks PreToolUse hook):
       - NEVER run rm -rf, DROP TABLE, or other destructive commands without explicit user confirmation
       - NEVER modify files outside the project directory
+
+  guard_frozen_docs:
+    strategy: rules_injection
+    content: |
+      SAFETY RULES (unattended building-loop — platform lacks PreToolUse file-edit block):
+      - While CATAFORGE_UNATTENDED=1, NEVER edit frozen upstream docs
+        (docs/prd, docs/arch, docs/ui-spec, docs/dev-plan)
+      - The loop only builds against the frozen plan; planning stays human daytime work
 
   validate_agent_result:
     strategy: prompt_checklist
