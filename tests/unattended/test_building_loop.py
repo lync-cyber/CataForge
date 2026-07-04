@@ -182,9 +182,11 @@ def test_metrics_fields_match_schema() -> None:
 
 def test_card_level_circuit_open_does_not_halt_loop(tmp_path: Path) -> None:
     _init_repo(tmp_path, "feat-x")
+    calls: list[int] = []
 
     def runner(prompt: str, timeout: float) -> ClaudeResult:
         # card-level break (ref = task card, not the sprint) → skip card, keep going
+        calls.append(1)
         append_event(
             tmp_path,
             build_record(
@@ -203,6 +205,8 @@ def test_card_level_circuit_open_does_not_halt_loop(tmp_path: Path) -> None:
         return ClaudeResult(0, "moved to next card")
 
     assert _loop(tmp_path, runner, max_iterations=2, same_error_ceiling=99) == EXIT_MAX_ITERATIONS
+    # Ran the full cap — the card-level break did not short-circuit the loop.
+    assert len(calls) == 2
 
 
 def test_sprint_level_circuit_open_halts_loop(tmp_path: Path) -> None:
@@ -274,3 +278,56 @@ def test_rate_limited_detects_error_type_not_prose() -> None:
     assert rate_limited("overloaded_error")
     assert not rate_limited("I refactored the rate-limiting middleware")
     assert not rate_limited('{"type":"result","ok":true}')
+
+
+def test_rate_limited_matches_subscription_cap_phrasings() -> None:
+    # The CLI's own subscription-cap messages (space-separated, not the API's
+    # snake_case error types) must also count as a wait, not a hard failure.
+    assert rate_limited("Claude AI usage limit reached")
+    assert rate_limited("5-hour limit reached")
+    assert rate_limited("weekly limit reached")
+    # Still no false positive on hyphenated prose (no space/underscore form).
+    assert not rate_limited("tuned the rate-limiting middleware")
+
+
+def test_refuses_on_unborn_main(tmp_path: Path) -> None:
+    # A freshly-init'd main with zero commits: `rev-parse --abbrev-ref HEAD`
+    # fails there, but the fail-closed pre-flight must still refuse.
+    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
+    assert _loop(tmp_path, lambda p, t: ClaudeResult(0, "ok")) == EXIT_PREFLIGHT
+
+
+def test_error_signature_ignores_prose_and_summary_lines() -> None:
+    # Prose mentioning "error"/"failed" and a pytest summary line (whose volatile
+    # duration would otherwise defeat folding) must NOT become the signature.
+    a = error_signature(
+        "I fixed the error-handling path\n"
+        '  File "/repo/mod.py", line 5\n'
+        "TypeError: bad thing\n"
+        "===== 1 failed in 3.20s ====="
+    )
+    b = error_signature(
+        "discussing error handling again\n"
+        '  File "/other/mod.py", line 91\n'
+        "TypeError: bad thing\n"
+        "===== 1 failed in 9.87s ====="
+    )
+    assert a == b != ""
+
+
+def test_churn_events_do_not_reset_stagnation(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "feat-x")
+
+    def runner(prompt: str, timeout: float) -> ClaudeResult:
+        # Bookkeeping / churn only: a needs_revision verdict + revision_start,
+        # no commit, no forward-movement event → must count as stagnation.
+        for ev in ("review_verdict", "revision_start"):
+            append_event(
+                tmp_path,
+                build_record(event=ev, phase="development", ref="dev-plan#T-1", detail="churn"),
+            )
+        return ClaudeResult(0, "still spinning on the same card")
+
+    # stagnation_threshold=2 → two churn-only rounds must trip the breaker,
+    # even though the event count grows every round.
+    assert _loop(tmp_path, runner, stagnation_threshold=2, same_error_ceiling=99) == EXIT_CIRCUIT

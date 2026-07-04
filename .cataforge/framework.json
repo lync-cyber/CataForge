@@ -93,7 +93,8 @@
     "UNATTENDED_STAGNATION_THRESHOLD": 3,
     "UNATTENDED_CARD_REVISION_CEILING": 3,
     "UNATTENDED_SAME_ERROR_CEILING": 5,
-    "UNATTENDED_LOOP_ITER_TIMEOUT_SEC": 1800
+    "UNATTENDED_LOOP_ITER_TIMEOUT_SEC": 1800,
+    "UNATTENDED_RATELIMIT_WAIT_SEC": 300
   },
   "dispatcher_skills": ["tdd-engine", "agent-dispatch", "start-orchestrator"],
   "workflow": {

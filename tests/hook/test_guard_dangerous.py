@@ -44,6 +44,24 @@ def test_unattended_blocks_push_main() -> None:
     assert r.returncode == 2
 
 
+def test_unattended_blocks_merge_with_dash_c_global_flag() -> None:
+    # `git -C <path> merge` must not slip past the deny net via a global flag.
+    r = _run_guard("git -C /some/repo merge feat-x", unattended=True)
+    assert r.returncode == 2
+    assert "merge" in r.stderr
+
+
+def test_unattended_blocks_pr_merge_with_repo_flag() -> None:
+    r = _run_guard("gh -R owner/repo pr merge 12 --squash", unattended=True)
+    assert r.returncode == 2
+
+
+def test_unattended_allows_commit_message_mentioning_merge() -> None:
+    # "merge" inside a commit message is not the merge subcommand — must pass.
+    r = _run_guard('git commit -m "merge upstream notes into feat"', unattended=True)
+    assert r.returncode == 0
+
+
 def test_merge_allowed_when_not_unattended() -> None:
     r = _run_guard("git merge feat-x", unattended=False)
     assert r.returncode == 0

@@ -17,5 +17,6 @@
 kg/store/
 
 # Runtime state written by the unattended building-loop. Disposable per-run;
-# the durable audit trail is the tracked docs/EVENT-LOG.jsonl.
-state/
+# the durable audit trail is the tracked docs/EVENT-LOG.jsonl. Leading slash
+# anchors to this .cataforge/ dir so only .cataforge/state/ is ignored.
+/state/

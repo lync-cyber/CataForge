@@ -7,7 +7,6 @@ resolution from ``framework.json#/constants``.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import click
@@ -78,7 +77,8 @@ def unattended_build(
         card_revision_ceiling=_c("UNATTENDED_CARD_REVISION_CEILING", 3),
         same_error_ceiling=_c("UNATTENDED_SAME_ERROR_CEILING", 5),
         iter_timeout_sec=float(_c("UNATTENDED_LOOP_ITER_TIMEOUT_SEC", 1800)),
-        ratelimit_wait_sec=float(os.environ.get("UNATTENDED_RATELIMIT_WAIT_SEC", "300")),
+        ratelimit_wait_sec=float(_c("UNATTENDED_RATELIMIT_WAIT_SEC", 300)),
     )
-    click.echo(_OUTCOME_MESSAGE[code].format(sprint=sprint), err=code != EXIT_COMPLETE)
+    message = _OUTCOME_MESSAGE.get(code, f"未知退出码 {code}")
+    click.echo(message.format(sprint=sprint), err=code != EXIT_COMPLETE)
     ctx.exit(code)

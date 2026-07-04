@@ -66,14 +66,38 @@ EXIT_PREFLIGHT = 5
 
 _TIMEOUT_RC = 124
 
-# Match only structured API error-type identifiers, not prose — an orchestrator
-# transcript that merely discusses rate limiting must not be mistaken for a real
-# limit (that would auto-wait forever while real progress is discarded).
-_RATE_LIMIT_RE = re.compile(r"rate_limit_error|overloaded_error|usage_limit", re.IGNORECASE)
-_ERROR_LINE_RE = re.compile(r"error|traceback|exception|assert|fail", re.IGNORECASE)
+# Structured API error-types plus the subscription-cap phrasings the CLI prints
+# to stderr ("usage limit reached", "5-hour limit reached"). Prose can't false-
+# trigger a wait: rate_limited is consulted only on a non-zero exit, so a healthy
+# run that merely mentions a limit is real progress, not a wait.
+_RATE_LIMIT_RE = re.compile(
+    r"rate[ _]limit(?:_error)?|overloaded_error|usage[ _]limit|limit reached",
+    re.IGNORECASE,
+)
+# A genuine exception line (``SomethingError:`` / ``SomethingException:``), not
+# any prose containing "error"/"fail" — the stream-json transcript is full of
+# category names and prose that would otherwise fold unrelated rounds together
+# or latch the signature onto a stable non-error line forever.
+_ERROR_LINE_RE = re.compile(r"[A-Za-z_][\w.]*(?:Error|Exception)\b\s*:")
 _PATHISH_RE = re.compile(r'[A-Za-z]:?[\\/][^\s"]*')
 _LINENO_RE = re.compile(r"\bline \d+|:\d+")
+# Volatile per-run tokens (durations, hex addresses, uuids / session-ids, ISO
+# timestamps) stripped so the same root cause folds across noisy transcripts.
+_VOLATILE_RE = re.compile(
+    r"0x[0-9a-fA-F]+"
+    r"|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    r"|\b\d+(?:\.\d+)?\s?m?s\b"
+    r"|\b\d{4}-\d\d-\d\dT[\d:.]+"
+)
 _WS_RE = re.compile(r"\s+")
+
+# Only genuine forward-movement events reset the stagnation counter. Bookkeeping
+# / churn events (agent_dispatch, agent_return, tdd_phase, session_*,
+# review_verdict, revision_start) are appended every round even when nothing
+# lands, so counting *any* new event as progress would mask a stuck sprint.
+_PROGRESS_EVENTS = frozenset(
+    {"state_change", "circuit_open", "sprint_complete", "doc_finalize", "phase_start", "phase_end"}
+)
 
 
 @dataclass
@@ -115,11 +139,17 @@ def _default_claude_runner(prompt: str, timeout: float) -> ClaudeResult:
         )
     except subprocess.TimeoutExpired:
         return ClaudeResult(returncode=_TIMEOUT_RC, output="", timed_out=True)
+    except FileNotFoundError:
+        return ClaudeResult(returncode=127, output="claude executable not found")
     return ClaudeResult(returncode=cp.returncode, output=(cp.stdout or "") + (cp.stderr or ""))
 
 
 def _git(project_root: Path, *args: str) -> str:
-    cp = run_proc(["git", *args], cwd=project_root)
+    # Missing git ⇒ "" ⇒ pre-flight refuses (fail-closed), never a raw traceback.
+    try:
+        cp = run_proc(["git", *args], cwd=project_root)
+    except FileNotFoundError:
+        return ""
     return cp.stdout.strip() if cp.returncode == 0 else ""
 
 
@@ -201,13 +231,17 @@ def rate_limited(output: str) -> bool:
 
 
 def error_signature(output: str) -> str:
-    """Fingerprint of the *last* error line (the final exception in a traceback —
-    most specific), with volatile file paths and line/column numbers stripped but
-    operands kept, so the same root cause folds while distinct failures don't."""
+    """Fingerprint of the last genuine exception line, volatile tokens (paths,
+    line numbers, durations, uuids, timestamps) stripped but operands kept, so
+    the same root cause folds while distinct failures stay distinct. Empty when
+    no real exception line is present — the same-error breaker then stays idle
+    (max-iterations still bounds the loop) rather than latching onto prose."""
     matches = [ln for ln in output.splitlines() if _ERROR_LINE_RE.search(ln)]
     if not matches:
         return ""
-    sig = _LINENO_RE.sub("", _PATHISH_RE.sub("", matches[-1]))
+    sig = _PATHISH_RE.sub("", matches[-1])
+    sig = _VOLATILE_RE.sub("", sig)
+    sig = _LINENO_RE.sub("", sig)
     return _WS_RE.sub(" ", sig).strip()
 
 
@@ -258,8 +292,13 @@ def run_building_loop(
     """Run the loop for *sprint*; return an exit code (see module constants)."""
     runner = claude_runner or _default_claude_runner
 
-    # Pre-flight: never on main (full frozen-upstream checks live in cataforge doctor).
-    if _git(project_root, "rev-parse", "--abbrev-ref", "HEAD") == "main":
+    # Pre-flight (fail-closed): only run on a confirmed feature branch. symbolic-
+    # ref --short resolves the branch even on an unborn HEAD (rev-parse
+    # --abbrev-ref fails there and would fall through to *proceed*); "" means
+    # detached HEAD / not a repo / git missing — all cases we must refuse, never
+    # assume safe. Full frozen-upstream checks live in cataforge doctor.
+    branch = _git(project_root, "symbolic-ref", "--short", "HEAD")
+    if branch in ("", "main"):
         return EXIT_PREFLIGHT
 
     # Baseline: only events this run appends count, so a historical
@@ -298,7 +337,8 @@ def run_building_loop(
         iterations += 1
         consecutive_waits = 0
         duration = time.monotonic() - started
-        new = _new_events(_event_lines(project_root), baseline)
+        lines_after = _event_lines(project_root)
+        new = _new_events(lines_after, baseline)
         if any(r.get("event") == "sprint_complete" and r.get("ref") == complete_ref for r in new):
             return EXIT_COMPLETE
         # Only a sprint-level circuit_open (orchestrator gave up on the whole
@@ -309,8 +349,13 @@ def run_building_loop(
             return EXIT_CIRCUIT
 
         head_after = _git(project_root, "rev-parse", "HEAD")
-        events_after = len(_event_lines(project_root))
-        progressed = head_after != head_before or events_after > events_before
+        # Progress = a commit (HEAD moved) or a real forward-movement event this
+        # round — never mere bookkeeping / churn events (see _PROGRESS_EVENTS),
+        # which would otherwise reset stagnation forever on a stuck card.
+        round_events = _new_events(lines_after, events_before)
+        progressed = head_after != head_before or any(
+            r.get("event") in _PROGRESS_EVENTS for r in round_events
+        )
         stagnation = 0 if progressed else stagnation + 1
 
         sig = error_signature(result.output)

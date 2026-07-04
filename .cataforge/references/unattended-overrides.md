@@ -11,4 +11,6 @@
 
 > **circuit_open 的 ref 语义**：卡级熔断（item 3）`ref` 为任务卡，外壳据此**不停整个循环**、只让 orchestrator 跳下一张卡；needs_input 终局（item 1）`ref=dev-plan#{sprint}`（sprint 级），外壳据此停循环交还人工。两者必须用 `ref` 区分。
 >
-> **护栏强制边界**：`git merge` / `gh pr merge` / push main 由 `guard_dangerous` PreToolUse hook 在 `CATAFORGE_UNATTENDED` 下确定性拦截。**禁止改 PRD/ARCH/DEV-PLAN** 目前仅由本文档 + PROMPT 约束（`Write`/`Edit` 走 file_edit matcher，deny hook 不拦）—— 这是已知缺口，file_edit 层守卫为后续工作。
+> **护栏强制边界**：`git merge` / `gh pr merge` / push main 由 `guard_dangerous` PreToolUse hook 在 `CATAFORGE_UNATTENDED` 下拦截（容忍 `git -C <path> …` 等全局 flag 变体）。此 hook 是 shell-string 正则，**本质 best-effort**：`bash -c …` 之类 wrapper、以及依赖 upstream 恰为 main 的裸 `git push`（命令字面不含 main）无法拦——真正保障是 sandbox + PR-only 合并策略 + 人工晨检 + fail-closed preflight（非 feature 分支一律拒跑）。**禁止改 PRD/ARCH/DEV-PLAN** 目前仅由本文档 + PROMPT 约束（`Write`/`Edit` 走 file_edit matcher，deny hook 不拦）—— 这是已知缺口，file_edit 层守卫为后续工作。
+>
+> **preflight 分支门**：只在确认的 feature 分支上跑（`git symbolic-ref --short HEAD` 非空且非 `main`）；detached HEAD / 空仓 unborn-main / 无 git 一律拒。受保护主干硬编码为 `main`，非 main 主干的下游项目暂不适配（已知缺口）。

@@ -15,19 +15,29 @@ from cataforge.runtime.hook.base import matches_capability, matches_script_filte
 # Active only when the unattended building-loop set CATAFORGE_UNATTENDED — a
 # tool-level safety net for guarantees PROMPT text alone can't enforce (an
 # autonomous agent may ignore prose). No-op in normal interactive sessions.
+# A shell-string regex is inherently best-effort (a wrapper like `bash -c ...`
+# can never be fully caught); it's a speed-bump, the real guarantee is the
+# sandbox + PR-only merge policy + human morning review.
+#
+# _GLOBAL_FLAGS lets the verb (merge / push / pr) still be caught when global
+# options sit between it and the tool — including flags that take a *separate*
+# argument (`git -C <path> merge`, `gh -R <repo> pr merge`). It deliberately
+# does NOT swallow non-flag tokens, so a merge only matches in the *subcommand*
+# slot, not inside e.g. `git commit -m "merge upstream"`.
+_GLOBAL_FLAGS = r"(?:\s+(?:-[Cc]|-R|--repo|--git-dir|--work-tree)\s+\S+|\s+-\S+)*"
 UNATTENDED_BLOCKED_PATTERNS = [
     (
-        r"git\s+merge\b",
+        rf"\bgit\b{_GLOBAL_FLAGS}\s+merge\b",
         "无人值守禁止 merge",
         "无人循环只到 sprint building 完成 + PR 待审，合并须人工晨检",
     ),
     (
-        r"gh\s+pr\s+merge\b",
+        rf"\bgh\b{_GLOBAL_FLAGS}\s+pr\s+merge\b",
         "无人值守禁止 PR merge",
         "PR 合并是人工 go/no-go 决策",
     ),
     (
-        r"git\s+push\s+.*\bmain\b",
+        rf"\bgit\b{_GLOBAL_FLAGS}\s+push\b.*\bmain\b",
         "无人值守禁止推送 main",
         "无人循环只动 feature 分支",
     ),
