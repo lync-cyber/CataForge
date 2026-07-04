@@ -1,6 +1,6 @@
 # 提案：Penpot MCP 以 PENPOT_MCP_URL 为统一 endpoint 事实源 + 模式语义重构
 
-> 状态：实施中（单 PR）。
+> 状态：已实施。PENPOT_MCP_URL 统一为 MCP endpoint 事实源 + 模式语义重构已落地（deploy 时 endpoint 解析、自托管默认单用户模式等后续修复见 git 历史）。以代码为准，本文余下为历史设计记录。
 > 范围：`cataforge.adapter.integrations.penpot`（config / mcp_spec / commands / doctor / client / 向导）、下游 MCP 分发 spec、`.env.example`、相关文档。
 > 交付边界：本文为单 PR 的施工蓝图与验收标准；落地代码以 git diff 为准。
 

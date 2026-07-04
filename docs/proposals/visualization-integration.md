@@ -1,6 +1,6 @@
 # 提案：CataForge 可视化能力集成
 
-> 状态：§A–§I 的 PR-A~G 已全部落地（`viz` 命令面 10 视图 + dashboard / serve / quickstart / status、project-visualization SKILL、orchestrator Sprint 收口焊点、prompt-cli-drift 守卫均在仓）。§J 增量优化（资产目录面板 + 项目健康 KPI 概览）为当前设计，待实施授权。关键决策见 §I 决策记录。
+> 状态：已实施。§A–§J 全部落地：§A–§I 的 PR-A~G（`viz` 命令面 10 视图 + dashboard / serve / quickstart / status、project-visualization SKILL、orchestrator Sprint 收口焊点、prompt-cli-drift 守卫），§J 增量优化（资产目录面板 + 项目健康 KPI 概览 + 跨视图 focus）均在仓。以代码为准。关键决策见 §I 决策记录。
 > 范围：新增 `cataforge viz` 命令面，复用既有 KG / doc-index / EVENT-LOG / CORRECTIONS-LOG / agent-skill 资产数据，不新建数据层。渲染分三档递进交付；mermaid 可视化收编进 viz 统一入口；可写编辑器与常驻服务列为远期潜在特性。交付同时覆盖代码、提示词资产、文档资产与守卫的同步面。
 > 交付边界：数据源盘点、渲染分档、路线选型、功能评分、模块设计、资产改动面、分阶段 PR 计划与操作步骤为本文职责；实施代码以后续 PR 为准。
 
