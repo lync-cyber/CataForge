@@ -2,15 +2,14 @@
 
 The loop is exercised end-to-end with an injected ``claude_runner`` (no live
 ``claude``) and no-op ``sleep`` (no wall-clock waits) over a real temp git
-repo, so every exit path — complete / stagnation / same-error / rate-limit /
-cap / pre-flight — is deterministic on any OS.
+repo, so every exit path — complete / stagnation / rate-limit / cap /
+pre-flight — is deterministic on any OS.
 """
 
 from __future__ import annotations
 
 import json
 import subprocess
-import time
 from pathlib import Path
 
 from cataforge.core.event_log import append_event, build_record
@@ -22,7 +21,6 @@ from cataforge.runtime.unattended import (
     METRICS_FIELDS,
     UNATTENDED_ENV,
     ClaudeResult,
-    error_signature,
     metrics_path,
     rate_limited,
     run_building_loop,
@@ -53,7 +51,6 @@ def _loop(tmp_path: Path, runner, **overrides) -> int:
         max_iterations=5,
         stagnation_threshold=2,
         card_revision_ceiling=3,
-        same_error_ceiling=2,
         iter_timeout_sec=10.0,
         ratelimit_wait_sec=0.0,
         claude_runner=runner,
@@ -65,6 +62,13 @@ def _loop(tmp_path: Path, runner, **overrides) -> int:
 
 def test_refuses_on_main(tmp_path: Path) -> None:
     _init_repo(tmp_path, "main")
+    assert _loop(tmp_path, lambda p, t: ClaudeResult(0, "ok")) == EXIT_PREFLIGHT
+
+
+def test_refuses_on_unborn_main(tmp_path: Path) -> None:
+    # A freshly-init'd main with zero commits: `rev-parse --abbrev-ref HEAD`
+    # fails there, but the fail-closed pre-flight (symbolic-ref) must still refuse.
+    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
     assert _loop(tmp_path, lambda p, t: ClaudeResult(0, "ok")) == EXIT_PREFLIGHT
 
 
@@ -91,20 +95,22 @@ def test_stagnation_breaks_when_no_progress(tmp_path: Path) -> None:
     assert _loop(tmp_path, lambda p, t: ClaudeResult(0, "still thinking")) == EXIT_CIRCUIT
 
 
-def test_same_error_breaks_even_when_head_moves(tmp_path: Path) -> None:
+def test_churn_events_do_not_reset_stagnation(tmp_path: Path) -> None:
     _init_repo(tmp_path, "feat-x")
 
     def runner(prompt: str, timeout: float) -> ClaudeResult:
-        subprocess.run(
-            ["git", "commit", "--allow-empty", "-m", "churn"],
-            cwd=tmp_path,
-            check=True,
-            capture_output=True,
-        )
-        return ClaudeResult(0, "TypeError: cannot frobnicate the widget")
+        # Bookkeeping / churn only: a needs_revision verdict + revision_start,
+        # no commit, no forward-movement event → must count as stagnation.
+        for ev in ("review_verdict", "revision_start"):
+            append_event(
+                tmp_path,
+                build_record(event=ev, phase="development", ref="dev-plan#T-1", detail="churn"),
+            )
+        return ClaudeResult(0, "still spinning on the same card")
 
-    # HEAD advances each round so stagnation resets; only same-error can fire.
-    assert _loop(tmp_path, runner, stagnation_threshold=99) == EXIT_CIRCUIT
+    # Two churn-only rounds must trip stagnation even though the event count
+    # grows every round (churn events are not forward-movement events).
+    assert _loop(tmp_path, runner, stagnation_threshold=2) == EXIT_CIRCUIT
 
 
 def test_rate_limit_waits_then_retries_without_consuming_budget(tmp_path: Path) -> None:
@@ -142,7 +148,8 @@ def test_hits_iteration_cap(tmp_path: Path) -> None:
         )
         return ClaudeResult(0, "progress but never done")
 
-    assert _loop(tmp_path, runner, max_iterations=3, same_error_ceiling=99) == EXIT_MAX_ITERATIONS
+    # HEAD moves every round so stagnation never fires; only the cap bounds it.
+    assert _loop(tmp_path, runner, max_iterations=3) == EXIT_MAX_ITERATIONS
 
 
 def test_writes_metrics_line_per_real_iteration(tmp_path: Path) -> None:
@@ -157,7 +164,7 @@ def test_writes_metrics_line_per_real_iteration(tmp_path: Path) -> None:
         )
         return ClaudeResult(0, "progress but never done")
 
-    _loop(tmp_path, runner, max_iterations=2, same_error_ceiling=99)
+    _loop(tmp_path, runner, max_iterations=2)
 
     lines = metrics_path(tmp_path).read_text().splitlines()
     assert len(lines) == 2
@@ -205,7 +212,7 @@ def test_card_level_circuit_open_does_not_halt_loop(tmp_path: Path) -> None:
         )
         return ClaudeResult(0, "moved to next card")
 
-    assert _loop(tmp_path, runner, max_iterations=2, same_error_ceiling=99) == EXIT_MAX_ITERATIONS
+    assert _loop(tmp_path, runner, max_iterations=2) == EXIT_MAX_ITERATIONS
     # Ran the full cap — the card-level break did not short-circuit the loop.
     assert len(calls) == 2
 
@@ -261,19 +268,6 @@ def test_consecutive_waits_hit_cap(tmp_path: Path) -> None:
     assert len(calls) == 3
 
 
-def test_error_signature_stable_across_volatile_frames() -> None:
-    a = error_signature('File "/abs/path/mod.py", line 42, in f\nAssertionError: boom')
-    b = error_signature('File "/other/path/mod.py", line 99, in f\nAssertionError: boom')
-    assert a == b
-    assert a != ""
-
-
-def test_error_signature_distinguishes_different_operands() -> None:
-    a = error_signature("AssertionError: assert 3 == 4")
-    b = error_signature("AssertionError: assert 7 == 9")
-    assert a != b
-
-
 def test_rate_limited_detects_error_type_not_prose() -> None:
     assert rate_limited('{"type":"error","error":{"type":"rate_limit_error"}}')
     assert rate_limited("overloaded_error")
@@ -293,103 +287,3 @@ def test_rate_limited_matches_subscription_cap_phrasings() -> None:
     # failure, not a rate-limit wait — must not burn a 300s auto-wait on it.
     assert not rate_limited("max retries limit reached, giving up")
     assert not rate_limited("connection pool limit reached")
-
-
-def test_refuses_on_unborn_main(tmp_path: Path) -> None:
-    # A freshly-init'd main with zero commits: `rev-parse --abbrev-ref HEAD`
-    # fails there, but the fail-closed pre-flight must still refuse.
-    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
-    assert _loop(tmp_path, lambda p, t: ClaudeResult(0, "ok")) == EXIT_PREFLIGHT
-
-
-def test_error_signature_ignores_prose_and_summary_lines() -> None:
-    # Prose mentioning "error"/"failed" and a pytest summary line (whose volatile
-    # duration would otherwise defeat folding) must NOT become the signature.
-    a = error_signature(
-        "I fixed the error-handling path\n"
-        '  File "/repo/mod.py", line 5\n'
-        "TypeError: bad thing\n"
-        "===== 1 failed in 3.20s ====="
-    )
-    b = error_signature(
-        "discussing error handling again\n"
-        '  File "/other/mod.py", line 91\n'
-        "TypeError: bad thing\n"
-        "===== 1 failed in 9.87s ====="
-    )
-    assert a == b != ""
-
-
-def test_error_signature_folds_real_pytest_bare_assert() -> None:
-    # Real pytest output for a bare `assert` failure carries no "AssertionError:"
-    # token — only `E   assert …`, `path:lineno: AssertionError` (colon *before*
-    # the type), and the `FAILED <nodeid> - <msg>` summary. The signature must
-    # still be non-empty and fold across a changing run duration.
-    r1 = (
-        "    def test_x():\n"
-        ">       assert 1 == 2\n"
-        "E       assert 1 == 2\n"
-        "test_demo.py:2: AssertionError\n"
-        "FAILED test_demo.py::test_x - assert 1 == 2\n"
-        "1 failed in 0.09s"
-    )
-    r2 = r1.replace("0.09s", "4.55s")
-    assert error_signature(r1) == error_signature(r2) != ""
-    # A different assertion must NOT fold into the same signature.
-    r3 = r1.replace("1 == 2", "3 == 9")
-    assert error_signature(r1) != error_signature(r3)
-
-
-def test_error_signature_folds_over_stream_json_records() -> None:
-    # The live runner captures `--output-format stream-json`: pytest output is
-    # embedded + newline-escaped inside one JSON record with a per-run session
-    # id. The same failure across two such records must fold to one signature.
-    out = "E       assert 1 == 2\nFAILED test_demo.py::test_x - assert 1 == 2\n1 failed in 0.09s"
-    rec1 = json.dumps({"type": "user", "session_id": "s-111", "message": {"content": out}})
-    rec2 = json.dumps(
-        {
-            "type": "user",
-            "session_id": "s-999",
-            "message": {"content": out.replace("0.09s", "2.30s")},
-        }
-    )
-    assert error_signature(rec1) == error_signature(rec2) != ""
-
-
-def test_error_signature_folds_regardless_of_failed_line_order() -> None:
-    # pytest-xdist can emit the same two FAILED lines in either order across
-    # rounds; a genuinely-stuck sprint must still fold to one signature so the
-    # same-error breaker can fire, not be reset by cosmetic reordering.
-    a = "FAILED t.py::test_a - assert 1 == 2\nFAILED t.py::test_b - assert 5 == 6"
-    b = "FAILED t.py::test_b - assert 5 == 6\nFAILED t.py::test_a - assert 1 == 2"
-    assert error_signature(a) == error_signature(b) != ""
-    # Fixing one of the two failures is real progress → signature must change.
-    assert error_signature(a) != error_signature("FAILED t.py::test_b - assert 5 == 6")
-
-
-def test_error_signature_bounded_on_pathological_input() -> None:
-    # A long unbroken identifier run (no Error suffix) must not trigger O(n²)
-    # regex backtracking: error_signature runs unwrapped after the runner, so a
-    # hang here would stall the loop before any breaker or the iteration cap.
-    pathological = "very_long_module_path_component." * 12000  # ~370 KB
-    start = time.perf_counter()
-    error_signature(pathological)
-    assert time.perf_counter() - start < 2.0
-
-
-def test_churn_events_do_not_reset_stagnation(tmp_path: Path) -> None:
-    _init_repo(tmp_path, "feat-x")
-
-    def runner(prompt: str, timeout: float) -> ClaudeResult:
-        # Bookkeeping / churn only: a needs_revision verdict + revision_start,
-        # no commit, no forward-movement event → must count as stagnation.
-        for ev in ("review_verdict", "revision_start"):
-            append_event(
-                tmp_path,
-                build_record(event=ev, phase="development", ref="dev-plan#T-1", detail="churn"),
-            )
-        return ClaudeResult(0, "still spinning on the same card")
-
-    # stagnation_threshold=2 → two churn-only rounds must trip the breaker,
-    # even though the event count grows every round.
-    assert _loop(tmp_path, runner, stagnation_threshold=2, same_error_ceiling=99) == EXIT_CIRCUIT

@@ -75,7 +75,6 @@ def unattended_build(
         max_iterations=max_iterations or _c("UNATTENDED_LOOP_MAX_ITERATIONS", 30),
         stagnation_threshold=_c("UNATTENDED_STAGNATION_THRESHOLD", 3),
         card_revision_ceiling=_c("UNATTENDED_CARD_REVISION_CEILING", 3),
-        same_error_ceiling=_c("UNATTENDED_SAME_ERROR_CEILING", 5),
         iter_timeout_sec=float(_c("UNATTENDED_LOOP_ITER_TIMEOUT_SEC", 1800)),
         ratelimit_wait_sec=float(_c("UNATTENDED_RATELIMIT_WAIT_SEC", 300)),
     )

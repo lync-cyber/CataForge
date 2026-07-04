@@ -53,7 +53,6 @@ METRICS_FIELDS: tuple[str, ...] = (
     "files_changed",
     "duration_sec",
     "stagnation",
-    "same_error",
 )
 
 # Exit codes: 0 done / 3 circuit-open / 4 hit iteration (or auto-wait) cap /
@@ -77,40 +76,6 @@ _RATE_LIMIT_RE = re.compile(
     r"|(?:\d+-hour|\d+-day|hourly|daily|weekly|monthly)\s+limit reached",
     re.IGNORECASE,
 )
-# Genuine failure tokens, not bare prose containing "error"/"fail": pytest's
-# ``FAILED <nodeid> - <msg>`` summary, a raised ``SomethingError: msg``, the
-# ``<path>:<lineno>: SomethingError`` location, or a pytest ``E   …`` detail
-# line. Extracting the *token* (not the whole line) keeps the signature stable
-# when the transcript is stream-json — pytest output is embedded + escaped in a
-# single JSON record, so ``[^\n"\\]`` bounds each token at a real newline or a
-# JSON string / escape boundary. FAILED intentionally has no leading \b: over
-# stream-json it abuts the escaped-newline's ``n`` (``…\nFAILED``), which would
-# otherwise kill the word boundary. The ``{0,200}`` bounds are not cosmetic:
-# an unbounded ``[\w.]*`` before the required ``(?:Error|Exception)`` suffix
-# backtracks O(n²) over a long unbroken identifier run (a hex blob / deep module
-# path in the transcript), which — since error_signature runs unwrapped after
-# the runner returns — would hang the loop before any breaker could fire.
-_ERROR_TOKEN_RE = re.compile(
-    r'FAILED\s+\S+[^\n"\\]*'
-    r'|[A-Za-z_][\w.]{0,200}(?:Error|Exception):\s*[^\n"\\]*'
-    r"|:\s*[A-Za-z_]\w{0,200}(?:Error|Exception)\b"
-    r'|^E\s{2,}\S[^\n"\\]*',
-    re.MULTILINE,
-)
-# Cap the regex scan: the failure that matters is at the transcript tail, and a
-# fixed window keeps error_signature linear regardless of transcript size.
-_MAX_SIG_SCAN = 50_000
-_PATHISH_RE = re.compile(r'[A-Za-z]:?[\\/][^\s"]*')
-_LINENO_RE = re.compile(r"\bline \d+|:\d+")
-# Volatile per-run tokens (durations, hex addresses, uuids / session-ids, ISO
-# timestamps) stripped so the same root cause folds across noisy transcripts.
-_VOLATILE_RE = re.compile(
-    r"0x[0-9a-fA-F]+"
-    r"|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-    r"|\b\d+(?:\.\d+)?\s?m?s\b"
-    r"|\b\d{4}-\d\d-\d\dT[\d:.]+"
-)
-_WS_RE = re.compile(r"\s+")
 
 # Only genuine forward-movement events reset the stagnation counter. Bookkeeping
 # / churn events (agent_dispatch, agent_return, tdd_phase, session_*,
@@ -217,7 +182,6 @@ def build_metrics_record(
     files_changed: int,
     duration_sec: float,
     stagnation: int,
-    same_error: int,
 ) -> dict[str, Any]:
     return {
         "iter": iteration,
@@ -229,7 +193,6 @@ def build_metrics_record(
         "files_changed": files_changed,
         "duration_sec": round(duration_sec, 3),
         "stagnation": stagnation,
-        "same_error": same_error,
     }
 
 
@@ -249,26 +212,6 @@ def _append_metrics(project_root: Path, record: dict[str, Any]) -> None:
 def rate_limited(output: str) -> bool:
     """A rate / usage-limit signal — a *wait*, not stagnation (must not burn budget)."""
     return bool(_RATE_LIMIT_RE.search(output))
-
-
-def error_signature(output: str) -> str:
-    """Fingerprint of a round's genuine failure tokens (pytest FAILED summaries /
-    raised exceptions / failure locations) — volatile tokens (paths, line
-    numbers, durations, uuids, timestamps) stripped but operands kept. The
-    signature is the sorted *set* of cleaned tokens, so it folds regardless of
-    the order pytest-xdist emits FAILED lines yet stays specific: a round with a
-    different failure set (e.g. one test fixed) yields a different signature.
-    Empty when no failure token is present — the same-error breaker then stays
-    idle (max-iterations still bounds the loop) rather than latching onto prose."""
-    cleaned: set[str] = set()
-    for tok in _ERROR_TOKEN_RE.findall(output[-_MAX_SIG_SCAN:]):
-        sig = _PATHISH_RE.sub("", tok)
-        sig = _VOLATILE_RE.sub("", sig)
-        sig = _LINENO_RE.sub("", sig)
-        sig = _WS_RE.sub(" ", sig).strip()
-        if sig:
-            cleaned.add(sig)
-    return " | ".join(sorted(cleaned))
 
 
 def build_prompt(sprint: str, card_revision_ceiling: int) -> str:
@@ -309,7 +252,6 @@ def run_building_loop(
     max_iterations: int,
     stagnation_threshold: int,
     card_revision_ceiling: int,
-    same_error_ceiling: int,
     iter_timeout_sec: float,
     ratelimit_wait_sec: float,
     claude_runner: ClaudeRunner | None = None,
@@ -334,9 +276,7 @@ def run_building_loop(
 
     iterations = 0
     stagnation = 0
-    same_error = 0
     consecutive_waits = 0
-    last_sig = ""
     complete_ref = f"dev-plan#{sprint}"
 
     while iterations < max_iterations:
@@ -347,9 +287,9 @@ def run_building_loop(
         result = runner(prompt, iter_timeout_sec)
 
         # Rate-limit / timeout is a wait, not no-progress: retry without
-        # consuming iteration / stagnation / same-error budget. Only a genuine
-        # non-zero exit counts as a limit — a successful run whose transcript
-        # merely mentions one is real progress, not a wait.
+        # consuming iteration / stagnation budget. Only a genuine non-zero exit
+        # counts as a limit — a successful run whose transcript merely mentions
+        # one is real progress, not a wait.
         if result.timed_out or (result.returncode != 0 and rate_limited(result.output)):
             consecutive_waits += 1
             # Backstop: a limit that never clears (or a mis-detected wait) must
@@ -384,13 +324,6 @@ def run_building_loop(
         )
         stagnation = 0 if progressed else stagnation + 1
 
-        sig = error_signature(result.output)
-        if sig and sig == last_sig:
-            same_error += 1
-        else:
-            same_error = 0
-            last_sig = sig
-
         _append_metrics(
             project_root,
             build_metrics_record(
@@ -402,17 +335,11 @@ def run_building_loop(
                 files_changed=_files_changed(project_root, head_before, head_after),
                 duration_sec=duration,
                 stagnation=stagnation,
-                same_error=same_error,
             ),
         )
 
         if stagnation >= stagnation_threshold:
             _emit_circuit_open(project_root, sprint, f"stagnation: 连续 {stagnation} 轮无进展")
-            return EXIT_CIRCUIT
-        if same_error >= same_error_ceiling:
-            _emit_circuit_open(
-                project_root, sprint, f"same-error: 连续 {same_error} 轮同一错误签名"
-            )
             return EXIT_CIRCUIT
 
     return EXIT_MAX_ITERATIONS

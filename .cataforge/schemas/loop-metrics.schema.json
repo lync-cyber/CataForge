@@ -13,8 +13,7 @@
     "progressed",
     "files_changed",
     "duration_sec",
-    "stagnation",
-    "same_error"
+    "stagnation"
   ],
   "properties": {
     "iter": {"type": "integer", "description": "本次运行内的真实迭代序号（限额等待轮不计）"},
@@ -22,11 +21,10 @@
     "sprint": {"type": "string", "description": "目标 sprint 标识"},
     "head_before": {"type": "string", "description": "本轮拉起前的 git HEAD"},
     "head_after": {"type": "string", "description": "本轮返回后的 git HEAD"},
-    "progressed": {"type": "boolean", "description": "HEAD 变化或新增事件"},
+    "progressed": {"type": "boolean", "description": "HEAD 变化或命中前进事件"},
     "files_changed": {"type": "integer", "description": "head_before..head_after 的变更文件数"},
     "duration_sec": {"type": "number", "description": "本轮 claude 调用墙钟秒数"},
-    "stagnation": {"type": "integer", "description": "连续无进展轮计数"},
-    "same_error": {"type": "integer", "description": "连续同一错误签名轮计数"}
+    "stagnation": {"type": "integer", "description": "连续无进展轮计数"}
   },
   "additionalProperties": false
 }
