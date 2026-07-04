@@ -8,6 +8,7 @@ cap / pre-flight — is deterministic on any OS.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -17,10 +18,17 @@ from cataforge.runtime.unattended import (
     EXIT_COMPLETE,
     EXIT_MAX_ITERATIONS,
     EXIT_PREFLIGHT,
+    METRICS_FIELDS,
+    UNATTENDED_ENV,
     ClaudeResult,
     error_signature,
+    metrics_path,
     rate_limited,
     run_building_loop,
+)
+
+_SCHEMA = (
+    Path(__file__).resolve().parents[2] / ".cataforge" / "schemas" / "loop-metrics.schema.json"
 )
 
 _NOOP = lambda _s: None  # noqa: E731 — injected sleep
@@ -134,6 +142,42 @@ def test_hits_iteration_cap(tmp_path: Path) -> None:
         return ClaudeResult(0, "progress but never done")
 
     assert _loop(tmp_path, runner, max_iterations=3, same_error_ceiling=99) == EXIT_MAX_ITERATIONS
+
+
+def test_writes_metrics_line_per_real_iteration(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "feat-x")
+
+    def runner(prompt: str, timeout: float) -> ClaudeResult:
+        subprocess.run(
+            ["git", "commit", "--allow-empty", "-m", "churn"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        return ClaudeResult(0, "progress but never done")
+
+    _loop(tmp_path, runner, max_iterations=2, same_error_ceiling=99)
+
+    lines = metrics_path(tmp_path).read_text().splitlines()
+    assert len(lines) == 2
+    for i, line in enumerate(lines, start=1):
+        rec = json.loads(line)
+        assert set(rec) == set(METRICS_FIELDS)
+        assert rec["iter"] == i
+        assert rec["progressed"] is True
+
+
+def test_unattended_env_carries_marker_and_autonomous_identity() -> None:
+    assert UNATTENDED_ENV["CATAFORGE_UNATTENDED"] == "1"
+    assert UNATTENDED_ENV["GIT_AUTHOR_NAME"] == "cataforge-unattended"
+    assert UNATTENDED_ENV["GIT_AUTHOR_EMAIL"] == "unattended@cataforge.local"
+    assert UNATTENDED_ENV["GIT_COMMITTER_NAME"] == "cataforge-unattended"
+
+
+def test_metrics_fields_match_schema() -> None:
+    schema = json.loads(_SCHEMA.read_text())
+    assert set(schema["properties"]) == set(METRICS_FIELDS)
+    assert set(schema["required"]) == set(METRICS_FIELDS)
 
 
 def test_error_signature_stable_across_volatile_frames() -> None:

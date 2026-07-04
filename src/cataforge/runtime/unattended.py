@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
 import subprocess
 import time
@@ -33,8 +34,27 @@ from cataforge.core.event_log import (
     append_event,
     build_record,
     event_log_path,
+    now_iso,
 )
 from cataforge.utils.run_subprocess import run as run_proc
+
+# Per-loop operational metrics — a disposable, gitignored runtime stream
+# (``.cataforge/state/``) kept out of the semantic EVENT-LOG so token/timing
+# data can't pollute the audit schema. Fields the driver can fill reliably;
+# token / card counts need claude-usage / dev-plan parsing and are deferred.
+METRICS_REL = Path(".cataforge") / "state" / "loop-metrics.jsonl"
+METRICS_FIELDS: tuple[str, ...] = (
+    "iter",
+    "ts",
+    "sprint",
+    "head_before",
+    "head_after",
+    "progressed",
+    "files_changed",
+    "duration_sec",
+    "stagnation",
+    "same_error",
+)
 
 # Exit codes: 0 done / 2 pre-flight refusal / 3 circuit-open / 4 hit iteration cap.
 EXIT_COMPLETE = 0
@@ -65,6 +85,17 @@ class ClaudeResult:
 
 ClaudeRunner = Callable[[str, float], ClaudeResult]
 
+# Env stamped onto the claude subprocess: a headless marker the tool-level deny
+# hook (guard_dangerous) gates on, plus an autonomous commit identity so morning
+# review can tell unattended commits from human ones.
+UNATTENDED_ENV: dict[str, str] = {
+    "CATAFORGE_UNATTENDED": "1",
+    "GIT_AUTHOR_NAME": "cataforge-unattended",
+    "GIT_AUTHOR_EMAIL": "unattended@cataforge.local",
+    "GIT_COMMITTER_NAME": "cataforge-unattended",
+    "GIT_COMMITTER_EMAIL": "unattended@cataforge.local",
+}
+
 
 def _default_claude_runner(prompt: str, timeout: float) -> ClaudeResult:
     argv = [
@@ -77,7 +108,9 @@ def _default_claude_runner(prompt: str, timeout: float) -> ClaudeResult:
         "--verbose",
     ]
     try:
-        cp = run_proc(argv, timeout=timeout, capture_output=True)
+        cp = run_proc(
+            argv, timeout=timeout, capture_output=True, env={**os.environ, **UNATTENDED_ENV}
+        )
     except subprocess.TimeoutExpired:
         return ClaudeResult(returncode=_TIMEOUT_RC, output="", timed_out=True)
     return ClaudeResult(returncode=cp.returncode, output=(cp.stdout or "") + (cp.stderr or ""))
@@ -105,6 +138,52 @@ def _new_events(lines: list[str], baseline: int) -> list[dict[str, Any]]:
         if isinstance(rec, dict):
             out.append(rec)
     return out
+
+
+def _files_changed(project_root: Path, head_before: str, head_after: str) -> int:
+    if not head_before or not head_after or head_before == head_after:
+        return 0
+    out = _git(project_root, "diff", "--name-only", head_before, head_after)
+    return len([ln for ln in out.splitlines() if ln.strip()])
+
+
+def metrics_path(project_root: Path) -> Path:
+    return project_root / METRICS_REL
+
+
+def build_metrics_record(
+    *,
+    iteration: int,
+    sprint: str,
+    head_before: str,
+    head_after: str,
+    progressed: bool,
+    files_changed: int,
+    duration_sec: float,
+    stagnation: int,
+    same_error: int,
+) -> dict[str, Any]:
+    return {
+        "iter": iteration,
+        "ts": now_iso(),
+        "sprint": sprint,
+        "head_before": head_before,
+        "head_after": head_after,
+        "progressed": progressed,
+        "files_changed": files_changed,
+        "duration_sec": round(duration_sec, 3),
+        "stagnation": stagnation,
+        "same_error": same_error,
+    }
+
+
+def _append_metrics(project_root: Path, record: dict[str, Any]) -> None:
+    # Best-effort observability: a metrics write failure must not affect the loop.
+    with contextlib.suppress(OSError):
+        path = metrics_path(project_root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", newline="\n") as f:
+            f.write(json.dumps(record, ensure_ascii=False, sort_keys=False) + "\n")
 
 
 def rate_limited(output: str) -> bool:
@@ -188,6 +267,7 @@ def run_building_loop(
         head_before = _git(project_root, "rev-parse", "HEAD")
         events_before = len(_event_lines(project_root))
 
+        started = time.monotonic()
         result = runner(prompt, iter_timeout_sec)
 
         # Rate-limit / timeout is a wait, not no-progress: retry without
@@ -198,6 +278,7 @@ def run_building_loop(
             continue
 
         iterations += 1
+        duration = time.monotonic() - started
         new = _new_events(_event_lines(project_root), baseline)
         if any(r.get("event") == "sprint_complete" and r.get("ref") == complete_ref for r in new):
             return EXIT_COMPLETE
@@ -215,6 +296,21 @@ def run_building_loop(
         else:
             same_error = 0
             last_sig = sig
+
+        _append_metrics(
+            project_root,
+            build_metrics_record(
+                iteration=iterations,
+                sprint=sprint,
+                head_before=head_before,
+                head_after=head_after,
+                progressed=progressed,
+                files_changed=_files_changed(project_root, head_before, head_after),
+                duration_sec=duration,
+                stagnation=stagnation,
+                same_error=same_error,
+            ),
+        )
 
         if stagnation >= stagnation_threshold:
             _emit_circuit_open(project_root, sprint, f"stagnation: 连续 {stagnation} 轮无进展")

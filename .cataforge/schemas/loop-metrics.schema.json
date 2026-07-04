@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CataForge Unattended Loop Metrics Schema",
+  "description": "定义 .cataforge/state/loop-metrics.jsonl 中每行 JSON 对象的结构。无人值守 building-loop 每个真实迭代写一行运维指标；disposable 运行时产物（gitignored），非语义审计源。字段权威来源为 cataforge.runtime.unattended.METRICS_FIELDS。",
+  "version": "0.1.0",
+  "type": "object",
+  "required": [
+    "iter",
+    "ts",
+    "sprint",
+    "head_before",
+    "head_after",
+    "progressed",
+    "files_changed",
+    "duration_sec",
+    "stagnation",
+    "same_error"
+  ],
+  "properties": {
+    "iter": {"type": "integer", "description": "本次运行内的真实迭代序号（限额等待轮不计）"},
+    "ts": {"type": "string", "format": "date-time", "description": "ISO 8601 时间戳"},
+    "sprint": {"type": "string", "description": "目标 sprint 标识"},
+    "head_before": {"type": "string", "description": "本轮拉起前的 git HEAD"},
+    "head_after": {"type": "string", "description": "本轮返回后的 git HEAD"},
+    "progressed": {"type": "boolean", "description": "HEAD 变化或新增事件"},
+    "files_changed": {"type": "integer", "description": "head_before..head_after 的变更文件数"},
+    "duration_sec": {"type": "number", "description": "本轮 claude 调用墙钟秒数"},
+    "stagnation": {"type": "integer", "description": "连续无进展轮计数"},
+    "same_error": {"type": "integer", "description": "连续同一错误签名轮计数"}
+  },
+  "additionalProperties": false
+}
