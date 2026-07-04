@@ -56,21 +56,23 @@ METRICS_FIELDS: tuple[str, ...] = (
     "same_error",
 )
 
-# Exit codes: 0 done / 2 pre-flight refusal / 3 circuit-open / 4 hit iteration cap.
+# Exit codes: 0 done / 3 circuit-open / 4 hit iteration (or auto-wait) cap /
+# 5 pre-flight refusal. 5 (not 2) so a supervisor distinguishes a pre-flight
+# refusal from Click's own usage error, which also exits 2.
 EXIT_COMPLETE = 0
-EXIT_PREFLIGHT = 2
 EXIT_CIRCUIT = 3
 EXIT_MAX_ITERATIONS = 4
+EXIT_PREFLIGHT = 5
 
 _TIMEOUT_RC = 124
 
-_RATE_LIMIT_RE = re.compile(
-    r'"(?:type|error)"[^}]*(?:rate_limit|usage[_-]?limit)|rate.limit|usage limit|overloaded',
-    re.IGNORECASE,
-)
+# Match only structured API error-type identifiers, not prose — an orchestrator
+# transcript that merely discusses rate limiting must not be mistaken for a real
+# limit (that would auto-wait forever while real progress is discarded).
+_RATE_LIMIT_RE = re.compile(r"rate_limit_error|overloaded_error|usage_limit", re.IGNORECASE)
 _ERROR_LINE_RE = re.compile(r"error|traceback|exception|assert|fail", re.IGNORECASE)
-_DIGITS_RE = re.compile(r"\d+")
 _PATHISH_RE = re.compile(r'[A-Za-z]:?[\\/][^\s"]*')
+_LINENO_RE = re.compile(r"\bline \d+|:\d+")
 _WS_RE = re.compile(r"\s+")
 
 
@@ -125,7 +127,10 @@ def _event_lines(project_root: Path) -> list[str]:
     path = event_log_path(project_root)
     if not path.is_file():
         return []
-    return [ln for ln in path.read_text().splitlines() if ln.strip()]
+    # EVENT-LOG is a UTF-8 cross-process JSONL contract (append side pins it too);
+    # a host that never ran ensure_utf8 must still read the log we write.
+    text = path.read_text(encoding="utf-8")  # allow-explicit-encoding: contract
+    return [ln for ln in text.splitlines() if ln.strip()]
 
 
 def _new_events(lines: list[str], baseline: int) -> list[dict[str, Any]]:
@@ -179,10 +184,14 @@ def build_metrics_record(
 
 def _append_metrics(project_root: Path, record: dict[str, Any]) -> None:
     # Best-effort observability: a metrics write failure must not affect the loop.
-    with contextlib.suppress(OSError):
+    # Catch ValueError too — a non-UTF-8 host would raise UnicodeEncodeError
+    # (a ValueError, not an OSError) when writing a non-ASCII sprint id.
+    with contextlib.suppress(OSError, ValueError):
         path = metrics_path(project_root)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", newline="\n") as f:
+        with path.open(
+            "a", encoding="utf-8", newline="\n"
+        ) as f:  # allow-explicit-encoding: contract
             f.write(json.dumps(record, ensure_ascii=False, sort_keys=False) + "\n")
 
 
@@ -192,13 +201,14 @@ def rate_limited(output: str) -> bool:
 
 
 def error_signature(output: str) -> str:
-    """Stable fingerprint of the first error frame, with volatile paths / line
-    numbers stripped, so a repeated failure is recognisable even as HEAD moves."""
-    for line in output.splitlines():
-        if _ERROR_LINE_RE.search(line):
-            sig = _PATHISH_RE.sub("", _DIGITS_RE.sub("", line))
-            return _WS_RE.sub(" ", sig).strip()
-    return ""
+    """Fingerprint of the *last* error line (the final exception in a traceback —
+    most specific), with volatile file paths and line/column numbers stripped but
+    operands kept, so the same root cause folds while distinct failures don't."""
+    matches = [ln for ln in output.splitlines() if _ERROR_LINE_RE.search(ln)]
+    if not matches:
+        return ""
+    sig = _LINENO_RE.sub("", _PATHISH_RE.sub("", matches[-1]))
+    return _WS_RE.sub(" ", sig).strip()
 
 
 def build_prompt(sprint: str, card_revision_ceiling: int) -> str:
@@ -260,6 +270,7 @@ def run_building_loop(
     iterations = 0
     stagnation = 0
     same_error = 0
+    consecutive_waits = 0
     last_sig = ""
     complete_ref = f"dev-plan#{sprint}"
 
@@ -271,18 +282,30 @@ def run_building_loop(
         result = runner(prompt, iter_timeout_sec)
 
         # Rate-limit / timeout is a wait, not no-progress: retry without
-        # consuming iteration / stagnation / same-error budget.
-        if result.timed_out or rate_limited(result.output):
+        # consuming iteration / stagnation / same-error budget. Only a genuine
+        # non-zero exit counts as a limit — a successful run whose transcript
+        # merely mentions one is real progress, not a wait.
+        if result.timed_out or (result.returncode != 0 and rate_limited(result.output)):
+            consecutive_waits += 1
+            # Backstop: a limit that never clears (or a mis-detected wait) must
+            # not spin forever — hand back after max_iterations consecutive waits.
+            if consecutive_waits >= max_iterations:
+                return EXIT_MAX_ITERATIONS
             if ratelimit_wait_sec > 0:
                 sleep(ratelimit_wait_sec)
             continue
 
         iterations += 1
+        consecutive_waits = 0
         duration = time.monotonic() - started
         new = _new_events(_event_lines(project_root), baseline)
         if any(r.get("event") == "sprint_complete" and r.get("ref") == complete_ref for r in new):
             return EXIT_COMPLETE
-        if any(r.get("event") == "circuit_open" for r in new):
+        # Only a sprint-level circuit_open (orchestrator gave up on the whole
+        # sprint, ref=dev-plan#sprint) is terminal. Card-level breaks
+        # (ref=<task-card>) mean "blocked this card, skip to the next" and must
+        # NOT halt the loop — see references/unattended-overrides.md item 3.
+        if any(r.get("event") == "circuit_open" and r.get("ref") == complete_ref for r in new):
             return EXIT_CIRCUIT
 
         head_after = _git(project_root, "rev-parse", "HEAD")

@@ -60,7 +60,8 @@ def unattended_build(
 ) -> None:
     """Drive SPRINT's building until sprint_complete / circuit_open / cap.
 
-    Exit codes: 0 complete · 2 pre-flight refusal · 3 circuit-open · 4 hit cap.
+    Exit codes: 0 complete · 3 circuit-open · 4 hit cap · 5 pre-flight refusal
+    (5, not 2, so it's distinct from Click's own usage error).
     Never merges / deploys; runs only on a feature branch inside a sandbox.
     """
     root = project_root or resolve_project_dir() or find_project_root()

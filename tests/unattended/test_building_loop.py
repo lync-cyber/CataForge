@@ -180,6 +180,82 @@ def test_metrics_fields_match_schema() -> None:
     assert set(schema["required"]) == set(METRICS_FIELDS)
 
 
+def test_card_level_circuit_open_does_not_halt_loop(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "feat-x")
+
+    def runner(prompt: str, timeout: float) -> ClaudeResult:
+        # card-level break (ref = task card, not the sprint) → skip card, keep going
+        append_event(
+            tmp_path,
+            build_record(
+                event="circuit_open",
+                phase="development",
+                ref="dev-plan#T-014",
+                detail="card blocked, skip",
+            ),
+        )
+        subprocess.run(
+            ["git", "commit", "--allow-empty", "-m", "churn"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        return ClaudeResult(0, "moved to next card")
+
+    assert _loop(tmp_path, runner, max_iterations=2, same_error_ceiling=99) == EXIT_MAX_ITERATIONS
+
+
+def test_sprint_level_circuit_open_halts_loop(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "feat-x")
+
+    def runner(prompt: str, timeout: float) -> ClaudeResult:
+        append_event(
+            tmp_path,
+            build_record(
+                event="circuit_open",
+                phase="development",
+                ref="dev-plan#sprint-1",
+                detail="gave up",
+            ),
+        )
+        return ClaudeResult(0, "ok")
+
+    assert _loop(tmp_path, runner) == EXIT_CIRCUIT
+
+
+def test_rc_zero_output_mentioning_limit_is_not_a_wait(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "feat-x")
+    calls: list[int] = []
+
+    def runner(prompt: str, timeout: float) -> ClaudeResult:
+        calls.append(1)
+        append_event(
+            tmp_path,
+            build_record(
+                event="sprint_complete",
+                phase="development",
+                ref="dev-plan#sprint-1",
+                detail="done",
+            ),
+        )
+        return ClaudeResult(0, "I fixed the rate_limit_error handler")
+
+    assert _loop(tmp_path, runner) == EXIT_COMPLETE
+    assert len(calls) == 1
+
+
+def test_consecutive_waits_hit_cap(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "feat-x")
+    calls: list[int] = []
+
+    def runner(prompt: str, timeout: float) -> ClaudeResult:
+        calls.append(1)
+        return ClaudeResult(1, "overloaded_error")
+
+    assert _loop(tmp_path, runner, max_iterations=3) == EXIT_MAX_ITERATIONS
+    assert len(calls) == 3
+
+
 def test_error_signature_stable_across_volatile_frames() -> None:
     a = error_signature('File "/abs/path/mod.py", line 42, in f\nAssertionError: boom')
     b = error_signature('File "/other/path/mod.py", line 99, in f\nAssertionError: boom')
@@ -187,7 +263,14 @@ def test_error_signature_stable_across_volatile_frames() -> None:
     assert a != ""
 
 
-def test_rate_limited_detects_signal_not_prose() -> None:
+def test_error_signature_distinguishes_different_operands() -> None:
+    a = error_signature("AssertionError: assert 3 == 4")
+    b = error_signature("AssertionError: assert 7 == 9")
+    assert a != b
+
+
+def test_rate_limited_detects_error_type_not_prose() -> None:
     assert rate_limited('{"type":"error","error":{"type":"rate_limit_error"}}')
-    assert rate_limited("Error: overloaded, please retry")
+    assert rate_limited("overloaded_error")
+    assert not rate_limited("I refactored the rate-limiting middleware")
     assert not rate_limited('{"type":"result","ok":true}')
