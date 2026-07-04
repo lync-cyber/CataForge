@@ -85,14 +85,21 @@ _RATE_LIMIT_RE = re.compile(
 # single JSON record, so ``[^\n"\\]`` bounds each token at a real newline or a
 # JSON string / escape boundary. FAILED intentionally has no leading \b: over
 # stream-json it abuts the escaped-newline's ``n`` (``…\nFAILED``), which would
-# otherwise kill the word boundary.
+# otherwise kill the word boundary. The ``{0,200}`` bounds are not cosmetic:
+# an unbounded ``[\w.]*`` before the required ``(?:Error|Exception)`` suffix
+# backtracks O(n²) over a long unbroken identifier run (a hex blob / deep module
+# path in the transcript), which — since error_signature runs unwrapped after
+# the runner returns — would hang the loop before any breaker could fire.
 _ERROR_TOKEN_RE = re.compile(
     r'FAILED\s+\S+[^\n"\\]*'
-    r'|[A-Za-z_][\w.]*(?:Error|Exception):\s*[^\n"\\]*'
-    r"|:\s*[A-Za-z_]\w*(?:Error|Exception)\b"
+    r'|[A-Za-z_][\w.]{0,200}(?:Error|Exception):\s*[^\n"\\]*'
+    r"|:\s*[A-Za-z_]\w{0,200}(?:Error|Exception)\b"
     r'|^E\s{2,}\S[^\n"\\]*',
     re.MULTILINE,
 )
+# Cap the regex scan: the failure that matters is at the transcript tail, and a
+# fixed window keeps error_signature linear regardless of transcript size.
+_MAX_SIG_SCAN = 50_000
 _PATHISH_RE = re.compile(r'[A-Za-z]:?[\\/][^\s"]*')
 _LINENO_RE = re.compile(r"\bline \d+|:\d+")
 # Volatile per-run tokens (durations, hex addresses, uuids / session-ids, ISO
@@ -245,19 +252,23 @@ def rate_limited(output: str) -> bool:
 
 
 def error_signature(output: str) -> str:
-    """Fingerprint of the last genuine failure token (pytest FAILED summary /
-    raised exception / failure location), volatile tokens (paths, line numbers,
-    durations, uuids, timestamps) stripped but operands kept, so the same root
-    cause folds while distinct failures stay distinct. Empty when no failure
-    token is present — the same-error breaker then stays idle (max-iterations
-    still bounds the loop) rather than latching onto prose."""
-    tokens = _ERROR_TOKEN_RE.findall(output)
-    if not tokens:
-        return ""
-    sig = _PATHISH_RE.sub("", tokens[-1])
-    sig = _VOLATILE_RE.sub("", sig)
-    sig = _LINENO_RE.sub("", sig)
-    return _WS_RE.sub(" ", sig).strip()
+    """Fingerprint of a round's genuine failure tokens (pytest FAILED summaries /
+    raised exceptions / failure locations) — volatile tokens (paths, line
+    numbers, durations, uuids, timestamps) stripped but operands kept. The
+    signature is the sorted *set* of cleaned tokens, so it folds regardless of
+    the order pytest-xdist emits FAILED lines yet stays specific: a round with a
+    different failure set (e.g. one test fixed) yields a different signature.
+    Empty when no failure token is present — the same-error breaker then stays
+    idle (max-iterations still bounds the loop) rather than latching onto prose."""
+    cleaned: set[str] = set()
+    for tok in _ERROR_TOKEN_RE.findall(output[-_MAX_SIG_SCAN:]):
+        sig = _PATHISH_RE.sub("", tok)
+        sig = _VOLATILE_RE.sub("", sig)
+        sig = _LINENO_RE.sub("", sig)
+        sig = _WS_RE.sub(" ", sig).strip()
+        if sig:
+            cleaned.add(sig)
+    return " | ".join(sorted(cleaned))
 
 
 def build_prompt(sprint: str, card_revision_ceiling: int) -> str:

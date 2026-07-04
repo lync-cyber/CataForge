@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from pathlib import Path
 
 from cataforge.core.event_log import append_event, build_record
@@ -353,6 +354,27 @@ def test_error_signature_folds_over_stream_json_records() -> None:
         }
     )
     assert error_signature(rec1) == error_signature(rec2) != ""
+
+
+def test_error_signature_folds_regardless_of_failed_line_order() -> None:
+    # pytest-xdist can emit the same two FAILED lines in either order across
+    # rounds; a genuinely-stuck sprint must still fold to one signature so the
+    # same-error breaker can fire, not be reset by cosmetic reordering.
+    a = "FAILED t.py::test_a - assert 1 == 2\nFAILED t.py::test_b - assert 5 == 6"
+    b = "FAILED t.py::test_b - assert 5 == 6\nFAILED t.py::test_a - assert 1 == 2"
+    assert error_signature(a) == error_signature(b) != ""
+    # Fixing one of the two failures is real progress → signature must change.
+    assert error_signature(a) != error_signature("FAILED t.py::test_b - assert 5 == 6")
+
+
+def test_error_signature_bounded_on_pathological_input() -> None:
+    # A long unbroken identifier run (no Error suffix) must not trigger O(n²)
+    # regex backtracking: error_signature runs unwrapped after the runner, so a
+    # hang here would stall the loop before any breaker or the iteration cap.
+    pathological = "very_long_module_path_component." * 12000  # ~370 KB
+    start = time.perf_counter()
+    error_signature(pathological)
+    assert time.perf_counter() - start < 2.0
 
 
 def test_churn_events_do_not_reset_stagnation(tmp_path: Path) -> None:
