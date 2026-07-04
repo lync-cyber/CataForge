@@ -197,7 +197,7 @@ class DocChecker(TypedDocChecksMixin):
     def check_xref(self) -> None:
         content_no_code = strip_code_blocks(self.content)
         refs = re.findall(r"([\w-]+)#([\w§.\-]+)", content_no_code)
-        docs_path = Path(self.docs_dir)
+        docs_path = self._docs_root()
         if not docs_path.exists():
             return
 
@@ -224,10 +224,6 @@ class DocChecker(TypedDocChecksMixin):
             matches = list(docs_path.glob(f"{doc_id}*"))
             if not matches:
                 matches = list(docs_path.glob(f"**/{doc_id}*"))
-            if not matches:
-                parent = docs_path.parent
-                if parent != docs_path:
-                    matches = list(parent.glob(f"**/{doc_id}*"))
             if not matches:
                 self.fail(f"交叉引用目标 {doc_id} 未找到对应文件")
 
@@ -337,7 +333,7 @@ class DocChecker(TypedDocChecksMixin):
         doc_id = str(fm.get("id") or "")
         if not doc_id:
             return  # missing id is already a check_meta failure
-        reviews_dir = Path(self.docs_dir) / "reviews" / "doc"
+        reviews_dir = self._docs_root() / "reviews" / "doc"
         if not list(reviews_dir.glob(f"REVIEW-{doc_id}-r*.md")):
             self.fail(
                 f"status=approved 但缺少审查报告 docs/reviews/doc/REVIEW-{doc_id}-r*.md "
@@ -369,11 +365,9 @@ class DocChecker(TypedDocChecksMixin):
         if self._kg_bidirectional_coverage(upstream_prefix, rule.require_test):
             return  # KG-based check ran and reported its own failures
 
-        docs_path = Path(self.docs_dir)
+        docs_path = self._docs_root()
         if not docs_path.exists():
-            docs_path = docs_path.parent
-            if not docs_path.exists():
-                return
+            return
 
         upstream_items: set[str] = set()
         for up_file in docs_path.glob(f"**/{upstream_type}*.md"):
@@ -404,6 +398,19 @@ class DocChecker(TypedDocChecksMixin):
     def _project_root(self) -> Path | None:
         """Resolve the project root from ``docs_dir`` (None when not a project)."""
         return project_root_from_docs_dir(self.docs_dir)
+
+    def _docs_root(self) -> Path:
+        """The project-global docs tree root — holds ``reviews/`` and every volume.
+
+        Project-global lookups (review reports, upstream-doc scans, xref target
+        resolution) must resolve here, never against the volume-level ``docs_dir``:
+        split volumes pass their own subdir (e.g. ``docs/arch/``) purely for
+        sibling/tile resolution, which is anchored on the doc file's own parent.
+        Falls back to ``docs_dir`` when the path is not inside a CataForge project
+        (bare-file checks, tests).
+        """
+        root = self._project_root()
+        return root / "docs" if root is not None else Path(self.docs_dir)
 
     def _maybe_kg_xref_resolver(self) -> Callable[[str], bool] | None:
         """Return a ``callable(entity_id) -> bool`` if KG is active.
