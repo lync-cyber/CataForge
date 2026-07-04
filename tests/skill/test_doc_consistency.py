@@ -23,6 +23,54 @@ def _write(path: Path, content: str) -> None:
     path.write_text(textwrap.dedent(content).lstrip(), encoding="utf-8")
 
 
+# ---- docs_dir normalization: a volume subdir must not silently under-scan ----
+
+
+def test_volume_subdir_docs_dir_normalizes_to_docs_root(tmp_path: Path) -> None:
+    """Handed a volume subdir (docs/arch/), cross-doc discovery must resolve
+    the project-global docs tree — not silently under-scan and false-clean."""
+    (tmp_path / ".cataforge").mkdir()
+    docs = tmp_path / "docs"
+    (docs / "prd").mkdir(parents=True)
+    (docs / "arch").mkdir(parents=True)
+    _write(
+        docs / "prd" / "prd-test.md",
+        """\
+        ---
+        id: prd-test
+        author: pm
+        status: approved
+        deps: []
+        consumers: [architect]
+        ---
+        ## 2. Features
+        ### F-001: Login
+        AC-001: User can login
+        ### F-002: Reporting
+        AC-002: Export CSV
+        AC-003: Schedule report
+        """,
+    )
+    _write(
+        docs / "arch" / "arch-test.md",
+        """\
+        ---
+        id: arch-test
+        author: architect
+        status: approved
+        deps: [prd-test]
+        consumers: [tech-lead]
+        ---
+        ## 2. Modules
+        ### M-001: Auth
+        Maps F-001
+        """,
+    )
+    checker = CrossDocChecker(str(docs / "arch"), quiet=True)
+    checker.check_prd_arch_ac_coverage()
+    assert any("AC-002" in e.message for e in checker.errors), [e.message for e in checker.errors]
+
+
 # ---- PRD → ARCH AC traceability ----
 
 

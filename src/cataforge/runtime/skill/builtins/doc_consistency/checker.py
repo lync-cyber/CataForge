@@ -29,7 +29,12 @@ class CrossDocChecker(_CrossDocChecksMixin):
     """Cross-document semantic consistency checker (Layer 1)."""
 
     def __init__(self, docs_dir: str = "docs/", quiet: bool = False) -> None:
-        self.docs_dir = Path(docs_dir)
+        # Cross-doc discovery must span the whole project docs tree. Normalize a
+        # volume subdir (docs/arch/) back to the docs root so an accidental
+        # volume-scoped invocation can't silently under-scan and false-clean;
+        # outside a project (tests) the given path is used as-is.
+        root = project_root_from_docs_dir(Path(docs_dir))
+        self.docs_dir = root / "docs" if root is not None else Path(docs_dir)
         self._issues = IssueCollector()
         self._quiet = quiet
         self._docs = _find_docs(self.docs_dir)
