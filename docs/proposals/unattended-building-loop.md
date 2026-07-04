@@ -112,12 +112,15 @@ cataforge event log \
 
 `ref` 携带 sprint 标识（`dev-plan#sprint-N`），是外壳匹配「本次目标 sprint 是否完成」的键；丰富的 per-loop 运维数据不进语义事件日志，走 §4.3 的独立 metrics 流。
 
+**DOER / CHECKER 分离**：自主循环的通用失效是让写代码的 agent 自己判「是否完成」——自述式 `<promise>` / `EXIT_SIGNAL` 易被「为逃出循环而撒谎」污染。本设计的 CHECKER 是**确定性门禁结果**：`sprint_complete` 仅在 reviewer 子代理对全部任务卡真返回 code-review `approved` 后由 orchestrator emit，不由 building agent 自评。这比自由文本自述、乃至「独立模型判 done」都更强——完成信号锚定真实质量门禁，而非任何 LLM 的判断。
+
 ### 3.4 熔断：stagnation circuit breaker
 
-无人值守过夜的首要风险是某张任务卡反复失败把 token 烧到天亮。熔断分两级，阈值见 §4.1：
+无人值守过夜的首要风险是某张任务卡反复失败把 token 烧到天亮。熔断分三级，阈值见 §4.1：
 
 1. **卡级熔断** —— 同一任务卡累计 `needs_revision` 达 `UNATTENDED_CARD_REVISION_CEILING`：orchestrator 标该卡 `blocked` 并 emit `circuit_open`，跳下一张可并行卡。此为 headless 模式**新增**的「自动 blocked 跳卡」分支（见 §3.5、U-3），不是复用 §TDD Blocked Recovery 的「请求人工」终点；无人值守下 needs_revision 计数语义由 `UNATTENDED_CARD_REVISION_CEILING` 覆写既有「N≥2 请求人工」。
 2. **循环级熔断** —— 连续 `UNATTENDED_STAGNATION_THRESHOLD` 轮**无进展**（`git HEAD` 未变 **且** 无新的 `agent_return status=completed` 事件）：外壳判定原地打转，emit `circuit_open` 并停止外循环。
+3. **同错熔断** —— 连续 `UNATTENDED_SAME_ERROR_CEILING` 轮命中**同一错误签名**（失败根因指纹不变，即便 `git HEAD` 在变）：这是「在提交、但反复同一失败」的形态，无进展熔断（只看 HEAD）会漏判，故独立成一维。错误签名取自失败 agent-result 的归一化 root cause / 首个 traceback 帧，不含易变的路径行号。
 
 `circuit_open` 事件行：
 
@@ -134,6 +137,18 @@ cataforge event log \
 - **卡失败 = headless 新增分支**：U-3 在 ORCHESTRATOR-PROTOCOLS 为 headless 模式新增「自动标 `blocked` + 跳下一张可并行卡」分支——§TDD Blocked Recovery 原终点是「请求人工」，无人值守不可达，故新增而非复用。
 - **headless 下的 needs_input**：无人应答，orchestrator 须把任何 `needs_input` 视同 `blocked`（emit `circuit_open`），不得自行假设——任务卡自足性由 §5 前置校验保证。
 
+### 3.6 限流与用量限额处理
+
+过夜无人值守必然撞 Claude 的调用速率与 5 小时用量限额。**撞限额是「等待」而非「无进展」**——若计入 stagnation 会误熔断、掩盖真实卡点。限额与熔断是正交轴：等待不消耗熔断预算，只有真实原地打转才消耗。
+
+外壳按三层探测识别限额信号（层间为兜底关系，精确者优先）：
+
+1. timeout guard —— 单轮 `claude -p` 超 `UNATTENDED_LOOP_ITER_TIMEOUT_SEC` 未返回即视为疑似阻塞。
+2. 结构化 JSON —— `--output-format stream-json` 流中出现 `rate_limit` / usage-limit 事件字段（首选，精确）。
+3. 过滤文本兜底 —— 仅当结构化信号缺失时匹配限额文本，且排除文件内容里「error / limit」字样的误报。
+
+命中限额 → 外壳 **auto-wait**（读事件里的 reset 提示或退避到下一小时窗口）并**不递增 stagnation / same-error / iter 上限**计数，恢复后继续。速率侧以 `UNATTENDED_MAX_CALLS_PER_HOUR` 为软闸，接近上限即主动退避，避免把配额一次性烧空。
+
 ## 4. 规约
 
 ### 4.1 新增框架配置常量
@@ -145,6 +160,9 @@ cataforge event log \
 | UNATTENDED_LOOP_MAX_ITERATIONS | 30 | 单次无人值守外循环对单 sprint 的迭代硬上限（runaway backstop） | unattended-building-loop |
 | UNATTENDED_STAGNATION_THRESHOLD | 3 | 连续 N 轮无进展（git HEAD 未变 且 无新 `agent_return status=completed`）→ 循环级熔断 | unattended-building-loop |
 | UNATTENDED_CARD_REVISION_CEILING | 3 | headless 下同一任务卡累计 `needs_revision` 达 N 次 → 标 `blocked` 跳过；比标准模式（§needs_revision 计数规范「N≥2 请求人工」）多一次重试，headless 无人应答故覆写其语义、不沿用「请求人工」 | orchestrator, unattended-building-loop |
+| UNATTENDED_SAME_ERROR_CEILING | 5 | 连续 N 轮命中同一错误签名（root cause 指纹不变，即便 HEAD 在变）→ 同错熔断（§3.4-3） | orchestrator, unattended-building-loop |
+| UNATTENDED_MAX_CALLS_PER_HOUR | 100 | 每小时 `claude -p` 调用软闸；接近即主动退避，防配额一次烧空（§3.6） | unattended-building-loop |
+| UNATTENDED_LOOP_ITER_TIMEOUT_SEC | 1800 | 单轮无返回的疑似阻塞判据（限额三层探测第一层，§3.6） | unattended-building-loop |
 
 ### 4.2 EVENT-LOG schema 扩展
 
@@ -266,11 +284,18 @@ echo "⏹ 达迭代上限 MAX=${MAX}，${SPRINT} 未完成，停止，等待人�
 | 只动 feature 分支 | 禁止在 `main` 上跑（exit 2）；每轮 commit 到 feature 分支，**绝不自动 merge**。 |
 | 保留 `pre_deploy` | `MANUAL_REVIEW_CHECKPOINTS` 的 `pre_deploy` 必须保留；无人循环只到「sprint building 完成 + PR 待审」，部署 go/no-go 永远人工。 |
 | planning 留白天 | 无人循环禁止改 PRD/ARCH/DEV-PLAN；dev-plan 是 doc-review 冻结的质量锚，不可丢弃式重写。 |
+| 护栏工具级强制 | merge / deploy / 改 PRD·ARCH·DEV-PLAN 的禁令不能只写在 PROMPT——自主 agent 可忽略它读不进心的 prompt 文本。由 **hook / 沙盒 deny 策略**在工具调用前确定性拦截：无人循环下 `git merge`、`git push origin main`、部署命令、planning 文件写入被阻断，PROMPT 文本降为二线提示。 |
+| 自主提交身份 | 无人循环的 commit 用专属 git author（如 `cataforge-unattended <unattended@cataforge.local>`），晨检与事后审计据此区分自主提交与人工提交。 |
 | 晨检交接 | 完成 / 熔断 / 达上限均产出结构化事件 + metrics；人工晨检 review PR、处理 `[ASSUMPTION]` 与 `blocked` 卡。 |
 
 ## 6. 决策记录
 
-1. **为何嫁接 orchestrator 而非引入 Task Master / 自建 Agent SDK 循环**：CataForge 的 dev-plan 已是任务图真相源，引入第二个任务管理器会双源打架；Agent SDK 自建是重复造轮子。缺口只在「外循环 + 熔断 + 完成契约」三样薄外壳，最小改动即可。**重评估条件**：若需并行跑多 sprint / 多任务扇出，再评估 Agent SDK 或 Dynamic Workflows。
+1. **为何自建 headless 外壳而非采用现成循环件**：任务图层——dev-plan 已是任务真相源，引入第二个任务管理器（prd.json 式）会双源打架，故不采用。循环驱动层有三个现成候选，均不契合「headless 沙盒 + 两态完成 + fresh-context」的过夜场景：
+   - **官方 Ralph Wiggum 插件（Stop-hook，会话内）**：`--completion-promise` 精确串匹配**只能表达单条件**，无法区分 `sprint_complete` 与 `circuit_open` 两态；且会话内累积上下文，过夜长跑易 context-rot。
+   - **原生 `/goal` + `/loop` + Routines**：交互 / 云端调度导向，非 headless `claude -p`；其 DOER/CHECKER 分离思想已被本设计以确定性事件契约吸收（§3.3）。可作**有人值守白天**的第二递送面，不覆盖沙盒过夜。
+   - **frankbria/ralph-claude-code（外部 bash）**：形态最接近，其熔断成熟度（限流 / same-error / 5h 限额）已被 §3.4 / §3.6 吸收为参考基线；但其自述式 `EXIT_SIGNAL` 完成判据弱于本设计的门禁锚定事件契约。
+
+   结论：缺口只在「外循环 + 熔断 + 完成契约」三样薄外壳，且须 headless + 两态 + fresh-context，故自建最小外壳、复用 orchestrator 与既有门禁。**重评估条件**：若 `/goal` 开放稳定 headless 接口，或需并行多 sprint 扇出，再评估采用原生件 / Agent SDK / Dynamic Workflows。
 2. **为何完成判据用事件契约而非 LLM 自述**：Ralph 实践证明显式 `completion-promise` 比自由文本自述可靠；外壳须确定性退出，故定义 `sprint_complete` 事件。**备选**（已否决）：解析 orchestrator 末轮文本判完成——不稳定、易误退。
 3. **为何运维 metrics 与语义 EVENT-LOG 分流**：`EVENT_LOG_SCHEMA` 是 `additionalProperties: false` 的语义审计源，掺入 token/耗时会污染其语义并破坏 schema；故 per-loop 运维数据走独立 gitignore 的 `loop-metrics.jsonl`。
 4. **为何限定 development 阶段 building**：planning 信息密度高、需人类判断，且 dev-plan 是质量锚不可丢弃；Ralph 哲学只适配 building/已冻结场景。这与执行模式矩阵的 `agile-prototype`↔`standard` 光谱一致。**重评估条件**：若未来 doc-review 能在 headless 下稳定守门 planning 产出，再评估扩展。
@@ -279,11 +304,11 @@ echo "⏹ 达迭代上限 MAX=${MAX}，${SPRINT} 未完成，停止，等待人�
 
 | 序号 | 主题 | 核心内容 | 依赖 |
 |------|------|---------|------|
-| U-1 | 事件契约 + 常量 | ① `.cataforge/schemas/event-log.schema.json` 的 `event` 枚举追加 `sprint_complete` / `circuit_open`；② **同步**更新 `src/cataforge/core/event_log.py` 的 `VALID_EVENTS`（两处不一致则 `run_local.py` 的 schema↔mirror parity 守卫 FAIL）；③ COMMON-RULES §框架配置常量 加三常量；④ orchestrator 全卡 approved 时 emit `sprint_complete`、卡级熔断时 emit `circuit_open` | 无 |
+| U-1 | 事件契约 + 常量 | ① `.cataforge/schemas/event-log.schema.json` 的 `event` 枚举追加 `sprint_complete` / `circuit_open`；② **同步**更新 `src/cataforge/core/event_log.py` 的 `VALID_EVENTS`（两处不一致则 `run_local.py` 的 schema↔mirror parity 守卫 FAIL）；③ COMMON-RULES §框架配置常量 加 §4.1 全部常量（含 same-error / 限流 / 迭代超时）；④ orchestrator 全卡 approved 时 emit `sprint_complete`、卡级熔断时 emit `circuit_open` | 无 |
 | U-2 | 外循环脚本 | `building-loop.sh` 参考实现 + 前置校验 + 退出码；`.cataforge/state/` gitignore | U-1 |
-| U-3 | 卡级熔断 | TDD Blocked Recovery 增「自动 blocked」分支（替换 headless 下的人工触发）；`UNATTENDED_CARD_REVISION_CEILING` 计数接入 needs_revision 计数规范 | U-1 |
+| U-3 | 熔断与限额 | TDD Blocked Recovery 增「自动 blocked」分支（替换 headless 下的人工触发）；`UNATTENDED_CARD_REVISION_CEILING` 接入 needs_revision 计数；same-error 熔断（`UNATTENDED_SAME_ERROR_CEILING`，§3.4-3）；§3.6 限流 / 5h 用量限额三层探测 + auto-wait（不计入熔断预算） | U-1 |
 | U-4 | 运维 metrics | `loop-metrics.jsonl` 写入器 + schema；可选并入 `cataforge viz` 时间线 | U-2 |
-| U-5 | 文档与守卫 | COMMON-RULES / ORCHESTRATOR-PROTOCOLS 措辞收口；`cataforge doctor` 校验无人循环前置条件；agile-prototype 模式接线 | U-1~U-4 |
+| U-5 | 文档与守卫 | COMMON-RULES / ORCHESTRATOR-PROTOCOLS 措辞收口；`cataforge doctor` 校验无人循环前置条件；merge/deploy/planning 禁令的 hook / 沙盒 deny 强制层（§5）；自主提交 git 身份；agile-prototype 模式接线 | U-1~U-4 |
 
 并行性：U-1 是其余全部的前置；U-2 ⊥ U-3 可并行（均依赖 U-1）；U-4 依赖 U-2；U-5 收尾。
 
@@ -294,3 +319,6 @@ echo "⏹ 达迭代上限 MAX=${MAX}，${SPRINT} 未完成，停止，等待人�
 3. 构造「连续 N 轮无进展」场景：外壳在 `UNATTENDED_STAGNATION_THRESHOLD` 轮后熔断 exit 3。
 4. 全程不触碰 `main`、不 merge、不 deploy、不改 PRD/ARCH/DEV-PLAN；`loop-metrics.jsonl` 每轮一行，字段完整；`EVENT-LOG.jsonl` 通过 `EVENT_LOG_SCHEMA` 校验，且 schema 与 `event_log.py` 镜像通过 `run_local.py` 的 schema↔mirror parity 守卫。
 5. `cataforge doctor` 在缺少上游冻结前置时拒绝启动（exit 2）（净新增能力，依赖 U-5 实现）。
+6. 撞速率 / 5h 用量限额时外壳 auto-wait 并恢复，且该等待不递增 stagnation / same-error / iter 计数（构造限额响应验证，§3.6）。
+7. 构造「HEAD 在变但反复同一错误签名」场景：达 `UNATTENDED_SAME_ERROR_CEILING` 轮后 same-error 熔断 exit 3（§3.4-3）。
+8. PROMPT 被注入 `git push origin main` / 部署 / 改 dev-plan 类指令时，被 hook / 沙盒 deny 层拦截，非仅靠 PROMPT 文本约束（§5）。
