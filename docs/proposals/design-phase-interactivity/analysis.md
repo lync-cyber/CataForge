@@ -1,5 +1,6 @@
 # 设计阶段（PRD / ARCH）交互能力缺口分析与改进方案
 
+> 状态：方案待立项，未实施（待评估）。配套 [`plan.md`](plan.md) 本轮仅出方案与计划、不改本体；不在 CLAUDE.md §项目状态追踪 backlog。本文为分析与设计记录，重启前请对照当前调度链路复核。
 > 范围：orchestrator 调度协议（`ORCHESTRATOR-PROTOCOLS.md` / `ORCHESTRATOR-META-PROTOCOLS.md`）+ Phase 1/2 子代理（product-manager / architect）+ 相关 skill（research / req-analysis / agent-dispatch）+ claude-code 平台 profile。
 > 方法：framework-review Layer 1 全量静态检查（`cataforge skill run framework-review -- all`，结果 PASS / 仅 1 无关 WARN）+ 调度链路逐文件证据核查 + 运行时交互语义核实。
 > 触发问题：① 调度协议用 markdown 是否有更优格式？② PRD / ARCH 阶段以子代理执行，导致 research / req-analysis / AskUserQuestion 的「广泛调研 + 头脑风暴 + 向用户澄清」无法正常工作。

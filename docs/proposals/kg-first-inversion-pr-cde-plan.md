@@ -1,7 +1,7 @@
 # 实施计划：kg-first 反转剩余序列 PR-C / PR-D / PR-E
 
 > **取代说明**：本计划的**配置模型部分**（`context.strategy` × `context.authoring` 双轴）已被 [`context-kg-subsystem-remediation.md`](context-kg-subsystem-remediation.md) 取代为单一 `context.mode` 枚举；命令分层 / `context delete`·`update` 门面 / `kg` 降级改名以该提案为准。本文余下内容为历史实施记录。
-> 状态：实施中。本文是 `kg-first-authoring-inversion.md` §3 剩余子项（P-5 / P-4 / P-6）的落地拆分，由代码与提示词联合审查驱动。
+> 状态：已实施。本文是 `kg-first-authoring-inversion.md` §3 剩余子项（P-5 / P-4 / P-6）的落地拆分；PR-C / PR-D / PR-E 及收尾全链已落地（见下方逐条「已落地」），以代码为准，本文余下为历史实施记录。
 > 映射：**PR-C = P-5**（审查/修订面）→ **PR-D = P-4**（工作流资产反转）→ **PR-E = P-6**（迁移与门禁收尾）。
 > 交付边界：本文给出文件级改动清单、横切架构、验收标准与排序；实现以各 PR 的 git 历史为准。
 >

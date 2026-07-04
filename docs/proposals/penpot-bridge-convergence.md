@@ -1,6 +1,6 @@
 # 提案：Penpot 集成收敛为 penpot-bridge 单能力 + 权威划分重构
 
-> 状态：待实施（多 PR，按依赖序）。
+> 状态：部分实施。核心收敛（penpot-bridge 单能力 + 权威划分重构）已落地，以代码为准；PR-C2 / PR-E 子项延期。本文余下为施工蓝图与验收标准。
 > 范围：`.cataforge/skills/penpot-*`、`.cataforge/skills/context`（ui-spec 模板）、`ui-designer`/`implementer`/`reviewer` 三 AGENT.md、`framework.json` features、`ORCHESTRATOR-PROTOCOLS.md`；PR-C2/PR-E 触及 `src/cataforge/adapter/integrations/penpot` 与 `cataforge.context` backend。
 > 依据：[FRAMEWORK-REVIEW-penpot-ui-flow-20260626-r1](../reviews/framework/FRAMEWORK-REVIEW-penpot-ui-flow-20260626-r1.md)（R-001~R-007）。
 > 交付边界：本文为施工蓝图与验收标准；落地以各 PR 的 git diff 为准。**不含工时估算**，仅依赖序与优先级。
