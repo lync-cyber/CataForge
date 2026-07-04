@@ -49,6 +49,11 @@
 | AGENT_MODEL_DEFAULTS | framework.json#constants 内 per-agent 映射 | 各 agent 缺省 model tier（heavy 集合见 AGENT_MODEL_TIER_HEAVY_WHITELIST） | framework-review |
 | AGENT_MODEL_TIER_HEAVY_WHITELIST | [architect, debugger] | 允许 heavy tier 的 agent 白名单 | framework-review |
 | SKILL_RUNNER_TIMEOUT_DEFAULT_SECS | 300 | skill runner 单次执行缺省超时秒数 | skill runner |
+| UNATTENDED_LOOP_MAX_ITERATIONS | 30 | 单次无人值守外循环对单 sprint 的迭代硬上限（runaway backstop） | unattended-building-loop |
+| UNATTENDED_STAGNATION_THRESHOLD | 3 | 连续 N 轮无进展（git HEAD 未变 且 无新事件）→ 循环级熔断 | unattended-building-loop |
+| UNATTENDED_CARD_REVISION_CEILING | 3 | headless 下同一任务卡累计 `needs_revision` 达 N 次 → 标 `blocked` 跳过；覆写标准模式「N≥2 请求人工」语义（headless 无人应答） | orchestrator, unattended-building-loop |
+| UNATTENDED_SAME_ERROR_CEILING | 5 | 连续 N 轮命中同一错误签名（root cause 指纹不变，即便 HEAD 在变）→ 同错熔断 | unattended-building-loop |
+| UNATTENDED_LOOP_ITER_TIMEOUT_SEC | 1800 | 单轮 `claude -p` 无返回的疑似阻塞判据（超时即视同限额等待，不计入熔断预算） | unattended-building-loop |
 
 ### MANUAL_REVIEW_CHECKPOINTS 可选值
 | 值 | 触发时机 | 说明 |

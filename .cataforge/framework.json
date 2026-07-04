@@ -88,7 +88,12 @@
       "reflector": "standard"
     },
     "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"],
-    "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 300
+    "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 300,
+    "UNATTENDED_LOOP_MAX_ITERATIONS": 30,
+    "UNATTENDED_STAGNATION_THRESHOLD": 3,
+    "UNATTENDED_CARD_REVISION_CEILING": 3,
+    "UNATTENDED_SAME_ERROR_CEILING": 5,
+    "UNATTENDED_LOOP_ITER_TIMEOUT_SEC": 1800
   },
   "dispatcher_skills": ["tdd-engine", "agent-dispatch", "start-orchestrator"],
   "workflow": {

@@ -55,6 +55,8 @@ orchestrator 在关键节点向 `docs/EVENT-LOG.jsonl` 追加事件记录，用�
 | doc_finalize | context finalize 完成 | **[EVENT]** context skill 步骤内嵌 |
 | incident | 崩溃、rolled-back 等异常事件 | **[EVENT]** orchestrator 手动 |
 | correction | On-Correction Learning 触发时 | **[EVENT]** orchestrator 手动 |
+| sprint_complete | headless building：目标 sprint 全部任务卡 code-review approved | **[EVENT]** orchestrator 手动（仅 headless，见 [`unattended-overrides.md`](../../references/unattended-overrides.md)） |
+| circuit_open | 卡级熔断（needs_revision 达 `UNATTENDED_CARD_REVISION_CEILING`）或外壳无进展 / 同错熔断 | **[EVENT]** orchestrator 手动 / `cataforge unattended build` |
 
 **写入方式**:
 - **Hook 自动**: 由 `.cataforge/hooks/` 中的 hook 脚本自动触发，无需 orchestrator 记忆

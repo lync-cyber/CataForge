@@ -168,6 +168,7 @@ def _register_commands() -> None:
         plugin_cmd,
         setup_cmd,
         skill_cmd,
+        unattended_cmd,
         upgrade_cmd,
         viz_cmd,
     )
