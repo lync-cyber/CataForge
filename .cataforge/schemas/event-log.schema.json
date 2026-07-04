@@ -27,7 +27,9 @@
         "incident",
         "state_change",
         "correction",
-        "doc_finalize"
+        "doc_finalize",
+        "sprint_complete",
+        "circuit_open"
       ],
       "description": "事件类型枚举"
     },

@@ -16,6 +16,7 @@ import pytest
 from cataforge.core.event_log import (
     EVENT_LOG_REL,
     MAX_EVENTLOG_BYTES,
+    VALID_EVENTS,
     EventLogError,
     append_batch,
     append_event,
@@ -106,6 +107,28 @@ class TestValidateRecord:
             }
         )
         assert any("surrogate" in e for e in errors)
+
+
+class TestUnattendedBuildingEvents:
+    """sprint_complete / circuit_open — the unattended building-loop event contract."""
+
+    @pytest.mark.parametrize("event", ["sprint_complete", "circuit_open"])
+    def test_event_in_valid_set(self, event: str) -> None:
+        assert event in VALID_EVENTS
+
+    @pytest.mark.parametrize("event", ["sprint_complete", "circuit_open"])
+    def test_record_validates(self, event: str) -> None:
+        errors = validate_record(
+            {
+                "ts": "2026-06-23T02:14:07+08:00",
+                "event": event,
+                "phase": "development",
+                "agent": "orchestrator",
+                "ref": "dev-plan#sprint-2",
+                "detail": "unattended building-loop contract",
+            }
+        )
+        assert errors == []
 
 
 class TestBuildRecord:
