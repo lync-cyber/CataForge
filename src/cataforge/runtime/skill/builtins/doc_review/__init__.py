@@ -10,6 +10,11 @@ from __future__ import annotations
 
 CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
     {
+        "id": "check_export_freshness",
+        "title": "graph 模式: 被审文件为最新一致导出 (无 graph_ahead/conflict/节不一致)",
+        "severity": "fail",
+    },
+    {
         "id": "check_meta",
         "title": "文档头元数据完整 (id / author / status / deps / consumers)",
         "severity": "fail",

@@ -46,12 +46,13 @@ from cataforge.domain.kg.export.types import CompileResult
 from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, parse_doc_text, run_migration
 from cataforge.domain.kg.ingest.entity_extract import extract_entities
 from cataforge.domain.kg.ingest.frontmatter import _PARSE_ERROR_KEY
-from cataforge.domain.kg.ingest.iri import document_iri, id_prefix_to_type, section_iri
+from cataforge.domain.kg.ingest.iri import document_iri, id_prefix_to_type
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
 from cataforge.domain.kg.ingest.writer import _entity_title, write_project
 from cataforge.domain.kg.reconcile import reconcile as _reconcile
+from cataforge.domain.kg.section_sync import CascadeWriter
 from cataforge.domain.kg.validate import validate
 
 if TYPE_CHECKING:
@@ -198,9 +199,6 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-_HEADING_RE = re.compile(r"^(#{2,6})\s+(.*\S)\s*$")
-
-
 def _existing_source_doc(store: ox.Store, cfg: Any, entity_id: str) -> str | None:
     """Return an entity's stored ``cf:source_doc``, or ``None`` when it is new.
 
@@ -217,50 +215,6 @@ def _existing_source_doc(store: ox.Store, cfg: Any, entity_id: str) -> str | Non
     for row in select_rows(store, sparql):
         return _strv(_row_lookup(row, "d"))
     return None
-
-
-def _existing_section_level(store: ox.Store, cfg: Any, doc_id: str, anchor: str) -> int | None:
-    """Read back a Section's stored ``cf:section_level``, or ``None``."""
-    ns = cf_namespace(cfg)
-    iri = section_iri(doc_id, anchor, cfg.base_namespace)
-    sparql = (
-        f"PREFIX cf: <{ns}> "
-        f"SELECT ?level WHERE {{ <{assert_safe_iri(iri)}> cf:section_level ?level }}"
-    )
-    for row in select_rows(store, sparql):
-        level = _strv(_row_lookup(row, "level"))
-        if level is not None:
-            return int(level)
-    return None
-
-
-def _normalize_narrative(
-    narrative: str, anchor: str, *, existing_level: int | None
-) -> tuple[str, int]:
-    """Return ``(narrative_body, level)`` with a leading heading guaranteed.
-
-    The export pipeline concatenates each Section's ``narrative_body``
-    verbatim, so the body must carry its own heading line. If the first
-    non-blank line is a level-2..6 heading, its text must equal ``anchor``
-    (a mismatch produces ghost/missing sections on export) and its depth
-    sets the level. Otherwise a ``{'#' * level} {anchor}`` line is prepended,
-    with ``level`` taken from the existing section (default 2).
-    """
-    lines = narrative.split("\n")
-    first_idx = next((i for i, ln in enumerate(lines) if ln.strip()), None)
-    if first_idx is not None:
-        m = _HEADING_RE.match(lines[first_idx])
-        if m is not None:
-            heading_text = m.group(2).strip()
-            if heading_text != anchor:
-                raise KGValidationError(
-                    f"section heading {heading_text!r} does not match anchor {anchor!r}; "
-                    "a heading/anchor mismatch produces a ghost or missing section on export — "
-                    "make the first heading line read exactly the anchor text."
-                )
-            return narrative, len(m.group(1))
-    level = existing_level if existing_level is not None else 2
-    return f"{'#' * level} {anchor}\n{narrative}", level
 
 
 def _check_entity_class(entity_id: str, class_name: str) -> None:
@@ -394,26 +348,23 @@ def write_narrative(
 ) -> None:
     """Author a Section's prose (``narrative_body``) directly into the graph.
 
-    Requires ``context.mode = graph``. The body is normalized to carry its
-    heading line (see :func:`_normalize_narrative`) so the export pipeline
-    reconstructs the section verbatim, and stored through the transaction
-    face so an updated section keeps its ``cf:position`` document order.
+    Requires ``context.mode = graph``. The write cascades through the
+    enclosing level-2 tile (see :mod:`cataforge.domain.kg.section_sync`) so
+    the whole-document export and every embedded section node stay
+    consistent; an updated section keeps its ``cf:position`` document order.
     """
     _require_graph_mode(project_root, "narrative authoring (`context write-narrative`)")
     cfg = kg_config_for(project_root)
     with KnowledgeGraph.connect(cfg) as kg:
-        level = _existing_section_level(kg.store, cfg, doc_id, anchor)
-        body, resolved_level = _normalize_narrative(narrative, anchor, existing_level=level)
         with kg.transaction() as txn:
-            txn.add_section(
-                doc_id,
-                anchor,
-                body,
-                _sha256(body),
-                level=resolved_level,
-                title=anchor,
+            writer = CascadeWriter(txn)
+            writer.write(
+                doc_id=doc_id,
+                anchor=anchor,
+                narrative=narrative,
                 contained_entity_ids=contained_entity_ids,
             )
+            writer.flush()
         _stamp_absorbed_baseline(kg.store, cfg, project_root, doc_id)
 
 
@@ -453,8 +404,10 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
             kg.store, meta["project_id"], meta["title"], meta["process_model"], cfg
         )
         with kg.transaction() as txn:
+            writer = CascadeWriter(txn)
             for raw in operations:
-                _apply_transact_op(txn, raw, project_iri, written_ids, delete_ids, counts)
+                _apply_transact_op(txn, raw, project_iri, written_ids, delete_ids, counts, writer)
+            writer.flush()
         report = validate(kg.store, cfg)
         offending = _offends(report.violations, written_ids)
         if offending:
@@ -485,6 +438,7 @@ def _apply_transact_op(
     written_ids: set[str],
     delete_ids: list[str],
     counts: dict[str, int],
+    writer: CascadeWriter,
 ) -> None:
     op = raw.get("op")
     if op == "add_entity":
@@ -514,16 +468,10 @@ def _apply_transact_op(
         counts["relations"] += 1
     elif op == "write_narrative":
         _require_keys(raw, ("doc_id", "anchor", "narrative"), "write_narrative")
-        doc_id, anchor = raw["doc_id"], raw["anchor"]
-        level = _existing_section_level(txn._store, txn._config, doc_id, anchor)
-        body, resolved_level = _normalize_narrative(raw["narrative"], anchor, existing_level=level)
-        txn.add_section(
-            doc_id,
-            anchor,
-            body,
-            _sha256(body),
-            level=resolved_level,
-            title=anchor,
+        writer.write(
+            doc_id=raw["doc_id"],
+            anchor=raw["anchor"],
+            narrative=raw["narrative"],
             contained_entity_ids=raw.get("contained_entity_ids"),
         )
         counts["sections"] += 1

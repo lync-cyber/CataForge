@@ -108,6 +108,15 @@ class TransactionContext:
     def pending_deletes(self) -> int:
         return len(self._staged_removes)
 
+    @property
+    def store(self) -> ox.Store:
+        """The underlying store, for read-side planning within the transaction."""
+        return self._store
+
+    @property
+    def config(self) -> KGConfig:
+        return self._config
+
     # ------------------------------------------------------------------
     # High-level entity CRUD
     # ------------------------------------------------------------------
