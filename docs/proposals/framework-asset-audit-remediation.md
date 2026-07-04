@@ -1,6 +1,6 @@
 # 实施计划：框架元资产审计修复（6 批 FRAMEWORK-REVIEW 整合）
 
-> 状态：待实施（多 PR，按依赖序）。P0 决策门已闭（§0），8 项目标值全部锁定。
+> 状态：已实施。P1–P7 全部落地（按依赖序多 PR），P0 决策门（§0）与 8 项目标值均达成。以各 PR git 历史为准，本文余下为历史设计记录。
 > 范围：`.cataforge/{rules,agents,skills}/**`、`src/cataforge/{core,runtime/skill/builtins}/**`、`scripts/checks/**`、`docs/reference/**`、`.claude/**` 镜像、`.cataforge/framework.json` 常量注册。
 > 证据源：`docs/reviews/framework/FRAMEWORK-REVIEW-{foundation,phase-agents,core-skills,meta-skills,support-code,references}-20260627-r1.md`（6 批，每条 finding 锚定 file:line）+ `AUDIT-LEDGER.md`。
 > 交付边界：本文给出架构决策、去重问题清单、P0 决策结论、文件级修复步骤、依赖序与验收标准；实现以各 PR 的 git 历史为准。阶段=依赖层，非时间档，无工时估算。

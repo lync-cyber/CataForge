@@ -1,6 +1,6 @@
 # 提案：移除 context.mode=hybrid —— 收敛为 graph（默认 kg-first）/ markdown（无 KG）两态
 
-> 状态：方向已定（默认 graph + 保留 markdown opt-out；存量 hybrid 自动迁移→graph），待实施。
+> 状态：已实施。context.mode 收敛为 graph（默认 kg-first）/ markdown（无 KG opt-out）两态，hybrid 已从核心分派 / 授权策略 / 写入门 / scaffold / schema / doctor / setup Choice / reconcile 全面移除，存量 hybrid 于 upgrade 自动迁移→graph。以代码为准，本文余下为历史设计记录。
 > 范围：`context.mode` 枚举从三态收敛为两态，删除 `hybrid`；牵涉核心分派 / 授权策略 / 写入门 / scaffold / schema / doctor / upgrade / reconcile + 测试 + 受影响提案。
 > 证据源：下游 #373.1（hybrid 下任务状态无合规落盘）+ #379/#384（finalize 塌卷 / write-doc 关系污染 / amendment 错卷——均在 KG↔markdown 来回操作中爆发）。
 > 关系：**取代** `context-kg-subsystem-remediation.md` 的「hybrid 为建议默认」决策；**重新激活** `kg-first-authoring-inversion.md` 的「图为唯一事实源、markdown 为导出审查视图」愿景。
