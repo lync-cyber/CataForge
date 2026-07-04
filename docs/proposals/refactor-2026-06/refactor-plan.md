@@ -1,5 +1,6 @@
 # CataForge 阶段性重构方案（Python 架构与技术债治理）
 
+> 状态：未实施（待评估）。配套 [`task-breakdown.md`](./task-breakdown.md) 仅 1/18 任务勾选；不在 CLAUDE.md §项目状态追踪 backlog。本文为设计记录，重启前请对照当前代码复核证据。
 > 范围：`src/cataforge/`（266 源文件 / ~40k 行）+ `tests/`（219 文件 / 1860 用例）。
 > 方法：4 路并行证据驱动审计（分层耦合 / 类型契约 / 死代码重复 / 测试现状）+ 工具核查（ruff C901、mypy、AST import 图）。
 > 关联前序工作：`docs/proposals/framework-audit-2026-05/`（26 条，聚焦**框架机制正确性**：死守卫 / SSOT 漂移 / 部署漂移 / 自审盲区）。本方案聚焦**Python 架构与代码质量**维度，与之互补，仅在死代码处交叉引用 R-006。

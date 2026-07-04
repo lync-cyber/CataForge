@@ -1,5 +1,6 @@
 # Proposal: decision 文档（ADR）端到端入图
 
+> 状态：未实施（待评估）。`templates/utility/decision.md` 模板尚未落地；不在 CLAUDE.md §项目状态追踪 backlog。本文为设计记录，重启前请对照当前 KG 摄入链路复核。
 > 来源：下游 Keel 项目 Phase 1 实测反馈（GitHub issue #241 第 2 项）。
 > 现状：KG 本体已有 `ArchitectureDecision` 一等类（`ADR` 前缀注册于 `ENTITY_PREFIX_TO_CLASS`，见 `src/cataforge/domain/kg/ingest/iri.py`），但摄入链路对 decision 文档不可达——业务文档裸引用 `ADR-XXXX` 必然触发 doctor 悬挂引用告警，只能 inline-code 化绕过，丢失图谱溯源价值。
 
