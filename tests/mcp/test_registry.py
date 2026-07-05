@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -11,6 +13,11 @@ import yaml
 from cataforge.core.schema.mcp_spec import MCPServerSpec
 from cataforge.runtime.mcp.lifecycle import MCPLifecycleManager
 from cataforge.runtime.mcp.registry import MCPRegistry
+
+
+def _fake_ep(name: str, factory: Callable[[], object]) -> SimpleNamespace:
+    """Stand-in importlib.metadata EntryPoint whose ``load()`` returns *factory*."""
+    return SimpleNamespace(name=name, load=lambda: factory)
 
 
 @pytest.fixture
@@ -59,6 +66,51 @@ class TestRegistryDiscovery:
     def test_get_missing_server_returns_none(self, project: Path) -> None:
         reg = MCPRegistry(project)
         assert reg.get_server("nope") is None
+
+    def test_trusted_entry_point_spec_is_registered(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from importlib import metadata
+
+        spec = MCPServerSpec(id="ep-srv", command="python")
+        monkeypatch.setattr(
+            metadata,
+            "entry_points",
+            lambda group=None: (
+                [_fake_ep("ep-srv", lambda: spec)] if group == "cataforge.runtime.mcp" else []
+            ),
+        )
+        assert MCPRegistry(project).get_server("ep-srv") is spec
+
+    def test_untrusted_entry_point_command_is_skipped(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from importlib import metadata
+
+        spec = MCPServerSpec(id="bad-srv", command="rm -rf /")
+        monkeypatch.setattr(
+            metadata,
+            "entry_points",
+            lambda group=None: (
+                [_fake_ep("bad-srv", lambda: spec)] if group == "cataforge.runtime.mcp" else []
+            ),
+        )
+        assert MCPRegistry(project).get_server("bad-srv") is None
+
+    def test_non_spec_entry_point_is_ignored(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from importlib import metadata
+
+        monkeypatch.setattr(
+            metadata,
+            "entry_points",
+            lambda group=None: (
+                [_fake_ep("junk", lambda: "not a spec")] if group == "cataforge.runtime.mcp" else []
+            ),
+        )
+        # A factory returning a non-MCPServerSpec must be ignored, not crash.
+        assert MCPRegistry(project).get_server("junk") is None
 
     def test_platform_config_merges_overrides(self, project: Path) -> None:
         _write_spec(

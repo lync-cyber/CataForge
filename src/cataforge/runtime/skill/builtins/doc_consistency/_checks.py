@@ -12,6 +12,22 @@ from cataforge.runtime.skill.builtins.doc_consistency._parse import (
 from cataforge.utils.md_parse import strip_code_blocks
 
 
+def _ids_referencing(content: str, kind: str, f_id: str) -> list[str]:
+    """Sorted IDs of ``kind`` whose own section mentions ``f_id`` (``[]`` if no content)."""
+    if not content:
+        return []
+    sections = _extract_sections(content, kind)
+    return sorted(i for i in _extract_all_ids(content, kind) if f_id in sections.get(i, ""))
+
+
+def _classify_coverage(has_arch: bool, has_devplan: bool, has_uispec: bool) -> str:
+    if has_arch and has_devplan and has_uispec:
+        return "full"
+    if has_arch or has_devplan:
+        return "partial"
+    return "missing"
+
+
 class _CrossDocChecksMixin:
     """Per-relationship cross-doc checks. Mixed into :class:`CrossDocChecker`;
     relies on the host class for ``self.docs`` / ``self._issue`` / state."""
@@ -376,73 +392,26 @@ class _CrossDocChecksMixin:
         """Build the F-NNN traceability matrix across all doc types."""
         if not self._has_content("prd"):
             return []
-        prd_content = self._content["prd"]
         arch_content = strip_code_blocks(self._content.get("arch", ""))
         devplan_content = strip_code_blocks(self._content.get("dev-plan", ""))
         uispec_content = strip_code_blocks(self._content.get("ui-spec", ""))
+        f_sections = _extract_sections(self._content["prd"], "F")
 
-        f_sections = _extract_sections(prd_content, "F")
         matrix: list[dict[str, str]] = []
+        for f_id in sorted(f_sections):
+            arch_modules = _ids_referencing(arch_content, "M", f_id)
+            arch_apis = _ids_referencing(arch_content, "API", f_id)
+            devplan_tasks = _ids_referencing(devplan_content, "T", f_id)
+            uispec_pages = _ids_referencing(uispec_content, "P", f_id)
 
-        for f_id in sorted(f_sections.keys()):
-            section = f_sections[f_id]
-            ac_count = len(re.findall(r"AC-\d+", section))
-
-            arch_modules = (
-                sorted(
-                    m
-                    for m in _extract_all_ids(arch_content, "M")
-                    if f_id in _extract_sections(arch_content, "M").get(m, "")
-                )
-                if arch_content
-                else []
-            )
-
-            arch_apis = (
-                sorted(
-                    a
-                    for a in _extract_all_ids(arch_content, "API")
-                    if f_id in _extract_sections(arch_content, "API").get(a, "")
-                )
-                if arch_content
-                else []
-            )
-
-            devplan_tasks = (
-                sorted(
-                    t
-                    for t in _extract_all_ids(devplan_content, "T")
-                    if f_id in _extract_sections(devplan_content, "T").get(t, "")
-                )
-                if devplan_content
-                else []
-            )
-
-            uispec_pages = (
-                sorted(
-                    p
-                    for p in _extract_all_ids(uispec_content, "P")
-                    if f_id in _extract_sections(uispec_content, "P").get(p, "")
-                )
-                if uispec_content
-                else []
-            )
-
-            has_arch = bool(arch_modules or arch_apis)
-            has_devplan = bool(devplan_tasks)
             has_uispec = bool(uispec_pages) or not self._has_content("ui-spec")
-
-            if has_arch and has_devplan and has_uispec:
-                coverage = "full"
-            elif has_arch or has_devplan:
-                coverage = "partial"
-            else:
-                coverage = "missing"
-
+            coverage = _classify_coverage(
+                bool(arch_modules or arch_apis), bool(devplan_tasks), has_uispec
+            )
             matrix.append(
                 {
                     "feature": f_id,
-                    "ac_count": str(ac_count),
+                    "ac_count": str(len(re.findall(r"AC-\d+", f_sections[f_id]))),
                     "arch_modules": ", ".join(arch_modules) or "—",
                     "arch_apis": ", ".join(arch_apis) or "—",
                     "devplan_tasks": ", ".join(devplan_tasks) or "—",
@@ -450,5 +419,4 @@ class _CrossDocChecksMixin:
                     "coverage": coverage,
                 }
             )
-
         return matrix

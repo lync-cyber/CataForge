@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 
 from cataforge.runtime.plugin.loader import PluginLoader
+
+
+def _fake_ep(name: str, factory: Callable[[], object]) -> SimpleNamespace:
+    """Stand-in importlib.metadata EntryPoint whose ``load()`` returns *factory*."""
+    return SimpleNamespace(name=name, load=lambda: factory)
 
 
 @pytest.fixture
@@ -42,6 +49,38 @@ class TestPluginDiscovery:
         found = PluginLoader(project).discover()
         assert [p.id for p in found] == ["alpha"]
         assert found[0].provides_skills == ["demo"]
+
+    def test_entry_point_manifest_is_discovered(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from importlib import metadata
+
+        from cataforge.runtime.plugin.loader import PluginManifest
+
+        manifest = PluginManifest(id="ep-plugin")
+        monkeypatch.setattr(
+            metadata,
+            "entry_points",
+            lambda group=None: (
+                [_fake_ep("ep-plugin", lambda: manifest)] if group == "cataforge.plugins" else []
+            ),
+        )
+        assert "ep-plugin" in [m.id for m in PluginLoader(project).discover()]
+
+    def test_non_manifest_entry_point_is_ignored(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from importlib import metadata
+
+        monkeypatch.setattr(
+            metadata,
+            "entry_points",
+            lambda group=None: (
+                [_fake_ep("junk", lambda: object())] if group == "cataforge.plugins" else []
+            ),
+        )
+        # A factory returning a non-PluginManifest must be ignored, not crash.
+        assert PluginLoader(project).discover() == []
 
     def test_multiple_plugins_sorted(self, project: Path) -> None:
         _write_manifest(project, "beta")

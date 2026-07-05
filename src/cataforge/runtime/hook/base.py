@@ -26,6 +26,7 @@ from typing import Any
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
+from cataforge.core.platform_env import platform_from_env
 
 logger = logging.getLogger("cataforge.runtime.hook")
 
@@ -51,17 +52,9 @@ def get_platform() -> str:
     2. IDE-specific env var detection
     3. framework.json fallback
     """
-    explicit = os.environ.get("CATAFORGE_PLATFORM")
-    if explicit:
-        return explicit
-
-    if os.environ.get("CURSOR_PROJECT_DIR"):
-        return "cursor"
-    if os.environ.get("CODEX_HOME"):
-        return "codex"
-    if os.environ.get("CLAUDE_PROJECT_DIR"):
-        return "claude-code"
-
+    from_env = platform_from_env()
+    if from_env is not None:
+        return from_env
     return _detect_from_framework_json()
 
 

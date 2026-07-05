@@ -16,6 +16,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
@@ -24,6 +25,9 @@ from cataforge.application.services.upgrade import (
     lift_design_tool_intent,
 )
 from cataforge.interface.cli.main import cli
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 
 @cli.group("upgrade")
@@ -93,6 +97,89 @@ def upgrade_check() -> None:
     )
 
 
+def _apply_dry_run() -> None:
+    """Show what ``upgrade apply`` would change, without writing anything."""
+    from cataforge.core.scaffold import SIDECAR_SUFFIX, classify_scaffold_files
+    from cataforge.core.tallies import classify_tallies
+    from cataforge.interface.cli.helpers import get_config_manager
+
+    cfg = get_config_manager()
+    dest = cfg.paths.cataforge_dir
+    classified = classify_scaffold_files(dest)
+    tallies = classify_tallies(classified)
+
+    click.echo(f"Would refresh scaffold at {dest}")
+    click.echo(f"  Total files: {len(classified)}")
+    parts = [f"{count} {status}" for status, count in sorted(tallies.items())]
+    if parts:
+        click.echo("  Summary: " + ", ".join(parts))
+    click.echo("")
+    for rel, status in sorted(classified):
+        tag = _status_tag(status)
+        click.echo(f"  {tag} {rel}")
+    user_modified = tallies.get("user-modified", 0) + tallies.get("drift", 0)
+    if user_modified:
+        click.echo("")
+        click.secho(
+            f"  NOTE: {user_modified} file(s) marked user-modified/drift "
+            "will be kept; `upgrade apply` writes the framework version "
+            f"alongside as *{SIDECAR_SUFFIX} for you to review and merge.",
+            fg="yellow",
+            err=True,
+        )
+    click.echo("\nUser-owned state preserved: framework.json(runtime.platform, upgrade.state)")
+
+
+def _seed_graph_after_refresh(cfg: ConfigManager) -> None:
+    # A scaffold refresh may have config-flipped a legacy hybrid (or mode-less)
+    # project to context.mode=graph. The Markdown survives but the graph store is
+    # empty, so seed it from docs/ (ingest → finalize) to avoid a first-read
+    # NEVER_EXPORTED drift. Idempotent: a no-op once the graph is populated.
+    from cataforge.application.context.seed import seed_graph_from_docs
+
+    seed = seed_graph_from_docs(str(cfg.paths.root))
+    if seed.action == "seeded":
+        click.echo(f"\n[graph-seed] {seed.detail}")
+    elif seed.action == "blocked":
+        click.secho(f"\n[graph-seed] {seed.detail}", fg="yellow", err=True)
+
+
+def _refresh_docs_index(cfg: ConfigManager) -> None:
+    # An upgraded scaffold would otherwise keep loading an index built against
+    # the previous version's docs; orphans introduced between releases would
+    # only surface at the next manual `docs index` invocation.
+    from cataforge.domain.docs.indexer import INDEX_FILENAME
+
+    docs_dir = cfg.paths.root / "docs"
+    if not (docs_dir / INDEX_FILENAME).is_file():
+        return
+    click.echo(f"\n[docs-index] refreshing docs/{INDEX_FILENAME}")
+    from cataforge.domain.docs.indexer import main as indexer_main
+
+    rc = indexer_main(["--project-root", str(cfg.paths.root)])
+    if rc != 0:
+        click.secho(
+            f"  WARN docs index returned {rc} — fix front matter and rerun `cataforge docs index`.",
+            fg="yellow",
+            err=True,
+        )
+
+
+def _remind_post_upgrade_steps(cfg: ConfigManager) -> None:
+    # Platform-rendered artifacts (.claude/settings.json, ...) come from
+    # `cataforge deploy`, not scaffold refresh. If a deploy has happened at
+    # least once, remind the user to re-run it so the refreshed scaffold lands
+    # in the IDE-facing directory.
+    from cataforge.interface.cli.guidance import print_next_steps
+
+    if cfg.paths.deploy_state.is_file():
+        click.echo(
+            "\nTip: scaffold refreshed — run `cataforge deploy` to propagate "
+            "changes to platform deliverables (e.g. .claude/settings.json)."
+        )
+    print_next_steps("upgrade-applied")
+
+
 @upgrade_group.command("apply")
 @click.option("--dry-run", is_flag=True, help="Show what would change without applying.")
 def upgrade_apply(dry_run: bool) -> None:
@@ -101,42 +188,11 @@ def upgrade_apply(dry_run: bool) -> None:
     Equivalent to ``cataforge setup --force-scaffold`` — the package
     itself must be upgraded separately via pip/uv.
     """
-    from cataforge.core.scaffold import (
-        SIDECAR_SUFFIX,
-        classify_scaffold_files,
-        copy_scaffold_to,
-        format_protected_warning,
-    )
+    from cataforge.core.scaffold import copy_scaffold_to, format_protected_warning
     from cataforge.interface.cli.helpers import get_config_manager
 
     if dry_run:
-        from cataforge.core.tallies import classify_tallies
-
-        cfg = get_config_manager()
-        dest = cfg.paths.cataforge_dir
-        classified = classify_scaffold_files(dest)
-        tallies = classify_tallies(classified)
-
-        click.echo(f"Would refresh scaffold at {dest}")
-        click.echo(f"  Total files: {len(classified)}")
-        parts = [f"{count} {status}" for status, count in sorted(tallies.items())]
-        if parts:
-            click.echo("  Summary: " + ", ".join(parts))
-        click.echo("")
-        for rel, status in sorted(classified):
-            tag = _status_tag(status)
-            click.echo(f"  {tag} {rel}")
-        user_modified = tallies.get("user-modified", 0) + tallies.get("drift", 0)
-        if user_modified:
-            click.echo("")
-            click.secho(
-                f"  NOTE: {user_modified} file(s) marked user-modified/drift "
-                "will be kept; `upgrade apply` writes the framework version "
-                f"alongside as *{SIDECAR_SUFFIX} for you to review and merge.",
-                fg="yellow",
-                err=True,
-            )
-        click.echo("\nUser-owned state preserved: framework.json(runtime.platform, upgrade.state)")
+        _apply_dry_run()
         return
 
     # Direct scaffold refresh — avoids the fragile ctx.invoke(setup_command, ...)
@@ -158,23 +214,12 @@ def upgrade_apply(dry_run: bool) -> None:
     cfg.reload()
     click.echo(f"CataForge v{cfg.version} — scaffold up to date.")
 
-    # A scaffold refresh may have config-flipped a legacy hybrid (or mode-less)
-    # project to context.mode=graph. The Markdown survives but the graph store is
-    # empty, so seed it from docs/ (ingest → finalize) to avoid a first-read
-    # NEVER_EXPORTED drift. Idempotent: a no-op once the graph is populated.
-    from cataforge.application.context.seed import seed_graph_from_docs
-
-    seed = seed_graph_from_docs(str(cfg.paths.root))
-    if seed.action == "seeded":
-        click.echo(f"\n[graph-seed] {seed.detail}")
-    elif seed.action == "blocked":
-        click.secho(f"\n[graph-seed] {seed.detail}", fg="yellow", err=True)
+    _seed_graph_after_refresh(cfg)
 
     # framework.json#project.design_tool is the single source of truth for the
-    # design integration; the instruction file's 设计工具 field is now rendered
-    # from it and force-overwritten on every deploy. Lift a penpot choice that
-    # previously lived only in CLAUDE.md / AGENTS.md so that force-overwrite
-    # doesn't silently disable it.
+    # design integration; the instruction file's 设计工具 field is rendered from
+    # it and force-overwritten on every deploy. Lift a penpot choice that lived
+    # only in CLAUDE.md / AGENTS.md so force-overwrite doesn't silently disable it.
     lifted = lift_design_tool_intent(cfg)
     if lifted:
         click.echo(
@@ -183,41 +228,8 @@ def upgrade_apply(dry_run: bool) -> None:
             "to re-render)."
         )
 
-    # Refresh docs/.doc-index.json when the project has opted into it.
-    # Without this an upgraded scaffold would still load an index built
-    # against the previous version's docs, and orphans introduced
-    # between releases would only surface at next manual `docs index`
-    # invocation.
-    from cataforge.domain.docs.indexer import INDEX_FILENAME
-
-    docs_dir = cfg.paths.root / "docs"
-    if (docs_dir / INDEX_FILENAME).is_file():
-        click.echo(f"\n[docs-index] refreshing docs/{INDEX_FILENAME}")
-        from cataforge.domain.docs.indexer import main as indexer_main
-
-        rc = indexer_main(["--project-root", str(cfg.paths.root)])
-        if rc != 0:
-            click.secho(
-                f"  WARN docs index returned {rc} — fix front matter and "
-                "rerun `cataforge docs index`.",
-                fg="yellow",
-                err=True,
-            )
-
-    # Platform-rendered artifacts (.claude/settings.json, .cursor/hooks.json,
-    # ...) are produced by `cataforge deploy`, not by scaffold refresh. If a
-    # deploy has already happened at least once, remind the user to re-run it
-    # so the refreshed scaffold actually lands in the IDE-facing directory.
-    from cataforge.interface.cli.guidance import print_next_steps
-
-    if cfg.paths.deploy_state.is_file():
-        click.echo(
-            "\nTip: scaffold refreshed — run `cataforge deploy` to propagate "
-            "changes to platform deliverables (e.g. .claude/settings.json)."
-        )
-        print_next_steps("upgrade-applied")
-    else:
-        print_next_steps("upgrade-applied")
+    _refresh_docs_index(cfg)
+    _remind_post_upgrade_steps(cfg)
 
 
 @upgrade_group.command("verify")

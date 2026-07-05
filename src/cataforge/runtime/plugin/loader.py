@@ -20,6 +20,15 @@ from cataforge.core.schema.plugin_manifest import PluginManifest
 logger = logging.getLogger("cataforge.runtime.plugin")
 
 
+def _load_manifest(ep: Any) -> PluginManifest | None:
+    """Load one entry point and return its manifest, or None if it isn't one."""
+    factory = ep.load()
+    if not callable(factory):
+        return None
+    manifest = factory()
+    return manifest if isinstance(manifest, PluginManifest) else None
+
+
 class PluginLoader:
     """Discover plugins from all sources."""
 
@@ -108,17 +117,16 @@ class PluginLoader:
             from importlib.metadata import entry_points
 
             eps = entry_points(group="cataforge.plugins")
-            result: list[PluginManifest] = []
-            for ep in eps:
-                try:
-                    plugin_factory = ep.load()
-                    if callable(plugin_factory):
-                        manifest = plugin_factory()
-                        if isinstance(manifest, PluginManifest):
-                            result.append(manifest)
-                except Exception as e:
-                    logger.warning("Skipping plugin entry_point %s: %s", ep.name, e)
-            return result
         except Exception as e:
             logger.debug("entry_points scan unavailable: %s", e)
             return []
+        result: list[PluginManifest] = []
+        for ep in eps:
+            try:
+                manifest = _load_manifest(ep)
+            except Exception as e:
+                logger.warning("Skipping plugin entry_point %s: %s", ep.name, e)
+                continue
+            if manifest is not None:
+                result.append(manifest)
+        return result

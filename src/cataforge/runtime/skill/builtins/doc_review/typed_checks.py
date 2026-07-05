@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from abc import abstractmethod
 from collections import defaultdict
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
@@ -55,6 +57,52 @@ _AC_OBSERVABLE_RE = re.compile(
     "(" + "|".join(re.escape(v) for v in _AC_OBSERVABLE_VERBS) + ")",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True)
+class _ArchSectionRule:
+    """One ARCH per-section-kind requirement: which volumes it applies to, the
+    ``### {prefix}-NNN`` sections it inspects, when a section counts as missing
+    the requirement, and the failure message built from (missing, total)."""
+
+    volumes: frozenset[str]
+    prefix: str
+    is_missing: Callable[[str], bool]
+    message: Callable[[int, int], str]
+
+
+_ARCH_SECTION_RULES: tuple[_ArchSectionRule, ...] = (
+    _ArchSectionRule(
+        frozenset({"main", "api"}),
+        "API",
+        lambda s: (
+            not re.search(r"type:\s*event-stream", s)
+            and not re.search(r"(?:request|input)\s*[:：]", s)
+            and "参数" not in s
+        ),
+        lambda missing, total: f"{total}个API中{missing}个缺少入参定义 (request/input/参数)",
+    ),
+    _ArchSectionRule(
+        frozenset({"main", "modules"}),
+        "M",
+        lambda s: not re.search(r"F-\d+", s),
+        lambda missing, total: f"{missing}个模块缺少功能映射 (F-NNN引用)",
+    ),
+    _ArchSectionRule(
+        frozenset({"main", "data"}),
+        "E",
+        lambda s: "|" not in s,
+        lambda missing, total: f"{missing}个实体缺少字段定义表",
+    ),
+)
+
+
+def _arch_sections(content: str, prefix: str) -> list[str]:
+    return re.findall(
+        rf"^### {prefix}-\d+.*?(?=^### {prefix}-\d+|^## |\Z)",
+        content,
+        re.MULTILINE | re.DOTALL,
+    )
 
 
 class TypedDocChecksMixin:
@@ -108,53 +156,13 @@ class TypedDocChecksMixin:
     # ---- ARCH ----
 
     def check_arch(self) -> None:
-        if self.volume_type in ("main", "api"):
-            api_sections = re.findall(
-                r"^### API-\d+.*?(?=^### API-\d+|^## |\Z)",
-                self.content,
-                re.MULTILINE | re.DOTALL,
-            )
-            missing_request = sum(
-                1
-                for section in api_sections
-                if not re.search(r"type:\s*event-stream", section)
-                and not re.search(r"(?:request|input)\s*[:：]", section)
-                and "参数" not in section
-            )
-            if missing_request > 0:
-                self.fail(
-                    f"{len(api_sections)}个API中{missing_request}个缺少入参定义 "
-                    "(request/input/参数)"
-                )
-        if self.volume_type in ("main", "modules"):
-            m_sections = re.findall(
-                r"^### M-\d+.*?(?=^### M-\d+|^## |\Z)",
-                self.content,
-                re.MULTILINE | re.DOTALL,
-            )
-            missing_mapping = sum(1 for section in m_sections if not re.search(r"F-\d+", section))
-            if missing_mapping > 0:
-                self.fail(f"{missing_mapping}个模块缺少功能映射 (F-NNN引用)")
-        if self.volume_type in ("main", "data"):
-            e_sections = re.findall(
-                r"^### E-\d+.*?(?=^### E-\d+|^## |\Z)",
-                self.content,
-                re.MULTILINE | re.DOTALL,
-            )
-            missing_fields = sum(1 for section in e_sections if "|" not in section)
-            if missing_fields > 0:
-                self.fail(f"{missing_fields}个实体缺少字段定义表")
-        if self.volume_type == "main":
-            tech_table = re.search(
-                r"技术栈(.*?)(?=^## |\Z)", self.content, re.DOTALL | re.MULTILINE
-            )
-            if tech_table:
-                rows = re.findall(r"^\|(?![-\s])", tech_table.group(1), re.MULTILINE)
-                for row in rows:
-                    if "选型理由" not in row and row.count("|") >= 4:
-                        cells = [c.strip() for c in row.split("|")]
-                        if sum(1 for c in cells if c == "") > 2:
-                            self.warn("技术栈表格可能有空的选型理由")
+        for rule in _ARCH_SECTION_RULES:
+            if self.volume_type not in rule.volumes:
+                continue
+            sections = _arch_sections(self.content, rule.prefix)
+            missing = sum(1 for section in sections if rule.is_missing(section))
+            if missing > 0:
+                self.fail(rule.message(missing, len(sections)))
 
     # ---- DEV-PLAN ----
 

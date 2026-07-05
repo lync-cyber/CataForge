@@ -25,6 +25,8 @@ from __future__ import annotations
 import re
 from collections import OrderedDict
 
+from cataforge.core.markdown_sections import split_h2_sections
+
 _H2_RE = re.compile(r"^##\s+(?P<title>.+?)\s*$", re.MULTILINE)
 
 
@@ -64,21 +66,7 @@ def patched_sections(base: str, patch: str) -> tuple[list[str], list[str]]:
 
 def _split(text: str) -> tuple[str, OrderedDict[str, str]]:
     """Split markdown into ``(preamble, OrderedDict[title, body])`` on H2."""
-    matches = list(_H2_RE.finditer(text))
-    if not matches:
-        return text, OrderedDict()
-
-    preamble = text[: matches[0].start()]
-    sections: OrderedDict[str, str] = OrderedDict()
-    for i, m in enumerate(matches):
-        title = m.group("title").strip()
-        body_start = m.end()
-        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        body = text[body_start:body_end]
-        if body.startswith("\n"):
-            body = body[1:]
-        sections[title] = body
-    return preamble, sections
+    return split_h2_sections(text, _H2_RE)
 
 
 def _serialize(preamble: str, sections: OrderedDict[str, str]) -> str:

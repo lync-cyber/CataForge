@@ -95,6 +95,84 @@ def _platform_status_map(platform_id: str) -> dict[str, str]:
     return {name: status for name, status in adapter.hook_degradation.items()}
 
 
+def _resolve_payload(
+    root: Path, hook_name: str, fixture: Path | None, inline_input: str | None
+) -> tuple[str, str]:
+    """Pick the stdin payload (inline > fixture > default fixture > empty) and
+    validate it as JSON so the user sees a clear error, not a hook crash."""
+    if inline_input is not None:
+        payload = inline_input
+        source_label = "inline --input"
+    elif fixture is not None:
+        payload = fixture.read_text()
+        source_label = str(fixture)
+    else:
+        default_fixture = root / ".cataforge" / "hooks" / "fixtures" / f"{hook_name}.json"
+        if default_fixture.is_file():
+            payload = default_fixture.read_text()
+            source_label = str(default_fixture)
+        else:
+            payload = "{}"
+            source_label = "(empty — provide --fixture or --input for realistic tests)"
+
+    try:
+        json.loads(payload)
+    except json.JSONDecodeError as e:
+        raise ConfigError(f"Payload is not valid JSON: {e}") from None
+    return payload, source_label
+
+
+def _build_proc_invocation(
+    root: Path, hook_name: str, command: str
+) -> tuple[dict[str, object], str]:
+    """Resolve subprocess kwargs + display string for a hook command.
+
+    Built-in ``python ...`` commands run via the current interpreter as an argv
+    list (shell=False) so a space-in-path ``sys.executable`` isn't re-parsed by
+    cmd.exe, and with PYTHONPATH propagated so ``python -m cataforge`` finds the
+    same package. Custom commands stay shell=False + shlex.split unless the hook
+    entry opts into ``unsafe_shell: true``.
+    """
+    unsafe_shell = _hook_has_unsafe_shell(root, hook_name)
+    if command.startswith("python "):
+        argv = [sys.executable, *shlex.split(command[len("python ") :])]
+        proc_kwargs: dict[str, object] = {"args": argv, "shell": False}
+        display = " ".join(shlex.quote(a) for a in argv)
+        proc_kwargs["env"] = _child_env_with_cataforge_importable()
+    elif unsafe_shell:
+        proc_kwargs = {"args": command, "shell": True}
+        display = command
+    else:
+        if _SHELL_META_RE.search(command):
+            raise CataforgeError(
+                f"hook command contains shell metacharacters: {command!r}\n"
+                "Set unsafe_shell: true in the hook entry to allow shell interpretation."
+            )
+        proc_kwargs = {"args": shlex.split(command), "shell": False}
+        display = command
+    return proc_kwargs, display
+
+
+def _report_hook_result(proc: subprocess.CompletedProcess[str], hook_name: str) -> None:
+    """Echo stdout/stderr + exit verdict; mirror a non-zero child exit as a
+    CataforgeError so ``hook test`` can gate shell pipelines."""
+    if proc.stdout:
+        click.echo("stdout:")
+        click.echo(proc.stdout.rstrip())
+    if proc.stderr:
+        click.echo("stderr:")
+        click.echo(proc.stderr.rstrip())
+    click.echo("-" * 40)
+    click.echo(f"Exit code: {proc.returncode}")
+    verdict = _interpret_exit(proc.returncode)
+    click.echo(f"Verdict  : {verdict}")
+    if proc.returncode == 0:
+        return
+    err = CataforgeError(f"hook {hook_name!r} exited with code {proc.returncode} ({verdict}).")
+    err.exit_code = proc.returncode
+    raise err
+
+
 @hook_group.command("test")
 @click.argument("hook_name")
 @click.option(
@@ -125,7 +203,6 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
     """
     root = resolve_root()
 
-    # Resolve the invocation command for hook_name.
     command = _resolve_hook_command(root, hook_name)
     if command is None:
         raise ConfigError(
@@ -133,66 +210,8 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
             "Run `cataforge hook list` to see registered hooks."
         )
 
-    # Pick the stdin payload.
-    payload: str
-    source_label: str
-    if inline_input is not None:
-        payload = inline_input
-        source_label = "inline --input"
-    elif fixture is not None:
-        payload = fixture.read_text()
-        source_label = str(fixture)
-    else:
-        default_fixture = root / ".cataforge" / "hooks" / "fixtures" / f"{hook_name}.json"
-        if default_fixture.is_file():
-            payload = default_fixture.read_text()
-            source_label = str(default_fixture)
-        else:
-            payload = "{}"
-            source_label = "(empty — provide --fixture or --input for realistic tests)"
-
-    # Validate JSON early so the user sees a clear error instead of a hook crash.
-    try:
-        json.loads(payload)
-    except json.JSONDecodeError as e:
-        raise ConfigError(f"Payload is not valid JSON: {e}") from None
-
-    # Use the current interpreter — it already has cataforge importable,
-    # which the system ``python`` on $PATH may not when cataforge is
-    # installed via uv tool.  Built-in hook commands start with "python"
-    # exactly; rewrite that token.
-    #
-    # Windows quirk: ``sys.executable`` often contains spaces
-    # (``C:\Program Files\Python314\python.exe``). We therefore run the
-    # ``python -m ...`` form as an argv *list* with ``shell=False`` so
-    # the space-in-path is not re-parsed by cmd.exe. Custom commands
-    # use ``shell=False`` + shlex.split by default; set ``unsafe_shell: true``
-    # in the hook entry to opt in to shell=True (user accepts responsibility).
-    unsafe_shell = _hook_has_unsafe_shell(root, hook_name)
-    if command.startswith("python "):
-        argv = [sys.executable, *shlex.split(command[len("python ") :])]
-        proc_kwargs: dict[str, object] = {"args": argv, "shell": False}
-        display = " ".join(shlex.quote(a) for a in argv)
-        # When the child is ``python -m cataforge...``, it needs the same
-        # cataforge package our process found. pip/uv-tool installs put it
-        # in site-packages where the child looks by default, but editable
-        # installs, pytest's ``pythonpath`` setting, PEP 660 edge cases,
-        # and ``uv run --with`` all put it on our ``sys.path`` without
-        # exposing it via the subprocess's default search path. Propagate
-        # the package's parent dir through ``PYTHONPATH`` so those setups
-        # don't silently give ``No module named 'cataforge'``.
-        proc_kwargs["env"] = _child_env_with_cataforge_importable()
-    elif unsafe_shell:
-        proc_kwargs = {"args": command, "shell": True}
-        display = command
-    else:
-        if _SHELL_META_RE.search(command):
-            raise CataforgeError(
-                f"hook command contains shell metacharacters: {command!r}\n"
-                "Set unsafe_shell: true in the hook entry to allow shell interpretation."
-            )
-        proc_kwargs = {"args": shlex.split(command), "shell": False}
-        display = command
+    payload, source_label = _resolve_payload(root, hook_name, fixture, inline_input)
+    proc_kwargs, display = _build_proc_invocation(root, hook_name, command)
 
     click.echo(f"Hook    : {hook_name}")
     click.echo(f"Command : {display}")
@@ -209,26 +228,7 @@ def hook_test(hook_name: str, fixture: Path | None, inline_input: str | None) ->
         **proc_kwargs,
     )
 
-    if proc.stdout:
-        click.echo("stdout:")
-        click.echo(proc.stdout.rstrip())
-    if proc.stderr:
-        click.echo("stderr:")
-        click.echo(proc.stderr.rstrip())
-
-    click.echo("-" * 40)
-    click.echo(f"Exit code: {proc.returncode}")
-    verdict = _interpret_exit(proc.returncode)
-    click.echo(f"Verdict  : {verdict}")
-
-    # Mirror the hook's exit code so `hook test` can gate shell pipelines.
-    # A zero child exit is a normal return; any non-zero is surfaced
-    # through CataforgeError so the unified ``Error: …`` banner is kept.
-    if proc.returncode == 0:
-        return
-    err = CataforgeError(f"hook {hook_name!r} exited with code {proc.returncode} ({verdict}).")
-    err.exit_code = proc.returncode
-    raise err
+    _report_hook_result(proc, hook_name)
 
 
 def _child_env_with_cataforge_importable() -> dict[str, str]:
