@@ -116,10 +116,26 @@ class TestNoCrossFileLeak:
         assert [t["id"] for t in tasks] == ["T-040"]
 
 
+class TestNoSprintSuffixVolume:
+    def test_s_suffix_file_needs_heading_to_scope_tasks(self, tmp_path: Path) -> None:
+        """A ``-s{N}.md``-named file is not special: sprint membership comes
+        only from a ``### Sprint N`` heading, never from the filename."""
+        files = _write(
+            tmp_path,
+            {
+                "dev-plan-x-s4.md": (
+                    "## 3. 任务卡详细\n### T-040: a\n- deliverables:\n  - src/a.py\n"
+                ),
+            },
+        )
+        # No `### Sprint 4` heading anywhere → no tasks attributed to sprint 4.
+        assert extract_sprint_tasks(files, 4) == []
+
+
 class TestClassifyEmptyExtraction:
     def test_no_anchor_for_sprint(self, tmp_path: Path) -> None:
-        """Sprint with no ``### Sprint N`` heading and no ``-sN.md`` volume —
-        a layout/anchor miss, not a genuinely empty sprint."""
+        """Sprint with no ``### Sprint N`` heading — a layout/anchor miss,
+        not a genuinely empty sprint."""
         files = _write(
             tmp_path,
             {"dev-plan-x.md": _OVERVIEW_NO_STATUS},  # only Sprint 4 anchored

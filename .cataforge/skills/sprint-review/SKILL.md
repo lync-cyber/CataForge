@@ -92,7 +92,7 @@ Sprint审查额外 category（各维度定义以 §Step 2 为准）: ac-coverage
 
 ## project_features schema
 
-dev-plan 主卷（非 sprint 分卷）frontmatter 可选 `project_features` 块，按项目特征声明 Layer 1 行为开关。所有键默认关闭：
+dev-plan frontmatter 可选 `project_features` 块，按项目特征声明 Layer 1 行为开关。所有键默认关闭：
 
 ```yaml
 ---
@@ -116,7 +116,7 @@ project_features:
 | `deliverables_accept_alternation` | bool | false | true 时 `check_deliverables` 把 `A \| B` 视为或关系（任一存在即过），同时 `check_unplanned_files` 把两候选都标为 planned（避免 gold-plating 误报） |
 | `unplanned_glob_patterns` | list[str] | `[]` | 每条 fnmatch 模式应用于 `check_unplanned_files` 输出；匹配的文件被滤掉。典型用途：项目级测试/fixture/helper 命名约定 |
 
-读取由 `cataforge.runtime.skill.builtins.sprint_review.sprint_check.load_project_features()` 完成；优先读非 sprint 分卷（不带 `-sN.md` 后缀）的第一个含 `project_features:` 的文件。
+读取由 `cataforge.runtime.skill.builtins.sprint_review.sprint_check.load_project_features()` 完成；读第一个含 `project_features:` 的 dev-plan 文件。
 
 ## Anti-Patterns
 

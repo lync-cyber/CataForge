@@ -44,8 +44,8 @@ from cataforge.utils.common import ensure_utf8
 _EMPTY_EXTRACTION_MESSAGES = {
     "no_tasks": "Sprint {sprint} 中未找到任务：dev-plan 未定义任何 T-NNN 任务",
     "no_anchor": (
-        "Sprint {sprint} 中未找到任务：无 `### Sprint {sprint}` 标题或 `-s{sprint}.md` 分卷锚定该 "
-        "Sprint（检查 Sprint 编号是否越界 / 详情卷命名是否为 -s{sprint}.md）"
+        "Sprint {sprint} 中未找到任务：dev-plan 无 `### Sprint {sprint}` 标题锚定该 "
+        "Sprint（检查 Sprint 编号是否越界 / 标题是否为 `### Sprint {sprint}`）"
     ),
     "anchored_empty": (
         "Sprint {sprint} 已锚定但未解析出任务（检查 §1 总览表任务行首列是否为 `| T-NNN | ... |`）"
