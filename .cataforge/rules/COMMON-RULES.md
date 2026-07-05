@@ -27,8 +27,8 @@
 | MANUAL_REVIEW_CHECKPOINTS | [pre_dev, post_sprint, pre_deploy] | 阶段转换时需用户确认才能继续的检查点 | orchestrator |
 | EVENT_LOG_PATH | docs/EVENT-LOG.jsonl | 统一事件日志路径（JSONL） | `cataforge event log`、ORCHESTRATOR-PROTOCOLS |
 | EVENT_LOG_SCHEMA | .cataforge/schemas/event-log.schema.json | 事件日志 Schema | `cataforge event log`（核心校验在 `cataforge.core.event_log`） |
-| DOC_SPLIT_THRESHOLD_LINES | 300 | 单文档触发拆分的行数 | context |
-| META_DOC_SPLIT_THRESHOLD_LINES | 500 | SKILL.md / AGENT.md / 协议文档拆分提示行数（协议天然偏长） | framework-review |
+| DOC_SPLIT_THRESHOLD_LINES | 300 | 单文档超长建议行数（超过则建议精简或拆为多个各自独立的逻辑文档，不拆物理分卷） | context, doc-review |
+| META_DOC_SPLIT_THRESHOLD_LINES | 500 | SKILL.md / AGENT.md / 协议文档超长建议行数（协议天然偏长） | framework-review |
 | DOC_REVIEW_L2_SKIP_THRESHOLD_LINES | 200 | 文档行数低于此值且 Layer 1 通过时可跳过 Layer 2 | doc-review |
 | DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, changelog] | 可短路 Layer 2 的 doc_type 白名单（匹配 frontmatter 基名）；lite 变体短路机制见 context `references/review.md` | doc-review |
 | TDD_LIGHT_LOC_THRESHOLD | 150 | tech-lead 判定 `tdd_mode: standard` 的预估 LOC 上限阈值（LOC ≤ 阈值 → light；> 阈值 → standard） | tech-lead, tdd-engine |
@@ -117,7 +117,7 @@ Agent 间统一格式：
 | `prd#§2.F-003` | PRD 第 2 章 F-003 条目 |
 | `arch#§3.API-001` | 架构第 3 章 API-001 接口 |
 
-规则：`doc_id` = template_id（见 context 映射表）；`section_number` 为纯数字；`item_id` 为条目编号（F/M/API/E/T/C/P-xxx）；分卷文件引用格式不变，context 负责定位到正确分卷。
+规则：`doc_id` = template_id（见 context 映射表）；`section_number` 为纯数字；`item_id` 为条目编号（F/M/API/E/T/C/P-xxx）；一个 doc_type 一个逻辑文档，寻址逻辑 doc_id 即可，context 负责定位到章节。
 
 ## 文档加载纪律
 适用：所有 sub-agent 加载 `docs/` 下指定章节时（architect / tech-lead / qa-engineer / devops / ui-designer 等读 PRD/ARCH/UI-SPEC/DEV-PLAN 的角色，及任何用 doc_id#§N 做输入契约的下游）。

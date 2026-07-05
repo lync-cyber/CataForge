@@ -1,6 +1,6 @@
 # context · generate(生成与写入)
 
-取模板结构、authoring 落图、定稿导出、超长拆分。图后端就绪时图谱是事实源,`docs/` 由 `cataforge context finalize` 导出供人审,不直写后端、不 `Write`/`Edit` `docs/` 文件;doc-only 项目无图后端,authoring 命令会提示直接编辑 `docs/`。
+取模板结构、authoring 落图、定稿导出。图后端就绪时图谱是事实源,`docs/` 由 `cataforge context finalize` 导出供人审,不直写后端、不 `Write`/`Edit` `docs/` 文件;doc-only 项目无图后端,authoring 命令会提示直接编辑 `docs/`。
 
 ## 取模板
 查注册表 `Read .cataforge/skills/context/templates/_registry.yaml`,据 `{template_id}` 取 `path` 读模板,得必填章节([NAV] 块)、实体类型与占位符语义。
@@ -21,7 +21,7 @@
 2. 持久化导出: 调 `cataforge context finalize` 从图导出 `docs/` 人审视图;人改导出文件后经 `cataforge context ingest` 回流——后端由框架按 `context.mode` 路由,Agent 无需分支
 3. 返回导出路径 + 必填章节清单(从 [NAV] 块提取)
 
-## 拆分
-超过 `DOC_SPLIT_THRESHOLD_LINES` 时按 doc_type 拆主卷 + 分卷:主卷保留全局概览与交叉引用目录,分卷文档头含 `volume_type` 与 `split_from`,分卷间按 ID 引用,拆分不改 ID 编号。分卷与主卷同 `docs/{doc_type}/`,导出器按各 source 文件分别重建,各自走定稿导出。
+## 精简
+一个 doc_type 一个逻辑文档(整篇),不拆分为物理分卷。超过 `DOC_SPLIT_THRESHOLD_LINES` 时优先精简内容或拆为多个各自独立 `id` 的逻辑文档,每个逻辑文档各自走定稿导出。
 
-完整模板映射与拆分表见 `.cataforge/skills/context/templates/_registry.yaml` 与 context 模板目录。
+完整模板映射见 `.cataforge/skills/context/templates/_registry.yaml` 与 context 模板目录。
