@@ -9,6 +9,7 @@ from cataforge.runtime.skill.builtins.code_review.checks import (  # noqa: F401
     arch_guard,
     complexity,
     config_keys,
+    duplication,
     external_tools,
     pragma_inventory,
     probes,

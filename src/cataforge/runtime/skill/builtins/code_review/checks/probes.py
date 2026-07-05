@@ -1,11 +1,15 @@
 """Project-level rot probes (scan mode only, informational).
 
 Each probe wraps one external tool per COMMON-RULES §统一问题分类体系
-category (duplication / dead-code / complexity). Probes never gate: a
-missing tool emits WARN and is skipped, a signal becomes an ``info``
-finding for Layer 2 severity aggregation. Signal detection is the
-tool-agnostic heuristic (non-zero exit or non-empty output, per probe);
-per-tool output parsers are a deliberate follow-up.
+category (dead-code / complexity, plus Java duplication via PMD CPD). Probes
+never gate: a missing tool emits WARN and is skipped, a signal becomes an
+``info`` finding for Layer 2 severity aggregation. Signal detection is the
+tool-agnostic heuristic (non-zero exit or non-empty output, per probe).
+
+The multi-language duplication dimension is owned by the ``duplication``
+check (built-in floor + jscpd augmentation), not a probe here — a built-in
+measurement keeps that dimension reliable where a subprocess-launched
+external tool is not.
 """
 
 from __future__ import annotations
@@ -18,10 +22,7 @@ from pathlib import Path
 from cataforge.runtime.skill.builtins.code_review.checks import complexity
 from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
 from cataforge.runtime.skill.builtins.code_review.engine.findings import Finding
-from cataforge.runtime.skill.builtins.code_review.engine.fs import (
-    probe_ignore_globs,
-    resolved,
-)
+from cataforge.runtime.skill.builtins.code_review.engine.fs import resolved
 from cataforge.runtime.skill.builtins.code_review.engine.registry import (
     CheckSpec,
     register_check,
@@ -52,28 +53,8 @@ def _warn_cyclomatic(project_root: Path | None) -> int:
 
 PROBES: tuple[Probe, ...] = (
     Probe(
-        check_id="code_review.probe_jscpd",
-        name="jscpd",
-        title="jscpd 重复代码探针（多语言：JS/TS/Py/Go/C#/Rust/Java/Kotlin/Swift）",
-        category="duplication",
-        extensions=frozenset(
-            {".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".cs", ".rs", ".java", ".kt", ".swift"}
-        ),
-        detect=("npx", "jscpd", "--version"),
-        build_cmd=lambda target, project_root: [
-            "npx",
-            "jscpd",
-            "--silent",
-            "--ignore",
-            probe_ignore_globs(),
-            str(target),
-        ],
-        fail_on_nonzero=False,
-    ),
-    Probe(
         # PMD CPD is the canonical Java duplication detector — better
-        # tokenization than jscpd for Java's verbose syntax, so both
-        # report side-by-side when .java files are present.
+        # tokenization than jscpd for Java's verbose syntax.
         check_id="code_review.probe_pmd_cpd",
         name="pmd-cpd",
         title="PMD CPD 重复代码探针 (.java)",

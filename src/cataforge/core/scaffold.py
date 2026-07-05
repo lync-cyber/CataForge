@@ -153,6 +153,7 @@ _SCAFFOLD_LOCAL_STATE_DIRS: frozenset[str] = frozenset(
         ".backups",
         ".mcp-state",
         "kg",
+        "baselines",
     }
 )
 # Override layers are upgrade-immune, project-local customisation — never part
