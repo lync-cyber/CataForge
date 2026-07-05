@@ -146,9 +146,7 @@ def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dic
         return None, None
 
     doc_type = fm.get("doc_type", "")
-    volume = fm.get("volume", "main")
     status = fm.get("status", "draft")
-    split_from = fm.get("split_from", "")
     deps_raw = fm.get("deps", [])
     if isinstance(deps_raw, str):
         deps_raw = [d.strip() for d in deps_raw.split(",") if d.strip()]
@@ -165,15 +163,12 @@ def build_document_entry(file_path: str, rel_path: str) -> tuple[str | None, dic
     entry: dict[str, Any] = {
         "file_path": rel_path.replace("\\", "/"),
         "doc_type": doc_type,
-        "volume": volume,
         "status": status,
         "total_lines": total_lines,
         "est_tokens": estimate_tokens(content),
         "content_hash": _content_hash(content),
         "sections": sections,
     }
-    if split_from:
-        entry["split_from"] = split_from
     if deps_raw:
         entry["deps"] = deps_raw
     if aliases_clean:

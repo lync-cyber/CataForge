@@ -266,7 +266,7 @@ def extract(
                 # Stale slice: the file changed, but the index already named the
                 # backing file. Re-scan it by heading rather than re-deriving the
                 # path from the doc_type map, which cannot resolve a frontmatter
-                # id (e.g. a split volume's ``prd-keel``).
+                # id that is not itself a doc_type name (e.g. ``prd-keel``).
                 rescanned = _read_splitlines_cached(abs_path, file_cache)
                 found = _find_heading_line_in_lines(rescanned, section_path, item_id)
                 if found is not None:

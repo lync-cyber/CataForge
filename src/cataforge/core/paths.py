@@ -71,7 +71,7 @@ def project_root_from_env(start: Path | None = None) -> Path | None:
 def project_root_from_docs_dir(docs_dir: Path | str) -> Path | None:
     """Resolve the enclosing project root from a docs directory, or ``None``.
 
-    ``docs_dir`` may be the project ``docs/`` root, a split-volume subdir
+    ``docs_dir`` may be the project ``docs/`` root, a doc_type subdir
     (``docs/arch/``), or the project root itself — the nearest ancestor
     containing ``.cataforge/`` is returned. Unlike :func:`find_project_root`
     this yields ``None`` (no cwd fallback) when no ``.cataforge/`` exists in the

@@ -158,11 +158,11 @@ def test_no_stale_warning_for_fresh_index(tmp_path: Path, capsys) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Split-volume / frontmatter-id reads survive git-induced staleness (#301)
+# Frontmatter-id reads survive git-induced staleness
 # ---------------------------------------------------------------------------
 
 
-def _build_split_volume_project(tmp_path: Path) -> Path:
+def _build_frontmatter_id_project(tmp_path: Path) -> Path:
     """Index a doc whose frontmatter id (``prd-keel``) is not a doc_type name."""
     _make_project(tmp_path)
     body = (
@@ -180,14 +180,14 @@ def _build_split_volume_project(tmp_path: Path) -> Path:
     return target
 
 
-def test_split_volume_read_survives_mtime_bump(tmp_path: Path, capsys) -> None:
+def test_frontmatter_id_read_survives_mtime_bump(tmp_path: Path, capsys) -> None:
     """A git checkout/merge bumps the working-tree mtime without changing content.
 
     Staleness must be judged by content_hash, not mtime, so the indexed slice
     stays trusted and the read does not fall back to the doc_type-only resolver
     (which cannot resolve the frontmatter id ``prd-keel``).
     """
-    target = _build_split_volume_project(tmp_path)
+    target = _build_frontmatter_id_project(tmp_path)
     capsys.readouterr()
     loader.clear_index_cache()
     future = datetime.now(UTC) + timedelta(days=1)
@@ -197,11 +197,11 @@ def test_split_volume_read_survives_mtime_bump(tmp_path: Path, capsys) -> None:
     assert "Keel overview narrative text." in content
 
 
-def test_split_volume_read_survives_content_change(tmp_path: Path, capsys) -> None:
+def test_frontmatter_id_read_survives_content_change(tmp_path: Path, capsys) -> None:
     """When the indexed file genuinely changes, a stale read re-scans the
     indexed file path rather than the doc_type resolver (which cannot resolve a
     frontmatter id like ``prd-keel``)."""
-    target = _build_split_volume_project(tmp_path)
+    target = _build_frontmatter_id_project(tmp_path)
     capsys.readouterr()
     loader.clear_index_cache()
     target.write_text(
