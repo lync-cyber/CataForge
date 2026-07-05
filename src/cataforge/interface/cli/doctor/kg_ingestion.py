@@ -27,6 +27,7 @@ _ENTITY_ID_RE: re.Pattern[str] | None = None
 
 _FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
 _INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
+_ANY_ENTITY_ID_RE = re.compile(r"\b([A-Z]+)-\d{3,}\b")
 
 
 def _get_entity_id_re() -> re.Pattern[str]:
@@ -350,6 +351,48 @@ def _report_ingestion_result(
         )
 
 
+def _unregistered_heading_prefixes(project_root: Path, active: set[str]) -> dict[str, list[str]]:
+    """Heading subjects that look like an entity id but whose prefix is neither
+    core nor registered — the ids the ingest silently drops.
+
+    Only headings with *no* recognized subject are considered, so a heading that
+    already defines a known entity (even one that also names an algorithm token
+    like ``SHA-256``) is never misread. Registered prefixes
+    (``kg.custom_entity_prefixes``) resolve as DomainEntity and are excluded.
+    """
+    from cataforge.domain.kg._dispatch import custom_entity_prefixes  # noqa: PLC0415
+    from cataforge.domain.kg.ingest.entity_extract import build_prefix_registry  # noqa: PLC0415
+    from cataforge.domain.kg.ingest.scan import scan_business_docs  # noqa: PLC0415
+
+    registry = build_prefix_registry(custom_entity_prefixes(project_root))
+    found: dict[str, list[str]] = {}
+    for doc in scan_business_docs(project_root, sorted(active)):
+        for span in doc.sections:
+            title = _INLINE_CODE_RE.sub("", span.title)
+            if registry.entity_re.search(title):
+                continue
+            m = _ANY_ENTITY_ID_RE.search(title)
+            if m is not None:
+                found.setdefault(m.group(1), []).append(m.group(0))
+    return found
+
+
+def _report_unregistered_prefixes(unregistered: dict[str, list[str]]) -> None:
+    if not unregistered:
+        return
+    total = sum(len(ids) for ids in unregistered.values())
+    prefixes = ", ".join(sorted(unregistered))
+    click.echo(
+        f"  WARN: {total} heading id(s) with an unregistered prefix ({prefixes}) are "
+        f"dropped by ingest; register the prefix in framework.json "
+        f'`kg.custom_entity_prefixes` (e.g. {{"ORD": "Order"}}) to ingest them as '
+        f"DomainEntity, or wrap the mention in inline code to exempt it."
+    )
+    for prefix, ids in sorted(unregistered.items()):
+        sample = ", ".join(sorted(set(ids))[:3])
+        click.echo(f"    {prefix}: {len(ids)} id(s) (e.g. {sample})")
+
+
 def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     """Doctor gate — returns failure count for missing KG entity IDs."""
     project_root = Path(cfg.paths.root)
@@ -366,6 +409,8 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     if not active:
         click.echo("  (no active doc_types — skipping)")
         return 0
+
+    _report_unregistered_prefixes(_unregistered_heading_prefixes(project_root, active))
 
     all_entities = _fs_extracted_entities(project_root, active)
     collisions = _fs_entity_collisions(all_entities)
