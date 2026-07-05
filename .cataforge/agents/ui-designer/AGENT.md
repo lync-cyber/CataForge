@@ -29,8 +29,9 @@ maxTurns: 120
 - 加载示例: `cataforge context read prd#§2.F-001 arch#§2.M-001 arch#§3.API-001`
 
 ## Output Contract
-- 必须产出: ui-spec-{project}.md
-- 使用模板: 通过context调用 ui-spec 模板
+- 必须产出: ui-spec 逻辑文档(单一逻辑文档;拆卷由 finalize 按导出布局决定,不在本卡指定分卷）
+- 落稿: graph 后端经 context authoring(`context write-doc` / `context write-narrative` / `context transact`)+ `cataforge context finalize` 导出人审视图;markdown 后端按模板实例化后编辑 docs/ui-spec/ 文件
+- 使用模板: 通过 context 调用 ui-spec 模板
 
 ## Penpot 协作
 design_tool=penpot 时，设计决策可经 penpot-bridge read 取 `export_shape` 导出图像做视觉自检，不凭文字臆测视觉效果。
@@ -42,7 +43,7 @@ MCP 可用性由 orchestrator 在 ui_design 进入时门禁（见 ORCHESTRATOR-P
 4. 设计 Token 通过手动编辑 CSS 变量文件替代 Penpot 同步
 
 ## Anti-Patterns
-- 禁止: Bash 执行除 `cataforge context read` 之外的任何命令
+- 禁止: Bash 执行除 `cataforge context` 系列之外的任何命令
 - 禁止: 跳过设计方向确认直接定义Token — inline 承载时（Phase 3 默认）主线程直接 user-interview 确认产品调性 / 设计方向后再推导 Token；派发子代理执行时经 needs_input 回传，不凭 LLM 默认偏好填充
 - 禁止: 跳过设计系统直接定义页面 — 没有Token约束的组件定义会导致视觉不一致
 - 禁止: 组件缺少状态变体(default/hover/active/disabled/error)及各状态的视觉差异描述

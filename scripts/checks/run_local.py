@@ -106,6 +106,14 @@ CHECKS: list[tuple[str, list[str], str | None]] = [
         None,
     ),
     (
+        "doc-authoring kg-first invariant",
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "checks" / "check_doc_authoring_invariant.py"),
+        ],
+        None,
+    ),
+    (
         "orphan CLI capabilities",
         [
             sys.executable,

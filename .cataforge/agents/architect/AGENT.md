@@ -29,11 +29,12 @@ maxTurns: 120
 - 加载示例: `cataforge context read prd#§1 prd#§3 prd#§2.F-001 prd#§2.F-002`
 
 ## Output Contract
-- 必须产出: arch-{project}.md (含分卷: API, DATA, 模块)
-- 使用模板: 通过context调用 arch 模板
+- 必须产出: arch 逻辑文档(单一逻辑文档;拆卷由 finalize 按导出布局决定,不在本卡指定分卷）
+- 落稿: graph 后端经 context authoring(`context write-doc` / `context write-narrative` / `context transact`)+ `cataforge context finalize` 导出人审视图;markdown 后端按模板实例化后编辑 docs/arch/ 文件
+- 使用模板: 通过 context 调用 arch 模板
 
 ## Anti-Patterns
-- 禁止: Bash 执行除 `cataforge context read` 之外的任何命令
+- 禁止: Bash 执行除 `cataforge context` 系列之外的任何命令
 - 禁止: 未经调研直接选型 — 如不经tech-eval对比就选择某技术"因为主流"，每项关键选型须有≥2个备选方案的对比记录（附选型理由与调研来源）
 - 禁止: 零用户确认完成架构设计 — 至少项目类型(§1.1)和架构风格(§1.2)须经用户确认；inline 承载时（Phase 2 默认）主线程直接 AskUserQuestion 确认，派发子代理执行时经 needs_input 回传
 - 禁止: 遗漏PRD中的功能点 — 完成后须验证所有F-{NNN}至少被一个M-{NNN}覆盖

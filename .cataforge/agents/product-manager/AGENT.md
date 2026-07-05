@@ -27,8 +27,9 @@ maxTurns: 120
 - 可选参考: 已有项目文档 (通过context按需加载)
 
 ## Output Contract
-- 必须产出: prd-{project}.md
-- 使用模板: 通过context调用 prd 模板
+- 必须产出: prd 逻辑文档(单一逻辑文档;拆卷由 finalize 按导出布局决定,不在本卡指定分卷）
+- 落稿: graph 后端经 context authoring(`context write-doc` / `context write-narrative` / `context transact`)+ `cataforge context finalize` 导出人审视图;markdown 后端按模板实例化后编辑 docs/prd/ 文件
+- 使用模板: 通过 context 调用 prd 模板
 
 ## Anti-Patterns
 - 禁止: 跳过需求澄清直接编写PRD — inline 承载时（Phase 1 默认）主线程直接做多轮 user-interview 确认核心需求方向后再结构化编写；派发子代理执行时不得幻觉访谈，残余缺口经 needs_input 回传由 orchestrator 代问

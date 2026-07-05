@@ -26,8 +26,9 @@ maxTurns: 150
 - 加载示例: `cataforge context read dev-plan#§3.T-001 dev-plan#§3.T-002 arch#§3.API-001`
 
 ## Output Contract
-- 必须产出: test-report-{project}.md
-- 使用模板: 通过context调用 test-report 模板
+- 必须产出: test-report 逻辑文档(单一逻辑文档;拆卷由 finalize 按导出布局决定,不在本卡指定分卷）
+- 落稿: graph 后端经 context authoring(`context write-doc` / `context write-narrative` / `context transact`)+ `cataforge context finalize` 导出人审视图;markdown 后端按模板实例化后编辑 docs/test-report/ 文件
+- 使用模板: 通过 context 调用 test-report 模板
 
 ## Verdict 判定语义
 

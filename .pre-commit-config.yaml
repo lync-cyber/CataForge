@@ -164,6 +164,18 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.cataforge/(agents|skills|rules)/.*\.md$
+      - id: doc-authoring-invariant
+        name: doc-producing agent cards route through kg-first finalize
+        description: |
+          A role card that instantiates a doc template must author it through
+          the `cataforge context` facade and export the review Markdown with
+          `cataforge context finalize` — the graph is the source of truth. A
+          card whose Output Contract only says "produce docs/<doc>.md" has
+          regressed to Markdown-first authoring; the guard fails on it.
+        entry: python scripts/checks/check_doc_authoring_invariant.py
+        language: system
+        pass_filenames: false
+        files: ^\.cataforge/agents/.*/AGENT\.md$
       - id: orphan-cli-capabilities
         name: every CLI capability has an invocation surface
         description: |
