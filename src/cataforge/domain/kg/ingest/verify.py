@@ -49,8 +49,8 @@ def _source_doc_filter(source_docs: set[str]) -> str:
 
 def _count_typed_subjects(store: ox.Store, namespace: str, source_docs: set[str]) -> int:
     # Business entities only — they carry a `cf:entity_id`. Project and the
-    # structural container nodes (Document / Volume / Section) are identified
-    # by their `id` IRI and are excluded by requiring the entity_id literal.
+    # structural container nodes (Document / Section) are identified by their
+    # `id` IRI and are excluded by requiring the entity_id literal.
     # Scoped to the docs covered by this run: entities written outside the
     # import pipeline (`kg add` synthetics with their own source_doc) are not
     # this verification's business.
