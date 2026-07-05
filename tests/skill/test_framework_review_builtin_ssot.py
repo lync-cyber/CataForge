@@ -101,3 +101,57 @@ def test_b4_flags_text_matching_the_live_value(tmp_path: Path) -> None:
         if f.check_id == "B4_hardcoded_constants" and "MAX_QUESTIONS_PER_BATCH" in f.message
     ]
     assert not hits3, "≤4 问 must not match when the constant is 3"
+
+
+def _project_with_body(tmp_path: Path, body: str, max_questions: int = 4) -> Path:
+    cf = tmp_path / ".cataforge"
+    (cf / "skills" / "demo").mkdir(parents=True)
+    (cf / "framework.json").write_text(
+        json.dumps(
+            {
+                "version": "0.1.0",
+                "runtime_api_version": "1.0",
+                "constants": {"MAX_QUESTIONS_PER_BATCH": max_questions},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (cf / "skills" / "demo" / "SKILL.md").write_text(
+        "---\nname: demo\n---\n" + body, encoding="utf-8"
+    )
+    return tmp_path
+
+
+def _b4_max_questions_hits(root: Path) -> list[str]:
+    report = Report()
+    check_b4_hardcoded_constants(root, report)
+    return [
+        f.message
+        for f in report.findings
+        if f.check_id == "B4_hardcoded_constants" and "MAX_QUESTIONS_PER_BATCH" in f.message
+    ]
+
+
+def test_b4_flags_bare_literal_in_prose(tmp_path: Path) -> None:
+    root = _project_with_body(tmp_path, "# demo\n\n每批问题 ≤4 问。\n")
+    assert _b4_max_questions_hits(root)
+
+
+def test_b4_skips_literal_inside_code_fence(tmp_path: Path) -> None:
+    root = _project_with_body(tmp_path, "# demo\n\n```\n每批问题 ≤4 问。\n```\n")
+    assert not _b4_max_questions_hits(root)
+
+
+def test_b4_skips_literal_in_inline_code(tmp_path: Path) -> None:
+    root = _project_with_body(tmp_path, "# demo\n\n描述规则：`≤4 问` 是示例。\n")
+    assert not _b4_max_questions_hits(root)
+
+
+def test_b4_skips_literal_in_table_row(tmp_path: Path) -> None:
+    root = _project_with_body(tmp_path, "# demo\n\n| 项 | 值 |\n| 每批问题 | ≤4 问 |\n")
+    assert not _b4_max_questions_hits(root)
+
+
+def test_b4_skips_line_that_names_the_constant(tmp_path: Path) -> None:
+    root = _project_with_body(tmp_path, "# demo\n\nMAX_QUESTIONS_PER_BATCH ≤4 问。\n")
+    assert not _b4_max_questions_hits(root)

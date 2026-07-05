@@ -52,27 +52,34 @@ class MCPRegistry:
             from importlib.metadata import entry_points
 
             eps = entry_points(group="cataforge.runtime.mcp")
-            for ep in eps:
-                try:
-                    factory = ep.load()
-                    if callable(factory):
-                        spec = factory()
-                        if isinstance(spec, MCPServerSpec):
-                            if not self._is_trusted_command(spec):
-                                logger.warning(
-                                    "Skipping MCP entry_point %s: untrusted command %r"
-                                    " — first element must be in %s or a relative path",
-                                    ep.name,
-                                    spec.command,
-                                    sorted(TRUSTED_COMMAND_PREFIXES),
-                                )
-                                continue
-                            self._servers.setdefault(spec.id, spec)
-                            self._states.setdefault(spec.id, MCPServerState(spec_id=spec.id))
-                except Exception as e:
-                    logger.warning("Skipping MCP entry_point %s: %s", ep.name, e)
         except Exception as e:
             logger.debug("entry_points scan unavailable: %s", e)
+            return
+        for ep in eps:
+            try:
+                self._register_entry_point(ep)
+            except Exception as e:
+                logger.warning("Skipping MCP entry_point %s: %s", ep.name, e)
+
+    def _register_entry_point(self, ep: Any) -> None:
+        """Load, validate, trust-gate, and register a single MCP entry point."""
+        factory = ep.load()
+        if not callable(factory):
+            return
+        spec = factory()
+        if not isinstance(spec, MCPServerSpec):
+            return
+        if not self._is_trusted_command(spec):
+            logger.warning(
+                "Skipping MCP entry_point %s: untrusted command %r"
+                " — first element must be in %s or a relative path",
+                ep.name,
+                spec.command,
+                sorted(TRUSTED_COMMAND_PREFIXES),
+            )
+            return
+        self._servers.setdefault(spec.id, spec)
+        self._states.setdefault(spec.id, MCPServerState(spec_id=spec.id))
 
     def _scan_plugins(self) -> None:
         """Register MCP servers contributed by plugins (``provides.mcp_servers``).

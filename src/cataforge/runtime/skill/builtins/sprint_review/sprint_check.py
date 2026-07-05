@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from typing import Any
 
 from cataforge.runtime.skill.builtins._shared import Issue
 from cataforge.runtime.skill.builtins.sprint_review._checks import (
@@ -33,6 +34,7 @@ from cataforge.runtime.skill.builtins.sprint_review._extract import (
 from cataforge.runtime.skill.builtins.sprint_review._render import render_json, render_text
 from cataforge.runtime.skill.builtins.sprint_review.ignore import (
     DEFAULT_UNPLANNED_GLOB_PATTERNS,
+    IgnoreSpec,
     build_ignore_spec,
 )
 from cataforge.utils.common import ensure_utf8
@@ -70,8 +72,7 @@ __all__ = [
 ]
 
 
-def main() -> None:
-    ensure_utf8()
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Sprint completion structural check")
     parser.add_argument("sprint_number", type=int, help="Sprint number to check")
     parser.add_argument("--dev-plan", default="docs/dev-plan/", help="Dev plan directory")
@@ -128,66 +129,40 @@ def main() -> None:
         default="text",
         help="Output format. JSON is structured for CI / framework-review.",
     )
-    args = parser.parse_args()
+    return parser
 
-    src_dirs = args.src_dir if args.src_dir else ["src/"]
 
-    ignore_spec = build_ignore_spec(
-        use_defaults=not args.no_default_ignores,
-        extra_patterns=args.ignore,
-        extra_files=args.ignore_file,
-    )
-
-    sprint_num = args.sprint_number
-    dev_plan_files = find_dev_plan_files(args.dev_plan)
-    if not dev_plan_files:
-        if args.format == "json":
-            print(
-                json.dumps(
-                    {
-                        "sprint": sprint_num,
-                        "summary": {"blocking": 1, "advisory": 0, "total": 1},
-                        "issues": [
-                            {
-                                "severity": "CRITICAL",
-                                "category": "dev_plan_missing",
-                                "message": f"未找到dev-plan文件: {args.dev_plan}",
-                            }
-                        ],
-                    },
-                    ensure_ascii=False,
-                )
+def _emit_blocking(
+    sprint_num: int, category: str, message: str, fmt: str, reason: str | None = None
+) -> None:
+    """Print a single-issue blocking result — the shape shared by both early exits."""
+    if fmt == "json":
+        issue: dict[str, str] = {"severity": "CRITICAL", "category": category}
+        if reason is not None:
+            issue["reason"] = reason
+        issue["message"] = message
+        print(
+            json.dumps(
+                {
+                    "sprint": sprint_num,
+                    "summary": {"blocking": 1, "advisory": 0, "total": 1},
+                    "issues": [issue],
+                },
+                ensure_ascii=False,
             )
-        else:
-            print(f"[CRITICAL] 未找到dev-plan文件: {args.dev_plan}")
-        sys.exit(1)
+        )
+    else:
+        print(f"[CRITICAL] {message}")
 
-    tasks = extract_sprint_tasks(dev_plan_files, sprint_num)
-    if not tasks:
-        reason = classify_empty_extraction(dev_plan_files, sprint_num)
-        message = _EMPTY_EXTRACTION_MESSAGES[reason].format(sprint=sprint_num)
-        if args.format == "json":
-            print(
-                json.dumps(
-                    {
-                        "sprint": sprint_num,
-                        "summary": {"blocking": 1, "advisory": 0, "total": 1},
-                        "issues": [
-                            {
-                                "severity": "CRITICAL",
-                                "category": "sprint_tasks_missing",
-                                "reason": reason,
-                                "message": message,
-                            }
-                        ],
-                    },
-                    ensure_ascii=False,
-                )
-            )
-        else:
-            print(f"[CRITICAL] {message}")
-        sys.exit(1)
 
+def _build_sections(
+    dev_plan_files: list[str],
+    tasks: list[dict[str, Any]],
+    args: argparse.Namespace,
+    src_dirs: list[str],
+    ignore_spec: IgnoreSpec,
+) -> list[tuple[str, list[Issue], str]]:
+    """Run every Sprint check and label its result for rendering."""
     features = load_project_features(dev_plan_files)
     accept_alternation = bool(features.get("deliverables_accept_alternation", True))
     merged_review = bool(features.get("merged_review"))
@@ -198,7 +173,7 @@ def main() -> None:
     if not args.no_default_ignores:
         glob_whitelist = list(DEFAULT_UNPLANNED_GLOB_PATTERNS) + glob_whitelist
 
-    sections: list[tuple[str, list[Issue], str]] = [
+    return [
         (
             "任务状态检查",
             check_task_status(tasks, external_tracking=task_status_external),
@@ -242,16 +217,39 @@ def main() -> None:
         ),
     ]
 
+
+def main() -> None:
+    ensure_utf8()
+    args = _build_parser().parse_args()
+
+    src_dirs = args.src_dir if args.src_dir else ["src/"]
+    ignore_spec = build_ignore_spec(
+        use_defaults=not args.no_default_ignores,
+        extra_patterns=args.ignore,
+        extra_files=args.ignore_file,
+    )
+    sprint_num = args.sprint_number
+
+    dev_plan_files = find_dev_plan_files(args.dev_plan)
+    if not dev_plan_files:
+        _emit_blocking(
+            sprint_num, "dev_plan_missing", f"未找到dev-plan文件: {args.dev_plan}", args.format
+        )
+        sys.exit(1)
+
+    tasks = extract_sprint_tasks(dev_plan_files, sprint_num)
+    if not tasks:
+        reason = classify_empty_extraction(dev_plan_files, sprint_num)
+        message = _EMPTY_EXTRACTION_MESSAGES[reason].format(sprint=sprint_num)
+        _emit_blocking(sprint_num, "sprint_tasks_missing", message, args.format, reason=reason)
+        sys.exit(1)
+
+    sections = _build_sections(dev_plan_files, tasks, args, src_dirs, ignore_spec)
+
     if args.format == "json":
         has_fail = render_json(sprint_num, tasks, sections, args.unplanned_log)
     else:
-        has_fail = render_text(
-            sprint_num,
-            tasks,
-            sections,
-            args.warn_cap,
-            args.unplanned_log,
-        )
+        has_fail = render_text(sprint_num, tasks, sections, args.warn_cap, args.unplanned_log)
 
     sys.exit(1 if has_fail else 0)
 

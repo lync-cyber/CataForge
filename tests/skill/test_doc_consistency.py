@@ -393,6 +393,103 @@ def test_traceability_matrix_coverage(docs_dir: Path) -> None:
     assert f002["coverage"] == "missing"
 
 
+def test_traceability_matrix_full_and_field_joins(docs_dir: Path) -> None:
+    _write(
+        docs_dir / "prd" / "prd-test.md",
+        """\
+        ---
+        id: prd-test
+        author: pm
+        status: approved
+        deps: []
+        consumers: [architect]
+        ---
+        ## 2. Features
+        ### F-001: Login
+        AC-001: email login
+        AC-002: phone login
+        ### F-002: Export
+        AC-003: csv export
+        """,
+    )
+    _write(
+        docs_dir / "arch" / "arch-test.md",
+        """\
+        ---
+        id: arch-test
+        author: architect
+        status: approved
+        deps: [prd-test]
+        consumers: [tech-lead]
+        ---
+        ## 2. Modules
+        ### M-001: Auth
+        Implements F-001
+        ### M-002: Exporter
+        Handles F-002
+        ### M-003: Reporter
+        Also F-002
+        ## 3. APIs
+        ### API-001: LoginAPI
+        Serves F-001
+        """,
+    )
+    _write(
+        docs_dir / "dev-plan" / "dev-plan-test.md",
+        """\
+        ---
+        id: dev-plan-test
+        author: tech-lead
+        status: approved
+        deps: [arch-test]
+        consumers: [implementer]
+        ---
+        ## 3. Tasks
+        ### T-001: Login
+        Delivers F-001
+        """,
+    )
+    _write(
+        docs_dir / "ui-spec" / "ui-spec-test.md",
+        """\
+        ---
+        id: ui-spec-test
+        author: ui-designer
+        status: approved
+        deps: [prd-test]
+        consumers: [tech-lead]
+        ---
+        ## 3. Pages
+        ### P-001: LoginPage
+        Renders F-001
+        """,
+    )
+    checker = CrossDocChecker(str(docs_dir), quiet=True)
+    matrix = checker.build_traceability_matrix()
+    f001 = next(r for r in matrix if r["feature"] == "F-001")
+    f002 = next(r for r in matrix if r["feature"] == "F-002")
+
+    assert f001 == {
+        "feature": "F-001",
+        "ac_count": "2",
+        "arch_modules": "M-001",
+        "arch_apis": "API-001",
+        "devplan_tasks": "T-001",
+        "uispec_pages": "P-001",
+        "coverage": "full",
+    }
+    # multi-id join, "—" placeholders, and the partial path (arch-only)
+    assert f002 == {
+        "feature": "F-002",
+        "ac_count": "1",
+        "arch_modules": "M-002, M-003",
+        "arch_apis": "—",
+        "devplan_tasks": "—",
+        "uispec_pages": "—",
+        "coverage": "partial",
+    }
+
+
 # ---- Run orchestration ----
 
 

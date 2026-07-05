@@ -105,22 +105,20 @@ _DEPRECATED_REFS: tuple[dict[str, str], ...] = (
 )
 
 
-def _scan_for_script_refs(
-    scan_roots: Iterable[Path],
-    skip_subtrees: Iterable[Path],
-    root: Path,
-    pattern: re.Pattern[str],
-) -> dict[str, list[str]]:
-    """Collect ``{script_rel: [caller:lineno, ...]}`` from prose files."""
-    refs: dict[str, list[str]] = {}
+def _iter_prose_files(
+    scan_roots: Iterable[Path], skip_subtrees: Iterable[Path], root: Path
+) -> Iterator[tuple[str, str]]:
+    """Yield ``(display_path, text)`` for each ``.md``/``.yaml``/``.yml`` prose
+    file under ``scan_roots``, skipping ``skip_subtrees`` and unreadable files."""
     suffixes = {".md", ".yaml", ".yml"}
+    skip = tuple(skip_subtrees)
     for base in scan_roots:
         if not base.is_dir():
             continue
         for path in base.rglob("*"):
             if not path.is_file() or path.suffix.lower() not in suffixes:
                 continue
-            if any(is_relative_to(path, sub) for sub in skip_subtrees):
+            if any(is_relative_to(path, sub) for sub in skip):
                 continue
             try:
                 text = path.read_text()
@@ -130,13 +128,35 @@ def _scan_for_script_refs(
                 display = path.relative_to(root).as_posix()
             except ValueError:
                 display = str(path)
-            for lineno, line in enumerate(text.splitlines(), start=1):
-                for match in pattern.finditer(line):
-                    rel = match.group(1)
-                    if "*" in rel or "..." in rel:
-                        continue
-                    refs.setdefault(rel, []).append(f"{display}:{lineno}")
+            yield display, text
+
+
+def _scan_for_script_refs(
+    scan_roots: Iterable[Path],
+    skip_subtrees: Iterable[Path],
+    root: Path,
+    pattern: re.Pattern[str],
+) -> dict[str, list[str]]:
+    """Collect ``{script_rel: [caller:lineno, ...]}`` from prose files."""
+    refs: dict[str, list[str]] = {}
+    for display, text in _iter_prose_files(scan_roots, skip_subtrees, root):
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            for match in pattern.finditer(line):
+                rel = match.group(1)
+                if "*" in rel or "..." in rel:
+                    continue
+                refs.setdefault(rel, []).append(f"{display}:{lineno}")
     return refs
+
+
+def _echo_callers(callers: list[str], limit: int = 5) -> None:
+    """Echo up to ``limit`` caller sites, folding the rest into a count."""
+    shown = callers[:limit]
+    for caller in shown:
+        click.echo(f"    - {caller}")
+    extra = len(callers) - len(shown)
+    if extra > 0:
+        click.echo(f"    - ... and {extra} more call site(s)")
 
 
 def check_protocol_script_references(cfg: ConfigManager) -> int:
@@ -177,14 +197,37 @@ def check_protocol_script_references(cfg: ConfigManager) -> int:
 
     for rel, callers in missing:
         click.echo(f"  FAIL {rel} (referenced by):")
-        shown = callers[:5]
-        for caller in shown:
-            click.echo(f"    - {caller}")
-        extra = len(callers) - len(shown)
-        if extra > 0:
-            click.echo(f"    - ... and {extra} more call site(s)")
+        _echo_callers(callers)
 
     return len(missing)
+
+
+def _collect_deprecated_findings(
+    scan_roots: Iterable[Path],
+    skip_subtrees: Iterable[Path],
+    root: Path,
+    patterns: list[tuple[dict[str, str], re.Pattern[str]]],
+) -> dict[str, list[str]]:
+    """Collect ``{deprecated_name: [caller:lineno, ...]}`` from prose files."""
+    findings: dict[str, list[str]] = {}
+    for display, text in _iter_prose_files(scan_roots, skip_subtrees, root):
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            for entry, pat in patterns:
+                if pat.search(line):
+                    findings.setdefault(entry["name"], []).append(f"{display}:{lineno}")
+    return findings
+
+
+def _report_deprecated_findings(findings: dict[str, list[str]]) -> None:
+    click.echo(
+        f"  {len(findings)} deprecated reference(s) found "
+        f"({len(_DEPRECATED_REFS)} patterns scanned)"
+    )
+    by_name = {entry["name"]: entry for entry in _DEPRECATED_REFS}
+    for name in sorted(findings):
+        entry = by_name[name]
+        click.echo(f"  FAIL {name} → use {entry['replacement']} (deprecated {entry['since']})")
+        _echo_callers(sorted(set(findings[name])))
 
 
 def check_deprecated_references(cfg: ConfigManager) -> int:
@@ -212,51 +255,12 @@ def check_deprecated_references(cfg: ConfigManager) -> int:
     )
 
     patterns = [(entry, re.compile(entry["pattern"])) for entry in _DEPRECATED_REFS]
-
-    suffixes = {".md", ".yaml", ".yml"}
-    findings: dict[str, list[str]] = {}
-
-    for base in scan_roots:
-        if not base.is_dir():
-            continue
-        for path in base.rglob("*"):
-            if not path.is_file() or path.suffix.lower() not in suffixes:
-                continue
-            if any(is_relative_to(path, sub) for sub in skip_subtrees):
-                continue
-            try:
-                text = path.read_text()
-            except OSError:
-                continue
-            for lineno, line in enumerate(text.splitlines(), start=1):
-                for entry, pat in patterns:
-                    if pat.search(line):
-                        try:
-                            display = path.relative_to(root).as_posix()
-                        except ValueError:
-                            display = str(path)
-                        findings.setdefault(entry["name"], []).append(f"{display}:{lineno}")
+    findings = _collect_deprecated_findings(scan_roots, skip_subtrees, root, patterns)
 
     if not findings:
         click.echo(f"  0 deprecated references found ({len(_DEPRECATED_REFS)} patterns scanned)")
         return 0
-
-    click.echo(
-        f"  {len(findings)} deprecated reference(s) found "
-        f"({len(_DEPRECATED_REFS)} patterns scanned)"
-    )
-    by_name = {entry["name"]: entry for entry in _DEPRECATED_REFS}
-    for name in sorted(findings):
-        entry = by_name[name]
-        callers = sorted(set(findings[name]))
-        click.echo(f"  FAIL {name} → use {entry['replacement']} (deprecated {entry['since']})")
-        shown = callers[:5]
-        for caller in shown:
-            click.echo(f"    - {caller}")
-        extra = len(callers) - len(shown)
-        if extra > 0:
-            click.echo(f"    - ... and {extra} more call site(s)")
-
+    _report_deprecated_findings(findings)
     return len(findings)
 
 

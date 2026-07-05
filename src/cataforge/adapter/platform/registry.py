@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import threading
 from pathlib import Path
@@ -13,6 +12,7 @@ from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.profile_schema import PlatformProfile
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
+from cataforge.core.platform_env import platform_from_env
 
 logger = logging.getLogger("cataforge.adapter.platform")
 
@@ -34,16 +34,9 @@ def detect_platform(framework_json_path: Path | None = None) -> str:
     3. framework.json runtime.platform
     4. Default: claude-code
     """
-    explicit = os.environ.get("CATAFORGE_PLATFORM")
-    if explicit:
-        return explicit
-
-    if os.environ.get("CURSOR_PROJECT_DIR"):
-        return "cursor"
-    if os.environ.get("CODEX_HOME"):
-        return "codex"
-    if os.environ.get("CLAUDE_PROJECT_DIR"):
-        return "claude-code"
+    from_env = platform_from_env()
+    if from_env is not None:
+        return from_env
 
     if framework_json_path and framework_json_path.is_file():
         try:

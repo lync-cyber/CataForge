@@ -253,66 +253,40 @@ def _emit_dangling_warnings(dangling: set[str], defined_ids: set[str], active: s
             click.echo(f"    {line}")
 
 
-def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
-    """Doctor gate — returns failure count for missing KG entity IDs."""
-    project_root = Path(cfg.paths.root)
-    db_path = project_root / KG_STORE_REL
+def _report_collisions(collisions: list[Any]) -> None:
+    click.echo(
+        f"  FAIL: {len(collisions)} entity_id(s) defined across multiple "
+        "documents with diverging content (collapses to one node — silent "
+        "data loss):"
+    )
+    for c in collisions[:5]:
+        click.echo(f"    {c.entity_id}:")
+        for o in c.occurrences:
+            click.echo(f"      {o.source_doc} :: {o.source_section}")
+    if len(collisions) > 5:
+        click.echo("    ...")
+    click.echo(
+        "  Keep each entity defined once in its authoritative doc_type and "
+        "turn every other occurrence into a reference (xref "
+        "`doc_id#§N.ENTITY-ID` or inline code); then re-run "
+        "`cataforge kg import`."
+    )
 
-    if not db_path.exists():
-        click.echo(
-            "  (no KG store at .cataforge/kg/store — skipping; run "
-            "`cataforge context ensure-store` to hydrate it)"
-        )
-        return 0
 
-    active = _project_active_doc_types(cfg)
-    if not active:
-        click.echo("  (no active doc_types — skipping)")
-        return 0
-
-    all_entities = _fs_extracted_entities(project_root, active)
-    collisions = _fs_entity_collisions(all_entities)
-    if collisions:
-        click.echo(
-            f"  FAIL: {len(collisions)} entity_id(s) defined across multiple "
-            "documents with diverging content (collapses to one node — silent "
-            "data loss):"
-        )
-        for c in collisions[:5]:
-            click.echo(f"    {c.entity_id}:")
-            for o in c.occurrences:
-                click.echo(f"      {o.source_doc} :: {o.source_section}")
-        if len(collisions) > 5:
-            click.echo("    ...")
-        click.echo(
-            "  Keep each entity defined once in its authoritative doc_type and "
-            "turn every other occurrence into a reference (xref "
-            "`doc_id#§N.ENTITY-ID` or inline code); then re-run "
-            "`cataforge kg import`."
-        )
-        return 1
-
-    type_map = _doc_type_to_subdir(cfg)
-    fs_ids = _scan_fs_entity_ids(project_root, active, type_map)
-    if not fs_ids:
-        click.echo(
-            f"  (no entity_ids found in docs/ for active doc_types {sorted(active)} — skipping)"
-        )
-        return 0
-
-    try:
-        kg_ids = _kg_entity_ids(db_path)
-    except Exception as exc:  # noqa: BLE001 — opening fail surfaces here
-        click.echo(f"  FAIL (could not open KG store at {db_path}: {exc})")
-        return 1
-
+def _classify_ingestion_diff(
+    project_root: Path,
+    active: set[str],
+    fs_ids: set[str],
+    kg_ids: set[str],
+    defined_ids: set[str],
+) -> tuple[set[str], set[str], set[str], set[str]]:
+    """Split the fs/kg id delta into (missing, stale, dangling, reference_only)."""
     missing = fs_ids - kg_ids
     stale = kg_ids - fs_ids
 
     # A referenced id with no definition in any active doc_type source cannot
     # be ingested by `kg repair` (it re-reads the same sources) — config
     # guidance, not a repair loop.
-    defined_ids = {e.entity_id for e in all_entities}
     dangling = {m for m in missing if m not in defined_ids}
     missing -= dangling
 
@@ -333,7 +307,18 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
         and d in rel_endpoints
     }
     dangling -= reference_only
+    return missing, stale, dangling, reference_only
 
+
+def _report_ingestion_result(
+    missing: set[str],
+    stale: set[str],
+    dangling: set[str],
+    reference_only: set[str],
+    fs_ids: set[str],
+    defined_ids: set[str],
+    active: set[str],
+) -> None:
     if not missing:
         click.echo(f"  OK ({len(fs_ids)} entity_ids reconciled across {sorted(active)})")
     else:
@@ -364,6 +349,49 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
             f"to prune."
         )
 
+
+def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
+    """Doctor gate — returns failure count for missing KG entity IDs."""
+    project_root = Path(cfg.paths.root)
+    db_path = project_root / KG_STORE_REL
+
+    if not db_path.exists():
+        click.echo(
+            "  (no KG store at .cataforge/kg/store — skipping; run "
+            "`cataforge context ensure-store` to hydrate it)"
+        )
+        return 0
+
+    active = _project_active_doc_types(cfg)
+    if not active:
+        click.echo("  (no active doc_types — skipping)")
+        return 0
+
+    all_entities = _fs_extracted_entities(project_root, active)
+    collisions = _fs_entity_collisions(all_entities)
+    if collisions:
+        _report_collisions(collisions)
+        return 1
+
+    type_map = _doc_type_to_subdir(cfg)
+    fs_ids = _scan_fs_entity_ids(project_root, active, type_map)
+    if not fs_ids:
+        click.echo(
+            f"  (no entity_ids found in docs/ for active doc_types {sorted(active)} — skipping)"
+        )
+        return 0
+
+    try:
+        kg_ids = _kg_entity_ids(db_path)
+    except Exception as exc:  # noqa: BLE001 — opening fail surfaces here
+        click.echo(f"  FAIL (could not open KG store at {db_path}: {exc})")
+        return 1
+
+    defined_ids = {e.entity_id for e in all_entities}
+    missing, stale, dangling, reference_only = _classify_ingestion_diff(
+        project_root, active, fs_ids, kg_ids, defined_ids
+    )
+    _report_ingestion_result(missing, stale, dangling, reference_only, fs_ids, defined_ids, active)
     return 1 if missing else 0
 
 

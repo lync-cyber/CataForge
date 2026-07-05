@@ -35,6 +35,8 @@ import re
 from collections import OrderedDict
 from typing import Any
 
+from cataforge.core.markdown_sections import split_h2_sections
+
 # Trailing match is ``[^\S\n]*`` (whitespace except newline), not ``\s*``:
 # ``\s`` includes ``\n``, so under MULTILINE it would swallow the heading's own
 # newline and consume the blank line that separates a heading from its body.
@@ -190,22 +192,7 @@ def _resolve_section_body(
 
 def _split(text: str) -> tuple[str, OrderedDict[str, str]]:
     """Split markdown into (preamble_before_first_h2, OrderedDict[title, body])."""
-    matches = list(_H2_RE.finditer(text))
-    if not matches:
-        return text, OrderedDict()
-
-    preamble = text[: matches[0].start()]
-    sections: OrderedDict[str, str] = OrderedDict()
-    for i, m in enumerate(matches):
-        title = m.group("title").strip()
-        body_start = m.end()
-        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        body = text[body_start:body_end]
-        # Normalize leading newline so heading-to-body is consistent.
-        if body.startswith("\n"):
-            body = body[1:]
-        sections[title] = body
-    return preamble, sections
+    return split_h2_sections(text, _H2_RE)
 
 
 def _merge_preamble(cur: str, tpl: str) -> str:
