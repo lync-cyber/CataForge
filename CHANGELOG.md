@@ -20,6 +20,137 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.16.0'></a>
+## [0.16.0] — 2026-07-05
+
+### Added
+
+- **feature-walkthrough skill（阶段 1）** —— 对交付项目功能实现做验收式动态走查：两层正交判定（功能 vs spec 符合性 `missing/drift/bug/pass` + 代码健康度复用统一问题分类体系）、五步走查法、真实数据动态复现硬纪律；挂接 reviewer，报告落 `docs/reviews/walkthrough/`。
+- **code-review scan TS/Svelte 机检维度** —— dead-code 新增 knip probe（覆盖 `.svelte` 与未用导出/依赖）；complexity 新增 eslint complexity 规则 probe（借项目自身 eslint 配置解析）。
+
+- **code-review `--format json`** —— review/scan 双模式输出结构化 finding（check_id/severity/category/file/line/detail + summary），作为 Layer 2 语义审查与 CODE-SCAN 报告聚合的机读输入。
+- **code-review 三个扩展探针 + xref 内核** —— `engine/xref.py` 沉淀"声明 pattern × 消费 pattern"集合差内核（ui_fidelity 与新探针共同实例化）。`config_dead_key`（scan INFO）：`config-keys-{lang}.yaml` 驱动，声明后全库零消费的 config key / feature flag（builtin 覆盖 dotenv 声明 × 六语言 env 读取），声明文件可文件级豁免；`api_surface`：`api-surface-{lang}.yaml` 的 `export_patterns` 提取导出面 → `.cataforge/baselines/api-surface.json` 快照 diff（scan INFO + 刷新；项目级 `api-surface.yaml` 声明 `gating: true` 时 review 对快照内消失的导出 FAIL），快照同受 B3-γ 防篡改对账；`pragma_inventory`（scan INFO）：枚举全部统一豁免 pragma（check / reason / git blame 引入天数），非统一语法的 `cataforge` 标记残留报 unknown-pragma。`compile_flags` 收敛为 loader 公开 API（消除各 check 私有副本）。
+- **code-review 复杂度门禁（`code_review.complexity_gate`）** —— 新 rule_type `complexity`：项目级 `complexity.yaml` 外置四指标阈值（cyclomatic/cognitive/function_lines/nesting 各配 warn/fail，builtin 发运保守默认，声明即激活），`complexity-{lang}.yaml` 发运六语言代理度量 pattern（函数边界 + 分支计数 + 缩进嵌套）；radon/gocyclo/lizard 可用时优先取工具圈复杂度，finding 标注度量来源；review 只对 git diff 涉及函数按 `max(fail 阈值, 基线值)` 施门禁（棘轮基线 `.cataforge/baselines/complexity.json`，scan 刷新、review 只读）；scan 的 radon/gocyclo/eslint probe 命令阈值改由 `complexity.yaml` 提供（消除硬编码双源）；函数定义行豁免 `cataforge: allow(complexity_gate, reason="...")`。细则见 `.cataforge/references/complexity-checks.md`。
+- **framework-review B3-γ 基线防篡改对账** —— `.cataforge/baselines/*.json` 变更（工作区未提交或最近 touch commit）必须伴随 `docs/reviews/code/CODE-SCAN-*.md` 报告变更，否则 FAIL（封堵改基线绕过复杂度门禁）；B3-β 对 comment-only 模板 YAML 跳过校验（与 loader "全注释 = 未声明" 语义一致）。
+- **code-review 架构分层守护（`code_review.arch_guard`）** —— 新 rule_type `arch`：项目级 `arch.yaml`（`scope: project`，layers/rules/enforce）声明方向矩阵即激活，`arch-{lang}.yaml` 随包发运六语言 `import_patterns`；违规 import 边按 `enforce: warn|fail`（默认 fail）出 finding，`--focus arch` 单独可跑；未声明模型静默不激活（scan 一条 INFO 提示，包内 `rules/arch.yaml` 为注释模板，comment-only YAML 被 loader 视为未声明）；行级豁免 `cataforge: allow(arch_guard, reason="...")`。结构校验（未知层名/矩阵引用未声明层/缺失方向声明）经 loader `extra_validator` 由 framework-review B3-β 自动继承。语义细则见 `.cataforge/references/arch-checks.md`。
+
+- **`cataforge viz overview` 项目健康 KPI 视图** —— 单 MetricSeries 聚合五组指标：当前阶段/门禁（`evaluate_phase`）、核心文档完成度（doc-index × 工作流序列 doc 门禁）、Feature 覆盖 full/partial/none（KG 双向覆盖）、断链/stale 计数、纠偏近 30 天与按月趋势。各组独立降级：单一数据源缺失/损坏只丢该组，不失败整个视图；默认 `--format json`。
+- **dashboard 首屏 KPI strip + 图例条** —— `viz dashboard` 顶部新增 5 个可点击 stat tiles（点击跳对应明细 tab），数据源未就绪的 tile 显示 `—` 并复用 `viz status` 同源的 `run: <命令>` 引导（纠偏 tile 例外：无纠偏记录显示 `0`，视为健康信号）；header 下新增绿/黄/红语义图例条，单视图 HTML 同样携带。
+- **`viz assets` 资产目录面板（--html）** —— 依赖图之上新增可搜索的清单表格：每个 agent / skill / rules 资产一行，展示 `name · type · 描述 · depends · tools · model · 行数 · est_tokens · path`；支持全文搜索、type 筛选 chips、maintainer-only 开关（默认隐藏）、est_tokens 列排序；表格行与图节点双向联动（点行图中高亮居中、点节点表格滚动定位）；path 点击复制到剪贴板。体量列（行数 / est_tokens）直接服务提示词资产 token 纪律。
+- **IR `Node.data` 元数据槽** —— Graph 节点可选携带元数据：文本渲染器（mermaid/dot）忽略、JSON 渲染器透传（无 data 的节点不出该键，既有 JSON 输出字节稳定）、HTML 渲染器投影为目录表格。`.cataforge/rules/*.md` 以隐式节点（无 label/style/边）进入 assets 视图，仅 JSON / HTML 目录可见，Mermaid/DOT 输出逐字节不变。
+- **dashboard 跨视图跳转** —— coverage 图中点击 Feature 节点一键切到 trace tab 并高亮居中同一实体节点（`__viz.focus` 通用机制，首批只接 coverage→trace 一条）；coverage 数据未就绪时不接线。
+- **`estimate_tokens` 公开** —— 文档 token 估算函数经 `domain.docs.indexer` 门面导出，viz 资产体量与 doc-index 共用同一估算口径。
+
+- **`context finalize` 范围与预览** —— `--doc-type`（repeatable）限定导出范围（限定时跳过孤儿实体卡）；`--dry-run` 输出逐文档计划（new / update / unchanged / blocked）不落盘。
+
+- **viz 图节点 tooltip（details-on-demand）** —— HTML 图视图悬停节点弹出信息卡，投影节点语义状态、问题、来源路径与 `run:` 补救命令；details-on-demand 从 asset catalogue 的特权变为所有图视图的默认能力。
+- **坏数据行动出口** —— docs 的 stale / xref-error 节点、coverage 的欠覆盖 Feature 节点在 data bag 附 `run: <命令>` 指引（stale → `cataforge context reconcile`、xref → `cataforge context validate`、欠覆盖 → `cataforge viz trace <id>`），tooltip 与表格降级形态均展示，补齐「数据缺失有指引、数据有问题没有」的断层。
+- **跨视图联动扩展** —— tasks 图节点点击可聚焦 trace 视图中同 id 的可追溯链（与既有 coverage→trace 并列）。
+- **dashboard tab 分组** —— 十个视图 tab 按「项目健康 / 框架资产」两组渲染；默认激活 tab 跟随最严重的 KPI 磁贴，全部正常时回退到首个有数据的健康视图。
+- **assets 图按 type 分簇** —— agent / skill / rules 折叠为按类型的复合父节点，图读作三个分组盒而非扁平节点云；含复合节点时布局切换为 cose。
+- **assets 表体量标记** —— 行数超过 `META_DOC_SPLIT_THRESHOLD_LINES`（引用 framework.json 常量，非硬编码）的资产在行数列着警示色。
+
+- **reconcile 检测 tile-cover 不一致** —— `DocumentDriftRecord` 新增 `desynced_sections`（节点 body 与其 level-2 tile 内嵌切片不符的锚点）；graph 模式 `ok` 门禁在文档漂移之外额外要求零 desync，命中的 in-sync 文档从 `none` 升级为 `manual` remediation。
+- **doc-review 导出新鲜度门禁** —— 新增 Layer 1 检查 `check_export_freshness`：graph 模式下审查陈旧导出（`graph_ahead` / `conflict`）或存在 desync 节的文件直接 FAIL，提示先 `cataforge context finalize` 重导出、或经 `context write-narrative` 重写该节 / `cataforge context ingest` 重建一致性；markdown 模式、图不可达、无 Document 节点均静默跳过。
+
+- **EVENT-LOG 新增 `sprint_complete` / `circuit_open` 事件类型** —— `event-log.schema.json` 与 `event_log.VALID_EVENTS` 镜像同步扩展至 16 个事件，为无人值守 building-loop 的完成契约（`sprint_complete`，`ref=dev-plan#sprint-N`）与熔断信号（`circuit_open`）奠定数据契约；循环外壳与 orchestrator emit 接线随后续 PR 落地。
+
+- **无人值守 building-loop 驱动 `cataforge unattended build <sprint>`** —— 跨平台 Python 外壳（PowerShell / cmd / bash 原生，零 bash / jq / coreutils 依赖）：对单个已冻结 sprint 每轮 fresh-context 拉起 `claude -p`，读 `EVENT-LOG.jsonl` 的 `sprint_complete` / `circuit_open` 与 `git HEAD` 判完成 / 熔断 / 进展；卡住检测靠无进展熔断（HEAD 未变 + 无前进事件，纯记账/churn 事件不计）+ 协议层 card-revision-ceiling，终止性由迭代硬上限保证；限流 / 超时 auto-wait（不计入熔断预算）；退出码 `0` 完成 / `3` 熔断 / `4` 达上限 / `5` 前置拒绝（fail-closed：非 feature 分支——含 detached / unborn-main / 无 git——一律拒）；只动 feature 分支，绝不 merge / deploy。
+- **per-loop 运维 metrics 流** —— 每个真实迭代向 `.cataforge/state/loop-metrics.jsonl`（gitignored）写一行（iter / ts / sprint / head_before·after / progressed / files_changed / duration_sec / stagnation），字段权威源 `runtime.unattended.METRICS_FIELDS`，由 `loop-metrics.schema.json` 对账。
+- **工具级 deny 安全网（双层）** —— `CATAFORGE_UNATTENDED` 标记下：① `guard_dangerous` PreToolUse/shell_exec hook 拦截 `git merge` / `gh pr merge` / push main（容忍 `git -C <path> …` / `gh -R <repo> …` 等全局 flag 变体，不误伤含 "merge" 的提交信息）；② `guard_frozen_docs` PreToolUse/file_edit hook 拦截对冻结上游文档（`docs/{prd,arch,ui-spec,dev-plan}/`，含 split 分卷与 flat/lite 变体）的 Write/Edit，planning 留人工白天。driver 给 claude 子进程注入该标记 + 自主提交身份 `cataforge-unattended <unattended@cataforge.local>`，供晨检区分自主/人工提交。两 hook 均 best-effort speed-bump（shell wrapper / 裸 push-to-upstream-main 无法拦），真正保障是 sandbox + PR-only + 人工晨检 + fail-closed preflight。
+- **frozen-upstream 前置门** —— `cataforge unattended build` 在拉起 loop 前先 `preflight_frozen_upstream`：dev-plan 缺失 / 未 doc-review 冻结（`status≠approved`）/ 未引用目标 sprint / AC 含未处理 `TODO·TBD·FIXME`（复用 doc-review 占位符规则）任一命中即 `EXIT_PREFLIGHT`（5）拒绝，不烧过夜预算；`run_building_loop` 自身的 branch fail-closed 仍是承重守卫。
+- **5 个 `UNATTENDED_*` 常量** —— `LOOP_MAX_ITERATIONS` / `STAGNATION_THRESHOLD` / `CARD_REVISION_CEILING` / `LOOP_ITER_TIMEOUT_SEC` / `RATELIMIT_WAIT_SEC` 并入 `framework.json#/constants` + COMMON-RULES §框架配置常量。
+- **headless 覆写文档 `.cataforge/references/unattended-overrides.md`** —— needs_input→blocked、卡级熔断、完成契约等协议覆写，仅 headless 运行按需加载（不进常驻 ORCHESTRATOR-PROTOCOLS，非 loop 项目零成本）；ORCHESTRATOR-META 事件目录登记 `sprint_complete` / `circuit_open`。
+- **`.cataforge/.gitignore` 忽略 `state/`**。
+
+- **duplication 内置行块 floor** —— 纯 Python 归一化行窗哈希克隆检测，语言通用、零外部依赖，保证 duplication 维度在任意环境不 dark（补上此前只有 complexity 有内置兜底的不对称）。
+- **scan 项目级忽略文件 `.cataforge/skills/code-review/ignore`** —— gitignore 风格 glob，与框架默认排除合并，下游项目可排除自有 vendored/生成路径。
+- **scan `--format json` / `--verbose`** —— `--format json` 输出结构化 finding（读 stdout，日志走 stderr）供 Layer 2 / CI 消费；`--verbose` 展开被截断的 info 尾。
+
+- **共享 GFM 表格解析器 `parse_markdown_table`** —— 位于 `core.markdown_sections`，返回 `headers` + `rows`，供 KG 摄取与 doc-review 复用。
+
+### Changed
+
+- Clarified `{INSTRUCTION_FILE} §项目状态` write discipline: status bullets are live handoff state, while closure history, debug notes, framework upgrade chains, and closed issue inventories belong in durable records such as EVENT-LOG, reviews, or changelog docs.
+- Updated CLAUDE.md hygiene documentation to treat project-state schema bullets as measurable bloat risks rather than assuming they are bounded by design.
+- Moved Bootstrap `.gitattributes` guidance out of the prompt template and into static tooling: setup/bootstrap now ensure a default file when missing, `setup gitattributes` exposes the repair action, and doctor reports line-ending policy drift.
+
+- **子代理 maxTurns 分层上调** —— maxTurns 在 claude-code / cursor 的 agent frontmatter 真实生效，原值过低会截断正常任务：implementer 80→200，reviewer/qa-engineer/devops 50→150，debugger 40→150，architect/product-manager/tech-lead/ui-designer 60→120，test-writer/refactorer 30→100，reflector 30→60。
+- **orchestrator §项目状态写入纪律** —— 新增 PR 同步纪律（状态表述须 merge 后仍成立、纯措辞过时不单独开 PR）与槽位滚动覆盖规则（完成即替换、每项一行、backlog 为无序候选池）。
+- **`context validate` orphan FAIL 提示** —— 输出现指引 `docs/.docignore` 豁免路径，面向读者的非 SDLC 文档不再被迫补 front matter 或移出 `docs/`。
+
+- **code-review Layer 1 重构为注册表内核（breaking）** —— CLI 收敛为显式双子命令 `review <path> [--fix]` / `scan <path>`（旧隐式 review 形态 `-- <path>` 移除）；未知参数与非法 `--focus` 值报用法错误 exit 2（不再静默忽略）；入口模块 `code_lint.py` → `code_check.py`，检查拆分为 `engine/`（注册表/管线/渲染）+ `checks/`（外部工具/wiring/ui-fidelity/probe）。
+- **CHECKS_MANIFEST 由注册表派生** —— manifest 不再手写，id 命名空间 `code_lint.*` → `code_review.*`，scan 腐化 probe（jscpd/pmd-cpd/vulture/ts-prune/knip/cargo-machete/radon/gocyclo/eslint-complexity）首次纳入 manifest（`severity: informational` / `modes: scan`），framework-review 对账面覆盖 scan。
+- **`--focus` 语义修正** —— review 模式 Layer 1 真实收敛到指定 category（旧实现静默忽略该参数）；scan 模式 `--focus` 只筛 informational probe，门禁检查（lint/wiring/ui-fidelity）恒跑；wiring 扫描按规则 YAML 声明的扩展名收文件（`.mjs`/`.cjs`/`.java` 等此前因不在 linter 扩展集而漏扫的文件现在纳入）。
+- **项目 override 脚本 CLI 契约成文（breaking）** —— review-class skill 的项目层 Layer 1 脚本必须实现与 builtin 相同的调用面（`review`/`scan` 双子命令、退出码 0/1/2、`--format json` finding schema），按旧隐式 review 形态编写的 override 脚本会被新调用点以子命令参数调起而失配；契约见 `docs/reference/overrides.md` §项目 override 脚本的 CLI 契约。
+
+- **视图配色集中为 `application/viz/palette.py` 单一事实源** —— 各 collector 的语义色（完整/通过=绿、部分/stale=黄、缺失/断链/blocked=红）改引共享常量，hex 不变、输出零回归；新增测试守护 collectors 不再内联 hex。
+- **dashboard 空/错误面板引导统一** —— 失败视图面板由回显原始错误改为「此视图需要的数据还未生成」+ 高亮的 `run: <命令>`（与 `viz status` 同源提取）；空视图面板按视图给一句引导（timeline：事件随工作流自动记录；decay：无纠偏是健康信号），空 Timeline/MetricSeries 不再渲染空白图表。
+
+- **COMMON-RULES / SUB-AGENT-PROTOCOLS 提示词瘦身** —— 去除文内冗余复述（全局约定对项目指令文件 §效率原则的逐条重述、硬编码禁令双写、conditional_release 补丁式旁注、状态码表 orchestrator 处理列与 §verdict_blocking_semantics 双处维护、Agent I/O 契约"后端无关"三重复述）；「版本号写入 frontmatter `version:`」与「不直接 Edit 导出文件」上提为 §Agent 文档 I/O 契约单点定义；SUB-AGENT-PROTOCOLS 三类 task_type 的 finalize/返回步骤收敛为文件头通用收尾契约，「Skill Toolkit」悬垂术语改「SKILL.md 流程」，Mid-Progress 特化指向收窄为实有三角色。语义等价，无行为变更。
+
+- **orchestrator 双协议与 AGENT.md 提示词瘦身** —— ORCHESTRATOR-PROTOCOLS：删 Parallel Task Dispatch 21 行示例伪代码、Manual Review Checkpoint 逐值复述（引 COMMON-RULES 可选值表）、执行模式数字复述与漂移值（agile-lite feature 数、prd-lite 行数以矩阵/模板为准）、设计意图/先例/协同等叙事残留与「(C2)」提案标签；「Skill depends 字段语义」Appendix 下沉 docs/reference/agents-and-skills.md；Bootstrap Step 10 与 Design-Tool Capability Gate 措辞对齐 framework.json `execution_host` 权威（inline 承载而非一律 dispatch）；悬垂步骤号「Step 5.3」修正。ORCHESTRATOR-META-PROTOCOLS：Framework Upgrade 四小节操作链路收敛为 framework-update skill 指针；「.cataforge/hooks/ 所有 .py 脚本」失实修正（实为 hooks.yaml，脚本随包分发）；phase_start 触发点悬垂步骤号免编号化。AGENT.md：尾部协议枚举（与 PROTOCOLS TOC 双份漂移）改纯文件指针。语义等价，无行为变更。
+
+- **12 个 AGENT.md 提示词收敛** —— 删五个产文档 agent 的 finalize/version 逐字重复从句（SSOT 已上提 COMMON-RULES §Agent 文档 I/O 契约）；architect 删 Error Handling 段（增量并入 Anti-Patterns）；tech-lead 决策矩阵行界改常量名、复盘式后果叙事删；qa-engineer 修正两处僵尸锚（任务卡实在 dev-plan §3、评注落点实为 test-report §7）并删三处 verdict 语义复述；ui-designer Penpot 协作段升独立 H2；refactorer 触发机制 stale 修正（现行为 implementer self-report）与「§与debug的关系」悬空引用修复；implementer 补 §Mid-Progress 落盘契约标准段、wiring 处置句指针化（SSOT=tdd-engine）、`arch§N` 引用格式修正；test-writer 自检 checklist 第 4 条与 Anti-Patterns 同义条目收敛；reflector 修正 CORRECTIONS-LOG 解析格式块（字段名与 core/corrections.py 实现对齐）并压缩五处对 META-PROTOCOLS 的复述；reviewer 删「索引按 doc_type 过滤」失实括注、写入范围枚举改随 frontmatter allowed_paths；devops 密钥纪律改指涉 deploy-config。语义等价 + stale 事实对齐，无行为变更。
+
+- **27 个 SKILL.md 提示词收敛** —— workflow-framework-generator 五处内联模板/清单下沉 tmpl 或改指针（workflow YAML 结构、设计决策模板、AGENT/SKILL 章节清单、rules 生成 bullet、平台适配表），Phase 4 验证压缩为「validate_framework.py + LLM 独有项」两层；tdd-engine 阶段间传递格式压缩为 bullet、子代理返回格式复述删（SSOT=各 AGENT.md Output Contract）、Mid-Progress 注入块指针化、Batch Code-Review 僵尸锚改指 ORCHESTRATOR-PROTOCOLS、lint hook 事实对齐、效率策略段删；framework-review Step 1 全量重复表收敛为 scope→子检查组映射表（28 锚点不动）、`--focus` 粒度修正为组级（子粒度写法会静默假绿）；code-review / sprint-review front matter 模板收敛至 COMMON-RULES §报告 Front Matter 约定（修复缺 consumers 漂移）、Layer 1 调用复述指针化、sprint-review「§合并审查模式」僵尸锚改指 §审查档位；platform-audit 关键维度详解/影响范围压缩至 audit-checklist 指针、PLATFORM_FEATURES 计数漂移修正（references 序号 13 重复一并重排）；framework-feedback / framework-issue-resolve Layer 1 表收敛为 delegation 句 / CLI 行为要点；framework-update python3 冗余命令删、幂等三述与字段保留表压缩；research「load-section」悬垂指令修正为 context navigate 分支；agent-dispatch §运行时支持删、写入范围校验升独立段；start-orchestrator Bootstrap 错锚与 Startup Protocol 复述收敛；change-guard Drift 双表合并；task-decomp GWT 三写收敛；context 族后端路由五重复述收敛；testing e2e 扩展名枚举改由 e2e-{lang}.yaml 声明；另 arc-design / ui-design / penpot-bridge / deploy-config / tech-eval / task-dep-analysis / req-analysis / feature-walkthrough / framework-walkthrough / debug 各处冗余复述与括注修剪。语义等价 + stale 事实对齐，无行为变更。
+- **平台 profile hooks.degradation 补全 `git_sync`** —— 四平台 profile.yaml 的 degradation 块补 `git_sync: native`（与同为 SessionStart observe hook 的 `session_context` / `deploy_drift` 同级），消除 framework-review B6-δ 的 4 条 WARN。
+- **CLAUDE.md §执行环境测试命令改并行分层形式** —— `uv run pytest -n auto --dist loadscope`（快速档 `-m "not slow"`，与 CI 同口径）；裸串行全量含 slow e2e 需 16+ 分钟，并行后约 5 分钟。
+
+- **冷路径提示词资产收尾** —— 删除 workflow-framework-generator 的 references/architecture-guidelines.md（230 行零消费孤儿，内容已漂移，SKILL.md 内联版本为运行时真值）；context templates/_registry.yaml 删除零消费的 `volumes:` 字段（分卷 SSOT 为 `split_from`）；CLAUDE.md 修复硬约束 2 的 wiring-checks.md 断链（实际位于 `.cataforge/references/`）、删 run_local 段回溯叙事、效率原则与硬约束 1 禁止项枚举压缩为 COMMON-RULES 指针、命名两条合并；docs/README Reference 表挂链 kg-verified-behaviors / continuation-portability / builtin-skill-layout 三个未索引文档；cli.md 与 status-codes.md 的任务卡引用锚 `dev-plan#§1.T-xxx` 修正为 `#§3`（任务卡详细实在 dev-plan §3）。
+
+- **finalize 覆写防御** —— 磁盘内容与渲染既不相等、也不与导出基线一致、且非空白规范化等价的文档判为 `blocked` 不覆写（exit 1 并提示先 `context ingest` 或 `--force`）；实际覆写的文件先备份到 `.cataforge/.backups/finalize-<ts>/`；内容不变的文档跳过写盘仅刷新基线。`ingest → finalize` 标准流不受影响。
+- **reconcile remediation 方向** —— `never_exported` 文档在该 doc_type 的对称差显示 md 领先（missing > ghost）时建议 `ingest` 而非 `export`，避免用缺内容的图谱重写 approved 文档。
+- **reconcile 富集边分类** —— 宿主文档内容与渲染同步时，KG 独有的追溯边归入 `enrichment_relations`（acknowledge-only，不计 divergence），`--json` 新增 `enrichment_count`；graph 模式失败消息改报判定所依据的 `document_drift_count`（"N document(s) drifted"）。
+
+- **viz 语义状态上升为 IR 一等公民 + 色盲安全色板** —— `Node.style`（Mermaid 字符串）替换为 `Node.status` 语义枚举（ok/partial/missing/broken/cycle/critical-path/agent/skill），视觉编码统一由 `core.viz.palette` 的 Status→Encoding 映射派生：状态色改用 ColorBrewer RdYlBu 色盲安全蓝-橙系（蓝=通过、淡黄=部分、橙=缺失），节点标签前置 ✓/◐/✗/⚠/⟳/★ 文字冗余使色相不再是唯一状态通道；mermaid/dot/HTML 三种格式同一状态同色同标记，DOT 输出新增状态填色；图例由同一映射派生并扩至 6 项。JSON 输出契约变更：`nodes[].style` → `nodes[].status`（枚举字符串值）。
+
+- **viz timeline / decay 按日按类型聚合** —— EVENT-LOG 与 CORRECTIONS-LOG 事件折叠到天精度：同一 (日期, 标签) 的重复事件合并为一条并带 `count`，mermaid 以 `×N` 后缀、HTML 散点以点大小编码计数，不再逐条平铺（`session_start session ×11` 噪声收敛为单条 `session_start ×11`）；ctx 已被事件名包含时（如 `session_start` + `session`）省略以去重复词。`TimelineEvent` 新增 `count` 字段，JSON 输出随之带 `count`。
+
+- **viz 零边图降级为状态表格** —— HTML 渲染器对零边图（节点空间位置不携带信息，如 coverage 的 Feature 覆盖矩阵、docs 的孤立文档雨）不再用 Cytoscape 节点雨，而是渲染为**异常在前排序的状态表格 + 顶部构成条**（各状态计数着色段）；纯表格页不再内联 Cytoscape 库。coverage→trace 跨视图联动改由表格行点击经新增 `linkTable` 驱动（原 `linkGraph` 仍服务有边图）。有边图（framework/assets/arch/带 stale 的 docs）渲染路径不变。
+
+- **decay KPI 磁贴改为阈值感知** —— 由「近30天纠偏 · 累计 N」改为 `self-caused / retro 阈值` 形式并附月度环比方向（↑ / ↓ / →）；计数口径对齐 Retrospective Protocol 实际门槛（仅计 `self-caused` 偏差，preference / upstream-gap 不计），阈值从 `framework.json#/constants.RETRO_TRIGGER_SELF_CAUSED` 读取，下游可配置。
+- **coverage KPI 磁贴加目标语义** —— 副文案由「partial N · none N」改为「缺口 N → 100%」，以 100% 为显式目标线展示缺口数。
+- **viz timeline 加 dataZoom** —— ECharts 时间轴增加可刷选窗口（slider + inside），长事件日志可缩放浏览。
+
+- **doc-consistency 对卷级 docs_dir 加固** —— `CrossDocChecker` 在构造时把误传的卷子目录（如 `docs/arch/`）归一到项目 `docs/` 根，与 doc-review 的 `_docs_root()` 对称，消除「误传卷子目录 → 跨文档发现静默 under-scan → 假报无跨文档问题」的同类隐患。
+
+- **scan 文本输出按 category 聚合并排序** —— gating（fail/warn）恒显不截断，informational 尾按类截断（默认每类前 10 条 + “还有 N 条”提示，`--verbose` / `--format json` 看全部），取代扁平罗列全部 finding 的高噪输出。
+
+- **ARCH §1.4 技术栈统一为表格格式** —— 以 6 列表（层次 / 技术 / 版本 / 生命周期 / 选型理由 / 调研来源）为 ARCH 技术栈的规范格式，取代此前的 bullet 列表；KG 摄取相应支持表格行解析（`层次: 技术`），bullet 保留为 fallback，`stack_layers` 语义不变。
+
+### Fixed
+
+- **code-review scan jscpd 对 workspace 包超时** —— jscpd 调用注入由 `EXCLUDE_DIRS` 单一事实源渲染的 `--ignore`（含 `node_modules`/`dist`/`.svelte-kit`/`**/*.d.ts` 等），不再全树遍历导致 probe 超时。
+
+- **issue triage 识别手写 bug 报告** —— 版本抽取覆盖手写环境块形态（`- CataForge scaffold X.Y.Z（…）` / `CataForge package X.Y.Z` / `CataForge vX.Y.Z`）；citation 增加宽松通道：正文命中已安装 skill/agent id（连字符 id 裸词即算，单词 id 须紧跟 `cataforge` 调用）或任意 `cataforge <子命令>` 调用时不再判 `unrelated`，升级为 needs-repro/confirmed 候选；already-fixed 的 semver 自动判定路径不变。
+
+- **finalize 越权改写未修改文档** —— graph 模式全量重导不再静默覆写 md 侧领先内容（含 untracked 修订中文件的数据丢失形态）。
+
+- **doc-consistency 四类系统性假阳性**：
+  - `ac-traceability`（PRD→DEV-PLAN）识别 per-feature 本地 AC 编号惯例（同一 AC-NNN 出现在多个 feature 下）——命中时改按 feature 级传播判定（配合既有 ac-granularity 的逐 feature 计数），不再对跨命名空间同名令牌逐个误报；KG 路径经 `cf:part_of` 取 AC 父 feature 做同一判定。全局唯一编号项目行为不变。
+  - `orphaned-component` 引用信用扩围：页面章节之外，其他组件章节体与 UC 章节外正文（含主卷组件清单）中的引用同样计数，只有自身章节外零出现才判孤立。
+  - `ui-coverage` 支持 feature 交付面标注 `delivery: ui | api | dev-tooling`（兼容 `交付面:` 与 bold 字段行）——非 ui 交付面免 UI-SPEC 覆盖门禁，`ui` 显式声明则强制覆盖；未标注沿用动词启发式。PRD 标准/分卷模板同步该可选字段。
+  - `entity-propagation` 间接引用信用：E-NNN 未字面出现在 DEV-PLAN 时，若其所属 ARCH 模块（M-xxx 章节内声明）被任务引用则视为已传播。
+
+- **viz 空视图语义修正** —— `viz tasks` 无有效边时不再注入「无有效边」占位节点，空图回归空态：`viz status` 如实报 `empty` 而非 `ready · 1 nodes`；CLI 文本输出对空视图在 stderr 提示 `viz status`；dashboard 空面板为 tasks/trace/coverage/arch 补充与 timeline/decay 同风格的下一步指引。
+
+- **viz overview / dashboard 感知执行模式与 N/A 项目** —— 非 workflow-driven 项目（指令文件存在但 `当前阶段` 未填，如 meta 项目按 git 历史追踪进度）的 phase 组现发 `applicable=0` 并在 dashboard 渲染中性「SDLC 阶段 · 本项目不适用」磁贴，而非 `unknown · 门禁受阻` 红色假警报；核心文档完成度组对非 driven 项目整组略去（SDLC 文档 N/A），links 健康组照常保留。phase 骨架序列改按项目 `执行模式`（standard / agile-lite / agile-prototype）取对应 mode 的阶段集，agile 项目不再按 standard 的 7 阶段错误门禁。新增 `parse_execution_mode` / `read_execution_mode`（`adapter.platform.registry`）。
+
+- **节叙事写入的级联一致性** —— 在 graph 模式下，任意深度的 `write-narrative` / `transact` 现在经 `CascadeWriter` 同时落到所属 level-2 tile 与每个被其内嵌的子小节节点，消除两类静默发散：子小节写入到不了整文导出、tile 写入留下陈旧子小节节点。定位不到落点的写入直接报错，而非写入一个无法导出的节点。
+
+- **doc-review split-volume 主卷误报「缺少审查报告」/ 静默漏检上游覆盖** —— 当 `--docs-dir` 传卷子目录（如 `docs/arch/`）时，`check_status_provenance` 曾在卷级目录下找审查报告而对已通过的主卷误报，`check_bidirectional_coverage` 曾把上游文档扫描限制在卷子目录导致静默跳过覆盖检查。根因是 `project_root_from_docs_dir` 无法解析嵌套两层的 docs 目录（对 `docs/arch/` 返回 `None`）；现泛化为向上遍历定位 `.cataforge/`，并让 checker 的项目全局查找（审查报告 / 上游覆盖 / 交叉引用）统一经项目 `docs/` 根解析，不再被卷级 `--docs-dir` 作用域化。
+
+- **code-review scan 不再对 vendored / 生成文件误报 FAIL** —— 引擎 `EXCLUDE_FILE_GLOBS`（`*.min.*` / `*.map` / `*-lock.json` / `*.d.ts` / `*.bundle.js` 等）+ 项目级 `.cataforge/skills/code-review/ignore` 从单一源同时喂给 lint 文件遍历与探针 ignore glob，压缩第三方包不再被 ESLint/Prettier 当配置错报 FAIL、拖垮 scan 退出码。
+- **duplication 维度不再静默失灵** —— 该维度改由与 `complexity_gate` 同构的 `duplication` 检查独占：零依赖内置行块 floor 保底、jscpd 出报告时用其 token 级精确信号增强。jscpd 无法执行（缺失，或 Windows `.cmd` shim 经 subprocess 无声 no-op）时优雅回落 floor，而非旧探针那样以 `bool(output)` 启发式把真实克隆无声丢弃。
+
+- **doc-review 技术栈选型理由校验恢复生效** —— `check_arch` 中该校验此前因 regex 无捕获组恒不可达、且误锚定 NAV 索引行而非表格；现基于共享表格解析器锚定技术栈 heading、定位「选型理由」列，空单元格触发 WARN（main 卷；lite 精简 `类别 / 选型 / 备注` schema 无该列则跳过）。
+
+### Removed
+
+- **rules YAML schema v1（breaking）** —— loader 仅接受 `schema_version: 2`：新增必填 `scope: language|project`（project 级模型不写 language/extensions）；无 extra_validator 的 rule_type 拒绝未知顶层键；wiring 规则的 `placeholder_pragma` 键删除；内置 `wiring-*.yaml` / `e2e-*.yaml` 全量迁移，空占位的 `wiring-python.yaml` 移除。v1 文件报错并附迁移指引。
+- **旧文件级豁免语法（breaking）** —— `// cataforge: wiring-placeholder` 与 `cataforge-allow-ui-fidelity` 不再被识别，统一为 `cataforge: allow(<check-id>, reason="...")`（引擎级单一解析器；reason 缺失时豁免生效但记 WARN）。语法见 `.cataforge/references/pragma-grammar.md`。
+
 <a id='changelog-0.15.0'></a>
 ## [0.15.0] — 2026-06-28
 
@@ -1951,7 +2082,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.16.0
 [0.15.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.15.0
 [0.14.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.14.0
 [0.13.1]: https://github.com/lync-cyber/CataForge/releases/tag/v0.13.1
