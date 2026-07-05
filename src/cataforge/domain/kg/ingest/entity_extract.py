@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from cataforge.core.markdown_sections import parse_markdown_table
 from cataforge.domain.kg._config import DEFAULT_DEFINITION_AUTHORITY
 from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_CLASSES
 from cataforge.domain.kg.ingest.scan import HeadingSpan, ParsedDoc
@@ -28,8 +29,31 @@ from cataforge.domain.kg.ingest.scan import HeadingSpan, ParsedDoc
 _LAYER_BULLET_RE = re.compile(r"^\s*[-*]\s+(.+)", re.MULTILINE)
 
 
+def _tech_stack_layers(section_text: str) -> list[str]:
+    """Layer strings from a tech-stack section — table rows preferred, bullets fallback.
+
+    A table row contributes ``"{层次}: {技术}"`` (its first two columns) so the
+    structured 6-column form and the terse bullet form both yield the same
+    ``layer: tech`` shape; a bullet contributes its text verbatim.
+    """
+    table = parse_markdown_table(section_text)
+    if table is not None:
+        layers: list[str] = []
+        for row in table.rows:
+            cells = [c for c in row if c]
+            if not cells:
+                continue
+            if len(row) >= 2 and row[0] and row[1]:
+                layers.append(f"{row[0]}: {row[1]}")
+            else:
+                layers.append(cells[0])
+        if layers:
+            return layers
+    return [m.group(1).strip() for m in _LAYER_BULLET_RE.finditer(section_text)]
+
+
 def _extract_techstack_slots(entity: ExtractedEntity, section_text: str) -> None:
-    layers = [m.group(1).strip() for m in _LAYER_BULLET_RE.finditer(section_text)]
+    layers = _tech_stack_layers(section_text)
     if layers:
         entity.extra_slots["cf:stack_layers"] = layers
 
