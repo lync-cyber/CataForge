@@ -744,7 +744,12 @@ class AcceptanceCriteria(SoftwareArtifact):
                                       'required': True}}})
 
     acceptance_text: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria']} })
-    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria', 'Module', 'Component', 'API', 'Page'],
+    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria',
+                       'Module',
+                       'Component',
+                       'API',
+                       'Page',
+                       'DomainEntity'],
          'inverse': 'satisfied_by'} })
     id: str = Field(default=..., description="""URI; instances live under cfprj namespace.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document', 'Section']} })
     entity_id: str = Field(default=..., description="""Frontmatter ID such as F-001, M-014, T-007.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
@@ -800,7 +805,12 @@ class Module(SoftwareArtifact):
                                       'pattern': '^M-[0-9]{3,}$',
                                       'required': True}}})
 
-    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria', 'Module', 'Component', 'API', 'Page'],
+    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria',
+                       'Module',
+                       'Component',
+                       'API',
+                       'Page',
+                       'DomainEntity'],
          'inverse': 'satisfied_by'} })
     realized_as: Optional[list[str]] = Field(default=None, description="""Component/Module → Task work-breakdown link.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Module', 'Component'], 'inverse': 'realizes'} })
     implements: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Module', 'Component'], 'inverse': 'implemented_by'} })
@@ -858,7 +868,12 @@ class Component(SoftwareArtifact):
                                       'pattern': '^C-[0-9]{3,}$',
                                       'required': True}}})
 
-    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria', 'Module', 'Component', 'API', 'Page'],
+    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria',
+                       'Module',
+                       'Component',
+                       'API',
+                       'Page',
+                       'DomainEntity'],
          'inverse': 'satisfied_by'} })
     realized_as: Optional[list[str]] = Field(default=None, description="""Component/Module → Task work-breakdown link.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Module', 'Component'], 'inverse': 'realizes'} })
     implements: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Module', 'Component'], 'inverse': 'implemented_by'} })
@@ -975,7 +990,12 @@ class API(Interface):
     http_method: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['API']} })
     request_schema: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['API']} })
     response_schema: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['API']} })
-    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria', 'Module', 'Component', 'API', 'Page'],
+    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria',
+                       'Module',
+                       'Component',
+                       'API',
+                       'Page',
+                       'DomainEntity'],
          'inverse': 'satisfied_by'} })
     id: str = Field(default=..., description="""URI; instances live under cfprj namespace.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document', 'Section']} })
     entity_id: str = Field(default=..., description="""Frontmatter ID such as F-001, M-014, T-007.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
@@ -1237,7 +1257,12 @@ class Page(Screen):
                                       'pattern': '^P-[0-9]{3,}$',
                                       'required': True}}})
 
-    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria', 'Module', 'Component', 'API', 'Page'],
+    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria',
+                       'Module',
+                       'Component',
+                       'API',
+                       'Page',
+                       'DomainEntity'],
          'inverse': 'satisfied_by'} })
     ui_route: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Component', 'Page']} })
     layout_spec: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Component', 'Page']} })
@@ -2330,6 +2355,112 @@ class SprintReviewIssue(ReviewReport):
         return v
 
 
+class DomainEntity(SoftwareArtifact):
+    """
+    Bounded downstream extension point; carries a registered domain_type.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'cf:DomainEntity',
+         'from_schema': 'https://cataforge.dev/ontology/core',
+         'slot_usage': {'domain_type': {'name': 'domain_type', 'required': True},
+                        'entity_id': {'name': 'entity_id',
+                                      'pattern': '^[A-Z]+-[0-9]{3,}$',
+                                      'required': True}}})
+
+    domain_type: str = Field(default=..., description="""Registered domain class of a DomainEntity (e.g. \"Order\"), set from the prefix registry.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DomainEntity']} })
+    has_attribute: Optional[list[str]] = Field(default=None, description="""DomainEntity → its structured key/value attributes.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DomainEntity'], 'inverse': 'attribute_of'} })
+    satisfies: Optional[list[str]] = Field(default=None, description="""This Feature/Component/Task addresses these Requirements.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AcceptanceCriteria',
+                       'Module',
+                       'Component',
+                       'API',
+                       'Page',
+                       'DomainEntity'],
+         'inverse': 'satisfied_by'} })
+    id: str = Field(default=..., description="""URI; instances live under cfprj namespace.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document', 'Section']} })
+    entity_id: str = Field(default=..., description="""Frontmatter ID such as F-001, M-014, T-007.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    sort_key: str = Field(default=..., description="""Deterministic export sort key.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Section']} })
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document', 'Section']} })
+    description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project']} })
+    status: Optional[ArtifactStatusEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Document']} })
+    priority: Optional[PriorityEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    created_at: Optional[datetime ] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document']} })
+    updated_at: Optional[datetime ] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document']} })
+    content_hash: Optional[str] = Field(default=None, description="""SHA-256 of the source Markdown section, mirrors .doc-index.json content_hash.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Section']} })
+    source_doc: Optional[str] = Field(default=None, description="""Relative path of the Markdown file the entity was exported from.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Document', 'Section']} })
+    source_section: Optional[str] = Field(default=None, description="""Section anchor inside the source doc, e.g. §2.F-001.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    narrative_body: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Section']} })
+    tags: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    authored_by: Optional[str] = Field(default=None, description="""Free-form attribution (role name or username); not coupled to governance namespace.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Document']} })
+    belongs_to_project: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    depends_on: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'inverse': 'dependency_of'} })
+    dependency_of: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'inverse': 'depends_on'} })
+    part_of: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Component'], 'inverse': 'has_part'} })
+    has_part: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'TestSuite'], 'inverse': 'part_of'} })
+    replaces: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'],
+         'inverse': 'replaced_by',
+         'slot_uri': 'dcterms:replaces'} })
+    replaced_by: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'],
+         'inverse': 'replaces',
+         'slot_uri': 'dcterms:isReplacedBy'} })
+    was_revision_of: Optional[str] = Field(default=None, description="""PROV revision link between two snapshots of the same logical entity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'slot_uri': 'prov:wasRevisionOf'} })
+    reviewed_by: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'inverse': 'targets_artifact'} })
+    located_in_section: Optional[str] = Field(default=None, description="""SoftwareArtifact → the Section it was sourced from.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'inverse': 'contains_entity'} })
+
+    @field_validator('entity_id')
+    def pattern_entity_id(cls, v):
+        pattern=re.compile(r"^[A-Z]+-[0-9]{3,}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.match(element):
+                    err_msg = f"Invalid entity_id format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.match(v):
+            err_msg = f"Invalid entity_id format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class DomainAttribute(SoftwareArtifact):
+    """
+    Structured key/value attribute attached to a DomainEntity.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'cf:DomainAttribute',
+         'from_schema': 'https://cataforge.dev/ontology/core',
+         'slot_usage': {'attr_name': {'name': 'attr_name', 'required': True}}})
+
+    attr_name: str = Field(default=..., description="""DomainAttribute key.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DomainAttribute']} })
+    attr_value: Optional[str] = Field(default=None, description="""DomainAttribute value.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DomainAttribute']} })
+    attribute_of: Optional[str] = Field(default=None, description="""DomainAttribute → its owning DomainEntity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DomainAttribute'], 'inverse': 'has_attribute'} })
+    id: str = Field(default=..., description="""URI; instances live under cfprj namespace.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document', 'Section']} })
+    entity_id: str = Field(default=..., description="""Frontmatter ID such as F-001, M-014, T-007.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    sort_key: str = Field(default=..., description="""Deterministic export sort key.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Section']} })
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document', 'Section']} })
+    description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project']} })
+    status: Optional[ArtifactStatusEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Document']} })
+    priority: Optional[PriorityEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    created_at: Optional[datetime ] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document']} })
+    updated_at: Optional[datetime ] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Project', 'Document']} })
+    content_hash: Optional[str] = Field(default=None, description="""SHA-256 of the source Markdown section, mirrors .doc-index.json content_hash.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Section']} })
+    source_doc: Optional[str] = Field(default=None, description="""Relative path of the Markdown file the entity was exported from.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Document', 'Section']} })
+    source_section: Optional[str] = Field(default=None, description="""Section anchor inside the source doc, e.g. §2.F-001.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    narrative_body: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Section']} })
+    tags: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    authored_by: Optional[str] = Field(default=None, description="""Free-form attribution (role name or username); not coupled to governance namespace.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Document']} })
+    belongs_to_project: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact']} })
+    depends_on: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'inverse': 'dependency_of'} })
+    dependency_of: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'inverse': 'depends_on'} })
+    part_of: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'Component'], 'inverse': 'has_part'} })
+    has_part: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact', 'TestSuite'], 'inverse': 'part_of'} })
+    replaces: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'],
+         'inverse': 'replaced_by',
+         'slot_uri': 'dcterms:replaces'} })
+    replaced_by: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'],
+         'inverse': 'replaces',
+         'slot_uri': 'dcterms:isReplacedBy'} })
+    was_revision_of: Optional[str] = Field(default=None, description="""PROV revision link between two snapshots of the same logical entity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'slot_uri': 'prov:wasRevisionOf'} })
+    reviewed_by: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'inverse': 'targets_artifact'} })
+    located_in_section: Optional[str] = Field(default=None, description="""SoftwareArtifact → the Section it was sourced from.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SoftwareArtifact'], 'inverse': 'contains_entity'} })
+
+
 class Document(ConfiguredBaseModel):
     """
     A whole business document; container for its sections and entities.
@@ -2417,5 +2548,7 @@ Risk.model_rebuild()
 ChangeRequest.model_rebuild()
 ReviewReport.model_rebuild()
 SprintReviewIssue.model_rebuild()
+DomainEntity.model_rebuild()
+DomainAttribute.model_rebuild()
 Document.model_rebuild()
 Section.model_rebuild()

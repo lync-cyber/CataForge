@@ -379,6 +379,26 @@ slots:
     inverse: contains_entity
     description: SoftwareArtifact → the Section it was sourced from.
 
+  # ---- domain escape hatch (bounded downstream extension) ------------------
+  domain_type:
+    range: string
+    description: Registered domain class of a DomainEntity (e.g. "Order"), set from the prefix registry.
+  has_attribute:
+    range: DomainAttribute
+    multivalued: true
+    inverse: attribute_of
+    description: DomainEntity → its structured key/value attributes.
+  attribute_of:
+    range: DomainEntity
+    inverse: has_attribute
+    description: DomainAttribute → its owning DomainEntity.
+  attr_name:
+    range: string
+    description: DomainAttribute key.
+  attr_value:
+    range: string
+    description: DomainAttribute value.
+
 # ---------------------------------------------------------------------------
 # Class hierarchy
 # ---------------------------------------------------------------------------
@@ -843,14 +863,45 @@ classes:
       entity_id:
         pattern: "^SR-[0-9]{3,}$"
 
+  # ===== domain escape hatch (bounded downstream extension) ================
+  # core's business classes are closed; this single open class lets a
+  # downstream project register custom entity-id prefixes (framework.json
+  # kg.custom_entity_prefixes) so an unregistered prefix becomes a doctor WARN
+  # instead of a silent drop. The concrete prefix set is gated at extraction.
+  DomainEntity:
+    description: Bounded downstream extension point; carries a registered domain_type.
+    class_uri: cf:DomainEntity
+    is_a: SoftwareArtifact
+    slots:
+      - domain_type
+      - has_attribute
+      - satisfies
+    slot_usage:
+      entity_id:
+        pattern: "^[A-Z]+-[0-9]{3,}$"
+        required: true
+      domain_type:
+        required: true
+
+  DomainAttribute:
+    description: Structured key/value attribute attached to a DomainEntity.
+    class_uri: cf:DomainAttribute
+    is_a: SoftwareArtifact
+    slots:
+      - attr_name
+      - attr_value
+      - attribute_of
+    slot_usage:
+      attr_name:
+        required: true
+
   # ===== document-structure layer ==========================================
   # Document / Section are structural containers, not business artifacts —
   # they are standalone (like Project), identified by `id`, and carry
   # whole-document content (structured entities via contains_entity plus
   # prose via Section.narrative_body) so the graph is a complete backend for
   # both entity-level and whole-section context I/O. A single logical Document
-  # owns every Section; splitting a document into physical volume files is an
-  # export-layout function, not a graph structure.
+  # owns every Section and is never split across physical files.
   Document:
     description: A whole business document; container for its sections and entities.
     class_uri: cf:Document
