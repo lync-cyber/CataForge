@@ -489,7 +489,7 @@ def test_check_ui_spec_missing_design_dir_fails_standard(tmp_path: Path) -> None
 
 
 def test_check_ui_spec_no_color_tokens_fails(tmp_path: Path) -> None:
-    """Main volume with no color token table fails."""
+    """A ui-spec with no color token table fails."""
     content = "### UC-001 Btn\n变体: x\nProps: y\n视觉差异: z\n色彩: blue\ntypography: yes\n"
     c = _checker(tmp_path, "ui-spec", content)
     c.check_ui_spec()
@@ -497,7 +497,7 @@ def test_check_ui_spec_no_color_tokens_fails(tmp_path: Path) -> None:
 
 
 def test_check_ui_spec_missing_color_warns(tmp_path: Path) -> None:
-    """Main volume without any color keyword produces a warning."""
+    """A ui-spec without any color keyword produces a warning."""
     content = "### UC-001 Btn\n变体: x\nProps: y\n视觉差异: z\n"
     c = _checker(tmp_path, "ui-spec", content)
     c.check_ui_spec()

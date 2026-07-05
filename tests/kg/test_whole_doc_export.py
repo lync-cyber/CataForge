@@ -343,29 +343,27 @@ def test_orphan_entity_falls_back_to_per_entity_card(tmp_path: Path) -> None:
     assert any("F-900" in r for r in result.file_hashes), result.file_hashes
 
 
-# --- split-volume reconstruction (multiple files, same doc_type) -------------
+# --- multi-document reconstruction (distinct docs, each to its own file) ------
 
 
-def test_split_volume_files_each_reconstructed(tmp_path: Path) -> None:
+def test_multiple_documents_each_reconstructed(tmp_path: Path) -> None:
     from cataforge.domain.kg.export.document_pipeline import compile_documents
 
     src_root = tmp_path / "proj"
-    prd_dir = src_root / "docs" / "prd"
-    prd_dir.mkdir(parents=True)
+    (src_root / "docs" / "prd").mkdir(parents=True)
+    (src_root / "docs" / "arch").mkdir(parents=True)
     (src_root / ".cataforge").mkdir()
     (src_root / ".cataforge" / "framework.json").write_text(_FRAMEWORK_JSON, encoding="utf-8")
-    vol_a = (
-        "---\ndoc_id: prd-vol-a\ndoc_type: prd\n---\n\n# Volume A\n\n## §1 Alpha\n\nAlpha body.\n"
-    )
-    vol_b = "---\ndoc_id: prd-vol-b\ndoc_type: prd\n---\n\n# Volume B\n\n## §1 Beta\n\nBeta body.\n"
-    (prd_dir / "prd-vol-a.md").write_text(vol_a, encoding="utf-8")
-    (prd_dir / "prd-vol-b.md").write_text(vol_b, encoding="utf-8")
+    prd = "---\ndoc_id: prd\ndoc_type: prd\n---\n\n# PRD\n\n## §1 Alpha\n\nAlpha body.\n"
+    arch = "---\ndoc_id: arch\ndoc_type: arch\n---\n\n# ARCH\n\n## §1 Beta\n\nBeta body.\n"
+    (src_root / "docs" / "prd" / "prd.md").write_text(prd, encoding="utf-8")
+    (src_root / "docs" / "arch" / "arch.md").write_text(arch, encoding="utf-8")
 
     handle, _config = _connect_kg_first(src_root)
     out = tmp_path / "out"
     compile_documents(handle.raw, out)
-    assert (out / "prd" / "prd-vol-a.md").read_text(encoding="utf-8") == vol_a
-    assert (out / "prd" / "prd-vol-b.md").read_text(encoding="utf-8") == vol_b
+    assert (out / "prd" / "prd.md").read_text(encoding="utf-8") == prd
+    assert (out / "arch" / "arch.md").read_text(encoding="utf-8") == arch
 
 
 # --- finalize routing --------------------------------------------------------

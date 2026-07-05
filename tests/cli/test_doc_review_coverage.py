@@ -104,7 +104,7 @@ def test_ui_spec_missing_feature_coverage(tmp_path: Path) -> None:
     assert any("F-002" in e for e in checker.errors)
 
 
-# ---- Split-volume main: --docs-dir is the volume subdir, upstream is project-global ----
+# ---- --docs-dir is a doc_type subdir, upstream is project-global ----
 
 
 def _subdir_project(tmp_path: Path) -> Path:

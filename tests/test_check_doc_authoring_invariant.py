@@ -67,7 +67,7 @@ def test_flags_markdown_first_card(tmp_path: Path) -> None:
     _write_card(
         tmp_path,
         "architect",
-        "- 必须产出: arch-{project}.md (含分卷: API, DATA, 模块)\n"
+        "- 必须产出: arch-{project}.md (含 API, DATA, 模块章节)\n"
         "- 使用模板: 通过context调用 arch 模板",
     )
     result = _run_against(tmp_path)

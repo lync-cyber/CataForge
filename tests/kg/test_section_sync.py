@@ -228,7 +228,7 @@ def test_scattered_multilevel_revisions_all_reach_export(tmp_path: Path) -> None
     """>=5 scattered revisions across heading depths must ALL reach the export.
 
     Replays the downstream failure shape: several narrative revisions spread
-    over level-2/3/4 sections of one single-volume doc, then one finalize.
+    over level-2/3/4 sections of one document, then one finalize.
     Every revision must appear in the exported Markdown (non-empty diff,
     changed content hash) and reconcile must settle in_sync.
     """
