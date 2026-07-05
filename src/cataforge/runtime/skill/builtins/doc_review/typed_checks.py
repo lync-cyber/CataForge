@@ -62,11 +62,10 @@ _AC_OBSERVABLE_RE = re.compile(
 
 @dataclass(frozen=True)
 class _ArchSectionRule:
-    """One ARCH per-section-kind requirement: which volumes it applies to, the
-    ``### {prefix}-NNN`` sections it inspects, when a section counts as missing
-    the requirement, and the failure message built from (missing, total)."""
+    """One ARCH per-section-kind requirement: the ``### {prefix}-NNN`` sections
+    it inspects, when a section counts as missing the requirement, and the
+    failure message built from (missing, total)."""
 
-    volumes: frozenset[str]
     prefix: str
     is_missing: Callable[[str], bool]
     message: Callable[[int, int], str]
@@ -74,7 +73,6 @@ class _ArchSectionRule:
 
 _ARCH_SECTION_RULES: tuple[_ArchSectionRule, ...] = (
     _ArchSectionRule(
-        frozenset({"main", "api"}),
         "API",
         lambda s: (
             not re.search(r"type:\s*event-stream", s)
@@ -84,13 +82,11 @@ _ARCH_SECTION_RULES: tuple[_ArchSectionRule, ...] = (
         lambda missing, total: f"{total}个API中{missing}个缺少入参定义 (request/input/参数)",
     ),
     _ArchSectionRule(
-        frozenset({"main", "modules"}),
         "M",
         lambda s: not re.search(r"F-\d+", s),
         lambda missing, total: f"{missing}个模块缺少功能映射 (F-NNN引用)",
     ),
     _ArchSectionRule(
-        frozenset({"main", "data"}),
         "E",
         lambda s: "|" not in s,
         lambda missing, total: f"{missing}个实体缺少字段定义表",
@@ -109,7 +105,6 @@ def _arch_sections(content: str, prefix: str) -> list[str]:
 class TypedDocChecksMixin:
     """Mixin providing ``check_<doc_type>`` methods used by ``DocChecker``."""
 
-    volume_type: str
     content: str
     lines: list[str]
 
@@ -119,28 +114,19 @@ class TypedDocChecksMixin:
     @abstractmethod
     def warn(self, msg: str, category: str = "doc-structure") -> None: ...
 
-    @abstractmethod
-    def split_volume_contents(self) -> list[str]: ...
-
     # ---- PRD ----
 
     def check_prd(self) -> None:
-        if self.volume_type == "main":
-            # A split doc set keeps only pointers in the main volume — the
-            # F/US and AC populations live in the volumes, so count over the
-            # whole corpus.
-            corpus = "\n".join([self.content, *self.split_volume_contents()])
-            f_count = len(re.findall(r"^### F-\d+", corpus, re.MULTILINE))
-            us_count = len(re.findall(r"用户故事|User Story", corpus))
-            if f_count > us_count:
-                self.fail(f"{f_count}个功能仅{us_count}个有用户故事")
-            ac_count = len(re.findall(r"AC-\d+", corpus))
-            if ac_count == 0:
-                self.fail("无验收标准 (AC-NNN)")
-        if self.volume_type in ("main",):
-            nfr_match = re.search(r"## 3\. 非功能需求(.*?)(?=\n## \d|\Z)", self.content, re.DOTALL)
-            if not nfr_match or len(nfr_match.group(1).strip().splitlines()) < 3:
-                self.fail("非功能需求章节过短 (至少3行)")
+        f_count = len(re.findall(r"^### F-\d+", self.content, re.MULTILINE))
+        us_count = len(re.findall(r"用户故事|User Story", self.content))
+        if f_count > us_count:
+            self.fail(f"{f_count}个功能仅{us_count}个有用户故事")
+        ac_count = len(re.findall(r"AC-\d+", self.content))
+        if ac_count == 0:
+            self.fail("无验收标准 (AC-NNN)")
+        nfr_match = re.search(r"## 3\. 非功能需求(.*?)(?=\n## \d|\Z)", self.content, re.DOTALL)
+        if not nfr_match or len(nfr_match.group(1).strip().splitlines()) < 3:
+            self.fail("非功能需求章节过短 (至少3行)")
         f_sections = re.findall(
             r"^### F-\d+.*?(?=^### F-\d+|^## |\Z)",
             self.content,
@@ -158,14 +144,11 @@ class TypedDocChecksMixin:
 
     def check_arch(self) -> None:
         for rule in _ARCH_SECTION_RULES:
-            if self.volume_type not in rule.volumes:
-                continue
             sections = _arch_sections(self.content, rule.prefix)
             missing = sum(1 for section in sections if rule.is_missing(section))
             if missing > 0:
                 self.fail(rule.message(missing, len(sections)))
-        if self.volume_type == "main":
-            self._check_tech_stack_rationale()
+        self._check_tech_stack_rationale()
 
     def _check_tech_stack_rationale(self) -> None:
         """WARN when the tech-stack table leaves 选型理由 cells blank.
@@ -323,7 +306,7 @@ class TypedDocChecksMixin:
         is_lite = mode == "agile-lite"
         min_color_tokens = 3 if is_lite else 5
 
-        if self.volume_type == "main" and not is_lite:
+        if not is_lite:
             if not re.search(r"##\s*0\.\s*设计方向", self.content):
                 self.fail("缺少§0设计方向章节")
             else:
@@ -359,24 +342,23 @@ class TypedDocChecksMixin:
             self.warn(f"{uc_count}个组件中{mvd}个缺少状态视觉差异描述")
         if not is_lite:
             self._check_page_sections(self.content)
-        if self.volume_type == "main":
-            if not re.search(r"色彩|[Cc]olor", self.content):
-                self.warn("设计系统缺少色彩定义")
-            if not re.search(r"排版|[Tt]ypography", self.content):
-                self.warn("设计系统缺少排版定义")
-            color_tokens = re.findall(r"\|\s*\S+.*?\|.*?#[0-9a-fA-F]{3,8}", self.content)
-            if len(color_tokens) < min_color_tokens:
-                mode_label = "agile-lite" if is_lite else "standard"
-                if len(color_tokens) == 0:
-                    self.fail(
-                        f"设计系统缺少色彩Token定义表（{mode_label}模式至少需要"
-                        f"{min_color_tokens}个Token：主色、语义色、中性色）"
-                    )
-                else:
-                    self.fail(
-                        f"仅定义了{len(color_tokens)}个色彩Token，{mode_label}模式"
-                        f"至少需要{min_color_tokens}个（主色、语义色、中性色）"
-                    )
+        if not re.search(r"色彩|[Cc]olor", self.content):
+            self.warn("设计系统缺少色彩定义")
+        if not re.search(r"排版|[Tt]ypography", self.content):
+            self.warn("设计系统缺少排版定义")
+        color_tokens = re.findall(r"\|\s*\S+.*?\|.*?#[0-9a-fA-F]{3,8}", self.content)
+        if len(color_tokens) < min_color_tokens:
+            mode_label = "agile-lite" if is_lite else "standard"
+            if len(color_tokens) == 0:
+                self.fail(
+                    f"设计系统缺少色彩Token定义表（{mode_label}模式至少需要"
+                    f"{min_color_tokens}个Token：主色、语义色、中性色）"
+                )
+            else:
+                self.fail(
+                    f"仅定义了{len(color_tokens)}个色彩Token，{mode_label}模式"
+                    f"至少需要{min_color_tokens}个（主色、语义色、中性色）"
+                )
 
     # ---- TEST-REPORT ----
 

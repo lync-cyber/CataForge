@@ -17,11 +17,11 @@ from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 # ---------------------------------------------------------------------------
 
 
-def _checker(tmp_path: Path, doc_type: str, content: str, volume_type: str = "main") -> DocChecker:
+def _checker(tmp_path: Path, doc_type: str, content: str) -> DocChecker:
     """Write *content* to a temp file and return a DocChecker for it."""
     f = tmp_path / f"{doc_type}.md"
     f.write_text(content, encoding="utf-8")
-    return DocChecker(doc_type, str(f), docs_dir=str(tmp_path), volume_type=volume_type)
+    return DocChecker(doc_type, str(f), docs_dir=str(tmp_path))
 
 
 # ---------------------------------------------------------------------------
@@ -121,67 +121,6 @@ def test_check_prd_missing_priority_fails(tmp_path: Path) -> None:
     c = _checker(tmp_path, "prd", _PRD_MISSING_PRIORITY)
     c.check_prd()
     assert any("优先级" in e for e in c.errors)
-
-
-def test_check_prd_skipped_for_non_main_volume(tmp_path: Path) -> None:
-    """PRD checks that guard volume_type=='main' are skipped for other volumes."""
-    c = _checker(tmp_path, "prd", "No features here.", volume_type="features")
-    c.check_prd()
-    # missing_priority check still runs (not gated on main), but
-    # user-story / AC / NFR checks are main-only → no errors from those
-    assert not any("用户故事" in e for e in c.errors)
-    assert not any("AC" in e for e in c.errors)
-    assert not any("非功能需求" in e for e in c.errors)
-
-
-_PRD_MAIN_DELEGATING = """\
----
-id: prd-keel
-doc_type: prd
-volume: main
----
-## 2. 功能需求
-功能定义见分卷 prd-keel-f001-f008。
-
-## 3. 非功能需求
-- 性能
-- 安全
-- 可用性
-"""
-
-_PRD_FEATURES_VOLUME = """\
----
-id: prd-keel-f001-f008
-doc_type: prd
-volume: features
-split_from: prd-keel
----
-### F-001 Login
-用户故事: As a user I want to login.
-- AC-001: Return token on success.
-优先级: P0
-"""
-
-
-def test_check_prd_main_volume_aggregates_split_volume_ac(tmp_path: Path) -> None:
-    """A delegating main volume passes when its split volumes carry the ACs."""
-    (tmp_path / "prd-keel-f001-f008.md").write_text(_PRD_FEATURES_VOLUME, encoding="utf-8")
-    f = tmp_path / "prd-keel.md"
-    f.write_text(_PRD_MAIN_DELEGATING, encoding="utf-8")
-    c = DocChecker("prd", str(f), docs_dir=str(tmp_path), volume_type="main")
-    c.check_prd()
-    assert c.errors == [], c.errors
-
-
-def test_check_prd_main_volume_without_matching_split_still_fails(tmp_path: Path) -> None:
-    """Sibling volumes that split from a different doc do not count."""
-    other = _PRD_FEATURES_VOLUME.replace("split_from: prd-keel", "split_from: prd-other")
-    (tmp_path / "prd-keel-f001-f008.md").write_text(other, encoding="utf-8")
-    f = tmp_path / "prd-keel.md"
-    f.write_text(_PRD_MAIN_DELEGATING, encoding="utf-8")
-    c = DocChecker("prd", str(f), docs_dir=str(tmp_path), volume_type="main")
-    c.check_prd()
-    assert any("AC" in e or "验收" in e for e in c.errors)
 
 
 # ---------------------------------------------------------------------------
@@ -324,47 +263,23 @@ def test_check_arch_tech_stack_nav_mention_does_not_false_trigger(tmp_path: Path
     assert not any("选型理由" in w for w in c.warnings), c.warnings
 
 
-def test_check_arch_tech_stack_non_main_volume_skips(tmp_path: Path) -> None:
-    """Rationale check is main-volume only."""
-    c = _checker(tmp_path, "arch", _ARCH_TECH_EMPTY_RATIONALE, volume_type="api")
-    c.check_arch()
-    assert not any("选型理由" in w for w in c.warnings), c.warnings
-
-
 # ---------------------------------------------------------------------------
-# check_id_continuity volume scoping
+# check_id_continuity
 # ---------------------------------------------------------------------------
 
 
-def test_id_continuity_api_volume_ignores_cross_volume_e_refs(tmp_path: Path) -> None:
-    """An api volume references E-005/E-008 from data — those are not its
-    entities, so a missing E gap must not warn."""
-    content = "### API-001 A\nref: E-005\n\n### API-002 B\nref: E-008\n"
-    c = _checker(tmp_path, "arch", content, volume_type="api")
-    c.check_id_continuity()
-    assert not any("E-" in w for w in c.warnings), c.warnings
-
-
-def test_id_continuity_api_volume_flags_own_gap(tmp_path: Path) -> None:
-    """An api volume still flags a genuine gap in its own API- numbering."""
+def test_id_continuity_flags_api_gap(tmp_path: Path) -> None:
+    """A genuine gap in API- numbering warns."""
     content = "### API-001 A\n\n### API-003 C\n"
-    c = _checker(tmp_path, "arch", content, volume_type="api")
+    c = _checker(tmp_path, "arch", content)
     c.check_id_continuity()
     assert any("API-002" in w for w in c.warnings), c.warnings
 
 
-def test_id_continuity_data_volume_ignores_api_refs(tmp_path: Path) -> None:
-    """A data volume mentioning API-001/API-009 must not warn about API gaps."""
-    content = "### E-001 A\nmodule: API-001\n\n### E-002 B\nsee API-009\n"
-    c = _checker(tmp_path, "arch", content, volume_type="data")
-    c.check_id_continuity()
-    assert not any("API-" in w for w in c.warnings), c.warnings
-
-
-def test_id_continuity_main_volume_unrestricted(tmp_path: Path) -> None:
-    """The main volume keeps checking every arch prefix."""
+def test_id_continuity_checks_every_arch_prefix(tmp_path: Path) -> None:
+    """An arch doc checks every arch prefix (M / API / E)."""
     content = "### M-001 A\n\n### M-003 C\n"
-    c = _checker(tmp_path, "arch", content, volume_type="main")
+    c = _checker(tmp_path, "arch", content)
     c.check_id_continuity()
     assert any("M-002" in w for w in c.warnings), c.warnings
 
@@ -576,7 +491,7 @@ def test_check_ui_spec_missing_design_dir_fails_standard(tmp_path: Path) -> None
 def test_check_ui_spec_no_color_tokens_fails(tmp_path: Path) -> None:
     """Main volume with no color token table fails."""
     content = "### UC-001 Btn\n变体: x\nProps: y\n视觉差异: z\n色彩: blue\ntypography: yes\n"
-    c = _checker(tmp_path, "ui-spec", content, volume_type="main")
+    c = _checker(tmp_path, "ui-spec", content)
     c.check_ui_spec()
     assert any("色彩Token" in e or "Token" in e for e in c.errors)
 
@@ -584,7 +499,7 @@ def test_check_ui_spec_no_color_tokens_fails(tmp_path: Path) -> None:
 def test_check_ui_spec_missing_color_warns(tmp_path: Path) -> None:
     """Main volume without any color keyword produces a warning."""
     content = "### UC-001 Btn\n变体: x\nProps: y\n视觉差异: z\n"
-    c = _checker(tmp_path, "ui-spec", content, volume_type="main")
+    c = _checker(tmp_path, "ui-spec", content)
     c.check_ui_spec()
     assert any("色彩" in w for w in c.warnings)
 

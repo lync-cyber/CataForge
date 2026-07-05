@@ -22,8 +22,6 @@ from ._render import render_text
 from .constants import (
     DOC_SPLIT_THRESHOLD_LINES,
     KNOWN_DOC_PREFIXES,
-    VOLUME_OWNED_ID_PREFIXES,
-    VOLUME_TYPES,
 )
 from .template_registry import (
     load_template_required_sections,
@@ -69,7 +67,6 @@ class DocChecker(TypedDocChecksMixin):
         doc_type: str,
         doc_file: str,
         docs_dir: str = "docs/",
-        volume_type: str | None = None,
         quiet: bool = False,
     ) -> None:
         self.doc_type = doc_type
@@ -79,7 +76,6 @@ class DocChecker(TypedDocChecksMixin):
         self.lines = self.content.splitlines()
         self._issues = IssueCollector()
         self._quiet = quiet
-        self.volume_type = volume_type or self._detect_volume_type()
 
     @property
     def errors(self) -> list[str]:
@@ -88,31 +84,6 @@ class DocChecker(TypedDocChecksMixin):
     @property
     def warnings(self) -> list[str]:
         return [i.message for i in self._issues.advisory]
-
-    def _detect_volume_type(self) -> str:
-        fm = _fm(self.content)
-        vt = fm.get("volume_type", "")
-        if vt and vt in VOLUME_TYPES:
-            return str(vt)
-        vol = fm.get("volume", "")
-        if vol and vol in VOLUME_TYPES:
-            return str(vol)
-        stem = Path(self.doc_file).stem
-        filename_patterns = [
-            (r"-api$", "api"),
-            (r"-data$", "data"),
-            (r"-modules$", "modules"),
-            (r"-s\d+$", "sprint"),
-            (r"-f\d+-f\d+$", "features"),
-            (r"-p\d+-p\d+$", "pages"),
-            (r"-uc\d+-uc\d+$", "components"),
-            (r"-c\d+-c\d+$", "components"),
-            (r"-theme-\d+(?:-[\w-]+)?$", "theme"),
-        ]
-        for pattern, vol_type in filename_patterns:
-            if re.search(pattern, stem):
-                return vol_type
-        return "main"
 
     def fail(self, msg: str, category: str = "doc-structure") -> None:
         self._issues.add(Severity.HIGH, category, msg)
@@ -186,7 +157,7 @@ class DocChecker(TypedDocChecksMixin):
         line_count = len(self.lines)
         threshold = self._split_threshold()
         if line_count > threshold:
-            self.warn(f"文档行数({line_count})超过{threshold}行阈值，建议通过doc-gen拆分为分卷")
+            self.warn(f"文档行数({line_count})超过{threshold}行阈值，建议拆分为多个逻辑文档或精简")
 
     def check_xref(self) -> None:
         content_no_code = strip_code_blocks(self.content)
@@ -198,8 +169,7 @@ class DocChecker(TypedDocChecksMixin):
         # When the project has KG active for this doc_type, use the
         # graph to verify referent existence — strict URI resolution
         # eliminates the false positives the file-glob path produces
-        # against URL fragments and across-volume references
-        # (Task 6 §6.4 A12).
+        # against URL fragments.
         kg_resolver = self._maybe_kg_xref_resolver()
 
         for doc_id, _section in refs:
@@ -224,22 +194,18 @@ class DocChecker(TypedDocChecksMixin):
     def check_required_sections(self) -> None:
         fm = _fm(self.content)
         mode = fm.get("mode", "standard") if fm else "standard"
-        sections = load_template_required_sections(self.doc_type, self.volume_type, mode)
+        sections = load_template_required_sections(self.doc_type, mode)
         if sections is None:
             self_declared = (fm or {}).get("required_sections")
             if isinstance(self_declared, list) and self_declared:
                 sections = parse_required_sections_from_list([str(h) for h in self_declared if h])
                 self.warn(
-                    f"模板未注册 (doc_type={self.doc_type}, "
-                    f"volume_type={self.volume_type})，回退使用文档自声明的 "
+                    f"模板未注册 (doc_type={self.doc_type})，回退使用文档自声明的 "
                     f"required_sections ({len(sections)} 项)"
                 )
             else:
                 if self.doc_type not in ("changelog",):
-                    self.warn(
-                        f"无法从模板加载 required_sections "
-                        f"(doc_type={self.doc_type}, volume_type={self.volume_type})"
-                    )
+                    self.warn(f"无法从模板加载 required_sections (doc_type={self.doc_type})")
                 return
         _, body = split_yaml_frontmatter(self.content)
         body = body if body is not None else self.content
@@ -259,9 +225,6 @@ class DocChecker(TypedDocChecksMixin):
             "ui-spec": [("UC", r"UC-(\d+)"), ("P", r"P-(\d+)")],
         }
         patterns = id_patterns.get(self.doc_type, [])
-        owned = VOLUME_OWNED_ID_PREFIXES.get(self.volume_type)
-        if owned is not None:
-            patterns = [(p, rx) for p, rx in patterns if p in owned]
         for prefix, pattern in patterns:
             ids = [int(m) for m in re.findall(pattern, self.content)]
             if not ids:
@@ -272,30 +235,6 @@ class DocChecker(TypedDocChecksMixin):
             if missing:
                 missing_str = ", ".join(f"{prefix}-{str(m).zfill(3)}" for m in sorted(missing))
                 self.warn(f"ID编号不连续, 缺少: {missing_str}")
-
-    def check_split_header(self) -> None:
-        if self.volume_type != "main":
-            fm = _fm(self.content)
-            if not fm.get("split_from"):
-                self.fail(f"分卷文档 (volume={self.volume_type}) 缺少 split_from 字段")
-
-    def split_volume_contents(self) -> list[str]:
-        """Full texts of sibling volumes whose ``split_from`` points at this doc."""
-        doc_id = str(_fm(self.content).get("id") or "")
-        if not doc_id:
-            return []
-        doc_path = Path(self.doc_file)
-        out: list[str] = []
-        for sibling in doc_path.parent.glob("*.md"):
-            if sibling.name == doc_path.name:
-                continue
-            try:
-                text = sibling.read_text(errors="replace")
-            except OSError:
-                continue
-            if str(_fm(text).get("split_from") or "") == doc_id:
-                out.append(text)
-        return out
 
     # Doc types that are themselves review artifacts (or never enter the
     # doc-review verdict flow) — their status is not gated on a REVIEW report.
@@ -317,12 +256,12 @@ class DocChecker(TypedDocChecksMixin):
         """``status: approved`` requires a review-report trail.
 
         A freshly created document cannot be born approved — that bypasses
-        the doc-review gate. Split volumes ride their main volume's review.
+        the doc-review gate.
         """
         fm = _fm(self.content)
         if fm.get("status") != "approved":
             return
-        if self.doc_type in self._STATUS_PROVENANCE_EXEMPT or self.volume_type != "main":
+        if self.doc_type in self._STATUS_PROVENANCE_EXEMPT:
             return
         doc_id = str(fm.get("id") or "")
         if not doc_id:
@@ -350,7 +289,7 @@ class DocChecker(TypedDocChecksMixin):
             "ui-spec": _CoverageRule("prd", "F"),
         }
         rule = coverage_rules.get(self.doc_type)
-        if not rule or self.volume_type != "main":
+        if not rule:
             return
 
         upstream_prefix = rule.upstream_prefix
@@ -394,14 +333,12 @@ class DocChecker(TypedDocChecksMixin):
         return project_root_from_docs_dir(self.docs_dir)
 
     def _docs_root(self) -> Path:
-        """The project-global docs tree root — holds ``reviews/`` and every volume.
+        """The project-global docs tree root — holds ``reviews/`` and the docs.
 
         Project-global lookups (review reports, upstream-doc scans, xref target
-        resolution) must resolve here, never against the volume-level ``docs_dir``:
-        split volumes pass their own subdir (e.g. ``docs/arch/``) purely for
-        sibling/tile resolution, which is anchored on the doc file's own parent.
-        Falls back to ``docs_dir`` when the path is not inside a CataForge project
-        (bare-file checks, tests).
+        resolution) must resolve here, never against the ``docs_dir`` subdir a
+        caller may pass (e.g. ``docs/arch/``). Falls back to ``docs_dir`` when
+        the path is not inside a CataForge project (bare-file checks, tests).
         """
         root = self._project_root()
         return root / "docs" if root is not None else Path(self.docs_dir)
@@ -565,20 +502,6 @@ class DocChecker(TypedDocChecksMixin):
                 category="consistency",
             )
 
-    def check_split_consistency(self) -> None:
-        if self.volume_type != "main":
-            return
-        doc_dir = Path(self.doc_file).parent
-        doc_stem = Path(self.doc_file).stem
-        volume_files = [
-            f
-            for f in doc_dir.glob(f"{doc_stem}-*")
-            if f.name != Path(self.doc_file).name and f.suffix == ".md"
-        ]
-        for vf in volume_files:
-            if vf.stem not in self.content and vf.name not in self.content:
-                self.warn(f"主卷未引用分卷文件: {vf.name}")
-
     def collect(self) -> CheckReport:
         """Run all checks and return a structured report (no console I/O).
 
@@ -595,8 +518,6 @@ class DocChecker(TypedDocChecksMixin):
         self.check_line_count()
         self.check_required_sections()
         self.check_id_continuity()
-        self.check_split_header()
-        self.check_split_consistency()
         self.check_bidirectional_coverage()
 
         checks = {
@@ -616,7 +537,7 @@ class DocChecker(TypedDocChecksMixin):
         return CheckReport(
             self._issues,
             summary={"unknown_doc_type": self.doc_type if unknown else None},
-            headline=(f"检查: {self.doc_file} (type={self.doc_type}, volume={self.volume_type})"),
+            headline=(f"检查: {self.doc_file} (type={self.doc_type})"),
         )
 
     def run(self) -> int:
@@ -646,7 +567,7 @@ VALID_DOC_TYPES = (
 def _usage() -> str:
     return (
         "用法: cataforge skill run doc-review -- <doc-type> <doc-file> "
-        "[--docs-dir docs/] [--volume-type <type>]\n"
+        "[--docs-dir docs/]\n"
         f"  doc-type ∈ {{{', '.join(VALID_DOC_TYPES)}}}"
     )
 
@@ -670,20 +591,16 @@ def main() -> None:
         print(f"错误: 找不到文档文件 {doc_file!r} (cwd={Path.cwd()})。\n{_usage()}")
         sys.exit(2)
     docs_dir = "docs/"
-    volume_type = None
     fmt = "text"
 
     if "--docs-dir" in sys.argv:
         idx = sys.argv.index("--docs-dir")
         docs_dir = sys.argv[idx + 1]
-    if "--volume-type" in sys.argv:
-        idx = sys.argv.index("--volume-type")
-        volume_type = sys.argv[idx + 1]
     if "--format" in sys.argv:
         idx = sys.argv.index("--format")
         fmt = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "text"
 
-    checker = DocChecker(doc_type, doc_file, docs_dir, volume_type)
+    checker = DocChecker(doc_type, doc_file, docs_dir)
     report = checker.collect()
     if fmt == "json":
         print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))

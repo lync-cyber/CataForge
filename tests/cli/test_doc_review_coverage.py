@@ -107,11 +107,11 @@ def test_ui_spec_missing_feature_coverage(tmp_path: Path) -> None:
 # ---- Split-volume main: --docs-dir is the volume subdir, upstream is project-global ----
 
 
-def _split_project(tmp_path: Path) -> Path:
-    """Project whose arch main volume is invoked with --docs-dir=docs/arch/.
+def _subdir_project(tmp_path: Path) -> Path:
+    """Project whose arch doc is invoked with --docs-dir=docs/arch/.
 
     Upstream PRD lives at the project-global docs/prd/ — the coverage scan
-    must not be scoped to the volume subdir passed as docs_dir.
+    must not be scoped to the subdir passed as docs_dir.
     """
     (tmp_path / ".cataforge").mkdir()
     _write(
@@ -123,63 +123,30 @@ def _split_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def test_arch_split_volume_missing_coverage_via_volume_docs_dir(tmp_path: Path) -> None:
-    root = _split_project(tmp_path)
+def test_arch_missing_coverage_via_subdir_docs_dir(tmp_path: Path) -> None:
+    root = _subdir_project(tmp_path)
     arch_path = _write(
         root,
         "docs/arch/arch-foo.md",
-        "---\nid: arch-foo\ndoc_type: arch\ndeps: [prd-foo]\nvolume: main\n---\n"
+        "---\nid: arch-foo\ndoc_type: arch\ndeps: [prd-foo]\n---\n"
         "# ARCH\n## 2. Modules\n### M-001: Auth\nCovers F-001, F-002\n",
     )
-    checker = DocChecker(
-        "arch", str(arch_path), str(root / "docs" / "arch"), volume_type="main", quiet=True
-    )
+    checker = DocChecker("arch", str(arch_path), str(root / "docs" / "arch"), quiet=True)
     checker.check_bidirectional_coverage()
     assert any("F-003" in e for e in checker.errors), checker.errors
 
 
-def test_arch_split_volume_full_coverage_via_volume_docs_dir(tmp_path: Path) -> None:
-    root = _split_project(tmp_path)
+def test_arch_full_coverage_via_subdir_docs_dir(tmp_path: Path) -> None:
+    root = _subdir_project(tmp_path)
     arch_path = _write(
         root,
         "docs/arch/arch-foo.md",
-        "---\nid: arch-foo\ndoc_type: arch\ndeps: [prd-foo]\nvolume: main\n---\n"
+        "---\nid: arch-foo\ndoc_type: arch\ndeps: [prd-foo]\n---\n"
         "# ARCH\n## 2. Modules\n### M-001\nCovers F-001, F-002, F-003\n",
     )
-    checker = DocChecker(
-        "arch", str(arch_path), str(root / "docs" / "arch"), volume_type="main", quiet=True
-    )
+    checker = DocChecker("arch", str(arch_path), str(root / "docs" / "arch"), quiet=True)
     checker.check_bidirectional_coverage()
     assert not checker.errors, checker.errors
-
-
-# ---- Skipped for non-main volumes ----
-
-
-def test_coverage_skipped_for_volume_docs(tmp_path: Path) -> None:
-    docs = tmp_path / "docs"
-    _write(
-        tmp_path,
-        "docs/prd/prd-foo.md",
-        "---\nid: prd-foo\ndoc_type: prd\n---\n# PRD\n"
-        "### F-001: Login\n### F-002: Signup\n### F-003: Export\n",
-    )
-    arch_path = _write(
-        tmp_path,
-        "docs/arch/arch-foo-modules.md",
-        "---\nid: arch-foo-modules\ndoc_type: arch\n"
-        "volume_type: modules\nsplit_from: arch-foo\n---\n"
-        "# ARCH Modules\n### M-001: Auth\nF-001\n",
-    )
-    checker = DocChecker(
-        "arch",
-        str(arch_path),
-        str(docs),
-        volume_type="modules",
-        quiet=True,
-    )
-    checker.check_bidirectional_coverage()
-    assert not checker.errors
 
 
 # ---- No upstream docs found → no error ----

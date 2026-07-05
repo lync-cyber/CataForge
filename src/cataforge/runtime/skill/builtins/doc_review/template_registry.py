@@ -23,18 +23,17 @@ def parse_required_sections_from_list(headings: list[str]) -> list[tuple[str, st
     """Public wrapper around the internal heading-name parser.
 
     Used by ``DocChecker.check_required_sections`` to consume a doc's
-    self-declared ``required_sections`` frontmatter list when the doc_type /
-    volume_type combination has no registered template.
+    self-declared ``required_sections`` frontmatter list when the doc_type has
+    no registered template.
     """
     return _parse_required_sections(headings)
 
 
-def build_template_path_map() -> dict[str, dict[str, dict[str, str]]]:
-    """Build doc_type → mode → {volume_type → template_filename} from _registry.yaml.
+def build_template_path_map() -> dict[str, dict[str, str]]:
+    """Build doc_type → mode → template_filename from _registry.yaml.
 
-    Volumes (role=volume) always attach to their parent mode (from split_from's
-    template entry). Utility entries declaring mode=any register under
-    ``"standard"`` and also get fallback lookups from any other mode.
+    Utility entries declaring mode=any register under ``"standard"`` and also
+    get fallback lookups from any other mode.
     """
     try:
         registry_dir = Path(
@@ -58,40 +57,25 @@ def build_template_path_map() -> dict[str, dict[str, dict[str, str]]]:
 
     registry = load_yaml(registry_path)
     templates = registry.get("templates", {})
-    result: dict[str, dict[str, dict[str, str]]] = {}
+    result: dict[str, dict[str, str]] = {}
 
     def _normalize_mode(mode: str) -> str:
         return "standard" if mode in ("", "any") else mode
 
-    # Map template id → mode for resolving volumes' parent mode
-    tpl_mode: dict[str, str] = {}
-    for tpl_id, tpl in templates.items():
-        if isinstance(tpl, dict):
-            tpl_mode[tpl_id] = _normalize_mode(tpl.get("mode", "standard"))
-
-    for _tpl_id, tpl in templates.items():
+    for tpl in templates.values():
         if not isinstance(tpl, dict):
             continue
         doc_type = tpl.get("doc_type", "")
         path = tpl.get("path", "")
-        role = tpl.get("role", "main")
-        if not doc_type or not path:
+        if not doc_type or not path or tpl.get("role", "main") != "main":
             continue
-        if role == "main":
-            mode = _normalize_mode(tpl.get("mode", "standard"))
-            result.setdefault(doc_type, {}).setdefault(mode, {})["main"] = path
-        elif role == "volume":
-            vt = tpl.get("volume_type", "")
-            if not vt:
-                continue
-            parent_id = tpl.get("split_from", "")
-            mode = tpl_mode.get(parent_id) or _normalize_mode(tpl.get("mode", "standard"))
-            result.setdefault(doc_type, {}).setdefault(mode, {})[vt] = path
+        mode = _normalize_mode(tpl.get("mode", "standard"))
+        result.setdefault(doc_type, {})[mode] = path
     return result
 
 
 _templates_dir: Path | None = None
-_template_map: dict[str, dict[str, dict[str, str]]] | None = None
+_template_map: dict[str, dict[str, str]] | None = None
 _registry_lock = threading.Lock()
 
 
@@ -113,7 +97,7 @@ def _get_templates_dir() -> Path:
         return _templates_dir
 
 
-def _get_template_map() -> dict[str, dict[str, dict[str, str]]]:
+def _get_template_map() -> dict[str, dict[str, str]]:
     global _template_map
     with _registry_lock:
         if _template_map is None:
@@ -131,7 +115,7 @@ def _parse_required_sections(headings: list[str]) -> list[tuple[str, str]]:
 
 
 def load_template_required_sections(
-    doc_type: str, volume_type: str, mode: str = "standard"
+    doc_type: str, mode: str = "standard"
 ) -> list[tuple[str, str]] | None:
     mode_map = _get_template_map().get(doc_type)
     if not mode_map:
@@ -141,10 +125,9 @@ def load_template_required_sections(
         if mode in mode_map
         else ("standard" if "standard" in mode_map else next(iter(mode_map), ""))
     )
-    type_map = mode_map.get(mode_key) or {}
-    filename = type_map.get(volume_type)
+    filename = mode_map.get(mode_key)
     if not filename and mode_key != "standard" and "standard" in mode_map:
-        filename = mode_map["standard"].get(volume_type)
+        filename = mode_map.get("standard")
     if not filename:
         return None
     template_path = _get_templates_dir() / filename
