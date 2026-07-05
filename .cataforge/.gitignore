@@ -20,3 +20,8 @@ kg/store/
 # the durable audit trail is the tracked docs/EVENT-LOG.jsonl. Leading slash
 # anchors to this .cataforge/ dir so only .cataforge/state/ is ignored.
 /state/
+
+# code-review complexity ratchet baseline, refreshed on every scan. Per-clone
+# generated state, never committed — a committed CRLF baseline would ship in the
+# wheel and make every downstream `upgrade apply` report false drift.
+/baselines/

@@ -43,6 +43,11 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
         help="逗号分隔的 category 列表（COMMON-RULES §统一问题分类体系）",
     )
     parser.add_argument("--format", choices=("text", "json"), default="text", dest="fmt")
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="文本输出显示全部 info（默认按类截断信息尾）",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -63,6 +68,7 @@ def run(
     fix: bool = False,
     focus: list[str] | None = None,
     fmt: str = "text",
+    verbose: bool = False,
 ) -> int:
     """Core entry: run the pipeline and print the rendered result."""
     target_path = Path(target)
@@ -80,7 +86,7 @@ def run(
     except FocusError as exc:
         print(f"ERROR: {exc}")
         return 2
-    print(render_json(result) if fmt == "json" else render_text(result))
+    print(render_json(result) if fmt == "json" else render_text(result, verbose=verbose))
     return result.exit_code
 
 
@@ -95,6 +101,7 @@ def main() -> None:
             fix=getattr(args, "fix", False),
             focus=focus,
             fmt=args.fmt,
+            verbose=args.verbose,
         )
     )
 

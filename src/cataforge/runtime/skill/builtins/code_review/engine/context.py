@@ -7,7 +7,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from cataforge.runtime.skill.builtins.code_review.engine.fs import iter_files, resolved
+from cataforge.runtime.skill.builtins.code_review.engine.fs import (
+    iter_files,
+    load_project_ignore,
+    resolved,
+)
 from cataforge.utils.run_subprocess import run as run_proc
 
 DETECT_TIMEOUT_SECS = 15
@@ -37,7 +41,7 @@ class CheckContext:
             if self.target.is_file():
                 self._walk = [self.target]
             else:
-                self._walk = sorted(iter_files(self.target))
+                self._walk = sorted(iter_files(self.target, load_project_ignore(self.project_root)))
         return self._walk
 
     def files(self, extensions: frozenset[str]) -> list[Path]:

@@ -9,11 +9,17 @@ Finding severity drives the exit code: any ``fail`` finding → exit 1;
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from dataclasses import dataclass, field
 
 FINDING_SEVERITIES = ("fail", "warn", "info")
 
 _SEVERITY_LABEL = {"fail": "FAIL", "warn": "WARN", "info": "INFO"}
+_SEVERITY_RANK = {"fail": 0, "warn": 1, "info": 2}
+# Informational findings shown per category in text mode before the tail is
+# collapsed; gating (fail/warn) findings are never truncated. Full list via
+# --verbose or --format json.
+_INFO_CAP = 10
 
 
 @dataclass(frozen=True)
@@ -62,13 +68,43 @@ def _location(finding: Finding) -> str:
     return ""
 
 
-def render_text(result: PipelineResult) -> str:
+def _render_finding(finding: Finding) -> list[str]:
+    label = _SEVERITY_LABEL.get(finding.severity, finding.severity.upper())
+    head, *rest = finding.detail.splitlines() or [""]
+    return [f"{label}: {_location(finding)}({finding.check_id}) {head}", *(f"  {r}" for r in rest)]
+
+
+def render_text(result: PipelineResult, verbose: bool = False) -> str:
+    """Group findings by category, gating (fail/warn) first and never
+    truncated; the informational tail is capped per category unless
+    *verbose*. The summary block and ``RESULT`` line are format-stable."""
     lines: list[str] = []
+    by_category: dict[str, list[Finding]] = defaultdict(list)
     for f in result.findings:
-        label = _SEVERITY_LABEL.get(f.severity, f.severity.upper())
-        head, *rest = f.detail.splitlines() or [""]
-        lines.append(f"{label}: {_location(f)}({f.check_id}) {head}")
-        lines.extend(f"  {r}" for r in rest)
+        by_category[f.category].append(f)
+
+    def _category_rank(category: str) -> tuple[int, str]:
+        worst = min(_SEVERITY_RANK.get(f.severity, 3) for f in by_category[category])
+        return (worst, category)
+
+    for category in sorted(by_category, key=_category_rank):
+        group = sorted(by_category[category], key=lambda f: _SEVERITY_RANK.get(f.severity, 3))
+        counts = {sev: sum(1 for f in group if f.severity == sev) for sev in FINDING_SEVERITIES}
+        lines.append(
+            f"── {category}: fail={counts['fail']} warn={counts['warn']} info={counts['info']}"
+        )
+        shown_info = 0
+        for f in group:
+            if f.severity == "info":
+                if not verbose and shown_info >= _INFO_CAP:
+                    continue
+                shown_info += 1
+            lines.extend(_render_finding(f))
+        if not verbose and counts["info"] > _INFO_CAP:
+            lines.append(
+                f"  … 还有 {counts['info'] - _INFO_CAP} 条 info"
+                "（--verbose / --format json 查看全部）"
+            )
     lines.append("")
     lines.append("=" * 41)
     lines.append(f"Code Review Layer 1 Summary ({result.mode})")
