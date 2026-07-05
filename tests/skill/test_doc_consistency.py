@@ -23,11 +23,11 @@ def _write(path: Path, content: str) -> None:
     path.write_text(textwrap.dedent(content).lstrip(), encoding="utf-8")
 
 
-# ---- docs_dir normalization: a volume subdir must not silently under-scan ----
+# ---- docs_dir normalization: a doc_type subdir must not silently under-scan ----
 
 
-def test_volume_subdir_docs_dir_normalizes_to_docs_root(tmp_path: Path) -> None:
-    """Handed a volume subdir (docs/arch/), cross-doc discovery must resolve
+def test_doc_type_subdir_docs_dir_normalizes_to_docs_root(tmp_path: Path) -> None:
+    """Handed a doc_type subdir (docs/arch/), cross-doc discovery must resolve
     the project-global docs tree — not silently under-scan and false-clean."""
     (tmp_path / ".cataforge").mkdir()
     docs = tmp_path / "docs"

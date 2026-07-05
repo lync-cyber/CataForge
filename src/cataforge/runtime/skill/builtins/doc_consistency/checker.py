@@ -30,8 +30,8 @@ class CrossDocChecker(_CrossDocChecksMixin):
 
     def __init__(self, docs_dir: str = "docs/", quiet: bool = False) -> None:
         # Cross-doc discovery must span the whole project docs tree. Normalize a
-        # volume subdir (docs/arch/) back to the docs root so an accidental
-        # volume-scoped invocation can't silently under-scan and false-clean;
+        # doc_type subdir (docs/arch/) back to the docs root so an accidental
+        # subdir-scoped invocation can't silently under-scan and false-clean;
         # outside a project (tests) the given path is used as-is.
         root = project_root_from_docs_dir(Path(docs_dir))
         self.docs_dir = root / "docs" if root is not None else Path(docs_dir)
@@ -126,14 +126,14 @@ class CrossDocChecker(_CrossDocChecksMixin):
                     "  ?s cf:entity_id ?eid ; "
                     "     cf:source_doc ?src . "
                     '  FILTER(STRSTARTS(STR(?eid), "AC-")) '
-                    '  FILTER(CONTAINS(STR(?src), "prd")) '
+                    '  FILTER(STR(?src) = "prd") '
                     "}"
                 )
                 downstream_q = (
                     f"PREFIX cf: <{ns}> "
                     "SELECT DISTINCT ?ac_id WHERE { "
                     "  ?impl cf:source_doc ?src_doc . "
-                    f'  FILTER(CONTAINS(STR(?src_doc), "{downstream_doc_type}")) '
+                    f'  FILTER(STR(?src_doc) = "{downstream_doc_type}") '
                     "  ?impl cf:implements ?feature . "
                     "  ?ac cf:part_of ?feature ; cf:entity_id ?ac_id . "
                     '  FILTER(STRSTARTS(STR(?ac_id), "AC-")) '
@@ -184,7 +184,7 @@ class CrossDocChecker(_CrossDocChecksMixin):
                     "  ?s cf:entity_id ?eid ; "
                     "     cf:source_doc ?src . "
                     '  FILTER(STRSTARTS(STR(?eid), "AC-")) '
-                    '  FILTER(CONTAINS(STR(?src), "prd")) '
+                    '  FILTER(STR(?src) = "prd") '
                     "  OPTIONAL { ?s cf:part_of ?f . ?f cf:entity_id ?fid } "
                     "}"
                 )
@@ -192,7 +192,7 @@ class CrossDocChecker(_CrossDocChecksMixin):
                     f"PREFIX cf: <{ns}> "
                     "SELECT DISTINCT ?rid WHERE { "
                     "  ?src cf:source_doc ?src_doc . "
-                    '  FILTER(CONTAINS(STR(?src_doc), "dev-plan")) '
+                    '  FILTER(STR(?src_doc) = "dev-plan") '
                     "  ?src ?p ?o . "
                     "  ?o cf:entity_id ?rid . "
                     '  FILTER(STRSTARTS(STR(?rid), "AC-") || STRSTARTS(STR(?rid), "F-")) '

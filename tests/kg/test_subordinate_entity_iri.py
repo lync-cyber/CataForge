@@ -145,21 +145,19 @@ def test_cross_doc_same_ac_id_imports_and_reconciles(tmp_path: Path) -> None:
     assert report.overall_divergence_count == 0, report.to_dict()
 
 
-def test_cross_doc_ac_xref_resolves_to_volume_nested_node(tmp_path: Path) -> None:
-    # A split PRD volume stores its AC under a volume doc_id (prd-core) while the
-    # dev-plan xref carries the base doc id (prd#§2.AC-001). The satisfies edge
-    # must still resolve to the nested AC node `{base}/F-001/AC-001`, not a bare
-    # flat placeholder `{base}/AC-001` (which has no entity_id and gets filtered
-    # out of the AC-traceability check, the symptom of the reported bug).
+def test_cross_doc_ac_xref_resolves_to_nested_node(tmp_path: Path) -> None:
+    # A dev-plan xref names only the base doc + AC id (prd#§2.AC-001). The
+    # satisfies edge must resolve to the AC's parent-scoped nested node
+    # `{base}/F-001/AC-001`, not a bare flat placeholder `{base}/AC-001` (which
+    # has no entity_id and gets filtered out of the AC-traceability check).
     from cataforge.domain.kg import KGConfig, init_store
     from cataforge.domain.kg.ingest import run_migration
 
     _write(
         tmp_path,
         "prd",
-        "prd-core.md",
-        "---\ndoc_id: prd-core\ndoc_type: prd\n---\n# PRD core\n\n## §2\n\n"
-        "### F-001 登录\n\n- AC-001: 邮箱密码可登录\n",
+        "prd.md",
+        "---\ndoc_id: prd\n---\n# PRD\n\n## §2\n\n### F-001 登录\n\n- AC-001: 邮箱密码可登录\n",
     )
     _write(
         tmp_path,

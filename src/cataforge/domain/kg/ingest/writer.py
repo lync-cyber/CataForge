@@ -195,11 +195,9 @@ def _lookup_node_iri(
 
     Resolves a subordinate endpoint to the actual parent-scoped node already
     written to the store, so a relation edge points at the composite IRI rather
-    than a non-existent flat one. An xref carries the *base* doc id (`prd`) while
-    a split document's entities are stored under volume doc ids (`prd-core`); the
-    exact source_doc is tried first, then a volume-tolerant `CONTAINS` match
-    symmetric with the cross-doc consistency checker's source_doc resolution.
-    Deterministic first match under ambiguity.
+    than a non-existent flat one. ``source_doc`` is the logical doc id (its
+    bare doc_type, e.g. `prd`); the match is exact. Deterministic first match
+    under ambiguity.
     """
     ns = cf_namespace(config)
     eid = escape_sparql_literal(entity_id)
@@ -208,16 +206,10 @@ def _lookup_node_iri(
         f'PREFIX cf: <{ns}> SELECT ?s WHERE {{ ?s cf:entity_id "{eid}" ; '
         f'cf:source_doc "{src}" }} ORDER BY STR(?s) LIMIT 1'
     )
-    volume = (
-        f'PREFIX cf: <{ns}> SELECT ?s WHERE {{ ?s cf:entity_id "{eid}" ; '
-        f'cf:source_doc ?src . FILTER(CONTAINS(STR(?src), "{src}")) }} '
-        "ORDER BY STR(?s) LIMIT 1"
-    )
-    for sparql in (exact, volume):
-        for row in select_rows(store, sparql):
-            node = _term_value(_row_lookup(row, "s"))
-            if node is not None:
-                return str(node)
+    for row in select_rows(store, exact):
+        node = _term_value(_row_lookup(row, "s"))
+        if node is not None:
+            return str(node)
     return None
 
 
