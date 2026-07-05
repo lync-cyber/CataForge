@@ -93,12 +93,27 @@ def test_scan_focus_never_disables_gating_checks(tmp_path: Path) -> None:
     assert result.exit_code == 1  # gating dead_token still fails the scan
 
 
-def test_missing_probe_tool_is_warn_not_gate(tmp_path: Path) -> None:
+def test_missing_probe_tool_is_info_not_gate(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
     result = execute("scan", tmp_path, project_root=tmp_path, tool_cache=dict(_NO_TOOLS))
     assert result.exit_code == 0
-    missing = [f for f in result.findings if "未安装" in f.detail]
-    assert missing and all(f.severity == "warn" for f in missing)
+    # A supplementary probe (radon/vulture/…) being absent is info, not warn:
+    # the dimension it augments has a built-in floor, so it stays in the
+    # truncatable info section rather than the prominent warn list.
+    probe_missing = [f for f in result.findings if "probe '" in f.detail and "未安装" in f.detail]
+    assert probe_missing and all(f.severity == "info" for f in probe_missing)
+
+
+def test_missing_linter_tool_stays_warn_not_gate(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    result = execute("scan", tmp_path, project_root=tmp_path, tool_cache=dict(_NO_TOOLS))
+    assert result.exit_code == 0
+    # A missing primary linter (Ruff for .py here) means that language is not
+    # linted at all — a real coverage gap worth a prominent warn (still non-gating).
+    linter_missing = [
+        f for f in result.findings if "未安装" in f.detail and "probe '" not in f.detail
+    ]
+    assert linter_missing and all(f.severity == "warn" for f in linter_missing)
 
 
 def test_renderers_agree_on_result(tmp_path: Path) -> None:

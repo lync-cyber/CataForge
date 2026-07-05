@@ -179,10 +179,14 @@ def _make_runner(probe: Probe) -> Callable[[CheckContext], list[Finding]]:
             return []
         if not ctx.tool_available(probe.name, probe.detect):
             if ctx.first_missing_report(probe.name):
+                # A supplementary probe being absent is a "could install X for a
+                # sharper signal" notice, not a defect — info keeps it in the
+                # truncatable section instead of the prominent warn list. Runtime
+                # failures (timeout below) stay warn.
                 return [
                     Finding(
                         check_id=probe.check_id,
-                        severity="warn",
+                        severity="info",
                         category=probe.category,
                         detail=f"probe '{probe.name}' 未安装，跳过",
                     )
