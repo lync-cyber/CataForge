@@ -69,6 +69,31 @@ def test_non_techstack_entities_carry_only_narrative_slot() -> None:
     assert all(set(e.extra_slots) <= {"cf:narrative_body"} for e in non_ts)
 
 
+# -- unit tests: _tech_stack_layers table vs bullet forms --------------------
+
+
+def test_tech_stack_layers_from_table() -> None:
+    """A 6-column table yields '层次: 技术' layer strings from its first two cols."""
+    from cataforge.domain.kg.ingest.entity_extract import _tech_stack_layers
+
+    section = (
+        "### §1.4 技术栈\n"
+        "| 层次 | 技术 | 选型理由 |\n"
+        "|------|------|----------|\n"
+        "| 后端 | Python 3.12 | 成熟 |\n"
+        "| 认证 | JWT (PyJWT) | 标准 |\n"
+    )
+    assert _tech_stack_layers(section) == ["后端: Python 3.12", "认证: JWT (PyJWT)"]
+
+
+def test_tech_stack_layers_bullet_fallback() -> None:
+    """A bullet list (no table) still yields verbatim layer strings."""
+    from cataforge.domain.kg.ingest.entity_extract import _tech_stack_layers
+
+    section = "### §1.4 技术栈\n- 后端: Python 3.12\n- 认证: JWT (PyJWT)\n"
+    assert _tech_stack_layers(section) == ["后端: Python 3.12", "认证: JWT (PyJWT)"]
+
+
 # -- integration: TechStack in the full migration pipeline -------------------
 
 

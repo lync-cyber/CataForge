@@ -8,6 +8,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from cataforge.core.markdown_sections import parse_markdown_table
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
 
 # AC observability heuristic — every tdd_acceptance entry should describe
@@ -163,6 +164,33 @@ class TypedDocChecksMixin:
             missing = sum(1 for section in sections if rule.is_missing(section))
             if missing > 0:
                 self.fail(rule.message(missing, len(sections)))
+        if self.volume_type == "main":
+            self._check_tech_stack_rationale()
+
+    def _check_tech_stack_rationale(self) -> None:
+        """WARN when the tech-stack table leaves 选型理由 cells blank.
+
+        Anchors on a ``技术栈`` heading (not the NAV pointer that shares the
+        word), reads the first pipe table under it, and flags data rows whose
+        rationale column — the header containing ``理由`` — is empty. A table
+        without such a column (the terser lite ``类别/选型/备注`` schema) carries
+        no rationale requirement and is left alone.
+        """
+        for m in re.finditer(
+            r"^#{2,4}\s+[^\n]*技术栈[^\n]*\n(.*?)(?=^#{2,4}\s|\Z)",
+            self.content,
+            re.MULTILINE | re.DOTALL,
+        ):
+            table = parse_markdown_table(m.group(1))
+            if table is None:
+                continue
+            idx = next((i for i, h in enumerate(table.headers) if "理由" in h), None)
+            if idx is None:
+                continue
+            missing = sum(1 for row in table.rows if idx >= len(row) or not row[idx].strip())
+            if missing > 0:
+                self.warn(f"技术栈表格{missing}行缺少选型理由")
+            return
 
     # ---- DEV-PLAN ----
 

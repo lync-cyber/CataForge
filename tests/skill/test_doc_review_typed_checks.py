@@ -267,6 +267,71 @@ def test_check_arch_api_no_input_at_all_still_fails(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# check_arch — tech-stack 选型理由
+# ---------------------------------------------------------------------------
+
+_ARCH_TECH_EMPTY_RATIONALE = """\
+### 1.4 技术栈
+| 层次 | 技术 | 选型理由 | 调研来源 |
+|------|------|----------|----------|
+| 后端 | Python | 类型系统成熟 | tech-eval |
+| 认证 | JWT |  | - |
+"""
+
+_ARCH_TECH_FILLED_RATIONALE = """\
+### 1.4 技术栈
+| 层次 | 技术 | 选型理由 | 调研来源 |
+|------|------|----------|----------|
+| 后端 | Python | 类型系统成熟 | tech-eval |
+| 认证 | JWT | 无状态会话标准 | tech-eval |
+"""
+
+_ARCH_TECH_NO_RATIONALE_COLUMN = """\
+### 技术栈
+| 类别 | 选型 | 备注 |
+|------|------|------|
+| 语言 | Python |  |
+"""
+
+
+def test_check_arch_tech_stack_empty_rationale_warns(tmp_path: Path) -> None:
+    """A tech-stack row with a blank 选型理由 cell warns."""
+    c = _checker(tmp_path, "arch", _ARCH_TECH_EMPTY_RATIONALE)
+    c.check_arch()
+    assert any("选型理由" in w for w in c.warnings), c.warnings
+
+
+def test_check_arch_tech_stack_filled_rationale_no_warn(tmp_path: Path) -> None:
+    """Every 选型理由 filled → no warn."""
+    c = _checker(tmp_path, "arch", _ARCH_TECH_FILLED_RATIONALE)
+    c.check_arch()
+    assert not any("选型理由" in w for w in c.warnings), c.warnings
+
+
+def test_check_arch_tech_stack_no_rationale_column_no_warn(tmp_path: Path) -> None:
+    """The terser lite 类别/选型/备注 schema has no 理由 column → not checked."""
+    c = _checker(tmp_path, "arch", _ARCH_TECH_NO_RATIONALE_COLUMN)
+    c.check_arch()
+    assert not any("选型理由" in w for w in c.warnings), c.warnings
+
+
+def test_check_arch_tech_stack_nav_mention_does_not_false_trigger(tmp_path: Path) -> None:
+    """A NAV pointer line mentioning 技术栈 (no table) must not warn — guards the
+    original bug that anchored on the NAV occurrence instead of the heading."""
+    content = "[NAV]\n- §1 架构概览 → §1.4 技术栈\n[/NAV]\n\n## 1. 概览\n无表格。\n"
+    c = _checker(tmp_path, "arch", content)
+    c.check_arch()
+    assert not any("选型理由" in w for w in c.warnings), c.warnings
+
+
+def test_check_arch_tech_stack_non_main_volume_skips(tmp_path: Path) -> None:
+    """Rationale check is main-volume only."""
+    c = _checker(tmp_path, "arch", _ARCH_TECH_EMPTY_RATIONALE, volume_type="api")
+    c.check_arch()
+    assert not any("选型理由" in w for w in c.warnings), c.warnings
+
+
+# ---------------------------------------------------------------------------
 # check_id_continuity volume scoping
 # ---------------------------------------------------------------------------
 
