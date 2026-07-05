@@ -18,12 +18,12 @@ import re
 from dataclasses import dataclass
 
 from cataforge.domain.kg.ingest.entity_extract import (
-    ENTITY_PREFIX_RE,
+    _DEFAULT_REGISTRY,
     XREF_RE,
+    PrefixRegistry,
     _inside_code_block,
     _line_index_for_offset,
 )
-from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS
 from cataforge.domain.kg.ingest.scan import HeadingSpan, ParsedDoc
 
 # Source class × target prefix → predicate CURIE.
@@ -43,6 +43,7 @@ PREDICATE_MAP: dict[tuple[str, str], str] = {
     ("TestCase", "F"): "cf:verifies",
     ("API", "F"): "cf:satisfies",
     ("AcceptanceCriteria", "F"): "cf:satisfies",
+    ("DomainEntity", "F"): "cf:satisfies",
 }
 DEFAULT_PREDICATE = "cf:depends_on"
 
@@ -87,7 +88,9 @@ def _section_for_offset(doc: ParsedDoc, offset: int) -> HeadingSpan | None:
     return max(candidates, key=lambda s: s.level)
 
 
-def _section_subject_entity(doc: ParsedDoc, offset: int) -> tuple[str, str] | None:
+def _section_subject_entity(
+    doc: ParsedDoc, offset: int, registry: PrefixRegistry = _DEFAULT_REGISTRY
+) -> tuple[str, str] | None:
     """Return (entity_id, class) defined by the heading owning ``offset``.
 
     Walks the enclosing headings from deepest to shallowest and returns the
@@ -102,11 +105,11 @@ def _section_subject_entity(doc: ParsedDoc, offset: int) -> tuple[str, str] | No
         reverse=True,
     )
     for span in containing:
-        match = ENTITY_PREFIX_RE.search(_INLINE_CODE_RE.sub("", span.title))
+        match = registry.entity_re.search(_INLINE_CODE_RE.sub("", span.title))
         if match is None:
             continue
         entity_id = match.group(0)
-        class_name = ENTITY_PREFIX_TO_CLASS.get(entity_id.split("-", 1)[0])
+        class_name = registry.class_for(entity_id)
         if class_name is not None:
             return entity_id, class_name
     return None
@@ -118,6 +121,7 @@ def _enclosing_entity(
     *,
     xref_section: HeadingSpan | None,
     xref_spans: list[tuple[int, int]],
+    registry: PrefixRegistry = _DEFAULT_REGISTRY,
 ) -> tuple[str, str] | None:
     """Return (entity_id, class) of the nearest entity_id before ``offset``.
 
@@ -142,7 +146,7 @@ def _enclosing_entity(
         search_start = 0
 
     best: tuple[int, str] | None = None
-    for match in ENTITY_PREFIX_RE.finditer(doc.raw, search_start, offset):
+    for match in registry.entity_re.finditer(doc.raw, search_start, offset):
         if _inside_code_block(match.start(), doc.code_block_offsets):
             continue
         if any(start <= match.start() < end for start, end in xref_spans):
@@ -153,28 +157,33 @@ def _enclosing_entity(
     if best is None:
         return None
     entity_id = best[1]
-    prefix = entity_id.split("-", 1)[0]
-    class_name = ENTITY_PREFIX_TO_CLASS.get(prefix)
+    class_name = registry.class_for(entity_id)
     if class_name is None:
         return None
     return entity_id, class_name
 
 
-def extract_relations(doc: ParsedDoc) -> list[ExtractedRelation]:
+def extract_relations(
+    doc: ParsedDoc, registry: PrefixRegistry = _DEFAULT_REGISTRY
+) -> list[ExtractedRelation]:
     """Phase 4: scan `doc` for `doc_id#§N.ITEM` xref pairs."""
     relations: list[ExtractedRelation] = []
     xref_spans = [(m.start(), m.end()) for m in XREF_RE.finditer(doc.raw)]
     for match in XREF_RE.finditer(doc.raw):
         target_entity_id = match.group("entity")
         target_prefix = target_entity_id.split("-", 1)[0]
-        target_class = ENTITY_PREFIX_TO_CLASS.get(target_prefix)
+        target_class = registry.class_for(target_entity_id)
         if target_class is None:
             continue
-        subject = _section_subject_entity(doc, match.start())
+        subject = _section_subject_entity(doc, match.start(), registry)
         if subject is None:
             xref_section = _section_for_offset(doc, match.start())
             subject = _enclosing_entity(
-                doc, match.start(), xref_section=xref_section, xref_spans=xref_spans
+                doc,
+                match.start(),
+                xref_section=xref_section,
+                xref_spans=xref_spans,
+                registry=registry,
             )
         if subject is None:
             continue

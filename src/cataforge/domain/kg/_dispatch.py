@@ -27,6 +27,7 @@ from cataforge.domain.kg._config import DEFAULT_DEFINITION_AUTHORITY, KGConfig
 
 _ACTIVE_CACHE: dict[str, set[str]] = {}
 _AUTHORITY_CACHE: dict[str, dict[str, frozenset[str]]] = {}
+_CUSTOM_PREFIX_CACHE: dict[str, dict[str, str]] = {}
 _CONFIG_CACHE: dict[str, KGConfig] = {}
 _MODE_CACHE: dict[str, str] = {}
 _DISPATCH_LOCK = threading.Lock()
@@ -104,6 +105,32 @@ def definition_authority(project_root: str | Path) -> dict[str, frozenset[str]]:
                     )
 
         _AUTHORITY_CACHE[key] = resolved
+        return resolved
+
+
+def custom_entity_prefixes(project_root: str | Path) -> dict[str, str]:
+    """Resolve ``{entity_id_prefix: domain_type}`` for `project_root` (cached).
+
+    Reads ``kg.custom_entity_prefixes`` from ``framework.json``. Only
+    well-formed ``str → str`` entries are kept; a prefix that collides with a
+    core prefix is retained here but never shadows core at extraction time.
+    An absent or malformed value yields an empty registry (closed ontology).
+    """
+    key = _project_root_key(project_root)
+    with _DISPATCH_LOCK:
+        cached = _CUSTOM_PREFIX_CACHE.get(key)
+        if cached is not None:
+            return cached
+
+        data = _read_framework_json(Path(project_root))
+        declared = (data.get("kg") or {}).get("custom_entity_prefixes")
+        resolved: dict[str, str] = {}
+        if isinstance(declared, dict):
+            resolved = {
+                p: dt for p, dt in declared.items() if isinstance(p, str) and isinstance(dt, str)
+            }
+
+        _CUSTOM_PREFIX_CACHE[key] = resolved
         return resolved
 
 
@@ -196,6 +223,7 @@ def invalidate_cache() -> None:
     with _DISPATCH_LOCK:
         _ACTIVE_CACHE.clear()
         _AUTHORITY_CACHE.clear()
+        _CUSTOM_PREFIX_CACHE.clear()
         _CONFIG_CACHE.clear()
         _MODE_CACHE.clear()
 
@@ -205,6 +233,7 @@ __all__ = [
     "MODES",
     "active_doc_types",
     "context_mode",
+    "custom_entity_prefixes",
     "definition_authority",
     "invalidate_cache",
     "is_active_for",

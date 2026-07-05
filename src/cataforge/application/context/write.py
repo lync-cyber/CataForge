@@ -26,6 +26,7 @@ from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg._content_hash import entity_content_hash
 from cataforge.domain.kg._dispatch import (
     context_mode,
+    custom_entity_prefixes,
     definition_authority,
     kg_config_for,
     kg_enabled,
@@ -44,7 +45,7 @@ from cataforge.domain.kg.export import entity_doc_type
 from cataforge.domain.kg.export.document_pipeline import compile_documents
 from cataforge.domain.kg.export.types import CompileResult
 from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, parse_doc_text, run_migration
-from cataforge.domain.kg.ingest.entity_extract import extract_entities
+from cataforge.domain.kg.ingest.entity_extract import build_prefix_registry, extract_entities
 from cataforge.domain.kg.ingest.frontmatter import _PARSE_ERROR_KEY
 from cataforge.domain.kg.ingest.iri import document_iri, id_prefix_to_type
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
@@ -578,10 +579,13 @@ def author_document(
     doc.doc_type = doc_type
     doc.source_path = resolved_source_path
 
-    entities = extract_entities(doc, authority=definition_authority(project_root))
+    registry = build_prefix_registry(custom_entity_prefixes(project_root))
+    entities = extract_entities(
+        doc, authority=definition_authority(project_root), registry=registry
+    )
     _guard_no_placeholder_titles(entities)
     document, sections = extract_structure(doc, entities)
-    relations = extract_relations(doc)
+    relations = extract_relations(doc, registry)
 
     delete_ids = _author_document_delete_ids(doc_id, sections, entities)
     written_ids = {document_iri(doc_id, cfg.base_namespace)}

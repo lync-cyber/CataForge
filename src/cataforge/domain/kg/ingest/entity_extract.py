@@ -108,6 +108,46 @@ _PREFIX_ALT = "|".join(
 )
 ENTITY_PREFIX_RE = re.compile(rf"\b(?:{_PREFIX_ALT})-\d{{3,}}\b")
 
+
+@dataclass(frozen=True)
+class PrefixRegistry:
+    """Effective entity-id prefix universe for one project.
+
+    ``entity_re`` matches every recognized prefix (core ∪ registered custom);
+    ``class_for`` maps a matched id to its class (a registered custom prefix →
+    ``DomainEntity``); ``domain_type_for`` returns the registered domain class
+    of a custom id. An id whose prefix is neither core nor registered is not
+    matched — the doctor surfaces it as an unregistered-prefix WARN.
+    """
+
+    entity_re: re.Pattern[str]
+    prefix_to_class: Mapping[str, str]
+    custom_domain_types: Mapping[str, str]
+
+    def class_for(self, entity_id: str) -> str | None:
+        return self.prefix_to_class.get(entity_id.split("-", 1)[0])
+
+    def domain_type_for(self, entity_id: str) -> str | None:
+        return self.custom_domain_types.get(entity_id.split("-", 1)[0])
+
+
+def build_prefix_registry(custom_prefixes: Mapping[str, str] | None = None) -> PrefixRegistry:
+    """Registry for a project's ``kg.custom_entity_prefixes`` (core prefixes win)."""
+    if not custom_prefixes:
+        return _DEFAULT_REGISTRY
+    prefix_to_class = dict(ENTITY_PREFIX_TO_CLASS)
+    for prefix in custom_prefixes:
+        prefix_to_class.setdefault(prefix, "DomainEntity")
+    alt = "|".join(sorted((re.escape(p) for p in prefix_to_class), key=len, reverse=True))
+    entity_re = re.compile(rf"\b(?:{alt})-\d{{3,}}\b")
+    domain_types = {
+        p: dt for p, dt in custom_prefixes.items() if prefix_to_class.get(p) == "DomainEntity"
+    }
+    return PrefixRegistry(entity_re, prefix_to_class, domain_types)
+
+
+_DEFAULT_REGISTRY = PrefixRegistry(ENTITY_PREFIX_RE, ENTITY_PREFIX_TO_CLASS, {})
+
 # Strict xref form: `doc_id#§<section>.<ENTITY-NNN>`. Shared with
 # relation_extract; defined here to break the import cycle.
 XREF_RE = re.compile(r"\b(?P<doc>[\w-]+)#§(?P<section>\d+(?:\.\d+)*)\.(?P<entity>[A-Z]+-\d{3,})\b")
@@ -163,7 +203,9 @@ def _inside_code_block(offset: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start <= offset < end for start, end in ranges)
 
 
-def _title_defines(title: str, entity_id: str) -> bool:
+def _title_defines(
+    title: str, entity_id: str, registry: PrefixRegistry = _DEFAULT_REGISTRY
+) -> bool:
     """Return True when ``entity_id`` is the subject of heading ``title``.
 
     The subject is the first entity-id token in the heading (a numbering
@@ -172,7 +214,7 @@ def _title_defines(title: str, entity_id: str) -> bool:
     defines only T-097 — the trailing component ids are mentions, not
     definitions.
     """
-    m = ENTITY_PREFIX_RE.search(title)
+    m = registry.entity_re.search(title)
     return m is not None and m.group(0) == entity_id
 
 
@@ -206,7 +248,9 @@ def _section_narrative(lines: list[str], line_start: int, line_end: int) -> str:
     return "\n".join(body[start:end])
 
 
-def _authority_class_name(class_name: str, parent_id: str | None) -> str:
+def _authority_class_name(
+    class_name: str, parent_id: str | None, registry: PrefixRegistry = _DEFAULT_REGISTRY
+) -> str:
     """Class whose definition authority governs this occurrence.
 
     A subordinate's authority follows its parent's class (an AC under a Task
@@ -214,7 +258,7 @@ def _authority_class_name(class_name: str, parent_id: str | None) -> str:
     applies.
     """
     if parent_id is not None:
-        parent_class = ENTITY_PREFIX_TO_CLASS.get(parent_id.split("-", 1)[0])
+        parent_class = registry.class_for(parent_id)
         if parent_class is not None:
             return parent_class
     return class_name
@@ -225,13 +269,16 @@ def _is_authoritative(
     class_name: str,
     parent_id: str | None,
     authority: Mapping[str, frozenset[str]],
+    registry: PrefixRegistry = _DEFAULT_REGISTRY,
 ) -> bool:
     """True when `doc_type` may define this occurrence (unknown classes pass)."""
-    allowed = authority.get(_authority_class_name(class_name, parent_id))
+    allowed = authority.get(_authority_class_name(class_name, parent_id, registry))
     return allowed is None or doc_type in allowed
 
 
-def _resolve_parent_id(spans: list[HeadingSpan], line_idx: int) -> str | None:
+def _resolve_parent_id(
+    spans: list[HeadingSpan], line_idx: int, registry: PrefixRegistry = _DEFAULT_REGISTRY
+) -> str | None:
     """Return the owning non-subordinate entity for a subordinate occurrence.
 
     Walks the enclosing headings from deepest to shallowest and returns the
@@ -245,11 +292,11 @@ def _resolve_parent_id(spans: list[HeadingSpan], line_idx: int) -> str | None:
         reverse=True,
     )
     for span in containing:
-        m = ENTITY_PREFIX_RE.search(span.title)
+        m = registry.entity_re.search(span.title)
         if m is None:
             continue
         candidate = m.group(0)
-        cls = ENTITY_PREFIX_TO_CLASS.get(candidate.split("-", 1)[0])
+        cls = registry.class_for(candidate)
         if cls is not None and cls not in SUBORDINATE_CLASSES:
             return candidate
     return None
@@ -259,6 +306,7 @@ def extract_entities(
     doc: ParsedDoc,
     *,
     authority: Mapping[str, frozenset[str]] | None = None,
+    registry: PrefixRegistry = _DEFAULT_REGISTRY,
 ) -> list[ExtractedEntity]:
     """Phase 3: scan `doc` for entity_id occurrences.
 
@@ -299,14 +347,13 @@ def extract_entities(
         return any(start <= offset < end for start, end in xref_spans)
 
     seen: dict[tuple[str | None, str], ExtractedEntity] = {}
-    for match in ENTITY_PREFIX_RE.finditer(doc.raw):
+    for match in registry.entity_re.finditer(doc.raw):
         if _inside_xref(match.start()):
             continue
         if _inside_code_block(match.start(), code_ranges):
             continue
         entity_id = match.group(0)
-        prefix = entity_id.split("-", 1)[0]
-        class_name = ENTITY_PREFIX_TO_CLASS.get(prefix)
+        class_name = registry.class_for(entity_id)
         if class_name is None:
             continue
         line_idx = _line_index_for_offset(doc.raw, match.start())
@@ -314,9 +361,9 @@ def extract_entities(
         if section is None:
             continue
         subordinate = class_name in SUBORDINATE_CLASSES
-        own_heading = _title_defines(section.title, entity_id)
+        own_heading = _title_defines(section.title, entity_id, registry)
         if subordinate:
-            parent_id = _resolve_parent_id(doc.sections, line_idx)
+            parent_id = _resolve_parent_id(doc.sections, line_idx, registry)
             # No owning parent and not its own heading subject → a bare prose
             # reference (`F-013 AC-001` in a table), not a definition; skip.
             if parent_id is None and not own_heading:
@@ -328,7 +375,7 @@ def extract_entities(
             if not own_heading:
                 continue
             parent_id = None
-        if not _is_authoritative(doc.doc_type, class_name, parent_id, authority):
+        if not _is_authoritative(doc.doc_type, class_name, parent_id, authority, registry):
             continue
         key = (parent_id, entity_id)
         if key in seen:
@@ -361,14 +408,20 @@ def extract_entities(
             parent_id=parent_id,
             source_line=source_line,
         )
-        _enrich_extra_slots(entity, section_text, narrative)
+        _enrich_extra_slots(entity, section_text, narrative, registry)
         seen[key] = entity
     return list(seen.values())
 
 
-def _enrich_extra_slots(entity: ExtractedEntity, section_text: str, narrative: str) -> None:
+def _enrich_extra_slots(
+    entity: ExtractedEntity, section_text: str, narrative: str, registry: PrefixRegistry
+) -> None:
     if narrative:
         entity.extra_slots["cf:narrative_body"] = narrative
+    if entity.class_name == "DomainEntity":
+        domain_type = registry.domain_type_for(entity.entity_id)
+        if domain_type:
+            entity.extra_slots["cf:domain_type"] = domain_type
     fn = _EXTRA_SLOT_EXTRACTORS.get(entity.class_name)
     if fn is None:
         return
