@@ -53,6 +53,7 @@ def test_entity_id_set_matches_legacy_scan(variant: str) -> None:
     missed entities (KG ⊂ FS) or the graph holds stale entities
     (KG ⊃ FS) — both are doctor gate failure modes.
     """
+    from cataforge.domain.kg.ingest.entity_extract import _DEFAULT_REGISTRY
     from cataforge.interface.cli.doctor.kg_ingestion import _scan_fs_entity_ids
 
     project_root = FIXTURE_ROOT / variant
@@ -62,6 +63,7 @@ def test_entity_id_set_matches_legacy_scan(variant: str) -> None:
         project_root,
         {"prd", "arch", "test"},
         {"prd": "prd", "arch": "arch", "test": "test-report"},
+        _DEFAULT_REGISTRY.entity_re,
     )
     kg_ids = kg.query.entity_ids()
 

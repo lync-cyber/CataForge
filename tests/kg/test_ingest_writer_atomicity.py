@@ -75,9 +75,9 @@ def test_atomic_replace_entity_happy_path() -> None:
         project_iri=project_iri,
         config=config,
     )
-    _atomic_replace_entity(store, iri, new_quads)
-
     namespace = config.ontology_namespace.rstrip("/") + "/"
+    _atomic_replace_entity(store, iri, new_quads, namespace=namespace)
+
     title_pred = ox.NamedNode(_slot_iri("cf:title", namespace))
     subject = ox.NamedNode(iri)
     titles = [q.object.value for q in store.quads_for_pattern(subject, title_pred, None, None)]
@@ -106,8 +106,9 @@ def test_atomic_replace_entity_rolls_back_on_failure() -> None:
     )
 
     proxy = _FailingStoreProxy(store, fail_on_call=2)
+    namespace = config.ontology_namespace.rstrip("/") + "/"
     with pytest.raises(RuntimeError, match="injected failure"):
-        _atomic_replace_entity(proxy, iri, new_quads)
+        _atomic_replace_entity(proxy, iri, new_quads, namespace=namespace)
 
     restored = quads_for_subject(store, iri)
     assert len(restored) == prior_count, (

@@ -6,7 +6,6 @@ author: product-manager
 status: draft
 deps: []
 consumers: [architect, tech-lead]
-volume: main
 mode: agile-lite
 required_sections:
   - "## 1. 目标"

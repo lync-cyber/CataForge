@@ -376,6 +376,7 @@ def _chain_buckets(chain: TraceChain) -> list[tuple[str, list[str]]]:
         ("tasks", chain.tasks),
         ("test_cases", chain.test_cases),
         ("review_reports", chain.review_reports),
+        ("domain_entities", chain.domain_entities),
     ]
 
 

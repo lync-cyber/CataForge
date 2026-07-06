@@ -131,12 +131,20 @@ class PrefixRegistry:
         return self.custom_domain_types.get(entity_id.split("-", 1)[0])
 
 
+_CUSTOM_PREFIX_RE = re.compile(r"^[A-Z]+$")
+
+
 def build_prefix_registry(custom_prefixes: Mapping[str, str] | None = None) -> PrefixRegistry:
     """Registry for a project's ``kg.custom_entity_prefixes`` (core prefixes win)."""
     if not custom_prefixes:
         return _DEFAULT_REGISTRY
     prefix_to_class = dict(ENTITY_PREFIX_TO_CLASS)
     for prefix in custom_prefixes:
+        if not _CUSTOM_PREFIX_RE.match(prefix):
+            raise ValueError(
+                f"custom entity prefix {prefix!r} must be uppercase ASCII letters "
+                f"(the DomainEntity entity_id pattern is `^[A-Z]+-[0-9]{{3,}}$`)"
+            )
         prefix_to_class.setdefault(prefix, "DomainEntity")
     alt = "|".join(sorted((re.escape(p) for p in prefix_to_class), key=len, reverse=True))
     entity_re = re.compile(rf"\b(?:{alt})-\d{{3,}}\b")

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._quads import (
+    attribute_subject_quads,
     build_document_quads,
     build_entity_quads,
     build_relation_quad,
@@ -117,12 +118,15 @@ def _atomic_replace_entity(
     store: ox.Store,
     iri: str,
     new_quads: list[ox.Quad],
+    *,
+    namespace: str,
 ) -> None:
-    """Replace all quads for `iri`. Restores prior state on failure."""
+    """Replace all quads for `iri` and its attr sub-nodes. Restores prior state on failure."""
     import pyoxigraph as ox  # noqa: PLC0415
 
     subject = ox.NamedNode(iri)
     prior = list(store.quads_for_pattern(subject, None, None, None))
+    prior.extend(attribute_subject_quads(store, iri, namespace))
     added: list[ox.Quad] = []
     try:
         for q in prior:
@@ -170,7 +174,7 @@ def write_entities(
             mtime=entity.mtime,
             attributes=entity.attributes or None,
         )
-        _atomic_replace_entity(store, iri, new_quads)
+        _atomic_replace_entity(store, iri, new_quads, namespace=namespace)
         stats.entities_written += 1
         stats.written_iris.append(iri)
     return stats
@@ -303,7 +307,7 @@ def write_structure(
             contained_entity_ids=section.contained_entity_ids,
             document_iri_val=document_iri(section.doc_id, base_ns),
         )
-        _atomic_replace_entity(store, iri, quads)
+        _atomic_replace_entity(store, iri, quads, namespace=namespace)
         stats.sections_written += 1
         stats.written_iris.append(iri)
 
@@ -326,7 +330,7 @@ def write_structure(
             preamble_body=document.preamble_body,
             source_path=document.source_path,
         )
-        _atomic_replace_entity(store, iri, quads)
+        _atomic_replace_entity(store, iri, quads, namespace=namespace)
         stats.documents_written += 1
         stats.written_iris.append(iri)
 

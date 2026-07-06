@@ -31,7 +31,11 @@ from urllib.parse import unquote
 
 from cataforge.domain.docs.index_ops import _load_doc_type_map
 from cataforge.domain.kg._config import KGConfig
-from cataforge.domain.kg._dispatch import context_mode, definition_authority
+from cataforge.domain.kg._dispatch import (
+    context_mode,
+    custom_entity_prefixes,
+    definition_authority,
+)
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _strv,
@@ -57,7 +61,7 @@ from cataforge.domain.kg.export.document_pipeline import (
     _list_documents,
     render_document,
 )
-from cataforge.domain.kg.ingest.entity_extract import extract_entities
+from cataforge.domain.kg.ingest.entity_extract import build_prefix_registry, extract_entities
 from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_CLASSES
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.scan import scan_business_docs
@@ -532,6 +536,7 @@ def reconcile(
     type_map = _load_doc_type_map(str(project_root))
     active = sorted(config.kg_active_doc_types)
     authority = definition_authority(project_root)
+    registry = build_prefix_registry(custom_entity_prefixes(project_root))
 
     # The symmetric diff only spans Document-backed content. Orphan entities
     # (authored without a Document, e.g. via `context write`) export as
@@ -576,9 +581,9 @@ def reconcile(
         doc_ids: set[str] = set()
         for doc in parsed:
             doc_ids.add(doc.doc_id)
-            for entity in extract_entities(doc, authority=authority):
+            for entity in extract_entities(doc, authority=authority, registry=registry):
                 entity_home.setdefault(entity.entity_id, set()).add(doc.doc_id)
-            for relation in extract_relations(doc):
+            for relation in extract_relations(doc, registry):
                 key = (
                     relation.subject_entity_id,
                     relation.predicate_curie,
@@ -611,7 +616,7 @@ def reconcile(
         fs_entities: set[str] = set()
         fs_sections: set[str] = set()
         for doc in parsed:
-            doc_entities = extract_entities(doc, authority=authority)
+            doc_entities = extract_entities(doc, authority=authority, registry=registry)
             for entity in doc_entities:
                 fs_entities.add(entity.scope_key)
             _document, doc_sections = extract_structure(doc, doc_entities)

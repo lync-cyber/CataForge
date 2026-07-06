@@ -6,7 +6,6 @@ author: devops
 status: draft
 deps: ["arch-{project}"]
 consumers: [devops]
-volume: main
 required_sections:
   - "## 1. 构建流程"
   - "## 2. 环境配置"

@@ -17,6 +17,7 @@ from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._errors import KGEntityNotFoundError, KGValidationError
 from cataforge.domain.kg._quads import (
+    attribute_subject_quads,
     build_document_quads,
     build_entity_quads,
     build_relation_quad,
@@ -134,6 +135,7 @@ class TransactionContext:
         parent_id: str | None = None,
         extra_slots: dict[str, str] | None = None,
         mtime: float | None = None,
+        attributes: list[tuple[str, str]] | None = None,
     ) -> str:
         """Stage quads for a new entity. Returns the entity IRI.
 
@@ -150,6 +152,8 @@ class TransactionContext:
 
         for q in quads_for_subject(self._store, iri):
             self._staged_removes.append(q)
+        for q in attribute_subject_quads(self._store, iri, ns):
+            self._staged_removes.append(q)
 
         for q in build_entity_quads(
             entity_id,
@@ -163,6 +167,7 @@ class TransactionContext:
             parent_id=parent_id,
             extra_slots=extra_slots,
             mtime=mtime,
+            attributes=attributes,
         ):
             self._staged_adds.append(q)
 
@@ -263,6 +268,8 @@ class TransactionContext:
             self._staged_removes.extend(incoming)
 
         for q in quads_for_subject(self._store, iri):
+            self._staged_removes.append(q)
+        for q in attribute_subject_quads(self._store, iri, cf_namespace(self._config)):
             self._staged_removes.append(q)
 
     def add_relation(

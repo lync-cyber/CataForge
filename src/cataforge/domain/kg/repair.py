@@ -8,8 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.docs.index_ops import _load_doc_type_map
 from cataforge.domain.kg._config import KGConfig
-from cataforge.domain.kg._dispatch import definition_authority
-from cataforge.domain.kg._quads import _slot_iri, quads_for_subject, quads_targeting
+from cataforge.domain.kg._dispatch import custom_entity_prefixes, definition_authority
+from cataforge.domain.kg._quads import (
+    _slot_iri,
+    attribute_subject_quads,
+    quads_for_subject,
+    quads_targeting,
+)
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _term_value,
@@ -17,7 +22,7 @@ from cataforge.domain.kg._sparql_utils import (
     escape_sparql_literal,
     select_rows,
 )
-from cataforge.domain.kg.ingest.entity_extract import extract_entities
+from cataforge.domain.kg.ingest.entity_extract import build_prefix_registry, extract_entities
 from cataforge.domain.kg.ingest.iri import entity_iri, subordinate_entity_iri
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
@@ -61,7 +66,8 @@ def _scope_key_to_iri(scope_key: str, config: KGConfig) -> str:
 
 
 def _entity_quads_by_scope_key(store: ox.Store, scope_key: str, config: KGConfig) -> list[Any]:
-    return quads_for_subject(store, _scope_key_to_iri(scope_key, config))
+    iri = _scope_key_to_iri(scope_key, config)
+    return quads_for_subject(store, iri) + attribute_subject_quads(store, iri, cf_namespace(config))
 
 
 def _ghost_relation_quads(
@@ -162,11 +168,12 @@ def _reingest_doc_type(
     )
 
     authority = definition_authority(project_root)
+    registry = build_prefix_registry(custom_entity_prefixes(project_root))
     entities_total = 0
     sections_total = 0
     for doc in parsed:
-        entities = extract_entities(doc, authority=authority)
-        relations = extract_relations(doc)
+        entities = extract_entities(doc, authority=authority, registry=registry)
+        relations = extract_relations(doc, registry)
         ws = write_entities(store, entities, project_iri, config)
         write_relations(store, relations, config)
         document, doc_sections = extract_structure(doc, entities)

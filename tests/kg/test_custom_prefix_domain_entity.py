@@ -180,3 +180,162 @@ def test_schema_card_without_registration_still_documents_class() -> None:
 
     card = build_schema_card()
     assert "cf:DomainEntity" in card
+
+
+def test_reconcile_reports_clean_with_registered_prefix(tmp_path: Path) -> None:
+    from cataforge.domain.kg.reconcile import reconcile
+
+    handle = _project(tmp_path, {"ORD": "Order"})
+    config = KGConfig(store_backend="memory", kg_active_doc_types={"prd", "dev-plan"})
+    report = reconcile(handle.raw, tmp_path, config)
+    per = report.per_doc_type["dev-plan"]
+    assert per.ghost_entities == [], per.ghost_entities
+    assert per.missing_entities == [], per.missing_entities
+
+
+def test_repair_keeps_registered_domain_entity(tmp_path: Path) -> None:
+    from cataforge.domain.kg.repair import repair
+
+    handle = _project(tmp_path, {"ORD": "Order"})
+    config = KGConfig(store_backend="memory", kg_active_doc_types={"prd", "dev-plan"})
+    stats = repair(handle.raw, tmp_path, config)
+    assert stats.ghosts_removed == 0, stats
+    rows = list(handle.raw.query(_CF + 'SELECT ?s WHERE { ?s cf:entity_id "ORD-001" }'))
+    assert len(rows) == 1, rows
+
+
+def test_attribute_update_and_removal_replaces_projection(tmp_path: Path) -> None:
+    # Re-ingesting a changed body must replace the attr projection: an updated
+    # value may not accumulate, a removed bullet may not leave an orphan node.
+    _framework(tmp_path, {"ORD": "Order"})
+    base = "---\ndoc_id: dev-plan\n---\n# Dev Plan\n\n## §3\n\n### ORD-001 订单聚合\n\n"
+    _write(tmp_path, "dev-plan", "dev-plan.md", base + "- 状态: 已下单\n- 金额: 100\n")
+    invalidate_cache()
+    config = KGConfig(store_backend="memory", kg_active_doc_types={"dev-plan"})
+    handle = init_store(config, force=True)
+    run_migration(handle.raw, tmp_path, config, doc_types=("dev-plan",))
+
+    _write(tmp_path, "dev-plan", "dev-plan.md", base + "- 状态: 已发货\n")
+    run_migration(handle.raw, tmp_path, config, doc_types=("dev-plan",))
+
+    rows = list(
+        handle.raw.query(
+            _CF + 'SELECT ?v WHERE { ?s cf:entity_id "ORD-001" ; cf:has_attribute ?a . '
+            "?a cf:attr_value ?v }"
+        )
+    )
+    assert [str(r["v"].value) for r in rows] == ["已发货"], rows
+    orphans = list(handle.raw.query(_CF + 'SELECT ?a WHERE { ?a cf:attr_name "金额" }'))
+    assert orphans == [], orphans
+
+
+def test_write_doc_projects_attributes(tmp_path: Path) -> None:
+    # The graph-mode authoring path (context write-doc) must project
+    # DomainAttribute sub-nodes the same way `kg import` does.
+    import gc
+
+    from cataforge.application.context import write as cw
+    from cataforge.domain.kg import KnowledgeGraph
+    from cataforge.domain.kg._dispatch import kg_config_for
+
+    _framework(tmp_path, {"ORD": "Order"})
+    invalidate_cache()
+    cfg = kg_config_for(tmp_path)
+    handle = init_store(cfg, force=True)
+    handle.raw.flush()
+    del handle
+    gc.collect()
+    invalidate_cache()
+
+    cw.author_document(
+        str(tmp_path),
+        "---\nid: dev-plan\ndoc_type: dev-plan\n---\n# Dev Plan\n\n## §3\n\n"
+        "### ORD-001 订单聚合\n\n- 状态: 已下单\n",
+    )
+
+    with KnowledgeGraph.connect(kg_config_for(tmp_path), read_only=True) as kg:
+        rows = list(
+            kg.store.query(
+                _CF + 'SELECT ?n ?v WHERE { ?s cf:entity_id "ORD-001" ; cf:has_attribute ?a . '
+                "?a cf:attr_name ?n ; cf:attr_value ?v }"
+            )
+        )
+    pairs = [(str(r["n"].value), str(r["v"].value)) for r in rows]
+    assert pairs == [("状态", "已下单")], pairs
+
+
+def test_trace_from_requirement_includes_domain_entity(tmp_path: Path) -> None:
+    # ORD-001 cf:satisfies F-003 — the trace chain rooted at the feature must
+    # surface the DomainEntity neighbour instead of silently dropping it.
+    from cataforge.domain.kg.trace import TraceAPI
+
+    handle = _project(tmp_path, {"ORD": "Order"})
+    config = KGConfig(store_backend="memory", kg_active_doc_types={"prd", "dev-plan"})
+    chain = TraceAPI(handle.raw, config).from_requirement("F-003")
+    assert "ORD-001" in chain.domain_entities, chain
+
+
+def _graph_project(tmp_path: Path, custom_prefixes: dict[str, str]) -> tuple[Path, KGConfig]:
+    import gc
+
+    proj = tmp_path / "proj"
+    (proj / ".cataforge").mkdir(parents=True)
+    (proj / "docs").mkdir()
+    cfg = KGConfig(store_backend="oxigraph", db_path=proj / ".cataforge" / "kg" / "store")
+    init_store(cfg, force=True).close()
+    (proj / ".cataforge" / "framework.json").write_text(
+        json.dumps(
+            {
+                "context": {"mode": "graph", "kg_active_doc_types": ["dev-plan"]},
+                "kg": {
+                    "project_id": "p",
+                    "title": "T",
+                    "process_model": "waterfall",
+                    "custom_entity_prefixes": custom_prefixes,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    invalidate_cache()
+    gc.collect()
+    return proj, cfg
+
+
+def test_author_entity_accepts_registered_prefix(tmp_path: Path) -> None:
+    from cataforge.application.context import write as cw
+    from cataforge.domain.kg import KnowledgeGraph
+
+    proj, cfg = _graph_project(tmp_path, {"ORD": "Order"})
+    cw.author_entity(str(proj), entity_id="ORD-002", class_name="DomainEntity", title="订单聚合")
+    with KnowledgeGraph.connect(cfg, read_only=True) as kg:
+        rows = list(
+            kg.store.query(
+                _CF + 'SELECT ?dt WHERE { ?s cf:entity_id "ORD-002" ; a cf:DomainEntity ; '
+                "cf:domain_type ?dt }"
+            )
+        )
+        vals = [str(r["dt"].value) for r in rows]
+    assert vals == ["Order"], vals
+
+
+def test_author_entity_rejects_unregistered_prefix(tmp_path: Path) -> None:
+    import pytest
+
+    from cataforge.application.context import write as cw
+    from cataforge.domain.kg._errors import KGValidationError
+
+    proj, _cfg = _graph_project(tmp_path, {})
+    with pytest.raises(KGValidationError, match="no schema-known prefix"):
+        cw.author_entity(
+            str(proj), entity_id="ORD-002", class_name="DomainEntity", title="订单聚合"
+        )
+
+
+def test_build_prefix_registry_rejects_malformed_prefix() -> None:
+    import pytest
+
+    from cataforge.domain.kg.ingest.entity_extract import build_prefix_registry
+
+    with pytest.raises(ValueError, match="uppercase"):
+        build_prefix_registry({"ord": "Order"})

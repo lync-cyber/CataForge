@@ -29,7 +29,7 @@ maxTurns: 120
 - 加载示例: `cataforge context read prd#§2.F-001 arch#§2.M-001 arch#§3.API-001`
 
 ## Output Contract
-- 必须产出: ui-spec 逻辑文档(单一逻辑文档;拆卷由 finalize 按导出布局决定,不在本卡指定分卷）
+- 必须产出: ui-spec 逻辑文档(单一逻辑文档,finalize 整篇导出）
 - 落稿: graph 后端经 context authoring(`context write-doc` / `context write-narrative` / `context transact`)+ `cataforge context finalize` 导出人审视图;markdown 后端按模板实例化后编辑 docs/ui-spec/ 文件
 - 使用模板: 通过 context 调用 ui-spec 模板
 

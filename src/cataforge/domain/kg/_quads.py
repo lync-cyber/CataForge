@@ -318,6 +318,23 @@ def build_relation_quad(
     )
 
 
+def attribute_subject_quads(store: ox.Store, owner_iri: str, namespace: str) -> list[ox.Quad]:
+    """Quads of the owner's ``cf:has_attribute`` sub-nodes (each its own subject).
+
+    A DomainAttribute projection lives under its own IRI, so replacing or
+    removing the owner must cascade here or the sub-node quads leak.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    has_attribute = ox.NamedNode(_slot_iri("cf:has_attribute", namespace))
+    quads: list[ox.Quad] = []
+    for edge in store.quads_for_pattern(ox.NamedNode(owner_iri), has_attribute, None, None):
+        obj = edge.object
+        if isinstance(obj, ox.NamedNode):
+            quads.extend(store.quads_for_pattern(obj, None, None, None))
+    return quads
+
+
 def quads_for_subject(store: ox.Store, iri: str) -> list[ox.Quad]:
     """Return every quad with `iri` as subject."""
     import pyoxigraph as ox  # noqa: PLC0415
@@ -333,6 +350,7 @@ def quads_targeting(store: ox.Store, iri: str) -> list[ox.Quad]:
 
 
 __all__ = [
+    "attribute_subject_quads",
     "build_document_quads",
     "build_entity_quads",
     "build_relation_quad",
