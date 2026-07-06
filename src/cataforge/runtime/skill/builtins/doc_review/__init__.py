@@ -36,12 +36,12 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
     },
     {
         "id": "check_line_count",
-        "title": "文档行数 ≤ DOC_SPLIT_THRESHOLD_LINES (超过则建议拆分)",
+        "title": "文档行数 ≤ DOC_SPLIT_THRESHOLD_LINES (超过则建议拆分为多个逻辑文档)",
         "severity": "warn",
     },
     {
         "id": "check_required_sections",
-        "title": "所有必填章节存在且非空 (按 doc_type / volume_type / mode)",
+        "title": "所有必填章节存在且非空 (按 doc_type / mode)",
         "severity": "fail",
     },
     {
@@ -50,21 +50,8 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "severity": "warn",
     },
     {
-        "id": "check_split_header",
-        "title": "分卷文件必填 split_from 字段",
-        "severity": "fail",
-    },
-    {
-        "id": "check_split_consistency",
-        "title": "主卷引用所有同前缀分卷文件",
-        "severity": "warn",
-    },
-    {
         "id": "check_bidirectional_coverage",
-        "title": (
-            "双向覆盖: 下游文档覆盖上游所有 item"
-            " (arch↔prd / dev-plan↔arch / ui-spec↔prd)，仅主卷检查"
-        ),
+        "title": ("双向覆盖: 下游文档覆盖上游所有 item (arch↔prd / dev-plan↔arch / ui-spec↔prd)"),
         "severity": "fail",
     },
     {

@@ -306,6 +306,18 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
             **existing_project,
         }
 
+    # The kg block is per-project user state — project_id / title /
+    # process_model and custom_entity_prefixes (the DomainEntity escape-hatch
+    # registry). Existing keys win over the scaffold default while new
+    # scaffold keys are still introduced.
+    existing_kg = existing.get("kg")
+    if isinstance(existing_kg, dict):
+        scaffold_kg = merged.get("kg")
+        merged["kg"] = {
+            **(scaffold_kg if isinstance(scaffold_kg, dict) else {}),
+            **existing_kg,
+        }
+
     return (json.dumps(merged, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 

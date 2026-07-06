@@ -6,7 +6,6 @@ author: ui-designer
 status: draft
 deps: ["prd-lite-{project}"]
 consumers: [tech-lead, implementer]
-volume: main
 mode: agile-lite
 required_sections:
   - "## 1. 设计系统"

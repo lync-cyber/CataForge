@@ -6,7 +6,6 @@ author: architect
 status: draft
 deps: ["prd-lite-{project}"]
 consumers: [tech-lead, implementer]
-volume: main
 mode: agile-lite
 required_sections:
   - "## 1. 架构与技术栈"

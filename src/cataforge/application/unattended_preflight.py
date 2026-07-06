@@ -26,26 +26,26 @@ def _read(path: Path) -> str:
         return ""
 
 
-def _devplan_volumes(docs_dir: Path) -> list[Path]:
-    """Every dev-plan volume: ``docs/dev-plan/*.md`` plus flat/lite fallbacks."""
+def _devplan_files(docs_dir: Path) -> list[Path]:
+    """Every dev-plan file: ``docs/dev-plan/*.md`` plus flat/lite fallbacks."""
     sub = docs_dir / "dev-plan"
-    vols = sorted(sub.glob("*.md")) if sub.is_dir() else []
-    vols += [p for p in (docs_dir / "dev-plan.md", docs_dir / "dev-plan-lite.md") if p.is_file()]
-    return vols
+    files = sorted(sub.glob("*.md")) if sub.is_dir() else []
+    files += [p for p in (docs_dir / "dev-plan.md", docs_dir / "dev-plan-lite.md") if p.is_file()]
+    return files
 
 
 def preflight_frozen_upstream(project_root: Path, sprint: str) -> str | None:
     """Return a refusal reason, or ``None`` when it is safe to build *sprint*."""
     docs_dir = project_root / "docs"
-    volumes = _devplan_volumes(docs_dir)
-    if not volumes:
+    dev_plan_files = _devplan_files(docs_dir)
+    if not dev_plan_files:
         return f"未找到 dev-plan（docs/dev-plan/ 为空）——无法对 {sprint} 跑无人值守 building"
 
     statuses: list[str] = []
     placeholders = 0
     combined: list[str] = []
-    for vol in volumes:
-        fm, body = split_yaml_frontmatter(_read(vol))
+    for f in dev_plan_files:
+        fm, body = split_yaml_frontmatter(_read(f))
         if fm and isinstance(fm.get("status"), str):
             statuses.append(fm["status"])
         placeholders += count_unresolved_placeholders(body)

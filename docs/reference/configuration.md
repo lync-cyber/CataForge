@@ -147,8 +147,8 @@
 | `constants.MANUAL_REVIEW_CHECKPOINTS` | ❌ | overwrite | 手动审查检查点列表（默认 `["pre_dev", "post_sprint", "pre_deploy"]`） |
 | `constants.MAX_QUESTIONS_PER_BATCH` | ❌ | overwrite | `AskUserQuestion` 单批最大问题数 |
 | `constants.EVENT_LOG_PATH` / `EVENT_LOG_SCHEMA` | ❌ | overwrite | 事件日志路径与 JSON Schema 位置 |
-| `constants.DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | `context` generate 分支自动分卷阈值（默认 300） |
-| `constants.META_DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | SKILL.md / AGENT.md / 协议文档拆分提示阈值（默认 500） |
+| `constants.DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | 单文档超长建议阈值（doc-review 超过则建议精简或拆为多个逻辑文档，默认 300） |
+| `constants.META_DOC_SPLIT_THRESHOLD_LINES` | ❌ | overwrite | SKILL.md / AGENT.md / 协议文档超长建议阈值（默认 500） |
 | `constants.DOC_REVIEW_L2_SKIP_THRESHOLD_LINES` | ❌ | overwrite | `context` review 分支 Layer 2 跳过阈值（默认 200） |
 | `constants.DOC_REVIEW_L2_SKIP_DOC_TYPES` | ❌ | overwrite | Layer 2 跳过的文档类型 |
 | `constants.TDD_LIGHT_LOC_THRESHOLD` | ❌ | overwrite | tdd_mode 升 standard 的 LOC 上限阈值（默认 150；≤ 阈值 → light） |

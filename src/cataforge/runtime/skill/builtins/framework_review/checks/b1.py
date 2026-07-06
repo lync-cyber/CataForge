@@ -87,5 +87,5 @@ def check_b1_size(root: Path, scope: str, threshold: int, report: Report) -> Non
                 "WARN",
                 label,
                 f"{line_count} lines > META_DOC_SPLIT_THRESHOLD_LINES "
-                f"({threshold}); 建议拆分为分卷",
+                f"({threshold}); 建议精简或按职责拆为多个文档",
             )

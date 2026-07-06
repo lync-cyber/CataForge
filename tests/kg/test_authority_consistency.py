@@ -8,7 +8,7 @@ ghost on one side of the pipeline while import wrote it on the other.
 
 Scenario: a project authorises `Component` (default authority `arch`) to be
 defined in `ui-spec`. A `### C-001 顶栏` heading then defines a Component in a
-ui-spec volume.
+ui-spec doc.
 """
 
 from __future__ import annotations

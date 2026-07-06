@@ -65,8 +65,8 @@ def test_annotated_assumption_is_not_a_placeholder(tmp_path: Path) -> None:
     assert preflight_frozen_upstream(tmp_path, "sprint-1") is None
 
 
-def test_split_volume_placeholder_is_caught(tmp_path: Path) -> None:
-    # A clean index volume must not mask a TBD in another split volume.
+def test_placeholder_in_any_dev_plan_file_is_caught(tmp_path: Path) -> None:
+    # A clean file must not mask a TBD in another file under docs/dev-plan/.
     _write(tmp_path, "docs/dev-plan/dev-plan-part-1.md", _FROZEN)
     _write(
         tmp_path,

@@ -68,7 +68,7 @@
   - 最小传递: Agent间传递doc_id#section引用，非全文
   - 不确定时调研: 调用research skill，不猜测
   - 选择题优先: 需要用户输入时优先提供选项
-  - 长文拆分: 文档超 `DOC_SPLIT_THRESHOLD_LINES` 行时按doc-gen拆分策略分卷
+  - 长文精简: 文档超 `DOC_SPLIT_THRESHOLD_LINES` 行时精简内容或拆为多个逻辑文档
 
 ## 框架机制
 

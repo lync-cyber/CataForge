@@ -84,13 +84,6 @@ def test_lite_ui_spec_template_uses_uc_prefix() -> None:
     assert "### C-" not in text
 
 
-def test_components_volume_template_uses_uc_prefix() -> None:
-    text = _read("volumes/ui-spec-components.md")
-    assert "### UC-" in text
-    assert "### C-" not in text
-    assert "-uc{start}-uc{end}" in text  # volume id range label migrated
-
-
 def test_dev_plan_template_references_ui_spec_uc() -> None:
     text = _read("standard/dev-plan.md")
     assert "ui-spec#UC-" in text

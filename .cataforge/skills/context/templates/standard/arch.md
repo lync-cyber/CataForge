@@ -6,7 +6,6 @@ author: architect
 status: draft
 deps: ["prd-{project}"]
 consumers: [tech-lead, developer, devops]
-volume: main
 required_sections:
   - "## 1. 架构概览"
   - "## 2. 模块划分"
@@ -18,8 +17,8 @@ required_sections:
 [NAV]
 - §1 架构概览 → §1.1 项目类型, §1.2 架构风格, §1.3 系统上下文图, §1.4 技术栈
 - §2 模块划分 → M-001..M-{NNN}
-- §3 接口契约 → API-001..API-{NNN} (详见分卷arch-{project}-api)
-- §4 数据模型 → E-001..E-{NNN} (详见分卷arch-{project}-data)
+- §3 接口契约 → API-001..API-{NNN}
+- §4 数据模型 → E-001..E-{NNN}
 - §5 非功能架构 → §5.1 性能, §5.2 安全, §5.3 错误处理, §5.4 配置管理
 - §6 目录结构
 - §7 开发约定 → §7.1 命名, §7.2 代码风格, §7.3 Git约定
@@ -56,7 +55,7 @@ C4Context
 ### M-001: {模块名称}
 - **职责**: {单一职责描述}
 - **映射功能**: F-001, F-003 (引用PRD)
-- **对外接口**: API-001, API-002 (引用接口分卷)
+- **对外接口**: API-001, API-002 (引用 §3 接口契约)
 - **依赖模块**: M-002, M-005
 - **内部关键组件**: {类/组件列表}
 - **context_load**: [prd#§2.F-001, prd#§2.F-003, arch#§3.API-001, arch#§3.API-002]
@@ -64,7 +63,6 @@ C4Context
 
 
 ## 3. 接口契约
-> 当接口数量 > 10 时拆分为独立分卷 arch-{project}-api.md
 
 ### API-001: {接口名称}
 ```yaml
@@ -81,7 +79,6 @@ response:
 ```
 
 ## 4. 数据模型
-> 当实体数量 > 8 时拆分为独立分卷 arch-{project}-data.md
 
 ### 4.1 实体关系
 ```mermaid

@@ -16,7 +16,13 @@ def kg_schema_context() -> None:
     question into a SPARQL query for `cataforge kg query`. The card is static
     (derived from the ontology registries) and needs no initialized store.
     """
+    from cataforge.core.paths import find_project_root
     from cataforge.domain.kg import KGConfig
+    from cataforge.domain.kg._dispatch import custom_entity_prefixes
     from cataforge.domain.kg.schema_context import build_schema_card
 
-    click.echo(build_schema_card(KGConfig()))
+    try:
+        custom = custom_entity_prefixes(find_project_root())
+    except Exception:  # noqa: BLE001 — schema card is static; registration is best-effort
+        custom = {}
+    click.echo(build_schema_card(KGConfig(), custom_prefixes=custom))

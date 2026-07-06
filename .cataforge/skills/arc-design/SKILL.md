@@ -45,7 +45,7 @@ user-invocable: true
 - 每个模块包含:
   - **职责**: 单一职责描述
   - **映射功能**: F-{NNN}列表(引用PRD)
-  - **对外接口**: API-{NNN}列表(引用接口分卷)
+  - **对外接口**: API-{NNN}列表(引用 §3 接口契约)
   - **依赖模块**: M-{NNN}列表
   - **内部关键组件**: 类/组件列表
 - 验证: 所有F-{NNN}至少被一个M-{NNN}覆盖(无遗漏)
@@ -68,12 +68,10 @@ user-invocable: true
   ```
 - 必填: request headers + body字段(type + required + desc)
 - 必填: response成功码 + 错误码schema
-- 接口数 > 10时，通过context拆分为arch-api分卷
 
 ### Step 4: 数据模型 (对应ARCH §4)
 - 描述实体关系(1:N / M:N / 继承等，Mermaid erDiagram 格式)
 - 定义实体E-{NNN}，字段表格(字段 | 类型 | 约束 | 说明)
-- 实体数 > 8时，通过context拆分为arch-data分卷
 
 ### Step 5: 非功能架构 (对应ARCH §5)
 - §5.1 性能方案: 缓存策略 / 异步处理 / 分页方案

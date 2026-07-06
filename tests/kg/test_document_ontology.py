@@ -1,4 +1,4 @@
-"""Document / Volume / Section structural ontology (Phase 1 foundation)."""
+"""Document / Section structural ontology (Phase 1 foundation)."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def _schema_view():
 
 def test_structural_classes_exist_and_are_standalone() -> None:
     sv = _schema_view()
-    for name in ("Document", "Volume", "Section"):
+    for name in ("Document", "Section"):
         cls = sv.get_class(name)
         assert cls is not None, f"missing class {name}"
         # Structural containers are not business artifacts — like Project,
@@ -36,10 +36,9 @@ def test_section_carries_prose_and_entity_containment() -> None:
     assert {"narrative_body", "contains_entity", "section_anchor"} <= section_slots
 
 
-def test_document_and_volume_structure_slots() -> None:
+def test_document_structure_slots() -> None:
     sv = _schema_view()
-    assert {"has_volume", "has_section", "doc_type"} <= set(sv.class_slots("Document"))
-    assert {"part_of_document", "has_section", "volume_type"} <= set(sv.class_slots("Volume"))
+    assert {"has_section", "doc_type"} <= set(sv.class_slots("Document"))
 
 
 def test_entities_backlink_to_their_section() -> None:

@@ -6,7 +6,6 @@ author: ui-designer
 status: draft
 deps: ["prd-{project}", "arch-{project}"]
 consumers: [tech-lead, developer]
-volume: main
 required_sections:
   - "## 0. 设计方向"
   - "## 1. 设计系统"

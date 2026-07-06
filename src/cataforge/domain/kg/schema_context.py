@@ -66,8 +66,14 @@ def _examples(ns: str) -> list[tuple[str, str]]:
     ]
 
 
-def build_schema_card(config: KGConfig | None = None) -> str:
-    """Assemble the schema card markdown for the given (or default) config."""
+def build_schema_card(
+    config: KGConfig | None = None, *, custom_prefixes: dict[str, str] | None = None
+) -> str:
+    """Assemble the schema card markdown for the given (or default) config.
+
+    ``custom_prefixes`` (a project's ``kg.custom_entity_prefixes``) documents the
+    registered downstream domain extensions; omit it for the closed-core card.
+    """
     config = config or KGConfig()
     ns = cf_namespace(config)
 
@@ -104,6 +110,26 @@ def build_schema_card(config: KGConfig | None = None) -> str:
     lines.append("")
     lines.append(", ".join(f"`cf:{field}`" for field in _SCALAR_FIELDS))
     lines.append("")
+
+    lines.append("## Domain extension (open class)")
+    lines.append("")
+    lines.append(
+        "core's business classes are closed. A downstream project registers "
+        "`{prefix: domain_type}` in framework.json `kg.custom_entity_prefixes`; a "
+        "matching id (e.g. `ORD-001`) ingests as `cf:DomainEntity` carrying "
+        "`cf:domain_type`, with optional `cf:has_attribute -> cf:DomainAttribute` "
+        "(`cf:attr_name` / `cf:attr_value`) from its `- key: value` body bullets. An "
+        "unregistered prefix is dropped (doctor WARN)."
+    )
+    lines.append("")
+    if custom_prefixes:
+        lines.append("Registered in this project:")
+        lines.append("")
+        lines.append("| id prefix | domain_type |")
+        lines.append("|-----------|-------------|")
+        for prefix, domain_type in sorted(custom_prefixes.items()):
+            lines.append(f"| `{prefix}-NNN` | `{domain_type}` |")
+        lines.append("")
 
     lines.append("## Example queries")
     lines.append("")

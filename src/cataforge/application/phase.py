@@ -94,7 +94,7 @@ def _find_phase_doc(docs_dir: Path, doc_type: str) -> Path | None:
 
     context generate writes ``docs/{doc_type}/{template_id}-{project}.md``; the
     subdir name is the doc_type, so any ``*.md`` under it belongs to this family
-    (lite variants and split volumes included). A subdir file that *explicitly*
+    (lite variants included). A subdir file that *explicitly*
     declares a different frontmatter doc_type is excluded so a misplaced doc
     can't satisfy the gate; files with no declared type are trusted by location.
     Flat ``docs/{doc_type}(-lite).md`` are a backward-compat fallback.

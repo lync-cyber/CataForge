@@ -4,8 +4,8 @@ Removing hybrid leaves graph as the single mode carrying KG gating, so the
 frictions that hybrid let authors dodge by "editing the Markdown back" must
 hold hard:
 
-* a split-volume document round-trips through finalize per file (no collapse);
-* amending one volume leaves its siblings byte-for-byte intact;
+* each document round-trips through finalize per file (no collapse);
+* amending one document leaves its siblings byte-for-byte intact;
 * re-authoring a document atomically replaces its traceability edges;
 * an approved document's status is frozen against a content re-author.
 """
@@ -28,13 +28,13 @@ _FRAMEWORK = {
     "docs": {"doc_types": {"dev-plan": "dev-plan", "prd": "prd"}},
 }
 
-_MAIN_VOL = (
-    "---\nid: dev-plan-x\ndoc_type: dev-plan\nstatus: draft\n---\n"
-    "# Dev Plan\n\n引言。\n\n## 1. 迭代规划\n\nSprint 概览。\n"
+_PRD_DOC = (
+    "---\nid: prd\ndoc_type: prd\nstatus: draft\n---\n"
+    "# PRD\n\n引言。\n\n## 1. 功能\n\n### F-001 登录\n\n登录功能。\n"
 )
-_SPRINT_VOL = (
-    "---\nid: dev-plan-x-s1\ndoc_type: dev-plan\nstatus: draft\n---\n"
-    "# Dev Plan 分卷 S1\n\n## 3. 任务卡详细\n\n### T-001 登录\n\n实现登录。\n"
+_DEVPLAN_DOC = (
+    "---\nid: dev-plan\ndoc_type: dev-plan\nstatus: draft\n---\n"
+    "# Dev Plan\n\n## 3. 任务卡详细\n\n### T-001 登录\n\n实现登录。\n"
 )
 
 
@@ -59,61 +59,61 @@ def _project(tmp_path: Path) -> Path:
     return proj
 
 
-def _author_both_volumes(proj: Path) -> None:
-    cw.author_document(str(proj), _MAIN_VOL, source_path="docs/dev-plan/dev-plan-x.md")
-    cw.author_document(str(proj), _SPRINT_VOL, source_path="docs/dev-plan/dev-plan-x-s1.md")
+def _author_two_docs(proj: Path) -> None:
+    cw.author_document(str(proj), _PRD_DOC, source_path="docs/prd/prd.md")
+    cw.author_document(str(proj), _DEVPLAN_DOC, source_path="docs/dev-plan/dev-plan.md")
     gc.collect()
 
 
-class TestFinalizePreservesVolumes:
-    def test_split_volume_round_trips_per_file(self, tmp_path: Path) -> None:
-        """Each volume is its own Document (distinct id / source_path), so
+class TestFinalizePreservesDocuments:
+    def test_each_document_round_trips_per_file(self, tmp_path: Path) -> None:
+        """Each document is its own node (distinct id / source_path), so
         finalize reconstructs both files and never folds them into one."""
         proj = _project(tmp_path)
-        _author_both_volumes(proj)
+        _author_two_docs(proj)
         cw.finalize(str(proj))
         gc.collect()
 
-        main_f = proj / "docs" / "dev-plan" / "dev-plan-x.md"
-        s1_f = proj / "docs" / "dev-plan" / "dev-plan-x-s1.md"
-        assert main_f.is_file() and s1_f.is_file()
-        # the sprint volume's task card stayed in its own file
-        assert "T-001" in s1_f.read_text(encoding="utf-8")
-        assert "T-001" not in main_f.read_text(encoding="utf-8")
+        prd_f = proj / "docs" / "prd" / "prd.md"
+        dp_f = proj / "docs" / "dev-plan" / "dev-plan.md"
+        assert prd_f.is_file() and dp_f.is_file()
+        # the dev-plan's task card stayed in its own file
+        assert "T-001" in dp_f.read_text(encoding="utf-8")
+        assert "T-001" not in prd_f.read_text(encoding="utf-8")
 
     def test_re_finalize_is_byte_stable(self, tmp_path: Path) -> None:
         proj = _project(tmp_path)
-        _author_both_volumes(proj)
+        _author_two_docs(proj)
         cw.finalize(str(proj))
         gc.collect()
-        main_f = proj / "docs" / "dev-plan" / "dev-plan-x.md"
-        s1_f = proj / "docs" / "dev-plan" / "dev-plan-x-s1.md"
-        first = (main_f.read_bytes(), s1_f.read_bytes())
+        prd_f = proj / "docs" / "prd" / "prd.md"
+        dp_f = proj / "docs" / "dev-plan" / "dev-plan.md"
+        first = (prd_f.read_bytes(), dp_f.read_bytes())
 
         cw.finalize(str(proj))
         gc.collect()
-        assert (main_f.read_bytes(), s1_f.read_bytes()) == first
+        assert (prd_f.read_bytes(), dp_f.read_bytes()) == first
         assert cw.reconcile_check(str(proj)).ok
 
 
-class TestAmendmentVolumeIsolation:
-    def test_amending_one_volume_leaves_siblings_intact(self, tmp_path: Path) -> None:
+class TestAmendmentDocumentIsolation:
+    def test_amending_one_document_leaves_siblings_intact(self, tmp_path: Path) -> None:
         proj = _project(tmp_path)
-        _author_both_volumes(proj)
+        _author_two_docs(proj)
         cw.finalize(str(proj))
         gc.collect()
-        main_f = proj / "docs" / "dev-plan" / "dev-plan-x.md"
-        main_before = main_f.read_bytes()
+        prd_f = proj / "docs" / "prd" / "prd.md"
+        prd_before = prd_f.read_bytes()
 
-        amended = _SPRINT_VOL.replace("实现登录。", "实现登录（含 OAuth）。")
-        cw.author_document(str(proj), amended, source_path="docs/dev-plan/dev-plan-x-s1.md")
+        amended = _DEVPLAN_DOC.replace("实现登录。", "实现登录（含 OAuth）。")
+        cw.author_document(str(proj), amended, source_path="docs/dev-plan/dev-plan.md")
         gc.collect()
         cw.finalize(str(proj))
         gc.collect()
 
-        assert main_f.read_bytes() == main_before
-        s1_text = (proj / "docs" / "dev-plan" / "dev-plan-x-s1.md").read_text(encoding="utf-8")
-        assert "OAuth" in s1_text
+        assert prd_f.read_bytes() == prd_before
+        dp_text = (proj / "docs" / "dev-plan" / "dev-plan.md").read_text(encoding="utf-8")
+        assert "OAuth" in dp_text
 
 
 class TestRelationIdempotence:
@@ -143,28 +143,28 @@ class TestApprovedStatusFreeze:
         from cataforge.domain.kg._errors import KGValidationError
 
         proj = _project(tmp_path)
-        cw.author_document(str(proj), _MAIN_VOL, source_path="docs/dev-plan/dev-plan-x.md")
+        cw.author_document(str(proj), _DEVPLAN_DOC, source_path="docs/dev-plan/dev-plan.md")
         gc.collect()
-        cw.update_document_meta(str(proj), "dev-plan-x", status="approved")
+        cw.update_document_meta(str(proj), "dev-plan", status="approved")
         gc.collect()
 
-        # _MAIN_VOL carries status: draft → re-authoring would downgrade approved.
+        # _DEVPLAN_DOC carries status: draft → re-authoring would downgrade approved.
         with pytest.raises(KGValidationError, match="approved"):
-            cw.author_document(str(proj), _MAIN_VOL, source_path="docs/dev-plan/dev-plan-x.md")
+            cw.author_document(str(proj), _DEVPLAN_DOC, source_path="docs/dev-plan/dev-plan.md")
         gc.collect()
 
     def test_re_author_keeping_approved_is_allowed(self, tmp_path: Path) -> None:
         proj = _project(tmp_path)
-        cw.author_document(str(proj), _MAIN_VOL, source_path="docs/dev-plan/dev-plan-x.md")
+        cw.author_document(str(proj), _DEVPLAN_DOC, source_path="docs/dev-plan/dev-plan.md")
         gc.collect()
-        cw.update_document_meta(str(proj), "dev-plan-x", status="approved")
+        cw.update_document_meta(str(proj), "dev-plan", status="approved")
         gc.collect()
 
-        approved_vol = _MAIN_VOL.replace("status: draft", "status: approved").replace(
-            "Sprint 概览。", "Sprint 概览（修订）。"
+        approved_doc = _DEVPLAN_DOC.replace("status: draft", "status: approved").replace(
+            "实现登录。", "实现登录（修订）。"
         )
         result = cw.author_document(
-            str(proj), approved_vol, source_path="docs/dev-plan/dev-plan-x.md"
+            str(proj), approved_doc, source_path="docs/dev-plan/dev-plan.md"
         )
         gc.collect()
-        assert result.doc_id == "dev-plan-x"
+        assert result.doc_id == "dev-plan"

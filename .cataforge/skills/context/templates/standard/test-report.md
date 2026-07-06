@@ -6,7 +6,6 @@ author: qa-engineer
 status: draft
 deps: ["dev-plan-{project}"]
 consumers: [developer, qa-engineer, devops]
-volume: main
 required_sections:
   - "## 1. 测试策略"
   - "## 2. 测试用例矩阵"

@@ -14,7 +14,7 @@ from cataforge.core.types import Severity
 from cataforge.runtime.skill.builtins._shared import CheckReport, IssueCollector
 from cataforge.runtime.skill.builtins.doc_review._render import render_text
 
-_HEAD = "检查: docs/prd/prd.md (type=prd, volume=main)"
+_HEAD = "检查: docs/prd/prd.md (type=prd)"
 
 
 def _report(*, summary=None, issues=()) -> CheckReport:

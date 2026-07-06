@@ -6,7 +6,6 @@ author: tech-lead
 status: draft
 deps: ["arch-lite-{project}"]
 consumers: [implementer, qa-engineer]
-volume: main
 mode: agile-lite
 required_sections:
   - "## 1. 任务清单"

@@ -178,9 +178,7 @@ def test_validate_docs_alias_resolves_dep(tmp_path: Path, monkeypatch) -> None:
         root,
         "docs/ui-spec/ui-spec-foo-theme-04.md",
         "---\nid: ui-spec-foo-theme-04\ndoc_type: ui-spec\n"
-        "volume_type: theme\n"
         'deps: ["arch-data#§4.E-002"]\n'
-        "split_from: ui-spec-foo\n"
         'required_sections:\n  - "## 4. 主题"\n'
         "---\n# theme\n\n## 4. 主题\n内容\n",
     )

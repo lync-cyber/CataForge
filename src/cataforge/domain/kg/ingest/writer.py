@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._quads import (
+    attribute_subject_quads,
     build_document_quads,
     build_entity_quads,
     build_relation_quad,
@@ -117,12 +118,15 @@ def _atomic_replace_entity(
     store: ox.Store,
     iri: str,
     new_quads: list[ox.Quad],
+    *,
+    namespace: str,
 ) -> None:
-    """Replace all quads for `iri`. Restores prior state on failure."""
+    """Replace all quads for `iri` and its attr sub-nodes. Restores prior state on failure."""
     import pyoxigraph as ox  # noqa: PLC0415
 
     subject = ox.NamedNode(iri)
     prior = list(store.quads_for_pattern(subject, None, None, None))
+    prior.extend(attribute_subject_quads(store, iri, namespace))
     added: list[ox.Quad] = []
     try:
         for q in prior:
@@ -168,8 +172,9 @@ def write_entities(
             parent_id=entity.parent_id,
             extra_slots=entity.extra_slots or None,
             mtime=entity.mtime,
+            attributes=entity.attributes or None,
         )
-        _atomic_replace_entity(store, iri, new_quads)
+        _atomic_replace_entity(store, iri, new_quads, namespace=namespace)
         stats.entities_written += 1
         stats.written_iris.append(iri)
     return stats
@@ -195,11 +200,9 @@ def _lookup_node_iri(
 
     Resolves a subordinate endpoint to the actual parent-scoped node already
     written to the store, so a relation edge points at the composite IRI rather
-    than a non-existent flat one. An xref carries the *base* doc id (`prd`) while
-    a split document's entities are stored under volume doc ids (`prd-core`); the
-    exact source_doc is tried first, then a volume-tolerant `CONTAINS` match
-    symmetric with the cross-doc consistency checker's source_doc resolution.
-    Deterministic first match under ambiguity.
+    than a non-existent flat one. ``source_doc`` is the logical doc id (its
+    bare doc_type, e.g. `prd`); the match is exact. Deterministic first match
+    under ambiguity.
     """
     ns = cf_namespace(config)
     eid = escape_sparql_literal(entity_id)
@@ -208,16 +211,10 @@ def _lookup_node_iri(
         f'PREFIX cf: <{ns}> SELECT ?s WHERE {{ ?s cf:entity_id "{eid}" ; '
         f'cf:source_doc "{src}" }} ORDER BY STR(?s) LIMIT 1'
     )
-    volume = (
-        f'PREFIX cf: <{ns}> SELECT ?s WHERE {{ ?s cf:entity_id "{eid}" ; '
-        f'cf:source_doc ?src . FILTER(CONTAINS(STR(?src), "{src}")) }} '
-        "ORDER BY STR(?s) LIMIT 1"
-    )
-    for sparql in (exact, volume):
-        for row in select_rows(store, sparql):
-            node = _term_value(_row_lookup(row, "s"))
-            if node is not None:
-                return str(node)
+    for row in select_rows(store, exact):
+        node = _term_value(_row_lookup(row, "s"))
+        if node is not None:
+            return str(node)
     return None
 
 
@@ -310,7 +307,7 @@ def write_structure(
             contained_entity_ids=section.contained_entity_ids,
             document_iri_val=document_iri(section.doc_id, base_ns),
         )
-        _atomic_replace_entity(store, iri, quads)
+        _atomic_replace_entity(store, iri, quads, namespace=namespace)
         stats.sections_written += 1
         stats.written_iris.append(iri)
 
@@ -333,7 +330,7 @@ def write_structure(
             preamble_body=document.preamble_body,
             source_path=document.source_path,
         )
-        _atomic_replace_entity(store, iri, quads)
+        _atomic_replace_entity(store, iri, quads, namespace=namespace)
         stats.documents_written += 1
         stats.written_iris.append(iri)
 

@@ -36,11 +36,10 @@ def find_dev_plan_files(dev_plan_dir: str) -> list[str]:
 
 
 def load_project_features(dev_plan_files: list[str]) -> dict[str, Any]:
-    """Load ``project_features`` block from the dev-plan main volume frontmatter.
+    """Load ``project_features`` block from the dev-plan frontmatter.
 
-    Sprint volumes (``-s{N}.md``) inherit from the main volume; the first
-    file containing a ``project_features:`` key wins. Returns ``{}`` when no
-    file declares the block — preserving existing checker behavior.
+    The first file declaring a ``project_features:`` key wins. Returns ``{}``
+    when no file declares the block — preserving existing checker behavior.
 
     Recognised keys (all optional):
 
@@ -62,8 +61,6 @@ def load_project_features(dev_plan_files: list[str]) -> dict[str, Any]:
       of the unplanned-files WARN set.
     """
     for f in dev_plan_files:
-        if re.search(r"-s\d+\.md$", f):
-            continue
         try:
             with open(f, errors="replace") as fh:
                 raw = fh.read()
@@ -74,14 +71,6 @@ def load_project_features(dev_plan_files: list[str]) -> dict[str, Any]:
         if isinstance(pf, dict):
             return pf
     return {}
-
-
-def _find_sprint_volume(dev_plan_files: list[str], sprint_number: int) -> str | None:
-    """Return the ``-s{N}.md`` volume for this sprint, or None when absent."""
-    for f in dev_plan_files:
-        if re.search(rf"-s{sprint_number}\.md$", f):
-            return f
-    return None
 
 
 def _consume_deliverables(lines: list[str], i: int, current_task: dict[str, Any]) -> int:
@@ -125,7 +114,6 @@ def _process_task_line(
     current_task: dict[str, Any] | None,
     tasks: list[dict[str, Any]],
     in_sprint: bool,
-    sprint_volume: str | None,
 ) -> tuple[int, dict[str, Any] | None]:
     """Process one line inside the sprint task scan loop.
 
@@ -175,7 +163,7 @@ def _process_task_line(
             current_task["status"] = table_match.group(2).strip().lower()
     else:
         table_match = _TASK_TABLE_RE.match(line)
-        if table_match and (in_sprint or sprint_volume):
+        if table_match and in_sprint:
             tasks.append(
                 {
                     "id": table_match.group(1),
@@ -203,10 +191,7 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
     tasks: list[dict[str, Any]] = []
     current_task: dict[str, Any] | None = None
 
-    sprint_volume = _find_sprint_volume(dev_plan_files, sprint_number)
-    files_to_search = [sprint_volume] if sprint_volume else dev_plan_files
-
-    for filepath in files_to_search:
+    for filepath in dev_plan_files:
         with open(filepath, errors="replace") as f:
             content = f.read()
 
@@ -225,13 +210,11 @@ def extract_sprint_tasks(dev_plan_files: list[str], sprint_number: int) -> list[
                 in_sprint = False
                 i += 1
                 continue
-            if not in_sprint and not sprint_volume:
+            if not in_sprint:
                 i += 1
                 continue
 
-            i, current_task = _process_task_line(
-                line, lines, i, current_task, tasks, in_sprint, sprint_volume
-            )
+            i, current_task = _process_task_line(line, lines, i, current_task, tasks, in_sprint)
 
         if current_task:
             tasks.append(current_task)
@@ -276,13 +259,13 @@ def classify_empty_extraction(dev_plan_files: list[str], sprint_number: int) -> 
 
     * ``no_tasks`` — the dev-plan declares no ``T-NNN`` task ids anywhere.
     * ``no_anchor`` — tasks exist, but this sprint has no ``### Sprint N``
-      heading and no ``-s{N}.md`` volume to scope them (likely an out-of-range
-      number or a detail-volume naming mismatch).
+      heading to scope them (likely an out-of-range number or a heading
+      naming mismatch).
     * ``anchored_empty`` — the sprint is anchored yet yields nothing (genuinely
       empty, or an overview table the parser can't read).
     """
     has_any_task = False
-    anchored = _find_sprint_volume(dev_plan_files, sprint_number) is not None
+    anchored = False
 
     for filepath in dev_plan_files:
         with open(filepath) as f:

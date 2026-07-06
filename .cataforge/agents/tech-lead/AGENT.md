@@ -26,8 +26,9 @@ maxTurns: 120
 - 加载示例: `cataforge context read arch#§2.M-001 arch#§3.API-001 ui-spec#§2.UC-001 ui-spec#§3.P-001`
 
 ## Output Contract
-- 必须产出: dev-plan-{project}.md
-- 使用模板: 通过context调用 dev-plan 模板
+- 必须产出: dev-plan 逻辑文档(单一逻辑文档,finalize 整篇导出）
+- 落稿: graph 后端经 context authoring(`context write-doc` / `context write-narrative` / `context transact`)+ `cataforge context finalize` 导出人审视图;markdown 后端按模板实例化后编辑 docs/dev-plan/ 文件
+- 使用模板: 通过 context 调用 dev-plan 模板
 
 ## Execution Rules
 - **task_kind 标注**: 每个 T-xxx 标注 `task_kind ∈ {feature, fix, chore, config, docs, validation}`。`chore`/`config`/`docs` 跳过 TDD（直接由 implementer 单次产出 + lint hook 兜底），仅 `feature`/`fix` 走 RED/GREEN/REFACTOR；`validation` 不产代码也不进 TDD —— orchestrator 在其前置任务完成后经 AskUserQuestion 展示走查清单（调度见 ORCHESTRATOR-PROTOCOLS §Parallel Task Dispatch Protocol 的 validation 任务调度），按 task-decomp 拆分规则在含 `user_facing_critical_path` 的 Sprint 末追加
@@ -66,4 +67,4 @@ maxTurns: 120
 - 禁止: 缺少deliverables或context_load字段
 - 禁止: dev-plan 任务依赖图存在循环（task-dep-analysis 检测到环必须先打散）—— 循环依赖让 TDD 无法选起点，implementer 进入阻塞链
 - 禁止: 修改ARCH中的技术决策
-- 禁止: 用 Bash 执行 `cataforge skill run task-dep-analysis -- ...` / `cataforge viz tasks --format mermaid ...` / `cataforge context read` 以外的任何命令
+- 禁止: 用 Bash 执行 `cataforge skill run task-dep-analysis -- ...` / `cataforge viz tasks --format mermaid ...` / `cataforge context` 系列 以外的任何命令

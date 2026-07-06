@@ -354,29 +354,21 @@ slots:
   narrative_body:   { range: string }
   stack_layers:     { range: string, multivalued: true }
 
-  # ---- document-structure slots (Document / Volume / Section) --------------
+  # ---- document-structure slots (Document / Section) -----------------------
   doc_type:         { range: string, description: "doc_type of a Document, e.g. prd / arch." }
-  volume_type:      { range: string, description: "Split-volume kind, e.g. features / modules / sprint." }
   section_anchor:   { range: string, description: "Section anchor inside its document, e.g. §2.M-001." }
   position:         { range: string, description: "Zero-padded document-order index of a Section for whole-document reconstruction." }
   section_level:    { range: string, description: "Heading depth of a Section; level-2 sections tile-cover the document body." }
   frontmatter_raw:  { range: string, description: "Verbatim frontmatter block of a Document's source file." }
   preamble_body:    { range: string, description: "Document body before the first §-level heading (H1 line and lead prose)." }
   source_path:      { range: string, description: "Project-root-relative posix path of a Document's source file." }
-  has_volume:
-    range: Volume
-    multivalued: true
-    description: Document → its split volumes.
   has_section:
     range: Section
     multivalued: true
-    description: Document / Volume → its sections.
+    description: Document → its sections.
   part_of_document:
     range: Document
-    description: Volume / Section → the document it belongs to.
-  part_of_volume:
-    range: Volume
-    description: Section → the volume it belongs to (when the document is split).
+    description: Section → the document it belongs to.
   contains_entity:
     range: SoftwareArtifact
     multivalued: true
@@ -386,6 +378,26 @@ slots:
     range: Section
     inverse: contains_entity
     description: SoftwareArtifact → the Section it was sourced from.
+
+  # ---- domain escape hatch (bounded downstream extension) ------------------
+  domain_type:
+    range: string
+    description: Registered domain class of a DomainEntity (e.g. "Order"), set from the prefix registry.
+  has_attribute:
+    range: DomainAttribute
+    multivalued: true
+    inverse: attribute_of
+    description: DomainEntity → its structured key/value attributes.
+  attribute_of:
+    range: DomainEntity
+    inverse: has_attribute
+    description: DomainAttribute → its owning DomainEntity.
+  attr_name:
+    range: string
+    description: DomainAttribute key.
+  attr_value:
+    range: string
+    description: DomainAttribute value.
 
 # ---------------------------------------------------------------------------
 # Class hierarchy
@@ -851,14 +863,47 @@ classes:
       entity_id:
         pattern: "^SR-[0-9]{3,}$"
 
+  # ===== domain escape hatch (bounded downstream extension) ================
+  # core's business classes are closed; this single open class lets a
+  # downstream project register custom entity-id prefixes (framework.json
+  # kg.custom_entity_prefixes) so an unregistered prefix becomes a doctor WARN
+  # instead of a silent drop. The concrete prefix set is gated at extraction.
+  DomainEntity:
+    description: Bounded downstream extension point; carries a registered domain_type.
+    class_uri: cf:DomainEntity
+    is_a: SoftwareArtifact
+    slots:
+      - domain_type
+      - has_attribute
+      - satisfies
+    slot_usage:
+      entity_id:
+        pattern: "^[A-Z]+-[0-9]{3,}$"
+        required: true
+      domain_type:
+        required: true
+
+  DomainAttribute:
+    description: Structured key/value attribute attached to a DomainEntity.
+    class_uri: cf:DomainAttribute
+    is_a: SoftwareArtifact
+    slots:
+      - attr_name
+      - attr_value
+      - attribute_of
+    slot_usage:
+      attr_name:
+        required: true
+
   # ===== document-structure layer ==========================================
-  # Document / Volume / Section are structural containers, not business
-  # artifacts — they are standalone (like Project), identified by `id`, and
-  # carry whole-document content (structured entities via contains_entity plus
+  # Document / Section are structural containers, not business artifacts —
+  # they are standalone (like Project), identified by `id`, and carry
+  # whole-document content (structured entities via contains_entity plus
   # prose via Section.narrative_body) so the graph is a complete backend for
-  # both entity-level and whole-section context I/O.
+  # both entity-level and whole-section context I/O. A single logical Document
+  # owns every Section and is never split across physical files.
   Document:
-    description: A whole business document; container for its volumes, sections, and entities.
+    description: A whole business document; container for its sections and entities.
     class_uri: cf:Document
     slots:
       - id
@@ -873,28 +918,14 @@ classes:
       - authored_by
       - created_at
       - updated_at
-      - has_volume
       - has_section
     slot_usage:
       id:    { required: true }
       title: { required: true }
 
-  Volume:
-    description: A split volume of a Document (honors split_from / volume_type).
-    class_uri: cf:Volume
-    slots:
-      - id
-      - title
-      - volume_type
-      - source_doc
-      - part_of_document
-      - has_section
-    slot_usage:
-      id: { required: true }
-
   Section:
     description: >-
-      Heading-delimited section of a Document/Volume. Carries narrative prose
+      Heading-delimited section of a Document. Carries narrative prose
       (narrative_body) and the structured entities sourced from it
       (contains_entity), making whole-document content — structured and prose —
       first-class graph content.
@@ -910,7 +941,6 @@ classes:
       - content_hash
       - source_doc
       - part_of_document
-      - part_of_volume
       - contains_entity
     slot_usage:
       id: { required: true }

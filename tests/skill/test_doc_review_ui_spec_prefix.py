@@ -13,7 +13,7 @@ from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
 
 _FM = (
     "---\nid: ui-spec-demo\ndoc_type: ui-spec\nauthor: ui-designer\n"
-    "status: draft\ndeps: []\nconsumers: [tech-lead]\nvolume_type: components\n---\n"
+    "status: draft\ndeps: []\nconsumers: [tech-lead]\n---\n"
 )
 
 
@@ -42,16 +42,3 @@ def test_id_continuity_tracks_uc_prefix(tmp_path: Path) -> None:
     c = DocChecker("ui-spec", _write(tmp_path, body), docs_dir=str(tmp_path))
     c.check_id_continuity()
     assert any("UC-002" in w for w in c.warnings), c.warnings
-
-
-def test_components_volume_filename_detected_with_uc_range(tmp_path: Path) -> None:
-    # No volume_type in frontmatter — detection must fall back to the filename
-    # range label, which now uses the UC- component prefix.
-    fm = (
-        "---\nid: ui-spec-demo-uc001-uc014\ndoc_type: ui-spec\n"
-        "author: ui-designer\nstatus: draft\ndeps: []\nconsumers: [tech-lead]\n---\n"
-    )
-    f = tmp_path / "ui-spec-demo-uc001-uc014.md"
-    f.write_text(fm + "# UI\n\n## 2. 组件清单\n\n### UC-001: A\n", encoding="utf-8")
-    c = DocChecker("ui-spec", str(f), docs_dir=str(tmp_path), volume_type=None)
-    assert c.volume_type == "components"

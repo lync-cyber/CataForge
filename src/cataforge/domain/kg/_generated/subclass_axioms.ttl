@@ -23,6 +23,8 @@ cf:Component rdfs:subClassOf cf:SoftwareArtifact .
 cf:CoverageRule rdfs:subClassOf cf:SoftwareArtifact .
 cf:DataModel rdfs:subClassOf cf:SoftwareArtifact .
 cf:Deployment rdfs:subClassOf cf:SoftwareArtifact .
+cf:DomainAttribute rdfs:subClassOf cf:SoftwareArtifact .
+cf:DomainEntity rdfs:subClassOf cf:SoftwareArtifact .
 cf:Environment rdfs:subClassOf cf:SoftwareArtifact .
 cf:Epic rdfs:subClassOf cf:Requirement .
 cf:Feature rdfs:subClassOf cf:Requirement .

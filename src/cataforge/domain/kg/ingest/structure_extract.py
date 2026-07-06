@@ -11,7 +11,7 @@ resolve from the graph. The Section carries the heading's prose body
 (`narrative_body`) and `contains_entity` edges to the entities whose
 innermost owning heading is this section; the Document links the sections
 via `has_section`. The level-1 document title is represented by the
-Document node itself; split-Volume nodes are out of scope for this phase.
+Document node itself.
 """
 
 from __future__ import annotations

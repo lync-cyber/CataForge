@@ -26,6 +26,7 @@ from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg._content_hash import entity_content_hash
 from cataforge.domain.kg._dispatch import (
     context_mode,
+    custom_entity_prefixes,
     definition_authority,
     kg_config_for,
     kg_enabled,
@@ -44,9 +45,13 @@ from cataforge.domain.kg.export import entity_doc_type
 from cataforge.domain.kg.export.document_pipeline import compile_documents
 from cataforge.domain.kg.export.types import CompileResult
 from cataforge.domain.kg.ingest import DEFAULT_DOC_TYPES, parse_doc_text, run_migration
-from cataforge.domain.kg.ingest.entity_extract import extract_entities
+from cataforge.domain.kg.ingest.entity_extract import (
+    PrefixRegistry,
+    build_prefix_registry,
+    extract_entities,
+)
 from cataforge.domain.kg.ingest.frontmatter import _PARSE_ERROR_KEY
-from cataforge.domain.kg.ingest.iri import document_iri, id_prefix_to_type
+from cataforge.domain.kg.ingest.iri import document_iri
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
@@ -217,14 +222,15 @@ def _existing_source_doc(store: ox.Store, cfg: Any, entity_id: str) -> str | Non
     return None
 
 
-def _check_entity_class(entity_id: str, class_name: str) -> None:
+def _check_entity_class(entity_id: str, class_name: str, registry: PrefixRegistry) -> None:
     """Deterministic schema gate: the entity_id prefix must map to class_name.
 
     Catches the common authoring errors (wrong prefix for the class, or an
     id with no schema-known prefix) without relying on an optional SHACL
-    engine being installed.
+    engine being installed. A prefix registered in ``kg.custom_entity_prefixes``
+    resolves to ``DomainEntity``.
     """
-    expected = id_prefix_to_type(entity_id)
+    expected = registry.class_for(entity_id)
     if expected is None:
         raise KGValidationError(f"entity_id {entity_id!r} has no schema-known prefix")
     if expected != class_name:
@@ -248,6 +254,7 @@ def _stage_entity(
     narrative: str | None,
     relations: list[tuple[str, str]] | None,
     source_section: str,
+    registry: PrefixRegistry,
     source_doc: str | None = None,
 ) -> str:
     """Stage one entity (with slots / narrative / outgoing edges) into ``txn``.
@@ -255,11 +262,16 @@ def _stage_entity(
     Returns the entity IRI. The entity_id↔class gate runs first. ``source_doc``
     overrides the ``entity_doc_type`` default so a re-authored entity keeps its
     existing document membership instead of collapsing onto the bare doc_type.
+    A registered custom-prefix ``DomainEntity`` carries its ``cf:domain_type``.
     """
-    _check_entity_class(entity_id, class_name)
+    _check_entity_class(entity_id, class_name, registry)
     merged: dict[str, str] = dict(slots or {})
     if narrative is not None:
         merged["narrative_body"] = narrative
+    if class_name == "DomainEntity" and "domain_type" not in merged:
+        domain_type = registry.domain_type_for(entity_id)
+        if domain_type is not None:
+            merged["domain_type"] = domain_type
     extra = {f"cf:{k}": v for k, v in merged.items()} or None
     content_hash = entity_content_hash(title, slots)
     iri = txn.add_entity(
@@ -310,6 +322,7 @@ def author_entity(
     cfg = kg_config_for(project_root)
     meta = _read_project_metadata(Path(project_root))
     pid = project_id or meta["project_id"]
+    registry = build_prefix_registry(custom_entity_prefixes(project_root))
 
     with KnowledgeGraph.connect(cfg) as kg:
         project_iri = write_project(kg.store, pid, meta["title"], meta["process_model"], cfg)
@@ -326,6 +339,7 @@ def author_entity(
                 narrative=narrative,
                 relations=relations,
                 source_section=source_section,
+                registry=registry,
                 source_doc=existing_source_doc,
             )
         report = validate(kg.store, cfg)
@@ -395,6 +409,7 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
 
     cfg = kg_config_for(project_root)
     meta = _read_project_metadata(Path(project_root))
+    registry = build_prefix_registry(custom_entity_prefixes(project_root))
     written_ids: set[str] = set()
     delete_ids: list[str] = []
     counts = {"entities": 0, "relations": 0, "sections": 0}
@@ -406,7 +421,9 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
         with kg.transaction() as txn:
             writer = CascadeWriter(txn)
             for raw in operations:
-                _apply_transact_op(txn, raw, project_iri, written_ids, delete_ids, counts, writer)
+                _apply_transact_op(
+                    txn, raw, project_iri, written_ids, delete_ids, counts, writer, registry
+                )
             writer.flush()
         report = validate(kg.store, cfg)
         offending = _offends(report.violations, written_ids)
@@ -439,6 +456,7 @@ def _apply_transact_op(
     delete_ids: list[str],
     counts: dict[str, int],
     writer: CascadeWriter,
+    registry: PrefixRegistry,
 ) -> None:
     op = raw.get("op")
     if op == "add_entity":
@@ -457,6 +475,7 @@ def _apply_transact_op(
             narrative=raw.get("narrative"),
             relations=relations,
             source_section=raw.get("section", ""),
+            registry=registry,
         )
         written_ids.update({entity_id, iri})
         delete_ids.append(_scoped_delete_id(entity_id, parent_id))
@@ -578,10 +597,13 @@ def author_document(
     doc.doc_type = doc_type
     doc.source_path = resolved_source_path
 
-    entities = extract_entities(doc, authority=definition_authority(project_root))
+    registry = build_prefix_registry(custom_entity_prefixes(project_root))
+    entities = extract_entities(
+        doc, authority=definition_authority(project_root), registry=registry
+    )
     _guard_no_placeholder_titles(entities)
     document, sections = extract_structure(doc, entities)
-    relations = extract_relations(doc)
+    relations = extract_relations(doc, registry)
 
     delete_ids = _author_document_delete_ids(doc_id, sections, entities)
     written_ids = {document_iri(doc_id, cfg.base_namespace)}
@@ -677,6 +699,7 @@ def _stage_authored_entities(
             parent_id=entity.parent_id,
             extra_slots=entity.extra_slots or None,
             mtime=entity.mtime,
+            attributes=entity.attributes or None,
         )
         staged_iris[entity.entity_id] = iri
         written_ids.add(entity.entity_id)

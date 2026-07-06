@@ -45,8 +45,9 @@ def test_blocks_prd_arch_uispec() -> None:
         assert _run_guard(path, unattended=True).returncode == 2, path
 
 
-def test_blocks_split_volume() -> None:
-    r = _run_guard("docs/dev-plan/dev-plan-part-2.md", unattended=True)
+def test_blocks_extra_file_in_frozen_dir() -> None:
+    # Any .md under a frozen doc_type dir is blocked, not just the canonical name.
+    r = _run_guard("docs/dev-plan/dev-plan-extra.md", unattended=True)
     assert r.returncode == 2
 
 

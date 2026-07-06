@@ -6,7 +6,6 @@ author: product-manager
 status: draft
 deps: []
 consumers: [architect, ui-designer, tech-lead]
-volume: main
 required_sections:
   - "## 1. 概述"
   - "## 2. 功能需求"

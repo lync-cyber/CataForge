@@ -6,7 +6,6 @@ author: tech-lead
 status: draft
 deps: ["arch-{project}", "ui-spec-{project}"]
 consumers: [developer, qa-engineer]
-volume: main
 required_sections:
   - "## 1. 迭代规划"
   - "## 2. 依赖图"
@@ -18,7 +17,7 @@ required_sections:
 [NAV]
 - §1 迭代规划 → Sprint 1..N (总览表)
 - §2 依赖图
-- §3 任务卡详细 → T-001..T-{NNN} (或见Sprint分卷)
+- §3 任务卡详细 → T-001..T-{NNN}
 - §4 关键路径
 - §5 风险项
 - §5.5 里程碑计划 (可选)
@@ -68,8 +67,8 @@ graph LR
   - [ ] `src/module-a/types.py` — {类型定义} (如需新增)
 - **context_load**: (context加载清单)
   - arch#§2.M-001
-  - arch-api#API-001
-  - arch-data#E-001
+  - arch#§3.API-001
+  - arch#§4.E-001
   - ui-spec#UC-003
 - **实现提示**: {关键技术点, 仅在必要时}
 

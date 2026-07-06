@@ -24,11 +24,11 @@ def test_docs_dir_is_root_itself(tmp_path: Path) -> None:
     assert project_root_from_docs_dir(root) == root
 
 
-def test_split_volume_docs_dir_two_levels_below_root(tmp_path: Path) -> None:
+def test_doc_type_subdir_two_levels_below_root(tmp_path: Path) -> None:
     root = _project(tmp_path)
-    volume = root / "docs" / "arch"
-    volume.mkdir(parents=True)
-    assert project_root_from_docs_dir(volume) == root
+    subdir = root / "docs" / "arch"
+    subdir.mkdir(parents=True)
+    assert project_root_from_docs_dir(subdir) == root
 
 
 def test_no_cataforge_returns_none(tmp_path: Path) -> None:

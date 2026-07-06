@@ -26,6 +26,24 @@ def _write_doc(root: Path, rel: str, body: str) -> Path:
     return p
 
 
+def test_index_entry_carries_no_volume_or_split_from(tmp_path: Path) -> None:
+    """One doc_type = one logical document — the index records neither a
+    ``volume`` nor a ``split_from`` field (both were split-volume machinery)."""
+    _make_project(tmp_path)
+    _write_doc(
+        tmp_path,
+        "docs/arch/arch-foo.md",
+        "---\nid: arch-foo\ndoc_type: arch\n---\n# Arch\n\n## 1. 概览\n内容\n",
+    )
+    rc = indexer.main(["--project-root", str(tmp_path)])
+    assert rc == 0
+
+    index = json.loads((tmp_path / "docs" / ".doc-index.json").read_text(encoding="utf-8"))
+    entry = index["documents"]["arch-foo"]
+    assert "volume" not in entry
+    assert "split_from" not in entry
+
+
 def test_strict_full_rebuild_exits_3_on_orphan(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

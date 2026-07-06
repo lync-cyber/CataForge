@@ -6,7 +6,6 @@ author: product-manager
 status: draft
 deps: []
 consumers: [implementer]
-volume: main
 mode: agile-prototype
 required_sections:
   - "## 1. 目标与用户"

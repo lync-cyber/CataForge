@@ -458,3 +458,24 @@ def test_overrides_dir_not_copied_downstream(tmp_path: Path) -> None:
     dest = tmp_path / ".cataforge"
     copy_scaffold_to(dest, force=False)
     assert not (dest / "overrides").exists()
+
+
+def test_merge_framework_json_preserves_kg_user_state(tmp_path: Path) -> None:
+    """kg is per-project user state (project_id / custom_entity_prefixes) — an
+    upgrade must not reset it, while new scaffold keys are still introduced."""
+    from cataforge.core.scaffold import _merge_framework_json
+
+    scaffold = json.dumps(
+        {"kg": {"store_backend": "oxigraph", "project_id": "", "custom_entity_prefixes": {}}}
+    ).encode()
+    target = tmp_path / "framework.json"
+    target.write_text(
+        json.dumps({"kg": {"project_id": "p1", "custom_entity_prefixes": {"ORD": "Order"}}}),
+        encoding="utf-8",
+    )
+
+    merged = json.loads(_merge_framework_json(scaffold, target).decode("utf-8"))
+
+    assert merged["kg"]["custom_entity_prefixes"] == {"ORD": "Order"}
+    assert merged["kg"]["project_id"] == "p1"
+    assert merged["kg"]["store_backend"] == "oxigraph"

@@ -52,6 +52,7 @@ class TraceChain:
     tasks: list[str] = field(default_factory=list)
     test_cases: list[str] = field(default_factory=list)
     review_reports: list[str] = field(default_factory=list)
+    domain_entities: list[str] = field(default_factory=list)
     coverage_status: Literal["full", "partial", "none"] = "none"
     chain_breaks: list[tuple[str, str, str]] = field(default_factory=list)
 
@@ -359,6 +360,7 @@ _CLASS_TO_BUCKET: dict[str, str] = {
     "Subtask": "tasks",
     "TestCase": "test_cases",
     "ReviewReport": "review_reports",
+    "DomainEntity": "domain_entities",
 }
 
 

@@ -22,23 +22,17 @@ if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
 
 
-# Lazy-initialized; built on first use from ENTITY_PREFIX_TO_CLASS keys.
-_ENTITY_ID_RE: re.Pattern[str] | None = None
-
 _FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
 _INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
+_ANY_ENTITY_ID_RE = re.compile(r"\b([A-Z]+)-\d{3,}\b")
 
 
-def _get_entity_id_re() -> re.Pattern[str]:
-    global _ENTITY_ID_RE  # noqa: PLW0603
-    if _ENTITY_ID_RE is None:
-        from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS  # noqa: PLC0415
+def _project_registry(project_root: Path) -> Any:
+    """Effective prefix registry — core prefixes plus the project's registered ones."""
+    from cataforge.domain.kg._dispatch import custom_entity_prefixes  # noqa: PLC0415
+    from cataforge.domain.kg.ingest.entity_extract import build_prefix_registry  # noqa: PLC0415
 
-        prefixes = "|".join(
-            re.escape(p) for p in sorted(ENTITY_PREFIX_TO_CLASS.keys(), key=len, reverse=True)
-        )
-        _ENTITY_ID_RE = re.compile(rf"\b(?:{prefixes})-\d{{3,}}\b")
-    return _ENTITY_ID_RE
+    return build_prefix_registry(custom_entity_prefixes(project_root))
 
 
 def _load_framework_json(cfg: ConfigManager) -> dict[str, Any] | None:
@@ -89,16 +83,15 @@ def _doc_type_to_subdir(cfg: ConfigManager) -> dict[str, str]:
     return merged
 
 
-def _scan_markdown_entity_ids(content: str) -> set[str]:
-    """Extract whitelisted entity IDs from markdown, skipping code blocks."""
+def _scan_markdown_entity_ids(content: str, entity_re: re.Pattern[str]) -> set[str]:
+    """Extract recognized entity IDs from markdown, skipping code blocks."""
     body = _FENCED_CODE_RE.sub("", content)
     body = _INLINE_CODE_RE.sub("", body)
-    entity_re = _get_entity_id_re()
     return set(entity_re.findall(body))
 
 
 def _scan_fs_entity_ids(
-    project_root: Path, doc_types: set[str], type_map: dict[str, str]
+    project_root: Path, doc_types: set[str], type_map: dict[str, str], entity_re: re.Pattern[str]
 ) -> set[str]:
     """Enumerate entity_id strings declared in any active doc_type's markdown sources."""
     found: set[str] = set()
@@ -112,11 +105,11 @@ def _scan_fs_entity_ids(
                 content = path.read_text()
             except OSError:
                 continue
-            found.update(_scan_markdown_entity_ids(content))
+            found.update(_scan_markdown_entity_ids(content, entity_re))
     return found
 
 
-def _fs_relation_endpoint_ids(project_root: Path, doc_types: set[str]) -> set[str]:
+def _fs_relation_endpoint_ids(project_root: Path, doc_types: set[str], registry: Any) -> set[str]:
     """entity_ids appearing as the subject or object of any extracted relation.
 
     A relation participant is a graph fact even with no entity node of its own
@@ -128,7 +121,7 @@ def _fs_relation_endpoint_ids(project_root: Path, doc_types: set[str]) -> set[st
 
     endpoints: set[str] = set()
     for doc in scan_business_docs(project_root, sorted(doc_types)):
-        for rel in extract_relations(doc):
+        for rel in extract_relations(doc, registry):
             endpoints.add(rel.subject_entity_id)
             endpoints.add(rel.object_entity_id)
     return endpoints
@@ -163,7 +156,7 @@ def _kg_entity_ids(db_path: Path) -> set[str]:
         return kg.query.entity_ids()
 
 
-def _fs_extracted_entities(project_root: Path, doc_types: set[str]) -> list[Any]:
+def _fs_extracted_entities(project_root: Path, doc_types: set[str], registry: Any) -> list[Any]:
     """All entity definitions the import pipeline would extract from active docs."""
     from cataforge.domain.kg._dispatch import definition_authority  # noqa: PLC0415
     from cataforge.domain.kg.ingest.entity_extract import extract_entities  # noqa: PLC0415
@@ -172,7 +165,7 @@ def _fs_extracted_entities(project_root: Path, doc_types: set[str]) -> list[Any]
     authority = definition_authority(project_root)
     all_entities: list[Any] = []
     for doc in scan_business_docs(project_root, sorted(doc_types)):
-        all_entities.extend(extract_entities(doc, authority=authority))
+        all_entities.extend(extract_entities(doc, authority=authority, registry=registry))
     return all_entities
 
 
@@ -279,6 +272,7 @@ def _classify_ingestion_diff(
     fs_ids: set[str],
     kg_ids: set[str],
     defined_ids: set[str],
+    registry: Any,
 ) -> tuple[set[str], set[str], set[str], set[str]]:
     """Split the fs/kg id delta into (missing, stale, dangling, reference_only)."""
     missing = fs_ids - kg_ids
@@ -298,7 +292,7 @@ def _classify_ingestion_diff(
     # heading-defined. Demote to info. Bare prose mentions (not relation
     # endpoints) of a definable class stay flagged.
     defined_prefixes = {e.split("-", 1)[0] for e in defined_ids}
-    rel_endpoints = _fs_relation_endpoint_ids(project_root, active)
+    rel_endpoints = _fs_relation_endpoint_ids(project_root, active, registry)
     reference_only = {
         d
         for d in dangling
@@ -350,6 +344,47 @@ def _report_ingestion_result(
         )
 
 
+def _unregistered_heading_prefixes(
+    project_root: Path, active: set[str], registry: Any
+) -> dict[str, list[str]]:
+    """Heading subjects that look like an entity id but whose prefix is neither
+    core nor registered — the ids the ingest silently drops.
+
+    Only headings with *no* recognized subject are considered, so a heading that
+    already defines a known entity (even one that also names an algorithm token
+    like ``SHA-256``) is never misread. Registered prefixes
+    (``kg.custom_entity_prefixes``) resolve as DomainEntity and are excluded.
+    """
+    from cataforge.domain.kg.ingest.scan import scan_business_docs  # noqa: PLC0415
+
+    found: dict[str, list[str]] = {}
+    for doc in scan_business_docs(project_root, sorted(active)):
+        for span in doc.sections:
+            title = _INLINE_CODE_RE.sub("", span.title)
+            if registry.entity_re.search(title):
+                continue
+            m = _ANY_ENTITY_ID_RE.search(title)
+            if m is not None:
+                found.setdefault(m.group(1), []).append(m.group(0))
+    return found
+
+
+def _report_unregistered_prefixes(unregistered: dict[str, list[str]]) -> None:
+    if not unregistered:
+        return
+    total = sum(len(ids) for ids in unregistered.values())
+    prefixes = ", ".join(sorted(unregistered))
+    click.echo(
+        f"  WARN: {total} heading id(s) with an unregistered prefix ({prefixes}) are "
+        f"dropped by ingest; register the prefix in framework.json "
+        f'`kg.custom_entity_prefixes` (e.g. {{"ORD": "Order"}}) to ingest them as '
+        f"DomainEntity, or wrap the mention in inline code to exempt it."
+    )
+    for prefix, ids in sorted(unregistered.items()):
+        sample = ", ".join(sorted(set(ids))[:3])
+        click.echo(f"    {prefix}: {len(ids)} id(s) (e.g. {sample})")
+
+
 def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     """Doctor gate — returns failure count for missing KG entity IDs."""
     project_root = Path(cfg.paths.root)
@@ -367,14 +402,17 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
         click.echo("  (no active doc_types — skipping)")
         return 0
 
-    all_entities = _fs_extracted_entities(project_root, active)
+    registry = _project_registry(project_root)
+    _report_unregistered_prefixes(_unregistered_heading_prefixes(project_root, active, registry))
+
+    all_entities = _fs_extracted_entities(project_root, active, registry)
     collisions = _fs_entity_collisions(all_entities)
     if collisions:
         _report_collisions(collisions)
         return 1
 
     type_map = _doc_type_to_subdir(cfg)
-    fs_ids = _scan_fs_entity_ids(project_root, active, type_map)
+    fs_ids = _scan_fs_entity_ids(project_root, active, type_map, registry.entity_re)
     if not fs_ids:
         click.echo(
             f"  (no entity_ids found in docs/ for active doc_types {sorted(active)} — skipping)"
@@ -389,7 +427,7 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
 
     defined_ids = {e.entity_id for e in all_entities}
     missing, stale, dangling, reference_only = _classify_ingestion_diff(
-        project_root, active, fs_ids, kg_ids, defined_ids
+        project_root, active, fs_ids, kg_ids, defined_ids, registry
     )
     _report_ingestion_result(missing, stale, dangling, reference_only, fs_ids, defined_ids, active)
     return 1 if missing else 0

@@ -8,9 +8,8 @@ Covers the three checker upgrades introduced for #106 EXP-003 + EXP-008:
 * ``unplanned_glob_patterns`` — fnmatch whitelist removes matched files
   from the unplanned-files WARN set.
 
-Loader (``load_project_features``) ignores sprint volumes (``-s{N}.md``)
-and reads the first main dev-plan file with a ``project_features:``
-frontmatter block.
+Loader (``load_project_features``) reads the first dev-plan file with a
+``project_features:`` frontmatter block.
 """
 
 from __future__ import annotations
@@ -46,7 +45,7 @@ class TestLoadProjectFeatures:
         )
         assert load_project_features([str(f)]) == {}
 
-    def test_loads_features_from_main_volume(self, tmp_path: Path) -> None:
+    def test_loads_features_from_dev_plan(self, tmp_path: Path) -> None:
         f = tmp_path / "dev-plan-foo.md"
         f.write_text(
             "---\n"
@@ -68,22 +67,19 @@ class TestLoadProjectFeatures:
             "**/helpers/*.py",
         ]
 
-    def test_skips_sprint_volumes(self, tmp_path: Path) -> None:
-        sprint = tmp_path / "dev-plan-foo-s1.md"
-        sprint.write_text(
-            "---\nproject_features:\n  merged_review: true\n---\n",
-            encoding="utf-8",
-        )
-        # Only sprint volume present → loader returns empty (won't read s-volume).
-        assert load_project_features([str(sprint)]) == {}
-
-        main = tmp_path / "dev-plan-foo.md"
-        main.write_text(
+    def test_first_file_with_features_wins(self, tmp_path: Path) -> None:
+        first = tmp_path / "dev-plan-foo.md"
+        first.write_text(
             "---\nproject_features:\n  merged_review: false\n---\n",
             encoding="utf-8",
         )
-        # Both present → main wins, even if main says false.
-        feats = load_project_features([str(sprint), str(main)])
+        second = tmp_path / "dev-plan-foo-extra.md"
+        second.write_text(
+            "---\nproject_features:\n  merged_review: true\n---\n",
+            encoding="utf-8",
+        )
+        # First declaring file wins, even if it says false.
+        feats = load_project_features([str(first), str(second)])
         assert feats == {"merged_review": False}
 
 
@@ -293,8 +289,9 @@ class TestExtractAlternationDeliverables:
             extract_sprint_tasks,
         )
 
-        f = tmp_path / "dev-plan-foo-s1.md"
+        f = tmp_path / "dev-plan-foo.md"
         f.write_text(
+            "### Sprint 1: t\n"
             "### T-011 Feature\n"
             "- status: done\n"
             "- deliverables:\n"

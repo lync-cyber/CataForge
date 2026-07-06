@@ -72,6 +72,7 @@
 - 统一配置 `.cataforge/framework.json`:
   - `upgrade.source` — 远程升级源配置。升级时保留用户已配置值，仅补充新字段
   - `upgrade.state` — 本地升级状态。升级时始终保留
+  - `kg` — per-project 用户态（project_id / title / process_model / custom_entity_prefixes）。升级时保留已配置值，仅补充新字段
   - `features` — 功能注册表。升级时全量覆盖
   - `migration_checks` — 迁移检查声明。升级时全量覆盖
 
