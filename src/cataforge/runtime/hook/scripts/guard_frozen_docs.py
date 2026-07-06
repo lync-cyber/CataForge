@@ -2,10 +2,10 @@
 
 Active only when the building-loop set ``CATAFORGE_UNATTENDED``; a no-op in
 normal interactive sessions. The loop must never touch the frozen planning docs
-(PRD / ARCH / UI-SPEC / DEV-PLAN) — those are the doc-review-frozen quality
-anchors, and planning stays a human daytime activity. §5 of the proposal
-requires this at the *tool* layer, not PROMPT text alone (an autonomous agent
-can ignore prose it doesn't take to heart).
+(PRD / ARCH / UI-SPEC / DEV-PLAN, plus the agile-prototype BRIEF) — those are the
+frozen task sources, and planning stays a human daytime activity. §5 of the
+proposal requires this at the *tool* layer, not PROMPT text alone (an autonomous
+agent can ignore prose it doesn't take to heart).
 
 Best-effort path match against the ``docs/{type}/`` convention — a speed-bump,
 not a sandbox; the real guarantee is the sandbox + human morning review.
@@ -25,13 +25,19 @@ import sys
 from cataforge.runtime.hook.base import matches_capability, read_hook_input
 
 # A path is a frozen upstream doc when it sits under docs/<type>/ or is the flat
-# docs/<type>(-lite).md, for the four planning doc types. Anchored on a path
-# boundary so docs/dev-planner/ or docs/prd-notes.md are NOT false-matched.
-_FROZEN_DOC_RE = re.compile(r"(?:^|/)docs/(?:prd|arch|ui-spec|dev-plan)(?:-lite)?(?:/|\.md|$)")
+# docs/<type>(-lite).md, for the four standard planning doc types plus the
+# agile-prototype brief. Anchored on a path boundary so docs/dev-planner/ or
+# docs/brief-notes.md are NOT false-matched.
+_FROZEN_DOC_RE = re.compile(
+    r"(?:^|/)docs/(?:prd|arch|ui-spec|dev-plan|brief)(?:-lite)?(?:/|\.md|$)"
+)
 
 
 def _block(path: str) -> None:
-    print("BLOCKED: 无人值守禁止修改冻结上游文档 (PRD/ARCH/UI-SPEC/DEV-PLAN)", file=sys.stderr)
+    print(
+        "BLOCKED: 无人值守禁止修改冻结上游文档 (PRD/ARCH/UI-SPEC/DEV-PLAN/BRIEF)",
+        file=sys.stderr,
+    )
     print(f"Path: {path}", file=sys.stderr)
     print("Suggestion: 无人循环只 building；planning 是冻结质量锚，留人工白天修改", file=sys.stderr)
     sys.exit(2)

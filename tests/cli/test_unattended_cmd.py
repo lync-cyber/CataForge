@@ -27,6 +27,10 @@ def test_outcome_message_covers_every_exit_code() -> None:
     }
 
 
+def _write_claude_md(root: Path, mode: str) -> None:
+    (root / "CLAUDE.md").write_text(f"# Proj\n## 项目信息\n- 执行模式: {mode}\n", encoding="utf-8")
+
+
 def test_preflight_gate_refuses_before_loop(tmp_path: Path) -> None:
     # No dev-plan under the project root → the frozen-upstream gate must refuse
     # with EXIT_PREFLIGHT and never reach the loop (no claude subprocess).
@@ -36,3 +40,21 @@ def test_preflight_gate_refuses_before_loop(tmp_path: Path) -> None:
     )
     assert result.exit_code == EXIT_PREFLIGHT
     assert "拒绝" in result.output
+
+
+def test_agile_prototype_routes_to_brief_preflight(tmp_path: Path) -> None:
+    # 执行模式=agile-prototype + no brief → the brief gate refuses (naming brief),
+    # proving mode auto-detection routed away from the dev-plan gate. No sprint arg.
+    _write_claude_md(tmp_path, "agile-prototype")
+    result = CliRunner().invoke(cli, ["unattended", "build", "--project-root", str(tmp_path)])
+    assert result.exit_code == EXIT_PREFLIGHT
+    assert "brief" in result.output
+
+
+def test_non_prototype_missing_sprint_is_usage_error(tmp_path: Path) -> None:
+    # standard mode needs an explicit SPRINT; omitting it is a usage error (exit
+    # 2), kept distinct from the frozen-upstream refusal (EXIT_PREFLIGHT=5).
+    _write_claude_md(tmp_path, "standard")
+    result = CliRunner().invoke(cli, ["unattended", "build", "--project-root", str(tmp_path)])
+    assert result.exit_code == 2
+    assert result.exit_code != EXIT_PREFLIGHT

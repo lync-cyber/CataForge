@@ -56,6 +56,13 @@ def test_blocks_flat_and_lite_variants() -> None:
     assert _run_guard("docs/prd-lite.md", unattended=True).returncode == 2
 
 
+def test_blocks_prototype_brief() -> None:
+    # agile-prototype: brief.md holds the frozen task cards during the loop, so
+    # both the flat file and the subdir variant must be blocked.
+    assert _run_guard("docs/brief.md", unattended=True).returncode == 2
+    assert _run_guard("docs/brief/brief-x.md", unattended=True).returncode == 2
+
+
 def test_blocks_write_tool_too() -> None:
     # The Write tool (not just Edit) maps to file_edit and must be caught.
     r = _run_guard("docs/dev-plan/dev-plan.md", unattended=True, tool="Write")
@@ -82,6 +89,8 @@ def test_no_false_match_on_lookalike_dirs() -> None:
     # docs/dev-planner/ and docs/prd-notes.md are not the frozen planning docs.
     assert _run_guard("docs/dev-planner/notes.md", unattended=True).returncode == 0
     assert _run_guard("docs/prd-notes.md", unattended=True).returncode == 0
+    # docs/brief-notes.md is not the brief itself.
+    assert _run_guard("docs/brief-notes.md", unattended=True).returncode == 0
 
 
 def test_no_op_when_not_unattended() -> None:

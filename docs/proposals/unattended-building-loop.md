@@ -1,6 +1,6 @@
 # 提案：无人值守 building loop — Ralph 式外循环嫁接 orchestrator
 
-> 状态：已实施。外循环驱动 / `sprint_complete` 完成契约 / stagnation 熔断 / 限流 auto-wait / 运维 metrics / 工具级 deny（`guard_dangerous` + `guard_frozen_docs`）/ frozen-upstream preflight 均已落地，以代码为准，本文余下为设计与决策记录（§6）。未落地：§6.6 `MAX_CALLS_PER_HOUR` 主动软闸（评估后否决）、agile-prototype 模式接线、§4.4 bash 参考实现（实为 Python driver）。
+> 状态：已实施。外循环驱动 / `sprint_complete` 完成契约 / stagnation 熔断 / 限流 auto-wait / 运维 metrics / 工具级 deny（`guard_dangerous` + `guard_frozen_docs`）/ frozen-upstream preflight / agile-prototype 模式接线（按 §项目信息.执行模式 自动路由，目标 ref `brief#tasks`，preflight 查 brief、guard 拦 brief）均已落地，以代码为准，本文余下为设计与决策记录（§6）。未落地：§6.6 `MAX_CALLS_PER_HOUR` 主动软闸（评估后否决）、§4.4 bash 参考实现（实为 Python driver）。
 > 范围：新增一层「跨会话、fresh-context」的无人值守执行外壳，**仅驱动 `development` 阶段对一个已冻结 sprint 的 building**。复用既有 TDD / code-review 门禁、`EVENT-LOG.jsonl`、dev-plan 任务卡、orchestrator Startup / Recovery 协议，**不新建质量层**。明确排除：PRD / ARCH / DEV-PLAN 的 authoring（planning 永远留给有人的白天 + doc-review）。
 > 交付边界：方案、借/不借决策表、外循环脚本（参考实现）、新增框架配置常量、`EVENT-LOG` schema 扩展、运维 metrics schema 为本文职责；实施代码与守卫以后续 PR 为准。
 

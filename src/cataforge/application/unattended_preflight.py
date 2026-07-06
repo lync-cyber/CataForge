@@ -34,6 +34,14 @@ def _devplan_files(docs_dir: Path) -> list[Path]:
     return files
 
 
+def _brief_files(docs_dir: Path) -> list[Path]:
+    """Every brief file: ``docs/brief/*.md`` plus the flat ``docs/brief.md``."""
+    sub = docs_dir / "brief"
+    files = sorted(sub.glob("*.md")) if sub.is_dir() else []
+    files += [p for p in (docs_dir / "brief.md",) if p.is_file()]
+    return files
+
+
 def preflight_frozen_upstream(project_root: Path, sprint: str) -> str | None:
     """Return a refusal reason, or ``None`` when it is safe to build *sprint*."""
     docs_dir = project_root / "docs"
@@ -60,4 +68,37 @@ def preflight_frozen_upstream(project_root: Path, sprint: str) -> str | None:
         return f"dev-plan 未冻结（status={','.join(non_approved)}）——需 doc-review approved"
     if placeholders:
         return f"dev-plan 含 {placeholders} 处未处理 TODO/TBD/FIXME——AC 未定稿，冻结前请消解"
+    return None
+
+
+def preflight_prototype_brief(project_root: Path) -> str | None:
+    """Return a refusal reason, or ``None`` when the brief is ready to build.
+
+    agile-prototype has no doc-review approval gate (checkpoints=none, Layer 1
+    only), so — unlike the dev-plan gate — this does NOT require
+    ``status: approved``; the brief stays ``draft`` throughout. It confirms the
+    brief is present, carries a §5 开发任务 section to build against, and is free
+    of unresolved ``TODO`` / ``TBD`` / ``FIXME``. The guarantee is deliberately
+    weaker than the dev-plan gate (no approval anchor exists in the mode) — the
+    real protection is the same sandbox + PR-only + morning review.
+    """
+    docs_dir = project_root / "docs"
+    brief_files = _brief_files(docs_dir)
+    if not brief_files:
+        return (
+            "未找到 brief（docs/brief/ 或 docs/brief.md 为空）"
+            "——无法跑 agile-prototype 无人值守 building"
+        )
+
+    placeholders = 0
+    combined: list[str] = []
+    for f in brief_files:
+        _fm, body = split_yaml_frontmatter(_read(f))
+        placeholders += count_unresolved_placeholders(body)
+        combined.append(body)
+
+    if "开发任务" not in "\n".join(combined):
+        return "brief 缺少 §5 开发任务——无待建任务卡，无法定位 building 目标"
+    if placeholders:
+        return f"brief 含 {placeholders} 处未处理 TODO/TBD/FIXME——AC 未定稿，请先消解"
     return None

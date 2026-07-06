@@ -21,9 +21,12 @@ from cataforge.runtime.unattended import (
     METRICS_FIELDS,
     UNATTENDED_ENV,
     ClaudeResult,
+    build_prompt,
     metrics_path,
+    prototype_target,
     rate_limited,
     run_building_loop,
+    sprint_target,
 )
 
 _SCHEMA = (
@@ -57,7 +60,7 @@ def _loop(tmp_path: Path, runner, **overrides) -> int:
         sleep=_NOOP,
     )
     kwargs.update(overrides)
-    return run_building_loop(tmp_path, "sprint-1", **kwargs)
+    return run_building_loop(tmp_path, sprint_target("sprint-1"), **kwargs)
 
 
 def test_refuses_on_main(tmp_path: Path) -> None:
@@ -273,6 +276,61 @@ def test_rate_limited_detects_error_type_not_prose() -> None:
     assert rate_limited("overloaded_error")
     assert not rate_limited("I refactored the rate-limiting middleware")
     assert not rate_limited('{"type":"result","ok":true}')
+
+
+def test_prototype_target_completes_on_brief_tasks_ref(tmp_path: Path) -> None:
+    # agile-prototype has no sprint grouping: the completion contract keys on
+    # ref=brief#tasks, so a dev-plan#sprint sprint_complete must NOT complete it.
+    _init_repo(tmp_path, "feat-x")
+
+    def runner(prompt: str, timeout: float) -> ClaudeResult:
+        append_event(
+            tmp_path,
+            build_record(
+                event="sprint_complete", phase="development", ref="brief#tasks", detail="d"
+            ),
+        )
+        return ClaudeResult(0, "ok")
+
+    kwargs = dict(
+        max_iterations=5,
+        stagnation_threshold=2,
+        card_revision_ceiling=3,
+        iter_timeout_sec=10.0,
+        ratelimit_wait_sec=0.0,
+        claude_runner=runner,
+        sleep=_NOOP,
+    )
+    assert run_building_loop(tmp_path, prototype_target(), **kwargs) == EXIT_COMPLETE
+
+
+def test_prototype_target_stagnation_emits_brief_tasks_ref(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "feat-x")
+    kwargs = dict(
+        max_iterations=5,
+        stagnation_threshold=2,
+        card_revision_ceiling=3,
+        iter_timeout_sec=10.0,
+        ratelimit_wait_sec=0.0,
+        claude_runner=lambda p, t: ClaudeResult(0, "spinning"),
+        sleep=_NOOP,
+    )
+    assert run_building_loop(tmp_path, prototype_target(), **kwargs) == EXIT_CIRCUIT
+    from cataforge.core.event_log import event_log_path
+
+    lines = event_log_path(tmp_path).read_text(encoding="utf-8").splitlines()
+    breaker = [json.loads(ln) for ln in lines if '"circuit_open"' in ln]
+    assert breaker and breaker[-1]["ref"] == "brief#tasks"
+
+
+def test_build_prompt_is_target_aware() -> None:
+    sprint = build_prompt(sprint_target("sprint-2"), 3)
+    assert "dev-plan#sprint-2" in sprint and "brief" not in sprint
+
+    proto = build_prompt(prototype_target(), 3)
+    assert "brief#tasks" in proto
+    assert "dev-plan" not in proto
+    assert "brief" in proto
 
 
 def test_rate_limited_matches_subscription_cap_phrasings() -> None:

@@ -86,6 +86,31 @@ _PROGRESS_EVENTS = frozenset(
 )
 
 
+@dataclass(frozen=True)
+class BuildTarget:
+    """What the loop drives to completion.
+
+    ``standard`` / ``agile-lite`` build one frozen sprint (``dev-plan#sprint-N``);
+    ``agile-prototype`` has no sprint grouping and builds the brief's task cards
+    (``brief#tasks``). ``ref`` is the completion / circuit-open key the loop
+    matches on; ``label`` is the human / metrics name.
+    """
+
+    ref: str
+    label: str
+    prototype: bool = False
+
+
+def sprint_target(sprint: str) -> BuildTarget:
+    """dev-plan sprint target (standard / agile-lite)."""
+    return BuildTarget(ref=f"dev-plan#{sprint}", label=sprint)
+
+
+def prototype_target() -> BuildTarget:
+    """agile-prototype brief target — no sprint, keyed on ``brief#tasks``."""
+    return BuildTarget(ref="brief#tasks", label="brief", prototype=True)
+
+
 @dataclass
 class ClaudeResult:
     """One ``claude -p`` invocation's outcome the loop reasons over."""
@@ -214,7 +239,22 @@ def rate_limited(output: str) -> bool:
     return bool(_RATE_LIMIT_RE.search(output))
 
 
-def build_prompt(sprint: str, card_revision_ceiling: int) -> str:
+def build_prompt(target: BuildTarget, card_revision_ceiling: int) -> str:
+    if target.prototype:
+        return (
+            "继续推进 brief.md §开发任务（无人值守 building 模式，按 "
+            ".cataforge/references/unattended-overrides.md 执行）：\n"
+            "1. 按 Startup Protocol 读 §项目状态 + brief.md §5 开发任务 "
+            "定位下一张 pending 任务卡。\n"
+            "2. 按 agile-prototype 执行模式跑 TDD（主线程内联），完成后调 code-review；"
+            "approved 才算该卡完成，置 status=done 并 git commit 到当前 feature 分支。\n"
+            f"3. 任一任务卡累计 needs_revision 达 {card_revision_ceiling} 次："
+            "标该卡 blocked，emit circuit_open，跳下一张可并行卡。\n"
+            "4. brief.md 全部任务卡 approved：emit sprint_complete（ref=brief#tasks）。\n"
+            "约束：禁止 AskUserQuestion / 任何 needs_input（遇到即视同 blocked + circuit_open）；"
+            "禁止 PR merge、禁止 deploy、禁止改 PRD/ARCH/DEV-PLAN/brief。"
+        )
+    sprint = target.label
     return (
         f"继续推进 {sprint}（无人值守 building 模式，按 "
         ".cataforge/references/unattended-overrides.md 执行）：\n"
@@ -229,7 +269,7 @@ def build_prompt(sprint: str, card_revision_ceiling: int) -> str:
     )
 
 
-def _emit_circuit_open(project_root: Path, sprint: str, detail: str) -> None:
+def _emit_circuit_open(project_root: Path, target: BuildTarget, detail: str) -> None:
     # Best-effort telemetry: the exit code is the authoritative breaker signal,
     # so a failed event write must not change the outcome.
     with contextlib.suppress(EventLogError, OSError):
@@ -239,7 +279,7 @@ def _emit_circuit_open(project_root: Path, sprint: str, detail: str) -> None:
                 event="circuit_open",
                 phase="development",
                 agent="orchestrator",
-                ref=f"dev-plan#{sprint}",
+                ref=target.ref,
                 detail=detail,
             ),
         )
@@ -247,7 +287,7 @@ def _emit_circuit_open(project_root: Path, sprint: str, detail: str) -> None:
 
 def run_building_loop(
     project_root: Path,
-    sprint: str,
+    target: BuildTarget,
     *,
     max_iterations: int,
     stagnation_threshold: int,
@@ -257,7 +297,7 @@ def run_building_loop(
     claude_runner: ClaudeRunner | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
-    """Run the loop for *sprint*; return an exit code (see module constants)."""
+    """Run the loop for *target*; return an exit code (see module constants)."""
     runner = claude_runner or _default_claude_runner
 
     # Pre-flight (fail-closed): only run on a confirmed feature branch. symbolic-
@@ -272,12 +312,12 @@ def run_building_loop(
     # Baseline: only events this run appends count, so a historical
     # sprint_complete / circuit_open can't spuriously trip completion.
     baseline = len(_event_lines(project_root))
-    prompt = build_prompt(sprint, card_revision_ceiling)
+    prompt = build_prompt(target, card_revision_ceiling)
 
     iterations = 0
     stagnation = 0
     consecutive_waits = 0
-    complete_ref = f"dev-plan#{sprint}"
+    complete_ref = target.ref
 
     while iterations < max_iterations:
         head_before = _git(project_root, "rev-parse", "HEAD")
@@ -307,8 +347,8 @@ def run_building_loop(
         new = _new_events(lines_after, baseline)
         if any(r.get("event") == "sprint_complete" and r.get("ref") == complete_ref for r in new):
             return EXIT_COMPLETE
-        # Only a sprint-level circuit_open (orchestrator gave up on the whole
-        # sprint, ref=dev-plan#sprint) is terminal. Card-level breaks
+        # Only a target-level circuit_open (orchestrator gave up on the whole
+        # target, ref == target.ref) is terminal. Card-level breaks
         # (ref=<task-card>) mean "blocked this card, skip to the next" and must
         # NOT halt the loop — see references/unattended-overrides.md item 3.
         if any(r.get("event") == "circuit_open" and r.get("ref") == complete_ref for r in new):
@@ -328,7 +368,7 @@ def run_building_loop(
             project_root,
             build_metrics_record(
                 iteration=iterations,
-                sprint=sprint,
+                sprint=target.label,
                 head_before=head_before,
                 head_after=head_after,
                 progressed=progressed,
@@ -339,7 +379,7 @@ def run_building_loop(
         )
 
         if stagnation >= stagnation_threshold:
-            _emit_circuit_open(project_root, sprint, f"stagnation: 连续 {stagnation} 轮无进展")
+            _emit_circuit_open(project_root, target, f"stagnation: 连续 {stagnation} 轮无进展")
             return EXIT_CIRCUIT
 
     return EXIT_MAX_ITERATIONS
