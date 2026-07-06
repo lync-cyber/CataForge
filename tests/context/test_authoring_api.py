@@ -75,18 +75,56 @@ def _edge_count(kg: KnowledgeGraph, ns: str) -> int:
 # ---- author_entity: parent + relations + narrative --------------------------
 
 
-def test_context_write_on_existing_entity_preserves_source_doc(tmp_path: Path) -> None:
-    """Re-authoring an entity must preserve its document membership.
+_ARCH_TEMP_MD = (
+    "---\n"
+    "id: arch-temp\n"
+    "doc_type: arch\n"
+    "---\n"
+    "# Arch\n\n"
+    "## 1. 模块\n\n"
+    "### M-001: core\n"
+    "- **职责**: 核心模块\n"
+)
 
-    `context write` to add a slot/relation to an entity that already belongs to
-    a document must not relocate its ``cf:source_doc`` to the bare doc_type and
-    orphan it (R-004). The arch doc_id (``arch-temp``) deliberately differs from
-    ``entity_doc_type("Module")`` (``arch``) so the relocation would show.
+
+def test_context_write_rejects_document_covered_entity(tmp_path: Path) -> None:
+    """A direct entity write on a document-covered entity is rejected.
+
+    The document's exported body renders from its Section tiles, so an
+    entity-node write is invisible in every export; the gate points the caller
+    at `write-narrative` / `update` / `write-doc` and leaves the node intact.
+    """
+    proj = _project(tmp_path)
+    cw.author_document(str(proj), _ARCH_TEMP_MD)
+    gc.collect()
+    with pytest.raises(KGValidationError, match="write-narrative"):
+        cw.author_entity(
+            str(proj), entity_id="M-001", class_name="Module", title="core", slots={"note": "x"}
+        )
+    gc.collect()
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    with KnowledgeGraph.connect(cfg) as kg:
+        assert _ask(kg, f'ASK {{ ?s <{ns}entity_id> "M-001" ; <{ns}source_doc> "arch-temp" }}'), (
+            "M-001 must keep its arch-temp document membership"
+        )
+        assert not _ask(kg, f'ASK {{ ?s <{ns}entity_id> "M-001" ; <{ns}note> "x" }}'), (
+            "the rejected write must not mutate the entity node"
+        )
+    gc.collect()
+
+
+def test_context_write_rejects_new_entity_landing_on_covered_doc_type(tmp_path: Path) -> None:
+    """A new entity whose default source_doc a Document already covers is rejected.
+
+    With a Document whose doc_id equals the bare doc_type, the new node would be
+    neither inside any Section tile nor an orphan card — invisible in every
+    export — so the gate points at authoring it inside the document.
     """
     proj = _project(tmp_path)
     md = (
         "---\n"
-        "id: arch-temp\n"
+        "id: arch\n"
         "doc_type: arch\n"
         "---\n"
         "# Arch\n\n"
@@ -96,16 +134,32 @@ def test_context_write_on_existing_entity_preserves_source_doc(tmp_path: Path) -
     )
     cw.author_document(str(proj), md)
     gc.collect()
+    with pytest.raises(KGValidationError, match="write-doc"):
+        cw.author_entity(str(proj), entity_id="M-002", class_name="Module", title="new")
+    gc.collect()
+
+
+def test_author_entity_narrative_only_rewrite_updates_node(tmp_path: Path) -> None:
+    """Re-authoring with identical title/slots but a new narrative must land."""
+    proj = _project(tmp_path)
     cw.author_entity(
-        str(proj), entity_id="M-001", class_name="Module", title="core", slots={"note": "x"}
+        str(proj), entity_id="F-001", class_name="Feature", title="登录", narrative="旧叙事。"
+    )
+    gc.collect()
+    cw.author_entity(
+        str(proj), entity_id="F-001", class_name="Feature", title="登录", narrative="新叙事。"
     )
     gc.collect()
     cfg = _connect(proj)
     ns = _ns(cfg)
     with KnowledgeGraph.connect(cfg) as kg:
-        assert _ask(kg, f'ASK {{ ?s <{ns}entity_id> "M-001" ; <{ns}source_doc> "arch-temp" }}'), (
-            "M-001 must keep its arch-temp document membership"
+        rows = list(
+            kg.store.query(
+                f"PREFIX cf: <{ns}> SELECT ?b WHERE {{ "
+                "<https://cataforge.dev/instance/F-001> cf:narrative_body ?b }"
+            )
         )
+        assert rows and "新叙事" in str(rows[0]["b"].value)
     gc.collect()
 
 
@@ -328,6 +382,53 @@ def test_transact_supports_write_narrative_op(tmp_path: Path) -> None:
             )
         )
         assert any("登录能力" in str(r["b"].value) for r in rows)
+    gc.collect()
+
+
+def test_transact_add_entity_rejects_document_covered_entity(tmp_path: Path) -> None:
+    """transact add_entity on a document-covered entity is rejected like `write`.
+
+    Without the gate the op would also relocate ``cf:source_doc`` to the bare
+    doc_type and orphan the entity out of its document.
+    """
+    proj = _project(tmp_path)
+    cw.author_document(str(proj), _ARCH_TEMP_MD)
+    gc.collect()
+    ops = {
+        "operations": [
+            {"op": "add_entity", "entity_id": "M-001", "class": "Module", "title": "core"}
+        ]
+    }
+    with pytest.raises(KGValidationError, match="write-narrative"):
+        cw.transact(str(proj), ops)
+    gc.collect()
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    with KnowledgeGraph.connect(cfg) as kg:
+        assert _ask(kg, f'ASK {{ ?s <{ns}entity_id> "M-001" ; <{ns}source_doc> "arch-temp" }}'), (
+            "M-001 must keep its arch-temp document membership"
+        )
+    gc.collect()
+
+
+def test_transact_add_entity_narrative_only_rewrite_updates_node(tmp_path: Path) -> None:
+    """transact add_entity with identical title/slots but new narrative must land."""
+    proj = _project(tmp_path)
+    op = {"op": "add_entity", "entity_id": "F-001", "class": "Feature", "title": "登录"}
+    cw.transact(str(proj), {"operations": [{**op, "narrative": "旧叙事。"}]})
+    gc.collect()
+    cw.transact(str(proj), {"operations": [{**op, "narrative": "新叙事。"}]})
+    gc.collect()
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    with KnowledgeGraph.connect(cfg) as kg:
+        rows = list(
+            kg.store.query(
+                f"PREFIX cf: <{ns}> SELECT ?b WHERE {{ "
+                "<https://cataforge.dev/instance/F-001> cf:narrative_body ?b }"
+            )
+        )
+        assert rows and "新叙事" in str(rows[0]["b"].value)
     gc.collect()
 
 

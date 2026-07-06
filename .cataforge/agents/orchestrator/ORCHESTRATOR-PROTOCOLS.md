@@ -119,7 +119,7 @@ Mode Routing Protocol 在以下时刻被调用:
    - **(1) 接受并继续**: 文档状态 → approved，进入下一 Phase
    - **(2) 要求修复选中的问题**: 选中问题 → needs_revision，进入 Revision Protocol
    - **(3) 暂停等待人工**: 不动文档状态，§当前阶段 标 hold
-   - **(4) 全量 inline-fix 后继续**（仅在下列条件**全部**成立时展示）: orchestrator/reviewer 主线程逐条扫 LOW 并经 context `write-narrative` / `write` 落图、`context finalize` 重导出（同会话），verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
+   - **(4) 全量 inline-fix 后继续**（仅在下列条件**全部**成立时展示）: orchestrator/reviewer 主线程逐条扫 LOW 并经 context `write-narrative` 重写所在节（slot 级用 `update`）落图、`context finalize` 重导出（同会话），verdict 保持 approved_with_notes 但实质等价 approved，文档 status: draft → approved
      - MEDIUM+LOW 问题数 ≥ 8（少量手修更直接）
      - 全部为表述漂移 / 格式 / 引用对齐 / 完整性补充（非设计缺陷）
      - 单次修改 ≤ 50 行（超过走 (2)）

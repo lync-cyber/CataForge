@@ -10,7 +10,7 @@
 
 - 整文档原子写入: `cataforge context write-doc`(stdin 或 `--file` 传含 frontmatter + 章节 + 实体 + 关系的 markdown,单事务落图,校验失败整体回滚)
 - 批量 ops: `cataforge context transact`(stdin/`--file` 传 add_entity / add_relation / write_narrative 的 JSON,单事务)
-- 单实体增量: `cataforge context write --class {C} --entity-id {ID} --title … [--slot K=V] [--parent {ID}] [--relation {pred}={obj}] [--narrative-stdin]`
+- 单实体增量: `cataforge context write --class {C} --entity-id {ID} --title … [--slot K=V] [--parent {ID}] [--relation {pred}={obj}] [--narrative-stdin]`(仅限不隶属文档的独立实体;文档域实体的修订走 write-narrative / update,写入门对 Document 覆盖范围内的实体拒写指路)
 - 单节叙事: `cataforge context write-narrative --doc-id {id} --anchor "{章节}" --narrative …`
 - 文档头补丁: `cataforge context write-meta {doc_id} --status … --version …`
 

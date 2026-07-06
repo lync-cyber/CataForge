@@ -222,6 +222,37 @@ def _existing_source_doc(store: ox.Store, cfg: Any, entity_id: str) -> str | Non
     return None
 
 
+def _document_covers_source_doc(store: ox.Store, cfg: Any, source_doc: str) -> bool:
+    """True when a Document node accounts for ``source_doc`` in exports."""
+    ns = cf_namespace(cfg)
+    sd = escape_sparql_literal(source_doc)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        f'SELECT ?doc WHERE {{ ?doc a cf:Document ; cf:source_doc "{sd}" }} LIMIT 1'
+    )
+    return any(True for _ in select_rows(store, sparql))
+
+
+def _guard_entity_not_document_covered(
+    store: ox.Store, cfg: Any, entity_id: str, source_doc: str
+) -> None:
+    """Reject a direct entity write that lands inside a Document's export scope.
+
+    A Document's exported body renders from its Section tiles, so an
+    entity-node write inside its scope reaches no export surface — the
+    supported doors are section- or document-level.
+    """
+    if not _document_covers_source_doc(store, cfg, source_doc):
+        return
+    raise KGValidationError(
+        f"entity {entity_id!r} lands inside document {source_doc!r}, whose exported body "
+        "renders from its Section tiles — a direct entity write never reaches the export. "
+        "Rewrite the enclosing section via `context write-narrative` (batch: `context "
+        "transact` write_narrative ops), merge slots in place via `context update`, or "
+        "re-land the whole document via `context write-doc`."
+    )
+
+
 def _check_entity_class(entity_id: str, class_name: str, registry: PrefixRegistry) -> None:
     """Deterministic schema gate: the entity_id prefix must map to class_name.
 
@@ -273,7 +304,7 @@ def _stage_entity(
         if domain_type is not None:
             merged["domain_type"] = domain_type
     extra = {f"cf:{k}": v for k, v in merged.items()} or None
-    content_hash = entity_content_hash(title, slots)
+    content_hash = entity_content_hash(title, merged)
     iri = txn.add_entity(
         entity_id,
         class_name,
@@ -327,6 +358,10 @@ def author_entity(
     with KnowledgeGraph.connect(cfg) as kg:
         project_iri = write_project(kg.store, pid, meta["title"], meta["process_model"], cfg)
         existing_source_doc = _existing_source_doc(kg.store, cfg, entity_id)
+        _check_entity_class(entity_id, class_name, registry)
+        _guard_entity_not_document_covered(
+            kg.store, cfg, entity_id, existing_source_doc or entity_doc_type(class_name)
+        )
         with kg.transaction() as txn:
             iri = _stage_entity(
                 txn,
@@ -422,7 +457,16 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
             writer = CascadeWriter(txn)
             for raw in operations:
                 _apply_transact_op(
-                    txn, raw, project_iri, written_ids, delete_ids, counts, writer, registry
+                    txn,
+                    raw,
+                    project_iri,
+                    written_ids,
+                    delete_ids,
+                    counts,
+                    writer,
+                    registry,
+                    store=kg.store,
+                    cfg=cfg,
                 )
             writer.flush()
         report = validate(kg.store, cfg)
@@ -457,6 +501,9 @@ def _apply_transact_op(
     counts: dict[str, int],
     writer: CascadeWriter,
     registry: PrefixRegistry,
+    *,
+    store: ox.Store,
+    cfg: Any,
 ) -> None:
     op = raw.get("op")
     if op == "add_entity":
@@ -464,6 +511,11 @@ def _apply_transact_op(
         relations = [tuple(r) for r in raw.get("relations") or []]
         entity_id = raw["entity_id"]
         parent_id = raw.get("parent")
+        _check_entity_class(entity_id, raw["class"], registry)
+        existing_source_doc = _existing_source_doc(store, cfg, entity_id)
+        _guard_entity_not_document_covered(
+            store, cfg, entity_id, existing_source_doc or entity_doc_type(raw["class"])
+        )
         iri = _stage_entity(
             txn,
             project_iri=project_iri,
@@ -476,6 +528,7 @@ def _apply_transact_op(
             relations=relations,
             source_section=raw.get("section", ""),
             registry=registry,
+            source_doc=existing_source_doc,
         )
         written_ids.update({entity_id, iri})
         delete_ids.append(_scoped_delete_id(entity_id, parent_id))
