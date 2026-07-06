@@ -10,7 +10,7 @@
 
 ### 1.1 搭建沙盒
 
-1. 选沙盒路径：缺省 `walkthrough-sandbox/<platform>-<mode>-<时间戳>/`（相对宿主仓库根；时间戳 `yyyyMMdd-HHmmss`，使并发/重跑各占独立目录）。确保该路径被 `.gitignore` 覆盖（缺则先补一行）。
+1. 选沙盒路径：缺省 `walkthrough-sandbox/<platform>-<mode>-<时间戳>/`（相对宿主仓库根；时间戳 `yyyyMMdd-HHmmss`，使并发/重跑各占独立目录）。确保该路径被 `.gitignore` 覆盖（缺则先补一行）。创建前校验 shell 当前 cwd == 仓库根，或恒以仓库根绝对路径拼接沙盒路径。
 2. 目标目录非空时**另起新 run-id 或先 `--clean` 清空**再用——非空目录直接复用会让两次走查互相写入对方产物、归因困难。新建空目录并进入（后续所有命令的 cwd = 沙盒目录）。
 3. 初始化框架资产：`cataforge setup`（按 `cataforge setup --help` 确认平台参数；若 setup 不接受平台参数，则 `cataforge deploy --platform <platform>`）。目标是在沙盒内得到独立的 `.cataforge/` 与目标平台的部署产物。
 4. 健全性确认：`cataforge doctor` 应通过；`framework.json#/version` 非 `0.0.0-template`。
@@ -71,7 +71,7 @@ Sprint 视为 approved 后（含 micro 短路路径）与全部 Sprint 完成进
 
 ## 3. 驱动时的代答约定
 
-沙盒内为保持单轮闭环，遇到 MANUAL_REVIEW_CHECKPOINTS 或 agent 的 `needs_input` 时，由走查者依据 `example-project.md` 的既定目标直接代答，并把「此处需要人工输入」本身记为一个观察点（用于评估流程的交互负担）。不得因代答而跳过门禁的实际执行。
+沙盒内为保持单轮闭环，遇到 MANUAL_REVIEW_CHECKPOINTS 或 agent 的 `needs_input` 时，由走查者依据 `example-project.md` 的既定目标直接代答，并把「此处需要人工输入」本身记为一个观察点（用于评估流程的交互负担）。不得因代答而跳过门禁的实际执行。向审查/测试类子代理派发时，返回 schema 的 verdict 枚举须携带 COMMON-RULES 的完整集合（含 approved_with_notes / conditional_release），不得按预期结果裁剪。
 
 ## 4. 单轮预算保护
 

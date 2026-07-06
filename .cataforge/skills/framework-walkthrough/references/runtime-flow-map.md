@@ -42,7 +42,7 @@
 | I-6 | 选平台 + 部署 | `cataforge setup --platform <p>`（写 `runtime.platform` 并 deploy；命令形态见 walkthrough-protocol §1.1） | D | 部署产物是否对应平台、`doctor` 是否通过 |
 | I-7 | env-block + permissions | `cataforge setup env-block` 注入 §执行环境；`cataforge setup permissions` 收紧白名单 | D | env-block exit 2（未检测技术栈）是否被正确兜底 |
 | I-8 | 文档索引 + 知识图谱 | `cataforge context ensure-store`（幂等；按 context.mode 水合 store，`markdown` 时跳过）+ `cataforge context index`（空索引） | D | store 水合跳过是否显式提示、context mode 分流是否正常 |
-| I-9 | 进入初始阶段 | 按 Mode Routing 激活初始角色 | D | `cataforge phase status` 是否非占位符、有 `phase_start` 事件 |
+| I-9 | 进入初始阶段 | 按 Mode Routing 激活初始角色 | D | `phase status` 入口两行（phase recognised / phase_start logged）是否 OK；入口时点不据 exit 码判 blocked |
 
 ## 3. 核心执行链路（happy path 主干）
 
