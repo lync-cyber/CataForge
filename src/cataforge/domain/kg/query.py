@@ -220,6 +220,26 @@ class QueryAPI:
         sparql = f"PREFIX cf: <{ns}> SELECT ?doc WHERE {{ ?doc a cf:Document }} LIMIT 1"
         return any(True for _ in select_rows(self._store, sparql))
 
+    def section_anchors(self, doc_id: str) -> list[str]:
+        """Every `cf:section_anchor` of the document's Section nodes.
+
+        Anchors are heading titles verbatim (``2. 功能需求`` / ``§2 Modules``);
+        an empty list means the graph models no sections for ``doc_id``.
+        """
+        ns = self._cf_ns()
+        doc_lit = escape_sparql_literal(doc_id)
+        sparql = (
+            f"PREFIX cf: <{ns}> "
+            "SELECT ?a WHERE { "
+            f'  ?s a cf:Section ; cf:source_doc "{doc_lit}" ; cf:section_anchor ?a '
+            "}"
+        )
+        return [
+            v
+            for row in select_rows(self._store, sparql)
+            if (v := _strv(_row_lookup(row, "a"))) is not None
+        ]
+
     def source_section(self, doc_id: str, anchor: str) -> str | None:
         """Materialize raw Markdown for a section that is not modeled as
         an entity (e.g. PRD §1 intro, arch §1.4 tech-stack narrative).

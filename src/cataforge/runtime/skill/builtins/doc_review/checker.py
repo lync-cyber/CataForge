@@ -59,6 +59,48 @@ def _fm(content: str) -> dict[str, Any]:
     return meta if meta is not None else {}
 
 
+_BARE_SECTION_RE = re.compile(r"§(\d+(?:\.\d+)*)")
+_MD_HEADING_RE = re.compile(r"^#{1,6}\s+(.+)$", re.MULTILINE)
+
+
+def _bare_section_number(section: str) -> str | None:
+    """``§3`` / ``§3.2`` → the bare number; ``None`` for anything else.
+
+    Entity xrefs (``§2.F-003``), placeholders (``§N``) and free-form fragments
+    are not bare section refs and keep their existing handling.
+    """
+    m = _BARE_SECTION_RE.fullmatch(section)
+    return m.group(1) if m else None
+
+
+def _heading_matches_section(title: str, number: str) -> bool:
+    """True when heading ``title`` is section ``number``.
+
+    Accepts both numbering styles: ``2. 功能需求`` / ``2 概览`` and the
+    §-prefixed ``§2 Modules``. The number must end at a boundary so ``§3``
+    never matches ``30. …``.
+    """
+    esc = re.escape(number)
+    return re.match(rf"(?:§\s*)?{esc}(?:[.\s):、）]|$)", title.strip()) is not None
+
+
+def _md_file_has_section(path: Path, number: str) -> bool:
+    """True when the markdown file carries a heading for section ``number``."""
+    try:
+        text = path.read_text()
+    except OSError:
+        return True  # unreadable target is a filesystem problem, not a broken ref
+    return any(_heading_matches_section(m.group(1), number) for m in _MD_HEADING_RE.finditer(text))
+
+
+@dataclass(frozen=True)
+class _KgXrefResolvers:
+    """KG-backed xref existence checks: entity by id, section by bare §-number."""
+
+    entity: Callable[[str], bool]
+    section: Callable[[str, str], bool]
+
+
 def read_file(path: str) -> str:
     return Path(path).read_text(errors="replace")
 
@@ -200,7 +242,7 @@ class DocChecker(TypedDocChecksMixin):
         # eliminates the false positives the file-glob path produces
         # against URL fragments and across-volume references
         # (Task 6 §6.4 A12).
-        kg_resolver = self._maybe_kg_xref_resolver()
+        resolvers = self._maybe_kg_xref_resolvers()
 
         for doc_id, _section in refs:
             if "{" in doc_id or "}" in doc_id:
@@ -209,10 +251,15 @@ class DocChecker(TypedDocChecksMixin):
             if prefix not in KNOWN_DOC_PREFIXES and doc_id not in KNOWN_DOC_PREFIXES:
                 continue
 
-            if kg_resolver is not None:
+            section_num = _bare_section_number(_section)
+
+            if resolvers is not None:
                 entity_match = re.search(r"\b([A-Z]+-\d{3,})\b", _section)
-                if entity_match and not kg_resolver(entity_match.group(1)):
-                    self.fail(f"交叉引用目标 {doc_id}#{_section} 在 KG 中未解析")
+                if entity_match:
+                    if not resolvers.entity(entity_match.group(1)):
+                        self.fail(f"交叉引用目标 {doc_id}#{_section} 在 KG 中未解析")
+                elif section_num is not None and not resolvers.section(doc_id, section_num):
+                    self.fail(f"交叉引用目标 {doc_id}#{_section} 在 KG 中无对应章节")
                 continue
 
             matches = list(docs_path.glob(f"{doc_id}*"))
@@ -220,6 +267,11 @@ class DocChecker(TypedDocChecksMixin):
                 matches = list(docs_path.glob(f"**/{doc_id}*"))
             if not matches:
                 self.fail(f"交叉引用目标 {doc_id} 未找到对应文件")
+                continue
+            if section_num is not None and not any(
+                _md_file_has_section(p, section_num) for p in matches if p.is_file()
+            ):
+                self.fail(f"交叉引用目标 {doc_id}#{_section} 未找到对应章节")
 
     def check_required_sections(self) -> None:
         fm = _fm(self.content)
@@ -406,12 +458,12 @@ class DocChecker(TypedDocChecksMixin):
         root = self._project_root()
         return root / "docs" if root is not None else Path(self.docs_dir)
 
-    def _maybe_kg_xref_resolver(self) -> Callable[[str], bool] | None:
-        """Return a ``callable(entity_id) -> bool`` if KG is active.
+    def _maybe_kg_xref_resolvers(self) -> _KgXrefResolvers | None:
+        """Return KG-backed xref resolvers if KG is active.
 
-        The resolver short-circuits the file-glob xref check when the
-        graph carries authoritative knowledge of the project's
-        entities (Task 6 §6.4 A12).
+        They short-circuit the file-glob xref check when the graph carries
+        authoritative knowledge of the project's entities and sections
+        (Task 6 §6.4 A12).
         """
         project_root = self._project_root()
         if project_root is None:
@@ -429,13 +481,24 @@ class DocChecker(TypedDocChecksMixin):
         except Exception:
             return None
 
-        def _exists(entity_id: str) -> bool:
+        def _entity_exists(entity_id: str) -> bool:
             try:
                 return kg.query.exists(entity_id)
             except Exception:
                 return True  # don't false-fail on transient KG errors
 
-        return _exists
+        def _section_exists(doc_id: str, number: str) -> bool:
+            try:
+                anchors = kg.query.section_anchors(doc_id)
+            except Exception:
+                return True  # don't false-fail on transient KG errors
+            if not anchors:
+                # The graph models no sections for this doc (not ingested /
+                # not Document-backed) — outside this check's jurisdiction.
+                return True
+            return any(_heading_matches_section(a, number) for a in anchors)
+
+        return _KgXrefResolvers(entity=_entity_exists, section=_section_exists)
 
     def _kg_bidirectional_coverage(self, upstream_prefix: str, require_test: bool = False) -> bool:
         """Run the SPARQL coverage check when KG is active.
