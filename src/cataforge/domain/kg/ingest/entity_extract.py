@@ -176,6 +176,9 @@ class ExtractedEntity:
     # heading; empty for heading-anchored entities.
     source_line: str = ""
     extra_slots: dict[str, Any] = field(default_factory=dict)
+    # (attr_name, attr_value) pairs parsed from a DomainEntity body's
+    # `- key: value` bullets; empty for every core class.
+    attributes: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def scope_key(self) -> str:
@@ -413,6 +416,20 @@ def extract_entities(
     return list(seen.values())
 
 
+_DOMAIN_ATTR_RE = re.compile(r"^\s*[-*]\s+([^:：\n]+?)\s*[:：]\s*(.+?)\s*$", re.MULTILINE)
+
+
+def _extract_domain_attributes(section_text: str) -> list[tuple[str, str]]:
+    """`- key: value` bullets from a DomainEntity body, minus traceability xrefs."""
+    attrs: list[tuple[str, str]] = []
+    for m in _DOMAIN_ATTR_RE.finditer(section_text):
+        value = m.group(2).strip()
+        if "#§" in value:  # a `doc#§N.ITEM` traceability edge, not an attribute
+            continue
+        attrs.append((m.group(1).strip(), value))
+    return attrs
+
+
 def _enrich_extra_slots(
     entity: ExtractedEntity, section_text: str, narrative: str, registry: PrefixRegistry
 ) -> None:
@@ -422,6 +439,7 @@ def _enrich_extra_slots(
         domain_type = registry.domain_type_for(entity.entity_id)
         if domain_type:
             entity.extra_slots["cf:domain_type"] = domain_type
+        entity.attributes = _extract_domain_attributes(section_text)
     fn = _EXTRA_SLOT_EXTRACTORS.get(entity.class_name)
     if fn is None:
         return

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from cataforge.domain.kg._config import KGConfig
-from cataforge.domain.kg._sparql_utils import cf_namespace
+from cataforge.domain.kg._sparql_utils import cf_namespace, escape_iri_component
 from cataforge.domain.kg.ingest.iri import (
     class_iri,
     document_iri,
@@ -58,6 +58,7 @@ def build_entity_quads(
     parent_id: str | None = None,
     extra_slots: dict[str, str] | None = None,
     mtime: float | None = None,
+    attributes: list[tuple[str, str]] | None = None,
 ) -> list[ox.Quad]:
     """Return the complete set of quads describing one entity.
 
@@ -135,6 +136,22 @@ def build_entity_quads(
                         ox.Literal(v, datatype=string_dt),
                     )
                 )
+
+    if attributes:
+        has_attribute = ox.NamedNode(_slot_iri("cf:has_attribute", namespace))
+        attr_class = ox.NamedNode(class_iri("DomainAttribute", namespace))
+        name_slot = ox.NamedNode(_slot_iri("cf:attr_name", namespace))
+        value_slot = ox.NamedNode(_slot_iri("cf:attr_value", namespace))
+        for name, value in attributes:
+            # Deterministic, entity_id-less sub-node: keyed by (owner, name) so a
+            # re-ingest of the same body reproduces the same subject. It carries
+            # no cf:entity_id, so it is a queryable projection invisible to the
+            # entity_id-keyed reconcile diff and whole-document export.
+            attr_node = ox.NamedNode(f"{iri}/attr/{escape_iri_component(name)}")
+            quads.append(ox.Quad(attr_node, rdf_type, attr_class))
+            quads.append(ox.Quad(attr_node, name_slot, ox.Literal(name, datatype=string_dt)))
+            quads.append(ox.Quad(attr_node, value_slot, ox.Literal(value, datatype=string_dt)))
+            quads.append(ox.Quad(subject, has_attribute, attr_node))
 
     return quads
 

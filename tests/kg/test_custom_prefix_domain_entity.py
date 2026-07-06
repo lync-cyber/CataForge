@@ -138,3 +138,45 @@ def test_author_document_recognizes_registered_prefix(tmp_path: Path) -> None:
         )
         vals = [str(r["dt"].value) for r in rows]
     assert vals == ["Order"]
+
+
+def test_domain_entity_attributes_are_queryable(tmp_path: Path) -> None:
+    # `- key: value` bullets in a DomainEntity body → has_attribute → DomainAttribute.
+    _write(
+        tmp_path,
+        "dev-plan",
+        "dev-plan.md",
+        "---\ndoc_id: dev-plan\n---\n# Dev Plan\n\n## §3\n\n"
+        "### ORD-001 订单聚合\n\n- 状态: 已下单\n- 金额: 100\n",
+    )
+    _framework(tmp_path, {"ORD": "Order"})
+    invalidate_cache()
+    config = KGConfig(store_backend="memory", kg_active_doc_types={"dev-plan"})
+    handle = init_store(config, force=True)
+    stats, _, _ = run_migration(handle.raw, tmp_path, config, doc_types=("dev-plan",))
+    assert stats.verify_result is not None and stats.verify_result.ok, stats.to_dict()
+
+    rows = list(
+        handle.raw.query(
+            _CF + 'SELECT ?n ?v WHERE { ?s cf:entity_id "ORD-001" ; cf:has_attribute ?a . '
+            "?a cf:attr_name ?n ; cf:attr_value ?v } ORDER BY ?n"
+        )
+    )
+    pairs = [(str(r["n"].value), str(r["v"].value)) for r in rows]
+    assert pairs == [("状态", "已下单"), ("金额", "100")]
+
+
+def test_schema_card_documents_domain_extension() -> None:
+    from cataforge.domain.kg.schema_context import build_schema_card
+
+    card = build_schema_card(custom_prefixes={"ORD": "Order"})
+    assert "DomainEntity" in card
+    assert "custom_entity_prefixes" in card
+    assert "ORD" in card and "Order" in card
+
+
+def test_schema_card_without_registration_still_documents_class() -> None:
+    from cataforge.domain.kg.schema_context import build_schema_card
+
+    card = build_schema_card()
+    assert "cf:DomainEntity" in card

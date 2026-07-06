@@ -168,6 +168,7 @@ def write_entities(
             parent_id=entity.parent_id,
             extra_slots=entity.extra_slots or None,
             mtime=entity.mtime,
+            attributes=entity.attributes or None,
         )
         _atomic_replace_entity(store, iri, new_quads)
         stats.entities_written += 1
