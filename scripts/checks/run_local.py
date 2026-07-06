@@ -226,6 +226,14 @@ CHECKS: list[tuple[str, list[str], str | None]] = [
         None,
     ),
     (
+        "version-migration notes roll with releases",
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "checks" / "check_migration_notes_version.py"),
+        ],
+        None,
+    ),
+    (
         "doc version stamps",
         [sys.executable, str(REPO_ROOT / "scripts" / "checks" / "check_doc_versions.py")],
         None,

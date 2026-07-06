@@ -54,6 +54,18 @@ SCAN_GLOBS: list[tuple[Path, str]] = [
     (REPO_ROOT / ".cataforge" / "rules", "**/*.md"),
 ]
 
+# The rolling version-migration notes transcribe CHANGELOG content as human
+# upgrade guidance; command mentions there are not an agentic surface, and
+# counting them would flip EXEMPT verdicts every time the window rolls.
+SCAN_EXCLUDE: set[Path] = {
+    REPO_ROOT
+    / ".cataforge"
+    / "skills"
+    / "framework-update"
+    / "references"
+    / "version-migration.md",
+}
+
 # Top-level CLI commands intentionally NOT part of the agentic workflow —
 # infrastructure / operator / maintainer tooling invoked by humans, deploy,
 # hooks, or CI rather than by an agent or skill. Each needs a one-line reason.
@@ -87,7 +99,7 @@ def iter_files() -> list[Path]:
         if not root.exists():
             continue
         for p in root.glob(pattern):
-            if p.is_file() and p not in seen:
+            if p.is_file() and p not in seen and p not in SCAN_EXCLUDE:
                 seen.add(p)
                 files.append(p)
     return files

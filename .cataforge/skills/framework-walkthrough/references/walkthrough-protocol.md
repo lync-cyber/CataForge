@@ -25,9 +25,23 @@
 
 三种模式的阶段集合、文档产出、TDD 档位、门禁差异以 COMMON-RULES §执行模式矩阵 为准；本节只给走查驱动顺序。
 
-### 2.1 agile-lite（缺省）
+### 2.1 standard（缺省）
 
-最能在单轮内触达主干：
+7 阶段全跑，门禁、人工检查点与 testing 阶段覆盖面最大：
+
+1. **planning (Phase 1)**：起 start-orchestrator → Bootstrap，选 `standard`。product-manager 产 PRD（喂 `example-project.md` 功能项）→ doc-review（Layer 1 + Layer 2 强制，无 lite 短路）。
+2. **architecture (Phase 2)**：architect 产 ARCH（喂架构契约 C-001/C-002/API-001）→ doc-review。此转换起 doc-consistency（C-5d）首次满足触发条件。
+3. **ui_design (Phase 3)**：CLI 示例标 N/A 跳过——顺带确认 B-12 skippable 路由不误判缺产物。
+4. **dev_planning (Phase 4)**：tech-lead 产 DEV-PLAN（喂任务分解，task-decomp / task-dep-analysis 拆卡与依赖建模）→ doc-review；转入 development 前命中 `pre_dev` 人工检查点，按 §3 代答并记录交互负担。
+5. **development (Phase 5)**：按 T-001/T-002/T-003 跑 TDD（缺省 light；预估 LOC 超 `TDD_LIGHT_LOC_THRESHOLD` 或标 `security_sensitive` 时升 standard 档——正好观察分档判定）+ code-review（短路判定按 `CODE_REVIEW_L2_SKIP_*`）。
+6. **testing (Phase 6)**：qa-engineer 做集成/E2E 补充与 TEST-REPORT——观察 testing 阶段编排与 verdict 语义（approved / conditional_release 的 blocking_conditions 阻塞）。
+7. **deployment (Phase 7)**：标 N/A；`pre_deploy` 检查点按 §3 代答后进入终止路径。
+
+相对 lite 档的覆盖增量：全量文档 Layer 2 门禁、pre_dev / pre_deploy / post_sprint 检查点、testing 阶段、TDD 分档判定。代价是单轮更重；追求快速冒烟时显式降 `--mode agile-lite`。
+
+### 2.2 agile-lite（快速档）
+
+单轮最易收敛、触达主干，适合快速冒烟：
 
 1. **planning**：起 start-orchestrator → Bootstrap，选 `agile-lite`。产出 prd-lite + arch-lite + dev-plan-lite（各 ≤100 行）。喂入 `example-project.md` 的功能项 / 架构契约 / 任务分解。
 2. **doc-review**：对三份 lite 文档跑 Layer 1（经 `cataforge skill run doc-review -- <doc-type> <path>`）；`<doc-type>` 取文档 front-matter 的 `doc_type` 字面值——lite 文档仍为 `prd`/`arch`/`dev-plan`，**非** `prd-lite`；传错会落到「未知类型仅通用检查」而漏掉 typed 检查。按 `DOC_REVIEW_L2_SKIP_*` 判断是否短路 Layer 2。
@@ -35,13 +49,9 @@
 4. **code-review**：GREEN 后对核心跑 code-review；按 `CODE_REVIEW_L2_SKIP_*` 判断短路。
 5. **收敛**：development 全部任务 approved 且评审通过即结束（任务数 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT` 时跳过 sprint-review）。deployment 标 N/A。
 
-### 2.2 agile-prototype（更快更浅）
+### 2.3 agile-prototype（更快更浅）
 
 Phase 1~4 合并为单一 `brief.md`（≤200 行），implementer 主线程一次性写测试+实现，跳过 RED/GREEN/REFACTOR 子代理调度。用于验证「最小路径是否通」，但不单独考察架构阶段与 TDD 三段拆分。
-
-### 2.3 standard（最全最重）
-
-7 阶段全跑，产出 PRD + ARCH +（可选 UI-SPEC）+ DEV-PLAN + 评审报告。TDD 默认 light，T-001 若预估 LOC 超 `TDD_LIGHT_LOC_THRESHOLD` 或标 `security_sensitive` 则升 standard。用于最大化覆盖；代价是单轮难收敛，仅在需要深度走查时选用。
 
 ### 2.4 Phase Transition 一致性门观察（所有模式）
 
@@ -49,7 +59,7 @@ Phase 1~4 合并为单一 `brief.md`（≤200 行），implementer 主线程一�
 
 - `cataforge context validate`（C-5b 依赖新鲜度）：上游 approved 后下游是否被标 stale_deps。
 - `cataforge context reconcile`（C-5c 一致性守门）：图后端启用时漂移是否被捕获、remediation 方向（export/ingest/manual）是否匹配；逐文档 triage state 与 per-doc_type 对称 diff 明细经 `cataforge context reconcile --json` 取得（门禁结论取文档级 triage，对称 diff 为诊断）。`context.mode = markdown` 下退化为 docs-index 完整性校验（无图后端），其结论按索引有效性读，记为正常而非缺陷。
-- `cataforge skill run doc-consistency`（C-5d）：**至少 2 个业务文档 approved 后**（即 Phase 2+ 转换）才触发；agile-lite 在 arch-lite approved 进 dev_planning 时首次满足。exit 0/2 继续、exit 1 给分支选项。
+- `cataforge skill run doc-consistency`（C-5d）：**至少 2 个业务文档 approved 后**（即 Phase 2+ 转换）才触发；standard 在 ARCH approved 进 ui_design 时、agile-lite 在 arch-lite approved 进 dev_planning 时首次满足。exit 0/2 继续、exit 1 给分支选项。
 - EVENT BATCH（C-5e）：`docs/EVENT-LOG.jsonl` 是否一次性出现 phase_end→review_verdict→state_change→phase_start 四条，无半截状态。
 - `cataforge claude-md check`（C-5f hygiene 门）：阈值越界须**阻塞**转换并给 compact 选项，不能 WARN 放行。
 
@@ -77,7 +87,7 @@ Phase 1~4 合并为单一 `brief.md`（≤200 行），implementer 主线程一�
 | B-4 Sprint Review 短路 | 用 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT` 个任务的示例（temperature-converter 默认 3 个即满足） | 是否跳过 sprint-review 并记 skip 事件 |
 | B-5 Parallel Dispatch | dev-plan 里让 T-002 / T-003 互不依赖、同 sprint_group | 是否单消息批量调度、deliverables 路径冲突是否降级串行 |
 | B-6 Change Request | development 前向主线程提交一句变更（如「F-003 改保留 1 位小数」） | change-guard 是否分析、action 路由（proceed/amend/cascade）是否正确 |
-| B-7 模式回退 | agile-lite 下故意把 prd-lite 写到 >150 行 | 是否提示升档、是否误自动改写模式字段 |
+| B-7 模式回退 | agile-lite 下故意把 prd-lite 写到 >150 行（仅 `--mode agile-lite` 可触发；standard 下账本标 not-reached: 模式不适用） | 是否提示升档、是否误自动改写模式字段 |
 | B-12 skippable N/A | 确认 ui_design/testing/deployment 标 N/A | 路由是否跳过、不误判缺产物 |
 | E-1 Interrupt-Resume | 起 inline 角色时漏喂一项必填输入（如不给目标精度），诱发澄清 | inline 角色直接 AskUserQuestion（不走 needs_input）；派发子代理才经 needs_input 回传 |
 | E-2 Revision | 让首版文档缺一个 CRITICAL/HIGH 必备项（如 arch 缺 API 契约），诱发 needs_revision | 是否调 task_type=revision、增量审查是否只审 diff + 上轮高危维度、needs_revision(N) 是否累计 |

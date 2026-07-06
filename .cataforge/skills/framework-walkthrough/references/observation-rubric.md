@@ -60,7 +60,7 @@ deps: []
 2. **阶段时间线**：逐阶段「做了什么 → 产物 → 观察点」一行一条。
 3. **路径覆盖账本**：[`runtime-flow-map.md`](runtime-flow-map.md) §2–§6 每条路径一行，字段按该文件 §7（path_id / disposition / result / evidence）。not-reached 必须写原因。这是覆盖面的自证——读者一眼看出哪条路径真跑了、哪条只是没触发。
 4. **framework findings**：按 §问题格式 列出，severity 降序。
-5. **process findings**：同上，聚焦本 skill 与走查方法。
+5. **process findings**：同上，聚焦本 skill 与走查方法；每条附 `resolution: applied|proposed|deferred`（语义与流转见 [`self-update-protocol.md`](self-update-protocol.md)，Step 7 自更新后回填）。
 6. **结论**：三态判定（COMMON-RULES §三态判定逻辑）+ 覆盖率（driven+probed / 全路径数）+ 最值得优先的改进项。
 
 ## 5. 自我校准

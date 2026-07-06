@@ -1,6 +1,6 @@
 ---
 name: framework-update
-description: "CataForge 框架同步 — 把已安装包、.cataforge/ scaffold、IDE 产物、项目初始化四层对齐到当前已验证状态。幂等、升级感知：检测包↔scaffold 版本差异，升级包并刷新 scaffold，部署 IDE 产物，运行 doctor 验证；项目未初始化时进入 Project Bootstrap，已初始化时装配执行环境并交接 start-orchestrator。当用户提到 CataForge 升级、scaffold 过期、框架版本不一致、bootstrap 或刷新项目脚手架、初始化/恢复项目时，使用此 skill。"
+description: "CataForge 框架同步 — 把已安装包、.cataforge/ scaffold、IDE 产物、项目初始化四层对齐到当前已验证状态。幂等、升级感知：检测包↔scaffold 版本差异，升级包并刷新 scaffold，部署 IDE 产物，运行 doctor 验证，按版本迁移要点提示升级重点与迁移动作；项目未初始化时进入 Project Bootstrap，已初始化时装配执行环境并交接 start-orchestrator。当用户提到 CataForge 升级、scaffold 过期、框架版本不一致、bootstrap 或刷新项目脚手架、初始化/恢复项目时，使用此 skill。"
 argument-hint: "[check | apply [--dry-run] [--upgrade-package] | verify]"
 suggested-tools: shell_exec, file_read, file_edit
 depends: []
@@ -11,7 +11,7 @@ user-invocable: true
 # CataForge 框架同步 (framework-update)
 
 ## 能力边界
-- 能做: 包↔scaffold 版本差异检测、pip/uv 包升级、scaffold 增量刷新、IDE 产物部署、doctor 验证、upgrade.state 簿记、项目 init/resume 分流
+- 能做: 包↔scaffold 版本差异检测、pip/uv 包升级、scaffold 增量刷新、IDE 产物部署、doctor 验证、按 [`references/version-migration.md`](references/version-migration.md) 提示升级区间的更新重点与迁移动作、upgrade.state 簿记、项目 init/resume 分流
 - 不做: 修改项目业务代码、升级操作系统依赖、跨平台 adapter 变更（由 platform-audit 负责）、内嵌 Project Bootstrap 协议（仅委托 orchestrator 执行）
 
 ## 输入规范
@@ -24,6 +24,7 @@ user-invocable: true
 ## 输出规范
 - 版本对比（scaffold 版本 vs 已安装版本）与初始化状态（{INSTRUCTION_FILE} 是否存在）
 - scaffold 刷新文件统计（写入数 / 保留数）、部署产物清单
+- 升级区间的更新重点摘要与迁移动作清单（来自 version-migration 迁移要点）
 - 迁移检查结果（PASS / SKIP / FAIL 逐项）
 - upgrade.state 更新确认（框架版本字段由 deploy 阶段盖入）
 - init/resume 决策与已装配的执行环境命令
@@ -52,7 +53,7 @@ Scaffold  : <scaffold_version>
 项目状态  : 未初始化（无 {INSTRUCTION_FILE}） | 已初始化
 ```
 
-outdated 或未初始化时提示用户运行 `framework-update apply`。
+outdated 或未初始化时提示用户运行 `framework-update apply`；outdated 时补一句：升级完成后会按新版迁移要点提示需人工跟进的动作（当前 scaffold 内的 version-migration 仍是旧版内容，升级前不据其预告新版变更）。
 
 ---
 
@@ -101,7 +102,11 @@ cataforge bootstrap --yes
 
 fresh install 报告缺平台时询问用户（`claude-code` 默认）并 `cataforge bootstrap --platform <id> --yes`。`cataforge upgrade check` 标记升级范围含 CHANGELOG `### BREAKING` 条目时，先摘要给用户再应用。`--dry-run` 场景输出 plan 后停止，不执行任何写入。doctor FAIL 时按指令3 解读路径处理。
 
-**Step 4: 簿记**
+**Step 4: 版本更新与迁移要点提示**
+
+Step 3 刷新后读 [`references/version-migration.md`](references/version-migration.md)（scaffold 已是新版内容），取 (升级前 scaffold_version, installed_version] 区间内的版本段：向用户摘要各段「更新重点」，并把「迁移要点」中的动作项并入 Step 7 报告的手动跟进清单。文档缺失或区间无段落时回退 Step 3 已输出的 BREAKING 摘要（如有），不阻塞。本次未发生版本变化（仅强制刷新）时跳过。
+
+**Step 5: 簿记**
 
 1. 读 `framework.json`，更新 `upgrade.state`（`last_version` / `last_upgrade_date` / `last_commit`），用 Read + Edit 原地写入，保留其它字段
 2. `cataforge claude-md check`（如可用）surface hygiene 问题；FAIL 时建议用户跑 `cataforge claude-md compact`（非阻塞，仅提示）
@@ -110,7 +115,7 @@ fresh install 报告缺平台时询问用户（`claude-code` 默认）并 `cataf
 
 > bootstrap 中若遇 EVENT-LOG schema FAIL（历史旁路写入触发），按 hint 跑 `cataforge event accept-legacy` 设水位线即可，不影响本次同步。
 
-**Step 5: 项目初始化 / 恢复（分支）**
+**Step 6: 项目初始化 / 恢复（分支）**
 
 依 `{INSTRUCTION_FILE}` 是否存在分流:
 
@@ -124,9 +129,9 @@ fresh install 报告缺平台时询问用户（`claude-code` 默认）并 `cataf
 
   exit 2 时写 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）` 并询问用户包管理器 + 测试命令。随后交接 `/start-orchestrator continue` 做 phase 恢复。
 
-**Step 6: 报告**
+**Step 7: 报告**
 
-汇总：框架同步（scaffold vs installed 版本、哪几步跑了）、包升级结果、init/resume 决策、探测到的技术栈与已装配命令、用户仍需手动跟进项。
+汇总：框架同步（scaffold vs installed 版本、哪几步跑了）、包升级结果、升级区间更新重点摘要、init/resume 决策、探测到的技术栈与已装配命令、用户仍需手动跟进项（含 Step 4 收集的迁移动作）。
 
 ---
 
@@ -166,7 +171,7 @@ FAIL 时输出具体原因并建议修复（通常重跑 `framework-update apply
 
 1. **check** — 检测版本差异与初始化状态
 2. **确认** — 已最新且已初始化则告知无需操作；有差异或未初始化则说明将执行的变更并请求确认
-3. **apply** — 包升级（条件）+ `cataforge bootstrap` 编排刷新/部署/验证 + 簿记 + init/resume（用户确认后）
+3. **apply** — 包升级（条件）+ `cataforge bootstrap` 编排刷新/部署/验证 + 迁移要点提示 + 簿记 + init/resume（用户确认后）
 
 每步之间汇报进度，任一步骤失败时停止并说明原因。`verify` 保留为独立入口，供"只想跑诊断不升级"的场景。
 
@@ -174,13 +179,14 @@ FAIL 时输出具体原因并建议修复（通常重跑 `framework-update apply
 
 ## 字段保留规则
 
-`upgrade apply` 刷新时的保留策略（由 `cataforge` 包内部实现，本 skill 不额外干预）: `framework.json` 仅保留 `runtime.platform` 与 `upgrade.state`（后者由本 skill Step 4 手动写入，升级日期与版本记录持久保留），其余字段与其它 `.cataforge/` 文件**全量覆盖**；apply 前自动快照到 `.cataforge/.backups/<ts>/`。
+`upgrade apply` 刷新时的保留策略（由 `cataforge` 包内部实现，本 skill 不额外干预）: `framework.json` 仅保留 `runtime.platform` 与 `upgrade.state`（后者由本 skill Step 5 手动写入，升级日期与版本记录持久保留），其余字段与其它 `.cataforge/` 文件**全量覆盖**；apply 前自动快照到 `.cataforge/.backups/<ts>/`。
 
 > 用户在 apply 后发现自定义改动丢失时，告知运行 `cataforge upgrade rollback --list` 查快照并 `rollback --from <ts>` 回滚。
 
 ## Anti-Patterns
-- 禁止: 把 Step 5 的 init 分支派发给非 orchestrator 子代理执行 —— init 会写 `{INSTRUCTION_FILE}` §项目状态（orchestrator 独占权限）；本 skill 必须由 orchestrator 主线程内联调用，init 分支只委托 ORCHESTRATOR-PROTOCOLS §Project Bootstrap，不内嵌协议
-- 禁止: 跳过 Step 4 的 `cataforge claude-md check` —— 升级后 Learnings Registry 膨胀是真实事故源
+- 禁止: 把 Step 6 的 init 分支派发给非 orchestrator 子代理执行 —— init 会写 `{INSTRUCTION_FILE}` §项目状态（orchestrator 独占权限）；本 skill 必须由 orchestrator 主线程内联调用，init 分支只委托 ORCHESTRATOR-PROTOCOLS §Project Bootstrap，不内嵌协议
+- 禁止: 跳过 Step 5 的 `cataforge claude-md check` —— 升级后 Learnings Registry 膨胀是真实事故源
+- 禁止: 在 Step 3 刷新前读 `references/version-migration.md` 当作新版要点 —— scaffold 未刷新时它还是旧版内容，不含本次升级的段落；升级要点必须在 bootstrap 完成后读取
 - 禁止: 在 apply 里用 `git checkout` / `git restore` 清场用户文件 —— 用户改动应走 `cataforge upgrade rollback --list` + `--from <ts>` 快照通道
 - 禁止: 升级时在 `framework.json` 写 `runtime.platform` / `upgrade.state` 之外的用户态字段 —— 这两个字段是契约保留项，其它字段全量覆盖
 - 避免: 包管理器探测失败就 abort 整个 apply —— 应继续走 Step 3 仅刷 scaffold 路径，把"升级包"和"刷 scaffold"解耦
@@ -189,4 +195,4 @@ FAIL 时输出具体原因并建议修复（通常重跑 `framework-update apply
 - 先探测包管理器再升级，避免升级命令错误
 - `--dry-run` 安全预览 plan，不动任何文件
 - 版本已一致且已初始化时跳过升级与 init，仅在用户要求时强制刷新
-- init/resume 分支只在 Step 5 委托一次，权限边界与协议主体留在 orchestrator
+- init/resume 分支只在 Step 6 委托一次，权限边界与协议主体留在 orchestrator
