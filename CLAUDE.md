@@ -102,6 +102,8 @@
 4. 合并用 `gh pr merge --squash --delete-branch`（删远端 head；本地分支由下次会话启动的 `git_sync` hook 或 `cataforge git prune` 清理）
 5. 合入后在 main 打 tag：`git tag vX.Y.Z && git push origin vX.Y.Z`
 
+release PR（跑 `scriv collect` 聚合 CHANGELOG 的那个 PR）额外一步：同步滚动 `.cataforge/skills/framework-update/references/version-migration.md` —— 顶部新增当前版本段（更新重点 + 迁移要点），删除滚动窗口（最近 3 个 minor 系列）之外的最旧段；守卫 `scripts/checks/check_migration_notes_version.py` 强制。
+
 仓库 merge 策略（delete-branch-on-merge + squash-only）由 `cataforge git ensure-policy` 幂等设置，bootstrap 时自动跑一次。
 
 **dogfood 分支 → main**：在 feature 分支跑 `.cataforge/scripts/dogfood/prepare-pr.sh`（按 `product-paths.txt` 白名单还原 dev-only 产物，交互式提示合规标题并调 `gh pr create`）。

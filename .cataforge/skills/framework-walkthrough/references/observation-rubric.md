@@ -16,6 +16,8 @@
 | 恢复路径 | E-1~E-7 | 触发的恢复协议是否按 ORCHESTRATOR-PROTOCOLS 行为：轮次上限、人工介入触发、回滚是否干净 | 超轮次仍自动重试、rolled-back 静默、truncation 未评估完成度就接管 |
 | CLI / skill / hook | C-*, E-8 | `cataforge` 子命令、`skill run`、hook 是否报错或退出码异常 | 命令不存在、参数不符、Layer 1 返回 2/127 |
 | 文档加载 / KG | C-3, C-5c | `cataforge context read` 按 KG-active / legacy 分流是否正常；`graph` 模式下 authoring 落图 → `finalize` 导出 md → `reconcile` 归零的回环是否成立 | 实体级引用解析失败、drift 未被 reconcile 捕获、authoring 后 finalize 未重导出或 reconcile 残留 drift |
+| 可视化保底 | C-9 | Sprint 收口 dashboard 焊点是否真跑、产物是否落地、数据源不全时降级是否显式；agent 发现型 `cataforge viz` 调用若自然出现即记录 | 焊点静默缺席、数据缺失 tile 无 `run:` 指引被读作正常 |
+| UI 链路 | B-13, B-14 | UI 示例下 ui-designer 纯文本流→ui-spec→doc-review 是否顺畅；UI 保真 AC 是否断言渲染/计算效果；无渲染证据时 verdict 语义；Capability Gate 降级形态 | AC 只断言 token/类名字面存在、`[ENV-LIMITATION]` 豁免渲染核验、gate 静默降级不落真值 |
 | 交互负担 | B-2, E-1 | 多少处需要人工代答、提问是否选择题优先、是否重复提问 | 同一问题反复问、开放式提问过多 |
 | 状态一致 | T-2, T-3 | {INSTRUCTION_FILE} 项目状态 / EVENT-LOG 与实际推进是否一致 | 阶段标记与产物不符、事件漏写 |
 
@@ -60,8 +62,8 @@ deps: []
 2. **阶段时间线**：逐阶段「做了什么 → 产物 → 观察点」一行一条。
 3. **路径覆盖账本**：[`runtime-flow-map.md`](runtime-flow-map.md) §2–§6 每条路径一行，字段按该文件 §7（path_id / disposition / result / evidence）。not-reached 必须写原因。这是覆盖面的自证——读者一眼看出哪条路径真跑了、哪条只是没触发。
 4. **framework findings**：按 §问题格式 列出，severity 降序。
-5. **process findings**：同上，聚焦本 skill 与走查方法。
-6. **结论**：三态判定（COMMON-RULES §三态判定逻辑）+ 覆盖率（driven+probed / 全路径数）+ 最值得优先的改进项。
+5. **process findings**：同上，聚焦本 skill 与走查方法；每条附 `resolution: applied|proposed|deferred`（语义与流转见 [`self-update-protocol.md`](self-update-protocol.md)，Step 7 自更新后回填）。
+6. **结论**：三态判定（COMMON-RULES §三态判定逻辑）+ 覆盖率（driven+probed / 全路径数）+ 成本复盘（子代理调度总数 / 文档产出量 / 人工代答点数）+ 最值得优先的改进项。
 
 ## 5. 自我校准
 
