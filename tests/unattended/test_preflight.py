@@ -130,3 +130,24 @@ def test_prototype_refuses_on_unresolved_placeholder(tmp_path: Path) -> None:
     _write(tmp_path, "docs/brief.md", _BRIEF + "- T-002 AC: TBD\n")
     reason = preflight_prototype_brief(tmp_path)
     assert reason is not None and "TBD" in reason
+
+
+def test_prototype_refuses_raw_template_heading(tmp_path: Path) -> None:
+    # A brief dropped from the raw template still reads `### T-001: {任务名}` —
+    # brace placeholders the TODO/TBD/FIXME rule cannot see. Building against
+    # placeholder cards is undefined behavior, so the gate must refuse.
+    body = (
+        "---\nid: brief-x\ndoc_type: brief\nstatus: draft\n---\n"
+        "## 5. 开发任务\n### T-001: {任务名}\n- **目标**: {一句话}\n"
+    )
+    _write(tmp_path, "docs/brief.md", body)
+    reason = preflight_prototype_brief(tmp_path)
+    assert reason is not None and "占位符" in reason
+
+
+def test_prototype_allows_braces_outside_headings(tmp_path: Path) -> None:
+    # Heading-only scope: JSON braces in a §4 code block or a body line must
+    # not false-reject a genuinely filled brief.
+    body = _BRIEF + '\n## 4. 数据结构\n```\n{"celsius": 25.0}\n```\n'
+    _write(tmp_path, "docs/brief.md", body)
+    assert preflight_prototype_brief(tmp_path) is None

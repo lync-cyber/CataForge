@@ -78,6 +78,12 @@ def unattended_build(
     # Auto-detect target from the declared execution mode (single source of
     # truth in the instruction file) — no flag to mismatch against reality.
     if read_execution_mode(root) == "agile-prototype":
+        if sprint:
+            click.echo(
+                f"提示：agile-prototype 模式忽略 SPRINT 参数（{sprint}），"
+                "building 目标为 brief#tasks",
+                err=True,
+            )
         target = prototype_target()
         refusal = preflight_prototype_brief(root)
     else:

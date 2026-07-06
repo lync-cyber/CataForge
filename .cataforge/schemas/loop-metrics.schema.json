@@ -18,7 +18,7 @@
   "properties": {
     "iter": {"type": "integer", "description": "本次运行内的真实迭代序号（限额等待轮不计）"},
     "ts": {"type": "string", "format": "date-time", "description": "ISO 8601 时间戳"},
-    "sprint": {"type": "string", "description": "目标 sprint 标识"},
+    "sprint": {"type": "string", "description": "目标标识（sprint 名或 brief，取自 BuildTarget.label）"},
     "head_before": {"type": "string", "description": "本轮拉起前的 git HEAD"},
     "head_after": {"type": "string", "description": "本轮返回后的 git HEAD"},
     "progressed": {"type": "boolean", "description": "HEAD 变化或命中前进事件"},

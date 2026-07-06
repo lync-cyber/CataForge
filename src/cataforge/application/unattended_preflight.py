@@ -25,6 +25,12 @@ from cataforge.utils.placeholders import count_unresolved_placeholders
 # "开发任务" can neither false-reject nor false-pass.
 _TASK_CARD_RE = re.compile(r"(?m)^#{2,6}\s+T-\d")
 
+# An unfilled brief template still reads ``### T-001: {任务名}`` — brace
+# placeholders the TODO/TBD/FIXME rule cannot see. Heading-only scope on
+# purpose: card bodies and §4 code blocks legitimately contain braces (JSON,
+# path templates), a card heading never does.
+_HEADING_PLACEHOLDER_RE = re.compile(r"\{[^{}\n]{1,40}\}")
+
 
 def _read(path: Path) -> str:
     try:
@@ -84,10 +90,13 @@ def preflight_prototype_brief(project_root: Path) -> str | None:
     agile-prototype has no doc-review approval gate (checkpoints=none, Layer 1
     only), so — unlike the dev-plan gate — this does NOT require
     ``status: approved``; the brief stays ``draft`` throughout. It confirms the
-    brief is present, carries a §5 开发任务 section to build against, and is free
-    of unresolved ``TODO`` / ``TBD`` / ``FIXME``. The guarantee is deliberately
-    weaker than the dev-plan gate (no approval anchor exists in the mode) — the
-    real protection is the same sandbox + PR-only + morning review.
+    brief is present, carries a §5 开发任务 section to build against, is free of
+    unresolved ``TODO`` / ``TBD`` / ``FIXME``, and its task-card headings carry
+    real names rather than raw ``{…}`` template placeholders (the dev-plan gate
+    needs no such check — its approval anchor already rejects raw templates).
+    The guarantee is deliberately weaker than the dev-plan gate (no approval
+    anchor exists in the mode) — the real protection is the same sandbox +
+    PR-only + morning review.
     """
     docs_dir = project_root / "docs"
     brief_files = _brief_files(docs_dir)
@@ -104,8 +113,19 @@ def preflight_prototype_brief(project_root: Path) -> str | None:
         placeholders += count_unresolved_placeholders(body)
         combined.append(body)
 
-    if not _TASK_CARD_RE.search("\n".join(combined)):
+    text = "\n".join(combined)
+    if not _TASK_CARD_RE.search(text):
         return "brief 缺少 §5 开发任务卡（未见 ### T- 卡片）——无待建目标，无法定位 building"
+    unfilled = [
+        ln.strip()
+        for ln in text.splitlines()
+        if _TASK_CARD_RE.match(ln) and _HEADING_PLACEHOLDER_RE.search(ln)
+    ]
+    if unfilled:
+        return (
+            f"brief 任务卡标题仍含未替换的模板占位符（{unfilled[0]}）"
+            "——brief 未填写完成，无法 building"
+        )
     if placeholders:
         return f"brief 含 {placeholders} 处未处理 TODO/TBD/FIXME——AC 未定稿，请先消解"
     return None

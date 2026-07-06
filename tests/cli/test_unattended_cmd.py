@@ -84,3 +84,15 @@ def test_agile_prototype_wires_prototype_target_into_loop(
     assert result.exit_code == EXIT_COMPLETE
     target = captured["target"]
     assert target.ref == "brief#tasks" and target.prototype is True  # type: ignore[attr-defined]
+
+
+def test_agile_prototype_notes_ignored_sprint_arg(tmp_path: Path) -> None:
+    # A habitual `build sprint-9` on a prototype project must say the arg is
+    # ignored — silence would read as "located sprint-9". The refusal path is
+    # enough to observe the note without mocking the loop.
+    _write_claude_md(tmp_path, "agile-prototype")
+    result = CliRunner().invoke(
+        cli, ["unattended", "build", "sprint-9", "--project-root", str(tmp_path)]
+    )
+    assert result.exit_code == EXIT_PREFLIGHT
+    assert "忽略 SPRINT" in result.output and "sprint-9" in result.output
