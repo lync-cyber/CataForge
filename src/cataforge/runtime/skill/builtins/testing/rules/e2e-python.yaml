@@ -4,7 +4,7 @@ rule_type: e2e
 language: python
 extensions: [".py"]
 
-# Python e2e (playwright-python / selenium / pytest-bdd).
+# Python e2e (playwright-python / selenium / pytest-bdd / CLI subprocess).
 backdoor_patterns:
   - label: "window.__*__ via evaluate"
     regex: "evaluate\\s*\\(\\s*['\\\"]window\\.__\\w+__"
@@ -21,3 +21,8 @@ real_input_patterns:
   - regex: '\bpage\.type\('
   - regex: '\bsend_keys\('
   - regex: '\.click\(\)'
+  - regex: '\bsubprocess\.(?:run|Popen)\('
+  - regex: '\bCliRunner\('
+  - regex: '\.invoke\('
+  - regex: '\bpexpect\.spawn\('
+  - regex: '\.communicate\('

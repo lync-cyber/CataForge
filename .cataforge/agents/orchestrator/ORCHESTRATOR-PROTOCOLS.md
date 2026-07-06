@@ -18,12 +18,12 @@
     - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
     - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
     - 存量项目带历史文档时，向用户确认归档方案：移入根级 `archive/`（docs 索引不扫描），或保留在 `docs/` 内并写 `docs/.docignore`（一行一个 glob，`dir/` 匹配整个子树）——否则 `cataforge context validate` / doctor 会对缺 front matter 的历史文件报 orphan FAIL
-4. **行尾归一化门** — 由 `cataforge setup` / `cataforge bootstrap` 自动执行 `.gitattributes` 治理；必要时可手动运行 `cataforge setup gitattributes`。`cataforge doctor` 负责静态复核。
+4. **git 基线与行尾归一化门** — 非 git 仓时先 `git init` 并落初始 commit（写入边界自检 / 崩溃恢复 / 回滚 / 增量审查协议均依赖 git 基线）；`.gitattributes` 治理由 `cataforge setup` / `cataforge bootstrap` 自动执行，必要时可手动运行 `cataforge setup gitattributes`。`cataforge doctor` 负责静态复核。
 5. **创建 {INSTRUCTION_FILE}** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§项目信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
     - `standard` → `requirements`
     - `agile-lite` → `planning`（Phase 1+2 合并）
     - `agile-prototype` → `brief`（Phase 1~4 合并）
-6. **写入框架版本** — 读取 pyproject.toml 的 `[project].version` 字段填入 {INSTRUCTION_FILE} `框架版本` 字段（如 pyproject.toml 不存在则标注"未追踪"）
+6. **框架版本无需手填** — 步骤 7 的 deploy 自动将已安装 cataforge 包版本盖入 {INSTRUCTION_FILE} `框架版本` 字段（无包元数据时由 deploy 标注"未追踪"）
 7. **选择目标平台** — 通过 AskUserQuestion 单独提问，选项:
     - `claude-code`（默认）— Anthropic Claude Code CLI / Desktop / Web
     - `cursor` — Cursor IDE
@@ -47,7 +47,7 @@
 orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪份文档"时，先读取 {INSTRUCTION_FILE} §项目信息.执行模式（字段缺失或占位符未填 → 按 `standard` 处理），然后按下列矩阵路由。模式完整差异见 COMMON-RULES §执行模式矩阵。
 
 ### standard 模式
-按 7 阶段顺序推进: requirements → architecture → ui_design → dev_planning → development → testing → deployment。阶段可被 {INSTRUCTION_FILE} §项目信息.阶段配置 标记为 N/A 跳过（ui_design / testing / deployment）。所有 Agent 产出 standard 文档（prd / arch / ui-spec / dev-plan / test-report / deploy-spec）。
+按 7 阶段顺序推进: requirements → architecture → ui_design → dev_planning → development → testing → deployment。阶段可被 {INSTRUCTION_FILE} §项目信息.阶段配置 标记为 N/A 跳过（ui_design / testing / deployment）；每次 N/A 跳过 **[EVENT]** `cataforge event log --event phase_skip --phase {阶段} --detail "N/A per 阶段配置"`（使 EVENT-LOG 可区分「跳过」与「漏跑」）。所有 Agent 产出 standard 文档（prd / arch / ui-spec / dev-plan / test-report / deploy-spec）。
 
 ### agile-lite 模式
 合并 Phase 1+2 为 `planning`，跳过 Phase 3，Phase 4 使用 lite 模板。阶段序列: planning → dev_planning → development → (testing) → (deployment)。
@@ -152,12 +152,12 @@ Mode Routing Protocol 在以下时刻被调用:
      3. 暂停，手动审查
    - 其它错误（store 未初始化等）→ WARN 跳过（记录到 EVENT-LOG 供 reflector 复盘），不阻塞
 7. **跨文档一致性校验** — 当至少 2 个业务文档已 approved 时（即 Phase 2+ 的转换），运行 `cataforge skill run doc-consistency -- docs/`:
-   - exit 0（consistent）→ 通过，继续 Step 8
+   - exit 0（consistent；输出含 MEDIUM/LOW findings 时记录 WARN 到 EVENT-LOG）→ 通过，继续 Step 8
    - exit 1（inconsistent，存在 CRITICAL/HIGH）→ 向用户展示一致性报告摘要并提供选项：
      1. 进入 cascade_amendment 修复不一致
      2. 降级为 WARN 继续推进（记录到 EVENT-LOG）
      3. 暂停，手动审查
-   - exit 2（consistent_with_notes，仅 MEDIUM/LOW）→ 记录 WARN 到 EVENT-LOG，继续 Step 8
+   - exit 2 / 127（坏参数或不可执行；findings 不产生 exit 2）→ 按 COMMON-RULES §Layer 1 调用协议判 FAIL，先 `cataforge doctor`
    - 命令不存在时 WARN 跳过，不阻塞
 8. **[EVENT BATCH]** 通过 `--batch` 单次 stdin 管道一次性记录 4 条事件（phase_end → review_verdict → state_change → phase_start）:
    ```bash
@@ -325,12 +325,13 @@ Mode Routing Protocol 在以下时刻被调用:
 - 所有需即时 code-review 的任务（`security_sensitive` / `user_facing_critical_path` / `consumer_components` 非空）结论为 approved，且延迟任务的 implementer self-report 无 `refactor_needed=true`
 
 短路时处理:
-1. 在 {INSTRUCTION_FILE} 当前 Sprint 字段追加注记 `sprint-review skipped (micro sprint)`
-2. **[EVENT]** 记录跳过事件:
+1. 对延迟任务（未经即时 per-task code-review 的任务）的 impl_files 范围跑一次 `code-review scan --focus complexity,duplication,coupling`（Layer 1 确定性兜底，同 tdd-engine Sprint 级审查的审计 scan）；exit 1 → 取消短路，转正常流程
+2. 在 {INSTRUCTION_FILE} 当前 Sprint 字段追加注记 `sprint-review skipped (micro sprint)`
+3. **[EVENT]** 记录跳过事件:
    ```bash
    cataforge event log --event review_verdict --phase development --agent orchestrator --status approved --detail "sprint-review skipped (micro sprint)"
    ```
-3. 直接进入下一 Sprint 或 Phase 6
+4. 直接进入下一 Sprint 或 Phase 6
 
 **正常流程** (不满足短路条件时):
 1. 通过 agent-dispatch 激活 reviewer (task_type=new_creation, skill=sprint-review)

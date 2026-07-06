@@ -395,6 +395,22 @@ def test_check_dev_plan_ac_gwt_passes(tmp_path: Path) -> None:
     assert c.errors == []
 
 
+_DEV_PLAN_CLI_AC = """\
+### T-001 Feature
+- deliverables: cli.py
+- tdd_acceptance:
+  - AC-001: Given 合法参数, When 运行 CLI, Then 输出排序结果并以退出码 0 结束。
+- context_load: arch
+"""
+
+
+def test_check_dev_plan_ac_chinese_cli_verbs_pass(tmp_path: Path) -> None:
+    """CLI-style Chinese observable verbs (输出/退出) count as observable."""
+    c = _checker(tmp_path, "dev-plan", _DEV_PLAN_CLI_AC)
+    c.check_dev_plan()
+    assert not any("可观测" in w for w in c.warnings), c.warnings
+
+
 # ---------------------------------------------------------------------------
 # check_ui_spec
 # ---------------------------------------------------------------------------
@@ -553,6 +569,30 @@ def test_check_test_report_empty_matrix_fails(tmp_path: Path) -> None:
     c = _checker(tmp_path, "test-report", content)
     c.check_test_report()
     assert any("矩阵" in e for e in c.errors)
+
+
+_TEST_REPORT_STANDARD_TABLE = """\
+Unit tests cover the service layer.
+Integration tests cover the API.
+E2E tests cover the user journey.
+
+## 测试用例矩阵
+
+| 用例ID | 名称 | 结果 |
+|--------|------|------|
+| TC-01 | 摄氏转华氏 | PASS |
+| TC-02 | 非法输入报错 | PASS |
+
+## 覆盖率目标
+Line coverage ≥ 80%
+"""
+
+
+def test_check_test_report_standard_format_matrix_with_rows_passes(tmp_path: Path) -> None:
+    """Standard `| cell |` rows (spaces after pipes, CJK content) count as data."""
+    c = _checker(tmp_path, "test-report", _TEST_REPORT_STANDARD_TABLE)
+    c.check_test_report()
+    assert not any("矩阵" in e for e in c.errors), c.errors
 
 
 def test_check_test_report_coverage_no_number_warns(tmp_path: Path) -> None:

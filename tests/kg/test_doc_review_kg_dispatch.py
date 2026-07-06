@@ -357,3 +357,67 @@ def test_devplan_coverage_passes_when_all_modules_realized(tmp_path: Path) -> No
     checker.check_bidirectional_coverage()
 
     assert not checker.errors, checker.errors
+
+
+_ARCH_MODULES_BARE_HEADINGS = """\
+---
+doc_id: arch
+doc_type: arch
+---
+# Arch
+
+## §2 Modules
+
+### M-001 认证模块
+
+认证。
+
+### M-002 会话模块
+
+会话。
+"""
+
+
+def test_devplan_coverage_falls_back_to_file_scan_when_graph_has_no_modules(
+    tmp_path: Path,
+) -> None:
+    """KG active but no upstream Module rows → the file scan must still run.
+
+    A KG path that judges zero upstream rows is a vacuous green: it reports no
+    failures AND suppresses the file fallback, so a dev-plan gap passes silently
+    whenever the arch has not landed in the graph yet.
+    """
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._dispatch import invalidate_cache
+    from cataforge.domain.kg.ingest import run_migration
+    from cataforge.runtime.skill.builtins.doc_review.checker import DocChecker
+
+    project = tmp_path / "project"
+    (project / ".cataforge").mkdir(parents=True)
+    (project / "docs" / "arch").mkdir(parents=True)
+    (project / "docs" / "dev-plan").mkdir(parents=True)
+    (project / "docs" / "arch" / "arch.md").write_text(
+        _ARCH_MODULES_BARE_HEADINGS, encoding="utf-8"
+    )
+    (project / "docs" / "dev-plan" / "dev-plan.md").write_text(
+        _DEVPLAN_REALIZES_M1, encoding="utf-8"
+    )
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=project / ".cataforge" / "kg" / "store",
+        kg_active_doc_types={"arch", "dev-plan"},
+    )
+    handle = init_store(config, force=True)
+    run_migration(handle.raw, project, config, doc_types=("dev-plan",))
+    handle.raw.flush()
+    (project / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"kg_active_doc_types": ["arch", "dev-plan"]}}),
+        encoding="utf-8",
+    )
+    invalidate_cache()
+
+    doc_file = project / "docs" / "dev-plan" / "dev-plan.md"
+    checker = DocChecker("dev-plan", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
+    checker.check_bidirectional_coverage()
+
+    assert any("M-002" in e and "上游" in e for e in checker.errors), checker.errors

@@ -32,7 +32,7 @@
 - SDLC 文档管线对本仓 N/A: PRD / ARCH / UI-SPEC / DEV-PLAN / TEST-REPORT / DEPLOY-SPEC 是框架**交付给下游业务项目**的产物，对元项目本身**不需要（非"未开始"）**
 - 进度事实源: git 历史 / PR / CHANGELOG / `docs/proposals/`，不在本文件维护阶段或文档状态字段
 - 剩余 backlog（真实状态以各提案头部为准，本行仅防遗忘指针）:
-  - 走查改进落地 —— `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260706-r1.md`（2026-07-06 standard 全链走查 needs_revision：下一会话先对 framework findings 逐条事实核查再实施，R-001 HIGH「context write 修订门静默失效」优先；process 侧 P-001~P-004 已随 #456 落地 main，P-005 用户驳回不再追）
+  - 走查改进落地【已收口】—— `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260706-r1.md`：19 条 framework findings 2026-07-06 逐条事实核查后全部处置完毕——#458 落 R-001 核心（真实机理=tile-cover 导出不渲染实体节点，非孤儿节点；文档域实体拒写指路 + transact membership 对齐 + narrative 入 content-hash + 修订门协议改道），后续批量 PR 落 R-002/003/005/006/009 残余/012/014 + 失败补偿快照恢复 + 协议文本簇（R-004/007/008/010a/011/013/017/018 + tdd-engine 悬空引用 + transact 导流示例）；**裁定勿再追**: R-016 主体（WARN-never-gate 是设计且 deploy_drift SessionStart hook 已在）、R-010(b)（单路径 exit 2 按设计）、R-009(a) 原诊断（词库早含中文动词）；process 侧 P-001~P-004 已随 #456 落地，P-005 用户驳回
   - 无人值守构建循环 —— `docs/proposals/unattended-building-loop.md`（核心 + 双层 deny + frozen-upstream preflight 已落，agile-prototype 接线延期；§6.6 MAX_CALLS 已否决）
   - penpot-bridge C2 + E —— `docs/proposals/penpot-bridge-convergence.md`（核心已落，C2/E 子项延期）
 - 已结·勿再追: kg-first 反转 P-1~P-6 全链已完成（直读源码 + 表格保真实证核对，落地进度见 `docs/proposals/kg-first-inversion-pr-cde-plan.md`）；表格 / 动态交叉引用导出保真增量与 C7（`@requires_kg_first` 装饰器）/ C8（`link_to` filter）/ 5.2 投机 flag 经核实非缺陷或冗余、已否决；code-review arch-guard + 复杂度门控静态检查 M1–M5 全落地并测试通过（arch_guard / complexity_gate / api_surface / config_dead_key / pragma_inventory + engine 插件架构 + B3-α/β/γ 自洽守卫，直读源码 + 116 测试核对，`docs/proposals/code-review-arch-guard-complexity-gating.md` 头部已标已落地），仅 §6.4 豁免数量阈值 audit 为可选未做

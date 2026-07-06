@@ -233,6 +233,44 @@ def test_extract_entity_ref_falls_back_to_file_when_kg_card_lacks_body(
     assert body.startswith("### F-001 登录")
 
 
+def test_extract_entity_ref_full_doc_id_routes_like_alias(tmp_path: Path) -> None:
+    """A full doc-id ref (`prd-app#…`) must resolve through the KG exactly like
+    the doc_type alias form — activation is declared per doc_type, so the
+    full-id form resolves through the docs index instead of silently falling
+    back to the (possibly stale) file slice."""
+    from cataforge.domain.docs.indexer import build_full_index, write_index
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg.ingest import run_migration
+
+    project = tmp_path / "project"
+    (project / ".cataforge").mkdir(parents=True)
+    prd_dir = project / "docs" / "prd"
+    prd_dir.mkdir(parents=True)
+    (prd_dir / "prd-app.md").write_text(
+        "---\nid: prd-app\ndoc_id: prd-app\ndoc_type: prd\n---\n\n# PRD\n\n"
+        "## 2 Features\n\n### F-001 登录\n\n允许已注册用户登录。\n",
+        encoding="utf-8",
+    )
+    config = KGConfig(
+        store_backend="oxigraph",
+        db_path=project / ".cataforge" / "kg" / "store",
+        kg_active_doc_types={"prd"},
+    )
+    handle = init_store(config, force=True)
+    run_migration(handle.raw, project, config, doc_types=("prd",))
+    handle.raw.flush()
+    handle.close()
+    (project / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"kg_active_doc_types": ["prd"]}}), encoding="utf-8"
+    )
+    write_index(build_full_index(str(project)), str(project))
+
+    alias_body = context_read.extract("prd#§2.F-001", str(project))
+    full_body = context_read.extract("prd-app#§2.F-001", str(project))
+    assert full_body == alias_body
+    assert "允许已注册用户登录" in full_body
+
+
 # ---------------------------------------------------------------------------
 # resolve_deps — KG dispatch
 # ---------------------------------------------------------------------------

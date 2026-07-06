@@ -440,10 +440,11 @@ class DocChecker(TypedDocChecksMixin):
     def _kg_bidirectional_coverage(self, upstream_prefix: str, require_test: bool = False) -> bool:
         """Run the SPARQL coverage check when KG is active.
 
-        Returns True iff the KG path ran (callers should skip the
-        legacy file-scan). Failures discovered by the graph are
-        recorded via `self.fail()`; a green result returns True with
-        no `fail()` calls.
+        Returns True iff the KG path ran AND the graph held upstream rows to
+        judge (callers should skip the legacy file-scan). Zero upstream rows —
+        the upstream doc not landed in the graph yet — returns False so the
+        file scan still gates instead of a vacuous green. Failures discovered
+        by the graph are recorded via `self.fail()`.
         """
         project_root = self._project_root()
         if project_root is None:
@@ -467,20 +468,23 @@ class DocChecker(TypedDocChecksMixin):
         except Exception:
             return False
 
+        prefix_rows = [r for r in rows if r.entity_id.startswith(upstream_prefix + "-")]
+        if not prefix_rows:
+            return False
+
         uncovered = [
             r.entity_id
-            for r in rows
-            if r.entity_id.startswith(upstream_prefix + "-")
-            and _coverage_row_uncovered(
+            for r in prefix_rows
+            if _coverage_row_uncovered(
                 has_impl=r.has_impl, has_test=r.has_test, require_test=require_test
             )
         ]
         if uncovered:
             display = ", ".join(sorted(uncovered)[:5])
             suffix = f" (共 {len(uncovered)} 项)" if len(uncovered) > 5 else ""
+            gap = "无任务 realizes 映射" if upstream_prefix == "M" else "缺少实现或验证"
             self.fail(
-                f"KG 覆盖检查: {upstream_prefix} 中 {len(uncovered)} 项缺少"
-                f"实现或验证: {display}{suffix}"
+                f"KG 覆盖检查: {upstream_prefix} 中 {len(uncovered)} 项{gap}: {display}{suffix}"
             )
         return True
 

@@ -190,6 +190,18 @@ def test_author_document_placeholder_title_fails(tmp_path: Path) -> None:
     gc.collect()
 
 
+def test_author_document_set_literal_braces_in_title_allowed(tmp_path: Path) -> None:
+    """A comma/顿号-separated set literal in an entity title is not a template token."""
+    proj = _project(tmp_path)
+    md = (
+        "---\nid: prd\ndoc_type: prd\n---\n\n# PRD\n\n"
+        "## §1 Features\n\n### F-001 支持 {C, F, K} 三种单位\n\nbody\n"
+    )
+    result = cw.author_document(str(proj), md)
+    gc.collect()
+    assert result.entities_written == 1
+
+
 def test_author_document_placeholder_in_section_body_allowed(tmp_path: Path) -> None:
     proj = _project(tmp_path)
     md = "---\nid: prd\ndoc_type: prd\n---\n\n# PRD\n\n## §1 概览\n\n占位 {TBD} 内容保留。\n"

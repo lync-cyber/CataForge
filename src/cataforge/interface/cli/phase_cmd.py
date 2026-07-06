@@ -27,17 +27,26 @@ def phase_group() -> None:
 
 @phase_group.command("status")
 @click.option("--project-root", default=None)
+@click.option(
+    "--entry",
+    is_flag=True,
+    default=False,
+    help="Phase-entry mode: only verify the phase is recognised and its "
+    "phase_start event is logged; the phase's docs are not yet expected.",
+)
 @click.pass_context
-def phase_status(ctx: click.Context, project_root: str | None) -> None:
+def phase_status(ctx: click.Context, project_root: str | None, entry: bool) -> None:
     """Verify the current phase's expected artifacts exist.
 
     Exit 0 when every check for the current phase passes; exit 1 when an
     expected artifact is missing (phase not driven, doc absent/unindexed, no
-    phase_start); exit 2 when the project has no instruction file.
+    phase_start); exit 2 when the project has no instruction file. With
+    ``--entry`` the doc-artifact checks are skipped — use it right after a
+    phase transition, before the phase has produced anything.
     """
     resolved = root_relative_default(ctx, "project_root", project_root)
     root = Path(resolved) if resolved is not None else resolve_root()
-    current, checks = evaluate_phase(root)
+    current, checks = evaluate_phase(root, entry=entry)
 
     click.echo(f"Phase: {current}")
     for label, ok, detail in checks:

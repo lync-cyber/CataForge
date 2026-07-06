@@ -121,6 +121,19 @@ class TestEvaluatePhase:
         assert any("doc present" in label and not ok for label, ok, _ in checks)
         assert any("doc status" in label and not ok for label, ok, _ in checks)
 
+    def test_entry_mode_skips_doc_gates(self, tmp_path: Path) -> None:
+        """At phase entry the docs are structurally absent — entry mode must
+        judge only phase recognised + phase_start logged."""
+        root = _make_project(tmp_path, "requirements", phase_start="requirements")
+        _current, checks = evaluate_phase(root, entry=True)
+        assert [label for label, _ok, _ in checks] == ["phase recognised", "phase_start logged"]
+        assert all(ok for _label, ok, _ in checks), checks
+
+    def test_entry_mode_still_requires_phase_start(self, tmp_path: Path) -> None:
+        root = _make_project(tmp_path, "requirements")
+        _current, checks = evaluate_phase(root, entry=True)
+        assert any(label == "phase_start logged" and not ok for label, ok, _ in checks)
+
 
 def _make_subdir_project(
     tmp: Path,
@@ -309,6 +322,13 @@ class TestPhaseStatusCli:
         (tmp_path / ".cataforge").mkdir()
         result = CliRunner().invoke(cli, ["--project-dir", str(tmp_path), "phase", "status"])
         assert result.exit_code == 2
+
+    def test_entry_flag_exit_0_before_docs_exist(self, tmp_path: Path) -> None:
+        _make_project(tmp_path, "requirements", phase_start="requirements")
+        result = CliRunner().invoke(
+            cli, ["--project-dir", str(tmp_path), "phase", "status", "--entry"]
+        )
+        assert result.exit_code == 0, result.output
 
     def test_phase_status_accepts_project_root(self, tmp_path: Path) -> None:
         # The per-command --project-root must target the given project even when
