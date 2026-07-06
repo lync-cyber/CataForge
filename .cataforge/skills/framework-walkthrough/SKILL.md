@@ -17,7 +17,7 @@ user-invocable: true
 ## 输入规范
 - 可选 `--mode`: 执行模式，缺省 `standard`（7 阶段全跑，门禁与检查点覆盖面最大）；要快速冒烟时显式 `--mode agile-lite`；语义见 COMMON-RULES §执行模式矩阵
 - 可选 `--platform`: 目标平台，缺省取 `framework.json#/runtime.platform`
-- 可选 `--example`: 示例目标 id，缺省内置 `temperature-converter`（见 [`references/example-project.md`](references/example-project.md)）；自带目标须小到单轮收敛
+- 可选 `--example`: 示例目标 id，缺省内置 `temperature-converter`（见 [`references/example-project.md`](references/example-project.md)）；要走查 UI 链路（ui_design 真驱动 + UI 保真评审）用 `temperature-converter-ui`；自带目标须小到单轮收敛
 - 可选 `--depth`: 覆盖深度，缺省 `smoke`。`smoke` 只确定性驱动 happy path 主干、对分支/异常路径仅机会观察；`full` 额外按路径图探针清单逐个触发可达的分支/异常路径
 - 被走查的框架资产: 项目根 `.cataforge/`（必读）
 - 完整运行流程路径图: [`references/runtime-flow-map.md`](references/runtime-flow-map.md)；详细执行协议: [`references/walkthrough-protocol.md`](references/walkthrough-protocol.md)；观察与归类口径: [`references/observation-rubric.md`](references/observation-rubric.md)；自更新协议: [`references/self-update-protocol.md`](references/self-update-protocol.md)

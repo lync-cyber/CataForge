@@ -56,6 +56,7 @@
 | C-6 | TDD development | 按 tdd-engine 档位执行 RED/GREEN/REFACTOR（standard）或 light 合并或 prototype-inline | D | 档位选择是否符合 `TDD_*` 常量、子代理隔离是否成立 |
 | C-7 | code-review 门禁 | GREEN 后跑 code-review；按 `CODE_REVIEW_L2_SKIP_*` 判断短路 | D | 短路判定、security/error-handling 关键字是否抑制短路 |
 | C-8 | phase status 硬校验 | 每跨完一阶段跑 `cataforge phase status`，退出非 0 即该阶段 blocked | D | 委派子代理「只部署不驱动」会在此暴露 |
+| C-9 | Sprint 收口 viz dashboard 保底焊点 | Sprint 视为 approved 后（短路与正常路径均适用）跑 `cataforge viz dashboard -o docs/viz/dashboard.html`；数据源未就绪时 `viz status` 自陈空视图、跳过不报错 | D | 焊点是否真跑、产物是否落地、数据缺失降级是否显式（tile 显示 `—` + `run:` 指引）而非静默缺席；agent 情境自主调 `cataforge viz <视图>`（project-visualization 发现型）若自然出现即记录 |
 
 ### 3.1 Phase Transition Protocol 的子路径（C-5 展开）
 
@@ -89,6 +90,8 @@
 | B-10 | doc-consistency 分支 | C-5d exit 1 | cascade_amendment / 降级 WARN / 暂停 | O | 跨文档矛盾是否被检出 |
 | B-11 | claude-md hygiene 分支 | C-5f exit 1 | 自动 compact / 手动处理，阻塞转换 | O | 阈值越界是否真阻塞而非 WARN 放行 |
 | B-12 | skippable 阶段 N/A | §阶段配置 标 ui_design/testing/deployment N/A | 路由跳过该阶段，不产对应文档 | P | N/A 阶段是否被正确跳过、不误判为缺产物 |
+| B-13 | ui_design 真驱动（UI 链路） | 走查 `--example temperature-converter-ui` | ui_design 不标 N/A；design_tool=none 走 ui-designer 纯文本流产 ui-spec → doc-review；development 含 UI 保真类任务；code-review 命中 ui_fidelity（Layer 1）与 visual-fidelity 维度；沙盒取不到渲染证据时 reviewer 出 `conditional_release` + 非空 `blocking_conditions` | P | 纯文本流是否顺畅、UI 保真 AC 是否被写成字面断言反模式（只断言 token/类名存在）、无渲染证据时是否误用 `[ENV-LIMITATION]` 豁免而非 conditional_release |
+| B-14 | Design-Tool Capability Gate 降级 | Bootstrap 设计工具选 penpot 而沙盒无 penpot MCP | 进 ui_design 前探测 → 区分「工具未注册」vs「连接失败/插件未连」→ 不静默降级、给选项 → 用户选降级时 design_tool penpot→none 落真值 + 记 state_change EVENT → 纯文本流继续 | P | 两类不可用形态是否分开报告、降级是否落真值并记 EVENT、是否出现静默降级 |
 
 ## 5. 异常处理路径
 

@@ -65,6 +65,30 @@
 
 纯函数 + 表驱动 AC，让 TDD 阶段有真实而不繁的断言面；C-001/C-002 两组件让架构与 dev-plan 阶段有可拆分的实质内容；错误路径覆盖边界条件评审；全程无 I/O 与外部依赖，沙盒内可即时验证、单轮收敛。
 
+## UI 扩展目标：temperature-converter-ui
+
+`--example temperature-converter-ui` 在 CLI 目标全部内容之上叠加一个极小 web UI，使 ui_design 阶段真被驱动（路径 B-13）而非恒 N/A。仍满足合格性清单：静态单文件页面、无构建工具、无外部依赖、单轮收敛。
+
+### 功能与契约增量
+
+| id | 增量 |
+|----|------|
+| F-005 | 单页 web UI：数值输入 + 源/目标单位选择 + 转换结果显示 + 错误提示区（复用 conversion-core 同等转换逻辑） |
+| C-003 | web-adapter：静态单页（标记 + 样式 + 挂接逻辑），不含转换数学；转换与校验规则与 API-001 同源 |
+| UI-001 | 输入区：数值框 + 两个单位选择控件 |
+| UI-002 | 结果区：转换结果文本，字号消费 `--result-size` token |
+| UI-003 | 错误提示区：非法输入时可见，前景色消费 `--error-color` token；合法输入时不可见 |
+| T-004 | web UI 层（依赖 T-001 的转换规则；`user_facing_critical_path: true`，触发 code-review ui_fidelity / visual-fidelity） |
+
+### UI 保真验收标准（按 COMMON-RULES §保真类 AC 断言渲染效果）
+
+- 输入 `-300` C→K 后，错误提示元素渲染可见且**计算前景色** = `--error-color` 设计值；合法输入后该元素不可见。
+- 结果元素**计算字号** = `--result-size` 设计值。
+- 两个 token 各被 ≥1 处真实消费（无死 token / 幽灵类）。
+- 反例（不得这样写 AC）：「样式表含 `--error-color` 变量名」「结果元素带 `result-text` 类名」——字面存在即过关、渲染为空也全绿。
+
+沙盒无头环境取不到渲染证据时，reviewer 对 T-004 应出 `conditional_release` + 非空 `blocking_conditions`（条件=补一次真实渲染核验），不得以 `[ENV-LIMITATION]` 豁免——这本身即 B-13 的观察点。
+
 ## 探针扰动（`--depth full`）
 
 `--depth full` 要触发分支/异常路径时，对本示例做下列最小扰动即可确定性命中目标路径（路径 id 见 [`runtime-flow-map.md`](runtime-flow-map.md)，探针表见 [`walkthrough-protocol.md`](walkthrough-protocol.md) §6）。每个探针触发一条路径就够，记录行为后恢复主干。
@@ -78,5 +102,7 @@
 | B-7 模式回退 | 让 prd-lite 写到 >150 行（如把每个错误码展开成段）；仅 `--mode agile-lite` 可触发 | planning |
 | E-1 Interrupt-Resume | 起 architect inline 时不预先给定「归一化中转单位选开尔文还是摄氏」 | architecture/planning |
 | E-2 Revision | arch(-lite) 首版漏掉 API-001 的「归一化后开尔文 < 0 抛领域错误」契约（CRITICAL） | doc-review arch |
+| B-13 ui_design 真驱动 | 不是扰动——改用 `--example temperature-converter-ui`（UI 增量见上节） | ui_design 起 |
+| B-14 Capability Gate 降级 | Bootstrap 时设计工具选 penpot（沙盒无 penpot MCP），进 ui_design 触发 gate；观察降级后选「纯文本手工 ui-spec」 | ui_design 前 |
 
 不在表内的异常路径（E-3 rolled-back / E-4 TDD blocked / E-5 crash / E-6 truncation / E-7 cascade 中断）**不做破坏注入**：人为制造崩溃会偏离真实行为、污染归因，按机会观察处理，未触发则账本标 not-reached。

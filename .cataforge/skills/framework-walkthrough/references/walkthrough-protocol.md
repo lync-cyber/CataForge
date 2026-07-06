@@ -31,7 +31,7 @@
 
 1. **planning (Phase 1)**：起 start-orchestrator → Bootstrap，选 `standard`。product-manager 产 PRD（喂 `example-project.md` 功能项）→ doc-review（Layer 1 + Layer 2 强制，无 lite 短路）。
 2. **architecture (Phase 2)**：architect 产 ARCH（喂架构契约 C-001/C-002/API-001）→ doc-review。此转换起 doc-consistency（C-5d）首次满足触发条件。
-3. **ui_design (Phase 3)**：CLI 示例标 N/A 跳过——顺带确认 B-12 skippable 路由不误判缺产物。
+3. **ui_design (Phase 3)**：缺省 CLI 示例标 N/A 跳过——顺带确认 B-12 skippable 路由不误判缺产物。`--example temperature-converter-ui` 时真驱动（B-13）：design_tool=none 走 ui-designer 纯文本流产 ui-spec → doc-review；要连带观察 Capability Gate 降级（B-14）则 Bootstrap 时设计工具选 penpot。
 4. **dev_planning (Phase 4)**：tech-lead 产 DEV-PLAN（喂任务分解，task-decomp / task-dep-analysis 拆卡与依赖建模）→ doc-review；转入 development 前命中 `pre_dev` 人工检查点，按 §3 代答并记录交互负担。
 5. **development (Phase 5)**：按 T-001/T-002/T-003 跑 TDD（缺省 light；预估 LOC 超 `TDD_LIGHT_LOC_THRESHOLD` 或标 `security_sensitive` 时升 standard 档——正好观察分档判定）+ code-review（短路判定按 `CODE_REVIEW_L2_SKIP_*`）。
 6. **testing (Phase 6)**：qa-engineer 做集成/E2E 补充与 TEST-REPORT——观察 testing 阶段编排与 verdict 语义（approved / conditional_release 的 blocking_conditions 阻塞）。
@@ -65,6 +65,10 @@ Phase 1~4 合并为单一 `brief.md`（≤200 行），implementer 主线程一�
 
 任一门「该跑没跑 / 该阻塞没阻塞 / 静默降级」都是 framework finding；命令不存在而 WARN 跳过须显式记录，不可读作通过。
 
+### 2.5 Sprint 收口可视化保底观察（所有模式）
+
+Sprint 视为 approved 后（含 micro 短路路径）与全部 Sprint 完成进 testing 前，orchestrator 应确定性跑 `cataforge viz dashboard -o docs/viz/dashboard.html`（路径 C-9）。盯三点：焊点是否真被执行、产物是否落地、沙盒小项目数据源不全时降级是否显式（tile 显示 `—` 附 `run:` 指引 / `viz status` 自陈空视图跳过）——焊点静默缺席或数据缺失被读作正常都是 framework finding。
+
 ## 3. 驱动时的代答约定
 
 沙盒内为保持单轮闭环，遇到 MANUAL_REVIEW_CHECKPOINTS 或 agent 的 `needs_input` 时，由走查者依据 `example-project.md` 的既定目标直接代答，并把「此处需要人工输入」本身记为一个观察点（用于评估流程的交互负担）。不得因代答而跳过门禁的实际执行。
@@ -89,6 +93,8 @@ Phase 1~4 合并为单一 `brief.md`（≤200 行），implementer 主线程一�
 | B-6 Change Request | development 前向主线程提交一句变更（如「F-003 改保留 1 位小数」） | change-guard 是否分析、action 路由（proceed/amend/cascade）是否正确 |
 | B-7 模式回退 | agile-lite 下故意把 prd-lite 写到 >150 行（仅 `--mode agile-lite` 可触发；standard 下账本标 not-reached: 模式不适用） | 是否提示升档、是否误自动改写模式字段 |
 | B-12 skippable N/A | 确认 ui_design/testing/deployment 标 N/A | 路由是否跳过、不误判缺产物 |
+| B-13 ui_design 真驱动 | 改用 `--example temperature-converter-ui`（非扰动，example 选择） | 纯文本 ui-spec 流是否顺畅、UI 保真 AC 是否断言渲染/计算效果而非字面、无渲染证据时是否 conditional_release 而非 `[ENV-LIMITATION]` 豁免 |
+| B-14 Capability Gate 降级 | Bootstrap 设计工具选 penpot（沙盒无 penpot MCP） | 「工具未注册」vs「连接失败」是否分开报告、降级是否落真值 design_tool→none 并记 state_change EVENT、有无静默降级 |
 | E-1 Interrupt-Resume | 起 inline 角色时漏喂一项必填输入（如不给目标精度），诱发澄清 | inline 角色直接 AskUserQuestion（不走 needs_input）；派发子代理才经 needs_input 回传 |
 | E-2 Revision | 让首版文档缺一个 CRITICAL/HIGH 必备项（如 arch 缺 API 契约），诱发 needs_revision | 是否调 task_type=revision、增量审查是否只审 diff + 上轮高危维度、needs_revision(N) 是否累计 |
 
