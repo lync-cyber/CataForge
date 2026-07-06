@@ -51,7 +51,7 @@ from cataforge.domain.kg.ingest.entity_extract import (
     extract_entities,
 )
 from cataforge.domain.kg.ingest.frontmatter import _PARSE_ERROR_KEY
-from cataforge.domain.kg.ingest.iri import document_iri
+from cataforge.domain.kg.ingest.iri import document_iri, resolve_entity_iri
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
@@ -273,6 +273,25 @@ def _scoped_delete_id(entity_id: str, parent_id: str | None) -> str:
     return f"{parent_id}/{entity_id}" if parent_id else entity_id
 
 
+def _entity_prior_quads(store: ox.Store, cfg: Any, iri: str) -> list[ox.Quad]:
+    """Snapshot every quad touching ``iri`` (outgoing, attributes, incoming).
+
+    A failed re-author's compensation deletes the staged node; for an entity
+    that existed before the write, the snapshot is re-added so compensation
+    restores the prior state instead of destroying it.
+    """
+    from cataforge.domain.kg._quads import (  # noqa: PLC0415
+        attribute_subject_quads,
+        quads_for_subject,
+        quads_targeting,
+    )
+
+    quads = list(quads_for_subject(store, iri))
+    quads.extend(attribute_subject_quads(store, iri, cf_namespace(cfg)))
+    quads.extend(quads_targeting(store, iri))
+    return quads
+
+
 def _stage_entity(
     txn: TransactionContext,
     *,
@@ -362,6 +381,11 @@ def author_entity(
         _guard_entity_not_document_covered(
             kg.store, cfg, entity_id, existing_source_doc or entity_doc_type(class_name)
         )
+        prior_quads = _entity_prior_quads(
+            kg.store,
+            cfg,
+            resolve_entity_iri(entity_id, class_name, parent_id, cfg.base_namespace),
+        )
         with kg.transaction() as txn:
             iri = _stage_entity(
                 txn,
@@ -382,6 +406,8 @@ def author_entity(
         if offending:
             with kg.transaction() as undo:
                 undo.delete_entity(_scoped_delete_id(entity_id, parent_id), cascade=True)
+                for quad in prior_quads:
+                    undo.add(quad)
             detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
             raise KGValidationError(f"authored entity {entity_id} failed validation: {detail}")
     return iri
@@ -447,6 +473,7 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
     registry = build_prefix_registry(custom_entity_prefixes(project_root))
     written_ids: set[str] = set()
     delete_ids: list[str] = []
+    restore_quads: list[ox.Quad] = []
     counts = {"entities": 0, "relations": 0, "sections": 0}
 
     with KnowledgeGraph.connect(cfg) as kg:
@@ -467,6 +494,7 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
                     registry,
                     store=kg.store,
                     cfg=cfg,
+                    restore_quads=restore_quads,
                 )
             writer.flush()
         report = validate(kg.store, cfg)
@@ -475,6 +503,8 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
             with kg.transaction() as undo:
                 for did in delete_ids:
                     undo.delete_entity(did, cascade=True)
+                for quad in restore_quads:
+                    undo.add(quad)
             detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
             raise KGValidationError(f"transact failed validation: {detail}")
         narrated_doc_ids = {
@@ -504,6 +534,7 @@ def _apply_transact_op(
     *,
     store: ox.Store,
     cfg: Any,
+    restore_quads: list[ox.Quad],
 ) -> None:
     op = raw.get("op")
     if op == "add_entity":
@@ -515,6 +546,13 @@ def _apply_transact_op(
         existing_source_doc = _existing_source_doc(store, cfg, entity_id)
         _guard_entity_not_document_covered(
             store, cfg, entity_id, existing_source_doc or entity_doc_type(raw["class"])
+        )
+        restore_quads.extend(
+            _entity_prior_quads(
+                store,
+                cfg,
+                resolve_entity_iri(entity_id, raw["class"], parent_id, cfg.base_namespace),
+            )
         )
         iri = _stage_entity(
             txn,

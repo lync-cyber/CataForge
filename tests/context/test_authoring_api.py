@@ -258,6 +258,38 @@ def test_author_entity_failed_validation_compensates_relations(tmp_path: Path) -
     gc.collect()
 
 
+def test_author_entity_failed_validation_restores_prior_state(tmp_path: Path) -> None:
+    """A violating re-author of an existing standalone entity restores the
+    prior node instead of deleting it — compensation must not destroy data."""
+    proj = _project(tmp_path)
+    cw.author_entity(
+        str(proj), entity_id="M-001", class_name="Module", title="模块", narrative="原始叙事。"
+    )
+    gc.collect()
+    with pytest.raises(KGValidationError):
+        cw.author_entity(
+            str(proj),
+            entity_id="M-001",
+            class_name="Module",
+            title="模块",
+            relations=[("implements", "F-404")],
+        )
+    gc.collect()
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    with KnowledgeGraph.connect(cfg) as kg:
+        assert kg.query.exists("M-001"), "prior entity must survive the failed re-author"
+        rows = list(
+            kg.store.query(
+                f"PREFIX cf: <{ns}> SELECT ?b WHERE {{ "
+                "<https://cataforge.dev/instance/M-001> cf:narrative_body ?b }"
+            )
+        )
+        assert rows and "原始叙事" in str(rows[0]["b"].value)
+        assert _edge_count(kg, ns) == 0
+    gc.collect()
+
+
 # ---- transact: single-transaction multi-op ----------------------------------
 
 
@@ -408,6 +440,42 @@ def test_transact_add_entity_rejects_document_covered_entity(tmp_path: Path) -> 
         assert _ask(kg, f'ASK {{ ?s <{ns}entity_id> "M-001" ; <{ns}source_doc> "arch-temp" }}'), (
             "M-001 must keep its arch-temp document membership"
         )
+    gc.collect()
+
+
+def test_transact_failed_validation_restores_preexisting_entity(tmp_path: Path) -> None:
+    """Batch compensation must restore a pre-existing entity it re-authored,
+    not delete it along with the batch."""
+    proj = _project(tmp_path)
+    cw.author_entity(
+        str(proj), entity_id="M-001", class_name="Module", title="模块", narrative="原始叙事。"
+    )
+    gc.collect()
+    ops = {
+        "operations": [
+            {
+                "op": "add_entity",
+                "entity_id": "M-001",
+                "class": "Module",
+                "title": "模块",
+                "relations": [["implements", "F-404"]],
+            }
+        ]
+    }
+    with pytest.raises(KGValidationError):
+        cw.transact(str(proj), ops)
+    gc.collect()
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    with KnowledgeGraph.connect(cfg) as kg:
+        assert kg.query.exists("M-001"), "prior entity must survive the failed batch"
+        rows = list(
+            kg.store.query(
+                f"PREFIX cf: <{ns}> SELECT ?b WHERE {{ "
+                "<https://cataforge.dev/instance/M-001> cf:narrative_body ?b }"
+            )
+        )
+        assert rows and "原始叙事" in str(rows[0]["b"].value)
     gc.collect()
 
 
