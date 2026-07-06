@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from cataforge.interface.cli.main import cli
@@ -58,3 +59,28 @@ def test_non_prototype_missing_sprint_is_usage_error(tmp_path: Path) -> None:
     result = CliRunner().invoke(cli, ["unattended", "build", "--project-root", str(tmp_path)])
     assert result.exit_code == 2
     assert result.exit_code != EXIT_PREFLIGHT
+
+
+def test_agile_prototype_wires_prototype_target_into_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Happy path: agile-prototype + a ready brief must drive the loop with the
+    # brief#tasks target (not a dev-plan sprint). Mock the loop to capture it.
+    _write_claude_md(tmp_path, "agile-prototype")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "brief.md").write_text(
+        "---\nid: b\ndoc_type: brief\nstatus: draft\n---\n"
+        "## 5. 开发任务\n### T-001: x\n- AC: 具体断言。\n",
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_loop(root: Path, target: object, **kwargs: object) -> int:
+        captured["target"] = target
+        return EXIT_COMPLETE
+
+    monkeypatch.setattr("cataforge.interface.cli.unattended_cmd.run_building_loop", fake_loop)
+    result = CliRunner().invoke(cli, ["unattended", "build", "--project-root", str(tmp_path)])
+    assert result.exit_code == EXIT_COMPLETE
+    target = captured["target"]
+    assert target.ref == "brief#tasks" and target.prototype is True  # type: ignore[attr-defined]

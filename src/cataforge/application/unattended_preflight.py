@@ -13,10 +13,17 @@ docs and reuse the doc gate's placeholder rule; the CLI runs it ahead of
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.placeholders import count_unresolved_placeholders
+
+# A brief has something to build when it carries at least one task card heading
+# (``### T-001: …``). Anchored on the T-<digit> id convention (NAV: T-001..T-NNN)
+# rather than the section title, so a reworded heading or a prose mention of
+# "开发任务" can neither false-reject nor false-pass.
+_TASK_CARD_RE = re.compile(r"(?m)^#{2,6}\s+T-\d")
 
 
 def _read(path: Path) -> str:
@@ -97,8 +104,8 @@ def preflight_prototype_brief(project_root: Path) -> str | None:
         placeholders += count_unresolved_placeholders(body)
         combined.append(body)
 
-    if "开发任务" not in "\n".join(combined):
-        return "brief 缺少 §5 开发任务——无待建任务卡，无法定位 building 目标"
+    if not _TASK_CARD_RE.search("\n".join(combined)):
+        return "brief 缺少 §5 开发任务卡（未见 ### T- 卡片）——无待建目标，无法定位 building"
     if placeholders:
         return f"brief 含 {placeholders} 处未处理 TODO/TBD/FIXME——AC 未定稿，请先消解"
     return None

@@ -331,6 +331,9 @@ def test_build_prompt_is_target_aware() -> None:
     assert "brief#tasks" in proto
     assert "dev-plan" not in proto
     assert "brief" in proto
+    # Card-level breaks must use the task-card id, never brief#tasks — else the
+    # shell mistakes the first card break for a whole-target circuit and exits.
+    assert "该任务卡 id" in proto
 
 
 def test_rate_limited_matches_subscription_cap_phrasings() -> None:
