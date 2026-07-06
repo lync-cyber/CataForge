@@ -4,7 +4,7 @@
 
 - 技术栈: Python ≥3.10 · Click(CLI) · pyoxigraph/RDF/SHACL(知识图谱) · linkml(schema) · pytest + ruff + pre-commit
 - 运行时: claude-code
-- 框架版本: 0.14.0
+- 框架版本: 0.16.0
   <!-- 由 cataforge deploy 自动盖入已安装包版本。SemVer: MAJOR=不兼容变更, MINOR=新功能, PATCH=修复 -->
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
@@ -32,7 +32,13 @@
 - SDLC 文档管线对本仓 N/A: PRD / ARCH / UI-SPEC / DEV-PLAN / TEST-REPORT / DEPLOY-SPEC 是框架**交付给下游业务项目**的产物，对元项目本身**不需要（非"未开始"）**
 - 进度事实源: git 历史 / PR / CHANGELOG / `docs/proposals/`，不在本文件维护阶段或文档状态字段
 - 剩余 backlog（真实状态以各提案头部为准，本行仅防遗忘指针）:
-  - 走查改进落地 —— `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260706-r1.md`（2026-07-06 standard 全链走查 needs_revision：下一会话先对 framework findings 逐条事实核查再实施，R-001 HIGH「context write 修订门静默失效」优先；process 侧 P-001~P-004 已随 #456 落地 main，P-005 用户驳回不再追）
+  - 走查改进落地 —— `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260706-r1.md`（19 条 framework findings 已于 2026-07-06 逐条事实核查完毕；process 侧 P-001~P-004 已随 #456 落地，P-005 用户驳回不再追）：
+    - 已落地：R-001+R-015+R-019 核心（#458：文档域实体拒写指路 + transact membership 对齐 + narrative 入 content-hash + 协议改道；真实机理=tile-cover 导出不渲染实体节点，非孤儿节点）
+    - 已裁定勿再追：R-016 主体（WARN-never-gate 是设计且 deploy_drift SessionStart hook 已存在接线）、R-010(b)（单路径 exit 2 按设计）、R-009(a) 原诊断（词库早含 16 个中文动词，残余=补 CLI 向动词）
+    - 待实施·checker 簇：R-002（上游实体零行时真空绿应回退文件扫描 + FAIL 措辞，doc_review/checker.py `_kg_bidirectional_coverage`）、R-003（test-report 表格判空 `^\|(?![-\s])` regex 换 parse_markdown_table，typed_checks.py；既有空矩阵测试通过原因错误需一并修）、R-006（`_PLACEHOLDER_RE` 收窄排除 `{C, F, K}` 集合字面量）、R-009 残余（AC 词库补 CLI 动词 + e2e-python.yaml 补 subprocess/CliRunner 原语）
+    - 待实施·CLI 簇：R-005（phase status 加 `--entry` 入口模式）、R-012（Bootstrap 接 `setup --language` 落盘 + CLI help「read-time auto-detect」与消费实况对齐）、R-014（read 激活判定 doc_id→doc_type 归一；_loader_kg.py 把 doc_id 传给期望 doc_type 的 is_active_for 系同根）
+    - 待实施·协议文本簇：R-004（agent-dispatch §写入范围校验加框架副产物豁免；真实破坏向量=tracked 的 EVENT-LOG/snapshots/doc-index，非 gitignored KG store）、R-007（Bootstrap 补 git init 半句，置于 .gitattributes 步骤前）、R-008（micro 短路补延迟任务 L1 scan 兜底）、R-010(a)（--fix 权属=implementer/lint-hook，reviewer 禁用）、R-011（phase_skip 事件语义 + pre_deploy×deployment-N/A 规则，建议=N/A 时豁免）、R-013（Bootstrap Step 6 改「deploy 自动盖入」）、R-017（Phase Transition Step 7 exit 码对账，漂移在协议侧）、R-018（输出语言补「简体」）、tdd-engine 悬空引用「§Post-GREEN Validation」清理
+    - 核查新发现待办：author_entity 校验失败补偿对既有独立实体是破坏性 delete（应恢复原 quads 而非删除）
   - 无人值守构建循环 —— `docs/proposals/unattended-building-loop.md`（核心 + 双层 deny + frozen-upstream preflight 已落，agile-prototype 接线延期；§6.6 MAX_CALLS 已否决）
   - penpot-bridge C2 + E —— `docs/proposals/penpot-bridge-convergence.md`（核心已落，C2/E 子项延期）
 - 已结·勿再追: kg-first 反转 P-1~P-6 全链已完成（直读源码 + 表格保真实证核对，落地进度见 `docs/proposals/kg-first-inversion-pr-cde-plan.md`）；表格 / 动态交叉引用导出保真增量与 C7（`@requires_kg_first` 装饰器）/ C8（`link_to` filter）/ 5.2 投机 flag 经核实非缺陷或冗余、已否决；code-review arch-guard + 复杂度门控静态检查 M1–M5 全落地并测试通过（arch_guard / complexity_gate / api_surface / config_dead_key / pragma_inventory + engine 插件架构 + B3-α/β/γ 自洽守卫，直读源码 + 116 测试核对，`docs/proposals/code-review-arch-guard-complexity-gating.md` 头部已标已落地），仅 §6.4 豁免数量阈值 audit 为可选未做
@@ -59,6 +65,7 @@
 
 - 人工审查检查点: [pre_dev, pre_deploy]
   <!-- 详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
+- 文档类型命名: 小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数和产出文件名
 - 效率原则: 见 COMMON-RULES §全局约定（最小传递 / 不确定时调研 / 选择题优先）；长文拆分阈值 `DOC_SPLIT_THRESHOLD_LINES`
 
 ## 框架机制
@@ -73,7 +80,6 @@
 - 统一配置 `.cataforge/framework.json`:
   - `upgrade.source` — 远程升级源配置。升级时保留用户已配置值，仅补充新字段
   - `upgrade.state` — 本地升级状态。升级时始终保留
-  - `kg` — per-project 用户态（project_id / title / process_model / custom_entity_prefixes）。升级时保留已配置值，仅补充新字段
   - `features` — 功能注册表。升级时全量覆盖
   - `migration_checks` — 迁移检查声明。升级时全量覆盖
 
