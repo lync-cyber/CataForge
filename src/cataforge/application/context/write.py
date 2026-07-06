@@ -553,7 +553,9 @@ def _apply_transact_op(
         )
 
 
-_PLACEHOLDER_RE = re.compile(r"\{[^}]*\}")
+# A template token is a bare `{描述串}`; a brace span containing list
+# separators (`,` `，` `、`) is a set literal (e.g. `{C, F, K}`), not a token.
+_PLACEHOLDER_RE = re.compile(r"\{[^},，、]*\}")
 
 
 def _stamp_absorbed_baseline(

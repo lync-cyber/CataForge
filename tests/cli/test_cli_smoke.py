@@ -116,6 +116,30 @@ class TestSetupCommand:
         )
         assert fw["project"]["languages"] == ["js-ts", "go"]
 
+    def test_setup_backfills_detected_languages_when_unset(self, fresh_project: Path) -> None:
+        """No --language + unset project.languages → detection result is pinned."""
+        import json
+
+        (fresh_project / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+        result = _invoke("setup")
+        assert result.exit_code == 0, result.output
+        fw = json.loads(
+            (fresh_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
+        )
+        assert fw["project"]["languages"] == ["python"]
+
+    def test_setup_keeps_declared_languages_over_detection(self, fresh_project: Path) -> None:
+        """A declared project.languages survives a later no-flag setup run."""
+        import json
+
+        (fresh_project / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+        assert _invoke("setup", "--language", "go").exit_code == 0
+        assert _invoke("setup").exit_code == 0
+        fw = json.loads(
+            (fresh_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
+        )
+        assert fw["project"]["languages"] == ["go"]
+
     def test_setup_language_dry_run_previews(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -106,12 +106,17 @@ def _find_phase_doc(docs_dir: Path, doc_type: str) -> Path | None:
     return next((c for c in candidates if c.is_file()), None)
 
 
-def evaluate_phase(root: Path) -> tuple[str | None, list[tuple[str, bool, str]]]:
+def evaluate_phase(
+    root: Path, *, entry: bool = False
+) -> tuple[str | None, list[tuple[str, bool, str]]]:
     """Evaluate the current phase's expected artifacts.
 
     Returns ``(current_phase, checks)`` where each check is
-    ``(label, ok, detail)``. Raises :class:`CataforgeError` when the project
-    has no readable instruction file (not a driven CataForge project).
+    ``(label, ok, detail)``. ``entry`` restricts evaluation to the
+    phase-entry checks (phase recognised + phase_start logged) — the phase's
+    documents are structurally absent at entry, so the doc gates apply only
+    at closeout. Raises :class:`CataforgeError` when the project has no
+    readable instruction file (not a driven CataForge project).
     """
     state_path = resolve_instruction_file(root)
     if not state_path.is_file():
@@ -144,6 +149,8 @@ def evaluate_phase(root: Path) -> tuple[str | None, list[tuple[str, bool, str]]]
             "present" if current in phase_starts else "no phase_start event for this phase",
         )
     )
+    if entry:
+        return current, checks
 
     doc_types = PHASE_DOC_TYPE.get(current)
     if doc_types is None:

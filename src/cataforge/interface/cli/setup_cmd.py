@@ -43,7 +43,8 @@ if TYPE_CHECKING:
     metavar="LANG",
     help=(
         "Declare a project language (repeatable). Synonyms like 'typescript' "
-        "normalise to canonical ids. Omit to auto-detect from markers at read time."
+        "normalise to canonical ids. Omit to detect from markers and pin the "
+        "result when project.languages is unset."
     ),
 )
 @click.option(
@@ -268,23 +269,29 @@ def _ensure_gitattributes(root: Path) -> None:
 
 
 def _apply_languages(cfg: ConfigManager, languages: tuple[str, ...]) -> None:
-    """Write declared ``project.languages``, or hint at what auto-detect sees."""
-    from cataforge.core.languages import active_languages, detect_languages, normalize
+    """Write declared ``project.languages``, backfilling from detection when unset.
+
+    SKILL-side consumers read ``project.languages`` verbatim and skip their
+    lang-rule loading when it is empty, so an unpinned project must be
+    backfilled here — detection output that is only echoed never reaches them.
+    """
+    from cataforge.core.languages import detect_languages, normalize
 
     if languages:
         normalized = normalize(list(languages))
         cfg.set_languages(normalized)
         click.echo(f"Languages set to: {', '.join(normalized)}")
         return
-    # None declared — surface detection so the user knows what the SSOT resolves
-    # to, and how to pin it.
+    if cfg.languages:
+        return
     detected = detect_languages(cfg.paths.root)
     if detected:
+        cfg.set_languages(detected)
         click.echo(
-            f"  detected languages: {', '.join(detected)} "
-            "(auto-detected at read time; pin with `setup --language <id>`)"
+            f"  detected languages pinned to project.languages: {', '.join(detected)} "
+            "(override with `setup --language <id>`)"
         )
-    elif not active_languages(cfg):
+    else:
         click.echo(
             "  no project languages declared or detected (declare with `setup --language <id>`)"
         )

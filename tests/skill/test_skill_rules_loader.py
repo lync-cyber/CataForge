@@ -309,6 +309,19 @@ def test_e2e_python_real_input_matches_send_keys() -> None:
     assert any(p.search(sample) for p in rule.real_input_patterns)
 
 
+def test_e2e_python_real_input_matches_cli_primitives() -> None:
+    """subprocess/CliRunner/pexpect-driven CLI e2e counts as real user input."""
+    rule = ep.load_e2e_rules().rule_for_extension(".py")
+    assert rule is not None
+    for sample in (
+        "subprocess.run([sys.executable, 'cli.py', '32'], capture_output=True)",
+        "result = runner.invoke(cli, ['convert', '32'])",
+        "child = pexpect.spawn('converter --help')",
+        "out, err = proc.communicate('32\\n')",
+    ):
+        assert any(p.search(sample) for p in rule.real_input_patterns), sample
+
+
 def test_wiring_check_loads_project_override_at_runtime(tmp_path: Path) -> None:
     """A project override YAML is honored when the wiring check runs.
 

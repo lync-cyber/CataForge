@@ -34,6 +34,13 @@ _AC_OBSERVABLE_VERBS = (
     "落盘",
     "回调",
     "广播",
+    "输出",
+    "打印",
+    "生成",
+    "报错",
+    "校验",
+    "提示",
+    "退出",
     "render",
     "return",
     "display",
@@ -53,6 +60,9 @@ _AC_OBSERVABLE_VERBS = (
     "raise",
     "show",
     "hide",
+    "print",
+    "exit",
+    "output",
 )
 _AC_OBSERVABLE_RE = re.compile(
     "(" + "|".join(re.escape(v) for v in _AC_OBSERVABLE_VERBS) + ")",
@@ -381,8 +391,8 @@ class TypedDocChecksMixin:
             re.DOTALL | re.MULTILINE,
         )
         if table_match:
-            rows = re.findall(r"^\|(?![-\s])", table_match.group(1), re.MULTILINE)
-            if max(0, len(rows) - 1) == 0:
+            table = parse_markdown_table(table_match.group(1))
+            if table is None or not table.rows:
                 self.fail("测试用例矩阵为空 (无数据行)")
         cov_match = re.search(
             r"^## .*覆盖率目标(.*?)(?=^## |\Z)",

@@ -24,6 +24,25 @@ if TYPE_CHECKING:
 _SECTION_NUMBER_RE = re.compile(r"^\d+(?:\.\d+)*$")
 
 
+def _effective_doc_type(doc_id: str, project_root: str) -> str:
+    """Resolve a ref's doc addressing form to its doc_type for activation checks.
+
+    Refs address a document either by doc_type alias (``prd#…``) or by full
+    doc_id (``prd-temperature-converter#…``); KG activation is declared per
+    doc_type, so the full-id form resolves through the docs index. An id the
+    index cannot resolve passes through verbatim (the alias form).
+    """
+    from cataforge.domain.docs.loader import _load_index  # noqa: PLC0415
+
+    index = _load_index(project_root)
+    entry = ((index or {}).get("documents") or {}).get(doc_id)
+    if isinstance(entry, dict):
+        doc_type = entry.get("doc_type")
+        if isinstance(doc_type, str) and doc_type:
+            return doc_type
+    return doc_id
+
+
 def _anchor_section_number(anchor: str) -> str | None:
     """Return the leading numeric path of a section anchor, e.g.
 
@@ -59,7 +78,7 @@ def _try_kg_extract(
         from cataforge.domain.kg._dispatch import is_active_for, kg_config_for
     except ImportError:
         return None
-    if not is_active_for(doc_id, project_root):
+    if not is_active_for(_effective_doc_type(doc_id, project_root), project_root):
         return None
     try:
         from cataforge.domain.kg import KnowledgeGraph
@@ -163,7 +182,7 @@ def _try_kg_resolve_deps(ref: str, project_root: str, max_depth: int) -> list[st
         from cataforge.domain.kg._dispatch import is_active_for  # noqa: PLC0415
     except ImportError:
         return None
-    if not is_active_for(doc_id, project_root):
+    if not is_active_for(_effective_doc_type(doc_id, project_root), project_root):
         return None
     try:
         from cataforge.domain.kg import KnowledgeGraph  # noqa: PLC0415
@@ -235,7 +254,7 @@ def _all_active_parsed_refs(
             doc_id, _section, item_id = parse_ref(ref)
         except LoadSectionError:
             return None
-        if doc_id not in active or item_id is None:
+        if _effective_doc_type(doc_id, project_root) not in active or item_id is None:
             return None
         parsed.append((ref, doc_id, item_id))
     return parsed
