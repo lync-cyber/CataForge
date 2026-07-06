@@ -108,6 +108,15 @@
         ]
       },
       {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m cataforge.runtime.hook.scripts.guard_frozen_docs"
+          }
+        ]
+      },
+      {
         "matcher": "Agent",
         "hooks": [
           {
