@@ -4,7 +4,7 @@
 
 - 技术栈: Python ≥3.10 · Click(CLI) · pyoxigraph/RDF/SHACL(知识图谱) · linkml(schema) · pytest + ruff + pre-commit
 - 运行时: claude-code
-- 框架版本: 0.14.0
+- 框架版本: 0.16.0
   <!-- 由 cataforge deploy 自动盖入已安装包版本。SemVer: MAJOR=不兼容变更, MINOR=新功能, PATCH=修复 -->
 - 语言定位: 中文框架（提示词/文档/交互用中文；代码/变量/CLI参数用英文）
 - 执行模式: standard
@@ -32,10 +32,12 @@
 - SDLC 文档管线对本仓 N/A: PRD / ARCH / UI-SPEC / DEV-PLAN / TEST-REPORT / DEPLOY-SPEC 是框架**交付给下游业务项目**的产物，对元项目本身**不需要（非"未开始"）**
 - 进度事实源: git 历史 / PR / CHANGELOG / `docs/proposals/`，不在本文件维护阶段或文档状态字段
 - 剩余 backlog（真实状态以各提案头部为准，本行仅防遗忘指针）:
-  - 走查改进落地【已收口】—— `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260706-r1.md`：19 条 framework findings 2026-07-06 逐条事实核查后全部处置完毕——#458 落 R-001 核心（真实机理=tile-cover 导出不渲染实体节点，非孤儿节点；文档域实体拒写指路 + transact membership 对齐 + narrative 入 content-hash + 修订门协议改道），后续批量 PR 落 R-002/003/005/006/009 残余/012/014 + 失败补偿快照恢复 + 协议文本簇（R-004/007/008/010a/011/013/017/018 + tdd-engine 悬空引用 + transact 导流示例）；**裁定勿再追**: R-016 主体（WARN-never-gate 是设计且 deploy_drift SessionStart hook 已在）、R-010(b)（单路径 exit 2 按设计）、R-009(a) 原诊断（词库早含中文动词）；process 侧 P-001~P-004 已随 #456 落地，P-005 用户驳回
-  - 无人值守构建循环 —— `docs/proposals/unattended-building-loop.md`（核心 + 双层 deny + frozen-upstream preflight 已落，agile-prototype 接线延期；§6.6 MAX_CALLS 已否决）
+  - 无人值守构建循环 —— `docs/proposals/unattended-building-loop.md`（核心已落，agile-prototype 接线延期；§6.6 MAX_CALLS 已否决）
   - penpot-bridge C2 + E —— `docs/proposals/penpot-bridge-convergence.md`（核心已落，C2/E 子项延期）
-- 已结·勿再追: kg-first 反转 P-1~P-6 全链已完成（直读源码 + 表格保真实证核对，落地进度见 `docs/proposals/kg-first-inversion-pr-cde-plan.md`）；表格 / 动态交叉引用导出保真增量与 C7（`@requires_kg_first` 装饰器）/ C8（`link_to` filter）/ 5.2 投机 flag 经核实非缺陷或冗余、已否决；code-review arch-guard + 复杂度门控静态检查 M1–M5 全落地并测试通过（arch_guard / complexity_gate / api_surface / config_dead_key / pragma_inventory + engine 插件架构 + B3-α/β/γ 自洽守卫，直读源码 + 116 测试核对，`docs/proposals/code-review-arch-guard-complexity-gating.md` 头部已标已落地），仅 §6.4 豁免数量阈值 audit 为可选未做
+- 已结·勿再追（提案/评审头部为权威，此处仅防重复提议）:
+  - kg-first 反转全链完成（`docs/proposals/kg-first-inversion-pr-cde-plan.md`）；表格/xref 保真增量、C7 装饰器、C8 filter、5.2 投机 flag 均经核实否决
+  - code-review arch-guard + 复杂度门控 M1–M5 落地（`docs/proposals/code-review-arch-guard-complexity-gating.md`）；仅 §6.4 豁免阈值 audit 可选未做
+  - 2026-07-06 走查 19 条 framework findings 全部处置（#458/#460 落地，报告 `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260706-r1.md`）；R-016 主体、R-010(b)、R-009(a) 原诊断经核实非缺陷
 - Learnings Registry: (compacted; archive in .cataforge/learnings/registry-archive.md)
   <!-- 上限：framework.json#claude_md_limits.learnings_registry_max_entries；超限运行 `cataforge claude-md compact` -->
 
@@ -50,7 +52,7 @@
 
 ## 全局约定
 
-- 命名: Python 用 snake_case；CLI 参数 / 文档类型 / 产出文件名用小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数
+- 命名: Python 用 snake_case（文档类型 / CLI 参数的 kebab-case 见下方「文档类型命名」行）
 - Commit: conventional-commits `<type>(<scope>): <subject>`（详见 §Git 工作流）
 - 分支: `main` 受保护，feature branch + PR，仅 Squash merge（详见 §Git 工作流）
 - 设计工具: none
@@ -59,6 +61,7 @@
 
 - 人工审查检查点: [pre_dev, pre_deploy]
   <!-- 详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
+- 文档类型命名: 小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数和产出文件名
 - 效率原则: 见 COMMON-RULES §全局约定（最小传递 / 不确定时调研 / 选择题优先）；长文拆分阈值 `DOC_SPLIT_THRESHOLD_LINES`
 
 ## 框架机制
