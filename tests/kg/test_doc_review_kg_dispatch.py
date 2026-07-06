@@ -143,7 +143,7 @@ def test_check_xref_falls_back_when_kg_inactive(tmp_path: Path) -> None:
 
     checker = DocChecker("prd", str(doc_file), docs_dir=str(docs), quiet=True)
     checker.check_xref()
-    assert checker._maybe_kg_xref_resolver() is None
+    assert checker._maybe_kg_xref_resolvers() is None
 
 
 def test_bidirectional_coverage_uses_kg_when_active(tmp_path: Path) -> None:
@@ -225,7 +225,7 @@ def test_xref_bypasses_kg_under_doc_only_despite_store(tmp_path: Path) -> None:
     invalidate_cache()
 
     checker = DocChecker("prd", str(doc_file), docs_dir=str(project / "docs"), quiet=True)
-    assert checker._maybe_kg_xref_resolver() is None
+    assert checker._maybe_kg_xref_resolvers() is None
 
 
 def test_bidirectional_coverage_bypasses_kg_under_doc_only_despite_store(
