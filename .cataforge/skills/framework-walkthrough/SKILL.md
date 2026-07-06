@@ -62,7 +62,7 @@ user-invocable: true
 4. 单轮预算保护：某路径反复 needs_revision / blocked 超两轮仍不收敛，停止驱动并把卡点记为 finding（见 walkthrough-protocol §4）
 
 ### Step 5: 驱动终止/清理路径并收集证据（路径图 §6）
-1. 确认收敛条件成立（该模式阶段集合内最后一个非 N/A 阶段完成且评审通过；任务数 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT` 时跳过 sprint-review；deployment 标 N/A）
+1. 确认收敛条件成立（该模式阶段集合内最后一个非 N/A 阶段完成且评审通过；CLI 示例经 B-4 短路、UI 示例经 B-15 正常 sprint-review 收敛；deployment 标 N/A）
 2. 汇总沙盒产物清单（`docs/` 各文档、`docs/reviews/*`、`PROJECT-STATE`）与 `docs/EVENT-LOG.jsonl` 关键事件、任何错误/卡点的原始输出
 
 ### Step 6: 产出走查改进报告

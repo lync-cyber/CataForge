@@ -33,9 +33,9 @@
 2. **architecture (Phase 2)**：architect 产 ARCH（喂架构契约 C-001/C-002/API-001）→ doc-review。此转换起 doc-consistency（C-5d）首次满足触发条件。
 3. **ui_design (Phase 3)**：缺省 CLI 示例标 N/A 跳过——顺带确认 B-12 skippable 路由不误判缺产物。`--example temperature-converter-ui` 时真驱动（B-13）：design_tool=none 走 ui-designer 纯文本流产 ui-spec → doc-review；要连带观察 Capability Gate 降级（B-14）则 Bootstrap 时设计工具选 penpot。
 4. **dev_planning (Phase 4)**：tech-lead 产 DEV-PLAN（喂任务分解，task-decomp / task-dep-analysis 拆卡与依赖建模）→ doc-review；转入 development 前命中 `pre_dev` 人工检查点，按 §3 代答并记录交互负担。
-5. **development (Phase 5)**：按 T-001/T-002/T-003 跑 TDD（缺省 light；预估 LOC 超 `TDD_LIGHT_LOC_THRESHOLD` 或标 `security_sensitive` 时升 standard 档——正好观察分档判定）+ code-review（短路判定按 `CODE_REVIEW_L2_SKIP_*`）。
+5. **development (Phase 5)**：按 T-001/T-002/T-003 跑 TDD（缺省 light；升档观察经 full 深度的 C-6 探针）+ code-review 分级触发（T-001 带 `consumer_components` 走即时审查且恒命中 L2 豁免全跑；T-002/T-003 延迟到 sprint-review 侧，见 B-4/B-15）。Sprint 收口后确认 C-9 viz dashboard 保底焊点（§2.5）。
 6. **testing (Phase 6)**：qa-engineer 做集成/E2E 补充与 TEST-REPORT——观察 testing 阶段编排与 verdict 语义（approved / conditional_release 的 blocking_conditions 阻塞）。
-7. **deployment (Phase 7)**：标 N/A；`pre_deploy` 检查点按 §3 代答后进入终止路径。
+7. **deployment (Phase 7)**：标 N/A。`pre_deploy` 检查点在 deployment 被跳过时是否仍触发，协议未明定——实际行为（触发/不触发/报错）本身即观察点，如实入账本；若触发则按 §3 代答。
 
 相对 lite 档的覆盖增量：全量文档 Layer 2 门禁、pre_dev / pre_deploy / post_sprint 检查点、testing 阶段、TDD 分档判定。代价是单轮更重；追求快速冒烟时显式降 `--mode agile-lite`。
 
@@ -85,17 +85,25 @@ Sprint 视为 approved 后（含 micro 短路路径）与全部 Sprint 完成进
 
 `--depth smoke` 只跑主干，分支/异常路径多为 not-reached。`--depth full` 在 happy path 收敛后，对下列**可确定性触发**的路径各做一次最小扰动探针；每个探针是一次有界观察，触发并记录该路径行为后即恢复主干，不展开成另一条完整 SDLC。扰动素材见 [`example-project.md`](example-project.md) §探针扰动。
 
+探针通用规则：
+
+- **终止点**：每个探针以「目标行为被观察到」为收束点。可能连锁展开的探针（如 B-6 被路由为 cascade_amendment 会触发 PRD→ARCH→DEV-PLAN 逐级修订）在路由/选项**展示**后选「取消/不执行」收束——路由执行本身记 not-reached 并注明，不让单个探针横向吃掉主干预算。
+- **判级依赖型**（B-3 / E-2 / E-1）：结果取决于 reviewer/agent 的运行时判断（判级、是否提问），未命中预期 verdict 时账本记 not-reached: 判级偏离，不重试死磕。
+
 | 路径 | 探针（最小扰动） | 看什么 |
 |------|-----------------|--------|
 | B-3 Approved-with-Notes | 在某文档留 ≥1 个 MEDIUM/LOW 级瑕疵（如缺一条非功能约束），让 reviewer 出 approved_with_notes | 4 选项是否展示、选项 4（全量 inline-fix）门控条件是否正确 |
-| B-4 Sprint Review 短路 | 用 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT` 个任务的示例（temperature-converter 默认 3 个即满足） | 是否跳过 sprint-review 并记 skip 事件 |
+| B-1 模式三分叉 | 单轮不适用——须另起 `--mode` 重跑对比阶段集合/文档产出差异；单轮账本记 not-reached: 需多轮 | 跨模式差异是否符合执行模式矩阵 |
+| B-4 Sprint Review 短路 | 仅 CLI 示例（3 任务恰 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT`）；UI 示例 4 任务走 B-15 正常路径 | 是否跳过 sprint-review 并记 skip 事件 |
+| B-15 sprint-review 正常路径 | 零扰动——UI 示例 4 任务自然命中 | Batch Code-Review 是否逐任务覆盖延迟任务、needs_revision 是否只回炉 CRITICAL/HIGH |
 | B-5 Parallel Dispatch | dev-plan 里让 T-002 / T-003 互不依赖、同 sprint_group | 是否单消息批量调度、deliverables 路径冲突是否降级串行 |
 | B-6 Change Request | development 前向主线程提交一句变更（如「F-003 改保留 1 位小数」） | change-guard 是否分析、action 路由（proceed/amend/cascade）是否正确 |
 | B-7 模式回退 | agile-lite 下故意把 prd-lite 写到 >150 行（仅 `--mode agile-lite` 可触发；standard 下账本标 not-reached: 模式不适用） | 是否提示升档、是否误自动改写模式字段 |
 | B-12 skippable N/A | 确认 ui_design/testing/deployment 标 N/A | 路由是否跳过、不误判缺产物 |
 | B-13 ui_design 真驱动 | 改用 `--example temperature-converter-ui`（非扰动，example 选择） | 纯文本 ui-spec 流是否顺畅、UI 保真 AC 是否断言渲染/计算效果而非字面、无渲染证据时是否 conditional_release 而非 `[ENV-LIMITATION]` 豁免 |
 | B-14 Capability Gate 降级 | Bootstrap 设计工具选 penpot（沙盒无 penpot MCP） | 「工具未注册」vs「连接失败」是否分开报告、降级是否落真值 design_tool→none 并记 state_change EVENT、有无静默降级 |
-| E-1 Interrupt-Resume | 起 inline 角色时漏喂一项必填输入（如不给目标精度），诱发澄清 | inline 角色直接 AskUserQuestion（不走 needs_input）；派发子代理才经 needs_input 回传 |
+| E-1 Interrupt-Resume | 派发 subagent 阶段（dev_planning tech-lead）时漏喂 Sprint 划分偏好，诱发 needs_input 回传（inline 阶段的 AskUserQuestion 澄清不属 E-1；判级依赖型） | needs_input → continuation 重启是否成立、每阶段 2 轮上限是否生效 |
+| C-6 TDD 升档 | dev-plan 阶段把 T-003 标 `security_sensitive: true` | 是否升 standard 档（RED/GREEN 分离）、是否触发即时 code-review 且强制 Layer 2；REFACTOR 未命中 `TDD_REFACTOR_TRIGGER` 记 not-reached |
 | E-2 Revision | 让首版文档缺一个 CRITICAL/HIGH 必备项（如 arch 缺 API 契约），诱发 needs_revision | 是否调 task_type=revision、增量审查是否只审 diff + 上轮高危维度、needs_revision(N) 是否累计 |
 
 机会观察类（路径图标 `O`：E-3 rolled-back / E-4 TDD blocked / E-5 crash / E-6 truncation / E-7 cascade 中断 / E-9 Layer 1 FAIL / B-8~B-11 一致性门分支）**不做人为破坏注入**——强行制造崩溃会偏离真实行为、污染归因。它们若在 `D`/`P` 路径推进中自然出现即记录，否则账本标 not-reached 并写明「单轮未自然触发」。

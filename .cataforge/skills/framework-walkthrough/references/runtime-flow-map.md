@@ -26,6 +26,8 @@
 
 探针（`P`）是**一次有界观察**，触发一条路径就够、不展开成完整 SDLC。机会观察（`O`）路径在 `smoke` 与 `full` 下都可能为 not-reached，须在账本写明原因（如「单轮未发生子代理崩溃」），不可凭空标 driven。
 
+`P` 中的**零扰动型**（触发条件是示例结构或走查配置而非扰动，如 B-4/B-5/B-12/B-13/B-15）在 `smoke` 下自然命中时按实际处置记 driven；须跨多轮才能触发的（如 B-1 跨模式对比）单轮账本记 not-reached 并注明「需另起配置重跑」。
+
 ## 2. 初始化路径（Bootstrap）
 
 入口：`ORCHESTRATOR-PROTOCOLS §Project Bootstrap`（{INSTRUCTION_FILE} 缺失时）。走查在沙盒 cwd 内主线程扮演 orchestrator 逐步推进。
@@ -54,7 +56,7 @@
 | C-4 | doc-review 门禁 | Layer 1 强制；按 `DOC_REVIEW_L2_SKIP_*` 判断 Layer 2 短路 | D | 该审却没审 / 该短路却全跑；Layer 1 退出码 |
 | C-5 | Phase Transition | 8 步状态持久化 + 一致性门（见 §3.1） | D | 8 步是否全做、顺序是否在派发下一阶段前完成 |
 | C-6 | TDD development | 按 tdd-engine 档位执行 RED/GREEN/REFACTOR（standard）或 light 合并或 prototype-inline | D | 档位选择是否符合 `TDD_*` 常量、子代理隔离是否成立 |
-| C-7 | code-review 门禁 | GREEN 后跑 code-review；按 `CODE_REVIEW_L2_SKIP_*` 判断短路 | D | 短路判定、security/error-handling 关键字是否抑制短路 |
+| C-7 | code-review 门禁 | 带触发 flag（security_sensitive / user_facing_critical_path / consumer_components 非空）的任务 GREEN 后即时 per-task code-review；其余延迟到 sprint-review 批量（B-15）。示例 T-001 钉 consumer_components 保证本路径结构性可达 | D | 即时审查任务恒命中 L2 短路豁免（豁免清单与即时触发条件重合）——「该短路」态在标准编排是否可达本身是观察议题，勿徒劳找两态；延迟任务是否被误即时审查 |
 | C-8 | phase status 硬校验 | 每跨完一阶段跑 `cataforge phase status`，退出非 0 即该阶段 blocked | D | 委派子代理「只部署不驱动」会在此暴露 |
 | C-9 | Sprint 收口 viz dashboard 保底焊点 | Sprint 视为 approved 后（短路与正常路径均适用）跑 `cataforge viz dashboard -o docs/viz/dashboard.html`；数据源未就绪时 `viz status` 自陈空视图、跳过不报错 | D | 焊点是否真跑、产物是否落地、数据缺失降级是否显式（tile 显示 `—` + `run:` 指引）而非静默缺席；agent 情境自主调 `cataforge viz <视图>`（project-visualization 发现型）若自然出现即记录 |
 
@@ -92,6 +94,7 @@
 | B-12 | skippable 阶段 N/A | §阶段配置 标 ui_design/testing/deployment N/A | 路由跳过该阶段，不产对应文档 | P | N/A 阶段是否被正确跳过、不误判为缺产物 |
 | B-13 | ui_design 真驱动（UI 链路） | 走查 `--example temperature-converter-ui` | ui_design 不标 N/A；design_tool=none 走 ui-designer 纯文本流产 ui-spec → doc-review；development 含 UI 保真类任务；code-review 命中 ui_fidelity（Layer 1）与 visual-fidelity 维度；沙盒取不到渲染证据时 reviewer 出 `conditional_release` + 非空 `blocking_conditions` | P | 纯文本流是否顺畅、UI 保真 AC 是否被写成字面断言反模式（只断言 token/类名存在）、无渲染证据时是否误用 `[ENV-LIMITATION]` 豁免而非 conditional_release |
 | B-14 | Design-Tool Capability Gate 降级 | Bootstrap 设计工具选 penpot 而沙盒无 penpot MCP | 进 ui_design 前探测 → 区分「工具未注册」vs「连接失败/插件未连」→ 不静默降级、给选项 → 用户选降级时 design_tool penpot→none 落真值 + 记 state_change EVENT → 纯文本流继续 | P | 两类不可用形态是否分开报告、降级是否落真值并记 EVENT、是否出现静默降级 |
+| B-15 | sprint-review 正常路径（Batch Code-Review） | Sprint 任务数 > `SPRINT_REVIEW_MICRO_TASK_COUNT`（UI 示例 4 任务自然命中，与 B-4 互斥对偶） | 派 reviewer 跑 sprint-review：产 SPRINT-REVIEW 报告；延迟任务在 §per-task L2 维度表逐任务覆盖 structure/error-handling/test-quality/security（Batch Code-Review），不产独立 CODE-REVIEW 文件 | P | 批量审查是否真覆盖全部延迟任务、needs_revision 是否只回炉 CRITICAL/HIGH 任务且不计入 Phase 级计数 |
 
 ## 5. 异常处理路径
 
@@ -114,7 +117,7 @@
 
 | id | 路径 | 期望行为 | 处置 | 观察重点 |
 |----|------|---------|------|---------|
-| T-1 | 收敛判定 | development 全部 approved + 评审通过；任务数 ≤ micro 阈值跳 sprint-review；deployment 标 N/A | D | 收敛条件是否齐备、有无遗留 needs_revision |
+| T-1 | 收敛判定 | development 全部 approved + 评审通过；CLI 示例经 B-4 短路收敛、UI 示例经 B-15 正常 sprint-review 收敛；deployment 标 N/A | D | 收敛条件是否齐备、有无遗留 needs_revision |
 | T-2 | 项目完成态 | {INSTRUCTION_FILE} 当前阶段可达 completed（或走查在 development 收口即停） | D | 状态与产物是否一致 |
 | T-3 | 证据收集 | 汇总产物清单 + EVENT-LOG 关键事件 + 错误原始输出 | D | EVENT-LOG 与实际推进是否一致、有无漏写事件 |
 | T-4 | 走查报告 | 产 FRAMEWORK-REVIEW-walkthrough（两类 findings + 覆盖账本 + 三态判定） | D | 账本是否覆盖本表全部路径 |

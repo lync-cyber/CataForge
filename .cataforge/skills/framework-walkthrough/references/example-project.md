@@ -43,7 +43,11 @@
 | T-002 | cli-adapter 参数解析与输出格式化 | T-001 | light |
 | T-003 | 错误路径：未知单位 / 非数值 / 低于绝对零度 | T-001 | light |
 
+喂 dev-plan 时 T-001 须带 `consumer_components: [cli-adapter]`（T-002/T-003 消费 core）——使 C-7 即时 per-task code-review 在 CLI 配置结构性可达；否则三任务全延迟、叠加 B-4 短路后 code-review 全程零触发。T-002/T-003 不带触发 flag，保持「延迟到 sprint-review」侧同样被观察。
+
 ### 验收标准（TDD 断言锚点）
+
+锚点归属：核心转换数学归 T-001（断言 `convert()` 返回值），输出格式（两位小数字符串）归 T-002，错误路径 3 条归 T-003——per-task AC 保持 ≤6，避免触发 task-decomp「AC > 6 必拆」把任务数推过 `SPRINT_REVIEW_MICRO_TASK_COUNT`、意外击穿 B-4 短路结构。
 
 正常路径：
 
@@ -60,6 +64,8 @@
 - `-300 C K` → 报错「低于绝对零度」+ 非零退出
 - `10 C X` → 报错「未知单位」+ 非零退出
 - `abc C F` → 报错「非数值」+ 非零退出
+
+testing 阶段（standard）集成面约束：CLI 进程级 4 条用例（3 条错误路径 + 1 条正常路径），不再扩展——qa-engineer 对纯函数示例过度展开集成矩阵是纯 token 开销，阶段编排本身才是观察对象。
 
 ### 为何选它
 
@@ -96,11 +102,12 @@
 | 目标路径 | 扰动 | 触发点 |
 |---------|------|--------|
 | B-3 Approved-with-Notes | arch(-lite) 里 C-001 不写「先归一化到开尔文」这条非功能约束，留作 MEDIUM | doc-review arch |
-| B-4 Sprint Review 短路 | 不扰动——T-001/T-002/T-003 共 3 个任务，恰 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT`，主干即命中 | development 收口 |
+| B-4 Sprint Review 短路 | 不扰动——仅 CLI 示例：3 个任务恰 ≤ `SPRINT_REVIEW_MICRO_TASK_COUNT`，主干即命中；UI 示例 4 任务走 B-15 正常路径，二者互斥对偶 | development 收口 |
 | B-5 Parallel Dispatch | dev-plan(-lite) 把 T-002、T-003 都只依赖 T-001、互不依赖、归同一 sprint_group | dev_planning |
 | B-6 Change Request | development 开始前提交一句「F-003 输出改保留 1 位小数」 | development 前 |
 | B-7 模式回退 | 让 prd-lite 写到 >150 行（如把每个错误码展开成段）；仅 `--mode agile-lite` 可触发 | planning |
-| E-1 Interrupt-Resume | 起 architect inline 时不预先给定「归一化中转单位选开尔文还是摄氏」 | architecture/planning |
+| E-1 Interrupt-Resume | 派发 dev_planning 的 tech-lead（subagent）时不预先给定 Sprint 划分偏好与 TDD 档位期望，诱发 needs_input 回传（inline 阶段的 AskUserQuestion 澄清是预期行为、不属 E-1；判级依赖型——agent 自行 `[ASSUMPTION]` 未提问时记 not-reached） | dev_planning |
+| C-6 TDD 升档 | dev-plan 阶段把 T-003 标 `security_sensitive: true` → TDD 升 standard 档（RED/GREEN 分离）+ 触发即时 code-review 且强制 Layer 2；REFACTOR 仍按 `TDD_REFACTOR_TRIGGER` 条件触发，未命中记 not-reached | dev_planning |
 | E-2 Revision | arch(-lite) 首版漏掉 API-001 的「归一化后开尔文 < 0 抛领域错误」契约（CRITICAL） | doc-review arch |
 | B-13 ui_design 真驱动 | 不是扰动——改用 `--example temperature-converter-ui`（UI 增量见上节） | ui_design 起 |
 | B-14 Capability Gate 降级 | Bootstrap 时设计工具选 penpot（沙盒无 penpot MCP），进 ui_design 触发 gate；观察降级后选「纯文本手工 ui-spec」 | ui_design 前 |
