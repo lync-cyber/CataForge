@@ -16,7 +16,7 @@
 ## 全局约定
 - 遵循项目指令文件中定义的全局约定（§效率原则）。
 - 单一事实来源：每条规则只在一个文件中定义完整内容，他处引用不重述。
-- 输出语言：所有 Agent 产出的文档 / 审查报告 / RETRO / 用户交互均使用**中文**；代码、变量命名、CLI 参数、框架参数（doc_type / template_id 等）使用英文；枚举值（status / category / root_cause / severity 等）始终英文，即使在中文文本中也不翻译——例：写"问题严重等级为 CRITICAL"而非"严重"。
+- 输出语言：所有 Agent 产出的文档 / 审查报告 / RETRO / 用户交互均使用**简体中文（zh-Hans）**；代码、变量命名、CLI 参数、框架参数（doc_type / template_id 等）使用英文；枚举值（status / category / root_cause / severity 等）始终英文，即使在中文文本中也不翻译——例：写"问题严重等级为 CRITICAL"而非"严重"。
 
 ## 框架配置常量
 本表是框架级参数的单一事实来源。**禁止在 SKILL.md / AGENT.md / 模板中硬编码同一数值**，应直接引用常量名。
@@ -61,7 +61,7 @@
 | phase_transition | 每次阶段转换 | 所有 Phase N→N+1 暂停（最严格，隐含 pre_dev / pre_deploy / post_doc_freeze） |
 | post_doc_freeze | PRD 冻结后（Phase 1→2）、ARCH 冻结后（Phase 2→3） | 只门禁冻结类文档转换，不门禁全部；适合 ARCH 返工成本高的大型项目 |
 | pre_dev | Phase 4→5 前 | 开发阶段成本最高，确认开发计划与资源 |
-| pre_deploy | Phase 6→7 前 | 部署 go/no-go |
+| pre_deploy | Phase 6→7 前 | 部署 go/no-go；deployment 标 N/A 时本检查点随之豁免 |
 | post_sprint | Sprint Review 通过后 | 是否继续下一 Sprint |
 | none | — | 完全自动推进，仅保留失败驱动门禁 |
 

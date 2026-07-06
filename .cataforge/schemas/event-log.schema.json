@@ -29,7 +29,8 @@
         "correction",
         "doc_finalize",
         "sprint_complete",
-        "circuit_open"
+        "circuit_open",
+        "phase_skip"
       ],
       "description": "事件类型枚举"
     },

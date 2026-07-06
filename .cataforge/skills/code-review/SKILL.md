@@ -30,7 +30,7 @@ user-invocable: true
 - **已配置 lint hook** → 编码阶段已通过 hook 以 `--fix` 模式实时修复格式/lint问题，跳过 Layer 1，直接进入 Step 2 Layer 2，并在审查报告标题下标注 `Layer 1 delegated to hook`
 - **未配置 lint hook** → 执行: `cataforge skill run code-review -- review {file_or_dir}`
 
-**调用约定**: 入口与返回码语义按 COMMON-RULES §Layer 1 调用协议。本 skill 增量：exit 1 时可追加 `--fix` 自动修复后重新检查；未知参数与非法 `--focus` 值为用法错误（exit 2）；两个模式均支持 `--format json` 输出结构化 finding（Layer 2 与报告聚合的机读输入）。
+**调用约定**: 入口与返回码语义按 COMMON-RULES §Layer 1 调用协议。本 skill 增量：exit 1 时可追加 `--fix` 自动修复后重新检查——`--fix` 就地改写被审文件，执行权属仅限 implementer（continuation）/ tdd-engine / lint hook 语境，reviewer 角色（禁改被审对象）禁用，遇 convention 类 finding 记入报告由 implementer continuation 修复；未知参数与非法 `--focus` 值为用法错误（exit 2）；两个模式均支持 `--format json` 输出结构化 finding（Layer 2 与报告聚合的机读输入）。
 
 工具适配与检查清单见 §Layer 1 检查项；工具不存在时自动跳过并 WARN，不阻断检查流程。
 

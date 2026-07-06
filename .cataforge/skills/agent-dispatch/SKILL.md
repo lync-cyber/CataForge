@@ -71,6 +71,7 @@ orchestrator 收到子代理返回后，按以下优先级解析:
 子代理返回后，orchestrator 通过 `git diff --name-only` 检查本次调度期间修改的文件:
 - 读取目标 Agent 的 AGENT.md frontmatter 中 `allowed_paths` 字段
 - `allowed_paths` 为空数组 `[]` 时跳过校验（orchestrator 等无限制 Agent）
+- 框架管理副产物不计入越界，禁止回滚：`docs/EVENT-LOG.jsonl`、`docs/.doc-index.json`、`.cataforge/**`（context / event CLI 在任何角色调度期间都可能自动刷新，回滚即审计与索引数据破坏）
 - 所有修改文件均在 allowed_paths 列表的目录下 → 正常
 - 存在 allowed_paths 以外的修改文件 → 使用 `git checkout -- {违规文件}` 回滚，在 summary 中标注"Agent 写入违规已回滚"，记录违规文件路径
 
