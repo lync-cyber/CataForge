@@ -322,6 +322,15 @@ class TestVizTrace:
         assert data["kind"] == "graph"
         assert any(n["id"] == "F-001" for n in data["nodes"])
 
+    def test_trace_nodes_carry_layer_type(self, tmp_path: Path) -> None:
+        # each node names its chain layer — the fold chips and the inspector
+        # read the layer from data.type, no id-prefix guessing
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "trace", "F-001", "--format", "json")
+        nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
+        assert nodes["F-001"]["data"]["type"] == "requirements"
+        assert nodes["M-001"]["data"]["type"] == "modules"
+
     def test_nonexistent_entity_fails(self, tmp_path: Path) -> None:
         _make_kg_project(tmp_path)
         result = _viz(tmp_path, "trace", "NOPE-999")
@@ -1117,6 +1126,53 @@ class TestHtmlRenderer:
         out_chart = html.render(_HTML_TL)
         assert "matchMedia" in out_chart  # charts pick the echarts dark theme
 
+    def test_node_data_bag_projected_for_inspector(self) -> None:
+        # the full data bag travels with the element, so the side inspector can
+        # project every field without a second lookup
+        out = html.render(_HINT_GRAPH)
+        assert '"meta": {"issue": "stale"' in out
+
+    def test_graph_offers_table_mode(self) -> None:
+        # every cytoscape view carries an equivalent table: screen readers, huge
+        # graphs and table preference all get a degradation path
+        out = html.render(_HTML_GRAPH)
+        assert 'class="modeswitch"' in out
+        assert 'class="alt-table"' in out
+        assert "initFilterTable('view0');" in out
+
+    def test_chart_views_have_no_mode_switch(self) -> None:
+        assert 'class="modeswitch"' not in html.render(_HTML_TL)
+
+    def test_catalogue_exempt_from_mode_switch(self) -> None:
+        # a catalogue already renders table + graph side by side
+        g = Graph(
+            title="assets",
+            form="catalogue",
+            nodes=(Node("a", data={"type": "skill", "name": "a"}),),
+            edges=(),
+        )
+        assert 'class="modeswitch"' not in html.render(g)
+
+    def test_typed_graph_grows_layer_fold_chips(self) -> None:
+        # type layers fold via count-badged chips — a hundreds-of-nodes trace
+        # survives by hiding whole layers
+        g = Graph(
+            title="fw",
+            nodes=(
+                Node("a", label="A", data={"type": "agent"}),
+                Node("b", label="B", data={"type": "agent"}),
+                Node("c", label="C", data={"type": "skill"}),
+            ),
+            edges=(Edge("a", "c"),),
+        )
+        out = html.render(g)
+        assert 'data-type="agent"' in out and "agent (2)" in out
+        assert 'data-type="skill"' in out and "skill (1)" in out
+
+    def test_untyped_graph_has_no_fold_chips(self) -> None:
+        out = html.render(_HTML_GRAPH)
+        assert 'class="fchip on" data-type=' not in out
+
     def test_status_table_toolbar_above_threshold(self) -> None:
         # >8 rows → the table grows a search + status-chip toolbar
         many = Graph(
@@ -1210,8 +1266,9 @@ class TestStatusTableFallback:
 
     def test_edged_graph_still_renders_cytoscape(self) -> None:
         out = html.render(_HTML_GRAPH)  # has an a→b edge
-        assert 'class="stat"' not in out
-        assert "initGraph('view0'" in out
+        assert "initGraph('view0'" in out  # graph stays the primary mode
+        # the equivalent status table exists only as the hidden alt mode
+        assert out.index('class="alt-table" hidden') < out.index('class="stat"')
 
     def test_hint_bearing_edgeless_graph_is_table_not_catalogue(self) -> None:
         # a coverage/docs node's data bag holds only a remediation hint (no
@@ -1364,27 +1421,37 @@ class TestDashboard:
     def _panel_id(self, name: str) -> str:
         return f"panel-{name}"
 
-    def test_coverage_to_trace_link_wired_when_ready(self, tmp_path: Path) -> None:
-        # coverage is edgeless → renders as a status table, so its row clicks
-        # wire to trace via linkTable (not linkGraph)
-        _make_kg_project(tmp_path)
+    def test_omnibox_in_header(self, tmp_path: Path) -> None:
+        # one global search: any entity id/label → jump to its tab and focus it
+        _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
-        cov, trace = self._panel_id("coverage"), self._panel_id("trace")
-        assert f"linkTable('{cov}_v', '{trace}');" in out
+        assert 'id="omni"' in out
+        assert "__viz.setIndex(" in out
         assert "window.__viz.focus=function" in out
 
-    def test_cross_view_link_absent_when_coverage_degraded(self, tmp_path: Path) -> None:
-        _make_dashboard_project(tmp_path)  # no KG → coverage panel degrades
+    def test_omnibox_index_maps_entities_to_panels(self, tmp_path: Path) -> None:
+        # every graph/table panel's entities are findable: id + label + panel
+        _make_kg_project(tmp_path)
         out = html.render_dashboard(tmp_path)
-        assert "linkTable('" not in out and "linkGraph('" not in out  # no wiring call
+        idx = out.index("__viz.setIndex(")
+        assert '"p": "panel-coverage"' in out[idx:]
+        assert '"p": "panel-trace"' in out[idx:]
 
-    def test_tasks_to_trace_link_wired_when_ready(self, tmp_path: Path) -> None:
-        # a task id reappears in the traceability chain → tapping a task node
-        # focuses it in the trace tab; tasks has edges so it wires via linkGraph
+    def test_cross_links_replaced_by_generic_navigation(self, tmp_path: Path) -> None:
+        # the two hard-coded cross-view pairs are gone — navigation flows
+        # through the omnibox index and the inspector's cross-appearance links
         _make_kg_tasks_project(tmp_path)
         out = html.render_dashboard(tmp_path)
-        tasks, trace = self._panel_id("tasks"), self._panel_id("trace")
-        assert f"linkGraph('{tasks}_v', '{trace}');" in out
+        assert "linkGraph('" not in out and "linkTable('" not in out
+        assert not hasattr(html, "_CROSS_LINKS")
+
+    def test_inspector_shell_present(self, tmp_path: Path) -> None:
+        # tapping a node pins its full detail into a side inspector; the hover
+        # tooltip stays as the lightweight preview
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'id="inspector"' in out
+        assert "__viz.inspect=" in out
 
     def test_degraded_panel_reuses_status_guidance(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)
@@ -1506,14 +1573,6 @@ class TestDashboard:
         reg = out.index("__viz.register('panel-framework'")
         assert reg < out.index("initGraph('panel-framework_v'")
 
-    def test_cross_link_wired_inside_source_panel_register(self, tmp_path: Path) -> None:
-        # wiring shares the source panel's register closure, so it can never
-        # run before its own graph/table instances exist
-        _make_kg_project(tmp_path)
-        out = html.render_dashboard(tmp_path)
-        cov, trace = self._panel_id("coverage"), self._panel_id("trace")
-        assert out.index(f"__viz.register('{cov}'") < out.index(f"linkTable('{cov}_v', '{trace}');")
-
     def test_tabs_carry_aria_roles(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
@@ -1553,6 +1612,7 @@ class TestVizHtmlCli:
         result = _viz(tmp_path, "framework", "--html")
         assert "initGraph('view0'" in result.output
         assert "__viz.register('panel-" not in result.output
+        assert 'id="omni"' not in result.output  # cross-view search needs views
 
     def test_framework_html_inlines_cytoscape(self, tmp_path: Path) -> None:
         _make_project(tmp_path)

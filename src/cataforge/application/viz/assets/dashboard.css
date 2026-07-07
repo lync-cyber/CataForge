@@ -15,7 +15,23 @@
   }
 }
 body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;color:var(--fg);background:var(--bg)}
-header{padding:8px 14px;border-bottom:1px solid var(--line);font-size:15px}
+header{display:flex;align-items:center;gap:18px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:15px}
+.omni-wrap{position:relative;flex:0 1 340px}
+#omni{width:100%;box-sizing:border-box;padding:4px 10px;border:1px solid var(--chip-line);border-radius:14px;font-size:12px;background:var(--panel-soft);color:var(--fg)}
+#omni_list{position:absolute;top:110%;left:0;right:0;z-index:60;max-height:300px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.omni-hit{padding:5px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--row-line)}
+.omni-hit:hover{background:var(--focus-bg)}
+#inspector{position:fixed;top:96px;right:12px;width:320px;max-height:72vh;overflow:auto;z-index:55;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.2);font-size:12px}
+.ins-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.ins-close{border:none;background:none;color:var(--faint);font-size:16px;cursor:pointer;line-height:1}
+.ins-status{margin-bottom:6px;color:var(--muted)}
+.ins-meta{width:100%;border-collapse:collapse}
+.ins-meta th{text-align:left;color:var(--faint);font-weight:600;padding:3px 8px 3px 0;vertical-align:top;white-space:nowrap}
+.ins-meta td{padding:3px 0;word-break:break-word}
+.ins-xref{margin-top:8px;color:var(--muted)}
+.ins-jump{margin:0 4px 4px 0;padding:2px 8px;border:1px solid var(--chip-line);border-radius:10px;background:var(--bg);color:var(--accent);cursor:pointer;font-size:11px}
+.modeswitch{margin-left:8px;padding:3px 9px;border:1px solid var(--chip-line);border-radius:12px;background:var(--bg);color:var(--muted);cursor:pointer;font-size:12px}
+.alt-table{margin-top:6px}
 .tabs{display:flex;flex-wrap:wrap;gap:14px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
 .tabgroup{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 .tglabel{font-size:11px;color:var(--faint);margin-right:2px;font-weight:600}

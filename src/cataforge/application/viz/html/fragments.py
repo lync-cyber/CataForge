@@ -67,7 +67,12 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
             # semantic status travels with the element so client-side filters
             # (anomaly isolation) don't have to reverse colours into meaning
             data["status"] = node.status.value
+        if node.data:
+            # the full bag rides along for the side inspector's projection
+            data["meta"] = {str(k): str(v) for k, v in node.data.items()}
         ntype = str((node.data or {}).get("type") or "")
+        if ntype:
+            data["type"] = ntype  # cytoscape-selectable: layer folding keys on it
         # health always wins the colour channel; type fills the healthy rest
         enc = palette.encoding(node.status) if node.status else palette.type_encoding(ntype)
         if enc:
@@ -95,11 +100,24 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
     return parents + elements
 
 
+def _type_chips(graph: Graph) -> str:
+    """Count-badged layer chips: toggling one folds that type's nodes away,
+    which is how a hundreds-of-nodes graph stays navigable."""
+    counts = Counter(str((n.data or {}).get("type") or "") for n in graph.nodes)
+    counts.pop("", None)
+    if not counts:
+        return ""
+    return "".join(
+        f'<button class="fchip on" data-type="{_html.escape(t)}">{_html.escape(t)} ({n})</button>'
+        for t, n in sorted(counts.items())
+    )
+
+
 def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str, bool]:
     """Pick a Graph's HTML form. Returns ``(body, init, needs_cytoscape)``:
     the collector-declared catalogue (metadata table + linked graph), an
     edgeless graph's status table (position carries no information without
-    edges), or the plain zoomable graph."""
+    edges), or the plain zoomable graph with an equivalent table mode."""
     if graph.form == "catalogue":
         body, init = _catalogue_fragment(graph, dom_id)
         return body, init, True
@@ -110,10 +128,14 @@ def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str, bool]:
     body = (
         '<div class="view">'
         f'<div class="toolbar"><input class="search" data-target="{dom_id}" '
-        'placeholder="filter nodes…"></div>'
-        f'<div id="{dom_id}" class="cy"></div></div>'
+        f'placeholder="filter nodes…">{_type_chips(graph)}'
+        f'<button class="modeswitch" data-target="{dom_id}" title="图 ⇄ 表切换">表格视图</button>'
+        "</div>"
+        f'<div id="{dom_id}" class="cy"></div>'
+        f'<div class="alt-table" hidden>{_status_table_core(graph, dom_id)}</div></div>'
     )
-    return body, f"initGraph('{dom_id}', {elements}, {opts});", True
+    init = f"initGraph('{dom_id}', {elements}, {opts});\ninitFilterTable('{dom_id}');"
+    return body, init, True
 
 
 # --------------------------------------------------------------------------- #
@@ -197,10 +219,9 @@ def _status_table_toolbar(graph: Graph, dom_id: str) -> str:
     )
 
 
-def _status_table_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
-    """An edgeless graph as an anomaly-first table + constituency bar, filtered
-    client-side by search / status chips / bar-segment clicks; cross-view
-    linking is wired separately via ``linkTable``."""
+def _status_table_core(graph: Graph, dom_id: str) -> str:
+    """Toolbar + constituency bar + anomaly-first table — the shared body of
+    the standalone status-table view and a graph view's table mode."""
     rows = "".join(
         _status_row(node)
         for node in sorted(graph.nodes, key=lambda n: (_status_rank(n.status), n.label or n.id))
@@ -209,11 +230,16 @@ def _status_table_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
         f'<table class="stat" id="{dom_id}_tbl"><thead><tr><th>状态</th><th>节点</th></tr>'
         f"</thead><tbody>{rows}</tbody></table>"
     )
-    body = (
-        f'<div class="view stat-view">{_status_table_toolbar(graph, dom_id)}'
-        f"{_constituency_bar(graph)}"
-        f'<div class="stat-wrap">{table}</div></div>'
+    return (
+        f"{_status_table_toolbar(graph, dom_id)}{_constituency_bar(graph)}"
+        f'<div class="stat-wrap">{table}</div>'
     )
+
+
+def _status_table_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
+    """An edgeless graph as an anomaly-first table + constituency bar, filtered
+    client-side by search / status chips / bar-segment clicks."""
+    body = f'<div class="view stat-view">{_status_table_core(graph, dom_id)}</div>'
     return body, f"initFilterTable('{dom_id}');"
 
 
