@@ -32,12 +32,12 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.application.feedback.collectors import collect_corrections
-from cataforge.application.phase import evaluate_phase, is_placeholder
+from cataforge.application.phase import evaluate_phase
 from cataforge.application.viz.collectors._kg import open_kg
-from cataforge.application.viz.collectors.process import phase_sequence
+from cataforge.application.viz.collectors.process import is_driven, phase_sequence, sdlc_applicable
 from cataforge.core.errors import CataforgeError
 from cataforge.core.io import read_json
-from cataforge.core.phases import PHASE_DOC_TYPE, PHASES
+from cataforge.core.phases import PHASE_DOC_TYPE
 from cataforge.core.viz.model import MetricPoint, MetricSeries, View
 from cataforge.domain.docs.indexer import INDEX_FILENAME, find_stale_deps, find_xref_errors
 
@@ -47,15 +47,9 @@ CURRENT_PREFIX = "current:"
 _RECENT_DAYS = 30
 
 
-def _is_driven(current: str | None) -> bool:
-    """Whether *current* names a real workflow phase (vs an unfilled template
-    token or an unrecognised value → the project isn't SDLC-driven)."""
-    return not is_placeholder(current) and current in PHASES
-
-
 def _phase_points(root: Path) -> list[MetricPoint]:
     current, checks = evaluate_phase(root)
-    if not _is_driven(current):
+    if not is_driven(current):
         # instruction file present but no workflow phase → SDLC N/A, not a
         # blocked-gate false alarm. The single flag lets the tile show N/A.
         return [MetricPoint(label="applicable", value=0.0, series="phase")]
@@ -83,18 +77,6 @@ def _core_doc_types(sequence: list[str]) -> list[str]:
     return out
 
 
-def _sdlc_applicable(root: Path) -> bool:
-    """Whether the SDLC core-doc completion metric applies. False only when the
-    project explicitly declares itself non-driven (instruction file present but
-    没有 workflow phase); a project without an instruction file is treated as
-    applicable — it may simply be mid-setup."""
-    try:
-        current, _ = evaluate_phase(root)
-    except CataforgeError:
-        return True
-    return _is_driven(current)
-
-
 def _doc_points(root: Path) -> list[MetricPoint]:
     """docs + links groups; both read the doc-index, absent ⇒ neither. The
     core-doc completion (docs) group is dropped for a non-driven project, whose
@@ -111,7 +93,7 @@ def _doc_points(root: Path) -> list[MetricPoint]:
         statuses.setdefault(doc_type, []).append(str(entry.get("status") or "draft"))
 
     points: list[MetricPoint] = []
-    if _sdlc_applicable(root):
+    if sdlc_applicable(root):
         for doc_type in _core_doc_types(phase_sequence(root)):
             # agile modes gate on the -lite variant of the same doc_type
             found = statuses.get(doc_type, []) + statuses.get(f"{doc_type}-lite", [])

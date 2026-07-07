@@ -15,13 +15,14 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.application.viz.html.fragments import _CYTOSCAPE, _fragment, _read_asset
-from cataforge.application.viz.html.kpi import _kpi_strip, read_retro_threshold
+from cataforge.application.viz.html.kpi import _kpi_strip, _stepper, read_retro_threshold
 from cataforge.core.viz import palette
 from cataforge.core.viz.model import Graph, Status, View, is_empty
 
 _DASHBOARD_CSS = "dashboard.css"
 _DASHBOARD_JS = "dashboard.js"
 
+# phase is deliberately absent: progression renders as the stepper strip.
 _DASHBOARD_VIEWS: tuple[tuple[str, str], ...] = (
     ("framework", "Framework"),
     ("assets", "Assets"),
@@ -30,7 +31,6 @@ _DASHBOARD_VIEWS: tuple[tuple[str, str], ...] = (
     ("arch", "Arch"),
     ("docs", "Docs"),
     ("tasks", "Tasks"),
-    ("phase", "Phase"),
     ("timeline", "Timeline"),
     ("decay", "Decay"),
 )
@@ -104,11 +104,15 @@ def _inline_code(text: str) -> str:
     return re.sub(r"`([^`]+)`", r"<code>\1</code>", _html.escape(text))
 
 
-def _degraded_inner(name: str, view: View | None, error: str | None) -> str:
+def _degraded_inner(name: str, view: View | None, error: str | None, sdlc_na: bool) -> str:
     """The panel body for a failed or empty view: the same actionable guidance
-    ``viz status`` gives, instead of a raw error / blank chart."""
+    ``viz status`` gives, instead of a raw error / blank chart. For a project
+    that isn't workflow-driven, the SDLC-gated views say so outright instead
+    of steering the reader toward a pipeline that doesn't apply."""
     from cataforge.application.viz.registry import short_hint
 
+    if sdlc_na:
+        return f'<div class="empty">{_SDLC_NA_HINT}</div>'
     if view is None:
         hinted = short_hint(error or "")
         if hinted.startswith("run: "):
@@ -121,8 +125,13 @@ def _degraded_inner(name: str, view: View | None, error: str | None) -> str:
     return f'<div class="empty">{_inline_code(_EMPTY_HINTS.get(name, "暂无数据"))}</div>'
 
 
+# SDLC-gated views: their data only exists for a workflow-driven project, so a
+# non-driven one gets an explicit N/A instead of kg-init guidance.
+_SDLC_VIEWS = frozenset({"trace", "coverage", "arch", "tasks"})
+_SDLC_NA_HINT = "SDLC 数据管线对本项目不适用 — 项目未按工作流阶段驱动"
+
 # Two tab clusters: what's the project's health vs what the framework is made of.
-_HEALTH_VIEWS = frozenset({"phase", "docs", "coverage", "trace", "timeline", "decay"})
+_HEALTH_VIEWS = frozenset({"docs", "coverage", "trace", "timeline", "decay"})
 _TAB_GROUPS: tuple[tuple[str, str], ...] = (("项目健康", "health"), ("框架资产", "framework"))
 
 
@@ -145,7 +154,7 @@ def _default_view(results: _Results, worst_view: str | None) -> str:
 
 
 def _dashboard_panel(
-    name: str, result: tuple[View | None, str | None], active: bool
+    name: str, result: tuple[View | None, str | None], active: bool, sdlc_na: bool
 ) -> tuple[str, str | None, str | None]:
     """Render one dashboard tab. Returns ``(panel_html, init_js, lib)``;
     ``init_js`` / ``lib`` are ``None`` for empty or failed views."""
@@ -153,7 +162,7 @@ def _dashboard_panel(
     pid = f"panel-{name}"
     view, error = result
     if view is None or is_empty(view):
-        inner = _degraded_inner(name, view, error)
+        inner = _degraded_inner(name, view, error, sdlc_na)
         return (
             f'<section id="{pid}" class="panel{cls}" role="tabpanel">{inner}</section>',
             None,
@@ -179,6 +188,7 @@ def _grouped_nav(tabs_by_name: dict[str, str]) -> str:
 
 
 def render_dashboard(root: Path, /, **_opts: Any) -> str:
+    from cataforge.application.viz.collectors.process import sdlc_applicable
     from cataforge.application.viz.registry import collect_safe
 
     results: _Results = {name: collect_safe(root, name) for name, _ in _DASHBOARD_VIEWS}
@@ -186,6 +196,7 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     overview, _ = collect_safe(root, "overview")
     kpis, worst_view = _kpi_strip(overview, results, panel_ids, read_retro_threshold(root))
     default_view = _default_view(results, worst_view)
+    sdlc_na = not sdlc_applicable(root)
 
     tabs_by_name: dict[str, str] = {}
     panels: list[str] = []
@@ -195,10 +206,14 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     table_views: set[str] = set()
     for name, label in _DASHBOARD_VIEWS:
         active = name == default_view
-        panel, init, lib = _dashboard_panel(name, results[name], active)
+        view = results[name][0]
+        panel_na = sdlc_na and name in _SDLC_VIEWS and (view is None or is_empty(view))
+        panel, init, lib = _dashboard_panel(name, results[name], active, panel_na)
         sel = " sel" if active else ""
+        na = " na" if panel_na else ""
         tabs_by_name[name] = (
-            f'<button class="tab{sel}" role="tab" aria-selected="{"true" if active else "false"}"'
+            f'<button class="tab{sel}{na}" role="tab"'
+            f' aria-selected="{"true" if active else "false"}"'
             f' data-panel="{panel_ids[name]}">{_html.escape(label)}</button>'
         )
         panels.append(panel)
@@ -224,5 +239,7 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     ]
 
     header = "<header><strong>CataForge viz dashboard</strong></header>"
-    body = header + kpis + _legend() + _grouped_nav(tabs_by_name) + "\n".join(panels)
+    body = (
+        header + kpis + _stepper(root) + _legend() + _grouped_nav(tabs_by_name) + "\n".join(panels)
+    )
     return _document("CataForge viz dashboard", body, inits, libs or [_CYTOSCAPE])

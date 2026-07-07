@@ -9,15 +9,73 @@ silently from valid ones).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from cataforge.adapter.platform.registry import read_execution_mode
 from cataforge.application.feedback.collectors import collect_recent_events
-from cataforge.application.phase import evaluate_phase
+from cataforge.application.phase import evaluate_phase, is_placeholder
+from cataforge.core.errors import CataforgeError
 from cataforge.core.phases import PHASES
 from cataforge.core.viz.model import Edge, Graph, Node, Status, Timeline, TimelineEvent, View
 from cataforge.runtime.skill.builtins.framework_review._framework_data import read_workflow_modes
+
+
+def is_driven(current: str | None) -> bool:
+    """Whether *current* names a real workflow phase (vs an unfilled template
+    token or an unrecognised value → the project isn't SDLC-driven)."""
+    return not is_placeholder(current) and current in PHASES
+
+
+def sdlc_applicable(root: Path) -> bool:
+    """Whether SDLC-pipeline data (phase gates, core docs, KG traceability)
+    applies. False only when the project explicitly declares itself non-driven
+    (instruction file present but 没有 workflow phase); a project without an
+    instruction file is treated as applicable — it may simply be mid-setup."""
+    try:
+        current, _ = evaluate_phase(root)
+    except CataforgeError:
+        return True
+    return is_driven(current)
+
+
+@dataclass(frozen=True)
+class GateCheck:
+    """One phase-gate check, verbatim from :func:`evaluate_phase`."""
+
+    label: str
+    ok: bool
+    detail: str
+
+
+@dataclass(frozen=True)
+class PhaseDetail:
+    """The dashboard stepper's data contract.
+
+    ``current=None`` ⇒ the project isn't workflow-driven (SDLC N/A);
+    ``sequence`` is then empty and ``blocked`` false.
+    """
+
+    current: str | None
+    sequence: tuple[str, ...]
+    checks: tuple[GateCheck, ...]
+    blocked: bool
+
+
+def collect_phase_detail(root: Path) -> PhaseDetail:
+    """Phase backbone + gate-check details for the dashboard stepper. Raises
+    :class:`CataforgeError` when the project has no instruction file."""
+    current, raw_checks = evaluate_phase(root)
+    if not is_driven(current):
+        return PhaseDetail(current=None, sequence=(), checks=(), blocked=False)
+    checks = tuple(GateCheck(label, ok, detail) for label, ok, detail in raw_checks)
+    return PhaseDetail(
+        current=current,
+        sequence=tuple(phase_sequence(root)),
+        checks=checks,
+        blocked=any(not c.ok for c in checks),
+    )
 
 
 def phase_sequence(root: Path) -> list[str]:
