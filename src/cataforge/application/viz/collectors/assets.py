@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.core.paths import ProjectPaths
-from cataforge.core.viz.model import Edge, Graph, Node, Status, View
+from cataforge.core.viz.model import Edge, Graph, Node, View
 from cataforge.domain.docs.indexer import estimate_tokens
 from cataforge.runtime.agent.manager import AgentManager
 from cataforge.runtime.skill.builtins.framework_review._framework_data import (
@@ -135,8 +135,8 @@ def collect(root: Path, /, **_opts: Any) -> View:
 
     def skill_node(skill_id: str) -> Node:
         meta = skill_meta.get(skill_id)
-        data = _skill_data(meta, root, oversize) if meta else None
-        return Node(id=_sid("skill", skill_id), label=skill_id, status=Status.SKILL, data=data)
+        data = _skill_data(meta, root, oversize) if meta else {"type": "skill", "name": skill_id}
+        return Node(id=_sid("skill", skill_id), label=skill_id, data=data)
 
     for aid in agents.list_agents():
         anode = _sid("agent", aid)
@@ -145,7 +145,6 @@ def collect(root: Path, /, **_opts: Any) -> View:
             Node(
                 id=anode,
                 label=aid,
-                status=Status.AGENT,
                 data=_agent_data(root, aid, agents.get_agent_content(aid), agent_skills, oversize),
             )
         )
@@ -173,4 +172,5 @@ def collect(root: Path, /, **_opts: Any) -> View:
         edges=tuple(edges),
         direction="LR",
         title="agent / skill assets",
+        form="catalogue",
     )

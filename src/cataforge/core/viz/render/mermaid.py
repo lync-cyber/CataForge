@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from cataforge.core.errors import CataforgeError
 from cataforge.core.viz import palette
-from cataforge.core.viz.model import Graph, Node, Status, Timeline, View
+from cataforge.core.viz.model import Graph, Node, Timeline, View
 
 # Characters that make a node label ambiguous to Mermaid's parser; a label
 # containing any of them is wrapped in quotes. CJK and plain identifiers pass
@@ -29,14 +29,17 @@ def _node_decl(node: Node) -> str:
 
 
 def _style_lines(nodes: tuple[Node, ...]) -> list[str]:
-    groups: dict[Status, list[str]] = {}
+    groups: dict[str, list[str]] = {}
     for node in nodes:
         if node.status:
-            groups.setdefault(node.status, []).append(node.id)
-    return [
-        f"    style {','.join(sorted(set(ids)))} {palette.mermaid_style(status)}"
-        for status, ids in groups.items()
-    ]
+            groups.setdefault(palette.mermaid_style(node.status), []).append(node.id)
+            continue
+        if node.label is None:
+            continue  # styling an undeclared id would conjure the node into the graph
+        body = palette.mermaid_type_style(str((node.data or {}).get("type") or ""))
+        if body:
+            groups.setdefault(body, []).append(node.id)
+    return [f"    style {','.join(sorted(set(ids)))} {body}" for body, ids in groups.items()]
 
 
 def _render_graph(view: Graph) -> str:

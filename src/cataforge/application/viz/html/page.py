@@ -35,19 +35,19 @@ _DASHBOARD_VIEWS: tuple[tuple[str, str], ...] = (
     ("decay", "Decay"),
 )
 
-# Palette-derived accents referenced by dashboard.css via var(--viz-*), so KPI
-# tiles and node fills tell one colour story with palette as the only source.
-_CSS_VARS: tuple[tuple[str, Status], ...] = (
-    ("--viz-ok", Status.OK),
-    ("--viz-warn", Status.PARTIAL),
-    ("--viz-bad", Status.MISSING),
-    ("--viz-agent", Status.AGENT),
-    ("--viz-skill", Status.SKILL),
-)
-
 
 def _root_vars() -> str:
-    body = ";".join(f"{name}:{palette.encoding(status).fill}" for name, status in _CSS_VARS)
+    """Palette-derived accents referenced by dashboard.css via var(--viz-*), so
+    KPI tiles and node fills tell one colour story with palette as the only
+    source."""
+    pairs = (
+        ("--viz-ok", palette.encoding(Status.OK).fill),
+        ("--viz-warn", palette.encoding(Status.PARTIAL).fill),
+        ("--viz-bad", palette.encoding(Status.MISSING).fill),
+        ("--viz-agent", palette.TYPE_ENCODINGS["agent"].fill),
+        ("--viz-skill", palette.TYPE_ENCODINGS["skill"].fill),
+    )
+    body = ";".join(f"{name}:{value}" for name, value in pairs)
     return f":root{{{body}}}"
 
 

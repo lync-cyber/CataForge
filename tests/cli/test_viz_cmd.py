@@ -229,6 +229,32 @@ class TestVizCli:
         labels = {n.get("label") for n in data["nodes"]}
         assert {"orchestrator", "requirements", "product-manager", "research"} <= labels
 
+    def test_framework_nodes_carry_type(self, tmp_path: Path) -> None:
+        # orchestrator / phase / agent / skill are visually distinct roles —
+        # every framework node declares its kind for the type colour channel
+        _make_project(tmp_path)
+        result = CliRunner().invoke(
+            cli, ["--project-dir", str(tmp_path), "viz", "framework", "--format", "json"]
+        )
+        assert result.exit_code == 0, result.output
+        nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
+        assert nodes["orchestrator"]["data"]["type"] == "orchestrator"
+        assert nodes["phase_requirements"]["data"]["type"] == "phase"
+        assert nodes["agent_product_manager"]["data"]["type"] == "agent"
+        assert nodes["skill_research"]["data"]["type"] == "skill"
+
+    def test_framework_html_colours_types_without_clustering(self, tmp_path: Path) -> None:
+        # the hierarchy IS the topology — types colour the nodes but must not
+        # fold them into compound cluster boxes (that is the catalogue's form)
+        _make_project(tmp_path)
+        result = CliRunner().invoke(
+            cli, ["--project-dir", str(tmp_path), "viz", "framework", "--html"]
+        )
+        assert result.exit_code == 0, result.output
+        assert f'"bg": "{palette.TYPE_ENCODINGS["agent"].fill}"' in result.output
+        assert '"parent": "cluster_' not in result.output
+        assert "initCatalogue('" not in result.output
+
     def test_framework_dot(self, tmp_path: Path) -> None:
         _make_project(tmp_path)
         result = CliRunner().invoke(
@@ -441,6 +467,16 @@ class TestVizDocs:
         result = _viz(tmp_path, "docs", "--format", "json")
         nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
         assert "data" not in nodes["prd-x"]
+
+    def test_healthy_doc_marked_ok(self, tmp_path: Path) -> None:
+        # a doc that passed the stale/xref validators is verified fine — it
+        # carries an explicit ok, so "no signal" stays a genuinely rare state
+        _make_docs_project(tmp_path)
+        result = _viz(tmp_path, "docs", "--format", "json")
+        nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
+        assert nodes["prd-x"]["status"] == "ok"
+        assert nodes["dev-x"]["status"] == "partial"  # stale keeps its anomaly status
+        assert nodes["ghost"]["status"] == "broken"  # dangling xref target unchanged
 
     def test_missing_index_degrades(self, tmp_path: Path) -> None:
         result = _viz(tmp_path, "docs")
@@ -920,6 +956,22 @@ class TestVizAssets:
         out = _viz(tmp_path, "assets", "--html").output
         assert 'class="num vwarn"' in out  # the oversized lines cell carries the flag
 
+    def test_assets_json_declares_catalogue_form(self, tmp_path: Path) -> None:
+        # the collector states the presentation intent — renderers never sniff it
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "assets", "--format", "json")
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)["form"] == "catalogue"
+
+    def test_asset_nodes_typed_not_statused(self, tmp_path: Path) -> None:
+        # agent/skill is a kind, not a health state — colour rides the type
+        # channel and the status field stays reserved for anomalies
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "assets", "--format", "json")
+        nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
+        assert nodes["agent_product_manager"]["status"] is None
+        assert nodes["skill_research"]["status"] is None
+
 
 # ------------------------------------------------------------------
 # HTML renderer (tier 2) — self-contained offline output
@@ -992,6 +1044,68 @@ class TestHtmlRenderer:
     def test_node_without_data_or_status_has_no_tip(self) -> None:
         plain = Graph(nodes=(Node("a", label="A"), Node("b", label="B")), edges=(Edge("a", "b"),))
         assert '"tip":' not in html.render(plain)
+
+    def test_typed_node_colored_without_status(self) -> None:
+        g = Graph(
+            title="fw",
+            nodes=(Node("a", label="A", data={"type": "agent"}), Node("b", label="B")),
+            edges=(Edge("a", "b"),),
+        )
+        out = html.render(g)
+        enc = palette.TYPE_ENCODINGS["agent"]
+        assert f'"bg": "{enc.fill}"' in out
+        assert f'"border": "{enc.stroke}"' in out
+        assert "initGraph('view0'" in out  # typed nodes alone do not make a catalogue
+        assert '"parent": "cluster_' not in out  # nor do they cluster outside the catalogue form
+
+    def test_status_takes_precedence_over_type(self) -> None:
+        g = Graph(
+            title="fw",
+            nodes=(
+                Node("a", label="A", status=Status.MISSING, data={"type": "agent"}),
+                Node("b", label="B"),
+            ),
+            edges=(Edge("a", "b"),),
+        )
+        out = html.render(g)
+        assert f'"bg": "{palette.encoding(Status.MISSING).fill}"' in out
+        assert f'"bg": "{palette.TYPE_ENCODINGS["agent"].fill}"' not in out
+
+    def test_catalogue_form_is_explicit(self) -> None:
+        nodes = (Node("a", label="A", data={"type": "agent", "name": "a", "path": "x"}),)
+        edges = (Edge("a", "a"),)
+        assert "initCatalogue('view0'" not in html.render(
+            Graph(title="g", nodes=nodes, edges=edges)
+        )
+        assert "initCatalogue('view0'" in html.render(
+            Graph(title="g", nodes=nodes, edges=edges, form="catalogue")
+        )
+
+    def test_graph_direction_passed_to_layout(self) -> None:
+        g = Graph(
+            title="chain",
+            direction="LR",
+            nodes=(Node("a", label="A"), Node("b", label="B")),
+            edges=(Edge("a", "b"),),
+        )
+        out = html.render(g)
+        assert '{"dir": "LR"}' in out
+        assert "opts.dir" in out  # the transpose branch ships with the page
+
+    def test_timeline_uses_time_axis(self) -> None:
+        # real time distances — a 2-day gap must not render as wide as a 2-week one
+        out = html.render(_HTML_TL)
+        assert '"type": "time"' in out
+
+    def test_timeline_scatter_series_named(self) -> None:
+        out = html.render(_HTML_TL)
+        assert '"name": "t"' in out  # series carries the view title
+
+    def test_dark_scheme_supported(self) -> None:
+        out = html.render(_HTML_GRAPH)
+        assert "prefers-color-scheme: dark" in out  # chrome flips via media query
+        out_chart = html.render(_HTML_TL)
+        assert "matchMedia" in out_chart  # charts pick the echarts dark theme
 
     def test_timeline_inlines_echarts_only(self) -> None:
         out = html.render(_HTML_TL)
@@ -1720,6 +1834,43 @@ class TestVizConsistency:
     def test_every_status_has_an_encoding(self) -> None:
         assert set(palette.ENCODINGS) == set(Status)
 
+    def test_status_enum_is_pure_health(self) -> None:
+        """Status carries health semantics only; asset kinds ride data.type."""
+        assert {s.value for s in Status} == {
+            "ok",
+            "partial",
+            "missing",
+            "broken",
+            "cycle",
+            "critical-path",
+        }
+
+    def test_every_type_has_an_encoding(self) -> None:
+        assert set(palette.TYPE_ENCODINGS) == {"orchestrator", "phase", "agent", "skill", "rules"}
+        for enc in palette.TYPE_ENCODINGS.values():
+            assert enc.fill and enc.stroke
+
+    def test_type_fill_consistent_across_formats(self) -> None:
+        """One type renders as one colour in every output format."""
+        g = Graph(
+            nodes=(Node("x", label="X", data={"type": "skill"}), Node("y", label="Y")),
+            edges=(Edge("x", "y"),),
+        )
+        enc = palette.TYPE_ENCODINGS["skill"]
+        assert f"fill:{enc.fill}" in mermaid.render(g)
+        assert f'fillcolor="{enc.fill}"' in dot.render(g)
+        assert f'"bg": "{enc.fill}"' in html.render(g)
+
+    def test_implicit_typed_nodes_not_styled_in_text(self) -> None:
+        """An implicit node (label=None) is invisible to text renderers — a type
+        style line would conjure it into the Mermaid graph."""
+        g = Graph(
+            title="t",
+            nodes=(Node("a", label="A"), Node("rules_X", data={"type": "rules"})),
+        )
+        out = mermaid.render(g)
+        assert "rules_X" not in out
+
     def test_status_fill_consistent_across_formats(self) -> None:
         """One status renders as one colour in every output format."""
         g = Graph(nodes=(Node("x", label="X", status=Status.PARTIAL),))
@@ -1754,6 +1905,7 @@ class TestVizConsistency:
     def test_catalogue_offline_and_implicit_label_fallback(self) -> None:
         g = Graph(
             title="assets",
+            form="catalogue",
             nodes=(
                 Node("skill_x", label="x", data={"type": "skill", "name": "x", "path": "p"}),
                 Node("rules_r", data={"type": "rules", "name": "R-RULES"}),
