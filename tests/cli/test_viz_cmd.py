@@ -453,6 +453,7 @@ class TestVizDocs:
         result = _viz(tmp_path, "docs", "--format", "json")
         nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
         assert nodes["dev-x"]["data"] == {
+            "type": "dev-plan",
             "issue": "stale",
             "hint": "run: cataforge context reconcile",
         }
@@ -461,12 +462,21 @@ class TestVizDocs:
             "hint": "run: cataforge context validate",
         }
 
-    def test_healthy_node_has_no_data_bag(self, tmp_path: Path) -> None:
-        # prd-x has no stale/xref problem → no hint bag (JSON stays lean)
+    def test_healthy_node_data_bag_carries_type_only(self, tmp_path: Path) -> None:
+        # prd-x has no stale/xref problem → its bag holds the doc_type and
+        # nothing else (no remediation hint on a healthy doc)
         _make_docs_project(tmp_path)
         result = _viz(tmp_path, "docs", "--format", "json")
         nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
-        assert "data" not in nodes["prd-x"]
+        assert nodes["prd-x"]["data"] == {"type": "prd"}
+        assert nodes["prd-x"]["label"] == "prd-x"  # type moved off the label
+
+    def test_dangling_xref_target_has_no_type(self, tmp_path: Path) -> None:
+        # ghost is not in the index — nothing to type it with
+        _make_docs_project(tmp_path)
+        result = _viz(tmp_path, "docs", "--format", "json")
+        nodes = {n["id"]: n for n in json.loads(result.output)["nodes"]}
+        assert "type" not in (nodes["ghost"].get("data") or {})
 
     def test_healthy_doc_marked_ok(self, tmp_path: Path) -> None:
         # a doc that passed the stale/xref validators is verified fine — it
@@ -1107,6 +1117,28 @@ class TestHtmlRenderer:
         out_chart = html.render(_HTML_TL)
         assert "matchMedia" in out_chart  # charts pick the echarts dark theme
 
+    def test_status_table_toolbar_above_threshold(self) -> None:
+        # >8 rows → the table grows a search + status-chip toolbar
+        many = Graph(
+            title="s",
+            nodes=tuple(
+                Node(f"n{i}", label=f"N{i}", status=Status.OK if i % 2 else Status.PARTIAL)
+                for i in range(9)
+            ),
+        )
+        out = html.render(many)
+        assert 'id="view0_q"' in out
+        assert 'class="fchip on" data-status="ok"' in out
+        assert "initFilterTable('view0');" in out
+
+    def test_status_table_small_exempt_from_toolbar(self) -> None:
+        few = Graph(title="s", nodes=(Node("a", label="A", status=Status.OK),))
+        out = html.render(few)
+        assert 'id="view0_q"' not in out
+        # the constituency bar still filters by click
+        assert "initFilterTable('view0');" in out
+        assert 'class="seg" data-status="ok"' in out
+
     def test_timeline_inlines_echarts_only(self) -> None:
         out = html.render(_HTML_TL)
         assert "Apache Software Foundation" in out
@@ -1235,11 +1267,14 @@ class TestDashboard:
         out = html.render_dashboard(tmp_path)
         for label in ("Framework", "Assets", "Timeline", "Decay"):
             assert f">{label}<" in out
-        assert out.count('<button class="tab') == 10
+        assert ">Phase<" not in out  # phase lives in the stepper strip, not a tab
+        assert out.count('<button class="tab') == 9
 
     def test_failed_views_degrade_to_error_panel(self, tmp_path: Path) -> None:
-        # no KG / doc-index / instruction file → trace/coverage/arch/docs/tasks/phase fail
+        # a structurally broken source (unparseable doc-index) degrades to an
+        # inline error panel instead of failing the whole dashboard
         _make_dashboard_project(tmp_path)
+        (tmp_path / "docs" / ".doc-index.json").write_text("{not json", encoding="utf-8")
         out = html.render_dashboard(tmp_path)
         assert 'class="error"' in out
 
@@ -1257,23 +1292,67 @@ class TestDashboard:
         assert out.index('class="kpis"') < out.index('class="tabs"')
         assert "run: cataforge kg init" in out
         assert "run: cataforge context index" in out
-        assert out.count('<button class="kpi ') == 5
-        assert out.count('<button class="tab') == 10  # the strip adds no tab
+        assert out.count('<button class="kpi ') == 4
+        assert out.count('<button class="tab') == 9  # the strip adds no tab
 
-    def test_kpi_strip_shows_phase_and_gate(self, tmp_path: Path) -> None:
+    def test_stepper_shows_phase_and_gate(self, tmp_path: Path) -> None:
         _make_phase_project(tmp_path, "development", phase_start="development")
         out = html.render_dashboard(tmp_path)
-        assert "development 3/3" in out
+        assert 'class="stepper"' in out
+        assert 'pchip cur">development' in out
         assert "门禁通过" in out
+        assert "<details" not in out  # gate details only surface when blocked
 
-    def test_kpi_phase_tile_shows_na_for_non_driven_project(self, tmp_path: Path) -> None:
-        # instruction file present but 当前阶段 unfilled → N/A tile, not a red
+    def test_stepper_na_for_non_driven_project(self, tmp_path: Path) -> None:
+        # instruction file present but 当前阶段 unfilled → N/A strip, not a red
         # 门禁受阻 false alarm
         _make_phase_project(tmp_path, "{a|b|c}")
         out = html.render_dashboard(tmp_path)
         assert "门禁受阻" not in out
         assert "不适用" in out
-        assert '<button class="kpi na"' in out
+        assert 'pchip na"' in out
+
+    def test_stepper_blocked_gate_expands_details(self, tmp_path: Path) -> None:
+        # requirements has doc gates and nothing satisfied → the current chip
+        # flags blocked and the gate checklist is expanded by default
+        _make_phase_project(tmp_path, "requirements")
+        out = html.render_dashboard(tmp_path)
+        assert "门禁受阻" in out
+        assert '<details class="gates" open>' in out
+        assert "phase_start logged" in out  # a failed check's label is listed
+        assert 'pchip cur blocked">requirements' in out
+
+    def test_stepper_mode_aware_chip_count(self, tmp_path: Path) -> None:
+        _make_phase_project(tmp_path, "planning", mode="agile-lite")
+        out = html.render_dashboard(tmp_path)
+        assert out.count('class="pchip') == 2  # agile-lite runs a 2-phase sequence
+
+    def test_sdlc_na_propagates_to_kg_views(self, tmp_path: Path) -> None:
+        # a non-driven project gets 不适用 guidance in the SDLC-gated views
+        # instead of a misleading kg-init run-hint, and their tabs grey out
+        _make_phase_project(tmp_path, "{a|b|c}")
+        out = html.render_dashboard(tmp_path)
+        assert "run: <code>cataforge kg init</code>" not in out
+        assert out.count("SDLC 数据管线对本项目不适用") == 4  # trace/coverage/arch/tasks
+        assert out.count('class="tab na"') == 4
+        # docs is not SDLC-gated: its run-hint guidance stays
+        assert "run: <code>cataforge context index</code>" in out
+
+    def test_kpi_tiles_carry_explanations(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        tiles = out.split('<button class="kpi ')[1:]
+        assert len(tiles) == 4
+        for tile in tiles:  # metric meaning + threshold provenance on every tile
+            assert 'title="' in tile.split(">", 1)[0]
+        assert "RETRO_TRIGGER_SELF_CAUSED" in out  # decay threshold provenance
+
+    def test_links_tile_presets_docs_filter(self, tmp_path: Path) -> None:
+        # tapping the broken-links tile lands on docs with anomalies isolated
+        _make_docs_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'data-filter="anomaly"' in out
+        assert "filterAnomalies" in out
 
     def test_legend_present(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)
@@ -1390,7 +1469,7 @@ class TestDashboard:
         out = html.render_dashboard(tmp_path)
         assert 'class="tabgroup"' in out
         assert "项目健康" in out and "框架资产" in out
-        assert out.count('<button class="tab') == 10  # every view still has a tab
+        assert out.count('<button class="tab') == 9  # every view still has a tab
 
     def test_default_tab_follows_worst_kpi(self, tmp_path: Path) -> None:
         # a stale + xref doc-index makes the links KPI red → the docs tab opens
@@ -1439,9 +1518,9 @@ class TestDashboard:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
         assert 'role="tablist"' in out
-        assert out.count('role="tab" aria-selected') == 10
+        assert out.count('role="tab" aria-selected') == 9
         assert out.count('aria-selected="true"') == 1
-        assert out.count('role="tabpanel"') == 10
+        assert out.count('role="tabpanel"') == 9
 
     def test_active_tab_enters_url_hash(self, tmp_path: Path) -> None:
         # tab switches record #panel-{name}; load replays a valid hash → the
@@ -1950,7 +2029,8 @@ class TestVizConsistency:
         from cataforge.application.viz.registry import COLLECTORS
 
         tab_names = {name for name, _ in html._DASHBOARD_VIEWS}
-        assert tab_names == set(COLLECTORS) - {"overview"}
+        # overview feeds the KPI strip, phase feeds the stepper — neither is a tab
+        assert tab_names == set(COLLECTORS) - {"overview", "phase"}
 
     def test_single_view_has_legend(self) -> None:
         assert 'class="legend"' in html.render(_HTML_GRAPH)

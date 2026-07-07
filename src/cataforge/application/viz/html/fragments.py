@@ -63,6 +63,10 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
         # data bag — catalogue entries invisible to the text renderers.
         label = node.label or str((node.data or {}).get("name") or node.id)
         data: dict[str, Any] = {"id": node.id, "label": palette.marked_label(node.status, label)}
+        if node.status:
+            # semantic status travels with the element so client-side filters
+            # (anomaly isolation) don't have to reverse colours into meaning
+            data["status"] = node.status.value
         ntype = str((node.data or {}).get("type") or "")
         # health always wins the colour channel; type fills the healthy rest
         enc = palette.encoding(node.status) if node.status else palette.type_encoding(ntype)
@@ -166,16 +170,37 @@ def _constituency_bar(graph: Graph) -> str:
     if not counts:
         return ""
     segments = "".join(
-        f'<span class="seg" style="background:{palette.encoding(status).fill};flex:{count}" '
-        f'title="{_html.escape(status.value)}: {count}">{count}</span>'
+        f'<span class="seg" data-status="{_html.escape(status.value)}" '
+        f'style="background:{palette.encoding(status).fill};flex:{count}" '
+        f'title="{_html.escape(status.value)}: {count} · 点击只看此状态">{count}</span>'
         for status, count in sorted(counts.items(), key=lambda kv: _status_rank(kv[0]))
     )
     return f'<div class="cbar">{segments}</div>'
 
 
+# A short table scans fine at a glance; the toolbar earns its row above this.
+_TABLE_TOOLBAR_MIN_ROWS = 9
+
+
+def _status_table_toolbar(graph: Graph, dom_id: str) -> str:
+    if len(graph.nodes) < _TABLE_TOOLBAR_MIN_ROWS:
+        return ""
+    statuses = sorted({n.status for n in graph.nodes if n.status}, key=_status_rank)
+    chips = "".join(
+        f'<button class="fchip on" data-status="{_html.escape(s.value)}">'
+        f"{_html.escape(s.value)}</button>"
+        for s in statuses
+    )
+    return (
+        '<div class="toolbar">'
+        f'<input class="csearch" id="{dom_id}_q" placeholder="过滤节点…">{chips}</div>'
+    )
+
+
 def _status_table_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
-    """An edgeless graph as an anomaly-first table + constituency bar. Static
-    (no init JS); cross-view linking is wired separately via ``linkTable``."""
+    """An edgeless graph as an anomaly-first table + constituency bar, filtered
+    client-side by search / status chips / bar-segment clicks; cross-view
+    linking is wired separately via ``linkTable``."""
     rows = "".join(
         _status_row(node)
         for node in sorted(graph.nodes, key=lambda n: (_status_rank(n.status), n.label or n.id))
@@ -185,10 +210,11 @@ def _status_table_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
         f"</thead><tbody>{rows}</tbody></table>"
     )
     body = (
-        f'<div class="view stat-view">{_constituency_bar(graph)}'
+        f'<div class="view stat-view">{_status_table_toolbar(graph, dom_id)}'
+        f"{_constituency_bar(graph)}"
         f'<div class="stat-wrap">{table}</div></div>'
     )
-    return body, ""
+    return body, f"initFilterTable('{dom_id}');"
 
 
 # --------------------------------------------------------------------------- #
