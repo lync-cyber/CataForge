@@ -20,7 +20,12 @@ from cataforge.application.viz.html.fragments import (
     _read_asset,
     _script_json,
 )
-from cataforge.application.viz.html.kpi import _kpi_strip, _stepper, read_retro_threshold
+from cataforge.application.viz.html.kpi import (
+    _kpi_strip,
+    _stepper,
+    read_retro_threshold,
+    snapshot_history,
+)
 from cataforge.core.viz import palette
 from cataforge.core.viz.model import Graph, Status, View, is_empty
 
@@ -193,7 +198,9 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     results: _Results = {name: collect_safe(root, name) for name, _ in _DASHBOARD_VIEWS}
     panel_ids = {name: f"panel-{name}" for name, _ in _DASHBOARD_VIEWS}
     overview, _ = collect_safe(root, "overview")
-    kpis, worst_view = _kpi_strip(overview, results, panel_ids, read_retro_threshold(root))
+    kpis, worst_view = _kpi_strip(
+        overview, results, panel_ids, read_retro_threshold(root), snapshot_history(root)
+    )
     default_view = _default_view(results, worst_view)
     sdlc_na = not sdlc_applicable(root)
 

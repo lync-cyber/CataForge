@@ -1604,6 +1604,92 @@ class TestDashboard:
         assert "setTimeout" in out
 
 
+class TestVizSnapshot:
+    def test_snapshot_appends_jsonl(self, tmp_path: Path) -> None:
+        # each run appends one record: the overview points frozen with a ts
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        for _ in range(2):
+            result = _viz(tmp_path, "snapshot")
+            assert result.exit_code == 0, result.output
+        lines = (
+            (tmp_path / "docs" / "VIZ-SNAPSHOTS.jsonl")
+            .read_text(encoding="utf-8")
+            .strip()
+            .splitlines()
+        )
+        assert len(lines) == 2
+        rec = json.loads(lines[0])
+        assert rec["ts"] and isinstance(rec["points"], list)
+        assert any(p["series"] == "phase" for p in rec["points"])
+
+    def test_snapshot_read_tolerates_malformed_lines(self, tmp_path: Path) -> None:
+        from cataforge.application.viz.snapshots import read_snapshots
+
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "VIZ-SNAPSHOTS.jsonl").write_text(
+            '{"ts": "2026-01-01T00:00:00", "points": []}\n{oops\n', encoding="utf-8"
+        )
+        assert len(read_snapshots(tmp_path)) == 1
+
+    def _write_history(self, tmp_path: Path, counts: list[int]) -> None:
+        docs = tmp_path / "docs"
+        docs.mkdir(exist_ok=True)
+        lines = [
+            json.dumps(
+                {
+                    "ts": f"2026-01-0{i + 1}T00:00:00",
+                    "points": [{"series": "links", "label": "stale", "value": float(c)}],
+                }
+            )
+            for i, c in enumerate(counts)
+        ]
+        (docs / "VIZ-SNAPSHOTS.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_tiles_grow_sparkline_with_history(self, tmp_path: Path) -> None:
+        # ≥2 snapshots → a live tile carries an inline SVG trend line; a
+        # degraded (数据未就绪) tile deliberately stays trendless
+        _make_docs_project(tmp_path)  # live doc-index → the links tile has data
+        _make_dashboard_project(tmp_path)
+        self._write_history(tmp_path, [3, 1])
+        out = html.render_dashboard(tmp_path)
+        assert '<svg class="spark"' in out
+        assert "polyline" in out
+
+    def test_no_sparkline_without_history(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert '<svg class="spark"' not in out
+
+
+class TestVizPortfolio:
+    def test_rows_per_project(self, tmp_path: Path) -> None:
+        # one row per root: name + stepper + links/decay counts; a driven and a
+        # non-driven project aggregate side by side
+        driven = tmp_path / "proj-driven"
+        driven.mkdir()
+        _make_phase_project(driven, "development", phase_start="development")
+        idle = tmp_path / "proj-idle"
+        idle.mkdir()
+        _make_phase_project(idle, "{a|b|c}")
+        out_file = tmp_path / "portfolio.html"
+        result = CliRunner().invoke(
+            cli,
+            ["viz", "portfolio", str(driven), str(idle), "-o", str(out_file)],
+        )
+        assert result.exit_code == 0, result.output
+        out = out_file.read_text(encoding="utf-8")
+        assert "proj-driven" in out and "proj-idle" in out
+        assert out.count('class="stepper"') == 2
+        assert 'pchip cur">development' in out  # driven project's current phase
+        assert "不适用" in out  # non-driven row says so
+        assert "断链" in out and "self-caused" in out
+
+    def test_portfolio_requires_roots(self) -> None:
+        result = CliRunner().invoke(cli, ["viz", "portfolio"])
+        assert result.exit_code != 0
+
+
 class TestVizHtmlCli:
     def test_single_view_inits_immediately(self, tmp_path: Path) -> None:
         # a single-view page has no tabs: its init runs directly instead of

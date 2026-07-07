@@ -52,6 +52,7 @@ header{display:flex;align-items:center;gap:18px;padding:8px 14px;border-bottom:1
 .kpi{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 12px;min-width:130px;border:1px solid var(--chip-line);border-left-width:4px;border-radius:6px;background:var(--bg);cursor:pointer;text-align:left}
 .kpi-v{font-size:18px;font-weight:600;color:var(--strong)}
 .kpi-l{font-size:11px;color:var(--muted)}
+.spark{margin-top:2px;color:var(--faint)}
 .kpi.ok{border-left-color:var(--viz-ok)}
 .kpi.warn{border-left-color:var(--viz-warn)}
 .kpi.bad{border-left-color:var(--viz-bad)}
