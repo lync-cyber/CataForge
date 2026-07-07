@@ -33,8 +33,17 @@ ENCODINGS: dict[Status, Encoding] = {
     Status.BROKEN: Encoding("#fc8d59", "#7f2704", 2, marker="⚠", legend="断链"),
     Status.CYCLE: Encoding("#fc8d59", "#d7301f", 2, marker="⟳", legend="依赖环"),
     Status.CRITICAL_PATH: Encoding("#e0f3f8", "#4575b4", 2, marker="★", legend="关键路径"),
-    Status.AGENT: Encoding("#cde", "#369"),
-    Status.SKILL: Encoding("#efe", "#393"),
+}
+
+# Asset-kind → visual encoding: the orthogonal colour channel for what a node
+# *is* (its ``data["type"]``), distinct from how healthy it is. Health always
+# wins — a renderer applies a type encoding only when the node has no status.
+TYPE_ENCODINGS: dict[str, Encoding] = {
+    "orchestrator": Encoding("#dbe7f3", "#36648b"),
+    "phase": Encoding("#e6e2f0", "#6a5f92"),
+    "agent": Encoding("#cde", "#369"),
+    "skill": Encoding("#efe", "#393"),
+    "rules": Encoding("#f0f1f3", "#8a9099"),
 }
 
 # (fill hex, semantic label) for statuses that carry a legend entry.
@@ -47,13 +56,26 @@ def encoding(status: Status) -> Encoding:
     return ENCODINGS[status]
 
 
-def mermaid_style(status: Status) -> str:
-    """The Mermaid ``style`` directive body for *status*."""
-    enc = ENCODINGS[status]
+def type_encoding(type_name: str) -> Encoding | None:
+    return TYPE_ENCODINGS.get(type_name)
+
+
+def _style_body(enc: Encoding) -> str:
     body = f"fill:{enc.fill},stroke:{enc.stroke}"
     if enc.stroke_width > 1:
         body += f",stroke-width:{enc.stroke_width}px"
     return body
+
+
+def mermaid_style(status: Status) -> str:
+    """The Mermaid ``style`` directive body for *status*."""
+    return _style_body(ENCODINGS[status])
+
+
+def mermaid_type_style(type_name: str) -> str | None:
+    """The Mermaid ``style`` directive body for an asset kind, if encoded."""
+    enc = TYPE_ENCODINGS.get(type_name)
+    return _style_body(enc) if enc else None
 
 
 def marked_label(status: Status | None, label: str) -> str:

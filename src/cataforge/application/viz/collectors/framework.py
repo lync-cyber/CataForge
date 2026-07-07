@@ -30,7 +30,7 @@ def collect(root: Path, /, **_opts: Any) -> View:
     phases = read_workflow_modes(root).get("standard") or []
     agents = discover_agents(root)
 
-    nodes: list[Node] = [Node(id=_ROOT_ID, label=_ROOT_ID)]
+    nodes: list[Node] = [Node(id=_ROOT_ID, label=_ROOT_ID, data={"type": "orchestrator"})]
     edges: list[Edge] = []
     seen_nodes: set[str] = {_ROOT_ID}
     seen_edges: set[tuple[str, str]] = set()
@@ -51,12 +51,12 @@ def collect(root: Path, /, **_opts: Any) -> View:
         if not isinstance(name, str) or not name:
             continue
         pid = _sid("phase", name)
-        add_node(Node(id=pid, label=name))
+        add_node(Node(id=pid, label=name, data={"type": "phase"}))
         add_edge(_ROOT_ID, pid)
         if not isinstance(role, str) or not role:
             continue
         aid = _sid("agent", role)
-        add_node(Node(id=aid, label=role))
+        add_node(Node(id=aid, label=role, data={"type": "agent"}))
         add_edge(pid, aid)
         agent_md = agents.get(role)
         if agent_md is None:
@@ -67,7 +67,7 @@ def collect(root: Path, /, **_opts: Any) -> View:
             continue
         for skill in parse_skills_field(content):
             skid = _sid("skill", skill)
-            add_node(Node(id=skid, label=skill))
+            add_node(Node(id=skid, label=skill, data={"type": "skill"}))
             add_edge(aid, skid)
 
     return Graph(

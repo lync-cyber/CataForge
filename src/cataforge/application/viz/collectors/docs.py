@@ -56,10 +56,12 @@ def collect_docs(root: Path, /, **_opts: Any) -> View:
     for doc_id, entry in documents.items():
         doc_type = entry.get("doc_type") or ""
         stale = doc_id in stale_downstream
+        # An indexed doc that passed the stale check is verified fine — explicit
+        # OK keeps "no signal" (—) a genuinely rare state instead of the default.
         nodes[doc_id] = Node(
             doc_id,
             label=f"{doc_id}: {doc_type}" if doc_type else doc_id,
-            status=Status.PARTIAL if stale else None,
+            status=Status.PARTIAL if stale else Status.OK,
             data=dict(_STALE_HINT) if stale else None,
         )
 

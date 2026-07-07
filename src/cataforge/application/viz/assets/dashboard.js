@@ -1,5 +1,6 @@
 window.__viz=window.__viz||{cy:{},ec:{}};
-function initGraph(id,elements){
+function initGraph(id,elements,opts){
+  opts=opts||{};
   var compound=elements.some(function(e){return e.data&&e.data.parent;});
   var layout=compound
     ?{name:'cose',padding:14,fit:true,nodeDimensionsIncludeLabels:true,idealEdgeLength:60}
@@ -12,7 +13,8 @@ function initGraph(id,elements){
       {selector:'node[bg]',style:{'background-color':'data(bg)'}},
       {selector:'node[border]',style:{'border-color':'data(border)','border-width':2}},
       {selector:'edge',style:{'width':1,'line-color':'#aab2bd','target-arrow-color':'#aab2bd',
-      'target-arrow-shape':'triangle','curve-style':'bezier','label':'data(label)',
+      'target-arrow-shape':'triangle','curve-style':'bezier'}},
+      {selector:'edge[label]',style:{'label':'data(label)',
       'font-size':8,'color':'#66758c','text-background-color':'#fff','text-background-opacity':1}},
       {selector:':parent',style:{'background-opacity':0.06,'background-color':'#36648b',
       'border-color':'#c3ccd6','border-width':1,'label':'data(label)','font-size':11,
@@ -22,6 +24,13 @@ function initGraph(id,elements){
       {selector:'.focus',style:{'border-width':3,'border-color':'#36648b'}}],
     layout:layout,
     wheelSensitivity:0.2});
+  if(!compound&&(opts.dir==='LR'||opts.dir==='RL')){
+    /* breadthfirst lays top-down; a horizontal graph transposes its ranks */
+    cy.startBatch();
+    cy.nodes().forEach(function(n){var p=n.position();n.position({x:p.y,y:p.x});});
+    cy.endBatch();
+    cy.fit(undefined,12);
+  }
   window.__viz.cy[id]=cy;
   var tip=window.__viz.tip||(window.__viz.tip=(function(){
     var d=document.createElement('div');d.className='viztip';d.style.display='none';
@@ -51,7 +60,9 @@ function initGraph(id,elements){
   return cy;
 }
 function initChart(id,option){
-  var c=echarts.init(document.getElementById(id));
+  var dark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var c=echarts.init(document.getElementById(id),dark?'dark':null);
+  if(dark){option.backgroundColor='transparent';}
   c.setOption(option);window.__viz.ec[id]=c;return c;
 }
 function initCatalogue(id,elements){

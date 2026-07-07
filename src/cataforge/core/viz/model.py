@@ -17,9 +17,11 @@ from enum import StrEnum
 
 
 class Status(StrEnum):
-    """Semantic node status. Collectors attach it; each renderer maps it to
+    """Semantic node health. Collectors attach it; each renderer maps it to
     its own visual encoding (colour + textual marker) via
-    :mod:`cataforge.core.viz.palette`, so hue is never the only channel."""
+    :mod:`cataforge.core.viz.palette`, so hue is never the only channel.
+    Asset kinds (agent / skill / …) are not statuses — they ride the node's
+    ``data["type"]`` and colour through :data:`palette.TYPE_ENCODINGS`."""
 
     OK = "ok"
     PARTIAL = "partial"
@@ -27,8 +29,6 @@ class Status(StrEnum):
     BROKEN = "broken"
     CYCLE = "cycle"
     CRITICAL_PATH = "critical-path"
-    AGENT = "agent"
-    SKILL = "skill"
 
 
 @dataclass(frozen=True)
@@ -54,10 +54,15 @@ class Edge:
 
 @dataclass(frozen=True)
 class Graph:
+    """``form`` is the collector-declared presentation intent: ``""`` renders
+    by shape (graph / status table), ``"catalogue"`` requests the metadata
+    table + clustered graph — renderers never sniff the intent from data."""
+
     nodes: tuple[Node, ...] = ()
     edges: tuple[Edge, ...] = ()
     direction: str = "TD"
     title: str = ""
+    form: str = ""
 
 
 @dataclass(frozen=True)

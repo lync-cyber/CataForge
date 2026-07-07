@@ -14,8 +14,12 @@ def _quote(text: str) -> str:
 def _node_attrs(node: Node) -> str:
     label = _quote(palette.marked_label(node.status, node.label or ""))
     attrs = [f'label="{label}"']
-    if node.status:
-        enc = palette.encoding(node.status)
+    enc = (
+        palette.encoding(node.status)
+        if node.status
+        else palette.type_encoding(str((node.data or {}).get("type") or ""))
+    )
+    if enc:
         attrs.append(f'style=filled, fillcolor="{enc.fill}", color="{enc.stroke}"')
     return ", ".join(attrs)
 

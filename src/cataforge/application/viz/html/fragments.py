@@ -55,6 +55,7 @@ def _node_tip(node: Node) -> str | None:
 
 
 def _node_data(graph: Graph) -> list[dict[str, Any]]:
+    catalogue = graph.form == "catalogue"
     elements: list[dict[str, Any]] = []
     clusters: set[str] = set()
     for node in graph.nodes:
@@ -62,19 +63,20 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
         # data bag — catalogue entries invisible to the text renderers.
         label = node.label or str((node.data or {}).get("name") or node.id)
         data: dict[str, Any] = {"id": node.id, "label": palette.marked_label(node.status, label)}
-        if node.status:
-            enc = palette.encoding(node.status)
+        ntype = str((node.data or {}).get("type") or "")
+        # health always wins the colour channel; type fills the healthy rest
+        enc = palette.encoding(node.status) if node.status else palette.type_encoding(ntype)
+        if enc:
             data["bg"] = enc.fill
             data["border"] = enc.stroke
         tip = _node_tip(node)
         if tip:
             data["tip"] = tip
-        # Catalogue nodes (those carrying a type) cluster into a compound parent
-        # per type, so agents / skills / rules read as three grouped boxes.
-        ntype = (node.data or {}).get("type")
-        if ntype:
+        # Catalogue nodes cluster into a compound parent per type, so agents /
+        # skills / rules read as grouped boxes; other forms keep their topology.
+        if catalogue and ntype:
             data["parent"] = f"cluster_{ntype}"
-            clusters.add(str(ntype))
+            clusters.add(ntype)
         elements.append({"data": data})
     for edge in graph.edges:
         edata: dict[str, Any] = {
@@ -89,32 +91,25 @@ def _node_data(graph: Graph) -> list[dict[str, Any]]:
     return parents + elements
 
 
-def _is_catalogue(graph: Graph) -> bool:
-    """A graph is an asset catalogue only when a node's data bag carries a
-    ``type`` (agent/skill/rules) — the shape ``_cat_row`` expects. A data bag
-    holding only a remediation ``hint`` (docs / coverage) is *not* a catalogue,
-    so it renders as a normal graph / status table with the hint projected."""
-    return any((node.data or {}).get("type") for node in graph.nodes)
-
-
 def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str, bool]:
     """Pick a Graph's HTML form. Returns ``(body, init, needs_cytoscape)``:
-    an asset catalogue (metadata table + linked graph), an edgeless graph's
-    status table (position carries no information without edges), or the plain
-    zoomable graph."""
-    if _is_catalogue(graph):
+    the collector-declared catalogue (metadata table + linked graph), an
+    edgeless graph's status table (position carries no information without
+    edges), or the plain zoomable graph."""
+    if graph.form == "catalogue":
         body, init = _catalogue_fragment(graph, dom_id)
         return body, init, True
     if graph.nodes and not graph.edges:
         return (*_status_table_fragment(graph, dom_id), False)
     elements = _script_json(_node_data(graph))
+    opts = _script_json({"dir": graph.direction})
     body = (
         '<div class="view">'
         f'<div class="toolbar"><input class="search" data-target="{dom_id}" '
         'placeholder="filter nodes…"></div>'
         f'<div id="{dom_id}" class="cy"></div></div>'
     )
-    return body, f"initGraph('{dom_id}', {elements});", True
+    return body, f"initGraph('{dom_id}', {elements}, {opts});", True
 
 
 # --------------------------------------------------------------------------- #
@@ -128,8 +123,6 @@ _STATUS_ORDER: dict[Status, int] = {
     Status.PARTIAL: 3,
     Status.CRITICAL_PATH: 4,
     Status.OK: 5,
-    Status.AGENT: 6,
-    Status.SKILL: 7,
 }
 
 
@@ -272,30 +265,30 @@ def _catalogue_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
 # Timeline / MetricSeries → ECharts
 # --------------------------------------------------------------------------- #
 def _timeline_option(view: Timeline) -> dict[str, Any]:
-    times = sorted({e.ts for e in view.events})
     lanes = sorted({e.category for e in view.events}) or [""]
-    ti = {t: i for i, t in enumerate(times)}
     li = {c: i for i, c in enumerate(lanes)}
     data = [
         {
-            "value": [ti[e.ts], li[e.category]],
+            "value": [e.ts, li[e.category]],
             "name": f"{e.label} ×{e.count}" if e.count > 1 else e.label,
             "symbolSize": min(32, 9 + 3 * e.count),
         }
-        for e in view.events
+        for e in sorted(view.events, key=lambda e: e.ts)
     ]
     return {
         "title": {"text": view.title or "timeline"},
         "tooltip": {"trigger": "item", "formatter": "{b}"},
         "grid": {"containLabel": True, "bottom": 64},
-        "xAxis": {"type": "category", "data": times, "axisLabel": {"rotate": 45}},
+        # a time axis keeps event density honest — a 2-day gap renders narrower
+        # than a 2-week one, unlike evenly spaced date categories
+        "xAxis": {"type": "time", "axisLabel": {"rotate": 45}},
         "yAxis": {"type": "category", "data": lanes},
         # a long log is scannable: brush a window on the x-axis, scroll inside it
         "dataZoom": [
             {"type": "slider", "xAxisIndex": 0, "bottom": 8},
             {"type": "inside", "xAxisIndex": 0},
         ],
-        "series": [{"type": "scatter", "data": data}],
+        "series": [{"type": "scatter", "name": view.title or "events", "data": data}],
     }
 
 
