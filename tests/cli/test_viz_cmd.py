@@ -1283,7 +1283,7 @@ class TestDashboard:
             assert hexv in out and label in out
 
     def _panel_id(self, name: str) -> str:
-        return f"panel{[n for n, _ in html._DASHBOARD_VIEWS].index(name)}"
+        return f"panel-{name}"
 
     def test_coverage_to_trace_link_wired_when_ready(self, tmp_path: Path) -> None:
         # coverage is edgeless → renders as a status table, so its row clicks
@@ -1398,7 +1398,7 @@ class TestDashboard:
         _make_docs_project(tmp_path)
         out = html.render_dashboard(tmp_path)
         assert f'id="{self._panel_id("docs")}" class="panel active"' in out
-        assert 'id="panel0" class="panel active"' not in out  # framework not default
+        assert 'id="panel-framework" class="panel active"' not in out  # framework not default
 
     def test_default_tab_first_health_view_when_all_ok(self, tmp_path: Path) -> None:
         # no red/amber KPI, but a health view (timeline) has data → open it, never
@@ -1406,10 +1406,75 @@ class TestDashboard:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
         assert f'id="{self._panel_id("timeline")}" class="panel active"' in out
-        assert 'id="panel0" class="panel active"' not in out
+        assert 'id="panel-framework" class="panel active"' not in out
+
+    def test_panels_use_named_ids(self, tmp_path: Path) -> None:
+        # panel anchors are view names, not positional indexes: reordering or
+        # removing a view never shifts every other panel's id
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'id="panel-framework"' in out
+        assert 'id="panel-timeline"' in out
+        assert 'id="panel0"' not in out
+
+    def test_panel_inits_registered_for_lazy_activation(self, tmp_path: Path) -> None:
+        # inits queue behind __viz.register(pid, fn); showPanel flushes a
+        # panel's queue on first activation, so load renders one panel only
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "__viz.register('panel-framework', function(){" in out
+        assert "__viz.register('panel-timeline', function(){" in out
+        reg = out.index("__viz.register('panel-framework'")
+        assert reg < out.index("initGraph('panel-framework_v'")
+
+    def test_cross_link_wired_inside_source_panel_register(self, tmp_path: Path) -> None:
+        # wiring shares the source panel's register closure, so it can never
+        # run before its own graph/table instances exist
+        _make_kg_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        cov, trace = self._panel_id("coverage"), self._panel_id("trace")
+        assert out.index(f"__viz.register('{cov}'") < out.index(f"linkTable('{cov}_v', '{trace}');")
+
+    def test_tabs_carry_aria_roles(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'role="tablist"' in out
+        assert out.count('role="tab" aria-selected') == 10
+        assert out.count('aria-selected="true"') == 1
+        assert out.count('role="tabpanel"') == 10
+
+    def test_active_tab_enters_url_hash(self, tmp_path: Path) -> None:
+        # tab switches record #panel-{name}; load replays a valid hash → the
+        # dashboard is deep-linkable per view
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "history.replaceState" in out
+        assert "location.hash" in out
+        assert "addEventListener('hashchange'" in out  # manual hash edits / back-forward
+
+    def test_ui_state_persisted_to_local_storage(self, tmp_path: Path) -> None:
+        # filters / sort / viewport survive a reload (serve-mode regenerate)
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "localStorage.setItem" in out
+        assert "cataforge-viz:" in out
+
+    def test_window_resize_handler_debounced(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "addEventListener('resize'" in out
+        assert "setTimeout" in out
 
 
 class TestVizHtmlCli:
+    def test_single_view_inits_immediately(self, tmp_path: Path) -> None:
+        # a single-view page has no tabs: its init runs directly instead of
+        # queueing behind a panel registration
+        _make_project(tmp_path)
+        result = _viz(tmp_path, "framework", "--html")
+        assert "initGraph('view0'" in result.output
+        assert "__viz.register('panel-" not in result.output
+
     def test_framework_html_inlines_cytoscape(self, tmp_path: Path) -> None:
         _make_project(tmp_path)
         result = _viz(tmp_path, "framework", "--html")

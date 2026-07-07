@@ -130,33 +130,41 @@ def _view_group(name: str) -> str:
     return "health" if name in _HEALTH_VIEWS else "framework"
 
 
-def _default_index(results: _Results, worst_view: str | None) -> int:
+def _default_view(results: _Results, worst_view: str | None) -> str:
     """Which tab opens first: the worst KPI's view, else the first health view
     that actually has data, else the first tab."""
     order = [name for name, _ in _DASHBOARD_VIEWS]
     if worst_view and worst_view in order:
-        return order.index(worst_view)
-    for i, name in enumerate(order):
+        return worst_view
+    for name in order:
         if name in _HEALTH_VIEWS:
             view = results[name][0]
             if view is not None and not is_empty(view):
-                return i
-    return 0
+                return name
+    return order[0]
 
 
 def _dashboard_panel(
-    name: str, result: tuple[View | None, str | None], index: int, active: bool
+    name: str, result: tuple[View | None, str | None], active: bool
 ) -> tuple[str, str | None, str | None]:
     """Render one dashboard tab. Returns ``(panel_html, init_js, lib)``;
     ``init_js`` / ``lib`` are ``None`` for empty or failed views."""
     cls = " active" if active else ""
-    pid = f"panel{index}"
+    pid = f"panel-{name}"
     view, error = result
     if view is None or is_empty(view):
         inner = _degraded_inner(name, view, error)
-        return f'<section id="{pid}" class="panel{cls}">{inner}</section>', None, None
+        return (
+            f'<section id="{pid}" class="panel{cls}" role="tabpanel">{inner}</section>',
+            None,
+            None,
+        )
     body, init, lib = _fragment(view, f"{pid}_v")
-    return f'<section id="{pid}" class="panel{cls}">{body}</section>', init, lib
+    return (
+        f'<section id="{pid}" class="panel{cls}" role="tabpanel">{body}</section>',
+        init,
+        lib,
+    )
 
 
 def _grouped_nav(tabs_by_name: dict[str, str]) -> str:
@@ -167,43 +175,53 @@ def _grouped_nav(tabs_by_name: dict[str, str]) -> str:
     for title, key in _TAB_GROUPS:
         btns = "".join(tabs_by_name[n] for n in order if _view_group(n) == key)
         blocks.append(f'<div class="tabgroup"><span class="tglabel">{title}</span>{btns}</div>')
-    return f'<nav class="tabs">{"".join(blocks)}</nav>'
+    return f'<nav class="tabs" role="tablist">{"".join(blocks)}</nav>'
 
 
 def render_dashboard(root: Path, /, **_opts: Any) -> str:
     from cataforge.application.viz.registry import collect_safe
 
     results: _Results = {name: collect_safe(root, name) for name, _ in _DASHBOARD_VIEWS}
-    panel_ids = {name: f"panel{index}" for index, (name, _) in enumerate(_DASHBOARD_VIEWS)}
+    panel_ids = {name: f"panel-{name}" for name, _ in _DASHBOARD_VIEWS}
     overview, _ = collect_safe(root, "overview")
     kpis, worst_view = _kpi_strip(overview, results, panel_ids, read_retro_threshold(root))
-    default_index = _default_index(results, worst_view)
+    default_view = _default_view(results, worst_view)
 
     tabs_by_name: dict[str, str] = {}
     panels: list[str] = []
-    inits: list[str] = []
+    panel_inits: dict[str, list[str]] = {}
     libs: list[str] = []
     graph_views: set[str] = set()
     table_views: set[str] = set()
-    for index, (name, label) in enumerate(_DASHBOARD_VIEWS):
-        panel, init, lib = _dashboard_panel(name, results[name], index, index == default_index)
-        sel = " sel" if index == default_index else ""
+    for name, label in _DASHBOARD_VIEWS:
+        active = name == default_view
+        panel, init, lib = _dashboard_panel(name, results[name], active)
+        sel = " sel" if active else ""
         tabs_by_name[name] = (
-            f'<button class="tab{sel}" data-panel="panel{index}">{_html.escape(label)}</button>'
+            f'<button class="tab{sel}" role="tab" aria-selected="{"true" if active else "false"}"'
+            f' data-panel="{panel_ids[name]}">{_html.escape(label)}</button>'
         )
         panels.append(panel)
         if init is not None:
-            inits.append(init)
+            panel_inits[name] = [init]
             if isinstance(results[name][0], Graph):
                 # a Graph with no library is one rendered as a status table
                 (graph_views if lib == _CYTOSCAPE else table_views).add(name)
         if lib is not None and lib not in libs:
             libs.append(lib)
     for src, dst in _CROSS_LINKS:
+        # wiring joins the source panel's register closure so it always runs
+        # after that panel's own instances exist
         if src in graph_views:
-            inits.append(f"linkGraph('{panel_ids[src]}_v', '{panel_ids[dst]}');")
+            panel_inits[src].append(f"linkGraph('{panel_ids[src]}_v', '{panel_ids[dst]}');")
         elif src in table_views:
-            inits.append(f"linkTable('{panel_ids[src]}_v', '{panel_ids[dst]}');")
+            panel_inits[src].append(f"linkTable('{panel_ids[src]}_v', '{panel_ids[dst]}');")
+    nl = "\n"
+    inits = [
+        f"__viz.register('{panel_ids[name]}', function(){{\n{nl.join(blocks)}\n}});"
+        for name, _ in _DASHBOARD_VIEWS
+        if (blocks := panel_inits.get(name))
+    ]
 
     header = "<header><strong>CataForge viz dashboard</strong></header>"
     body = header + kpis + _legend() + _grouped_nav(tabs_by_name) + "\n".join(panels)
