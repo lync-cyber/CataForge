@@ -243,6 +243,38 @@ def viz_dashboard(output: Path | None, open_browser: bool) -> None:
             webbrowser.open(output.resolve().as_uri())
 
 
+@viz_group.command("snapshot")
+def viz_snapshot() -> None:
+    """Freeze the current overview KPIs into docs/VIZ-SNAPSHOTS.jsonl.
+
+    Each run appends one timestamped record; the dashboard's KPI tiles grow
+    trend sparklines once two or more snapshots exist.
+    """
+    from cataforge.application.viz.snapshots import append_snapshot, read_snapshots
+
+    root = resolve_root()
+    path = append_snapshot(root)
+    click.echo(f"snapshot #{len(read_snapshots(root))} → {path}")
+
+
+@viz_group.command("portfolio")
+@click.argument(
+    "roots",
+    nargs=-1,
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+)
+@_output_option
+def viz_portfolio(roots: tuple[Path, ...], output: Path | None) -> None:
+    """Aggregate multiple project roots into one offline health table.
+
+    One row per ROOT: phase stepper + link health + correction decay.
+    """
+    from cataforge.application.viz.portfolio import render_portfolio
+
+    _emit(render_portfolio(list(roots)), output)
+
+
 def _serve_options(fn: F) -> F:
     fn = click.option(
         "--port", type=int, default=8000, show_default=True, help="Port to listen on."

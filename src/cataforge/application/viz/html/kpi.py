@@ -35,7 +35,13 @@ _DECAY_INFO = (
 
 
 def _tile(
-    value: str, label: str, cls: str, panel_id: str, info: str = "", extra: str = ""
+    value: str,
+    label: str,
+    cls: str,
+    panel_id: str,
+    info: str = "",
+    extra: str = "",
+    spark: str = "",
 ) -> tuple[str, int]:
     """A KPI tile plus its severity rank, so the strip can point the default
     tab at the worst signal instead of always opening the first view."""
@@ -43,9 +49,75 @@ def _tile(
     html_ = (
         f'<button class="kpi {cls}"{title}{extra} data-panel="{panel_id}">'
         f'<span class="kpi-v">{_html.escape(value)}</span>'
-        f'<span class="kpi-l">{_html.escape(label)}</span></button>'
+        f'<span class="kpi-l">{_html.escape(label)}</span>{spark}</button>'
     )
     return html_, _CLS_RANK.get(cls, 0)
+
+
+def _sparkline(values: list[float]) -> str:
+    """A 64×16 polyline of the metric's snapshot history — direction at a
+    glance; axes deliberately omitted."""
+    if len(values) < 2:
+        return ""
+    lo, hi = min(values), max(values)
+    span = (hi - lo) or 1.0
+    last = len(values) - 1
+    pts = " ".join(
+        f"{i * 60 / last + 2:.1f},{14 - (v - lo) / span * 12:.1f}" for i, v in enumerate(values)
+    )
+    return (
+        '<svg class="spark" width="64" height="16" viewBox="0 0 64 16" aria-hidden="true">'
+        f'<polyline points="{pts}" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'
+    )
+
+
+_History = list[dict[str, dict[str, float]]]
+
+
+def snapshot_history(root: Path) -> _History:
+    """Snapshot records folded to the overview's groups form, one per record."""
+    from cataforge.application.viz.snapshots import read_snapshots
+
+    out: _History = []
+    for rec in read_snapshots(root):
+        groups: dict[str, dict[str, float]] = {}
+        for p in rec.get("points") or []:
+            if not isinstance(p, dict):
+                continue
+            try:
+                value = float(p.get("value", 0))
+            except (TypeError, ValueError):
+                continue
+            series, label = p.get("series"), p.get("label")
+            if isinstance(series, str) and isinstance(label, str):
+                groups.setdefault(series, {})[label] = value
+        out.append(groups)
+    return out
+
+
+def _spark_series(history: _History, metric: str) -> list[float]:
+    """Extract one tile's value from each snapshot's groups; snapshots missing
+    the group are skipped so a late-added metric still trends cleanly."""
+    out: list[float] = []
+    for groups in history:
+        if metric == "docs":
+            grp = groups.get("docs")
+            if grp:
+                out.append(sum(1 for v in grp.values() if v >= 0.5) * 100 / len(grp))
+        elif metric == "coverage":
+            grp = groups.get("coverage")
+            total = sum(grp.values()) if grp else 0
+            if grp and total:
+                out.append(grp.get("full", 0) * 100 / total)
+        elif metric == "links":
+            grp = groups.get("links")
+            if grp is not None:
+                out.append(grp.get("stale", 0) + grp.get("xref_error", 0))
+        elif metric == "decay":
+            grp = groups.get("decay")
+            if grp is not None:
+                out.append(grp.get(SELF_CAUSED_LABEL, 0))
+    return out
 
 
 def _missing_hint(results: _Results, name: str, label: str) -> str:
@@ -60,17 +132,23 @@ def _missing_hint(results: _Results, name: str, label: str) -> str:
     return f"{label} · 数据未就绪"
 
 
-def _docs_tile(group: dict[str, float] | None, results: _Results, pid: str) -> tuple[str, int]:
+def _docs_tile(
+    group: dict[str, float] | None, results: _Results, pid: str, spark: str = ""
+) -> tuple[str, int]:
     if not group:
         return _tile("—", _missing_hint(results, "docs", "核心文档"), "na", pid, _DOCS_INFO)
     total = len(group)
     present = sum(1 for v in group.values() if v >= 0.5)
     approved = sum(1 for v in group.values() if v >= 1.0)
     cls = "ok" if present == total else "warn" if present else "bad"
-    return _tile(f"{present}/{total}", f"核心文档 · {approved} 已批", cls, pid, _DOCS_INFO)
+    return _tile(
+        f"{present}/{total}", f"核心文档 · {approved} 已批", cls, pid, _DOCS_INFO, spark=spark
+    )
 
 
-def _coverage_tile(group: dict[str, float] | None, results: _Results, pid: str) -> tuple[str, int]:
+def _coverage_tile(
+    group: dict[str, float] | None, results: _Results, pid: str, spark: str = ""
+) -> tuple[str, int]:
     if not group:
         return _tile(
             "—", _missing_hint(results, "coverage", "Feature 覆盖"), "na", pid, _COVERAGE_INFO
@@ -82,10 +160,14 @@ def _coverage_tile(group: dict[str, float] | None, results: _Results, pid: str) 
     cls = "ok" if full == total else "bad" if full == 0 else "warn"
     pct = round(full * 100 / total)
     gap = total - full  # Features short of the 100% target line
-    return _tile(f"{pct}%", f"Feature 覆盖 · 缺口 {gap} → 100%", cls, pid, _COVERAGE_INFO)
+    return _tile(
+        f"{pct}%", f"Feature 覆盖 · 缺口 {gap} → 100%", cls, pid, _COVERAGE_INFO, spark=spark
+    )
 
 
-def _links_tile(group: dict[str, float] | None, results: _Results, pid: str) -> tuple[str, int]:
+def _links_tile(
+    group: dict[str, float] | None, results: _Results, pid: str, spark: str = ""
+) -> tuple[str, int]:
     filt = ' data-filter="anomaly"'
     if not group:
         return _tile("—", _missing_hint(results, "docs", "断链 / stale"), "na", pid, _LINKS_INFO)
@@ -93,7 +175,13 @@ def _links_tile(group: dict[str, float] | None, results: _Results, pid: str) -> 
     count = stale + xref
     cls = "ok" if count == 0 else "bad" if xref else "warn"
     return _tile(
-        str(count), f"断链 / stale · stale {stale} · xref {xref}", cls, pid, _LINKS_INFO, filt
+        str(count),
+        f"断链 / stale · stale {stale} · xref {xref}",
+        cls,
+        pid,
+        _LINKS_INFO,
+        filt,
+        spark,
     )
 
 
@@ -110,7 +198,9 @@ def _month_over_month(group: dict[str, float]) -> str:
     return "↑" if cur > prev else "↓" if cur < prev else "→"
 
 
-def _decay_tile(group: dict[str, float] | None, pid: str, threshold: int) -> tuple[str, int]:
+def _decay_tile(
+    group: dict[str, float] | None, pid: str, threshold: int, spark: str = ""
+) -> tuple[str, int]:
     """Self-caused corrections against the retrospective trigger line: ``N/阈值``
     plus month-over-month direction. Red once the retro line is reached."""
     g = group or {}
@@ -118,12 +208,21 @@ def _decay_tile(group: dict[str, float] | None, pid: str, threshold: int) -> tup
     cls = "bad" if self_caused >= threshold else "warn" if self_caused else "ok"
     arrow = _month_over_month(g)
     return _tile(
-        f"{self_caused}/{threshold}", f"self-caused → retro · 环比{arrow}", cls, pid, _DECAY_INFO
+        f"{self_caused}/{threshold}",
+        f"self-caused → retro · 环比{arrow}",
+        cls,
+        pid,
+        _DECAY_INFO,
+        spark=spark,
     )
 
 
 def _kpi_strip(
-    overview: View | None, results: _Results, panel_ids: dict[str, str], retro_threshold: int
+    overview: View | None,
+    results: _Results,
+    panel_ids: dict[str, str],
+    retro_threshold: int,
+    history: _History | None = None,
 ) -> tuple[str, str | None]:
     """Return ``(strip_html, worst_view)``. ``worst_view`` is the view name of
     the highest-severity tile (``None`` when every tile is ok/na), so the caller
@@ -132,12 +231,22 @@ def _kpi_strip(
     if isinstance(overview, MetricSeries):
         for point in overview.points:
             groups.setdefault(point.series, {})[point.label] = point.value
+    hist = history or []
+    sparks = {m: _sparkline(_spark_series(hist, m)) for m in ("docs", "coverage", "links", "decay")}
     # (tile, the view its worst state should open); phase lives in the stepper
     tiles = [
-        (_docs_tile(groups.get("docs"), results, panel_ids["docs"]), "docs"),
-        (_coverage_tile(groups.get("coverage"), results, panel_ids["coverage"]), "coverage"),
-        (_links_tile(groups.get("links"), results, panel_ids["docs"]), "docs"),
-        (_decay_tile(groups.get("decay"), panel_ids["decay"], retro_threshold), "decay"),
+        (_docs_tile(groups.get("docs"), results, panel_ids["docs"], sparks["docs"]), "docs"),
+        (
+            _coverage_tile(
+                groups.get("coverage"), results, panel_ids["coverage"], sparks["coverage"]
+            ),
+            "coverage",
+        ),
+        (_links_tile(groups.get("links"), results, panel_ids["docs"], sparks["links"]), "docs"),
+        (
+            _decay_tile(groups.get("decay"), panel_ids["decay"], retro_threshold, sparks["decay"]),
+            "decay",
+        ),
     ]
     html_ = "".join(tile for (tile, _rank), _view in tiles)
     worst_rank = max((rank for (_tile_html, rank), _view in tiles), default=0)
