@@ -1,7 +1,7 @@
 # 设计阶段交互能力修复 — 详细方案与实施计划
 
-> 前序：本目录 [`analysis.md`](analysis.md)（问题核实与证据链）。本文是基于用户决策拍板后的**详细方案 + 分步实施计划**。
-> 交付边界：本轮**仅出方案与计划**，不改动 agent / skill / 协议本体（待用户审阅后另行立项实施）。
+> 前序：本目录 [`analysis.md`](analysis.md)（问题核实与证据链）。本文是方案 A（Phase 1/2 主线程内联承载角色）的详细方案与分步实施计划。
+> 状态：已实施（v0.9.1「design-phase inline execution」），并超出本文范围。§5 Step 1–6 全部落地——`framework.json#/workflow` 段（`execution_host` 一等字段，Phase 1/2 = inline）、`ORCHESTRATOR-PROTOCOLS.md` §Inline Role Execution Protocol、`orchestrator/AGENT.md` 内联承载协议与改写后 Anti-Pattern、`framework-review` B5-ζ（interactive⇒inline）守卫均在仓；ui_design 亦已转 inline（本文 §7 曾列为「本轮不做」）。以代码为准，本文留作设计记录。
 
 ---
 
