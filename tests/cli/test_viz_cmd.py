@@ -1384,6 +1384,15 @@ class TestDashboard:
         out = html.render_dashboard(tmp_path)
         assert out.count('class="pchip') == 2  # agile-lite runs a 2-phase sequence
 
+    def test_stepper_survives_phase_outside_mode_sequence(self, tmp_path: Path) -> None:
+        # a recognised phase absent from the declared mode's own backbone
+        # (mid-project mode switch / hand-edited instruction file) must render,
+        # not crash the whole dashboard
+        _make_phase_project(tmp_path, "architecture", mode="agile-lite")
+        out = html.render_dashboard(tmp_path)
+        # appended as the current chip (blocked: no arch doc gates satisfied)
+        assert 'pchip cur blocked">architecture' in out
+
     def test_sdlc_na_propagates_to_kg_views(self, tmp_path: Path) -> None:
         # a non-driven project gets 不适用 guidance in the SDLC-gated views
         # instead of a misleading kg-init run-hint, and their tabs grey out
@@ -1596,6 +1605,15 @@ class TestDashboard:
         out = html.render_dashboard(tmp_path)
         assert "localStorage.setItem" in out
         assert "cataforge-viz:" in out
+        # a corrupted persisted value must not crash a panel's init
+        assert "__viz.stateArr" in out
+
+    def test_focus_row_lookup_never_builds_dynamic_selector(self, tmp_path: Path) -> None:
+        # entity ids are data, not selector syntax: a quote in an id must not
+        # throw a DOMException out of __viz.focus
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "'tr[data-node=\"'+nid" not in out
 
     def test_window_resize_handler_debounced(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)
@@ -1688,6 +1706,17 @@ class TestVizPortfolio:
     def test_portfolio_requires_roots(self) -> None:
         result = CliRunner().invoke(cli, ["viz", "portfolio"])
         assert result.exit_code != 0
+
+    def test_one_misconfigured_root_does_not_abort_the_sweep(self, tmp_path: Path) -> None:
+        # a root whose 当前阶段 falls outside its mode's sequence still gets a
+        # row — the aggregation's whole point is surviving messy projects
+        odd = tmp_path / "proj-odd"
+        odd.mkdir()
+        _make_phase_project(odd, "architecture", mode="agile-lite")
+        from cataforge.application.viz.portfolio import render_portfolio
+
+        out = render_portfolio([odd])
+        assert "proj-odd" in out
 
 
 class TestVizHtmlCli:
@@ -2177,6 +2206,15 @@ class TestVizConsistency:
         tab_names = {name for name, _ in html._DASHBOARD_VIEWS}
         # overview feeds the KPI strip, phase feeds the stepper — neither is a tab
         assert tab_names == set(COLLECTORS) - {"overview", "phase"}
+
+    def test_view_classification_sets_are_subsets_of_dashboard_views(self) -> None:
+        # the grouping / SDLC-gating sets are hand-maintained: a rename or a
+        # new view must not silently misclassify
+        from cataforge.application.viz.html.page import _HEALTH_VIEWS, _SDLC_VIEWS
+
+        tab_names = {name for name, _ in html._DASHBOARD_VIEWS}
+        assert tab_names >= _HEALTH_VIEWS
+        assert tab_names >= _SDLC_VIEWS
 
     def test_single_view_has_legend(self) -> None:
         assert 'class="legend"' in html.render(_HTML_GRAPH)

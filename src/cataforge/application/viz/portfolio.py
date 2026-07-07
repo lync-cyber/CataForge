@@ -12,7 +12,7 @@ from pathlib import Path
 from cataforge.application.viz.collectors.overview import SELF_CAUSED_LABEL
 from cataforge.application.viz.html.kpi import _stepper
 from cataforge.application.viz.html.page import _document
-from cataforge.core.viz.model import MetricSeries
+from cataforge.core.viz.model import MetricSeries, fold_points
 
 
 def _health_cells(root: Path) -> tuple[str, str]:
@@ -20,10 +20,7 @@ def _health_cells(root: Path) -> tuple[str, str]:
     from cataforge.application.viz.registry import collect_safe
 
     view, _ = collect_safe(root, "overview")
-    groups: dict[str, dict[str, float]] = {}
-    if isinstance(view, MetricSeries):
-        for p in view.points:
-            groups.setdefault(p.series, {})[p.label] = p.value
+    groups = fold_points(view.points) if isinstance(view, MetricSeries) else {}
     links = groups.get("links")
     link_txt = (
         "—" if links is None else str(int(links.get("stale", 0) + links.get("xref_error", 0)))

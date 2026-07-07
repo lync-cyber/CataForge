@@ -99,6 +99,15 @@ class MetricSeries:
 View = Graph | Timeline | MetricSeries
 
 
+def fold_points(points: tuple[MetricPoint, ...]) -> dict[str, dict[str, float]]:
+    """Fold metric points into ``{series: {label: value}}`` — the groups form
+    every overview consumer reads."""
+    groups: dict[str, dict[str, float]] = {}
+    for point in points:
+        groups.setdefault(point.series, {})[point.label] = point.value
+    return groups
+
+
 def is_empty(view: View) -> bool:
     """Whether *view* carries no data — an empty graph, timeline, or series.
     Renders fine but shows nothing; callers surface this as a distinct state."""

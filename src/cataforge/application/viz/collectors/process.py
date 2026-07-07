@@ -67,12 +67,17 @@ def collect_phase_detail(root: Path) -> PhaseDetail:
     """Phase backbone + gate-check details for the dashboard stepper. Raises
     :class:`CataforgeError` when the project has no instruction file."""
     current, raw_checks = evaluate_phase(root)
-    if not is_driven(current):
+    if not is_driven(current) or current is None:
         return PhaseDetail(current=None, sequence=(), checks=(), blocked=False)
     checks = tuple(GateCheck(label, ok, detail) for label, ok, detail in raw_checks)
+    sequence = phase_sequence(root)
+    if current not in sequence:
+        # a recognised phase outside the mode's own backbone (mode switch /
+        # hand-edited instruction file) still renders instead of crashing
+        sequence = [*sequence, current]
     return PhaseDetail(
         current=current,
-        sequence=tuple(phase_sequence(root)),
+        sequence=tuple(sequence),
         checks=checks,
         blocked=any(not c.ok for c in checks),
     )
