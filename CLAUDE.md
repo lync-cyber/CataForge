@@ -32,9 +32,9 @@
 - SDLC 文档管线对本仓 N/A: PRD / ARCH / UI-SPEC / DEV-PLAN / TEST-REPORT / DEPLOY-SPEC 是框架**交付给下游业务项目**的产物，对元项目本身**不需要（非"未开始"）**
 - 进度事实源: git 历史 / PR / CHANGELOG / `docs/proposals/`，不在本文件维护阶段或文档状态字段
 - 剩余 backlog（真实状态以各提案头部为准，本行仅防遗忘指针）:
-  - 无人值守构建循环 —— `docs/proposals/unattended-building-loop.md`（核心已落，agile-prototype 接线延期；§6.6 MAX_CALLS 已否决）
   - penpot-bridge C2 + E —— `docs/proposals/penpot-bridge-convergence.md`（核心已落，C2/E 子项延期）
 - 已结·勿再追（提案/评审头部为权威，此处仅防重复提议）:
+  - 无人值守构建循环全链已落（`docs/proposals/unattended-building-loop.md`）；agile-prototype 接线（按执行模式自动路由 brief#tasks + preflight/guard 覆盖 brief）已实现，§6.6 MAX_CALLS 已否决、§4.4 bash 参考实现被 Python driver 取代，均无后续
   - kg-first 反转全链完成（`docs/proposals/kg-first-inversion-pr-cde-plan.md`）；表格/xref 保真增量、C7 装饰器、C8 filter、5.2 投机 flag 均经核实否决
   - code-review arch-guard + 复杂度门控 M1–M5 落地（`docs/proposals/code-review-arch-guard-complexity-gating.md`）；仅 §6.4 豁免阈值 audit 可选未做
   - 2026-07-06 走查 19 条 framework findings 全部处置（#458/#460 落地，报告 `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260706-r1.md`）；R-016 主体、R-010(b)、R-009(a) 原诊断经核实非缺陷

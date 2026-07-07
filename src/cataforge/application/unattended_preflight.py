@@ -13,10 +13,23 @@ docs and reuse the doc gate's placeholder rule; the CLI runs it ahead of
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.placeholders import count_unresolved_placeholders
+
+# A brief has something to build when it carries at least one task card heading
+# (``### T-001: …``). Anchored on the T-<digit> id convention (NAV: T-001..T-NNN)
+# rather than the section title, so a reworded heading or a prose mention of
+# "开发任务" can neither false-reject nor false-pass.
+_TASK_CARD_RE = re.compile(r"(?m)^#{2,6}\s+T-\d")
+
+# An unfilled brief template still reads ``### T-001: {任务名}`` — brace
+# placeholders the TODO/TBD/FIXME rule cannot see. Heading-only scope on
+# purpose: card bodies and §4 code blocks legitimately contain braces (JSON,
+# path templates), a card heading never does.
+_HEADING_PLACEHOLDER_RE = re.compile(r"\{[^{}\n]{1,40}\}")
 
 
 def _read(path: Path) -> str:
@@ -31,6 +44,14 @@ def _devplan_files(docs_dir: Path) -> list[Path]:
     sub = docs_dir / "dev-plan"
     files = sorted(sub.glob("*.md")) if sub.is_dir() else []
     files += [p for p in (docs_dir / "dev-plan.md", docs_dir / "dev-plan-lite.md") if p.is_file()]
+    return files
+
+
+def _brief_files(docs_dir: Path) -> list[Path]:
+    """Every brief file: ``docs/brief/*.md`` plus the flat ``docs/brief.md``."""
+    sub = docs_dir / "brief"
+    files = sorted(sub.glob("*.md")) if sub.is_dir() else []
+    files += [p for p in (docs_dir / "brief.md",) if p.is_file()]
     return files
 
 
@@ -60,4 +81,51 @@ def preflight_frozen_upstream(project_root: Path, sprint: str) -> str | None:
         return f"dev-plan 未冻结（status={','.join(non_approved)}）——需 doc-review approved"
     if placeholders:
         return f"dev-plan 含 {placeholders} 处未处理 TODO/TBD/FIXME——AC 未定稿，冻结前请消解"
+    return None
+
+
+def preflight_prototype_brief(project_root: Path) -> str | None:
+    """Return a refusal reason, or ``None`` when the brief is ready to build.
+
+    agile-prototype has no doc-review approval gate (checkpoints=none, Layer 1
+    only), so — unlike the dev-plan gate — this does NOT require
+    ``status: approved``; the brief stays ``draft`` throughout. It confirms the
+    brief is present, carries a §5 开发任务 section to build against, is free of
+    unresolved ``TODO`` / ``TBD`` / ``FIXME``, and its task-card headings carry
+    real names rather than raw ``{…}`` template placeholders (the dev-plan gate
+    needs no such check — its approval anchor already rejects raw templates).
+    The guarantee is deliberately weaker than the dev-plan gate (no approval
+    anchor exists in the mode) — the real protection is the same sandbox +
+    PR-only + morning review.
+    """
+    docs_dir = project_root / "docs"
+    brief_files = _brief_files(docs_dir)
+    if not brief_files:
+        return (
+            "未找到 brief（docs/brief/ 或 docs/brief.md 为空）"
+            "——无法跑 agile-prototype 无人值守 building"
+        )
+
+    placeholders = 0
+    combined: list[str] = []
+    for f in brief_files:
+        _fm, body = split_yaml_frontmatter(_read(f))
+        placeholders += count_unresolved_placeholders(body)
+        combined.append(body)
+
+    text = "\n".join(combined)
+    if not _TASK_CARD_RE.search(text):
+        return "brief 缺少 §5 开发任务卡（未见 ### T- 卡片）——无待建目标，无法定位 building"
+    unfilled = [
+        ln.strip()
+        for ln in text.splitlines()
+        if _TASK_CARD_RE.match(ln) and _HEADING_PLACEHOLDER_RE.search(ln)
+    ]
+    if unfilled:
+        return (
+            f"brief 任务卡标题仍含未替换的模板占位符（{unfilled[0]}）"
+            "——brief 未填写完成，无法 building"
+        )
+    if placeholders:
+        return f"brief 含 {placeholders} 处未处理 TODO/TBD/FIXME——AC 未定稿，请先消解"
     return None
