@@ -20,6 +20,90 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.17.0'></a>
+## [0.17.0] — 2026-07-07
+
+### Added
+
+- **KG 本体开放有界 `DomainEntity` 逃生阀** —— 下游项目在 `framework.json` `kg.custom_entity_prefixes` 注册 `{prefix: domain_type}` 映射后,匹配注册前缀的实体标题(如 `ORD-001`)按 `cf:DomainEntity` 落图(携带 `cf:domain_type`,可 `cf:satisfies` 指向 F-xxx),正文 `- key: value` bullets 投影为可查询的 `cf:DomainAttribute` 子节点(`cf:has_attribute` / `cf:attr_name` / `cf:attr_value`)。注册前缀在 `kg import`、`context` authoring(`write-doc` / `write` / `transact`)、`kg drift-check` / `kg repair`(不再把注册实体误判为 ghost 而删除)、`doctor` 完整性门、`kg trace`(DomainEntity 邻居纳入链路)全链路识别一致,且随 `framework.json` 升级保留;`cataforge kg schema-context` 文档化开放类并列出项目已注册前缀;`cataforge doctor` 对含未注册前缀实体标题的 heading 给 advisory WARN。核心业务类保持封闭,核心前缀恒胜注册前缀;非法前缀形态(须 `^[A-Z]+$`)在注册时即报错。
+- **`check_doc_authoring_invariant` 守卫** —— 锁定上述契约:实例化文档模板的角色卡若其 Output Contract 未经 `finalize` 导出即视为 markdown-first 回归而失败;接入 `run_local.py` 与 pre-commit,逃生标记 `<!-- allow-doc-authoring: <reason> -->`。
+
+- **framework-update 版本迁移要点 reference（`references/version-migration.md`）** —— 随包滚动分发的升级提示事实源：apply 在 scaffold 刷新后按升级区间向用户摘要「更新重点」并把「迁移要点」并入报告手动跟进清单。下游项目没有 CataForge 的 CHANGELOG.md，`upgrade check` 的 BREAKING 扫描在下游无输入，本文件补上这条通道。滚动保留最近 3 个 minor 系列；守卫 `check_migration_notes_version.py`（接入 run_local）强制发版时滚动更新。
+
+- **无人值守 building loop 接线 agile-prototype 模式** —— `cataforge unattended build` 按 §项目信息.执行模式 自动路由 building 目标：`agile-prototype` 驱动 brief.md §5 开发任务（完成 / 熔断 ref `brief#tasks`，sprint 参数忽略并提示），其余模式维持 `dev-plan#{sprint}`。新增 `preflight_prototype_brief`（查 brief 存在 + §5 任务卡 + 无未消解 TODO/TBD/FIXME + 任务卡标题无 `{}` 模板占位符残留；该模式 checkpoints=none 故不要求 doc-review approved，保证弱于 dev-plan 门）；`guard_frozen_docs` 把 brief 纳入无人值守 file_edit 禁改集。
+
+- **暗色主题** —— 看板铬件随 `prefers-color-scheme` 自动切换（CSS 自定义属性双色板），图表以 ECharts dark 主题初始化；图形节点保持浅色蜡笔填充，深色画布下对比自然。
+- **HTML 图布局方向支持** —— `Graph.direction` 为 `LR`/`RL` 时 breadthfirst 布局转置为横排（docs 依赖图、phase 链）。
+
+- **hash 深链** —— 激活 Tab 写入 `#panel-{name}`；带 hash 打开、手改 hash、前进/后退（hashchange）均回放到对应 Tab。
+- **UI 状态持久化** —— 搜索词、类别 chips、维护开关、排序方向、图缩放/平移落入 `localStorage`，刷新与 `viz serve` 自动重载后原样恢复；图空白处双击恢复自适应缩放。
+- **窗口 resize 自适应** —— debounce 后仅重算当前可见面板的图/表尺寸。
+- **Tab 可访问性语义** —— `tablist`/`tab`/`tabpanel` 角色与 `aria-selected` 状态同步。
+
+- **KPI tile 释义层** —— 每个指标 tile 悬停显示含义、阈值来源与超标含义（decay tile 指明 `RETRO_TRIGGER_SELF_CAUSED` 出处）。
+- **断链下钻** —— 断链 tile 点击跳转 Docs 视图并自动隔离异常节点/行（零异常时不做无意义全屏置灰）。
+- **状态表工具栏** —— 状态表视图（行数 >8）长出搜索框与 status chips；constituency bar 色段点击单选过滤，过滤状态随 PR-465 机制入 `localStorage`。
+
+- **inspector 详情面板** —— 点击任意图节点在右侧打开可关闭的检视器：完整元数据投影（data 袋全字段）+ 健康态 +「在其他视图」跨视图跳转按钮；悬停 tooltip 保留为轻量预览。
+- **omnibox 全局检索** —— 顶栏统一搜索框，任意实体 id / 名称即输即搜（跨全部图/表视图索引），命中点击直接跳转所在 Tab 并聚焦节点；原 coverage→trace、tasks→trace 两条硬编码跨视图联动被该通用机制吸收移除。
+- **图 ⇄ 表双模** —— 所有 cytoscape 图视图一键切换等价状态表（读屏可访问、超大图退化路径、表格偏好三合一），模式选择记入 `localStorage`。
+- **按层折叠** —— 带类型的图（framework 角色层、trace 链路层）工具栏长出计数徽章 chips，点击整层折叠/展开并持久化；trace 节点新增 `data.type` 标注链路层（requirements/modules/tasks/…）。
+
+- **`cataforge viz snapshot`** —— 把当前 overview KPI 冻结为一条带时间戳的记录，追加到 `docs/VIZ-SNAPSHOTS.jsonl`（EVENT-LOG 同款容错读取：坏行跳过、好行全保）。
+- **KPI tile 趋势 sparkline** —— 存在 ≥2 个快照时，核心文档 / Feature 覆盖 / 断链 / 纠偏四个 tile 长出内联 SVG 趋势线（服务端渲染零 JS）；数据未就绪的 tile 刻意不画趋势。
+- **`cataforge viz portfolio <roots...>`** —— 多项目健康聚合为一张离线表：每项目一行 phase stepper + 断链数 + self-caused 纠偏数，复用单项目采集器不引入新数据层。
+
+### Changed
+
+- **产文档角色卡改为 kg-first authoring 契约** —— product-manager / architect / ui-designer / tech-lead / qa-engineer / devops 六张卡的 Output Contract 不再指示直接产出 `docs/<doc>.md`，改为经 `cataforge context` authoring 落稿(`context write-doc` / `write-narrative` / `transact`)+ `cataforge context finalize` 导出人审 markdown 视图;markdown 后端仍按模板实例化后编辑文件。architect 卡不再把分卷(API/DATA/模块)硬编进提示词——单一逻辑文档由 finalize 整篇导出。
+
+- **framework-walkthrough 缺省升为 standard 模式** —— 缺省 `--mode` 由 agile-lite 改为 standard（7 阶段全跑：全量文档 Layer 2 门禁、pre_dev / pre_deploy 检查点、testing 阶段、TDD 分档判定全覆盖），walkthrough-protocol 补 standard 逐阶段驱动顺序；agile-lite 降为显式快速冒烟档。
+- **framework-walkthrough 自更新闭环** —— 新增 Step 7：process 类 findings 按 `references/self-update-protocol.md` 回灌本 skill（框架仓本体经用户确认写回 `skills/framework-walkthrough/` 子树，成块新知优先插件式落 references；下游项目标 proposed 走 framework-feedback 上游反馈），报告 process findings 附 `resolution: applied|proposed|deferred`；防自我放松边界——自更新只允许增补与澄清，禁止收窄走查口径。
+- **framework-walkthrough 覆盖可视化与 UI 链路** —— 路径图新增 C-9（Sprint 收口 `viz dashboard` 保底焊点，主干 driven：焊点执行 / 产物落地 / 数据缺失显式降级）、B-13（`--example temperature-converter-ui` 真驱动 ui_design：纯文本 ui-spec 流→UI 保真 AC→ui_fidelity/visual-fidelity 评审→无渲染证据须 conditional_release）、B-14（Design-Tool Capability Gate 降级探针：形态区分 / 落真值 / 记 EVENT）、B-15（UI 示例 4 任务自然命中 sprint-review 正常路径 + Batch Code-Review，与 B-4 短路互斥对偶）；example-project 新增 temperature-converter-ui 扩展目标（UI 契约 + 渲染效果型保真 AC + 反例）。
+- **framework-walkthrough 示例最小完整性核对修正** —— T-001 钉 `consumer_components` 使即时 code-review 结构性可达（原设计三任务全延迟 + micro 短路时 code-review 零触发）；AC 锚点钉 per-task 归属防触发拆分击穿短路结构；E-1 探针改指 subagent 阶段（原指 inline 旁支，continuation 协议本体不可达）；full 深度新增 C-6 TDD 升档探针；探针通用规则补终止点（防 cascade 连锁）与判级依赖标注；零扰动型 P 处置口径澄清。
+
+- **framework-walkthrough 走查流程自更新（4 条走查回灌）** —— walkthrough-protocol §1.1 沙盒创建前强制校验 cwd == 仓库根（防 shell cwd 漂移把沙盒建进框架资产子树、且 `.gitignore` 任意层级匹配掩盖误建）；SKILL Step 3.3 与 runtime-flow-map I-9 的 `phase status` 入口检查改为读 `phase recognised` / `phase_start logged` 两行 OK、入口时点非零 exit 不判 blocked（blocked 语义仅适用阶段收口）；walkthrough-protocol §3 要求派发审查/测试类子代理时返回 schema 携带 COMMON-RULES 完整 verdict 枚举（含 approved_with_notes / conditional_release）；observation-rubric §1「门禁触发」行新增 L1 疑似误报时 reviewer 双重核实证据与裁量记录观察点。
+
+- **PROJECT-STATE 模板补 `kg` 配置条目** —— §框架机制.统一配置 列表补 `kg`（per-project 用户态，升级时保留已配置值）；此前该条目仅存在于本仓 CLAUDE.md 手工维护版本，deploy 重渲染即丢失。
+
+- **viz 视觉语义正交化** —— `Status` 枚举回归纯健康态（删除 `AGENT`/`SKILL` 两个类别值）；资产类别改走节点 `data.type` + `palette.TYPE_ENCODINGS` 独立颜色通道（orchestrator/phase/agent/skill/rules），健康态优先于类别着色。framework 编排拓扑四类角色即刻可辨（此前 26 节点全同色）；目录形态由 collector 经 `Graph.form="catalogue"` 显式声明，渲染器不再嗅探数据袋形状。
+- **docs 视图健康即绿** —— 通过 stale/xref 校验的文档显式标 `ok`（✓ 徽章 + 全绿 constituency bar），「—」回归真正的无信号态。
+- **timeline 换 time 轴** —— 事件散点按真实时距分布，2 天间隔不再与 2 周等宽；scatter series 补齐名称。
+
+- **看板交互引擎重构为注册制生命周期** —— 各面板的图/表初始化经 `__viz.register(panel, fn)` 排队，首次激活该 Tab 时才执行：首屏只渲染默认面板（去除全量急加载的渲染压力），隐藏容器 0 尺寸导致的布局畸形随之消失；跨视图联动接线并入源面板的注册闭包，时序天然正确。
+- **panel 锚点改为视图名** —— `panel{index}` 位置编号换成 `panel-{view_name}` 稳定命名，视图增删不再引发全体 id 位移。
+
+- **phase Tab 改造为 stepper 状态条** —— SDLC 阶段进度以 chip 链呈现在 KPI 条下方（执行模式自适应阶段数，当前相高亮）：门禁受阻时默认展开 gate check 明细清单，通过时显示紧凑徽章；phase Tab 与 KPI 阶段 tile 同时移除（10 Tab → 9、5 tile → 4），`cataforge viz phase` CLI 视图不受影响。
+- **SDLC N/A 显式传播** —— 非工作流驱动项目（如元项目）的 trace/coverage/arch/tasks 面板显示「本项目不适用」并灰化对应 Tab，不再误导性提示 `kg init`；docs 等通用视图的 run 提示保留。
+- **docs 节点语义化** —— label 去掉 `: doc_type` 后缀，doc_type 移入节点 `data.type` 通道。
+
+- **overview 折叠去重** —— `MetricSeries` → groups 的折叠收敛为 `core.viz.model.fold_points` 单一实现；`escHtml` 补全 `'` 与 `>` 转义。
+
+### Fixed
+
+- **doc-review `check_xref` 校验纯 §-ref 的章节存在性** —— 此前不带 entity-id 的章节引用(如 `arch#§3`)被静默跳过:KG 路径只解析含 entity-id 的 xref,markdown 路径只验目标文件存在。现在两条路径都验证 §N 章节真实存在——KG 路径按文档 `cf:Section` 的 anchor 匹配(新增 `QueryAPI.section_anchors`),markdown 路径按目标文件 heading 匹配,兼容 `## 2. 模块` 与 `## §2 Modules` 两种编号风格;真损坏的 §-ref 在 doc-review 中 fail。entity xref、占位符 `§N`、URL fragment 及 KG 未建模 Section 的文档不受影响(不误报)。
+
+- **`context write` / `transact add_entity` 对文档域实体拒写指路** —— graph 模式下文档导出正文只渲染 level-2 Section tile，直接实体写入到不了任何导出面（CLI 报成功、finalize 导出不带、reconcile 无漂移三重静默）。现在两条门对「既有实体隶属某 Document」或「新实体默认 source_doc 已被某 Document 覆盖」的写入显式拒绝并指路 `write-narrative`（批量 `transact` write_narrative）/ `update`（slot 就地合并）/ `write-doc`（整篇重着陆）。transact `add_entity` 同步补齐既有实体 membership 保留——此前对既有实体会把 `cf:source_doc` 迁到裸 doc_type 孤儿化。实体 content-hash 纳入 narrative：同 title/slots 仅改叙事的重写不再被幂等短路静默跳过（第四重静默）。SUB-AGENT-PROTOCOLS 续接流程、ORCHESTRATOR-PROTOCOLS inline-fix、tdd-engine 任务收口（status 更新改用 `context update`）与 context generate reference 的修订门指引同步改道。
+
+- **doc-review checker 误报/漏报族清理** —— ① dev-plan KG 覆盖门在上游实体零行（arch 未落图）时不再真空绿，回退到文件扫描继续把关；Module 覆盖 FAIL 消息改为「无任务 realizes 映射」（原「缺少实现或验证」误导为要求 src/tests）。② test-report「测试用例矩阵为空」判定改用 GFM 表格解析（原 `^\|(?![-\s])` 把所有标准格式 `| cell |` 数据行连分隔行一起排除，只认紧凑格式，标准表格必误报）。③ authoring 占位符守卫收窄：含列表分隔符（`,` `，` `、`）的花括号（如 `{C, F, K}` 集合字面量）不再被当模板 token 拒稿。④ AC 可观测动词词库补 CLI 向中文动词（输出/打印/生成/报错/校验/提示/退出）与 print/exit/output；e2e Python 真实输入原语补 subprocess.run/Popen、CliRunner、invoke、pexpect.spawn、communicate——纯 CLI 项目 e2e 不再全树误 WARN。
+- **`cataforge phase status --entry` 入口模式** —— 只校验 phase recognised + phase_start logged 两项；阶段刚进入、文档天然未产出时不再必然 exit 1，入口/收口语义分离。
+- **`project.languages` 自动落盘** —— `cataforge setup` 未声明 `--language` 且 `project.languages` 为空时，把 marker 检测结果直接写入 framework.json（原仅打印提示，SKILL 侧消费方读到空值即跳过 lang 规则装载，自动链路死路）；CLI help 同步对齐。
+- **`context read` 全 id 与别名两形态输出归一** —— KG 激活判定前把 ref 的 doc_id 经 docs 索引归一到 doc_type，`prd-app#§2.F-001` 与 `prd#§2.F-001` 现在走同一 KG 实体卡渲染路径（原全 id 形态恒静默回落文件切片，graph 模式下可能读到 stale 导出）。
+- **authoring 失败补偿不再破坏既有实体** —— `context write` / `transact` 校验失败的补偿回滚对重写的既有独立实体恢复其先前全部 quads（含入边），原先是连旧实体一起 cascade 删除。
+- **协议缺口批量对账**（走查 findings R-004/R-007/R-008/R-010a/R-011/R-013/R-017/R-018）—— agent-dispatch 写入范围校验豁免框架管理副产物（EVENT-LOG / doc-index / `.cataforge/**`，回滚即审计破坏）；Bootstrap 补 git init 基线步骤、框架版本步改「deploy 自动盖入」；micro Sprint 短路前对延迟任务跑 L1 审计 scan 兜底（延迟任务不再可能全程零 code-review）；code-review `--fix` 权属限定 implementer/tdd-engine/lint-hook 语境、reviewer 禁用；新增 `phase_skip` 事件类型使 EVENT-LOG 可区分「N/A 跳过」与「漏跑」，pre_deploy 检查点在 deployment N/A 时豁免；Phase Transition doc-consistency 退出码对账实现（exit 2 = 坏参数按 FAIL 处理，notes 场景为 exit 0 + WARN）；输出语言条款明确简体中文（zh-Hans）；tdd-engine 悬空引用「§Post-GREEN Validation」清理、任务收口 status 更新指引改 `context update`；context generate reference 补 transact 最小 ops 示例导流。
+
+- **guard_frozen_docs 模式适配 markdown 项目 + 大小写绕过** —— `context.mode=markdown` 下文档即任务状态事实源（两态模型），guard 对 dev-plan/brief 放行 status-only 最小 `Edit`（status 字段行 / 状态表单元格单格变化），解除无人循环在 markdown 项目无法标卡 done 的死锁；graph 模式维持全拦（status 走 `cataforge context update`）。冻结文档路径匹配加 IGNORECASE，堵 Windows/macOS 大小写不敏感文件系统上 `docs/BRIEF.MD` 类变体绕过。tdd-engine Step 5 任务状态更新补 markdown 分支（graph 写实体 / markdown 改文档状态行）。
+
+- **cytoscape console 告警刷屏** —— edge 样式的 label 映射收敛到 `edge[label]` 选择器，无 label 边不再每条触发 mapping 警告（此前一次加载 200+ 条）。
+
+- **stepper 对模式外阶段崩溃** —— `当前阶段` 是合法阶段但不在当前执行模式的阶段序列内（模式切换/手改指令文件）时，dashboard 与 portfolio 整页 `ValueError` 崩溃；现将该阶段追加为当前 chip 正常渲染，一个配置漂移的项目不再中断多项目聚合。
+- **看板前端韧性** —— 面板初始化 flush 逐项容错（单视图初始化失败不再连坐同面板其余视图且 Tab 可恢复）；`localStorage` 中损坏的持久化值（非数组）不再使面板初始化抛错；`__viz.focus` 的表行定位改为属性值比对，含引号的实体 id 不再触发选择器 `DOMException`。
+- **omnibox 防抖** —— 检索改为 120ms debounce 且索引在注入时预小写，大索引下每键全量扫描的主线程压力消除。
+
+### Removed
+
+- **拆卷(split-volume)机制整体废除** —— 一个逻辑文档 = 一个评审文件,不再拆分为多个物理分卷。移除:图本体死 schema `cf:Volume`(类 + `has_volume` / `part_of_volume` / `volume_type` slot,声明却从不被 ingest 生产、export 消费),图结构收敛为单一逻辑 `cf:Document → cf:Section`;doc-review 的分卷检查 `check_split_header` / `check_split_consistency`、`volume_type` 参数与各卷门控、`VOLUME_TYPES` / `VOLUME_OWNED_ID_PREFIXES` 常量、`--volume-type` CLI 参数;文档索引死字段 `volume` / `split_from`;sprint-review 的 `-s{N}.md` 分卷产出与识别(改为按 heading 定界);doc_consistency 的 volume CONTAINS 回退(实体定位改为精确 `source_doc` 匹配)。超长文档由 Layer 1 建议拆为多个逻辑文档,而非分卷。
+
 <a id='changelog-0.16.0'></a>
 ## [0.16.0] — 2026-07-05
 
@@ -2082,7 +2166,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.17.0
 [0.16.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.16.0
 [0.15.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.15.0
 [0.14.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.14.0
