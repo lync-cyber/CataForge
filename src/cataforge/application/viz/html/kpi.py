@@ -9,7 +9,7 @@ from pathlib import Path
 
 from cataforge.application.viz.collectors.overview import SELF_CAUSED_LABEL
 from cataforge.core.errors import CataforgeError
-from cataforge.core.viz.model import MetricSeries, View
+from cataforge.core.viz.model import MetricSeries, View, fold_points
 
 _Results = dict[str, tuple[View | None, str | None]]
 
@@ -227,10 +227,7 @@ def _kpi_strip(
     """Return ``(strip_html, worst_view)``. ``worst_view`` is the view name of
     the highest-severity tile (``None`` when every tile is ok/na), so the caller
     can open the tab that most needs attention."""
-    groups: dict[str, dict[str, float]] = {}
-    if isinstance(overview, MetricSeries):
-        for point in overview.points:
-            groups.setdefault(point.series, {})[point.label] = point.value
+    groups = fold_points(overview.points) if isinstance(overview, MetricSeries) else {}
     hist = history or []
     sparks = {m: _sparkline(_spark_series(hist, m)) for m in ("docs", "coverage", "links", "decay")}
     # (tile, the view its worst state should open); phase lives in the stepper
