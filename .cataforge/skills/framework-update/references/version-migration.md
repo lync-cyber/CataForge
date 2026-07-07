@@ -8,6 +8,25 @@
 - 滚动窗口：只保留最近 3 个 minor 版本系列，新增段时删除最旧段；完整历史由框架仓 CHANGELOG.md 承担。
 - 内容是**提炼**而非复制：只写下游要「做什么 / 注意什么」，不搬运 CHANGELOG 条目原文。
 
+## [0.17.0] — 2026-07-07
+
+### 更新重点
+
+- KG 本体开放有界 `DomainEntity` 逃生阀：下游可在 `framework.json` `kg.custom_entity_prefixes` 注册自定义前缀（如 `ORD-001`），落图为可查询、可追溯的领域实体，无需改框架源码。
+- 拆卷（split-volume）机制整体废除：一个逻辑文档 = 一个评审文件，不再拆分为多个物理分卷。
+- 产文档角色卡（product-manager / architect / ui-designer / tech-lead / qa-engineer / devops）改为 kg-first authoring 契约：经 `context write-doc`/`write-narrative`/`transact` 落稿 + `finalize` 导出人审视图。
+- viz 大幅增强：inspector 详情面板、omnibox 全局检索、图⇄表双模、按层折叠、KPI 历史快照（`viz snapshot`）与多项目聚合（`viz portfolio`）、暗色主题。
+- doc-review checker 批量误报/漏报修复：`check_xref` 补纯 §-ref 章节存在性校验、dev-plan KG 覆盖门真空态回退、test-report 表格解析、占位符守卫误伤集合字面量。
+- `context write` / `transact add_entity` 对已被文档覆盖的实体写入显式拒绝并指路正确入口，消除此前的静默不落地。
+
+### 迁移要点
+
+- **BREAKING（拆卷废除）**：若曾用 `--volume-type` CLI 参数、`-s{N}.md` 分卷产出、或文档 frontmatter `volume`/`split_from` 字段，均已移除。超长文档改为按 Layer 1 建议拆分为多个独立逻辑文档，而非物理分卷；升级后重新生成受影响文档。
+- graph 模式项目对已被 Document 覆盖的实体直接 `context write` / `transact add_entity` 会被拒绝：改用 `write-narrative`（重写叙事）/ `update`（slot 就地合并）/ `write-doc`（整篇重着陆）。
+- doc-review 检查器修复后行为更严格（如 §-ref 现真实校验章节存在），此前被误报掩盖的真实问题可能在升级后首次暴露；建议升级后跑一次 `cataforge skill run doc-review -- all` 复核。
+- 需要自定义领域实体前缀的项目在 `framework.json` `kg.custom_entity_prefixes` 注册 `{prefix: domain_type}`；非法前缀格式（须 `^[A-Z]+$`）注册时即报错。
+- 无其他 BREAKING。
+
 ## [0.16.0] — 2026-07-05
 
 ### 更新重点
@@ -42,18 +61,3 @@
 - `context.mode: hybrid` 不再有效：改为 `graph` 或 `markdown`。
 - Windows 项目 deploy 后 `.claude/settings.json` 被注入 Git Bash 偏好（用户手动设过的值不覆盖）；机器无 Git Bash 时 doctor 给 WARN。
 - graph 模式项目确认 `.gitignore` 未忽略 `.cataforge/kg/snapshots/`，否则图谱唯一持久化产物会静默丢失（doctor 已加检查）。
-
-## [0.14.0] — 2026-06-23
-
-### 更新重点
-
-- git 卫生命令组：`cataforge git sync` / `git prune` / `git ensure-policy` + SessionStart `git_sync` hook + doctor Git hygiene 报告。
-- `PENPOT_MCP_URL` 统一 MCP endpoint 事实源，deploy-time 解析写入各平台 MCP 配置（不依赖平台 `${VAR}` 展开）。
-- task-decomp / tech-lead 强制 AC 覆盖被引用的 arch API 契约（契约完整性对账）。
-- testing / test-writer 补测试套件性能纪律（慢测分层标签、昂贵 setup 复用）。
-
-### 迁移要点
-
-- `cataforge sync-main` 改为 `cataforge git sync` 的隐藏别名；`--prune-merged` 改为 `--prune-gone`（旧参数保留为隐藏别名）。
-- `cataforge penpot mcp-only`（宿主机 npx MCP）已弃用：改用 `penpot remote`（托管）或 `penpot deploy`（自托管）。
-- 自托管 penpot-mcp 默认 single-user；需多用户共享设 `PENPOT_MCP_MULTI_USER=true`。旧 compose 被 `penpot doctor` 标记时删除后重新 `penpot deploy` 再生成。
