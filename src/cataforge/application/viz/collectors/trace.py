@@ -48,10 +48,14 @@ def _merge_chain(
     edges: set[tuple[str, str, str]],
 ) -> None:
     buckets = _buckets(chain)
+    # each id's chain layer travels as data.type: fold chips and the inspector
+    # read the layer from the bucket truth, no id-prefix guessing
+    layer = {chain.root_id: "requirements"}
     all_ids = [chain.root_id]
     seen = {chain.root_id}
-    for _, ids in buckets:
+    for name, ids in buckets:
         for eid in ids:
+            layer.setdefault(eid, name)
             if eid not in seen:
                 all_ids.append(eid)
                 seen.add(eid)
@@ -59,7 +63,7 @@ def _merge_chain(
         if eid not in nodes:
             entity = kg.query.entity(eid)
             title = entity.get("title", "") if entity else ""
-            nodes[eid] = Node(id=eid, label=f"{eid}: {title}")
+            nodes[eid] = Node(id=eid, label=f"{eid}: {title}", data={"type": layer[eid]})
 
     bucket_map = {name: ids for name, ids in buckets}
     for src_layer, dst_layer, rel in _CHAIN_EDGES:

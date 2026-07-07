@@ -14,7 +14,12 @@ import re
 from pathlib import Path
 from typing import Any
 
-from cataforge.application.viz.html.fragments import _CYTOSCAPE, _fragment, _read_asset
+from cataforge.application.viz.html.fragments import (
+    _CYTOSCAPE,
+    _fragment,
+    _read_asset,
+    _script_json,
+)
 from cataforge.application.viz.html.kpi import _kpi_strip, _stepper, read_retro_threshold
 from cataforge.core.viz import palette
 from cataforge.core.viz.model import Graph, Status, View, is_empty
@@ -91,12 +96,6 @@ _EMPTY_HINTS = {
     "coverage": "暂无 Feature — `cataforge kg import` 摄取 PRD 后出现",
     "arch": "暂无架构实体 — `cataforge kg import` 摄取 ARCH 后出现",
 }
-
-# Cross-view focus links: tapping a node in the source view's dashboard graph
-# jumps to the target tab and focuses the same entity node. Both pairs share
-# entity ids across views — a Feature id in coverage / a task id in tasks both
-# reappear in the traceability chain.
-_CROSS_LINKS: tuple[tuple[str, str], ...] = (("coverage", "trace"), ("tasks", "trace"))
 
 
 def _inline_code(text: str) -> str:
@@ -202,8 +201,7 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     panels: list[str] = []
     panel_inits: dict[str, list[str]] = {}
     libs: list[str] = []
-    graph_views: set[str] = set()
-    table_views: set[str] = set()
+    index: list[dict[str, str]] = []
     for name, label in _DASHBOARD_VIEWS:
         active = name == default_view
         view = results[name][0]
@@ -219,27 +217,38 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
         panels.append(panel)
         if init is not None:
             panel_inits[name] = [init]
-            if isinstance(results[name][0], Graph):
-                # a Graph with no library is one rendered as a status table
-                (graph_views if lib == _CYTOSCAPE else table_views).add(name)
         if lib is not None and lib not in libs:
             libs.append(lib)
-    for src, dst in _CROSS_LINKS:
-        # wiring joins the source panel's register closure so it always runs
-        # after that panel's own instances exist
-        if src in graph_views:
-            panel_inits[src].append(f"linkGraph('{panel_ids[src]}_v', '{panel_ids[dst]}');")
-        elif src in table_views:
-            panel_inits[src].append(f"linkTable('{panel_ids[src]}_v', '{panel_ids[dst]}');")
+        if isinstance(view, Graph):
+            # the omnibox index: any entity id/label resolves to its panel
+            index.extend(
+                {
+                    "p": panel_ids[name],
+                    "id": node.id,
+                    "l": node.label or str((node.data or {}).get("name") or node.id),
+                }
+                for node in view.nodes
+            )
     nl = "\n"
-    inits = [
+    inits = [f"__viz.setIndex({_script_json(index)});"] + [
         f"__viz.register('{panel_ids[name]}', function(){{\n{nl.join(blocks)}\n}});"
         for name, _ in _DASHBOARD_VIEWS
         if (blocks := panel_inits.get(name))
     ]
 
-    header = "<header><strong>CataForge viz dashboard</strong></header>"
+    header = (
+        "<header><strong>CataForge viz dashboard</strong>"
+        '<span class="omni-wrap"><input id="omni" placeholder="全局检索实体 id / 名称…" '
+        'autocomplete="off"><div id="omni_list" hidden></div></span></header>'
+    )
+    inspector = '<aside id="inspector" hidden></aside>'
     body = (
-        header + kpis + _stepper(root) + _legend() + _grouped_nav(tabs_by_name) + "\n".join(panels)
+        header
+        + kpis
+        + _stepper(root)
+        + _legend()
+        + _grouped_nav(tabs_by_name)
+        + "\n".join(panels)
+        + inspector
     )
     return _document("CataForge viz dashboard", body, inits, libs or [_CYTOSCAPE])
