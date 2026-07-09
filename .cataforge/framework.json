@@ -46,7 +46,7 @@
     "max_bytes": 30000,
     "max_state_section_lines": 80,
     "learnings_registry_max_entries": 10,
-    "max_state_bullet_chars": 500
+    "max_state_bullet_chars": 250
   },
   "constants": {
     "MAX_QUESTIONS_PER_BATCH": 3,

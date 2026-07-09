@@ -60,11 +60,12 @@ def check_claude_md_hygiene(cfg: ConfigManager) -> int:
     bullet_limit = limits["max_state_bullet_chars"]
     if measurement.max_state_bullet_chars > bullet_limit:
         click.secho(
-            f"  WARN: a §项目状态 bullet is {measurement.max_state_bullet_chars} chars "
-            f"(limit {bullet_limit}) — a single status line accumulating closed-PR / "
-            f"debug history; keep it a live delta and move history to docs/ or EVENT-LOG.",
-            fg="yellow",
+            f"  FAIL: a §项目状态 bullet is {measurement.max_state_bullet_chars} chars "
+            f"(limit {bullet_limit}) — a single run-on line accumulating closed-PR / "
+            f"debug / backlog history; keep a live delta, move history to docs/ or EVENT-LOG.",
+            fg="red",
         )
+        failed += 1
     if failed == 0:
         click.echo("  OK")
     return failed

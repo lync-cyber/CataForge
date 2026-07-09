@@ -89,10 +89,11 @@ def check_command() -> None:
     )
     if measurement.max_state_bullet_chars > limits["max_state_bullet_chars"]:
         click.secho(
-            "    WARN: a status bullet is accumulating history into one run-on line "
+            "    FAIL: a status bullet is accumulating history into one run-on line "
             "— keep it a live delta and move history to docs/ or EVENT-LOG.",
-            fg="yellow",
+            fg="red",
         )
+        failed += 1
 
     if failed:
         raise CataforgeError(

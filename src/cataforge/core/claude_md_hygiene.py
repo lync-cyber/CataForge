@@ -6,8 +6,8 @@ state can bloat in two different ways:
 * **§项目状态 → Learnings Registry** is a free-form bullet list orchestrator
   appends to. This module can compact it safely because entries are list-shaped.
 * **§项目状态 schema bullets** such as ``上次完成`` / ``下一步行动`` can also grow
-  into run-on history lines. They are live state, so this module measures and
-  warns about overlong bullets but does not rewrite them automatically.
+  into run-on history lines. They are live state, so this module measures the
+  longest bullet for the CLI/doctor layer to gate on but does not rewrite them automatically.
 
 State history belongs in durable records such as ``docs/EVENT-LOG.jsonl``,
 ``docs/reviews/`` or ``docs/changelog/``; the instruction file keeps only the
