@@ -24,10 +24,12 @@
  cataforge setup env-block}
 
 ## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)
-<!-- 只写实时状态；历史和证据写入 docs/EVENT-LOG.jsonl / docs/reviews/ / docs/changelog/。 -->
+<!-- 滚动窗口：每个槽位只保留【当前实时值】，新值覆盖旧值，绝不追加历史。
+     单行超 framework.json#claude_md_limits.max_state_bullet_chars 时 `cataforge claude-md check` FAIL。
+     历史 / PR 号 / 调试链 / 已关闭问题 / backlog 明细一律写入 docs/EVENT-LOG.jsonl · docs/reviews/ · docs/changelog/ · docs/proposals/，状态区只留短路径指针。 -->
 
 - 当前阶段: {requirements|architecture|ui_design|dev_planning|development|testing|deployment|completed}
-- 上次完成: {agent目录名} — {简要描述完成的工作}
+- 上次完成: {agent目录名} — {一句话收口，不列 PR / 调试 / 已关闭问题}
 - 下一步行动: {具体的下一步}
 - 已完成阶段: []
 - 当前Sprint: — (DEV阶段由orchestrator在Sprint推进时更新)
@@ -39,6 +41,7 @@
   - test-report: 未开始
   - deploy-spec: 未开始
   <!-- changelog 由 devops 产出但不纳入门禁追踪 -->
+- Backlog: — (仅指向 docs/proposals 的短路径指针，禁列明细；无则留 —)
 - Learnings Registry: (compacted; archive in .cataforge/learnings/registry-archive.md)
   <!-- 上限：framework.json#claude_md_limits.learnings_registry_max_entries；超限运行 `cataforge claude-md compact` -->
 

@@ -189,12 +189,12 @@ Mode Routing Protocol 在以下时刻被调用:
 - `上次完成`: 最近收口一句话，不列 PR、调试、升级链、已关闭问题。
 - `已完成阶段`: 阶段枚举；`文档状态`: doc_type → status。
 - 历史与证据写入 `docs/EVENT-LOG.jsonl`、`docs/reviews/`、`docs/changelog/`；需引用时只放短路径。
-- `claude-md check` 报状态条目超长警告时，先外迁历史再继续推进。
+- `claude-md check` 在区总行数超 `max_state_section_lines` 或单行超 `max_state_bullet_chars` 时 FAIL；命中先外迁历史再继续推进。
 - 状态表述必须 merge 后仍成立：不写「待 PR / 待 push / 待合并」等交付时态措辞；PR 号由 merge commit 承载，正文不追记。
 - merge 后仅当状态块实质丢失或内容错误才补状态修正 PR；纯措辞过时不单独开 PR。
 - 每槽位滚动覆盖：完成「当前」即用其替换「上次完成」旧值，再从「下一步」提一项补进「当前」；不追加历史。
 - 每项一行，尽量指向 dev-plan 里程碑 / 任务编号。
-- Backlog 为无序候选池，随手增删，非有序待办清单。
+- Backlog 明细进 docs/proposals/，`§项目状态` 的 `Backlog` 槽位仅留指向提案的短路径指针，不在状态区展开候选清单。
 
 ## Design-Tool Capability Gate
 进入 ui_design 且设计工具=penpot 时，进入 ui-designer 角色前由 orchestrator 主线程门禁 MCP 可用性：

@@ -16,6 +16,7 @@ def _bootstrap(
     *,
     learnings: list[str] | None = None,
     limits: dict[str, int] | None = None,
+    state_bullets: list[str] | None = None,
 ) -> Path:
     (tmp_path / ".cataforge").mkdir()
     payload = {"version": "0.0.0-test", "runtime": {"platform": "claude-code"}}
@@ -26,10 +27,14 @@ def _bootstrap(
     children = ""
     if learnings:
         children = "\n" + "\n".join(f"  - {e}" for e in learnings)
+    extra = ""
+    if state_bullets:
+        extra = "".join(f"- {b}\n" for b in state_bullets)
     (tmp_path / "CLAUDE.md").write_text(
         "# Test\n\n"
         "## 项目状态 (orchestrator专属写入区，其他Agent禁止修改)\n\n"
         "- 当前阶段: development\n"
+        f"{extra}"
         f"- Learnings Registry:{children}\n"
         "\n"
         "## 项目信息\n",
@@ -72,6 +77,19 @@ class TestCheckCommand:
         assert result.exit_code == 1
         assert "Error:" in result.output
         assert "limits exceeded" in result.output
+
+    def test_fails_when_state_bullet_overlong(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = _bootstrap(
+            tmp_path,
+            state_bullets=["上次完成: " + "x" * 300],
+            limits={"max_state_bullet_chars": 100},
+        )
+        monkeypatch.chdir(project)
+        result = invoke_under_group(check_command, [])
+        assert result.exit_code == 1
+        assert "run-on" in result.output or "bullet" in result.output
 
     def test_missing_claude_md_is_informational(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

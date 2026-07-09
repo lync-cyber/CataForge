@@ -59,8 +59,9 @@ def test_doctor_fails_when_learnings_overflow(
     assert "Learnings Registry over limit" in result.output
 
 
-def test_hygiene_warns_non_gating_on_overlong_state_bullet(tmp_path: Path, capsys) -> None:
-    """An overlong §项目状态 bullet is an advisory WARN, not a gating FAIL."""
+def test_hygiene_fails_on_overlong_state_bullet(tmp_path: Path, capsys) -> None:
+    """An overlong §项目状态 bullet is a gating FAIL — a single run-on line
+    accumulating history is exactly the bloat the guard must block."""
     from dataclasses import dataclass
 
     from cataforge.interface.cli.doctor.hygiene import check_claude_md_hygiene
@@ -92,8 +93,41 @@ def test_hygiene_warns_non_gating_on_overlong_state_bullet(tmp_path: Path, capsy
     failed = check_claude_md_hygiene(cfg)  # type: ignore[arg-type]
     out = capsys.readouterr().out
 
-    assert failed == 0, out
+    assert failed == 1, out
     assert "bullet" in out.lower()
+
+
+def test_hygiene_passes_on_bullet_within_limit(tmp_path: Path, capsys) -> None:
+    """A §项目状态 bullet under the limit does not gate."""
+    from dataclasses import dataclass
+
+    from cataforge.interface.cli.doctor.hygiene import check_claude_md_hygiene
+
+    @dataclass
+    class _FakePaths:
+        root: Path
+
+    @dataclass
+    class _FakeCfg:
+        paths: _FakePaths
+        claude_md_limits: dict[str, int]
+
+    (tmp_path / "CLAUDE.md").write_text(
+        "# Test\n\n## 项目状态\n\n- 当前阶段: development\n- 上次完成: reviewer — arch approved\n",
+        encoding="utf-8",
+    )
+    cfg = _FakeCfg(
+        paths=_FakePaths(root=tmp_path),
+        claude_md_limits={
+            "max_bytes": 100000,
+            "max_state_section_lines": 200,
+            "learnings_registry_max_entries": 10,
+            "max_state_bullet_chars": 250,
+        },
+    )
+
+    failed = check_claude_md_hygiene(cfg)  # type: ignore[arg-type]
+    assert failed == 0, capsys.readouterr().out
 
 
 def test_doctor_passes_without_claude_md(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
