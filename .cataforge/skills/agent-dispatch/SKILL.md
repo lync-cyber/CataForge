@@ -82,6 +82,11 @@ orchestrator 收到子代理返回后，按以下优先级解析:
 - subagent_type 使子代理自动加载 AGENT.md 中的角色定义、工具权限和约束
 - 续接（continuation）一律 file-based 重派发：独立上下文窗口 + 从中间产出文件 reload，禁止依赖任何平台「带上下文续接已派发子代理」的原生原语
 
+## 模型选型
+框架 13 agent 的 model tier 由各自 AGENT.md `model_tier` 固定、deploy 解析为原生 `model:`，调度时无需干预。派发**无 frontmatter tier 的通用子代理**（general-purpose / Explore / Plan 等）时，调用方必须**显式**指定 `model` —— 判据见 [子代理模型选型判据](../../references/subagent-model-policy.md)：默认 sonnet，仅重推理判据用 opus，禁 haiku；省略即继承会话模型（常为 opus）造成静默过度使用。
+
+派发类事件（`agent_dispatch` / `tdd_phase` / `review_verdict`）记录时附 `--model <tier|id>`：派发子代理填其 model_tier（standard / heavy）或原生 id，主线程内联档填 `inline`，供 reflector 成本复盘（EVENT-LOG schema 字段 `model`）。
+
 ## Anti-Patterns
 - 禁止: 接受 light-inline / prototype-inline 档的调度请求 — 档位由 tdd-engine 判定，内联档前提是主线程直接执行，收到此类调度请求本身即上游错误，调度会撕裂上下文
 - 禁止: 跳过 §写入范围校验 的 allowed_paths 检查 — `git diff` 检测的违规由本 skill 兜底，跳过会让 phase-bound agent 写入越权而无回滚

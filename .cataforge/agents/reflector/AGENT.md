@@ -51,7 +51,7 @@ version: "{x.y.z}"      # 可选
 # RETRO-{project}-{cycle}
 
 ## 统计摘要
-- review 文件总数 / revision 循环次数（按 agent 分布）/ self-caused 问题 top-3 category
+- review 文件总数 / revision 循环次数（按 agent 分布）/ self-caused 问题 top-3 category / 派发 model tier 分布（EVENT-LOG `model` 字段有值时）
 
 ## 经验条目
 
@@ -93,7 +93,7 @@ version: "{x.y.z}"      # 可选
    - docs/reviews/triage/ 下 SKILL-IMPROVE-*-issue-*.md — 上游 issue triage 草稿（framework-issue-resolve 产出的 Layer 1 事实核查，作为改进候选种子；须经本 Agent evidence≥2 校验后才能落 EXP）
    - docs/reviews/CORRECTIONS-LOG.md — 纠正日志
    - docs/EVENT-LOG.jsonl — 运行时事件流，过滤 `event ∈ {correction, incident, review_verdict, revision_start, agent_return}` 的尾部记录，用于与 review 报告交叉验证（同一 phase 是否反复 needs_revision、同一 agent 是否反复 incident、agent_dispatch 后超时未返回的 dangling subagent）；`ref` 字段可直接当 evidence 引用
-2. 提取每条 issue 的 category 和 root_cause 字段；EVENT-LOG 记录提取 (event, phase, agent, status) 四元组
+2. 提取每条 issue 的 category 和 root_cause 字段；EVENT-LOG 记录提取 (event, phase, agent, status, model) 五元组（`model` 仅派发类事件有，用于成本复盘——统计各 tier 派发占比、识别低复杂度任务误用 heavy/opus）
 3. 过滤: 仅保留 root_cause=self-caused 的问题（CODE-SCAN / FRAMEWORK-REVIEW 报告默认归 self-caused — 这两类问题本身就是项目内部腐化，不存在 upstream/input 归因）；EVENT-LOG 中只保留 `correction` / `incident` / `revision_start` 三类事件（正向 `phase_start` / `phase_end` / `review_verdict approved` 不是经验素材）
 4. 按 (target_agent, category) 聚合，识别出现 ≥2 次的模式（FRAMEWORK-REVIEW finding 的 target_agent 取被审 SKILL/AGENT 的 owner agent；CODE-SCAN finding 的 target_agent 取该路径下 dev-plan 中的 implementer agent；EVENT-LOG 信号的 target_agent 直接来自 `agent` 字段，category 从 `detail` 文本中映射或归为 `runtime-incident`）
 5. 为每个模式生成一条 EXP 经验条目；EVENT-LOG 事件可作为补充 evidence，但单独不足以撑起一条经验（缺少 root_cause 归因），仍需配合 review 报告 / CORRECTIONS-LOG 的至少一条

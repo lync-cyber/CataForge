@@ -86,6 +86,7 @@ ALLOWED_FIELDS: frozenset[str] = frozenset(
         "task_type",
         "status",
         "ref",
+        "model",
         "detail",
     }
 )
@@ -127,7 +128,7 @@ def validate_record(record: Mapping[str, Any]) -> list[str]:
     if task_type is not None and task_type not in VALID_TASK_TYPES:
         errors.append(f"task_type={task_type!r} not in enum (known: {sorted(VALID_TASK_TYPES)})")
 
-    for field in ("ts", "event", "phase", "detail", "agent", "status", "ref", "task_type"):
+    for field in ("ts", "event", "phase", "detail", "agent", "status", "ref", "model", "task_type"):
         val = record.get(field)
         if val is None:
             continue
@@ -153,6 +154,7 @@ def build_record(
     agent: str | None = None,
     status: str | None = None,
     ref: str | None = None,
+    model: str | None = None,
     task_type: str | None = None,
     ts: str | None = None,
 ) -> dict[str, Any]:
@@ -169,6 +171,8 @@ def build_record(
         record["status"] = status
     if ref is not None:
         record["ref"] = ref
+    if model is not None:
+        record["model"] = model
     if task_type is not None:
         record["task_type"] = task_type
 

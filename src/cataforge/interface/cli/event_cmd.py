@@ -61,6 +61,12 @@ def event_group() -> None:
     help="agent-dispatch task type (optional, schema enum).",
 )
 @click.option("--ref", type=str, default=None, help="doc_id#section or file path.")
+@click.option(
+    "--model",
+    type=str,
+    default=None,
+    help="Dispatch model tier or native id (optional, e.g. sonnet/opus/inline).",
+)
 @click.option("--detail", type=str, default=None, help="Short description.")
 @click.option(
     "--data",
@@ -86,6 +92,7 @@ def event_log_cmd(
     status: str | None,
     task_type: str | None,
     ref: str | None,
+    model: str | None,
     detail: str | None,
     data: str | None,
     batch: bool,
@@ -150,6 +157,7 @@ def event_log_cmd(
             agent=_opt(extra.pop("agent", agent)),
             status=_opt(extra.pop("status", status)),
             ref=_opt(extra.pop("ref", ref)),
+            model=_opt(extra.pop("model", model)),
             task_type=_opt(extra.pop("task_type", task_type)),
             ts=_opt(extra.pop("ts", None)),
         )

@@ -66,6 +66,23 @@ class TestEventLogSingle:
         assert result.exit_code != 0
         assert "not in enum" in result.output
 
+    def test_model_flag_recorded(self, project: Path) -> None:
+        result = _invoke(
+            "event",
+            "log",
+            "--event",
+            "tdd_phase",
+            "--phase",
+            "development",
+            "--detail",
+            "TDD GREEN: T-001",
+            "--model",
+            "sonnet",
+        )
+        assert result.exit_code == 0, result.output
+        record = json.loads((project / EVENT_LOG_REL).read_text(encoding="utf-8").strip())
+        assert record["model"] == "sonnet"
+
     def test_data_merges_with_flags(self, project: Path) -> None:
         # --data can supply optional fields not exposed as flags.
         result = _invoke(
