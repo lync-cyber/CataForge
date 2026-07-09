@@ -90,6 +90,30 @@ class TestValidateRecord:
         )
         assert any("'phase' must be a string" in e for e in errors)
 
+    def test_accepts_model_field(self) -> None:
+        errors = validate_record(
+            {
+                "ts": "2026-04-23T12:00:00+00:00",
+                "event": "tdd_phase",
+                "phase": "development",
+                "detail": "TDD GREEN: T-001",
+                "model": "sonnet",
+            }
+        )
+        assert errors == []
+
+    def test_rejects_non_string_model(self) -> None:
+        errors = validate_record(
+            {
+                "ts": "2026-04-23T12:00:00+00:00",
+                "event": "tdd_phase",
+                "phase": "development",
+                "detail": "x",
+                "model": 5,
+            }
+        )
+        assert any("'model' must be a string" in e for e in errors)
+
     def test_rejects_surrogate_code_points(self) -> None:
         # `\udcb9` is what Python's surrogateescape error handler produces
         # when raw byte 0xB9 is read through a locale decoder that can't
@@ -143,6 +167,11 @@ class TestBuildRecord:
         assert "status" not in rec
         assert "ref" not in rec
         assert "task_type" not in rec
+        assert "model" not in rec
+
+    def test_model_included_when_given(self) -> None:
+        rec = build_record(event="tdd_phase", phase="development", detail="GREEN", model="sonnet")
+        assert rec["model"] == "sonnet"
 
     def test_invalid_bubbles_up(self) -> None:
         with pytest.raises(EventLogError):

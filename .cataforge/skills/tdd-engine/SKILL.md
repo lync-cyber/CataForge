@@ -107,7 +107,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 ### Step 2: RED Phase — 启动test-writer子代理
 
-- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD RED: {T-xxx}"`
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --model standard --detail "TDD RED: {T-xxx}"`
 
 ```
 调度请求:
@@ -158,7 +158,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 ### Step 3: GREEN Phase — 启动implementer子代理
 
-- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD GREEN: {T-xxx}"`
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --model standard --detail "TDD GREEN: {T-xxx}"`
 
 ```
 调度请求:
@@ -207,7 +207,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 ### Step 4: REFACTOR Phase — 条件触发 (可选)
 
-- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD REFACTOR: {T-xxx}"`（仅在实际触发时记录）
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --model standard --detail "TDD REFACTOR: {T-xxx}"`（仅在实际触发时记录）
 
 **触发判定** (orchestrator 在 GREEN/Light 完成后执行):
 
@@ -260,7 +260,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 将 Step 2 和 Step 3 合并为一次 implementer 子代理调用，子代理内部先写 AC 对应的失败测试再补最小实现。
 
-- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD LIGHT-DISPATCH: {T-xxx}"`
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --model standard --detail "TDD LIGHT-DISPATCH: {T-xxx}"`
 
 ```
 调度请求:
@@ -316,7 +316,7 @@ orchestrator 自身在主线程使用 Step 1 已提取的上下文，按 light �
 - 步骤等同 light-dispatch 的 implementer 内部行为
 - self-report `refactor_needed` / `refactor_reasons` 作为 orchestrator 自身的判断（写入 EVENT-LOG 而非通过 agent_return）
 - REFACTOR 处理：同 light-dispatch
-- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD LIGHT-INLINE: {T-xxx}"`
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --model inline --detail "TDD LIGHT-INLINE: {T-xxx}"`
 
 ### Prototype Inline 模式 (执行模式 = agile-prototype)
 
@@ -325,7 +325,7 @@ agile-prototype 项目的任务全部走 implementer **主线程内联**（即 l
 - 与 light-inline 步骤相同（先测试后实现，主线程产出）
 - **强制跳过** Step 4 REFACTOR（prototype 不进 sprint-review，重构延迟到正式化时再处理）
 - 跳过 per-task code-review（lint hook 已兜底）
-- **[EVENT]** `cataforge event log --event tdd_phase --phase development --detail "TDD PROTOTYPE-INLINE: {T-xxx}"`
+- **[EVENT]** `cataforge event log --event tdd_phase --phase development --model inline --detail "TDD PROTOTYPE-INLINE: {T-xxx}"`
 
 ### Step 5: 汇总与状态更新
 
