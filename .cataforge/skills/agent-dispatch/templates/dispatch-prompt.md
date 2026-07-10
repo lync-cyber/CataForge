@@ -33,6 +33,10 @@ Agent tool:
     {仅continuation: 恢复指引: {resume_guidance}}
     {仅amendment: 变更分析: {change_analysis}}
     {仅amendment: 变更描述: {change_description}}
+    {仅当主线程已核实代码域事实时注入:
+    === 已核实锚点(verified_anchors) ===
+    {file:line + 现状片段锚点、探索划界、do-not-touch 清单，按 SUB-AGENT-PROTOCOLS §verified_anchors 锚点传递契约填写}
+    }
     {仅当Adaptive Review触发时由orchestrator注入:
     === 本项目已识别的反复问题 ===
     - {category}: {问题描述}，已出现{N}次

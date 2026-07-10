@@ -68,7 +68,7 @@
   <!-- 详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
 - 文档类型命名: 小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数和产出文件名
 - 效率原则:
-  - 最小传递: Agent间传递doc_id#section引用，非全文
+  - 最小传递: Agent间传递doc_id#section引用，非全文；代码任务传精确锚点(file:line+现状片段)，非仅doc引用——主线程已读内容重新序列化的成本远低于子代理独立重读
   - 不确定时调研: 调用research skill，不猜测
   - 选择题优先: 需要用户输入时优先提供选项
   - 长文精简: 文档超 `DOC_SPLIT_THRESHOLD_LINES` 行时精简内容或拆为多个逻辑文档

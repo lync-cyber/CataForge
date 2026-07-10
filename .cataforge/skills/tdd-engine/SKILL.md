@@ -27,14 +27,14 @@ orchestrator (主线程)
   └─ 汇总产出 → 更新dev-plan任务状态
 ```
 
-四档执行模式：
+四档执行模式（触发条件唯一定义在 §执行流程 任务路由分支）：
 
-| 档 | 触发条件 | 执行位置 |
-|---|---------|---------|
-| **standard** | `tdd_mode=standard` | RED + GREEN + REFACTOR(条件) 三次 dispatch |
-| **light-dispatch** | `tdd_mode=light` 且不满足 inline 条件 | implementer 一次 dispatch（合并 RED+GREEN） |
-| **light-inline** | `tdd_mode=light` 且 LOC≤`TDD_LIGHT_LOC_THRESHOLD` 且 `security_sensitive=false` 且执行模式 ∈ `TDD_INLINE_ELIGIBLE_MODES` | orchestrator 主线程内联 implementer 行为，零子代理 boot |
-| **prototype-inline** | 执行模式 = `agile-prototype` | 同 light-inline，强制跳过 REFACTOR |
+| 档 | 执行位置 |
+|---|---------|
+| **standard** | RED + GREEN + REFACTOR(条件) 三次 dispatch |
+| **light-dispatch** | implementer 一次 dispatch（合并 RED+GREEN） |
+| **light-inline** | orchestrator 主线程内联 implementer 行为，零子代理 boot |
+| **prototype-inline** | 同 light-inline，强制跳过 REFACTOR |
 
 ## Mid-Progress Drop Contract
 
@@ -90,7 +90,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 3. `security_sensitive ≠ true`
 4. 执行模式 ∈ `TDD_INLINE_ELIGIBLE_MODES`（审计粒度通过 EVENT-LOG 事件保持，不依赖子代理隔离）
 
-**REFACTOR 条件触发**: 任务卡显式 `tdd_refactor: required` 强制触发；否则 implementer 在 GREEN/Light 完成后通过 `<agent-result>.refactor_needed` 自报告（true 时 orchestrator 调度 refactorer）；审计兜底见 §Step 4。
+**REFACTOR 条件触发**: 判定逻辑与审计兜底唯一定义在 §Step 4 触发判定。
 
 ### Step 1: 准备任务上下文
 
@@ -142,6 +142,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     ## test_command
     {如 `pytest -q --tb=short tests/`}
 
+    ## verified_anchors
+    {主线程已核实的代码域锚点，按 SUB-AGENT-PROTOCOLS §verified_anchors 锚点传递契约填写；未核实过代码则整节省略}
+
     任务: 基于 §user_story 的业务场景，为 §tdd_acceptance 的所有 AC 编写验证行为的测试用例（禁止存在性断言），确保所有新增测试 FAIL。
 ```
 
@@ -187,11 +190,14 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     ## test_command
     {如 `pytest -q --tb=short tests/`}
 
+    ## verified_anchors
+    {主线程已核实的代码域锚点，按 SUB-AGENT-PROTOCOLS §verified_anchors 锚点传递契约填写；未核实过代码则整节省略}
+
     RED 阶段产出 test_files: {RED 阶段返回的路径列表}
 
     任务: 编写最小代码使所有测试通过。
 
-    {{ 当 loc_estimate > MID_PROGRESS_LOC 或 len(tdd_acceptance) > 6 时附加 }}
+    {{ §Mid-Progress Drop Contract 触发条件命中时附加 }}
     按你的 AGENT.md §Mid-Progress 落盘契约推进，禁止末尾堆批 Edit。
 ```
 
@@ -280,6 +286,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     ## user_story
     {prd#§2.F-xxx 的功能描述，含用户角色/使用动机/业务价值}
 
+    ## business_rules
+    {prd#§3 相关业务规则摘要，无则标注 "无显式业务规则约束"}
+
     ## tdd_acceptance
     {AC列表，每条 Given-When-Then 格式}
 
@@ -295,9 +304,12 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     ## test_command
     {如 `pytest -q --tb=short tests/`}
 
+    ## verified_anchors
+    {主线程已核实的代码域锚点，按 SUB-AGENT-PROTOCOLS §verified_anchors 锚点传递契约填写；未核实过代码则整节省略}
+
     任务: 基于 §user_story 的业务场景，先为 §tdd_acceptance 的每条 AC 写一份验证行为的失败测试（禁止存在性断言），确认 FAIL 后再补最小实现使测试通过。
 
-    {{ 当 loc_estimate > MID_PROGRESS_LOC 或 len(tdd_acceptance) > 6 时附加 }}
+    {{ §Mid-Progress Drop Contract 触发条件命中时附加 }}
     按你的 AGENT.md §Mid-Progress 落盘契约推进，禁止末尾堆批 Edit。
 ```
 
