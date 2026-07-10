@@ -305,6 +305,7 @@ consumers: ["{下游消费 agent/skill}"] # doc_type ∈ {research, changelog} �
 **关键约束**：
 
 - 严禁用 `[ENV-LIMITATION]` / `[ASSUMPTION]` 让缺陷豁免 needs_revision —— 环境受限场景必须显式 `conditional_release` + 非空 `blocking_conditions`，由后续条件消除驱动闭环
+- 替身外部系统的模拟器/mock 须声明保真度 `fidelity: calibrated | partial | placeholder`（附校准证据：与真实系统输出的 fixture 对照集、校准日期、已知盲区清单；证据过期降级 `partial`）；`placeholder` / 未声明者的绿灯**不得**作为 code-review / sprint-review / AC 勾选的通过证据——真实系统不可达时同走 `conditional_release` + 非空 `blocking_conditions`，不以模拟器绿灯默认放行。模拟对象为项目自有系统时不适用（保真度与代码同源，属常规测试覆盖）
 - `conditional_release.blocking_conditions == []` 前 Phase Transition Protocol 必须暂停；orchestrator 不应基于"沙盒不可达 → CI 兜底"自动放行
 - `approved_with_notes` 含 ≥1 CRITICAL/HIGH 自动降级为 `needs_revision`（reviewer 内部一致性检查）
 
