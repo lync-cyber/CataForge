@@ -61,7 +61,7 @@ cataforge skill run sprint-review -- {N} \
 ### Step 2: Layer 2 — AI语义审查
 通过context加载dev-plan Sprint任务详情、arch接口契约、CODE-REVIEW报告，审查:
 - 完成度(completeness): 所有计划交付物是否存在且功能完整，非空壳文件
-- AC覆盖(ac-coverage): 每个AC-NNN是否有对应测试且测试逻辑有效（非仅grep匹配）；至少一个关联测试**不**使用测试框架的 module-mock 全 stub 替换被测包顶层导出（避免接口契约虚假绿色，各框架 API 见 [`test-and-e2e-apis.md`](../../references/test-and-e2e-apis.md)）
+- AC覆盖(ac-coverage): 每个AC-NNN是否有对应测试且测试逻辑有效（非仅grep匹配）；至少一个关联测试**不**使用测试框架的 module-mock 全 stub 替换被测包顶层导出（避免接口契约虚假绿色，各框架 API 见 [`test-and-e2e-apis.md`](../../references/test-and-e2e-apis.md)）；AC 验证依据为外部系统模拟器/mock 结论时核对保真度声明（COMMON-RULES §verdict_blocking_semantics）——`placeholder` / 未声明者该 AC 视为未验证
 - Wiring 完成度(wiring-completeness): 任务卡 `user_facing_critical_path: true` 或 `consumer_components` 非空时，验证 deliverable 真实挂载到至少一个消费点（路由 / app shell / 父组件 prop），而非仅"组件存在"。读取 implementer self-report 的 `wiring_complete` / `wiring_evidence` 字段（定义见 agent-result.schema）做交叉核对；缺失 evidence 但任务声称 wiring_complete=true 时升 HIGH
 - 范围偏移(scope-drift): 实现是否偏离arch接口契约、数据模型、模块边界
 - Gold-plating(gold-plating): 是否存在计划外的额外功能、接口、文件
