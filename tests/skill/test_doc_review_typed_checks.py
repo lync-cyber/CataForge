@@ -749,3 +749,96 @@ def test_check_no_todo_unrelated_assumption_does_not_cancel(tmp_path: Path) -> N
     c = _checker(tmp_path, "prd", content)
     c.check_no_todo()
     assert any("TODO" in e for e in c.errors)
+
+
+# ---------------------------------------------------------------------------
+# check_dev_plan — walking-skeleton gate (external_oracles)
+# ---------------------------------------------------------------------------
+
+_ARCH_WITH_ORACLES = """\
+## 1. 架构概览
+
+### 1.5 外部消费边界 (external_oracles)
+| ID | 外部系统 | 对产物的变换行为 | 验证方式 |
+|----|---------|----------------|---------|
+| EO-001 | 外部编辑器 | 粘贴过滤剥离样式 | 真机粘贴比对 |
+
+## 2. 模块划分
+"""
+
+_ARCH_ORACLES_NA = """\
+## 1. 架构概览
+
+### 1.5 外部消费边界 (external_oracles)
+N/A
+
+## 2. 模块划分
+"""
+
+_ARCH_ORACLES_PLACEHOLDER = """\
+## 1. 架构概览
+
+### 1.5 外部消费边界 (external_oracles)
+| ID | 外部系统 | 对产物的变换行为 | 验证方式 |
+|----|---------|----------------|---------|
+| EO-001 | {系统名} | {变换行为} | {验证方式} |
+
+## 2. 模块划分
+"""
+
+_DEV_PLAN_WITH_SKELETON = """\
+### T-001 walking skeleton tracer
+- walking_skeleton: true
+- deliverables: src/tracer.py
+- tdd_acceptance:
+  - AC-001: Given 最小产物 When 经真实通道送入外部系统 Then 返回比对差异为空。
+- context_load: arch#§1
+"""
+
+
+def test_dev_plan_walking_skeleton_missing_fails(tmp_path: Path) -> None:
+    """Arch declares external_oracles → dev-plan without walking_skeleton card fails."""
+    (tmp_path / "arch-app.md").write_text(_ARCH_WITH_ORACLES, encoding="utf-8")
+    c = _checker(tmp_path, "dev-plan", _DEV_PLAN_GOOD)
+    c.check_dev_plan()
+    assert any("walking_skeleton" in e for e in c.errors)
+    assert any("EO-001" in e for e in c.errors)
+
+
+def test_dev_plan_walking_skeleton_present_passes(tmp_path: Path) -> None:
+    """Arch declares external_oracles and dev-plan carries the card → no error."""
+    (tmp_path / "arch-app.md").write_text(_ARCH_WITH_ORACLES, encoding="utf-8")
+    c = _checker(tmp_path, "dev-plan", _DEV_PLAN_WITH_SKELETON)
+    c.check_dev_plan()
+    assert not any("walking_skeleton" in e for e in c.errors)
+
+
+def test_dev_plan_no_oracles_section_skips(tmp_path: Path) -> None:
+    """Arch without external_oracles section → gate does not fire."""
+    (tmp_path / "arch-app.md").write_text("## 1. 架构概览\n\n## 2. 模块划分\n", encoding="utf-8")
+    c = _checker(tmp_path, "dev-plan", _DEV_PLAN_GOOD)
+    c.check_dev_plan()
+    assert not any("walking_skeleton" in e for e in c.errors)
+
+
+def test_dev_plan_oracles_na_skips(tmp_path: Path) -> None:
+    """external_oracles section marked N/A → gate does not fire."""
+    (tmp_path / "arch-app.md").write_text(_ARCH_ORACLES_NA, encoding="utf-8")
+    c = _checker(tmp_path, "dev-plan", _DEV_PLAN_GOOD)
+    c.check_dev_plan()
+    assert not any("walking_skeleton" in e for e in c.errors)
+
+
+def test_dev_plan_oracles_placeholder_row_skips(tmp_path: Path) -> None:
+    """Template placeholder rows (braces unfilled) do not count as declared oracles."""
+    (tmp_path / "arch-app.md").write_text(_ARCH_ORACLES_PLACEHOLDER, encoding="utf-8")
+    c = _checker(tmp_path, "dev-plan", _DEV_PLAN_GOOD)
+    c.check_dev_plan()
+    assert not any("walking_skeleton" in e for e in c.errors)
+
+
+def test_dev_plan_no_arch_file_skips(tmp_path: Path) -> None:
+    """No arch document present → gate does not fire."""
+    c = _checker(tmp_path, "dev-plan", _DEV_PLAN_GOOD)
+    c.check_dev_plan()
+    assert not any("walking_skeleton" in e for e in c.errors)

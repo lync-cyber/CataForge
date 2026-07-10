@@ -61,7 +61,7 @@ user-invocable: true
 - 接口一致性(consistency): 实现是否与arch接口契约匹配
 - 集成连线(integration-wiring): 接线对象在生产路径有真实调用点、不是空 stub / 占位返回 / 仅满足类型契约的形式。仅 tests/ 内构造调用不算落地。各语言反例与正则候选见 [`wiring-checks.md`](../../references/wiring-checks.md)；CHECKS_MANIFEST `wiring_empty_handler` 与 plugin-style YAML (`wiring-{lang}.yaml`) 承载具体识别规则。下游声明 `wiring_placeholder: true` + 关联 backlog ID 则豁免
 - 视觉保真(visual-fidelity, 仅 `user_facing_critical_path: true` 且含样式/标记的 UI 任务): Layer 1 `ui_fidelity` 已机械抓死 token / 未加载字体 / 幽灵类；此处补静态抓不到的渲染缺陷——内容/图标是否被渲染成字面文本、激活与状态视觉是否真出现、计算样式（computed-style）是否等于设计值。收口须有**渲染证据**（截图或运行期计算样式读数），不以绿单测代替。无头 / 沙盒环境取不到渲染证据时**不**以 `[ENV-LIMITATION]` / `[ASSUMPTION]` 豁免，按 COMMON-RULES §verdict_blocking_semantics 出 `conditional_release` + 非空 `blocking_conditions`（条件=补一次真实渲染核验）驱动闭环
-- 模拟器证据资格(simulator-evidence, 仅当审查证据引用外部系统模拟器/mock 结论时): 核对该模拟器的保真度声明——`placeholder` / 未声明者的结论按证据不存在处理（对应结论视为未验证），按 COMMON-RULES §verdict_blocking_semantics 走 `conditional_release`，不以模拟器绿灯放行
+- 模拟器证据资格(simulator-evidence, 仅当审查证据引用外部系统模拟器/mock 结论时): 按保真度契约核对（[`external-truth-first.md`](../../references/external-truth-first.md)），`placeholder` / 未声明者按证据不存在处理
 - 错误处理(error-handling): 是否符合arch§5.3错误处理策略
 - 测试质量(test-quality, 仅当审查范围包含 tests/ 目录时; AC 覆盖完整度由 sprint-review 负责，此处不重复):
   - 断言有效性: 每个测试是否包含对被测系统返回值/状态/副作用的有效断言

@@ -7,6 +7,7 @@ from abc import abstractmethod
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from cataforge.core.markdown_sections import parse_markdown_table
 from cataforge.utils.yaml_parser import parse_yaml_frontmatter
@@ -124,6 +125,9 @@ class TypedDocChecksMixin:
     @abstractmethod
     def warn(self, msg: str, category: str = "doc-structure") -> None: ...
 
+    @abstractmethod
+    def _docs_root(self) -> Path: ...
+
     # ---- PRD ----
 
     def check_prd(self) -> None:
@@ -237,6 +241,44 @@ class TypedDocChecksMixin:
                 all_nodes.update(vs)
             if any(has_cycle(n) for n in all_nodes):
                 self.fail("依赖图存在循环")
+        self._check_walking_skeleton()
+
+    def _check_walking_skeleton(self) -> None:
+        """Gate: arch-declared external_oracles require a walking-skeleton card.
+
+        An oracle counts as declared only when an ``EO-NNN`` table row is
+        filled in (template placeholder rows with ``{`` braces are ignored).
+        """
+        docs_root = self._docs_root()
+        if not docs_root.exists():
+            return
+        oracle_ids: set[str] = set()
+        for arch_file in sorted(docs_root.glob("**/arch*.md")):
+            try:
+                text = arch_file.read_text()
+            except OSError:
+                continue
+            section = re.search(
+                r"^#{2,3}[^\n]*external_oracles[^\n]*\n(.*?)(?=^#{1,3}\s|\Z)",
+                text,
+                re.MULTILINE | re.DOTALL,
+            )
+            if not section:
+                continue
+            for line in section.group(1).splitlines():
+                m = re.match(r"\|\s*(EO-\d+)\s*\|", line)
+                if m and "{" not in line:
+                    oracle_ids.add(m.group(1))
+        if not oracle_ids:
+            return
+        if re.search(r"walking_skeleton:\s*true", self.content):
+            return
+        self.fail(
+            f"arch 声明外部消费边界({', '.join(sorted(oracle_ids))})但 dev-plan 无 "
+            "`walking_skeleton: true` 任务卡——外部真值须在规模化前经真实通道验证，"
+            "Sprint 1 应含穿透真实外部系统的最小端到端 tracer 卡",
+            category="completeness",
+        )
 
     def _check_ac_observability(self, t_sections: list[str]) -> None:
         """Flag AC entries that lack observable outcomes or GWT structure.

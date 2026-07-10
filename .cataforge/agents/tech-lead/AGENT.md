@@ -55,6 +55,7 @@ maxTurns: 120
   - AC 写"摘要哈希"代替 `digest`
 - **AC contract-completeness**: 任务 AC 引用某 `arch#§N.API-NNN` 契约时，契约声明的每个响应码 / 安全路径 / 集成点都须有对应 AC，缺项须显式标 `[ASSUMPTION]` 豁免并附理由。反例：契约定义 `401 E_AUTH` + `403 E_PERMISSION_DENIED` 两条安全路径，AC 只覆盖正常返回
 - **pipeline-stage coverage**: arch 模块定义为有序管线（`arch#§N.M-NNN` 的 stage 序列）时，每个 stage 的运行时接线都须有任务卡 deliverables 承载。反例：模块管线含 A→B→C 三 stage，dev-plan 仅为 A、C 建任务卡，B 接线无任务承载、以空对象满足下游字面 AC，集成时管线在 B 断裂
+- **walking-skeleton 强制卡**: arch §1.5 external_oracles 非空 → Sprint 1 必须含 `walking_skeleton: true` 的最小端到端 tracer 卡，为规模化 Sprint 的 blocking dependency；契约见 [`external-truth-first.md`](../../references/external-truth-first.md)
 
 ## Error Handling
 | 场景 | 处理策略 |
