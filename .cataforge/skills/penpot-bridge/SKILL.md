@@ -35,6 +35,18 @@ user-invocable: true
 ## Penpot MCP 接入
 具体 MCP 工具名以平台 MCP 配置为准（Claude: `.mcp.json` / `.claude/settings.json`；Cursor: `.cursor/mcp.json`；OpenCode: `opencode.json`），运行时按可用工具列表自动发现。典型操作：读项目信息、读组件结构/样式/SVG、读写设计 Token、导出组件图像（export_shape）。工具列表中无 Penpot 工具时先 `cataforge penpot ensure`（若未部署则 `cataforge penpot deploy`），仍不可用返回 blocked。
 
+## Plugin API 已知限制
+
+程序化操作 Penpot 时以下限制不可绕过：
+
+1. **跨页移动/克隆无效** — `appendChild` / `insertChild` 跨页静默 no-op（不抛错、返回成功但 shape 仍在原页），`clone()` 对非激活页 shape 返回 null，`parent` 只读；已有 board 无法编程搬到另一页，只能人工在 UI 剪切粘贴
+2. **shape 变更仅对激活页生效** — 对非当前激活页 board 的属性赋值静默 no-op；页面切换跨执行异步（同一次执行内 currentPage 不切换），程序化建 board / 排版必须「openPage 目标页 → 下一次执行再变更」两段式
+3. **无删页 API** — 空页/误建页无法编程删除，仅能人工在 UI 删或改名复用；建页前先确定页数清单，宁可复用/回收，不误建
+
+## Penpot 文件组织约定（一规格一页）
+
+design_tool=penpot 时视觉稿 authoring 按 ui-spec 结构一规格一页建页：设计系统 / 各页面规格 P-NNN / 组件库分别落独立 Penpot 页面，board 创作期即落对页。Plugin API 无法事后无损重组（§Plugin API 已知限制），页面骨架必须在创作期先建好；退化路径（generateMarkup → SVG 重建）丢失 flex 布局、设计 Token、组件实例链接与文本可编辑性，不可作为重组手段。
+
 ## 操作指令
 
 ### read
@@ -71,6 +83,7 @@ ui-spec §1 Token 与 Penpot / tokens.css 对齐。tokens.css 是 ui-spec §1 �
 - 禁止: verify 由非 reviewer 触发或自动回写 ui-spec —— verify 只产差异报告供 reviewer 把关；生成者给自己打分会失去审查独立性
 - 禁止: sync 把 tokens.css 当独立权威源参与 reconcile —— tokens.css 是 ui-spec §1 的单向派生；反向读 tokens.css 改 ui-spec 会制造伪三方 reconcile
 - 禁止: sync 全量覆盖远端 Token —— 局部增量同步保留 Penpot 端手动微调，全量覆盖丢失未提交回 ui-spec 的中间状态
+- 禁止: 视觉稿全部堆单一 Penpot 页面 —— Plugin API 无法事后编程重组（§Plugin API 已知限制），重组只能人工剪切粘贴；按 §Penpot 文件组织约定 创作期一规格一页建页
 - 避免: 组件样式硬编码而不引 tokens.css 变量 —— 全局风格调整需全文件搜索替换
 
 ## 效率策略

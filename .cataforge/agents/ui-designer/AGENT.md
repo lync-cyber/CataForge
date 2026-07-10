@@ -34,7 +34,7 @@ maxTurns: 120
 - 使用模板: 通过 context 调用 ui-spec 模板
 
 ## Penpot 协作
-design_tool=penpot 时，设计决策可经 penpot-bridge read 取 `export_shape` 导出图像做视觉自检，不凭文字臆测视觉效果。
+design_tool=penpot 时，设计决策可经 penpot-bridge read 取 `export_shape` 导出图像做视觉自检，不凭文字臆测视觉效果。视觉稿 authoring 按 penpot-bridge §Penpot 文件组织约定（一规格一页）建页，board 创作期即落对页。
 
 MCP 可用性由 orchestrator 在 ui_design 进入时门禁（见 ORCHESTRATOR-PROTOCOLS §Design-Tool Capability Gate），进入本角色时已确认可用。执行期 penpot-bridge 操作仍失败（运行期插件掉线）时:
 1. 向用户报告失败形态（连接失败 / 插件未连）
