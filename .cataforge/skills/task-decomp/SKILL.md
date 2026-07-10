@@ -45,6 +45,7 @@ user-invocable: true
    - 优先安排用户核心路径（`user_facing_critical_path: true`）的任务到前几个 Sprint
    - Sprint 1 例外: 基础设施任务允许集中在首个 Sprint，不要求用户可感知功能
    - 纯后端服务项目无此约束
+   - arch §1.5 external_oracles 非空时，Sprint 1 强制一张 `walking_skeleton: true` 任务卡并作为规模化 Sprint 的 blocking dependency（契约见 [`external-truth-first.md`](../../references/external-truth-first.md)；doc-review Layer 1 强制）
 8. 插入验证任务: 每个包含 `user_facing_critical_path: true` 任务的 Sprint 末尾，追加一个 `task_kind: validation` 的验证任务。验证任务不产出代码，orchestrator 遇到时暂停并向用户展示验证清单
 
 ## Anti-Patterns

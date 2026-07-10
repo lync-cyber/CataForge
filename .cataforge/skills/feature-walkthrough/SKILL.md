@@ -62,7 +62,7 @@ record-to-event-log: true
 - 走查报告: `docs/reviews/walkthrough/WALKTHROUGH-{scope}-{YYYYMMDD}-r{N}.md`，front matter `id: walkthrough-{scope}-{YYYYMMDD}-r{N}`、`doc_type: walkthrough`、`status: draft|approved`（字段按 COMMON-RULES §报告 Front Matter 约定）
 - 走查记录一行一条，字段与 COMMON-RULES §问题格式 对齐：编号（W-NN）/ 位置 / 符合性判定 / 质量 category / severity / root_cause / 现象 / 证据（运行态观察引用）
 - 发现的修复走标准 dev 流程；HIGH 及以上同步记 CORRECTIONS-LOG
-- 模拟器盲区回灌：走查发现外部系统模拟器/mock 与真实系统行为的每处差异，除记走查发现外，回灌为该模拟器的回归 fixture（真实行为语料），使保真度单调收敛；校准后可把「模拟器对自家产物零差异」固化为 CI 性质。模拟器结论的证据资格见 COMMON-RULES §verdict_blocking_semantics
+- 模拟器盲区回灌：走查发现外部系统模拟器/mock 与真实系统行为的差异时，回灌为该模拟器的回归 fixture；契约见 [`external-truth-first.md`](../../references/external-truth-first.md)
 
 ## Anti-Patterns
 

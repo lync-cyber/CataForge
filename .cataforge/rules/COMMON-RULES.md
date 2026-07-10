@@ -61,6 +61,7 @@
 | phase_transition | 每次阶段转换 | 所有 Phase N→N+1 暂停（最严格，隐含 pre_dev / pre_deploy / post_doc_freeze） |
 | post_doc_freeze | PRD 冻结后（Phase 1→2）、ARCH 冻结后（Phase 2→3） | 只门禁冻结类文档转换，不门禁全部；适合 ARCH 返工成本高的大型项目 |
 | pre_dev | Phase 4→5 前 | 开发阶段成本最高，确认开发计划与资源 |
+| post_skeleton | walking-skeleton 卡验证通过后 | 外部真值 tracer 经真实系统验证通过后再进规模化（机制见 `.cataforge/references/external-truth-first.md`）；未声明 external_oracles 的项目此值无效 |
 | pre_deploy | Phase 6→7 前 | 部署 go/no-go；deployment 标 N/A 时本检查点随之豁免 |
 | post_sprint | Sprint Review 通过后 | 是否继续下一 Sprint |
 | none | — | 完全自动推进，仅保留失败驱动门禁 |
@@ -156,10 +157,11 @@ Anti-Patterns 应使用"做 A 而非 B"格式并附具体例子，避免抽象�
 适用：UI / 视觉 / 设计系统保真类任务的 tdd_acceptance —— 这类 AC 的真值在**渲染 / 计算后的可观测效果**，不在源码字符串。
 
 - 断言**渲染后 / 计算后的可观测值**（元素实际生效的字号 / 颜色 / 间距 / 字体族、token 是否被真实消费、声明字体是否实际加载），而非源码中变量名 / 类名 / token 名的字面存在。
+- 产物被第三方外部系统消费时，真值锚点进一步上移到**最终消费边界**（消费后状态）；机制契约见 `.cataforge/references/external-truth-first.md`。
 - 反例（做 A 而非 B）：
   - 差：AC 断言「样式表含 `--text-metric` 变量名」/「元素带 `brand-subtle` 类名」—— 死 token（声明却零消费）、幽灵类（引用却零定义）字面存在即过关，门禁全绿但渲染为空。
   - 好：AC 断言「渲染后该元素计算字号 = 设计值、背景色 = 设计值」/「该 token 被 ≥1 处真实消费」/「声明字体实际加载生效」。
-- 自检：写完 UI 保真 AC 后检查 Then 子句是否仅断言「含某字符串 / 带某类名」—— 若是，改为断言渲染 / 计算后的效果。
+- 自检：写完 UI 保真 AC 后检查 Then 子句是否仅断言「含某字符串 / 带某类名」—— 若是，改为断言渲染 / 计算后的效果；产物有外部消费方时再检查 Then 是否止步于本地渲染层。
 
 ### 禁止估算任务用时
 适用：所有 Agent 的 backlog 排序、改进建议、PR 描述、todo / 计划、口头汇报。
@@ -305,7 +307,7 @@ consumers: ["{下游消费 agent/skill}"] # doc_type ∈ {research, changelog} �
 **关键约束**：
 
 - 严禁用 `[ENV-LIMITATION]` / `[ASSUMPTION]` 让缺陷豁免 needs_revision —— 环境受限场景必须显式 `conditional_release` + 非空 `blocking_conditions`，由后续条件消除驱动闭环
-- 替身外部系统的模拟器/mock 须声明保真度 `fidelity: calibrated | partial | placeholder`（附校准证据：与真实系统输出的 fixture 对照集、校准日期、已知盲区清单；证据过期降级 `partial`）；`placeholder` / 未声明者的绿灯**不得**作为 code-review / sprint-review / AC 勾选的通过证据——真实系统不可达时同走 `conditional_release` + 非空 `blocking_conditions`，不以模拟器绿灯默认放行。模拟对象为项目自有系统时不适用（保真度与代码同源，属常规测试覆盖）
+- 替身外部系统的模拟器/mock 结论作门禁证据须满足保真度契约（见 `.cataforge/references/external-truth-first.md`）——`placeholder` / 未声明保真度者不得作为通过证据，真实系统不可达时同走 `conditional_release`
 - `conditional_release.blocking_conditions == []` 前 Phase Transition Protocol 必须暂停；orchestrator 不应基于"沙盒不可达 → CI 兜底"自动放行
 - `approved_with_notes` 含 ≥1 CRITICAL/HIGH 自动降级为 `needs_revision`（reviewer 内部一致性检查）
 
