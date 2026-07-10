@@ -55,6 +55,24 @@
 
 ---
 
+## verified_anchors 锚点传递契约
+
+适用：主线程派发前已核实代码域事实的一切子代理调度（tdd-engine 各档 dispatch、agent-dispatch 通用模板）。节可选：主线程未读过代码（纯文档阶段）时整节省略，不为填节强制预读。
+
+**生产侧（主线程填写 dispatch prompt 的 verified_anchors 节）**：
+1. 每个代码触点给 `file:line` + 1-3 行现状片段或符号签名
+2. 显式声明「以下事实主线程已核实，直接依赖，勿重新探索」
+3. 需子代理自行探索的范围显式划界
+4. do-not-touch 清单（不该碰的文件/机制）
+
+**消费侧（子代理）**：
+1. 锚点视为可信事实，跳过重推导与展开式探索
+2. 仅对实际改动的触点做定向核验（单点 Read，非全面重读）
+3. 锚点与实际代码不符时报告偏差，不静默改判
+4. 探索即任务目标的角色（reviewer 全域扫描、debugger 根因定位）不受「勿探索」约束，锚点退化为起点提示
+
+---
+
 ## Mid-Progress 落盘契约
 
 适用所有长任务子代理（长审查 / 长定位 / 批量 RED / 大文档产出）：末尾集中落盘易被 task-notification truncation 打断（征兆：大量 tool-use / token 后 `<agent-result>` 未返回但产出未落盘）。命中长任务时强制增量落盘，使停滞时已落盘部分即 mid-progress checkpoint：
