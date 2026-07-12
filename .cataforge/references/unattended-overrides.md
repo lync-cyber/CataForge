@@ -8,6 +8,7 @@
 2. **占位符字段视同已确认**：Startup Protocol 中「占位符字段 → 向用户确认」一步跳过，不产生 needs_input。
 3. **卡级熔断覆写请求人工**：同一任务卡累计 needs_revision 达 `UNATTENDED_CARD_REVISION_CEILING` 时标该卡 `blocked`、emit `circuit_open`（`ref` 为任务卡）、跳下一张可并行卡（依赖图无后继则本目标收敛于熔断）；覆写 ORCHESTRATOR-PROTOCOLS §needs_revision 计数规范「N≥2 请求人工」与 §TDD Blocked Recovery「第 2 次 blocked 请求人工」。
 4. **完成契约**：目标全部任务卡 code-review `approved` 时 emit `sprint_complete`（`ref=<目标 ref>`），作外壳确定性退出依据；该信号仅由真实门禁结果驱动，不由 building agent 自评。
+5. **工作单元**：每会话最多完成一张任务卡（大卡至多推进一个 TDD 相并 Mid-Progress 落盘），完成即 git commit 后干净退出，由外壳拉起新会话继续；不连做多卡。干净退出无冷启动损耗，也让外壳的存活监督（流静默判据）保持纯异常探测本职。
 
 > **circuit_open 的 ref 语义**：卡级熔断（item 3）`ref` 为任务卡，外壳据此**不停整个循环**、只让 orchestrator 跳下一张卡；needs_input 终局（item 1）`ref=<目标 ref>`（目标级），外壳据此停循环交还人工。两者必须用 `ref` 区分。
 >

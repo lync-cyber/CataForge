@@ -1,30 +1,81 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "CataForge Unattended Loop Metrics Schema",
-  "description": "定义 .cataforge/state/loop-metrics.jsonl 中每行 JSON 对象的结构。无人值守 building-loop 每个真实迭代写一行运维指标；disposable 运行时产物（gitignored），非语义审计源。字段权威来源为 cataforge.runtime.unattended.METRICS_FIELDS。",
-  "version": "0.1.0",
-  "type": "object",
-  "required": [
-    "iter",
-    "ts",
-    "sprint",
-    "head_before",
-    "head_after",
-    "progressed",
-    "files_changed",
-    "duration_sec",
-    "stagnation"
-  ],
-  "properties": {
-    "iter": {"type": "integer", "description": "本次运行内的真实迭代序号（限额等待轮不计）"},
-    "ts": {"type": "string", "format": "date-time", "description": "ISO 8601 时间戳"},
-    "sprint": {"type": "string", "description": "目标标识（sprint 名或 brief，取自 BuildTarget.label）"},
-    "head_before": {"type": "string", "description": "本轮拉起前的 git HEAD"},
-    "head_after": {"type": "string", "description": "本轮返回后的 git HEAD"},
-    "progressed": {"type": "boolean", "description": "HEAD 变化或命中前进事件"},
-    "files_changed": {"type": "integer", "description": "head_before..head_after 的变更文件数"},
-    "duration_sec": {"type": "number", "description": "本轮 claude 调用墙钟秒数"},
-    "stagnation": {"type": "integer", "description": "连续无进展轮计数"}
-  },
-  "additionalProperties": false
+  "description": "定义 .cataforge/state/loop-metrics.jsonl 中每行 JSON 对象的结构。无人值守 building-loop 每次拉起写一行运维指标：存活迭代为 kind=iteration，限流/超时等待轮为 kind=wait；disposable 运行时产物（gitignored），非语义审计源。字段权威来源为 cataforge.runtime.unattended.METRICS_FIELDS / METRICS_WAIT_FIELDS。",
+  "version": "0.2.0",
+  "oneOf": [{"$ref": "#/$defs/iteration"}, {"$ref": "#/$defs/wait"}],
+  "$defs": {
+    "iteration": {
+      "type": "object",
+      "required": [
+        "kind",
+        "iter",
+        "attempt",
+        "ts",
+        "sprint",
+        "head_before",
+        "head_after",
+        "progressed",
+        "files_changed",
+        "duration_sec",
+        "stagnation",
+        "returncode",
+        "session_id",
+        "tokens_in",
+        "tokens_out",
+        "cache_read_tokens",
+        "cost_usd",
+        "output_tail"
+      ],
+      "properties": {
+        "kind": {"const": "iteration", "description": "记录类型判别子"},
+        "iter": {"type": "integer", "description": "本次运行内的真实迭代序号（等待轮不计）"},
+        "attempt": {"type": "integer", "description": "本次运行内的拉起序号（等待轮也计），对应 transcript 文件名与 CATAFORGE_UNATTENDED_ITER"},
+        "ts": {"type": "string", "format": "date-time", "description": "ISO 8601 时间戳"},
+        "sprint": {"type": "string", "description": "目标标识（sprint 名或 brief，取自 BuildTarget.label）"},
+        "head_before": {"type": "string", "description": "本轮拉起前的 git HEAD"},
+        "head_after": {"type": "string", "description": "本轮返回后的 git HEAD"},
+        "progressed": {"type": "boolean", "description": "HEAD 变化或命中前进事件"},
+        "files_changed": {"type": "integer", "description": "head_before..head_after 的变更文件数"},
+        "duration_sec": {"type": "number", "description": "本轮 claude 调用墙钟秒数"},
+        "stagnation": {"type": "integer", "description": "连续无进展轮计数"},
+        "returncode": {"type": "integer", "description": "claude 进程退出码"},
+        "session_id": {"type": ["string", "null"], "description": "stream-json init 事件中的会话 id"},
+        "tokens_in": {"type": ["integer", "null"], "description": "result 事件 usage.input_tokens"},
+        "tokens_out": {"type": ["integer", "null"], "description": "result 事件 usage.output_tokens"},
+        "cache_read_tokens": {"type": ["integer", "null"], "description": "result 事件 usage.cache_read_input_tokens"},
+        "cost_usd": {"type": ["number", "null"], "description": "result 事件 total_cost_usd"},
+        "output_tail": {"type": ["string", "null"], "description": "returncode 非零时的输出截尾，用于失败轮诊断"}
+      },
+      "additionalProperties": false
+    },
+    "wait": {
+      "type": "object",
+      "required": [
+        "kind",
+        "attempt",
+        "ts",
+        "sprint",
+        "reason",
+        "timeout_reason",
+        "duration_sec",
+        "consecutive_waits",
+        "head_moved",
+        "session_id"
+      ],
+      "properties": {
+        "kind": {"const": "wait", "description": "记录类型判别子"},
+        "attempt": {"type": "integer", "description": "本次运行内的拉起序号"},
+        "ts": {"type": "string", "format": "date-time", "description": "ISO 8601 时间戳"},
+        "sprint": {"type": "string", "description": "目标标识"},
+        "reason": {"type": "string", "enum": ["timeout", "rate_limit"], "description": "等待成因"},
+        "timeout_reason": {"type": ["string", "null"], "enum": ["silence", "total", null], "description": "timeout 时的击杀判据：流静默或总时长背板"},
+        "duration_sec": {"type": "number", "description": "本轮墙钟秒数"},
+        "consecutive_waits": {"type": "integer", "description": "连续等待计数（本轮 HEAD 移动则清零）"},
+        "head_moved": {"type": "boolean", "description": "被杀会话是否仍取得了 git 进展"},
+        "session_id": {"type": ["string", "null"], "description": "部分 transcript 中提取到的会话 id"}
+      },
+      "additionalProperties": false
+    }
+  }
 }

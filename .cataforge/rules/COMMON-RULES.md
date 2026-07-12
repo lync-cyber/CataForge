@@ -52,8 +52,9 @@
 | UNATTENDED_LOOP_MAX_ITERATIONS | 30 | 单次无人值守外循环对单 sprint 的迭代硬上限（runaway backstop） | unattended-building-loop |
 | UNATTENDED_STAGNATION_THRESHOLD | 3 | 连续 N 轮无进展（git HEAD 未变 且 无前进事件；纯记账/churn 事件不计）→ 循环级熔断 | unattended-building-loop |
 | UNATTENDED_CARD_REVISION_CEILING | 3 | headless 下同一任务卡累计 `needs_revision` 达 N 次 → 标 `blocked` 跳过；覆写标准模式「N≥2 请求人工」语义（headless 无人应答） | orchestrator, unattended-building-loop |
-| UNATTENDED_LOOP_ITER_TIMEOUT_SEC | 1800 | 单轮 `claude -p` 无返回的疑似阻塞判据（超时即视同限额等待，不计入熔断预算） | unattended-building-loop |
-| UNATTENDED_RATELIMIT_WAIT_SEC | 300 | 命中限流/超时后单次 auto-wait 秒数（不计入迭代/熔断预算） | unattended-building-loop |
+| UNATTENDED_LOOP_ITER_TIMEOUT_SEC | 10800 | 单会话总时长宽松背板（防病态死循环；健康长任务由流静默判据监督，不受此值主导） | unattended-building-loop |
+| UNATTENDED_SILENCE_TIMEOUT_SEC | 900 | 单会话流输出静默超过 N 秒判定疑似挂死并击杀（每个 stream-json 事件行即心跳；阈值须容纳全量门禁的合法长静默） | unattended-building-loop |
+| UNATTENDED_RATELIMIT_WAIT_SEC | 300 | 命中限流后单次 auto-wait 秒数（不计入迭代/熔断预算；超时击杀不冷却、立即重拉） | unattended-building-loop |
 
 ### MANUAL_REVIEW_CHECKPOINTS 可选值
 | 值 | 触发时机 | 说明 |

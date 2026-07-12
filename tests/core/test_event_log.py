@@ -320,3 +320,22 @@ class TestParseBatchStream:
     def test_non_object_rejected(self) -> None:
         with pytest.raises(EventLogError, match="expected JSON object"):
             parse_batch_stream('["array", "instead"]\n')
+
+
+class TestUnattendedIterCorrelation:
+    def test_build_record_attaches_iter_from_env(self, monkeypatch) -> None:
+        # Inside an unattended session every record carries the launch number
+        # so EVENT-LOG entries join against loop-metrics / loop-transcripts.
+        monkeypatch.setenv("CATAFORGE_UNATTENDED_ITER", "7")
+        record = build_record(event="tdd_phase", phase="development", detail="d")
+        assert record["iter"] == "7"
+
+    def test_build_record_without_env_has_no_iter(self, monkeypatch) -> None:
+        monkeypatch.delenv("CATAFORGE_UNATTENDED_ITER", raising=False)
+        record = build_record(event="tdd_phase", phase="development", detail="d")
+        assert "iter" not in record
+
+    def test_validate_accepts_iter_string(self) -> None:
+        record = build_record(event="tdd_phase", phase="development", detail="d")
+        record["iter"] = "3"
+        assert validate_record(record) == []
