@@ -158,7 +158,8 @@ def test_finalize_does_not_seed_empty_graph_under_graph_authoring(tmp_path: Path
 def test_ingest_then_finalize_then_reconcile_clean(tmp_path: Path) -> None:
     """Graph round-trip: ingest seeds the graph from Markdown, finalize exports
     it back and records the export baseline, so the drift triage is in-sync.
-    Ingest alone leaves the documents never-exported (no baseline)."""
+    Ingest already stamps the absorbed baseline for content-equivalent docs
+    (see test_ingest_baseline.py); finalize on top must stay convergent."""
     proj = _project(tmp_path, with_fixture_docs=True)
     stats = cw.ingest(str(proj))
     gc.collect()

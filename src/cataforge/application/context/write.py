@@ -1156,7 +1156,40 @@ def ingest(
         stats, _entities, _relations = run_migration(
             kg.store, Path(project_root), cfg, doc_types=scope
         )
+        _stamp_ingested_baselines(kg.store, cfg, Path(project_root), scope)
     return stats
+
+
+def _stamp_ingested_baselines(
+    store: Any, cfg: Any, project_root: Path, scope: tuple[str, ...]
+) -> None:
+    """Record the just-absorbed disk bytes as each document's sync baseline.
+
+    Only when the fresh graph render reproduces the file content (canonical
+    whitespace aside): a lossy absorb must stay ``never_exported`` so finalize
+    keeps refusing to overwrite the richer disk state without ``--force``.
+    With the baseline in place the drift triage can leave ``never_exported``
+    and finalize converges without a prior export run.
+    """
+    from cataforge.domain.kg.export.document_pipeline import (  # noqa: PLC0415
+        _list_documents,
+        content_equivalent,
+        render_document,
+        set_exported_hash,
+    )
+
+    ns = cf_namespace(cfg)
+    for doc in _list_documents(store, ns):
+        if scope and doc["doc_type"] not in scope:
+            continue
+        on_disk = project_root / doc["source_path"]
+        if not on_disk.is_file():
+            continue
+        disk_bytes = on_disk.read_bytes()
+        disk_text = disk_bytes.decode("utf-8", errors="replace")
+        if not content_equivalent(render_document(store, ns, doc), disk_text):
+            continue
+        set_exported_hash(store, ns, doc["doc_iri"], hashlib.sha256(disk_bytes).hexdigest())
 
 
 def reconcile_check(project_root: str) -> ReconcileReport | DocValidationReport:

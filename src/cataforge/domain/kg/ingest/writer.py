@@ -334,7 +334,85 @@ def write_structure(
         stats.documents_written += 1
         stats.written_iris.append(iri)
 
+    _cleanup_stale_structure(store, documents, sections, config)
     return stats
+
+
+def _remove_subject(store: ox.Store, iri: str, namespace: str) -> None:
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    subject = ox.NamedNode(iri)
+    doomed = list(store.quads_for_pattern(subject, None, None, None))
+    doomed.extend(attribute_subject_quads(store, iri, namespace))
+    for q in doomed:
+        with contextlib.suppress(Exception):
+            store.remove(q)
+
+
+def _sections_of_document(store: ox.Store, namespace: str, doc_iri: str) -> set[str]:
+    safe = assert_safe_iri(doc_iri)
+    sparql = (
+        f"PREFIX cf: <{namespace}> "
+        f"SELECT ?s WHERE {{ ?s a cf:Section ; cf:part_of_document <{safe}> }}"
+    )
+    out: set[str] = set()
+    for row in select_rows(store, sparql):
+        val = _term_value(_row_lookup(row, "s"))
+        if val:
+            out.add(val)
+    return out
+
+
+def _documents_with_source_path(store: ox.Store, namespace: str, source_path: str) -> set[str]:
+    literal = escape_sparql_literal(source_path)
+    sparql = (
+        f"PREFIX cf: <{namespace}> "
+        "SELECT ?d WHERE { ?d a cf:Document ; cf:source_path ?p . "
+        f'FILTER(STR(?p) = "{literal}") }}'
+    )
+    out: set[str] = set()
+    for row in select_rows(store, sparql):
+        val = _term_value(_row_lookup(row, "d"))
+        if val:
+            out.add(val)
+    return out
+
+
+def _cleanup_stale_structure(
+    store: ox.Store,
+    documents: list[ExtractedDocument],
+    sections: list[ExtractedSection],
+    config: KGConfig,
+) -> None:
+    """Drop structural nodes the fresh extraction no longer accounts for.
+
+    Upsert-by-IRI alone accretes forever: a chapter folded away on disk keeps
+    its Section node (and regrows in every render), and a frontmatter doc_id
+    rename keeps the old Document node as a ghost twin of the same physical
+    file. Scoped to the documents in this migration batch — documents outside
+    the ingest scope are untouched.
+    """
+    namespace = cf_namespace(config)
+    base_ns = config.base_namespace
+    live_sections: dict[str, set[str]] = {}
+    for section in sections:
+        live_sections.setdefault(document_iri(section.doc_id, base_ns), set()).add(
+            section_iri(section.doc_id, section.anchor, base_ns)
+        )
+    for document in documents:
+        doc_iri = document_iri(document.doc_id, base_ns)
+        for stale in _sections_of_document(store, namespace, doc_iri) - live_sections.get(
+            doc_iri, set()
+        ):
+            _remove_subject(store, stale, namespace)
+        if not document.source_path:
+            continue
+        for ghost in _documents_with_source_path(store, namespace, document.source_path):
+            if ghost == doc_iri:
+                continue
+            for section_node in _sections_of_document(store, namespace, ghost):
+                _remove_subject(store, section_node, namespace)
+            _remove_subject(store, ghost, namespace)
 
 
 def write_project(
