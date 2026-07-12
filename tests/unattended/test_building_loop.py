@@ -19,14 +19,18 @@ from cataforge.runtime.unattended import (
     EXIT_MAX_ITERATIONS,
     EXIT_PREFLIGHT,
     METRICS_FIELDS,
+    METRICS_WAIT_FIELDS,
     UNATTENDED_ENV,
     ClaudeResult,
     build_prompt,
+    extract_result_stats,
+    extract_session_id,
     metrics_path,
     prototype_target,
     rate_limited,
     run_building_loop,
     sprint_target,
+    transcript_path,
 )
 
 _SCHEMA = (
@@ -187,8 +191,11 @@ def test_unattended_env_carries_marker_and_autonomous_identity() -> None:
 
 def test_metrics_fields_match_schema() -> None:
     schema = json.loads(_SCHEMA.read_text())
-    assert set(schema["properties"]) == set(METRICS_FIELDS)
-    assert set(schema["required"]) == set(METRICS_FIELDS)
+    defs = schema["$defs"]
+    assert set(defs["iteration"]["properties"]) == set(METRICS_FIELDS)
+    assert set(defs["iteration"]["required"]) == set(METRICS_FIELDS)
+    assert set(defs["wait"]["properties"]) == set(METRICS_WAIT_FIELDS)
+    assert set(defs["wait"]["required"]) == set(METRICS_WAIT_FIELDS)
 
 
 def test_card_level_circuit_open_does_not_halt_loop(tmp_path: Path) -> None:
@@ -334,6 +341,196 @@ def test_build_prompt_is_target_aware() -> None:
     # Card-level breaks must use the task-card id, never brief#tasks — else the
     # shell mistakes the first card break for a whole-target circuit and exits.
     assert "该任务卡 id" in proto
+
+
+def _complete(tmp_path: Path, ref: str = "dev-plan#sprint-1") -> None:
+    append_event(
+        tmp_path,
+        build_record(event="sprint_complete", phase="development", ref=ref, detail="done"),
+    )
+
+
+def _metrics_records(tmp_path: Path) -> list[dict]:
+    return [json.loads(ln) for ln in metrics_path(tmp_path).read_text().splitlines()]
+
+
+def test_timeout_wait_writes_wait_record_and_skips_sleep(tmp_path: Path) -> None:
+    # A timeout kill is not a rate limit: it must be visible in the metrics
+    # stream (kind=wait, reason=timeout) and must NOT burn a cooldown sleep.
+    _init_repo(tmp_path, "feat-x")
+    calls: list[int] = []
+    sleeps: list[float] = []
+
+    def runner(prompt: str, limits) -> ClaudeResult:
+        calls.append(1)
+        if len(calls) == 1:
+            return ClaudeResult(
+                _TIMEOUT_RC_TEST, "partial output", timed_out=True, timeout_reason="silence"
+            )
+        _complete(tmp_path)
+        return ClaudeResult(0, "ok")
+
+    assert _loop(tmp_path, runner, ratelimit_wait_sec=300.0, sleep=sleeps.append) == EXIT_COMPLETE
+    assert sleeps == []  # timeout kill skips the rate-limit cooldown
+    waits = [r for r in _metrics_records(tmp_path) if r["kind"] == "wait"]
+    assert len(waits) == 1
+    assert waits[0]["reason"] == "timeout"
+    assert waits[0]["timeout_reason"] == "silence"
+    assert waits[0]["consecutive_waits"] == 1
+
+
+def test_rate_limit_wait_writes_wait_record_and_sleeps(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "feat-x")
+    calls: list[int] = []
+    sleeps: list[float] = []
+
+    def runner(prompt: str, limits) -> ClaudeResult:
+        calls.append(1)
+        if len(calls) == 1:
+            return ClaudeResult(1, "overloaded_error")
+        _complete(tmp_path)
+        return ClaudeResult(0, "ok")
+
+    assert _loop(tmp_path, runner, ratelimit_wait_sec=300.0, sleep=sleeps.append) == EXIT_COMPLETE
+    assert sleeps == [300.0]
+    waits = [r for r in _metrics_records(tmp_path) if r["kind"] == "wait"]
+    assert len(waits) == 1 and waits[0]["reason"] == "rate_limit"
+    assert waits[0]["timeout_reason"] is None
+
+
+def test_timeout_with_head_move_resets_consecutive_waits(tmp_path: Path) -> None:
+    # A killed session that still committed made real progress: the wait
+    # counter must reset, or a long-tail card would trip EXIT_MAX_ITERATIONS
+    # while the sprint is genuinely advancing.
+    _init_repo(tmp_path, "feat-x")
+    calls: list[int] = []
+
+    def runner(prompt: str, limits) -> ClaudeResult:
+        calls.append(1)
+        if len(calls) <= 2:
+            subprocess.run(
+                ["git", "commit", "--allow-empty", "-m", "progress"],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+            )
+            return ClaudeResult(_TIMEOUT_RC_TEST, "", timed_out=True, timeout_reason="total")
+        _complete(tmp_path)
+        return ClaudeResult(0, "ok")
+
+    # max_iterations=2: without the head-moved reset, two consecutive timeout
+    # waits would exhaust the wait cap before the third (completing) round.
+    assert _loop(tmp_path, runner, max_iterations=2) == EXIT_COMPLETE
+    assert len(calls) == 3
+    waits = [r for r in _metrics_records(tmp_path) if r["kind"] == "wait"]
+    assert [w["head_moved"] for w in waits] == [True, True]
+    assert [w["consecutive_waits"] for w in waits] == [0, 0]
+
+
+def test_terminal_round_writes_metrics(tmp_path: Path) -> None:
+    # sprint_complete / circuit_open rounds previously returned before the
+    # metrics append — the whole run could finish with zero records.
+    _init_repo(tmp_path, "feat-x")
+
+    def runner(prompt: str, limits) -> ClaudeResult:
+        _complete(tmp_path)
+        return ClaudeResult(0, "ok")
+
+    assert _loop(tmp_path, runner) == EXIT_COMPLETE
+    recs = _metrics_records(tmp_path)
+    assert len(recs) == 1 and recs[0]["kind"] == "iteration"
+
+
+def test_failed_round_records_returncode_and_output_tail(tmp_path: Path) -> None:
+    # A non-zero exit that is not a rate limit (auth failure, CLI crash) must
+    # be distinguishable from an idle round after the fact.
+    _init_repo(tmp_path, "feat-x")
+    calls: list[int] = []
+
+    def runner(prompt: str, limits) -> ClaudeResult:
+        calls.append(1)
+        if len(calls) == 1:
+            return ClaudeResult(2, "fatal: authentication failed")
+        _complete(tmp_path)
+        return ClaudeResult(0, "ok")
+
+    assert _loop(tmp_path, runner) == EXIT_COMPLETE
+    failed = [r for r in _metrics_records(tmp_path) if r["returncode"] == 2]
+    assert len(failed) == 1
+    assert "authentication failed" in failed[0]["output_tail"]
+    ok = [r for r in _metrics_records(tmp_path) if r["returncode"] == 0]
+    assert ok and ok[0]["output_tail"] is None
+
+
+def test_transcript_persisted_and_session_id_extracted(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "feat-x")
+    stream = (
+        '{"type":"system","subtype":"init","session_id":"abc-123"}\n'
+        '{"type":"result","subtype":"success","total_cost_usd":1.25,'
+        '"usage":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":300}}'
+    )
+
+    def runner(prompt: str, limits) -> ClaudeResult:
+        _complete(tmp_path)
+        return ClaudeResult(0, stream)
+
+    assert _loop(tmp_path, runner) == EXIT_COMPLETE
+    saved = transcript_path(tmp_path, 1)
+    assert saved.is_file() and "abc-123" in saved.read_text(encoding="utf-8")
+    rec = _metrics_records(tmp_path)[0]
+    assert rec["session_id"] == "abc-123"
+    assert rec["tokens_in"] == 10 and rec["tokens_out"] == 20
+    assert rec["cache_read_tokens"] == 300 and rec["cost_usd"] == 1.25
+
+
+def test_loop_passes_incrementing_attempt_to_runner(tmp_path: Path) -> None:
+    # attempt numbers every launch (waits included) — it keys the transcript
+    # file and the CATAFORGE_UNATTENDED_ITER correlation env var.
+    _init_repo(tmp_path, "feat-x")
+    attempts: list[int] = []
+
+    def runner(prompt: str, limits) -> ClaudeResult:
+        attempts.append(limits.attempt)
+        if len(attempts) == 1:
+            return ClaudeResult(1, "overloaded_error")
+        _complete(tmp_path)
+        return ClaudeResult(0, "ok")
+
+    assert _loop(tmp_path, runner) == EXIT_COMPLETE
+    assert attempts == [1, 2]
+
+
+def test_extract_session_id_and_result_stats() -> None:
+    out = (
+        'noise\n{"type":"system","subtype":"init","session_id":"s-1"}\n'
+        '{"type":"result","total_cost_usd":0.5,"usage":{"input_tokens":1,"output_tokens":2}}'
+    )
+    assert extract_session_id(out) == "s-1"
+    stats = extract_result_stats(out)
+    assert stats["tokens_in"] == 1 and stats["tokens_out"] == 2
+    assert stats["cost_usd"] == 0.5 and stats["cache_read_tokens"] is None
+    # Garbage in → all-None out, never a raise.
+    empty = extract_result_stats("not json at all")
+    assert set(empty) == {"tokens_in", "tokens_out", "cache_read_tokens", "cost_usd"}
+    assert all(v is None for v in empty.values())
+    assert extract_session_id("") is None
+
+
+def test_build_prompt_declares_unit_of_work_and_budget() -> None:
+    # #480: sessions must be told to finish one card then exit cleanly, and to
+    # converge to a committable state when nearing the session budget.
+    for prompt in (
+        build_prompt(sprint_target("sprint-2"), 3, session_budget_min=180),
+        build_prompt(prototype_target(), 3, session_budget_min=180),
+    ):
+        assert "最多完成一张任务卡" in prompt
+        assert "180 分钟" in prompt
+    # No budget → no budget sentence, unit-of-work rule stays.
+    no_budget = build_prompt(sprint_target("sprint-2"), 3)
+    assert "分钟" not in no_budget and "最多完成一张任务卡" in no_budget
+
+
+_TIMEOUT_RC_TEST = 124
 
 
 def test_rate_limited_matches_subscription_cap_phrasings() -> None:

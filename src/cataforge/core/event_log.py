@@ -88,8 +88,15 @@ ALLOWED_FIELDS: frozenset[str] = frozenset(
         "ref",
         "model",
         "detail",
+        "iter",
     }
 )
+
+# Set by the unattended building-loop driver on every claude launch; records
+# written inside such a session carry the launch number so EVENT-LOG entries
+# can be joined against loop-metrics / loop-transcripts without timestamp
+# guessing.
+UNATTENDED_ITER_ENV = "CATAFORGE_UNATTENDED_ITER"
 
 # Relative to project root.
 EVENT_LOG_REL = Path("docs") / "EVENT-LOG.jsonl"
@@ -128,7 +135,18 @@ def validate_record(record: Mapping[str, Any]) -> list[str]:
     if task_type is not None and task_type not in VALID_TASK_TYPES:
         errors.append(f"task_type={task_type!r} not in enum (known: {sorted(VALID_TASK_TYPES)})")
 
-    for field in ("ts", "event", "phase", "detail", "agent", "status", "ref", "model", "task_type"):
+    for field in (
+        "ts",
+        "event",
+        "phase",
+        "detail",
+        "agent",
+        "status",
+        "ref",
+        "model",
+        "task_type",
+        "iter",
+    ):
         val = record.get(field)
         if val is None:
             continue
@@ -175,6 +193,12 @@ def build_record(
         record["model"] = model
     if task_type is not None:
         record["task_type"] = task_type
+    # Correlation key: inside an unattended session every record is tagged with
+    # the loop launch number so the three streams (EVENT-LOG / loop-metrics /
+    # loop-transcripts) join without timestamp guessing.
+    unattended_iter = os.environ.get(UNATTENDED_ITER_ENV)
+    if unattended_iter:
+        record["iter"] = unattended_iter
 
     errors = validate_record(record)
     if errors:

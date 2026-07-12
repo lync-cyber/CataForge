@@ -59,6 +59,7 @@ from cataforge.domain.kg.export.document_pipeline import (
     EXPORTED_CONTENT_HASH_SLOT,
     _covered_source_docs,
     _list_documents,
+    content_equivalent,
     render_document,
 )
 from cataforge.domain.kg.ingest.entity_extract import build_prefix_registry, extract_entities
@@ -235,9 +236,18 @@ def _hash_triage(store: ox.Store, project_root: Path, config: KGConfig) -> list[
     for doc in _list_documents(store, ns):
         source_path = doc["source_path"]
         on_disk = project_root / source_path
-        file_hash = hashlib.sha256(on_disk.read_bytes()).hexdigest() if on_disk.is_file() else None
+        disk_bytes = on_disk.read_bytes() if on_disk.is_file() else None
+        file_hash = hashlib.sha256(disk_bytes).hexdigest() if disk_bytes is not None else None
         baseline = _document_baseline(store, config, doc["doc_iri"])
-        render_hash = hashlib.sha256(render_document(store, ns, doc).encode("utf-8")).hexdigest()
+        render_text = render_document(store, ns, doc)
+        render_hash = hashlib.sha256(render_text.encode("utf-8")).hexdigest()
+        # Canonical-whitespace differences are not content the graph lacks —
+        # a just-ingested source still counts as synced, so its KG-only edges
+        # classify as enrichment rather than ghost drift.
+        synced = disk_bytes is not None and (
+            file_hash == render_hash
+            or content_equivalent(disk_bytes.decode("utf-8", errors="replace"), render_text)
+        )
         out.append(
             _DocTriage(
                 source_path=source_path,
@@ -245,7 +255,7 @@ def _hash_triage(store: ox.Store, project_root: Path, config: KGConfig) -> list[
                 doc_type=doc["doc_type"],
                 source_doc=doc["source_doc"],
                 state=_classify_document_drift(file_hash, baseline, render_hash),
-                synced=file_hash is not None and file_hash == render_hash,
+                synced=synced,
             )
         )
     out.sort(key=lambda t: t.source_path)

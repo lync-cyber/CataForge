@@ -52,6 +52,18 @@ def unattended_group() -> None:
     help="Override UNATTENDED_LOOP_MAX_ITERATIONS for this run.",
 )
 @click.option(
+    "--iter-timeout",
+    type=float,
+    default=None,
+    help="Override UNATTENDED_LOOP_ITER_TIMEOUT_SEC（单会话总时长背板秒数）for this run.",
+)
+@click.option(
+    "--silence-timeout",
+    type=float,
+    default=None,
+    help="Override UNATTENDED_SILENCE_TIMEOUT_SEC（流静默挂死判据秒数）for this run.",
+)
+@click.option(
     "--project-root",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
     default=None,
@@ -62,6 +74,8 @@ def unattended_build(
     ctx: click.Context,
     sprint: str | None,
     max_iterations: int | None,
+    iter_timeout: float | None,
+    silence_timeout: float | None,
     project_root: Path | None,
 ) -> None:
     """Drive a build target until sprint_complete / circuit_open / cap.
@@ -110,9 +124,16 @@ def unattended_build(
         max_iterations=max_iterations or _c("UNATTENDED_LOOP_MAX_ITERATIONS", 30),
         stagnation_threshold=_c("UNATTENDED_STAGNATION_THRESHOLD", 3),
         card_revision_ceiling=_c("UNATTENDED_CARD_REVISION_CEILING", 3),
-        iter_timeout_sec=float(_c("UNATTENDED_LOOP_ITER_TIMEOUT_SEC", 1800)),
+        iter_timeout_sec=iter_timeout or float(_c("UNATTENDED_LOOP_ITER_TIMEOUT_SEC", 10800)),
         ratelimit_wait_sec=float(_c("UNATTENDED_RATELIMIT_WAIT_SEC", 300)),
+        silence_timeout_sec=silence_timeout or float(_c("UNATTENDED_SILENCE_TIMEOUT_SEC", 900)),
     )
     message = _OUTCOME_MESSAGE.get(code, f"未知退出码 {code}")
     click.echo(message.format(sprint=target.label), err=code != EXIT_COMPLETE)
+    click.echo(
+        "晨检提示：回顾前先归档 .cataforge/state/loop-*（metrics/transcripts 为 gitignored "
+        "运维流，worktree 清理即丢）；无人值守波合并前建议补一轮波级跨卡对抗审查"
+        "（正交于逐卡 code-review）。",
+        err=code != EXIT_COMPLETE,
+    )
     ctx.exit(code)

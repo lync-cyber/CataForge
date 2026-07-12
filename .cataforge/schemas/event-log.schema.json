@@ -79,6 +79,10 @@
     "detail": {
       "type": "string",
       "description": "事件简短描述"
+    },
+    "iter": {
+      "type": "string",
+      "description": "无人值守循环拉起序号关联键，headless 会话内由 CATAFORGE_UNATTENDED_ITER 环境变量自动附加，用于对齐 loop-metrics / loop-transcripts，可选"
     }
   },
   "additionalProperties": false
