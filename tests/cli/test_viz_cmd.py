@@ -1912,6 +1912,26 @@ class TestVizServe:
             thread.join(timeout=5)
         assert not thread.is_alive()  # clean interruption
 
+    def test_regenerate_injects_http_only_autoreload(self, tmp_path: Path) -> None:
+        # serve 路径的产物带轮询自刷新脚本（仅 http 协议激活；file:// 双击打开保持惰性）
+        _make_project(tmp_path)
+        text = service.regenerate(tmp_path, tmp_path / "out").read_text(encoding="utf-8")
+        assert 'id="viz-autoreload"' in text
+        assert "Last-Modified" in text
+        assert "location.protocol.indexOf('http')" in text
+        _assert_offline(text)
+
+    def test_static_cli_output_has_no_autoreload(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        static = html.render_dashboard(tmp_path)
+        assert "viz-autoreload" not in static
+
+    def test_dashboard_footer_marks_snapshot_mode(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "数据截至" in out  # 生成时间戳
+        assert 'id="viewmode">快照模式' in out  # serve 注入脚本会改写为服务模式
+
     def test_serve_watch_regenerates_and_stops(self, tmp_path: Path) -> None:
         _make_project(tmp_path)
         serve_dir = tmp_path / "out"

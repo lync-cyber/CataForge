@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import html as _html
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -265,6 +266,12 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     inspector = (
         '<aside id="inspector" role="dialog" aria-label="实体详情" tabindex="-1" hidden></aside>'
     )
+    # snapshot provenance: the static file says when its data was frozen; the
+    # serve pipeline's auto-reload script rewrites #viewmode to 服务模式
+    stamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M")
+    footer = (
+        f'<footer class="pagefoot">数据截至 {stamp} · <span id="viewmode">快照模式</span></footer>'
+    )
     body = (
         header
         + kpis
@@ -274,6 +281,7 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
         + "<main>"
         + "\n".join(panels)
         + "</main>"
+        + footer
         + inspector
     )
     return _document("CataForge viz dashboard", body, inits, libs or [_CYTOSCAPE])

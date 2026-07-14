@@ -31,7 +31,7 @@ _FORMATS = sorted(RENDERERS)
 _HTML = "html"
 _QUICKSTART = NextStep(
     "cataforge viz quickstart",
-    "一键起本地 dashboard（生成+服务+开浏览器+源变更自动重生成，浏览器刷新可见）",
+    "一键起本地 dashboard（生成+服务+开浏览器+源变更自动重生成并自动刷新页面）",
 )
 _EPILOG = (
     "Quickstart: `cataforge viz quickstart` 一键起本地 dashboard · "

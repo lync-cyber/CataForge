@@ -706,9 +706,9 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 
 **自包含 HTML（`--html`）**：输出单文件离线页，vendored `cytoscape.min.js` / `echarts.min.js` 经 `importlib.resources` 内联，零外链——断网双击即开。渲染器纯按 IR 形态分发：Graph → Cytoscape.js（zoom / pan / 节点搜索），Timeline / MetricSeries → ECharts。`dashboard` 共享两库一次内联、各视图分标签页。`--html` 与 `--format` 互斥，同时给出时 `--html` 生效。
 
-**就绪体检与一键（`viz status` / `viz quickstart`）**：新用户先跑 `viz status` —— 它逐视图探测数据源，输出 `ready`（已有数据，带节点/事件计数）/ `empty`（能渲染但暂无数据）/ `needs setup`（数据源缺失，并从 collector 自带提示里抽出 `run: cataforge kg init` 这类可直接照抄的命令）三态，让你按需补齐想看的视图。`viz quickstart` 是到本地 dashboard 的单命令路径，等价 `viz serve --watch --open`（源数据变更自动重生成，浏览器刷新可见更新）。
+**就绪体检与一键（`viz status` / `viz quickstart`）**：新用户先跑 `viz status` —— 它逐视图探测数据源，输出 `ready`（已有数据，带节点/事件计数）/ `empty`（能渲染但暂无数据）/ `needs setup`（数据源缺失，并从 collector 自带提示里抽出 `run: cataforge kg init` 这类可直接照抄的命令）三态，让你按需补齐想看的视图。`viz quickstart` 是到本地 dashboard 的单命令路径，等价 `viz serve --watch --open`（源数据变更自动重生成，页面自动刷新）。
 
-**本地静态服务（`viz serve`）**：用标准库 `http.server` 托管产物目录（默认 `docs/viz/`），启动时先写一份 dashboard `index.html`，再持续提供 HTTP 访问，仅依赖标准库——不引入任何服务框架。`--watch` 启动后台线程轮询 KG store / doc-index / EVENT-LOG / CORRECTIONS-LOG 的 mtime，任一变更即重生成 `index.html`，浏览器刷新即见最新。`--open` 就绪后用默认浏览器打开（监听 `0.0.0.0` 时按 `127.0.0.1` 打开）。`Ctrl-C` 干净退出。`viz dashboard --open` 在无 `-o` 时写 `docs/viz/dashboard.html` 并打开（`file://`，无服务一次性快照）。
+**本地静态服务（`viz serve`）**：用标准库 `http.server` 托管产物目录（默认 `docs/viz/`），启动时先写一份 dashboard `index.html`，再持续提供 HTTP 访问，仅依赖标准库——不引入任何服务框架。`--watch` 启动后台线程轮询 KG store / doc-index / EVENT-LOG / CORRECTIONS-LOG 的 mtime，任一变更即重生成 `index.html`；served 页面内嵌轻量轮询脚本（HEAD 请求比对 `Last-Modified`，仅 http 协议激活），重生成后浏览器自动刷新，页脚模式标识显示「服务模式 · 自动刷新」；把 served 快照当 `file://` 双击打开时脚本保持惰性、页脚显示「快照模式」。`--open` 就绪后用默认浏览器打开（监听 `0.0.0.0` 时按 `127.0.0.1` 打开）。`Ctrl-C` 干净退出。`viz dashboard --open` 在无 `-o` 时写 `docs/viz/dashboard.html` 并打开（`file://`，无服务一次性快照）。
 
 | 参数 | 作用 | 默认 |
 | ------ | ------ | ------ |
