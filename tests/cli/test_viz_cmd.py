@@ -1322,9 +1322,12 @@ class TestDashboard:
     def test_one_tab_per_view(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
-        for label in ("Framework", "Assets", "Timeline", "Decay"):
+        for label in ("编排", "资产", "时间线", "腐化"):
             assert f">{label}<" in out
-        assert ">Phase<" not in out  # phase lives in the stepper strip, not a tab
+        # every tab keeps its CLI view name reachable via title=
+        for name in ("framework", "assets", "timeline", "decay"):
+            assert f'title="{name}"' in out
+        assert 'data-panel="panel-phase"' not in out  # phase lives in the stepper
         assert out.count('<button class="tab') == 9
 
     def test_failed_views_degrade_to_error_panel(self, tmp_path: Path) -> None:
@@ -1544,7 +1547,11 @@ class TestDashboard:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
         assert 'class="tabgroup"' in out
-        assert "项目健康" in out and "框架资产" in out
+        assert "项目交付" in out and "文档与过程" in out and "框架资产" in out
+        # one labelled tablist per group; the group label sits outside the
+        # tablist so its only children are tabs (ARIA required-children)
+        assert out.count('<div class="tabrow" role="tablist"') == 3
+        assert out.count('aria-labelledby="tg-') == 3
         assert out.count('<button class="tab') == 9  # every view still has a tab
 
     def test_default_tab_follows_worst_kpi(self, tmp_path: Path) -> None:
@@ -1589,6 +1596,63 @@ class TestDashboard:
         assert out.count('role="tab" aria-selected') == 9
         assert out.count('aria-selected="true"') == 1
         assert out.count('role="tabpanel"') == 9
+        # tab ↔ panel wiring: ids, aria-controls, aria-labelledby all pair up
+        for name, _label in html._DASHBOARD_VIEWS:
+            assert f'id="tab-{name}"' in out
+            assert f'aria-controls="panel-{name}"' in out
+            assert f'aria-labelledby="tab-{name}"' in out
+        # roving tabindex: exactly the selected tab is tabbable at render time
+        assert out.count('role="tab" aria-selected="true"') == 1
+        assert 'aria-selected="true" aria-controls' in out
+
+    def test_tab_keyboard_model_wired(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "ArrowRight" in out and "ArrowLeft" in out
+        assert "'Home'" in out and "'End'" in out
+        assert "syncTablists" in out
+
+    def test_omnibox_is_combobox(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'role="combobox"' in out
+        assert 'aria-expanded="false"' in out
+        assert 'aria-controls="omni_list"' in out
+        assert 'role="listbox"' in out
+        assert 'id="omni_status"' in out and 'aria-live="polite"' in out
+        assert "无匹配实体" in out  # zero-hit feedback text
+        assert "aria-activedescendant" in out
+
+    def test_inspector_is_focus_managed_dialog(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'id="inspector" role="dialog"' in out
+        assert 'aria-label="实体详情"' in out
+        assert 'tabindex="-1"' in out
+        assert "closeInspector" in out
+        assert "'Escape'" in out
+
+    def test_document_structure_landmarks(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert '<html lang="zh-CN">' in out
+        assert out.count("<h1>") == 1
+        assert "<main>" in out and "</main>" in out
+
+    def test_sdlc_na_project_gets_consistent_guidance(self, tmp_path: Path) -> None:
+        # a non-workflow-driven project: SDLC-gated tiles and tabs both say
+        # N/A instead of steering toward kg-init commands that don't apply
+        _make_project(tmp_path)
+        (tmp_path / "CLAUDE.md").write_text(
+            "# P\n## 项目状态\n- 当前阶段: none\n", encoding="utf-8"
+        )
+        out = html.render_dashboard(tmp_path)
+        assert "SDLC 数据管线对本项目不适用" in out
+        assert 'class="nabadge"' in out
+        assert "核心文档 · SDLC 不适用" in out
+        assert "Feature 覆盖 · SDLC 不适用" in out
+        # the links tile still guides toward the doc index (not SDLC-gated)
+        assert "断链 / stale · run: cataforge context index" in out
 
     def test_active_tab_enters_url_hash(self, tmp_path: Path) -> None:
         # tab switches record #panel-{name}; load replays a valid hash → the
@@ -2210,11 +2274,14 @@ class TestVizConsistency:
     def test_view_classification_sets_are_subsets_of_dashboard_views(self) -> None:
         # the grouping / SDLC-gating sets are hand-maintained: a rename or a
         # new view must not silently misclassify
-        from cataforge.application.viz.html.page import _HEALTH_VIEWS, _SDLC_VIEWS
+        from cataforge.application.viz.html.page import _SDLC_VIEWS, _VIEW_GROUPS
 
         tab_names = {name for name, _ in html._DASHBOARD_VIEWS}
-        assert tab_names >= _HEALTH_VIEWS
+        grouped = {name for views in _VIEW_GROUPS.values() for name in views}
+        assert grouped == tab_names  # groups exactly partition the tab set
         assert tab_names >= _SDLC_VIEWS
+        # project views (arch / tasks included) live outside the framework group
+        assert {"arch", "tasks", "coverage", "trace"} <= set(_VIEW_GROUPS["delivery"])
 
     def test_single_view_has_legend(self) -> None:
         assert 'class="legend"' in html.render(_HTML_GRAPH)

@@ -16,11 +16,15 @@
 }
 body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;color:var(--fg);background:var(--bg)}
 header{display:flex;align-items:center;gap:18px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:15px}
+header h1{font-size:15px;font-weight:600;margin:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .omni-wrap{position:relative;flex:0 1 340px}
 #omni{width:100%;box-sizing:border-box;padding:4px 10px;border:1px solid var(--chip-line);border-radius:14px;font-size:12px;background:var(--panel-soft);color:var(--fg)}
 #omni_list{position:absolute;top:110%;left:0;right:0;z-index:60;max-height:300px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .omni-hit{padding:5px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--row-line)}
-.omni-hit:hover{background:var(--focus-bg)}
+.omni-hit:hover,.omni-hit.active{background:var(--focus-bg)}
+.omni-empty{padding:5px 10px;font-size:12px;color:var(--muted)}
 #inspector{position:fixed;top:96px;right:12px;width:320px;max-height:72vh;overflow:auto;z-index:55;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.2);font-size:12px}
 .ins-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .ins-close{border:none;background:none;color:var(--faint);font-size:16px;cursor:pointer;line-height:1}
@@ -71,7 +75,8 @@ header{display:flex;align-items:center;gap:18px;padding:8px 14px;border-bottom:1
 .gates ul{margin:6px 0 2px;padding-left:18px}
 .gates li.gok{color:var(--muted)}
 .gates li.gbad{color:var(--error)}
-.tab.na{opacity:.45}
+.tab.na{color:var(--muted)}
+.nabadge{margin-left:4px;padding:0 4px;font-size:9px;border:1px solid var(--chip-line);border-radius:6px;color:var(--muted)}
 .cbar .seg{cursor:pointer}
 .cbar .seg.on{outline:2px solid var(--accent);outline-offset:-2px}
 .legend{display:flex;flex-wrap:wrap;gap:14px;padding:6px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line-soft)}

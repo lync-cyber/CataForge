@@ -120,10 +120,14 @@ def _spark_series(history: _History, metric: str) -> list[float]:
     return out
 
 
-def _missing_hint(results: _Results, name: str, label: str) -> str:
-    """Degraded-tile caption: reuse the detail view's own ``run …`` guidance."""
+def _missing_hint(results: _Results, name: str, label: str, sdlc_na: bool = False) -> str:
+    """Degraded-tile caption: reuse the detail view's own ``run …`` guidance.
+    ``sdlc_na`` marks an SDLC-gated metric on a non-driven project — the tile
+    then says N/A instead of steering toward a pipeline that doesn't apply."""
     from cataforge.application.viz.registry import short_hint
 
+    if sdlc_na:
+        return f"{label} · SDLC 不适用"
     _, error = results.get(name, (None, None))
     if error:
         hinted = short_hint(error)
@@ -133,10 +137,16 @@ def _missing_hint(results: _Results, name: str, label: str) -> str:
 
 
 def _docs_tile(
-    group: dict[str, float] | None, results: _Results, pid: str, spark: str = ""
+    group: dict[str, float] | None,
+    results: _Results,
+    pid: str,
+    spark: str = "",
+    sdlc_na: bool = False,
 ) -> tuple[str, int]:
     if not group:
-        return _tile("—", _missing_hint(results, "docs", "核心文档"), "na", pid, _DOCS_INFO)
+        return _tile(
+            "—", _missing_hint(results, "docs", "核心文档", sdlc_na), "na", pid, _DOCS_INFO
+        )
     total = len(group)
     present = sum(1 for v in group.values() if v >= 0.5)
     approved = sum(1 for v in group.values() if v >= 1.0)
@@ -147,11 +157,19 @@ def _docs_tile(
 
 
 def _coverage_tile(
-    group: dict[str, float] | None, results: _Results, pid: str, spark: str = ""
+    group: dict[str, float] | None,
+    results: _Results,
+    pid: str,
+    spark: str = "",
+    sdlc_na: bool = False,
 ) -> tuple[str, int]:
     if not group:
         return _tile(
-            "—", _missing_hint(results, "coverage", "Feature 覆盖"), "na", pid, _COVERAGE_INFO
+            "—",
+            _missing_hint(results, "coverage", "Feature 覆盖", sdlc_na),
+            "na",
+            pid,
+            _COVERAGE_INFO,
         )
     full, partial, none = (int(group.get(k, 0)) for k in ("full", "partial", "none"))
     total = full + partial + none
@@ -223,6 +241,7 @@ def _kpi_strip(
     panel_ids: dict[str, str],
     retro_threshold: int,
     history: _History | None = None,
+    sdlc_na: bool = False,
 ) -> tuple[str, str | None]:
     """Return ``(strip_html, worst_view)``. ``worst_view`` is the view name of
     the highest-severity tile (``None`` when every tile is ok/na), so the caller
@@ -232,10 +251,13 @@ def _kpi_strip(
     sparks = {m: _sparkline(_spark_series(hist, m)) for m in ("docs", "coverage", "links", "decay")}
     # (tile, the view its worst state should open); phase lives in the stepper
     tiles = [
-        (_docs_tile(groups.get("docs"), results, panel_ids["docs"], sparks["docs"]), "docs"),
+        (
+            _docs_tile(groups.get("docs"), results, panel_ids["docs"], sparks["docs"], sdlc_na),
+            "docs",
+        ),
         (
             _coverage_tile(
-                groups.get("coverage"), results, panel_ids["coverage"], sparks["coverage"]
+                groups.get("coverage"), results, panel_ids["coverage"], sparks["coverage"], sdlc_na
             ),
             "coverage",
         ),

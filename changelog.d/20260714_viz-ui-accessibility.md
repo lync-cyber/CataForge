@@ -1,3 +1,7 @@
+### Changed
+
+- **dashboard 无障碍与信息架构** —— tabs 补全 ARIA（tab↔panel 双向 id 关联、roving tabindex、←→/Home/End 键盘模型、每组独立 labelled tablist）；全局检索升级为完整 combobox（listbox/option、↑↓/Enter/Escape、aria-activedescendant、「无匹配实体」反馈 + aria-live 通报）；Inspector 成为焦点管理的非模态 dialog（打开移焦、Escape 关闭、关闭还原触发元素焦点）；页面获得 `lang="zh-CN"`、h1 与 main 地标；tab 分组重划为 项目交付（覆盖/追溯/任务/架构）· 文档与过程（文档/时间线/腐化）· 框架资产（编排/资产），tab 标签中文化（title 保留 CLI 视图名）；N/A tab 以徽标标识（不再仅靠透明度）；非 SDLC 项目的降级 KPI tile 与 N/A 面板口径一致（不再引导运行不适用的 kg init）。
+
 ### Fixed
 
 - **CLI 表格 CJK/emoji 宽度** —— `ui.table` / `ui.kv` 的列宽按终端可见宽度计算（East Asian Wide/Fullwidth 记 2 列、组合字记 0 列），中文单元格不再错位。
