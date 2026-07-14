@@ -85,15 +85,24 @@ class Timeline:
 
 @dataclass(frozen=True)
 class MetricPoint:
+    """``unit`` optionally types the value for rendering — ``count`` /
+    ``ratio`` / ``percent`` / ``flag`` / ``index``; ``""`` means untyped
+    (renderers fall back to one shared chart)."""
+
     label: str
     value: float
     series: str = ""
+    unit: str = ""
 
 
 @dataclass(frozen=True)
 class MetricSeries:
+    """``meta`` is an optional renderer-hint bag (e.g. ``target`` lines,
+    preferred marks); text renderers ignore it."""
+
     points: tuple[MetricPoint, ...] = ()
     title: str = ""
+    meta: Mapping[str, object] | None = None
 
 
 View = Graph | Timeline | MetricSeries

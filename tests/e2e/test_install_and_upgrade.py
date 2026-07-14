@@ -126,7 +126,7 @@ def test_upgrade_apply_preserves_user_mods_and_runtime_platform(
     * User-modified scaffold files are *kept*; ``upgrade apply`` writes the
       incoming framework version beside them as ``<file>.cataforge-new`` for
       manual merge (no silent data loss).
-    * ``framework.json.runtime.platform`` is preserved (field-level merge).
+    * ``framework.json.deployment.default_platform`` is preserved (field-level merge).
     * The scaffold manifest keeps the file flagged user-modified.
     """
     run_cataforge(cataforge_venv, "setup", "--platform", "claude-code", cwd=fresh_project)
@@ -141,8 +141,8 @@ def test_upgrade_apply_preserves_user_mods_and_runtime_platform(
 
     fw_path = cataforge_dir / "framework.json"
     fw = json.loads(fw_path.read_text(encoding="utf-8"))
-    assert fw["runtime"]["platform"] == "claude-code"
-    fw["runtime"]["platform"] = "cursor"
+    assert fw["deployment"]["default_platform"] == "claude-code"
+    fw["deployment"]["default_platform"] = "cursor"
     fw_path.write_text(json.dumps(fw, indent=2), encoding="utf-8")
 
     result = run_cataforge(cataforge_venv, "upgrade", "apply", cwd=fresh_project)
@@ -155,9 +155,9 @@ def test_upgrade_apply_preserves_user_mods_and_runtime_platform(
     assert sidecar.is_file()
     assert "# user custom section" not in sidecar.read_text(encoding="utf-8")
 
-    # Contract: runtime.platform is preserved across refresh.
+    # Contract: deployment.default_platform is preserved across refresh.
     fw_after = json.loads(fw_path.read_text(encoding="utf-8"))
-    assert fw_after["runtime"]["platform"] == "cursor"
+    assert fw_after["deployment"]["default_platform"] == "cursor"
 
     # Manifest keeps the file flagged user-modified: its recorded hash differs
     # from the preserved (edited) bytes on disk.

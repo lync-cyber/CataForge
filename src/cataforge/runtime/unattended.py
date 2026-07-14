@@ -32,6 +32,7 @@ import os
 import re
 import signal
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -198,7 +199,7 @@ UNATTENDED_ENV: dict[str, str] = {
 def _kill_tree(proc: subprocess.Popen[str]) -> None:
     # Kill the whole session process tree: the claude CLI spawns tool
     # subprocesses (test runners, git) that must not outlive a kill.
-    if os.name == "nt":
+    if sys.platform == "win32":
         with contextlib.suppress(OSError, subprocess.SubprocessError):
             run_proc(["taskkill", "/F", "/T", "/PID", str(proc.pid)], timeout=30)
     else:

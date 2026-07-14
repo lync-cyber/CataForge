@@ -21,7 +21,7 @@
 两侧通过 IR 解耦，各自独立扩展：
 
 - **collector**（数据 → IR）：`application/viz/collectors/`，每个是 `collect(root, /, **opts) -> View`（`Collector` Protocol）。
-- **renderer**（IR → 输出）：文本渲染器在 `core/viz/render/`（`mermaid` / `dot` / `json_`），HTML 渲染器在 `application/viz/html.py`。
+- **renderer**（IR → 输出）：文本渲染器在 `core/viz/render/`（`mermaid` / `dot` / `json_`），HTML 渲染器在 `application/viz/html/`（`page` 页面装配 / `fragments` IR→片段 / `kpi` KPI strip 与 stepper）。
 
 新增数据源只写一个 collector，新增输出格式只写一个 renderer，互不影响。`registry.py` 是唯一扩展缝：`name → collector`、`format → renderer` 两张映射表。`service.generate(view, fmt, root, **opts)` 查表取 collector 产 IR、再交 renderer，是 CLI 与实现之间的薄编排点。
 
@@ -62,6 +62,8 @@ HTML 渲染器纯按 IR 形态分发：`Graph` → Cytoscape.js（大小图通�
 ## vendored JS 与打包
 
 `cytoscape.min.js` / `echarts.min.js`（pinned）位于 `application/viz/assets/`，随 `packages = ["src/cataforge"]` 进 wheel，经 `importlib.resources.files("cataforge.application.viz") / "assets" / <name>` 读取并内联进 HTML——无需 force-include 或额外打包配置。打包冒烟测试构建真实 wheel 并断言两个资产被完整打入；HTML 输出零外链，断网可直接打开。
+
+单文件体积以 vendored 库为主：ECharts ≈1.0MB、Cytoscape ≈0.37MB，业务 JS/CSS 合计 <30KB；dashboard 按需内联（无图表类视图时 ECharts 不打入），各面板脚本延迟到首次切入时初始化。
 
 ## mermaid 收编
 

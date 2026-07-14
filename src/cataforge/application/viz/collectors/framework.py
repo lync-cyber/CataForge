@@ -63,7 +63,7 @@ def collect(root: Path, /, **_opts: Any) -> View:
             continue
         try:
             content = agent_md.read_text()
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             continue
         for skill in parse_skills_field(content):
             skid = _sid("skill", skill)

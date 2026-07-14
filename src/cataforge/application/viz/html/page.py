@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import html as _html
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,16 +34,18 @@ _DASHBOARD_CSS = "dashboard.css"
 _DASHBOARD_JS = "dashboard.js"
 
 # phase is deliberately absent: progression renders as the stepper strip.
+# Labels are Chinese (the page's primary language); each tab's title= keeps
+# the CLI view name reachable for `cataforge viz <view>` correspondence.
 _DASHBOARD_VIEWS: tuple[tuple[str, str], ...] = (
-    ("framework", "Framework"),
-    ("assets", "Assets"),
-    ("trace", "Trace"),
-    ("coverage", "Coverage"),
-    ("arch", "Arch"),
-    ("docs", "Docs"),
-    ("tasks", "Tasks"),
-    ("timeline", "Timeline"),
-    ("decay", "Decay"),
+    ("framework", "编排"),
+    ("assets", "资产"),
+    ("trace", "追溯"),
+    ("coverage", "覆盖"),
+    ("arch", "架构"),
+    ("docs", "文档"),
+    ("tasks", "任务"),
+    ("timeline", "时间线"),
+    ("decay", "腐化"),
 )
 
 
@@ -65,7 +68,7 @@ def _document(title: str, body: str, inits: list[str], libs: list[str]) -> str:
     lib_blocks = "\n".join(f"<script>{_read_asset(name)}</script>" for name in libs)
     css = _root_vars() + _read_asset(_DASHBOARD_CSS)
     head = (
-        '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{_html.escape(title)}</title>\n<style>{css}</style>\n</head>\n<body>\n"
     )
@@ -85,8 +88,8 @@ def _legend() -> str:
 def render(view: View) -> str:
     body, init, lib = _fragment(view, "view0")
     title = getattr(view, "title", "") or "viz"
-    header = f"<header><strong>{_html.escape(title)}</strong></header>"
-    return _document(title, header + _legend() + body, [init], [lib] if lib else [])
+    header = f"<header><h1>{_html.escape(title)}</h1></header>"
+    return _document(title, f"{header}{_legend()}<main>{body}</main>", [init], [lib] if lib else [])
 
 
 _Results = dict[str, tuple[View | None, str | None]]
@@ -134,23 +137,33 @@ def _degraded_inner(name: str, view: View | None, error: str | None, sdlc_na: bo
 _SDLC_VIEWS = frozenset({"trace", "coverage", "arch", "tasks"})
 _SDLC_NA_HINT = "SDLC 数据管线对本项目不适用 — 项目未按工作流阶段驱动"
 
-# Two tab clusters: what's the project's health vs what the framework is made of.
-_HEALTH_VIEWS = frozenset({"docs", "coverage", "trace", "timeline", "decay"})
-_TAB_GROUPS: tuple[tuple[str, str], ...] = (("项目健康", "health"), ("框架资产", "framework"))
+# Three tab clusters: what the project delivers, how its docs/process are
+# doing, and what the framework itself is made of. arch / tasks are project
+# views (KG arch entities, dev-plan DAG), not framework assets.
+_VIEW_GROUPS: dict[str, tuple[str, ...]] = {
+    "delivery": ("coverage", "trace", "tasks", "arch"),
+    "process": ("docs", "timeline", "decay"),
+    "framework": ("framework", "assets"),
+}
+_TAB_GROUPS: tuple[tuple[str, str], ...] = (
+    ("项目交付", "delivery"),
+    ("文档与过程", "process"),
+    ("框架资产", "framework"),
+)
 
-
-def _view_group(name: str) -> str:
-    return "health" if name in _HEALTH_VIEWS else "framework"
+# Views describing the project itself — preferred over framework views when
+# picking a data-backed default tab.
+_PROJECT_VIEWS = frozenset(_VIEW_GROUPS["delivery"]) | frozenset(_VIEW_GROUPS["process"])
 
 
 def _default_view(results: _Results, worst_view: str | None) -> str:
-    """Which tab opens first: the worst KPI's view, else the first health view
-    that actually has data, else the first tab."""
+    """Which tab opens first: the worst KPI's view, else the first project
+    view that actually has data, else the first tab."""
     order = [name for name, _ in _DASHBOARD_VIEWS]
     if worst_view and worst_view in order:
         return worst_view
     for name in order:
-        if name in _HEALTH_VIEWS:
+        if name in _PROJECT_VIEWS:
             view = results[name][0]
             if view is not None and not is_empty(view):
                 return name
@@ -164,31 +177,27 @@ def _dashboard_panel(
     ``init_js`` / ``lib`` are ``None`` for empty or failed views."""
     cls = " active" if active else ""
     pid = f"panel-{name}"
+    open_ = f'<section id="{pid}" class="panel{cls}" role="tabpanel" aria-labelledby="tab-{name}">'
     view, error = result
     if view is None or is_empty(view):
         inner = _degraded_inner(name, view, error, sdlc_na)
-        return (
-            f'<section id="{pid}" class="panel{cls}" role="tabpanel">{inner}</section>',
-            None,
-            None,
-        )
+        return (f"{open_}{inner}</section>", None, None)
     body, init, lib = _fragment(view, f"{pid}_v")
-    return (
-        f'<section id="{pid}" class="panel{cls}" role="tabpanel">{body}</section>',
-        init,
-        lib,
-    )
+    return (f"{open_}{body}</section>", init, lib)
 
 
 def _grouped_nav(tabs_by_name: dict[str, str]) -> str:
-    """Tabs rendered in two labelled clusters (health / framework), so a wide
-    row of ten tabs reads as two scannable groups."""
-    order = [name for name, _ in _DASHBOARD_VIEWS]
+    """Tabs rendered in labelled clusters. Each cluster is its own tablist
+    whose only children are tabs (ARIA required-children); the visible group
+    label sits outside and names the tablist via aria-labelledby."""
     blocks: list[str] = []
     for title, key in _TAB_GROUPS:
-        btns = "".join(tabs_by_name[n] for n in order if _view_group(n) == key)
-        blocks.append(f'<div class="tabgroup"><span class="tglabel">{title}</span>{btns}</div>')
-    return f'<nav class="tabs" role="tablist">{"".join(blocks)}</nav>'
+        btns = "".join(tabs_by_name[n] for n in _VIEW_GROUPS[key])
+        blocks.append(
+            f'<div class="tabgroup"><span class="tglabel" id="tg-{key}">{title}</span>'
+            f'<div class="tabrow" role="tablist" aria-labelledby="tg-{key}">{btns}</div></div>'
+        )
+    return f'<nav class="tabs">{"".join(blocks)}</nav>'
 
 
 def render_dashboard(root: Path, /, **_opts: Any) -> str:
@@ -197,12 +206,12 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
 
     results: _Results = {name: collect_safe(root, name) for name, _ in _DASHBOARD_VIEWS}
     panel_ids = {name: f"panel-{name}" for name, _ in _DASHBOARD_VIEWS}
+    sdlc_na = not sdlc_applicable(root)
     overview, _ = collect_safe(root, "overview")
     kpis, worst_view = _kpi_strip(
-        overview, results, panel_ids, read_retro_threshold(root), snapshot_history(root)
+        overview, results, panel_ids, read_retro_threshold(root), snapshot_history(root), sdlc_na
     )
     default_view = _default_view(results, worst_view)
-    sdlc_na = not sdlc_applicable(root)
 
     tabs_by_name: dict[str, str] = {}
     panels: list[str] = []
@@ -216,10 +225,12 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
         panel, init, lib = _dashboard_panel(name, results[name], active, panel_na)
         sel = " sel" if active else ""
         na = " na" if panel_na else ""
+        badge = '<span class="nabadge">N/A</span>' if panel_na else ""
         tabs_by_name[name] = (
-            f'<button class="tab{sel}{na}" role="tab"'
+            f'<button class="tab{sel}{na}" id="tab-{name}" role="tab"'
             f' aria-selected="{"true" if active else "false"}"'
-            f' data-panel="{panel_ids[name]}">{_html.escape(label)}</button>'
+            f' aria-controls="{panel_ids[name]}" tabindex="{"0" if active else "-1"}"'
+            f' title="{name}" data-panel="{panel_ids[name]}">{_html.escape(label)}{badge}</button>'
         )
         panels.append(panel)
         if init is not None:
@@ -244,18 +255,33 @@ def render_dashboard(root: Path, /, **_opts: Any) -> str:
     ]
 
     header = (
-        "<header><strong>CataForge viz dashboard</strong>"
-        '<span class="omni-wrap"><input id="omni" placeholder="全局检索实体 id / 名称…" '
-        'autocomplete="off"><div id="omni_list" hidden></div></span></header>'
+        "<header><h1>CataForge viz dashboard</h1>"
+        '<span class="omni-wrap"><input id="omni" role="combobox" aria-expanded="false"'
+        ' aria-autocomplete="list" aria-controls="omni_list" aria-label="全局检索实体 id / 名称"'
+        ' placeholder="全局检索实体 id / 名称…" autocomplete="off">'
+        '<div id="omni_list" role="listbox" aria-label="检索结果" hidden></div>'
+        '<span id="omni_status" class="visually-hidden" aria-live="polite"></span>'
+        "</span></header>"
     )
-    inspector = '<aside id="inspector" hidden></aside>'
+    inspector = (
+        '<aside id="inspector" role="dialog" aria-label="实体详情" tabindex="-1" hidden></aside>'
+    )
+    # snapshot provenance: the static file says when its data was frozen; the
+    # serve pipeline's auto-reload script rewrites #viewmode to 服务模式
+    stamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M")
+    footer = (
+        f'<footer class="pagefoot">数据截至 {stamp} · <span id="viewmode">快照模式</span></footer>'
+    )
     body = (
         header
         + kpis
         + _stepper(root)
         + _legend()
         + _grouped_nav(tabs_by_name)
+        + "<main>"
         + "\n".join(panels)
+        + "</main>"
+        + footer
         + inspector
     )
     return _document("CataForge viz dashboard", body, inits, libs or [_CYTOSCAPE])

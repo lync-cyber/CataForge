@@ -20,9 +20,14 @@ def _kind(view: View) -> str:
 
 
 def _drop_empty_data(items: list[tuple[str, object]]) -> dict[str, object]:
-    """A node's ``data`` bag is optional metadata — omit the key entirely when
-    unset, keeping data-less graphs' JSON byte-stable."""
-    return {k: v for k, v in items if not (k == "data" and v is None)}
+    """Optional keys — a node's ``data`` bag, a point's ``unit``, a series'
+    ``meta`` — are omitted when unset, keeping untagged views' JSON
+    byte-stable; tagged views gain purely additive keys."""
+    return {
+        k: v
+        for k, v in items
+        if not ((k in ("data", "meta") and v is None) or (k == "unit" and v == ""))
+    }
 
 
 def render(view: View) -> str:

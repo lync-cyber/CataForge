@@ -54,20 +54,27 @@ def _tile(
     return html_, _CLS_RANK.get(cls, 0)
 
 
-def _sparkline(values: list[float]) -> str:
-    """A 64×16 polyline of the metric's snapshot history — direction at a
-    glance; axes deliberately omitted."""
+def _sparkline(values: list[float], domain: str = "") -> str:
+    """A 64×16 polyline of the metric's snapshot history on a stable scale —
+    percent metrics span 0-100, counts anchor at 0-max — so a 1% wiggle no
+    longer draws as a full-height cliff. Readers get the trend via the img
+    role + aria-label; sighted users additionally get a Δ suffix."""
     if len(values) < 2:
         return ""
-    lo, hi = min(values), max(values)
+    lo, hi = (0.0, 100.0) if domain == "percent" else (0.0, max(values))
     span = (hi - lo) or 1.0
     last = len(values) - 1
     pts = " ".join(
         f"{i * 60 / last + 2:.1f},{14 - (v - lo) / span * 12:.1f}" for i, v in enumerate(values)
     )
+    delta = values[-1] - values[0]
+    sign = "+" if delta > 0 else ""
+    trend = f"Δ{sign}{delta:g}"
     return (
-        '<svg class="spark" width="64" height="16" viewBox="0 0 64 16" aria-hidden="true">'
+        f'<svg class="spark" width="64" height="16" viewBox="0 0 64 16" role="img"'
+        f' aria-label="近 {len(values)} 次快照趋势 {trend}">'
         f'<polyline points="{pts}" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'
+        f'<span class="sparkd">{trend}</span>'
     )
 
 
@@ -120,10 +127,14 @@ def _spark_series(history: _History, metric: str) -> list[float]:
     return out
 
 
-def _missing_hint(results: _Results, name: str, label: str) -> str:
-    """Degraded-tile caption: reuse the detail view's own ``run …`` guidance."""
+def _missing_hint(results: _Results, name: str, label: str, sdlc_na: bool = False) -> str:
+    """Degraded-tile caption: reuse the detail view's own ``run …`` guidance.
+    ``sdlc_na`` marks an SDLC-gated metric on a non-driven project — the tile
+    then says N/A instead of steering toward a pipeline that doesn't apply."""
     from cataforge.application.viz.registry import short_hint
 
+    if sdlc_na:
+        return f"{label} · SDLC 不适用"
     _, error = results.get(name, (None, None))
     if error:
         hinted = short_hint(error)
@@ -133,10 +144,16 @@ def _missing_hint(results: _Results, name: str, label: str) -> str:
 
 
 def _docs_tile(
-    group: dict[str, float] | None, results: _Results, pid: str, spark: str = ""
+    group: dict[str, float] | None,
+    results: _Results,
+    pid: str,
+    spark: str = "",
+    sdlc_na: bool = False,
 ) -> tuple[str, int]:
     if not group:
-        return _tile("—", _missing_hint(results, "docs", "核心文档"), "na", pid, _DOCS_INFO)
+        return _tile(
+            "—", _missing_hint(results, "docs", "核心文档", sdlc_na), "na", pid, _DOCS_INFO
+        )
     total = len(group)
     present = sum(1 for v in group.values() if v >= 0.5)
     approved = sum(1 for v in group.values() if v >= 1.0)
@@ -147,11 +164,19 @@ def _docs_tile(
 
 
 def _coverage_tile(
-    group: dict[str, float] | None, results: _Results, pid: str, spark: str = ""
+    group: dict[str, float] | None,
+    results: _Results,
+    pid: str,
+    spark: str = "",
+    sdlc_na: bool = False,
 ) -> tuple[str, int]:
     if not group:
         return _tile(
-            "—", _missing_hint(results, "coverage", "Feature 覆盖"), "na", pid, _COVERAGE_INFO
+            "—",
+            _missing_hint(results, "coverage", "Feature 覆盖", sdlc_na),
+            "na",
+            pid,
+            _COVERAGE_INFO,
         )
     full, partial, none = (int(group.get(k, 0)) for k in ("full", "partial", "none"))
     total = full + partial + none
@@ -223,19 +248,24 @@ def _kpi_strip(
     panel_ids: dict[str, str],
     retro_threshold: int,
     history: _History | None = None,
+    sdlc_na: bool = False,
 ) -> tuple[str, str | None]:
     """Return ``(strip_html, worst_view)``. ``worst_view`` is the view name of
     the highest-severity tile (``None`` when every tile is ok/na), so the caller
     can open the tab that most needs attention."""
     groups = fold_points(overview.points) if isinstance(overview, MetricSeries) else {}
     hist = history or []
-    sparks = {m: _sparkline(_spark_series(hist, m)) for m in ("docs", "coverage", "links", "decay")}
+    domains = {"docs": "percent", "coverage": "percent", "links": "count", "decay": "count"}
+    sparks = {m: _sparkline(_spark_series(hist, m), d) for m, d in domains.items()}
     # (tile, the view its worst state should open); phase lives in the stepper
     tiles = [
-        (_docs_tile(groups.get("docs"), results, panel_ids["docs"], sparks["docs"]), "docs"),
+        (
+            _docs_tile(groups.get("docs"), results, panel_ids["docs"], sparks["docs"], sdlc_na),
+            "docs",
+        ),
         (
             _coverage_tile(
-                groups.get("coverage"), results, panel_ids["coverage"], sparks["coverage"]
+                groups.get("coverage"), results, panel_ids["coverage"], sparks["coverage"], sdlc_na
             ),
             "coverage",
         ),
@@ -302,4 +332,6 @@ def _stepper(root: Path) -> str:
     else:
         gate = f'<span class="gstat ok">门禁通过 {passed}/{total}</span>'
     arrow = '<span class="parrow">→</span>'
-    return f"{open_}{arrow.join(chips)}{gate}</section>"
+    # narrow viewports hide the done/todo chips and show this counter instead
+    compact = f'<span class="pcompact">阶段 {idx + 1}/{len(detail.sequence)}</span>'
+    return f"{open_}{arrow.join(chips)}{compact}{gate}</section>"

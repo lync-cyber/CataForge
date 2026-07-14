@@ -137,13 +137,35 @@ def _fingerprint(root: Path) -> tuple[float, ...]:
     return tuple(_mtime(p) for p in _watched_paths(root))
 
 
+# Injected only into the served snapshot: under http it polls the file's
+# Last-Modified and reloads when the watcher rewrote it; opened via file://
+# (someone double-clicks the served snapshot) it stays inert.
+_AUTORELOAD = (
+    '<script id="viz-autoreload">(function(){\n'
+    "if(location.protocol.indexOf('http')!==0)return;\n"
+    "var mode=document.getElementById('viewmode');\n"
+    "if(mode){mode.textContent='服务模式 · 自动刷新';}\n"
+    "var last=null;\n"
+    "setInterval(function(){\n"
+    "  fetch(location.pathname,{method:'HEAD',cache:'no-store'}).then(function(r){\n"
+    "    var lm=r.headers.get('Last-Modified');\n"
+    "    if(last&&lm&&lm!==last){location.reload();}\n"
+    "    last=lm||last;\n"
+    "  }).catch(function(){});\n"
+    "},2000);\n"
+    "})();</script>"
+)
+
+
 def regenerate(root: Path, serve_dir: Path) -> Path:
     """(Re)write the dashboard into ``serve_dir/index.html``. The dashboard
     degrades failed views to error panels, so it renders for any project
     state — there is always something to serve."""
     serve_dir.mkdir(parents=True, exist_ok=True)
     index = serve_dir / _INDEX
-    index.write_text(generate("dashboard", _HTML, root))
+    text = generate("dashboard", _HTML, root)
+    head, sep, tail = text.rpartition("</body>")
+    index.write_text(f"{head}{_AUTORELOAD}\n{sep}{tail}" if sep else text + _AUTORELOAD)
     return index
 
 

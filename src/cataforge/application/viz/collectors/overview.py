@@ -52,15 +52,17 @@ def _phase_points(root: Path) -> list[MetricPoint]:
     if not is_driven(current):
         # instruction file present but no workflow phase → SDLC N/A, not a
         # blocked-gate false alarm. The single flag lets the tile show N/A.
-        return [MetricPoint(label="applicable", value=0.0, series="phase")]
+        return [MetricPoint(label="applicable", value=0.0, series="phase", unit="flag")]
     sequence = phase_sequence(root)
     index = sequence.index(current) + 1 if current in sequence else 0
     gate_ok = 0.0 if any(not ok for _, ok, _ in checks) else 1.0
     return [
-        MetricPoint(label="applicable", value=1.0, series="phase"),
-        MetricPoint(label=f"{CURRENT_PREFIX}{current}", value=float(index), series="phase"),
-        MetricPoint(label="gate_ok", value=gate_ok, series="phase"),
-        MetricPoint(label="total", value=float(len(sequence)), series="phase"),
+        MetricPoint(label="applicable", value=1.0, series="phase", unit="flag"),
+        MetricPoint(
+            label=f"{CURRENT_PREFIX}{current}", value=float(index), series="phase", unit="index"
+        ),
+        MetricPoint(label="gate_ok", value=gate_ok, series="phase", unit="flag"),
+        MetricPoint(label="total", value=float(len(sequence)), series="phase", unit="count"),
     ]
 
 
@@ -103,15 +105,15 @@ def _doc_points(root: Path) -> list[MetricPoint]:
                 value = 1.0
             else:
                 value = 0.5
-            points.append(MetricPoint(label=doc_type, value=value, series="docs"))
+            points.append(MetricPoint(label=doc_type, value=value, series="docs", unit="ratio"))
 
     root_str = str(root)
     try:  # the indexer's validators assume structurally sound entries
         stale, xref = len(find_stale_deps(root_str)), len(find_xref_errors(root_str))
     except (AttributeError, TypeError, KeyError):
         return points  # damaged index: keep the docs group, drop the links group
-    points.append(MetricPoint(label="stale", value=float(stale), series="links"))
-    points.append(MetricPoint(label="xref_error", value=float(xref), series="links"))
+    points.append(MetricPoint(label="stale", value=float(stale), series="links", unit="count"))
+    points.append(MetricPoint(label="xref_error", value=float(xref), series="links", unit="count"))
     return points
 
 
@@ -122,9 +124,9 @@ def _coverage_points(root: Path) -> list[MetricPoint]:
     none = sum(1 for r in rows if not r.has_impl and not r.has_test)
     partial = len(rows) - full - none
     return [
-        MetricPoint(label="full", value=float(full), series="coverage"),
-        MetricPoint(label="partial", value=float(partial), series="coverage"),
-        MetricPoint(label="none", value=float(none), series="coverage"),
+        MetricPoint(label="full", value=float(full), series="coverage", unit="count"),
+        MetricPoint(label="partial", value=float(partial), series="coverage", unit="count"),
+        MetricPoint(label="none", value=float(none), series="coverage", unit="count"),
     ]
 
 
@@ -140,11 +142,13 @@ def _decay_points(root: Path) -> list[MetricPoint]:
     self_caused = sum(1 for e in entries if e.deviation == "self-caused")
     monthly = Counter(e.ts[:7] for e in entries)
     points = [
-        MetricPoint(label=RECENT_LABEL, value=float(recent), series="decay"),
-        MetricPoint(label=SELF_CAUSED_LABEL, value=float(self_caused), series="decay"),
+        MetricPoint(label=RECENT_LABEL, value=float(recent), series="decay", unit="count"),
+        MetricPoint(
+            label=SELF_CAUSED_LABEL, value=float(self_caused), series="decay", unit="count"
+        ),
     ]
     points.extend(
-        MetricPoint(label=month, value=float(count), series="decay")
+        MetricPoint(label=month, value=float(count), series="decay", unit="count")
         for month, count in sorted(monthly.items())
     )
     return points

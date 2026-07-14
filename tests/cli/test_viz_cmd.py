@@ -1140,18 +1140,26 @@ class TestHtmlRenderer:
         assert 'class="alt-table"' in out
         assert "initFilterTable('view0');" in out
 
-    def test_chart_views_have_no_mode_switch(self) -> None:
-        assert 'class="modeswitch"' not in html.render(_HTML_TL)
+    def test_chart_views_offer_table_mode(self) -> None:
+        # timeline / metric charts carry an equivalent data table + a text
+        # summary — the canvas is never the only representation
+        out = html.render(_HTML_TL)
+        assert 'class="modeswitch"' in out
+        assert 'class="alt-table" hidden' in out
+        assert "initChartMode('view0');" in out
 
-    def test_catalogue_exempt_from_mode_switch(self) -> None:
-        # a catalogue already renders table + graph side by side
+    def test_catalogue_has_table_graph_mode_switch(self) -> None:
+        # catalogue defaults to the table; the graph is a full-height mode away
         g = Graph(
             title="assets",
             form="catalogue",
             nodes=(Node("a", data={"type": "skill", "name": "a"}),),
             edges=(),
         )
-        assert 'class="modeswitch"' not in html.render(g)
+        out = html.render(g)
+        assert 'class="modeswitch"' in out
+        assert ">拓扑视图</button>" in out  # default label = switch-to-graph
+        assert 'id="view0_gwrap" hidden' in out  # graph starts hidden (table default)
 
     def test_typed_graph_grows_layer_fold_chips(self) -> None:
         # type layers fold via count-badged chips — a hundreds-of-nodes trace
@@ -1322,9 +1330,12 @@ class TestDashboard:
     def test_one_tab_per_view(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
-        for label in ("Framework", "Assets", "Timeline", "Decay"):
+        for label in ("编排", "资产", "时间线", "腐化"):
             assert f">{label}<" in out
-        assert ">Phase<" not in out  # phase lives in the stepper strip, not a tab
+        # every tab keeps its CLI view name reachable via title=
+        for name in ("framework", "assets", "timeline", "decay"):
+            assert f'title="{name}"' in out
+        assert 'data-panel="panel-phase"' not in out  # phase lives in the stepper
         assert out.count('<button class="tab') == 9
 
     def test_failed_views_degrade_to_error_panel(self, tmp_path: Path) -> None:
@@ -1378,6 +1389,13 @@ class TestDashboard:
         assert '<details class="gates" open>' in out
         assert "phase_start logged" in out  # a failed check's label is listed
         assert 'pchip cur blocked">requirements' in out
+
+    def test_stepper_carries_compact_phase_indicator(self, tmp_path: Path) -> None:
+        # narrow viewports collapse the chip chain to the current chip plus a
+        # 阶段 i/N counter (visibility switched in CSS)
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        out = html.render_dashboard(tmp_path)
+        assert re.search(r'<span class="pcompact">阶段 \d+/\d+</span>', out)
 
     def test_stepper_mode_aware_chip_count(self, tmp_path: Path) -> None:
         _make_phase_project(tmp_path, "planning", mode="agile-lite")
@@ -1544,7 +1562,11 @@ class TestDashboard:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
         assert 'class="tabgroup"' in out
-        assert "项目健康" in out and "框架资产" in out
+        assert "项目交付" in out and "文档与过程" in out and "框架资产" in out
+        # one labelled tablist per group; the group label sits outside the
+        # tablist so its only children are tabs (ARIA required-children)
+        assert out.count('<div class="tabrow" role="tablist"') == 3
+        assert out.count('aria-labelledby="tg-') == 3
         assert out.count('<button class="tab') == 9  # every view still has a tab
 
     def test_default_tab_follows_worst_kpi(self, tmp_path: Path) -> None:
@@ -1589,6 +1611,63 @@ class TestDashboard:
         assert out.count('role="tab" aria-selected') == 9
         assert out.count('aria-selected="true"') == 1
         assert out.count('role="tabpanel"') == 9
+        # tab ↔ panel wiring: ids, aria-controls, aria-labelledby all pair up
+        for name, _label in html._DASHBOARD_VIEWS:
+            assert f'id="tab-{name}"' in out
+            assert f'aria-controls="panel-{name}"' in out
+            assert f'aria-labelledby="tab-{name}"' in out
+        # roving tabindex: exactly the selected tab is tabbable at render time
+        assert out.count('role="tab" aria-selected="true"') == 1
+        assert 'aria-selected="true" aria-controls' in out
+
+    def test_tab_keyboard_model_wired(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "ArrowRight" in out and "ArrowLeft" in out
+        assert "'Home'" in out and "'End'" in out
+        assert "syncTablists" in out
+
+    def test_omnibox_is_combobox(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'role="combobox"' in out
+        assert 'aria-expanded="false"' in out
+        assert 'aria-controls="omni_list"' in out
+        assert 'role="listbox"' in out
+        assert 'id="omni_status"' in out and 'aria-live="polite"' in out
+        assert "无匹配实体" in out  # zero-hit feedback text
+        assert "aria-activedescendant" in out
+
+    def test_inspector_is_focus_managed_dialog(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert 'id="inspector" role="dialog"' in out
+        assert 'aria-label="实体详情"' in out
+        assert 'tabindex="-1"' in out
+        assert "closeInspector" in out
+        assert "'Escape'" in out
+
+    def test_document_structure_landmarks(self, tmp_path: Path) -> None:
+        _make_dashboard_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert '<html lang="zh-CN">' in out
+        assert out.count("<h1>") == 1
+        assert "<main>" in out and "</main>" in out
+
+    def test_sdlc_na_project_gets_consistent_guidance(self, tmp_path: Path) -> None:
+        # a non-workflow-driven project: SDLC-gated tiles and tabs both say
+        # N/A instead of steering toward kg-init commands that don't apply
+        _make_project(tmp_path)
+        (tmp_path / "CLAUDE.md").write_text(
+            "# P\n## 项目状态\n- 当前阶段: none\n", encoding="utf-8"
+        )
+        out = html.render_dashboard(tmp_path)
+        assert "SDLC 数据管线对本项目不适用" in out
+        assert 'class="nabadge"' in out
+        assert "核心文档 · SDLC 不适用" in out
+        assert "Feature 覆盖 · SDLC 不适用" in out
+        # the links tile still guides toward the doc index (not SDLC-gated)
+        assert "断链 / stale · run: cataforge context index" in out
 
     def test_active_tab_enters_url_hash(self, tmp_path: Path) -> None:
         # tab switches record #panel-{name}; load replays a valid hash → the
@@ -1835,6 +1914,26 @@ class TestVizServe:
             httpd.server_close()
             thread.join(timeout=5)
         assert not thread.is_alive()  # clean interruption
+
+    def test_regenerate_injects_http_only_autoreload(self, tmp_path: Path) -> None:
+        # serve 路径的产物带轮询自刷新脚本（仅 http 协议激活；file:// 双击打开保持惰性）
+        _make_project(tmp_path)
+        text = service.regenerate(tmp_path, tmp_path / "out").read_text(encoding="utf-8")
+        assert 'id="viz-autoreload"' in text
+        assert "Last-Modified" in text
+        assert "location.protocol.indexOf('http')" in text
+        _assert_offline(text)
+
+    def test_static_cli_output_has_no_autoreload(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        static = html.render_dashboard(tmp_path)
+        assert "viz-autoreload" not in static
+
+    def test_dashboard_footer_marks_snapshot_mode(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        out = html.render_dashboard(tmp_path)
+        assert "数据截至" in out  # 生成时间戳
+        assert 'id="viewmode">快照模式' in out  # serve 注入脚本会改写为服务模式
 
     def test_serve_watch_regenerates_and_stops(self, tmp_path: Path) -> None:
         _make_project(tmp_path)
@@ -2210,11 +2309,14 @@ class TestVizConsistency:
     def test_view_classification_sets_are_subsets_of_dashboard_views(self) -> None:
         # the grouping / SDLC-gating sets are hand-maintained: a rename or a
         # new view must not silently misclassify
-        from cataforge.application.viz.html.page import _HEALTH_VIEWS, _SDLC_VIEWS
+        from cataforge.application.viz.html.page import _SDLC_VIEWS, _VIEW_GROUPS
 
         tab_names = {name for name, _ in html._DASHBOARD_VIEWS}
-        assert tab_names >= _HEALTH_VIEWS
+        grouped = {name for views in _VIEW_GROUPS.values() for name in views}
+        assert grouped == tab_names  # groups exactly partition the tab set
         assert tab_names >= _SDLC_VIEWS
+        # project views (arch / tasks included) live outside the framework group
+        assert {"arch", "tasks", "coverage", "trace"} <= set(_VIEW_GROUPS["delivery"])
 
     def test_single_view_has_legend(self) -> None:
         assert 'class="legend"' in html.render(_HTML_GRAPH)
@@ -2244,3 +2346,348 @@ class TestVizConsistency:
         assert 'class="cat"' in out and "initCatalogue(" in out
         assert '"label": "R-RULES"' in out or '"label":"R-RULES"' in out  # data.name fallback
         assert "<script src" not in out and "<link " not in out
+
+
+# ------------------------------------------------------------------
+# Artifact encoding — UTF-8 bytes on every locale (UTF-8 Mode contract)
+# ------------------------------------------------------------------
+
+
+class TestVizEncoding:
+    def test_dashboard_output_file_is_utf8(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        out = tmp_path / "dash.html"
+        result = CliRunner().invoke(
+            cli, ["--project-dir", str(tmp_path), "viz", "dashboard", "-o", str(out)]
+        )
+        assert result.exit_code == 0, result.output
+        text = out.read_bytes().decode("utf-8")  # GBK-written bytes would fail here
+        assert "全局检索实体" in text
+        assert "已复制" in text
+
+
+_ROOT_BLOCK_RE = re.compile(r":root\{([^}]*)\}")
+
+
+def _css_theme_vars(css: str) -> list[dict[str, str]]:
+    """Every ``:root{…}`` custom-property block as a name→value dict."""
+    themes: list[dict[str, str]] = []
+    for body in _ROOT_BLOCK_RE.findall(css):
+        pairs: dict[str, str] = {}
+        for decl in body.split(";"):
+            name, _, value = decl.partition(":")
+            if name.strip().startswith("--"):
+                pairs[name.strip()] = value.strip()
+        themes.append(pairs)
+    return themes
+
+
+def _srgb_channel(v: float) -> float:
+    return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+
+def _luminance(hexv: str) -> float:
+    hexv = hexv.lstrip("#")
+    if len(hexv) == 3:
+        hexv = "".join(c * 2 for c in hexv)
+    r, g, b = (int(hexv[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    return 0.2126 * _srgb_channel(r) + 0.7152 * _srgb_channel(g) + 0.0722 * _srgb_channel(b)
+
+
+def _contrast(a: str, b: str) -> float:
+    la, lb = _luminance(a), _luminance(b)
+    hi, lo = max(la, lb), min(la, lb)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+_DERIVED_TOKENS = (
+    "--viz-node-fill",
+    "--viz-node-border",
+    "--viz-node-label",
+    "--viz-edge",
+    "--tip-bg",
+    "--tip-fg",
+)
+
+# (foreground, surface) pairs as actually composited in dashboard.css rules.
+_TEXT_PAIRS = (  # body/small text — WCAG AA 4.5:1
+    ("--fg", "--bg"),
+    ("--muted", "--bg"),
+    ("--muted", "--panel"),
+    ("--faint", "--bg"),
+    ("--faint", "--panel"),
+    ("--faint", "--code-bg"),
+    ("--warn-fg", "--bg"),
+    ("--error", "--bg"),
+    ("--accent", "--code-bg"),
+    ("--accent-fg", "--accent"),
+    ("--viz-node-label", "--viz-node-fill"),
+    ("--tip-fg", "--tip-bg"),
+)
+_GRAPHIC_PAIRS = (  # non-text graphical elements — WCAG AA 3:1
+    ("--viz-edge", "--canvas"),
+    ("--viz-node-border", "--canvas"),
+    ("--muted", "--bg"),  # legend swatch border
+    ("--accent", "--bg"),  # :focus-visible outline
+)
+
+
+class TestVizContrast:
+    def test_theme_tokens_meet_wcag_aa(self) -> None:
+        themes = _css_theme_vars(html._read_asset("dashboard.css"))
+        assert len(themes) == 2  # light + dark
+        for theme in themes:
+            for fg, bg in _TEXT_PAIRS:
+                ratio = _contrast(theme[fg], theme[bg])
+                assert ratio >= 4.5, f"{fg} on {bg}: {ratio:.2f} < 4.5 in {theme['--bg']} theme"
+            for fg, bg in _GRAPHIC_PAIRS:
+                ratio = _contrast(theme[fg], theme[bg])
+                assert ratio >= 3.0, f"{fg} on {bg}: {ratio:.2f} < 3.0 in {theme['--bg']} theme"
+
+    def test_legend_swatch_border_follows_theme(self) -> None:
+        # a hardcoded near-black border is invisible on the dark panel
+        assert "#333" not in html._read_asset("dashboard.css")
+
+
+class TestVizThemeTokens:
+    def test_both_themes_define_derived_graph_tokens(self) -> None:
+        themes = _css_theme_vars(html._read_asset("dashboard.css"))
+        assert len(themes) == 2
+        for theme in themes:
+            for token in _DERIVED_TOKENS:
+                assert token in theme, f"{token} missing in {theme.get('--bg')} theme"
+
+    def test_graph_style_reads_tokens_with_static_fallback(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "getComputedStyle" in js
+        for token in ("--viz-node-fill", "--viz-node-border", "--viz-edge"):
+            assert token in js
+        # the old literal style values must not remain baked into initGraph
+        assert "'background-color':'#dfe6ee'" not in js
+        assert "'line-color':'#aab2bd'" not in js
+
+    def test_theme_switch_and_reduced_motion_wired(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "prefers-reduced-motion" in js
+        # once for chart init, once for the live theme-change re-skin
+        assert js.count("prefers-color-scheme") >= 2
+
+    def test_css_has_narrow_viewport_breakpoints(self) -> None:
+        css = html._read_asset("dashboard.css")
+        assert "@media (max-width:1023px)" in css
+        assert "@media (max-width:719px)" in css
+
+
+_CAT_GRAPH = Graph(
+    title="assets",
+    form="catalogue",
+    nodes=(
+        Node(
+            "a1",
+            label="A1",
+            data={"type": "agent", "name": "A1", "est_tokens": 10, "path": "a/A1.md"},
+        ),
+        Node(
+            "s1",
+            label="S1",
+            data={"type": "skill", "name": "S1", "est_tokens": 20, "path": "s/S1.md"},
+        ),
+    ),
+)
+
+
+class TestVizHonestAffordances:
+    def test_catalogue_sort_header_is_accessible_button(self) -> None:
+        out = html.render(_CAT_GRAPH)
+        assert 'aria-sort="none"' in out
+        assert '<button class="thsort" id="view0_tok" data-key="est_tokens"' in out
+        assert 'class="num sortable"' not in out  # a th is not focusable
+
+    def test_sorter_uses_own_column_not_hardcoded_cell(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "cells[7]" not in js
+        assert "aria-sort" in js  # sort state is announced, not visual-only
+
+    def test_copy_waits_for_clipboard_promise_with_fallback(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "writeText(text).then(" in js  # success is confirmed, not assumed
+        assert "按 Ctrl+C 复制" in js  # file:// / denied-permission manual path
+        assert "已复制" in js
+
+    def test_row_hint_is_copyable_button(self) -> None:
+        g = Graph(
+            title="c",
+            nodes=(Node("F-1", label="F gap", status=Status.MISSING, data={"hint": "run: x"}),),
+        )
+        out = html.render(g)
+        assert '<button class="rhint"' in out
+
+    def test_toolbars_carry_hitcount_and_reset(self) -> None:
+        out = html.render(_HTML_GRAPH)  # edged graph → graph toolbar
+        assert 'id="view0_count" aria-live="polite"' in out
+        assert 'class="vreset" data-target="view0"' in out
+        cat = html.render(_CAT_GRAPH)
+        assert 'id="view0_count" aria-live="polite"' in cat
+        assert 'class="vreset" data-target="view0"' in cat
+
+    def test_filter_chips_and_segments_carry_aria_pressed(self) -> None:
+        out = html.render(_EDGELESS_STATUS_GRAPH)
+        assert '<button class="seg"' in out  # keyboard-operable segments
+        assert 'aria-pressed="false"' in out
+        cat = html.render(_CAT_GRAPH)
+        assert cat.count('aria-pressed="true"') >= 2  # type chips start on
+
+    def test_dead_status_row_pointer_removed(self) -> None:
+        css = html._read_asset("dashboard.css")
+        assert ".stat tbody tr{cursor:pointer}" not in css
+
+    def test_zero_hit_search_keeps_graph_undimmed(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "命中 0 / " in js  # explicit zero-hit message instead of a ghost graph
+
+
+_TAGGED_MS = MetricSeries(
+    title="overview",
+    points=(
+        MetricPoint("applicable", 1.0, series="phase", unit="flag"),
+        MetricPoint("current:dev", 5.0, series="phase", unit="index"),
+        MetricPoint("full", 3.0, series="coverage", unit="count"),
+        MetricPoint("partial", 1.0, series="coverage", unit="count"),
+        MetricPoint("prd", 0.5, series="docs", unit="ratio"),
+        MetricPoint("arch", 1.0, series="docs", unit="ratio"),
+    ),
+)
+
+
+class TestVizMetricSemantics:
+    def test_json_serializes_unit_only_when_set(self) -> None:
+        tagged = json_.render(_TAGGED_MS)
+        assert '"unit": "count"' in tagged
+        plain = json_.render(_HTML_MS)  # untagged points stay byte-stable
+        assert '"unit"' not in plain
+        assert '"meta"' not in plain
+
+    def test_overview_points_carry_units(self, tmp_path: Path) -> None:
+        from cataforge.application.viz.collectors.overview import collect
+
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        view = collect(tmp_path)
+        assert isinstance(view, MetricSeries)
+        units = {p.unit for p in view.points if p.series == "phase"}
+        assert units == {"flag", "index", "count"}
+
+    def test_tagged_metrics_render_cards_and_grid(self) -> None:
+        out = html.render(_TAGGED_MS)
+        assert 'class="mcards"' in out  # flag/index → text KPI cards
+        assert 'class="metric-grid"' in out  # per-series small multiples
+        assert out.count("initChart('") == 2  # coverage + docs, one axis each
+        assert "✓" in out  # a flag reads as a check, not a bar of height 1
+
+    def test_ratio_series_pins_axis_domain(self) -> None:
+        ms = MetricSeries(
+            points=(
+                MetricPoint("prd", 0.5, series="docs", unit="ratio"),
+                MetricPoint("arch", 1.0, series="docs", unit="ratio"),
+            )
+        )
+        out = html.render(ms)
+        assert '"max": 1' in out
+
+    def test_single_point_series_becomes_card_not_one_bar_chart(self) -> None:
+        ms = MetricSeries(points=(MetricPoint("total", 3.0, series="phase", unit="count"),))
+        out = html.render(ms)
+        assert 'class="mcards"' in out
+        assert "initChart('" not in out
+
+    def test_untagged_metrics_keep_single_chart(self) -> None:
+        out = html.render(_HTML_MS)
+        assert out.count("initChart('") == 1
+        assert 'class="metric-grid"' not in out
+
+    def test_card_only_series_needs_no_echarts(self) -> None:
+        ms = MetricSeries(points=(MetricPoint("gate_ok", 1.0, series="phase", unit="flag"),))
+        out = html.render(ms)
+        assert "Apache Software Foundation" not in out
+        _assert_offline(out)
+
+    def test_text_renderers_unaffected_by_unit(self) -> None:
+        # mermaid/dot never accepted MetricSeries; the unit field must not
+        # change that contract in either direction
+        tagged = MetricSeries(points=(MetricPoint("a", 1.0, series="s", unit="count"),))
+        with pytest.raises(CataforgeError):
+            mermaid.render(tagged)
+        with pytest.raises(CataforgeError):
+            dot.render(tagged)
+
+
+class TestVizChartAlternatives:
+    def test_timeline_table_and_summary(self) -> None:
+        out = html.render(_HTML_TL)
+        assert "个事件" in out  # 文本摘要（事件数 + 跨度）
+        assert "<th>时间</th>" in out  # 数据表替代含全部事件字段
+        assert "<th>事件</th>" in out
+
+    def test_metric_view_table_and_summary(self) -> None:
+        out = html.render(_TAGGED_MS)
+        assert 'class="alt-table" hidden' in out
+        assert "<th>系列</th>" in out
+        assert "个指标点" in out
+
+    def test_echarts_aria_enabled(self) -> None:
+        for view in (_HTML_TL, _TAGGED_MS):
+            out = html.render(view)
+            assert '"aria": {"enabled": true}' in out
+
+    def test_graph_alt_table_carries_relations(self) -> None:
+        out = html.render(_HTML_GRAPH)  # Alpha → Beta
+        assert "<th>上游</th>" in out
+        assert "<th>下游</th>" in out
+        beta_row = out[out.index('data-node="b"') : out.index("</tr>", out.index('data-node="b"'))]
+        assert "Alpha" in beta_row  # Beta 的上游列列出 Alpha
+
+    def test_edgeless_status_table_keeps_two_columns(self) -> None:
+        out = html.render(_EDGELESS_STATUS_GRAPH)
+        assert "<th>上游</th>" not in out
+
+    def test_timeline_symbol_size_area_proportional(self) -> None:
+        t = Timeline(
+            title="t",
+            events=(
+                TimelineEvent("2026-01-01", "a", "c", count=4),
+                TimelineEvent("2026-01-02", "b", "c"),
+            ),
+        )
+        out = html.render(t)
+        sizes = sorted(int(m) for m in re.findall(r'"symbolSize": (\d+)', out))
+        assert sizes == [9, 18]  # 直径 ∝ √count，面积正比；线性公式会给 [12, 21]
+
+    def test_graph_toolbar_has_fit_button(self) -> None:
+        out = html.render(_HTML_GRAPH)
+        assert 'class="vfit" data-target="view0"' in out
+        assert ".vfit" in html._read_asset("dashboard.js")
+
+
+class TestVizSparkline:
+    def test_percent_domain_is_stable(self) -> None:
+        from cataforge.application.viz.html.kpi import _sparkline
+
+        svg = _sparkline([97.0, 98.0], domain="percent")
+        assert 'role="img"' in svg
+        assert "aria-hidden" not in svg  # 趋势对读屏可及
+        assert "Δ+1" in svg
+        pts = re.search(r'points="([^"]+)"', svg)
+        assert pts is not None
+        ys = [float(p.split(",")[1]) for p in pts.group(1).split()]
+        # 0-100 稳定域下 97→98 只允许微小波动，而非满幅陡坡
+        assert max(ys) - min(ys) < 1.0
+
+    def test_count_domain_zero_anchored(self) -> None:
+        from cataforge.application.viz.html.kpi import _sparkline
+
+        svg = _sparkline([1.0, 2.0], domain="count")
+        pts = re.search(r'points="([^"]+)"', svg)
+        assert pts is not None
+        ys = [float(p.split(",")[1]) for p in pts.group(1).split()]
+        # 0-max 域：1 落半高、2 触顶，而非 min/max 归一的满幅
+        assert ys[0] == pytest.approx(8.0)
+        assert ys[1] == pytest.approx(2.0)

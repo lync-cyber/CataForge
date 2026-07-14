@@ -37,7 +37,7 @@ user-invocable: false
 ## 输出规范
 - 默认文本: `--format mermaid|dot|json`,GitHub / IDE / 文档站原生渲染,可 `-o PATH` 内联进文档
 - 交互页: `--html` 产单文件离线 HTML(图用 Cytoscape.js、看板用 ECharts),零外链可断网打开
-- 实时看板: `cataforge viz quickstart` 一键生成 + 本地服务 + 开浏览器 + 监听源数据刷新
+- 本地看板: `cataforge viz quickstart` 一键生成 + 本地服务 + 开浏览器 + 源变更自动重生成（浏览器刷新可见）
 
 ## Anti-Patterns
 - 禁止: 手写 mermaid 依赖图嵌进 dev-plan — 应跑 `cataforge viz tasks --format mermaid`,同一图算法产出,手写易与关键路径标注漂移
