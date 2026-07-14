@@ -401,6 +401,44 @@ def test_visible_width_strips_ansi() -> None:
     assert _visible_width("\x1b[1m\x1b[31mhi\x1b[0m") == 2
 
 
+def test_visible_width_counts_east_asian_wide_as_two() -> None:
+    assert _visible_width("文档依赖") == 8
+    assert _visible_width("需 dev-plan 任务入图") == 20
+    assert _visible_width("🎯") == 2
+
+
+def test_visible_width_ignores_combining_marks() -> None:
+    assert _visible_width("é") == 1  # e + COMBINING ACUTE ACCENT
+    assert _visible_width("が") == 2
+    assert _visible_width("が") == 2  # か + COMBINING KATAKANA-HIRAGANA VOICED SOUND MARK
+
+
+def test_visible_width_mixes_ansi_and_cjk() -> None:
+    assert _visible_width("\x1b[31m文档\x1b[0m ok") == 7
+
+
+def test_table_aligns_cjk_cells() -> None:
+    ui, out, _ = _make_ui(color=False, unicode=True)
+    ui.table(
+        ["view", "state"],
+        [["coverage", "ready"], ["文档依赖", "ready"], ["tasks", "empty"]],
+    )
+    lines = [ln for ln in out.getvalue().splitlines() if "ready" in ln]
+    offsets = {_visible_width(ln[: ln.index("ready")]) for ln in lines}
+    assert len(offsets) == 1, out.getvalue()
+
+
+def test_kv_aligns_cjk_keys() -> None:
+    ui, out, _ = _make_ui(color=False, unicode=True)
+    ui.kv({"阶段": "development", "mode": "standard"})
+    lines = out.getvalue().splitlines()
+    offsets = {
+        _visible_width(ln[: ln.index(value)])
+        for ln, value in zip(lines, ("development", "standard"), strict=True)
+    }
+    assert len(offsets) == 1, out.getvalue()
+
+
 # ---------------------------------------------------------------------------
 # Step / hr
 # ---------------------------------------------------------------------------

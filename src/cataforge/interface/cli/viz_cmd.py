@@ -30,10 +30,11 @@ from cataforge.interface.cli.ui import NextStep, ui
 _FORMATS = sorted(RENDERERS)
 _HTML = "html"
 _QUICKSTART = NextStep(
-    "cataforge viz quickstart", "一键起本地实时 dashboard（生成+服务+开浏览器+刷新）"
+    "cataforge viz quickstart",
+    "一键起本地 dashboard（生成+服务+开浏览器+源变更自动重生成，浏览器刷新可见）",
 )
 _EPILOG = (
-    "Quickstart: `cataforge viz quickstart` 一键起实时 dashboard · "
+    "Quickstart: `cataforge viz quickstart` 一键起本地 dashboard · "
     "`cataforge viz status` 看哪些视图现在有数据。"
 )
 

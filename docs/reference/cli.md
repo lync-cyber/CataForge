@@ -617,7 +617,7 @@ cataforge feedback correction-export --threshold 3 --out docs/feedback/$(date +%
 **何时用它**：想把框架编排结构或项目结构导出为可被版本化、可内联进文档的图。复用既有数据源（framework.json 路由 + agent/skill 资产），输出确定性文本，无运行时依赖。
 
 ```bash
-# 一键上手：先看哪些视图现在有数据，再一条命令起本地实时 dashboard
+# 一键上手：先看哪些视图现在有数据，再一条命令起本地自动重生成的 dashboard
 cataforge viz status                       # 视图就绪体检：ready / empty / needs setup + 缺啥补啥
 cataforge viz quickstart                   # 生成 + 本地服务 + 自动开浏览器 + 监听源数据变更
 
@@ -648,7 +648,7 @@ cataforge viz docs
 cataforge viz tasks --edges "T-001→T-002,T-002→T-003" --weights "T-001:S,T-003:L"
 cataforge viz tasks                       # 省略 --edges 时从 KG Task.depends_on 取数
 
-# SDLC 阶段进度（当前阶段着色：门禁通过=绿 / 受阻=红）
+# SDLC 阶段进度（当前阶段着色：门禁通过=蓝 / 受阻=橙，色盲安全对）
 cataforge viz phase
 
 # EVENT-LOG 时间线 / CORRECTIONS-LOG 腐化时间线（mermaid timeline）
@@ -688,7 +688,7 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 | view | 内容 | 数据源 |
 | ------ | ------ | -------- |
 | `status` | 视图就绪体检：逐视图标 `ready` / `empty` / `needs setup`，并给出缺啥补啥的命令（如 `run: cataforge kg init`） | 探测全部 collector（不渲染） |
-| `quickstart` | 一键起本地实时 dashboard，等价 `viz serve --watch --open` | 同 `serve` |
+| `quickstart` | 一键起本地 dashboard（生成 + 服务 + 开浏览器 + 源数据变更自动重生成，浏览器刷新可见更新），等价 `viz serve --watch --open` | 同 `serve` |
 | `overview` | 项目健康 KPI 指标系列：当前阶段/门禁、核心文档完成度（0 缺失 / 0.5 存在 / 1 已批）、Feature 覆盖 full/partial/none、断链/stale 计数、纠偏近 30 天 + 按月趋势。各组独立降级：单一数据源缺失只丢该组 | `evaluate_phase()` + doc-index + KG 覆盖 + CORRECTIONS-LOG |
 | `framework` | orchestrator → phase → agent → skill 编排图（仅 standard 路由的 agent） | framework.json `workflow.modes.standard` + agent frontmatter `skills` |
 | `assets` | 全量 agent + skill + rules 资产目录：依赖边 + 每节点元数据（描述/依赖/工具/行数/est_tokens/源路径）。`--html` 出目录面板：可搜索表格、type 筛选、maintainer-only 开关、体量排序、表↔图联动、路径点击复制；rules 不参与依赖边，仅在 json/HTML 目录出现，mermaid/dot 拓扑不变 | `AgentManager` + `SkillLoader`（builtins + 项目覆写）+ `.cataforge/rules/` |
@@ -697,16 +697,16 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 | `arch` | arch 层实体（Module/Component/API/DataModel）+ 层内 `depends_on` 边 | KG `QueryAPI` |
 | `docs` | 文档依赖有向图；stale 上游标节点样式 + `stale` 边、断裂 xref 标 `xref-error` 边 | `docs/.doc-index.json`（需先 `cataforge context index`） |
 | `tasks` | 任务 DAG，关键路径或环节点高亮 | `--edges` / `--weights`（authoring 时刻）；省略时读 KG `Task.depends_on`（同 `task-dep-analysis` 图算法） |
-| `phase` | SDLC 阶段骨架，当前阶段按门禁结论着色（绿=通过 / 红=受阻），结论与 `cataforge phase status` 一致 | `evaluate_phase()` + framework.json `workflow.modes.standard` |
+| `phase` | SDLC 阶段骨架，当前阶段按门禁结论着色（蓝=通过 / 橙=受阻），结论与 `cataforge phase status` 一致 | `evaluate_phase()` + framework.json `workflow.modes.standard` |
 | `timeline` | EVENT-LOG 事件时间线（按日期分组的 mermaid `timeline`） | `docs/EVENT-LOG.jsonl`（容错解析，跳过坏行） |
 | `decay` | CORRECTIONS-LOG 腐化时间线，每条纠偏一个事件 | `docs/reviews/CORRECTIONS-LOG.md` |
-| `dashboard` | 把上述全部视图聚合进单文件多标签离线页（恒为 HTML）。首屏 KPI strip：5 个可点击 stat tiles（阶段/门禁、核心文档、覆盖率、断链/stale、近 30 天纠偏）点击跳对应明细 tab，数据未就绪的 tile 显示 `—` 并给 `run: <命令>` 引导；header 下有绿/黄/红语义图例条；coverage 图中点击 Feature 节点一键跳到 trace tab 并高亮其追溯链入口；取不到数据的视图降级为引导面板，不中断 | 上述全部 collector |
+| `dashboard` | 把上述全部视图聚合进单文件多标签离线页（恒为 HTML）。首屏 KPI strip：4 个可点击 stat tiles（核心文档、Feature 覆盖、断链/stale、self-caused 纠偏对 retro 阈值）点击跳对应明细 tab，SDLC 阶段与门禁渲染为 KPI 下方的 stepper 条；数据未就绪的 tile 显示 `—` 并给 `run: <命令>` 引导；header 下有蓝/黄/橙语义图例条（色盲安全：蓝=完整/通过、黄=部分/stale、橙=缺失/断链）；全局检索框按实体 id/名称跨视图定位，图节点点击开 Inspector 侧栏并可跳转其他视图；取不到数据的视图降级为引导面板，不中断 | 上述全部 collector |
 
 `trace` / `coverage` / `arch` 读 KG store；store 未初始化时优雅退出并提示 `cataforge kg init`。`docs` 读 doc-index；未建索引时提示 `cataforge context index`。`phase` 读项目指令文件；非 CataForge 驱动项目优雅退出。`timeline` / `decay` 渲染为 mermaid `timeline`（`dot` 仅支持 Graph 视图，对时间线视图会报错，用 `mermaid` 或 `json`）。**mermaid 收编**：追溯图的 mermaid 表面从 `kg trace --output mermaid` 迁移到 `cataforge viz trace`（`kg trace` 保留 `table` / `json` 分析）；任务依赖图的 mermaid 从 `task-dep-analysis --format mermaid` 迁移到 `cataforge viz tasks --format mermaid`（`task-dep-analysis` 保留 `--format json` 分析）。
 
 **自包含 HTML（`--html`）**：输出单文件离线页，vendored `cytoscape.min.js` / `echarts.min.js` 经 `importlib.resources` 内联，零外链——断网双击即开。渲染器纯按 IR 形态分发：Graph → Cytoscape.js（zoom / pan / 节点搜索），Timeline / MetricSeries → ECharts。`dashboard` 共享两库一次内联、各视图分标签页。`--html` 与 `--format` 互斥，同时给出时 `--html` 生效。
 
-**就绪体检与一键（`viz status` / `viz quickstart`）**：新用户先跑 `viz status` —— 它逐视图探测数据源，输出 `ready`（已有数据，带节点/事件计数）/ `empty`（能渲染但暂无数据）/ `needs setup`（数据源缺失，并从 collector 自带提示里抽出 `run: cataforge kg init` 这类可直接照抄的命令）三态，让你按需补齐想看的视图。`viz quickstart` 是到实时 dashboard 的单命令路径，等价 `viz serve --watch --open`。
+**就绪体检与一键（`viz status` / `viz quickstart`）**：新用户先跑 `viz status` —— 它逐视图探测数据源，输出 `ready`（已有数据，带节点/事件计数）/ `empty`（能渲染但暂无数据）/ `needs setup`（数据源缺失，并从 collector 自带提示里抽出 `run: cataforge kg init` 这类可直接照抄的命令）三态，让你按需补齐想看的视图。`viz quickstart` 是到本地 dashboard 的单命令路径，等价 `viz serve --watch --open`（源数据变更自动重生成，浏览器刷新可见更新）。
 
 **本地静态服务（`viz serve`）**：用标准库 `http.server` 托管产物目录（默认 `docs/viz/`），启动时先写一份 dashboard `index.html`，再持续提供 HTTP 访问，仅依赖标准库——不引入任何服务框架。`--watch` 启动后台线程轮询 KG store / doc-index / EVENT-LOG / CORRECTIONS-LOG 的 mtime，任一变更即重生成 `index.html`，浏览器刷新即见最新。`--open` 就绪后用默认浏览器打开（监听 `0.0.0.0` 时按 `127.0.0.1` 打开）。`Ctrl-C` 干净退出。`viz dashboard --open` 在无 `-o` 时写 `docs/viz/dashboard.html` 并打开（`file://`，无服务一次性快照）。
 

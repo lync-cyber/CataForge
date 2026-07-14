@@ -2244,3 +2244,21 @@ class TestVizConsistency:
         assert 'class="cat"' in out and "initCatalogue(" in out
         assert '"label": "R-RULES"' in out or '"label":"R-RULES"' in out  # data.name fallback
         assert "<script src" not in out and "<link " not in out
+
+
+# ------------------------------------------------------------------
+# Artifact encoding — UTF-8 bytes on every locale (UTF-8 Mode contract)
+# ------------------------------------------------------------------
+
+
+class TestVizEncoding:
+    def test_dashboard_output_file_is_utf8(self, tmp_path: Path) -> None:
+        _make_project(tmp_path)
+        out = tmp_path / "dash.html"
+        result = CliRunner().invoke(
+            cli, ["--project-dir", str(tmp_path), "viz", "dashboard", "-o", str(out)]
+        )
+        assert result.exit_code == 0, result.output
+        text = out.read_bytes().decode("utf-8")  # GBK-written bytes would fail here
+        assert "全局检索实体" in text
+        assert "已复制" in text

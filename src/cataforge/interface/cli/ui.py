@@ -21,6 +21,7 @@ import logging
 import os
 import re
 import sys
+import unicodedata
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal, TextIO
@@ -296,10 +297,11 @@ class UI:
         """Render aligned key-value pairs (``key  : value``)."""
         if not pairs:
             return
-        width = max(len(k) for k in pairs)
+        width = max(_visible_width(k) for k in pairs)
         pad = " " * indent
         for k, v in pairs.items():
-            self._write(f"{pad}{self._c('bold', k.ljust(width))}  {v}")
+            padded = k + " " * (width - _visible_width(k))
+            self._write(f"{pad}{self._c('bold', padded)}  {v}")
 
     def bullets(self, items: Iterable[str], *, indent: int = 2) -> None:
         bullet = self._glyph("bullet")
@@ -421,12 +423,15 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def _visible_width(text: str) -> int:
-    """Visual width of *text* ignoring ANSI escapes.
-
-    A naive ``len()`` overcounts when cells contain colour escapes; this
-    keeps table alignment working with mixed coloured/plain cells.
-    """
-    return len(_ANSI_RE.sub("", text))
+    """Terminal-column width of *text*: ANSI escapes contribute nothing,
+    combining marks are zero-width, and East Asian wide/fullwidth characters
+    (CJK, most emoji) occupy two columns."""
+    width = 0
+    for ch in _ANSI_RE.sub("", text):
+        if unicodedata.combining(ch):
+            continue
+        width += 2 if unicodedata.east_asian_width(ch) in ("F", "W") else 1
+    return width
 
 
 # ---------------------------------------------------------------------------
