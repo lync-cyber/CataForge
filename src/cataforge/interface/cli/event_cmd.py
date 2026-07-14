@@ -25,7 +25,6 @@ from cataforge.core.io import read_stdin_utf8
 from cataforge.core.paths import find_project_root
 from cataforge.interface.cli.helpers import resolve_project_dir
 from cataforge.interface.cli.main import cli
-from cataforge.utils.atomic_write import atomic_write_text
 
 
 @cli.group("event")
@@ -200,9 +199,10 @@ def _opt(value: object) -> str | None:
 def event_accept_legacy(before: str | None, project_root: Path | None) -> None:
     """Mark existing EVENT-LOG records as out-of-scope for doctor validation.
 
-    Sets ``upgrade.state.event_log_validate_since`` in framework.json.
-    ``cataforge doctor`` skips records whose ``ts`` predates this watermark,
-    so pre-v0.1.7 bypass-write residue stops failing the schema check.
+    Sets ``event_log_validate_since`` in ``.cataforge/state/upgrade.json``
+    (run-state, gitignored). ``cataforge doctor`` skips records whose ``ts``
+    predates this watermark, so pre-v0.1.7 bypass-write residue stops
+    failing the schema check.
 
     Records written after the cutoff are still validated normally.
     """
@@ -222,23 +222,13 @@ def event_accept_legacy(before: str | None, project_root: Path | None) -> None:
             ) from e
         cutoff = before
 
+    from cataforge.core.upgrade_state import read_upgrade_state, write_upgrade_state
+
     cfg = ConfigManager(project_root or resolve_project_dir())
-    raw = cfg.load_raw()
-    upgrade = raw.setdefault("upgrade", {})
-    state = upgrade.setdefault("state", {})
+    state = read_upgrade_state(cfg.paths)
     previous = state.get("event_log_validate_since")
     state["event_log_validate_since"] = cutoff
-
-    # Touch disk directly — ConfigManager has no public writer for
-    # upgrade.state, and the existing set_runtime_platform path uses the
-    # same load_raw → patch → write shape. Atomic so a crash between
-    # truncate and write can't leave framework.json half-rewritten —
-    # which would brick every subsequent CLI invocation that needs the
-    # version / runtime keys.
-    atomic_write_text(
-        cfg.paths.framework_json,
-        json.dumps(raw, indent=2, ensure_ascii=False) + "\n",
-    )
+    write_upgrade_state(cfg.paths, state)
     # Make sure today's timestamp is timezone-aware in the message.
     if not cutoff.endswith("Z") and "+" not in cutoff[10:]:
         cutoff = datetime.fromisoformat(cutoff).replace(tzinfo=UTC).isoformat()

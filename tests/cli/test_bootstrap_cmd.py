@@ -138,25 +138,24 @@ class TestDryRunPlan:
 
     def test_platform_mismatch_blocks(self, runner: CliRunner, deployed_project: Path) -> None:
         """Requesting a different platform than what's recorded must surface
-        as an explicit error — bootstrap must NOT silently rewrite
-        runtime.platform (that's setup --platform --show-diff's job)."""
+        as an explicit error — bootstrap must NOT silently rewrite the
+        default platform (that's setup --platform --show-diff's job)."""
         result = runner.invoke(cli, ["bootstrap", "--platform", "cursor", "--dry-run"])
         assert result.exit_code == 0, result.output  # dry-run exits 0 even with error
         assert "conflicts with" in result.output
-        assert "runtime.platform" in result.output
+        assert "deployment.default_platform" in result.output
 
     def test_platform_changed_triggers_deploy(
         self, runner: CliRunner, scaffolded_project: Path
     ) -> None:
-        """If .deploy-state records a different platform than runtime.platform,
-        deploy must re-run. (This can happen when the user edits
-        runtime.platform via `cataforge setup --platform ...`.)"""
+        """When the target platform has no deploy record yet (only another
+        platform was deployed), deploy must re-run for the target."""
         state = scaffolded_project / ".cataforge" / ".deploy-state"
         state.write_text(json.dumps({"platform": "cursor"}) + "\n", encoding="utf-8")
         result = runner.invoke(cli, ["bootstrap", "--dry-run"])
         assert result.exit_code == 0, result.output
         assert "deploy   run" in result.output
-        assert "platform changed" in result.output
+        assert "not deployed yet" in result.output
 
     def test_missing_deploy_state_plans_first_deploy(
         self, runner: CliRunner, scaffolded_project: Path
@@ -223,7 +222,7 @@ class TestExecution:
         fw = json.loads(
             (fresh_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
         )
-        assert fw["runtime"]["platform"] == "claude-code"
+        assert fw["deployment"]["default_platform"] == "claude-code"
         # Deploy must have produced .claude/ artefacts.
         assert (fresh_project / ".claude").is_dir()
 

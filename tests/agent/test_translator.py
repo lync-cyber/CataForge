@@ -198,20 +198,24 @@ def _skills_project(tmp_path: Path, *, needs_skill_deploy: bool) -> Path:
 class TestSkillsDropWarning:
     AGENT_MD = "---\nname: a\ndescription: d\nskills: research, doc-gen\n---\nbody\n"
 
-    def test_skills_drop_warns_when_not_deployed(self, tmp_path: Path) -> None:
+    def test_skills_degrade_to_read_first_when_not_deployed(self, tmp_path: Path) -> None:
         platforms_dir = _skills_project(tmp_path, needs_skill_deploy=False)
         adapter = get_adapter("codex", platforms_dir)
         warnings: list[str] = []
         result = translate_agent_md(self.AGENT_MD, adapter, warnings_collector=warnings)
         assert "skills:" not in result
-        assert any("WARN" in w and "skills" in w and "codex" in w for w in warnings)
+        # Degradation contract: the body gains explicit read-first pointers.
+        assert ".cataforge/skills/research/SKILL.md" in result
+        assert ".cataforge/skills/doc-gen/SKILL.md" in result
+        assert any("NOTE" in w and "skill" in w and "codex" in w for w in warnings)
 
-    def test_skills_drop_silent_when_deployed(self, tmp_path: Path) -> None:
+    def test_skills_untouched_when_deployed(self, tmp_path: Path) -> None:
         platforms_dir = _skills_project(tmp_path, needs_skill_deploy=True)
         adapter = get_adapter("codex", platforms_dir)
         warnings: list[str] = []
-        translate_agent_md(self.AGENT_MD, adapter, warnings_collector=warnings)
-        assert not any("skills" in w for w in warnings)
+        result = translate_agent_md(self.AGENT_MD, adapter, warnings_collector=warnings)
+        assert ".cataforge/skills/research/SKILL.md" not in result
+        assert not any("skill" in w for w in warnings)
 
 
 @pytest.fixture()

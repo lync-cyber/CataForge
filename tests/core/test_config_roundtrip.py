@@ -1,19 +1,10 @@
 """Regression tests protecting framework.json from lossy rewrites.
 
-Background
-----------
-Prior to the M1 fix, ``ConfigManager.set_runtime_platform`` went through a
-``load() → mutate → _write()`` path where ``load()`` ran a Pydantic
-round-trip (``model_validate(...).model_dump(...)``). The nested schemas
-``FrameworkRuntime`` / ``FrameworkUpgradeSource`` / ``FrameworkUpgrade`` used
-``extra='ignore'``, which silently dropped any key not declared in the
-schema. Setting a platform therefore destroyed user-authored fields like
-``upgrade.source.branch``, ``upgrade.source.token_env``, and the entire
-``upgrade.state`` subtree.
-
-These tests lock in that ``set_runtime_platform`` is a **true minimal
-patch**: only ``runtime.platform`` may change; every other byte of the file
-is preserved, including field order.
+``set_default_platform`` is a **minimal patch**: it may only write the
+``deployment`` block and pop the legacy ``runtime.platform`` key; every
+other byte of the file is preserved, including field order and
+user-authored extras at any nesting level (``upgrade.source.branch``,
+``upgrade.state``, custom constants, root-level extra keys).
 """
 
 from __future__ import annotations
@@ -62,94 +53,84 @@ def rich_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-class TestSetRuntimePlatformPreservation:
-    """``set_runtime_platform`` must touch exactly one field."""
+def _read(root: Path) -> dict:
+    return json.loads((root / ".cataforge" / "framework.json").read_text(encoding="utf-8"))
+
+
+class TestSetDefaultPlatformPreservation:
+    """``set_default_platform`` must touch only the deployment/runtime keys."""
 
     def test_upgrade_source_extras_preserved(self, rich_project: Path) -> None:
-        cfg = ConfigManager(rich_project)
-        cfg.set_runtime_platform("cursor")
-
-        raw = json.loads(
-            (rich_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
-        src = raw["upgrade"]["source"]
+        ConfigManager(rich_project).set_default_platform("cursor")
+        src = _read(rich_project)["upgrade"]["source"]
         assert src["type"] == "github"
         assert src["repo"] == "user/fork"
         assert src["branch"] == "develop"
         assert src["token_env"] == "MY_CUSTOM_TOKEN_VAR"
 
     def test_upgrade_state_preserved(self, rich_project: Path) -> None:
-        cfg = ConfigManager(rich_project)
-        cfg.set_runtime_platform("cursor")
-
-        raw = json.loads(
-            (rich_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
-        state = raw["upgrade"]["state"]
+        ConfigManager(rich_project).set_default_platform("cursor")
+        state = _read(rich_project)["upgrade"]["state"]
         assert state["last_commit"] == "abc123"
         assert state["last_version"] == "0.0.9"
         assert state["last_upgrade_date"] == "2026-01-15"
 
     def test_top_level_field_order_preserved(self, rich_project: Path) -> None:
-        original = json.loads(
-            (rich_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
-        original_keys = list(original.keys())
+        original_keys = list(_read(rich_project).keys())
+        ConfigManager(rich_project).set_default_platform("cursor")
+        after_keys = list(_read(rich_project).keys())
+        # runtime is popped (its only key was platform); deployment appended.
+        expected = [k for k in original_keys if k != "runtime"] + ["deployment"]
+        assert after_keys == expected
 
-        cfg = ConfigManager(rich_project)
-        cfg.set_runtime_platform("cursor")
+    def test_only_platform_fields_change(self, rich_project: Path) -> None:
+        original = _read(rich_project)
+        ConfigManager(rich_project).set_default_platform("codex")
+        after = _read(rich_project)
 
-        after = json.loads(
-            (rich_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
-        assert list(after.keys()) == original_keys
-
-    def test_only_runtime_platform_changes(self, rich_project: Path) -> None:
-        original = json.loads(
-            (rich_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
-
-        cfg = ConfigManager(rich_project)
-        cfg.set_runtime_platform("codex")
-
-        after = json.loads(
-            (rich_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
-
-        # Mutate original's single expected change and assert full equality.
-        original["runtime"]["platform"] = "codex"
+        # Mutate original's expected changes and assert full equality.
+        del original["runtime"]
+        original["deployment"] = {"default_platform": "codex", "targets": ["codex"]}
         assert after == original
 
     def test_custom_constants_preserved(self, rich_project: Path) -> None:
-        cfg = ConfigManager(rich_project)
-        cfg.set_runtime_platform("opencode")
-
-        raw = json.loads(
-            (rich_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
+        ConfigManager(rich_project).set_default_platform("opencode")
+        raw = _read(rich_project)
         assert raw["constants"]["MAX_QUESTIONS_PER_BATCH"] == 7
         assert raw["constants"]["CUSTOM_USER_CONSTANT"] == "value"
 
     def test_root_level_extra_keys_preserved(self, rich_project: Path) -> None:
-        cfg = ConfigManager(rich_project)
-        cfg.set_runtime_platform("cursor")
-
-        raw = json.loads(
-            (rich_project / ".cataforge" / "framework.json").read_text(encoding="utf-8")
-        )
+        ConfigManager(rich_project).set_default_platform("cursor")
+        raw = _read(rich_project)
         assert raw["runtime_api_version"] == "1.0"
         assert "description" in raw
 
-    def test_describe_platform_change_no_op(self, rich_project: Path) -> None:
+    def test_describe_platform_change_legacy_normalizes(self, rich_project: Path) -> None:
+        # v1 file: even the same platform id reports a change (legacy key
+        # normalizes into the deployment block on the next set).
         cfg = ConfigManager(rich_project)
-        # Current platform is claude-code; asking for claude-code is a no-op.
-        assert cfg.describe_platform_change("claude-code") is None
+        diff = cfg.describe_platform_change("claude-code")
+        assert diff is not None
+        assert diff["field"] == "deployment.default_platform"
+
+    def test_describe_platform_change_v2_no_op(self, tmp_path: Path) -> None:
+        cataforge_dir = tmp_path / ".cataforge"
+        cataforge_dir.mkdir()
+        (cataforge_dir / "framework.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "deployment": {"default_platform": "cursor", "targets": ["cursor"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert ConfigManager(tmp_path).describe_platform_change("cursor") is None
 
     def test_describe_platform_change_diff(self, rich_project: Path) -> None:
-        cfg = ConfigManager(rich_project)
-        diff = cfg.describe_platform_change("cursor")
+        diff = ConfigManager(rich_project).describe_platform_change("cursor")
         assert diff == {
-            "field": "runtime.platform",
+            "field": "deployment.default_platform",
             "before": "claude-code",
             "after": "cursor",
         }
@@ -164,11 +145,19 @@ class TestSetRuntimePlatformPreservation:
         before = json.loads((dest / "framework.json").read_text(encoding="utf-8"))
 
         cfg = ConfigManager(tmp_path)
-        cfg.set_runtime_platform("cursor")
+        cfg.set_default_platform("cursor")
 
         after = json.loads((dest / "framework.json").read_text(encoding="utf-8"))
 
-        # Every nested subtree identical except runtime.platform.
-        before["runtime"]["platform"] = "cursor"
+        # Every nested subtree identical except the deployment patch: default
+        # switches, cursor unions into targets, nothing else moves.
+        before.pop("runtime", None)
+        deployment = dict(before.get("deployment") or {})
+        deployment["default_platform"] = "cursor"
+        targets = [str(t) for t in deployment.get("targets") or []]
+        if "cursor" not in targets:
+            targets.append("cursor")
+        deployment["targets"] = targets
+        before["deployment"] = deployment
         assert after == before
         assert list(after.keys()) == list(before.keys())

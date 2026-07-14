@@ -31,10 +31,15 @@ def _git_bash_resolvable() -> bool:
     return shutil.which("bash") is not None
 
 
-def check_shell_preference(cfg: ConfigManager) -> int:
+def check_shell_preference(cfg: ConfigManager, platforms: list[str] | None = None) -> int:
     """Warn on Windows when settings prefer Git Bash but none is resolvable."""
     if sys.platform != "win32":
         click.echo("  not Windows — skipped.")
+        return 0
+
+    scope = platforms or [cfg.default_platform]
+    if "claude-code" not in scope:
+        click.echo("  claude-code not in platform scope — skipped.")
         return 0
 
     settings = cfg.paths.root / ".claude" / "settings.json"

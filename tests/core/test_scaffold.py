@@ -30,22 +30,25 @@ def test_copy_scaffold_fresh(tmp_path: Path) -> None:
     assert not (dest / "PROJECT-STATE.md").exists()
 
 
-def test_copy_scaffold_preserves_runtime_platform_on_force(tmp_path: Path) -> None:
-    """--force-scaffold must not clobber user-chosen runtime.platform."""
+def test_copy_scaffold_preserves_default_platform_on_force(tmp_path: Path) -> None:
+    """--force-scaffold must not clobber the user-chosen default platform."""
     dest = tmp_path / ".cataforge"
     copy_scaffold_to(dest, force=False)
 
-    # Simulate user flipping platform after setup.
+    # Simulate user flipping platform after setup, plus a pre-migration
+    # v1 leftover (runtime block + upgrade.state) that must ride along.
     fw_path = dest / "framework.json"
     fw = json.loads(fw_path.read_text(encoding="utf-8"))
-    fw["runtime"]["platform"] = "cursor"
-    fw["upgrade"].setdefault("state", {})["last_version"] = "0.0.9"
+    fw["deployment"] = {"default_platform": "cursor", "targets": ["cursor"]}
+    fw["runtime"] = {"platform": "cursor"}
+    fw.setdefault("upgrade", {}).setdefault("state", {})["last_version"] = "0.0.9"
     fw_path.write_text(json.dumps(fw), encoding="utf-8")
 
     # Force refresh.
     copy_scaffold_to(dest, force=True)
 
     refreshed = json.loads(fw_path.read_text(encoding="utf-8"))
+    assert refreshed["deployment"]["default_platform"] == "cursor"
     assert refreshed["runtime"]["platform"] == "cursor"
     assert refreshed["upgrade"]["state"]["last_version"] == "0.0.9"
     # Scaffold-owned fields should still be refreshed.

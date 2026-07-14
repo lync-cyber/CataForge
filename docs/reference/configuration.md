@@ -7,6 +7,7 @@
 ## 目录
 
 - [文件总览](#文件总览)
+- [配置解析层级与 `cataforge config`](#配置解析层级与-cataforge-config)
 - [framework.json](#frameworkjson)
 - [platforms/\<id\>/profile.yaml](#platformsidprofileyaml)
   - [context_injection 字段](#context_injection-字段)
@@ -19,7 +20,9 @@
 
 | 文件 | 位置 | 作用 |
 |------|------|------|
-| `framework.json` | `.cataforge/framework.json` | 框架单一配置源 |
+| `framework.json` | `.cataforge/framework.json` | 框架单一配置源（声明 + catalog，schema v2） |
+| `config.local.json` | `.cataforge/config.local.json` | 本机覆盖层（gitignored，白名单字段） |
+| `state/` | `.cataforge/state/` | 运行状态目录（gitignored）：`deploy/<platform>/{state,manifest}.json`、`upgrade.json`、`locks/` |
 | `PROJECT-STATE.md` | `.cataforge/PROJECT-STATE.md` | 项目状态模板（用户可编辑） |
 | `COMMON-RULES.md` | `.cataforge/rules/COMMON-RULES.md` | 通用行为规则 |
 | `SUB-AGENT-PROTOCOLS.md` | `.cataforge/rules/SUB-AGENT-PROTOCOLS.md` | 子代理执行协议 |
@@ -32,59 +35,65 @@
 
 ---
 
+## 配置解析层级与 `cataforge config`
+
+配置值按以下优先级解析（[`ConfigManager.explain`](../../src/cataforge/core/config.py)）：
+
+```text
+CLI 参数（如 deploy --platform）
+  > CATAFORGE_PLATFORM 环境变量（仅平台路径 deployment.default_platform）
+  > .cataforge/config.local.json（本机覆盖层，gitignored，白名单字段）
+  > .cataforge/framework.json（schema v2；v1 的 runtime.platform 兼容读取 = legacy 层）
+  > 代码内默认值（deployment.default_platform=claude-code、context.mode=graph、project.design_tool=none）
+```
+
+`cataforge config` 子命令：
+
+| 子命令 | 语义 |
+|--------|------|
+| `config validate` | schema 形状（Pydantic `FrameworkFile`）+ `schema_version` 不高于运行包支持值 + 平台 id 合法 + `default_platform ∈ targets`；检测到 v1 布局时 WARN 并提示 `config migrate` |
+| `config get <path>` | 打印按层级解析后的值（未设置时 exit 1） |
+| `config explain <path>` | 打印值与来源层：`env` / `local` / `framework` / `legacy` / `default` |
+| `config set <path> <value>` | 仅白名单路径可写：`deployment.default_platform`、`deployment.targets`（逗号分隔列表）、`context.mode`、`project.design_tool`；平台值经合法 id 校验；同值不落盘；支持 `--dry-run` |
+| `config migrate` | v1 → v2 布局迁移（幂等、先备份）；支持 `--dry-run`。详见 [`../guide/multi-platform.md`](../guide/multi-platform.md) §旧单平台项目迁移 |
+
+所有 framework.json 写路径（`config set`、`setup --platform`、`set_languages` 等）持 `.cataforge/state/locks/config.lock`（TTL 60 秒，过期自动回收），防止并发写丢失更新。
+
+---
+
 ## framework.json
 
-框架单一配置源。Schema 由 [`cataforge.core.schema.framework.FrameworkFile`](../../src/cataforge/core/schema/framework.py) 校验；upgrade 时的 preserve / overwrite 策略由 [`cataforge.core.scaffold._merge_framework_json`](../../src/cataforge/core/scaffold.py) 实现 —— 修改本节字段说明前请先核对那两处代码。
+框架单一配置源（schema v2，`schema_version: 2` = [`CONFIG_SCHEMA_VERSION`](../../src/cataforge/core/config_migrate.py)）。Schema 由 [`cataforge.core.schema.framework.FrameworkFile`](../../src/cataforge/core/schema/framework.py) 校验；upgrade 时的字段级所有权合并由 [`cataforge.core.scaffold._merge_framework_json`](../../src/cataforge/core/scaffold.py)（`_FRAMEWORK_OWNED_TOP` / `_USER_OWNED_DICT_BLOCKS`）实现 —— 修改本节字段说明前请先核对那两处代码。
 
-### 结构示例（与 `.cataforge/framework.json` 实际形态一致）
+### 结构示例（与 `.cataforge/framework.json` v2 实际形态一致）
 
 ```json
 {
+  "schema_version": 2,
   "version": "0.0.0-template",
   "runtime_api_version": "1.0",
-  "runtime": {
-    "platform": "claude-code"
+  "deployment": {
+    "default_platform": "claude-code",
+    "targets": ["claude-code"]
   },
-  "description": "CataForge 统一框架配置。upgrade apply 的 preserve：runtime.platform、upgrade.state，以及 context 与 project 两个块整体（块内 existing key 保留、新 scaffold key 补充）；其余字段（version、runtime_api_version、constants、features、migration_checks、upgrade.source 与 description 自身）均被最新 scaffold 全量覆盖。",
+  "description": "CataForge 统一框架配置（schema v2）……",
   "upgrade": {
     "source": {
       "type": "github",
       "repo": "lync-cyber/CataForge",
       "branch": "main",
       "token_env": "GITHUB_TOKEN"
-    },
-    "state": {
-      "last_commit": "",
-      "last_version": "",
-      "last_upgrade_date": ""
     }
   },
-  "constants": {
-    "MAX_QUESTIONS_PER_BATCH": 3,
-    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "post_sprint", "pre_deploy"],
-    "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl",
-    "EVENT_LOG_SCHEMA": ".cataforge/schemas/event-log.schema.json",
-    "DOC_SPLIT_THRESHOLD_LINES": 300,
-    "META_DOC_SPLIT_THRESHOLD_LINES": 500,
-    "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
-    "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "changelog"],
-    "TDD_LIGHT_LOC_THRESHOLD": 150,
-    "TASK_SPLIT_LOC": 250,
-    "MID_PROGRESS_LOC": 200,
-    "TDD_DEFAULT_MODE": "light",
-    "TDD_REFACTOR_TRIGGER": ["complexity", "duplication", "coupling"],
-    "TDD_INLINE_ELIGIBLE_MODES": ["agile-lite", "agile-prototype"],
-    "SPRINT_REVIEW_MICRO_TASK_COUNT": 3,
-    "CODE_REVIEW_L2_SKIP_TASK_KINDS": ["chore", "config", "docs"],
-    "CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC": 2,
-    "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
-    "RETRO_TRIGGER_SELF_CAUSED": 5,
-    "RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT": 3,
-    "EVENT_LOG_DRIFT_MIN_EVENTS": 10,
-    "ANTI_PATTERN_MIN_COUNT_SKILL": 3,
-    "ANTI_PATTERN_MIN_COUNT_AGENT": 4,
-    "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"],
-    "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 300
+  "feedback": {
+    "gh": {
+      "labels": {
+        "bug": ["bug"],
+        "suggest": ["enhancement"],
+        "correction-export": ["enhancement"]
+      },
+      "fallback_on_missing_label": true
+    }
   },
   "kg": {
     "store_backend": "oxigraph",
@@ -97,7 +106,37 @@
     "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"]
   },
   "project": {
-    "languages": []
+    "languages": [],
+    "design_tool": "none"
+  },
+  "claude_md_limits": {
+    "max_bytes": 30000,
+    "max_state_section_lines": 80,
+    "learnings_registry_max_entries": 10,
+    "max_state_bullet_chars": 250
+  },
+  "constants": {
+    "MAX_QUESTIONS_PER_BATCH": 3,
+    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "post_sprint", "pre_deploy"],
+    "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl",
+    "EVENT_LOG_SCHEMA": ".cataforge/schemas/event-log.schema.json",
+    "DOC_SPLIT_THRESHOLD_LINES": 300,
+    "TDD_LIGHT_LOC_THRESHOLD": 150,
+    "TDD_DEFAULT_MODE": "light",
+    "AGENT_MODEL_DEFAULTS": { "orchestrator": "inherit", "architect": "heavy" },
+    "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"],
+    "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 300,
+    "UNATTENDED_LOOP_MAX_ITERATIONS": 30
+    // ...完整常量集见 .cataforge/framework.json 与 COMMON-RULES §框架配置常量
+  },
+  "dispatcher_skills": ["tdd-engine", "agent-dispatch", "start-orchestrator"],
+  "workflow": {
+    "description": "阶段路由骨架的单一事实源……",
+    "modes": {
+      "standard": { "phases": [ /* requirements → deployment 七阶段 */ ] },
+      "agile-lite": { "phases": [ /* planning / dev_planning / development */ ] },
+      "agile-prototype": { "phases": [ /* brief / development */ ] }
+    }
   },
   "features": {
     "tdd-engine": {
@@ -105,12 +144,6 @@
       "auto_enable": true,
       "phase_guard": "development",
       "description": "TDD三阶段开发引擎 (RED→GREEN→REFACTOR)"
-    },
-    "doc-review": {
-      "min_version": "0.1.0",
-      "auto_enable": true,
-      "phase_guard": null,
-      "description": "文档双层审计 (Layer 1脚本 + Layer 2 AI)"
     }
     // ...其余 feature 同形结构，省略
   },
@@ -128,21 +161,24 @@
 }
 ```
 
-> 用户安装时 `cataforge setup` / `cataforge upgrade apply` 写盘的 `version` 字段由 [`scaffold._stamp_framework_version`](../../src/cataforge/core/scaffold.py) 戳入实际包版本（`cataforge.__version__`）；用户侧不会看到 `0.0.0-template` 字面值。源仓库 `.cataforge/framework.json:version` 留 `0.0.0-template` 占位，[`Config.version`](../../src/cataforge/core/config.py) 在读取时检测此前缀并解析为运行包版本（这样 dogfood 开发者在 `cataforge bootstrap` / `cataforge doctor` 看到的是真实版本号），同时 [`bootstrap_cmd._semver_newer`](../../src/cataforge/interface/cli/bootstrap_cmd.py) 也对 `0.0.0-` 前缀短路返回 False，避免触发"installed > scaffold"伪升级。
+> 用户安装时 `cataforge setup` / `cataforge upgrade apply` 写盘的 `version` 字段由 [`scaffold._stamp_framework_version`](../../src/cataforge/core/scaffold.py) 戳入实际包版本（`cataforge.__version__`）；用户侧不会看到 `0.0.0-template` 字面值。源仓库 `.cataforge/framework.json:version` 留 `0.0.0-template` 占位，[`Config.version`](../../src/cataforge/core/config.py) 在读取时检测此前缀并解析为运行包版本（这样 dogfood 开发者在 `cataforge bootstrap` / `cataforge doctor` 看到的是真实版本号），同时 [`bootstrap._semver_newer`](../../src/cataforge/application/services/bootstrap.py) 也对 `0.0.0-` 前缀短路返回 False，避免触发"installed > scaffold"伪升级。
 
 ### 字段说明
 
-`upgrade apply` 行为分两类（与 `_merge_framework_json` 保持一致）：
+`upgrade apply`（`cataforge setup --force-scaffold` 同路径）按**字段级所有权表**合并，行为分三类（与 `_merge_framework_json` 保持一致）：
 
-- **preserve**：用户已写入的值在升级时保留
-- **overwrite**：每次升级被最新 scaffold 全量覆盖（设计如此 —— 框架元数据不应允许用户偏移）
+- **preserve（用户块）**：`_USER_OWNED_DICT_BLOCKS` = `deployment` / `context` / `project` / `kg` / `feedback` / `git` / `claude_md_limits`，外加 `upgrade.source` 浅合并 —— existing key 保留，新 scaffold 默认键补充
+- **overwrite（框架块）**：`_FRAMEWORK_OWNED_TOP` = `schema_version` / `version` / `runtime_api_version` / `description` / `constants` / `features` / `workflow` / `dispatcher_skills` / `migration_checks` —— 每次升级被最新 scaffold 全量覆盖（框架元数据不允许用户偏移）
+- **未知顶层键一律保留**：scaffold 不认识的顶层键（用户 / 插件自定义命名空间）升级时原样随行
 
 | 字段 | 用户可编辑 | upgrade 行为 | 作用 |
 |------|:---------:|:------------:|------|
+| `schema_version` | ❌ | overwrite | 配置布局版本（当前 `2`）。高于运行包支持值时所有读写命令显式 FAIL（先升级 `cataforge` 包）；低于当前值时 `config validate` WARN 并提示 `config migrate` |
 | `version` | ❌ | overwrite（戳入 `cataforge.__version__`） | 实际包版本，用于 doctor / migration_check 比对 |
 | `runtime_api_version` | ❌ | overwrite | scaffold ↔ runtime 接口版本号，BREAKING 时递增 |
-| `runtime.platform` | ✅ | **preserve** | 目标 IDE：`claude-code` / `cursor` / `codex` / `opencode`；由 `cataforge setup --platform` 写入，`set_runtime_platform()` 也会更新此字段 |
-| `runtime.*`（其它） | ✅ | overwrite | `extra='allow'`，但目前无其它 scaffold 已知字段 |
+| `deployment.default_platform` | ✅ | **preserve** | 缺省平台：`claude-code` / `cursor` / `codex` / `opencode`。由 `cataforge setup --platform` 或 `config set` 写入；该平台的指令文件是 §项目状态 的 SSOT |
+| `deployment.targets` | ✅ | **preserve** | 项目声明的启用平台集合。`setup --platform` 把新 default **并入** targets（不删除已有成员）；无参 `cataforge deploy` 部署全部 targets |
+| `runtime.platform` | —（legacy） | 迁移 | v1 字段。读取层兼容：`deployment.default_platform` 缺失时回落此值（`config explain` 显示 `legacy`）；`config migrate` / `upgrade apply` / `bootstrap` 自动迁移为 `deployment.default_platform` 并移除本键，`setup --platform` 写盘时也会弹出它 |
 | `description` | ❌ | overwrite | 框架自述文案 |
 | `constants.MANUAL_REVIEW_CHECKPOINTS` | ❌ | overwrite | 手动审查检查点列表（默认 `["pre_dev", "post_sprint", "pre_deploy"]`） |
 | `constants.MAX_QUESTIONS_PER_BATCH` | ❌ | overwrite | `AskUserQuestion` 单批最大问题数 |
@@ -169,33 +205,41 @@
 | `constants.AGENT_MODEL_DEFAULTS` | ❌ | overwrite | 各 agent 缺省 model tier 映射（heavy: architect/debugger；inherit: orchestrator；余 standard） |
 | `constants.AGENT_MODEL_TIER_HEAVY_WHITELIST` | ❌ | overwrite | 允许 heavy tier 的 agent 白名单（默认 `[architect, debugger]`） |
 | `constants.SKILL_RUNNER_TIMEOUT_DEFAULT_SECS` | ❌ | overwrite | `SkillRunner` 默认 subprocess 超时秒数（默认 300） |
+| `constants.UNATTENDED_*` | ❌ | overwrite | 无人值守构建循环参数组（`LOOP_MAX_ITERATIONS` / `STAGNATION_THRESHOLD` / `CARD_REVISION_CEILING` / `LOOP_ITER_TIMEOUT_SEC` / `RATELIMIT_WAIT_SEC`），语义见 COMMON-RULES §框架配置常量 |
+| `dispatcher_skills` | ❌ | overwrite | dispatcher skill 清单（`tdd-engine` / `agent-dispatch` / `start-orchestrator`）；framework-review B5-α 据此区分 skill-as-router 与未定义 agent |
+| `workflow` | ❌ | overwrite | 阶段路由骨架的单一事实源：`modes.{standard,agile-lite,agile-prototype}.phases[]`（phase / role / output_doc_type / execution_host / interactive / skippable）；orchestrator Phase Routing 与 framework-review B5 以此为准 |
 | `features.<id>.min_version` | ❌ | overwrite | feature 引入的版本号（语义版本） |
 | `features.<id>.auto_enable` | ❌ | overwrite | 是否在符合 `phase_guard` 时自动启用 |
 | `features.<id>.phase_guard` | ❌ | overwrite | 限定阶段（`null` 表示全局可用） |
 | `features.<id>.description` | ❌ | overwrite | feature 简述 |
-| `migration_checks[].id` | ❌ | overwrite | 检查唯一标识（命名约定 `mc-<release_version>-<slug>`，与项目主线版本号一致；`mc-0.6.0-*` 等历史前缀已在 v0.1.13 统一为 `mc-0.1.x-*`） |
+| `migration_checks[].id` | ❌ | overwrite | 检查唯一标识（命名约定 `mc-<release_version>-<slug>`，与项目主线版本号一致） |
 | `migration_checks[].release_version` | ❌ | overwrite | 检查引入的版本号；用于排序与弃用判定 |
 | `migration_checks[].deprecate_after` | ❌ | overwrite | （可选）一旦运行包版本 ≥ 此 semver，doctor 自动 SKIP 该检查并打印来源版本。用法：当某条检查覆盖的旧状态已不可能在任何"近期安装"中存在时，标注此字段以避免 migration_checks 列表无限膨胀 |
 | `migration_checks[].type` | ❌ | overwrite | 检查类型：`file_must_contain` / `file_must_not_contain` / `dir_must_contain_files` / `file_must_exist` |
 | `migration_checks[].path` | ❌ | overwrite | 被检查文件 / 目录的相对路径 |
 | `migration_checks[].patterns` | ❌ | overwrite | 待匹配子串 / 文件名列表 |
 | `migration_checks[].requires_deploy` | ❌ | overwrite | true 时该检查作用于 `cataforge deploy` 写出的产物（如 `.claude/settings.json`），doctor 在未 deploy 的 workspace 上跳过 |
+| `migration_checks[].platforms` | ❌ | overwrite | （可选）检查适用的平台 id 列表；所列平台在 doctor 的平台范围内均无部署记录时 SKIP —— 针对 `.claude/settings.json` 的检查不会 FAIL 一个 codex-only 项目 |
 | `migration_checks[].allow_missing` | ❌ | overwrite | （仅 `file_must_not_contain` 类型）默认 false 时，路径不存在 → FAIL（防止 vacuous PASS）。设 true 表示"路径在某些安装下不存在是合法情况"（典型场景：检查源码而非用户项目文件，end-user 安装走 site-packages 时 path 缺失） |
-| `upgrade.source.type` | ❌ | overwrite | 当前固定 `"github"`；这是**框架资产**的远程拉取协议（区别于 `cataforge` Python 包的安装机制——后者由 pip / uv 处理，由 `framework-update` skill 编排） |
-| `upgrade.source.repo` | ❌ | overwrite | scaffold 远程仓库（`<owner>/<repo>` 形态） |
-| `upgrade.source.branch` | ❌ | overwrite | scaffold 拉取分支（默认 `main`） |
-| `upgrade.source.token_env` | ❌ | overwrite | 私有仓库使用的环境变量名（默认 `GITHUB_TOKEN`） |
-| `upgrade.state.last_commit` | ✅ | **preserve** | 上次 apply 拉取的 commit SHA |
-| `upgrade.state.last_version` | ✅ | **preserve** | 上次 apply 时的包版本 |
-| `upgrade.state.last_upgrade_date` | ✅ | **preserve** | 上次 apply 时间戳（ISO 8601） |
-| `context.mode` | ✅ | **preserve（块级）** | 上下文后端：`graph`（知识图谱）/ `file`（文件加载器）。整个 `context` 块按块级 preserve（块内 existing key 保留、新 scaffold key 补充） |
-| `context.kg_active_doc_types` | ✅ | **preserve（块级）** | 走 KG 路径的 doc_type 集合（per-doc_type rolling cutover）。空数组 = 全部走 legacy file-loader；scaffold 默认 `["prd","arch","ui-spec","dev-plan","test-report","deploy-spec"]` |
+| `upgrade.source.type` | ✅ | **preserve（浅合并）** | 当前固定 `"github"`；这是**框架资产**的远程拉取协议（区别于 `cataforge` Python 包的安装机制——后者由 pip / uv 处理，由 `framework-update` skill 编排）。fork 私有镜像场景直接改本块，升级保留已配置值、仅补充新字段 |
+| `upgrade.source.repo` | ✅ | **preserve（浅合并）** | scaffold 远程仓库（`<owner>/<repo>` 形态） |
+| `upgrade.source.branch` | ✅ | **preserve（浅合并）** | scaffold 拉取分支（默认 `main`） |
+| `upgrade.source.token_env` | ✅ | **preserve（浅合并）** | 私有仓库 token 的**环境变量名**（默认 `GITHUB_TOKEN`）—— 配置文件只存变量名，token 本体只放环境变量 |
+| `upgrade.state` | —（legacy） | 迁移 | 运行状态（`last_commit` / `last_version` / `event_log_validate_since` 等），权威位置是 `.cataforge/state/upgrade.json`（gitignored）。读取层对旧位置保持兼容；`config migrate` 把残留的 `upgrade.state` 迁出配置文件，迁移前 upgrade 合并让它原样随行 |
+| `context.mode` | ✅ | **preserve** | 上下文事实源模式：`graph`（图为源，`context finalize` 导出 markdown）/ `markdown`（markdown 为源，无图后端） |
+| `context.kg_active_doc_types` | ✅ | **preserve** | 走 KG 路径的 doc_type 集合（per-doc_type rolling cutover）。空数组 = 全部走 legacy file-loader；scaffold 默认 `["prd","arch","ui-spec","dev-plan","test-report","deploy-spec"]` |
 | `project.languages` | ✅ | **preserve** | 项目语言声明（canonical id，见 [`languages.md`](./languages.md)）；由 `cataforge setup --language <id>` 写入，`set_languages()` 也更新此字段。空数组 = 读取时按 marker 文件自动探测 |
 | `project.design_tool` | ✅ | **preserve** | 设计集成开关（`none` / `penpot`）。framework.json 是该字段的单一事实源 —— 由 `cataforge setup --with-penpot` 写入；deploy 据此渲染并强制盖入项目指令文件 §全局约定 「设计工具」字段（`always_overwrite_fields: 全局约定:[设计工具]`） |
-| `kg.store_backend` | ❌ | overwrite | KG 存储后端：`oxigraph`（默认，RocksDB 持久化）/ `memory`（仅测试） |
-| `kg.db_path` | ❌ | overwrite | KG store 路径（默认 `.cataforge/kg/store`） |
-| `kg.ontology_namespace` | ❌ | overwrite | 本体 IRI 命名空间（默认 `https://cataforge.dev/ontology/`） |
-| `kg.base_namespace` | ❌ | overwrite | 实例 IRI 命名空间（默认 `https://cataforge.dev/instance/`） |
+| `kg.store_backend` | ✅ | **preserve** | KG 存储后端：`oxigraph`（默认，RocksDB 持久化）/ `memory`（仅测试） |
+| `kg.db_path` | ✅ | **preserve** | KG store 路径（默认 `.cataforge/kg/store`） |
+| `kg.ontology_namespace` / `kg.base_namespace` | ✅ | **preserve** | 本体 / 实例 IRI 命名空间（默认 `https://cataforge.dev/ontology/` 与 `…/instance/`） |
+| `kg.custom_entity_prefixes` 等扩展键 | ✅ | **preserve** | `kg` 为用户块（`extra='allow'`），per-project 键（project_id / title / process_model / 自定义实体前缀注册）升级保留 |
+| `feedback.gh.labels.<kind>` | ✅ | **preserve** | `cataforge feedback --gh` 建 issue 时的 `--label` 列表，`kind` ∈ `bug` / `suggest` / `correction-export`；空列表 = 不传 `--label` |
+| `feedback.gh.fallback_on_missing_label` | ✅ | **preserve** | 上游仓库缺 label 被 `gh` 拒绝时自动去 `--label` 重试（默认 `true`） |
+| `claude_md_limits.max_bytes` | ✅ | **preserve** | 指令文件体积上限（默认 30000），doctor「Instruction file hygiene」段按平台 profile 选定的指令文件（CLAUDE.md / AGENTS.md）执行 |
+| `claude_md_limits.max_state_section_lines` | ✅ | **preserve** | §项目状态 行数上限（默认 80） |
+| `claude_md_limits.learnings_registry_max_entries` | ✅ | **preserve** | Learnings Registry 条目上限（默认 10），超限提示 `cataforge claude-md compact` |
+| `claude_md_limits.max_state_bullet_chars` | ✅ | **preserve** | §项目状态 单条 bullet 字符上限（默认 250） |
 | `git.session_sync.enabled` | ✅ | **preserve** | SessionStart `git_sync` hook 总开关（默认 `true`）。关闭后会话启动不再自动同步/清理 |
 | `git.session_sync.fast_forward_clean` | ✅ | **preserve** | 仅当会话在干净的默认分支上启动时快进（默认 `true`）。永不切分支 |
 | `git.session_sync.prune_gone` | ✅ | **preserve** | 清理 upstream 已消失的本地分支（默认 `true`） |
@@ -204,10 +248,7 @@
 | `git.session_sync.fetch_timeout_seconds` | ✅ | **preserve** | 自动 fetch 的超时秒数，慢网/离线时快速降级（默认 `10`） |
 | `git.remote_policy.delete_branch_on_merge` | ✅ | **preserve** | `cataforge git ensure-policy` / bootstrap 设置的 GitHub「合并后删除 head 分支」（默认 `true`） |
 | `git.remote_policy.squash_only` | ✅ | **preserve** | 同上，仅允许 squash 合并、禁用 merge-commit / rebase（默认 `true`） |
-
-> **常见误解**：示例中的 `upgrade.source` 子树**不是 preserve 字段**。如果你 fork 了 CataForge 并希望从私有镜像拉 scaffold，目前只能在每次 `upgrade apply` 后重新写入这些字段；持久化用户自定义 source 的能力跟踪在 `upgrade.source preserve mode` issue。
-
-> 历史记录：framework.json `description` 字段一度写"upgrade.source 升级时保留用户已配置值，补充新字段"，与代码（overwrite）矛盾；该描述已在 v0.1.13 修正以代码为准。
+| （未知顶层键） | ✅ | **preserve** | scaffold 未声明的任何顶层键升级原样保留，供用户 / 插件扩展命名空间使用 |
 
 ---
 
@@ -271,7 +312,8 @@ instruction_file:                    # PROJECT-STATE.md → 平台指令文件�
         runtime:   [项目状态, 执行环境]   # 运行时填充，deploy 不触碰
         user_extensible: true             # 保留模板没有的用户章节
         always_overwrite_fields:
-          项目信息: [运行时]            # 即便在 schema 类，这些字段也强制用模板值
+          项目信息: [运行时, 框架版本]   # 即便在 schema 类，这些字段也强制用模板值
+          全局约定: [设计工具]
   additional_outputs:                # deploy 额外生成的指令文件
     - target: .cursor/rules/
       format: mdc
@@ -349,7 +391,7 @@ rules:                               # 可选：跨平台镜像
 | `instruction_file` | ✅ | PROJECT-STATE.md → 平台指令文件的写入规则 |
 | `dispatch` | ✅ | 子代理调度工具的描述 |
 | `hooks` | ✅ | hooks.yaml 翻译为平台原生 hook 配置的规则 |
-| `settings_defaults` | ❌ | deploy 时 set-if-absent 注入平台设置文件的框架默认键（用户已设的值不被覆盖）。claude-code 用它把 `env.CLAUDE_CODE_USE_POWERSHELL_TOOL=0` + `defaultShell=bash` 落进 `.claude/settings.json`，Windows 上保持 Bash 工具走 Git Bash；要求下游装 Git for Windows（缺失时 `cataforge doctor` 的「Shell preference」段 WARN） |
+| `settings_defaults` | ❌ | deploy 时 set-if-absent 注入平台设置文件的框架默认键（用户已设的值不被覆盖）。claude-code 用它把 `env.CLAUDE_CODE_USE_POWERSHELL_TOOL=0` + `defaultShell=bash` + `env.CATAFORGE_PLATFORM=claude-code`（hook 显式平台身份）落进 `.claude/settings.json`；Windows 上保持 Bash 工具走 Git Bash，要求下游装 Git for Windows（缺失时 `cataforge doctor` 的「Shell preference」段 WARN） |
 | `features` | ❌ | 平台级 boolean 特性矩阵 |
 | `permissions` | ❌ | 审批模式列表 |
 | `model_routing` | ❌ | 模型路由能力 |
@@ -365,7 +407,7 @@ rules:                               # 可选：跨平台镜像
 | `auto_injection.mechanism` | enum | `claude_md` / `agents_md` / `cursor_rules` / `opencode_instructions` / `none` |
 | `auto_injection.eager` | bool | 启动即入上下文 |
 | `auto_injection.size_limit_bytes` | int | Codex AGENTS.md 合并上限 `32768` |
-| `auto_injection.preamble_files` | list[str] | 需在指令文件顶部内联引用的文件路径（仅 `at_mention` 平台有效） |
+| `auto_injection.preamble_files` | list[str] | 需在指令文件顶部内联引用的文件路径（仅 `at_mention` 平台有效；四平台 profile 当前均声明 `[]`） |
 | `inline_file_syntax.kind` | enum | `at_mention` / `read_tool` / `xml_preload` |
 | `inline_file_syntax.template` | str | 如 `"@{path}"` / `"请先 Read {path}"` |
 | `rules_distribution.target` | str | 规则分发目标路径或 `opencode.json` |
@@ -377,7 +419,7 @@ rules:                               # 可选：跨平台镜像
 
 | 平台 | mechanism | inline | rules target | activation |
 |------|-----------|--------|---------------|-----------|
-| claude-code | `claude_md` | `@{path}` | `.claude/rules` | `manual_read`（preamble 仅放 COMMON-RULES） |
+| claude-code | `claude_md` | `@{path}` | `.claude/rules` | `manual_read`（`preamble_files: []` —— 规则仅经目录镜像单路注入，CLAUDE.md 顶部无 @import 前缀） |
 | codex | `agents_md`（≤32 KiB） | `请先 Read {path}` | `.codex/rules` | `manual_read` |
 | cursor | `cursor_rules` | `@{path}` | `.cursor/rules`（MDC） | `always` |
 | opencode | `opencode_instructions` | `请先 Read {path}` | `opencode.json` | `opencode_instructions` |

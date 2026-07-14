@@ -10,10 +10,14 @@ from __future__ import annotations
 
 import shutil
 import sys
+from typing import TYPE_CHECKING
 
 import click
 
 from cataforge.interface.cli.main import cli
+
+if TYPE_CHECKING:
+    from cataforge.core.config import ConfigManager
 
 from .doctor._helpers import check_dir, check_file, check_import
 from .doctor.context_authority import check_context_mode_validity
@@ -25,7 +29,7 @@ from .doctor.deploy_integrity import (
 from .doctor.event_log import check_event_log_bypass_writes, check_event_log_schema
 from .doctor.git_hygiene import check_git_hygiene
 from .doctor.hook_health import check_hook_script_importability, report_hook_errors
-from .doctor.hygiene import check_claude_md_hygiene
+from .doctor.hygiene import check_claude_md_hygiene, check_project_state_projection
 from .doctor.kg_ingestion import (
     check_kg_ingestion_completeness,
     check_kg_snapshot_freshness,
@@ -42,7 +46,11 @@ from .doctor.protocol_refs import (
 from .doctor.provenance import report_deployment_provenance
 from .doctor.retired_assets import check_retired_skill_assets
 from .doctor.shell_preference import check_shell_preference
-from .doctor.skill_health import check_builtin_skill_reachability, check_docs_validate
+from .doctor.skill_health import (
+    check_agent_skill_reachability,
+    check_builtin_skill_reachability,
+    check_docs_validate,
+)
 
 __all__ = ["doctor_command", "_DEPRECATED_REFS"]
 
@@ -96,9 +104,16 @@ _DOCTOR_SECTIONS = [
     ("KG snapshot gitignore:", check_kg_snapshot_gitignore, False),
     ("Hook script importability:", check_hook_script_importability, True),
     ("Built-in skill reachability:", check_builtin_skill_reachability, True),
+    # Agent skill dependencies — every skills: declaration in a source
+    # AGENT.md must resolve to .cataforge/skills/<id>/SKILL.md; on platforms
+    # without a skills surface the deployed agent body points there directly.
+    ("Agent skill dependencies:", check_agent_skill_reachability, True),
     ("EVENT-LOG schema sample:", check_event_log_schema, True),
     ("EVENT-LOG bypass guard:", check_event_log_bypass_writes, True),
-    ("CLAUDE.md hygiene:", check_claude_md_hygiene, True),
+    ("Instruction file hygiene:", check_claude_md_hygiene, True),
+    # Project-state projection — WARN when a secondary instruction file's
+    # §项目状态 drifted from the default platform's (the SSOT).
+    ("Project state projection:", check_project_state_projection, False),
     # Shell preference — Windows-only WARN: deployed settings prefer Git Bash
     # (CLAUDE_CODE_USE_POWERSHELL_TOOL=0) but no Git Bash is resolvable, so the
     # Bash tool would be unusable. Non-gating; points at install / env remedy.
@@ -128,9 +143,48 @@ _DOCTOR_SECTIONS = [
 ]
 
 
+# Sections whose behaviour depends on the platform scope — they accept a
+# ``platforms`` kwarg. Everything else is platform-neutral.
+_PLATFORM_SCOPED_CHECKS = {
+    run_migration_checks,
+    check_claude_md_hygiene,
+    check_project_state_projection,
+    check_shell_preference,
+    report_deployment_provenance,
+    check_deploy_integrity,
+    check_deploy_drift,
+}
+
+
+def _resolve_platform_scope(cfg: ConfigManager, platform: str | None) -> list[str]:
+    """Doctor's platform scope: explicit id > all (targets ∪ deployed) >
+    default (deployed platforms, else the declared default)."""
+    from cataforge.runtime.deploy.manifest import deployed_platforms
+
+    if platform and platform != "all":
+        return [platform]
+    deployed = deployed_platforms(cfg.paths.root)
+    if platform == "all":
+        merged = list(cfg.deployment_targets)
+        for p in deployed:
+            if p not in merged:
+                merged.append(p)
+        return merged
+    return deployed or [cfg.default_platform]
+
+
 @cli.command("doctor")
+@click.option(
+    "--platform",
+    "platform",
+    type=str,
+    default=None,
+    metavar="ID|all",
+    help="Restrict platform-scoped checks to one platform, or 'all' for "
+    "every declared target and deployed platform.",
+)
 @click.pass_context
-def doctor_command(ctx: click.Context) -> None:
+def doctor_command(ctx: click.Context, platform: str | None) -> None:
     """Run environment diagnostics and report issues.
 
     Exits with a non-zero status when any migration_check fails, so CI can
@@ -142,6 +196,15 @@ def doctor_command(ctx: click.Context) -> None:
     ui.header("CataForge Doctor", subtitle="Environment + scaffold integrity gate")
 
     cfg = get_config_manager()
+
+    from cataforge.adapter.platform.conformance import ALL_PLATFORMS
+
+    if platform and platform != "all" and platform not in ALL_PLATFORMS:
+        click.echo(
+            f"FAIL: unknown platform {platform!r} (choices: {', '.join(ALL_PLATFORMS)}, all)"
+        )
+        ctx.exit(1)
+    platform_scope = _resolve_platform_scope(cfg, platform)
 
     # Python
     click.echo(f"\nPython: {sys.version}")
@@ -161,7 +224,8 @@ def doctor_command(ctx: click.Context) -> None:
 
     # Config
     click.echo(f"\nFramework version: {cfg.version}")
-    click.echo(f"Runtime platform: {cfg.runtime_platform}")
+    click.echo(f"Default platform: {cfg.default_platform}")
+    click.echo(f"Platform scope: {', '.join(platform_scope)}")
 
     # Dependencies — these two are load-bearing for the CLI itself; if
     # either is missing the user can't run any cataforge command, so
@@ -197,7 +261,10 @@ def doctor_command(ctx: click.Context) -> None:
 
     for header, check, gating in _DOCTOR_SECTIONS:
         click.echo(f"\n{header}")
-        result = check(cfg)
+        if check in _PLATFORM_SCOPED_CHECKS:
+            result = check(cfg, platforms=platform_scope)
+        else:
+            result = check(cfg)  # type: ignore[operator]
         if gating:
             failed_count += result or 0
 

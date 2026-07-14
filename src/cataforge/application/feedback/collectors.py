@@ -85,7 +85,9 @@ def collect_environment(project_root: Path) -> dict[str, str]:
     except (OSError, ValueError, ConfigError):
         data = {}
     scaffold_version = str(data.get("version", "(unknown)"))
-    runtime_platform = str((data.get("runtime") or {}).get("platform", "(unknown)"))
+    from cataforge.core.platform_id import default_platform_from_config_data
+
+    runtime_platform = default_platform_from_config_data(data) or "(unknown)"
     return {
         "package_version": PACKAGE_VERSION,
         "scaffold_version": scaffold_version,

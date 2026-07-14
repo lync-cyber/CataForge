@@ -13,9 +13,22 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class FrameworkRuntime(BaseModel):
+    """Legacy (schema v1) block — ``platform`` migrated to
+    :class:`FrameworkDeployment`; kept for pre-migration reads."""
+
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
     platform: str = "claude-code"
+
+
+class FrameworkDeployment(BaseModel):
+    """Declared deployment surface: the default platform for single-platform
+    commands plus the full enabled-platform set for multi-platform projects."""
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    default_platform: str = "claude-code"
+    targets: list[str] = Field(default_factory=list)
 
 
 class FrameworkUpgradeSource(BaseModel):
@@ -120,8 +133,10 @@ class FrameworkFile(BaseModel):
 
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
+    schema_version: int | None = None
     version: str = "0.0.0"
     runtime: FrameworkRuntime | None = None
+    deployment: FrameworkDeployment | None = None
     constants: dict[str, Any] = Field(default_factory=dict)
     features: dict[str, Any] = Field(default_factory=dict)
     upgrade: FrameworkUpgrade | None = None

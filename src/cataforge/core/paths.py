@@ -155,6 +155,49 @@ class ProjectPaths:
         return self.overrides_dir / layer
 
     @property
+    def config_local_json(self) -> Path:
+        """Machine-local config overlay (gitignored, whitelist fields only)."""
+        return self.cataforge_dir / "config.local.json"
+
+    # ---- run-state (gitignored, never in the shared config) ----
+
+    @property
+    def state_dir(self) -> Path:
+        return self.cataforge_dir / "state"
+
+    @property
+    def locks_dir(self) -> Path:
+        return self.state_dir / "locks"
+
+    @property
+    def config_lock(self) -> Path:
+        return self.locks_dir / "config.lock"
+
+    @property
+    def deploy_lock(self) -> Path:
+        return self.locks_dir / "deploy.lock"
+
+    @property
+    def upgrade_state(self) -> Path:
+        return self.state_dir / "upgrade.json"
+
+    @property
+    def deploy_state_root(self) -> Path:
+        """Per-platform deploy state root: ``state/deploy/<platform>/``."""
+        return self.state_dir / "deploy"
+
+    def platform_deploy_dir(self, platform_id: str) -> Path:
+        return self.deploy_state_root / platform_id
+
+    def platform_deploy_state(self, platform_id: str) -> Path:
+        return self.platform_deploy_dir(platform_id) / "state.json"
+
+    def platform_deploy_manifest(self, platform_id: str) -> Path:
+        return self.platform_deploy_dir(platform_id) / "manifest.json"
+
+    # ---- legacy single-slot deploy records (read-compat + migration source) ----
+
+    @property
     def deploy_state(self) -> Path:
         return self.cataforge_dir / ".deploy-state"
 

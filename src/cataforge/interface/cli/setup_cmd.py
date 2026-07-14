@@ -15,6 +15,7 @@ from cataforge.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
+    from cataforge.core.events import EventBus
 
 
 @cli.group("setup", cls=CataforgeGroup, invoke_without_command=True)
@@ -108,7 +109,7 @@ def setup_command(
     \b
       cataforge setup --force-scaffold
           Re-copy the bundled scaffold over an existing project. User
-          edits to framework.json runtime.platform are preserved; other
+          edits to framework.json deployment.default_platform are preserved; other
           files under .cataforge/ are overwritten.
           For per-file preview use `cataforge upgrade apply --dry-run`.
 
@@ -192,16 +193,19 @@ def setup_command(
         diff = cfg.describe_platform_change(platform)
         if show_diff:
             if diff is None:
-                click.echo(f"  framework.json: runtime.platform already = {platform} (no change)")
+                click.echo(
+                    f"  framework.json: deployment.default_platform already = "
+                    f"{platform} (no change)"
+                )
             else:
                 click.echo(
                     f"  framework.json diff: {diff['field']}: "
                     f"{diff['before']!r} → {diff['after']!r}"
                 )
         if diff is not None:
-            cfg.set_runtime_platform(platform)
+            cfg.set_default_platform(platform)
         click.echo(f"Platform set to: {platform}")
-        click.echo("  (framework.json modified only at runtime.platform)")
+        click.echo("  (framework.json modified only under deployment)")
 
     _apply_languages(cfg, languages)
     _apply_context_mode(cfg, context_mode, scaffold_missing=scaffold_missing)
@@ -219,19 +223,31 @@ def setup_command(
         print_next_steps("setup-done")
         return
 
-    target = platform or cfg.runtime_platform
+    target = platform or cfg.default_platform
     click.echo(f"Deploying for platform: {target}")
 
-    from cataforge.runtime.deploy.deployer import Deployer
-
-    deployer = Deployer(cfg, bus)
-    actions = deployer.deploy(target)
-    for action in actions:
+    for action in _locked_deploy(cfg, bus, target):
         click.echo(f"  {action}")
 
     bus.emit(FRAMEWORK_SETUP, {"platform": target, "with_penpot": with_penpot})
     ui.ok("Setup complete.")
     print_next_steps("setup-deployed")
+
+
+def _locked_deploy(cfg: ConfigManager, bus: EventBus, target: str) -> list[str]:
+    """Run one platform deploy under the project deploy lock."""
+    from cataforge.core.errors import ConfigError
+    from cataforge.runtime.deploy.deployer import Deployer
+    from cataforge.utils.locks import LockHeldError
+
+    try:
+        with Deployer.deploy_lock(cfg):
+            return Deployer(cfg, bus).deploy(target)
+    except LockHeldError as e:
+        raise ConfigError(
+            f"{e}\nIf you need to work in parallel, use a separate worktree:\n"
+            "  git worktree add ../<branch-dir> <branch>"
+        ) from e
 
 
 def _scaffold(dest: Path, *, force: bool) -> None:
@@ -342,11 +358,13 @@ def _report_dry_run(
         diff = cfg.describe_platform_change(platform) if not scaffold_missing else None
         if scaffold_missing:
             click.echo(
-                f"  would set framework.json: runtime.platform = {platform} "
+                f"  would set framework.json: deployment.default_platform = {platform} "
                 "(file created by scaffold)"
             )
         elif diff is None:
-            click.echo(f"  framework.json: runtime.platform already = {platform} (no change)")
+            click.echo(
+                f"  framework.json: deployment.default_platform already = {platform} (no change)"
+            )
         else:
             click.echo(
                 f"  would patch framework.json: {diff['field']}: "

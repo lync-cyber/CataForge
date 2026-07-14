@@ -33,8 +33,9 @@ def _make_skill(root: Path, name: str) -> Path:
 
 
 def _write_manifest(root: Path, owned: list[str], platform: str = "claude-code") -> None:
-    (root / ".cataforge").mkdir(parents=True, exist_ok=True)
-    (root / ".cataforge" / ".deploy-manifest.json").write_text(
+    d = root / ".cataforge" / "state" / "deploy" / platform
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "manifest.json").write_text(
         json.dumps({"manifest_version": 1, "platform": platform, "owned_paths": owned}),
         encoding="utf-8",
     )
@@ -107,11 +108,9 @@ def test_full_doctor_exit_code_unchanged_by_ghost(
     (cf / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
     src_skill = _make_skill(tmp_path, "alpha")
     _link_skill(src_skill, tmp_path / ".claude" / "skills")
-    (tmp_path / ".claude" / "settings.json").write_text("{}\n", encoding="utf-8")
-    (tmp_path / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
-    (tmp_path / ".claude" / "rules").mkdir(parents=True, exist_ok=True)
-    (tmp_path / ".claude" / "commands").mkdir(parents=True, exist_ok=True)
-    (cf / ".deploy-state").write_text(json.dumps({"platform": "claude-code"}), encoding="utf-8")
+    # The ghost's deployed copy lingers on disk while its source is gone —
+    # integrity stays green; only the source-orphan WARN fires.
+    (tmp_path / ".claude" / "skills" / "ghost").mkdir(parents=True, exist_ok=True)
     _write_manifest(tmp_path, [".claude/skills/alpha", ".claude/skills/ghost"])
     monkeypatch.chdir(tmp_path)
 

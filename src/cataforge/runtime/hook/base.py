@@ -48,14 +48,33 @@ def get_platform() -> str:
     """Get the current runtime platform ID.
 
     Priority:
-    1. CATAFORGE_PLATFORM env var
-    2. IDE-specific env var detection
-    3. framework.json fallback
+    1. CATAFORGE_PLATFORM env var (explicit user override)
+    2. ``--cataforge-platform <id>`` argv stamped by the deploy-generated
+       hook wrapper
+    3. IDE-specific env var detection
+    4. framework.json fallback — FAILS on a multi-platform project, where
+       the shared default would silently mis-identify the session
     """
+    explicit = os.environ.get("CATAFORGE_PLATFORM")
+    if explicit:
+        return explicit
+    from_argv = _platform_from_argv()
+    if from_argv is not None:
+        return from_argv
     from_env = platform_from_env()
     if from_env is not None:
         return from_env
     return _detect_from_framework_json()
+
+
+def _platform_from_argv() -> str | None:
+    argv = sys.argv
+    for i, arg in enumerate(argv):
+        if arg == "--cataforge-platform" and i + 1 < len(argv):
+            return argv[i + 1]
+        if arg.startswith("--cataforge-platform="):
+            return arg.split("=", 1)[1]
+    return None
 
 
 def _detect_from_framework_json() -> str:
@@ -65,8 +84,21 @@ def _detect_from_framework_json() -> str:
     if root is None:
         return "claude-code"
     try:
+        from cataforge.core.platform_id import (
+            default_platform_from_config_data,
+            deployment_targets_from_config_data,
+        )
+
         config = read_json(ProjectPaths(root).framework_json)
-        return str(config.get("runtime", {}).get("platform", "claude-code"))
+        targets = deployment_targets_from_config_data(config)
+        if len(targets) > 1:
+            raise RuntimeError(
+                "ambiguous hook platform: project declares multiple deployment "
+                f"targets {targets} and no explicit identity signal is present. "
+                "Set CATAFORGE_PLATFORM or redeploy so the generated hook "
+                "wrapper carries --cataforge-platform."
+            )
+        return default_platform_from_config_data(config) or "claude-code"
     except ConfigError:
         return "claude-code"
 

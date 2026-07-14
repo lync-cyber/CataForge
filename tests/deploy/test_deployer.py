@@ -244,10 +244,11 @@ def test_deploy_preserves_foreign_settings_and_hook_entries(tmp_path: Path) -> N
     # Hand-authored SessionStart bootstrap survives (CataForge emits no SessionStart).
     assert settings["hooks"]["SessionStart"] == session_start
     # CataForge-owned PreToolUse is refreshed: stale matcher replaced, no duplicate.
+    # The generated wrapper carries explicit platform identity.
     pre = settings["hooks"]["PreToolUse"]
     assert len(pre) == 1
     assert pre[0]["matcher"] == "Bash"
-    assert pre[0]["hooks"][0]["command"] == _GUARD_CMD
+    assert pre[0]["hooks"][0]["command"] == f"{_GUARD_CMD} --cataforge-platform claude-code"
 
 
 def _claude_profile_with_settings_defaults() -> dict:

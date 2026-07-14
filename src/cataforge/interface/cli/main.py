@@ -150,6 +150,7 @@ def _register_commands() -> None:
         agent_cmd,
         bootstrap_cmd,
         claude_md_cmd,
+        config_cmd,
         context_cmd,
         correction_cmd,
         deploy_cmd,

@@ -1,4 +1,4 @@
-"""``cataforge doctor`` integration: CLAUDE.md hygiene section."""
+"""``cataforge doctor`` integration: instruction-file hygiene section."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def test_doctor_reports_hygiene_section(tmp_path: Path, monkeypatch: pytest.Monk
     root = _project_with_claude_md(tmp_path, learnings_count=3, max_entries=10)
     monkeypatch.chdir(root)
     result = CliRunner().invoke(doctor_command, [])
-    assert "CLAUDE.md hygiene" in result.output
+    assert "Instruction file hygiene" in result.output
     assert "Learnings Registry: " in result.output
 
 
@@ -74,6 +74,7 @@ def test_hygiene_fails_on_overlong_state_bullet(tmp_path: Path, capsys) -> None:
     class _FakeCfg:
         paths: _FakePaths
         claude_md_limits: dict[str, int]
+        default_platform: str = "claude-code"
 
     long_bullet = "上次完成: " + "x" * 300
     (tmp_path / "CLAUDE.md").write_text(
@@ -111,6 +112,7 @@ def test_hygiene_passes_on_bullet_within_limit(tmp_path: Path, capsys) -> None:
     class _FakeCfg:
         paths: _FakePaths
         claude_md_limits: dict[str, int]
+        default_platform: str = "claude-code"
 
     (tmp_path / "CLAUDE.md").write_text(
         "# Test\n\n## 项目状态\n\n- 当前阶段: development\n- 上次完成: reviewer — arch approved\n",
@@ -140,5 +142,5 @@ def test_doctor_passes_without_claude_md(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(doctor_command, [])
     # No CLAUDE.md → informational only, hygiene section can't fail.
-    assert "CLAUDE.md hygiene" in result.output
+    assert "Instruction file hygiene" in result.output
     assert "no CLAUDE.md" in result.output

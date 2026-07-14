@@ -5,7 +5,7 @@
 > 元运维与学习协议（低频触发、reference 性质）见 [`ORCHESTRATOR-META-PROTOCOLS.md`](ORCHESTRATOR-META-PROTOCOLS.md)：Framework Upgrade, Event Log 规范, On-Correction Learning, Adaptive Review (含反向降级), Retrospective & Improvement.
 
 ## Project Bootstrap
-> 本协议是 from-scratch 项目 SDLC 初始化路径。框架包/脚手架的部署与**升级**不在此处——由 `framework-update apply` 的脊柱 `cataforge bootstrap` / `cataforge upgrade apply` 幂等负责；本协议由 `framework-update apply` 在 `{INSTRUCTION_FILE}` 缺失时委托进入，已存在时不重跑（走 Startup/Resume）。经 `framework-update apply` 进入时目标平台已由该脊柱确定，Step 7 直接取 framework.json `runtime.platform`，不重复选型/部署。
+> 本协议是 from-scratch 项目 SDLC 初始化路径。框架包/脚手架的部署与**升级**不在此处——由 `framework-update apply` 的脊柱 `cataforge bootstrap` / `cataforge upgrade apply` 幂等负责；本协议由 `framework-update apply` 在 `{INSTRUCTION_FILE}` 缺失时委托进入，已存在时不重跑（走 Startup/Resume）。经 `framework-update apply` 进入时目标平台已由该脊柱确定，Step 7 直接取 framework.json `deployment.default_platform`，不重复选型/部署。
 
 当项目从零开始 ({INSTRUCTION_FILE} 不存在) 时:
 1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认值见 COMMON-RULES §框架配置常量 MANUAL_REVIEW_CHECKPOINTS）
@@ -29,7 +29,7 @@
     - `cursor` — Cursor IDE
     - `codex` — OpenAI Codex CLI
     - `opencode` — OpenCode CLI
-    确认后执行: `cataforge setup --platform {选定值}`，该命令将写入 `framework.json` 的 `runtime.platform` 字段并自动执行 deploy，生成对应平台的部署产物。若用户跳过选择则默认 `claude-code`。
+    确认后执行: `cataforge setup --platform {选定值} --deploy`，该命令写入 `framework.json` 的 `deployment.default_platform`（并入 `deployment.targets`），`--deploy` 链式生成对应平台的部署产物（不带该 flag 则需再运行 `cataforge deploy`）。若用户跳过选择则默认 `claude-code`。随后运行 `cataforge config validate` 校验配置（旧布局提示时运行 `cataforge config migrate` 迁移；单值查证用 `cataforge config explain <path>`）。
 8. **填入 §执行环境 + 最小 permissions** — 按顺序运行两条命令:
    - `cataforge setup env-block`：将输出注入 {INSTRUCTION_FILE} §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
    - `cataforge setup permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude: `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。

@@ -1,29 +1,32 @@
 {
+  "schema_version": 2,
   "version": "0.0.0-template",
   "runtime_api_version": "1.0",
-  "runtime": {
-    "platform": "claude-code"
+  "deployment": {
+    "default_platform": "claude-code",
+    "targets": []
   },
-  "description": "CataForge 统一框架配置。version 字段在 cataforge setup / upgrade apply 写盘时由 scaffold._stamp_framework_version 戳入实际包版本（cataforge.__version__）。upgrade apply 的 preserve：runtime.platform、upgrade.state，以及 context 与 project 两个块整体（块内 existing key 保留、新 scaffold key 补充——含 context.kg_active_doc_types / kg_definition_authority / mode 与 project.languages / design_tool）；其余字段（version、constants、features、migration_checks、upgrade.source 与 description 自身）均被最新 scaffold 全量覆盖。详见 docs/reference/configuration.md §framework.json。",
+  "description": "CataForge 统一框架配置（schema v2）。version 字段在 cataforge setup / upgrade apply 写盘时由 scaffold._stamp_framework_version 戳入实际包版本（cataforge.__version__）。upgrade apply 按字段级所有权合并：用户块（deployment、upgrade.source、feedback、kg、context、project、claude_md_limits、git）existing key 保留、新 scaffold key 补充；框架块（schema_version、version、runtime_api_version、description、constants、dispatcher_skills、workflow、features、migration_checks）被最新 scaffold 全量覆盖；未知顶层键一律保留。运行状态在 .cataforge/state/（gitignored），不入本文件。详见 docs/reference/configuration.md §framework.json。",
   "upgrade": {
     "source": {
       "type": "github",
       "repo": "lync-cyber/CataForge",
       "branch": "main",
       "token_env": "GITHUB_TOKEN"
-    },
-    "state": {
-      "last_commit": "",
-      "last_version": "",
-      "last_upgrade_date": ""
     }
   },
   "feedback": {
     "gh": {
       "labels": {
-        "bug": ["bug"],
-        "suggest": ["enhancement"],
-        "correction-export": ["enhancement"]
+        "bug": [
+          "bug"
+        ],
+        "suggest": [
+          "enhancement"
+        ],
+        "correction-export": [
+          "enhancement"
+        ]
       },
       "fallback_on_missing_label": true
     }
@@ -36,7 +39,14 @@
   },
   "context": {
     "mode": "graph",
-    "kg_active_doc_types": ["prd", "arch", "ui-spec", "dev-plan", "test-report", "deploy-spec"]
+    "kg_active_doc_types": [
+      "prd",
+      "arch",
+      "ui-spec",
+      "dev-plan",
+      "test-report",
+      "deploy-spec"
+    ]
   },
   "project": {
     "languages": [],
@@ -50,21 +60,39 @@
   },
   "constants": {
     "MAX_QUESTIONS_PER_BATCH": 3,
-    "MANUAL_REVIEW_CHECKPOINTS": ["pre_dev", "post_sprint", "pre_deploy"],
+    "MANUAL_REVIEW_CHECKPOINTS": [
+      "pre_dev",
+      "post_sprint",
+      "pre_deploy"
+    ],
     "EVENT_LOG_PATH": "docs/EVENT-LOG.jsonl",
     "EVENT_LOG_SCHEMA": ".cataforge/schemas/event-log.schema.json",
     "DOC_SPLIT_THRESHOLD_LINES": 300,
     "META_DOC_SPLIT_THRESHOLD_LINES": 500,
     "DOC_REVIEW_L2_SKIP_THRESHOLD_LINES": 200,
-    "DOC_REVIEW_L2_SKIP_DOC_TYPES": ["brief", "changelog"],
+    "DOC_REVIEW_L2_SKIP_DOC_TYPES": [
+      "brief",
+      "changelog"
+    ],
     "TDD_LIGHT_LOC_THRESHOLD": 150,
     "TASK_SPLIT_LOC": 250,
     "MID_PROGRESS_LOC": 200,
     "TDD_DEFAULT_MODE": "light",
-    "TDD_REFACTOR_TRIGGER": ["complexity", "duplication", "coupling"],
-    "TDD_INLINE_ELIGIBLE_MODES": ["agile-lite", "agile-prototype"],
+    "TDD_REFACTOR_TRIGGER": [
+      "complexity",
+      "duplication",
+      "coupling"
+    ],
+    "TDD_INLINE_ELIGIBLE_MODES": [
+      "agile-lite",
+      "agile-prototype"
+    ],
     "SPRINT_REVIEW_MICRO_TASK_COUNT": 3,
-    "CODE_REVIEW_L2_SKIP_TASK_KINDS": ["chore", "config", "docs"],
+    "CODE_REVIEW_L2_SKIP_TASK_KINDS": [
+      "chore",
+      "config",
+      "docs"
+    ],
     "CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC": 2,
     "ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS": 10,
     "RETRO_TRIGGER_SELF_CAUSED": 5,
@@ -87,7 +115,10 @@
       "reviewer": "standard",
       "reflector": "standard"
     },
-    "AGENT_MODEL_TIER_HEAVY_WHITELIST": ["architect", "debugger"],
+    "AGENT_MODEL_TIER_HEAVY_WHITELIST": [
+      "architect",
+      "debugger"
+    ],
     "SKILL_RUNNER_TIMEOUT_DEFAULT_SECS": 300,
     "UNATTENDED_LOOP_MAX_ITERATIONS": 30,
     "UNATTENDED_STAGNATION_THRESHOLD": 3,
@@ -96,32 +127,111 @@
     "UNATTENDED_SILENCE_TIMEOUT_SEC": 900,
     "UNATTENDED_RATELIMIT_WAIT_SEC": 300
   },
-  "dispatcher_skills": ["tdd-engine", "agent-dispatch", "start-orchestrator"],
+  "dispatcher_skills": [
+    "tdd-engine",
+    "agent-dispatch",
+    "start-orchestrator"
+  ],
   "workflow": {
     "description": "阶段路由骨架的单一事实源。orchestrator Phase Routing 与 framework-review B5 均以此为准；agents/orchestrator/*.md 的路由表为只读视图。execution_host=inline 表示主线程内联承载该角色（交互工具原生可用）；subagent 表示派发隔离子代理。interactive=true 的 phase 其 execution_host 必须为 inline，否则交互在非交互子代理上失效（B5 校验）；确需保留 subagent 时以 interactive_subagent_ack 显式声明降级理由。role 引用 agents/ 目录名或 dispatcher_skills 成员；各 phase 的 skills 以该角色 AGENT.md skills: 字段为准，本表不复制。",
     "modes": {
       "standard": {
         "phases": [
-          { "phase": "requirements", "role": "product-manager", "output_doc_type": "prd", "execution_host": "inline", "interactive": true },
-          { "phase": "architecture", "role": "architect", "output_doc_type": "arch", "execution_host": "inline", "interactive": true },
-          { "phase": "ui_design", "role": "ui-designer", "output_doc_type": "ui-spec", "execution_host": "inline", "interactive": true, "skippable": true },
-          { "phase": "dev_planning", "role": "tech-lead", "output_doc_type": "dev-plan", "execution_host": "subagent", "interactive": false },
-          { "phase": "development", "role": "tdd-engine", "output_doc_type": "code", "execution_host": "inline", "interactive": false },
-          { "phase": "testing", "role": "qa-engineer", "output_doc_type": "test-report", "execution_host": "subagent", "interactive": false, "skippable": true },
-          { "phase": "deployment", "role": "devops", "output_doc_type": "deploy-spec", "execution_host": "subagent", "interactive": false, "skippable": true }
+          {
+            "phase": "requirements",
+            "role": "product-manager",
+            "output_doc_type": "prd",
+            "execution_host": "inline",
+            "interactive": true
+          },
+          {
+            "phase": "architecture",
+            "role": "architect",
+            "output_doc_type": "arch",
+            "execution_host": "inline",
+            "interactive": true
+          },
+          {
+            "phase": "ui_design",
+            "role": "ui-designer",
+            "output_doc_type": "ui-spec",
+            "execution_host": "inline",
+            "interactive": true,
+            "skippable": true
+          },
+          {
+            "phase": "dev_planning",
+            "role": "tech-lead",
+            "output_doc_type": "dev-plan",
+            "execution_host": "subagent",
+            "interactive": false
+          },
+          {
+            "phase": "development",
+            "role": "tdd-engine",
+            "output_doc_type": "code",
+            "execution_host": "inline",
+            "interactive": false
+          },
+          {
+            "phase": "testing",
+            "role": "qa-engineer",
+            "output_doc_type": "test-report",
+            "execution_host": "subagent",
+            "interactive": false,
+            "skippable": true
+          },
+          {
+            "phase": "deployment",
+            "role": "devops",
+            "output_doc_type": "deploy-spec",
+            "execution_host": "subagent",
+            "interactive": false,
+            "skippable": true
+          }
         ]
       },
       "agile-lite": {
         "phases": [
-          { "phase": "planning", "role": "product-manager", "output_doc_type": "prd-lite", "execution_host": "inline", "interactive": true },
-          { "phase": "dev_planning", "role": "tech-lead", "output_doc_type": "dev-plan-lite", "execution_host": "subagent", "interactive": false },
-          { "phase": "development", "role": "tdd-engine", "output_doc_type": "code", "execution_host": "inline", "interactive": false }
+          {
+            "phase": "planning",
+            "role": "product-manager",
+            "output_doc_type": "prd-lite",
+            "execution_host": "inline",
+            "interactive": true
+          },
+          {
+            "phase": "dev_planning",
+            "role": "tech-lead",
+            "output_doc_type": "dev-plan-lite",
+            "execution_host": "subagent",
+            "interactive": false
+          },
+          {
+            "phase": "development",
+            "role": "tdd-engine",
+            "output_doc_type": "code",
+            "execution_host": "inline",
+            "interactive": false
+          }
         ]
       },
       "agile-prototype": {
         "phases": [
-          { "phase": "brief", "role": "product-manager", "output_doc_type": "brief", "execution_host": "inline", "interactive": true },
-          { "phase": "development", "role": "tdd-engine", "output_doc_type": "code", "execution_host": "inline", "interactive": false }
+          {
+            "phase": "brief",
+            "role": "product-manager",
+            "output_doc_type": "brief",
+            "execution_host": "inline",
+            "interactive": true
+          },
+          {
+            "phase": "development",
+            "role": "tdd-engine",
+            "output_doc_type": "code",
+            "execution_host": "inline",
+            "interactive": false
+          }
         ]
       }
     }
@@ -250,7 +360,9 @@
       "description": "COMMON-RULES.md 不得含 MIN_REVIEW_SOURCES",
       "type": "file_must_not_contain",
       "path": ".cataforge/rules/COMMON-RULES.md",
-      "patterns": ["MIN_REVIEW_SOURCES"]
+      "patterns": [
+        "MIN_REVIEW_SOURCES"
+      ]
     },
     {
       "id": "mc-0.1.0-lite-templates",
@@ -259,7 +371,12 @@
       "description": "agile-lite / agile-prototype 模式所需模板齐全",
       "type": "dir_must_contain_files",
       "path": ".cataforge/skills/context/templates",
-      "patterns": ["prototype/brief.md", "lite/prd-lite.md", "lite/arch-lite.md", "lite/dev-plan-lite.md"]
+      "patterns": [
+        "prototype/brief.md",
+        "lite/prd-lite.md",
+        "lite/arch-lite.md",
+        "lite/dev-plan-lite.md"
+      ]
     },
     {
       "id": "mc-0.1.0-docgen-constant-ref",
@@ -268,7 +385,9 @@
       "description": "context generate 分支必须引用 DOC_SPLIT_THRESHOLD_LINES 而非硬编码 '500 行'",
       "type": "file_must_contain",
       "path": ".cataforge/skills/context/references/generate.md",
-      "patterns": ["DOC_SPLIT_THRESHOLD_LINES"]
+      "patterns": [
+        "DOC_SPLIT_THRESHOLD_LINES"
+      ]
     },
     {
       "id": "mc-0.1.0-docgen-no-hardcoded-500",
@@ -277,7 +396,10 @@
       "description": "context generate 分支不得出现硬编码 '500 行'",
       "type": "file_must_not_contain",
       "path": ".cataforge/skills/context/references/generate.md",
-      "patterns": ["500 行", "500行"]
+      "patterns": [
+        "500 行",
+        "500行"
+      ]
     },
     {
       "id": "mc-0.1.5-detect-correction-registered",
@@ -286,8 +408,14 @@
       "description": "settings.json 必须注册 detect_correction 模块到 AskUserQuestion 匹配器",
       "type": "file_must_contain",
       "path": ".claude/settings.json",
-      "patterns": ["detect_correction", "AskUserQuestion"],
-      "requires_deploy": true
+      "patterns": [
+        "detect_correction",
+        "AskUserQuestion"
+      ],
+      "requires_deploy": true,
+      "platforms": [
+        "claude-code"
+      ]
     },
     {
       "id": "mc-0.1.9-detect-review-flag-registered",
@@ -295,8 +423,13 @@
       "description": "settings.json 必须注册 detect_review_flag 模块（review-flag 通路自动化）",
       "type": "file_must_contain",
       "path": ".claude/settings.json",
-      "patterns": ["detect_review_flag"],
-      "requires_deploy": true
+      "patterns": [
+        "detect_review_flag"
+      ],
+      "requires_deploy": true,
+      "platforms": [
+        "claude-code"
+      ]
     },
     {
       "id": "mc-0.1.5-retro-threshold-relaxed",
@@ -305,7 +438,9 @@
       "description": "COMMON-RULES.md 必须声明 RETRO_TRIGGER_SELF_CAUSED=5",
       "type": "file_must_contain",
       "path": ".cataforge/rules/COMMON-RULES.md",
-      "patterns": ["RETRO_TRIGGER_SELF_CAUSED | 5"]
+      "patterns": [
+        "RETRO_TRIGGER_SELF_CAUSED | 5"
+      ]
     },
     {
       "id": "mc-0.1.7-cataforge-dir",
@@ -327,7 +462,10 @@
       "description": "dispatch-prompt.md 必须包含 OVERRIDE 标记",
       "type": "file_must_contain",
       "path": ".cataforge/skills/agent-dispatch/templates/dispatch-prompt.md",
-      "patterns": ["OVERRIDE:dispatch_syntax", "OVERRIDE:return_format"]
+      "patterns": [
+        "OVERRIDE:dispatch_syntax",
+        "OVERRIDE:return_format"
+      ]
     },
     {
       "id": "mc-0.1.7-capability-ids",
@@ -336,7 +474,9 @@
       "description": "源 AGENT.md 必须使用能力标识符",
       "type": "file_must_not_contain",
       "path": ".cataforge/agents/orchestrator/AGENT.md",
-      "patterns": ["tools: Read"]
+      "patterns": [
+        "tools: Read"
+      ]
     },
     {
       "id": "mc-0.1.10-event-logger-shim",
@@ -344,7 +484,11 @@
       "description": "event_logger.py 是 markdown 协议（orchestrator/tdd-engine/context 等十几处）依赖的路径稳定 shim。删除会让所有 [EVENT] 调用静默 ImportError；shim 自身必须保持 forwarder 形态（导入 cataforge.interface.cli.main:cli），不允许重新内联实现。",
       "type": "file_must_contain",
       "path": ".cataforge/scripts/framework/event_logger.py",
-      "patterns": ["from cataforge.interface.cli.main import cli", "event", "log"]
+      "patterns": [
+        "from cataforge.interface.cli.main import cli",
+        "event",
+        "log"
+      ]
     },
     {
       "id": "mc-0.5.0-kg-config",
@@ -352,7 +496,9 @@
       "description": "framework.json 必须声明 context.kg_active_doc_types — context finalize / cataforge context read / orchestrator Phase Transition 都按此分流；缺失会让所有调用静默走旧路径，掩盖 KG 覆盖率门。",
       "type": "file_must_contain",
       "path": ".cataforge/framework.json",
-      "patterns": ["kg_active_doc_types"]
+      "patterns": [
+        "kg_active_doc_types"
+      ]
     },
     {
       "id": "mc-0.9.2-setup-emit-env",
@@ -360,7 +506,10 @@
       "description": "setup.py shim 必须转发到 cataforge setup 子命令（env-block / permissions）供 orchestrator Bootstrap 与 framework-update 填入项目指令文件 §执行环境",
       "type": "file_must_contain",
       "path": ".cataforge/scripts/framework/setup.py",
-      "patterns": ["cataforge setup", "env-block"]
+      "patterns": [
+        "cataforge setup",
+        "env-block"
+      ]
     },
     {
       "id": "mc-0.13.0-task-dep-mermaid",
@@ -370,7 +519,9 @@
       "type": "file_must_not_contain",
       "path": ".cataforge/skills/task-dep-analysis/SKILL.md",
       "allow_missing": true,
-      "patterns": ["--format json|mermaid"]
+      "patterns": [
+        "--format json|mermaid"
+      ]
     },
     {
       "id": "mc-0.15.0-loc-thresholds",

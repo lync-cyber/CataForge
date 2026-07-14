@@ -114,14 +114,15 @@ def check_b5_workflow_coverage(root: Path, report: Report) -> None:
 def _read_subagent_interactive(root: Path) -> bool:
     """Whether the current platform's dispatched subagents can reach the user.
 
-    Reads ``framework.json#/runtime.platform`` then that platform's
+    Reads the declared default platform (``framework.json#/deployment``) then that platform's
     ``profile.yaml#/features.subagent_interactive``. False (the safe default)
     when unset — on such platforms a dispatched subagent has no interactive
     channel back to the user, so interactive phases must run inline.
     """
-    runtime = read_framework_data(root).get("runtime")
-    platform = runtime.get("platform") if isinstance(runtime, dict) else None
-    if not isinstance(platform, str) or not platform:
+    from cataforge.core.platform_id import default_platform_from_config_data
+
+    platform = default_platform_from_config_data(read_framework_data(root))
+    if not platform:
         return False
     profile_path = ProjectPaths(root).platform_profile(platform)
     if not profile_path.is_file():

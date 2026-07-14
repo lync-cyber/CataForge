@@ -164,6 +164,9 @@ def translate_agent_md(
     # ---- model_tier → native model resolution -------------------------
     content = _translate_model_tier(content, adapter)
 
+    # ---- skills degradation (platforms without a skills surface) ------
+    content = _inject_skills_fallback(content, adapter)
+
     # ---- supported_fields filter --------------------------------------
     content = _filter_unsupported_fields(content, adapter, warnings_collector)
 
@@ -337,17 +340,64 @@ def _warn_security_sensitive_drop(
     )
 
 
+def _declared_skills(content: str) -> list[str]:
+    """Skill ids from the frontmatter ``skills:`` field ([] when absent)."""
+    fm_split = _split_frontmatter(content)
+    if fm_split is None:
+        return []
+    try:
+        import yaml
+
+        data = yaml.safe_load(fm_split[1]) or {}
+    except Exception:
+        return []
+    skills = data.get("skills") if isinstance(data, dict) else None
+    if isinstance(skills, str):
+        # AGENT.md convention allows a bare comma-separated scalar
+        # (``skills: research, doc-gen``) alongside YAML list forms.
+        skills = [part.strip() for part in skills.split(",")]
+    if not isinstance(skills, list):
+        return []
+    return [str(s).strip() for s in skills if str(s).strip()]
+
+
+def _inject_skills_fallback(content: str, adapter: PlatformAdapter) -> str:
+    """Degradation contract for platforms without a skills surface.
+
+    The frontmatter ``skills:`` list is unenforceable there, so the agent
+    body gains an explicit read-first instruction pointing at the canonical
+    ``.cataforge/skills/<id>/SKILL.md`` sources — the skill context stays
+    reachable instead of being dropped silently.
+    """
+    if adapter.needs_skill_deploy:
+        return content
+    skills = _declared_skills(content)
+    if not skills:
+        return content
+    fm_split = _split_frontmatter(content)
+    if fm_split is None:
+        return content
+    prefix, fm_body, body = fm_split
+    lines = "\n".join(f"> - `.cataforge/skills/{sid}/SKILL.md`" for sid in skills)
+    note = (
+        "> **Skill 依赖（本平台无原生 skills 面）**：执行任务前先读取下列"
+        " SKILL.md 获取对应工作流方法：\n" + lines + "\n\n"
+    )
+    return prefix + fm_body + "---\n" + note + body.lstrip("\n")
+
+
 def _warn_skills_drop(
     adapter: PlatformAdapter, key: str, warnings_collector: list[str] | None
 ) -> None:
-    """Record a WARN when an agent's ``skills`` field is dropped on a platform
-    that does not deploy skills — the referenced skill context is lost with no
-    fallback, mirroring :func:`_warn_security_sensitive_drop`."""
+    """Record a note when an agent's ``skills`` field is dropped on a platform
+    that does not deploy skills — the read-first fallback injected by
+    :func:`_inject_skills_fallback` carries the context instead."""
     if warnings_collector is None or key != "skills" or adapter.needs_skill_deploy:
         return
     warnings_collector.append(
-        f"WARN: {adapter.platform_id}: agent field 'skills' is not supported and "
-        "this platform does not deploy skills — the skill context is dropped silently."
+        f"NOTE: {adapter.platform_id}: no native skills surface — agent skill "
+        "context degraded to explicit `.cataforge/skills/<id>/SKILL.md` "
+        "read-first instructions in the agent body."
     )
 
 

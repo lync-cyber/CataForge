@@ -40,8 +40,12 @@ def detect_platform(framework_json_path: Path | None = None) -> str:
 
     if framework_json_path and framework_json_path.is_file():
         try:
+            from cataforge.core.platform_id import default_platform_from_config_data
+
             data = read_json(framework_json_path)
-            return str(data.get("runtime", {}).get("platform", "claude-code"))
+            declared = default_platform_from_config_data(data)
+            if declared:
+                return declared
         except ConfigError as e:
             logger.debug("Cannot read framework.json for platform detection: %s", e)
 

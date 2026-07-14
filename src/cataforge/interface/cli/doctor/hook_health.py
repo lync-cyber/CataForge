@@ -76,9 +76,9 @@ def _report_runtime_degradation(cfg: ConfigManager, declared: list[str]) -> None
     try:
         from cataforge.adapter.platform.registry import get_adapter
 
-        adapter = get_adapter(cfg.runtime_platform)
+        adapter = get_adapter(cfg.default_platform)
     except Exception as e:
-        click.echo(f"  (cannot load adapter for {cfg.runtime_platform!r}: {e})")
+        click.echo(f"  (cannot load adapter for {cfg.default_platform!r}: {e})")
         return
 
     degradation = getattr(adapter, "hook_degradation", {}) or {}
@@ -91,7 +91,7 @@ def _report_runtime_degradation(cfg: ConfigManager, declared: list[str]) -> None
     other_degraded = sorted(n for n, s in statuses.items() if s not in ("native", "skip"))
     native_count = sum(1 for s in statuses.values() if s == "native")
 
-    summary = f"  Runtime degradation on {cfg.runtime_platform}: {native_count} native"
+    summary = f"  Runtime degradation on {cfg.default_platform}: {native_count} native"
     if skipped:
         summary += f", {len(skipped)} skipped"
     if other_degraded:
