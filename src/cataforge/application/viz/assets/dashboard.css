@@ -88,8 +88,8 @@ header h1{font-size:15px;font-weight:600;margin:0}
 .legend{display:flex;flex-wrap:wrap;gap:14px;padding:6px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line-soft)}
 .legend .lg{display:inline-flex;align-items:center;gap:4px}
 .legend i{width:10px;height:10px;border:1px solid var(--muted);border-radius:2px;display:inline-block}
-.cat-view .cy{height:44vh}
-.cat-wrap{max-height:34vh;overflow:auto;border:1px solid var(--line-soft);margin-bottom:8px}
+.cat-view .cy{height:72vh}
+.cat-wrap{max-height:74vh;overflow:auto;border:1px solid var(--line-soft);margin-bottom:8px}
 .cat{width:100%;border-collapse:collapse;font-size:12px}
 .cat th{position:sticky;top:0;background:var(--panel);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .cat td{padding:4px 8px;border-bottom:1px solid var(--row-line);vertical-align:top}
@@ -141,8 +141,8 @@ code.path{cursor:copy;font-size:11px;background:var(--code-bg);padding:1px 4px;b
 }
 @media (max-width:719px){
   .cy,.chart{height:min(52vh,420px)}
-  .cat-view .cy{height:min(40vh,320px)}
-  .cat-wrap{max-height:30vh}
+  .cat-view .cy{height:min(64vh,480px)}
+  .cat-wrap{max-height:64vh}
   .tabs{gap:6px 14px}
   .tabgroup,.tabrow{flex-wrap:nowrap;max-width:100%}
   .tabrow{overflow-x:auto}

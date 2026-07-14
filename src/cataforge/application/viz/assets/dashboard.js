@@ -387,6 +387,23 @@ function initCatalogue(id,elements){
   }
   apply();
   syncReset(id);
+  var ms=view?view.querySelector('.modeswitch[data-target="'+id+'"]'):null;
+  var gwrap=document.getElementById(id+'_gwrap');
+  var twrap=tbl?tbl.parentNode:null;
+  if(ms&&gwrap&&twrap){
+    var applyCatMode=function(mode,save){
+      var graph=mode==='graph';
+      gwrap.hidden=!graph;
+      twrap.hidden=graph;
+      ms.textContent=graph?'表格视图':'拓扑视图';
+      /* the cy inits inside a hidden wrapper (0-size); resize+fit on show */
+      if(graph){cy.resize();cy.fit(undefined,12);}
+      if(save){window.__viz.saveState(id+':mode',mode);}
+    };
+    ms.addEventListener('click',function(){
+      applyCatMode(gwrap.hidden?'graph':'table',true);});
+    if(window.__viz.state[id+':mode']==='graph'){applyCatMode('graph',false);}
+  }
   return cy;
 }
 function initFilterTable(id){

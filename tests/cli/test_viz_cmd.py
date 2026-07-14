@@ -1148,15 +1148,18 @@ class TestHtmlRenderer:
         assert 'class="alt-table" hidden' in out
         assert "initChartMode('view0');" in out
 
-    def test_catalogue_exempt_from_mode_switch(self) -> None:
-        # a catalogue already renders table + graph side by side
+    def test_catalogue_has_table_graph_mode_switch(self) -> None:
+        # catalogue defaults to the table; the graph is a full-height mode away
         g = Graph(
             title="assets",
             form="catalogue",
             nodes=(Node("a", data={"type": "skill", "name": "a"}),),
             edges=(),
         )
-        assert 'class="modeswitch"' not in html.render(g)
+        out = html.render(g)
+        assert 'class="modeswitch"' in out
+        assert ">拓扑视图</button>" in out  # default label = switch-to-graph
+        assert 'id="view0_gwrap" hidden' in out  # graph starts hidden (table default)
 
     def test_typed_graph_grows_layer_fold_chips(self) -> None:
         # type layers fold via count-badged chips — a hundreds-of-nodes trace

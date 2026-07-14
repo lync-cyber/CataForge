@@ -1,5 +1,6 @@
 ### Changed
 
+- **catalogue 视图默认全高表格 + 按需拓扑图** —— 资产/编排目录视图不再把元数据表格与依赖图半高堆叠，默认只显示全高元数据表格（消除强制可见的低可读性图与下方空白区）；依赖拓扑图降级为工具栏「拓扑视图」模式切换，切换后图独占全高（72vh），与其他图视图的表 ⇄ 图切换对齐；进入图模式即 `fit`，规避持久化视口漂移。
 - **serve 自动刷新与快照溯源** —— `viz serve` / `viz quickstart` 的 served 页面内嵌轻量轮询脚本（HEAD 比对 `Last-Modified`，仅 http 协议激活，标准库零依赖），`--watch` 重生成后浏览器自动刷新；dashboard 页脚新增「数据截至 <时间戳>」与模式标识（served 页显示「服务模式 · 自动刷新」、file:// 快照显示「快照模式」）；静态 `viz dashboard -o` 产物不含轮询脚本。新增可选浏览器 E2E 挂架 `tests/e2e/test_viz_browser.py`（Playwright 存在时驱动真实 headless 浏览器验证键盘/ARIA/窄视口行为，未安装时整模块 skip，不新增依赖）。
 - **图表等价替代与保真** —— Timeline / MetricSeries 视图新增数据表切换（含全部事件/指标字段）与文本摘要（「N 个事件 · 跨度 X 至 Y · M 个分类」），ECharts 开启 `aria.enabled`（canvas 容器获得自动生成的图表描述）；图视图的表格模式补上游/下游关系列（边信息不再在表格替代中丢失）；图工具栏新增「适配」按钮（双击手势的可见等价物）；Timeline 事件点直径改为 ∝√count（面积正比，线性直径会视觉平方差异）；KPI sparkline 改稳定值域（百分比 0-100、计数 0-max，1% 波动不再画成满幅陡坡）并以 `role="img"` + aria-label + 可见 Δ 文本替代 `aria-hidden`。
 - **MetricSeries 语义与 overview 渲染** —— `MetricPoint` 新增可选 `unit` 字段（count / ratio / percent / flag / index）、`MetricSeries` 新增可选 `meta` 字段；JSON 输出为纯加法契约（未标注时键省略，旧 collector 输出 byte-stable）；`viz overview --html` 不再把布尔、序数、计数、0-1 文档分挤进单一 value 轴 —— flag/index 点渲染为文本 KPI 卡（✓/✗、序数原值），其余按 series 各自成图（small multiples 网格，ratio/percent 系列固定值域）。

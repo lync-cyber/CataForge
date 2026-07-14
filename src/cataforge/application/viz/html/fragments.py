@@ -330,7 +330,9 @@ def _catalogue_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
     toolbar = (
         '<div class="toolbar">'
         f'<input class="csearch" id="{dom_id}_q" placeholder="搜索名称 / 描述 / 依赖 / 工具…">'
-        f'{chips}{maint_toggle}<span class="hitcount" id="{dom_id}_count" aria-live="polite">'
+        f"{chips}{maint_toggle}"
+        f'<button class="modeswitch" data-target="{dom_id}" title="表 ⇄ 图切换">拓扑视图</button>'
+        f'<span class="hitcount" id="{dom_id}_count" aria-live="polite">'
         f"</span>{_reset_button(dom_id)}</div>"
     )
     head = (
@@ -345,7 +347,8 @@ def _catalogue_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
         f'<div class="cat-wrap"><table class="cat" id="{dom_id}_tbl">'
         f"<thead>{head}</thead><tbody>{rows}</tbody></table></div>"
     )
-    body = f'<div class="view cat-view">{toolbar}{table}<div id="{dom_id}" class="cy"></div></div>'
+    graph_wrap = f'<div id="{dom_id}_gwrap" hidden><div id="{dom_id}" class="cy"></div></div>'
+    body = f'<div class="view cat-view">{toolbar}{table}{graph_wrap}</div>'
     elements = _script_json(_node_data(graph))
     return body, f"initCatalogue('{dom_id}', {elements});"
 
