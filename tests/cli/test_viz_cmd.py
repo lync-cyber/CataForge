@@ -2448,3 +2448,71 @@ class TestVizThemeTokens:
         css = html._read_asset("dashboard.css")
         assert "@media (max-width:1023px)" in css
         assert "@media (max-width:719px)" in css
+
+
+_CAT_GRAPH = Graph(
+    title="assets",
+    form="catalogue",
+    nodes=(
+        Node(
+            "a1",
+            label="A1",
+            data={"type": "agent", "name": "A1", "est_tokens": 10, "path": "a/A1.md"},
+        ),
+        Node(
+            "s1",
+            label="S1",
+            data={"type": "skill", "name": "S1", "est_tokens": 20, "path": "s/S1.md"},
+        ),
+    ),
+)
+
+
+class TestVizHonestAffordances:
+    def test_catalogue_sort_header_is_accessible_button(self) -> None:
+        out = html.render(_CAT_GRAPH)
+        assert 'aria-sort="none"' in out
+        assert '<button class="thsort" id="view0_tok" data-key="est_tokens"' in out
+        assert 'class="num sortable"' not in out  # a th is not focusable
+
+    def test_sorter_uses_own_column_not_hardcoded_cell(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "cells[7]" not in js
+        assert "aria-sort" in js  # sort state is announced, not visual-only
+
+    def test_copy_waits_for_clipboard_promise_with_fallback(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "writeText(text).then(" in js  # success is confirmed, not assumed
+        assert "按 Ctrl+C 复制" in js  # file:// / denied-permission manual path
+        assert "已复制" in js
+
+    def test_row_hint_is_copyable_button(self) -> None:
+        g = Graph(
+            title="c",
+            nodes=(Node("F-1", label="F gap", status=Status.MISSING, data={"hint": "run: x"}),),
+        )
+        out = html.render(g)
+        assert '<button class="rhint"' in out
+
+    def test_toolbars_carry_hitcount_and_reset(self) -> None:
+        out = html.render(_HTML_GRAPH)  # edged graph → graph toolbar
+        assert 'id="view0_count" aria-live="polite"' in out
+        assert 'class="vreset" data-target="view0"' in out
+        cat = html.render(_CAT_GRAPH)
+        assert 'id="view0_count" aria-live="polite"' in cat
+        assert 'class="vreset" data-target="view0"' in cat
+
+    def test_filter_chips_and_segments_carry_aria_pressed(self) -> None:
+        out = html.render(_EDGELESS_STATUS_GRAPH)
+        assert '<button class="seg"' in out  # keyboard-operable segments
+        assert 'aria-pressed="false"' in out
+        cat = html.render(_CAT_GRAPH)
+        assert cat.count('aria-pressed="true"') >= 2  # type chips start on
+
+    def test_dead_status_row_pointer_removed(self) -> None:
+        css = html._read_asset("dashboard.css")
+        assert ".stat tbody tr{cursor:pointer}" not in css
+
+    def test_zero_hit_search_keeps_graph_undimmed(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "命中 0 / " in js  # explicit zero-hit message instead of a ghost graph

@@ -108,7 +108,8 @@ def _type_chips(graph: Graph) -> str:
     if not counts:
         return ""
     return "".join(
-        f'<button class="fchip on" data-type="{_html.escape(t)}">{_html.escape(t)} ({n})</button>'
+        f'<button class="fchip on" data-type="{_html.escape(t)}" aria-pressed="true">'
+        f"{_html.escape(t)} ({n})</button>"
         for t, n in sorted(counts.items())
     )
 
@@ -130,6 +131,8 @@ def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str, bool]:
         f'<div class="toolbar"><input class="search" data-target="{dom_id}" '
         f'placeholder="filter nodes…">{_type_chips(graph)}'
         f'<button class="modeswitch" data-target="{dom_id}" title="图 ⇄ 表切换">表格视图</button>'
+        f'<span class="hitcount" id="{dom_id}_count" aria-live="polite"></span>'
+        f"{_reset_button(dom_id)}"
         "</div>"
         f'<div id="{dom_id}" class="cy"></div>'
         f'<div class="alt-table" hidden>{_status_table_core(graph, dom_id)}</div></div>'
@@ -166,15 +169,23 @@ def _status_badge(status: Status | None) -> str:
     )
 
 
+def _reset_button(dom_id: str) -> str:
+    """Hidden until the view has persisted state; clicking clears this view's
+    saved filters/viewport and reloads pristine."""
+    return f'<button class="vreset" data-target="{dom_id}" hidden>重置视图</button>'
+
+
 def _row_hint(node: Node) -> str:
     """Inline remediation suffix for a status-table row: the same ``run:`` outlet
-    the graph tooltip shows, so the table fallback keeps the action affordance."""
+    the graph tooltip shows, so the table fallback keeps the action affordance.
+    A real button — focusable, click/Enter copies the command."""
     data = node.data or {}
     hint = str(data.get("hint") or "")
     if not hint:
         return ""
-    issue = _html.escape(str(data.get("issue") or ""))
-    return f' <span class="rhint" title="{issue}">{_html.escape(hint)}</span>'
+    issue = str(data.get("issue") or "")
+    tip = _html.escape(f"{issue} · 点击复制" if issue else "点击复制")
+    return f' <button class="rhint" type="button" title="{tip}">{_html.escape(hint)}</button>'
 
 
 def _status_row(node: Node) -> str:
@@ -192,9 +203,9 @@ def _constituency_bar(graph: Graph) -> str:
     if not counts:
         return ""
     segments = "".join(
-        f'<span class="seg" data-status="{_html.escape(status.value)}" '
+        f'<button class="seg" data-status="{_html.escape(status.value)}" aria-pressed="false" '
         f'style="background:{palette.encoding(status).fill};flex:{count}" '
-        f'title="{_html.escape(status.value)}: {count} · 点击只看此状态">{count}</span>'
+        f'title="{_html.escape(status.value)}: {count} · 点击只看此状态">{count}</button>'
         for status, count in sorted(counts.items(), key=lambda kv: _status_rank(kv[0]))
     )
     return f'<div class="cbar">{segments}</div>'
@@ -209,13 +220,15 @@ def _status_table_toolbar(graph: Graph, dom_id: str) -> str:
         return ""
     statuses = sorted({n.status for n in graph.nodes if n.status}, key=_status_rank)
     chips = "".join(
-        f'<button class="fchip on" data-status="{_html.escape(s.value)}">'
+        f'<button class="fchip on" data-status="{_html.escape(s.value)}" aria-pressed="true">'
         f"{_html.escape(s.value)}</button>"
         for s in statuses
     )
     return (
         '<div class="toolbar">'
-        f'<input class="csearch" id="{dom_id}_q" placeholder="过滤节点…">{chips}</div>'
+        f'<input class="csearch" id="{dom_id}_q" placeholder="过滤节点…">{chips}'
+        f'<span class="hitcount" id="{dom_id}_tcount" aria-live="polite"></span>'
+        f"{_reset_button(dom_id)}</div>"
     )
 
 
@@ -283,7 +296,8 @@ def _catalogue_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
     has_maint = any(d.get("maintainer_only") for _, d in entries)
 
     chips = "".join(
-        f'<button class="fchip on" data-type="{_html.escape(k)}">{_html.escape(k)}</button>'
+        f'<button class="fchip on" data-type="{_html.escape(k)}" aria-pressed="true">'
+        f"{_html.escape(k)}</button>"
         for k in kinds
     )
     maint_toggle = (
@@ -295,12 +309,14 @@ def _catalogue_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
     toolbar = (
         '<div class="toolbar">'
         f'<input class="csearch" id="{dom_id}_q" placeholder="搜索名称 / 描述 / 依赖 / 工具…">'
-        f"{chips}{maint_toggle}</div>"
+        f'{chips}{maint_toggle}<span class="hitcount" id="{dom_id}_count" aria-live="polite">'
+        f"</span>{_reset_button(dom_id)}</div>"
     )
     head = (
         "<tr><th>name</th><th>type</th><th>描述</th><th>depends</th><th>tools</th>"
         f'<th>model</th><th class="num">行数</th>'
-        f'<th class="num sortable" id="{dom_id}_tok" title="点击按体量排序">est_tokens</th>'
+        f'<th class="num" aria-sort="none"><button class="thsort" id="{dom_id}_tok" '
+        f'data-key="est_tokens" title="点击按体量排序">est_tokens</button></th>'
         "<th>path</th></tr>"
     )
     rows = "".join(_cat_row(node_id, data) for node_id, data in entries)
