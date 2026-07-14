@@ -139,6 +139,7 @@ _SCAFFOLD_LOCAL_STATE_FILES: frozenset[str] = frozenset(
         ".deploy-manifest.json",
         ".instruction-hashes.json",
         ".scaffold-manifest.json",
+        "config.local.json",
     }
 )
 # Top-level dirs holding framework-managed runtime/local state — written per
@@ -154,6 +155,7 @@ _SCAFFOLD_LOCAL_STATE_DIRS: frozenset[str] = frozenset(
         ".mcp-state",
         "kg",
         "baselines",
+        "state",
     }
 )
 # Override layers are upgrade-immune, project-local customisation — never part
@@ -227,7 +229,7 @@ def packaged_instruction_template() -> Traversable:
 # ---- merge strategies for user-writable scaffold files ----
 #
 # ``--force-scaffold`` must refresh framework config without clobbering the
-# parts users are expected to edit (runtime.platform picked at setup time,
+# parts users are expected to edit (deployment.default_platform picked at setup time,
 # upgrade.state maintained across upgrades). Files listed here receive a
 # custom merge instead of a blind overwrite.
 
@@ -257,8 +259,31 @@ def _migrate_context_mode(ctx: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+# Field-level ownership for the framework.json upgrade merge. Framework-owned
+# top-level keys are refreshed wholesale from the new scaffold; user-owned
+# dict blocks shallow-merge with existing keys winning (new scaffold defaults
+# still flow in); every other existing key — user additions, plugin
+# namespaces, pre-migration `runtime`/`upgrade.state` — is preserved verbatim.
+_FRAMEWORK_OWNED_TOP: frozenset[str] = frozenset(
+    {
+        "schema_version",
+        "version",
+        "runtime_api_version",
+        "description",
+        "constants",
+        "features",
+        "workflow",
+        "dispatcher_skills",
+        "migration_checks",
+    }
+)
+_USER_OWNED_DICT_BLOCKS: frozenset[str] = frozenset(
+    {"deployment", "context", "project", "kg", "feedback", "git", "claude_md_limits"}
+)
+
+
 def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
-    """Overwrite scaffold-owned keys while preserving user-owned state."""
+    """Overwrite framework-owned keys while preserving user-owned state."""
     try:
         existing = read_json(target)
     except ConfigError:
@@ -270,53 +295,40 @@ def _merge_framework_json(new_bytes: bytes, target: Path) -> bytes:
     # keep it so the refreshed scaffold matches the installed package.
     merged["version"] = _RUNTIME_VERSION
 
-    # runtime.platform is chosen by the user at setup time.
-    existing_runtime = existing.get("runtime") or {}
-    if isinstance(existing_runtime, dict) and "platform" in existing_runtime:
-        merged.setdefault("runtime", {})["platform"] = existing_runtime["platform"]
-
-    # upgrade.state is local-only and tracks the last applied upgrade.
-    existing_upgrade = existing.get("upgrade") or {}
-    if isinstance(existing_upgrade, dict) and "state" in existing_upgrade:
-        merged.setdefault("upgrade", {})["state"] = existing_upgrade["state"]
-
-    # The context block holds per-project routing config — kg_active_doc_types
-    # (rolling-cutover toggle), kg_definition_authority (additive authority
-    # extension), mode. All are user-owned, so existing keys win over the
-    # scaffold default while still introducing any new scaffold keys. The
-    # retired strategy × authoring axes are collapsed into mode here so the
-    # derived mode wins over the scaffold default.
-    existing_ctx = existing.get("context")
-    if isinstance(existing_ctx, dict):
-        existing_ctx = _migrate_context_mode(existing_ctx)
-        scaffold_ctx = merged.get("context")
-        merged["context"] = {
-            **(scaffold_ctx if isinstance(scaffold_ctx, dict) else {}),
-            **existing_ctx,
-        }
-
-    # The project block is per-project user state (languages, design_tool) — an
-    # upgrade must not reset it, so existing keys win over the scaffold default
-    # while new scaffold keys are still introduced.
-    existing_project = existing.get("project")
-    if isinstance(existing_project, dict):
-        scaffold_project = merged.get("project")
-        merged["project"] = {
-            **(scaffold_project if isinstance(scaffold_project, dict) else {}),
-            **existing_project,
-        }
-
-    # The kg block is per-project user state — project_id / title /
-    # process_model and custom_entity_prefixes (the DomainEntity escape-hatch
-    # registry). Existing keys win over the scaffold default while new
-    # scaffold keys are still introduced.
-    existing_kg = existing.get("kg")
-    if isinstance(existing_kg, dict):
-        scaffold_kg = merged.get("kg")
-        merged["kg"] = {
-            **(scaffold_kg if isinstance(scaffold_kg, dict) else {}),
-            **existing_kg,
-        }
+    for key, existing_val in existing.items():
+        if key in _FRAMEWORK_OWNED_TOP:
+            continue
+        if key == "version":
+            continue
+        if key == "upgrade" and isinstance(existing_val, dict):
+            scaffold_upgrade = merged.get("upgrade")
+            scaffold_upgrade = dict(scaffold_upgrade) if isinstance(scaffold_upgrade, dict) else {}
+            existing_source = existing_val.get("source")
+            if isinstance(existing_source, dict):
+                scaffold_source = scaffold_upgrade.get("source")
+                scaffold_upgrade["source"] = {
+                    **(scaffold_source if isinstance(scaffold_source, dict) else {}),
+                    **existing_source,
+                }
+            # Pre-migration run-state rides along until `config migrate`
+            # relocates it to .cataforge/state/upgrade.json.
+            if "state" in existing_val:
+                scaffold_upgrade["state"] = existing_val["state"]
+            for extra_key, extra_val in existing_val.items():
+                if extra_key not in ("source", "state"):
+                    scaffold_upgrade[extra_key] = extra_val
+            merged["upgrade"] = scaffold_upgrade
+            continue
+        if key in _USER_OWNED_DICT_BLOCKS and isinstance(existing_val, dict):
+            if key == "context":
+                existing_val = _migrate_context_mode(existing_val)
+            scaffold_val = merged.get(key)
+            merged[key] = {
+                **(scaffold_val if isinstance(scaffold_val, dict) else {}),
+                **existing_val,
+            }
+            continue
+        merged[key] = existing_val
 
     return (json.dumps(merged, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
@@ -363,7 +375,7 @@ def copy_scaffold_to(
     exceptions that never lose local work:
 
     * files registered in :data:`_MERGE_HANDLERS` receive a field-level merge
-      that preserves user-owned state (e.g. ``framework.json.runtime.platform``);
+      that preserves user-owned state (e.g. ``framework.json.deployment``);
     * files the user has edited away from the recorded manifest hash
       (``user-modified``/``drift``) are *kept on disk*, and the incoming
       framework version is written beside them at ``<file>`` +

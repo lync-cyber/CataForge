@@ -88,15 +88,7 @@ class DeployManifest:
         return d
 
 
-def load_prior_manifest(project_root: Path) -> set[str]:
-    """Return paths the previous deploy recorded — empty set if none.
-
-    Empty-on-missing is the load-bearing contract: it teaches prune to
-    treat a fresh project (no manifest) as "I own nothing yet" so legacy
-    files that predate the manifest stay put on the first manifest-aware
-    deploy.
-    """
-    path = project_root / DEPLOY_MANIFEST_REL
+def _owned_paths_from_file(path: Path) -> set[str]:
     if not path.is_file():
         return set()
     try:
@@ -109,6 +101,171 @@ def load_prior_manifest(project_root: Path) -> set[str]:
     if not isinstance(owned, list):
         return set()
     return {str(p) for p in owned if isinstance(p, str)}
+
+
+def load_prior_manifest(project_root: Path) -> set[str]:
+    """Union of every platform's recorded ownership (legacy slot included).
+
+    Empty-on-missing is the load-bearing contract: it teaches prune to
+    treat a fresh project (no manifest) as "I own nothing yet" so legacy
+    files that predate the manifest stay put on the first manifest-aware
+    deploy.
+    """
+    owned: set[str] = set()
+    for platform_id in recorded_platforms(project_root):
+        owned |= _owned_paths_from_file(platform_manifest_path(project_root, platform_id))
+    owned |= _owned_paths_from_file(project_root / DEPLOY_MANIFEST_REL)
+    return owned
+
+
+# ---- per-platform layout (.cataforge/state/deploy/<platform>/) ----
+
+
+def deploy_state_root(project_root: Path) -> Path:
+    return project_root / ".cataforge" / "state" / "deploy"
+
+
+def platform_deploy_dir(project_root: Path, platform_id: str) -> Path:
+    return deploy_state_root(project_root) / platform_id
+
+
+def platform_manifest_path(project_root: Path, platform_id: str) -> Path:
+    return platform_deploy_dir(project_root, platform_id) / "manifest.json"
+
+
+def platform_state_path(project_root: Path, platform_id: str) -> Path:
+    return platform_deploy_dir(project_root, platform_id) / "state.json"
+
+
+def recorded_platforms(project_root: Path) -> list[str]:
+    """Platforms with a per-platform deploy record (sorted, no legacy)."""
+    root = deploy_state_root(project_root)
+    if not root.is_dir():
+        return []
+    return sorted(
+        child.name
+        for child in root.iterdir()
+        if child.is_dir()
+        and ((child / "state.json").is_file() or (child / "manifest.json").is_file())
+    )
+
+
+def deployed_platforms(project_root: Path) -> list[str]:
+    """Every platform with a deploy record — per-platform layout first,
+    plus the legacy single-slot ``.deploy-state`` if not yet migrated."""
+    platforms = recorded_platforms(project_root)
+    legacy = _legacy_platform(project_root)
+    if legacy and legacy not in platforms:
+        platforms.append(legacy)
+    return platforms
+
+
+def _legacy_platform(project_root: Path) -> str | None:
+    state_path = project_root / ".cataforge" / ".deploy-state"
+    if not state_path.is_file():
+        return None
+    try:
+        data = read_json(state_path)
+    except ConfigError:
+        return None
+    platform = data.get("platform") if isinstance(data, dict) else None
+    return str(platform) if isinstance(platform, str) and platform else None
+
+
+def load_prior_manifest_for(project_root: Path, platform_id: str) -> set[str]:
+    """Ownership recorded by *platform_id*'s previous deploy.
+
+    Falls back to the legacy single-slot manifest when the per-platform
+    record does not exist yet and the legacy slot belongs to this platform.
+    """
+    per_platform = platform_manifest_path(project_root, platform_id)
+    if per_platform.is_file():
+        return _owned_paths_from_file(per_platform)
+    if _legacy_platform(project_root) == platform_id or (
+        load_prior_manifest_platform(project_root) == platform_id
+    ):
+        return _owned_paths_from_file(project_root / DEPLOY_MANIFEST_REL)
+    return set()
+
+
+def load_other_platform_owned(project_root: Path, platform_id: str) -> set[str]:
+    """Union of every OTHER platform's recorded ownership.
+
+    Prune protection set: a path co-owned by another platform must survive
+    this platform's prune (the last owner deletes it on its own deploy).
+    """
+    owned: set[str] = set()
+    for other in recorded_platforms(project_root):
+        if other == platform_id:
+            continue
+        owned |= _owned_paths_from_file(platform_manifest_path(project_root, other))
+    legacy_platform = _legacy_platform(project_root) or load_prior_manifest_platform(project_root)
+    if legacy_platform and legacy_platform != platform_id:
+        owned |= _owned_paths_from_file(project_root / DEPLOY_MANIFEST_REL)
+    return owned
+
+
+def load_prior_baseline_for(project_root: Path, platform_id: str) -> tuple[str | None, str | None]:
+    """Drift baseline recorded by *platform_id*'s previous deploy."""
+    path = platform_manifest_path(project_root, platform_id)
+    if not path.is_file():
+        if _legacy_platform(project_root) == platform_id:
+            return load_prior_baseline(project_root)
+        return None, None
+    try:
+        data = read_json(path)
+    except ConfigError:
+        return None, None
+    if not isinstance(data, dict):
+        return None, None
+    digest = data.get("source_digest")
+    version = data.get("package_version")
+    return (
+        digest if isinstance(digest, str) else None,
+        version if isinstance(version, str) else None,
+    )
+
+
+def save_platform_manifest(project_root: Path, manifest: DeployManifest) -> None:
+    """Persist *manifest* into the per-platform layout (atomic)."""
+    path = platform_manifest_path(project_root, manifest.platform_id)
+    payload = json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n"
+    atomic_write_text(path, payload)
+
+
+def write_platform_state(project_root: Path, platform_id: str, package_version: str) -> None:
+    path = platform_state_path(project_root, platform_id)
+    payload = json.dumps(
+        {"platform": platform_id, "package_version": package_version},
+        indent=2,
+        ensure_ascii=False,
+    )
+    atomic_write_text(path, payload + "\n")
+
+
+def migrate_legacy_deploy_records(project_root: Path) -> list[str]:
+    """Move the single-slot ``.deploy-state``/``.deploy-manifest.json`` into
+    the per-platform layout. Idempotent; returns action lines."""
+    actions: list[str] = []
+    legacy_platform = _legacy_platform(project_root) or load_prior_manifest_platform(project_root)
+    legacy_state = project_root / ".cataforge" / ".deploy-state"
+    legacy_manifest = project_root / DEPLOY_MANIFEST_REL
+    if legacy_platform:
+        manifest_dst = platform_manifest_path(project_root, legacy_platform)
+        if legacy_manifest.is_file() and not manifest_dst.is_file():
+            manifest_dst.parent.mkdir(parents=True, exist_ok=True)
+            manifest_dst.write_bytes(legacy_manifest.read_bytes())
+            actions.append(f"migrated deploy manifest → {manifest_dst}")
+        state_dst = platform_state_path(project_root, legacy_platform)
+        if not state_dst.is_file():
+            _, version = load_prior_baseline(project_root)
+            write_platform_state(project_root, legacy_platform, version or "")
+            actions.append(f"migrated deploy state → {state_dst}")
+    for legacy in (legacy_state, legacy_manifest):
+        if legacy.is_file():
+            legacy.unlink()
+            actions.append(f"removed legacy {legacy.name}")
+    return actions
 
 
 def load_prior_manifest_platform(project_root: Path) -> str | None:

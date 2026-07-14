@@ -42,9 +42,9 @@ class TestConfigManager:
         cfg = ConfigManager(project_dir)
         assert cfg.version == "0.1.0"
 
-    def test_runtime_platform(self, project_dir: Path) -> None:
+    def test_default_platform_legacy_fallback(self, project_dir: Path) -> None:
         cfg = ConfigManager(project_dir)
-        assert cfg.runtime_platform == "cursor"
+        assert cfg.default_platform == "cursor"
 
     def test_constants(self, project_dir: Path) -> None:
         cfg = ConfigManager(project_dir)
@@ -57,13 +57,13 @@ class TestConfigManager:
         assert cfg.is_feature_enabled("penpot-bridge") is False
         assert cfg.is_feature_enabled("nonexistent") is False
 
-    def test_set_runtime_platform(self, project_dir: Path) -> None:
+    def test_set_default_platform(self, project_dir: Path) -> None:
         cfg = ConfigManager(project_dir)
-        cfg.set_runtime_platform("codex")
-        assert cfg.runtime_platform == "codex"
+        cfg.set_default_platform("codex")
+        assert cfg.default_platform == "codex"
 
         cfg2 = ConfigManager(project_dir)
-        assert cfg2.runtime_platform == "codex"
+        assert cfg2.default_platform == "codex"
 
     def test_languages_default_empty(self, project_dir: Path) -> None:
         assert ConfigManager(project_dir).languages == []
@@ -81,17 +81,17 @@ class TestConfigManager:
         assert cfg.languages == ["python"]
         # Unrelated fields untouched.
         reread = ConfigManager(project_dir)
-        assert reread.runtime_platform == "cursor"
+        assert reread.default_platform == "cursor"
         assert reread.get_constant("MAX_QUESTIONS_PER_BATCH") == 3
         assert reread.languages == ["python"]
 
     def test_set_languages_survives_platform_change(self, project_dir: Path) -> None:
         cfg = ConfigManager(project_dir)
         cfg.set_languages(["rust", "go"])
-        cfg.set_runtime_platform("codex")
+        cfg.set_default_platform("codex")
         reread = ConfigManager(project_dir)
         assert reread.languages == ["rust", "go"]
-        assert reread.runtime_platform == "codex"
+        assert reread.default_platform == "codex"
 
     def test_reload(self, project_dir: Path) -> None:
         cfg = ConfigManager(project_dir)
@@ -172,11 +172,11 @@ class TestGitSessionSync:
         fw_path.write_text(json.dumps(data), encoding="utf-8")
 
         cfg = ConfigManager(project_dir)
-        cfg.set_runtime_platform("codex")
+        cfg.set_default_platform("codex")
 
         reread = ConfigManager(project_dir)
         assert reread.git_session_sync.enabled is False
-        assert reread.runtime_platform == "codex"
+        assert reread.default_platform == "codex"
         # The verbatim writer must not drop an unknown top-level key.
         assert reread.load_raw()["my_custom_key"] == {"keep": 1}
 

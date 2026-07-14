@@ -64,7 +64,7 @@
   <!-- 由 cataforge deploy 从 framework.json#project.design_tool 盖入。切换用 `cataforge setup --with-penpot`，勿手改本行 -->
   <!-- 可选值: none | penpot。penpot 时启用 Penpot MCP 集成 -->
 
-- 人工审查检查点: [pre_dev, pre_deploy]
+- 人工审查检查点: [pre_dev, post_sprint, pre_deploy]
   <!-- 详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
 - 文档类型命名: 小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数和产出文件名
 - 效率原则:
@@ -80,7 +80,7 @@
 - Skill调用: Agent按SKILL.md步骤式指令执行工作流
 - 状态持久化: 项目指令文件（CLAUDE.md/AGENTS.md）§项目状态 + docs/ 目录
 - 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
-- 运行时: 由 framework.json runtime.platform 决定（deploy 自动适配）
+- 运行时: 由 framework.json deployment 声明决定（deploy 自动适配）
 - **写权限**: 项目指令文件 §项目状态 由 orchestrator 独占写入；其他Agent只写 docs/ 或 src/ 下的产出文件
 - 统一配置 `.cataforge/framework.json`:
   - `upgrade.source` — 远程升级源配置。升级时保留用户已配置值，仅补充新字段

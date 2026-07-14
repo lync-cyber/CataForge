@@ -59,7 +59,7 @@
   <!-- 由 cataforge deploy 从 framework.json#project.design_tool 盖入。切换用 `cataforge setup --with-penpot`，勿手改本行 -->
   <!-- 可选值: none | penpot。penpot 时启用 Penpot MCP 集成 -->
 
-- 人工审查检查点: [pre_dev, pre_deploy]
+- 人工审查检查点: [pre_dev, post_sprint, pre_deploy]
   <!-- 详见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS -->
 - 文档类型命名: 小写 kebab-case（prd、arch、dev-plan、test-report、ui-spec、deploy-spec…），含工具参数和产出文件名
 - 效率原则: 见 COMMON-RULES §全局约定（最小传递 / 不确定时调研 / 选择题优先）；长文拆分阈值 `DOC_SPLIT_THRESHOLD_LINES`
@@ -73,12 +73,11 @@
 - 子代理通信: 通过文件系统(docs/和src/)传递产出物路径
 - 运行时: 由 framework.json runtime.platform 决定（deploy 自动适配）
 - **写权限**: 项目指令文件 §项目状态 由 orchestrator 独占写入；其他Agent只写 docs/ 或 src/ 下的产出文件
-- 统一配置 `.cataforge/framework.json`:
-  - `upgrade.source` — 远程升级源配置。升级时保留用户已配置值，仅补充新字段
-  - `upgrade.state` — 本地升级状态。升级时始终保留
-  - `kg` — per-project 用户态（project_id / title / process_model / custom_entity_prefixes）。升级时保留已配置值，仅补充新字段
-  - `features` — 功能注册表。升级时全量覆盖
-  - `migration_checks` — 迁移检查声明。升级时全量覆盖
+- 统一配置 `.cataforge/framework.json`（schema v2）:
+  - 用户块（升级保留已配置值、仅补充新默认键）: `deployment`（default_platform + targets 多平台声明）、`upgrade.source`、`feedback`、`kg`、`context`、`project`、`claude_md_limits`、`git`；未知顶层键一律保留
+  - 框架块（升级全量覆盖）: `schema_version`、`version`、`runtime_api_version`、`description`、`constants`、`dispatcher_skills`、`workflow`、`features`、`migration_checks`
+  - 运行状态不入本文件：`.cataforge/state/`（gitignored）承载 per-platform 部署记录（`state/deploy/<platform>/`）、`state/upgrade.json`、锁（`state/locks/`）；本机覆盖走 `.cataforge/config.local.json`（gitignored，白名单字段）
+  - 配置操作经 `cataforge config`（validate / get / explain / set / migrate）
 
 ## Git 工作流
 

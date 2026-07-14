@@ -1,4 +1,10 @@
-"""Deployment provenance — which platform directories CataForge wrote."""
+"""Deployment provenance — which paths each deployed platform owns.
+
+Manifest-driven: the per-platform deploy manifests are the single source
+of truth for ownership, so this report can never disagree with what
+deploy actually wrote (a static per-platform path table did, and required
+artefacts that are only conditionally produced — e.g. MCP config files).
+"""
 
 from __future__ import annotations
 
@@ -7,93 +13,52 @@ from typing import TYPE_CHECKING
 
 import click
 
-from cataforge.core.errors import ConfigError
-from cataforge.core.io import read_json
+from cataforge.runtime.deploy.manifest import (
+    deployed_platforms,
+    load_prior_manifest_for,
+)
 
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
 
-# Single source of truth for "what does CataForge own under each platform?"
-# Shared with :mod:`deploy_integrity` so the informational report and the
-# hard gate cannot drift apart.
-_OWNED_DIRS_BY_PLATFORM: dict[str, list[str]] = {
-    "claude-code": [
-        ".claude/agents",
-        ".claude/rules",
-        ".claude/skills",
-        ".claude/commands",
-        ".claude/settings.json",
-    ],
-    "cursor": [
-        ".cursor/agents",
-        ".cursor/rules",
-        ".cursor/hooks.json",
-        ".cursor/mcp.json",
-        ".cursor/commands",
-    ],
-    "codex": [".codex/agents", ".codex/hooks.json", ".codex/config.toml"],
-    "opencode": [".opencode/agents", ".opencode/plugins", "opencode.json"],
-}
 
-
-def report_deployment_provenance(cfg: ConfigManager) -> None:
-    """Show which platform directories were created by the last deploy.
-
-    Reads ``.cataforge/.deploy-state`` (written at the end of each
-    ``cataforge deploy``) plus the target platform's profile to compute
-    the directory namespace that CataForge owns, then reports which of
-    those paths actually exist on disk vs which are user/IDE native.
-    """
-
-    deploy_state_path = cfg.paths.cataforge_dir / ".deploy-state"
-    if not deploy_state_path.is_file():
+def report_deployment_provenance(cfg: ConfigManager, platforms: list[str] | None = None) -> None:
+    """Show what each deployed platform owns per its own manifest."""
+    root = cfg.paths.root
+    recorded = deployed_platforms(root)
+    if not recorded:
         click.echo("  (no deploy has been run yet — run `cataforge deploy`)")
         return
 
-    try:
-        state = read_json(deploy_state_path)
-    except ConfigError as e:
-        click.echo(f"  (could not parse {deploy_state_path}: {e})")
+    scope = [p for p in (platforms or recorded) if p in recorded]
+    skipped = [p for p in (platforms or []) if p not in recorded]
+    for platform_id in scope:
+        owned = sorted(load_prior_manifest_for(root, platform_id))
+        present = sum(1 for rel in owned if (root / rel).exists() or (root / rel).is_symlink())
+        click.echo(
+            f"  {platform_id}: {present}/{len(owned)} owned path(s) present (CataForge-managed)"
+        )
+        _note_cursor_mirror(cfg, root, platform_id)
+    for platform_id in skipped:
+        click.echo(f"  {platform_id}: not deployed")
+
+
+def _note_cursor_mirror(cfg: ConfigManager, root: Path, platform_id: str) -> None:
+    """Flag Cursor mirror state: .claude/rules present even though the mirror
+    is off is usually a stale artifact from an older deploy."""
+    if platform_id != "cursor":
         return
-
-    platform_id = state.get("platform")
-    if not platform_id:
-        click.echo(f"  (malformed deploy state: {state})")
+    mirror = root / ".claude" / "rules"
+    if not (mirror.exists() or mirror.is_symlink()):
         return
-
-    click.echo(f"  Last deploy target: {platform_id}")
-
-    # Map platform → directories CataForge *may* own under that platform.
-    # See :data:`_OWNED_DIRS_BY_PLATFORM` for the shared definition.
-    root = cfg.paths.root
-    entries = _OWNED_DIRS_BY_PLATFORM.get(platform_id, [])
-    if not entries:
-        click.echo(f"  (no provenance map declared for platform {platform_id!r})")
-        return
-
-    commands_optional = not (cfg.paths.cataforge_dir / "commands").is_dir()
-    for rel in entries:
-        p = root / rel
-        present = p.exists() or p.is_symlink()
-        if rel.endswith("/commands") and commands_optional and not present:
-            click.echo(f"  [n/a] {rel}  (no command sources)")
-            continue
-        marker = "present" if present else "absent"
-        click.echo(f"  [{marker}] {rel}  (CataForge-managed)")
-
-    # Flag Cursor mirror state: .claude/rules present even though the mirror
-    # is off is usually a stale artifact from an older deploy.
-    if platform_id == "cursor":
-        mirror = root / ".claude" / "rules"
-        if mirror.exists() or mirror.is_symlink():
-            profile_path = cfg.paths.platform_profile("cursor")
-            mirror_enabled = _read_cursor_mirror_flag(profile_path)
-            if not mirror_enabled:
-                click.echo(
-                    "  NOTE: .claude/rules exists but rules.cross_platform_mirror "
-                    "is false — likely a stale artifact from a pre-M5 deploy. "
-                    "Safe to delete."
-                )
+    if "claude-code" in deployed_platforms(root):
+        return  # claude-code legitimately owns .claude/rules here
+    if not _read_cursor_mirror_flag(cfg.paths.platform_profile("cursor")):
+        click.echo(
+            "  NOTE: .claude/rules exists but rules.cross_platform_mirror "
+            "is false — likely a stale artifact from a pre-M5 deploy. "
+            "Safe to delete."
+        )
 
 
 def _read_cursor_mirror_flag(profile_path: Path) -> bool:

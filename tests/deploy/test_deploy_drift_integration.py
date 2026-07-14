@@ -12,7 +12,7 @@ from cataforge.core.config import ConfigManager
 from cataforge.core.paths import ProjectPaths
 from cataforge.runtime.deploy.deployer import Deployer
 from cataforge.runtime.deploy.drift import detect_drift
-from cataforge.runtime.deploy.manifest import load_prior_baseline
+from cataforge.runtime.deploy.manifest import load_prior_baseline_for
 
 _CLAUDE_PROFILE = {
     "platform_id": "claude-code",
@@ -63,7 +63,7 @@ def _deploy(root: Path) -> None:
 def test_deploy_records_drift_baseline(tmp_path: Path) -> None:
     root = _init_project(tmp_path)
     _deploy(root)
-    digest, version = load_prior_baseline(root)
+    digest, version = load_prior_baseline_for(root, "claude-code")
     assert digest is not None
     assert version  # the running package version is recorded
 

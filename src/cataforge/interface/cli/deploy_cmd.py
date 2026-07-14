@@ -149,42 +149,67 @@ def deploy_command(
     elif platform:
         targets = [platform]
     else:
-        targets = [cfg.runtime_platform]
+        # No flag: deploy every declared target (single-platform projects
+        # declare exactly one, so the legacy behaviour is unchanged).
+        targets = list(cfg.deployment_targets)
 
     _require_scaffold(cfg.paths.root, targets, cfg.paths.platforms_dir)
 
+    from cataforge.core.config_migrate import reject_newer_schema
+    from cataforge.core.errors import ConfigError
     from cataforge.runtime.deploy.deployer import Deployer
+    from cataforge.utils.locks import LockHeldError
+
+    # Config errors fail the whole run before any platform deploys —
+    # never a partial multi-platform deployment on a bad config.
+    reject_newer_schema(cfg.load_raw())
 
     deployer = Deployer(cfg, bus)
 
     from cataforge.interface.cli.guidance import print_next_steps
     from cataforge.interface.cli.ui import ui
 
-    for target in targets:
-        ui.header(f"Deploying: {target}")
+    def _run_all() -> None:
+        for target in targets:
+            ui.header(f"Deploying: {target}")
 
-        if dry_run:
-            ui.info("dry-run — no files will be written")
+            if dry_run:
+                ui.info("dry-run — no files will be written")
+                actions = deployer.deploy(
+                    target,
+                    dry_run=True,
+                    include_maintainer_only=include_maintainer_only,
+                    force_copy=force_copy,
+                    rebuild=rebuild,
+                )
+                for action in actions:
+                    ui.print(f"  {action}")
+                continue
+
             actions = deployer.deploy(
                 target,
-                dry_run=True,
                 include_maintainer_only=include_maintainer_only,
                 force_copy=force_copy,
                 rebuild=rebuild,
             )
             for action in actions:
                 ui.print(f"  {action}")
-            continue
 
-        actions = deployer.deploy(
-            target,
-            include_maintainer_only=include_maintainer_only,
-            force_copy=force_copy,
-            rebuild=rebuild,
-        )
-        for action in actions:
-            ui.print(f"  {action}")
+    if dry_run:
+        _run_all()
+        ui.ok("Deploy complete.")
+        return
+
+    try:
+        with Deployer.deploy_lock(cfg):
+            _run_all()
+    except LockHeldError as e:
+        raise ConfigError(
+            f"{e}\n"
+            "If you need to work in parallel, use a separate worktree:\n"
+            "  git worktree add ../<branch-dir> <branch>\n"
+            "A stale lock from a crashed run expires automatically."
+        ) from e
 
     ui.ok("Deploy complete.")
-    if not dry_run:
-        print_next_steps("deploy-done")
+    print_next_steps("deploy-done")

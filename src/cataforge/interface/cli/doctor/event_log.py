@@ -91,7 +91,9 @@ def check_event_log_schema(cfg: ConfigManager, *, sample_size: int = 200) -> int
                 f"rewrite this line as UTF-8 or run `cataforge event accept-legacy`"
             )
 
-    cutoff_raw = (cfg.load().get("upgrade") or {}).get("state", {}).get("event_log_validate_since")
+    from cataforge.core.upgrade_state import read_upgrade_state
+
+    cutoff_raw = read_upgrade_state(cfg.paths).get("event_log_validate_since")
     cutoff: datetime | None = None
     if isinstance(cutoff_raw, str) and cutoff_raw.strip():
         try:

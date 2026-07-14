@@ -4,7 +4,7 @@ CataForge's upgrade model is **package-manager driven**: the Python package
 is upgraded via ``pip install --upgrade cataforge`` or ``uv tool upgrade
 cataforge``, after which ``cataforge setup --force-scaffold`` refreshes the
 in-project ``.cataforge/`` scaffold while preserving user-owned state
-(``runtime.platform``, ``upgrade.state``).
+(``deployment``, user config blocks).
 
 There is no in-repo self-upgrade mechanism — that would duplicate and diverge
 from the package manager's version resolution. ``cataforge upgrade apply``
@@ -171,8 +171,9 @@ def _remind_post_upgrade_steps(cfg: ConfigManager) -> None:
     # least once, remind the user to re-run it so the refreshed scaffold lands
     # in the IDE-facing directory.
     from cataforge.interface.cli.guidance import print_next_steps
+    from cataforge.runtime.deploy.manifest import deployed_platforms
 
-    if cfg.paths.deploy_state.is_file():
+    if deployed_platforms(cfg.paths.root):
         click.echo(
             "\nTip: scaffold refreshed — run `cataforge deploy` to propagate "
             "changes to platform deliverables (e.g. .claude/settings.json)."
@@ -211,6 +212,14 @@ def upgrade_apply(dry_run: bool) -> None:
     )
     for line in format_protected_warning(result.protected, dest):
         click.secho(f"  {line}", fg="yellow", err=True)
+
+    from cataforge.core.config_migrate import migrate_framework_json
+
+    migration = migrate_framework_json(cfg.paths.root)
+    if migration.migrated:
+        for action in migration.actions:
+            click.echo(f"  config migrate: {action}")
+
     cfg.reload()
     click.echo(f"CataForge v{cfg.version} — scaffold up to date.")
 

@@ -20,7 +20,7 @@ Design notes:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import click
 
@@ -30,6 +30,7 @@ from cataforge.interface.cli.main import cli
 
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
+    from cataforge.core.events import EventBus
 
 
 @cli.command("bootstrap")
@@ -38,7 +39,7 @@ if TYPE_CHECKING:
     type=click.Choice(ALL_PLATFORMS),
     default=None,
     help="Target AI IDE platform. Required on fresh install; "
-    "on an existing project defaults to framework.json's runtime.platform.",
+    "on an existing project defaults to framework.json's deployment.default_platform.",
 )
 @click.option(
     "--context-mode",
@@ -163,6 +164,31 @@ def _confirm_plan(plan: Plan) -> bool:
 # ---- execution ----
 
 
+def _locked_deploy(cfg: ConfigManager, bus: EventBus, target: str) -> list[str]:
+    """Run one platform deploy under the project deploy lock."""
+    from cataforge.core.errors import ConfigError
+    from cataforge.runtime.deploy.deployer import Deployer
+    from cataforge.utils.locks import LockHeldError
+
+    try:
+        with Deployer.deploy_lock(cfg):
+            return Deployer(cfg, bus).deploy(target)
+    except LockHeldError as e:
+        raise ConfigError(
+            f"{e}\nIf you need to work in parallel, use a separate worktree:\n"
+            "  git worktree add ../<branch-dir> <branch>"
+        ) from e
+
+
+def _migrate_config(cfg: ConfigManager, ui: Any) -> None:
+    from cataforge.core.config_migrate import migrate_framework_json
+
+    migration = migrate_framework_json(cfg.paths.root)
+    if migration.migrated:
+        for action in migration.actions:
+            ui.info(f"[config migrate] {action}")
+
+
 def _execute_plan(
     ctx: click.Context,
     cfg: ConfigManager,
@@ -225,6 +251,7 @@ def _execute_plan(
             cfg.paths.cataforge_dir,
             force=True,
         )
+        _migrate_config(cfg, ui)
         cfg.reload()
         if result.backup is not None:
             ui.ok(f"backup: {result.backup.relative_to(cfg.paths.cataforge_dir.parent)}")
@@ -242,14 +269,10 @@ def _execute_plan(
 
     deploy_step = step_by_name.get("deploy")
     if deploy_step is not None and deploy_step.action == "run":
-        target = plan.target_platform or cfg.runtime_platform
+        target = plan.target_platform or cfg.default_platform
         ui.print("")
         ui.info(f"[deploy] rendering artefacts for {target}")
-        from cataforge.runtime.deploy.deployer import Deployer
-
-        deployer = Deployer(cfg, bus)
-        actions = deployer.deploy(target)
-        for action in actions:
+        for action in _locked_deploy(cfg, bus, target):
             ui.print(f"  {action}")
         bus.emit(FRAMEWORK_SETUP, {"platform": target, "bootstrap": True})
 

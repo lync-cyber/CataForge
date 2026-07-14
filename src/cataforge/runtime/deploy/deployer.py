@@ -11,7 +11,7 @@ import logging
 import shutil
 import tempfile
 from collections.abc import Callable
-from contextlib import ExitStack
+from contextlib import AbstractContextManager, ExitStack
 from dataclasses import dataclass, field
 from importlib.resources import as_file
 from pathlib import Path
@@ -25,9 +25,11 @@ from cataforge.core.io import read_json
 from cataforge.core.scaffold import packaged_instruction_template
 from cataforge.runtime.deploy.manifest import (
     DeployManifest,
-    load_prior_manifest,
-    load_prior_manifest_platform,
-    save_manifest,
+    load_other_platform_owned,
+    load_prior_manifest_for,
+    migrate_legacy_deploy_records,
+    save_platform_manifest,
+    write_platform_state,
 )
 from cataforge.utils.atomic_write import atomic_write_text
 
@@ -89,6 +91,22 @@ class Deployer:
     def __init__(self, config: ConfigManager, event_bus: EventBus | None = None) -> None:
         self._cfg = config
         self._bus = event_bus or EventBus()
+
+    @staticmethod
+    def deploy_lock(cfg: ConfigManager) -> AbstractContextManager[None]:
+        """Project-level deploy mutex. Callers wrap their whole deploy run
+        (single platform or the full `--platform all` loop) so concurrent
+        deploys are rejected instead of interleaving writes. Fail-fast:
+        raises :class:`cataforge.utils.locks.LockHeldError` immediately
+        when another deploy holds the lock."""
+        from cataforge.utils.locks import file_lock
+
+        return file_lock(
+            cfg.paths.deploy_lock,
+            timeout=0,
+            ttl_seconds=1800.0,
+            owner="deploy",
+        )
 
     def deploy(
         self,
@@ -158,7 +176,18 @@ class Deployer:
         root = self._cfg.paths.root
         adapter = get_adapter(platform_id, self._cfg.paths.platforms_dir)
         actions: list[str] = []
-        prior_owned = load_prior_manifest(root)
+        # Start-of-run config snapshot: rendering and the drift baseline must
+        # observe the same framework.json bytes even if another process
+        # edits the file mid-deploy.
+        fw_path = self._cfg.paths.framework_json
+        fw_snapshot = fw_path.read_bytes() if fw_path.is_file() else None
+        if not dry_run:
+            actions.extend(migrate_legacy_deploy_records(root))
+        prior_owned = load_prior_manifest_for(root, platform_id)
+        # Paths co-owned by another platform survive this platform's prune —
+        # the last remaining owner deletes them on its own deploy.
+        protected = load_other_platform_owned(root, platform_id)
+        prior_owned -= protected
         manifest = DeployManifest(platform_id)
 
         # Pre-pipeline: rebuild purge (must run before self-heal so the prior
@@ -168,8 +197,6 @@ class Deployer:
                 self._rebuild_purge(
                     root,
                     prior_owned,
-                    platform_id=platform_id,
-                    prior_platform=load_prior_manifest_platform(root),
                     dry_run=dry_run,
                     protect=_section_merge_target_rels(adapter),
                 )
@@ -207,18 +234,24 @@ class Deployer:
             if guard(ctx):
                 actions.extend(step(self, ctx))
 
-        # Tail: write state and manifest (or dry-run notes).
+        # Tail: commit this platform's state + manifest (or dry-run notes).
+        # Per-platform records mean a failed platform never overwrites a
+        # sibling's successful record, and `--platform all` commits each
+        # platform independently.
         if not dry_run:
-            self._write_deploy_state(root, platform_id)
             from cataforge import __version__
             from cataforge.runtime.deploy.drift import compute_source_digest
 
-            manifest.source_digest = compute_source_digest(self._cfg.paths)
+            manifest.source_digest = compute_source_digest(
+                self._cfg.paths, framework_json_bytes=fw_snapshot
+            )
             manifest.package_version = __version__
-            save_manifest(root, manifest)
+            save_platform_manifest(root, manifest)
+            write_platform_state(root, platform_id, __version__)
         else:
             actions.append(
-                f"would write deploy state → {self._cfg.paths.deploy_state} "
+                f"would write deploy state → "
+                f"{self._cfg.paths.platform_deploy_state(platform_id)} "
                 f"(platform={platform_id})"
             )
             actions.append(f"would write deploy manifest ({len(manifest.owned)} owned path(s))")
@@ -246,16 +279,61 @@ class Deployer:
     def _step_deploy_instruction_files(self, ctx: DeployContext) -> list[str]:
         from cataforge.runtime.deploy.steps import deploy_instruction_files
 
+        checkpoints = ctx.cfg.get_constant("MANUAL_REVIEW_CHECKPOINTS")
         return deploy_instruction_files(
             ctx.adapter,
             ctx.instruction_src,
             ctx.root,
             platform_id=ctx.platform_id,
             design_tool=ctx.cfg.design_tool,
+            manual_review_checkpoints=(
+                [str(c) for c in checkpoints] if isinstance(checkpoints, list) else None
+            ),
+            instruction_audience=self._instruction_audience(ctx),
+            primary_state_source=self._primary_instruction_path(ctx),
             dry_run=ctx.dry_run,
             manifest=ctx.manifest,
             prior_manifest=ctx.prior_owned,
         )
+
+    def _primary_instruction_path(self, ctx: DeployContext) -> str | None:
+        """Instruction file of the default platform — the §项目状态 SSOT."""
+        try:
+            adapter = get_adapter(ctx.cfg.default_platform, self._cfg.paths.platforms_dir)
+            targets = adapter.instruction_targets
+            return str(targets[0].get("path")) if targets else None
+        except Exception:
+            return None
+
+    def _instruction_audience(self, ctx: DeployContext) -> dict[str, list[str]]:
+        """Map each instruction file path to the platforms that write it.
+
+        Audience = declared deployment targets ∪ platforms with a deploy
+        record ∪ the current target — a stable set, so a file shared by
+        several platforms renders identically regardless of deploy order.
+        """
+        from cataforge.runtime.deploy.manifest import deployed_platforms
+
+        candidates = list(
+            dict.fromkeys(
+                [
+                    *ctx.cfg.deployment_targets,
+                    *deployed_platforms(ctx.root),
+                    ctx.platform_id,
+                ]
+            )
+        )
+        mapping: dict[str, list[str]] = {}
+        for candidate in candidates:
+            try:
+                adapter = get_adapter(candidate, self._cfg.paths.platforms_dir)
+            except Exception:
+                continue
+            for target in adapter.instruction_targets:
+                path = str(target.get("path") or "")
+                if path:
+                    mapping.setdefault(path, []).append(candidate)
+        return {path: sorted(platforms) for path, platforms in mapping.items()}
 
     def _step_deploy_hooks(self, ctx: DeployContext) -> list[str]:
         return self._deploy_hooks(ctx.root, ctx.adapter, manifest=ctx.manifest, dry_run=ctx.dry_run)
@@ -452,41 +530,25 @@ class Deployer:
         root: Path,
         prior_owned: set[str],
         *,
-        platform_id: str,
-        prior_platform: str | None,
         dry_run: bool = False,
         protect: set[str] | None = None,
     ) -> list[str]:
-        """Remove every path the prior manifest claimed.
+        """Remove every path this platform's prior manifest claimed.
 
         Symmetric to a normal prune pass but applied wholesale: we use
         ``_remove_target`` so symlinks, junctions, files and real dirs all
         wash out the same way. User-authored paths that were never in the
-        manifest are not touched. Paths in *protect* (section-merge instruction
-        targets) are kept too — their state lives in the file the next deploy
-        merges back into, so purging them is silent data loss.
-
-        Refuses to purge when the prior manifest belongs to a *different*
-        platform than the one we're about to deploy: rebuilding cursor
-        after a claude-code deploy (or vice versa) would otherwise blast
-        away paths that the new platform is about to author from scratch
-        — silent, irreversible data loss for any user-edited file under
-        ``.claude/`` / ``.cursor/`` that the new platform doesn't own.
-        Switching platforms is a deliberate two-step: clean up the old
-        target manually (``rm -rf .claude/`` etc.) then deploy fresh.
+        manifest are not touched, and *prior_owned* arrives already scoped
+        to this platform (per-platform manifest, minus paths co-owned by
+        other platforms) so a rebuild can never blast a sibling platform's
+        artefacts. Paths in *protect* (section-merge instruction targets)
+        are kept too — their state lives in the file the next deploy merges
+        back into, so purging them is silent data loss.
         """
         from cataforge.adapter.platform.fileops import _remove_target
 
         if not prior_owned:
             return ["rebuild: no prior manifest — nothing to purge"]
-        if prior_platform is not None and prior_platform != platform_id:
-            return [
-                f"WARN: rebuild-purge skipped — prior deploy was "
-                f"{prior_platform!r} but this run targets "
-                f"{platform_id!r}. Remove the old platform's artefacts "
-                f"manually before switching, otherwise this purge would "
-                f"erase files the new platform never owned."
-            ]
         protect = protect or set()
         actions: list[str] = []
         for rel in sorted(prior_owned):
@@ -615,7 +677,3 @@ class Deployer:
                 continue
             actions.extend(inject_mcp_config(adapter, server.id, payload, root, dry_run=dry_run))
         return actions
-
-    def _write_deploy_state(self, root: Path, platform_id: str) -> None:
-        state_file = self._cfg.paths.deploy_state
-        atomic_write_text(state_file, json.dumps({"platform": platform_id}, indent=2) + "\n")

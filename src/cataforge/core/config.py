@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 
+from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
 from cataforge.core.paths import ProjectPaths, find_project_root
 from cataforge.core.schema.framework import (
@@ -24,17 +26,36 @@ from cataforge.utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger("cataforge.config")
 
+# Code-level defaults surfaced by ``explain`` so "where does this value come
+# from" has an answer even for fields the file never declares.
+_CODE_DEFAULTS: dict[str, Any] = {
+    "deployment.default_platform": "claude-code",
+    "context.mode": "graph",
+    "project.design_tool": "none",
+}
+
+
+def _dig(data: dict[str, Any], dotted_path: str) -> Any:
+    """Resolve a dotted path in nested dicts; ``None`` when any hop misses."""
+    node: Any = data
+    for part in dotted_path.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node
+
 
 class ConfigManager:
     """Access to framework.json and derived constants.
 
-    Primarily read-only; ``set_runtime_platform`` is the only supported
-    write operation (persists ``runtime.platform`` back to disk).
+    Primarily read-only; the ``set_*`` helpers are the supported write
+    operations (single-key patches under the project config lock).
     """
 
     def __init__(self, project_root: Path | None = None) -> None:
         self._paths = ProjectPaths(project_root or find_project_root())
         self._cache: dict[str, Any] | None = None
+        self._local_cache: dict[str, Any] | None = None
 
     @property
     def paths(self) -> ProjectPaths:
@@ -105,10 +126,72 @@ class ConfigManager:
                 return raw
         return raw
 
+    # ---- deployment / platform resolution ----
+
+    def load_local(self) -> dict[str, Any]:
+        """Load and cache ``.cataforge/config.local.json`` (machine-local
+        whitelist overlay, gitignored). Empty dict when absent/unreadable."""
+        if self._local_cache is not None:
+            return self._local_cache
+        path = self._paths.config_local_json
+        if not path.is_file():
+            self._local_cache = {}
+            return self._local_cache
+        try:
+            data = read_json(path)
+        except ConfigError:
+            logger.warning("config.local.json unreadable; ignoring overlay")
+            data = {}
+        self._local_cache = data if isinstance(data, dict) else {}
+        return self._local_cache
+
+    def explain(self, dotted_path: str) -> tuple[Any, str]:
+        """Resolve *dotted_path* across layers; returns ``(value, source)``.
+
+        Source ∈ ``env`` (explicit CATAFORGE_PLATFORM, platform paths only)
+        > ``local`` (config.local.json) > ``framework`` (framework.json)
+        > ``legacy`` (v1 runtime.platform fallback) > ``default``.
+        """
+        import os
+
+        from cataforge.core.platform_id import FALLBACK_PLATFORM
+
+        if dotted_path == "deployment.default_platform":
+            env = os.environ.get("CATAFORGE_PLATFORM")
+            if env:
+                return env, "env"
+        local = _dig(self.load_local(), dotted_path)
+        if local is not None:
+            return local, "local"
+        value = _dig(self.load(), dotted_path)
+        if dotted_path == "deployment.targets" and value == []:
+            # An empty targets list is "undeclared", not "zero platforms" —
+            # fall through to the single-default resolution below.
+            value = None
+        if value is not None:
+            return value, "framework"
+        if dotted_path == "deployment.default_platform":
+            legacy = (self.load().get("runtime") or {}).get("platform")
+            if legacy:
+                return str(legacy), "legacy"
+            return FALLBACK_PLATFORM, "default"
+        if dotted_path == "deployment.targets":
+            platform, source = self.explain("deployment.default_platform")
+            return [platform], source if source != "framework" else "default"
+        default = _CODE_DEFAULTS.get(dotted_path)
+        return default, "default" if default is not None else "unset"
+
     @property
-    def runtime_platform(self) -> str:
-        runtime = self.load().get("runtime") or {}
-        return str(runtime.get("platform", "claude-code"))
+    def default_platform(self) -> str:
+        """Resolved default platform (env > local > v2 > v1 legacy > fallback)."""
+        value, _ = self.explain("deployment.default_platform")
+        return str(value)
+
+    @property
+    def deployment_targets(self) -> list[str]:
+        """Declared enabled-platform set; single default when undeclared."""
+        value, _ = self.explain("deployment.targets")
+        return [str(t) for t in value] if isinstance(value, list) else [str(value)]
 
     @property
     def constants(self) -> dict[str, Any]:
@@ -222,67 +305,108 @@ class ConfigManager:
 
     # ---- save helpers ----
 
-    def set_runtime_platform(self, platform_id: str) -> None:
-        """Update ``runtime.platform`` in framework.json, preserving all other fields.
+    def set_default_platform(self, platform_id: str) -> None:
+        """Set ``deployment.default_platform`` and union it into ``targets``.
 
-        Reads from disk verbatim (no Pydantic round-trip), patches only the
-        single nested key, and writes back. Field order of every other key —
-        including ``upgrade.source`` / ``upgrade.state`` subtrees and any
-        user-added top-level keys — is preserved byte-for-byte except where
-        the patch actually lands.
+        Never removes other enabled targets (multi-platform declarations
+        survive a platform switch). Pops the legacy ``runtime.platform``
+        key in the same write. No-op — no file touch — when both the
+        default and the target membership already match.
         """
-        raw = self.load_raw()
-        raw.setdefault("runtime", {})["platform"] = platform_id
-        self._write_raw(raw)
-        # Invalidate the Pydantic-view cache so the next `load()` re-reads.
-        self._cache = None
+        with self._config_lock():
+            raw = self.load_raw()
+            deployment_raw = raw.get("deployment")
+            deployment = dict(deployment_raw) if isinstance(deployment_raw, dict) else {}
+            targets = [str(t) for t in deployment.get("targets") or []]
+            legacy = (raw.get("runtime") or {}).get("platform")
+            if (
+                deployment.get("default_platform") == platform_id
+                and platform_id in targets
+                and legacy is None
+            ):
+                return
+            deployment["default_platform"] = platform_id
+            if platform_id not in targets:
+                targets.append(platform_id)
+            deployment["targets"] = targets
+            raw["deployment"] = deployment
+            runtime = raw.get("runtime")
+            if isinstance(runtime, dict):
+                runtime = dict(runtime)
+                runtime.pop("platform", None)
+                if runtime:
+                    raw["runtime"] = runtime
+                else:
+                    raw.pop("runtime", None)
+            self._write_raw(raw)
+            self._cache = None
 
     def set_languages(self, languages: list[str]) -> None:
         """Write ``project.languages``, preserving every other field.
 
         Same verbatim-read / single-key-patch / atomic-write discipline as
-        :meth:`set_runtime_platform`, so unrelated keys keep their order.
+        :meth:`set_default_platform`, so unrelated keys keep their order.
         """
-        raw = self.load_raw()
-        raw.setdefault("project", {})["languages"] = list(languages)
-        self._write_raw(raw)
-        self._cache = None
+        with self._config_lock():
+            raw = self.load_raw()
+            raw.setdefault("project", {})["languages"] = list(languages)
+            self._write_raw(raw)
+            self._cache = None
 
     def set_design_tool(self, design_tool: str) -> None:
         """Write ``project.design_tool``, preserving every other field.
 
         Same verbatim-read / single-key-patch / atomic-write discipline as
-        :meth:`set_runtime_platform`, so unrelated keys keep their order.
+        :meth:`set_default_platform`, so unrelated keys keep their order.
         """
-        raw = self.load_raw()
-        raw.setdefault("project", {})["design_tool"] = design_tool
-        self._write_raw(raw)
-        self._cache = None
+        with self._config_lock():
+            raw = self.load_raw()
+            raw.setdefault("project", {})["design_tool"] = design_tool
+            self._write_raw(raw)
+            self._cache = None
 
     def set_context_mode(self, mode: str) -> None:
         """Write ``context.mode``, preserving every other field.
 
         Same verbatim-read / single-key-patch / atomic-write discipline as
-        :meth:`set_runtime_platform`, so unrelated keys keep their order.
+        :meth:`set_default_platform`, so unrelated keys keep their order.
         """
-        raw = self.load_raw()
-        raw.setdefault("context", {})["mode"] = mode
-        self._write_raw(raw)
-        self._cache = None
+        with self._config_lock():
+            raw = self.load_raw()
+            raw.setdefault("context", {})["mode"] = mode
+            self._write_raw(raw)
+            self._cache = None
 
     def describe_platform_change(self, platform_id: str) -> dict[str, Any] | None:
-        """Return a description of what ``set_runtime_platform`` would change.
+        """Return a description of what ``set_default_platform`` would change.
 
-        Returns ``None`` when the file would remain unchanged (platform already
-        matches). Otherwise returns ``{"field": "runtime.platform",
-        "before": <old>, "after": <new>}`` — suitable for ``--dry-run`` /
-        ``--show-diff`` display.
+        Returns ``None`` when the file would remain unchanged. Otherwise
+        returns ``{"field": "deployment.default_platform", "before": <old>,
+        "after": <new>}`` — suitable for ``--dry-run`` / ``--show-diff``.
         """
+        from cataforge.core.platform_id import default_platform_from_config_data
+
         raw = self.load_raw()
-        current = (raw.get("runtime") or {}).get("platform")
-        if current == platform_id:
+        current = default_platform_from_config_data(raw)
+        targets = (raw.get("deployment") or {}).get("targets") or []
+        legacy = (raw.get("runtime") or {}).get("platform")
+        if current == platform_id and platform_id in targets and legacy is None:
             return None
-        return {"field": "runtime.platform", "before": current, "after": platform_id}
+        return {
+            "field": "deployment.default_platform",
+            "before": current,
+            "after": platform_id,
+        }
+
+    def _config_lock(self) -> AbstractContextManager[None]:
+        from cataforge.utils.locks import file_lock
+
+        return file_lock(
+            self._paths.config_lock,
+            timeout=10.0,
+            ttl_seconds=60.0,
+            owner="config-write",
+        )
 
     def _write_raw(self, data: dict[str, Any]) -> None:
         """Write *data* to framework.json as-is (preserves key order).

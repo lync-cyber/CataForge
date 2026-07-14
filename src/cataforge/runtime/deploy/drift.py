@@ -63,7 +63,7 @@ def _iter_source_files(paths: ProjectPaths) -> Iterator[Path]:
                 yield p
 
 
-def _hashable_bytes(rel: str, path: Path) -> bytes:
+def _hashable_bytes(rel: str, path: Path, override: bytes | None = None) -> bytes:
     """Bytes fed to the source digest for one file.
 
     ``framework.json`` is a deploy input, but carries local-only bookkeeping
@@ -74,7 +74,7 @@ def _hashable_bytes(rel: str, path: Path) -> bytes:
     JSON form with ``upgrade.state`` removed instead; fall back to raw bytes
     when the file is not valid JSON.
     """
-    raw = path.read_bytes()
+    raw = override if override is not None else path.read_bytes()
     if rel != "framework.json":
         return raw
     try:
@@ -90,11 +90,14 @@ def _hashable_bytes(rel: str, path: Path) -> bytes:
     return json.dumps(data, sort_keys=True, ensure_ascii=False).encode("utf-8")
 
 
-def compute_source_digest(paths: ProjectPaths) -> str:
+def compute_source_digest(paths: ProjectPaths, *, framework_json_bytes: bytes | None = None) -> str:
     """Deterministic sha256 over all deploy-input source files.
 
     Hashes ``(relative_path, bytes)`` pairs in sorted path order so the
-    result is stable across runs and platforms.
+    result is stable across runs and platforms. ``framework_json_bytes``
+    lets the deployer hash its start-of-run config snapshot instead of a
+    tail re-read — a concurrent config edit mid-deploy must not record a
+    baseline the rendered artefacts never saw.
     """
     cf = paths.cataforge_dir
     items = sorted(_iter_source_files(paths), key=lambda p: p.relative_to(cf).as_posix())
@@ -103,7 +106,8 @@ def compute_source_digest(paths: ProjectPaths) -> str:
         rel = p.relative_to(cf).as_posix()
         h.update(rel.encode("utf-8"))
         h.update(b"\0")
-        h.update(_hashable_bytes(rel, p))
+        override = framework_json_bytes if rel == "framework.json" else None
+        h.update(_hashable_bytes(rel, p, override))
         h.update(b"\0")
     return h.hexdigest()
 
@@ -125,17 +129,40 @@ class DriftReport:
         return self.source_drift or self.version_drift
 
 
-def detect_drift(paths: ProjectPaths, *, current_version: str | None = None) -> DriftReport:
+def detect_drift(
+    paths: ProjectPaths,
+    *,
+    platform_id: str | None = None,
+    current_version: str | None = None,
+) -> DriftReport:
     """Compare current ``.cataforge/`` source + package version vs the baseline.
+
+    With *platform_id* the baseline comes from that platform's own deploy
+    record, so each platform's staleness is judged against its own last
+    deploy. Without it the most recently usable baseline is picked from
+    any deployed platform (legacy single-slot included).
 
     ``deployed`` is False (and no drift reported) when no manifest baseline
     exists — a pre-deploy or pre-baseline project is legitimate, not stale.
     """
+    from cataforge.runtime.deploy.manifest import (
+        deployed_platforms,
+        load_prior_baseline_for,
+    )
+
     if current_version is None:
         from cataforge import __version__
 
         current_version = __version__
-    prior_digest, prior_version = load_prior_baseline(paths.root)
+    if platform_id is not None:
+        prior_digest, prior_version = load_prior_baseline_for(paths.root, platform_id)
+    else:
+        prior_digest, prior_version = load_prior_baseline(paths.root)
+        if prior_digest is None:
+            for candidate in deployed_platforms(paths.root):
+                prior_digest, prior_version = load_prior_baseline_for(paths.root, candidate)
+                if prior_digest is not None:
+                    break
     current_digest = compute_source_digest(paths)
     deployed = prior_digest is not None
     source_drift = deployed and prior_digest != current_digest

@@ -186,7 +186,7 @@ def resolve_placeholder(token: str, adapter: PlatformAdapter) -> str | None:
     return _RESOLVER_FUNCS[resolver_name](adapter)
 
 
-def render_runtime_content(content: str, adapter: PlatformAdapter) -> str:
+def render_runtime_content(content: str, adapter: PlatformAdapter, *, neutral: bool = False) -> str:
     """Substitute every known placeholder in *content* for *adapter*.
 
     Behaviour rules:
@@ -199,12 +199,24 @@ def render_runtime_content(content: str, adapter: PlatformAdapter) -> str:
       these reach a deployed artefact.
     * Substitution uses ``str.replace`` so the same token can appear
       multiple times in one body.
+    * ``neutral=True`` renders directory placeholders to the platform-
+      independent ``.cataforge/`` source paths. Used for instruction files
+      shared by several platforms (AGENTS.md) — a platform-specific path
+      there would flip with whichever platform deployed last.
 
     Idempotency: re-running on already-rendered content is a no-op because
     the rendered values don't contain any of the literal placeholder tokens.
     """
+    neutral_values = {
+        **_SOURCE_FALLBACKS,
+        "{AGENTS_DIR}": ".cataforge/agents",
+        "{AGENTS_SRC_DIR}": ".cataforge/agents",
+    }
     for token in _PLACEHOLDER_RESOLVERS:
         if token not in content:
+            continue
+        if neutral and token in neutral_values:
+            content = content.replace(token, neutral_values[token])
             continue
         value = resolve_placeholder(token, adapter)
         if value is None:

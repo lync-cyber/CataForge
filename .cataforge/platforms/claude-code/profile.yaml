@@ -91,6 +91,9 @@ settings_defaults:
   # input-box shell.
   env:
     CLAUDE_CODE_USE_POWERSHELL_TOOL: "0"
+    # Explicit hook/process platform identity — multi-platform projects
+    # cannot rely on the shared framework.json default.
+    CATAFORGE_PLATFORM: claude-code
   defaultShell: bash
 
 hooks:

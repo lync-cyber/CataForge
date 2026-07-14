@@ -1,14 +1,10 @@
 """Verify deployed IDE artefacts are actually present and reachable.
 
-The provenance report (``provenance.py``) is informational: it lists
-present/absent paths but never gated the exit code. That left a class of
-silent failures invisible — most notably ``.claude/skills/`` getting
-deleted (or pointing through a junction whose source moved away), with
-``doctor`` still happily exiting 0.
-
-This module turns the same provenance map into a hard gate: when
-``.deploy-state`` records a platform, every owned deploy artefact must
-either be a real file/dir or, if it is a symlink/junction, must resolve.
+Hard gate over the per-platform deploy manifests: every path a platform's
+last deploy recorded must either be a real file/dir or, if it is a
+symlink/junction, must resolve. The manifest is the ownership truth, so
+conditionally-produced artefacts (MCP config files) are only required
+when a deploy actually wrote them.
 """
 
 from __future__ import annotations
@@ -18,102 +14,73 @@ from typing import TYPE_CHECKING
 
 import click
 
-from cataforge.core.errors import ConfigError
-from cataforge.core.io import read_json
-
-from .provenance import _OWNED_DIRS_BY_PLATFORM
+from cataforge.runtime.deploy.manifest import (
+    deployed_platforms,
+    load_prior_manifest_for,
+)
 
 if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
 
 
-def _check_path_integrity(
+def _check_owned_path(
     root: Path,
     rel: str,
-    commands_optional: bool,
     missing: list[str],
     dangling: list[tuple[str, str]],
 ) -> int:
     """Check one owned deploy path; return the number of new failures."""
     p = root / rel
-    if rel.endswith("/commands") and commands_optional and not p.exists():
-        return 0
-
     is_link = p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction())
     if is_link:
         if not p.exists():
             dangling.append((rel, _link_target(p)))
             return 1
-        # Live link — fall through to per-child checks for skills dir.
-    elif not p.exists():
+        return 0
+    if not p.exists():
         missing.append(rel)
         return 1
-
-    failures = 0
-    if rel.endswith("/skills") and p.is_dir():
-        for child in p.iterdir():
-            child_is_link = child.is_symlink() or (
-                hasattr(child, "is_junction") and child.is_junction()
-            )
-            if child_is_link:
-                if not child.exists():
-                    dangling.append((f"{rel}/{child.name}", _link_target(child)))
-                    failures += 1
-            elif not child.exists():
-                missing.append(f"{rel}/{child.name}")
-                failures += 1
-    return failures
+    return 0
 
 
-def check_deploy_integrity(cfg: ConfigManager) -> int:
+def check_deploy_integrity(cfg: ConfigManager, platforms: list[str] | None = None) -> int:
     """Returns the number of failures contributing to doctor's exit code.
 
     Skipped (returns 0) when no deploy has ever run — pre-deploy state is
     legitimate and is already reported by the provenance section.
     """
-    deploy_state_path = cfg.paths.cataforge_dir / ".deploy-state"
-    if not deploy_state_path.is_file():
+    root = cfg.paths.root
+    recorded = deployed_platforms(root)
+    if not recorded:
         click.echo("  (no deploy has been run yet — skipping integrity gate)")
         return 0
 
-    try:
-        state = read_json(deploy_state_path)
-    except ConfigError:
-        # provenance.py already reports the parse failure; don't double-count.
-        return 0
-
-    platform_id = state.get("platform")
-    owned = _OWNED_DIRS_BY_PLATFORM.get(platform_id, [])
-    if not owned:
-        click.echo(f"  (no integrity map declared for platform {platform_id!r})")
-        return 0
-
-    root = cfg.paths.root
-    commands_optional = not (cfg.paths.cataforge_dir / "commands").is_dir()
+    scope = [p for p in (platforms or recorded) if p in recorded]
     failures = 0
-    missing: list[str] = []
-    dangling: list[tuple[str, str]] = []
-
-    for rel in owned:
-        failures += _check_path_integrity(root, rel, commands_optional, missing, dangling)
-
-    if not failures:
-        click.echo(f"  {len(owned)} owned path(s) verified for {platform_id} deploy")
-        return 0
-
-    if missing:
-        click.echo(f"  {len(missing)} deploy artefact(s) missing:")
+    for platform_id in scope:
+        owned = sorted(load_prior_manifest_for(root, platform_id))
+        if not owned:
+            click.echo(f"  {platform_id}: (empty manifest — nothing to verify)")
+            continue
+        missing: list[str] = []
+        dangling: list[tuple[str, str]] = []
+        for rel in owned:
+            failures += _check_owned_path(root, rel, missing, dangling)
+        if not missing and not dangling:
+            click.echo(f"  {platform_id}: {len(owned)} owned path(s) verified")
+            continue
         for rel in missing:
-            click.echo(f"    FAIL {rel} — re-run `cataforge deploy`")
-    if dangling:
-        click.echo(
-            f"  {len(dangling)} deploy artefact(s) are dangling links (source moved or deleted):"
-        )
+            click.echo(
+                f"    FAIL {platform_id}: {rel} missing — "
+                f"re-run `cataforge deploy --platform {platform_id}`"
+            )
         for rel, link_target in dangling:
             click.echo(
-                f"    FAIL {rel} — broken link to {link_target!r}; "
-                "re-run `cataforge deploy` to relink"
+                f"    FAIL {platform_id}: {rel} — broken link to {link_target!r}; "
+                f"re-run `cataforge deploy --platform {platform_id}` to relink"
             )
+    for platform_id in [p for p in (platforms or []) if p not in recorded]:
+        click.echo(f"  {platform_id}: not deployed — skipping")
     return failures
 
 
@@ -170,27 +137,32 @@ def check_deploy_source_orphans(cfg: ConfigManager) -> int:
     return 0
 
 
-def check_deploy_drift(cfg: ConfigManager) -> int:
+def check_deploy_drift(cfg: ConfigManager, platforms: list[str] | None = None) -> int:
     """Nudge (never gate) when deployed IDE artefacts are stale.
 
     Compares the current ``.cataforge/`` source digest + installed
-    ``cataforge`` version against the baselines the last deploy recorded in
-    ``.deploy-manifest.json``. Drift is a "run ``cataforge deploy``" reminder,
-    not a failure, so this always returns 0 and is wired with ``gating=False``.
-    Skipped silently when no drift-aware baseline exists yet (pre-deploy or a
-    manifest written before drift tracking).
+    ``cataforge`` version against the baseline each platform's last deploy
+    recorded in its own manifest. Drift is a "run ``cataforge deploy``"
+    reminder, not a failure, so this always returns 0 and is wired with
+    ``gating=False``.
     """
     from cataforge.runtime.deploy.drift import detect_drift, drift_hint_lines
 
-    report = detect_drift(cfg.paths)
-    if not report.deployed:
+    recorded = deployed_platforms(cfg.paths.root)
+    scope = [p for p in (platforms or recorded) if p in recorded]
+    if not scope:
         click.echo("  (no deploy baseline yet — skipping drift check)")
         return 0
-    if not report.any_drift:
-        click.echo("  deployed artefacts are in sync with source + package version")
-        return 0
-    for line in drift_hint_lines(report):
-        click.echo(f"    WARN {line}")
+    for platform_id in scope:
+        report = detect_drift(cfg.paths, platform_id=platform_id)
+        if not report.deployed:
+            click.echo(f"  {platform_id}: (no drift baseline yet)")
+            continue
+        if not report.any_drift:
+            click.echo(f"  {platform_id}: in sync with source + package version")
+            continue
+        for line in drift_hint_lines(report):
+            click.echo(f"    WARN {platform_id}: {line}")
     return 0
 
 

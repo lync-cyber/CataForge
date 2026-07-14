@@ -43,6 +43,34 @@ def _on_conflict_skip(
     return None
 
 
+def _render_target_content(
+    raw_template: str,
+    adapter: PlatformAdapter,
+    *,
+    platform_id: str,
+    audience: list[str],
+    design_tool: str,
+    manual_review_checkpoints: list[str] | None,
+) -> str:
+    """Render the instruction template for one target's platform audience.
+
+    Shared files (audience > 1) render the audience set and platform-neutral
+    source paths so their bytes are independent of deploy order.
+    """
+    shared = len(audience) > 1
+    content = render_project_state(
+        raw_template,
+        audience if shared else platform_id,
+        design_tool=design_tool,
+        manual_review_checkpoints=manual_review_checkpoints,
+    )
+    content = render_runtime_content(content, adapter, neutral=shared)
+    preamble = adapter.get_instruction_preamble()
+    if preamble:
+        content = preamble + content
+    return content
+
+
 def deploy_instruction_files(
     adapter: PlatformAdapter,
     project_state_path: Path,
@@ -50,6 +78,9 @@ def deploy_instruction_files(
     *,
     platform_id: str,
     design_tool: str = "none",
+    manual_review_checkpoints: list[str] | None = None,
+    instruction_audience: dict[str, list[str]] | None = None,
+    primary_state_source: str | None = None,
     dry_run: bool = False,
     manifest: DeployManifest | None = None,
     prior_manifest: set[str] | None = None,
@@ -63,26 +94,16 @@ def deploy_instruction_files(
     - ``update_strategy``: ``overwrite`` (default) | ``section-merge``.
       ``section-merge`` preserves user-added sections and field values per
       the ``section_policy`` declared on the target.
+
+    ``instruction_audience`` maps a target path to the full set of platforms
+    whose profile writes that same file. A shared file (AGENTS.md) renders
+    from the audience set with platform-neutral paths, so its bytes never
+    depend on which platform deployed last.
     """
     if not project_state_path.is_file():
         return ["SKIP: PROJECT-STATE.md not found"]
 
-    content = project_state_path.read_text()
-    content = render_project_state(content, platform_id, design_tool=design_tool)
-    # Apply runtime placeholders ({INSTRUCTION_FILE}, {RULES_DIR}, …) so
-    # the user's CLAUDE.md / AGENTS.md ships with platform-native paths
-    # baked in. ``render_project_state`` only handles the legacy
-    # ``运行时: {platform}`` token; this second pass picks up the new
-    # placeholder surface declared by the renderer registry.
-    content = render_runtime_content(content, adapter)
-
-    # Prepend an at-mention preamble when the platform declares one via
-    # context_injection.  Today only Claude Code uses this — CLAUDE.md gets
-    # `@.cataforge/rules/COMMON-RULES.md` at the top so the shared rule
-    # file rides into every session without a runtime Read call.
-    preamble = adapter.get_instruction_preamble()
-    if preamble:
-        content = preamble + content
+    raw_template = project_state_path.read_text()
 
     actions: list[str] = []
     hashes = load_instruction_hashes(project_root)
@@ -125,10 +146,21 @@ def deploy_instruction_files(
             actions.append(skip_action)
             continue
 
+        # ---- render for this target's platform audience ----
+        audience = (instruction_audience or {}).get(target_rel) or [platform_id]
+        content = _render_target_content(
+            raw_template,
+            adapter,
+            platform_id=platform_id,
+            audience=audience,
+            design_tool=design_tool,
+            manual_review_checkpoints=manual_review_checkpoints,
+        )
+
         # ---- compute new content ----
         new_content = content
+        section_policy = target.get("section_policy", {}) or {}
         if update_strategy == "section-merge" and dst.exists():
-            section_policy = target.get("section_policy", {}) or {}
             current_text = dst.read_text()
             new_content = merge_sections(
                 current_text,
@@ -136,6 +168,20 @@ def deploy_instruction_files(
                 policy=section_policy,
                 platform_id=platform_id,
             )
+        elif update_strategy == "section-merge" and primary_state_source is not None:
+            # Fresh secondary instruction file: seed its runtime sections
+            # (§项目状态 / §执行环境) from the primary instruction file so a
+            # newly enabled platform starts from the live project state
+            # instead of template placeholders. The primary stays the SSOT;
+            # doctor reports projection drift afterwards.
+            primary_path = project_root / primary_state_source
+            if primary_state_source != target_rel and primary_path.is_file():
+                new_content = merge_sections(
+                    primary_path.read_text(),
+                    content,
+                    policy=section_policy,
+                    platform_id=platform_id,
+                )
 
         if dry_run:
             actions.append(

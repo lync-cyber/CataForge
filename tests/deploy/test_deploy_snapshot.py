@@ -22,9 +22,8 @@ import yaml
 
 from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
-from cataforge.core.paths import DEPLOY_MANIFEST_REL
 from cataforge.runtime.deploy.deployer import Deployer
-from cataforge.runtime.deploy.manifest import load_prior_manifest
+from cataforge.runtime.deploy.manifest import load_prior_manifest, platform_manifest_path
 
 # ---------------------------------------------------------------------------
 # Platform profiles used across multiple tests
@@ -363,7 +362,7 @@ def test_manifest_platform_field_matches_deploy_target(tmp_path: Path) -> None:
     root = _init_project(tmp_path, "cursor", _CURSOR_PROFILE)
     _deploy(root, "cursor")
 
-    manifest_path = root / DEPLOY_MANIFEST_REL
+    manifest_path = platform_manifest_path(root, "cursor")
     assert manifest_path.is_file()
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert data.get("platform") == "cursor", (

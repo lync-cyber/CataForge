@@ -1,20 +1,12 @@
 """Doctor must be a real integrity gate, not a passive reporter.
 
-Pinned bug: ``cataforge doctor`` exited 0 even when the directories it
-listed as ``[absent]`` truly were absent. Symptoms users reported:
-
-* Deleting ``.claude/skills/`` post-deploy did not fail doctor.
-* Deleting ``.cataforge/skills/`` (a required source asset) did not
-  fail doctor — only the migration-checks block contributed to the
-  exit code.
-
-Post-fix contract:
+Contract:
 
 * ``.cataforge/{agents,skills,rules,hooks,platforms}`` are required
   source-asset directories — missing → ``doctor`` exits non-zero.
-* When ``.deploy-state`` records a platform, every owned deployed
-  directory for that platform must exist (or, if it's a link, must
-  resolve). Missing or dangling → ``doctor`` exits non-zero.
+* Every path recorded in a platform's deploy manifest must exist (or,
+  if it's a link, must resolve). Missing or dangling → ``doctor``
+  exits non-zero.
 * The final line of output must be a ``Summary:`` row that explains
   what passed / failed so the user does not have to scan 13 sections.
 """
@@ -62,6 +54,16 @@ def _populate_source_dirs(root: Path, *names: str) -> None:
 def _write_deploy_state(root: Path, platform: str) -> None:
     (root / ".cataforge" / ".deploy-state").write_text(
         json.dumps({"platform": platform}), encoding="utf-8"
+    )
+
+
+def _write_platform_record(root: Path, platform: str, owned: list[str]) -> None:
+    """Write the per-platform deploy manifest a real deploy would record."""
+    d = root / ".cataforge" / "state" / "deploy" / platform
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "manifest.json").write_text(
+        json.dumps({"manifest_version": 1, "platform": platform, "owned_paths": owned}),
+        encoding="utf-8",
     )
 
 
@@ -114,12 +116,12 @@ class TestDoctorAsIntegrityGate:
     def test_doctor_fails_when_deployed_skills_dir_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Deploy-state recorded → owned dirs must exist."""
+        """Deploy manifest recorded → owned paths must exist."""
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
         (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
         _make_skill(root / ".cataforge" / "skills", "alpha")
-        _write_deploy_state(root, "claude-code")
+        _write_platform_record(root, "claude-code", [".claude/skills/alpha"])
         # No .claude/skills/ created — owned but missing.
         monkeypatch.chdir(root)
 
@@ -140,7 +142,7 @@ class TestDoctorAsIntegrityGate:
         src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
         deployed_skills = root / ".claude" / "skills"
         _link_skill(src_skill, deployed_skills)
-        _write_deploy_state(root, "claude-code")
+        _write_platform_record(root, "claude-code", [".claude/skills/alpha"])
         # Now wipe the source — the link is dangling.
         shutil.rmtree(src_skill)
         monkeypatch.chdir(root)
@@ -199,24 +201,19 @@ class TestDoctorAsIntegrityGate:
         assert result.exit_code == 0, result.output
         assert "FAIL .claude/commands" not in result.output
 
-    def test_doctor_fails_when_command_sources_present_but_target_missing(
+    def test_doctor_fails_when_owned_command_target_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """With command sources on disk, an absent deployed commands dir is a
-        real integrity failure — the conditional skip must not mask it."""
+        """A manifest-owned command artefact absent on disk is a real
+        integrity failure."""
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
         (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
         src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
         _link_skill(src_skill, root / ".claude" / "skills")
-        (root / ".claude").mkdir(exist_ok=True)
-        (root / ".claude" / "settings.json").write_text("{}\n", encoding="utf-8")
-        (root / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
-        (root / ".claude" / "rules").mkdir(parents=True, exist_ok=True)
-        # Command source exists → .claude/commands becomes required.
-        (root / ".cataforge" / "commands").mkdir(parents=True, exist_ok=True)
-        (root / ".cataforge" / "commands" / "demo.md").write_text("# demo\n", encoding="utf-8")
-        _write_deploy_state(root, "claude-code")
+        _write_platform_record(
+            root, "claude-code", [".claude/skills/alpha", ".claude/commands/demo.md"]
+        )
         monkeypatch.chdir(root)
 
         result = CliRunner().invoke(doctor_command, [])

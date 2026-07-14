@@ -191,6 +191,10 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> HookGenerationResult:
 
             module_name = _script_to_hook_name(hook_entry.get("script", ""))
             command = _resolve_command(command_template, module_name)
+            # Explicit platform identity: in a multi-platform project the
+            # shared framework.json can no longer answer "which IDE am I",
+            # so the generated wrapper carries it.
+            command += f" --cataforge-platform {adapter.platform_id}"
 
             # Emit the platform-native hook entry type (typically "command" for
             # JSON-config platforms like Claude Code / Cursor / Codex). The

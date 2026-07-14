@@ -563,7 +563,9 @@ class TestCodexDeployIntegration:
         # Frontmatter-internal & unsupported-by-codex fields dropped.
         assert "tools = " not in content
         assert "disallowedTools" not in content
-        assert "skills" not in content
+        assert "skills = " not in content
+        # Degradation contract: skill context survives as read-first pointers.
+        assert ".cataforge/skills/" in content
         assert "maxTurns" not in content
         assert "allowed_paths" not in content
         assert "model_tier" not in content

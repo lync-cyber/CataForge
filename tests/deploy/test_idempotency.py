@@ -454,13 +454,19 @@ def test_redeploy_does_not_overwrite_user_edits_to_source(tmp_path: Path, monkey
 
 
 def test_deploy_writes_manifest_file(tmp_path: Path) -> None:
-    """Manifest must land at ``.cataforge/.deploy-manifest.json``."""
+    """Manifest must land at ``.cataforge/state/deploy/<platform>/manifest.json``."""
     root = _init_project(tmp_path)
     clear_cache()
     Deployer(ConfigManager(root)).deploy("claude-code")
 
-    manifest = root / ".cataforge" / ".deploy-manifest.json"
+    deploy_dir = root / ".cataforge" / "state" / "deploy" / "claude-code"
+    manifest = deploy_dir / "manifest.json"
     assert manifest.is_file(), "Deploy did not write the ownership manifest."
+    state = json.loads((deploy_dir / "state.json").read_text(encoding="utf-8"))
+    assert state.get("platform") == "claude-code"
+    assert not (root / ".cataforge" / ".deploy-manifest.json").exists(), (
+        "Deploy must not write the single-slot legacy manifest."
+    )
     data = json.loads(manifest.read_text(encoding="utf-8"))
     assert data.get("platform") == "claude-code"
     owned = data.get("owned_paths") or []
@@ -531,7 +537,7 @@ def test_manifest_omits_user_authored_paths(tmp_path: Path) -> None:
     clear_cache()
     Deployer(ConfigManager(root)).deploy("claude-code")
 
-    manifest_path = root / ".cataforge" / ".deploy-manifest.json"
+    manifest_path = root / ".cataforge" / "state" / "deploy" / "claude-code" / "manifest.json"
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     owned_set = set(data.get("owned_paths") or [])
     assert ".claude/commands/user-thing.md" not in owned_set, (
@@ -627,37 +633,31 @@ def test_rebuild_purges_prior_owned_then_redeploys(tmp_path: Path) -> None:
 
 
 def test_rebuild_refuses_to_purge_prior_other_platform(tmp_path: Path) -> None:
-    """``--rebuild`` must NOT purge paths whose ownership stake belongs
-    to a different platform than the one being deployed.
+    """``--rebuild`` must NOT purge paths owned by a different platform.
 
-    Concretely: if a user deployed Cursor previously (recording paths
-    under ``.cursor/`` in the manifest) and then runs
-    ``cataforge deploy --platform=claude-code --rebuild``, the prior
-    manifest still names ``.cursor/...`` paths. Pre-fix the rebuild
-    purge blasted those away regardless — silent data loss for any
-    hand-edits the user made under ``.cursor/``. Post-fix the deployer
-    refuses with a clear warning, leaving the user to clean the old
-    platform's tree manually if they want a true switch.
+    Rebuild's purge scope is the deploying platform's own manifest, so a
+    ``cataforge deploy --platform=claude-code --rebuild`` leaves every
+    artefact recorded in cursor's manifest (paths under ``.cursor/``)
+    untouched — hand-edits the user made there survive a platform switch.
     """
-    from cataforge.core.paths import DEPLOY_MANIFEST_REL
-
     root = _init_project(tmp_path)
     clear_cache()
 
-    # Plant a manifest that records a previous cursor deploy with
-    # paths that exist on disk (we use real touched files so the purge
-    # would actually try to delete them if the platform check failed).
+    # Plant cursor's per-platform manifest recording paths that exist on
+    # disk (real touched files so the purge would actually delete them if
+    # rebuild ever crossed the platform boundary).
     cursor_owned_a = root / ".cursor" / "rules" / "owned-a.mdc"
     cursor_owned_b = root / ".cursor" / "commands" / "owned-b.md"
     for p in (cursor_owned_a, cursor_owned_b):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text("cursor-era content", encoding="utf-8")
 
-    manifest_path = root / DEPLOY_MANIFEST_REL
+    manifest_path = root / ".cataforge" / "state" / "deploy" / "cursor" / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
         json.dumps(
             {
+                "manifest_version": 1,
                 "platform": "cursor",
                 "owned_paths": [
                     str(cursor_owned_a.relative_to(root)).replace("\\", "/"),
@@ -672,16 +672,12 @@ def test_rebuild_refuses_to_purge_prior_other_platform(tmp_path: Path) -> None:
 
     actions = Deployer(ConfigManager(root)).deploy("claude-code", rebuild=True)
 
-    # Warning was surfaced and the prior platform's files survived.
-    assert any(
-        "rebuild-purge skipped" in a and "'cursor'" in a and "'claude-code'" in a for a in actions
-    ), f"warning must explain the refusal; got: {actions}"
+    # The sibling platform's files survived and were never purge targets.
     assert cursor_owned_a.is_file(), (
-        ".cursor/-owned file was purged despite the platform mismatch — "
-        "this is the silent data-loss bug C3 fixes."
+        ".cursor/-owned file was purged by a claude-code rebuild — "
+        "rebuild must stay inside the deploying platform's own manifest."
     )
     assert cursor_owned_b.is_file()
-    # No purge action recorded.
     assert not any("rebuild-purged" in a for a in actions), actions
 
 

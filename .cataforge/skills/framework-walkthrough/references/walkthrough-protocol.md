@@ -14,6 +14,7 @@
 2. 目标目录非空时**另起新 run-id 或先 `--clean` 清空**再用——非空目录直接复用会让两次走查互相写入对方产物、归因困难。新建空目录并进入（后续所有命令的 cwd = 沙盒目录）。
 3. 初始化框架资产：`cataforge setup`（按 `cataforge setup --help` 确认平台参数；若 setup 不接受平台参数，则 `cataforge deploy --platform <platform>`）。目标是在沙盒内得到独立的 `.cataforge/` 与目标平台的部署产物。
 4. 健全性确认：`cataforge doctor` 应通过；`framework.json#/version` 非 `0.0.0-template`。
+5. 健全性失败处置：保留 `cataforge doctor` 的原始输出，按其 remediation 修复并复跑一次；仍非零则停止 Bootstrap，覆盖账本标 `I-6=finding`、`E-10=driven`，其余未执行路径统一标 `not-reached: bootstrap health gate blocked`，转 Step 6 出报告。
 
 ### 1.2 跨平台差异的吸收点
 

@@ -210,3 +210,41 @@ def check_docs_validate(cfg: ConfigManager) -> int:
     _emit_doctor_stale_deps(stale_deps)
 
     return len(orphans) + len(stale) + len(xref_errors) + len(alias_conflicts) + len(invalid_ids)
+
+
+def check_agent_skill_reachability(cfg: ConfigManager) -> int:
+    """Verify every skill an AGENT.md declares resolves to a real source.
+
+    ``.cataforge/skills/<id>/SKILL.md`` is the canonical source on every
+    platform — skill-deploying platforms link/copy it, the others get a
+    read-first fallback injected into the agent body. A declared id with
+    no source means that fallback points at nothing, so this gates.
+    """
+    from cataforge.runtime.agent.translator import _declared_skills
+
+    agents_dir = cfg.paths.agents_dir
+    if not agents_dir.is_dir():
+        click.echo("  (no agents dir — skipped)")
+        return 0
+
+    failures = 0
+    checked = 0
+    for agent_md in sorted(agents_dir.glob("*/AGENT.md")):
+        try:
+            content = agent_md.read_text()
+        except OSError as e:
+            click.echo(f"  FAIL {agent_md.parent.name}: unreadable AGENT.md ({e})")
+            failures += 1
+            continue
+        for skill_id in _declared_skills(content):
+            checked += 1
+            skill_md = cfg.paths.skill_dir(skill_id) / "SKILL.md"
+            if not skill_md.is_file():
+                click.echo(
+                    f"  FAIL {agent_md.parent.name}: declared skill {skill_id!r} "
+                    f"has no source at {skill_md}"
+                )
+                failures += 1
+    if failures == 0:
+        click.echo(f"  {checked} agent skill dependency(ies) all resolve to sources")
+    return failures

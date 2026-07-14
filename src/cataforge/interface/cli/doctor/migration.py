@@ -30,11 +30,11 @@ framework.json from after.
 def check_runtime_api_version(cfg: ConfigManager) -> int:
     declared = cfg.load().get("runtime_api_version")
     if declared is None:
-        # Field is unconditionally stamped by ``scaffold._stamp_framework_version``
-        # on every install/upgrade write, so a real on-disk framework.json that
-        # went through the normal install path can't be missing it. Hard-fail
-        # so the contract is meaningful — hand-edits that drop it get told to
-        # restamp.
+        # Field ships in the scaffold framework.json and is refreshed as a
+        # framework-owned key on every install/upgrade write, so a real
+        # on-disk framework.json that went through the normal install path
+        # can't be missing it. Hard-fail so the contract is meaningful —
+        # hand-edits that drop it get told to restamp.
         click.echo(
             f"  FAIL: runtime_api_version field missing from framework.json "
             f"(expected {SUPPORTED_RUNTIME_API_VERSION!r}); "
@@ -54,7 +54,7 @@ def check_runtime_api_version(cfg: ConfigManager) -> int:
     return 0
 
 
-def run_migration_checks(cfg: ConfigManager) -> int:
+def run_migration_checks(cfg: ConfigManager, platforms: list[str] | None = None) -> int:
     """Run migration checks; return the number of failures.
 
     Checks marked ``requires_deploy: true`` are SKIPPED (not failed) when the
@@ -62,17 +62,24 @@ def run_migration_checks(cfg: ConfigManager) -> int:
     like ``.claude/settings.json`` that cannot exist until the first
     ``cataforge deploy`` run.
 
+    Checks with a ``platforms`` list only apply when at least one of those
+    platforms has a deploy record — a check against ``.claude/settings.json``
+    must not fail a codex-only project.
+
     Checks with ``deprecate_after: <semver>`` are SKIPPED once the running
     package version has caught up to that semver.
     """
     from cataforge import __version__ as pkg_version
+    from cataforge.runtime.deploy.manifest import deployed_platforms
 
     checks = cfg.load().get("migration_checks") or []
     if not checks:
         click.echo("  (none defined)")
         return 0
 
-    deployed = (cfg.paths.cataforge_dir / ".deploy-state").is_file()
+    deployed_set = set(deployed_platforms(cfg.paths.root))
+    if platforms is not None:
+        deployed_set &= set(platforms)
 
     passed = 0
     skipped: list[tuple[str, str]] = []
@@ -83,8 +90,16 @@ def run_migration_checks(cfg: ConfigManager) -> int:
         if isinstance(deprecate_after, str) and _semver_ge(pkg_version, deprecate_after):
             skipped.append((cid, f"deprecated since {deprecate_after} (current {pkg_version})"))
             continue
-        if bool(check.get("requires_deploy", False)) and not deployed:
+        if bool(check.get("requires_deploy", False)) and not deployed_set:
             skipped.append((cid, "requires deploy (run `cataforge deploy` first)"))
+            continue
+        check_platforms = check.get("platforms")
+        if (
+            isinstance(check_platforms, list)
+            and check_platforms
+            and not (set(map(str, check_platforms)) & deployed_set)
+        ):
+            skipped.append((cid, f"not applicable — requires platform(s) {check_platforms}"))
             continue
         ok, reason = _evaluate_check(check, cfg.paths.root)
         if ok:

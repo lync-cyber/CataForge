@@ -55,6 +55,6 @@ def test_custom_hook_uses_file_invocation(monkeypatch: pytest.MonkeyPatch) -> No
     cmd = pre[0]["hooks"][0]["command"]
     # Custom scripts live in the project — the generated command references
     # the file directly rather than going through the ``-m`` package path.
-    assert cmd == "python .cataforge/hooks/custom/my_scan.py"
+    assert cmd == ("python .cataforge/hooks/custom/my_scan.py --cataforge-platform test")
     # And the module-style command must NOT be used for customs.
     assert "cataforge.runtime.hook.scripts" not in cmd

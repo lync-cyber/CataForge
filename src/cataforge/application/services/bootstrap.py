@@ -108,8 +108,8 @@ def build_plan(
     )
 
     # Decide the target platform for downstream steps — explicit flag wins,
-    # else the recorded runtime.platform.
-    current_platform = cfg.runtime_platform
+    # else the recorded default platform.
+    current_platform = cfg.default_platform
     plan.target_platform = requested_platform or current_platform
     if (
         requested_platform is not None
@@ -118,7 +118,7 @@ def build_plan(
     ):
         plan.error = (
             f"--platform={requested_platform!r} conflicts with "
-            f"framework.json runtime.platform={current_platform!r}. "
+            f"framework.json deployment.default_platform={current_platform!r}. "
             "Run `cataforge setup --platform <id> --show-diff` explicitly "
             "to change the target platform — bootstrap will not rewrite it."
         )
@@ -167,44 +167,43 @@ def build_plan(
 
 
 def _plan_deploy(plan: Plan, cfg: ConfigManager) -> None:
-    """Decide the deploy step from the recorded ``.deploy-state``."""
-    deploy_state_file = cfg.paths.deploy_state
+    """Decide the deploy step from the per-platform deploy records."""
     upgrade_running = plan.steps[-1].action == "run"  # upgrade step just above
-    if not deploy_state_file.is_file():
-        plan.add("deploy", "run", "never deployed (.deploy-state missing)")
-        return
 
-    import json as _json
+    # Corruption in the legacy single-slot state file must surface, not
+    # silently re-deploy — a crash during a prior deploy can truncate it.
+    deploy_state_file = cfg.paths.deploy_state
+    if deploy_state_file.is_file():
+        import json as _json
 
-    # Distinguish "missing" (legitimate first-deploy signal) from "corrupted"
-    # (a crash during a prior deploy that left truncated JSON). Both would
-    # otherwise flow into ``state = {}`` and silently re-deploy instead of
-    # telling the user the state file is busted.
-    try:
-        text = deploy_state_file.read_text()
-    except OSError as exc:
-        raise ConfigError(
-            f"deploy state at {deploy_state_file} is unreadable: {exc}. "
-            f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
-        ) from exc
-    try:
-        state = _json.loads(text)
-    except _json.JSONDecodeError as exc:
-        raise ConfigError(
-            f"deploy state at {deploy_state_file} is corrupted ({exc}). "
-            f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
-        ) from exc
-    deployed_platform = state.get("platform")
-    if deployed_platform != plan.target_platform:
+        try:
+            _json.loads(deploy_state_file.read_text())
+        except OSError as exc:
+            raise ConfigError(
+                f"deploy state at {deploy_state_file} is unreadable: {exc}. "
+                f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
+            ) from exc
+        except _json.JSONDecodeError as exc:
+            raise ConfigError(
+                f"deploy state at {deploy_state_file} is corrupted ({exc}). "
+                f"Remove it and rerun, or run `cataforge deploy --rebuild` to start clean."
+            ) from exc
+
+    from cataforge.runtime.deploy.manifest import deployed_platforms
+
+    deployed = deployed_platforms(cfg.paths.root)
+    if not deployed:
+        plan.add("deploy", "run", "never deployed (no deploy record)")
+    elif plan.target_platform not in deployed:
         plan.add(
             "deploy",
             "run",
-            f"platform changed: deployed={deployed_platform} → target={plan.target_platform}",
+            f"platform {plan.target_platform} not deployed yet (deployed: {deployed})",
         )
     elif upgrade_running:
         plan.add("deploy", "run", "scaffold refreshed — IDE artefacts must be re-rendered")
     else:
-        plan.add("deploy", "skip", f"{deployed_platform} already deployed")
+        plan.add("deploy", "skip", f"{plan.target_platform} already deployed")
 
 
 def _append_doctor(plan: Plan) -> None:

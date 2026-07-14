@@ -234,19 +234,26 @@ class TestEventAcceptLegacy:
         result = _invoke("event", "accept-legacy")
         assert result.exit_code == 0, result.output
 
-        fw = json.loads((project / ".cataforge" / "framework.json").read_text(encoding="utf-8"))
-        cutoff = fw["upgrade"]["state"]["event_log_validate_since"]
+        state = json.loads(
+            (project / ".cataforge" / "state" / "upgrade.json").read_text(encoding="utf-8")
+        )
+        cutoff = state["event_log_validate_since"]
         assert cutoff  # non-empty ISO timestamp
         # Must be parseable ISO-8601.
         from datetime import datetime
 
         datetime.fromisoformat(cutoff.replace("Z", "+00:00"))
+        # The shared config file is not touched.
+        fw = json.loads((project / ".cataforge" / "framework.json").read_text(encoding="utf-8"))
+        assert "state" not in fw.get("upgrade", {})
 
     def test_accepts_explicit_before(self, project: Path) -> None:
         result = _invoke("event", "accept-legacy", "--before", "2026-04-01T00:00:00+00:00")
         assert result.exit_code == 0, result.output
-        fw = json.loads((project / ".cataforge" / "framework.json").read_text(encoding="utf-8"))
-        assert fw["upgrade"]["state"]["event_log_validate_since"] == "2026-04-01T00:00:00+00:00"
+        state = json.loads(
+            (project / ".cataforge" / "state" / "upgrade.json").read_text(encoding="utf-8")
+        )
+        assert state["event_log_validate_since"] == "2026-04-01T00:00:00+00:00"
 
     def test_rejects_bad_timestamp(self, project: Path) -> None:
         result = _invoke("event", "accept-legacy", "--before", "not-a-date")
@@ -270,22 +277,16 @@ class TestEventAcceptLegacy:
         assert "2026-01-01" in result.output
         assert "2026-04-01" in result.output
 
-    def test_framework_json_intact_when_atomic_rename_fails(
+    def test_state_file_intact_when_atomic_rename_fails(
         self, project: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Regression: ``event accept-legacy`` rewrites framework.json
-        wholesale. Pre-fix it used a bare ``Path.write_text`` which
-        truncates first — a crash between truncate and write would
-        leave a zero-length / half-written framework.json, bricking
-        every subsequent CLI invocation that needs ``version`` /
-        ``runtime``. With ``atomic_write_text`` the prior content
-        survives any mid-write failure.
-        """
+        """A crash mid-write must leave the prior run-state readable and the
+        shared framework.json untouched — no temp-file residue either."""
         import os
 
         fw_path = project / ".cataforge" / "framework.json"
-        prior = fw_path.read_text(encoding="utf-8")
-        prior_parsed = json.loads(prior)
+        prior_fw = json.loads(fw_path.read_text(encoding="utf-8"))
+        state_path = project / ".cataforge" / "state" / "upgrade.json"
 
         real_replace = os.replace
 
@@ -300,16 +301,15 @@ class TestEventAcceptLegacy:
         result = CliRunner().invoke(cli, ["event", "accept-legacy"])
         assert result.exit_code != 0, result.output
 
-        # Prior content untouched: keys, version, runtime all survive.
-        after = json.loads(fw_path.read_text(encoding="utf-8"))
-        assert after == prior_parsed
-        assert "upgrade" not in after or "state" not in after.get("upgrade", {})
+        # framework.json untouched, state file absent (write failed cleanly).
+        assert json.loads(fw_path.read_text(encoding="utf-8")) == prior_fw
+        assert not state_path.exists()
 
-        # And no temp file leaked into .cataforge/.
+        # And no temp file leaked.
         residue = [
             p
-            for p in (project / ".cataforge").iterdir()
-            if p.name.startswith(".framework.json.") and p.name.endswith(".tmp")
+            for p in (project / ".cataforge").rglob("*.tmp")
+            if p.name.startswith(".upgrade.json.") or p.name.startswith(".framework.json.")
         ]
         assert residue == [], f"atomic temp file leaked: {residue!r}"
 
@@ -317,5 +317,5 @@ class TestEventAcceptLegacy:
         monkeypatch.setattr(os, "replace", real_replace)
         result2 = _invoke("event", "accept-legacy")
         assert result2.exit_code == 0, result2.output
-        fw_final = json.loads(fw_path.read_text(encoding="utf-8"))
-        assert "event_log_validate_since" in fw_final["upgrade"]["state"]
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        assert "event_log_validate_since" in state

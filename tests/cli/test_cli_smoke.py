@@ -150,11 +150,11 @@ class TestSetupCommand:
         assert not (tmp_path / ".cataforge").exists()
 
     def test_setup_dry_run_on_existing_project_reports_diff(self, fresh_project: Path) -> None:
-        """Existing project: dry-run shows the exact runtime.platform patch."""
+        """Existing project: dry-run shows the exact default-platform patch."""
         result = _invoke("setup", "--dry-run", "--platform", "cursor")
         assert result.exit_code == 0, result.output
         assert "would patch framework.json" in result.output
-        assert "runtime.platform" in result.output
+        assert "deployment.default_platform" in result.output
         assert "'claude-code' → 'cursor'" in result.output
 
     def test_setup_show_diff_prints_single_field(self, fresh_project: Path) -> None:
@@ -162,8 +162,8 @@ class TestSetupCommand:
         result = _invoke("setup", "--platform", "cursor", "--show-diff")
         assert result.exit_code == 0, result.output
         assert "framework.json diff" in result.output
-        assert "runtime.platform" in result.output
-        assert "framework.json modified only at runtime.platform" in result.output
+        assert "deployment.default_platform" in result.output
+        assert "framework.json modified only under deployment" in result.output
 
     def test_setup_platform_preserves_framework_json_fields(self, fresh_project: Path) -> None:
         """End-to-end M1 regression: CLI setup --platform doesn't lose fields."""
@@ -175,8 +175,10 @@ class TestSetupCommand:
         # Hand-edit framework.json the way a real user might (custom upgrade
         # source fields the bundled Pydantic schema previously dropped).
         before["upgrade"]["source"]["token_env"] = "MY_TOKEN"
-        before["upgrade"]["state"]["last_commit"] = "deadbeef"
-        before["upgrade"]["state"]["last_upgrade_date"] = "2026-04-01"
+        before["upgrade"]["state"] = {
+            "last_commit": "deadbeef",
+            "last_upgrade_date": "2026-04-01",
+        }
         fw_path.write_text(_json.dumps(before, indent=2), encoding="utf-8")
 
         result = _invoke("setup", "--platform", "cursor")
@@ -186,8 +188,15 @@ class TestSetupCommand:
         assert after["upgrade"]["source"]["token_env"] == "MY_TOKEN"
         assert after["upgrade"]["state"]["last_commit"] == "deadbeef"
         assert after["upgrade"]["state"]["last_upgrade_date"] == "2026-04-01"
-        # Only runtime.platform should have changed.
-        before["runtime"]["platform"] = "cursor"
+        # Only the platform declaration should have changed.
+        before.pop("runtime", None)
+        deployment = dict(before.get("deployment") or {})
+        deployment["default_platform"] = "cursor"
+        targets = [str(t) for t in deployment.get("targets") or []]
+        if "cursor" not in targets:
+            targets.append("cursor")
+        deployment["targets"] = targets
+        before["deployment"] = deployment
         assert after == before
 
 

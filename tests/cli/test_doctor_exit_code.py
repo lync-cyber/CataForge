@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -153,7 +154,7 @@ def test_doctor_passes_when_referenced_script_exists(tmp_path: Path, monkeypatch
 
 
 def test_doctor_runs_requires_deploy_check_after_deploy(tmp_path: Path, monkeypatch) -> None:
-    """Once .deploy-state exists, requires_deploy checks are enforced."""
+    """Once a per-platform deploy record exists, requires_deploy checks are enforced."""
     root = _minimal_project(
         tmp_path,
         [
@@ -165,7 +166,11 @@ def test_doctor_runs_requires_deploy_check_after_deploy(tmp_path: Path, monkeypa
             }
         ],
     )
-    (root / ".cataforge" / ".deploy-state").write_text("{}", encoding="utf-8")
+    state = root / ".cataforge" / "state" / "deploy" / "claude-code" / "state.json"
+    state.parent.mkdir(parents=True)
+    state.write_text(
+        json.dumps({"platform": "claude-code", "package_version": "0.1.0"}), encoding="utf-8"
+    )
     monkeypatch.chdir(root)
 
     result = CliRunner().invoke(doctor_command, [])
