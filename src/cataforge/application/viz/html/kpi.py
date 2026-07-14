@@ -54,20 +54,27 @@ def _tile(
     return html_, _CLS_RANK.get(cls, 0)
 
 
-def _sparkline(values: list[float]) -> str:
-    """A 64×16 polyline of the metric's snapshot history — direction at a
-    glance; axes deliberately omitted."""
+def _sparkline(values: list[float], domain: str = "") -> str:
+    """A 64×16 polyline of the metric's snapshot history on a stable scale —
+    percent metrics span 0-100, counts anchor at 0-max — so a 1% wiggle no
+    longer draws as a full-height cliff. Readers get the trend via the img
+    role + aria-label; sighted users additionally get a Δ suffix."""
     if len(values) < 2:
         return ""
-    lo, hi = min(values), max(values)
+    lo, hi = (0.0, 100.0) if domain == "percent" else (0.0, max(values))
     span = (hi - lo) or 1.0
     last = len(values) - 1
     pts = " ".join(
         f"{i * 60 / last + 2:.1f},{14 - (v - lo) / span * 12:.1f}" for i, v in enumerate(values)
     )
+    delta = values[-1] - values[0]
+    sign = "+" if delta > 0 else ""
+    trend = f"Δ{sign}{delta:g}"
     return (
-        '<svg class="spark" width="64" height="16" viewBox="0 0 64 16" aria-hidden="true">'
+        f'<svg class="spark" width="64" height="16" viewBox="0 0 64 16" role="img"'
+        f' aria-label="近 {len(values)} 次快照趋势 {trend}">'
         f'<polyline points="{pts}" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'
+        f'<span class="sparkd">{trend}</span>'
     )
 
 
@@ -248,7 +255,8 @@ def _kpi_strip(
     can open the tab that most needs attention."""
     groups = fold_points(overview.points) if isinstance(overview, MetricSeries) else {}
     hist = history or []
-    sparks = {m: _sparkline(_spark_series(hist, m)) for m in ("docs", "coverage", "links", "decay")}
+    domains = {"docs": "percent", "coverage": "percent", "links": "count", "decay": "count"}
+    sparks = {m: _sparkline(_spark_series(hist, m), d) for m, d in domains.items()}
     # (tile, the view its worst state should open); phase lives in the stepper
     tiles = [
         (

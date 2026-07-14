@@ -264,6 +264,31 @@ function initChart(id,option){
   var c=echarts.init(document.getElementById(id),dark?'dark':null);
   c.setOption(option);window.__viz.ec[id]=c;return c;
 }
+function initChartMode(id){
+  /* chart views: toggle between the canvas ("_gfx" wrapper) and the
+     equivalent data table, persisted like the graph views' mode */
+  var gfx=document.getElementById(id+'_gfx');if(!gfx)return;
+  var view=gfx.closest('.view');
+  var ms=view?view.querySelector('.modeswitch[data-target="'+id+'"]'):null;
+  var alt=view?view.querySelector('.alt-table'):null;
+  if(!ms||!alt)return;
+  var applyMode=function(mode,save){
+    var table=mode==='table';
+    alt.hidden=!table;
+    gfx.style.display=table?'none':'';
+    ms.textContent=table?'图表视图':'表格视图';
+    if(!table){
+      for(var b in window.__viz.ec){
+        var el=document.getElementById(b);
+        if(el&&gfx.contains(el)){window.__viz.ec[b].resize();}
+      }
+    }
+    if(save){window.__viz.saveState(id+':mode',mode);}
+  };
+  ms.addEventListener('click',function(){
+    applyMode(gfx.style.display==='none'?'graph':'table',true);});
+  if(window.__viz.state[id+':mode']==='table'){applyMode('table',false);}
+}
 function initCatalogue(id,elements){
   var cy=initGraph(id,elements);
   var q=document.getElementById(id+'_q');
@@ -528,6 +553,12 @@ document.addEventListener('DOMContentLoaded',function(){
          defaults (the hash keeps the active tab) */
       clearViewState(reset.getAttribute('data-target'));
       location.reload();
+      return;
+    }
+    var fit=t.closest?t.closest('.vfit'):null;
+    if(fit){
+      var g=window.__viz.cy[fit.getAttribute('data-target')];
+      if(g){g.fit(undefined,12);}
       return;
     }
     var hint=t.closest?t.closest('.rhint'):null;

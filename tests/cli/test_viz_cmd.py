@@ -1140,8 +1140,13 @@ class TestHtmlRenderer:
         assert 'class="alt-table"' in out
         assert "initFilterTable('view0');" in out
 
-    def test_chart_views_have_no_mode_switch(self) -> None:
-        assert 'class="modeswitch"' not in html.render(_HTML_TL)
+    def test_chart_views_offer_table_mode(self) -> None:
+        # timeline / metric charts carry an equivalent data table + a text
+        # summary — the canvas is never the only representation
+        out = html.render(_HTML_TL)
+        assert 'class="modeswitch"' in out
+        assert 'class="alt-table" hidden' in out
+        assert "initChartMode('view0');" in out
 
     def test_catalogue_exempt_from_mode_switch(self) -> None:
         # a catalogue already renders table + graph side by side
@@ -2590,3 +2595,76 @@ class TestVizMetricSemantics:
             mermaid.render(tagged)
         with pytest.raises(CataforgeError):
             dot.render(tagged)
+
+
+class TestVizChartAlternatives:
+    def test_timeline_table_and_summary(self) -> None:
+        out = html.render(_HTML_TL)
+        assert "个事件" in out  # 文本摘要（事件数 + 跨度）
+        assert "<th>时间</th>" in out  # 数据表替代含全部事件字段
+        assert "<th>事件</th>" in out
+
+    def test_metric_view_table_and_summary(self) -> None:
+        out = html.render(_TAGGED_MS)
+        assert 'class="alt-table" hidden' in out
+        assert "<th>系列</th>" in out
+        assert "个指标点" in out
+
+    def test_echarts_aria_enabled(self) -> None:
+        for view in (_HTML_TL, _TAGGED_MS):
+            out = html.render(view)
+            assert '"aria": {"enabled": true}' in out
+
+    def test_graph_alt_table_carries_relations(self) -> None:
+        out = html.render(_HTML_GRAPH)  # Alpha → Beta
+        assert "<th>上游</th>" in out
+        assert "<th>下游</th>" in out
+        beta_row = out[out.index('data-node="b"') : out.index("</tr>", out.index('data-node="b"'))]
+        assert "Alpha" in beta_row  # Beta 的上游列列出 Alpha
+
+    def test_edgeless_status_table_keeps_two_columns(self) -> None:
+        out = html.render(_EDGELESS_STATUS_GRAPH)
+        assert "<th>上游</th>" not in out
+
+    def test_timeline_symbol_size_area_proportional(self) -> None:
+        t = Timeline(
+            title="t",
+            events=(
+                TimelineEvent("2026-01-01", "a", "c", count=4),
+                TimelineEvent("2026-01-02", "b", "c"),
+            ),
+        )
+        out = html.render(t)
+        sizes = sorted(int(m) for m in re.findall(r'"symbolSize": (\d+)', out))
+        assert sizes == [9, 18]  # 直径 ∝ √count，面积正比；线性公式会给 [12, 21]
+
+    def test_graph_toolbar_has_fit_button(self) -> None:
+        out = html.render(_HTML_GRAPH)
+        assert 'class="vfit" data-target="view0"' in out
+        assert ".vfit" in html._read_asset("dashboard.js")
+
+
+class TestVizSparkline:
+    def test_percent_domain_is_stable(self) -> None:
+        from cataforge.application.viz.html.kpi import _sparkline
+
+        svg = _sparkline([97.0, 98.0], domain="percent")
+        assert 'role="img"' in svg
+        assert "aria-hidden" not in svg  # 趋势对读屏可及
+        assert "Δ+1" in svg
+        pts = re.search(r'points="([^"]+)"', svg)
+        assert pts is not None
+        ys = [float(p.split(",")[1]) for p in pts.group(1).split()]
+        # 0-100 稳定域下 97→98 只允许微小波动，而非满幅陡坡
+        assert max(ys) - min(ys) < 1.0
+
+    def test_count_domain_zero_anchored(self) -> None:
+        from cataforge.application.viz.html.kpi import _sparkline
+
+        svg = _sparkline([1.0, 2.0], domain="count")
+        pts = re.search(r'points="([^"]+)"', svg)
+        assert pts is not None
+        ys = [float(p.split(",")[1]) for p in pts.group(1).split()]
+        # 0-max 域：1 落半高、2 触顶，而非 min/max 归一的满幅
+        assert ys[0] == pytest.approx(8.0)
+        assert ys[1] == pytest.approx(2.0)

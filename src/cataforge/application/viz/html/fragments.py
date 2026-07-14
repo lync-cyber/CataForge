@@ -10,6 +10,7 @@ from __future__ import annotations
 import html as _html
 import importlib.resources
 import json
+import math
 from collections import Counter
 from typing import Any
 
@@ -131,6 +132,7 @@ def _graph_fragment(graph: Graph, dom_id: str) -> tuple[str, str, bool]:
         f'<div class="toolbar"><input class="search" data-target="{dom_id}" '
         f'placeholder="filter nodes…">{_type_chips(graph)}'
         f'<button class="modeswitch" data-target="{dom_id}" title="图 ⇄ 表切换">表格视图</button>'
+        f'<button class="vfit" data-target="{dom_id}" title="重新适配画布">适配</button>'
         f'<span class="hitcount" id="{dom_id}_count" aria-live="polite"></span>'
         f"{_reset_button(dom_id)}"
         "</div>"
@@ -188,13 +190,20 @@ def _row_hint(node: Node) -> str:
     return f' <button class="rhint" type="button" title="{tip}">{_html.escape(hint)}</button>'
 
 
-def _status_row(node: Node) -> str:
+_Relations = tuple[dict[str, list[str]], dict[str, list[str]]]
+
+
+def _status_row(node: Node, relations: _Relations | None = None) -> str:
     label = node.label or str((node.data or {}).get("name") or node.id)
     sval = node.status.value if node.status else ""
+    cells = f"<td>{_status_badge(node.status)}</td><td>{_html.escape(label)}{_row_hint(node)}</td>"
+    if relations is not None:
+        ups, downs = relations
+        up = _html.escape(", ".join(ups.get(node.id, [])) or "—")
+        down = _html.escape(", ".join(downs.get(node.id, [])) or "—")
+        cells += f'<td class="rel">{up}</td><td class="rel">{down}</td>'
     return (
-        f'<tr data-node="{_html.escape(node.id)}" data-status="{_html.escape(sval)}">'
-        f"<td>{_status_badge(node.status)}</td>"
-        f"<td>{_html.escape(label)}{_row_hint(node)}</td></tr>"
+        f'<tr data-node="{_html.escape(node.id)}" data-status="{_html.escape(sval)}">{cells}</tr>'
     )
 
 
@@ -234,14 +243,26 @@ def _status_table_toolbar(graph: Graph, dom_id: str) -> str:
 
 def _status_table_core(graph: Graph, dom_id: str) -> str:
     """Toolbar + constituency bar + anomaly-first table — the shared body of
-    the standalone status-table view and a graph view's table mode."""
+    the standalone status-table view and a graph view's table mode. A graph
+    with edges adds 上游/下游 columns so the table alternative keeps the
+    relations the canvas draws instead of dropping them."""
+    relations: _Relations | None = None
+    if graph.edges:
+        label_of = {n.id: (n.label or str((n.data or {}).get("name") or n.id)) for n in graph.nodes}
+        ups: dict[str, list[str]] = {}
+        downs: dict[str, list[str]] = {}
+        for edge in graph.edges:
+            downs.setdefault(edge.src, []).append(label_of.get(edge.dst, edge.dst))
+            ups.setdefault(edge.dst, []).append(label_of.get(edge.src, edge.src))
+        relations = (ups, downs)
     rows = "".join(
-        _status_row(node)
+        _status_row(node, relations)
         for node in sorted(graph.nodes, key=lambda n: (_status_rank(n.status), n.label or n.id))
     )
+    rel_head = "<th>上游</th><th>下游</th>" if relations else ""
     table = (
-        f'<table class="stat" id="{dom_id}_tbl"><thead><tr><th>状态</th><th>节点</th></tr>'
-        f"</thead><tbody>{rows}</tbody></table>"
+        f'<table class="stat" id="{dom_id}_tbl"><thead><tr><th>状态</th><th>节点</th>{rel_head}'
+        f"</tr></thead><tbody>{rows}</tbody></table>"
     )
     return (
         f"{_status_table_toolbar(graph, dom_id)}{_constituency_bar(graph)}"
@@ -339,12 +360,15 @@ def _timeline_option(view: Timeline) -> dict[str, Any]:
         {
             "value": [e.ts, li[e.category]],
             "name": f"{e.label} ×{e.count}" if e.count > 1 else e.label,
-            "symbolSize": min(32, 9 + 3 * e.count),
+            # diameter ∝ √count keeps the AREA proportional to the count —
+            # linear diameter growth would visually square the difference
+            "symbolSize": min(32, round(9 * math.sqrt(e.count))),
         }
         for e in sorted(view.events, key=lambda e: e.ts)
     ]
     return {
         "title": {"text": view.title or "timeline"},
+        "aria": {"enabled": True},
         "tooltip": {"trigger": "item", "formatter": "{b}"},
         "grid": {"containLabel": True, "bottom": 64},
         # a time axis keeps event density honest — a 2-day gap renders narrower
@@ -375,6 +399,7 @@ def _metric_option(view: MetricSeries) -> dict[str, Any]:
     ]
     return {
         "title": {"text": view.title or "metrics"},
+        "aria": {"enabled": True},
         "tooltip": {"trigger": "axis"},
         "legend": {"show": len(series_names) > 1},
         "grid": {"containLabel": True},
@@ -413,6 +438,7 @@ def _series_option(name: str, points: list[MetricPoint]) -> dict[str, Any]:
         y["max"] = 100
     return {
         "title": {"text": name or "metrics"},
+        "aria": {"enabled": True},
         "tooltip": {"trigger": "axis"},
         "grid": {"containLabel": True},
         "xAxis": {"type": "category", "data": [p.label for p in points]},
@@ -421,14 +447,55 @@ def _series_option(name: str, points: list[MetricPoint]) -> dict[str, Any]:
     }
 
 
+def _chart_toolbar(dom_id: str) -> str:
+    return (
+        f'<div class="toolbar"><button class="modeswitch" data-target="{dom_id}" '
+        'title="图 ⇄ 表切换">表格视图</button></div>'
+    )
+
+
+def _metric_summary(view: MetricSeries) -> str:
+    if not view.points:
+        return ""
+    series: list[str] = []
+    for p in view.points:
+        if p.series not in series:
+            series.append(p.series)
+    return f'<p class="chart-summary">{len(view.points)} 个指标点 · {len(series)} 组系列</p>'
+
+
+def _metric_table(view: MetricSeries) -> str:
+    has_unit = any(p.unit for p in view.points)
+    unit_head = "<th>单位</th>" if has_unit else ""
+    rows = "".join(
+        f"<tr><td>{_html.escape(p.series)}</td><td>{_html.escape(p.label)}</td>"
+        f'<td class="num">{_fmt_num(p.value)}</td>'
+        + (f"<td>{_html.escape(p.unit)}</td>" if has_unit else "")
+        + "</tr>"
+        for p in view.points
+    )
+    return (
+        '<div class="stat-wrap"><table class="stat"><thead><tr><th>系列</th><th>指标</th>'
+        f'<th class="num">值</th>{unit_head}</tr></thead><tbody>{rows}</tbody></table></div>'
+    )
+
+
 def _metric_fragment(view: MetricSeries, dom_id: str) -> tuple[str, str, bool]:
     """Unit-aware metric rendering. Returns ``(body, init, needs_echarts)``:
     flag/index points become text cards, the rest one small chart per series —
     a shared value axis across counts, ratios and ordinals misleads. Untagged
-    series (no collector units) keep the single shared chart."""
+    series (no collector units) keep the single shared chart. Every variant
+    carries the equivalent data table + text summary."""
+    chrome = f"{_chart_toolbar(dom_id)}{_metric_summary(view)}"
+    alt = f'<div class="alt-table" hidden>{_metric_table(view)}</div>'
+    mode_init = f"initChartMode('{dom_id}');"
     if {p.unit for p in view.points} <= {""}:  # untagged (or empty) series
-        body = f'<div class="view"><div id="{dom_id}" class="chart"></div></div>'
-        return body, f"initChart('{dom_id}', {_script_json(_metric_option(view))});", True
+        body = (
+            f'<div class="view">{chrome}'
+            f'<div id="{dom_id}_gfx"><div id="{dom_id}" class="chart"></div></div>{alt}</div>'
+        )
+        init = f"initChart('{dom_id}', {_script_json(_metric_option(view))});\n{mode_init}"
+        return body, init, True
     cards: list[str] = []
     chart_groups: dict[str, list[MetricPoint]] = {}
     for p in view.points:
@@ -449,12 +516,45 @@ def _metric_fragment(view: MetricSeries, dom_id: str) -> tuple[str, str, bool]:
         inits.append(f"initChart('{cid}', {_script_json(_series_option(series, pts))});")
     card_row = f'<div class="mcards">{"".join(cards)}</div>' if cards else ""
     grid = f'<div class="metric-grid">{"".join(charts)}</div>' if charts else ""
-    return f'<div class="view">{card_row}{grid}</div>', "\n".join(inits), bool(charts)
+    body = f'<div class="view">{chrome}<div id="{dom_id}_gfx">{card_row}{grid}</div>{alt}</div>'
+    return body, "\n".join([*inits, mode_init]), bool(charts)
+
+
+def _timeline_summary(view: Timeline) -> str:
+    if not view.events:
+        return ""
+    ts = sorted(e.ts for e in view.events)
+    lanes = {e.category for e in view.events}
+    total = sum(e.count for e in view.events)
+    return (
+        f'<p class="chart-summary">{total} 个事件 · 跨度 {_html.escape(ts[0][:10])}'
+        f" 至 {_html.escape(ts[-1][:10])} · {len(lanes)} 个分类</p>"
+    )
+
+
+def _timeline_table(view: Timeline) -> str:
+    rows = "".join(
+        f"<tr><td>{_html.escape(e.ts)}</td><td>{_html.escape(e.label)}</td>"
+        f'<td>{_html.escape(e.category)}</td><td class="num">{e.count}</td></tr>'
+        for e in sorted(view.events, key=lambda e: e.ts)
+    )
+    return (
+        '<div class="stat-wrap"><table class="stat"><thead><tr><th>时间</th><th>事件</th>'
+        f'<th>分类</th><th class="num">次数</th></tr></thead><tbody>{rows}</tbody></table></div>'
+    )
 
 
 def _chart_fragment(view: Timeline, dom_id: str) -> tuple[str, str]:
-    body = f'<div class="view"><div id="{dom_id}" class="chart"></div></div>'
-    return body, f"initChart('{dom_id}', {_script_json(_timeline_option(view))});"
+    body = (
+        f'<div class="view">{_chart_toolbar(dom_id)}{_timeline_summary(view)}'
+        f'<div id="{dom_id}_gfx"><div id="{dom_id}" class="chart"></div></div>'
+        f'<div class="alt-table" hidden>{_timeline_table(view)}</div></div>'
+    )
+    init = (
+        f"initChart('{dom_id}', {_script_json(_timeline_option(view))});\n"
+        f"initChartMode('{dom_id}');"
+    )
+    return body, init
 
 
 def _fragment(view: View, dom_id: str) -> tuple[str, str, str | None]:
