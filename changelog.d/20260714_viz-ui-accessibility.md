@@ -9,6 +9,5 @@
 ### Fixed
 
 - **dashboard 交互诚实化** —— 复制路径等待 clipboard promise 并给出可见成败反馈（aria-live 通报；file:// / 权限拒绝时选中文本提示「按 Ctrl+C 复制」，不再无条件谎报「已复制」）；est_tokens 排序改为 th 内真按钮 + `aria-sort` 三态，按列索引取值（去除硬编码第 7 列）；图内搜索与表格过滤显示「命中 N / M」计数，零命中不再把全图变灰而是显式提示「画面未过滤」；任一视图持久化状态（过滤/排序/视口）生效时工具栏出现「重置视图」按钮，一键清除本面板保存状态；状态色 chip / 构成条 seg 升级为带 `aria-pressed` 的真按钮（键盘可操作）；行内修复提示（rhint）可点击复制；移除状态表行上无行为的 pointer 光标。
-
 - **CLI 表格 CJK/emoji 宽度** —— `ui.table` / `ui.kv` 的列宽按终端可见宽度计算（East Asian Wide/Fullwidth 记 2 列、组合字记 0 列），中文单元格不再错位。
-- **文档事实修正** —— cli.md：dashboard KPI strip 实为 4 tiles + stepper（非 5 tiles）、语义色为蓝/黄/橙色盲安全对（非绿/黄/红）、coverage 面板为状态表 + Inspector 跨视图跳转（无「点节点直跳 trace」交互）；`quickstart` 描述收敛为「源变更自动重生成、浏览器刷新可见」（非「实时」）；visualization.md：HTML 渲染器路径为 `application/viz/html/` 包，补单文件体积构成说明。
+- **文档事实修正** —— cli.md：dashboard KPI strip 实为 4 tiles + stepper（非 5 tiles）、语义色为蓝/黄/橙色盲安全对（非绿/黄/红）、coverage 面板为状态表 + Inspector 跨视图跳转（无「点节点直跳 trace」交互）；visualization.md：HTML 渲染器路径为 `application/viz/html/` 包，补单文件体积构成说明。
