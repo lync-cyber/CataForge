@@ -15,7 +15,7 @@ from typing import Any
 
 from cataforge.core.errors import CataforgeError
 from cataforge.core.viz import palette
-from cataforge.core.viz.model import Graph, MetricSeries, Node, Status, Timeline, View
+from cataforge.core.viz.model import Graph, MetricPoint, MetricSeries, Node, Status, Timeline, View
 
 _PKG = "cataforge.application.viz"
 _CYTOSCAPE = "cytoscape.min.js"
@@ -384,19 +384,90 @@ def _metric_option(view: MetricSeries) -> dict[str, Any]:
     }
 
 
-def _chart_fragment(view: Timeline | MetricSeries, dom_id: str) -> tuple[str, str]:
-    option = _timeline_option(view) if isinstance(view, Timeline) else _metric_option(view)
+def _fmt_num(value: float) -> str:
+    return f"{value:g}"
+
+
+def _metric_card(point: MetricPoint) -> str:
+    """flag / index points as text stat cards — a boolean or an ordinal drawn
+    as a bar of height 1 or 5 misleads; a card states it."""
+    if point.unit == "flag":
+        val, cls = ("✓", " ok") if point.value else ("✗", " bad")
+    else:
+        val, cls = _fmt_num(point.value), ""
+    caption = f"{point.series} · {point.label}" if point.series else point.label
+    return (
+        f'<div class="mcard{cls}"><span class="mcard-v">{val}</span>'
+        f'<span class="mcard-l">{_html.escape(caption)}</span></div>'
+    )
+
+
+def _series_option(name: str, points: list[MetricPoint]) -> dict[str, Any]:
+    """One small chart per series, on its own axis. ratio / percent series pin
+    the domain so the bar height is comparable across snapshots."""
+    y: dict[str, Any] = {"type": "value"}
+    units = {p.unit for p in points}
+    if units == {"ratio"}:
+        y["max"] = 1
+    elif units == {"percent"}:
+        y["max"] = 100
+    return {
+        "title": {"text": name or "metrics"},
+        "tooltip": {"trigger": "axis"},
+        "grid": {"containLabel": True},
+        "xAxis": {"type": "category", "data": [p.label for p in points]},
+        "yAxis": y,
+        "series": [{"name": name or "value", "type": "bar", "data": [p.value for p in points]}],
+    }
+
+
+def _metric_fragment(view: MetricSeries, dom_id: str) -> tuple[str, str, bool]:
+    """Unit-aware metric rendering. Returns ``(body, init, needs_echarts)``:
+    flag/index points become text cards, the rest one small chart per series —
+    a shared value axis across counts, ratios and ordinals misleads. Untagged
+    series (no collector units) keep the single shared chart."""
+    if {p.unit for p in view.points} <= {""}:  # untagged (or empty) series
+        body = f'<div class="view"><div id="{dom_id}" class="chart"></div></div>'
+        return body, f"initChart('{dom_id}', {_script_json(_metric_option(view))});", True
+    cards: list[str] = []
+    chart_groups: dict[str, list[MetricPoint]] = {}
+    for p in view.points:
+        # point-level routing: a flag/index drawn as a bar misleads regardless
+        # of what its series siblings are
+        if p.unit in ("flag", "index"):
+            cards.append(_metric_card(p))
+        else:
+            chart_groups.setdefault(p.series, []).append(p)
+    charts: list[str] = []
+    inits: list[str] = []
+    for series, pts in chart_groups.items():
+        if len(pts) == 1:  # a one-bar chart carries no comparison — card it
+            cards.append(_metric_card(pts[0]))
+            continue
+        cid = f"{dom_id}_g{len(inits)}"
+        charts.append(f'<div id="{cid}" class="chart"></div>')
+        inits.append(f"initChart('{cid}', {_script_json(_series_option(series, pts))});")
+    card_row = f'<div class="mcards">{"".join(cards)}</div>' if cards else ""
+    grid = f'<div class="metric-grid">{"".join(charts)}</div>' if charts else ""
+    return f'<div class="view">{card_row}{grid}</div>', "\n".join(inits), bool(charts)
+
+
+def _chart_fragment(view: Timeline, dom_id: str) -> tuple[str, str]:
     body = f'<div class="view"><div id="{dom_id}" class="chart"></div></div>'
-    return body, f"initChart('{dom_id}', {_script_json(option)});"
+    return body, f"initChart('{dom_id}', {_script_json(_timeline_option(view))});"
 
 
 def _fragment(view: View, dom_id: str) -> tuple[str, str, str | None]:
     """Return ``(body_html, init_js, lib_name)`` for any IR form. ``lib_name``
-    is ``None`` when the fragment needs no library (an edgeless status table)."""
+    is ``None`` when the fragment needs no library (an edgeless status table,
+    a card-only metric view)."""
     if isinstance(view, Graph):
         body, init, needs_cy = _graph_fragment(view, dom_id)
         return body, init, (_CYTOSCAPE if needs_cy else None)
-    if isinstance(view, (Timeline, MetricSeries)):
+    if isinstance(view, MetricSeries):
+        body, init, needs_ec = _metric_fragment(view, dom_id)
+        return body, init, (_ECHARTS if needs_ec else None)
+    if isinstance(view, Timeline):
         body, init = _chart_fragment(view, dom_id)
         return body, init, _ECHARTS
     raise CataforgeError(f"unrenderable view type: {type(view).__name__}")

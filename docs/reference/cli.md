@@ -689,7 +689,7 @@ cataforge viz serve --dir docs/viz --host 0.0.0.0 --port 9000
 | ------ | ------ | -------- |
 | `status` | 视图就绪体检：逐视图标 `ready` / `empty` / `needs setup`，并给出缺啥补啥的命令（如 `run: cataforge kg init`） | 探测全部 collector（不渲染） |
 | `quickstart` | 一键起本地 dashboard（生成 + 服务 + 开浏览器 + 源数据变更自动重生成，浏览器刷新可见更新），等价 `viz serve --watch --open` | 同 `serve` |
-| `overview` | 项目健康 KPI 指标系列：当前阶段/门禁、核心文档完成度（0 缺失 / 0.5 存在 / 1 已批）、Feature 覆盖 full/partial/none、断链/stale 计数、纠偏近 30 天 + 按月趋势。各组独立降级：单一数据源缺失只丢该组 | `evaluate_phase()` + doc-index + KG 覆盖 + CORRECTIONS-LOG |
+| `overview` | 项目健康 KPI 指标系列：当前阶段/门禁、核心文档完成度（0 缺失 / 0.5 存在 / 1 已批）、Feature 覆盖 full/partial/none、断链/stale 计数、纠偏近 30 天 + 按月趋势。各组独立降级：单一数据源缺失只丢该组。指标点带 `unit` 语义（count / ratio / percent / flag / index，JSON 加法键，未标注时省略）；`--html` 按 unit 分组渲染 —— flag/index 为文本 KPI 卡、其余按 series 各自成图（small multiples），不再混量纲共轴 | `evaluate_phase()` + doc-index + KG 覆盖 + CORRECTIONS-LOG |
 | `framework` | orchestrator → phase → agent → skill 编排图（仅 standard 路由的 agent） | framework.json `workflow.modes.standard` + agent frontmatter `skills` |
 | `assets` | 全量 agent + skill + rules 资产目录：依赖边 + 每节点元数据（描述/依赖/工具/行数/est_tokens/源路径）。`--html` 出目录面板：可搜索表格、type 筛选、maintainer-only 开关、体量排序、表↔图联动、路径点击复制；rules 不参与依赖边，仅在 json/HTML 目录出现，mermaid/dot 拓扑不变 | `AgentManager` + `SkillLoader`（builtins + 项目覆写）+ `.cataforge/rules/` |
 | `trace` | 追溯链图（需求→模块→任务→测试）；省略 ENTITY_ID 聚合全部 Feature | KG `TraceAPI`（需先 `cataforge kg init` + `kg import`） |

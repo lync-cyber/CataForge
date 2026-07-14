@@ -2516,3 +2516,77 @@ class TestVizHonestAffordances:
     def test_zero_hit_search_keeps_graph_undimmed(self) -> None:
         js = html._read_asset("dashboard.js")
         assert "命中 0 / " in js  # explicit zero-hit message instead of a ghost graph
+
+
+_TAGGED_MS = MetricSeries(
+    title="overview",
+    points=(
+        MetricPoint("applicable", 1.0, series="phase", unit="flag"),
+        MetricPoint("current:dev", 5.0, series="phase", unit="index"),
+        MetricPoint("full", 3.0, series="coverage", unit="count"),
+        MetricPoint("partial", 1.0, series="coverage", unit="count"),
+        MetricPoint("prd", 0.5, series="docs", unit="ratio"),
+        MetricPoint("arch", 1.0, series="docs", unit="ratio"),
+    ),
+)
+
+
+class TestVizMetricSemantics:
+    def test_json_serializes_unit_only_when_set(self) -> None:
+        tagged = json_.render(_TAGGED_MS)
+        assert '"unit": "count"' in tagged
+        plain = json_.render(_HTML_MS)  # untagged points stay byte-stable
+        assert '"unit"' not in plain
+        assert '"meta"' not in plain
+
+    def test_overview_points_carry_units(self, tmp_path: Path) -> None:
+        from cataforge.application.viz.collectors.overview import collect
+
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        view = collect(tmp_path)
+        assert isinstance(view, MetricSeries)
+        units = {p.unit for p in view.points if p.series == "phase"}
+        assert units == {"flag", "index", "count"}
+
+    def test_tagged_metrics_render_cards_and_grid(self) -> None:
+        out = html.render(_TAGGED_MS)
+        assert 'class="mcards"' in out  # flag/index → text KPI cards
+        assert 'class="metric-grid"' in out  # per-series small multiples
+        assert out.count("initChart('") == 2  # coverage + docs, one axis each
+        assert "✓" in out  # a flag reads as a check, not a bar of height 1
+
+    def test_ratio_series_pins_axis_domain(self) -> None:
+        ms = MetricSeries(
+            points=(
+                MetricPoint("prd", 0.5, series="docs", unit="ratio"),
+                MetricPoint("arch", 1.0, series="docs", unit="ratio"),
+            )
+        )
+        out = html.render(ms)
+        assert '"max": 1' in out
+
+    def test_single_point_series_becomes_card_not_one_bar_chart(self) -> None:
+        ms = MetricSeries(points=(MetricPoint("total", 3.0, series="phase", unit="count"),))
+        out = html.render(ms)
+        assert 'class="mcards"' in out
+        assert "initChart('" not in out
+
+    def test_untagged_metrics_keep_single_chart(self) -> None:
+        out = html.render(_HTML_MS)
+        assert out.count("initChart('") == 1
+        assert 'class="metric-grid"' not in out
+
+    def test_card_only_series_needs_no_echarts(self) -> None:
+        ms = MetricSeries(points=(MetricPoint("gate_ok", 1.0, series="phase", unit="flag"),))
+        out = html.render(ms)
+        assert "Apache Software Foundation" not in out
+        _assert_offline(out)
+
+    def test_text_renderers_unaffected_by_unit(self) -> None:
+        # mermaid/dot never accepted MetricSeries; the unit field must not
+        # change that contract in either direction
+        tagged = MetricSeries(points=(MetricPoint("a", 1.0, series="s", unit="count"),))
+        with pytest.raises(CataforgeError):
+            mermaid.render(tagged)
+        with pytest.raises(CataforgeError):
+            dot.render(tagged)

@@ -124,6 +124,14 @@ code.path{cursor:copy;font-size:11px;background:var(--code-bg);padding:1px 4px;b
 .copied::after{color:var(--accent)}
 .copy-failed::after{color:var(--error)}
 .viztip{position:absolute;z-index:50;max-width:320px;padding:6px 9px;background:var(--tip-bg);color:var(--tip-fg);font-size:11px;line-height:1.5;border-radius:5px;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.mcards{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.mcard{display:flex;flex-direction:column;gap:2px;padding:8px 12px;min-width:110px;border:1px solid var(--chip-line);border-left-width:4px;border-radius:6px;background:var(--bg)}
+.mcard-v{font-size:18px;font-weight:600;color:var(--strong)}
+.mcard-l{font-size:11px;color:var(--muted)}
+.mcard.ok{border-left-color:var(--viz-ok)}
+.mcard.bad{border-left-color:var(--viz-bad)}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}
+.metric-grid .chart{height:clamp(220px,32vh,340px)}
 @media (max-width:1023px){
   .kpi{min-width:110px}
   .cy,.chart{height:clamp(360px,60vh,720px)}
