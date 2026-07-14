@@ -324,4 +324,6 @@ def _stepper(root: Path) -> str:
     else:
         gate = f'<span class="gstat ok">门禁通过 {passed}/{total}</span>'
     arrow = '<span class="parrow">→</span>'
-    return f"{open_}{arrow.join(chips)}{gate}</section>"
+    # narrow viewports hide the done/todo chips and show this counter instead
+    compact = f'<span class="pcompact">阶段 {idx + 1}/{len(detail.sequence)}</span>'
+    return f"{open_}{arrow.join(chips)}{compact}{gate}</section>"

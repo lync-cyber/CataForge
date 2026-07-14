@@ -1382,6 +1382,13 @@ class TestDashboard:
         assert "phase_start logged" in out  # a failed check's label is listed
         assert 'pchip cur blocked">requirements' in out
 
+    def test_stepper_carries_compact_phase_indicator(self, tmp_path: Path) -> None:
+        # narrow viewports collapse the chip chain to the current chip plus a
+        # 阶段 i/N counter (visibility switched in CSS)
+        _make_phase_project(tmp_path, "development", phase_start="development")
+        out = html.render_dashboard(tmp_path)
+        assert re.search(r'<span class="pcompact">阶段 \d+/\d+</span>', out)
+
     def test_stepper_mode_aware_chip_count(self, tmp_path: Path) -> None:
         _make_phase_project(tmp_path, "planning", mode="agile-lite")
         out = html.render_dashboard(tmp_path)
@@ -2329,3 +2336,115 @@ class TestVizEncoding:
         text = out.read_bytes().decode("utf-8")  # GBK-written bytes would fail here
         assert "全局检索实体" in text
         assert "已复制" in text
+
+
+_ROOT_BLOCK_RE = re.compile(r":root\{([^}]*)\}")
+
+
+def _css_theme_vars(css: str) -> list[dict[str, str]]:
+    """Every ``:root{…}`` custom-property block as a name→value dict."""
+    themes: list[dict[str, str]] = []
+    for body in _ROOT_BLOCK_RE.findall(css):
+        pairs: dict[str, str] = {}
+        for decl in body.split(";"):
+            name, _, value = decl.partition(":")
+            if name.strip().startswith("--"):
+                pairs[name.strip()] = value.strip()
+        themes.append(pairs)
+    return themes
+
+
+def _srgb_channel(v: float) -> float:
+    return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+
+def _luminance(hexv: str) -> float:
+    hexv = hexv.lstrip("#")
+    if len(hexv) == 3:
+        hexv = "".join(c * 2 for c in hexv)
+    r, g, b = (int(hexv[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    return 0.2126 * _srgb_channel(r) + 0.7152 * _srgb_channel(g) + 0.0722 * _srgb_channel(b)
+
+
+def _contrast(a: str, b: str) -> float:
+    la, lb = _luminance(a), _luminance(b)
+    hi, lo = max(la, lb), min(la, lb)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+_DERIVED_TOKENS = (
+    "--viz-node-fill",
+    "--viz-node-border",
+    "--viz-node-label",
+    "--viz-edge",
+    "--tip-bg",
+    "--tip-fg",
+)
+
+# (foreground, surface) pairs as actually composited in dashboard.css rules.
+_TEXT_PAIRS = (  # body/small text — WCAG AA 4.5:1
+    ("--fg", "--bg"),
+    ("--muted", "--bg"),
+    ("--muted", "--panel"),
+    ("--faint", "--bg"),
+    ("--faint", "--panel"),
+    ("--faint", "--code-bg"),
+    ("--warn-fg", "--bg"),
+    ("--error", "--bg"),
+    ("--accent", "--code-bg"),
+    ("--accent-fg", "--accent"),
+    ("--viz-node-label", "--viz-node-fill"),
+    ("--tip-fg", "--tip-bg"),
+)
+_GRAPHIC_PAIRS = (  # non-text graphical elements — WCAG AA 3:1
+    ("--viz-edge", "--canvas"),
+    ("--viz-node-border", "--canvas"),
+    ("--muted", "--bg"),  # legend swatch border
+    ("--accent", "--bg"),  # :focus-visible outline
+)
+
+
+class TestVizContrast:
+    def test_theme_tokens_meet_wcag_aa(self) -> None:
+        themes = _css_theme_vars(html._read_asset("dashboard.css"))
+        assert len(themes) == 2  # light + dark
+        for theme in themes:
+            for fg, bg in _TEXT_PAIRS:
+                ratio = _contrast(theme[fg], theme[bg])
+                assert ratio >= 4.5, f"{fg} on {bg}: {ratio:.2f} < 4.5 in {theme['--bg']} theme"
+            for fg, bg in _GRAPHIC_PAIRS:
+                ratio = _contrast(theme[fg], theme[bg])
+                assert ratio >= 3.0, f"{fg} on {bg}: {ratio:.2f} < 3.0 in {theme['--bg']} theme"
+
+    def test_legend_swatch_border_follows_theme(self) -> None:
+        # a hardcoded near-black border is invisible on the dark panel
+        assert "#333" not in html._read_asset("dashboard.css")
+
+
+class TestVizThemeTokens:
+    def test_both_themes_define_derived_graph_tokens(self) -> None:
+        themes = _css_theme_vars(html._read_asset("dashboard.css"))
+        assert len(themes) == 2
+        for theme in themes:
+            for token in _DERIVED_TOKENS:
+                assert token in theme, f"{token} missing in {theme.get('--bg')} theme"
+
+    def test_graph_style_reads_tokens_with_static_fallback(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "getComputedStyle" in js
+        for token in ("--viz-node-fill", "--viz-node-border", "--viz-edge"):
+            assert token in js
+        # the old literal style values must not remain baked into initGraph
+        assert "'background-color':'#dfe6ee'" not in js
+        assert "'line-color':'#aab2bd'" not in js
+
+    def test_theme_switch_and_reduced_motion_wired(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "prefers-reduced-motion" in js
+        # once for chart init, once for the live theme-change re-skin
+        assert js.count("prefers-color-scheme") >= 2
+
+    def test_css_has_narrow_viewport_breakpoints(self) -> None:
+        css = html._read_asset("dashboard.css")
+        assert "@media (max-width:1023px)" in css
+        assert "@media (max-width:719px)" in css
