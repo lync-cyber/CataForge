@@ -3,7 +3,7 @@ name: req-analysis
 description: "需求分析 — 需求拆解、用户故事编写、验收标准定义。当用户提出新需求、需要编写 PRD、拆解功能点或定义优先级与验收标准时使用。"
 argument-hint: "<用户需求描述或已有PRD路径>"
 suggested-tools: file_read, file_write, file_edit
-depends: [context, research]
+depends: [context, research, design-grill]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -25,6 +25,9 @@ user-invocable: true
 - 非功能需求(性能/安全/兼容性)
 
 ## 执行流程
+
+### 可选前置: Grill 深度澄清
+design-grill 默认关闭。用户显式要求开启，或当前阶段存在阻塞多个下游决定的高影响歧义时，可一次性建议；仅在用户明确接受后调用 `design-grill prd [范围]`。用户拒绝或未接受即继续 research user-interview 普通澄清，不因信息不完整自动启用。Grill 总结返回后再进入 Step 1，不由 Grill 代写 PRD。
 
 ### Step 1: 需求收集与澄清
 - 解析用户输入，识别功能域和核心诉求

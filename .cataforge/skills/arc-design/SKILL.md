@@ -3,7 +3,7 @@ name: arc-design
 description: "架构设计 — 模块划分、接口定义、数据模型、系统架构建模。当 PRD 完成、需要做架构风格选型、模块划分、接口契约或数据模型设计时使用此 skill。本 skill 不做需求分析（req-analysis）与 UI 设计（ui-design）。"
 argument-hint: "<PRD文档路径或功能需求描述>"
 suggested-tools: file_read, file_write, file_edit, file_glob, file_grep
-depends: [context, tech-eval, research]
+depends: [context, tech-eval, research, design-grill]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -28,6 +28,9 @@ user-invocable: true
 ## 执行流程
 
 > **语言细则**: 根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），获取对应语言的技术选型细则（包/依赖管理、框架选项、并发模型、构建产物形态）。`project.languages` 为空或未配置时跳过 lang-detail 载入，按语言无关原则做架构决策。
+
+### 可选前置: Grill 深度澄清
+design-grill 默认关闭。用户显式要求开启，或当前阶段存在阻塞多个下游决定的高影响歧义时，可一次性建议；仅在用户明确接受后调用 `design-grill arch [范围]`。用户拒绝或未接受即继续 research user-interview 普通澄清。Grill 发现会改变系统边界、数据含义、权限模型或核心流程的 PRD 缺口时，交回 req-analysis 澄清，不以技术假设填补；总结返回后再进入 Step 1。
 
 ### Step 1: 需求分析与架构决策 (对应ARCH §1)
 - 通过 `cataforge context read prd#§2`（功能需求）/ `prd#§3`（非功能需求）按需分章节加载

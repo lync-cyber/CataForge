@@ -118,6 +118,7 @@ hooks:
     file_edit: "Edit|Write"   # lint/format must fire after Write (new files) and Edit alike
   degradation:
     guard_dangerous: native
+    guard_frozen_docs: native
     log_agent_dispatch: native
     validate_agent_result: native
     lint_format: native

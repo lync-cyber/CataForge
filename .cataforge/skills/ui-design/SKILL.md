@@ -3,7 +3,7 @@ name: ui-design
 description: "UI设计 — 页面布局、组件规范、交互流程、组件目录维护。当需要做 UI 设计、定义设计 token、规划页面与组件、设计交互流程或维护组件目录时使用。"
 argument-hint: "<prd文档路径或功能需求ID>"
 suggested-tools: file_read, file_write, file_edit
-depends: [context, research]
+depends: [context, research, design-grill]
 disable-model-invocation: false
 user-invocable: true
 ---
@@ -27,6 +27,9 @@ user-invocable: true
 - 响应式断点策略
 
 ## 执行流程
+
+### 可选前置: Grill 深度澄清
+design-grill 默认关闭。用户显式要求开启，或 design-grill UI profile 定义的高影响歧义成立时，可一次性建议；仅在用户明确接受后调用 `design-grill ui [范围]`。用户拒绝或未接受即继续 research user-interview 普通澄清。`design_tool=penpot` 时仍先遵守既有 Design-Tool Capability Gate；总结返回后再进入 Step 1，Token 同步仍由本 skill 正式流程处理。
 
 ### Step 1: 设计方向决策（产出任何Token前必须完成）
 理解产品上下文，确立设计方向:
