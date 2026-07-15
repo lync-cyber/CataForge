@@ -73,7 +73,9 @@ def bootstrap_subclass_axioms(store: ox.Store, *, include_governance: bool = Fal
     The artifact materializes the LinkML `is_a` chain at codegen time
     (`scripts/codegen_kg_schema.py`), so bootstrap needs no linkml stack at
     runtime. Axioms whose subject lives in the governance namespace are
-    skipped unless the store is governance-enabled.
+    skipped unless the store is governance-enabled; subject-prefix filtering
+    is exact because core and governance classes never share an `is_a` edge
+    across namespaces (pinned by the schema-walk equivalence test).
 
     Returns the number of triples inserted. Idempotent: re-inserting an
     existing triple is a no-op at the RDF semantics layer (pyoxigraph
@@ -81,8 +83,15 @@ def bootstrap_subclass_axioms(store: ox.Store, *, include_governance: bool = Fal
     """
     import pyoxigraph as ox  # noqa: PLC0415
 
+    path = packaged_axioms_path()
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"packaged subclass-axioms artifact missing: {path} — "
+            "the cataforge installation is incomplete; reinstall the package"
+        )
+
     count = 0
-    for quad in ox.parse(packaged_axioms_path().read_bytes(), ox.RdfFormat.TURTLE):
+    for quad in ox.parse(path.read_bytes(), ox.RdfFormat.TURTLE):
         if not include_governance and quad.subject.value.startswith(GOVERNANCE_NS):
             continue
         store.add(quad)

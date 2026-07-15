@@ -42,8 +42,8 @@ def test_bootstrap_requires_no_linkml_runtime(monkeypatch: pytest.MonkeyPatch) -
     """
     import sys
 
-    blocked = [m for m in sys.modules if m.split(".", 1)[0] == "linkml_runtime"]
-    for name in ["linkml_runtime", *blocked]:
+    blocked = {m for m in sys.modules if m.split(".", 1)[0] == "linkml_runtime"}
+    for name in blocked | {"linkml_runtime"}:
         monkeypatch.setitem(sys.modules, name, None)
 
     from cataforge.domain.kg import KGConfig, init_store

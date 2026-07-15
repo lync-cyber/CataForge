@@ -21,6 +21,8 @@ from pathlib import Path
 CORE_SCHEMA = "core.yaml"
 GOVERNANCE_SCHEMA = "governance.yaml"
 
+# Mirrors the `cfgov:` prefix in schemas/governance.yaml; equivalence is
+# pinned by tests/kg/test_store.py::test_bootstrap_axioms_match_schema_walk.
 GOVERNANCE_NS = "https://cataforge.dev/governance/"
 
 
