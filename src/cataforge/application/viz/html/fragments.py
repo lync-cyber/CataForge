@@ -378,7 +378,7 @@ def _timeline_option(view: Timeline) -> dict[str, Any]:
     return {
         "title": {"text": view.title or "timeline"},
         "aria": {"enabled": True},
-        "tooltip": {"trigger": "item", "formatter": "{b}"},
+        "tooltip": {"trigger": "item", "formatter": "{b}", "confine": True},
         "grid": {"containLabel": True, "bottom": 64},
         # a time axis keeps event density honest — a 2-day gap renders narrower
         # than a 2-week one, unlike evenly spaced date categories
@@ -409,7 +409,7 @@ def _metric_option(view: MetricSeries) -> dict[str, Any]:
     return {
         "title": {"text": view.title or "metrics"},
         "aria": {"enabled": True},
-        "tooltip": {"trigger": "axis"},
+        "tooltip": {"trigger": "axis", "confine": True},
         "legend": {"show": len(series_names) > 1},
         "grid": {"containLabel": True},
         "xAxis": {"type": "category", "data": labels, "axisLabel": {"rotate": 30}},
@@ -448,7 +448,7 @@ def _series_option(name: str, points: list[MetricPoint]) -> dict[str, Any]:
     return {
         "title": {"text": name or "metrics"},
         "aria": {"enabled": True},
-        "tooltip": {"trigger": "axis"},
+        "tooltip": {"trigger": "axis", "confine": True},
         "grid": {"containLabel": True},
         "xAxis": {"type": "category", "data": [p.label for p in points]},
         "yAxis": y,

@@ -3,8 +3,9 @@
 ``render`` produces one standalone file per view; ``render_dashboard``
 aggregates every viable view into a tabbed page that shares the two vendored
 libraries. Styling comes from ``assets/dashboard.css`` (palette-derived colours
-injected as CSS custom properties) and behaviour from ``assets/dashboard.js``,
-both inlined so the output opens offline with zero external requests.
+injected as CSS custom properties) and behaviour from the ``assets/dashboard.*
+.js`` modules (see ``_DASHBOARD_JS``), all inlined so the output opens offline
+with zero external requests.
 """
 
 from __future__ import annotations
@@ -31,7 +32,17 @@ from cataforge.core.viz import palette
 from cataforge.core.viz.model import Graph, Status, View, is_empty
 
 _DASHBOARD_CSS = "dashboard.css"
-_DASHBOARD_JS = "dashboard.js"
+# Behaviour modules concatenated in dependency order: core first (it owns the
+# window.__viz namespace every other module reaches through), app last (its
+# IIFEs run at parse time, once every function has been declared). Ordering
+# between the middle modules is free — they are pure function declarations.
+_DASHBOARD_JS: tuple[str, ...] = (
+    "dashboard.core.js",
+    "dashboard.graph.js",
+    "dashboard.catalogue.js",
+    "dashboard.table.js",
+    "dashboard.app.js",
+)
 
 # phase is deliberately absent: progression renders as the stepper strip.
 # Labels are Chinese (the page's primary language); each tab's title= keeps
@@ -47,6 +58,13 @@ _DASHBOARD_VIEWS: tuple[tuple[str, str], ...] = (
     ("timeline", "时间线"),
     ("decay", "腐化"),
 )
+
+
+def _dashboard_js() -> str:
+    """The behaviour modules concatenated in dependency order — the exact JS
+    inlined into every rendered page. The single source of truth for what
+    ships, so tests assert against this rather than any one module file."""
+    return "\n".join(_read_asset(name) for name in _DASHBOARD_JS)
 
 
 def _root_vars() -> str:
@@ -72,7 +90,7 @@ def _document(title: str, body: str, inits: list[str], libs: list[str]) -> str:
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{_html.escape(title)}</title>\n<style>{css}</style>\n</head>\n<body>\n"
     )
-    scripts = f"<script>\n{_read_asset(_DASHBOARD_JS)}\n{chr(10).join(inits)}\n</script>"
+    scripts = f"<script>\n{_dashboard_js()}\n{chr(10).join(inits)}\n</script>"
     return f"{head}{body}\n{lib_blocks}\n{scripts}\n</body>\n</html>\n"
 
 

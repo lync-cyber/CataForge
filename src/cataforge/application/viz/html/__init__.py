@@ -9,6 +9,7 @@ page that shares the two libraries.
 
 from cataforge.application.viz.html.fragments import _read_asset as _read_asset
 from cataforge.application.viz.html.page import _DASHBOARD_VIEWS as _DASHBOARD_VIEWS
+from cataforge.application.viz.html.page import _dashboard_js as _dashboard_js
 from cataforge.application.viz.html.page import render as render
 from cataforge.application.viz.html.page import render_dashboard as render_dashboard
 
