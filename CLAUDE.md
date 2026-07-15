@@ -33,6 +33,7 @@
 - 进度事实源: git 历史 / PR / CHANGELOG / `docs/proposals/`，不在本文件维护阶段或文档状态字段
 - 剩余 backlog（真实状态以各提案头部为准，本行仅防遗忘指针）:
   - penpot-bridge C2 + E —— `docs/proposals/penpot-bridge-convergence.md`（核心已落，C2/E 子项延期）
+  - 目录结构重构 —— `docs/proposals/structure-refactor.md`（规划中，**下一会话按 §5 迁移序分 PR 落地**：utils grab-bag 拆解 + cli `_support` 分离 + tests 裸测试归位）
 - Learnings Registry: (compacted; archive in .cataforge/learnings/registry-archive.md)
   <!-- 上限：framework.json#claude_md_limits.learnings_registry_max_entries；超限运行 `cataforge claude-md compact` -->
 
@@ -94,6 +95,7 @@
 校验：`.github/workflows/pr-title.yml`。
 
 **发版流程**
+
 1. feature branch 上完成变更并 commit
 2. `git push -u origin <branch>`
 3. `gh pr create --title '<type>(<scope>): <subject>'`（必须显式 `--title`，否则 gh 用分支名）
