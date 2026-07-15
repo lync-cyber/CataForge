@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from cataforge.domain.docs.index_ops import _load_doc_type_map
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._dispatch import custom_entity_prefixes, definition_authority
+from cataforge.domain.kg._errors import KGDocumentCollisionError
 from cataforge.domain.kg._quads import (
     _slot_iri,
     attribute_subject_quads,
@@ -26,7 +27,7 @@ from cataforge.domain.kg.ingest.entity_extract import build_prefix_registry, ext
 from cataforge.domain.kg.ingest.iri import entity_iri, subordinate_entity_iri
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
-from cataforge.domain.kg.ingest.scan import scan_business_docs
+from cataforge.domain.kg.ingest.scan import format_doc_id_collisions, scan_business_docs
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
 from cataforge.domain.kg.ingest.writer import (
     write_entities,
@@ -198,6 +199,12 @@ def repair(
     state.
     """
     report = reconcile(store, project_root, config)
+    collisions = [c for per in report.per_doc_type.values() for c in per.doc_id_collisions]
+    if collisions:
+        # An ambiguous batch turns the whole KG side of the diff into phantom
+        # ghosts; proceeding would delete healthy structure. Refuse before any
+        # mutation — the author must resolve the file collision first.
+        raise KGDocumentCollisionError(format_doc_id_collisions(collisions), collisions)
     if report.ok:
         return RepairStats()
 

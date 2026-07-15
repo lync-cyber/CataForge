@@ -1,5 +1,5 @@
 ---
-doc_id: arch
+id: arch
 doc_type: arch
 ---
 

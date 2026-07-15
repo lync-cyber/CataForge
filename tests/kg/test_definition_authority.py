@@ -158,14 +158,14 @@ def test_run_migration_tolerates_task_sections_in_test_report(tmp_path: Path) ->
         tmp_path,
         "dev-plan",
         "dev-plan.md",
-        "---\ndoc_id: dev-plan\n---\n# Dev Plan\n\n## §5 Tasks\n\n"
+        "---\nid: dev-plan\n---\n# Dev Plan\n\n## §5 Tasks\n\n"
         "### T-087 迁移引导\n\n- AC-001: 引导文案包含来源章节\n",
     )
     _write_doc(
         tmp_path,
         "test-report",
         "test-report.md",
-        "---\ndoc_id: test-report\n---\n# Test Report\n\n## §2 任务结果\n\n"
+        "---\nid: test-report\n---\n# Test Report\n\n## §2 任务结果\n\n"
         "### T-087: 迁移引导（实测）\n\n- AC-001: 实测通过\n",
     )
 
@@ -194,7 +194,7 @@ def test_run_migration_honours_authority_extension(tmp_path: Path) -> None:
         tmp_path,
         "arch",
         "arch.md",
-        "---\ndoc_id: arch\n---\n# Arch\n\n## §7 术语\n\n### GL-001 领域术语\n\n图谱即事实源。\n",
+        "---\nid: arch\n---\n# Arch\n\n## §7 术语\n\n### GL-001 领域术语\n\n图谱即事实源。\n",
     )
 
     config = KGConfig(store_backend="memory")

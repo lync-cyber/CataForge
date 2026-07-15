@@ -47,13 +47,13 @@ def _project(tmp_path: Path, custom_prefixes: dict[str, str]):
         tmp_path,
         "prd",
         "prd.md",
-        "---\ndoc_id: prd\n---\n# PRD\n\n## §2\n\n### F-003 下单\n\n下单功能。\n",
+        "---\nid: prd\n---\n# PRD\n\n## §2\n\n### F-003 下单\n\n下单功能。\n",
     )
     _write(
         tmp_path,
         "dev-plan",
         "dev-plan.md",
-        "---\ndoc_id: dev-plan\n---\n# Dev Plan\n\n## §3\n\n"
+        "---\nid: dev-plan\n---\n# Dev Plan\n\n## §3\n\n"
         "### ORD-001 订单聚合\n\n满足 AC: prd#§2.F-003\n",
     )
     _framework(tmp_path, custom_prefixes)
@@ -146,7 +146,7 @@ def test_domain_entity_attributes_are_queryable(tmp_path: Path) -> None:
         tmp_path,
         "dev-plan",
         "dev-plan.md",
-        "---\ndoc_id: dev-plan\n---\n# Dev Plan\n\n## §3\n\n"
+        "---\nid: dev-plan\n---\n# Dev Plan\n\n## §3\n\n"
         "### ORD-001 订单聚合\n\n- 状态: 已下单\n- 金额: 100\n",
     )
     _framework(tmp_path, {"ORD": "Order"})
@@ -208,7 +208,7 @@ def test_attribute_update_and_removal_replaces_projection(tmp_path: Path) -> Non
     # Re-ingesting a changed body must replace the attr projection: an updated
     # value may not accumulate, a removed bullet may not leave an orphan node.
     _framework(tmp_path, {"ORD": "Order"})
-    base = "---\ndoc_id: dev-plan\n---\n# Dev Plan\n\n## §3\n\n### ORD-001 订单聚合\n\n"
+    base = "---\nid: dev-plan\n---\n# Dev Plan\n\n## §3\n\n### ORD-001 订单聚合\n\n"
     _write(tmp_path, "dev-plan", "dev-plan.md", base + "- 状态: 已下单\n- 金额: 100\n")
     invalidate_cache()
     config = KGConfig(store_backend="memory", kg_active_doc_types={"dev-plan"})

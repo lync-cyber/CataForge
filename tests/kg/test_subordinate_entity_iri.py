@@ -111,7 +111,7 @@ def test_cross_doc_same_ac_id_imports_and_reconciles(tmp_path: Path) -> None:
         tmp_path,
         "prd",
         "prd.md",
-        "---\ndoc_id: prd\n---\n# PRD\n\n## §2\n\n"
+        "---\nid: prd\n---\n# PRD\n\n## §2\n\n"
         "### F-001 登录\n\n- AC-001: 邮箱密码可登录\n\n"
         "### F-002 登出\n\n- AC-001: 一键登出\n",
     )
@@ -119,7 +119,7 @@ def test_cross_doc_same_ac_id_imports_and_reconciles(tmp_path: Path) -> None:
         tmp_path,
         "dev-plan",
         "dev-plan.md",
-        "---\ndoc_id: dev-plan\n---\n# Dev Plan\n\n## §5\n\n### T-001 骨架\n\n- AC-001: 编译通过\n",
+        "---\nid: dev-plan\n---\n# Dev Plan\n\n## §5\n\n### T-001 骨架\n\n- AC-001: 编译通过\n",
     )
 
     config = KGConfig(store_backend="memory", kg_active_doc_types={"prd", "dev-plan"})
@@ -157,14 +157,13 @@ def test_cross_doc_ac_xref_resolves_to_nested_node(tmp_path: Path) -> None:
         tmp_path,
         "prd",
         "prd.md",
-        "---\ndoc_id: prd\n---\n# PRD\n\n## §2\n\n### F-001 登录\n\n- AC-001: 邮箱密码可登录\n",
+        "---\nid: prd\n---\n# PRD\n\n## §2\n\n### F-001 登录\n\n- AC-001: 邮箱密码可登录\n",
     )
     _write(
         tmp_path,
         "dev-plan",
         "dev-plan.md",
-        "---\ndoc_id: dev-plan\n---\n# Dev Plan\n\n## §5\n\n"
-        "### T-001 骨架\n\n满足 AC: prd#§2.AC-001\n",
+        "---\nid: dev-plan\n---\n# Dev Plan\n\n## §5\n\n### T-001 骨架\n\n满足 AC: prd#§2.AC-001\n",
     )
 
     config = KGConfig(store_backend="memory", kg_active_doc_types={"prd", "dev-plan"})

@@ -36,6 +36,7 @@ from cataforge.domain.kg._dispatch import (
     custom_entity_prefixes,
     definition_authority,
 )
+from cataforge.domain.kg._errors import KGDocumentCollisionError
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _strv,
@@ -111,6 +112,9 @@ class PerDocTypeReport:
     orphan_relations: list[RelKey] = field(default_factory=list)
     missing_sections: list[str] = field(default_factory=list)
     ghost_sections: list[str] = field(default_factory=list)
+    # `DocIdCollision` records from the scan's producer-side refusal; the
+    # id-set diff is skipped for a doc_type in this state.
+    doc_id_collisions: list[Any] = field(default_factory=list)
 
     @property
     def divergence_count(self) -> int:
@@ -127,6 +131,7 @@ class PerDocTypeReport:
             + len(self.orphan_relations)
             + len(self.missing_sections)
             + len(self.ghost_sections)
+            + len(self.doc_id_collisions)
         )
 
     @property
@@ -148,6 +153,10 @@ class PerDocTypeReport:
             "orphan_relations": [list(t) for t in sorted(self.orphan_relations)],
             "missing_sections": sorted(self.missing_sections),
             "ghost_sections": sorted(self.ghost_sections),
+            "doc_id_collisions": [
+                {"doc_id": c.doc_id, "source_paths": list(c.source_paths)}
+                for c in self.doc_id_collisions
+            ],
             "divergence_count": self.divergence_count,
         }
 
@@ -295,6 +304,10 @@ class ReconcileReport:
         return sum(len(r.enrichment_relations) for r in self.per_doc_type.values())
 
     @property
+    def doc_id_collision_count(self) -> int:
+        return sum(len(r.doc_id_collisions) for r in self.per_doc_type.values())
+
+    @property
     def ok(self) -> bool:
         """Authoritative pass/fail, by mode.
 
@@ -305,18 +318,28 @@ class ReconcileReport:
         symmetric diff directly.
         """
         if self.mode == "graph":
-            return self.document_drift_count == 0 and self.section_desync_count == 0
+            return (
+                self.document_drift_count == 0
+                and self.section_desync_count == 0
+                and self.doc_id_collision_count == 0
+            )
         return self.overall_divergence_count == 0
 
     @property
     def gate_summary(self) -> str:
         """Human-facing failure detail naming the count ``ok`` was decided on."""
+        collision_suffix = (
+            f", {self.doc_id_collision_count} doc-id collision(s)"
+            if self.doc_id_collision_count
+            else ""
+        )
         if self.mode == "graph":
             return (
                 f"{self.document_drift_count} document(s) drifted, "
                 f"{self.section_desync_count} with desynced sections"
+                f"{collision_suffix}"
             )
-        return f"{self.overall_divergence_count} divergence(s)"
+        return f"{self.overall_divergence_count} divergence(s){collision_suffix}"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -346,16 +369,6 @@ def _scope_key(entity_id: str, class_name: str | None, parent_id: str | None) ->
 def _is_subordinate_id(entity_id: str) -> bool:
     """True when ``entity_id``'s prefix maps to a subordinate class (e.g. AC)."""
     return ENTITY_PREFIX_TO_CLASS.get(entity_id.split("-", 1)[0]) in SUBORDINATE_CLASSES
-
-
-def _is_entity_card(doc: Any) -> bool:
-    """True for a per-entity card export (frontmatter carries ``entity_id``).
-
-    Cards are a derived KG→Markdown rendering for orphan entities, not a
-    Document-backed source file; their link-style refs and render-only sections
-    cannot round-trip back through the ingest scanner.
-    """
-    return "entity_id" in getattr(doc, "frontmatter", {})
 
 
 def _kg_entities_for_doc_ids(store: ox.Store, config: KGConfig, doc_ids: set[str]) -> set[str]:
@@ -530,6 +543,66 @@ def _split_ghost_relations(
     return sorted(ghosts), sorted(enrichment)
 
 
+@dataclass
+class _ScanPrePass:
+    """FS-side scan results shared by the per-doc_type diff loop."""
+
+    parsed_by_type: dict[str, list[Any]] = field(default_factory=dict)
+    doc_ids_by_type: dict[str, set[str]] = field(default_factory=dict)
+    collisions_by_type: dict[str, list[Any]] = field(default_factory=dict)
+    entity_home: dict[str, set[str]] = field(default_factory=dict)
+    raw_relations: list[tuple[RelKey, str]] = field(default_factory=list)
+
+
+def _scan_pre_pass(
+    project_root: Path,
+    active: list[str],
+    type_map: dict[str, str],
+    authority: Any,
+    registry: Any,
+) -> _ScanPrePass:
+    """Scan every active doc_type once, recording the doc_id(s) that *define*
+    each entity and collecting every FS relation keyed by its extraction doc.
+    """
+    pre = _ScanPrePass()
+    for doc_type in active:
+        # Resolve the on-disk subdir; honour the framework.json override
+        # the same way the legacy loader does.
+        subdir = type_map.get(doc_type, doc_type)
+        directory = project_root / "docs" / subdir
+        try:
+            parsed = scan_business_docs(project_root, [doc_type]) if directory.is_dir() else []
+        except KGDocumentCollisionError as exc:
+            # Surface the scan's refusal as a finding; the id-set diff is
+            # meaningless over an ambiguous batch, so it is skipped wholesale
+            # (an empty doc_id set also keeps the KG side out of the diff, so
+            # nothing gets misread as ghost drift).
+            pre.collisions_by_type[doc_type] = list(exc.collisions)
+            pre.parsed_by_type[doc_type] = []
+            pre.doc_ids_by_type[doc_type] = set()
+            continue
+        # Drop per-entity card files; only Document-backed whole docs are
+        # authoritative source for the diff (cards can't round-trip).
+        parsed = [d for d in parsed if not d.is_entity_card]
+        pre.parsed_by_type[doc_type] = parsed
+        doc_ids: set[str] = set()
+        for doc in parsed:
+            doc_ids.add(doc.doc_id)
+            for entity in extract_entities(doc, authority=authority, registry=registry):
+                pre.entity_home.setdefault(entity.entity_id, set()).add(doc.doc_id)
+            for relation in extract_relations(doc, registry):
+                key = (
+                    relation.subject_entity_id,
+                    relation.predicate_curie,
+                    relation.object_entity_id,
+                )
+                pre.raw_relations.append((key, doc.doc_id))
+        # If no parsed docs but the doc_type has a built-in subdir name, still
+        # consult KG by the subdir-as-doc_id (cheap; usually empty).
+        pre.doc_ids_by_type[doc_type] = doc_ids or {subdir, doc_type}
+    return pre
+
+
 def reconcile(
     store: ox.Store,
     project_root: Path,
@@ -553,8 +626,8 @@ def reconcile(
     # per-entity cards whose Markdown form — link-style `[F-001](…)` instead of
     # strict xref, render-only `## Implements` sections — cannot round-trip back
     # through the ingest scanner, so re-scanning them yields phantom divergence.
-    # The FS side drops card files (below); the KG side is restricted to
-    # source_docs that own a `cf:Document` node. A no-op when every doc is
+    # The FS side drops card files (in the pre-pass); the KG side is restricted
+    # to source_docs that own a `cf:Document` node. A no-op when every doc is
     # Document-backed; orphan cards drift-triage by their own content hash.
     covered_source_docs = _covered_source_docs(store, cf_namespace(config))
 
@@ -567,42 +640,12 @@ def reconcile(
         mode=context_mode(project_root),
     )
 
-    # Pre-pass: scan every active doc_type once, recording the doc_id(s) that
-    # *define* each entity and collecting every FS relation. A relation is a
-    # project-global fact; the KG keys it by its subject's `cf:source_doc`
-    # (`_kg_relations_with_homes`), so attributing the FS side by the doc that
-    # merely *declares* the xref (arch declaring a Feature→Feature dependency)
-    # would diverge. Bucketing FS relations by the subject's home doc keeps both
-    # sides apples-to-apples.
-    parsed_by_type: dict[str, list[Any]] = {}
-    doc_ids_by_type: dict[str, set[str]] = {}
-    entity_home: dict[str, set[str]] = {}
-    raw_relations: list[tuple[RelKey, str]] = []  # (relation key, extraction doc_id)
-    for doc_type in active:
-        # Resolve the on-disk subdir; honour the framework.json override
-        # the same way the legacy loader does.
-        subdir = type_map.get(doc_type, doc_type)
-        directory = project_root / "docs" / subdir
-        parsed = scan_business_docs(project_root, [doc_type]) if directory.is_dir() else []
-        # Drop per-entity card files; only Document-backed whole docs are
-        # authoritative source for the diff (cards can't round-trip).
-        parsed = [d for d in parsed if not _is_entity_card(d)]
-        parsed_by_type[doc_type] = parsed
-        doc_ids: set[str] = set()
-        for doc in parsed:
-            doc_ids.add(doc.doc_id)
-            for entity in extract_entities(doc, authority=authority, registry=registry):
-                entity_home.setdefault(entity.entity_id, set()).add(doc.doc_id)
-            for relation in extract_relations(doc, registry):
-                key = (
-                    relation.subject_entity_id,
-                    relation.predicate_curie,
-                    relation.object_entity_id,
-                )
-                raw_relations.append((key, doc.doc_id))
-        # If no parsed docs but the doc_type has a built-in subdir name, still
-        # consult KG by the subdir-as-doc_id (cheap; usually empty).
-        doc_ids_by_type[doc_type] = doc_ids or {subdir, doc_type}
+    # Pre-pass rationale: a relation is a project-global fact; the KG keys it
+    # by its subject's `cf:source_doc` (`_kg_relations_with_homes`), so
+    # attributing the FS side by the doc that merely *declares* the xref (arch
+    # declaring a Feature→Feature dependency) would diverge. Bucketing FS
+    # relations by the subject's home doc keeps both sides apples-to-apples.
+    pre = _scan_pre_pass(project_root, active, type_map, authority, registry)
 
     # Attribute each FS relation to the doc(s) the KG keys it under — its
     # subject node's `cf:source_doc`. A subordinate subject (AcceptanceCriteria)
@@ -612,16 +655,17 @@ def reconcile(
     # resolves to no home and drops out — matching the KG, which never wrote an
     # edge for a subjectless node.
     fs_rel_by_doc: dict[str, set[RelKey]] = {}
-    for key, ext_doc in raw_relations:
-        homes = {ext_doc} if _is_subordinate_id(key[0]) else entity_home.get(key[0], set())
+    for key, ext_doc in pre.raw_relations:
+        homes = {ext_doc} if _is_subordinate_id(key[0]) else pre.entity_home.get(key[0], set())
         for home in homes:
             fs_rel_by_doc.setdefault(home, set()).add(key)
 
     for doc_type in active:
         per = PerDocTypeReport(doc_type=doc_type)
         report.per_doc_type[doc_type] = per
-        parsed = parsed_by_type[doc_type]
-        doc_ids = doc_ids_by_type[doc_type]
+        per.doc_id_collisions = pre.collisions_by_type.get(doc_type, [])
+        parsed = pre.parsed_by_type[doc_type]
+        doc_ids = pre.doc_ids_by_type[doc_type]
 
         fs_entities: set[str] = set()
         fs_sections: set[str] = set()

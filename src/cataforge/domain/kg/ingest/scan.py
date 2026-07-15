@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.domain.docs.index_ops import _load_doc_type_map
+from cataforge.domain.kg._errors import KGDocumentCollisionError
 from cataforge.domain.kg.ingest.frontmatter import _PARSE_ERROR_KEY, parse_frontmatter
 from cataforge.utils.md_parse import iter_markdown_headings
 
@@ -57,6 +58,15 @@ class ParsedDoc:
         whole-document reconstruction.
         """
         return self.raw[: len(self.raw) - len(self.body)] if self.body else ""
+
+    @property
+    def is_entity_card(self) -> bool:
+        """True for a per-entity card export (frontmatter carries ``entity_id``).
+
+        Cards are a derived KG→Markdown rendering, not a logical-document
+        claim; consumers that reason about Document identity skip them.
+        """
+        return "entity_id" in self.frontmatter
 
 
 def _build_line_offsets(text: str) -> list[int]:
@@ -158,8 +168,9 @@ def parse_doc_text(
 
     A malformed frontmatter block yields a ``ParsedDoc`` whose ``frontmatter``
     carries ``__parse_error__``; the caller decides whether to skip or raise.
-    ``doc_id`` / ``doc_type`` derive from the frontmatter when present, else
-    from ``file_name`` and the passed ``doc_type``.
+    ``doc_id`` comes from the frontmatter ``id`` (the canonical key templates
+    and write-doc emit), else from ``file_name``; ``doc_type`` likewise from
+    frontmatter with the passed ``doc_type`` as fallback.
     """
     raw = raw.replace("\r\n", "\n").replace("\r", "\n")
     frontmatter, body = parse_frontmatter(raw)
@@ -176,7 +187,8 @@ def parse_doc_text(
             frontmatter=frontmatter,
         )
     body_offset = raw.count("\n", 0, len(raw) - len(body)) if body else 0
-    doc_id = frontmatter.get("doc_id") or _infer_doc_id(file_name, doc_type)
+    fm_id = frontmatter.get("id")
+    doc_id = fm_id if isinstance(fm_id, str) and fm_id else _infer_doc_id(file_name, doc_type)
     ft_doc_type = frontmatter.get("doc_type") or doc_type
     return ParsedDoc(
         doc_id=doc_id,
@@ -193,6 +205,55 @@ def parse_doc_text(
     )
 
 
+@dataclass
+class DocIdCollision:
+    """One logical doc_id claimed by multiple scanned files."""
+
+    doc_id: str
+    source_paths: list[str]
+
+
+def detect_doc_id_collisions(parsed: list[ParsedDoc]) -> list[DocIdCollision]:
+    """Flag doc_ids that two or more files in the batch resolve to.
+
+    Entity cards are exempt (derived renders, no Document claim). Identical
+    content is no excuse: one logical document owns one file, so any second
+    claimant is a collision regardless of bytes.
+    """
+    by_id: dict[str, list[str]] = {}
+    for doc in parsed:
+        if doc.is_entity_card:
+            continue
+        by_id.setdefault(doc.doc_id, []).append(doc.source_path or str(doc.file_path))
+    return [
+        DocIdCollision(doc_id=doc_id, source_paths=sorted(paths))
+        for doc_id, paths in sorted(by_id.items())
+        if len(paths) > 1
+    ]
+
+
+def format_doc_id_collisions(collisions: list[DocIdCollision]) -> str:
+    """Render a collision list into an actionable error message."""
+    lines = [
+        f"KG scan aborted: {len(collisions)} logical document id(s) are claimed "
+        "by multiple files. Ingest would collapse them into one Document node "
+        "(last write wins) and rewrites would delete each other's sections.",
+        "",
+    ]
+    for c in collisions:
+        lines.append(f"  {c.doc_id}:")
+        lines.extend(f"    - {p}" for p in c.source_paths)
+    lines.extend(
+        [
+            "",
+            "One doc_type keeps one logical document: merge the files into the "
+            "canonical `docs/<subdir>/<doc_id>.md` (splits live at the section "
+            "level), or give each file a distinct frontmatter `id`.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def scan_business_docs(
     project_root: Path,
     doc_types: list[str],
@@ -200,7 +261,10 @@ def scan_business_docs(
     """Phase 1+2: enumerate + parse all in-scope business docs.
 
     Files without a closable frontmatter block are still returned (with an
-    empty frontmatter dict) so downstream phases can decide policy.
+    empty frontmatter dict) so downstream phases can decide policy. A batch
+    where multiple files resolve to one doc_id raises
+    :class:`KGDocumentCollisionError` — the producer refuses ambiguous output
+    so no consumer has to remember its own guard.
     """
     project_root = Path(project_root)
     type_map = _load_doc_type_map(str(project_root))
@@ -229,4 +293,7 @@ def scan_business_docs(
                 )
                 continue
             parsed.append(doc)
+    collisions = detect_doc_id_collisions(parsed)
+    if collisions:
+        raise KGDocumentCollisionError(format_doc_id_collisions(collisions), collisions)
     return parsed
