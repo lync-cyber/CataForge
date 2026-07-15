@@ -273,49 +273,63 @@ function graphStyle() {
     },
   ];
 }
-function initGraph(id, elements, opts) {
-  opts = opts || {};
-  var compound = elements.some(function (e) {
-    return e.data && e.data.parent;
+function chipVals(chips, attr, on) {
+  /* data-attr values of the chips whose pressed state matches `on` */
+  var out = [];
+  for (var i = 0; i < chips.length; i++) {
+    if (chips[i].classList.contains('on') === on) {
+      out.push(chips[i].getAttribute(attr));
+    }
+  }
+  return out;
+}
+function restoreChips(chips, attr, offs) {
+  /* re-apply a persisted `off` list: unpress every chip it names */
+  for (var i = 0; i < chips.length; i++) {
+    if (offs.indexOf(chips[i].getAttribute(attr)) >= 0) {
+      setPressed(chips[i], false);
+    }
+  }
+}
+function edgesFromNodes(cy, cls) {
+  /* an edge carries a node class when either endpoint has it */
+  cy.edges().forEach(function (e) {
+    e.toggleClass(cls, e.source().hasClass(cls) || e.target().hasClass(cls));
   });
+}
+function graphLayout(compound, opts) {
   /* defer: the catalogue graph inits inside a hidden 0-size wrapper where any
      real layout degenerates (and cose runs async, racing later re-layouts) —
      hold positions until the first show lays out at real size */
-  var layout = opts.defer
-    ? { name: 'preset' }
-    : compound
-      ? {
-          name: 'cose',
-          padding: 14,
-          fit: true,
-          nodeDimensionsIncludeLabels: true,
-          idealEdgeLength: 60,
-        }
-      : {
-          name: 'breadthfirst',
-          directed: true,
-          spacingFactor: 1.1,
-          padding: 12,
-          fit: true,
-        };
-  var cy = cytoscape({
-    container: document.getElementById(id),
-    elements: elements,
-    style: graphStyle(),
-    layout: layout,
-    wheelSensitivity: 0.2,
-  });
-  if (!compound && (opts.dir === 'LR' || opts.dir === 'RL')) {
-    /* breadthfirst lays top-down; a horizontal graph transposes its ranks */
-    cy.startBatch();
-    cy.nodes().forEach(function (n) {
-      var p = n.position();
-      n.position({ x: p.y, y: p.x });
-    });
-    cy.endBatch();
-    cy.fit(undefined, 12);
+  if (opts.defer) return { name: 'preset' };
+  if (compound) {
+    return {
+      name: 'cose',
+      padding: 14,
+      fit: true,
+      nodeDimensionsIncludeLabels: true,
+      idealEdgeLength: 60,
+    };
   }
-  window.__viz.cy[id] = cy;
+  return {
+    name: 'breadthfirst',
+    directed: true,
+    spacingFactor: 1.1,
+    padding: 12,
+    fit: true,
+  };
+}
+function graphTranspose(cy) {
+  /* breadthfirst lays top-down; a horizontal graph transposes its ranks */
+  cy.startBatch();
+  cy.nodes().forEach(function (n) {
+    var p = n.position();
+    n.position({ x: p.y, y: p.x });
+  });
+  cy.endBatch();
+  cy.fit(undefined, 12);
+}
+function wireViewport(cy, id) {
   var vp = window.__viz.state[id + ':vp'];
   if (vp && vp.zoom) {
     cy.viewport({ zoom: vp.zoom, pan: vp.pan });
@@ -327,83 +341,68 @@ function initGraph(id, elements, opts) {
       window.__viz.saveState(id + ':vp', { zoom: cy.zoom(), pan: cy.pan() });
     }, 200);
   });
-  cy.on('dbltap', function (ev) {
-    if (ev.target === cy) {
-      cy.fit(undefined, 12);
-    }
+}
+function graphApplyFold(cy, tchips, id, save) {
+  var off = chipVals(tchips, 'data-type', false);
+  cy.batch(function () {
+    cy.nodes().forEach(function (n) {
+      n.toggleClass('folded', off.indexOf(n.data('type') || '') >= 0);
+    });
+    edgesFromNodes(cy, 'folded');
   });
-  cy.on('tap', 'node', function (ev) {
-    window.__viz.inspect(ev.target.data(), id);
-  });
-  var view = document.getElementById(id).closest('.view');
-  if (view && !view.classList.contains('cat-view')) {
-    /* layer folding: type chips hide whole node layers; catalogue chips keep
-       their own dim-based semantics wired in initCatalogue */
-    var tchips = view.querySelectorAll('.fchip[data-type]');
-    var applyFold = function (save) {
-      var off = [];
-      for (var i = 0; i < tchips.length; i++) {
-        if (!tchips[i].classList.contains('on'))
-          off.push(tchips[i].getAttribute('data-type'));
-      }
-      cy.batch(function () {
-        cy.nodes().forEach(function (n) {
-          n.toggleClass('folded', off.indexOf(n.data('type') || '') >= 0);
-        });
-        cy.edges().forEach(function (e) {
-          e.toggleClass(
-            'folded',
-            e.source().hasClass('folded') || e.target().hasClass('folded'),
-          );
-        });
-      });
-      if (save) {
-        window.__viz.saveState(id + ':fold', off);
-      }
-    };
-    var foldOffs = window.__viz.stateArr(id + ':fold');
-    for (var tc = 0; tc < tchips.length; tc++) {
-      if (foldOffs.indexOf(tchips[tc].getAttribute('data-type')) >= 0) {
-        setPressed(tchips[tc], false);
-      }
-      tchips[tc].addEventListener('click', function () {
-        setPressed(this, !this.classList.contains('on'));
-        applyFold(true);
-      });
-    }
-    if (foldOffs.length) {
-      applyFold(false);
-    }
-    var ms = view.querySelector('.modeswitch[data-target="' + id + '"]');
-    if (ms) {
-      var applyMode = function (mode, save) {
-        var alt = view.querySelector('.alt-table');
-        var cyEl = document.getElementById(id);
-        if (!alt) return;
-        var table = mode === 'table';
-        alt.hidden = !table;
-        cyEl.style.display = table ? 'none' : '';
-        ms.textContent = table ? '图形视图' : '表格视图';
-        if (!table) {
-          cy.resize();
-        }
-        if (save) {
-          window.__viz.saveState(id + ':mode', mode);
-        }
-      };
-      ms.addEventListener('click', function () {
-        applyMode(
-          document.getElementById(id).style.display === 'none'
-            ? 'graph'
-            : 'table',
-          true,
-        );
-      });
-      if (window.__viz.state[id + ':mode'] === 'table') {
-        applyMode('table', false);
-      }
-    }
+  if (save) {
+    window.__viz.saveState(id + ':fold', off);
   }
+}
+function wireFold(cy, view, id) {
+  /* layer folding: type chips hide whole node layers; catalogue chips keep
+     their own dim-based semantics wired in initCatalogue */
+  var tchips = view.querySelectorAll('.fchip[data-type]');
+  var foldOffs = window.__viz.stateArr(id + ':fold');
+  restoreChips(tchips, 'data-type', foldOffs);
+  for (var i = 0; i < tchips.length; i++) {
+    tchips[i].addEventListener('click', function () {
+      setPressed(this, !this.classList.contains('on'));
+      graphApplyFold(cy, tchips, id, true);
+    });
+  }
+  if (foldOffs.length) {
+    graphApplyFold(cy, tchips, id, false);
+  }
+}
+function graphApplyMode(cy, view, ms, id, mode, save) {
+  var alt = view.querySelector('.alt-table');
+  var cyEl = document.getElementById(id);
+  if (!alt) return;
+  var table = mode === 'table';
+  alt.hidden = !table;
+  cyEl.style.display = table ? 'none' : '';
+  ms.textContent = table ? '图形视图' : '表格视图';
+  if (!table) {
+    cy.resize();
+  }
+  if (save) {
+    window.__viz.saveState(id + ':mode', mode);
+  }
+}
+function wireGraphMode(cy, view, id) {
+  var ms = view.querySelector('.modeswitch[data-target="' + id + '"]');
+  if (!ms) return;
+  ms.addEventListener('click', function () {
+    graphApplyMode(
+      cy,
+      view,
+      ms,
+      id,
+      document.getElementById(id).style.display === 'none' ? 'graph' : 'table',
+      true,
+    );
+  });
+  if (window.__viz.state[id + ':mode'] === 'table') {
+    graphApplyMode(cy, view, ms, id, 'table', false);
+  }
+}
+function wireGraphTip(cy) {
   var tip =
     window.__viz.tip ||
     (window.__viz.tip = (function () {
@@ -433,54 +432,84 @@ function initGraph(id, elements, opts) {
   cy.on('mouseout', 'node', function () {
     tip.style.display = 'none';
   });
-  var box = document.querySelector('.search[data-target="' + id + '"]');
-  if (box) {
-    var count = document.getElementById(id + '_count');
-    var setCount = function (t) {
-      if (count) {
-        count.textContent = t;
-      }
-    };
-    var applySearch = function () {
-      var q = box.value.trim().toLowerCase();
-      if (!q) {
-        cy.elements().removeClass('dim');
-        setCount('');
-        return;
-      }
-      var total = cy.nodes().length,
-        hits = 0;
-      cy.nodes().forEach(function (n) {
-        if ((n.data('label') || '').toLowerCase().indexOf(q) >= 0) {
-          hits++;
-        }
-      });
-      if (!hits) {
-        /* dimming everything reads as a broken graph — say it instead */
-        cy.elements().removeClass('dim');
-        setCount('命中 0 / ' + total + ' · 画面未过滤');
-        return;
-      }
-      cy.nodes().forEach(function (n) {
-        var hit = (n.data('label') || '').toLowerCase().indexOf(q) >= 0;
-        n.toggleClass('dim', !hit);
-      });
-      cy.edges().forEach(function (e) {
-        var keep = !e.source().hasClass('dim') && !e.target().hasClass('dim');
-        e.toggleClass('dim', !keep);
-      });
-      setCount('命中 ' + hits + ' / ' + total);
-    };
-    box.addEventListener('input', function () {
-      window.__viz.saveState(id + ':q', box.value);
-      applySearch();
-    });
-    var savedQ = window.__viz.state[id + ':q'];
-    if (savedQ) {
-      box.value = savedQ;
-      applySearch();
+}
+function graphSearch(cy, box, count, id) {
+  var setCount = function (t) {
+    if (count) {
+      count.textContent = t;
     }
+  };
+  var q = box.value.trim().toLowerCase();
+  if (!q) {
+    cy.elements().removeClass('dim');
+    setCount('');
+    return;
   }
+  var total = cy.nodes().length,
+    hits = 0;
+  cy.nodes().forEach(function (n) {
+    if ((n.data('label') || '').toLowerCase().indexOf(q) >= 0) {
+      hits++;
+    }
+  });
+  if (!hits) {
+    /* dimming everything reads as a broken graph — say it instead */
+    cy.elements().removeClass('dim');
+    setCount('命中 0 / ' + total + ' · 画面未过滤');
+    return;
+  }
+  cy.nodes().forEach(function (n) {
+    n.toggleClass('dim', (n.data('label') || '').toLowerCase().indexOf(q) < 0);
+  });
+  edgesFromNodes(cy, 'dim');
+  setCount('命中 ' + hits + ' / ' + total);
+}
+function wireGraphSearch(cy, id) {
+  var box = document.querySelector('.search[data-target="' + id + '"]');
+  if (!box) return;
+  var count = document.getElementById(id + '_count');
+  box.addEventListener('input', function () {
+    window.__viz.saveState(id + ':q', box.value);
+    graphSearch(cy, box, count, id);
+  });
+  var savedQ = window.__viz.state[id + ':q'];
+  if (savedQ) {
+    box.value = savedQ;
+    graphSearch(cy, box, count, id);
+  }
+}
+function initGraph(id, elements, opts) {
+  opts = opts || {};
+  var compound = elements.some(function (e) {
+    return e.data && e.data.parent;
+  });
+  var cy = cytoscape({
+    container: document.getElementById(id),
+    elements: elements,
+    style: graphStyle(),
+    layout: graphLayout(compound, opts),
+    wheelSensitivity: 0.2,
+  });
+  if (!compound && (opts.dir === 'LR' || opts.dir === 'RL')) {
+    graphTranspose(cy);
+  }
+  window.__viz.cy[id] = cy;
+  wireViewport(cy, id);
+  cy.on('dbltap', function (ev) {
+    if (ev.target === cy) {
+      cy.fit(undefined, 12);
+    }
+  });
+  cy.on('tap', 'node', function (ev) {
+    window.__viz.inspect(ev.target.data(), id);
+  });
+  var view = document.getElementById(id).closest('.view');
+  if (view && !view.classList.contains('cat-view')) {
+    wireFold(cy, view, id);
+    wireGraphMode(cy, view, id);
+  }
+  wireGraphTip(cy);
+  wireGraphSearch(cy, id);
   syncReset(id);
   return cy;
 }
@@ -538,420 +567,451 @@ function initChartMode(id) {
     applyMode('table', false);
   }
 }
+function catSnapHome(cat) {
+  cat.homePos = {};
+  cat.cy.nodes().forEach(function (n) {
+    var p = n.position();
+    cat.homePos[n.id()] = { x: p.x, y: p.y };
+  });
+}
+function catGoHome(cat) {
+  if (!cat.homePos) return;
+  cat.cy.startBatch();
+  cat.cy.nodes().forEach(function (n) {
+    var p = cat.homePos[n.id()];
+    if (p) {
+      n.position({ x: p.x, y: p.y });
+    }
+  });
+  cat.cy.endBatch();
+}
+function catEgoLayout(cat, keep) {
+  /* ego re-layout: global positions scatter a hub's neighbors across the
+     whole canvas, so fit alone stays tiny. Concentric reads best for small
+     neighborhoods; when its fit still lands unreadably far out, a label-aware
+     grid packs hub neighborhoods tighter. Parents are excluded — compound
+     layouts derive them from children. */
+  var cy = cat.cy;
+  var sub = keep.filter(function (el) {
+    return el.isEdge() || !el.isParent();
+  });
+  sub
+    .layout({
+      name: 'concentric',
+      fit: true,
+      padding: 40,
+      minNodeSpacing: 24,
+      animate: false,
+      concentric: function (x) {
+        return x.id() === cat.fnode ? 2 : 1;
+      },
+      levelWidth: function () {
+        return 1;
+      },
+    })
+    .run();
+  if (cy.zoom() < 0.8) {
+    sub
+      .layout({
+        name: 'grid',
+        fit: true,
+        padding: 40,
+        avoidOverlap: true,
+        animate: false,
+        nodeDimensionsIncludeLabels: true,
+      })
+      .run();
+  }
+  /* fitting a tiny neighborhood over-zooms into giant nodes */
+  if (cy.zoom() > 2) {
+    cy.zoom(2);
+    cy.center(keep);
+  }
+}
+function catFocusNbhd(cat, nid, save) {
+  /* a dense catalogue is unreadable whole — the graph explores one node's
+     direct dependencies; kept nodes' ancestors stay (hiding a compound
+     parent would hide its kept children) */
+  var cy = cat.cy;
+  var n = nid ? cy.getElementById(nid) : cy.collection();
+  cat.fnode = n.length && !n.isParent() ? nid : '';
+  var keep = cy.collection();
+  if (cat.fnode) {
+    keep = n.closedNeighborhood();
+    keep = keep
+      .union(keep.nodes().edgesWith(keep.nodes()))
+      .union(keep.nodes().ancestors());
+  }
+  cy.batch(function () {
+    cy.elements().removeClass('offstage');
+    if (cat.fnode) {
+      cy.elements().not(keep).addClass('offstage');
+    }
+  });
+  if (cat.unf) {
+    cat.unf.hidden = !cat.fnode;
+  }
+  if (cat.gwrap && !cat.gwrap.hidden) {
+    catGoHome(cat);
+    if (cat.fnode) {
+      catEgoLayout(cat, keep);
+    } else {
+      cy.fit(undefined, 12);
+    }
+  }
+  if (save) {
+    window.__viz.saveState(cat.id + ':fnode', cat.fnode);
+  }
+}
+function catRowVisible(row, needle, types, maint) {
+  if (row.getAttribute('data-maint') === '1' && (!maint || !maint.checked))
+    return false;
+  if (types.indexOf(row.getAttribute('data-type')) < 0) return false;
+  return !needle || row.textContent.toLowerCase().indexOf(needle) >= 0;
+}
+function catApplyCount(cat, needle, types, shown) {
+  var count = document.getElementById(cat.id + '_count');
+  if (!count || !cat.tbl) return;
+  var filtered = needle !== '' || types.length < cat.chips.length;
+  count.textContent = filtered
+    ? '命中 ' + shown + ' / ' + cat.tbl.tBodies[0].rows.length
+    : '';
+}
+function catApply(cat) {
+  var needle = cat.q ? cat.q.value.trim().toLowerCase() : '';
+  var types = chipVals(cat.chips, 'data-type', true);
+  var rows = cat.tbl ? cat.tbl.tBodies[0].rows : [],
+    visible = {},
+    shown = 0;
+  for (var j = 0; j < rows.length; j++) {
+    var ok = catRowVisible(rows[j], needle, types, cat.maint);
+    rows[j].style.display = ok ? '' : 'none';
+    if (ok) {
+      shown++;
+    }
+    visible[rows[j].getAttribute('data-node')] = ok;
+  }
+  cat.cy.nodes().forEach(function (n) {
+    n.toggleClass('dim', visible[n.id()] === false);
+  });
+  edgesFromNodes(cat.cy, 'dim');
+  catApplyCount(cat, needle, types, shown);
+}
+function catFocusRow(tbl, target) {
+  var rows = tbl.tBodies[0].rows;
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].classList.toggle('focus', rows[i] === target);
+  }
+}
+function catScrollToRow(cat, nid) {
+  var rows = cat.tbl.tBodies[0].rows;
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].getAttribute('data-node') === nid) {
+      catFocusRow(cat.tbl, rows[i]);
+      rows[i].scrollIntoView({ block: 'nearest' });
+      break;
+    }
+  }
+}
+function catSortTok(tbl, tok, dir) {
+  /* dir true = ascending; column = the sorter's own th */
+  var th = tok.closest('th'),
+    ci = th.cellIndex;
+  var body = tbl.tBodies[0],
+    rows = Array.prototype.slice.call(body.rows);
+  rows.sort(function (a, b) {
+    var av = parseInt(a.cells[ci].textContent) || 0,
+      bv = parseInt(b.cells[ci].textContent) || 0;
+    return dir ? av - bv : bv - av;
+  });
+  for (var i = 0; i < rows.length; i++) {
+    body.appendChild(rows[i]);
+  }
+  var ths = tbl.tHead.rows[0].cells;
+  for (var h = 0; h < ths.length; h++) {
+    if (ths[h].hasAttribute('aria-sort')) {
+      ths[h].setAttribute(
+        'aria-sort',
+        ths[h] === th ? (dir ? 'ascending' : 'descending') : 'none',
+      );
+    }
+  }
+}
+function catTableClick(cat, ev) {
+  var tbl = cat.tbl;
+  var t = ev.target;
+  if (t.className === 'path') {
+    copyText(t, t.textContent);
+    return;
+  }
+  while (t && t !== tbl && !t.getAttribute('data-node')) t = t.parentNode;
+  if (!t || t === tbl) return;
+  catFocusRow(tbl, t);
+  var n = cat.cy.getElementById(t.getAttribute('data-node'));
+  if (n.length) {
+    cat.cy.elements().removeClass('focus');
+    n.addClass('focus');
+    catFocusNbhd(cat, n.id(), true);
+  }
+}
+function catInitialLayout(cat) {
+  var cy = cat.cy;
+  var compound = cy.nodes().some(function (n) {
+    return n.isChild();
+  });
+  /* randomize: deferred init leaves every node at the same point, a singular
+     start no force layout can separate */
+  cy.layout(
+    compound
+      ? {
+          name: 'cose',
+          padding: 14,
+          fit: false,
+          animate: false,
+          randomize: true,
+          nodeDimensionsIncludeLabels: true,
+          idealEdgeLength: 60,
+        }
+      : {
+          name: 'breadthfirst',
+          directed: true,
+          spacingFactor: 1.1,
+          padding: 12,
+          fit: false,
+        },
+  ).run();
+  catSnapHome(cat);
+}
+function catApplyMode(cat, ms, twrap, mode, save) {
+  var graph = mode === 'graph';
+  cat.gwrap.hidden = !graph;
+  twrap.hidden = graph;
+  ms.textContent = graph ? '表格视图' : '拓扑视图';
+  if (graph) {
+    /* positions are deferred at init — the first show lays out at real size,
+       then a focus-aware refit (full graph when nothing focused) */
+    cat.cy.resize();
+    if (!cat.laidOut) {
+      cat.laidOut = true;
+      catInitialLayout(cat);
+    }
+    catFocusNbhd(cat, cat.fnode, false);
+  }
+  if (save) {
+    window.__viz.saveState(cat.id + ':mode', mode);
+  }
+}
+function catWireGraph(cat) {
+  if (cat.unf) {
+    cat.unf.addEventListener('click', function () {
+      catFocusNbhd(cat, '', true);
+    });
+  }
+  cat.cy.on('dbltap', function (ev) {
+    if (ev.target === cat.cy && cat.fnode) {
+      catFocusNbhd(cat, '', true);
+    }
+  });
+  cat.cy.on('tap', 'node', function (ev) {
+    cat.cy.elements().removeClass('focus');
+    ev.target.addClass('focus');
+    catFocusNbhd(cat, ev.target.id(), true);
+    if (!cat.tbl) return;
+    catScrollToRow(cat, ev.target.id());
+  });
+}
+function catWireFilters(cat) {
+  if (cat.q)
+    cat.q.addEventListener('input', function () {
+      window.__viz.saveState(cat.id + ':q', cat.q.value);
+      catApply(cat);
+    });
+  if (cat.maint)
+    cat.maint.addEventListener('change', function () {
+      window.__viz.saveState(cat.id + ':maint', cat.maint.checked);
+      catApply(cat);
+    });
+  for (var i = 0; i < cat.chips.length; i++) {
+    cat.chips[i].addEventListener('click', function () {
+      setPressed(this, !this.classList.contains('on'));
+      window.__viz.saveState(
+        cat.id + ':off',
+        chipVals(cat.chips, 'data-type', false),
+      );
+      catApply(cat);
+    });
+  }
+}
+function catWireSort(cat) {
+  var tok = document.getElementById(cat.id + '_tok');
+  if (!tok || !cat.tbl) return;
+  tok.addEventListener('click', function () {
+    var dir = cat.asc;
+    catSortTok(cat.tbl, tok, dir);
+    cat.asc = !dir;
+    window.__viz.saveState(cat.id + ':tok', dir ? 'asc' : 'desc');
+  });
+  var savedTok = window.__viz.state[cat.id + ':tok'];
+  if (savedTok) {
+    var sd = savedTok === 'asc';
+    catSortTok(cat.tbl, tok, sd);
+    cat.asc = !sd;
+  }
+}
+function catWireTable(cat) {
+  if (cat.tbl) {
+    cat.tbl.addEventListener('click', function (ev) {
+      catTableClick(cat, ev);
+    });
+  }
+  catWireSort(cat);
+}
+function catRestoreFocus(cat) {
+  if (!window.__viz.state[cat.id + ':fnode']) return;
+  catFocusNbhd(cat, window.__viz.state[cat.id + ':fnode'], false);
+  if (!cat.fnode) return;
+  cat.cy.getElementById(cat.fnode).addClass('focus');
+  if (!cat.tbl) return;
+  catScrollHomeRow(cat);
+}
+function catScrollHomeRow(cat) {
+  var frows = cat.tbl.tBodies[0].rows;
+  for (var fr = 0; fr < frows.length; fr++) {
+    if (frows[fr].getAttribute('data-node') === cat.fnode) {
+      catFocusRow(cat.tbl, frows[fr]);
+      break;
+    }
+  }
+}
+function catWireMode(cat, view) {
+  var ms = view
+    ? view.querySelector('.modeswitch[data-target="' + cat.id + '"]')
+    : null;
+  var twrap = cat.tbl ? cat.tbl.parentNode : null;
+  if (!ms || !cat.gwrap || !twrap) return;
+  ms.addEventListener('click', function () {
+    catApplyMode(cat, ms, twrap, cat.gwrap.hidden ? 'graph' : 'table', true);
+  });
+  if (window.__viz.state[cat.id + ':mode'] === 'graph') {
+    catApplyMode(cat, ms, twrap, 'graph', false);
+  }
+}
 function initCatalogue(id, elements) {
   var cy = initGraph(id, elements, { defer: true });
-  var q = document.getElementById(id + '_q');
   var tbl = document.getElementById(id + '_tbl');
-  var maint = document.getElementById(id + '_maint');
   var view = tbl ? tbl.parentNode.parentNode : null;
-  var chips = view ? view.querySelectorAll('.fchip') : [];
   var st = window.__viz.state;
-  var gwrap = document.getElementById(id + '_gwrap');
-  var unf = document.getElementById(id + '_unfocus');
-  var fnode = '';
-  var homePos = null;
-  function snapHome() {
-    homePos = {};
-    cy.nodes().forEach(function (n) {
-      var p = n.position();
-      homePos[n.id()] = { x: p.x, y: p.y };
-    });
+  var cat = {
+    id: id,
+    cy: cy,
+    q: document.getElementById(id + '_q'),
+    tbl: tbl,
+    maint: document.getElementById(id + '_maint'),
+    chips: view ? view.querySelectorAll('.fchip') : [],
+    gwrap: document.getElementById(id + '_gwrap'),
+    unf: document.getElementById(id + '_unfocus'),
+    fnode: '',
+    homePos: null,
+    asc: false,
+    laidOut: false,
+  };
+  catWireGraph(cat);
+  if (cat.q && st[id + ':q']) {
+    cat.q.value = st[id + ':q'];
   }
-  function goHome() {
-    if (!homePos) return;
-    cy.startBatch();
-    cy.nodes().forEach(function (n) {
-      var p = homePos[n.id()];
-      if (p) {
-        n.position({ x: p.x, y: p.y });
-      }
-    });
-    cy.endBatch();
+  if (cat.maint && st[id + ':maint'] != null) {
+    cat.maint.checked = st[id + ':maint'];
   }
-  function focusNbhd(nid, save) {
-    /* a dense catalogue is unreadable whole — the graph explores one node's
-       direct dependencies; kept nodes' ancestors stay (hiding a compound
-       parent would hide its kept children) */
-    var n = nid ? cy.getElementById(nid) : cy.collection();
-    fnode = n.length && !n.isParent() ? nid : '';
-    var keep = cy.collection();
-    if (fnode) {
-      keep = n.closedNeighborhood();
-      keep = keep
-        .union(keep.nodes().edgesWith(keep.nodes()))
-        .union(keep.nodes().ancestors());
-    }
-    cy.batch(function () {
-      cy.elements().removeClass('offstage');
-      if (fnode) {
-        cy.elements().not(keep).addClass('offstage');
-      }
-    });
-    if (unf) {
-      unf.hidden = !fnode;
-    }
-    if (gwrap && !gwrap.hidden) {
-      goHome();
-      if (fnode) {
-        /* ego re-layout: global positions scatter a hub's neighbors across
-           the whole canvas, so fit alone stays tiny. Concentric reads best
-           for small neighborhoods; when its fit still lands unreadably far
-           out, a label-aware grid packs hub neighborhoods tighter. Parents
-           are excluded — compound layouts derive them from children. */
-        var sub = keep.filter(function (el) {
-          return el.isEdge() || !el.isParent();
-        });
-        sub
-          .layout({
-            name: 'concentric',
-            fit: true,
-            padding: 40,
-            minNodeSpacing: 24,
-            animate: false,
-            concentric: function (x) {
-              return x.id() === fnode ? 2 : 1;
-            },
-            levelWidth: function () {
-              return 1;
-            },
-          })
-          .run();
-        if (cy.zoom() < 0.8) {
-          sub
-            .layout({
-              name: 'grid',
-              fit: true,
-              padding: 40,
-              avoidOverlap: true,
-              animate: false,
-              nodeDimensionsIncludeLabels: true,
-            })
-            .run();
-        }
-        /* fitting a tiny neighborhood over-zooms into giant nodes */
-        if (cy.zoom() > 2) {
-          cy.zoom(2);
-          cy.center(keep);
-        }
-      } else {
-        cy.fit(undefined, 12);
-      }
-    }
-    if (save) {
-      window.__viz.saveState(id + ':fnode', fnode);
+  restoreChips(cat.chips, 'data-type', window.__viz.stateArr(id + ':off'));
+  catWireFilters(cat);
+  catWireTable(cat);
+  catApply(cat);
+  syncReset(id);
+  catRestoreFocus(cat);
+  catWireMode(cat, view);
+  return cy;
+}
+function ftRowOk(row, needle, on, chips, activeSeg) {
+  var s = row.getAttribute('data-status') || '';
+  if (activeSeg && s !== activeSeg) return false;
+  if (chips.length && on.indexOf(s) < 0) return false;
+  return !needle || row.textContent.toLowerCase().indexOf(needle) >= 0;
+}
+function ftCount(c, needle, on, shown, total) {
+  var count = document.getElementById(c.id + '_tcount');
+  if (!count) return;
+  var filtered =
+    needle !== '' ||
+    !!c.activeSeg ||
+    (c.chips.length && on.length < c.chips.length);
+  count.textContent = filtered ? '命中 ' + shown + ' / ' + total : '';
+}
+function ftApply(c) {
+  var needle = c.q ? c.q.value.trim().toLowerCase() : '';
+  var on = chipVals(c.chips, 'data-status', true);
+  var rows = c.tbl.tBodies[0].rows,
+    shown = 0;
+  for (var j = 0; j < rows.length; j++) {
+    var ok = ftRowOk(rows[j], needle, on, c.chips, c.activeSeg);
+    rows[j].style.display = ok ? '' : 'none';
+    if (ok) {
+      shown++;
     }
   }
-  if (unf) {
-    unf.addEventListener('click', function () {
-      focusNbhd('', true);
-    });
-  }
-  cy.on('dbltap', function (ev) {
-    if (ev.target === cy && fnode) {
-      focusNbhd('', true);
-    }
-  });
-  if (q && st[id + ':q']) {
-    q.value = st[id + ':q'];
-  }
-  if (maint && st[id + ':maint'] != null) {
-    maint.checked = st[id + ':maint'];
-  }
-  var offs = window.__viz.stateArr(id + ':off');
-  for (var r = 0; r < chips.length; r++) {
-    if (offs.indexOf(chips[r].getAttribute('data-type')) >= 0) {
-      setPressed(chips[r], false);
-    }
-  }
-  function rowVisible(row, needle, types) {
-    if (row.getAttribute('data-maint') === '1' && (!maint || !maint.checked))
-      return false;
-    if (types.indexOf(row.getAttribute('data-type')) < 0) return false;
-    return !needle || row.textContent.toLowerCase().indexOf(needle) >= 0;
-  }
-  function apply() {
-    var needle = q ? q.value.trim().toLowerCase() : '';
-    var types = [];
-    for (var i = 0; i < chips.length; i++) {
-      if (chips[i].classList.contains('on'))
-        types.push(chips[i].getAttribute('data-type'));
-    }
-    var rows = tbl ? tbl.tBodies[0].rows : [],
-      visible = {},
-      shown = 0;
-    for (var j = 0; j < rows.length; j++) {
-      var ok = rowVisible(rows[j], needle, types);
-      rows[j].style.display = ok ? '' : 'none';
-      if (ok) {
-        shown++;
-      }
-      visible[rows[j].getAttribute('data-node')] = ok;
-    }
-    cy.nodes().forEach(function (n) {
-      n.toggleClass('dim', visible[n.id()] === false);
-    });
-    cy.edges().forEach(function (e) {
-      var keep = !e.source().hasClass('dim') && !e.target().hasClass('dim');
-      e.toggleClass('dim', !keep);
-    });
-    var count = document.getElementById(id + '_count');
-    if (count && tbl) {
-      var filtered = needle !== '' || types.length < chips.length;
-      count.textContent = filtered
-        ? '命中 ' + shown + ' / ' + tbl.tBodies[0].rows.length
-        : '';
-    }
-  }
-  if (q)
-    q.addEventListener('input', function () {
-      window.__viz.saveState(id + ':q', q.value);
-      apply();
-    });
-  if (maint)
-    maint.addEventListener('change', function () {
-      window.__viz.saveState(id + ':maint', maint.checked);
-      apply();
-    });
-  for (var c = 0; c < chips.length; c++) {
-    chips[c].addEventListener('click', function () {
-      setPressed(this, !this.classList.contains('on'));
-      var off = [];
-      for (var k = 0; k < chips.length; k++) {
-        if (!chips[k].classList.contains('on'))
-          off.push(chips[k].getAttribute('data-type'));
-      }
-      window.__viz.saveState(id + ':off', off);
-      apply();
-    });
-  }
-  function focusRow(target) {
-    var rows = tbl.tBodies[0].rows;
-    for (var i = 0; i < rows.length; i++) {
-      rows[i].classList.toggle('focus', rows[i] === target);
-    }
-  }
-  if (tbl) {
-    tbl.addEventListener('click', function (ev) {
-      var t = ev.target;
-      if (t.className === 'path') {
-        copyText(t, t.textContent);
-        return;
-      }
-      while (t && t !== tbl && !t.getAttribute('data-node')) t = t.parentNode;
-      if (!t || t === tbl) return;
-      focusRow(t);
-      var n = cy.getElementById(t.getAttribute('data-node'));
-      if (n.length) {
-        cy.elements().removeClass('focus');
-        n.addClass('focus');
-        focusNbhd(n.id(), true);
-      }
-    });
-  }
-  cy.on('tap', 'node', function (ev) {
-    cy.elements().removeClass('focus');
-    ev.target.addClass('focus');
-    focusNbhd(ev.target.id(), true);
-    if (!tbl) return;
-    var rows = tbl.tBodies[0].rows;
-    for (var i = 0; i < rows.length; i++) {
-      if (rows[i].getAttribute('data-node') === ev.target.id()) {
-        focusRow(rows[i]);
-        rows[i].scrollIntoView({ block: 'nearest' });
-        break;
-      }
-    }
-  });
-  var tok = document.getElementById(id + '_tok'),
-    asc = false;
-  function sortTok(dir) {
-    /* dir true = ascending; column = the sorter's own th */
-    var th = tok.closest('th'),
-      ci = th.cellIndex;
-    var body = tbl.tBodies[0],
-      rows = Array.prototype.slice.call(body.rows);
-    rows.sort(function (a, b) {
-      var av = parseInt(a.cells[ci].textContent) || 0,
-        bv = parseInt(b.cells[ci].textContent) || 0;
-      return dir ? av - bv : bv - av;
-    });
-    for (var i = 0; i < rows.length; i++) {
-      body.appendChild(rows[i]);
-    }
-    var ths = tbl.tHead.rows[0].cells;
-    for (var h = 0; h < ths.length; h++) {
-      if (ths[h].hasAttribute('aria-sort')) {
-        ths[h].setAttribute(
-          'aria-sort',
-          ths[h] === th ? (dir ? 'ascending' : 'descending') : 'none',
+  ftCount(c, needle, on, shown, rows.length);
+}
+function ftWireSegs(c) {
+  for (var g = 0; g < c.segs.length; g++) {
+    c.segs[g].addEventListener('click', function () {
+      var s = this.getAttribute('data-status');
+      c.activeSeg = c.activeSeg === s ? null : s;
+      for (var i = 0; i < c.segs.length; i++) {
+        setPressed(
+          c.segs[i],
+          c.segs[i].getAttribute('data-status') === c.activeSeg,
         );
       }
-    }
-  }
-  if (tok && tbl) {
-    tok.addEventListener('click', function () {
-      var dir = asc;
-      sortTok(dir);
-      asc = !dir;
-      window.__viz.saveState(id + ':tok', dir ? 'asc' : 'desc');
+      ftApply(c);
     });
-    var savedTok = window.__viz.state[id + ':tok'];
-    if (savedTok) {
-      var sd = savedTok === 'asc';
-      sortTok(sd);
-      asc = !sd;
-    }
   }
-  apply();
-  syncReset(id);
-  if (st[id + ':fnode']) {
-    focusNbhd(st[id + ':fnode'], false);
-    if (fnode) {
-      cy.getElementById(fnode).addClass('focus');
-      if (tbl) {
-        var frows = tbl.tBodies[0].rows;
-        for (var fr = 0; fr < frows.length; fr++) {
-          if (frows[fr].getAttribute('data-node') === fnode) {
-            focusRow(frows[fr]);
-            break;
-          }
-        }
-      }
-    }
-  }
-  var ms = view
-    ? view.querySelector('.modeswitch[data-target="' + id + '"]')
-    : null;
-  var twrap = tbl ? tbl.parentNode : null;
-  var laidOut = false;
-  if (ms && gwrap && twrap) {
-    var applyCatMode = function (mode, save) {
-      var graph = mode === 'graph';
-      gwrap.hidden = !graph;
-      twrap.hidden = graph;
-      ms.textContent = graph ? '表格视图' : '拓扑视图';
-      if (graph) {
-        /* positions are deferred at init — the first show lays out at real
-           size, then a focus-aware refit (full graph when nothing focused) */
-        cy.resize();
-        if (!laidOut) {
-          laidOut = true;
-          var compound = cy.nodes().some(function (n) {
-            return n.isChild();
-          });
-          /* randomize: deferred init leaves every node at the same point, a
-             singular start no force layout can separate */
-          cy.layout(
-            compound
-              ? {
-                  name: 'cose',
-                  padding: 14,
-                  fit: false,
-                  animate: false,
-                  randomize: true,
-                  nodeDimensionsIncludeLabels: true,
-                  idealEdgeLength: 60,
-                }
-              : {
-                  name: 'breadthfirst',
-                  directed: true,
-                  spacingFactor: 1.1,
-                  padding: 12,
-                  fit: false,
-                },
-          ).run();
-          snapHome();
-        }
-        focusNbhd(fnode, false);
-      }
-      if (save) {
-        window.__viz.saveState(id + ':mode', mode);
-      }
-    };
-    ms.addEventListener('click', function () {
-      applyCatMode(gwrap.hidden ? 'graph' : 'table', true);
+}
+function ftWire(c) {
+  if (c.q)
+    c.q.addEventListener('input', function () {
+      window.__viz.saveState(c.id + ':q', c.q.value);
+      ftApply(c);
     });
-    if (window.__viz.state[id + ':mode'] === 'graph') {
-      applyCatMode('graph', false);
-    }
+  for (var i = 0; i < c.chips.length; i++) {
+    c.chips[i].addEventListener('click', function () {
+      setPressed(this, !this.classList.contains('on'));
+      window.__viz.saveState(
+        c.id + ':off',
+        chipVals(c.chips, 'data-status', false),
+      );
+      ftApply(c);
+    });
   }
-  return cy;
+  ftWireSegs(c);
 }
 function initFilterTable(id) {
   var tbl = document.getElementById(id + '_tbl');
   if (!tbl) return;
-  var q = document.getElementById(id + '_q');
   var wrap = tbl.closest('.view');
-  var chips = wrap ? wrap.querySelectorAll('.fchip[data-status]') : [];
-  var segs = wrap ? wrap.querySelectorAll('.seg[data-status]') : [];
-  var activeSeg = null;
+  var c = {
+    id: id,
+    tbl: tbl,
+    q: document.getElementById(id + '_q'),
+    chips: wrap ? wrap.querySelectorAll('.fchip[data-status]') : [],
+    segs: wrap ? wrap.querySelectorAll('.seg[data-status]') : [],
+    activeSeg: null,
+  };
   var st = window.__viz.state;
-  if (q && st[id + ':q']) {
-    q.value = st[id + ':q'];
+  if (c.q && st[id + ':q']) {
+    c.q.value = st[id + ':q'];
   }
-  var offs = window.__viz.stateArr(id + ':off');
-  for (var r = 0; r < chips.length; r++) {
-    if (offs.indexOf(chips[r].getAttribute('data-status')) >= 0) {
-      setPressed(chips[r], false);
-    }
-  }
-  function apply() {
-    var needle = q ? q.value.trim().toLowerCase() : '';
-    var on = [];
-    for (var i = 0; i < chips.length; i++) {
-      if (chips[i].classList.contains('on'))
-        on.push(chips[i].getAttribute('data-status'));
-    }
-    var rows = tbl.tBodies[0].rows,
-      shown = 0;
-    for (var j = 0; j < rows.length; j++) {
-      var s = rows[j].getAttribute('data-status') || '';
-      var ok =
-        (!activeSeg || s === activeSeg) &&
-        (!chips.length || on.indexOf(s) >= 0) &&
-        (!needle || rows[j].textContent.toLowerCase().indexOf(needle) >= 0);
-      rows[j].style.display = ok ? '' : 'none';
-      if (ok) {
-        shown++;
-      }
-    }
-    var count = document.getElementById(id + '_tcount');
-    if (count) {
-      var filtered =
-        needle !== '' ||
-        !!activeSeg ||
-        (chips.length && on.length < chips.length);
-      count.textContent = filtered ? '命中 ' + shown + ' / ' + rows.length : '';
-    }
-  }
-  if (q)
-    q.addEventListener('input', function () {
-      window.__viz.saveState(id + ':q', q.value);
-      apply();
-    });
-  for (var c = 0; c < chips.length; c++) {
-    chips[c].addEventListener('click', function () {
-      setPressed(this, !this.classList.contains('on'));
-      var off = [];
-      for (var k = 0; k < chips.length; k++) {
-        if (!chips[k].classList.contains('on'))
-          off.push(chips[k].getAttribute('data-status'));
-      }
-      window.__viz.saveState(id + ':off', off);
-      apply();
-    });
-  }
-  for (var g = 0; g < segs.length; g++) {
-    segs[g].addEventListener('click', function () {
-      var s = this.getAttribute('data-status');
-      activeSeg = activeSeg === s ? null : s;
-      for (var i = 0; i < segs.length; i++) {
-        setPressed(segs[i], segs[i].getAttribute('data-status') === activeSeg);
-      }
-      apply();
-    });
-  }
-  apply();
+  restoreChips(c.chips, 'data-status', window.__viz.stateArr(id + ':off'));
+  ftWire(c);
+  ftApply(c);
   syncReset(id);
 }
 window.__viz.filterAnomalies = function (pid) {
