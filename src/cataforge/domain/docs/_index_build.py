@@ -17,13 +17,13 @@ from datetime import UTC, datetime
 from typing import Any
 
 from cataforge.core.io import read_json
-from cataforge.utils.frontmatter import split_yaml_frontmatter as _split_fm
-from cataforge.utils.md_parse import iter_markdown_headings
-from cataforge.utils.patterns import (
+from cataforge.domain.docs.patterns import (
     ITEM_ID_RE,
     SECTION_NUM_RE,
     SUBSECTION_NUM_RE,
 )
+from cataforge.utils.frontmatter import split_yaml_frontmatter as _split_fm
+from cataforge.utils.md_parse import iter_markdown_headings
 
 SECTION_META_RE = re.compile(r"<!--\s*section_meta:\s*\{(.*?)\}\s*-->", re.DOTALL)
 INDEX_FILENAME = ".doc-index.json"
