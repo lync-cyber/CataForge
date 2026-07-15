@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from cataforge.domain.docs import loader
-from cataforge.interface.cli.context_cmd import context_read as context_read_cmd
+from cataforge.interface.cli.context.query import context_read as context_read_cmd
 from tests.cli.conftest import invoke_under_group
 
 

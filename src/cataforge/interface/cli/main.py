@@ -151,7 +151,7 @@ def _register_commands() -> None:
         bootstrap_cmd,
         claude_md_cmd,
         config_cmd,
-        context_cmd,
+        context,
         correction_cmd,
         deploy_cmd,
         docs_cmd,

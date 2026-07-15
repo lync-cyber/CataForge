@@ -16,12 +16,14 @@ import pytest
 from click.testing import CliRunner
 
 import cataforge.application.context.write as write_app
-from cataforge.interface.cli.context_cmd import (
-    context_delete,
+from cataforge.interface.cli.context.lifecycle import (
     context_ensure_store,
     context_finalize,
     context_ingest,
     context_reconcile,
+)
+from cataforge.interface.cli.context.write import (
+    context_delete,
     context_update,
     context_write,
     context_write_narrative,
@@ -339,7 +341,7 @@ def test_context_commands_project_root_consistent() -> None:
     ``default="."`` (the authoring verbs), so callers couldn't reason about a
     single contract. They now agree, and all route the global ``--project-dir``.
     """
-    from cataforge.interface.cli.context_cmd import context_group
+    from cataforge.interface.cli.context import context_group
 
     rooted = {
         name: _project_root_param(cmd)
