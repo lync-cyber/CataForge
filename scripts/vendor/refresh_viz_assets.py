@@ -3,7 +3,7 @@
 Default run verifies every pinned asset under
 ``src/cataforge/application/viz/assets/`` matches its recorded sha256, and —
 when a ``node`` executable is available — syntax-checks the first-party
-``dashboard.js``. ``--refresh`` re-downloads the pinned versions and verifies
+``dashboard.*.js`` modules. ``--refresh`` re-downloads the pinned versions and verifies
 them against the same hashes; bumping a library means editing its ``Pin``
 (version / url / sha256) first, so every vendored byte stays traceable to a
 public release.
@@ -54,7 +54,13 @@ PINS: tuple[Pin, ...] = (
 
 # First-party assets: not hash-pinned (they evolve with the repo), but syntax-
 # smoked so a broken edit fails here instead of inside every rendered page.
-FIRST_PARTY_JS: tuple[str, ...] = ("dashboard.js",)
+FIRST_PARTY_JS: tuple[str, ...] = (
+    "dashboard.core.js",
+    "dashboard.graph.js",
+    "dashboard.catalogue.js",
+    "dashboard.table.js",
+    "dashboard.app.js",
+)
 
 
 def _sha256(path: Path) -> str:
@@ -79,7 +85,7 @@ def _check_pins() -> list[str]:
 def _check_first_party_syntax() -> list[str]:
     node = shutil.which("node")
     if node is None:
-        print("node not found — skipping dashboard.js syntax check", file=sys.stderr)
+        print("node not found — skipping first-party JS syntax check", file=sys.stderr)
         return []
     errors: list[str] = []
     for name in FIRST_PARTY_JS:

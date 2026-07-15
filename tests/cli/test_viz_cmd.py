@@ -1179,7 +1179,7 @@ class TestHtmlRenderer:
         assert "hidden>显示全图</button>" in out  # exit control hidden until focused
 
     def test_catalogue_focus_wiring_is_exitable_and_persisted(self) -> None:
-        js = html._read_asset("dashboard.js")
+        js = html._dashboard_js()
         assert "closedNeighborhood" in js  # focus = tapped node + direct deps
         assert ":fnode" in js  # focus survives reload like every other view state
         assert "offstage" in js  # out-of-neighborhood elements hide, not dim
@@ -2487,7 +2487,7 @@ class TestVizThemeTokens:
                 assert token in theme, f"{token} missing in {theme.get('--bg')} theme"
 
     def test_graph_style_reads_tokens_with_static_fallback(self) -> None:
-        js = html._read_asset("dashboard.js")
+        js = html._dashboard_js()
         assert "getComputedStyle" in js
         for token in ("--viz-node-fill", "--viz-node-border", "--viz-edge"):
             assert token in js
@@ -2496,7 +2496,7 @@ class TestVizThemeTokens:
         assert "'line-color':'#aab2bd'" not in js
 
     def test_theme_switch_and_reduced_motion_wired(self) -> None:
-        js = html._read_asset("dashboard.js")
+        js = html._dashboard_js()
         assert "prefers-reduced-motion" in js
         # once for chart init, once for the live theme-change re-skin
         assert js.count("prefers-color-scheme") >= 2
@@ -2533,12 +2533,12 @@ class TestVizHonestAffordances:
         assert 'class="num sortable"' not in out  # a th is not focusable
 
     def test_sorter_uses_own_column_not_hardcoded_cell(self) -> None:
-        js = html._read_asset("dashboard.js")
+        js = html._dashboard_js()
         assert "cells[7]" not in js
         assert "aria-sort" in js  # sort state is announced, not visual-only
 
     def test_copy_waits_for_clipboard_promise_with_fallback(self) -> None:
-        js = html._read_asset("dashboard.js")
+        js = html._dashboard_js()
         assert "writeText(text).then(" in js  # success is confirmed, not assumed
         assert "按 Ctrl+C 复制" in js  # file:// / denied-permission manual path
         assert "已复制" in js
@@ -2571,7 +2571,7 @@ class TestVizHonestAffordances:
         assert ".stat tbody tr{cursor:pointer}" not in css
 
     def test_zero_hit_search_keeps_graph_undimmed(self) -> None:
-        js = html._read_asset("dashboard.js")
+        js = html._dashboard_js()
         assert "命中 0 / " in js  # explicit zero-hit message instead of a ghost graph
 
 
@@ -2693,7 +2693,7 @@ class TestVizChartAlternatives:
     def test_graph_toolbar_has_fit_button(self) -> None:
         out = html.render(_HTML_GRAPH)
         assert 'class="vfit" data-target="view0"' in out
-        assert ".vfit" in html._read_asset("dashboard.js")
+        assert ".vfit" in html._dashboard_js()
 
 
 class TestVizSparkline:

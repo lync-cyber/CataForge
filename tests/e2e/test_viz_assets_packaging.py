@@ -19,7 +19,11 @@ _ASSET_PREFIX = "cataforge/application/viz/assets/"
 _EXPECTED = {
     f"{_ASSET_PREFIX}cytoscape.min.js": 100_000,
     f"{_ASSET_PREFIX}echarts.min.js": 500_000,
-    f"{_ASSET_PREFIX}dashboard.js": 3_000,
+    f"{_ASSET_PREFIX}dashboard.core.js": 2_000,
+    f"{_ASSET_PREFIX}dashboard.graph.js": 5_000,
+    f"{_ASSET_PREFIX}dashboard.catalogue.js": 5_000,
+    f"{_ASSET_PREFIX}dashboard.table.js": 1_000,
+    f"{_ASSET_PREFIX}dashboard.app.js": 5_000,
     f"{_ASSET_PREFIX}dashboard.css": 1_000,
 }
 
