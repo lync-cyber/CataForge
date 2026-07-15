@@ -1,5 +1,5 @@
 ---
-doc_id: prd
+id: prd
 doc_type: prd
 ---
 

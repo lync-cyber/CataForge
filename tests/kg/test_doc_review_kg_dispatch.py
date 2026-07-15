@@ -247,7 +247,7 @@ def test_bidirectional_coverage_bypasses_kg_under_doc_only_despite_store(
 
 _ARCH_MODULES = """\
 ---
-doc_id: arch
+id: arch
 doc_type: arch
 ---
 # Arch
@@ -265,7 +265,7 @@ doc_type: arch
 
 _DEVPLAN_REALIZES_M1 = """\
 ---
-doc_id: dev-plan
+id: dev-plan
 doc_type: dev-plan
 ---
 # Dev Plan
@@ -283,7 +283,7 @@ doc_type: dev-plan
 
 _DEVPLAN_REALIZES_BOTH = """\
 ---
-doc_id: dev-plan
+id: dev-plan
 doc_type: dev-plan
 ---
 # Dev Plan
@@ -361,7 +361,7 @@ def test_devplan_coverage_passes_when_all_modules_realized(tmp_path: Path) -> No
 
 _ARCH_MODULES_BARE_HEADINGS = """\
 ---
-doc_id: arch
+id: arch
 doc_type: arch
 ---
 # Arch

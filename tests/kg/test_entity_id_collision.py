@@ -118,14 +118,14 @@ def test_run_migration_raises_on_diverging_definitions_within_authority(tmp_path
         tmp_path,
         "prd",
         "prd-a.md",
-        "---\ndoc_id: prd-a\n---\n# PRD A\n\n## §2 AC\n\n"
+        "---\nid: prd-a\n---\n# PRD A\n\n## §2 AC\n\n"
         "### AC-001 用户可登录\n\n登录成功返回 200。\n",
     )
     _write(
         tmp_path,
         "prd",
         "prd-b.md",
-        "---\ndoc_id: prd-b\n---\n# PRD B\n\n## §2 AC\n\n"
+        "---\nid: prd-b\n---\n# PRD B\n\n## §2 AC\n\n"
         "### AC-001 锁定可解除\n\n三次失败后锁定。\n",
     )
 

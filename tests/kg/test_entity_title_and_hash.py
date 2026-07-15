@@ -199,7 +199,7 @@ def test_single_bullet_edit_rewrites_only_touched_entities(tmp_path: Path) -> No
     prd_dir = tmp_path / "docs" / "prd"
     prd_dir.mkdir(parents=True)
     prd_path = prd_dir / "prd.md"
-    prd_path.write_text("---\ndoc_id: prd\n---\n" + _BULLET_BODY, encoding="utf-8")
+    prd_path.write_text("---\nid: prd\n---\n" + _BULLET_BODY, encoding="utf-8")
 
     config = KGConfig(store_backend="memory")
     handle = init_store(config, force=True)
@@ -208,7 +208,7 @@ def test_single_bullet_edit_rewrites_only_touched_entities(tmp_path: Path) -> No
     assert first.write_stats.entities_written == 3
 
     prd_path.write_text(
-        ("---\ndoc_id: prd\n---\n" + _BULLET_BODY).replace("锁定策略生效", "锁定策略已调整"),
+        ("---\nid: prd\n---\n" + _BULLET_BODY).replace("锁定策略生效", "锁定策略已调整"),
         encoding="utf-8",
     )
     second, _, _ = run_migration(handle.raw, tmp_path, config, doc_types=("prd",))

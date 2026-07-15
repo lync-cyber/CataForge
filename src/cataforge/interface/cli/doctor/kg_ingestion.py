@@ -387,6 +387,8 @@ def _report_unregistered_prefixes(unregistered: dict[str, list[str]]) -> None:
 
 def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
     """Doctor gate — returns failure count for missing KG entity IDs."""
+    from cataforge.domain.kg._errors import KGDocumentCollisionError  # noqa: PLC0415
+
     project_root = Path(cfg.paths.root)
     db_path = project_root / KG_STORE_REL
 
@@ -403,9 +405,14 @@ def check_kg_ingestion_completeness(cfg: ConfigManager) -> int:
         return 0
 
     registry = _project_registry(project_root)
-    _report_unregistered_prefixes(_unregistered_heading_prefixes(project_root, active, registry))
-
-    all_entities = _fs_extracted_entities(project_root, active, registry)
+    try:
+        _report_unregistered_prefixes(
+            _unregistered_heading_prefixes(project_root, active, registry)
+        )
+        all_entities = _fs_extracted_entities(project_root, active, registry)
+    except KGDocumentCollisionError as exc:
+        click.echo("  FAIL: " + str(exc).replace("\n", "\n  "))
+        return 1
     collisions = _fs_entity_collisions(all_entities)
     if collisions:
         _report_collisions(collisions)

@@ -1,5 +1,5 @@
 ---
-doc_id: test-report
+id: test-report
 doc_type: test-report
 ---
 

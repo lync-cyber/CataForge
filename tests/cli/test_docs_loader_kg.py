@@ -247,7 +247,7 @@ def test_extract_entity_ref_full_doc_id_routes_like_alias(tmp_path: Path) -> Non
     prd_dir = project / "docs" / "prd"
     prd_dir.mkdir(parents=True)
     (prd_dir / "prd-app.md").write_text(
-        "---\nid: prd-app\ndoc_id: prd-app\ndoc_type: prd\n---\n\n# PRD\n\n"
+        "---\nid: prd-app\ndoc_type: prd\n---\n\n# PRD\n\n"
         "## 2 Features\n\n### F-001 登录\n\n允许已注册用户登录。\n",
         encoding="utf-8",
     )

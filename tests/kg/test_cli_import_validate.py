@@ -175,7 +175,7 @@ def test_kg_import_aborts_on_cross_doc_collision(tmp_path: Path) -> None:
         ("prd-a", "# PRD A\n\n## §2 AC\n\n### AC-001 用户可登录\n\n登录成功返回 200。\n"),
         ("prd-b", "# PRD B\n\n## §2 AC\n\n### AC-001 锁定可解除\n\n三次失败后锁定。\n"),
     ):
-        (d / f"{doc_id}.md").write_text(f"---\ndoc_id: {doc_id}\n---\n{body}", encoding="utf-8")
+        (d / f"{doc_id}.md").write_text(f"---\nid: {doc_id}\n---\n{body}", encoding="utf-8")
 
     result = CliRunner().invoke(
         _cli(),

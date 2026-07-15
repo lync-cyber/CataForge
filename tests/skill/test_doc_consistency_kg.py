@@ -187,7 +187,7 @@ def test_arch_ac_coverage_flags_ac_of_unimplemented_feature(tmp_path: Path) -> N
         docs / "prd" / "prd-p.md",
         """\
         ---
-        doc_id: prd
+        id: prd
         doc_type: prd
         ---
         # PRD
@@ -206,7 +206,7 @@ def test_arch_ac_coverage_flags_ac_of_unimplemented_feature(tmp_path: Path) -> N
         docs / "arch" / "arch-p.md",
         """\
         ---
-        doc_id: arch
+        id: arch
         doc_type: arch
         ---
         # Architecture
@@ -298,7 +298,7 @@ def test_devplan_local_numbering_reads_feature_level_coverage(tmp_path: Path) ->
         docs / "prd" / "prd-p.md",
         """\
         ---
-        doc_id: prd
+        id: prd
         doc_type: prd
         ---
         # PRD
@@ -317,7 +317,7 @@ def test_devplan_local_numbering_reads_feature_level_coverage(tmp_path: Path) ->
         docs / "dev-plan" / "dev-plan-p.md",
         """\
         ---
-        doc_id: dev-plan
+        id: dev-plan
         doc_type: dev-plan
         ---
         # Dev Plan

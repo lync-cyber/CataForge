@@ -1,5 +1,5 @@
 ---
-doc_id: dev-plan
+id: dev-plan
 doc_type: dev-plan
 ---
 

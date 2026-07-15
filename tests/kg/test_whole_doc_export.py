@@ -72,7 +72,7 @@ def test_reconstruction_preserves_frontmatter_fields(tmp_path: Path) -> None:
     (src_root / ".cataforge" / "framework.json").write_text(_FRAMEWORK_JSON, encoding="utf-8")
     prd_text = (
         "---\n"
-        "doc_id: prd\n"
+        "id: prd\n"
         "doc_type: prd\n"
         "author: product-manager\n"
         "status: approved\n"
@@ -112,7 +112,7 @@ def test_reconstruction_preserves_document_order_not_lexical(tmp_path: Path) -> 
     (src_root / ".cataforge" / "framework.json").write_text(_FRAMEWORK_JSON, encoding="utf-8")
     headings = [f"## §{i} Section {i}" for i in range(1, 13)]
     bodies = [f"Body of section {i}." for i in range(1, 13)]
-    parts = ["---\ndoc_id: prd\ndoc_type: prd\n---\n", "# Doc\n"]
+    parts = ["---\nid: prd\ndoc_type: prd\n---\n", "# Doc\n"]
     for h, b in zip(headings, bodies, strict=True):
         parts.append(f"\n{h}\n\n{b}\n")
     prd_text = "".join(parts)
@@ -169,7 +169,7 @@ def test_byte_exact_on_normalized_source(tmp_path: Path) -> None:
     (src_root / ".cataforge" / "framework.json").write_text(_FRAMEWORK_JSON, encoding="utf-8")
     prd_text = (
         "---\n"
-        "doc_id: prd\n"
+        "id: prd\n"
         "doc_type: prd\n"
         "---\n"
         "\n"
@@ -354,8 +354,8 @@ def test_multiple_documents_each_reconstructed(tmp_path: Path) -> None:
     (src_root / "docs" / "arch").mkdir(parents=True)
     (src_root / ".cataforge").mkdir()
     (src_root / ".cataforge" / "framework.json").write_text(_FRAMEWORK_JSON, encoding="utf-8")
-    prd = "---\ndoc_id: prd\ndoc_type: prd\n---\n\n# PRD\n\n## §1 Alpha\n\nAlpha body.\n"
-    arch = "---\ndoc_id: arch\ndoc_type: arch\n---\n\n# ARCH\n\n## §1 Beta\n\nBeta body.\n"
+    prd = "---\nid: prd\ndoc_type: prd\n---\n\n# PRD\n\n## §1 Alpha\n\nAlpha body.\n"
+    arch = "---\nid: arch\ndoc_type: arch\n---\n\n# ARCH\n\n## §1 Beta\n\nBeta body.\n"
     (src_root / "docs" / "prd" / "prd.md").write_text(prd, encoding="utf-8")
     (src_root / "docs" / "arch" / "arch.md").write_text(arch, encoding="utf-8")
 

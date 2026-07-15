@@ -320,7 +320,7 @@ def test_gate_fails_on_diverging_definitions_within_authority(tmp_path, capsys) 
     project_root = _setup_project_with_kg(tmp_path)
     extra = project_root / "docs" / "prd" / "prd-extra.md"
     extra.write_text(
-        "---\ndoc_id: prd-extra\ndoc_type: prd\n---\n# PRD Extra\n\n## §2 Features\n\n"
+        "---\nid: prd-extra\ndoc_type: prd\n---\n# PRD Extra\n\n## §2 Features\n\n"
         "### §2.9 F-001 另一种登录叙述\n\n与主卷分叉的描述。\n",
         encoding="utf-8",
     )

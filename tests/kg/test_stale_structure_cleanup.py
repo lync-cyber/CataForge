@@ -92,11 +92,11 @@ def test_renamed_doc_id_leaves_single_document_node(tmp_path: Path) -> None:
     handle, config = _store()
     _migrate(handle, config, proj)
 
-    # Rename the frontmatter doc_id: the Document IRI changes, and the node
+    # Rename the frontmatter id: the Document IRI changes, and the node
     # under the old IRI (same source_path) must be cleaned up, not kept as a
     # ghost twin pointing at the same physical file.
     prd.write_text(
-        prd.read_text(encoding="utf-8").replace("doc_id: prd\n", "doc_id: prd-renamed\n"),
+        prd.read_text(encoding="utf-8").replace("id: prd\n", "id: prd-renamed\n"),
         encoding="utf-8",
     )
     _migrate(handle, config, proj)

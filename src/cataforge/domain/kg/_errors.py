@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 
 class KGError(Exception):
     """Base class for every KG-layer exception."""
@@ -32,3 +37,16 @@ class KGEntityCollisionError(KGError):
     """Raised when one entity_id is defined across documents with diverging
     content, which the flat `cfprj:<entity_id>` IRI scheme would collapse into
     a single node with silent data loss."""
+
+
+class KGDocumentCollisionError(KGError):
+    """Raised when multiple scanned files resolve to one logical document id.
+
+    One doc_id owns one Document IRI; letting two files claim it would
+    collapse their Document nodes (last write wins) and per-file rewrites
+    would delete each other's Sections. ``collisions`` carries the structured
+    `DocIdCollision` list for report-building consumers (reconcile)."""
+
+    def __init__(self, message: str, collisions: Sequence[Any] | None = None) -> None:
+        super().__init__(message)
+        self.collisions: list[Any] = list(collisions or [])
