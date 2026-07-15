@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from cataforge.core.errors import ExternalToolError
-from cataforge.interface.cli import feedback_cmd
+from cataforge.interface.cli.feedback import _sinks
 
 
 def _completed(
@@ -24,7 +24,7 @@ def _patch_subprocess(
     *,
     side_effect_seq: list[Any],
 ) -> list[list[str]]:
-    """Replace ``run_proc`` inside feedback_cmd with a queue-driven fake.
+    """Replace ``run_proc`` inside _sinks with a queue-driven fake.
 
     Returns the list that will collect every issued command for assertion.
     """
@@ -40,8 +40,8 @@ def _patch_subprocess(
             raise outcome
         return outcome
 
-    monkeypatch.setattr(feedback_cmd, "run_proc", fake_run)
-    monkeypatch.setattr(feedback_cmd.shutil, "which", lambda _: "/usr/local/bin/gh")
+    monkeypatch.setattr(_sinks, "run_proc", fake_run)
+    monkeypatch.setattr(_sinks.shutil, "which", lambda _: "/usr/local/bin/gh")
     return calls
 
 
@@ -51,7 +51,7 @@ class TestToGhFallback:
             monkeypatch,
             side_effect_seq=[_completed(stdout="https://example/issues/1")],
         )
-        url = feedback_cmd._to_gh(
+        url = _sinks._to_gh(
             "body",
             title="t",
             labels=["bug", "triage"],
@@ -73,7 +73,7 @@ class TestToGhFallback:
                 _completed(stdout="https://example/issues/2"),
             ],
         )
-        url = feedback_cmd._to_gh(
+        url = _sinks._to_gh(
             "body",
             title="t",
             labels=["feedback"],
@@ -91,7 +91,7 @@ class TestToGhFallback:
         )
         _patch_subprocess(monkeypatch, side_effect_seq=[first])
         with pytest.raises(ExternalToolError):
-            feedback_cmd._to_gh(
+            _sinks._to_gh(
                 "body",
                 title="t",
                 labels=["feedback"],
@@ -102,7 +102,7 @@ class TestToGhFallback:
         first = _completed(returncode=2, stderr="HTTP 500 — server fire")
         _patch_subprocess(monkeypatch, side_effect_seq=[first])
         with pytest.raises(ExternalToolError) as exc:
-            feedback_cmd._to_gh("body", title="t", labels=["bug"])
+            _sinks._to_gh("body", title="t", labels=["bug"])
         assert "server fire" in str(exc.value)
 
     def test_back_compat_label_string_form(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,7 +111,7 @@ class TestToGhFallback:
             monkeypatch,
             side_effect_seq=[_completed(stdout="https://example/issues/3")],
         )
-        url = feedback_cmd._to_gh("body", title="t", label="bug,enhancement")
+        url = _sinks._to_gh("body", title="t", label="bug,enhancement")
         assert url == "https://example/issues/3"
         assert calls[0].count("--label") == 2
 
@@ -122,7 +122,7 @@ class TestToGhRepoInjection:
             monkeypatch,
             side_effect_seq=[_completed(stdout="https://example/issues/4")],
         )
-        feedback_cmd._to_gh("body", title="t", repo="owner/name")
+        _sinks._to_gh("body", title="t", repo="owner/name")
         idx = calls[0].index("-R")
         assert calls[0][idx + 1] == "owner/name"
 
@@ -132,7 +132,7 @@ class TestToGhRepoInjection:
             monkeypatch,
             side_effect_seq=[first, _completed(stdout="https://example/issues/5")],
         )
-        feedback_cmd._to_gh("body", title="t", labels=["feedback"], repo="owner/name")
+        _sinks._to_gh("body", title="t", labels=["feedback"], repo="owner/name")
         assert "-R" in calls[1]
 
     def test_emit_resolves_repo_from_upgrade_source(
@@ -154,8 +154,8 @@ class TestToGhRepoInjection:
             def feedback_fallback_on_missing_label(self):
                 return True
 
-        monkeypatch.setattr(feedback_cmd, "get_config_manager", lambda: FakeCfg())
-        feedback_cmd._emit(
+        monkeypatch.setattr(_sinks, "get_config_manager", lambda: FakeCfg())
+        _sinks._emit(
             "body",
             project_root=tmp_path,
             print_to_stdout=False,

@@ -223,7 +223,7 @@ def _execute_plan(
         # (e.g. --emit-env-block, additional checks) is automatically
         # picked up by bootstrap. deploy_after=False: bootstrap owns the
         # deploy step and we don't want setup to chain it.
-        from cataforge.interface.cli.setup_cmd import setup_command
+        from cataforge.interface.cli.setup import setup_command
 
         ctx.invoke(
             setup_command,

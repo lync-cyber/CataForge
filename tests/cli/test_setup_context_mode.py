@@ -13,8 +13,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cataforge.interface.cli import setup_cmd
-from cataforge.interface.cli.setup_cmd import setup_command
+from cataforge.interface.cli.setup import _flow, setup_command
 
 
 def _mode(root: Path) -> str:
@@ -68,7 +67,7 @@ def test_interactive_prompt_selects_markdown(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True, raising=False)
-    monkeypatch.setattr(setup_cmd, "_prompt_context_mode", lambda: "markdown")
+    monkeypatch.setattr(_flow, "_prompt_context_mode", lambda: "markdown")
 
     # The setup group callback reads the active context's invoked_subcommand;
     # drive it under a real context (no subcommand → init path runs).

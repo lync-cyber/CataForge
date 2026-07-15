@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from cataforge.core.corrections import record_correction
-from cataforge.interface.cli.feedback_cmd import (
+from cataforge.interface.cli.feedback.bundles import (
     bug_command,
     correction_export_command,
     suggest_command,
@@ -252,8 +252,8 @@ class TestSinks:
                 stderr="",
             )
 
-        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.shutil.which", fake_which)
-        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.run_proc", fake_run)
+        monkeypatch.setattr("cataforge.interface.cli.feedback._sinks.shutil.which", fake_which)
+        monkeypatch.setattr("cataforge.interface.cli.feedback._sinks.run_proc", fake_run)
 
         result = invoke_under_group(
             bug_command,
@@ -283,7 +283,9 @@ class TestSinks:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.shutil.which", lambda _name: None)
+        monkeypatch.setattr(
+            "cataforge.interface.cli.feedback._sinks.shutil.which", lambda _name: None
+        )
         result = invoke_under_group(
             bug_command,
             ["--gh", "--summary", "x", "--skip-framework-review"],
@@ -309,8 +311,8 @@ class TestSinks:
             captured["input"] = input
             return subprocess.CompletedProcess(args=cmd, returncode=0)
 
-        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.shutil.which", fake_which)
-        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.run_proc", fake_run)
+        monkeypatch.setattr("cataforge.interface.cli.feedback._sinks.shutil.which", fake_which)
+        monkeypatch.setattr("cataforge.interface.cli.feedback._sinks.run_proc", fake_run)
 
         result = invoke_under_group(
             bug_command,
@@ -327,7 +329,9 @@ class TestSinks:
     ) -> None:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
-        monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.shutil.which", lambda _name: None)
+        monkeypatch.setattr(
+            "cataforge.interface.cli.feedback._sinks.shutil.which", lambda _name: None
+        )
         result = invoke_under_group(
             bug_command,
             ["--clip", "--summary", "x", "--skip-framework-review"],
@@ -355,7 +359,7 @@ def test_gh_sink_propagates_error_text(tmp_path: Path, monkeypatch: pytest.Monke
     monkeypatch.chdir(project)
 
     monkeypatch.setattr(
-        "cataforge.interface.cli.feedback_cmd.shutil.which",
+        "cataforge.interface.cli.feedback._sinks.shutil.which",
         lambda name: "/usr/bin/gh" if name == "gh" else None,
     )
 
@@ -364,7 +368,7 @@ def test_gh_sink_propagates_error_text(tmp_path: Path, monkeypatch: pytest.Monke
             args=cmd, returncode=4, stdout="", stderr="GH_AUTH_REQUIRED"
         )
 
-    monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.run_proc", fake_run)
+    monkeypatch.setattr("cataforge.interface.cli.feedback._sinks.run_proc", fake_run)
 
     result = invoke_under_group(
         bug_command,
@@ -383,7 +387,7 @@ def test_gh_sink_propagates_rate_limit_error(
     monkeypatch.chdir(project)
 
     monkeypatch.setattr(
-        "cataforge.interface.cli.feedback_cmd.shutil.which",
+        "cataforge.interface.cli.feedback._sinks.shutil.which",
         lambda name: "/usr/bin/gh" if name == "gh" else None,
     )
 
@@ -392,7 +396,7 @@ def test_gh_sink_propagates_rate_limit_error(
             args=cmd, returncode=1, stdout="", stderr="error: API rate limit exceeded"
         )
 
-    monkeypatch.setattr("cataforge.interface.cli.feedback_cmd.run_proc", fake_run)
+    monkeypatch.setattr("cataforge.interface.cli.feedback._sinks.run_proc", fake_run)
 
     result = invoke_under_group(
         bug_command,
