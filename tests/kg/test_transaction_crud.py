@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.kg._kg_fixtures import hx
+
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
 
@@ -29,7 +31,7 @@ def _make_kg_with_entity():
             title="Login flow",
             source_doc="prd",
             source_section="F-001 Login flow",
-            content_hash="abc123",
+            content_hash=hx("abc123"),
             project_iri=project_iri,
         )
     return kg, config, project_iri
@@ -50,7 +52,7 @@ def test_add_entity_creates_quads() -> None:
             title="Login flow",
             source_doc="prd",
             source_section="F-001 Login flow",
-            content_hash="abc123",
+            content_hash=hx("abc123"),
             project_iri=project_iri,
         )
 
@@ -72,7 +74,7 @@ def test_add_entity_idempotent_on_same_hash() -> None:
             title="Login flow",
             source_doc="prd",
             source_section="F-001 Login flow",
-            content_hash="abc123",
+            content_hash=hx("abc123"),
             project_iri=project_iri,
         )
 
@@ -83,7 +85,7 @@ def test_add_entity_idempotent_on_same_hash() -> None:
             title="Login flow",
             source_doc="prd",
             source_section="F-001 Login flow",
-            content_hash="abc123",
+            content_hash=hx("abc123"),
             project_iri=project_iri,
         )
         assert txn.pending_inserts == 0
@@ -100,7 +102,7 @@ def test_add_entity_replaces_on_different_hash() -> None:
             title="Login flow v1",
             source_doc="prd",
             source_section="F-001 Login flow v1",
-            content_hash="hash_v1",
+            content_hash=hx("hash_v1"),
             project_iri=project_iri,
         )
 
@@ -111,7 +113,7 @@ def test_add_entity_replaces_on_different_hash() -> None:
             title="Login flow v2",
             source_doc="prd",
             source_section="F-001 Login flow v2",
-            content_hash="hash_v2",
+            content_hash=hx("hash_v2"),
             project_iri=project_iri,
         )
 
@@ -130,7 +132,7 @@ def test_add_entity_with_extra_slots() -> None:
             title="Login",
             source_doc="prd",
             source_section="F-001 Login",
-            content_hash="abc",
+            content_hash=hx("abc"),
             project_iri=project_iri,
             extra_slots={"cf:priority": "high"},
         )
@@ -154,7 +156,7 @@ def test_add_entity_with_parent_scopes_iri_and_part_of() -> None:
             title="登录验收",
             source_doc="prd",
             source_section="AC-001 登录验收",
-            content_hash="acc1",
+            content_hash=hx("acc1"),
             project_iri=project_iri,
             parent_id="F-001",
         )
@@ -181,7 +183,7 @@ def test_add_entity_with_parent_idempotent_on_same_hash() -> None:
                 title="登录验收",
                 source_doc="prd",
                 source_section="AC-001 登录验收",
-                content_hash="acc1",
+                content_hash=hx("acc1"),
                 project_iri=project_iri,
                 parent_id="F-001",
             )
@@ -193,7 +195,7 @@ def test_add_entity_with_parent_idempotent_on_same_hash() -> None:
             title="登录验收",
             source_doc="prd",
             source_section="AC-001 登录验收",
-            content_hash="acc1",
+            content_hash=hx("acc1"),
             project_iri=project_iri,
             parent_id="F-001",
         )
@@ -222,7 +224,7 @@ def test_update_entity_with_content_hash_idempotent() -> None:
     kg, config, project_iri = _make_kg_with_entity()
 
     with kg.transaction() as txn:
-        txn.update_entity("F-001", content_hash="abc123", title="Ignored")
+        txn.update_entity("F-001", content_hash=hx("abc123"), title="Ignored")
         assert txn.pending_inserts == 0
 
 
@@ -395,7 +397,7 @@ def test_delete_entity_without_cascade_rejects_incoming_edges() -> None:
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="mod1",
+            content_hash=hx("mod1"),
             project_iri=project_iri,
         )
 
@@ -418,7 +420,7 @@ def test_delete_entity_with_cascade_removes_incoming_edges() -> None:
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="mod1",
+            content_hash=hx("mod1"),
             project_iri=project_iri,
         )
 
@@ -447,7 +449,7 @@ def test_add_relation_creates_edge() -> None:
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="mod1",
+            content_hash=hx("mod1"),
             project_iri=project_iri,
         )
 
@@ -475,7 +477,7 @@ def test_add_relation_idempotent() -> None:
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="mod1",
+            content_hash=hx("mod1"),
             project_iri=project_iri,
         )
 
@@ -497,7 +499,7 @@ def test_remove_relation() -> None:
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="mod1",
+            content_hash=hx("mod1"),
             project_iri=project_iri,
         )
 
@@ -533,7 +535,7 @@ def test_rollback_discards_high_level_adds() -> None:
             title="Should not persist",
             source_doc="prd",
             source_section="F-099 test",
-            content_hash="temp",
+            content_hash=hx("temp"),
             project_iri=project_iri,
         )
         raise RuntimeError("boom")
@@ -561,7 +563,7 @@ def test_write_lock_serializes_concurrent_transactions() -> None:
                 title=delay_name,
                 source_doc="prd",
                 source_section=f"{entity_id} {delay_name}",
-                content_hash=delay_name,
+                content_hash=hx(delay_name),
                 project_iri=project_iri,
             )
             order.append(f"end-{delay_name}")

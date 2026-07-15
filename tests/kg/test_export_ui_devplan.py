@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.kg._kg_fixtures import hx
+
 
 def _make_store_with_ui_devplan():
     from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
@@ -28,7 +30,7 @@ def _make_store_with_ui_devplan():
             title="Login",
             source_doc="prd",
             source_section="F-001 Login",
-            content_hash="h-f1",
+            content_hash=hx("h-f1"),
             project_iri=project_iri,
         )
         txn.add_entity(
@@ -37,7 +39,7 @@ def _make_store_with_ui_devplan():
             title="Valid creds accepted",
             source_doc="prd",
             source_section="AC-001",
-            content_hash="h-ac1",
+            content_hash=hx("h-ac1"),
             project_iri=project_iri,
         )
         txn.add_entity(
@@ -46,7 +48,7 @@ def _make_store_with_ui_devplan():
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="h-m1",
+            content_hash=hx("h-m1"),
             project_iri=project_iri,
         )
         txn.add_entity(
@@ -55,7 +57,7 @@ def _make_store_with_ui_devplan():
             title="Login Page",
             source_doc="ui-spec",
             source_section="P-001 Login Page",
-            content_hash="h-p1",
+            content_hash=hx("h-p1"),
             project_iri=project_iri,
             extra_slots={"ui_route": "/login", "layout_spec": "single-column"},
         )
@@ -65,7 +67,7 @@ def _make_store_with_ui_devplan():
             title="Login Form",
             source_doc="ui-spec",
             source_section="UC-001 Login Form",
-            content_hash="h-uc1",
+            content_hash=hx("h-uc1"),
             project_iri=project_iri,
         )
         txn.add_entity(
@@ -74,7 +76,7 @@ def _make_store_with_ui_devplan():
             title="Build auth module",
             source_doc="dev-plan",
             source_section="T-001",
-            content_hash="h-t1",
+            content_hash=hx("h-t1"),
             project_iri=project_iri,
             extra_slots={"task_status": "in_progress"},
         )
@@ -84,7 +86,7 @@ def _make_store_with_ui_devplan():
             title="Auth login test",
             source_doc="test-report",
             source_section="TC-001",
-            content_hash="h-tc1",
+            content_hash=hx("h-tc1"),
             project_iri=project_iri,
         )
 
@@ -171,7 +173,7 @@ def test_page_without_optional_scalars_omits_sections(tmp_path: Path) -> None:
             title="Bare Page",
             source_doc="ui-spec",
             source_section="P-009",
-            content_hash="h-p9",
+            content_hash=hx("h-p9"),
             project_iri=project_iri,
         )
 

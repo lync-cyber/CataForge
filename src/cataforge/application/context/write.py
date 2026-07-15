@@ -41,6 +41,7 @@ from cataforge.domain.kg._sparql_utils import (
     select_rows,
 )
 from cataforge.domain.kg.authority import ModePolicy
+from cataforge.domain.kg.document_guard import ensure_document_replaceable
 from cataforge.domain.kg.export import entity_doc_type
 from cataforge.domain.kg.export.document_pipeline import compile_documents
 from cataforge.domain.kg.export.types import CompileResult
@@ -51,11 +52,11 @@ from cataforge.domain.kg.ingest.entity_extract import (
     extract_entities,
 )
 from cataforge.domain.kg.ingest.frontmatter import _PARSE_ERROR_KEY
-from cataforge.domain.kg.ingest.iri import document_iri, resolve_entity_iri
+from cataforge.domain.kg.ingest.iri import document_iri, resolve_entity_iri, section_iri
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
-from cataforge.domain.kg.ingest.writer import _entity_title, write_project
+from cataforge.domain.kg.ingest.writer import _entity_title, _sections_of_document, write_project
 from cataforge.domain.kg.reconcile import reconcile as _reconcile
 from cataforge.domain.kg.section_sync import CascadeWriter
 from cataforge.domain.kg.validate import validate
@@ -702,17 +703,27 @@ def author_document(
     written_ids = {document_iri(doc_id, cfg.base_namespace)}
 
     with KnowledgeGraph.connect(cfg) as kg:
-        existing_status = _read_document_status(kg.store, cfg, doc_id)
-        if existing_status == "approved" and document.status != "approved":
-            raise KGValidationError(
-                f"Document {doc_id!r} is approved — transition its status via "
-                "`context write-meta` before re-authoring content; re-authoring would "
-                f"silently downgrade it to {document.status or 'draft'!r}."
-            )
+        ensure_document_replaceable(
+            kg.store,
+            cfg,
+            doc_id,
+            document.content_hash,
+            incoming_status=document.status,
+            explicit_status_intent=True,
+        )
         project_iri = write_project(
             kg.store, meta["project_id"], meta["title"], meta["process_model"], cfg
         )
+        doc_iri_val = document_iri(doc_id, cfg.base_namespace)
+        live_section_iris = {section_iri(doc_id, s.anchor, cfg.base_namespace) for s in sections}
+        stale_section_iris = (
+            _sections_of_document(kg.store, cf_namespace(cfg), doc_iri_val) - live_section_iris
+        )
         with kg.transaction() as txn:
+            # Whole-document replace: sections the new revision no longer
+            # carries leave the graph in the same commit as the rewrite.
+            for stale in sorted(stale_section_iris):
+                txn.delete_entity(stale, cascade=True)
             txn.add_document(document)
             for section in sections:
                 txn.add_section(
@@ -921,19 +932,6 @@ def update_document_meta(
 
 
 _DOC_STATUS_WHITELIST = frozenset({"draft", "review", "approved"})
-
-
-def _read_document_status(store: ox.Store, cfg: Any, doc_id: str) -> str | None:
-    """Return a Document's stored ``cf:status``, or ``None`` when absent."""
-    ns = cf_namespace(cfg)
-    iri = document_iri(doc_id, cfg.base_namespace)
-    sparql = (
-        f"PREFIX cf: <{ns}> "
-        f"SELECT ?st WHERE {{ <{assert_safe_iri(iri)}> a cf:Document ; cf:status ?st }}"
-    )
-    for row in select_rows(store, sparql):
-        return _strv(_row_lookup(row, "st"))
-    return None
 
 
 def _read_document_meta(store: ox.Store, cfg: Any, doc_id: str) -> dict[str, str] | None:

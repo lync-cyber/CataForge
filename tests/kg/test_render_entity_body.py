@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.kg._kg_fixtures import hx
+
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
 
@@ -33,7 +35,7 @@ def _bare_entity_store():
             title="Login",
             source_doc="prd",
             source_section="F-001 Login",
-            content_hash="h-f1",
+            content_hash=hx("h-f1"),
             project_iri=project_iri,
         )
     return handle

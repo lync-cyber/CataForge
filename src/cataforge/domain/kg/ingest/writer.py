@@ -21,6 +21,8 @@ from cataforge.domain.kg._quads import (
     build_entity_quads,
     build_relation_quad,
     build_section_quads,
+    content_hash_matches,
+    entity_home_sync_quads,
 )
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
@@ -30,6 +32,7 @@ from cataforge.domain.kg._sparql_utils import (
     escape_sparql_literal,
     select_rows,
 )
+from cataforge.domain.kg.document_guard import ensure_document_replaceable
 from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity
 from cataforge.domain.kg.ingest.iri import (
     SUBORDINATE_CLASSES,
@@ -65,25 +68,6 @@ class StructureWriteStats:
     sections_written: int = 0
     sections_skipped: int = 0
     written_iris: list[str] = field(default_factory=list)
-
-
-_CONTENT_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
-
-
-def _content_hash_matches(
-    store: ox.Store,
-    iri: str,
-    content_hash: str,
-    *,
-    namespace: str,
-) -> bool:
-    """Has this exact (iri, content_hash) pair already been ingested?"""
-    if not _CONTENT_HASH_RE.match(content_hash):
-        raise ValueError(f"invalid content_hash format: {content_hash!r}")
-    safe_iri = assert_safe_iri(iri)
-    safe_hash = escape_sparql_literal(content_hash)
-    sparql = f'PREFIX cf: <{namespace}> ASK {{ <{safe_iri}> cf:content_hash "{safe_hash}" }}'
-    return ask(store, sparql)
 
 
 _TITLE_LEADING_SEPARATORS = ":：-—– \t"
@@ -156,7 +140,14 @@ def write_entities(
     stats = WriteStats()
     for entity in entities:
         iri = resolve_entity_iri(entity.entity_id, entity.class_name, entity.parent_id, base_ns)
-        if _content_hash_matches(store, iri, entity.content_hash, namespace=namespace):
+        if content_hash_matches(store, iri, entity.content_hash, namespace=namespace):
+            removes, adds = entity_home_sync_quads(
+                store, iri, entity.source_doc, entity.source_section, namespace=namespace
+            )
+            for q in removes:
+                store.remove(q)
+            for q in adds:
+                store.add(q)
             stats.entities_skipped += 1
             continue
 
@@ -289,9 +280,14 @@ def write_structure(
     base_ns = config.base_namespace
     stats = StructureWriteStats()
 
+    # Gate the whole batch before any write: an approved Document's content
+    # is frozen against roundtrip absorbs (ingest / repair).
+    for document in documents:
+        ensure_document_replaceable(store, config, document.doc_id, document.content_hash)
+
     for section in sections:
         iri = section_iri(section.doc_id, section.anchor, base_ns)
-        if _content_hash_matches(store, iri, section.content_hash, namespace=namespace):
+        if content_hash_matches(store, iri, section.content_hash, namespace=namespace):
             stats.sections_skipped += 1
             continue
         quads = build_section_quads(
@@ -313,7 +309,7 @@ def write_structure(
 
     for document in documents:
         iri = document_iri(document.doc_id, base_ns)
-        if _content_hash_matches(store, iri, document.content_hash, namespace=namespace):
+        if content_hash_matches(store, iri, document.content_hash, namespace=namespace):
             stats.documents_skipped += 1
             continue
         quads = build_document_quads(

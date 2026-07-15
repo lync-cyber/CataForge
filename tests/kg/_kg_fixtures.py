@@ -16,11 +16,23 @@ from __future__ import annotations
 
 import atexit
 import gc
+import hashlib
 import shutil
 import tempfile
 from pathlib import Path
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
+
+
+def hx(seed: str) -> str:
+    """Deterministic sha256-hex content hash from a short readable seed.
+
+    The write layer enforces the 64-hex content-hash contract; tests keep
+    their readable seeds and derive a valid digest from them.
+    """
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()
+
+
 _KG_ACTIVE_DOC_TYPES = {"prd", "arch", "test"}
 
 _templates: dict[str, Path] = {}

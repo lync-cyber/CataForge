@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from cataforge.domain.kg._ask import ask
 from cataforge.domain.kg._config import KGConfig
-from cataforge.domain.kg._sparql_utils import cf_namespace, escape_iri_component
+from cataforge.domain.kg._sparql_utils import (
+    assert_safe_iri,
+    cf_namespace,
+    escape_iri_component,
+    escape_sparql_literal,
+)
 from cataforge.domain.kg.ingest.iri import (
     class_iri,
     document_iri,
@@ -19,6 +26,61 @@ if TYPE_CHECKING:
     import pyoxigraph as ox
 
 _PREFIX_LEN_PADDING = 6
+
+_CONTENT_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def content_hash_matches(
+    store: ox.Store,
+    iri: str,
+    content_hash: str,
+    *,
+    namespace: str,
+) -> bool:
+    """Has this exact (iri, content_hash) pair already been written?"""
+    if not _CONTENT_HASH_RE.match(content_hash):
+        raise ValueError(f"invalid content_hash format: {content_hash!r}")
+    safe_iri = assert_safe_iri(iri)
+    safe_hash = escape_sparql_literal(content_hash)
+    sparql = f'PREFIX cf: <{namespace}> ASK {{ <{safe_iri}> cf:content_hash "{safe_hash}" }}'
+    return ask(store, sparql)
+
+
+def entity_home_sync_quads(
+    store: ox.Store,
+    iri: str,
+    source_doc: str,
+    source_section: str,
+    *,
+    namespace: str,
+) -> tuple[list[ox.Quad], list[ox.Quad]]:
+    """Quads to ``(remove, add)`` so a content-unchanged node's home slots
+    (`cf:source_doc` / `cf:source_section`) track the fresh extraction.
+
+    Content-hash-idempotent upserts skip the full rewrite, but an entity moved
+    wholesale to another document keeps its bytes while its home changes —
+    without this sync every trace/export keyed on the home would stay stale.
+    Returns ``([], [])`` when both slots already match.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    subject = ox.NamedNode(iri)
+    string_dt = ox.NamedNode(XSD_STRING_IRI)
+    removes: list[ox.Quad] = []
+    adds: list[ox.Quad] = []
+    for slot, value in (("source_doc", source_doc), ("source_section", source_section)):
+        predicate = ox.NamedNode(_slot_iri(f"cf:{slot}", namespace))
+        current = list(store.quads_for_pattern(subject, predicate, None, None))
+        if (
+            len(current) == 1
+            and isinstance(current[0].object, ox.Literal)
+            and current[0].object.value == value
+        ):
+            continue
+        removes.extend(current)
+        adds.append(ox.Quad(subject, predicate, ox.Literal(value, datatype=string_dt)))
+    return removes, adds
+
 
 RDF_TYPE_IRI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
 XSD_STRING_IRI = "http://www.w3.org/2001/XMLSchema#string"

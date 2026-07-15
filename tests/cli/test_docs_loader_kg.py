@@ -15,6 +15,7 @@ import pytest
 
 from cataforge.application.context import read as context_read
 from cataforge.domain.docs import loader
+from tests.kg._kg_fixtures import hx
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 
@@ -216,7 +217,7 @@ def test_extract_entity_ref_falls_back_to_file_when_kg_card_lacks_body(
             title="登录",
             source_doc="prd",
             source_section="F-001 登录",
-            content_hash="h-f1",
+            content_hash=hx("h-f1"),
             project_iri=project_iri,
         )
     handle.raw.flush()
