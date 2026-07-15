@@ -14,15 +14,14 @@ from cataforge.adapter.integrations.penpot._constants import (
     HEALTH_TIMEOUT,
     SUPPORTED_NODE_MAJORS,
 )
+from cataforge.adapter.integrations.penpot.netenv import find_available_port, is_port_listening
 from cataforge.utils.common import (
     DIM,
     NC,
     fail,
-    find_available_port,
     get_command_version,
     has_command,
     info,
-    is_port_listening,
     ok,
     section,
     warn,

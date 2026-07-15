@@ -1,4 +1,4 @@
-"""Tests for cataforge.utils.common — focused on load_dotenv path boundary."""
+"""Tests for penpot netenv load_dotenv — focused on path boundary."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.utils.common import load_dotenv
+from cataforge.adapter.integrations.penpot.netenv import load_dotenv
 
 
 class TestLoadDotenv:
