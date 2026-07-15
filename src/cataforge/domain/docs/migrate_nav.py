@@ -37,7 +37,7 @@ from pathlib import Path
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
 from cataforge.core.paths import find_project_root
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 _TABLE_ROW_RE = re.compile(r"^\|\s*(?P<doc_id>[A-Za-z0-9_-]+)\s*\|\s*(?P<path>[^|]+?)\s*\|")
 

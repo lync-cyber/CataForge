@@ -72,8 +72,8 @@ from cataforge.adapter.integrations.penpot.mcp_process import (
     start_mcp,
     stop_mcp,
 )
-from cataforge.utils.common import ensure_utf8
 from cataforge.utils.common import load_dotenv as load_dotenv
+from cataforge.utils.encoding import ensure_utf8
 from cataforge.utils.process import pid_alive
 
 __all__ = [

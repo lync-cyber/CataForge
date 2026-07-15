@@ -32,7 +32,7 @@ import click
 
 from cataforge import __version__
 from cataforge.interface.cli.errors import CataforgeGroup
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 # Reconfigure stdout/stderr to UTF-8 before any command runs, so users never need
 # to prefix invocations with `PYTHONUTF8=1` (matters on Windows cp936 terminals

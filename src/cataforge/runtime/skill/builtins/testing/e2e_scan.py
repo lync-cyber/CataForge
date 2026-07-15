@@ -31,7 +31,7 @@ from cataforge.core.types import Severity
 from cataforge.runtime.skill.builtins._shared import CheckReport, IssueCollector
 from cataforge.runtime.skill.builtins.testing._render import render_text
 from cataforge.runtime.skill.builtins.testing.e2e_patterns import E2ERuleSet, load_e2e_rules
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 
 def collect_e2e_files(target: Path, rules: E2ERuleSet) -> list[Path]:

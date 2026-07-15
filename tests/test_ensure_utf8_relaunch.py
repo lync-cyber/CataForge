@@ -28,7 +28,7 @@ pytestmark = pytest.mark.skipif(
 # ended up in UTF-8 Mode and what ``open()`` defaults to. ASCII-only output
 # so the parent's capture decode can never be the thing under test.
 _PROBE = (
-    "from cataforge.utils.common import ensure_utf8; ensure_utf8(); "
+    "from cataforge.utils.encoding import ensure_utf8; ensure_utf8(); "
     "import os, sys; "
     "f = open(os.devnull); "
     "print('utf8_mode=' + str(int(sys.flags.utf8_mode))); "

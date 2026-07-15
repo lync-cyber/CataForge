@@ -13,7 +13,7 @@ from typing import Any
 from cataforge.core.paths import project_root_from_docs_dir
 from cataforge.core.types import Severity
 from cataforge.runtime.skill.builtins._shared import CheckReport, IssueCollector
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 from cataforge.utils.frontmatter import split_yaml_frontmatter
 from cataforge.utils.md_parse import strip_code_blocks
 from cataforge.utils.placeholders import count_unresolved_placeholders

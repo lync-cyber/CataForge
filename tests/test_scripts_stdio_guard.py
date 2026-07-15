@@ -7,7 +7,7 @@ when they print arrows / ✓ / Chinese — the v0.1.15 audit caught this in
 ``sync_scaffold.py`` (since removed by PR #84 along with the scaffold
 mirror). This test forces every remaining script to either:
 
-1. Import ``cataforge.utils.common.ensure_utf8`` and call it, or
+1. Import ``cataforge.utils.encoding.ensure_utf8`` and call it, or
 2. Inline ``sys.stdout.reconfigure(encoding="utf-8")`` and the same for
    stderr (chicken-and-egg case where cataforge isn't importable yet).
 
@@ -68,7 +68,7 @@ def test_scripts_reconfigure_stdio_to_utf8() -> None:
     assert not offenders, (
         "These scripts emit text without reconfiguring stdio to UTF-8. "
         "On Windows cp1252 terminals they crash with UnicodeEncodeError. "
-        "Either call cataforge.utils.common.ensure_utf8() at module "
+        "Either call cataforge.utils.encoding.ensure_utf8() at module "
         "top, or inline sys.stdout.reconfigure(encoding='utf-8'). If the "
         "script provably emits ASCII only, add it to ASCII_ONLY_WHITELIST. "
         f"Offenders: {offenders}"

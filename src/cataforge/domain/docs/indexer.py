@@ -29,7 +29,7 @@ from cataforge.domain.docs._index_build import build_xref as build_xref
 from cataforge.domain.docs._index_build import estimate_tokens as estimate_tokens
 from cataforge.domain.docs._index_build import update_single_doc as update_single_doc
 from cataforge.domain.docs._index_build import write_index as write_index
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 from cataforge.utils.patterns import DOC_ID_RE
 
 

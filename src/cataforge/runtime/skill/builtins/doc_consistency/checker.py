@@ -22,7 +22,7 @@ from cataforge.runtime.skill.builtins.doc_consistency._parse import (
     _read_all_content,
 )
 from cataforge.runtime.skill.builtins.doc_consistency._render import render_text
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 
 class CrossDocChecker(_CrossDocChecksMixin):

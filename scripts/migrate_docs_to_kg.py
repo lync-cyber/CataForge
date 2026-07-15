@@ -20,7 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from cataforge.utils.common import ensure_utf8  # noqa: E402
+from cataforge.utils.encoding import ensure_utf8  # noqa: E402
 
 ensure_utf8()
 

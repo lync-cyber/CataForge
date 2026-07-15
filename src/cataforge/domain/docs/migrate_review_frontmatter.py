@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cataforge.core.paths import find_project_root
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 REVIEW_RE = re.compile(r"^REVIEW-(?P<doc_id>.+)-r(?P<n>\d+)\.md$")
 CODE_REVIEW_RE = re.compile(r"^CODE-REVIEW-(?P<task_id>.+)-r(?P<n>\d+)\.md$")
