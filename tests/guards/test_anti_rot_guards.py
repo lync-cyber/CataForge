@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKS_DIR = REPO_ROOT / "scripts" / "checks"
 sys.path.insert(0, str(CHECKS_DIR))
 

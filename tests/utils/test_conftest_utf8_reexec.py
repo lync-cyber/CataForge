@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_utf8_relaunch_mirrors_child_exit_code() -> None:
@@ -38,7 +38,7 @@ def test_utf8_relaunch_mirrors_child_exit_code() -> None:
             sys.executable,
             "-m",
             "pytest",
-            "tests/test_scripts_stdio_guard.py",
+            "tests/guards/test_scripts_stdio_guard.py",
             "-q",
             "-p",
             "no:cacheprovider",

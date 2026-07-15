@@ -39,11 +39,11 @@ repos:
       - id: stdio-utf8-guard
         name: scripts/*.py call ensure_utf8() (Windows cp1252 guard)
         description: |
-          Mirrors tests/test_scripts_stdio_guard.py at commit time. Any
+          Mirrors tests/guards/test_scripts_stdio_guard.py at commit time. Any
           new script that prints non-ASCII (→/中文/emoji) to stdout will
           crash on Windows cp1252 unless it reconfigures stdio to UTF-8;
           catch the omission locally instead of waiting for CI.
-        entry: python -m pytest tests/test_scripts_stdio_guard.py -q
+        entry: python -m pytest tests/guards/test_scripts_stdio_guard.py -q
         language: system
         pass_filenames: false
         files: ^scripts/.*\.py$

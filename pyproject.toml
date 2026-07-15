@@ -120,7 +120,7 @@ build-backend = "hatchling.build"
 # marker drops it from the resolved tree. This only protects uv-driven
 # environments — pip ignores `[tool.uv]` — so the published wheel's runtime
 # dependencies must stay free of the linkml stack (enforced by
-# tests/test_runtime_dependency_contract.py).
+# tests/guards/test_runtime_dependency_contract.py).
 override-dependencies = ["pytest-logging ; sys_platform == 'cataforge-never'"]
 
 [tool.hatch.version]

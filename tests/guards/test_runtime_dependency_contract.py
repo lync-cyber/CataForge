@@ -14,7 +14,7 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_runtime_dependencies_exclude_linkml_stack() -> None:

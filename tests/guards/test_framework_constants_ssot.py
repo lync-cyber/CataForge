@@ -14,7 +14,7 @@ import json
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 FRAMEWORK_JSON = REPO_ROOT / ".cataforge" / "framework.json"
 COMMON_RULES = REPO_ROOT / ".cataforge" / "rules" / "COMMON-RULES.md"
 
