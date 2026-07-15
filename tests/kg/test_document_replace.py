@@ -101,6 +101,37 @@ def test_reingest_syncs_unchanged_subordinate_source_section(tmp_path: Path) -> 
     assert _one_value(handle.raw, section_query) == "F-001 用户登录"
 
 
+def test_failed_repair_reverts_applied_home_sync(tmp_path: Path, monkeypatch) -> None:
+    # A hash-skip home sync applied by an earlier write in the repair batch
+    # must not survive when a later write fails and the batch compensates.
+    import cataforge.domain.kg.repair as repair_mod
+
+    doc = (
+        "---\nid: prd\ndoc_type: prd\n---\n# PRD\n\n## §1 功能\n\n"
+        "### F-001 登录\n\n- AC-001: 邮箱密码可登录\n"
+    )
+    _write(tmp_path, "prd", "prd.md", doc)
+    config = KGConfig(store_backend="memory", kg_active_doc_types={"prd"})
+    handle = init_store(config, force=True)
+    run_migration(handle.raw, tmp_path, config, doc_types=("prd",))
+
+    section_query = _NS + 'SELECT ?sec WHERE { ?s cf:entity_id "AC-001" ; cf:source_section ?sec }'
+    assert _one_value(handle.raw, section_query) == "F-001 登录"
+
+    # The heading rename leaves AC-001's hash unchanged (home-sync path) while
+    # the changed sections give repair something to reingest.
+    _write(tmp_path, "prd", "prd.md", doc.replace("### F-001 登录", "### F-001 用户登录"))
+
+    def _boom(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("injected structure-write failure")
+
+    monkeypatch.setattr(repair_mod, "write_structure", _boom)
+    stats = repair_mod.repair(handle.raw, tmp_path, config)
+
+    assert any("injected structure-write failure" in e for e in stats.errors), stats.errors
+    assert _one_value(handle.raw, section_query) == "F-001 登录"
+
+
 def test_entity_home_sync_quads_rehomes_source_doc(tmp_path: Path) -> None:
     from cataforge.domain.kg._quads import entity_home_sync_quads
     from cataforge.domain.kg.ingest.iri import entity_iri

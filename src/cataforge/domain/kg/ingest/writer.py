@@ -59,6 +59,9 @@ class WriteStats:
     relations_skipped: int = 0
     written_iris: list[str] = field(default_factory=list)
     written_relation_quads: list[Any] = field(default_factory=list)
+    # (removed, added) quad pairs applied by the hash-skip home sync, so a
+    # batch rollback can invert them (they bypass the written_iris ledger).
+    home_synced: list[tuple[list[Any], list[Any]]] = field(default_factory=list)
 
 
 @dataclass
@@ -148,6 +151,8 @@ def write_entities(
                 store.remove(q)
             for q in adds:
                 store.add(q)
+            if removes or adds:
+                stats.home_synced.append((removes, adds))
             stats.entities_skipped += 1
             continue
 
@@ -169,6 +174,21 @@ def write_entities(
         stats.entities_written += 1
         stats.written_iris.append(iri)
     return stats
+
+
+def revert_home_synced(store: ox.Store, home_synced: list[tuple[list[Any], list[Any]]]) -> None:
+    """Invert applied hash-skip home syncs (best-effort).
+
+    Home syncs mutate slots on nodes outside the written-subject ledger, so
+    every batch compensation path calls this before its own restore pass.
+    """
+    for removed, added in reversed(home_synced):
+        for q in added:
+            with contextlib.suppress(Exception):
+                store.remove(q)
+        for q in removed:
+            with contextlib.suppress(Exception):
+                store.add(q)
 
 
 def _triple_exists(
@@ -359,6 +379,17 @@ def _sections_of_document(store: ox.Store, namespace: str, doc_iri: str) -> set[
     return out
 
 
+def stale_section_iris(
+    store: ox.Store, namespace: str, doc_iri: str, live_iris: set[str]
+) -> set[str]:
+    """Section IRIs attached to ``doc_iri`` that ``live_iris`` no longer accounts for.
+
+    The single definition of "stale structure" — both the ingest cleanup and
+    the authoring whole-document replace subtract against it.
+    """
+    return _sections_of_document(store, namespace, doc_iri) - live_iris
+
+
 def _documents_with_source_path(store: ox.Store, namespace: str, source_path: str) -> set[str]:
     literal = escape_sparql_literal(source_path)
     sparql = (
@@ -397,8 +428,8 @@ def _cleanup_stale_structure(
         )
     for document in documents:
         doc_iri = document_iri(document.doc_id, base_ns)
-        for stale in _sections_of_document(store, namespace, doc_iri) - live_sections.get(
-            doc_iri, set()
+        for stale in stale_section_iris(
+            store, namespace, doc_iri, live_sections.get(doc_iri, set())
         ):
             _remove_subject(store, stale, namespace)
         if not document.source_path:

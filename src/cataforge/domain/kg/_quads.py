@@ -417,6 +417,8 @@ __all__ = [
     "build_entity_quads",
     "build_relation_quad",
     "build_section_quads",
+    "content_hash_matches",
+    "entity_home_sync_quads",
     "quads_for_subject",
     "quads_targeting",
 ]

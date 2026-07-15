@@ -172,6 +172,26 @@ def test_repair_refuses_collision_and_leaves_sections_intact(tmp_path: Path) -> 
     assert _typed_count(handle.raw, config, "Section") == sections_before
 
 
+def test_reconcile_marks_collision_doc_type_documents_manual(tmp_path: Path) -> None:
+    # A collision makes the whole doc_type's FS side unreliable — drift
+    # records for its stored documents must demand a human decision instead
+    # of recommending an automatic export/ingest that would act on bad data.
+    from cataforge.domain.kg.reconcile import reconcile
+
+    _write(tmp_path, "dev-plan", "dev-plan.md", "# 计划\n\n## §1 一\n\n甲。\n")
+    config = KGConfig(store_backend="memory", kg_active_doc_types={"dev-plan"})
+    handle = init_store(config, force=True)
+    run_migration(handle.raw, tmp_path, config, doc_types=("dev-plan",))
+
+    _write(tmp_path, "dev-plan", "dev-plan-b.md", "# 乙\n\n## §1 一\n\n乙。\n")
+    report = reconcile(handle.raw, tmp_path, config)
+
+    records = [d for d in report.documents if d.source_path == "docs/dev-plan/dev-plan.md"]
+    assert records and all(d.remediation == "manual" for d in records), [
+        d.to_dict() for d in report.documents
+    ]
+
+
 # --- reconcile surfaces the collision as a finding -----------------------------
 
 

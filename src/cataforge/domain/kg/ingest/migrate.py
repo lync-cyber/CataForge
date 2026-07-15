@@ -34,6 +34,7 @@ from cataforge.domain.kg.ingest.verify import VerifyResult, verify_after_write
 from cataforge.domain.kg.ingest.writer import (
     StructureWriteStats,
     WriteStats,
+    revert_home_synced,
     write_entities,
     write_project,
     write_relations,
@@ -232,6 +233,7 @@ def _write_phase5(
             (write_stats.written_iris if write_stats is not None else []) + structure_iris,
             rel_stats.written_relation_quads if rel_stats is not None else [],
             config,
+            home_synced=write_stats.home_synced if write_stats is not None else [],
         )
         raise
 
@@ -252,11 +254,15 @@ def _rollback_phase5(
     written_subject_iris: list[str],
     written_relation_quads: list[Any],
     config: KGConfig,
+    *,
+    home_synced: list[tuple[list[Any], list[Any]]] | None = None,
 ) -> None:
     """Best-effort compensating rollback for Phase 5 partial writes."""
     import pyoxigraph as ox  # noqa: PLC0415
 
     from cataforge.domain.kg._quads import quads_for_subject as _quads_for_subject
+
+    revert_home_synced(store, home_synced or [])
 
     for iri in written_subject_iris:
         for q in _quads_for_subject(store, iri):
