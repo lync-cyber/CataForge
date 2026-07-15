@@ -42,7 +42,7 @@ def upgrade_group() -> None:
 @upgrade_group.command("check")
 def upgrade_check() -> None:
     """Compare the in-project scaffold version against the installed package."""
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     cfg = get_config_manager()
     scaffold_version = cfg.version
@@ -61,7 +61,7 @@ def upgrade_check() -> None:
         )
         return
 
-    from cataforge.interface.cli.guidance import print_next_steps
+    from cataforge.interface.cli._support.guidance import print_next_steps
 
     if scaffold_version == installed:
         click.echo("\nScaffold is up to date with the installed package.")
@@ -101,7 +101,7 @@ def _apply_dry_run() -> None:
     """Show what ``upgrade apply`` would change, without writing anything."""
     from cataforge.core.scaffold import SIDECAR_SUFFIX, classify_scaffold_files
     from cataforge.core.tallies import classify_tallies
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     cfg = get_config_manager()
     dest = cfg.paths.cataforge_dir
@@ -170,7 +170,7 @@ def _remind_post_upgrade_steps(cfg: ConfigManager) -> None:
     # `cataforge deploy`, not scaffold refresh. If a deploy has happened at
     # least once, remind the user to re-run it so the refreshed scaffold lands
     # in the IDE-facing directory.
-    from cataforge.interface.cli.guidance import print_next_steps
+    from cataforge.interface.cli._support.guidance import print_next_steps
     from cataforge.runtime.deploy.manifest import deployed_platforms
 
     if deployed_platforms(cfg.paths.root):
@@ -190,7 +190,7 @@ def upgrade_apply(dry_run: bool) -> None:
     itself must be upgraded separately via pip/uv.
     """
     from cataforge.core.scaffold import copy_scaffold_to, format_protected_warning
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     if dry_run:
         _apply_dry_run()
@@ -287,7 +287,7 @@ def upgrade_rollback(
     reversible), then the chosen snapshot is restored.
     """
     from cataforge.core.scaffold import list_backups, restore_backup
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     cfg = get_config_manager()
     dest = cfg.paths.cataforge_dir

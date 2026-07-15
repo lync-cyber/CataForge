@@ -14,7 +14,7 @@ from typing import Any
 import click
 
 from cataforge.core.errors import CataforgeError
-from cataforge.interface.cli.helpers import resolve_root
+from cataforge.interface.cli._support.helpers import resolve_root
 
 
 def _raise_on_nonzero(code: int, command_label: str) -> None:

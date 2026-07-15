@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import click
 
 from cataforge.core.errors import CataforgeError, KGStoreError
-from cataforge.interface.cli._hints import NO_RELATIONS_HINT
+from cataforge.interface.cli._support._hints import NO_RELATIONS_HINT
 from cataforge.interface.cli.main import cli
 
 if TYPE_CHECKING:
@@ -81,7 +81,7 @@ def _rooted(ctx: click.Context, project_root: str | None) -> str:
     ``--project-dir``, and absent both it falls back to the discovered project
     root. The single return type lets callers drop per-command fallbacks.
     """
-    from cataforge.interface.cli.helpers import resolve_root, root_relative_default
+    from cataforge.interface.cli._support.helpers import resolve_root, root_relative_default
 
     resolved = root_relative_default(ctx, "project_root", project_root)
     return str(resolved) if resolved is not None else str(resolve_root())
@@ -103,7 +103,7 @@ def context_read(
     budget: int | None,
 ) -> None:
     """Mode-routed section read of ``doc_id#§N[.item]`` REFS."""
-    from cataforge.interface.cli.doc_io import run_load
+    from cataforge.interface.cli._support.doc_io import run_load
 
     run_load(
         refs,
@@ -145,7 +145,7 @@ def context_index(
     dry_run: bool,
 ) -> None:
     """Build or update the chapter-level JSON index ``docs/.doc-index.json``."""
-    from cataforge.interface.cli.doc_io import run_index
+    from cataforge.interface.cli._support.doc_io import run_index
 
     run_index(
         _rooted(ctx, project_root),
@@ -174,7 +174,7 @@ def context_validate(ctx: click.Context, project_root: str | None) -> None:
 
     Exits 0 when clean, 3 when any failure is found.
     """
-    from cataforge.interface.cli.doc_io import run_validate
+    from cataforge.interface.cli._support.doc_io import run_validate
 
     run_validate(_rooted(ctx, project_root))
 

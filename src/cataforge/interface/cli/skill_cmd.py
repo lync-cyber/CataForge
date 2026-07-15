@@ -5,8 +5,8 @@ from __future__ import annotations
 import click
 
 from cataforge.core.errors import CataforgeError, ConfigError
-from cataforge.interface.cli.guards import require_initialized
-from cataforge.interface.cli.helpers import emit_hint, resolve_root
+from cataforge.interface.cli._support.guards import require_initialized
+from cataforge.interface.cli._support.helpers import emit_hint, resolve_root
 from cataforge.interface.cli.main import cli
 
 
@@ -23,7 +23,7 @@ def skill_group() -> None:
 @require_initialized
 def skill_list() -> None:
     """List all skills discovered under ``.cataforge/skills/``."""
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
     from cataforge.runtime.skill.loader import SkillLoader
 
     loader = SkillLoader(project_root=resolve_root())

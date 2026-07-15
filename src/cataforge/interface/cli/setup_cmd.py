@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import click
 
 from cataforge.adapter.platform.conformance import ALL_PLATFORMS
-from cataforge.interface.cli.errors import CataforgeGroup
+from cataforge.interface.cli._support.errors import CataforgeGroup
 from cataforge.interface.cli.main import cli
 from cataforge.utils.atomic_write import atomic_write_text
 
@@ -131,7 +131,7 @@ def setup_command(
     from cataforge.core.config import ConfigManager
     from cataforge.core.events import FRAMEWORK_SETUP, EventBus
     from cataforge.core.paths import find_project_root_or_none
-    from cataforge.interface.cli.helpers import resolve_project_dir
+    from cataforge.interface.cli._support.helpers import resolve_project_dir
 
     # Resolve the project root. `--project-dir` is the explicit opt-in to target
     # any directory (including a parent project). Without it, setup initialises
@@ -211,8 +211,8 @@ def setup_command(
     _apply_context_mode(cfg, context_mode, scaffold_missing=scaffold_missing)
     _apply_penpot(cfg, with_penpot)
 
-    from cataforge.interface.cli.guidance import print_next_steps
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.guidance import print_next_steps
+    from cataforge.interface.cli._support.ui import ui
 
     if not deploy_after:
         bus.emit(
@@ -416,7 +416,7 @@ def _apply_context_mode(cfg: ConfigManager, mode: str | None, *, scaffold_missin
 
 
 def _prompt_context_mode() -> str:
-    from cataforge.interface.cli.ui import ChoiceOption, ui
+    from cataforge.interface.cli._support.ui import ChoiceOption, ui
 
     choice = ui.prompt_choice(
         "上下文事实源模式",
@@ -454,7 +454,7 @@ def _run_checks(cfg: ConfigManager) -> None:
 def _setup_root() -> Path:
     """Project root for stack-scoped subcommands: explicit override, else walk up."""
     from cataforge.core.paths import find_project_root_or_none
-    from cataforge.interface.cli.helpers import resolve_project_dir
+    from cataforge.interface.cli._support.helpers import resolve_project_dir
 
     override = resolve_project_dir()
     if override is not None:

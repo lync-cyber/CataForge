@@ -7,8 +7,8 @@ import yaml
 from pydantic import ValidationError
 
 from cataforge.core.errors import CataforgeError, ConfigError
-from cataforge.interface.cli.guards import require_initialized
-from cataforge.interface.cli.helpers import emit_hint, resolve_root
+from cataforge.interface.cli._support.guards import require_initialized
+from cataforge.interface.cli._support.helpers import emit_hint, resolve_root
 from cataforge.interface.cli.main import cli
 
 
@@ -26,7 +26,7 @@ def mcp_group() -> None:
 @require_initialized
 def mcp_list() -> None:
     """List all registered MCP servers."""
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
     from cataforge.runtime.mcp.registry import MCPRegistry
 
     registry = MCPRegistry(project_root=resolve_root())

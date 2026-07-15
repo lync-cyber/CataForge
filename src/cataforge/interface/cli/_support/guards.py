@@ -33,7 +33,7 @@ def require_initialized(func: F) -> F:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         from cataforge.core.paths import find_project_root
-        from cataforge.interface.cli.helpers import resolve_project_dir
+        from cataforge.interface.cli._support.helpers import resolve_project_dir
 
         # Honour --project-dir if set, else walk up from cwd. This keeps
         # the guard consistent with how subcommand helpers resolve root.

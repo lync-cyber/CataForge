@@ -42,7 +42,7 @@ __all__ = [
     "ui",
 ]
 
-_logger = logging.getLogger("cataforge.interface.cli.ui")
+_logger = logging.getLogger("cataforge.interface.cli._support.ui")
 
 # ---------------------------------------------------------------------------
 # Terminal capability detection
@@ -443,7 +443,7 @@ ui = UI()
 
 Reconfiguration at test time::
 
-    from cataforge.interface.cli import ui as ui_mod
+    from cataforge.interface.cli._support import ui as ui_mod
     ui_mod.ui = ui_mod.UI(color=False, unicode=True, stdout=io.StringIO())
 """
 

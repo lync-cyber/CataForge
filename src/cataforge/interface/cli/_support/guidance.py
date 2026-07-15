@@ -17,7 +17,7 @@ silently no-ops, so subcommands don't need conditional branches.
 
 from __future__ import annotations
 
-from cataforge.interface.cli.ui import NextStep, ui
+from cataforge.interface.cli._support.ui import NextStep, ui
 
 NEXT_STEPS: dict[str, list[NextStep]] = {
     "setup-done": [

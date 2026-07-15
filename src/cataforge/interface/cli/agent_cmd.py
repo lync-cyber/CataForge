@@ -9,8 +9,8 @@ import sys
 import click
 
 from cataforge.core.errors import CataforgeError
-from cataforge.interface.cli.guards import require_initialized
-from cataforge.interface.cli.helpers import emit_hint, resolve_root
+from cataforge.interface.cli._support.guards import require_initialized
+from cataforge.interface.cli._support.helpers import emit_hint, resolve_root
 from cataforge.interface.cli.main import cli
 from cataforge.utils.run_subprocess import run as run_proc
 
@@ -38,7 +38,7 @@ def agent_group() -> None:
 @require_initialized
 def agent_list(show_skills: bool) -> None:
     """List all registered agents (from ``.cataforge/agents/``)."""
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
     from cataforge.runtime.agent.manager import AgentManager
 
     mgr = AgentManager(project_root=resolve_root())
@@ -68,7 +68,7 @@ def agent_validate(agent_id: str | None) -> None:
     Checks AGENT.md frontmatter, declared tools, and model field.
     Fails with exit 1 if any issue is found, so it can gate CI.
     """
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
     from cataforge.runtime.agent.manager import AgentManager
 
     mgr = AgentManager(project_root=resolve_root())

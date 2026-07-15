@@ -128,7 +128,7 @@ def deploy_command(
           Validate every platform profile against its schema and exit.
     """
     from cataforge.core.events import EventBus
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     cfg = get_config_manager()
     bus = EventBus()
@@ -166,8 +166,8 @@ def deploy_command(
 
     deployer = Deployer(cfg, bus)
 
-    from cataforge.interface.cli.guidance import print_next_steps
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.guidance import print_next_steps
+    from cataforge.interface.cli._support.ui import ui
 
     def _run_all() -> None:
         for target in targets:

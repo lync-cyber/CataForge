@@ -31,7 +31,7 @@ from pathlib import Path
 import click
 
 from cataforge import __version__
-from cataforge.interface.cli.errors import CataforgeGroup
+from cataforge.interface.cli._support.errors import CataforgeGroup
 from cataforge.utils.encoding import ensure_utf8
 
 # Reconfigure stdout/stderr to UTF-8 before any command runs, so users never need

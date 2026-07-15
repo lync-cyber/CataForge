@@ -11,7 +11,7 @@ import pytest
 from click.testing import CliRunner
 
 from cataforge.core.errors import CataforgeError
-from cataforge.interface.cli.errors import CataforgeGroup
+from cataforge.interface.cli._support.errors import CataforgeGroup
 from cataforge.interface.cli.feedback_cmd import bug_command, suggest_command
 
 

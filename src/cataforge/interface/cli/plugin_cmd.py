@@ -6,8 +6,8 @@ from pathlib import Path
 
 import click
 
-from cataforge.interface.cli.guards import require_initialized
-from cataforge.interface.cli.helpers import emit_hint, resolve_root
+from cataforge.interface.cli._support.guards import require_initialized
+from cataforge.interface.cli._support.helpers import emit_hint, resolve_root
 from cataforge.interface.cli.main import cli
 
 
@@ -28,7 +28,7 @@ def plugin_group() -> None:
 @require_initialized
 def plugin_list() -> None:
     """List all discovered plugins (entry-point + local)."""
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
     from cataforge.runtime.plugin.loader import PluginLoader
 
     loader = PluginLoader(project_root=resolve_root())

@@ -108,7 +108,7 @@ def bootstrap_command(
       cataforge bootstrap --dry-run
           Print the plan without writing anything.
     """
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     cfg = get_config_manager()
     plan = build_plan(cfg, requested_platform=platform, requested_mode=context_mode)
@@ -123,7 +123,7 @@ def bootstrap_command(
         raise click.ClickException(plan.error)
 
     if not yes and plan.any_writes() and not _confirm_plan(plan):
-        from cataforge.interface.cli.ui import ui
+        from cataforge.interface.cli._support.ui import ui
 
         ui.warn("Aborted.")
         raise click.exceptions.Exit(1)
@@ -155,7 +155,7 @@ def _print_plan(plan: Plan, *, dry_run: bool) -> None:
 
 
 def _confirm_plan(plan: Plan) -> bool:
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     n_run = sum(1 for s in plan.steps if s.action == "run")
     return ui.prompt_confirm(f"Run {n_run} step(s)?", default=True)
@@ -207,7 +207,7 @@ def _execute_plan(
     """
     from cataforge.core.events import FRAMEWORK_SETUP, EventBus
     from cataforge.core.scaffold import copy_scaffold_to
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     bus = EventBus()
 
@@ -324,7 +324,7 @@ def _execute_plan(
 def _ensure_gitattributes(cfg: ConfigManager) -> None:
     """Ensure line-ending policy exists during bootstrap without overwriting custom files."""
     from cataforge.application.services.git_hygiene import ensure_gitattributes
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     status = ensure_gitattributes(cfg.paths.root)
     if status.wrote_file:
@@ -342,7 +342,7 @@ def _lift_design_tool(cfg: ConfigManager) -> None:
     `upgrade apply`. Idempotent — a no-op once design_tool is non-default.
     """
     from cataforge.application.services.upgrade import lift_design_tool_intent
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     lifted = lift_design_tool_intent(cfg)
     if lifted:
@@ -361,7 +361,7 @@ def _maybe_ensure_merge_policy(cfg: ConfigManager) -> None:
     """
     import shutil
 
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     if shutil.which("gh") is None:
         return
@@ -397,7 +397,7 @@ def _maybe_init_kg_store(cfg: ConfigManager) -> None:
     bootstrap must not be stranded by a hydration hiccup.
     """
     from cataforge.domain.kg._dispatch import invalidate_cache
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     invalidate_cache()  # setup may have rewritten context.mode this run
     try:
