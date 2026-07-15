@@ -1058,7 +1058,7 @@ class TestHtmlRenderer:
         assert 'class="cat"' not in out
         assert '"tip":' in out
         assert "run: cataforge context reconcile" in out
-        assert "d.className='viztip'" in out  # hover-card element wired into initGraph
+        assert "d.className = 'viztip'" in out  # hover-card element wired into initGraph
 
     def test_node_without_data_or_status_has_no_tip(self) -> None:
         plain = Graph(nodes=(Node("a", label="A"), Node("b", label="B")), edges=(Edge("a", "b"),))
@@ -1483,7 +1483,7 @@ class TestDashboard:
         out = html.render_dashboard(tmp_path)
         assert 'id="omni"' in out
         assert "__viz.setIndex(" in out
-        assert "window.__viz.focus=function" in out
+        assert "window.__viz.focus = function" in out
 
     def test_omnibox_index_maps_entities_to_panels(self, tmp_path: Path) -> None:
         # every graph/table panel's entities are findable: id + label + panel
@@ -1507,7 +1507,7 @@ class TestDashboard:
         _make_dashboard_project(tmp_path)
         out = html.render_dashboard(tmp_path)
         assert 'id="inspector"' in out
-        assert "__viz.inspect=" in out
+        assert "__viz.inspect =" in out
 
     def test_degraded_panel_reuses_status_guidance(self, tmp_path: Path) -> None:
         _make_dashboard_project(tmp_path)

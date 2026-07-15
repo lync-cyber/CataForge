@@ -1,0 +1,8 @@
+{
+  "overrides": [
+    {
+      "files": "src/cataforge/application/viz/assets/*.js",
+      "options": { "singleQuote": true }
+    }
+  ]
+}

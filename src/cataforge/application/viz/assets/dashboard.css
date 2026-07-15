@@ -1,3 +1,4 @@
+/* cataforge: allow(ui_fidelity, reason="--viz-* tokens are consumed at runtime via getComputedStyle().getPropertyValue() in dashboard.js, invisible to the static var() scan") */
 :root{
   --bg:#fff; --fg:#222; --strong:#1f2d3d; --muted:#637288; --faint:#656e79;
   --line:#e3e6ea; --line-soft:#eef1f4; --row-line:#f0f2f5;
