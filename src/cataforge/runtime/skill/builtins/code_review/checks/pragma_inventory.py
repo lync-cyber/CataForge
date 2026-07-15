@@ -3,9 +3,12 @@
 Enumerates every ``cataforge: allow(...)`` pragma in the scanned tree
 (check id, reason, location, git-blame age) so exemption sprawl stays
 visible and reviewable — legal escape hatches must not silently
-accumulate. Lines carrying a ``cataforge``-marker comment that does NOT
-parse as the unified grammar are reported as unknown-pragma (legacy
-syntax residue no longer honored by any check). Prose files are skipped
+accumulate. Colon-marker verbs (``cataforge: <verb>``) that do NOT parse
+as the unified grammar are reported as unknown-pragma (legacy syntax
+residue no longer honored by any check). Not candidates: hyphenated
+``cataforge-<word>`` identifiers, quote/backtick-preceded occurrences
+(log strings and documentation quoting the grammar), and
+``allow(<check-id>`` template placeholders. Prose files are skipped
 (grammar docs quote pragma examples).
 """
 
@@ -28,8 +31,23 @@ from cataforge.utils.run_subprocess import run as run_proc
 CHECK_ID = "code_review.pragma_inventory"
 GIT_TIMEOUT_SECS = 30
 
-_CANDIDATE_RE = re.compile(r"cataforge[:\-]\s*[\w(-]+")
+_CANDIDATE_RE = re.compile(r"cataforge:\s*[A-Za-z_][\w-]*")
 _ALLOW_MARK_RE = re.compile(r"cataforge:\s*allow\(")
+_QUOTE_CHARS = "'\"`"
+
+
+def _pragma_candidates(line: str) -> int:
+    """Count exemption *attempts* on the line, excluding prose mentions."""
+    count = 0
+    for match in _CANDIDATE_RE.finditer(line):
+        if match.start() > 0 and line[match.start() - 1] in _QUOTE_CHARS:
+            continue
+        if line[match.end() :].lstrip().startswith("(<"):
+            continue
+        count += 1
+    return count
+
+
 _BLAME_TIME_RE = re.compile(r"^committer-time (\d+)$", re.MULTILINE)
 _PROSE_SUFFIXES = frozenset({".md", ".rst", ".txt"})
 _SECONDS_PER_DAY = 86400
@@ -61,11 +79,11 @@ def _inventory_file(root: Path, path: Path, text: str) -> list[Finding]:
     except ValueError:
         rel = str(path)
     for lineno, line in enumerate(text.splitlines(), start=1):
-        candidates = _CANDIDATE_RE.findall(line)
+        candidates = _pragma_candidates(line)
         if not candidates:
             continue
         parsed = len(_ALLOW_MARK_RE.findall(line)) if lineno in allow_lines else 0
-        if len(candidates) > parsed:
+        if candidates > parsed:
             findings.append(
                 Finding(
                     check_id=CHECK_ID,

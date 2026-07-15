@@ -155,6 +155,42 @@ def test_pragma_inventory_lists_allowances_and_flags_legacy(tmp_path: Path) -> N
     assert all(f.severity == "info" for f in findings)
 
 
+def test_pragma_inventory_ignores_identifier_and_quoted_mentions(tmp_path: Path) -> None:
+    """Hyphenated identifiers, log-string prefixes, and quoted grammar
+    examples are prose mentions, not exemption attempts."""
+    (tmp_path / "idents.py").write_text(
+        'SIDECAR = ".cataforge-new"\n'
+        'AUTHOR = "cataforge-unattended"\n'
+        'FLAG = "--cataforge-platform"\n'
+        'MANIFEST = "cataforge-plugin.yaml"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "log.py").write_text(
+        'print(f"cataforge: fast-forwarded {branch} ")\n', encoding="utf-8"
+    )
+    (tmp_path / "doc.py").write_text(
+        '"""Add ``cataforge: allow(complexity_gate,\n'
+        'reason="..."`` on the definition line, grammar:\n'
+        '    cataforge: allow(<check-id>, reason="<非空理由>")\n'
+        '"""\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "msg.py").write_text(
+        "raise ValueError('cataforge: allow(<check-id>, reason=\"...\")（见 grammar）')\n",
+        encoding="utf-8",
+    )
+    assert pragma_inventory.run(_ctx(tmp_path)) == []
+
+
+def test_pragma_inventory_flags_malformed_attempts(tmp_path: Path) -> None:
+    (tmp_path / "typo.ts").write_text("// cataforge: alow(ui_fidelity)\n", encoding="utf-8")
+    (tmp_path / "noparen.ts").write_text("// cataforge:allow ui_fidelity\n", encoding="utf-8")
+    (tmp_path / "unclosed.ts").write_text("// cataforge: allow(ui_fidelity\n", encoding="utf-8")
+    findings = pragma_inventory.run(_ctx(tmp_path))
+    assert len(findings) == 3
+    assert all("unknown-pragma" in f.detail for f in findings)
+
+
 def test_pragma_inventory_blame_aging_in_git_repo(tmp_path: Path) -> None:
     for args in (("init", "-q"), ("config", "user.email", "t@t"), ("config", "user.name", "t")):
         assert run_proc(["git", *args], cwd=tmp_path).returncode == 0
