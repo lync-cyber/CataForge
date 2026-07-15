@@ -31,6 +31,7 @@ from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.scan import format_doc_id_collisions, scan_business_docs
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
 from cataforge.domain.kg.ingest.writer import (
+    revert_home_synced,
     write_entities,
     write_project,
     write_relations,
@@ -155,10 +156,14 @@ def _reingest_doc_type(
     project_root: Path,
     doc_type: str,
     config: KGConfig,
+    *,
+    home_synced_out: list[tuple[list[Any], list[Any]]] | None = None,
 ) -> tuple[int, int]:
     """Re-run the ingest pipeline for a single doc_type.
 
-    Returns ``(entities_written, sections_written)``.
+    Returns ``(entities_written, sections_written)``. Applied hash-skip home
+    syncs are appended to ``home_synced_out`` as they land, so the caller's
+    failure branch can invert them even when a later write in the batch raises.
     """
     parsed = scan_business_docs(project_root, [doc_type])
     if not parsed:
@@ -187,6 +192,8 @@ def _reingest_doc_type(
     sections_total = 0
     for entities, relations, document, doc_sections in extracted:
         ws = write_entities(store, entities, project_iri, config)
+        if home_synced_out is not None:
+            home_synced_out.extend(ws.home_synced)
         write_relations(store, relations, config)
         ss = write_structure(store, [document], doc_sections, config)
         entities_total += ws.entities_written
@@ -394,14 +401,16 @@ def _ingest_missing(
         stats.missing_ingested += len(per.missing_entities) + len(per.missing_relations)
         stats.missing_sections_ingested += len(per.missing_sections)
         return
+    home_synced: list[tuple[list[Any], list[Any]]] = []
     try:
         entities_written, sections_written = _reingest_doc_type(
-            store, project_root, per.doc_type, config
+            store, project_root, per.doc_type, config, home_synced_out=home_synced
         )
         stats.missing_ingested += entities_written
         stats.missing_sections_ingested += sections_written
     except Exception as exc:  # noqa: BLE001
         stats.errors.append(f"reingest {per.doc_type}: {exc}")
+        revert_home_synced(store, home_synced)
         stats.errors.extend(
             _restore_ghosts(store, entity_snapshots, relation_snapshots, section_snapshots)
         )

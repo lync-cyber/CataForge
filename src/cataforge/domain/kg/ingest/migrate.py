@@ -34,6 +34,7 @@ from cataforge.domain.kg.ingest.verify import VerifyResult, verify_after_write
 from cataforge.domain.kg.ingest.writer import (
     StructureWriteStats,
     WriteStats,
+    revert_home_synced,
     write_entities,
     write_project,
     write_relations,
@@ -261,15 +262,7 @@ def _rollback_phase5(
 
     from cataforge.domain.kg._quads import quads_for_subject as _quads_for_subject
 
-    # Invert hash-skip home syncs first — they mutate slots on nodes that are
-    # not in the written-subject ledger.
-    for removed, added in reversed(home_synced or []):
-        for q in added:
-            with contextlib.suppress(Exception):
-                store.remove(q)
-        for q in removed:
-            with contextlib.suppress(Exception):
-                store.add(q)
+    revert_home_synced(store, home_synced or [])
 
     for iri in written_subject_iris:
         for q in _quads_for_subject(store, iri):

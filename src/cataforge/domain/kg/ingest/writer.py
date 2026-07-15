@@ -176,6 +176,21 @@ def write_entities(
     return stats
 
 
+def revert_home_synced(store: ox.Store, home_synced: list[tuple[list[Any], list[Any]]]) -> None:
+    """Invert applied hash-skip home syncs (best-effort).
+
+    Home syncs mutate slots on nodes outside the written-subject ledger, so
+    every batch compensation path calls this before its own restore pass.
+    """
+    for removed, added in reversed(home_synced):
+        for q in added:
+            with contextlib.suppress(Exception):
+                store.remove(q)
+        for q in removed:
+            with contextlib.suppress(Exception):
+                store.add(q)
+
+
 def _triple_exists(
     store: ox.Store,
     subject: str,
