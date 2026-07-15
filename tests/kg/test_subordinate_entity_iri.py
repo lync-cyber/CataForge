@@ -163,8 +163,7 @@ def test_cross_doc_ac_xref_resolves_to_nested_node(tmp_path: Path) -> None:
         tmp_path,
         "dev-plan",
         "dev-plan.md",
-        "---\nid: dev-plan\n---\n# Dev Plan\n\n## §5\n\n"
-        "### T-001 骨架\n\n满足 AC: prd#§2.AC-001\n",
+        "---\nid: dev-plan\n---\n# Dev Plan\n\n## §5\n\n### T-001 骨架\n\n满足 AC: prd#§2.AC-001\n",
     )
 
     config = KGConfig(store_backend="memory", kg_active_doc_types={"prd", "dev-plan"})
