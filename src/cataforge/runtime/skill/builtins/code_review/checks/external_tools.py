@@ -3,6 +3,9 @@
 Each :class:`LintFamily` is one manifest entry; a family may drive several
 tool commands (Ruff check + format). Tools that aren't installed emit one
 WARN finding and are skipped — toolchain availability never hard-gates.
+Families with ``config_markers`` are likewise skipped with a WARN when the
+project root carries none of the marker files: a resolvable binary on a
+project that never adopted the tool is "not configured", not a failure.
 """
 
 from __future__ import annotations
@@ -38,9 +41,24 @@ class LintFamily:
     title: str
     extensions: frozenset[str]
     tools: tuple[Tool, ...]
+    config_markers: tuple[str, ...] = ()
 
 
 _JS_EXTS = frozenset({".js", ".ts", ".jsx", ".tsx"})
+
+_ESLINT_CONFIG_MARKERS: tuple[str, ...] = (
+    "eslint.config.js",
+    "eslint.config.mjs",
+    "eslint.config.cjs",
+    "eslint.config.ts",
+    "eslint.config.mts",
+    "eslint.config.cts",
+    ".eslintrc.js",
+    ".eslintrc.cjs",
+    ".eslintrc.json",
+    ".eslintrc.yml",
+    ".eslintrc.yaml",
+)
 
 FAMILIES: tuple[LintFamily, ...] = (
     LintFamily(
@@ -55,6 +73,7 @@ FAMILIES: tuple[LintFamily, ...] = (
                 fix=("npx", "eslint", "--fix"),
             ),
         ),
+        config_markers=_ESLINT_CONFIG_MARKERS,
     ),
     LintFamily(
         check_id="code_review.prettier",
@@ -138,6 +157,21 @@ def _make_runner(family: LintFamily) -> Callable[[CheckContext], list[Finding]]:
         files = ctx.files(family.extensions)
         if not files:
             return findings
+        if family.config_markers:
+            root = ctx.project_root or (ctx.target if ctx.target.is_dir() else ctx.target.parent)
+            if not any((root / marker).is_file() for marker in family.config_markers):
+                findings.append(
+                    Finding(
+                        check_id=family.check_id,
+                        severity="warn",
+                        category="convention",
+                        detail=(
+                            f"{family.title}: 项目根未发现配置文件"
+                            f"（{family.config_markers[0]} 等），未采纳该工具，跳过"
+                        ),
+                    )
+                )
+                return findings
         for tool in family.tools:
             if not ctx.tool_available(tool.name, tool.detect) and ctx.first_missing_report(
                 tool.name

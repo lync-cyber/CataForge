@@ -33,6 +33,57 @@ def test_init_store_memory_backend_loads_subclass_axioms() -> None:
     )
 
 
+def test_bootstrap_requires_no_linkml_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Store bootstrap works from the packaged axioms artifact alone.
+
+    The published wheel's runtime dependencies exclude the linkml stack, so
+    `kg init` must never import it: blocking the import proves the bootstrap
+    path reads `_generated/subclass_axioms.ttl` instead of walking schemas.
+    """
+    import sys
+
+    blocked = {m for m in sys.modules if m.split(".", 1)[0] == "linkml_runtime"}
+    for name in blocked | {"linkml_runtime"}:
+        monkeypatch.setitem(sys.modules, name, None)
+
+    from cataforge.domain.kg import KGConfig, init_store
+
+    handle = init_store(KGConfig(store_backend="memory"))
+    assert handle.ask(
+        "ASK { <https://cataforge.dev/ontology/Feature> "
+        "<http://www.w3.org/2000/01/rdf-schema#subClassOf> "
+        "<https://cataforge.dev/ontology/Requirement> }"
+    )
+
+
+@pytest.mark.parametrize("include_governance", [False, True])
+def test_bootstrap_axioms_match_schema_walk(include_governance: bool) -> None:
+    """Packaged-artifact bootstrap inserts exactly the axioms the LinkML walk yields."""
+    import pyoxigraph as ox
+
+    from cataforge.domain.kg import KGConfig, init_store
+    from cataforge.domain.kg._schema_axioms import (
+        expand_curie,
+        iter_subclass_axioms,
+        prefix_map,
+    )
+
+    prefixes = prefix_map(include_governance=include_governance)
+    expected = {
+        (expand_curie(child, prefixes), expand_curie(parent, prefixes))
+        for child, parent in iter_subclass_axioms(include_governance=include_governance)
+    }
+    assert expected, "schema walk yielded zero axioms — fixture assumptions broken"
+
+    handle = init_store(KGConfig(store_backend="memory", governance=include_governance))
+    subclassof = ox.NamedNode("http://www.w3.org/2000/01/rdf-schema#subClassOf")
+    actual = {
+        (quad.subject.value, quad.object.value)
+        for quad in handle.raw.quads_for_pattern(None, subclassof, None, None)
+    }
+    assert actual == expected
+
+
 def test_subclass_closure_query_returns_page_for_screen() -> None:
     """spike-2 §2.1 acceptance: `a/rdfs:subClassOf* cf:Screen` returns Page.
 

@@ -57,6 +57,33 @@ def test_review_wiring_warn_does_not_gate(tmp_path: Path) -> None:
     assert [w.line for w in warns] == [1]
 
 
+def test_eslint_skipped_with_warn_when_project_has_no_config(tmp_path: Path) -> None:
+    """A resolvable ESLint binary on a project that never adopted ESLint
+    (no config file at the root) is "not configured", not a lint failure."""
+    target = _fixture(tmp_path, dead_token=False)
+    tools = dict(_NO_TOOLS)
+    tools["ESLint"] = True
+    result = execute("review", target, project_root=target, tool_cache=tools)
+    assert result.exit_code == 0
+    eslint = [f for f in result.findings if f.check_id == "code_review.eslint"]
+    assert eslint and all(f.severity == "warn" for f in eslint)
+    assert "未发现配置" in eslint[0].detail
+
+
+def test_eslint_config_markers_cover_flat_and_legacy(tmp_path: Path) -> None:
+    from cataforge.runtime.skill.builtins.code_review.checks.external_tools import (
+        _ESLINT_CONFIG_MARKERS,
+    )
+
+    assert not any((tmp_path / m).is_file() for m in _ESLINT_CONFIG_MARKERS)
+    (tmp_path / "eslint.config.mjs").write_text("export default [];\n")
+    assert any((tmp_path / m).is_file() for m in _ESLINT_CONFIG_MARKERS)
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    (legacy / ".eslintrc.json").write_text("{}\n")
+    assert any((legacy / m).is_file() for m in _ESLINT_CONFIG_MARKERS)
+
+
 def test_review_dead_token_gates(tmp_path: Path) -> None:
     target = _fixture(tmp_path, dead_token=True)
     result = execute("review", target, project_root=target, tool_cache=dict(_NO_TOOLS))

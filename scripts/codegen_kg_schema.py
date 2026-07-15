@@ -5,13 +5,16 @@ Reads:
   - src/cataforge/domain/kg/schemas/core.yaml
   - src/cataforge/domain/kg/schemas/governance.yaml
 
-Writes (under src/cataforge/domain/kg/_generated/, gitignored):
+Writes (under src/cataforge/domain/kg/_generated/):
   - core_pydantic.py            Pydantic v2 models for the business ontology
-  - core_shapes.ttl             SHACL shapes for business ontology
-  - subclass_axioms.ttl         is_a chain materialized as rdfs:subClassOf triples;
-                                pyoxigraph 0.5.x has no RDFS entailment, so
-                                `cataforge kg init` (sub-PR 2) loads this at store
-                                bootstrap. See spike-2 §2.1 (issue #142).
+                                (committed; imported by the runtime)
+  - core_shapes.ttl             SHACL shapes for business ontology (gitignored:
+                                ShaclGenerator output is order-nondeterministic,
+                                see scripts/checks/check_codegen_fresh.py)
+  - subclass_axioms.ttl         is_a chain materialized as rdfs:subClassOf triples
+                                (committed and shipped in the wheel; `cataforge kg
+                                init` loads it at store bootstrap — pyoxigraph
+                                0.5.x has no RDFS entailment)
 
 Encoding: forces PYTHONIOENCODING=utf-8 in os.environ so any linkml internals
 that shell out do not hit the Windows GBK UnicodeEncodeError from spike-1 §1.4.

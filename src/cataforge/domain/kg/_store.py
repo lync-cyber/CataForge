@@ -1,8 +1,8 @@
 """KG store lifecycle — open / bootstrap / close.
 
 A thin wrapper around `pyoxigraph.Store` that opens either an in-memory or
-RocksDB-backed graph and materializes the LinkML `is_a` chain as
-`rdfs:subClassOf` triples.
+RocksDB-backed graph and loads the packaged `rdfs:subClassOf` axioms
+artifact (the LinkML `is_a` chain, materialized at codegen time).
 
 The `KnowledgeGraph` facade (query / trace / transaction sub-APIs) is
 layered on top of this primitive; this module's sole responsibility is
@@ -23,12 +23,7 @@ from cataforge.domain.kg._errors import (
     KGStoreAlreadyExistsError,
     KGStoreNotInitializedError,
 )
-from cataforge.domain.kg._schema_axioms import (
-    RDFS_SUBCLASSOF_IRI,
-    expand_curie,
-    iter_subclass_axioms,
-    prefix_map,
-)
+from cataforge.domain.kg._schema_axioms import GOVERNANCE_NS, packaged_axioms_path
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -73,7 +68,14 @@ def _open_pyoxigraph(
 
 
 def bootstrap_subclass_axioms(store: ox.Store, *, include_governance: bool = False) -> int:
-    """Insert `rdfs:subClassOf` triples derived from the LinkML `is_a` chain.
+    """Insert `rdfs:subClassOf` triples from the packaged axioms artifact.
+
+    The artifact materializes the LinkML `is_a` chain at codegen time
+    (`scripts/codegen_kg_schema.py`), so bootstrap needs no linkml stack at
+    runtime. Axioms whose subject lives in the governance namespace are
+    skipped unless the store is governance-enabled; subject-prefix filtering
+    is exact because core and governance classes never share an `is_a` edge
+    across namespaces (pinned by the schema-walk equivalence test).
 
     Returns the number of triples inserted. Idempotent: re-inserting an
     existing triple is a no-op at the RDF semantics layer (pyoxigraph
@@ -81,20 +83,18 @@ def bootstrap_subclass_axioms(store: ox.Store, *, include_governance: bool = Fal
     """
     import pyoxigraph as ox  # noqa: PLC0415
 
-    prefixes = prefix_map(include_governance=include_governance)
-    subclassof = ox.NamedNode(RDFS_SUBCLASSOF_IRI)
+    path = packaged_axioms_path()
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"packaged subclass-axioms artifact missing: {path} — "
+            "the cataforge installation is incomplete; reinstall the package"
+        )
 
     count = 0
-    for child_curie, parent_curie in iter_subclass_axioms(include_governance=include_governance):
-        child_iri = expand_curie(child_curie, prefixes)
-        parent_iri = expand_curie(parent_curie, prefixes)
-        store.add(
-            ox.Quad(
-                ox.NamedNode(child_iri),
-                subclassof,
-                ox.NamedNode(parent_iri),
-            )
-        )
+    for quad in ox.parse(path.read_bytes(), ox.RdfFormat.TURTLE):
+        if not include_governance and quad.subject.value.startswith(GOVERNANCE_NS):
+            continue
+        store.add(quad)
         count += 1
     return count
 

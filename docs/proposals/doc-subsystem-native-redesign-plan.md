@@ -1,6 +1,6 @@
 # 落地计划：文档子系统原生化重设计（可执行分解 + framework-review 核实）
 
-> 状态：草案（配套 [`doc-subsystem-native-redesign.md`](doc-subsystem-native-redesign.md)）
+> 状态：已实施（配套 [`doc-subsystem-native-redesign.md`](doc-subsystem-native-redesign.md)，实施偏离与已决项见其头部）。以代码为准，本文余下为历史实施记录。
 > 关系：提案讲「为什么 / 目标形态 / 决策」，本文件讲「改哪个文件的哪个函数 / 写什么 RED-first 测试 / 什么验收门 / 什么顺序」。§A 是 framework-review 静态核实结论（提案约定的双验之一，当下执行）；framework-walkthrough（动态端到端）留待各轨落地后。
 > 证据源：主线程直读源码核实，锚点标 `file:function[:line]`。
 

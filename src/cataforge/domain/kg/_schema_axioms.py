@@ -1,12 +1,11 @@
 """Walk LinkML `is_a` chain → `rdfs:subClassOf` axioms.
 
-Shared between:
-
-* `scripts/codegen_kg_schema.py` — writes `_generated/subclass_axioms.ttl`
-  as a maintainer-inspectable artifact.
-* `cataforge.domain.kg.store.bootstrap_subclass_axioms()` — inserts the same
-  triples directly into a fresh store at `cataforge kg init` time, with
-  no dependency on the codegen artifact existing on disk.
+`scripts/codegen_kg_schema.py` runs the walk (`iter_subclass_axioms` /
+`prefix_map`) to write `_generated/subclass_axioms.ttl`; those functions
+need the linkml stack from the `dev` extra. The runtime side
+(`cataforge.domain.kg._store.bootstrap_subclass_axioms()`) only reads the
+packaged artifact via `packaged_axioms_path()` — the published wheel has no
+linkml dependency.
 
 pyoxigraph 0.5.x performs no OWL/RDFS entailment, so property-path queries
 like `a/rdfs:subClassOf*` only traverse triples that are explicitly present.
@@ -22,7 +21,20 @@ from pathlib import Path
 CORE_SCHEMA = "core.yaml"
 GOVERNANCE_SCHEMA = "governance.yaml"
 
-RDFS_SUBCLASSOF_IRI = "http://www.w3.org/2000/01/rdf-schema#subClassOf"
+# Mirrors the `cfgov:` prefix in schemas/governance.yaml; equivalence is
+# pinned by tests/kg/test_store.py::test_bootstrap_axioms_match_schema_walk.
+GOVERNANCE_NS = "https://cataforge.dev/governance/"
+
+
+def packaged_axioms_path() -> Path:
+    """Absolute path to the packaged `subclass_axioms.ttl` artifact.
+
+    Resolves via `importlib.resources` so editable installs and wheels agree;
+    the artifact is committed and shipped inside the wheel (freshness against
+    the schemas is enforced by `scripts/checks/check_codegen_fresh.py`).
+    """
+    base = importlib.resources.files("cataforge.domain.kg")
+    return Path(str(base / "_generated" / "subclass_axioms.ttl"))
 
 
 def schema_paths(include_governance: bool = False) -> list[Path]:

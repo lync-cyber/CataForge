@@ -46,7 +46,6 @@ dependencies = [
     "click>=8.0",
     "pydantic>=2.0",
     "markdown-it-py>=3.0",
-    "linkml-runtime>=1.11.1",
     "pyoxigraph>=0.5.8",
     "jinja2>=3.0",
 ]
@@ -114,10 +113,14 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-# linkml-runtime → prefixcommons 0.1.12 declares pytest-logging (a test-only
-# tool, never imported at runtime) as a runtime dependency. pytest-logging
-# ships only a 2015 sdist that fails to build on modern setuptools. The
-# never-satisfiable marker drops it from the resolved tree.
+# The dev extra's linkml toolchain (schema codegen) pulls prefixcommons
+# 0.1.12, which declares pytest-logging (a test-only tool, never imported
+# at runtime) as a runtime dependency. pytest-logging ships only a 2015
+# sdist that fails to build on modern setuptools; the never-satisfiable
+# marker drops it from the resolved tree. This only protects uv-driven
+# environments — pip ignores `[tool.uv]` — so the published wheel's runtime
+# dependencies must stay free of the linkml stack (enforced by
+# tests/test_runtime_dependency_contract.py).
 override-dependencies = ["pytest-logging ; sys_platform == 'cataforge-never'"]
 
 [tool.hatch.version]

@@ -106,7 +106,6 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "jinja2" },
-    { name = "linkml-runtime" },
     { name = "markdown-it-py" },
     { name = "pydantic" },
     { name = "pyoxigraph" },
@@ -162,7 +161,6 @@ requires-dist = [
     { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.0" },
     { name = "jinja2", specifier = ">=3.0" },
     { name = "linkml", marker = "extra == 'dev'", specifier = ">=1.11.1" },
-    { name = "linkml-runtime", specifier = ">=1.11.1" },
     { name = "markdown-it-py", specifier = ">=3.0" },
     { name = "mcp", marker = "extra == 'all'", specifier = ">=1.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
