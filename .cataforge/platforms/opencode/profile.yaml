@@ -89,6 +89,7 @@ hooks:
     # All hooks are plugin-backed: the emitted TS wrapper invokes the Python
     # script so block/observe semantics flow through as on JSON platforms.
     guard_dangerous: native
+    guard_frozen_docs: native
     log_agent_dispatch: native
     validate_agent_result: native
     lint_format: native

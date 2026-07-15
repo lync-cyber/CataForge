@@ -92,6 +92,7 @@ hooks:
     AskUserQuestion: null
   degradation:
     guard_dangerous: native        # PreToolUse + Bash matcher supported
+    guard_frozen_docs: degraded    # PreToolUse but no edit matcher
     log_agent_dispatch: degraded   # PreToolUse but no agent matcher
     validate_agent_result: degraded # PostToolUse but no agent matcher
     lint_format: degraded          # PostToolUse but no edit matcher

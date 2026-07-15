@@ -4,7 +4,7 @@
 
 > 源定义文件位于 `.cataforge/agents/` 和 `.cataforge/skills/` 目录。
 >
-> **适用版本**：以 `cataforge --version` 为准（= `cataforge.__version__`）。计数 13 Agent + 26 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
+> **适用版本**：以 `cataforge --version` 为准（= `cataforge.__version__`）。计数 13 Agent + 28 Skill 由 [`scripts/checks/check_skill_count.py`](../../scripts/checks/check_skill_count.py) 守护（动态计算 `.cataforge/skills/` 子目录数，文档断言不一致即 FAIL）。
 >
 > **平台差异**：Agent 通过 `tools.allow` 声明的 capability 在各平台的原生工具映射见 [platform-capability-matrix.md](platform-capability-matrix.md)；`null` 映射的 capability 在 deploy 时被过滤并发 WARN。
 
@@ -12,7 +12,7 @@
 
 - [工具权限语法](#工具权限语法) — `allow` 与 `deny` 如何协同
 - [Agent 清单（13 个）](#agent-清单13-个) — 总览表 + 详细说明（默认折叠）
-- [Skill 清单（27 个）](#skill-清单27-个) — 总览表 + 按类别折叠
+- [Skill 清单（28 个）](#skill-清单28-个) — 总览表 + 按类别折叠
 - [Agent-Skill 关联矩阵](#agent-skill-关联矩阵) — 默认启用 / 条件启用 / 独立 Skill
 - [Skill depends 字段语义](#skill-depends-字段语义) — frontmatter 依赖声明的含义边界
 
@@ -207,7 +207,7 @@ tools:
 
 ---
 
-## Skill 清单（27 个）
+## Skill 清单（28 个）
 
 ### 总览
 
@@ -240,6 +240,7 @@ tools:
 | 25 | framework-walkthrough | 测试质量 | 元自测 | 隔离沙盒内端到端跑通小型示例项目的完整 SDLC 工作流，观察各阶段/门禁/降级行为，产出框架本身与走查流程两类改进建议；framework-review 的动态对偶 |
 | 26 | project-visualization | 核心框架 | 可视化 | 把既有 KG / doc-index / EVENT-LOG / CORRECTIONS / agent-skill 资产渲染为图 / 时间线 / 指标看板；薄发现型 skill 引导工作流按情境调 `cataforge viz <视图>`，orchestrator 在 Sprint 收口产出健康度看板 |
 | 27 | feature-walkthrough | 测试质量 | 验收 | 对交付项目功能实现做验收式动态走查：两层正交判定（功能 vs spec 符合性 `missing/drift/bug/pass` + 代码健康度复用统一问题分类体系）+ 五步走查法 + 真实数据动态复现纪律；framework-walkthrough 的交付侧对偶 |
+| 28 | design-grill | 领域技能 | 需求/架构/设计 | 用户可选的阶段内深度澄清：事实优先、沿决策依赖树逐项收敛，输出带推荐、依据、代价和恢复点的可追溯总结 |
 
 ### 详细说明
 
@@ -288,7 +289,7 @@ tools:
 </details>
 
 <details>
-<summary><b>领域 Skill</b>（arc-design · ui-design · task-decomp · task-dep-analysis · tech-eval · req-analysis · research）</summary>
+<summary><b>领域 Skill</b>（arc-design · ui-design · task-decomp · task-dep-analysis · tech-eval · req-analysis · research · design-grill）</summary>
 
 **arc-design** — 架构设计技能，涵盖模块划分、接口定义、数据建模。
 
@@ -303,6 +304,8 @@ tools:
 **req-analysis** — 需求分析技能，将粗粒度需求分解为结构化的用户故事和验收标准。
 
 **research** — 调研技能，通过 Web 搜索和用户访谈收集决策所需信息。
+
+**design-grill** — PRD、Architecture、UI-design 共用的可选深度澄清策略。默认关闭，仅在用户显式要求或明确接受阶段建议后运行；先核验仓库事实，再按决策依赖逐项提问，完成后把总结交回原阶段 Skill。
 
 </details>
 
@@ -359,9 +362,9 @@ tools:
 | Agent | 默认启用 Skill | 条件启用 |
 | ------- | --------------- | --------- |
 | **orchestrator** | `agent-dispatch` · `context` · `tdd-engine` · `change-guard` · `framework-feedback` · `project-visualization` | — |
-| **product-manager** | `req-analysis` · `context` · `research` | — |
-| **architect** | `arc-design` · `tech-eval` · `context` · `research` | — |
-| **ui-designer** | `ui-design` · `context` · `research` | `penpot-bridge` |
+| **product-manager** | `req-analysis` · `context` · `research` | `req-analysis` → `design-grill`（用户选择） |
+| **architect** | `arc-design` · `tech-eval` · `context` · `research` | `arc-design` → `design-grill`（用户选择） |
+| **ui-designer** | `ui-design` · `context` · `research` | `ui-design` → `design-grill`（用户选择）· `penpot-bridge` |
 | **tech-lead** | `task-decomp` · `task-dep-analysis` · `context` | — |
 | **test-writer** | — | — |
 | **implementer** | — | `penpot-bridge` |
@@ -372,7 +375,7 @@ tools:
 | **debugger** | `debug` · `context` | — |
 | **reflector** | `context` | — |
 
-> **条件启用**由 `design-tool` 配置触发（如 `design-tool: penpot` 时启用 `penpot-bridge`）。
+> `design-grill` 是三个阶段 Skill 的用户可选 `depends`，不进入 Agent 默认 `skills:`，避免未启用时加载其完整正文；`penpot-bridge` 由 `design-tool` 配置触发。
 
 ### 独立 Skill（不绑定 Agent）
 

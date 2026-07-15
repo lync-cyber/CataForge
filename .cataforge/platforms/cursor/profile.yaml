@@ -108,6 +108,7 @@ hooks:
     AskUserQuestion: null
   degradation:
     guard_dangerous: native
+    guard_frozen_docs: native
     log_agent_dispatch: native
     validate_agent_result: native
     lint_format: native
