@@ -311,7 +311,9 @@ def _cat_row(node_id: str, data: dict[str, Any]) -> str:
 
 def _catalogue_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
     """Asset catalogue: toolbar (search / type chips / maintainer toggle) +
-    metadata table + the dependency graph, cross-linked by node id."""
+    metadata table + the dependency graph, cross-linked by node id. The graph
+    is a neighborhood explorer — a dense catalogue is unreadable whole, so
+    selecting a node (tap or table row) keeps only its direct dependencies."""
     entries = [(node.id, dict(node.data)) for node in graph.nodes if node.data]
     kinds = sorted({str(d.get("type") or "") for _, d in entries})
     has_maint = any(d.get("maintainer_only") for _, d in entries)
@@ -347,7 +349,11 @@ def _catalogue_fragment(graph: Graph, dom_id: str) -> tuple[str, str]:
         f'<div class="cat-wrap"><table class="cat" id="{dom_id}_tbl">'
         f"<thead>{head}</thead><tbody>{rows}</tbody></table></div>"
     )
-    graph_wrap = f'<div id="{dom_id}_gwrap" hidden><div id="{dom_id}" class="cy"></div></div>'
+    graph_wrap = (
+        f'<div id="{dom_id}_gwrap" class="gwrap" hidden><div id="{dom_id}" class="cy"></div>'
+        f'<button class="unfocus" id="{dom_id}_unfocus" title="退出邻域聚焦" hidden>'
+        "显示全图</button></div>"
+    )
     body = f'<div class="view cat-view">{toolbar}{table}{graph_wrap}</div>'
     elements = _script_json(_node_data(graph))
     return body, f"initCatalogue('{dom_id}', {elements});"

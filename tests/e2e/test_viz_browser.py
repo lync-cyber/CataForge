@@ -79,3 +79,22 @@ class TestDashboardBrowser:
         page = dashboard_page
         page.set_viewport_size({"width": 320, "height": 800})
         assert page.evaluate("document.documentElement.scrollWidth") <= 320
+
+    def test_catalogue_neighborhood_focus_cycle(self, dashboard_page: Any) -> None:
+        # dense catalogue topology = neighborhood explorer: a table-row click
+        # focuses that node's direct dependencies; everything else hides until
+        # 显示全图 restores the whole graph
+        page = dashboard_page
+        page.locator('button.tab[title="assets"]').click()
+        panel = page.locator(".panel.active")
+        cid = panel.locator(".cy").get_attribute("id")
+        total = page.evaluate(f"window.__viz.cy['{cid}'].elements().length")
+        panel.locator('tr[data-node="agent_product_manager"]').click()
+        panel.locator(".modeswitch").click()  # enter topology mode
+        hidden = page.evaluate(f"window.__viz.cy['{cid}'].$('.offstage').length")
+        assert 0 < hidden < total  # strict subset: focus really narrowed the view
+        unfocus = panel.locator(".unfocus")
+        assert unfocus.is_visible()
+        unfocus.click()
+        assert page.evaluate(f"window.__viz.cy['{cid}'].$('.offstage').length") == 0
+        assert unfocus.is_hidden()

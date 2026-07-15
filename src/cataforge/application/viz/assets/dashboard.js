@@ -134,12 +134,18 @@ function graphStyle(){
     'shape':'round-rectangle'}},
     {selector:'.dim',style:{'opacity':0.12}},
     {selector:'.folded',style:{'display':'none'}},
+    {selector:'.offstage',style:{'display':'none'}},
     {selector:'.focus',style:{'border-width':3,'border-color':t.accent}}];
 }
 function initGraph(id,elements,opts){
   opts=opts||{};
   var compound=elements.some(function(e){return e.data&&e.data.parent;});
-  var layout=compound
+  /* defer: the catalogue graph inits inside a hidden 0-size wrapper where any
+     real layout degenerates (and cose runs async, racing later re-layouts) —
+     hold positions until the first show lays out at real size */
+  var layout=opts.defer
+    ?{name:'preset'}
+    :compound
     ?{name:'cose',padding:14,fit:true,nodeDimensionsIncludeLabels:true,idealEdgeLength:60}
     :{name:'breadthfirst',directed:true,spacingFactor:1.1,padding:12,fit:true};
   var cy=cytoscape({container:document.getElementById(id),elements:elements,
@@ -290,13 +296,69 @@ function initChartMode(id){
   if(window.__viz.state[id+':mode']==='table'){applyMode('table',false);}
 }
 function initCatalogue(id,elements){
-  var cy=initGraph(id,elements);
+  var cy=initGraph(id,elements,{defer:true});
   var q=document.getElementById(id+'_q');
   var tbl=document.getElementById(id+'_tbl');
   var maint=document.getElementById(id+'_maint');
   var view=tbl?tbl.parentNode.parentNode:null;
   var chips=view?view.querySelectorAll('.fchip'):[];
   var st=window.__viz.state;
+  var gwrap=document.getElementById(id+'_gwrap');
+  var unf=document.getElementById(id+'_unfocus');
+  var fnode='';
+  var homePos=null;
+  function snapHome(){
+    homePos={};
+    cy.nodes().forEach(function(n){var p=n.position();homePos[n.id()]={x:p.x,y:p.y};});
+  }
+  function goHome(){
+    if(!homePos)return;
+    cy.startBatch();
+    cy.nodes().forEach(function(n){
+      var p=homePos[n.id()];if(p){n.position({x:p.x,y:p.y});}});
+    cy.endBatch();
+  }
+  function focusNbhd(nid,save){
+    /* a dense catalogue is unreadable whole — the graph explores one node's
+       direct dependencies; kept nodes' ancestors stay (hiding a compound
+       parent would hide its kept children) */
+    var n=nid?cy.getElementById(nid):cy.collection();
+    fnode=n.length&&!n.isParent()?nid:'';
+    var keep=cy.collection();
+    if(fnode){
+      keep=n.closedNeighborhood();
+      keep=keep.union(keep.nodes().edgesWith(keep.nodes()))
+        .union(keep.nodes().ancestors());
+    }
+    cy.batch(function(){
+      cy.elements().removeClass('offstage');
+      if(fnode){cy.elements().not(keep).addClass('offstage');}
+    });
+    if(unf){unf.hidden=!fnode;}
+    if(gwrap&&!gwrap.hidden){
+      goHome();
+      if(fnode){
+        /* ego re-layout: global positions scatter a hub's neighbors across
+           the whole canvas, so fit alone stays tiny. Concentric reads best
+           for small neighborhoods; when its fit still lands unreadably far
+           out, a label-aware grid packs hub neighborhoods tighter. Parents
+           are excluded — compound layouts derive them from children. */
+        var sub=keep.filter(function(el){return el.isEdge()||!el.isParent();});
+        sub.layout({name:'concentric',fit:true,padding:40,minNodeSpacing:24,
+          animate:false,concentric:function(x){return x.id()===fnode?2:1;},
+          levelWidth:function(){return 1;}}).run();
+        if(cy.zoom()<0.8){
+          sub.layout({name:'grid',fit:true,padding:40,avoidOverlap:true,
+            animate:false,nodeDimensionsIncludeLabels:true}).run();
+        }
+        /* fitting a tiny neighborhood over-zooms into giant nodes */
+        if(cy.zoom()>2){cy.zoom(2);cy.center(keep);}
+      }else{cy.fit(undefined,12);}
+    }
+    if(save){window.__viz.saveState(id+':fnode',fnode);}
+  }
+  if(unf){unf.addEventListener('click',function(){focusNbhd('',true);});}
+  cy.on('dbltap',function(ev){if(ev.target===cy&&fnode){focusNbhd('',true);}});
   if(q&&st[id+':q']){q.value=st[id+':q'];}
   if(maint&&st[id+':maint']!=null){maint.checked=st[id+':maint'];}
   var offs=window.__viz.stateArr(id+':off');
@@ -354,10 +416,11 @@ function initCatalogue(id,elements){
     if(!t||t===tbl)return;
     focusRow(t);
     var n=cy.getElementById(t.getAttribute('data-node'));
-    if(n.length){cy.elements().removeClass('focus');n.addClass('focus');cy.center(n);}
+    if(n.length){cy.elements().removeClass('focus');n.addClass('focus');focusNbhd(n.id(),true);}
   });}
   cy.on('tap','node',function(ev){
     cy.elements().removeClass('focus');ev.target.addClass('focus');
+    focusNbhd(ev.target.id(),true);
     if(!tbl)return;
     var rows=tbl.tBodies[0].rows;
     for(var i=0;i<rows.length;i++){
@@ -387,17 +450,42 @@ function initCatalogue(id,elements){
   }
   apply();
   syncReset(id);
+  if(st[id+':fnode']){
+    focusNbhd(st[id+':fnode'],false);
+    if(fnode){
+      cy.getElementById(fnode).addClass('focus');
+      if(tbl){var frows=tbl.tBodies[0].rows;
+        for(var fr=0;fr<frows.length;fr++){
+          if(frows[fr].getAttribute('data-node')===fnode){focusRow(frows[fr]);break;}}}
+    }
+  }
   var ms=view?view.querySelector('.modeswitch[data-target="'+id+'"]'):null;
-  var gwrap=document.getElementById(id+'_gwrap');
   var twrap=tbl?tbl.parentNode:null;
+  var laidOut=false;
   if(ms&&gwrap&&twrap){
     var applyCatMode=function(mode,save){
       var graph=mode==='graph';
       gwrap.hidden=!graph;
       twrap.hidden=graph;
       ms.textContent=graph?'表格视图':'拓扑视图';
-      /* the cy inits inside a hidden wrapper (0-size); resize+fit on show */
-      if(graph){cy.resize();cy.fit(undefined,12);}
+      if(graph){
+        /* positions are deferred at init — the first show lays out at real
+           size, then a focus-aware refit (full graph when nothing focused) */
+        cy.resize();
+        if(!laidOut){
+          laidOut=true;
+          var compound=cy.nodes().some(function(n){return n.isChild();});
+          /* randomize: deferred init leaves every node at the same point, a
+             singular start no force layout can separate */
+          cy.layout(compound
+            ?{name:'cose',padding:14,fit:false,animate:false,randomize:true,
+              nodeDimensionsIncludeLabels:true,idealEdgeLength:60}
+            :{name:'breadthfirst',directed:true,spacingFactor:1.1,padding:12,fit:false}
+          ).run();
+          snapHome();
+        }
+        focusNbhd(fnode,false);
+      }
       if(save){window.__viz.saveState(id+':mode',mode);}
     };
     ms.addEventListener('click',function(){
