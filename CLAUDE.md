@@ -33,12 +33,6 @@
 - 进度事实源: git 历史 / PR / CHANGELOG / `docs/proposals/`，不在本文件维护阶段或文档状态字段
 - 剩余 backlog（真实状态以各提案头部为准，本行仅防遗忘指针）:
   - penpot-bridge C2 + E —— `docs/proposals/penpot-bridge-convergence.md`（核心已落，C2/E 子项延期）
-- 已结·勿再追（提案/评审头部为权威，此处仅防重复提议）:
-  - viz catalogue 拓扑图可用性已决：邻域聚焦探索器落地（点选→1 跳邻域重排可读、显示全图还原、聚焦持久化；隐藏初始化布局退化一并修复）；「密图整图可读化」不再追——全图仅作总览，阅读靠聚焦
-  - 无人值守构建循环全链已落（`docs/proposals/unattended-building-loop.md`）；agile-prototype 接线（按执行模式自动路由 brief#tasks + preflight/guard 覆盖 brief）已实现，§6.6 MAX_CALLS 已否决、§4.4 bash 参考实现被 Python driver 取代，均无后续
-  - kg-first 反转全链完成（`docs/proposals/kg-first-inversion-pr-cde-plan.md`）；表格/xref 保真增量、C7 装饰器、C8 filter、5.2 投机 flag 均经核实否决
-  - code-review arch-guard + 复杂度门控 M1–M5 落地（`docs/proposals/code-review-arch-guard-complexity-gating.md`）；仅 §6.4 豁免阈值 audit 可选未做
-  - 2026-07-06 走查 19 条 framework findings 全部处置（#458/#460 落地，报告 `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-20260706-r1.md`）；R-016 主体、R-010(b)、R-009(a) 原诊断经核实非缺陷
 - Learnings Registry: (compacted; archive in .cataforge/learnings/registry-archive.md)
   <!-- 上限：framework.json#claude_md_limits.learnings_registry_max_entries；超限运行 `cataforge claude-md compact` -->
 
