@@ -232,6 +232,7 @@ def _write_phase5(
             (write_stats.written_iris if write_stats is not None else []) + structure_iris,
             rel_stats.written_relation_quads if rel_stats is not None else [],
             config,
+            home_synced=write_stats.home_synced if write_stats is not None else [],
         )
         raise
 
@@ -252,11 +253,23 @@ def _rollback_phase5(
     written_subject_iris: list[str],
     written_relation_quads: list[Any],
     config: KGConfig,
+    *,
+    home_synced: list[tuple[list[Any], list[Any]]] | None = None,
 ) -> None:
     """Best-effort compensating rollback for Phase 5 partial writes."""
     import pyoxigraph as ox  # noqa: PLC0415
 
     from cataforge.domain.kg._quads import quads_for_subject as _quads_for_subject
+
+    # Invert hash-skip home syncs first — they mutate slots on nodes that are
+    # not in the written-subject ledger.
+    for removed, added in reversed(home_synced or []):
+        for q in added:
+            with contextlib.suppress(Exception):
+                store.remove(q)
+        for q in removed:
+            with contextlib.suppress(Exception):
+                store.add(q)
 
     for iri in written_subject_iris:
         for q in _quads_for_subject(store, iri):

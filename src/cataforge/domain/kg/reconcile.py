@@ -717,6 +717,11 @@ def reconcile(
         remediation = policy.remediation_for(t.state, md_ahead=t.doc_type in md_ahead_types)
         if desynced and remediation == REMEDIATE_NONE:
             remediation = REMEDIATE_MANUAL
+        # A doc_id collision makes the doc_type's whole FS side unreliable
+        # (its id-set diff was skipped), so no automatic remediation may act
+        # on it — the author resolves the file collision first.
+        if t.doc_type in pre.collisions_by_type:
+            remediation = REMEDIATE_MANUAL
         report.documents.append(
             DocumentDriftRecord(
                 source_path=t.source_path,

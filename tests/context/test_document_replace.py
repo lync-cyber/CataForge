@@ -17,6 +17,7 @@ import pytest
 from cataforge.application.context import write as cw
 from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
 from cataforge.domain.kg._dispatch import invalidate_cache
+from cataforge.domain.kg._errors import KGValidationError
 
 _FRAMEWORK = {
     "context": {"mode": "graph", "kg_active_doc_types": ["dev-plan", "prd"]},
@@ -85,6 +86,39 @@ def test_re_author_removes_stale_sections(tmp_path: Path) -> None:
     gc.collect()
     exported = (proj / "docs" / "dev-plan" / "dev-plan.md").read_text(encoding="utf-8")
     assert "里程碑" not in exported
+
+
+def test_failed_re_author_restores_prior_document(tmp_path: Path) -> None:
+    # The trimmed revision also carries a dangling xref, so post-commit
+    # validate fails after the stale §4 was already removed in the commit —
+    # compensation must restore the prior document, not just delete the new
+    # write.
+    proj = _project(tmp_path)
+    cw.author_document(str(proj), _TWO_SECTION_PLAN, source_path="docs/dev-plan/dev-plan.md")
+    gc.collect()
+
+    bad = (
+        "---\nid: dev-plan\ndoc_type: dev-plan\nstatus: draft\n---\n"
+        "# Dev Plan\n\n## 3. 任务卡详细\n\n### T-001 登录\n\n实现登录，依赖 prd#§9.F-404。\n"
+    )
+    with pytest.raises(KGValidationError):
+        cw.author_document(str(proj), bad, source_path="docs/dev-plan/dev-plan.md")
+    gc.collect()
+
+    anchors = _values(
+        proj,
+        _NS + 'SELECT ?a WHERE { ?s a cf:Section ; cf:source_doc "dev-plan" ; '
+        "cf:section_anchor ?a }",
+    )
+    assert any("里程碑" in a for a in anchors), anchors
+    bodies = _values(
+        proj,
+        _NS + 'SELECT ?b WHERE { ?s a cf:Section ; cf:source_doc "dev-plan" ; '
+        "cf:narrative_body ?b }",
+    )
+    assert not any("F-404" in b for b in bodies), bodies
+    titles = _values(proj, _NS + 'SELECT ?t WHERE { ?s cf:entity_id "T-001" ; cf:title ?t }')
+    assert titles == ["登录"], titles
 
 
 def test_re_author_syncs_unchanged_subordinate_source_section(tmp_path: Path) -> None:

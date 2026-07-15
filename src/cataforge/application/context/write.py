@@ -56,7 +56,12 @@ from cataforge.domain.kg.ingest.iri import document_iri, resolve_entity_iri, sec
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
-from cataforge.domain.kg.ingest.writer import _entity_title, _sections_of_document, write_project
+from cataforge.domain.kg.ingest.writer import (
+    _entity_title,
+    _sections_of_document,
+    stale_section_iris,
+    write_project,
+)
 from cataforge.domain.kg.reconcile import reconcile as _reconcile
 from cataforge.domain.kg.section_sync import CascadeWriter
 from cataforge.domain.kg.validate import validate
@@ -716,13 +721,30 @@ def author_document(
         )
         doc_iri_val = document_iri(doc_id, cfg.base_namespace)
         live_section_iris = {section_iri(doc_id, s.anchor, cfg.base_namespace) for s in sections}
-        stale_section_iris = (
-            _sections_of_document(kg.store, cf_namespace(cfg), doc_iri_val) - live_section_iris
+        prior_section_iris = _sections_of_document(kg.store, cf_namespace(cfg), doc_iri_val)
+        stale_sections = stale_section_iris(
+            kg.store, cf_namespace(cfg), doc_iri_val, live_section_iris
         )
+        # Snapshot every node this write touches (document, prior sections,
+        # staged entities) so a post-commit validation failure compensates to
+        # the prior document instead of destroying it — same contract as
+        # `author_entity`. Empty for a first author.
+        prior_quads = [
+            q
+            for iri in sorted(
+                {doc_iri_val}
+                | prior_section_iris
+                | {
+                    resolve_entity_iri(e.entity_id, e.class_name, e.parent_id, cfg.base_namespace)
+                    for e in entities
+                }
+            )
+            for q in _entity_prior_quads(kg.store, cfg, iri)
+        ]
         with kg.transaction() as txn:
             # Whole-document replace: sections the new revision no longer
             # carries leave the graph in the same commit as the rewrite.
-            for stale in sorted(stale_section_iris):
+            for stale in sorted(stale_sections):
                 txn.delete_entity(stale, cascade=True)
             txn.add_document(document)
             for section in sections:
@@ -746,6 +768,8 @@ def author_document(
             with kg.transaction() as undo:
                 for did in delete_ids:
                     undo.delete_entity(did, cascade=True)
+                for quad in prior_quads:
+                    undo.add(quad)
             detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
             raise KGValidationError(f"authored document {doc_id} failed validation: {detail}")
         _stamp_absorbed_baseline(
