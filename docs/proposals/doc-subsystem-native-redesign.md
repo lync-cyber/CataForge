@@ -1,6 +1,6 @@
 # 提案：文档子系统原生化重设计 —— 拆卷降为导出布局投影，kg-first 提示词全层对齐守卫锁死
 
-> 状态：草案（待 framework-review 静态审 + framework-walkthrough 双 mode 端到端自测）
+> 状态：已实施。拆卷已彻底废除（一逻辑文档 = 一评审文件，超长文档仅精简不拆分）——相对本文「拆卷降为导出布局投影」的目标形态为已接受的实施偏离，导出布局投影未保留，勿再提议 split 导出或分卷；DomainEntity 逃生阀（前缀注册全链）与交叉引用纯 §-ref 校验均已落地。以代码为准，本文余下为历史设计记录。
 > 范围：文档结构模型（图 `Document→Section` 权威 + 拆卷降级）、跨卷读契约、拆卷/合卷导出布局能力、Layer 1 与 doc_consistency 校验语义、6 产文档角色卡 Output Contract 与工具授权、context references 与新增语义守卫、双 mode 迁移；**本体对下游的扩展性与逃生通道**（`DomainEntity` 开放类 + 前缀注册，见 §1.5 / §3.8）
 > 证据源：主线程直读源码核实（关键锚点在正文各处标 `file:line`）；四路 Explore 测绘（角色卡 I/O 契约、references+守卫、模板 registry、本体下游扩展逃生通道）
 > 与既有提案的关系：延续 [`kg-first-authoring-inversion.md`](kg-first-authoring-inversion.md) 与 [`context-kg-subsystem-remediation.md`](context-kg-subsystem-remediation.md) 已落地原语（`ModePolicy`、`document_pipeline` 整篇导出器、三方哈希 drift triage、authoring API、`.nq` 快照）；**纠正**前者 P-1「按 `Document→Volume→Section` 树重建」的断言——`cf:Volume` 层从设计到落地一路被静默丢弃，是**死 schema**（详见 §1.1）；**不重开**已决项：不引第三种 `context.mode`、不恢复 `hybrid`、不把二进制 store 入库、不复活 `@requires_kg_first` 装饰器
