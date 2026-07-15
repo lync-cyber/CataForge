@@ -15,12 +15,10 @@ from cataforge.adapter.integrations.penpot._constants import (
     SUPPORTED_NODE_MAJORS,
 )
 from cataforge.adapter.integrations.penpot.netenv import find_available_port, is_port_listening
-from cataforge.utils.common import (
+from cataforge.utils.console import (
     DIM,
     NC,
     fail,
-    get_command_version,
-    has_command,
     info,
     ok,
     section,
@@ -31,6 +29,7 @@ from cataforge.utils.docker_util import (
     ensure_docker_running,
     pull_all_images_from_compose_file,
 )
+from cataforge.utils.process import get_command_version, has_command
 from cataforge.utils.run_subprocess import run as run_proc
 
 

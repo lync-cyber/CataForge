@@ -25,7 +25,7 @@ from cataforge.adapter.integrations.penpot._constants import (
 )
 from cataforge.adapter.integrations.penpot.netenv import find_available_port
 from cataforge.core.errors import CataforgeError
-from cataforge.utils.common import (
+from cataforge.utils.console import (
     BOLD,
     DIM,
     NC,

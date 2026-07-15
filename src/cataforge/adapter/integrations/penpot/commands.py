@@ -18,7 +18,7 @@ from cataforge.adapter.integrations.penpot.mcp_process import (
     start_mcp,
     stop_mcp,
 )
-from cataforge.utils.common import (
+from cataforge.utils.console import (
     BOLD,
     CYAN,
     DIM,
@@ -26,13 +26,13 @@ from cataforge.utils.common import (
     NC,
     RED,
     fail,
-    has_command,
     info,
     ok,
     section,
     warn,
 )
 from cataforge.utils.docker_util import docker_compose_cmd, ensure_docker_running
+from cataforge.utils.process import has_command
 from cataforge.utils.run_subprocess import run as run_proc
 
 PENPOT_SAAS_URL = "https://design.penpot.app"

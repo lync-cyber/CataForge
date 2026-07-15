@@ -1,9 +1,13 @@
-"""OS-level process liveness primitives."""
+"""OS-level process, command, and platform primitives."""
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 import sys
 import time
+
+from cataforge.utils.run_subprocess import run as run_proc
 
 _PID_POLL_INTERVAL_SECONDS = 0.1
 
@@ -84,3 +88,51 @@ def _wait_for_pid_dead(pid: int, timeout: float) -> bool:
             return True
         time.sleep(_PID_POLL_INTERVAL_SECONDS)
     return not pid_alive(pid)
+
+
+# ---------------------------------------------------------------------------
+# Command helpers
+# ---------------------------------------------------------------------------
+
+
+def has_command(name: str) -> bool:
+    """Return True if *name* is found on PATH."""
+    return shutil.which(name) is not None
+
+
+def run_cmd(
+    cmd: list[str],
+    *,
+    cwd: str | None = None,
+    timeout: int = 60,
+) -> subprocess.CompletedProcess[str]:
+    """Run a command and return the CompletedProcess (never raises on non-zero).
+
+    Thin shim over :func:`cataforge.utils.run_subprocess.run` retained for
+    source compatibility with the existing penpot callers; new code should
+    import ``run_proc`` directly.
+    """
+    return run_proc(cmd, cwd=cwd, timeout=timeout)
+
+
+def get_command_version(cmd: list[str]) -> str:
+    """Run *cmd* and return stdout stripped, or ``""`` on failure."""
+    try:
+        r = run_proc(cmd, timeout=10)
+        return r.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return ""
+
+
+# ---------------------------------------------------------------------------
+# Platform detection
+# ---------------------------------------------------------------------------
+
+
+def detect_platform() -> str:
+    """Return a simple platform tag: ``windows``, ``darwin``, or ``linux``."""
+    if sys.platform == "win32":
+        return "windows"
+    if sys.platform == "darwin":
+        return "darwin"
+    return "linux"
