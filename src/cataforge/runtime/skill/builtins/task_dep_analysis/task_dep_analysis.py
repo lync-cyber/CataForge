@@ -19,7 +19,7 @@ from collections import defaultdict, deque
 from collections.abc import Iterator
 from typing import Any
 
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 WEIGHT_MAP = {"S": 1, "M": 2, "L": 3, "XL": 5}
 

@@ -198,7 +198,7 @@ def test_upgrade_apply_does_not_override_existing_design_tool(
 ) -> None:
     """When framework.json already records a choice it is the source of truth;
     the lift is a no-op even if the instruction file disagrees."""
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     get_config_manager().set_design_tool("penpot")
     (project / "CLAUDE.md").write_text(

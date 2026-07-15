@@ -13,8 +13,8 @@ from pathlib import Path
 import click
 
 from cataforge.core.errors import CataforgeError, ConfigError
-from cataforge.interface.cli.guards import require_initialized
-from cataforge.interface.cli.helpers import get_config_manager, resolve_root
+from cataforge.interface.cli._support.guards import require_initialized
+from cataforge.interface.cli._support.helpers import get_config_manager, resolve_root
 from cataforge.interface.cli.main import cli
 
 _SHELL_META_RE = re.compile(r"[;&|`$<>(){}\\\n]")
@@ -54,7 +54,7 @@ def hook_list(platform: str | None) -> None:
     if platform:
         annotations = _platform_status_map(platform)
 
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     hooks = spec.get("hooks", {})
     headers = ["script", "type", "description"]

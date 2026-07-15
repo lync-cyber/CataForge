@@ -51,7 +51,7 @@ from cataforge.application.services.issue import (
     write_skill_improve_draft,
 )
 from cataforge.core.errors import CataforgeError, ExternalToolError
-from cataforge.interface.cli.helpers import get_config_manager, resolve_root
+from cataforge.interface.cli._support.helpers import get_config_manager, resolve_root
 from cataforge.interface.cli.main import cli
 from cataforge.utils.run_subprocess import run as run_proc
 

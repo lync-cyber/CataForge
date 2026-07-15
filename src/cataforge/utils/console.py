@@ -156,3 +156,46 @@ def set_console(console: Console) -> None:
     """Install *console* as the active implementation."""
     global _console
     _console = console
+
+
+# ---------------------------------------------------------------------------
+# Terminal colour constants (ANSI escape codes)
+# ---------------------------------------------------------------------------
+
+BOLD = "\033[1m"
+DIM = "\033[2m"
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+CYAN = "\033[36m"
+NC = "\033[0m"  # No Color / reset
+
+# ---------------------------------------------------------------------------
+# Structured terminal output helpers
+# ---------------------------------------------------------------------------
+
+
+# The five primitives below are thin wrappers over the active console so every
+# caller (CLI subcommands, integrations, hook scripts) shares the same
+# renderer. The interface layer installs its rich renderer at CLI start-up;
+# outside a CLI process the default unstyled console handles output.
+
+
+def section(msg: str) -> None:
+    get_console().section(msg)
+
+
+def info(msg: str) -> None:
+    get_console().info(msg)
+
+
+def ok(msg: str) -> None:
+    get_console().ok(msg)
+
+
+def warn(msg: str) -> None:
+    get_console().warn(msg)
+
+
+def fail(msg: str) -> None:
+    get_console().fail(msg)

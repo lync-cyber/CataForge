@@ -13,7 +13,7 @@ from cataforge.core.corrections import (
     VALID_TRIGGERS,
     record_correction,
 )
-from cataforge.interface.cli.helpers import resolve_root
+from cataforge.interface.cli._support.helpers import resolve_root
 from cataforge.interface.cli.main import cli
 
 
@@ -82,7 +82,7 @@ def record_command(
         deviation=deviation,
         write_event_log=not no_event_log,
     )
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     pairs: dict[str, str] = {"CORRECTIONS-LOG": str(result["corrections_log"])}
     if result["event_log"] is not None:

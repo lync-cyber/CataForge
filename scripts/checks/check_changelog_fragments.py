@@ -37,7 +37,7 @@ import sys
 from pathlib import Path
 
 # Reconfigure stdio to UTF-8 so emoji / arrows / Chinese in error messages
-# don't crash on Windows cp1252 terminals (mirrors cataforge.utils.common
+# don't crash on Windows cp1252 terminals (mirrors cataforge.utils.encoding
 # .ensure_utf8 inline — script must not depend on cataforge being
 # importable since it runs in CI before editable install).
 for _stream_name in ("stdout", "stderr"):

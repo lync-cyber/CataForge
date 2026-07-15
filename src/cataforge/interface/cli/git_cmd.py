@@ -24,7 +24,7 @@ from cataforge.application.services.git_hygiene import (
     sync_default_branch,
 )
 from cataforge.core.errors import CataforgeError, ExternalToolError
-from cataforge.interface.cli.helpers import get_config_manager, resolve_root
+from cataforge.interface.cli._support.helpers import get_config_manager, resolve_root
 from cataforge.interface.cli.main import cli
 
 F = TypeVar("F", bound=Callable[..., object])

@@ -15,7 +15,8 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
-from cataforge.utils.common import detect_platform, fail, has_command, info, ok
+from cataforge.utils.console import fail, info, ok
+from cataforge.utils.process import detect_platform, has_command
 from cataforge.utils.run_subprocess import run as run_proc
 
 DOCKER_PULL_TIMEOUT = 300
@@ -185,7 +186,7 @@ def pull_image_with_mirrors(
     """Try ``docker pull`` via mirrors; tag back to *image* when using a mirror."""
     import importlib.util
 
-    from cataforge.utils.common import info, ok, warn
+    from cataforge.utils.console import info, ok, warn
 
     sdk_available = importlib.util.find_spec("docker") is not None
 
@@ -228,7 +229,7 @@ def pull_all_images_from_compose_file(
     pull_timeout: int = DOCKER_PULL_TIMEOUT,
 ) -> bool:
     """Parse ``image:`` lines from a compose file and pull each image."""
-    from cataforge.utils.common import info
+    from cataforge.utils.console import info
 
     images: list[str] = []
     try:

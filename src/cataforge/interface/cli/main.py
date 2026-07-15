@@ -31,8 +31,8 @@ from pathlib import Path
 import click
 
 from cataforge import __version__
-from cataforge.interface.cli.errors import CataforgeGroup
-from cataforge.utils.common import ensure_utf8
+from cataforge.interface.cli._support.errors import CataforgeGroup
+from cataforge.utils.encoding import ensure_utf8
 
 # Reconfigure stdout/stderr to UTF-8 before any command runs, so users never need
 # to prefix invocations with `PYTHONUTF8=1` (matters on Windows cp936 terminals
@@ -151,13 +151,13 @@ def _register_commands() -> None:
         bootstrap_cmd,
         claude_md_cmd,
         config_cmd,
-        context_cmd,
+        context,
         correction_cmd,
         deploy_cmd,
         docs_cmd,
         doctor_cmd,
         event_cmd,
-        feedback_cmd,
+        feedback,
         git_cmd,
         hook_cmd,
         issue_cmd,
@@ -167,7 +167,7 @@ def _register_commands() -> None:
         penpot_cmd,
         phase_cmd,
         plugin_cmd,
-        setup_cmd,
+        setup,
         skill_cmd,
         unattended_cmd,
         upgrade_cmd,

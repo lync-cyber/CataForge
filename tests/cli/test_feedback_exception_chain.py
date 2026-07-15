@@ -11,8 +11,8 @@ import pytest
 from click.testing import CliRunner
 
 from cataforge.core.errors import CataforgeError
-from cataforge.interface.cli.errors import CataforgeGroup
-from cataforge.interface.cli.feedback_cmd import bug_command, suggest_command
+from cataforge.interface.cli._support.errors import CataforgeGroup
+from cataforge.interface.cli.feedback.bundles import bug_command, suggest_command
 
 
 def _invoke_under_group(cmd: click.Command, args: list[str]):
@@ -47,7 +47,7 @@ class TestFeedbackExceptionChain:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
         cause = ValueError("internal bug detail")
-        with patch("cataforge.interface.cli.feedback_cmd.assemble_bug", side_effect=cause):
+        with patch("cataforge.interface.cli.feedback.bundles.assemble_bug", side_effect=cause):
             result = _invoke_under_group(bug_command, ["--print", "--summary", "s"])
         assert result.exit_code == 1
         assert "failed to assemble bug bundle" in result.output
@@ -59,7 +59,9 @@ class TestFeedbackExceptionChain:
         project = _bootstrap(tmp_path)
         monkeypatch.chdir(project)
         cause = ValueError("internal suggest detail")
-        with patch("cataforge.interface.cli.feedback_cmd.assemble_suggestion", side_effect=cause):
+        with patch(
+            "cataforge.interface.cli.feedback.bundles.assemble_suggestion", side_effect=cause
+        ):
             result = _invoke_under_group(suggest_command, ["--print", "--summary", "s"])
         assert result.exit_code == 1
         assert "failed to assemble suggestion bundle" in result.output

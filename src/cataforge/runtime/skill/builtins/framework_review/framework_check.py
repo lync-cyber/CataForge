@@ -24,7 +24,7 @@ from pathlib import Path
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
 from cataforge.core.paths import ProjectPaths
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 from ._constants import (
     B1_REQUIRED_SECTIONS_EXEMPT_AGENTS,

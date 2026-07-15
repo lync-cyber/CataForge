@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cataforge.interface.cli.setup_cmd import setup_command
+from cataforge.interface.cli.setup import setup_command
 
 
 def _framework(root: Path) -> dict:

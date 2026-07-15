@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from cataforge.interface.cli.context_cmd import context_status
+from cataforge.interface.cli.context.query import context_status
 from tests.cli.conftest import invoke_under_group
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"

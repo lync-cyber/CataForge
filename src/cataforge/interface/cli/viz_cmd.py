@@ -23,9 +23,9 @@ import click
 from cataforge.application.viz import service
 from cataforge.application.viz.registry import RENDERERS, short_hint
 from cataforge.core.viz.model import is_empty
-from cataforge.interface.cli.helpers import resolve_root
+from cataforge.interface.cli._support.helpers import resolve_root
+from cataforge.interface.cli._support.ui import NextStep, ui
 from cataforge.interface.cli.main import cli
-from cataforge.interface.cli.ui import NextStep, ui
 
 _FORMATS = sorted(RENDERERS)
 _HTML = "html"

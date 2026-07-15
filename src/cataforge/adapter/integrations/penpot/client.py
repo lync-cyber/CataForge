@@ -5,16 +5,15 @@ from __future__ import annotations
 import re
 import subprocess
 
-from cataforge.utils.common import (
+from cataforge.utils.console import (
     BOLD,
     NC,
-    has_command,
     info,
     ok,
-    run_cmd,
     section,
     warn,
 )
+from cataforge.utils.process import has_command, run_cmd
 
 _SECRET_QUERY_PARAM = re.compile(r"((?:userToken|token|api[_-]?key)=)[^&\s]+", re.IGNORECASE)
 

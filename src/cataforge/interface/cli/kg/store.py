@@ -16,7 +16,7 @@ from cataforge.core.errors import (
     KGVerificationError,
 )
 from cataforge.core.paths import KG_STORE_REL
-from cataforge.interface.cli.helpers import root_relative_default
+from cataforge.interface.cli._support.helpers import root_relative_default
 from cataforge.interface.cli.kg import kg_group
 from cataforge.interface.cli.kg._options import db_path_option, db_path_ro_option
 

@@ -27,13 +27,13 @@ def invoke_under_group(command: click.Command, args: list[str] | None = None, **
 
     Framework errors render via the CLI adapter group, not the error class
     itself; invoking a bare command/subgroup in isolation skips that
-    rendering. Mounting under :class:`~cataforge.interface.cli.errors.CataforgeGroup`
+    rendering. Mounting under :class:`~cataforge.interface.cli._support.errors.CataforgeGroup`
     reproduces the production path so a raised ``CataforgeError`` becomes the
     expected ``Error: <msg>`` output + ``exit_code``.
     """
     from click.testing import CliRunner
 
-    from cataforge.interface.cli.errors import CataforgeGroup
+    from cataforge.interface.cli._support.errors import CataforgeGroup
 
     root = CataforgeGroup("root")
     root.add_command(command)

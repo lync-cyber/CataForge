@@ -15,7 +15,7 @@ from typing import Any
 
 from cataforge.core.errors import ConfigError
 from cataforge.core.io import read_json
-from cataforge.utils.patterns import REF_RE, SECTION_PATH_RE
+from cataforge.domain.docs.patterns import REF_RE, SECTION_PATH_RE
 
 DEFAULT_DOC_TYPE_MAP: dict[str, str] = {
     "prd": "prd",

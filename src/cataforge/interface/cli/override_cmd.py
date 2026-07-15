@@ -17,8 +17,8 @@ from __future__ import annotations
 import click
 
 from cataforge.core.layers import OVERRIDE_LAYERS
-from cataforge.interface.cli.guards import require_initialized
-from cataforge.interface.cli.helpers import resolve_root
+from cataforge.interface.cli._support.guards import require_initialized
+from cataforge.interface.cli._support.helpers import resolve_root
 from cataforge.interface.cli.main import cli
 
 _MAIN_FILE = {"agents": "AGENT.md", "skills": "SKILL.md"}
@@ -35,7 +35,7 @@ def override_group() -> None:
 def override_list() -> None:
     """Show every agent/skill and which layers define it."""
     from cataforge.core.paths import ProjectPaths
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     paths = ProjectPaths(resolve_root())
     for kind in _KINDS:
@@ -93,7 +93,7 @@ def override_eject(
 ) -> None:
     """Seed an override for KIND/ASSET_ID from the shipped scaffold."""
     from cataforge.core.paths import ProjectPaths
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.ui import ui
 
     paths = ProjectPaths(resolve_root())
     main = _MAIN_FILE[kind]

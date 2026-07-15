@@ -16,7 +16,7 @@ import click
 
 from cataforge.application.phase import evaluate_phase
 from cataforge.core.errors import CataforgeError
-from cataforge.interface.cli.helpers import resolve_root, root_relative_default
+from cataforge.interface.cli._support.helpers import resolve_root, root_relative_default
 from cataforge.interface.cli.main import cli
 
 

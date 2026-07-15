@@ -1,8 +1,8 @@
-"""Tests for cataforge.interface.cli.guidance — next-step registry."""
+"""Tests for cataforge.interface.cli._support.guidance — next-step registry."""
 
 from __future__ import annotations
 
-from cataforge.interface.cli.guidance import (
+from cataforge.interface.cli._support.guidance import (
     NEXT_STEPS,
     has_next_steps,
     print_next_steps,

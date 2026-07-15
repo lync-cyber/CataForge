@@ -190,8 +190,8 @@ def doctor_command(ctx: click.Context, platform: str | None) -> None:
     Exits with a non-zero status when any migration_check fails, so CI can
     treat doctor as a gate.
     """
-    from cataforge.interface.cli.helpers import get_config_manager
-    from cataforge.interface.cli.ui import ui
+    from cataforge.interface.cli._support.helpers import get_config_manager
+    from cataforge.interface.cli._support.ui import ui
 
     ui.header("CataForge Doctor", subtitle="Environment + scaffold integrity gate")
 
@@ -236,10 +236,10 @@ def doctor_command(ctx: click.Context, platform: str | None) -> None:
     failed_count += check_import("click", "click", required=True)
 
     # External tools — diagnostic patterns for missing tools live in
-    # cataforge.interface.cli.diagnostics so the same diagnosis/fix copy is shown by
+    # cataforge.interface.cli._support.diagnostics so the same diagnosis/fix copy is shown by
     # other commands that probe these binaries (penpot doctor, hook tests).
-    from cataforge.interface.cli.diagnostics import DOCTOR_PATTERNS
-    from cataforge.interface.cli.ui import ui as _ui
+    from cataforge.interface.cli._support.diagnostics import DOCTOR_PATTERNS
+    from cataforge.interface.cli._support.ui import ui as _ui
 
     click.echo("\nExternal tools:")
     missing_tools_blob: list[str] = []
@@ -283,8 +283,8 @@ def _print_summary(failed_count: int) -> None:
     state than the value adds — sections already print their own running
     tallies (e.g. ``7/7 built-in skills``).
     """
-    from cataforge.interface.cli.guidance import print_next_steps
-    from cataforge.interface.cli.ui import NextStep, ui
+    from cataforge.interface.cli._support.guidance import print_next_steps
+    from cataforge.interface.cli._support.ui import NextStep, ui
 
     if failed_count == 0:
         ui.ok("Summary: all checks passed.")

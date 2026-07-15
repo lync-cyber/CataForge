@@ -540,7 +540,7 @@ class TestDeriveDocId:
         assert slug == "feedback-bug-already-prefixed"
 
     def test_id_matches_doc_id_re(self) -> None:
-        from cataforge.utils.patterns import DOC_ID_RE
+        from cataforge.domain.docs.patterns import DOC_ID_RE
 
         for title in [
             "feedback: TDD light-mode threshold off",

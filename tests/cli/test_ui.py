@@ -1,4 +1,4 @@
-"""Tests for cataforge.interface.cli.ui — capability detection, rendering, prompts."""
+"""Tests for cataforge.interface.cli._support.ui — capability detection, rendering, prompts."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import io
 
 import pytest
 
-from cataforge.interface.cli.ui import (
+from cataforge.interface.cli._support.ui import (
     UI,
     ChoiceOption,
     DiagPattern,
@@ -83,7 +83,7 @@ def test_write_silently_swallows_brokenpipe(
     stdout = _BrokenStream(BrokenPipeError("simulated broken pipe"))
     ui = UI(stdout=stdout, stderr=io.StringIO(), color=False, unicode=False)
 
-    caplog.set_level(logging.DEBUG, logger="cataforge.interface.cli.ui")
+    caplog.set_level(logging.DEBUG, logger="cataforge.interface.cli._support.ui")
     # Must not raise.
     ui.ok("doesn't matter")
 
@@ -108,7 +108,7 @@ def test_write_logs_valueerror_at_debug(
     stdout = _BrokenStream(ValueError("I/O operation on closed file"))
     ui = UI(stdout=stdout, stderr=io.StringIO(), color=False, unicode=False)
 
-    caplog.set_level(logging.DEBUG, logger="cataforge.interface.cli.ui")
+    caplog.set_level(logging.DEBUG, logger="cataforge.interface.cli._support.ui")
     # Must not raise.
     ui.ok("doesn't matter")
 

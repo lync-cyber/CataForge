@@ -37,7 +37,7 @@ from cataforge.runtime.skill.builtins.sprint_review.ignore import (
     IgnoreSpec,
     build_ignore_spec,
 )
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 # Actionable text per classify_empty_extraction code — turns the blanket
 # "未找到任务" into a parse-failure vs genuinely-empty distinction.

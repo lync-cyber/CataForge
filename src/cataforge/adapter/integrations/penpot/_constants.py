@@ -6,7 +6,7 @@ import os
 import tempfile
 import textwrap
 
-from cataforge.utils.common import detect_platform
+from cataforge.utils.process import detect_platform
 
 PLATFORM = detect_platform()
 

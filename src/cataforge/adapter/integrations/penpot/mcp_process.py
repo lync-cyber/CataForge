@@ -23,14 +23,14 @@ from cataforge.adapter.integrations.penpot._constants import (
     MCP_PROTOCOL_VERSION,
     PLATFORM,
 )
+from cataforge.adapter.integrations.penpot.netenv import find_available_port
 from cataforge.core.errors import CataforgeError
-from cataforge.utils.common import (
+from cataforge.utils.console import (
     BOLD,
     DIM,
     NC,
     YELLOW,
     fail,
-    find_available_port,
     info,
     ok,
     section,

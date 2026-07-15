@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 from cataforge.core.paths import find_project_root
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 
 def _build_parser() -> argparse.ArgumentParser:

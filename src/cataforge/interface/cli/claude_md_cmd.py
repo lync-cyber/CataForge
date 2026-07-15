@@ -21,7 +21,7 @@ from cataforge.core.claude_md_hygiene import (
     measure_claude_md,
 )
 from cataforge.core.errors import CataforgeError, NotInitializedError
-from cataforge.interface.cli.helpers import get_config_manager
+from cataforge.interface.cli._support.helpers import get_config_manager
 from cataforge.interface.cli.main import cli
 
 

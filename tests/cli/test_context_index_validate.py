@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from cataforge.domain.docs import indexer
-from cataforge.interface.cli.context_cmd import context_index, context_validate
+from cataforge.interface.cli.context.index import context_index, context_validate
 from cataforge.interface.cli.docs_cmd import docs_index, docs_validate
 from tests.cli.conftest import invoke_under_group
 from tests.cli.conftest import make_minimal_project as _minimal_project
@@ -170,7 +170,7 @@ def test_docs_validate_alias_matches_context_validate(tmp_path: Path, monkeypatc
 def test_docs_load_alias_hint_on_stderr_stdout_intact(tmp_path: Path, monkeypatch) -> None:
     """The deprecation hint goes to stderr only — JSON consumers reading stdout
     are not broken."""
-    from cataforge.interface.cli.context_cmd import context_read
+    from cataforge.interface.cli.context.query import context_read
     from cataforge.interface.cli.docs_cmd import docs_load
 
     root = _minimal_project(tmp_path)

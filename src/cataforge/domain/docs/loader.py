@@ -63,8 +63,8 @@ from cataforge.domain.docs.index_ops import (
 from cataforge.domain.docs.index_ops import (
     parse_ref as parse_ref,
 )
+from cataforge.domain.docs.patterns import HEADING_RE
 from cataforge.utils.md_parse import iter_markdown_headings
-from cataforge.utils.patterns import HEADING_RE
 
 # ---------------------------------------------------------------------------
 # doc_id → doc_type mapping

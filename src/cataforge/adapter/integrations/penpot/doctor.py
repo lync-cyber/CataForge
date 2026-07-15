@@ -16,17 +16,16 @@ from cataforge.adapter.integrations.penpot.commands import (
 )
 from cataforge.adapter.integrations.penpot.docker import _node_major
 from cataforge.adapter.integrations.penpot.mcp_process import _diagnose_mcp_log, _tail_log
-from cataforge.utils.common import (
+from cataforge.utils.console import (
     CYAN,
     NC,
     fail,
-    get_command_version,
-    has_command,
     info,
     ok,
     section,
     warn,
 )
+from cataforge.utils.process import get_command_version, has_command
 
 
 def _check_node_env(problems: list[str], actions: list[str]) -> None:

@@ -18,7 +18,7 @@ from cataforge.application.unattended_preflight import (
 )
 from cataforge.core.config import ConfigManager
 from cataforge.core.paths import find_project_root
-from cataforge.interface.cli.helpers import resolve_project_dir
+from cataforge.interface.cli._support.helpers import resolve_project_dir
 from cataforge.interface.cli.main import cli
 from cataforge.runtime.unattended import (
     EXIT_CIRCUIT,

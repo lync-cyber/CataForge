@@ -27,7 +27,7 @@ from cataforge.runtime.skill.builtins.code_review.engine.pipeline import (
     FocusError,
     execute,
 )
-from cataforge.utils.common import ensure_utf8
+from cataforge.utils.encoding import ensure_utf8
 
 _DESCRIPTION = (
     "code-review Layer 1 用法: review <path> [--fix] [--focus <category[,...]>] | "

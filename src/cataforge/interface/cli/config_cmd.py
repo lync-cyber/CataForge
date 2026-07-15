@@ -43,7 +43,7 @@ def config_validate(ctx: click.Context) -> None:
     )
     from cataforge.core.errors import ConfigError
     from cataforge.core.schema.framework import FrameworkFile
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     cfg = get_config_manager()
     raw = cfg.load_raw()
@@ -101,7 +101,7 @@ def config_validate(ctx: click.Context) -> None:
 @click.pass_context
 def config_get(ctx: click.Context, path: str) -> None:
     """Print the resolved value at a dotted PATH."""
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     value, _ = get_config_manager().explain(path)
     if value is None:
@@ -114,7 +114,7 @@ def config_get(ctx: click.Context, path: str) -> None:
 @click.argument("path")
 def config_explain(path: str) -> None:
     """Print the resolved value at PATH and which layer supplied it."""
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     value, source = get_config_manager().explain(path)
     click.echo(f"{path} = {json.dumps(value, ensure_ascii=False)}")
@@ -129,7 +129,7 @@ def config_explain(path: str) -> None:
 def config_set(ctx: click.Context, path: str, value: str, dry_run: bool) -> None:
     """Set a whitelisted PATH to VALUE (lists as comma-separated)."""
     from cataforge.adapter.platform.conformance import ALL_PLATFORMS
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     if path not in SET_WHITELIST:
         click.echo(
@@ -186,7 +186,7 @@ def config_migrate(ctx: click.Context, dry_run: bool) -> None:
     """Migrate framework.json to the current schema (idempotent, backed up)."""
     from cataforge.core.config_migrate import migrate_framework_json
     from cataforge.core.errors import ConfigError
-    from cataforge.interface.cli.helpers import get_config_manager
+    from cataforge.interface.cli._support.helpers import get_config_manager
 
     cfg = get_config_manager()
     try:

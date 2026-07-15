@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import click
 
-from cataforge.interface.cli.doc_io import (
+from cataforge.interface.cli._support.doc_io import (
     _raise_on_nonzero,
     run_index,
     run_load,
     run_validate,
 )
-from cataforge.interface.cli.helpers import resolve_project_dir, resolve_root
+from cataforge.interface.cli._support.helpers import resolve_project_dir, resolve_root
 from cataforge.interface.cli.main import cli
 
 _DEPRECATION_HINTS = {
