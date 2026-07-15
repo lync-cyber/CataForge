@@ -17,8 +17,7 @@ function vizTheme() {
     chipLine: v('--chip-line', '#ccd2da'),
   };
 }
-function graphStyle() {
-  var t = vizTheme();
+function graphNodeStyles(t) {
   return [
     {
       selector: 'node',
@@ -43,6 +42,26 @@ function graphStyle() {
       style: { 'border-color': 'data(border)', 'border-width': 2 },
     },
     {
+      selector: ':parent',
+      style: {
+        'background-opacity': 0.06,
+        'background-color': t.accent,
+        'border-color': t.chipLine,
+        'border-width': 1,
+        label: 'data(label)',
+        'font-size': 11,
+        color: t.muted,
+        'text-valign': 'top',
+        'text-halign': 'center',
+        padding: '10px',
+        shape: 'round-rectangle',
+      },
+    },
+  ];
+}
+function graphEdgeStyles(t) {
+  return [
+    {
       selector: 'edge',
       style: {
         width: 1,
@@ -62,22 +81,10 @@ function graphStyle() {
         'text-background-opacity': 1,
       },
     },
-    {
-      selector: ':parent',
-      style: {
-        'background-opacity': 0.06,
-        'background-color': t.accent,
-        'border-color': t.chipLine,
-        'border-width': 1,
-        label: 'data(label)',
-        'font-size': 11,
-        color: t.muted,
-        'text-valign': 'top',
-        'text-halign': 'center',
-        padding: '10px',
-        shape: 'round-rectangle',
-      },
-    },
+  ];
+}
+function graphStateStyles(t) {
+  return [
     { selector: '.dim', style: { opacity: 0.12 } },
     { selector: '.folded', style: { display: 'none' } },
     { selector: '.offstage', style: { display: 'none' } },
@@ -86,6 +93,12 @@ function graphStyle() {
       style: { 'border-width': 3, 'border-color': t.accent },
     },
   ];
+}
+function graphStyle() {
+  var t = vizTheme();
+  return graphNodeStyles(t)
+    .concat(graphEdgeStyles(t))
+    .concat(graphStateStyles(t));
 }
 function graphLayout(compound, opts) {
   /* defer: the catalogue graph inits inside a hidden 0-size wrapper where any
@@ -322,6 +335,18 @@ function initChart(id, option) {
   window.__viz.ec[id] = c;
   return c;
 }
+function chartApplyMode(gfx, ms, alt, id, mode, save) {
+  var table = mode === 'table';
+  alt.hidden = !table;
+  gfx.style.display = table ? 'none' : '';
+  ms.textContent = table ? '图表视图' : '表格视图';
+  if (!table) {
+    resizeChartsIn(gfx);
+  }
+  if (save) {
+    window.__viz.saveState(id + ':mode', mode);
+  }
+}
 function initChartMode(id) {
   /* chart views: toggle between the canvas ("_gfx" wrapper) and the
      equivalent data table, persisted like the graph views' mode */
@@ -333,27 +358,17 @@ function initChartMode(id) {
     : null;
   var alt = view ? view.querySelector('.alt-table') : null;
   if (!ms || !alt) return;
-  var applyMode = function (mode, save) {
-    var table = mode === 'table';
-    alt.hidden = !table;
-    gfx.style.display = table ? 'none' : '';
-    ms.textContent = table ? '图表视图' : '表格视图';
-    if (!table) {
-      for (var b in window.__viz.ec) {
-        var el = document.getElementById(b);
-        if (el && gfx.contains(el)) {
-          window.__viz.ec[b].resize();
-        }
-      }
-    }
-    if (save) {
-      window.__viz.saveState(id + ':mode', mode);
-    }
-  };
   ms.addEventListener('click', function () {
-    applyMode(gfx.style.display === 'none' ? 'graph' : 'table', true);
+    chartApplyMode(
+      gfx,
+      ms,
+      alt,
+      id,
+      gfx.style.display === 'none' ? 'graph' : 'table',
+      true,
+    );
   });
   if (window.__viz.state[id + ':mode'] === 'table') {
-    applyMode('table', false);
+    chartApplyMode(gfx, ms, alt, id, 'table', false);
   }
 }

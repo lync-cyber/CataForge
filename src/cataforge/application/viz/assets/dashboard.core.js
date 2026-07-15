@@ -208,3 +208,20 @@ function edgesFromNodes(cy, cls) {
     e.toggleClass(cls, e.source().hasClass(cls) || e.target().hasClass(cls));
   });
 }
+function resizeGraphsIn(container) {
+  /* null container → every graph; else only those whose canvas lives in it */
+  for (var a in window.__viz.cy) {
+    var g = window.__viz.cy[a];
+    if (!container || container.contains(g.container())) {
+      g.resize();
+    }
+  }
+}
+function resizeChartsIn(container) {
+  for (var b in window.__viz.ec) {
+    var el = document.getElementById(b);
+    if (el && (!container || container.contains(el))) {
+      window.__viz.ec[b].resize();
+    }
+  }
+}

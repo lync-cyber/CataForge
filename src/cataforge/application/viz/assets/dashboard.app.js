@@ -86,31 +86,46 @@ function syncTablists() {
     }
   }
 }
+function tablistFocusKey(ev) {
+  var delta = { ArrowRight: 1, ArrowLeft: -1 };
+  if (!(ev.key in delta) && ev.key !== 'Home' && ev.key !== 'End') return;
+  var tabs = Array.prototype.slice.call(
+    ev.currentTarget.querySelectorAll('[role="tab"]'),
+  );
+  var idx = tabs.indexOf(document.activeElement);
+  if (idx < 0) return;
+  ev.preventDefault();
+  var next =
+    ev.key === 'Home'
+      ? 0
+      : ev.key === 'End'
+        ? tabs.length - 1
+        : (idx + delta[ev.key] + tabs.length) % tabs.length;
+  for (var t = 0; t < tabs.length; t++) {
+    tabs[t].setAttribute('tabindex', t === next ? '0' : '-1');
+  }
+  tabs[next].focus();
+}
 function initTabKeyboard() {
   var lists = document.querySelectorAll('[role="tablist"]');
   for (var i = 0; i < lists.length; i++) {
-    (function (list) {
-      list.addEventListener('keydown', function (ev) {
-        var delta = { ArrowRight: 1, ArrowLeft: -1 };
-        if (!(ev.key in delta) && ev.key !== 'Home' && ev.key !== 'End') return;
-        var tabs = Array.prototype.slice.call(
-          list.querySelectorAll('[role="tab"]'),
-        );
-        var idx = tabs.indexOf(document.activeElement);
-        if (idx < 0) return;
-        ev.preventDefault();
-        var next =
-          ev.key === 'Home'
-            ? 0
-            : ev.key === 'End'
-              ? tabs.length - 1
-              : (idx + delta[ev.key] + tabs.length) % tabs.length;
-        for (var t = 0; t < tabs.length; t++) {
-          tabs[t].setAttribute('tabindex', t === next ? '0' : '-1');
-        }
-        tabs[next].focus();
-      });
-    })(lists[i]);
+    lists[i].addEventListener('keydown', tablistFocusKey);
+  }
+}
+function flushPending(pid) {
+  /* run each view's deferred init once, on first show; one broken view must
+     not blank its siblings in the panel */
+  var fns = window.__viz.pending[pid];
+  if (!fns) return;
+  delete window.__viz.pending[pid];
+  for (var f = 0; f < fns.length; f++) {
+    try {
+      fns[f]();
+    } catch (err) {
+      if (window.console) {
+        console.error('viz init failed for ' + pid, err);
+      }
+    }
   }
 }
 function showPanel(pid) {
@@ -127,32 +142,9 @@ function showPanel(pid) {
   syncTablists();
   var active = document.getElementById(pid);
   if (!active) return;
-  var fns = window.__viz.pending[pid];
-  if (fns) {
-    delete window.__viz.pending[pid];
-    for (var f = 0; f < fns.length; f++) {
-      try {
-        fns[f]();
-      } catch (err) {
-        /* one broken view must not blank its siblings in the panel */
-        if (window.console) {
-          console.error('viz init failed for ' + pid, err);
-        }
-      }
-    }
-  }
-  for (var a in window.__viz.cy) {
-    var g = window.__viz.cy[a];
-    if (active.contains(g.container())) {
-      g.resize();
-    }
-  }
-  for (var b in window.__viz.ec) {
-    var el = document.getElementById(b);
-    if (el && active.contains(el)) {
-      window.__viz.ec[b].resize();
-    }
-  }
+  flushPending(pid);
+  resizeGraphsIn(active);
+  resizeChartsIn(active);
   try {
     history.replaceState(null, '', '#' + pid);
   } catch (e) {}
@@ -370,18 +362,8 @@ window.addEventListener('hashchange', function () {
     clearTimeout(rt);
     rt = setTimeout(function () {
       var active = document.querySelector('.panel.active');
-      for (var a in window.__viz.cy) {
-        var g = window.__viz.cy[a];
-        if (!active || active.contains(g.container())) {
-          g.resize();
-        }
-      }
-      for (var b in window.__viz.ec) {
-        var el = document.getElementById(b);
-        if (el && (!active || active.contains(el))) {
-          window.__viz.ec[b].resize();
-        }
-      }
+      resizeGraphsIn(active);
+      resizeChartsIn(active);
     }, 150);
   });
 })();
