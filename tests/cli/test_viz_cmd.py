@@ -1159,7 +1159,31 @@ class TestHtmlRenderer:
         out = html.render(g)
         assert 'class="modeswitch"' in out
         assert ">拓扑视图</button>" in out  # default label = switch-to-graph
-        assert 'id="view0_gwrap" hidden' in out  # graph starts hidden (table default)
+        assert 'id="view0_gwrap" class="gwrap" hidden' in out  # graph starts hidden (table default)
+
+    def test_catalogue_graph_offers_neighborhood_focus(self) -> None:
+        # a dense catalogue graph is unreadable whole; the topology acts as a
+        # neighborhood explorer — tap keeps one node + direct deps, and the
+        # exit control (hidden until focused) restores the full graph
+        g = Graph(
+            title="assets",
+            form="catalogue",
+            nodes=(
+                Node("a", data={"type": "agent", "name": "a"}),
+                Node("s", data={"type": "skill", "name": "s"}),
+            ),
+            edges=(Edge("a", "s"),),
+        )
+        out = html.render(g)
+        assert 'id="view0_unfocus"' in out
+        assert "hidden>显示全图</button>" in out  # exit control hidden until focused
+
+    def test_catalogue_focus_wiring_is_exitable_and_persisted(self) -> None:
+        js = html._read_asset("dashboard.js")
+        assert "closedNeighborhood" in js  # focus = tapped node + direct deps
+        assert ":fnode" in js  # focus survives reload like every other view state
+        assert "offstage" in js  # out-of-neighborhood elements hide, not dim
+        assert "laidOut" in js  # hidden-init layout re-runs at real size on first show
 
     def test_typed_graph_grows_layer_fold_chips(self) -> None:
         # type layers fold via count-badged chips — a hundreds-of-nodes trace
@@ -1304,8 +1328,13 @@ class TestStatusTableFallback:
 
 def _make_dashboard_project(tmp_path: Path) -> Path:
     """Framework + agent (graphs) plus EVENT-LOG / CORRECTIONS (charts); KG,
-    doc-index, instruction file all absent so several views degrade."""
+    doc-index, instruction file all absent so several views degrade. A second
+    agent shares the skill so the assets graph has a strict-subset
+    neighborhood (needed to observe neighborhood focus)."""
     _make_project(tmp_path)
+    rv = tmp_path / ".cataforge" / "agents" / "reviewer"
+    rv.mkdir(parents=True)
+    (rv / "AGENT.md").write_text("---\nskills: [research]\n---\nbody\n")
     docs = tmp_path / "docs"
     docs.mkdir(exist_ok=True)
     rec = {"ts": "2026-01-01T00:00:00+00:00", "event": "phase_start", "phase": "requirements"}
