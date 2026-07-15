@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.kg._kg_fixtures import hx
+
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 VARIANTS = ("waterfall", "agile")
 
@@ -137,7 +139,7 @@ def test_verify_ok_after_manual_kg_add() -> None:
             title="扁平 IRI 方案",
             source_doc="",
             source_section="ADR-0001 扁平 IRI 方案",
-            content_hash="deadbeef",
+            content_hash=hx("deadbeef"),
             project_iri=project_iri,
         )
 

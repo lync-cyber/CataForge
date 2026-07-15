@@ -22,6 +22,8 @@ from cataforge.domain.kg._quads import (
     build_entity_quads,
     build_relation_quad,
     build_section_quads,
+    content_hash_matches,
+    entity_home_sync_quads,
     quads_for_subject,
     quads_targeting,
 )
@@ -30,7 +32,6 @@ from cataforge.domain.kg._sparql_utils import (
     _strv,
     assert_safe_iri,
     cf_namespace,
-    escape_sparql_literal,
     select_rows,
 )
 from cataforge.domain.kg.ingest.iri import (
@@ -147,7 +148,12 @@ class TransactionContext:
         iri = resolve_entity_iri(entity_id, class_name, parent_id, self._config.base_namespace)
         ns = cf_namespace(self._config)
 
-        if self._content_hash_matches(iri, content_hash, ns):
+        if content_hash_matches(self._store, iri, content_hash, namespace=ns):
+            removes, adds = entity_home_sync_quads(
+                self._store, iri, source_doc, source_section, namespace=ns
+            )
+            self._staged_removes.extend(removes)
+            self._staged_adds.extend(adds)
             return iri
 
         for q in quads_for_subject(self._store, iri):
@@ -188,7 +194,9 @@ class TransactionContext:
         if not self._entity_exists(iri):
             raise KGEntityNotFoundError(f"Entity {entity_id} not found in store.")
 
-        if content_hash is not None and self._content_hash_matches(iri, content_hash, ns):
+        if content_hash is not None and content_hash_matches(
+            self._store, iri, content_hash, namespace=ns
+        ):
             return
 
         import pyoxigraph as ox  # noqa: PLC0415
@@ -330,7 +338,7 @@ class TransactionContext:
         self._guard_open()
         iri = document_iri(document.doc_id, self._config.base_namespace)
         ns = cf_namespace(self._config)
-        if self._content_hash_matches(iri, document.content_hash, ns):
+        if content_hash_matches(self._store, iri, document.content_hash, namespace=ns):
             return iri
         for q in quads_for_subject(self._store, iri):
             self._staged_removes.append(q)
@@ -375,7 +383,7 @@ class TransactionContext:
         base_ns = self._config.base_namespace
         iri = section_iri(doc_id, anchor, base_ns)
         ns = cf_namespace(self._config)
-        if self._content_hash_matches(iri, content_hash, ns):
+        if content_hash_matches(self._store, iri, content_hash, namespace=ns):
             return iri
         doc_iri = document_iri(doc_id, base_ns)
         resolved_position, resolved_level = self._resolve_section_order(
@@ -499,14 +507,6 @@ class TransactionContext:
 
     def _entity_exists(self, iri: str) -> bool:
         return ask(self._store, f"ASK {{ <{iri}> a ?cls }}")
-
-    def _content_hash_matches(self, iri: str, content_hash: str, namespace: str) -> bool:
-        safe_hash = escape_sparql_literal(content_hash)
-        sparql = (
-            f"PREFIX cf: <{namespace}> "
-            f'ASK {{ <{assert_safe_iri(iri)}> cf:content_hash "{safe_hash}" }}'
-        )
-        return ask(self._store, sparql)
 
 
 @contextmanager

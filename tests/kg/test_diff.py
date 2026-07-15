@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.kg._kg_fixtures import hx
+
 
 def _make_kg():
     from cataforge.domain.kg import KGConfig, KnowledgeGraph, init_store
@@ -28,7 +30,7 @@ def _seed_baseline(kg, project_iri):
                 title=title,
                 source_doc="prd",
                 source_section=f"{eid} {title}",
-                content_hash=h,
+                content_hash=hx(h),
                 project_iri=project_iri,
             )
         txn.add_entity(
@@ -37,7 +39,7 @@ def _seed_baseline(kg, project_iri):
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="h-m1",
+            content_hash=hx("h-m1"),
             project_iri=project_iri,
         )
         txn.add_relation("M-001", "cf:implements", "F-001")
@@ -77,11 +79,11 @@ def test_diff_detects_all_change_classes(tmp_path: Path) -> None:
             title="Reset",
             source_doc="prd",
             source_section="F-003 Reset",
-            content_hash="h-f3",
+            content_hash=hx("h-f3"),
             project_iri=project_iri,
         )
         txn.delete_entity("F-002")
-        txn.update_entity("M-001", content_hash="h-m1-v2")
+        txn.update_entity("M-001", content_hash=hx("h-m1-v2"))
         txn.remove_relation("M-001", "cf:implements", "F-001")
         txn.add_relation("M-001", "cf:implements", "F-003")
 
@@ -128,7 +130,7 @@ def test_diff_direction_is_a_to_b(tmp_path: Path) -> None:
             title="Reset",
             source_doc="prd",
             source_section="F-003 Reset",
-            content_hash="h-f3",
+            content_hash=hx("h-f3"),
             project_iri=project_iri,
         )
     b = _snapshot(kg, config, tmp_path, "b")
@@ -172,7 +174,7 @@ def test_diff_cli_exits_nonzero_on_divergence(tmp_path: Path) -> None:
             title="New",
             source_doc="prd",
             source_section="F-009 New",
-            content_hash="h-f9",
+            content_hash=hx("h-f9"),
             project_iri=project_iri,
         )
     b = _snapshot(kg, config, tmp_path, "b")

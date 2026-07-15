@@ -23,6 +23,7 @@ from cataforge.domain.kg._sparql_utils import (
     escape_sparql_literal,
     select_rows,
 )
+from cataforge.domain.kg.document_guard import ensure_document_replaceable
 from cataforge.domain.kg.ingest.entity_extract import build_prefix_registry, extract_entities
 from cataforge.domain.kg.ingest.iri import entity_iri, subordinate_entity_iri
 from cataforge.domain.kg.ingest.migrate import _read_project_metadata
@@ -163,21 +164,30 @@ def _reingest_doc_type(
     if not parsed:
         return 0, 0
 
+    authority = definition_authority(project_root)
+    registry = build_prefix_registry(custom_entity_prefixes(project_root))
+    extracted = []
+    for doc in parsed:
+        entities = extract_entities(doc, authority=authority, registry=registry)
+        relations = extract_relations(doc, registry)
+        document, doc_sections = extract_structure(doc, entities)
+        extracted.append((entities, relations, document, doc_sections))
+
+    # Approved-content freeze: gate the whole doc_type before any write so a
+    # refused re-ingest leaves zero mutation.
+    for _entities, _relations, document, _sections in extracted:
+        ensure_document_replaceable(store, config, document.doc_id, document.content_hash)
+
     meta = _read_project_metadata(project_root)
     project_iri = write_project(
         store, meta["project_id"], meta["title"], meta["process_model"], config
     )
 
-    authority = definition_authority(project_root)
-    registry = build_prefix_registry(custom_entity_prefixes(project_root))
     entities_total = 0
     sections_total = 0
-    for doc in parsed:
-        entities = extract_entities(doc, authority=authority, registry=registry)
-        relations = extract_relations(doc, registry)
+    for entities, relations, document, doc_sections in extracted:
         ws = write_entities(store, entities, project_iri, config)
         write_relations(store, relations, config)
-        document, doc_sections = extract_structure(doc, entities)
         ss = write_structure(store, [document], doc_sections, config)
         entities_total += ws.entities_written
         sections_total += ss.sections_written

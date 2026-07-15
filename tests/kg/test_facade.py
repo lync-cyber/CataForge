@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.kg._kg_fixtures import hx
+
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "kg-vertical-slice"
 VARIANTS = ("waterfall", "agile")
 
@@ -159,7 +161,7 @@ def test_query_api_typed_accessor_returns_dict() -> None:
             title="POST /login",
             source_doc="arch",
             source_section="API-001 POST /login",
-            content_hash="api001hash",
+            content_hash=hx("api001hash"),
             project_iri=project_iri,
         )
 
@@ -181,7 +183,7 @@ def test_query_page_typed_accessor_returns_dict() -> None:
             title="Dashboard",
             source_doc="ui-spec",
             source_section="P-001 Dashboard",
-            content_hash="p001hash",
+            content_hash=hx("p001hash"),
             project_iri=project_iri,
         )
 
@@ -208,7 +210,7 @@ def test_depends_on_returns_dependency_ids() -> None:
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="m001hash",
+            content_hash=hx("m001hash"),
             project_iri=project_iri,
         )
         txn.add_entity(
@@ -217,7 +219,7 @@ def test_depends_on_returns_dependency_ids() -> None:
             title="Session",
             source_doc="arch",
             source_section="M-002 Session",
-            content_hash="m002hash",
+            content_hash=hx("m002hash"),
             project_iri=project_iri,
         )
         txn.add_relation("M-001", "cf:depends_on", "M-002")
@@ -235,7 +237,7 @@ def test_depends_on_empty_when_no_edges() -> None:
             title="Login",
             source_doc="prd",
             source_section="F-001 Login",
-            content_hash="f001hash",
+            content_hash=hx("f001hash"),
             project_iri=project_iri,
         )
 
@@ -252,7 +254,7 @@ def test_stale_dependencies_empty_on_matching_hashes() -> None:
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="same_hash",
+            content_hash=hx("same_hash"),
             project_iri=project_iri,
         )
         txn.add_entity(
@@ -261,7 +263,7 @@ def test_stale_dependencies_empty_on_matching_hashes() -> None:
             title="Session",
             source_doc="arch",
             source_section="M-002 Session",
-            content_hash="same_hash",
+            content_hash=hx("same_hash"),
             project_iri=project_iri,
         )
         txn.add_relation("M-001", "cf:depends_on", "M-002")
@@ -279,7 +281,7 @@ def test_stale_dependencies_detects_hash_mismatch() -> None:
             title="Auth",
             source_doc="arch",
             source_section="M-001 Auth",
-            content_hash="hash_aaa",
+            content_hash=hx("hash_aaa"),
             project_iri=project_iri,
         )
         txn.add_entity(
@@ -288,7 +290,7 @@ def test_stale_dependencies_detects_hash_mismatch() -> None:
             title="Session",
             source_doc="arch",
             source_section="M-002 Session",
-            content_hash="hash_bbb",
+            content_hash=hx("hash_bbb"),
             project_iri=project_iri,
         )
         txn.add_relation("M-001", "cf:depends_on", "M-002")

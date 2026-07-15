@@ -12,6 +12,7 @@ from cataforge.domain.kg._config import BUSINESS_DOC_TYPES as DEFAULT_DOC_TYPES
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._dispatch import custom_entity_prefixes, definition_authority
 from cataforge.domain.kg._errors import KGEntityCollisionError
+from cataforge.domain.kg.document_guard import ensure_document_replaceable
 from cataforge.domain.kg.ingest.entity_extract import (
     ExtractedEntity,
     build_prefix_registry,
@@ -174,6 +175,12 @@ def run_migration(
         # so reviewers can see drift between source and store.
         stats.verify_result = verify_after_write(store, entities, relations, config)
         return stats, entities, relations
+
+    # Approved-content freeze: gate every document before any write, so a
+    # refused batch leaves zero mutation (entity writes precede structure
+    # writes inside phase 5, and hash-skip home syncs bypass its rollback).
+    for document in documents:
+        ensure_document_replaceable(store, config, document.doc_id, document.content_hash)
 
     # PHASE 5: WRITE (Project node first, then entities, relations, structure).
     meta = _read_project_metadata(project_root)
