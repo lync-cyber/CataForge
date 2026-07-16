@@ -8,6 +8,25 @@
 - 滚动窗口：只保留最近 3 个 minor 版本系列，新增段时删除最旧段；完整历史由框架仓 CHANGELOG.md 承担。
 - 内容是**提炼**而非复制：只写下游要「做什么 / 注意什么」，不搬运 CHANGELOG 条目原文。
 
+## [0.18.0] — 2026-07-16
+
+### 更新重点
+
+- 多平台部署状态模型：`framework.json` `deployment.targets` 可声明 claude-code / cursor / codex / opencode 多平台，每平台独立部署记录与锁；`cataforge deploy --platform` / `doctor --platform` 按平台隔离操作。
+- `pip install cataforge` 开箱即败已修复：wheel 运行时依赖剥离 `linkml-runtime → prefixcommons → pytest-logging` 传递链，pip 消费者不再在 Debian/Ubuntu 系统 setuptools 上构建崩溃。
+- KG 文档 id 契约修复：ingest 按 canonical frontmatter `id` 解析，多份同 doc_type 文件不再折叠为同一 Document；整篇 authoring 原子替换旧结构、失败补偿快照恢复、hash 不变的实体归属仍随新抽取同步。
+- viz dashboard UI/UX + 无障碍大修：键盘可达 / ARIA 语义 / 色盲安全板 / `prefers-color-scheme` 暗色主题；catalogue 视图新增邻域聚焦浏览器（大图按需展开）。
+- 无人值守流静默存活监督：`cataforge unattended build` 增量落盘 + stream-silence liveness 击杀挂死会话，新增 `--iter-timeout` / `--silence-timeout` 参数。
+- 可选 design-grill 工作流：UI 设计定稿前对抗式多轮质询逼出缺陷（默认不激活，须显式调用）。
+
+### 迁移要点
+
+- 用 `pip install cataforge` 的下游现开箱可用，此前的 `--use-pep517` workaround 不再需要。
+- **graph 模式项目行为更严格**：文档 id 碰撞现在显式 FAIL（此前静默折叠为同一节点）。升级后跑一次 `cataforge context reconcile` 与 `cataforge doctor` 复核；历史上被折叠的文档需确保各自 frontmatter `id` 唯一后重新 ingest。
+- 多平台部署为选择加入：单平台项目无需改动（向后兼容）；需要多平台时在 `framework.json` `deployment.targets` 声明目标，再按 `--platform` 部署。
+- 无人值守 `unattended build`：`UNATTENDED_LOOP_ITER_TIMEOUT_SEC` 语义改为总时长宽松背板（默认 10800s），挂死判活改由 `UNATTENDED_SILENCE_TIMEOUT_SEC`（默认 900s）驱动。
+- 无其他 BREAKING。
+
 ## [0.17.0] — 2026-07-07
 
 ### 更新重点
@@ -43,21 +62,3 @@
 - 架构分层守护与复杂度门禁默认**不激活**：需在项目 `arch.yaml` / `complexity.yaml` 写入声明（comment-only 模板视为未声明）。
 - graph 模式项目若 doc-review 报导出陈旧 FAIL：先 `cataforge context finalize` 重导出再复审。
 - `.cataforge/baselines/*.json` 变更须伴随 CODE-SCAN 报告变更，否则 framework-review 防篡改对账 FAIL。
-
-## [0.15.0] — 2026-06-28
-
-### 更新重点
-
-- deploy 注入平台 `settings_defaults`（set-if-absent）：Windows 上为 Claude Code 落 Git Bash 偏好；doctor 新增 Shell preference 检查。
-- viz 接入 agentic 工作流：新增 project-visualization 发现型 skill，Sprint 收口确定性产出 `docs/viz/dashboard.html`。
-- Penpot 集成收敛为单一 penpot-bridge skill（read / sync / generate / verify），并接入视觉 grounding（`export_shape` 渲染像素）。
-- `context.mode` 收敛为 graph / markdown 两态。
-- 续接（continuation）固定为 file-based 重派发，不依赖平台原生续接原语。
-- code-review 新增 Layer 1 UI 保真检查（`ui_fidelity`）与 visual-fidelity 审查维度。
-
-### 迁移要点
-
-- penpot-sync / penpot-implement / penpot-review 三个 skill 已移除：改用 penpot-bridge 的对应操作。
-- `context.mode: hybrid` 不再有效：改为 `graph` 或 `markdown`。
-- Windows 项目 deploy 后 `.claude/settings.json` 被注入 Git Bash 偏好（用户手动设过的值不覆盖）；机器无 Git Bash 时 doctor 给 WARN。
-- graph 模式项目确认 `.gitignore` 未忽略 `.cataforge/kg/snapshots/`，否则图谱唯一持久化产物会静默丢失（doctor 已加检查）。
