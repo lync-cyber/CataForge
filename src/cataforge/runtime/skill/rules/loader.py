@@ -439,6 +439,15 @@ register_rule_type(
     "doc_terms",
     list_pattern_keys=[("forbidden_terms", True)],  # doc-review term checks
 )
+register_rule_type(
+    "test_hygiene",
+    list_pattern_keys=[
+        ("test_file_patterns", False),
+        ("slow_patterns", True),  # require label
+        ("marker_patterns", False),
+        ("setup_decl_patterns", False),
+    ],
+)
 
 
 def _validate_scope_fields(

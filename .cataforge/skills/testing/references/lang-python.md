@@ -52,7 +52,7 @@ def api_client():
         yield client
 ```
 
-- `scope` 优先用 `function`（隔离最好）；确认无副作用后才升 `module` / `session`
+- `scope` 优先用 `function`（隔离最好）；确认无副作用后才升 `module` / `session`。确定性昂贵 setup（构建产物 / 预置数据 / 初始化存储）按套件性能纪律（`.cataforge/references/test-suite-performance.md`）升 `module` / `session` 复用，慢测打 `@pytest.mark.slow` 类标签
 
 ## 参数化测试
 

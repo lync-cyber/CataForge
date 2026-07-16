@@ -23,6 +23,7 @@ maxTurns: 150
 ## Input Contract
 - 必须加载: 通过 `cataforge context read` 按 T-xxx 加载 dev-plan 中已完成的任务卡（含 tdd_acceptance 和 deliverables），按任务定位对应的 src/ 和 tests/ 文件
 - 可选参考: `arch#§3.API-xxx`, `ui-spec#§3.P-xxx`（同样通过 `cataforge context read` 按需加载）
+- 测试执行采用 arch#§7.4 测试执行口径的 `test_command_full` 档（全量含慢测）作门禁真值；新增集成/E2E 测试按其慢测标签约定打标
 - 加载示例: `cataforge context read dev-plan#§3.T-001 dev-plan#§3.T-002 arch#§3.API-001`
 
 ## Output Contract

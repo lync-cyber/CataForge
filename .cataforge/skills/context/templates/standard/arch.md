@@ -114,3 +114,7 @@ project/
 {Lint/格式化}
 ### 7.3 Git约定
 {分支策略/Commit格式}
+### 7.4 测试执行口径
+- 慢测标签约定: {marker / tag / 目录约定，按技术栈一次性声明}
+- test_command_fast: {内循环命令，排除慢测}
+- test_command_full: {收敛点门禁命令，全量含慢测}

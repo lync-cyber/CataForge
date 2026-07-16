@@ -1,0 +1,16 @@
+schema_version: 2
+rule_type: test_hygiene
+scope: language
+language: go
+extensions: [".go"]
+test_file_patterns:
+  - regex: '_test\.go$'
+slow_patterns:
+  - regex: '\bexec\.Command(Context)?\('
+    label: "子进程"
+  - regex: 'httptest\.NewServer|net\.Dial'
+    label: "网络/服务"
+  - regex: '\btime\.Sleep\('
+    label: "显式休眠"
+marker_patterns:
+  - regex: 'testing\.Short\(\)'

@@ -37,7 +37,7 @@ maxTurns: 150
 - 文档审查: docs/reviews/doc/REVIEW-{doc_id}-r{N}.md (问题列表 + 严重等级)
 - 代码审查: docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md (问题列表 + 严重等级)
 - 交付标准: verdict 按 COMMON-RULES §三态判定逻辑，由严重等级唯一决定
-- 出 verdict 前自检: 若结论为 needs_revision 但 0 个 CRITICAL/HIGH，必须回落为 approved_with_notes（反向）；报告 frontmatter `status` 与正文 Verdict 必须同源一致，禁止 frontmatter 写 approved 而正文写 needs_revision
+- 出 verdict 前自检（顺序执行）: ①聚类升级——同一 category × 同一 root_cause 的 MEDIUM 累计 ≥ `REVIEW_SYSTEMIC_MEDIUM_THRESHOLD` 时合并记一条系统性 HIGH（`members` 行列成员编号，见 COMMON-RULES §三态判定逻辑）；②回落——若结论为 needs_revision 但 0 个 CRITICAL/HIGH 且无①产生的系统性 HIGH，必须回落为 approved_with_notes；报告 frontmatter `status` 与正文 Verdict 必须同源一致，禁止 frontmatter 写 approved 而正文写 needs_revision
 - 注: 审查报告须含 YAML front matter（见 COMMON-RULES §报告 Front Matter 约定）
 
 ## Mid-Progress 落盘契约
@@ -60,3 +60,4 @@ maxTurns: 150
 - 禁止: 给出模糊结论（如"基本可以""大体没问题"）— 必须明确为 approved/approved_with_notes/needs_revision，否则无法被 orchestrator 自动路由，会阻塞流程
 - 禁止: 写出 docs/reviews/ 子目录之外的路径 — 防止审查过程意外覆盖原始文档或代码，allowed_paths 机制会自动回滚违规写入
 - 避免: 所有问题都标MEDIUM — 如果没有CRITICAL/HIGH也没有MEDIUM/LOW的区分，说明严重等级判定未真正评估影响范围。CRITICAL=阻塞后续阶段，HIGH=显著影响质量，MEDIUM=改善建议
+- 禁止: 拆分或合并 finding 操纵聚类计数 — 同一缺陷模式的多处实例应逐条如实记录并触发聚类升级，而非压缩成一条 MEDIUM 规避 `REVIEW_SYSTEMIC_MEDIUM_THRESHOLD`

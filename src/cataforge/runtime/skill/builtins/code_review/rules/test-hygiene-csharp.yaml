@@ -1,0 +1,20 @@
+schema_version: 2
+rule_type: test_hygiene
+scope: language
+language: csharp
+extensions: [".cs"]
+test_file_patterns:
+  - regex: 'Tests?\.cs$'
+slow_patterns:
+  - regex: 'Process\.Start'
+    label: "子进程"
+  - regex: 'Thread\.Sleep\(|Task\.Delay\('
+    label: "显式等待"
+  - regex: 'new HttpClient\('
+    label: "网络客户端"
+  - regex: 'Testcontainers'
+    label: "容器"
+marker_patterns:
+  - regex: 'Trait\("Category",\s*"(Slow|Integration|E2E)"\)|\[Category\("(Slow|Integration|E2E)"\)\]'
+setup_decl_patterns:
+  - regex: '\[SetUp\]'
