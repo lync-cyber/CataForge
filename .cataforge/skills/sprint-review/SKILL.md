@@ -70,10 +70,10 @@ cataforge skill run sprint-review -- {N} \
 - 质量聚合(quality-summary): 聚合该Sprint所有CODE-REVIEW报告中的MEDIUM/HIGH问题模式
 
 ### Step 3: 审查报告编号
-报告编号按 COMMON-RULES §报告编号规则，前缀 SPRINT-REVIEW-s{N}，目录 docs/reviews/sprint/。
+报告编号按 `.cataforge/references/review-report-spec.md` §报告编号规则，前缀 SPRINT-REVIEW-s{N}，目录 docs/reviews/sprint/。
 
 ### Step 4: 产出审查报告
-产出 `SPRINT-REVIEW-s{N}-r{M}.md`，问题前缀使用 `[SR-{NNN}]`，category和root_cause枚举见COMMON-RULES §审查报告规范。
+产出 `SPRINT-REVIEW-s{N}-r{M}.md`，问题前缀使用 `[SR-{NNN}]`，category 和 root_cause 枚举见 COMMON-RULES §统一问题分类体系 / §归因分类。
 
 Sprint审查额外 category（各维度定义以 §Step 2 为准）: ac-coverage / wiring-completeness / scope-drift / gold-plating / missing-deliverable / drift-rate。
 
@@ -123,7 +123,7 @@ project_features:
 - 禁止: 跳过 ac-coverage / wiring-completeness 维度只算"测试通过率" —— 测试 PASS 不等于 AC 真实落地，可能出现测试绿但 wiring 链断
 - 禁止: 把整个 sprint 全部 task 都跑 merged-review —— merged 仅适用于同质任务（相同 task_kind / 共享 arch#§2.M-xxx），异质任务并表会丢失模式
 - 禁止: needs_revision 后整个 sprint 重跑 —— 仅 SPRINT-REVIEW 报告标记的 CRITICAL/HIGH 任务进入 TDD 重做，已通过任务保持 done 状态
-- 避免: sprint-review 报告写入 `docs/reviews/code/` —— 必须写 `docs/reviews/sprint/`（COMMON-RULES §报告编号规则）
+- 避免: sprint-review 报告写入 `docs/reviews/code/` —— 必须写 `docs/reviews/sprint/`（`.cataforge/references/review-report-spec.md` §报告编号规则）
 
 ## 效率策略
 - Layer 1 先行（脚本结构检查不通过即跳过 AI 审查）；Layer 2 聚焦脚本不可覆盖的行为偏移和质量模式

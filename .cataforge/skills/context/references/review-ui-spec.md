@@ -19,7 +19,7 @@ Layer 2 审查 `ui-spec` 时按 review.md 路由加载本文件。审查立场: 
 
 **设计系统自洽 (consistency)**
 - 定义的 token 有消费方、组件引用的 token 有定义(死 token / 幽灵引用即缺陷);组件变体间有可辨识视觉差异;同语义跨页面同表现
-- 保真类断言按 COMMON-RULES §保真类 AC: 锚定渲染/计算后效果,不锚定源码字面
+- 保真类断言按 `.cataforge/references/fidelity-ac.md`: 锚定渲染/计算后效果,不锚定源码字面
 
 **可访问性实质 (completeness)**
 - 文本/背景对比度给出数值或指认达标 token 对;交互密集页面定义键盘可达与焦点顺序;状态区分不独依赖色彩

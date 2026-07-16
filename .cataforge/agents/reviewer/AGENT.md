@@ -38,7 +38,7 @@ maxTurns: 150
 - 代码审查: docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md (问题列表 + 严重等级)
 - 交付标准: verdict 按 COMMON-RULES §三态判定逻辑，由严重等级唯一决定
 - 出 verdict 前自检（顺序执行）: ①聚类升级——同一 category × 同一 root_cause 的 MEDIUM 累计 ≥ `REVIEW_SYSTEMIC_MEDIUM_THRESHOLD` 时合并记一条系统性 HIGH（`members` 行列成员编号，见 COMMON-RULES §三态判定逻辑）；②回落——若结论为 needs_revision 但 0 个 CRITICAL/HIGH 且无①产生的系统性 HIGH，必须回落为 approved_with_notes；报告 frontmatter `status` 与正文 Verdict 必须同源一致，禁止 frontmatter 写 approved 而正文写 needs_revision
-- 注: 审查报告须含 YAML front matter（见 COMMON-RULES §报告 Front Matter 约定）
+- 注: 审查报告须含 YAML front matter（见 `.cataforge/references/review-report-spec.md`）
 
 ## Mid-Progress 落盘契约
 见 SUB-AGENT-PROTOCOLS §Mid-Progress 落盘契约。落盘单元 = 每审完一个文件 / 维度即把问题 `Edit` 追加到先行 `Write` 的 REVIEW 报告骨架。

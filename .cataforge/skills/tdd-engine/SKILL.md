@@ -46,7 +46,7 @@ orchestrator (主线程)
 > 3. 每完成一条 AC 立刻运行 `{test_command_fast}`（按需附 file 过滤）验证
 > 4. **禁止**末尾一次 `Edit` 堆所有 AC 实现 + 全套断言
 
-适用：standard Step 3 GREEN ✅；light-dispatch ✅；light-inline / prototype-inline ❌（主线程产出，token 由主线程窗口管理，不需此契约）。契约失效（仍 truncation）→ ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery Protocol 主线程接管。
+适用：standard Step 3 GREEN ✅；light-dispatch ✅；light-inline / prototype-inline ❌（主线程产出，token 由主线程窗口管理，不需此契约）。契约失效（仍 truncation）→ ORCHESTRATOR-RECOVERY-PROTOCOLS §Sub-Agent Truncation Recovery Protocol 主线程接管。
 
 ## TDD 子代理共享约束
 
@@ -356,7 +356,7 @@ orchestrator完成以下收尾:
    - **延迟到 sprint-review 批量审查**: 其余任务不触发 per-task code-review，由 sprint-review 的批量 code-review 覆盖（见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）
    - **prototype-inline**: 跳过 per-task code-review
 4. 更新任务状态为 done：graph 模式 `cataforge context update <task-id> --slot status=done` 直写任务实体；markdown 模式直接编辑文档状态行（dev-plan Sprint 表状态列 / brief 任务卡 status 字段，文档即事实源）
-5. 如 blocked 且含 questions → 按 ORCHESTRATOR-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
+5. 如 blocked 且含 questions → 按 ORCHESTRATOR-RECOVERY-PROTOCOLS.md §TDD Blocked Recovery Protocol 处理
 6. 如 blocked 且无 questions → 记录原因并请求人工介入
 
 > **Sprint级审查**: 当 Sprint 内所有任务完成 Step 5 后、下一 Sprint 开始之前，orchestrator 触发 sprint-review skill（批量 code-review 与完成度 / AC 覆盖 / 范围偏移的双重职责见 ORCHESTRATOR-PROTOCOLS §Sprint Review Protocol）。

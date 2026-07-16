@@ -92,7 +92,7 @@ framework-review 是按需触发的元资产审查，**不进入业务流程主�
 **维度收敛**: `--focus <category[,...]>` 同上；可与 `--target <asset_id>` 组合。
 
 ### Step 3: 审查报告编号
-报告编号按 COMMON-RULES §报告编号规则，前缀 `FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}`，目录 `docs/reviews/framework/`。
+报告编号按 `.cataforge/references/review-report-spec.md` §报告编号规则，前缀 `FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}`，目录 `docs/reviews/framework/`。
 
 ### Step 4: 产出审查报告
 产出 `FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}-r{N}.md`，**首行必须为 YAML front matter**：
@@ -107,7 +107,7 @@ deps: []
 ---
 ```
 
-front matter 之后按 COMMON-RULES §问题格式 列出问题，可用 category: structure / consistency / convention / completeness / ambiguity / duplication / dead-code（B3 漂移按 consistency；裸数值按 convention；孤立 skill 按 dead-code；model_tier 不当按 convention）。
+front matter 之后按 `.cataforge/references/review-report-spec.md` §问题格式 列出问题，可用 category: structure / consistency / convention / completeness / ambiguity / duplication / dead-code（B3 漂移按 consistency；裸数值按 convention；孤立 skill 按 dead-code；model_tier 不当按 convention）。
 
 ### Step 5: 判定结论
 三态判定按 COMMON-RULES §三态判定逻辑。framework-review 默认不阻塞业务流程（不进 needs_revision 自动重试），仅产出报告供后续元资产维护决策。

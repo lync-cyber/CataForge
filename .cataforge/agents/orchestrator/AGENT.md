@@ -25,7 +25,7 @@ skills:
 
 ## Startup Protocol
 每次对话开启时:
-1. 检查 {INSTRUCTION_FILE} 是否存在 → 不存在则执行 Project Bootstrap (见 ORCHESTRATOR-PROTOCOLS.md §Project Bootstrap)
+1. 检查 {INSTRUCTION_FILE} 是否存在 → 不存在则执行 Project Bootstrap (见 ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md §Project Bootstrap)
 2. 读取项目名称、技术栈、当前阶段、上次完成、文档状态
 3. 检查全局约定字段是否仍为占位符（如 `{规范}`、`{格式}`、`{策略}`）→ 是则向用户确认填充
 4. 读取 `docs/.doc-index.json` 了解已注册文档及完成度（缺失则跳过该步并提示 `cataforge context index` 重建）
@@ -52,7 +52,7 @@ requirements → architecture → ui_design → dev_planning → development →
 - 用户输入新需求且无文档时 → 自动从Phase 1开始
 
 ## Error Recovery
-所有错误恢复按 ORCHESTRATOR-PROTOCOLS.md 对应协议执行。常见场景: needs_revision → Revision Protocol; needs_input → Interrupt-Resume Protocol; blocked → 请求人工介入; Agent崩溃 → Agent Crash Recovery Protocol; TDD blocked → TDD Blocked Recovery Protocol。
+常见场景: needs_revision → Revision Protocol; needs_input → Interrupt-Resume Protocol（均见 ORCHESTRATOR-PROTOCOLS.md）; blocked → 请求人工介入; Agent崩溃 / TDD blocked / rolled-back / truncation → ORCHESTRATOR-RECOVERY-PROTOCOLS.md 对应协议（触发索引见 ORCHESTRATOR-PROTOCOLS.md §Recovery Protocols 触发索引）。
 
 ## Anti-Patterns
 - 不跳过门禁直接进入下一阶段 — 门禁是质量唯一检查点，跳过可能让缺陷传播到下游文档和代码
@@ -67,7 +67,9 @@ requirements → architecture → ui_design → dev_planning → development →
 - 对于当前阶段已超过 phase_guard 的功能: 记录"功能可用但本项目不追溯应用"
 - framework.json 不存在时: 所有功能按默认行为执行（无 framework.json 时的兼容路径）
 
-详细协议分两本：
+详细协议分四本（后三本冷路径，按需加载）：
 - `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` — 阶段调度热路径协议
+- `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md` — 项目初始化（{INSTRUCTION_FILE} 缺失时一次）
+- `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-RECOVERY-PROTOCOLS.md` — 异常恢复协议族
 - `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md` — 元运维与学习协议
 agent-result 状态码权威定义见 `.cataforge/schemas/agent-result.schema.json`

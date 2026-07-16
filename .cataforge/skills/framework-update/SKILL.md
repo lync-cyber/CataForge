@@ -119,7 +119,7 @@ Step 3 刷新后读 [`references/version-migration.md`](references/version-migra
 
 依 `{INSTRUCTION_FILE}` 是否存在分流:
 
-- **缺 — from-scratch 项目**: 委托执行 `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap（收集项目信息、选执行模式、建 `docs/` 结构、写 `{INSTRUCTION_FILE}`、装配 env + permissions、进入初始 phase）。目标平台已由 Step 3 确定，从 `framework.json` `runtime.platform` 读取，不重新选型/部署。
+- **缺 — from-scratch 项目**: 委托执行 `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md` §Project Bootstrap（收集项目信息、选执行模式、建 `docs/` 结构、写 `{INSTRUCTION_FILE}`、装配 env + permissions、进入初始 phase）。目标平台已由 Step 3 确定，从 `framework.json` `runtime.platform` 读取，不重新选型/部署。
 - **在 — 已初始化**: 不重跑 Project Bootstrap。若 `{INSTRUCTION_FILE}` §执行环境 仍是占位符或技术栈变化:
 
   ```bash
@@ -184,7 +184,7 @@ FAIL 时输出具体原因并建议修复（通常重跑 `framework-update apply
 > 用户在 apply 后发现自定义改动丢失时，告知运行 `cataforge upgrade rollback --list` 查快照并 `rollback --from <ts>` 回滚。
 
 ## Anti-Patterns
-- 禁止: 把 Step 6 的 init 分支派发给非 orchestrator 子代理执行 —— init 会写 `{INSTRUCTION_FILE}` §项目状态（orchestrator 独占权限）；本 skill 必须由 orchestrator 主线程内联调用，init 分支只委托 ORCHESTRATOR-PROTOCOLS §Project Bootstrap，不内嵌协议
+- 禁止: 把 Step 6 的 init 分支派发给非 orchestrator 子代理执行 —— init 会写 `{INSTRUCTION_FILE}` §项目状态（orchestrator 独占权限）；本 skill 必须由 orchestrator 主线程内联调用，init 分支只委托 ORCHESTRATOR-BOOTSTRAP-PROTOCOLS §Project Bootstrap，不内嵌协议
 - 禁止: 跳过 Step 5 的 `cataforge claude-md check` —— 升级后 Learnings Registry 膨胀是真实事故源
 - 禁止: 在 Step 3 刷新前读 `references/version-migration.md` 当作新版要点 —— scaffold 未刷新时它还是旧版内容，不含本次升级的段落；升级要点必须在 bootstrap 完成后读取
 - 禁止: 在 apply 里用 `git checkout` / `git restore` 清场用户文件 —— 用户改动应走 `cataforge upgrade rollback --list` + `--from <ts>` 快照通道

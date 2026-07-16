@@ -30,7 +30,7 @@
 
 ## 2. 初始化路径（Bootstrap）
 
-入口：`ORCHESTRATOR-PROTOCOLS §Project Bootstrap`（{INSTRUCTION_FILE} 缺失时）。走查在沙盒 cwd 内主线程扮演 orchestrator 逐步推进。
+入口：`ORCHESTRATOR-BOOTSTRAP-PROTOCOLS §Project Bootstrap`（{INSTRUCTION_FILE} 缺失时）。走查在沙盒 cwd 内主线程扮演 orchestrator 逐步推进。
 
 | id | 路径 / 步骤 | 期望行为 | 处置 | 观察重点 |
 |----|------------|---------|------|---------|

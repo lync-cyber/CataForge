@@ -23,8 +23,8 @@ user-invocable: true
 - 完整运行流程路径图: [`references/runtime-flow-map.md`](references/runtime-flow-map.md)；详细执行协议: [`references/walkthrough-protocol.md`](references/walkthrough-protocol.md)；观察与归类口径: [`references/observation-rubric.md`](references/observation-rubric.md)；自更新协议: [`references/self-update-protocol.md`](references/self-update-protocol.md)
 
 ## 输出规范
-- 走查改进报告: `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-{YYYYMMDD}-r{N}.md`，front matter `doc_type: framework-review`（编号与字段按 COMMON-RULES §审查报告规范）
-- 报告含: 两类 findings（`framework` 框架本身缺陷/摩擦 + `process` 走查流程本身可改进项，各按 COMMON-RULES §统一问题分类体系 / §归因分类 / §问题格式 标注；process 条目附 `resolution: applied|proposed|deferred`）+ 路径覆盖账本（路径图每条路径标 driven / probed / observed / not-reached(原因)，字段见 runtime-flow-map §7）
+- 走查改进报告: `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-{YYYYMMDD}-r{N}.md`，front matter `doc_type: framework-review`（编号与字段按 `.cataforge/references/review-report-spec.md`）
+- 报告含: 两类 findings（`framework` 框架本身缺陷/摩擦 + `process` 走查流程本身可改进项，各按 COMMON-RULES §统一问题分类体系 / §归因分类 与 `.cataforge/references/review-report-spec.md` §问题格式 标注；process 条目附 `resolution: applied|proposed|deferred`）+ 路径覆盖账本（路径图每条路径标 driven / probed / observed / not-reached(原因)，字段见 runtime-flow-map §7）
 - 自更新变更（若触发）: 对本 skill SKILL.md / references 的修改留在工作区由标准 PR 流程收口，修改摘要记入报告对应 process finding
 - 沙盒运行产物: 留在 gitignored 沙盒目录供复核，不入仓；报告以「产物清单 + 关键证据」形式引用
 
@@ -51,7 +51,7 @@ user-invocable: true
 3. `--depth full` 时，从 example-project §探针扰动 取本轮要触发的分支/异常路径清单
 
 ### Step 3: 驱动初始化路径（Bootstrap → 路径图 §2）
-1. 在沙盒 cwd 按 start-orchestrator 角色假设起流程：主线程扮演 orchestrator，按 `ORCHESTRATOR-PROTOCOLS §Project Bootstrap` 逐步推进
+1. 在沙盒 cwd 按 start-orchestrator 角色假设起流程：主线程扮演 orchestrator，按 `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS §Project Bootstrap` 逐步推进
 2. 逐步观察 Bootstrap 各产物落地（路径图 I-1~I-9：目录结构 / .gitattributes / {INSTRUCTION_FILE} 初版 / 框架版本 / runtime.platform / env-block / permissions / kg store 水合 / context index），口径见 observation-rubric §1
 3. Bootstrap 完成后跑 `cataforge phase status`，以 `phase recognised` / `phase_start logged` 两行 OK 确认入口成立；入口时点不据 exit 码判 blocked，blocked 判定仅适用阶段收口（E-8）
 
@@ -66,7 +66,7 @@ user-invocable: true
 2. 汇总沙盒产物清单（`docs/` 各文档、`docs/reviews/*`、`PROJECT-STATE`）与 `docs/EVENT-LOG.jsonl` 关键事件、任何错误/卡点的原始输出
 
 ### Step 6: 产出走查改进报告
-1. 按观察点把问题归为 `framework` 与 `process` 两类，套 COMMON-RULES §问题格式（category / root_cause / severity / 描述含证据 / 建议）
+1. 按观察点把问题归为 `framework` 与 `process` 两类，套 `.cataforge/references/review-report-spec.md` §问题格式（category / root_cause / severity / 描述含证据 / 建议）
 2. 填路径覆盖账本：路径图 §2–§6 每条路径标 driven / probed / observed / not-reached(原因)，字段按 runtime-flow-map §7
 3. 写 `docs/reviews/framework/FRAMEWORK-REVIEW-walkthrough-{YYYYMMDD}-r{N}.md`，首行 YAML front matter（id/doc_type/author/status/deps）；三态判定按 COMMON-RULES §三态判定逻辑；本 skill 默认不阻塞业务流程，仅产报告供维护决策
 
