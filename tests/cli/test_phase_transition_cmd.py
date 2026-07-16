@@ -44,22 +44,30 @@ def _make_project(
     doc_status: dict[str, str] | None = None,
     docs: tuple[str, ...] = ("prd",),
     index: bool = True,
+    framework_extra: dict | None = None,
+    instruction_name: str = "CLAUDE.md",
 ) -> Path:
     (tmp / ".cataforge").mkdir()
+    framework = {"schema_version": 2, "context": {"mode": "markdown"}, "workflow": _WORKFLOW}
+    framework.update(framework_extra or {})
     (tmp / ".cataforge" / "framework.json").write_text(
-        json.dumps({"schema_version": 2, "context": {"mode": "markdown"}, "workflow": _WORKFLOW}),
+        json.dumps(framework),
         encoding="utf-8",
     )
     lines = ["# Proj", "## 项目状态", f"- 当前阶段: {phase}", "- 文档状态:"]
     for dt, st in (doc_status or {"prd": "approved"}).items():
         lines.append(f"  - {dt}: {st}")
-    (tmp / "CLAUDE.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (tmp / instruction_name).write_text("\n".join(lines) + "\n", encoding="utf-8")
     for doc_type in docs:
         _write_doc(tmp, doc_type)
     if index:
         result = CliRunner().invoke(cli, ["context", "index", "--project-root", str(tmp)])
         assert result.exit_code == 0, result.output
     return tmp
+
+
+def _gate(payload: dict, name: str) -> dict:
+    return next(g for g in payload["gates"] if g["gate"] == name)
 
 
 def _transition(tmp: Path, *args: str) -> subprocess.CompletedProcess[str] | object:
@@ -116,6 +124,7 @@ class TestTransitionHappyPath:
             "execution_host": "inline",
         }
         assert {g["gate"] for g in payload["gates"]} >= {
+            "phase-field",
             "doc-status",
             "stale-deps",
             "reconcile",
@@ -161,13 +170,21 @@ class TestTransitionArgValidation:
         assert result.exit_code == 1
         assert "not a driven CataForge project" in result.output
 
-    def test_phase_field_mismatch_warns_without_blocking(self, tmp_path: Path) -> None:
+    def test_phase_field_mismatch_stops_without_writing(self, tmp_path: Path) -> None:
         proj = _make_project(tmp_path, phase="testing")
         result = _transition(proj, "--from", "requirements", "--to", "architecture", "--json")
+        assert result.exit_code == 3
+        payload = json.loads(result.output.splitlines()[0])
+        assert payload["stopped_at"] == "phase-field"
+        assert _gate(payload, "phase-field")["options"]
+        assert len(_read_events(proj)) == 0
+
+    def test_phase_field_matches_target_passes(self, tmp_path: Path) -> None:
+        # Step 1 may already have advanced 当前阶段 to the target phase.
+        proj = _make_project(tmp_path, phase="architecture")
+        result = _transition(proj, "--from", "requirements", "--to", "architecture", "--json")
         assert result.exit_code == 0, result.output
-        payload = json.loads(result.output)
-        warned = [g for g in payload["gates"] if g["gate"] == "phase-field"]
-        assert warned and warned[0]["outcome"] == "warn"
+        assert _gate(json.loads(result.output), "phase-field")["outcome"] == "pass"
 
 
 class TestDocStatusGate:
@@ -177,7 +194,7 @@ class TestDocStatusGate:
         assert result.exit_code == 3
         payload = json.loads(result.output.splitlines()[0])
         assert payload["stopped_at"] == "doc-status"
-        assert payload["gates"][0]["options"]
+        assert _gate(payload, "doc-status")["options"]
         assert len(_read_events(proj)) == 0
 
     def test_frontmatter_draft_stops_even_if_field_approved(self, tmp_path: Path) -> None:
@@ -188,7 +205,7 @@ class TestDocStatusGate:
         assert result.exit_code == 3
         payload = json.loads(result.output.splitlines()[0])
         assert payload["stopped_at"] == "doc-status"
-        assert "frontmatter status = draft" in payload["gates"][0]["detail"]
+        assert "frontmatter status = draft" in _gate(payload, "doc-status")["detail"]
 
     def test_phase_without_doc_gate_skips(self, tmp_path: Path) -> None:
         proj = _make_project(tmp_path, phase="development", doc_status={"prd": "approved"})
@@ -213,7 +230,7 @@ class TestStaleDepsGate:
         assert result.exit_code == 3
         payload = json.loads(result.output.splitlines()[0])
         assert payload["stopped_at"] == "stale-deps"
-        assert "context index" in payload["gates"][1]["options"][0]["action"]
+        assert "context index" in _gate(payload, "stale-deps")["options"][0]["action"]
 
     def test_index_integrity_failure_stops(self, tmp_path: Path) -> None:
         proj = _make_project(tmp_path)
@@ -222,7 +239,7 @@ class TestStaleDepsGate:
         assert result.exit_code == 3
         payload = json.loads(result.output.splitlines()[0])
         assert payload["stopped_at"] == "stale-deps"
-        assert "integrity" in payload["gates"][1]["detail"]
+        assert "integrity" in _gate(payload, "stale-deps")["detail"]
 
     @staticmethod
     def _poison_dep_pin(proj: Path) -> None:
@@ -442,3 +459,205 @@ class TestLimitBreaches:
             "max_state_bullet_chars": 0,
         }
         assert limit_breaches(measure_claude_md(tmp_path / "CLAUDE.md"), limits) == []
+
+
+class TestAuditPersistence:
+    """Decision audit records must persist independently of the event batch."""
+
+    def _project_with_stale_dep(self, tmp_path: Path) -> Path:
+        proj = _make_project(
+            tmp_path,
+            doc_status={"prd": "approved", "arch": "approved"},
+            docs=("prd", "arch"),
+        )
+        return proj
+
+    def test_ack_survives_batch_skip_on_rerun(self, tmp_path: Path) -> None:
+        # Transition completes first; the stale dep appears only afterwards,
+        # so the re-run's ack is a NEW decision the skipped batch cannot carry.
+        proj = self._project_with_stale_dep(tmp_path)
+        first = _transition(proj, "--from", "architecture", "--to", "ui_design")
+        assert first.exit_code == 0, first.output
+        assert len(_read_events(proj)) == 4
+        TestStaleDepsGate._poison_dep_pin(proj)
+        second = _transition(
+            proj, "--from", "architecture", "--to", "ui_design", "--ack-stale-deps"
+        )
+        assert second.exit_code == 0, second.output
+        events = _read_events(proj)
+        assert len(events) == 5
+        assert events[-1]["detail"] == "stale deps acknowledged: prd-proj"
+
+    def test_ack_not_duplicated_across_reruns(self, tmp_path: Path) -> None:
+        proj = self._project_with_stale_dep(tmp_path)
+        TestStaleDepsGate._poison_dep_pin(proj)
+        for _ in range(2):
+            result = _transition(
+                proj, "--from", "architecture", "--to", "ui_design", "--ack-stale-deps"
+            )
+            assert result.exit_code == 0, result.output
+        events = _read_events(proj)
+        acks = [e for e in events if e["detail"].startswith("stale deps acknowledged")]
+        assert len(acks) == 1
+
+    def test_ack_persists_when_later_gate_stops(self, tmp_path: Path) -> None:
+        # Old protocol logged the decision the moment it was made; a later
+        # hygiene stop must not lose it.
+        proj = self._project_with_stale_dep(tmp_path)
+        TestStaleDepsGate._poison_dep_pin(proj)
+        framework = proj / ".cataforge" / "framework.json"
+        data = json.loads(framework.read_text())
+        data["claude_md_limits"] = {
+            "max_bytes": 30000,
+            "max_state_section_lines": 80,
+            "learnings_registry_max_entries": 1,
+            "max_state_bullet_chars": 500,
+        }
+        framework.write_text(json.dumps(data), encoding="utf-8")
+        claude_md = proj / "CLAUDE.md"
+        claude_md.write_text(
+            claude_md.read_text() + "- Learnings Registry:\n  - L1\n  - L2\n  - L3\n",
+            encoding="utf-8",
+        )
+        result = _transition(
+            proj, "--from", "architecture", "--to", "ui_design", "--ack-stale-deps"
+        )
+        assert result.exit_code == 3
+        events = _read_events(proj)
+        assert any(e["detail"].startswith("stale deps acknowledged") for e in events)
+
+
+class TestBatchDedup:
+    def test_retransition_after_revision_logs_new_batch(self, tmp_path: Path) -> None:
+        # A rollback to the source phase (recorded as revision_start) makes the
+        # next transition a genuinely new one — its batch must not be skipped.
+        from cataforge.core.event_log import append_event, build_record
+
+        proj = _make_project(tmp_path)
+        first = _transition(proj, "--from", "requirements", "--to", "architecture")
+        assert first.exit_code == 0, first.output
+        append_event(
+            proj,
+            build_record(
+                event="revision_start",
+                phase="requirements",
+                detail="回滚返工 needs_revision(1)",
+            ),
+        )
+        second = _transition(proj, "--from", "requirements", "--to", "architecture")
+        assert second.exit_code == 0, second.output
+        events = _read_events(proj)
+        assert len(events) == 9  # 4 + revision_start + 4
+        assert [e["event"] for e in events[-4:]] == [
+            "phase_end",
+            "review_verdict",
+            "state_change",
+            "phase_start",
+        ]
+
+    def test_plain_rerun_still_skips_batch(self, tmp_path: Path) -> None:
+        proj = _make_project(tmp_path)
+        for expected_events in (4, 4):
+            result = _transition(proj, "--from", "requirements", "--to", "architecture")
+            assert result.exit_code == 0, result.output
+            assert len(_read_events(proj)) == expected_events
+
+
+class TestEventBatchFailure:
+    def test_unwritable_log_reports_fail_gate(self, tmp_path: Path) -> None:
+        proj = _make_project(tmp_path)
+        (proj / "docs" / "EVENT-LOG.jsonl").mkdir()
+        result = _transition(proj, "--from", "requirements", "--to", "architecture", "--json")
+        assert result.exit_code == 1
+        payload = json.loads(result.output.splitlines()[0])
+        assert payload["stopped_at"] == "event-batch"
+        gate = _gate(payload, "event-batch")
+        assert gate["outcome"] == "fail"
+        assert "event batch not written" in gate["detail"]
+
+
+class TestClaudeMdGateHardening:
+    def test_compact_event_logged_even_when_still_breached(self, tmp_path: Path) -> None:
+        # max_bytes stays breached after compaction: the mutation happened, so
+        # the audit event must land even though the gate still stops.
+        proj = _make_project(
+            tmp_path,
+            framework_extra={
+                "claude_md_limits": {
+                    "max_bytes": 50,
+                    "max_state_section_lines": 80,
+                    "learnings_registry_max_entries": 2,
+                    "max_state_bullet_chars": 500,
+                }
+            },
+        )
+        claude_md = proj / "CLAUDE.md"
+        claude_md.write_text(
+            claude_md.read_text()
+            + "- Learnings Registry:\n"
+            + "".join(f"  - L{i} 经验\n" for i in range(4)),
+            encoding="utf-8",
+        )
+        result = _transition(proj, "--from", "requirements", "--to", "architecture", "--compact")
+        assert result.exit_code == 3
+        events = _read_events(proj)
+        assert events[-1]["detail"] == "claude-md compact applied at phase transition"
+        assert measure_claude_md(claude_md).learnings_entries <= 2
+
+    def test_agents_md_platform_gates_instruction_file(self, tmp_path: Path) -> None:
+        # On a non-Claude platform the hygiene gate must measure (and offer to
+        # fix) the real instruction file instead of silently skipping.
+        proj = _make_project(
+            tmp_path,
+            instruction_name="AGENTS.md",
+            framework_extra={
+                "deployment": {"default_platform": "cursor"},
+                "claude_md_limits": {
+                    "max_bytes": 30000,
+                    "max_state_section_lines": 80,
+                    "learnings_registry_max_entries": 2,
+                    "max_state_bullet_chars": 500,
+                },
+            },
+        )
+        agents_md = proj / "AGENTS.md"
+        agents_md.write_text(
+            agents_md.read_text()
+            + "- Learnings Registry:\n"
+            + "".join(f"  - L{i} 经验\n" for i in range(4)),
+            encoding="utf-8",
+        )
+        result = _transition(proj, "--from", "requirements", "--to", "architecture", "--json")
+        assert result.exit_code == 3
+        payload = json.loads(result.output.splitlines()[0])
+        assert payload["stopped_at"] == "claude-md"
+        gate = _gate(payload, "claude-md")
+        assert any("AGENTS.md" in o["action"] for o in gate["options"])
+
+
+class TestApprovedMatching:
+    def test_bogus_approved_suffix_rejected(self, tmp_path: Path) -> None:
+        proj = _make_project(tmp_path, doc_status={"prd": "approvedX"})
+        result = _transition(proj, "--from", "requirements", "--to", "architecture", "--json")
+        assert result.exit_code == 3
+        payload = json.loads(result.output.splitlines()[0])
+        assert payload["stopped_at"] == "doc-status"
+
+    def test_approved_with_annotation_accepted(self, tmp_path: Path) -> None:
+        proj = _make_project(tmp_path, doc_status={"prd": "approved (2026-07-01)"})
+        result = _transition(proj, "--from", "requirements", "--to", "architecture")
+        assert result.exit_code == 0, result.output
+
+    def test_lite_frontmatter_doc_accepted(self, tmp_path: Path) -> None:
+        proj = _make_project(tmp_path, docs=(), doc_status={"prd-lite": "approved"})
+        subdir = proj / "docs" / "prd"
+        subdir.mkdir(parents=True)
+        (subdir / "prd-lite-proj.md").write_text(
+            "---\nid: prd-lite-proj\ndoc_type: prd-lite\nstatus: approved\n"
+            'version: "1.0"\n---\n# prd\n## §1 节\n内容。\n',
+            encoding="utf-8",
+        )
+        CliRunner().invoke(cli, ["context", "index", "--project-root", str(proj)])
+        result = _transition(proj, "--from", "requirements", "--to", "architecture", "--json")
+        assert result.exit_code == 0, result.output
+        assert _gate(json.loads(result.output), "doc-status")["outcome"] == "pass"

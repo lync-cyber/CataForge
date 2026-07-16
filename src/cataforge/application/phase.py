@@ -101,7 +101,8 @@ def _find_phase_doc(docs_dir: Path, doc_type: str) -> Path | None:
     """
     subdir = docs_dir / doc_type
     subdir_mds = sorted(subdir.glob("*.md")) if subdir.is_dir() else []
-    candidates = [p for p in subdir_mds if _frontmatter_doc_type(p) in (None, doc_type)]
+    accepted = (None, doc_type, f"{doc_type}-lite")
+    candidates = [p for p in subdir_mds if _frontmatter_doc_type(p) in accepted]
     candidates += [docs_dir / f"{doc_type}.md", docs_dir / f"{doc_type}-lite.md"]
     return next((c for c in candidates if c.is_file()), None)
 

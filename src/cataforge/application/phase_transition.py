@@ -2,24 +2,29 @@
 
 The orchestrator's Phase Transition Protocol mixes LLM-side state persistence
 (doc/instruction-file status updates) with a fixed chain of CLI gates. This
-module codifies the deterministic chain — doc-status consistency check,
-dependency freshness, backend reconcile, cross-document consistency, the
-4-record transition event batch, and instruction-file hygiene — behind
-``cataforge phase transition`` (thin CLI in
+module codifies the deterministic chain — phase-field sanity, doc-status
+consistency check, dependency freshness, backend reconcile, cross-document
+consistency, the 4-record transition event batch, and instruction-file
+hygiene — behind ``cataforge phase transition`` (thin CLI in
 :mod:`cataforge.interface.cli.phase_cmd`).
 
 Contract: gates run in protocol order and the chain halts at the first gate
 that needs a human/LLM decision, reporting structured options; a re-run after
-the decision is safe — every gate before the event batch is read-only, and the
-batch itself is skipped when the log's newest ``phase_start`` already names the
-target phase. Decisions are carried back in as flags (``ack_stale_deps``,
-``ack_inconsistency``, ``compact``), and their audit records ride the same
-atomic event batch.
+the decision is safe. Decision/telemetry audit records (acks, degrade notes,
+reconcile skips, compact) are appended the moment they are earned — deduped by
+exact (event, phase, detail) content so re-runs don't duplicate them — which
+means a later gate stop can never lose them. The 4-record transition batch is
+skipped only when the log's newest ``phase_start`` already names the target
+phase AND no phase-flow event (phase_start / phase_end / revision_start /
+incident) for the source phase follows it, so a rollback-then-retransition
+still logs its own batch. Decisions are carried back in as flags
+(``ack_stale_deps``, ``ack_inconsistency``, ``compact``).
 """
 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,7 +43,7 @@ from cataforge.core.claude_md_hygiene import (
 )
 from cataforge.core.config import ConfigManager
 from cataforge.core.errors import CataforgeError
-from cataforge.core.event_log import append_batch, append_event, build_record
+from cataforge.core.event_log import EventLogError, append_batch, append_event, build_record
 from cataforge.core.phases import PHASE_DOC_TYPE, PHASES
 from cataforge.domain.docs.indexer import INDEX_FILENAME, validate_docs
 from cataforge.domain.kg._dispatch import kg_enabled
@@ -54,9 +59,24 @@ OUTCOME_SKIP = "skip"
 OUTCOME_STOP = "stop"
 OUTCOME_FAIL = "fail"
 
-_APPROVED_PREFIX = "approved"
+# approved / approved_with_notes, optionally followed by a whitespace- or
+# parenthesis-separated annotation ("approved (2026-07-01)"); rejects
+# arbitrary suffix strings like "approvedX".
+_APPROVED_RE = re.compile(r"approved(_with_notes)?([\s(（].*)?\Z", re.DOTALL)
 _MIN_DOCS_FOR_CONSISTENCY = 2
 _DOC_CONSISTENCY_SKILL = "doc-consistency"
+
+# Events that mark the workflow's position moving between phases. Used by the
+# batch dedup check: a record of one of these kinds for the source phase
+# *after* the newest ``phase_start`` of the target phase means the workflow
+# went back (revision / rollback), so the next transition is a new one — not
+# an idempotent re-run. Audit ``state_change`` records deliberately don't
+# count: they carry the source phase but don't move the workflow.
+_FLOW_EVENTS = frozenset({"phase_start", "phase_end", "revision_start", "incident"})
+
+
+def _is_approved(status: str | None) -> bool:
+    return bool(status) and _APPROVED_RE.fullmatch(str(status).strip()) is not None
 
 
 @dataclass(frozen=True)
@@ -145,22 +165,14 @@ def run_transition(
     state_text = instruction_file.read_text(errors="replace")
 
     report = TransitionReport(from_phase=from_phase, to_phase=to_phase)
-    # Audit records earned during the gates (acks, degrade notes). They ride
-    # the same atomic batch as the 4 transition records; on a re-run whose
-    # batch is skipped they are dropped as already-logged duplicates.
-    extra_records: list[dict[str, Any]] = []
-
-    _note_phase_mismatch(report, state_text, from_phase, to_phase)
-
     steps: tuple[Callable[[], GateResult], ...] = (
+        lambda: _gate_phase_field(state_text, from_phase, to_phase),
         lambda: _gate_doc_status(root, state_text, from_phase),
-        lambda: _gate_stale_deps(root, from_phase, ack_stale_deps, extra_records),
-        lambda: _gate_reconcile(root, from_phase, extra_records),
-        lambda: _gate_doc_consistency(
-            root, state_text, from_phase, ack_inconsistency, extra_records
-        ),
-        lambda: _gate_event_batch(root, instruction_file.name, from_phase, to_phase, extra_records),
-        lambda: _gate_claude_md(root, to_phase, compact),
+        lambda: _gate_stale_deps(root, from_phase, ack_stale_deps),
+        lambda: _gate_reconcile(root, from_phase),
+        lambda: _gate_doc_consistency(root, state_text, from_phase, ack_inconsistency),
+        lambda: _gate_event_batch(root, instruction_file.name, from_phase, to_phase),
+        lambda: _gate_claude_md(root, instruction_file, to_phase, compact),
     )
     for step in steps:
         result = step()
@@ -188,27 +200,34 @@ def _validate_phases(from_phase: str, to_phase: str) -> None:
         raise CataforgeError("--from 'completed' is terminal — nothing to transition out of.")
 
 
-def _note_phase_mismatch(
-    report: TransitionReport, state_text: str, from_phase: str, to_phase: str
-) -> None:
-    """Record (without blocking) when 当前阶段 names neither side of the move.
+def _gate_phase_field(state_text: str, from_phase: str, to_phase: str) -> GateResult:
+    """Sanity-check 当前阶段 against the transition arguments.
 
     During the protocol the LLM may already have advanced the instruction
     file's 当前阶段 to the target phase, so either value is expected; anything
-    else suggests the wrong transition is being driven.
+    else means the wrong transition is being driven — proceeding would append
+    an out-of-order event batch, so this stops instead of warning.
     """
+    gate = "phase-field"
     current = parse_current_phase(state_text)
-    if current and current not in (from_phase, to_phase):
-        report.gates.append(
-            GateResult(
-                gate="phase-field",
-                outcome=OUTCOME_WARN,
-                detail=(
-                    f"instruction file 当前阶段 is {current!r}, which matches neither "
-                    f"--from {from_phase!r} nor --to {to_phase!r} — check the transition args."
-                ),
-            )
-        )
+    if not current:
+        return GateResult(gate, OUTCOME_SKIP, "instruction file has no 当前阶段 line")
+    if current in (from_phase, to_phase):
+        return GateResult(gate, OUTCOME_PASS, f"当前阶段 = {current!r} matches the transition")
+    return GateResult(
+        gate,
+        OUTCOME_STOP,
+        f"instruction file 当前阶段 is {current!r}, which matches neither "
+        f"--from {from_phase!r} nor --to {to_phase!r} — wrong transition being driven?",
+        options=[
+            GateOption(
+                "核对参数后重跑",
+                "确认 --from/--to 是否为当前应执行的转换；"
+                "若 Step 1 尚未更新 当前阶段，先补齐再重跑",
+            ),
+            GateOption("暂停", "等待人工处理"),
+        ],
+    )
 
 
 def _doc_status_for(doc_status: dict[str, str], doc_type: str) -> str | None:
@@ -234,7 +253,7 @@ def _gate_doc_status(root: Path, state_text: str, from_phase: str) -> GateResult
     problems: list[str] = []
     for doc_type in doc_types:
         field_status = _doc_status_for(doc_status, doc_type)
-        if not field_status or not field_status.startswith(_APPROVED_PREFIX):
+        if not _is_approved(field_status):
             problems.append(f"文档状态.{doc_type} = {field_status or '未开始'} (expected approved)")
 
         doc_path = _find_phase_doc(root / "docs", doc_type)
@@ -243,7 +262,7 @@ def _gate_doc_status(root: Path, state_text: str, from_phase: str) -> GateResult
             continue
         fm, _ = split_yaml_frontmatter(doc_path.read_text(errors="replace"))
         fm_status = str((fm or {}).get("status") or "")
-        if not fm_status.startswith(_APPROVED_PREFIX):
+        if not _is_approved(fm_status):
             problems.append(
                 f"{doc_path.relative_to(root).as_posix()}: frontmatter status = "
                 f"{fm_status or '(absent)'} (expected approved)"
@@ -267,12 +286,7 @@ def _gate_doc_status(root: Path, state_text: str, from_phase: str) -> GateResult
     )
 
 
-def _gate_stale_deps(
-    root: Path,
-    from_phase: str,
-    ack_stale_deps: bool,
-    extra_records: list[dict[str, Any]],
-) -> GateResult:
+def _gate_stale_deps(root: Path, from_phase: str, ack_stale_deps: bool) -> GateResult:
     """Dependency freshness: block on stale upstream deps unless acknowledged."""
     gate = "stale-deps"
     if not (root / "docs" / INDEX_FILENAME).is_file():
@@ -313,17 +327,16 @@ def _gate_stale_deps(
     pairs = ", ".join(f"{sd['doc_id']}←{sd['upstream_id']}" for sd in stale_deps)
     if ack_stale_deps:
         upstream_ids = ", ".join(sorted({sd["upstream_id"] for sd in stale_deps}))
-        extra_records.append(
-            build_record(
-                event="state_change",
-                phase=from_phase,
-                detail=f"stale deps acknowledged: {upstream_ids}",
-            )
+        note = _log_audit_once(
+            root,
+            event="state_change",
+            phase=from_phase,
+            detail=f"stale deps acknowledged: {upstream_ids}",
         )
         return GateResult(
             gate,
             OUTCOME_WARN,
-            f"{len(stale_deps)} stale dep(s) acknowledged, degraded to WARN: {pairs}",
+            f"{len(stale_deps)} stale dep(s) acknowledged, degraded to WARN ({note}): {pairs}",
         )
     return GateResult(
         gate,
@@ -331,17 +344,13 @@ def _gate_stale_deps(
         f"{len(stale_deps)} stale dep(s) — upstream changed after downstream was written: {pairs}",
         options=[
             GateOption("cascade_amendment", "进入 cascade_amendment 更新受影响文档"),
-            GateOption("确认不影响下游", "重跑本命令并加 --ack-stale-deps（降级为 WARN 记录）"),
+            GateOption("确认不影响下游", "重跑本命令并加 --ack-stale-deps（决策即时记 EVENT-LOG）"),
             GateOption("暂停", "手动审查"),
         ],
     )
 
 
-def _gate_reconcile(
-    root: Path,
-    from_phase: str,
-    extra_records: list[dict[str, Any]],
-) -> GateResult:
+def _gate_reconcile(root: Path, from_phase: str) -> GateResult:
     """Backend drift guard; skips (with an audit note) when it cannot run."""
     gate = "reconcile"
     if not kg_enabled(root):
@@ -354,14 +363,13 @@ def _gate_reconcile(
     try:
         result = reconcile_check(str(root))
     except Exception as exc:  # store missing / corrupt etc. — WARN, don't block
-        extra_records.append(
-            build_record(
-                event="state_change",
-                phase=from_phase,
-                detail=f"reconcile skipped at phase transition: {type(exc).__name__}: {exc}",
-            )
+        note = _log_audit_once(
+            root,
+            event="state_change",
+            phase=from_phase,
+            detail=f"reconcile skipped at phase transition: {type(exc).__name__}: {exc}",
         )
-        return GateResult(gate, OUTCOME_WARN, f"reconcile skipped ({exc}) — recorded for reflector")
+        return GateResult(gate, OUTCOME_WARN, f"reconcile skipped ({exc}) — {note}")
 
     if result.ok:
         return GateResult(gate, OUTCOME_PASS, "no drift")
@@ -395,9 +403,7 @@ def _gate_reconcile(
 
 
 def _count_approved_docs(state_text: str) -> int:
-    return sum(
-        1 for status in parse_doc_status(state_text).values() if status.startswith(_APPROVED_PREFIX)
-    )
+    return sum(1 for status in parse_doc_status(state_text).values() if _is_approved(status))
 
 
 def _gate_doc_consistency(
@@ -405,7 +411,6 @@ def _gate_doc_consistency(
     state_text: str,
     from_phase: str,
     ack_inconsistency: bool,
-    extra_records: list[dict[str, Any]],
 ) -> GateResult:
     """Cross-document consistency via the doc-consistency Layer 1 skill."""
     gate = "doc-consistency"
@@ -434,28 +439,28 @@ def _gate_doc_consistency(
         non_blocking = {k: v for k, v in severities.items() if k in ("MEDIUM", "LOW") and v}
         if non_blocking:
             summary = ", ".join(f"{v} {k}" for k, v in sorted(non_blocking.items()))
-            extra_records.append(
-                build_record(
-                    event="state_change",
-                    phase=from_phase,
-                    detail=f"doc-consistency WARN at phase transition: {summary}",
-                )
+            note = _log_audit_once(
+                root,
+                event="state_change",
+                phase=from_phase,
+                detail=f"doc-consistency WARN at phase transition: {summary}",
             )
-            return GateResult(gate, OUTCOME_WARN, f"consistent with findings: {summary}")
+            return GateResult(gate, OUTCOME_WARN, f"consistent with findings ({note}): {summary}")
         return GateResult(gate, OUTCOME_PASS, "consistent")
 
     if proc.returncode == 1:
         blocking = {k: v for k, v in severities.items() if k in ("CRITICAL", "HIGH") and v}
         summary = ", ".join(f"{v} {k}" for k, v in sorted(blocking.items())) or "blocking findings"
         if ack_inconsistency:
-            extra_records.append(
-                build_record(
-                    event="state_change",
-                    phase=from_phase,
-                    detail=f"doc-consistency inconsistency degraded to WARN: {summary}",
-                )
+            note = _log_audit_once(
+                root,
+                event="state_change",
+                phase=from_phase,
+                detail=f"doc-consistency inconsistency degraded to WARN: {summary}",
             )
-            return GateResult(gate, OUTCOME_WARN, f"inconsistent, degraded to WARN: {summary}")
+            return GateResult(
+                gate, OUTCOME_WARN, f"inconsistent, degraded to WARN ({note}): {summary}"
+            )
         return GateResult(
             gate,
             OUTCOME_STOP,
@@ -463,7 +468,7 @@ def _gate_doc_consistency(
             options=[
                 GateOption("cascade_amendment", "修复跨文档不一致"),
                 GateOption(
-                    "降级为 WARN 继续", "重跑本命令并加 --ack-inconsistency（记录到 EVENT-LOG）"
+                    "降级为 WARN 继续", "重跑本命令并加 --ack-inconsistency（决策即时记 EVENT-LOG）"
                 ),
                 GateOption("暂停", "手动审查"),
             ],
@@ -496,14 +501,18 @@ def _issue_severities(stdout: str) -> dict[str, int]:
     return counts
 
 
-def _last_phase_start(root: Path) -> str | None:
-    """Phase named by the newest ``phase_start`` record, or None."""
+# ─── event-log plumbing ──────────────────────────────────────────────────────
+
+
+def _read_log_records(root: Path) -> list[dict[str, Any]]:
+    """Tolerantly parse EVENT-LOG.jsonl; bad/truncated lines are skipped."""
     log = root / "docs" / "EVENT-LOG.jsonl"
     try:
         lines = log.read_text(errors="replace").splitlines()
     except OSError:
-        return None
-    for line in reversed(lines):
+        return []
+    records: list[dict[str, Any]] = []
+    for line in lines:
         line = line.strip()
         if not line:
             continue
@@ -511,26 +520,65 @@ def _last_phase_start(root: Path) -> str | None:
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if isinstance(rec, dict):
+            records.append(rec)
+    return records
+
+
+def _log_audit_once(root: Path, *, event: str, phase: str, detail: str) -> str:
+    """Append a decision/telemetry audit record the moment it is earned.
+
+    The protocol persists these at decision time, so a later gate stop or an
+    idempotent batch skip can never lose them. Re-runs re-earn byte-identical
+    records, so an existing record with the same (event, phase, detail) triple
+    suppresses the append. Returns a short note for the gate detail.
+    """
+    for rec in _read_log_records(root):
+        if rec.get("event") == event and rec.get("phase") == phase and rec.get("detail") == detail:
+            return "已记录（去重）"
+    try:
+        append_event(root, build_record(event=event, phase=phase, detail=detail))
+    except (EventLogError, OSError) as exc:
+        return f"WARN: 审计事件写入失败（{exc}）"
+    return "已记 EVENT-LOG"
+
+
+def _batch_already_logged(root: Path, from_phase: str, to_phase: str) -> bool:
+    """True iff this run is an idempotent re-run of an already-logged transition.
+
+    The newest ``phase_start`` must name ``to_phase`` AND no phase-flow event
+    (:data:`_FLOW_EVENTS`) for ``from_phase`` may follow it — such a record
+    means the workflow went back to the source phase since, so the upcoming
+    transition is a new one that deserves its own batch. A rollback performed
+    with no events at all remains indistinguishable from a re-run; the
+    recovery protocols log ``revision_start`` / ``incident`` for this reason.
+    """
+    records = _read_log_records(root)
+    newest_idx: int | None = None
+    newest_phase: str | None = None
+    for i, rec in enumerate(records):
         if rec.get("event") == "phase_start" and rec.get("phase"):
-            return str(rec["phase"])
-    return None
+            newest_idx, newest_phase = i, str(rec["phase"])
+    if newest_idx is None or newest_phase != to_phase:
+        return False
+    return not any(
+        rec.get("event") in _FLOW_EVENTS and rec.get("phase") == from_phase
+        for rec in records[newest_idx + 1 :]
+    )
 
 
 def _gate_event_batch(
-    root: Path,
-    instruction_name: str,
-    from_phase: str,
-    to_phase: str,
-    extra_records: list[dict[str, Any]],
+    root: Path, instruction_name: str, from_phase: str, to_phase: str
 ) -> GateResult:
-    """Atomically append the 4-record transition batch (+ earned audit records).
+    """Atomically append the 4-record transition batch.
 
-    Idempotency: when the log's newest ``phase_start`` already names
-    ``to_phase``, this run is a re-run after a later-gate stop — the batch
-    (including any re-earned audit records) is skipped, not duplicated.
+    Idempotency: skipped when :func:`_batch_already_logged` recognises this
+    run as a re-run of the same, already-logged transition. Audit records are
+    not part of the batch — they are appended at decision time by
+    :func:`_log_audit_once`.
     """
     gate = "event-batch"
-    if _last_phase_start(root) == to_phase:
+    if _batch_already_logged(root, from_phase, to_phase):
         return GateResult(
             gate,
             OUTCOME_SKIP,
@@ -538,7 +586,6 @@ def _gate_event_batch(
         )
 
     records = [
-        *extra_records,
         build_record(
             event="phase_end", phase=from_phase, status="approved", detail="reviewer 通过"
         ),
@@ -556,58 +603,78 @@ def _gate_event_batch(
         ),
         build_record(event="phase_start", phase=to_phase, detail=f"进入 {to_phase} 阶段"),
     ]
-    path, count = append_batch(root, records)
+    try:
+        path, count = append_batch(root, records)
+    except (EventLogError, OSError) as exc:
+        return GateResult(
+            gate,
+            OUTCOME_FAIL,
+            f"event batch not written ({type(exc).__name__}: {exc}) — "
+            "fix docs/EVENT-LOG.jsonl writability and re-run",
+        )
     return GateResult(gate, OUTCOME_PASS, f"{count} event(s) appended to {path.name}")
 
 
-def _gate_claude_md(root: Path, to_phase: str, compact: bool) -> GateResult:
+def _gate_claude_md(root: Path, instruction_file: Path, to_phase: str, compact: bool) -> GateResult:
     """Instruction-file hygiene gate; ``compact`` applies the automatic fix."""
     gate = "claude-md"
-    cfg = ConfigManager(root)
-    limits = cfg.claude_md_limits
-    claude_md = cfg.paths.root / "CLAUDE.md"
+    limits = ConfigManager(root).claude_md_limits
+    name = instruction_file.name
 
-    measurement = measure_claude_md(claude_md)
+    measurement = measure_claude_md(instruction_file)
     if not measurement.exists:
-        return GateResult(gate, OUTCOME_SKIP, f"no CLAUDE.md at {claude_md} — hygiene gate skipped")
+        return GateResult(
+            gate, OUTCOME_SKIP, f"no {name} at {instruction_file} — hygiene gate skipped"
+        )
 
     breaches = limit_breaches(measurement, limits)
     if not breaches:
         return GateResult(gate, OUTCOME_PASS, "within limits")
 
+    compact_note = ""
     if compact:
-        archive = cfg.paths.root / ".cataforge" / "learnings" / "registry-archive.md"
-        compact_learnings_registry(
-            claude_md,
+        archive = root / ".cataforge" / "learnings" / "registry-archive.md"
+        compaction = compact_learnings_registry(
+            instruction_file,
             archive_path=archive,
             max_entries=limits["learnings_registry_max_entries"],
         )
-        breaches = limit_breaches(measure_claude_md(claude_md), limits)
+        if compaction.rewrote_claude_md:
+            # The mutation happened — audit it now, whatever the re-check says.
+            try:
+                append_event(
+                    root,
+                    build_record(
+                        event="state_change",
+                        phase=to_phase,
+                        detail="claude-md compact applied at phase transition",
+                    ),
+                )
+                compact_note = "compact applied (event logged)"
+            except (EventLogError, OSError) as exc:
+                compact_note = f"compact applied (WARN: 审计事件写入失败（{exc}）)"
+        else:
+            compact_note = "compact was a no-op"
+        breaches = limit_breaches(measure_claude_md(instruction_file), limits)
         if not breaches:
-            append_event(
-                root,
-                build_record(
-                    event="state_change",
-                    phase=to_phase,
-                    detail="claude-md compact applied at phase transition",
-                ),
-            )
-            return GateResult(gate, OUTCOME_PASS, "within limits after compact (event logged)")
+            return GateResult(gate, OUTCOME_PASS, f"within limits after compact — {compact_note}")
 
     summary = ", ".join(f"{key}: {measured} > {limit}" for key, measured, limit in breaches)
+    if compact_note:
+        summary += f" · {compact_note}"
     options = (
-        [GateOption("手动瘦身后重跑", "编辑 CLAUDE.md 收敛越界项后重跑本命令")]
+        [GateOption("手动瘦身后重跑", f"编辑 {name} 收敛越界项后重跑本命令")]
         if compact
         else [
             GateOption("自动 compact", "重跑本命令并加 --compact（仅收敛 Learnings Registry）"),
-            GateOption("手动瘦身后重跑", "编辑 CLAUDE.md 收敛越界项后重跑本命令"),
+            GateOption("手动瘦身后重跑", f"编辑 {name} 收敛越界项后重跑本命令"),
         ]
     )
     return GateResult(gate, OUTCOME_STOP, f"limits exceeded — {summary}", options=options)
 
 
 def _dispatch_hint(root: Path, to_phase: str) -> dict[str, str] | None:
-    """Step-10 dispatch hint: role + execution_host for the target phase."""
+    """Dispatch hint for entering the next phase: role + execution_host."""
     if to_phase == "completed":
         return {"phase": to_phase, "hint": "7 阶段完成 — 按 §Retrospective 触发 reflector"}
 

@@ -68,7 +68,7 @@ orchestrator 在关键节点向 `docs/EVENT-LOG.jsonl` 追加事件记录，用�
 - `cataforge doctor` 的 "EVENT-LOG schema sample" 与 "EVENT-LOG bypass guard" 段会捕获这两类违规并在 CI 中失败。
 
 ```bash
-cataforge event log --event phase_start --phase architecture --detail "进入架构设计阶段"
+cataforge event log --event state_change --phase architecture --detail "design_tool penpot→none: 连接失败，降级纯文本流"
 ```
 
 ---

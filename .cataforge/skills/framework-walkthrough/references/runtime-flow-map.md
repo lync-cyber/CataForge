@@ -91,8 +91,8 @@
 | B-7 | 模式回退提示 | lite 文档超阈值 / agile-lite 任务数 >25 | AskUserQuestion 提示升档；不自动改写模式字段 | P | 是否检出超阈值信号、是否误自动改写 |
 | B-8 | stale_deps 分支 | C-5b 检出过期依赖 | cascade_amendment / 降级 WARN / 暂停 三选项 | O | 上游变更后下游是否真被标 stale |
 | B-9 | reconcile drift 分支 | C-5c 检出图谱漂移 | remediation：export(finalize) / ingest(回灌) / manual | O | drift 方向判定与 remediation 是否匹配 |
-| B-10 | doc-consistency 分支 | C-5d exit 1 | cascade_amendment / 降级 WARN / 暂停 | O | 跨文档矛盾是否被检出 |
-| B-11 | claude-md hygiene 分支 | C-5f exit 1 | 自动 compact / 手动处理，阻塞转换 | O | 阈值越界是否真阻塞而非 WARN 放行 |
+| B-10 | doc-consistency 分支 | C-5d STOP（命令 exit 3） | cascade_amendment / 降级 WARN / 暂停 | O | 跨文档矛盾是否被检出 |
+| B-11 | claude-md hygiene 分支 | C-5f STOP（命令 exit 3） | 自动 compact / 手动处理，阻塞转换 | O | 阈值越界是否真阻塞而非 WARN 放行 |
 | B-12 | skippable 阶段 N/A | §阶段配置 标 ui_design/testing/deployment N/A | 路由跳过该阶段，不产对应文档 | P | N/A 阶段是否被正确跳过、不误判为缺产物 |
 | B-13 | ui_design 真驱动（UI 链路） | 走查 `--example temperature-converter-ui` | ui_design 不标 N/A；design_tool=none 走 ui-designer 纯文本流产 ui-spec → doc-review；development 含 UI 保真类任务；code-review 命中 ui_fidelity（Layer 1）与 visual-fidelity 维度；沙盒取不到渲染证据时 reviewer 出 `conditional_release` + 非空 `blocking_conditions` | P | 纯文本流是否顺畅、UI 保真 AC 是否被写成字面断言反模式（只断言 token/类名存在）、无渲染证据时是否误用 `[ENV-LIMITATION]` 豁免而非 conditional_release |
 | B-14 | Design-Tool Capability Gate 降级 | Bootstrap 设计工具选 penpot 而沙盒无 penpot MCP | 进 ui_design 前探测 → 区分「工具未注册」vs「连接失败/插件未连」→ 不静默降级、给选项 → 用户选降级时 design_tool penpot→none 落真值 + 记 state_change EVENT → 纯文本流继续 | P | 两类不可用形态是否分开报告、降级是否落真值并记 EVENT、是否出现静默降级 |

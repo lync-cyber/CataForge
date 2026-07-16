@@ -27,7 +27,7 @@
 | [`cataforge feedback`](#feedback) | 把下游信号打包为上游可消费的 markdown 反馈 |
 | [`cataforge issue`](#issue) | 上游 GitHub issue 全闭环：triage 拉取分诊 / close 模板化关闭 |
 | [`cataforge penpot`](#penpot) | Penpot 设计工具集成：Docker 栈 + MCP 服务部署与生命周期 |
-| [`cataforge phase`](#phase) | 只读巡检当前 SDLC 工作流阶段及预期产物 |
+| [`cataforge phase`](#phase) | 巡检当前 SDLC 阶段产物；执行阶段转换的确定性门禁链 |
 | [`cataforge claude-md`](#claude-md) | 项目指令文件卫生：体积诊断 + Learnings Registry 压缩 |
 | [`cataforge viz`](#viz) | 框架 / 项目结构图渲染（Mermaid / DOT / JSON 文本） |
 | [`cataforge git`](#git) | 本地分支卫生：同步默认分支、清理 squash 合并分支、设置仓库 merge 策略 |
@@ -798,19 +798,22 @@ cataforge phase transition --from <旧阶段> --to <新阶段> [--json]   # 阶�
 
 `phase status` 的门禁结论与 [`cataforge viz phase`](#viz) 着色一致；非 CataForge 驱动的项目优雅退出。
 
-`phase transition` 按序幂等执行六道门：doc-status 核验（文档头与指令文件状态均 approved）→ 依赖新鲜度
-（stale deps）→ [`context reconcile`](#context) 漂移守门（markdown 模式 SKIP）→ doc-consistency 跨文档校验
-（≥2 文档 approved 时）→ 事件批量（phase_end → review_verdict → state_change → phase_start 原子落盘，
-重跑时按日志最新 phase_start 去重）→ 指令文件 hygiene（同 [`claude-md check`](#claude-md)）。
+`phase transition` 按序幂等执行七道门：phase-field 参数核验（当前阶段 须为 --from/--to 之一）→
+doc-status 核验（文档头与指令文件状态均 approved）→ 依赖新鲜度（索引完整性 + stale deps）→
+[`context reconcile`](#context) 漂移守门（markdown 模式 SKIP）→ doc-consistency 跨文档校验
+（≥2 文档 approved 时）→ 事件批量（phase_end → review_verdict → state_change → phase_start 原子落盘；
+重跑判定为「日志最新 phase_start 即 --to 且其后无 --from 阶段的流程类事件」，回退后再次转换仍正常落盘）→
+指令文件 hygiene（阈值同 [`claude-md check`](#claude-md)，作用于平台指令文件）。
+ack/compact 等决策审计记录在挣得当轮即时单发落盘，并按 (event, phase, detail) 内容去重。
 全过 exit 0 并输出下一阶段 dispatch 提示（role / execution_host）；命中需人工/LLM 决策的分支 exit 3
 并输出结构化选项；门内工具链故障 exit 1。
 
 | 参数 | 作用 |
 | ------ | ------ |
 | `--from <phase>` / `--to <phase>` | 转出/转入阶段（必填；`--to` 取值由 Mode Routing 决定） |
-| `--ack-stale-deps` | 用户确认 stale deps 不影响下游：降级 WARN，决策随事件批落盘 |
-| `--ack-inconsistency` | 将 doc-consistency 的 CRITICAL/HIGH 降级 WARN 继续，决策随事件批落盘 |
-| `--compact` | hygiene 越界时先执行 Learnings Registry 压缩再复检，PASS 后补记事件 |
+| `--ack-stale-deps` | 用户确认 stale deps 不影响下游：降级 WARN，决策即时落盘（内容去重） |
+| `--ack-inconsistency` | 将 doc-consistency 的 CRITICAL/HIGH 降级 WARN 继续，决策即时落盘（内容去重） |
+| `--compact` | hygiene 越界时先执行 Learnings Registry 压缩再复检；压缩实际发生即记审计事件 |
 | `--json` | 输出机器可读报告（gates / stopped_at / dispatch） |
 
 ---

@@ -126,19 +126,21 @@ needs_input 回传由本协议代问。
 1. **状态持久化** — 文档头 `status: draft`/`review` → `approved`；{INSTRUCTION_FILE} 对应文档状态字段标
    approved，阶段信息按 {INSTRUCTION_FILE} Update Template 与 §{INSTRUCTION_FILE} 项目状态写入纪律 更新
 2. **门禁链** — 运行 `cataforge phase transition --from {旧阶段} --to {新阶段}`：按序幂等执行
-   doc-status 核验 / 依赖新鲜度 / reconcile / 跨文档一致性（≥2 文档 approved 时）/ 事件批量
-   （phase_end → review_verdict → state_change → phase_start 原子落盘，重跑不重复）/ hygiene 六道门。
-   全过 exit 0 并输出下一阶段 dispatch 提示；命中分支 exit 3 并输出结构化选项（`--json` 取机器可读报告）；
-   工具链故障 exit 1
+   phase-field 参数核验 / doc-status 核验 / 依赖新鲜度 / reconcile / 跨文档一致性（≥2 文档 approved 时）/
+   事件批量（phase_end → review_verdict → state_change → phase_start 原子落盘，重跑不重复；ack/compact
+   等决策审计记录在挣得当轮即时落盘并按内容去重）/ hygiene 七道门。全过 exit 0 并输出下一阶段 dispatch
+   提示；命中分支 exit 3 并输出结构化选项（`--json` 取机器可读报告）；工具链故障 exit 1
 3. **分支处置** — 命中分支时向用户展示命令输出的选项，按决策处置后**重跑同一命令**：
 
    | 门 | 分支含义 | 处置 |
    | --- | --- | --- |
+   | phase-field | 当前阶段 与 --from/--to 均不符（疑似驱动了错误的转换） | 核对参数或补 Step 1 后重跑 / 暂停 |
    | doc-status | Step 1 状态持久化未完成 | 补 Step 1 后重跑 |
-   | stale-deps | 上游文档在下游写就后变更 | cascade_amendment / 用户确认不影响 → 重跑加 `--ack-stale-deps`（降级 WARN 并随批记录）/ 暂停 |
-   | reconcile | md 与图后端漂移 | 按输出 remediation 修复后重跑（`export` → `cataforge context finalize` 重导出；`ingest` → 先归因：紧跟 Agent 产出段且无人工编辑时即 Agent 绕写导出文件——报告违纪、回滚重走 authoring；确认人改才 `cataforge context ingest` 回灌；`manual` → 人工）/ cascade_amendment / 暂停 |
-   | doc-consistency | 跨文档 CRITICAL/HIGH 不一致 | cascade_amendment / 降级 WARN → 重跑加 `--ack-inconsistency`（随批记录）/ 暂停；门为 fail（坏参数/不可执行）→ 按 COMMON-RULES §Layer 1 调用协议先 `cataforge doctor` |
-   | claude-md | {INSTRUCTION_FILE} hygiene 阈值越界 | 自动 compact → 重跑加 `--compact`（PASS 后随批记录）/ 手动瘦身后重跑 |
+   | stale-deps | docs 索引缺失或完整性失败 | `cataforge context index` 重建 / `cataforge context validate` 查明细修复后重跑 |
+   | stale-deps | 上游文档在下游写就后变更 | cascade_amendment / 用户确认不影响 → 重跑加 `--ack-stale-deps`（决策即时记 EVENT-LOG）/ 暂停 |
+   | reconcile | md 与图后端漂移（图后端未启用则 SKIP；store 类错误 WARN 跳过不阻塞并记 EVENT-LOG——Revision/Change Request 裸跑 `context reconcile` 收口时同此口径） | 按输出 remediation 修复后重跑（`export` → `cataforge context finalize` 重导出；`ingest` → 先归因：紧跟 Agent 产出段且无人工编辑时即 Agent 绕写导出文件——报告违纪、回滚重走 authoring；确认人改才 `cataforge context ingest` 回灌；`manual` → 人工）/ cascade_amendment / 暂停 |
+   | doc-consistency | 跨文档 CRITICAL/HIGH 不一致 | cascade_amendment / 降级 WARN → 重跑加 `--ack-inconsistency`（决策即时记 EVENT-LOG）/ 暂停；门为 fail（坏参数/不可执行）→ 按 COMMON-RULES §Layer 1 调用协议先 `cataforge doctor` |
+   | claude-md | {INSTRUCTION_FILE} hygiene 阈值越界 | 自动 compact → 重跑加 `--compact`（compact 实际执行即记事件）/ 手动瘦身后重跑 |
 
 4. **进入下一阶段** — exit 0 后按命令输出的 dispatch 提示（`framework.json#/workflow` 的
    `execution_host`）分派：`subagent` → agent-dispatch 激活下一阶段 Agent；`inline` → 主线程承载该角色执行
