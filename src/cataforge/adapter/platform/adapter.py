@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from cataforge.adapter.platform.profile_schema import PlatformProfile
+from cataforge.utils.interpreter import hook_command_template
 
 
 class PlatformAdapter(ABC):
@@ -72,9 +73,12 @@ class PlatformAdapter(ABC):
     def get_hook_command_template(self) -> str:
         """Return the hook command template with {module} placeholder.
 
-        Hooks are invoked via ``python -m cataforge.runtime.hook.scripts.<module>``.
+        Hooks are invoked via ``"<sys.executable>" -m
+        cataforge.runtime.hook.scripts.<module>`` — the deploying process's
+        own interpreter, so the command imports cataforge regardless of how
+        the package was installed (see :mod:`cataforge.utils.interpreter`).
         """
-        return "python -m cataforge.runtime.hook.scripts.{module}"
+        return hook_command_template()
 
     @abstractmethod
     def get_agent_scan_dirs(self) -> list[str]:

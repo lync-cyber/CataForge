@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -61,3 +62,50 @@ class TestHookTest:
         result = _invoke("hook", "test", "guard_dangerous", "--input", "{not json")
         assert result.exit_code == 1
         assert "not valid JSON" in result.output
+
+
+class TestHookCommandInterpreter:
+    def test_resolved_command_pins_current_interpreter(self, fresh_project: Path) -> None:
+        from cataforge.interface.cli.hook_cmd import _resolve_hook_command
+
+        cmd = _resolve_hook_command(fresh_project, "guard_dangerous")
+
+        quoted = f'"{Path(sys.executable).as_posix()}"'
+        assert cmd == f"{quoted} -m cataforge.runtime.hook.scripts.guard_dangerous"
+
+    def test_build_proc_invocation_maps_interpreter_to_argv(self, fresh_project: Path) -> None:
+        from cataforge.interface.cli.hook_cmd import _build_proc_invocation
+
+        quoted = f'"{Path(sys.executable).as_posix()}"'
+        command = f"{quoted} -m cataforge.runtime.hook.scripts.guard_dangerous"
+
+        proc_kwargs, _display = _build_proc_invocation(fresh_project, "guard_dangerous", command)
+
+        assert proc_kwargs["shell"] is False
+        args = proc_kwargs["args"]
+        assert isinstance(args, list)
+        assert args[0] == sys.executable
+        assert args[1:] == ["-m", "cataforge.runtime.hook.scripts.guard_dangerous"]
+
+    def test_interpreter_path_with_spaces_and_parens_routes_to_argv(
+        self, fresh_project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A quoted space/paren interpreter path must take the argv branch —
+        the generic branch would reject the parens as shell metacharacters."""
+        from cataforge.interface.cli.hook_cmd import (
+            _build_proc_invocation,
+            _resolve_hook_command,
+        )
+
+        fake = "C:/Program Files (x86)/uv tools/python.exe"
+        monkeypatch.setattr(sys, "executable", fake)
+
+        command = _resolve_hook_command(fresh_project, "guard_dangerous")
+        assert command is not None
+        proc_kwargs, _display = _build_proc_invocation(fresh_project, "guard_dangerous", command)
+
+        assert proc_kwargs["shell"] is False
+        args = proc_kwargs["args"]
+        assert isinstance(args, list)
+        assert args[0] == fake
+        assert args[1:] == ["-m", "cataforge.runtime.hook.scripts.guard_dangerous"]

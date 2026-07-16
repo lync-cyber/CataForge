@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,8 @@ import yaml
 
 from cataforge.adapter.platform.registry import get_adapter
 from cataforge.runtime.hook.bridge import generate_platform_hooks
+
+_QUOTED_INTERP = f'"{Path(sys.executable).as_posix()}"'
 
 
 @pytest.fixture()
@@ -111,7 +114,8 @@ class TestHookBridge:
         assert len(pre) == 1
         assert pre[0]["matcher"] == "Bash"
         cmd = pre[0]["hooks"][0]["command"]
-        assert "python -m cataforge.runtime.hook.scripts.guard_dangerous" in cmd
+        assert cmd.startswith(f"{_QUOTED_INTERP} ")
+        assert "-m cataforge.runtime.hook.scripts.guard_dangerous" in cmd
 
     def test_claude_code_lint_format_matches_edit_and_write(self, project_dir: Path) -> None:
         """The file_edit hook must fire after both Edit and Write — a TDD GREEN
@@ -133,7 +137,7 @@ class TestHookBridge:
         assert adapter.hook_tool_overrides.get("file_edit") == "Edit|Write"
 
     def test_cursor_hooks_use_module_invocation(self, project_dir: Path) -> None:
-        """Hooks are invoked via python -m cataforge.runtime.hook.scripts.<module>."""
+        """Hooks run the deploying interpreter with -m cataforge.runtime.hook.scripts.<module>."""
         platforms_dir = project_dir / ".cataforge" / "platforms"
         adapter = get_adapter("cursor", platforms_dir)
 
@@ -142,7 +146,8 @@ class TestHookBridge:
         assert "preToolUse" in hooks
         pre = hooks["preToolUse"]
         cmd = pre[0]["hooks"][0]["command"]
-        assert "python -m cataforge.runtime.hook.scripts.guard_dangerous" in cmd
+        assert cmd.startswith(f"{_QUOTED_INTERP} ")
+        assert "-m cataforge.runtime.hook.scripts.guard_dangerous" in cmd
 
     def test_cursor_uses_platform_tool_names(self, project_dir: Path) -> None:
         platforms_dir = project_dir / ".cataforge" / "platforms"

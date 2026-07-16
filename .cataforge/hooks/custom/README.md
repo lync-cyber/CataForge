@@ -13,8 +13,9 @@ hooks:
 ```
 
 `cataforge deploy` will wire the hook into the platform's config so that
-the IDE invokes `python .cataforge/hooks/custom/my_scan.py` with the
-standard hook JSON payload on stdin.
+the IDE invokes `.cataforge/hooks/custom/my_scan.py` — via the Python
+interpreter that ran the deploy (its own `sys.executable`, so `import
+cataforge` always works) — with the standard hook JSON payload on stdin.
 
 ## Contract
 

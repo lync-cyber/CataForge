@@ -62,6 +62,25 @@ def test_render_plugin_shape() -> None:
     assert "throw new Error" in ts
 
 
+def test_render_plugin_spawns_deploying_interpreter() -> None:
+    """The spawned interpreter is the deploy-time ``sys.executable`` (as a
+    JSON-escaped forward-slash literal), never a bare ``python`` lookup."""
+    import json as _json
+    import sys
+    from pathlib import Path
+
+    ts = _render_opencode_plugin(
+        {
+            "tool.execute.before": [
+                {"script": "guard_dangerous", "matcher_capability": "shell_exec", "type": "block"}
+            ],
+        }
+    )
+
+    assert _json.dumps(Path(sys.executable).as_posix()) in ts
+    assert "spawn(\n      'python'," not in ts and "spawn('python'" not in ts
+
+
 def test_block_hook_fails_closed_on_spawn_error() -> None:
     """A block hook must refuse when its Python guard cannot run cleanly.
 

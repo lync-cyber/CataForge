@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -394,18 +395,21 @@ class TestModelRouting:
 
 
 class TestHookCommandTemplate:
-    def test_hook_template_uses_python_m(self, project_dir: Path) -> None:
+    def test_hook_template_pins_deploying_interpreter(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
         template = adapter.get_hook_command_template()
-        assert template == "python -m cataforge.runtime.hook.scripts.{module}"
+        quoted_interp = f'"{Path(sys.executable).as_posix()}"'
+        assert template.startswith(f"{quoted_interp} ")
         cmd = template.format(module="guard_dangerous")
-        assert "cataforge.runtime.hook.scripts.guard_dangerous" in cmd
+        assert cmd == (f"{quoted_interp} -m cataforge.runtime.hook.scripts.guard_dangerous")
 
     def test_all_platforms_share_same_template(self, project_dir: Path) -> None:
         platforms_dir = project_dir / ".cataforge" / "platforms"
+        expected = (
+            f'"{Path(sys.executable).as_posix()}" -m cataforge.runtime.hook.scripts.{{module}}'
+        )
         for pid in ("claude-code", "cursor", "opencode"):
             adapter = get_adapter(pid, platforms_dir)
-            expected = "python -m cataforge.runtime.hook.scripts.{module}"
             assert adapter.get_hook_command_template() == expected
 
 
