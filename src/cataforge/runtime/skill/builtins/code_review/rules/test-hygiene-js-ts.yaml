@@ -8,9 +8,9 @@ test_file_patterns:
 slow_patterns:
   - regex: 'child_process|execa|\bspawn(Sync)?\s*\('
     label: "子进程"
-  - regex: '\b(fetch|axios|supertest)\s*[(.]'
+  - regex: '(?<![.\w])fetch\s*\(|(?<![.\w])(axios|supertest)\s*[(.]'
     label: "网络客户端"
-  - regex: 'new Promise\([^)]*setTimeout'
+  - regex: 'new Promise\s*\(.*setTimeout'
     label: "显式等待"
   - regex: 'puppeteer|playwright|testcontainers'
     flags: [IGNORECASE]

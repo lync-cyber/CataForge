@@ -25,7 +25,8 @@
 2. **分析问题列表** — 按严重等级排序 (CRITICAL > HIGH > MEDIUM > LOW)
 3. **增量修复** — 必须修复全部 CRITICAL 和 HIGH 级别问题:
    - 经 context authoring 修改相关章节
-   - 修复触点同文件/同节内的 MEDIUM/LOW 顺带一并修复，summary 中列出顺带修复项编号；未触及的跨文件/跨节 MEDIUM/LOW 保留在 REVIEW notes，不为其扩大修改面
+   - 聚类升级产生的系统性 HIGH，修复范围 = 其 `members` 全部成员，跨文件/跨节成员同属必修
+   - 修复触点同文件/同节内的 MEDIUM/LOW 顺带一并修复，summary 中列出顺带修复项编号；未触及的跨文件/跨节 MEDIUM/LOW 保留在 REVIEW notes，不为其扩大修改面（系统性 HIGH 的 `members` 与用户显式选中修复的问题除外）
    - 不重新执行完整 SKILL.md 流程，除非 REVIEW 明确要求整章重写
 
 ---

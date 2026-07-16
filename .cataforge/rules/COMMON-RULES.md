@@ -218,14 +218,14 @@ closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已
 | security | 文档+代码 | 安全漏洞、合规风险 |
 | feasibility | 文档 | 技术可行性、实现性 |
 | ambiguity | 文档 | 模糊不清、多义 |
-| structure | 代码 | 架构 / 组织 / 职责划分 |
-| error-handling | 代码 | 异常处理、边界条件 |
+| structure | 文档+代码 | 架构 / 组织 / 职责划分 |
+| error-handling | 文档+代码 | 异常处理、边界条件 |
 | performance | 代码 | 性能 / 效率 |
 | test-quality | 代码 | 断言有效性、测试逻辑、边界覆盖 |
 | duplication | 代码 | 跨文件 / 跨函数重复（Type-1/2 克隆，含 copy-paste 与近似克隆） |
 | dead-code | 代码 | 不可达分支、未引用的导出、永远为假的条件 |
 | complexity | 代码 | 圈 / 认知复杂度过高、嵌套深度超阈值 |
-| coupling | 代码 | 模块间引用过密、依赖图循环或扇出过大 |
+| coupling | 文档+代码 | 模块间引用过密、依赖图循环或扇出过大 |
 
 ## Layer 1 调用协议
 三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过 `cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner` 路由到内置实现（`python -m cataforge.runtime.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md / Agent / Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。完整规约见框架仓 `docs/architecture/quality-and-learning.md` §2.1。

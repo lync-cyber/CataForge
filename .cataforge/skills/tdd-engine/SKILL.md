@@ -125,7 +125,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     按 framework.json project.languages 载入 `testing` skill 的 `references/lang-<active>.md`，遵循其语言测试细则。
 
     ## suite_discipline
-    载入 `.cataforge/references/test-suite-performance.md` 并遵循；新测试涉及子进程/服务/网络/显式等待时，按 arch#§7 测试执行口径声明的慢测标签约定打标（未声明时按语言惯例打标并在 summary 注明）。
+    载入 `.cataforge/references/test-suite-performance.md` 并遵循；新测试涉及子进程/服务/网络/显式等待时，按 arch#§7.4 测试执行口径声明的慢测标签约定打标（未声明时按语言惯例打标并在 summary 注明）。
 
     ## user_story
     {prd#§2.F-xxx 的功能描述，含用户角色/使用动机/业务价值}
@@ -287,7 +287,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     按 framework.json project.languages 载入 `testing` skill `references/lang-<active>.md`（测试细则）+ `tdd-engine` skill `references/lang-<active>.md`（实现细则）。
 
     ## suite_discipline
-    载入 `.cataforge/references/test-suite-performance.md` 并遵循；新测试涉及子进程/服务/网络/显式等待时，按 arch#§7 测试执行口径声明的慢测标签约定打标（未声明时按语言惯例打标并在 summary 注明）。
+    载入 `.cataforge/references/test-suite-performance.md` 并遵循；新测试涉及子进程/服务/网络/显式等待时，按 arch#§7.4 测试执行口径声明的慢测标签约定打标（未声明时按语言惯例打标并在 summary 注明）。
 
     ## user_story
     {prd#§2.F-xxx 的功能描述，含用户角色/使用动机/业务价值}

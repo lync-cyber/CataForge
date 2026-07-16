@@ -96,9 +96,14 @@ def load_hygiene_rules(project_root: Path | None = None) -> HygieneRuleSet:
     return HygieneRuleSet(by_language)
 
 
-def _is_test_file(path: Path, rule: HygieneRule) -> bool:
-    posix = path.as_posix()
-    return any(p.search(posix) for p in rule.test_file_patterns)
+def _is_test_file(path: Path, scan_root: Path, rule: HygieneRule) -> bool:
+    # 只对 scan 根以内的相对路径做目录式匹配 — 根以外的祖先目录名
+    # （如工作区恰好叫 tests/）不得把整棵源码树误判为测试文件。
+    try:
+        rel = path.relative_to(scan_root)
+    except ValueError:
+        rel = path
+    return any(p.search(rel.as_posix()) for p in rule.test_file_patterns)
 
 
 def _slow_hits(lines: list[str], rule: HygieneRule) -> list[tuple[int, str]]:
@@ -133,14 +138,40 @@ def _unlabeled_slow_finding(
     )
 
 
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
+
+
+def _setup_window(lines: list[str], decl_idx: int) -> list[str]:
+    """声明行 + 其函数体；函数体开始后一旦回落到声明缩进级即截断 —
+    相邻的同级测试函数不进入窗口。装饰器式声明允许紧随一行同级
+    函数头（same_indent_budget）。"""
+    decl_indent = _indent(lines[decl_idx])
+    window = [lines[decl_idx]]
+    body_started = False
+    same_indent_budget = 1
+    for line in lines[decl_idx + 1 : decl_idx + _SETUP_WINDOW_LINES]:
+        if not line.strip():
+            continue
+        if _indent(line) > decl_indent:
+            body_started = True
+        elif body_started or same_indent_budget == 0:
+            break
+        else:
+            same_indent_budget -= 1
+        window.append(line)
+    return window
+
+
 def _expensive_setup_findings(path: Path, lines: list[str], rule: HygieneRule) -> list[Finding]:
     if not rule.setup_decl_patterns:
         return []
     findings: list[Finding] = []
-    for lineno, line in enumerate(lines, start=1):
+    for idx, line in enumerate(lines):
         if not any(p.search(line) for p in rule.setup_decl_patterns):
             continue
-        window = lines[lineno : lineno + _SETUP_WINDOW_LINES]
+        lineno = idx + 1
+        window = _setup_window(lines, idx)
         label = next(
             (
                 lab
@@ -203,10 +234,11 @@ def run(ctx: CheckContext) -> list[Finding]:
     exts = rules.scanned_extensions()
     if not exts:
         return []
+    scan_root = ctx.target if ctx.target.is_dir() else ctx.target.parent
     findings: list[Finding] = []
     for path in ctx.files(exts):
         rule = rules.rule_for_extension(path.suffix)
-        if rule is None or not _is_test_file(path, rule):
+        if rule is None or not _is_test_file(path, scan_root, rule):
             continue
         findings.extend(_scan_file(path, rule))
     return findings

@@ -439,6 +439,26 @@ register_rule_type(
     "doc_terms",
     list_pattern_keys=[("forbidden_terms", True)],  # doc-review term checks
 )
+_TEST_HYGIENE_KEYS = frozenset(
+    {"test_file_patterns", "slow_patterns", "marker_patterns", "setup_decl_patterns"}
+)
+
+
+def _validate_test_hygiene(data: dict[str, Any], source: str) -> None:
+    """test_hygiene structural contract: language scope only; the two
+    signal-bearing lists must be non-empty or the probe silently scans nothing."""
+    if data.get("scope") != "language":
+        raise RuleLoadError(f"{source}: rule_type 'test_hygiene' requires scope 'language'")
+    unknown = set(data) - _BASE_KEYS - _TEST_HYGIENE_KEYS
+    if unknown:
+        raise RuleLoadError(
+            f"{source}: unknown key(s) {sorted(unknown)} for rule_type 'test_hygiene'"
+        )
+    for key in ("test_file_patterns", "slow_patterns"):
+        if not data.get(key):
+            raise RuleLoadError(f"{source}: rule_type 'test_hygiene' requires non-empty {key!r}")
+
+
 register_rule_type(
     "test_hygiene",
     list_pattern_keys=[
@@ -447,6 +467,7 @@ register_rule_type(
         ("marker_patterns", False),
         ("setup_decl_patterns", False),
     ],
+    extra_validator=_validate_test_hygiene,
 )
 
 

@@ -12,5 +12,7 @@ slow_patterns:
     label: "网络/服务"
   - regex: '\btime\.Sleep\('
     label: "显式休眠"
+  - regex: 'testcontainers'
+    label: "容器"
 marker_patterns:
   - regex: 'testing\.Short\(\)'

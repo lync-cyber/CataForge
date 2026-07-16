@@ -101,6 +101,77 @@ def test_pragma_allowance_without_reason_warns(tmp_path: Path) -> None:
     assert [f for f in findings if f.severity == "warn" and "缺 reason" in f.detail]
 
 
+def test_ancestor_tests_dir_outside_target_not_matched(tmp_path: Path) -> None:
+    root = tmp_path / "tests" / "myproject"
+    _write(root, "src/runner.py", "import subprocess\nsubprocess.run(['tool'])\n")
+    assert test_hygiene.run(_ctx(root)) == []
+
+
+def test_clean_setup_adjacent_slow_test_not_flagged_as_setup(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "tests/test_adjacent.py",
+        "import subprocess\n\n"
+        "class TestAdjacent:\n"
+        "    def setup_method(self):\n"
+        "        self.x = 1\n"
+        "    def test_run(self):\n"
+        "        subprocess.run(['tool'])\n",
+    )
+    findings = test_hygiene.run(_ctx(tmp_path))
+    assert not [f for f in findings if "昂贵 setup" in f.detail]
+
+
+def test_single_line_setup_body_flagged(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "tests/test_inline.py",
+        "import pytest, subprocess\n\n"
+        "@pytest.mark.slow\n"
+        "class TestInline:\n"
+        "    def setup_method(self): subprocess.run(['build'])\n"
+        "    def test_query(self):\n"
+        "        assert True\n",
+    )
+    findings = test_hygiene.run(_ctx(tmp_path))
+    assert [f for f in findings if "昂贵 setup" in f.detail]
+
+
+def test_fixture_scope_after_other_kwargs_not_flagged_as_setup(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "tests/test_env.py",
+        "import pytest, subprocess\n\n"
+        "@pytest.mark.slow\n"
+        '@pytest.fixture(autouse=True, scope="session")\n'
+        "def env():\n"
+        "    subprocess.run(['build'])\n",
+    )
+    assert test_hygiene.run(_ctx(tmp_path)) == []
+
+
+def test_mock_and_comment_references_not_flagged_slow(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "tests/test_fake.py",
+        "# parses dockerfile-style syntax\n"
+        "def test_fake_api(api):\n"
+        "    api.requests.get('/x')\n"
+        "    assert api.ok\n",
+    )
+    assert test_hygiene.run(_ctx(tmp_path)) == []
+
+
+def test_asyncio_sleep_flagged_slow(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "tests/test_async.py",
+        "import asyncio\n\nasync def test_wait():\n    await asyncio.sleep(0.5)\n",
+    )
+    findings = test_hygiene.run(_ctx(tmp_path))
+    assert [f for f in findings if "显式休眠" in f.detail]
+
+
 def test_scan_focus_selects_probe(tmp_path: Path) -> None:
     _write(
         tmp_path,

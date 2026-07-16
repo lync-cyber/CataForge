@@ -99,7 +99,7 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 
 按 [`test-suite-performance.md`](../../references/test-suite-performance.md) 纪律自检本测试块：
 
-1. 引入子进程 / 网络 / 真实服务 / 显式等待 → 按项目慢测标签约定（arch#§7 测试执行口径）打标，并在 summary 注明新增慢测及标签；项目未声明约定时按语言惯例打标并在 summary 说明
+1. 引入子进程 / 网络 / 真实服务 / 显式等待 → 按项目慢测标签约定（arch#§7.4 测试执行口径）打标，并在 summary 注明新增慢测及标签；项目未声明约定时按语言惯例打标并在 summary 说明
 2. 确定性昂贵 setup（构建产物 / 预置数据 / 初始化存储）→ suite 级共享 fixture 复用，不每测重建
 3. 不共享可变全局、不依赖执行顺序、不独占固定端口 / 路径（并行安全）
 

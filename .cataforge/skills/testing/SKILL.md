@@ -114,4 +114,4 @@ user-invocable: true
 - 缺陷即时归档，关联上下文
 
 ## 测试套件性能纪律
-慢测标签分层 / 昂贵确定 setup 复用 / 进程内优先 / 并行就绪四条纪律见 [`test-suite-performance.md`](../../references/test-suite-performance.md)，规划与编写测试时遵循；测试执行沿用 arch#§7 测试执行口径的 full 档（全量含慢测）作门禁真值。
+慢测标签分层 / 昂贵确定 setup 复用 / 进程内优先 / 并行就绪四条纪律见 [`test-suite-performance.md`](../../references/test-suite-performance.md)，规划与编写测试时遵循；测试执行沿用 arch#§7.4 测试执行口径的 full 档（全量含慢测）作门禁真值，arch 未声明 §7.4 时取项目单一测试命令、双档同值。

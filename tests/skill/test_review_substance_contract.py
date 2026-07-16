@@ -40,8 +40,11 @@ def test_doc_review_layer2_owns_substance_not_form() -> None:
         "实质维度",
         "不按形式醒目程度定级",
     )
-    # 规范性 belongs to Layer 1; it must not reappear as a Layer 2 dimension.
-    assert "规范性" not in text
+    # 规范性 belongs to Layer 1; it must not reappear in the Layer 2 dimension list
+    # (scoped to the dimension line so prose mentioning the word stays legal).
+    dimension_lines = [ln for ln in text.splitlines() if "通用维度" in ln]
+    assert dimension_lines, "通用维度行缺失"
+    assert all("规范性" not in ln for ln in dimension_lines)
     assert "完整性 / 一致性 / 可行性 / 安全性 / 清晰度" in text
 
 

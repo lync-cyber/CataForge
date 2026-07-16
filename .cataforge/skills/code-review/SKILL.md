@@ -75,11 +75,11 @@ user-invocable: true
 
 **增量审查模式（revision re-review）**:
 
-当 `task_type=revision` 且存在上一轮 CODE-REVIEW 报告时，审查范围收窄为：
+当同 task_id 已存在上一轮 CODE-REVIEW 报告（`-r{N-1}`）时——以报告文件存在为触发事实，不依赖调用方传入 revision 语境——审查范围收窄为：
 - 仅审查 `git diff` 涉及的文件和函数（与上次审查的 commit baseline 比较）。Layer 1 调用无需增量参数——把收窄后的文件/目录作为 `review <path>` 目标即可；`complexity_gate` 本就只对 git diff 涉及的函数施门禁
 - 上轮报告中无 CRITICAL/HIGH 的维度标注 `[previously-approved]`，不重复审查
 - 上轮报告中 CRITICAL/HIGH 涉及的维度 + diff 新增代码的全维度 → 正常审查
-- 上轮报告未闭环的 MEDIUM/LOW 逐条标注 `still-open` / `resolved`；still-open 项参与本轮聚类升级计数（COMMON-RULES §三态判定逻辑）
+- 上轮报告未闭环的 MEDIUM/LOW 逐条标注 `still-open` / `resolved`；still-open 项参与本轮聚类升级计数，并按本轮 finding 参与三态判定（COMMON-RULES §三态判定逻辑）
 - report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
 
 ### Step 3: 审查报告编号
@@ -118,7 +118,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 - config 死键（`config_dead_key`）→ MEDIUM；结合业务判断是否由部署基础设施等外部消费（是则建议声明文件加豁免）
 - API 导出移除（`api_surface`）→ HIGH（潜在破坏性变更）；新增导出 → LOW（面扩张提示）
 - 豁免盘点（`pragma_inventory`）：unknown-pragma 残留 / 缺 reason → MEDIUM；高龄豁免（长期未清理）→ LOW 并列入重构建议
-- 测试套件卫生（`test_hygiene`）：无标签慢测候选 → LOW，单文件密集命中（≥3 处）→ MEDIUM；每测重建昂贵 setup 候选 → MEDIUM（改进方向按 `.cataforge/references/test-suite-performance.md`）
+- 测试套件卫生（`test_hygiene`）：无标签慢测候选 → LOW，单文件密集命中（≥3 处）→ MEDIUM；每测重建昂贵 setup 候选 → MEDIUM（改进方向按 `.cataforge/references/test-suite-performance.md`）；慢测标记豁免为文件级粒度（文件内任一处命中标记 pattern 即豁免全文件）
 
 ### Step 3: 产出扫描报告
 报告路径: `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md`（编号规则：当日同前缀已存在 r1 则递增到 r2）。Front matter 字段按 COMMON-RULES §报告 Front Matter 约定（本模式 delta：`id: "code-scan-{YYYYMMDD}-r{N}"`、`deps: []`）。

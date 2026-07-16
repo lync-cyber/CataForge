@@ -105,6 +105,6 @@ Sprint 视为 approved 后（含 micro 短路路径）与全部 Sprint 完成进
 | B-14 Capability Gate 降级 | Bootstrap 设计工具选 penpot（沙盒无 penpot MCP） | 「工具未注册」vs「连接失败」是否分开报告、降级是否落真值 design_tool→none 并记 state_change EVENT、有无静默降级 |
 | E-1 Interrupt-Resume | 派发 subagent 阶段（dev_planning tech-lead）时漏喂 Sprint 划分偏好，诱发 needs_input 回传（inline 阶段的 AskUserQuestion 澄清不属 E-1；判级依赖型） | needs_input → continuation 重启是否成立、每阶段 2 轮上限是否生效 |
 | C-6 TDD 升档 | dev-plan 阶段把 T-003 标 `security_sensitive: true` | 是否升 standard 档（RED/GREEN 分离）、是否触发即时 code-review 且强制 Layer 2；REFACTOR 未命中 `TDD_REFACTOR_TRIGGER` 记 not-reached |
-| E-2 Revision | 让首版文档缺一个 CRITICAL/HIGH 必备项（如 arch 缺 API 契约），诱发 needs_revision | 是否调 task_type=revision、增量审查是否只审 diff + 上轮高危维度、needs_revision(N) 是否累计 |
+| E-2 Revision | 让首版文档缺一个 CRITICAL/HIGH 必备项（如 arch 缺 API 契约），诱发 needs_revision | 是否调 task_type=revision、增量审查是否只审 diff + 上轮高危维度、上轮未闭环 MEDIUM/LOW 是否标 still-open / resolved、同触点顺带修复是否列入 summary、needs_revision(N) 是否累计 |
 
 机会观察类（路径图标 `O`：E-3 rolled-back / E-4 TDD blocked / E-5 crash / E-6 truncation / E-7 cascade 中断 / E-9 Layer 1 FAIL / B-8~B-11 一致性门分支）**不做人为破坏注入**——强行制造崩溃会偏离真实行为、污染归因。它们若在 `D`/`P` 路径推进中自然出现即记录，否则账本标 not-reached 并写明「单轮未自然触发」。

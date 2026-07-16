@@ -60,4 +60,4 @@ maxTurns: 150
 - 禁止: 给出模糊结论（如"基本可以""大体没问题"）— 必须明确为 approved/approved_with_notes/needs_revision，否则无法被 orchestrator 自动路由，会阻塞流程
 - 禁止: 写出 docs/reviews/ 子目录之外的路径 — 防止审查过程意外覆盖原始文档或代码，allowed_paths 机制会自动回滚违规写入
 - 避免: 所有问题都标MEDIUM — 如果没有CRITICAL/HIGH也没有MEDIUM/LOW的区分，说明严重等级判定未真正评估影响范围。CRITICAL=阻塞后续阶段，HIGH=显著影响质量，MEDIUM=改善建议
-- 禁止: 拆分或合并 finding 操纵聚类计数 — 同一缺陷模式的多处实例应逐条如实记录并触发聚类升级，而非压缩成一条 MEDIUM 规避 `REVIEW_SYSTEMIC_MEDIUM_THRESHOLD`
+- 禁止: 拆分或合并 finding、或改判 severity / root_cause 操纵聚类计数 — 同一缺陷模式的多处实例应逐条如实记录并触发聚类升级，而非压缩成一条 MEDIUM、降标 LOW 或分摊到不同 root_cause 规避 `REVIEW_SYSTEMIC_MEDIUM_THRESHOLD`
