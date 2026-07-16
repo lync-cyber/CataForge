@@ -127,7 +127,7 @@ def test_descriptor_carries_matcher_agent_id() -> None:
     assert "function agentMatches" in ts
     assert "if (!agentMatches(h.matcher_agent_id, payload)) continue;" in ts
     # Mirror of Python's candidate extraction order.
-    assert "ti.subagent_type ?? ti.agent ?? payload.agent" in ts
+    assert "ti.subagent_type ?? ti.agent_type ?? ti.agent ?? payload.agent" in ts
 
 
 @pytest.mark.skipif(_NODE is None, reason="node not available")

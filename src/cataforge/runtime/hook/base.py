@@ -209,33 +209,56 @@ def _load_hook_naming_from_profile(
     }, {}
 
 
-def get_platform_tool_name(capability: str) -> str | None:
-    return _load_hook_naming()[0].get(capability)
-
-
 def _capability_names(capability: str) -> set[str]:
-    """All hook-facing spellings for *capability* (tool_map ∪ tool_overrides).
+    """Hook-facing spellings for *capability*: tool_overrides wins over
+    tool_map — the same precedence the deploy-side matcher uses
+    (``bridge.generate_platform_hooks``).
 
     Override values may be matcher alternations ("Edit|Write") — split so
     membership tests compare single tool names.
     """
     tool_map, overrides = _load_hook_naming()
-    names: set[str] = set()
-    for value in (tool_map.get(capability), overrides.get(capability)):
-        if value:
-            names.update(part for part in value.split("|") if part)
-    return names
+    value = overrides.get(capability) or tool_map.get(capability)
+    if not value:
+        return set()
+    return {part for part in value.split("|") if part}
 
 
 def matches_capability(data: dict[str, Any], capability: str) -> bool:
     """Check if the hook's stdin tool_name matches a capability."""
     tool_name = data.get("tool_name", "")
+    if not isinstance(tool_name, str):
+        return False
     expected = _capability_names(capability)
     if capability == "file_edit":
         expected |= _capability_names("file_write")
     if not expected:
         return False
     return tool_name in expected
+
+
+def dispatched_agent_id(data: dict[str, Any]) -> str | None:
+    """Agent identity from a dispatch payload, across platform key spellings
+    (subagent_type / agent_type / agent)."""
+    tool_input = data.get("tool_input") or {}
+    return (
+        tool_input.get("subagent_type")
+        or tool_input.get("agent_type")
+        or tool_input.get("agent")
+        or data.get("agent")
+        or None
+    )
+
+
+def dispatch_result(data: dict[str, Any]) -> Any:
+    """Result payload of an agent-dispatch PostToolUse event, across platform
+    key spellings (tool_response / tool_result / result / tool_output)."""
+    return (
+        data.get("tool_response")
+        or data.get("tool_result")
+        or data.get("result")
+        or data.get("tool_output")
+    )
 
 
 # apply_patch envelopes name each touched file on a "*** <verb> File:" line;
@@ -444,13 +467,7 @@ def matches_script_filters(data: dict[str, Any], script_name: str | None = None)
     # --- agent id allowlist ---------------------------------------------
     agent_ids = entry.get("matcher_agent_id")
     if agent_ids:
-        candidate = (
-            tool_input.get("subagent_type")
-            or tool_input.get("agent_type")
-            or tool_input.get("agent")
-            or data.get("agent")
-            or ""
-        )
+        candidate = dispatched_agent_id(data)
         if not candidate or candidate not in agent_ids:
             return False
 

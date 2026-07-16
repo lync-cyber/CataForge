@@ -45,7 +45,7 @@ def codex_platform(monkeypatch: pytest.MonkeyPatch):
     ("tool_name", "capability", "expected"),
     [
         ("Bash", "shell_exec", True),  # hook payload canonical name (tool_overrides)
-        ("shell", "shell_exec", True),  # model-facing tool_map name
+        ("shell", "shell_exec", False),  # model-facing name — overrides take precedence
         ("apply_patch", "file_edit", True),
         ("apply_patch", "file_write", True),
         ("spawn_agent", "agent_dispatch", True),
@@ -58,7 +58,7 @@ def test_matches_capability_codex_names(tool_name: str, capability: str, expecte
 
 
 def test_extract_edited_paths_explicit_path_wins() -> None:
-    data = {"tool_name": "Edit", "tool_input": {"file_path": "a/b.py"}}
+    data = {"tool_name": "apply_patch", "tool_input": {"file_path": "a/b.py", "command": _PATCH}}
     assert extract_edited_paths(data) == ["a/b.py"]
 
 
@@ -109,6 +109,12 @@ def test_guard_frozen_docs_allows_apply_patch_elsewhere() -> None:
     payload = {"tool_name": "apply_patch", "tool_input": {"command": patch}}
     r = _run_script("guard_frozen_docs", payload, unattended=True)
     assert r.returncode == 0
+
+
+def test_guard_dangerous_handles_argv_list_command() -> None:
+    payload = {"tool_name": "Bash", "tool_input": {"command": ["bash", "-lc", "rm -rf /"]}}
+    r = _run_script("guard_dangerous", payload, unattended=True)
+    assert r.returncode == 2
 
 
 def test_log_agent_dispatch_reads_agent_type_and_message() -> None:

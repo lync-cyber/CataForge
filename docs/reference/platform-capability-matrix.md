@@ -32,18 +32,14 @@
 
 deploy 读取 [.cataforge/hooks/hooks.yaml](../../.cataforge/hooks/hooks.yaml) 后按 `profile.yaml#hooks.degradation` 解析；`native` 表示直接生成平台 hook 配置，`degraded` 表示走 `degradation_templates` 中的降级策略。当前实装策略集合（`rules_injection` / `prompt_instruction` / `prompt_checklist` / `skip`）与各自输出文件的语义见 [hook-degradation-strategies.md](hook-degradation-strategies.md)。
 
-下表仅列出"至少有一个平台 degraded"的 hook；未列出的 hook（`guard_dangerous` / `notify_done` / `session_context` / `deploy_drift` / `git_sync`）在四端 `profile.yaml#hooks.degradation` 均**声明**为 `native`（即不在降级表中；属声明默认值，非逐项行为实测）。其中 `deploy_drift` / `git_sync` / `session_context` 是 SessionStart 事件 hook（无 matcher，全事件触发）：`deploy_drift` 比对 `.cataforge/` 源摘要 + 已装包版本与上次 deploy 记录的基线（`.deploy-manifest.json`），漂移时打印"重跑 `cataforge deploy`"提示（observe 型，永不阻断），同名 `cataforge doctor` 检查（`Deploy drift:`，gating=False）走同一逻辑。
+下表仅列出"至少有一个平台 degraded"的 hook；未列出的 hook（`guard_dangerous` / `guard_frozen_docs` / `log_agent_dispatch` / `validate_agent_result` / `lint_format` / `detect_review_flag` / `notify_done` / `session_context` / `deploy_drift` / `git_sync`）在四端 `profile.yaml#hooks.degradation` 均**声明**为 `native`（即不在降级表中；属声明默认值，非逐项行为实测）。其中 `deploy_drift` / `git_sync` / `session_context` 是 SessionStart 事件 hook（无 matcher，全事件触发）：`deploy_drift` 比对 `.cataforge/` 源摘要 + 已装包版本与上次 deploy 记录的基线（`.deploy-manifest.json`），漂移时打印"重跑 `cataforge deploy`"提示（observe 型，永不阻断），同名 `cataforge doctor` 检查（`Deploy drift:`，gating=False）走同一逻辑。
 
 | hook | strategy | claude-code | cursor | codex | opencode |
 |---|---|---|---|---|---|
-| `log_agent_dispatch` | `prompt_instruction` | native | native | degraded → `auto-prompt-instructions.md` | native |
-| `validate_agent_result` | `prompt_checklist` | native | native | degraded → `auto-prompt-checklists.md` | native |
-| `lint_format` | `skip` | native | native | degraded → skip | native |
-| `detect_correction` | `skip` | native | degraded → skip + alwaysApply rule（见 [overrides/rules/correction-record.md](../../.cataforge/platforms/cursor/overrides/rules/correction-record.md)） | degraded → skip | native |
-| `detect_review_flag` | `skip` | native | native | degraded → skip（依赖 agent_dispatch 的 PostToolUse 匹配，codex 无 agent matcher 不触发） | native |
-| `notify_permission` | `skip` | native | degraded → skip | degraded → skip | degraded → skip（OpenCode 无 Notification 事件） |
+| `detect_correction` | `skip` | native | degraded → skip + alwaysApply rule（见 [overrides/rules/correction-record.md](../../.cataforge/platforms/cursor/overrides/rules/correction-record.md)） | degraded → skip（无 user_question 工具） | native |
+| `notify_permission` | `skip` | native | degraded → skip | native（PermissionRequest 事件） | degraded → skip（OpenCode 无 Notification 事件） |
 
-**Codex 平台注**：`prompt_instruction` / `prompt_checklist` 写到 `.cataforge/platforms/codex/overrides/rules/` 后**当前不自动注入** agent 上下文（`profile.yaml#context_injection.rules_distribution.activation: manual_read`）；文件存在、deploy 有日志，但要让 Codex agent 真正读到这些规则需扩展 codex.py 的 AGENTS.md 注入逻辑。
+**Codex 平台注**：非托管 hook 须在 Codex 内经 `/hooks` 审查信任后才会执行（按定义 hash 记录，redeploy 改动 hook 后需重新信任）；未信任的 hook 静默不跑。
 
 ## Agent 端如何使用
 

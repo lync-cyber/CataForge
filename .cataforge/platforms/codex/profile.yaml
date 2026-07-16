@@ -27,8 +27,8 @@ agent_definition:
   needs_deploy: true
 
 skill_definition:
-  # Codex 原生 agent skills（open agent skills 标准）：SKILL.md 经 $skill 显式
-  # 调用或按 description 隐式触发；扫描 $CWD→repo 根的 .agents/skills 逐级目录。
+  # open agent skills 标准：Codex 扫描 $CWD→repo 根的 .agents/skills 逐级目录，
+  # 故 target 逸出 .codex/ 命名空间（见 platform-adaptation.md §6 例外声明）。
   target_dir: .agents/skills
   needs_deploy: true
 
@@ -70,9 +70,6 @@ instruction_file:
 dispatch:
   tool_name: spawn_agent
   is_async: true
-  # spawn_agent v2 必填 task_name + message；agent_type 选定 custom agent。
-  # 可选 model / reasoning_effort / service_tier；配套 wait_agent / send_input /
-  # list_agents / close_agent / interrupt_agent 编排工具族。
   params: [agent_type, message, task_name]
 
 hooks:
@@ -89,8 +86,7 @@ hooks:
     SessionStart: SessionStart
     Notification: PermissionRequest
   # hook payload / matcher 使用 canonical 名（Bash / apply_patch / spawn_agent），
-  # 与模型侧工具名（shell）分属两个命名空间；matcher 兼容别名 Edit|Write→apply_patch、
-  # Agent→spawn_agent。
+  # 与模型侧工具名（shell）分属两个命名空间。
   tool_overrides:
     shell_exec: Bash
   degradation:
@@ -128,9 +124,7 @@ features:
   context_management: true       # /compact + PreCompact/PostCompact 事件
 
 permissions:
-  # approval_policy 枚举；正交轴 sandbox_mode: read-only|workspace-write|
-  # danger-full-access；另有具名 permission profiles（:read-only/:workspace/
-  # :danger-full-access + [permissions.<name>]）。
+  # approval_policy 枚举；sandbox_mode（read-only|workspace-write|danger-full-access）是正交轴，勿混入本列表。
   modes: [untrusted, on-request, never]
 
 model_routing:

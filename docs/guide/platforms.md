@@ -60,13 +60,13 @@
 ## CodeX
 
 - **原生支持**：中等，以 `AGENTS.md` + `.codex/config.toml` 为主。
-- **关键路径**：`AGENTS.md`、`.codex/agents/*.toml`、`.codex/hooks.json`、`.codex/config.toml`。
-- **上下文注入**：`AGENTS.md` 按根→当前目录分层合并，单路径 32 KiB 上限；Codex 无 `@` 语法，子代理（`fork_context=false`）不继承主上下文，因此 `dispatch-prompt.md` override 显式指示"先 Read .cataforge/rules/COMMON-RULES.md"。
+- **关键路径**：`AGENTS.md`、`.codex/agents/*.toml`、`.codex/hooks.json`、`.codex/config.toml`、`.agents/skills/`。
+- **上下文注入**：`AGENTS.md` 按根→当前目录分层合并，合并总量 32 KiB 上限；Codex 无 `@` 语法，spawn_agent 子代理不继承主线程对话上下文，因此 `dispatch-prompt.md` override 显式指示"先 Read .cataforge/rules/COMMON-RULES.md"。
 - **适配点**：
   - 指令文件按 Codex 原生体系输出为 `AGENTS.md`。
-  - MCP 写入 `.codex/config.toml` 的 `[mcp_servers.<id>]`。
-  - Hooks 仅支持 `Bash` matcher，其它事件降级。
-  - 无 skills 面 —— agent 声明的 skill 依赖降级为正文内 read-first 指令（先读取 `.cataforge/skills/<id>/SKILL.md`）。
+  - MCP 写入 `.codex/config.toml` 的 `[mcp_servers.<id>]`（项目须在 Codex 内标记 trusted）。
+  - Hooks matcher 支持 `Bash` / `apply_patch`（`Edit|Write` 兼容别名）/ `spawn_agent`（`Agent` 别名）/ MCP 工具名；非托管 hook 须经 `/hooks` 信任后才执行。
+  - Skills 原生部署到 `.agents/skills/`（open agent skills 标准，仓库级扫描目录）。
 - **最小配置**：
 
 ```json
@@ -85,7 +85,7 @@
 - **上下文注入**：`opencode.json.instructions` 字段由 profile 驱动写入（默认 `["AGENTS.md", ".cataforge/rules/*.md", ".cataforge/platforms/opencode/overrides/rules/*.md"]`）—— OpenCode 启动时自动加载这些文件，无需让 LLM 自己 read。
 - **适配点**：
   - Hook 经 deploy 自动生成的 `.opencode/plugins/cataforge-hooks.ts` 桥接：TS plugin 订阅 `tool.execute.before` 等事件，spawn 与其他平台相同的 Python hook 脚本，block / observe 语义一致（block hook spawn 失败按 fail-closed 拒绝）；仅 `notify_permission` 降级（OpenCode 无 Notification 事件）。
-  - 无 skills 面 —— 与 Codex 相同的 read-first 降级契约。
+  - 无 skills 面 —— agent 声明的 skill 依赖降级为正文内 read-first 指令（先读取 `.cataforge/skills/<id>/SKILL.md`）。
   - deploy 不写 per-agent `model:`（`user_resolved: true`，模型由用户运行时自选）。
 - **最小配置**：
 
@@ -102,7 +102,7 @@
 
 ## 跨平台目录隔离
 
-每个平台部署只生成自己命名空间下的产物（`.claude/` / `.cursor/` / `.codex/` / `.opencode/`），互不干扰；跨平台共享的路径（`AGENTS.md`、`.claude/skills`）受保护集防止误删。`deploy --dry-run` 明示 `SKIP: .claude/rules Markdown mirror` 等跳过项。机制细节见 [`../architecture/platform-adaptation.md`](../architecture/platform-adaptation.md) §5–§6。
+每个平台部署只生成自己命名空间下的产物（`.claude/` / `.cursor/` / `.codex/` / `.opencode/`），互不干扰；跨平台共享的路径（`AGENTS.md`、`.claude/skills`）受保护集防止误删；codex 的 skills 面写入开放标准目录 `.agents/skills`（不在 `.codex/` 命名空间内）。`deploy --dry-run` 明示 `SKIP: .claude/rules Markdown mirror` 等跳过项。机制细节见 [`../architecture/platform-adaptation.md`](../architecture/platform-adaptation.md) §5–§6。
 
 ---
 

@@ -8,6 +8,7 @@ import re
 import sys
 
 from cataforge.runtime.hook.base import (
+    dispatched_agent_id,
     hook_main,
     matches_capability,
     matches_script_filters,
@@ -34,9 +35,7 @@ def main() -> None:
         sys.exit(0)
 
     tool_input = data.get("tool_input") or {}
-    agent_id = (
-        tool_input.get("subagent_type") or tool_input.get("agent_type") or tool_input.get("agent")
-    )
+    agent_id = dispatched_agent_id(data)
     if not agent_id:
         sys.exit(0)
 

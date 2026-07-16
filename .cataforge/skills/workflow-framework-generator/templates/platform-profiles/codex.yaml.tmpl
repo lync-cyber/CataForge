@@ -22,7 +22,7 @@ agent_definition:
 dispatch:
   tool_name: spawn_agent
   is_async: true
-  params: [agent, fork_context, prompt]
+  params: [agent_type, message, task_name]
 
 hooks:
   config_format: json
@@ -32,14 +32,15 @@ hooks:
     PostToolUse: PostToolUse
     Stop: Stop
     SessionStart: SessionStart
+    Notification: PermissionRequest
 
 features:
   parallel_agents: true
   background_agents: true
   subagent_interactive: false
-  agent_memory: false
+  agent_memory: true
   worktree_isolation: false
-  plan_mode: false
+  plan_mode: true
 
 degradation_notes:
   user_question: "Not available — use inline prompts or comments in output files"
@@ -49,4 +50,4 @@ degradation_notes:
   agent_dispatch: "Asynchronous — spawned agents run in background, results polled"
 
 permissions:
-  modes: [auto, read_only, full_access]
+  modes: [untrusted, on-request, never]
