@@ -388,6 +388,98 @@ class TestVizArch:
         assert any(label and label.startswith("M-001") for label in labels)
 
 
+def _make_arch_relations_project(tmp_path: Path) -> Path:
+    """Graph-mode project with authored arch relations: an M-001 ⇄ M-002
+    ``depends_on`` cycle, M-003 as an off-cycle dependant, and C-001
+    ``part_of`` M-001 — the composition + cycle-marking fixture."""
+    db = tmp_path / ".cataforge" / "kg" / "store"
+    runner = CliRunner()
+    init = runner.invoke(cli, ["kg", "init", "--db-path", str(db)])
+    assert init.exit_code == 0, init.output
+    (tmp_path / ".cataforge" / "framework.json").write_text(
+        json.dumps({"context": {"mode": "graph"}}), encoding="utf-8"
+    )
+    spec = {
+        "operations": [
+            {"op": "add_entity", "entity_id": "M-001", "class": "Module", "title": "认证模块"},
+            {"op": "add_entity", "entity_id": "M-002", "class": "Module", "title": "会话模块"},
+            {"op": "add_entity", "entity_id": "M-003", "class": "Module", "title": "审计模块"},
+            {
+                "op": "add_entity",
+                "entity_id": "C-001",
+                "class": "Component",
+                "title": "登录处理器",
+                "relations": [["part_of", "M-001"]],
+            },
+            {
+                "op": "add_relation",
+                "subject": "M-001",
+                "predicate": "depends_on",
+                "object": "M-002",
+            },
+            {
+                "op": "add_relation",
+                "subject": "M-002",
+                "predicate": "depends_on",
+                "object": "M-001",
+            },
+            {
+                "op": "add_relation",
+                "subject": "M-003",
+                "predicate": "depends_on",
+                "object": "M-002",
+            },
+        ]
+    }
+    r = runner.invoke(
+        cli, ["context", "transact", "--project-root", str(tmp_path)], input=json.dumps(spec)
+    )
+    assert r.exit_code == 0, r.output
+    return tmp_path
+
+
+class TestVizArchRelations:
+    def test_part_of_edge_labelled(self, tmp_path: Path) -> None:
+        # composition rides a labelled edge so the module hierarchy is visible
+        # next to (and distinct from) the dependency edges
+        _make_arch_relations_project(tmp_path)
+        result = _viz(tmp_path, "arch")
+        assert result.exit_code == 0, result.output
+        assert "C-001 -->|part_of| M-001" in result.output
+        assert "M-003 -->|depends_on| M-002" in result.output
+
+    def test_dependency_cycle_nodes_flagged(self, tmp_path: Path) -> None:
+        # the arch dependency graph must be a DAG — cycle members get the
+        # CYCLE status (colour + textual marker), off-cycle nodes stay clean
+        _make_arch_relations_project(tmp_path)
+        result = _viz(tmp_path, "arch")
+        assert result.exit_code == 0, result.output
+        assert palette.mermaid_style(Status.CYCLE) in result.output
+        assert palette.encoding(Status.CYCLE).marker in result.output
+
+    def test_json_statuses_and_edge_labels(self, tmp_path: Path) -> None:
+        _make_arch_relations_project(tmp_path)
+        result = _viz(tmp_path, "arch", "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        nodes = {n["id"]: n for n in data["nodes"]}
+        assert nodes["M-001"]["status"] == "cycle"
+        assert nodes["M-002"]["status"] == "cycle"
+        assert nodes["M-003"]["status"] is None  # depends on the cycle, not in it
+        assert nodes["C-001"]["status"] is None  # part_of edges never mark cycles
+        labels = {(e["src"], e["dst"]): e.get("label") for e in data["edges"]}
+        assert labels[("C-001", "M-001")] == "part_of"
+        assert labels[("M-001", "M-002")] == "depends_on"
+
+    def test_acyclic_arch_stays_unmarked(self, tmp_path: Path) -> None:
+        # the vertical-slice fixture has no dependency edges at all — nothing
+        # may carry a CYCLE marker on a healthy architecture
+        _make_kg_project(tmp_path)
+        result = _viz(tmp_path, "arch", "--format", "json")
+        assert result.exit_code == 0, result.output
+        assert all(n["status"] is None for n in json.loads(result.output)["nodes"])
+
+
 # ------------------------------------------------------------------
 # docs view — doc-index dependency graph with stale / xref styling
 # ------------------------------------------------------------------

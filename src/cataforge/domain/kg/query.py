@@ -330,19 +330,29 @@ class QueryAPI:
         return cf_namespace(self._config)
 
     def depends_on(self, entity_id: str) -> list[str]:
+        """Entity ids this entity declares a ``cf:depends_on`` edge to."""
+        return self._outgoing_ids(entity_id, "depends_on")
+
+    def part_of(self, entity_id: str) -> list[str]:
+        """Entity ids this entity declares a ``cf:part_of`` edge to (owners)."""
+        return self._outgoing_ids(entity_id, "part_of")
+
+    def _outgoing_ids(self, entity_id: str, predicate: str) -> list[str]:
+        """Object entity ids of ``predicate`` out-edges; *predicate* is an
+        internal slot-name literal, never caller input."""
         ns = self._cf_ns()
         uri = resolve_stored_entity_iri(self._store, self._config, entity_id)
         sparql = (
             f"PREFIX cf: <{ns}> "
-            "SELECT ?dep_id WHERE { "
-            f"  <{uri}> cf:depends_on ?dep . "
-            "  ?dep cf:entity_id ?dep_id . "
-            "} ORDER BY ?dep_id"
+            "SELECT ?obj_id WHERE { "
+            f"  <{uri}> cf:{predicate} ?obj . "
+            "  ?obj cf:entity_id ?obj_id . "
+            "} ORDER BY ?obj_id"
         )
         return [
             v
             for row in select_rows(self._store, sparql)
-            if (v := _strv(_row_lookup(row, "dep_id"))) is not None
+            if (v := _strv(_row_lookup(row, "obj_id"))) is not None
         ]
 
     def _fetch_typed(self, class_name: str, entity_id: str) -> dict[str, Any] | None:

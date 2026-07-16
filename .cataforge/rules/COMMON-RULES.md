@@ -61,14 +61,14 @@
 | 值 | 触发时机 | 说明 |
 |----|---------|------|
 | phase_transition | 每次阶段转换 | 所有 Phase N→N+1 暂停（最严格，隐含 pre_dev / pre_deploy / post_doc_freeze） |
-| post_doc_freeze | PRD 冻结后（Phase 1→2）、ARCH 冻结后（Phase 2→3） | 只门禁冻结类文档转换，不门禁全部；适合 ARCH 返工成本高的大型项目 |
+| post_doc_freeze | 冻结类业务文档 approved 后的阶段转换：PRD 冻结（Phase 1→2）、ARCH 冻结（Phase 2→3）、UI-SPEC 冻结（Phase 3→4；ui_design 标 N/A 时该点不存在） | 只门禁冻结类文档转换，不门禁全部；适合返工成本高的大型项目 |
 | pre_dev | Phase 4→5 前 | 开发阶段成本最高，确认开发计划与资源 |
 | post_skeleton | walking-skeleton 卡验证通过后 | 外部真值 tracer 经真实系统验证通过后再进规模化（机制见 `.cataforge/references/external-truth-first.md`）；未声明 external_oracles 的项目此值无效 |
 | pre_deploy | Phase 6→7 前 | 部署 go/no-go；deployment 标 N/A 时本检查点随之豁免 |
 | post_sprint | Sprint Review 通过后 | 是否继续下一 Sprint |
 | none | — | 完全自动推进，仅保留失败驱动门禁 |
 
-规则：默认值（见上表 MANUAL_REVIEW_CHECKPOINTS）覆盖最高风险节点（`pre_dev` 已在最贵阶段前 consolidate 全部上游冻结文档审查，故 PRD/ARCH 冻结点默认不单独设确认，仅 doc-review 质量门禁）；需要早期冻结门禁的项目显式加 `post_doc_freeze`（中间档），需要门禁每次转换则用 `phase_transition`；用户在 Bootstrap 时或运行中通过 项目指令文件 §全局约定 覆盖；`none` 与其他值互斥。
+规则：默认值（见上表 MANUAL_REVIEW_CHECKPOINTS）覆盖最高风险节点（`pre_dev` 已在最贵阶段前 consolidate 全部上游冻结文档审查，故 PRD/ARCH/UI-SPEC 冻结点默认不单独设确认，仅 doc-review 质量门禁）；需要早期冻结门禁的项目显式加 `post_doc_freeze`（中间档），需要门禁每次转换则用 `phase_transition`；用户在 Bootstrap 时或运行中通过 项目指令文件 §全局约定 覆盖；`none` 与其他值互斥。
 
 ## 执行模式矩阵
 框架支持三种执行模式，写入 项目指令文件 §项目信息.执行模式，未填默认 `standard`。
