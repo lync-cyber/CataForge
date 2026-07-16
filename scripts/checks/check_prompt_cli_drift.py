@@ -51,7 +51,7 @@ SCAN_GLOBS: list[tuple[Path, str]] = [
     (REPO_ROOT / ".cataforge" / "references", "**/*.md"),
 ]
 
-GROUPS = ("context", "docs", "kg", "setup", "viz")
+GROUPS = ("claude-md", "context", "docs", "event", "kg", "phase", "setup", "viz")
 
 # cataforge-prefixed: `cataforge context finalize`
 _CATAFORGE = re.compile(rf"\bcataforge\s+({'|'.join(GROUPS)})\s+([a-z][a-z-]+)")

@@ -17,6 +17,7 @@ short live handoff.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -82,6 +83,25 @@ def measure_claude_md(claude_md_path: Path) -> ClaudeMdMeasurement:
         learnings_entries=learnings_entries,
         max_state_bullet_chars=longest_bullet,
     )
+
+
+def limit_breaches(
+    measurement: ClaudeMdMeasurement, limits: Mapping[str, int]
+) -> list[tuple[str, int, int]]:
+    """Thresholds from ``framework.json#claude_md_limits`` the measurement exceeds.
+
+    Returns ``(limit_key, measured, limit)`` per breach — the single verdict
+    authority shared by ``cataforge claude-md check`` and the phase-transition
+    hygiene gate, so the two can never disagree. Empty list = within limits;
+    a missing file measures as all-zero and therefore never breaches.
+    """
+    checks: tuple[tuple[str, int], ...] = (
+        ("max_bytes", measurement.total_bytes),
+        ("max_state_section_lines", measurement.state_section_lines),
+        ("learnings_registry_max_entries", measurement.learnings_entries),
+        ("max_state_bullet_chars", measurement.max_state_bullet_chars),
+    )
+    return [(key, measured, limits[key]) for key, measured in checks if measured > limits[key]]
 
 
 @dataclass
@@ -293,5 +313,6 @@ __all__ = [
     "ClaudeMdMeasurement",
     "CompactionResult",
     "compact_learnings_registry",
+    "limit_breaches",
     "measure_claude_md",
 ]

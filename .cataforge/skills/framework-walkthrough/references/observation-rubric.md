@@ -11,7 +11,7 @@
 | 初始化产物 | I-1~I-9 | Bootstrap 各步产物是否落地：目录集合/行尾归一化门/{INSTRUCTION_FILE} 初版/框架版本/`runtime.platform`/env-block/permissions/kg store 水合/context index | 版本仍 `0.0.0-template`、目录集合与模式不符、kg store 水合静默失败（注：`cataforge setup env-block` 在未配置技术栈时 exit 2 是预期占位行为，非缺陷） |
 | 产物生成 | C-3, C-8 | 该阶段应产出的文档/代码是否生成、路径与命名是否合规；跨完阶段跑 `cataforge phase status` 作硬校验 | 文档缺 front matter、落错目录、未注册索引、`phase status` 退出非 0 |
 | 门禁触发 | C-4, C-7, B-4 | doc-review / code-review / sprint-review 是否如期触发、Layer 1↔2 短路判定是否正确；L1 疑似误报时 reviewer 是否留下双重核实证据、裁量是否被记录 | 该审却没审、该短路却全跑（反之亦然）、L1 误报被裁量放行却未留核实证据 |
-| 一致性门 | C-5b~C-5f | Phase Transition 的 validate / reconcile / doc-consistency / claude-md check 是否逐步执行、阻塞类门是否真阻塞 | hygiene 越界却 WARN 放行、doc-consistency 在 Phase 2+ 未触发、EVENT BATCH 出现半截状态 |
+| 一致性门 | C-5b~C-5f | Phase Transition 门禁链（`cataforge phase transition`）的 stale-deps / reconcile / doc-consistency / event-batch / claude-md 门是否逐门执行、阻塞类门是否真阻塞 | hygiene 越界却 WARN 放行、doc-consistency 在 Phase 2+ 未触发、事件批出现半截状态或重跑重复落盘 |
 | 降级行为 | B-8~B-11, E-9 | 缺能力 / 探针未装时降级是否显式、是否有日志 | 静默丢能力、未提示降级即继续、探针跳过被读作通过 |
 | 恢复路径 | E-1~E-7 | 触发的恢复协议是否按 ORCHESTRATOR-RECOVERY-PROTOCOLS 行为：轮次上限、人工介入触发、回滚是否干净 | 超轮次仍自动重试、rolled-back 静默、truncation 未评估完成度就接管 |
 | CLI / skill / hook | C-*, E-8 | `cataforge` 子命令、`skill run`、hook 是否报错或退出码异常 | 命令不存在、参数不符、Layer 1 返回 2/127 |

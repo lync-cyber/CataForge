@@ -27,7 +27,7 @@
 | [`cataforge feedback`](#feedback) | 把下游信号打包为上游可消费的 markdown 反馈 |
 | [`cataforge issue`](#issue) | 上游 GitHub issue 全闭环：triage 拉取分诊 / close 模板化关闭 |
 | [`cataforge penpot`](#penpot) | Penpot 设计工具集成：Docker 栈 + MCP 服务部署与生命周期 |
-| [`cataforge phase`](#phase) | 只读巡检当前 SDLC 工作流阶段及预期产物 |
+| [`cataforge phase`](#phase) | 巡检当前 SDLC 阶段产物；执行阶段转换的确定性门禁链 |
 | [`cataforge claude-md`](#claude-md) | 项目指令文件卫生：体积诊断 + Learnings Registry 压缩 |
 | [`cataforge viz`](#viz) | 框架 / 项目结构图渲染（Mermaid / DOT / JSON 文本） |
 | [`cataforge git`](#git) | 本地分支卫生：同步默认分支、清理 squash 合并分支、设置仓库 merge 策略 |
@@ -789,13 +789,32 @@ cataforge penpot doctor        # 诊断 Penpot 集成故障并给修复建议
 
 ## phase
 
-**何时用它**：只读核对当前 SDLC 阶段是否产齐预期产物（不推进、不写盘）。
+**何时用它**：核对当前 SDLC 阶段产物（`status`，只读），或在 reviewer 通过后执行阶段转换的确定性门禁链（`transition`）。
 
 ```bash
 cataforge phase status         # 校验当前阶段预期产物是否齐备
+cataforge phase transition --from <旧阶段> --to <新阶段> [--json]   # 阶段转换门禁链
 ```
 
 `phase status` 的门禁结论与 [`cataforge viz phase`](#viz) 着色一致；非 CataForge 驱动的项目优雅退出。
+
+`phase transition` 按序幂等执行七道门：phase-field 参数核验（当前阶段 须为 --from/--to 之一）→
+doc-status 核验（文档头与指令文件状态均 approved）→ 依赖新鲜度（索引完整性 + stale deps）→
+[`context reconcile`](#context) 漂移守门（markdown 模式 SKIP）→ doc-consistency 跨文档校验
+（≥2 文档 approved 时）→ 事件批量（phase_end → review_verdict → state_change → phase_start 原子落盘；
+重跑判定为「日志最新 phase_start 即 --to 且其后无 --from 阶段的流程类事件」，回退后再次转换仍正常落盘）→
+指令文件 hygiene（阈值同 [`claude-md check`](#claude-md)，作用于平台指令文件）。
+ack/compact 等决策审计记录在挣得当轮即时单发落盘，并按 (event, phase, detail) 内容去重。
+全过 exit 0 并输出下一阶段 dispatch 提示（role / execution_host）；命中需人工/LLM 决策的分支 exit 3
+并输出结构化选项；门内工具链故障 exit 1。
+
+| 参数 | 作用 |
+| ------ | ------ |
+| `--from <phase>` / `--to <phase>` | 转出/转入阶段（必填；`--to` 取值由 Mode Routing 决定） |
+| `--ack-stale-deps` | 用户确认 stale deps 不影响下游：降级 WARN，决策即时落盘（内容去重） |
+| `--ack-inconsistency` | 将 doc-consistency 的 CRITICAL/HIGH 降级 WARN 继续，决策即时落盘（内容去重） |
+| `--compact` | hygiene 越界时先执行 Learnings Registry 压缩再复检；压缩实际发生即记审计事件 |
+| `--json` | 输出机器可读报告（gates / stopped_at / dispatch） |
 
 ---
 
@@ -836,7 +855,7 @@ cataforge claude-md compact [--max N] [--dry-run]   # 裁剪 Learnings Registry�
 | `0` | 成功 | 正常完成 |
 | `1` | 通用失败 | `doctor` 发现 FAIL；验证不通过；缺少前置条件（如 `.cataforge/` 未初始化）；配置错误 |
 | `2` | Click 用法错误 | 未知选项、缺少必需参数、参数类型不符（由 Click 自动使用） |
-| `3` | KG 内容校验门失败 | `kg import` 校验失败、`kg validate` 报违例、`kg export` 渲染错误、`kg drift-check` 检测到 doc↔store 漂移；由 `CataforgeError` 子类 `KGVerificationError` 抛出。与 `1` 分开是为了让 CI 能在 "数据真有问题" 与 "环境没准备好" 之间分别动作 |
+| `3` | 内容校验门失败 / 转换分支待决策 | `kg import` 校验失败、`kg validate` 报违例、`kg export` 渲染错误、`kg drift-check` 检测到 doc↔store 漂移（由 `CataforgeError` 子类 `KGVerificationError` 抛出）；`phase transition` 在某道门命中需人工/LLM 决策的分支并输出结构化选项。与 `1` 分开是为了让 CI/编排能在 "数据真有问题、需要决策" 与 "环境没准备好" 之间分别动作 |
 | `6` | SPARQL 查询超时 | `kg query` 超出配置的查询超时；由 `CataforgeError` 子类 `KGQueryTimeoutError` 抛出 |
 | `70` | 功能未实现（stub） | `plugin install` / `plugin remove` 等路线图占位命令；由 `CataforgeError` 子类 `NotImplementedFeature` 抛出 |
 

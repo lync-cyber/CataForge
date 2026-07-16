@@ -3,7 +3,9 @@
 > 状态：P1+P2 已实施（冷热拆分 + 受众分层外迁，落地时对 S1 做了一处细化：
 > 归因分类 / 三态判定逻辑 / verdict_blocking_semantics 属跨 Agent verdict 契约，
 > **留在 COMMON-RULES**，仅报告撰写规约（编号 / Front Matter / 问题格式）外迁——
-> 原表按 85 行整节估算的节约相应缩小）；P3–P4 未实施，按 §5 实施序独立落地。
+> 原表按 85 行整节估算的节约相应缩小）。P3 已实施：`cataforge phase transition`
+> 复合命令落地（幂等门禁链 + exit 3 结构化分支 + 事件批去重），协议段收敛为
+> 4 步薄壳 + 分支处置表；P4 未实施，按 §5 门槛（P3 运行 ≥1 个版本周期）评估。
 > 超长行治理已随前一 PR 落地（纯格式、语义零变化）。
 > 范围：`.cataforge/rules/COMMON-RULES.md`（319 行 ≈6.4k tokens）与
 > `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`（432 行 ≈8.1k tokens）。

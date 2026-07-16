@@ -53,10 +53,10 @@ user-invocable: true
 ### Step 3: 驱动初始化路径（Bootstrap → 路径图 §2）
 1. 在沙盒 cwd 按 start-orchestrator 角色假设起流程：主线程扮演 orchestrator，按 `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS §Project Bootstrap` 逐步推进
 2. 逐步观察 Bootstrap 各产物落地（路径图 I-1~I-9：目录结构 / .gitattributes / {INSTRUCTION_FILE} 初版 / 框架版本 / runtime.platform / env-block / permissions / kg store 水合 / context index），口径见 observation-rubric §1
-3. Bootstrap 完成后跑 `cataforge phase status`，以 `phase recognised` / `phase_start logged` 两行 OK 确认入口成立；入口时点不据 exit 码判 blocked，blocked 判定仅适用阶段收口（E-8）
+3. Bootstrap 完成后跑 `cataforge phase status`，以 `phase recognised` / `phase_start logged` 两行 OK 确认入口成立；入口时点不据 exit 码判 blocked，blocked 判定仅适用阶段收口（E-8）<!-- allow-cli-verb: phase recognised 是 phase status 的输出行标签，非命令 -->
 
 ### Step 4: 驱动核心链路 + 分支/异常路径（路径图 §3–§5）
-1. 按 walkthrough-protocol §2 该模式的驱动顺序逐阶段推进至收敛阶段（standard 含 testing；lite 档至 development）；每个 Phase Transition 逐子步观察一致性门（路径图 C-5a~C-5g：validate / reconcile / doc-consistency / claude-md check）与 execution_host 分派（inline vs subagent）
+1. 按 walkthrough-protocol §2 该模式的驱动顺序逐阶段推进至收敛阶段（standard 含 testing；lite 档至 development）；每个 Phase Transition 观察 `cataforge phase transition` 门禁链逐门输出（路径图 C-5a~C-5g，门名与观察重点见 runtime-flow-map §3.1）与 execution_host 分派（inline vs subagent）
 2. happy path 上自然触发的门禁/降级即时记录；`--depth full` 时按 walkthrough-protocol §6 探针程序逐个触发可达的分支路径（B-*）与可探针异常路径（E-1/E-2），每个探针是一次有界观察、不展开成完整 SDLC
 3. 机会观察类异常路径（路径图标 `O`：crash / truncation / rolled-back 等）若自然出现即记录，否则账本标 not-reached
 4. 单轮预算保护：某路径反复 needs_revision / blocked 超两轮仍不收敛，停止驱动并把卡点记为 finding（见 walkthrough-protocol §4）

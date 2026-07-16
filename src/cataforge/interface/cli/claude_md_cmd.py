@@ -18,6 +18,7 @@ import click
 
 from cataforge.core.claude_md_hygiene import (
     compact_learnings_registry,
+    limit_breaches,
     measure_claude_md,
 )
 from cataforge.core.errors import CataforgeError, NotInitializedError
@@ -46,58 +47,54 @@ def check_command() -> None:
         click.echo(f"No CLAUDE.md at {claude_md} (run `cataforge deploy`).")
         return
 
-    failed = 0
+    breached = {key for key, _, _ in limit_breaches(measurement, limits)}
     click.echo(f"CLAUDE.md: {measurement.path}")
     click.echo(
         f"  size:               {measurement.total_bytes:>6} bytes (limit: {limits['max_bytes']})"
     )
-    if measurement.total_bytes > limits["max_bytes"]:
+    if "max_bytes" in breached:
         click.secho(
             "    FAIL: exceeds max_bytes — split user-extensions out or run "
             "`cataforge claude-md compact`.",
             fg="red",
         )
-        failed += 1
 
     click.echo(
         f"  §项目状态 lines:    {measurement.state_section_lines:>6} "
         f"(limit: {limits['max_state_section_lines']})"
     )
-    if measurement.state_section_lines > limits["max_state_section_lines"]:
+    if "max_state_section_lines" in breached:
         click.secho(
             "    FAIL: state section is too long — orchestrator may be writing "
             "history that belongs in EVENT-LOG.",
             fg="red",
         )
-        failed += 1
 
     click.echo(
         f"  Learnings Registry: {measurement.learnings_entries:>6} entries "
         f"(limit: {limits['learnings_registry_max_entries']})"
     )
-    if measurement.learnings_entries > limits["learnings_registry_max_entries"]:
+    if "learnings_registry_max_entries" in breached:
         click.secho(
             "    FAIL: registry exceeds max — run "
             "`cataforge claude-md compact` to archive older entries.",
             fg="red",
         )
-        failed += 1
 
     click.echo(
         f"  longest §项目状态 bullet: {measurement.max_state_bullet_chars:>6} chars "
         f"(limit: {limits['max_state_bullet_chars']})"
     )
-    if measurement.max_state_bullet_chars > limits["max_state_bullet_chars"]:
+    if "max_state_bullet_chars" in breached:
         click.secho(
             "    FAIL: a status bullet is accumulating history into one run-on line "
             "— keep it a live delta and move history to docs/ or EVENT-LOG.",
             fg="red",
         )
-        failed += 1
 
-    if failed:
+    if breached:
         raise CataforgeError(
-            f"CLAUDE.md limits exceeded ({failed} check(s) failed — see output above)."
+            f"CLAUDE.md limits exceeded ({len(breached)} check(s) failed — see output above)."
         )
     click.secho("  OK: within limits.", fg="green")
 
