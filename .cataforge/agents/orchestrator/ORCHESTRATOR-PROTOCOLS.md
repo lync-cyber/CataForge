@@ -225,7 +225,16 @@ Mode Routing Protocol 在以下时刻被调用:
 **执行步骤**:
 1. 读取 {INSTRUCTION_FILE} §全局约定 中的 `人工审查检查点` 字段（未配置则使用 MANUAL_REVIEW_CHECKPOINTS 默认值）
 2. 判断当前转换是否命中检查点（各值触发时机见 COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS 可选值）
-3. 命中时，使用 AskUserQuestion 向用户展示阶段摘要并确认。**当 checkpoint = `pre_deploy` 且 framework.json `pre_deploy_demo_required: true`**（UI/web 类项目默认 true，纯后端服务默认 false）时，选项追加 demo 验证项；其它 checkpoint 用基础选项即可：
+3. 命中时，先产出与本次转换匹配的可视化并在摘要「已完成」行附产物路径——确定性 CLI 调用，
+   不阻塞推进，数据源未就绪跳过不报错（同 §Sprint Review Protocol 可视化保底焊点语义）：
+   - `post_doc_freeze`：PRD 冻结 → `cataforge viz trace --format mermaid -o docs/viz/trace.mmd`；
+     ARCH / UI-SPEC 冻结 → `cataforge viz arch --format mermaid -o docs/viz/arch.mmd`
+   - `pre_dev` → `cataforge viz tasks --format mermaid -o docs/viz/tasks.mmd`
+   - `post_sprint` / `pre_deploy` → 复用 Sprint 收口 dashboard 产物路径
+
+   随后使用 AskUserQuestion 向用户展示阶段摘要并确认。**当 checkpoint = `pre_deploy` 且
+   framework.json `pre_deploy_demo_required: true`**（UI/web 类项目默认 true，纯后端服务
+   默认 false）时，选项追加 demo 验证项；其它 checkpoint 用基础选项即可：
 
    基础选项（所有 checkpoint）:
    ```

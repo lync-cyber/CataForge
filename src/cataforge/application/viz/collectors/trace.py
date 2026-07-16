@@ -6,6 +6,7 @@ degrades to a `CataforgeError` carrying the facade's own ``kg init`` hint.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, cast
 
@@ -14,6 +15,7 @@ from cataforge.core.errors import CataforgeError
 from cataforge.core.viz.model import Edge, Graph, Node, Status, View
 from cataforge.domain.kg import KnowledgeGraph
 from cataforge.domain.kg.trace import TraceChain
+from cataforge.runtime.skill.builtins.task_dep_analysis.task_dep_analysis import detect_cycles
 
 # (src_layer, dst_layer, relation) — trace-chain edge topology, shared with the
 # table/json analysis outputs that `kg trace` still serves.
@@ -135,9 +137,13 @@ def collect_coverage(root: Path, /, **_opts: Any) -> View:
 
 
 def collect_arch(root: Path, /, **_opts: Any) -> View:
-    """Arch-layer entities with intra-layer ``depends_on`` edges."""
-    nodes: list[Node] = []
+    """Arch-layer entities with ``depends_on`` dependency edges and ``part_of``
+    composition edges; nodes on a ``depends_on`` cycle are marked
+    :data:`Status.CYCLE` — the arch layer's dependency graph must be a DAG, so
+    a cycle is an anomaly worth a visual warning, not just another edge."""
+    labels: dict[str, str] = {}
     edges: list[Edge] = []
+    dep_graph: dict[str, list[str]] = defaultdict(list)
     with open_kg(root) as kg:
         entities = kg.query.all_entities(types=_ARCH_TYPES)
         ids = {eid for e in entities if (eid := e.get("entity_id"))}
@@ -145,8 +151,19 @@ def collect_arch(root: Path, /, **_opts: Any) -> View:
             eid = e.get("entity_id")
             if not eid:
                 continue
-            nodes.append(Node(id=eid, label=f"{eid}: {e.get('title') or ''}"))
+            labels[eid] = f"{eid}: {e.get('title') or ''}"
             for dep in kg.query.depends_on(eid):
                 if dep in ids:
                     edges.append(Edge(eid, dep, label="depends_on"))
-    return Graph(nodes=tuple(nodes), edges=tuple(edges), direction="LR", title="architecture")
+                    dep_graph[eid].append(dep)
+            for owner in kg.query.part_of(eid):
+                if owner in ids:
+                    edges.append(Edge(eid, owner, label="part_of"))
+    cyclic: set[str] = set()
+    for cycle in detect_cycles(dep_graph, set(labels)):
+        cyclic.update(cycle)
+    nodes = tuple(
+        Node(id=eid, label=label, status=Status.CYCLE if eid in cyclic else None)
+        for eid, label in labels.items()
+    )
+    return Graph(nodes=nodes, edges=tuple(edges), direction="LR", title="architecture")

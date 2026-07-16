@@ -245,6 +245,33 @@ def test_depends_on_empty_when_no_edges() -> None:
     assert deps == []
 
 
+def test_part_of_returns_owner_ids() -> None:
+    kg, config, project_iri = _make_kg_with_project()
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="M-001",
+            class_name="Module",
+            title="Auth",
+            source_doc="arch",
+            source_section="M-001 Auth",
+            content_hash=hx("m001hash"),
+            project_iri=project_iri,
+        )
+        txn.add_entity(
+            entity_id="C-001",
+            class_name="Component",
+            title="LoginHandler",
+            source_doc="arch",
+            source_section="C-001 LoginHandler",
+            content_hash=hx("c001hash"),
+            project_iri=project_iri,
+        )
+        txn.add_relation("C-001", "cf:part_of", "M-001")
+
+    assert kg.query.part_of("C-001") == ["M-001"]
+    assert kg.query.part_of("M-001") == []
+
+
 def test_stale_dependencies_empty_on_matching_hashes() -> None:
     kg, config, project_iri = _make_kg_with_project()
     with kg.transaction() as txn:
