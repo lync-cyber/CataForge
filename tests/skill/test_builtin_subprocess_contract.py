@@ -26,7 +26,6 @@ _PRD = textwrap.dedent(
     deps: []
     consumers: [arch]
     ---
-    [NAV]§2[/NAV]
     ## 2. 功能需求
     ### F-001: Login
     - 优先级: P0

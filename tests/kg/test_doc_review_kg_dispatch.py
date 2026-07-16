@@ -62,7 +62,6 @@ status: draft
 deps: []
 consumers: [arch]
 ---
-[NAV]§1 §2[/NAV]
 
 ## 1. Overview
 
@@ -81,7 +80,6 @@ status: draft
 deps: [prd]
 consumers: [dev-plan]
 ---
-[NAV]§1 §2[/NAV]
 
 ## 1. Overview
 

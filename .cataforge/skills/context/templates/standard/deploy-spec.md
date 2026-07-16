@@ -15,14 +15,6 @@ required_sections:
 ---
 # Deployment Specification: {项目名称}
 
-[NAV]
-- §1 构建流程
-- §2 环境配置
-- §3 CI/CD流水线
-- §4 发布检查清单
-- §5 本地最小栈验证证据
-[/NAV]
-
 ## 1. 构建流程
 {构建命令/步骤}
 
