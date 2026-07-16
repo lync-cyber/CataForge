@@ -50,6 +50,7 @@ docs/faq.md
 # ---- 仓库顶层 ----
 README.md
 CHANGELOG.md
+changelog.d/
 LICENSE
 .gitignore
 .env.example
