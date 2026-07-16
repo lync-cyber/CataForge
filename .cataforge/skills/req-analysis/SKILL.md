@@ -2,7 +2,7 @@
 name: req-analysis
 description: "需求分析 — 需求拆解、用户故事编写、验收标准定义。当用户提出新需求、需要编写 PRD、拆解功能点或定义优先级与验收标准时使用。"
 argument-hint: "<用户需求描述或已有PRD路径>"
-suggested-tools: file_read, file_write, file_edit
+suggested-tools: file_read, file_write, file_edit, shell_exec
 depends: [context, research, design-grill]
 disable-model-invocation: false
 user-invocable: true
@@ -27,7 +27,7 @@ user-invocable: true
 ## 执行流程
 
 ### 可选前置: Grill 深度澄清
-design-grill 默认关闭。用户显式要求开启，或当前阶段存在阻塞多个下游决定的高影响歧义时，可一次性建议；仅在用户明确接受后调用 `design-grill prd [范围]`。用户拒绝或未接受即继续 research user-interview 普通澄清，不因信息不完整自动启用。Grill 总结返回后再进入 Step 1，不由 Grill 代写 PRD。
+触发与启用协议见 design-grill §启用门（项目偏好或阶段入口一次询问；询问不等于启用，用户明确接受后调用 `design-grill prd [范围]`）。未启用即以 research user-interview 做普通澄清。Grill 总结返回后再进入 Step 1，不由 Grill 代写 PRD。
 
 ### Step 1: 需求收集与澄清
 - 解析用户输入，识别功能域和核心诉求
@@ -62,7 +62,7 @@ design-grill 默认关闭。用户显式要求开启，或当前阶段存在阻�
   - 假设: 前提假设，标注[ASSUMPTION]
   - 调研记录: 引用research-note编号(如有)
 - §5 术语表: 领域特定术语(术语 | 定义)表
-- 通过context finalize交付PRD
+- 经 context generate 分支 authoring 落图后 finalize 交付 PRD（操作细节见 context skill）
 
 ## Anti-Patterns
 - 禁止: 把 P0/P1/P2 优先级直接抄用户原话 —— 必须基于 MoSCoW 框架重新评估；否则出现"用户说全部 P0"的瀑布化退化

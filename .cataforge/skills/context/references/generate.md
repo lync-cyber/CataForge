@@ -21,6 +21,8 @@
 - 单节叙事: `cataforge context write-narrative --doc-id {id} --anchor "{章节}" --narrative …`
 - 文档头补丁: `cataforge context write-meta {doc_id} --status … --version …`
 
+整篇 markdown / JSON spec 需落文件传参时(长文 stdin 易受 shell 转义限制),staging 文件写到 gitignored 的 `.cataforge/state/staging/`(或系统临时目录),禁止把草稿写入 `docs/`——`docs/` 只能由 finalize 产出。
+
 > `id` 与文件名只允许 slug;版本号、点号、空格塞进 id 会被 `cataforge context validate` FAIL 并阻塞 doctor/CI。
 
 ## 定稿

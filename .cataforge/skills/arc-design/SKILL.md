@@ -2,7 +2,7 @@
 name: arc-design
 description: "架构设计 — 模块划分、接口定义、数据模型、系统架构建模。当 PRD 完成、需要做架构风格选型、模块划分、接口契约或数据模型设计时使用此 skill。本 skill 不做需求分析（req-analysis）与 UI 设计（ui-design）。"
 argument-hint: "<PRD文档路径或功能需求描述>"
-suggested-tools: file_read, file_write, file_edit, file_glob, file_grep
+suggested-tools: file_read, file_write, file_edit, file_glob, file_grep, shell_exec
 depends: [context, tech-eval, research, design-grill]
 disable-model-invocation: false
 user-invocable: true
@@ -30,7 +30,7 @@ user-invocable: true
 > **语言细则**: 根据 `framework.json` `project.languages`，按需载入本 skill `references/lang-<lang>.md`（仅 active 语言，逐个 Read），获取对应语言的技术选型细则（包/依赖管理、框架选项、并发模型、构建产物形态）。`project.languages` 为空或未配置时跳过 lang-detail 载入，按语言无关原则做架构决策。
 
 ### 可选前置: Grill 深度澄清
-design-grill 默认关闭。用户显式要求开启，或当前阶段存在阻塞多个下游决定的高影响歧义时，可一次性建议；仅在用户明确接受后调用 `design-grill arch [范围]`。用户拒绝或未接受即继续 research user-interview 普通澄清。Grill 发现会改变系统边界、数据含义、权限模型或核心流程的 PRD 缺口时，交回 req-analysis 澄清，不以技术假设填补；总结返回后再进入 Step 1。
+触发与启用协议见 design-grill §启用门（项目偏好或阶段入口一次询问；询问不等于启用，用户明确接受后调用 `design-grill arch [范围]`）。未启用即以 research user-interview 做普通澄清。Grill 发现会改变系统边界、数据含义、权限模型或核心流程的 PRD 缺口时，交回 req-analysis 澄清，不以技术假设填补；总结返回后再进入 Step 1。
 
 ### Step 1: 需求分析与架构决策 (对应ARCH §1)
 - 通过 `cataforge context read prd#§2`（功能需求）/ `prd#§3`（非功能需求）按需分章节加载
@@ -88,7 +88,7 @@ design-grill 默认关闭。用户显式要求开启，或当前阶段存在阻�
 - §7.1 命名规范: 文件/变量/接口命名规则
 - §7.2 代码风格: Lint/格式化工具配置
 - §7.3 Git约定: 分支策略/Commit格式
-- 通过context finalize交付ARCH
+- 经 context generate 分支 authoring 落图后 finalize 交付 ARCH（操作细节见 context skill）
 
 ## Anti-Patterns
 - 禁止: 在 ARCH 主卷塞入实现细节代码 —— ARCH 写接口契约 / 数据流 / 模块边界；实现归 implementer 的 src/，越界让两层职责粘连

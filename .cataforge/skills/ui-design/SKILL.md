@@ -2,7 +2,7 @@
 name: ui-design
 description: "UI设计 — 页面布局、组件规范、交互流程、组件目录维护。当需要做 UI 设计、定义设计 token、规划页面与组件、设计交互流程或维护组件目录时使用。"
 argument-hint: "<prd文档路径或功能需求ID>"
-suggested-tools: file_read, file_write, file_edit
+suggested-tools: file_read, file_write, file_edit, shell_exec
 depends: [context, research, design-grill]
 disable-model-invocation: false
 user-invocable: true
@@ -29,7 +29,7 @@ user-invocable: true
 ## 执行流程
 
 ### 可选前置: Grill 深度澄清
-design-grill 默认关闭。用户显式要求开启，或 design-grill UI profile 定义的高影响歧义成立时，可一次性建议；仅在用户明确接受后调用 `design-grill ui [范围]`。用户拒绝或未接受即继续 research user-interview 普通澄清。`design_tool=penpot` 时仍先遵守既有 Design-Tool Capability Gate；总结返回后再进入 Step 1，Token 同步仍由本 skill 正式流程处理。
+触发与启用协议见 design-grill §启用门（项目偏好或阶段入口一次询问；询问不等于启用，用户明确接受后调用 `design-grill ui [范围]`）。未启用即以 research user-interview 做普通澄清。`design_tool=penpot` 时仍先遵守既有 Design-Tool Capability Gate；总结返回后再进入 Step 1，Token 同步仍由本 skill 正式流程处理。
 
 ### Step 1: 设计方向决策（产出任何Token前必须完成）
 理解产品上下文，确立设计方向:
@@ -89,6 +89,9 @@ design-grill 默认关闭。用户显式要求开启，或 design-grill UI profi
 2. 检查组件间一致性(token引用、命名风格)
 3. 确保组件复用，避免重复定义
 4. Token变量化，确保全局一致
+
+### Step 9: 交付
+- 经 context generate 分支 authoring 落图后 finalize 交付 ui-spec（操作细节见 context skill）
 
 ## Anti-Patterns
 - 禁止: 跳过 Token 阶段直接画组件 —— Token 是设计系统基础，未先确立会让组件层风格漂移，后期返工成本高
