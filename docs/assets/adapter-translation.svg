@@ -93,7 +93,6 @@
     <line class="rule" x1="20" y1="64" x2="140" y2="64"/>
     <text class="sub"  x="16"  y="86">· tool_map</text>
     <text class="sub"  x="16"  y="106">· event_map</text>
-    <text class="sub"  x="16"  y="126">· matcher_map</text>
     <text class="sub"  x="16"  y="146">· degradation</text>
     <text class="sub"  x="16"  y="166">· dispatch</text>
     <line class="rule" x1="20" y1="184" x2="140" y2="184"/>

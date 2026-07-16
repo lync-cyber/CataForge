@@ -74,9 +74,11 @@ def main() -> None:
 
     project_root = find_project_root()
     phase = _resolve_phase(data)
+    tool_input = data.get("tool_input") or {}
     upstream_agent = (
-        (data.get("tool_input") or {}).get("subagent_type")
-        or (data.get("tool_input") or {}).get("agent")
+        tool_input.get("subagent_type")
+        or tool_input.get("agent_type")
+        or tool_input.get("agent")
         or "unknown-agent"
     )
 

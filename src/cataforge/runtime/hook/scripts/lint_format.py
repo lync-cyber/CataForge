@@ -10,7 +10,12 @@ import shutil
 import sys
 from pathlib import Path
 
-from cataforge.runtime.hook.base import hook_main, matches_script_filters, read_hook_input
+from cataforge.runtime.hook.base import (
+    extract_edited_paths,
+    hook_main,
+    matches_script_filters,
+    read_hook_input,
+)
 from cataforge.utils.run_subprocess import run as run_proc
 
 
@@ -47,22 +52,21 @@ def main() -> None:
     if not matches_script_filters(data, "lint_format"):
         sys.exit(0)
 
-    file_path = (data.get("tool_input") or {}).get("file_path")
-    if not file_path:
-        file_path = (data.get("tool_input") or {}).get("path")
-    if not file_path:
-        sys.exit(0)
+    for raw_path in extract_edited_paths(data):
+        _process_file(raw_path.replace("\\", "/"))
 
-    file_path = file_path.replace("\\", "/")
+    sys.exit(0)
 
+
+def _process_file(file_path: str) -> None:
     if not os.path.isfile(file_path):
-        sys.exit(0)
+        return
 
     # Framework assets under .cataforge/ are out of the ruff / markdownlint
     # scope (lint runs on src/tests/scripts only) and are governed by their own
     # guards — never auto-format them, regardless of extension.
     if ".cataforge" in Path(file_path).parts:
-        sys.exit(0)
+        return
 
     ext = os.path.splitext(file_path)[1].lower()
 
@@ -110,8 +114,6 @@ def main() -> None:
             "common constraints need updating",
             file=sys.stderr,
         )
-
-    sys.exit(0)
 
 
 if __name__ == "__main__":

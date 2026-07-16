@@ -24,13 +24,13 @@
 | Agent 定义格式 | YAML frontmatter（`.claude/agents/`） | YAML frontmatter（`.cursor/agents/`） | TOML（`.codex/agents/`） | YAML frontmatter（`.opencode/agents/`） |
 | 指令文件 | `CLAUDE.md` | `AGENTS.md` + `.mdc` | `AGENTS.md` | `AGENTS.md` + `opencode.json.instructions` |
 | Agent 调度 | Agent（同步） | Task（同步） | `spawn_agent`（异步） | task（同步） |
-| Skill 面 | `.claude/skills`（原生） | `.claude/skills`（共用同一目录） | 无 —— read-first 降级 | 无 —— read-first 降级 |
-| Hook 配置 | `.claude/settings.json` | `.cursor/hooks.json` | `.codex/hooks.json`（仅 Bash matcher） | `.opencode/plugins/cataforge-hooks.ts`（deploy 生成 TS plugin 桥接） |
+| Skill 面 | `.claude/skills`（原生） | `.claude/skills`（共用同一目录） | `.agents/skills`（原生，open agent skills 标准） | 无 —— read-first 降级 |
+| Hook 配置 | `.claude/settings.json` | `.cursor/hooks.json` | `.codex/hooks.json`（matcher: Bash / apply_patch(Edit\|Write) / spawn_agent(Agent) / MCP 工具名；非托管 hook 须 `/hooks` 信任后才执行） | `.opencode/plugins/cataforge-hooks.ts`（deploy 生成 TS plugin 桥接） |
 | MCP 配置 | `.mcp.json` | `.cursor/mcp.json` | `.codex/config.toml` | `opencode.json` |
 | 上下文自动注入 | `CLAUDE.md` + `.claude/rules` 目录镜像 | `.cursor/rules/*.mdc` `alwaysApply:true` | `AGENTS.md` 层级合并（32 KiB 上限） | `opencode.json.instructions` |
 | 并行 Agent | 支持 | 支持（8 并发） | 支持（best-of-N） | 有限 |
 | Worktree 隔离 | 支持 | 支持 | 不支持 | 不支持 |
-| 多模型路由 | opus / sonnet / haiku | opus / sonnet / gpt / gemini | 会话级（无 per-agent） | 用户运行时自选（deploy 不写 `model:`） |
+| 多模型路由 | opus / sonnet / haiku | opus / sonnet / gpt / gemini | per-agent（custom agent TOML 的 `model` / `model_reasoning_effort`） | 用户运行时自选（deploy 不写 `model:`） |
 
 ---
 
@@ -63,7 +63,7 @@ hook 在目标平台标 `degraded` 时，`hooks.yaml#degradation_templates` 里�
 
 模板声明了上述之外的策略值时，deploy 日志输出 `WARN: … 未识别策略`，不静默丢弃。
 
-### Skill 面降级（codex / opencode）
+### Skill 面降级（opencode）
 
 `skill_definition.needs_deploy: false` 的平台没有 skills 目录可部署。translator（`_inject_skills_fallback`）把 AGENT.md frontmatter 的 `skills:` 清单渲染为 agent 正文顶部的 **read-first 指令**——「执行任务前先读取 `.cataforge/skills/<id>/SKILL.md`」——skill 上下文保持可达而非静默丢失。`cataforge doctor` 的「Agent skill dependencies」段校验每个声明的 skill id 都有 `.cataforge/skills/<id>/SKILL.md` 源。
 
@@ -73,7 +73,7 @@ hook 进程判定自身平台（`runtime.hook.base.get_platform()`）按四级�
 
 1. `CATAFORGE_PLATFORM` 环境变量（显式覆盖；claude-code 的 `settings_defaults` 在 deploy 时把 `env.CATAFORGE_PLATFORM=claude-code` set-if-absent 播种进 `.claude/settings.json`；opencode 的 TS plugin 在 spawn hook 脚本时注入 `env: { ...process.env, CATAFORGE_PLATFORM: 'opencode' }`）
 2. `--cataforge-platform <id>` 命令行参数 —— deploy 生成的 JSON hook 配置（claude-code / cursor / codex）统一在 hook 命令后追加
-3. IDE 环境变量探测（`CURSOR_PROJECT_DIR` / `CODEX_HOME` / `CLAUDE_PROJECT_DIR`）
+3. IDE 环境变量探测（`CURSOR_PROJECT_DIR` / `CLAUDE_PROJECT_DIR`；codex / opencode 无平台注入的环境变量，依赖前两级）
 4. framework.json 兜底 —— **多平台项目（`deployment.targets` ≥ 2）在此层显式 FAIL**：共享缺省值会静默误判会话身份，错误信息提示设置 `CATAFORGE_PLATFORM` 或重新 deploy 让 hook 命令携带平台参数
 
 ---
@@ -94,7 +94,7 @@ hook 进程判定自身平台（`runtime.hook.base.get_platform()`）按四级�
 
 ## 6. 跨平台目录隔离
 
-每个平台部署只生成**自己命名空间**下的产物（`.claude/` / `.cursor/` / `.codex/` / `.opencode/`），互不干扰。
+每个平台部署只生成**自己命名空间**下的产物（`.claude/` / `.cursor/` / `.codex/` / `.opencode/`），互不干扰。两个声明式例外：共享 `AGENTS.md`（§5）；codex 的 skills 面写入开放标准目录 `.agents/skills`（open agent skills 的仓库级扫描路径，不在 `.codex/` 命名空间内）。
 
 - **Cursor 部署默认不会触及 `.claude/rules`**（skill 目录 `.claude/skills` 是声明的共用面，见 §5）。
 - 仅当 `.cataforge/platforms/cursor/profile.yaml` 设置 `rules.cross_platform_mirror: true` 时，才会在 `.claude/rules` 创建 Markdown 镜像，供 "Cursor + Claude Code 双栖" 场景共享 prompt。

@@ -84,7 +84,6 @@ hooks:
     SessionStart: session.created
     Notification: null
   tool_overrides: {}
-  matcher_map: {}
   degradation:
     # All hooks are plugin-backed: the emitted TS wrapper invokes the Python
     # script so block/observe semantics flow through as on JSON platforms.

@@ -41,7 +41,6 @@ def test_explicit_override_wins(
     ("env_var", "expected"),
     [
         ("CURSOR_PROJECT_DIR", "cursor"),
-        ("CODEX_HOME", "codex"),
         ("CLAUDE_PROJECT_DIR", "claude-code"),
     ],
 )

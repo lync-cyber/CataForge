@@ -1,8 +1,8 @@
 <!-- OVERRIDE:dispatch_syntax -->
 调度（两步式）:
-  Step 1: spawn_agent(agent="{agent_id}", fork_context=false, prompt=下方prompt内容)
-  Step 2: wait_agent(thread_id=<step1返回的thread_id>)
-  prompt: |
+  Step 1: spawn_agent(agent_type="{agent_id}", task_name="<小写下划线任务名>", message=下方prompt内容)
+  Step 2: wait_agent(<Step 1 返回的 agent id>)
+  message: |
 <!-- /OVERRIDE:dispatch_syntax -->
 
 <!-- OVERRIDE:startup_notes -->
@@ -21,8 +21,7 @@
 
 <!-- OVERRIDE:context_limits -->
     === 上下文限制 ===
-    Codex CLI 上下文窗口约 272K tokens (gpt-5.4):
-    - 输入文档仅传递路径引用，不内嵌全文
+    - 子代理不继承主线程对话上下文，所需输入一律传路径引用、由子代理自行 Read
     - 优先分拆为多个子任务而非一次性完成
     - 产出中避免复制输入内容
     - 模型支持自动 compaction，超长会话会自动压缩早期上下文

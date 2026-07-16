@@ -18,9 +18,6 @@ class CodexAdapter(PlatformAdapter):
     def display_name(self) -> str:
         return "Codex CLI"
 
-    def get_project_root_env_var(self) -> str | None:
-        return "CODEX_HOME"
-
     def get_agent_scan_dirs(self) -> list[str]:
         return list(self._profile.agent_definition.scan_dirs) or [".codex/agents"]
 

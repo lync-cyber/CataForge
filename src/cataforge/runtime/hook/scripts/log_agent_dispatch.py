@@ -34,11 +34,13 @@ def main() -> None:
         sys.exit(0)
 
     tool_input = data.get("tool_input") or {}
-    agent_id = tool_input.get("subagent_type")
+    agent_id = (
+        tool_input.get("subagent_type") or tool_input.get("agent_type") or tool_input.get("agent")
+    )
     if not agent_id:
         sys.exit(0)
 
-    prompt_text = tool_input.get("prompt") or ""
+    prompt_text = tool_input.get("prompt") or tool_input.get("message") or ""
     task_type = _extract_task_type(prompt_text)
     description = tool_input.get("description") or ""
 

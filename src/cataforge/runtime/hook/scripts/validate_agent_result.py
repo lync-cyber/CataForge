@@ -46,7 +46,12 @@ def main() -> None:
     if not matches_script_filters(data, "validate_agent_result"):
         sys.exit(0)
 
-    result = data.get("tool_result") or data.get("result") or data.get("tool_output")
+    result = (
+        data.get("tool_result")
+        or data.get("result")
+        or data.get("tool_output")
+        or data.get("tool_response")
+    )
     if not result:
         sys.exit(0)
 

@@ -5,6 +5,7 @@ Provides:
 - hook_main(): hook entry decorator (logs failures to .hook-errors.jsonl)
 - get_platform(): current runtime platform ID
 - matches_capability(): cross-platform tool name matching
+- extract_edited_paths(): file paths from edit-tool payloads (incl. apply_patch)
 - matches_script_filters(): v2 schema filter evaluation
 """
 
@@ -103,40 +104,58 @@ def _detect_from_framework_json() -> str:
         return "claude-code"
 
 
-_tool_map_cache: dict[str, str | None] | None = None
+_hook_naming_cache: tuple[dict[str, str | None], dict[str, str]] | None = None
 _tool_map_lock = threading.Lock()
 
 
-def _load_tool_map() -> dict[str, str | None]:
-    global _tool_map_cache
+def _load_hook_naming() -> tuple[dict[str, str | None], dict[str, str]]:
+    """``(tool_map, hooks.tool_overrides)`` for the current platform.
+
+    Hook payloads identify tools by hook-facing names, which may differ from
+    the model-facing ``tool_map`` names (e.g. Codex ships tool ``shell`` but
+    serializes hook ``tool_name: "Bash"``). ``hooks.tool_overrides`` carries
+    those divergences — the same precedence the deploy-side matcher uses.
+    """
+    global _hook_naming_cache
     with _tool_map_lock:
-        if _tool_map_cache is not None:
-            return _tool_map_cache
+        if _hook_naming_cache is not None:
+            return _hook_naming_cache
 
         platform_id = get_platform()
         try:
             from cataforge.adapter.platform.registry import get_adapter
 
             adapter = get_adapter(platform_id)
-            _tool_map_cache = adapter.get_tool_map()
+            _hook_naming_cache = (adapter.get_tool_map(), dict(adapter.hook_tool_overrides))
         except Exception as e:
             logger.debug("Failed to load tool_map from adapter, using profile fallback: %s", e)
-            _tool_map_cache = _load_tool_map_from_profile(platform_id)
-        return _tool_map_cache
+            _hook_naming_cache = _load_hook_naming_from_profile(platform_id)
+        return _hook_naming_cache
 
 
 def clear_tool_map_cache() -> None:
-    global _tool_map_cache
+    global _hook_naming_cache
     with _tool_map_lock:
-        _tool_map_cache = None
+        _hook_naming_cache = None
 
 
 def clear_spec_entry_cache() -> None:
     _spec_entry_for_script.cache_clear()
 
 
-def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
-    """Load tool_map directly from profile.yaml without full adapter import chain.
+def _hook_naming_from_raw(raw: Any) -> tuple[dict[str, str | None], dict[str, str]] | None:
+    if not (isinstance(raw, dict) and "tool_map" in raw):
+        return None
+    hooks = raw.get("hooks")
+    overrides = hooks.get("tool_overrides") if isinstance(hooks, dict) else None
+    return dict(raw["tool_map"]), dict(overrides) if isinstance(overrides, dict) else {}
+
+
+def _load_hook_naming_from_profile(
+    platform_id: str,
+) -> tuple[dict[str, str | None], dict[str, str]]:
+    """Load tool_map + hook tool_overrides from profile.yaml without the full
+    adapter import chain.
 
     Falls back to Claude Code defaults only when no profile can be found.
     """
@@ -151,9 +170,9 @@ def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
             import yaml
 
             with open(profile_yaml) as f:
-                profile = yaml.safe_load(f)
-            if isinstance(profile, dict) and "tool_map" in profile:
-                return dict(profile["tool_map"])
+                parsed = _hook_naming_from_raw(yaml.safe_load(f))
+            if parsed is not None:
+                return parsed
         except (OSError, ValueError, ImportError) as exc:
             logger.debug("Failed to load profile.yaml for platform %r: %s", platform_id, exc)
         except Exception as exc:
@@ -164,9 +183,9 @@ def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
         profile_json = profile_yaml.with_suffix(".json")
         if profile_json.is_file():
             try:
-                raw = read_json(profile_json)
-                if isinstance(raw, dict) and "tool_map" in raw:
-                    return dict(raw["tool_map"])
+                parsed = _hook_naming_from_raw(read_json(profile_json))
+                if parsed is not None:
+                    return parsed
             except (OSError, ValueError) as exc:
                 logger.debug("Failed to load profile.json for platform %r: %s", platform_id, exc)
             except Exception as exc:
@@ -187,29 +206,61 @@ def _load_tool_map_from_profile(platform_id: str) -> dict[str, str | None]:
         "web_fetch": "WebFetch",
         "user_question": "AskUserQuestion",
         "agent_dispatch": "Agent",
-    }
+    }, {}
 
 
 def get_platform_tool_name(capability: str) -> str | None:
-    return _load_tool_map().get(capability)
+    return _load_hook_naming()[0].get(capability)
+
+
+def _capability_names(capability: str) -> set[str]:
+    """All hook-facing spellings for *capability* (tool_map ∪ tool_overrides).
+
+    Override values may be matcher alternations ("Edit|Write") — split so
+    membership tests compare single tool names.
+    """
+    tool_map, overrides = _load_hook_naming()
+    names: set[str] = set()
+    for value in (tool_map.get(capability), overrides.get(capability)):
+        if value:
+            names.update(part for part in value.split("|") if part)
+    return names
 
 
 def matches_capability(data: dict[str, Any], capability: str) -> bool:
     """Check if the hook's stdin tool_name matches a capability."""
     tool_name = data.get("tool_name", "")
-    expected = get_platform_tool_name(capability)
-
-    if expected is None:
-        return False
-
+    expected = _capability_names(capability)
     if capability == "file_edit":
-        edit_tools = {expected}
-        write_name = get_platform_tool_name("file_write")
-        if write_name:
-            edit_tools.add(write_name)
-        return tool_name in edit_tools
+        expected |= _capability_names("file_write")
+    if not expected:
+        return False
+    return tool_name in expected
 
-    return bool(tool_name == expected)
+
+# apply_patch envelopes name each touched file on a "*** <verb> File:" line;
+# "Move to" carries the rename target, which counts as a touched path too.
+_APPLY_PATCH_PATH_RE = re.compile(
+    r"^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$", re.MULTILINE
+)
+
+
+def extract_edited_paths(data: dict[str, Any]) -> list[str]:
+    """File paths touched by an edit-tool hook payload.
+
+    ``tool_input.file_path`` / ``tool_input.path`` payloads carry one explicit
+    path; Codex ``apply_patch`` payloads carry the whole patch in
+    ``tool_input.command``, where each hunk names its file.
+    """
+    tool_input = data.get("tool_input") or {}
+    path = tool_input.get("file_path") or tool_input.get("path")
+    if path:
+        return [str(path)]
+    if data.get("tool_name") == "apply_patch":
+        command = tool_input.get("command")
+        if isinstance(command, str):
+            return [m.strip() for m in _APPLY_PATCH_PATH_RE.findall(command)]
+    return []
 
 
 _DISPLAY_NAMES = {
@@ -369,14 +420,18 @@ def matches_script_filters(data: dict[str, Any], script_name: str | None = None)
     # --- file_path glob list --------------------------------------------
     patterns = entry.get("matcher_file_pattern")
     if patterns:
-        raw_path = tool_input.get("file_path") or tool_input.get("path") or ""
-        if not raw_path:
+        raw_paths = extract_edited_paths(data)
+        if not raw_paths:
             return False
-        normalised = str(raw_path).replace("\\", "/")
-        basename = normalised.rsplit("/", 1)[-1]
-        if not any(
-            fnmatch.fnmatch(normalised, p) or fnmatch.fnmatch(basename, p) for p in patterns
-        ):
+
+        def _path_matches(raw: str) -> bool:
+            normalised = raw.replace("\\", "/")
+            basename = normalised.rsplit("/", 1)[-1]
+            return any(
+                fnmatch.fnmatch(normalised, p) or fnmatch.fnmatch(basename, p) for p in patterns
+            )
+
+        if not any(_path_matches(raw) for raw in raw_paths):
             return False
 
     # --- command regex list ---------------------------------------------
@@ -390,7 +445,11 @@ def matches_script_filters(data: dict[str, Any], script_name: str | None = None)
     agent_ids = entry.get("matcher_agent_id")
     if agent_ids:
         candidate = (
-            tool_input.get("subagent_type") or tool_input.get("agent") or data.get("agent") or ""
+            tool_input.get("subagent_type")
+            or tool_input.get("agent_type")
+            or tool_input.get("agent")
+            or data.get("agent")
+            or ""
         )
         if not candidate or candidate not in agent_ids:
             return False

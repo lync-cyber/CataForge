@@ -101,11 +101,6 @@ hooks:
   # Hook matchers may differ from tool_map names on some platforms.
   # tool_overrides provides hook-specific matcher names when they diverge.
   tool_overrides: {}
-  matcher_map:
-    Bash: Shell
-    Agent: Task
-    "Edit|Write": Write
-    AskUserQuestion: null
   degradation:
     guard_dangerous: native
     guard_frozen_docs: native
