@@ -131,7 +131,7 @@ front matter 之后按 COMMON-RULES §问题格式 列出问题，§归因分类
 - linter / formatter 工具适配（review + scan 门禁，按文件类型自动选择）：ESLint + Prettier (.js/.ts/.jsx/.tsx)、Ruff (.py)、dotnet format (.cs)、golangci-lint (.go)、cargo clippy (.rs)；工具未安装时跳过并 WARN，不阻断
 - 声明式检查的语义细则按维度分文档承载：wiring 空 handler 见 [`wiring-checks.md`](../../references/wiring-checks.md)；架构分层守护（`arch_guard`，项目声明 `arch.yaml` 方向矩阵即激活）见 [`arch-checks.md`](../../references/arch-checks.md)；复杂度门禁与棘轮基线（`complexity_gate`）见 [`complexity-checks.md`](../../references/complexity-checks.md)
 - duplication 维度（informational）：内置行块 floor（零依赖、语言通用，与 `complexity_gate` 同构保证维度不静默）保底 + jscpd token 级增强（多语言，出报告时用其精确信号）/ pmd-cpd（Java）
-- scan 腐化 probe（informational，按 `--focus` 选择性执行）：dead-code（vulture / ts-prune / cargo-machete / config 死键 xref）、complexity（radon / gocyclo / eslint，探针阈值统一取项目级 `complexity.yaml`）、consistency（API 面快照 diff）、convention（豁免盘点）；probe 工具缺失 WARN 跳过，scan 不因此 FAIL
+- scan 腐化 probe（informational，按 `--focus` 选择性执行）：dead-code（vulture / ts-prune / knip / cargo-machete / config 死键 xref）、complexity（radon / gocyclo / eslint，探针阈值统一取项目级 `complexity.yaml`）、consistency（API 面快照 diff）、convention（豁免盘点）；probe 工具缺失 WARN 跳过，scan 不因此 FAIL
 - vendored / 生成文件排除（`EXCLUDE_FILE_GLOBS`：`*.min.*` / `*.map` / `*-lock.json` / `*.d.ts` 等）+ 项目级 `.cataforge/skills/code-review/ignore`：lint 遍历与探针 ignore 共享单一源，压缩第三方包不产生假阳性
 
 豁免统一语法 `cataforge: allow(<check-id>, reason="...")`（reason 必填，缺失时豁免生效但记 WARN；文件级/行级生效范围随消费方）见 [`pragma-grammar.md`](../../references/pragma-grammar.md)。

@@ -14,13 +14,6 @@ required_sections:
 ---
 # Sprint Review: Sprint {N} — {项目名称}
 
-[NAV]
-- §1 计划 vs 实际 → 任务完成度、交付物、AC覆盖率
-- §2 范围分析 → Gold-plating、Scope Drift、缺失交付物
-- §3 质量聚合 → CODE-REVIEW问题模式汇总
-- §4 结论 → 判定结果与建议
-[/NAV]
-
 ## 1. 计划 vs 实际
 
 | 任务ID | 计划交付物 | 实际状态 | 交付物完成度 | AC覆盖率 | 备注 |

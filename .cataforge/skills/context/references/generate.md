@@ -3,7 +3,7 @@
 取模板结构、authoring 落图、定稿导出。图后端就绪时图谱是事实源,`docs/` 由 `cataforge context finalize` 导出供人审,不直写后端、不 `Write`/`Edit` `docs/` 文件;doc-only 项目无图后端,authoring 命令会提示直接编辑 `docs/`。
 
 ## 取模板
-查注册表 `Read .cataforge/skills/context/templates/_registry.yaml`,据 `{template_id}` 取 `path` 读模板,得必填章节([NAV] 块)、实体类型与占位符语义。
+查注册表 `Read .cataforge/skills/context/templates/_registry.yaml`,据 `{template_id}` 取 `path` 读模板,得必填章节(frontmatter `required_sections`)、实体类型与占位符语义。
 
 ## authoring 落图
 设文档头(`id` 为 slug `[a-z0-9-]`、不含版本号,版本归 `version:` 字段;author/status=draft/deps/consumers)。按内容规模选写入面,引用其他文档条目前检查目标存在:
@@ -28,7 +28,7 @@
 ## 定稿
 1. 结构完整性自检(必填章节非空、文档头齐全);不通过则补全 authoring,不继续
 2. 持久化导出: 调 `cataforge context finalize` 从图导出 `docs/` 人审视图;人改导出文件后经 `cataforge context ingest` 回流——后端由框架按 `context.mode` 路由,Agent 无需分支
-3. 返回导出路径 + 必填章节清单(从 [NAV] 块提取)
+3. 返回导出路径 + 必填章节清单(从 frontmatter `required_sections` 提取)
 
 ## 精简
 一个 doc_type 一个逻辑文档(整篇),不拆分为物理分卷。超过 `DOC_SPLIT_THRESHOLD_LINES` 时优先精简内容或拆为多个各自独立 `id` 的逻辑文档,每个逻辑文档各自走定稿导出。

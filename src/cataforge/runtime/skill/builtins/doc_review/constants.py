@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-DOC_SPLIT_THRESHOLD_LINES = 300
-
 KNOWN_DOC_PREFIXES = {
     "prd",
     "arch",

@@ -14,15 +14,6 @@ required_sections:
 ---
 # UI Specification: {项目名称}
 
-[NAV]
-- §0 设计方向
-- §1 设计系统 → §1.1 色彩, §1.2 排版, §1.3 间距与圆角
-- §2 组件清单 → UC-001..UC-{NNN}
-- §3 页面布局 → P-001..P-{NNN}
-- §4 导航与路由
-- §5 响应式策略
-[/NAV]
-
 <!-- 权威源约定（design_tool=penpot 时）：
   · 语义恒以本 ui-spec 为权威源 —— Token 命名与设计意图（§1）、组件身份/Props/状态枚举/功能映射（§2）、页面语义结构/状态流/路由（§3、§4）。
   · 视觉实值的权威源随 authoring surface —— doc-first（默认）以本 ui-spec 为权威源、Penpot 为下游镜像；Penpot-first（opt-in）以 Penpot 为权威源、本文存派生快照。覆盖 Token 值（§1）、组件视觉值与精确尺寸/真实 CSS/层级（§2）、页面精确几何与 flex-grid 实参（§3）。

@@ -29,7 +29,7 @@ def test_arch_missing_feature_coverage(tmp_path: Path) -> None:
         tmp_path,
         "docs/arch/arch-foo.md",
         "---\nid: arch-foo\ndoc_type: arch\ndeps: [prd-foo]\n---\n"
-        "# ARCH\n[NAV]\n- §1 Overview\n- §2 Modules\n[/NAV]\n"
+        "# ARCH\n"
         "## 1. Overview\nOverview\n"
         "## 2. Modules\n### M-001: Auth\nCovers F-001, F-002\n",
     )

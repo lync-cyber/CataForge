@@ -25,12 +25,14 @@ Layer 2 — AI 审查（可按文档类型跳过）：
 ## 2. 代码审查（code-review）
 
 ```text
-Layer 1 — Lint 检查：
-  ├── ruff / eslint 等工具自动检查
-  └── 格式化验证
+Layer 1 — 机械检查（权威清单 = code_review.CHECKS_MANIFEST，registry 派生）：
+  ├── linter / formatter 家族（ruff / eslint+prettier / dotnet format / golangci-lint / clippy）
+  ├── 声明式门禁：arch_guard（架构分层方向矩阵）、complexity_gate（复杂度棘轮）、
+  │   wiring_empty_handler（空 handler）、ui_fidelity（设计 token 消费）
+  └── scan 腐化 probe（informational）：duplication / dead-code / api-surface / pragma 盘点
 
-Layer 2 — AI 审查：
-  ├── 架构合规性（是否符合 arch 设计）
+Layer 2 — AI 语义审查（不复查 Layer 1 已机械判定的问题）：
+  ├── 架构合规语义面（以 Layer 1 arch_guard 报告为输入，判 import 方向之外的设计偏离）
   ├── 安全性（OWASP Top 10 等）
   ├── 业务逻辑正确性
   └── 测试覆盖充分性
@@ -65,7 +67,7 @@ code-review 的 `<args...>` 为显式双子命令 `review <path> [--fix]` / `sca
 
 ## 3. 问题分类体系
 
-审查发现的问题按 9 类（`completeness` / `consistency` / `convention` / `security` / `feasibility` / `ambiguity` / `structure` / `error-handling` / `performance`）× 4 严重等级（`CRITICAL` > `HIGH` > `MEDIUM` > `LOW`）组织。修订流程仅处理 `CRITICAL` 与 `HIGH`。
+审查发现的问题按统一分类体系（权威清单见 COMMON-RULES §统一问题分类体系）× 4 严重等级（`CRITICAL` > `HIGH` > `MEDIUM` > `LOW`）组织。修订流程仅处理 `CRITICAL` 与 `HIGH`。
 
 完整表格与每类举例见 [`../reference/status-codes.md`](../reference/status-codes.md) §2、§3；修订协议见 [`runtime-workflow.md`](./runtime-workflow.md) §4。
 

@@ -19,10 +19,7 @@ from cataforge.utils.md_parse import strip_code_blocks
 from cataforge.utils.placeholders import count_unresolved_placeholders
 
 from ._render import render_text
-from .constants import (
-    DOC_SPLIT_THRESHOLD_LINES,
-    KNOWN_DOC_PREFIXES,
-)
+from .constants import KNOWN_DOC_PREFIXES
 from .template_registry import (
     load_template_required_sections,
     parse_required_sections_from_list,
@@ -152,54 +149,10 @@ class DocChecker(TypedDocChecksMixin):
         if "consumers" not in fm and self.doc_type not in ("research", "changelog"):
             self.fail("缺少consumers字段")
 
-    def check_nav_block(self) -> None:
-        if self.doc_type in ("changelog", "research"):
-            return
-        nav_match = re.search(r"\[NAV\](.*?)\[/NAV\]", self.content, re.DOTALL)
-        if not nav_match:
-            self.fail("缺少[NAV]...[/NAV]块")
-            return
-        nav_text = nav_match.group(1)
-        nav_sections = re.findall(r"§(\d+)", nav_text)
-        nav_top_sections = sorted(set(nav_sections))
-        actual_sections = re.findall(r"^## (\d+)\.", self.content, re.MULTILINE)
-        actual_top_sections = sorted(set(actual_sections))
-        if nav_top_sections and actual_top_sections and nav_top_sections != actual_top_sections:
-            self.warn(
-                f"[NAV]块章节({','.join('§' + s for s in nav_top_sections)}) "
-                f"与实际章节({','.join('§' + s for s in actual_top_sections)})不一致"
-            )
-
     def check_no_todo(self) -> None:
         unannotated = count_unresolved_placeholders(self.content)
         if unannotated > 0:
             self.fail(f"{unannotated}个未处理TODO/TBD/FIXME")
-
-    def _split_threshold(self) -> int:
-        """Resolve ``DOC_SPLIT_THRESHOLD_LINES`` from framework.json.
-
-        Falls back to the module default when no project root is resolvable
-        or the constant is absent/invalid — so the check still runs against
-        an arbitrary docs directory.
-        """
-        root = self._project_root()
-        if root is None:
-            return DOC_SPLIT_THRESHOLD_LINES
-        try:
-            from cataforge.core.config import ConfigManager
-
-            val = ConfigManager(root).get_constant("DOC_SPLIT_THRESHOLD_LINES")
-        except Exception:
-            return DOC_SPLIT_THRESHOLD_LINES
-        if isinstance(val, int) and not isinstance(val, bool) and val > 0:
-            return val
-        return DOC_SPLIT_THRESHOLD_LINES
-
-    def check_line_count(self) -> None:
-        line_count = len(self.lines)
-        threshold = self._split_threshold()
-        if line_count > threshold:
-            self.warn(f"文档行数({line_count})超过{threshold}行阈值，建议拆分为多个逻辑文档或精简")
 
     def check_xref(self) -> None:
         content_no_code = strip_code_blocks(self.content)
@@ -330,10 +283,9 @@ class DocChecker(TypedDocChecksMixin):
 
         When the project has KG active for the upstream + downstream
         doc_types, replaces the file-scan + string-match check with a
-        SPARQL ``cf:implements`` / ``cf:verifies+`` query (Task 6 §6.4
-        A13). The graph-based check eliminates the false-positive class
-        from Task 1 §1.4 case A — a mention in a comment block no
-        longer counts as coverage.
+        SPARQL ``cf:implements`` / ``cf:verifies+`` query. The
+        graph-based check eliminates the false-positive class where a
+        mention in a comment block counts as coverage.
         """
         coverage_rules: dict[str, _CoverageRule] = {
             "arch": _CoverageRule("prd", "F"),
@@ -377,7 +329,7 @@ class DocChecker(TypedDocChecksMixin):
             self.fail(f"上游 {upstream_type} 中 {len(uncovered)} 项未被覆盖: {display}{suffix}")
 
     # ------------------------------------------------------------------
-    # KG dispatch helpers (Task 6 §6.4 A12 / A13)
+    # KG dispatch helpers
     # ------------------------------------------------------------------
 
     def _project_root(self) -> Path | None:
@@ -399,8 +351,7 @@ class DocChecker(TypedDocChecksMixin):
         """Return KG-backed xref resolvers if KG is active.
 
         They short-circuit the file-glob xref check when the graph carries
-        authoritative knowledge of the project's entities and sections
-        (Task 6 §6.4 A12).
+        authoritative knowledge of the project's entities and sections.
         """
         project_root = self._project_root()
         if project_root is None:
@@ -579,10 +530,8 @@ class DocChecker(TypedDocChecksMixin):
         self.check_export_freshness()
         self.check_meta()
         self.check_status_provenance()
-        self.check_nav_block()
         self.check_no_todo()
         self.check_xref()
-        self.check_line_count()
         self.check_required_sections()
         self.check_id_continuity()
         self.check_bidirectional_coverage()

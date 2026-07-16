@@ -254,10 +254,10 @@ def test_check_arch_tech_stack_no_rationale_column_no_warn(tmp_path: Path) -> No
     assert not any("选型理由" in w for w in c.warnings), c.warnings
 
 
-def test_check_arch_tech_stack_nav_mention_does_not_false_trigger(tmp_path: Path) -> None:
-    """A NAV pointer line mentioning 技术栈 (no table) must not warn — guards the
-    original bug that anchored on the NAV occurrence instead of the heading."""
-    content = "[NAV]\n- §1 架构概览 → §1.4 技术栈\n[/NAV]\n\n## 1. 概览\n无表格。\n"
+def test_check_arch_tech_stack_prose_mention_does_not_false_trigger(tmp_path: Path) -> None:
+    """A non-heading prose mention of 技术栈 (no table) must not warn — the
+    check anchors on a 技术栈 heading, not on any occurrence of the word."""
+    content = "## 1. 概览\n- 附录另有技术栈清单指针，本节无表格。\n"
     c = _checker(tmp_path, "arch", content)
     c.check_arch()
     assert not any("选型理由" in w for w in c.warnings), c.warnings

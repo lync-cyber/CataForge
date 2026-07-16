@@ -24,15 +24,6 @@ required_sections:
   若内容仍超过 DOC_SPLIT_THRESHOLD_LINES 仍无法表达清楚，提示用户切换到 agile-lite 或 standard。
 -->
 
-[NAV]
-- §1 目标与用户
-- §2 核心功能 → F-001..F-{NNN}（含 AC）
-- §3 技术选型
-- §4 接口与数据结构 → API-001..API-{NNN}
-- §5 开发任务 → T-001..T-{NNN}
-- §6 风险与假设
-[/NAV]
-
 ## 1. 目标与用户
 - **背景**: {1-2 句话说明为什么做}
 - **目标用户**: {一句话用户画像}

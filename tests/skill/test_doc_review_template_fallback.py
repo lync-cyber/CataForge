@@ -27,7 +27,7 @@ def test_check_required_sections_falls_back_to_frontmatter(tmp_path: Path) -> No
         "required_sections:\n"
         '  - "## 9. 自定义章节"\n'
         "---\n"
-        "# x\n\n[NAV]\n[/NAV]\n\n## 9. 自定义章节\n内容\n"
+        "# x\n\n## 9. 自定义章节\n内容\n"
     )
     doc = _write(tmp_path / "doc.md", body)
 
@@ -53,7 +53,7 @@ def test_check_required_sections_fallback_flags_missing_section(
         "required_sections:\n"
         '  - "## 9. 必填章节"\n'
         "---\n"
-        "# x\n\n[NAV]\n[/NAV]\n\n## 8. 别的章节\n内容\n"
+        "# x\n\n## 8. 别的章节\n内容\n"
     )
     doc = _write(tmp_path / "doc.md", body)
 
@@ -74,7 +74,7 @@ def test_deploy_spec_requires_local_stack_evidence_section(tmp_path: Path) -> No
         "deps: []\n"
         "consumers: []\n"
         "---\n"
-        "# Deployment Spec\n\n[NAV]\n[/NAV]\n\n"
+        "# Deployment Spec\n\n"
         "## 1. 构建流程\n内容\n\n"
         "## 2. 环境配置\n内容\n\n"
         "## 3. CI/CD流水线\n内容\n\n"

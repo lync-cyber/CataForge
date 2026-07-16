@@ -20,11 +20,6 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "severity": "fail",
     },
     {
-        "id": "check_nav_block",
-        "title": "[NAV]块存在且与实际章节一致 (changelog/research 除外)",
-        "severity": "fail|warn",
-    },
-    {
         "id": "check_no_todo",
         "title": "无未处理 TODO/TBD/FIXME (或已标注 [ASSUMPTION])",
         "severity": "fail",
@@ -33,11 +28,6 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "id": "check_xref",
         "title": "交叉引用目标文件存在",
         "severity": "fail",
-    },
-    {
-        "id": "check_line_count",
-        "title": "文档行数 ≤ DOC_SPLIT_THRESHOLD_LINES (超过则建议拆分为多个逻辑文档)",
-        "severity": "warn",
     },
     {
         "id": "check_required_sections",
