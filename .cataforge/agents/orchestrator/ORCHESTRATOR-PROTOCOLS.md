@@ -86,8 +86,9 @@ needs_input 回传由本协议代问。
 2. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 3. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
 4. 修复完成后先按 §Phase Transition Protocol Step 6 执行 reconcile 收口（漂移按 Step 6 选项处置），再重新激活 reviewer
-   执行门禁。reviewer 采用**增量审查模式**——只审变更与上轮 CRITICAL/HIGH 涉及维度，完整增量语义以
-   code-review SKILL §增量审查模式与 context review.md §报告 为准
+   执行门禁。reviewer 采用**增量审查模式**——与上轮 baseline 比较只审变更，上轮 CRITICAL/HIGH 涉及维度与
+   新增内容按全维度审查；完整增量语义以 code-review SKILL §增量审查模式（代码）与
+   context review.md §报告（文档）为准
 5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入，避免低效 revision 循环
 
 > 子代理收到 `task_type=revision` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。

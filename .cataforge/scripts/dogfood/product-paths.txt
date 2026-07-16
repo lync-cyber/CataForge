@@ -19,6 +19,7 @@
 .cataforge/platforms/
 .cataforge/hooks/
 .cataforge/rules/
+.cataforge/references/
 .cataforge/schemas/
 .cataforge/scripts/
 .cataforge/commands/

@@ -27,7 +27,11 @@ cataforge skill run doc-review -- {doc_type} docs/{doc_type}/{doc_file} --docs-d
 ## 报告
 产出 `docs/reviews/doc/REVIEW-{doc_id}-r{N}.md`,首行 YAML front matter(id/doc_type=review/author/status/deps),问题列表含严重等级 CRITICAL/HIGH/MEDIUM/LOW;结论 approved / approved_with_notes / needs_revision。Layer 1 权威检查清单见 doc-review 的 `CHECKS_MANIFEST`。
 
-非首轮审查(同 doc_id 已存在 `-r{N-1}` 报告)时:加载上轮未闭环的 MEDIUM/LOW 清单为已知问题输入,逐条标注 `still-open` / `resolved`;still-open 项参与本轮聚类升级计数,并按本轮 finding 参与三态判定(COMMON-RULES §三态判定逻辑)。
+非首轮审查(同 doc_id 已存在 `-r{N-1}` 报告)时:与上轮审查的 commit baseline 比较、只审变更部分;
+上轮无 CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查(报告中每个此类维度附上轮报告编号供追溯),
+上轮 CRITICAL/HIGH 涉及维度与新增内容按全维度正常审查;加载上轮未闭环的 MEDIUM/LOW 清单为已知问题输入,
+逐条标注 `still-open` / `resolved`;still-open 项参与本轮聚类升级计数,并按本轮 finding
+参与三态判定(COMMON-RULES §三态判定逻辑)。
 
 ## 修订
 needs_revision / inline-fix 的修复经 context authoring(`write-narrative` 写节叙事 / `write` 写实体)落图后 `context finalize` 重导出,不 `Edit` `docs/` 导出文件——图后端就绪时 `docs/` 是图的只读导出视图,直接 Edit 会被 `context reconcile` 判为 human_edit 漂移。

@@ -2,7 +2,7 @@
 
 Matcher: Agent (with matcher_agent_id=[reviewer] in hooks.yaml).
 Fires when a CRITICAL/HIGH issue body references an ``[ASSUMPTION]``.
-Report shape per COMMON-RULES §审查报告规范.
+Report shape per `.cataforge/references/review-report-spec.md` §问题格式.
 Never blocks (exit 0).
 """
 

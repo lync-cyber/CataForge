@@ -2,7 +2,7 @@
 
 本文件是 framework-walkthrough 走查覆盖面的单一事实源：枚举框架运行流程的全部已知路径，按五类组织（初始化 / 核心执行链路 / 分支 / 异常 / 终止清理）。走查须逐路径处置，并在报告的「路径覆盖账本」里给出每条路径的归属，确保「没跑到」不被读作「没问题」。
 
-路径定义的权威协议是 `ORCHESTRATOR-PROTOCOLS.md` 与 `framework.json#/workflow`；本表是**走查视角的只读投影**——只标「这条路径在走查里怎么处置、看什么」，不复制协议正文。协议变更时以协议为准、回头校准本表。
+路径定义的权威协议是 `ORCHESTRATOR-PROTOCOLS.md`（Bootstrap 路径见 `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md`、恢复路径见 `ORCHESTRATOR-RECOVERY-PROTOCOLS.md`）与 `framework.json#/workflow`；本表是**走查视角的只读投影**——只标「这条路径在走查里怎么处置、看什么」，不复制协议正文。协议变更时以协议为准、回头校准本表。
 
 ## 目录
 

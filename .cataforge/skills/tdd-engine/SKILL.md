@@ -366,5 +366,5 @@ orchestrator完成以下收尾:
 - 禁止: 在 agile-prototype 模式跑 standard TDD — prototype 设计是快速试错，跑完整三阶段会让重构延迟到正式化时丢失上下文
 - 禁止: 绕过 Mid-Progress Drop Contract 让 implementer 末尾批量 Edit — 触发条件命中时必须按 4 步契约执行，否则大概率触发子代理 truncation
 - 禁止: 在 light-inline / prototype-inline 档调用 agent_dispatch — 内联档核心收益是省 boot token，调度子代理会让 inline 失效且违反 §Inline 触发条件
-- 禁止: REFACTOR 阶段修改测试 assertion 让 GREEN 通过 — refactorer 必须在不动行为契约前提下保持测试 PASS，触发后 orchestrator §Rolled-back Recovery Protocol 接管
+- 禁止: REFACTOR 阶段修改测试 assertion 让 GREEN 通过 — refactorer 必须在不动行为契约前提下保持测试 PASS，触发后 ORCHESTRATOR-RECOVERY-PROTOCOLS §Rolled-back Recovery Protocol 接管
 - 避免: REFACTOR 跨 sprint_group 并行 — 同 sprint_group 内 REFACTOR 必须串行（按 task_id 字典序），避免源文件并发改写冲突

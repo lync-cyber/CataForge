@@ -1,9 +1,9 @@
 ### Changed
 
 - **orchestrator 协议冷热拆分** —— Project Bootstrap（每项目一次）拆至
-  `ORCHESTRATOR-BOOTSTRAP.md`，四个异常恢复协议（Rolled-back / TDD Blocked / Crash /
+  `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md`，四个异常恢复协议（Rolled-back / TDD Blocked / Crash /
   Truncation）拆至 `ORCHESTRATOR-RECOVERY-PROTOCOLS.md`；热路径文件留触发索引表，
-  按需加载（复用 META-PROTOCOLS 拆分先例）。热路径每次加载省约 1.9k tokens。
+  按需加载（复用 META-PROTOCOLS 拆分先例）。热路径每次加载净省约 1.6k tokens。
 - **COMMON-RULES 受众分层外迁** —— 报告撰写规约（编号规则 / Front Matter 约定 /
   问题格式）迁 `.cataforge/references/review-report-spec.md`，保真类 AC 断言口径迁
   `.cataforge/references/fidelity-ac.md`，由报告产出方 / 保真任务消费方按需加载；

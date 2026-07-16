@@ -36,6 +36,7 @@ SCAN_GLOBS = [
     (REPO_ROOT / ".cataforge" / "agents", "**/*.md"),
     (REPO_ROOT / ".cataforge" / "skills", "**/*.md"),
     (REPO_ROOT / ".cataforge" / "rules", "**/*.md"),
+    (REPO_ROOT / ".cataforge" / "references", "**/*.md"),
     (REPO_ROOT / "docs" / "reference", "**/*.md"),
 ]
 

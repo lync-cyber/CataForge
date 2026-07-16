@@ -65,7 +65,7 @@ verdict_blocking_semantics、文档引用格式、IO 契约）原地不动。
 
 | # | 项 | 动作 | 节约 | 风险与对策 |
 | --- | ---- | ------ | ------ | ----------- |
-| O1 | Project Bootstrap（39 行） | 拆 `ORCHESTRATOR-BOOTSTRAP.md`，热文件留触发行（「{INSTRUCTION_FILE} 缺失 → Read 该文件执行」）；复用 META-PROTOCOLS 拆分先例 | ≈1.1k tok/常规调度 | AGENT.md 资产清单与 framework-update 委托入口同步改；doctor protocol_refs 兜底 |
+| O1 | Project Bootstrap（39 行） | 拆 `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md`，热文件留触发行（「{INSTRUCTION_FILE} 缺失 → Read 该文件执行」）；复用 META-PROTOCOLS 拆分先例 | ≈1.1k tok/常规调度 | AGENT.md 资产清单与 framework-update 委托入口同步改；doctor protocol_refs 兜底 |
 | O2 | 4 个恢复协议（44 行） | 拆 `ORCHESTRATOR-RECOVERY-PROTOCOLS.md`，热文件留 4 行触发索引表（状态码 → 协议名 → 文件） | ≈0.8k tok/常规调度 | 触发索引必须留在热文件，否则异常时想不起去加载；索引漂移由 links 守卫兜底 |
 | O3 | Revision Protocol Step 4 复述增量审查语义后自陈「完整语义以 code-review SKILL 为准」 | 砍复述，留指针 + 一句触发口径 | ≈0.2k tok | 该段自己声明了权威在别处，属自认的重复 |
 

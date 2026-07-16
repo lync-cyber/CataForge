@@ -38,9 +38,9 @@ COMMON-RULES 默认加载到 Agent 上下文，引用时无需附加文件路径
 | DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, changelog] | 可短路 Layer 2 的 doc_type 白名单（匹配 frontmatter 基名）；lite 变体短路机制见 context `references/review.md` | doc-review |
 | TDD_LIGHT_LOC_THRESHOLD | 150 | tech-lead 判定 `tdd_mode: standard` 的预估 LOC 上限阈值（LOC ≤ 阈值 → light；> 阈值 → standard） | tech-lead, tdd-engine |
 | TASK_SPLIT_LOC | 250 | task-decomp 拆分阈值：单任务预估 LOC > 此值（或 AC > 6）则在拆分阶段先拆，保任务粒度单一 | task-decomp |
-| MID_PROGRESS_LOC | 200 | tdd-engine 增量落盘触发阈值（LOC > 此值或 AC > 6；机制见 tdd-engine §Mid-Progress Drop Contract，区间内落盘不拆分） | tdd-engine |
+| MID_PROGRESS_LOC | 200 | tdd-engine 增量落盘触发阈值（LOC > 此值或 AC > 6；`MID_PROGRESS_LOC`–`TASK_SPLIT_LOC` 区间由落盘机制处理、不拆分，机制见 tdd-engine §Mid-Progress Drop Contract） | tdd-engine |
 | TDD_DEFAULT_MODE | light | 任务卡 `tdd_mode` 缺省值。LOC > 阈值或带 `security_sensitive: true` / 跨模块时 tech-lead 显式标 standard | tech-lead, tdd-engine |
-| TDD_REFACTOR_TRIGGER | [complexity, duplication, coupling] | standard 模式 REFACTOR 条件触发的 category 清单（触发流程见 tdd-engine §Step 4） | tdd-engine |
+| TDD_REFACTOR_TRIGGER | [complexity, duplication, coupling] | standard 模式 REFACTOR 条件触发的 category 清单（implementer 自检命中任一类别报 refactor_needed，调度流程见 tdd-engine §Step 4） | tdd-engine |
 | TDD_INLINE_ELIGIBLE_MODES | [agile-lite, agile-prototype] | TDD inline 执行（无 RED/GREEN 子代理 dispatch）的执行模式集；standard 走 dispatch 保留子代理审计隔离 | tdd-engine |
 | SPRINT_REVIEW_MICRO_TASK_COUNT | 3 | Sprint 任务数 ≤ 此值且全部 approved 时跳过 sprint-review | orchestrator |
 | CODE_REVIEW_L2_SKIP_TASK_KINDS | [chore, config, docs] | 任务卡 `task_kind` 命中且 Layer 1 通过时短路 code-review Layer 2 | code-review |
@@ -59,8 +59,8 @@ COMMON-RULES 默认加载到 Agent 上下文，引用时无需附加文件路径
 | UNATTENDED_STAGNATION_THRESHOLD | 3 | 连续 N 轮无进展 → 循环级熔断（进展判据由 unattended 外壳实现） | unattended-building-loop |
 | UNATTENDED_CARD_REVISION_CEILING | 3 | headless 下同一任务卡 `needs_revision` 熔断上限（语义见 `.cataforge/references/unattended-overrides.md`） | orchestrator, unattended-building-loop |
 | UNATTENDED_LOOP_ITER_TIMEOUT_SEC | 10800 | 单会话总时长宽松背板（防病态死循环） | unattended-building-loop |
-| UNATTENDED_SILENCE_TIMEOUT_SEC | 900 | 流输出静默超 N 秒判定挂死并击杀（心跳判据由 unattended 外壳实现） | unattended-building-loop |
-| UNATTENDED_RATELIMIT_WAIT_SEC | 300 | 命中限流后单次 auto-wait 秒数（不计入迭代/熔断预算） | unattended-building-loop |
+| UNATTENDED_SILENCE_TIMEOUT_SEC | 900 | 流输出静默超 N 秒判定挂死并击杀（取值须容纳全量门禁的合法长静默；心跳判据由 unattended 外壳实现） | unattended-building-loop |
+| UNATTENDED_RATELIMIT_WAIT_SEC | 300 | 命中限流后单次 auto-wait 秒数（不计入迭代/熔断预算；等待与击杀行为由 unattended 外壳实现） | unattended-building-loop |
 
 ### MANUAL_REVIEW_CHECKPOINTS 可选值
 | 值 | 触发时机 | 说明 |
