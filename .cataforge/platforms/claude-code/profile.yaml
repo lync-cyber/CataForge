@@ -109,11 +109,6 @@ hooks:
     Stop: Stop
     SessionStart: SessionStart
     Notification: Notification
-  matcher_map:
-    Bash: Bash
-    Agent: Agent
-    "Edit|Write": "Edit|Write"
-    AskUserQuestion: AskUserQuestion
   tool_overrides:
     file_edit: "Edit|Write"   # lint/format must fire after Write (new files) and Edit alike
   degradation:

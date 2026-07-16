@@ -34,7 +34,7 @@ def _make_project(tmp_path: Path, platform_id: str, profiles: dict) -> Path:
 
 @pytest.fixture(autouse=True)
 def _clean_platform_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for var in ("CATAFORGE_PLATFORM", "CLAUDE_PROJECT_DIR", "CURSOR_PROJECT_DIR", "CODEX_HOME"):
+    for var in ("CATAFORGE_PLATFORM", "CLAUDE_PROJECT_DIR", "CURSOR_PROJECT_DIR"):
         monkeypatch.delenv(var, raising=False)
     clear_cache()
 

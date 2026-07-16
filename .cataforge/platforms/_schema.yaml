@@ -57,7 +57,6 @@ required_fields:
     config_format: enum[json, yaml, plugin, null]
     config_path: string | null    # 平台 Hook 配置文件路径
     event_map: map[string, string | null]    # CataForge事件 → 平台事件
-    matcher_map: map[string, string | null]  # CataForge matcher → 平台 matcher
     tool_overrides: map[string, string]      # hook matcher 与 tool_map 不同时的覆盖
     degradation: map[string, enum[native, degraded, unsupported]]
 

@@ -16,8 +16,8 @@ def platform_from_env() -> str | None:
         return explicit
     if os.environ.get("CURSOR_PROJECT_DIR"):
         return "cursor"
-    if os.environ.get("CODEX_HOME"):
-        return "codex"
+    # Codex 不向子进程注入平台专属环境变量（CODEX_HOME 指配置 home 且仅用户
+    # 显式设置时存在），身份靠 --cataforge-platform flag / CATAFORGE_PLATFORM。
     if os.environ.get("CLAUDE_PROJECT_DIR"):
         return "claude-code"
     return None

@@ -24,9 +24,6 @@ class OpenCodeAdapter(PlatformAdapter):
     def display_name(self) -> str:
         return "OpenCode"
 
-    def get_project_root_env_var(self) -> str | None:
-        return None
-
     def get_agent_scan_dirs(self) -> list[str]:
         return list(self._profile.agent_definition.scan_dirs) or [".claude/agents"]
 
@@ -205,12 +202,13 @@ def _render_opencode_plugin(active_events: dict[str, list[dict[str, Any]]]) -> s
         "}\n"
         "\n"
         "function agentMatches(ids: readonly string[], payload: HookPayload): boolean {\n"
-        "  // Mirror Python matches_script_filters: an empty allowlist always\n"
-        "  // matches; otherwise the dispatched agent (subagent_type / agent)\n"
-        "  // must be on the list, else skip spawning entirely.\n"
+        "  // Mirror Python dispatched_agent_id: an empty allowlist always\n"
+        "  // matches; otherwise the dispatched agent (subagent_type /\n"
+        "  // agent_type / agent) must be on the list, else skip spawning.\n"
         "  if (ids.length === 0) return true;\n"
         "  const ti = (payload.tool_input ?? {}) as Record<string, unknown>;\n"
-        "  const candidate = (ti.subagent_type ?? ti.agent ?? payload.agent ?? '') as string;\n"
+        "  const candidate = (ti.subagent_type ?? ti.agent_type ?? ti.agent"
+        " ?? payload.agent ?? '') as string;\n"
         "  return candidate !== '' && ids.includes(candidate);\n"
         "}\n"
         "\n"

@@ -31,7 +31,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from cataforge.runtime.hook.base import matches_capability, read_hook_input
+from cataforge.runtime.hook.base import (
+    extract_edited_paths,
+    matches_capability,
+    read_hook_input,
+)
 
 # A path is a frozen upstream doc when it sits under docs/<type>/ or is the flat
 # docs/<type>(-lite).md, for the four standard planning doc types plus the
@@ -140,16 +144,14 @@ def main() -> None:
     if not matches_capability(data, "file_edit"):
         sys.exit(0)
 
-    tool_input = data.get("tool_input") or {}
-    raw = tool_input.get("file_path") or tool_input.get("path") or ""
-    if not raw:
-        sys.exit(0)
-
-    norm = str(raw).replace("\\", "/")
-    if _FROZEN_DOC_RE.search(norm):
-        if _markdown_status_edit_allowed(data, norm):
-            sys.exit(0)
-        _block(str(raw))
+    # apply_patch payloads carry no old_string/new_string, so the markdown
+    # status carve-out cannot verify a status-only diff there — fail-closed.
+    for raw in extract_edited_paths(data):
+        norm = raw.replace("\\", "/")
+        if _FROZEN_DOC_RE.search(norm):
+            if _markdown_status_edit_allowed(data, norm):
+                continue
+            _block(raw)
 
     sys.exit(0)
 

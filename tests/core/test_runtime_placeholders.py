@@ -47,9 +47,9 @@ _EXPECTED = {
         "{AGENTS_DIR}": ".codex/agents",
         "{AGENTS_SRC_DIR}": ".cataforge/agents",
         "{RULES_DIR}": ".codex/rules",
-        # Codex doesn't deploy skills/commands — fallback to source overlay
-        # so cross-refs resolve to a readable path on every platform.
-        "{SKILLS_DIR}": ".cataforge/skills",
+        "{SKILLS_DIR}": ".agents/skills",
+        # Codex doesn't deploy commands — fallback to the source overlay so
+        # cross-refs resolve to a readable path on every platform.
         "{COMMANDS_DIR}": ".cataforge/commands",
     },
     "opencode": {

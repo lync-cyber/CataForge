@@ -26,7 +26,9 @@ def send_notification(title: str, message: str, urgency: bool = False, beep_coun
         pass
 
     if not notified:
-        print("\a" * beep_count, end="", flush=True)
+        # stdout belongs to the hook protocol (Codex parses Stop /
+        # PermissionRequest stdout as JSON) — beep via stderr.
+        print("\a" * beep_count, end="", flush=True, file=sys.stderr)
 
 
 def _notify_windows(title: str, message: str) -> bool:

@@ -97,7 +97,10 @@ def main() -> None:
         sys.exit(0)
 
     command = (data.get("tool_input") or {}).get("command", "")
-    if not command:
+    # Some platforms send argv arrays rather than a command string.
+    if isinstance(command, list):
+        command = " ".join(str(part) for part in command)
+    if not isinstance(command, str) or not command:
         sys.exit(0)
 
     # Unattended deny layer runs ahead of the v2 filters — a hard safety net

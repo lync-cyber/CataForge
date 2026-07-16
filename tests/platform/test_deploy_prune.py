@@ -29,9 +29,6 @@ class _MinimalAdapter(PlatformAdapter):
     def get_tool_map(self) -> dict[str, str | None]:
         return {}
 
-    def get_project_root_env_var(self) -> str | None:
-        return None
-
     def get_agent_scan_dirs(self) -> list[str]:
         return [".test/agents"]
 

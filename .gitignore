@@ -110,6 +110,7 @@ AGENTS.md
 .codex/rules/
 .codex/hooks.json
 .codex/config.toml
+.agents/skills/
 
 # OpenCode
 .opencode/agents/

@@ -334,11 +334,7 @@ hooks:
     Stop: stop
     SessionStart: sessionStart
     Notification: null               # null = 该平台无对应事件
-  matcher_map:                       # CataForge matcher → 平台 matcher
-    Bash: Shell
-    Agent: Task
-    "Edit|Write": Write
-  tool_overrides: {}                 # 当 hook 矩阵与 tool_map 不同时的覆盖
+  tool_overrides: {}                 # hook matcher/payload 名与 tool_map 不同时的覆盖
   degradation:                       # 各 hook script 在该平台的支持级别
     guard_dangerous: native          # native | degraded | unsupported
     detect_correction: degraded
@@ -430,7 +426,7 @@ rules:                               # 可选：跨平台镜像
 
 ## hooks.yaml
 
-平台无关 hook 规范，由 `cataforge.runtime.hook.bridge` 解析后联同各 platform profile 的 `hooks.event_map` / `matcher_map` / `degradation` 生成平台原生 hook 配置（`.claude/settings.json`、`.cursor/hooks.json` 等）。
+平台无关 hook 规范，由 `cataforge.runtime.hook.bridge` 解析后联同各 platform profile 的 `hooks.event_map` / `tool_overrides` / `degradation` 生成平台原生 hook 配置（`.claude/settings.json`、`.cursor/hooks.json` 等）。
 
 `schema_version: 2` 是当前形态；schema 演化策略见 hooks.yaml 顶部注释。
 
@@ -489,7 +485,7 @@ degradation_templates:                     # 平台不支持某 hook 时的降�
 | `script` | str | ✅ | hook 实现的模块短名；解析为 `cataforge.runtime.hook.scripts.<name>` |
 | `type` | enum[block, observe] | ✅ | `block` 失败时阻断当前工具调用；`observe` 仅观测，失败不阻断 |
 | `description` | str | ⚠️ 推荐 | 一句说明，写入 deploy 产物注释 |
-| `matcher_capability` | str | 可选 | CataForge capability id（如 `shell_exec` / `agent_dispatch` / `file_edit` / `user_question`），由 platform 的 `tool_map` / `matcher_map` 翻译为原生工具名。缺省 = 全事件触发（适合 `Stop` / `Notification` / `SessionStart`） |
+| `matcher_capability` | str | 可选 | CataForge capability id（如 `shell_exec` / `agent_dispatch` / `file_edit` / `user_question`），由 platform 的 `tool_map` / `tool_overrides` 翻译为原生工具名。缺省 = 全事件触发（适合 `Stop` / `Notification` / `SessionStart`） |
 | `safety_critical` | bool | 可选 | 默认 `false`。`true` 表示该 hook 即便 degraded 也必须给 `degradation_templates` 提供有效降级；CI 可据此校验 |
 | `matcher_agent_id` | list[str] | 可选 (v2+) | 仅当 dispatch 到列出的 agent id 时触发，例如 `[reviewer]` |
 | `matcher_file_pattern` | str | 可选 (v2+) | 文件路径 glob 过滤（仅 `file_*` capability） |

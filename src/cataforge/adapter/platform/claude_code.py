@@ -18,9 +18,6 @@ class ClaudeCodeAdapter(PlatformAdapter):
     def display_name(self) -> str:
         return "Claude Code"
 
-    def get_project_root_env_var(self) -> str | None:
-        return "CLAUDE_PROJECT_DIR"
-
     def get_agent_scan_dirs(self) -> list[str]:
         return list(self._profile.agent_definition.scan_dirs) or [".claude/agents"]
 

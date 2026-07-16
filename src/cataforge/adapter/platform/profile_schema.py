@@ -98,7 +98,6 @@ class Hooks(BaseModel):
     config_path: str | None = None
     entry_type: str | None = None
     event_map: dict[str, str | None] = Field(default_factory=dict)
-    matcher_map: dict[str, str | None] = Field(default_factory=dict)
     tool_overrides: dict[str, str] = Field(default_factory=dict)
     degradation: dict[str, str] = Field(default_factory=dict)
 

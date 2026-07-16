@@ -15,6 +15,8 @@ from typing import Any
 from cataforge.core.corrections import record_correction
 from cataforge.core.paths import find_project_root
 from cataforge.runtime.hook.base import (
+    dispatch_result,
+    dispatched_agent_id,
     hook_main,
     matches_capability,
     matches_script_filters,
@@ -60,7 +62,7 @@ def main() -> None:
     if not matches_script_filters(data, "detect_review_flag"):
         sys.exit(0)
 
-    result = data.get("tool_response") or data.get("tool_result") or data.get("result")
+    result = dispatch_result(data)
     if not result:
         sys.exit(0)
 
@@ -74,11 +76,7 @@ def main() -> None:
 
     project_root = find_project_root()
     phase = _resolve_phase(data)
-    upstream_agent = (
-        (data.get("tool_input") or {}).get("subagent_type")
-        or (data.get("tool_input") or {}).get("agent")
-        or "unknown-agent"
-    )
+    upstream_agent = dispatched_agent_id(data) or "unknown-agent"
 
     written = 0
     for ref, severity, title, body in issues:

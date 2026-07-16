@@ -178,6 +178,7 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> HookGenerationResult:
                 continue
 
             if capability:
+                # Same precedence as runtime matching (base._capability_names).
                 native_tool = hook_tool_overrides.get(capability) or tool_map.get(capability)
                 if native_tool is None:
                     warnings.append(

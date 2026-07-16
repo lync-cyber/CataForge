@@ -12,6 +12,7 @@ from cataforge.core.io import read_json
 from cataforge.core.paths import ProjectPaths
 from cataforge.core.types import AgentStatus
 from cataforge.runtime.hook.base import (
+    dispatch_result,
     hook_main,
     matches_capability,
     matches_script_filters,
@@ -46,7 +47,7 @@ def main() -> None:
     if not matches_script_filters(data, "validate_agent_result"):
         sys.exit(0)
 
-    result = data.get("tool_result") or data.get("result") or data.get("tool_output")
+    result = dispatch_result(data)
     if not result:
         sys.exit(0)
 

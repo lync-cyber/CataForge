@@ -1,6 +1,6 @@
 platform_id: codex
 display_name: Codex CLI
-version_tested: "2026.04"
+version_tested: "2026.07"
 
 tool_map:
   file_read: shell
@@ -9,7 +9,7 @@ tool_map:
   file_glob: shell
   file_grep: shell
   shell_exec: shell
-  web_search: web_search
+  web_search: web_search          # 默认 cached 模式；live 需 --search / web_search="live"
   web_fetch: shell
   user_question: null
   agent_dispatch: spawn_agent
@@ -27,13 +27,14 @@ agent_definition:
   needs_deploy: true
 
 skill_definition:
-  # Codex has no native skills surface — leave disabled.
-  needs_deploy: false
+  # open agent skills 标准：Codex 扫描 $CWD→repo 根的 .agents/skills 逐级目录，
+  # 故 target 逸出 .codex/ 命名空间（见 platform-adaptation.md §6 例外声明）。
+  target_dir: .agents/skills
+  needs_deploy: true
 
 command_definition:
-  # Codex slash commands: deferred until Codex exposes a stable command
-  # directory contract. Track: docs/architecture/platform-adaptation.md
-  # §Codex limitations.
+  # Codex custom prompts（~/.codex/prompts）已被官方弃用，命令面由 skills 承接；
+  # 可复用指令一律走 skill_definition 部署。
   needs_deploy: false
 
 agent_config:
@@ -69,79 +70,76 @@ instruction_file:
 dispatch:
   tool_name: spawn_agent
   is_async: true
-  params: [agent, fork_context, prompt]
+  params: [agent_type, message, task_name]
 
 hooks:
   config_format: json
   config_path: .codex/hooks.json
-  # Codex hooks.json schema uses "type: command" for each hook entry.
+  # 非托管 hook 须用户在 Codex 内 /hooks 审查信任（按定义 hash 记录，redeploy
+  # 改动 hook 后需重新信任），未信任的 hook 静默不执行；自动化场景可用
+  # --dangerously-bypass-hook-trust。项目级 hooks 仅在项目 .codex/ 层受信时加载。
   entry_type: command
   event_map:
     PreToolUse: PreToolUse
     PostToolUse: PostToolUse
     Stop: Stop
     SessionStart: SessionStart
-    Notification: null
-  # Codex hook PreToolUse/PostToolUse matchers currently only support "Bash"
+    Notification: PermissionRequest
+  # hook payload / matcher 使用 canonical 名（Bash / apply_patch / spawn_agent），
+  # 与模型侧工具名（shell）分属两个命名空间。
   tool_overrides:
-    shell_exec: Bash           # Hook event uses "Bash" not "shell"
-  matcher_map:
-    Bash: Bash
-    Agent: null
-    "Edit|Write": null
-    AskUserQuestion: null
+    shell_exec: Bash
   degradation:
-    guard_dangerous: native        # PreToolUse + Bash matcher supported
-    guard_frozen_docs: degraded    # PreToolUse but no edit matcher
-    log_agent_dispatch: degraded   # PreToolUse but no agent matcher
-    validate_agent_result: degraded # PostToolUse but no agent matcher
-    lint_format: degraded          # PostToolUse but no edit matcher
-    detect_correction: degraded    # no user_question
-    detect_review_flag: degraded   # PostToolUse but no agent matcher (mirrors validate_agent_result)
-    notify_done: native            # Stop event, no matcher needed
-    notify_permission: degraded    # no Notification event
-    session_context: native        # SessionStart event, no matcher needed
-    deploy_drift: native           # SessionStart event, no matcher needed
-    git_sync: native               # SessionStart event, no matcher needed
+    guard_dangerous: native        # PreToolUse+Bash；unified_exec 流式 shell 拦截不完整，覆盖有缺口
+    guard_frozen_docs: native      # PreToolUse+apply_patch（payload 从补丁文本解析路径）
+    log_agent_dispatch: native     # PreToolUse+spawn_agent
+    validate_agent_result: native  # PostToolUse+spawn_agent
+    lint_format: native            # PostToolUse+apply_patch
+    detect_correction: degraded    # 无 user_question 工具
+    detect_review_flag: native     # PostToolUse+spawn_agent（agent 过滤走运行时 matcher_agent_id）
+    notify_done: native            # Stop 事件（stdout 须为 JSON 或空）
+    notify_permission: native      # PermissionRequest 事件
+    session_context: native        # SessionStart 事件
+    deploy_drift: native           # SessionStart 事件
+    git_sync: native               # SessionStart 事件
 
 features:
   cloud_agents: true             # codex cloud — background parallel tasks
   agent_teams: false
-  parallel_agents: true          # cloud parallel with --attempts best-of-N
+  parallel_agents: true          # cloud --attempts best-of-N + 本地 spawn_agent 并行
   scheduled_tasks: false
   background_agents: true
-  subagent_interactive: false    # spawned agents run async in background, no user-question channel
-  plan_mode: false
+  subagent_interactive: false    # 子代理审批请求可浮出主线程，但无用户提问通道
+  plan_mode: true                # plan 权限模式 + 内置 plan skill
   computer_use: true             # native computer use capability
   realtime_voice: true           # WebRTC v2 voice sessions
   multi_model: true              # /model command, mid-session switch
-  session_resume: true           # /resume, codex resume
+  session_resume: true           # /resume, codex resume / fork / archive
   worktree_isolation: false
   autonomy_slider: false
   ci_cd_integration: false
   multi_root: true               # --add-dir multi-project workspace
-  agent_memory: false            # only via MCP (e.g. Basic Memory)
-  plugin_marketplace: true       # installable plugin bundles
-  context_management: false
+  agent_memory: true             # [features].memories（experimental 原生记忆）
+  plugin_marketplace: true       # codex plugin marketplace（Git/本地源）
+  context_management: true       # /compact + PreCompact/PostCompact 事件
 
 permissions:
-  modes: [auto, read_only, full_access]
+  # approval_policy 枚举；sandbox_mode（read-only|workspace-write|danger-full-access）是正交轴，勿混入本列表。
+  modes: [untrusted, on-request, never]
 
 model_routing:
-  available_models: [gpt-5.4, gpt-5.3-codex-spark]
-  per_agent_model: false
+  available_models: [gpt-5.6, gpt-5.6-terra, gpt-5.4, gpt-5.4-mini, gpt-5.3-codex-spark]
+  # custom agent TOML 支持 per-agent model / model_reasoning_effort。
+  per_agent_model: true
   user_resolved: false
-  # Codex selects model session-globally; deploy never writes a per-agent
-  # `model:`. tier_map kept for documentation parity with other platforms
-  # and for future use should Codex add per-agent routing.
   tier_map:
-    light: gpt-5.3-codex-spark
-    standard: gpt-5.4
-    heavy: gpt-5.4
+    light: gpt-5.6-terra
+    standard: gpt-5.6
+    heavy: gpt-5.6
 
 context_injection:
-  # Codex 合并 AGENTS.md（32KiB 上限），无 @ 语法；子代理 fork_context=false 时
-  # 不继承主上下文，因此 AGENT.md / dispatch-prompt 必须显式指示 Read。
+  # Codex 逐级合并 AGENTS.md 链（project_doc_max_bytes 默认 32KiB 上限），无 @ 语法；
+  # spawn_agent 子代理不继承主线程对话上下文，AGENT.md / dispatch-prompt 必须显式指示 Read。
   auto_injection:
     mechanism: agents_md
     eager: true

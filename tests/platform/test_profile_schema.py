@@ -40,14 +40,17 @@ def test_codex_toml_and_overrides_preserved() -> None:
     assert profile.agent_definition.format == "toml"
     assert profile.hooks.tool_overrides == {"shell_exec": "Bash"}
     assert profile.model_routing.user_resolved is False
+    assert profile.model_routing.per_agent_model is True
+    assert profile.skill_definition.needs_deploy is True
+    assert profile.skill_definition.target_dir == ".agents/skills"
+    assert profile.hooks.event_map["Notification"] == "PermissionRequest"
 
 
 def test_opencode_plugin_hooks_shape_preserved() -> None:
-    """OpenCode omits hooks.config_path and uses empty matcher maps."""
+    """OpenCode omits hooks.config_path and declares no tier_map."""
     profile = load_profile("opencode")
     assert profile.hooks.config_format == "plugin"
     assert profile.hooks.config_path is None
-    assert profile.hooks.matcher_map == {}
     assert profile.model_routing.tier_map == {}
 
 

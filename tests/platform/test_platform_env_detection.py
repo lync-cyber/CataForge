@@ -15,7 +15,7 @@ import pytest
 from cataforge.adapter.platform.registry import detect_platform
 from cataforge.runtime.hook.base import get_platform
 
-_PLATFORM_ENV = ("CATAFORGE_PLATFORM", "CURSOR_PROJECT_DIR", "CODEX_HOME", "CLAUDE_PROJECT_DIR")
+_PLATFORM_ENV = ("CATAFORGE_PLATFORM", "CURSOR_PROJECT_DIR", "CLAUDE_PROJECT_DIR")
 _DETECTORS: list[Callable[[], str]] = [detect_platform, get_platform]
 
 
@@ -41,7 +41,6 @@ def test_explicit_override_wins(
     ("env_var", "expected"),
     [
         ("CURSOR_PROJECT_DIR", "cursor"),
-        ("CODEX_HOME", "codex"),
         ("CLAUDE_PROJECT_DIR", "claude-code"),
     ],
 )
@@ -62,3 +61,13 @@ def test_default_when_no_env_signal_or_framework_json(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     assert detector() == "claude-code"
+
+
+@pytest.mark.usefixtures("clean_platform_env")
+def test_codex_home_is_not_a_platform_signal(monkeypatch: pytest.MonkeyPatch) -> None:
+    # CODEX_HOME points at the Codex config home and is only present when the
+    # user exported it globally — it must not identify the session platform.
+    from cataforge.core.platform_env import platform_from_env
+
+    monkeypatch.setenv("CODEX_HOME", "/some/path")
+    assert platform_from_env() is None

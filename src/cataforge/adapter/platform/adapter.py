@@ -65,11 +65,6 @@ class PlatformAdapter(ABC):
         tool_map = self.get_full_tool_map()
         return [name for cap in capabilities if (name := tool_map.get(cap)) is not None]
 
-    @abstractmethod
-    def get_project_root_env_var(self) -> str | None:
-        """Return the environment variable name for project root (e.g. CLAUDE_PROJECT_DIR)."""
-        ...
-
     def get_hook_command_template(self) -> str:
         """Return the hook command template with {module} placeholder.
 

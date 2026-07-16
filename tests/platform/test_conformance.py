@@ -292,5 +292,6 @@ class TestConsistencySnapshot:
         assert any("codex" in ln and "browser_preview" in ln for ln in lines)
         # cursor L-4: worktree_isolation without the isolation field
         assert any("cursor" in ln and "worktree_isolation" in ln for ln in lines)
-        # claude-code M-8: lone native claim for a skip-strategy hook
-        assert any("claude-code" in ln and "notify_permission" in ln for ln in lines)
+        # notify_permission is native on claude-code AND codex — no lone-native
+        # outlier WARN for it.
+        assert not any("notify_permission" in ln for ln in lines)
