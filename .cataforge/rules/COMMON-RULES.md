@@ -1,6 +1,7 @@
 # 通用行为规则 (COMMON-RULES)
 
-本文件是 CataForge 各 Agent / Skill / Hook 共用的纪律与枚举单一事实来源；其他文件通过 `见 COMMON-RULES §<章节>` 引用，不重述。COMMON-RULES 默认加载到 Agent 上下文，引用时无需附加文件路径。
+本文件是 CataForge 各 Agent / Skill / Hook 共用的纪律与枚举单一事实来源；其他文件通过 `见 COMMON-RULES §<章节>` 引用，不重述。
+COMMON-RULES 默认加载到 Agent 上下文，引用时无需附加文件路径。
 
 ## 项目指令文件
 
@@ -11,12 +12,16 @@
 | claude-code | `CLAUDE.md` | `instruction_file.targets[0].path` |
 | cursor / codex / opencode | `AGENTS.md` | 同上 |
 
-本文档及下游 SKILL / AGENT / PROTOCOLS 引用 **项目指令文件**（中文短语，免加引号）时，按当前平台对应的文件解读 —— 即 claude-code 上读写 `CLAUDE.md`，其他平台读写 `AGENTS.md`。需要精确引用具体平台的文件（如 "Claude Code 用户的 CLAUDE.md 不存在则执行 Bootstrap"）时仍写文件名字面值。
+本文档及下游 SKILL / AGENT / PROTOCOLS 引用 **项目指令文件**（中文短语，免加引号）时，按当前平台对应的文件解读 —— 即 claude-code 上读写
+`CLAUDE.md`，其他平台读写 `AGENTS.md`。需要精确引用具体平台的文件（如 "Claude Code 用户的 CLAUDE.md 不存在则执行 Bootstrap"）
+时仍写文件名字面值。
 
 ## 全局约定
 - 遵循项目指令文件中定义的全局约定（§效率原则）。
 - 单一事实来源：每条规则只在一个文件中定义完整内容，他处引用不重述。
-- 输出语言：所有 Agent 产出的文档 / 审查报告 / RETRO / 用户交互均使用**简体中文（zh-Hans）**；代码、变量命名、CLI 参数、框架参数（doc_type / template_id 等）使用英文；枚举值（status / category / root_cause / severity 等）始终英文，即使在中文文本中也不翻译——例：写"问题严重等级为 CRITICAL"而非"严重"。
+- 输出语言：所有 Agent 产出的文档 / 审查报告 / RETRO / 用户交互均使用**简体中文（zh-Hans）**；代码、变量命名、CLI 参数、框架参数（doc_type
+  / template_id 等）使用英文；枚举值（status / category / root_cause / severity 等）始终英文，即使在中文文本中也不翻译——例：
+  写"问题严重等级为 CRITICAL"而非"严重"。
 
 ## 框架配置常量
 本表是框架级参数的单一事实来源。**禁止在 SKILL.md / AGENT.md / 模板中硬编码同一数值**，应直接引用常量名。
@@ -68,7 +73,9 @@
 | post_sprint | Sprint Review 通过后 | 是否继续下一 Sprint |
 | none | — | 完全自动推进，仅保留失败驱动门禁 |
 
-规则：默认值（见上表 MANUAL_REVIEW_CHECKPOINTS）覆盖最高风险节点（`pre_dev` 已在最贵阶段前 consolidate 全部上游冻结文档审查，故 PRD/ARCH/UI-SPEC 冻结点默认不单独设确认，仅 doc-review 质量门禁）；需要早期冻结门禁的项目显式加 `post_doc_freeze`（中间档），需要门禁每次转换则用 `phase_transition`；用户在 Bootstrap 时或运行中通过 项目指令文件 §全局约定 覆盖；`none` 与其他值互斥。
+规则：默认值（见上表 MANUAL_REVIEW_CHECKPOINTS）覆盖最高风险节点（`pre_dev` 已在最贵阶段前 consolidate 全部上游冻结文档审查，故
+PRD/ARCH/UI-SPEC 冻结点默认不单独设确认，仅 doc-review 质量门禁）；需要早期冻结门禁的项目显式加 `post_doc_freeze`（中间档），
+需要门禁每次转换则用 `phase_transition`；用户在 Bootstrap 时或运行中通过 项目指令文件 §全局约定 覆盖；`none` 与其他值互斥。
 
 ## 执行模式矩阵
 框架支持三种执行模式，写入 项目指令文件 §项目信息.执行模式，未填默认 `standard`。
@@ -84,10 +91,12 @@
 | Sprint-review | 按 `SPRINT_REVIEW_MICRO_TASK_COUNT` 判定 | 同 standard | 跳过 |
 | Retrospective | 按 `RETRO_TRIGGER_SELF_CAUSED` 判定 | 同 standard | 跳过 |
 
-规则：`agile-lite` / `agile-prototype` 由用户在 Bootstrap 显式选择；模式切换由 orchestrator §Mode Routing Protocol 路由（见 `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`）。
+规则：`agile-lite` / `agile-prototype` 由用户在 Bootstrap 显式选择；模式切换由 orchestrator §Mode Routing
+Protocol 路由（见 `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`）。
 
 ## 统一状态码
-权威枚举见 `.cataforge/schemas/agent-result.schema.json`；本表为语义说明。所有 Agent 与子代理返回值取自下表。`conditional_release` 不在本表，见 §verdict_blocking_semantics。
+权威枚举见 `.cataforge/schemas/agent-result.schema.json`；本表为语义说明。所有 Agent 与子代理返回值取自下表。
+`conditional_release` 不在本表，见 §verdict_blocking_semantics。
 
 | 状态码 | 含义 | 使用场景 | orchestrator 处理 |
 |--------|------|---------|------------------|
@@ -120,23 +129,32 @@ Agent 间统一格式：
 | `prd#§2.F-003` | PRD 第 2 章 F-003 条目 |
 | `arch#§3.API-001` | 架构第 3 章 API-001 接口 |
 
-规则：`doc_id` = template_id（见 context 映射表）；`section_number` 为纯数字；`item_id` 为条目编号（F/M/API/E/T/C/P-xxx）；一个 doc_type 一个逻辑文档，寻址逻辑 doc_id 即可，context 负责定位到章节。
+规则：`doc_id` = template_id（见 context 映射表）；`section_number` 为纯数字；`item_id`
+为条目编号（F/M/API/E/T/C/P-xxx）；一个 doc_type 一个逻辑文档，寻址逻辑 doc_id 即可，context 负责定位到章节。
 
 ## 文档加载纪律
-适用：所有 sub-agent 加载 `docs/` 下指定章节时（architect / tech-lead / qa-engineer / devops / ui-designer 等读 PRD/ARCH/UI-SPEC/DEV-PLAN 的角色，及任何用 doc_id#§N 做输入契约的下游）。
+适用：所有 sub-agent 加载 `docs/` 下指定章节时（architect / tech-lead / qa-engineer / devops / ui-designer
+等读 PRD/ARCH/UI-SPEC/DEV-PLAN 的角色，及任何用 doc_id#§N 做输入契约的下游）。
 
 - 禁止：用 Read 工具一次性读取 `docs/{doc_type}/*.md` 整篇 — 几千行整篇会瞬间稀释焦点并浪费 token。
-- 强制：通过 `cataforge context read <doc_id>#§N[.item]` 按章节 / 条目维度按需分批加载；同文件多 ref 共享 per-file 缓存，批量调用优于循环。
+- 强制：通过 `cataforge context read <doc_id>#§N[.item]` 按章节 / 条目维度按需分批加载；同文件多 ref 共享 per-file 缓存，
+  批量调用优于循环。
 - 各 agent 自己的 Input Contract 章节保留**该角色实际需要的 doc_id 白名单**，但不重复"禁止 Read 全文"这条通用规则。
-- `cataforge context read` 失败（exit 2 = 至少一个 ref 失败）按 stderr 提示修正；索引漂移时 `cataforge context validate` 校验、`cataforge context index` 重建。
+- `cataforge context read` 失败（exit 2 = 至少一个 ref 失败）按 stderr 提示修正；索引漂移时
+  `cataforge context validate` 校验、`cataforge context index` 重建。
 
 ## Agent 文档 I/O 契约（通用约定）
-适用：所有产文档的 Agent（product-manager / architect / ui-designer / tech-lead / qa-engineer / devops）以及读文档的 sub-agent（test-writer / implementer / reviewer / debugger 等）。
+适用：所有产文档的 Agent（product-manager / architect / ui-designer / tech-lead / qa-engineer / devops）
+以及读文档的 sub-agent（test-writer / implementer / reviewer / debugger 等）。
 
 下列约定对所有 Agent 一次性生效，**各 Agent 的 Input/Output Contract 不再重复**（操作细节见 context skill）：
 
-- **统一经 context 能力入口** — 读取、依赖展开、生成定稿、校验都经 `cataforge context`。后端与保真度由框架按项目上下文方案路由，**调用方不在 prompt 里判断走哪个后端**；后端选择复述会随实现漂移。
-- **定稿与回灌** — Agent 完成 authoring 落图后调 `cataforge context finalize` 导出人审视图，不直接 Edit 导出文件；版本号写入 frontmatter `version:` 字段，不进入 id / 文件名；人改导出文件的场景由 orchestrator 在收口点按 reconcile 的 `remediation` 跑 `cataforge context ingest` 回流。`ingest` 仅吸收人类对导出视图的修订——Agent 不得把「Write/Edit `docs/` 草稿 + ingest」当作 authoring 路径。
+- **统一经 context 能力入口** — 读取、依赖展开、生成定稿、校验都经 `cataforge context`。后端与保真度由框架按项目上下文方案路由，**调用方不在
+  prompt 里判断走哪个后端**；后端选择复述会随实现漂移。
+- **定稿与回灌** — Agent 完成 authoring 落图后调 `cataforge context finalize` 导出人审视图，不直接 Edit 导出文件；版本号写入
+  frontmatter `version:` 字段，不进入 id / 文件名；人改导出文件的场景由 orchestrator 在收口点按 reconcile 的
+  `remediation` 跑 `cataforge context ingest` 回流。`ingest` 仅吸收人类对导出视图的修订——Agent 不得把「Write/Edit
+  `docs/` 草稿 + ingest」当作 authoring 路径。
 - **读取与依赖展开** — `cataforge context read <ref>` / `--with-deps` 返回统一 markdown 形式；后端不可达时框架自动降级到文件路径。
 - **drift 检查由 orchestrator 负责** — Phase Transition 自动跑一致性守门；Agent 无需在 Output Contract 中声明。
 
@@ -158,10 +176,12 @@ Anti-Patterns 应使用"做 A 而非 B"格式并附具体例子，避免抽象�
 ### 保真类 AC 断言渲染效果而非源码字面
 适用：UI / 视觉 / 设计系统保真类任务的 tdd_acceptance —— 这类 AC 的真值在**渲染 / 计算后的可观测效果**，不在源码字符串。
 
-- 断言**渲染后 / 计算后的可观测值**（元素实际生效的字号 / 颜色 / 间距 / 字体族、token 是否被真实消费、声明字体是否实际加载），而非源码中变量名 / 类名 / token 名的字面存在。
+- 断言**渲染后 / 计算后的可观测值**（元素实际生效的字号 / 颜色 / 间距 / 字体族、token 是否被真实消费、声明字体是否实际加载），而非源码中变量名 / 类名 /
+  token 名的字面存在。
 - 产物被第三方外部系统消费时，真值锚点进一步上移到**最终消费边界**（消费后状态）；机制契约见 `.cataforge/references/external-truth-first.md`。
 - 反例（做 A 而非 B）：
-  - 差：AC 断言「样式表含 `--text-metric` 变量名」/「元素带 `brand-subtle` 类名」—— 死 token（声明却零消费）、幽灵类（引用却零定义）字面存在即过关，门禁全绿但渲染为空。
+  - 差：AC 断言「样式表含 `--text-metric` 变量名」/「元素带 `brand-subtle` 类名」—— 死 token（声明却零消费）、幽灵类（引用却零定义）
+    字面存在即过关，门禁全绿但渲染为空。
   - 好：AC 断言「渲染后该元素计算字号 = 设计值、背景色 = 设计值」/「该 token 被 ≥1 处真实消费」/「声明字体实际加载生效」。
 - 自检：写完 UI 保真 AC 后检查 Then 子句是否仅断言「含某字符串 / 带某类名」—— 若是，改为断言渲染 / 计算后的效果；产物有外部消费方时再检查 Then 是否止步于本地渲染层。
 
@@ -174,13 +194,15 @@ Anti-Patterns 应使用"做 A 而非 B"格式并附具体例子，避免抽象�
 - 自检：写完一段建议或 todo 后搜索"分钟 / 小时 / 天 / quick / fast"，命中即删。
 
 ### 禁止设计阶段与变更说明残留
-适用：源码、docstring、测试 docstring、SKILL.md / AGENT.md / 协议文档、配置 —— **新增和修改都生效**。CHANGELOG / commit message / PR 描述是变更说明的唯一合法去处，不能溢出到长期文档。
+适用：源码、docstring、测试 docstring、SKILL.md / AGENT.md / 协议文档、配置 —— **新增和修改都生效**。CHANGELOG / commit
+message / PR 描述是变更说明的唯一合法去处，不能溢出到长期文档。
 
 SKILL.md / AGENT.md 是 LLM 每次调度都加载的 prompt 上下文，每一行都在重复消耗 token；残留越积越多直至腐化不可用。**最小可行修改**：新增一条规则只写规则本身。
 
 **新增时**：
 - 禁止回溯叙事与动机自述："之前 / 原本 / used to / previously / 修复了 X / 解决了 …… 失败模式 / 此测试为防 issue#NNN 再发"。
-- 禁止溯源引用：`(issue #NNN)`、`PR #NNN`、`(参 #NNN)`、`closeout` / `closes #N` / `fixes #N`、`回归自 vX.Y.Z` 等指向追踪票或里程碑的注脚；规则的存在理由由提交历史承担。
+- 禁止溯源引用：`(issue #NNN)`、`PR #NNN`、`(参 #NNN)`、`closeout` / `closes #N` / `fixes #N`、
+  `回归自 vX.Y.Z` 等指向追踪票或里程碑的注脚；规则的存在理由由提交历史承担。
 - 函数 docstring 只描述**当前职责**；测试名 + 断言已表达意图，docstring 通常一句即可。
 - 默认不写注释；命名 + 小函数 > 注释。仅在保留**非显然 WHY**（隐式约束、易踩边界、非直观不变量）时写注释，单行优先、≤2 行。
 
@@ -203,7 +225,8 @@ closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已
 
 ## 通用 Anti-Patterns
 - 禁止：猜测项目状态——以 项目指令文件 和 `docs/` 目录为唯一事实来源。
-- 禁止：遗留未标注的 TODO / TBD / FIXME（必须标注 `[ASSUMPTION]`）。强制由 doc-review Layer 1 检查器实现，参见 `cataforge.runtime.skill.builtins.doc_review.checker.check_no_todo`。
+- 禁止：遗留未标注的 TODO / TBD / FIXME（必须标注 `[ASSUMPTION]`）。强制由 doc-review Layer 1 检查器实现，参见
+  `cataforge.runtime.skill.builtins.doc_review.checker.check_no_todo`。
 - 禁止：写入 项目指令文件 项目状态区（orchestrator 专属）。
 
 ## 统一问题分类体系
@@ -228,12 +251,19 @@ closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已
 | coupling | 文档+代码 | 模块间引用过密、依赖图循环或扇出过大 |
 
 ## Layer 1 调用协议
-三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过 `cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner` 路由到内置实现（`python -m cataforge.runtime.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md / Agent / Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。完整规约见框架仓 `docs/architecture/quality-and-learning.md` §2.1。
+三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过
+`cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner`
+路由到内置实现（`python -m cataforge.runtime.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md / Agent /
+Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。
+完整规约见框架仓 `docs/architecture/quality-and-learning.md` §2.1。
 
-Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2；`2` / `127` / `CataforgeError("no executable scripts")` → **FAIL**（先 `cataforge doctor`）；运行时异常 / 超时 → 降级进入 Layer 2。
+Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2；`2` / `127` /
+`CataforgeError("no executable scripts")` → **FAIL**（先 `cataforge doctor`）；运行时异常 / 超时 → 降级进入
+Layer 2。
 
 ## 审查报告规范
-所有审查报告共享以下规范。各 Skill 的 Layer 1 检查项与 Layer 2 维度分别定义在各自 SKILL.md（doc-review 见 context skill `references/review.md`）。
+所有审查报告共享以下规范。各 Skill 的 Layer 1 检查项与 Layer 2 维度分别定义在各自 SKILL.md（doc-review 见 context skill
+`references/review.md`）。
 
 ### 报告编号规则
 - 首次：`REVIEW-{doc_id}-r1.md` 或 `CODE-REVIEW-{task_id}-r1.md`。
@@ -241,7 +271,8 @@ Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2�
 - 最新版本 = 编号最大的文件，无需归档重命名。
 
 ### 报告 Front Matter 约定
-所有系统生成的报告（含审查报告与运维日志）必须以 YAML front matter 起始；缺失会被 `cataforge context index` 跳过、被 `cataforge doctor` 计为 orphan 并 FAIL。
+所有系统生成的报告（含审查报告与运维日志）必须以 YAML front matter 起始；缺失会被 `cataforge context index` 跳过、被
+`cataforge doctor` 计为 orphan 并 FAIL。
 
 | 报告类别 | 路径 | `id` 格式 | `doc_type` | 允许 `status` |
 |---------|------|----------|-----------|--------------|
@@ -255,7 +286,8 @@ Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2�
 | 上游 issue triage 草稿 | `docs/reviews/triage/SKILL-IMPROVE-{target_id}-issue-{N}.md` | `skill-improve-{target_id}-issue-{N}` | `skill-improve` | `draft` / `approved` |
 | 运维订正日志 | `docs/reviews/CORRECTIONS-LOG.md` | `corrections-log` | `correction-log` | `approved` |
 
-最小字段集（doc-review checker 强制 id / author / status / deps / consumers；`consumers` 仅 doc_type ∈ {research, changelog} 豁免）：
+最小字段集（doc-review checker 强制 id / author / status / deps / consumers；`consumers` 仅 doc_type ∈
+{research, changelog} 豁免）：
 
 ```yaml
 ---
@@ -295,9 +327,12 @@ consumers: ["{下游消费 agent/skill}"] # doc_type ∈ {research, changelog} �
 | 无 CRITICAL/HIGH，但有 MEDIUM/LOW | **approved_with_notes** |
 | 无问题 | **approved** |
 
-**聚类升级**：出 verdict 前，同一 category × 同一 root_cause 的 MEDIUM 累计 ≥ `REVIEW_SYSTEMIC_MEDIUM_THRESHOLD` 时，必须合并记一条系统性 HIGH finding——标题注明聚类模式，`members` 行列成员编号；成员保留原 severity、不重复参与判定。密度不裸计数：互不同类的 MEDIUM 无论多少都不触发升级。
+**聚类升级**：出 verdict 前，同一 category × 同一 root_cause 的 MEDIUM 累计 ≥
+`REVIEW_SYSTEMIC_MEDIUM_THRESHOLD` 时，必须合并记一条系统性 HIGH finding——标题注明聚类模式，`members` 行列成员编号；成员保留原
+severity、不重复参与判定。密度不裸计数：互不同类的 MEDIUM 无论多少都不触发升级。
 
-本表为 reviewer 通用三态。qa-engineer 在 Phase 6 testing 额外可产出第四态 `conditional_release`，判定条件见 qa-engineer/AGENT.md。
+本表为 reviewer 通用三态。qa-engineer 在 Phase 6 testing 额外可产出第四态 `conditional_release`，判定条件见
+qa-engineer/AGENT.md。
 
 ### verdict_blocking_semantics
 
@@ -312,8 +347,11 @@ consumers: ["{下游消费 agent/skill}"] # doc_type ∈ {research, changelog} �
 
 **关键约束**：
 
-- 严禁用 `[ENV-LIMITATION]` / `[ASSUMPTION]` 让缺陷豁免 needs_revision —— 环境受限场景必须显式 `conditional_release` + 非空 `blocking_conditions`，由后续条件消除驱动闭环
-- 替身外部系统的模拟器/mock 结论作门禁证据须满足保真度契约（见 `.cataforge/references/external-truth-first.md`）——`placeholder` / 未声明保真度者不得作为通过证据，真实系统不可达时同走 `conditional_release`
-- `conditional_release.blocking_conditions == []` 前 Phase Transition Protocol 必须暂停；orchestrator 不应基于"沙盒不可达 → CI 兜底"自动放行
+- 严禁用 `[ENV-LIMITATION]` / `[ASSUMPTION]` 让缺陷豁免 needs_revision —— 环境受限场景必须显式
+  `conditional_release` + 非空 `blocking_conditions`，由后续条件消除驱动闭环
+- 替身外部系统的模拟器/mock 结论作门禁证据须满足保真度契约（见 `.cataforge/references/external-truth-first.md`）
+  ——`placeholder` / 未声明保真度者不得作为通过证据，真实系统不可达时同走 `conditional_release`
+- `conditional_release.blocking_conditions == []` 前 Phase Transition Protocol 必须暂停；
+  orchestrator 不应基于"沙盒不可达 → CI 兜底"自动放行
 - `approved_with_notes` 含 ≥1 CRITICAL/HIGH 自动降级为 `needs_revision`（reviewer 内部一致性检查）
 
