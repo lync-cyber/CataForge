@@ -11,11 +11,10 @@ Layer 1 — 脚本检查：
   ├── 交叉引用有效性（doc_id#§section 引用是否可解析）
   └── 常量引用正确性
 
-Layer 2 — AI 审查（可按文档类型跳过）：
-  ├── 语义一致性（与上游文档是否矛盾）
-  ├── 业务逻辑正确性
-  ├── 完整性（需求是否遗漏）
-  └── 可行性评估
+Layer 2 — AI 语义审查（可按文档类型跳过；不复报 Layer 1 可机检的形式问题）：
+  ├── 通用实质维度：完整性 / 一致性 / 可行性 / 安全性 / 清晰度
+  └── doc_type 专属实质 profile（prd / arch / ui-spec 各一份，含严重度锚点，
+      见 context skill references/review-{prd,arch,ui-spec}.md）
 
 跳过条件（阈值位于 `.cataforge/framework.json → constants`）：
   - 文档行数 < DOC_REVIEW_L2_SKIP_THRESHOLD_LINES（默认 200）
@@ -32,10 +31,10 @@ Layer 1 — 机械检查（权威清单 = code_review.CHECKS_MANIFEST，registry
   └── scan 腐化 probe（informational）：duplication / dead-code / api-surface / pragma 盘点
 
 Layer 2 — AI 语义审查（不复查 Layer 1 已机械判定的问题）：
-  ├── 架构合规语义面（以 Layer 1 arch_guard 报告为输入，判 import 方向之外的设计偏离）
+  ├── 功能正确性（实现语义与 AC / 契约逐条对照，不以测试绿等价）
   ├── 安全性（OWASP Top 10 等）
-  ├── 业务逻辑正确性
-  └── 测试覆盖充分性
+  ├── 架构合规语义面（以 Layer 1 arch_guard 报告为输入，判 import 方向之外的设计偏离）
+  └── 其余维度按 code-review SKILL.md Step 2 维度序（correctness 置顶、convention 末位）
 ```
 
 ## 2.1 Layer 1 调用协议（single entry）
@@ -67,7 +66,7 @@ code-review 的 `<args...>` 为显式双子命令 `review <path> [--fix]` / `sca
 
 ## 3. 问题分类体系
 
-审查发现的问题按统一分类体系（权威清单见 COMMON-RULES §统一问题分类体系）× 4 严重等级（`CRITICAL` > `HIGH` > `MEDIUM` > `LOW`）组织。修订流程仅处理 `CRITICAL` 与 `HIGH`。
+审查发现的问题按统一分类体系（权威清单见 COMMON-RULES §统一问题分类体系）× 4 严重等级（`CRITICAL` > `HIGH` > `MEDIUM` > `LOW`）组织。修订流程必修全部 `CRITICAL` 与 `HIGH`，修复触点同文件/同节内的 `MEDIUM`/`LOW` 顺带一并修复，其余保留为 notes（权威流程见 SUB-AGENT-PROTOCOLS §task_type=revision）；同一 category × 同一 root_cause 的 `MEDIUM` 聚类达 `REVIEW_SYSTEMIC_MEDIUM_THRESHOLD` 时升级为系统性 `HIGH`（见 COMMON-RULES §三态判定逻辑）。
 
 完整表格与每类举例见 [`../reference/status-codes.md`](../reference/status-codes.md) §2、§3；修订协议见 [`runtime-workflow.md`](./runtime-workflow.md) §4。
 
@@ -132,7 +131,7 @@ code-review 的 `<args...>` 为显式双子命令 `review <path> [--fix]` / `sca
 ```text
 Agent 决策
     ↓
-Reviewer 发现问题（按 9 类 + 4 等级）
+Reviewer 发现问题（category × 4 严重等级，清单见 COMMON-RULES）
     ↓
 CORRECTIONS-LOG.md
     ↓

@@ -41,6 +41,7 @@
 | CODE_REVIEW_L2_SKIP_TASK_KINDS | [chore, config, docs] | 任务卡 `task_kind` 命中且 Layer 1 通过时短路 code-review Layer 2 | code-review |
 | CODE_REVIEW_L2_SKIP_LIGHT_MAX_AC | 2 | light 模式下 AC 数 ≤ 此值且 Layer 1 通过时短路 code-review Layer 2（security/error-handling 关键字命中时不短路） | code-review |
 | ADAPTIVE_REVIEW_DOWNGRADE_CLEAN_TASKS | 10 | 连续 N 个任务零 self-caused 问题时 Adaptive Review 反向降级（仅跑 Layer 1） | orchestrator |
+| REVIEW_SYSTEMIC_MEDIUM_THRESHOLD | 5 | 同一 category × 同一 root_cause 的 MEDIUM 累计达此值时合并升级为一条系统性 HIGH finding（见 §三态判定逻辑 聚类升级） | reviewer, doc-review, code-review, sprint-review |
 | RETRO_TRIGGER_SELF_CAUSED | 5 | CORRECTIONS-LOG 中 `hard`+`review` 条目累计达此值触发 retrospective（`soft` 不计） | orchestrator, reflector |
 | RETRO_TRIGGER_UPSTREAM_GAP_DEFAULT | 3 | CORRECTIONS-LOG 中 `upstream-gap` 类纠偏累计达此值触发 framework-feedback 上游反馈打包 | orchestrator, framework-feedback, reflector |
 | EVENT_LOG_DRIFT_MIN_EVENTS | 10 | EVENT-LOG 漂移检测要求的最小事件数 | framework-review |
@@ -211,19 +212,20 @@ closeout|closes\s*#\d+|fixes\s*#\d+|landed\s+in|本次新增|本轮加入|现已
 | category | 适用范围 | 说明 |
 |----------|---------|------|
 | completeness | 文档+代码 | 逻辑缺失、定义不全 |
+| correctness | 代码 | 实现语义与 AC / 契约不符、算法 / 边界 / 状态转换错误 |
 | consistency | 文档+代码 | 与上游 / 内部矛盾 |
 | convention | 文档+代码 | 命名 / 格式 / 风格规范 |
 | security | 文档+代码 | 安全漏洞、合规风险 |
 | feasibility | 文档 | 技术可行性、实现性 |
 | ambiguity | 文档 | 模糊不清、多义 |
-| structure | 代码 | 架构 / 组织 / 职责划分 |
-| error-handling | 代码 | 异常处理、边界条件 |
+| structure | 文档+代码 | 架构 / 组织 / 职责划分 |
+| error-handling | 文档+代码 | 异常处理、边界条件 |
 | performance | 代码 | 性能 / 效率 |
 | test-quality | 代码 | 断言有效性、测试逻辑、边界覆盖 |
 | duplication | 代码 | 跨文件 / 跨函数重复（Type-1/2 克隆，含 copy-paste 与近似克隆） |
 | dead-code | 代码 | 不可达分支、未引用的导出、永远为假的条件 |
 | complexity | 代码 | 圈 / 认知复杂度过高、嵌套深度超阈值 |
-| coupling | 代码 | 模块间引用过密、依赖图循环或扇出过大 |
+| coupling | 文档+代码 | 模块间引用过密、依赖图循环或扇出过大 |
 
 ## Layer 1 调用协议
 三个审查 Skill（`doc-review` / `code-review` / `sprint-review`）的 Layer 1 脚本统一通过 `cataforge skill run <skill-id> -- <args...>` 触发——由 `SkillRunner` 路由到内置实现（`python -m cataforge.runtime.skill.builtins.*`）或项目覆写脚本。**不得**在 SKILL.md / Agent / Hook 任何位置直写 `python .cataforge/skills/<id>/scripts/*.py`，该路径在仅发放 SKILL.md 的默认 scaffold 中不存在。完整规约见框架仓 `docs/architecture/quality-and-learning.md` §2.1。
@@ -273,6 +275,7 @@ consumers: ["{下游消费 agent/skill}"] # doc_type ∈ {research, changelog} �
 ### [R-{NNN}] {SEVERITY}: {标题}
 - **category**: {见 §统一问题分类体系}
 - **root_cause**: {见 §归因分类}
+- **members**: [R-xxx, R-yyy] {仅系统性聚类 finding，列被合并升级的成员编号}
 - **描述**: {问题描述}
 - **建议**: {改进建议}
 ```
@@ -291,6 +294,8 @@ consumers: ["{下游消费 agent/skill}"] # doc_type ∈ {research, changelog} �
 | 存在 CRITICAL 或 HIGH | **needs_revision** |
 | 无 CRITICAL/HIGH，但有 MEDIUM/LOW | **approved_with_notes** |
 | 无问题 | **approved** |
+
+**聚类升级**：出 verdict 前，同一 category × 同一 root_cause 的 MEDIUM 累计 ≥ `REVIEW_SYSTEMIC_MEDIUM_THRESHOLD` 时，必须合并记一条系统性 HIGH finding——标题注明聚类模式，`members` 行列成员编号；成员保留原 severity、不重复参与判定。密度不裸计数：互不同类的 MEDIUM 无论多少都不触发升级。
 
 本表为 reviewer 通用三态。qa-engineer 在 Phase 6 testing 额外可产出第四态 `conditional_release`，判定条件见 qa-engineer/AGENT.md。
 

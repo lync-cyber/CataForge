@@ -64,7 +64,7 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 
 ## 测试质量自检 checklist
 
-每个 `test()` / `it()` 块编写完成后按以下四维度自检（顺序无关，四条都必须过）：
+每个 `test()` / `it()` 块编写完成后按以下五维度自检（顺序无关，五条都必须过）：
 
 ### 1. lint 白名单合规
 
@@ -95,6 +95,14 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 
 按 §Execution Rules 的断言有效性 / 假实现检测 / 期望值来源三条复检本测试块。
 
+### 5. 套件性能
+
+按 [`test-suite-performance.md`](../../references/test-suite-performance.md) 纪律自检本测试块：
+
+1. 引入子进程 / 网络 / 真实服务 / 显式等待 → 按项目慢测标签约定（arch#§7.4 测试执行口径）打标，并在 summary 注明新增慢测及标签；项目未声明约定时按语言惯例打标并在 summary 说明
+2. 确定性昂贵 setup（构建产物 / 预置数据 / 初始化存储）→ suite 级共享 fixture 复用，不每测重建
+3. 不共享可变全局、不依赖执行顺序、不独占固定端口 / 路径（并行安全）
+
 ## Anti-Patterns
 - 禁止: 编写或修改实现代码（仅编写测试）
 - 禁止: 跳过运行测试验证FAIL状态
@@ -104,4 +112,4 @@ orchestrator 通过 tdd-engine prompt **直接内联**传入 §meta / §tdd_acce
 - 禁止: 编写仅检查模块/函数/类/属性存在性的测试 — 测试是行为规格说明，每个断言必须验证调用产出而非结构存在（见 §Execution Rules 行为断言强制）
 - 禁止: 使用无语义占位值作为断言期望值（如 `expect(result).toBe(42)` 中 42 与 AC 无关） — 期望值必须可追溯到 AC 的 Then 子句或接口契约
 - 禁止: 接线类 AC（注册 / 挂载 / 事件订阅 / 生命周期 hook）用读源码文件断言其包含某调用字符串来验证 — 该锚定可被 no-op 实现绕过；必须以真实运行时对象触发接线点并断言回调/状态产出，使空壳实现 FAIL。判定准则见 [`wiring-checks.md`](../../references/wiring-checks.md)
-- 避免: 单元测试 spawn 子进程 / 起服务 / 连真实外部依赖，或每测重建一次即确定的昂贵 setup — 机理与替代模式见 testing/SKILL.md §测试套件性能纪律
+- 避免: 单元测试 spawn 子进程 / 起服务 / 连真实外部依赖，或每测重建一次即确定的昂贵 setup — 判定与替代模式见 [`test-suite-performance.md`](../../references/test-suite-performance.md)

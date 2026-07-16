@@ -1,0 +1,20 @@
+schema_version: 2
+rule_type: test_hygiene
+scope: language
+language: java
+extensions: [".java"]
+test_file_patterns:
+  - regex: 'Tests?\.java$'
+slow_patterns:
+  - regex: 'ProcessBuilder|Runtime\.getRuntime\(\)\.exec'
+    label: "子进程"
+  - regex: '\bThread\.sleep\('
+    label: "显式休眠"
+  - regex: 'HttpClient|RestTemplate|WebClient'
+    label: "网络客户端"
+  - regex: 'Testcontainers|GenericContainer'
+    label: "容器"
+marker_patterns:
+  - regex: '@Tag\(["''](slow|integration|e2e)["'']\)'
+setup_decl_patterns:
+  - regex: '@BeforeEach'

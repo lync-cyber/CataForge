@@ -141,6 +141,54 @@ empty_handler_patterns:
         validate_yaml_text(bad, "test")
 
 
+def test_validate_yaml_test_hygiene_rejects_project_scope() -> None:
+    bad = """
+schema_version: 2
+scope: project
+rule_type: test_hygiene
+test_file_patterns:
+  - regex: 'tests/'
+slow_patterns:
+  - regex: 'sleep'
+    label: "sleep"
+"""
+    with pytest.raises(RuleLoadError, match="requires scope 'language'"):
+        validate_yaml_text(bad, "test")
+
+
+def test_validate_yaml_test_hygiene_requires_core_pattern_lists() -> None:
+    bad = """
+schema_version: 2
+scope: language
+rule_type: test_hygiene
+language: python
+extensions: [".py"]
+test_file_patterns:
+  - regex: 'tests/'
+"""
+    with pytest.raises(RuleLoadError, match="non-empty 'slow_patterns'"):
+        validate_yaml_text(bad, "test")
+
+
+def test_validate_yaml_test_hygiene_rejects_unknown_key() -> None:
+    bad = """
+schema_version: 2
+scope: language
+rule_type: test_hygiene
+language: python
+extensions: [".py"]
+test_file_patterns:
+  - regex: 'tests/'
+slow_patterns:
+  - regex: 'sleep'
+    label: "sleep"
+marker_pattern:
+  - regex: 'slow'
+"""
+    with pytest.raises(RuleLoadError, match="unknown key"):
+        validate_yaml_text(bad, "test")
+
+
 def test_validate_yaml_e2e_requires_label() -> None:
     bad = """
 schema_version: 2

@@ -14,11 +14,12 @@ from dataclasses import dataclass
 from cataforge.runtime.skill.builtins.code_review.engine.context import CheckContext
 from cataforge.runtime.skill.builtins.code_review.engine.findings import Finding
 
-# COMMON-RULES §统一问题分类体系 (14) plus the code-review dimensions that
+# COMMON-RULES §统一问题分类体系 (15) plus the code-review dimensions that
 # have dedicated Layer 1 checks (integration-wiring / visual-fidelity / arch).
 CATEGORIES = frozenset(
     {
         "completeness",
+        "correctness",
         "consistency",
         "convention",
         "security",

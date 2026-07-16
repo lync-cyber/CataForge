@@ -94,12 +94,12 @@ Step 9: 进入初始阶段
 1. 编排器加载 REVIEW 报告
 2. 以 task_type=revision 重新调度原 Agent
 3. Agent 按 CRITICAL > HIGH > MEDIUM > LOW 排序问题
-4. 仅修复 CRITICAL 和 HIGH 级别问题
+4. 必修全部 CRITICAL 和 HIGH；修复触点同文件/同节内的 MEDIUM/LOW 顺带一并修复
 5. 增量修正文档 / 代码（不重写全文）
-6. 重新提交 Reviewer 审查
+6. 重新提交 Reviewer 审查（上轮未闭环 MEDIUM/LOW 标 still-open / resolved）
 ```
 
-MEDIUM / LOW 级问题转为 `approved_with_notes` 提示，由用户决定是否处理。
+未被顺带修复的 MEDIUM / LOW 保留为 `approved_with_notes` 提示，由用户决定是否处理；still-open 项参与下轮聚类升级计数。
 
 ---
 

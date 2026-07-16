@@ -258,14 +258,14 @@ tools:
 
 - **navigate** — 提供 `load_section` 能力，按 `{doc_id}#§{section}` 格式精准加载文档段落，避免全文读取，降低 agent 上下文占用
 - **generate** — 统一文档生成，支持 standard（完整）/ lite（轻量）/ prototype（原型简报）三套模板体系；一个 doc_type 一个逻辑文档，超过 DOC_SPLIT_THRESHOLD_LINES 时 doc-review 建议精简或拆为多个逻辑文档；模板目录 `.cataforge/skills/context/templates/`
-- **review** — 文档双层审计，Layer 1 脚本化检查（结构完整性、格式合规性）+ Layer 2 AI 审查（语义一致性、业务逻辑正确性）；轻量文档类型（brief、prd-lite 等）可跳过 Layer 2；Layer 1 由内置引擎 `cataforge skill run doc-review` 支撑
+- **review** — 文档双层审计，Layer 1 脚本化检查独占形式面（结构完整性、格式合规性）+ Layer 2 AI 实质审查（不复报可机检问题；prd / arch / ui-spec 按 doc_type 加载单份实质审查 profile `references/review-{doc_type}.md`，含实质维度与严重度锚点）；轻量文档类型（brief、prd-lite 等）可跳过 Layer 2；Layer 1 由内置引擎 `cataforge skill run doc-review` 支撑
 - **consistency** — 跨文档语义一致性校验，PRD↔ARCH AC 追踪、ARCH↔DEV-PLAN API 契约、PRD↔UI-SPEC 用户可见性覆盖；输出 F-NNN 追踪矩阵 + 严重等级问题清单；退出码 0 全部通过 / 1 存在 CRITICAL/HIGH / 2 仅 MEDIUM/LOW，由 Phase Transition Protocol §5.5 在 Phase 2+ 转换时调用；Layer 1 由内置引擎 `cataforge skill run doc-consistency` 支撑
 - **query** — 知识图谱自然语言查询，把问题翻译为只读 SPARQL 检索项目追溯关系并作答；schema card 由 `cataforge kg schema-context` 提供，执行与写守卫复用 `cataforge kg query`
 
 **code-review** — 代码双层审查
 
 - Layer 1：lint 工具检查（ruff 等）
-- Layer 2：AI 审查（架构合规性、安全性、业务逻辑）
+- Layer 2：AI 审查，实质优先排序——功能正确性（实现 vs AC/契约对照，correctness）置顶，其后安全、集成连线、错误处理、性能等；Layer 1 lint 机检面不复报
 - 输出标准化评审报告
 
 **tdd-engine** — TDD 三阶段引擎

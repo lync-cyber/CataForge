@@ -31,7 +31,7 @@
 | `MEDIUM` | 改进建议，用户决定 |
 | `LOW` | 可选建议 |
 
-修订流程仅处理 CRITICAL 和 HIGH。
+修订流程必修全部 CRITICAL 和 HIGH；修复触点同文件/同节内的 MEDIUM/LOW 顺带一并修复，其余保留为 notes（见 SUB-AGENT-PROTOCOLS §task_type=revision）。
 
 ---
 
@@ -40,19 +40,20 @@
 | 类别 | 适用范围 | 说明 |
 |------|---------|------|
 | `completeness` | 文档+代码 | 逻辑缺失、定义不全 |
+| `correctness` | 代码 | 实现语义与 AC / 契约不符、算法 / 边界 / 状态转换错误 |
 | `consistency` | 文档+代码 | 与上游 / 内部矛盾 |
 | `convention` | 文档+代码 | 命名 / 格式 / 风格规范 |
 | `security` | 文档+代码 | 安全漏洞、合规风险 |
 | `feasibility` | 文档 | 技术可行性、实现性 |
 | `ambiguity` | 文档 | 模糊不清、多义 |
-| `structure` | 代码 | 架构 / 组织 / 职责划分 |
-| `error-handling` | 代码 | 异常处理、边界条件 |
+| `structure` | 文档+代码 | 架构 / 组织 / 职责划分 |
+| `error-handling` | 文档+代码 | 异常处理、边界条件 |
 | `performance` | 代码 | 性能 / 效率 |
 | `test-quality` | 代码 | 断言有效性、测试逻辑、边界覆盖 |
 | `duplication` | 代码 | 跨文件 / 跨函数重复（Type-1/2 克隆） |
 | `dead-code` | 代码 | 不可达分支、未引用的导出、永远为假的条件 |
 | `complexity` | 代码 | 圈 / 认知复杂度过高、嵌套深度超阈值 |
-| `coupling` | 代码 | 模块间引用过密、依赖图循环或扇出过大 |
+| `coupling` | 文档+代码 | 模块间引用过密、依赖图循环或扇出过大 |
 
 权威清单见 [`.cataforge/rules/COMMON-RULES.md`](../../.cataforge/rules/COMMON-RULES.md) §统一问题分类体系；详见 [`../architecture/quality-and-learning.md`](../architecture/quality-and-learning.md)。
 

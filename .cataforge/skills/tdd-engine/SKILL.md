@@ -43,7 +43,7 @@ orchestrator (主线程)
 > **Mid-progress 落盘**：
 > 1. 先 `Write` 全部目标文件的**空骨架**（import + export stub + `describe(...)` / 函数签名占位），按**依赖序**落盘——被导入文件先于引用它的文件（写盘纪律见 SUB-AGENT-PROTOCOLS §并行/多文件写盘纪律）
 > 2. 逐 AC 迭代填充实现 + 测试
-> 3. 每完成一条 AC 立刻运行 `{test_command}`（按需附 file 过滤）验证
+> 3. 每完成一条 AC 立刻运行 `{test_command_fast}`（按需附 file 过滤）验证
 > 4. **禁止**末尾一次 `Edit` 堆所有 AC 实现 + 全套断言
 
 适用：standard Step 3 GREEN ✅；light-dispatch ✅；light-inline / prototype-inline ❌（主线程产出，token 由主线程窗口管理，不需此契约）。契约失效（仍 truncation）→ ORCHESTRATOR-PROTOCOLS §Sub-Agent Truncation Recovery Protocol 主线程接管。
@@ -101,7 +101,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 - 目录结构和命名规范(arch#§6, arch#§7)
 - deliverables清单
 - 任务卡字段：`task_kind`、`tdd_mode`、`tdd_refactor`、`security_sensitive`、`loc_estimate`
-- 测试命令(`test_command`，按技术栈，如 `pytest -q --tb=short tests/`)
+- 测试命令两档（arch#§7.4 测试执行口径：`test_command_fast` 内循环排除慢测 / `test_command_full` 收敛点门禁全量；arch 未声明 §7.4 时项目单一测试命令双档同值）
 - 用户故事(prd#§2.F-xxx — 任务卡关联的功能需求描述，含用户角色和使用动机)
 - 业务规则(prd#§3 — 与本任务相关的业务约束，如有)
 
@@ -124,6 +124,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     ## lang_rules
     按 framework.json project.languages 载入 `testing` skill 的 `references/lang-<active>.md`，遵循其语言测试细则。
 
+    ## suite_discipline
+    载入 `.cataforge/references/test-suite-performance.md` 并遵循；新测试涉及子进程/服务/网络/显式等待时，按 arch#§7.4 测试执行口径声明的慢测标签约定打标（未声明时按语言惯例打标并在 summary 注明）。
+
     ## user_story
     {prd#§2.F-xxx 的功能描述，含用户角色/使用动机/业务价值}
 
@@ -140,7 +143,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     {arch#§6 摘要}
 
     ## test_command
-    {如 `pytest -q --tb=short tests/`}
+    {test_command_fast，如 `pytest -q --tb=short tests/`（arch#§7.4 未声明时取项目单一测试命令）}
 
     ## verified_anchors
     {主线程已核实的代码域锚点，按 SUB-AGENT-PROTOCOLS §verified_anchors 锚点传递契约填写；未核实过代码则整节省略}
@@ -188,7 +191,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     {arch#§7 摘要}
 
     ## test_command
-    {如 `pytest -q --tb=short tests/`}
+    {test_command_fast，如 `pytest -q --tb=short tests/`（arch#§7.4 未声明时取项目单一测试命令）}
 
     ## verified_anchors
     {主线程已核实的代码域锚点，按 SUB-AGENT-PROTOCOLS §verified_anchors 锚点传递契约填写；未核实过代码则整节省略}
@@ -240,7 +243,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     {arch#§7 摘要}
 
     ## test_command
-    {如 `pytest -q --tb=short tests/`}
+    {test_command_fast，如 `pytest -q --tb=short tests/`（arch#§7.4 未声明时取项目单一测试命令）}
 
     实现文件: {GREEN阶段产出的impl_files}
     测试文件: {RED阶段产出的test_files}
@@ -251,7 +254,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 
 **完成后验证**（orchestrator 在 refactorer 返回 completed 后执行）：
 
-1. 跑 §test_command 确认全部 PASS
+1. 跑 `test_command_full` 确认全部 PASS（收敛点门禁）
 2. 跑 `git status --short` 与 HEAD 比对调度前 baseline；任一命中视为 refactorer 越权碰 git（refactorer 仅应产出文件，不应 add / commit / push / branch / reset / checkout / stash —— 见 refactorer AGENT.md §Anti-Patterns），标 BLOCKED 并请求人工介入：
    - staged / unstaged 变化中含非本任务 deliverables 外文件
    - HEAD 位移（分支切换或新增 commit）
@@ -283,6 +286,9 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     ## lang_rules
     按 framework.json project.languages 载入 `testing` skill `references/lang-<active>.md`（测试细则）+ `tdd-engine` skill `references/lang-<active>.md`（实现细则）。
 
+    ## suite_discipline
+    载入 `.cataforge/references/test-suite-performance.md` 并遵循；新测试涉及子进程/服务/网络/显式等待时，按 arch#§7.4 测试执行口径声明的慢测标签约定打标（未声明时按语言惯例打标并在 summary 注明）。
+
     ## user_story
     {prd#§2.F-xxx 的功能描述，含用户角色/使用动机/业务价值}
 
@@ -302,7 +308,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
     {arch#§7 摘要}
 
     ## test_command
-    {如 `pytest -q --tb=short tests/`}
+    {test_command_fast，如 `pytest -q --tb=short tests/`（arch#§7.4 未声明时取项目单一测试命令）}
 
     ## verified_anchors
     {主线程已核实的代码域锚点，按 SUB-AGENT-PROTOCOLS §verified_anchors 锚点传递契约填写；未核实过代码则整节省略}
@@ -316,7 +322,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 验证（orchestrator 执行）:
 
 1. 确认 outputs 同时含 test_files 和 impl_files
-2. 运行测试确认最终全部 PASSED
+2. 跑 `test_command_full` 确认最终全部 PASSED
 3. REFACTOR 处理：按 §Step 4 条件触发判定执行（agile-prototype 强制跳过；其它模式按 implementer self-report）
 
 ### Light Inline 模式 (tdd_mode=light + 满足 §Inline 触发条件)
@@ -324,7 +330,7 @@ orchestrator按以下步骤编排每个任务(T-xxx)的TDD。
 orchestrator 自身在主线程使用 Step 1 已提取的上下文，按 light 模式的"先测试后实现"步骤直接产出 test_files + impl_files，**不调用 agent_dispatch capability**：
 
 - 主线程内联时同样参考 Step 1 已提取的 user_story 上下文编写测试（禁止存在性断言）
-- 按 framework.json project.languages 载入 `testing` + `tdd-engine` 两 skill 的 `references/lang-<active>.md`（测试细则 + 实现细则）
+- 按 framework.json project.languages 载入 `testing` + `tdd-engine` 两 skill 的 `references/lang-<active>.md`（测试细则 + 实现细则），并载入 `.cataforge/references/test-suite-performance.md`（套件性能纪律）
 - 步骤等同 light-dispatch 的 implementer 内部行为
 - self-report `refactor_needed` / `refactor_reasons` 作为 orchestrator 自身的判断（写入 EVENT-LOG 而非通过 agent_return）
 - REFACTOR 处理：同 light-dispatch
@@ -343,7 +349,7 @@ agile-prototype 项目的任务全部走 implementer **主线程内联**（即 l
 
 orchestrator完成以下收尾:
 
-1. 验证最终测试结果(运行测试确认全部PASS)
+1. 验证最终测试结果（跑 `test_command_full` 确认全部 PASS——收敛点门禁为真值）
 2. 核对deliverables清单(所有文件已创建)
 3. 代码审查分级触发:
    - **即时 per-task code-review**（reviewer dispatch）: 仅对满足以下任一条件的任务触发：`security_sensitive: true`、`user_facing_critical_path: true`、`consumer_components` 非空。审查范围包含 impl_files 和 test_files

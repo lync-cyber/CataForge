@@ -103,7 +103,7 @@
 | id | 路径 | 触发 | 期望行为 | 处置 | 观察重点 |
 |----|------|------|---------|------|---------|
 | E-1 | Interrupt-Resume | 子代理返回 needs_input | AskUserQuestion 代问 → continuation 重启；每阶段 2 轮上限，第 3 轮请人工 | P | 轮次上限是否生效、是否重复提问 |
-| E-2 | Revision | reviewer 返回 needs_revision | 调原 Agent task_type=revision，增量审查；needs_revision(N) N≥2 请人工 | P | 增量审查是否只审 diff + 上轮 CRITICAL/HIGH 维度、计数是否累计 |
+| E-2 | Revision | reviewer 返回 needs_revision | 调原 Agent task_type=revision，增量审查；needs_revision(N) N≥2 请人工 | P | 增量审查是否只审 diff + 上轮 CRITICAL/HIGH 维度、still-open / resolved 标注与顺带修复是否落地、计数是否累计 |
 | E-3 | Rolled-back Recovery | REFACTOR 子代理 rolled-back | 用 GREEN 产出，code-review 标 MEDIUM，不重试 | O | 回滚是否静默、是否误重试 |
 | E-4 | TDD Blocked Recovery | TDD 子代理 blocked + questions | AskUserQuestion → continuation；每阶段 1 轮上限 | O | 第 2 次 blocked 是否请人工 |
 | E-5 | Agent Crash Recovery | 子代理无 `<agent-result>` 且兜底无法推断 | git status 查部分产出 → 继续/重试/跳过；每阶段 1 次上限 | O | 崩溃是否记 CORRECTIONS-LOG |

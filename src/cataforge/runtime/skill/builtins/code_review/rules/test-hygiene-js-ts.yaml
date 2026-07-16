@@ -1,0 +1,21 @@
+schema_version: 2
+rule_type: test_hygiene
+scope: language
+language: js-ts
+extensions: [".js", ".ts", ".jsx", ".tsx"]
+test_file_patterns:
+  - regex: '\.(test|spec)\.[jt]sx?$|(^|/)__tests__/'
+slow_patterns:
+  - regex: 'child_process|execa|\bspawn(Sync)?\s*\('
+    label: "子进程"
+  - regex: '(?<![.\w])fetch\s*\(|(?<![.\w])(axios|supertest)\s*[(.]'
+    label: "网络客户端"
+  - regex: 'new Promise\s*\(.*setTimeout'
+    label: "显式等待"
+  - regex: 'puppeteer|playwright|testcontainers'
+    flags: [IGNORECASE]
+    label: "浏览器/容器"
+marker_patterns:
+  - regex: 'test\.slow\(|@slow'
+setup_decl_patterns:
+  - regex: '\bbeforeEach\s*\('

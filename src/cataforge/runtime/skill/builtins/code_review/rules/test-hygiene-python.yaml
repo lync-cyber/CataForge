@@ -1,0 +1,21 @@
+schema_version: 2
+rule_type: test_hygiene
+scope: language
+language: python
+extensions: [".py"]
+test_file_patterns:
+  - regex: '(^|/)tests?/|(^|/)test_[^/]+\.py$|_test\.py$'
+slow_patterns:
+  - regex: '\bsubprocess\.(run|Popen|check_output|check_call|call)\b|(?<![.\w])os\.system\('
+    label: "子进程"
+  - regex: '(?<![.\w])(time|asyncio)\.sleep\('
+    label: "显式休眠"
+  - regex: '(?<![.\w])(requests|httpx|aiohttp)\.(get|post|put|delete|request|Client|AsyncClient)\b|(?<![.\w])urllib\.request\.'
+    label: "网络客户端"
+  - regex: '(?<![.\w])testcontainers\b|(?<![.\w])docker\.from_env|\bDockerClient\b|^\s*(import|from)\s+(testcontainers|docker)\b'
+    label: "容器"
+marker_patterns:
+  - regex: 'pytest\.mark\.(slow|integration|e2e)'
+setup_decl_patterns:
+  - regex: '^\s*def\s+(setup_method|setup_class|setUp|setUpClass)\b'
+  - regex: '^\s*@pytest\.fixture(?!\([^)\n]*scope=["''](module|session|package))'

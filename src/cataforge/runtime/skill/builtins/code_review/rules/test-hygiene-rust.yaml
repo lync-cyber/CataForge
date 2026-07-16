@@ -1,0 +1,16 @@
+schema_version: 2
+rule_type: test_hygiene
+scope: language
+language: rust
+extensions: [".rs"]
+test_file_patterns:
+  - regex: '(^|/)tests/[^/]+\.rs$'
+slow_patterns:
+  - regex: 'std::process::Command|Command::new\('
+    label: "子进程"
+  - regex: 'thread::sleep\(|tokio::time::sleep\('
+    label: "显式休眠"
+  - regex: 'reqwest|TcpStream::connect'
+    label: "网络客户端"
+marker_patterns:
+  - regex: '#\[ignore'

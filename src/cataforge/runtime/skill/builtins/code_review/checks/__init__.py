@@ -13,6 +13,7 @@ from cataforge.runtime.skill.builtins.code_review.checks import (  # noqa: F401
     external_tools,
     pragma_inventory,
     probes,
+    test_hygiene,
     ui_fidelity,
     wiring,
 )
