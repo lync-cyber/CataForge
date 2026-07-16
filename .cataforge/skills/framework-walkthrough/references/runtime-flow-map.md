@@ -54,7 +54,7 @@
 | C-2 | execution_host 分派 | `inline` 阶段主线程承载（交互角色）；`subagent` 阶段派隔离子代理 | D | interactive=true 的阶段是否走 inline、子代理是否真被派发而非空转 |
 | C-3 | 文档产出 + 定稿 | 角色经 context authoring 产文档、`context finalize` 落 status=draft | D | 产物路径/命名/front matter 合规、是否注册索引 |
 | C-4 | doc-review 门禁 | Layer 1 强制；按 `DOC_REVIEW_L2_SKIP_*` 判断 Layer 2 短路 | D | 该审却没审 / 该短路却全跑；Layer 1 退出码 |
-| C-5 | Phase Transition | 10 步状态持久化 + 一致性门（见 §3.1） | D | 10 步是否全做、顺序是否在派发下一阶段前完成 |
+| C-5 | Phase Transition | 状态持久化 + `cataforge phase transition` 门禁链（见 §3.1） | D | 门禁链是否真跑、exit 0 前是否未派发下一阶段 |
 | C-6 | TDD development | 按 tdd-engine 档位执行 RED/GREEN/REFACTOR（standard）或 light 合并或 prototype-inline | D | 档位选择是否符合 `TDD_*` 常量、子代理隔离是否成立 |
 | C-7 | code-review 门禁 | 带触发 flag（security_sensitive / user_facing_critical_path / consumer_components 非空）的任务 GREEN 后即时 per-task code-review；其余延迟到 sprint-review 批量（B-15）。示例 T-001 钉 consumer_components 保证本路径结构性可达 | D | 即时审查任务恒命中 L2 短路豁免（豁免清单与即时触发条件重合）——「该短路」态在标准编排是否可达本身是观察议题，勿徒劳找两态；延迟任务是否被误即时审查 |
 | C-8 | phase status 硬校验 | 每跨完一阶段跑 `cataforge phase status`，退出非 0 即该阶段 blocked | D | 委派子代理「只部署不驱动」会在此暴露 |
@@ -62,17 +62,19 @@
 
 ### 3.1 Phase Transition Protocol 的子路径（C-5 展开）
 
-`ORCHESTRATOR-PROTOCOLS §Phase Transition Protocol` 的一致性门是走查最易漏看的过程信号，逐子步观察：
+`ORCHESTRATOR-PROTOCOLS §Phase Transition Protocol` 的一致性门是走查最易漏看的过程信号。C-5b–C-5f
+由 `cataforge phase transition --from … --to …` 一次执行（幂等；命中分支 exit 3 输出结构化选项），
+逐门观察其输出行：
 
-| id | 子步 | 期望行为 | 观察重点 |
+| id | 子步（门） | 期望行为 | 观察重点 |
 |----|------|---------|---------|
-| C-5a | 文档头 + {INSTRUCTION_FILE} 状态更新 | status: draft→approved，阶段字段同步 | 文档头与 {INSTRUCTION_FILE} 是否一致 |
-| C-5b | `cataforge context validate`（依赖新鲜度） | 无 stale_deps 通过；有则给分支选项 | stale_deps 是否被检出（见 §4 B-8） |
-| C-5c | `cataforge context reconcile`（一致性守门） | 无漂移通过；图后端未启用为 no-op WARN | 漂移是否被捕获、remediation 路由（见 §4 B-9） |
-| C-5d | `cataforge skill run doc-consistency`（Phase 2+） | exit 0/2 继续，exit 1 给分支选项 | ≥2 文档 approved 时是否真触发（见 §4 B-10） |
-| C-5e | EVENT BATCH | 单次 stdin 一次性写 4 条事件（phase_end→review_verdict→state_change→phase_start） | 是否原子写入、有无半截状态 |
-| C-5f | `cataforge claude-md check`（hygiene 门） | exit 0 通过；exit 1 阻塞转换给 compact 选项 | 阈值越界是否真阻塞（见 §4 B-11） |
-| C-5g | 进入下一阶段 | 按 execution_host 分派 | 是否在 5a–5f 全部完成后才分派 |
+| C-5a | 文档头 + {INSTRUCTION_FILE} 状态更新（LLM 侧）| status: draft→approved，阶段字段同步 | 文档头与 {INSTRUCTION_FILE} 是否一致（命令 doc-status 门核验） |
+| C-5b | stale-deps 门（依赖新鲜度） | 无 stale_deps 通过；有则 STOP 给分支选项 | stale_deps 是否被检出（见 §4 B-8） |
+| C-5c | reconcile 门（一致性守门） | 无漂移通过；图后端未启用为 SKIP | 漂移是否被捕获、remediation 路由（见 §4 B-9） |
+| C-5d | doc-consistency 门（Phase 2+） | 通过 / MEDIUM·LOW WARN 继续；CRITICAL/HIGH STOP 给分支选项 | ≥2 文档 approved 时是否真触发（见 §4 B-10） |
+| C-5e | event-batch 门 | 原子写 4 条事件（phase_end→review_verdict→state_change→phase_start）+ 本轮 ack 审计记录；重跑 SKIP 不重复 | 是否原子写入、有无半截状态、重跑是否幂等 |
+| C-5f | claude-md 门（hygiene） | 通过；阈值越界 STOP 给 `--compact` 选项 | 阈值越界是否真阻塞（见 §4 B-11） |
+| C-5g | 进入下一阶段 | exit 0 后按命令 dispatch 提示的 execution_host 分派 | 是否在门禁链 exit 0 后才分派 |
 
 ## 4. 分支路径
 

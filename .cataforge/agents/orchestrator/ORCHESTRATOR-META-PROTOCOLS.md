@@ -45,9 +45,9 @@ orchestrator 在关键节点向 `docs/EVENT-LOG.jsonl` 追加事件记录，用�
 | session_start | 会话启动 | **Hook 自动** (session_context.py，含 60 秒 compact 去重；仅此一个事件由 hook 写入，orchestrator 不再手动补写以节省 token) |
 | agent_dispatch | 调度子代理前 | **Hook 自动** (log_agent_dispatch.py, PreToolUse Agent) |
 | agent_return | 子代理返回结果后 | **Hook 自动** (validate_agent_result.py, PostToolUse Agent) |
-| phase_start | Phase Transition Protocol 的 EVENT BATCH 步骤 | **[EVENT]** orchestrator 手动 |
-| phase_end | reviewer 返回 approved | **[EVENT]** orchestrator 手动 |
-| review_verdict | reviewer 返回审查结论 | **[EVENT]** orchestrator 手动 |
+| phase_start | Phase Transition 门禁链事件批量门 | **CLI 自动** (`cataforge phase transition`) |
+| phase_end | reviewer 返回 approved | **CLI 自动**（随 phase transition 事件批；协议外单发时 orchestrator 手动） |
+| review_verdict | reviewer 返回审查结论 | **[EVENT]** orchestrator 手动（needs_revision / approved_with_notes 等即时结论）；approved 转换记录随 phase transition 事件批自动落盘 |
 | user_decision | 用户在 Approved-with-Notes / Change Request 中做出选择 | **[EVENT]** orchestrator 手动 |
 | revision_start | 进入 Revision Protocol | **[EVENT]** orchestrator 手动 |
 | tdd_phase | TDD RED/GREEN/REFACTOR 阶段切换 | **[EVENT]** tdd-engine skill 步骤内嵌 |

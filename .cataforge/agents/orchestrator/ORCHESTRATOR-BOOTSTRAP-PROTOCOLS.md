@@ -54,7 +54,7 @@
    - `cataforge context index`（生成空的 `docs/.doc-index.json` 文档索引缓存，首个文档落盘后由生成定稿增量刷新）
    - 可选向用户提示 `cataforge viz framework` 渲染编排图，帮助快速建立流程心智模型
 10. **进入初始阶段** — 按 `framework.json#/workflow` 的 `execution_host` 分派（同 ORCHESTRATOR-PROTOCOLS.md
-    §Phase Transition Protocol Step 10）进入 product-manager 角色:
+    §Phase Transition Protocol Step 4）进入 product-manager 角色:
     - `standard` → Phase 1 requirements
     - `agile-lite` → planning 阶段（按 ORCHESTRATOR-PROTOCOLS.md §Mode Routing Protocol 产出 prd-lite
       后链式进入 architect 产出 arch-lite）
