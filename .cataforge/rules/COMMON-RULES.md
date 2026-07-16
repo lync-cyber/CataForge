@@ -135,7 +135,7 @@ Agent 间统一格式：
 下列约定对所有 Agent 一次性生效，**各 Agent 的 Input/Output Contract 不再重复**（操作细节见 context skill）：
 
 - **统一经 context 能力入口** — 读取、依赖展开、生成定稿、校验都经 `cataforge context`。后端与保真度由框架按项目上下文方案路由，**调用方不在 prompt 里判断走哪个后端**；后端选择复述会随实现漂移。
-- **定稿与回灌** — Agent 完成 authoring 落图后调 `cataforge context finalize` 导出人审视图，不直接 Edit 导出文件；版本号写入 frontmatter `version:` 字段，不进入 id / 文件名；人改导出文件的场景由 orchestrator 在收口点按 reconcile 的 `remediation` 跑 `cataforge context ingest` 回流。
+- **定稿与回灌** — Agent 完成 authoring 落图后调 `cataforge context finalize` 导出人审视图，不直接 Edit 导出文件；版本号写入 frontmatter `version:` 字段，不进入 id / 文件名；人改导出文件的场景由 orchestrator 在收口点按 reconcile 的 `remediation` 跑 `cataforge context ingest` 回流。`ingest` 仅吸收人类对导出视图的修订——Agent 不得把「Write/Edit `docs/` 草稿 + ingest」当作 authoring 路径。
 - **读取与依赖展开** — `cataforge context read <ref>` / `--with-deps` 返回统一 markdown 形式；后端不可达时框架自动降级到文件路径。
 - **drift 检查由 orchestrator 负责** — Phase Transition 自动跑一致性守门；Agent 无需在 Output Contract 中声明。
 

@@ -57,7 +57,15 @@ def test_frontmatter_is_parseable_and_explicitly_gated() -> None:
         "web_fetch",
         "user_question",
     }
-    _assert_terms(body, "默认关闭", "显式同意", "自动建议不等于启用")
+    _assert_terms(
+        body,
+        "默认关闭",
+        "显式同意",
+        "自动建议不等于启用",
+        "阶段入口一次询问",
+        "深度澄清(Grill)",
+        "询问是协议动作",
+    )
 
 
 def test_stage_skills_are_the_only_default_callers() -> None:
@@ -83,7 +91,8 @@ def test_fact_first_decision_tree_and_question_contract() -> None:
         "不得再询问用户",
         "决策依赖树",
         "父决策未确认",
-        "默认每轮一个高杠杆问题",
+        "一次只问一个问题",
+        "不构成过滤",
         "MAX_QUESTIONS_PER_BATCH",
         "推荐选项",
         "推荐依据",
@@ -106,7 +115,9 @@ def test_controls_resume_and_convergence_contract() -> None:
         "不重问已解决问题",
         "共同理解",
         "完整收敛",
-        "低价值细节",
+        "决定权在用户",
+        "不自行宣布收敛",
+        "决策无论大小都归用户",
     )
 
 

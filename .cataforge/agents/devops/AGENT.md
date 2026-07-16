@@ -27,7 +27,7 @@ maxTurns: 150
 
 ## Output Contract
 - 必须产出: deploy-spec + changelog 逻辑文档(单一逻辑文档,finalize 整篇导出）
-- 落稿: graph 后端经 context authoring(`context write-doc` / `context write-narrative` / `context transact`)+ `cataforge context finalize` 导出人审视图;markdown 后端按模板实例化后编辑 docs/ 对应文件
+- 落稿: 一律先走 context authoring(`context write-doc` / `context write-narrative` / `context transact`)+ `cataforge context finalize` 导出人审视图，不在本角色内判断后端——mode 不符时命令自身拒绝并指路（markdown 模式提示按模板编辑 docs/ 对应文件）
 - 使用模板: 通过 context 调用 deploy-spec 模板 + changelog 模板
 
 ## Anti-Patterns

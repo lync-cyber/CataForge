@@ -147,7 +147,7 @@ Mode Routing Protocol 在以下时刻被调用:
 6. **一致性最终守门** — 运行 `cataforge context reconcile`（上下文方案未启用图后端时为 no-op，WARN 跳过）:
    - 无漂移 → 通过，继续 Step 7
    - 有漂移 → 向用户展示漂移报告摘要并提供选项：
-     1. 自动修复（按 reconcile 报告 `documents[].remediation`）：`export`（图谱领先）→ `cataforge context finalize` 重导出；`ingest`（人改导出文件、md 领先或 md 权威）→ `cataforge context ingest` 回灌；`manual`（conflict，两侧均变更）→ 转选项 3。修复后复跑 `cataforge context reconcile`，漂移归零后继续 Step 7
+     1. 自动修复（按 reconcile 报告 `documents[].remediation`）：`export`（图谱领先）→ `cataforge context finalize` 重导出；`ingest`（md 领先或 md 权威）→ 先归因：本收口点紧跟 Agent 产出段且期间无人工编辑时，md 领先即 Agent 绕过 authoring 直写了导出文件——向用户报告违纪，回滚 md 侧改动并重走 authoring 落图；确认为人改导出文件时才 `cataforge context ingest` 回灌；`manual`（conflict，两侧均变更）→ 转选项 3。修复后复跑 `cataforge context reconcile`，漂移归零后继续 Step 7
      2. 进入 cascade_amendment 修订上游文档以匹配图谱
      3. 暂停，手动审查
    - 其它错误（store 未初始化等）→ WARN 跳过（记录到 EVENT-LOG 供 reflector 复盘），不阻塞
@@ -366,7 +366,7 @@ cascade_amendment 中任一文档修订触发人工介入阈值（needs_revision
    - "回滚所有修订": `git checkout -- docs/{affected_dirs}` 恢复所有本轮修订的文档
 4. 回滚后变更请求状态重置，用户可调整范围后重新提交
 
-变更完成后先按 §Phase Transition Protocol Step 6 执行 reconcile 收口（漂移时 ingest 回灌），再回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
+变更完成后先按 §Phase Transition Protocol Step 6 执行 reconcile 收口（漂移按 Step 6 归因处置），再回到原阶段继续执行。Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），Amendment由用户发起（适应变更），但执行机制复用agent-dispatch和reviewer审核流程。
 
 > 子代理收到 `task_type=amendment` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=amendment 变更修订流程`。
 

@@ -240,7 +240,7 @@ tools:
 | 25 | framework-walkthrough | 测试质量 | 元自测 | 隔离沙盒内端到端跑通小型示例项目的完整 SDLC 工作流，观察各阶段/门禁/降级行为，产出框架本身与走查流程两类改进建议；framework-review 的动态对偶 |
 | 26 | project-visualization | 核心框架 | 可视化 | 把既有 KG / doc-index / EVENT-LOG / CORRECTIONS / agent-skill 资产渲染为图 / 时间线 / 指标看板；薄发现型 skill 引导工作流按情境调 `cataforge viz <视图>`，orchestrator 在 Sprint 收口产出健康度看板 |
 | 27 | feature-walkthrough | 测试质量 | 验收 | 对交付项目功能实现做验收式动态走查：两层正交判定（功能 vs spec 符合性 `missing/drift/bug/pass` + 代码健康度复用统一问题分类体系）+ 五步走查法 + 真实数据动态复现纪律；framework-walkthrough 的交付侧对偶 |
-| 28 | design-grill | 领域技能 | 需求/架构/设计 | 用户可选的阶段内深度澄清：事实优先、沿决策依赖树逐项收敛，输出带推荐、依据、代价和恢复点的可追溯总结 |
+| 28 | design-grill | 领域技能 | 需求/架构/设计 | 用户可选的阶段内深度澄清：经显式要求、项目偏好或阶段入口一次询问启用，事实优先、沿决策依赖树逐分支穷尽收敛，输出带推荐、依据、代价和恢复点的可追溯总结 |
 
 ### 详细说明
 
@@ -305,7 +305,7 @@ tools:
 
 **research** — 调研技能，通过 Web 搜索和用户访谈收集决策所需信息。
 
-**design-grill** — PRD、Architecture、UI-design 共用的可选深度澄清策略。默认关闭，仅在用户显式要求或明确接受阶段建议后运行；先核验仓库事实，再按决策依赖逐项提问，完成后把总结交回原阶段 Skill。
+**design-grill** — PRD、Architecture、UI-design 共用的可选深度澄清策略。默认关闭，经用户显式要求、项目偏好或阶段入口一次询问启用；启用后先核验仓库事实，再沿决策依赖树逐分支穷尽提问，直到全部分支解决且用户确认共同理解，完成后把总结交回原阶段 Skill。
 
 </details>
 
