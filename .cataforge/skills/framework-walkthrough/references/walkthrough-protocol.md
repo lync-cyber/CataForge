@@ -56,7 +56,7 @@ Phase 1~4 合并为单一 `brief.md`（≤200 行），implementer 主线程一�
 
 ### 2.4 Phase Transition 一致性门观察（所有模式）
 
-每次 reviewer approved 后进入下一阶段，都会跑 `ORCHESTRATOR-PROTOCOLS §Phase Transition Protocol` 的 8 步（路径图 C-5a~C-5g）。这是走查最易漏看的过程信号——文档「最终产出了」不代表一致性门「跑过了」。逐子步盯：
+每次 reviewer approved 后进入下一阶段，都会跑 `ORCHESTRATOR-PROTOCOLS §Phase Transition Protocol` 的 10 步（路径图 C-5a~C-5g）。这是走查最易漏看的过程信号——文档「最终产出了」不代表一致性门「跑过了」。逐子步盯：
 
 - `cataforge context validate`（C-5b 依赖新鲜度）：上游 approved 后下游是否被标 stale_deps。
 - `cataforge context reconcile`（C-5c 一致性守门）：图后端启用时漂移是否被捕获、remediation 方向（export/ingest/manual）是否匹配；逐文档 triage state 与 per-doc_type 对称 diff 明细经 `cataforge context reconcile --json` 取得（门禁结论取文档级 triage，对称 diff 为诊断）。`context.mode = markdown` 下退化为 docs-index 完整性校验（无图后端），其结论按索引有效性读，记为正常而非缺陷。
