@@ -61,7 +61,7 @@
 | 值 | 触发时机 | 说明 |
 |----|---------|------|
 | phase_transition | 每次阶段转换 | 所有 Phase N→N+1 暂停（最严格，隐含 pre_dev / pre_deploy / post_doc_freeze） |
-| post_doc_freeze | 冻结类业务文档 approved 后的阶段转换：PRD 冻结（Phase 1→2）、ARCH 冻结（Phase 2→3）、UI-SPEC 冻结（Phase 3→4；ui_design 标 N/A 时该点不存在） | 只门禁冻结类文档转换，不门禁全部；适合返工成本高的大型项目 |
+| post_doc_freeze | PRD 冻结后（Phase 1→2）、ARCH 冻结后（Phase 2→3）、UI-SPEC 冻结后（Phase 3→4；ui_design 标 N/A 时该点不存在） | 只门禁冻结类文档转换，不门禁全部；适合返工成本高的大型项目 |
 | pre_dev | Phase 4→5 前 | 开发阶段成本最高，确认开发计划与资源 |
 | post_skeleton | walking-skeleton 卡验证通过后 | 外部真值 tracer 经真实系统验证通过后再进规模化（机制见 `.cataforge/references/external-truth-first.md`）；未声明 external_oracles 的项目此值无效 |
 | pre_deploy | Phase 6→7 前 | 部署 go/no-go；deployment 标 N/A 时本检查点随之豁免 |
