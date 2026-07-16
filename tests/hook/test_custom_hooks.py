@@ -8,6 +8,9 @@ of going through the ``cataforge.runtime.hook.scripts`` package namespace.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 
 from cataforge.runtime.hook.bridge import generate_platform_hooks
@@ -54,7 +57,9 @@ def test_custom_hook_uses_file_invocation(monkeypatch: pytest.MonkeyPatch) -> No
     pre = hooks["PreToolUse"]
     cmd = pre[0]["hooks"][0]["command"]
     # Custom scripts live in the project — the generated command references
-    # the file directly rather than going through the ``-m`` package path.
-    assert cmd == ("python .cataforge/hooks/custom/my_scan.py --cataforge-platform test")
+    # the file directly rather than going through the ``-m`` package path,
+    # and runs under the deploying interpreter.
+    quoted_interp = f'"{Path(sys.executable).as_posix()}"'
+    assert cmd == (f"{quoted_interp} .cataforge/hooks/custom/my_scan.py --cataforge-platform test")
     # And the module-style command must NOT be used for customs.
     assert "cataforge.runtime.hook.scripts" not in cmd

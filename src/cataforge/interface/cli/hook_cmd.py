@@ -16,6 +16,7 @@ from cataforge.core.errors import CataforgeError, ConfigError
 from cataforge.interface.cli._support.guards import require_initialized
 from cataforge.interface.cli._support.helpers import get_config_manager, resolve_root
 from cataforge.interface.cli.main import cli
+from cataforge.utils.interpreter import hook_command_template, interpreter_command
 
 _SHELL_META_RE = re.compile(r"[;&|`$<>(){}\\\n]")
 
@@ -122,20 +123,31 @@ def _resolve_payload(
     return payload, source_label
 
 
+def _python_command_args(command: str) -> str | None:
+    """Return the arguments after the interpreter for a python hook command,
+    or None when *command* does not invoke a python interpreter we recognize
+    (the current quoted ``sys.executable`` or a bare ``python``)."""
+    for prefix in (f"{interpreter_command()} ", "python "):
+        if command.startswith(prefix):
+            return command[len(prefix) :]
+    return None
+
+
 def _build_proc_invocation(
     root: Path, hook_name: str, command: str
 ) -> tuple[dict[str, object], str]:
     """Resolve subprocess kwargs + display string for a hook command.
 
-    Built-in ``python ...`` commands run via the current interpreter as an argv
-    list (shell=False) so a space-in-path ``sys.executable`` isn't re-parsed by
-    cmd.exe, and with PYTHONPATH propagated so ``python -m cataforge`` finds the
-    same package. Custom commands stay shell=False + shlex.split unless the hook
-    entry opts into ``unsafe_shell: true``.
+    Python hook commands run via the current interpreter as an argv list
+    (shell=False) so a space-in-path ``sys.executable`` isn't re-parsed by
+    cmd.exe, and with PYTHONPATH propagated so ``-m cataforge`` finds the
+    same package. Custom commands stay shell=False + shlex.split unless the
+    hook entry opts into ``unsafe_shell: true``.
     """
     unsafe_shell = _hook_has_unsafe_shell(root, hook_name)
-    if command.startswith("python "):
-        argv = [sys.executable, *shlex.split(command[len("python ") :])]
+    python_args = _python_command_args(command)
+    if python_args is not None:
+        argv = [sys.executable, *shlex.split(python_args)]
         proc_kwargs: dict[str, object] = {"args": argv, "shell": False}
         display = " ".join(shlex.quote(a) for a in argv)
         proc_kwargs["env"] = _child_env_with_cataforge_importable()
@@ -276,8 +288,7 @@ def _resolve_hook_command(root: Path, hook_name: str) -> str | None:
             declared = str(entry.get("script", ""))
             normalised = declared.replace(".py", "")
             if normalised == hook_name or normalised == f"custom:{hook_name}":
-                template = "python -m cataforge.runtime.hook.scripts.{module}"
-                return _resolve_command(template, normalised)
+                return _resolve_command(hook_command_template(), normalised)
 
     # If the user passes an undeclared built-in script name, we still
     # allow running it (handy for quick iteration).
@@ -285,7 +296,7 @@ def _resolve_hook_command(root: Path, hook_name: str) -> str | None:
         root / ".." / ".." / ".." / "src" / "cataforge" / "hook" / "scripts" / f"{hook_name}.py"
     ).resolve()
     if builtin.is_file():
-        return f"python -m cataforge.runtime.hook.scripts.{hook_name}"
+        return hook_command_template().format(module=hook_name)
 
     return None
 

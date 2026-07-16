@@ -98,8 +98,17 @@ def seed_settings_defaults(data: dict[str, Any], defaults: dict[str, Any]) -> No
             data.setdefault(key, value)
 
 
-def _is_owned_hook_entry(entry: Any, owned_prefixes: tuple[str, ...]) -> bool:
-    """True iff every command in *entry* starts with a CataForge-owned prefix."""
+# Marker substrings identifying CataForge-generated hook commands regardless
+# of the interpreter spelling in front of them (bare ``python``, any quoted
+# absolute path, the current ``sys.executable``).
+OWNED_HOOK_MARKERS: tuple[str, ...] = (
+    "-m cataforge.runtime.hook.scripts.",
+    ".cataforge/hooks/custom/",
+)
+
+
+def _is_owned_hook_entry(entry: Any, owned_markers: tuple[str, ...]) -> bool:
+    """True iff every command in *entry* contains a CataForge-owned marker."""
     if not isinstance(entry, dict):
         return False
     hooks = entry.get("hooks")
@@ -108,19 +117,21 @@ def _is_owned_hook_entry(entry: Any, owned_prefixes: tuple[str, ...]) -> bool:
     commands = [h.get("command", "") for h in hooks if isinstance(h, dict)]
     if not commands:
         return False
-    return all(any(cmd.startswith(p) for p in owned_prefixes) for cmd in commands)
+    return all(any(marker in cmd for marker in owned_markers) for cmd in commands)
 
 
 def merge_hooks_config(
     existing_hooks: Any,
     generated_hooks: Any,
-    owned_prefixes: tuple[str, ...],
+    owned_markers: tuple[str, ...] = OWNED_HOOK_MARKERS,
 ) -> dict[str, Any]:
     """Splice freshly generated hook entries into an existing ``hooks`` map.
 
-    CataForge owns the entries whose command starts with one of
-    ``owned_prefixes``; those are dropped and replaced by ``generated_hooks``.
-    Foreign entries (user- or other-tool-authored, e.g. a hand-written
+    CataForge owns the entries whose command contains one of
+    ``owned_markers``; those are dropped and replaced by ``generated_hooks``.
+    Substring (not prefix) matching keeps ownership detection independent of
+    the interpreter a previous deploy wrote in front of the marker. Foreign
+    entries (user- or other-tool-authored, e.g. a hand-written
     ``SessionStart`` bootstrap) are preserved verbatim, so a deploy never
     silently removes hooks CataForge did not write. Events that exist only in
     the prior map survive with their foreign entries intact.
@@ -135,7 +146,7 @@ def merge_hooks_config(
         preserved = [
             entry
             for entry in (prior if isinstance(prior, list) else [])
-            if not _is_owned_hook_entry(entry, owned_prefixes)
+            if not _is_owned_hook_entry(entry, owned_markers)
         ]
         combined = preserved + list(generated.get(event, []))
         if combined:

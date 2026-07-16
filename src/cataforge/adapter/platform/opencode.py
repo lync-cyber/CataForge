@@ -9,6 +9,7 @@ from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.hooks_config import merge_json_key
 from cataforge.adapter.platform.mcp_config import merge_opencode_project_mcp
 from cataforge.utils.atomic_write import atomic_write_text
+from cataforge.utils.interpreter import interpreter_path
 
 if TYPE_CHECKING:
     from cataforge.runtime.deploy.manifest import DeployManifest as DeployManifest
@@ -184,7 +185,10 @@ def _render_opencode_plugin(active_events: dict[str, list[dict[str, Any]]]) -> s
         "  const failCode = isBlock ? 2 : 0;\n"
         "  return new Promise((resolve) => {\n"
         "    const child = spawn(\n"
-        "      'python',\n"
+        "      // Interpreter pinned at deploy time (sys.executable of the\n"
+        "      // deploying process) — the one Python guaranteed to import\n"
+        "      // cataforge; a bare 'python' lookup may not.\n"
+        f"      {_json.dumps(interpreter_path())},\n"
         "      ['-m', `cataforge.runtime.hook.scripts.${script}`],\n"
         "      {\n"
         "        stdio: ['pipe', 'inherit', 'inherit'],\n"

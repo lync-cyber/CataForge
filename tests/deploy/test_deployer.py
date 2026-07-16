@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import yaml
@@ -172,7 +173,11 @@ def test_opencode_deploy_uses_native_agent_directory(tmp_path: Path) -> None:
     assert "demo" in opencode_json["mcp"]
 
 
-_GUARD_CMD = "python -m cataforge.runtime.hook.scripts.guard_dangerous"
+_GUARD_CMD = (
+    f'"{Path(sys.executable).as_posix()}" -m cataforge.runtime.hook.scripts.guard_dangerous'
+)
+# Stale deployed spelling (bare ``python``) that a redeploy must replace.
+_GUARD_CMD_STALE = "python -m cataforge.runtime.hook.scripts.guard_dangerous"
 _BOOTSTRAP_CMD = "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
 
 
@@ -224,7 +229,7 @@ def test_deploy_preserves_foreign_settings_and_hook_entries(tmp_path: Path) -> N
                     "PreToolUse": [
                         {
                             "matcher": "StaleTool",
-                            "hooks": [{"type": "command", "command": _GUARD_CMD}],
+                            "hooks": [{"type": "command", "command": _GUARD_CMD_STALE}],
                         }
                     ],
                 },

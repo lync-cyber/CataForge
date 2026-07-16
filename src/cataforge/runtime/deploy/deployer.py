@@ -625,11 +625,7 @@ class Deployer:
             seed_settings_defaults,
         )
 
-        template = adapter.get_hook_command_template()
-        owned_prefixes = (template.split("{module}")[0], "python .cataforge/hooks/custom/")
-        existing["hooks"] = merge_hooks_config(
-            existing.get("hooks", {}), hooks_config, owned_prefixes
-        )
+        existing["hooks"] = merge_hooks_config(existing.get("hooks", {}), hooks_config)
         seed_settings_defaults(existing, adapter.settings_defaults)
         atomic_write_text(config_path, json.dumps(existing, indent=2, ensure_ascii=False) + "\n")
         if manifest is not None:

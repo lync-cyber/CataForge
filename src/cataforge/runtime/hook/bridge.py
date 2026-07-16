@@ -26,6 +26,7 @@ from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.core.paths import ProjectPaths
 from cataforge.runtime.hook.hooks_schema import HooksSpec
 from cataforge.utils.atomic_write import atomic_write_text
+from cataforge.utils.interpreter import interpreter_command
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,7 @@ def _resolve_command(template: str, script_name: str) -> str:
         custom_name = script_name.removeprefix("custom:")
         # Path is relative to the project root, which every supported IDE
         # uses as the hook process's cwd.
-        return f"python .cataforge/hooks/custom/{custom_name}.py"
+        return f"{interpreter_command()} .cataforge/hooks/custom/{custom_name}.py"
     return template.format(module=script_name)
 
 
