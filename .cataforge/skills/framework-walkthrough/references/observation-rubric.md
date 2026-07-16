@@ -13,7 +13,7 @@
 | 门禁触发 | C-4, C-7, B-4 | doc-review / code-review / sprint-review 是否如期触发、Layer 1↔2 短路判定是否正确；L1 疑似误报时 reviewer 是否留下双重核实证据、裁量是否被记录 | 该审却没审、该短路却全跑（反之亦然）、L1 误报被裁量放行却未留核实证据 |
 | 一致性门 | C-5b~C-5f | Phase Transition 的 validate / reconcile / doc-consistency / claude-md check 是否逐步执行、阻塞类门是否真阻塞 | hygiene 越界却 WARN 放行、doc-consistency 在 Phase 2+ 未触发、EVENT BATCH 出现半截状态 |
 | 降级行为 | B-8~B-11, E-9 | 缺能力 / 探针未装时降级是否显式、是否有日志 | 静默丢能力、未提示降级即继续、探针跳过被读作通过 |
-| 恢复路径 | E-1~E-7 | 触发的恢复协议是否按 ORCHESTRATOR-PROTOCOLS 行为：轮次上限、人工介入触发、回滚是否干净 | 超轮次仍自动重试、rolled-back 静默、truncation 未评估完成度就接管 |
+| 恢复路径 | E-1~E-7 | 触发的恢复协议是否按 ORCHESTRATOR-RECOVERY-PROTOCOLS 行为：轮次上限、人工介入触发、回滚是否干净 | 超轮次仍自动重试、rolled-back 静默、truncation 未评估完成度就接管 |
 | CLI / skill / hook | C-*, E-8 | `cataforge` 子命令、`skill run`、hook 是否报错或退出码异常 | 命令不存在、参数不符、Layer 1 返回 2/127 |
 | 文档加载 / KG | C-3, C-5c | `cataforge context read` 按 KG-active / legacy 分流是否正常；`graph` 模式下 authoring 落图 → `finalize` 导出 md → `reconcile` 归零的回环是否成立 | 实体级引用解析失败、drift 未被 reconcile 捕获、authoring 后 finalize 未重导出或 reconcile 残留 drift |
 | 可视化保底 | C-9 | Sprint 收口 dashboard 焊点是否真跑、产物是否落地、数据源不全时降级是否显式；agent 发现型 `cataforge viz` 调用若自然出现即记录 | 焊点静默缺席、数据缺失 tile 无 `run:` 指引被读作正常 |
@@ -61,7 +61,7 @@ deps: []
 1. **走查配置**：平台 / 执行模式 / 覆盖深度（smoke|full）/ 示例目标 / 框架版本。
 2. **阶段时间线**：逐阶段「做了什么 → 产物 → 观察点」一行一条。
 3. **路径覆盖账本**：[`runtime-flow-map.md`](runtime-flow-map.md) §2–§6 每条路径一行，字段按该文件 §7（path_id / disposition / result / evidence）。not-reached 必须写原因。这是覆盖面的自证——读者一眼看出哪条路径真跑了、哪条只是没触发。
-4. **framework findings**：按 §问题格式 列出，severity 降序。
+4. **framework findings**：按 `.cataforge/references/review-report-spec.md` §问题格式 列出，severity 降序。
 5. **process findings**：同上，聚焦本 skill 与走查方法；每条附 `resolution: applied|proposed|deferred`（语义与流转见 [`self-update-protocol.md`](self-update-protocol.md)，Step 7 自更新后回填）。
 6. **结论**：三态判定（COMMON-RULES §三态判定逻辑）+ 覆盖率（driven+probed / 全路径数）+ 成本复盘（子代理调度总数 / 文档产出量 / 人工代答点数）+ 最值得优先的改进项。
 

@@ -26,7 +26,10 @@
 | `PROJECT-STATE.md` | `.cataforge/PROJECT-STATE.md` | 项目状态模板（用户可编辑） |
 | `COMMON-RULES.md` | `.cataforge/rules/COMMON-RULES.md` | 通用行为规则 |
 | `SUB-AGENT-PROTOCOLS.md` | `.cataforge/rules/SUB-AGENT-PROTOCOLS.md` | 子代理执行协议 |
-| `ORCHESTRATOR-PROTOCOLS.md` | `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md` | 编排器核心协议 |
+| `ORCHESTRATOR-PROTOCOLS.md` | `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md` | 编排器热路径调度协议 |
+| `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md` | `.cataforge/agents/orchestrator/ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md` | 编排器项目初始化协议（冷路径） |
+| `ORCHESTRATOR-RECOVERY-PROTOCOLS.md` | `.cataforge/agents/orchestrator/ORCHESTRATOR-RECOVERY-PROTOCOLS.md` | 编排器异常恢复协议族（冷路径） |
+| `ORCHESTRATOR-META-PROTOCOLS.md` | `.cataforge/agents/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md` | 编排器元运维与学习协议（冷路径） |
 | `hooks.yaml` | `.cataforge/hooks/hooks.yaml` | 平台无关 hook 规范 |
 | `profile.yaml` | `.cataforge/platforms/<id>/profile.yaml` | 各平台能力映射 |
 | `AGENT.md` | `.cataforge/agents/<id>/AGENT.md` | Agent 定义（frontmatter + Markdown） |

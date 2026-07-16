@@ -13,7 +13,7 @@
 
 - arch external_oracles 非空时，Sprint 1 必须含一张 `walking_skeleton: true` 任务卡：渲染最小产物 → 经真实通道送入外部系统 → 比对消费后状态
 - 该卡是后续规模化 Sprint 任务的 blocking dependency——先退火外部假设，再放量开发
-- 其 AC 真值锚定**最终消费边界**（消费后状态），浏览器渲染正确只是中间层（COMMON-RULES §保真类 AC）
+- 其 AC 真值锚定**最终消费边界**（消费后状态），浏览器渲染正确只是中间层（[`fidelity-ac.md`](fidelity-ac.md)）
 - 外部系统开发期不可达 → 按 COMMON-RULES §verdict_blocking_semantics 走 `conditional_release` + 非空 `blocking_conditions`，不默认放行
 - doc-review dev-plan Layer 1 机检：external_oracles 非空而 dev-plan 无 `walking_skeleton: true` 卡 → FAIL
 - 可选检查点 `post_skeleton`（COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS 可选值）：tracer 验证通过后由用户确认再进入规模化

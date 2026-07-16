@@ -1,7 +1,10 @@
 # 分析：COMMON-RULES / ORCHESTRATOR-PROTOCOLS 精简与调度协议载体演进
 
-> 状态：分析完成，待评审。同 PR 仅落地既有超长行治理（纯格式、语义零变化）；
-> §2–§3 的精简项与 §4 的载体演进均**未实施**，按 §5 实施序独立落地。
+> 状态：P1+P2 已实施（冷热拆分 + 受众分层外迁，落地时对 S1 做了一处细化：
+> 归因分类 / 三态判定逻辑 / verdict_blocking_semantics 属跨 Agent verdict 契约，
+> **留在 COMMON-RULES**，仅报告撰写规约（编号 / Front Matter / 问题格式）外迁——
+> 原表按 85 行整节估算的节约相应缩小）；P3–P4 未实施，按 §5 实施序独立落地。
+> 超长行治理已随前一 PR 落地（纯格式、语义零变化）。
 > 范围：`.cataforge/rules/COMMON-RULES.md`（319 行 ≈6.4k tokens）与
 > `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`（432 行 ≈8.1k tokens）。
 > 方法：两文件全文直读 + 按 H2 节统计行数/token/消费方；载体对比建立在
@@ -62,7 +65,7 @@ verdict_blocking_semantics、文档引用格式、IO 契约）原地不动。
 
 | # | 项 | 动作 | 节约 | 风险与对策 |
 | --- | ---- | ------ | ------ | ----------- |
-| O1 | Project Bootstrap（39 行） | 拆 `ORCHESTRATOR-BOOTSTRAP.md`，热文件留触发行（「{INSTRUCTION_FILE} 缺失 → Read 该文件执行」）；复用 META-PROTOCOLS 拆分先例 | ≈1.1k tok/常规调度 | AGENT.md 资产清单与 framework-update 委托入口同步改；doctor protocol_refs 兜底 |
+| O1 | Project Bootstrap（39 行） | 拆 `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md`，热文件留触发行（「{INSTRUCTION_FILE} 缺失 → Read 该文件执行」）；复用 META-PROTOCOLS 拆分先例 | ≈1.1k tok/常规调度 | AGENT.md 资产清单与 framework-update 委托入口同步改；doctor protocol_refs 兜底 |
 | O2 | 4 个恢复协议（44 行） | 拆 `ORCHESTRATOR-RECOVERY-PROTOCOLS.md`，热文件留 4 行触发索引表（状态码 → 协议名 → 文件） | ≈0.8k tok/常规调度 | 触发索引必须留在热文件，否则异常时想不起去加载；索引漂移由 links 守卫兜底 |
 | O3 | Revision Protocol Step 4 复述增量审查语义后自陈「完整语义以 code-review SKILL 为准」 | 砍复述，留指针 + 一句触发口径 | ≈0.2k tok | 该段自己声明了权威在别处，属自认的重复 |
 

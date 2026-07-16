@@ -8,7 +8,7 @@ and ``cataforge doctor`` FAILs with the orphan count.
 This migration scans the canonical paths, infers ``id`` / ``doc_type`` /
 ``deps`` from filenames, and prepends a minimal front matter block. Idempotent
 — files that already start with ``---`` are skipped untouched. The schema
-matches COMMON-RULES §报告 Front Matter 约定:
+matches `.cataforge/references/review-report-spec.md` §报告 Front Matter 约定:
 
     docs/reviews/doc/REVIEW-{doc_id}-r{N}.md         doc_type: review
     docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md  doc_type: code-review

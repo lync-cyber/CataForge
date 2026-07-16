@@ -24,7 +24,7 @@ user-invocable: true
 - 可选: {INSTRUCTION_FILE}（存在即触发分支 B）+ `.cataforge/framework.json`（版本检查依据）
 
 ## 输出规范
-- 新项目: 触发 ORCHESTRATOR-PROTOCOLS §Project Bootstrap，产出 {INSTRUCTION_FILE} 初版并进入初始阶段
+- 新项目: 触发 ORCHESTRATOR-BOOTSTRAP-PROTOCOLS §Project Bootstrap，产出 {INSTRUCTION_FILE} 初版并进入初始阶段
 - 恢复推进: 不产出新文档，仅更新 {INSTRUCTION_FILE} §项目状态 块并继续推进当前阶段
 - 本 skill 自身不写入 docs/ 任何子目录（实际文档产出由后续阶段 agent 完成）
 
@@ -42,7 +42,7 @@ user-invocable: true
 
 ### 分支 A: 新项目启动
 1. 读取 {AGENTS_SRC_DIR}/orchestrator/AGENT.md 的角色定义
-2. 执行 `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-PROTOCOLS.md` §Project Bootstrap
+2. 执行 `{AGENTS_SRC_DIR}/orchestrator/ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md` §Project Bootstrap
 3. 进入初始阶段（由执行模式决定，见 Bootstrap 末步「进入初始阶段」）
 
 ### 分支 B: 继续已有项目

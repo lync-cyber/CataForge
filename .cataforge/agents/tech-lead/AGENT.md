@@ -36,7 +36,7 @@ maxTurns: 120
   - 预估 LOC > `TDD_LIGHT_LOC_THRESHOLD`
   - `security_sensitive: true`（涉及鉴权 / 加密 / 输入校验 / 数据脱敏）
   - 跨 ≥2 个 arch 模块（context_load 引用 ≥2 个 `arch#§2.M-xxx`）
-- **tdd_refactor 判定**: 缺省 `auto`（GREEN 后 code-review Layer 1 命中 `TDD_REFACTOR_TRIGGER` 才触发）；跨模块抽象/引入新设计模式的任务可标 `required`；纯 bug 修复或单点改动可标 `skip`
+- **tdd_refactor 判定**: 缺省 `auto`（GREEN 后 implementer self-report `refactor_reasons` 命中 `TDD_REFACTOR_TRIGGER` 才触发，sprint-review 的 code-review scan 作审计兜底）；跨模块抽象/引入新设计模式的任务可标 `required`；纯 bug 修复或单点改动可标 `skip`
 - **expected_tool_budget 软门禁**（仅 standard 模式，可选）: 任务卡可选标 `expected_tool_budget: ~N`（典型 80-120），表子代理调度预估 tool 数。决策矩阵反向校验 tdd_mode：
 
   | LOC | AC | Modules | tdd_mode 推荐 |

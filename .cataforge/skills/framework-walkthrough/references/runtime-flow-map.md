@@ -2,7 +2,7 @@
 
 本文件是 framework-walkthrough 走查覆盖面的单一事实源：枚举框架运行流程的全部已知路径，按五类组织（初始化 / 核心执行链路 / 分支 / 异常 / 终止清理）。走查须逐路径处置，并在报告的「路径覆盖账本」里给出每条路径的归属，确保「没跑到」不被读作「没问题」。
 
-路径定义的权威协议是 `ORCHESTRATOR-PROTOCOLS.md` 与 `framework.json#/workflow`；本表是**走查视角的只读投影**——只标「这条路径在走查里怎么处置、看什么」，不复制协议正文。协议变更时以协议为准、回头校准本表。
+路径定义的权威协议是 `ORCHESTRATOR-PROTOCOLS.md`（Bootstrap 路径见 `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md`、恢复路径见 `ORCHESTRATOR-RECOVERY-PROTOCOLS.md`）与 `framework.json#/workflow`；本表是**走查视角的只读投影**——只标「这条路径在走查里怎么处置、看什么」，不复制协议正文。协议变更时以协议为准、回头校准本表。
 
 ## 目录
 
@@ -30,7 +30,7 @@
 
 ## 2. 初始化路径（Bootstrap）
 
-入口：`ORCHESTRATOR-PROTOCOLS §Project Bootstrap`（{INSTRUCTION_FILE} 缺失时）。走查在沙盒 cwd 内主线程扮演 orchestrator 逐步推进。
+入口：`ORCHESTRATOR-BOOTSTRAP-PROTOCOLS §Project Bootstrap`（{INSTRUCTION_FILE} 缺失时）。走查在沙盒 cwd 内主线程扮演 orchestrator 逐步推进。
 
 | id | 路径 / 步骤 | 期望行为 | 处置 | 观察重点 |
 |----|------------|---------|------|---------|
@@ -54,7 +54,7 @@
 | C-2 | execution_host 分派 | `inline` 阶段主线程承载（交互角色）；`subagent` 阶段派隔离子代理 | D | interactive=true 的阶段是否走 inline、子代理是否真被派发而非空转 |
 | C-3 | 文档产出 + 定稿 | 角色经 context authoring 产文档、`context finalize` 落 status=draft | D | 产物路径/命名/front matter 合规、是否注册索引 |
 | C-4 | doc-review 门禁 | Layer 1 强制；按 `DOC_REVIEW_L2_SKIP_*` 判断 Layer 2 短路 | D | 该审却没审 / 该短路却全跑；Layer 1 退出码 |
-| C-5 | Phase Transition | 8 步状态持久化 + 一致性门（见 §3.1） | D | 8 步是否全做、顺序是否在派发下一阶段前完成 |
+| C-5 | Phase Transition | 10 步状态持久化 + 一致性门（见 §3.1） | D | 10 步是否全做、顺序是否在派发下一阶段前完成 |
 | C-6 | TDD development | 按 tdd-engine 档位执行 RED/GREEN/REFACTOR（standard）或 light 合并或 prototype-inline | D | 档位选择是否符合 `TDD_*` 常量、子代理隔离是否成立 |
 | C-7 | code-review 门禁 | 带触发 flag（security_sensitive / user_facing_critical_path / consumer_components 非空）的任务 GREEN 后即时 per-task code-review；其余延迟到 sprint-review 批量（B-15）。示例 T-001 钉 consumer_components 保证本路径结构性可达 | D | 即时审查任务恒命中 L2 短路豁免（豁免清单与即时触发条件重合）——「该短路」态在标准编排是否可达本身是观察议题，勿徒劳找两态；延迟任务是否被误即时审查 |
 | C-8 | phase status 硬校验 | 每跨完一阶段跑 `cataforge phase status`，退出非 0 即该阶段 blocked | D | 委派子代理「只部署不驱动」会在此暴露 |
@@ -108,7 +108,7 @@
 | E-4 | TDD Blocked Recovery | TDD 子代理 blocked + questions | AskUserQuestion → continuation；每阶段 1 轮上限 | O | 第 2 次 blocked 是否请人工 |
 | E-5 | Agent Crash Recovery | 子代理无 `<agent-result>` 且兜底无法推断 | git status 查部分产出 → 继续/重试/跳过；每阶段 1 次上限 | O | 崩溃是否记 CORRECTIONS-LOG |
 | E-6 | Sub-Agent Truncation Recovery | 截断征兆 + 有未提交 artifact | ≥70% 主线程接管收尾；<70% blocked；每任务 1 次 | O | 完成度评估是否跑测试/lint、接管 vs blocked 判定 |
-| E-7 | cascade_amendment 中断 | cascade 中某文档 needs_revision ≥3 | 暂停下游，上游保 draft，给继续/回滚选项 | O | 是否误标 approved、回滚是否干净 |
+| E-7 | cascade_amendment 中断 | cascade 中某文档 needs_revision ≥2 | 暂停下游，上游保 draft，给继续/回滚选项 | O | 是否误标 approved、回滚是否干净 |
 | E-8 | phase status → blocked | `cataforge phase status` 退出非 0 | 该阶段判 blocked，记 framework/blocked finding 并停推进 | D | 硬门槛是否真阻塞（区分「已部署」与「真被驱动」） |
 | E-9 | Layer 1 FAIL | 审查 Layer 1 返回 2/127 / no executable | 判 FAIL，先 `cataforge doctor`；运行时异常/超时降级进 Layer 2 | O | 四态返回是否被正确区分 |
 | E-10 | 单轮预算保护（走查自身） | 某路径反复 needs_revision/blocked 超两轮 | 停止驱动，把卡点记 framework/blocked finding 转出报告 | D | 走查不死磕示例完成度，价值在暴露了什么 |

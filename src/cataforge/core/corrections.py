@@ -43,7 +43,7 @@ _HEADER = (
     "---\n"
     "# Corrections Log\n\n"
     "> 由 CataForge 自动追加。On-Correction Learning Protocol 触发条件见\n"
-    "> `.cataforge/agents/orchestrator/ORCHESTRATOR-PROTOCOLS.md`。\n"
+    "> `.cataforge/agents/orchestrator/ORCHESTRATOR-META-PROTOCOLS.md`。\n"
 )
 
 

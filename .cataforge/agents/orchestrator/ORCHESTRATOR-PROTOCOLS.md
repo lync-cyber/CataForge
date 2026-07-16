@@ -1,65 +1,14 @@
 # Orchestrator Protocols
 
-> 阶段调度热路径协议——协议清单以下方各 H2 节为准。
+> 阶段调度热路径协议——协议清单以下方各 H2 节为准。冷路径协议按需加载：
 >
-> 元运维与学习协议（低频触发、reference 性质）见 [`ORCHESTRATOR-META-PROTOCOLS.md`](ORCHESTRATOR-META-PROTOCOLS.md)：
-> Framework Upgrade, Event Log 规范, On-Correction Learning, Adaptive Review (含反向降级),
-> Retrospective & Improvement.
-
-## Project Bootstrap
-> 本协议是 from-scratch 项目 SDLC 初始化路径。框架包/脚手架的部署与**升级**不在此处——由 `framework-update apply` 的脊柱
-> `cataforge bootstrap` / `cataforge upgrade apply` 幂等负责；本协议由 `framework-update apply` 在
-> `{INSTRUCTION_FILE}` 缺失时委托进入，已存在时不重跑（走 Startup/Resume）。经 `framework-update apply`
-> 进入时目标平台已由该脊柱确定，Step 7 直接取 framework.json `deployment.default_platform`，不重复选型/部署。
-
-当项目从零开始 ({INSTRUCTION_FILE} 不存在) 时:
-1. **收集项目基本信息** — 向用户确认: 项目名称、技术栈、命名规范、Commit格式、分支策略、人工审查检查点偏好（默认值见 COMMON-RULES §框架配置常量
-   MANUAL_REVIEW_CHECKPOINTS）
-2. **选择执行模式** — 通过 AskUserQuestion 单独提问，选项:
-    - `standard`（默认/推荐）— 中大型正式交付项目
-    - `agile-lite` — 轻量工具或小型 Web 项目
-    - `agile-prototype` — 原型 / PoC / 单文件脚本
-    完整差异矩阵见 COMMON-RULES §执行模式矩阵。选择结果写入 {INSTRUCTION_FILE} §项目信息.执行模式
-3. **创建目录结构**: 根据执行模式:
-    - `standard` / `agile-lite`: `mkdir -p docs/{prd,arch,dev-plan,ui-spec,test-report,deploy-spec,research,changelog,reviews/{doc,code,sprint,retro}}`
-    - `agile-prototype`: `mkdir -p docs/{brief,research,reviews/{doc,code}}`
-    - 存量项目带历史文档时，向用户确认归档方案：移入根级 `archive/`（docs 索引不扫描），或保留在 `docs/` 内并写
-      `docs/.docignore`（一行一个 glob，`dir/` 匹配整个子树）——否则 `cataforge context validate` / doctor
-      会对缺 front matter 的历史文件报 orphan FAIL
-4. **git 基线与行尾归一化门** — 非 git 仓时先 `git init` 并落初始 commit（写入边界自检 / 崩溃恢复 / 回滚 / 增量审查协议均依赖 git
-   基线）；`.gitattributes` 治理由 `cataforge setup` / `cataforge bootstrap` 自动执行，必要时可手动运行
-   `cataforge setup gitattributes`。`cataforge doctor` 负责静态复核。
-5. **创建 {INSTRUCTION_FILE}** — 按下方 Update Template 生成，所有文档状态设为"未开始"，§项目信息.执行模式填入步骤 2 选定值；当前阶段按模式设置:
-    - `standard` → `requirements`
-    - `agile-lite` → `planning`（Phase 1+2 合并）
-    - `agile-prototype` → `brief`（Phase 1~4 合并）
-6. **框架版本无需手填** — 步骤 7 的 deploy 自动将已安装 cataforge 包版本盖入 {INSTRUCTION_FILE} `框架版本` 字段（无包元数据时由
-   deploy 标注"未追踪"）
-7. **选择目标平台** — 通过 AskUserQuestion 单独提问，选项:
-    - `claude-code`（默认）— Anthropic Claude Code CLI / Desktop / Web
-    - `cursor` — Cursor IDE
-    - `codex` — OpenAI Codex CLI
-    - `opencode` — OpenCode CLI
-    确认后执行: `cataforge setup --platform {选定值} --deploy`，该命令写入 `framework.json` 的
-    `deployment.default_platform`（并入 `deployment.targets`），`--deploy` 链式生成对应平台的部署产物（不带该 flag
-    则需再运行 `cataforge deploy`）。若用户跳过选择则默认 `claude-code`。随后运行 `cataforge config validate`
-    校验配置（旧布局提示时运行 `cataforge config migrate` 迁移；单值查证用 `cataforge config explain <path>`）。
-8. **填入 §执行环境 + 最小 permissions** — 按顺序运行两条命令:
-   - `cataforge setup env-block`：将输出注入 {INSTRUCTION_FILE} §执行环境 节以替换占位符。退出码 2 表示未检测到已知技术栈，
-     此时将该节内容置为 `- 无自动检测到的标准包管理器（请根据实际技术栈手动填写）`。
-   - `cataforge setup permissions`：根据技术栈最小化平台配置中的 `permissions.allow`（Claude:
-     `.claude/settings.json`，Cursor: `.cursor/hooks.json` + 权限策略），裁掉未使用的 Bash 白名单条目。
-   本步骤的目的是让包管理器/安装命令/测试命令以项目指令形式固化到 {INSTRUCTION_FILE}，并收紧运行时权限以符合最小权限原则。
-9. **初始化文档索引与知识图谱** —
-   - `cataforge context ensure-store`（幂等，按 context.mode 水合图谱 store：graph 从最新 NQuads 快照恢复、
-     markdown 跳过；store 已存在则原样保留）
-   - `cataforge context index`（生成空的 `docs/.doc-index.json` 文档索引缓存，首个文档落盘后由生成定稿增量刷新）
-   - 可选向用户提示 `cataforge viz framework` 渲染编排图，帮助快速建立流程心智模型
-10. **进入初始阶段** — 按 `framework.json#/workflow` 的 `execution_host` 分派（同 §Phase Transition
-    Protocol Step 10）进入 product-manager 角色:
-    - `standard` → Phase 1 requirements
-    - `agile-lite` → planning 阶段（按 §Mode Routing Protocol 产出 prd-lite 后链式进入 architect 产出 arch-lite）
-    - `agile-prototype` → brief 阶段（产出单一 brief.md）
+> - 元运维与学习协议（低频触发、reference 性质）见
+>   [`ORCHESTRATOR-META-PROTOCOLS.md`](ORCHESTRATOR-META-PROTOCOLS.md)：Framework Upgrade,
+>   Event Log 规范, On-Correction Learning, Adaptive Review (含反向降级), Retrospective & Improvement.
+> - 项目初始化（{INSTRUCTION_FILE} 缺失时执行一次）见
+>   [`ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md`](ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md) §Project Bootstrap.
+> - 异常恢复协议族（触发征兆见下方 §Recovery Protocols 触发索引）见
+>   [`ORCHESTRATOR-RECOVERY-PROTOCOLS.md`](ORCHESTRATOR-RECOVERY-PROTOCOLS.md).
 
 ## Mode Routing Protocol
 orchestrator 每次需要决定"下一阶段由哪个 Agent 执行、产出哪份文档"时，先读取 {INSTRUCTION_FILE} §项目信息.执行模式（字段缺失或占位符未填 →
@@ -137,10 +86,9 @@ needs_input 回传由本协议代问。
 2. 确认 docs/reviews/doc/ 下存在对应 REVIEW 报告（取编号最大的 `-r{N}` 文件）
 3. 通过 agent-dispatch 调度原Agent (task_type=revision)，传递REVIEW报告路径
 4. 修复完成后先按 §Phase Transition Protocol Step 6 执行 reconcile 收口（漂移按 Step 6 选项处置），再重新激活 reviewer
-   执行门禁。reviewer 采用**增量审查模式**：仅审查 `git diff` 产出的变更部分（与上次审查的 commit baseline 比较），上轮报告中无
-   CRITICAL/HIGH 的维度标注 `[previously-approved]` 不重复审查，仅审查上轮 CRITICAL/HIGH 涉及的维度 + diff
-   新增代码的全维度；上轮未闭环 MEDIUM/LOW 逐条标注 still-open / resolved（完整增量语义以 code-review SKILL §增量审查模式与
-   context review.md §报告 为准）。report 中每个 `[previously-approved]` 维度附注上轮 report 编号供追溯
+   执行门禁。reviewer 采用**增量审查模式**——与上轮 baseline 比较只审变更，上轮 CRITICAL/HIGH 涉及维度与
+   新增内容按全维度审查；完整增量语义以 code-review SKILL §增量审查模式（代码）与
+   context review.md §报告（文档）为准
 5. 更新返工计数: needs_revision(N)。N≥2 时请求人工介入，避免低效 revision 循环
 
 > 子代理收到 `task_type=revision` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=revision 修订流程`。
@@ -336,23 +284,16 @@ needs_input 回传由本协议代问。
 
 **不命中时**: 直接按现有逻辑自动推进，无额外交互。
 
-## Rolled-back Recovery Protocol
-当 TDD REFACTOR 子代理返回 `rolled-back` 状态时:
-1. **[EVENT]** 记录异常事件:
-   ```bash
-   cataforge event log --event incident --phase development --status rolled-back --detail "REFACTOR rolled-back，使用 GREEN 产出"
-   ```
-2. 使用 GREEN 阶段产出（impl_files）作为最终产出，跳过重构结果
-3. 在 code-review 时标记 MEDIUM 级别问题: "REFACTOR rolled-back，代码质量待后续优化"
-4. 不自动重试 REFACTOR，不阻塞后续任务
-5. 记录到 dev-plan 对应任务的备注中
+## Recovery Protocols 触发索引
+命中下列征兆时，Read [`ORCHESTRATOR-RECOVERY-PROTOCOLS.md`](ORCHESTRATOR-RECOVERY-PROTOCOLS.md)
+按对应协议处置：
 
-## TDD Blocked Recovery Protocol
-当 TDD 子代理返回 blocked 且含 `<questions>` 字段时:
-1. 提取 questions 列表
-2. 使用 AskUserQuestion 向用户展示（见 COMMON-RULES §MAX_QUESTIONS_PER_BATCH，选择题优先）
-3. 以 continuation 模式重启同一子代理，传入答案
-4. 每阶段最多 1 轮 Blocked Recovery，第 2 次 blocked 请求人工介入
+| 触发征兆 | 协议 |
+|---------|------|
+| TDD REFACTOR 子代理返回 `rolled-back` | §Rolled-back Recovery Protocol |
+| TDD 子代理返回 blocked 且含 `<questions>` | §TDD Blocked Recovery Protocol |
+| 子代理返回无 `<agent-result>` 且兜底无法推断状态（process 死） | §Agent Crash Recovery Protocol |
+| truncation 征兆（100+ tools / 100K+ tokens / 5min+ / 无 `<agent-result>`）但已有未提交 artifact | §Sub-Agent Truncation Recovery Protocol |
 
 ## Parallel Task Dispatch Protocol
 当 Phase 5 development 阶段一次推进多个任务时，orchestrator 优先按依赖图并行调度，墙钟时间从 N 倍单任务降到约 1 倍最长依赖链。
@@ -456,38 +397,6 @@ Amendment 与 Revision 的区别: Revision由reviewer发起（修复问题），
 但执行机制复用agent-dispatch和reviewer审核流程。
 
 > 子代理收到 `task_type=amendment` 后的修订步骤见 `{RULES_DIR}/SUB-AGENT-PROTOCOLS.md §task_type=amendment 变更修订流程`。
-
-## Agent Crash Recovery Protocol
-当子代理返回结果不含 `<agent-result>` 标签且 agent-dispatch 的标签缺失兜底也无法推断状态时（即真正的崩溃/截断场景）:
-1. 通过 `git status docs/ src/` 检查是否有本次调度后的新增或修改文件
-2. 向用户展示崩溃信息和部分产出情况，提供选项:
-   - "从部分产出继续": 以 continuation 模式重新调度同一Agent，传入已有产出路径
-   - "从头重试": 以 new_creation 模式重新调度同一Agent（先 `git checkout -- docs/{相关目录}` 清理部分产出）
-   - "跳过此阶段": 仅在非关键路径阶段可用，标记阶段为 blocked 并请求人工后续处理
-3. 每Agent每阶段最多 1 次 Crash Recovery，第 2 次崩溃请求人工介入
-4. 崩溃事件记录到 docs/reviews/CORRECTIONS-LOG.md 供 reflector 分析
-
-> **与 §Sub-Agent Truncation Recovery 的区分**：本协议针对 process 死（无任何输出 / agent-dispatch 端兜底无法推断状态）。
-> task-notification truncation 是另一回事 —— 子代理走完全程但 token budget 耗尽，artifact 已部分落地，仅
-> `<agent-result>` JSON 没回。后者由下一节专门处理。
-
-## Sub-Agent Truncation Recovery Protocol
-
-当子代理被 task-notification truncation 打断（征兆：100+ tools / 100K+ tokens / 5min+ / `<agent-result>`
-缺失，但 `git status` 显示已有未提交 artifact），主线程**接管收尾**而非 blocked：
-
-1. **评估完成度**（按任务类型选 1-2 项）：代码任务跑 `{test_command}` 看 PASS 率 + `biome lint` / `ruff check` /
-   `tsc --noEmit` 看类型/lint 错数；文档任务核对 deliverables 齐全 + frontmatter 完整
-2. **决策**：
-   - **≥ 70% AC PASS（或 deliverables 齐全）** → 主线程接管：inline-fix 残留 lint/typecheck 错 + 补落盘缺漏 + 补
-     `<agent-result>` 等价信息到 EVENT-LOG（`event=state_change`，`detail="truncation recovery: main-thread takeover"`）
-   - **< 70%** → blocked，请求人工介入（不允许从零接管，成本不可控）
-   - **无任何 artifact** → 走 §Agent Crash Recovery（process 死，本协议不适用）
-3. **每任务最多 1 次**；第 2 次截断说明 prompt 设计有问题，blocked + 标 backlog 给下次 retrospective
-4. 事件记录：`event=state_change` + `agent={truncated_agent_id}` +
-   `detail="truncation recovery: <70%|≥70%>"`，供 reflector 检测频次（≥5 次/月触发 SKILL-IMPROVE）
-
-**与 tdd-engine §Mid-Progress Drop Contract 的关系**：mid-progress 是**预防**（边推进边落盘）；本协议是**事后兜底**。
 
 ## needs_revision 计数规范
 `needs_revision(N)` 中的 N 为本阶段累计返工次数，格式为 `needs_revision(2)` 而非独立字段。

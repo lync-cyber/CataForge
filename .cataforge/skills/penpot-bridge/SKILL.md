@@ -74,7 +74,7 @@ ui-spec §1 Token 与 Penpot / tokens.css 对齐。tokens.css 是 ui-spec §1 �
 2. 从组件代码提取实际样式值，识别 tokens.css 变量引用
 3. 逐属性比对：完全匹配 / Token 间接匹配 → PASS；值不匹配 → DIFF（记设计值 vs 代码值 vs 偏差）；设计有代码缺 → MISSING；代码有设计无 → EXTRA（仅记录）；<1px 偏差标 WARN 非 DIFF
 4. 经 `export_shape` 导出设计图像与已实现组件渲染对照，捕获逐属性比对漏掉的整体视觉偏差（布局错位 / 视觉层次失真），归入 DIFF / WARN；仅静态视觉，忽略交互/动画
-5. 产出 DESIGN-REVIEW 报告（front matter 见 COMMON-RULES §报告 Front Matter 约定）
+5. 产出 DESIGN-REVIEW 报告（front matter 见 `.cataforge/references/review-report-spec.md`）
 
 ## Anti-Patterns
 - 禁止: 用 Penpot 覆盖 ui-spec 的语义契约 —— 组件身份/Props/状态枚举/AC 绑定恒以 ui-spec 为权威源，仅视觉实值随 authoring surface；否则语义漂移绕过 reviewer 校对

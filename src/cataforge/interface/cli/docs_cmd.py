@@ -179,7 +179,8 @@ def docs_migrate_reviews(project_root: str | None, dry_run: bool) -> None:
     (``docs/research/*.md``) were written without YAML front matter, so
     ``cataforge docs index`` skipped them as orphans and ``cataforge doctor``
     counted them toward its FAIL gate. This migration prepends a minimal
-    front matter block conformant with COMMON-RULES §报告 Front Matter 约定.
+    front matter block conformant with `.cataforge/references/review-report-spec.md`
+    §报告 Front Matter 约定.
 
     Idempotent — files that already start with ``---`` are left untouched.
     """

@@ -48,6 +48,7 @@ SCAN_GLOBS: list[tuple[Path, str]] = [
     (REPO_ROOT / ".cataforge" / "agents", "**/*PROTOCOLS*.md"),
     (REPO_ROOT / ".cataforge" / "skills", "**/*.md"),
     (REPO_ROOT / ".cataforge" / "rules", "**/*.md"),
+    (REPO_ROOT / ".cataforge" / "references", "**/*.md"),
 ]
 
 GROUPS = ("context", "docs", "kg", "setup", "viz")

@@ -38,9 +38,9 @@ COMMON-RULES 默认加载到 Agent 上下文，引用时无需附加文件路径
 | DOC_REVIEW_L2_SKIP_DOC_TYPES | [brief, changelog] | 可短路 Layer 2 的 doc_type 白名单（匹配 frontmatter 基名）；lite 变体短路机制见 context `references/review.md` | doc-review |
 | TDD_LIGHT_LOC_THRESHOLD | 150 | tech-lead 判定 `tdd_mode: standard` 的预估 LOC 上限阈值（LOC ≤ 阈值 → light；> 阈值 → standard） | tech-lead, tdd-engine |
 | TASK_SPLIT_LOC | 250 | task-decomp 拆分阈值：单任务预估 LOC > 此值（或 AC > 6）则在拆分阶段先拆，保任务粒度单一 | task-decomp |
-| MID_PROGRESS_LOC | 200 | tdd-engine mid-progress 增量落盘触发阈值：预估 LOC > 此值（或 AC > 6）时强制 skeleton-first 分批落盘防 truncation；与 `TASK_SPLIT_LOC` 职责不重叠（`MID_PROGRESS_LOC`–`TASK_SPLIT_LOC` 区间由本机制处理，非拆分） | tdd-engine |
+| MID_PROGRESS_LOC | 200 | tdd-engine 增量落盘触发阈值（LOC > 此值或 AC > 6；`MID_PROGRESS_LOC`–`TASK_SPLIT_LOC` 区间由落盘机制处理、不拆分，机制见 tdd-engine §Mid-Progress Drop Contract） | tdd-engine |
 | TDD_DEFAULT_MODE | light | 任务卡 `tdd_mode` 缺省值。LOC > 阈值或带 `security_sensitive: true` / 跨模块时 tech-lead 显式标 standard | tech-lead, tdd-engine |
-| TDD_REFACTOR_TRIGGER | [complexity, duplication, coupling] | standard 模式下 REFACTOR 阶段的条件触发清单（GREEN 后 implementer self-report 的 `refactor_reasons` 命中任一 category 才调度 refactorer；任务卡显式 `tdd_refactor: required` 也强制触发） | tdd-engine |
+| TDD_REFACTOR_TRIGGER | [complexity, duplication, coupling] | standard 模式 REFACTOR 条件触发的 category 清单（implementer 自检命中任一类别报 refactor_needed，调度流程见 tdd-engine §Step 4） | tdd-engine |
 | TDD_INLINE_ELIGIBLE_MODES | [agile-lite, agile-prototype] | TDD inline 执行（无 RED/GREEN 子代理 dispatch）的执行模式集；standard 走 dispatch 保留子代理审计隔离 | tdd-engine |
 | SPRINT_REVIEW_MICRO_TASK_COUNT | 3 | Sprint 任务数 ≤ 此值且全部 approved 时跳过 sprint-review | orchestrator |
 | CODE_REVIEW_L2_SKIP_TASK_KINDS | [chore, config, docs] | 任务卡 `task_kind` 命中且 Layer 1 通过时短路 code-review Layer 2 | code-review |
@@ -55,12 +55,12 @@ COMMON-RULES 默认加载到 Agent 上下文，引用时无需附加文件路径
 | AGENT_MODEL_DEFAULTS | framework.json#constants 内 per-agent 映射 | 各 agent 缺省 model tier（heavy 集合见 AGENT_MODEL_TIER_HEAVY_WHITELIST） | framework-review |
 | AGENT_MODEL_TIER_HEAVY_WHITELIST | [architect, debugger] | 允许 heavy tier 的 agent 白名单 | framework-review |
 | SKILL_RUNNER_TIMEOUT_DEFAULT_SECS | 300 | skill runner 单次执行缺省超时秒数 | skill runner |
-| UNATTENDED_LOOP_MAX_ITERATIONS | 30 | 单次无人值守外循环对单 sprint 的迭代硬上限（runaway backstop） | unattended-building-loop |
-| UNATTENDED_STAGNATION_THRESHOLD | 3 | 连续 N 轮无进展（git HEAD 未变 且 无前进事件；纯记账/churn 事件不计）→ 循环级熔断 | unattended-building-loop |
-| UNATTENDED_CARD_REVISION_CEILING | 3 | headless 下同一任务卡累计 `needs_revision` 达 N 次 → 标 `blocked` 跳过；覆写标准模式「N≥2 请求人工」语义（headless 无人应答） | orchestrator, unattended-building-loop |
-| UNATTENDED_LOOP_ITER_TIMEOUT_SEC | 10800 | 单会话总时长宽松背板（防病态死循环；健康长任务由流静默判据监督，不受此值主导） | unattended-building-loop |
-| UNATTENDED_SILENCE_TIMEOUT_SEC | 900 | 单会话流输出静默超过 N 秒判定疑似挂死并击杀（每个 stream-json 事件行即心跳；阈值须容纳全量门禁的合法长静默） | unattended-building-loop |
-| UNATTENDED_RATELIMIT_WAIT_SEC | 300 | 命中限流后单次 auto-wait 秒数（不计入迭代/熔断预算；超时击杀不冷却、立即重拉） | unattended-building-loop |
+| UNATTENDED_LOOP_MAX_ITERATIONS | 30 | 单次无人值守外循环对单 sprint 的迭代硬上限 | unattended-building-loop |
+| UNATTENDED_STAGNATION_THRESHOLD | 3 | 连续 N 轮无进展 → 循环级熔断（进展判据由 unattended 外壳实现） | unattended-building-loop |
+| UNATTENDED_CARD_REVISION_CEILING | 3 | headless 下同一任务卡 `needs_revision` 熔断上限（语义见 `.cataforge/references/unattended-overrides.md`） | orchestrator, unattended-building-loop |
+| UNATTENDED_LOOP_ITER_TIMEOUT_SEC | 10800 | 单会话总时长宽松背板（防病态死循环） | unattended-building-loop |
+| UNATTENDED_SILENCE_TIMEOUT_SEC | 900 | 流输出静默超 N 秒判定挂死并击杀（取值须容纳全量门禁的合法长静默；心跳判据由 unattended 外壳实现） | unattended-building-loop |
+| UNATTENDED_RATELIMIT_WAIT_SEC | 300 | 命中限流后单次 auto-wait 秒数（不计入迭代/熔断预算；等待与击杀行为由 unattended 外壳实现） | unattended-building-loop |
 
 ### MANUAL_REVIEW_CHECKPOINTS 可选值
 | 值 | 触发时机 | 说明 |
@@ -175,15 +175,7 @@ Anti-Patterns 应使用"做 A 而非 B"格式并附具体例子，避免抽象�
 
 ### 保真类 AC 断言渲染效果而非源码字面
 适用：UI / 视觉 / 设计系统保真类任务的 tdd_acceptance —— 这类 AC 的真值在**渲染 / 计算后的可观测效果**，不在源码字符串。
-
-- 断言**渲染后 / 计算后的可观测值**（元素实际生效的字号 / 颜色 / 间距 / 字体族、token 是否被真实消费、声明字体是否实际加载），而非源码中变量名 / 类名 /
-  token 名的字面存在。
-- 产物被第三方外部系统消费时，真值锚点进一步上移到**最终消费边界**（消费后状态）；机制契约见 `.cataforge/references/external-truth-first.md`。
-- 反例（做 A 而非 B）：
-  - 差：AC 断言「样式表含 `--text-metric` 变量名」/「元素带 `brand-subtle` 类名」—— 死 token（声明却零消费）、幽灵类（引用却零定义）
-    字面存在即过关，门禁全绿但渲染为空。
-  - 好：AC 断言「渲染后该元素计算字号 = 设计值、背景色 = 设计值」/「该 token 被 ≥1 处真实消费」/「声明字体实际加载生效」。
-- 自检：写完 UI 保真 AC 后检查 Then 子句是否仅断言「含某字符串 / 带某类名」—— 若是，改为断言渲染 / 计算后的效果；产物有外部消费方时再检查 Then 是否止步于本地渲染层。
+断言口径、反例与自检见 `.cataforge/references/fidelity-ac.md`，消费方处理保真类任务时按需加载。
 
 ### 禁止估算任务用时
 适用：所有 Agent 的 backlog 排序、改进建议、PR 描述、todo / 计划、口头汇报。
@@ -262,55 +254,10 @@ Layer 1 返回四态：`0` → 进入 Layer 2；`1` → 报问题不进 Layer 2�
 Layer 2。
 
 ## 审查报告规范
-所有审查报告共享以下规范。各 Skill 的 Layer 1 检查项与 Layer 2 维度分别定义在各自 SKILL.md（doc-review 见 context skill
-`references/review.md`）。
-
-### 报告编号规则
-- 首次：`REVIEW-{doc_id}-r1.md` 或 `CODE-REVIEW-{task_id}-r1.md`。
-- 第 N 次：`-r{N}`，N = 同前缀 `-r*` 文件数 + 1。
-- 最新版本 = 编号最大的文件，无需归档重命名。
-
-### 报告 Front Matter 约定
-所有系统生成的报告（含审查报告与运维日志）必须以 YAML front matter 起始；缺失会被 `cataforge context index` 跳过、被
-`cataforge doctor` 计为 orphan 并 FAIL。
-
-| 报告类别 | 路径 | `id` 格式 | `doc_type` | 允许 `status` |
-|---------|------|----------|-----------|--------------|
-| 文档审查报告 | `docs/reviews/doc/REVIEW-{doc_id}-r{N}.md` | `review-{doc_id}-r{N}` | `review` | `draft` / `approved` |
-| 代码审查报告 | `docs/reviews/code/CODE-REVIEW-{task_id}-r{N}.md` | `code-review-{task_id}-r{N}` | `code-review` | `draft` / `approved` |
-| Sprint 审查报告 | `docs/reviews/sprint/SPRINT-REVIEW-*.md` | 见 [`utility/sprint-review.md`](../skills/context/templates/utility/sprint-review.md) | `sprint-review` | `draft` / `approved` |
-| 框架元资产审查 | `docs/reviews/framework/FRAMEWORK-REVIEW-{scope}-{YYYYMMDD}-r{N}.md` | `framework-review-{scope}-{YYYYMMDD}-r{N}` | `framework-review` | `draft` / `approved` |
-| 设计一致性审查报告 | `docs/reviews/design/DESIGN-REVIEW-{component_id}-r{N}.md` | `design-review-{component_id}-r{N}` | `design-review` | `draft` / `approved` |
-| 项目级代码扫描 | `docs/reviews/code/CODE-SCAN-{YYYYMMDD}-r{N}.md` | `code-scan-{YYYYMMDD}-r{N}` | `code-review` | `draft` / `approved` |
-| 功能走查报告 | `docs/reviews/walkthrough/WALKTHROUGH-{scope}-{YYYYMMDD}-r{N}.md` | `walkthrough-{scope}-{YYYYMMDD}-r{N}` | `walkthrough` | `draft` / `approved` |
-| 上游 issue triage 草稿 | `docs/reviews/triage/SKILL-IMPROVE-{target_id}-issue-{N}.md` | `skill-improve-{target_id}-issue-{N}` | `skill-improve` | `draft` / `approved` |
-| 运维订正日志 | `docs/reviews/CORRECTIONS-LOG.md` | `corrections-log` | `correction-log` | `approved` |
-
-最小字段集（doc-review checker 强制 id / author / status / deps / consumers；`consumers` 仅 doc_type ∈
-{research, changelog} 豁免）：
-
-```yaml
----
-id: "review-{doc_id}-r{N}"        # 或 code-review-{task_id}-r{N} / corrections-log
-doc_type: review                  # 或 code-review / sprint-review / correction-log
-author: reviewer                  # 审查报告：reviewer；CORRECTIONS-LOG：cataforge
-status: draft                     # 出 verdict 后改 approved；CORRECTIONS-LOG 恒为 approved
-deps: ["{被审 doc_id 或 task_id}"] # CORRECTIONS-LOG 用 []
-consumers: ["{下游消费 agent/skill}"] # doc_type ∈ {research, changelog} 可省
----
-```
-
-`status` 取值仅 `draft` / `review` / `approved`（见 doc-review checker），不可写 `closed`。
-
-### 问题格式
-```
-### [R-{NNN}] {SEVERITY}: {标题}
-- **category**: {见 §统一问题分类体系}
-- **root_cause**: {见 §归因分类}
-- **members**: [R-xxx, R-yyy] {仅系统性聚类 finding，列被合并升级的成员编号}
-- **描述**: {问题描述}
-- **建议**: {改进建议}
-```
+本节仅保留跨 Agent 的 verdict 契约（归因 / 三态判定 / 阻塞语义）。报告撰写规约
+（编号规则 / Front Matter 约定 / 问题格式）见 `.cataforge/references/review-report-spec.md`，
+由报告产出方在写报告时按需加载。各 Skill 的 Layer 1 检查项与 Layer 2 维度分别定义在各自
+SKILL.md（doc-review 见 context skill `references/review.md`）。
 
 ### 归因分类
 | root_cause | 含义 |

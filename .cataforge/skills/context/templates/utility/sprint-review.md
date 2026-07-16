@@ -48,7 +48,7 @@ required_sections:
 **verdict**: {approved | approved_with_notes | needs_revision}
 
 ### 问题列表
-{按COMMON-RULES审查报告规范格式列出问题，前缀[SR-{NNN}]}
+{按 .cataforge/references/review-report-spec.md §问题格式 列出问题，前缀[SR-{NNN}]}
 
 ### 建议
 {针对needs_revision标记的具体任务ID和修复建议}

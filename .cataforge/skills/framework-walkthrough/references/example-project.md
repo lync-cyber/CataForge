@@ -86,7 +86,7 @@ testing 阶段（standard）集成面约束：CLI 进程级 4 条用例（3 条�
 | UI-003 | 错误提示区：非法输入时可见，前景色消费 `--error-color` token；合法输入时不可见 |
 | T-004 | web UI 层（依赖 T-001 的转换规则；`user_facing_critical_path: true`，触发 code-review ui_fidelity / visual-fidelity） |
 
-### UI 保真验收标准（按 COMMON-RULES §保真类 AC 断言渲染效果）
+### UI 保真验收标准（按 `.cataforge/references/fidelity-ac.md` 断言渲染效果）
 
 - 输入 `-300` C→K 后，错误提示元素渲染可见且**计算前景色** = `--error-color` 设计值；合法输入后该元素不可见。
 - 结果元素**计算字号** = `--result-size` 设计值。
