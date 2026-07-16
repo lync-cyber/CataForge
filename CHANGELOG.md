@@ -20,6 +20,90 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.18.0'></a>
+## [0.18.0] — 2026-07-16
+
+### Added
+
+- **`cataforge config` 子命令** —— `validate` / `get` / `explain`（值 + 来源层：env > local > framework > legacy > default）/ `set`（白名单路径、同值不落盘、`--dry-run`）/ `migrate`；`.cataforge/config.local.json` 本机覆盖层（gitignored）。
+
+- **可选 Design Grill 模式** —— PRD、Architecture 与 UI-design 阶段可在用户显式同意后按决策依赖深度澄清；先核验仓库事实，每问提供推荐、依据与代价，支持跳过、暂停、总结和恢复，完成后回到原阶段流程。
+
+- **EVENT-LOG 记录派发模型 (`model` 字段)** —— event-log schema 新增可选 `model` 字段、`cataforge event log` 新增 `--model` 选项；tdd-engine 的 tdd_phase 派发事件按档位落 `standard` / `inline`，reflector 复盘时统计派发 model tier 分布、识别低复杂度任务误用 heavy/opus，为子代理成本调优提供数据源。
+- **子代理模型选型判据** —— 新增 `.cataforge/references/subagent-model-policy.md`：派发无 frontmatter tier 的通用子代理（general-purpose / Explore / Plan 等）时须显式指定 `model`，默认 sonnet、仅重推理判据用 opus、禁 haiku，堵住省略 `model` 静默继承 opus 会话造成的过度使用；agent-dispatch skill 新增 §模型选型 引用该判据。
+
+- **verified_anchors 派发锚点节** —— 子代理派发 prompt 增加可选「已核实锚点」标准节：tdd-engine RED/GREEN/Light-Dispatch 三处 dispatch 块与 agent-dispatch 通用模板提供占位，主线程把拆卡/定位期已核实的代码域事实（file:line + 现状片段、探索划界、do-not-touch 清单）随派发传入；SUB-AGENT-PROTOCOLS 新增锚点传递契约（生产侧填写规范 + 消费侧纪律：锚点可信、定向核验、偏差报告而非静默改判），PROJECT-STATE 模板「最小传递」补代码任务分支（精确锚点而非仅 doc 引用），消除子代理开工前对主线程已读代码的重复考古。
+
+- **模拟器保真度契约** —— COMMON-RULES §verdict_blocking_semantics 新增约束：替身外部系统的模拟器/mock 须声明保真度 `fidelity: calibrated | partial | placeholder` 并附校准证据，`placeholder`/未声明者的绿灯不得作为 code-review / sprint-review / AC 勾选的通过证据（与 ENV-LIMITATION 豁免禁令同族，真实系统不可达走 conditional_release）；code-review 增 simulator-evidence 审查维度、sprint-review ac-coverage 增保真度核对、feature-walkthrough 增「模拟器盲区回灌」（真机走查盲区回灌为回归 fixture，保真度单调收敛）。
+
+- **penpot 一规格一页约定 + Plugin API 已知限制** —— penpot-bridge 新增文件组织约定（design_tool=penpot 时设计系统 / 页面 P-NNN / 组件库各占独立 Penpot 页面，创作期建页）与三项 Plugin API 硬限制文档化（跨页移动/克隆静默 no-op、shape 变更仅激活页生效须 openPage 两段式、无删页 API）；ui-designer 增创作期建页指针。视觉稿全挤单页后无法编程重组的返工面就此堵住。
+
+- **外部真值优先机制（external-truth-first）** —— 新增按需加载的 `.cataforge/references/external-truth-first.md` 单点收纳条件域机制：arch §1.5 external_oracles 外部消费边界声明、dev-planning walking-skeleton 强制卡（Sprint 1 穿透真实外部系统的最小端到端 tracer，为规模化 Sprint 的 blocking dependency）、模拟器保真度契约、可选检查点 `post_skeleton`；doc-review dev-plan Layer 1 新增机检（arch 声明 external_oracles 而 dev-plan 无 `walking_skeleton: true` 卡 → FAIL）；保真类 AC 原则补「产物被第三方系统消费时真值锚点上移到最终消费边界」。
+
+- **无人值守过程审计补全**（#479）—— 每次拉起的原始流落盘 `.cataforge/state/loop-transcripts/iter-NNN.jsonl`；loop-metrics 记录扩展为 iteration/wait 双态（等待轮与终局轮不再零记录），新增 `returncode` / `output_tail` / `session_id` / `tokens_in` / `tokens_out` / `cache_read_tokens` / `cost_usd`；EVENT-LOG 记录在 headless 会话内自动附 `iter` 关联键（`CATAFORGE_UNATTENDED_ITER`），三流可互查。
+
+### Changed
+
+- **framework-walkthrough 初始化健康门** —— `cataforge doctor` 修复后仅复跑一次；仍失败则停止 Bootstrap，并统一记录路径覆盖归属，避免在部署状态未验证时继续 SDLC。
+
+- **framework.json schema v2 + 多平台部署状态模型** —— `deployment.default_platform`/`deployment.targets` 取代 `runtime.platform`（旧字段兼容读取，`cataforge config migrate` / `upgrade apply` 自动迁移并备份）；`upgrade.state` 迁至 `.cataforge/state/upgrade.json`；升级合并改为字段级所有权表（用户块 `deployment`/`upgrade.source`/`feedback`/`kg`/`context`/`project`/`claude_md_limits`/`git` 与未知顶层键一律保留）。部署记录 per-platform（`.cataforge/state/deploy/<platform>/`），四平台可长期共存：单平台 redeploy 不触碰他平台产物，跨平台共享路径受保护集防误删，deploy 全程持项目级锁并发拒绝，配置写入带锁防 lost update。
+- **doctor 平台化** —— 新增 `--platform <id>|all`；deploy integrity/provenance 以 per-platform manifest 为权威（不再要求 MCP 条件产物）；migration checks 支持 `platforms` 适用范围；指令文件 hygiene 按平台 profile 选择 CLAUDE.md/AGENTS.md；新增 agent skill 依赖可达性与 §项目状态 投影 drift 检查。
+- **平台身份与共享指令文件** —— hook 命令携带 `--cataforge-platform`（opencode TS plugin 注入 env、claude-code settings 注入 `CATAFORGE_PLATFORM`），多平台项目身份歧义时 hook 显式失败；共享 AGENTS.md 的 `运行时:` 按声明 targets 集合渲染、平台占位符中性化，换序部署字节稳定；codex/opencode 的 agent skills 依赖降级为正文内 `.cataforge/skills/<id>/SKILL.md` 读取指令。
+
+- **catalogue 视图默认全高表格 + 按需拓扑图** —— 资产/编排目录视图不再把元数据表格与依赖图半高堆叠，默认只显示全高元数据表格（消除强制可见的低可读性图与下方空白区）；依赖拓扑图降级为工具栏「拓扑视图」模式切换，切换后图独占全高（72vh），与其他图视图的表 ⇄ 图切换对齐；进入图模式即 `fit`，规避持久化视口漂移。
+- **serve 自动刷新与快照溯源** —— `viz serve` / `viz quickstart` 的 served 页面内嵌轻量轮询脚本（HEAD 比对 `Last-Modified`，仅 http 协议激活，标准库零依赖），`--watch` 重生成后浏览器自动刷新；dashboard 页脚新增「数据截至 <时间戳>」与模式标识（served 页显示「服务模式 · 自动刷新」、file:// 快照显示「快照模式」）；静态 `viz dashboard -o` 产物不含轮询脚本。新增可选浏览器 E2E 挂架 `tests/e2e/test_viz_browser.py`（Playwright 存在时驱动真实 headless 浏览器验证键盘/ARIA/窄视口行为，未安装时整模块 skip，不新增依赖）。
+- **图表等价替代与保真** —— Timeline / MetricSeries 视图新增数据表切换（含全部事件/指标字段）与文本摘要（「N 个事件 · 跨度 X 至 Y · M 个分类」），ECharts 开启 `aria.enabled`（canvas 容器获得自动生成的图表描述）；图视图的表格模式补上游/下游关系列（边信息不再在表格替代中丢失）；图工具栏新增「适配」按钮（双击手势的可见等价物）；Timeline 事件点直径改为 ∝√count（面积正比，线性直径会视觉平方差异）；KPI sparkline 改稳定值域（百分比 0-100、计数 0-max，1% 波动不再画成满幅陡坡）并以 `role="img"` + aria-label + 可见 Δ 文本替代 `aria-hidden`。
+- **MetricSeries 语义与 overview 渲染** —— `MetricPoint` 新增可选 `unit` 字段（count / ratio / percent / flag / index）、`MetricSeries` 新增可选 `meta` 字段；JSON 输出为纯加法契约（未标注时键省略，旧 collector 输出 byte-stable）；`viz overview --html` 不再把布尔、序数、计数、0-1 文档分挤进单一 value 轴 —— flag/index 点渲染为文本 KPI 卡（✓/✗、序数原值），其余按 series 各自成图（small multiples 网格，ratio/percent 系列固定值域）。
+- **dashboard 响应式与主题对比度** —— 新增 1024/720 断点：窄视口下 stepper 折叠为「当前阶段 + 阶段 i/N」、tab 组横向滚动、Inspector 改为底部抽屉（bottom-sheet）、图高按视口收敛保证首屏可见内容；图形库配色改由 CSS 主题 token 驱动（`--viz-node-fill/-border/-label`、`--viz-edge`、`--tip-bg/-fg`），OS 明暗主题运行中切换时图与图表实时换肤；对比度校正至 WCAG AA（亮色 `--muted`/`--faint`/`--warn-fg` 加深、暗色 `--faint`/`--accent` 提亮、图例边线随主题），ECharts 动画遵循 `prefers-reduced-motion`；新增对比度守卫测试按计算值断言全部配对 ≥4.5:1（正文）/≥3:1（图形元素）。
+- **dashboard 无障碍与信息架构** —— tabs 补全 ARIA（tab↔panel 双向 id 关联、roving tabindex、←→/Home/End 键盘模型、每组独立 labelled tablist）；全局检索升级为完整 combobox（listbox/option、↑↓/Enter/Escape、aria-activedescendant、「无匹配实体」反馈 + aria-live 通报）；Inspector 成为焦点管理的非模态 dialog（打开移焦、Escape 关闭、关闭还原触发元素焦点）；页面获得 `lang="zh-CN"`、h1 与 main 地标；tab 分组重划为 项目交付（覆盖/追溯/任务/架构）· 文档与过程（文档/时间线/腐化）· 框架资产（编排/资产），tab 标签中文化（title 保留 CLI 视图名）；N/A tab 以徽标标识（不再仅靠透明度）；非 SDLC 项目的降级 KPI tile 与 N/A 面板口径一致（不再引导运行不适用的 kg init）。
+
+- **catalogue 拓扑图 = 邻域探索器** —— 密依赖图整图不可读（约 44 节点 fit 后有效字号 <3px）的处置落地：点选图中节点或表格行仅显示该节点 1 跳邻域（含邻居间边与所属类型簇），并对邻域子集重排布局 —— 小邻域用 concentric ego 环、hub 邻域自适应降级为 label-aware grid（fit 后有效字号 ≥10px），缩放上限 2× 防微邻域巨型化；画布右上角「显示全图」按钮或双击背景退出聚焦并精确还原原始坐标；聚焦节点随视图状态持久化（reload 恢复含表格行高亮同步），纳入「重置视图」统一清除。
+
+- **§项目状态 滚动窗口门禁收紧** —— 项目指令文件 `§项目状态` 的单行超长从 advisory WARN 升为 gating FAIL（`cataforge doctor` / `claude-md check` 均阻塞），`claude_md_limits.max_state_bullet_chars` 阈值 500 → 250。`.cataforge/PROJECT-STATE.md` 模板补明滚动窗口写入规则、新增 `Backlog` 指针槽位（明细进 docs/proposals，状态区只留短路径），堵住 orchestrator 把历史 / PR / backlog 明细堆进单行污染上下文的绕过路径。
+
+- **tdd-engine 触发条件单点化** —— 四档执行模式表、REFACTOR 路由行、mid-progress 模板附加标记不再内联复述触发条件，统一指向 §执行流程 / §Step 4 触发判定 / §Mid-Progress Drop Contract 的唯一定义，消除同一规则三处双写的漂移面。
+
+- **模拟器保真度钩子瘦身** —— COMMON-RULES 与 code-review / sprint-review / feature-walkthrough 的模拟器证据资格钩子压缩为一行链接形态，机制细节收纳 external-truth-first reference，避免条件域机制污染全量加载的下游 prompt 上下文。
+
+- **无人值守循环改流静默存活监督**（#480）—— `claude -p` 输出改增量逐行读，每个 stream-json 事件行即心跳；仅静默超过 `UNATTENDED_SILENCE_TIMEOUT_SEC`（默认 900s）判挂死击杀，`UNATTENDED_LOOP_ITER_TIMEOUT_SEC` 语义改为总时长宽松背板（默认 10800s）。超时击杀不再吃 300s 限流冷却；被杀轮若有 git 进展则重置 auto-wait 计数。`unattended build` 新增 `--iter-timeout` / `--silence-timeout`。headless prompt 增加工作单元约束（每会话最多一张卡即干净退出）与时长预算提示。
+
+- **viz dashboard 脚本复杂度热点拆分 + 模块化** —— `initGraph` / `initCatalogue` / `initFilterTable` 及内联 `apply` 四个复杂度热点（catalogue 曾认知复杂度 167、圈复杂度 73、函数行数 339）拆为一组单一职责顶层辅助函数，抽出共享 `chipVals` / `restoreChips` / `edgesFromNodes` / `resizeGraphsIn` / `resizeChartsIn` 去重，全部降至 code-review 复杂度 fail 阈值（cyclomatic 15 / cognitive 25 / function_lines 120 / nesting 6）以下，残余 warn（`graphStyle` / `initChartMode` / `showPanel` / `initTabKeyboard`）一并清零。`dashboard.js` 单一上帝文件按架构拆为 `dashboard.core/graph/catalogue/table/app.js` 五个模块，渲染时按依赖序拼接内联为单个 `<script>`（core 先执行、app 的 IIFE 末尾跑）。渲染 HTML 内嵌脚本语义不变，行为经全量单元测试 + 真实浏览器 e2e（邻域焦点循环 / roving tabindex / inspector / omnibox）验证保持。
+
+### Fixed
+
+- **dashboard 交互诚实化** —— 复制路径等待 clipboard promise 并给出可见成败反馈（aria-live 通报；file:// / 权限拒绝时选中文本提示「按 Ctrl+C 复制」，不再无条件谎报「已复制」）；est_tokens 排序改为 th 内真按钮 + `aria-sort` 三态，按列索引取值（去除硬编码第 7 列）；图内搜索与表格过滤显示「命中 N / M」计数，零命中不再把全图变灰而是显式提示「画面未过滤」；任一视图持久化状态（过滤/排序/视口）生效时工具栏出现「重置视图」按钮，一键清除本面板保存状态；状态色 chip / 构成条 seg 升级为带 `aria-pressed` 的真按钮（键盘可操作）；行内修复提示（rhint）可点击复制；移除状态表行上无行为的 pointer 光标。
+- **CLI 表格 CJK/emoji 宽度** —— `ui.table` / `ui.kv` 的列宽按终端可见宽度计算（East Asian Wide/Fullwidth 记 2 列、组合字记 0 列），中文单元格不再错位。
+- **文档事实修正** —— cli.md：dashboard KPI strip 实为 4 tiles + stepper（非 5 tiles）、语义色为蓝/黄/橙色盲安全对（非绿/黄/红）、coverage 面板为状态表 + Inspector 跨视图跳转（无「点节点直跳 trace」交互）；visualization.md：HTML 渲染器路径为 `application/viz/html/` 包，补单文件体积构成说明。
+
+- **冻结文档 Hook 降级声明** —— 四个平台 profile 明确声明 `guard_frozen_docs` 的 native/degraded 策略，避免部署默认值掩盖 Codex 缺少 file-edit matcher 的实际降级。
+
+- **file_lock 双并发竞态** —— ① 空载荷窗口误回收：锁文件在 `O_EXCL` 创建与持有者载荷写入之间为空，竞争者将其误判为 corrupt 而立即删除夺锁，导致双持有者同时进入临界区（CI 曾实际复现进程内互斥断言失败）；corrupt/空载荷改按锁文件 mtime 判新鲜度，仅 TTL 过期才可回收。② 夺锁 TOCTOU：基于旧 holder 快照判 stale 后直接 unlink，可能删掉的是期间已被新持有者重建的锁；unlink 前重读 holder 与快照比对，不一致即退避重试。
+
+- **KG 扫描按 canonical `id` 键解析逻辑文档标识** —— ingest 解析改读 frontmatter `id`（模板 / write-doc / finalize 导出统一使用的键；原先只读全无生产者的 `doc_id` 死键），缺失时回退文件名推断；带 distinct `id` 的多份同 doc_type 文件不再被静默折叠为同一 Document 节点。
+- **文档 id 碰撞在 scan 生产侧显式拒绝** —— 同批多文件解析到同一逻辑 doc_id 时 `scan_business_docs` 抛 `KGDocumentCollisionError`（对齐既有 entity 碰撞门禁），migrate / repair / reconcile / doctor 全入口覆盖：ingest 拒绝写入、repair 在任何变异前拒绝（此前逐文件重写会互删对方 Section）、reconcile 将碰撞渲染为 finding（`doc_id_collisions`，门禁 `ok=False`）、doctor 报 FAIL 而非崩溃；entity card 导出文件豁免。
+
+- **文档替换语义收敛为单一 domain 原语** —— authoring 重作者同一文档时，旧版本独有的 Section 与重写在同一事务内原子移除（此前 delete 集只含新文档主语，残留 Section 会进 export）；approved 内容冻结门禁收敛为 `document_guard.ensure_document_replaceable` 单点实现，authoring（显式保持 approved 的重写放行）与 ingest / repair（回灌无意图、一律拒绝内容变更且拒绝先于任何写入）语义分级；content-hash 幂等跳过时实体 home 槽位（`cf:source_doc` / `cf:source_section`）仍随新抽取同步（父标题改名等 hash 不变的移动不再留下陈旧归属）。
+- **content_hash 契约全链统一** —— writer / transaction / guard 共用 `_quads.content_hash_matches`（64-hex 校验 + 转义），移除 transaction 侧的无校验副本；事务 API 现拒绝非 sha256-hex 的 content_hash。
+
+- **catalogue 拓扑图隐藏初始化布局退化** —— 图在隐藏（0 尺寸）wrapper 中初始化时，cose 布局以容器为 boundingBox 且默认异步动画与后续 fit 竞态，整图挤成约 175×63px 一团，切「拓扑视图」后实际不可用；改为初始化时 preset 占位、首次显示时以真实容器尺寸同步重排（randomize 起点，防全节点重合的力导向奇异性）。
+
+- **authoring 失败补偿恢复先前文档** —— `author_document` 提交后校验失败的补偿路径改为快照恢复（复用 `author_entity` 的 prior-quads 契约）：重作者失败时文档、全部先前 Section 与被重写实体回到写前状态，而非删除新写入后留下残缺文档。
+- **reconcile 对碰撞 doc_type 的 drift 记录强制 `manual` remediation** —— 文档 id 碰撞使该 doc_type 的 FS 侧不可信，自动 export/ingest 建议一律降级为人工决策。
+- **hash-skip home 同步纳入批次补偿** —— `WriteStats.home_synced` 记录已应用的槽位同步，migrate phase 5 回滚与 repair reingest 失败分支经共享的 `writer.revert_home_synced` 反向恢复；stale Section 判定收敛为 `writer.stale_section_iris` 单一定义（ingest 清理与 authoring 替换共用）。
+
+- **tdd-engine light-dispatch 模板补 `business_rules` 节** —— light 档合并 RED+GREEN 后 implementer 写测试时缺业务规则上下文，模板补齐与 RED 模板同源的 `## business_rules` 槽位。
+
+- **ingest 现在收敛导出基线**（#472）—— `context ingest` 对图渲染与磁盘内容等价的文档写入 absorbed 基线，`never_exported` 状态可经 ingest 正常迁出，finalize 不再永久 blocked；渲染有损的文档保持 `never_exported`（防 #421 级覆写丢失）。
+- **再 ingest 清理陈旧结构节点**（#472）—— markdown 已删章节的 Section 节点、frontmatter doc_id 改名遗留的同 source_path ghost Document 双实体，随迁移批次清除，导出渲染不再长回已折叠的历史正文。
+- **reconcile synced 判定放宽为 canonical 等价**（#472）—— 仅白空格差异的文档其 KG-only 富集边正确分入 `enrichment_relations` 而非 `ghost_relations`。
+
+- **`pip install cataforge` 开箱即败修复** —— wheel 运行时依赖不再携带 `linkml-runtime → prefixcommons → pytest-logging` 传递链（pytest-logging 仅有 2015 legacy sdist，在 Debian/Ubuntu 补丁版系统 setuptools 上构建即崩；`[tool.uv]` override 不进发布元数据、对 pip 消费者无效）。KG store bootstrap 改读包内 `subclass_axioms.ttl` 制品（非 governance 店过滤 `cfgov` 命名空间），linkml 工具链降至 `dev` extra（仅 schema codegen 使用），并新增运行时依赖契约测试防回归。
+- **code-review ESLint 检查按项目配置门控** —— 项目根无 `eslint.config.*` / `.eslintrc*` 时视为未采纳 ESLint，WARN 跳过而非因缺配置报 FAIL（此前 npx 可解析到 eslint 的环境会在纯 Python 项目上误判 lint 失败）。
+
+- **pragma_inventory unknown-pragma 判定收紧** —— 候选仅认冒号形态 `cataforge: <verb>`；连字符标识符（`cataforge-plugin.yaml` / `--cataforge-platform` 等）、引号/反引号内的日志前缀与语法示例引用、`allow(<check-id>` 模板占位不再误报（实仓扫描 26 条假阳性清零，手写错语法真阳性保留）。
+
+- **窄视口下图表 canvas 撑破页面** —— ECharts 以容器初始（宽）尺寸布局 canvas，视口后续收窄时内层渲染 div 保留旧宽度直至防抖 resize 触发，导致横向溢出（320px 视口下 `scrollWidth` 达 1267px）。给 `.cy` / `.chart` 加 `overflow:hidden` 裁剪渲染面至容器宽度，并为 ECharts tooltip 加 `confine` 防裁剪；窄视口无横向溢出的 e2e 检查恢复绿。
+
 <a id='changelog-0.17.0'></a>
 ## [0.17.0] — 2026-07-07
 
@@ -2166,7 +2250,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.18.0
 [0.17.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.17.0
 [0.16.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.16.0
 [0.15.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.15.0
