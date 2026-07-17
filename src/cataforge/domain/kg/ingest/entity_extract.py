@@ -393,10 +393,13 @@ def extract_entities(
             continue
         # Hash the entity's own text so re-imports detect content drift even
         # when the entity_id stayed the same: a subordinate defined on a body
-        # line hashes its line slice; everything else hashes the section body.
-        # The entity also carries its own narrative text: the body-line slice
-        # for a body-line subordinate (same window as its hash), otherwise the
-        # owning section's body without the heading line.
+        # line hashes its line slice; everything else hashes the section body
+        # with trailing blank lines dropped — a tile-level re-extraction sees
+        # the stored (blank-trimmed) body, so incidental tail whitespace must
+        # not read as content drift. The entity also carries its own narrative
+        # text: the body-line slice for a body-line subordinate (same window
+        # as its hash), otherwise the owning section's body without the
+        # heading line.
         section_text = "\n".join(lines[section.line_start : section.line_end])
         if subordinate and not own_heading:
             source_line = lines[line_idx]
@@ -404,7 +407,10 @@ def extract_entities(
             narrative = hash_text
         else:
             source_line = ""
-            hash_text = section_text
+            hash_lines = lines[section.line_start : section.line_end]
+            while hash_lines and not hash_lines[-1].strip():
+                hash_lines.pop()
+            hash_text = "\n".join(hash_lines)
             narrative = _section_narrative(lines, section.line_start, section.line_end)
         entity = ExtractedEntity(
             entity_id=entity_id,

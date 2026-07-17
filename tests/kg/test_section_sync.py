@@ -221,6 +221,37 @@ def test_transact_write_narrative_cascades(tmp_path: Path) -> None:
     assert "[TXN-REV] 事务修订。" in _prd_path(proj).read_text(encoding="utf-8")
 
 
+def test_transact_write_narrative_syncs_subentities(tmp_path: Path) -> None:
+    """A transact narrative op runs the same sub-entity sync as the direct door."""
+    proj = _finalized_project(tmp_path)
+    cw.transact(
+        str(proj),
+        {
+            "operations": [
+                {
+                    "op": "write_narrative",
+                    "doc_id": "prd",
+                    "anchor": ANCHOR_L3_LOGIN,
+                    "narrative": (
+                        f"### {ANCHOR_L3_LOGIN}\n"
+                        "\n"
+                        "允许已注册用户用邮箱 + 密码完成身份认证。\n"
+                        "\n"
+                        "- AC-003: 连续失败 5 次锁定账户 15 分钟。\n"
+                        "\n"
+                        f"{AC_LOGIN_BLOCK}"
+                    ),
+                }
+            ]
+        },
+    )
+    gc.collect()
+    invalidate_cache()
+    assert _entity_exists(proj, "F-001/AC-003"), (
+        "transact narrative op must materialize new sub-entities"
+    )
+
+
 # --- P-5 end-to-end regression (downstream Ink-Source replay) -----------------
 
 
@@ -478,6 +509,78 @@ def _plant_unabsorbed_ac(proj: Path) -> None:
             hashlib.sha256(child_body.encode("utf-8")).hexdigest(),
             title=ANCHOR_L3_LOGIN,
         )
+
+
+def _plant_non_authoritative_heading(proj: Path) -> None:
+    """Connection scoped to its own frame so the RocksDB lock frees on gc."""
+    body = "## §8 附注\n\n### M-009 认证模块草案\n\n仅为叙述性提及，PRD 无权定义 Module。"
+    with KnowledgeGraph.connect(_config(proj)) as kg, kg.transaction() as txn:
+        txn.add_section(
+            "prd",
+            "§8 附注",
+            body,
+            hashlib.sha256(body.encode("utf-8")).hexdigest(),
+            title="§8 附注",
+            level=2,
+        )
+
+
+def test_reconcile_unabsorbed_ignores_non_authoritative_definitions(tmp_path: Path) -> None:
+    """A heading naming a class the doc_type may not define is not drift.
+
+    The unabsorbed probe gates the whole pipeline, so its authority filter
+    needs a negative control: a Module heading planted in the PRD (Modules
+    are arch-authoritative) must not be extracted, hence not flagged.
+    """
+    proj = _finalized_project(tmp_path)
+    _plant_non_authoritative_heading(proj)
+    gc.collect()
+    invalidate_cache()
+
+    report = _reconcile(proj)
+    record = _record_for(report, PRD)
+    assert record.unabsorbed_entities == []
+
+
+def test_write_narrative_validation_failure_compensates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A post-commit violation rolls the whole narrative write back."""
+    proj = _finalized_project(tmp_path)
+    before_body = _section_body(proj, ANCHOR_L3_LOGIN)
+    assert before_body is not None
+
+    class _FakeViolation:
+        shape = "fake-shape"
+        message = "injected violation"
+        entity_id = "AC-003"
+
+    class _FakeReport:
+        violations = [_FakeViolation()]
+
+    monkeypatch.setattr(cw, "validate", lambda *_a, **_k: _FakeReport())
+    with pytest.raises(KGValidationError, match="injected violation"):
+        cw.write_narrative(
+            str(proj),
+            doc_id="prd",
+            anchor=ANCHOR_L3_LOGIN,
+            narrative=(
+                f"### {ANCHOR_L3_LOGIN}\n"
+                "\n"
+                "[BAD-REV] 会被回滚的修订。\n"
+                "\n"
+                "- AC-003: 注入违规的断言。\n"
+                "\n"
+                f"{AC_LOGIN_BLOCK}"
+            ),
+        )
+    gc.collect()
+    invalidate_cache()
+
+    assert not _entity_exists(proj, "F-001/AC-003"), "compensation must remove the synced entity"
+    after_body = _section_body(proj, ANCHOR_L3_LOGIN)
+    assert after_body == before_body, "compensation must restore the section body"
+    assert _entity_exists(proj, "F-001/AC-001"), "pre-existing sub-entities survive compensation"
 
 
 def test_reconcile_flags_unabsorbed_section_entities(tmp_path: Path) -> None:

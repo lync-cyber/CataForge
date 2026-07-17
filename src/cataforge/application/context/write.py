@@ -63,7 +63,12 @@ from cataforge.domain.kg.ingest.writer import (
     write_project,
 )
 from cataforge.domain.kg.reconcile import reconcile as _reconcile
-from cataforge.domain.kg.section_sync import CascadeWriter, SectionEntitySync
+from cataforge.domain.kg.section_sync import (
+    CascadeWriter,
+    SectionEntitySync,
+    clear_stale_authored_relations,
+    stage_authored_relations,
+)
 from cataforge.domain.kg.validate import validate
 
 if TYPE_CHECKING:
@@ -71,7 +76,6 @@ if TYPE_CHECKING:
 
     from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity
     from cataforge.domain.kg.ingest.migrate import MigrationStats
-    from cataforge.domain.kg.ingest.relation_extract import ExtractedRelation
     from cataforge.domain.kg.ingest.structure_extract import ExtractedSection
     from cataforge.domain.kg.reconcile import ReconcileReport
     from cataforge.domain.kg.transaction import TransactionContext
@@ -541,7 +545,10 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
         if offending:
             with kg.transaction() as undo:
                 for did in delete_ids:
-                    undo.delete_entity(did, cascade=True)
+                    try:
+                        undo.delete_entity(did, cascade=True)
+                    except KGEntityNotFoundError:
+                        continue
                 for quad in restore_quads:
                     undo.add(quad)
             detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
@@ -792,8 +799,8 @@ def author_document(
                     contained_entity_ids=section.contained_entity_ids,
                 )
             staged_iris = _stage_authored_entities(txn, entities, project_iri, written_ids)
-            _clear_stale_authored_relations(txn, kg.store, cfg, relations, staged_iris)
-            _stage_authored_relations(txn, relations, cfg, staged_iris)
+            clear_stale_authored_relations(txn, kg.store, cfg, relations, staged_iris)
+            stage_authored_relations(txn, relations, cfg, staged_iris)
 
         report = validate(kg.store, cfg)
         offending = _offends(report.violations, written_ids)
@@ -866,81 +873,6 @@ def _stage_authored_entities(
         written_ids.add(entity.entity_id)
         written_ids.add(iri)
     return staged_iris
-
-
-def _clear_stale_authored_relations(
-    txn: TransactionContext,
-    store: ox.Store,
-    cfg: Any,
-    relations: list[ExtractedRelation],
-    staged_iris: dict[str, str],
-) -> None:
-    """Stage removal of traceability edges this document no longer declares.
-
-    Relation edges carry no source-doc provenance and are written add-if-absent,
-    so an edge whose subject entity is unchanged across a re-author survives even
-    after the source drops it. Every traceability edge's subject is an entity
-    this document defines, so clearing each authored subject's edges that are not
-    in the freshly extracted set replaces the document's edges atomically without
-    touching structural predicates (``cf:part_of``) or other documents' edges.
-    """
-    import pyoxigraph as ox  # noqa: PLC0415
-
-    from cataforge.domain.kg._quads import _slot_iri, quads_for_subject
-    from cataforge.domain.kg.ingest.iri import entity_iri
-    from cataforge.domain.kg.ingest.relation_extract import TRACEABILITY_PREDICATE_CURIES
-
-    ns = cf_namespace(cfg)
-    predicate_iris = {_slot_iri(curie, ns) for curie in TRACEABILITY_PREDICATE_CURIES}
-    fresh: set[tuple[str, str, str]] = set()
-    for relation in relations:
-        subject_iri = staged_iris.get(relation.subject_entity_id) or entity_iri(
-            relation.subject_entity_id, cfg.base_namespace
-        )
-        object_iri = staged_iris.get(relation.object_entity_id) or entity_iri(
-            relation.object_entity_id, cfg.base_namespace
-        )
-        fresh.add((subject_iri, _slot_iri(relation.predicate_curie, ns), object_iri))
-
-    for subject_iri in set(staged_iris.values()):
-        for quad in quads_for_subject(store, subject_iri):
-            predicate = quad.predicate.value
-            obj = quad.object
-            if predicate not in predicate_iris or not isinstance(obj, ox.NamedNode):
-                continue
-            if (subject_iri, predicate, obj.value) in fresh:
-                continue
-            txn.remove(quad)
-
-
-def _stage_authored_relations(
-    txn: TransactionContext,
-    relations: list[ExtractedRelation],
-    cfg: Any,
-    staged_iris: dict[str, str],
-) -> None:
-    """Stage each relation, resolving endpoints against the in-flight IRI map.
-
-    Subordinate endpoints are not yet committed, so ``writer``'s store-querying
-    resolution would miss them; the staged-IRI map is consulted first and the
-    flat entity IRI is the fallback.
-    """
-    from cataforge.domain.kg.ingest.iri import entity_iri
-
-    for relation in relations:
-        subject_iri = staged_iris.get(relation.subject_entity_id) or entity_iri(
-            relation.subject_entity_id, cfg.base_namespace
-        )
-        object_iri = staged_iris.get(relation.object_entity_id) or entity_iri(
-            relation.object_entity_id, cfg.base_namespace
-        )
-        txn.add_relation(
-            relation.subject_entity_id,
-            relation.predicate_curie,
-            relation.object_entity_id,
-            subject_iri=subject_iri,
-            object_iri=object_iri,
-        )
 
 
 def update_document_meta(

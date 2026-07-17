@@ -156,10 +156,40 @@ class FlushOutcome:
     write (sections and entities) back to the pre-transaction state.
     """
 
-    sections_written: int = 0
     written_ids: set[str] = field(default_factory=set)
     delete_ids: list[str] = field(default_factory=list)
     prior_quads: list[Any] = field(default_factory=list)
+
+
+def parse_tile_docs(
+    doc_id: str,
+    doc_type: str,
+    tile_bodies: Iterable[str],
+    *,
+    mtime: float = 0.0,
+) -> list[Any]:
+    """Parse level-2 tile bodies as standalone mini ``ParsedDoc``s.
+
+    Every level-2 tile embeds its subsections verbatim, so parsing tiles in
+    isolation yields the same per-section ownership as a whole-document
+    parse — one extraction semantics for ingest, write-doc, and narrative
+    writes.
+    """
+    from cataforge.domain.kg.ingest.scan import parse_doc_text
+
+    docs = []
+    for body in tile_bodies:
+        doc = parse_doc_text(
+            body,
+            doc_type=doc_type,
+            file_name=f"{doc_id}.md",
+            source_path=f"{doc_id}.md",
+            mtime=mtime,
+        )
+        doc.doc_id = doc_id
+        doc.doc_type = doc_type
+        docs.append(doc)
+    return docs
 
 
 def extract_tile_entities(
@@ -173,29 +203,92 @@ def extract_tile_entities(
 ) -> list[ExtractedEntity]:
     """Run the ingest entity extractor over level-2 tile bodies.
 
-    Every level-2 tile embeds its subsections verbatim, so parsing tiles in
-    isolation yields the same per-section entity ownership as a whole-document
-    parse — one extraction semantics for ingest, write-doc, and narrative
-    writes. Duplicate (parent, entity_id) definitions keep the first
-    occurrence, matching :func:`extract_entities` within one document.
+    Duplicate (parent, entity_id) definitions keep the first occurrence,
+    matching :func:`extract_entities` within one document.
     """
     from cataforge.domain.kg.ingest.entity_extract import extract_entities
-    from cataforge.domain.kg.ingest.scan import parse_doc_text
 
     seen: dict[tuple[str | None, str], ExtractedEntity] = {}
-    for body in tile_bodies:
-        doc = parse_doc_text(
-            body,
-            doc_type=doc_type,
-            file_name=f"{doc_id}.md",
-            source_path=f"{doc_id}.md",
-            mtime=mtime,
-        )
-        doc.doc_id = doc_id
-        doc.doc_type = doc_type
+    for doc in parse_tile_docs(doc_id, doc_type, tile_bodies, mtime=mtime):
         for entity in extract_entities(doc, authority=authority, registry=registry):
             seen.setdefault((entity.parent_id, entity.entity_id), entity)
     return list(seen.values())
+
+
+def clear_stale_authored_relations(
+    txn: TransactionContext,
+    store: Any,
+    cfg: Any,
+    relations: list[Any],
+    staged_iris: dict[str, str],
+) -> None:
+    """Stage removal of traceability edges the source no longer declares.
+
+    Relation edges carry no source-doc provenance and are written add-if-absent,
+    so an edge whose subject entity is unchanged across a re-author survives even
+    after the source drops it. Every traceability edge's subject is an entity
+    the authored scope defines, so clearing each authored subject's edges that
+    are not in the freshly extracted set replaces the scope's edges atomically
+    without touching structural predicates (``cf:part_of``) or other subjects'
+    edges.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    from cataforge.domain.kg._quads import _slot_iri, quads_for_subject
+    from cataforge.domain.kg.ingest.iri import entity_iri
+    from cataforge.domain.kg.ingest.relation_extract import TRACEABILITY_PREDICATE_CURIES
+
+    ns = cf_namespace(cfg)
+    predicate_iris = {_slot_iri(curie, ns) for curie in TRACEABILITY_PREDICATE_CURIES}
+    fresh: set[tuple[str, str, str]] = set()
+    for relation in relations:
+        subject_iri = staged_iris.get(relation.subject_entity_id) or entity_iri(
+            relation.subject_entity_id, cfg.base_namespace
+        )
+        object_iri = staged_iris.get(relation.object_entity_id) or entity_iri(
+            relation.object_entity_id, cfg.base_namespace
+        )
+        fresh.add((subject_iri, _slot_iri(relation.predicate_curie, ns), object_iri))
+
+    for subject_iri in set(staged_iris.values()):
+        for quad in quads_for_subject(store, subject_iri):
+            predicate = quad.predicate.value
+            obj = quad.object
+            if predicate not in predicate_iris or not isinstance(obj, ox.NamedNode):
+                continue
+            if (subject_iri, predicate, obj.value) in fresh:
+                continue
+            txn.remove(quad)
+
+
+def stage_authored_relations(
+    txn: TransactionContext,
+    relations: list[Any],
+    cfg: Any,
+    staged_iris: dict[str, str],
+) -> None:
+    """Stage each relation, resolving endpoints against the in-flight IRI map.
+
+    Subordinate endpoints are not yet committed, so a store-querying resolution
+    would miss them; the staged-IRI map is consulted first and the flat entity
+    IRI is the fallback.
+    """
+    from cataforge.domain.kg.ingest.iri import entity_iri
+
+    for relation in relations:
+        subject_iri = staged_iris.get(relation.subject_entity_id) or entity_iri(
+            relation.subject_entity_id, cfg.base_namespace
+        )
+        object_iri = staged_iris.get(relation.object_entity_id) or entity_iri(
+            relation.object_entity_id, cfg.base_namespace
+        )
+        txn.add_relation(
+            relation.subject_entity_id,
+            relation.predicate_curie,
+            relation.object_entity_id,
+            subject_iri=subject_iri,
+            object_iri=object_iri,
+        )
 
 
 def _sha256(text: str) -> str:
@@ -293,7 +386,7 @@ class CascadeWriter:
         from cataforge.domain.kg.ingest.iri import section_iri
 
         base_ns = self._txn.config.base_namespace
-        outcome = FlushOutcome(sections_written=len(self._planned))
+        outcome = FlushOutcome()
         fresh_by_doc, contains_map = self._plan_entity_sync()
 
         for doc_id, anchor in sorted(self._deletes - set(self._planned)):
@@ -327,14 +420,20 @@ class CascadeWriter:
 
     def _plan_entity_sync(
         self,
-    ) -> tuple[dict[str, list[ExtractedEntity] | None], dict[tuple[str, str], list[str]]]:
-        """Extract each planned doc's fresh entities and per-anchor contains.
+    ) -> tuple[
+        dict[str, tuple[list[ExtractedEntity], list[Any]] | None],
+        dict[tuple[str, str], list[str]],
+    ]:
+        """Extract each planned doc's fresh entities/relations and contains.
 
         A doc whose Document node (and thus doc_type) is absent maps to
         ``None`` — the sync is skipped for it and the stored contains edges
         are carried over unchanged.
         """
-        fresh_by_doc: dict[str, list[ExtractedEntity] | None] = {}
+        from cataforge.domain.kg.ingest.entity_extract import extract_entities
+        from cataforge.domain.kg.ingest.relation_extract import extract_relations
+
+        fresh_by_doc: dict[str, tuple[list[ExtractedEntity], list[Any]] | None] = {}
         contains_map: dict[tuple[str, str], list[str]] = {}
         if self._entity_sync is None:
             return fresh_by_doc, contains_map
@@ -344,15 +443,24 @@ class CascadeWriter:
                 fresh_by_doc[doc_id] = None
                 continue
             tiles = [p.body for (d, _a), p in self._planned.items() if d == doc_id and p.level == 2]
-            fresh = extract_tile_entities(
-                doc_id,
-                doc_type,
-                tiles,
-                authority=self._entity_sync.authority,
-                registry=self._entity_sync.registry,
-                mtime=self._entity_sync.mtime,
-            )
-            fresh_by_doc[doc_id] = fresh
+            entity_seen: dict[tuple[str | None, str], ExtractedEntity] = {}
+            relation_seen: dict[tuple[str, str, str], Any] = {}
+            for doc in parse_tile_docs(doc_id, doc_type, tiles, mtime=self._entity_sync.mtime):
+                for entity in extract_entities(
+                    doc,
+                    authority=self._entity_sync.authority,
+                    registry=self._entity_sync.registry,
+                ):
+                    entity_seen.setdefault((entity.parent_id, entity.entity_id), entity)
+                for relation in extract_relations(doc, self._entity_sync.registry):
+                    key = (
+                        relation.subject_entity_id,
+                        relation.predicate_curie,
+                        relation.object_entity_id,
+                    )
+                    relation_seen.setdefault(key, relation)
+            fresh = list(entity_seen.values())
+            fresh_by_doc[doc_id] = (fresh, list(relation_seen.values()))
             owned: dict[str, list[str]] = {}
             for entity in fresh:
                 owned.setdefault(entity.source_section, []).append(entity.entity_id)
@@ -363,26 +471,42 @@ class CascadeWriter:
 
     def _sync_entities(
         self,
-        fresh_by_doc: dict[str, list[ExtractedEntity] | None],
+        fresh_by_doc: dict[str, tuple[list[ExtractedEntity], list[Any]] | None],
         outcome: FlushOutcome,
     ) -> None:
-        """Diff-merge each doc's fresh entity set against the stored one."""
-        from cataforge.domain.kg._quads import _slot_iri, quads_for_subject
+        """Diff-merge each doc's fresh entity and relation sets against the store.
+
+        Relations follow the write-doc contract: each fresh subject's
+        traceability edges are re-derived from the rewritten text (declared
+        edges staged, undeclared ones cleared) — the one extraction semantics
+        both authoring doors share.
+        """
         from cataforge.domain.kg.ingest.iri import resolve_entity_iri
-        from cataforge.domain.kg.ingest.relation_extract import TRACEABILITY_PREDICATE_CURIES
         from cataforge.domain.kg.ingest.writer import _entity_title
 
         sync = self._entity_sync
         if sync is None:
             return
-        import pyoxigraph as ox  # noqa: PLC0415
 
         base_ns = self._txn.config.base_namespace
-        predicate_iris = {_slot_iri(curie, self._ns) for curie in TRACEABILITY_PREDICATE_CURIES}
-        for doc_id, fresh in fresh_by_doc.items():
-            if fresh is None:
+        for doc_id, fresh_pair in fresh_by_doc.items():
+            if fresh_pair is None:
                 continue
+            fresh, fresh_relations = fresh_pair
             fresh_keys = {e.scope_key for e in fresh}
+            # The stale set is fixed before staging: entities homed in the
+            # rewritten/deleted sections whose definitions the new text no
+            # longer carries. Anchors duplicated across tiles are excluded —
+            # `cf:source_section` is a heading literal, so their homes are
+            # ambiguous and deletion could hit another tile's entities.
+            affected = {a for (d, a) in set(self._planned) | self._deletes if d == doc_id}
+            cleanup_anchors = affected - self._ambiguous_child_anchors(doc_id)
+            stale = [
+                (scoped_id, iri)
+                for scoped_id, iri in self._entities_homed_at(doc_id, cleanup_anchors)
+                if scoped_id not in fresh_keys and iri not in self._txn.staged_entity_iris
+            ]
+            staged_iris_map: dict[str, str] = {}
             for entity in fresh:
                 iri = resolve_entity_iri(
                     entity.entity_id, entity.class_name, entity.parent_id, base_ns
@@ -390,11 +514,6 @@ class CascadeWriter:
                 if iri in self._txn.staged_entity_iris:
                     continue  # an explicit add_entity op in this txn wins
                 prior = self._node_prior_quads(iri)
-                edge_quads = [
-                    q
-                    for q in quads_for_subject(self._txn.store, iri)
-                    if q.predicate.value in predicate_iris and isinstance(q.object, ox.NamedNode)
-                ]
                 self._txn.add_entity(
                     entity.entity_id,
                     entity.class_name,
@@ -408,8 +527,7 @@ class CascadeWriter:
                     mtime=entity.mtime,
                     attributes=entity.attributes or None,
                 )
-                for quad in edge_quads:
-                    self._txn.add(quad)
+                staged_iris_map[entity.entity_id] = iri
                 outcome.prior_quads.extend(prior)
                 outcome.delete_ids.append(
                     f"{entity.parent_id}/{entity.entity_id}"
@@ -417,16 +535,59 @@ class CascadeWriter:
                     else entity.entity_id
                 )
                 outcome.written_ids.update({entity.entity_id, iri})
-            affected = {a for (d, a) in set(self._planned) | self._deletes if d == doc_id}
-            for scoped_id, iri in self._entities_homed_at(doc_id, affected):
-                if scoped_id in fresh_keys or iri in self._txn.staged_entity_iris:
-                    continue
+            clear_stale_authored_relations(
+                self._txn, self._txn.store, self._txn.config, fresh_relations, staged_iris_map
+            )
+            stage_authored_relations(self._txn, fresh_relations, self._txn.config, staged_iris_map)
+            for scoped_id, iri in stale:
                 prior = self._node_prior_quads(iri)
                 try:
                     self._txn.delete_entity(scoped_id, cascade=True)
                 except KGEntityNotFoundError:
                     continue
                 outcome.prior_quads.extend(prior)
+
+    def _ambiguous_child_anchors(self, doc_id: str) -> set[str]:
+        """Anchors appearing in more than one of the document's level-2 tiles.
+
+        Planned bodies override the stored ones for their tile anchor; the
+        remaining tiles come from the store. An anchor owned by two tiles has
+        no unambiguous entity home, so callers must not treat it as a cleanup
+        scope.
+        """
+        bodies: dict[str, str] = dict(self._stored_tile_bodies(doc_id))
+        for (d, anchor), plan in self._planned.items():
+            if d == doc_id and plan.level == 2:
+                bodies[anchor] = plan.body
+        counts: dict[str, int] = {}
+        for tile_anchor, body in bodies.items():
+            titles = {span.title.strip() for span in heading_spans(body, 0)}
+            titles.discard(tile_anchor)
+            for title in titles:
+                if title:
+                    counts[title] = counts.get(title, 0) + 1
+        return {anchor for anchor, n in counts.items() if n > 1}
+
+    def _stored_tile_bodies(self, doc_id: str) -> list[tuple[str, str]]:
+        """``(anchor, narrative_body)`` of the document's stored level-2 tiles."""
+        safe = escape_sparql_literal(doc_id)
+        sparql = (
+            f"PREFIX cf: <{self._ns}> "
+            "SELECT ?anchor ?level ?body WHERE { "
+            f'?s a cf:Section ; cf:source_doc "{safe}" ; '
+            "cf:section_anchor ?anchor ; cf:narrative_body ?body . "
+            "OPTIONAL { ?s cf:section_level ?level } }"
+        )
+        out: list[tuple[str, str]] = []
+        for row in select_rows(self._txn.store, sparql):
+            anchor = _strv(_row_lookup(row, "anchor"))
+            body = _strv(_row_lookup(row, "body"))
+            if anchor is None or body is None:
+                continue
+            level = _strv(_row_lookup(row, "level"))
+            if (int(level) if level is not None else 2) == 2:
+                out.append((anchor, body))
+        return out
 
     def _document_doc_type(self, doc_id: str) -> str | None:
         from cataforge.domain.kg.ingest.iri import document_iri
@@ -441,26 +602,35 @@ class CascadeWriter:
         return None
 
     def _entities_homed_at(self, doc_id: str, anchors: set[str]) -> list[tuple[str, str]]:
-        """``(scope_key, iri)`` of stored entities homed in the given sections."""
+        """``(scope_key, iri)`` of stored entities homed in the given sections.
+
+        Scope keys are built from ``cf:entity_id`` + the ``cf:part_of`` parent
+        (subordinates only carry that edge), not by slicing the IRI — the
+        instance namespace is project-configurable, so IRI surgery is not a
+        stable identity source.
+        """
         if not anchors:
             return []
         safe_doc = escape_sparql_literal(doc_id)
         values = " ".join(f'"{escape_sparql_literal(a)}"' for a in sorted(anchors))
         sparql = (
             f"PREFIX cf: <{self._ns}> "
-            "SELECT DISTINCT ?s WHERE { "
+            "SELECT DISTINCT ?s ?eid ?parent_id WHERE { "
             f"  VALUES ?sec {{ {values} }} "
             f'  ?s a ?cls ; cf:entity_id ?eid ; cf:source_doc "{safe_doc}" ; '
             "     cf:source_section ?sec . "
+            "  OPTIONAL { ?s cf:part_of ?p . ?p cf:entity_id ?parent_id . } "
             f"  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
             "}"
         )
         out: list[tuple[str, str]] = []
         for row in select_rows(self._txn.store, sparql):
             iri = _strv(_row_lookup(row, "s"))
-            if iri is None or "/instance/" not in iri:
+            eid = _strv(_row_lookup(row, "eid"))
+            if iri is None or eid is None:
                 continue
-            out.append((iri.split("/instance/", 1)[1], iri))
+            parent_id = _strv(_row_lookup(row, "parent_id"))
+            out.append((f"{parent_id}/{eid}" if parent_id else eid, iri))
         return out
 
     def _node_prior_quads(self, iri: str) -> list[Any]:

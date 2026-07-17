@@ -1,4 +1,4 @@
-# ## Fixed
+### Fixed
 
 - **`context write-doc` 重复 author 不再丢失变更实体的追溯边** —— `add_relation` 的幂等判断
   改为对账事务后状态：实体整节点 replace 已把出边压入待删集时，同边重新声明会照常补写，
