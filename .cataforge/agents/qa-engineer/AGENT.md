@@ -42,7 +42,7 @@ maxTurns: 150
 ## E2E 真实性最低要求
 
 - 至少一条 happy path 通过真实用户输入原语（键入 / 填充 / 点击，各框架 API 见 [`test-and-e2e-apis.md`](../../references/test-and-e2e-apis.md)）触发；纯 fixture/store 注入不计；编辑器/表单/路由类核心组件必须照过真实用户输入链路
-- testing skill `cataforge skill run testing -- scan-e2e tests/e2e/` 命中 `e2e_backdoor_scan` WARN 时必须在 test-report §7 结论与建议 中显式回应
+- testing skill `cataforge skill run testing -- tests/e2e/` 命中 `e2e_backdoor_scan` WARN 时必须在 test-report §7 结论与建议 中显式回应
 
 ## Anti-Patterns
 
