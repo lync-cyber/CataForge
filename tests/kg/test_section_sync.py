@@ -221,6 +221,37 @@ def test_transact_write_narrative_cascades(tmp_path: Path) -> None:
     assert "[TXN-REV] 事务修订。" in _prd_path(proj).read_text(encoding="utf-8")
 
 
+def test_transact_write_narrative_syncs_subentities(tmp_path: Path) -> None:
+    """A transact narrative op runs the same sub-entity sync as the direct door."""
+    proj = _finalized_project(tmp_path)
+    cw.transact(
+        str(proj),
+        {
+            "operations": [
+                {
+                    "op": "write_narrative",
+                    "doc_id": "prd",
+                    "anchor": ANCHOR_L3_LOGIN,
+                    "narrative": (
+                        f"### {ANCHOR_L3_LOGIN}\n"
+                        "\n"
+                        "允许已注册用户用邮箱 + 密码完成身份认证。\n"
+                        "\n"
+                        "- AC-003: 连续失败 5 次锁定账户 15 分钟。\n"
+                        "\n"
+                        f"{AC_LOGIN_BLOCK}"
+                    ),
+                }
+            ]
+        },
+    )
+    gc.collect()
+    invalidate_cache()
+    assert _entity_exists(proj, "F-001/AC-003"), (
+        "transact narrative op must materialize new sub-entities"
+    )
+
+
 # --- P-5 end-to-end regression (downstream Ink-Source replay) -----------------
 
 
@@ -270,6 +301,127 @@ def test_scattered_multilevel_revisions_all_reach_export(tmp_path: Path) -> None
     assert _state_for(report, PRD) == "in_sync"
 
 
+# --- narrative sub-entity sync: the revision path must not drift the graph ----
+
+
+def _entity_exists(proj: Path, iri_tail: str) -> bool:
+    with KnowledgeGraph.connect(_config(proj)) as kg:
+        return bool(kg.store.query(f"ASK {{ <https://cataforge.dev/instance/{iri_tail}> ?p ?o }}"))
+
+
+def _entity_narrative(proj: Path, iri_tail: str) -> str | None:
+    with KnowledgeGraph.connect(_config(proj)) as kg:
+        ns = kg.config.ontology_namespace.rstrip("/") + "/"
+        rows = list(
+            kg.store.query(
+                f"SELECT ?body WHERE {{ "
+                f"<https://cataforge.dev/instance/{iri_tail}> <{ns}narrative_body> ?body }}"
+            )
+        )
+        return str(rows[0]["body"].value) if rows else None
+
+
+def test_narrative_new_ac_creates_subentity(tmp_path: Path) -> None:
+    """An AC added by a narrative revision must land as a KG sub-entity."""
+    proj = _finalized_project(tmp_path)
+    _write(
+        proj,
+        ANCHOR_L3_LOGIN,
+        (
+            f"### {ANCHOR_L3_LOGIN}\n"
+            "\n"
+            "允许已注册用户用邮箱 + 密码完成身份认证。\n"
+            "\n"
+            "- AC-003: 连续失败 5 次锁定账户 15 分钟。\n"
+            "\n"
+            f"{AC_LOGIN_BLOCK}"
+        ),
+    )
+    assert _entity_exists(proj, "F-001/AC-003"), (
+        "narrative-added AC must be extracted into the graph"
+    )
+    with KnowledgeGraph.connect(_config(proj)) as kg:
+        ns = kg.config.ontology_namespace.rstrip("/") + "/"
+        assert kg.store.query(
+            "ASK { <https://cataforge.dev/instance/F-001/AC-003> "
+            f"<{ns}part_of> <https://cataforge.dev/instance/F-001> }}"
+        )
+
+
+def test_narrative_changed_ac_updates_subentity(tmp_path: Path) -> None:
+    """Rewriting an AC's text must refresh the AC entity, not just the section."""
+    proj = _finalized_project(tmp_path)
+    _write(
+        proj,
+        ANCHOR_L4_AC_LOGIN,
+        f"#### {ANCHOR_L4_AC_LOGIN}\n\n[AC-REV] 输入合法凭据返回 201 + JWT。",
+    )
+    body = _entity_narrative(proj, "F-001/AC-001")
+    assert body is not None and "[AC-REV]" in body, (
+        "narrative AC revision must reach the AC entity node"
+    )
+
+
+def test_narrative_removed_ac_deletes_subentity(tmp_path: Path) -> None:
+    """An AC dropped from the rewritten section must leave the graph."""
+    proj = _finalized_project(tmp_path)
+    _write(proj, ANCHOR_L3_LOGIN, f"### {ANCHOR_L3_LOGIN}\n\n[REV] 移除 AC 的修订描述。")
+    assert not _entity_exists(proj, "F-001/AC-001")
+
+
+def _implements_edge_present(proj: Path) -> bool:
+    """Connection scoped to its own frame so the RocksDB lock frees on gc."""
+    edge = (
+        "ASK { <https://cataforge.dev/instance/M-001> "
+        "<https://cataforge.dev/ontology/implements> "
+        "<https://cataforge.dev/instance/F-001> }"
+    )
+    with KnowledgeGraph.connect(_config(proj)) as kg:
+        return bool(kg.store.query(edge))
+
+
+def test_narrative_rewrite_preserves_entity_outgoing_edges(tmp_path: Path) -> None:
+    """A narrative rewrite that changes an entity's body must keep its edges."""
+    proj = _finalized_project(tmp_path)
+    assert _implements_edge_present(proj), "fixture precondition: M-001 implements F-001"
+    gc.collect()
+    invalidate_cache()
+    cw.write_narrative(
+        str(proj),
+        doc_id="arch",
+        anchor="§2.1 M-001 认证模块",
+        narrative=(
+            "### §2.1 M-001 认证模块\n\n- 映射功能: prd#§2.F-001\n- [REV] 增补认证模块职责描述。"
+        ),
+    )
+    gc.collect()
+    invalidate_cache()
+    assert _implements_edge_present(proj), "narrative rewrite dropped the entity's outgoing edge"
+
+
+def test_reconcile_ok_after_narrative_ac_addition(tmp_path: Path) -> None:
+    """The fixed revision path leaves no graph-internal entity drift behind."""
+    proj = _finalized_project(tmp_path)
+    _write(
+        proj,
+        ANCHOR_L3_LOGIN,
+        (
+            f"### {ANCHOR_L3_LOGIN}\n"
+            "\n"
+            "允许已注册用户用邮箱 + 密码完成身份认证。\n"
+            "\n"
+            "- AC-003: 连续失败 5 次锁定账户 15 分钟。\n"
+            "\n"
+            f"{AC_LOGIN_BLOCK}"
+        ),
+    )
+    _finalize(proj)
+    report = _reconcile(proj)
+    record = _record_for(report, PRD)
+    assert record.unabsorbed_entities == []
+    assert report.ok
+
+
 # --- reconcile probe: graph-internal tile-cover violations ---------------------
 
 
@@ -311,6 +463,140 @@ def test_reconcile_flags_desynced_tile_sections(tmp_path: Path) -> None:
     assert record.remediation == "manual"
     assert not report.ok
     assert "desynced" in report.gate_summary
+
+
+def _plant_unabsorbed_ac(proj: Path) -> None:
+    """Write an AC into section bodies without its entity (tile-cover consistent).
+
+    Reproduces a text-only revision writer: both the level-2 tile and the child
+    node carry the new bullet, so the desync probe stays green while the
+    section text and the sub-entity set diverge.
+    """
+    child_body = (
+        f"### {ANCHOR_L3_LOGIN}\n"
+        "\n"
+        "允许已注册用户用邮箱 + 密码完成身份认证。\n"
+        "\n"
+        "- AC-009: 未入图的新增断言。\n"
+        "\n"
+        f"{AC_LOGIN_BLOCK}"
+    )
+    tile_body = (
+        f"## {ANCHOR_L2_FEATURES}\n"
+        "\n"
+        f"{child_body}\n"
+        "\n"
+        f"### {ANCHOR_L3_LOGOUT}\n"
+        "\n"
+        "允许已登录用户终止当前会话，清空客户端 token。\n"
+        "\n"
+        f"#### {ANCHOR_L4_AC_LOGOUT}\n"
+        "\n"
+        "调用 logout 接口返回 204；客户端本地 token 被擦除。"
+    )
+    with KnowledgeGraph.connect(_config(proj)) as kg, kg.transaction() as txn:
+        txn.add_section(
+            "prd",
+            ANCHOR_L2_FEATURES,
+            tile_body,
+            hashlib.sha256(tile_body.encode("utf-8")).hexdigest(),
+            title=ANCHOR_L2_FEATURES,
+        )
+        txn.add_section(
+            "prd",
+            ANCHOR_L3_LOGIN,
+            child_body,
+            hashlib.sha256(child_body.encode("utf-8")).hexdigest(),
+            title=ANCHOR_L3_LOGIN,
+        )
+
+
+def _plant_non_authoritative_heading(proj: Path) -> None:
+    """Connection scoped to its own frame so the RocksDB lock frees on gc."""
+    body = "## §8 附注\n\n### M-009 认证模块草案\n\n仅为叙述性提及，PRD 无权定义 Module。"
+    with KnowledgeGraph.connect(_config(proj)) as kg, kg.transaction() as txn:
+        txn.add_section(
+            "prd",
+            "§8 附注",
+            body,
+            hashlib.sha256(body.encode("utf-8")).hexdigest(),
+            title="§8 附注",
+            level=2,
+        )
+
+
+def test_reconcile_unabsorbed_ignores_non_authoritative_definitions(tmp_path: Path) -> None:
+    """A heading naming a class the doc_type may not define is not drift.
+
+    The unabsorbed probe gates the whole pipeline, so its authority filter
+    needs a negative control: a Module heading planted in the PRD (Modules
+    are arch-authoritative) must not be extracted, hence not flagged.
+    """
+    proj = _finalized_project(tmp_path)
+    _plant_non_authoritative_heading(proj)
+    gc.collect()
+    invalidate_cache()
+
+    report = _reconcile(proj)
+    record = _record_for(report, PRD)
+    assert record.unabsorbed_entities == []
+
+
+def test_write_narrative_validation_failure_compensates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A post-commit violation rolls the whole narrative write back."""
+    proj = _finalized_project(tmp_path)
+    before_body = _section_body(proj, ANCHOR_L3_LOGIN)
+    assert before_body is not None
+
+    class _FakeViolation:
+        shape = "fake-shape"
+        message = "injected violation"
+        entity_id = "AC-003"
+
+    class _FakeReport:
+        violations = [_FakeViolation()]
+
+    monkeypatch.setattr(cw, "validate", lambda *_a, **_k: _FakeReport())
+    with pytest.raises(KGValidationError, match="injected violation"):
+        cw.write_narrative(
+            str(proj),
+            doc_id="prd",
+            anchor=ANCHOR_L3_LOGIN,
+            narrative=(
+                f"### {ANCHOR_L3_LOGIN}\n"
+                "\n"
+                "[BAD-REV] 会被回滚的修订。\n"
+                "\n"
+                "- AC-003: 注入违规的断言。\n"
+                "\n"
+                f"{AC_LOGIN_BLOCK}"
+            ),
+        )
+    gc.collect()
+    invalidate_cache()
+
+    assert not _entity_exists(proj, "F-001/AC-003"), "compensation must remove the synced entity"
+    after_body = _section_body(proj, ANCHOR_L3_LOGIN)
+    assert after_body == before_body, "compensation must restore the section body"
+    assert _entity_exists(proj, "F-001/AC-001"), "pre-existing sub-entities survive compensation"
+
+
+def test_reconcile_flags_unabsorbed_section_entities(tmp_path: Path) -> None:
+    """Section text defining an entity the graph lacks must fail the gate."""
+    proj = _finalized_project(tmp_path)
+    _plant_unabsorbed_ac(proj)
+    gc.collect()
+    invalidate_cache()
+
+    report = _reconcile(proj)
+    record = _record_for(report, PRD)
+    assert record.desynced_sections == [], "precondition: the plant keeps tile-cover intact"
+    assert "F-001/AC-009" in record.unabsorbed_entities
+    assert record.remediation != "none"
+    assert not report.ok
+    assert "unabsorbed" in report.gate_summary
 
 
 def test_reconcile_clean_after_cascade_write(tmp_path: Path) -> None:

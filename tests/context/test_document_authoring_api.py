@@ -175,6 +175,192 @@ def test_reauthor_clears_stale_relation_edge(tmp_path: Path) -> None:
     assert real_present, "the declared edge must survive"
 
 
+def test_reauthor_changed_entity_preserves_traceability_edges(tmp_path: Path) -> None:
+    """Re-authoring with a changed entity body must keep the entity's edges.
+
+    The changed entity's node is replaced wholesale (its outgoing edges are
+    staged for removal); the freshly extracted relation set re-declares the
+    same edge, which must land in the committed store."""
+    proj = _project(tmp_path)
+    cw.author_document(str(proj), _PRD)
+    gc.collect()
+
+    changed = _PRD.replace(
+        "依赖 prd#§1.F-001 的基础登录。",
+        "依赖 prd#§1.F-001 的基础登录，附加设备指纹校验。",
+    )
+    cw.author_document(str(proj), changed)
+    gc.collect()
+
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    inst = "https://cataforge.dev/instance"
+    with KnowledgeGraph.connect(cfg, read_only=True) as kg:
+        assert kg.store.query(f"ASK {{ <{inst}/F-002> <{ns}depends_on> <{inst}/F-001> }}"), (
+            "changed-entity re-author dropped its traceability edge"
+        )
+        assert kg.store.query(f"ASK {{ <{inst}/F-001/AC-001> <{ns}part_of> <{inst}/F-001> }}")
+    gc.collect()
+
+
+# One tile holding both the dependent and its dependency, so a narrative
+# rewrite of that single tile can consistently drop entity + edge together.
+_PRD_ONE_TILE = (
+    "---\n"
+    "id: prd\n"
+    "doc_type: prd\n"
+    "---\n"
+    "\n"
+    "# PRD\n"
+    "\n"
+    "## §1 Features\n"
+    "\n"
+    "### F-001 用户登录\n"
+    "\n"
+    "基础登录能力。\n"
+    "\n"
+    "### F-002 单点登录\n"
+    "\n"
+    "依赖 prd#§1.F-001 的基础登录。\n"
+)
+
+
+def test_narrative_removing_entity_and_its_incoming_edge_succeeds(tmp_path: Path) -> None:
+    """A self-consistent revision may drop an entity plus the line depending on it.
+
+    The relation set is re-derived from the rewritten text, so the dropped
+    dependency line clears the edge and the removed entity cascades cleanly —
+    no dangling-target violation, no misleading rejection.
+    """
+    proj = _project(tmp_path)
+    cw.author_document(str(proj), _PRD_ONE_TILE)
+    gc.collect()
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    inst = "https://cataforge.dev/instance"
+
+    cw.write_narrative(
+        str(proj),
+        doc_id="prd",
+        anchor="§1 Features",
+        narrative="## §1 Features\n\n### F-002 单点登录\n\n独立的单点登录能力。\n",
+    )
+    gc.collect()
+
+    with KnowledgeGraph.connect(cfg, read_only=True) as kg:
+        assert not kg.store.query(f"ASK {{ <{inst}/F-001> ?p ?o }}"), "F-001 must be removed"
+        assert not kg.store.query(f"ASK {{ <{inst}/F-002> <{ns}depends_on> <{inst}/F-001> }}"), (
+            "the dropped dependency line must clear the edge"
+        )
+        assert kg.query.exists("F-002")
+    gc.collect()
+
+
+def test_narrative_new_xref_creates_edge(tmp_path: Path) -> None:
+    """A dependency declared by the rewritten text lands as a graph edge."""
+    proj = _project(tmp_path)
+    cw.author_document(str(proj), _PRD_ONE_TILE)
+    gc.collect()
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    inst = "https://cataforge.dev/instance"
+
+    cw.write_narrative(
+        str(proj),
+        doc_id="prd",
+        anchor="§1 Features",
+        narrative=(
+            "## §1 Features\n"
+            "\n"
+            "### F-001 用户登录\n"
+            "\n"
+            "基础登录能力。\n"
+            "\n"
+            "### F-002 单点登录\n"
+            "\n"
+            "依赖 prd#§1.F-001 的基础登录。\n"
+            "\n"
+            "### F-003 登录审计\n"
+            "\n"
+            "依赖 prd#§1.F-001 的登录事件流。\n"
+        ),
+    )
+    gc.collect()
+
+    with KnowledgeGraph.connect(cfg, read_only=True) as kg:
+        assert kg.query.exists("F-003")
+        assert kg.store.query(f"ASK {{ <{inst}/F-003> <{ns}depends_on> <{inst}/F-001> }}"), (
+            "an xref added by the revision must create its edge"
+        )
+    gc.collect()
+
+
+# Two tiles each carrying a same-titled child heading: entity homes keyed by
+# the heading literal are ambiguous, so cleanup must not cross tiles.
+_PRD_DUP_ANCHOR = (
+    "---\n"
+    "id: prd\n"
+    "doc_type: prd\n"
+    "---\n"
+    "\n"
+    "# PRD\n"
+    "\n"
+    "## §1 A\n"
+    "\n"
+    "### F-001 功能一\n"
+    "\n"
+    "功能一描述。\n"
+    "\n"
+    "#### 验收标准\n"
+    "\n"
+    "- AC-001: 返回 token。\n"
+    "\n"
+    "## §2 B\n"
+    "\n"
+    "### F-002 功能二\n"
+    "\n"
+    "功能二描述。\n"
+    "\n"
+    "#### 验收标准\n"
+    "\n"
+    "- AC-002: 显示结果。\n"
+)
+
+
+def test_narrative_rewrite_spares_same_titled_sections_in_other_tiles(tmp_path: Path) -> None:
+    """Duplicate child anchors across tiles must not cross-delete entities."""
+    proj = _project(tmp_path)
+    cw.author_document(str(proj), _PRD_DUP_ANCHOR)
+    gc.collect()
+    cfg = _connect(proj)
+    inst = "https://cataforge.dev/instance"
+
+    cw.write_narrative(
+        str(proj),
+        doc_id="prd",
+        anchor="§1 A",
+        narrative=(
+            "## §1 A\n"
+            "\n"
+            "### F-001 功能一\n"
+            "\n"
+            "[REV] 功能一描述修订。\n"
+            "\n"
+            "#### 验收标准\n"
+            "\n"
+            "- AC-001: 返回 token。\n"
+        ),
+    )
+    gc.collect()
+
+    with KnowledgeGraph.connect(cfg, read_only=True) as kg:
+        assert kg.store.query(f"ASK {{ <{inst}/F-002/AC-002> ?p ?o }}"), (
+            "the other tile's sub-entity must survive an unrelated rewrite"
+        )
+        assert kg.store.query(f"ASK {{ <{inst}/F-001/AC-001> ?p ?o }}")
+    gc.collect()
+
+
 def test_author_document_placeholder_title_fails(tmp_path: Path) -> None:
     proj = _project(tmp_path)
     md = (
