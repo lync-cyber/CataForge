@@ -13,7 +13,10 @@
 1. 选沙盒路径：缺省 `walkthrough-sandbox/<platform>-<mode>-<时间戳>/`（相对宿主仓库根；时间戳 `yyyyMMdd-HHmmss`，使并发/重跑各占独立目录）。确保该路径被 `.gitignore` 覆盖（缺则先补一行）。创建前校验 shell 当前 cwd == 仓库根，或恒以仓库根绝对路径拼接沙盒路径。
 2. 目标目录非空时**另起新 run-id 或先 `--clean` 清空**再用——非空目录直接复用会让两次走查互相写入对方产物、归因困难。新建空目录并进入（后续所有命令的 cwd = 沙盒目录）。
 3. 初始化框架资产：`cataforge setup`（按 `cataforge setup --help` 确认平台参数；若 setup 不接受平台参数，则 `cataforge deploy --platform <platform>`）。目标是在沙盒内得到独立的 `.cataforge/` 与目标平台的部署产物。
-4. 健全性确认：`cataforge doctor` 应通过；`framework.json#/version` 非 `0.0.0-template`。
+4. 健全性确认：`cataforge doctor` 应通过；`framework.json#/version` 非 `0.0.0-template`。CLI 来源核验：把
+   `cataforge --version` 记入报告表头；**框架仓本体走查**须与仓内源码版本（`src/cataforge/__init__.py` 的
+   `__version__`）一致——不一致说明 PATH 上是过期发行版而非工作树代码，全部 findings 会错误归因，须停下用与
+   工作树同源的调用方式（editable 安装或 `uv run cataforge`）复核后再继续；下游项目走查仅记录版本，无源码可对账。
 5. 健全性失败处置：保留 `cataforge doctor` 的原始输出，按其 remediation 修复并复跑一次；仍非零则停止 Bootstrap，覆盖账本标 `I-6=finding`、`E-10=driven`，其余未执行路径统一标 `not-reached: bootstrap health gate blocked`，转 Step 6 出报告。
 
 ### 1.2 跨平台差异的吸收点
@@ -36,7 +39,7 @@
 4. **dev_planning (Phase 4)**：tech-lead 产 DEV-PLAN（喂任务分解，task-decomp / task-dep-analysis 拆卡与依赖建模）→ doc-review；转入 development 前命中 `pre_dev` 人工检查点，按 §3 代答并记录交互负担。
 5. **development (Phase 5)**：按 T-001/T-002/T-003 跑 TDD（缺省 light；升档观察经 full 深度的 C-6 探针）+ code-review 分级触发（T-001 带 `consumer_components` 走即时审查且恒命中 L2 豁免全跑；T-002/T-003 延迟到 sprint-review 侧，见 B-4/B-15）。Sprint 收口后确认 C-9 viz dashboard 保底焊点（§2.5）。
 6. **testing (Phase 6)**：qa-engineer 做集成/E2E 补充与 TEST-REPORT——观察 testing 阶段编排与 verdict 语义（approved / conditional_release 的 blocking_conditions 阻塞）。
-7. **deployment (Phase 7)**：标 N/A。`pre_deploy` 检查点在 deployment 被跳过时是否仍触发，协议未明定——实际行为（触发/不触发/报错）本身即观察点，如实入账本；若触发则按 §3 代答。
+7. **deployment (Phase 7)**：标 N/A。`pre_deploy` 检查点随 deployment N/A 一并豁免（COMMON-RULES §MANUAL_REVIEW_CHECKPOINTS）——确认不触发即记 ok；若意外触发按 §3 代答并记 finding。
 
 相对 lite 档的覆盖增量：全量文档 Layer 2 门禁、pre_dev / pre_deploy / post_sprint 检查点、testing 阶段、TDD 分档判定。代价是单轮更重；追求快速冒烟时显式降 `--mode agile-lite`。
 

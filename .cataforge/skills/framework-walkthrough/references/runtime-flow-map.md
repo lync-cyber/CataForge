@@ -39,7 +39,7 @@
 | I-3 | 行尾归一化门 | `cataforge setup gitattributes` + doctor 复核 | D | 缺失/不合格由静态门提示 |
 | I-4 | 创建 {INSTRUCTION_FILE} | 按 Update Template 生成，文档状态全 `未开始`，当前阶段按模式（requirements/planning/brief） | D | 初始阶段与模式是否一致 |
 | I-5 | 写框架版本 | 取 `pyproject.toml [project].version`；缺失标「未追踪」 | D | 版本是否为占位符 `0.0.0-template` |
-| I-6 | 选平台 + 部署 | `cataforge setup --platform <p>`（写 `runtime.platform` 并 deploy；命令形态见 walkthrough-protocol §1.1） | D | 部署产物是否对应平台、`doctor` 是否通过 |
+| I-6 | 选平台 + 部署 | `cataforge setup --platform <p>`（写 `deployment.default_platform` 并 deploy；命令形态见 walkthrough-protocol §1.1） | D | 部署产物是否对应平台、`doctor` 是否通过 |
 | I-7 | env-block + permissions | `cataforge setup env-block` 注入 §执行环境；`cataforge setup permissions` 收紧白名单 | D | env-block exit 2（未检测技术栈）是否被正确兜底 |
 | I-8 | 文档索引 + 知识图谱 | `cataforge context ensure-store`（幂等；按 context.mode 水合 store，`markdown` 时跳过）+ `cataforge context index`（空索引） | D | store 水合跳过是否显式提示、context mode 分流是否正常 |
 | I-9 | 进入初始阶段 | 按 Mode Routing 激活初始角色 | D | `phase status` 入口两行（phase recognised / phase_start logged）是否 OK；入口时点不据 exit 码判 blocked |

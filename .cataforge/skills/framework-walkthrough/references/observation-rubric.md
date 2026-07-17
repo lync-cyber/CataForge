@@ -8,7 +8,7 @@
 
 | 维度 | 对应路径 | 观察什么 | 异常信号示例 |
 |------|---------|---------|------------|
-| 初始化产物 | I-1~I-9 | Bootstrap 各步产物是否落地：目录集合/行尾归一化门/{INSTRUCTION_FILE} 初版/框架版本/`runtime.platform`/env-block/permissions/kg store 水合/context index | 版本仍 `0.0.0-template`、目录集合与模式不符、kg store 水合静默失败（注：`cataforge setup env-block` 在未配置技术栈时 exit 2 是预期占位行为，非缺陷） |
+| 初始化产物 | I-1~I-9 | Bootstrap 各步产物是否落地：目录集合/行尾归一化门/{INSTRUCTION_FILE} 初版/框架版本/`deployment.default_platform`/env-block/permissions/kg store 水合/context index | 版本仍 `0.0.0-template`、目录集合与模式不符、kg store 水合静默失败（注：`cataforge setup env-block` 在未配置技术栈时 exit 2 是预期占位行为，非缺陷） |
 | 产物生成 | C-3, C-8 | 该阶段应产出的文档/代码是否生成、路径与命名是否合规；跨完阶段跑 `cataforge phase status` 作硬校验 | 文档缺 front matter、落错目录、未注册索引、`phase status` 退出非 0 |
 | 门禁触发 | C-4, C-7, B-4 | doc-review / code-review / sprint-review 是否如期触发、Layer 1↔2 短路判定是否正确；L1 疑似误报时 reviewer 是否留下双重核实证据、裁量是否被记录 | 该审却没审、该短路却全跑（反之亦然）、L1 误报被裁量放行却未留核实证据 |
 | 一致性门 | C-5b~C-5f | Phase Transition 门禁链（`cataforge phase transition`）的 stale-deps / reconcile / doc-consistency / event-batch / claude-md 门是否逐门执行、阻塞类门是否真阻塞 | hygiene 越界却 WARN 放行、doc-consistency 在 Phase 2+ 未触发、事件批出现半截状态或重跑重复落盘 |

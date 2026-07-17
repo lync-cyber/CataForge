@@ -45,6 +45,8 @@
 
 喂 dev-plan 时 T-001 须带 `consumer_components: [cli-adapter]`（T-002/T-003 消费 core）——使 C-7 即时 per-task code-review 在 CLI 配置结构性可达；否则三任务全延迟、叠加 B-4 短路后 code-review 全程零触发。T-002/T-003 不带触发 flag，保持「延迟到 sprint-review」侧同样被观察。
 
+dispatch 喂 tech-lead 时显式声明：**任务数恰为本示例任务表所列，不自主追加 validation / 辅助任务**——CLI 示例恰 3 个（T-001~T-003，任务数一旦超过 `SPRINT_REVIEW_MICRO_TASK_COUNT` 就击穿 B-4 短路结构）；UI 示例恰 4 个（T-001~T-004，走 B-15 正常路径，与 B-4 互斥对偶）。
+
 ### 验收标准（TDD 断言锚点）
 
 锚点归属：核心转换数学归 T-001（断言 `convert()` 返回值），输出格式（两位小数字符串）归 T-002，错误路径 3 条归 T-003——per-task AC 保持 ≤6，避免触发 task-decomp「AC > 6 必拆」把任务数推过 `SPRINT_REVIEW_MICRO_TASK_COUNT`、意外击穿 B-4 短路结构。
