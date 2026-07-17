@@ -1,4 +1,4 @@
-# ## Fixed
+### Fixed
 
 - **Bootstrap 补初始 phase_start 落盘** —— ORCHESTRATOR-BOOTSTRAP-PROTOCOLS Step 10 进入初始阶段前
   先 `cataforge event log --event phase_start --phase {当前阶段}`；此前 `cataforge phase status --entry`
