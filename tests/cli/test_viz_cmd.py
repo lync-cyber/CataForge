@@ -683,6 +683,36 @@ class TestVizTasksFromKg:
         edges = {(e["src"], e["dst"]) for e in data["edges"]}
         assert edges == {("T-001", "T-002"), ("T-002", "T-003")}
 
+    def test_tasks_without_deps_render_nodes(self, tmp_path: Path) -> None:
+        """Task entities with no inter-task edges must still render as nodes.
+
+        The dashboard/status probe reads the same KG collector, so an
+        edges-only graph would report a planned project as tasks=empty."""
+        fixture = Path(__file__).resolve().parents[1] / "fixtures" / "kg-tasks-isolated"
+        db = tmp_path / ".cataforge" / "kg" / "store"
+        runner = CliRunner()
+        init = runner.invoke(cli, ["kg", "init", "--db-path", str(db)])
+        assert init.exit_code == 0, init.output
+        imp = runner.invoke(
+            cli, ["kg", "import", "--project-root", str(fixture), "--db-path", str(db)]
+        )
+        assert imp.exit_code == 0, imp.output
+
+        result = _viz(tmp_path, "tasks", "--format", "json")
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert {n["id"] for n in data["nodes"]} == {"T-001", "T-002"}
+        assert data["edges"] == []
+        # No dependency edges → no critical-path ranking: styling must be
+        # deterministic (no arbitrary highlighted task).
+        assert all(n["status"] is None for n in data["nodes"])
+        assert "viz status" not in result.output
+
+        mermaid = _viz(tmp_path, "tasks")
+        assert mermaid.exit_code == 0, mermaid.output
+        assert "T-001[T-001]" in mermaid.output
+        assert "T-002[T-002]" in mermaid.output
+
     def test_no_tasks_empty_graph(self, tmp_path: Path) -> None:
         _make_kg_project(tmp_path)  # KG with Features/Modules but no Tasks
         result = _viz(tmp_path, "tasks")
