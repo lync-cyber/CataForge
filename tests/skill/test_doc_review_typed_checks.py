@@ -205,6 +205,37 @@ def test_check_arch_api_no_input_at_all_still_fails(tmp_path: Path) -> None:
     assert any("入参" in e or "request" in e for e in c.errors)
 
 
+def test_check_arch_api_failure_names_offending_ids(tmp_path: Path) -> None:
+    """The input-definition failure lists the offending API ids, not just counts."""
+    content = (
+        "### API-001 Login\nno input definition here\n### API-002 Stream\ntype: event-stream\n"
+    )
+    c = _checker(tmp_path, "arch", content)
+    c.check_arch()
+    assert any("API-001" in e for e in c.errors)
+    assert not any("API-002" in e for e in c.errors)
+
+
+def test_check_arch_module_failure_names_offending_ids(tmp_path: Path) -> None:
+    """The feature-mapping failure lists the offending module ids."""
+    content = "### M-001 Auth\nno feature mapping.\n### M-002 Session\n映射功能: F-002\n"
+    c = _checker(tmp_path, "arch", content)
+    c.check_arch()
+    assert any("M-001" in e for e in c.errors)
+    assert not any("M-002" in e for e in c.errors)
+
+
+def test_check_arch_offending_ids_truncated_past_five(tmp_path: Path) -> None:
+    """More than five offending ids collapse to the first five plus a total."""
+    content = "".join(f"### API-00{i} Api{i}\nno input definition here\n" for i in range(1, 7))
+    c = _checker(tmp_path, "arch", content)
+    c.check_arch()
+    offending = [e for e in c.errors if "入参" in e]
+    assert offending and "API-005" in offending[0]
+    assert "API-006" not in offending[0]
+    assert "(共 6 项)" in offending[0]
+
+
 # ---------------------------------------------------------------------------
 # check_arch — tech-stack 选型理由
 # ---------------------------------------------------------------------------
@@ -327,6 +358,89 @@ def test_check_dev_plan_missing_context_load_warns(tmp_path: Path) -> None:
     c.check_dev_plan()
     assert any("context_load" in w for w in c.warnings)
     assert not any("context_load" in e for e in c.errors)
+
+
+def test_check_dev_plan_validation_card_exempt(tmp_path: Path) -> None:
+    """A [VALIDATION] card ships 验证清单, not deliverables/tdd_acceptance."""
+    content = (
+        "### T-001 Setup\n"
+        "- deliverables: README\n"
+        "- tdd_acceptance:\n"
+        "  - AC-001: Return true on success.\n"
+        "- context_load: arch#§1\n"
+        "### T-004: [VALIDATION] 登录流程走查\n"
+        "- **task_kind**: validation\n"
+        "- **验证清单**:\n"
+        "  - 手动跑通登录流程\n"
+        "- **context_load**: [prd#§2]\n"
+    )
+    c = _checker(tmp_path, "dev-plan", content)
+    c.check_dev_plan()
+    assert c.errors == []
+
+
+def test_check_dev_plan_task_kind_validation_exempt(tmp_path: Path) -> None:
+    """`task_kind: validation` exempts even without the heading tag."""
+    content = (
+        "### T-002 人工验证\n"
+        "- task_kind: validation\n"
+        "- 验证清单:\n"
+        "  - 人工核对输出\n"
+        "- context_load: prd#§1\n"
+    )
+    c = _checker(tmp_path, "dev-plan", content)
+    c.check_dev_plan()
+    assert c.errors == []
+
+
+def test_check_dev_plan_bold_task_kind_validation_exempt(tmp_path: Path) -> None:
+    """The template's bold field form `- **task_kind**: validation` exempts."""
+    content = (
+        "### T-002 人工验证\n"
+        "- **task_kind**: validation\n"
+        "- **验证清单**:\n"
+        "  - 人工核对输出\n"
+        "- **context_load**: [prd#§1]\n"
+    )
+    c = _checker(tmp_path, "dev-plan", content)
+    c.check_dev_plan()
+    assert c.errors == []
+
+
+def test_check_dev_plan_prose_mention_not_exempt(tmp_path: Path) -> None:
+    """A feature card merely mentioning the enum value stays gated."""
+    content = (
+        "### T-003 实现任务分类器\n"
+        "- 说明: 枚举含 task_kind: validation，不进入 TDD 的卡由本任务路由\n"
+        "- context_load: arch#§2\n"
+    )
+    c = _checker(tmp_path, "dev-plan", content)
+    c.check_dev_plan()
+    assert any("deliverables" in e for e in c.errors)
+    assert any("tdd_acceptance" in e or "验收" in e for e in c.errors)
+
+
+def test_check_dev_plan_mixed_cards_use_tdd_denominator(tmp_path: Path) -> None:
+    """Failure counts run over TDD cards only, and the message says so."""
+    content = (
+        "### T-001 Setup\n"
+        "- deliverables: README\n"
+        "- tdd_acceptance:\n"
+        "  - AC-001: Return true on success.\n"
+        "- context_load: arch#§1\n"
+        "### T-002 缺字段的任务\n"
+        "- tdd_acceptance:\n"
+        "  - AC-002: Print result.\n"
+        "- context_load: arch#§1\n"
+        "### T-004: [VALIDATION] 走查\n"
+        "- **task_kind**: validation\n"
+        "- **验证清单**:\n"
+        "  - 手动跑通\n"
+        "- **context_load**: [prd#§2]\n"
+    )
+    c = _checker(tmp_path, "dev-plan", content)
+    c.check_dev_plan()
+    assert any("2个TDD任务中1个缺少deliverables定义" in e for e in c.errors)
 
 
 def test_check_dev_plan_cyclic_dependency_fails(tmp_path: Path) -> None:
