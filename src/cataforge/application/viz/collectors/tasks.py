@@ -32,9 +32,11 @@ from cataforge.runtime.skill.builtins.task_dep_analysis.task_dep_analysis import
 )
 
 
-def _edges_from_kg(root: Path) -> list[tuple[str, str]]:
-    """Task DAG edges from the KG: ``dep → task`` for every ``Task.depends_on``
-    whose target is also a Task (dep precedes the task that depends on it)."""
+def _kg_task_graph(root: Path) -> tuple[list[tuple[str, str]], set[str]]:
+    """Task ids + DAG edges from the KG: ``dep → task`` for every
+    ``Task.depends_on`` whose target is also a Task (dep precedes the task
+    that depends on it). Ids are returned separately so tasks without any
+    inter-task dependency still render as nodes."""
     with open_kg(root) as kg:
         ids = {eid for t in kg.query.all_entities(types=["Task"]) if (eid := t.get("entity_id"))}
         edges: list[tuple[str, str]] = []
@@ -42,7 +44,7 @@ def _edges_from_kg(root: Path) -> list[tuple[str, str]]:
             for dep in kg.query.depends_on(eid):
                 if dep in ids:
                     edges.append((dep, eid))
-    return edges
+    return edges, ids
 
 
 def collect_tasks(root: Path, /, **opts: Any) -> View:
@@ -50,15 +52,16 @@ def collect_tasks(root: Path, /, **opts: Any) -> View:
     graph is cyclic. Uses ``edges`` (+ optional ``weights``) when given,
     otherwise reads ``Task.depends_on`` from the KG."""
     edges_str = opts.get("edges", "") or ""
+    kg_ids: set[str] = set()
     if edges_str:
         edges = parse_edges(edges_str)
         weights = parse_weights(opts.get("weights", "") or "")
     else:
-        edges = _edges_from_kg(root)
+        edges, kg_ids = _kg_task_graph(root)
         weights = {}
 
     graph: dict[str, list[str]] = defaultdict(list)
-    all_nodes: set[str] = set()
+    all_nodes: set[str] = set(kg_ids)
     for u, v in edges:
         graph[u].append(v)
         all_nodes.add(u)
@@ -80,9 +83,13 @@ def collect_tasks(root: Path, /, **opts: Any) -> View:
 
     # Styled nodes carry their id as label so the textual status marker has a
     # declaration line to attach to (an implicit node renders colour only).
+    # Isolated tasks (no inter-task edge) need their own declaration line too.
+    endpoint_nodes = {u for u, _ in edges} | {v for _, v in edges}
+    isolated = all_nodes - endpoint_nodes - styled
     return Graph(
         direction="LR",
         edges=tuple(Edge(u, v) for u, v in edges),
-        nodes=tuple(Node(n, label=n, status=status) for n in styled),
+        nodes=tuple(Node(n, label=n, status=status) for n in styled)
+        + tuple(Node(n, label=n) for n in sorted(isolated)),
         title="task dependencies",
     )
