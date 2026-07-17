@@ -16,7 +16,7 @@ user-invocable: true
 
 ## 输入规范
 - 可选 `--mode`: 执行模式，缺省 `standard`（7 阶段全跑，门禁与检查点覆盖面最大）；要快速冒烟时显式 `--mode agile-lite`；语义见 COMMON-RULES §执行模式矩阵
-- 可选 `--platform`: 目标平台，缺省取 `framework.json#/runtime.platform`
+- 可选 `--platform`: 目标平台，缺省取 `framework.json#/deployment.default_platform`
 - 可选 `--example`: 示例目标 id，缺省内置 `temperature-converter`（见 [`references/example-project.md`](references/example-project.md)）；要走查 UI 链路（ui_design 真驱动 + UI 保真评审）用 `temperature-converter-ui`；自带目标须小到单轮收敛
 - 可选 `--depth`: 覆盖深度，缺省 `smoke`。`smoke` 只确定性驱动 happy path 主干、对分支/异常路径仅机会观察；`full` 额外按路径图探针清单逐个触发可达的分支/异常路径
 - 被走查的框架资产: 项目根 `.cataforge/`（必读）
@@ -42,7 +42,7 @@ user-invocable: true
 
 ### Step 1: 准备隔离沙盒（初始化前置）
 1. 新建 gitignored 独立 run-id 沙盒目录（缺省 `walkthrough-sandbox/<run-id>/`；命名规则与非空目录处置见 walkthrough-protocol §1.1）
-2. 在沙盒 cwd 内部署目标平台资产（命令形态见 walkthrough-protocol §1.1）；确认 `framework.json#/version` 非占位符 `0.0.0-template`、`cataforge doctor` 通过
+2. 在沙盒 cwd 内部署目标平台资产（命令形态见 walkthrough-protocol §1.1）；确认 `framework.json#/version` 非占位符 `0.0.0-template`、`cataforge doctor` 通过、CLI 来源核验通过（walkthrough-protocol §1.1 第 4 条）
 3. 校验沙盒与宿主隔离：沙盒有独立的 `.cataforge/` 与空 `docs/`，后续所有写入均在沙盒 cwd 内
 
 ### Step 2: 选定示例目标与执行模式
@@ -52,7 +52,7 @@ user-invocable: true
 
 ### Step 3: 驱动初始化路径（Bootstrap → 路径图 §2）
 1. 在沙盒 cwd 按 start-orchestrator 角色假设起流程：主线程扮演 orchestrator，按 `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS §Project Bootstrap` 逐步推进
-2. 逐步观察 Bootstrap 各产物落地（路径图 I-1~I-9：目录结构 / .gitattributes / {INSTRUCTION_FILE} 初版 / 框架版本 / runtime.platform / env-block / permissions / kg store 水合 / context index），口径见 observation-rubric §1
+2. 逐步观察 Bootstrap 各产物落地（路径图 I-1~I-9：目录结构 / .gitattributes / {INSTRUCTION_FILE} 初版 / 框架版本 / deployment.default_platform / env-block / permissions / kg store 水合 / context index），口径见 observation-rubric §1
 3. Bootstrap 完成后跑 `cataforge phase status`，以 `phase recognised` / `phase_start logged` 两行 OK 确认入口成立；入口时点不据 exit 码判 blocked，blocked 判定仅适用阶段收口（E-8）<!-- allow-cli-verb: phase recognised 是 phase status 的输出行标签，非命令 -->
 
 ### Step 4: 驱动核心链路 + 分支/异常路径（路径图 §3–§5）
