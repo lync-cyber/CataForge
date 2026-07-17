@@ -1,4 +1,4 @@
-# ## Changed
+### Changed
 
 - **framework-walkthrough skill 自更新（4 条 process findings 回灌）** —— 配置键引用对齐
   `deployment.default_platform`（SKILL.md / runtime-flow-map I-6 / observation-rubric §1）；
