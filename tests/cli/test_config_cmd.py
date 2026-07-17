@@ -153,6 +153,17 @@ class TestConfigSet:
         raw = json.loads(_fw_path(root).read_text("utf-8"))
         assert raw["project"]["languages"] == ["js-ts", "python"]
 
+    def test_set_project_languages_unknown_id_warns_but_writes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = make_minimal_project(tmp_path)
+        _patch_fw(root, {"schema_version": 2})
+        result = _run(["config", "set", "project.languages", "pyhton"], root, monkeypatch)
+        assert result.exit_code == 0, result.output
+        assert "WARN" in result.output and "pyhton" in result.output
+        raw = json.loads(_fw_path(root).read_text("utf-8"))
+        assert raw["project"]["languages"] == ["pyhton"]
+
     def test_set_project_languages_empty_reenables_detection(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

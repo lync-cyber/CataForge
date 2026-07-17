@@ -148,9 +148,17 @@ def config_set(ctx: click.Context, path: str, value: str, dry_run: bool) -> None
             click.echo(f"FAIL: unknown platform id(s): {', '.join(unknown)}", err=True)
             ctx.exit(1)
     elif path in _LANGUAGE_LIST_VALUED:
-        from cataforge.core.languages import normalize
+        from cataforge.core.languages import known_languages, normalize
 
         parsed = normalize([item.strip() for item in value.split(",") if item.strip()])
+        unrecognized = sorted(set(parsed) - set(known_languages()))
+        if unrecognized:
+            click.echo(
+                f"WARN: language id(s) not in the registry: {', '.join(unrecognized)} — "
+                "kept verbatim, but no lang rules will load for them "
+                f"(known: {', '.join(known_languages())})",
+                err=True,
+            )
     elif path in _PLATFORM_VALUED and value not in ALL_PLATFORMS:
         click.echo(
             f"FAIL: unknown platform id {value!r} (choices: {', '.join(ALL_PLATFORMS)})", err=True
