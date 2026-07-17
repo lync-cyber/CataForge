@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Anti-rot guard: checked-in KG codegen output stays in sync with the schemas.
 
-`src/cataforge/domain/kg/_generated/core_pydantic.py` and
-`subclass_axioms.ttl` are committed so the runtime imports them and the wheel
-ships them. Regenerating from `schemas/*.yaml` must produce no diff; a drift
-means a schema was edited without rerunning
+`src/cataforge/domain/kg/_generated/core_pydantic.py`, `subclass_axioms.ttl`
+and `core_shapes.ttl` are committed so the runtime imports/loads them and the
+wheel ships them. Regenerating from `schemas/*.yaml` must produce no diff; a
+drift means a schema was edited without rerunning
 `python scripts/codegen_kg_schema.py`. Mirrors the `uv lock --check` contract.
 
-The SHACL shapes (`*_shapes.ttl`) are deliberately excluded: LinkML's
-ShaclGenerator emits property-shape order nondeterministically, so they are
-neither byte- nor isomorphism-stable and stay gitignored.
+The SHACL shapes are byte-stable because codegen canonicalizes them (sorted
+N-Triples, `sh:order` stripped, set-semantics lists sorted — see
+`_canonicalize_shacl` in scripts/codegen_kg_schema.py).
 
 Skipped gracefully when `linkml` is unavailable (no dev extra) so Python-only
 contributor setups still pass; CI installs the dev extra and covers it.
@@ -33,8 +33,8 @@ ensure_utf8()
 GENERATED = REPO_ROOT / "src" / "cataforge" / "domain" / "kg" / "_generated"
 CODEGEN = REPO_ROOT / "scripts" / "codegen_kg_schema.py"
 
-# Deterministic, checked-in artifacts. `*_shapes.ttl` is excluded — see module docstring.
-GUARDED = ("core_pydantic.py", "subclass_axioms.ttl")
+# Deterministic, checked-in artifacts.
+GUARDED = ("core_pydantic.py", "subclass_axioms.ttl", "core_shapes.ttl")
 
 
 def main() -> int:

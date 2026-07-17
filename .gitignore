@@ -135,13 +135,11 @@ opencode.json
 .cataforge/kg/
 .ruff_cache/
 
-# KG codegen output — `python scripts/codegen_kg_schema.py` regenerates these
-# from src/cataforge/domain/kg/schemas/. The Pydantic models and subclass
-# axioms are deterministic and checked in (the runtime imports them; the wheel
-# ships them; check_codegen_fresh guards them). Only the SHACL shapes are
-# nondeterministic — LinkML emits property-shape order unstably — so they stay
-# ignored and SHACL validation degrades to skipped without them.
-src/cataforge/domain/kg/_generated/*_shapes.ttl
+# KG codegen output — `python scripts/codegen_kg_schema.py` regenerates
+# src/cataforge/domain/kg/_generated/ from src/cataforge/domain/kg/schemas/.
+# All three artifacts (Pydantic models, subclass axioms, canonicalized SHACL
+# shapes) are deterministic and checked in: the runtime imports/loads them,
+# the wheel ships them, check_codegen_fresh guards them.
 
 # ==============================================================================
 # Build & Output

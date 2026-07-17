@@ -103,9 +103,9 @@ def test_run_shacl_skips_when_deps_missing() -> None:
     from cataforge.domain.kg.validate import _run_shacl
 
     store = _make_store_with_entity()
-    skipped, violations = _run_shacl(store)
+    skip_reason, violations = _run_shacl(store)
     if not _HAS_SHACL_DEPS:
-        assert skipped is True
+        assert skip_reason == "deps_missing"
         assert violations == []
 
 
@@ -119,9 +119,9 @@ def test_run_shacl_skips_when_shapes_file_missing() -> None:
 
     store = _make_store_with_entity()
     with patch("cataforge.domain.kg.validate._find_shapes_file", return_value=None):
-        skipped, violations = _run_shacl(store)
+        skip_reason, violations = _run_shacl(store)
 
-    assert skipped is True
+    assert skip_reason == "shapes_missing"
     assert violations == []
 
 
@@ -155,9 +155,9 @@ cf:FeatureShape a sh:NodeShape ;
 
     store = _make_store_with_entity()
     with patch("cataforge.domain.kg.validate._find_shapes_file", return_value=shapes_ttl):
-        skipped, violations = _run_shacl(store)
+        skip_reason, violations = _run_shacl(store)
 
-    assert skipped is False
+    assert skip_reason is None
     assert len(violations) >= 1, f"expected SHACL violation, got {violations}"
     assert any("description" in v.message.lower() for v in violations)
 
@@ -194,7 +194,7 @@ cf:FeatureShape a sh:NodeShape ;
 
     store = _make_store_with_entity()
     with patch("cataforge.domain.kg.validate._find_shapes_file", return_value=shapes_ttl):
-        skipped, violations = _run_shacl(store)
+        skip_reason, violations = _run_shacl(store)
 
-    assert skipped is False
+    assert skip_reason is None
     assert violations == [], f"unexpected violations: {violations}"

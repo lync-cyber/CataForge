@@ -23,6 +23,7 @@ from cataforge.domain.kg._quads import (
     build_section_quads,
     content_hash_matches,
     entity_home_sync_quads,
+    stored_entity_iri,
 )
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
@@ -322,6 +323,10 @@ def write_structure(
             level=section.level,
             contained_entity_ids=section.contained_entity_ids,
             document_iri_val=document_iri(section.doc_id, base_ns),
+            resolve_contained_iri=lambda eid: (
+                stored_entity_iri(store, eid, namespace=namespace, base_ns=base_ns)
+                or entity_iri(eid, base_ns)
+            ),
         )
         _atomic_replace_entity(store, iri, quads, namespace=namespace)
         stats.sections_written += 1

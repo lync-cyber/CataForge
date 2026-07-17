@@ -7,6 +7,7 @@ documented escape hatch, or rolled into a downstream sub-PR.
 ## Verified during Alpha
 
 ### pyoxigraph SPARQL property-path `a/rdfs:subClassOf*` on 0.5.x
+
 *Origin*: task-4 / README open follow-ups · spike-2 §2.1 (issue
 [CataForge#142](https://github.com/lync-cyber/CataForge/issues/142)).
 
@@ -22,6 +23,7 @@ returns that instance. The same mechanic is the basis for `QueryAPI.requirement(
 SPARQL enumeration.
 
 ### `belongs_to_work_unit` polymorphic accessor
+
 *Origin*: task-3 §3 / task-5 `[待验证]`.
 
 The design proposal flagged "is LinkML `union_of` syntax sufficient, or does this
@@ -32,6 +34,7 @@ Polymorphic queries fall back on the verified `a/rdfs:subClassOf*` mechanic abov
 no CONSTRUCT rule, no `union_of` workaround.
 
 ### TestCase ID prefix strictness (`TC-NNN`)
+
 *Origin*: task-3 §3.9 decision 1.
 
 `core.yaml` declares `Pattern: ^TC-[0-9]{3,}$` for the `TestCase.entity_id` slot, and
@@ -43,6 +46,7 @@ treated as a migration concern: the ingest codemod skips non-conforming matches
 and the doctor gate surfaces them as missing.
 
 ### Schema codegen produces well-formed Pydantic + SHACL
+
 *Origin*: task-3 `[待验证]` (LinkML codegen behavior with non-trivial slots).
 
 `scripts/codegen_kg_schema.py` runs `gen-pydantic` and `gen-shacl` over `core.yaml`
@@ -52,25 +56,44 @@ are caught by `tests/kg/test_codegen.py` (byte-stable regeneration) and
 `tests/kg/test_ingest.py` (live ingest exercises the generated types).
 
 ### SHACL `sh:closed true` enforcement at runtime
+
 *Origin*: task-3 §6 / task-5 `[待验证]`.
 
 `core.yaml` declares closed shapes per class, and `gen-shacl` materializes them
-into `_generated/core_shapes.ttl`. `--shacl` runs them at runtime:
-[`validate.py::_run_shacl`](../../src/cataforge/domain/kg/validate.py) bridges the
-pyoxigraph store into an rdflib `Graph` (`_pyoxigraph_to_rdflib`) and validates it
-with `pyshacl`. `shacl_skipped = True` is reported only when the optional
-`[shacl]` extra (`pyshacl` + `rdflib`) is absent or the shapes file is missing;
-when present, conformance and per-shape violations are returned.
+into `_generated/core_shapes.ttl` — since the shapes canonicalization
+(`_canonicalize_shacl` in `scripts/codegen_kg_schema.py`: sorted N-Triples,
+`sh:order` stripped, set-semantics lists sorted) the file is byte-stable,
+**committed, guarded by `check_codegen_fresh`, and shipped in the wheel**, so
+the runtime pass no longer degrades to "shapes missing" on a fresh install.
+
+Enforcement surfaces:
+
+* `cataforge kg validate --shacl` runs the shapes via
+  [`validate.py::_run_shacl`](../../src/cataforge/domain/kg/validate.py)
+  (pyoxigraph → rdflib bridge). A skip is reported with a structured reason
+  (`deps_missing` / `shapes_missing`); `--require-shacl` turns any skip into a
+  hard failure for CI.
+* `cataforge doctor` gates on `KG SHACL conformance:` when the `shacl` extra
+  is installed, and prints a loud skip note (never silent) when it is not.
+* Per-write validation on the authoring doors runs the orphan/xref checks (not
+  the full SHACL pass — latency-bounded) plus write-time enum/lifecycle slot
+  guards ([`slot_guard.py`](../../src/cataforge/domain/kg/slot_guard.py));
+  `verify_after_write` inside the ingest codemod back-stops schema constraints
+  for environments without the extra installed.
 
 Evidence: [`tests/kg/test_shacl_bridge.py`](../../tests/kg/test_shacl_bridge.py)
-covers the term-level round-trip, datatype handling, the skip paths when deps or
-shapes are missing, and both the violation-detected and conforming-data cases.
-Write-time schema constraints inside the ingest codemod (`verify_after_write`)
-back-stop this for environments without the extra installed.
+covers the term-level round-trip, datatype handling, skip paths, and
+violation/conforming cases with inline shapes;
+[`tests/kg/test_shacl_conformance.py`](../../tests/kg/test_shacl_conformance.py)
+locks the stronger property that the *committed generated shapes* accept the
+*actual ingest pipeline output* for both golden workflow variants (and that
+`Section --contains_entity-->` edges resolve to typed nodes and every
+AcceptanceCriteria carries its required `acceptance_text`).
 
 ## Deferred — known escape hatch, no Alpha blocker
 
 ### Embedded LLM client for natural-language query
+
 *Origin*: task-5 §5.7 `[待验证]`.
 
 The natural-language query surface ships as the `context` skill's query branch (B1): a host

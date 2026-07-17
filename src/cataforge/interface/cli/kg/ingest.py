@@ -169,7 +169,16 @@ def kg_import(
     default=False,
     help=(
         "Run SHACL shapes from `_generated/core_shapes.ttl` against the live "
-        "graph. Requires pyshacl + rdflib (extra); silently skipped if absent."
+        "graph. Requires pyshacl + rdflib (extra); skipped with a note if absent."
+    ),
+)
+@click.option(
+    "--require-shacl",
+    is_flag=True,
+    default=False,
+    help=(
+        "Fail (exit non-zero) when the SHACL pass cannot run — deps or shapes "
+        "missing. Implies --shacl. Use in CI where a silent skip must not pass."
     ),
 )
 @click.option(
@@ -180,13 +189,16 @@ def kg_import(
     help="Emit a JSON report instead of the table.",
 )
 @click.pass_context
-def kg_validate(ctx: click.Context, db_path: Path, shacl: bool, json_output: bool) -> None:
+def kg_validate(
+    ctx: click.Context, db_path: Path, shacl: bool, require_shacl: bool, json_output: bool
+) -> None:
     """Check the live KG for orphan nodes and broken traceability edges."""
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
 
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.domain.kg.validate import validate
 
+    shacl = shacl or require_shacl
     config = KGConfig(store_backend="oxigraph", db_path=db_path)
     try:
         with KnowledgeGraph.connect(config, read_only=True) as kg:
@@ -200,6 +212,7 @@ def kg_validate(ctx: click.Context, db_path: Path, shacl: bool, json_output: boo
                 {
                     "ok": report.ok,
                     "shacl_skipped": report.shacl_skipped,
+                    "shacl_skip_reason": report.shacl_skip_reason,
                     "violations": [
                         {
                             "severity": v.severity,
@@ -223,10 +236,14 @@ def kg_validate(ctx: click.Context, db_path: Path, shacl: bool, json_output: boo
             for v in report.violations:
                 click.echo(f"{v.severity:<12} {v.entity_id:<20} {v.shape:<28} {v.message}")
         if report.shacl_skipped and shacl:
-            click.echo(
-                "Note: SHACL pass skipped (pyshacl/rdflib not installed or shapes file missing)."
-            )
+            click.echo(f"Note: SHACL pass skipped ({report.shacl_skip_reason}).")
 
+    if require_shacl and report.shacl_skipped:
+        raise KGVerificationError(
+            f"--require-shacl: SHACL pass could not run ({report.shacl_skip_reason}). "
+            "Install the `shacl` extra (pyshacl + rdflib) and ensure "
+            "_generated/core_shapes.ttl is present."
+        )
     if not report.ok:
         raise KGVerificationError("validation reported violations.")
 

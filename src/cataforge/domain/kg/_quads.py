@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -44,6 +45,36 @@ def content_hash_matches(
     safe_hash = escape_sparql_literal(content_hash)
     sparql = f'PREFIX cf: <{namespace}> ASK {{ <{safe_iri}> cf:content_hash "{safe_hash}" }}'
     return ask(store, sparql)
+
+
+def stored_entity_iri(
+    store: ox.Store,
+    entity_id: str,
+    *,
+    namespace: str,
+    base_ns: str,
+) -> str | None:
+    """IRI of the stored node carrying ``cf:entity_id == entity_id``.
+
+    A subordinate entity (e.g. an AcceptanceCriteria) lives on a parent-scoped
+    IRI, so edges built from a bare entity_id must resolve through the store
+    instead of assuming the flat form. The flat IRI wins when present;
+    otherwise the lexically smallest match keeps resolution deterministic.
+    Returns None when no stored node carries the id.
+    """
+    import pyoxigraph as ox  # noqa: PLC0415
+
+    pred = ox.NamedNode(f"{namespace}entity_id")
+    literal = ox.Literal(entity_id, datatype=ox.NamedNode(XSD_STRING_IRI))
+    matches = sorted(
+        q.subject.value
+        for q in store.quads_for_pattern(None, pred, literal, None)
+        if isinstance(q.subject, ox.NamedNode)
+    )
+    if not matches:
+        return None
+    flat = entity_iri(entity_id, base_ns)
+    return flat if flat in matches else matches[0]
 
 
 def entity_home_sync_quads(
@@ -239,11 +270,15 @@ def build_section_quads(
     level: int = 2,
     contained_entity_ids: list[str] | None = None,
     document_iri_val: str | None = None,
+    resolve_contained_iri: Callable[[str], str] | None = None,
 ) -> list[ox.Quad]:
     """Return the quads describing one Section structural node.
 
     Identity is the section IRI (no `cf:entity_id` — Sections are
     structural, identified by the `id` IRI like Project/Document).
+    ``resolve_contained_iri`` maps a contained entity_id to its stored IRI
+    (subordinates live on parent-scoped IRIs); without it the flat form is
+    assumed.
     """
     import pyoxigraph as ox  # noqa: PLC0415
 
@@ -280,12 +315,13 @@ def build_section_quads(
                 ox.NamedNode(document_iri_val),
             )
         )
+    resolve = resolve_contained_iri or (lambda eid: entity_iri(eid, base_ns))
     for eid in contained_entity_ids or []:
         quads.append(
             ox.Quad(
                 subject,
                 ox.NamedNode(_slot_iri("cf:contains_entity", namespace)),
-                ox.NamedNode(entity_iri(eid, base_ns)),
+                ox.NamedNode(resolve(eid)),
             )
         )
     return quads

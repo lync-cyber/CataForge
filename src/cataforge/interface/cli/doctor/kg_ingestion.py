@@ -481,6 +481,55 @@ def check_kg_xref_target_integrity(cfg: ConfigManager) -> int:
     return 1
 
 
+def check_kg_shacl_conformance(cfg: ConfigManager) -> int:
+    """Doctor gate — live graph conforms to the generated SHACL shapes.
+
+    Runs the full shapes pass (`_generated/core_shapes.ttl`) that per-write
+    validation does not: closed shapes, required slots, enum membership.
+    Degrades loudly (a printed skip note, not a FAIL) when the optional
+    `shacl` extra is absent so minimal installs keep a green doctor.
+    """
+    project_root = Path(cfg.paths.root)
+    db_path = project_root / KG_STORE_REL
+
+    if not db_path.exists():
+        click.echo("  (no KG store at .cataforge/kg/store — skipping)")
+        return 0
+
+    from cataforge.domain.kg import KGConfig, KnowledgeGraph  # noqa: PLC0415
+    from cataforge.domain.kg.validate import _run_shacl  # noqa: PLC0415
+
+    config = KGConfig(db_path=db_path)
+    try:
+        with KnowledgeGraph.connect(config, read_only=True) as kg:
+            skip_reason, violations = _run_shacl(kg.store)
+    except Exception as exc:  # noqa: BLE001 — opening fail surfaces here
+        click.echo(f"  FAIL (could not open KG store at {db_path}: {exc})")
+        return 1
+
+    if skip_reason is not None:
+        click.echo(
+            f"  (skipped — {skip_reason}; install the `shacl` extra "
+            "(pyshacl + rdflib) to enable shape conformance)"
+        )
+        return 0
+
+    blocking = [v for v in violations if v.severity == "violation"]
+    if not blocking:
+        click.echo("  OK (graph conforms to generated SHACL shapes)")
+        return 0
+
+    click.echo(
+        f"  FAIL: {len(blocking)} SHACL violation(s) — schema ↔ store drift; "
+        "re-ingest the offending documents or fix the entities."
+    )
+    for v in blocking[:5]:
+        click.echo(f"    {v.entity_id} {v.shape}: {v.message}")
+    if len(blocking) > 5:
+        click.echo("    ...")
+    return 1
+
+
 def check_kg_snapshot_freshness(cfg: ConfigManager) -> int:
     """Doctor gate (graph mode only, WARN) — the durable snapshot must not lag.
 

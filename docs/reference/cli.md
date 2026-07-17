@@ -332,7 +332,7 @@ cataforge context read 'prd#§2.F-003'          # 加载 PRD 第 2 节 Feature F
 cataforge context read 'dev-plan#§3.T-005'     # 加载开发计划第 3 节 Task T-005
 ```
 
-写入生命周期（`write` / `write-narrative` / `transact` / `update` / `delete` / `finalize` / `ingest` / `reconcile`）见 `cataforge context --help`。`update` 就地合并实体 slot（保 part_of / source_doc），`delete` 删除实体（可级联入向边）；二者仅 `context.mode = graph` 可用。
+写入生命周期（`write` / `write-narrative` / `transact` / `update` / `delete` / `finalize` / `ingest` / `reconcile`）见 `cataforge context --help`。`update` 就地合并实体 slot（保 part_of / source_doc），`delete` 删除实体（可级联入向边）；二者仅 `context.mode = graph` 可用。写入门统一执行枚举域 slot 校验与 `task_status` 状态机（非法转换 exit 1，`--ack-status-jump` 显式越迁）。
 
 ## docs
 
@@ -353,7 +353,7 @@ cataforge docs migrate-reviews  # 回填历史审查报告的 YAML front matter
 ```bash
 cataforge kg init                                # 初始化 store + bootstrap rdfs:subClassOf
 cataforge kg import [--doc-type prd ...]         # 底层六阶段管道（业务用 context ingest）
-cataforge kg validate [--shacl]                  # 孤儿节点、断裂追溯边、可选 SHACL 校验
+cataforge kg validate [--shacl|--require-shacl]  # 孤儿节点、断裂追溯边、可选 SHACL 校验
 cataforge kg export [--output-dir docs]          # 底层 KG → Markdown（业务用 context finalize）
 cataforge kg drift-check [--doc-type ...]        # 底层漂移诊断：md ⊕ kg → missing / ghost（业务门禁用 context reconcile）
 cataforge kg repair [--dry-run]                  # 自动修复 reconcile 发现的漂移
@@ -392,9 +392,10 @@ cataforge kg delete <entity_id> [--cascade]      # 删除实体（可级联入�
 ### kg validate
 
 | 参数 | 作用 |
-|------|------|
-| `--shacl / --no-shacl` | 跑 `_generated/core_shapes.ttl`（需 pyshacl + rdflib，缺则静默跳过） |
-| `--json` | 输出 JSON 违例报告 |
+| ------ | ------ |
+| `--shacl / --no-shacl` | 跑 `_generated/core_shapes.ttl`（需 pyshacl + rdflib 即 `shacl` extra；缺则打印跳过原因，不失败） |
+| `--require-shacl` | SHACL 无法运行（依赖或 shapes 缺失）时直接失败，隐含 `--shacl` — CI 场景用它堵住静默跳过 |
+| `--json` | 输出 JSON 违例报告（含 `shacl_skip_reason`：`not_requested` / `deps_missing` / `shapes_missing` / `null`） |
 
 ### kg export
 
@@ -467,7 +468,7 @@ cataforge kg add F-010 --class Feature --title "Profile edit" \
 
 ### kg update
 
-更新现有实体的 slot。实体不存在时 exit 1。`--content-hash` 与 store 已有值相同则整次更新短路（用于幂等同步场景）。
+更新现有实体的 slot。实体不存在时 exit 1。`--content-hash` 与 store 已有值相同则整次更新短路（用于幂等同步场景）。枚举域 slot（`task_status` / `status` / `test_result` / `priority` …）按 schema 枚举校验，越范围值 exit 1 并列出合法值；`task_status` 更新还需符合任务状态机（`todo → in_progress → review → done`，任意态 ↔ `blocked`，终态 `done` / `cancelled` 离开需显式确认）。
 
 ```bash
 cataforge kg update F-010 --title "Profile edit (v2)" --slot cf:priority=critical
@@ -478,8 +479,9 @@ cataforge kg update F-010 --title "Profile edit (v2)" --slot cf:priority=critica
 | `ENTITY_ID` | 必填 |
 | `--title <text>` | 新 title |
 | `--source-section <text>` | 新 source_section |
-| `--slot KEY=VALUE` | slot 更新（可重复） |
+| `--slot KEY=VALUE` | slot 更新（可重复；枚举域按 schema 校验） |
 | `--content-hash <hex>` | 新 content_hash（与现有相同则跳过） |
+| `--ack-status-jump` | 显式允许 task_status 越迁（返工 / 人工修复） |
 | `--json` | 输出 JSON status blob |
 
 至少需提供 `--title` / `--source-section` / `--slot` / `--content-hash` 之一，否则 exit 1。

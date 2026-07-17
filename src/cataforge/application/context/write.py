@@ -1011,13 +1011,16 @@ def update_entity(
     source_section: str | None = None,
     slots: dict[str, str] | None = None,
     content_hash: str | None = None,
+    ack_status_jump: bool = False,
 ) -> UpdateEntityResult:
     """Merge slot / title updates into an existing graph entity in place.
 
     Requires ``context.mode = graph``. Only the named slots are rewritten; the
     entity's ``cf:part_of`` membership and ``cf:source_doc`` are left untouched,
     so a re-edited entity keeps its document and owner. Raises
-    ``KGEntityNotFoundError`` when the entity is absent.
+    ``KGEntityNotFoundError`` when the entity is absent, ``KGValidationError``
+    when a slot value violates its enum range or ``task_status`` makes an
+    illegal lifecycle move without ``ack_status_jump``.
     """
     _require_graph_mode(project_root, "entity update (`context update`)")
     merged: dict[str, str] = dict(slots or {})
@@ -1031,7 +1034,9 @@ def update_entity(
         )
     cfg = kg_config_for(project_root)
     with KnowledgeGraph.connect(cfg) as kg, kg.transaction() as txn:
-        txn.update_entity(entity_id, content_hash=content_hash, **merged)
+        txn.update_entity(
+            entity_id, content_hash=content_hash, ack_status_jump=ack_status_jump, **merged
+        )
         changed = txn.pending_inserts > 0 or txn.pending_deletes > 0
     return UpdateEntityResult(entity_id=entity_id, slots_updated=sorted(merged), changed=changed)
 

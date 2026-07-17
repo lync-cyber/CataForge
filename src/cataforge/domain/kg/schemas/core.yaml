@@ -915,6 +915,7 @@ classes:
       - source_path
       - frontmatter_raw
       - preamble_body
+      - content_hash
       - authored_by
       - created_at
       - updated_at

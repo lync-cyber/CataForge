@@ -205,11 +205,11 @@ def test_update_entity_changes_slot_in_place(tmp_path: Path) -> None:
         entity_id="F-001",
         class_name="Feature",
         title="登录",
-        slots={"priority": "P0"},
+        slots={"priority": "high"},
     )
     gc.collect()
 
-    result = cw.update_entity(str(proj), "F-001", slots={"priority": "P1"})
+    result = cw.update_entity(str(proj), "F-001", slots={"priority": "low"})
     assert result.changed is True
     assert result.slots_updated == ["priority"]
     gc.collect()
@@ -222,7 +222,7 @@ def test_update_entity_changes_slot_in_place(tmp_path: Path) -> None:
                 f'PREFIX cf: <{ns}> SELECT ?p WHERE {{ ?s cf:entity_id "F-001" ; cf:priority ?p }}'
             )
         )
-        assert [str(r["p"].value) for r in rows] == ["P1"]
+        assert [str(r["p"].value) for r in rows] == ["low"]
     gc.collect()
 
 

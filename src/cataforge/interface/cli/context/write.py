@@ -203,6 +203,15 @@ def context_transact(ctx: click.Context, spec_file: str | None, project_root: st
 @click.option("--section", "source_section", default=None, help="New source section anchor.")
 @click.option("--slot", "slots", multiple=True, metavar="KEY=VALUE", help="Repeatable scalar slot.")
 @click.option("--content-hash", default=None, help="New content hash (idempotent if unchanged).")
+@click.option(
+    "--ack-status-jump",
+    is_flag=True,
+    default=False,
+    help=(
+        "Deliberately allow a task_status move outside the legal lifecycle "
+        "(rework of a done/cancelled task, manual repair)."
+    ),
+)
 @click.option("--project-root", default=None)
 @click.option("--json", "json_output", is_flag=True)
 @click.pass_context
@@ -213,6 +222,7 @@ def context_update(
     source_section: str | None,
     slots: tuple[str, ...],
     content_hash: str | None,
+    ack_status_jump: bool,
     project_root: str | None,
     json_output: bool,
 ) -> None:
@@ -221,7 +231,7 @@ def context_update(
     import json
 
     from cataforge.application.context.write import update_entity
-    from cataforge.domain.kg import KGEntityNotFoundError
+    from cataforge.domain.kg import KGEntityNotFoundError, KGValidationError
 
     if not slots and title is None and source_section is None and content_hash is None:
         raise click.ClickException(
@@ -237,8 +247,11 @@ def context_update(
                 source_section=source_section,
                 slots=_kv(slots),
                 content_hash=content_hash,
+                ack_status_jump=ack_status_jump,
             )
         except KGEntityNotFoundError as exc:
+            raise KGStoreError(str(exc)) from exc
+        except KGValidationError as exc:
             raise KGStoreError(str(exc)) from exc
     if json_output:
         click.echo(

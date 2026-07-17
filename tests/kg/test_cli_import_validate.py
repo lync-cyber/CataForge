@@ -313,3 +313,73 @@ def test_kg_export_whole_document_default(tmp_path: Path) -> None:
         "arch/arch-vertical-slice.md",
         "test-report/test-report-vertical-slice.md",
     }
+
+
+def _import_fixture(runner: CliRunner, db: Path) -> None:
+    init = runner.invoke(_cli(), ["kg", "init", "--db-path", str(db), "--backend", "oxigraph"])
+    assert init.exit_code == 0, init.output
+    imp = runner.invoke(
+        _cli(),
+        [
+            "kg",
+            "import",
+            "--project-root",
+            str(FIXTURE_ROOT / "waterfall"),
+            "--db-path",
+            str(db),
+            "--backend",
+            "oxigraph",
+        ],
+    )
+    assert imp.exit_code == 0, imp.output
+
+
+def test_kg_validate_require_shacl_passes_on_conforming_store(tmp_path: Path) -> None:
+    import importlib.util
+
+    import pytest
+
+    if importlib.util.find_spec("pyshacl") is None or importlib.util.find_spec("rdflib") is None:
+        pytest.skip("shacl extra not installed")
+
+    db = tmp_path / "store"
+    runner = CliRunner()
+    _import_fixture(runner, db)
+
+    val = runner.invoke(
+        _cli(), ["kg", "validate", "--db-path", str(db), "--require-shacl", "--json"]
+    )
+    assert val.exit_code == 0, val.output
+    report = json.loads(val.output)
+    assert report["ok"] is True
+    assert report["shacl_skipped"] is False
+    assert report["shacl_skip_reason"] is None
+
+
+def test_kg_validate_require_shacl_fails_when_pass_cannot_run(tmp_path: Path) -> None:
+    """--require-shacl turns the historical silent skip into a hard failure."""
+    from unittest.mock import patch
+
+    db = tmp_path / "store"
+    runner = CliRunner()
+    _import_fixture(runner, db)
+
+    with patch("cataforge.domain.kg.validate._find_shapes_file", return_value=None):
+        val = runner.invoke(_cli(), ["kg", "validate", "--db-path", str(db), "--require-shacl"])
+    assert val.exit_code != 0
+    assert "--require-shacl" in val.output
+    assert "shapes_missing" in val.output
+
+
+def test_kg_validate_plain_shacl_skip_stays_note_only(tmp_path: Path) -> None:
+    """Without --require-shacl the skip stays a visible note, not a failure."""
+    from unittest.mock import patch
+
+    db = tmp_path / "store"
+    runner = CliRunner()
+    _import_fixture(runner, db)
+
+    with patch("cataforge.domain.kg.validate._find_shapes_file", return_value=None):
+        val = runner.invoke(_cli(), ["kg", "validate", "--db-path", str(db), "--shacl"])
+    assert val.exit_code == 0, val.output
+    assert "SHACL pass skipped" in val.output
