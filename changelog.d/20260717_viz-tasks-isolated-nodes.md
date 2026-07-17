@@ -1,4 +1,4 @@
-# ## Fixed
+### Fixed
 
 - **viz tasks 的 KG 数据源补渲染无依赖任务** —— KG 路径此前只返回 Task 间 depends_on 边，
   没有内部依赖边的项目即使 Task 实体已入图，dashboard tasks tile 与 `viz status` 也报 empty，

@@ -70,16 +70,23 @@ def collect_tasks(root: Path, /, **opts: Any) -> View:
     if not all_nodes:
         return Graph(direction="LR", title="task dependencies")
 
-    cycles = detect_cycles(graph, all_nodes)
-    if cycles:
+    if not edges:
+        # No dependency edges → no path to rank: every task renders as a plain
+        # node. Running critical_path here would tie-break on set iteration
+        # order and highlight one arbitrary task per run.
         styled: set[str] = set()
-        for cycle in cycles:
-            styled.update(cycle)
-        status = Status.CYCLE
+        status = None
     else:
-        cp, _ = critical_path(graph, all_nodes, weights, topological_sort(graph, all_nodes))
-        styled = set(cp)
-        status = Status.CRITICAL_PATH
+        cycles = detect_cycles(graph, all_nodes)
+        if cycles:
+            styled = set()
+            for cycle in cycles:
+                styled.update(cycle)
+            status = Status.CYCLE
+        else:
+            cp, _ = critical_path(graph, all_nodes, weights, topological_sort(graph, all_nodes))
+            styled = set(cp)
+            status = Status.CRITICAL_PATH
 
     # Styled nodes carry their id as label so the textual status marker has a
     # declaration line to attach to (an implicit node renders colour only).

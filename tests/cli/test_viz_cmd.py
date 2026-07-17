@@ -701,8 +701,17 @@ class TestVizTasksFromKg:
         result = _viz(tmp_path, "tasks", "--format", "json")
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
-        assert {n["id"] for n in data["nodes"]} >= {"T-001", "T-002"}
+        assert {n["id"] for n in data["nodes"]} == {"T-001", "T-002"}
+        assert data["edges"] == []
+        # No dependency edges → no critical-path ranking: styling must be
+        # deterministic (no arbitrary highlighted task).
+        assert all(n["status"] is None for n in data["nodes"])
         assert "viz status" not in result.output
+
+        mermaid = _viz(tmp_path, "tasks")
+        assert mermaid.exit_code == 0, mermaid.output
+        assert "T-001[T-001]" in mermaid.output
+        assert "T-002[T-002]" in mermaid.output
 
     def test_no_tasks_empty_graph(self, tmp_path: Path) -> None:
         _make_kg_project(tmp_path)  # KG with Features/Modules but no Tasks
