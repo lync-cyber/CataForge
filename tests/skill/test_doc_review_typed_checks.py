@@ -205,6 +205,26 @@ def test_check_arch_api_no_input_at_all_still_fails(tmp_path: Path) -> None:
     assert any("入参" in e or "request" in e for e in c.errors)
 
 
+def test_check_arch_api_failure_names_offending_ids(tmp_path: Path) -> None:
+    """The input-definition failure lists the offending API ids, not just counts."""
+    content = (
+        "### API-001 Login\nno input definition here\n### API-002 Stream\ntype: event-stream\n"
+    )
+    c = _checker(tmp_path, "arch", content)
+    c.check_arch()
+    assert any("API-001" in e for e in c.errors)
+    assert not any("API-002" in e for e in c.errors)
+
+
+def test_check_arch_module_failure_names_offending_ids(tmp_path: Path) -> None:
+    """The feature-mapping failure lists the offending module ids."""
+    content = "### M-001 Auth\nno feature mapping.\n### M-002 Session\n映射功能: F-002\n"
+    c = _checker(tmp_path, "arch", content)
+    c.check_arch()
+    assert any("M-001" in e for e in c.errors)
+    assert not any("M-002" in e for e in c.errors)
+
+
 # ---------------------------------------------------------------------------
 # check_arch — tech-stack 选型理由
 # ---------------------------------------------------------------------------
@@ -327,6 +347,39 @@ def test_check_dev_plan_missing_context_load_warns(tmp_path: Path) -> None:
     c.check_dev_plan()
     assert any("context_load" in w for w in c.warnings)
     assert not any("context_load" in e for e in c.errors)
+
+
+def test_check_dev_plan_validation_card_exempt(tmp_path: Path) -> None:
+    """A [VALIDATION] card ships 验证清单, not deliverables/tdd_acceptance."""
+    content = (
+        "### T-001 Setup\n"
+        "- deliverables: README\n"
+        "- tdd_acceptance:\n"
+        "  - AC-001: Return true on success.\n"
+        "- context_load: arch#§1\n"
+        "### T-004: [VALIDATION] 登录流程走查\n"
+        "- **task_kind**: validation\n"
+        "- **验证清单**:\n"
+        "  - 手动跑通登录流程\n"
+        "- **context_load**: [prd#§2]\n"
+    )
+    c = _checker(tmp_path, "dev-plan", content)
+    c.check_dev_plan()
+    assert c.errors == []
+
+
+def test_check_dev_plan_task_kind_validation_exempt(tmp_path: Path) -> None:
+    """`task_kind: validation` exempts even without the heading tag."""
+    content = (
+        "### T-002 人工验证\n"
+        "- task_kind: validation\n"
+        "- 验证清单:\n"
+        "  - 人工核对输出\n"
+        "- context_load: prd#§1\n"
+    )
+    c = _checker(tmp_path, "dev-plan", content)
+    c.check_dev_plan()
+    assert c.errors == []
 
 
 def test_check_dev_plan_cyclic_dependency_fails(tmp_path: Path) -> None:

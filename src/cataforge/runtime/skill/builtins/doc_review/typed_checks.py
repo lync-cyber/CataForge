@@ -75,11 +75,17 @@ _AC_OBSERVABLE_RE = re.compile(
 class _ArchSectionRule:
     """One ARCH per-section-kind requirement: the ``### {prefix}-NNN`` sections
     it inspects, when a section counts as missing the requirement, and the
-    failure message built from (missing, total)."""
+    failure message built from (missing_ids, total)."""
 
     prefix: str
     is_missing: Callable[[str], bool]
-    message: Callable[[int, int], str]
+    message: Callable[[list[str], int], str]
+
+
+def _format_offending_ids(ids: list[str]) -> str:
+    shown = ", ".join(ids[:5])
+    suffix = f" (共 {len(ids)} 项)" if len(ids) > 5 else ""
+    return f"{shown}{suffix}"
 
 
 _ARCH_SECTION_RULES: tuple[_ArchSectionRule, ...] = (
@@ -90,17 +96,22 @@ _ARCH_SECTION_RULES: tuple[_ArchSectionRule, ...] = (
             and not re.search(r"(?:request|input)\s*[:：]", s)
             and "参数" not in s
         ),
-        lambda missing, total: f"{total}个API中{missing}个缺少入参定义 (request/input/参数)",
+        lambda ids, total: (
+            f"{total}个API中{len(ids)}个缺少入参定义 (request/input/参数): "
+            f"{_format_offending_ids(ids)}"
+        ),
     ),
     _ArchSectionRule(
         "M",
         lambda s: not re.search(r"F-\d+", s),
-        lambda missing, total: f"{missing}个模块缺少功能映射 (F-NNN引用)",
+        lambda ids, total: (
+            f"{len(ids)}个模块缺少功能映射 (F-NNN引用): {_format_offending_ids(ids)}"
+        ),
     ),
     _ArchSectionRule(
         "E",
         lambda s: "|" not in s,
-        lambda missing, total: f"{missing}个实体缺少字段定义表",
+        lambda ids, total: f"{len(ids)}个实体缺少字段定义表: {_format_offending_ids(ids)}",
     ),
 )
 
@@ -111,6 +122,19 @@ def _arch_sections(content: str, prefix: str) -> list[str]:
         content,
         re.MULTILINE | re.DOTALL,
     )
+
+
+def _arch_section_id(section: str, prefix: str) -> str:
+    m = re.match(rf"### ({prefix}-\d+)", section)
+    return m.group(1) if m else f"{prefix}-?"
+
+
+def _is_validation_card(section: str) -> bool:
+    """A validation task card carries 验证清单 instead of TDD fields."""
+    head, _, _rest = section.partition("\n")
+    if "[VALIDATION]" in head.upper():
+        return True
+    return bool(re.search(r"task_kind\**\s*[:：]\s*\**\s*validation", section, re.IGNORECASE))
 
 
 class TypedDocChecksMixin:
@@ -159,9 +183,13 @@ class TypedDocChecksMixin:
     def check_arch(self) -> None:
         for rule in _ARCH_SECTION_RULES:
             sections = _arch_sections(self.content, rule.prefix)
-            missing = sum(1 for section in sections if rule.is_missing(section))
-            if missing > 0:
-                self.fail(rule.message(missing, len(sections)))
+            missing_ids = [
+                _arch_section_id(section, rule.prefix)
+                for section in sections
+                if rule.is_missing(section)
+            ]
+            if missing_ids:
+                self.fail(rule.message(missing_ids, len(sections)))
         self._check_tech_stack_rationale()
 
     def _check_tech_stack_rationale(self) -> None:
@@ -198,19 +226,22 @@ class TypedDocChecksMixin:
             self.content,
             re.MULTILINE | re.DOTALL,
         )
+        # A validation card (task_kind: validation / [VALIDATION] heading) does
+        # not enter TDD, so deliverables/tdd_acceptance requirements don't apply.
+        tdd_sections = [s for s in t_sections if not _is_validation_card(s)]
         missing_deliverables = sum(
-            1 for s in t_sections if not re.search(r"deliverables|交付物", s, re.IGNORECASE)
+            1 for s in tdd_sections if not re.search(r"deliverables|交付物", s, re.IGNORECASE)
         )
         missing_tdd = sum(
-            1 for s in t_sections if not re.search(r"tdd_acceptance|验收标准", s, re.IGNORECASE)
+            1 for s in tdd_sections if not re.search(r"tdd_acceptance|验收标准", s, re.IGNORECASE)
         )
         missing_context = sum(
             1 for s in t_sections if not re.search(r"context_load", s, re.IGNORECASE)
         )
         if missing_deliverables > 0:
-            self.fail(f"{t_count}个任务中{missing_deliverables}个缺少deliverables定义")
+            self.fail(f"{len(tdd_sections)}个任务中{missing_deliverables}个缺少deliverables定义")
         if missing_tdd > 0:
-            self.fail(f"{t_count}个任务中{missing_tdd}个缺少tdd_acceptance定义")
+            self.fail(f"{len(tdd_sections)}个任务中{missing_tdd}个缺少tdd_acceptance定义")
         if missing_context > 0:
             self.warn(f"{t_count}个任务中{missing_context}个缺少context_load定义")
         self._check_ac_observability(t_sections)
