@@ -17,11 +17,13 @@ SET_WHITELIST = frozenset(
         "deployment.targets",
         "context.mode",
         "project.design_tool",
+        "project.languages",
     }
 )
 
 _PLATFORM_VALUED = {"deployment.default_platform"}
 _PLATFORM_LIST_VALUED = {"deployment.targets"}
+_LANGUAGE_LIST_VALUED = {"project.languages"}
 
 
 @cli.group("config")
@@ -145,6 +147,10 @@ def config_set(ctx: click.Context, path: str, value: str, dry_run: bool) -> None
         if unknown:
             click.echo(f"FAIL: unknown platform id(s): {', '.join(unknown)}", err=True)
             ctx.exit(1)
+    elif path in _LANGUAGE_LIST_VALUED:
+        from cataforge.core.languages import normalize
+
+        parsed = normalize([item.strip() for item in value.split(",") if item.strip()])
     elif path in _PLATFORM_VALUED and value not in ALL_PLATFORMS:
         click.echo(
             f"FAIL: unknown platform id {value!r} (choices: {', '.join(ALL_PLATFORMS)})", err=True

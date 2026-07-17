@@ -141,6 +141,28 @@ class TestConfigSet:
         assert result.exit_code == 0
         assert _fw_path(root).read_bytes() == before
 
+    def test_set_project_languages_normalizes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = make_minimal_project(tmp_path)
+        _patch_fw(root, {"schema_version": 2})
+        result = _run(
+            ["config", "set", "project.languages", "TypeScript, python"], root, monkeypatch
+        )
+        assert result.exit_code == 0, result.output
+        raw = json.loads(_fw_path(root).read_text("utf-8"))
+        assert raw["project"]["languages"] == ["js-ts", "python"]
+
+    def test_set_project_languages_empty_reenables_detection(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = make_minimal_project(tmp_path)
+        _patch_fw(root, {"schema_version": 2, "project": {"languages": ["python"]}})
+        result = _run(["config", "set", "project.languages", ""], root, monkeypatch)
+        assert result.exit_code == 0, result.output
+        raw = json.loads(_fw_path(root).read_text("utf-8"))
+        assert raw["project"]["languages"] == []
+
     def test_set_non_whitelisted_path_rejected(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
