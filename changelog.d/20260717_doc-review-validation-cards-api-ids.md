@@ -1,4 +1,4 @@
-# ## Fixed
+### Fixed
 
 - **doc-review L1 对 validation 任务卡豁免 TDD 字段检查** —— dev-plan 任务完整性检查识别
   `task_kind: validation` / 标题 `[VALIDATION]` 的任务卡并从 deliverables / tdd_acceptance 计数中

@@ -129,12 +129,20 @@ def _arch_section_id(section: str, prefix: str) -> str:
     return m.group(1) if m else f"{prefix}-?"
 
 
+# Anchored to the field-line form (`- **task_kind**: validation`) so a prose
+# mention of the enum value inside a feature card never exempts it.
+_TASK_KIND_VALIDATION_RE = re.compile(
+    r"^\s*[-*]\s*\**task_kind\**\s*[:：]\s*\**\s*validation\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
 def _is_validation_card(section: str) -> bool:
     """A validation task card carries 验证清单 instead of TDD fields."""
     head, _, _rest = section.partition("\n")
     if "[VALIDATION]" in head.upper():
         return True
-    return bool(re.search(r"task_kind\**\s*[:：]\s*\**\s*validation", section, re.IGNORECASE))
+    return bool(_TASK_KIND_VALIDATION_RE.search(section))
 
 
 class TypedDocChecksMixin:
@@ -239,9 +247,9 @@ class TypedDocChecksMixin:
             1 for s in t_sections if not re.search(r"context_load", s, re.IGNORECASE)
         )
         if missing_deliverables > 0:
-            self.fail(f"{len(tdd_sections)}个任务中{missing_deliverables}个缺少deliverables定义")
+            self.fail(f"{len(tdd_sections)}个TDD任务中{missing_deliverables}个缺少deliverables定义")
         if missing_tdd > 0:
-            self.fail(f"{len(tdd_sections)}个任务中{missing_tdd}个缺少tdd_acceptance定义")
+            self.fail(f"{len(tdd_sections)}个TDD任务中{missing_tdd}个缺少tdd_acceptance定义")
         if missing_context > 0:
             self.warn(f"{t_count}个任务中{missing_context}个缺少context_load定义")
         self._check_ac_observability(t_sections)
