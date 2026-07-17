@@ -175,6 +175,34 @@ def test_reauthor_clears_stale_relation_edge(tmp_path: Path) -> None:
     assert real_present, "the declared edge must survive"
 
 
+def test_reauthor_changed_entity_preserves_traceability_edges(tmp_path: Path) -> None:
+    """Re-authoring with a changed entity body must keep the entity's edges.
+
+    The changed entity's node is replaced wholesale (its outgoing edges are
+    staged for removal); the freshly extracted relation set re-declares the
+    same edge, which must land in the committed store."""
+    proj = _project(tmp_path)
+    cw.author_document(str(proj), _PRD)
+    gc.collect()
+
+    changed = _PRD.replace(
+        "依赖 prd#§1.F-001 的基础登录。",
+        "依赖 prd#§1.F-001 的基础登录，附加设备指纹校验。",
+    )
+    cw.author_document(str(proj), changed)
+    gc.collect()
+
+    cfg = _connect(proj)
+    ns = _ns(cfg)
+    inst = "https://cataforge.dev/instance"
+    with KnowledgeGraph.connect(cfg, read_only=True) as kg:
+        assert kg.store.query(f"ASK {{ <{inst}/F-002> <{ns}depends_on> <{inst}/F-001> }}"), (
+            "changed-entity re-author dropped its traceability edge"
+        )
+        assert kg.store.query(f"ASK {{ <{inst}/F-001/AC-001> <{ns}part_of> <{inst}/F-001> }}")
+    gc.collect()
+
+
 def test_author_document_placeholder_title_fails(tmp_path: Path) -> None:
     proj = _project(tmp_path)
     md = (

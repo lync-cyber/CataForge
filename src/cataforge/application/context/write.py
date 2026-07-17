@@ -63,7 +63,7 @@ from cataforge.domain.kg.ingest.writer import (
     write_project,
 )
 from cataforge.domain.kg.reconcile import reconcile as _reconcile
-from cataforge.domain.kg.section_sync import CascadeWriter
+from cataforge.domain.kg.section_sync import CascadeWriter, SectionEntitySync
 from cataforge.domain.kg.validate import validate
 
 if TYPE_CHECKING:
@@ -436,17 +436,47 @@ def write_narrative(
     """
     _require_graph_mode(project_root, "narrative authoring (`context write-narrative`)")
     cfg = kg_config_for(project_root)
+    meta = _read_project_metadata(Path(project_root))
     with KnowledgeGraph.connect(cfg) as kg:
+        project_iri = write_project(
+            kg.store, meta["project_id"], meta["title"], meta["process_model"], cfg
+        )
         with kg.transaction() as txn:
-            writer = CascadeWriter(txn)
+            writer = CascadeWriter(txn, entity_sync=_section_entity_sync(project_root, project_iri))
             writer.write(
                 doc_id=doc_id,
                 anchor=anchor,
                 narrative=narrative,
                 contained_entity_ids=contained_entity_ids,
             )
-            writer.flush()
+            outcome = writer.flush()
+        if outcome.written_ids:
+            report = validate(kg.store, cfg)
+            offending = _offends(report.violations, outcome.written_ids)
+            if offending:
+                with kg.transaction() as undo:
+                    for did in outcome.delete_ids:
+                        try:
+                            undo.delete_entity(did, cascade=True)
+                        except KGEntityNotFoundError:
+                            continue
+                    for quad in outcome.prior_quads:
+                        undo.add(quad)
+                detail = "; ".join(f"{v.shape}: {v.message}" for v in offending)
+                raise KGValidationError(
+                    f"narrative write to {doc_id}#{anchor} failed validation: {detail}"
+                )
         _stamp_absorbed_baseline(kg.store, cfg, project_root, doc_id)
+
+
+def _section_entity_sync(project_root: str, project_iri: str) -> SectionEntitySync:
+    """Extraction context wiring a CascadeWriter's sub-entity sync."""
+    return SectionEntitySync(
+        project_iri=project_iri,
+        authority=definition_authority(project_root),
+        registry=build_prefix_registry(custom_entity_prefixes(project_root)),
+        mtime=datetime.now(UTC).timestamp(),
+    )
 
 
 _TRANSACT_OPS = ("add_entity", "add_relation", "write_narrative")
@@ -487,7 +517,7 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
             kg.store, meta["project_id"], meta["title"], meta["process_model"], cfg
         )
         with kg.transaction() as txn:
-            writer = CascadeWriter(txn)
+            writer = CascadeWriter(txn, entity_sync=_section_entity_sync(project_root, project_iri))
             for raw in operations:
                 _apply_transact_op(
                     txn,
@@ -502,7 +532,10 @@ def transact(project_root: str, spec: dict[str, Any]) -> TransactResult:
                     cfg=cfg,
                     restore_quads=restore_quads,
                 )
-            writer.flush()
+            outcome = writer.flush()
+            written_ids |= outcome.written_ids
+            delete_ids.extend(outcome.delete_ids)
+            restore_quads.extend(outcome.prior_quads)
         report = validate(kg.store, cfg)
         offending = _offends(report.violations, written_ids)
         if offending:

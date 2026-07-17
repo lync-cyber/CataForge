@@ -21,13 +21,15 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.kg._errors import KGEntityNotFoundError, KGValidationError
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
     _strv,
+    assert_safe_iri,
     cf_namespace,
     escape_sparql_literal,
     select_rows,
@@ -35,6 +37,7 @@ from cataforge.domain.kg._sparql_utils import (
 from cataforge.domain.kg.ingest.scan import heading_spans
 
 if TYPE_CHECKING:
+    from cataforge.domain.kg.ingest.entity_extract import ExtractedEntity, PrefixRegistry
     from cataforge.domain.kg.transaction import TransactionContext
 
 _HEADING_RE = re.compile(r"^(#{2,6})\s+(.*\S)\s*$")
@@ -134,6 +137,67 @@ class _PlannedSection:
     explicit_contains: list[str] | None = None
 
 
+@dataclass(frozen=True)
+class SectionEntitySync:
+    """Extraction context for syncing sub-entities during a narrative flush."""
+
+    project_iri: str
+    authority: Mapping[str, frozenset[str]]
+    registry: PrefixRegistry
+    mtime: float
+
+
+@dataclass
+class FlushOutcome:
+    """One flush's write set plus the bookkeeping a caller needs to undo it.
+
+    ``written_ids`` carries the synced entity ids/IRIs for post-commit
+    validation scoping; ``delete_ids`` + ``prior_quads`` compensate the whole
+    write (sections and entities) back to the pre-transaction state.
+    """
+
+    sections_written: int = 0
+    written_ids: set[str] = field(default_factory=set)
+    delete_ids: list[str] = field(default_factory=list)
+    prior_quads: list[Any] = field(default_factory=list)
+
+
+def extract_tile_entities(
+    doc_id: str,
+    doc_type: str,
+    tile_bodies: Iterable[str],
+    *,
+    authority: Mapping[str, frozenset[str]],
+    registry: PrefixRegistry,
+    mtime: float = 0.0,
+) -> list[ExtractedEntity]:
+    """Run the ingest entity extractor over level-2 tile bodies.
+
+    Every level-2 tile embeds its subsections verbatim, so parsing tiles in
+    isolation yields the same per-section entity ownership as a whole-document
+    parse — one extraction semantics for ingest, write-doc, and narrative
+    writes. Duplicate (parent, entity_id) definitions keep the first
+    occurrence, matching :func:`extract_entities` within one document.
+    """
+    from cataforge.domain.kg.ingest.entity_extract import extract_entities
+    from cataforge.domain.kg.ingest.scan import parse_doc_text
+
+    seen: dict[tuple[str | None, str], ExtractedEntity] = {}
+    for body in tile_bodies:
+        doc = parse_doc_text(
+            body,
+            doc_type=doc_type,
+            file_name=f"{doc_id}.md",
+            source_path=f"{doc_id}.md",
+            mtime=mtime,
+        )
+        doc.doc_id = doc_id
+        doc.doc_type = doc_type
+        for entity in extract_entities(doc, authority=authority, registry=registry):
+            seen.setdefault((entity.parent_id, entity.entity_id), entity)
+    return list(seen.values())
+
+
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -154,9 +218,12 @@ class CascadeWriter:
     anchor is staged at most once.
     """
 
-    def __init__(self, txn: TransactionContext) -> None:
+    def __init__(
+        self, txn: TransactionContext, *, entity_sync: SectionEntitySync | None = None
+    ) -> None:
         self._txn = txn
         self._ns = cf_namespace(txn.config)
+        self._entity_sync = entity_sync
         self._planned: dict[tuple[str, str], _PlannedSection] = {}
         self._deletes: set[tuple[str, str]] = set()
         self._tile_of: dict[tuple[str, str], str] = {}
@@ -212,19 +279,38 @@ class CascadeWriter:
         if contained_entity_ids is not None:
             target_plan.explicit_contains = list(contained_entity_ids)
 
-    def flush(self) -> int:
-        """Stage the planned deletes and upserts; return the upsert count."""
+    def flush(self) -> FlushOutcome:
+        """Stage the planned deletes/upserts plus the sub-entity sync.
+
+        The rewritten sections' business entities are re-extracted with the
+        same semantics ingest and write-doc use, then diff-merged: new
+        definitions are staged, changed ones replaced (their pre-existing
+        outgoing traceability edges re-staged across the replace), and
+        entities the rewritten text no longer defines are deleted. The
+        returned :class:`FlushOutcome` lets the caller validate and, on
+        violation, compensate the entire write.
+        """
+        from cataforge.domain.kg.ingest.iri import section_iri
+
+        base_ns = self._txn.config.base_namespace
+        outcome = FlushOutcome(sections_written=len(self._planned))
+        fresh_by_doc, contains_map = self._plan_entity_sync()
+
         for doc_id, anchor in sorted(self._deletes - set(self._planned)):
+            outcome.prior_quads.extend(self._node_prior_quads(section_iri(doc_id, anchor, base_ns)))
             try:
                 self._txn.delete_entity(f"doc/{doc_id}/sec/{anchor}", cascade=True)
             except KGEntityNotFoundError:
                 continue
         for (doc_id, anchor), plan in self._planned.items():
-            contains = (
-                plan.explicit_contains
-                if plan.explicit_contains is not None
-                else self._stored_contains(doc_id, anchor)
-            )
+            outcome.prior_quads.extend(self._node_prior_quads(section_iri(doc_id, anchor, base_ns)))
+            outcome.delete_ids.append(f"doc/{doc_id}/sec/{anchor}")
+            if plan.explicit_contains is not None:
+                contains = plan.explicit_contains
+            elif (doc_id, anchor) in contains_map:
+                contains = contains_map[(doc_id, anchor)]
+            else:
+                contains = self._stored_contains(doc_id, anchor)
             self._txn.add_section(
                 doc_id,
                 anchor,
@@ -234,7 +320,161 @@ class CascadeWriter:
                 title=anchor,
                 contained_entity_ids=contains,
             )
-        return len(self._planned)
+        self._sync_entities(fresh_by_doc, outcome)
+        return outcome
+
+    # -- sub-entity sync -------------------------------------------------------
+
+    def _plan_entity_sync(
+        self,
+    ) -> tuple[dict[str, list[ExtractedEntity] | None], dict[tuple[str, str], list[str]]]:
+        """Extract each planned doc's fresh entities and per-anchor contains.
+
+        A doc whose Document node (and thus doc_type) is absent maps to
+        ``None`` — the sync is skipped for it and the stored contains edges
+        are carried over unchanged.
+        """
+        fresh_by_doc: dict[str, list[ExtractedEntity] | None] = {}
+        contains_map: dict[tuple[str, str], list[str]] = {}
+        if self._entity_sync is None:
+            return fresh_by_doc, contains_map
+        for doc_id in sorted({d for (d, _a) in self._planned}):
+            doc_type = self._document_doc_type(doc_id)
+            if doc_type is None:
+                fresh_by_doc[doc_id] = None
+                continue
+            tiles = [p.body for (d, _a), p in self._planned.items() if d == doc_id and p.level == 2]
+            fresh = extract_tile_entities(
+                doc_id,
+                doc_type,
+                tiles,
+                authority=self._entity_sync.authority,
+                registry=self._entity_sync.registry,
+                mtime=self._entity_sync.mtime,
+            )
+            fresh_by_doc[doc_id] = fresh
+            owned: dict[str, list[str]] = {}
+            for entity in fresh:
+                owned.setdefault(entity.source_section, []).append(entity.entity_id)
+            for d, anchor in self._planned:
+                if d == doc_id:
+                    contains_map[(d, anchor)] = sorted(owned.get(anchor, []))
+        return fresh_by_doc, contains_map
+
+    def _sync_entities(
+        self,
+        fresh_by_doc: dict[str, list[ExtractedEntity] | None],
+        outcome: FlushOutcome,
+    ) -> None:
+        """Diff-merge each doc's fresh entity set against the stored one."""
+        from cataforge.domain.kg._quads import _slot_iri, quads_for_subject
+        from cataforge.domain.kg.ingest.iri import resolve_entity_iri
+        from cataforge.domain.kg.ingest.relation_extract import TRACEABILITY_PREDICATE_CURIES
+        from cataforge.domain.kg.ingest.writer import _entity_title
+
+        sync = self._entity_sync
+        if sync is None:
+            return
+        import pyoxigraph as ox  # noqa: PLC0415
+
+        base_ns = self._txn.config.base_namespace
+        predicate_iris = {_slot_iri(curie, self._ns) for curie in TRACEABILITY_PREDICATE_CURIES}
+        for doc_id, fresh in fresh_by_doc.items():
+            if fresh is None:
+                continue
+            fresh_keys = {e.scope_key for e in fresh}
+            for entity in fresh:
+                iri = resolve_entity_iri(
+                    entity.entity_id, entity.class_name, entity.parent_id, base_ns
+                )
+                if iri in self._txn.staged_entity_iris:
+                    continue  # an explicit add_entity op in this txn wins
+                prior = self._node_prior_quads(iri)
+                edge_quads = [
+                    q
+                    for q in quads_for_subject(self._txn.store, iri)
+                    if q.predicate.value in predicate_iris and isinstance(q.object, ox.NamedNode)
+                ]
+                self._txn.add_entity(
+                    entity.entity_id,
+                    entity.class_name,
+                    _entity_title(entity),
+                    entity.source_doc,
+                    entity.source_section,
+                    entity.content_hash,
+                    sync.project_iri,
+                    parent_id=entity.parent_id,
+                    extra_slots=entity.extra_slots or None,
+                    mtime=entity.mtime,
+                    attributes=entity.attributes or None,
+                )
+                for quad in edge_quads:
+                    self._txn.add(quad)
+                outcome.prior_quads.extend(prior)
+                outcome.delete_ids.append(
+                    f"{entity.parent_id}/{entity.entity_id}"
+                    if entity.parent_id
+                    else entity.entity_id
+                )
+                outcome.written_ids.update({entity.entity_id, iri})
+            affected = {a for (d, a) in set(self._planned) | self._deletes if d == doc_id}
+            for scoped_id, iri in self._entities_homed_at(doc_id, affected):
+                if scoped_id in fresh_keys or iri in self._txn.staged_entity_iris:
+                    continue
+                prior = self._node_prior_quads(iri)
+                try:
+                    self._txn.delete_entity(scoped_id, cascade=True)
+                except KGEntityNotFoundError:
+                    continue
+                outcome.prior_quads.extend(prior)
+
+    def _document_doc_type(self, doc_id: str) -> str | None:
+        from cataforge.domain.kg.ingest.iri import document_iri
+
+        doc_iri = document_iri(doc_id, self._txn.config.base_namespace)
+        sparql = (
+            f"PREFIX cf: <{self._ns}> "
+            f"SELECT ?t WHERE {{ <{assert_safe_iri(doc_iri)}> cf:doc_type ?t }} LIMIT 1"
+        )
+        for row in select_rows(self._txn.store, sparql):
+            return _strv(_row_lookup(row, "t"))
+        return None
+
+    def _entities_homed_at(self, doc_id: str, anchors: set[str]) -> list[tuple[str, str]]:
+        """``(scope_key, iri)`` of stored entities homed in the given sections."""
+        if not anchors:
+            return []
+        safe_doc = escape_sparql_literal(doc_id)
+        values = " ".join(f'"{escape_sparql_literal(a)}"' for a in sorted(anchors))
+        sparql = (
+            f"PREFIX cf: <{self._ns}> "
+            "SELECT DISTINCT ?s WHERE { "
+            f"  VALUES ?sec {{ {values} }} "
+            f'  ?s a ?cls ; cf:entity_id ?eid ; cf:source_doc "{safe_doc}" ; '
+            "     cf:source_section ?sec . "
+            f"  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
+            "}"
+        )
+        out: list[tuple[str, str]] = []
+        for row in select_rows(self._txn.store, sparql):
+            iri = _strv(_row_lookup(row, "s"))
+            if iri is None or "/instance/" not in iri:
+                continue
+            out.append((iri.split("/instance/", 1)[1], iri))
+        return out
+
+    def _node_prior_quads(self, iri: str) -> list[Any]:
+        """Pre-transaction snapshot of every quad touching ``iri``."""
+        from cataforge.domain.kg._quads import (
+            attribute_subject_quads,
+            quads_for_subject,
+            quads_targeting,
+        )
+
+        quads = list(quads_for_subject(self._txn.store, iri))
+        quads.extend(attribute_subject_quads(self._txn.store, iri, self._ns))
+        quads.extend(quads_targeting(self._txn.store, iri))
+        return quads
 
     # -- planning ------------------------------------------------------------
 

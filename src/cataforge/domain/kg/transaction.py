@@ -85,6 +85,7 @@ class TransactionContext:
         self._config = config
         self._staged_adds: list[ox.Quad] = []
         self._staged_removes: list[ox.Quad] = []
+        self._staged_entity_iris: set[str] = set()
         self._committed = False
         self._rolled_back = False
 
@@ -114,6 +115,11 @@ class TransactionContext:
     def store(self) -> ox.Store:
         """The underlying store, for read-side planning within the transaction."""
         return self._store
+
+    @property
+    def staged_entity_iris(self) -> frozenset[str]:
+        """IRIs already staged via ``add_entity`` in this transaction."""
+        return frozenset(self._staged_entity_iris)
 
     @property
     def config(self) -> KGConfig:
@@ -147,6 +153,7 @@ class TransactionContext:
         self._guard_open()
         iri = resolve_entity_iri(entity_id, class_name, parent_id, self._config.base_namespace)
         ns = cf_namespace(self._config)
+        self._staged_entity_iris.add(iri)
 
         if content_hash_matches(self._store, iri, content_hash, namespace=ns):
             removes, adds = entity_home_sync_quads(
@@ -291,6 +298,11 @@ class TransactionContext:
     ) -> None:
         """Stage a traceability edge. Idempotent: skips if already present.
 
+        "Present" is judged against the post-commit state, not the raw store:
+        an edge staged for removal in this transaction (an entity replace
+        removes every subject quad, edges included) still needs the re-add,
+        or the commit silently drops it.
+
         ``subject_iri`` / ``object_iri`` override the flat-IRI derivation so an
         edge can point at a parent-scoped subordinate node.
         """
@@ -303,10 +315,12 @@ class TransactionContext:
             subject_iri=subject_iri,
             object_iri=object_iri,
         )
+        if self._triple_staged(self._staged_adds, quad):
+            return
         s_iri = subject_iri or entity_iri(subject_id, self._config.base_namespace)
         o_iri = object_iri or entity_iri(object_id, self._config.base_namespace)
         p_iri = quad.predicate.value
-        if ask(
+        if not self._triple_staged(self._staged_removes, quad) and ask(
             self._store,
             f"ASK {{ <{assert_safe_iri(s_iri)}> "
             f"<{assert_safe_iri(p_iri)}> "
@@ -314,6 +328,14 @@ class TransactionContext:
         ):
             return
         self._staged_adds.append(quad)
+
+    @staticmethod
+    def _triple_staged(staged: list[ox.Quad], quad: ox.Quad) -> bool:
+        """True when ``staged`` holds ``quad``'s triple (graph name ignored)."""
+        return any(
+            q.subject == quad.subject and q.predicate == quad.predicate and q.object == quad.object
+            for q in staged
+        )
 
     def remove_relation(
         self,

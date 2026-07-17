@@ -68,7 +68,7 @@ from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_C
 from cataforge.domain.kg.ingest.relation_extract import extract_relations
 from cataforge.domain.kg.ingest.scan import scan_business_docs
 from cataforge.domain.kg.ingest.structure_extract import extract_structure
-from cataforge.domain.kg.section_sync import desynced_tile_sections
+from cataforge.domain.kg.section_sync import desynced_tile_sections, extract_tile_entities
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -170,6 +170,13 @@ class DocumentDriftRecord:
     export renders the tile while section reads serve the node, so such a
     document can triage ``in_sync`` yet hold revisions that never export —
     it fails the gate and needs manual re-authoring or a re-ingest.
+
+    ``unabsorbed_entities`` flags the inverse graph-internal drift: scope
+    keys the document's section narratives define (per the ingest extraction
+    semantics) that exist nowhere in the graph as entity nodes. Such a
+    document can triage ``in_sync`` (text and export agree) while entity-level
+    consumers see a different fact set than the narrative — it fails the gate
+    and needs a re-ingest to materialize the entities.
     """
 
     source_path: str
@@ -177,6 +184,7 @@ class DocumentDriftRecord:
     state: str
     remediation: str = REMEDIATE_NONE
     desynced_sections: list[str] = field(default_factory=list)
+    unabsorbed_entities: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -185,6 +193,7 @@ class DocumentDriftRecord:
             "state": self.state,
             "remediation": self.remediation,
             "desynced_sections": list(self.desynced_sections),
+            "unabsorbed_entities": list(self.unabsorbed_entities),
         }
 
 
@@ -300,6 +309,11 @@ class ReconcileReport:
         return sum(1 for d in self.documents if d.desynced_sections)
 
     @property
+    def unabsorbed_entity_count(self) -> int:
+        """Section-narrative entity definitions missing from the graph."""
+        return sum(len(d.unabsorbed_entities) for d in self.documents)
+
+    @property
     def enrichment_count(self) -> int:
         return sum(len(r.enrichment_relations) for r in self.per_doc_type.values())
 
@@ -321,6 +335,7 @@ class ReconcileReport:
             return (
                 self.document_drift_count == 0
                 and self.section_desync_count == 0
+                and self.unabsorbed_entity_count == 0
                 and self.doc_id_collision_count == 0
             )
         return self.overall_divergence_count == 0
@@ -336,7 +351,8 @@ class ReconcileReport:
         if self.mode == "graph":
             return (
                 f"{self.document_drift_count} document(s) drifted, "
-                f"{self.section_desync_count} with desynced sections"
+                f"{self.section_desync_count} with desynced sections, "
+                f"{self.unabsorbed_entity_count} unabsorbed section entities"
                 f"{collision_suffix}"
             )
         return f"{self.overall_divergence_count} divergence(s){collision_suffix}"
@@ -352,6 +368,7 @@ class ReconcileReport:
             "mode": self.mode,
             "documents": [d.to_dict() for d in self.documents],
             "document_drift_count": self.document_drift_count,
+            "unabsorbed_entity_count": self.unabsorbed_entity_count,
         }
 
 
@@ -712,10 +729,14 @@ def reconcile(
         for doc_type, per in report.per_doc_type.items()
         if per.missing_count > per.ghost_count
     }
+    kg_scope_keys = _kg_all_entity_scope_keys(store, config)
     for t in triage:
         desynced = desynced_tile_sections(store, config, t.doc_iri)
+        unabsorbed = _unabsorbed_section_entities(
+            store, config, t, authority, registry, kg_scope_keys
+        )
         remediation = policy.remediation_for(t.state, md_ahead=t.doc_type in md_ahead_types)
-        if desynced and remediation == REMEDIATE_NONE:
+        if (desynced or unabsorbed) and remediation == REMEDIATE_NONE:
             remediation = REMEDIATE_MANUAL
         # A doc_id collision makes the doc_type's whole FS side unreliable
         # (its id-set diff was skipped), so no automatic remediation may act
@@ -729,10 +750,77 @@ def reconcile(
                 state=t.state,
                 remediation=remediation,
                 desynced_sections=desynced,
+                unabsorbed_entities=unabsorbed,
             )
         )
 
     return report
+
+
+def _kg_all_entity_scope_keys(store: ox.Store, config: KGConfig) -> set[str]:
+    """Every entity scope key in the store, regardless of home document.
+
+    The unabsorbed check compares against the global key set: an entity a
+    section narrative defines is only drift when it exists *nowhere* — a
+    duplicate definition whose canonical node is homed in another document is
+    the collision detector's territory, not silent narrative drift.
+    """
+    ns = cf_namespace(config)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        "SELECT DISTINCT ?entity_id ?cls ?parent_id WHERE { "
+        "  ?s a ?cls ; cf:entity_id ?entity_id . "
+        "  OPTIONAL { ?s cf:part_of ?p . ?p cf:entity_id ?parent_id . } "
+        "  FILTER(STRSTARTS(STR(?cls), STR(cf:))) "
+        "}"
+    )
+    out: set[str] = set()
+    for row in select_rows(store, sparql):
+        eid = _strv(_row_lookup(row, "entity_id"))
+        if eid is None:
+            continue
+        cls_iri = _strv(_row_lookup(row, "cls"))
+        cls_name = cls_iri.rsplit("/", 1)[-1] if cls_iri else None
+        parent_id = _strv(_row_lookup(row, "parent_id"))
+        out.add(_scope_key(eid, cls_name, parent_id))
+    return out
+
+
+def _unabsorbed_section_entities(
+    store: ox.Store,
+    config: KGConfig,
+    triage: _DocTriage,
+    authority: Any,
+    registry: Any,
+    kg_scope_keys: set[str],
+) -> list[str]:
+    """Scope keys the document's tile narratives define but the graph lacks."""
+    ns = cf_namespace(config)
+    safe = assert_safe_iri(triage.doc_iri)
+    sparql = (
+        f"PREFIX cf: <{ns}> "
+        "SELECT ?level ?body WHERE { "
+        f"?s a cf:Section ; cf:part_of_document <{safe}> ; cf:narrative_body ?body . "
+        "OPTIONAL { ?s cf:section_level ?level } }"
+    )
+    tiles: list[str] = []
+    for row in select_rows(store, sparql):
+        body = _strv(_row_lookup(row, "body"))
+        if body is None:
+            continue
+        level = _strv(_row_lookup(row, "level"))
+        if (int(level) if level is not None else 2) == 2:
+            tiles.append(body)
+    if not tiles:
+        return []
+    extracted = extract_tile_entities(
+        triage.source_doc,
+        triage.doc_type,
+        tiles,
+        authority=authority,
+        registry=registry,
+    )
+    return sorted({e.scope_key for e in extracted} - kg_scope_keys)
 
 
 def write_report(report: ReconcileReport, output_path: Path) -> None:

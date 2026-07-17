@@ -489,6 +489,68 @@ def test_add_relation_idempotent() -> None:
         assert txn.pending_inserts == 0
 
 
+def test_add_relation_survives_same_txn_entity_replace() -> None:
+    """Re-declaring an edge in the txn that replaces its subject must keep it.
+
+    An entity replace stages removal of every subject quad including outgoing
+    traceability edges; a store-only existence probe would then skip the
+    re-add and the commit would silently drop the edge."""
+    kg, config, project_iri = _make_kg_with_entity()
+
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="M-001",
+            class_name="Module",
+            title="Auth",
+            source_doc="arch",
+            source_section="M-001 Auth",
+            content_hash=hx("mod1"),
+            project_iri=project_iri,
+        )
+        txn.add_relation("M-001", "cf:implements", "F-001")
+
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="M-001",
+            class_name="Module",
+            title="Auth (revised)",
+            source_doc="arch",
+            source_section="M-001 Auth",
+            content_hash=hx("mod2"),
+            project_iri=project_iri,
+        )
+        txn.add_relation("M-001", "cf:implements", "F-001")
+
+    from cataforge.domain.kg._ask import ask
+
+    ns = config.ontology_namespace.rstrip("/") + "/"
+    assert ask(
+        kg.store,
+        f"ASK {{ <https://cataforge.dev/instance/M-001> "
+        f"<{ns}implements> "
+        f"<https://cataforge.dev/instance/F-001> }}",
+    )
+
+
+def test_add_relation_not_duplicated_within_txn() -> None:
+    kg, config, project_iri = _make_kg_with_entity()
+
+    with kg.transaction() as txn:
+        txn.add_entity(
+            entity_id="M-001",
+            class_name="Module",
+            title="Auth",
+            source_doc="arch",
+            source_section="M-001 Auth",
+            content_hash=hx("mod1"),
+            project_iri=project_iri,
+        )
+        before = txn.pending_inserts
+        txn.add_relation("M-001", "cf:implements", "F-001")
+        txn.add_relation("M-001", "cf:implements", "F-001")
+        assert txn.pending_inserts == before + 1
+
+
 def test_remove_relation() -> None:
     kg, config, project_iri = _make_kg_with_entity()
 

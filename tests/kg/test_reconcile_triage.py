@@ -230,6 +230,7 @@ def test_to_dict_carries_triage_fields(tmp_path: Path) -> None:
             "state",
             "remediation",
             "desynced_sections",
+            "unabsorbed_entities",
         }
         # An in-sync document needs no remediation and carries no tile-cover
         # violation, whatever the authority.
