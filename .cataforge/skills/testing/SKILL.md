@@ -88,7 +88,7 @@ user-invocable: true
 - e2e 后门正则扫描 (tests/e2e/**) — 覆盖语言/扩展名由 e2e-{lang}.yaml 声明；命中后门注入模式（预构造状态直注入 / 测试专用查询参数 / store 直灌等，按语言正则见 e2e-{lang}.yaml）即 WARN
 - 真实输入路径声明 — e2e 套件至少含一处真实交互调用（键入 / 填充 / 点击，各框架 API 见 [`test-and-e2e-apis.md`](../../references/test-and-e2e-apis.md)），无任何 → WARN（提示套件可能纯 fixture 注入）
 
-调用：`cataforge skill run testing -- scan-e2e tests/e2e/`，返回码语义按 §Layer 1 调用协议。
+调用：`cataforge skill run testing -- tests/e2e/`，返回码语义按 §Layer 1 调用协议。
 
 ### Plugin-style rules (per-language extension)
 
