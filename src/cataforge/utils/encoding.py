@@ -30,11 +30,15 @@ def ensure_utf8() -> None:
        interpreter level, so default file I/O is UTF-8 with no per-callsite
        ``encoding="utf-8"`` plumbing needed.
 
-       The relaunch replays ``sys.orig_argv`` verbatim with ``PYTHONUTF8=1`` in
-       the environment. ``orig_argv`` preserves the exact original interpreter
-       invocation — console-script launcher (run as a zipapp), ``-m module``,
-       and plain ``python script.py`` all relaunch identically without inferring
-       a module target. The env var (read at interpreter startup) flips
+       The relaunch preserves ``sys.orig_argv[1:]`` and replaces argv[0] with
+       ``sys.executable``.  The replacement is important for launchers such as
+       uv's Windows trampoline: ``orig_argv[0]`` can name the base interpreter
+       even though ``sys.executable`` correctly names the isolated tool
+       environment.  Reusing the base interpreter loses the tool's
+       ``site-packages`` and fails with ``ModuleNotFoundError``.  The remaining
+       arguments preserve console-script launchers (run as zipapps), ``-m
+       module``, and plain ``python script.py`` without inferring a module
+       target. The env var (read at interpreter startup) flips
        ``utf8_mode`` on, so the relaunched process reads its default encoding as
        UTF-8 and does not relaunch again — idempotent, no loop.
 
@@ -69,14 +73,19 @@ def ensure_utf8() -> None:
     if needs_reexec and sys.orig_argv:
         env = os.environ.copy()
         env["PYTHONUTF8"] = "1"
+        # Never trust orig_argv[0] as the environment identity.  uv's Windows
+        # trampoline exposes the base interpreter there while sys.executable
+        # points at the tool venv; replaying orig_argv verbatim therefore drops
+        # the installed package on relaunch.
+        relaunch_argv = [sys.executable, *sys.orig_argv[1:]]
         if sys.platform == "win32":
             # No real exec on Windows; spawn a child that inherits stdio so the
             # CLI writes straight to the terminal, then forward its exit code.
             completed = subprocess.run(  # allow-raw-subprocess: inherit stdio
-                sys.orig_argv, env=env
+                relaunch_argv, env=env
             )
             sys.exit(completed.returncode)
-        os.execve(sys.executable, sys.orig_argv, env)
+        os.execve(sys.executable, relaunch_argv, env)
 
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name)

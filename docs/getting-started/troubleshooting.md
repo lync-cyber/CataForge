@@ -26,6 +26,13 @@
 
 **`uv tool install cataforge` 后 CLI 找不到。** 执行 `uv tool update-shell` 并重开终端，更新 PATH。
 
+**CLI 存在，但启动即报 `ModuleNotFoundError: No module named 'cataforge'`。** 先运行
+`uv tool upgrade cataforge` 升级到已修复版本；如入口仍残留，再用
+`uv tool install --force cataforge` 重建工具环境和入口。如果是从本地源码
+安装的开发版，在源码根目录运行 `uv tool install --force --editable .`。
+最后用 `cataforge --version` 验证。临时设置 `PYTHONUTF8=1` 可以绕过
+Windows 上旧版的 UTF-8 重启缺陷，但它不是长期修复。
+
 ## CLI 乱码
 
 CLI 启动时已自动切 UTF-8。若仍乱码，通常是**终端渲染**问题：
