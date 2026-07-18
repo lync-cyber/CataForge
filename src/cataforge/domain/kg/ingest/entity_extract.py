@@ -25,6 +25,7 @@ from cataforge.core.markdown_sections import parse_markdown_table
 from cataforge.domain.kg._config import DEFAULT_DEFINITION_AUTHORITY
 from cataforge.domain.kg.ingest.iri import ENTITY_PREFIX_TO_CLASS, SUBORDINATE_CLASSES
 from cataforge.domain.kg.ingest.scan import HeadingSpan, ParsedDoc
+from cataforge.domain.kg.slot_guard import TASK_STATUS_TRANSITIONS, enum_values_for
 
 _LAYER_BULLET_RE = re.compile(r"^\s*[-*]\s+(.+)", re.MULTILINE)
 
@@ -65,7 +66,6 @@ def _labeled_bullet_re(label: str) -> re.Pattern[str]:
 _ROUTE_RE = _labeled_bullet_re("Route")
 _LAYOUT_RE = _labeled_bullet_re("Layout")
 _STATUS_RE = _labeled_bullet_re("Status")
-_TASK_STATUS_VALUES = frozenset({"todo", "in_progress", "blocked", "review", "done", "cancelled"})
 
 
 def _first_labeled_value(pattern: re.Pattern[str], section_text: str) -> str | None:
@@ -89,14 +89,29 @@ def _extract_task_slots(entity: ExtractedEntity, section_text: str) -> None:
     # Normalize "In Progress" / "in-progress" → "in_progress"; drop anything
     # outside TaskStatusEnum so an invalid literal never reaches the store.
     status = re.sub(r"[\s-]+", "_", raw.lower())
-    if status in _TASK_STATUS_VALUES:
+    allowed = enum_values_for("Task", "task_status") or frozenset(TASK_STATUS_TRANSITIONS)
+    if status in allowed:
         entity.extra_slots["cf:task_status"] = status
+
+
+def _extract_acceptance_slots(entity: ExtractedEntity, section_text: str) -> None:
+    # `acceptance_text` is schema-required: the AC's own assertable text is its
+    # body slice (body-line subordinate) or section narrative, falling back to
+    # the defining line so the slot is never empty.
+    text = (
+        entity.extra_slots.get("cf:narrative_body")
+        or entity.source_line.strip()
+        or entity.source_section.strip()
+    )
+    if text:
+        entity.extra_slots["cf:acceptance_text"] = text
 
 
 _EXTRA_SLOT_EXTRACTORS: dict[str, Callable[[ExtractedEntity, str], None]] = {
     "TechStack": _extract_techstack_slots,
     "Page": _extract_page_slots,
     "Task": _extract_task_slots,
+    "AcceptanceCriteria": _extract_acceptance_slots,
 }
 
 # Match entity-id occurrences inside arbitrary text. Longest-prefix-first

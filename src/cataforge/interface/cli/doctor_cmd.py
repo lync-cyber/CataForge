@@ -32,6 +32,7 @@ from .doctor.hook_health import check_hook_script_importability, report_hook_err
 from .doctor.hygiene import check_claude_md_hygiene, check_project_state_projection
 from .doctor.kg_ingestion import (
     check_kg_ingestion_completeness,
+    check_kg_shacl_conformance,
     check_kg_snapshot_freshness,
     check_kg_snapshot_gitignore,
     check_kg_xref_target_integrity,
@@ -94,6 +95,11 @@ _DOCTOR_SECTIONS = [
     # the entity_id-keyed reconcile diff misses, so reconcile=0 could hide
     # broken references. Gating so doctor-clean implies edge-target integrity.
     ("KG xref target integrity:", check_kg_xref_target_integrity, True),
+    # KG SHACL conformance — full generated-shapes pass (closed shapes,
+    # required slots, enum membership) that per-write validation doesn't run.
+    # Gating when the shacl extra is installed; degrades to a printed skip
+    # note (never silently) when it isn't.
+    ("KG SHACL conformance:", check_kg_shacl_conformance, True),
     # KG snapshot freshness — graph-mode WARN: the gitignored store rebuilds
     # from the latest NQuads snapshot on clone, so a snapshot lagging the live
     # store risks losing uncommitted graph state. Non-gating; nudges finalize.

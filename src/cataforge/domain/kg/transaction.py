@@ -26,6 +26,7 @@ from cataforge.domain.kg._quads import (
     entity_home_sync_quads,
     quads_for_subject,
     quads_targeting,
+    stored_entity_iri,
 )
 from cataforge.domain.kg._sparql_utils import (
     _row_lookup,
@@ -41,6 +42,7 @@ from cataforge.domain.kg.ingest.iri import (
     section_iri,
     subordinate_entity_iri,
 )
+from cataforge.domain.kg.slot_guard import check_enum_value, check_task_status_transition
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
@@ -151,6 +153,10 @@ class TransactionContext:
         with the same content_hash, nothing is staged.
         """
         self._guard_open()
+        for slot_curie, raw in (extra_slots or {}).items():
+            slot_name = slot_curie.rsplit(":", 1)[-1]
+            for value in raw if isinstance(raw, list) else [raw]:
+                check_enum_value(class_name, slot_name, value)
         iri = resolve_entity_iri(entity_id, class_name, parent_id, self._config.base_namespace)
         ns = cf_namespace(self._config)
         self._staged_entity_iris.add(iri)
@@ -191,15 +197,33 @@ class TransactionContext:
         entity_id: str,
         *,
         content_hash: str | None = None,
+        ack_status_jump: bool = False,
         **slot_values: str,
     ) -> None:
-        """Stage a partial update for specific slots on an existing entity."""
+        """Stage a partial update for specific slots on an existing entity.
+
+        Enum-ranged slot values are validated against the schema, and
+        ``task_status`` updates must follow the task lifecycle
+        (`slot_guard.TASK_STATUS_TRANSITIONS`) unless ``ack_status_jump``
+        deliberately overrides it.
+        """
         self._guard_open()
         iri = entity_iri(entity_id, self._config.base_namespace)
         ns = cf_namespace(self._config)
 
         if not self._entity_exists(iri):
             raise KGEntityNotFoundError(f"Entity {entity_id} not found in store.")
+
+        class_name = self._stored_class_name(iri, ns)
+        for slot_name, new_value in slot_values.items():
+            if class_name is not None:
+                check_enum_value(class_name, slot_name, new_value)
+            if slot_name == "task_status":
+                check_task_status_transition(
+                    self._stored_literal(iri, ns, "task_status"),
+                    new_value,
+                    ack_status_jump=ack_status_jump,
+                )
 
         if content_hash is not None and content_hash_matches(
             self._store, iri, content_hash, namespace=ns
@@ -425,9 +449,33 @@ class TransactionContext:
             level=resolved_level,
             contained_entity_ids=sorted(contained_entity_ids or []),
             document_iri_val=doc_iri,
+            resolve_contained_iri=self._resolve_contained_iri,
         ):
             self._staged_adds.append(q)
         return iri
+
+    def _resolve_contained_iri(self, entity_id: str) -> str:
+        """Stored IRI for a contained entity — staged writes win over the store.
+
+        An entity staged earlier in this same transaction is not yet visible in
+        the store, so its staged ``cf:entity_id`` quad is consulted first.
+        """
+        import pyoxigraph as ox  # noqa: PLC0415
+
+        ns = cf_namespace(self._config)
+        base_ns = self._config.base_namespace
+        entity_id_pred = f"{ns}entity_id"
+        for q in self._staged_adds:
+            if (
+                q.predicate.value == entity_id_pred
+                and isinstance(q.object, ox.Literal)
+                and q.object.value == entity_id
+                and isinstance(q.subject, ox.NamedNode)
+            ):
+                return q.subject.value
+        return stored_entity_iri(
+            self._store, entity_id, namespace=ns, base_ns=base_ns
+        ) or entity_iri(entity_id, base_ns)
 
     def _resolve_section_order(
         self,
@@ -529,6 +577,30 @@ class TransactionContext:
 
     def _entity_exists(self, iri: str) -> bool:
         return ask(self._store, f"ASK {{ <{iri}> a ?cls }}")
+
+    def _stored_class_name(self, iri: str, namespace: str) -> str | None:
+        """Local class name of the stored node's rdf:type (None when untyped)."""
+        import pyoxigraph as ox  # noqa: PLC0415
+
+        rdf_type = ox.NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+        subject = ox.NamedNode(iri)
+        classes = sorted(
+            q.object.value[len(namespace) :]
+            for q in self._store.quads_for_pattern(subject, rdf_type, None, None)
+            if isinstance(q.object, ox.NamedNode) and q.object.value.startswith(namespace)
+        )
+        return classes[0] if classes else None
+
+    def _stored_literal(self, iri: str, namespace: str, slot: str) -> str | None:
+        """Current literal value of ``slot`` on the stored node (None when unset)."""
+        import pyoxigraph as ox  # noqa: PLC0415
+
+        subject = ox.NamedNode(iri)
+        pred = ox.NamedNode(f"{namespace}{slot}")
+        for q in self._store.quads_for_pattern(subject, pred, None, None):
+            if isinstance(q.object, ox.Literal):
+                return q.object.value
+        return None
 
 
 @contextmanager

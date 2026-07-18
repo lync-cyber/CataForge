@@ -42,6 +42,9 @@ class ValidationViolation:
 class ValidationReport:
     violations: list[ValidationViolation] = field(default_factory=list)
     shacl_skipped: bool = False
+    # Why the SHACL pass did not run: "not_requested" | "deps_missing" |
+    # "shapes_missing"; None when it ran.
+    shacl_skip_reason: str | None = "not_requested"
 
     @property
     def ok(self) -> bool:
@@ -177,8 +180,8 @@ def _find_shapes_file() -> Path | None:
     return None
 
 
-def _run_shacl(store: ox.Store) -> tuple[bool, list[ValidationViolation]]:
-    """Optional SHACL pass; returns (skipped, violations).
+def _run_shacl(store: ox.Store) -> tuple[str | None, list[ValidationViolation]]:
+    """Optional SHACL pass; returns (skip_reason, violations) — reason None when it ran.
 
     Bridges pyoxigraph store → rdflib Graph, then runs pyshacl
     validation against the generated SHACL shapes.
@@ -186,11 +189,11 @@ def _run_shacl(store: ox.Store) -> tuple[bool, list[ValidationViolation]]:
     import importlib.util  # noqa: PLC0415
 
     if importlib.util.find_spec("pyshacl") is None or importlib.util.find_spec("rdflib") is None:
-        return True, []
+        return "deps_missing", []
 
     shapes_path = _find_shapes_file()
     if shapes_path is None:
-        return True, []
+        return "shapes_missing", []
 
     import rdflib  # noqa: PLC0415
     from pyshacl import validate as shacl_validate  # noqa: PLC0415
@@ -231,7 +234,7 @@ def _run_shacl(store: ox.Store) -> tuple[bool, list[ValidationViolation]]:
                 )
             )
 
-    return False, violations
+    return None, violations
 
 
 def validate(
@@ -245,9 +248,11 @@ def validate(
     report.violations.extend(_check_orphans(store, namespace))
     report.violations.extend(_check_xref_targets(store, namespace))
     if run_shacl:
-        skipped, shacl_violations = _run_shacl(store)
-        report.shacl_skipped = skipped
+        skip_reason, shacl_violations = _run_shacl(store)
+        report.shacl_skipped = skip_reason is not None
+        report.shacl_skip_reason = skip_reason
         report.violations.extend(shacl_violations)
     else:
         report.shacl_skipped = True
+        report.shacl_skip_reason = "not_requested"
     return report

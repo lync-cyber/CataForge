@@ -258,6 +258,15 @@ def kg_add(
         "hash, the update is skipped."
     ),
 )
+@click.option(
+    "--ack-status-jump",
+    is_flag=True,
+    default=False,
+    help=(
+        "Deliberately allow a task_status move outside the legal lifecycle "
+        "(rework of a done/cancelled task, manual repair)."
+    ),
+)
 @db_path_ro_option()
 @click.option(
     "--json",
@@ -272,6 +281,7 @@ def kg_update(
     source_section: str | None,
     slots: tuple[str, ...],
     content_hash: str | None,
+    ack_status_jump: bool,
     db_path: Path,
     json_output: bool,
 ) -> None:
@@ -280,6 +290,7 @@ def kg_update(
         KGConfig,
         KGEntityNotFoundError,
         KGStoreNotInitializedError,
+        KGValidationError,
         KnowledgeGraph,
     )
 
@@ -299,8 +310,15 @@ def kg_update(
     try:
         with KnowledgeGraph.connect(config) as kg, kg.transaction() as txn:
             try:
-                txn.update_entity(entity_id, content_hash=content_hash, **slot_dict)
+                txn.update_entity(
+                    entity_id,
+                    content_hash=content_hash,
+                    ack_status_jump=ack_status_jump,
+                    **slot_dict,
+                )
             except KGEntityNotFoundError as exc:
+                raise KGStoreError(str(exc)) from exc
+            except KGValidationError as exc:
                 raise KGStoreError(str(exc)) from exc
             inserts = txn.pending_inserts
             deletes = txn.pending_deletes

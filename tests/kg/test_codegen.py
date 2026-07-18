@@ -67,6 +67,19 @@ def test_subclass_axioms_byte_identical_on_rerun(codegen_out: Path, tmp_path: Pa
     )
 
 
+def test_shacl_shapes_byte_identical_on_rerun(codegen_out: Path, tmp_path: Path) -> None:
+    """core_shapes.ttl is committed + wheel-shipped, so `_canonicalize_shacl`
+    must fully neutralize ShaclGenerator's nondeterminism (property-shape
+    order, set-list order, sh:order values, blank-node labels)."""
+    fresh = tmp_path / "run2-shapes"
+    _run_codegen(fresh)
+    assert filecmp.cmp(
+        codegen_out / "core_shapes.ttl",
+        fresh / "core_shapes.ttl",
+        shallow=False,
+    )
+
+
 def test_subclass_axioms_covers_known_chain(codegen_out: Path) -> None:
     """The `is_a` chain must materialize: Feature → Requirement → SoftwareArtifact,
     Page → Screen → SoftwareArtifact (the canonical UI-layer alias chain),

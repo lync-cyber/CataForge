@@ -21,6 +21,20 @@ from tests.support.gitrepo import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_git(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Shield the suite from ambient git config.
+
+    A user/system gitconfig can rewrite URLs (`url.<base>.insteadOf`, common in
+    proxied CI sandboxes), which makes `git remote get-url` return something
+    other than what the fixture set and flips the GitHub-remote detection.
+    """
+    import os
+
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+
 @pytest.fixture
 def linked(tmp_path: Path) -> tuple[Path, Path]:
     return build_linked_repos(tmp_path)
