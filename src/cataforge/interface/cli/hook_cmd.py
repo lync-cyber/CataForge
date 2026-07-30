@@ -93,7 +93,7 @@ def _platform_status_map(platform_id: str) -> dict[str, str]:
         )
         return {}
 
-    return {name: status for name, status in adapter.hook_degradation.items()}
+    return {name: policy.mode for name, policy in adapter.hook_policies.items()}
 
 
 def _resolve_payload(

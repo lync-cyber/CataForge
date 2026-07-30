@@ -72,7 +72,7 @@ def check_hook_script_importability(cfg: ConfigManager) -> int:
 
 
 def _report_runtime_degradation(cfg: ConfigManager, declared: list[str]) -> None:
-    """List each declared script's degradation status on the current platform."""
+    """List each declared script's hook policy mode on the current platform."""
     try:
         from cataforge.adapter.platform.registry import get_adapter
 
@@ -81,24 +81,22 @@ def _report_runtime_degradation(cfg: ConfigManager, declared: list[str]) -> None
         click.echo(f"  (cannot load adapter for {cfg.default_platform!r}: {e})")
         return
 
-    degradation = getattr(adapter, "hook_degradation", {}) or {}
-
     statuses: dict[str, str] = {}
     for name in declared:
-        statuses[name] = str(degradation.get(name, "native"))
+        statuses[name] = adapter.get_hook_policy(name).mode
 
-    skipped = sorted(n for n, s in statuses.items() if s == "skip")
-    other_degraded = sorted(n for n, s in statuses.items() if s not in ("native", "skip"))
+    unsupported = sorted(n for n, s in statuses.items() if s == "unsupported")
+    other_degraded = sorted(n for n, s in statuses.items() if s in ("hybrid", "degraded"))
     native_count = sum(1 for s in statuses.values() if s == "native")
 
-    summary = f"  Runtime degradation on {cfg.default_platform}: {native_count} native"
-    if skipped:
-        summary += f", {len(skipped)} skipped"
+    summary = f"  Hook policies on {cfg.default_platform}: {native_count} native"
+    if unsupported:
+        summary += f", {len(unsupported)} unsupported"
     if other_degraded:
-        summary += f", {len(other_degraded)} degraded"
+        summary += f", {len(other_degraded)} hybrid/degraded"
     click.echo(summary)
-    for name in skipped:
-        click.echo(f"    SKIP {name} — will not fire at runtime (platform lacks native hook event)")
+    for name in unsupported:
+        click.echo(f"    UNSUPPORTED {name} — no native hook or fallback will be generated")
     for name in other_degraded:
         click.echo(f"    {statuses[name].upper()} {name}")
 

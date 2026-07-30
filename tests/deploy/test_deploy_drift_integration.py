@@ -13,6 +13,7 @@ from cataforge.core.paths import ProjectPaths
 from cataforge.runtime.deploy.deployer import Deployer
 from cataforge.runtime.deploy.drift import detect_drift
 from cataforge.runtime.deploy.manifest import load_prior_baseline_for
+from tests.profile_factory import typed_profile
 
 _CLAUDE_PROFILE = {
     "platform_id": "claude-code",
@@ -46,12 +47,12 @@ def _init_project(tmp_path: Path) -> Path:
         "---\nname: orchestrator\ntools: file_read\n---\ntext\n", encoding="utf-8"
     )
     (cf / "hooks").mkdir()
-    (cf / "hooks" / "hooks.yaml").write_text(
-        "hooks: {}\ndegradation_templates: {}\n", encoding="utf-8"
-    )
+    (cf / "hooks" / "hooks.yaml").write_text("schema_version: 2\nhooks: {}\n", encoding="utf-8")
     p = cf / "platforms" / "claude-code"
     p.mkdir(parents=True)
-    (p / "profile.yaml").write_text(yaml.safe_dump(_CLAUDE_PROFILE), encoding="utf-8")
+    (p / "profile.yaml").write_text(
+        yaml.safe_dump(typed_profile(_CLAUDE_PROFILE)), encoding="utf-8"
+    )
     return tmp_path
 
 

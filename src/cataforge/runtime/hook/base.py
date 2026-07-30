@@ -104,18 +104,12 @@ def _detect_from_framework_json() -> str:
         return "claude-code"
 
 
-_hook_naming_cache: tuple[dict[str, str | None], dict[str, str]] | None = None
+_hook_naming_cache: dict[str, set[str]] | None = None
 _tool_map_lock = threading.Lock()
 
 
-def _load_hook_naming() -> tuple[dict[str, str | None], dict[str, str]]:
-    """``(tool_map, hooks.tool_overrides)`` for the current platform.
-
-    Hook payloads identify tools by hook-facing names, which may differ from
-    the model-facing ``tool_map`` names (e.g. Codex ships tool ``shell`` but
-    serializes hook ``tool_name: "Bash"``). ``hooks.tool_overrides`` carries
-    those divergences — the same precedence the deploy-side matcher uses.
-    """
+def _load_hook_naming() -> dict[str, set[str]]:
+    """Capability → hook-facing tool names for the current platform."""
     global _hook_naming_cache
     with _tool_map_lock:
         if _hook_naming_cache is not None:
@@ -126,7 +120,14 @@ def _load_hook_naming() -> tuple[dict[str, str | None], dict[str, str]]:
             from cataforge.adapter.platform.registry import get_adapter
 
             adapter = get_adapter(platform_id)
-            _hook_naming_cache = (adapter.get_tool_map(), dict(adapter.hook_tool_overrides))
+            naming: dict[str, set[str]] = {}
+            for capability in adapter.capability_ids():
+                binding = adapter.get_capability_binding(capability)
+                if binding is None:
+                    continue
+                values = binding.hook_matchers or ([binding.tool] if binding.tool else [])
+                naming[capability] = set(values)
+            _hook_naming_cache = naming
         except Exception as e:
             logger.debug("Failed to load tool_map from adapter, using profile fallback: %s", e)
             _hook_naming_cache = _load_hook_naming_from_profile(platform_id)
@@ -143,19 +144,29 @@ def clear_spec_entry_cache() -> None:
     _spec_entry_for_script.cache_clear()
 
 
-def _hook_naming_from_raw(raw: Any) -> tuple[dict[str, str | None], dict[str, str]] | None:
+def _hook_naming_from_raw(raw: Any) -> dict[str, set[str]] | None:
     if not (isinstance(raw, dict) and "tool_map" in raw):
         return None
-    hooks = raw.get("hooks")
-    overrides = hooks.get("tool_overrides") if isinstance(hooks, dict) else None
-    return dict(raw["tool_map"]), dict(overrides) if isinstance(overrides, dict) else {}
+    naming: dict[str, set[str]] = {}
+    for capability, binding in raw["tool_map"].items():
+        if not isinstance(binding, dict):
+            continue
+        matchers = binding.get("hook_matchers")
+        if isinstance(matchers, list):
+            values = {str(item) for item in matchers if isinstance(item, str) and item}
+        else:
+            values = set()
+        tool = binding.get("tool")
+        if not values and isinstance(tool, str) and tool:
+            values.add(tool)
+        naming[str(capability)] = values
+    return naming
 
 
 def _load_hook_naming_from_profile(
     platform_id: str,
-) -> tuple[dict[str, str | None], dict[str, str]]:
-    """Load tool_map + hook tool_overrides from profile.yaml without the full
-    adapter import chain.
+) -> dict[str, set[str]]:
+    """Load typed capability hook matchers without the full adapter chain.
 
     Falls back to Claude Code defaults only when no profile can be found.
     """
@@ -196,32 +207,23 @@ def _load_hook_naming_from_profile(
     # Last-resort fallback: hardcoded Claude Code defaults
     logger.debug("Using hardcoded Claude Code tool_map defaults")
     return {
-        "file_read": "Read",
-        "file_write": "Write",
-        "file_edit": "Edit",
-        "file_glob": "Glob",
-        "file_grep": "Grep",
-        "shell_exec": "Bash",
-        "web_search": "WebSearch",
-        "web_fetch": "WebFetch",
-        "user_question": "AskUserQuestion",
-        "agent_dispatch": "Agent",
-    }, {}
+        "file_read": {"Read"},
+        "file_write": {"Write"},
+        "file_edit": {"Edit"},
+        "file_glob": {"Glob"},
+        "file_grep": {"Grep"},
+        "shell_exec": {"Bash"},
+        "web_search": {"WebSearch"},
+        "web_fetch": {"WebFetch"},
+        "user_question": {"AskUserQuestion"},
+        "agent_dispatch": {"Agent"},
+    }
 
 
 def _capability_names(capability: str) -> set[str]:
-    """Hook-facing spellings for *capability*: tool_overrides wins over
-    tool_map — the same precedence the deploy-side matcher uses
-    (``bridge.generate_platform_hooks``).
-
-    Override values may be matcher alternations ("Edit|Write") — split so
-    membership tests compare single tool names.
-    """
-    tool_map, overrides = _load_hook_naming()
-    value = overrides.get(capability) or tool_map.get(capability)
-    if not value:
-        return set()
-    return {part for part in value.split("|") if part}
+    """Hook-facing spellings for *capability*."""
+    values = _load_hook_naming().get(capability, set())
+    return {part for value in values for part in value.split("|") if part}
 
 
 def matches_capability(data: dict[str, Any], capability: str) -> bool:

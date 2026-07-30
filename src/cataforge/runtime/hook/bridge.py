@@ -45,9 +45,7 @@ SUPPORTED_SCHEMA_VERSION = 2
 #                             ``auto-prompt-checklists.md``
 #  - ``skip``               — emit a ``SKIP: …`` line; no file written
 #
-# Any other value found in a ``degradation_templates`` entry emits a
-# ``WARN: …`` action so the deploy log surfaces the unrecognised strategy
-# instead of silently dropping the hook.
+# Any unknown strategy is rejected by the typed profile schema before deploy.
 KNOWN_DEGRADATION_STRATEGIES = frozenset(
     {"rules_injection", "prompt_instruction", "prompt_checklist", "skip"}
 )
@@ -142,9 +140,6 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> HookGenerationResult:
     _merge_plugin_hooks(spec)
 
     event_map = adapter.hook_event_map
-    degradation = adapter.hook_degradation
-    tool_map = adapter.get_tool_map()
-    hook_tool_overrides = getattr(adapter, "hook_tool_overrides", {}) or {}
     command_template = adapter.get_hook_command_template()
 
     platform_hooks: dict[str, list[dict[str, Any]]] = {}
@@ -165,21 +160,16 @@ def generate_platform_hooks(adapter: PlatformAdapter) -> HookGenerationResult:
             capability = hook_entry.get("matcher_capability", "")
             hook_name = _script_to_hook_name(hook_entry.get("script", ""))
 
-            status = degradation.get(hook_name, "native")
-            if status != "native":
-                # Degraded/skipped hooks are handled by apply_degradation; we
-                # still surface the loss of the native code path here so the
-                # user understands that runtime blocking/observing is gone.
+            policy = adapter.get_hook_policy(hook_name)
+            if policy.mode not in {"native", "hybrid"}:
                 warnings.append(
-                    f"{adapter.platform_id}: hook {hook_name!r} is {status!r} "
-                    f"(not native) — runtime behaviour replaced by a degradation "
-                    "strategy (see `hook list`)."
+                    f"{adapter.platform_id}: hook {hook_name!r} is {policy.mode!r} "
+                    "(not native) — see the capability report and fallback policy."
                 )
                 continue
 
             if capability:
-                # Same precedence as runtime matching (base._capability_names).
-                native_tool = hook_tool_overrides.get(capability) or tool_map.get(capability)
+                native_tool = adapter.resolve_hook_matcher(capability)
                 if native_tool is None:
                     warnings.append(
                         f"{adapter.platform_id}: matcher_capability "
@@ -270,39 +260,39 @@ def _resolve_command(template: str, script_name: str) -> str:
 
 def get_degraded_hooks(adapter: PlatformAdapter) -> list[dict[str, Any]]:
     """Get hooks that need degradation and their fallback strategies."""
-    spec = load_hooks_spec()
-    degradation = adapter.hook_degradation
-    templates = spec.get("degradation_templates", {})
-
     result: list[dict[str, Any]] = []
-    for hook_name, status in degradation.items():
-        if status == "degraded" and hook_name in templates:
-            template = templates[hook_name]
-            result.append(
-                {
-                    "name": hook_name,
-                    "strategy": template.get("strategy", "skip"),
-                    "content": template.get("content", ""),
-                    "reason": template.get("reason", ""),
-                }
-            )
+    for hook_name, policy in adapter.hook_policies.items():
+        if policy.mode not in {"hybrid", "degraded"} or policy.fallback is None:
+            continue
+        result.append(
+            {
+                "name": hook_name,
+                "strategy": policy.fallback.strategy,
+                "coverage": policy.fallback.coverage,
+                "content": policy.fallback.content,
+                "asset": policy.fallback.asset,
+                "reason": policy.fallback.reason,
+            }
+        )
     return result
 
 
 def apply_degradation(
-    adapter: PlatformAdapter, project_root: Path, *, dry_run: bool = False
+    adapter: PlatformAdapter,
+    project_root: Path,
+    *,
+    output_dir: Path,
+    dry_run: bool = False,
 ) -> list[str]:
     """Materialize degradation strategies into file changes.
 
     Each strategy in :data:`KNOWN_DEGRADATION_STRATEGIES` is handled
     explicitly; ``skip`` emits a single log line and the three
     file-producing strategies aggregate per-hook content into one Markdown
-    file per strategy under ``.cataforge/platforms/{platform}/overrides/
-    rules/``. Whether the platform adapter automatically picks those files
-    up (Cursor scans ``overrides/rules/`` for ``.mdc`` wrapping; others may
-    leave them for manual review) is platform-specific — by writing them
-    unconditionally the bridge guarantees that no degraded hook is silently
-    dropped.
+    file per strategy in the caller-owned staging directory. The deploy
+    pipeline materialises that staging directory alongside hand-authored
+    platform overrides, so deploy never writes generated files back into the
+    canonical ``.cataforge`` source tree.
 
     Unrecognised strategies emit a ``WARN: …`` action so the deploy log
     surfaces the gap.
@@ -325,6 +315,18 @@ def apply_degradation(
         strategy = entry["strategy"]
         name = entry["name"]
         content = entry["content"]
+        asset = entry.get("asset")
+
+        if asset:
+            asset_path = (
+                project_root / ".cataforge" / "platforms" / adapter.platform_id / str(asset)
+            )
+            if not asset_path.is_file():
+                actions.append(
+                    f"WARN: {name} — fallback asset missing: {asset_path.relative_to(project_root)}"
+                )
+                continue
+            content = asset_path.read_text()
 
         if strategy in aggregates:
             aggregates[strategy].append((name, content))
@@ -337,21 +339,17 @@ def apply_degradation(
                 f"{sorted(KNOWN_DEGRADATION_STRATEGIES)}"
             )
 
-    auto_rules_dir = (
-        project_root / ".cataforge" / "platforms" / adapter.platform_id / "overrides" / "rules"
-    )
-
     for strategy, filename, heading in _AGGREGATE_OUTPUTS:
         fragments = aggregates[strategy]
         if not fragments:
             continue
-        out_path = auto_rules_dir / filename
+        out_path = output_dir / filename
         if dry_run:
-            actions.append(f"would write {strategy} → {out_path} ({len(fragments)} fragment(s))")
+            actions.append(f"would stage {strategy} → {filename} ({len(fragments)} fragment(s))")
             continue
-        auto_rules_dir.mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
         atomic_write_text(out_path, _render_aggregate(heading, fragments))
-        actions.append(f"{strategy} → {out_path}")
+        actions.append(f"staged {strategy} → {filename}")
 
     return actions
 

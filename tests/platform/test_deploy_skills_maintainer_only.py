@@ -12,6 +12,7 @@ import pytest
 from cataforge.adapter.platform.adapter import PlatformAdapter
 from cataforge.adapter.platform.profile_schema import PlatformProfile
 from cataforge.runtime.deploy import steps
+from tests.profile_factory import typed_profile
 
 
 def _make_dir_link(target: Path, source: Path) -> bool:
@@ -50,7 +51,7 @@ class _MinimalAdapter(PlatformAdapter):
     """Test adapter exercising default deploy_skills."""
 
     def __init__(self, profile: dict[str, Any]) -> None:
-        super().__init__(PlatformProfile.model_validate(profile))
+        super().__init__(PlatformProfile.model_validate(typed_profile(profile)))
 
     @property
     def platform_id(self) -> str:
@@ -59,9 +60,6 @@ class _MinimalAdapter(PlatformAdapter):
     @property
     def display_name(self) -> str:
         return "Test"
-
-    def get_tool_map(self) -> dict[str, str | None]:
-        return {}
 
     def get_agent_scan_dirs(self) -> list[str]:
         return []

@@ -154,7 +154,7 @@ CataForge 定义 5 个标准 hook 事件:
 | `log_agent_dispatch` | PreToolUse | agent_dispatch | 记录子 agent 派遣 |
 | `validate_agent_result` | PostToolUse | agent_dispatch | 校验子 agent 返回结果 |
 | `lint_format` | PostToolUse | file_edit | 编辑后自动 lint/格式化 |
-| `detect_correction` | PreToolUse | user_question | 检测用户纠正意图 |
+| `detect_correction` | PostToolUse | user_question | 检测用户纠正选择 |
 | `notify_done` | Stop | (无 matcher) | 任务完成通知 |
 | `notify_permission` | Notification | (无 matcher) | 权限请求通知 |
 | `session_context` | SessionStart | (无 matcher) | 注入会话上下文 |
@@ -168,7 +168,8 @@ CataForge 定义 5 个标准 hook 事件:
 | 维度 | profile.yaml 字段 |
 |------|------------------|
 | 核心 / 扩展工具名 | `tool_map` / `extended_capabilities` |
-| hook 事件名、tool override、配置格式与路径 | `hooks.event_map` / `hooks.tool_overrides` / `hooks.config_format` / `hooks.config_path` |
+| hook 事件名、matcher、配置格式与路径 | `hooks.event_map` / capability `hook_matchers` / `hooks.config_format` / `hooks.config_path` |
+| hook 原生/降级策略 | `hooks.policies` |
 | agent 格式、扫描目录、是否需部署 | `agent_config` |
 | 调度工具、是否异步、参数 | `dispatch` |
 | 可用模型、是否 per-agent | `model_routing` |

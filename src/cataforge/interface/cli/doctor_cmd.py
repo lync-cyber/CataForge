@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from cataforge.core.config import ConfigManager
 
 from .doctor._helpers import check_dir, check_file, check_import
+from .doctor.capability_health import report_capability_health
 from .doctor.context_authority import check_context_mode_validity
 from .doctor.deploy_integrity import (
     check_deploy_drift,
@@ -131,6 +132,7 @@ _DOCTOR_SECTIONS = [
     # Deployment provenance — informational: shows which platform dirs the last
     # deploy would have written so users see what is CataForge-managed.
     ("Deployment provenance:", report_deployment_provenance, False),
+    ("Capability enforcement:", report_capability_health, False),
     # Deploy integrity — the hard gate: turns dangling links / missing owned
     # dirs into FAILs so post-deploy regressions can't slip past doctor.
     ("Deploy integrity:", check_deploy_integrity, True),
@@ -157,6 +159,7 @@ _PLATFORM_SCOPED_CHECKS = {
     check_project_state_projection,
     check_shell_preference,
     report_deployment_provenance,
+    report_capability_health,
     check_deploy_integrity,
     check_deploy_drift,
 }

@@ -9,85 +9,92 @@ import pytest
 import yaml
 
 from cataforge.adapter.platform.conformance import (
-    _load_hook_degradation_strategies,
     check_all_consistency,
     check_conformance,
     check_extended_conformance,
     check_platform_consistency,
 )
 from cataforge.adapter.platform.registry import clear_cache
+from tests.profile_factory import typed_profile
 
 REPO_PLATFORMS_DIR = Path(__file__).resolve().parents[2] / ".cataforge" / "platforms"
 
 
 def _make_full_profile() -> dict:
-    return {
-        "platform_id": "claude-code",
-        "tool_map": {
-            "file_read": "Read",
-            "file_write": "Write",
-            "file_edit": "Edit",
-            "file_glob": "Glob",
-            "file_grep": "Grep",
-            "shell_exec": "Bash",
-            "web_search": "WebSearch",
-            "web_fetch": "WebFetch",
-            "user_question": "AskUserQuestion",
-            "agent_dispatch": "Agent",
-        },
-        "extended_capabilities": {
-            "notebook_edit": "NotebookEdit",
-            "browser_preview": "preview_start",
-            "image_input": "Read",
-            "code_review": None,
-        },
-        "agent_config": {
-            "supported_fields": [
-                "name",
-                "description",
-                "tools",
-                "disallowedTools",
-                "model",
-                "permissionMode",
-                "maxTurns",
-                "skills",
-                "mcpServers",
-                "hooks",
-                "memory",
-                "background",
-                "effort",
-                "isolation",
-                "color",
-                "initialPrompt",
-                "prompt",
-            ],
-            "memory_scopes": ["user", "project", "local"],
-            "isolation_modes": ["worktree"],
-        },
-        "dispatch": {"tool_name": "Agent"},
-        "hooks": {"config_format": "json"},
-        "features": {
-            "cloud_agents": False,
-            "agent_teams": True,
-            "parallel_agents": True,
-            "scheduled_tasks": True,
-            "background_agents": True,
-            "plan_mode": True,
-            "computer_use": False,
-            "realtime_voice": False,
-            "multi_model": True,
-            "session_resume": False,
-            "worktree_isolation": True,
-            "autonomy_slider": False,
-            "ci_cd_integration": False,
-            "multi_root": False,
-            "agent_memory": True,
-            "plugin_marketplace": True,
-            "context_management": True,
-        },
-        "permissions": {"modes": ["default", "acceptEdits", "auto", "bypassPermissions", "plan"]},
-        "model_routing": {"available_models": ["opus", "sonnet", "haiku"], "per_agent_model": True},
-    }
+    return typed_profile(
+        {
+            "platform_id": "claude-code",
+            "tool_map": {
+                "file_read": "Read",
+                "file_write": "Write",
+                "file_edit": "Edit",
+                "file_glob": "Glob",
+                "file_grep": "Grep",
+                "shell_exec": "Bash",
+                "web_search": "WebSearch",
+                "web_fetch": "WebFetch",
+                "user_question": "AskUserQuestion",
+                "agent_dispatch": "Agent",
+            },
+            "extended_capabilities": {
+                "notebook_edit": "NotebookEdit",
+                "browser_preview": "preview_start",
+                "image_input": "Read",
+                "code_review": None,
+            },
+            "agent_config": {
+                "supported_fields": [
+                    "name",
+                    "description",
+                    "tools",
+                    "disallowedTools",
+                    "model",
+                    "permissionMode",
+                    "maxTurns",
+                    "skills",
+                    "mcpServers",
+                    "hooks",
+                    "memory",
+                    "background",
+                    "effort",
+                    "isolation",
+                    "color",
+                    "initialPrompt",
+                    "prompt",
+                ],
+                "memory_scopes": ["user", "project", "local"],
+                "isolation_modes": ["worktree"],
+            },
+            "dispatch": {"tool_name": "Agent"},
+            "hooks": {"config_format": "json"},
+            "features": {
+                "cloud_agents": False,
+                "agent_teams": True,
+                "parallel_agents": True,
+                "scheduled_tasks": True,
+                "background_agents": True,
+                "plan_mode": True,
+                "computer_use": False,
+                "realtime_voice": False,
+                "multi_model": True,
+                "session_resume": False,
+                "worktree_isolation": True,
+                "autonomy_slider": False,
+                "ci_cd_integration": False,
+                "multi_root": False,
+                "agent_memory": True,
+                "plugin_marketplace": True,
+                "context_management": True,
+            },
+            "permissions": {
+                "modes": ["default", "acceptEdits", "auto", "bypassPermissions", "plan"]
+            },
+            "model_routing": {
+                "available_models": ["opus", "sonnet", "haiku"],
+                "per_agent_model": True,
+            },
+        }
+    )
 
 
 @pytest.fixture()
@@ -226,7 +233,10 @@ class TestPlatformConsistency:
 
     def test_web_fetch_routed_to_shell_warns(self, project_dir: Path) -> None:
         def mutate(p: dict) -> None:
-            p["tool_map"]["web_fetch"] = p["tool_map"]["shell_exec"]
+            p["tool_map"]["web_fetch"] = {
+                "tool": "shell",
+                "kind": "replacement",
+            }
 
         platforms_dir = _rewrite_profile(project_dir, mutate)
         issues = check_platform_consistency("claude-code", platforms_dir)
@@ -235,7 +245,10 @@ class TestPlatformConsistency:
     def test_computer_use_without_browser_preview_warns(self, project_dir: Path) -> None:
         def mutate(p: dict) -> None:
             p["features"]["computer_use"] = True
-            p["extended_capabilities"]["browser_preview"] = None
+            p["extended_capabilities"]["browser_preview"] = {
+                "tool": None,
+                "kind": "unsupported",
+            }
 
         platforms_dir = _rewrite_profile(project_dir, mutate)
         issues = check_platform_consistency("claude-code", platforms_dir)
@@ -267,10 +280,6 @@ class TestPlatformConsistency:
         platforms_dir = _rewrite_profile(project_dir, mutate)
         issues = check_platform_consistency("claude-code", platforms_dir)
         assert not any("scan dir" in i for i in issues)
-
-    def test_hook_strategies_none_when_hooks_yaml_absent(self, project_dir: Path) -> None:
-        platforms_dir = project_dir / ".cataforge" / "platforms"
-        assert _load_hook_degradation_strategies(platforms_dir) is None
 
 
 class TestConsistencySnapshot:

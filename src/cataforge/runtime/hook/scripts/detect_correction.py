@@ -1,42 +1,56 @@
-"""PostToolUse Hook: Detect option-override corrections from AskUserQuestion.
+"""PostToolUse Hook: Detect option-override corrections from user questions.
 
-Matcher: AskUserQuestion
+Matcher: platform ``user_question`` capability
 Never blocks (exit 0).
 """
 
 from __future__ import annotations
 
 import sys
-from typing import Any
+from dataclasses import dataclass
 
 from cataforge.core.corrections import record_correction
 from cataforge.core.paths import find_project_root
 from cataforge.runtime.hook.base import hook_main, matches_capability, read_hook_input
+from cataforge.runtime.hook.question import (
+    normalize_answers,
+    normalize_questions,
+    recommended_label,
+)
 
 
-def _recommended_label(options: list[Any]) -> str | None:
-    if not isinstance(options, list):
-        return None
-    for opt in options:
-        if not isinstance(opt, dict):
+@dataclass(frozen=True)
+class CorrectionOverride:
+    question: str
+    baseline: str
+    actual: str
+
+
+def _resolve_agent_id(data: dict[str, object]) -> str:
+    value = data.get("agent_id")
+    return str(value) if value else "orchestrator"
+
+
+def find_option_overrides(data: dict[str, object]) -> list[CorrectionOverride]:
+    tool_input = data.get("tool_input") or {}
+    questions = normalize_questions(tool_input)
+    answers = normalize_answers(data.get("tool_response") or {})
+    overrides: list[CorrectionOverride] = []
+    for question in questions:
+        recommended = recommended_label(question)
+        if not recommended:
             continue
-        label = opt.get("label", "") or ""
-        if "(Recommended)" in label or "(推荐)" in label:
-            return label
-    return None
-
-
-def _resolve_agent_id(data: dict[str, Any]) -> str:
-    return data.get("agent_id") or "orchestrator"
-
-
-def _extract_answers(tool_response: object) -> dict[str, Any]:
-    if not isinstance(tool_response, dict):
-        return {}
-    answers = tool_response.get("answers")
-    if isinstance(answers, dict):
-        return answers
-    return tool_response if all(isinstance(v, str) for v in tool_response.values()) else {}
+        chosen = answers.get(question.id) or answers.get(question.text)
+        if not chosen or chosen == [recommended]:
+            continue
+        overrides.append(
+            CorrectionOverride(
+                question=question.text,
+                baseline=recommended,
+                actual=", ".join(chosen),
+            )
+        )
+    return overrides
 
 
 @hook_main
@@ -46,35 +60,19 @@ def main() -> None:
     if not data or not matches_capability(data, "user_question"):
         sys.exit(0)
 
-    tool_input = data.get("tool_input") or {}
-    tool_response = data.get("tool_response") or {}
-    questions = tool_input.get("questions") or []
-    if not isinstance(questions, list):
-        sys.exit(0)
-
-    answers = _extract_answers(tool_response)
-    if not answers:
+    overrides = find_option_overrides(data)
+    if not overrides:
         sys.exit(0)
 
     project_root = find_project_root()
     agent_id = _resolve_agent_id(data)
-    phase = str(data.get("phase") or tool_input.get("phase") or "unknown")
+    tool_input = data.get("tool_input") or {}
+    input_phase = tool_input.get("phase") if isinstance(tool_input, dict) else None
+    phase = str(data.get("phase") or input_phase or "unknown")
 
-    for q in questions:
-        if not isinstance(q, dict):
-            continue
-        question_text = q.get("question", "") or ""
-        options = q.get("options") or []
-        recommended = _recommended_label(options)
-        if not recommended:
-            continue
-
-        chosen = answers.get(question_text)
-        if not chosen or chosen == recommended:
-            continue
-
+    for override in overrides:
         print(
-            f"[HOOK-INFO] correction | option-override | {question_text[:60]}",
+            f"[HOOK-INFO] correction | option-override | {override.question[:60]}",
             file=sys.stderr,
         )
 
@@ -84,9 +82,9 @@ def main() -> None:
                 trigger="option-override",
                 agent=agent_id,
                 phase=phase,
-                question=question_text,
-                baseline=recommended,
-                actual=str(chosen),
+                question=override.question,
+                baseline=override.baseline,
+                actual=override.actual,
                 deviation="preference",
             )
         except (ValueError, OSError) as e:

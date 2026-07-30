@@ -3,22 +3,22 @@ display_name: OpenCode
 version_tested: "1.3"
 
 tool_map:
-  file_read: read
-  file_write: write
-  file_edit: edit
-  file_glob: glob
-  file_grep: grep
-  shell_exec: bash
-  web_search: websearch
-  web_fetch: webfetch
-  user_question: question
-  agent_dispatch: task
+  file_read: {tool: read, kind: native}
+  file_write: {tool: write, kind: native}
+  file_edit: {tool: edit, kind: native}
+  file_glob: {tool: glob, kind: native}
+  file_grep: {tool: grep, kind: native}
+  shell_exec: {tool: bash, kind: native}
+  web_search: {tool: websearch, kind: native}
+  web_fetch: {tool: webfetch, kind: native}
+  user_question: {tool: question, kind: native}
+  agent_dispatch: {tool: task, kind: native}
 
 extended_capabilities:
-  notebook_edit: null
-  browser_preview: null
-  image_input: image             # drag-and-drop image analysis
-  code_review: null
+  notebook_edit: {tool: null, kind: unsupported}
+  browser_preview: {tool: null, kind: unsupported}
+  image_input: {tool: image, kind: native}
+  code_review: {tool: null, kind: unsupported}
 
 agent_definition:
   format: yaml-frontmatter
@@ -37,6 +37,7 @@ command_definition:
   needs_deploy: false
 
 agent_config:
+  tool_policy: allow_only
   supported_fields:
     - name
     - description
@@ -83,22 +84,26 @@ hooks:
     Stop: session.idle
     SessionStart: session.created
     Notification: null
-  tool_overrides: {}
-  degradation:
+  policies:
     # All hooks are plugin-backed: the emitted TS wrapper invokes the Python
     # script so block/observe semantics flow through as on JSON platforms.
-    guard_dangerous: native
-    guard_frozen_docs: native
-    log_agent_dispatch: native
-    validate_agent_result: native
-    lint_format: native
-    detect_correction: native
-    detect_review_flag: native
-    notify_done: native
-    notify_permission: degraded     # OpenCode has no Notification event
-    session_context: native
-    deploy_drift: native
-    git_sync: native
+    guard_dangerous: {mode: native}
+    guard_frozen_docs: {mode: native}
+    log_agent_dispatch: {mode: native}
+    validate_agent_result: {mode: native}
+    lint_format: {mode: native}
+    detect_correction: {mode: native}
+    detect_review_flag: {mode: native}
+    notify_done: {mode: native}
+    notify_permission:
+      mode: degraded
+      fallback:
+        strategy: skip
+        coverage: none
+        reason: "OpenCode 缺少 Notification 事件"
+    session_context: {mode: native}
+    deploy_drift: {mode: native}
+    git_sync: {mode: native}
 
 features:
   cloud_agents: false

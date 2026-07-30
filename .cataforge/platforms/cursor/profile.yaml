@@ -3,22 +3,22 @@ display_name: Cursor
 version_tested: "3.1"
 
 tool_map:
-  file_read: Read
-  file_write: Write
-  file_edit: Write           # Cursor hook events use "Write" for both edits and writes
-  file_glob: Glob
-  file_grep: Grep
-  shell_exec: Shell
-  web_search: WebSearch
-  web_fetch: null            # unsupported on this platform — see docs/reference/platform-capability-matrix.md
-  user_question: null        # unsupported on this platform — see docs/reference/platform-capability-matrix.md
-  agent_dispatch: Task
+  file_read: {tool: Read, kind: native}
+  file_write: {tool: Write, kind: native}
+  file_edit: {tool: Write, kind: native}
+  file_glob: {tool: Glob, kind: native}
+  file_grep: {tool: Grep, kind: native}
+  shell_exec: {tool: Shell, kind: native}
+  web_search: {tool: WebSearch, kind: native}
+  web_fetch: {tool: null, kind: unsupported}
+  user_question: {tool: null, kind: unsupported}
+  agent_dispatch: {tool: Task, kind: native}
 
 extended_capabilities:
-  notebook_edit: null          # unsupported on this platform — see docs/reference/platform-capability-matrix.md
-  browser_preview: computer    # Cloud agent computer use capability
-  image_input: null            # unsupported on this platform — see docs/reference/platform-capability-matrix.md
-  code_review: null            # unsupported on this platform — see docs/reference/platform-capability-matrix.md
+  notebook_edit: {tool: null, kind: unsupported}
+  browser_preview: {tool: computer, kind: native}
+  image_input: {tool: null, kind: unsupported}
+  code_review: {tool: null, kind: unsupported}
 
 agent_definition:
   format: yaml-frontmatter
@@ -47,6 +47,7 @@ command_definition:
   needs_deploy: true
 
 agent_config:
+  tool_policy: allow_deny
   supported_fields:
     - name
     - description
@@ -98,22 +99,30 @@ hooks:
     Stop: stop
     SessionStart: sessionStart
     Notification: null
-  # Hook matchers may differ from tool_map names on some platforms.
-  # tool_overrides provides hook-specific matcher names when they diverge.
-  tool_overrides: {}
-  degradation:
-    guard_dangerous: native
-    guard_frozen_docs: native
-    log_agent_dispatch: native
-    validate_agent_result: native
-    lint_format: native
-    detect_correction: degraded
-    detect_review_flag: native
-    notify_done: native
-    notify_permission: degraded
-    session_context: native
-    deploy_drift: native
-    git_sync: native
+  policies:
+    guard_dangerous: {mode: native}
+    guard_frozen_docs: {mode: native}
+    log_agent_dispatch: {mode: native}
+    validate_agent_result: {mode: native}
+    lint_format: {mode: native}
+    detect_correction:
+      mode: degraded
+      fallback:
+        strategy: rules_injection
+        coverage: partial
+        reason: "平台缺少结构化用户提问工具"
+        asset: overrides/rules/correction-record.md
+    detect_review_flag: {mode: native}
+    notify_done: {mode: native}
+    notify_permission:
+      mode: degraded
+      fallback:
+        strategy: skip
+        coverage: none
+        reason: "平台缺少 Notification 事件"
+    session_context: {mode: native}
+    deploy_drift: {mode: native}
+    git_sync: {mode: native}
 
 features:
   cloud_agents: true             # Cursor Cloud Agents in isolated VMs

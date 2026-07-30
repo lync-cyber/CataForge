@@ -19,9 +19,9 @@ Design constraints:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 _FORBID = ConfigDict(extra="forbid")
 
@@ -70,6 +70,69 @@ class AgentConfig(BaseModel):
     supported_fields: list[str] = Field(default_factory=list)
     memory_scopes: list[str] = Field(default_factory=list)
     isolation_modes: list[str] = Field(default_factory=list)
+    tool_policy: Literal["allow_deny", "allow_only", "inherit_only"] = "allow_deny"
+
+
+class AvailabilityClause(BaseModel):
+    """One sufficient runtime context for a capability to be available."""
+
+    model_config = _FORBID
+
+    thread_scopes: list[Literal["root", "subagent"]] = Field(default_factory=list)
+    collaboration_modes: list[Literal["plan", "default"]] = Field(default_factory=list)
+    required_features: list[Literal["default_mode_request_user_input"]] = Field(
+        default_factory=list
+    )
+
+
+class CapabilityAvailability(BaseModel):
+    """Disjunction of availability clauses; an empty list means unconditional."""
+
+    model_config = _FORBID
+
+    any_of: list[AvailabilityClause] = Field(default_factory=list)
+
+
+class CapabilityBinding(BaseModel):
+    """Typed mapping from a CataForge capability to a platform surface."""
+
+    model_config = _FORBID
+
+    tool: str | None = None
+    kind: Literal["native", "replacement", "unsupported"] = "native"
+    availability: CapabilityAvailability = Field(default_factory=CapabilityAvailability)
+    hook_matchers: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_tool_contract(self) -> CapabilityBinding:
+        if self.kind == "unsupported" and self.tool is not None:
+            raise ValueError("unsupported capability must not declare a tool")
+        if self.kind != "unsupported" and self.tool is None:
+            raise ValueError(f"{self.kind} capability must declare a tool")
+        return self
+
+
+class CapabilityContext(BaseModel):
+    """Runtime facts used to resolve a conditional capability binding."""
+
+    model_config = _FORBID
+
+    thread_scope: Literal["root", "subagent"] | None = None
+    collaboration_mode: Literal["plan", "default"] | None = None
+    enabled_features: set[str] = Field(default_factory=set)
+
+
+class CapabilityResolution(BaseModel):
+    """Resolved support state for one capability and optional runtime context."""
+
+    model_config = _FORBID
+
+    capability: str
+    tool: str | None
+    status: Literal["native", "conditional", "replacement", "unsupported"]
+    available: bool | None
+    hook_matchers: list[str] = Field(default_factory=list)
+    reason: str | None = None
 
 
 class InstructionFile(BaseModel):
@@ -91,6 +154,35 @@ class Dispatch(BaseModel):
     params: list[str] = Field(default_factory=list)
 
 
+class HookFallback(BaseModel):
+    model_config = _FORBID
+
+    strategy: Literal["rules_injection", "prompt_instruction", "prompt_checklist", "skip"] = "skip"
+    coverage: Literal["equivalent", "partial", "none"] = "none"
+    reason: str = ""
+    asset: str | None = None
+    content: str = ""
+
+
+class HookPolicy(BaseModel):
+    model_config = _FORBID
+
+    mode: Literal["native", "hybrid", "degraded", "unsupported"] = "native"
+    fallback: HookFallback | None = None
+
+    @model_validator(mode="after")
+    def _validate_fallback_contract(self) -> HookPolicy:
+        if self.mode in {"hybrid", "degraded"} and self.fallback is None:
+            raise ValueError(f"{self.mode} hook policy requires fallback")
+        if (
+            self.fallback is not None
+            and self.fallback.coverage == "equivalent"
+            and self.fallback.strategy == "skip"
+        ):
+            raise ValueError("skip fallback cannot claim equivalent coverage")
+        return self
+
+
 class Hooks(BaseModel):
     model_config = _FORBID
 
@@ -98,8 +190,7 @@ class Hooks(BaseModel):
     config_path: str | None = None
     entry_type: str | None = None
     event_map: dict[str, str | None] = Field(default_factory=dict)
-    tool_overrides: dict[str, str] = Field(default_factory=dict)
-    degradation: dict[str, str] = Field(default_factory=dict)
+    policies: dict[str, HookPolicy] = Field(default_factory=dict)
 
 
 class ModelRouting(BaseModel):
@@ -120,8 +211,8 @@ class PlatformProfile(BaseModel):
     display_name: str | None = None
     version_tested: str | None = None
 
-    tool_map: dict[str, str | None] = Field(default_factory=dict)
-    extended_capabilities: dict[str, str | None] = Field(default_factory=dict)
+    tool_map: dict[str, CapabilityBinding] = Field(default_factory=dict)
+    extended_capabilities: dict[str, CapabilityBinding] = Field(default_factory=dict)
 
     agent_definition: AgentDefinition = Field(default_factory=AgentDefinition)
     skill_definition: SkillDefinition = Field(default_factory=SkillDefinition)

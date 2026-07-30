@@ -16,6 +16,7 @@ import pytest
 
 from cataforge.adapter.platform.opencode import OpenCodeAdapter, _render_opencode_plugin
 from cataforge.adapter.platform.profile_schema import PlatformProfile
+from tests.profile_factory import typed_profile
 
 _NODE = shutil.which("node")
 
@@ -23,18 +24,20 @@ _NODE = shutil.which("node")
 @pytest.fixture()
 def opencode_adapter() -> OpenCodeAdapter:
     profile = PlatformProfile.model_validate(
-        {
-            "platform_id": "opencode",
-            "tool_map": {"shell_exec": "bash", "file_edit": "edit"},
-            "hooks": {
-                "config_format": "plugin",
-                "event_map": {
-                    "PreToolUse": "tool.execute.before",
-                    "PostToolUse": "tool.execute.after",
+        typed_profile(
+            {
+                "platform_id": "opencode",
+                "tool_map": {"shell_exec": "bash", "file_edit": "edit"},
+                "hooks": {
+                    "config_format": "plugin",
+                    "event_map": {
+                        "PreToolUse": "tool.execute.before",
+                        "PostToolUse": "tool.execute.after",
+                    },
+                    "degradation": {"guard_dangerous": "native", "lint_format": "native"},
                 },
-                "degradation": {"guard_dangerous": "native", "lint_format": "native"},
-            },
-        }
+            }
+        )
     )
     return OpenCodeAdapter(profile)
 
@@ -252,10 +255,14 @@ def test_apply_degradation_emits_plugin_on_opencode(
                     }
                 ]
             },
-            "degradation_templates": {},
         },
     )
 
-    actions = bridge.apply_degradation(opencode_adapter, tmp_path, dry_run=False)
+    actions = bridge.apply_degradation(
+        opencode_adapter,
+        tmp_path,
+        output_dir=tmp_path / "generated",
+        dry_run=False,
+    )
     assert any("opencode plugin" in a for a in actions)
     assert (tmp_path / ".opencode" / "plugins" / "cataforge-hooks.ts").is_file()

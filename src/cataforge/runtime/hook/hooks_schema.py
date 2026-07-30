@@ -8,11 +8,9 @@ surfacing as a ``KeyError`` / ``AttributeError`` deep in the platform bridge.
 
 Hook entries stay permissive (``extra="allow"``) because the v2 matcher fields
 (``matcher_file_pattern`` / ``matcher_command_pattern`` / ``matcher_agent_id``)
-are optional and plugin-provided entries may carry their own keys. The top-level
-spec is ``extra="ignore"`` so a legacy/minimal spec carrying only ``version``
-(or other keys the bridge never reads) keeps loading — protection comes from
-type-validating the known ``schema_version`` / ``hooks`` / ``degradation_templates``
-fields, not from rejecting unknown sections.
+are optional and plugin-provided entries may carry their own keys. The
+top-level spec is strict so retired sections cannot silently survive a schema
+upgrade.
 """
 
 from __future__ import annotations
@@ -33,17 +31,8 @@ class HookEntry(BaseModel):
     matcher_command_pattern: str | None = None
 
 
-class DegradationTemplate(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    strategy: str
-    content: str = ""
-    reason: str = ""
-
-
 class HooksSpec(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
     schema_version: int = 1
     hooks: dict[str, list[HookEntry]] = Field(default_factory=dict)
-    degradation_templates: dict[str, DegradationTemplate] = Field(default_factory=dict)

@@ -137,6 +137,10 @@ def platform_state_path(project_root: Path, platform_id: str) -> Path:
     return platform_deploy_dir(project_root, platform_id) / "state.json"
 
 
+def platform_capability_report_path(project_root: Path, platform_id: str) -> Path:
+    return platform_deploy_dir(project_root, platform_id) / "capability-report.json"
+
+
 def recorded_platforms(project_root: Path) -> list[str]:
     """Platforms with a per-platform deploy record (sorted, no legacy)."""
     root = deploy_state_root(project_root)

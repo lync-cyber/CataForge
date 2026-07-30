@@ -118,7 +118,8 @@ npx ctx7@latest library "openai codex" "CLI hooks agent tools"
 
 ### 关注点
 - `.codex/hooks.json` 格式和支持的事件
-- hook matcher 使用 `Bash`（不是 `shell`）— tool_overrides 关键
+- hook matcher 以官方 payload 为准；与模型工具名不同则写入 capability `hook_matchers`
+- `request_user_input` 的 `PostToolUse` payload、root/thread scope 与 Plan/Default feature 条件
 - agent TOML 格式中的字段名（`developer_instructions` 不是 `instructions`）
 - `.codex/config.toml` 中 `[mcp_servers.<id>]` 格式
 - 上下文窗口大小和默认模型

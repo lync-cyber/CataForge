@@ -61,7 +61,7 @@ CAPABILITY_IDS: list[str] = [
 # Capabilities that may legitimately be null on some platforms.
 # Conformance checks emit INFO instead of WARN for these.
 OPTIONAL_CAPABILITY_IDS: set[str] = {
-    "user_question",  # Codex has no AskUserQuestion; Cursor support is partial
+    "user_question",  # Optional/conditional on platforms without a universal question surface
     "web_fetch",  # Cursor / Codex lack a native web-fetch tool
 }
 

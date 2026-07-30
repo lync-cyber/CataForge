@@ -1,8 +1,8 @@
 # CataForge Hook 规范定义（平台无关）
-# deploy 读取此文件 + 平台 profile 的 event_map/tool_overrides 生成平台配置
+# deploy 读取此文件 + 平台 profile 的 typed capability/hook policy 生成平台配置
 #
 # schema_version: 规范结构版本号（向前不兼容时递增）
-#   v1 — 初始：hooks / degradation_templates
+#   v1 — 初始 hooks
 #   v2 — 新增：matcher_file_pattern / matcher_command_pattern / matcher_agent_id
 #        （可选；旧 hooks.yaml 省略时行为等同 v1）
 
@@ -64,67 +64,3 @@ hooks:
     - script: git_sync
       type: observe
       description: "fetch + 快进干净的默认分支 + 清理 squash 合并的本地分支（不改 tracked 文件、永不切分支）"
-
-degradation_templates:
-  guard_dangerous:
-    strategy: rules_injection
-    content: |
-      SAFETY RULES (auto-generated — platform lacks PreToolUse hook):
-      - NEVER run rm -rf, DROP TABLE, or other destructive commands without explicit user confirmation
-      - NEVER modify files outside the project directory
-
-  guard_frozen_docs:
-    strategy: rules_injection
-    content: |
-      SAFETY RULES (unattended building-loop — platform lacks PreToolUse file-edit block):
-      - While CATAFORGE_UNATTENDED=1, NEVER edit frozen upstream docs
-        (docs/prd, docs/arch, docs/ui-spec, docs/dev-plan)
-      - The loop only builds against the frozen plan; planning stays human daytime work
-
-  validate_agent_result:
-    strategy: prompt_checklist
-    content: |
-      === 返回值自检 ===
-      返回前请确认:
-      - [ ] 包含 <agent-result> 标签
-      - [ ] status 为有效枚举值
-      - [ ] outputs 列出所有产出文件路径
-
-  detect_correction:
-    strategy: skip
-    reason: "原生 PostToolUse 不可用；hook 本身 skip，纠正捕获由平台 alwaysApply 规则 .cataforge/platforms/{platform}/overrides/rules/correction-record.md 覆盖（非关键功能）"
-
-  detect_review_flag:
-    strategy: skip
-    reason: "纠正学习为非关键功能 (review-flag 信号)；且此 hook 依赖 agent_dispatch 的 PostToolUse 匹配，无 agent matcher 的平台不触发，统一降级为 skip"
-
-  notify_permission:
-    strategy: skip
-    reason: "通知为非关键功能"
-
-  log_agent_dispatch:
-    strategy: prompt_instruction
-    content: |
-      调度完成后，请运行（审计日志为 observe 类最佳努力行为，失败不应阻断流程；
-      任何非 0 退出仅作 stderr 警告，无需重试）:
-      cataforge event log --event agent_dispatch --phase {当前阶段} --agent {被调度Agent} --detail "调度 {被调度Agent}" || true
-
-  lint_format:
-    strategy: skip
-    reason: "格式化为非关键功能"
-
-  notify_done:
-    strategy: skip
-    reason: "会话结束通知为非关键功能"
-
-  session_context:
-    strategy: skip
-    reason: "会话上下文初始化可降级"
-
-  deploy_drift:
-    strategy: skip
-    reason: "部署漂移提示为非关键功能"
-
-  git_sync:
-    strategy: skip
-    reason: "会话启动 git 同步为非关键功能；无 SessionStart hook 的平台用户手动跑 cataforge git sync"

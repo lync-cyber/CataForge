@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from cataforge.adapter.platform.profile_schema import PlatformProfile
+from cataforge.adapter.platform.profile_schema import CapabilityContext, PlatformProfile
 from cataforge.adapter.platform.registry import BUILTIN_PLATFORM_IDS, load_profile
 
 
@@ -27,18 +27,18 @@ def test_shipped_profile_validates(platform_id: str) -> None:
 def test_claude_code_key_fields_preserved() -> None:
     """A spot-check that typed access returns the same values as the YAML."""
     profile = load_profile("claude-code")
-    assert profile.tool_map["file_read"] == "Read"
+    assert profile.tool_map["file_read"].tool == "Read"
     assert profile.hooks.config_format == "json"
     assert profile.hooks.config_path == ".claude/settings.json"
     assert profile.model_routing.tier_map["heavy"] == "opus"
     assert profile.agent_definition.scan_dirs == [".claude/agents"]
 
 
-def test_codex_toml_and_overrides_preserved() -> None:
-    """Codex's divergent shape (TOML hooks matcher overrides) survives."""
+def test_codex_toml_and_hook_matcher_preserved() -> None:
+    """Codex's divergent TOML and hook matcher shape survives."""
     profile = load_profile("codex")
     assert profile.agent_definition.format == "toml"
-    assert profile.hooks.tool_overrides == {"shell_exec": "Bash"}
+    assert profile.tool_map["shell_exec"].hook_matchers == ["Bash"]
     assert profile.model_routing.user_resolved is False
     assert profile.model_routing.per_agent_model is True
     assert profile.skill_definition.needs_deploy is True
@@ -62,6 +62,61 @@ def test_wrong_type_tool_map_rejected() -> None:
     with pytest.raises(ValidationError) as exc:
         PlatformProfile.model_validate({"platform_id": "x", "tool_map": "Read"})
     assert "tool_map" in str(exc.value)
+
+
+def test_scalar_capability_binding_rejected() -> None:
+    with pytest.raises(ValidationError) as exc:
+        PlatformProfile.model_validate({"platform_id": "x", "tool_map": {"file_read": "Read"}})
+    assert "file_read" in str(exc.value)
+
+
+def test_codex_user_question_availability() -> None:
+    from cataforge.adapter.platform.registry import get_adapter
+
+    adapter = get_adapter("codex")
+    plan = adapter.resolve_capability(
+        "user_question",
+        CapabilityContext(thread_scope="root", collaboration_mode="plan"),
+    )
+    default_disabled = adapter.resolve_capability(
+        "user_question",
+        CapabilityContext(thread_scope="root", collaboration_mode="default"),
+    )
+    default_enabled = adapter.resolve_capability(
+        "user_question",
+        CapabilityContext(
+            thread_scope="root",
+            collaboration_mode="default",
+            enabled_features={"default_mode_request_user_input"},
+        ),
+    )
+    subagent = adapter.resolve_capability(
+        "user_question",
+        CapabilityContext(thread_scope="subagent", collaboration_mode="plan"),
+    )
+
+    assert plan.available is True and plan.status == "native"
+    assert default_disabled.available is False and default_disabled.status == "conditional"
+    assert default_enabled.available is True and default_enabled.status == "native"
+    assert subagent.available is False and subagent.status == "conditional"
+
+
+def test_unknown_capability_feature_rejected() -> None:
+    with pytest.raises(ValidationError) as exc:
+        PlatformProfile.model_validate(
+            {
+                "tool_map": {
+                    "user_question": {
+                        "tool": "question",
+                        "kind": "native",
+                        "availability": {
+                            "any_of": [{"required_features": ["imaginary_question_feature"]}]
+                        },
+                    }
+                }
+            }
+        )
+    assert "imaginary_question_feature" in str(exc.value)
 
 
 def test_wrong_type_nested_field_rejected() -> None:

@@ -28,6 +28,7 @@ from cataforge.runtime.deploy.manifest import (
     load_other_platform_owned,
     load_prior_manifest_for,
     migrate_legacy_deploy_records,
+    platform_capability_report_path,
     save_platform_manifest,
     write_platform_state,
 )
@@ -53,6 +54,7 @@ class DeployContext:
     agents_src: Path = field(default_factory=Path)
     skills_src: Path = field(default_factory=Path)
     instruction_src: Path = field(default_factory=Path)
+    generated_rules_dir: Path = field(default_factory=Path)
 
 
 # ---------------------------------------------------------------------------
@@ -211,8 +213,20 @@ class Deployer:
         if stage_action:
             actions.append(stage_action)
 
+        capability_report = None
+        if not dry_run:
+            # Compile policy/report data before any deploy step mutates targets.
+            from cataforge.runtime.deploy.capability_report import (
+                build_capability_report,
+            )
+
+            capability_report = build_capability_report(adapter, agents_src)
+
         # Resolve instruction template source (consumes an ExitStack slot).
         instruction_src = stack.enter_context(as_file(packaged_instruction_template()))
+        generated_rules_dir = Path(
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="cataforge-fallback-rules-"))
+        )
 
         ctx = DeployContext(
             root=root,
@@ -228,6 +242,7 @@ class Deployer:
             agents_src=agents_src,
             skills_src=skills_src,
             instruction_src=instruction_src,
+            generated_rules_dir=generated_rules_dir,
         )
 
         for _name, guard, step in self._STEPS:
@@ -240,13 +255,22 @@ class Deployer:
         # platform independently.
         if not dry_run:
             from cataforge import __version__
+            from cataforge.runtime.deploy.capability_report import (
+                write_capability_report_payload,
+            )
             from cataforge.runtime.deploy.drift import compute_source_digest
 
+            assert capability_report is not None
             manifest.source_digest = compute_source_digest(
                 self._cfg.paths, framework_json_bytes=fw_snapshot
             )
             manifest.package_version = __version__
             save_platform_manifest(root, manifest)
+            write_capability_report_payload(
+                platform_capability_report_path(root, platform_id),
+                capability_report,
+            )
+            # State is the success marker and must be committed last.
             write_platform_state(root, platform_id, __version__)
         else:
             actions.append(
@@ -255,6 +279,10 @@ class Deployer:
                 f"(platform={platform_id})"
             )
             actions.append(f"would write deploy manifest ({len(manifest.owned)} owned path(s))")
+            actions.append(
+                f"would write capability report → "
+                f"{platform_capability_report_path(root, platform_id)}"
+            )
 
         self._bus.emit(
             FRAMEWORK_DEPLOY,
@@ -390,13 +418,23 @@ class Deployer:
         )
 
     def _step_apply_degradation(self, ctx: DeployContext) -> list[str]:
-        return self._apply_degradation(ctx.root, ctx.adapter, dry_run=ctx.dry_run)
+        return self._apply_degradation(
+            ctx.root,
+            ctx.adapter,
+            output_dir=ctx.generated_rules_dir,
+            dry_run=ctx.dry_run,
+        )
 
     def _step_deploy_overrides_rules(self, ctx: DeployContext) -> list[str]:
         from cataforge.runtime.deploy.steps import deploy_overrides_rules
 
         return deploy_overrides_rules(
-            ctx.adapter, ctx.root, dry_run=ctx.dry_run, manifest=ctx.manifest
+            ctx.adapter,
+            ctx.root,
+            additional_rules_dirs=[ctx.generated_rules_dir],
+            dry_run=ctx.dry_run,
+            manifest=ctx.manifest,
+            prior_manifest=ctx.prior_owned,
         )
 
     def _step_deploy_mcp(self, ctx: DeployContext) -> list[str]:
@@ -636,12 +674,17 @@ class Deployer:
         return actions
 
     def _apply_degradation(
-        self, root: Path, adapter: PlatformAdapter, *, dry_run: bool = False
+        self,
+        root: Path,
+        adapter: PlatformAdapter,
+        *,
+        output_dir: Path,
+        dry_run: bool = False,
     ) -> list[str]:
         from cataforge.runtime.hook.bridge import apply_degradation
 
         try:
-            return apply_degradation(adapter, root, dry_run=dry_run)
+            return apply_degradation(adapter, root, output_dir=output_dir, dry_run=dry_run)
         except (ImportError, AttributeError) as e:
             logger.exception("degradation failed (likely plugin issue)")
             return [

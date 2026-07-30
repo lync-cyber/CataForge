@@ -136,7 +136,7 @@ front matter 之后按 `.cataforge/references/review-report-spec.md` §问题格
 - B6-α: 解析 .cataforge/hooks/hooks.yaml，每个 `script` 字段须解析到真实 .py（builtin: `cataforge.runtime.hook.scripts.<name>` 通过 `importlib.resources` 定位；custom: `.cataforge/hooks/custom/<name>.py`）→ FAIL on missing<!-- check_id: B6_hook_script_reachability -->
 - B6-β: 每个解析到的 hook script .py 必须 `ast.parse` 通过（不依赖 import 副作用）→ FAIL on SyntaxError<!-- check_id: B6_hook_script_syntax -->
 - B6-γ: 每个 `matcher_capability` 值必须是 `CAPABILITY_IDS` ∪ `EXTENDED_CAPABILITY_IDS` 成员（typo 会让 hook 静默永不触发）→ FAIL on unknown capability<!-- check_id: B6_hook_matcher_capability -->
-- B6-δ: 遍历 `.cataforge/platforms/<id>/profile.yaml`，`hooks.degradation` 的 keys 必须严格等于 hooks.yaml 引用的 script name 集合（`custom:` 前缀脱皮后比较）→ 缺失 WARN（deploy 默认 native 可能掩盖真实降级需求）/ 孤儿 WARN（dead config）<!-- check_id: B6_hook_degradation_coverage -->
+- B6-δ: 遍历 `.cataforge/platforms/<id>/profile.yaml`，`hooks.policies` 的 keys 必须严格等于 hooks.yaml 引用的 script name 集合（`custom:` 前缀脱皮后比较）→ 缺失 WARN（deploy 默认 native 可能掩盖真实能力或 fallback 需求）/ 孤儿 WARN（dead config）<!-- check_id: B6_hook_policy_coverage -->
 - B6-ε: hooks.yaml 中所有非 `custom:` 前缀的 `script` 必须在 `cataforge.runtime.hook.manifest.HOOKS_MANIFEST` 中注册 → FAIL（manifest 缺失则脚本是 helper 而非 hook target，B6-α 单纯文件存在性查不出来）；HOOKS_MANIFEST 条目未被 hooks.yaml 引用 → WARN（dead inventory）<!-- check_id: B6_hook_manifest_drift -->
 - B7-α: AGENT.md `model_tier ∈ {light, standard, heavy, inherit, none}`；与 `constants.AGENT_MODEL_DEFAULTS` 一致（不一致 → WARN）；`heavy` 需进 `constants.AGENT_MODEL_TIER_HEAVY_WHITELIST`（不在白名单 → FAIL，控制成本面）<!-- check_id: B7_model_tier_value -->
 - B7-β: AGENT.md 仍含 legacy `model: <id>` 字段（无 `model_tier:`）→ FAIL，必须迁移；deploy 直接丢弃 legacy `model:` 行（无过渡期）<!-- check_id: B7_legacy_model_field -->

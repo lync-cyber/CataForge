@@ -105,7 +105,7 @@ def test_full_doctor_exit_code_unchanged_by_ghost(
     )
     for name in ("agents", "skills", "rules", "hooks", "platforms"):
         (cf / name).mkdir(parents=True, exist_ok=True)
-    (cf / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+    (cf / "hooks" / "hooks.yaml").write_text("schema_version: 2\nhooks: {}\n", encoding="utf-8")
     src_skill = _make_skill(tmp_path, "alpha")
     _link_skill(src_skill, tmp_path / ".claude" / "skills")
     # The ghost's deployed copy lingers on disk while its source is gone —

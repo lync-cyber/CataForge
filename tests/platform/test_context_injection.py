@@ -17,6 +17,7 @@ import yaml
 
 from cataforge.adapter.platform.registry import clear_cache, get_adapter
 from cataforge.runtime.deploy import steps
+from tests.profile_factory import typed_profile
 
 
 @pytest.fixture(autouse=True)
@@ -28,7 +29,7 @@ def _write_profile(platforms_dir: Path, pid: str, data: dict) -> None:
     p = platforms_dir / pid
     p.mkdir(parents=True, exist_ok=True)
     with open(p / "profile.yaml", "w", encoding="utf-8") as f:
-        yaml.dump(data, f, sort_keys=False)
+        yaml.dump(typed_profile(data), f, sort_keys=False)
 
 
 def _minimal(pid: str, *, extra: dict | None = None) -> dict:

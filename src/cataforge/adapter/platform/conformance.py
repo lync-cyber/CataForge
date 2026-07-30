@@ -30,11 +30,19 @@ def check_conformance(platform_id: str, platforms_dir: Path | None = None) -> li
     if adapter.platform_id != platform_id:
         issues.append(f"FAIL: platform_id mismatch ({adapter.platform_id} != {platform_id})")
 
-    tool_map = adapter.get_tool_map()
     for cap in REQUIRED_CAPABILITIES:
-        if cap not in tool_map or tool_map[cap] is None:
+        resolution = adapter.resolve_capability(cap)
+        if resolution.status == "unsupported":
             level = "INFO" if cap in OPTIONAL_CAPABILITY_IDS else "WARN"
             issues.append(f"{level}: {platform_id} does not map capability {cap}")
+        elif resolution.status == "conditional":
+            issues.append(
+                f"INFO: {platform_id} capability {cap} is conditional: {resolution.reason}"
+            )
+        elif resolution.status == "replacement":
+            issues.append(
+                f"INFO: {platform_id} capability {cap} uses replacement tool {resolution.tool!r}"
+            )
 
     if not adapter.dispatch_info:
         issues.append(f"FAIL: {platform_id} missing dispatch config")
@@ -56,9 +64,8 @@ def check_extended_conformance(platform_id: str, platforms_dir: Path | None = No
         return [f"FAIL: cannot load {platform_id} adapter: {e}"]
 
     # --- extended capabilities ---
-    ext_map = adapter.get_extended_tool_map()
     for cap in EXTENDED_CAPABILITY_IDS:
-        if cap not in ext_map or ext_map[cap] is None:
+        if adapter.resolve_capability(cap).status == "unsupported":
             issues.append(f"INFO: {platform_id} does not map extended capability {cap}")
 
     # --- agent frontmatter fields ---
@@ -129,18 +136,16 @@ def check_platform_consistency(platform_id: str, platforms_dir: Path | None = No
     except Exception as e:
         return [f"FAIL: cannot load {platform_id} adapter: {e}"]
 
-    tool_map = adapter.get_tool_map()
-    web_fetch = tool_map.get("web_fetch")
-    shell_exec = tool_map.get("shell_exec")
-    if web_fetch is not None and web_fetch == shell_exec:
+    web_fetch = adapter.get_capability_binding("web_fetch")
+    if web_fetch is not None and web_fetch.kind == "replacement":
         issues.append(
-            f"WARN: {platform_id} routes web_fetch to the shell tool {web_fetch!r} — "
+            f"WARN: {platform_id} routes web_fetch to replacement tool {web_fetch.tool!r} — "
             "a tool replacement, not native fetch semantics (no success/failure signal; "
             "blocked under read_only sandbox)"
         )
 
-    ext_map = adapter.get_extended_tool_map()
-    if adapter.supports_feature("computer_use") and ext_map.get("browser_preview") is None:
+    browser_preview = adapter.resolve_capability("browser_preview")
+    if adapter.supports_feature("computer_use") and browser_preview.available is False:
         issues.append(
             f"WARN: {platform_id} declares feature computer_use but extended capability "
             "browser_preview is unmapped — the capability is invisible to the routing layer"
@@ -163,72 +168,21 @@ def check_platform_consistency(platform_id: str, platforms_dir: Path | None = No
             "parent and would write rules to an unexpected location"
         )
 
-    return issues
-
-
-def _load_hook_degradation_strategies(platforms_dir: Path | None) -> dict[str, str] | None:
-    """Map ``hook -> degradation strategy`` from the framework hooks.yaml.
-
-    Returns ``None`` when hooks.yaml cannot be located/parsed so callers skip
-    the cross-artifact check rather than crashing.
-    """
-    import yaml
-
-    if platforms_dir is not None:
-        hooks_yaml = Path(platforms_dir).parent / "hooks" / "hooks.yaml"
-    else:
-        from cataforge.core.paths import find_project_root
-
-        hooks_yaml = find_project_root() / ".cataforge" / "hooks" / "hooks.yaml"
-    if not hooks_yaml.is_file():
-        return None
-    try:
-        data = yaml.safe_load(hooks_yaml.read_text()) or {}
-    except (OSError, yaml.YAMLError):
-        return None
-    templates = data.get("degradation_templates", {})
-    return {
-        hook: str(spec["strategy"])
-        for hook, spec in templates.items()
-        if isinstance(spec, dict) and spec.get("strategy")
-    }
-
-
-def check_hook_native_outliers(platforms_dir: Path | None = None) -> list[str]:
-    """WARN when one platform is the lone ``native`` claim for a skippable hook.
-
-    A hook the framework degrades with ``strategy: skip`` is non-critical; a
-    single platform marking it ``native`` while every other platform degrades it
-    is an unverified native claim (script success does not prove the underlying
-    IDE event reliably fires). Returns ``[platform] WARN`` lines.
-    """
-    strategies = _load_hook_degradation_strategies(platforms_dir)
-    if not strategies:
-        return []
-
-    degradation: dict[str, dict[str, str]] = {}
-    for pid in ALL_PLATFORMS:
-        try:
-            degradation[pid] = get_adapter(pid, platforms_dir).hook_degradation
-        except Exception:
+    profile_root = (
+        Path(platforms_dir) / platform_id
+        if platforms_dir is not None
+        else Path(__file__).resolve().parents[4] / ".cataforge" / "platforms" / platform_id
+    )
+    for hook_name, policy in adapter.hook_policies.items():
+        fallback = policy.fallback
+        if fallback is None or fallback.asset is None:
             continue
-
-    issues: list[str] = []
-    for hook, strategy in strategies.items():
-        if strategy != "skip":
-            continue
-        native = [pid for pid, dmap in degradation.items() if dmap.get(hook) == "native"]
-        others = [pid for pid in degradation if pid not in native]
-        if (
-            len(native) == 1
-            and others
-            and all(degradation[pid].get(hook) != "native" for pid in others)
-        ):
+        if not (profile_root / fallback.asset).is_file():
             issues.append(
-                f"[{native[0]}]\n  WARN: {native[0]} is the only platform marking hook "
-                f"{hook!r} native while the framework degradation strategy is 'skip' and "
-                "every other platform degrades it — the native claim is unverified"
+                f"FAIL: {platform_id} hook {hook_name!r} fallback asset is missing: "
+                f"{fallback.asset}"
             )
+
     return issues
 
 
@@ -240,8 +194,4 @@ def check_all_consistency(platforms_dir: Path | None = None) -> list[str]:
         if issues:
             all_issues.append(f"\n[{pid}]")
             all_issues.extend(f"  {i}" for i in issues)
-    outliers = check_hook_native_outliers(platforms_dir)
-    if outliers:
-        all_issues.append("")
-        all_issues.extend(outliers)
     return all_issues

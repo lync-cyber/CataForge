@@ -266,24 +266,27 @@ platform_id: cursor                  # 唯一标识：claude-code | cursor | cod
 display_name: Cursor
 version_tested: "3.1"
 
-# 核心 10 能力的工具名翻译；adapter 通过此 map 把 capability id 翻译为平台原生工具
+# 核心 10 能力的类型化绑定
 tool_map:
-  file_read: Read
-  file_write: Write
-  file_edit: Write                   # null 表示该平台无原生支持，走 degradation
-  file_glob: Glob
-  file_grep: Grep
-  shell_exec: Shell
-  web_search: WebSearch
-  web_fetch: null
-  user_question: null
-  agent_dispatch: Task
+  file_read: {tool: Read, kind: native}
+  file_write: {tool: Write, kind: native}
+  file_edit: {tool: Write, kind: native}
+  file_glob: {tool: Glob, kind: native}
+  file_grep: {tool: Grep, kind: native}
+  shell_exec:
+    tool: Shell
+    kind: native
+    hook_matchers: [Shell]
+  web_search: {tool: WebSearch, kind: native}
+  web_fetch: {tool: null, kind: unsupported}
+  user_question: {tool: null, kind: unsupported}
+  agent_dispatch: {tool: Task, kind: native}
 
-extended_capabilities:               # 可选 — 核心 10 项之外的扩展能力
-  notebook_edit: null
-  browser_preview: computer
-  image_input: null
-  code_review: null
+extended_capabilities:               # 与 tool_map 使用同一 CapabilityBinding
+  notebook_edit: {tool: null, kind: unsupported}
+  browser_preview: {tool: computer, kind: native}
+  image_input: {tool: null, kind: unsupported}
+  code_review: {tool: null, kind: unsupported}
 
 agent_definition:
   format: yaml-frontmatter           # yaml-frontmatter | toml
@@ -299,6 +302,7 @@ command_definition:
   needs_deploy: true
 
 agent_config:                        # Agent frontmatter 字段约束
+  tool_policy: allow_deny            # allow_deny | allow_only | inherit_only
   supported_fields: [name, description, tools, ...]
   memory_scopes: []                  # 支持的 memory scope（user/project/local）
   isolation_modes: [worktree]        # 支持的隔离模式
@@ -337,11 +341,16 @@ hooks:
     Stop: stop
     SessionStart: sessionStart
     Notification: null               # null = 该平台无对应事件
-  tool_overrides: {}                 # hook matcher/payload 名与 tool_map 不同时的覆盖
-  degradation:                       # 各 hook script 在该平台的支持级别
-    guard_dangerous: native          # native | degraded | unsupported
-    detect_correction: degraded
-    notify_done: native
+  policies:
+    guard_dangerous: {mode: native}
+    detect_correction:
+      mode: degraded
+      fallback:
+        strategy: rules_injection
+        coverage: partial
+        reason: "平台缺少结构化用户提问工具"
+        asset: overrides/rules/correction-record.md
+    notify_done: {mode: native}
 
 features:                            # 平台级 boolean flags（用于能力矩阵）
   cloud_agents: true
@@ -381,12 +390,12 @@ rules:                               # 可选：跨平台镜像
 | `platform_id` | ✅ | 唯一 id，必须等于目录名 |
 | `display_name` | ✅ | 用户可读名（doctor / 错误消息使用） |
 | `version_tested` | ✅ | 最后一次回归验证的平台版本号 |
-| `tool_map` | ✅ | 核心 10 capability 的工具翻译；缺失值 `null` 触发降级 |
-| `extended_capabilities` | ❌ | 核心 10 项之外的扩展能力（如 notebook_edit） |
+| `tool_map` | ✅ | 核心 10 capability 的类型化绑定：`tool` / `kind` / `availability` / `hook_matchers` |
+| `extended_capabilities` | ❌ | 核心 10 项之外的类型化 capability binding |
 | `agent_definition` | ✅ | Agent 部署目标与格式 |
 | `skill_definition` | ❌ | Skill 部署目标 |
 | `command_definition` | ❌ | Slash command 部署目标 |
-| `agent_config` | ❌ | Agent frontmatter 字段子集与隔离模式 |
+| `agent_config` | ❌ | Agent frontmatter 字段子集、隔离模式与 `tool_policy` |
 | `instruction_file` | ✅ | PROJECT-STATE.md → 平台指令文件的写入规则 |
 | `dispatch` | ✅ | 子代理调度工具的描述 |
 | `hooks` | ✅ | hooks.yaml 翻译为平台原生 hook 配置的规则 |
@@ -396,6 +405,17 @@ rules:                               # 可选：跨平台镜像
 | `model_routing` | ❌ | 模型路由能力 |
 | `context_injection` | ❌ | 规则 / 指令注入策略（缺失时走默认路径） |
 | `rules` | ❌ | 跨平台镜像开关 |
+
+### 0.19.0 破坏性迁移
+
+0.19.0 不提供旧 profile 兼容解析：
+
+- `tool_map.<capability>: string|null` 必须改为 `CapabilityBinding` 对象。
+- `hooks.tool_overrides` 必须移到对应 binding 的 `hook_matchers`。
+- `hooks.degradation` 必须改为 `hooks.policies`。
+- `hooks.yaml#degradation_templates` 必须移入各平台 policy 的 `fallback`。
+
+旧字段会在 profile 或 hooks spec 加载阶段直接报 schema 错误，不会静默投影。
 
 ### context_injection 字段
 
@@ -429,7 +449,7 @@ rules:                               # 可选：跨平台镜像
 
 ## hooks.yaml
 
-平台无关 hook 规范，由 `cataforge.runtime.hook.bridge` 解析后联同各 platform profile 的 `hooks.event_map` / `tool_overrides` / `degradation` 生成平台原生 hook 配置（`.claude/settings.json`、`.cursor/hooks.json` 等）。
+平台无关 hook 规范，由 `cataforge.runtime.hook.bridge` 解析后联同各 platform profile 的 `hooks.event_map`、capability binding 的 `hook_matchers` 与 `hooks.policies` 生成平台原生 hook 配置（`.claude/settings.json`、`.cursor/hooks.json` 等）。
 
 `schema_version: 2` 是当前形态；schema 演化策略见 hooks.yaml 顶部注释。
 
@@ -444,7 +464,7 @@ hooks:
       script: guard_dangerous              # 短名 — 解析为 cataforge.runtime.hook.scripts.guard_dangerous
       type: block                          # block | observe
       description: "危险命令拦截"
-      safety_critical: true                # 该 hook 失败应阻断流程，degraded 时也必须有降级方案
+      safety_critical: true                # 该 hook 失败应阻断流程
 
   PostToolUse:
     - matcher_capability: agent_dispatch
@@ -459,16 +479,6 @@ hooks:
       description: "会话结束通知"
 
   # 同样支持 Notification / SessionStart 事件分组
-
-degradation_templates:                     # 平台不支持某 hook 时的降级方案
-  guard_dangerous:
-    strategy: rules_injection              # rules_injection | prompt_checklist | prompt_instruction | skip
-    content: |
-      SAFETY RULES (auto-generated — platform lacks PreToolUse hook):
-      - NEVER run rm -rf without explicit user confirmation
-  detect_correction:
-    strategy: skip
-    reason: "纠正学习为非关键功能"        # skip 必须提供 reason；其它 strategy 用 content
 ```
 
 ### 字段说明
@@ -479,7 +489,6 @@ degradation_templates:                     # 平台不支持某 hook 时的降�
 |------|------|------|
 | `schema_version` | int | 当前 `2`。`bridge.py` 校验此值；不匹配会拒绝加载 |
 | `hooks` | map[event, list[hook]] | 按事件名（`PreToolUse` / `PostToolUse` / `Stop` / `Notification` / `SessionStart`）分组的 hook 条目 |
-| `degradation_templates` | map[script_name, template] | 各 hook script 的降级模板。当目标 platform 在 `profile.yaml.hooks.degradation.<script>` 标 `degraded` / `unsupported` 时，deploy 注入此处的内容 |
 
 **`hooks.<event>[]` 条目字段**：
 
@@ -488,19 +497,14 @@ degradation_templates:                     # 平台不支持某 hook 时的降�
 | `script` | str | ✅ | hook 实现的模块短名；解析为 `cataforge.runtime.hook.scripts.<name>` |
 | `type` | enum[block, observe] | ✅ | `block` 失败时阻断当前工具调用；`observe` 仅观测，失败不阻断 |
 | `description` | str | ⚠️ 推荐 | 一句说明，写入 deploy 产物注释 |
-| `matcher_capability` | str | 可选 | CataForge capability id（如 `shell_exec` / `agent_dispatch` / `file_edit` / `user_question`），由 platform 的 `tool_map` / `tool_overrides` 翻译为原生工具名。缺省 = 全事件触发（适合 `Stop` / `Notification` / `SessionStart`） |
-| `safety_critical` | bool | 可选 | 默认 `false`。`true` 表示该 hook 即便 degraded 也必须给 `degradation_templates` 提供有效降级；CI 可据此校验 |
+| `matcher_capability` | str | 可选 | CataForge capability id（如 `shell_exec` / `agent_dispatch` / `file_edit` / `user_question`），由 binding 的 `hook_matchers`（优先）或 `tool` 翻译为 matcher。缺省 = 全事件触发 |
+| `safety_critical` | bool | 可选 | 默认 `false`。`true` 表示该 hook 失败应阻断当前动作 |
 | `matcher_agent_id` | list[str] | 可选 (v2+) | 仅当 dispatch 到列出的 agent id 时触发，例如 `[reviewer]` |
 | `matcher_file_pattern` | str | 可选 (v2+) | 文件路径 glob 过滤（仅 `file_*` capability） |
 | `matcher_command_pattern` | str | 可选 (v2+) | shell 命令正则过滤（仅 `shell_exec`） |
 
-**`degradation_templates.<script>` 字段**：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `strategy` | enum | `rules_injection`（注入 .cataforge/rules）/ `prompt_checklist`（注入 prompt 段）/ `prompt_instruction`（注入指令片段）/ `skip`（仅记录） |
-| `content` | str | strategy ∈ {rules_injection, prompt_checklist, prompt_instruction} 时必填 — 注入的实际文本 |
-| `reason` | str | strategy = `skip` 时必填 — 跳过原因（写入降级日志） |
+Fallback 不在 hooks.yaml 定义，而由各平台 `profile.yaml#hooks.policies.<script>.fallback`
+持有。字段与策略详见 [hook-degradation-strategies.md](hook-degradation-strategies.md)。
 
 ### 实物 hook 列表（dogfood 项目）
 

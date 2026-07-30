@@ -125,10 +125,9 @@ CHECKS_MANIFEST: tuple[dict[str, str], ...] = (
         "severity": "fail",
     },
     {
-        "id": "B6_hook_degradation_coverage",
+        "id": "B6_hook_policy_coverage",
         "title": (
-            "每个 platform profile.yaml 的 hooks.degradation 必须覆盖且仅覆盖 "
-            "hooks.yaml 引用的 script"
+            "每个 platform profile.yaml 的 hooks.policies 必须覆盖且仅覆盖 hooks.yaml 引用的 script"
         ),
         "severity": "warn",
     },

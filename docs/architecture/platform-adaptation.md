@@ -13,7 +13,7 @@
 - **能力声明**：在 `profile.yaml` 中声明原生支持的能力。
 - **路径映射**：规范资产 → 平台原生目录（如 `.cataforge/agents/` → `.claude/agents/`）。
 - **格式翻译**：规范格式 → 平台原生格式（YAML frontmatter ↔ TOML ↔ read-first 指令注入）。
-- **降级策略**：声明无法原生支持时的回退方式。
+- **能力与策略解析**：显式区分 native、conditional、replacement、unsupported 与 unenforced。
 
 ---
 
@@ -25,7 +25,7 @@
 | 指令文件 | `CLAUDE.md` | `AGENTS.md` + `.mdc` | `AGENTS.md` | `AGENTS.md` + `opencode.json.instructions` |
 | Agent 调度 | Agent（同步） | Task（同步） | `spawn_agent`（异步） | task（同步） |
 | Skill 面 | `.claude/skills`（原生） | `.claude/skills`（共用同一目录） | `.agents/skills`（原生，open agent skills 标准） | 无 —— read-first 降级 |
-| Hook 配置 | `.claude/settings.json` | `.cursor/hooks.json` | `.codex/hooks.json`（matcher: Bash / apply_patch(Edit\|Write) / spawn_agent(Agent) / MCP 工具名；非托管 hook 须 `/hooks` 信任后才执行） | `.opencode/plugins/cataforge-hooks.ts`（deploy 生成 TS plugin 桥接） |
+| Hook 配置 | `.claude/settings.json` | `.cursor/hooks.json` | `.codex/hooks.json`（原生 PreToolUse / PostToolUse；非托管 hook 须 `/hooks` 信任后才执行） | `.opencode/plugins/cataforge-hooks.ts`（deploy 生成 TS plugin 桥接） |
 | MCP 配置 | `.mcp.json` | `.cursor/mcp.json` | `.codex/config.toml` | `opencode.json` |
 | 上下文自动注入 | `CLAUDE.md` + `.claude/rules` 目录镜像 | `.cursor/rules/*.mdc` `alwaysApply:true` | `AGENTS.md` 层级合并（32 KiB 上限） | `opencode.json.instructions` |
 | 并行 Agent | 支持 | 支持（8 并发） | 支持（best-of-N） | 有限 |
@@ -42,26 +42,31 @@
 
 - `runtime.deploy.steps.deploy_instruction_files` 经 `adapter.get_instruction_preamble()` 读取 `auto_injection.preamble_files`，按 `inline_file_syntax.template` 渲染为指令文件顶部前缀 —— 该机制仅对 `at_mention` 平台生效，且四平台 profile 当前均声明 `preamble_files: []`：claude-code 的规则经 `.cataforge/rules/` → `.claude/rules/` 目录镜像**单路注入**，CLAUDE.md 顶部没有 `@import` 前缀（同一规则经 preamble + 目录镜像两路会在上下文出现两份）。
 - `OpenCodeAdapter.post_instruction_deploy` 读取 `rules_distribution.files`，写入 `opencode.json.instructions`，LLM 启动时自动加载。
-- 未声明 `context_injection` 的旧 profile 走默认路径（完全向后兼容）。
+- `context_injection` 仍可省略并使用平台默认路径；capability 与 hook policy schema 不提供旧语法兼容。
 
 完整字段表与四平台实际声明对照见 [`../reference/configuration.md`](../reference/configuration.md) §context_injection 字段。
 
 ---
 
-## 4. 降级策略
+## 4. Hook policy 与 fallback
 
 ### Hook 降级
 
-hook 在目标平台标 `degraded` 时，`hooks.yaml#degradation_templates` 里的模板按策略物化（实现集 = `bridge.KNOWN_DEGRADATION_STRATEGIES`）：
+每个平台在 `profile.yaml#hooks.policies.<script>` 声明 `native` / `hybrid` /
+`degraded` / `unsupported`。`hybrid` 同时生成原生 hook 与 fallback；`degraded`
+只生成 fallback。fallback 由平台 profile 自己持有，不再使用全局模板。
 
 | 策略 | 说明 | 产物 |
 |------|------|------|
-| **rules_injection** | 安全规则文本注入规则层 | `.cataforge/platforms/<id>/overrides/rules/auto-safety-degradation.md` |
-| **prompt_instruction** | Agent 指令片段注入 | 同目录 `auto-prompt-instructions.md` |
-| **prompt_checklist** | 自检清单注入 | 同目录 `auto-prompt-checklists.md` |
+| **rules_injection** | 安全规则文本注入规则层 | staging → 平台 rules target |
+| **prompt_instruction** | Agent 指令片段注入 | staging → 平台 rules target |
+| **prompt_checklist** | 自检清单注入 | staging → 平台 rules target |
 | **skip** | 仅记录 `SKIP: …` 行，不写文件 | —（模板须带 `reason`） |
 
-模板声明了上述之外的策略值时，deploy 日志输出 `WARN: … 未识别策略`，不静默丢弃。
+fallback 同时声明 `coverage: equivalent|partial|none`、`reason` 与 `asset` 或
+`content`。schema 拒绝未知策略；conformance 禁止把缺失资产标成 equivalent。
+生成文件只存在于 deploy 临时 staging，再与手写 overrides 一起渲染到平台目标；
+deploy 不写回 `.cataforge` 源树。
 
 ### Skill 面降级（opencode）
 

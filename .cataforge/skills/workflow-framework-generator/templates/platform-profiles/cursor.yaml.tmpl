@@ -2,16 +2,19 @@ platform_id: cursor
 display_name: Cursor
 
 tool_map:
-  file_read: Read
-  file_write: Write
-  file_edit: Write
-  file_glob: Glob
-  file_grep: Grep
-  shell_exec: Shell
-  web_search: WebSearch
-  web_fetch: null
-  user_question: null
-  agent_dispatch: Task
+  file_read: {tool: Read, kind: native}
+  file_write: {tool: Write, kind: native}
+  file_edit: {tool: Write, kind: native}
+  file_glob: {tool: Glob, kind: native}
+  file_grep: {tool: Grep, kind: native}
+  shell_exec: {tool: Shell, kind: native}
+  web_search: {tool: WebSearch, kind: native}
+  web_fetch: {tool: null, kind: unsupported}
+  user_question: {tool: null, kind: unsupported}
+  agent_dispatch: {tool: Task, kind: native}
+
+agent_config:
+  tool_policy: allow_deny
 
 agent_definition:
   format: yaml-frontmatter
@@ -32,6 +35,7 @@ hooks:
     PostToolUse: postToolUse
     Stop: stop
     SessionStart: sessionStart
+  policies: {}
 
 features:
   parallel_agents: true
@@ -40,10 +44,6 @@ features:
   agent_memory: false
   worktree_isolation: true
   plan_mode: false
-
-degradation_notes:
-  web_fetch: "Use shell_exec with curl as fallback"
-  user_question: "Embed clarification prompts in agent instructions"
 
 permissions:
   modes: [default, auto]

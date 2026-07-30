@@ -11,6 +11,7 @@ import yaml
 
 from cataforge.adapter.platform.registry import get_adapter
 from cataforge.runtime.deploy import steps
+from tests.profile_factory import typed_profile
 
 
 @pytest.fixture()
@@ -26,7 +27,7 @@ def project_dir(tmp_path: Path) -> Path:
     for pid, data in _PROFILES.items():
         (platforms_dir / pid).mkdir(parents=True)
         with open(platforms_dir / pid / "profile.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(data, f)
+            yaml.dump(typed_profile(data), f)
 
     return tmp_path
 
@@ -176,6 +177,7 @@ _PROFILES = {
             "needs_deploy": True,
         },
         "agent_config": {
+            "tool_policy": "inherit_only",
             "supported_fields": [
                 "name",
                 "description",
@@ -262,48 +264,43 @@ class TestAdapterCreation:
 class TestToolMapping:
     def test_claude_code_tools(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
-        assert adapter.resolve_tool_name("shell_exec") == "Bash"
-        assert adapter.resolve_tool_name("agent_dispatch") == "Agent"
+        assert adapter.resolve_capability("shell_exec").tool == "Bash"
+        assert adapter.resolve_capability("agent_dispatch").tool == "Agent"
 
     def test_cursor_tools(self, project_dir: Path) -> None:
         adapter = get_adapter("cursor", project_dir / ".cataforge" / "platforms")
-        assert adapter.resolve_tool_name("file_edit") == "Write"
-        assert adapter.resolve_tool_name("shell_exec") == "Shell"
-        assert adapter.resolve_tool_name("agent_dispatch") == "Task"
+        assert adapter.resolve_capability("file_edit").tool == "Write"
+        assert adapter.resolve_capability("shell_exec").tool == "Shell"
+        assert adapter.resolve_capability("agent_dispatch").tool == "Task"
 
 
 class TestExtendedCapabilities:
     def test_claude_code_extended(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
-        ext = adapter.get_extended_tool_map()
-        assert ext["notebook_edit"] == "NotebookEdit"
-        assert ext["browser_preview"] == "preview_start"
-        assert ext["code_review"] is None
+        assert adapter.resolve_capability("notebook_edit").tool == "NotebookEdit"
+        assert adapter.resolve_capability("browser_preview").tool == "preview_start"
+        assert adapter.resolve_capability("code_review").status == "unsupported"
 
     def test_full_tool_map_includes_extended(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
-        full = adapter.get_full_tool_map()
-        assert "file_read" in full  # core
-        assert "notebook_edit" in full  # extended
-        assert full["file_read"] == "Read"
-        assert full["notebook_edit"] == "NotebookEdit"
+        assert adapter.capability_ids() >= {"file_read", "notebook_edit"}
+        assert adapter.resolve_capability("file_read").tool == "Read"
+        assert adapter.resolve_capability("notebook_edit").tool == "NotebookEdit"
 
-    def test_resolve_tool_name_includes_extended(self, project_dir: Path) -> None:
+    def test_resolve_capability_includes_extended(self, project_dir: Path) -> None:
         adapter = get_adapter("claude-code", project_dir / ".cataforge" / "platforms")
-        assert adapter.resolve_tool_name("notebook_edit") == "NotebookEdit"
-        assert adapter.resolve_tool_name("code_review") is None
+        assert adapter.resolve_capability("notebook_edit").tool == "NotebookEdit"
+        assert adapter.resolve_capability("code_review").status == "unsupported"
 
     def test_codex_extended(self, project_dir: Path) -> None:
         adapter = get_adapter("codex", project_dir / ".cataforge" / "platforms")
-        ext = adapter.get_extended_tool_map()
-        assert ext.get("image_input") == "image"
-        assert ext.get("code_review") == "review"
+        assert adapter.resolve_capability("image_input").tool == "image"
+        assert adapter.resolve_capability("code_review").tool == "review"
 
     def test_empty_extended_capabilities(self, project_dir: Path) -> None:
         adapter = get_adapter("opencode", project_dir / ".cataforge" / "platforms")
-        ext = adapter.get_extended_tool_map()
-        assert ext.get("image_input") == "image"
-        assert ext.get("notebook_edit") is None
+        assert adapter.resolve_capability("image_input").tool == "image"
+        assert adapter.resolve_capability("notebook_edit").status == "unsupported"
 
 
 class TestAgentConfig:
@@ -578,10 +575,9 @@ class TestCodexDeployIntegration:
 
 
 class TestAllowDenyToolCollision:
-    """A native tool resolving into BOTH allow + deny lists must not be
-    silently emitted in both — the translator surfaces a collision WARN."""
+    """Mixed decisions in one native-tool equivalence class fail closed."""
 
-    def test_cursor_collision_surfaces_warning(self, project_dir: Path) -> None:
+    def test_cursor_collision_fails_translation(self, project_dir: Path) -> None:
         # cursor maps both file_edit and file_write → Write.
         from cataforge.runtime.agent.translator import translate_agent_md
 
@@ -592,17 +588,8 @@ class TestAllowDenyToolCollision:
             "disallowedTools: file_edit\n"
             "---\n# body\n"
         )
-        warnings: list[str] = []
-        out = translate_agent_md(content, adapter, warnings_collector=warnings)
-
-        # Write does land in both lists (the platform can't distinguish the
-        # two source caps) — so the collision must be reported, not hidden.
-        assert "tools: Write" in out
-        assert "disallowedTools: Write" in out
-        assert warnings, "expected an allow/deny collision warning, got none"
-        collision = [w for w in warnings if "Write" in w and "both" in w]
-        assert collision, f"no collision warning naming Write: {warnings}"
-        assert "file_edit" in collision[0] and "file_write" in collision[0]
+        with pytest.raises(ValueError, match="mixed allow/deny"):
+            translate_agent_md(content, adapter)
 
     def test_no_collision_no_warning(self, project_dir: Path) -> None:
         from cataforge.runtime.agent.translator import translate_agent_md
@@ -617,6 +604,29 @@ class TestAllowDenyToolCollision:
         warnings: list[str] = []
         translate_agent_md(content, adapter, warnings_collector=warnings)
         assert not warnings
+
+    def test_codex_inherit_only_reports_once_without_collision(self, project_dir: Path) -> None:
+        adapter = get_adapter("codex", project_dir / ".cataforge" / "platforms")
+        src = project_dir / ".cataforge" / "agents"
+        for name in ("one", "two"):
+            agent = src / name
+            agent.mkdir(parents=True)
+            (agent / "AGENT.md").write_text(
+                "---\n"
+                f"name: {name}\n"
+                "description: d\n"
+                "tools: file_read, shell_exec\n"
+                "disallowedTools: web_fetch\n"
+                "---\n# body\n",
+                encoding="utf-8",
+            )
+
+        actions = steps.deploy_agents(adapter, src, project_dir)
+        policy_warnings = [
+            line for line in actions if "per-agent tool policy is unenforced" in line
+        ]
+        assert len(policy_warnings) == 1
+        assert "2 agent(s)" in policy_warnings[0]
 
 
 class TestSecuritySensitiveFieldDrop:
