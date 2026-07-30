@@ -20,6 +20,185 @@ changelog.d/{PR#}.md 加片段，发版时 scriv collect 聚合入此处。
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.19.0'></a>
+## [0.19.0] — 2026-07-30
+
+### Added
+
+- **人工检查点摘要携带可视化附件** —— Manual Review Checkpoint 命中时，orchestrator
+  先按转换类型产出匹配视图（`post_doc_freeze` → `viz trace` / `viz arch`；`pre_dev` →
+  `viz tasks`；`post_sprint` / `pre_deploy` → 复用 Sprint 收口 dashboard 产物）并在
+  阶段摘要附产物路径。与 Sprint 收口保底焊点同语义：确定性 CLI、不阻塞推进、数据源
+  未就绪跳过不报错。
+- **viz arch 组合层级边与依赖环标注** —— 架构视图新增 `part_of` 组合边（带标签，与
+  `depends_on` 区分），并对 `depends_on` 子图做环检测：环上节点标 CYCLE（颜色 + 文本
+  标记双通道），直接暴露违反 ARCH DAG 约束的模块划分；`QueryAPI` 新增 `part_of()`
+  查询。核实报告与决策记录见 `docs/proposals/checkpoint-viz-presentation-audit.md`。
+
+- **`cataforge phase transition` 复合命令** —— 把 Phase Transition Protocol 的确定性步骤链
+  （phase-field 参数核验 / doc-status 核验 / 依赖新鲜度 / reconcile / doc-consistency /
+  事件批量 / hygiene）代码化为一条幂等命令：全过 exit 0 并输出下一阶段 dispatch 提示；
+  命中分支 exit 3 输出结构化选项，决策以 `--ack-stale-deps` / `--ack-inconsistency` /
+  `--compact` 回传后重跑。决策与告警审计记录在挣得当轮即时落盘并按内容去重；4 条转换
+  事件批的重跑判定为「日志最新 phase_start 即目标阶段且其后无源阶段流程类事件」，
+  回退返工后的再次转换仍正常落盘，事件批写入失败以 FAIL 门报告而非裸异常。
+
+- **fast/full 两档测试口径** —— arch 模板新增 §7.4 测试执行口径（慢测标签约定 + `test_command_fast` 内循环 / `test_command_full` 收敛点门禁）；tdd-engine 内循环用 fast 档、三处收敛点验证用 full 档；arch 未声明 §7.4 时单命令双档同值向后兼容。
+- **code-review scan 测试套件卫生探针** —— 内置 `test_hygiene` 检查（informational，scan 模式）：无标签慢测候选 / 每测重建昂贵 setup 候选，pattern 集走 plugin-style `rules/test-hygiene-{lang}.yaml`（6 语言，项目可整文件 override），文件级豁免 `cataforge: allow(test_hygiene, reason="...")`。
+
+- **SHACL shapes 发布 + 强制门** —— codegen 规范化（`sh:order` 剥离、集合语义 list 排序、canonical 空节点 + 排序 N-Triples）使 `core_shapes.ttl` 字节稳定，从 gitignore 转为提交、`check_codegen_fresh` 守卫、随 wheel 发布；`kg validate` 新增 `--require-shacl`（SHACL 无法运行即失败）与结构化 `shacl_skip_reason`；`doctor` 新增 gating 的 `KG SHACL conformance` 检查（extras 缺失时打印跳过原因，不再有静默跳过路径）。
+- **KG 写入门槽守卫** —— `context update` / `kg update` / authoring 事务对枚举域 slot 按 schema 校验（越范围值报错并列出合法值）；`task_status` 更新执行任务状态机（`todo → in_progress ⇄ review → done`，任意态 ↔ `blocked`，`done`/`cancelled` 终态），越迁需显式 `--ack-status-jump`；新增 `tests/context/test_task_lifecycle.py` 覆盖合法链、非法跳变拒绝、终态复活确认与 CLI 表面。
+- **schema ↔ 管线 conformance 回归锁** —— `tests/kg/test_shacl_conformance.py` 用真实生成 shapes 校验真实 ingest 管线在两个 golden 工作流变体上的产物，schema 或管线单边演进即失败。
+
+- 新增类型化 `CapabilityBinding`、条件能力解析、hook policy/fallback、问题交互归一化、
+  agent 权限编译与每平台 `capability-report.json`。
+
+### Changed
+
+- **Phase Transition Protocol 协议段收敛** —— ORCHESTRATOR-PROTOCOLS.md 该节由 10 步散文
+  状态机（52 行）收敛为「状态持久化 + 门禁链命令 + 分支处置表 + 进入下一阶段」薄壳，
+  步骤漏做/顺序漂移风险移交 CLI；相关锚点（Mode Routing / Revision / cascade_amendment /
+  Bootstrap / META 事件表 / walkthrough 参照 / CLI 参考）同步改写。
+- **hygiene 门作用于平台指令文件** —— phase transition 的 hygiene 门经
+  `resolve_instruction_file` 解析（AGENTS.md 平台不再恒 SKIP）；阈值判定上移
+  `core/claude_md_hygiene.limit_breaches`，与 `claude-md check` 共享同一判定权威；
+  `--compact` 实际改写即记审计事件，不再以复检 PASS 为前提。
+- **阶段主文档识别容忍 `-lite` frontmatter** —— `docs/{doc_type}/` 子目录下声明
+  `doc_type: {doc_type}-lite` 的文档不再被 phase status / transition 门误判为缺失。
+- **check_prompt_cli_drift 扩展扫描组** —— 新增 `phase` / `event` / `claude-md` 组，
+  prompt 资产引用这些命令的幻影动词开始被拦截。
+- **doc-consistency 退出码文档修正** —— agents-and-skills.md 误记的「2 仅 MEDIUM/LOW」
+  更正为引擎实际契约：0 通过（含 advisory）/ 1 存在 CRITICAL/HIGH，2 保留给坏参数。
+
+- **orchestrator 协议冷热拆分** —— Project Bootstrap（每项目一次）拆至
+  `ORCHESTRATOR-BOOTSTRAP-PROTOCOLS.md`，四个异常恢复协议（Rolled-back / TDD Blocked / Crash /
+  Truncation）拆至 `ORCHESTRATOR-RECOVERY-PROTOCOLS.md`；热路径文件留触发索引表，
+  按需加载（复用 META-PROTOCOLS 拆分先例）。热路径每次加载净省约 1.6k tokens。
+- **COMMON-RULES 受众分层外迁** —— 报告撰写规约（编号规则 / Front Matter 约定 /
+  问题格式）迁 `.cataforge/references/review-report-spec.md`，保真类 AC 断言口径迁
+  `.cataforge/references/fidelity-ac.md`，由报告产出方 / 保真任务消费方按需加载；
+  跨 Agent verdict 契约（归因分类 / 三态判定逻辑 / verdict_blocking_semantics）留在
+  COMMON-RULES。UNATTENDED_* 与 TDD 相关常量的说明列压缩为「是什么 + 权威指针」。
+  全员每次调度省约 1.0k tokens。全部为搬运与指针化，协议语义与调度行为零变化；
+  引用锚点已全量同步（分析与决策记录见 `docs/proposals/protocol-docs-slimming.md`）。
+
+- **framework-walkthrough skill 自更新（4 条 process findings 回灌）** —— 配置键引用对齐
+  `deployment.default_platform`（SKILL.md / runtime-flow-map I-6 / observation-rubric §1）；
+  walkthrough-protocol §2.1 的 pre_deploy 表述对齐 COMMON-RULES 豁免语义；§1.1 健全性确认
+  新增 CLI 来源核验（框架仓本体走查断言 `cataforge --version` 与源码 `__version__` 一致，
+  防止走查静默测到过期发行版）；example-project §任务分解 显式声明 3 任务上限防 tech-lead
+  自主扩任务击穿 B-4 短路结构。
+
+- Codex `user_question` 映射为条件原生 `request_user_input`；`detect_correction` 使用
+  `PostToolUse(request_user_input)` 原生 hook 加 partial 人工记录 fallback。
+- Codex agent 权限改为 `inherit_only`，不再输出无效的 allow/deny 字段；可证明全写能力
+  被禁止时才编译为 `sandbox_mode = "read-only"`，其余限制显式标为 `unenforced`。
+
+- SHACL codegen 的 blank-node 规范化改用森林结构快路径（`_canonicalize_shacl`），
+  在 ShaclGenerator 输出的树状图上以确定性路径+内容标签取代 rdflib `to_canonical_graph`
+  的全图同构算法（保留非森林图的 fallback）。单次 codegen 从 ~70s 降到 ~4s，输出与旧版
+  图同构且字节稳定；`core_shapes.ttl` 因 blank-node 标签重排而重新生成。
+- `tests/kg/test_codegen.py` 改为 in-process 调用 codegen（复用 linkml 冷 import），
+  codegen 相关测试从 ~230s 降到 ~17s。
+
+- `kg validate` 与 `context validate` 的 `--help` 各自点明校验对象（前者校验 live KG store
+  的 orphan/断裂边，后者校验 `docs/.doc-index.json` 索引完整性），并互相交叉指路，消除同名命令的
+  概念混淆。
+
+### Fixed
+
+- **post_doc_freeze 检查点覆盖 ui-spec 冻结** —— `MANUAL_REVIEW_CHECKPOINTS` 可选值
+  `post_doc_freeze` 的触发时机补上 UI-SPEC 冻结（Phase 3→4；ui_design 标 N/A 时该点
+  不存在）。该档位语义是「门禁冻结类文档转换」，此前枚举漏列 ui-spec，UI 项目要在
+  ui-spec 冻结点暂停只能升到全量 `phase_transition`。**行为变化**：已配
+  `post_doc_freeze` 且启用 ui_design 的下游项目升级后会在 ui-spec 冻结后多一次确认
+  暂停；默认档位项目不受影响。
+
+- codex 能力矩阵对齐实测现状（profile `version_tested: 2026.07`）：skills 面启用原生部署到
+  `.agents/skills`（open agent skills 标准，read-first 降级随之退役）；六个 hook 从 degraded
+  转 native（guard_frozen_docs / lint_format / log_agent_dispatch / validate_agent_result /
+  detect_review_flag / notify_permission，Notification 事件映射到 PermissionRequest）；
+  per-agent model 启用（tier_map 更新至 gpt-5.6 / gpt-5.6-terra）；dispatch 契约修正为
+  spawn_agent v2（agent_type / message / task_name）。
+- hook 运行时消费 `hooks.tool_overrides`（与部署侧 matcher 同一优先级），修复 codex 上
+  guard_dangerous 因 payload `tool_name: Bash` 与 tool_map `shell` 失配而静默放行的缺陷；
+  新增 `extract_edited_paths` 从 apply_patch 补丁文本解析被改文件路径，guard_frozen_docs /
+  lint_format / matcher_file_pattern 过滤在 codex payload 下可用。
+- 清理死配置面：`hooks.matcher_map`（schema + 四平台 profile，零消费方）、
+  `get_project_root_env_var()`（零调用方）、CODEX_HOME 平台探测（Codex 不注入该变量，
+  且会误判其他平台会话）。
+
+- **doc-review 退役两个过时 Layer 1 守卫** —— `check_line_count`（"超 300 行建议拆分为多个逻辑文档"warn）建议的拆分动作在拆卷废除、一个逻辑文档=一个评审文件的决议下不可执行，且 graph 模式按章节加载后文档行数不再映射任何真实成本；`check_nav_block`（`[NAV]` 块存在性/一致性）的运行时消费方已收敛为零——章节定位走 `.doc-index.json` / KG、必填章节来自模板 frontmatter `required_sections`，且 graph 模式下 `[NAV]` 位于无 authoring 操作触达的 preamble，章节演进后必然漂移误报。随守卫一并移除全部文档模板中的 `[NAV]` 块；`DOC_SPLIT_THRESHOLD_LINES` 常量保留（brief 模式升档信号与 authoring 精简指引仍消费）。
+- **code-review Layer 1 架构描述回填** —— `docs/architecture/quality-and-learning.md` 把 Layer 1 描述为"仅 lint + 格式化"、把架构合规整体归入 Layer 2，落后于 registry 现实（22 项机械检查，含 arch_guard / complexity_gate / wiring / ui_fidelity 与 scan 腐化 probe）；问题分类"9 类"复述改为引用权威清单（COMMON-RULES §统一问题分类体系）。code-review SKILL.md dead-code 探针举例串补列 knip。
+
+- **hook 命令解释器钉死为 deploy 进程自身 `sys.executable`** —— 此前生成的 hook 命令用裸 `python`，cataforge 经 `uv tool install` / pipx 装在隔离 venv 时（尤其 Windows 上裸 `python` 解析到 Microsoft Store shim），每次 hook 触发都 `ModuleNotFoundError`。现在 deploy 生成的所有 hook 命令（内置 `-m` 模块、`custom:` 脚本、OpenCode TS 插件的 `spawn`、`cataforge hook test`）统一写入 deploy 进程自身解释器的带引号正斜杠路径——能跑 deploy 的解释器必然能 import cataforge，对 uv tool / pipx / venv pip 任何安装方式自动正确。settings 合并的框架自有条目识别从「前缀匹配」改为「标记子串匹配」（`-m cataforge.runtime.hook.scripts.` / `.cataforge/hooks/custom/`），存量裸 `python`、任意绝对路径解释器的旧条目重新 deploy 时都会被替换而非留下新旧重复 hook。
+
+- **doc-review Layer 2 实质化** —— 收尾门禁不再「重形式、轻实质」：Layer 2 增加双层分工契约（形式面由 Layer 1 独占，AI 审查不复报可机检问题，严重度按缺陷对下游的影响定级）；prd / arch / ui-spec 按 doc_type 路由加载单份实质审查 profile（`review-prd.md` / `review-arch.md` / `review-ui-spec.md`），每份含实质维度（失败路径、NFR 兑现路径、状态覆盖等）、做 A 而非 B 对比锚点与严重度锚点；通用维度中的「规范性」归还 Layer 1。
+- **code-review Layer 2 补正关注点与覆盖度** —— 新增「功能正确性(correctness)」维度并置顶（实现语义与 AC / 契约逐条对照，不以测试绿等价；算法/边界/数据完整性），`correctness` 进入 COMMON-RULES §统一问题分类体系与 `--focus` 合法值；review 模式补性能维度（挂载既有 lang-*.md 性能反模式细则）；维度按实质优先重排，convention 降末位且 Layer 1 lint 机检面不复报。
+- **审查分级机制补密度与闭环** —— 聚类升级：同一 category × 同一 root_cause 的 MEDIUM 累计 ≥ `REVIEW_SYSTEMIC_MEDIUM_THRESHOLD`（5）时 reviewer 必须合并为一条系统性 HIGH（`members` 列成员，密度不裸计数）；revision 顺带修复：修订必修全部 CRITICAL/HIGH，同文件/同节内 MEDIUM/LOW 一并修复；notes 生命周期：re-review 时上轮未闭环 MEDIUM/LOW 逐条标 `still-open` / `resolved`，still-open 参与聚类升级计数。
+- **测试套件性能纪律到达写测试上下文** —— 四条纪律（慢测标签分层 / 昂贵确定 setup 复用 / 进程内优先 / 并行就绪）移位为共享 reference `test-suite-performance.md`，tdd-engine 四档（RED dispatch / light-dispatch / light-inline / prototype-inline）prompt 全部注入；test-writer 自检清单增设第 5 条「套件性能」。
+
+- **Bootstrap 补初始 phase_start 落盘** —— ORCHESTRATOR-BOOTSTRAP-PROTOCOLS Step 10 进入初始阶段前
+  先 `cataforge event log --event phase_start --phase {当前阶段}`；此前 `cataforge phase status --entry`
+  的入口校验硬性期望该事件而协议无任何落盘动作，每个新项目都会在入口卡一次。
+- **`project.languages` 获得受支持写入路径** —— `cataforge config set project.languages <ids>` 纳入
+  白名单（逗号分隔，同义词经 canonical 归一化，空值恢复 marker 自动检测）；Bootstrap Step 7 的
+  setup 命令附带 `--language {Step 1 确认的语言}` 把用户口述技术栈固化进配置——从零项目在
+  Bootstrap 时点无 marker 文件，检测型 backfill 恒为空，TDD lang_rules 语言细则链因此全程不加载。
+
+- **doc-review L1 对 validation 任务卡豁免 TDD 字段检查** —— dev-plan 任务完整性检查识别
+  `task_kind: validation` / 标题 `[VALIDATION]` 的任务卡并从 deliverables / tdd_acceptance 计数中
+  排除；此前 task-decomp 允许产出的验证卡（不进 TDD、无这两字段）会被同一门禁双 FAIL。
+- **doc-review L1 的 ARCH 分节失败文案列出违规条目 id** —— 「N个API中M个缺少入参定义」等三条
+  规则（API 入参 / 模块功能映射 / 实体字段表）现附具体 id 列表（前 5 项 + 总数后缀），与 KG
+  覆盖检查文案同构；此前只报计数，修复者需逐个试错定位。
+
+- **`context write-doc` 重复 author 不再丢失变更实体的追溯边** —— `add_relation` 的幂等判断
+  改为对账事务后状态：实体整节点 replace 已把出边压入待删集时，同边重新声明会照常补写，
+  commit 先删后加净保留；同一事务内重复声明同一条边只入栈一次。此前内容有变更的实体在
+  re-author 后其全部既有追溯边被静默删除（幂等重跑一次才自愈）。
+- **`context write-narrative` 修订路径与 write-doc 全同源** —— 重写节文本后按 ingest / write-doc
+  同一套提取语义做差异合并：实体维度新增建节点（含 part_of 父链）、变更整节点刷新、被删除的
+  定义连同其节点级联清理、contains 集合重算；关系维度对重写域内主体同源重提取——文本声明的
+  边建立、不再声明的边清除，自洽的「删实体 + 删依赖行」修订可整体通过。跨 tile 同名 anchor
+  的实体归属有歧义，此类 anchor 保守豁免清理不做跨 tile 误删。写后对涉及实体跑 SHACL 校验，
+  违规时整笔（节 + 实体 + 边）补偿回滚；`transact` 的 write_narrative op 走同一条链路并并入
+  批级补偿。heading 锚定实体的 content hash 忽略尾部空行，两条提取路径对同一内容判同。
+  此前修订只改节文本，新增 AC 无实体、变更 AC 不更新，KG 与导出视图静默漂移。
+- **reconcile 增补「unabsorbed section entities」图内对账维度** —— 对每个 Document 的
+  level-2 tile narrative 跑同源实体提取，节文本定义了而全图不存在的 scope key 记入
+  `unabsorbed_entities`；graph 模式下计入 `ok` 门禁与 gate_summary，命中且无其他
+  remediation 时标 manual。此前该类漂移在三向 hash triage 全绿时完全不可见。
+
+- **Section→从属实体追溯边悬空** —— `contains_entity` 对 AcceptanceCriteria 等从属实体曾指向无数据的扁平 IRI，修订清理逻辑（`_stored_contains`）静默丢失包含关系；现经 store / 事务内 `entity_id` 反查解析到真实（parent-scoped）IRI。
+- **AcceptanceCriteria 缺失必填 `acceptance_text`** —— ingest 提取器现从 AC 自身文本切片自动填充，闭合 schema `required: true` 与管线的漂移。
+- **`Document` 未声明 `content_hash` 槽** —— reconcile 三向哈希依赖的该槽已入 schema，closed-shape 校验不再拒绝管线产物。
+- **tdd-engine 任务收口命令槽位漂移** —— `--slot status=done`（把任务执行态写进 ArtifactStatusEnum 生命周期槽）修正为 `--slot task_status=done`。
+- **git 测试对环境全局 gitconfig 不设防** —— `test_git_cmd.py` 屏蔽 user/system git 配置（URL insteadOf 重写代理环境下 ensure-policy 测试误判）。
+
+- **testing skill 调用示例与 CLI 解析对齐** —— SKILL.md / qa-engineer AGENT.md 的
+  `cataforge skill run testing -- scan-e2e tests/e2e/` 示例改为 `-- tests/e2e/`：skill runner
+  无子命令概念，`--` 后全部 token 直传脚本 positional，`scan-e2e` 会被当作目标路径导致 exit 2。
+
+- **viz tasks 的 KG 数据源补渲染无依赖任务** —— KG 路径此前只返回 Task 间 depends_on 边，
+  没有内部依赖边的项目即使 Task 实体已入图，dashboard tasks tile 与 `viz status` 也报 empty，
+  而 `viz tasks --edges`（authoring 附件路径）却能出图。KG 收集器现单独返回 Task id 集合，
+  孤立任务以独立节点声明行进入 Graph，dashboard / status / CLI 三条链路同源。
+
+- **Windows uv tool 入口在中文系统上丢失隔离环境** —— UTF-8 重启现用
+  `sys.executable` 替换 `sys.orig_argv[0]`，避免 uv trampoline 把重启进程导向不含
+  CataForge 的基础 Python，修复 `cataforge --version` / `deploy` 启动即报
+  `ModuleNotFoundError: No module named 'cataforge'`。
+
+- **design-grill 触发协议化** —— 启用不再依赖模型自判「高影响歧义」：阶段 skill（req-analysis / arc-design / ui-design）进入发散澄清前按 design-grill §启用门核实——用户显式要求、项目指令文件 §全局约定 `深度澄清(Grill)` 偏好、或阶段入口一次选择题询问（可选「本项目一律开启 / 不再询问」持久化偏好）；agile-prototype 保持仅显式触发。
+- **design-grill 运行深度对齐 relentless 契约** —— 启用后沿决策依赖树逐分支穷尽追问：默认一次一问、决策无论大小都归用户（局部细节可列清单批量委托确认）、每问附分支进度、退出与暂停的决定权在用户；skill 不自判「问够了」提前劝退。
+- **graph 模式 authoring 提示词收敛** —— 产文档 Agent（product-manager / architect / ui-designer / tech-lead / qa-engineer / devops）落稿契约不再让角色分支判断后端：一律先走 context authoring，mode 不符由命令自身拒绝并指路；产文档 skill 的 suggested-tools 补 `shell_exec`、交付句改 authoring 动词；staging 草稿写 gitignored 的 `.cataforge/state/staging/`、禁止把草稿写入 `docs/`；orchestrator 收口点对 md 领先漂移先归因（Agent 绕过 authoring 直写 vs 人改导出文件）再选 remediation，`ingest` 仅吸收人类修订。
+
+### Removed
+
+- 0.19.0 直接移除 scalar/null capability、`hooks.tool_overrides`、
+  `hooks.degradation` 与 `degradation_templates` 兼容解析。
+
 <a id='changelog-0.18.0'></a>
 ## [0.18.0] — 2026-07-16
 
@@ -2250,7 +2429,8 @@ hint; full implementation is tracked for later milestones:
 
 > **STATUS UPDATE (since v0.1.5):** `upgrade {check,apply,verify,rollback}` 已实现（见 0.1.5 / 0.1.7 / 0.1.9 entries），`hook test <name>` 已实现（见 `cataforge.interface.cli.hook_cmd`）。仅 `plugin {install,remove}` 仍为 stub。
 
-[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/lync-cyber/CataForge/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.19.0
 [0.18.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.18.0
 [0.17.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.17.0
 [0.16.0]: https://github.com/lync-cyber/CataForge/releases/tag/v0.16.0
