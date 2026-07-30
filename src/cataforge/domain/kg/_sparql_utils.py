@@ -43,6 +43,23 @@ _IRI_FORBIDDEN_CHARS: frozenset[str] = frozenset('<>"{}|^`\\ ')
 # callers may already include.
 _IRI_SAFE_SEGMENT = "-._~/"
 
+# Object-property slots whose target must resolve to a typed entity node.
+# An edge on one of these whose object has no such node is a dangling-target
+# ghost. Consumed both by the `cf:{slot}-target-exists` xref check and by the
+# drift reconciler's dangling-relation sweep; a new schema slot added here
+# takes effect in both. Distinct from the extractor's minted-predicate set
+# (`ingest.relation_extract.TRACEABILITY_PREDICATE_CURIES`), which is a subset
+# in cf: curie form.
+TRACEABILITY_SLOTS: tuple[str, ...] = (
+    "implements",
+    "satisfies",
+    "verifies",
+    "realizes",
+    "delivers",
+    "affects",
+    "depends_on",
+)
+
 
 def _term_value(term: Any) -> Any:
     if term is None:
@@ -186,6 +203,7 @@ __all__ = [
     "_row_lookup",
     "_strv",
     "_term_value",
+    "TRACEABILITY_SLOTS",
     "assert_safe_iri",
     "cf_namespace",
     "curie_for_iri",

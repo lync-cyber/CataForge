@@ -314,7 +314,7 @@ cataforge upgrade rollback --from 20260424-150030 --yes
 
 ## context
 
-文档与上下文 I/O 的统一入口，后端（知识图谱 / 文件）由 `context.strategy` 透明路由。
+文档与上下文 I/O 的统一入口，后端（知识图谱 / 文件）由 `context.mode` 透明路由。
 
 ```bash
 cataforge context read <ref>   # 按 {doc_id}#§{section} 精准加载段落/条目
@@ -348,13 +348,11 @@ cataforge docs migrate-reviews  # 回填历史审查报告的 YAML front matter
 
 ## kg
 
-**何时用它**：管理 RocksDB-backed Oxigraph 知识图谱 — 业务文档（PRD / ARCH / TEST-REPORT）实体与追溯关系的权威存储。`kg_active_doc_types` 中的 doc_type 走图查询路径，未列入的 doc_type 仍走 [`cataforge context read`](#context) legacy 路径。
+**何时用它**：知识图谱 **store 维护与诊断**（init / snapshot / query / repair / drift-check 等）。业务文档读写、定稿与回灌一律走 [`cataforge context`](#context)；本组不是 Agent 业务入口。`kg_active_doc_types` 中的 doc_type 走图查询路径，未列入的 doc_type 仍走 [`cataforge context read`](#context) legacy 路径。
 
 ```bash
 cataforge kg init                                # 初始化 store + bootstrap rdfs:subClassOf
-cataforge kg import [--doc-type prd ...]         # 底层六阶段管道（业务用 context ingest）
 cataforge kg validate [--shacl|--require-shacl]  # 孤儿节点、断裂追溯边、可选 SHACL 校验
-cataforge kg export [--output-dir docs]          # 底层 KG → Markdown（业务用 context finalize）
 cataforge kg drift-check [--doc-type ...]        # 底层漂移诊断：md ⊕ kg → missing / ghost（业务门禁用 context reconcile）
 cataforge kg repair [--dry-run]                  # 自动修复 reconcile 发现的漂移
 cataforge kg compare-read [--sample-size 20]     # 抽样审计：KG 渲染 vs 源文件 slice
@@ -362,9 +360,9 @@ cataforge kg snapshot [--label ...]              # 写完整 NQuads 快照到 .c
 cataforge kg rollback <snapshot_path>            # 从快照恢复 store
 cataforge kg query <sparql-or-file>              # 执行 SPARQL（含超时控制）
 cataforge kg trace <entity_id> [--coverage]      # 追溯链 + 覆盖矩阵（table / json / mermaid）
-cataforge kg add <entity_id> --class ...         # 新增单实体 + 可选 outgoing 边
-cataforge kg update <entity_id> [--title ...]    # 更新现有实体的 slot
-cataforge kg delete <entity_id> [--cascade]      # 删除实体（可级联入向边）
+# 以下为隐藏的底层运维命令（help 不列出；业务用 context 对偶）
+# cataforge kg import / export                   # → context ingest / finalize
+# cataforge kg add / update / delete             # → context write / update / delete
 ```
 
 ### kg init
@@ -379,6 +377,8 @@ cataforge kg delete <entity_id> [--cascade]      # 删除实体（可级联入�
 | `--force` | 覆盖已存在的 store |
 
 ### kg import
+
+> 隐藏命令（`cataforge kg --help` 不列出）。业务流用 [`context ingest`](#context)。
 
 按六阶段管道导入业务文档：scan → parse → entity extraction → relation extraction → write → verify。幂等设计（IRI 由 entity ID 确定性派生，mtime 守卫跳过未变更实体）。
 
@@ -398,6 +398,8 @@ cataforge kg delete <entity_id> [--cascade]      # 删除实体（可级联入�
 | `--json` | 输出 JSON 违例报告（含 `shacl_skip_reason`：`not_requested` / `deps_missing` / `shapes_missing` / `null`） |
 
 ### kg export
+
+> 隐藏命令。业务流用 [`context finalize`](#context)。
 
 KG → 每实体一份 Markdown，幂等：两次连续 export 字节相同。
 
@@ -442,6 +444,8 @@ cataforge kg trace F-001 --output json > trace.json
 
 ### kg add
 
+> 隐藏命令。业务流用 [`context write`](#context)。
+
 新建一个实体（含可选 outgoing 关系边）。幂等：相同 `--content-hash` 重跑为 no-op；不同 hash 原子替换该实体的全部 quad。store 中无 `cf:Project` 节点时必须传 `--project-id`；唯一 Project 时自动选用。
 
 ```bash
@@ -468,6 +472,8 @@ cataforge kg add F-010 --class Feature --title "Profile edit" \
 
 ### kg update
 
+> 隐藏命令。业务流用 [`context update`](#context)。
+
 更新现有实体的 slot。实体不存在时 exit 1。`--content-hash` 与 store 已有值相同则整次更新短路（用于幂等同步场景）。枚举域 slot（`task_status` / `status` / `test_result` / `priority` …）按 schema 枚举校验，越范围值 exit 1 并列出合法值；`task_status` 更新还需符合任务状态机（`todo → in_progress → review → done`，任意态 ↔ `blocked`，终态 `done` / `cancelled` 离开需显式确认）。
 
 ```bash
@@ -487,6 +493,8 @@ cataforge kg update F-010 --title "Profile edit (v2)" --slot cf:priority=critica
 至少需提供 `--title` / `--source-section` / `--slot` / `--content-hash` 之一，否则 exit 1。
 
 ### kg delete
+
+> 隐藏命令。业务流用 [`context delete`](#context)。
 
 删除一个节点（默认禁止删除有入向边的节点；`--cascade` 同时移除入向边）。默认走 stdin 交互确认；脚本场景用 `--yes`。
 

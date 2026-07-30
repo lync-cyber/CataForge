@@ -162,8 +162,13 @@ def kg_enabled(project_root: str | Path) -> bool:
     Under ``markdown`` the graph is not a backend at all: every KG gate
     (read resolution, doc-review coverage, ingest scope) bypasses to the
     Markdown/file path regardless of which doc_types are listed active.
+
+    Delegates to :attr:`ModePolicy.graph_enabled` so mode gates share one
+    predicate with finalize / authoring / remediation.
     """
-    return context_mode(project_root) != "markdown"
+    from cataforge.domain.kg.authority import ModePolicy
+
+    return ModePolicy.for_project(project_root).graph_enabled
 
 
 def kg_config_for(project_root: str | Path) -> KGConfig:

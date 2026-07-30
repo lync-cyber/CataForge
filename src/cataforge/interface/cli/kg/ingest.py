@@ -192,7 +192,11 @@ def kg_import(
 def kg_validate(
     ctx: click.Context, db_path: Path, shacl: bool, require_shacl: bool, json_output: bool
 ) -> None:
-    """Check the live KG for orphan nodes and broken traceability edges."""
+    """Check live KG store health: orphan nodes and broken traceability edges.
+
+    Operates on the graph store (not the ``docs/.doc-index.json`` index —
+    that is ``context validate``).
+    """
     db_path = root_relative_default(ctx, "db_path", db_path, rel=KG_STORE_REL)
 
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph

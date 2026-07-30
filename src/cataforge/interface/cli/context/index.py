@@ -55,6 +55,7 @@ def context_index(
 def context_validate(ctx: click.Context, project_root: str | None) -> None:
     """Validate ``docs/.doc-index.json`` integrity without writing to disk.
 
+    Operates on the index (not the live KG store — that is ``kg validate``).
     Equivalent to ``context index --strict`` but read-only — useful as a
     pre-commit / CI gate that fails fast on:
 

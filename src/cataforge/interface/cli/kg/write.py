@@ -84,7 +84,7 @@ def _resolve_project_iri(
     )
 
 
-@kg_group.command("add")
+@kg_group.command("add", hidden=True)
 @click.argument("entity_id")
 @click.option(
     "--class",
@@ -171,9 +171,10 @@ def kg_add(
 ) -> None:
     """Low-level direct write of one entity (and optional edges) to the KG.
 
-    Operational twin of ``context write``: no schema validation, explicit
-    ``--db-path``. Idempotent: re-running with an unchanged content hash is a
-    no-op; a changed hash replaces the entity's quads atomically.
+    Operational twin of ``context write`` (prefer that for business
+    authoring): no schema validation, explicit ``--db-path``. Idempotent:
+    re-running with an unchanged content hash is a no-op; a changed hash
+    replaces the entity's quads atomically.
     """
     from cataforge.domain.kg import KGConfig, KGStoreNotInitializedError, KnowledgeGraph
     from cataforge.domain.kg._content_hash import entity_content_hash
@@ -240,7 +241,7 @@ def kg_add(
         click.echo(f"  iri: {iri}")
 
 
-@kg_group.command("update")
+@kg_group.command("update", hidden=True)
 @click.argument("entity_id")
 @click.option("--title", default=None, help="New title.")
 @click.option("--source-section", default=None, help="New source_section heading.")
@@ -285,7 +286,10 @@ def kg_update(
     db_path: Path,
     json_output: bool,
 ) -> None:
-    """Update slots on an existing entity. Raises if the entity is absent."""
+    """Low-level slot update. Prefer ``context update`` for business authoring.
+
+    Raises if the entity is absent.
+    """
     from cataforge.domain.kg import (
         KGConfig,
         KGEntityNotFoundError,
@@ -345,7 +349,7 @@ def kg_update(
             click.echo(f"OK: {entity_id} updated ({inserts} inserts, {deletes} deletes)")
 
 
-@kg_group.command("delete")
+@kg_group.command("delete", hidden=True)
 @click.argument("entity_id")
 @click.option(
     "--cascade",
@@ -374,7 +378,7 @@ def kg_delete(
     db_path: Path,
     json_output: bool,
 ) -> None:
-    """Remove a node (and optionally its incoming edges) from the KG.
+    """Low-level node removal. Prefer ``context delete`` for business authoring.
 
     ENTITY_ID accepts four forms: a flat entity id (F-001), a
     parent-scoped subordinate id (F-001/AC-002), a structural id

@@ -15,7 +15,12 @@ from cataforge.interface.cli.main import cli
 
 @cli.group("kg")
 def kg_group() -> None:
-    """Knowledge graph store management."""
+    """Knowledge graph store management.
+
+    Business document I/O goes through ``cataforge context``. This group is
+    for store maintenance and diagnostics (init / snapshot / query / repair /
+    low-level entity ops).
+    """
 
 
 from . import ingest, query, schema, store, write  # noqa: E402,F401

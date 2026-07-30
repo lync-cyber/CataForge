@@ -152,3 +152,7 @@ deploy-spec 文档中必须包含密钥清单节:
 - 配置文件模板化，按项目技术栈适配
 - Dockerfile层顺序优化，最大化构建缓存命中
 - 环境差异最小化，通过变量控制
+
+## 文档落稿
+- `deploy-spec` / `changelog` 经 `cataforge context write-doc` / `write-narrative` / `transact` 落图后 `cataforge context finalize` 导出；本 skill 的 CI/容器/IaC 文件直写仓库，不经图后端
+- 不把「Write `docs/deploy-spec/` + ingest」当作 authoring 路径

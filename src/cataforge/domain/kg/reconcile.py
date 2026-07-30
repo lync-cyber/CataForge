@@ -38,6 +38,7 @@ from cataforge.domain.kg._dispatch import (
 )
 from cataforge.domain.kg._errors import KGDocumentCollisionError
 from cataforge.domain.kg._sparql_utils import (
+    TRACEABILITY_SLOTS,
     _row_lookup,
     _strv,
     assert_safe_iri,
@@ -83,20 +84,6 @@ RelKey = tuple[str, str, str]  # (subject_entity_id, predicate_curie, object_ent
 # `cf:part_of` links a subordinate entity to its owning parent (written by the
 # ingest writer, never extracted from xref prose).
 _NON_TRACEABILITY_PREDICATES: frozenset[str] = frozenset({"cf:belongs_to_project", "cf:part_of"})
-
-# Object-property slots an xref can produce; mirrors validate's
-# `cf:*-target-exists` shapes. An edge on one of these whose object resolves to
-# no typed entity node is a dangling-target ghost (a renamed/deleted target
-# leaves the edge behind), invisible to the entity_id-keyed relation diff.
-_TRACEABILITY_SLOTS: tuple[str, ...] = (
-    "implements",
-    "satisfies",
-    "verifies",
-    "realizes",
-    "delivers",
-    "affects",
-    "depends_on",
-)
 
 
 @dataclass
@@ -484,7 +471,7 @@ def _kg_orphan_relations_for_doc_ids(
         return set()
     ns = cf_namespace(config)
     values_clause = " ".join(f'"{escape_sparql_literal(d)}"' for d in sorted(doc_ids))
-    slot_clause = " ".join(f"cf:{slot}" for slot in _TRACEABILITY_SLOTS)
+    slot_clause = " ".join(f"cf:{slot}" for slot in TRACEABILITY_SLOTS)
     sparql = (
         f"PREFIX cf: <{ns}> "
         "SELECT ?s_id ?p ?o WHERE { "
