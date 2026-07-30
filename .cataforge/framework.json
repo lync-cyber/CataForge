@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "version": "0.0.0-template",
+  "version": "0.19.0",
   "runtime_api_version": "1.0",
   "deployment": {
     "default_platform": "claude-code",
