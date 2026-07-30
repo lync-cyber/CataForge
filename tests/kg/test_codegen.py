@@ -1,17 +1,15 @@
-"""Smoke tests for scripts/codegen_kg_schema.py (sub-PR 1 deliverable)."""
+"""Smoke tests for scripts/codegen_kg_schema.py."""
 
 from __future__ import annotations
 
 import filecmp
 import importlib.util
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = REPO_ROOT / "scripts" / "codegen_kg_schema.py"
 
 pytestmark = pytest.mark.skipif(
     importlib.util.find_spec("linkml") is None,
@@ -19,17 +17,17 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _run_codegen(out_dir: Path) -> None:
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--out", str(out_dir)],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
-    )
-    assert result.returncode == 0, (
-        f"codegen exited {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
+def _codegen(out_dir: Path) -> None:
+    """Invoke codegen in-process, sharing the (slow) linkml import across calls.
+
+    A subprocess per call would re-pay linkml's cold-import cost every time;
+    the codegen module is importable, so a direct call keeps reruns cheap.
+    """
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from scripts.codegen_kg_schema import codegen
+
+    codegen(out_dir)
 
 
 @pytest.fixture(scope="session")
@@ -42,7 +40,7 @@ def codegen_out(tmp_path_factory: pytest.TempPathFactory) -> Path:
     paying the linkml-generation cost.
     """
     out = tmp_path_factory.mktemp("kg_codegen")
-    _run_codegen(out)
+    _codegen(out)
     return out
 
 
@@ -56,10 +54,10 @@ def test_codegen_produces_expected_artifacts(codegen_out: Path) -> None:
 
 
 def test_subclass_axioms_byte_identical_on_rerun(codegen_out: Path, tmp_path: Path) -> None:
-    """spike-2 §2.1 — subclass_axioms.ttl is the input to `kg init` bootstrap;
-    deterministic emission is required so store init is reproducible."""
+    """subclass_axioms.ttl is the input to `kg init` bootstrap; deterministic
+    emission is required so store init is reproducible."""
     fresh = tmp_path / "run2"
-    _run_codegen(fresh)
+    _codegen(fresh)
     assert filecmp.cmp(
         codegen_out / "subclass_axioms.ttl",
         fresh / "subclass_axioms.ttl",
@@ -72,7 +70,7 @@ def test_shacl_shapes_byte_identical_on_rerun(codegen_out: Path, tmp_path: Path)
     must fully neutralize ShaclGenerator's nondeterminism (property-shape
     order, set-list order, sh:order values, blank-node labels)."""
     fresh = tmp_path / "run2-shapes"
-    _run_codegen(fresh)
+    _codegen(fresh)
     assert filecmp.cmp(
         codegen_out / "core_shapes.ttl",
         fresh / "core_shapes.ttl",
