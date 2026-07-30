@@ -11,28 +11,12 @@ this constraint under ``src/cataforge/domain/kg/``.
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
+
+from cataforge.domain.kg.read_query import first_sparql_keyword
 
 if TYPE_CHECKING:
     import pyoxigraph as ox
-
-_SPARQL_KEYWORD_RE = re.compile(
-    r"(?:#[^\n]*\n\s*)*"  # skip leading comment lines
-    r"(?:(?:"
-    r"PREFIX\s+\S+\s+<[^>]*>"  # PREFIX <local>: <iri>
-    r"|"
-    r"BASE\s+<[^>]*>"  # BASE <iri>  (no intermediate token)
-    r")\s*)*"
-    r"(\w+)",  # capture first keyword (ASK, SELECT, CONSTRUCT, …)
-    re.IGNORECASE,
-)
-
-
-def _first_sparql_keyword(sparql: str) -> str | None:
-    """Extract the first SPARQL query-form keyword, skipping comments and PREFIX declarations."""
-    m = _SPARQL_KEYWORD_RE.match(sparql.lstrip())
-    return m.group(1).upper() if m else None
 
 
 def ask(store: ox.Store, sparql: str) -> bool:
@@ -46,8 +30,7 @@ def ask(store: ox.Store, sparql: str) -> bool:
         A SPARQL ASK query.  Other forms (SELECT / CONSTRUCT / UPDATE)
         are rejected up front; route those through ``QueryAPI`` instead.
     """
-    first_keyword = _first_sparql_keyword(sparql)
-    if first_keyword != "ASK":
+    if first_sparql_keyword(sparql) != "ASK":
         raise ValueError(
             "ask() only accepts ASK queries; for SELECT/CONSTRUCT/UPDATE use "
             "the typed QueryAPI surface."

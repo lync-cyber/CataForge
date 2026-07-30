@@ -67,3 +67,19 @@ def test_rejects_non_ask_query() -> None:
 
     with pytest.raises(ValueError):
         ask(_empty_store(), "SELECT ?s WHERE { ?s ?p ?o }")
+
+
+def test_accepts_ask_behind_comment_and_prefix() -> None:
+    from cataforge.domain.kg import ask
+
+    sparql = "# leading comment\nPREFIX cf: <https://cataforge.dev/ontology/>\nASK { ?s ?p ?o }"
+    assert ask(_empty_store(), sparql) is False
+
+
+def test_rejects_non_ask_behind_comment_and_prefix() -> None:
+    from cataforge.domain.kg import ask
+
+    sparql = "# leading comment\nPREFIX cf: <https://cataforge.dev/ontology/>\n"
+    sparql += "SELECT ?s WHERE { ?s ?p ?o }"
+    with pytest.raises(ValueError):
+        ask(_empty_store(), sparql)

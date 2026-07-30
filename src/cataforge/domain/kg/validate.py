@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from cataforge.domain.kg._config import KGConfig
 from cataforge.domain.kg._sparql_utils import (
+    TRACEABILITY_SLOTS,
     _row_lookup,
     _strv,
     assert_safe_iri,
@@ -107,17 +108,8 @@ def _check_xref_targets(store: ox.Store, namespace: str) -> list[ValidationViola
     (via OPTIONAL) and to the subject's entity_id so the result is
     self-contained — no per-row follow-up queries.
     """
-    traceability_slots = (
-        "implements",
-        "satisfies",
-        "verifies",
-        "realizes",
-        "delivers",
-        "affects",
-        "depends_on",
-    )
     union_clauses = " UNION ".join(
-        f'{{ ?s cf:{slot} ?o . BIND("{slot}" AS ?slot) }}' for slot in traceability_slots
+        f'{{ ?s cf:{slot} ?o . BIND("{slot}" AS ?slot) }}' for slot in TRACEABILITY_SLOTS
     )
     sparql = (
         f"PREFIX cf: <{namespace}> "
