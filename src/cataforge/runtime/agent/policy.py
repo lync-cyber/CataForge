@@ -45,7 +45,13 @@ def parse_agent_policy(content: str) -> AgentPolicy:
 
 def _capability_values(raw: Any) -> list[str]:
     if isinstance(raw, str):
-        return [item.strip() for item in raw.split(",") if item.strip()]
+        s = raw.strip()
+        # A quoted flow-list (``tools: '[]'``) parses as the string "[]";
+        # unwrap the brackets so the empty-list forms yield no capabilities
+        # rather than a spurious token named "[]".
+        if s.startswith("[") and s.endswith("]"):
+            s = s[1:-1].strip()
+        return [item.strip() for item in s.split(",") if item.strip()]
     if isinstance(raw, list):
         return [str(item).strip() for item in raw if str(item).strip()]
     return []

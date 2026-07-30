@@ -26,6 +26,7 @@ addopts = "--cov=src --cov-report=term-missing -q"
 ```python
 import pytest
 
+
 def test_raises_value_error():
     with pytest.raises(ValueError, match="invalid input"):
         parse("")
@@ -36,6 +37,7 @@ def test_raises_value_error():
 ```python
 import pytest
 
+
 @pytest.fixture
 def db_session(tmp_path):
     """提供一个隔离的临时数据库会话。"""
@@ -44,10 +46,12 @@ def db_session(tmp_path):
     with Session(engine) as session:
         yield session
 
+
 @pytest.fixture(scope="module")
 def api_client():
     """模块级客户端，避免重复初始化。"""
     from httpx import Client
+
     with Client(base_url="http://testserver") as client:
         yield client
 ```
@@ -57,11 +61,14 @@ def api_client():
 ## 参数化测试
 
 ```python
-@pytest.mark.parametrize("input,expected", [
-    ("hello", "HELLO"),
-    ("",      ""),
-    ("  ",    "  "),
-])
+@pytest.mark.parametrize(
+    "input,expected",
+    [
+        ("hello", "HELLO"),
+        ("", ""),
+        ("  ", "  "),
+    ],
+)
 def test_upper(input, expected):
     assert upper(input) == expected
 ```
@@ -73,6 +80,7 @@ def test_upper(input, expected):
 
 ```python
 from unittest.mock import AsyncMock, patch
+
 
 async def test_fetch_user(monkeypatch):
     mock_get = AsyncMock(return_value={"id": 1})
