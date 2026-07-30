@@ -1,6 +1,6 @@
-# 迁移到 kg-first authoring
+# 迁移到 graph 模式（图权威 authoring）
 
-> 把一个 Markdown 先行（`context.strategy: doc-only`，或 `kg-first` 但 `authoring: md`）的存量项目切换到图权威 authoring（`authoring: graph`）。切换后文档由知识图谱导出，`docs/` 成为只读人审视图。
+> 把一个 Markdown 先行（`context.mode: markdown`，或升级前仍带已退役 `strategy`/`authoring` 双轴）的存量项目切换到图权威（`context.mode: graph`）。切换后文档由知识图谱导出，`docs/` 成为只读人审视图。
 
 ## 前提
 
@@ -23,16 +23,18 @@
 
    此后 `cataforge context reconcile` 对每个文档报 `in_sync`（`remediation: none`）。
 
-3. **切换 authoring 面** — 在 `.cataforge/framework.json` 设：
+3. **切换 mode** — 在 `.cataforge/framework.json` 设：
 
    ```json
-   { "context": { "strategy": "kg-first", "authoring": "graph" } }
+   { "context": { "mode": "graph" } }
    ```
+
+   若仍残留退役键 `context.strategy` / `context.authoring`，删除它们（`cataforge doctor` 会对残留键 FAIL；运行时 `context_mode()` 只读 `context.mode`）。
 
 4. **验证** — 两道门禁应全绿：
 
    ```bash
-   cataforge doctor            # context 配置门禁：strategy/authoring 一致
+   cataforge doctor            # context 配置门禁：mode 合法、无退役键
    cataforge context reconcile # 每文档 in_sync
    ```
 
@@ -40,9 +42,8 @@
 
 ## 回退
 
-authoring 面与权威方向纯由配置驱动，回退无需数据迁移：
+mode 纯由配置驱动，回退无需数据迁移：
 
-- 暂留 md 先行：把 `context.authoring` 改回 `"md"`（图仍作镜像，reconcile 任一侧漂移都建议 `ingest` 回灌）。
-- 完全退出图后端：把 `context.strategy` 改回 `"doc-only"`，图被旁路，`docs/` 重新成为唯一事实源。
+- 完全退出图后端：把 `context.mode` 改回 `"markdown"`，图被旁路，`docs/` 重新成为唯一事实源。
 
-> `context.authoring: "graph"` 必须与 `context.strategy: "kg-first"` 同时声明，否则 `cataforge doctor` 的 context 配置门禁 FAIL —— 图 authoring 没有 kg-first 后端就没有权威。
+> 合法取值仅 `graph` / `markdown`。勿再写入已退役的 `context.strategy` / `context.authoring`。

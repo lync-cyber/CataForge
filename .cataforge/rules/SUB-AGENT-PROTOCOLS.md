@@ -14,7 +14,7 @@
 3. **定位恢复点** — 根据 `恢复指引` 确定应从 SKILL.md 流程的哪个步骤继续执行
 4. **从恢复点继续** — 在已有中间产出基础上继续执行剩余步骤，经 context authoring 就地修订已有文档：`write-narrative` 重写实体所在节（批量用 `transact` 的 write_narrative ops），slot 级更新用 `update`；`write` 仅限不隶属文档的独立实体
 
-注意: Continuation 是在中间产出基础上的恢复执行，文档已存在(status=draft)，直接编辑即可。续接状态一律经文件中间产出恢复，不依赖任何「带上下文续接子代理」的平台原语。
+注意: Continuation 是在中间产出基础上的恢复执行，文档已存在(status=draft)，经 context authoring 就地修订即可。续接状态一律经文件中间产出恢复，不依赖任何「带上下文续接子代理」的平台原语。
 
 ---
 
@@ -79,9 +79,11 @@
 
 适用所有长任务子代理（长审查 / 长定位 / 批量 RED / 大文档产出）：末尾集中落盘易被 task-notification truncation 打断（征兆：大量 tool-use / token 后 `<agent-result>` 未返回但产出未落盘）。命中长任务时强制增量落盘，使停滞时已落盘部分即 mid-progress checkpoint：
 
-1. 先 `Write` 产出骨架（报告头 + 问题段占位 / 测试文件空架 / summary 草稿）
-2. 按角色的**落盘单元**逐个产出，发现即 `Edit` 追加，不在内存累积
+1. 先落盘产出骨架（报告头 + 问题段占位 / 测试文件空架 / summary 草稿）
+2. 按角色的**落盘单元**逐个产出，发现即追加，不在内存累积
 3. 每完成一个落盘单元立即落盘，不攒到末尾
-4. **禁止**末尾一次 `Write` 堆全部产出 —— 增量落盘是防 truncation 零产出的唯一手段；仍无法完成时返回 blocked 附已完成部分，禁止静默零产出
+4. **禁止**末尾一次堆全部产出 —— 增量落盘是防 truncation 零产出的唯一手段；仍无法完成时返回 blocked 附已完成部分，禁止静默零产出
 
-落盘单元的角色特化见 test-writer / implementer / reviewer / debugger 的 AGENT.md §Mid-Progress 落盘契约；其余角色按上述 4 步执行。
+**KG-active 业务文档**（`context.kg_active_doc_types`，如 `docs/{prd,arch,ui-spec,dev-plan,test-report,deploy-spec}/`）：增量落盘经 `context write-doc` / `write-narrative` / `transact`（staging 可写 `.cataforge/state/staging/`），**禁止**对上述导出视图做 `Write`/`Edit`。代码 / 审查报告 / 测试文件等非 KG-active 路径仍用 `Write`/`Edit`。
+
+落盘单元的角色特化见 test-writer / implementer / reviewer / debugger 的 AGENT.md §Mid-Progress 落盘契约；其余角色按上述 4 步执行（产文档角色遵守上一段 KG-active 约束）。

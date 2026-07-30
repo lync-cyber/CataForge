@@ -79,7 +79,7 @@ user-invocable: true
 2. 覆盖率分析(对比目标)
 3. 缺陷清单(严重等级 + 关联任务)
 4. 结论与建议(是否达到发布标准)
-5. 通过context填充test-report模板
+5. 经 context authoring（`write-doc` / `write-narrative` / `transact`）填充 test-report，再 `cataforge context finalize` 导出人审视图
 
 ## Layer 1 检查项
 
