@@ -8,7 +8,7 @@ Covers:
 - α: hooks.yaml references a script that has no .py file → FAIL
 - β: a referenced script exists but has a SyntaxError → FAIL
 - γ: matcher_capability typo (not in CAPABILITY_IDS / EXTENDED) → FAIL
-- δ: profile.yaml hooks.degradation missing or orphan → WARN x2
+- δ: profile.yaml hooks.policies missing or orphan → WARN x2
 - happy path: well-formed project → no B6 findings
 """
 
@@ -61,8 +61,8 @@ hooks:
 
 _HAPPY_PROFILE_YAML = """\
 hooks:
-  degradation:
-    guard_dangerous: native
+  policies:
+    guard_dangerous: {mode: native}
 """
 
 
@@ -156,36 +156,36 @@ hooks:
     assert "typo_capability_xyz" in findings[0].location
 
 
-def test_b6_delta_missing_degradation_warns(tmp_path: Path) -> None:
-    """δ: profile.yaml has no degradation flag for a referenced script → WARN."""
-    profile_no_degradation = """\
+def test_b6_delta_missing_policy_warns(tmp_path: Path) -> None:
+    """δ: profile.yaml has no hook policy for a referenced script → WARN."""
+    profile_no_policy = """\
 hooks:
-  degradation: {}
+  policies: {}
 """
     root = _make_project(
         tmp_path,
         _HAPPY_HOOKS_YAML,
-        profile_yaml=profile_no_degradation,
+        profile_yaml=profile_no_policy,
     )
     report = Report()
     check_b6_hook_consistency(root, report)
 
     findings = [
-        f for f in report.findings if "degradation_coverage" in f.check_id and f.severity == "WARN"
+        f for f in report.findings if "policy_coverage" in f.check_id and f.severity == "WARN"
     ]
     assert len(findings) == 1
     assert "guard_dangerous" in findings[0].message
-    assert "no degradation flag" in findings[0].message
+    assert "no hook policy" in findings[0].message
 
 
-def test_b6_delta_orphan_degradation_warns(tmp_path: Path) -> None:
-    """δ: profile.yaml has a degradation entry for a script no longer in
+def test_b6_delta_orphan_policy_warns(tmp_path: Path) -> None:
+    """δ: profile.yaml has a hook policy for a script no longer in
     hooks.yaml → WARN (dead config)."""
     profile_with_orphan = """\
 hooks:
-  degradation:
-    guard_dangerous: native
-    removed_script_xyz: degraded
+  policies:
+    guard_dangerous: {mode: native}
+    removed_script_xyz: {mode: unsupported}
 """
     root = _make_project(
         tmp_path,
@@ -196,7 +196,7 @@ hooks:
     check_b6_hook_consistency(root, report)
 
     findings = [
-        f for f in report.findings if "degradation_coverage" in f.check_id and f.severity == "WARN"
+        f for f in report.findings if "policy_coverage" in f.check_id and f.severity == "WARN"
     ]
     assert len(findings) == 1
     assert "removed_script_xyz" in findings[0].message
@@ -226,11 +226,11 @@ def test_b6_malformed_yaml_fails(tmp_path: Path) -> None:
     "script,prefix_stripped",
     [("guard_dangerous", "guard_dangerous"), ("custom:my_hook", "my_hook")],
 )
-def test_b6_custom_prefix_normalized_for_degradation(
+def test_b6_custom_prefix_normalized_for_policy(
     tmp_path: Path, script: str, prefix_stripped: str
 ) -> None:
-    """Degradation parity must compare normalized names (custom: stripped),
-    so a degradation entry "my_hook: degraded" satisfies a hooks.yaml
+    """Policy parity must compare normalized names (custom: stripped),
+    so a policy entry "my_hook" satisfies a hooks.yaml
     "script: custom:my_hook" reference."""
     hooks_yaml = f"""\
 schema_version: 2
@@ -242,8 +242,8 @@ hooks:
 """
     profile_yaml = f"""\
 hooks:
-  degradation:
-    {prefix_stripped}: native
+  policies:
+    {prefix_stripped}: {{mode: native}}
 """
     custom_scripts = (
         {"my_hook": "def main():\n    pass\n"} if script.startswith("custom:") else None
@@ -257,8 +257,8 @@ hooks:
     report = Report()
     check_b6_hook_consistency(root, report)
 
-    coverage_findings = [f for f in report.findings if "degradation_coverage" in f.check_id]
+    coverage_findings = [f for f in report.findings if "policy_coverage" in f.check_id]
     assert coverage_findings == [], (
-        f"custom: prefix should be stripped before degradation parity check, "
+        f"custom: prefix should be stripped before policy parity check, "
         f"got: {[f.render() for f in coverage_findings]}"
     )

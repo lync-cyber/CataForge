@@ -19,6 +19,7 @@ import yaml
 
 from cataforge.adapter.platform.registry import clear_cache, get_adapter
 from cataforge.runtime.deploy import steps
+from tests.profile_factory import typed_profile
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +62,11 @@ def _setup(tmp_path: Path, **profile_kwargs) -> tuple[Path, Path]:
     platforms_dir = cataforge_dir / "platforms" / "claude-code"
     platforms_dir.mkdir(parents=True)
     with open(platforms_dir / "profile.yaml", "w", encoding="utf-8") as f:
-        yaml.dump(_minimal_profile(**profile_kwargs), f, sort_keys=False)
+        yaml.dump(
+            typed_profile(_minimal_profile(**profile_kwargs)),
+            f,
+            sort_keys=False,
+        )
 
     return project_state, tmp_path
 

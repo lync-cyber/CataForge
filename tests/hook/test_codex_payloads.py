@@ -49,8 +49,9 @@ def codex_platform(monkeypatch: pytest.MonkeyPatch):
         ("apply_patch", "file_edit", True),
         ("apply_patch", "file_write", True),
         ("spawn_agent", "agent_dispatch", True),
+        ("request_user_input", "user_question", True),
         ("Bash", "file_edit", False),
-        ("anything", "user_question", False),  # user_question unmapped on codex
+        ("anything", "user_question", False),
     ],
 )
 def test_matches_capability_codex_names(tool_name: str, capability: str, expected: bool) -> None:
@@ -149,3 +150,100 @@ def test_notify_permission_message_falls_back_to_tool_description() -> None:
     )
     assert _resolve_message({"tool_name": "Bash", "tool_input": {}}) == "Bash requires approval"
     assert _resolve_message({}) == "Action requires approval"
+
+
+def test_codex_question_response_normalization() -> None:
+    from cataforge.runtime.hook.question import normalize_answers, normalize_questions
+
+    questions = normalize_questions(
+        {
+            "questions": [
+                {
+                    "id": "architecture",
+                    "question": "Choose architecture",
+                    "options": [
+                        {"label": "Typed (Recommended)"},
+                        {"label": "Legacy"},
+                    ],
+                }
+            ]
+        }
+    )
+    answers = normalize_answers(json.dumps({"architecture": {"answers": ["Legacy"]}}))
+
+    assert questions[0].id == "architecture"
+    assert questions[0].options == ("Typed (Recommended)", "Legacy")
+    assert answers == {"architecture": ["Legacy"]}
+
+
+def test_legacy_question_text_response_normalization() -> None:
+    from cataforge.runtime.hook.question import normalize_answers, normalize_questions
+
+    questions = normalize_questions(
+        {
+            "questions": [
+                {
+                    "question": "Choose",
+                    "options": [{"label": "A (Recommended)"}, {"label": "B"}],
+                }
+            ]
+        }
+    )
+    answers = normalize_answers({"answers": {"Choose": "B"}})
+
+    assert questions[0].id == "Choose"
+    assert answers == {"Choose": ["B"]}
+
+
+def test_detect_correction_emits_one_override_per_question() -> None:
+    from cataforge.runtime.hook.scripts.detect_correction import find_option_overrides
+
+    payload = {
+        "tool_input": {
+            "questions": [
+                {
+                    "id": "architecture",
+                    "question": "Choose architecture",
+                    "options": [
+                        {"label": "Typed (Recommended)"},
+                        {"label": "Legacy"},
+                    ],
+                }
+            ]
+        },
+        "tool_response": json.dumps({"architecture": {"answers": ["Legacy", "Legacy"]}}),
+    }
+
+    overrides = find_option_overrides(payload)
+    assert len(overrides) == 1
+    assert overrides[0].baseline == "Typed (Recommended)"
+    assert overrides[0].actual == "Legacy, Legacy"
+
+
+def test_detect_correction_ignores_recommended_and_empty_answers() -> None:
+    from cataforge.runtime.hook.scripts.detect_correction import find_option_overrides
+
+    base = {
+        "tool_input": {
+            "questions": [
+                {
+                    "id": "architecture",
+                    "question": "Choose architecture",
+                    "options": [
+                        {"label": "Typed (Recommended)"},
+                        {"label": "Legacy"},
+                    ],
+                }
+            ]
+        }
+    }
+    assert (
+        find_option_overrides(
+            {
+                **base,
+                "tool_response": json.dumps({"architecture": {"answers": ["Typed (Recommended)"]}}),
+            }
+        )
+        == []
+    )
+    assert find_option_overrides({**base, "tool_response": {}}) == []

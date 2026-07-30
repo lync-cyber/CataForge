@@ -141,19 +141,29 @@ def deploy_additional_outputs(
     )
 
 
+_GENERATED_FALLBACK_RULE_NAMES = frozenset(
+    {
+        "auto-safety-degradation.md",
+        "auto-prompt-instructions.md",
+        "auto-prompt-checklists.md",
+    }
+)
+
+
 def deploy_overrides_rules(
     adapter: PlatformAdapter,
     project_root: Path,
     *,
+    additional_rules_dirs: list[Path] | None = None,
     dry_run: bool = False,
     manifest: DeployManifest | None = None,
+    prior_manifest: set[str] | None = None,
 ) -> list[str]:
     """Materialise platform override rules into native artefacts.
 
-    Scans ``.cataforge/platforms/{platform_id}/overrides/rules/*.md`` (both
-    hand-authored rules and auto-generated ones from hook bridge
-    ``apply_degradation``) and writes each through the adapter's
-    ``wrap_rule_for_platform`` hook.
+    Scans hand-authored ``.cataforge/platforms/{platform_id}/overrides/rules``
+    plus caller-owned generated fallback staging directories, and writes each
+    rule through the adapter's ``wrap_rule_for_platform`` hook.
 
     The hook controls output format and target path; the default produces a
     verbatim copy at ``<context_injection.rules_distribution.target>/<name>.md``.
@@ -161,11 +171,16 @@ def deploy_overrides_rules(
     file (e.g. when the rule is registered through ``opencode.json#instructions``).
     """
     overrides_dir = ProjectPaths(project_root).platform_overrides(adapter.platform_id) / "rules"
-    if not overrides_dir.is_dir():
-        return []
-
+    source_dirs = [overrides_dir, *(additional_rules_dirs or [])]
+    source_files = {
+        md_file.name: md_file
+        for source_dir in source_dirs
+        if source_dir.is_dir()
+        for md_file in source_dir.glob("*.md")
+    }
     actions: list[str] = []
-    for md_file in sorted(overrides_dir.glob("*.md")):
+    desired_targets: dict[str, tuple[str, str]] = {}
+    for md_file in (source_files[name] for name in sorted(source_files)):
         content = md_file.read_text()
         wrapped = adapter.wrap_rule_for_platform(md_file.stem, content)
         if wrapped is None:
@@ -175,13 +190,32 @@ def deploy_overrides_rules(
             )
             continue
         target_rel, body = wrapped
+        desired_targets[target_rel] = (md_file.name, body)
+
+    generated_targets: set[str] = set()
+    for filename in _GENERATED_FALLBACK_RULE_NAMES:
+        wrapped = adapter.wrap_rule_for_platform(Path(filename).stem, "")
+        if wrapped is not None:
+            generated_targets.add(wrapped[0])
+
+    stale_targets = (generated_targets & (prior_manifest or set())) - set(desired_targets)
+    for target_rel in sorted(stale_targets):
         target_path = project_root / target_rel
         if dry_run:
-            actions.append(f"would deploy overrides/rules/{md_file.name} → {target_rel}")
+            actions.append(f"would prune stale generated fallback → {target_rel}")
+            continue
+        if target_path.is_file() or target_path.is_symlink():
+            target_path.unlink()
+            actions.append(f"pruned stale generated fallback → {target_rel}")
+
+    for target_rel, (source_name, body) in sorted(desired_targets.items()):
+        target_path = project_root / target_rel
+        if dry_run:
+            actions.append(f"would deploy overrides/rules/{source_name} → {target_rel}")
             continue
         target_path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text(target_path, body)
         if manifest is not None:
             manifest.record(target_rel)
-        actions.append(f"overrides/rules/{md_file.name} → {target_rel}")
+        actions.append(f"overrides/rules/{source_name} → {target_rel}")
     return actions

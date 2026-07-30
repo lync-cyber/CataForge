@@ -6,17 +6,16 @@ required_fields:
   display_name: string      # 用户可读名
   version_tested: string    # 最后验证的平台版本号
 
-  tool_map:                  # 能力标识符 → 平台原生工具名（核心 10 项）
-    file_read: string | null
-    file_write: string | null
-    file_edit: string | null
-    file_glob: string | null
-    file_grep: string | null
-    shell_exec: string | null
-    web_search: string | null
-    web_fetch: string | null
-    user_question: string | null
-    agent_dispatch: string | null
+  tool_map:                  # 能力标识符 → 类型化平台能力（核心 10 项）
+    "<capability_id>":
+      tool: string | null
+      kind: enum[native, replacement, unsupported]
+      availability:
+        any_of:
+          - thread_scopes: list[enum[root, subagent]]
+            collaboration_modes: list[enum[plan, default]]
+            required_features: list[enum[default_mode_request_user_input]]
+      hook_matchers: list[string]
 
   agent_definition:
     format: enum[yaml-frontmatter, toml]
@@ -57,22 +56,30 @@ required_fields:
     config_format: enum[json, yaml, plugin, null]
     config_path: string | null    # 平台 Hook 配置文件路径
     event_map: map[string, string | null]    # CataForge事件 → 平台事件
-    tool_overrides: map[string, string]      # hook matcher 与 tool_map 不同时的覆盖
-    degradation: map[string, enum[native, degraded, unsupported]]
+    policies:
+      "<hook_name>":
+        mode: enum[native, hybrid, degraded, unsupported]
+        fallback:
+          strategy: enum[rules_injection, prompt_instruction, prompt_checklist, skip]
+          coverage: enum[equivalent, partial, none]
+          reason: string
+          asset: string | null
+          content: string
 
 optional_fields:
   settings_defaults: map       # deploy 时 set-if-absent 注入平台设置文件的框架默认键
     # 形状即平台自身设置文件 schema；用户已设的值不被覆盖。
     # 例: claude-code 用 env.CLAUDE_CODE_USE_POWERSHELL_TOOL + defaultShell 偏好 Git Bash。
 
-  extended_capabilities:       # 扩展能力 → 平台原生工具名/标识（核心 10 项之外）
-    notebook_edit: string | null     # Jupyter notebook 编辑
-    browser_preview: string | null   # 浏览器自动化/预览
-    image_input: string | null       # 图片/截图输入
-    code_review: string | null       # 专用代码审查工具
+  extended_capabilities:       # 与 tool_map 使用相同 CapabilityBinding
+    notebook_edit: CapabilityBinding
+    browser_preview: CapabilityBinding
+    image_input: CapabilityBinding
+    code_review: CapabilityBinding
     # 可按需追加新 key，无需修改 adapter 代码
 
   agent_config:                # Agent 定义配置
+    tool_policy: enum[allow_deny, allow_only, inherit_only]
     supported_fields: list[string]   # 该平台支持的 agent frontmatter 字段子集
     memory_scopes: list[string]      # 支持的 agent memory scope (user/project/local)
     isolation_modes: list[string]    # 支持的隔离模式 (worktree)

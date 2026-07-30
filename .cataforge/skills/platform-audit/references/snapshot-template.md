@@ -7,7 +7,7 @@ Platform: <id>
 Version: <latest version>
 
 === Core Tool Names (10) ===
-file_read:       <native name or null>
+file_read:       <tool, kind, availability, hook_matchers>
 file_write:      <native name>
 file_edit:       <native name>
 file_glob:       <native name or null>
@@ -15,7 +15,7 @@ file_grep:       <native name or null>
 shell_exec:      <native name>
 web_search:      <native name or null>
 web_fetch:       <native name or null>
-user_question:   <native name or null>
+user_question:   <tool, kind, availability, hook_matchers>
 agent_dispatch:  <native name>
 
 === Extended Capabilities (4) ===
@@ -31,8 +31,11 @@ Stop:            <platform event name or null>
 SessionStart:    <platform event name or null>
 Notification:    <platform event name or null>
 
-=== Hook Matcher Overrides ===
-<capability>: <override name if different from tool_map>
+=== Hook Matchers ===
+<capability>: <hook matcher names if different from model tool name>
+
+=== Hook Policies ===
+<script>: <native|hybrid|degraded|unsupported; fallback coverage>
 
 === Agent Config ===
 Format: yaml-frontmatter | toml | json

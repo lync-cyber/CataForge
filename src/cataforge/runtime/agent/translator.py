@@ -13,6 +13,8 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from cataforge.runtime.agent.policy import compile_agent_policy, parse_agent_policy
+
 if TYPE_CHECKING:
     from cataforge.adapter.platform.adapter import PlatformAdapter
 
@@ -80,12 +82,45 @@ def _split_frontmatter(content: str) -> tuple[str, str, str] | None:
     return ("---\n", m.group(1), content[m.end() :])
 
 
+def _replace_frontmatter_sequence_fields(
+    content: str,
+    replacements: dict[str, list[str]],
+) -> str:
+    """Replace top-level sequence fields without leaving block-list residue."""
+    match = re.match(r"^---\r?\n(.*?)\r?\n---\r?\n?", content, re.DOTALL)
+    if match is None:
+        return content
+
+    lines = match.group(1).splitlines()
+    top_level_key = re.compile(r"^([A-Za-z_][\w-]*):(?:\s.*)?$")
+    rendered: list[str] = []
+    index = 0
+    while index < len(lines):
+        key_match = top_level_key.match(lines[index])
+        key = key_match.group(1) if key_match else None
+        if key not in replacements:
+            rendered.append(lines[index])
+            index += 1
+            continue
+
+        values = replacements[key]
+        rendered.append(f"{key}: {', '.join(values) if values else '[]'}")
+        index += 1
+        while index < len(lines) and top_level_key.match(lines[index]) is None:
+            index += 1
+
+    suffix = content[match.end() :]
+    return f"---\n{chr(10).join(rendered)}\n---\n{suffix}"
+
+
 def translate_agent_md(
     content: str,
     adapter: PlatformAdapter,
     *,
+    agent_id: str | None = None,
     dropped_collector: dict[str, set[str]] | None = None,
     warnings_collector: list[str] | None = None,
+    policy_unenforced_collector: dict[str, set[str]] | None = None,
 ) -> str:
     """Translate capability IDs and model tier in AGENT.md to platform-native.
 
@@ -120,46 +155,29 @@ def translate_agent_md(
         calls (allow/deny tool collisions, dropped security-sensitive
         fields). The deployer appends these to its returned action lines.
     """
-    tool_map = adapter.get_tool_map()
-    # Per-call aggregation so a single agent with the same missing cap in
-    # both ``tools:`` and ``disallowedTools:`` logs at most once.
     local_dropped: dict[str, set[str]] = {}
-    # ``{source_field: {native_tool: {source_cap, ...}}}`` so an allow/deny
-    # collision on a resolved name can be detected after both lists are
-    # translated (e.g. cursor maps file_edit + file_write → Write) and the
-    # warning can name both the native tool and the colliding source caps.
-    resolved_by_field: dict[str, dict[str, set[str]]] = {}
+    compiled = compile_agent_policy(parse_agent_policy(content), adapter)
+    if compiled.dropped:
+        local_dropped["agent_policy"] = set(compiled.dropped)
+    if compiled.unenforced:
+        if policy_unenforced_collector is not None:
+            policy_unenforced_collector.setdefault(agent_id or "<unknown>", set()).update(
+                compiled.unenforced
+            )
+        elif warnings_collector is not None:
+            warnings_collector.append(
+                f"WARN: {adapter.platform_id}: per-agent tool policy is not enforced "
+                f"for capabilities {sorted(compiled.unenforced)}."
+            )
 
-    def translate_field(match: re.Match[str]) -> str:
-        field_name = match.group(1)
-        inner = _clean_cap_list_str(match.group(2))
+    rendered_policy = {
+        "tools": compiled.allowed_tools,
+        "disallowedTools": compiled.denied_tools,
+    }
 
-        caps = [c.strip() for c in inner.split(",")]
-        # Filter blanks + well-known noise tokens that could never be valid
-        # capability identifiers.
-        caps = [c for c in caps if c and c not in _NOISE_TOKENS]
-
-        if not caps:
-            return f"{field_name}: []"
-
-        dropped = [c for c in caps if tool_map.get(c) is None]
-        if dropped:
-            local_dropped.setdefault(field_name, set()).update(dropped)
-
-        native_by_cap = {cap: native for cap in caps if (native := tool_map.get(cap)) is not None}
-        field_resolved = resolved_by_field.setdefault(field_name, {})
-        for cap, native in native_by_cap.items():
-            field_resolved.setdefault(native, set()).add(cap)
-        return f"{field_name}: {', '.join(native_by_cap.values())}"
-
-    content = re.sub(
-        r"^(tools|disallowedTools):\s*(.+)$",
-        translate_field,
-        content,
-        flags=re.MULTILINE,
-    )
-
-    _collect_tool_collisions(adapter.platform_id, resolved_by_field, warnings_collector)
+    content = _replace_frontmatter_sequence_fields(content, rendered_policy)
+    if compiled.sandbox_mode:
+        content = _set_frontmatter_scalar(content, "sandbox_mode", compiled.sandbox_mode)
 
     # ---- model_tier → native model resolution -------------------------
     content = _translate_model_tier(content, adapter)
@@ -187,32 +205,29 @@ def translate_agent_md(
     return content
 
 
-def _collect_tool_collisions(
-    platform_id: str,
-    resolved_by_field: dict[str, dict[str, set[str]]],
-    warnings_collector: list[str] | None,
-) -> None:
-    """Surface native tools that resolve into BOTH allow and deny lists.
+def _capabilities_from_field(content: str, field_name: str) -> list[str]:
+    match = re.search(rf"^{re.escape(field_name)}:\s*(.+)$", content, flags=re.MULTILINE)
+    if match is None:
+        return []
+    inner = _clean_cap_list_str(match.group(1))
+    return [
+        capability
+        for raw in inner.split(",")
+        if (capability := raw.strip()) and capability not in _NOISE_TOKENS
+    ]
 
-    When a platform's tool_map folds several capabilities onto one native tool
-    (e.g. cursor maps both ``file_edit`` and ``file_write`` → ``Write``), an
-    agent listing one collapsed capability under ``tools`` and another under
-    ``disallowedTools`` ends up emitting the same native tool in both lists.
-    The translator does not silently drop either side — it records a WARN
-    naming the colliding tool and the source capabilities so the conflict is
-    visible at deploy time.
-    """
-    if warnings_collector is None:
-        return
-    allow = resolved_by_field.get("tools", {})
-    deny = resolved_by_field.get("disallowedTools", {})
-    for native in sorted(set(allow) & set(deny)):
-        caps = sorted(allow[native] | deny[native])
-        warnings_collector.append(
-            f"WARN: {platform_id}: native tool {native!r} resolves into both "
-            f"'tools' and 'disallowedTools' from capabilities {caps} — "
-            "the allow/deny declaration is ambiguous on this platform."
-        )
+
+def _set_frontmatter_scalar(content: str, key: str, value: str) -> str:
+    fm_split = _split_frontmatter(content)
+    if fm_split is None:
+        return content
+    prefix, fm_body, body = fm_split
+    pattern = re.compile(rf"^{re.escape(key)}:\s*.*$", re.MULTILINE)
+    if pattern.search(fm_body):
+        fm_body = pattern.sub(f"{key}: {value}", fm_body, count=1)
+    else:
+        fm_body += f"{key}: {value}\n"
+    return prefix + fm_body + "---\n" + body
 
 
 _MODEL_TIER_LINE_RE = re.compile(r"^model_tier:\s*(\S+).*$", re.MULTILINE)

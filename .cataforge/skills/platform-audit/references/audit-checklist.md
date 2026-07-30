@@ -140,7 +140,7 @@
 
 ---
 
-## 6. Hook Tool Overrides (hooks.tool_overrides)
+## 6. Hook Matchers (CapabilityBinding.hook_matchers)
 
 当平台的 hook matcher 使用的工具名称与 tool_map 不同时需要配置:
 
@@ -152,11 +152,11 @@
 
 ### 典型案例
 - Codex: `tool_map.shell_exec = "shell"` 但 hook PreToolUse matcher 使用 `"Bash"`
-- 需配置 `hooks.tool_overrides.shell_exec: Bash`
+- 需配置 `tool_map.shell_exec.hook_matchers: [Bash]`
 
 ---
 
-## 7. Hook Degradation (hooks.degradation)
+## 7. Hook Policies (hooks.policies)
 
 每个 hook 脚本在该平台的可用性:
 
@@ -166,15 +166,16 @@
 | `log_agent_dispatch` | PreToolUse + agent_dispatch matcher 是否支持？ |
 | `validate_agent_result` | PostToolUse + agent_dispatch matcher 是否支持？ |
 | `lint_format` | PostToolUse + file_edit matcher 是否支持？ |
-| `detect_correction` | PreToolUse + user_question matcher 是否支持？ |
+| `detect_correction` | PostToolUse + user_question matcher 是否支持？ |
 | `notify_done` | Stop 事件是否支持？ |
 | `notify_permission` | Notification 事件是否支持？ |
 | `session_context` | SessionStart 事件是否支持？ |
 
 ### 判定规则
-- 事件存在 + matcher 存在 → `native`
-- 事件存在但 matcher 不存在 → `degraded`（仅事件触发，无工具过滤）
-- 事件不存在 → `degraded`（需规则注入或 prompt 指令替代）
+- 原生路径完整 → `native`
+- 原生路径有条件可用且另有部分 fallback → `hybrid`
+- 事件或 matcher 不存在但有 fallback → `degraded`
+- 不生成任何行为 → `unsupported`
 
 ---
 
@@ -289,8 +290,8 @@
 | permissions 变更 | `profile.yaml` |
 | model_routing 变更 | `profile.yaml` |
 | hook event 变更 | `profile.yaml`, `test_hook_bridge.py` |
-| tool_overrides 变更 | `profile.yaml`, `bridge.py`, `test_hook_bridge.py` |
-| degradation 变更 | `profile.yaml` |
+| hook_matchers 变更 | `profile.yaml`, `bridge.py`, `test_hook_bridge.py` |
+| hook policy / fallback 变更 | `profile.yaml`, `bridge.py`, `test_hook_bridge_degradation.py` |
 | agent format 变更 | `profile.yaml`, `<platform>.py`, `test_deployer_refactor.py` |
 | dispatch 变更 | `profile.yaml`, `dispatch-prompt.md` |
 | 新增核心 Capability | `types.py`, `conformance.py`, 所有 `profile.yaml` |

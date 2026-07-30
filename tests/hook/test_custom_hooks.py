@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from cataforge.adapter.platform.profile_schema import HookPolicy
 from cataforge.runtime.hook.bridge import generate_platform_hooks
 
 
@@ -20,16 +21,15 @@ class _StubAdapter:
     platform_id = "test"
     hook_entry_type = "command"
 
-    def get_tool_map(self) -> dict[str, str | None]:
-        return {"shell_exec": "Bash"}
-
     @property
     def hook_event_map(self) -> dict[str, str | None]:
         return {"PreToolUse": "PreToolUse"}
 
-    @property
-    def hook_degradation(self) -> dict[str, str]:
-        return {"custom:my_scan": "native"}
+    def get_hook_policy(self, _hook_name: str) -> HookPolicy:
+        return HookPolicy(mode="native")
+
+    def resolve_hook_matcher(self, capability: str) -> str | None:
+        return {"shell_exec": "Bash"}.get(capability)
 
     def get_hook_command_template(self) -> str:
         return "python -m cataforge.runtime.hook.scripts.{module}"

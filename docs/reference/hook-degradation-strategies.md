@@ -1,57 +1,71 @@
-# Hook Degradation Strategies
+# Hook Policies and Fallback Strategies
 
-各平台 `profile.yaml#hooks.degradation` 把 canonical hook 标记为 `native` / `degraded` / 缺失。`native` 表示直接生成平台 hook 配置；`degraded` 表示走 [hooks.yaml#degradation_templates](../../.cataforge/hooks/hooks.yaml) 中的降级策略；缺失等同于 `native`。
+Hook 的平台策略由各 `profile.yaml#hooks.policies.<script>` 独立声明；`.cataforge/hooks/hooks.yaml` 只保存平台无关的事件、matcher capability 与脚本定义。
 
-本文档列出 `cataforge.runtime.hook.bridge.apply_degradation` 当前实装的降级策略。策略集合的权威定义是模块常量 [`KNOWN_DEGRADATION_STRATEGIES`](../../src/cataforge/runtime/hook/bridge.py)。
-
-## 策略一览
-
-| strategy | 输出文件 | 适用场景 |
-|---|---|---|
-| `rules_injection` | `overrides/rules/auto-safety-degradation.md` | 把安全规则注入为常驻 alwaysApply rule（如 `guard_dangerous` 在缺失 PreToolUse 的平台上的兜底） |
-| `prompt_instruction` | `overrides/rules/auto-prompt-instructions.md` | 把"agent 应主动执行某命令"的指令注入为常驻规则（如 `log_agent_dispatch` 在 hook matcher 不支持 agent 类型时的审计日志命令） |
-| `prompt_checklist` | `overrides/rules/auto-prompt-checklists.md` | 把"返回前自检"的检查清单注入为常驻规则（如 `validate_agent_result` 在缺失子代理 PostToolUse 的平台上的兜底） |
-| `skip` | — | 该 hook 在当前平台无降级补偿；deploy 输出一行 `SKIP: <hook> — <reason>` 让丢失可见，不写任何文件 |
-
-未列入上表的 strategy 会被 bridge.apply_degradation 视为**未知策略**，emit 一行 `WARN: <hook> — unrecognised degradation strategy '<X>'; nothing emitted.`。这是防呆兜底：未来在 hooks.yaml 加新 strategy 但忘了在 bridge.py 实装时，deploy / doctor 会立刻报告，而不是悄无声息丢弃。
-
-## 输出文件格式
-
-三个 `*-injection`/`*-instruction`/`*-checklist` 文件结构一致：
-
-```markdown
-# {Heading}
-
-## {hook_name_1}
-
-{content_1}
-
-## {hook_name_2}
-
-{content_2}
+```yaml
+hooks:
+  policies:
+    detect_correction:
+      mode: hybrid
+      fallback:
+        strategy: prompt_instruction
+        coverage: partial
+        reason: "结构化路径只覆盖 request_user_input"
+        asset: fallbacks/correction-record.md
 ```
 
-每个 fragment 带 `## {hook_name}` 二级标题以便追溯来源。同一 strategy 多个 hook 聚合到同一文件，不同 strategy 不混写。
+## Mode
 
-## 平台消费规则注入的差异
+| mode | 原生 hook | fallback | 用途 |
+|---|:---:|:---:|---|
+| `native` | 是 | 否 | 平台原生行为完整 |
+| `hybrid` | 是 | 是 | 原生行为有条件可用，fallback 补充未覆盖路径 |
+| `degraded` | 否 | 是 | 平台没有可用原生事件或工具 |
+| `unsupported` | 否 | 否 | 明确不可用；deploy 输出诊断 |
 
-文件被写到 `.cataforge/platforms/{platform}/overrides/rules/` 后，是否进一步注入到 agent 上下文取决于平台 adapter：
+`hybrid` 和 `degraded` 必须提供 `fallback`。旧 `hooks.degradation`、`hooks.tool_overrides` 与全局 `degradation_templates` 已删除，不提供兼容解析。
 
-| 平台 | adapter 行为 |
+## Fallback
+
+| 字段 | 说明 |
 |---|---|
-| **cursor** | `CursorAdapter._generate_mdc_rules` 扫描 `overrides/rules/`，把每个 `.md` wrap 成 `.cursor/rules/*.mdc`，frontmatter `alwaysApply: true`。规则文件常驻每次会话 |
-| **claude-code** | rules 通过 `.claude/rules` 目录（`context_injection.rules_distribution`），activation 由 agent 自行 Read。当前实装 deploy 不主动 wire `overrides/rules/` 到 `.claude/rules` |
-| **codex** | `instruction_file.additional_outputs: []`，`context_injection.rules_distribution.activation: manual_read`。`overrides/rules/` 文件**会被写盘但不自动注入** — agent 需通过 AGENTS.md 提示或人工 Read 才能见到 |
-| **opencode** | 通过 plugin 文件（`emit_plugin_hooks`）独立处理 hook，per-hook degradation strategy 与 plugin 互补 |
+| `strategy` | `rules_injection` / `prompt_instruction` / `prompt_checklist` / `skip` |
+| `coverage` | `equivalent` / `partial` / `none`；不得把缺失或启发式 fallback 标为 equivalent |
+| `reason` | 为什么需要 fallback，以及覆盖边界 |
+| `asset` | 相对 `.cataforge/platforms/<id>/` 的源资产路径 |
+| `content` | 小型内联文本；与 `asset` 二选一即可 |
 
-也就是说：本机制保证**所有 degraded hook 的降级内容都能被写盘**，但**实际是否对 agent 生效**与平台 adapter 的 rule 消费策略耦合。如需让 Codex 等平台真正常驻这些规则，需要单独 PR 扩展该平台 adapter 的 `overrides/rules/` wiring（目前只有 Cursor 做了这件事）。
+策略输出：
 
-## 何时新增 strategy
+| strategy | 输出 |
+|---|---|
+| `rules_injection` | 临时 staging 的 `auto-safety-degradation.md`，随后渲染到平台规则目录 |
+| `prompt_instruction` | 临时 staging 的 `auto-prompt-instructions.md`，随后渲染到平台规则目录 |
+| `prompt_checklist` | 临时 staging 的 `auto-prompt-checklists.md`，随后渲染到平台规则目录 |
+| `skip` | 不写文件，只输出带 reason 的 SKIP 诊断 |
 
-新增 strategy 必须**同步**修改三处：
+三个文本策略按 hook 名聚合，每段带 `## <hook_name>` 标题以便追溯。staging
+目录由 deploy 持有并在结束时清理，因此生成 fallback 不会反向污染 `.cataforge`
+源资产。策略枚举由 profile schema 与 `bridge.KNOWN_DEGRADATION_STRATEGIES` 共同约束。
 
-1. `.cataforge/hooks/hooks.yaml` 在 `degradation_templates` 下定义模板
-2. `src/cataforge/runtime/hook/bridge.py` 把新 key 加入 `KNOWN_DEGRADATION_STRATEGIES`，并在 `_AGGREGATE_OUTPUTS` 注册输出文件名（除非该 strategy 不写文件）
-3. 本文档 §策略一览 表追加一行
+## 平台消费差异
 
-模块级守卫测试 [tests/hook/test_bridge_degradation.py](../../tests/hook/test_bridge_degradation.py) 的 `test_known_strategies_set_matches_aggregate_outputs_plus_skip` 断言 `KNOWN_DEGRADATION_STRATEGIES == set(_AGGREGATE_OUTPUTS keys) | {"skip"}`；不同步会立刻 FAIL。
+fallback 资产最终是否自动进入模型上下文，仍取决于平台的 rule 分发能力：
+
+| 平台 | 行为 |
+|---|---|
+| Cursor | `overrides/rules/` 转成 `.cursor/rules/*.mdc`，alwaysApply |
+| Claude Code | 通过 `.claude/rules` 分发；activation 由 profile 声明 |
+| Codex | 规则分发为 `manual_read`；当前 correction fallback 明确仅为 partial 人工记录指令 |
+| OpenCode | plugin hook 与 fallback 规则互补 |
+
+Codex `detect_correction` 使用 `hybrid`：结构化 `request_user_input` 响应由原生 `PostToolUse` hook 解析；用户直接在文本里纠正时，仅提供明确的人工记录指令，不用文本启发式猜测纠偏。
+
+## 新增策略
+
+新增 strategy 必须同步：
+
+1. 扩展 `HookFallback.strategy` schema；
+2. 在 `bridge.py` 注册生成逻辑与聚合输出；
+3. 增加 native/hybrid/degraded/unsupported 与 coverage 的 conformance 测试；
+4. 更新本文档。

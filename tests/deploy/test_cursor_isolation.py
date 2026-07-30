@@ -21,6 +21,7 @@ import yaml
 from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
 from cataforge.runtime.deploy.deployer import Deployer
+from tests.profile_factory import typed_profile
 
 _CURSOR_PROFILE_BASE: dict = {
     "platform_id": "cursor",
@@ -50,7 +51,7 @@ _CURSOR_PROFILE_BASE: dict = {
 def _write_profile(base: Path, profile: dict) -> None:
     p = base / ".cataforge" / "platforms" / "cursor"
     p.mkdir(parents=True, exist_ok=True)
-    (p / "profile.yaml").write_text(yaml.safe_dump(profile), encoding="utf-8")
+    (p / "profile.yaml").write_text(yaml.safe_dump(typed_profile(profile)), encoding="utf-8")
 
 
 def _init_project(tmp_path: Path) -> Path:
@@ -71,9 +72,7 @@ def _init_project(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (cf / "hooks").mkdir()
-    (cf / "hooks" / "hooks.yaml").write_text(
-        "hooks: {}\ndegradation_templates: {}\n", encoding="utf-8"
-    )
+    (cf / "hooks" / "hooks.yaml").write_text("schema_version: 2\nhooks: {}\n", encoding="utf-8")
     (cf / "mcp").mkdir()
     return root
 

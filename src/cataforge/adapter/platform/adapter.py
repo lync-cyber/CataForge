@@ -10,9 +10,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from cataforge.adapter.platform.profile_schema import PlatformProfile
+from cataforge.adapter.platform.profile_schema import (
+    CapabilityBinding,
+    CapabilityContext,
+    CapabilityResolution,
+    HookPolicy,
+    PlatformProfile,
+)
 from cataforge.utils.interpreter import hook_command_template
 
 
@@ -36,34 +42,88 @@ class PlatformAdapter(ABC):
     @abstractmethod
     def display_name(self) -> str: ...
 
-    def get_tool_map(self) -> dict[str, str | None]:
-        """Return capability_id → native_tool_name mapping (core 10).
+    def capability_ids(self) -> set[str]:
+        """Return all core and extended capability identifiers."""
+        return set(self._profile.tool_map) | set(self._profile.extended_capabilities)
 
-        Default: read ``tool_map`` from the platform profile.  Subclasses
-        override only when they need to synthesize the mapping differently.
-        """
-        return dict(self._profile.tool_map)
+    def get_capability_binding(self, capability: str) -> CapabilityBinding | None:
+        """Return the typed core/extended binding for *capability*."""
+        return self._profile.tool_map.get(capability) or self._profile.extended_capabilities.get(
+            capability
+        )
 
-    def get_extended_tool_map(self) -> dict[str, str | None]:
-        """Return extended capability → native tool name mapping.
+    def resolve_capability(
+        self,
+        capability: str,
+        context: CapabilityContext | None = None,
+    ) -> CapabilityResolution:
+        """Resolve static and conditional support for one capability."""
+        binding = self.get_capability_binding(capability)
+        if binding is None or binding.kind == "unsupported":
+            return CapabilityResolution(
+                capability=capability,
+                tool=None,
+                status="unsupported",
+                available=False,
+                reason="no platform capability binding",
+            )
 
-        Extended capabilities (notebook_edit, browser_preview, etc.) are
-        declared in ``profile.yaml`` under ``extended_capabilities``.
-        """
-        return dict(self._profile.extended_capabilities)
+        clauses = binding.availability.any_of
+        base_status: Literal["native", "replacement"] = (
+            "replacement" if binding.kind == "replacement" else "native"
+        )
+        if not clauses:
+            return CapabilityResolution(
+                capability=capability,
+                tool=binding.tool,
+                status=base_status,
+                available=True,
+                hook_matchers=list(binding.hook_matchers),
+            )
+        if context is None:
+            return CapabilityResolution(
+                capability=capability,
+                tool=binding.tool,
+                status="conditional",
+                available=None,
+                hook_matchers=list(binding.hook_matchers),
+                reason="runtime context required",
+            )
 
-    def get_full_tool_map(self) -> dict[str, str | None]:
-        """Return combined core + extended capability mapping."""
-        combined = self.get_tool_map()
-        combined.update(self.get_extended_tool_map())
-        return combined
+        for clause in clauses:
+            if clause.thread_scopes and context.thread_scope not in clause.thread_scopes:
+                continue
+            if (
+                clause.collaboration_modes
+                and context.collaboration_mode not in clause.collaboration_modes
+            ):
+                continue
+            if not set(clause.required_features).issubset(context.enabled_features):
+                continue
+            return CapabilityResolution(
+                capability=capability,
+                tool=binding.tool,
+                status=base_status,
+                available=True,
+                hook_matchers=list(binding.hook_matchers),
+            )
 
-    def resolve_tool_name(self, capability: str) -> str | None:
-        return self.get_full_tool_map().get(capability)
+        return CapabilityResolution(
+            capability=capability,
+            tool=binding.tool,
+            status="conditional",
+            available=False,
+            hook_matchers=list(binding.hook_matchers),
+            reason="runtime context does not satisfy availability clauses",
+        )
 
     def resolve_tools_list(self, capabilities: list[str]) -> list[str]:
-        tool_map = self.get_full_tool_map()
-        return [name for cap in capabilities if (name := tool_map.get(cap)) is not None]
+        resolved: list[str] = []
+        for capability in capabilities:
+            resolution = self.resolve_capability(capability)
+            if resolution.available is not False and resolution.tool is not None:
+                resolved.append(resolution.tool)
+        return resolved
 
     def get_hook_command_template(self) -> str:
         """Return the hook command template with {module} placeholder.
@@ -190,18 +250,22 @@ class PlatformAdapter(ABC):
         return dict(self._profile.hooks.event_map)
 
     @property
-    def hook_degradation(self) -> dict[str, str]:
-        return dict(self._profile.hooks.degradation)
+    def hook_policies(self) -> dict[str, HookPolicy]:
+        """Typed hook policies declared by the platform profile."""
+        return dict(self._profile.hooks.policies)
 
-    @property
-    def hook_tool_overrides(self) -> dict[str, str]:
-        """Per-platform overrides for hook matcher tool names.
+    def get_hook_policy(self, hook_name: str) -> HookPolicy:
+        """Return the declared policy or the native default."""
+        if policy := self._profile.hooks.policies.get(hook_name):
+            return policy
+        return HookPolicy(mode="native")
 
-        Hook matchers may use different names from the tool_map (e.g. Codex
-        tool_map has ``shell_exec: shell`` but hook events use ``Bash``).
-        When present, these override tool_map for hook matcher resolution only.
-        """
-        return dict(self._profile.hooks.tool_overrides)
+    def resolve_hook_matcher(self, capability: str) -> str | None:
+        """Resolve a hook matcher without conflating it with model tool names."""
+        binding = self.get_capability_binding(capability)
+        if binding and binding.hook_matchers:
+            return "|".join(binding.hook_matchers)
+        return binding.tool if binding else None
 
     @property
     def hook_entry_type(self) -> str | None:
@@ -257,6 +321,11 @@ class PlatformAdapter(ABC):
     def agent_isolation_modes(self) -> list[str]:
         """Isolation modes the platform supports (e.g. ``worktree``)."""
         return list(self._profile.agent_config.isolation_modes)
+
+    @property
+    def agent_tool_policy(self) -> str:
+        """Native per-agent tool-policy surface exposed by the platform."""
+        return self._profile.agent_config.tool_policy
 
     def get_supported_features(self) -> dict[str, bool]:
         """Return platform feature flags.

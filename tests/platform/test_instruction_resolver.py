@@ -16,6 +16,7 @@ from cataforge.adapter.platform.registry import (
     read_execution_mode,
     resolve_instruction_file,
 )
+from tests.profile_factory import typed_profile
 
 
 def _make_project(tmp_path: Path, platform_id: str, profiles: dict) -> Path:
@@ -28,7 +29,7 @@ def _make_project(tmp_path: Path, platform_id: str, profiles: dict) -> Path:
     for pid, profile in profiles.items():
         p = cataforge / "platforms" / pid
         p.mkdir(parents=True)
-        (p / "profile.yaml").write_text(yaml.dump(profile), encoding="utf-8")
+        (p / "profile.yaml").write_text(yaml.dump(typed_profile(profile)), encoding="utf-8")
     return tmp_path
 
 

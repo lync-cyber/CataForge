@@ -15,6 +15,7 @@ import yaml
 from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
 from cataforge.runtime.deploy.deployer import Deployer
+from tests.profile_factory import typed_profile
 
 _PROFILE: dict = {
     "platform_id": "claude-code",
@@ -66,14 +67,12 @@ def _init_project(root: Path) -> Path:
     (cf / "agents" / "architect").mkdir(parents=True)
     (cf / "agents" / "architect" / "AGENT.md").write_text(_AGENT_MD, encoding="utf-8")
     (cf / "hooks").mkdir()
-    (cf / "hooks" / "hooks.yaml").write_text(
-        "hooks: {}\ndegradation_templates: {}\n", encoding="utf-8"
-    )
+    (cf / "hooks" / "hooks.yaml").write_text("schema_version: 2\nhooks: {}\n", encoding="utf-8")
     (cf / "mcp").mkdir()
     (cf / "skills").mkdir()
     pdir = cf / "platforms" / "claude-code"
     pdir.mkdir(parents=True)
-    (pdir / "profile.yaml").write_text(yaml.safe_dump(_PROFILE), encoding="utf-8")
+    (pdir / "profile.yaml").write_text(yaml.safe_dump(typed_profile(_PROFILE)), encoding="utf-8")
     return root
 
 

@@ -3,22 +3,25 @@ display_name: Claude Code
 version_tested: "2.1"
 
 tool_map:
-  file_read: Read
-  file_write: Write
-  file_edit: Edit
-  file_glob: Glob
-  file_grep: Grep
-  shell_exec: Bash
-  web_search: WebSearch
-  web_fetch: WebFetch
-  user_question: AskUserQuestion
-  agent_dispatch: Agent
+  file_read: {tool: Read, kind: native}
+  file_write: {tool: Write, kind: native}
+  file_edit:
+    tool: Edit
+    kind: native
+    hook_matchers: [Edit, Write]
+  file_glob: {tool: Glob, kind: native}
+  file_grep: {tool: Grep, kind: native}
+  shell_exec: {tool: Bash, kind: native}
+  web_search: {tool: WebSearch, kind: native}
+  web_fetch: {tool: WebFetch, kind: native}
+  user_question: {tool: AskUserQuestion, kind: native}
+  agent_dispatch: {tool: Agent, kind: native}
 
 extended_capabilities:
-  notebook_edit: NotebookEdit
-  browser_preview: preview_start   # via MCP: Claude Preview (preview_screenshot, preview_click, etc.)
-  image_input: Read                # Read tool handles images natively
-  code_review: null                # no dedicated review tool; uses skills/agents
+  notebook_edit: {tool: NotebookEdit, kind: native}
+  browser_preview: {tool: preview_start, kind: replacement}
+  image_input: {tool: Read, kind: native}
+  code_review: {tool: null, kind: unsupported}
 
 agent_definition:
   format: yaml-frontmatter
@@ -39,6 +42,7 @@ command_definition:
   needs_deploy: true
 
 agent_config:
+  tool_policy: allow_deny
   supported_fields:
     - name
     - description
@@ -109,21 +113,19 @@ hooks:
     Stop: Stop
     SessionStart: SessionStart
     Notification: Notification
-  tool_overrides:
-    file_edit: "Edit|Write"   # lint/format must fire after Write (new files) and Edit alike
-  degradation:
-    guard_dangerous: native
-    guard_frozen_docs: native
-    log_agent_dispatch: native
-    validate_agent_result: native
-    lint_format: native
-    detect_correction: native
-    detect_review_flag: native
-    notify_done: native
-    notify_permission: native
-    session_context: native
-    deploy_drift: native
-    git_sync: native
+  policies:
+    guard_dangerous: {mode: native}
+    guard_frozen_docs: {mode: native}
+    log_agent_dispatch: {mode: native}
+    validate_agent_result: {mode: native}
+    lint_format: {mode: native}
+    detect_correction: {mode: native}
+    detect_review_flag: {mode: native}
+    notify_done: {mode: native}
+    notify_permission: {mode: native}
+    session_context: {mode: native}
+    deploy_drift: {mode: native}
+    git_sync: {mode: native}
 
 features:
   cloud_agents: false

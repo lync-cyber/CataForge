@@ -11,6 +11,7 @@ import yaml
 
 from cataforge.adapter.platform.registry import get_adapter
 from cataforge.runtime.hook.bridge import generate_platform_hooks
+from tests.profile_factory import typed_profile
 
 _QUOTED_INTERP = f'"{Path(sys.executable).as_posix()}"'
 
@@ -51,7 +52,6 @@ def project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
                 }
             ],
         },
-        "degradation_templates": {},
     }
     with open(hooks_dir / "hooks.yaml", "w", encoding="utf-8") as f:
         yaml.dump(hooks_spec, f)
@@ -97,12 +97,34 @@ def project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         p = cataforge_dir / "platforms" / pid
         p.mkdir(parents=True)
         with open(p / "profile.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(profile, f)
+            yaml.dump(typed_profile(profile), f)
 
     return tmp_path
 
 
 class TestHookBridge:
+    def test_real_codex_detect_correction_is_native_post_tool_use(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import cataforge.runtime.hook.bridge as bridge
+
+        repo_root = Path(__file__).resolve().parents[2]
+        hooks_yaml = repo_root / ".cataforge" / "hooks" / "hooks.yaml"
+        monkeypatch.setattr(
+            bridge,
+            "load_hooks_spec",
+            lambda _p=None: bridge.yaml.safe_load(hooks_yaml.read_text(encoding="utf-8")),
+        )
+        adapter = get_adapter("codex", repo_root / ".cataforge" / "platforms")
+
+        hooks, warnings = generate_platform_hooks(adapter)
+
+        correction = [
+            group for group in hooks["PostToolUse"] if group["matcher"] == "request_user_input"
+        ]
+        assert len(correction) == 1
+        assert not any("detect_correction" in warning for warning in warnings)
+
     def test_claude_code_hooks(self, project_dir: Path) -> None:
         platforms_dir = project_dir / ".cataforge" / "platforms"
         adapter = get_adapter("claude-code", platforms_dir)
@@ -129,12 +151,14 @@ class TestHookBridge:
         post = hooks["PostToolUse"]
         assert post[0]["matcher"] == "Edit|Write"
 
-    def test_real_claude_code_profile_overrides_file_edit_to_edit_write(self) -> None:
-        """Guard the shipped profile value, not just the bridge mechanism."""
+    def test_real_claude_code_profile_declares_both_edit_matchers(self) -> None:
+        """Guard the shipped typed binding, not just the bridge mechanism."""
         repo_root = Path(__file__).resolve().parents[2]
         adapter = get_adapter("claude-code", repo_root / ".cataforge" / "platforms")
 
-        assert adapter.hook_tool_overrides.get("file_edit") == "Edit|Write"
+        binding = adapter.get_capability_binding("file_edit")
+        assert binding is not None
+        assert binding.hook_matchers == ["Edit", "Write"]
 
     def test_cursor_hooks_use_module_invocation(self, project_dir: Path) -> None:
         """Hooks run the deploying interpreter with -m cataforge.runtime.hook.scripts.<module>."""
@@ -161,16 +185,16 @@ class TestHookBridge:
         post = hooks["postToolUse"]
         assert post[0]["matcher"] == "Write"  # not "Edit"
 
-    def test_codex_tool_overrides_used_for_matcher(self, project_dir: Path) -> None:
-        """hook_tool_overrides take precedence over tool_map for matchers."""
+    def test_codex_binding_hook_matcher_used(self, project_dir: Path) -> None:
+        """Binding hook matchers are independent from model-facing tool names."""
         platforms_dir = project_dir / ".cataforge" / "platforms"
         adapter = get_adapter("codex", platforms_dir)
 
         hooks, _warnings = generate_platform_hooks(adapter)
 
-        # shell_exec tool_map="shell" but tool_overrides="Bash"
+        # shell_exec tool="shell" but hook_matchers=["Bash"]
         pre = hooks["PreToolUse"]
-        assert pre[0]["matcher"] == "Bash"  # from tool_overrides, not "shell"
+        assert pre[0]["matcher"] == "Bash"
 
     def test_claude_code_hook_entry_type_is_command(self, project_dir: Path) -> None:
         """Claude Code's hook schema only accepts type: command.
@@ -236,7 +260,7 @@ class TestHookBridgeWarnings:
     ) -> None:
         import cataforge.runtime.hook.bridge as bridge
 
-        spec = {"schema_version": 999, "hooks": {}, "degradation_templates": {}}
+        spec = {"schema_version": 999, "hooks": {}}
         monkeypatch.setattr(bridge, "load_hooks_spec", lambda _p=None: spec)
 
         platforms_dir = project_dir / ".cataforge" / "platforms"

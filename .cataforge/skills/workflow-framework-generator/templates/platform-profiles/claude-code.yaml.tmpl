@@ -2,16 +2,19 @@ platform_id: claude-code
 display_name: Claude Code
 
 tool_map:
-  file_read: Read
-  file_write: Write
-  file_edit: Edit
-  file_glob: Glob
-  file_grep: Grep
-  shell_exec: Bash
-  web_search: WebSearch
-  web_fetch: WebFetch
-  user_question: AskUserQuestion
-  agent_dispatch: Agent
+  file_read: {tool: Read, kind: native}
+  file_write: {tool: Write, kind: native}
+  file_edit: {tool: Edit, kind: native, hook_matchers: [Edit, Write]}
+  file_glob: {tool: Glob, kind: native}
+  file_grep: {tool: Grep, kind: native}
+  shell_exec: {tool: Bash, kind: native}
+  web_search: {tool: WebSearch, kind: native}
+  web_fetch: {tool: WebFetch, kind: native}
+  user_question: {tool: AskUserQuestion, kind: native}
+  agent_dispatch: {tool: Agent, kind: native}
+
+agent_config:
+  tool_policy: allow_deny
 
 agent_definition:
   format: yaml-frontmatter
@@ -32,6 +35,7 @@ hooks:
     PostToolUse: PostToolUse
     Stop: Stop
     SessionStart: SessionStart
+  policies: {}
 
 features:
   parallel_agents: true

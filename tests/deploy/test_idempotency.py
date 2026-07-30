@@ -38,6 +38,7 @@ import yaml
 from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
 from cataforge.runtime.deploy.deployer import Deployer
+from tests.profile_factory import typed_profile
 
 # ---------------------------------------------------------------------------
 # Test fixtures
@@ -100,9 +101,7 @@ def _init_project(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (cf / "hooks").mkdir(exist_ok=True)
-    (cf / "hooks" / "hooks.yaml").write_text(
-        "hooks: {}\ndegradation_templates: {}\n", encoding="utf-8"
-    )
+    (cf / "hooks" / "hooks.yaml").write_text("schema_version: 2\nhooks: {}\n", encoding="utf-8")
     (cf / "mcp").mkdir(exist_ok=True)
     (cf / "skills").mkdir(exist_ok=True)
     (cf / "skills" / "demo-skill").mkdir(exist_ok=True)
@@ -117,7 +116,9 @@ def _init_project(tmp_path: Path) -> Path:
 
     pdir = cf / "platforms" / "claude-code"
     pdir.mkdir(parents=True, exist_ok=True)
-    (pdir / "profile.yaml").write_text(yaml.safe_dump(_CLAUDE_PROFILE), encoding="utf-8")
+    (pdir / "profile.yaml").write_text(
+        yaml.safe_dump(typed_profile(_CLAUDE_PROFILE)), encoding="utf-8"
+    )
     return root
 
 

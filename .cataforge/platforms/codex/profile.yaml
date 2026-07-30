@@ -3,22 +3,35 @@ display_name: Codex CLI
 version_tested: "2026.07"
 
 tool_map:
-  file_read: shell
-  file_write: apply_patch
-  file_edit: apply_patch
-  file_glob: shell
-  file_grep: shell
-  shell_exec: shell
-  web_search: web_search          # 默认 cached 模式；live 需 --search / web_search="live"
-  web_fetch: shell
-  user_question: null
-  agent_dispatch: spawn_agent
+  file_read: {tool: shell, kind: replacement}
+  file_write: {tool: apply_patch, kind: native}
+  file_edit: {tool: apply_patch, kind: native}
+  file_glob: {tool: shell, kind: replacement}
+  file_grep: {tool: shell, kind: replacement}
+  shell_exec:
+    tool: shell
+    kind: native
+    hook_matchers: [Bash]
+  web_search: {tool: web_search, kind: native}
+  web_fetch: {tool: shell, kind: replacement}
+  user_question:
+    tool: request_user_input
+    kind: native
+    hook_matchers: [request_user_input]
+    availability:
+      any_of:
+        - thread_scopes: [root]
+          collaboration_modes: [plan]
+        - thread_scopes: [root]
+          collaboration_modes: [default]
+          required_features: [default_mode_request_user_input]
+  agent_dispatch: {tool: spawn_agent, kind: native}
 
 extended_capabilities:
-  notebook_edit: null
-  browser_preview: null
-  image_input: image             # -i flag / paste screenshots
-  code_review: review            # /review command, dedicated reviewer
+  notebook_edit: {tool: null, kind: unsupported}
+  browser_preview: {tool: null, kind: unsupported}
+  image_input: {tool: image, kind: native}
+  code_review: {tool: review, kind: native}
 
 agent_definition:
   format: toml
@@ -38,6 +51,7 @@ command_definition:
   needs_deploy: false
 
 agent_config:
+  tool_policy: inherit_only
   supported_fields:
     - name
     - description
@@ -85,23 +99,25 @@ hooks:
     Stop: Stop
     SessionStart: SessionStart
     Notification: PermissionRequest
-  # hook payload / matcher 使用 canonical 名（Bash / apply_patch / spawn_agent），
-  # 与模型侧工具名（shell）分属两个命名空间。
-  tool_overrides:
-    shell_exec: Bash
-  degradation:
-    guard_dangerous: native        # PreToolUse+Bash；unified_exec 流式 shell 拦截不完整，覆盖有缺口
-    guard_frozen_docs: native      # PreToolUse+apply_patch（payload 从补丁文本解析路径）
-    log_agent_dispatch: native     # PreToolUse+spawn_agent
-    validate_agent_result: native  # PostToolUse+spawn_agent
-    lint_format: native            # PostToolUse+apply_patch
-    detect_correction: degraded    # 无 user_question 工具
-    detect_review_flag: native     # PostToolUse+spawn_agent（agent 过滤走运行时 matcher_agent_id）
-    notify_done: native            # Stop 事件（stdout 须为 JSON 或空）
-    notify_permission: native      # PermissionRequest 事件
-    session_context: native        # SessionStart 事件
-    deploy_drift: native           # SessionStart 事件
-    git_sync: native               # SessionStart 事件
+  policies:
+    guard_dangerous: {mode: native}
+    guard_frozen_docs: {mode: native}
+    log_agent_dispatch: {mode: native}
+    validate_agent_result: {mode: native}
+    lint_format: {mode: native}
+    detect_correction:
+      mode: hybrid
+      fallback:
+        strategy: prompt_instruction
+        coverage: partial
+        reason: "结构化检测仅覆盖 root thread 的 request_user_input；直接文本纠偏需人工记录"
+        asset: fallbacks/correction-record.md
+    detect_review_flag: {mode: native}
+    notify_done: {mode: native}
+    notify_permission: {mode: native}
+    session_context: {mode: native}
+    deploy_drift: {mode: native}
+    git_sync: {mode: native}
 
 features:
   cloud_agents: true             # codex cloud — background parallel tasks

@@ -28,7 +28,7 @@
   影响: profile.yaml
 - [agent_config] 新增字段: effort, color, isolation
   影响: profile.yaml
-- [hooks.degradation] guard_dangerous: degraded → native (Codex 已支持 hooks.json)
+- [hooks.policies] detect_correction: degraded → hybrid (Codex 原生 PostToolUse + partial fallback)
   影响: profile.yaml, hook bridge 生成
 ```
 

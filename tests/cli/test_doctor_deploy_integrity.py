@@ -103,7 +103,9 @@ class TestDoctorAsIntegrityGate:
     ) -> None:
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+            "schema_version: 2\nhooks: {}\n", encoding="utf-8"
+        )
         # skills/ deliberately missing
         monkeypatch.chdir(root)
 
@@ -119,7 +121,9 @@ class TestDoctorAsIntegrityGate:
         """Deploy manifest recorded → owned paths must exist."""
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+            "schema_version: 2\nhooks: {}\n", encoding="utf-8"
+        )
         _make_skill(root / ".cataforge" / "skills", "alpha")
         _write_platform_record(root, "claude-code", [".claude/skills/alpha"])
         # No .claude/skills/ created — owned but missing.
@@ -138,7 +142,9 @@ class TestDoctorAsIntegrityGate:
         skill name in the output."""
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+            "schema_version: 2\nhooks: {}\n", encoding="utf-8"
+        )
         src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
         deployed_skills = root / ".claude" / "skills"
         _link_skill(src_skill, deployed_skills)
@@ -162,7 +168,9 @@ class TestDoctorAsIntegrityGate:
         stricter checks land."""
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+            "schema_version: 2\nhooks: {}\n", encoding="utf-8"
+        )
         src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
         _link_skill(src_skill, root / ".claude" / "skills")
         # ``.claude/settings.json`` is in the owned provenance map — create
@@ -186,7 +194,9 @@ class TestDoctorAsIntegrityGate:
         Mirrors ``deploy_commands`` returning early when the source is absent."""
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+            "schema_version: 2\nhooks: {}\n", encoding="utf-8"
+        )
         src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
         _link_skill(src_skill, root / ".claude" / "skills")
         (root / ".claude").mkdir(exist_ok=True)
@@ -208,7 +218,9 @@ class TestDoctorAsIntegrityGate:
         integrity failure."""
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+            "schema_version: 2\nhooks: {}\n", encoding="utf-8"
+        )
         src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
         _link_skill(src_skill, root / ".claude" / "skills")
         _write_platform_record(
@@ -226,7 +238,9 @@ class TestDoctorAsIntegrityGate:
         """Final ``Summary:`` row makes the verdict scannable."""
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+            "schema_version: 2\nhooks: {}\n", encoding="utf-8"
+        )
         monkeypatch.chdir(root)
 
         result = CliRunner().invoke(doctor_command, [])
@@ -241,7 +255,9 @@ class TestDoctorAsIntegrityGate:
         root = _minimal_project(tmp_path)
         # skills/ missing → at least one failure expected.
         _populate_source_dirs(root, "agents", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+            "schema_version: 2\nhooks: {}\n", encoding="utf-8"
+        )
         monkeypatch.chdir(root)
 
         result = CliRunner().invoke(doctor_command, [])
@@ -261,7 +277,9 @@ class TestDoctorDeployDrift:
     def _clean_deployed(tmp_path: Path) -> Path:
         root = _minimal_project(tmp_path)
         _populate_source_dirs(root, "agents", "skills", "rules", "hooks", "platforms")
-        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text("version: 1\n", encoding="utf-8")
+        (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+            "schema_version: 2\nhooks: {}\n", encoding="utf-8"
+        )
         src_skill = _make_skill(root / ".cataforge" / "skills", "alpha")
         _link_skill(src_skill, root / ".claude" / "skills")
         (root / ".claude").mkdir(exist_ok=True)

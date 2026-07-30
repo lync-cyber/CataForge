@@ -31,6 +31,7 @@ from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
 from cataforge.runtime.deploy.deployer import Deployer
 from cataforge.utils.locks import LockHeldError
+from tests.profile_factory import typed_profile
 
 # ---------------------------------------------------------------------------
 # Test fixtures
@@ -179,9 +180,7 @@ def _init_project(root: Path, *, framework: dict, profiles: dict[str, dict]) -> 
         encoding="utf-8",
     )
     (cf / "hooks").mkdir(exist_ok=True)
-    (cf / "hooks" / "hooks.yaml").write_text(
-        "hooks: {}\ndegradation_templates: {}\n", encoding="utf-8"
-    )
+    (cf / "hooks" / "hooks.yaml").write_text("schema_version: 2\nhooks: {}\n", encoding="utf-8")
     (cf / "mcp").mkdir(exist_ok=True)
     (cf / "skills").mkdir(exist_ok=True)
     (cf / "skills" / "demo-skill").mkdir(exist_ok=True)
@@ -195,7 +194,7 @@ def _init_project(root: Path, *, framework: dict, profiles: dict[str, dict]) -> 
     for platform_id, profile in profiles.items():
         pdir = cf / "platforms" / platform_id
         pdir.mkdir(parents=True, exist_ok=True)
-        (pdir / "profile.yaml").write_text(yaml.safe_dump(profile), encoding="utf-8")
+        (pdir / "profile.yaml").write_text(yaml.safe_dump(typed_profile(profile)), encoding="utf-8")
     return root
 
 

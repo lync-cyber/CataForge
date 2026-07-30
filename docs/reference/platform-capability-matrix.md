@@ -1,51 +1,70 @@
 # Platform Capability Matrix
 
-本文档列出 CataForge 支持的四个平台对各 capability 的原生映射。`null` 表示该平台无原生工具/能力，deploy 时会被 `PlatformAdapter.resolve_tools_list` 过滤并触发一次性 WARN（见 [src/cataforge/adapter/platform/adapter.py](../../src/cataforge/adapter/platform/adapter.py) `resolve_tools_list`）。
+本文档列出 CataForge 四个平台的类型化 capability 映射。每个绑定都显式声明：
 
-> 数据来源：`.cataforge/platforms/{platform}/profile.yaml`。
+- `tool`：平台原生工具名；不支持时为 `null`
+- `kind`：`native` / `replacement` / `unsupported`
+- `availability.any_of`：可选的运行时可用条件
+- `hook_matchers`：模型工具名与 hook payload matcher 不同时的显式映射
+
+deploy 生成的 `.cataforge/state/<platform>/capability-report.json` 是当前项目的最终解析结果；ownership manifest 不承载能力语义。
 
 ## tool_map（核心工具能力）
 
 | capability | claude-code | cursor | codex | opencode |
 |---|---|---|---|---|
-| `file_read` | `Read` | `Read` | `shell` | `read` |
-| `file_write` | `Write` | `Write` | `apply_patch` | `write` |
-| `file_edit` | `Edit` | `Write` | `apply_patch` | `edit` |
-| `file_glob` | `Glob` | `Glob` | `shell` | `glob` |
-| `file_grep` | `Grep` | `Grep` | `shell` | `grep` |
-| `shell_exec` | `Bash` | `Shell` | `shell` | `bash` |
-| `web_search` | `WebSearch` | `WebSearch` | `web_search` | `websearch` |
-| `web_fetch` | `WebFetch` | **`null`** | `shell` | `webfetch` |
-| `user_question` | `AskUserQuestion` | **`null`** | **`null`** | `question` |
-| `agent_dispatch` | `Agent` | `Task` | `spawn_agent` | `task` |
+| `file_read` | `Read` · native | `Read` · native | `shell` · replacement | `read` · native |
+| `file_write` | `Write` · native | `Write` · native | `apply_patch` · native | `write` · native |
+| `file_edit` | `Edit` · native | `Write` · native | `apply_patch` · native | `edit` · native |
+| `file_glob` | `Glob` · native | `Glob` · native | `shell` · replacement | `glob` · native |
+| `file_grep` | `Grep` · native | `Grep` · native | `shell` · replacement | `grep` · native |
+| `shell_exec` | `Bash` · native | `Shell` · native | `shell` · native | `bash` · native |
+| `web_search` | `WebSearch` · native | `WebSearch` · native | `web_search` · native | `websearch` · native |
+| `web_fetch` | `WebFetch` · native | unsupported | `shell` · replacement | `webfetch` · native |
+| `user_question` | `AskUserQuestion` · native | unsupported | `request_user_input` · conditional native | `question` · native |
+| `agent_dispatch` | `Agent` · native | `Task` · native | `spawn_agent` · native | `task` · native |
+
+Codex `user_question` 仅在 root thread 可用：
+
+- Plan 模式：原生可用
+- Default 模式：仅启用 `default_mode_request_user_input` feature 后可用
+- subagent：不可用
+
+CataForge 不自动开启实验 feature。无 `CapabilityContext` 时，解析结果为 `conditional`，而不是错误地标成无条件 native。
 
 ## extended_capabilities（扩展能力）
 
 | capability | claude-code | cursor | codex | opencode |
 |---|---|---|---|---|
-| `notebook_edit` | `NotebookEdit` | **`null`** | **`null`** | **`null`** |
-| `browser_preview` | `preview_start`（MCP） | `computer` | **`null`** | **`null`** |
-| `image_input` | `Read` | **`null`** | `image` | `image` |
-| `code_review` | **`null`** | **`null`** | `review` | **`null`** |
+| `notebook_edit` | `NotebookEdit` · native | unsupported | unsupported | unsupported |
+| `browser_preview` | `preview_start` · replacement | `computer` · native | unsupported | unsupported |
+| `image_input` | `Read` · native | unsupported | `image` · native | `image` · native |
+| `code_review` | unsupported | unsupported | `review` · native | unsupported |
 
-## Hook 降级
+## Hook 策略
 
-deploy 读取 [.cataforge/hooks/hooks.yaml](../../.cataforge/hooks/hooks.yaml) 后按 `profile.yaml#hooks.degradation` 解析；`native` 表示直接生成平台 hook 配置，`degraded` 表示走 `degradation_templates` 中的降级策略。当前实装策略集合（`rules_injection` / `prompt_instruction` / `prompt_checklist` / `skip`）与各自输出文件的语义见 [hook-degradation-strategies.md](hook-degradation-strategies.md)。
+平台 profile 的 `hooks.policies.<script>` 负责声明运行方式：
 
-下表仅列出"至少有一个平台 degraded"的 hook；未列出的 hook（`guard_dangerous` / `guard_frozen_docs` / `log_agent_dispatch` / `validate_agent_result` / `lint_format` / `detect_review_flag` / `notify_done` / `session_context` / `deploy_drift` / `git_sync`）在四端 `profile.yaml#hooks.degradation` 均**声明**为 `native`（即不在降级表中；属声明默认值，非逐项行为实测）。其中 `deploy_drift` / `git_sync` / `session_context` 是 SessionStart 事件 hook（无 matcher，全事件触发）：`deploy_drift` 比对 `.cataforge/` 源摘要 + 已装包版本与上次 deploy 记录的基线（`.deploy-manifest.json`），漂移时打印"重跑 `cataforge deploy`"提示（observe 型，永不阻断），同名 `cataforge doctor` 检查（`Deploy drift:`，gating=False）走同一逻辑。
+| mode | 行为 |
+|---|---|
+| `native` | 只生成平台原生 hook |
+| `hybrid` | 生成原生 hook，同时部署部分或等价 fallback |
+| `degraded` | 不生成原生 hook，只部署 fallback |
+| `unsupported` | 不生成资产，输出显式诊断 |
 
-| hook | strategy | claude-code | cursor | codex | opencode |
-|---|---|---|---|---|---|
-| `detect_correction` | `skip` | native | degraded → skip + alwaysApply rule（见 [overrides/rules/correction-record.md](../../.cataforge/platforms/cursor/overrides/rules/correction-record.md)） | degraded → skip（无 user_question 工具） | native |
-| `notify_permission` | `skip` | native | degraded → skip | native（PermissionRequest 事件） | degraded → skip（OpenCode 无 Notification 事件） |
+| hook | claude-code | cursor | codex | opencode |
+|---|---|---|---|---|
+| `detect_correction` | native | degraded + `rules_injection`（partial） | **hybrid：原生 `PostToolUse(request_user_input)` + `prompt_instruction`（partial）** | native |
+| `notify_permission` | native | degraded + `skip`（none） | native `PermissionRequest` | degraded + `skip`（none） |
 
-**Codex 平台注**：非托管 hook 须在 Codex 内经 `/hooks` 审查信任后才会执行（按定义 hash 记录，redeploy 改动 hook 后需重新信任）；未信任的 hook 静默不跑。
+Codex 非托管 hook 仍须在 `/hooks` 中审查信任；hook 定义变化后需要重新信任。
 
-## Agent 端如何使用
+## Agent 工具权限
 
-Agent frontmatter 的 `tools.allow` / `tools.deny` 使用 capability id（不是平台工具名）。deploy 时按当前平台 `tool_map` 解析为原生工具名：
+Agent frontmatter 使用 canonical capability id。`agent_config.tool_policy` 决定平台能否执行权限意图：
 
-- 当前平台映射为非 `null` → 工具名进入 agent 配置
-- 映射为 `null` → 工具被静默丢弃，deploy 末尾发一条聚合 WARN 列出所有被丢弃的 capability
+- `allow_deny`：支持 allow 与 deny；同一原生工具等价类内的混合决策直接报错。
+- `allow_only`：只编译 allow；deny 记录为 `unenforced`。
+- `inherit_only`：不生成伪造的 per-agent allow/deny。Codex 使用此模式，继承父任务工具与权限。
 
-如果某 capability 对你的工作流是硬依赖（例如某 agent 必须能 `user_question`），可在 agent 端通过 `disable-model-invocation` 或 platform-specific overrides 处理；不要在 profile.yaml 把 `null` 改成虚构工具名 —— 后者会让 hook 触发匹配失效。
+Codex 只有在能够证明 agent 禁止全部写能力时，才把该 agent 编译为 `sandbox_mode = "read-only"`；其它限制均在 capability report 中标为 `unenforced`。不得使用 hooks、command rules 或不存在的 TOML 字段冒充完整的 per-agent 权限隔离。

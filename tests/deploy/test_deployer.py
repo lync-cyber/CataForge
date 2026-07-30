@@ -11,12 +11,13 @@ import yaml
 from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
 from cataforge.runtime.deploy.deployer import Deployer
+from tests.profile_factory import typed_profile
 
 
 def _write_profile(base: Path, platform_id: str, profile: dict) -> None:
     p = base / ".cataforge" / "platforms" / platform_id
     p.mkdir(parents=True, exist_ok=True)
-    (p / "profile.yaml").write_text(yaml.safe_dump(profile), encoding="utf-8")
+    (p / "profile.yaml").write_text(yaml.safe_dump(typed_profile(profile)), encoding="utf-8")
 
 
 def _init_project(tmp_path: Path) -> Path:
@@ -36,9 +37,7 @@ def _init_project(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (cf / "hooks").mkdir()
-    (cf / "hooks" / "hooks.yaml").write_text(
-        "hooks: {}\ndegradation_templates: {}\n", encoding="utf-8"
-    )
+    (cf / "hooks" / "hooks.yaml").write_text("schema_version: 2\nhooks: {}\n", encoding="utf-8")
     (cf / "mcp").mkdir()
     (cf / "mcp" / "demo.yaml").write_text(
         yaml.safe_dump(
@@ -208,12 +207,12 @@ def _claude_hooks_profile() -> dict:
 def test_deploy_preserves_foreign_settings_and_hook_entries(tmp_path: Path) -> None:
     root = _init_project(tmp_path)
     (root / ".cataforge" / "hooks" / "hooks.yaml").write_text(
+        "schema_version: 2\n"
         "hooks:\n"
         "  PreToolUse:\n"
         "    - script: guard_dangerous\n"
         "      matcher_capability: shell_exec\n"
-        "      type: block\n"
-        "degradation_templates: {}\n",
+        "      type: block\n",
         encoding="utf-8",
     )
     _write_profile(root, "claude-code", _claude_hooks_profile())

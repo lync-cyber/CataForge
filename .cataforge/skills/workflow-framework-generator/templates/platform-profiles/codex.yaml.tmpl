@@ -2,16 +2,29 @@ platform_id: codex
 display_name: Codex CLI
 
 tool_map:
-  file_read: shell
-  file_write: apply_patch
-  file_edit: apply_patch
-  file_glob: shell
-  file_grep: shell
-  shell_exec: shell
-  web_search: web_search
-  web_fetch: shell
-  user_question: null
-  agent_dispatch: spawn_agent
+  file_read: {tool: shell, kind: replacement}
+  file_write: {tool: apply_patch, kind: native}
+  file_edit: {tool: apply_patch, kind: native}
+  file_glob: {tool: shell, kind: replacement}
+  file_grep: {tool: shell, kind: replacement}
+  shell_exec: {tool: shell, kind: native, hook_matchers: [Bash]}
+  web_search: {tool: web_search, kind: native}
+  web_fetch: {tool: shell, kind: replacement}
+  user_question:
+    tool: request_user_input
+    kind: native
+    hook_matchers: [request_user_input]
+    availability:
+      any_of:
+        - thread_scopes: [root]
+          collaboration_modes: [plan]
+        - thread_scopes: [root]
+          collaboration_modes: [default]
+          required_features: [default_mode_request_user_input]
+  agent_dispatch: {tool: spawn_agent, kind: native}
+
+agent_config:
+  tool_policy: inherit_only
 
 agent_definition:
   format: toml
@@ -33,6 +46,14 @@ hooks:
     Stop: Stop
     SessionStart: SessionStart
     Notification: PermissionRequest
+  policies:
+    detect_correction:
+      mode: hybrid
+      fallback:
+        strategy: prompt_instruction
+        coverage: partial
+        reason: "直接文本纠偏需人工记录"
+        content: "用户直接纠正既有选择时运行 cataforge correction add；不得使用文本启发式猜测。"
 
 features:
   parallel_agents: true
@@ -41,13 +62,6 @@ features:
   agent_memory: true
   worktree_isolation: false
   plan_mode: true
-
-degradation_notes:
-  user_question: "Not available — use inline prompts or comments in output files"
-  file_read: "Uses shell (cat) — no native Read tool"
-  file_glob: "Uses shell (find/ls) — no native Glob tool"
-  file_grep: "Uses shell (grep/rg) — no native Grep tool"
-  agent_dispatch: "Asynchronous — spawned agents run in background, results polled"
 
 permissions:
   modes: [untrusted, on-request, never]

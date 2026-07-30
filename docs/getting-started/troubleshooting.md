@@ -66,10 +66,10 @@ CLI 启动时已自动切 UTF-8。若仍乱码，通常是**终端渲染**问题
 
 ## Hook 不触发或没有回显
 
-- 对照平台 profile 的 `degradation:` 段：标记为 `degraded` 的事件本就没有原生触发。
+- 对照平台 profile 的 `hooks.policies`：`degraded` 只有 fallback，`hybrid` 同时有原生 hook 与 fallback，`unsupported` 不生成资产。
 - **OpenCode**：原生不支持 hook 事件，需把脚本包装为 `.opencode/plugins/<id>.ts`；否则只有 `rules_injection` 降级生效。
 - **Claude Code**：检查 `.claude/settings.json` 的 `hooks.*` 是否被部署写入。
-- **CodeX**：仅 `Bash` matcher 生效，其它动作看不到 hook 属于预期。
+- **Codex**：检查 `.codex/hooks.json`、`/hooks` 信任状态与 matcher；`request_user_input` 可由原生 `PostToolUse` 匹配。
 
 ## 升级后想找回手改的 AGENT.md 或 Hook 脚本
 

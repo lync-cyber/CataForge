@@ -86,6 +86,17 @@ def _dropped_capability_warnings(
     return warnings
 
 
+def _unenforced_policy_warnings(platform_id: str, collector: dict[str, set[str]]) -> list[str]:
+    if not collector:
+        return []
+    capabilities = sorted({cap for caps in collector.values() for cap in caps})
+    agents = sorted(collector)
+    return [
+        f"WARN: {platform_id}: per-agent tool policy is unenforced for "
+        f"{len(agents)} agent(s) {agents}; affected capabilities: {capabilities}."
+    ]
+
+
 def _source_agent_names(source_dir: Path) -> set[str]:
     return {d.name for d in source_dir.iterdir() if d.is_dir() and (d / "AGENT.md").is_file()}
 
@@ -120,6 +131,7 @@ def _deploy_subdir_agents(
     # per platform instead of spamming one warning per agent per field.
     dropped_collector: dict[str, set[str]] = {}
     warnings_collector: list[str] = []
+    policy_unenforced_collector: dict[str, set[str]] = {}
 
     for agent_name in sorted(source_agents):
         agent_src_dir = source_dir / agent_name
@@ -136,12 +148,14 @@ def _deploy_subdir_agents(
                 target_rel,
                 dropped_collector,
                 warnings_collector,
+                policy_unenforced_collector,
                 manifest,
                 prior_manifest,
             )
         )
 
     actions.extend(_dropped_capability_warnings(adapter.platform_id, dropped_collector))
+    actions.extend(_unenforced_policy_warnings(adapter.platform_id, policy_unenforced_collector))
     actions.extend(warnings_collector)
     actions.extend(
         _prune_orphan_agent_dirs(
@@ -159,6 +173,7 @@ def _write_agent_dir(
     target_rel: str,
     dropped_collector: dict[str, set[str]],
     warnings_collector: list[str],
+    policy_unenforced_collector: dict[str, set[str]],
     manifest: DeployManifest | None,
     prior_manifest: set[str] | None,
 ) -> list[str]:
@@ -180,8 +195,10 @@ def _write_agent_dir(
     translated = translate_agent_md(
         content,
         adapter,
+        agent_id=agent_name,
         dropped_collector=dropped_collector,
         warnings_collector=warnings_collector,
+        policy_unenforced_collector=policy_unenforced_collector,
     )
     rendered = render_runtime_content(translated, adapter)
     atomic_write_text(agent_dst / "AGENT.md", rendered)
@@ -296,6 +313,7 @@ def _deploy_flat_agents(
     source_agents = _source_agent_names(source_dir)
     dropped_collector: dict[str, set[str]] = {}
     warnings_collector: list[str] = []
+    policy_unenforced_collector: dict[str, set[str]] = {}
 
     for agent_name in sorted(source_agents):
         agent_md = source_dir / agent_name / "AGENT.md"
@@ -310,8 +328,10 @@ def _deploy_flat_agents(
         translated = translate_agent_md(
             content,
             adapter,
+            agent_id=agent_name,
             dropped_collector=dropped_collector,
             warnings_collector=warnings_collector,
+            policy_unenforced_collector=policy_unenforced_collector,
         )
         # Render runtime placeholders BEFORE the envelope wraps the body —
         # Codex's TOML wrapper embeds the markdown verbatim, so rendering
@@ -337,6 +357,7 @@ def _deploy_flat_agents(
     )
 
     actions.extend(_dropped_capability_warnings(adapter.platform_id, dropped_collector))
+    actions.extend(_unenforced_policy_warnings(adapter.platform_id, policy_unenforced_collector))
     actions.extend(warnings_collector)
 
     if adapter.prune_legacy_agent_subdirs:

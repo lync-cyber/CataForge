@@ -66,12 +66,12 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 并行读取所有目标平台的 `profile.yaml` (`.cataforge/platforms/<platform_id>/profile.yaml`)，提取并记录每个平台当前的:
 
 - `version_tested` — 上次审计的版本号
-- `tool_map` / `extended_capabilities` — 工具映射
+- `tool_map` / `extended_capabilities` — 类型化 capability binding
 - `agent_config.supported_fields` / `memory_scopes` / `isolation_modes` — agent 配置
 - `features` — 17 个平台特性 flag
 - `permissions.modes` — 支持的审批模式
 - `model_routing` — 模型路由配置
-- `hooks.event_map` / `tool_overrides` / `degradation` — hook 配置
+- `hooks.event_map` / capability `hook_matchers` / `hooks.policies` — hook 配置
 - `agent_definition` — agent 格式和扫描目录
 - `dispatch` — 调度方式和参数
 
@@ -103,16 +103,16 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
 | 维度 | 对比项 | 影响级别判定 |
 |------|--------|-------------|
-| **tool_map** | 工具名称变化（重命名/新增/移除） | CRITICAL: 已有映射名称变更; MAJOR: 新增工具可映射; MINOR: null→仍然 null |
-| **extended_capabilities** | 扩展能力变化 | MAJOR: null→有值（平台新增支持）; MINOR: 仍 null |
+| **tool_map** | tool / kind / availability / hook_matchers 变化 | CRITICAL: 原生工具或 matcher 名称错误; MAJOR: 新增原生或条件能力; MINOR: unsupported 不变 |
+| **extended_capabilities** | 扩展能力变化 | MAJOR: unsupported→native/replacement; MINOR: 仍 unsupported |
 | **agent_config.supported_fields** | 支持字段变化 | MAJOR: 新增可支持字段; MINOR: 已声明字段不变 |
 | **agent_config.memory_scopes** | memory scope 变化 | MAJOR: 新增 scope; MINOR: 不变 |
 | **features** | 特性 flag 变化 | MAJOR: false→true（平台新增特性）; MINOR: 不变或 true→false |
 | **permissions.modes** | 审批模式变化 | MAJOR: 新增模式; MINOR: 不变 |
 | **model_routing** | 模型列表变化 | MAJOR: 新增模型; MINOR: 不变 |
 | **hooks.event_map** | 事件名称/新增事件 | CRITICAL: 已有事件名变更; MAJOR: 新增可用事件 |
-| **hooks.tool_overrides** | matcher 名称变化 | CRITICAL: override 名称与平台不符 |
-| **hooks.degradation** | 降级状态可升级 | MAJOR: degraded→native 可升级; MINOR: 仍 degraded |
+| **capability hook_matchers** | matcher 名称变化 | CRITICAL: matcher 名称与平台不符 |
+| **hooks.policies** | hook mode / fallback / coverage 变化 | MAJOR: degraded→native/hybrid 可升级; CRITICAL: coverage 被错误标成 equivalent |
 | **agent_definition** | 格式/路径变化 | CRITICAL: 格式不兼容; MAJOR: 路径变更 |
 | **dispatch** | 调度方式/参数变化 | CRITICAL: 参数签名变更 |
 | **version_tested** | 版本号过期 | INFO: 需要更新 |
@@ -147,7 +147,7 @@ CataForge 通过多层抽象覆盖 AI IDE 的能力差异:
 
 仅当差异影响到源码逻辑时才修改。常见场景:
 
-- **新增 hook_tool_overrides**: 在 `base.py` 已有通用 property，仅在 profile.yaml 配置即可
+- **新增 hook matcher**: 在对应 CapabilityBinding 的 `hook_matchers` 配置
 - **_md_to_toml() 变更**: 当 Codex agent 格式变化时修改 `codex.py`
 - **新增 Capability ID**: 同时更新 `types.py` 和所有 `profile.yaml`
 - **conformance 逻辑**: 当检查逻辑需要适配新维度时更新 `conformance.py`
@@ -225,7 +225,7 @@ python -c "from cataforge.adapter.platform.conformance import check_all_extended
 1. 检查该平台的 `overrides/` 目录下所有文件是否需要更新
 2. 检查 `hooks.yaml` 中所有 hook 脚本在该平台的降级状态是否正确
 3. 检查该平台的 `inject_mcp_config()` 实现是否与最新 MCP 配置格式兼容
-4. 如果该平台有 `tool_overrides`，验证 override 的工具名称在最新版中仍然有效
+4. 验证 capability binding 的 `hook_matchers` 在最新版 hook payload 中仍然有效
 5. 验证 `agent_config.supported_fields` 是否完整覆盖平台最新的 agent frontmatter
 6. 验证 `features` 中的 flag 是否反映平台最新发布的功能
 7. 验证 `permissions.modes` 是否覆盖平台所有审批模式

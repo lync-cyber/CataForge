@@ -51,7 +51,7 @@ def populate_required_source_assets(cataforge_dir: Path) -> None:
         (cataforge_dir / name).mkdir(parents=True, exist_ok=True)
     hooks_yaml = cataforge_dir / "hooks" / "hooks.yaml"
     if not hooks_yaml.is_file():
-        hooks_yaml.write_text("version: 1\n", encoding="utf-8")
+        hooks_yaml.write_text("schema_version: 2\nhooks: {}\n", encoding="utf-8")
 
 
 def make_minimal_project(tmp_path: Path, *, framework_json: dict | None = None) -> Path:

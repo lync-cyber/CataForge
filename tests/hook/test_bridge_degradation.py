@@ -25,10 +25,6 @@ class _StubAdapter:
     def __init__(self, degradation: dict[str, str]) -> None:
         self._degradation = degradation
 
-    @property
-    def hook_degradation(self) -> dict[str, str]:
-        return dict(self._degradation)
-
 
 def _patch_templates(
     monkeypatch: pytest.MonkeyPatch,
@@ -36,8 +32,18 @@ def _patch_templates(
 ) -> None:
     monkeypatch.setattr(
         bridge,
-        "load_hooks_spec",
-        lambda _p=None: {"hooks": {}, "degradation_templates": templates},
+        "get_degraded_hooks",
+        lambda _adapter: [
+            {
+                "name": name,
+                "strategy": template.get("strategy", "skip"),
+                "coverage": "none",
+                "content": template.get("content", ""),
+                "asset": None,
+                "reason": template.get("reason", ""),
+            }
+            for name, template in templates.items()
+        ],
     )
 
 
@@ -59,7 +65,9 @@ def test_unknown_strategy_emits_warn_not_silent(
     )
 
     adapter = _StubAdapter(degradation={"fictional_hook": "degraded"})
-    actions = bridge.apply_degradation(adapter, tmp_path, dry_run=False)
+    actions = bridge.apply_degradation(
+        adapter, tmp_path, output_dir=tmp_path / "generated", dry_run=False
+    )
 
     warn_lines = [a for a in actions if a.startswith("WARN:")]
     assert len(warn_lines) == 1, actions
@@ -89,17 +97,10 @@ def test_prompt_instruction_writes_aggregate_file(
     )
 
     adapter = _StubAdapter(degradation={"log_agent_dispatch": "degraded"})
-    actions = bridge.apply_degradation(adapter, tmp_path, dry_run=False)
+    output_dir = tmp_path / "generated"
+    actions = bridge.apply_degradation(adapter, tmp_path, output_dir=output_dir, dry_run=False)
 
-    out_path = (
-        tmp_path
-        / ".cataforge"
-        / "platforms"
-        / "test"
-        / "overrides"
-        / "rules"
-        / "auto-prompt-instructions.md"
-    )
+    out_path = output_dir / "auto-prompt-instructions.md"
     assert out_path.is_file()
     body = out_path.read_text(encoding="utf-8")
     assert "# Auto-generated Agent Instructions" in body
@@ -125,17 +126,10 @@ def test_prompt_checklist_writes_aggregate_file(
     )
 
     adapter = _StubAdapter(degradation={"validate_agent_result": "degraded"})
-    actions = bridge.apply_degradation(adapter, tmp_path, dry_run=False)
+    output_dir = tmp_path / "generated"
+    actions = bridge.apply_degradation(adapter, tmp_path, output_dir=output_dir, dry_run=False)
 
-    out_path = (
-        tmp_path
-        / ".cataforge"
-        / "platforms"
-        / "test"
-        / "overrides"
-        / "rules"
-        / "auto-prompt-checklists.md"
-    )
+    out_path = output_dir / "auto-prompt-checklists.md"
     assert out_path.is_file()
     body = out_path.read_text(encoding="utf-8")
     assert "Self-check Checklists" in body
@@ -178,9 +172,10 @@ def test_each_strategy_writes_distinct_file(
             "validate_agent_result": "degraded",
         }
     )
-    actions = bridge.apply_degradation(adapter, tmp_path, dry_run=False)
+    output_dir = tmp_path / "generated"
+    actions = bridge.apply_degradation(adapter, tmp_path, output_dir=output_dir, dry_run=False)
 
-    base = tmp_path / ".cataforge" / "platforms" / "test" / "overrides" / "rules"
+    base = output_dir
     assert (base / "auto-safety-degradation.md").is_file()
     assert (base / "auto-prompt-instructions.md").is_file()
     assert (base / "auto-prompt-checklists.md").is_file()
@@ -207,10 +202,11 @@ def test_dry_run_writes_no_files_but_reports_intent(
     )
 
     adapter = _StubAdapter(degradation={"log_agent_dispatch": "degraded"})
-    actions = bridge.apply_degradation(adapter, tmp_path, dry_run=True)
+    output_dir = tmp_path / "generated"
+    actions = bridge.apply_degradation(adapter, tmp_path, output_dir=output_dir, dry_run=True)
 
-    assert any("would write prompt_instruction" in a for a in actions), actions
-    assert not (tmp_path / ".cataforge" / "platforms" / "test" / "overrides" / "rules").exists()
+    assert any("would stage prompt_instruction" in a for a in actions), actions
+    assert not output_dir.exists()
 
 
 def test_known_strategies_set_matches_aggregate_outputs_plus_skip() -> None:

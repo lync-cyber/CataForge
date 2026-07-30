@@ -24,6 +24,7 @@ from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
 from cataforge.runtime.deploy.deployer import Deployer
 from cataforge.runtime.deploy.manifest import load_prior_manifest, platform_manifest_path
+from tests.profile_factory import typed_profile
 
 # ---------------------------------------------------------------------------
 # Platform profiles used across multiple tests
@@ -154,9 +155,7 @@ def _init_project(tmp_path: Path, platform_id: str, profile: dict) -> Path:
         encoding="utf-8",
     )
     (cf / "hooks").mkdir(exist_ok=True)
-    (cf / "hooks" / "hooks.yaml").write_text(
-        "hooks: {}\ndegradation_templates: {}\n", encoding="utf-8"
-    )
+    (cf / "hooks" / "hooks.yaml").write_text("schema_version: 2\nhooks: {}\n", encoding="utf-8")
     (cf / "mcp").mkdir(exist_ok=True)
     skills_dir = cf / "skills" / "demo-skill"
     skills_dir.mkdir(parents=True, exist_ok=True)
@@ -169,7 +168,7 @@ def _init_project(tmp_path: Path, platform_id: str, profile: dict) -> Path:
     )
     pdir = cf / "platforms" / platform_id
     pdir.mkdir(parents=True, exist_ok=True)
-    (pdir / "profile.yaml").write_text(yaml.safe_dump(profile), encoding="utf-8")
+    (pdir / "profile.yaml").write_text(yaml.safe_dump(typed_profile(profile)), encoding="utf-8")
     return root
 
 

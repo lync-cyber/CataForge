@@ -1,4 +1,4 @@
-"""B6 — hooks.yaml consistency: script reachability, syntax, capability, manifest, degradation."""
+"""B6 — hooks.yaml consistency: scripts, capabilities, manifest, and hook policies."""
 
 from __future__ import annotations
 
@@ -36,10 +36,10 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
     * γ — matcher_capability validity: each ``matcher_capability`` value
       is a member of ``CAPABILITY_IDS`` ∪ ``EXTENDED_CAPABILITY_IDS``.
       A typo here silently produces a hook that never fires.
-    * δ — degradation parity: for every platform ``profile.yaml`` under
-      ``.cataforge/platforms/``, the keys of ``hooks.degradation`` must
+    * δ — policy parity: for every platform ``profile.yaml`` under
+      ``.cataforge/platforms/``, the keys of ``hooks.policies`` must
       exactly match the set of script names referenced in hooks.yaml.
-      Missing flag → WARN; orphan flag → WARN (dead config).
+      Missing policy → WARN; orphan policy → WARN (dead config).
     * ε — manifest drift: every non-``custom:`` script in hooks.yaml
       must appear in ``cataforge.runtime.hook.manifest.HOOKS_MANIFEST``. Catches
       "wired a helper module as a hook" bugs.
@@ -65,7 +65,7 @@ def check_b6_hook_consistency(root: Path, report: Report) -> None:
     _check_reachability_and_syntax(referenced_scripts, root, report)
     _check_capabilities(referenced_caps, report)
     _check_manifest_drift(referenced_scripts, report)
-    _check_degradation_parity(referenced_scripts, root, report)
+    _check_policy_parity(referenced_scripts, root, report)
 
 
 def _collect_references(hooks_data: dict[str, Any]) -> tuple[set[str], set[str]]:
@@ -164,8 +164,8 @@ def _check_manifest_drift(referenced_scripts: set[str], report: Report) -> None:
             )
 
 
-def _check_degradation_parity(referenced_scripts: set[str], root: Path, report: Report) -> None:
-    """δ: each platform profile's degradation keys match hooks.yaml scripts."""
+def _check_policy_parity(referenced_scripts: set[str], root: Path, report: Report) -> None:
+    """δ: each platform profile's hook policy keys match hooks.yaml scripts."""
     platforms_dir = ProjectPaths(root).platforms_dir
     if not platforms_dir.is_dir():
         return
@@ -181,30 +181,30 @@ def _check_degradation_parity(referenced_scripts: set[str], root: Path, report: 
             continue
         if not isinstance(profile, dict):
             continue
-        degradation = ((profile.get("hooks") or {}).get("degradation")) or {}
-        if not isinstance(degradation, dict):
+        policies = ((profile.get("hooks") or {}).get("policies")) or {}
+        if not isinstance(policies, dict):
             continue
-        declared = set(degradation.keys())
-        # custom: scripts ship per-project; degradation key drops the prefix.
+        declared = set(policies.keys())
+        # custom: scripts ship per-project; policy key drops the prefix.
         normalized_refs = {s.removeprefix("custom:") for s in referenced_scripts}
         missing = sorted(normalized_refs - declared)
         orphan = sorted(declared - normalized_refs)
         for script in missing:
             report.add(
-                "B6_hook_degradation_coverage",
+                "B6_hook_policy_coverage",
                 "WARN",
                 f"platforms/{plat_dir.name}",
                 f"script {script!r} referenced in hooks.yaml but has no "
-                "degradation flag in this profile.yaml — deploy will "
-                "default to implicit 'native' which may silently mask a "
-                "real degradation requirement",
+                "hook policy in this profile.yaml — deploy will default "
+                "to implicit 'native', which may silently mask a real "
+                "availability or fallback requirement",
             )
         for script in orphan:
             report.add(
-                "B6_hook_degradation_coverage",
+                "B6_hook_policy_coverage",
                 "WARN",
                 f"platforms/{plat_dir.name}",
-                f"degradation entry {script!r} has no matching hooks.yaml "
+                f"hook policy {script!r} has no matching hooks.yaml "
                 "script — dead config (silently outdated since the script "
                 "was removed)",
             )

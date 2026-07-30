@@ -29,6 +29,7 @@ import cataforge.core.scaffold as scaffold_mod
 from cataforge.adapter.platform.registry import clear_cache
 from cataforge.core.config import ConfigManager
 from cataforge.runtime.deploy.deployer import Deployer
+from tests.profile_factory import typed_profile
 
 _CLAUDE_PROFILE: dict = {
     "platform_id": "claude-code",
@@ -65,11 +66,11 @@ _SCAFFOLD_CONTENT: dict[str, str] = {
     "agents/orchestrator/AGENT.md": (
         "---\nname: orchestrator\ntools: file_read\n---\nbody\nsecond line\n"
     ),
-    "hooks/hooks.yaml": "hooks: {}\ndegradation_templates: {}\n",
+    "hooks/hooks.yaml": "schema_version: 2\nhooks: {}\n",
     "skills/demo-skill/SKILL.md": "---\nname: demo-skill\ndescription: demo\n---\nbody\nmore\n",
     "skills/demo-skill/helper.md": "helper content\nrow two\n",
     "commands/bootstrap.md": "---\ndescription: bootstrap\n---\nbody\nrow\n",
-    "platforms/claude-code/profile.yaml": yaml.safe_dump(_CLAUDE_PROFILE),
+    "platforms/claude-code/profile.yaml": yaml.safe_dump(typed_profile(_CLAUDE_PROFILE)),
 }
 
 

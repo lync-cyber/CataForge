@@ -10,6 +10,7 @@ import yaml
 
 from cataforge.adapter.platform.registry import get_adapter
 from cataforge.runtime.agent.translator import translate_agent_md
+from tests.profile_factory import typed_profile
 
 
 @pytest.fixture()
@@ -44,7 +45,7 @@ def project_dir(tmp_path: Path) -> Path:
         p = cataforge_dir / "platforms" / pid
         p.mkdir(parents=True)
         with open(p / "profile.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(profile, f)
+            yaml.dump(typed_profile(profile), f)
 
     return tmp_path
 
@@ -66,14 +67,14 @@ class TestTranslation:
         platforms_dir = project_dir / ".cataforge" / "platforms"
         adapter = get_adapter("claude-code", platforms_dir)
         result = translate_agent_md(SAMPLE_AGENT_MD, adapter)
-        assert "tools: Read, Edit, Bash, Agent" in result
+        assert "tools: Agent, Bash, Edit, Read" in result
         assert "file_read" not in result.split("tools:")[1].split("\n")[0]
 
     def test_translate_cursor(self, project_dir: Path) -> None:
         platforms_dir = project_dir / ".cataforge" / "platforms"
         adapter = get_adapter("cursor", platforms_dir)
         result = translate_agent_md(SAMPLE_AGENT_MD, adapter)
-        assert "tools: Read, Write, Shell, Task" in result
+        assert "tools: Read, Shell, Task, Write" in result
 
     def test_body_unchanged(self, project_dir: Path) -> None:
         platforms_dir = project_dir / ".cataforge" / "platforms"
@@ -123,17 +124,17 @@ class TestBracketStripRobustness:
             "---\n"
             "name: test\n"
             "tools: file_read, web_fetch, user_question\n"
-            "disallowedTools: user_question\n"
+            "disallowedTools: unknown_deny\n"
             "---\nbody\n"
         )
         collector: dict[str, set[str]] = {}
         translate_agent_md(md, adapter, dropped_collector=collector)
 
-        assert "tools" in collector
-        assert "web_fetch" in collector["tools"]
-        assert "user_question" in collector["tools"]
-        assert "disallowedTools" in collector
-        assert collector["disallowedTools"] == {"user_question"}
+        assert collector["agent_policy"] == {
+            "web_fetch",
+            "user_question",
+            "unknown_deny",
+        }
 
     def test_collector_suppresses_per_call_warning(
         self, project_dir: Path, caplog: pytest.LogCaptureFixture
@@ -149,20 +150,20 @@ class TestBracketStripRobustness:
             translate_agent_md(md, adapter, dropped_collector=collector)
 
         # Collector should have captured the miss, but logger should be silent.
-        assert collector == {"tools": {"unknown_cap"}}
+        assert collector == {"agent_policy": {"unknown_cap"}}
         warning_records = [r for r in caplog.records if "no platform mapping" in r.getMessage()]
         assert warning_records == []
 
     def test_fallback_logger_dedups_within_call(
         self, project_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Legacy path (no collector): identical caps in tools+disallowed log once per field."""
+        """No collector: repeated missing capabilities log once per policy."""
         platforms_dir = project_dir / ".cataforge" / "platforms"
         adapter = get_adapter("claude-code", platforms_dir)
         md = (
             "---\nname: test\n"
             "tools: unknown, unknown, unknown\n"
-            "disallowedTools: unknown\n"
+            "disallowedTools: unknown_deny\n"
             "---\nbody\n"
         )
 
@@ -170,9 +171,9 @@ class TestBracketStripRobustness:
         with caplog.at_level("WARNING"):
             translate_agent_md(md, adapter)
 
-        # One WARN per field — two total, not four.
+        # The policy compiler aggregates both fields into one diagnostic.
         warning_records = [r for r in caplog.records if "no platform mapping" in r.getMessage()]
-        assert len(warning_records) == 2, [r.getMessage() for r in warning_records]
+        assert len(warning_records) == 1, [r.getMessage() for r in warning_records]
 
 
 def _skills_project(tmp_path: Path, *, needs_skill_deploy: bool) -> Path:
@@ -191,7 +192,7 @@ def _skills_project(tmp_path: Path, *, needs_skill_deploy: bool) -> Path:
     p = cataforge_dir / "platforms" / "codex"
     p.mkdir(parents=True)
     with open(p / "profile.yaml", "w", encoding="utf-8") as f:
-        yaml.dump(profile, f)
+        yaml.dump(typed_profile(profile), f)
     return cataforge_dir / "platforms"
 
 
@@ -280,7 +281,7 @@ def tier_project_dir(tmp_path: Path) -> Path:
         p = cataforge_dir / "platforms" / pid
         p.mkdir(parents=True)
         with open(p / "profile.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(profile, f)
+            yaml.dump(typed_profile(profile), f)
     return tmp_path
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from cataforge.adapter.platform.profile_schema import HookPolicy
 from cataforge.runtime.hook.bridge import generate_platform_hooks
 
 
@@ -29,16 +30,25 @@ class _StubAdapter:
         self._event_map = event_map or {}
         self._degradation = degradation or {"guard_dangerous": "native"}
 
-    def get_tool_map(self) -> dict[str, str | None]:
-        return dict(self._tool_map)
-
     @property
     def hook_event_map(self) -> dict[str, str | None]:
         return dict(self._event_map)
 
-    @property
-    def hook_degradation(self) -> dict[str, str]:
-        return dict(self._degradation)
+    def get_hook_policy(self, hook_name: str) -> HookPolicy:
+        mode = self._degradation.get(hook_name, "native")
+        if mode == "degraded":
+            return HookPolicy(
+                mode="degraded",
+                fallback={
+                    "strategy": "skip",
+                    "coverage": "none",
+                    "reason": "test",
+                },
+            )
+        return HookPolicy(mode=mode)
+
+    def resolve_hook_matcher(self, capability: str) -> str | None:
+        return self._tool_map.get(capability)
 
     def get_hook_command_template(self) -> str:
         return "python -m cataforge.runtime.hook.scripts.{module}"
