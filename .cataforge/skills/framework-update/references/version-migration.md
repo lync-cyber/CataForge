@@ -8,6 +8,24 @@
 - 滚动窗口：只保留最近 3 个 minor 版本系列，新增段时删除最旧段；完整历史由框架仓 CHANGELOG.md 承担。
 - 内容是**提炼**而非复制：只写下游要「做什么 / 注意什么」，不搬运 CHANGELOG 条目原文。
 
+## [0.19.0] — 2026-07-30
+
+### 更新重点
+
+- `cataforge phase transition` 复合命令：阶段转换的确定性步骤链（核验 / 依赖新鲜度 / reconcile / doc-consistency / 事件批量 / hygiene）代码化为一条幂等命令，分支以结构化选项回传决策后重跑。
+- SHACL shapes 从 gitignore 转为提交 + 随 wheel 发布；`kg validate` 新增 `--require-shacl`（SHACL 不可运行即失败）与 doctor gating 检查，不再有静默跳过路径。
+- KG 写入门槽守卫：`context update` / `kg update` 对枚举域 slot 按 schema 校验（越界值报错列合法值），`task_status` 更新执行任务状态机（`todo → in_progress ⇄ review → done`），越迁需 `--ack-status-jump`。
+- KG SHACL codegen 性能修复：单次 codegen 从 ~70s 降至 ~4s，KG 测试套件从 ~350s 降至 ~135s。
+- 人工检查点摘要携带可视化附件（`viz trace` / `viz arch` / `viz tasks`），与 Sprint 收口同语义。
+- adapter 类型化 CapabilityBinding、条件能力解析、hook policy/fallback、agent 权限编译。
+
+### 迁移要点
+
+- graph 模式项目行为更严格：`context update` / `kg update` 对枚举 slot 越界值现在显式拒绝（此前静默通过）；`task_status` 非法跳变需显式 `--ack-status-jump` 确认。
+- CI 中 `kg validate --shacl` 此前在 extras 缺失时静默跳过——现在 `--require-shacl` 使其显式失败；建议在 CI 中改传 `--require-shacl` 以暴露环境缺失。
+- `kg validate` 与 `context validate` 同名但职责不同（前者校验 KG store 健康，后者校验 docs 索引完整性），help 文本已互相交叉指路。
+- 无 BREAKING。
+
 ## [0.18.0] — 2026-07-16
 
 ### 更新重点
@@ -45,20 +63,3 @@
 - doc-review 检查器修复后行为更严格（如 §-ref 现真实校验章节存在），此前被误报掩盖的真实问题可能在升级后首次暴露；建议升级后跑一次 `cataforge skill run doc-review -- all` 复核。
 - 需要自定义领域实体前缀的项目在 `framework.json` `kg.custom_entity_prefixes` 注册 `{prefix: domain_type}`；非法前缀格式（须 `^[A-Z]+$`）注册时即报错。
 - 无其他 BREAKING。
-
-## [0.16.0] — 2026-07-05
-
-### 更新重点
-
-- code-review 静态检查扩容：架构分层守护（`arch.yaml` 声明方向矩阵即激活）、复杂度门禁（`complexity.yaml` 四指标阈值 + 棘轮基线）、`api_surface` / `config_dead_key` / `pragma_inventory` 探针、`--format json` 机读输出。
-- 新增 feature-walkthrough skill：对交付项目功能实现做验收式动态走查，报告落 `docs/reviews/walkthrough/`。
-- 无人值守构建循环：`cataforge unattended build <sprint>` 对已冻结 sprint 每轮 fresh-context 驱动，双层 deny hook + fail-closed preflight 护栏。
-- viz 增强：`viz overview` 项目健康 KPI、dashboard KPI strip / tab 分组 / 跨视图跳转、`viz assets` 资产目录面板。
-- context 增强：`finalize --doc-type / --dry-run`；reconcile 检测节内嵌切片失同步；doc-review 新增导出新鲜度 Layer 1 门禁。
-
-### 迁移要点
-
-- 无 BREAKING。升级后跑 `cataforge doctor`；若历史上有旁路写入 EVENT-LOG，按提示跑 `cataforge event accept-legacy` 设水位线。
-- 架构分层守护与复杂度门禁默认**不激活**：需在项目 `arch.yaml` / `complexity.yaml` 写入声明（comment-only 模板视为未声明）。
-- graph 模式项目若 doc-review 报导出陈旧 FAIL：先 `cataforge context finalize` 重导出再复审。
-- `.cataforge/baselines/*.json` 变更须伴随 CODE-SCAN 报告变更，否则 framework-review 防篡改对账 FAIL。
