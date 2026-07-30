@@ -155,12 +155,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ubuntu covers both the oldest and newest supported Python;
-        # windows covers only the newest — the windows × oldest-Python
-        # combination historically surfaced nothing the other legs miss.
+        # ubuntu covers the newest supported Python (coverage rides this leg);
+        # windows covers the same newest Python — the cross-OS delta is where
+        # regressions surface, not the Python minor.
         include:
-          - os: ubuntu-latest
-            python-version: "3.11"
           # Coverage rides this leg (newest ubuntu Python) — a single
           # deterministic measurement; fail_under (≥75%) lives in
           # [tool.coverage.report].

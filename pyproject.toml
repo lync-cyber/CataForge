@@ -294,7 +294,7 @@ ignore_errors = true
 
 [[tool.mypy.overrides]]
 # Third-party runtime deps that ship no type stubs or py.typed marker.
-module = ["pyshacl.*", "linkml_runtime.*", "docker.*"]
+module = ["pyshacl.*", "linkml_runtime.*", "linkml.*", "rdflib.*", "docker.*"]
 ignore_missing_imports = true
 
 [tool.scriv]
